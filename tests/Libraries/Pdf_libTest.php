@@ -6,10 +6,7 @@ use App\Libraries\Pdf_lib;
 use CodeIgniter\Test\CIUnitTestCase;
 use ReflectionMethod;
 
-/**
- * @internal
- */
-final class Pdf_libTest extends CIUnitTestCase
+class Pdf_libTest extends CIUnitTestCase
 {
     private const ARABIC_HTML = '<p>فاتورة ضريبية رقم 1024</p><p>العميل: أحمد العلي — Total 147.00</p>';
 
@@ -22,7 +19,7 @@ final class Pdf_libTest extends CIUnitTestCase
         $this->pdf = new Pdf_lib();
     }
 
-    public function testRenderReturnsPdfDocument(): void
+    public function testRender_ReturnsPdfDocument(): void
     {
         $output = $this->pdf->render(self::ARABIC_HTML, ['rtl' => true]);
 
@@ -30,14 +27,14 @@ final class Pdf_libTest extends CIUnitTestCase
         $this->assertStringContainsString('%%EOF', $output);
     }
 
-    public function testRenderEmbedsArabicFont(): void
+    public function testRender_EmbedsArabicFont(): void
     {
         $output = $this->pdf->render(self::ARABIC_HTML, ['rtl' => true]);
 
         $this->assertStringContainsString('IBMPlexSansArabic', $output);
     }
 
-    public function testRenderUsesRequestedPageFormat(): void
+    public function testRender_UsesRequestedPageFormat(): void
     {
         $a4 = $this->pdf->render(self::ARABIC_HTML, ['format' => 'A4']);
         $a5 = $this->pdf->render(self::ARABIC_HTML, ['format' => 'A5']);
@@ -46,7 +43,7 @@ final class Pdf_libTest extends CIUnitTestCase
         $this->assertMatchesRegularExpression('/MediaBox \[0 0 419\.5\d* 595\.2\d*\]/', $a5);
     }
 
-    public function testRenderRejectsRemoteImages(): void
+    public function testRender_RejectsRemoteImages(): void
     {
         $started = microtime(true);
 
@@ -56,7 +53,7 @@ final class Pdf_libTest extends CIUnitTestCase
         $this->assertLessThan(5, microtime(true) - $started);
     }
 
-    public function testRenderAllowsOnlyFileStreamWrapper(): void
+    public function testRender_AllowsOnlyFileStreamWrapper(): void
     {
         $createEngine = new ReflectionMethod(Pdf_lib::class, 'createEngine');
 
