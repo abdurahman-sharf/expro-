@@ -159,6 +159,7 @@ return [
     'payment_type'                      => 'Tip',
     'payments'                          => '',
     'payments_total'                    => 'Total Plati',
+    'pdf'                               => '',
     'price'                             => 'Pret',
     'print_after_sale'                  => 'Tipareste dupa Vanzare',
     'quantity'                          => 'Cantitate',

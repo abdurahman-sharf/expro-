@@ -278,6 +278,8 @@ return [
     'receipt_show_taxes'                        => '顯示稅金',
     'receipt_show_total_discount'               => '顯示總折扣',
     'receipt_template'                          => '收據模板',
+    'receipt_thermal_58'                        => '',
+    'receipt_thermal_80'                        => '',
     'receiving_calculate_average_price'         => '計算平均值價格（收貨）',
     'recv_invoice_format'                       => '收據發票格式',
     'register_mode_default'                     => '默認註冊模式',

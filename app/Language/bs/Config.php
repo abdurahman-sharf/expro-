@@ -278,6 +278,8 @@ return [
     'receipt_show_taxes'                        => 'Prikaži porez',
     'receipt_show_total_discount'               => 'Prikaži ukupni popust',
     'receipt_template'                          => 'Šablon računa',
+    'receipt_thermal_58'                        => '',
+    'receipt_thermal_80'                        => '',
     'receiving_calculate_average_price'         => 'Izrač. prosječnih cijena (ulaza)',
     'recv_invoice_format'                       => 'Format računa fakture',
     'register_mode_default'                     => 'Mod registracije',

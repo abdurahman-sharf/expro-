@@ -159,6 +159,7 @@ return [
     'payment_type'                      => 'Kiểu',
     'payments'                          => '',
     'payments_total'                    => 'Đã thanh toán',
+    'pdf'                               => '',
     'price'                             => 'Giá',
     'print_after_sale'                  => 'In sau khi Bán hàng',
     'quantity'                          => 'Số lượng',

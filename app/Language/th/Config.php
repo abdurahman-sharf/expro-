@@ -278,6 +278,8 @@ return [
     'receipt_show_taxes'                        => 'แสดงภาษี',
     'receipt_show_total_discount'               => 'แสดงส่วนลดทั้งหมด',
     'receipt_template'                          => 'ต้นแบบใบเสร็จ',
+    'receipt_thermal_58'                        => '',
+    'receipt_thermal_80'                        => '',
     'receiving_calculate_average_price'         => 'คำนวณราคาเฉลี่ย (ได้รับมา)',
     'recv_invoice_format'                       => 'ใบส่งของ',
     'register_mode_default'                     => 'ค่าปริยายรูปแบบการลงทะเบียน',

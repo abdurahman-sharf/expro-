@@ -278,6 +278,8 @@ return [
     'receipt_show_taxes'                        => 'Показати податковий показник',
     'receipt_show_total_discount'               => 'Показати загальну знижку',
     'receipt_template'                          => 'Шаблон квитанції',
+    'receipt_thermal_58'                        => '',
+    'receipt_thermal_80'                        => '',
     'receiving_calculate_average_price'         => 'Сер. Ціна (отримання)',
     'recv_invoice_format'                       => 'Формат отримання рахунків-фактур',
     'register_mode_default'                     => 'Режим реєстрації за замовчуванням',

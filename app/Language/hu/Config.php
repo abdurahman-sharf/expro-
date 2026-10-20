@@ -278,6 +278,8 @@ return [
     'receipt_show_taxes'                        => 'Adók mutatása',
     'receipt_show_total_discount'               => 'Összes kedvezmény mutatása',
     'receipt_template'                          => 'Nyugta template',
+    'receipt_thermal_58'                        => '',
+    'receipt_thermal_80'                        => '',
     'receiving_calculate_average_price'         => 'Átl. Ár számitása (visszáru)',
     'recv_invoice_format'                       => 'Visszatérítési számla formátum',
     'register_mode_default'                     => '',

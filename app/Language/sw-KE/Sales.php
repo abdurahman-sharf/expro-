@@ -159,6 +159,7 @@ return [
     'payment_type'                      => 'Aina',
     'payments'                          => '',
     'payments_total'                    => 'Jumla ya Malipo',
+    'pdf'                               => '',
     'price'                             => 'Bei',
     'print_after_sale'                  => 'Chapisha baada ya Mauzo',
     'quantity'                          => 'Kiasi',

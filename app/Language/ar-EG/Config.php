@@ -278,6 +278,8 @@ return [
     'receipt_show_taxes'                        => 'عرض الضرائب',
     'receipt_show_total_discount'               => 'عرض إجمالى الخصم',
     'receipt_template'                          => 'قالب الايصال',
+    'receipt_thermal_58'                        => 'حراري 58 ملم',
+    'receipt_thermal_80'                        => 'حراري 80 ملم',
     'receiving_calculate_average_price'         => 'حساب متوسط سعر الأصناف المستلمة',
     'recv_invoice_format'                       => 'شكل فاتورة الإستلام',
     'register_mode_default'                     => 'نمط التسجيل الافتراضي',

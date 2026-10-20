@@ -159,6 +159,7 @@ return [
     'payment_type'                      => 'Tip',
     'payments'                          => '',
     'payments_total'                    => 'Ukupno plaćeno',
+    'pdf'                               => '',
     'price'                             => 'Cijena',
     'print_after_sale'                  => 'Štampaj poslije prodaje',
     'quantity'                          => 'Količina',

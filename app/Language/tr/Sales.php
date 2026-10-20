@@ -159,6 +159,7 @@ return [
     'payment_type'                      => 'Tür',
     'payments'                          => '',
     'payments_total'                    => 'Ödemeler Toplamı',
+    'pdf'                               => '',
     'price'                             => 'Fiyat',
     'print_after_sale'                  => 'Satıştan sonra yazdır',
     'quantity'                          => 'Adet',

@@ -4,6 +4,7 @@ namespace App\Controllers;
 
 use App\Libraries\Barcode_lib;
 use App\Libraries\Email_lib;
+use App\Libraries\Pdf_lib;
 use App\Libraries\Sale_lib;
 use App\Libraries\Tax_lib;
 use App\Libraries\Token_lib;
@@ -24,6 +25,7 @@ use CodeIgniter\HTTP\ResponseInterface;
 use Config\Services;
 use Config\OSPOS;
 use ReflectionException;
+use Throwable;
 use stdClass;
 
 class Sales extends Secure_Controller
@@ -1031,6 +1033,44 @@ class Sales extends Secure_Controller
     }
 
     /**
+     * Streams the sale as a PDF document. Used in app/Views/sales/form.php, invoice.php, quote.php, tax_invoice.php and work_order.php
+     *
+     * @param int $saleId
+     * @param string $type
+     * @return ResponseInterface
+     * @noinspection PhpUnused
+     */
+    public function getPdf(int $saleId, string $type = 'invoice'): ResponseInterface
+    {
+        $personId = $this->session->get('person_id');
+
+        if (!$this->employee->has_grant('reports_sales', $personId)) {
+            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);
+        }
+
+        if (!in_array($type, [...documentTypes(), 'receipt'], true)) {
+            return $this->response->setStatusCode(404)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);
+        }
+
+        $saleData = $this->_load_sale_data($saleId);
+        $number = $saleData[$type . '_number'] ?? '';
+        $this->sale_lib->clear_all();
+
+        try {
+            $pdf = $this->renderPdf($type, $saleData);
+        } catch (Throwable $exception) {
+            log_message('error', 'PDF generation failed: ' . $exception->getMessage());
+
+            return $this->response->setStatusCode(500)->setJSON(['success' => false, 'message' => lang('Sales.transaction_failed')]);
+        }
+
+        return $this->response
+            ->setHeader('Content-Type', 'application/pdf')
+            ->setHeader('Content-Disposition', 'inline; filename="' . rawurlencode($this->documentFilename($type, $number)) . '"')
+            ->setBody($pdf);
+    }
+
+    /**
      * Email PDF invoice to customer. Used in app/Views/sales/form.php, invoice.php, quote.php, tax_invoice.php and work_order.php
      *
      * @param int $saleId
@@ -1044,6 +1084,10 @@ class Sales extends Secure_Controller
 
         if (!$this->employee->has_grant('reports_sales', $personId)) {
             return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);
+        }
+
+        if (!in_array($type, [...documentTypes(), 'receipt'], true)) {
+            return $this->response->setStatusCode(404)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);
         }
 
         $saleData = $this->_load_sale_data($saleId);
@@ -1063,20 +1107,19 @@ class Sales extends Secure_Controller
                 new Token_customer((array)$saleData)
             ];
             $text = $this->token_lib->render($text, $tokens);
-            $saleData['mimetype'] = $this->email_lib->getLogoMimeType();
 
-            // Build img_tag for email views that need it (receipt_email.php)
-            $saleData['img_tag'] = $this->email_lib->buildLogoImgTag();
+            $filename = sys_get_temp_dir() . '/' . $this->documentFilename($type, $number);
 
-            // Generate email attachment: invoice in PDF format
-            $view = Services::renderer();
-            $html = $view->setData($saleData)->render("sales/$type" . '_email', $saleData);
-
-            // Load PDF helper
-            helper(['dompdf', 'file']);
-            $filename = sys_get_temp_dir() . '/' . lang('Sales.' . $type) . '-' . str_replace('/', '-', $number) . '.pdf';
-            if (file_put_contents($filename, create_pdf($html)) !== false) {
-                $result = $this->email_lib->sendEmail($to, $subject, $text, $filename);
+            try {
+                if (file_put_contents($filename, $this->renderPdf($type, $saleData)) !== false) {
+                    $result = $this->email_lib->sendEmail($to, $subject, $text, $filename);
+                }
+            } catch (Throwable $exception) {
+                log_message('error', 'PDF generation failed: ' . $exception->getMessage());
+            } finally {
+                if (is_file($filename)) {
+                    unlink($filename);
+                }
             }
 
             $message = lang($result ? "Sales." . $type . "_sent" : "Sales." . $type . "_unsent") . ' ' . $to;
@@ -1085,6 +1128,26 @@ class Sales extends Secure_Controller
         $this->sale_lib->clear_all();
 
         return $this->response->setJSON(['success' => $result, 'message' => $message, 'id' => $saleId]);
+    }
+
+    private function renderPdf(string $type, array $saleData): string
+    {
+        $pdfLib = new Pdf_lib();
+
+        if ($type === 'receipt') {
+            $saleData['pdf'] = true;
+
+            return $pdfLib->render(view('sales/receipt_email', $saleData), ['format' => 'A5', 'title' => lang('Sales.receipt')]);
+        }
+
+        return $pdfLib->render(view('documents/pdf', ['type' => $type, 'sale' => $saleData]), ['title' => lang('Sales.' . $type)]);
+    }
+
+    private function documentFilename(string $type, string $number): string
+    {
+        $name = trim(lang('Sales.' . $type) . ' ' . $number);
+
+        return preg_replace('~[\\\\/:*?"<>|\x00-\x1f]+~u', '-', $name) . '.pdf';
     }
 
     /**
@@ -1253,6 +1316,7 @@ class Sales extends Secure_Controller
         $data['comments'] = $sale_info['comment'];
         $data['invoice_number'] = $sale_info['invoice_number'];
         $data['quote_number'] = $sale_info['quote_number'];
+        $data['work_order_number'] = $this->sale_lib->get_work_order_number();
         $data['sale_status'] = $sale_info['sale_status'];
 
         $data['company_info'] = implode("\n", [$this->config['address'], $this->config['phone']]);    // TODO: Duplicated code.

@@ -159,6 +159,7 @@ return [
     'payment_type'                      => 'Type',
     'payments'                          => '',
     'payments_total'                    => 'Betaald bedrag',
+    'pdf'                               => '',
     'price'                             => 'Prijs',
     'print_after_sale'                  => 'Print Ticket',
     'quantity'                          => 'Aantal',

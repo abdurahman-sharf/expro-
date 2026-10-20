@@ -18,6 +18,8 @@
  * @var int $sale_id
  * @var array $config
  */
+
+use App\Models\Employee;
 ?>
 
 <?= view('partial/header') ?>
@@ -57,192 +59,12 @@ if (isset($error_message)) {
 
 <?= view('partial/document_actions', ['actions' => array_values(array_filter([
         ['id' => 'show_print_button', 'label' => lang('Common.print'), 'icon' => 'bi-printer', 'onclick' => 'printdoc();'],
+        model(Employee::class)->has_grant('reports_sales', session('person_id')) ? ['id' => 'show_pdf_button', 'label' => lang('Sales.pdf'), 'icon' => 'bi-file-earmark-pdf', 'href' => "sales/pdf/$sale_id_num/invoice", 'target' => '_blank'] : null,
         !empty($customer_email) ? ['id' => 'show_email_button', 'label' => lang('Sales.send_invoice'), 'icon' => 'bi-envelope'] : null,
         ['id' => 'show_sales_button', 'label' => lang('Sales.register'), 'icon' => 'bi-cart3', 'href' => 'sales', 'class' => 'btn-primary'],
         ['id' => 'show_takings_button', 'label' => lang('Sales.takings'), 'icon' => 'bi-card-list', 'href' => 'sales/manage']
     ]))]) ?>
 
-<div id="page-wrap">
-    <div id="header"><?= lang('Sales.invoice') ?></div>
-    <div id="block1">
-        <div id="customer-title">
-            <?php if (isset($customer)) { ?>
-                <div id="customer"><?= nl2br(esc($customer_info)) ?></div>
-            <?php } ?>
-        </div>
-
-        <div id="logo">
-            <?php if ($config['company_logo'] != '') { ?>
-                <img id="image" src="<?= base_url('uploads/' . esc($config['company_logo'], 'url')) ?>" alt="company_logo">
-            <?php } ?>
-            <div>&nbsp;</div>
-            <?php if ($config['receipt_show_company_name']) { ?>
-                <div id="company_name"><?= esc($config['company']) ?></div>
-            <?php } ?>
-        </div>
-    </div>
-
-    <div id="block2">
-        <div id="company-title"><?= nl2br(esc($company_info)) ?></div>
-        <table id="meta">
-            <tr>
-                <td class="meta-head"><?= lang('Sales.invoice_number') ?> </td>
-                <td><?= esc($invoice_number) ?></td>
-            </tr>
-            <tr>
-                <td class="meta-head"><?= lang('Common.date') ?></td>
-                <td><?= esc($transaction_date) ?></td>
-            </tr>
-            <tr>
-                <td class="meta-head"><?= lang('Sales.invoice_total') ?></td>
-                <td><?= to_currency($total) ?></td>
-            </tr>
-        </table>
-    </div>
-
-    <table id="items">
-        <tr>
-            <th><?= lang('Sales.item_number') ?></th>
-            <?php
-        $invoice_columns = 6;
-if ($include_hsn) {
-    $invoice_columns += 1;
-    ?>
-                <th><?= lang('Sales.hsn') ?></th>
-            <?php } ?>
-            <th><?= lang('Sales.item_name') ?></th>
-            <th><?= lang('Sales.quantity') ?></th>
-            <th><?= lang('Sales.price') ?></th>
-            <th><?= lang('Sales.discount') ?></th>
-            <?php
-    if ($discount > 0) {
-        $invoice_columns += 1;
-        ?>
-                <th><?= lang('Sales.customer_discount') ?></th>
-            <?php } ?>
-            <th><?= lang('Sales.total') ?></th>
-        </tr>
-
-        <?php
-        foreach ($cart as $line => $item) {
-            if ($item['print_option'] == PRINT_YES) {
-                ?>
-                <tr class="item-row">
-                    <td><?= esc($item['item_number']) ?></td>
-                    <?php if ($include_hsn): ?>
-                        <td style="text-align: center;"><?= esc($item['hsn_code']) ?></td>
-                    <?php endif; ?>
-                    <td class="item-name"><?= ($item['is_serialized'] || $item['allow_alt_description']) && !empty($item['description']) ? esc($item['description']) : esc($item['name'] . ' ' . $item['attribute_values']) ?></td>
-                    <td style="text-align: center;"><?= to_quantity_decimals($item['quantity']) ?></td>
-                    <td><?= to_currency($item['price']) ?></td>
-                    <td style="text-align: center;"><?= ($item['discount_type'] == FIXED) ? to_currency($item['discount']) : to_decimals($item['discount']) . '%' ?></td>
-                    <?php if ($discount > 0): ?>
-                        <td style="text-align: center;"><?= to_currency($item['discounted_total'] / $item['quantity']) ?></td>
-                    <?php endif; ?>
-                    <td style="border-right: solid 1px; text-align: right;"><?= to_currency($item['discounted_total']) ?></td>
-                </tr>
-                <?php if ($item['is_serialized']) { ?>
-                    <tr class="item-row">
-                        <td class="item-description" colspan="<?= $invoice_columns - 1 ?>"></td>
-                        <td style="text-align: center;"><?= esc($item['serialnumber'])    // TODO: `serialnumber` does not match variable naming conventions for this project.  Should be `serialNumber`?></td>
-                    </tr>
-        <?php
-                }
-            }
-        }
-?>
-
-        <tr>
-            <td class="blank" colspan="<?= $invoice_columns ?>" style="text-align: center;"><?= '&nbsp;' ?></td>
-        </tr>
-
-        <tr>
-            <td colspan="<?= $invoice_columns - 3 ?>" class="blank-bottom"> </td>
-            <td colspan="2" class="total-line"><?= lang('Sales.sub_total') ?></td>
-            <td class="total-value" id="subtotal"><?= to_currency($subtotal) ?></td>
-        </tr>
-
-        <?php foreach ($taxes as $tax_group_index => $tax) { ?>
-            <tr>
-                <td colspan="<?= $invoice_columns - 3 ?>" class="blank"> </td>
-                <td colspan="2" class="total-line"><?= (float)$tax['tax_rate'] . '% ' . esc($tax['tax_group']) ?></td>
-                <td class="total-value" id="taxes"><?= to_currency_tax($tax['sale_tax_amount']) ?></td>
-            </tr>
-        <?php } ?>
-
-        <tr>
-            <td colspan="<?= $invoice_columns - 3 ?>" class="blank"> </td>
-            <td colspan="2" class="total-line"><?= lang('Sales.total') ?></td>
-            <td class="total-value" id="total"><?= to_currency($total) ?></td>
-        </tr>
-
-        <?php
-$only_sale_check = false;
-$show_giftcard_remainder = false;
-foreach ($payments as $payment_id => $payment) {
-    $only_sale_check |= $payment['payment_type'] == lang('Sales.check');
-    $splitpayment = explode(':', $payment['payment_type']);    // TODO: $splitpayment does not meet variable naming standards for this project
-    $show_giftcard_remainder |= $splitpayment[0] == lang('Sales.giftcard');
-    ?>
-            <tr>
-                <td colspan="<?= $invoice_columns - 3 ?>" class="blank"> </td>
-                <td colspan="2" class="total-line"><?= esc($splitpayment[0]) ?></td>
-                <td class="total-value" id="paid"><?= to_currency($payment['payment_amount'] * -1) ?></td>
-            </tr>
-        <?php } ?>
-
-        <?php if (isset($cur_giftcard_value) && $show_giftcard_remainder) { ?>
-            <tr>
-                <td colspan="<?= $invoice_columns - 3 ?>" class="blank"> </td>
-                <td colspan="2" class="total-line"><?= lang('Sales.giftcard_balance') ?></td>
-                <td class="total-value" id="giftcard"><?= to_currency($cur_giftcard_value) ?></td>
-            </tr>
-        <?php } ?>
-
-        <?php if (!empty($payments)) { ?>
-            <tr>
-                <td colspan="<?= $invoice_columns - 3 ?>" class="blank"> </td>
-                <td colspan="2" class="total-line"><?= lang($amount_change >= 0 ? ($only_sale_check ? 'Sales.check_balance' : 'Sales.change_due') : 'Sales.amount_due') ?></td>
-                <td class="total-value" id="change"><?= to_currency($amount_change) ?></td>
-            </tr>
-        <?php } ?>
-
-    </table>
-
-    <div id="terms">
-        <div id="sale_return_policy">
-            <h5>
-                <span><?= nl2br(esc($config['payment_message'])) ?></span>
-                <span style="padding: 4%;"><?= empty($comments) ? esc($config['invoice_default_comments']) : lang('Sales.comments') . ': ' . esc($comments) ?></span>
-            </h5>
-            <div style="padding: 2%;"><?= nl2br(esc($config['return_policy'])) ?></div>
-        </div>
-        <div id="barcode">
-            <?= $barcode ?><br>
-            <?= $sale_id ?>
-        </div>
-    </div>
-</div>
-
-<script type="text/javascript">
-    $(window).on("load", function() {
-        // Install firefox addon in order to use this plugin
-        if (window.jsPrintSetup) {
-            <?php if (!$config['print_header']) { ?>
-                // Set page header
-                jsPrintSetup.setOption('headerStrLeft', '');
-                jsPrintSetup.setOption('headerStrCenter', '');
-                jsPrintSetup.setOption('headerStrRight', '');
-            <?php } ?>
-
-            <?php if (!$config['print_footer']) { ?>
-                // Set empty page footer
-                jsPrintSetup.setOption('footerStrLeft', '');
-                jsPrintSetup.setOption('footerStrCenter', '');
-                jsPrintSetup.setOption('footerStrRight', '');
-            <?php } ?>
-        }
-    });
-</script>
+<?= view('documents/document', ['type' => 'invoice', 'context' => 'screen', 'sale' => get_defined_vars()]) ?>
 
 <?= view('partial/footer') ?>

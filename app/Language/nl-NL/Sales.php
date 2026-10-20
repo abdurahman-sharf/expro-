@@ -159,6 +159,7 @@ return [
     'payment_type'                      => 'Soort',
     'payments'                          => '',
     'payments_total'                    => 'Betalingstotaal',
+    'pdf'                               => '',
     'price'                             => 'Prijs',
     'print_after_sale'                  => 'Afdrukken na verkoop',
     'quantity'                          => 'Hoeveelheid',

@@ -17,8 +17,10 @@
                     <?= form_dropdown(
                         'receipt_template',
                         [
-                            'receipt_default' => lang('Config.receipt_default'),
-                            'receipt_short'   => lang('Config.receipt_short')
+                            'receipt_default'    => lang('Config.receipt_default'),
+                            'receipt_short'      => lang('Config.receipt_short'),
+                            'receipt_thermal_80' => lang('Config.receipt_thermal_80'),
+                            'receipt_thermal_58' => lang('Config.receipt_thermal_58')
                         ],
                         $config['receipt_template'],
                         'class="form-select form-select-sm"'

@@ -96,6 +96,11 @@
       "path": "/sales/receipt/1"
     },
     {
+      "id": "sales-invoice",
+      "group": "sales",
+      "path": "/sales/invoice/1"
+    },
+    {
       "id": "receivings",
       "group": "receivings",
       "path": "/receivings"

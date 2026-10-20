@@ -278,6 +278,8 @@ return [
     'receipt_show_taxes'                        => 'Hiển thị Thuế',
     'receipt_show_total_discount'               => 'Hiển thị Giảm giá tổng cộng',
     'receipt_template'                          => 'Mẫu biên lai',
+    'receipt_thermal_58'                        => '',
+    'receipt_thermal_80'                        => '',
     'receiving_calculate_average_price'         => 'Tính giá tb (Nhập hàng)',
     'recv_invoice_format'                       => 'Định dạng hóa đơn nhận hàng',
     'register_mode_default'                     => 'Chế độ Đăng ký mặc định',

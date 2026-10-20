@@ -14,6 +14,8 @@
  * @var array $payments
  * @var array $config
  */
+
+use App\Models\Employee;
 ?>
 
 <?= view('partial/header') ?>
@@ -53,162 +55,12 @@ if (isset($error_message)) {
 
 <?= view('partial/document_actions', ['actions' => array_values(array_filter([
         ['id' => 'show_print_button', 'label' => lang('Common.print'), 'icon' => 'bi-printer', 'onclick' => 'printdoc();'],
+        model(Employee::class)->has_grant('reports_sales', session('person_id')) ? ['id' => 'show_pdf_button', 'label' => lang('Sales.pdf'), 'icon' => 'bi-file-earmark-pdf', 'href' => "sales/pdf/$sale_id_num/quote", 'target' => '_blank'] : null,
         !empty($customer_email) ? ['id' => 'show_email_button', 'label' => lang('Sales.send_quote'), 'icon' => 'bi-envelope'] : null,
         ['id' => 'show_sales_button', 'label' => lang('Sales.register'), 'icon' => 'bi-cart3', 'href' => 'sales', 'class' => 'btn-primary'],
         ['id' => 'discard_quote_button', 'label' => lang('Sales.discard'), 'icon' => 'bi-x-lg', 'href' => 'sales/discardsuspendedsale', 'class' => 'btn-outline-danger']
     ]))]) ?>
 
-<div id="page-wrap">
-    <div id="header"><?= lang('Sales.quote') ?></div>
-    <div id="block1">
-        <div id="customer-title">
-            <?php if (isset($customer)) { ?>
-                <div id="customer"><?= nl2br(esc($customer_info)) ?></div>
-            <?php } ?>
-        </div>
-
-        <div id="logo">
-            <?php if ($config['company_logo'] != '') { ?>
-                <img id="image" src="<?= base_url('uploads/' . esc($config['company_logo'], 'url')) ?>" alt="company_logo">
-            <?php } ?>
-            <div>&nbsp;</div>
-            <?php if ($config['receipt_show_company_name']) { ?>
-                <div id="company_name"><?= esc($config['company']) ?></div>
-            <?php } ?>
-        </div>
-    </div>
-
-    <div id="block2">
-        <div id="company-title"><?= nl2br(esc($company_info)) ?></div>
-        <table id="meta">
-            <tr>
-                <td class="meta-head"><?= lang('Sales.quote_number') ?></td>
-                <td><?= esc($quote_number) ?></td>
-            </tr>
-            <tr>
-                <td class="meta-head"><?= lang('Common.date') ?></td>
-                <td><?= esc($transaction_date) ?></td>
-            </tr>
-            <tr>
-                <td class="meta-head"><?= lang('Sales.invoice_total') ?></td>
-                <td><?= to_currency($total) ?></td>
-            </tr>
-        </table>
-    </div>
-
-    <table id="items">
-        <tr>
-            <th><?= lang('Sales.item_number') ?></th>
-            <th><?= lang('Sales.item_name') ?></th>
-            <th><?= lang('Sales.quantity') ?></th>
-            <th><?= lang('Sales.price') ?></th>
-            <th><?= lang('Sales.discount') ?></th>
-            <?php
-            $quote_columns = 6;
-            if ($discount > 0) {
-                $quote_columns = $quote_columns + 1;
-            ?>
-                <th><?= lang('Sales.customer_discount') ?></th>
-            <?php } ?>
-            <th><?= lang('Sales.total') ?></th>
-        </tr>
-
-        <?php
-        foreach ($cart as $line => $item) {
-            if ($item['print_option'] == PRINT_YES) {
-        ?>
-                <tr class="item-row">
-                    <td><?= esc($item['item_number']) ?></td>
-                    <td class="item-name"><?= esc($item['name']) ?></td>
-                    <td style="text-align: center;"><?= to_quantity_decimals($item['quantity']) ?></td>
-                    <td><?= to_currency($item['price']) ?></td>
-                    <td style="text-align: center;"><?= ($item['discount_type'] == FIXED) ? to_currency($item['discount']) : to_decimals($item['discount']) . '%' ?></td>
-                    <?php if ($discount > 0): ?>
-                        <td style="text-align: center;"><?= to_currency($item['discounted_total'] / $item['quantity']) ?></td>
-                    <?php endif; ?>
-                    <td style="border-right: solid 1px; text-align: right;"><?= to_currency($item['discounted_total']) ?></td>
-                </tr>
-
-                <?php if ($item['is_serialized']) { ?>
-                    <tr class="item-row">
-                        <td class="item-name" colspan="<?= $quote_columns - 1 ?>"></td>
-                        <td style="text-align: center;"><?= esc($item['serialnumber'])    // TODO: the variable serialnumber does not meet naming conventions for this project ?></td>
-                    </tr>
-        <?php
-                }
-            }
-        }
-        ?>
-
-        <tr>
-            <td class="blank" colspan="<?= $quote_columns ?>" style="text-align: center;"><?= '&nbsp;' //TODO: align is deprecated. Also should replace the php echo for nbsp with simple html ?></td>
-        </tr>
-
-        <tr>
-            <td colspan="<?= $quote_columns - 3 ?>" class="blank-bottom"> </td>
-            <td colspan="2" class="total-line"><?= lang('Sales.sub_total') ?></td>
-            <td class="total-value" id="subtotal"><?= to_currency($subtotal) ?></td>
-        </tr>
-
-        <?php foreach ($taxes as $tax_group_index => $tax) { ?>
-            <tr>
-                <td colspan="<?= $quote_columns - 3 ?>" class="blank"> </td>
-                <td colspan="2" class="total-line"><?= (float)$tax['tax_rate'] . '% ' . esc($tax['tax_group']) ?></td>
-                <td class="total-value" id="taxes"><?= to_currency_tax($tax['sale_tax_amount']) ?></td>
-            </tr>
-        <?php } ?>
-
-        <tr>
-            <td colspan="<?= $quote_columns - 3 ?>" class="blank"> </td>
-            <td colspan="2" class="total-line"><?= lang('Sales.total') ?></td>
-            <td class="total-value" id="total"><?= to_currency($total) ?></td>
-        </tr>
-
-        <?php
-        $only_sale_check = false;
-        $show_giftcard_remainder = false;
-
-        foreach ($payments as $payment_id => $payment) {
-            $only_sale_check |= $payment['payment_type'] == lang('Sales.check');
-            $splitpayment = explode(':', $payment['payment_type']);
-            $show_giftcard_remainder |= $splitpayment[0] == lang('Sales.giftcard');
-        ?>
-            <tr>
-                <td colspan="<?= $quote_columns - 3 ?>" class="blank"> </td>
-                <td colspan="2" class="total-line"><?= $splitpayment[0] ?></td>
-                <td class="total-value" id="paid"><?= to_currency($payment['payment_amount']) ?></td>
-            </tr>
-        <?php } ?>
-    </table>
-    <div id="terms">
-        <div id="sale_return_policy">
-            <h5>
-                <span style="padding: 4%;"><?= empty($comments) ? '' : lang('Sales.comments') . ': ' . esc($comments) ?></span>
-                <span style="padding: 4%;"><?= esc($config['quote_default_comments']) ?></span>
-            </h5>
-        </div>
-    </div>
-</div>
-
-<script type="text/javascript">
-    $(window).on("load", function() {
-        // Install firefox addon in order to use this plugin
-        if (window.jsPrintSetup) {
-            <?php if (!$config['print_header']) { ?>
-                // Set page header
-                jsPrintSetup.setOption('headerStrLeft', '');
-                jsPrintSetup.setOption('headerStrCenter', '');
-                jsPrintSetup.setOption('headerStrRight', '');
-            <?php } ?>
-
-            <?php if (!$config['print_footer']) { ?>
-                // Set empty page footer
-                jsPrintSetup.setOption('footerStrLeft', '');
-                jsPrintSetup.setOption('footerStrCenter', '');
-                jsPrintSetup.setOption('footerStrRight', '');
-            <?php } ?>
-        }
-    });
-</script>
+<?= view('documents/document', ['type' => 'quote', 'context' => 'screen', 'sale' => get_defined_vars()]) ?>
 
 <?= view('partial/footer') ?>

@@ -159,6 +159,7 @@ return [
     'payment_type'                      => 'Typ',
     'payments'                          => '',
     'payments_total'                    => 'Uhrazeno',
+    'pdf'                               => '',
     'price'                             => 'Cena',
     'print_after_sale'                  => 'Vytisknout automaticky',
     'quantity'                          => 'ks',

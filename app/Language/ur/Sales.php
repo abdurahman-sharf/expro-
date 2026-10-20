@@ -159,6 +159,7 @@ return [
     'payment_type'                      => '',
     'payments'                          => '',
     'payments_total'                    => '',
+    'pdf'                               => '',
     'price'                             => '',
     'print_after_sale'                  => '',
     'quantity'                          => '',

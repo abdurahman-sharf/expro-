@@ -159,6 +159,7 @@ return [
     'payment_type'                      => 'Тип',
     'payments'                          => '',
     'payments_total'                    => 'Общо плащания',
+    'pdf'                               => '',
     'price'                             => 'Цена',
     'print_after_sale'                  => 'Печат след продажбата',
     'quantity'                          => 'Количество',

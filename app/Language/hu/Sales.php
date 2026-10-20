@@ -159,6 +159,7 @@ return [
     'payment_type'                      => 'Típus',
     'payments'                          => '',
     'payments_total'                    => 'Fizetve eddig:',
+    'pdf'                               => '',
     'price'                             => 'Ár',
     'print_after_sale'                  => 'Nyomtatás eladás után',
     'quantity'                          => 'Menny.',

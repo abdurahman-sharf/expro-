@@ -159,6 +159,7 @@ return [
     'payment_type'                      => 'Typ',
     'payments'                          => '',
     'payments_total'                    => 'Zahlung Total',
+    'pdf'                               => '',
     'price'                             => 'Preis',
     'print_after_sale'                  => 'Drucke Bon nach Verkauf',
     'quantity'                          => 'Menge',

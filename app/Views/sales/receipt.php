@@ -49,6 +49,7 @@ if (isset($error_message)) {
 
 <?= view('partial/document_actions', ['actions' => array_values(array_filter([
         ['id' => 'show_print_button', 'label' => lang('Common.print'), 'icon' => 'bi-printer', 'onclick' => 'printdoc();'],
+        model(Employee::class)->has_grant('reports_sales', session('person_id')) ? ['id' => 'show_pdf_button', 'label' => lang('Sales.pdf'), 'icon' => 'bi-file-earmark-pdf', 'href' => "sales/pdf/$sale_id_num/receipt", 'target' => '_blank'] : null,
         !empty($customer_email) ? ['id' => 'show_email_button', 'label' => lang('Sales.send_receipt'), 'icon' => 'bi-envelope'] : null,
         ['id' => 'show_sales_button', 'label' => lang('Sales.register'), 'icon' => 'bi-cart3', 'href' => 'sales', 'class' => 'btn-primary'],
         model(Employee::class)->has_grant('reports_sales', session('person_id')) ? ['id' => 'show_takings_button', 'label' => lang('Sales.takings'), 'icon' => 'bi-card-list', 'href' => 'sales/manage'] : null

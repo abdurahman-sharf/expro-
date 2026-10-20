@@ -278,6 +278,8 @@ return [
     'receipt_show_taxes'                        => 'Mostrar Impostos',
     'receipt_show_total_discount'               => 'Mostrar total desconto',
     'receipt_template'                          => 'Modelo de recibo',
+    'receipt_thermal_58'                        => '',
+    'receipt_thermal_80'                        => '',
     'receiving_calculate_average_price'         => 'Calc Médio de Preço (Recebimento)',
     'recv_invoice_format'                       => 'Formato da fatura de recebimento',
     'register_mode_default'                     => 'Modo de registro padrão',

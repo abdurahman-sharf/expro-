@@ -159,6 +159,7 @@ return [
     'payment_type'                      => 'Tipo',
     'payments'                          => '',
     'payments_total'                    => 'Total de pagado',
+    'pdf'                               => '',
     'price'                             => 'Precio',
     'print_after_sale'                  => 'Imprimir recibo después de una venta',
     'quantity'                          => 'Cantidad',

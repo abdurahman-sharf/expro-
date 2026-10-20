@@ -205,6 +205,7 @@ class Autoload extends AutoloadConfig
         'security',
         'asset',
         'navigation',
-        'ui'
+        'ui',
+        'document'
     ];
 }

@@ -278,6 +278,8 @@ return [
     'receipt_show_taxes'                        => 'הצג מסים',
     'receipt_show_total_discount'               => 'הצג הנחה כוללת',
     'receipt_template'                          => 'תבנית קבלה',
+    'receipt_thermal_58'                        => '',
+    'receipt_thermal_80'                        => '',
     'receiving_calculate_average_price'         => 'חישוב ממוצע למחיר (החזרותספקים)',
     'recv_invoice_format'                       => 'תבנית חשבונית החזרותספקים',
     'register_mode_default'                     => 'מצב רישום ברירת מחדל',

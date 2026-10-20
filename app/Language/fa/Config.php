@@ -278,6 +278,8 @@ return [
     'receipt_show_taxes'                        => 'نمایش مالیات',
     'receipt_show_total_discount'               => 'نمایش تخفیف در کل',
     'receipt_template'                          => 'الگوی رسید',
+    'receipt_thermal_58'                        => '',
+    'receipt_thermal_80'                        => '',
     'receiving_calculate_average_price'         => 'کالای میانگین. قیمت (دريافت)',
     'recv_invoice_format'                       => 'قالب فاکتور دریافتی',
     'register_mode_default'                     => 'حالت پیش فرض ثبت نام',

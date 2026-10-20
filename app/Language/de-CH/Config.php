@@ -278,6 +278,8 @@ return [
     'receipt_show_taxes'                        => 'Zeige MWSt',
     'receipt_show_total_discount'               => 'Zeige Gesamtrabatt',
     'receipt_template'                          => 'Receipt Template',
+    'receipt_thermal_58'                        => '',
+    'receipt_thermal_80'                        => '',
     'receiving_calculate_average_price'         => 'Berechne Durchschnittseinkaufspreis',
     'recv_invoice_format'                       => 'Format Eingangsrechnung',
     'register_mode_default'                     => '',

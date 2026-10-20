@@ -159,6 +159,7 @@ return [
     'payment_type'                      => 'نوع',
     'payments'                          => '',
     'payments_total'                    => 'کل پرداختها',
+    'pdf'                               => '',
     'price'                             => 'قیمت',
     'print_after_sale'                  => 'چاپ بعد از فروش',
     'quantity'                          => 'تعداد',

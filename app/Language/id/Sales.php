@@ -159,6 +159,7 @@ return [
     'payment_type'                      => 'Jenis',
     'payments'                          => '',
     'payments_total'                    => 'Total Pembayaran',
+    'pdf'                               => '',
     'price'                             => 'Harga',
     'print_after_sale'                  => 'Cetak Faktur setelah penjualan',
     'quantity'                          => 'Jumlah',

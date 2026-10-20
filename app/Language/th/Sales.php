@@ -159,6 +159,7 @@ return [
     'payment_type'                      => 'ชำระโดย',
     'payments'                          => '',
     'payments_total'                    => 'ยอดชำระแล้ว',
+    'pdf'                               => '',
     'price'                             => 'ราคา',
     'print_after_sale'                  => 'พิมพ์บิลหลังการขาย',
     'quantity'                          => 'จำนวน',

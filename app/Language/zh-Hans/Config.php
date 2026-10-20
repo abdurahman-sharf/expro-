@@ -278,6 +278,8 @@ return [
     'receipt_show_taxes'                        => '显示税',
     'receipt_show_total_discount'               => 'Show Total Discount',
     'receipt_template'                          => '收据模板',
+    'receipt_thermal_58'                        => '',
+    'receipt_thermal_80'                        => '',
     'receiving_calculate_average_price'         => 'Calc avg. Price (Receiving)',
     'recv_invoice_format'                       => 'Receivings Invoice Format',
     'register_mode_default'                     => '',

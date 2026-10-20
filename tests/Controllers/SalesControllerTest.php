@@ -691,6 +691,41 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('&lt;svg', $body);
     }
 
+    public function testGetPdf_ReturnsPdfDocumentForEmployeeWithReportsSales(): void
+    {
+        $supervisorId = $this->createReportsSalesEmployee();
+        $saleId = $this->createSale($supervisorId);
+        $this->loginAs($supervisorId);
+
+        $response = $this->get("/sales/pdf/{$saleId}/invoice");
+
+        $response->assertStatus(200);
+        $response->assertHeader('Content-Type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF-', $response->response()->getBody());
+    }
+
+    public function testGetPdf_RejectsCashierWithoutReportsSales(): void
+    {
+        $cashierId = $this->createCashierEmployee();
+        $saleId = $this->createSale($cashierId);
+        $this->loginAs($cashierId);
+
+        $response = $this->get("/sales/pdf/{$saleId}/invoice");
+
+        $response->assertStatus(403);
+    }
+
+    public function testGetPdf_RejectsUnknownDocumentType(): void
+    {
+        $supervisorId = $this->createReportsSalesEmployee();
+        $saleId = $this->createSale($supervisorId);
+        $this->loginAs($supervisorId);
+
+        $response = $this->get("/sales/pdf/{$saleId}/secret");
+
+        $response->assertStatus(404);
+    }
+
     public function testGetIndex_RendersPosLayoutWithTotalBar(): void
     {
         $cashierId = $this->createCashierEmployee();

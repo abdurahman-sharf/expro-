@@ -278,6 +278,8 @@ return [
     'receipt_show_taxes'                        => 'Vergini Göstər',
     'receipt_show_total_discount'               => 'Ümumi Endirim göstər',
     'receipt_template'                          => 'Qəbz Şablonu',
+    'receipt_thermal_58'                        => '',
+    'receipt_thermal_80'                        => '',
     'receiving_calculate_average_price'         => 'Otalama Qiyməti Hesabla (Alınan)',
     'recv_invoice_format'                       => 'Alınan Fatura Formatı',
     'register_mode_default'                     => 'Standart Qeydiyyat Rejimi',

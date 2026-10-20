@@ -278,6 +278,8 @@ return [
     'receipt_show_taxes'                        => 'باجەکان نیشان بدە',
     'receipt_show_total_discount'               => 'داشکاندنی گشتی نیشان بدە',
     'receipt_template'                          => 'تێمپڵەیتی پسوڵە',
+    'receipt_thermal_58'                        => '',
+    'receipt_thermal_80'                        => '',
     'receiving_calculate_average_price'         => 'هەژمارکردنی نرخی تێکڕا (وەرگیراوەکان)',
     'recv_invoice_format'                       => 'فۆڕماتی فاکتورەی وەرگیراوەکان',
     'register_mode_default'                     => 'دۆخی تۆمارکردنی بنەڕەتیی',

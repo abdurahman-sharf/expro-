@@ -159,6 +159,7 @@ return [
     'payment_type'                      => 'Növ',
     'payments'                          => '',
     'payments_total'                    => 'Cəmi Ödənilənlər',
+    'pdf'                               => '',
     'price'                             => 'Qiymət',
     'print_after_sale'                  => 'Satışdan sonra Çap edin',
     'quantity'                          => 'Miqdarı',

@@ -159,6 +159,7 @@ return [
     'payment_type'                      => 'جۆر',
     'payments'                          => '',
     'payments_total'                    => 'کۆی پارەدانەکان',
+    'pdf'                               => '',
     'price'                             => 'نرخ',
     'print_after_sale'                  => 'چاپکردن دوای فرۆشتن',
     'quantity'                          => 'بڕ',

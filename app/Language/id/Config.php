@@ -278,6 +278,8 @@ return [
     'receipt_show_taxes'                        => 'Tampilkan pajak',
     'receipt_show_total_discount'               => 'Tampilkan total diskon',
     'receipt_template'                          => 'Template struk',
+    'receipt_thermal_58'                        => '',
+    'receipt_thermal_80'                        => '',
     'receiving_calculate_average_price'         => 'Menghitung harga rata-rata (Penerimaan)',
     'recv_invoice_format'                       => 'Format Faktur',
     'register_mode_default'                     => 'Default register mode',

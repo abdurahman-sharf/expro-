@@ -278,6 +278,8 @@ return [
     'receipt_show_taxes'                        => 'Показывать налоги',
     'receipt_show_total_discount'               => 'Показывать общую скидку',
     'receipt_template'                          => 'Шаблон чека',
+    'receipt_thermal_58'                        => '',
+    'receipt_thermal_80'                        => '',
     'receiving_calculate_average_price'         => 'Расчет сред. цены (закупки)',
     'recv_invoice_format'                       => 'Формат накладной для закупок',
     'register_mode_default'                     => 'Режим регистрации по умолчанию',

@@ -278,6 +278,8 @@ return [
     'receipt_show_taxes'                        => 'Belastingen weergeven',
     'receipt_show_total_discount'               => 'Totale korting weergeven',
     'receipt_template'                          => 'Kassabon sjabloon',
+    'receipt_thermal_58'                        => '',
+    'receipt_thermal_80'                        => '',
     'receiving_calculate_average_price'         => 'Gemiddelde prijs berekenen (levering)',
     'recv_invoice_format'                       => 'Leveringen factuurindeling',
     'register_mode_default'                     => 'Standaard kassa modus',

@@ -129,6 +129,7 @@ write('js/jquery.min.js', stripSourceMaps(read(modules('jquery/dist/jquery.min.j
 
 write('css/app.css', concat(sourceFiles('css', '.css'), '\n\n'));
 write('css/login.css', concat(sourceFiles('pages', 'login.css'), ''));
+write('css/document.css', concat(sourceFiles('pages', 'document.css'), ''));
 write('js/app.js', concat(sourceFiles('js', '.js'), '\n;\n'));
 
 const size = (relative) => `${(statSync(join(OUT, relative)).size / 1024).toFixed(1)} KB`;

@@ -278,6 +278,8 @@ return [
     'receipt_show_taxes'                        => 'Visa skatter',
     'receipt_show_total_discount'               => 'Visa total rabatt',
     'receipt_template'                          => 'Kvitto mall',
+    'receipt_thermal_58'                        => '',
+    'receipt_thermal_80'                        => '',
     'receiving_calculate_average_price'         => 'Beräkna avg. Pris (Inleverans)',
     'recv_invoice_format'                       => 'Mottagningsfakturaformat',
     'register_mode_default'                     => 'Standardregisterläge',

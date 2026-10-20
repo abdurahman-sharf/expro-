@@ -159,6 +159,7 @@ return [
     'payment_type'                      => 'Type',
     'payments'                          => '',
     'payments_total'                    => 'மொத்தக் கட்டணம்',
+    'pdf'                               => '',
     'price'                             => 'விலை',
     'print_after_sale'                  => 'விற்பனைக்குப் பிறகு அச்சிடு',
     'quantity'                          => 'அளவு',

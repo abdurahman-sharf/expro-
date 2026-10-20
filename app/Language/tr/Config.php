@@ -278,6 +278,8 @@ return [
     'receipt_show_taxes'                        => 'Vergileri Göster',
     'receipt_show_total_discount'               => 'Toplam İskontoyu Göster',
     'receipt_template'                          => 'Fiş Şablonu',
+    'receipt_thermal_58'                        => '',
+    'receipt_thermal_80'                        => '',
     'receiving_calculate_average_price'         => 'Ortalama Fiyatı Hesapla (Alım)',
     'recv_invoice_format'                       => 'Alım Fatura Biçimi',
     'register_mode_default'                     => 'Standart Kayıt Modu',

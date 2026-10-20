@@ -159,6 +159,7 @@ return [
     'payment_type'                      => 'Τύπος',
     'payments'                          => '',
     'payments_total'                    => 'Συνολικό Ποσό',
+    'pdf'                               => '',
     'price'                             => 'Τιμή',
     'print_after_sale'                  => 'Εκτύπωση μετά την Πώληση',
     'quantity'                          => 'Ποσότητα',

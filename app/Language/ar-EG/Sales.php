@@ -159,6 +159,7 @@ return [
     'payment_type'                      => 'طريقة',
     'payments'                          => '',
     'payments_total'                    => 'إجمالى المدفوعات',
+    'pdf'                               => 'ملف PDF',
     'price'                             => 'السعر',
     'print_after_sale'                  => 'اطبع بعد عملية البيع',
     'quantity'                          => 'الكمية',

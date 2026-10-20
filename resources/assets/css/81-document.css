@@ -1,0 +1,44 @@
+@media screen {
+    #document {
+        max-width: 794px;
+        margin: 0 auto;
+        padding: 40px;
+        overflow-x: auto;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-md);
+        background: #fff;
+        box-shadow: var(--shadow-sm);
+    }
+
+    #document .doc-logo {
+        display: block;
+    }
+
+    #document .doc-barcode svg {
+        max-width: 100%;
+    }
+}
+
+@media (max-width: 575.98px) {
+    #document {
+        padding: 18px 14px;
+    }
+
+    #document .doc-title {
+        font-size: 18pt;
+    }
+}
+
+@page doc {
+    size: A4;
+    margin: 12mm;
+}
+
+@media print {
+    #document {
+        page: doc;
+        padding: 0;
+        border: 0;
+        box-shadow: none;
+    }
+}

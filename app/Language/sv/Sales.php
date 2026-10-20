@@ -159,6 +159,7 @@ return [
     'payment_type'                      => 'Typ',
     'payments'                          => '',
     'payments_total'                    => 'Betalningar Totalt',
+    'pdf'                               => '',
     'price'                             => 'Pris',
     'print_after_sale'                  => 'Skriv ut efter försäljning',
     'quantity'                          => 'Antal',

@@ -159,6 +159,7 @@ return [
     'payment_type'                      => 'Type',
     'payments'                          => '',
     'payments_total'                    => 'Payments Total',
+    'pdf'                               => '',
     'price'                             => '價格',
     'print_after_sale'                  => '出貨時打印收據',
     'quantity'                          => '數量.',

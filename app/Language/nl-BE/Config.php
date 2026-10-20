@@ -278,6 +278,8 @@ return [
     'receipt_show_taxes'                        => 'Toon VAT',
     'receipt_show_total_discount'               => 'Toon Totale Korting',
     'receipt_template'                          => 'Bon sjabloon',
+    'receipt_thermal_58'                        => '',
+    'receipt_thermal_80'                        => '',
     'receiving_calculate_average_price'         => 'Bereken gem. Prijs (Ontvangend)',
     'recv_invoice_format'                       => 'Formattering Order #',
     'register_mode_default'                     => 'Standaard kassa mode',

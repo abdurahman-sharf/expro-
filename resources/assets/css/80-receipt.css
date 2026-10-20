@@ -74,3 +74,138 @@
 .discount {
     font-weight: bold;
 }
+
+.receipt-thermal {
+    color: #000;
+    line-height: 1.45;
+    word-break: break-word;
+}
+
+@media screen {
+    #receipt_wrapper.receipt-thermal {
+        width: 302px;
+        max-width: 100%;
+        padding: 14px 12px;
+        border-radius: 0;
+        box-shadow: var(--shadow-md);
+    }
+
+    #receipt_wrapper.receipt-58 {
+        width: 219px;
+        padding: 12px 8px;
+    }
+}
+
+.rt-head {
+    text-align: center;
+}
+
+.rt-logo {
+    max-width: 60%;
+    max-height: 64px;
+    margin-bottom: 4px;
+    filter: grayscale(1) contrast(1.6);
+}
+
+.rt-company {
+    font-size: 130%;
+    font-weight: 700;
+}
+
+.rt-title {
+    margin-top: 6px;
+    padding: 3px 0;
+    border-block: 1px dashed #000;
+    font-weight: 700;
+}
+
+.rt-info,
+.rt-totals {
+    margin: 8px 0 0;
+}
+
+.rt-info > div,
+.rt-totals > div,
+.rt-calc {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.rt-info dd,
+.rt-totals dd {
+    margin: 0;
+    font-weight: 600;
+    text-align: end;
+}
+
+.rt-items {
+    margin: 8px 0;
+    padding: 6px 0;
+    border-block: 1px dashed #000;
+}
+
+.rt-item {
+    padding: 3px 0;
+}
+
+.rt-name {
+    font-weight: 700;
+}
+
+.rt-note,
+.rt-discount {
+    font-size: 90%;
+}
+
+.rt-grand {
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: 1px solid #000;
+    font-size: 125%;
+    font-weight: 700;
+}
+
+.rt-balance {
+    font-weight: 700;
+}
+
+.rt-policy {
+    margin-top: 10px;
+    font-size: 85%;
+    text-align: center;
+}
+
+.rt-barcode {
+    margin-top: 10px;
+    text-align: center;
+}
+
+.rt-barcode svg {
+    max-width: 100%;
+    height: 40px;
+}
+
+@page thermal80 {
+    margin: 0;
+}
+
+@page thermal58 {
+    margin: 0;
+}
+
+@media print {
+    #receipt_wrapper.receipt-80 {
+        page: thermal80;
+        width: 72mm;
+        margin: 0 auto;
+        padding: 4mm;
+    }
+
+    #receipt_wrapper.receipt-58 {
+        page: thermal58;
+        width: 50mm;
+        margin: 0 auto;
+        padding: 4mm 3mm;
+    }
+}

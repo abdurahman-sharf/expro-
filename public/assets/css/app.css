@@ -1999,272 +1999,191 @@ a.rollover img {
     font-weight: bold;
 }
 
-/*
-     CSS-Tricks Example
-     by Chris Coyier
-     http://css-tricks.com
-*/
-
-/* body {
- *     font: 14px/1.4 Georgia, serif;
- * }
- */
-
-#page-wrap {
-    width: 100%;
-    margin: 0 auto;
-    max-width: 800px;
-}
-
-#page-wrap textarea {
-    border: none;
-    font-size: 14px;
-    overflow: hidden;
-    resize: none;
-}
-
-#page-wrap table {
-    border-collapse: collapse;
-}
-
-#page-wrap table td,
-#page-wrap table th {
-    border: 1px solid black;
-    padding: 5px;
-}
-
-#page-wrap table td {
-    padding: 5px;
-}
-
-#header {
-    margin: 20px 0;
-    background: #222;
-    text-align: center;
-    color: white;
-    font-size: 2.0em;
-    font-weight: bold;
-    letter-spacing: 4px;
-    padding: 10px 0;
-}
-
-/* First row */
-#logo {
-    text-align: right;
-    margin-top: 15px;
-    float: left;
-    position: relative;
-    border: 1px solid #fff;
-    max-height: 150px;
-    overflow: hidden;
-}
-
-#logo img {
-    max-height: 150px;
-    max-width: 270px;
-}
-
-/* #logo:hover,
- * #logo.edit {
- *     border: 1px solid #000;
- *     margin-top: 0px;
- *     max-height: 125px;
- * }
- */
-#logoctr {
-    display: none;
-}
-
-#logo:hover #logoctr,
-#logo.edit #logoctr {
-    display: block;
-    text-align: right;
-    line-height: 25px;
-    background: #eee;
-    padding: 0 5px;
-}
-
-#logohelp {
-    text-align: left;
-    display: none;
-    font-style: italic;
-    padding: 10px 5px;
-}
-
-#logohelp input {
-    margin-bottom: 5px;
-}
-
-.edit #logohelp {
-    display: block;
-}
-
-.edit #save-logo,
-.edit #cancel-logo {
-    display: inline;
-}
-
-.edit #image,
-#save-logo,
-#cancel-logo,
-.edit #change-logo,
-.edit #delete-logo {
-    display: none;
-}
-
-#customer-title {
-    height: 100px;
-    float: right;
-    margin-top: 40px;
-}
-
-#customer-title textarea {
-    width: 200px;
-}
-
-/* Second row */
-#block2 {
-    overflow: hidden;
-    width: 100%;
-}
-
-#company-title {
-    float: left;
-}
-
-#meta {
-    margin-top: 1px;
-    width: 300px;
-    float: right;
-}
-
-#meta td {
-    text-align: right;
-}
-
-#meta td.meta-head {
-    text-align: left;
-    background: #eee;
-}
-
-#meta td textarea {
-    width: 100%;
-    height: 20px;
-    text-align: right;
-}
-
-#items {
-    clear: both;
-    width: 100%;
-    margin: 30px 0 0 0;
-    border: 1px solid black;
-}
-
-#items th {
-    background: #eee;
-    text-align: center;
-}
-
-#items textarea {
-    width: 80px;
-    height: 20px;
-}
-
-#items tr.item-row td {
-    border: none;
-    vertical-align: top;
-}
-
-#items td.description {
-    width: 300px;
-}
-
-#items td.item-name {
-    width: 175px;
-}
-
-#items td.item-description textarea {
-    height: auto;
-    width: 100%;
-}
-
-#items td.description textarea,
-#items td.item-name textarea {
-    width: 100%;
-}
-
-#items td.total-line {
-    border-right: 0;
-    text-align: right;
-}
-
-#items td.total-value {
-    border-left: 0;
-    padding: 10px;
-}
-
-#items td.total-value textarea {
-    height: 20px;
-    background: none;
-}
-
-#items td.total-line textarea {
-    height: 20px;
-    width: 150px;
-    background: none;
-}
-
-#items td.balance {
-    background: #eee;
-}
-
-#items td.blank {
-    border: none;
-}
-
-#items td.blank-bottom {
-    border: 1px;
-}
-
-#terms {
-    text-align: center;
-    margin: 20px 0 0 0;
-}
-
-#terms h5 {
-    text-transform: uppercase;
-    font-size: 13px;
-    letter-spacing: 10px;
-    border-bottom: 1px solid black;
-    padding: 0 0 8px 0;
-    margin: 0 0 8px 0;
-}
-
-#terms textarea {
-    width: 100%;
-    text-align: center;
-}
-
-.delete-wpr {
-    position: relative;
-}
-
-.delete {
-    display: block;
+.receipt-thermal {
     color: #000;
-    text-decoration: none;
-    position: absolute;
-    background: #EEEEEE;
-    font-weight: bold;
-    padding: 0px 3px;
-    border: 1px solid;
-    top: -6px;
-    left: -22px;
-    font-family: Verdana;
-    font-size: 12px;
+    line-height: 1.45;
+    word-break: break-word;
+}
+
+@media screen {
+    #receipt_wrapper.receipt-thermal {
+        width: 302px;
+        max-width: 100%;
+        padding: 14px 12px;
+        border-radius: 0;
+        box-shadow: var(--shadow-md);
+    }
+
+    #receipt_wrapper.receipt-58 {
+        width: 219px;
+        padding: 12px 8px;
+    }
+}
+
+.rt-head {
+    text-align: center;
+}
+
+.rt-logo {
+    max-width: 60%;
+    max-height: 64px;
+    margin-bottom: 4px;
+    filter: grayscale(1) contrast(1.6);
+}
+
+.rt-company {
+    font-size: 130%;
+    font-weight: 700;
+}
+
+.rt-title {
+    margin-top: 6px;
+    padding: 3px 0;
+    border-block: 1px dashed #000;
+    font-weight: 700;
+}
+
+.rt-info,
+.rt-totals {
+    margin: 8px 0 0;
+}
+
+.rt-info > div,
+.rt-totals > div,
+.rt-calc {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.rt-info dd,
+.rt-totals dd {
+    margin: 0;
+    font-weight: 600;
+    text-align: end;
+}
+
+.rt-items {
+    margin: 8px 0;
+    padding: 6px 0;
+    border-block: 1px dashed #000;
+}
+
+.rt-item {
+    padding: 3px 0;
+}
+
+.rt-name {
+    font-weight: 700;
+}
+
+.rt-note,
+.rt-discount {
+    font-size: 90%;
+}
+
+.rt-grand {
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: 1px solid #000;
+    font-size: 125%;
+    font-weight: 700;
+}
+
+.rt-balance {
+    font-weight: 700;
+}
+
+.rt-policy {
+    margin-top: 10px;
+    font-size: 85%;
+    text-align: center;
+}
+
+.rt-barcode {
+    margin-top: 10px;
+    text-align: center;
+}
+
+.rt-barcode svg {
+    max-width: 100%;
+    height: 40px;
+}
+
+@page thermal80 {
+    margin: 0;
+}
+
+@page thermal58 {
+    margin: 0;
 }
 
 @media print {
+    #receipt_wrapper.receipt-80 {
+        page: thermal80;
+        width: 72mm;
+        margin: 0 auto;
+        padding: 4mm;
+    }
+
+    #receipt_wrapper.receipt-58 {
+        page: thermal58;
+        width: 50mm;
+        margin: 0 auto;
+        padding: 4mm 3mm;
+    }
+}
+
+@media screen {
+    #document {
+        max-width: 794px;
+        margin: 0 auto;
+        padding: 40px;
+        overflow-x: auto;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-md);
+        background: #fff;
+        box-shadow: var(--shadow-sm);
+    }
+
+    #document .doc-logo {
+        display: block;
+    }
+
+    #document .doc-barcode svg {
+        max-width: 100%;
+    }
+}
+
+@media (max-width: 575.98px) {
+    #document {
+        padding: 18px 14px;
+    }
+
+    #document .doc-title {
+        font-size: 18pt;
+    }
+}
+
+@page doc {
+    size: A4;
+    margin: 12mm;
+}
+
+@media print {
+    #document {
+        page: doc;
+        padding: 0;
+        border: 0;
+        box-shadow: none;
+    }
+}
+
+@media print {
+
+    body {
+        background: #fff;
+    }
 
     .no-print,
     .no-print * {

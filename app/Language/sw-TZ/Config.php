@@ -278,6 +278,8 @@ return [
     'receipt_show_taxes'                        => 'Onyesha Kodi',
     'receipt_show_total_discount'               => 'Onyesha Jumla ya Punguzo',
     'receipt_template'                          => 'Kiolezo cha Risiti',
+    'receipt_thermal_58'                        => '',
+    'receipt_thermal_80'                        => '',
     'receiving_calculate_average_price'         => 'Hesabu Bei ya wastani (Manunuzi)',
     'recv_invoice_format'                       => 'Muundo wa Ankara ya Manunuzi',
     'register_mode_default'                     => 'Hali ya Usajili kwa Chaguo-msingi',

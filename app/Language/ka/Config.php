@@ -278,6 +278,8 @@ return [
     'receipt_show_taxes'                        => '',
     'receipt_show_total_discount'               => '',
     'receipt_template'                          => '',
+    'receipt_thermal_58'                        => '',
+    'receipt_thermal_80'                        => '',
     'receiving_calculate_average_price'         => '',
     'recv_invoice_format'                       => '',
     'register_mode_default'                     => '',
