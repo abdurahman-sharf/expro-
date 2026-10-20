@@ -261,6 +261,51 @@
       "path": "/reports/inventory_low/all"
     },
     {
+      "id": "reports-graphical-items",
+      "group": "reports",
+      "path": "/reports/graphical_summary_items/2020-01-01/2099-12-31/complete/all"
+    },
+    {
+      "id": "reports-graphical-payments",
+      "group": "reports",
+      "path": "/reports/graphical_summary_payments/2020-01-01/2099-12-31/complete/all"
+    },
+    {
+      "id": "reports-graphical-customers",
+      "group": "reports",
+      "path": "/reports/graphical_summary_customers/2020-01-01/2099-12-31/complete/all"
+    },
+    {
+      "id": "reports-summary-items",
+      "group": "reports",
+      "path": "/reports/summary_items/2020-01-01/2099-12-31/complete/all"
+    },
+    {
+      "id": "reports-specific-customers-input",
+      "group": "reports",
+      "path": "/reports/specific_customers"
+    },
+    {
+      "id": "reports-specific-customers",
+      "group": "reports",
+      "path": "/reports/specific_customers/2020-01-01/2099-12-31/2/complete/all"
+    },
+    {
+      "id": "reports-detailed-receivings",
+      "group": "reports",
+      "path": "/reports/detailed_receivings/2020-01-01/2099-12-31/all/all"
+    },
+    {
+      "id": "reports-inventory-summary-input",
+      "group": "reports",
+      "path": "/reports/inventory_summary"
+    },
+    {
+      "id": "reports-summary-discounts-input",
+      "group": "reports",
+      "path": "/reports/summary_discounts"
+    },
+    {
       "id": "office-home",
       "group": "office",
       "path": "/office"

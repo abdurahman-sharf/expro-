@@ -1,4 +1,4 @@
-<?php // used in reports ?>
+<?php // used in reports?>
 // Utility functions for safe localStorage access
 function safeSetItem(key, value) {
     try {
@@ -55,44 +55,10 @@ $('#table').bootstrapTable('refreshOptions', {
     columns: $('#table').bootstrapTable('getOptions').columns // Force refresh to apply column visibility
 });
 
-// Initialize visibility settings from localStorage
-let summaryVisibility = JSON.parse(safeGetItem('summaryVisibility')) || { cost: false, profit: false };
-
-// Function to apply visibility for cost and profit rows
-function applySummaryVisibility() {
-    const rows = $('#report_summary .summary_row');
-    const costRow = rows.eq(rows.length - 2); // Second-to-last row
-    const profitRow = rows.eq(rows.length - 1); // Last row
-
-    if (summaryVisibility.cost === false) {
-        costRow.hide(); // Hide the cost row
-    } else {
-        costRow.show(); // Show the cost row
-    }
-
-    if (summaryVisibility.profit === false) {
-        profitRow.hide(); // Hide the profit row
-    } else {
-        profitRow.show(); // Show the profit row
-    }
-}
-
-// Toggle visibility when the button is clicked
-$('#toggleCostProfitButton').click(function () {
-    summaryVisibility.cost = !summaryVisibility.cost;
-    summaryVisibility.profit = !summaryVisibility.profit;
-
-    safeSetItem('summaryVisibility', JSON.stringify(summaryVisibility));
-    applySummaryVisibility();
-});
-
-// Apply saved visibility state on page load
-applySummaryVisibility();
-
 // Initialize dialog (if editable)
 const init_dialog = function () {
 <?php if (isset($editable)): ?>
-        table_support.submit_handler('<?php echo site_url("reports/get_detailed_{$editable}_row") ?>');
+        table_support.submit_handler('<?= site_url("reports/get_detailed_{$editable}_row") ?>');
     dialog_support.init("a.modal-dlg");
 <?php endif; ?>
 };

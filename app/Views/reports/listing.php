@@ -1,18 +1,9 @@
 <?php
 /**
- * @var int   $person_id
- * @var array $permission_ids
- * @var array $grants
+ * @var array  $permission_ids
+ * @var string $error
  */
-
-$detailed_reports = [
-    'reports_sales'      => 'detailed',
-    'reports_receivings' => 'detailed',
-    'reports_customers'  => 'specific',
-    'reports_discounts'  => 'specific',
-    'reports_employees'  => 'specific',
-    'reports_suppliers'  => 'specific',
-];
+$catalog = reportCatalog($permission_ids);
 ?>
 
 <?= view('partial/header') ?>
@@ -21,90 +12,58 @@ $detailed_reports = [
     dialog_support.init("a.modal-dlg");
 </script>
 
-<?php
-if (isset($error)) {
-    echo '<div class="alert alert-danger">' . esc($error) . '</div>';
-}
-?>
+<?php if (isset($error)): ?>
+    <div class="alert alert-danger"><?= esc($error) ?></div>
+<?php endif; ?>
 
-<div class="row">
-    <div class="col-lg-4">
-        <div class="card border-primary">
-            <div class="card-header">
-                <h3 class="card-title h6 mb-0"><span class="bi bi-bar-chart" aria-hidden="true">&nbsp;</span><?= lang('Reports.graphical_reports') ?></h3>
-            </div>
-            <div class="list-group">
-                <?php foreach ($permission_ids as $permission_id) {
-                    if (can_show_report($permission_id, ['inventory', 'receiving'])) {
-                        $link = get_report_link($permission_id, 'graphical_summary');
-                ?>
-                        <a class="list-group-item" href="<?= $link['path'] ?>"><?= esc($link['label']) ?></a>
-                <?php
-                    }
-                }
-                ?>
-            </div>
+<header class="report-head">
+    <h2 class="report-title"><?= lang('Module.reports') ?></h2>
+    <div class="report-search print_hide">
+        <label for="report_filter" class="visually-hidden"><?= lang('Reports.search_reports') ?></label>
+        <div class="input-group">
+            <span class="input-group-text"><span class="bi bi-search" aria-hidden="true"></span></span>
+            <input type="search" id="report_filter" class="form-control" placeholder="<?= lang('Reports.search_reports') ?>" autocomplete="off">
         </div>
     </div>
+</header>
 
-    <div class="col-lg-4">
-        <div class="card border-primary">
-            <div class="card-header">
-                <h3 class="card-title h6 mb-0"><span class="bi bi-list-ul" aria-hidden="true">&nbsp;</span><?= lang('Reports.summary_reports') ?></h3>
-            </div>
-            <div class="list-group">
-                <?php foreach ($permission_ids as $permission_id) {
-                    if (can_show_report($permission_id, ['inventory', 'receiving'])) {
-                        $link = get_report_link($permission_id, 'summary');
-                ?>
-                        <a class="list-group-item" href="<?= $link['path'] ?>"><?= esc($link['label']) ?></a>
-                <?php
-                    }
-                }
-                ?>
-            </div>
+<?php foreach ($catalog as $groupIndex => $group): ?>
+    <section class="report-group" aria-labelledby="report-group-<?= $groupIndex ?>">
+        <h3 class="report-group-title" id="report-group-<?= $groupIndex ?>"><?= esc($group['label']) ?></h3>
+        <div class="report-grid">
+            <?php foreach ($group['subjects'] as $subject): ?>
+                <article class="report-card">
+                    <h4 class="report-card-title"><span class="bi <?= $subject['icon'] ?>" aria-hidden="true"></span> <?= esc($subject['label']) ?></h4>
+                    <div class="report-links">
+                        <?php foreach ($subject['links'] as $link): ?>
+                            <a class="report-link" href="<?= $link['path'] ?>"><span class="bi <?= $link['icon'] ?>" aria-hidden="true"></span> <?= esc($link['label']) ?></a>
+                        <?php endforeach; ?>
+                    </div>
+                </article>
+            <?php endforeach; ?>
         </div>
-    </div>
+    </section>
+<?php endforeach; ?>
 
-    <div class="col-lg-4">
-        <div class="card border-primary">
-            <div class="card-header">
-                <h3 class="card-title h6 mb-0"><span class="bi bi-card-list" aria-hidden="true">&nbsp;</span><?= lang('Reports.detailed_reports') ?></h3>
-            </div>
-            <div class="list-group">
-                <?php foreach ($detailed_reports as $report_name => $prefix) {
-                    if (in_array($report_name, $permission_ids, true)) {
-                        $link = get_report_link($report_name, $prefix);
-                ?>
-                        <a class="list-group-item" href="<?= $link['path'] ?>"><?= esc($link['label']) ?></a>
-                        <?php if ($report_name === 'reports_sales') {
-                            $item_sales_link = get_report_link('reports_item_sales', 'detailed', 'Reports.detailed_item_sales_report');
-                        ?>
-                            <a class="list-group-item" href="<?= $item_sales_link['path'] ?>"><?= esc($item_sales_link['label']) ?></a>
-                        <?php } ?>
-                <?php
-                    }
-                }
-                ?>
-            </div>
-        </div>
+<p class="alert alert-secondary d-none" id="report_filter_empty" role="status"><?= lang('Reports.no_reports_matched') ?></p>
 
-        <?php if (in_array('reports_inventory', $permission_ids, true)) { ?>
-            <div class="card border-primary">
-                <div class="card-header">
-                    <h3 class="card-title h6 mb-0"><span class="bi bi-book" aria-hidden="true">&nbsp;</span><?= lang('Reports.inventory_reports') ?></h3>
-                </div>
-                <div class="list-group">
-                    <?php
-                    $inventory_low_report = get_report_link('reports_inventory_low');
-                    $inventory_summary_report = get_report_link('reports_inventory_summary');
-                    ?>
-                    <a class="list-group-item" href="<?= $inventory_low_report['path'] ?>"><?= esc($inventory_low_report['label']) ?></a>
-                    <a class="list-group-item" href="<?= $inventory_summary_report['path'] ?>"><?= esc($inventory_summary_report['label']) ?></a>
-                </div>
-            </div>
-        <?php } ?>
-    </div>
-</div>
+<script type="text/javascript">
+    $(document).ready(function() {
+        $('#report_filter').on('input', function() {
+            const needle = $(this).val().trim().toLowerCase();
+            let visible = 0;
+
+            $('.report-card').each(function() {
+                const match = needle === '' || $(this).text().toLowerCase().indexOf(needle) >= 0;
+                $(this).toggleClass('d-none', !match);
+                visible += match ? 1 : 0;
+            });
+            $('.report-group').each(function() {
+                $(this).toggleClass('d-none', $(this).find('.report-card:not(.d-none)').length === 0);
+            });
+            $('#report_filter_empty').toggleClass('d-none', visible > 0);
+        });
+    });
+</script>
 
 <?= view('partial/footer') ?>

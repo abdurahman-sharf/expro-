@@ -2,37 +2,22 @@
 /**
  * @var string $title
  * @var string $subtitle
- * @var array $overall_summary_data
- * @var array $details_data
- * @var array $headers
- * @var array $summary_data
- * @var array $config
+ * @var array  $overall_summary_data
+ * @var array  $details_data
+ * @var array  $headers
+ * @var array  $summary_data
+ * @var array  $config
  */
 ?>
 
 <?= view('partial/header') ?>
 
-<div id="page_title"><?= esc($title) ?></div>
+<?= view('reports/_head', ['title' => $title, 'subtitle' => $subtitle, 'sensitiveToggle' => array_key_exists('cost', $overall_summary_data) || array_key_exists('profit', $overall_summary_data)]) ?>
 
-<div id="page_subtitle"><?= esc($subtitle) ?></div>
-
-<div id="toolbar">
-    <div class="float-start d-flex flex-wrap align-items-center gap-2" role="toolbar">
-        <!-- Toggle Button -->
-        <button id="toggleCostProfitButton" class="btn btn-outline-secondary btn-sm print_hide">
-            <?php echo lang('Reports.toggle_cost_and_profit'); ?>
-        </button>
-    </div>
-</div>
+<?= view('reports/_summary', ['summary_data' => $overall_summary_data]) ?>
 
 <div id="table_holder">
     <table id="table"></table>
-</div>
-
-<div id="report_summary">
-    <?php foreach ($overall_summary_data as $name => $value) { ?>
-        <div class="summary_row"><?= lang("Reports.$name") . ': ' . esc(to_currency($value)) ?></div>
-    <?php } ?>
 </div>
 
 <script type="text/javascript">
@@ -40,7 +25,7 @@
         <?= view('partial/bootstrap_tables_locale') ?>
 
         const details_data = <?= json_encode(esc($details_data)) ?>;
-        <?php if ($config['customer_reward_enable'] && !empty($details_data_rewards)) { ?>
+        <?php if ($config['customer_reward_enable'] && ! empty($details_data_rewards)) { ?>
             const details_data_rewards = <?= json_encode(esc($details_data_rewards)) ?>;
         <?php } ?>
         <?= view('partial/visibility_js') ?>
@@ -62,6 +47,7 @@
                 exportDataType: 'all',
                 exportTypes: ['json', 'xml', 'csv', 'txt', 'sql', 'excel'],
                 buttons: pdf_export.buttons(true),
+                buttonsClass: 'outline-secondary',
                 data: <?= json_encode($summary_data) ?>,
                 iconSize: 'sm',
                 loadingTemplate: function (loadingMessage) {
@@ -83,7 +69,7 @@
                             /(POS|RECV)\s*/g, '')]
                     });
 
-                    <?php if ($config['customer_reward_enable'] && !empty($details_data_rewards)) { ?>
+                    <?php if ($config['customer_reward_enable'] && ! empty($details_data_rewards)) { ?>
                         $detail.append('<table></table>').find("table").bootstrapTable({
                             columns: <?= transform_headers_readonly(esc($headers['details_rewards'])) ?>,
                             data: details_data_rewards[(!isNaN(row.id) && row.id) || $(row[0] || row.id).text().replace(

@@ -2,10 +2,10 @@
 /**
  * @var string $title
  * @var string $subtitle
- * @var array $summary_data
- * @var array $headers
- * @var array $data
- * @var array $config
+ * @var array  $summary_data
+ * @var array  $headers
+ * @var array  $data
+ * @var array  $config
  */
 ?>
 
@@ -15,34 +15,12 @@
     dialog_support.init("a.modal-dlg");
 </script>
 
-<div id="page_title"><?= esc($title) ?></div>
+<?= view('reports/_head', ['title' => $title, 'subtitle' => $subtitle, 'sensitiveToggle' => ! empty($summary_data) && (array_key_exists('cost', $summary_data) || array_key_exists('profit', $summary_data))]) ?>
 
-<div id="page_subtitle"><?= esc($subtitle) ?></div>
-
-<div id="toolbar">
-    <div class="float-start d-flex flex-wrap align-items-center gap-2" role="toolbar">
-        <button id="toggleCostProfitButton" class="btn btn-outline-secondary btn-sm print_hide">
-            <?php echo lang('Reports.toggle_cost_and_profit'); ?>
-        </button>
-    </div>
-</div>
+<?= view('reports/_summary', ['summary_data' => $summary_data]) ?>
 
 <div id="table_holder">
     <table id="table"></table>
-</div>
-
-<div id="report_summary">
-    <?php
-    foreach ($summary_data as $name => $value) {
-        if ($name == "total_quantity") {
-            ?>
-            <div class="summary_row"><?= lang("Reports.$name") . ": " . esc($value) ?></div>
-        <?php } else { ?>
-            <div class="summary_row"><?= lang("Reports.$name") . ': ' . to_currency($value) ?></div>
-            <?php
-        }
-    }
-    ?>
 </div>
 
 <script type="text/javascript">
@@ -50,11 +28,12 @@
         <?= view('partial/bootstrap_tables_locale') ?>
         <?= view('partial/visibility_js') ?>
 
+        const columns = applyColumnVisibility(<?= transform_headers(esc($headers), true, false) ?>);
+
         $('#table')
             .addClass("table-striped")
             .addClass("table-bordered")
-            .bootstrapTable({
-                columns: applyColumnVisibility(<?= transform_headers(esc($headers), true, false) ?>),
+            .bootstrapTable($.extend(table_support.report_options(columns), {
                 stickyHeader: true,
                 stickyHeaderOffsetLeft: $('#table').offset().left + 'px',
                 stickyHeaderOffsetRight: $('#table').offset().right + 'px',
@@ -64,6 +43,7 @@
                 exportDataType: 'all',
                 exportTypes: ['json', 'xml', 'csv', 'txt', 'sql', 'excel'],
                 buttons: pdf_export.buttons(true),
+                buttonsClass: 'outline-secondary',
                 pagination: true,
                 showColumns: true,
                 data: <?= json_encode($data) ?>,
@@ -75,7 +55,7 @@
                     return '<div class="loading-message text-center"><span class="spinner-border spinner-border-sm"></span><span role="status">' + loadingMessage + '</span></div>';
                 },
                 loadingFontSize: '1em'
-            });
+            }));
     });
 </script>
 

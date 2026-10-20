@@ -76,9 +76,7 @@ const VENDOR_CSS = [
     'bootstrap-table/dist/extensions/sticky-header/bootstrap-table-sticky-header.min.css',
     'bootstrap-daterangepicker/daterangepicker.css',
     'flatpickr/dist/flatpickr.min.css',
-    'jquery-ui-dist/jquery-ui.structure.min.css',
-    'chartist/dist/chartist.min.css',
-    'chartist-plugin-tooltips/dist/chartist-plugin-tooltip.css'
+    'jquery-ui-dist/jquery-ui.structure.min.css'
 ];
 
 const VENDOR_JS = [
@@ -99,11 +97,6 @@ const VENDOR_JS = [
     'file-saver/dist/FileSaver.min.js',
     'dompurify/dist/purify.min.js',
     'tableexport.jquery.plugin/tableExport.min.js',
-    'chartist/dist/chartist.min.js',
-    'chartist-plugin-pointlabels/dist/chartist-plugin-pointlabels.min.js',
-    'chartist-plugin-axistitle/dist/chartist-plugin-axistitle.min.js',
-    'chartist-plugin-tooltips/dist/chartist-plugin-tooltip.min.js',
-    'chartist-plugin-barlabels/dist/chartist-plugin-barlabels.min.js',
     'clipboard/dist/clipboard.min.js'
 ];
 
@@ -127,8 +120,9 @@ write('css/app.css', concat(sourceFiles('css', '.css'), '\n\n'));
 write('css/login.css', concat(sourceFiles('pages', 'login.css'), ''));
 write('css/document.css', concat(sourceFiles('pages', 'document.css'), ''));
 write('js/app.js', concat(sourceFiles('js', '.js'), '\n;\n'));
+write('js/chart.min.js', stripSourceMaps(read(modules('chart.js/dist/chart.umd.js'))));
 
 const size = (relative) => `${(statSync(join(OUT, relative)).size / 1024).toFixed(1)} KB`;
-for (const file of ['css/bootstrap.min.css', 'css/bootstrap.rtl.min.css', 'css/vendor.min.css', 'css/app.css', 'js/vendor.min.js', 'js/app.js']) {
+for (const file of ['css/bootstrap.min.css', 'css/bootstrap.rtl.min.css', 'css/vendor.min.css', 'css/app.css', 'js/vendor.min.js', 'js/app.js', 'js/chart.min.js']) {
     console.log(`${basename(file).padEnd(24)} ${size(file)}`);
 }

@@ -11,38 +11,35 @@
     dialog_support.init("a.modal-dlg");
 </script>
 
-<div id="page_title"><?= lang('Reports.report_input') ?></div>
+<?= view('reports/_head', ['title' => lang('Reports.report_input'), 'subtitle' => '']) ?>
 
-<?php
-if (isset($error)) {
-    echo '<div class="alert alert-danger">' . esc($error) . '</div>';
-}
-?>
+<?php if (isset($error)): ?>
+    <div class="alert alert-danger"><?= esc($error) ?></div>
+<?php endif; ?>
 
-<?= form_open('#', ['id' => 'item_form', 'enctype' => 'multipart/form-data', 'class' => 'app-form']) ?>
+<?= form_open('#', ['id' => 'item_form', 'enctype' => 'multipart/form-data', 'class' => 'app-form report-form card']) ?>
+    <div class="card-body">
+        <div class="form-grid">
+            <div class="field" id="report_stock_location">
+                <?= form_label(lang('Reports.stock_location'), 'location_id', ['class' => 'form-label text-danger required']) ?>
+                <?= form_dropdown('stock_location', $stock_locations, 'all', 'id="location_id" class="form-select"') ?>
+            </div>
 
-    <div class="row mb-3">
-        <?= form_label(lang('Reports.stock_location'), 'reports_stock_location_label', ['class' => 'col-form-label col-2 text-danger required']) ?>
-        <div id="report_stock_location" class="col-3">
-            <?= form_dropdown('stock_location', $stock_locations, 'all', 'id="location_id" class="form-select"') ?>
+            <div class="field" id="report_item_count">
+                <?= form_label(lang('Reports.item_count'), 'item_count', ['class' => 'form-label text-danger required']) ?>
+                <?= form_dropdown('item_count', $item_count, 'all', 'id="item_count" class="form-select"') ?>
+            </div>
+        </div>
+
+        <div class="report-form-actions">
+            <?= form_button([
+                'name'    => 'generate_report',
+                'id'      => 'generate_report',
+                'content' => lang('Reports.show_report'),
+                'class'   => 'btn btn-primary',
+            ]) ?>
         </div>
     </div>
-
-    <div class="row mb-3">
-        <?= form_label(lang('Reports.item_count'), 'reports_item_count_label', ['class' => 'col-form-label col-2 text-danger required']) ?>
-        <div id="report_item_count" class="col-3">
-            <?= form_dropdown('item_count', $item_count, 'all', 'id="item_count" class="form-select"') ?>
-        </div>
-    </div>
-
-    <?php
-    echo form_button([
-        'name'    => 'generate_report',
-        'id'      => 'generate_report',
-        'content' => lang('Common.submit'),
-        'class'   => 'btn btn-primary btn-sm'
-    ]) ?>
-
 <?= form_close() ?>
 
 <?= view('partial/footer') ?>

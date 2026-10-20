@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -41,6 +41,9 @@ const PATTERNS = {
 
 const listFiles = (directory) => {
     const files = [];
+    if (!existsSync(directory)) {
+        return files;
+    }
     for (const name of readdirSync(directory)) {
         const path = join(directory, name);
         const rel = relative(ROOT, path);

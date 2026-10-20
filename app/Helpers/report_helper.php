@@ -49,3 +49,109 @@ function can_show_report(string $permission_id, array $restrict_views = []): boo
 
     return true;
 }
+
+/**
+ * Reports offered in the reports index, grouped by area and subject.
+ *
+ * @param list<string> $permissionIds
+ *
+ * @return list<array{label: string, subjects: list<array{icon: string, label: string, links: list<array{path: string, label: string, icon: string}>}>}>
+ */
+function reportCatalog(array $permissionIds): array
+{
+    $types = [
+        'graphical' => ['Reports.type_graphical', 'bi-bar-chart-line'],
+        'summary'   => ['Reports.type_summary', 'bi-table'],
+        'detailed'  => ['Reports.type_detailed', 'bi-card-list'],
+    ];
+
+    $link = static fn (string $type, string $path, string $label = ''): array => [
+        'path'  => site_url("reports/{$path}"),
+        'label' => lang($label !== '' ? $label : $types[$type][0]),
+        'icon'  => $types[$type][1],
+    ];
+
+    $groups = [
+        'Reports.group_sales' => [
+            ['bi-cart3', 'Module.sales', 'reports_sales', [
+                $link('graphical', 'graphical_summary_sales'),
+                $link('summary', 'summary_sales'),
+                $link('detailed', 'detailed_sales'),
+                $link('detailed', 'detailed_item_sales', 'Reports.detailed_item_sales_report'),
+            ]],
+            ['bi-people', 'Reports.customers', 'reports_customers', [
+                $link('graphical', 'graphical_summary_customers'),
+                $link('summary', 'summary_customers'),
+                $link('detailed', 'specific_customers'),
+            ]],
+            ['bi-person-badge', 'Reports.employees', 'reports_employees', [
+                $link('graphical', 'graphical_summary_employees'),
+                $link('summary', 'summary_employees'),
+                $link('detailed', 'specific_employees'),
+            ]],
+            ['bi-credit-card', 'Reports.payments', 'reports_payments', [
+                $link('graphical', 'graphical_summary_payments'),
+                $link('summary', 'summary_payments'),
+            ]],
+            ['bi-percent', 'Reports.discounts', 'reports_discounts', [
+                $link('graphical', 'graphical_summary_discounts'),
+                $link('summary', 'summary_discounts'),
+                $link('detailed', 'specific_discounts'),
+            ]],
+        ],
+        'Reports.group_stock' => [
+            ['bi-box-seam', 'Reports.items', 'reports_items', [
+                $link('graphical', 'graphical_summary_items'),
+                $link('summary', 'summary_items'),
+            ]],
+            ['bi-diagram-3', 'Reports.categories', 'reports_categories', [
+                $link('graphical', 'graphical_summary_categories'),
+                $link('summary', 'summary_categories'),
+            ]],
+            ['bi-clipboard-data', 'Reports.inventory_reports', 'reports_inventory', [
+                $link('summary', 'inventory_low', 'Reports.inventory_low'),
+                $link('summary', 'inventory_summary', 'Reports.inventory_summary'),
+            ]],
+            ['bi-box-arrow-in-down', 'Reports.receivings', 'reports_receivings', [
+                $link('detailed', 'detailed_receivings'),
+            ]],
+            ['bi-truck', 'Reports.suppliers', 'reports_suppliers', [
+                $link('graphical', 'graphical_summary_suppliers'),
+                $link('summary', 'summary_suppliers'),
+                $link('detailed', 'specific_suppliers'),
+            ]],
+        ],
+        'Reports.group_finance' => [
+            ['bi-receipt', 'Reports.taxes', 'reports_taxes', [
+                $link('graphical', 'graphical_summary_taxes'),
+                $link('summary', 'summary_taxes'),
+            ]],
+            ['bi-receipt-cutoff', 'Reports.sales_taxes', 'reports_sales_taxes', [
+                $link('graphical', 'graphical_summary_sales_taxes'),
+                $link('summary', 'summary_sales_taxes'),
+            ]],
+            ['bi-folder2-open', 'Reports.expenses_categories', 'reports_expenses_categories', [
+                $link('graphical', 'graphical_summary_expenses_categories'),
+                $link('summary', 'summary_expenses_categories'),
+            ]],
+        ],
+    ];
+
+    $catalog = [];
+
+    foreach ($groups as $label => $subjects) {
+        $allowed = [];
+
+        foreach ($subjects as [$icon, $subjectLabel, $permission, $links]) {
+            if (in_array($permission, $permissionIds, true)) {
+                $allowed[] = ['icon' => $icon, 'label' => lang($subjectLabel), 'links' => $links];
+            }
+        }
+
+        if ($allowed !== []) {
+            $catalog[] = ['label' => lang($label), 'subjects' => $allowed];
+        }
+    }
+
+    return $catalog;
+}

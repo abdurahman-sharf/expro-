@@ -269,6 +269,20 @@
         do_restore: do_action("restore"),
         refresh : refresh,
         selected_ids : selected_ids,
+        report_options: function(columns) {
+            return {
+                columns: $.map(columns, function(column, index) {
+                    return $.extend({}, column, {
+                        cellStyle: index === 0 ? function() {
+                            return {classes: 'card-primary'};
+                        } : column.cellStyle
+                    });
+                }),
+                mobileResponsive: true,
+                minWidth: columns.length > 8 ? 1100 : 640,
+                onPostBody: isolate_numbers
+            };
+        }
     });
 
 })(window.table_support = window.table_support || {}, jQuery);

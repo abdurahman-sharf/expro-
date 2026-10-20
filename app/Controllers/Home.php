@@ -2,7 +2,7 @@
 
 namespace App\Controllers;
 
-use App\Libraries\MY_Migration;
+use App\Libraries\Dashboard_lib;
 use App\Models\Employee;
 use CodeIgniter\HTTP\RedirectResponse;
 use CodeIgniter\HTTP\ResponseInterface;
@@ -21,13 +21,20 @@ class Home extends Secure_Controller
         parent::__construct('home');
     }
 
-    /**
-     * @return string
-     */
     public function getIndex(): string
     {
-        $logged_in = $this->employee->is_logged_in();
-        return view('home/home');
+        $employee  = $this->employee->get_logged_in_employee_info();
+        $personId  = (int) $employee->person_id;
+        $dashboard = new Dashboard_lib();
+        $granted   = fn (string $permission): bool => $this->employee->has_grant($permission, $personId);
+
+        return view('home/home', [
+            'first_name'     => $employee->first_name,
+            'sales'          => $granted('reports_sales') ? $dashboard->sales() : null,
+            'top_items'      => $granted('reports_items') ? $dashboard->topItems() : null,
+            'low_stock'      => $granted('reports_inventory') ? $dashboard->lowStock() : null,
+            'expenses_month' => $granted('reports_expenses_categories') ? $dashboard->expensesThisMonth() : null,
+        ]);
     }
 
     /**

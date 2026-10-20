@@ -3,39 +3,71 @@
  * @var string $title
  * @var string $subtitle
  * @var string $chart_type
- * @var array $summary_data_1
+ * @var array  $labels_1
+ * @var array  $series_data_1
+ * @var array  $summary_data_1
+ * @var bool   $show_currency
+ * @var string $xaxis_title
+ * @var string $yaxis_title
+ * @var array  $config
  */
+$kind     = basename($chart_type);
+$values   = array_map(static fn (mixed $entry): float => (float) (is_array($entry) ? $entry['value'] : $entry), $series_data_1);
+$currency = ['prefix' => '', 'suffix' => ''];
+
+if (! empty($show_currency)) {
+    $currency[is_right_side_currency_symbol() ? 'suffix' : 'prefix'] = $config['currency_symbol'];
+}
+
+$spec = [
+    'kind'     => $kind,
+    'labels'   => array_values($labels_1),
+    'values'   => $values,
+    'name'     => $yaxis_title ?? '',
+    'xTitle'   => $xaxis_title ?? '',
+    'yTitle'   => $yaxis_title ?? '',
+    'currency' => $currency,
+];
 ?>
 
 <?= view('partial/header') ?>
 
-<script type="text/javascript">
-    dialog_support.init("a.modal-dlg");
-</script>
+<script src="<?= assetUrl('js/chart.min.js') ?>"></script>
 
-<div id="page_title"><?= esc($title) ?></div>
+<?= view('reports/_head', ['title' => $title, 'subtitle' => $subtitle, 'sensitiveToggle' => true]) ?>
 
-<div id="page_subtitle"><?= esc($subtitle) ?></div>
+<?= view('reports/_summary', ['summary_data' => $summary_data_1]) ?>
 
-<div class="ct-chart ct-golden-section" id="chart1"></div>
+<?php if ($values === []): ?>
+    <div class="alert alert-info"><?= lang('Reports.no_data_for_period') ?></div>
+<?php else: ?>
+    <section class="card chart-card">
+        <div class="chart-box" data-kind="<?= esc($kind, 'attr') ?>">
+            <canvas id="chart1" role="img" aria-label="<?= esc($title . ' — ' . $subtitle, 'attr') ?>" data-chart="<?= esc(json_encode($spec, JSON_UNESCAPED_UNICODE), 'attr') ?>"></canvas>
+        </div>
 
-<div id="toolbar">
-    <div class="float-start d-flex flex-wrap align-items-center gap-2" role="toolbar">
-        <!-- Toggle Button -->
-        <button id="toggleCostProfitButton" class="btn btn-outline-secondary btn-sm print_hide">
-            <?php echo lang('Reports.toggle_cost_and_profit'); ?>
-        </button>
-    </div>
-</div>
-
-<?= view($chart_type) ?>
-
-<div id="chart_report_summary">
-    <?php foreach ($summary_data_1 as $name => $value) { ?>
-        <div class="summary_row"><?= lang("Reports.$name") . ': ' . esc(to_currency($value)) ?></div>
-    <?php } ?>
-</div>
-
-<script src="<?= base_url('js/hide_cost_profit.js') ?>"></script>
+        <details class="chart-data">
+            <summary><?= lang('Reports.chart_data') ?></summary>
+            <div class="table-responsive">
+                <table class="table table-sm table-striped mb-0">
+                    <thead>
+                        <tr>
+                            <th scope="col"><?= esc($xaxis_title ?? '') ?></th>
+                            <th scope="col"><?= esc($yaxis_title ?? '') ?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($labels_1 as $index => $label): ?>
+                            <tr>
+                                <td><?= esc($label) ?></td>
+                                <td><bdi dir="ltr"><?= ! empty($show_currency) ? to_currency($values[$index]) : esc((string) $values[$index]) ?></bdi></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </details>
+    </section>
+<?php endif; ?>
 
 <?= view('partial/footer') ?>
