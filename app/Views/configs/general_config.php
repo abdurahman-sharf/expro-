@@ -1,6 +1,5 @@
 <?php
 /**
- * @var array $themes
  * @var array $image_allowed_types
  * @var array $selected_image_allowed_types
  * @var string $controller_name
@@ -8,36 +7,16 @@
  */
 ?>
 
-<?= form_open('config/saveGeneral/', ['id' => 'general_config_form', 'enctype' => 'multipart/form-data', 'class' => 'form-horizontal']) ?>
+<?= form_open('config/saveGeneral/', ['id' => 'general_config_form', 'enctype' => 'multipart/form-data', 'class' => 'app-form']) ?>
     <div id="config_wrapper">
         <fieldset id="config_info">
 
             <div id="required_fields_message"><?= lang('Common.fields_required_message') ?></div>
             <ul id="general_error_message_box" class="error_message_box"></ul>
 
-            <div class="form-group form-group-sm">
-                <?= form_label(lang('Config.theme'), 'theme', ['class' => 'control-label col-xs-3 col-sm-2']) ?>
-                <div class="col-xs-5 col-sm-4 col-md-3 col-lg-2">
-                    <?= form_dropdown(
-                        'theme',
-                        $themes,
-                        $config['theme'],
-                        'class="form-control input-sm" id="theme-change"'
-                    ) ?>
-                </div>
-                <div class="col-xs-4 col-sm-6 col-md-7 col-lg-8">
-                    <p class="form-control-static">
-                        <a href="<?= 'https://bootswatch.com/3/' . ('bootstrap' == ($config['theme']) ? 'default' : esc($config['theme'])) ?>" target="_blank" rel="noopener">
-                            <span><?= lang('Config.theme_preview') . ' ' . ucfirst(esc($config['theme'])) . ' ' ?></span>
-                            <span class="glyphicon glyphicon-new-window"></span>
-                        </a>
-                    </p>
-                </div>
-            </div>
-
-            <div class="form-group form-group-sm">
-                <?= form_label(lang('Config.login_form'), 'login_form', ['class' => 'control-label col-xs-3 col-sm-2']) ?>
-                <div class="col-xs-9 col-sm-4 col-md-3 col-lg-2">
+            <div class="row mb-3">
+                <?= form_label(lang('Config.login_form'), 'login_form', ['class' => 'col-form-label col-3 col-md-2']) ?>
+                <div class="col-9 col-md-4 col-lg-3 col-xl-2">
                     <?= form_dropdown(
                         'login_form',
                         [
@@ -45,74 +24,50 @@
                             'input_groups'    => lang('Config.input_groups')
                         ],
                         $config['login_form'],
-                        'class="form-control input-sm"'
+                        'class="form-select form-select-sm"'
                     ) ?>
                 </div>
             </div>
 
-            <div class="form-group form-group-sm">
-                <?= form_label(lang('Config.default_sales_discount'), 'default_sales_discount', ['class' => 'control-label col-xs-3 col-sm-2 text-danger required']) ?>
-                <div class="col-xs-9 col-sm-4 col-md-3 col-lg-2">
+            <div class="row mb-3">
+                <?= form_label(lang('Config.default_sales_discount'), 'default_sales_discount', ['class' => 'col-form-label col-3 col-md-2 text-danger required']) ?>
+                <div class="col-9 col-md-4 col-lg-3 col-xl-2">
                     <div class="input-group">
                         <?= form_input([
                             'name'  => 'default_sales_discount',
                             'id'    => 'default_sales_discount',
-                            'class' => 'form-control input-sm required',
+                            'class' => 'form-control form-control-sm required',
                             'type'  => 'number',
                             'min'   => 0,
                             'max'   => 100,
                             'value' => $config['default_sales_discount']
                         ]) ?>
-                        <span class="input-group-btn">
-                            <?= form_checkbox([
-                                'id'           => 'default_sales_discount_type',
-                                'name'         => 'default_sales_discount_type',
-                                'value'        => 1,
-                                'data-toggle'  => 'toggle',
-                                'data-size'    => 'small',
-                                'data-onstyle' => 'success',
-                                'data-on'      => '<strong>' . $config['currency_symbol'] . '</strong>',
-                                'data-off'     => '<strong>%</strong>',
-                                'checked'      => $config['default_sales_discount_type'] == 1
-                            ]) ?>
-                        </span>
+                        <?= toggleButton(['id' => 'default_sales_discount_type', 'name' => 'default_sales_discount_type', 'value' => 1, 'checked' => $config['default_sales_discount_type'] == 1], $config['currency_symbol'], '%') ?>
                     </div>
                 </div>
             </div>
 
-            <div class="form-group form-group-sm">
-                <?= form_label(lang('Config.default_receivings_discount'), 'default_receivings_discount', ['class' => 'control-label col-xs-3 col-sm-2 text-danger required']) ?>
-                <div class="col-xs-9 col-sm-4 col-md-3 col-lg-2">
+            <div class="row mb-3">
+                <?= form_label(lang('Config.default_receivings_discount'), 'default_receivings_discount', ['class' => 'col-form-label col-3 col-md-2 text-danger required']) ?>
+                <div class="col-9 col-md-4 col-lg-3 col-xl-2">
                     <div class="input-group">
                         <?= form_input([
                             'name'  => 'default_receivings_discount',
                             'id'    => 'default_receivings_discount',
-                            'class' => 'form-control input-sm required',
+                            'class' => 'form-control form-control-sm required',
                             'type'  => 'number',
                             'min'   => 0,
                             'max'   => 100,
                             'value' => $config['default_receivings_discount']
                         ]) ?>
-                        <span class="input-group-btn">
-                            <?= form_checkbox([
-                                'id'           => 'default_receivings_discount_type',
-                                'name'         => 'default_receivings_discount_type',
-                                'value'        => 1,
-                                'data-toggle'  => 'toggle',
-                                'data-size'    => 'small',
-                                'data-onstyle' => 'success',
-                                'data-on'      => '<b>' . $config['currency_symbol'] . '</b>',
-                                'data-off'     => '<b>%</b>',
-                                'checked'      => $config['default_receivings_discount_type'] == 1
-                            ]) ?>
-                        </span>
+                        <?= toggleButton(['id' => 'default_receivings_discount_type', 'name' => 'default_receivings_discount_type', 'value' => 1, 'checked' => $config['default_receivings_discount_type'] == 1], $config['currency_symbol'], '%') ?>
                     </div>
                 </div>
             </div>
 
-            <div class="form-group form-group-sm">
-                <?= form_label(lang('Config.enforce_privacy'), 'enforce_privacy', ['class' => 'control-label col-xs-3 col-sm-2']) ?>
-                <div class="col-xs-9">
+            <div class="row mb-3">
+                <?= form_label(lang('Config.enforce_privacy'), 'enforce_privacy', ['class' => 'col-form-label col-3 col-md-2']) ?>
+                <div class="col-9">
                     <?= form_checkbox([
                         'name'    => 'enforce_privacy',
                         'id'      => 'enforce_privacy',
@@ -120,15 +75,15 @@
                         'checked' => $config['enforce_privacy'] == 1
                     ]) ?>
                     &nbsp;
-                    <label class="control-label">
-                        <span class="glyphicon glyphicon-info-sign" data-toggle="tooltip" data-placement="right" title="<?= lang('Config.enforce_privacy_tooltip') ?>"></span>
+                    <label class="col-form-label">
+                        <span class="bi bi-info-circle" aria-hidden="true" data-bs-toggle="tooltip" data-bs-placement="right" title="<?= lang('Config.enforce_privacy_tooltip') ?>"></span>
                     </label>
                 </div>
             </div>
 
-            <div class="form-group form-group-sm">
-                <?= form_label(lang('Config.receiving_calculate_average_price'), 'receiving_calculate_average_price', ['class' => 'control-label col-xs-3 col-sm-2']) ?>
-                <div class="col-xs-9">
+            <div class="row mb-3">
+                <?= form_label(lang('Config.receiving_calculate_average_price'), 'receiving_calculate_average_price', ['class' => 'col-form-label col-3 col-md-2']) ?>
+                <div class="col-9">
                     <?= form_checkbox([
                         'name'    => 'receiving_calculate_average_price',
                         'id'      => 'receiving_calculate_average_price',
@@ -138,13 +93,13 @@
                 </div>
             </div>
 
-            <div class="form-group form-group-sm">
-                <?= form_label(lang('Config.lines_per_page'), 'lines_per_page', ['class' => 'control-label col-xs-3 col-sm-2 text-danger required']) ?>
-                <div class="col-xs-9 col-sm-4 col-md-3 col-lg-2">
+            <div class="row mb-3">
+                <?= form_label(lang('Config.lines_per_page'), 'lines_per_page', ['class' => 'col-form-label col-3 col-md-2 text-danger required']) ?>
+                <div class="col-9 col-md-4 col-lg-3 col-xl-2">
                     <?= form_input([
                         'name'  => 'lines_per_page',
                         'id'    => 'lines_per_page',
-                        'class' => 'form-control input-sm required',
+                        'class' => 'form-control form-control-sm required',
                         'type'  => 'number',
                         'min'   => 10,
                         'max'   => 1000,
@@ -153,9 +108,9 @@
                 </div>
             </div>
 
-            <div class="form-group form-group-sm">
-                <?= form_label(lang('Config.notify_alignment'), 'notify_horizontal_position', ['class' => 'control-label col-xs-3 col-sm-2']) ?>
-                <div class="col-xs-4 col-md-3 col-lg-2">
+            <div class="row mb-3">
+                <?= form_label(lang('Config.notify_alignment'), 'notify_horizontal_position', ['class' => 'col-form-label col-3 col-md-2']) ?>
+                <div class="col-4 col-lg-3 col-xl-2">
                     <?= form_dropdown(
                         'notify_vertical_position',
                         [
@@ -163,10 +118,10 @@
                             'bottom' => lang('Config.bottom')
                         ],
                         $config['notify_vertical_position'],
-                        'class="form-control input-sm"'
+                        'class="form-select form-select-sm"'
                     ) ?>
                 </div>
-                <div class="col-xs-4 col-md-3 col-lg-2">
+                <div class="col-4 col-lg-3 col-xl-2">
                     <?= form_dropdown(
                         'notify_horizontal_position',
                         [
@@ -175,73 +130,73 @@
                             'right'  => lang('Config.right')
                         ],
                         $config['notify_horizontal_position'],
-                        'class="form-control input-sm"'
+                        'class="form-select form-select-sm"'
                     ) ?>
                 </div>
             </div>
 
-            <div class="form-group form-group-sm">
-                <?= form_label(lang('Config.image_restrictions'), 'image_restrictions', ['class' => 'control-label col-xs-3 col-sm-2']) ?>
-                <div class="col-xs-2">
+            <div class="row mb-3">
+                <?= form_label(lang('Config.image_restrictions'), 'image_restrictions', ['class' => 'col-form-label col-3 col-md-2']) ?>
+                <div class="col-2">
                     <div class="input-group">
-                        <span class="input-group-addon input-sm">
-                            <span class="glyphicon glyphicon-resize-horizontal"></span>
+                        <span class="input-group-text">
+                            <span class="bi bi-arrows-expand" aria-hidden="true"></span>
                         </span>
                         <?= form_input([
                             'name'           => 'image_max_width',
                             'id'             => 'image_max_width',
-                            'class'          => 'form-control input-sm required',
+                            'class'          => 'form-control form-control-sm required',
                             'type'           => 'number',
                             'min'            => 128,
                             'max'            => 3840,
                             'value'          => $config['image_max_width'],
-                            'data-toggle'    => 'tooltip',
-                            'data-placement' => 'top',
+                            'data-bs-toggle'  => 'tooltip',
+                            'data-bs-placement' => 'top',
                             'title'          => lang('Config.image_max_width_tooltip')
                         ]) ?>
                     </div>
                 </div>
-                <div class="col-xs-2">
+                <div class="col-2">
                     <div class="input-group">
-                        <span class="input-group-addon input-sm">
-                            <span class="glyphicon glyphicon-resize-vertical"></span>
+                        <span class="input-group-text">
+                            <span class="bi bi-arrows-vertical" aria-hidden="true"></span>
                         </span>
                         <?= form_input([
                             'name'           => 'image_max_height',
                             'id'             => 'image_max_height',
-                            'class'          => 'form-control input-sm required',
+                            'class'          => 'form-control form-control-sm required',
                             'type'           => 'number',
                             'min'            => 128,
                             'max'            => 3840,
                             'value'          => $config['image_max_height'],
-                            'data-toggle'    => 'tooltip',
-                            'data-placement' => 'top',
+                            'data-bs-toggle'  => 'tooltip',
+                            'data-bs-placement' => 'top',
                             'title'          => lang('Config.image_max_height_tooltip')
                         ]) ?>
                     </div>
                 </div>
-                <div class="col-xs-2">
+                <div class="col-2">
                     <div class="input-group">
-                        <span class="input-group-addon input-sm">
-                            <span class="glyphicon glyphicon-hdd"></span>
+                        <span class="input-group-text">
+                            <span class="bi bi-hdd" aria-hidden="true"></span>
                         </span>
                         <?= form_input([
                             'name'           => 'image_max_size',
                             'id'             => 'image_max_size',
-                            'class'          => 'form-control input-sm required',
+                            'class'          => 'form-control form-control-sm required',
                             'type'           => 'number',
                             'min'            => 128,
                             'max'            => 2048,
                             'value'          => $config['image_max_size'],
-                            'data-toggle'    => 'tooltip',
-                            'data-placement' => 'top',
+                            'data-bs-toggle'  => 'tooltip',
+                            'data-bs-placement' => 'top',
                             'title'          => lang('Config.image_max_size_tooltip')
                         ]) ?>
                     </div>
                 </div>
-                <div class="col-xs-3 col-sm-4">
+                <div class="col-3 col-md-4">
                     <div class="input-group">
-                        <span class="input-group-addon input-sm"><?= lang('Config.image_allowed_file_types') ?></span>
+                        <span class="input-group-text"><?= lang('Config.image_allowed_file_types') ?></span>
                         <?= form_multiselect([
                             'name'                      => 'image_allowed_types[]',
                             'options'                   => $image_allowed_types,
@@ -250,16 +205,16 @@
                             'class'                     => 'selectpicker show-menu-arrow',
                             'data-none-selected-text'   => lang('Common.none_selected_text'),
                             'data-selected-text-format' => 'count > 1',
-                            'data-style'                => 'btn-default btn-sm',
+                            'data-style'                => 'btn-outline-secondary btn-sm',
                             'data-width'                => '100%'
                         ]) ?>
                     </div>
                 </div>
             </div>
 
-            <div class="form-group form-group-sm">
-                <?= form_label(lang('Config.gcaptcha_enable'), 'gcaptcha_enable', ['class' => 'control-label col-xs-3 col-sm-2']) ?>
-                <div class="col-xs-9">
+            <div class="row mb-3">
+                <?= form_label(lang('Config.gcaptcha_enable'), 'gcaptcha_enable', ['class' => 'col-form-label col-3 col-md-2']) ?>
+                <div class="col-9">
                     <?= form_checkbox([
                         'name'    => 'gcaptcha_enable',
                         'id'      => 'gcaptcha_enable',
@@ -267,43 +222,43 @@
                         'checked' => $config['gcaptcha_enable'] == 1
                     ]) ?>
                     &nbsp;
-                    <label class="control-label">
+                    <label class="col-form-label">
                         <a href="https://www.google.com/recaptcha/admin" target="_blank">
-                            <span class="glyphicon glyphicon-info-sign" data-toggle="tooltip" data-placement="right" title="<?= lang('Config.gcaptcha_tooltip') ?>"></span>
+                            <span class="bi bi-info-circle" aria-hidden="true" data-bs-toggle="tooltip" data-bs-placement="right" title="<?= lang('Config.gcaptcha_tooltip') ?>"></span>
                         </a>
                     </label>
                 </div>
             </div>
 
-            <div class="form-group form-group-sm">
-                <?= form_label(lang('Config.gcaptcha_site_key'), 'config_gcaptcha_site_key', ['class' => 'control-label col-xs-3 col-sm-2 required', 'id' => 'config_gcaptcha_site_key']) ?>
-                <div class="col-xs-9 col-sm-6 col-md-5 col-lg-4">
+            <div class="row mb-3">
+                <?= form_label(lang('Config.gcaptcha_site_key'), 'config_gcaptcha_site_key', ['class' => 'col-form-label col-3 col-md-2 required', 'id' => 'config_gcaptcha_site_key']) ?>
+                <div class="col-9 col-md-6 col-lg-5 col-xl-4">
                     <?= form_input([
                         'name'  => 'gcaptcha_site_key',
                         'id'    => 'gcaptcha_site_key',
-                        'class' => 'form-control input-sm required',
+                        'class' => 'form-control form-control-sm required',
                         'value' => $config['gcaptcha_site_key']
                     ]) ?>
                 </div>
             </div>
 
-            <div class="form-group form-group-sm">
-                <?= form_label(lang('Config.gcaptcha_secret_key'), 'config_gcaptcha_secret_key', ['class' => 'control-label col-xs-3 col-sm-2 required', 'id' => 'config_gcaptcha_secret_key']) ?>
-                <div class="col-xs-9 col-sm-6 col-md-5 col-lg-4">
+            <div class="row mb-3">
+                <?= form_label(lang('Config.gcaptcha_secret_key'), 'config_gcaptcha_secret_key', ['class' => 'col-form-label col-3 col-md-2 required', 'id' => 'config_gcaptcha_secret_key']) ?>
+                <div class="col-9 col-md-6 col-lg-5 col-xl-4">
                     <?= form_input([
                         'name'  => 'gcaptcha_secret_key',
                         'id'    => 'gcaptcha_secret_key',
-                        'class' => 'form-control input-sm required',
+                        'class' => 'form-control form-control-sm required',
                         'value' => $config['gcaptcha_secret_key']
                     ]) ?>
                 </div>
             </div>
 
-            <div class="form-group form-group-sm">
-                <?= form_label(lang('Config.suggestions_layout'), 'suggestions_layout', ['class' => 'control-label col-xs-3 col-sm-2']) ?>
-                <div class="col-xs-3">
+            <div class="row mb-3">
+                <?= form_label(lang('Config.suggestions_layout'), 'suggestions_layout', ['class' => 'col-form-label col-3 col-md-2']) ?>
+                <div class="col-3">
                     <div class="input-group">
-                        <span class="input-group-addon input-sm"><?= lang('Config.suggestions_first_column') ?></span>
+                        <span class="input-group-text"><?= lang('Config.suggestions_first_column') ?></span>
                         <?= form_dropdown(
                             'suggestions_first_column',
                             [
@@ -313,13 +268,13 @@
                                 'cost_price'  => lang('Items.cost_price')
                             ],
                             $config['suggestions_first_column'],
-                            'class="form-control input-sm"'
+                            'class="form-select form-select-sm"'
                         ) ?>
                     </div>
                 </div>
-                <div class="col-xs-3">
+                <div class="col-3">
                     <div class="input-group">
-                        <span class="input-group-addon input-sm"><?= lang('Config.suggestions_second_column') ?></span>
+                        <span class="input-group-text"><?= lang('Config.suggestions_second_column') ?></span>
                         <?= form_dropdown(
                             'suggestions_second_column',
                             [
@@ -330,13 +285,13 @@
                                 'cost_price'  => lang('Items.cost_price')
                             ],
                             $config['suggestions_second_column'],
-                            'class="form-control input-sm"'
+                            'class="form-select form-select-sm"'
                         ) ?>
                     </div>
                 </div>
-                <div class="col-xs-3">
+                <div class="col-3">
                     <div class="input-group">
-                        <span class="input-group-addon input-sm"><?= lang('Config.suggestions_third_column') ?></span>
+                        <span class="input-group-text"><?= lang('Config.suggestions_third_column') ?></span>
                         <?= form_dropdown(
                             'suggestions_third_column',
                             [
@@ -347,16 +302,16 @@
                                 'cost_price'  => lang('Items.cost_price')
                             ],
                             $config['suggestions_third_column'],
-                            'class="form-control input-sm"'
+                            'class="form-select form-select-sm"'
                         ) ?>
                     </div>
                 </div>
             </div>
 
-            <div class="form-group form-group-sm">
-                <?= form_label(lang('Config.giftcard_number'), 'giftcard_number', ['class' => 'control-label col-xs-3 col-sm-2']) ?>
-                <div class="col-xs-9">
-                    <label class="radio-inline">
+            <div class="row mb-3">
+                <?= form_label(lang('Config.giftcard_number'), 'giftcard_number', ['class' => 'col-form-label col-3 col-md-2']) ?>
+                <div class="col-9">
+                    <label class="choice">
                         <?= form_radio([
                             'name'    => 'giftcard_number',
                             'value'   => 'series',
@@ -364,7 +319,7 @@
                         ]) ?>
                         <?= lang('Config.giftcard_series') ?>
                     </label>
-                    <label class="radio-inline">
+                    <label class="choice">
                         <?= form_radio([
                             'name'    => 'giftcard_number',
                             'value'   => 'random',
@@ -375,9 +330,9 @@
                 </div>
             </div>
 
-            <div class="form-group form-group-sm">
-                <?= form_label(lang('Config.derive_sale_quantity'), 'derive_sale_quantity', ['class' => 'control-label col-xs-3 col-sm-2']) ?>
-                <div class="col-xs-9">
+            <div class="row mb-3">
+                <?= form_label(lang('Config.derive_sale_quantity'), 'derive_sale_quantity', ['class' => 'col-form-label col-3 col-md-2']) ?>
+                <div class="col-9">
                     <?= form_checkbox([
                         'name'    => 'derive_sale_quantity',
                         'id'      => 'derive_sale_quantity',
@@ -385,15 +340,15 @@
                         'checked' => $config['derive_sale_quantity'] == 1
                     ]) ?>
                     &nbsp;
-                    <label class="control-label">
-                        <span class="glyphicon glyphicon-info-sign" data-toggle="tooltip" data-placement="right" title="<?= lang('Config.derive_sale_quantity_tooltip') ?>"></span>
+                    <label class="col-form-label">
+                        <span class="bi bi-info-circle" aria-hidden="true" data-bs-toggle="tooltip" data-bs-placement="right" title="<?= lang('Config.derive_sale_quantity_tooltip') ?>"></span>
                     </label>
                 </div>
             </div>
 
-            <div class="form-group form-group-sm">
-                <?= form_label(lang('Config.multi_pack_enabled'), 'multi_pack_enabled', ['class' => 'control-label col-xs-3 col-sm-2']) ?>
-                <div class="col-xs-9">
+            <div class="row mb-3">
+                <?= form_label(lang('Config.multi_pack_enabled'), 'multi_pack_enabled', ['class' => 'col-form-label col-3 col-md-2']) ?>
+                <div class="col-9">
                     <?= form_checkbox([
                         'name'    => 'multi_pack_enabled',
                         'id'      => 'multi_pack_enabled',
@@ -403,9 +358,9 @@
                 </div>
             </div>
 
-            <div class="form-group form-group-sm">
-                <?= form_label(lang('Config.include_hsn'), 'include_hsn', ['class' => 'control-label col-xs-3 col-sm-2']) ?>
-                <div class="col-xs-9">
+            <div class="row mb-3">
+                <?= form_label(lang('Config.include_hsn'), 'include_hsn', ['class' => 'col-form-label col-3 col-md-2']) ?>
+                <div class="col-9">
                     <?= form_checkbox([
                         'name'    => 'include_hsn',
                         'id'      => 'include_hsn',
@@ -415,9 +370,9 @@
                 </div>
             </div>
 
-            <div class="form-group form-group-sm">
-                <?= form_label(lang('Config.category_dropdown'), 'category_dropdown', ['class' => 'control-label col-xs-3 col-sm-2']) ?>
-                <div class="col-xs-9">
+            <div class="row mb-3">
+                <?= form_label(lang('Config.category_dropdown'), 'category_dropdown', ['class' => 'col-form-label col-3 col-md-2']) ?>
+                <div class="col-9">
                     <?= form_checkbox([
                         'name'    => 'category_dropdown',
                         'id'      => 'category_dropdown',
@@ -431,7 +386,7 @@
                 'name'  => 'submit_general',
                 'id'    => 'submit_general',
                 'value' => lang('Common.submit'),
-                'class' => 'btn btn-primary btn-sm pull-right'
+                'class' => 'btn btn-primary btn-sm float-end'
             ]) ?>
 
         </fieldset>

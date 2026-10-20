@@ -8,5 +8,7 @@ return [
     'page_from_to'         => 'Відображено {0} до {1} з {2} рядків',
     'refresh'              => 'Оновити',
     'rows_per_page'        => '{0} рядків на сторінці',
+    'select_all'           => '',
+    'select_row'           => '',
     'toggle'               => 'Переключити',
 ];

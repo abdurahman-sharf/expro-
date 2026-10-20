@@ -17,40 +17,40 @@
 
 <?php
 if (isset($error)) {
-    echo '<div class="alert alert-dismissible alert-danger">' . esc($error) . '</div>';
+    echo '<div class="alert alert-danger">' . esc($error) . '</div>';
 }
 ?>
 
-<?= form_open('#', ['id' => 'item_form', 'enctype' => 'multipart/form-data', 'class' => 'form-horizontal']) ?>
+<?= form_open('#', ['id' => 'item_form', 'enctype' => 'multipart/form-data', 'class' => 'app-form']) ?>
 
-    <div class="form-group form-group-sm">
-        <?= form_label(lang('Reports.date_range'), 'report_date_range_label', ['class' => 'control-label col-xs-2 text-danger required']) ?>
-        <div class="col-xs-3">
-            <?= form_input(['name' => 'daterangepicker', 'class' => 'form-control input-sm', 'id' => 'daterangepicker']) ?>
+    <div class="row mb-3">
+        <?= form_label(lang('Reports.date_range'), 'report_date_range_label', ['class' => 'col-form-label col-2 text-danger required']) ?>
+        <div class="col-3">
+            <?= form_input(['name' => 'daterangepicker', 'class' => 'form-control form-control-sm', 'id' => 'daterangepicker']) ?>
         </div>
     </div>
 
     <?php if (isset($discount_type_options)) { ?>
-        <div class="form-group form-group-sm">
-            <?= form_label(lang('Reports.discount_type'), 'reports_discount_type_label', ['class' => 'control-label col-xs-2 text-danger required']) ?>
-            <div id="report_discount_type" class="col-xs-3">
-                <?= form_dropdown('discount_type', $discount_type_options, $config['default_sales_discount_type'], ['id' => 'discount_type_id', 'class' => 'form-control']) ?>
+        <div class="row mb-3">
+            <?= form_label(lang('Reports.discount_type'), 'reports_discount_type_label', ['class' => 'col-form-label col-2 text-danger required']) ?>
+            <div id="report_discount_type" class="col-3">
+                <?= form_dropdown('discount_type', $discount_type_options, $config['default_sales_discount_type'], ['id' => 'discount_type_id', 'class' => 'form-select']) ?>
             </div>
         </div>
     <?php } ?>
 
-    <div class="form-group form-group-sm" id="report_specific_input_data">
-        <?= form_label($specific_input_name, 'specific_input_name_label', ['class' => 'control-label col-xs-2 text-danger required']) ?>
-        <div class="col-xs-3 discount_percent">
-            <?= form_dropdown('specific_input_data', $specific_input_data, '', 'id="specific_input_data" class="form-control"') ?>
+    <div class="row mb-3" id="report_specific_input_data">
+        <?= form_label($specific_input_name, 'specific_input_name_label', ['class' => 'col-form-label col-2 text-danger required']) ?>
+        <div class="col-3 discount_percent">
+            <?= form_dropdown('specific_input_data', $specific_input_data, '', 'id="specific_input_data" class="form-select"') ?>
         </div>
 
         <?php if (isset($discount_type_options)) { ?>
-            <div class="col-xs-3 discount_fixed">
+            <div class="col-3 discount_fixed">
                 <?= form_input([
                     'name'  => 'discount_fixed',
                     'id'    => 'discount_fixed',
-                    'class' => 'form-control input-sm required',
+                    'class' => 'form-control form-control-sm required',
                     'type'  => 'number',
                     'min'   => 0,
                     'value' => $config['default_sales_discount']
@@ -59,10 +59,10 @@ if (isset($error)) {
         <?php } ?>
     </div>
 
-    <div class="form-group form-group-sm">
-        <?= form_label(lang('Reports.sale_type'), 'reports_sale_type_label', ['class' => 'control-label col-xs-2 text-danger required']) ?>
-        <div id="report_sale_type" class="col-xs-3">
-            <?= form_dropdown('sale_type', $sale_type_options, 'complete', 'id="input_type" class="form-control"') ?>
+    <div class="row mb-3">
+        <?= form_label(lang('Reports.sale_type'), 'reports_sale_type_label', ['class' => 'col-form-label col-2 text-danger required']) ?>
+        <div id="report_sale_type" class="col-3">
+            <?= form_dropdown('sale_type', $sale_type_options, 'complete', 'id="input_type" class="form-select"') ?>
         </div>
     </div>
 

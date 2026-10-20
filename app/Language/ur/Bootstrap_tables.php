@@ -8,5 +8,7 @@ return [
     'page_from_to'         => '',
     'refresh'              => '',
     'rows_per_page'        => '',
+    'select_all'           => '',
+    'select_row'           => '',
     'toggle'               => '',
 ];

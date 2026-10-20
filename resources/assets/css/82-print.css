@@ -11,13 +11,20 @@
         font-size: 75%;
     }
 
-    .topbar {
-        display: none;
+    .app-sidebar,
+    .app-topbar,
+    .app-footer,
+    .app-menu-toggle,
+    .app-skip {
+        display: none !important;
     }
 
-    #menubar,
-    #footer {
-        display: none;
+    .app-shell {
+        display: block;
+    }
+
+    .app-main {
+        padding: 0;
     }
 
     #sale_return_policy {

@@ -8,5 +8,7 @@ return [
     'page_from_to'         => 'نمایش {0} تا {1} از {2} ردیف',
     'refresh'              => 'تازه کردن',
     'rows_per_page'        => 'صفر ردیف در هر صفحه',
+    'select_all'           => '',
+    'select_row'           => '',
     'toggle'               => 'تغییر وضعیت',
 ];

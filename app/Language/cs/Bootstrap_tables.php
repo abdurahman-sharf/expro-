@@ -8,5 +8,7 @@ return [
     'page_from_to'         => 'Zobrazeno {0} až {1} z {2} řádků',
     'refresh'              => 'Obnovit',
     'rows_per_page'        => '{0} řádků na stránku',
+    'select_all'           => '',
+    'select_row'           => '',
     'toggle'               => 'Přepnout',
 ];

@@ -8,5 +8,7 @@ return [
     'page_from_to'         => 'Prikazivanje {0} do {1} od {2} redova',
     'refresh'              => 'Osvježi',
     'rows_per_page'        => '{0} redova po stranici',
+    'select_all'           => '',
+    'select_row'           => '',
     'toggle'               => 'Promijeni prikaz',
 ];

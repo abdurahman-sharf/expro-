@@ -8,5 +8,7 @@ return [
     'page_from_to'         => 'ສະແດງ {0} ຫາ {1} ຂອງ {2} ແຖວ',
     'refresh'              => 'Refresh',
     'rows_per_page'        => '{0} ແຖວຕໍ່ໜ້າ',
+    'select_all'           => '',
+    'select_row'           => '',
     'toggle'               => 'Toggle',
 ];

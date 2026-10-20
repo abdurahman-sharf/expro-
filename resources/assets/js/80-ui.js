@@ -30,3 +30,28 @@
     });
 
 })(jQuery);
+
+(function($) {
+
+    $(document).on('change', 'input[type="file"][data-preview]', function() {
+        const file = this.files && this.files[0];
+        const $preview = $(this).closest('.image-upload').find($(this).data('preview'));
+
+        if (file && file.type.indexOf('image/') === 0) {
+            $preview.attr('src', URL.createObjectURL(file)).removeClass('d-none');
+        }
+    });
+
+})(jQuery);
+
+(function($) {
+
+    $(document).on('click', '.image-upload-remove', function() {
+        const $box = $(this).closest('.image-upload');
+
+        $box.find('.image-upload-preview').addClass('d-none').removeAttr('src');
+        $box.find('input[type="file"]').val('');
+        $(this).addClass('d-none');
+    });
+
+})(jQuery);

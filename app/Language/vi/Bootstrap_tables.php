@@ -8,5 +8,7 @@ return [
     'page_from_to'         => 'Đang hiển thị {0} đến {1} trên {2} dòng',
     'refresh'              => 'Làm mới lại',
     'rows_per_page'        => '{0} dòng mỗi trang',
+    'select_all'           => '',
+    'select_row'           => '',
     'toggle'               => 'Bật/Tắt',
 ];

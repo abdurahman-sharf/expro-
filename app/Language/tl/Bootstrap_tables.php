@@ -8,5 +8,7 @@ return [
     'page_from_to'         => 'Showing {0} to {1} of {2} rows',
     'refresh'              => 'Refresh',
     'rows_per_page'        => '{0} rows per page',
+    'select_all'           => '',
+    'select_row'           => '',
     'toggle'               => 'Toggle',
 ];

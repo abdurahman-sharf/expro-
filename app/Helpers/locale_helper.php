@@ -28,7 +28,7 @@ function current_language_code(bool $load_system_language = false): string
 /**
  * @return bool Whether the current language is written right to left.
  */
-function is_rtl(): bool
+function isRtl(): bool
 {
     $language = strtolower(explode('-', current_language_code())[0]);
 
@@ -38,9 +38,9 @@ function is_rtl(): bool
 /**
  * @return string
  */
-function text_direction(): string
+function textDirection(): string
 {
-    return is_rtl() ? 'rtl' : 'ltr';
+    return isRtl() ? 'rtl' : 'ltr';
 }
 
 /**
@@ -49,7 +49,7 @@ function text_direction(): string
  * @param string $locale
  * @return string
  */
-function number_formatter_locale(string $locale): string
+function numberFormatterLocale(string $locale): string
 {
     return str_contains($locale, '@') ? $locale : $locale . '@numbers=latn';
 }
@@ -327,7 +327,7 @@ function get_reference_code_payment_types(): array
 function is_right_side_currency_symbol(): bool
 {
     $config = config(OSPOS::class)->settings;
-    $fmt = new NumberFormatter(number_formatter_locale($config['number_locale']), NumberFormatter::CURRENCY);
+    $fmt = new NumberFormatter(numberFormatterLocale($config['number_locale']), NumberFormatter::CURRENCY);
     $fmt->setSymbol(NumberFormatter::CURRENCY_SYMBOL, $config['currency_symbol']);
 
     return !preg_match('/^¤/', $fmt->getPattern());
@@ -467,7 +467,7 @@ function to_decimals(?string $number, ?string $decimals = null, int $type = Numb
     }
 
     $config = config(OSPOS::class)->settings;
-    $fmt = new NumberFormatter(number_formatter_locale($config['number_locale']), $type);
+    $fmt = new NumberFormatter(numberFormatterLocale($config['number_locale']), $type);
     $fmt->setAttribute(NumberFormatter::MIN_FRACTION_DIGITS, empty($decimals) ? DEFAULT_PRECISION : $config[$decimals]);
     $fmt->setAttribute(NumberFormatter::MAX_FRACTION_DIGITS, empty($decimals) ? DEFAULT_PRECISION : $config[$decimals]);
 
@@ -511,7 +511,7 @@ function parse_decimals(string $number, ?int $decimals = null): mixed
 
     $config = config(OSPOS::class)->settings;
 
-    $fmt = new NumberFormatter(number_formatter_locale($config['number_locale']), NumberFormatter::DECIMAL);
+    $fmt = new NumberFormatter(numberFormatterLocale($config['number_locale']), NumberFormatter::DECIMAL);
 
     if (!$decimals) {
         $decimals = intVal($config['currency_decimals'] ?? 2);
@@ -635,48 +635,21 @@ function dateformat_mysql(): string
 }
 
 /**
- * @param string $php_format
- * @return string
+ * @param string $php_format Date format in PHP notation.
+ * @return string The same format in flatpickr notation.
  */
-function dateformat_bootstrap(string $php_format): string
+function dateformatFlatpickr(string $php_format): string
 {
-    $SYMBOLS_MATCHING = [
-        // Day
-        'd' => 'dd',
-        'D' => 'd',
-        'j' => 'd',
-        'l' => 'dd',
-        'N' => '',
+    return strtr($php_format, [
         'S' => '',
-        'w' => '',
-        'z' => '',
-        // Week
-        'W' => '',
-        // Month
-        'F' => 'MM',
-        'm' => 'mm',
-        'M' => 'M',
-        'n' => 'm',
-        't' => '',
-        // Year
-        'L' => '',
-        'o' => '',
-        'Y' => 'yyyy',
-        'y' => 'yy',
-        // Time
-        'a' => 'p',
-        'A' => 'P',
-        'B' => '',
-        'g' => 'H',
-        'G' => 'h',
-        'h' => 'HH',
-        'H' => 'hh',
-        'i' => 'ii',
-        's' => 'ss',
+        'a' => 'K',
+        'A' => 'K',
+        'g' => 'h',
+        'G' => 'H',
+        'h' => 'G',
+        's' => 'S',
         'u' => ''
-    ];
-
-    return strtr($php_format, $SYMBOLS_MATCHING);
+    ]);
 }
 
 /**

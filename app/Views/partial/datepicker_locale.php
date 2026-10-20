@@ -1,95 +1,42 @@
 <?php
+/**
+ * @var string|null $format
+ */
+
 use Config\OSPOS;
 
-$config = config(OSPOS::class)->settings; ?>
+$config = config(OSPOS::class)->settings;
+$timeFormat = $config['timeformat'];
+$hasTime = !isset($format);
+$format ??= dateformatFlatpickr($config['dateformat'] . ' ' . $timeFormat);
+$meridian = str_contains($timeFormat, 'a') || str_contains($timeFormat, 'A');
+
+$lines = static fn(string $prefix, array $keys): string => json_encode(
+    array_map(static fn(string $key): string => lang("$prefix.$key"), $keys),
+    JSON_UNESCAPED_UNICODE
+);
+?>
 
 const pickerconfig = function(config) {
-    return $.extend({
-        format: "<?= $this->data["format"] ?? dateformat_bootstrap($config['dateformat']) . ' ' . dateformat_bootstrap($config['timeformat'])?>",
-        <?php
-        $t = $config['timeformat'];
-        $m = $t[strlen($t) - 1];
-        if (str_contains($config['timeformat'], 'a') || str_contains($config['timeformat'], 'A')) {
-        ?>
-            showMeridian: true,
-        <?php } else {  ?>
-            showMeridian: false,
-        <?php } ?>
-        minView: 2,
-        minuteStep: 1,
-        autoclose: true,
-        todayBtn: true,
-        todayHighlight: true,
-        bootcssVer: 3,
-        language: "<?= current_language_code() ?>"
-    }, <?php echo isset($config) ?>);
+    return $.extend(true, {
+        dateFormat: <?= json_encode($format) ?>,
+        enableTime: <?= $hasTime ? 'true' : 'false' ?>,
+        time_24hr: <?= $meridian ? 'false' : 'true' ?>,
+        allowInput: true,
+        disableMobile: true,
+        locale: {
+            weekdays: {
+                longhand: <?= $lines('Calendar', ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']) ?>,
+                shorthand: <?= $lines('Calendar', ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']) ?>
+            },
+            months: {
+                longhand: <?= $lines('Calendar', ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december']) ?>,
+                shorthand: <?= $lines('Calendar', ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']) ?>
+            },
+            firstDayOfWeek: <?= (int) lang('Datepicker.weekstart') ?>,
+            rtl: <?= isRtl() ? 'true' : 'false' ?>
+        }
+    }, config);
 };
 
-$.fn.datetimepicker.dates['<?= $config['language'] ?>'] = {
-    days: [
-        "<?= lang('Calendar.sunday') ?>",
-        "<?= lang('Calendar.monday') ?>",
-        "<?= lang('Calendar.tuesday') ?>",
-        "<?= lang('Calendar.wednesday') ?>",
-        "<?= lang('Calendar.thursday') ?>",
-        "<?= lang('Calendar.friday') ?>",
-        "<?= lang('Calendar.saturday') ?>"
-    ],
-    daysShort: [
-        "<?= lang('Calendar.sun') ?>",
-        "<?= lang('Calendar.mon') ?>",
-        "<?= lang('Calendar.tue') ?>",
-        "<?= lang('Calendar.wed') ?>",
-        "<?= lang('Calendar.thu') ?>",
-        "<?= lang('Calendar.fri') ?>",
-        "<?= lang('Calendar.sat') ?>"
-    ],
-    daysMin: [
-        "<?= lang('Calendar.su') ?>",
-        "<?= lang('Calendar.mo') ?>",
-        "<?= lang('Calendar.tu') ?>",
-        "<?= lang('Calendar.we') ?>",
-        "<?= lang('Calendar.th') ?>",
-        "<?= lang('Calendar.fr') ?>",
-        "<?= lang('Calendar.sa') ?>"
-    ],
-    months: [
-        "<?= lang('Calendar.january') ?>",
-        "<?= lang('Calendar.february') ?>",
-        "<?= lang('Calendar.march') ?>",
-        "<?= lang('Calendar.april') ?>",
-        "<?= lang('Calendar.may') ?>",
-        "<?= lang('Calendar.june') ?>",
-        "<?= lang('Calendar.july') ?>",
-        "<?= lang('Calendar.august') ?>",
-        "<?= lang('Calendar.september') ?>",
-        "<?= lang('Calendar.october') ?>",
-        "<?= lang('Calendar.november') ?>",
-        "<?= lang('Calendar.december') ?>"
-    ],
-    monthsShort: [
-        "<?= lang('Calendar.jan') ?>",
-        "<?= lang('Calendar.feb') ?>",
-        "<?= lang('Calendar.mar') ?>",
-        "<?= lang('Calendar.apr') ?>",
-        "<?= lang('Calendar.may') ?>",
-        "<?= lang('Calendar.jun') ?>",
-        "<?= lang('Calendar.jul') ?>",
-        "<?= lang('Calendar.aug') ?>",
-        "<?= lang('Calendar.sep') ?>",
-        "<?= lang('Calendar.oct') ?>",
-        "<?= lang('Calendar.nov') ?>",
-        "<?= lang('Calendar.dec') ?>"
-    ],
-    today: "<?= lang('Datepicker.today') ?>",
-    <?php if (str_contains($config['timeformat'], 'a')) { ?>
-        meridiem: ["am", "pm"],
-    <?php } elseif (str_contains($config['timeformat'], 'A')) { ?>
-        meridiem: ["AM", "PM"],
-    <?php } else { ?>
-        meridiem: [],
-    <?php } ?>
-    weekStart: <?= lang('Datepicker.weekstart') ?>
-};
-
-$(".datetime").datetimepicker(pickerconfig());
+flatpickr('.datetime, .datepicker', pickerconfig());

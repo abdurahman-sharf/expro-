@@ -20,7 +20,7 @@
 
 <?php
 if (isset($error_message)) {
-    echo '<div class="alert alert-dismissible alert-danger">' . $error_message . '</div>';
+    echo '<div class="alert alert-danger">' . $error_message . '</div>';
     exit;
 }
 ?>
@@ -53,20 +53,20 @@ if (isset($error_message)) {
 
 <div class="print_hide" id="control_buttons" style="text-align: right;">
     <a href="javascript:printdoc();">
-        <div class="btn btn-info btn-sm" id="show_print_button"><?= '<span class="glyphicon glyphicon-print">&nbsp;</span>' . lang('Common.print') ?></div>
+        <div class="btn btn-primary btn-sm" id="show_print_button"><?= '<span class="bi bi-printer" aria-hidden="true">&nbsp;</span>' . lang('Common.print') ?></div>
     </a>
     <?php
     /* This line will allow to print and go back to sales automatically.
-     * echo anchor('sales', '<span class="glyphicon glyphicon-print">&nbsp;</span>' . lang('Common.print'), ['class' => 'btn btn-info btn-sm', 'id' => 'show_print_button', 'onclick' => 'window.print();'));
+     * echo anchor('sales', '<span class="bi bi-printer" aria-hidden="true">&nbsp;</span>' . lang('Common.print'), ['class' => 'btn btn-primary btn-sm', 'id' => 'show_print_button', 'onclick' => 'window.print();'));
      */
     ?>
     <?php if (isset($customer_email) && !empty($customer_email)): ?>
         <a href="javascript:void(0);">
-            <div class="btn btn-info btn-sm" id="show_email_button"><?= '<span class="glyphicon glyphicon-envelope">&nbsp;</span>' . lang('Sales.send_quote') ?></div>
+            <div class="btn btn-primary btn-sm" id="show_email_button"><?= '<span class="bi bi-envelope" aria-hidden="true">&nbsp;</span>' . lang('Sales.send_quote') ?></div>
         </a>
     <?php endif; ?>
-    <?= anchor('sales', '<span class="glyphicon glyphicon-shopping-cart">&nbsp;</span>' . lang('Sales.register'), ['class' => 'btn btn-info btn-sm', 'id' => 'show_sales_button']) ?>
-    <?= anchor('sales/discardsuspendedsale', '<span class="glyphicon glyphicon-remove">&nbsp;</span>' . lang('Sales.discard'), ['class' => 'btn btn-danger btn-sm', 'id' => 'discard_quote_button']) ?>
+    <?= anchor('sales', '<span class="bi bi-cart3" aria-hidden="true">&nbsp;</span>' . lang('Sales.register'), ['class' => 'btn btn-primary btn-sm', 'id' => 'show_sales_button']) ?>
+    <?= anchor('sales/discardsuspendedsale', '<span class="bi bi-x-lg" aria-hidden="true">&nbsp;</span>' . lang('Sales.discard'), ['class' => 'btn btn-danger btn-sm', 'id' => 'discard_quote_button']) ?>
 </div>
 
 <div id="page-wrap">

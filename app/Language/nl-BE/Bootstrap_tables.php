@@ -8,5 +8,7 @@ return [
     'page_from_to'         => 'Toon {0} tot {1} van {2} record(s)',
     'refresh'              => 'Vernieuwen',
     'rows_per_page'        => '{0} records per pagina',
+    'select_all'           => '',
+    'select_row'           => '',
     'toggle'               => 'Omschakelen',
 ];

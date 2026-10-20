@@ -7,21 +7,21 @@
 use Config\Services;
 
 $request = Services::request();
-$activeModule = navigation_active_module($request->getUri()->getSegment(1));
+$activeModule = navigationActiveModule($request->getUri()->getSegment(1));
 $initial = mb_substr(trim($user_info->first_name . $user_info->last_name) ?: $user_info->username, 0, 1);
 ?>
 
 <aside id="app-sidebar" class="app-sidebar offcanvas offcanvas-start" tabindex="-1" aria-label="<?= lang('Common.main_navigation') ?>">
     <div class="app-sidebar-head">
-        <a class="app-brand" href="<?= site_url() ?>">
-            <img class="app-brand-emblem" src="<?= asset_url('img/emblem-white.webp') ?>" alt="" width="34" height="34">
-            <img class="app-brand-wordmark" src="<?= asset_url('img/wordmark-white.webp') ?>" alt="<?= BRAND_NAME ?>" height="26">
+        <a class="app-brand" href="<?= site_url() ?>" aria-label="<?= BRAND_NAME ?>">
+            <img class="app-brand-emblem" src="<?= assetUrl('img/emblem-white.webp') ?>" alt="" width="34" height="34">
+            <img class="app-brand-wordmark" src="<?= assetUrl('img/wordmark-white.webp') ?>" alt="<?= BRAND_NAME ?>" height="26">
         </a>
         <button type="button" class="btn-close btn-close-white app-sidebar-close" data-bs-dismiss="offcanvas" data-bs-target="#app-sidebar" aria-label="<?= lang('Common.close') ?>"></button>
     </div>
 
     <nav class="app-nav">
-        <?php foreach (navigation_groups($allowed_modules, $activeModule) as $groupIndex => $group): ?>
+        <?php foreach (navigationGroups($allowed_modules, $activeModule) as $groupIndex => $group): ?>
             <p class="app-nav-group" id="nav-group-<?= $groupIndex ?>"><span><?= esc($group['label']) ?></span></p>
             <ul class="app-nav-list" aria-labelledby="nav-group-<?= $groupIndex ?>">
                 <?php foreach ($group['items'] as $item): ?>

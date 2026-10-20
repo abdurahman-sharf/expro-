@@ -204,6 +204,7 @@ class Autoload extends AutoloadConfig
         'locale',
         'security',
         'asset',
-        'navigation'
+        'navigation',
+        'ui'
     ];
 }

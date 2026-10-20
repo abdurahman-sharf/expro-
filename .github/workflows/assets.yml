@@ -1,0 +1,50 @@
+name: Assets
+
+on:
+  push:
+    paths:
+      - 'resources/assets/**'
+      - 'public/assets/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tools/build-assets.mjs'
+      - '.github/workflows/assets.yml'
+  pull_request:
+    paths:
+      - 'resources/assets/**'
+      - 'public/assets/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tools/build-assets.mjs'
+      - '.github/workflows/assets.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Committed assets are up to date
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build assets
+        run: npm run build
+
+      - name: Fail when the build changes the committed files
+        run: git diff --exit-code -- public/assets

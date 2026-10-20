@@ -39,10 +39,10 @@ class Secure_Controller extends BaseController
         $config = config(OSPOS::class)->settings;
         $validation = Services::validation();
 
-        $logged_in_employee_info = $this->employee->get_logged_in_employee_info();
+        $loggedInEmployeeInfo = $this->employee->get_logged_in_employee_info();
         if (
-            !$this->employee->has_module_grant($module_id, $logged_in_employee_info->person_id)
-            || (isset($submodule_id) && !$this->employee->has_module_grant($submodule_id, $logged_in_employee_info->person_id))
+            !$this->employee->has_module_grant($module_id, $loggedInEmployeeInfo->person_id)
+            || (isset($submodule_id) && !$this->employee->has_module_grant($submodule_id, $loggedInEmployeeInfo->person_id))
         ) {
             throw new RedirectException("no_access/$module_id/$submodule_id");
         }
@@ -51,12 +51,12 @@ class Secure_Controller extends BaseController
         $this->session = session();
 
         $this->global_view_data = [];
-        foreach ($this->module->get_allowed_modules($logged_in_employee_info->person_id)->getResult() as $module) {
+        foreach ($this->module->getAllowedModules($loggedInEmployeeInfo->person_id)->getResult() as $module) {
             $this->global_view_data['allowed_modules'][] = $module;
         }
 
         $this->global_view_data += [
-            'user_info'       => $logged_in_employee_info,
+            'user_info'       => $loggedInEmployeeInfo,
             'controller_name' => $module_id,
             'config'          => $config
         ];

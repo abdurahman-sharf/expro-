@@ -27,7 +27,25 @@ const copy = (from, relative) => {
     copyFileSync(from, target);
 };
 
-const concat = (files, separator) => files.map((file) => stripSourceMaps(read(file)).trim()).join(separator);
+const PATCHES = {
+    'bootstrap-daterangepicker/daterangepicker.js': [
+        ['fa fa-calendar glyphicon glyphicon-calendar', 'bi bi-calendar3'],
+        ['fa fa-clock-o glyphicon glyphicon-time', 'bi bi-clock'],
+        ['btn-default', 'btn-outline-secondary']
+    ]
+};
+
+const patched = (file) => {
+    const patches = Object.entries(PATCHES).find(([name]) => file.endsWith(name))?.[1] ?? [];
+    return patches.reduce((content, [from, to]) => {
+        if (!content.includes(from)) {
+            throw new Error(`Patch target "${from}" not found in ${file}`);
+        }
+        return content.replaceAll(from, to);
+    }, read(file));
+};
+
+const concat = (files, separator) => files.map((file) => stripSourceMaps(patched(file)).trim()).join(separator);
 
 const sourceFiles = (directory, extension) => {
     const path = join(SOURCES, directory);

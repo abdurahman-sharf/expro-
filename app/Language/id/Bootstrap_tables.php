@@ -8,5 +8,7 @@ return [
     'page_from_to'         => 'Menampilkan {0} sampai {1} dari {2} baris',
     'refresh'              => 'Segarkan',
     'rows_per_page'        => '{0} baris per halaman',
+    'select_all'           => '',
+    'select_row'           => '',
     'toggle'               => 'Beralih',
 ];

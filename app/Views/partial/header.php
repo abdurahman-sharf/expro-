@@ -6,11 +6,11 @@
  * @var array $config
  */
 
-$pageTitle = navigation_page_title($controller_name ?? '');
+$pageTitle = navigationPageTitle($controller_name ?? '');
 ?>
 
 <!doctype html>
-<html lang="<?= current_language_code() ?>" dir="<?= text_direction() ?>">
+<html lang="<?= current_language_code() ?>" dir="<?= textDirection() ?>">
 
 <head>
     <meta charset="utf-8">
@@ -19,13 +19,13 @@ $pageTitle = navigation_page_title($controller_name ?? '');
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex, nofollow">
     <meta name="theme-color" content="#042359">
-    <link rel="icon" href="<?= asset_url('img/favicon.ico') ?>">
-    <link rel="apple-touch-icon" href="<?= asset_url('img/apple-touch-icon.png') ?>">
-    <link rel="stylesheet" href="<?= asset_url(is_rtl() ? 'css/bootstrap.rtl.min.css' : 'css/bootstrap.min.css') ?>">
-    <link rel="stylesheet" href="<?= asset_url('css/vendor.min.css') ?>">
-    <link rel="stylesheet" href="<?= asset_url('css/app.css') ?>">
-    <script src="<?= asset_url('js/vendor.min.js') ?>"></script>
-    <script src="<?= asset_url('js/app.js') ?>"></script>
+    <link rel="icon" href="<?= assetUrl('img/favicon.ico') ?>">
+    <link rel="apple-touch-icon" href="<?= assetUrl('img/apple-touch-icon.png') ?>">
+    <link rel="stylesheet" href="<?= assetUrl(isRtl() ? 'css/bootstrap.rtl.min.css' : 'css/bootstrap.min.css') ?>">
+    <link rel="stylesheet" href="<?= assetUrl('css/vendor.min.css') ?>">
+    <link rel="stylesheet" href="<?= assetUrl('css/app.css') ?>">
+    <script src="<?= assetUrl('js/vendor.min.js') ?>"></script>
+    <script src="<?= assetUrl('js/app.js') ?>"></script>
 
     <?= view('partial/header_js') ?>
     <?= view('partial/lang_lines') ?>

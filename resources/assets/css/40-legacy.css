@@ -1,15 +1,37 @@
-#required_fields_message {
-    width: 100%;
-    text-align: center;
-    margin-bottom: 3px;
-    font-style: italic;
+a.none {
+    text-decoration: none;
 }
 
-.error_message_box {
-    margin-bottom: 7px;
-    margin-left: 20px;
-    color: red;
-    font-weight: bold;
+.tab-pane {
+    padding-top: 10px;
+}
+
+#config_info {
+    text-align: start;
+}
+
+#config_info .wide {
+    width: 30%;
+}
+
+#integrations_header {
+    margin: 10px 0;
+    padding: 10px 0;
+    text-align: center;
+    font-size: 1.4em;
+    font-weight: normal;
+}
+
+a.rollover img {
+    padding: 3px;
+}
+
+#required_fields_message {
+    width: 100%;
+    margin-bottom: 8px;
+    color: var(--muted);
+    font-size: 13px;
+    font-style: normal;
 }
 
 #customer_basic_info,
@@ -30,6 +52,7 @@
 
 #permission_list {
     list-style: none;
+    padding-inline-start: 0;
 }
 
 #permission_list li {
@@ -37,13 +60,9 @@
 }
 
 #permission_list ul li {
-    padding-left: 20px;
-    padding-bottom: 0px;
+    padding-inline-start: 20px;
+    padding-bottom: 0;
     list-style: none;
-}
-
-#permission_list input {
-    top: 3px;
 }
 
 #employee_permission_info p {
@@ -51,12 +70,6 @@
 }
 
 #employee_permission_info span.small {
-    font-style: italic;
-    font-size: 80%;
-}
-
-#item_kit_items,
-#items_count_details {
     font-size: 80%;
 }
 
@@ -64,23 +77,24 @@
 #items_count_details,
 #tax_rates {
     width: 100%;
+    font-size: 80%;
 }
 
 #item_kit_items thead tr,
 #items_count_details thead tr,
 #tax_rates thead tr {
-    background-color: #CCC;
+    background-color: var(--surface-2);
 }
 
 #item_kit_items th,
 #items_count_details th,
-#tax_rates th {
-    text-align: center;
-    font-weight: bold;
-}
-
+#tax_rates th,
 #item_kit_items td,
 #items_count_details td,
 #tax_rates td {
     text-align: center;
+}
+
+#filters.btn-group {
+    vertical-align: middle;
 }

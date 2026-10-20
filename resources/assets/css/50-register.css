@@ -1,0 +1,92 @@
+#register_wrapper {
+    float: inline-start;
+    width: 70%;
+    overflow-x: auto;
+}
+
+#overall_sale {
+    float: inline-start;
+    width: 29%;
+    margin-inline-start: .1em;
+    padding-block: 1em;
+    text-align: center;
+}
+
+#mode_form,
+#add_item_form {
+    margin: 0 0 8px;
+}
+
+#mode_form ul,
+#add_item_form ul {
+    padding: 0;
+    margin: 0;
+    list-style: none;
+}
+
+#mode_form ul li,
+#add_item_form ul li {
+    margin-inline-start: 1em;
+}
+
+.first_li {
+    margin-inline-start: .2em !important;
+}
+
+#register {
+    padding: 0;
+    border-collapse: collapse;
+}
+
+#register th,
+#register td {
+    padding: 5px 3px;
+    text-align: center;
+}
+
+#overall_sale .btn {
+    margin-block: .5em;
+}
+
+#payment_details,
+#buttons_sale,
+#suspended_sales_table,
+.sales_table_100 {
+    width: 100%;
+}
+
+#sale_totals,
+#payment_totals {
+    border-top: 1px solid var(--text);
+}
+
+input#amount_tendered:disabled {
+    display: none;
+}
+
+#payment_details {
+    float: inline-start;
+    clear: both;
+    margin-top: .2em;
+    padding: .5em;
+    border-top: 1px solid var(--text);
+    text-align: start;
+}
+
+#add_payment_button,
+#buttons_sale .btn {
+    min-width: 120px;
+}
+
+@media (max-width: 1099.98px) {
+    #register_wrapper,
+    #overall_sale {
+        float: none;
+        width: 100%;
+        margin-inline-start: 0;
+    }
+
+    #payment_details {
+        float: none;
+    }
+}

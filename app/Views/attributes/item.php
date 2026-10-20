@@ -7,14 +7,14 @@
  */
 ?>
 
-<div class="form-group form-group-sm">
-    <?= form_label(lang('Attributes.definition_name'), 'definition_name_label', ['class' => 'control-label col-xs-3']) ?>
-    <div class="col-xs-8">
+<div class="mb-3">
+    <?= form_label(lang('Attributes.definition_name'), 'definition_name_label', ['class' => 'form-label col-3']) ?>
+    <div class="col-8">
         <?= form_dropdown([
             'name'     => 'definition_name',
             'options'  => esc($definition_names),
             'selected' => -1,
-            'class'    => 'form-control',
+            'class'    => 'form-select',
             'id'       => 'definition_name'
         ]) ?>
     </div>
@@ -22,9 +22,9 @@
 
 <?php foreach ($definition_values as $definition_id => $definition_value) { ?>
 
-    <div class="form-group form-group-sm">
-        <?= form_label(esc($definition_value['definition_name']), esc($definition_value['definition_name']), ['class' => 'control-label col-xs-3']) ?>
-        <div class="col-xs-8">
+    <div class="mb-3">
+        <?= form_label(esc($definition_value['definition_name']), esc($definition_value['definition_name']), ['class' => 'form-label col-3']) ?>
+        <div class="col-8">
             <div class="input-group">
                 <?php
                 echo form_hidden("attribute_ids[$definition_id]", strval($definition_value['attribute_id']));
@@ -36,7 +36,7 @@
                         echo form_input([
                             'name'               => "attribute_links[$definition_id]",
                             'value'              => to_date($value),
-                            'class'              => 'form-control input-sm datetime',
+                            'class'              => 'form-control form-control-sm datetime',
                             'data-definition-id' => $definition_id,
                             'readonly'           => 'true'
                         ]);
@@ -47,7 +47,7 @@
                             'name'               => "attribute_links[$definition_id]",
                             'options'            => esc($definition_value['values']),
                             'selected'           => $selected_value,
-                            'class'              => 'form-control',
+                            'class'              => 'form-select',
                             'data-definition-id' => $definition_id
                         ]);
                         break;
@@ -85,14 +85,14 @@
                             'id'                 => "attribute_links[$definition_id]",
                             'value'              => 1,
                             'checked'            => $value == 1,
-                            'class'              => 'checkbox-inline',
+                            'class'              => 'choice',
                             'data-definition-id' => $definition_id
                         ]);
                         break;
                 }
                 ?>
-                <span class="input-group-addon input-sm btn btn-default remove_attribute_btn">
-                    <span class="glyphicon glyphicon-trash"></span>
+                <span class="input-group-text btn btn-outline-secondary remove_attribute_btn">
+                    <span class="bi bi-trash" aria-hidden="true"></span>
                 </span>
             </div>
         </div>
@@ -102,11 +102,11 @@
 
 <script type="text/javascript">
     (function() {
-        <?= view('partial/datepicker_locale', ['format' => dateformat_bootstrap($config['dateformat'])]) ?>
+        <?= view('partial/datepicker_locale', ['format' => dateformatFlatpickr($config['dateformat'])]) ?>
 
         const enable_delete = function() {
             $('.remove_attribute_btn').click(function() {
-                $(this).parents('.form-group').remove();
+                $(this).parents('.mb-3').remove();
             });
         };
 

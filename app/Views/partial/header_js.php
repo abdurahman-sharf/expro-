@@ -32,6 +32,14 @@
         }
     });
 
+    $.extend($.fn.selectpicker.Constructor.DEFAULTS, {
+        noneSelectedText: "<?= esc(lang('Common.none_selected_text'), 'js') ?>",
+        noneResultsText: "<?= esc(lang('Common.no_results_matched'), 'js') ?>",
+        countSelectedText: function(numSelected) {
+            return "<?= esc(lang('Common.selected_count'), 'js') ?>".replace('{0}', numSelected);
+        }
+    });
+
     const csrf_token = function() {
         return "<?= esc(csrf_hash(), 'js') ?>";
     };

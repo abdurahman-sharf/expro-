@@ -8,5 +8,7 @@ return [
     'page_from_to'         => 'Megjelenítve  {0}  {1} / {2} összesen',
     'refresh'              => 'Frissítés',
     'rows_per_page'        => '{0} rekord per oldal',
+    'select_all'           => '',
+    'select_row'           => '',
     'toggle'               => 'Váltás',
 ];

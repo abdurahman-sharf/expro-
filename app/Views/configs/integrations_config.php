@@ -5,7 +5,7 @@
  */
 ?>
 
-<?= form_open('config/saveMailchimp/', ['id' => 'mailchimp_config_form', 'enctype' => 'multipart/form-data', 'class' => 'form-horizontal']) ?>
+<?= form_open('config/saveMailchimp/', ['id' => 'mailchimp_config_form', 'enctype' => 'multipart/form-data', 'class' => 'app-form']) ?>
     <div id="config_wrapper">
         <fieldset id="config_info">
 
@@ -13,43 +13,43 @@
             <div id="integrations_header"><?= lang('Config.mailchimp_configuration') ?></div>
             <ul id="mailchimp_error_message_box" class="error_message_box"></ul>
 
-            <div class="form-group form-group-sm">
-                <?= form_label(lang('Config.mailchimp_api_key'), 'mailchimp_api_key', ['class' => 'control-label col-xs-3 col-sm-2']) ?>
-                <div class="col-xs-8 col-sm-6 col-md-5 col-lg-4">
+            <div class="row mb-3">
+                <?= form_label(lang('Config.mailchimp_api_key'), 'mailchimp_api_key', ['class' => 'col-form-label col-3 col-md-2']) ?>
+                <div class="col-8 col-md-6 col-lg-5 col-xl-4">
                     <div class="input-group">
-                        <span class="input-group-addon input-sm">
-                            <span class="glyphicon glyphicon-cloud"></span>
+                        <span class="input-group-text">
+                            <span class="bi bi-cloud" aria-hidden="true"></span>
                         </span>
                         <?php $apiKeySet = !empty($mailchimp['api_key_set']) ?>
                         <input type="password"
                                name="mailchimp_api_key"
                                id="mailchimp_api_key"
-                               class="form-control input-sm"
+                               class="form-control form-control-sm"
                                placeholder="<?= $apiKeySet ? lang('Config.mailchimp_api_key_set') : esc(lang('Config.mailchimp_api_key')) ?>"
                                autocomplete="off">
                     </div>
                 </div>
-                <div class="col-xs-1 col-sm-4 col-md-5 col-lg-6">
+                <div class="col-1 col-md-4 col-lg-5 col-xl-6">
                     <p class="form-control-static">
                         <a href="https://eepurl.com/b9a05b" target="_blank">
-                            <span class="glyphicon glyphicon-info-sign" data-toggle="tooltip" data-placement="right" title="<?= lang('Config.mailchimp_tooltip') ?>"></span>
+                            <span class="bi bi-info-circle" aria-hidden="true" data-bs-toggle="tooltip" data-bs-placement="right" title="<?= lang('Config.mailchimp_tooltip') ?>"></span>
                         </a>
                     </p>
                 </div>
             </div>
 
-            <div class="form-group form-group-sm">
-                <?= form_label(lang('Config.mailchimp_lists'), 'mailchimp_list_id', ['class' => 'control-label col-xs-3 col-sm-2']) ?>
-                <div class="col-xs-9 col-sm-6 col-md-5 col-lg-4">
+            <div class="row mb-3">
+                <?= form_label(lang('Config.mailchimp_lists'), 'mailchimp_list_id', ['class' => 'col-form-label col-3 col-md-2']) ?>
+                <div class="col-9 col-md-6 col-lg-5 col-xl-4">
                     <div class="input-group">
-                        <span class="input-group-addon input-sm">
-                            <span class="glyphicon glyphicon-user"></span>
+                        <span class="input-group-text">
+                            <span class="bi bi-person" aria-hidden="true"></span>
                         </span>
                         <?= form_dropdown(
                             'mailchimp_list_id',
                             $mailchimp['lists'],
                             $mailchimp['list_id'],
-                            'id="mailchimp_list_id" class="form-control input-sm"'
+                            'id="mailchimp_list_id" class="form-select form-select-sm"'
                         ) ?>
                     </div>
                 </div>
@@ -59,7 +59,7 @@
                 'name'  => 'submit_mailchimp',
                 'id'    => 'submit_mailchimp',
                 'value' => lang('Common.submit'),
-                'class' => 'btn btn-primary btn-sm pull-right'
+                'class' => 'btn btn-primary btn-sm float-end'
             ]) ?>
 
         </fieldset>

@@ -10,7 +10,9 @@ This documents the "How to Build" process.
 
 The goal here is to set up and configure the build process so that the actual build is as simple as possible.
 
-The build process uses the build tools "npm" and "gulp" to piece everything together.
+The build process uses `npm` to piece the frontend together. `tools/build-assets.mjs` concatenates the vendor libraries and the sources in `resources/assets` into `public/assets` (stylesheets, scripts, fonts and icons). `gulp` is only used to create the release archives (`gulp compress`) and the license reports (`gulp update-licenses`).
+
+`public/assets` is committed to the repository, so a server that deploys straight from Git needs no build step. After changing anything in `resources/assets`, `package.json` or `tools/build-assets.mjs`, run `npm run build` and commit the result; the `Assets` workflow fails when the committed files are out of date.
 
 ## Prerequisites
 

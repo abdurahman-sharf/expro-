@@ -8,5 +8,7 @@ return [
     'page_from_to'         => 'Viser {0} to {1} af {2} rækker',
     'refresh'              => 'Opdater',
     'rows_per_page'        => '{0} rækker per side',
+    'select_all'           => '',
+    'select_row'           => '',
     'toggle'               => 'Skift',
 ];

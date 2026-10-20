@@ -20,7 +20,7 @@
 
 <?php
 if (isset($error_message)) {
-    echo '<div class="alert alert-dismissible alert-danger">' . esc($error_message) . '</div>';
+    echo '<div class="alert alert-danger">' . esc($error_message) . '</div>';
     exit;
 }
 
@@ -28,9 +28,9 @@ echo view('partial/print_receipt', ['print_after_sale', $print_after_sale, 'sele
 
 <div class="print_hide" id="control_buttons" style="text-align: right;">
     <a href="javascript:printdoc();">
-        <div class="btn btn-info btn-sm" id="show_print_button"><?= '<span class="glyphicon glyphicon-print">&nbsp;</span>' . lang('Common.print') ?></div>
+        <div class="btn btn-primary btn-sm" id="show_print_button"><?= '<span class="bi bi-printer" aria-hidden="true">&nbsp;</span>' . lang('Common.print') ?></div>
     </a>
-    <?= anchor("receivings", '<span class="glyphicon glyphicon-save">&nbsp;</span>' . lang('Receivings.register'), ['class' => 'btn btn-info btn-sm', 'id' => 'show_sales_button']) ?>
+    <?= anchor("receivings", '<span class="bi bi-floppy" aria-hidden="true">&nbsp;</span>' . lang('Receivings.register'), ['class' => 'btn btn-primary btn-sm', 'id' => 'show_sales_button']) ?>
 </div>
 
 <div id="receipt_wrapper">

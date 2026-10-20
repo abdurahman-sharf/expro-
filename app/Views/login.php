@@ -13,7 +13,7 @@ $formStyle = $config['login_form'] ?? '';
 ?>
 
 <!doctype html>
-<html lang="<?= current_language_code() ?>" dir="<?= text_direction() ?>">
+<html lang="<?= current_language_code() ?>" dir="<?= textDirection() ?>">
 
 <head>
     <meta charset="utf-8">
@@ -22,18 +22,18 @@ $formStyle = $config['login_form'] ?? '';
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex, nofollow">
     <meta name="theme-color" content="#042359">
-    <link rel="icon" href="<?= asset_url('img/favicon.ico') ?>">
-    <link rel="apple-touch-icon" href="<?= asset_url('img/apple-touch-icon.png') ?>">
-    <link rel="stylesheet" href="<?= asset_url(is_rtl() ? 'css/bootstrap.rtl.min.css' : 'css/bootstrap.min.css') ?>">
-    <link rel="stylesheet" href="<?= asset_url('css/vendor.min.css') ?>">
-    <link rel="stylesheet" href="<?= asset_url('css/app.css') ?>">
-    <link rel="stylesheet" href="<?= asset_url('css/login.css') ?>">
+    <link rel="icon" href="<?= assetUrl('img/favicon.ico') ?>">
+    <link rel="apple-touch-icon" href="<?= assetUrl('img/apple-touch-icon.png') ?>">
+    <link rel="stylesheet" href="<?= assetUrl(isRtl() ? 'css/bootstrap.rtl.min.css' : 'css/bootstrap.min.css') ?>">
+    <link rel="stylesheet" href="<?= assetUrl('css/vendor.min.css') ?>">
+    <link rel="stylesheet" href="<?= assetUrl('css/app.css') ?>">
+    <link rel="stylesheet" href="<?= assetUrl('css/login.css') ?>">
 </head>
 
 <body class="login-page">
     <div class="login-layout">
         <section class="login-brand">
-            <img class="login-logo" src="<?= asset_url('img/logo-full-white.webp') ?>" alt="<?= BRAND_NAME ?>">
+            <img class="login-logo" src="<?= assetUrl('img/logo-full-white.webp') ?>" alt="<?= BRAND_NAME ?>">
             <p class="login-tagline"><?= BRAND_TAGLINE ?></p>
         </section>
 
@@ -140,7 +140,7 @@ $formStyle = $config['login_form'] ?? '';
         </main>
     </div>
 
-    <script src="<?= asset_url('js/jquery.min.js') ?>"></script>
+    <script src="<?= assetUrl('js/jquery.min.js') ?>"></script>
     <script>
         // @noinspection JSInitializingVariableWithUndefined
         const APP_STATE = {

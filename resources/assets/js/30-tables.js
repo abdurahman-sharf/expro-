@@ -78,6 +78,8 @@
         return function(response) {
             typeof options.load_callback == 'function' && options.load_callback();
             options.load_callback = undefined;
+            $('#table input[name="btSelectAll"]').attr('aria-label', lang.line('table_select_all'));
+            $('#table input[name="btSelectItem"]').attr('aria-label', lang.line('table_select_row'));
             typeof callback == 'function' && callback.call(this, response);
         }
     };
@@ -145,6 +147,7 @@
             loadingFontSize: '1em',
             queryParamsType: 'limit',
             iconSize: 'sm',
+            buttonsClass: 'outline-secondary',
             silentSort: true,
             paginationVAlign: 'bottom',
             escape: true

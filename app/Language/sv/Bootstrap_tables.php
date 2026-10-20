@@ -8,5 +8,7 @@ return [
     'page_from_to'         => 'Visar {0} till {1} av {2} rader',
     'refresh'              => 'Ladda om',
     'rows_per_page'        => '{0} rader per sida',
+    'select_all'           => '',
+    'select_row'           => '',
     'toggle'               => 'Växla',
 ];

@@ -1,0 +1,36 @@
+.report {
+    font-size: .85em;
+}
+
+#report_summary {
+    margin: 2em 0 auto;
+    text-align: center;
+}
+
+#chart_report_summary {
+    margin-top: -100px;
+    text-align: center;
+}
+
+.ct-label.ct-horizontal {
+    transform: rotate(-60deg);
+}
+
+.ct-label {
+    fill: #000;
+    color: #000;
+    font-size: 1.2rem;
+}
+
+.ct-tooltip-point {
+    fill-opacity: 1 !important;
+    stroke-width: 0;
+    stroke: red;
+    transition: all .2s linear;
+}
+
+.ct-tooltip-point:hover {
+    r: 7;
+    stroke-opacity: .2;
+    stroke-width: 20px;
+}

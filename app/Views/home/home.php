@@ -8,7 +8,7 @@
 
 <h2 class="h5 mb-4"><?= lang('Common.welcome_message') ?></h2>
 
-<?php foreach (navigation_groups($allowed_modules, 'home') as $groupIndex => $group): ?>
+<?php foreach (navigationGroups($allowed_modules, 'home') as $groupIndex => $group): ?>
     <?php $items = array_filter($group['items'], static fn(array $item): bool => $item['id'] !== 'home'); ?>
     <?php if ($items !== []): ?>
         <section class="mb-4" aria-labelledby="home-group-<?= $groupIndex ?>">

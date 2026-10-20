@@ -54,6 +54,8 @@
     --bs-link-hover-color-rgb: 4, 70, 175;
     --bs-focus-ring-color: rgba(1, 92, 228, .25);
 
+    --bs-secondary: var(--muted);
+    --bs-secondary-rgb: 86, 101, 127;
     --bs-primary: var(--blue-500);
     --bs-primary-rgb: 1, 92, 228;
     --bs-primary-bg-subtle: var(--blue-50);

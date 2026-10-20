@@ -1,62 +1,50 @@
 <?= view('partial/header') ?>
 
-<?php if (ENVIRONMENT == 'development' || get_cookie('debug') == 'true' || request()->getGet('debug') == 'true') : ?>
-    <!-- inject:config:debug:js -->
-    <script src="resources/js/bootstrap-tagsinput-855a7c7670.js"></script>
-    <script src="resources/js/clipboard-908af414ab.js"></script>
-    <!-- endinject -->
-<?php else : ?>
-    <!-- inject:config:prod:js -->
-    <script src="resources/bootstrap-tagsinput-0c955a2c2e.min.js"></script>
-    <script src="resources/clipboard-15f52a1ee5.min.js"></script>
-    <!-- endinject -->
-<?php endif; ?>
-
 <script type="text/javascript">
     dialog_support.init("a.modal-dlg");
 </script>
 
-<ul class="nav nav-tabs" data-tabs="tabs">
-    <li class="active" role="presentation">
-        <a data-toggle="tab" href="#info_tab" title="<?= lang('Config.info_configuration') ?>"><?= lang('Config.info') ?></a>
+<ul class="nav nav-tabs">
+    <li class="nav-item" role="presentation">
+        <a class="nav-link active" data-bs-toggle="tab" href="#info_tab" title="<?= lang('Config.info_configuration') ?>"><?= lang('Config.info') ?></a>
     </li>
-    <li role="presentation">
-        <a data-toggle="tab" href="#general_tab" title="<?= lang('Config.general_configuration') ?>"><?= lang('Config.general') ?></a>
+    <li class="nav-item" role="presentation">
+        <a class="nav-link" data-bs-toggle="tab" href="#general_tab" title="<?= lang('Config.general_configuration') ?>"><?= lang('Config.general') ?></a>
     </li>
-    <li role="presentation">
-        <a data-toggle="tab" href="#tax_tab" title="<?= lang('Config.tax_configuration') ?>"><?= lang('Config.tax') ?></a>
+    <li class="nav-item" role="presentation">
+        <a class="nav-link" data-bs-toggle="tab" href="#tax_tab" title="<?= lang('Config.tax_configuration') ?>"><?= lang('Config.tax') ?></a>
     </li>
-    <li role="presentation">
-        <a data-toggle="tab" href="#locale_tab" title="<?= lang('Config.locale_configuration') ?>"><?= lang('Config.locale') ?></a>
+    <li class="nav-item" role="presentation">
+        <a class="nav-link" data-bs-toggle="tab" href="#locale_tab" title="<?= lang('Config.locale_configuration') ?>"><?= lang('Config.locale') ?></a>
     </li>
-    <li role="presentation">
-        <a data-toggle="tab" href="#barcode_tab" title="<?= lang('Config.barcode_configuration') ?>"><?= lang('Config.barcode') ?></a>
+    <li class="nav-item" role="presentation">
+        <a class="nav-link" data-bs-toggle="tab" href="#barcode_tab" title="<?= lang('Config.barcode_configuration') ?>"><?= lang('Config.barcode') ?></a>
     </li>
-    <li role="presentation">
-        <a data-toggle="tab" href="#stock_tab" title="<?= lang('Config.location_configuration') ?>"><?= lang('Config.location') ?></a>
+    <li class="nav-item" role="presentation">
+        <a class="nav-link" data-bs-toggle="tab" href="#stock_tab" title="<?= lang('Config.location_configuration') ?>"><?= lang('Config.location') ?></a>
     </li>
-    <li role="presentation">
-        <a data-toggle="tab" href="#receipt_tab" title="<?= lang('Config.receipt_configuration') ?>"><?= lang('Config.receipt') ?></a>
+    <li class="nav-item" role="presentation">
+        <a class="nav-link" data-bs-toggle="tab" href="#receipt_tab" title="<?= lang('Config.receipt_configuration') ?>"><?= lang('Config.receipt') ?></a>
     </li>
-    <li role="presentation">
-        <a data-toggle="tab" href="#invoice_tab" title="<?= lang('Config.invoice_configuration') ?>"><?= lang('Config.invoice') ?></a>
+    <li class="nav-item" role="presentation">
+        <a class="nav-link" data-bs-toggle="tab" href="#invoice_tab" title="<?= lang('Config.invoice_configuration') ?>"><?= lang('Config.invoice') ?></a>
     </li>
-    <li role="presentation">
-        <a data-toggle="tab" href="#shortcuts_tab" title="<?= lang('Config.shortcuts_configuration') ?>"><?= lang('Config.shortcuts') ?></a>
+    <li class="nav-item" role="presentation">
+        <a class="nav-link" data-bs-toggle="tab" href="#shortcuts_tab" title="<?= lang('Config.shortcuts_configuration') ?>"><?= lang('Config.shortcuts') ?></a>
     </li>
-    <li role="presentation">
-        <a data-toggle="tab" href="#reward_tab" title="<?= lang('Config.reward_configuration') ?>"><?= lang('Config.reward') ?></a>
+    <li class="nav-item" role="presentation">
+        <a class="nav-link" data-bs-toggle="tab" href="#reward_tab" title="<?= lang('Config.reward_configuration') ?>"><?= lang('Config.reward') ?></a>
     </li>
-    <li role="presentation">
-        <a data-toggle="tab" href="#table_tab" title="<?= lang('Config.table_configuration') ?>"><?= lang('Config.table') ?></a>
+    <li class="nav-item" role="presentation">
+        <a class="nav-link" data-bs-toggle="tab" href="#table_tab" title="<?= lang('Config.table_configuration') ?>"><?= lang('Config.table') ?></a>
     </li>
-    <li role="presentation">
-        <a data-toggle="tab" href="#system_tab" title="<?= lang('Config.system_conf') ?>"><?= lang('Config.system_conf') ?></a>
+    <li class="nav-item" role="presentation">
+        <a class="nav-link" data-bs-toggle="tab" href="#system_tab" title="<?= lang('Config.system_conf') ?>"><?= lang('Config.system_conf') ?></a>
     </li>
 </ul>
 
 <div class="tab-content">
-    <div class="tab-pane fade in active" id="info_tab">
+    <div class="tab-pane fade show active" id="info_tab">
         <?= view('configs/info_config') ?>
     </div>
     <div class="tab-pane" id="general_tab">

@@ -8,5 +8,7 @@ return [
     'page_from_to'         => 'Показани са {0} до {1} от {2} реда',
     'refresh'              => 'Опресняване',
     'rows_per_page'        => '{0} редове на страница',
+    'select_all'           => '',
+    'select_row'           => '',
     'toggle'               => 'Щифт',
 ];

@@ -5,16 +5,14 @@ import { fileURLToPath } from 'node:url';
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const BASELINE_FILE = fileURLToPath(new URL('./gates.baseline.json', import.meta.url));
 
-const SCAN_DIRS = ['app/Views', 'app/Helpers', 'app/Controllers', 'app/Libraries', 'app/Models', 'public/js'];
+const SCAN_DIRS = ['app/Views', 'app/Helpers', 'app/Controllers', 'app/Libraries', 'app/Models', 'public/js', 'resources/assets/js'];
 const SKIPPED = ['app/Views/errors'];
 const EXTENSIONS = ['.php', '.js'];
 
 const PATTERNS = {
     glyphicon: /glyphicon/g,
     gridXs: /\bcol-xs-/g,
-    gridSm: /\bcol-sm-/g,
-    gridMd: /\bcol-md-/g,
-    gridLg: /\bcol-lg-/g,
+    gridOffset: /\bcol-(?:sm|md|lg)-offset-/g,
     pull: /\bpull-(?:left|right)\b/g,
     inputSize: /\binput-(?:sm|lg)\b/g,
     controlLabel: /\bcontrol-label\b/g,

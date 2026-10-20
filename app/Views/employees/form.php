@@ -11,17 +11,17 @@
 <div id="required_fields_message"><?= lang('Common.fields_required_message') ?></div>
 <ul id="error_message_box" class="error_message_box"></ul>
 
-<?= form_open("$controller_name/save/$person_info->person_id", ['id' => 'employee_form', 'class' => 'form-horizontal']) ?>
+<?= form_open("$controller_name/save/$person_info->person_id", ['id' => 'employee_form', 'class' => 'app-form']) ?>
 
-    <ul class="nav nav-tabs nav-justified" data-tabs="tabs">
-        <li class="active" role="presentation">
-            <a data-toggle="tab" href="#employee_basic_info"><?= lang('Employees.basic_information') ?></a>
+    <ul class="nav nav-tabs nav-justified">
+        <li class="nav-item" role="presentation">
+            <a class="nav-link active" data-bs-toggle="tab" href="#employee_basic_info"><?= lang('Employees.basic_information') ?></a>
         </li>
-        <li role="presentation">
-            <a data-toggle="tab" href="#employee_login_info"><?= lang('Employees.login_info') ?></a>
+        <li class="nav-item" role="presentation">
+            <a class="nav-link" data-bs-toggle="tab" href="#employee_login_info"><?= lang('Employees.login_info') ?></a>
         </li>
-        <li role="presentation">
-            <a data-toggle="tab" href="#employee_permission_info"><?= lang('Employees.permission_info') ?></a>
+        <li class="nav-item" role="presentation">
+            <a class="nav-link" data-bs-toggle="tab" href="#employee_permission_info"><?= lang('Employees.permission_info') ?></a>
         </li>
     </ul>
 
@@ -34,15 +34,15 @@
 
         <div class="tab-pane" id="employee_login_info">
             <fieldset>
-                <div class="form-group form-group-sm">
-                    <?= form_label(lang('Employees.username'), 'username', ['class' => 'control-label col-xs-3 text-danger required']) ?>
-                    <div class="col-xs-8">
+                <div class="row mb-3">
+                    <?= form_label(lang('Employees.username'), 'username', ['class' => 'col-form-label col-3 text-danger required']) ?>
+                    <div class="col-8">
                         <div class="input-group">
-                            <span class="input-group-addon input-sm"><span class="glyphicon glyphicon-user"></span></span>
+                            <span class="input-group-text"><span class="bi bi-person" aria-hidden="true"></span></span>
                             <?= form_input([
                                 'name'  => 'username',
                                 'id'    => 'username',
-                                'class' => 'form-control input-sm',
+                                'class' => 'form-control form-control-sm',
                                 'value' => $person_info->username
                             ]) ?>
                         </div>
@@ -51,37 +51,37 @@
 
                 <?php $password_label_attributes = $person_info->person_id == "" ? ['class' => 'required'] : []; ?>
 
-                <div class="form-group form-group-sm">
-                    <?= form_label(lang('Employees.password'), 'password', array_merge($password_label_attributes, ['class' => 'control-label col-xs-3'])) ?>
-                    <div class="col-xs-8">
+                <div class="row mb-3">
+                    <?= form_label(lang('Employees.password'), 'password', array_merge($password_label_attributes, ['class' => 'col-form-label col-3'])) ?>
+                    <div class="col-8">
                         <div class="input-group">
-                            <span class="input-group-addon input-sm"><span class="glyphicon glyphicon-lock"></span></span>
+                            <span class="input-group-text"><span class="bi bi-lock" aria-hidden="true"></span></span>
                             <?= form_password([
                                 'name'  => 'password',
                                 'id'    => 'password',
-                                'class' => 'form-control input-sm'
+                                'class' => 'form-control form-control-sm'
                             ]) ?>
                         </div>
                     </div>
                 </div>
 
-                <div class="form-group form-group-sm">
-                    <?= form_label(lang('Employees.repeat_password'), 'repeat_password', array_merge($password_label_attributes, ['class' => 'control-label col-xs-3'])) ?>
-                    <div class="col-xs-8">
+                <div class="row mb-3">
+                    <?= form_label(lang('Employees.repeat_password'), 'repeat_password', array_merge($password_label_attributes, ['class' => 'col-form-label col-3'])) ?>
+                    <div class="col-8">
                         <div class="input-group">
-                            <span class="input-group-addon input-sm"><span class="glyphicon glyphicon-lock"></span></span>
+                            <span class="input-group-text"><span class="bi bi-lock" aria-hidden="true"></span></span>
                             <?= form_password([
                                 'name'  => 'repeat_password',
                                 'id'    => 'repeat_password',
-                                'class' => 'form-control input-sm'
+                                'class' => 'form-control form-control-sm'
                             ]) ?>
                         </div>
                     </div>
                 </div>
 
-                <div class="form-group form-group-sm">
-                    <?= form_label(lang('Employees.language'), 'language', ['class' => 'control-label col-xs-3']) ?>
-                    <div class="col-xs-8">
+                <div class="row mb-3">
+                    <?= form_label(lang('Employees.language'), 'language', ['class' => 'col-form-label col-3']) ?>
+                    <div class="col-8">
                         <div class="input-group">
                             <?php
                             $languages = get_languages();
@@ -99,7 +99,7 @@
                                 'language',
                                 $languages,
                                 "$language_code:$language",
-                                ['class' => 'form-control input-sm']
+                                ['class' => 'form-select form-select-sm']
                             );
                             ?>
                         </div>
@@ -117,15 +117,7 @@
                     <?php foreach ($all_modules as $module) { ?>
                         <li>
                             <?= form_checkbox("grant_$module->module_id", $module->module_id, $module->grant == 1, 'class="module-toggle"') ?>
-                            <?= form_dropdown(
-                                "menu_group_$module->module_id",
-                                [
-                                    'home'   => lang('Module.home'),
-                                    'office' => lang('Module.office'),
-                                    'both'   => lang('Module.both')
-                                ],
-                                $module->menu_group
-                            ) ?>
+                            <?= form_hidden("menu_group_$module->module_id", $module->menu_group) ?>
 
                             <span class="medium"><?= lang("Module.$module->module_id") ?>:</span>
                             <span class="small"><?= lang("Module.$module->module_id" . '_desc') ?></span>

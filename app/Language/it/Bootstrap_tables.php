@@ -8,5 +8,7 @@ return [
     'page_from_to'         => 'Mostro {0} a {1} di {2} righe',
     'refresh'              => 'Ricarica',
     'rows_per_page'        => '{0} righe per pagina',
+    'select_all'           => '',
+    'select_row'           => '',
     'toggle'               => 'Inverti',
 ];

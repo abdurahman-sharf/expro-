@@ -8,5 +8,7 @@ return [
     'page_from_to'         => 'Affichage des lignes {0} à {1} sur {2} lignes au total',
     'refresh'              => 'Rafraîchir',
     'rows_per_page'        => '{0} lignes par page',
+    'select_all'           => '',
+    'select_row'           => '',
     'toggle'               => 'Alterner',
 ];

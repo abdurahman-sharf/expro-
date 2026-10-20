@@ -206,29 +206,6 @@ class Config extends Secure_Controller
     }
 
     /**
-     * This function loads all the available themes in the dist/bootswatch directory
-     * @return array
-     */
-    private function _themes(): array    // TODO: Hungarian notation
-    {
-        $themes = [];
-
-        // Read all themes in the dist folder
-        $dir = new DirectoryIterator('resources/bootswatch');
-
-        foreach ($dir as $dirinfo) {    // TODO: $dirinfo doesn't follow naming convention
-            if ($dirinfo->isDir() && !$dirinfo->isDot() && $dirinfo->getFileName() != 'fonts') {
-                $file = $dirinfo->getFileName();
-                $themes[$file] = ucfirst($file);
-            }
-        }
-
-        asort($themes);
-
-        return $themes;
-    }
-
-    /**
      * @return string
      */
     public function getIndex(): string
@@ -255,9 +232,6 @@ class Config extends Secure_Controller
 
         // Load all the license statements, they are already XSS cleaned in the private function
         $data['licenses'] = $this->_licenses();
-
-        // Load all the themes, already XSS cleaned in the private function
-        $data['themes'] = $this->_themes();
 
         // General related fields
         $image_allowed_types = ['jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'png', 'tif', 'tiff'];
@@ -384,16 +358,7 @@ class Config extends Secure_Controller
      */
     public function postSaveGeneral(): ResponseInterface
     {
-        $rules = [
-            'theme' => 'permit_empty|themeExists',
-        ];
-        if (!$this->validate($rules)) {
-            $errors = $this->validator->getErrors();
-            return $this->response->setJSON(['success' => false, 'message' => reset($errors)]);
-        }
-
         $batchSaveData = [
-            'theme'                             => $this->request->getPost('theme'),
             'login_form'                        => $this->request->getPost('login_form'),
             'default_sales_discount_type'       => $this->request->getPost('default_sales_discount_type') != null,
             'default_sales_discount'            => parse_decimals($this->request->getPost('default_sales_discount')),
@@ -458,7 +423,7 @@ class Config extends Secure_Controller
         $postedCurrencySymbol = $this->request->getPost('currency_symbol');
         $postedCurrencyCode = $this->request->getPost('currency_code');
 
-        $fmt = new NumberFormatter(number_formatter_locale($numberLocale), NumberFormatter::CURRENCY);
+        $fmt = new NumberFormatter(numberFormatterLocale($numberLocale), NumberFormatter::CURRENCY);
 
         // Use posted values if provided, otherwise fall back to locale defaults
         $currencySymbol = $postedCurrencySymbol !== '' ? $postedCurrencySymbol : $fmt->getSymbol(NumberFormatter::CURRENCY_SYMBOL);

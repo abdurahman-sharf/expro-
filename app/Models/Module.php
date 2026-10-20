@@ -91,16 +91,12 @@ class Module extends Model
         return $builder->get();
     }
 
-    /**
-     * @param int $person_id
-     * @return ResultInterface
-     */
-    public function get_allowed_modules(int $person_id): ResultInterface
+    public function getAllowedModules(int $personId): ResultInterface
     {
         $builder = $this->db->table('modules');
         $builder->join('permissions', 'permissions.permission_id = modules.module_id');
         $builder->join('grants', 'permissions.permission_id = grants.permission_id');
-        $builder->where('person_id', $person_id);
+        $builder->where('person_id', $personId);
         $builder->where('sort !=', 0);
         $builder->where('modules.module_id !=', 'office');
         $builder->orderBy('sort', 'asc');

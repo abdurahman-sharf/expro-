@@ -466,3 +466,146 @@
         height: 1.25em;
     }
 }
+
+.toggle-button .toggle-on,
+.btn-check:checked + .toggle-button .toggle-off {
+    display: none;
+}
+
+.btn-check:checked + .toggle-button .toggle-on {
+    display: inline;
+}
+
+.choice {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 32px;
+    margin-inline-end: 16px;
+    cursor: pointer;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--blue-500);
+}
+
+.image-upload {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.image-upload-preview {
+    max-width: 200px;
+    max-height: 200px;
+    padding: 4px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-sm);
+    background: #fff;
+    object-fit: contain;
+}
+
+.tags-input {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    height: auto;
+    cursor: text;
+}
+
+.tags-input:focus-within {
+    border-color: var(--blue-500);
+    box-shadow: var(--focus-ring);
+}
+
+.tags-input .tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 8px;
+    border-radius: 999px;
+    background: var(--blue-100);
+    color: var(--blue-700);
+    font-weight: 600;
+    line-height: 24px;
+}
+
+.tags-input .tag .btn-close {
+    --bs-btn-close-opacity: .6;
+    width: .5em;
+    height: .5em;
+}
+
+.tags-input-field {
+    flex: 1;
+    min-width: 80px;
+    border: 0;
+    outline: 0;
+    background: transparent;
+}
+
+#title_bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-bottom: 12px;
+}
+
+#toolbar > div {
+    float: none;
+}
+
+#daterangepicker {
+    width: 240px;
+    direction: ltr;
+    text-align: center;
+}
+
+.bootstrap-table .fixed-table-toolbar .columns .btn-group > .btn,
+.bootstrap-table .fixed-table-toolbar .columns > .btn {
+    min-height: 34px;
+}
+
+.bootstrap-table .page-list .btn {
+    min-width: 64px;
+}
+
+.bootstrap-table .fixed-table-container thead th .th-inner {
+    padding: .5rem;
+}
+
+.dropdown-toggle::after {
+    margin-inline-start: .5em;
+}
+
+@media (max-width: 575.98px) {
+    .app-form .row > [class*="col-"] {
+        flex: 0 0 100%;
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .app-form .col-form-label {
+        padding-bottom: 0;
+    }
+}
+
+input.datetime,
+input.datepicker,
+input.flatpickr-input,
+.ltr-input {
+    direction: ltr;
+    text-align: end;
+}
+
+[dir="ltr"] input.datetime,
+[dir="ltr"] input.datepicker,
+[dir="ltr"] input.flatpickr-input {
+    text-align: start;
+}

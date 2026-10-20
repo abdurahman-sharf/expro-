@@ -8,5 +8,7 @@ return [
     'page_from_to'         => 'Pokazuję od {0} do {1} z {2} wierszy',
     'refresh'              => 'Odśwież',
     'rows_per_page'        => '{0} wierszy na stronę',
+    'select_all'           => '',
+    'select_row'           => '',
     'toggle'               => 'Włącz',
 ];

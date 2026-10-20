@@ -39,7 +39,7 @@ class No_access extends BaseController
             return view('no_access', $data);
         }
 
-        $allowedModules = $this->module->get_allowed_modules($userInfo->person_id);
+        $allowedModules = $this->module->getAllowedModules($userInfo->person_id);
 
         $data['user_info']       = $userInfo;
         $data['allowed_modules'] = $allowedModules->getResult();

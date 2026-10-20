@@ -8,5 +8,7 @@ return [
     'page_from_to'         => '显示第 {0} 到第 {1} 条记录，总共 {2} 条记录',
     'refresh'              => '刷新',
     'rows_per_page'        => '每页显示 {0} 条记录',
+    'select_all'           => '',
+    'select_row'           => '',
     'toggle'               => '切换',
 ];

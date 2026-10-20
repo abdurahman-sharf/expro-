@@ -8,5 +8,7 @@ return [
     'page_from_to'         => 'מציג {0} ל {1} מתוך {2} שורות',
     'refresh'              => 'רענן',
     'rows_per_page'        => '{0} שורות לדף',
+    'select_all'           => '',
+    'select_row'           => '',
     'toggle'               => 'החלף',
 ];
