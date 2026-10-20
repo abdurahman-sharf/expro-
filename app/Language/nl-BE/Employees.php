@@ -34,6 +34,7 @@ return [
     'password_required'                     => 'Paswoord moet ingevuld worden.',
     'permission_desc'                       => 'Vink de selectievakjes hieronder aan om toegang te verlenen tot de modules.',
     'permission_info'                       => 'Rechten',
+    'permission_select_all'                 => '',
     'repeat_password'                       => 'Herhaal Paswoord',
     'subpermission_required'                => 'Selecteer minstens één permissie voor elke module.',
     'successful_adding'                     => 'Je hebt met succes een medewerker toegevoegd.',

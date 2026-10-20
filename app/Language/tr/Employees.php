@@ -34,6 +34,7 @@ return [
     'password_required'                     => 'Parola zorunludur.',
     'permission_desc'                       => 'Modül yetkisi vermek için kutuları işaretleyin.',
     'permission_info'                       => 'Personel İzin ve Yetkileri',
+    'permission_select_all'                 => '',
     'repeat_password'                       => 'Parola Yeniden',
     'subpermission_required'                => 'Her bir birim için en az bir izin ekle.',
     'successful_adding'                     => 'Personel eklendi.',

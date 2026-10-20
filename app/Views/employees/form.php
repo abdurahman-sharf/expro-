@@ -9,142 +9,172 @@
 ?>
 
 <div id="required_fields_message"><?= lang('Common.fields_required_message') ?></div>
-<ul id="error_message_box" class="error_message_box"></ul>
 
 <?= form_open("$controller_name/save/$person_info->person_id", ['id' => 'employee_form', 'class' => 'app-form']) ?>
 
-    <ul class="nav nav-tabs nav-justified">
+    <ul class="nav nav-tabs nav-justified" role="tablist">
         <li class="nav-item" role="presentation">
-            <a class="nav-link active" data-bs-toggle="tab" href="#employee_basic_info"><?= lang('Employees.basic_information') ?></a>
+            <a class="nav-link active" data-bs-toggle="tab" role="tab" aria-controls="employee_basic_info" href="#employee_basic_info"><?= lang('Employees.basic_information') ?></a>
         </li>
         <li class="nav-item" role="presentation">
-            <a class="nav-link" data-bs-toggle="tab" href="#employee_login_info"><?= lang('Employees.login_info') ?></a>
+            <a class="nav-link" data-bs-toggle="tab" role="tab" aria-controls="employee_login_info" href="#employee_login_info"><?= lang('Employees.login_info') ?></a>
         </li>
         <li class="nav-item" role="presentation">
-            <a class="nav-link" data-bs-toggle="tab" href="#employee_permission_info"><?= lang('Employees.permission_info') ?></a>
+            <a class="nav-link" data-bs-toggle="tab" role="tab" aria-controls="employee_permission_info" href="#employee_permission_info"><?= lang('Employees.permission_info') ?></a>
         </li>
     </ul>
 
+    <ul id="error_message_box" class="error_message_box"></ul>
+
     <div class="tab-content">
-        <div class="tab-pane active" id="employee_basic_info">
+        <div class="tab-pane fade show active" id="employee_basic_info" role="tabpanel">
             <fieldset>
                 <?= view('people/form_basic_info') ?>
+                <?= view('people/form_comments') ?>
             </fieldset>
         </div>
 
-        <div class="tab-pane" id="employee_login_info">
+        <div class="tab-pane fade" id="employee_login_info" role="tabpanel">
             <fieldset>
-                <div class="row mb-3">
-                    <?= form_label(lang('Employees.username'), 'username', ['class' => 'col-form-label col-3 text-danger required']) ?>
-                    <div class="col-8">
+                <div class="form-grid">
+                    <div class="field span-all">
+                        <?= form_label(lang('Employees.username'), 'username', ['class' => 'form-label text-danger required']) ?>
                         <div class="input-group">
                             <span class="input-group-text"><span class="bi bi-person" aria-hidden="true"></span></span>
                             <?= form_input([
-                                'name'  => 'username',
-                                'id'    => 'username',
-                                'class' => 'form-control form-control-sm',
-                                'value' => $person_info->username
+                                'name'         => 'username',
+                                'id'           => 'username',
+                                'class'        => 'form-control form-control-sm',
+                                'value'        => $person_info->username,
+                                'autocomplete' => 'off'
                             ]) ?>
                         </div>
                     </div>
-                </div>
 
-                <?php $password_label_attributes = $person_info->person_id == "" ? ['class' => 'required'] : []; ?>
+                    <?php $passwordLabelClass = $person_info->person_id == '' ? 'form-label text-danger required' : 'form-label'; ?>
 
-                <div class="row mb-3">
-                    <?= form_label(lang('Employees.password'), 'password', array_merge($password_label_attributes, ['class' => 'col-form-label col-3'])) ?>
-                    <div class="col-8">
+                    <div class="field">
+                        <?= form_label(lang('Employees.password'), 'password', ['class' => $passwordLabelClass]) ?>
                         <div class="input-group">
                             <span class="input-group-text"><span class="bi bi-lock" aria-hidden="true"></span></span>
                             <?= form_password([
-                                'name'  => 'password',
-                                'id'    => 'password',
-                                'class' => 'form-control form-control-sm'
+                                'name'         => 'password',
+                                'id'           => 'password',
+                                'class'        => 'form-control form-control-sm',
+                                'autocomplete' => 'new-password'
                             ]) ?>
                         </div>
                     </div>
-                </div>
 
-                <div class="row mb-3">
-                    <?= form_label(lang('Employees.repeat_password'), 'repeat_password', array_merge($password_label_attributes, ['class' => 'col-form-label col-3'])) ?>
-                    <div class="col-8">
+                    <div class="field">
+                        <?= form_label(lang('Employees.repeat_password'), 'repeat_password', ['class' => $passwordLabelClass]) ?>
                         <div class="input-group">
                             <span class="input-group-text"><span class="bi bi-lock" aria-hidden="true"></span></span>
                             <?= form_password([
-                                'name'  => 'repeat_password',
-                                'id'    => 'repeat_password',
-                                'class' => 'form-control form-control-sm'
+                                'name'         => 'repeat_password',
+                                'id'           => 'repeat_password',
+                                'class'        => 'form-control form-control-sm',
+                                'autocomplete' => 'new-password'
                             ]) ?>
                         </div>
                     </div>
-                </div>
 
-                <div class="row mb-3">
-                    <?= form_label(lang('Employees.language'), 'language', ['class' => 'col-form-label col-3']) ?>
-                    <div class="col-8">
-                        <div class="input-group">
-                            <?php
-                            $languages = get_languages();
-                            $languages[':'] = lang('Employees.system_language');
-                            $language_code = current_language_code();
-                            $language = current_language();
+                    <div class="field span-all">
+                        <?= form_label(lang('Employees.language'), 'language', ['class' => 'form-label']) ?>
+                        <?php
+                        $languages = get_languages();
+                        $languages[':'] = lang('Employees.system_language');
+                        $languageCode = current_language_code();
+                        $language = current_language();
 
-                            // If No language is set then it will display "System Language"
-                            if ($language_code === current_language_code(true)) {
-                                $language_code = '';
-                                $language = '';
-                            }
+                        if ($languageCode === current_language_code(true)) {
+                            $languageCode = '';
+                            $language = '';
+                        }
 
-                            echo form_dropdown(
-                                'language',
-                                $languages,
-                                "$language_code:$language",
-                                ['class' => 'form-select form-select-sm']
-                            );
-                            ?>
-                        </div>
+                        echo form_dropdown(
+                            'language',
+                            $languages,
+                            "$languageCode:$language",
+                            ['class' => 'form-select form-select-sm', 'id' => 'language']
+                        );
+                        ?>
                     </div>
                 </div>
             </fieldset>
         </div>
 
-        <div class="tab-pane" id="employee_permission_info">
+        <div class="tab-pane fade" id="employee_permission_info" role="tabpanel">
             <fieldset>
-                <p><?= lang('Employees.permission_desc') ?></p>
+                <div class="perm-intro">
+                    <p class="perm-desc"><?= lang('Employees.permission_desc') ?></p>
+                    <div class="form-check form-switch">
+                        <input type="checkbox" class="form-check-input" role="switch" id="permission_select_all">
+                        <label class="form-check-label" for="permission_select_all"><?= lang('Employees.permission_select_all') ?></label>
+                    </div>
+                </div>
 
-                <ul id="permission_list">
+                <div id="permission_list" class="perm-list">
                     <?= form_hidden('module_validation', '1', 'class="module"') ?>
                     <?php foreach ($all_modules as $module) { ?>
-                        <li>
-                            <?= form_checkbox("grant_$module->module_id", $module->module_id, $module->grant == 1, 'class="module-toggle"') ?>
-                            <?= form_hidden("menu_group_$module->module_id", $module->menu_group) ?>
+                        <section class="perm-module">
+                            <div class="perm-head form-check form-switch">
+                                <?= form_checkbox([
+                                    'name'    => "grant_$module->module_id",
+                                    'id'      => "grant_$module->module_id",
+                                    'value'   => $module->module_id,
+                                    'checked' => $module->grant == 1,
+                                    'class'   => 'form-check-input module-toggle',
+                                    'role'    => 'switch'
+                                ]) ?>
+                                <?= form_hidden("menu_group_$module->module_id", $module->menu_group) ?>
+                                <label class="form-check-label" for="grant_<?= esc($module->module_id) ?>">
+                                    <span class="perm-title"><?= lang("Module.$module->module_id") ?></span>
+                                    <span class="perm-note"><?= lang("Module.$module->module_id" . '_desc') ?></span>
+                                </label>
+                            </div>
+                            <?php
+                            $subpermissions = [];
 
-                            <span class="medium"><?= lang("Module.$module->module_id") ?>:</span>
-                            <span class="small"><?= lang("Module.$module->module_id" . '_desc') ?></span>
-                            <?php
                             foreach ($all_subpermissions as $permission) {
-                                $exploded_permission = explode('_', $permission->permission_id, 2);
-                                if ($permission->module_id == $module->module_id) {
-                                    $lang_key = $module->module_id . '.' . $exploded_permission[1];
-                                    $lang_line = lang(ucfirst($lang_key));
-                                    $lang_line = (lang(ucfirst($lang_key)) == $lang_line) ? ucwords(str_replace("_", " ", $exploded_permission[1])) : $lang_line;
-                                    if (!empty($lang_line)) {
-                            ?>
-                                        <ul>
-                                            <li>
-                                                <?= form_checkbox("grant_$permission->permission_id", $permission->permission_id, $permission->grant == 1) ?>
-                                                <?= form_hidden("menu_group_$permission->permission_id", "--") ?>
-                                                <span class="medium"><?= esc($lang_line) ?></span>
-                                            </li>
-                                        </ul>
-                            <?php
-                                    }
+                                if ($permission->module_id != $module->module_id) {
+                                    continue;
+                                }
+
+                                $explodedPermission = explode('_', $permission->permission_id, 2);
+                                $langKey = $module->module_id . '.' . $explodedPermission[1];
+                                $langLine = lang(ucfirst($langKey));
+
+                                if ($langLine === '' || $langLine === ucfirst($langKey)) {
+                                    $langLine = ucwords(str_replace('_', ' ', $explodedPermission[1]));
+                                }
+
+                                if (!empty($langLine)) {
+                                    $subpermissions[] = ['permission' => $permission, 'label' => $langLine];
                                 }
                             }
                             ?>
-                        </li>
+                            <?php if ($subpermissions) { ?>
+                                <ul class="perm-subs">
+                                    <?php foreach ($subpermissions as $subpermission) { ?>
+                                        <?php $permission = $subpermission['permission']; ?>
+                                        <li class="form-check">
+                                            <?= form_checkbox([
+                                                'name'    => "grant_$permission->permission_id",
+                                                'id'      => "grant_$permission->permission_id",
+                                                'value'   => $permission->permission_id,
+                                                'checked' => $permission->grant == 1,
+                                                'class'   => 'form-check-input'
+                                            ]) ?>
+                                            <?= form_hidden("menu_group_$permission->permission_id", '--') ?>
+                                            <label class="form-check-label" for="grant_<?= esc($permission->permission_id) ?>"><?= esc($subpermission['label']) ?></label>
+                                        </li>
+                                    <?php } ?>
+                                </ul>
+                            <?php } ?>
+                        </section>
                     <?php } ?>
-                </ul>
+                </div>
             </fieldset>
         </div>
     </div>
@@ -159,31 +189,44 @@
         });
 
         $.validator.addMethod('module', function() {
-            let result = $('#permission_list input').is(':checked');
-            $('.module-toggle').each(function(index, element) {
-                const parent = $(element);
-                const checked = $(element).is(':checked');
-                if ($('ul', parent).length > 0 && result) {
-                    result &= !checked || (checked && $('ul > li > input:checked', parent).length > 0);
-                }
-            });
-            return result;
+            return $('#permission_list input[type=checkbox]').is(':checked');
         }, "<?= lang('Employees.subpermission_required') ?>");
 
-        $('ul#permission_list > li > input.module-toggle').each(function() {
-            const $this = $(this);
-            $('ul > li > input,select', $this.parent()).each(function() {
-                const $that = $(this);
-                const updateInputs = function(checked) {
-                    $that.prop('disabled', !checked);
-                    !checked && $that.prop('checked', false);
+        const $selectAll = $('#permission_select_all');
+
+        const refreshSelectAll = function() {
+            const $toggles = $('#permission_list .module-toggle');
+            const on = $toggles.filter(':checked').length;
+            $selectAll.prop('checked', on === $toggles.length).prop('indeterminate', on > 0 && on < $toggles.length);
+        };
+
+        $('#permission_list .perm-module').each(function() {
+            const $module = $(this);
+            const $toggle = $module.find('.module-toggle');
+            const $subs = $module.find('.perm-subs input[type=checkbox]');
+            const sync = function() {
+                const checked = $toggle.is(':checked');
+                $subs.prop('disabled', !checked);
+                if (!checked) {
+                    $subs.prop('checked', false);
                 }
-                $this.change(function() {
-                    updateInputs($this.is(':checked'));
-                });
-                updateInputs($this.is(':checked'));
+                $module.toggleClass('is-off', !checked);
+            };
+            $toggle.on('change', function() {
+                sync();
+                refreshSelectAll();
             });
+            sync();
         });
+
+        $selectAll.on('change', function() {
+            const checked = $selectAll.is(':checked');
+            $('#permission_list .module-toggle').prop('checked', checked).trigger('change');
+            $('#permission_list .perm-subs input[type=checkbox]').prop('checked', checked);
+            refreshSelectAll();
+        });
+
+        refreshSelectAll();
 
         $('#employee_form').validate($.extend({
             submitHandler: function(form) {

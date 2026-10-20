@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'add'                            => '',
     'address_1'                      => 'Ünvan 1',
     'address_2'                      => 'Ünvan 2',
     'admin'                          => '',
@@ -76,6 +77,10 @@ return [
     'search'                         => 'Axtarış',
     'search_options'                 => 'Axtarış variantları',
     'searched_for'                   => 'Axtarıldı',
+    'section_account'                => '',
+    'section_address'                => '',
+    'section_contact'                => '',
+    'section_notes'                  => '',
     'selected_count'                 => '',
     'skip_to_content'                => '',
     'software_short'                 => 'OSPOS',

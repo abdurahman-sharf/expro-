@@ -166,6 +166,7 @@ return [
     'quantity_less_than_reorder_level'  => '',
     'quantity_less_than_zero'           => '',
     'quantity_of_items'                 => '',
+    'quick_items'                       => '',
     'quote'                             => '',
     'quote_number'                      => '',
     'quote_number_duplicate'            => '',

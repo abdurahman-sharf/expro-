@@ -40,6 +40,7 @@
             headers: <?= $table_headers ?>,
             pageSize: <?= $config['lines_per_page'] ?>,
             uniqueId: 'cashup_id',
+            cardTitle: ['open_date'],
             queryParams: function() {
                 return $.extend(arguments[0], {
                     "end_date": end_date,
@@ -68,9 +69,10 @@
         <button id="delete" class="btn btn-outline-secondary btn-sm print_hide">
             <span class="bi bi-trash" aria-hidden="true">&nbsp;</span><?= lang('Common.delete') ?>
         </button>
-        <?= form_input(['name' => 'daterangepicker', 'class' => 'form-control form-control-sm', 'id' => 'daterangepicker']) ?>
+        <?= form_input(['name' => 'daterangepicker', 'class' => 'form-control form-control-sm', 'id' => 'daterangepicker', 'aria-label' => lang('Reports.date_range')]) ?>
         <?= form_multiselect('filters[]', $filters, $selected_filters ?? [], [
             'id'                        => 'filters',
+            'aria-label'                => lang('Common.search_options'),
             'data-none-selected-text'   => lang('Common.none_selected_text'),
             'class'                     => 'selectpicker show-menu-arrow',
             'data-selected-text-format' => 'count > 1',

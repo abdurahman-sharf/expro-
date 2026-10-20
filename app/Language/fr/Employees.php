@@ -34,6 +34,7 @@ return [
     'password_required'                     => 'Mot de passe requis.',
     'permission_desc'                       => 'Cochez les cases ci-dessous pour autoriser l\'accès aux modules.',
     'permission_info'                       => 'Permissions',
+    'permission_select_all'                 => '',
     'repeat_password'                       => 'Re-saisissez le mot de passe',
     'subpermission_required'                => 'Ajoutez au moins une permission pour chaque module.',
     'successful_adding'                     => 'Employé ajouté.',

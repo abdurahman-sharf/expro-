@@ -34,6 +34,7 @@ return [
     'password_required'                     => 'كلمة السر مطلوبة.',
     'permission_desc'                       => 'قم بإضافة الصلاحيات بلإختيار من الأسفل.',
     'permission_info'                       => 'اذونات المستخدمين',
+    'permission_select_all'                 => 'تحديد الكل',
     'repeat_password'                       => 'كلمة السر مرة اخرى',
     'subpermission_required'                => 'يجب إختيار صلاحية واحدة على الأقل لكل قسم.',
     'successful_adding'                     => 'لقد تم إضافة الموظف بنجاح.',

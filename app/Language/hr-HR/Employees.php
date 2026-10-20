@@ -34,6 +34,7 @@ return [
     'password_required'                     => 'Lozinka je potrebna',
     'permission_desc'                       => 'Odaberite module za dozvolu',
     'permission_info'                       => 'Dozvole',
+    'permission_select_all'                 => '',
     'repeat_password'                       => 'Ponovite lozinku',
     'subpermission_required'                => 'Odaberite barem jednu dozvolu po modulu',
     'successful_adding'                     => 'Uspješno ste dodali radnika',

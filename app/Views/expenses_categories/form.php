@@ -11,9 +11,9 @@
 <?= form_open("expenses_categories/save/$category_info->expense_category_id", ['id' => 'expense_category_edit_form', 'class' => 'app-form']) ?>
     <fieldset id="expenses_categories">
 
-        <div class="row mb-3">
-            <?= form_label(lang('Expenses_categories.name'), 'category_name', ['class' => 'col-form-label col-3 text-danger required']) ?>
-            <div class="col-8">
+        <div class="field">
+            <?= form_label(lang('Expenses_categories.name'), 'category_name', ['class' => 'form-label text-danger required']) ?>
+            <div class="field-control">
                 <?= form_input([
                     'name'  => 'category_name',
                     'id'    => 'category_name',
@@ -23,9 +23,9 @@
             </div>
         </div>
 
-        <div class="row mb-3">
-            <?= form_label(lang('Expenses_categories.description'), 'category_description', ['class' => 'col-form-label col-3']) ?>
-            <div class="col-8">
+        <div class="field">
+            <?= form_label(lang('Expenses_categories.description'), 'category_description', ['class' => 'form-label']) ?>
+            <div class="field-control">
                 <?= form_textarea([
                     'name'  => 'category_description',
                     'id'    => 'category_description',

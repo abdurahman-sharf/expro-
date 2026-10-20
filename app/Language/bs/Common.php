@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'add'                            => '',
     'address_1'                      => 'Adresa 1',
     'address_2'                      => 'Adresa 2',
     'admin'                          => '',
@@ -76,6 +77,10 @@ return [
     'search'                         => 'Traži',
     'search_options'                 => 'Opcije pretrage',
     'searched_for'                   => 'Traženo',
+    'section_account'                => '',
+    'section_address'                => '',
+    'section_contact'                => '',
+    'section_notes'                  => '',
     'selected_count'                 => '',
     'skip_to_content'                => '',
     'software_short'                 => 'OSPOS',

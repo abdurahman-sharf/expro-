@@ -43,16 +43,16 @@
         };
 
         const add_tax_category = function() {
-            let id = $(this).parent().find('input').attr('id');
+            let id = $(this).closest('.tax-row').find('input').attr('id');
             id = id.replace(/.*?_(\d+)$/g, "$1");
 
             const previous_tax_category_id = 'tax_category_' + id;
-            const block = $(this).parent().clone(true);
-            const new_block = block.insertAfter($(this).parent());
+            const block = $(this).closest('.tax-row').clone(true);
+            const new_block = block.insertAfter($(this).closest('.tax-row'));
             ++tax_categories_count;
             const new_tax_category_id = 'tax_category_' + tax_categories_count;
 
-            $(new_block).find('label').html("<?= lang('Taxes.tax_category') ?> " + tax_categories_count).attr('for', new_tax_category_id).attr('class', 'col-form-label col-2');
+            $(new_block).find('label').html("<?= lang('Taxes.tax_category') ?> " + tax_categories_count).attr('for', new_tax_category_id).attr('class', 'form-label tax-row-label');
             $(new_block).find("input[name='tax_category[]']").attr('id', new_tax_category_id).removeAttr('disabled').attr('class', 'form-control form-control-sm required').val('');
             $(new_block).find("input[name='tax_group_sequence[]']").removeAttr('disabled').attr('class', 'form-control form-control-sm').val('');
             $(new_block).find("input[name='tax_category_id[]']").val('-1');
@@ -60,7 +60,7 @@
         };
 
         const remove_tax_category = function() {
-            $(this).parent().remove();
+            $(this).closest('.tax-row').remove();
             hide_show_remove_tax_category();
         };
 

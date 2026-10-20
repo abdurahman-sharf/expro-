@@ -34,6 +34,7 @@ return [
     'password_required'                     => '',
     'permission_desc'                       => '',
     'permission_info'                       => '',
+    'permission_select_all'                 => '',
     'repeat_password'                       => '',
     'subpermission_required'                => '',
     'successful_adding'                     => '',

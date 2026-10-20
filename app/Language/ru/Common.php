@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'add'                            => '',
     'address_1'                      => 'Адрес 1',
     'address_2'                      => 'Адрес 2',
     'admin'                          => '',
@@ -76,6 +77,10 @@ return [
     'search'                         => 'Поиск',
     'search_options'                 => 'Параметры поиска',
     'searched_for'                   => 'Найдено',
+    'section_account'                => '',
+    'section_address'                => '',
+    'section_contact'                => '',
+    'section_notes'                  => '',
     'selected_count'                 => '',
     'skip_to_content'                => '',
     'software_short'                 => '',

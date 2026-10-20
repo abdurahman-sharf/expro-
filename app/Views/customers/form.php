@@ -12,66 +12,129 @@
 ?>
 
 <div id="required_fields_message"><?= lang('Common.fields_required_message') ?></div>
-<ul id="error_message_box" class="error_message_box"></ul>
 
 <?= form_open("$controller_name/save/$person_info->person_id", ['id' => 'customer_form', 'class' => 'app-form']) ?>
 
-    <ul class="nav nav-tabs nav-justified">
+    <ul class="nav nav-tabs nav-justified" role="tablist">
         <li class="nav-item" role="presentation">
-            <a class="nav-link active" data-bs-toggle="tab" href="#customer_basic_info"><?= lang('Customers.basic_information') ?></a>
+            <a class="nav-link active" data-bs-toggle="tab" role="tab" aria-controls="customer_basic_info" href="#customer_basic_info"><?= lang('Customers.basic_information') ?></a>
         </li>
         <?php if (!empty($stats)) { ?>
             <li class="nav-item" role="presentation">
-                <a class="nav-link" data-bs-toggle="tab" href="#customer_stats_info"><?= lang('Customers.stats_info') ?></a>
+                <a class="nav-link" data-bs-toggle="tab" role="tab" aria-controls="customer_stats_info" href="#customer_stats_info"><?= lang('Customers.stats_info') ?></a>
             </li>
         <?php } ?>
         <?php if (!empty($mailchimp_info) && !empty($mailchimp_activity)) { ?>
             <li class="nav-item" role="presentation">
-                <a class="nav-link" data-bs-toggle="tab" href="#customer_mailchimp_info"><?= lang('Customers.mailchimp_info') ?></a>
+                <a class="nav-link" data-bs-toggle="tab" role="tab" aria-controls="customer_mailchimp_info" href="#customer_mailchimp_info"><?= lang('Customers.mailchimp_info') ?></a>
             </li>
         <?php } ?>
     </ul>
 
+    <ul id="error_message_box" class="error_message_box"></ul>
+
     <div class="tab-content">
-        <div class="tab-pane fade show active" id="customer_basic_info">
+        <div class="tab-pane fade show active" id="customer_basic_info" role="tabpanel">
             <fieldset>
-                <div class="row mb-3">
-                    <?= form_label(lang('Customers.consent'), 'consent', ['class' => 'col-form-label col-3 text-danger required']) ?>
-                    <div class="col-1">
-                        <?= form_checkbox('consent', 1, $person_info->consent == '' ? !$config['enforce_privacy'] : (bool)$person_info->consent) ?>
+                <div class="field field-check">
+                    <?= form_label(lang('Customers.consent'), 'consent', ['class' => 'form-label text-danger required']) ?>
+                    <div class="field-control">
+                        <?= form_checkbox('consent', 1, $person_info->consent == '' ? !$config['enforce_privacy'] : (bool)$person_info->consent, 'id="consent"') ?>
                     </div>
                 </div>
 
                 <?= view('people/form_basic_info') ?>
 
-                <div class="row mb-3">
-                    <?= form_label(lang('Customers.discount_type'), 'discount_type', ['class' => 'col-form-label col-3']) ?>
-                    <div class="col-8">
-                        <label class="choice">
-                            <?= form_radio([
-                                'name'    => 'discount_type',
-                                'type'    => 'radio',
-                                'id'      => 'discount_type',
-                                'value'   => 0,
-                                'checked' => $person_info->discount_type == PERCENT
-                            ]) ?> <?= lang('Customers.discount_percent') ?>
-                        </label>
-                        <label class="choice">
-                            <?= form_radio([
-                                'name'    => 'discount_type',
-                                'type'    => 'radio',
-                                'id'      => 'discount_type',
-                                'value'   => 1,
-                                'checked' => $person_info->discount_type == FIXED
-                            ]) ?> <?= lang('Customers.discount_fixed') ?>
-                        </label>
-                    </div>
-                </div>
+                <div class="form-section">
+                    <h3 class="form-section-title"><?= lang('Common.section_account') ?></h3>
+                    <div class="form-grid">
+                        <div class="field">
+                            <?= form_label(lang('Customers.company_name'), 'customer_company_name', ['class' => 'form-label']) ?>
+                            <?= form_input([
+                                'name'  => 'company_name',
+                                'id'    => 'customer_company_name',
+                                'class' => 'form-control form-control-sm',
+                                'value' => $person_info->company_name
+                            ]) ?>
+                        </div>
 
-                <div class="row mb-3">
-                    <?= form_label(lang('Customers.discount'), 'discount', ['class' => 'col-form-label col-3']) ?>
-                    <div class="col-3">
-                        <div class="input-group input-group-sm">
+                        <div class="field">
+                            <?= form_label(lang('Customers.account_number'), 'account_number', ['class' => 'form-label']) ?>
+                            <?= form_input([
+                                'name'  => 'account_number',
+                                'id'    => 'account_number',
+                                'class' => 'form-control form-control-sm',
+                                'value' => $person_info->account_number
+                            ]) ?>
+                        </div>
+
+                        <div class="field">
+                            <?= form_label(lang('Customers.tax_id'), 'tax_id', ['class' => 'form-label']) ?>
+                            <?= form_input([
+                                'name'  => 'tax_id',
+                                'id'    => 'tax_id',
+                                'class' => 'form-control form-control-sm',
+                                'value' => $person_info->tax_id
+                            ]) ?>
+                        </div>
+
+                        <?php if ($use_destination_based_tax) { ?>
+                            <div class="field">
+                                <?= form_label(lang('Customers.tax_code'), 'sales_tax_code_name', ['class' => 'form-label']) ?>
+                                <?= form_input([
+                                    'name'  => 'sales_tax_code_name',
+                                    'id'    => 'sales_tax_code_name',
+                                    'class' => 'form-control form-control-sm',
+                                    'value' => $sales_tax_code_label
+                                ]) ?>
+                                <?= form_hidden('sales_tax_code_id', $person_info->sales_tax_code_id) ?>
+                            </div>
+                        <?php } ?>
+
+                        <?php if ($config['customer_reward_enable']): ?>
+                            <div class="field">
+                                <?= form_label(lang('Customers.rewards_package'), 'package_id', ['class' => 'form-label']) ?>
+                                <?= form_dropdown('package_id', $packages, $selected_package, 'id="package_id" class="form-select form-select-sm"') ?>
+                            </div>
+
+                            <div class="field">
+                                <?= form_label(lang('Customers.available_points'), 'available_points', ['class' => 'form-label']) ?>
+                                <?= form_input([
+                                    'name'     => 'available_points',
+                                    'id'       => 'available_points',
+                                    'class'    => 'form-control form-control-sm',
+                                    'value'    => $person_info->points,
+                                    'disabled' => ''
+                                ]) ?>
+                            </div>
+                        <?php endif; ?>
+
+                        <div class="field">
+                            <span id="discount_type_label" class="form-label"><?= lang('Customers.discount_type') ?></span>
+                            <div class="field-control" role="radiogroup" aria-labelledby="discount_type_label">
+                                <label class="choice">
+                                    <?= form_radio([
+                                        'name'    => 'discount_type',
+                                        'type'    => 'radio',
+                                        'id'      => 'discount_type_percent',
+                                        'value'   => 0,
+                                        'checked' => $person_info->discount_type == PERCENT
+                                    ]) ?> <?= lang('Customers.discount_percent') ?>
+                                </label>
+                                <label class="choice">
+                                    <?= form_radio([
+                                        'name'    => 'discount_type',
+                                        'type'    => 'radio',
+                                        'id'      => 'discount_type_fixed',
+                                        'value'   => 1,
+                                        'checked' => $person_info->discount_type == FIXED
+                                    ]) ?> <?= lang('Customers.discount_fixed') ?>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="field">
+                            <?= form_label(lang('Customers.discount'), 'discount', ['class' => 'form-label']) ?>
                             <?= form_input([
                                 'name'    => 'discount',
                                 'id'      => 'discount',
@@ -80,100 +143,21 @@
                                 'value'   => $person_info->discount_type === FIXED ? to_currency_no_money($person_info->discount) : to_decimals($person_info->discount)
                             ]) ?>
                         </div>
-                    </div>
-                </div>
 
-                <div class="row mb-3">
-                    <?= form_label(lang('Customers.company_name'), 'customer_company_name', ['class' => 'col-form-label col-3']) ?>
-                    <div class="col-8">
-                        <?= form_input([
-                            'name'  => 'company_name',
-                            'id'    => 'customer_company_name',
-                            'class' => 'form-control form-control-sm',
-                            'value' => $person_info->company_name
-                        ]) ?>
-                    </div>
-                </div>
-
-                <div class="row mb-3">
-                    <?= form_label(lang('Customers.account_number'), 'account_number', ['class' => 'col-form-label col-3']) ?>
-                    <div class="col-4">
-                        <?= form_input([
-                            'name'  => 'account_number',
-                            'id'    => 'account_number',
-                            'class' => 'form-control form-control-sm',
-                            'value' => $person_info->account_number
-                        ]) ?>
-                    </div>
-                </div>
-
-                <div class="row mb-3">
-                    <?= form_label(lang('Customers.tax_id'), 'tax_id', ['class' => 'col-form-label col-3']) ?>
-                    <div class="col-4">
-                        <?= form_input([
-                            'name'  => 'tax_id',
-                            'id'    => 'tax_id',
-                            'class' => 'form-control form-control-sm',
-                            'value' => $person_info->tax_id
-                        ]) ?>
-                    </div>
-                </div>
-
-                <?php if ($config['customer_reward_enable']): ?>
-                    <div class="row mb-3">
-                        <?= form_label(lang('Customers.rewards_package'), 'rewards', ['class' => 'col-form-label col-3']) ?>
-                        <div class="col-8">
-                            <?= form_dropdown(
-                                'package_id',
-                                $packages,
-                                $selected_package,
-                                'class="form-select form-select-sm"'
-                            ) ?>
-                        </div>
-                    </div>
-
-                    <div class="row mb-3">
-                        <?= form_label(lang('Customers.available_points'), 'available_points', ['class' => 'col-form-label col-3']) ?>
-                        <div class="col-4">
-                            <?= form_input([
-                                'name'     => 'available_points',
-                                'id'       => 'available_points',
-                                'class'    => 'form-control form-control-sm',
-                                'value'    => $person_info->points,
-                                'disabled' => ''
-                            ]) ?>
-                        </div>
-                    </div>
-                <?php endif; ?>
-
-                <div class="row mb-3">
-                    <?= form_label(lang('Customers.taxable'), 'taxable', ['class' => 'col-form-label col-3']) ?>
-                    <div class="col-1">
-                        <?= form_checkbox('taxable', 1, $person_info->taxable == 1) ?>
-                    </div>
-                </div>
-
-                <?php if ($use_destination_based_tax) { ?>
-                    <div class="row mb-3">
-                        <?= form_label(lang('Customers.tax_code'), 'sales_tax_code_name', ['class' => 'col-form-label col-3']) ?>
-                        <div class="col-8">
-                            <div class="input-group input-group-sm">
-                                <?= form_input([
-                                    'name'  => 'sales_tax_code_name',
-                                    'id'    => 'sales_tax_code_name',
-                                    'class' => 'form-control form-control-sm',
-                                    'size'  => '50',
-                                    'value' => $sales_tax_code_label
-                                ]) ?>
-                                <?= form_hidden('sales_tax_code_id', $person_info->sales_tax_code_id) ?>
+                        <div class="field field-check">
+                            <?= form_label(lang('Customers.taxable'), 'taxable', ['class' => 'form-label']) ?>
+                            <div class="field-control">
+                                <?= form_checkbox('taxable', 1, $person_info->taxable == 1, 'id="taxable"') ?>
                             </div>
                         </div>
                     </div>
-                <?php } ?>
+                </div>
 
-                <div class="row mb-3">
-                    <?= form_label(lang('Customers.date'), 'date', ['class' => 'col-form-label col-3']) ?>
-                    <div class="col-8">
+                <?= view('people/form_comments') ?>
+
+                <div class="form-grid">
+                    <div class="field">
+                        <?= form_label(lang('Customers.date'), 'datetime', ['class' => 'form-label']) ?>
                         <div class="input-group">
                             <span class="input-group-text"><span class="bi bi-calendar3" aria-hidden="true"></span></span>
                             <?= form_input([
@@ -185,11 +169,9 @@
                             ]) ?>
                         </div>
                     </div>
-                </div>
 
-                <div class="row mb-3">
-                    <?= form_label(lang('Customers.employee'), 'employee', ['class' => 'col-form-label col-3']) ?>
-                    <div class="col-8">
+                    <div class="field">
+                        <?= form_label(lang('Customers.employee'), 'employee', ['class' => 'form-label']) ?>
                         <?= form_input([
                             'name'     => 'employee',
                             'id'       => 'employee',
@@ -205,12 +187,11 @@
         </div>
 
         <?php if (!empty($stats)) { ?>
-            <br>
-            <div class="tab-pane" id="customer_stats_info">
-                <fieldset>
-                    <div class="row mb-3">
-                        <?= form_label(lang('Customers.total'), 'total', ['class' => 'col-form-label col-5']) ?>
-                        <div class="col-4">
+            <div class="tab-pane" id="customer_stats_info" role="tabpanel">
+                <fieldset class="form-grid">
+                    <div class="field">
+                        <?= form_label(lang('Customers.total'), 'total', ['class' => 'form-label']) ?>
+                        <div class="field-control">
                             <div class="input-group input-group-sm">
                                 <?php if (!is_right_side_currency_symbol()): ?>
                                     <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
@@ -229,9 +210,9 @@
                         </div>
                     </div>
 
-                    <div class="row mb-3">
-                        <?= form_label(lang('Customers.max'), 'max', ['class' => 'col-form-label col-5']) ?>
-                        <div class="col-4">
+                    <div class="field">
+                        <?= form_label(lang('Customers.max'), 'max', ['class' => 'form-label']) ?>
+                        <div class="field-control">
                             <div class="input-group input-group-sm">
                                 <?php if (!is_right_side_currency_symbol()): ?>
                                     <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
@@ -250,9 +231,9 @@
                         </div>
                     </div>
 
-                    <div class="row mb-3">
-                        <?= form_label(lang('Customers.min'), 'min', ['class' => 'col-form-label col-5']) ?>
-                        <div class="col-4">
+                    <div class="field">
+                        <?= form_label(lang('Customers.min'), 'min', ['class' => 'form-label']) ?>
+                        <div class="field-control">
                             <div class="input-group input-group-sm">
                                 <?php if (!is_right_side_currency_symbol()): ?>
                                     <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
@@ -271,9 +252,9 @@
                         </div>
                     </div>
 
-                    <div class="row mb-3">
-                        <?= form_label(lang('Customers.average'), 'average', ['class' => 'col-form-label col-5']) ?>
-                        <div class="col-4">
+                    <div class="field">
+                        <?= form_label(lang('Customers.average'), 'average', ['class' => 'form-label']) ?>
+                        <div class="field-control">
                             <div class="input-group input-group-sm">
                                 <?php if (!is_right_side_currency_symbol()): ?>
                                     <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
@@ -292,9 +273,9 @@
                         </div>
                     </div>
 
-                    <div class="row mb-3">
-                        <?= form_label(lang('Customers.quantity'), 'quantity', ['class' => 'col-form-label col-5']) ?>
-                        <div class="col-4">
+                    <div class="field">
+                        <?= form_label(lang('Customers.quantity'), 'quantity', ['class' => 'form-label']) ?>
+                        <div class="field-control">
                             <div class="input-group input-group-sm">
                                 <span class="input-group-text"><b><?= '>' ?></b></span>
                                 <?= form_input([
@@ -308,9 +289,9 @@
                         </div>
                     </div>
 
-                    <div class="row mb-3">
-                        <?= form_label(lang('Customers.avg_discount'), 'avg_discount', ['class' => 'col-form-label col-5']) ?>
-                        <div class="col-4">
+                    <div class="field">
+                        <?= form_label(lang('Customers.avg_discount'), 'avg_discount', ['class' => 'form-label']) ?>
+                        <div class="field-control">
                             <div class="input-group input-group-sm">
                                 <?= form_input([
                                     'name'     => 'avg_discount',
@@ -328,11 +309,11 @@
         <?php } ?>
 
         <?php if (!empty($mailchimp_info) && !empty($mailchimp_activity)) { ?>
-            <div class="tab-pane" id="customer_mailchimp_info">
-                <fieldset>
-                    <div class="row mb-3">
-                        <?= form_label(lang('Customers.mailchimp_status'), 'mailchimp_status', ['class' => 'col-form-label col-3']) ?>
-                        <div class="col-4">
+            <div class="tab-pane" id="customer_mailchimp_info" role="tabpanel">
+                <fieldset class="form-grid">
+                    <div class="field">
+                        <?= form_label(lang('Customers.mailchimp_status'), 'mailchimp_status', ['class' => 'form-label']) ?>
+                        <div class="field-control">
                             <?= form_dropdown(
                                 'mailchimp_status',
                                 [
@@ -347,16 +328,16 @@
                         </div>
                     </div>
 
-                    <div class="row mb-3">
-                        <?= form_label(lang('Customers.mailchimp_vip'), 'mailchimp_vip', ['class' => 'col-form-label col-3']) ?>
-                        <div class="col-1">
+                    <div class="field">
+                        <?= form_label(lang('Customers.mailchimp_vip'), 'mailchimp_vip', ['class' => 'form-label']) ?>
+                        <div class="field-control">
                             <?= form_checkbox('mailchimp_vip', 1, $mailchimp_info['vip'] == 1) ?>
                         </div>
                     </div>
 
-                    <div class="row mb-3">
-                        <?= form_label(lang('Customers.mailchimp_member_rating'), 'mailchimp_member_rating', ['class' => 'col-form-label col-3']) ?>
-                        <div class="col-4">
+                    <div class="field">
+                        <?= form_label(lang('Customers.mailchimp_member_rating'), 'mailchimp_member_rating', ['class' => 'form-label']) ?>
+                        <div class="field-control">
                             <?= form_input([
                                 'name'     => 'mailchimp_member_rating',
                                 'class'    => 'form-control form-control-sm',
@@ -366,9 +347,9 @@
                         </div>
                     </div>
 
-                    <div class="row mb-3">
-                        <?= form_label(lang('Customers.mailchimp_activity_total'), 'mailchimp_activity_total', ['class' => 'col-form-label col-3']) ?>
-                        <div class="col-4">
+                    <div class="field">
+                        <?= form_label(lang('Customers.mailchimp_activity_total'), 'mailchimp_activity_total', ['class' => 'form-label']) ?>
+                        <div class="field-control">
                             <?= form_input([
                                 'name'     => 'mailchimp_activity_total',
                                 'class'    => 'form-control form-control-sm',
@@ -378,9 +359,9 @@
                         </div>
                     </div>
 
-                    <div class="row mb-3">
-                        <?= form_label(lang('Customers.mailchimp_activity_lastopen'), 'mailchimp_activity_lastopen', ['class' => 'col-form-label col-3']) ?>
-                        <div class="col-4">
+                    <div class="field">
+                        <?= form_label(lang('Customers.mailchimp_activity_lastopen'), 'mailchimp_activity_lastopen', ['class' => 'form-label']) ?>
+                        <div class="field-control">
                             <?= form_input([
                                 'name'     => 'mailchimp_activity_lastopen',
                                 'class'    => 'form-control form-control-sm',
@@ -390,9 +371,9 @@
                         </div>
                     </div>
 
-                    <div class="row mb-3">
-                        <?= form_label(lang('Customers.mailchimp_activity_open'), 'mailchimp_activity_open', ['class' => 'col-form-label col-3']) ?>
-                        <div class="col-4">
+                    <div class="field">
+                        <?= form_label(lang('Customers.mailchimp_activity_open'), 'mailchimp_activity_open', ['class' => 'form-label']) ?>
+                        <div class="field-control">
                             <?= form_input([
                                 'name'     => 'mailchimp_activity_open',
                                 'class'    => 'form-control form-control-sm',
@@ -402,9 +383,9 @@
                         </div>
                     </div>
 
-                    <div class="row mb-3">
-                        <?= form_label(lang('Customers.mailchimp_activity_click'), 'mailchimp_activity_click', ['class' => 'col-form-label col-3']) ?>
-                        <div class="col-4">
+                    <div class="field">
+                        <?= form_label(lang('Customers.mailchimp_activity_click'), 'mailchimp_activity_click', ['class' => 'form-label']) ?>
+                        <div class="field-control">
                             <?= form_input([
                                 'name'     => 'mailchimp_activity_click',
                                 'class'    => 'form-control form-control-sm',
@@ -414,9 +395,9 @@
                         </div>
                     </div>
 
-                    <div class="row mb-3">
-                        <?= form_label(lang('Customers.mailchimp_activity_unopen'), 'mailchimp_activity_unopen', ['class' => 'col-form-label col-3']) ?>
-                        <div class="col-4">
+                    <div class="field">
+                        <?= form_label(lang('Customers.mailchimp_activity_unopen'), 'mailchimp_activity_unopen', ['class' => 'form-label']) ?>
+                        <div class="field-control">
                             <?= form_input([
                                 'name'     => 'mailchimp_activity_unopen',
                                 'class'    => 'form-control form-control-sm',
@@ -426,9 +407,9 @@
                         </div>
                     </div>
 
-                    <div class="row mb-3">
-                        <?= form_label(lang('Customers.mailchimp_email_client'), 'mailchimp_email_client', ['class' => 'col-form-label col-3']) ?>
-                        <div class="col-4">
+                    <div class="field">
+                        <?= form_label(lang('Customers.mailchimp_email_client'), 'mailchimp_email_client', ['class' => 'form-label']) ?>
+                        <div class="field-control">
                             <?= form_input([
                                 'name'     => 'mailchimp_email_client',
                                 'class'    => 'form-control form-control-sm',

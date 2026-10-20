@@ -166,6 +166,7 @@ return [
     'quantity_less_than_reorder_level'  => '警告！產品的庫存數量是不足的。您仍然可以處理銷售，但檢查您的庫存',
     'quantity_less_than_zero'           => '警告！產品的庫存數量是不足的。您仍然可以處理銷售，但檢查您的庫存',
     'quantity_of_items'                 => '',
+    'quick_items'                       => '',
     'quote'                             => '',
     'quote_number'                      => '',
     'quote_number_duplicate'            => '',

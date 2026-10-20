@@ -34,6 +34,7 @@ return [
     'password_required'                     => 'Se requiere contraseña.',
     'permission_desc'                       => 'Selecciona las casillas para otorgar acceso a los módulos.',
     'permission_info'                       => 'Permisos',
+    'permission_select_all'                 => '',
     'repeat_password'                       => 'Contraseña otra vez',
     'subpermission_required'                => 'Concede por lo menos un permiso para cada módulo.',
     'successful_adding'                     => 'Empleado agregado exitosamente.',

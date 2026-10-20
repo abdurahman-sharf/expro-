@@ -65,7 +65,9 @@
 
 .pos-scan-icon {
     position: absolute;
+    inset-block-start: 26px;
     inset-inline-start: 16px;
+    translate: 0 -50%;
     color: var(--muted);
     font-size: 20px;
     pointer-events: none;
@@ -81,6 +83,75 @@
 
 .pos-scan .btn {
     min-height: 52px;
+}
+
+.pos-top {
+    margin-bottom: 12px;
+}
+
+.pos-top-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+    gap: 8px;
+}
+
+.pos-top-tile {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 6px;
+    min-height: 64px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    color: var(--text);
+    text-align: start;
+    box-shadow: var(--shadow-sm);
+}
+
+.pos-top-tile:hover {
+    border-color: var(--blue-500);
+    background: var(--blue-50);
+}
+
+.pos-top-tile:active {
+    background: var(--blue-100);
+}
+
+.pos-top-tile:focus-visible {
+    outline: 2px solid var(--blue-500);
+    outline-offset: 2px;
+}
+
+.pos-top-tile-name {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.35;
+}
+
+.pos-top-tile-price {
+    color: var(--blue-700);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+@media (max-width: 767.98px) {
+    .pos-top-tiles {
+        display: flex;
+        overflow-x: auto;
+        padding-bottom: 6px;
+        scroll-snap-type: x proximity;
+    }
+
+    .pos-top-tile {
+        flex: 0 0 132px;
+        scroll-snap-align: start;
+    }
 }
 
 .pos-cart {

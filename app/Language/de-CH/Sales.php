@@ -166,6 +166,7 @@ return [
     'quantity_less_than_reorder_level'  => 'Warnung: Gewünschte Menge ist nicht verfügbar.',
     'quantity_less_than_zero'           => 'Warnung: Gewünschte Menge ist nicht verfügbar. Sie können den Verkauf fortsetzen, dennoch prüfen Sie bitte den Lagerbestand.',
     'quantity_of_items'                 => '',
+    'quick_items'                       => '',
     'quote'                             => '',
     'quote_number'                      => '',
     'quote_number_duplicate'            => '',

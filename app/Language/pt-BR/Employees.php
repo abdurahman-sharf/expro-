@@ -34,6 +34,7 @@ return [
     'password_required'                     => 'Senha requerida.',
     'permission_desc'                       => 'Marque as caixas abaixo para conceder acesso aos módulos.',
     'permission_info'                       => 'Permissões de acesso do funcionário',
+    'permission_select_all'                 => '',
     'repeat_password'                       => 'Confirme a senha',
     'subpermission_required'                => 'Adicione pelo menos um privilégio para cada módulo.',
     'successful_adding'                     => 'Você adicionou o funcionário com sucesso.',

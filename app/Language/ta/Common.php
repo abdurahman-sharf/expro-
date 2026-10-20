@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'add'                            => '',
     'address_1'                      => 'முகவரி 1',
     'address_2'                      => 'முகவரி 2',
     'admin'                          => '',
@@ -76,6 +77,10 @@ return [
     'search'                         => 'தேடல்',
     'search_options'                 => 'தேடல் விருப்பங்கள்',
     'searched_for'                   => 'தேடியது',
+    'section_account'                => '',
+    'section_address'                => '',
+    'section_contact'                => '',
+    'section_notes'                  => '',
     'selected_count'                 => '',
     'skip_to_content'                => '',
     'software_short'                 => 'OSPOS',

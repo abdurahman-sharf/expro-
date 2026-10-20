@@ -34,6 +34,7 @@ return [
     'password_required'                     => 'Изисква се парола.',
     'permission_desc'                       => 'Поставете отметка в квадратчетата по-долу, за да получите достъп до модулите.',
     'permission_info'                       => 'Разрешения',
+    'permission_select_all'                 => '',
     'repeat_password'                       => 'Паролата отново',
     'subpermission_required'                => 'Добавете поне един грант за всеки модул.',
     'successful_adding'                     => 'Служителя е добавен успешно.',

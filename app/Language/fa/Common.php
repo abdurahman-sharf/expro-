@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'add'                            => '',
     'address_1'                      => 'آدرس 1',
     'address_2'                      => 'آدرس 2',
     'admin'                          => '',
@@ -76,6 +77,10 @@ return [
     'search'                         => 'جستجو کردن',
     'search_options'                 => 'گزینه های جستجو',
     'searched_for'                   => 'جستجو شد',
+    'section_account'                => '',
+    'section_address'                => '',
+    'section_contact'                => '',
+    'section_notes'                  => '',
     'selected_count'                 => '',
     'skip_to_content'                => '',
     'software_short'                 => '',

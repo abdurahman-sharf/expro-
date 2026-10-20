@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'add'                            => '',
     'address_1'                      => 'Address 1',
     'address_2'                      => 'Address 2',
     'admin'                          => '',
@@ -76,6 +77,10 @@ return [
     'search'                         => 'ძებნა',
     'search_options'                 => 'ძებნის მორგება',
     'searched_for'                   => 'ვეძებდი',
+    'section_account'                => '',
+    'section_address'                => '',
+    'section_contact'                => '',
+    'section_notes'                  => '',
     'selected_count'                 => '',
     'skip_to_content'                => '',
     'software_short'                 => 'OSPOS',

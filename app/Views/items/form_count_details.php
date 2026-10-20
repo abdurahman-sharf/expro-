@@ -10,11 +10,11 @@ use App\Models\Inventory;
 ?>
 
 <?= form_open('items', ['id' => 'item_form', 'class' => 'app-form']) ?>
-    <fieldset id="count_item_basic_info">
+    <fieldset id="count_item_basic_info" class="form-grid">
 
-        <div class="row mb-3">
-            <?= form_label(lang('Items.item_number'), 'name', ['class' => 'col-form-label col-3']) ?>
-            <div class="col-8">
+        <div class="field">
+            <?= form_label(lang('Items.item_number'), 'item_number', ['class' => 'form-label']) ?>
+            <div class="field-control">
                 <div class="input-group">
                     <span class="input-group-text"><span class="bi bi-upc-scan" aria-hidden="true"></span></span>
                     <?= form_input([
@@ -28,9 +28,9 @@ use App\Models\Inventory;
             </div>
         </div>
 
-        <div class="row mb-3">
-            <?= form_label(lang('Items.name'), 'name', ['class' => 'col-form-label col-3']) ?>
-            <div class="col-8">
+        <div class="field">
+            <?= form_label(lang('Items.name'), 'name', ['class' => 'form-label']) ?>
+            <div class="field-control">
                 <?= form_input([
                     'name'     => 'name',
                     'id'       => 'name',
@@ -41,9 +41,9 @@ use App\Models\Inventory;
             </div>
         </div>
 
-        <div class="row mb-3">
-            <?= form_label(lang('Items.category'), 'category', ['class' => 'col-form-label col-3']) ?>
-            <div class="col-8">
+        <div class="field">
+            <?= form_label(lang('Items.category'), 'category', ['class' => 'form-label']) ?>
+            <div class="field-control">
                 <div class="input-group">
                     <span class="input-group-text"><span class="bi bi-tag" aria-hidden="true"></span></span>
                     <?= form_input([
@@ -57,16 +57,16 @@ use App\Models\Inventory;
             </div>
         </div>
 
-        <div class="row mb-3">
-            <?= form_label(lang('Items.stock_location'), 'stock_location', ['class' => 'col-form-label col-3']) ?>
-            <div class="col-8">
-                <?= form_dropdown('stock_location', $stock_locations, current($stock_locations), ['onchange' => 'display_stock(this.value);', 'class' => 'form-select']) ?>
+        <div class="field">
+            <?= form_label(lang('Items.stock_location'), 'stock_location', ['class' => 'form-label']) ?>
+            <div class="field-control">
+                <?= form_dropdown('stock_location', $stock_locations, current($stock_locations), ['onchange' => 'display_stock(this.value);', 'class' => 'form-select', 'id' => 'stock_location']) ?>
             </div>
         </div>
 
-        <div class="row mb-3">
-            <?= form_label(lang('Items.current_quantity'), 'quantity', ['class' => 'col-form-label col-3']) ?>
-            <div class="col-4">
+        <div class="field">
+            <?= form_label(lang('Items.current_quantity'), 'quantity', ['class' => 'form-label']) ?>
+            <div class="field-control">
                 <?= form_input([
                     'name'     => 'quantity',
                     'id'       => 'quantity',
@@ -80,16 +80,17 @@ use App\Models\Inventory;
     </fieldset>
 <?= form_close() ?>
 
+<div class="table-responsive">
 <table id="items_count_details" class="table table-striped table-hover">
     <thead>
-        <tr style="background-color: #999 !important;">
+        <tr class="table-secondary">
             <th colspan="4"><?= lang('Items.inventory_data_tracking') ?></th>
         </tr>
         <tr>
-            <th style="width: 30%;"><?= lang('Items.inventory_date') ?></th>
-            <th style="width: 20%;"><?= lang('Items.inventory_employee') ?></th>
-            <th style="width: 20%;"><?= lang('Items.inventory_in_out_quantity') ?></th>
-            <th style="width: 30%;"><?= lang('Items.inventory_remarks') ?></th>
+            <th><?= lang('Items.inventory_date') ?></th>
+            <th><?= lang('Items.inventory_employee') ?></th>
+            <th><?= lang('Items.inventory_in_out_quantity') ?></th>
+            <th><?= lang('Items.inventory_remarks') ?></th>
         </tr>
     </thead>
     <tbody id="inventory_result">
@@ -108,6 +109,7 @@ use App\Models\Inventory;
         ?>
     </tbody>
 </table>
+</div>
 
 <script type="text/javascript">
     $(document).ready(function() {
@@ -145,7 +147,7 @@ use App\Models\Inventory;
 
                 td = document.createElement('td');
                 td.appendChild(document.createTextNode(parseFloat(data['trans_inventory']).toFixed(<?= quantity_decimals() ?>)));
-                td.setAttribute("style", "text-align: center");
+                td.className = 'text-center';
                 tr.appendChild(td);
 
                 td = document.createElement('td');

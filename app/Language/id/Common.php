@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'add'                            => '',
     'address_1'                      => 'Alamat 1',
     'address_2'                      => 'Alamat 2',
     'admin'                          => '',
@@ -76,6 +77,10 @@ return [
     'search'                         => 'Cari',
     'search_options'                 => 'Pilihan pencarian',
     'searched_for'                   => 'Mencari untuk',
+    'section_account'                => '',
+    'section_address'                => '',
+    'section_contact'                => '',
+    'section_notes'                  => '',
     'selected_count'                 => '',
     'skip_to_content'                => '',
     'software_short'                 => 'OSPOS',

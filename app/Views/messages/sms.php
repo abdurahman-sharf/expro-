@@ -4,31 +4,27 @@
     dialog_support.init("a.modal-dlg");
 </script>
 
-<div class="p-4 bg-body-tertiary rounded-3" style="max-width: 60%; margin: auto;">
+<div class="sms-card p-4 bg-body-tertiary rounded-3">
     <?= form_open("messages/send/", ['id' => 'send_sms_form', 'enctype' => 'multipart/form-data', 'method' => 'post', 'class' => 'app-form']) ?>
         <fieldset>
 
-            <legend style="text-align: center;"><?= lang('Messages.sms_send') ?></legend>
-            <div class="row mb-3">
-                <label for="phone" class="col-3 col-form-label"><?= lang('Messages.phone') ?></label>
-                <div class="col-9">
-                    <input class="form-control form-control-sm" type="text" name="phone" placeholder="<?= lang('Messages.phone_placeholder') ?>">
-                    <span class="form-text" style="text-align: center;"><?= lang('Messages.multiple_phones') ?></span>
-                </div>
+            <legend class="text-center"><?= lang('Messages.sms_send') ?></legend>
+            <div class="field">
+                <label for="phone" class="form-label"><?= lang('Messages.phone') ?></label>
+                <input class="form-control form-control-sm" type="text" id="phone" name="phone" placeholder="<?= lang('Messages.phone_placeholder') ?>">
+                <span class="form-text"><?= lang('Messages.multiple_phones') ?></span>
             </div>
 
-            <div class="row mb-3">
-                <label for="message" class="col-3 col-form-label"><?= lang('Messages.message') ?></label>
-                <div class="col-9">
-                    <textarea class="form-control form-control-sm" rows="3" id="message" name="message" placeholder="<?= lang('Messages.message_placeholder') ?>"></textarea>
-                </div>
+            <div class="field">
+                <label for="message" class="form-label"><?= lang('Messages.message') ?></label>
+                <textarea class="form-control form-control-sm" rows="3" id="message" name="message" placeholder="<?= lang('Messages.message_placeholder') ?>"></textarea>
             </div>
 
             <?= form_submit([
                 'name'  => 'submit_form',
                 'id'    => 'submit_form',
                 'value' => lang('Common.submit'),
-                'class' => 'btn btn-primary btn-sm float-end'
+                'class' => 'btn btn-primary btn-sm'
             ]) ?>
 
         </fieldset>

@@ -34,6 +34,7 @@ return [
     'password_required'                     => 'وشەی نهێنی پێویستە.',
     'permission_desc'                       => 'چوارگۆشەکانی خوارەوە دیاری بکە بۆ پێدانی دەستگەیشتن بە مۆدیولەکان.',
     'permission_info'                       => 'ڕێپێدانەکان',
+    'permission_select_all'                 => '',
     'repeat_password'                       => 'دووبارە وشەی نهێنی',
     'subpermission_required'                => 'بۆ هەر مۆدیولێک بەلایەنی کەمەوە یەک پێدان زیاد بکە.',
     'successful_adding'                     => 'زیادکردنی فەرمانبەر سەرکەوتوو بوو.',

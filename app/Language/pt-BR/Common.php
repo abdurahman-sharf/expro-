@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'add'                            => '',
     'address_1'                      => 'Endereço',
     'address_2'                      => 'Complemento',
     'admin'                          => 'Administrador',
@@ -76,6 +77,10 @@ return [
     'search'                         => 'Pesquisar',
     'search_options'                 => 'Opções de pesquisa',
     'searched_for'                   => 'Pesquisar por',
+    'section_account'                => '',
+    'section_address'                => '',
+    'section_contact'                => '',
+    'section_notes'                  => '',
     'selected_count'                 => '',
     'skip_to_content'                => '',
     'software_short'                 => 'ospos',

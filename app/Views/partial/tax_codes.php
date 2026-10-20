@@ -16,9 +16,9 @@ foreach ($tax_codes as $tax_code => $tax_code_data) {
     ++$i;
 ?>
 
-    <div class="mb-3" style="<?= $tax_code_data['deleted'] ? 'display:none;' : 'display:block;' ?>">
-        <?= form_label(lang('Taxes.tax_code') . " $i", "tax_code_$i", ['class' => 'form-label col-2']) ?>
-        <div class="col-2">
+    <div class="tax-row<?= $tax_code_data['deleted'] ? ' d-none' : '' ?>">
+        <?= form_label(lang('Taxes.tax_code') . " $i", "tax_code_$i", ['class' => 'form-label tax-row-label']) ?>
+        <div class="tax-row-field">
             <?php $form_data = [
                 'name'        => 'tax_code[]',
                 'id'          => "tax_code_$i",
@@ -29,7 +29,7 @@ foreach ($tax_codes as $tax_code => $tax_code_data) {
             echo form_input($form_data)
             ?>
         </div>
-        <div class="col-2">
+        <div class="tax-row-field">
             <?php $form_data = [
                 'name'        => 'tax_code_name[]',
                 'class'       => 'valid_chars form-control form-control-sm',
@@ -39,7 +39,7 @@ foreach ($tax_codes as $tax_code => $tax_code_data) {
             echo form_input($form_data)
             ?>
         </div>
-        <div class="col-2">
+        <div class="tax-row-field">
             <?php $form_data = [
                 'name'        => 'city[]',
                 'class'       => 'valid_chars form-control form-control-sm',
@@ -49,7 +49,7 @@ foreach ($tax_codes as $tax_code => $tax_code_data) {
             echo form_input($form_data)
             ?>
         </div>
-        <div class="col-2">
+        <div class="tax-row-field">
             <?php $form_data = [
                 'name'        => 'state[]',
                 'class'       => 'valid_chars form-control form-control-sm',
@@ -60,9 +60,10 @@ foreach ($tax_codes as $tax_code => $tax_code_data) {
             ?>
         </div>
 
-        <span class="add_tax_code bi bi-plus-lg" style="padding-top: 0.5em;"></span>
-        <span>&nbsp;&nbsp;</span>
-        <span class="remove_tax_code bi bi-dash-lg" style="padding-top: 0.5em;"></span>
+        <div class="tax-row-actions">
+            <button type="button" class="btn btn-outline-secondary btn-sm add_tax_code" aria-label="<?= lang('Common.add') ?>"><span class="bi bi-plus-lg" aria-hidden="true"></span></button>
+            <button type="button" class="btn btn-outline-secondary btn-sm remove_tax_code" aria-label="<?= lang('Common.delete') ?>"><span class="bi bi-dash-lg" aria-hidden="true"></span></button>
+        </div>
         <?= form_hidden('tax_code_id[]', (string)$tax_code_id) ?>
     </div>
 

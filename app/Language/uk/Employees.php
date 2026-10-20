@@ -34,6 +34,7 @@ return [
     'password_required'                     => 'Пароль - обов\'язкове поле.',
     'permission_desc'                       => 'Поставте прапорці нижче, щоб надати доступ до модулів.',
     'permission_info'                       => 'Дозволи',
+    'permission_select_all'                 => '',
     'repeat_password'                       => 'Повторіть пароль',
     'subpermission_required'                => 'Додайте принаймні один грант для кожного модуля.',
     'successful_adding'                     => 'Ви успішно додали працівника.',

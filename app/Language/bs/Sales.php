@@ -166,6 +166,7 @@ return [
     'quantity_less_than_reorder_level'  => 'Upozorenje! Željena količina je ispod minimalne.',
     'quantity_less_than_zero'           => 'Upozorenje: Željena količina je nedovoljna. Možete nastaviti prodaju, ali provjerite svoju zalihu.',
     'quantity_of_items'                 => 'Količina od {0} stavke(i)',
+    'quick_items'                       => '',
     'quote'                             => 'Ponuda',
     'quote_number'                      => 'Broj ponude',
     'quote_number_duplicate'            => 'Broj ponude mora biti jedinstven.',

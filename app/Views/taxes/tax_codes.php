@@ -43,15 +43,15 @@
         };
 
         const add_tax_code = function() {
-            let id = $(this).parent().find("input[name='tax_code[]']").attr('id');
+            let id = $(this).closest('.tax-row').find("input[name='tax_code[]']").attr('id');
             id = id.replace(/.*?_(\d+)$/g, "$1");
             const previous_tax_code_id = 'tax_code_' + id;
-            const block = $(this).parent().clone(true);
-            const new_block = block.insertAfter($(this).parent());
+            const block = $(this).closest('.tax-row').clone(true);
+            const new_block = block.insertAfter($(this).closest('.tax-row'));
             ++tax_code_count;
             const new_tax_code_id = 'tax_code_' + tax_code_count;
 
-            $(new_block).find('label').html("<?= lang('Taxes.tax_code') ?> " + tax_code_count).attr('for', new_tax_code_id).attr('class', 'col-form-label col-2');
+            $(new_block).find('label').html("<?= lang('Taxes.tax_code') ?> " + tax_code_count).attr('for', new_tax_code_id).attr('class', 'form-label tax-row-label');
             $(new_block).find("input[name='tax_code[]']").attr('id', new_tax_code_id).removeAttr('disabled').attr('class', 'form-control text-uppercase required form-control-sm').val('');
             $(new_block).find("input[name='tax_code_name[]']").removeAttr('disabled').attr('class', 'form-control required form-control-sm').val('');
             $(new_block).find("input[name='city[]']").removeAttr('disabled').attr('class', 'form-control form-control-sm').val('');
@@ -62,7 +62,7 @@
         };
 
         const remove_tax_code = function() {
-            $(this).parent().remove();
+            $(this).closest('.tax-row').remove();
             hide_show_remove_tax_code();
         };
 

@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'add'                            => '',
     'address_1'                      => 'Anwani 1',
     'address_2'                      => 'Anwani 2',
     'admin'                          => '',
@@ -76,6 +77,10 @@ return [
     'search'                         => 'Tafuta',
     'search_options'                 => 'Chaguo za Utafutaji',
     'searched_for'                   => 'Umetafuta',
+    'section_account'                => '',
+    'section_address'                => '',
+    'section_contact'                => '',
+    'section_notes'                  => '',
     'selected_count'                 => '',
     'skip_to_content'                => '',
     'software_short'                 => 'OSPOS',

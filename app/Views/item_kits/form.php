@@ -12,11 +12,11 @@
 <ul id="error_message_box" class="error_message_box"></ul>
 
 <?= form_open("item_kits/save/$item_kit_info->item_kit_id", ['id' => 'item_kit_form', 'class' => 'app-form']) ?>
-    <fieldset id="item_kit_basic_info">
+    <fieldset id="item_kit_basic_info" class="form-grid">
 
-        <div class="row mb-3">
-            <?= form_label(lang('Item_kits.item_kit_number'), 'item_kit_number', ['class' => 'col-form-label col-3']) ?>
-            <div class="col-8">
+        <div class="field">
+            <?= form_label(lang('Item_kits.item_kit_number'), 'item_kit_number', ['class' => 'form-label']) ?>
+            <div class="field-control">
                 <div class="input-group">
                     <span class="input-group-text"><span class="bi bi-upc-scan" aria-hidden="true"></span></span>
                     <?= form_input([
@@ -29,9 +29,9 @@
             </div>
         </div>
 
-        <div class="row mb-3">
-            <?= form_label(lang('Item_kits.name'), 'name', ['class' => 'col-form-label col-3 text-danger required']) ?>
-            <div class="col-8">
+        <div class="field">
+            <?= form_label(lang('Item_kits.name'), 'name', ['class' => 'form-label text-danger required']) ?>
+            <div class="field-control">
                 <?= form_input([
                     'name'  => 'name',
                     'id'    => 'name',
@@ -41,9 +41,9 @@
             </div>
         </div>
 
-        <div class="row mb-3">
-            <?= form_label(lang('Item_kits.find_kit_item'), 'item_name', ['class' => 'col-form-label col-3']) ?>
-            <div class="col-8">
+        <div class="field span-all">
+            <?= form_label(lang('Item_kits.find_kit_item'), 'item_name', ['class' => 'form-label']) ?>
+            <div class="field-control">
                 <div class="input-group input-group-sm">
                     <?= form_input([
                         'name'  => 'item_name',
@@ -58,9 +58,9 @@
             </div>
         </div>
 
-        <div class="row mb-3">
-            <?= form_label(lang('Item_kits.discount_type'), 'kit_discount_type', ['class' => 'col-form-label col-3']) ?>
-            <div class="col-8">
+        <div class="field">
+            <span id="kit_discount_type_label" class="form-label"><?= lang('Item_kits.discount_type') ?></span>
+            <div class="field-control" role="radiogroup" aria-labelledby="kit_discount_type_label">
                 <label class="choice">
                     <?= form_radio([
                         'name'    => 'kit_discount_type',
@@ -80,9 +80,9 @@
             </div>
         </div>
 
-        <div class="row mb-3">
-            <?= form_label(lang('Item_kits.discount'), 'kit_discount', ['class' => 'col-form-label col-3']) ?>
-            <div class="col-3">
+        <div class="field">
+            <?= form_label(lang('Item_kits.discount'), 'kit_discount', ['class' => 'form-label']) ?>
+            <div class="field-control">
                 <div class="input-group input-group-sm">
                     <?= form_input([
                         'name'      => 'kit_discount',
@@ -96,9 +96,9 @@
             </div>
         </div>
 
-        <div class="row mb-3">
-            <?= form_label(lang('Item_kits.price_option'), 'price_option', !empty($basic_version) ? ['class' => 'col-form-label col-3 text-danger required'] : ['class' => 'col-form-label col-3']) ?>
-            <div class="col-8">
+        <div class="field span-all">
+            <span id="price_option_label" class="form-label<?= !empty($basic_version) ? ' text-danger required' : '' ?>"><?= lang('Item_kits.price_option') ?></span>
+            <div class="field-control" role="radiogroup" aria-labelledby="price_option_label">
                 <label class="choice">
                     <?= form_radio([
                         'name'    => 'price_option',
@@ -126,9 +126,9 @@
             </div>
         </div>
 
-        <div class="row mb-3">
-            <?= form_label(lang('Item_kits.print_option'), 'print_option', !empty($basic_version) ? ['class' => 'col-form-label col-3 text-danger required'] : ['class' => 'col-form-label col-3']) ?>
-            <div class="col-8">
+        <div class="field span-all">
+            <span id="print_option_label" class="form-label<?= !empty($basic_version) ? ' text-danger required' : '' ?>"><?= lang('Item_kits.print_option') ?></span>
+            <div class="field-control" role="radiogroup" aria-labelledby="print_option_label">
                 <label class="choice">
                     <?= form_radio([
                         'name'    => 'print_option',
@@ -157,9 +157,9 @@
         </div>
 
 
-        <div class="row mb-3">
-            <?= form_label(lang('Item_kits.description'), 'description', ['class' => 'col-form-label col-3']) ?>
-            <div class="col-8">
+        <div class="field span-all">
+            <?= form_label(lang('Item_kits.description'), 'description', ['class' => 'form-label']) ?>
+            <div class="field-control">
                 <?= form_textarea([
                     'name'  => 'description',
                     'id'    => 'description',
@@ -169,9 +169,9 @@
             </div>
         </div>
 
-        <div class="row mb-3">
-            <?= form_label(lang('Item_kits.add_item'), 'item', ['class' => 'col-form-label col-3']) ?>
-            <div class="col-8">
+        <div class="field span-all">
+            <?= form_label(lang('Item_kits.add_item'), 'item', ['class' => 'form-label']) ?>
+            <div class="field-control">
                 <?= form_input([
                     'name'  => 'item',
                     'id'    => 'item',
@@ -180,26 +180,28 @@
             </div>
         </div>
 
-        <table id="item_kit_items" class="table table-striped table-hover">
-            <thead>
-                <tr>
-                    <th style="width: 10%;"><?= lang('Common.delete') ?></th>
-                    <th style="width: 10%;"><?= lang('Item_kits.sequence') ?></th>
-                    <th style="width: 60%;"><?= lang('Item_kits.item') ?></th>
-                    <th style="width: 20%;"><?= lang('Item_kits.quantity') ?></th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php foreach ($item_kit_items as $item_kit_item) { ?>
+        <div class="span-all table-responsive">
+            <table id="item_kit_items" class="table table-striped table-hover">
+                <thead>
                     <tr>
-                        <td><a href="#" onclick="return delete_item_kit_row(this);"><span class="bi bi-trash" aria-hidden="true"></span></a></td>
-                        <td><input class="quantity form-control form-control-sm" id="item_seq_<?= $item_kit_item['item_id'] ?>" name="item_kit_seq[<?= $item_kit_item['item_id'] ?>]" value="<?= parse_decimals($item_kit_item['kit_sequence'], 0) ?>"></td>
-                        <td><?= esc($item_kit_item['name']) ?></td>
-                        <td><input class="quantity form-control form-control-sm" id="item_qty_<?= $item_kit_item['item_id'] ?>" name="item_kit_qty[<?= $item_kit_item['item_id'] ?>]" value="<?= to_quantity_decimals($item_kit_item['quantity']) ?>"></td>
+                        <th><?= lang('Common.delete') ?></th>
+                        <th><?= lang('Item_kits.sequence') ?></th>
+                        <th><?= lang('Item_kits.item') ?></th>
+                        <th><?= lang('Item_kits.quantity') ?></th>
                     </tr>
-                <?php } ?>
-            </tbody>
-        </table>
+                </thead>
+                <tbody>
+                    <?php foreach ($item_kit_items as $item_kit_item) { ?>
+                        <tr>
+                            <td><button type="button" class="btn btn-outline-danger btn-sm kit-row-delete" aria-label="<?= lang('Common.delete') ?>"><span class="bi bi-trash" aria-hidden="true"></span></button></td>
+                            <td><input class="quantity form-control form-control-sm" id="item_seq_<?= $item_kit_item['item_id'] ?>" name="item_kit_seq[<?= $item_kit_item['item_id'] ?>]" value="<?= parse_decimals($item_kit_item['kit_sequence'], 0) ?>" aria-label="<?= lang('Item_kits.sequence') . ': ' . esc($item_kit_item['name']) ?>"></td>
+                            <td><?= esc($item_kit_item['name']) ?></td>
+                            <td><input class="quantity form-control form-control-sm" id="item_qty_<?= $item_kit_item['item_id'] ?>" name="item_kit_qty[<?= $item_kit_item['item_id'] ?>]" value="<?= to_quantity_decimals($item_kit_item['quantity']) ?>" aria-label="<?= lang('Item_kits.quantity') . ': ' . esc($item_kit_item['name']) ?>"></td>
+                        </tr>
+                    <?php } ?>
+                </tbody>
+            </table>
+        </div>
 
     </fieldset>
 <?= form_close() ?>
@@ -214,19 +216,26 @@
             delay: 10,
             appendTo: '.modal-content',
             select: function(e, ui) {
-                if ($('#item_kit_item_' + ui.item.value).length == 1) {
-                    $('#item_kit_item_' + ui.item.value).val(parseFloat($('#item_kit_item_' + ui.item.value).val()) + 1);
+                const $quantity = $('#item_qty_' + ui.item.value);
+
+                if ($quantity.length == 1) {
+                    $quantity.val(parseFloat($quantity.val()) + 1);
                 } else {
-                    $('#item_kit_items').append('<tr>' +
-                        '<td><a href="#" onclick="return delete_item_kit_row(this);"><span class="bi bi-trash" aria-hidden="true"></span></a></td>' +
-                        '<td><input class="quantity form-control form-control-sm" id="item_seq_' + ui.item.value + '" name="item_kit_seq[' + ui.item.value + ']" value="0"></td>' +
-                        '<td>' + DOMPurify.sanitize(ui.item.label) + '</td>' +
-                        '<td><input class="quantity form-control form-control-sm" id="item_qty_' + ui.item.value + '" name="item_kit_qty[' + ui.item.value + ']" value="1"></td>' +
+                    const label = DOMPurify.sanitize(ui.item.label);
+                    $('#item_kit_items tbody').append('<tr>' +
+                        '<td><button type="button" class="btn btn-outline-danger btn-sm kit-row-delete" aria-label="<?= esc(lang('Common.delete'), 'js') ?>"><span class="bi bi-trash" aria-hidden="true"></span></button></td>' +
+                        '<td><input class="quantity form-control form-control-sm" id="item_seq_' + ui.item.value + '" name="item_kit_seq[' + ui.item.value + ']" value="0" aria-label="<?= esc(lang('Item_kits.sequence'), 'js') ?>: ' + label + '"></td>' +
+                        '<td>' + label + '</td>' +
+                        '<td><input class="quantity form-control form-control-sm" id="item_qty_' + ui.item.value + '" name="item_kit_qty[' + ui.item.value + ']" value="1" aria-label="<?= esc(lang('Item_kits.quantity'), 'js') ?>: ' + label + '"></td>' +
                         '</tr>');
                 }
                 $('#item').val('');
                 return false;
             }
+        });
+
+        $('#item_kit_items').on('click', '.kit-row-delete', function() {
+            $(this).closest('tr').remove();
         });
 
         $("input[name='item_name']").change(function() {
@@ -291,8 +300,4 @@
         }, form_support.error));
     });
 
-    function delete_item_kit_row(link) {
-        $(link).parent().parent().remove();
-        return false;
-    }
 </script>

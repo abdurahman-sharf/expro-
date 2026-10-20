@@ -34,6 +34,7 @@ return [
     'password_required'                     => 'Lozinka je obavezna.',
     'permission_desc'                       => 'Označite polja u nastavku da biste odobrili pristup modulima.',
     'permission_info'                       => 'Dozvole',
+    'permission_select_all'                 => '',
     'repeat_password'                       => 'Ponovite lozinku',
     'subpermission_required'                => 'Dodajte najmanje jedno odobrenje za svaki modul.',
     'successful_adding'                     => 'Uspješno ste dodali zaposlenika.',

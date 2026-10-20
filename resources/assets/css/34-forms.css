@@ -1,0 +1,235 @@
+.modal-body .app-form .field {
+    min-width: 0;
+    margin-bottom: 14px;
+}
+
+.modal-body .app-form .form-label,
+.modal-body .app-form .col-form-label {
+    margin-bottom: 4px;
+    padding: 0;
+    color: var(--text-2);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.modal-body .app-form label.required::after {
+    content: ' *';
+}
+
+.modal-body .app-form .form-control-sm,
+.modal-body .app-form .form-select-sm,
+.modal-body .app-form .form-select {
+    min-height: 38px;
+    padding: .4rem .75rem;
+    font-size: .9375rem;
+}
+
+.modal-body .app-form textarea.form-control-sm {
+    height: 96px;
+    min-height: 84px;
+    resize: vertical;
+}
+
+.modal-body .app-form .input-group-text {
+    min-width: 38px;
+    justify-content: center;
+}
+
+.modal-body .app-form .field-check {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.modal-body .app-form .field-check > .form-label {
+    order: 2;
+    margin: 0;
+}
+
+.modal-body .app-form .field-check > .field-control {
+    order: 1;
+}
+
+.modal-body .app-form .choice {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-inline-end: 18px;
+    font-weight: 400;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    column-gap: 20px;
+}
+
+.form-grid > .span-all {
+    grid-column: 1 / -1;
+}
+
+.form-section {
+    margin-bottom: 10px;
+}
+
+.form-section-title {
+    margin: 6px 0 14px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--line);
+    color: var(--blue-700);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.modal-body .app-form .nav-tabs {
+    margin-bottom: 16px;
+}
+
+.modal-body .app-form .nav-tabs:has(> .nav-item:only-child) {
+    display: none;
+}
+
+@media (max-width: 575.98px) {
+    .modal-body .app-form .choice {
+        display: flex;
+        margin-bottom: 6px;
+    }
+
+    .modal-body .app-form .nav-tabs .nav-link {
+        padding: .5rem .35rem;
+        font-size: 13px;
+    }
+}
+
+.perm-intro {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px 20px;
+    margin-bottom: 14px;
+}
+
+.perm-desc {
+    margin: 0;
+    color: var(--text-2);
+    font-size: 13px;
+}
+
+.perm-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+}
+
+.perm-module {
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md, 10px);
+    background: var(--surface);
+}
+
+.perm-module.is-off .perm-title {
+    color: var(--muted);
+}
+
+.perm-head {
+    margin-bottom: 0;
+}
+
+.perm-head .form-check-label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.perm-title {
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.perm-note {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 400;
+}
+
+.perm-subs {
+    margin: 10px 0 0;
+    padding: 10px 0 0;
+    border-top: 1px dashed var(--line);
+    list-style: none;
+}
+
+.perm-subs .form-check {
+    margin-bottom: 4px;
+    font-size: 13px;
+}
+
+#item_kit_items th:nth-child(1),
+#item_kit_items th:nth-child(2) {
+    width: 10%;
+}
+
+#item_kit_items th:nth-child(3) {
+    width: 55%;
+}
+
+#item_kit_items th:nth-child(4) {
+    width: 25%;
+}
+
+#item_kit_items td {
+    vertical-align: middle;
+}
+
+.attributes-slot {
+    display: contents;
+}
+
+#items_count_details thead tr:nth-child(2) th:nth-child(1),
+#items_count_details thead tr:nth-child(2) th:nth-child(4) {
+    width: 30%;
+}
+
+#items_count_details thead tr:nth-child(2) th:nth-child(2),
+#items_count_details thead tr:nth-child(2) th:nth-child(3) {
+    width: 20%;
+}
+
+.sms-card {
+    max-width: 640px;
+    margin-inline: auto;
+}
+
+.sms-card .field,
+.sms-card .btn {
+    margin-bottom: 14px;
+}
+
+.tax-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 10px;
+    margin-bottom: 10px;
+}
+
+.tax-row-label {
+    flex: 0 0 110px;
+    margin: 0;
+    color: var(--text-2);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.tax-row-field {
+    flex: 1 1 140px;
+    min-width: 120px;
+}
+
+.tax-row-actions {
+    display: flex;
+    gap: 4px;
+}

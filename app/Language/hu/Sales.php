@@ -166,6 +166,7 @@ return [
     'quantity_less_than_reorder_level'  => 'Figyelem, a megadott mennyiség elégtelen!',
     'quantity_less_than_zero'           => 'Figyelem, a megadott mennyiség elégtelen! Tovább folytathatja az értékesitést, de ellenőrizze a készletet.',
     'quantity_of_items'                 => '',
+    'quick_items'                       => '',
     'quote'                             => '',
     'quote_number'                      => '',
     'quote_number_duplicate'            => '',

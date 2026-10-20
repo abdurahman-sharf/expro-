@@ -34,6 +34,7 @@ return [
     'password_required'                     => 'Nenosiri linahitajika.',
     'permission_desc'                       => 'Chagua visanduku hapa chini kutoa ruhusa kwa moduli.',
     'permission_info'                       => 'Ruhusa',
+    'permission_select_all'                 => '',
     'repeat_password'                       => 'Rudia Nenosiri',
     'subpermission_required'                => 'Ongeza angalau ruhusa moja kwa kila moduli.',
     'successful_adding'                     => 'Umefanikiwa kuongeza mfanyakazi.',

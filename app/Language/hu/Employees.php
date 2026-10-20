@@ -34,6 +34,7 @@ return [
     'password_required'                     => 'A jelszó kötelező',
     'permission_desc'                       => 'Válassza ki az alábbi boxokat a hozzáférés megadásához',
     'permission_info'                       => 'Munkavállaló engedélyei',
+    'permission_select_all'                 => '',
     'repeat_password'                       => 'Jelszó újra',
     'subpermission_required'                => 'Engedélyezzen legalább egyet minden modulhoz',
     'successful_adding'                     => 'Sikeresen hozzáadott egy új munkavállalót',

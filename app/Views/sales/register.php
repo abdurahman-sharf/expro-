@@ -138,6 +138,20 @@ $employee        = model(Employee::class);
             </div>
         <?= form_close() ?>
 
+        <?php if (!empty($quick_items)): ?>
+            <section class="pos-top" aria-labelledby="quick_items_title">
+                <h2 id="quick_items_title" class="pos-label"><?= lang('Sales.quick_items') ?></h2>
+                <div class="pos-top-tiles">
+                    <?php foreach ($quick_items as $quickItem): ?>
+                        <button type="button" class="pos-top-tile" data-item="<?= esc($quickItem->item_number !== null && $quickItem->item_number !== '' ? $quickItem->item_number : $quickItem->item_id, 'attr') ?>">
+                            <span class="pos-top-tile-name"><?= esc($quickItem->name) ?></span>
+                            <span class="pos-top-tile-price num"><?= to_currency($quickItem->unit_price) ?></span>
+                        </button>
+                    <?php endforeach; ?>
+                </div>
+            </section>
+        <?php endif; ?>
+
         <div class="card pos-cart" id="register">
             <div class="card-header pos-cart-title">
                 <h2 class="h6 mb-0"><?= lang('Sales.cart') ?></h2>
@@ -547,6 +561,11 @@ $employee        = model(Employee::class);
                 $('#add_item_form').submit();
                 return false;
             }
+        });
+
+        $('.pos-top-tile').click(function() {
+            $('#item').val($(this).attr('data-item'));
+            $('#add_item_form').submit();
         });
 
         $('#item, #customer').dblclick(function() {

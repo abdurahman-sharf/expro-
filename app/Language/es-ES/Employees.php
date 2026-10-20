@@ -34,6 +34,7 @@ return [
     'password_required'                     => 'La Contraseña es requerida.',
     'permission_desc'                       => 'Activa las cajas debajo para permitir el acceso a los módulos.',
     'permission_info'                       => 'Permisos y Acceso del Empleado',
+    'permission_select_all'                 => '',
     'repeat_password'                       => 'Repita Contraseña',
     'subpermission_required'                => 'Agregar al menos un permiso para cada modulo.',
     'successful_adding'                     => 'Empleado agregado satisfactoriamente.',

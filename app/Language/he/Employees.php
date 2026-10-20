@@ -34,6 +34,7 @@ return [
     'password_required'                     => 'דרושה סיסמה.',
     'permission_desc'                       => 'סמן את התיבות שלהלן כדי להעניק גישה למודולים.',
     'permission_info'                       => 'הרשאות',
+    'permission_select_all'                 => '',
     'repeat_password'                       => 'סיסמא בשנית',
     'subpermission_required'                => 'הוסף לפחות גישה אחת לכל מודול.',
     'successful_adding'                     => 'הוספת עובד בהצלחה.',

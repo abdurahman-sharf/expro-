@@ -10,35 +10,35 @@
 <ul id="error_message_box" class="error_message_box"></ul>
 
 <?= form_open("messages/send_form/$person_info->person_id", ['id' => 'send_sms_form', 'class' => 'app-form']) ?>
-    <fieldset>
+    <fieldset class="form-grid">
 
-        <div class="row mb-3">
-            <?= form_label(lang('Messages.first_name'), 'first_name_label', ['for' => 'first_name', 'class' => 'col-form-label col-2']) ?>
-            <div class="col-10">
-                <?= form_input(['class' => 'form-control form-control-sm', 'type' => 'text', 'name' => 'first_name', 'value' => $person_info->first_name, 'readonly' => 'true']) ?>
+        <div class="field">
+            <?= form_label(lang('Messages.first_name'), 'first_name', ['for' => 'first_name', 'class' => 'form-label']) ?>
+            <div class="field-control">
+                <?= form_input(['class' => 'form-control form-control-sm', 'type' => 'text', 'name' => 'first_name', 'id' => 'first_name', 'value' => $person_info->first_name, 'readonly' => 'true']) ?>
             </div>
         </div>
 
-        <div class="row mb-3">
-            <?= form_label(lang('Messages.last_name'), 'last_name_label', ['for' => 'last_name', 'class' => 'col-form-label col-2']) ?>
-            <div class="col-10">
-                <?= form_input(['class' => 'form-control form-control-sm', 'type' => 'text', 'name' => 'last_name', 'value' => $person_info->last_name, 'readonly' => 'true']) ?>
+        <div class="field">
+            <?= form_label(lang('Messages.last_name'), 'last_name', ['for' => 'last_name', 'class' => 'form-label']) ?>
+            <div class="field-control">
+                <?= form_input(['class' => 'form-control form-control-sm', 'type' => 'text', 'name' => 'last_name', 'id' => 'last_name', 'value' => $person_info->last_name, 'readonly' => 'true']) ?>
             </div>
         </div>
 
-        <div class="row mb-3">
-            <?= form_label(lang('Messages.phone'), 'phone_label', ['for' => 'phone', 'class' => 'col-form-label col-2 text-danger required']) ?>
-            <div class="col-10">
+        <div class="field span-all">
+            <?= form_label(lang('Messages.phone'), 'phone', ['for' => 'phone', 'class' => 'form-label text-danger required']) ?>
+            <div class="field-control">
                 <div class="input-group">
                     <span class="input-group-text"><span class="bi bi-telephone" aria-hidden="true"></span></span>
-                    <?= form_input(['class' => 'form-control form-control-sm required', 'type' => 'text', 'name' => 'phone', 'value' => $person_info->phone_number]) ?>
+                    <?= form_input(['class' => 'form-control form-control-sm required', 'type' => 'text', 'name' => 'phone', 'id' => 'phone', 'value' => $person_info->phone_number]) ?>
                 </div>
             </div>
         </div>
 
-        <div class="row mb-3">
-            <?= form_label(lang('Messages.message'), 'message_label', ['for' => 'message', 'class' => 'col-form-label col-2 text-danger required']) ?>
-            <div class="col-10">
+        <div class="field span-all">
+            <?= form_label(lang('Messages.message'), 'message', ['for' => 'message', 'class' => 'form-label text-danger required']) ?>
+            <div class="field-control">
                 <?= form_textarea(['class' => 'form-control form-control-sm required', 'name' => 'message', 'id' => 'message', 'value' => $config['msg_msg']]) ?>
             </div>
         </div>

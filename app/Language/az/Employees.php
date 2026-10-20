@@ -34,6 +34,7 @@ return [
     'password_required'                     => 'Şifrə tələb olunur.',
     'permission_desc'                       => 'Modullara giriş imkanı vermək üçün aşağıdakı qutuları yoxlayın.',
     'permission_info'                       => 'İcazələr',
+    'permission_select_all'                 => '',
     'repeat_password'                       => 'Şifrəni yenidən təkrar edin',
     'subpermission_required'                => 'Hər bir modul üçün ən azı bir qrant əlavə edin.',
     'successful_adding'                     => 'Əməkdaş müvəffəqiyyətə əlavə olundu.',

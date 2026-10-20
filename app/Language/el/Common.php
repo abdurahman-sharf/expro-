@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'add'                            => '',
     'address_1'                      => 'Διεύθυνση 1',
     'address_2'                      => 'Διεύθυνση 2',
     'admin'                          => '',
@@ -76,6 +77,10 @@ return [
     'search'                         => 'Αναζήτηση',
     'search_options'                 => 'Επιλογές αναζήτησης',
     'searched_for'                   => 'Αναζητήσατε για',
+    'section_account'                => '',
+    'section_address'                => '',
+    'section_contact'                => '',
+    'section_notes'                  => '',
     'selected_count'                 => '',
     'skip_to_content'                => '',
     'software_short'                 => '',

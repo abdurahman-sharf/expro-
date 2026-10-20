@@ -551,6 +551,207 @@
           "pause": 700
         }
       ]
+    },
+    {
+      "id": "suppliers-new-modal",
+      "group": "people",
+      "path": "/suppliers",
+      "steps": [
+        {
+          "click": "#title_bar button[data-href=\"suppliers/view\"]"
+        },
+        {
+          "waitFor": ".modal-body form"
+        },
+        {
+          "pause": 1000
+        }
+      ]
+    },
+    {
+      "id": "employees-new-modal",
+      "group": "office",
+      "path": "/employees",
+      "steps": [
+        {
+          "click": "#title_bar button[data-href=\"employees/view\"]"
+        },
+        {
+          "waitFor": ".modal-body form"
+        },
+        {
+          "pause": 1000
+        }
+      ]
+    },
+    {
+      "id": "employees-permissions-modal",
+      "group": "office",
+      "path": "/employees",
+      "steps": [
+        {
+          "click": "#title_bar button[data-href=\"employees/view\"]"
+        },
+        {
+          "waitFor": ".modal-body form"
+        },
+        {
+          "click": ".modal-body a[href=\"#employee_permission_info\"]"
+        },
+        {
+          "pause": 600
+        },
+        {
+          "pause": 1000
+        }
+      ]
+    },
+    {
+      "id": "item-kits-new-modal",
+      "group": "items",
+      "path": "/item_kits",
+      "steps": [
+        {
+          "click": "#title_bar button[data-href=\"item_kits/view\"]"
+        },
+        {
+          "waitFor": ".modal-body form"
+        },
+        {
+          "pause": 1000
+        }
+      ]
+    },
+    {
+      "id": "attributes-new-modal",
+      "group": "office",
+      "path": "/attributes",
+      "steps": [
+        {
+          "click": "#title_bar button[data-href=\"attributes/view\"]"
+        },
+        {
+          "waitFor": ".modal-body form"
+        },
+        {
+          "pause": 1000
+        }
+      ]
+    },
+    {
+      "id": "giftcards-new-modal",
+      "group": "finance",
+      "path": "/giftcards",
+      "steps": [
+        {
+          "click": "#title_bar button[data-href=\"giftcards/view\"]"
+        },
+        {
+          "waitFor": ".modal-body form"
+        },
+        {
+          "pause": 1000
+        }
+      ]
+    },
+    {
+      "id": "expenses-new-modal",
+      "group": "finance",
+      "path": "/expenses",
+      "steps": [
+        {
+          "click": "#title_bar button[data-href=\"expenses/view\"]"
+        },
+        {
+          "waitFor": ".modal-body form"
+        },
+        {
+          "pause": 1000
+        }
+      ]
+    },
+    {
+      "id": "expenses-categories-new-modal",
+      "group": "office",
+      "path": "/expenses_categories",
+      "steps": [
+        {
+          "click": "#title_bar button[data-href=\"expenses_categories/view\"]"
+        },
+        {
+          "waitFor": ".modal-body form"
+        },
+        {
+          "pause": 1000
+        }
+      ]
+    },
+    {
+      "id": "cashups-new-modal",
+      "group": "finance",
+      "path": "/cashups",
+      "steps": [
+        {
+          "click": "#title_bar button[data-href=\"cashups/view\"]"
+        },
+        {
+          "waitFor": ".modal-body form"
+        },
+        {
+          "pause": 1000
+        }
+      ]
+    },
+    {
+      "id": "taxes-rates-tab",
+      "group": "office",
+      "path": "/taxes",
+      "steps": [
+        {
+          "click": "a[href=\"#tax_rates_tab\"]"
+        },
+        {
+          "pause": 900
+        }
+      ]
+    },
+    {
+      "id": "taxes-rate-modal",
+      "group": "office",
+      "path": "/taxes",
+      "steps": [
+        {
+          "click": "a[href=\"#tax_rates_tab\"]"
+        },
+        {
+          "pause": 700
+        },
+        {
+          "click": "#tax_rates_tab #title_bar button[data-href=\"taxes/view\"]"
+        },
+        {
+          "waitFor": ".modal-body form"
+        },
+        {
+          "pause": 1000
+        }
+      ]
+    },
+    {
+      "id": "customers-sms-modal",
+      "group": "people",
+      "path": "/customers",
+      "steps": [
+        {
+          "click": "#table a[href*=\"Messages/view/\"]"
+        },
+        {
+          "waitFor": ".modal-body form"
+        },
+        {
+          "pause": 1000
+        }
+      ]
     }
   ]
 }

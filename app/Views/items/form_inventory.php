@@ -11,11 +11,11 @@
 <ul id="error_message_box" class="error_message_box"></ul>
 
 <?= form_open("items/saveInventory/$item_info->item_id", ['id' => 'item_form', 'class' => 'app-form']) ?>
-    <fieldset id="inv_item_basic_info">
+    <fieldset id="inv_item_basic_info" class="form-grid">
 
-        <div class="row mb-3">
-            <?= form_label(lang('Items.item_number'), 'name', ['class' => 'col-form-label col-3']) ?>
-            <div class="col-8">
+        <div class="field">
+            <?= form_label(lang('Items.item_number'), 'item_number', ['class' => 'form-label']) ?>
+            <div class="field-control">
                 <div class="input-group">
                     <span class="input-group-text"><span class="bi bi-upc-scan" aria-hidden="true"></span></span>
                     <?= form_input([
@@ -29,9 +29,9 @@
             </div>
         </div>
 
-        <div class="row mb-3">
-            <?= form_label(lang('Items.name'), 'name', ['class' => 'col-form-label col-3']) ?>
-            <div class="col-8">
+        <div class="field">
+            <?= form_label(lang('Items.name'), 'name', ['class' => 'form-label']) ?>
+            <div class="field-control">
                 <?= form_input([
                     'name'     => 'name',
                     'id'       => 'name',
@@ -42,9 +42,9 @@
             </div>
         </div>
 
-        <div class="row mb-3">
-            <?= form_label(lang('Items.category'), 'category', ['class' => 'col-form-label col-3']) ?>
-            <div class="col-8">
+        <div class="field">
+            <?= form_label(lang('Items.category'), 'category', ['class' => 'form-label']) ?>
+            <div class="field-control">
                 <div class="input-group">
                     <span class="input-group-text"><span class="bi bi-tag" aria-hidden="true"></span></span>
                     <?= form_input([
@@ -58,16 +58,16 @@
             </div>
         </div>
 
-        <div class="row mb-3">
-            <?= form_label(lang('Items.stock_location'), 'stock_location', ['class' => 'col-form-label col-3']) ?>
-            <div class="col-8">
-                <?= form_dropdown('stock_location', $stock_locations, current($stock_locations), ['onchange' => 'fill_quantity(this.value)', 'class' => 'form-select']) ?>
+        <div class="field">
+            <?= form_label(lang('Items.stock_location'), 'stock_location', ['class' => 'form-label']) ?>
+            <div class="field-control">
+                <?= form_dropdown('stock_location', $stock_locations, current($stock_locations), ['onchange' => 'fill_quantity(this.value)', 'class' => 'form-select', 'id' => 'stock_location']) ?>
             </div>
         </div>
 
-        <div class="row mb-3">
-            <?= form_label(lang('Items.current_quantity'), 'quantity', ['class' => 'col-form-label col-3']) ?>
-            <div class="col-4">
+        <div class="field">
+            <?= form_label(lang('Items.current_quantity'), 'quantity', ['class' => 'form-label']) ?>
+            <div class="field-control">
                 <?= form_input([
                     'name'     => 'quantity',
                     'id'       => 'quantity',
@@ -78,9 +78,9 @@
             </div>
         </div>
 
-        <div class="row mb-3">
-            <?= form_label(lang('Items.add_minus'), 'quantity', ['class' => 'col-form-label col-3 text-danger required']) ?>
-            <div class="col-4">
+        <div class="field">
+            <?= form_label(lang('Items.add_minus'), 'newquantity', ['class' => 'form-label text-danger required']) ?>
+            <div class="field-control">
                 <?= form_input([
                     'name'  => 'newquantity',
                     'id'    => 'newquantity',
@@ -89,9 +89,9 @@
             </div>
         </div>
 
-        <div class="row mb-3">
-            <?= form_label(lang('Items.inventory_comments'), 'description', ['class' => 'col-form-label col-3']) ?>
-            <div class="col-8">
+        <div class="field span-all">
+            <?= form_label(lang('Items.inventory_comments'), 'trans_comment', ['class' => 'form-label']) ?>
+            <div class="field-control">
                 <?= form_textarea([
                     'name'  => 'trans_comment',
                     'id'    => 'trans_comment',

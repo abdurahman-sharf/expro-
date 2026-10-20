@@ -34,6 +34,7 @@ return [
     'password_required'                     => 'ត្រូវការពាក្យសម្ងាត់។',
     'permission_desc'                       => 'ឆែកប្រអប់ខាងក្រោម ដើម្បីផ្ដល់សិទ្ធទៅក្នុងផ្នែកណាមួយ។',
     'permission_info'                       => 'សិទ្ធិ',
+    'permission_select_all'                 => '',
     'repeat_password'                       => 'ពាក្យសម្ងាត់ម្ដងទៀត',
     'subpermission_required'                => 'យ៉ាងហោចណាស់ក៏មាន ផ្នែកមួយត្រូវតែផ្ដល់សិទ្ធិ។',
     'successful_adding'                     => 'ការបន្ថែមបុគ្គលិកបានទទួលជោគជ័យ។',

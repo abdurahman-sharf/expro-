@@ -175,6 +175,11 @@ const DEFAULT_LANGUAGE_CODE = 'en';
 const RTL_LANGUAGES = ['ar', 'ckb', 'fa', 'he', 'ur'];
 
 /**
+ * Register
+ */
+const DEFAULT_QUICK_ITEMS = 12;
+
+/**
  * Brand
  */
 const BRAND_NAME = 'الاول برو';

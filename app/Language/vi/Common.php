@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'add'                            => '',
     'address_1'                      => 'Địa chỉ 1',
     'address_2'                      => 'Địa chỉ 2',
     'admin'                          => '',
@@ -76,6 +77,10 @@ return [
     'search'                         => 'Tìm kiếm',
     'search_options'                 => 'Tùy chọn tìm kiếm',
     'searched_for'                   => 'Tìm kiếm bằng',
+    'section_account'                => '',
+    'section_address'                => '',
+    'section_contact'                => '',
+    'section_notes'                  => '',
     'selected_count'                 => '',
     'skip_to_content'                => '',
     'software_short'                 => '',

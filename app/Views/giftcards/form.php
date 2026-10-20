@@ -14,11 +14,11 @@
 <ul id="error_message_box" class="error_message_box"></ul>
 
 <?= form_open("giftcards/save/$giftcard_id", ['id' => 'giftcard_form', 'class' => 'app-form']) ?>
-    <fieldset id="giftcard_basic_info">
+    <fieldset id="giftcard_basic_info" class="form-grid">
 
-        <div class="row mb-3">
-            <?= form_label(lang('Giftcards.person_id'), 'person_name', ['class' => 'col-form-label col-3']) ?>
-            <div class="col-8">
+        <div class="field span-all">
+            <?= form_label(lang('Giftcards.person_id'), 'person_name', ['class' => 'form-label']) ?>
+            <div class="field-control">
                 <?= form_input([
                     'name'  => 'person_name',
                     'id'    => 'person_name',
@@ -30,14 +30,11 @@
         </div>
 
         <?php
-        $class = '';
-        if ($config['giftcard_number'] == 'series') {
-            $class = ' required';
-        }
+        $numberLabelClass = $config['giftcard_number'] == 'series' ? 'form-label text-danger required' : 'form-label';
         ?>
-        <div class="row mb-3">
-            <?= form_label(lang('Giftcards.giftcard_number'), 'giftcard_number', ['class' => "col-form-label col-3$class"]) ?>
-            <div class="col-4">
+        <div class="field">
+            <?= form_label(lang('Giftcards.giftcard_number'), 'giftcard_number', ['class' => $numberLabelClass]) ?>
+            <div class="field-control">
                 <?= form_input([
                     'name'  => 'giftcard_number',
                     'id'    => 'giftcard_number',
@@ -48,9 +45,9 @@
         </div>
 
 
-        <div class="row mb-3">
-            <?= form_label(lang('Giftcards.card_value'), 'giftcard_amount', ['class' => 'col-form-label col-3 text-danger required']) ?>
-            <div class="col-4">
+        <div class="field">
+            <?= form_label(lang('Giftcards.card_value'), 'giftcard_amount', ['class' => 'form-label text-danger required']) ?>
+            <div class="field-control">
                 <div class="input-group input-group-sm">
                     <?php if (!is_right_side_currency_symbol()): ?>
                         <span class="input-group-text"><?= esc($config['currency_symbol']) ?></span>
@@ -62,7 +59,7 @@
                         'value' => to_currency_no_money($giftcard_value)
                     ]) ?>
                     <?php if (is_right_side_currency_symbol()): ?>
-                        <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></span>
+                        <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
                     <?php endif; ?>
                 </div>
             </div>

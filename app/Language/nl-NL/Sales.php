@@ -166,6 +166,7 @@ return [
     'quantity_less_than_reorder_level'  => 'Waarschuwing: gewenste hoeveelheid is lager dan het opnieuw bestellen niveau voor dit artikel.',
     'quantity_less_than_zero'           => 'Waarschuwing: gewenste hoeveelheid is onvoldoende. De verkoop kan nog steeds verwerkt worden, maar controleer de voorraad.',
     'quantity_of_items'                 => 'Hoeveelheid van {0} artikelen',
+    'quick_items'                       => '',
     'quote'                             => 'Offerte',
     'quote_number'                      => 'Offertenummer',
     'quote_number_duplicate'            => 'Offertenummer moet uniek zijn.',

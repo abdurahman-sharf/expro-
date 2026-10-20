@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'add'                            => '',
     'address_1'                      => 'ที่อยู่',
     'address_2'                      => 'ที่อยู่ (เพิ่มเติม)',
     'admin'                          => '',
@@ -76,6 +77,10 @@ return [
     'search'                         => 'ค้นหา',
     'search_options'                 => 'ตัวเลือกการค้นหา',
     'searched_for'                   => 'การค้นหา',
+    'section_account'                => '',
+    'section_address'                => '',
+    'section_contact'                => '',
+    'section_notes'                  => '',
     'selected_count'                 => '',
     'skip_to_content'                => '',
     'software_short'                 => 'โอเอสพีโอเอส',

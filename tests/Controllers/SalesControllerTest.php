@@ -726,6 +726,19 @@ class SalesControllerTest extends CIUnitTestCase
         $response->assertStatus(404);
     }
 
+    public function testGetIndex_OffersTopSellersAsTiles(): void
+    {
+        $cashierId = $this->createCashierEmployee();
+        $this->createSale($cashierId);
+        cache()->delete('sales_quick_items_' . DEFAULT_QUICK_ITEMS);
+        $this->loginAs($cashierId);
+
+        $response = $this->get('/sales');
+
+        $response->assertStatus(200);
+        $response->assertSeeElement('.pos-top-tile');
+    }
+
     public function testGetIndex_RendersPosLayoutWithTotalBar(): void
     {
         $cashierId = $this->createCashierEmployee();

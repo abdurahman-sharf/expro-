@@ -17,6 +17,7 @@
             headers: <?= $table_headers ?>,
             pageSize: <?= $config['lines_per_page'] ?>,
             uniqueId: 'expense_category_id',
+            cardTitle: ['category_name'],
 
         });
 

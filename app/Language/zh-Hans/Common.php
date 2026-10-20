@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'add'                            => '',
     'address_1'                      => '地址 1',
     'address_2'                      => '地址 2',
     'admin'                          => '',
@@ -76,6 +77,10 @@ return [
     'search'                         => '搜索',
     'search_options'                 => '搜索选项',
     'searched_for'                   => '查找',
+    'section_account'                => '',
+    'section_address'                => '',
+    'section_contact'                => '',
+    'section_notes'                  => '',
     'selected_count'                 => '',
     'skip_to_content'                => '',
     'software_short'                 => '',

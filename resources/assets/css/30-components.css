@@ -338,6 +338,13 @@
     color: var(--text);
 }
 
+.bootstrap-select > .dropdown-toggle.bs-placeholder,
+.bootstrap-select > .dropdown-toggle.bs-placeholder:hover,
+.bootstrap-select > .dropdown-toggle.bs-placeholder:focus,
+.bootstrap-select > .dropdown-toggle.bs-placeholder:active {
+    color: var(--muted);
+}
+
 .bootstrap-select.form-control-sm > .dropdown-toggle {
     min-height: 34px;
 }
@@ -582,18 +589,6 @@ input[type="radio"] {
 
 .dropdown-toggle::after {
     margin-inline-start: .5em;
-}
-
-@media (max-width: 575.98px) {
-    .app-form .row > [class*="col-"] {
-        flex: 0 0 100%;
-        width: 100%;
-        max-width: 100%;
-    }
-
-    .app-form .col-form-label {
-        padding-bottom: 0;
-    }
 }
 
 input.datetime,

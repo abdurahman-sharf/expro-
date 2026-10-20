@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'add'                            => '',
     'address_1'                      => 'Cím 1',
     'address_2'                      => 'Cím 2',
     'admin'                          => '',
@@ -76,6 +77,10 @@ return [
     'search'                         => 'Keres',
     'search_options'                 => 'Keresési opciók',
     'searched_for'                   => 'Keresett ',
+    'section_account'                => '',
+    'section_address'                => '',
+    'section_contact'                => '',
+    'section_notes'                  => '',
     'selected_count'                 => '',
     'skip_to_content'                => '',
     'software_short'                 => '',

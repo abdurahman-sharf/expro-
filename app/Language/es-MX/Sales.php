@@ -166,6 +166,7 @@ return [
     'quantity_less_than_reorder_level'  => 'Advertencia. La cantidad deseada es insuficiente.',
     'quantity_less_than_zero'           => 'Advertencia. La cantidad deseada es insuficiente. Puedes procesar la venta, pero verifica tu inventario.',
     'quantity_of_items'                 => 'Cantidad de {0} artículos',
+    'quick_items'                       => '',
     'quote'                             => 'Cotizar',
     'quote_number'                      => 'Número de presupuesto',
     'quote_number_duplicate'            => 'El número de cotización debe ser único.',

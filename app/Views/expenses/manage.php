@@ -38,11 +38,12 @@
             headers: <?= $table_headers ?>,
             pageSize: <?= $config['lines_per_page'] ?>,
             uniqueId: 'expense_id',
+            cardTitle: ['description'],
             onLoadSuccess: function(response) {
                 if ($("#table tbody tr").length > 1) {
                     $("#payment_summary").html(response.payment_summary);
-                    $("#table tbody tr:last td:first").html("");
-                    $("#table tbody tr:last").css('font-weight', 'bold');
+                    $("#table tbody tr:last input[name=btSelectItem]").remove();
+                    $("#table tbody tr:last").addClass('fw-bold');
                 }
             },
             queryParams: function() {
@@ -74,9 +75,10 @@
         <button id="delete" class="btn btn-outline-secondary btn-sm print_hide">
             <span class="bi bi-trash" aria-hidden="true">&nbsp;</span><?= lang('Common.delete') ?>
         </button>
-        <?= form_input(['name' => 'daterangepicker', 'class' => 'form-control form-control-sm', 'id' => 'daterangepicker']) ?>
+        <?= form_input(['name' => 'daterangepicker', 'class' => 'form-control form-control-sm', 'id' => 'daterangepicker', 'aria-label' => lang('Reports.date_range')]) ?>
         <?= form_multiselect('filters[]', esc($filters), $selected_filters ?? [], [
             'id'                        => 'filters',
+            'aria-label'                => lang('Common.search_options'),
             'data-none-selected-text'   => lang('Common.none_selected_text'),
             'class'                     => 'selectpicker show-menu-arrow',
             'data-selected-text-format' => 'count > 1',

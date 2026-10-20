@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'add'                            => '',
     'address_1'                      => 'گھر کا پتہ',
     'address_2'                      => '',
     'admin'                          => '',
@@ -76,6 +77,10 @@ return [
     'search'                         => '',
     'search_options'                 => '',
     'searched_for'                   => '',
+    'section_account'                => '',
+    'section_address'                => '',
+    'section_contact'                => '',
+    'section_notes'                  => '',
     'selected_count'                 => '',
     'skip_to_content'                => '',
     'software_short'                 => '',

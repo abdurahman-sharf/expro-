@@ -274,6 +274,9 @@
         if (localStorage[options.employee_id]) {
             const user_settings = JSON.parse(localStorage[options.employee_id]);
             user_settings[options.resource] && $.each(user_settings[options.resource], function(index, element) {
+                if (table().fieldsColumnsIndex[index] === undefined) {
+                    return;
+                }
                 element ? table().showColumn(index) : table().hideColumn(index);
             });
         }
@@ -284,10 +287,45 @@
         enable_actions = enable_actions(options.enableActions);
         load_success = load_success(options.onLoadSuccess);
         const export_suffix = new Date().toISOString().slice(0, 16).replace(/(-|\s*|T|:)*/g,"");
+        const cardTitle = options.cardTitle || [];
+        const isAction = function(column) {
+            return !column.checkbox && /^(|&nbsp;)$/.test(column.title || '');
+        };
+        const actionFields = $.map(options.headers, function(column) {
+            return isAction(column) ? column.field : null;
+        }).sort(function(first, second) {
+            return (second === 'edit') - (first === 'edit');
+        });
+        const columns = $.map(options.headers, function(column) {
+            if (isAction(column)) {
+                return null;
+            }
+            return $.extend({}, column, {
+                cardVisible: column.field !== options.uniqueId,
+                cellStyle: cardTitle.indexOf(column.field) >= 0 ? function() {
+                    return {classes: 'card-primary'};
+                } : column.cellStyle
+            });
+        });
+        if (actionFields.length) {
+            columns.push({
+                field: 'row_actions',
+                title: '',
+                switchable: false,
+                sortable: false,
+                escape: false,
+                class: 'print_hide row-actions',
+                formatter: function(value, row) {
+                    return $.map(actionFields, function(field) {
+                        return row[field] || '';
+                    }).join('');
+                }
+            });
+        }
         $('#table')
             .addClass("table-hover")
             .bootstrapTable($.extend(options, {
-            columns: options.headers,
+            columns: columns,
             stickyHeader: true,
             url: options.resource + '/search',
             sidePagination: 'server',
@@ -298,6 +336,8 @@
             showColumns: true,
             clickToSelect: true,
             showExport: true,
+            mobileResponsive: true,
+            minWidth: columns.length > 8 ? 1100 : 640,
             exportDataType: 'basic',
             exportTypes: ['json', 'xml', 'csv', 'txt', 'sql', 'excel'],
             buttons: pdf_export.buttons(false),
@@ -319,6 +359,7 @@
                 load_success(response);
                 enable_actions();
             },
+            onPostBody: isolate_numbers,
             onColumnSwitch : function(field, checked) {
                 let user_settings = localStorage[options.employee_id];
                 user_settings = (user_settings && JSON.parse(user_settings)) || {};
@@ -341,6 +382,15 @@
         init_delete();
         init_restore();
         toggle_column_visibility();
+    };
+
+    const isolate_numbers = function () {
+        $('#table tbody td, #table tbody .card-view-value').each(function () {
+            const nodes = this.childNodes;
+            if (nodes.length === 1 && nodes[0].nodeType === 3 && /^[^\u0590-\u08FF]*\d[^\u0590-\u08FF]*$/.test(nodes[0].nodeValue)) {
+                $(this).wrapInner('<bdi dir="ltr"></bdi>');
+            }
+        });
     };
 
     const init_delete = function (confirmMessage) {
@@ -413,6 +463,7 @@
         errorClass: "text-danger",
         errorLabelContainer: "#error_message_box",
         wrapper: "li",
+        onfocusout: false,
         highlight: function (e) {
             $(e).addClass('is-invalid');
         },

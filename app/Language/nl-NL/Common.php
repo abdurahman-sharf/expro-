@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'add'                            => '',
     'address_1'                      => 'Adres 1',
     'address_2'                      => 'Adres 2',
     'admin'                          => 'Beheerder',
@@ -76,6 +77,10 @@ return [
     'search'                         => 'Zoeken',
     'search_options'                 => 'Zoek opties',
     'searched_for'                   => 'Gezocht naar',
+    'section_account'                => '',
+    'section_address'                => '',
+    'section_contact'                => '',
+    'section_notes'                  => '',
     'selected_count'                 => '',
     'skip_to_content'                => '',
     'software_short'                 => 'OSPOS',

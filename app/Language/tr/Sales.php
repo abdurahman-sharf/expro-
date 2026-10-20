@@ -166,6 +166,7 @@ return [
     'quantity_less_than_reorder_level'  => 'Dikkat: İlgili Öge için İstenen Stok, Yeniden Düzenleme Düzeyinin altında.',
     'quantity_less_than_zero'           => 'Dikkat: İstenen Stok yetersiz. Satışı sürdürebilirsiniz ama stoğunuzu gözden geçirin.',
     'quantity_of_items'                 => '{0} Ögenin Miktarı',
+    'quick_items'                       => '',
     'quote'                             => 'Teklif',
     'quote_number'                      => 'Teklif Sayısı',
     'quote_number_duplicate'            => 'Teklif Sayısı eşsiz olmalıdır.',

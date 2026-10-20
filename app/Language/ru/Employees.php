@@ -34,6 +34,7 @@ return [
     'password_required'                     => 'Ввод пароля - обязателен.',
     'permission_desc'                       => 'Отметьте флажками ниже, чтобы предоставить доступ к модулям.',
     'permission_info'                       => 'Права доступа',
+    'permission_select_all'                 => '',
     'repeat_password'                       => 'Повтор пароля',
     'subpermission_required'                => 'Добавьте хотя бы одно разрешение для каждого модуля.',
     'successful_adding'                     => 'Сотрудник успешно создан.',

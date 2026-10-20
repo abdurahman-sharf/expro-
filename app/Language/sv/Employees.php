@@ -34,6 +34,7 @@ return [
     'password_required'                     => 'Lösenord krävs.',
     'permission_desc'                       => 'Markera rutorna nedan för att ge tillgång till moduler.',
     'permission_info'                       => 'Behörigheter',
+    'permission_select_all'                 => '',
     'repeat_password'                       => 'Lösenord igen',
     'subpermission_required'                => 'Lägg till minst en behörighet för varje modul.',
     'successful_adding'                     => 'Tillägg av anställd lyckades.',

@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'add'                            => '',
     'address_1'                      => 'Adresă 1',
     'address_2'                      => 'Adresă 2',
     'admin'                          => '',
@@ -76,6 +77,10 @@ return [
     'search'                         => 'Caută',
     'search_options'                 => 'Opțiuni de căutare',
     'searched_for'                   => 'Căutat pentru',
+    'section_account'                => '',
+    'section_address'                => '',
+    'section_contact'                => '',
+    'section_notes'                  => '',
     'selected_count'                 => '',
     'skip_to_content'                => '',
     'software_short'                 => '',

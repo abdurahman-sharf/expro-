@@ -166,6 +166,7 @@ return [
     'quantity_less_than_reorder_level'  => 'Aviso, quantidade desejada está abaixo do nível de reabastecimento.',
     'quantity_less_than_zero'           => 'Aviso, Quantidade desejado é insuficiente. Você ainda pode processar a venda  mas verifique seu inventário.',
     'quantity_of_items'                 => 'Quantidade de {0} itens',
+    'quick_items'                       => '',
     'quote'                             => 'Cotação',
     'quote_number'                      => 'Cotação número',
     'quote_number_duplicate'            => 'O número de cotação deve ser exclusivo.',

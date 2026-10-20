@@ -34,6 +34,7 @@ return [
     'password_required'                     => 'Password ຈຳເປັນຕ້ອງໃສ່.',
     'permission_desc'                       => 'ຕິກຂໍ້ມູນດ້ານລຸ່ມເພື່ອໃຫ້ສາມາດນຳໃຊ້ Modules ຕ່າງໆໄດ້.',
     'permission_info'                       => 'ສິດ',
+    'permission_select_all'                 => '',
     'repeat_password'                       => 'ລະຫັດຜ່ານອີກຄັ້ງ',
     'subpermission_required'                => 'Add at least one grant for each module.',
     'successful_adding'                     => 'ເພີ່ມພະນັກງານສຳເລັດ.',

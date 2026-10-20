@@ -166,6 +166,7 @@ return [
     'quantity_less_than_reorder_level'  => 'Onyo: Kiasi kilichotakiwa kiko chini ya kiwango cha kuagiza tena kwa bidhaa hiyo.',
     'quantity_less_than_zero'           => 'Onyo: Kiasi kilichotakiwa hakitoshi. Unaweza kuendelea na mauzo, lakini hakiki hesabu yako.',
     'quantity_of_items'                 => 'Kiasi cha bidhaa {0}',
+    'quick_items'                       => '',
     'quote'                             => 'Nukuu (Quote)',
     'quote_number'                      => 'Nambari ya Nukuu',
     'quote_number_duplicate'            => 'Nambari ya Nukuu lazima iwe ya kipekee.',

@@ -66,6 +66,7 @@ use App\Models\Employee;
             headers: <?= $table_headers ?>,
             pageSize: <?= $config['lines_per_page'] ?>,
             uniqueId: 'items.item_id',
+            cardTitle: ['name'],
             queryParams: function() {
                 return $.extend(arguments[0], {
                     "start_date": start_date,
@@ -112,9 +113,10 @@ use App\Models\Employee;
         <button id="generate_barcodes" class="btn btn-outline-secondary btn-sm print_hide" data-href="<?= "$controller_name/generateBarcodes" ?>" title="<?= lang('Items.generate_barcodes') ?>">
             <span class="bi bi-upc-scan" aria-hidden="true">&nbsp;</span><?= lang('Items.generate_barcodes') ?>
         </button>
-        <?= form_input(['name' => 'daterangepicker', 'class' => 'form-control form-control-sm', 'id' => 'daterangepicker']) ?>
+        <?= form_input(['name' => 'daterangepicker', 'class' => 'form-control form-control-sm', 'id' => 'daterangepicker', 'aria-label' => lang('Reports.date_range')]) ?>
         <?= form_multiselect('filters[]', $filters, $selected_filters ?? [], [
             'id'                        => 'filters',
+            'aria-label'                => lang('Common.search_options'),
             'class'                     => 'selectpicker show-menu-arrow',
             'data-none-selected-text'   => lang('Common.none_selected_text'),
             'data-selected-text-format' => 'count > 1',
@@ -129,6 +131,7 @@ use App\Models\Employee;
                 $stock_location,
                 [
                     'id'         => 'stock_location',
+                    'aria-label' => lang('Items.stock_location'),
                     'class'      => 'selectpicker show-menu-arrow',
                     'data-style' => 'btn-outline-secondary btn-sm',
                     'data-width' => 'fit'

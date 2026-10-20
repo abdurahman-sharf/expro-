@@ -34,6 +34,7 @@ return [
     'password_required'                     => 'Password is required.',
     'permission_desc'                       => 'Check the boxes below to grant access to modules.',
     'permission_info'                       => 'Permissions',
+    'permission_select_all'                 => 'Select all',
     'repeat_password'                       => 'Password Again',
     'subpermission_required'                => 'Add at least one grant for each module.',
     'successful_adding'                     => 'Employee add successful.',

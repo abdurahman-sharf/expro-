@@ -34,6 +34,7 @@ return [
     'password_required'                     => 'Kata Sandi wajib diisi.',
     'permission_desc'                       => 'Tandai kotak di bawah ini untuk memberikan akses ke Modul.',
     'permission_info'                       => 'Hak Akses Karyawan',
+    'permission_select_all'                 => '',
     'repeat_password'                       => 'Ulang Kata Sandi',
     'subpermission_required'                => 'Paling tidak tambahkan satu hak akses untuk setiap modul.',
     'successful_adding'                     => 'Anda telah berhasil menambahkan karyawan.',

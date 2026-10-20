@@ -17,6 +17,7 @@
             headers: <?= $table_headers ?>,
             pageSize: <?= $config['lines_per_page'] ?>,
             uniqueId: 'people.person_id',
+            cardTitle: ['last_name', 'first_name', 'company_name'],
             enableActions: function() {
                 const email_disabled = $("td input:checkbox:checked").parents("tr").find("td a[href^='mailto:']").length == 0;
                 $("#email").prop('disabled', email_disabled);

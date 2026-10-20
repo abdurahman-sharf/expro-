@@ -34,6 +34,7 @@ return [
     'password_required'                     => 'رمز عبور مورد نیاز است.',
     'permission_desc'                       => 'کادرهای زیر را برای دسترسی به ماژولها بررسی کنید.',
     'permission_info'                       => 'مجوزها',
+    'permission_select_all'                 => '',
     'repeat_password'                       => 'رمز عبور دوباره',
     'subpermission_required'                => 'برای هر ماژول حداقل یک کمک هزینه اضافه کنید.',
     'successful_adding'                     => 'کارمندان موفق شدند.',

@@ -34,6 +34,7 @@ return [
     'password_required'                     => 'Passwort ist erforderlich.',
     'permission_desc'                       => 'Klicken Sie unten, um die jeweiligen Zugangsrechte zu aktivieren.',
     'permission_info'                       => 'Mitarbeiter Zugangsrechte',
+    'permission_select_all'                 => '',
     'repeat_password'                       => 'Wiederhole Passwort',
     'subpermission_required'                => 'Fügen Sie mindestens ein Zugangsrecht pro Modul hinzu.',
     'successful_adding'                     => 'Hinzufügen erfolgreich.',

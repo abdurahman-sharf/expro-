@@ -14,9 +14,9 @@ foreach ($tax_categories as $key => $category) {
     ++$i;
 ?>
 
-    <div class="mb-3" style="display: block;">
-        <?= form_label(lang('Taxes.tax_category') . " $i", "tax_category_$i", ['class' => 'form-label col-2']) ?>
-        <div class="col-3">
+    <div class="tax-row">
+        <?= form_label(lang('Taxes.tax_category') . " $i", "tax_category_$i", ['class' => 'form-label tax-row-label']) ?>
+        <div class="tax-row-field">
             <?php $form_data = [
                 'name'        => 'tax_category[]',
                 'id'          => "tax_category_$i",
@@ -27,7 +27,7 @@ foreach ($tax_categories as $key => $category) {
             echo form_input($form_data);
             ?>
         </div>
-        <div class="col-2">
+        <div class="tax-row-field">
             <?php $form_data = [
                 'name'        => 'tax_group_sequence[]',
                 'class'       => 'valid_chars form-control form-control-sm',
@@ -37,9 +37,10 @@ foreach ($tax_categories as $key => $category) {
             echo form_input($form_data);
             ?>
         </div>
-        <span class="add_tax_category bi bi-plus-lg" style="padding-top: 0.5em;"></span>
-        <span>&nbsp;&nbsp;</span>
-        <span class="remove_tax_category bi bi-dash-lg" style="padding-top: 0.5em;"></span>
+        <div class="tax-row-actions">
+            <button type="button" class="btn btn-outline-secondary btn-sm add_tax_category" aria-label="<?= lang('Common.add') ?>"><span class="bi bi-plus-lg" aria-hidden="true"></span></button>
+            <button type="button" class="btn btn-outline-secondary btn-sm remove_tax_category" aria-label="<?= lang('Common.delete') ?>"><span class="bi bi-dash-lg" aria-hidden="true"></span></button>
+        </div>
         <?= form_hidden('tax_category_id[]', (string)$tax_category_id) ?>
     </div>
 

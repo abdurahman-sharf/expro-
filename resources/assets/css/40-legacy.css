@@ -50,29 +50,6 @@ a.rollover img {
     font-weight: bold;
 }
 
-#permission_list {
-    list-style: none;
-    padding-inline-start: 0;
-}
-
-#permission_list li {
-    padding: 5px;
-}
-
-#permission_list ul li {
-    padding-inline-start: 20px;
-    padding-bottom: 0;
-    list-style: none;
-}
-
-#employee_permission_info p {
-    font-weight: bold;
-}
-
-#employee_permission_info span.small {
-    font-size: 80%;
-}
-
 #item_kit_items,
 #items_count_details,
 #tax_rates {

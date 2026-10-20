@@ -3,15 +3,15 @@
 <?= form_open_multipart('items/importCsvFile/', ['id' => 'csv_form', 'class' => 'app-form']) ?>
     <fieldset id="item_basic_info">
 
-        <div class="row mb-3">
-            <div class="col-12">
+        <div class="field">
+            <div class="field-control">
                 <a href="<?= esc('items/generateCsvFile', 'attr') ?>"><?= lang('Common.download_import_template') ?></a>
             </div>
         </div>
 
-        <div class="row mb-3">
-            <div class="col-12">
-                <input type="file" class="form-control" id="file_path" name="file_path" accept=".csv">
+        <div class="field">
+            <div class="field-control">
+                <input type="file" class="form-control" id="file_path" name="file_path" accept=".csv" aria-label="<?= lang('Items.import_items_csv') ?>">
             </div>
         </div>
 

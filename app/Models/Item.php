@@ -635,6 +635,29 @@ class Item extends Model
     }
 
     /**
+     * Gets the items sold most, by quantity, in completed sales of the last days
+     *
+     * @return list<stdClass>
+     */
+    public function get_top_sellers(int $limit = 12, int $days = 90): array
+    {
+        $builder = $this->db->table('sales_items');
+        $builder->select('items.item_id, items.name, items.item_number, items.unit_price, SUM(' . $this->db->prefixTable('sales_items') . '.quantity_purchased) AS quantity_sold');
+        $builder->join('sales', 'sales.sale_id = sales_items.sale_id');
+        $builder->join('items', 'items.item_id = sales_items.item_id');
+        $builder->where('sales.sale_status', COMPLETED);
+        $builder->where('sales.sale_time >=', date('Y-m-d H:i:s', strtotime("-$days days")));
+        $builder->where('items.deleted', 0);
+        $builder->groupBy('items.item_id');
+        $builder->having('quantity_sold >', 0);
+        $builder->orderBy('quantity_sold', 'DESC');
+        $builder->orderBy('items.name', 'ASC');
+        $builder->limit($limit);
+
+        return $builder->get()->getResult();
+    }
+
+    /**
      * Gets information about a particular item by item id or number
      */
     public function get_info_by_id_or_number(string $item_id, bool $include_deleted = true): stdClass|string

@@ -34,6 +34,7 @@ return [
     'password_required'                     => 'Password obbligatoria.',
     'permission_desc'                       => 'Barra le caselle sotto per garantire l\'accesso ai moduli.',
     'permission_info'                       => 'Permessi',
+    'permission_select_all'                 => '',
     'repeat_password'                       => 'Password di nuovo',
     'subpermission_required'                => 'Aggiungi almeno un permesso per ogni modulo.',
     'successful_adding'                     => 'Impiegato aggiunto correttamente.',

@@ -34,6 +34,7 @@ return [
     'password_required'                     => '請輸入密碼.',
     'permission_desc'                       => '勾選後授予使用該模組功能.',
     'permission_info'                       => '員工權限',
+    'permission_select_all'                 => '',
     'repeat_password'                       => '確認密碼',
     'subpermission_required'                => '為每個模塊添加至少一項撥款.',
     'successful_adding'                     => '新增員工資料成功.',

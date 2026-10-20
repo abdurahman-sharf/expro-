@@ -75,6 +75,22 @@ class Sales extends Secure_Controller
     }
 
     /**
+     * Items offered as one tap tiles in the register. The number of tiles is the quick_items_count setting, 0 turns them off.
+     *
+     * @return list<object>
+     */
+    private function quickItems(): array
+    {
+        $count = (int) ($this->config['quick_items_count'] ?? DEFAULT_QUICK_ITEMS);
+
+        if ($count < 1) {
+            return [];
+        }
+
+        return cache()->remember("sales_quick_items_$count", 300, fn (): array => $this->item->get_top_sellers($count));
+    }
+
+    /**
      * Load the sale edit modal. Used in app/Views/sales/register.php.
      *
      * @return ResponseInterface|string
@@ -1385,6 +1401,7 @@ class Sales extends Secure_Controller
         $data['cart'] = $this->sale_lib->get_cart();
         $customer_info = $this->_load_customer_data($this->sale_lib->get_customer(), $data, true);
 
+        $data['quick_items'] = $this->quickItems();
         $data['modes'] = $this->sale_lib->get_register_mode_options();
         $data['mode'] = $this->sale_lib->get_mode();
         $data['selected_table'] = $this->sale_lib->get_dinner_table();

@@ -34,6 +34,7 @@ return [
     'password_required'                     => 'ต้องระบุรหัสผ่าน',
     'permission_desc'                       => 'ทำเครื่องหมายในช่องด้านล่างเพื่อให้สิทธิ์การเข้าถึงโมดูลต่างๆ',
     'permission_info'                       => 'สิทธิ์',
+    'permission_select_all'                 => '',
     'repeat_password'                       => 'ระบุรหัสผ่านอีกครั้ง',
     'subpermission_required'                => 'เพิ่มการอนุญาตอย่างน้อยหนึ่งรายการสำหรับแต่ละโมดูล',
     'successful_adding'                     => 'เพิ่มข้อมูลพนักงานเรียบร้อยแล้ว',

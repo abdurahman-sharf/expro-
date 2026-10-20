@@ -371,4 +371,15 @@ class EmployeesControllerTest extends CIUnitTestCase
         $employeeModel = model(Employee::class);
         $this->assertTrue($employeeModel->has_grant('customers', (int) $createdEmployee->person_id));
     }
+
+    public function testGetView_IncludesCommentsAndPermissionControls(): void
+    {
+        $this->loginAsAdmin();
+
+        $response = $this->get('/employees/view/-1');
+
+        $response->assertStatus(200);
+        $response->assertSeeElement('textarea[name=comments]');
+        $response->assertSeeElement('#permission_select_all');
+    }
 }

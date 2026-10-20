@@ -11,16 +11,17 @@
 <ul id="error_message_box" class="error_message_box"></ul>
 
 <?= form_open('cashups/save/' . $cash_ups_info->cashup_id, ['id' => 'cashups_edit_form', 'class' => 'app-form'])    // TODO: String Interpolation ?>
-    <fieldset id="item_basic_info">
+    <fieldset id="item_basic_info" class="form-grid">
 
-        <div class="row mb-3">
-            <?= form_label(lang('Cashups.info'), 'cash_ups_info', ['class' => 'col-form-label col-3']) ?>
-            <?= form_label(!empty($cash_ups_info->cashup_id) ? lang('Cashups.id') . ' ' . $cash_ups_info->cashup_id : '', 'cashup_id', ['class' => 'col-form-label col-8', 'style' => 'text-align: left']) ?>
-        </div>
+        <?php if ((int) $cash_ups_info->cashup_id > 0) { ?>
+            <p class="form-static span-all">
+                <?= lang('Cashups.info') ?> &mdash; <?= lang('Cashups.id') ?> <span class="ltr"><?= esc($cash_ups_info->cashup_id) ?></span>
+            </p>
+        <?php } ?>
 
-        <div class="row mb-3">
-            <?= form_label(lang('Cashups.open_date'), 'open_date', ['class' => 'col-form-label col-3 text-danger required']) ?>
-            <div class="col-6">
+        <div class="field">
+            <?= form_label(lang('Cashups.open_date'), 'open_date', ['class' => 'form-label text-danger required']) ?>
+            <div class="field-control">
                 <div class="input-group">
                     <span class="input-group-text">
                         <span class="bi bi-calendar3" aria-hidden="true"></span>
@@ -35,16 +36,16 @@
             </div>
         </div>
 
-        <div class="row mb-3">
-            <?= form_label(lang('Cashups.open_employee'), 'open_employee', ['class' => 'col-form-label col-3']) ?>
-            <div class="col-6">
+        <div class="field">
+            <?= form_label(lang('Cashups.open_employee'), 'open_employee_id', ['class' => 'form-label']) ?>
+            <div class="field-control">
                 <?= form_dropdown('open_employee_id', $employees, $cash_ups_info->open_employee_id, 'id="open_employee_id" class="form-select"') ?>
             </div>
         </div>
 
-        <div class="row mb-3">
-            <?= form_label(lang('Cashups.open_amount_cash'), 'open_amount_cash', ['class' => 'col-form-label col-3']) ?>
-            <div class="col-4">
+        <div class="field">
+            <?= form_label(lang('Cashups.open_amount_cash'), 'open_amount_cash', ['class' => 'form-label']) ?>
+            <div class="field-control">
                 <div class="input-group input-group-sm">
                     <?php if (!is_right_side_currency_symbol()): ?>
                         <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
@@ -62,9 +63,9 @@
             </div>
         </div>
 
-        <div class="row mb-3">
-            <?= form_label(lang('Cashups.transfer_amount_cash'), 'transfer_amount_cash', ['class' => 'col-form-label col-3']) ?>
-            <div class="col-4">
+        <div class="field">
+            <?= form_label(lang('Cashups.transfer_amount_cash'), 'transfer_amount_cash', ['class' => 'form-label']) ?>
+            <div class="field-control">
                 <div class="input-group input-group-sm">
                     <?php if (!is_right_side_currency_symbol()): ?>
                         <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
@@ -82,9 +83,9 @@
             </div>
         </div>
 
-        <div class="row mb-3">
-            <?= form_label(lang('Cashups.close_date'), 'close_date', ['class' => 'col-form-label col-3 text-danger required']) ?>
-            <div class="col-6">
+        <div class="field">
+            <?= form_label(lang('Cashups.close_date'), 'close_date', ['class' => 'form-label text-danger required']) ?>
+            <div class="field-control">
                 <div class="input-group">
                     <span class="input-group-text">
                         <span class="bi bi-calendar3" aria-hidden="true"></span>
@@ -99,16 +100,16 @@
             </div>
         </div>
 
-        <div class="row mb-3">
-            <?= form_label(lang('Cashups.close_employee'), 'close_employee', ['class' => 'col-form-label col-3']) ?>
-            <div class="col-6">
+        <div class="field">
+            <?= form_label(lang('Cashups.close_employee'), 'close_employee_id', ['class' => 'form-label']) ?>
+            <div class="field-control">
                 <?= form_dropdown('close_employee_id', $employees, $cash_ups_info->close_employee_id, 'id="close_employee_id" class="form-select"') ?>
             </div>
         </div>
 
-        <div class="row mb-3">
-            <?= form_label(lang('Cashups.closed_amount_cash'), 'closed_amount_cash', ['class' => 'col-form-label col-3']) ?>
-            <div class="col-4">
+        <div class="field">
+            <?= form_label(lang('Cashups.closed_amount_cash'), 'closed_amount_cash', ['class' => 'form-label']) ?>
+            <div class="field-control">
                 <div class="input-group input-group-sm">
                     <?php if (!is_right_side_currency_symbol()): ?>
                         <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
@@ -126,9 +127,9 @@
             </div>
         </div>
 
-        <div class="row mb-3">
-            <?= form_label(lang('Cashups.note'), 'note', ['class' => 'col-form-label col-3']) ?>
-            <div class="col-6">
+        <div class="field field-check span-all">
+            <?= form_label(lang('Cashups.note'), 'note', ['class' => 'form-label']) ?>
+            <div class="field-control">
                 <?= form_checkbox([
                     'name'    => 'note',
                     'id'      => 'note',
@@ -138,9 +139,9 @@
             </div>
         </div>
 
-        <div class="row mb-3">
-            <?= form_label(lang('Cashups.closed_amount_due'), 'closed_amount_due', ['class' => 'col-form-label col-3']) ?>
-            <div class="col-4">
+        <div class="field">
+            <?= form_label(lang('Cashups.closed_amount_due'), 'closed_amount_due', ['class' => 'form-label']) ?>
+            <div class="field-control">
                 <div class="input-group input-group-sm">
                     <?php if (!is_right_side_currency_symbol()): ?>
                         <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
@@ -158,9 +159,9 @@
             </div>
         </div>
 
-        <div class="row mb-3">
-            <?= form_label(lang('Cashups.closed_amount_card'), 'closed_amount_card', ['class' => 'col-form-label col-3']) ?>
-            <div class="col-4">
+        <div class="field">
+            <?= form_label(lang('Cashups.closed_amount_card'), 'closed_amount_card', ['class' => 'form-label']) ?>
+            <div class="field-control">
                 <div class="input-group input-group-sm">
                     <?php if (!is_right_side_currency_symbol()): ?>
                         <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
@@ -178,9 +179,9 @@
             </div>
         </div>
 
-        <div class="row mb-3">
-            <?= form_label(lang('Cashups.closed_amount_check'), 'closed_amount_check', ['class' => 'col-form-label col-3']) ?>
-            <div class="col-4">
+        <div class="field">
+            <?= form_label(lang('Cashups.closed_amount_check'), 'closed_amount_check', ['class' => 'form-label']) ?>
+            <div class="field-control">
                 <div class="input-group input-group-sm">
                     <?php if (!is_right_side_currency_symbol()): ?>
                         <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
@@ -198,9 +199,9 @@
             </div>
         </div>
 
-        <div class="row mb-3">
-            <?= form_label(lang('Cashups.closed_amount_total'), 'closed_amount_total', ['class' => 'col-form-label col-3']) ?>
-            <div class="col-4">
+        <div class="field">
+            <?= form_label(lang('Cashups.closed_amount_total'), 'closed_amount_total', ['class' => 'form-label']) ?>
+            <div class="field-control">
                 <div class="input-group input-group-sm">
                     <?php if (!is_right_side_currency_symbol()): ?>
                         <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
@@ -219,9 +220,9 @@
             </div>
         </div>
 
-        <div class="row mb-3">
-            <?= form_label(lang('Cashups.description'), 'description', ['class' => 'col-form-label col-3']) ?>
-            <div class="col-6">
+        <div class="field span-all">
+            <?= form_label(lang('Cashups.description'), 'description', ['class' => 'form-label']) ?>
+            <div class="field-control">
                 <?= form_textarea([
                     'name'  => 'description',
                     'id'    => 'description',
@@ -232,9 +233,9 @@
         </div>
 
         <?php if (!empty($cash_ups_info->cashup_id)) { ?>
-            <div class="row mb-3">
-                <?= form_label(lang('Cashups.is_deleted') . ':', 'deleted', ['class' => 'col-form-label col-3']) ?>
-                <div class="col-5">
+            <div class="field field-check">
+                <?= form_label(lang('Cashups.is_deleted'), 'deleted', ['class' => 'form-label']) ?>
+                <div class="field-control">
                     <?= form_checkbox([
                         'name'    => 'deleted',
                         'id'      => 'deleted',

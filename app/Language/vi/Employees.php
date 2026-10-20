@@ -34,6 +34,7 @@ return [
     'password_required'                     => 'Mật khẩu là bắt buộc.',
     'permission_desc'                       => 'Các hộp dấu kiểm phía dưới cấp quyền truy cập cho các mô đun.',
     'permission_info'                       => 'Quyền hạn',
+    'permission_select_all'                 => '',
     'repeat_password'                       => 'Gõ lại mật khẩu lần nữa',
     'subpermission_required'                => 'Thêm ít nhất một quyền cho từng mô đun.',
     'successful_adding'                     => 'Đã thêm thành công nhân viên.',

@@ -53,3 +53,5 @@ INSERT INTO ospos_expenses (date, amount, payment_type, expense_category_id, des
 INSERT INTO ospos_giftcards (giftcard_number, value, deleted, person_id) VALUES
 (1001, 150.00, 0, 2),
 (1002, 500.00, 0, 3);
+
+INSERT IGNORE INTO ospos_grants (permission_id, person_id, menu_group) VALUES ('taxes', 1, 'office');

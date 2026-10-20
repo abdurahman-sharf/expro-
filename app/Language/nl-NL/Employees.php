@@ -34,6 +34,7 @@ return [
     'password_required'                     => 'Wachtwoord is vereist.',
     'permission_desc'                       => 'De selectievakjes hieronder selecteren om toegang te verlenen tot modules.',
     'permission_info'                       => 'Machtigingen',
+    'permission_select_all'                 => '',
     'repeat_password'                       => 'Wachtwoord opnieuw',
     'subpermission_required'                => 'Tenminste eenmaal toegang verlenen voor elke module.',
     'successful_adding'                     => 'Werknemer toegevoegd.',

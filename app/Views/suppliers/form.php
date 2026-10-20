@@ -12,9 +12,9 @@
 <?= form_open("$controller_name/save/$person_info->person_id", ['id' => 'supplier_form', 'class' => 'app-form']) ?>
     <fieldset id="supplier_basic_info">
 
-        <div class="row mb-3">
-            <?= form_label(lang('Suppliers.company_name'), 'company_name', ['class' => 'col-form-label col-3 text-danger required']) ?>
-            <div class="col-8">
+        <div class="form-grid">
+            <div class="field span-all">
+                <?= form_label(lang('Suppliers.company_name'), 'company_name_input', ['class' => 'form-label text-danger required']) ?>
                 <?= form_input([
                     'name'  => 'company_name',
                     'id'    => 'company_name_input',
@@ -22,18 +22,14 @@
                     'value' => html_entity_decode($person_info->company_name)
                 ]) ?>
             </div>
-        </div>
 
-        <div class="row mb-3">
-            <?= form_label(lang('Suppliers.category'), 'category', ['class' => 'col-form-label col-3 text-danger required']) ?>
-            <div class="col-6">
+            <div class="field">
+                <?= form_label(lang('Suppliers.category'), 'category', ['class' => 'form-label text-danger required']) ?>
                 <?= form_dropdown('category', $categories, $person_info->category, ['class' => 'form-select', 'id' => 'category']) ?>
             </div>
-        </div>
 
-        <div class="row mb-3">
-            <?= form_label(lang('Suppliers.agency_name'), 'agency_name', ['class' => 'col-form-label col-3']) ?>
-            <div class="col-8">
+            <div class="field">
+                <?= form_label(lang('Suppliers.agency_name'), 'agency_name_input', ['class' => 'form-label']) ?>
                 <?= form_input([
                     'name'  => 'agency_name',
                     'id'    => 'agency_name_input',
@@ -45,29 +41,32 @@
 
         <?= view('people/form_basic_info') ?>
 
-        <div class="row mb-3">
-            <?= form_label(lang('Suppliers.account_number'), 'account_number', ['class' => 'col-form-label col-3']) ?>
-            <div class="col-8">
-                <?= form_input([
-                    'name'  => 'account_number',
-                    'id'    => 'account_number',
-                    'class' => 'form-control form-control-sm',
-                    'value' => $person_info->account_number
-                ]) ?>
+        <div class="form-section">
+            <h3 class="form-section-title"><?= lang('Common.section_account') ?></h3>
+            <div class="form-grid">
+                <div class="field">
+                    <?= form_label(lang('Suppliers.account_number'), 'account_number', ['class' => 'form-label']) ?>
+                    <?= form_input([
+                        'name'  => 'account_number',
+                        'id'    => 'account_number',
+                        'class' => 'form-control form-control-sm',
+                        'value' => $person_info->account_number
+                    ]) ?>
+                </div>
+
+                <div class="field">
+                    <?= form_label(lang('Suppliers.tax_id'), 'tax_id', ['class' => 'form-label']) ?>
+                    <?= form_input([
+                        'name'  => 'tax_id',
+                        'id'    => 'tax_id',
+                        'class' => 'form-control form-control-sm',
+                        'value' => $person_info->tax_id
+                    ]) ?>
+                </div>
             </div>
         </div>
 
-        <div class="row mb-3">
-            <?= form_label(lang('Suppliers.tax_id'), 'tax_id', ['class' => 'col-form-label col-3']) ?>
-            <div class="col-8">
-                <?= form_input([
-                    'name'  => 'tax_id',
-                    'id'    => 'tax_id',
-                    'class' => 'form-control form-control-sm',
-                    'value' => $person_info->tax_id
-                ]) ?>
-            </div>
-        </div>
+        <?= view('people/form_comments') ?>
 
     </fieldset>
 <?= form_close() ?>

@@ -7,9 +7,9 @@
  */
 ?>
 
-<div class="mb-3">
-    <?= form_label(lang('Attributes.definition_name'), 'definition_name_label', ['class' => 'form-label col-3']) ?>
-    <div class="col-8">
+<div class="field">
+    <?= form_label(lang('Attributes.definition_name'), 'definition_name', ['class' => 'form-label']) ?>
+    <div class="field-control">
         <?= form_dropdown([
             'name'     => 'definition_name',
             'options'  => esc($definition_names),
@@ -22,9 +22,9 @@
 
 <?php foreach ($definition_values as $definition_id => $definition_value) { ?>
 
-    <div class="mb-3">
-        <?= form_label(esc($definition_value['definition_name']), esc($definition_value['definition_name']), ['class' => 'form-label col-3']) ?>
-        <div class="col-8">
+    <div class="field">
+        <?= form_label(esc($definition_value['definition_name']), "attribute_link_$definition_id", ['class' => 'form-label']) ?>
+        <div class="field-control">
             <div class="input-group">
                 <?php
                 echo form_hidden("attribute_ids[$definition_id]", strval($definition_value['attribute_id']));
@@ -35,6 +35,7 @@
                         $value = (empty($attribute_value) || empty($attribute_value->attribute_date)) ? NOW : strtotime($attribute_value->attribute_date);
                         echo form_input([
                             'name'               => "attribute_links[$definition_id]",
+                            'id'                 => "attribute_link_$definition_id",
                             'value'              => to_date($value),
                             'class'              => 'form-control form-control-sm datetime',
                             'data-definition-id' => $definition_id,
@@ -45,6 +46,7 @@
                         $selected_value = $definition_value['selected_value'];
                         echo form_dropdown([
                             'name'               => "attribute_links[$definition_id]",
+                            'id'                 => "attribute_link_$definition_id",
                             'options'            => esc($definition_value['values']),
                             'selected'           => $selected_value,
                             'class'              => 'form-select',
@@ -55,6 +57,7 @@
                         $value = (empty($attribute_value) || empty($attribute_value->attribute_value)) ? $definition_value['selected_value'] : $attribute_value->attribute_value;
                         echo form_input([
                             'name'               => "attribute_links[$definition_id]",
+                            'id'                 => "attribute_link_$definition_id",
                             'value'              => $value,
                             'class'              => 'form-control valid_chars',
                             'data-definition-id' => $definition_id
@@ -64,6 +67,7 @@
                         $value = (empty($attribute_value) || empty($attribute_value->attribute_decimal)) ? $definition_value['selected_value'] : $attribute_value->attribute_decimal;
                         echo form_input([
                             'name'               => "attribute_links[$definition_id]",
+                            'id'                 => "attribute_link_$definition_id",
                             'value'              => to_decimals((float)$value),
                             'class'              => 'form-control valid_chars',
                             'data-definition-id' => $definition_id
@@ -76,24 +80,23 @@
                         echo form_input([
                             'type'               => 'hidden',
                             'name'               => "attribute_links[$definition_id]",
-                            'id'                 => "attribute_links[$definition_id]",
                             'value'              => 0,
                             'data-definition-id' => $definition_id
                         ]);
                         echo form_checkbox([
                             'name'               => "attribute_links[$definition_id]",
-                            'id'                 => "attribute_links[$definition_id]",
+                            'id'                 => "attribute_link_$definition_id",
                             'value'              => 1,
                             'checked'            => $value == 1,
-                            'class'              => 'choice',
+                            'class'              => 'form-check-input',
                             'data-definition-id' => $definition_id
                         ]);
                         break;
                 }
                 ?>
-                <span class="input-group-text btn btn-outline-secondary remove_attribute_btn">
+                <button type="button" class="btn btn-outline-secondary remove_attribute_btn" aria-label="<?= lang('Common.delete') ?>">
                     <span class="bi bi-trash" aria-hidden="true"></span>
-                </span>
+                </button>
             </div>
         </div>
     </div>
@@ -106,7 +109,7 @@
 
         const enable_delete = function() {
             $('.remove_attribute_btn').click(function() {
-                $(this).parents('.mb-3').remove();
+                $(this).parents('.field').remove();
             });
         };
 

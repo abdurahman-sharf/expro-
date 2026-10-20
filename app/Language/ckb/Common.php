@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'add'                            => '',
     'address_1'                      => 'ناونیشان 1',
     'address_2'                      => 'ناونیشان 2',
     'admin'                          => '',
@@ -76,6 +77,10 @@ return [
     'search'                         => 'گەڕان',
     'search_options'                 => 'هەڵبژاردەکانی گەڕان',
     'searched_for'                   => 'گەڕان بەدوای',
+    'section_account'                => '',
+    'section_address'                => '',
+    'section_contact'                => '',
+    'section_notes'                  => '',
     'selected_count'                 => '',
     'skip_to_content'                => '',
     'software_short'                 => 'OSPOS',
