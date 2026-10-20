@@ -18,7 +18,7 @@ class Home extends Secure_Controller
             return;
         }
 
-        parent::__construct('home', null, 'home');
+        parent::__construct('home');
     }
 
     /**

@@ -1,9 +1,6 @@
 # Dependency directories
 node_modules
 vendor
-public/resources
-public/images/menubar/*
-!public/images/menubar/.gitkeep
 public/license/*
 !public/license/.gitkeep
 app/Config/email.php
@@ -90,3 +87,6 @@ auth.json
 /app/Database/database.sql
 /writable/cache/*
 /.env.bak
+
+# Brand images are committed
+!public/assets/img/*

@@ -5,179 +5,142 @@
  * @var bool $isNewInstall
  * @var string $latestVersion
  * @var bool $gcaptchaEnabled
- * @var CodeIgniter\HTTP\IncomingRequest $request
  * @var array $config
  * @var $validation
  */
 
-use Config\Services;
-
-$request = Services::request();
+$formStyle = $config['login_form'] ?? '';
 ?>
 
 <!doctype html>
-<html lang="<?= current_language_code() ?>">
+<html lang="<?= current_language_code() ?>" dir="<?= text_direction() ?>">
 
 <head>
     <meta charset="utf-8">
     <base href="<?= base_url() ?>">
-    <title><?= esc($config['company']) . '&nbsp;|&nbsp;' . esc(lang('Common.software_short')) . '&nbsp;|&nbsp;' . esc(lang('Login.login')) ?></title>
+    <title><?= esc($config['company']) . ' | ' . BRAND_NAME . ' | ' . esc(lang('Login.login')) ?></title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex, nofollow">
-    <link rel="shortcut icon" type="image/x-icon" href="images/favicon.ico">
-    <?php
-    $theme = (empty($config['theme'])
-        || 'paper' == $config['theme']
-        || 'readable' == $config['theme']
-        ? 'flatly'
-        : $config['theme']);
-    ?>
-    <link rel="stylesheet" href="resources/bootswatch5/<?= esc($theme, 'attr') ?>/bootstrap.min.css">
-    <link rel="stylesheet" href="css/login.css">
-    <meta name="theme-color" content="#2c3e50">
+    <meta name="theme-color" content="#042359">
+    <link rel="icon" href="<?= asset_url('img/favicon.ico') ?>">
+    <link rel="apple-touch-icon" href="<?= asset_url('img/apple-touch-icon.png') ?>">
+    <link rel="stylesheet" href="<?= asset_url(is_rtl() ? 'css/bootstrap.rtl.min.css' : 'css/bootstrap.min.css') ?>">
+    <link rel="stylesheet" href="<?= asset_url('css/vendor.min.css') ?>">
+    <link rel="stylesheet" href="<?= asset_url('css/app.css') ?>">
+    <link rel="stylesheet" href="<?= asset_url('css/login.css') ?>">
 </head>
 
-<body class="bg-secondary-subtle d-flex flex-column">
-    <main class="d-flex justify-content-around align-items-center flex-grow-1">
-        <div class="container-login container-fluid d-flex flex-column flex-md-row bg-body shadow rounded m-3 p-4 p-md-0">
-            <div class="box-logo d-flex flex-column justify-content-center align-items-center border-end border-secondary-subtle px-4 pb-3 p-md-4">
-                <?php if (isset($config['company_logo']) && !empty($config['company_logo'])): ?>
-                    <img class="logo w-100" src="<?= base_url('uploads/' . esc($config['company_logo'], 'url')) ?>" alt="<?= esc(lang('Common.logo') . '&nbsp;' . $config['company']) ?>">
+<body class="login-page">
+    <div class="login-layout">
+        <section class="login-brand">
+            <img class="login-logo" src="<?= asset_url('img/logo-full-white.webp') ?>" alt="<?= BRAND_NAME ?>">
+            <p class="login-tagline"><?= BRAND_TAGLINE ?></p>
+        </section>
+
+        <main class="login-panel">
+            <?= form_open('login', ['id' => 'login-form', 'class' => 'login-card']) ?>
+
+            <?php if (!empty($config['company_logo'])): ?>
+                <img class="login-company-logo" src="<?= base_url('uploads/' . esc($config['company_logo'], 'url')) ?>" alt="<?= esc(lang('Common.logo') . ' ' . $config['company']) ?>">
+            <?php endif; ?>
+
+            <h1 id="form-heading" class="login-heading">
+                <?php if ($isNewInstall): ?>
+                    <?= lang('Login.initialization_required') ?>
+                <?php elseif (!$isLatest): ?>
+                    <?= lang('Login.migration_required') ?>
                 <?php else: ?>
-                    <svg class="logo text-primary" role="img" viewBox="0 0 308.57998 308.57997" xmlns="http://www.w3.org/2000/svg">
-                        <title><?= lang('Common.software_title') . '&nbsp;' . lang('Common.logo') ?></title>
-                        <circle cx="154.28999" cy="154.28999" r="154.28999" fill="currentColor" />
-                        <path fill="#fff" d="M154.88998 145.66999c-.03-1.26-.03-3.29.19-4.29 4.6-11.1 15.57-18.82 28.3-18.82h.41v58.3c0 .12-.03.78-.04.9-.54 16.46-14.01 29.7-30.59 29.7v27.08c21 0 39.17-11.27 49.29-28.07l.07-.11c2.9.45 5.86.75 8.9.75 31.95 0 57.81-26 57.81-57.81 0-30.87-24.37-56.46-55.1-57.81h-30.74c-17.18 0-32.61 7.64-43.22 19.63-10.59-11.92-25.86-19.59-43.02-19.59-31.86 0-57.77 25.91-57.77 57.77 0 31.86 25.91 57.77 57.77 57.77 31.86 0 57.77-25.91 57.77-57.77v-3.68c-.01.01-.02-3.31-.03-3.95zm-57.75 38.33c-16.92 0-30.69-13.77-30.69-30.69s13.77-30.69 30.69-30.69 30.69 13.77 30.69 30.69-13.77 30.69-30.69 30.69zm142.96-19.87c-4.33 11.64-15.57 19.9-28.7 19.9h-.54v-61.47h.54c13.13 0 24.37 8.26 28.7 19.9 1.35 3.25 2.03 6.91 2.03 10.83s-.67 7.59-2.03 10.84z" />
-                    </svg>
+                    <?= lang('Login.welcome', [BRAND_NAME]) ?>
                 <?php endif; ?>
-            </div>
-            <section class="box-login d-flex flex-column justify-content-center align-items-center p-md-4">
-                <?= form_open('login', ['id' => 'login-form']) ?>
+            </h1>
 
-                <h3 id="form-heading" class="text-center m-0">
+            <div id="migration-warning" class="alert alert-warning<?= ($isNewInstall || !$isLatest) ? '' : ' d-none' ?>">
+                <strong>
                     <?php if ($isNewInstall): ?>
-                        <?= lang('Login.initialization_required') ?>
-                    <?php elseif (!$isLatest): ?>
-                        <?= lang('Login.migration_required') ?>
+                        <?= lang('Login.initialization_message') ?>
                     <?php else: ?>
-                        <?= lang('Login.welcome', [lang('Common.software_short')]) ?>
+                        <?= lang('Login.migration_auth_message', [$latestVersion]) ?>
                     <?php endif; ?>
-                </h3>
+                </strong>
+            </div>
 
-                <div id="migration-warning" class="alert alert-warning mt-3<?= ($isNewInstall || !$isLatest) ? '' : ' d-none' ?>">
-                    <strong>
-                        <?php if ($isNewInstall): ?>
-                            <?= lang('Login.initialization_message') ?>
-                        <?php else: ?>
-                            <?= lang('Login.migration_auth_message', [$latestVersion]) ?>
-                        <?php endif; ?>
-                    </strong>
+            <?php if ($hasErrors): ?>
+                <?php foreach ($validation->getErrors() as $error): ?>
+                    <div class="alert alert-danger" role="alert">
+                        <?= $error ?>
+                    </div>
+                <?php endforeach; ?>
+            <?php endif; ?>
+
+            <div id="migration-success" class="alert alert-success d-none">
+                <strong><?= lang('Login.migration_complete') ?></strong> <?= lang('Login.migration_complete_login') ?>
+            </div>
+
+            <div id="migration-progress" class="d-none">
+                <h2 class="h5 text-center mb-3"><?= lang('Login.migration_initializing') ?></h2>
+                <div class="progress mb-3" style="height: 24px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
                 </div>
+                <p class="text-center text-secondary" id="migration-status">
+                    <?= lang('Login.migration_running') ?>
+                </p>
+            </div>
 
-                <?php if ($hasErrors): ?>
-                    <?php foreach ($validation->getErrors() as $error): ?>
-                        <div class="alert alert-danger mt-3">
-                            <?= $error ?>
-                        </div>
-                    <?php endforeach; ?>
-                <?php endif; ?>
+            <div id="migration-error" class="alert alert-danger d-none" role="alert">
+                <span id="migration-error-message"></span>
+            </div>
 
-                <div id="migration-success" class="alert alert-success d-none mt-3">
-                    <strong><?= lang('Login.migration_complete') ?></strong> <?= lang('Login.migration_complete_login') ?>
-                </div>
-
-                <div id="migration-progress" class="d-none mt-4">
-                    <h3 class="text-center mb-4"><?= lang('Login.migration_initializing') ?></h3>
-                    <div class="progress mb-3" style="height: 30px;">
-                        <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
-                             role="progressbar"
-                             style="width: 100%">
+            <div id="login-fields" class="login-fields<?= $isNewInstall ? ' d-none' : '' ?>">
+                <?php if ($formStyle === 'input_groups'): ?>
+                    <div>
+                        <label class="form-label" for="input-username"><?= lang('Login.username') ?></label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-person" aria-hidden="true"></i></span>
+                            <input class="form-control" id="input-username" name="username" type="text" autocomplete="username" <?php if (ENVIRONMENT == 'testing') echo 'value="admin"'; ?>>
                         </div>
                     </div>
-                    <p class="text-center text-muted" id="migration-status">
-                        <?= lang('Login.migration_running') ?>
-                    </p>
-                </div>
+                    <div>
+                        <label class="form-label" for="input-password"><?= lang('Login.password') ?></label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-key" aria-hidden="true"></i></span>
+                            <input class="form-control" id="input-password" name="password" type="password" autocomplete="current-password" <?php if (ENVIRONMENT == 'testing') echo 'value="pointofsale"'; ?>>
+                        </div>
+                    </div>
+                <?php else: ?>
+                    <div class="form-floating">
+                        <input class="form-control" id="input-username" name="username" type="text" placeholder="<?= lang('Login.username') ?>" autocomplete="username" <?php if (ENVIRONMENT == 'testing') echo 'value="admin"'; ?>>
+                        <label for="input-username"><?= lang('Login.username') ?></label>
+                    </div>
+                    <div class="form-floating">
+                        <input class="form-control" id="input-password" name="password" type="password" placeholder="<?= lang('Login.password') ?>" autocomplete="current-password" <?php if (ENVIRONMENT == 'testing') echo 'value="pointofsale"'; ?>>
+                        <label for="input-password"><?= lang('Login.password') ?></label>
+                    </div>
+                <?php endif; ?>
 
-                <div id="migration-error" class="alert alert-danger d-none mt-3" role="alert">
-                    <strong>Error:</strong> <span id="migration-error-message"></span>
-                </div>
+                <?php if ($gcaptchaEnabled): ?>
+                    <script src="https://www.google.com/recaptcha/api.js"></script>
+                    <div class="g-recaptcha" style="text-align: center;" data-sitekey="<?= esc($config['gcaptcha_site_key']) ?>"></div>
+                <?php endif; ?>
+            </div>
 
-                <div id="login-fields" class="w-100<?= $isNewInstall ? ' d-none' : '' ?>">
-                    <?php if (empty($config['login_form']) || 'floating_labels' == ($config['login_form'])): ?>
-                        <div class="form-floating mt-3">
-                            <input class="form-control" id="input-username" name="username" type="text" placeholder="<?= lang('Login.username') ?>" <?php if (ENVIRONMENT == "testing") echo 'value="admin"'; ?>>
-                            <label for="input-username"><?= lang('Login.username') ?></label>
-                        </div>
-                        <div class="form-floating mb-3">
-                            <input class="form-control" id="input-password" name="password" type="password" placeholder="<?= lang('Login.password') ?>" <?php if (ENVIRONMENT == "testing") echo 'value="pointofsale"'; ?>>
-                            <label for="input-password"><?= lang('Login.password') ?></label>
-                        </div>
-                    <?php elseif ('input_groups' == ($config['login_form'])): ?>
-                        <div class="input-group mt-3">
-                            <span class="input-group-text" id="input-username">
-                                <svg class="bi bi-person-fill" fill="currentColor" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-                                    <title><?= lang('Common.icon') . '&nbsp;' . lang('Login.username') ?></title>
-                                    <path d="M3 14s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1zm5-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6" />
-                                </svg>
-                            </span>
-                            <input class="form-control" name="username" type="text" placeholder="<?= lang('Login.username'); ?>" aria-label="<?= lang('Login.username') ?>" aria-describedby="input-username" <?php if (ENVIRONMENT == "testing") echo 'value="admin"'; ?>>
-                        </div>
-                        <div class="input-group mb-3">
-                            <span class="input-group-text" id="input-password">
-                                <svg class="bi bi-key-fill" fill="currentColor" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-                                    <title><?= lang('Common.icon') . '&nbsp;' . lang('Login.password') ?></title>
-                                    <path d="M3.5 11.5a3.5 3.5 0 1 1 3.163-5H14L15.5 8 14 9.5l-1-1-1 1-1-1-1 1-1-1-1 1H6.663a3.5 3.5 0 0 1-3.163 2M2.5 9a1 1 0 1 0 0-2 1 1 0 0 0 0 2" />
-                                </svg>
-                            </span>
-                            <input class="form-control" name="password" type="password" placeholder="<?= lang('Login.password') ?>" aria-label="<?= lang('Login.password') ?>" aria-describedby="input-password" <?php if (ENVIRONMENT == "testing") echo 'value="pointofsale"'; ?>>
-                        </div>
+            <div class="d-grid">
+                <button id="submit-button" class="btn btn-lg btn-primary" name="login-button" type="submit">
+                    <?php if ($isNewInstall): ?>
+                        <?= lang('Login.initialize') ?>
+                    <?php elseif (!$isLatest): ?>
+                        <?= lang('Module.migrate') ?>
+                    <?php else: ?>
+                        <?= lang('Login.go') ?>
                     <?php endif; ?>
+                </button>
+            </div>
 
-                    <?php if ($gcaptchaEnabled): ?>
-                        <script src="https://www.google.com/recaptcha/api.js"></script>
-                        <div class="g-recaptcha mb-3" style="text-align: center;" data-sitekey="<?= esc($config['gcaptcha_site_key']) ?>"></div>
-                    <?php endif; ?>
-                </div>
+            <p class="login-foot"><?= BRAND_NAME ?> · <?= BRAND_TAGLINE ?></p>
+            <?= form_close() ?>
+        </main>
+    </div>
 
-                <div class="d-grid">
-                    <button id="submit-button" class="btn btn-lg btn-primary" name="login-button" type="submit">
-                        <?php if ($isNewInstall): ?>
-                            <?= lang('Login.initialize') ?>
-                        <?php elseif (!$isLatest): ?>
-                            <?= lang('Module.migrate') ?>
-                        <?php else: ?>
-                            <?= lang('Login.go') ?>
-                        <?php endif; ?>
-                    </button>
-                </div>
-                <?= form_close() ?>
-            </section>
-        </div>
-    </main>
-
-    <footer class="d-flex justify-content-center flex-shrink-0 text-center">
-        <div class="footer container-fluid bg-body rounded shadow p-3 mb-md-4 mx-md-3">
-            <span class="text-primary">
-                <svg height="1.25em" role="img" viewBox="0 0 308.57998 308.57997" xmlns="http://www.w3.org/2000/svg">
-                    <title><?= lang('Common.software_title') . '&nbsp;' . lang('Common.logo') ?></title>
-                    <circle cx="154.28999" cy="154.28999" r="154.28999" fill="currentColor" />
-                    <path fill="#fff" d="M154.88998 145.66999c-.03-1.26-.03-3.29.19-4.29 4.6-11.1 15.57-18.82 28.3-18.82h.41v58.3c0 .12-.03.78-.04.9-.54 16.46-14.01 29.7-30.59 29.7v27.08c21 0 39.17-11.27 49.29-28.07l.07-.11c2.9.45 5.86.75 8.9.75 31.95 0 57.81-26 57.81-57.81 0-30.87-24.37-56.46-55.1-57.81h-30.74c-17.18 0-32.61 7.64-43.22 19.63-10.59-11.92-25.86-19.59-43.02-19.59-31.86 0-57.77 25.91-57.77 57.77 0 31.86 25.91 57.77 57.77 57.77 31.86 0 57.77-25.91 57.77-57.77v-3.68c-.01.01-.02-3.31-.03-3.95zm-57.75 38.33c-16.92 0-30.69-13.77-30.69-30.69s13.77-30.69 30.69-30.69 30.69 13.77 30.69 30.69-13.77 30.69-30.69 30.69zm142.96-19.87c-4.33 11.64-15.57 19.9-28.7 19.9h-.54v-61.47h.54c13.13 0 24.37 8.26 28.7 19.9 1.35 3.25 2.03 6.91 2.03 10.83s-.67 7.59-2.03 10.84z" />
-                </svg>
-            </span>
-            <span><?= lang('Common.software_title') ?></span>
-        </div>
-    </footer>
-
-    <?php if (ENVIRONMENT == 'development' || get_cookie('debug') == 'true' || $request->getGet('debug') == 'true') : ?>
-        <!-- inject:login:debug:js -->
-        <script src="resources/js/jquery-12e87d2f3a.js"></script>
-        <!-- endinject -->
-    <?php else : ?>
-        <!-- inject:login:prod:js -->
-        <script src="resources/jquery-2c872dbe60.min.js"></script>
-        <!-- endinject -->
-    <?php endif; ?>
+    <script src="<?= asset_url('js/jquery.min.js') ?>"></script>
     <script>
         // @noinspection JSInitializingVariableWithUndefined
         const APP_STATE = {
@@ -188,7 +151,7 @@ $request = Services::request();
             migrateUrl: '<?= site_url('migrate') ?>',
             loginUrl: '<?= site_url('login') ?>',
             i18n: {
-                welcome: <?= json_encode(lang('Login.welcome', [lang('Common.software_short')])) ?>,
+                welcome: <?= json_encode(lang('Login.welcome', [BRAND_NAME])) ?>,
                 initialize: <?= json_encode(lang('Login.initialize')) ?>,
                 initializationRequired: <?= json_encode(lang('Login.initialization_required')) ?>,
                 initializationMessage: <?= json_encode(lang('Login.initialization_message')) ?>,

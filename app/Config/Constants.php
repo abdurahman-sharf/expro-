@@ -172,6 +172,13 @@ const MAX_PRECISION = 1e14;
 const DEFAULT_PRECISION = 2;
 const DEFAULT_LANGUAGE = 'english';
 const DEFAULT_LANGUAGE_CODE = 'en';
+const RTL_LANGUAGES = ['ar', 'ckb', 'fa', 'he', 'ur'];
+
+/**
+ * Brand
+ */
+const BRAND_NAME = 'الاول برو';
+const BRAND_TAGLINE = 'نظام مالي متكامل';
 
 /**
  * Admin modules - list of modules required for admin privileges

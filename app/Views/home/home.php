@@ -6,19 +6,28 @@
 
 <?= view('partial/header') ?>
 
-<script type="text/javascript">
-    dialog_support.init("a.modal-dlg");
-</script>
+<h2 class="h5 mb-4"><?= lang('Common.welcome_message') ?></h2>
 
-<h3 class="text-center"><?= lang('Common.welcome_message') ?></h3>
-
-<div id="home_module_list">
-    <?php foreach($allowed_modules as $module) { ?>
-        <div class="module_item" title="<?= lang("Module.$module->module_id" . '_desc') ?>">
-            <a href="<?= base_url($module->module_id) ?>"><img src="<?= base_url("images/menubar/$module->module_id.svg") ?>" style="border-width: 0; height: 64px; max-width: 64px;" alt="Menubar Image"></a>
-            <a href="<?= base_url($module->module_id) ?>"><?= lang("Module.$module->module_id") ?></a>
-        </div>
-    <?php } ?>
-</div>
+<?php foreach (navigation_groups($allowed_modules, 'home') as $groupIndex => $group): ?>
+    <?php $items = array_filter($group['items'], static fn(array $item): bool => $item['id'] !== 'home'); ?>
+    <?php if ($items !== []): ?>
+        <section class="mb-4" aria-labelledby="home-group-<?= $groupIndex ?>">
+            <h3 class="h6 text-secondary mb-3" id="home-group-<?= $groupIndex ?>"><?= esc($group['label']) ?></h3>
+            <div class="row g-3 row-cols-1 row-cols-sm-2 row-cols-xl-3 row-cols-xxl-4">
+                <?php foreach ($items as $item): ?>
+                    <div class="col">
+                        <a class="home-tile" href="<?= $item['url'] ?>">
+                            <span class="home-tile-icon"><i class="bi <?= $item['icon'] ?>" aria-hidden="true"></i></span>
+                            <span class="home-tile-text">
+                                <span class="home-tile-title"><?= esc($item['label']) ?></span>
+                                <span class="home-tile-desc"><?= esc(lang('Module.' . $item['id'] . '_desc')) ?></span>
+                            </span>
+                        </a>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        </section>
+    <?php endif; ?>
+<?php endforeach; ?>
 
 <?= view('partial/footer') ?>

@@ -95,67 +95,16 @@ class Module extends Model
      * @param int $person_id
      * @return ResultInterface
      */
-    public function get_allowed_home_modules(int $person_id): ResultInterface
+    public function get_allowed_modules(int $person_id): ResultInterface
     {
-        $menus = ['home', 'both'];
-        $builder = $this->db->table('modules');    // TODO: this is duplicated with the code below... probably refactor a method and just pass through whether home/office modules are needed.
+        $builder = $this->db->table('modules');
         $builder->join('permissions', 'permissions.permission_id = modules.module_id');
         $builder->join('grants', 'permissions.permission_id = grants.permission_id');
         $builder->where('person_id', $person_id);
-        $builder->whereIn('menu_group', $menus);
         $builder->where('sort !=', 0);
+        $builder->where('modules.module_id !=', 'office');
         $builder->orderBy('sort', 'asc');
 
         return $builder->get();
-    }
-
-    /**
-     * @param int $person_id
-     * @return ResultInterface
-     */
-    public function get_allowed_office_modules(int $person_id): ResultInterface
-    {
-        $menus = ['office', 'both'];
-        $builder = $this->db->table('modules');    // TODO: Duplicated code
-        $builder->join('permissions', 'permissions.permission_id = modules.module_id');
-        $builder->join('grants', 'permissions.permission_id = grants.permission_id');
-        $builder->where('person_id', $person_id);
-        $builder->whereIn('menu_group', $menus);
-        $builder->where('sort !=', 0);
-        $builder->orderBy('sort', 'asc');
-
-        return $builder->get();
-    }
-
-    /**
-     * This method is used to set the show the office navigation icon on the home page
-     * which happens when the sort value is greater than zero
-     */
-    public function set_show_office_group(bool $show_office_group): void    // TODO: Should we return the value of update() as a bool for consistency?
-    {
-        if ($show_office_group) {    // TODO: This should be replaced with ternary notation
-            $sort = 999;
-        } else {
-            $sort = 0;
-        }
-
-        $modules_data = ['sort' => $sort];
-
-        $builder = $this->db->table('modules');
-        $builder->where('module_id', 'office');
-        $builder->update($modules_data);
-    }
-
-    /**
-     * This method is used to show the office navigation icon on the home page
-     * which happens when the sort value is greater than zero
-     */
-    public function get_show_office_group(): int
-    {
-        $builder = $this->db->table('modules');
-        $builder->select('sort');
-        $builder->where('module_id', 'office');
-
-        return $builder->get()->getRow()->sort;
     }
 }

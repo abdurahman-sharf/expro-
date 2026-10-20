@@ -250,7 +250,6 @@ class Config extends Secure_Controller
         $data['tax_code_options'] = $this->tax_lib->get_tax_code_options();
         $data['tax_category_options'] = $this->tax_lib->get_tax_category_options();
         $data['tax_jurisdiction_options'] = $this->tax_lib->get_tax_jurisdiction_options();
-        $data['show_office_group'] = $this->module->get_show_office_group();
         $data['currency_code'] = $this->config['currency_code'] ?? '';
         $data['dbVersion'] = mysqli_get_server_info($this->db->getConnection());
 
@@ -422,8 +421,6 @@ class Config extends Secure_Controller
             'category_dropdown'                 => $this->request->getPost('category_dropdown') != null
         ];
 
-        $this->module->set_show_office_group($this->request->getPost('show_office_group') != null);
-
         $this->db->transStart();
 
         $attributeSuccess = true;
@@ -461,7 +458,7 @@ class Config extends Secure_Controller
         $postedCurrencySymbol = $this->request->getPost('currency_symbol');
         $postedCurrencyCode = $this->request->getPost('currency_code');
 
-        $fmt = new NumberFormatter($numberLocale, NumberFormatter::CURRENCY);
+        $fmt = new NumberFormatter(number_formatter_locale($numberLocale), NumberFormatter::CURRENCY);
 
         // Use posted values if provided, otherwise fall back to locale defaults
         $currencySymbol = $postedCurrencySymbol !== '' ? $postedCurrencySymbol : $fmt->getSymbol(NumberFormatter::CURRENCY_SYMBOL);

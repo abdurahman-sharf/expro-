@@ -26,6 +26,35 @@ function current_language_code(bool $load_system_language = false): string
 }
 
 /**
+ * @return bool Whether the current language is written right to left.
+ */
+function is_rtl(): bool
+{
+    $language = strtolower(explode('-', current_language_code())[0]);
+
+    return in_array($language, RTL_LANGUAGES, true);
+}
+
+/**
+ * @return string
+ */
+function text_direction(): string
+{
+    return is_rtl() ? 'rtl' : 'ltr';
+}
+
+/**
+ * Forces Latin digits whatever the configured number locale is.
+ *
+ * @param string $locale
+ * @return string
+ */
+function number_formatter_locale(string $locale): string
+{
+    return str_contains($locale, '@') ? $locale : $locale . '@numbers=latn';
+}
+
+/**
  * @param bool $load_system_language
  * @return string
  */
@@ -298,7 +327,7 @@ function get_reference_code_payment_types(): array
 function is_right_side_currency_symbol(): bool
 {
     $config = config(OSPOS::class)->settings;
-    $fmt = new NumberFormatter($config['number_locale'], NumberFormatter::CURRENCY);
+    $fmt = new NumberFormatter(number_formatter_locale($config['number_locale']), NumberFormatter::CURRENCY);
     $fmt->setSymbol(NumberFormatter::CURRENCY_SYMBOL, $config['currency_symbol']);
 
     return !preg_match('/^¤/', $fmt->getPattern());
@@ -438,7 +467,7 @@ function to_decimals(?string $number, ?string $decimals = null, int $type = Numb
     }
 
     $config = config(OSPOS::class)->settings;
-    $fmt = new NumberFormatter($config['number_locale'], $type);
+    $fmt = new NumberFormatter(number_formatter_locale($config['number_locale']), $type);
     $fmt->setAttribute(NumberFormatter::MIN_FRACTION_DIGITS, empty($decimals) ? DEFAULT_PRECISION : $config[$decimals]);
     $fmt->setAttribute(NumberFormatter::MAX_FRACTION_DIGITS, empty($decimals) ? DEFAULT_PRECISION : $config[$decimals]);
 
@@ -482,7 +511,7 @@ function parse_decimals(string $number, ?int $decimals = null): mixed
 
     $config = config(OSPOS::class)->settings;
 
-    $fmt = new NumberFormatter($config['number_locale'], NumberFormatter::DECIMAL);
+    $fmt = new NumberFormatter(number_formatter_locale($config['number_locale']), NumberFormatter::DECIMAL);
 
     if (!$decimals) {
         $decimals = intVal($config['currency_decimals'] ?? 2);

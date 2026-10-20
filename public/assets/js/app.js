@@ -1,0 +1,730 @@
+(function($) {
+
+    $(function() {
+        $.notifyDefaults({
+            z_index: 2000,
+            delay: 4000,
+            offset: {x: 16, y: 16},
+            animate: {enter: 'app-toast-in', exit: 'app-toast-out'},
+            template: '<div data-notify="container" class="app-toast alert alert-{0} d-flex align-items-start gap-2 shadow" role="alert">' +
+                '<span data-notify="message" class="flex-grow-1">{2}</span>' +
+                '<button type="button" class="btn-close" data-notify="dismiss" aria-label="' + lang.line('common_close') + '"></button>' +
+                '</div>'
+        });
+    });
+
+})(jQuery);
+;
+(function(dialog_support, $) {
+
+    let clickedId, currentModal;
+
+    const SUBMITTING = ['submit', 'new'];
+
+    const BUTTON_CLASSES = {
+        submit: 'btn-primary',
+        new: 'btn-outline-primary',
+        delete: 'btn-danger',
+        restore: 'btn-outline-primary'
+    };
+
+    const hide = function() {
+        currentModal && currentModal.hide();
+    };
+
+    const clicked_id = function() {
+        return clickedId;
+    };
+
+    const submit = function(buttonId, $modal) {
+        const form = $('form', $modal.find('.modal-body')).first();
+        const validator = form.data('validator');
+        const submitted = validator && validator.formSubmitted;
+        const $button = $modal.find('.modal-footer [data-dialog-button="' + buttonId + '"]');
+
+        clickedId = buttonId;
+
+        if (SUBMITTING.includes(buttonId) && form.length && !submitted) {
+            form.submit();
+            if (validator && validator.valid()) {
+                $button.prop('disabled', true);
+                $(document).one('ajaxComplete', function() {
+                    $button.prop('disabled', false);
+                });
+            }
+        }
+        return false;
+    };
+
+    const buttonsOf = function($link) {
+        const buttons = [];
+
+        $.each($link.data(), function(name, label) {
+            const match = /^btn([A-Z].*)$/.exec(name);
+            if (match) {
+                const id = match[1].toLowerCase();
+                buttons.push({id: id, label: label, cssClass: BUTTON_CLASSES[id] || 'btn-outline-secondary'});
+            }
+        });
+
+        buttons.sort(function(a, b) {
+            return SUBMITTING.indexOf(a.id) - SUBMITTING.indexOf(b.id);
+        });
+
+        return buttons;
+    };
+
+    const dialogClassOf = function($link) {
+        const widthClass = ($link.attr('class') || '').split(/\s+/).find(function(className) {
+            return className.indexOf('modal-dlg-') === 0;
+        });
+
+        return widthClass || '';
+    };
+
+    const modalOf = function($link, buttons) {
+        const wide = dialogClassOf($link) === 'modal-dlg-wide';
+        const $modal = $(
+            '<div class="modal fade modal-dlg" tabindex="-1" aria-hidden="true">' +
+                '<div class="modal-dialog modal-dialog-scrollable modal-fullscreen-sm-down ' + (wide ? 'modal-xl' : 'modal-lg') + '">' +
+                    '<div class="modal-content">' +
+                        '<div class="modal-header"><h2 class="modal-title fs-5"></h2><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>' +
+                        '<div class="modal-body"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></div></div>' +
+                        '<div class="modal-footer"></div>' +
+                    '</div>' +
+                '</div>' +
+            '</div>'
+        );
+
+        const title = $link.attr('title') || '';
+        $modal.find('.modal-title').text(title).attr('id', 'dialog-title-' + Date.now());
+        $modal.attr('aria-labelledby', $modal.find('.modal-title').attr('id'));
+        $modal.find('.btn-close').attr('aria-label', lang.line('common_close'));
+
+        const $footer = $modal.find('.modal-footer');
+        $footer.append($('<button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal"></button>').text(lang.line('common_close')));
+        $.each(buttons, function(index, button) {
+            $('<button type="button"></button>')
+                .attr({id: button.id, 'data-dialog-button': button.id})
+                .addClass('btn ' + button.cssClass)
+                .text(button.label)
+                .on('click', function() {
+                    return submit(button.id, $modal);
+                })
+                .appendTo($footer);
+        });
+
+        return $modal;
+    };
+
+    const show = function(link) {
+        const $link = $(link);
+        const buttons = buttonsOf($link);
+        const $modal = modalOf($link, buttons);
+        const hasNew = buttons.some(function(button) {
+            return button.id === 'new';
+        });
+        const enterButton = hasNew ? 'new' : 'submit';
+
+        hide();
+        $modal.appendTo(document.body);
+        const modal = new bootstrap.Modal($modal[0]);
+        currentModal = modal;
+
+        $modal.on('hidden.bs.modal', function() {
+            modal.dispose();
+            $modal.remove();
+            if (currentModal === modal) {
+                currentModal = undefined;
+            }
+        });
+
+        $modal.on('keydown', function(event) {
+            if (event.key === 'Enter' && $(event.target).is('input:not([type=button],[type=submit],[type=checkbox],[type=radio],[type=file])')) {
+                const $enterButton = $modal.find('[data-dialog-button="' + enterButton + '"]');
+                if ($enterButton.length && !$enterButton.prop('disabled')) {
+                    event.preventDefault();
+                    $enterButton.trigger('click');
+                }
+            }
+        });
+
+        const $body = $modal.find('.modal-body');
+        $.get($link.attr('href') || $link.data('href'))
+            .done(function(data) {
+                $body.html(data);
+            })
+            .fail(function(jqXHR) {
+                $body.empty().append($('<div class="alert alert-danger mb-0" role="alert"></div>').text(jqXHR.status + ' ' + jqXHR.statusText));
+            });
+
+        modal.show();
+    };
+
+    const init = function() {
+        $(document).off('click.dialog').on('click.dialog', '.modal-dlg', function(event) {
+            const $link = $(event.target).closest('a, button');
+            if ($link.hasClass('modal-dlg')) {
+                event.preventDefault();
+                show($link[0]);
+            }
+        });
+    };
+
+    $(init);
+
+    $.extend(dialog_support, {
+        init: init,
+        submit: submit,
+        hide: hide,
+        clicked_id: clicked_id
+    });
+
+})(window.dialog_support = window.dialog_support || {}, jQuery);
+;
+(function(table_support, $) {
+
+    let enable_actions = function(callback) {
+        return function() {
+            const selection_empty = selected_rows().length == 0;
+            $("#toolbar button:not(.dropdown-toggle)").attr('disabled', selection_empty);
+            typeof callback == 'function' && callback();
+        }
+    };
+
+    const table = function() {
+        return $("#table").data('bootstrap.table');
+    }
+
+    const selected_ids = function () {
+        return $.map(table().getSelections(), function (element) {
+            return element[options.uniqueId || 'id'] !== '-' ? element[options.uniqueId || 'id'] : null;
+        });
+    };
+
+    const selected_rows = function () {
+        return $("#table td input:checkbox:checked").parents("tr");
+    };
+
+    const row_selector = function(id) {
+        return "tr[data-uniqueid='" + id + "']";
+    };
+
+    const rows_selector = function(ids) {
+        const selectors = [];
+        ids = ids instanceof Array ? ids : ("" + ids).split(":");
+        $.each(ids, function(index, element) {
+            selectors.push(row_selector(element));
+        });
+        return selectors;;
+    };
+
+    const highlight_row = function (id) {
+        $(rows_selector(id).join(',')).addClass('row-highlight');
+        setTimeout(function() {
+            $('#table tr.row-highlight').removeClass('row-highlight');
+        }, 6000);
+    };
+
+    const do_action = function(action) {
+        return function (url, ids) {
+            if (confirm($.fn.bootstrapTable.defaults.formatConfirmAction(action))) {
+                const targetIds = ids || selected_ids();
+                $.post((url || options.resource) + '/' + action, {'ids[]': targetIds}, function (response) {
+                    if (response.success) {
+                        if (options) {
+                            const selector = ids ? row_selector(ids) : selected_rows();
+                            table().collapseAllRows();
+                            $(selector).addClass('row-removing');
+                            setTimeout(function () {
+                                table().remove({
+                                    field: options.uniqueId,
+                                    values: targetIds
+                                });
+                                refresh();
+                                enable_actions();
+                            }, 900);
+                        } else {
+                            location.reload();
+                        }
+                        $.notify(response.message, {type: 'success'});
+                    } else {
+                        $.notify(response.message, {type: 'danger'});
+                    }
+                }, "json");
+            } else {
+                return false;
+            }
+        };
+    };
+
+    let load_success = function(callback) {
+        return function(response) {
+            typeof options.load_callback == 'function' && options.load_callback();
+            options.load_callback = undefined;
+            typeof callback == 'function' && callback.call(this, response);
+        }
+    };
+
+    let options;
+
+    const toggle_column_visibility = function() {
+        if (localStorage[options.employee_id]) {
+            const user_settings = JSON.parse(localStorage[options.employee_id]);
+            user_settings[options.resource] && $.each(user_settings[options.resource], function(index, element) {
+                element ? table().showColumn(index) : table().hideColumn(index);
+            });
+        }
+    };
+
+    const init = function (_options) {
+        options = _options;
+        enable_actions = enable_actions(options.enableActions);
+        load_success = load_success(options.onLoadSuccess);
+        const export_suffix = new Date().toISOString().slice(0, 16).replace(/(-|\s*|T|:)*/g,"");
+        $('#table')
+            .addClass("table-hover")
+            .bootstrapTable($.extend(options, {
+            columns: options.headers,
+            stickyHeader: true,
+            url: options.resource + '/search',
+            sidePagination: 'server',
+            selectItemName: 'btSelectItem',
+            pageSize: options.pageSize,
+            pagination: true,
+            search: options.resource || false,
+            showColumns: true,
+            clickToSelect: true,
+            showExport: true,
+            exportDataType: 'basic',
+            exportTypes: ['json', 'xml', 'csv', 'txt', 'sql', 'excel', 'pdf'],
+            exportOptions: {
+                fileName: options.resource.replace(/.*\/(.*?)$/g, '$1') + "_" + export_suffix
+            },
+            onPageChange: function(response) {
+                load_success(response);
+                enable_actions();
+            },
+            toolbar: '#toolbar',
+            uniqueId: options.uniqueId || 'id',
+            trimOnSearch: false,
+            onCheck: enable_actions,
+            onUncheck: enable_actions,
+            onCheckAll: enable_actions,
+            onUncheckAll: enable_actions,
+            onLoadSuccess: function(response) {
+                load_success(response);
+                enable_actions();
+            },
+            onColumnSwitch : function(field, checked) {
+                let user_settings = localStorage[options.employee_id];
+                user_settings = (user_settings && JSON.parse(user_settings)) || {};
+                user_settings[options.resource] = user_settings[options.resource] || {};
+                user_settings[options.resource][field] = checked;
+                localStorage[options.employee_id] = JSON.stringify(user_settings);
+            },
+            loadingTemplate: function (loadingMessage) {
+                return '<div class="loading-message text-center"><span class="spinner-border spinner-border-sm" aria-hidden="true"></span> <span role="status">' + loadingMessage + '</span></div>';
+            },
+            loadingFontSize: '1em',
+            queryParamsType: 'limit',
+            iconSize: 'sm',
+            silentSort: true,
+            paginationVAlign: 'bottom',
+            escape: true
+        }));
+        enable_actions();
+        init_delete();
+        init_restore();
+        toggle_column_visibility();
+    };
+
+    const init_delete = function (confirmMessage) {
+        $("#delete").click(function(event) {
+            do_action("delete")();
+        });
+    };
+
+    const init_restore = function (confirmMessage) {
+        $("#restore").click(function(event) {
+            do_action("restore")();
+        });
+    };
+
+    const refresh = function() {
+        table().refresh();
+    }
+
+    const submit_handler = function(url) {
+        return function (resource, response) {
+            const id = response.id !== undefined ? response.id.toString() : "";
+            if (!response.success) {
+                $.notify(response.message, { type: 'danger' });
+            } else {
+                const message = response.message;
+                const selector = rows_selector(response.id);
+                const rows = $(selector.join(",")).length;
+                if (rows > 0 && rows < 15) {
+                    const ids = id.split(":");
+                    $.get([url || resource + '/row', id].join("/"), {}, function (response) {
+                        $.each(selector, function (index, element) {
+                            const id = $(element).data('uniqueid');
+                            table().updateByUniqueId({id: id, row: response[id] || response});
+                        });
+                        highlight_row(ids);
+                    }, 'json');
+                } else {
+                    // Call hightlight function once after refresh
+                    options.load_callback = function () {
+                        enable_actions();
+                        highlight_row(id);
+                    };
+                    refresh();
+                }
+                $.notify(message, {type: 'success' });
+            }
+            return false;
+        };
+    };
+
+    const handle_submit = submit_handler();
+
+    $.extend(table_support, {
+        submit_handler: function(url) {
+            this.handle_submit = submit_handler(url);
+        },
+        handle_submit: handle_submit,
+        init: init,
+        do_delete: do_action("delete"),
+        do_restore: do_action("restore"),
+        refresh : refresh,
+        selected_ids : selected_ids,
+    });
+
+})(window.table_support = window.table_support || {}, jQuery);
+
+(function(form_support, $) {
+
+    form_support.error = {
+        errorClass: "text-danger",
+        errorLabelContainer: "#error_message_box",
+        wrapper: "li",
+        highlight: function (e) {
+            $(e).addClass('is-invalid');
+        },
+        unhighlight: function (e) {
+            $(e).removeClass('is-invalid');
+        }
+    };
+
+    form_support.handler = $.extend({
+
+        submitHandler: function(form) {
+            $(form).ajaxSubmit({
+                success: function(response)
+                {
+                    $.notify(response.message, { type: response.success ? 'success' : 'danger' });
+                },
+                dataType: 'json'
+            });
+        },
+
+        rules:
+        {
+
+        },
+
+        messages:
+        {
+
+        }
+    }, form_support.error);
+
+})(window.form_support = window.form_support || {}, jQuery);
+
+function number_sorter(a, b) {
+    a = +a.replace(/[^\-0-9]+/g, '');
+    b = +b.replace(/[^\-0-9]+/g, '');
+    return a - b;
+}
+;
+/*
+ * imgPreview jQuery plugin
+ * Copyright (c) 2009 James Padolsey
+ * j@qd9.co.uk | http://james.padolsey.com
+ * Dual licensed under MIT and GPL.
+ * Updated: 09/02/09
+ * @author James Padolsey
+ * @version 0.22
+ */
+(function($){
+
+    $.expr[':'].linkingToImage = function(elem, index, match){
+        // This will return true if the specified attribute contains a valid link to an image:
+        return !! ($(elem).attr(match[3]) && $(elem).attr(match[3]).match(/\.(gif|jpe?g|png|bmp)$/i));
+    };
+
+    $.fn.imgPreview = function(userDefinedSettings){
+
+        var s = $.extend({
+
+            /* DEFAULTS */
+
+            // CSS to be applied to image:
+            imgCSS: {},
+            // Distance between cursor and preview:
+            distanceFromCursor: {top:10, left:10},
+            // Boolean, whether or not to preload images:
+            preloadImages: true,
+            // Callback: run when link is hovered: container is shown:
+            onShow: function(){},
+            // Callback: container is hidden:
+            onHide: function(){},
+            // Callback: Run when image within container has loaded:
+            onLoad: function(){},
+            // ID to give to container (for CSS styling):
+            containerID: 'imgPreviewContainer',
+            // Class to be given to container while image is loading:
+            containerLoadingClass: 'loading',
+            // Prefix (if using thumbnails), e.g. 'thumb_'
+            thumbPrefix: '',
+            // Where to retrieve the image from:
+            srcAttr: 'href'
+
+        }, userDefinedSettings),
+
+        $container = $('<div/>').attr('id', s.containerID)
+                        .append('<img/>').hide()
+                        .css('position','absolute')
+                        .appendTo('body'),
+
+        $img = $('img', $container).css(s.imgCSS),
+
+        // Get all valid elements (linking to images / ATTR with image link):
+        $collection = this.filter(':linkingToImage(' + s.srcAttr + ')');
+
+        // Re-usable means to add prefix (from setting):
+        function addPrefix(src) {
+            return src && src.replace(/(\/?)([^\/]+)$/,'$1' + s.thumbPrefix + '$2');
+        }
+
+        if (s.preloadImages) {
+            (function(i){
+                var tempIMG = new Image(),
+                    callee = arguments.callee;
+                var src = $($collection[i]).attr(s.srcAttr)
+                if (src)
+                {
+                    tempIMG.src = addPrefix(src);
+                    tempIMG.onload = function(){
+                        $collection[i + 1] && callee(i + 1);
+                    };
+                }
+            })(0);
+        }
+
+        $collection
+            .mousemove(function(e){
+
+                $container.css({
+                    top: e.pageY + s.distanceFromCursor.top + 'px',
+                    left: e.pageX + s.distanceFromCursor.left + 'px'
+                });
+
+            })
+            .hover(function(){
+
+                var link = this;
+                $container
+                    .addClass(s.containerLoadingClass)
+                    .show();
+                $img
+                    .load(function(){
+                        $container.removeClass(s.containerLoadingClass);
+                        $img.show();
+                        s.onLoad.call($img[0], link);
+                    })
+                    .attr( 'src' , addPrefix($(link).attr(s.srcAttr)) );
+                s.onShow.call($container[0], link);
+
+            }, function(){
+
+                $container.hide();
+                $img.unbind('load').attr('src','').hide();
+                s.onHide.call($container[0], this);
+
+            });
+
+        // Return full selection, not $collection!
+        return this;
+
+    };
+
+})(jQuery);
+;
+(function($) {
+
+    function http_s(url)
+    {
+        return document.location.protocol + '//' + url;
+    }
+
+    const url = http_s('nominatim.openstreetmap.org/search');
+
+    const handle_auto_completion = function(fields) {
+        return function(event, ui) {
+            const results = ui.item.results;
+            if (results != null && results.length > 0) {
+                // Handle auto completion
+                for(const i in fields) {
+                    $("#" + fields[i]).val(results[i]);
+                }
+                return false;
+            }
+            return true;
+        };
+    };
+
+    const create_parser = function(field_name, parse_format)
+    {
+        const parse_field = function(format, address)
+        {
+            const fields = [];
+            $.each(format.split("|"), function(key, value)
+               {
+                if (address[value] && fields.length < 2 && $.inArray(address[value], fields) === -1)
+                {
+                    fields.push(address[value]);
+                }
+               });
+               return fields[0] + (fields[1] ? ' (' + fields[1] + ')' : '');
+        };
+
+        return function(data)
+        {
+            const parsed = [];
+            $.each(data, function(index, value)
+            {
+                const row = [];
+                const address = value.address;
+                $.each(parse_format, function(key, format)
+                {
+                    row.push(parse_field(format, address));
+                });
+                parsed[index] = {
+                    label: row.join(", "),
+                    results: row,
+                    value: address[field_name]
+                };
+            });
+            return parsed;
+        };
+    };
+
+    const init = function(options) {
+
+        const default_params = function(id, key, language)
+        {
+            return function() {
+                const result = {
+                    format: 'json',
+                    limit: 5,
+                    addressdetails: 1,
+                    countrycodes: options.country_codes,
+                    'accept-language' : language || navigator.language
+                };
+                result[key || id] = $("#"+id).val();
+                return result;
+            }
+
+        };
+
+        const unique = function(parsed) {
+            let filtered = [];
+            $.each(parsed, function(index, element)
+            {
+                filtered = $.map(filtered, function(el, ind)
+                {
+                    return el.label == element.label ? null : el;
+                });
+                filtered.push(element);
+
+            });
+            return filtered;
+        };
+
+        $.each(options.fields, function(key, value)
+        {
+            const handle_field_completion = handle_auto_completion(value.dependencies);
+
+            $("#" + key).autocomplete({
+                source: function (request, response) {
+                    const params = default_params(key, value.response && value.response.field, options.language);
+                    const request_params = {};
+                    options.extra_params && $.each(options.extra_params, function(key, param) {
+                        request_params[key] = typeof param == "function" ? param() : param;
+                    });
+
+                    $.ajax({
+                        type: "GET",
+                        url: url,
+                        dataType: "json",
+                        data: $.extend(request_params, params()),
+                        success: function(data) {
+                            response(unique($.map(data, function(item) {
+                                return (create_parser(key, (value.response && value.response.format) || value.dependencies))(data)
+                            })))
+                        }
+                    });
+                },
+                minChars:3,
+                delay:1000,
+                appendTo: '.modal-content',
+                select: handle_field_completion
+            });
+
+        });
+    };
+
+    const nominatim = {
+
+        init : init
+
+    };
+
+    window['nominatim'] = nominatim;
+
+})(jQuery);
+;
+(function($) {
+
+    const initTooltips = function(root) {
+        $(root || document).find('[data-bs-toggle="tooltip"]').each(function() {
+            bootstrap.Tooltip.getOrCreateInstance(this);
+        });
+    };
+
+    const phoneQuery = window.matchMedia('(min-width: 640px)');
+
+    const closeDrawerWhenWide = function(event) {
+        if (event.matches) {
+            const drawer = document.getElementById('app-sidebar');
+            drawer && bootstrap.Offcanvas.getInstance(drawer)?.hide();
+        }
+    };
+
+    $(function() {
+        initTooltips();
+        phoneQuery.addEventListener('change', closeDrawerWhenWide);
+
+        $('#app-sidebar').on('click', '.app-nav-link', function() {
+            const drawer = document.getElementById('app-sidebar');
+            bootstrap.Offcanvas.getInstance(drawer)?.hide();
+        });
+    });
+
+    $(document).ajaxComplete(function() {
+        initTooltips();
+    });
+
+})(jQuery);

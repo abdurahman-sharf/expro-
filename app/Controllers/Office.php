@@ -2,36 +2,12 @@
 
 namespace App\Controllers;
 
-use App\Models\Employee;
-use CodeIgniter\HTTP\ResponseInterface;
+use CodeIgniter\HTTP\RedirectResponse;
 
-/**
- * @property Employee employee
- */
-class Office extends Secure_Controller
+class Office extends BaseController
 {
-    protected Employee $employee;
-
-    public function __construct()
+    public function getIndex(): RedirectResponse
     {
-        parent::__construct('office', null, 'office');
-    }
-
-    /**
-     * @return string
-     */
-    public function getIndex(): string
-    {
-        return view('home/office');
-    }
-
-    /**
-     * @return void
-     */
-    public function logout(): void
-    {
-        $this->employee = model(Employee::class);
-
-        $this->employee->logout();
+        return redirect()->to('home');
     }
 }

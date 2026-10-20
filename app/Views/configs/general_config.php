@@ -3,7 +3,6 @@
  * @var array $themes
  * @var array $image_allowed_types
  * @var array $selected_image_allowed_types
- * @var bool $show_office_group
  * @var string $controller_name
  * @var array $config
  */
@@ -389,18 +388,6 @@
                     <label class="control-label">
                         <span class="glyphicon glyphicon-info-sign" data-toggle="tooltip" data-placement="right" title="<?= lang('Config.derive_sale_quantity_tooltip') ?>"></span>
                     </label>
-                </div>
-            </div>
-
-            <div class="form-group form-group-sm">
-                <?= form_label(lang('Config.show_office_group'), 'show_office_group', ['class' => 'control-label col-xs-3 col-sm-2']) ?>
-                <div class="col-xs-9">
-                    <?= form_checkbox([
-                        'name'    => 'show_office_group',
-                        'id'      => 'show_office_group',
-                        'value'   => 'show_office_group',
-                        'checked' => $show_office_group > 0
-                    ]) ?>
                 </div>
             </div>
 

@@ -1,110 +1,3 @@
-(function(dialog_support, $) {
-
-    let btn_id, dialog_ref;
-
-    const hide = function() {
-        dialog_ref && dialog_ref.close();
-    };
-
-    const clicked_id = function() {
-        return btn_id;
-    };
-
-    const submit = function(button_id) {
-        return function(dlog_ref) {
-            const form = $('form', dlog_ref.$modalBody).first();
-            const validator = form.data('validator');
-            const submitted = validator && validator.formSubmitted;
-
-            btn_id = button_id;
-            dialog_ref = dlog_ref;
-
-            if (button_id == 'submit' && (!submitted && btn_id != "btnNew")) {
-                form.submit();
-                validator.valid() && $('#submit').prop('disabled', true).css('opacity', 0.5);
-            }
-            return false;
-        }
-    };
-
-    const button_class = {
-        'submit' : 'btn-primary',
-        'delete' : 'btn-danger'
-    };
-
-    const init = function(selector) {
-
-        const buttons = function(event) {
-            const buttons = [];
-            let dialog_class = 'modal-dlg';
-            $.each($(this).attr('class').split(/\s+/), function(classIndex, className) {
-                const width_class = className.split("modal-dlg-");
-                if (width_class && width_class.length > 1) {
-                    dialog_class = className;
-                }
-            });
-
-            const has_new_btn = "btnNew" in $(this).data();
-            $.each($(this).data(), function(name, value) {
-                const btn_class = name.split("btn");
-                if (btn_class && btn_class.length > 1) {
-                    const btn_name = btn_class[1].toLowerCase();
-                    const is_submit = btn_name == 'submit';
-                    const is_new = btn_name === 'new';
-                    const is_enter = has_new_btn ? is_new: is_submit;
-                    buttons.push({
-                        id: btn_name,
-                        label: value,
-                        cssClass: button_class[btn_name],
-                        hotkey: is_enter ? 13 : undefined, // Enter
-                        action: submit(btn_name)
-                    });
-                }
-            });
-
-            !buttons.length && buttons.push({
-                id: 'close',
-                label: lang.line('common_close'),
-                cssClass: 'btn-primary',
-                action: function(dialog_ref) {
-                    dialog_ref.close();
-                }
-            });
-            return { buttons: buttons.sort(function(a, b) {
-                return ($(b).text()) < ($(a).text()) ? -1 : 1;
-            }), cssClass: dialog_class};
-        };
-
-        $(selector).each(function(index, $element) {
-
-            return $(selector).off('click').on('click', function(event) {
-                let $link = $(event.target);
-                $link = !$link.is("a, button") ? $link.parents("a, button") : $link ;
-                BootstrapDialog.show($.extend({
-                    title: $link.attr('title'),
-                    message: (function() {
-                        const node = $('<div></div>');
-                        $.get($link.attr('href') || $link.data('href'), function(data) {
-                            node.html(data);
-                        });
-                        return node;
-                    })
-                }, buttons.call(this, event)));
-
-                return false;
-            });
-        });
-    };
-
-    $.extend(dialog_support, {
-        init: init,
-        submit: submit,
-        hide: hide,
-        clicked_id: clicked_id
-    });
-
-})(window.dialog_support = window.dialog_support || {}, jQuery);
-
 (function(table_support, $) {
 
     let enable_actions = function(callback) {
@@ -142,37 +35,31 @@
         return selectors;;
     };
 
-    const highlight_row = function (id, color) {
-        $(rows_selector(id)).each(function(index, element) {
-            const original = $(element).css('backgroundColor');
-            $(element).find("td").animate({backgroundColor: color || '#e1ffdd'}, "slow", "linear")
-                .animate({backgroundColor: color || '#e1ffdd'}, 5000)
-                .animate({backgroundColor: original}, "slow", "linear");
-        });
+    const highlight_row = function (id) {
+        $(rows_selector(id).join(',')).addClass('row-highlight');
+        setTimeout(function() {
+            $('#table tr.row-highlight').removeClass('row-highlight');
+        }, 6000);
     };
 
     const do_action = function(action) {
         return function (url, ids) {
             if (confirm($.fn.bootstrapTable.defaults.formatConfirmAction(action))) {
-                $.post((url || options.resource) + '/' + action, {'ids[]': ids || selected_ids()}, function (response) {
-                    // Delete was successful, remove checkbox rows
+                const targetIds = ids || selected_ids();
+                $.post((url || options.resource) + '/' + action, {'ids[]': targetIds}, function (response) {
                     if (response.success) {
                         if (options) {
                             const selector = ids ? row_selector(ids) : selected_rows();
                             table().collapseAllRows();
-                            $(selector).each(function (index, element) {
-                                $(this).find("td").animate({backgroundColor: "green"}, 1200, "linear")
-                                    .end().animate({opacity: 0}, 1200, "linear", function () {
-                                    table().remove({
-                                        field: options.uniqueId,
-                                        values: selected_ids()
-                                    });
-                                    if (index == $(selector).length - 1) {
-                                        refresh();
-                                        enable_actions();
-                                    }
+                            $(selector).addClass('row-removing');
+                            setTimeout(function () {
+                                table().remove({
+                                    field: options.uniqueId,
+                                    values: targetIds
                                 });
-                            });
+                                refresh();
+                                enable_actions();
+                            }, 900);
                         } else {
                             location.reload();
                         }
@@ -191,7 +78,6 @@
         return function(response) {
             typeof options.load_callback == 'function' && options.load_callback();
             options.load_callback = undefined;
-            dialog_support.init("a.modal-dlg");
             typeof callback == 'function' && callback.call(this, response);
         }
     };
@@ -213,8 +99,7 @@
         load_success = load_success(options.onLoadSuccess);
         const export_suffix = new Date().toISOString().slice(0, 16).replace(/(-|\s*|T|:)*/g,"");
         $('#table')
-            .addClass("table-striped")
-            .addClass("table-bordered")
+            .addClass("table-hover")
             .bootstrapTable($.extend(options, {
             columns: options.headers,
             stickyHeader: true,
@@ -253,10 +138,9 @@
                 user_settings[options.resource] = user_settings[options.resource] || {};
                 user_settings[options.resource][field] = checked;
                 localStorage[options.employee_id] = JSON.stringify(user_settings);
-                dialog_support.init("a.modal-dlg");
             },
             loadingTemplate: function (loadingMessage) {
-                return '<div class="loading-message text-center"><span class="glyphicon glyphicon-refresh glyphicon-refresh-animate"></span><span role="status">' + loadingMessage + '</span></div>';
+                return '<div class="loading-message text-center"><span class="spinner-border spinner-border-sm" aria-hidden="true"></span> <span role="status">' + loadingMessage + '</span></div>';
             },
             loadingFontSize: '1em',
             queryParamsType: 'limit',
@@ -269,7 +153,6 @@
         init_delete();
         init_restore();
         toggle_column_visibility();
-        dialog_support.init("button.modal-dlg");
     };
 
     const init_delete = function (confirmMessage) {
@@ -304,7 +187,6 @@
                             const id = $(element).data('uniqueid');
                             table().updateByUniqueId({id: id, row: response[id] || response});
                         });
-                        dialog_support.init("a.modal-dlg");
                         highlight_row(ids);
                     }, 'json');
                 } else {
@@ -340,14 +222,14 @@
 (function(form_support, $) {
 
     form_support.error = {
-        errorClass: "has-error",
+        errorClass: "text-danger",
         errorLabelContainer: "#error_message_box",
         wrapper: "li",
         highlight: function (e) {
-            $(e).closest('.form-group').addClass('has-error');
+            $(e).addClass('is-invalid');
         },
         unhighlight: function (e) {
-            $(e).closest('.form-group').removeClass('has-error');
+            $(e).removeClass('is-invalid');
         }
     };
 

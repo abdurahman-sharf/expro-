@@ -39,10 +39,7 @@ class No_access extends BaseController
             return view('no_access', $data);
         }
 
-        $menuGroup = session()->get('menu_group');
-        $allowedModules = $menuGroup == 'home'
-            ? $this->module->get_allowed_home_modules($userInfo->person_id)
-            : $this->module->get_allowed_office_modules($userInfo->person_id);
+        $allowedModules = $this->module->get_allowed_modules($userInfo->person_id);
 
         $data['user_info']       = $userInfo;
         $data['allowed_modules'] = $allowedModules->getResult();

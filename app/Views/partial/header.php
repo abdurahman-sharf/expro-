@@ -2,157 +2,49 @@
 /**
  * @var object $user_info
  * @var array $allowed_modules
- * @var CodeIgniter\HTTP\IncomingRequest $request
+ * @var string $controller_name
  * @var array $config
  */
 
-use Config\Services;
-
-$request = Services::request();
+$pageTitle = navigation_page_title($controller_name ?? '');
 ?>
 
 <!doctype html>
-<html lang="<?= current_language_code() ?>">
+<html lang="<?= current_language_code() ?>" dir="<?= text_direction() ?>">
 
 <head>
     <meta charset="utf-8">
     <base href="<?= base_url() ?>">
-    <title><?= esc($config['company']) . ' | ' . lang('Common.powered_by') . ' OSPOS ' . esc(config('App')->application_version) ?></title>
+    <title><?= esc(($pageTitle !== '' ? "$pageTitle | " : '') . $config['company'] . ' | ' . BRAND_NAME) ?></title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex, nofollow">
-    <link rel="shortcut icon" type="image/x-icon" href="images/favicon.ico">
-    <?php $theme = (empty($config['theme']) ? 'flatly' : esc($config['theme'])); ?>
-    <link rel="stylesheet" href="resources/bootswatch/<?= "$theme" ?>/bootstrap.min.css">
-
-    <?php if (ENVIRONMENT == 'development' || get_cookie('debug') == 'true' || $request->getGet('debug') == 'true') : ?>
-        <!-- inject:debug:css -->
-        <link rel="stylesheet" href="resources/css/jquery-ui-fe010342cb.css">
-        <link rel="stylesheet" href="resources/css/bootstrap-dialog-1716ef6e7c.css">
-        <link rel="stylesheet" href="resources/css/jasny-bootstrap-40bf85f3ed.css">
-        <link rel="stylesheet" href="resources/css/bootstrap-datetimepicker-66374fba71.css">
-        <link rel="stylesheet" href="resources/css/bootstrap-select-66d5473b84.css">
-        <link rel="stylesheet" href="resources/css/bootstrap-table-ed9d1a3360.css">
-        <link rel="stylesheet" href="resources/css/bootstrap-table-sticky-header-07d65e7533.css">
-        <link rel="stylesheet" href="resources/css/daterangepicker-85523b7dfe.css">
-        <link rel="stylesheet" href="resources/css/chartist-c19aedb81a.css">
-        <link rel="stylesheet" href="resources/css/chartist-plugin-tooltip-2e0ec92e60.css">
-        <link rel="stylesheet" href="resources/css/bootstrap-tagsinput-5a6d46a06c.css">
-        <link rel="stylesheet" href="resources/css/bootstrap-toggle-e12db6c1f3.css">
-        <link rel="stylesheet" href="resources/css/bootstrap-292fc0ad3b.autocomplete.css">
-        <link rel="stylesheet" href="resources/css/invoice-1eae5e39b9.css">
-        <link rel="stylesheet" href="resources/css/ospos_print-2ba645b044.css">
-        <link rel="stylesheet" href="resources/css/ospos-e5a99a1e26.css">
-        <link rel="stylesheet" href="resources/css/popupbox-7b616030b0.css">
-        <link rel="stylesheet" href="resources/css/receipt-a171207d8e.css">
-        <link rel="stylesheet" href="resources/css/register-32d6791f29.css">
-        <link rel="stylesheet" href="resources/css/reports-407b727797.css">
-        <!-- endinject -->
-        <!-- inject:debug:js -->
-        <script src="resources/js/jquery-12e87d2f3a.js"></script>
-        <script src="resources/js/jquery-4fa896f615.form.js"></script>
-        <script src="resources/js/jquery-a0350e8820.validate.js"></script>
-        <script src="resources/js/jquery-ui-cbc65ff85e.js"></script>
-        <script src="resources/js/bootstrap-894d79839f.js"></script>
-        <script src="resources/js/bootstrap-dialog-27123abb65.js"></script>
-        <script src="resources/js/jasny-bootstrap-7c6d7b8adf.js"></script>
-        <script src="resources/js/bootstrap-datetimepicker-25e39b7ef8.js"></script>
-        <script src="resources/js/bootstrap-select-b01896a67b.js"></script>
-        <script src="resources/js/bootstrap-table-bdb06552ea.js"></script>
-        <script src="resources/js/bootstrap-table-export-6389dc2aa5.js"></script>
-        <script src="resources/js/bootstrap-table-mobile-fc655b68ab.js"></script>
-        <script src="resources/js/bootstrap-table-sticky-header-cb4d83d172.js"></script>
-        <script src="resources/js/moment-ad3346f890.min.js"></script>
-        <script src="resources/js/daterangepicker-048c56a690.js"></script>
-        <script src="resources/js/es6-promise-855125e6f5.js"></script>
-        <script src="resources/js/FileSaver-e73b1946e8.js"></script>
-        <script src="resources/js/html2canvas-e1d3a8d7cd.js"></script>
-        <script src="resources/js/jspdf-bbbebb610c.umd.js"></script>
-        <script src="resources/js/purify-d54e267e45.js"></script>
-        <script src="resources/js/jspdf-92d87e47e8.plugin.autotable.js"></script>
-        <script src="resources/js/xlsx-6b3130af1c.full.min.js"></script>
-        <script src="resources/js/tableExport-3d506dfa61.min.js"></script>
-        <script src="resources/js/chartist-8a7ecb4445.js"></script>
-        <script src="resources/js/chartist-plugin-pointlabels-0a1ab6aa4e.js"></script>
-        <script src="resources/js/chartist-plugin-tooltip-116cb48831.js"></script>
-        <script src="resources/js/chartist-plugin-axistitle-80a1198058.js"></script>
-        <script src="resources/js/chartist-plugin-barlabels-4165273742.js"></script>
-        <script src="resources/js/bootstrap-notify-376bc6eb87.js"></script>
-        <script src="resources/js/bootstrap-toggle-1c7a19a049.js"></script>
-        <script src="resources/js/imgpreview-62e42c15a0.full.jquery.js"></script>
-        <script src="resources/js/manage_tables-dce1a69d4a.js"></script>
-        <script src="resources/js/nominatim-becb3f84b2.autocomplete.js"></script>
-        <!-- endinject -->
-    <?php else : ?>
-        <!--inject:prod:css -->
-        <link rel="stylesheet" href="resources/opensourcepos-748fde78bb.min.css">
-        <!-- endinject -->
-
-        <!-- Tweaks to the UI for a particular theme should drop here  -->
-        <?php if ($config['theme'] != 'flatly' && file_exists($_SERVER['DOCUMENT_ROOT'] . '/public/css/' . esc($config['theme']) . '.css')) { ?>
-            <link rel="stylesheet" href="<?= 'css/' . esc($config['theme']) . '.css' ?>">
-        <?php } ?>
-        <!-- inject:prod:js -->
-        <script src="resources/jquery-2c872dbe60.min.js"></script>
-        <script src="resources/opensourcepos-8a102d085a.min.js"></script>
-        <!-- endinject -->
-    <?php endif; ?>
+    <meta name="theme-color" content="#042359">
+    <link rel="icon" href="<?= asset_url('img/favicon.ico') ?>">
+    <link rel="apple-touch-icon" href="<?= asset_url('img/apple-touch-icon.png') ?>">
+    <link rel="stylesheet" href="<?= asset_url(is_rtl() ? 'css/bootstrap.rtl.min.css' : 'css/bootstrap.min.css') ?>">
+    <link rel="stylesheet" href="<?= asset_url('css/vendor.min.css') ?>">
+    <link rel="stylesheet" href="<?= asset_url('css/app.css') ?>">
+    <script src="<?= asset_url('js/vendor.min.js') ?>"></script>
+    <script src="<?= asset_url('js/app.js') ?>"></script>
 
     <?= view('partial/header_js') ?>
     <?= view('partial/lang_lines') ?>
-
-    <style>
-        html {
-            overflow: auto;
-        }
-    </style>
 </head>
 
 <body>
-    <div class="wrapper">
-        <div class="topbar">
-            <div class="container">
-                <div class="navbar-left">
-                    <div id="liveclock"><?= date($config['dateformat'] . ' ' . $config['timeformat']) ?></div>
-                </div>
+    <a class="visually-hidden-focusable app-skip" href="<?= current_url() ?>#app-main"><?= lang('Common.skip_to_content') ?></a>
 
-                <div class="navbar-right" style="margin: 0;">
-                    <?= anchor("home/changePassword/$user_info->person_id", "$user_info->first_name $user_info->last_name", ['class' => 'modal-dlg', 'data-btn-submit' => lang('Common.submit'), 'title' => lang('Employees.change_password')]) ?>
-                    <span>&nbsp;|&nbsp;</span>
-                    <?= anchor('home/logout', lang('Login.logout')) ?>
-                </div>
+    <div class="app-shell">
+        <?= view('partial/sidebar') ?>
 
-                <div class="navbar-center" style="text-align: center;">
-                    <strong><?= esc($config['company']) ?></strong>
-                </div>
-            </div>
-        </div>
+        <div class="app-body">
+            <header class="app-topbar">
+                <button type="button" class="btn btn-icon app-menu-toggle" data-bs-toggle="offcanvas" data-bs-target="#app-sidebar" aria-controls="app-sidebar" aria-label="<?= lang('Common.open_menu') ?>">
+                    <i class="bi bi-list" aria-hidden="true"></i>
+                </button>
+                <h1 class="app-title"><?= esc($pageTitle) ?></h1>
+                <p class="app-company"><?= esc($config['company']) ?></p>
+                <p class="app-clock"><i class="bi bi-clock" aria-hidden="true"></i> <span id="liveclock"><?= date($config['dateformat'] . ' ' . $config['timeformat']) ?></span></p>
+            </header>
 
-        <div class="navbar navbar-default" role="navigation">
-            <div class="container">
-                <div class="navbar-header">
-                    <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target=".navbar-collapse">
-                        <span class="sr-only">Toggle navigation</span>
-                        <span class="icon-bar"></span>
-                        <span class="icon-bar"></span>
-                        <span class="icon-bar"></span>
-                    </button>
-
-                    <a class="navbar-brand hidden-sm" href="<?= site_url() ?>">OSPOS</a>
-                </div>
-
-                <div class="navbar-collapse collapse">
-                    <ul class="nav navbar-nav navbar-right">
-                        <?php foreach ($allowed_modules as $module): ?>
-                            <li class="<?= $module->module_id == $request->getUri()->getSegment(1) ? 'active' : '' ?>">
-                                <a href="<?= base_url($module->module_id) ?>" title="<?= lang("Module.$module->module_id") ?>" class="menu-icon">
-                                    <img src="<?= base_url("images/menubar/$module->module_id.svg") ?>" style="border: none;" alt="Module Icon"><br>
-                                    <?= lang('Module.' . $module->module_id) ?>
-                                </a>
-                            </li>
-                        <?php endforeach; ?>
-                    </ul>
-                </div>
-            </div>
-        </div>
-
-        <div class="container">
-            <div class="row">
+            <main id="app-main" class="app-main" tabindex="-1">
