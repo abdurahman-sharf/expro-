@@ -60,7 +60,8 @@
                 uniqueId: 'id',
                 showExport: true,
                 exportDataType: 'all',
-                exportTypes: ['json', 'xml', 'csv', 'txt', 'sql', 'excel', 'pdf'],
+                exportTypes: ['json', 'xml', 'csv', 'txt', 'sql', 'excel'],
+                buttons: pdf_export.buttons(true),
                 data: <?= json_encode($summary_data) ?>,
                 iconSize: 'sm',
                 loadingTemplate: function (loadingMessage) {

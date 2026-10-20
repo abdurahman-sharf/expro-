@@ -17,7 +17,7 @@ class Pdf_lib
     private const FONT_DIRECTORY = APPPATH . 'ThirdParty/IBMPlexSansArabic';
 
     /**
-     * @param array{format?: array|string, rtl?: bool, margins?: array{top: float, right: float, bottom: float, left: float}, title?: string} $options
+     * @param array{format?: array|string, rtl?: bool, margins?: array{top: float, right: float, bottom: float, left: float}, title?: string, footer?: string} $options
      *
      * @throws MpdfException
      */
@@ -30,7 +30,7 @@ class Pdf_lib
     }
 
     /**
-     * @param array{format?: array|string, rtl?: bool, margins?: array{top: float, right: float, bottom: float, left: float}, title?: string} $options
+     * @param array{format?: array|string, rtl?: bool, margins?: array{top: float, right: float, bottom: float, left: float}, title?: string, footer?: string} $options
      *
      * @throws MpdfException
      */
@@ -65,6 +65,10 @@ class Pdf_lib
         $engine->SetDirectionality(($options['rtl'] ?? isRtl()) ? 'rtl' : 'ltr');
         $engine->SetTitle($options['title'] ?? '');
         $engine->SetCreator('الاول برو');
+
+        if (isset($options['footer'])) {
+            $engine->SetHTMLFooter($options['footer']);
+        }
 
         return $engine;
     }

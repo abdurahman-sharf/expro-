@@ -3,6 +3,9 @@
 return [
     'all'                  => 'ទាំងអស់',
     'columns'              => 'ជួរឈរ',
+    'export_failed'        => '',
+    'export_pdf'           => '',
+    'export_too_many_rows' => '',
     'hide_show_pagination' => 'លាក់/បង្ហាញ ទំព័រ',
     'loading'              => 'កំពុងរៀបចំ, សូមរងចាំ',
     'page_from_to'         => 'បង្ហាញពី {0} ដល់​ {1} នៃ​ {2} ជួរដេក',

@@ -88,6 +88,16 @@ function documentIsolate(string $text): string
 }
 
 /**
+ * Escapes a table cell, and keeps numeric values (amounts, dates, quantities) left-to-right.
+ */
+function documentCell(string $text): string
+{
+    $isNumeric = preg_match('/\d/', $text) === 1 && preg_match_all('/\p{L}/u', $text) <= 3;
+
+    return $isNumeric ? documentIsolate($text) : nl2br(esc($text));
+}
+
+/**
  * Barcode (SVG markup) as an image source usable on screen and in PDF files.
  */
 function documentBarcodeSource(string $barcode): string

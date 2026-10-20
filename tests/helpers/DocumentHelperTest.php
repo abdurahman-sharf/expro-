@@ -109,6 +109,13 @@ class DocumentHelperTest extends CIUnitTestCase
         $this->assertSame('', documentBarcodeSource(''));
     }
 
+    public function testDocumentCell_IsolatesNumbersAndEscapesText(): void
+    {
+        $this->assertSame('<span dir="ltr">$42.50</span>', documentCell('$42.50'));
+        $this->assertSame('أرز &amp; سكر', documentCell('أرز & سكر'));
+        $this->assertSame('a<br />' . "\n" . 'b', documentCell("a\nb"));
+    }
+
     public function testDocumentIsolate_EscapesAndForcesLeftToRight(): void
     {
         $this->assertSame('<span dir="ltr">&lt;b&gt; 10.00</span>', documentIsolate('<b> 10.00'));

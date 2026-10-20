@@ -3,6 +3,9 @@
 return [
     'all'                  => 'Vše',
     'columns'              => 'Sloupce',
+    'export_failed'        => '',
+    'export_pdf'           => '',
+    'export_too_many_rows' => '',
     'hide_show_pagination' => 'Zobrazit/skrýt stránkování',
     'loading'              => 'Nahrávám, prosím počkejte',
     'page_from_to'         => 'Zobrazeno {0} až {1} z {2} řádků',

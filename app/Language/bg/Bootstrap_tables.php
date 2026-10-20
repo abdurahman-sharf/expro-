@@ -3,6 +3,9 @@
 return [
     'all'                  => 'Всичко/и',
     'columns'              => 'Колони',
+    'export_failed'        => '',
+    'export_pdf'           => '',
+    'export_too_many_rows' => '',
     'hide_show_pagination' => 'Скриване / Показване на страници',
     'loading'              => 'Зареждане, моля изчакайте',
     'page_from_to'         => 'Показани са {0} до {1} от {2} реда',

@@ -3,6 +3,9 @@
 return [
     'all'                  => 'alle',
     'columns'              => 'Kolommen',
+    'export_failed'        => '',
+    'export_pdf'           => '',
+    'export_too_many_rows' => '',
     'hide_show_pagination' => 'Toon %s record(s)',
     'loading'              => 'Laden, even geduld',
     'page_from_to'         => 'Toon {0} tot {1} van {2} record(s)',

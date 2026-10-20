@@ -3,6 +3,9 @@
 return [
     'all'                  => 'அனைத்தும்',
     'columns'              => 'நெடுவரிசை',
+    'export_failed'        => '',
+    'export_pdf'           => '',
+    'export_too_many_rows' => '',
     'hide_show_pagination' => 'பக்கமாக்கலை காண்பி / மறை',
     'loading'              => 'பதிவேறுகிறது, காத்திருக்கவும்',
     'page_from_to'         => '{2} வரிசைகளில் {0} முதல் {1} வரை காட்டுகிறது',

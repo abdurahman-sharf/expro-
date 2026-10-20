@@ -3,6 +3,9 @@
 return [
     'all'                  => 'Sve',
     'columns'              => 'Kolone',
+    'export_failed'        => '',
+    'export_pdf'           => '',
+    'export_too_many_rows' => '',
     'hide_show_pagination' => 'Prikaži/sakrij stranice',
     'loading'              => 'Molimo pričekajte',
     'page_from_to'         => 'Prikazujem {0}. - {1} od ukupnog broja zapisa {2}',

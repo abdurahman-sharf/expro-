@@ -3,6 +3,9 @@
 return [
     'all'                  => 'Tudo',
     'columns'              => 'Colunas',
+    'export_failed'        => '',
+    'export_pdf'           => '',
+    'export_too_many_rows' => '',
     'hide_show_pagination' => 'Ocultar/Exibir paginação',
     'loading'              => 'Carregando, aguarde',
     'page_from_to'         => 'Exibindo {0} até {1} de {2} linhas',

@@ -15,6 +15,10 @@
         }
     };
 
+    $(document).on('post-body.bs.table', function(event) {
+        $(event.target).find('a.detail-icon').attr('aria-label', lang.line('table_row_details'));
+    });
+
     $(function() {
         initTooltips();
         phoneQuery.addEventListener('change', closeDrawerWhenWide);

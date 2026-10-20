@@ -53,6 +53,14 @@ class Pdf_libTest extends CIUnitTestCase
         $this->assertLessThan(5, microtime(true) - $started);
     }
 
+    public function testRender_AddsPageNumberFooter(): void
+    {
+        $withFooter = $this->pdf->render(self::ARABIC_HTML, ['footer' => '<div>{PAGENO} / {nbpg}</div>']);
+        $without = $this->pdf->render(self::ARABIC_HTML);
+
+        $this->assertGreaterThan(strlen($without), strlen($withFooter));
+    }
+
     public function testRender_AllowsOnlyFileStreamWrapper(): void
     {
         $createEngine = new ReflectionMethod(Pdf_lib::class, 'createEngine');

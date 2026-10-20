@@ -3,6 +3,9 @@
 return [
     'all'                  => 'Все',
     'columns'              => 'Розділи',
+    'export_failed'        => '',
+    'export_pdf'           => '',
+    'export_too_many_rows' => '',
     'hide_show_pagination' => 'Приховати/Показати нумерацію',
     'loading'              => 'Завантаження, будь ласка, зачекайте',
     'page_from_to'         => 'Відображено {0} до {1} з {2} рядків',

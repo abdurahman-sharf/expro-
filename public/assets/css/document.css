@@ -233,3 +233,24 @@
 .doc-barcode img {
     height: 38px;
 }
+
+.doc-title-small {
+    font-size: 16pt;
+    margin-bottom: 0;
+}
+
+.doc-grid-meta {
+    font-size: 9pt;
+    color: #56657f;
+}
+
+.doc-grid th,
+.doc-grid td {
+    padding: 4px 6px;
+    font-size: 8.5pt;
+    word-wrap: break-word;
+}
+
+.doc-grid td {
+    border: 1px solid #dce3ef;
+}

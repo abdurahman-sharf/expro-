@@ -3,6 +3,9 @@
 return [
     'all'                  => 'Tất cả',
     'columns'              => 'Các cột',
+    'export_failed'        => '',
+    'export_pdf'           => '',
+    'export_too_many_rows' => '',
     'hide_show_pagination' => 'Ẩn/hiện phân trang',
     'loading'              => 'Đang tải, vui lòng đợi',
     'page_from_to'         => 'Đang hiển thị {0} đến {1} trên {2} dòng',

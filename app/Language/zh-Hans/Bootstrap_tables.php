@@ -3,6 +3,9 @@
 return [
     'all'                  => '所有',
     'columns'              => '列',
+    'export_failed'        => '',
+    'export_pdf'           => '',
+    'export_too_many_rows' => '',
     'hide_show_pagination' => '隐藏/显示分页',
     'loading'              => '正在努力地加载数据中，请稍候',
     'page_from_to'         => '显示第 {0} 到第 {1} 条记录，总共 {2} 条记录',

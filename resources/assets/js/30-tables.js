@@ -115,7 +115,8 @@
             clickToSelect: true,
             showExport: true,
             exportDataType: 'basic',
-            exportTypes: ['json', 'xml', 'csv', 'txt', 'sql', 'excel', 'pdf'],
+            exportTypes: ['json', 'xml', 'csv', 'txt', 'sql', 'excel'],
+            buttons: pdf_export.buttons(false),
             exportOptions: {
                 fileName: options.resource.replace(/.*\/(.*?)$/g, '$1') + "_" + export_suffix
             },
