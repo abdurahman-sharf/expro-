@@ -29,6 +29,10 @@
         const $select = $(select);
         const $box = $('<div class="tags-input form-control form-control-sm"></div>');
         const $input = $('<input type="text" class="tags-input-field">').appendTo($box);
+        const label = select.labels && select.labels.length ? $.trim(select.labels[0].textContent) : $select.attr('aria-label');
+        if (label) {
+            $input.attr('aria-label', label);
+        }
 
         $select.addClass('d-none').attr('data-tags-ready', '').after($box);
         render($select, $box);

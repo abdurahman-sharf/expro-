@@ -604,3 +604,7 @@ input.flatpickr-input,
 [dir="ltr"] input.flatpickr-input {
     text-align: start;
 }
+
+.login-progress {
+    height: 24px;
+}

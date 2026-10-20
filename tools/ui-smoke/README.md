@@ -68,8 +68,8 @@ npm run gates
 npm run gates -- --update
 ```
 
-Counts legacy Bootstrap 3 classes and plugin references in `app/` and `public/js`, and fails when any count is higher than in `gates.baseline.json`. Run with `--update` after a migration step lowers the counts.
+Counts legacy Bootstrap 3 classes, inline `style=` attributes and plugin references in `app/` and `resources/assets/js`. Every count must be zero, except `pluginSelectpicker` and `pluginNotify`, the two plugins that stay by decision, which must not exceed `gates.baseline.json`. Inline styles in receipts, documents, the barcode sheet and the mPDF footer are not counted, because print and email markup cannot rely on a stylesheet. Run with `--update` after one of the retained plugins is removed.
 
 ## Screens
 
-`screens.json` lists the screens in the order they are visited. Screens of the office menu group come last, because the active menu group is kept in the session. Steps are `click`, `fill`, `type`, `press`, `waitFor`, `pause` and `idle`.
+`screens.json` lists the screens in the order they are visited. Screens of the office menu group come last, because the active menu group is kept in the session. Steps are `click`, `open`, `fill`, `type`, `press`, `waitFor`, `pause` and `idle`. `open` clicks its selector only when it is visible, which opens the collapsed settings navigation on narrow screens.

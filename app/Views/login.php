@@ -78,8 +78,8 @@ $formStyle = $config['login_form'] ?? '';
 
             <div id="migration-progress" class="d-none">
                 <h2 class="h5 text-center mb-3"><?= lang('Login.migration_initializing') ?></h2>
-                <div class="progress mb-3" style="height: 24px;">
-                    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
+                <div class="progress login-progress mb-3">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated w-100" role="progressbar"></div>
                 </div>
                 <p class="text-center text-secondary" id="migration-status">
                     <?= lang('Login.migration_running') ?>
@@ -119,7 +119,7 @@ $formStyle = $config['login_form'] ?? '';
 
                 <?php if ($gcaptchaEnabled): ?>
                     <script src="https://www.google.com/recaptcha/api.js"></script>
-                    <div class="g-recaptcha" style="text-align: center;" data-sitekey="<?= esc($config['gcaptcha_site_key']) ?>"></div>
+                    <div class="g-recaptcha text-center" data-sitekey="<?= esc($config['gcaptcha_site_key']) ?>"></div>
                 <?php endif; ?>
             </div>
 

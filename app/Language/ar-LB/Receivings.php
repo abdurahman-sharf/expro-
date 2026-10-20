@@ -51,7 +51,7 @@ return [
     'supplier_address'             => 'العنوان',
     'supplier_email'               => 'البريد الإلكتروني',
     'supplier_location'            => 'المكان',
-    'total'                        => 'الإجمالى',
+    'total'                        => 'الإجمالي',
     'transaction_failed'           => 'حركات الإستلام فشلت.',
     'unable_to_add_item'           => 'غير قادر على إضافة صنف للإستلام.',
     'unsuccessfully_updated'       => 'لم يتم تحديث الإستلام بنجاح.',

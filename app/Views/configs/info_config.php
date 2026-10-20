@@ -138,12 +138,14 @@
                 </div>
             </div>
 
-            <?= form_submit([
-                'name'  => 'submit_info',
-                'id'    => 'submit_info',
-                'value' => lang('Common.submit'),
-                'class' => 'btn btn-primary btn-sm float-end'
-            ]) ?>
+            <div class="settings-actions">
+                <?= form_submit([
+                    'name'  => 'submit_info',
+                    'id'    => 'submit_info',
+                    'value' => lang('Common.submit'),
+                    'class' => 'btn btn-primary'
+                ]) ?>
+            </div>
 
         </fieldset>
     </div>

@@ -95,4 +95,59 @@ class NavigationHelperTest extends CIUnitTestCase
     {
         $this->assertSame('', navigationPageTitle('tax_codes'));
     }
+
+    public function testSettingsSections_ListsEverySectionOnce(): void
+    {
+        $ids = [];
+
+        foreach (settingsSections() as [, $sections]) {
+            foreach ($sections as [$id]) {
+                $ids[] = $id;
+            }
+        }
+
+        $this->assertCount(12, $ids);
+        $this->assertSame($ids, array_values(array_unique($ids)));
+    }
+
+    public function testNavigationSearchIndex_ListsOnlyAllowedModules(): void
+    {
+        $entries = navigationSearchIndex($this->modules('sales', 'items'), []);
+
+        $this->assertSame(['sales', 'items'], array_map(static fn (array $entry): string => basename($entry['url']), $entries));
+        $this->assertSame(['module'], array_values(array_unique(array_column($entries, 'type'))));
+    }
+
+    public function testNavigationSearchIndex_AddsPermittedReportsForTheReportsModule(): void
+    {
+        $entries = navigationSearchIndex($this->modules('reports'), ['reports_items', 'home']);
+        $reports = array_values(array_filter($entries, static fn (array $entry): bool => $entry['type'] === 'report'));
+
+        $this->assertCount(2, $reports);
+        $this->assertStringEndsWith('reports/graphical_summary_items', $reports[0]['url']);
+        $this->assertStringEndsWith('reports/summary_items', $reports[1]['url']);
+    }
+
+    public function testNavigationSearchIndex_OmitsReportsWithoutTheReportsModule(): void
+    {
+        $entries = navigationSearchIndex($this->modules('sales'), ['reports_items']);
+
+        $this->assertNotContains('report', array_column($entries, 'type'));
+    }
+
+    public function testNavigationSearchIndex_AddsSettingsSectionsForTheConfigModule(): void
+    {
+        $entries  = navigationSearchIndex($this->modules('config'), []);
+        $settings = array_values(array_filter($entries, static fn (array $entry): bool => $entry['type'] === 'setting'));
+
+        $this->assertCount(12, $settings);
+        $this->assertStringEndsWith('config#info_tab', $settings[0]['url']);
+    }
+
+    public function testNavigationSearchIndex_OmitsSettingsWithoutTheConfigModule(): void
+    {
+        $entries = navigationSearchIndex($this->modules('sales'), []);
+
+        $this->assertNotContains('setting', array_column($entries, 'type'));
+    }
 }

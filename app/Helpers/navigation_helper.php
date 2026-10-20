@@ -104,3 +104,78 @@ function navigationPageTitle(string $controllerName): string
 
     return $title === $key ? '' : $title;
 }
+
+/**
+ * Sections of the settings page, grouped as the settings navigation shows them.
+ *
+ * @return list<array{0: string, 1: list<array{0: string, 1: string, 2: string, 3: string}>}> Group label key and, per section, its id, icon, label key and title key.
+ */
+function settingsSections(): array
+{
+    return [
+        ['Config.settings_group_company', [
+            ['info', 'bi-building', 'Config.info', 'Config.info_configuration'],
+            ['general', 'bi-sliders', 'Config.general', 'Config.general_configuration'],
+        ]],
+        ['Config.settings_group_sales', [
+            ['receipt', 'bi-receipt', 'Config.receipt', 'Config.receipt_configuration'],
+            ['invoice', 'bi-file-earmark-text', 'Config.invoice', 'Config.invoice_configuration'],
+            ['shortcuts', 'bi-keyboard', 'Config.shortcuts', 'Config.shortcuts_configuration'],
+        ]],
+        ['Config.settings_group_stock', [
+            ['stock', 'bi-boxes', 'Config.location', 'Config.location_configuration'],
+            ['barcode', 'bi-upc-scan', 'Config.barcode', 'Config.barcode_configuration'],
+        ]],
+        ['Config.settings_group_regional', [
+            ['locale', 'bi-translate', 'Config.locale', 'Config.locale_configuration'],
+            ['tax', 'bi-percent', 'Config.tax', 'Config.tax_configuration'],
+            ['reward', 'bi-gift', 'Config.reward', 'Config.reward_configuration'],
+        ]],
+        ['Config.settings_group_system', [
+            ['table', 'bi-table', 'Config.table', 'Config.table_configuration'],
+            ['system', 'bi-gear', 'Config.system_conf', 'Config.system_conf'],
+        ]],
+    ];
+}
+
+/**
+ * Screens, reports and settings sections the quick search offers.
+ *
+ * @param array        $allowedModules      Rows of the modules table the user holds a grant for.
+ * @param list<string> $reportPermissionIds Permission ids of the reports the user may open.
+ *
+ * @return list<array{type: string, label: string, group: string, url: string, icon: string}>
+ */
+function navigationSearchIndex(array $allowedModules, array $reportPermissionIds): array
+{
+    $entries   = [];
+    $moduleIds = array_map(static fn (object $module): string => $module->module_id, $allowedModules);
+
+    foreach (navigationGroups($allowedModules, '') as $group) {
+        foreach ($group['items'] as $item) {
+            $entries[] = ['type' => 'module', 'label' => $item['label'], 'group' => $group['label'], 'url' => $item['url'], 'icon' => $item['icon']];
+        }
+    }
+
+    if (in_array('reports', $moduleIds, true)) {
+        helper('report');
+
+        foreach (reportCatalog($reportPermissionIds) as $reportGroup) {
+            foreach ($reportGroup['subjects'] as $subject) {
+                foreach ($subject['links'] as $link) {
+                    $entries[] = ['type' => 'report', 'label' => $subject['label'] . ' — ' . $link['label'], 'group' => lang('Module.reports'), 'url' => $link['path'], 'icon' => $link['icon']];
+                }
+            }
+        }
+    }
+
+    if (in_array('config', $moduleIds, true)) {
+        foreach (settingsSections() as [, $items]) {
+            foreach ($items as [$id, $icon, $label]) {
+                $entries[] = ['type' => 'setting', 'label' => lang($label), 'group' => lang('Module.config'), 'url' => site_url('config') . "#{$id}_tab", 'icon' => $icon];
+            }
+        }
+    }
+
+    return $entries;
+}

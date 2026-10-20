@@ -1,9 +1,5 @@
 <?= view('partial/header') ?>
 
-<script type="text/javascript">
-    dialog_support.init("a.modal-dlg");
-</script>
-
 <div class="sms-card p-4 bg-body-tertiary rounded-3">
     <?= form_open("messages/send/", ['id' => 'send_sms_form', 'enctype' => 'multipart/form-data', 'method' => 'post', 'class' => 'app-form']) ?>
         <fieldset>

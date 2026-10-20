@@ -37,6 +37,15 @@ class Home extends Secure_Controller
         ]);
     }
 
+    public function getSearchIndex(): ResponseInterface
+    {
+        $personId = (int) $this->employee->get_logged_in_employee_info()->person_id;
+        $modules  = $this->module->getAllowedModules($personId)->getResult();
+        $grants   = array_column($this->employee->get_employee_grants($personId), 'permission_id');
+
+        return $this->response->setJSON(navigationSearchIndex($modules, $grants));
+    }
+
     /**
      * Logs the currently logged in employee out of the system.  Used in app/Views/partial/header.php
      *

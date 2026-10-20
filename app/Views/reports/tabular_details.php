@@ -59,9 +59,6 @@
                 escape: true,
                 search: true,
                 onPageChange: init_dialog,
-                onPostBody: function () {
-                    dialog_support.init("a.modal-dlg");
-                },
                 onExpandRow: function (index, row, $detail) {
                     $detail.html('<table></table>').find("table").bootstrapTable({
                         columns: <?= transform_headers_readonly(esc($headers['details'])) ?>,

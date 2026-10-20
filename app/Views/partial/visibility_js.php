@@ -59,6 +59,5 @@ $('#table').bootstrapTable('refreshOptions', {
 const init_dialog = function () {
 <?php if (isset($editable)): ?>
         table_support.submit_handler('<?= site_url("reports/get_detailed_{$editable}_row") ?>');
-    dialog_support.init("a.modal-dlg");
 <?php endif; ?>
 };

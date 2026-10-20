@@ -13,8 +13,8 @@ foreach ($dinner_tables as $table_key => $table) {
     ++$i;
 ?>
 
-    <div class="mb-3" style="<?= $table['deleted'] ? 'display: none;' : 'display: block;' ?>">
-        <?= form_label(lang('Config.dinner_table') . " $i", "dinner_table_$i", ['class' => 'form-label col-3 col-md-2 text-danger required']) ?>
+    <div class="row mb-3 repeat-row<?= $table['deleted'] ? ' d-none' : '' ?>">
+        <?= form_label(lang('Config.dinner_table') . " $i", "dinner_table_$i", ['class' => 'col-form-label col-3 col-md-2 text-danger required']) ?>
         <div class="col-7 col-md-4 col-lg-3">
             <?php $form_data = [
                 'name'  => "dinner_table_$dinner_table_id",
@@ -26,9 +26,8 @@ foreach ($dinner_tables as $table_key => $table) {
             echo form_input($form_data);
             ?>
         </div>
-        <span class="add_dinner_table bi bi-plus-lg" style="padding-top: 0.5em;"></span>
-        <span>&nbsp;&nbsp;</span>
-        <span class="remove_dinner_table bi bi-dash-lg" style="padding-top: 0.5em;"></span>
+        <button type="button" class="btn btn-outline-secondary repeat-action add_dinner_table" aria-label="<?= lang('Common.add') ?>"><span class="bi bi-plus-lg" aria-hidden="true"></span></button>
+        <button type="button" class="btn btn-outline-secondary repeat-action remove_dinner_table" aria-label="<?= lang('Common.remove') ?>"><span class="bi bi-dash-lg" aria-hidden="true"></span></button>
     </div>
 
 <?php } ?>

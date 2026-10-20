@@ -104,7 +104,7 @@
                         'default_tax_code',
                         $tax_code_options,
                         $config['default_tax_code'],
-                        'class="form-select form-select-sm"'
+                        'id="default_tax_code" class="form-select form-select-sm"'
                     ) ?>
                 </div>
             </div>
@@ -116,7 +116,7 @@
                         'default_tax_category',
                         $tax_category_options,
                         $config['default_tax_category'],
-                        'class="form-select form-select-sm"'
+                        'id="default_tax_category" class="form-select form-select-sm"'
                     ) ?>
                 </div>
             </div>
@@ -128,17 +128,19 @@
                         'default_tax_jurisdiction',
                         $tax_jurisdiction_options,
                         $config['default_tax_jurisdiction'],
-                        'class="form-select form-select-sm"'
+                        'id="default_tax_jurisdiction" class="form-select form-select-sm"'
                     ) ?>
                 </div>
             </div>
 
-            <?= form_submit([
-                'name'  => 'submit_tax',
-                'id'    => 'submit_tax',
-                'value' => lang('Common.submit'),
-                'class' => 'btn btn-primary btn-sm float-end'
-            ]) ?>
+            <div class="settings-actions">
+                <?= form_submit([
+                    'name'  => 'submit_tax',
+                    'id'    => 'submit_tax',
+                    'value' => lang('Common.submit'),
+                    'class' => 'btn btn-primary'
+                ]) ?>
+            </div>
 
         </fieldset>
     </div>

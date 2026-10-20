@@ -39,18 +39,20 @@ $shortcutLabels = [
                             'key_' . $name,
                             $keyboardShortcutOptions,
                             $keyboardShortcutSelectedValue,
-                            'class="form-select form-select-sm"'
+                            'id="key_' . $name . '" class="form-select form-select-sm"'
                         ) ?>
                     </div>
                 </div>
             <?php endforeach; ?>
 
-            <?= form_submit([
-                'name'  => 'submit_shortcuts',
-                'id'    => 'submit_shortcuts',
-                'value' => lang('Common.submit'),
-                'class' => 'btn btn-primary btn-sm float-end'
-            ]) ?>
+            <div class="settings-actions">
+                <?= form_submit([
+                    'name'  => 'submit_shortcuts',
+                    'id'    => 'submit_shortcuts',
+                    'value' => lang('Common.submit'),
+                    'class' => 'btn btn-primary'
+                ]) ?>
+            </div>
         </fieldset>
     </div>
 <?= form_close() ?>

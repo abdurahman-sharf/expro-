@@ -8,10 +8,6 @@ $catalog = reportCatalog($permission_ids);
 
 <?= view('partial/header') ?>
 
-<script type="text/javascript">
-    dialog_support.init("a.modal-dlg");
-</script>
-
 <?php if (isset($error)): ?>
     <div class="alert alert-danger"><?= esc($error) ?></div>
 <?php endif; ?>

@@ -11,10 +11,6 @@
 
 <?= view('partial/header') ?>
 
-<script type="text/javascript">
-    dialog_support.init("a.modal-dlg");
-</script>
-
 <?= view('reports/_head', ['title' => $title, 'subtitle' => $subtitle, 'sensitiveToggle' => ! empty($summary_data) && (array_key_exists('cost', $summary_data) || array_key_exists('profit', $summary_data))]) ?>
 
 <?= view('reports/_summary', ['summary_data' => $summary_data]) ?>

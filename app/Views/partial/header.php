@@ -44,6 +44,11 @@ $pageTitle = navigationPageTitle($controller_name ?? '');
                 </button>
                 <h1 class="app-title"><?= esc($pageTitle) ?></h1>
                 <p class="app-company"><?= esc($config['company']) ?></p>
+                <button type="button" id="global_search_open" class="btn btn-outline-secondary app-search-open" aria-haspopup="dialog" aria-keyshortcuts="Control+K Meta+K" title="<?= lang('Common.global_search') ?> (Ctrl K)">
+                    <i class="bi bi-search" aria-hidden="true"></i>
+                    <span class="app-search-label"><?= lang('Common.global_search') ?></span>
+                    <kbd class="app-search-kbd" dir="ltr">Ctrl K</kbd>
+                </button>
                 <p class="app-clock"><i class="bi bi-clock" aria-hidden="true"></i> <span id="liveclock"><?= date($config['dateformat'] . ' ' . $config['timeformat']) ?></span></p>
             </header>
 

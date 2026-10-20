@@ -7,10 +7,6 @@
 
 <?= view('partial/header') ?>
 
-<script type="text/javascript">
-    dialog_support.init("a.modal-dlg");
-</script>
-
 <?= view('reports/_head', ['title' => lang('Reports.report_input'), 'subtitle' => '']) ?>
 
 <?php if (isset($error)): ?>

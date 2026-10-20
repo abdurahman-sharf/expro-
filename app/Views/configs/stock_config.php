@@ -15,12 +15,14 @@
                 <?= view('partial/stock_locations', ['stock_locations' => $stock_locations]) ?>
             </div>
 
-            <?= form_submit([
-                'name'  => 'submit_stock',
-                'id'    => 'submit_stock',
-                'value' => lang('Common.submit'),
-                'class' => 'btn btn-primary btn-sm float-end'
-            ]) ?>
+            <div class="settings-actions">
+                <?= form_submit([
+                    'name'  => 'submit_stock',
+                    'id'    => 'submit_stock',
+                    'value' => lang('Common.submit'),
+                    'class' => 'btn btn-primary'
+                ]) ?>
+            </div>
 
         </fieldset>
     </div>

@@ -14,8 +14,8 @@ foreach ($customer_rewards as $reward_key => $reward_category) {
     ++$i;
 ?>
 
-    <div class="mb-3" style="<?= $reward_category['deleted'] ? 'display: none;' : 'display: block;' ?>">
-        <?= form_label(lang('Config.customer_reward') . " $i", "customer_reward_$i", ['class' => 'form-label col-3 col-md-2 text-danger required']) ?>
+    <div class="row mb-3 repeat-row<?= $reward_category['deleted'] ? ' d-none' : '' ?>">
+        <?= form_label(lang('Config.customer_reward') . " $i", "customer_reward_$i", ['class' => 'col-form-label col-3 col-md-2 text-danger required']) ?>
         <div class="col-4 col-lg-3">
             <?php $form_data = [
                 'name'  => 'customer_reward_' . $customer_reward_id,
@@ -38,9 +38,8 @@ foreach ($customer_rewards as $reward_key => $reward_category) {
             echo form_input($form_data);
             ?>
         </div>
-        <span class="add_customer_reward bi bi-plus-lg" style="padding-top: 0.5em;"></span>
-        <span>&nbsp;&nbsp;</span>
-        <span class="remove_customer_reward bi bi-dash-lg" style="padding-top: 0.5em;"></span>
+        <button type="button" class="btn btn-outline-secondary repeat-action add_customer_reward" aria-label="<?= lang('Common.add') ?>"><span class="bi bi-plus-lg" aria-hidden="true"></span></button>
+        <button type="button" class="btn btn-outline-secondary repeat-action remove_customer_reward" aria-label="<?= lang('Common.remove') ?>"><span class="bi bi-dash-lg" aria-hidden="true"></span></button>
     </div>
 
 <?php } ?>

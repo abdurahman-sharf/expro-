@@ -13,8 +13,8 @@ foreach ($stock_locations as $location => $location_data) {
     ++$i;
 ?>
 
-    <div class="mb-3" style="<?= $location_data['deleted'] ? 'display: none;' : 'display: block;' ?>">
-        <?= form_label(lang('Config.stock_location') . " $i", "stock_location_$i", ['class' => 'form-label col-3 col-md-2 text-danger required']) ?>
+    <div class="row mb-3 repeat-row<?= $location_data['deleted'] ? ' d-none' : '' ?>">
+        <?= form_label(lang('Config.stock_location') . " $i", "stock_location_$i", ['class' => 'col-form-label col-3 col-md-2 text-danger required']) ?>
         <div class="col-7 col-md-4 col-lg-3">
             <?php $form_data = [
                 'name'  => "stock_location[$location_id]",
@@ -26,9 +26,8 @@ foreach ($stock_locations as $location => $location_data) {
             echo form_input($form_data);
             ?>
         </div>
-        <span class="add_stock_location bi bi-plus-lg" style="padding-top: 0.5em;"></span>
-        <span>&nbsp;&nbsp;</span>
-        <span class="remove_stock_location bi bi-dash-lg" style="padding-top: 0.5em;"></span>
+        <button type="button" class="btn btn-outline-secondary repeat-action add_stock_location" aria-label="<?= lang('Common.add') ?>"><span class="bi bi-plus-lg" aria-hidden="true"></span></button>
+        <button type="button" class="btn btn-outline-secondary repeat-action remove_stock_location" aria-label="<?= lang('Common.remove') ?>"><span class="bi bi-dash-lg" aria-hidden="true"></span></button>
     </div>
 
 <?php } ?>

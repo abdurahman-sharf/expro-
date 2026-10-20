@@ -7,6 +7,8 @@ const BASELINE_FILE = fileURLToPath(new URL('./gates.baseline.json', import.meta
 
 const SCAN_DIRS = ['app/Views', 'app/Helpers', 'app/Controllers', 'app/Libraries', 'app/Models', 'public/js', 'resources/assets/js'];
 const SKIPPED = ['app/Views/errors'];
+const INLINE_STYLE_EXEMPT = ['app/Views/sales/receipt', 'app/Views/receivings/receipt', 'app/Views/documents', 'app/Views/barcodes', 'app/Controllers/Exports.php', 'app/Libraries/Barcode_lib.php'];
+const RETAINED = ['pluginSelectpicker', 'pluginNotify'];
 const EXTENSIONS = ['.php', '.js'];
 
 const PATTERNS = {
@@ -64,7 +66,11 @@ const measure = () => {
     for (const directory of SCAN_DIRS) {
         for (const file of listFiles(join(ROOT, directory))) {
             const content = readFileSync(file, 'utf8');
+            const exempt = INLINE_STYLE_EXEMPT.some((prefix) => relative(ROOT, file).startsWith(prefix));
             for (const [name, pattern] of Object.entries(PATTERNS)) {
+                if (name === 'inlineStyle' && exempt) {
+                    continue;
+                }
                 counts[name] += (content.match(pattern) ?? []).length;
             }
         }
@@ -84,16 +90,18 @@ const baseline = JSON.parse(readFileSync(BASELINE_FILE, 'utf8'));
 const increased = [];
 const rows = Object.keys(PATTERNS).map((name) => {
     const before = baseline[name] ?? 0;
-    if (counts[name] > before) {
+    const limit = RETAINED.includes(name) ? before : 0;
+    if (counts[name] > limit) {
         increased.push(name);
     }
-    return `${name.padEnd(24)} ${String(before).padStart(6)} -> ${String(counts[name]).padStart(6)}${counts[name] > before ? '  INCREASED' : ''}`;
+    const note = counts[name] > limit ? (RETAINED.includes(name) ? '  INCREASED' : '  MUST BE ZERO') : '';
+    return `${name.padEnd(24)} ${String(before).padStart(6)} -> ${String(counts[name]).padStart(6)}${note}`;
 });
 
 console.log(rows.join('\n'));
 console.log(`\nTotal: ${Object.values(baseline).reduce((a, b) => a + b, 0)} -> ${Object.values(counts).reduce((a, b) => a + b, 0)}`);
 
 if (increased.length > 0) {
-    console.error(`\nGate failed, legacy markup increased: ${increased.join(', ')}`);
+    console.error(`\nGate failed, legacy markup remains or increased: ${increased.join(', ')}`);
     process.exit(1);
 }

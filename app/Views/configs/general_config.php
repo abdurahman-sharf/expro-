@@ -24,7 +24,7 @@
                             'input_groups'    => lang('Config.input_groups')
                         ],
                         $config['login_form'],
-                        'class="form-select form-select-sm"'
+                        'id="login_form" class="form-select form-select-sm"'
                     ) ?>
                 </div>
             </div>
@@ -118,7 +118,7 @@
                             'bottom' => lang('Config.bottom')
                         ],
                         $config['notify_vertical_position'],
-                        'class="form-select form-select-sm"'
+                        'id="notify_vertical_position" class="form-select form-select-sm"'
                     ) ?>
                 </div>
                 <div class="col-4 col-lg-3 col-xl-2">
@@ -130,7 +130,7 @@
                             'right'  => lang('Config.right')
                         ],
                         $config['notify_horizontal_position'],
-                        'class="form-select form-select-sm"'
+                        'id="notify_horizontal_position" class="form-select form-select-sm"'
                     ) ?>
                 </div>
             </div>
@@ -223,7 +223,7 @@
                     ]) ?>
                     &nbsp;
                     <label class="col-form-label">
-                        <a href="https://www.google.com/recaptcha/admin" target="_blank">
+                        <a href="https://www.google.com/recaptcha/admin" target="_blank" rel="noopener" aria-label="<?= esc(lang('Config.gcaptcha_tooltip'), 'attr') ?>">
                             <span class="bi bi-info-circle" aria-hidden="true" data-bs-toggle="tooltip" data-bs-placement="right" title="<?= lang('Config.gcaptcha_tooltip') ?>"></span>
                         </a>
                     </label>
@@ -268,7 +268,7 @@
                                 'cost_price'  => lang('Items.cost_price')
                             ],
                             $config['suggestions_first_column'],
-                            'class="form-select form-select-sm"'
+                            'id="suggestions_first_column" class="form-select form-select-sm"'
                         ) ?>
                     </div>
                 </div>
@@ -285,7 +285,7 @@
                                 'cost_price'  => lang('Items.cost_price')
                             ],
                             $config['suggestions_second_column'],
-                            'class="form-select form-select-sm"'
+                            'id="suggestions_second_column" class="form-select form-select-sm"'
                         ) ?>
                     </div>
                 </div>
@@ -302,7 +302,7 @@
                                 'cost_price'  => lang('Items.cost_price')
                             ],
                             $config['suggestions_third_column'],
-                            'class="form-select form-select-sm"'
+                            'id="suggestions_third_column" class="form-select form-select-sm"'
                         ) ?>
                     </div>
                 </div>
@@ -382,12 +382,14 @@
                 </div>
             </div>
 
-            <?= form_submit([
-                'name'  => 'submit_general',
-                'id'    => 'submit_general',
-                'value' => lang('Common.submit'),
-                'class' => 'btn btn-primary btn-sm float-end'
-            ]) ?>
+            <div class="settings-actions">
+                <?= form_submit([
+                    'name'  => 'submit_general',
+                    'id'    => 'submit_general',
+                    'value' => lang('Common.submit'),
+                    'class' => 'btn btn-primary'
+                ]) ?>
+            </div>
 
         </fieldset>
     </div>

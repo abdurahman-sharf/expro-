@@ -23,7 +23,7 @@
                             'receipt_thermal_58' => lang('Config.receipt_thermal_58')
                         ],
                         $config['receipt_template'],
-                        'class="form-select form-select-sm"'
+                        'id="receipt_template" class="form-select form-select-sm"'
                     ) ?>
                 </div>
             </div>
@@ -325,12 +325,14 @@
                 </div>
             </div>
 
-            <?= form_submit([
-                'name'  => 'submit_receipt',
-                'id'    => 'submit_receipt',
-                'value' => lang('Common.submit'),
-                'class' => 'btn btn-primary btn-sm float-end'
-            ]) ?>
+            <div class="settings-actions">
+                <?= form_submit([
+                    'name'  => 'submit_receipt',
+                    'id'    => 'submit_receipt',
+                    'value' => lang('Common.submit'),
+                    'class' => 'btn btn-primary'
+                ]) ?>
+            </div>
 
         </fieldset>
     </div>
@@ -362,14 +364,9 @@
             });
         }
 
-        const dialog_confirmed = window.jsPrintSetup;
-
         $('#receipt_config_form').validate($.extend(form_support.handler, {
             submitHandler: function(form) {
                 $(form).ajaxSubmit({
-                    beforeSerialize: function(arr, $form, options) {
-                        return (dialog_confirmed || confirm('<?= lang('Config.jsprintsetup_required') ?>'));
-                    },
                     success: function(response) {
                         $.notify({
                             message: response.message

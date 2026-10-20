@@ -31,7 +31,7 @@
                 </div>
                 <div class="col-1 col-md-4 col-lg-5 col-xl-6">
                     <p class="form-control-static">
-                        <a href="https://eepurl.com/b9a05b" target="_blank">
+                        <a href="https://eepurl.com/b9a05b" target="_blank" rel="noopener" aria-label="<?= esc(lang('Config.mailchimp_tooltip'), 'attr') ?>">
                             <span class="bi bi-info-circle" aria-hidden="true" data-bs-toggle="tooltip" data-bs-placement="right" title="<?= lang('Config.mailchimp_tooltip') ?>"></span>
                         </a>
                     </p>
@@ -55,12 +55,14 @@
                 </div>
             </div>
 
-            <?= form_submit([
-                'name'  => 'submit_mailchimp',
-                'id'    => 'submit_mailchimp',
-                'value' => lang('Common.submit'),
-                'class' => 'btn btn-primary btn-sm float-end'
-            ]) ?>
+            <div class="settings-actions">
+                <?= form_submit([
+                    'name'  => 'submit_mailchimp',
+                    'id'    => 'submit_mailchimp',
+                    'value' => lang('Common.submit'),
+                    'class' => 'btn btn-primary'
+                ]) ?>
+            </div>
 
         </fieldset>
     </div>

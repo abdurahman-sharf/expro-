@@ -32,7 +32,7 @@
                         'invoice_type',
                         $invoice_type_options,
                         $config['invoice_type'],
-                        'class="form-select form-select-sm"'
+                        'id="invoice_type" class="form-select form-select-sm"'
                     ) ?>
                 </div>
             </div>
@@ -82,7 +82,7 @@
                         'line_sequence',
                         $line_sequence_options,
                         $config['line_sequence'],
-                        'class="form-select form-select-sm"'
+                        'id="line_sequence" class="form-select form-select-sm"'
                     ) ?>
                 </div>
             </div>
@@ -187,12 +187,14 @@
                 </div>
             </div>
 
-            <?= form_submit([
-                'name'  => 'submit_invoice',
-                'id'    => 'submit_invoice',
-                'value' => lang('Common.submit'),
-                'class' => 'btn btn-primary btn-sm float-end'
-            ]) ?>
+            <div class="settings-actions">
+                <?= form_submit([
+                    'name'  => 'submit_invoice',
+                    'id'    => 'submit_invoice',
+                    'value' => lang('Common.submit'),
+                    'class' => 'btn btn-primary'
+                ]) ?>
+            </div>
 
         </fieldset>
     </div>

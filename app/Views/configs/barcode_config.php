@@ -20,7 +20,7 @@
                         'barcode_type',
                         $support_barcode,
                         $config['barcode_type'],
-                        'class="form-select form-select-sm"'
+                        'id="barcode_type" class="form-select form-select-sm"'
                     ) ?>
                 </div>
             </div>
@@ -63,7 +63,7 @@
                         'barcode_font',
                         $barcode_fonts,
                         $config['barcode_font'],
-                        'class="form-select form-select-sm" required'
+                        'id="barcode_font" class="form-select form-select-sm" required'
                     ) ?>
                 </div>
                 <div class="col-4 col-md-3 col-lg-2">
@@ -158,7 +158,7 @@
                                 'company_name' => lang('Suppliers.company_name')
                             ],
                             $config['barcode_first_row'],
-                            ['class' => 'form-select form-select-sm']
+                            ['id' => 'barcode_first_row', 'class' => 'form-select form-select-sm']
                         ); ?>
                     </div>
                 </div>
@@ -177,7 +177,7 @@
                                 'company_name' => lang('Suppliers.company_name')
                             ],
                             $config['barcode_second_row'],
-                            ['class' => 'form-select form-select-sm']
+                            ['id' => 'barcode_second_row', 'class' => 'form-select form-select-sm']
                         ) ?>
                     </div>
                 </div>
@@ -196,7 +196,7 @@
                                 'company_name' => lang('Suppliers.company_name')
                             ],
                             $config['barcode_third_row'],
-                            ['class' => 'form-select form-select-sm']
+                            ['id' => 'barcode_third_row', 'class' => 'form-select form-select-sm']
                         ) ?>
                     </div>
                 </div>
@@ -249,12 +249,14 @@
                 </div>
             </div>
 
-            <?= form_submit([
-                'name'  => 'submit_barcode',
-                'id'    => 'submit_barcode',
-                'value' => lang('Common.submit'),
-                'class' => 'btn btn-primary btn-sm float-end'
-            ]) ?>
+            <div class="settings-actions">
+                <?= form_submit([
+                    'name'  => 'submit_barcode',
+                    'id'    => 'submit_barcode',
+                    'value' => lang('Common.submit'),
+                    'class' => 'btn btn-primary'
+                ]) ?>
+            </div>
 
         </fieldset>
     </div>

@@ -244,6 +244,18 @@ class HomeTest extends CIUnitTestCase
         $this->withSession(['person_id' => 1]); // Admin user
     }
 
+    public function testGetSearchIndex_ListsModulesReportsAndSettingsForAdmin(): void
+    {
+        $this->resetSession();
+
+        $response = $this->get('/home/searchIndex');
+
+        $response->assertStatus(200);
+        $types = array_unique(array_column(json_decode($response->getJSON(), true), 'type'));
+        sort($types);
+        $this->assertSame(['module', 'report', 'setting'], $types);
+    }
+
     /**
      * Create a non-admin employee for testing
      *

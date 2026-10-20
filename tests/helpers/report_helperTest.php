@@ -16,7 +16,7 @@ final class report_helperTest extends CIUnitTestCase
         helper(['url', 'report']);
     }
 
-    public function testReportCatalogIncludesOnlyPermittedSubjects(): void
+    public function testReportCatalog_IncludesOnlyPermittedSubjects(): void
     {
         $catalog = reportCatalog(['reports_items', 'home']);
 
@@ -25,13 +25,13 @@ final class report_helperTest extends CIUnitTestCase
         $this->assertSame('bi-box-seam', $catalog[0]['subjects'][0]['icon']);
     }
 
-    public function testReportCatalogOmitsGroupsWithoutPermittedSubjects(): void
+    public function testReportCatalog_OmitsGroupsWithoutPermittedSubjects(): void
     {
         $this->assertSame([], reportCatalog([]));
         $this->assertSame([], reportCatalog(['reports_inventory_low']));
     }
 
-    public function testReportCatalogLinksEachSubjectToItsReportRoutes(): void
+    public function testReportCatalog_LinksEachSubjectToItsReportRoutes(): void
     {
         $paths = [];
 

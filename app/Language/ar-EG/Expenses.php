@@ -9,7 +9,7 @@ return [
     'cannot_be_deleted'          => 'لا يمكن المسح',
     'cash'                       => 'نقدا',
     'cash_filter'                => 'نقدا',
-    'categories_name'            => 'التصنيف',
+    'categories_name'            => 'الفئة',
     'category_required'          => 'خانة مطلوبة: الفئات',
     'check'                      => 'شيك',
     'check_filter'               => 'تصفية',

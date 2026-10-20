@@ -27,10 +27,10 @@
                 </div>
                 <div class="col-5 col-md-7 col-lg-8">
                     <p class="form-control-static">
-                        <a href="https://github.com/opensourcepos/opensourcepos/wiki/Localisation-support" target="_blank" style="text-decoration: none;">
+                        <a href="https://github.com/opensourcepos/opensourcepos/wiki/Localisation-support" target="_blank" rel="noopener" class="text-decoration-none" aria-label="<?= esc(lang('Config.number_locale_tooltip'), 'attr') ?>">
                             <span class="bi bi-info-circle" aria-hidden="true" data-bs-toggle="tooltip" data-bs-placement="right" title="<?= lang('Config.number_locale_tooltip') ?>"></span>
                         </a>
-                        <span id="number_locale_example" style="padding-left: 1em;">
+                        <span id="number_locale_example" class="ps-3">
                             <?= to_currency(1234567890.12300) ?>
                         </span>
                     </p>
@@ -84,7 +84,7 @@
                             '2' => '2'
                         ],
                         $config['currency_decimals'],
-                        ['class' => 'form-select form-select-sm']
+                        ['id' => 'currency_decimals', 'class' => 'form-select form-select-sm']
                     ) ?>
                 </div>
             </div>
@@ -102,7 +102,7 @@
                             '4' => '4'
                         ],
                         $config['tax_decimals'],
-                        ['class' => 'form-select form-select-sm']
+                        ['id' => 'tax_decimals', 'class' => 'form-select form-select-sm']
                     ) ?>
                 </div>
             </div>
@@ -119,7 +119,7 @@
                             '3' => '3'
                         ],
                         $config['quantity_decimals'],
-                        ['class' => 'form-select form-select-sm']
+                        ['id' => 'quantity_decimals', 'class' => 'form-select form-select-sm']
                     ) ?>
                 </div>
             </div>
@@ -136,7 +136,7 @@
                             '2'  => '2'
                         ],
                         $config['cash_decimals'],
-                        ['class' => 'form-select form-select-sm']
+                        ['id' => 'cash_decimals', 'class' => 'form-select form-select-sm']
                     ) ?>
                 </div>
                 <div class="col-1 col-md-7 col-lg-8">
@@ -153,7 +153,7 @@
                         'cash_rounding_code',
                         $rounding_options,
                         $config['cash_rounding_code'],
-                        'class="form-select form-select-sm"'
+                        'id="cash_rounding_code" class="form-select form-select-sm"'
                     ) ?>
                 </div>
             </div>
@@ -171,16 +171,16 @@
                             'creditcashdebit' => lang('Sales.credit') . ' / ' . lang('Sales.cash') . ' / ' . lang('Sales.debit')
                         ],
                         $config['payment_options_order'],
-                        'class="form-select form-select-sm"'
+                        'id="payment_options_order" class="form-select form-select-sm"'
                     ) ?>
                 </div>
             </div>
 
-            <div class="row mb-3" style="display:flex; align-items:center">
-                <?= form_label(lang('Config.payment_reference_code_length_limits'), 'payment_reference_code_length', ['class' => 'col-form-label col-3 col-md-2', 'style' => 'padding-top:0; line-height:1.4; margin-top:-8px']) ?>
+            <div class="row mb-3 align-items-center">
+                <?= form_label(lang('Config.payment_reference_code_length_limits'), 'payment_reference_code_length', ['class' => 'col-form-label col-3 col-md-2']) ?>
                 <div class="col-9 col-md-6 col-lg-5 col-xl-4">
                     <div id="payment_reference_code_slider"></div>
-                    <div class="row" style="margin-top:6px">
+                    <div class="row mt-2">
                         <div class="col-6">
                             <span class="col-form-label"><?= lang('Config.payment_reference_code_length_min_label') ?>: </span>
                             <span id="payment_reference_code_min_display"><?= $config['payment_reference_code_min'] ?? 3 ?></span>
@@ -206,7 +206,7 @@
                 </div>
                 <div class="col-1 col-md-7 col-lg-8">
                     <p class="form-control-static">
-                        <a href="https://wiki.openstreetmap.org/wiki/Nominatim/Country_Codes" target="_blank">
+                        <a href="https://wiki.openstreetmap.org/wiki/Nominatim/Country_Codes" target="_blank" rel="noopener" aria-label="<?= esc(lang('Config.country_codes_tooltip'), 'attr') ?>">
                             <span class="bi bi-info-circle" aria-hidden="true" data-bs-toggle="tooltip" data-bs-placement="right" title="<?= lang('Config.country_codes_tooltip'); ?>"></span>
                         </a>
                     </p>
@@ -220,7 +220,7 @@
                         'language',
                         get_languages(),
                         current_language_code(true) . ':' . current_language(true),
-                        ['class' => 'form-select form-select-sm']
+                        ['id' => 'language', 'class' => 'form-select form-select-sm']
                     ) ?>
                 </div>
             </div>
@@ -232,7 +232,7 @@
                         'timezone',
                         get_timezones(),
                         $config['timezone'] ? $config['timezone'] : date_default_timezone_get(),
-                        ['class' => 'form-select form-select-sm']
+                        ['id' => 'timezone', 'class' => 'form-select form-select-sm']
                     ) ?>
                 </div>
             </div>
@@ -244,7 +244,7 @@
                         'dateformat',
                         get_dateformats(),
                         $config['dateformat'],
-                        ['class' => 'form-select form-select-sm']
+                        ['id' => 'dateformat', 'class' => 'form-select form-select-sm']
                     ) ?>
                 </div>
                 <div class="col-4 col-md-3 col-lg-2">
@@ -252,7 +252,7 @@
                         'timeformat',
                         get_timeformats(),
                         $config['timeformat'],
-                        ['class' => 'form-select form-select-sm']
+                        ['id' => 'timeformat', 'class' => 'form-select form-select-sm']
                     ) ?>
                 </div>
             </div>
@@ -289,17 +289,19 @@
                             '12' => lang('Config.financial_year_dec')
                         ],
                         $config['financial_year'],
-                        ['class' => 'form-select form-select-sm']
+                        ['id' => 'financial_year', 'class' => 'form-select form-select-sm']
                     ) ?>
                 </div>
             </div>
 
-            <?= form_submit([
-                'name'  => 'submit_locale',
-                'id'    => 'submit_locale',
-                'value' => lang('Common.submit'),
-                'class' => 'btn btn-primary btn-sm float-end'
-            ]) ?>
+            <div class="settings-actions">
+                <?= form_submit([
+                    'name'  => 'submit_locale',
+                    'id'    => 'submit_locale',
+                    'value' => lang('Common.submit'),
+                    'class' => 'btn btn-primary'
+                ]) ?>
+            </div>
 
         </fieldset>
     </div>

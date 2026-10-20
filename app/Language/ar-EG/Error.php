@@ -6,9 +6,9 @@ return [
     'unable_to_lock_file'              => 'تعذر قفل {filePath}: {reason}',
     'unable_to_open_lock_file'         => 'تعذر فتح {filePath}: {reason}',
     'unable_to_persist_throttle_key'   => 'تعذر حفظ throttle.key في {filePath}',
-    'unable_to_persist_encryption_key' => '',
-    'encryption_key_not_provisioned'   => '',
-    'throttle_key_not_provisioned'     => '',
+    'unable_to_persist_encryption_key' => 'تعذّر حفظ مفتاح التشفير في {filePath}',
+    'encryption_key_not_provisioned'   => 'لم يُجهَّز مفتاح تشفير. شغّل `php spark env:provision` قبل المتابعة.',
+    'throttle_key_not_provisioned'     => 'لم يُجهَّز مفتاح تقييد الطلبات. شغّل `php spark env:provision` قبل المتابعة.',
     'unable_to_read_env_file'          => 'تعذر قراءة {filePath} لتوفير throttle.key',
     'unknown'                          => 'غير معروف',
 ];

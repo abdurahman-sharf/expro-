@@ -12,6 +12,22 @@
       "path": "/home"
     },
     {
+      "id": "home-search-modal",
+      "group": "home",
+      "path": "/home",
+      "steps": [
+        {
+          "click": "#global_search_open"
+        },
+        {
+          "waitFor": "#global_search.show #global_search_list [role=\"option\"]"
+        },
+        {
+          "pause": 500
+        }
+      ]
+    },
+    {
       "id": "sales-register",
       "group": "sales",
       "path": "/sales"
@@ -352,7 +368,10 @@
       "path": "/config",
       "steps": [
         {
-          "click": "ul.nav-tabs a[href=\"#info_tab\"]"
+          "open": "#settings_nav_toggle"
+        },
+        {
+          "click": "#settings_tab_info"
         },
         {
           "pause": 700
@@ -365,7 +384,10 @@
       "path": "/config",
       "steps": [
         {
-          "click": "ul.nav-tabs a[href=\"#general_tab\"]"
+          "open": "#settings_nav_toggle"
+        },
+        {
+          "click": "#settings_tab_general"
         },
         {
           "pause": 700
@@ -378,7 +400,10 @@
       "path": "/config",
       "steps": [
         {
-          "click": "ul.nav-tabs a[href=\"#tax_tab\"]"
+          "open": "#settings_nav_toggle"
+        },
+        {
+          "click": "#settings_tab_tax"
         },
         {
           "pause": 700
@@ -391,7 +416,10 @@
       "path": "/config",
       "steps": [
         {
-          "click": "ul.nav-tabs a[href=\"#locale_tab\"]"
+          "open": "#settings_nav_toggle"
+        },
+        {
+          "click": "#settings_tab_locale"
         },
         {
           "pause": 700
@@ -404,7 +432,10 @@
       "path": "/config",
       "steps": [
         {
-          "click": "ul.nav-tabs a[href=\"#barcode_tab\"]"
+          "open": "#settings_nav_toggle"
+        },
+        {
+          "click": "#settings_tab_barcode"
         },
         {
           "pause": 700
@@ -417,7 +448,10 @@
       "path": "/config",
       "steps": [
         {
-          "click": "ul.nav-tabs a[href=\"#stock_tab\"]"
+          "open": "#settings_nav_toggle"
+        },
+        {
+          "click": "#settings_tab_stock"
         },
         {
           "pause": 700
@@ -430,7 +464,10 @@
       "path": "/config",
       "steps": [
         {
-          "click": "ul.nav-tabs a[href=\"#receipt_tab\"]"
+          "open": "#settings_nav_toggle"
+        },
+        {
+          "click": "#settings_tab_receipt"
         },
         {
           "pause": 700
@@ -443,7 +480,10 @@
       "path": "/config",
       "steps": [
         {
-          "click": "ul.nav-tabs a[href=\"#invoice_tab\"]"
+          "open": "#settings_nav_toggle"
+        },
+        {
+          "click": "#settings_tab_invoice"
         },
         {
           "pause": 700
@@ -456,7 +496,10 @@
       "path": "/config",
       "steps": [
         {
-          "click": "ul.nav-tabs a[href=\"#shortcuts_tab\"]"
+          "open": "#settings_nav_toggle"
+        },
+        {
+          "click": "#settings_tab_shortcuts"
         },
         {
           "pause": 700
@@ -469,7 +512,10 @@
       "path": "/config",
       "steps": [
         {
-          "click": "ul.nav-tabs a[href=\"#reward_tab\"]"
+          "open": "#settings_nav_toggle"
+        },
+        {
+          "click": "#settings_tab_reward"
         },
         {
           "pause": 700
@@ -482,7 +528,10 @@
       "path": "/config",
       "steps": [
         {
-          "click": "ul.nav-tabs a[href=\"#table_tab\"]"
+          "open": "#settings_nav_toggle"
+        },
+        {
+          "click": "#settings_tab_table"
         },
         {
           "pause": 700
@@ -495,7 +544,10 @@
       "path": "/config",
       "steps": [
         {
-          "click": "ul.nav-tabs a[href=\"#system_tab\"]"
+          "open": "#settings_nav_toggle"
+        },
+        {
+          "click": "#settings_tab_system"
         },
         {
           "pause": 700
@@ -508,7 +560,10 @@
       "path": "/config",
       "steps": [
         {
-          "click": "ul.nav-tabs a[href=\"#system_tab\"]"
+          "open": "#settings_nav_toggle"
+        },
+        {
+          "click": "#settings_tab_system"
         },
         {
           "pause": 500
@@ -527,7 +582,10 @@
       "path": "/config",
       "steps": [
         {
-          "click": "ul.nav-tabs a[href=\"#system_tab\"]"
+          "open": "#settings_nav_toggle"
+        },
+        {
+          "click": "#settings_tab_system"
         },
         {
           "pause": 500
@@ -546,7 +604,10 @@
       "path": "/config",
       "steps": [
         {
-          "click": "ul.nav-tabs a[href=\"#system_tab\"]"
+          "open": "#settings_nav_toggle"
+        },
+        {
+          "click": "#settings_tab_system"
         },
         {
           "pause": 500
@@ -565,7 +626,10 @@
       "path": "/config",
       "steps": [
         {
-          "click": "ul.nav-tabs a[href=\"#system_tab\"]"
+          "open": "#settings_nav_toggle"
+        },
+        {
+          "click": "#settings_tab_system"
         },
         {
           "pause": 500
@@ -584,7 +648,10 @@
       "path": "/config",
       "steps": [
         {
-          "click": "ul.nav-tabs a[href=\"#system_tab\"]"
+          "open": "#settings_nav_toggle"
+        },
+        {
+          "click": "#settings_tab_system"
         },
         {
           "pause": 500

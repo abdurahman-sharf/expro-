@@ -67,7 +67,7 @@
                     </div>
                 </div>
             </div>
-            <div class="row mb-3 reference-code-input-new" style="display:none;">
+            <div class="row mb-3 reference-code-input-new d-none">
                 <?= form_label(lang('Sales.reference_code'), 'reference_code_new', ['class' => 'col-form-label col-3']) ?>
                 <div class="col-8">
                     <?= form_input(['name' => 'reference_code_new', 'id' => 'reference_code_new', 'value' => '', 'class' => 'form-control form-control-sm', 'disabled' => true]) ?>
@@ -217,10 +217,10 @@
             const paymentType = $(this).val();
             const needsReferenceCode = referenceCodePaymentTypes.indexOf(paymentType) !== -1;
             if (needsReferenceCode) {
-                $('.reference-code-input-new').show();
+                $('.reference-code-input-new').removeClass('d-none');
                 $('#reference_code_new').attr('disabled', false);
             } else {
-                $('.reference-code-input-new').hide();
+                $('.reference-code-input-new').addClass('d-none');
                 $('#reference_code_new').attr('disabled', true).val('');
             }
         });

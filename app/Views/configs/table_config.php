@@ -28,12 +28,14 @@
                 <?= view('partial/dinner_tables', ['dinner_tables' => $dinner_tables]) ?>
             </div>
 
-            <?= form_submit([
-                'name'  => 'submit_table',
-                'id'    => 'submit_table',
-                'value' => lang('Common.submit'),
-                'class' => 'btn btn-primary btn-sm float-end'
-            ]) ?>
+            <div class="settings-actions">
+                <?= form_submit([
+                    'name'  => 'submit_table',
+                    'id'    => 'submit_table',
+                    'value' => lang('Common.submit'),
+                    'class' => 'btn btn-primary'
+                ]) ?>
+            </div>
 
         </fieldset>
     </div>

@@ -58,6 +58,11 @@ export const runSteps = async (page, steps = []) => {
     for (const step of steps) {
         if (step.click) {
             await page.click(step.click, { timeout: 15000 });
+        } else if (step.open) {
+            if (await page.isVisible(step.open)) {
+                await page.click(step.open, { timeout: 15000 });
+                await page.waitForTimeout(400);
+            }
         } else if (step.fill) {
             await page.fill(step.fill[0], step.fill[1]);
         } else if (step.type) {
@@ -76,11 +81,12 @@ export const runSteps = async (page, steps = []) => {
     }
 };
 
-const LOCALE_TAB = 'ul.nav-tabs a[href="#locale_tab"]';
+const NAV_TOGGLE = '#settings_nav_toggle';
+const LOCALE_TAB = '#settings_tab_locale';
 
 export const readLanguage = async (page, config) => {
     await page.goto(`${config.baseUrl}/config`, { waitUntil: 'networkidle' });
-    await page.click(LOCALE_TAB);
+    await runSteps(page, [{ open: NAV_TOGGLE }, { click: LOCALE_TAB }]);
     return page.$eval('select[name=language]', (select) => select.value);
 };
 

@@ -1,4 +1,4 @@
-<div class="container-fluid" style="padding-inline: 0;">
+<div class="container-fluid px-0">
     <ul class="nav nav-tabs" id="myTabs">
         <li class="nav-item" role="presentation"><a class="nav-link active" href="#system_tabs" data-bs-toggle="tab" title="<?= lang('Config.system_info') ?>"><?= lang('Config.system_info') ?></a></li>
         <li class="nav-item" role="presentation"><a class="nav-link" href="#email_tabs" data-bs-toggle="tab" title="<?= lang('Config.email_configuration') ?>"><?= lang('Config.email') ?></a></li>

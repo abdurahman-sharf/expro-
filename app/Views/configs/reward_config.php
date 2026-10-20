@@ -28,12 +28,14 @@
                 <?= view('partial/customer_rewards', ['customer_rewards' => $customer_rewards]) ?>
             </div>
 
-            <?= form_submit([
-                'name'  => 'submit_reward',
-                'id'    => 'submit_reward',
-                'value' => lang('Common.submit'),
-                'class' => 'btn btn-primary btn-sm float-end'
-            ]) ?>
+            <div class="settings-actions">
+                <?= form_submit([
+                    'name'  => 'submit_reward',
+                    'id'    => 'submit_reward',
+                    'value' => lang('Common.submit'),
+                    'class' => 'btn btn-primary'
+                ]) ?>
+            </div>
 
         </fieldset>
     </div>
