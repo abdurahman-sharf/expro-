@@ -1,0 +1,514 @@
+{
+  "screens": [
+    {
+      "id": "login",
+      "group": "auth",
+      "path": "/login",
+      "anonymous": true
+    },
+    {
+      "id": "home",
+      "group": "home",
+      "path": "/home"
+    },
+    {
+      "id": "sales-register",
+      "group": "sales",
+      "path": "/sales"
+    },
+    {
+      "id": "sales-register-cart",
+      "group": "sales",
+      "path": "/sales",
+      "steps": [
+        {
+          "fill": [
+            "#item",
+            "6281001"
+          ]
+        },
+        {
+          "press": [
+            "#item",
+            "Enter"
+          ]
+        },
+        {
+          "idle": true
+        },
+        {
+          "fill": [
+            "#item",
+            "6281005"
+          ]
+        },
+        {
+          "press": [
+            "#item",
+            "Enter"
+          ]
+        },
+        {
+          "idle": true
+        }
+      ]
+    },
+    {
+      "id": "sales-takings",
+      "group": "sales",
+      "path": "/sales/manage"
+    },
+    {
+      "id": "sales-suspended-modal",
+      "group": "sales",
+      "path": "/sales",
+      "steps": [
+        {
+          "click": "#show_suspended_sales_button"
+        },
+        {
+          "waitFor": ".modal-body"
+        },
+        {
+          "pause": 1000
+        }
+      ]
+    },
+    {
+      "id": "sales-shortcuts-modal",
+      "group": "sales",
+      "path": "/sales",
+      "steps": [
+        {
+          "click": "#show_keyboard_help"
+        },
+        {
+          "waitFor": ".modal-body"
+        },
+        {
+          "pause": 1000
+        }
+      ]
+    },
+    {
+      "id": "sales-receipt",
+      "group": "sales",
+      "path": "/sales/receipt/1"
+    },
+    {
+      "id": "receivings",
+      "group": "receivings",
+      "path": "/receivings"
+    },
+    {
+      "id": "items",
+      "group": "items",
+      "path": "/items"
+    },
+    {
+      "id": "items-new-modal",
+      "group": "items",
+      "path": "/items",
+      "steps": [
+        {
+          "click": "#title_bar button[data-href=\"items/view\"]"
+        },
+        {
+          "waitFor": ".modal-body form"
+        },
+        {
+          "pause": 1000
+        }
+      ]
+    },
+    {
+      "id": "items-edit-modal",
+      "group": "items",
+      "path": "/items",
+      "steps": [
+        {
+          "click": "#table a[href$=\"items/view/1\"]"
+        },
+        {
+          "waitFor": ".modal-body form"
+        },
+        {
+          "pause": 1000
+        }
+      ]
+    },
+    {
+      "id": "customers",
+      "group": "people",
+      "path": "/customers"
+    },
+    {
+      "id": "customers-new-modal",
+      "group": "people",
+      "path": "/customers",
+      "steps": [
+        {
+          "click": "#title_bar button[data-href=\"customers/view\"]"
+        },
+        {
+          "waitFor": ".modal-body form"
+        },
+        {
+          "pause": 1000
+        }
+      ]
+    },
+    {
+      "id": "suppliers",
+      "group": "people",
+      "path": "/suppliers"
+    },
+    {
+      "id": "item-kits",
+      "group": "items",
+      "path": "/item_kits"
+    },
+    {
+      "id": "giftcards",
+      "group": "finance",
+      "path": "/giftcards"
+    },
+    {
+      "id": "expenses",
+      "group": "finance",
+      "path": "/expenses"
+    },
+    {
+      "id": "cashups",
+      "group": "finance",
+      "path": "/cashups"
+    },
+    {
+      "id": "messages",
+      "group": "people",
+      "path": "/messages"
+    },
+    {
+      "id": "reports-index",
+      "group": "reports",
+      "path": "/reports"
+    },
+    {
+      "id": "reports-summary-sales-input",
+      "group": "reports",
+      "path": "/reports/summary_sales"
+    },
+    {
+      "id": "reports-summary-sales",
+      "group": "reports",
+      "path": "/reports/summary_sales/2020-01-01/2099-12-31/complete/all"
+    },
+    {
+      "id": "reports-graphical-sales",
+      "group": "reports",
+      "path": "/reports/graphical_summary_sales/2020-01-01/2099-12-31/complete/all"
+    },
+    {
+      "id": "reports-detailed-sales",
+      "group": "reports",
+      "path": "/reports/detailed_sales/2020-01-01/2099-12-31/complete/all"
+    },
+    {
+      "id": "reports-inventory-low",
+      "group": "reports",
+      "path": "/reports/inventory_low/all"
+    },
+    {
+      "id": "office-home",
+      "group": "office",
+      "path": "/office"
+    },
+    {
+      "id": "employees",
+      "group": "office",
+      "path": "/employees"
+    },
+    {
+      "id": "employees-edit-modal",
+      "group": "office",
+      "path": "/employees",
+      "steps": [
+        {
+          "click": "#table a[href$=\"employees/view/1\"]"
+        },
+        {
+          "waitFor": ".modal-body form"
+        },
+        {
+          "pause": 1000
+        }
+      ]
+    },
+    {
+      "id": "attributes",
+      "group": "office",
+      "path": "/attributes"
+    },
+    {
+      "id": "expenses-categories",
+      "group": "office",
+      "path": "/expenses_categories"
+    },
+    {
+      "id": "taxes",
+      "group": "office",
+      "path": "/taxes"
+    },
+    {
+      "id": "config-info",
+      "group": "config",
+      "path": "/config",
+      "steps": [
+        {
+          "click": "ul.nav-tabs a[href=\"#info_tab\"]"
+        },
+        {
+          "pause": 700
+        }
+      ]
+    },
+    {
+      "id": "config-general",
+      "group": "config",
+      "path": "/config",
+      "steps": [
+        {
+          "click": "ul.nav-tabs a[href=\"#general_tab\"]"
+        },
+        {
+          "pause": 700
+        }
+      ]
+    },
+    {
+      "id": "config-tax",
+      "group": "config",
+      "path": "/config",
+      "steps": [
+        {
+          "click": "ul.nav-tabs a[href=\"#tax_tab\"]"
+        },
+        {
+          "pause": 700
+        }
+      ]
+    },
+    {
+      "id": "config-locale",
+      "group": "config",
+      "path": "/config",
+      "steps": [
+        {
+          "click": "ul.nav-tabs a[href=\"#locale_tab\"]"
+        },
+        {
+          "pause": 700
+        }
+      ]
+    },
+    {
+      "id": "config-barcode",
+      "group": "config",
+      "path": "/config",
+      "steps": [
+        {
+          "click": "ul.nav-tabs a[href=\"#barcode_tab\"]"
+        },
+        {
+          "pause": 700
+        }
+      ]
+    },
+    {
+      "id": "config-stock",
+      "group": "config",
+      "path": "/config",
+      "steps": [
+        {
+          "click": "ul.nav-tabs a[href=\"#stock_tab\"]"
+        },
+        {
+          "pause": 700
+        }
+      ]
+    },
+    {
+      "id": "config-receipt",
+      "group": "config",
+      "path": "/config",
+      "steps": [
+        {
+          "click": "ul.nav-tabs a[href=\"#receipt_tab\"]"
+        },
+        {
+          "pause": 700
+        }
+      ]
+    },
+    {
+      "id": "config-invoice",
+      "group": "config",
+      "path": "/config",
+      "steps": [
+        {
+          "click": "ul.nav-tabs a[href=\"#invoice_tab\"]"
+        },
+        {
+          "pause": 700
+        }
+      ]
+    },
+    {
+      "id": "config-shortcuts",
+      "group": "config",
+      "path": "/config",
+      "steps": [
+        {
+          "click": "ul.nav-tabs a[href=\"#shortcuts_tab\"]"
+        },
+        {
+          "pause": 700
+        }
+      ]
+    },
+    {
+      "id": "config-reward",
+      "group": "config",
+      "path": "/config",
+      "steps": [
+        {
+          "click": "ul.nav-tabs a[href=\"#reward_tab\"]"
+        },
+        {
+          "pause": 700
+        }
+      ]
+    },
+    {
+      "id": "config-table",
+      "group": "config",
+      "path": "/config",
+      "steps": [
+        {
+          "click": "ul.nav-tabs a[href=\"#table_tab\"]"
+        },
+        {
+          "pause": 700
+        }
+      ]
+    },
+    {
+      "id": "config-system",
+      "group": "config",
+      "path": "/config",
+      "steps": [
+        {
+          "click": "ul.nav-tabs a[href=\"#system_tab\"]"
+        },
+        {
+          "pause": 700
+        }
+      ]
+    },
+    {
+      "id": "config-system-system",
+      "group": "config",
+      "path": "/config",
+      "steps": [
+        {
+          "click": "ul.nav-tabs a[href=\"#system_tab\"]"
+        },
+        {
+          "pause": 500
+        },
+        {
+          "click": "a[href=\"#system_tabs\"]"
+        },
+        {
+          "pause": 700
+        }
+      ]
+    },
+    {
+      "id": "config-system-email",
+      "group": "config",
+      "path": "/config",
+      "steps": [
+        {
+          "click": "ul.nav-tabs a[href=\"#system_tab\"]"
+        },
+        {
+          "pause": 500
+        },
+        {
+          "click": "a[href=\"#email_tabs\"]"
+        },
+        {
+          "pause": 700
+        }
+      ]
+    },
+    {
+      "id": "config-system-message",
+      "group": "config",
+      "path": "/config",
+      "steps": [
+        {
+          "click": "ul.nav-tabs a[href=\"#system_tab\"]"
+        },
+        {
+          "pause": 500
+        },
+        {
+          "click": "a[href=\"#message_tabs\"]"
+        },
+        {
+          "pause": 700
+        }
+      ]
+    },
+    {
+      "id": "config-system-integrations",
+      "group": "config",
+      "path": "/config",
+      "steps": [
+        {
+          "click": "ul.nav-tabs a[href=\"#system_tab\"]"
+        },
+        {
+          "pause": 500
+        },
+        {
+          "click": "a[href=\"#integrations_tabs\"]"
+        },
+        {
+          "pause": 700
+        }
+      ]
+    },
+    {
+      "id": "config-system-license",
+      "group": "config",
+      "path": "/config",
+      "steps": [
+        {
+          "click": "ul.nav-tabs a[href=\"#system_tab\"]"
+        },
+        {
+          "pause": 500
+        },
+        {
+          "click": "a[href=\"#license_tabs\"]"
+        },
+        {
+          "pause": 700
+        }
+      ]
+    }
+  ]
+}
