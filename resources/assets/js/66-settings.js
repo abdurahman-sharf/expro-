@@ -58,8 +58,9 @@
             } catch (error) {
                 // the address bar is only a convenience
             }
-            collapseOnMobile();
         });
+
+        $('.settings-link').on('click', collapseOnMobile);
 
         const initial = paneId(window.location.hash);
         if (initial) {
