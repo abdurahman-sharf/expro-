@@ -51,23 +51,12 @@ if (isset($error_message)) {
 
 <?= view('partial/print_receipt', ['print_after_sale' => $print_after_sale, 'selected_printer' => 'invoice_printer']) ?>
 
-<div class="print_hide" id="control_buttons" style="text-align: right;">
-    <a href="javascript:printdoc();">
-        <div class="btn btn-primary btn-sm" id="show_print_button"><?= '<span class="bi bi-printer" aria-hidden="true">&nbsp;</span>' . lang('Common.print') ?></div>
-    </a>
-    <?php
-    /* This line will allow to print and go back to sales automatically.
-     * echo anchor('sales', '<span class="bi bi-printer" aria-hidden="true">&nbsp;</span>' . lang('Common.print'), ['class' => 'btn btn-primary btn-sm', 'id' => 'show_print_button', 'onclick' => 'window.print();'));
-     */
-    ?>
-    <?php if (isset($customer_email) && !empty($customer_email)): ?>
-        <a href="javascript:void(0);">
-            <div class="btn btn-primary btn-sm" id="show_email_button"><?= '<span class="bi bi-envelope" aria-hidden="true">&nbsp;</span>' . lang('Sales.send_quote') ?></div>
-        </a>
-    <?php endif; ?>
-    <?= anchor('sales', '<span class="bi bi-cart3" aria-hidden="true">&nbsp;</span>' . lang('Sales.register'), ['class' => 'btn btn-primary btn-sm', 'id' => 'show_sales_button']) ?>
-    <?= anchor('sales/discardsuspendedsale', '<span class="bi bi-x-lg" aria-hidden="true">&nbsp;</span>' . lang('Sales.discard'), ['class' => 'btn btn-danger btn-sm', 'id' => 'discard_quote_button']) ?>
-</div>
+<?= view('partial/document_actions', ['actions' => array_values(array_filter([
+        ['id' => 'show_print_button', 'label' => lang('Common.print'), 'icon' => 'bi-printer', 'onclick' => 'printdoc();'],
+        !empty($customer_email) ? ['id' => 'show_email_button', 'label' => lang('Sales.send_quote'), 'icon' => 'bi-envelope'] : null,
+        ['id' => 'show_sales_button', 'label' => lang('Sales.register'), 'icon' => 'bi-cart3', 'href' => 'sales', 'class' => 'btn-primary'],
+        ['id' => 'discard_quote_button', 'label' => lang('Sales.discard'), 'icon' => 'bi-x-lg', 'href' => 'sales/discardsuspendedsale', 'class' => 'btn-outline-danger']
+    ]))]) ?>
 
 <div id="page-wrap">
     <div id="header"><?= lang('Sales.quote') ?></div>

@@ -26,12 +26,10 @@ if (isset($error_message)) {
 
 echo view('partial/print_receipt', ['print_after_sale', $print_after_sale, 'selected_printer' => 'receipt_printer']) ?>
 
-<div class="print_hide" id="control_buttons" style="text-align: right;">
-    <a href="javascript:printdoc();">
-        <div class="btn btn-primary btn-sm" id="show_print_button"><?= '<span class="bi bi-printer" aria-hidden="true">&nbsp;</span>' . lang('Common.print') ?></div>
-    </a>
-    <?= anchor("receivings", '<span class="bi bi-floppy" aria-hidden="true">&nbsp;</span>' . lang('Receivings.register'), ['class' => 'btn btn-primary btn-sm', 'id' => 'show_sales_button']) ?>
-</div>
+<?= view('partial/document_actions', ['actions' => array_values(array_filter([
+        ['id' => 'show_print_button', 'label' => lang('Common.print'), 'icon' => 'bi-printer', 'onclick' => 'printdoc();'],
+        ['id' => 'show_sales_button', 'label' => lang('Receivings.register'), 'icon' => 'bi-box-arrow-in-down', 'href' => 'receivings', 'class' => 'btn-primary']
+    ]))]) ?>
 
 <div id="receipt_wrapper">
     <div id="receipt_header">

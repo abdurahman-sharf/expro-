@@ -2,10 +2,9 @@
 /**
  * @var array $keyboardShortcuts
  */
-
 $keyboardShortcuts ??= [];
 
-$shortcut_labels = [
+$shortcutLabels = [
     'cancel'    => lang('Sales.key_cancel'),
     'items'     => lang('Sales.key_item_search'),
     'customers' => lang('Sales.key_customer_search'),
@@ -15,15 +14,15 @@ $shortcut_labels = [
     'payment'   => lang('Sales.key_payment'),
     'complete'  => lang('Sales.key_finish_sale'),
     'finish'    => lang('Sales.key_finish_quote'),
-    'help'      => lang('Sales.key_help_modal')
+    'help'      => lang('Sales.key_help_modal'),
 ];
 ?>
 
 <div class="container-fluid">
 
     <ul class="nav nav-tabs" id="SCTabs">
-        <li class="nav-item" role="presentation"><a class="nav-link active" href="#system_shortcuts" data-bs-toggle="tab" title="<?= lang('Sales.key_system'); ?>"><?= lang('Sales.key_system'); ?></a></li>
-        <li class="nav-item" role="presentation"><a class="nav-link" href="#browser_shortcuts" data-bs-toggle="tab" title="<?= lang('Sales.key_browser'); ?>"><?= lang('Sales.key_browser'); ?></a></li>
+        <li class="nav-item"><a class="nav-link active" href="#system_shortcuts" data-bs-toggle="tab" title="<?= lang('Sales.key_system'); ?>"><?= lang('Sales.key_system'); ?></a></li>
+        <li class="nav-item"><a class="nav-link" href="#browser_shortcuts" data-bs-toggle="tab" title="<?= lang('Sales.key_browser'); ?>"><?= lang('Sales.key_browser'); ?></a></li>
     </ul>
 
     <div class="tab-content">
@@ -36,10 +35,10 @@ $shortcut_labels = [
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach ($shortcut_labels as $name => $label): ?>
+                    <?php foreach ($shortcutLabels as $name => $label): ?>
                         <?php $shortcut = $keyboardShortcuts[$name] ?? ['label' => '', 'code' => '']; ?>
                         <tr>
-                            <td><code><?= esc($shortcut['label'] !== '' ? $shortcut['label'] : $shortcut['code']) ?></code></td>
+                            <td><span class="kbd"><?= esc($shortcut['label'] !== '' ? $shortcut['label'] : $shortcut['code']) ?></span></td>
                             <td><?= esc($label) ?></td>
                         </tr>
                     <?php endforeach; ?>
@@ -57,27 +56,27 @@ $shortcut_labels = [
                 </thead>
                 <tbody>
                     <tr>
-                        <td><code>F11</code></td>
+                        <td><span class="kbd">F11</span></td>
                         <td><?= lang('Sales.key_full'); ?></td>
                     </tr>
                     <tr>
-                        <td><code>CTRL + </code></td>
+                        <td><span class="kbd">CTRL + </span></td>
                         <td><?= lang('Sales.key_in'); ?></td>
                     </tr>
                     <tr>
-                        <td><code>CTRL -</code></td>
+                        <td><span class="kbd">CTRL -</span></td>
                         <td><?= lang('Sales.key_out'); ?></td>
                     </tr>
                     <tr>
-                        <td><code>CTRL + 0</code></td>
+                        <td><span class="kbd">CTRL + 0</span></td>
                         <td><?= lang('Sales.key_restore'); ?></td>
                     </tr>
                     <tr>
-                        <td><code>CTRL + P</code></td>
+                        <td><span class="kbd">CTRL + P</span></td>
                         <td><?= lang('Sales.key_print'); ?></td>
                     </tr>
                     <tr>
-                        <td><code>CTRL + F</code></td>
+                        <td><span class="kbd">CTRL + F</span></td>
                         <td><?= lang('Sales.key_search'); ?></td>
                     </tr>
                 </tbody>

@@ -101,6 +101,43 @@
       "path": "/receivings"
     },
     {
+      "id": "receivings-cart",
+      "group": "receivings",
+      "path": "/receivings",
+      "steps": [
+        {
+          "fill": [
+            "#item",
+            "6281001"
+          ]
+        },
+        {
+          "press": [
+            "#item",
+            "Enter"
+          ]
+        },
+        {
+          "idle": true
+        },
+        {
+          "fill": [
+            "#item",
+            "6281005"
+          ]
+        },
+        {
+          "press": [
+            "#item",
+            "Enter"
+          ]
+        },
+        {
+          "idle": true
+        }
+      ]
+    },
+    {
       "id": "items",
       "group": "items",
       "path": "/items"

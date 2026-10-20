@@ -691,6 +691,40 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('&lt;svg', $body);
     }
 
+    public function testGetIndex_RendersPosLayoutWithTotalBar(): void
+    {
+        $cashierId = $this->createCashierEmployee();
+        $itemId = $this->createTestItem(HAS_NO_STOCK);
+        $this->loginAs($cashierId);
+        $this->seedCartLine(1, '5.00', $itemId);
+
+        $response = $this->get('/sales');
+
+        $response->assertStatus(200);
+        $response->assertSeeElement('#pos');
+        $response->assertSeeElement('#pos_total_bar');
+        $response->assertSeeElement('#payment_card');
+    }
+
+    public function testGetIndex_RequiresCoveringPaymentBeforeOfferingCompleteSale(): void
+    {
+        $cashierId = $this->createCashierEmployee();
+        $itemId = $this->createTestItem(HAS_NO_STOCK);
+        $this->loginAs($cashierId);
+        $this->seedCartLine(1, '5.00', $itemId);
+
+        $this->assertStringNotContainsString('id="finish_sale_button"', $this->get('/sales')->getBody());
+
+        $this->post('/sales/addPayment', [
+            'payment_type'    => lang('Sales.cash'),
+            'amount_tendered' => '10.00',
+        ]);
+
+        $this->withSession(array_merge($this->session, ['sales_payments' => Services::session()->get('sales_payments')]));
+
+        $this->assertStringContainsString('id="finish_sale_button"', $this->get('/sales')->getBody());
+    }
+
     public function testPostUnsuspendRejectsNonSuspendedSaleWithoutClearingActiveCart(): void
     {
         $employeeId = $this->createReportsSalesEmployee();

@@ -47,22 +47,12 @@ if (isset($error_message)) {
 
 <?= view('partial/print_receipt', ['print_after_sale' => $print_after_sale, 'selected_printer' => 'receipt_printer']) ?>
 
-<div class="print_hide" id="control_buttons" style="text-align: right;">
-    <a href="javascript:printdoc();">
-        <div class="btn btn-primary btn-sm" id="show_print_button"><?= '<span class="bi bi-printer" aria-hidden="true">&nbsp;</span>' . lang('Common.print') ?></div>
-    </a>
-    <?php if (!empty($customer_email)): ?>
-        <a href="javascript:void(0);">
-            <div class="btn btn-primary btn-sm" id="show_email_button"><?= '<span class="bi bi-envelope" aria-hidden="true">&nbsp;</span>' . lang('Sales.send_receipt') ?></div>
-        </a>
-    <?php endif; ?>
-    <?= anchor('sales', '<span class="bi bi-cart3" aria-hidden="true">&nbsp;</span>' . lang('Sales.register'), ['class' => 'btn btn-primary btn-sm', 'id' => 'show_sales_button']) ?>
-    <?php
-    $employee = model(Employee::class);
-    if ($employee->has_grant('reports_sales', session('person_id'))): ?>
-        <?= anchor('sales/manage', '<span class="bi bi-card-list" aria-hidden="true">&nbsp;</span>' . lang('Sales.takings'), ['class' => 'btn btn-primary btn-sm', 'id' => 'show_takings_button']) ?>
-    <?php endif; ?>
-</div>
+<?= view('partial/document_actions', ['actions' => array_values(array_filter([
+        ['id' => 'show_print_button', 'label' => lang('Common.print'), 'icon' => 'bi-printer', 'onclick' => 'printdoc();'],
+        !empty($customer_email) ? ['id' => 'show_email_button', 'label' => lang('Sales.send_receipt'), 'icon' => 'bi-envelope'] : null,
+        ['id' => 'show_sales_button', 'label' => lang('Sales.register'), 'icon' => 'bi-cart3', 'href' => 'sales', 'class' => 'btn-primary'],
+        model(Employee::class)->has_grant('reports_sales', session('person_id')) ? ['id' => 'show_takings_button', 'label' => lang('Sales.takings'), 'icon' => 'bi-card-list', 'href' => 'sales/manage'] : null
+    ]))]) ?>
 
 <?= view('sales/' . $template) ?>
 

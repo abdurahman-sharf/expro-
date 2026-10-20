@@ -4,22 +4,16 @@
  * @var array $config
  */
 
-use App\Models\Employee;
 use App\Models\Customer;
+use App\Models\Employee;
+
 $this->dinner_table = model(Dinner_table::class);
 ?>
 
-<style>
-    @media (min-width: 768px) {
-        .modal-dlg .modal-dialog {
-            width: 750px !important;
-        }
-    }
-</style>
-
-<table id="suspended_sales_table" class="table table-striped table-hover">
+<div class="table-responsive" tabindex="0" role="region" aria-label="<?= lang('Sales.suspended_sales') ?>">
+<table id="suspended_sales_table" class="table table-hover align-middle">
     <thead>
-        <tr style="background-color: #ccc;">
+        <tr>
             <th><?= lang('Sales.suspended_doc_id') ?></th>
             <th><?= lang('Sales.date') ?></th>
             <?php if ($config['dinner_table_enable']) { ?>
@@ -32,43 +26,37 @@ $this->dinner_table = model(Dinner_table::class);
         </tr>
     </thead>
     <tbody>
-        <?php foreach ($suspended_sales as $suspended_sale) { ?>
+        <?php foreach ($suspended_sales as $suspendedSale) { ?>
             <tr>
-                <td><?= $suspended_sale['doc_id'] ?></td>
-                <td><?= date($config['dateformat'], strtotime($suspended_sale['sale_time'])) ?></td>
+                <td><?= $suspendedSale['doc_id'] ?></td>
+                <td><?= date($config['dateformat'], strtotime($suspendedSale['sale_time'])) ?></td>
                 <?php if ($config['dinner_table_enable']) { ?>
-                    <td><?= esc($this->dinner_table->get_name($suspended_sale['dinner_table_id'])) ?></td>
+                    <td><?= esc($this->dinner_table->get_name($suspendedSale['dinner_table_id'])) ?></td>
                 <?php } ?>
                 <td>
-                    <?php
-                    if (isset($suspended_sale['customer_id'])) {
-                        $customer = model(Customer::class);    // TODO: Should we be accessing a model in a view rather than passing this data to the view via the controller?
-                        $customer_data = $customer->get_info($suspended_sale['customer_id']);
-                        echo esc("$customer_data->first_name $customer_data->last_name");
-                    } else {
-                    ?>
-                        &nbsp;
-                    <?php } ?>
+                    <?php if (isset($suspendedSale['customer_id'])): ?>
+                        <?php
+                        // TODO: Should we be accessing a model in a view rather than passing this data to the view via the controller?
+                        $customerData = model(Customer::class)->get_info($suspendedSale['customer_id']);
+                        ?>
+                        <?= esc("{$customerData->first_name} {$customerData->last_name}") ?>
+                    <?php endif; ?>
                 </td>
                 <td>
-                    <?php
-                    if (isset($suspended_sale['employee_id'])) {
-                        $employee = model(Employee::class);
-                        $employee_data = $employee->get_info($suspended_sale['employee_id']);
-                        echo esc("$employee_data->first_name $employee_data->last_name");
-                    } else {
-                    ?>
-                        &nbsp;
-                    <?php } ?>
+                    <?php if (isset($suspendedSale['employee_id'])): ?>
+                        <?php $employeeData = model(Employee::class)->get_info($suspendedSale['employee_id']); ?>
+                        <?= esc("{$employeeData->first_name} {$employeeData->last_name}") ?>
+                    <?php endif; ?>
                 </td>
-                <td><?= esc($suspended_sale['comment']) ?></td>
+                <td><?= esc($suspendedSale['comment']) ?></td>
                 <td>
                     <?= form_open('sales/unsuspend') ?>
-                    <?= form_hidden('suspended_sale_id', $suspended_sale['sale_id']) ?>
-                    <input type="submit" name="submit" value="<?= lang('Sales.unsuspend') ?>" id="submit" class="btn btn-primary btn-sm float-end">
+                    <?= form_hidden('suspended_sale_id', $suspendedSale['sale_id']) ?>
+                    <button type="submit" name="submit" class="btn btn-primary btn-sm"><?= lang('Sales.unsuspend') ?></button>
                     <?= form_close() ?>
                 </td>
             </tr>
         <?php } ?>
     </tbody>
 </table>
+</div>
