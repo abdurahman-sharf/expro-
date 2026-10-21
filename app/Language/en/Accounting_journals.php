@@ -24,6 +24,7 @@ return [
     'branch'                => 'Branch',
     'cancel'                => 'Cancel',
     'choose_account'        => 'Choose an account',
+    'closed_until'          => 'Periods are closed through {0}. Choose a later date.',
     'confirm_delete_draft'  => 'Delete this draft? This cannot be undone.',
     'confirm_delete_drafts' => 'Delete the selected drafts? Posted journals are never deleted.',
     'confirm_post'          => 'Post this journal? A posted journal cannot be edited or deleted, only reversed.',

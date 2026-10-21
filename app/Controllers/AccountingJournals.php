@@ -11,6 +11,7 @@ use App\Libraries\Accounting\AuditLog;
 use App\Libraries\Accounting\CostCenterService;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\JournalStatus;
+use App\Libraries\Accounting\PeriodGuard;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Organization\BranchContext;
 use App\Libraries\Organization\BranchException;
@@ -459,17 +460,40 @@ class AccountingJournals extends AccountingController
         }
 
         $branches = $this->seesBranches() ? $this->branchGuard()->selectableBranches($this->employeeId()) : [];
+        $branchId = $journal === null ? $this->branchContext()->formDefault($this->employeeId()) : (int) $journal->branch_id;
 
         return view('accounting_journals/form', [
             'journal'      => $journal,
             'branches'     => $branches,
-            'branch_id'    => $journal === null ? $this->branchContext()->formDefault($this->employeeId()) : (int) $journal->branch_id,
+            'branch_id'    => $branchId,
+            'cutoffs'      => $this->cutoffs($branches === [] ? [$branchId] : array_map(static fn (object $branch): int => (int) $branch->branch_id, $branches)),
             'accounts'     => $this->journals->postableAccounts(),
             'cost_centers' => $costCenters,
             'currency'     => (new AccountingSettings())->baseCurrency(),
             'can_post'     => $this->can(AccountingGuard::JOURNALS_POST),
             'notice'       => session()->getFlashdata('accounting_notice'),
         ]);
+    }
+
+    /**
+     * The date each branch is closed through, so the form can say so and refuse earlier dates.
+     *
+     * @param list<int> $branchIds
+     *
+     * @return array<int, array{date: string, label: string}|null>
+     */
+    private function cutoffs(array $branchIds): array
+    {
+        $guard   = new PeriodGuard();
+        $cutoffs = [];
+
+        foreach ($branchIds as $branchId) {
+            $cutoff = $guard->effectiveCutoff($branchId);
+
+            $cutoffs[$branchId] = $cutoff === null ? null : ['date' => $cutoff['date'], 'label' => $this->formatDate($cutoff['date'])];
+        }
+
+        return $cutoffs;
     }
 
     private function branchContext(): BranchContext

@@ -14,15 +14,19 @@ use CodeIgniter\HTTP\ResponseInterface;
 abstract class AccountingController extends Secure_Controller
 {
     protected const DEFAULT_PAGE_SIZE = 25;
-    private const MESSAGE_ARGUMENTS   = ['line', 'max', 'code', 'name', 'debit', 'credit'];
+    private const MESSAGE_ARGUMENTS   = ['line', 'max', 'code', 'name', 'debit', 'credit', 'date', 'until', 'scope_name', 'count'];
 
     private ?BranchGuard $branchGuard = null;
 
-    public function __construct(string $moduleId)
+    /**
+     * The settings screen is the one screen that must open while accounting is off, because it
+     * is where accounting is turned on.
+     */
+    public function __construct(string $moduleId, bool $requiresAccounting = true)
     {
         parent::__construct($moduleId);
 
-        if (! (new AccountingSettings())->isEnabled()) {
+        if ($requiresAccounting && ! (new AccountingSettings())->isEnabled()) {
             throw PageNotFoundException::forPageNotFound();
         }
     }

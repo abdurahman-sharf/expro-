@@ -24,6 +24,7 @@ return [
     'branch'                => '',
     'cancel'                => '',
     'choose_account'        => '',
+    'closed_until'          => '',
     'confirm_delete_draft'  => '',
     'confirm_delete_drafts' => '',
     'confirm_post'          => '',

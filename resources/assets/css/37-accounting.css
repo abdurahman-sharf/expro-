@@ -388,3 +388,72 @@
 .acc-scope-note {
     margin: 0 0 12px;
 }
+
+.acc-setup {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    max-width: 880px;
+}
+
+.acc-setup-card {
+    padding: 16px 20px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+}
+
+.acc-setup-title {
+    margin: 0 0 12px;
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.acc-readiness {
+    margin: 0 0 12px;
+    padding: 0;
+    list-style: none;
+}
+
+.acc-readiness li {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 2px 0;
+}
+
+.acc-ready {
+    margin-bottom: 12px;
+}
+
+.acc-tabs {
+    margin-bottom: 16px;
+}
+
+.acc-closing-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.acc-closing-chip {
+    padding: 8px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+}
+
+.acc-closing-chip .acc-chip-label {
+    display: block;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.acc-opening-grid .acc-line input {
+    min-width: 100px;
+}
+
+.acc-year-notice {
+    margin-bottom: 12px;
+}

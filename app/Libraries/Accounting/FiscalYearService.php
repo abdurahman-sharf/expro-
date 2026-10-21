@@ -341,7 +341,7 @@ final class FiscalYearService
         }
 
         if ($builder->countAllResults() > 0) {
-            throw new AccountingException(AccountingError::NameTaken, 'The name is already used.', ['name' => $name]);
+            throw new AccountingException(AccountingError::FiscalYearNameTaken, 'The name is already used.', ['name' => $name]);
         }
     }
 
@@ -406,7 +406,7 @@ final class FiscalYearService
         $end   = (string) ($input['end_date'] ?? '');
 
         if ($name === '' || mb_strlen($name) > self::NAME_MAX) {
-            throw new AccountingException(AccountingError::InvalidName, 'The name must be 1 to 100 characters.');
+            throw new AccountingException(AccountingError::FiscalYearInvalidName, 'The name must be 1 to 100 characters.');
         }
 
         if (! $this->isDate($start) || ! $this->isDate($end)) {

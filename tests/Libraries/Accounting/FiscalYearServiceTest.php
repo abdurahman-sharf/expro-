@@ -146,15 +146,15 @@ class FiscalYearServiceTest extends CIUnitTestCase
     public function testCreate_RejectsInvalidDatesAndNames(): void
     {
         $this->assertFailsWith(AccountingError::InvalidDate, fn () => $this->year('2026', '2026-02-30', '2026-12-31'));
-        $this->assertFailsWith(AccountingError::InvalidName, fn () => $this->year('  ', '2026-01-01', '2026-12-31'));
-        $this->assertFailsWith(AccountingError::InvalidName, fn () => $this->year(str_repeat('x', 101), '2026-01-01', '2026-12-31'));
+        $this->assertFailsWith(AccountingError::FiscalYearInvalidName, fn () => $this->year('  ', '2026-01-01', '2026-12-31'));
+        $this->assertFailsWith(AccountingError::FiscalYearInvalidName, fn () => $this->year(str_repeat('x', 101), '2026-01-01', '2026-12-31'));
     }
 
     public function testCreate_RejectsANameAlreadyUsed(): void
     {
         $this->year('2026', '2026-01-01', '2026-12-31');
 
-        $this->assertFailsWith(AccountingError::NameTaken, fn () => $this->year('2026', '2027-01-01', '2027-12-31'));
+        $this->assertFailsWith(AccountingError::FiscalYearNameTaken, fn () => $this->year('2026', '2027-01-01', '2027-12-31'));
     }
 
     public function testCreate_RequiresThePermissionAndEveryBranch(): void
@@ -249,7 +249,7 @@ class FiscalYearServiceTest extends CIUnitTestCase
         $this->year('2026', '2026-01-01', '2026-12-31');
         $last = $this->year('2027', '2027-01-01', '2027-12-31');
 
-        $this->assertFailsWith(AccountingError::NameTaken, fn () => $this->service->update($last, ['name' => '2026', 'start_date' => '2027-01-01', 'end_date' => '2027-12-31']));
+        $this->assertFailsWith(AccountingError::FiscalYearNameTaken, fn () => $this->service->update($last, ['name' => '2026', 'start_date' => '2027-01-01', 'end_date' => '2027-12-31']));
     }
 
     public function testUpdate_RejectsAYearThatDoesNotExist(): void

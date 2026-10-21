@@ -102,7 +102,10 @@ class Module extends Model
         $builder->where('modules.module_id !=', 'office');
 
         if (! (new AccountingSettings($this->db))->isEnabled()) {
-            $builder->notLike('modules.module_id', 'accounting_', 'after');
+            $builder->groupStart()
+                ->notLike('modules.module_id', 'accounting_', 'after')
+                ->orWhere('modules.module_id', 'accounting_settings')
+                ->groupEnd();
         }
 
         $builder->orderBy('sort', 'asc');

@@ -43,6 +43,8 @@ enum AccountingError: string
     case LineCostCenterInvalid = 'line_cost_center_invalid';
 
     case FiscalYearNotFound    = 'fiscal_year_not_found';
+    case FiscalYearInvalidName = 'fiscal_year_invalid_name';
+    case FiscalYearNameTaken   = 'fiscal_year_name_taken';
     case FiscalYearRange       = 'fiscal_year_range';
     case FiscalYearTooLong     = 'fiscal_year_too_long';
     case FiscalYearOverlap     = 'fiscal_year_overlap';

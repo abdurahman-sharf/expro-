@@ -54,6 +54,40 @@ $routes->group('branches', static function (RouteCollection $routes): void {
     $routes->post('delete/(:num)', 'Branches::postDeleteBranch/$1');
 });
 
+$routes->group('accounting_settings', static function (RouteCollection $routes): void {
+    $routes->get('/', 'AccountingSetup::getIndex');
+    $routes->post('save', 'AccountingSetup::postSave');
+    $routes->post('first_year', 'AccountingSetup::postFirstYear');
+    $routes->post('enable', 'AccountingSetup::postEnable');
+    $routes->post('disable', 'AccountingSetup::postDisable');
+});
+
+$routes->group('accounting_periods', static function (RouteCollection $routes): void {
+    $routes->get('/', 'AccountingPeriods::getIndex');
+    $routes->get('search', 'AccountingPeriods::getSearch');
+    $routes->get('row/(:num)', 'AccountingPeriods::getRow/$1');
+    $routes->get('view', 'AccountingPeriods::getView');
+    $routes->get('view/(:segment)', 'AccountingPeriods::getView/$1');
+    $routes->post('save', 'AccountingPeriods::postSave');
+    $routes->post('save/(:segment)', 'AccountingPeriods::postSave/$1');
+    $routes->post('delete/(:num)', 'AccountingPeriods::postDeleteYear/$1');
+
+    $routes->get('closings', 'AccountingClosings::getIndex');
+    $routes->get('closings/search', 'AccountingClosings::getSearch');
+    $routes->get('closings/close_form', 'AccountingClosings::getCloseForm');
+    $routes->get('closings/preview', 'AccountingClosings::getPreview');
+    $routes->get('closings/reopen_form', 'AccountingClosings::getReopenForm');
+    $routes->post('closings/close', 'AccountingClosings::postClose');
+    $routes->post('closings/reopen', 'AccountingClosings::postReopen');
+
+    $routes->get('opening', 'AccountingOpening::getIndex');
+    $routes->get('opening/reverse_form', 'AccountingOpening::getReverseForm');
+    $routes->post('opening/save_draft', 'AccountingOpening::postSaveDraft');
+    $routes->post('opening/post', 'AccountingOpening::postPost');
+    $routes->post('opening/discard', 'AccountingOpening::postDiscard');
+    $routes->post('opening/reverse', 'AccountingOpening::postReverse');
+});
+
 $routes->group('accounting_chart', static function (RouteCollection $routes): void {
     $routes->get('/', 'AccountingChart::getIndex');
     $routes->get('tree', 'AccountingChart::getTree');

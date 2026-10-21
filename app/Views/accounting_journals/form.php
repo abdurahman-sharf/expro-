@@ -3,6 +3,7 @@
  * @var object|null $journal
  * @var list<object> $branches
  * @var int $branch_id
+ * @var array<int, array{date: string, label: string}|null> $cutoffs
  * @var list<object> $accounts
  * @var list<object> $cost_centers
  * @var string $currency
@@ -93,6 +94,7 @@ $rows   = $lines === [] ? [null, null] : $lines;
             <div class="field-control">
                 <input type="date" name="date" id="journal_date" class="form-control form-control-sm" value="<?= esc($isNew ? date('Y-m-d') : $journal->journal_date, 'attr') ?>" required>
             </div>
+            <p class="form-text" id="closed_hint" role="note"></p>
         </div>
         <?php if ($branches !== []): ?>
             <div class="field">
@@ -182,9 +184,30 @@ $rows   = $lines === [] ? [null, null] : $lines;
             'unbalanced' => lang('Accounting_journals.unbalanced'),
             'confirm_delete' => lang('Accounting_journals.confirm_delete_draft'),
             'failed' => lang('Accounting_journals.request_failed'),
+            'closed' => lang('Accounting_journals.closed_until'),
         ], $jsonFlags) ?>;
+        const cutoffs = <?= json_encode($cutoffs, $jsonFlags) ?>;
+        const branchId = <?= (int) $branch_id ?>;
         const SCALE = 10000;
         const picker = accounting_support.accountPicker('accounts_list');
+
+        const applyCutoff = function() {
+            const cutoff = cutoffs[$('#journal_branch').val() || branchId];
+            const $date = $('#journal_date');
+
+            if (cutoff) {
+                const next = new Date(cutoff.date + 'T00:00:00Z');
+                next.setUTCDate(next.getUTCDate() + 1);
+                $date.attr('min', next.toISOString().slice(0, 10));
+                $('#closed_hint').text(text.closed.replace('{0}', cutoff.label));
+            } else {
+                $date.removeAttr('min');
+                $('#closed_hint').text('');
+            }
+        };
+
+        $('#journal_branch').on('change', applyCutoff);
+        applyCutoff();
         const $body = $('#lines_body');
         const template = $('#line_template').html();
         let nextIndex = $body.children().length;
