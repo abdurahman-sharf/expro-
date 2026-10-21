@@ -43,6 +43,7 @@ return [
     'periods_close'           => 'Close the periods of a branch, or of the company with every branch',
     'periods_manage'          => 'Create, change and delete fiscal years',
     'periods_reopen'          => 'Reopen the latest closing of a branch or of the company',
+    'permission_note'         => 'You can view this page. Changing it needs a permission that an administrator grants to named employees from the employee permissions.',
     'preview_drafts'          => '{0} draft journals lie in the period. Post or delete them first:',
     'preview_journals'        => '{0} posted journals, total debit {1}, will be closed.',
     'previous_closing'        => 'The last closing is through {0}.',

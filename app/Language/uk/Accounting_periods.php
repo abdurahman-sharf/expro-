@@ -43,6 +43,7 @@ return [
     'periods_close'           => '',
     'periods_manage'          => '',
     'periods_reopen'          => '',
+    'permission_note'         => '',
     'preview_drafts'          => '',
     'preview_journals'        => '',
     'previous_closing'        => '',
