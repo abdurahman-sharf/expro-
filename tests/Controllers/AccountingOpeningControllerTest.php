@@ -266,4 +266,15 @@ class AccountingOpeningControllerTest extends CIUnitTestCase
 
         $this->get('/accounting_periods/opening/reverse_form?branch=1');
     }
+
+    public function testGetIndex_ExplainsWhoGrantsThePermissionToSomeoneWhoCannotManage(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_periods']));
+
+        $this->get('/accounting_periods/opening')->assertSee(lang('Accounting_periods.permission_note'));
+
+        $this->manager();
+
+        $this->get('/accounting_periods/opening')->assertDontSee(lang('Accounting_periods.permission_note'));
+    }
 }

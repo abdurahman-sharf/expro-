@@ -37,6 +37,10 @@ $accountInputs = static function (string $name, ?int $selected) use ($labels): s
 
 <?= view('accounting_periods/tabs', ['active' => 'opening']) ?>
 
+<?php if (! $can_manage): ?>
+    <p class="text-body-secondary small" role="note"><span class="bi bi-shield-lock" aria-hidden="true"></span> <?= lang('Accounting_periods.permission_note') ?></p>
+<?php endif; ?>
+
 <?php if ($show_branch): ?>
     <form class="acc-filters print_hide" method="get" action="<?= esc(base_url('accounting_periods/opening'), 'attr') ?>">
         <div class="acc-filter-row">

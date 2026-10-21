@@ -54,6 +54,10 @@ $reopenUrl = static fn (string $scope): string => esc('accounting_periods/closin
 
 <?= view('accounting_periods/tabs', ['active' => 'closings']) ?>
 
+<?php if (! $can_close && ! $can_reopen): ?>
+    <p class="text-body-secondary small" role="note"><span class="bi bi-shield-lock" aria-hidden="true"></span> <?= lang('Accounting_periods.permission_note') ?></p>
+<?php endif; ?>
+
 <section class="acc-closing-summary" aria-label="<?= esc(lang('Accounting_periods.summary'), 'attr') ?>">
     <div class="acc-closing-chip">
         <span class="acc-chip-label"><?= lang('Accounting_periods.scope_company') ?></span>

@@ -24,6 +24,7 @@ class AccountingPeriods extends Migration
         'acc_periods_reopen'  => 'accounting_periods',
         'acc_opening_manage'  => 'accounting_periods',
     ];
+    private const SENSITIVE = ['acc_settings_manage', 'acc_periods_close', 'acc_periods_reopen', 'acc_opening_manage'];
 
     public function up(): void
     {
@@ -163,8 +164,10 @@ class AccountingPeriods extends Migration
     }
 
     /**
-     * The owner approved giving these to whoever can already change the application settings.
-     * Nobody else gets them until the owner grants them from the employees screen.
+     * Whoever can already change the application settings gets the two screens and the right to
+     * manage fiscal years. The sensitive permissions, which turn accounting on and off, close and
+     * reopen periods and enter opening balances, are given to nobody here: an administrator grants
+     * them one by one from the employee's permissions.
      */
     private function grantConfigHolders(): void
     {
@@ -175,7 +178,7 @@ class AccountingPeriods extends Migration
                 $grants[] = ['permission_id' => $module['module_id'], 'person_id' => $holder->person_id, 'menu_group' => $holder->menu_group];
             }
 
-            foreach (array_keys(self::SUB_PERMISSIONS) as $permissionId) {
+            foreach (array_diff(array_keys(self::SUB_PERMISSIONS), self::SENSITIVE) as $permissionId) {
                 $grants[] = ['permission_id' => $permissionId, 'person_id' => $holder->person_id, 'menu_group' => '--'];
             }
         }

@@ -67,10 +67,20 @@ class EmployeeBranchServiceTest extends CIUnitTestCase
      */
     private function whileOnlyUnrestricted(int $personId, callable $action): void
     {
-        $db   = $this->accountingDb();
-        $rows = $db->table('grants')->where('permission_id', BranchGuard::ALL_BRANCHES)->where('person_id !=', $personId)->get()->getResultArray();
+        $this->whileOnlyHolders([$personId], $action);
+    }
 
-        $db->table('grants')->where('permission_id', BranchGuard::ALL_BRANCHES)->where('person_id !=', $personId)->delete();
+    /**
+     * Runs the action while only the given employees have every branch.
+     *
+     * @param list<int> $personIds
+     */
+    private function whileOnlyHolders(array $personIds, callable $action): void
+    {
+        $db   = $this->accountingDb();
+        $rows = $db->table('grants')->where('permission_id', BranchGuard::ALL_BRANCHES)->whereNotIn('person_id', $personIds)->get()->getResultArray();
+
+        $db->table('grants')->where('permission_id', BranchGuard::ALL_BRANCHES)->whereNotIn('person_id', $personIds)->delete();
 
         try {
             $action();
@@ -336,5 +346,94 @@ class EmployeeBranchServiceTest extends CIUnitTestCase
         $this->service->afterEmployeeSave($actor, $target, $this->service->scopeOf($target), ['all' => false, 'branch_ids' => [$second], 'default_branch_id' => $second]);
 
         $this->assertSame([1], $this->service->scopeOf($target)['branch_ids']);
+    }
+
+    public function testWouldLeaveNobodyWithEveryBranch_IsTrueForTheLastHolder(): void
+    {
+        $holder = $this->employeeWithGrants([]);
+
+        $this->whileOnlyUnrestricted($holder, function () use ($holder): void {
+            $this->assertTrue($this->service->wouldLeaveNobodyWithEveryBranch([$holder]));
+        });
+    }
+
+    public function testWouldLeaveNobodyWithEveryBranch_IsFalseWhileAnotherHolderStays(): void
+    {
+        $first  = $this->employeeWithGrants([]);
+        $second = $this->employeeWithGrants([]);
+
+        $this->whileOnlyHolders([$first, $second], function () use ($first, $second): void {
+            $this->assertFalse($this->service->wouldLeaveNobodyWithEveryBranch([$first]));
+            $this->assertFalse($this->service->wouldLeaveNobodyWithEveryBranch([$second]));
+        });
+    }
+
+    public function testWouldLeaveNobodyWithEveryBranch_IsTrueForAListThatHoldsEveryHolder(): void
+    {
+        $first  = $this->employeeWithGrants([]);
+        $second = $this->employeeWithGrants([]);
+
+        $this->whileOnlyHolders([$first, $second], function () use ($first, $second): void {
+            $this->assertTrue($this->service->wouldLeaveNobodyWithEveryBranch([$first, (string) $second]));
+        });
+    }
+
+    public function testWouldLeaveNobodyWithEveryBranch_IsFalseForAnEmployeeWhoDoesNotHoldIt(): void
+    {
+        $holder  = $this->employeeWithGrants([]);
+        $limited = $this->employeeWithGrants([], [1]);
+
+        $this->whileOnlyUnrestricted($holder, function () use ($limited): void {
+            $this->assertFalse($this->service->wouldLeaveNobodyWithEveryBranch([$limited]));
+        });
+    }
+
+    public function testWouldLeaveNobodyWithEveryBranch_DoesNotCountDeletedEmployees(): void
+    {
+        $holder  = $this->employeeWithGrants([]);
+        $deleted = $this->employeeWithGrants([]);
+        $this->accountingDb()->table('employees')->where('person_id', $deleted)->update(['deleted' => 1]);
+
+        $this->whileOnlyHolders([$holder, $deleted], function () use ($holder): void {
+            $this->assertTrue($this->service->wouldLeaveNobodyWithEveryBranch([$holder]));
+        });
+    }
+
+    public function testWouldLeaveNobodyWithEveryBranch_MakesTwoRequestsTakingTheLastTwoHoldersWaitForEachOther(): void
+    {
+        $first  = $this->employeeWithGrants([]);
+        $second = $this->employeeWithGrants([]);
+        $other  = $this->openSecondConnection();
+
+        try {
+            $this->whileOnlyHolders([$first, $second], function () use ($first, $second, $other): void {
+                $db = $this->accountingDb();
+                $db->resetTransStatus();
+                $db->transStart();
+                $this->assertFalse($this->service->wouldLeaveNobodyWithEveryBranch([$first]));
+
+                $other->resetTransStatus();
+                $other->transStart();
+                $this->assertWaitsForLock(fn () => (new EmployeeBranchService($other))->wouldLeaveNobodyWithEveryBranch([$second]));
+
+                $other->transRollback();
+                $db->transRollback();
+            });
+        } finally {
+            $other->close();
+        }
+    }
+
+    public function testSetScope_TakesEveryBranchFromTheFirstOfTwoHoldersButNotFromTheSecond(): void
+    {
+        $first  = $this->employeeWithGrants([]);
+        $second = $this->employeeWithGrants([]);
+
+        $this->whileOnlyHolders([$first, $second], function () use ($first, $second): void {
+            $this->service->setScope(null, $first, false, [1]);
+
+            $this->assertFailsWith(BranchError::LastUnrestricted, fn () => $this->service->setScope(null, $second, false, [1]));
+            $this->assertTrue($this->service->scopeOf($second)['all']);
+        });
     }
 }

@@ -4,6 +4,8 @@
  * @var object $person_info
  * @var array $all_modules
  * @var array $all_subpermissions
+ * @var list<string> $sensitive_permissions
+ * @var bool $is_admin
  * @var int $employee_id
  * @var array{scope: array{all: bool, branch_ids: list<int>, default_branch_id: ?int}, branches: list<object>, can_all: bool, locked: bool, hidden: bool}|null $branch_tab
  */
@@ -114,6 +116,7 @@
             <fieldset>
                 <div class="perm-intro">
                     <p class="perm-desc"><?= lang('Employees.permission_desc') ?></p>
+                    <p class="perm-desc text-warning-emphasis" role="note"><span class="bi bi-shield-lock" aria-hidden="true"></span> <?= lang('Employees.sensitive_note') ?></p>
                     <div class="form-check form-switch">
                         <input type="checkbox" class="form-check-input" role="switch" id="permission_select_all">
                         <label class="form-check-label" for="permission_select_all"><?= lang('Employees.permission_select_all') ?></label>
@@ -163,17 +166,31 @@
                             <?php if ($subpermissions) { ?>
                                 <ul class="perm-subs">
                                     <?php foreach ($subpermissions as $subpermission) { ?>
-                                        <?php $permission = $subpermission['permission']; ?>
+                                        <?php
+                                        $permission = $subpermission['permission'];
+                                        $sensitive  = in_array($permission->permission_id, $sensitive_permissions, true);
+                                        $locked     = $sensitive && ! $is_admin;
+                                        $attributes = [
+                                            'name'    => "grant_$permission->permission_id",
+                                            'id'      => "grant_$permission->permission_id",
+                                            'value'   => $permission->permission_id,
+                                            'checked' => $permission->grant == 1,
+                                            'class'   => 'form-check-input' . ($sensitive ? ' sensitive-permission' : ''),
+                                        ];
+
+                                        if ($locked) {
+                                            $attributes += ['disabled' => 'disabled', 'data-locked' => '1', 'title' => lang('Employees.sensitive_locked')];
+                                        }
+                                        ?>
                                         <li class="form-check">
-                                            <?= form_checkbox([
-                                                'name'    => "grant_$permission->permission_id",
-                                                'id'      => "grant_$permission->permission_id",
-                                                'value'   => $permission->permission_id,
-                                                'checked' => $permission->grant == 1,
-                                                'class'   => 'form-check-input'
-                                            ]) ?>
+                                            <?= form_checkbox($attributes) ?>
                                             <?= form_hidden("menu_group_$permission->permission_id", '--') ?>
-                                            <label class="form-check-label" for="grant_<?= esc($permission->permission_id) ?>"><?= esc($subpermission['label']) ?></label>
+                                            <label class="form-check-label" for="grant_<?= esc($permission->permission_id) ?>">
+                                                <?= esc($subpermission['label']) ?>
+                                                <?php if ($sensitive) { ?>
+                                                    <span class="badge text-bg-warning"><?= lang('Employees.sensitive_permission') ?></span>
+                                                <?php } ?>
+                                            </label>
                                         </li>
                                     <?php } ?>
                                 </ul>
@@ -262,7 +279,7 @@
         $('#permission_list .perm-module').each(function() {
             const $module = $(this);
             const $toggle = $module.find('.module-toggle');
-            const $subs = $module.find('.perm-subs input[type=checkbox]');
+            const $subs = $module.find('.perm-subs input[type=checkbox]').not('[data-locked]');
             const sync = function() {
                 const checked = $toggle.is(':checked');
                 $subs.prop('disabled', !checked);
@@ -281,7 +298,7 @@
         $selectAll.on('change', function() {
             const checked = $selectAll.is(':checked');
             $('#permission_list .module-toggle').prop('checked', checked).trigger('change');
-            $('#permission_list .perm-subs input[type=checkbox]').prop('checked', checked);
+            $('#permission_list .perm-subs input[type=checkbox]').not('.sensitive-permission').prop('checked', checked);
             refreshSelectAll();
         });
 

@@ -150,7 +150,7 @@ class AccountingSettingsTest extends CIUnitTestCase
     public function testEnable_RefusesWhileTheSettingsAreIncomplete(): void
     {
         try {
-            $this->settings->enable(1);
+            $this->settings->enable($this->manager());
             $this->fail('Enabling should have been refused.');
         } catch (AccountingNotReadyException $exception) {
             $this->assertSame(

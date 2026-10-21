@@ -8,10 +8,18 @@ use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\FiscalYearService;
 use App\Libraries\Accounting\ReadinessCode;
 use App\Libraries\Accounting\ReadinessIssue;
+use App\Libraries\Accounting\SensitivePermissions;
 use CodeIgniter\HTTP\ResponseInterface;
 
 class AccountingSetup extends AccountingController
 {
+    private const PERMISSION_LABELS = [
+        AccountingGuard::SETTINGS_MANAGE => 'Accounting_settings.settings_manage',
+        AccountingGuard::PERIODS_CLOSE   => 'Accounting_periods.periods_close',
+        AccountingGuard::PERIODS_REOPEN  => 'Accounting_periods.periods_reopen',
+        AccountingGuard::OPENING_MANAGE  => 'Accounting_periods.opening_manage',
+    ];
+
     private AccountingSettings $settings;
     private FiscalYearService $years;
 
@@ -39,6 +47,13 @@ class AccountingSetup extends AccountingController
             'can_manage'     => $this->canManageSettings(),
             'first_year'     => $needsYear ? $this->years->suggest() : null,
             'can_first_year' => $needsYear && $this->canManage(AccountingGuard::PERIODS_MANAGE),
+            'holders'        => array_map(static fn (array $holder): array => [
+                'name'         => $holder['name'] !== '' ? $holder['name'] : $holder['username'],
+                'username'     => $holder['username'],
+                'permissions'  => array_map(static fn (string $permissionId): string => lang(self::PERMISSION_LABELS[$permissionId]), $holder['permissions']),
+                'all_branches' => $holder['all_branches'],
+                'branches'     => $holder['branches'],
+            ], (new SensitivePermissions())->holders()),
         ]);
     }
 

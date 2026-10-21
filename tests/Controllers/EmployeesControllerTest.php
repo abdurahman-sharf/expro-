@@ -8,6 +8,7 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use CodeIgniter\Config\Services;
 use App\Models\Employee;
+use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Organization\EmployeeBranchService;
 use App\Models\Module;
@@ -599,5 +600,219 @@ class EmployeesControllerTest extends CIUnitTestCase
         $result = json_decode($this->post('/employees/save/' . $employeeId, $this->formFor("samegrants{$unique}", ['grant_customers' => 'customers']))->getJSON(), true);
 
         $this->assertTrue($result['success']);
+    }
+
+    /**
+     * Runs the action while only the given employees have every branch.
+     *
+     * @param list<int> $personIds
+     */
+    private function whileOnlyHolders(array $personIds, callable $action): void
+    {
+        $db   = db_connect();
+        $rows = $db->table('grants')->where('permission_id', BranchGuard::ALL_BRANCHES)->whereNotIn('person_id', $personIds)->get()->getResultArray();
+
+        $db->table('grants')->where('permission_id', BranchGuard::ALL_BRANCHES)->whereNotIn('person_id', $personIds)->delete();
+
+        try {
+            $action();
+        } finally {
+            if ($rows !== []) {
+                $db->table('grants')->insertBatch($rows);
+            }
+        }
+    }
+
+    public function testPostDelete_RefusesTheLastEmployeeWithEveryBranch(): void
+    {
+        $actor  = $this->createNonAdminEmployee();
+        $holder = $this->createEmployee(grants: [['permission_id' => BranchGuard::ALL_BRANCHES, 'menu_group' => '--']]);
+        $this->loginAsNonAdmin($actor);
+
+        $this->whileOnlyHolders([$holder], function () use ($holder): void {
+            $result = json_decode($this->post('/employees/delete', ['ids' => [(string) $holder]])->getJSON(), true);
+
+            $this->assertFalse($result['success']);
+            $this->assertSame(lang('Branches.error_last_unrestricted'), $result['message']);
+        });
+
+        $this->assertSame(0, (int) db_connect()->table('employees')->where('person_id', $holder)->get()->getRow()->deleted);
+        $this->assertTrue(model(Employee::class)->has_grant(BranchGuard::ALL_BRANCHES, $holder));
+    }
+
+    public function testPostDelete_DeletesAnEmployeeWithEveryBranchWhileAnotherKeepsIt(): void
+    {
+        $actor  = $this->createNonAdminEmployee();
+        $first  = $this->createEmployee(grants: [['permission_id' => BranchGuard::ALL_BRANCHES, 'menu_group' => '--']]);
+        $second = $this->createEmployee(grants: [['permission_id' => BranchGuard::ALL_BRANCHES, 'menu_group' => '--']]);
+        $this->loginAsNonAdmin($actor);
+
+        $this->whileOnlyHolders([$first, $second], function () use ($first): void {
+            $result = json_decode($this->post('/employees/delete', ['ids' => [(string) $first]])->getJSON(), true);
+
+            $this->assertTrue($result['success']);
+        });
+
+        $this->assertSame(1, (int) db_connect()->table('employees')->where('person_id', $first)->get()->getRow()->deleted);
+    }
+
+    private function sensitiveHolder(string $permissionId = AccountingGuard::PERIODS_CLOSE): int
+    {
+        return $this->createEmployee(grants: [
+            ['permission_id' => 'employees', 'menu_group' => 'office'],
+            ['permission_id' => 'accounting_periods', 'menu_group' => 'office'],
+            ['permission_id' => $permissionId, 'menu_group' => '--'],
+        ]);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function auditedPermissions(int $targetId, string $action): array
+    {
+        $rows = $this->db->table('accounting_audit_log')->where('entity_type', 'employee_permission')->where('entity_id', $targetId)->where('action', $action)->orderBy('audit_id')->get()->getResult();
+
+        return array_map(static fn (object $row): string => json_decode($row->details, true)['permission'], $rows);
+    }
+
+    public function testGetView_MarksTheSensitivePermissionsAndLeavesThemToAnAdministrator(): void
+    {
+        $this->loginAsAdmin();
+
+        $response = $this->get('/employees/view/-1');
+
+        $response->assertSee('grant_acc_periods_close');
+        $response->assertSee('sensitive-permission');
+        $response->assertDontSee('data-locked="1"');
+    }
+
+    public function testGetView_LocksTheSensitivePermissionsForSomeoneWhoIsNotAnAdministrator(): void
+    {
+        $editor = $this->createNonAdminEmployee();
+        $this->loginAsNonAdmin($editor);
+
+        $response = $this->get('/employees/view/-1');
+
+        $response->assertSee('sensitive-permission');
+        $response->assertSee('data-locked="1"');
+    }
+
+    public function testPostSave_LetsAnAdministratorGrantASensitivePermissionAndRecordsIt(): void
+    {
+        $target = $this->createNonAdminEmployee();
+        $this->loginAsAdmin();
+
+        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor('sens' . uniqid(), [
+            'grant_employees'          => 'employees',
+            'grant_accounting_periods' => 'accounting_periods',
+            'grant_acc_periods_close'  => AccountingGuard::PERIODS_CLOSE,
+        ]))->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertTrue(model(Employee::class)->has_grant(AccountingGuard::PERIODS_CLOSE, $target));
+        $this->assertFalse(model(Employee::class)->has_grant(AccountingGuard::PERIODS_REOPEN, $target));
+        $this->assertSame([AccountingGuard::PERIODS_CLOSE], $this->auditedPermissions($target, 'permission_granted'));
+
+        $entry = $this->db->table('accounting_audit_log')->where('entity_id', $target)->where('action', 'permission_granted')->get()->getRow();
+
+        $this->assertSame('1', (string) $entry->employee_id);
+    }
+
+    public function testPostSave_RecordsTheRemovalOfASensitivePermissionByAnAdministrator(): void
+    {
+        $target = $this->sensitiveHolder(AccountingGuard::PERIODS_REOPEN);
+        $this->loginAsAdmin();
+
+        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor('unsens' . uniqid(), [
+            'grant_employees'          => 'employees',
+            'grant_accounting_periods' => 'accounting_periods',
+        ]))->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertFalse(model(Employee::class)->has_grant(AccountingGuard::PERIODS_REOPEN, $target));
+        $this->assertSame([AccountingGuard::PERIODS_REOPEN], $this->auditedPermissions($target, 'permission_revoked'));
+    }
+
+    public function testPostSave_RecordsNothingWhenTheSensitivePermissionsDoNotChange(): void
+    {
+        $target = $this->sensitiveHolder();
+        $this->loginAsAdmin();
+
+        $this->post('/employees/save/' . $target, $this->formFor('same' . uniqid(), [
+            'grant_employees'          => 'employees',
+            'grant_accounting_periods' => 'accounting_periods',
+            'grant_acc_periods_close'  => AccountingGuard::PERIODS_CLOSE,
+        ]));
+
+        $this->assertSame([], $this->auditedPermissions($target, 'permission_granted'));
+        $this->assertSame([], $this->auditedPermissions($target, 'permission_revoked'));
+    }
+
+    public function testPostSave_IgnoresASensitivePermissionTickedByAnEditorWhoIsNotAnAdministrator(): void
+    {
+        $editor = $this->sensitiveHolder();
+        $target = $this->createNonAdminEmployee();
+        $this->loginAsNonAdmin($editor);
+
+        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor('nogrant' . uniqid(), [
+            'grant_employees'          => 'employees',
+            'grant_accounting_periods' => 'accounting_periods',
+            'grant_acc_periods_close'  => AccountingGuard::PERIODS_CLOSE,
+        ]))->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertFalse(model(Employee::class)->has_grant(AccountingGuard::PERIODS_CLOSE, $target));
+        $this->assertSame([], $this->auditedPermissions($target, 'permission_granted'));
+    }
+
+    public function testPostSave_KeepsTheSensitivePermissionsOfAnEmployeeEditedByANonAdministrator(): void
+    {
+        $editor = $this->createNonAdminEmployee();
+        $target = $this->sensitiveHolder(AccountingGuard::OPENING_MANAGE);
+        $this->loginAsNonAdmin($editor);
+
+        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor('keepsens' . uniqid(), ['grant_employees' => 'employees']))->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertTrue(model(Employee::class)->has_grant(AccountingGuard::OPENING_MANAGE, $target));
+        $this->assertSame([], $this->auditedPermissions($target, 'permission_revoked'));
+    }
+
+    public function testPostSave_KeepsTheSensitivePermissionsWhenGrantChangeIsDisallowed(): void
+    {
+        $editor = $this->createNonAdminEmployee();
+        $target = $this->sensitiveHolder(AccountingGuard::OPENING_MANAGE);
+        $this->loginAsNonAdmin($editor);
+        putenv('DISALLOW_GRANT_CHANGE=true');
+
+        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor('lockedsens' . uniqid(), ['grant_employees' => 'employees']))->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertTrue(model(Employee::class)->has_grant(AccountingGuard::OPENING_MANAGE, $target));
+    }
+
+    public function testPostSave_RecordsASensitivePermissionGivenToANewEmployee(): void
+    {
+        $this->loginAsAdmin();
+
+        $result = json_decode($this->post('/employees/save/-1', $this->formFor('newsens' . uniqid(), [
+            'grant_employees'          => 'employees',
+            'grant_accounting_periods' => 'accounting_periods',
+            'grant_acc_opening_manage' => AccountingGuard::OPENING_MANAGE,
+        ]))->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame([AccountingGuard::OPENING_MANAGE], $this->auditedPermissions((int) $result['id'], 'permission_granted'));
+    }
+
+    public function testPostDelete_RecordsTheSensitivePermissionsTheDeletedEmployeeHeld(): void
+    {
+        $target = $this->sensitiveHolder(AccountingGuard::PERIODS_CLOSE);
+        $this->loginAsAdmin();
+
+        $result = json_decode($this->post('/employees/delete', ['ids' => [(string) $target]])->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame([AccountingGuard::PERIODS_CLOSE], $this->auditedPermissions($target, 'permission_revoked'));
     }
 }

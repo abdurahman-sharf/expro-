@@ -260,4 +260,38 @@ class AccountingClosingsControllerTest extends CIUnitTestCase
 
         $this->get('/accounting_periods/closings/reopen_form?scope=company');
     }
+
+    public function testGetIndex_ExplainsWhoGrantsThePermissionToSomeoneWhoCanOnlyView(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_periods']));
+
+        $this->get('/accounting_periods/closings')->assertSee(lang('Accounting_periods.permission_note'));
+
+        $this->closer(null, false);
+
+        $this->get('/accounting_periods/closings')->assertDontSee(lang('Accounting_periods.permission_note'));
+    }
+
+    public function testGetReopenForm_CarriesTheClosingTheDialogShowed(): void
+    {
+        $employee = $this->closer();
+        (new ClosedPeriodService())->close(null, $this->ago(30), '', $employee);
+
+        $this->get('/accounting_periods/closings/reopen_form?scope=company')->assertSee('name="cutoff" value="' . $this->ago(30) . '"');
+    }
+
+    public function testPostReopen_RefusesAClosingThatChangedSinceTheDialogWasOpened(): void
+    {
+        $employee = $this->closer();
+        (new ClosedPeriodService())->close(null, $this->ago(40), '', $employee);
+        (new ClosedPeriodService())->close(null, $this->ago(10), '', $employee);
+
+        $first  = $this->jsonOf($this->post('/accounting_periods/closings/reopen', ['scope' => 'company', 'reason' => 'First click', 'cutoff' => $this->ago(10)]));
+        $second = $this->jsonOf($this->post('/accounting_periods/closings/reopen', ['scope' => 'company', 'reason' => 'Second click', 'cutoff' => $this->ago(10)]));
+
+        $this->assertTrue($first['success']);
+        $this->assertFalse($second['success']);
+        $this->assertStringContainsString($this->ago(40), $second['message']);
+        $this->assertSame($this->ago(40), (new ClosedPeriodService())->cutoff(null));
+    }
 }

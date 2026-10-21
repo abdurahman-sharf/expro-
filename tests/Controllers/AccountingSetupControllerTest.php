@@ -228,4 +228,76 @@ class AccountingSetupControllerTest extends CIUnitTestCase
         $this->assertFalse($result['success']);
         $this->assertSame(lang('Accounting.error_fiscal_year_range'), $result['message']);
     }
+
+    /**
+     * Runs the action while nobody holds a sensitive permission, then gives the grants back.
+     */
+    private function whileNobodyHoldsSensitivePermissions(callable $action): void
+    {
+        $db   = $this->accountingDb();
+        $rows = $db->table('grants')->whereIn('permission_id', AccountingGuard::SENSITIVE)->get()->getResultArray();
+
+        $db->table('grants')->whereIn('permission_id', AccountingGuard::SENSITIVE)->delete();
+
+        try {
+            $action();
+        } finally {
+            if ($rows !== []) {
+                $db->table('grants')->insertBatch($rows);
+            }
+        }
+    }
+
+    public function testGetIndex_ListsWhoHoldsTheSensitivePermissions(): void
+    {
+        $second = $this->createBranch('B2');
+        $this->actAs($this->employeeWithGrants(['accounting_settings']));
+
+        $this->whileNobodyHoldsSensitivePermissions(function () use ($second): void {
+            $everyone = $this->employeeWithGrants([AccountingGuard::PERIODS_CLOSE, AccountingGuard::PERIODS_REOPEN]);
+            $limited  = $this->employeeWithGrants([AccountingGuard::OPENING_MANAGE], [$second]);
+            $ordinary = $this->employeeWithGrants([AccountingGuard::JOURNALS_POST]);
+
+            $response = $this->get('/accounting_settings');
+
+            $response->assertSee('sensitive_holders');
+            $response->assertSee(lang('Accounting_periods.periods_close'));
+            $response->assertSee(lang('Accounting_periods.periods_reopen'));
+            $response->assertSee(lang('Accounting_periods.opening_manage'));
+            $response->assertSee(lang('Accounting_settings.holders_all_branches'));
+            $response->assertSee('B2');
+            $response->assertDontSee(lang('Accounting_settings.holders_none'));
+            $response->assertDontSee($this->usernameOf($ordinary));
+            $response->assertSee($this->usernameOf($everyone));
+            $response->assertSee($this->usernameOf($limited));
+        });
+    }
+
+    public function testGetIndex_SaysNobodyHoldsThemWhenNobodyDoes(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_settings']));
+
+        $this->whileNobodyHoldsSensitivePermissions(function (): void {
+            $response = $this->get('/accounting_settings');
+
+            $response->assertSee(lang('Accounting_settings.holders_none'));
+            $response->assertDontSee('sensitive_holders');
+        });
+    }
+
+    public function testGetIndex_ExplainsWhoGrantsThePermissionToSomeoneWhoCannotManage(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_settings']));
+
+        $this->get('/accounting_settings')->assertSee(lang('Accounting_periods.permission_note'));
+
+        $this->manager();
+
+        $this->get('/accounting_settings')->assertDontSee(lang('Accounting_periods.permission_note'));
+    }
+
+    private function usernameOf(int $personId): string
+    {
+        return $this->accountingDb()->table('employees')->where('person_id', $personId)->get()->getRow()->username;
+    }
 }

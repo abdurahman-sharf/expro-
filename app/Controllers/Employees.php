@@ -2,6 +2,8 @@
 
 namespace App\Controllers;
 
+use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\SensitivePermissions;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Organization\BranchService;
@@ -20,13 +22,15 @@ use Config\Services;
 class Employees extends Persons
 {
     private EmployeeBranchService $branchScopes;
+    private SensitivePermissions $sensitivePermissions;
 
     public function __construct()
     {
         parent::__construct('employees');
 
-        $this->module       = model('Module');
-        $this->branchScopes = new EmployeeBranchService(null, new BranchGuard(null, $this->employee));
+        $this->module               = model('Module');
+        $this->branchScopes         = new EmployeeBranchService(null, new BranchGuard(null, $this->employee));
+        $this->sensitivePermissions = new SensitivePermissions();
     }
 
     /**
@@ -116,8 +120,10 @@ class Employees extends Persons
 
             $permissions[] = $permission;
         }
-        $data['all_subpermissions'] = $permissions;
-        $data['branch_tab']         = $this->branchTab($employee_id, $current_user->person_id);
+        $data['all_subpermissions']    = $permissions;
+        $data['sensitive_permissions'] = AccountingGuard::SENSITIVE;
+        $data['is_admin']              = $this->employee->isAdmin($current_user->person_id);
+        $data['branch_tab']            = $this->branchTab($employee_id, $current_user->person_id);
 
         return view('employees/form', $data);
     }
@@ -166,9 +172,19 @@ class Employees extends Persons
 
         $grantsArray = [];
         $isAdmin = $this->employee->isAdmin($currentUser->person_id);
+        $sensitiveHeld = $employeeId == NEW_ENTRY ? [] : $this->sensitivePermissions->heldBy((int) $employeeId);
 
         foreach ($this->module->get_all_permissions()->getResult() as $permission) {
             $grants = [];
+
+            if (!$isAdmin && SensitivePermissions::isSensitive($permission->permission_id)) {
+                if (in_array($permission->permission_id, $sensitiveHeld, true)) {
+                    $grantsArray[] = ['permission_id' => $permission->permission_id, 'menu_group' => '--'];
+                }
+
+                continue;
+            }
+
             $grant = $this->request->getPost('grant_' . $permission->permission_id) != null ? $this->request->getPost('grant_' . $permission->permission_id, FILTER_SANITIZE_FULL_SPECIAL_CHARS) : '';
 
             if ($grant == $permission->permission_id) {
@@ -255,6 +271,13 @@ class Employees extends Persons
         }
 
         if ($this->employee->save_employee($personData, $employeeData, $grantsArray, $employeeId)) {
+            $this->sensitivePermissions->recordChange(
+                $currentUser->person_id,
+                (int) ($employeeId == NEW_ENTRY ? $employeeData['person_id'] : $employeeId),
+                $sensitiveHeld,
+                array_values(array_filter(array_column($grantsArray, 'permission_id'), [SensitivePermissions::class, 'isSensitive'])),
+            );
+
             try {
                 $this->branchScopes->afterEmployeeSave($currentUser->person_id, (int) ($employeeId == NEW_ENTRY ? $employeeData['person_id'] : $employeeId), $previousScope, $requestedScope);
             } catch (BranchException $exception) {
@@ -316,6 +339,13 @@ class Employees extends Persons
         }
 
         $submittedGrantIds = array_column($grantsArray, 'permission_id');
+
+        if (!$isAdmin) {
+            $submittedGrantIds = array_values(array_filter(
+                $submittedGrantIds,
+                fn ($permissionId) => $this->employee->has_grant($permissionId, $currentUser->person_id)
+            ));
+        }
 
         sort($currentGrantIds);
         sort($submittedGrantIds);
@@ -399,7 +429,21 @@ class Employees extends Persons
             }
         }
 
+        if ((new EmployeeBranchService())->wouldLeaveNobodyWithEveryBranch((array) $employees_to_delete)) {
+            return $this->response->setJSON(['success' => false, 'message' => lang('Branches.error_last_unrestricted')]);
+        }
+
+        $sensitiveHeld = [];
+
+        foreach ((array) $employees_to_delete as $employeeId) {
+            $sensitiveHeld[(int) $employeeId] = $this->sensitivePermissions->heldBy((int) $employeeId);
+        }
+
         if ($this->employee->delete_list($employees_to_delete)) {    // TODO: this is passing a string, but delete_list expects an array
+            foreach ($sensitiveHeld as $employeeId => $held) {
+                $this->sensitivePermissions->recordChange($current_user->person_id, $employeeId, $held, []);
+            }
+
             return $this->response->setJSON([
                 'success' => true,
                 'message' => lang('Employees.successful_deleted') . ' ' . count($employees_to_delete) . ' ' . lang('Employees.one_or_multiple')

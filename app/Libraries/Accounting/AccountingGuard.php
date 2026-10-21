@@ -23,6 +23,17 @@ final class AccountingGuard
     public const PERIODS_REOPEN      = 'acc_periods_reopen';
     public const OPENING_MANAGE      = 'acc_opening_manage';
 
+    /**
+     * Permissions that change what ordinary users cannot undo. Nothing grants them
+     * automatically, and only an administrator grants or removes them.
+     */
+    public const SENSITIVE = [
+        self::SETTINGS_MANAGE,
+        self::PERIODS_CLOSE,
+        self::PERIODS_REOPEN,
+        self::OPENING_MANAGE,
+    ];
+
     private Employee $employee;
 
     public function __construct(?Employee $employee = null)

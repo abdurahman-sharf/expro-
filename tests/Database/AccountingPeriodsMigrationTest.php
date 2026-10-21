@@ -24,6 +24,8 @@ class AccountingPeriodsMigrationTest extends CIUnitTestCase
         'acc_opening_manage',
     ];
 
+    private const SENSITIVE = ['acc_settings_manage', 'acc_periods_close', 'acc_periods_reopen', 'acc_opening_manage'];
+
     protected $migrate     = true;
     protected $migrateOnce = true;
     protected $refresh     = false;
@@ -99,17 +101,36 @@ class AccountingPeriodsMigrationTest extends CIUnitTestCase
         }
     }
 
-    public function testUp_GrantsThemToHoldersOfTheConfigModuleOnly(): void
+    public function testUp_GivesHoldersOfTheConfigModuleTheScreensButNotTheSensitivePermissions(): void
     {
-        $db = $this->accountingDb();
-
-        foreach ([...self::MODULES, ...self::SUB_PERMISSIONS] as $permissionId) {
-            $this->assertSame(1, $db->table('grants')->where('person_id', 1)->where('permission_id', $permissionId)->countAllResults(), $permissionId);
-        }
-
+        $db     = $this->accountingDb();
+        $holder = $this->employeeWithGrants(['config']);
         $nobody = $this->employeeWithGrants(['customers']);
 
+        $migration = new AccountingPeriods();
+        $migration->down();
+        $migration->up();
+
+        foreach ([...self::MODULES, 'acc_periods_manage'] as $permissionId) {
+            $this->assertSame(1, $db->table('grants')->where('person_id', $holder)->where('permission_id', $permissionId)->countAllResults(), $permissionId);
+        }
+
+        foreach (self::SENSITIVE as $permissionId) {
+            $this->assertSame(0, $db->table('grants')->where('permission_id', $permissionId)->countAllResults(), $permissionId);
+        }
+
         $this->assertSame(0, $db->table('grants')->where('person_id', $nobody)->whereIn('permission_id', [...self::MODULES, ...self::SUB_PERMISSIONS])->countAllResults());
+    }
+
+    public function testUp_KeepsTheSensitivePermissionsAnAdministratorGrantedBeforeItRunsAgain(): void
+    {
+        $db       = $this->accountingDb();
+        $manager  = $this->employeeWithGrants(['config', 'acc_periods_close']);
+
+        (new AccountingPeriods())->up();
+
+        $this->assertSame(1, $db->table('grants')->where('person_id', $manager)->where('permission_id', 'acc_periods_close')->countAllResults());
+        $this->assertSame(0, $db->table('grants')->where('person_id', $manager)->where('permission_id', 'acc_periods_reopen')->countAllResults());
     }
 
     public function testUp_IsSafeToRunTwice(): void

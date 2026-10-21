@@ -4,6 +4,7 @@ namespace App\Libraries\Organization;
 
 use App\Libraries\Accounting\AuditLog;
 use App\Libraries\Accounting\JournalOrigin;
+use App\Libraries\Accounting\LockedRead;
 use App\Libraries\Accounting\RunsInTransaction;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
@@ -68,6 +69,10 @@ final class EmployeeBranchService
         $plan = $this->plan($actorId, $targetId, $allBranches, $branchIds, $defaultBranchId);
 
         $this->transactional(function () use ($targetId, $allBranches, $plan, $actorId): void {
+            if ($plan['current']['all'] && ! $allBranches && $this->wouldLeaveNobodyWithEveryBranch([$targetId])) {
+                throw new BranchException(BranchError::LastUnrestricted, 'The last employee with every branch keeps it.');
+            }
+
             $this->db->table('employee_branches')->where('person_id', $targetId)->delete();
 
             foreach ($plan['branch_ids'] as $branchId) {
@@ -81,6 +86,32 @@ final class EmployeeBranchService
                 'after'  => ['all' => $allBranches, 'branch_ids' => $plan['branch_ids'], 'default_branch_id' => $plan['default']],
             ]);
         });
+    }
+
+    /**
+     * Whether removing these employees, or taking every branch from them, would leave no active
+     * employee with every branch. It locks the rows of everyone who holds every branch until the
+     * surrounding transaction ends, so two requests that each take one of the last two holders
+     * cannot both go through. Call it inside the transaction that does the removal.
+     *
+     * @param list<int|string> $personIds
+     */
+    public function wouldLeaveNobodyWithEveryBranch(array $personIds): bool
+    {
+        $personIds = array_map('intval', $personIds);
+
+        $holders = array_map(
+            static fn (object $row): int => (int) $row->person_id,
+            LockedRead::rows(
+                $this->db,
+                'SELECT g.person_id FROM ' . $this->db->prefixTable('grants') . ' g JOIN ' . $this->db->prefixTable('employees') . ' e ON e.person_id = g.person_id WHERE g.permission_id = ? AND e.deleted = 0 FOR UPDATE',
+                [BranchGuard::ALL_BRANCHES],
+            ),
+        );
+
+        $affected = array_intersect($holders, $personIds);
+
+        return $affected !== [] && array_diff($holders, $personIds) === [];
     }
 
     /**

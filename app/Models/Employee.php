@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Libraries\Organization\EmployeeBranchService;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Session\Session;
 use stdClass;
@@ -200,13 +201,15 @@ class Employee extends Person
         // Run these queries as a transaction, we want to make sure we do all or nothing
         $this->db->transStart();
 
-        // Delete permissions
-        $builder = $this->db->table('grants');
+        if (! (new EmployeeBranchService($this->db))->wouldLeaveNobodyWithEveryBranch([$employee_id])) {
+            // Delete permissions
+            $builder = $this->db->table('grants');
 
-        if ($builder->delete(['person_id' => $employee_id])) {
-            $builder = $this->db->table('employees');
-            $builder->where('person_id', $employee_id);
-            $success = $builder->update(['deleted' => 1]);
+            if ($builder->delete(['person_id' => $employee_id])) {
+                $builder = $this->db->table('employees');
+                $builder->where('person_id', $employee_id);
+                $success = $builder->update(['deleted' => 1]);
+            }
         }
 
         $this->db->transComplete();
@@ -229,14 +232,16 @@ class Employee extends Person
         // Run these queries as a transaction, we want to make sure we do all or nothing
         $this->db->transStart();
 
-        $builder = $this->db->table('grants');
-        $builder->whereIn('person_id', $person_ids);
-        // Delete permissions
-        if ($builder->delete()) {
-            // Delete from employee table
-            $builder = $this->db->table('employees');
+        if (! (new EmployeeBranchService($this->db))->wouldLeaveNobodyWithEveryBranch($person_ids)) {
+            $builder = $this->db->table('grants');
             $builder->whereIn('person_id', $person_ids);
-            $success = $builder->update(['deleted' => 1]);
+            // Delete permissions
+            if ($builder->delete()) {
+                // Delete from employee table
+                $builder = $this->db->table('employees');
+                $builder->whereIn('person_id', $person_ids);
+                $success = $builder->update(['deleted' => 1]);
+            }
         }
 
         $this->db->transComplete();

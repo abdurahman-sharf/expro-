@@ -10,6 +10,7 @@
  * @var bool $can_manage
  * @var array{name: string, start_date: string, end_date: string}|null $first_year
  * @var bool $can_first_year
+ * @var list<array{name: string, username: string, permissions: list<string>, all_branches: bool, branches: list<string>}> $holders
  */
 
 $messages = [
@@ -124,8 +125,46 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 
             <?php if ($can_manage): ?>
                 <button type="submit" class="btn btn-primary btn-sm"><?= lang('Common.submit') ?></button>
+            <?php else: ?>
+                <p class="form-text mb-0" role="note"><span class="bi bi-shield-lock" aria-hidden="true"></span> <?= lang('Accounting_periods.permission_note') ?></p>
             <?php endif; ?>
         </form>
+    </section>
+
+    <section class="acc-setup-card" aria-labelledby="holders_title">
+        <h2 id="holders_title" class="acc-setup-title"><?= lang('Accounting_settings.holders_title') ?></h2>
+        <p class="text-body-secondary small"><?= lang('Accounting_settings.holders_desc') ?></p>
+
+        <?php if ($holders === []): ?>
+            <p class="mb-0"><?= lang('Accounting_settings.holders_none') ?></p>
+        <?php else: ?>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0" id="sensitive_holders">
+                    <thead>
+                        <tr>
+                            <th scope="col"><?= lang('Accounting_settings.holders_employee') ?></th>
+                            <th scope="col"><?= lang('Accounting_settings.holders_permissions') ?></th>
+                            <th scope="col"><?= lang('Accounting_settings.holders_branches') ?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($holders as $holder): ?>
+                            <tr>
+                                <td data-label="<?= esc(lang('Accounting_settings.holders_employee'), 'attr') ?>"><?= esc($holder['name']) ?> <bdi dir="ltr" class="text-body-secondary">(<?= esc($holder['username']) ?>)</bdi></td>
+                                <td data-label="<?= esc(lang('Accounting_settings.holders_permissions'), 'attr') ?>">
+                                    <ul class="list-unstyled mb-0">
+                                        <?php foreach ($holder['permissions'] as $label): ?>
+                                            <li><?= esc($label) ?></li>
+                                        <?php endforeach; ?>
+                                    </ul>
+                                </td>
+                                <td data-label="<?= esc(lang('Accounting_settings.holders_branches'), 'attr') ?>"><?= $holder['all_branches'] ? esc(lang('Accounting_settings.holders_all_branches')) : '<bdi dir="ltr">' . esc(implode(', ', $holder['branches'])) . '</bdi>' ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php endif; ?>
     </section>
 
     <?php if ($first_year !== null): ?>
