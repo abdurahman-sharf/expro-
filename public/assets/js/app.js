@@ -15,6 +15,42 @@
 
 })(jQuery);
 ;
+(function(toast_support, $) {
+
+    const DISPLAY_MS = 4000;
+    const EXIT_MS = 220;
+
+    const container = function() {
+        let $container = $('#app-toasts');
+
+        if ($container.length === 0) {
+            $container = $('<div id="app-toasts" class="position-fixed top-0 end-0 p-3 d-flex flex-column gap-2" aria-live="polite"></div>').appendTo(document.body);
+        }
+
+        return $container;
+    };
+
+    const show = function(message, type) {
+        const $toast = $('<div class="app-toast app-toast-in alert d-flex align-items-start gap-2 shadow" role="alert"></div>').addClass('alert-' + (type || 'info'));
+
+        const dismiss = function() {
+            $toast.addClass('app-toast-out');
+            setTimeout(function() {
+                $toast.remove();
+            }, EXIT_MS);
+        };
+
+        $('<span class="flex-grow-1"></span>').text(message).appendTo($toast);
+        $('<button type="button" class="btn-close"></button>').attr('aria-label', lang.line('common_close')).on('click', dismiss).appendTo($toast);
+
+        container().append($toast);
+        setTimeout(dismiss, DISPLAY_MS);
+    };
+
+    $.extend(toast_support, {show: show});
+
+})(window.toast_support = window.toast_support || {}, jQuery);
+;
 (function(dialog_support, $) {
 
     let clickedId, currentModal;
@@ -607,6 +643,46 @@ function number_sorter(a, b) {
     };
 
 })(window.pdf_export = window.pdf_export || {}, jQuery);
+;
+(function(accounting_support, $) {
+
+    const normalize = function(value) {
+        return $.trim(value || '').toLowerCase();
+    };
+
+    const accountPicker = function(listId) {
+        const byLabel = {};
+        const byCode = {};
+
+        $('#' + listId + ' option').each(function() {
+            const entry = {id: String($(this).data('id')), label: this.value};
+            byLabel[normalize(this.value)] = entry;
+            byCode[normalize($(this).data('code'))] = entry;
+        });
+
+        const resolve = function(text) {
+            const key = normalize(text);
+            return byLabel[key] || byCode[key] || null;
+        };
+
+        const sync = function($text, $hidden) {
+            const match = resolve($text.val());
+            $hidden.val(match ? match.id : '');
+            $text.toggleClass('is-invalid', !match && normalize($text.val()) !== '');
+            return match;
+        };
+
+        const complete = function($text, $hidden) {
+            const match = sync($text, $hidden);
+            match && $text.val(match.label);
+        };
+
+        return {resolve: resolve, sync: sync, complete: complete};
+    };
+
+    $.extend(accounting_support, {accountPicker: accountPicker});
+
+})(window.accounting_support = window.accounting_support || {}, jQuery);
 ;
 (function($) {
 

@@ -120,6 +120,7 @@ class AccountingJournals extends AccountingController
             'notice'       => session()->getFlashdata('accounting_notice'),
             'status_badge' => $this->badge($journal->status),
             'source_label' => $this->label('source', $journal->source_type),
+            'number_label' => $this->displayNumber($journal->series, $journal->number),
         ]);
     }
 
@@ -149,7 +150,7 @@ class AccountingJournals extends AccountingController
                 ? $this->journals->postNew($this->input(), $employeeId)
                 : $this->journals->postDraft($journalId, $employeeId, $this->input());
 
-            $message = lang('Accounting_journals.journal_posted', [$this->journals->find($id, $employeeId)->number]);
+            $message = lang('Accounting_journals.journal_posted', [$this->displayNumber(...$this->numberOf($id))]);
             session()->setFlashdata('accounting_notice', $message);
 
             return [
@@ -228,7 +229,7 @@ class AccountingJournals extends AccountingController
                 $this->employeeId(),
             );
 
-            $message = lang('Accounting_journals.journal_reversed', [$this->journals->find($reversalId, $this->employeeId())->number]);
+            $message = lang('Accounting_journals.journal_reversed', [$this->displayNumber(...$this->numberOf($reversalId))]);
             session()->setFlashdata('accounting_notice', $message);
 
             return ['success' => true, 'message' => $message, 'id' => $reversalId, 'redirect' => base_url('accounting_journals/view/' . $reversalId)];
@@ -332,7 +333,7 @@ class AccountingJournals extends AccountingController
 
         return [
             'journal_id'      => $id,
-            'number'          => $journal->number ?? '',
+            'number'          => $this->displayNumber($journal->series, $journal->number),
             'journal_date'    => $this->formatDate($journal->journal_date),
             'description'     => (string) $journal->description,
             'source_type'     => $this->label('source', $journal->source_type),
@@ -398,6 +399,16 @@ class AccountingJournals extends AccountingController
         }
     }
 
+    /**
+     * @return array{0: string, 1: ?string}
+     */
+    private function numberOf(int $journalId): array
+    {
+        $journal = $this->journals->find($journalId, $this->employeeId());
+
+        return [$journal->series, $journal->number];
+    }
+
     private function findOrFail(int $journalId): object
     {
         try {
@@ -457,7 +468,7 @@ class AccountingJournals extends AccountingController
 
         $parts = [];
 
-        foreach (array_slice($details, 0, self::DETAIL_LIMIT, true) as $key => $value) {
+        foreach (array_slice(array_filter($details, static fn (mixed $value): bool => $value !== null && $value !== ''), 0, self::DETAIL_LIMIT, true) as $key => $value) {
             $parts[] = $key . ': ' . (is_scalar($value) || $value === null ? (string) $value : json_encode($value, JSON_UNESCAPED_UNICODE));
         }
 

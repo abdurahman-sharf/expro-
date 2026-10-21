@@ -77,7 +77,7 @@ $jsonFlags  = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
             </div>
 
             <?php if (! $isNew): ?>
-                <p class="help-block span-all">
+                <p class="form-text span-all">
                     <?= lang($used ? 'Accounting_chart.locked_used' : ($isSystem ? 'Accounting_chart.locked_system' : 'Accounting_chart.locked_parent')) ?>
                 </p>
             <?php endif; ?>

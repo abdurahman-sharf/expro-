@@ -81,6 +81,10 @@ class AccountingChart extends AccountingController
 
     public function getView(int $accountId = NEW_ENTRY): string
     {
+        if (! $this->can(AccountingGuard::CHART_MANAGE)) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
         $account  = $accountId === NEW_ENTRY ? null : $this->accountOrFail($accountId);
         $parentId = $account === null ? (int) $this->request->getGet('parent_id') : (int) $account->parent_id;
         $groups   = array_values(array_filter($this->accounts->all(), static fn (object $item): bool => (int) $item->is_group === 1 && (int) $item->active === 1));

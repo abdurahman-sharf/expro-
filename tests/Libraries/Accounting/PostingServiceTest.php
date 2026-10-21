@@ -467,6 +467,42 @@ class PostingServiceTest extends CIUnitTestCase
         $this->assertSame((string) $original->journalId, (string) $row->reverses_journal_id);
     }
 
+    public function testPost_StampsThePostingTimeWithTheDatabaseClock(): void
+    {
+        $result = $this->service->post($this->balancedDraft(sourceId: 63));
+
+        $row = $this->accountingDb()->query(
+            'SELECT TIMESTAMPDIFF(SECOND, posted_at, created_at) AS gap FROM ' . $this->accountingDb()->prefixTable('accounting_journals') . ' WHERE journal_id = ?',
+            [$result->journalId],
+        )->getRow();
+
+        $this->assertLessThanOrEqual(1, abs((int) $row->gap));
+    }
+
+    public function testPost_NumbersAReversalInTheManualSeries(): void
+    {
+        $manual   = $this->service->post($this->balancedDraft(sourceType: JournalDraft::SOURCE_MANUAL, sourceId: null));
+        $original = $this->service->post($this->balancedDraft(sourceId: 62));
+
+        $reversal = $this->service->post(new JournalDraft(
+            date: '2026-10-22',
+            lines: [
+                new JournalLineDraft($this->accountId('cash'), credit: '100.00'),
+                new JournalLineDraft($this->accountId('sales_revenue'), debit: '100.00'),
+            ],
+            sourceType: JournalDraft::SOURCE_REVERSAL,
+            sourceId: $original->journalId,
+            currencyCode: 'SAR',
+            reversesJournalId: $original->journalId,
+        ));
+
+        $manualRow   = $this->accountingDb()->table('accounting_journals')->where('journal_id', $manual->journalId)->get()->getRow();
+        $reversalRow = $this->accountingDb()->table('accounting_journals')->where('journal_id', $reversal->journalId)->get()->getRow();
+        $this->assertSame('manual', $reversalRow->series);
+        $this->assertSame('000001', $manualRow->number);
+        $this->assertSame('000002', $reversalRow->number);
+    }
+
     public function testPost_AllowsAnInactiveAccountOnlyForAReversal(): void
     {
         $original = $this->service->post($this->balancedDraft(sourceId: 61));

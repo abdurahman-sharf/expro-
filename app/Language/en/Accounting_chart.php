@@ -30,6 +30,7 @@ return [
     'successful_deactivating' => 'The account was deactivated.',
     'successful_deleting'     => 'The account was deleted.',
     'successful_updating'     => 'The account was updated.',
+    'toggle_branch'           => 'Expand or collapse',
     'tree'                    => 'Account tree',
     'type'                    => 'Type',
     'update'                  => 'Edit account',

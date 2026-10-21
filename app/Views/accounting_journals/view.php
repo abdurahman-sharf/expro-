@@ -9,6 +9,7 @@
  * @var string|null $notice
  * @var string $status_badge
  * @var string $source_label
+ * @var string $number_label
  */
 
 $isDraft  = $journal->status === 'draft';
@@ -34,7 +35,7 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
                 return;
             }
             $.post('accounting_journals/post_drafts', {'ids[]': [<?= (int) $journal->journal_id ?>]}, function(response) {
-                $.notify(response.message, {type: response.success ? 'success' : 'danger'});
+                toast_support.show(response.message, response.success ? 'success' : 'danger');
                 if (response.success) {
                     window.location.reload();
                 }
@@ -49,7 +50,7 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
                 if (response.success) {
                     window.location.href = response.redirect;
                 } else {
-                    $.notify(response.message, {type: 'danger'});
+                    toast_support.show(response.message, 'danger');
                 }
             }, 'json');
         });
@@ -79,7 +80,7 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
     <dl class="acc-summary">
         <div>
             <dt><?= lang('Accounting_journals.number') ?></dt>
-            <dd><bdi dir="ltr"><?= $journal->number === null ? esc(lang('Accounting_journals.number_auto')) : esc($journal->number) ?></bdi></dd>
+            <dd><bdi dir="ltr"><?= $number_label === '' ? esc(lang('Accounting_journals.number_auto')) : esc($number_label) ?></bdi></dd>
         </div>
         <div>
             <dt><?= lang('Accounting_journals.date') ?></dt>

@@ -30,6 +30,7 @@ return [
     'successful_deactivating' => 'تم تعطيل الحساب.',
     'successful_deleting'     => 'تم حذف الحساب.',
     'successful_updating'     => 'تم تعديل الحساب.',
+    'toggle_branch'           => 'توسيع أو طي',
     'tree'                    => 'شجرة الحسابات',
     'type'                    => 'النوع',
     'update'                  => 'تعديل الحساب',

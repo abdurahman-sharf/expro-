@@ -76,6 +76,10 @@ class AccountingCostCenters extends AccountingController
 
     public function getView(int $costCenterId = NEW_ENTRY): string
     {
+        if (! $this->can(AccountingGuard::COST_CENTERS_MANAGE)) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
         $center = $costCenterId === NEW_ENTRY ? null : $this->costCenters->find($costCenterId);
 
         if ($costCenterId !== NEW_ENTRY && $center === null) {

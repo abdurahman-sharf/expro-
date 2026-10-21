@@ -6,6 +6,7 @@ use App\Models\Accounting\Account;
 use App\Models\Accounting\CostCenter;
 use App\Models\Accounting\Journal;
 use CodeIgniter\Database\BaseConnection;
+use CodeIgniter\Database\RawSql;
 use Config\Database;
 use DateTimeImmutable;
 use Throwable;
@@ -330,11 +331,11 @@ final class PostingService
      */
     private function write(JournalDraft $draft, array $prepared): int
     {
-        $manual = $draft->sourceType === JournalDraft::SOURCE_MANUAL;
+        $userNumbered = in_array($draft->sourceType, [JournalDraft::SOURCE_MANUAL, JournalDraft::SOURCE_REVERSAL], true);
 
         $inserted = $this->db->table('accounting_journals')->insert([
-            'series'              => $manual ? 'manual' : 'auto',
-            'number'              => $manual ? $this->numbering->nextManual() : null,
+            'series'              => $userNumbered ? 'manual' : 'auto',
+            'number'              => $userNumbered ? $this->numbering->nextManual() : null,
             'journal_date'        => $draft->date,
             'description'         => $draft->description === '' ? null : $draft->description,
             'status'              => JournalStatus::Posted->value,
@@ -349,7 +350,7 @@ final class PostingService
             'reverses_journal_id' => $draft->reversesJournalId,
             'created_by'          => $draft->employeeId,
             'posted_by'           => $draft->employeeId,
-            'posted_at'           => date('Y-m-d H:i:s'),
+            'posted_at'           => new RawSql('CURRENT_TIMESTAMP'),
         ]);
 
         if ($inserted === false) {
@@ -358,7 +359,7 @@ final class PostingService
 
         $journalId = (int) $this->db->insertID();
 
-        if (! $manual) {
+        if (! $userNumbered) {
             $this->db->table('accounting_journals')
                 ->where('journal_id', $journalId)
                 ->update(['number' => sprintf('%06d', $journalId)]);

@@ -7,6 +7,7 @@ use App\Libraries\Accounting\AuditLog;
 use App\Libraries\Accounting\CostCenterService;
 use App\Libraries\Accounting\JournalOrigin;
 use App\Libraries\Accounting\JournalService;
+use App\Libraries\Accounting\PostingService;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -372,6 +373,34 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
 
         $this->assertStringContainsString('<bdi dir="ltr">', $row['total_debit']);
         $this->assertStringContainsString('1,234.50', $row['total_debit']);
+    }
+
+    public function testGetSearch_PrefixesTheNumberOfAnAutomaticJournal(): void
+    {
+        $this->accountant();
+        $manualId = $this->postedJournalBy();
+        $autoId   = (new PostingService())->post($this->balancedDraft('sale', 1))->journalId;
+
+        $rows = [];
+
+        foreach ($this->jsonOf($this->get('/accounting_journals/search'))['rows'] as $row) {
+            $rows[$row['journal_id']] = $row['number'];
+        }
+
+        $this->assertSame('000001', $rows[$manualId]);
+        $this->assertSame('A-' . sprintf('%06d', $autoId), $rows[$autoId]);
+    }
+
+    public function testPostReverse_NumbersTheReversalAfterTheManualJournals(): void
+    {
+        $this->accountant();
+        $journalId = $this->postedJournalBy();
+
+        $result  = $this->jsonOf($this->post('/accounting_journals/reverse/' . $journalId, ['date' => '2026-10-22', 'reason' => 'Wrong amount']));
+        $journal = (new JournalService())->find($result['id']);
+
+        $this->assertSame('000002', $journal->number);
+        $this->assertStringContainsString('000002', $result['message']);
     }
 
     public function testPostReverse_ReversesAPostedJournalWithAReason(): void

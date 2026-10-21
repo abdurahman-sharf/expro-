@@ -42,6 +42,12 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
             table_support.refresh();
         };
 
+        $(document).on('click', '.acc-tree-caret', function() {
+            const expanded = $(this).attr('aria-expanded') === 'true';
+            $(this).attr('aria-expanded', expanded ? 'false' : 'true');
+            $(this).closest('li').children('ul').prop('hidden', expanded);
+        });
+
         $(document).on('click', '.acc-action', function() {
             const action = $(this).data('acc-action');
             const id = $(this).data('acc-id');
@@ -51,7 +57,7 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
             }
 
             $.post('accounting_chart/' + action + '/' + id, {}, function(response) {
-                $.notify(response.message, {type: response.success ? 'success' : 'danger'});
+                toast_support.show(response.message, response.success ? 'success' : 'danger');
                 if (response.success) {
                     window.refreshAccountingChart();
                 }

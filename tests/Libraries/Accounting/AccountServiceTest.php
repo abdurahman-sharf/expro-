@@ -474,4 +474,25 @@ class AccountServiceTest extends CIUnitTestCase
         $this->assertContains('1104', array_column($byName, 'code'));
         $this->assertSame([], $this->service->search('   '));
     }
+
+    public function testSearch_TreatsQuotesAndWildcardsAsPlainText(): void
+    {
+        $this->customAccount('11', '1110', "Ali's 100% cash");
+
+        $this->assertSame(['1110'], array_column($this->service->search("Ali's"), 'code'));
+        $this->assertSame(['1110'], array_column($this->service->search('100%'), 'code'));
+        $this->assertSame(['1110'], array_column($this->service->search('%'), 'code'));
+        $this->assertSame([], $this->service->search("x' OR '1'='1"));
+    }
+
+    public function testFindFlagged_ReturnsTheListFlagsOfOneAccount(): void
+    {
+        $cashId = $this->accountId('cash');
+
+        $flagged = $this->service->findFlagged($cashId);
+
+        $this->assertSame('1', (string) $flagged->routed);
+        $this->assertSame('0', (string) $flagged->used);
+        $this->assertNull($this->service->findFlagged(999999));
+    }
 }

@@ -12,14 +12,18 @@ $isNew       = $journal === null;
 $journalId   = $isNew ? NEW_ENTRY : (int) $journal->journal_id;
 $lines       = $isNew ? [] : $journal->lines;
 $jsonFlags   = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
-$accountOptions = static function (?int $selected) use ($accounts): string {
-    $html = '<option value="">' . esc(lang('Accounting_journals.choose_account')) . '</option>';
+$accountLabel = static fn (object $account): string => $account->code . ' - ' . $account->name;
+$accountLabels = [];
 
-    foreach ($accounts as $account) {
-        $html .= '<option value="' . (int) $account->account_id . '" data-tokens="' . esc($account->code . ' ' . $account->name, 'attr') . '"' . ($selected === (int) $account->account_id ? ' selected' : '') . '>' . esc($account->code . ' - ' . $account->name) . '</option>';
-    }
+foreach ($accounts as $account) {
+    $accountLabels[(int) $account->account_id] = $accountLabel($account);
+}
 
-    return $html;
+$accountInputs = static function (string $name, ?int $selected) use ($accountLabels): string {
+    $label = $selected !== null && isset($accountLabels[$selected]) ? $accountLabels[$selected] : '';
+
+    return '<input type="text" class="form-control form-control-sm acc-account-text" list="accounts_list" autocomplete="off" value="' . esc($label, 'attr') . '" placeholder="' . esc(lang('Accounting_journals.choose_account'), 'attr') . '" aria-label="' . esc(lang('Accounting_journals.account'), 'attr') . '">'
+        . '<input type="hidden" name="' . esc($name, 'attr') . '" class="acc-account" value="' . ($selected === null ? '' : $selected) . '">';
 };
 $costCenterOptions = static function (?int $selected) use ($cost_centers): string {
     $html = '<option value="">' . esc(lang('Accounting_journals.no_cost_center')) . '</option>';
@@ -40,7 +44,7 @@ $rows   = $lines === [] ? [null, null] : $lines;
 <template id="line_template">
     <tr class="acc-line">
         <td data-label="<?= esc(lang('Accounting_journals.account'), 'attr') ?>">
-            <select name="lines[__INDEX__][account_id]" class="form-select form-select-sm acc-account" data-live-search="true" data-width="100%" data-style="btn-outline-secondary btn-sm" aria-label="<?= esc(lang('Accounting_journals.account'), 'attr') ?>"><?= $accountOptions(null) ?></select>
+            <?= $accountInputs('lines[__INDEX__][account_id]', null) ?>
         </td>
         <td data-label="<?= esc(lang('Accounting_journals.line_description'), 'attr') ?>">
             <input type="text" name="lines[__INDEX__][description]" class="form-control form-control-sm" maxlength="255" aria-label="<?= esc(lang('Accounting_journals.line_description'), 'attr') ?>">
@@ -59,6 +63,12 @@ $rows   = $lines === [] ? [null, null] : $lines;
         </td>
     </tr>
 </template>
+
+<datalist id="accounts_list">
+    <?php foreach ($accounts as $account): ?>
+        <option value="<?= esc($accountLabel($account), 'attr') ?>" data-id="<?= (int) $account->account_id ?>" data-code="<?= esc($account->code, 'attr') ?>"></option>
+    <?php endforeach; ?>
+</datalist>
 
 <form id="journal_form" class="acc-journal app-form" action="<?= esc(base_url('accounting_journals'), 'attr') ?>" method="post" novalidate>
     <div class="acc-journal-bar print_hide">
@@ -118,7 +128,7 @@ $rows   = $lines === [] ? [null, null] : $lines;
                 <?php foreach ($rows as $index => $line): ?>
                     <tr class="acc-line">
                         <td data-label="<?= esc(lang('Accounting_journals.account'), 'attr') ?>">
-                            <select name="lines[<?= $index ?>][account_id]" class="form-select form-select-sm acc-account" data-live-search="true" data-width="100%" data-style="btn-outline-secondary btn-sm" aria-label="<?= esc(lang('Accounting_journals.account'), 'attr') ?>"><?= $accountOptions($line === null ? null : (int) $line->account_id) ?></select>
+                            <?= $accountInputs("lines[{$index}][account_id]", $line === null ? null : (int) $line->account_id) ?>
                         </td>
                         <td data-label="<?= esc(lang('Accounting_journals.line_description'), 'attr') ?>">
                             <input type="text" name="lines[<?= $index ?>][description]" class="form-control form-control-sm" maxlength="255" value="<?= esc($line === null ? '' : (string) $line->description, 'attr') ?>" aria-label="<?= esc(lang('Accounting_journals.line_description'), 'attr') ?>">
@@ -160,6 +170,7 @@ $rows   = $lines === [] ? [null, null] : $lines;
             'failed' => lang('Accounting_journals.request_failed'),
         ], $jsonFlags) ?>;
         const SCALE = 10000;
+        const picker = accounting_support.accountPicker('accounts_list');
         const $body = $('#lines_body');
         const template = $('#line_template').html();
         let nextIndex = $body.children().length;
@@ -184,45 +195,43 @@ $rows   = $lines === [] ? [null, null] : $lines;
             return sign + fixed;
         };
 
-        const rowIsFilled = function($row) {
-            return $row.find('.acc-account').val() !== '' || units($row.find('.acc-debit').val()) > 0 || units($row.find('.acc-credit').val()) > 0;
-        };
-
         const refreshTotals = function() {
             let debit = 0;
             let credit = 0;
             let amounts = 0;
+            let withoutAccount = 0;
 
             $body.children().each(function() {
                 const rowDebit = units($(this).find('.acc-debit').val());
                 const rowCredit = units($(this).find('.acc-credit').val());
                 debit += rowDebit;
                 credit += rowCredit;
-                amounts += (rowDebit > 0 || rowCredit > 0) ? 1 : 0;
+                if (rowDebit > 0 || rowCredit > 0) {
+                    amounts++;
+                    withoutAccount += $(this).find('input.acc-account').val() === '' ? 1 : 0;
+                }
             });
 
             const difference = debit - credit;
             const balanced = difference === 0 && debit > 0 && amounts >= 2;
+            const ready = balanced && withoutAccount === 0;
 
             $('#total_debit').text(format(debit));
             $('#total_credit').text(format(credit));
             $('#difference').text(format(difference));
             $('#balance_state').text(balanced ? text.balanced : text.unbalanced);
             $('#difference_box').toggleClass('is-balanced', balanced).toggleClass('is-unbalanced', !balanced);
-            $('#post_journal, #post_and_new').prop('disabled', !balanced || busy);
+            $('#post_journal, #post_and_new').prop('disabled', !ready || busy);
         };
 
         const addLine = function() {
             const $row = $(template.replace(/__INDEX__/g, nextIndex++));
             $body.append($row);
-            $row.find('.acc-account').selectpicker();
             return $row;
         };
 
-        $body.find('.acc-account').selectpicker();
-
         $('#add_line').on('click', function() {
-            addLine().find('.acc-account').focus();
+            addLine().find('.acc-account-text').trigger('focus');
         });
 
         $body.on('click', '.acc-line-remove', function() {
@@ -231,9 +240,18 @@ $rows   = $lines === [] ? [null, null] : $lines;
             if ($body.children().length > 2) {
                 $row.remove();
             } else {
-                $row.find('input').val('');
-                $row.find('select').val('').selectpicker('refresh');
+                $row.find('input, select').val('').removeClass('is-invalid');
             }
+            refreshTotals();
+        });
+
+        $body.on('input change', '.acc-account-text', function() {
+            picker.sync($(this), $(this).closest('td').find('.acc-account'));
+            refreshTotals();
+        });
+
+        $body.on('blur', '.acc-account-text', function() {
+            picker.complete($(this), $(this).closest('td').find('.acc-account'));
             refreshTotals();
         });
 
@@ -263,10 +281,10 @@ $rows   = $lines === [] ? [null, null] : $lines;
                     return;
                 }
                 $('#error_message_box').append($('<li></li>').text(response.message));
-                $.notify(response.message, {type: 'danger'});
+                toast_support.show(response.message, 'danger');
             }, 'json').fail(function() {
                 $('#error_message_box').append($('<li></li>').text(text.failed));
-                $.notify(text.failed, {type: 'danger'});
+                toast_support.show(text.failed, 'danger');
             }).always(function() {
                 busy = false;
                 $('#journal_form button').prop('disabled', false);
@@ -295,7 +313,7 @@ $rows   = $lines === [] ? [null, null] : $lines;
                     if (response.success) {
                         window.location.href = response.redirect;
                     } else {
-                        $.notify(response.message, {type: 'danger'});
+                        toast_support.show(response.message, 'danger');
                     }
                 }, 'json');
             }

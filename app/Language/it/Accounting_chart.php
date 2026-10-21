@@ -30,6 +30,7 @@ return [
     'successful_deactivating' => '',
     'successful_deleting'     => '',
     'successful_updating'     => '',
+    'toggle_branch'           => '',
     'tree'                    => '',
     'type'                    => '',
     'update'                  => '',

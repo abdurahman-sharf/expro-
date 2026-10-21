@@ -4,6 +4,7 @@ namespace App\Libraries\Accounting;
 
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\BaseConnection;
+use CodeIgniter\Database\RawSql;
 use Config\Database;
 use DateTimeImmutable;
 
@@ -161,7 +162,7 @@ final class JournalService
                 'total_debit'   => $prepared['debit'],
                 'total_credit'  => $prepared['credit'],
                 'posted_by'     => $employeeId,
-                'posted_at'     => date('Y-m-d H:i:s'),
+                'posted_at'     => new RawSql('CURRENT_TIMESTAMP'),
             ]);
 
             $this->db->table('accounting_journal_lines')->where('journal_id', $journalId)->delete();
@@ -331,7 +332,7 @@ final class JournalService
         $accountIds = (int) ($filters['account_id'] ?? 0) > 0 ? $this->accountWithDescendants((int) $filters['account_id']) : [];
 
         $builder = $this->db->table('accounting_journals j')
-            ->select("j.journal_id, j.number, j.journal_date, j.description, j.source_type, j.status, j.total_debit, j.total_credit, j.currency_code, j.created_by, j.created_at, TRIM(CONCAT(p.first_name, ' ', p.last_name)) AS created_by_name", false)
+            ->select("j.journal_id, j.series, j.number, j.journal_date, j.description, j.source_type, j.status, j.total_debit, j.total_credit, j.currency_code, j.created_by, j.created_at, TRIM(CONCAT(p.first_name, ' ', p.last_name)) AS created_by_name", false)
             ->join('people p', 'p.person_id = j.created_by', 'left')
             ->where('j.status !=', JournalStatus::Preview->value);
 

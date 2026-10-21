@@ -131,6 +131,15 @@ class AccountingCostCentersControllerTest extends CIUnitTestCase
         $this->assertStringNotContainsString('data-acc-action="delete"', $result['rows'][0]['edit']);
     }
 
+    public function testGetView_IsNotFoundWithoutTheManagePermission(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_cost_centers']));
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_cost_centers/view');
+    }
+
     public function testGetView_ListsOnlyCentersThatCanBecomeTheParent(): void
     {
         $this->manager();

@@ -36,7 +36,9 @@ $empty     = '<p class="mb-2">' . esc(lang('Accounting_journals.empty')) . '</p>
                 date_from: $('#f_date_from').val(),
                 date_to: $('#f_date_to').val(),
                 source_type: $('#f_source').val(),
-                status: $('#f_status').val() || [],
+                status: $('.f-status:checked').map(function() {
+                    return this.value;
+                }).get(),
                 amount_from: $('#f_amount_from').val(),
                 amount_to: $('#f_amount_to').val(),
                 created_from: $('#f_created_from').val(),
@@ -66,9 +68,16 @@ $empty     = '<p class="mb-2">' . esc(lang('Accounting_journals.empty')) . '</p>
             table_support.refresh();
         });
 
+        const picker = accounting_support.accountPicker('accounts_list');
+
+        $('#f_account_text').on('input change blur', function(event) {
+            event.type === 'blur' ? picker.complete($(this), $('#f_account')) : picker.sync($(this), $('#f_account'));
+        });
+
         $('#filters_reset').on('click', function() {
             $('#journal_filters')[0].reset();
-            $('#journal_filters .selectpicker').selectpicker('refresh');
+            $('#f_account').val('');
+            $('#f_account_text').removeClass('is-invalid');
             table_support.refresh();
         });
 
@@ -80,7 +89,7 @@ $empty     = '<p class="mb-2">' . esc(lang('Accounting_journals.empty')) . '</p>
             }
 
             $.post(url, {'ids[]': ids}, function(response) {
-                $.notify(response.message, {type: response.success ? 'success' : 'danger'});
+                toast_support.show(response.message, response.success ? 'success' : 'danger');
                 table_support.refresh();
             }, 'json');
         };
@@ -111,13 +120,14 @@ $empty     = '<p class="mb-2">' . esc(lang('Accounting_journals.empty')) . '</p>
 <form id="journal_filters" class="acc-filters print_hide" role="search" aria-label="<?= lang('Accounting_journals.filters') ?>">
     <div class="acc-filter-row">
         <div class="acc-filter">
-            <label class="form-label" for="f_account"><?= lang('Accounting_journals.account') ?></label>
-            <select id="f_account" class="selectpicker form-select form-select-sm" data-live-search="true" data-width="100%" data-style="btn-outline-secondary btn-sm">
-                <option value=""><?= lang('Accounting_journals.all_accounts') ?></option>
+            <label class="form-label" for="f_account_text"><?= lang('Accounting_journals.account') ?></label>
+            <input type="text" id="f_account_text" class="form-control form-control-sm" list="accounts_list" autocomplete="off" placeholder="<?= esc(lang('Accounting_journals.all_accounts'), 'attr') ?>">
+            <input type="hidden" id="f_account" value="">
+            <datalist id="accounts_list">
                 <?php foreach ($accounts as $account): ?>
-                    <option value="<?= (int) $account->account_id ?>"><?= esc($account->code . ' - ' . $account->name) ?></option>
+                    <option value="<?= esc($account->code . ' - ' . $account->name, 'attr') ?>" data-id="<?= (int) $account->account_id ?>" data-code="<?= esc($account->code, 'attr') ?>"></option>
                 <?php endforeach; ?>
-            </select>
+            </datalist>
         </div>
         <div class="acc-filter">
             <label class="form-label" for="f_number"><?= lang('Accounting_journals.number') ?></label>
@@ -135,14 +145,12 @@ $empty     = '<p class="mb-2">' . esc(lang('Accounting_journals.empty')) . '</p>
             <label class="form-label" for="f_date_to"><?= lang('Accounting_journals.date_to') ?></label>
             <input type="date" id="f_date_to" class="form-control form-control-sm">
         </div>
-        <div class="acc-filter">
-            <label class="form-label" for="f_status"><?= lang('Accounting.status') ?></label>
-            <select id="f_status" class="selectpicker form-select form-select-sm" multiple data-width="100%" data-style="btn-outline-secondary btn-sm" data-none-selected-text="<?= esc(lang('Common.none_selected_text'), 'attr') ?>">
-                <option value="draft"><?= lang('Accounting.state_draft') ?></option>
-                <option value="posted"><?= lang('Accounting.state_posted') ?></option>
-                <option value="reversed"><?= lang('Accounting.state_reversed') ?></option>
-            </select>
-        </div>
+        <fieldset class="acc-filter acc-filter-status">
+            <legend class="form-label"><?= lang('Accounting.status') ?></legend>
+            <?php foreach (['draft', 'posted', 'reversed'] as $state): ?>
+                <label class="choice"><input type="checkbox" class="form-check-input f-status" value="<?= $state ?>"> <?= lang('Accounting.state_' . $state) ?></label>
+            <?php endforeach; ?>
+        </fieldset>
         <div class="acc-filter">
             <label class="form-label" for="f_source"><?= lang('Accounting_journals.source') ?></label>
             <select id="f_source" class="form-select form-select-sm">

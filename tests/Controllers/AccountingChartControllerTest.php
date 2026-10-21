@@ -4,6 +4,7 @@ namespace Tests\Controllers;
 
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountService;
+use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Tests\Support\AccountingControllerFixtureTrait;
@@ -65,7 +66,7 @@ class AccountingChartControllerTest extends CIUnitTestCase
         $this->prepareAccounting(false);
         $this->actAs($this->employeeWithGrants(['accounting_chart']));
 
-        $this->expectException(\CodeIgniter\Exceptions\PageNotFoundException::class);
+        $this->expectException(PageNotFoundException::class);
 
         $this->get('/accounting_chart');
     }
@@ -83,7 +84,7 @@ class AccountingChartControllerTest extends CIUnitTestCase
     {
         $this->actAs($this->employeeWithGrants(['accounting_chart']));
 
-        $this->expectException(\CodeIgniter\Exceptions\PageNotFoundException::class);
+        $this->expectException(PageNotFoundException::class);
 
         $this->get('/accounting_chart?parent=999999');
     }
@@ -182,6 +183,15 @@ class AccountingChartControllerTest extends CIUnitTestCase
         $this->assertNotSame([], $cash);
         $this->assertStringNotContainsString('data-acc-action="delete"', $cash[0]['edit']);
         $this->assertStringNotContainsString('data-acc-action="deactivate"', $cash[0]['edit']);
+    }
+
+    public function testGetView_IsNotFoundWithoutTheManagePermission(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_chart']));
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_chart/view/-1');
     }
 
     public function testGetView_ReturnsTheFormForANewAccountWithASuggestedCode(): void

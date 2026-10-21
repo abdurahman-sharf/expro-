@@ -105,6 +105,19 @@ abstract class AccountingController extends Secure_Controller
     }
 
     /**
+     * Manual and reversal journals share one numbering. Automatic journals are numbered by
+     * their id, so they carry a prefix to keep the two apart on screen.
+     */
+    protected function displayNumber(?string $series, ?string $number): string
+    {
+        if ($number === null || $number === '') {
+            return '';
+        }
+
+        return $series === 'auto' ? 'A-' . $number : $number;
+    }
+
+    /**
      * A translated name for a stored code, the code itself when no translation exists yet.
      */
     protected function label(string $group, string $code): string

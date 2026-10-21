@@ -38,7 +38,7 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
             }
 
             $.post('accounting_cost_centers/' + action + '/' + id, {}, function(response) {
-                $.notify(response.message, {type: response.success ? 'success' : 'danger'});
+                toast_support.show(response.message, response.success ? 'success' : 'danger');
                 if (response.success) {
                     table_support.refresh();
                 }

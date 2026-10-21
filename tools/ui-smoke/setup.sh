@@ -37,4 +37,7 @@ $MYSQL --default-character-set=utf8mb4 "$DB_NAME" < "$HERE/seed.sql"
 echo "Recording sales through the UI"
 node "$HERE/seed-sales.mjs"
 
+echo "Recording journals"
+node "$HERE/seed-journals.mjs"
+
 echo "Done. Run: npm run smoke"

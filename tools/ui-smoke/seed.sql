@@ -55,3 +55,30 @@ INSERT INTO ospos_giftcards (giftcard_number, value, deleted, person_id) VALUES
 (1002, 500.00, 0, 3);
 
 INSERT IGNORE INTO ospos_grants (permission_id, person_id, menu_group) VALUES ('taxes', 1, 'office');
+
+INSERT IGNORE INTO ospos_grants (permission_id, person_id, menu_group) VALUES
+('accounting_chart', 1, 'office'),
+('accounting_journals', 1, 'office'),
+('accounting_cost_centers', 1, 'office'),
+('acc_chart_manage', 1, '--'),
+('acc_journals_all', 1, '--'),
+('acc_journals_draft', 1, '--'),
+('acc_journals_post', 1, '--'),
+('acc_journals_reverse', 1, '--'),
+('acc_journals_audit', 1, '--'),
+('acc_cost_centers_manage', 1, '--');
+
+REPLACE INTO ospos_app_config (`key`, `value`) VALUES
+('accounting_base_currency', 'SAR'),
+('accounting_start_date', '2026-01-01'),
+('accounting_enabled', '1');
+
+INSERT INTO ospos_accounting_fiscal_years (name, start_date, end_date) VALUES ('2026', '2026-01-01', '2026-12-31');
+
+INSERT INTO ospos_accounting_cost_centers (parent_id, code, name, active) VALUES
+(NULL, '1', 'الإدارة', 1),
+(NULL, '2', 'المبيعات', 1),
+(NULL, '3', 'المستودع', 1);
+
+INSERT INTO ospos_accounting_cost_centers (parent_id, code, name, active)
+SELECT cost_center_id, '21', 'معرض الرياض', 1 FROM ospos_accounting_cost_centers WHERE code = '2';

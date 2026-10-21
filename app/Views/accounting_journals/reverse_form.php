@@ -38,7 +38,7 @@
                             return;
                         }
                         $('#error_message_box').empty().append($('<li></li>').text(response.message));
-                        $.notify(response.message, {type: 'danger'});
+                        toast_support.show(response.message, 'danger');
                     },
                     dataType: 'json'
                 });
