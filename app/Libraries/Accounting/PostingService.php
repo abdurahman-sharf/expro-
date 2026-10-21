@@ -2,6 +2,8 @@
 
 namespace App\Libraries\Accounting;
 
+use App\Libraries\Organization\BranchGuard;
+use App\Libraries\Organization\CompanyContext;
 use App\Models\Accounting\Account;
 use App\Models\Accounting\CostCenter;
 use App\Models\Accounting\Journal;
@@ -124,7 +126,7 @@ final class PostingService
     /**
      * Checks a journal without writing anything and returns the normalized values.
      *
-     * @return array{lines: list<array<string, mixed>>, debit: string, credit: string, currency: string, rate: string}
+     * @return array{lines: list<array<string, mixed>>, debit: string, credit: string, currency: string, rate: string, branch_id: int}
      *
      * @throws PostingException
      */
@@ -187,12 +189,33 @@ final class PostingService
         $this->assertCostCentersExist($lines);
 
         return [
-            'lines'    => $lines,
-            'debit'    => $totalDebit,
-            'credit'   => $totalCredit,
-            'currency' => $this->resolveCurrency($draft->currencyCode),
-            'rate'     => $this->normalizeRate($draft->exchangeRate),
+            'lines'     => $lines,
+            'debit'     => $totalDebit,
+            'credit'    => $totalCredit,
+            'currency'  => $this->resolveCurrency($draft->currencyCode),
+            'rate'      => $this->normalizeRate($draft->exchangeRate),
+            'branch_id' => $this->resolveBranch($draft),
         ];
+    }
+
+    /**
+     * A journal belongs to one branch of the company. Without one it goes to the default branch.
+     * A reversal may use a branch that was deactivated after the original was posted.
+     */
+    private function resolveBranch(JournalDraft $draft): int
+    {
+        $branchId = $draft->branchId ?? (new BranchGuard($this->db))->companyDefaultBranchId();
+        $branch   = $this->db->table('branches')->where('branch_id', $branchId)->where('company_id', CompanyContext::id())->get()->getRow();
+
+        if ($branch === null) {
+            throw new PostingException(PostingError::BranchNotFound, "Branch {$branchId} does not exist.", ['branch_id' => $branchId]);
+        }
+
+        if ((int) $branch->active === 0 && $draft->reversesJournalId === null) {
+            throw new PostingException(PostingError::BranchInactive, "Branch {$branchId} is inactive.", ['branch_id' => $branchId]);
+        }
+
+        return $branchId;
     }
 
     private function assertDate(string $date): void
@@ -323,17 +346,30 @@ final class PostingService
 
         $journal = (new Journal($this->db))->findBySource($draft->sourceType, $draft->sourceId, $draft->revision);
 
-        return $journal === null ? null : (int) $journal->journal_id;
+        if ($journal === null) {
+            return null;
+        }
+
+        if ($draft->branchId !== null && (int) $journal->branch_id !== $draft->branchId) {
+            throw new PostingException(PostingError::BranchMismatch, 'The source was already posted in another branch.', [
+                'branch_id' => $draft->branchId,
+                'posted_in' => (int) $journal->branch_id,
+            ]);
+        }
+
+        return (int) $journal->journal_id;
     }
 
     /**
-     * @param array{lines: list<array<string, mixed>>, debit: string, credit: string, currency: string, rate: string} $prepared
+     * @param array{lines: list<array<string, mixed>>, debit: string, credit: string, currency: string, rate: string, branch_id: int} $prepared
      */
     private function write(JournalDraft $draft, array $prepared): int
     {
         $userNumbered = in_array($draft->sourceType, [JournalDraft::SOURCE_MANUAL, JournalDraft::SOURCE_REVERSAL], true);
 
         $inserted = $this->db->table('accounting_journals')->insert([
+            'company_id'          => CompanyContext::id(),
+            'branch_id'           => $prepared['branch_id'],
             'series'              => $userNumbered ? 'manual' : 'auto',
             'number'              => $userNumbered ? $this->numbering->nextManual() : null,
             'journal_date'        => $draft->date,
@@ -376,7 +412,7 @@ final class PostingService
             'source_id'   => $draft->sourceId,
             'revision'    => $draft->revision,
             'total'       => $prepared['debit'],
-        ]);
+        ], $prepared['branch_id']);
 
         return $journalId;
     }

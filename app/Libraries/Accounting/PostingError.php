@@ -16,5 +16,8 @@ enum PostingError: string
     case AccountNotFound    = 'account_not_found';
     case AccountNotPostable = 'account_not_postable';
     case CostCenterNotFound = 'cost_center_not_found';
+    case BranchNotFound     = 'branch_not_found';
+    case BranchInactive     = 'branch_inactive';
+    case BranchMismatch     = 'branch_mismatch';
     case WriteFailed        = 'write_failed';
 }

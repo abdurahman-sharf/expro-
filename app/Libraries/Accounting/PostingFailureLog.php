@@ -30,6 +30,7 @@ final class PostingFailureLog
                 'message'     => $failure->getMessage(),
                 'context'     => $failure->context === [] ? null : json_encode($failure->context, JSON_UNESCAPED_UNICODE),
                 'employee_id' => $draft->employeeId,
+                'branch_id'   => $draft->branchId,
             ]);
         } catch (Throwable $exception) {
             log_message('error', 'Accounting posting failure could not be recorded: ' . $exception->getMessage());

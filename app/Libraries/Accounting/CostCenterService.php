@@ -2,6 +2,7 @@
 
 namespace App\Libraries\Accounting;
 
+use App\Libraries\Organization\BranchGuard;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
@@ -15,12 +16,14 @@ final class CostCenterService
     private BaseConnection $db;
     private AuditLog $audit;
     private AccountingGuard $guard;
+    private BranchGuard $branches;
 
-    public function __construct(?BaseConnection $db = null, ?AccountingGuard $guard = null)
+    public function __construct(?BaseConnection $db = null, ?AccountingGuard $guard = null, ?BranchGuard $branches = null)
     {
-        $this->db    = $db ?? Database::connect();
-        $this->audit = new AuditLog($this->db);
-        $this->guard = $guard ?? new AccountingGuard();
+        $this->db       = $db ?? Database::connect();
+        $this->audit    = new AuditLog($this->db);
+        $this->guard    = $guard ?? new AccountingGuard();
+        $this->branches = $branches ?? new BranchGuard($this->db);
     }
 
     /**
@@ -31,6 +34,7 @@ final class CostCenterService
     public function create(array $input, ?int $employeeId = null): int
     {
         $this->guard->require(AccountingGuard::COST_CENTERS_MANAGE, $employeeId);
+        $this->branches->requireCompanyScope($employeeId);
 
         $parentId = $this->normalizeParent($input['parent_id'] ?? null, null);
         $code     = $this->normalizeCode((string) ($input['code'] ?? ''));
@@ -66,6 +70,7 @@ final class CostCenterService
     public function update(int $costCenterId, array $input, ?int $employeeId = null): void
     {
         $this->guard->require(AccountingGuard::COST_CENTERS_MANAGE, $employeeId);
+        $this->branches->requireCompanyScope($employeeId);
 
         $costCenter = $this->requireCostCenter($costCenterId);
         $changes    = [];
@@ -115,6 +120,7 @@ final class CostCenterService
     public function deactivate(int $costCenterId, ?int $employeeId = null): void
     {
         $this->guard->require(AccountingGuard::COST_CENTERS_MANAGE, $employeeId);
+        $this->branches->requireCompanyScope($employeeId);
 
         $costCenter = $this->requireCostCenter($costCenterId);
 
@@ -135,6 +141,7 @@ final class CostCenterService
     public function activate(int $costCenterId, ?int $employeeId = null): void
     {
         $this->guard->require(AccountingGuard::COST_CENTERS_MANAGE, $employeeId);
+        $this->branches->requireCompanyScope($employeeId);
 
         $costCenter = $this->requireCostCenter($costCenterId);
 
@@ -157,6 +164,7 @@ final class CostCenterService
     public function delete(int $costCenterId, ?int $employeeId = null): void
     {
         $this->guard->require(AccountingGuard::COST_CENTERS_MANAGE, $employeeId);
+        $this->branches->requireCompanyScope($employeeId);
 
         $costCenter = $this->requireCostCenter($costCenterId);
 

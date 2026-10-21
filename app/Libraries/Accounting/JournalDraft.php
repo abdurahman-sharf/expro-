@@ -22,6 +22,7 @@ final readonly class JournalDraft
         public string $currencyCode = '',
         public string $exchangeRate = '1',
         public ?int $reversesJournalId = null,
+        public ?int $branchId = null,
     ) {
     }
 }

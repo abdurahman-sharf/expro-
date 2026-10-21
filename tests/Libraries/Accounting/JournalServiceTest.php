@@ -10,6 +10,7 @@ use App\Libraries\Accounting\CostCenterService;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\Organization\BranchGuard;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -562,6 +563,7 @@ class JournalServiceTest extends CIUnitTestCase
             ['permission_id' => 'accounting_journals', 'menu_group' => 'home'],
             ['permission_id' => AccountingGuard::JOURNALS_DRAFT, 'menu_group' => 'home'],
             ['permission_id' => AccountingGuard::JOURNALS_POST, 'menu_group' => 'home'],
+            ['permission_id' => BranchGuard::ALL_BRANCHES, 'menu_group' => '--'],
         ]);
         $journalId = $this->service->postNew($this->journalInput(), $poster);
 
@@ -592,6 +594,7 @@ class JournalServiceTest extends CIUnitTestCase
             ['permission_id' => 'accounting_journals', 'menu_group' => 'home'],
             ['permission_id' => AccountingGuard::JOURNALS_DRAFT, 'menu_group' => 'home'],
             ['permission_id' => AccountingGuard::JOURNALS_POST, 'menu_group' => 'home'],
+            ['permission_id' => BranchGuard::ALL_BRANCHES, 'menu_group' => '--'],
         ]);
 
         $input = $this->journalInput();

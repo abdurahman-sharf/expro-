@@ -2,6 +2,10 @@
 
 namespace App\Libraries\Accounting;
 
+use App\Libraries\Organization\BranchError;
+use App\Libraries\Organization\BranchException;
+use App\Libraries\Organization\BranchGuard;
+use App\Libraries\Organization\CompanyContext;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Database\RawSql;
@@ -21,28 +25,37 @@ final class JournalService
     private AccountingGuard $guard;
     private PostingService $posting;
     private JournalNumbering $numbering;
+    private BranchGuard $branches;
 
-    public function __construct(?BaseConnection $db = null, ?AccountingGuard $guard = null, ?PostingService $posting = null)
+    public function __construct(?BaseConnection $db = null, ?AccountingGuard $guard = null, ?PostingService $posting = null, ?BranchGuard $branches = null)
     {
         $this->db        = $db ?? Database::connect();
         $this->audit     = new AuditLog($this->db);
         $this->guard     = $guard ?? new AccountingGuard();
         $this->posting   = $posting ?? new PostingService($this->db);
         $this->numbering = new JournalNumbering($this->db);
+        $this->branches  = $branches ?? new BranchGuard($this->db);
     }
 
     /**
      * Creates a draft, or replaces the header and lines of an existing one. A draft may be
      * unbalanced and incomplete, but every line it keeps must be well formed.
      *
-     * @param array{date?: string, description?: string, lines?: list<array<string, mixed>>} $input
+     * @param array{date?: string, description?: string, branch_id?: int|string, lines?: list<array<string, mixed>>} $input
      *
-     * @throws AccountingException
+     * @throws AccountingException|BranchException
      */
     public function saveDraft(array $input, ?int $employeeId = null, ?int $journalId = null): int
     {
         $this->guard->require(AccountingGuard::JOURNALS_DRAFT, $employeeId);
 
+        $stored = $journalId === null ? null : $this->db->table('accounting_journals')->select('branch_id')->where('journal_id', $journalId)->get()->getRow();
+
+        if ($stored !== null && ! $this->branches->canAccess((int) $stored->branch_id, $employeeId)) {
+            throw new AccountingException(AccountingError::JournalNotFound, "Journal {$journalId} does not exist.");
+        }
+
+        $branchId    = $this->resolveBranch($input['branch_id'] ?? $stored?->branch_id, $employeeId);
         $date        = $this->normalizeDate((string) ($input['date'] ?? ''));
         $description = trim((string) ($input['description'] ?? ''));
         $lines       = $this->normalizeDraftLines($input['lines'] ?? []);
@@ -52,11 +65,13 @@ final class JournalService
             throw new AccountingException(AccountingError::BaseCurrencyMissing, 'The base currency is not configured.');
         }
 
-        return $this->transactional(function () use ($journalId, $date, $description, $lines, $currency, $employeeId): int {
+        return $this->transactional(function () use ($journalId, $branchId, $date, $description, $lines, $currency, $employeeId): int {
             $totals = $this->totals($lines);
 
             if ($journalId === null) {
                 $this->db->table('accounting_journals')->insert([
+                    'company_id'    => CompanyContext::id(),
+                    'branch_id'     => $branchId,
                     'series'        => 'manual',
                     'number'        => null,
                     'journal_date'  => $date,
@@ -76,6 +91,7 @@ final class JournalService
                 $this->lockDraft($journalId, $employeeId);
 
                 $this->db->table('accounting_journals')->where('journal_id', $journalId)->update([
+                    'branch_id'    => $branchId,
                     'journal_date' => $date,
                     'description'  => $description === '' ? null : $description,
                     'total_debit'  => $totals[0],
@@ -88,7 +104,7 @@ final class JournalService
             }
 
             $this->insertLines($id, $lines);
-            $this->audit->write('journal', $id, $action, $employeeId, JournalOrigin::User, ['lines' => count($lines)]);
+            $this->audit->write('journal', $id, $action, $employeeId, JournalOrigin::User, ['lines' => count($lines)], $branchId);
 
             return $id;
         });
@@ -102,12 +118,12 @@ final class JournalService
         $this->guard->require(AccountingGuard::JOURNALS_DRAFT, $employeeId);
 
         $this->transactional(function () use ($journalId, $employeeId): void {
-            $this->lockDraft($journalId, $employeeId);
+            $draft = $this->lockDraft($journalId, $employeeId);
 
             $this->db->table('accounting_journal_lines')->where('journal_id', $journalId)->delete();
             $this->db->table('accounting_journals')->where('journal_id', $journalId)->delete();
 
-            $this->audit->write('journal', $journalId, 'draft_deleted', $employeeId, JournalOrigin::User);
+            $this->audit->write('journal', $journalId, 'draft_deleted', $employeeId, JournalOrigin::User, [], (int) $draft->branch_id);
         });
     }
 
@@ -115,27 +131,29 @@ final class JournalService
      * Posts a stored draft, replacing its content first when new input is given. Nothing is
      * written when the journal does not pass the posting checks.
      *
-     * @param array{date?: string, description?: string, lines?: list<array<string, mixed>>}|null $input
+     * @param array{date?: string, description?: string, branch_id?: int|string, lines?: list<array<string, mixed>>}|null $input
      *
-     * @throws AccountingException|PostingException
+     * @throws AccountingException|BranchException|PostingException
      */
     public function postDraft(int $journalId, ?int $employeeId = null, ?array $input = null): int
     {
         $this->guard->require(AccountingGuard::JOURNALS_POST, $employeeId);
 
+        $stored = $this->find($journalId, $employeeId);
+
+        if ($stored->status !== JournalStatus::Draft->value) {
+            throw new AccountingException(AccountingError::NotADraft, 'Only a draft can be posted.');
+        }
+
         if ($input !== null) {
             $this->guard->require(AccountingGuard::JOURNALS_DRAFT, $employeeId);
 
+            $branchId    = $this->resolveBranch($input['branch_id'] ?? $stored->branch_id, $employeeId);
             $date        = $this->normalizeDate((string) ($input['date'] ?? ''));
             $description = trim((string) ($input['description'] ?? ''));
             $lines       = $this->normalizeDraftLines($input['lines'] ?? []);
         } else {
-            $stored = $this->find($journalId, $employeeId);
-
-            if ($stored->status !== JournalStatus::Draft->value) {
-                throw new AccountingException(AccountingError::NotADraft, 'Only a draft can be posted.');
-            }
-
+            $branchId    = (int) $stored->branch_id;
             $date        = $stored->journal_date;
             $description = (string) $stored->description;
             $lines       = array_map(static fn (object $line): array => [
@@ -147,12 +165,13 @@ final class JournalService
             ], $stored->lines);
         }
 
-        $prepared = $this->posting->validate($this->toPostingDraft($date, $description, $lines, $employeeId));
+        $prepared = $this->posting->validate($this->toPostingDraft($date, $description, $lines, $employeeId, $branchId));
 
         return $this->transactional(function () use ($journalId, $employeeId, $prepared, $date, $description): int {
             $this->lockDraft($journalId, $employeeId);
 
             $this->db->table('accounting_journals')->where('journal_id', $journalId)->update([
+                'branch_id'     => $prepared['branch_id'],
                 'number'        => $this->numbering->nextManual(),
                 'journal_date'  => $date,
                 'description'   => $description === '' ? null : $description,
@@ -171,7 +190,7 @@ final class JournalService
             $this->audit->write('journal', $journalId, 'posted', $employeeId, JournalOrigin::User, [
                 'source_type' => JournalDraft::SOURCE_MANUAL,
                 'total'       => $prepared['debit'],
-            ]);
+            ], $prepared['branch_id']);
 
             return $journalId;
         });
@@ -180,20 +199,21 @@ final class JournalService
     /**
      * Creates and posts a manual journal in one step.
      *
-     * @param array{date?: string, description?: string, lines?: list<array<string, mixed>>} $input
+     * @param array{date?: string, description?: string, branch_id?: int|string, lines?: list<array<string, mixed>>} $input
      *
-     * @throws AccountingException|PostingException
+     * @throws AccountingException|BranchException|PostingException
      */
     public function postNew(array $input, ?int $employeeId = null): int
     {
         $this->guard->require(AccountingGuard::JOURNALS_DRAFT, $employeeId);
         $this->guard->require(AccountingGuard::JOURNALS_POST, $employeeId);
 
+        $branchId    = $this->resolveBranch($input['branch_id'] ?? null, $employeeId);
         $date        = $this->normalizeDate((string) ($input['date'] ?? ''));
         $description = trim((string) ($input['description'] ?? ''));
         $lines       = $this->normalizeDraftLines($input['lines'] ?? []);
 
-        return $this->posting->post($this->toPostingDraft($date, $description, $lines, $employeeId))->journalId;
+        return $this->posting->post($this->toPostingDraft($date, $description, $lines, $employeeId, $branchId))->journalId;
     }
 
     /**
@@ -261,6 +281,7 @@ final class JournalService
                 currencyCode: $original->currency_code,
                 exchangeRate: $original->exchange_rate,
                 reversesJournalId: $journalId,
+                branchId: (int) $original->branch_id,
             ));
 
             $this->db->table('accounting_journals')
@@ -271,7 +292,7 @@ final class JournalService
                 'reversal_id' => $result->journalId,
                 'date'        => $date,
                 'reason'      => $reason,
-            ]);
+            ], (int) $original->branch_id);
 
             return $result->journalId;
         });
@@ -285,8 +306,9 @@ final class JournalService
      */
     public function find(int $journalId, ?int $employeeId = null): object
     {
-        $journals = $this->db->prefixTable('accounting_journals');
-        $people   = $this->db->prefixTable('people');
+        $journals    = $this->db->prefixTable('accounting_journals');
+        $people      = $this->db->prefixTable('people');
+        $branchTable = $this->db->prefixTable('branches');
 
         $journal = $this->db->query(
             "SELECT j.*,
@@ -294,8 +316,11 @@ final class JournalService
                 TRIM(CONCAT(pp.first_name, ' ', pp.last_name)) AS posted_by_name,
                 o.number AS reverses_number,
                 r.journal_id AS reversed_by_id,
-                r.number AS reversed_by_number
+                r.number AS reversed_by_number,
+                bb.code AS branch_code,
+                bb.name AS branch_name
              FROM {$journals} j
+             LEFT JOIN {$branchTable} bb ON bb.branch_id = j.branch_id
              LEFT JOIN {$people} cp ON cp.person_id = j.created_by
              LEFT JOIN {$people} pp ON pp.person_id = j.posted_by
              LEFT JOIN {$journals} o ON o.journal_id = j.reverses_journal_id
@@ -316,7 +341,7 @@ final class JournalService
     }
 
     /**
-     * @param array{account_id?: int|string, description?: string, number?: string, date_from?: string, date_to?: string, source_type?: string, status?: list<string>, amount_from?: string, amount_to?: string, created_from?: string, created_to?: string, created_by?: int|string} $filters
+     * @param array{account_id?: int|string, description?: string, number?: string, date_from?: string, date_to?: string, source_type?: string, status?: list<string>, amount_from?: string, amount_to?: string, created_from?: string, created_to?: string, created_by?: int|string, branch_id?: int|string} $filters
      *
      * @return array{total: int, rows: list<object>}
      */
@@ -329,12 +354,18 @@ final class JournalService
         // Every other query is made before the builder exists: creating a builder resets the
         // table aliases the connection shares, which would break this one.
         $ownOnly    = ! $this->guard->has(AccountingGuard::JOURNALS_ALL, $employeeId);
+        $allowed    = $this->branches->allowedBranchIds($employeeId);
         $accountIds = (int) ($filters['account_id'] ?? 0) > 0 ? $this->accountWithDescendants((int) $filters['account_id']) : [];
 
         $builder = $this->db->table('accounting_journals j')
-            ->select("j.journal_id, j.series, j.number, j.journal_date, j.description, j.source_type, j.status, j.total_debit, j.total_credit, j.currency_code, j.created_by, j.created_at, TRIM(CONCAT(p.first_name, ' ', p.last_name)) AS created_by_name", false)
+            ->select("j.journal_id, j.branch_id, b.code AS branch_code, b.name AS branch_name, j.series, j.number, j.journal_date, j.description, j.source_type, j.status, j.total_debit, j.total_credit, j.currency_code, j.created_by, j.created_at, TRIM(CONCAT(p.first_name, ' ', p.last_name)) AS created_by_name", false)
             ->join('people p', 'p.person_id = j.created_by', 'left')
+            ->join('branches b', 'b.branch_id = j.branch_id')
             ->where('j.status !=', JournalStatus::Preview->value);
+
+        if ($allowed !== null) {
+            $allowed === [] ? $builder->where('1 = 0', null, false) : $builder->whereIn('j.branch_id', $allowed);
+        }
 
         if ($ownOnly) {
             $builder->where('j.created_by', $employeeId);
@@ -430,6 +461,12 @@ final class JournalService
         if ($createdBy > 0) {
             $builder->where('j.created_by', $createdBy);
         }
+
+        $branchId = (int) ($filters['branch_id'] ?? 0);
+
+        if ($branchId > 0) {
+            $builder->where('j.branch_id', $branchId);
+        }
     }
 
     /**
@@ -498,15 +535,42 @@ final class JournalService
      */
     private function assertCanAccess(object $journal, ?int $employeeId): void
     {
-        if ($employeeId !== null && (int) $journal->created_by !== $employeeId && ! $this->guard->has(AccountingGuard::JOURNALS_ALL, $employeeId)) {
+        $outsideScope = ! $this->branches->canAccess((int) $journal->branch_id, $employeeId);
+        $notTheirs    = $employeeId !== null && (int) $journal->created_by !== $employeeId && ! $this->guard->has(AccountingGuard::JOURNALS_ALL, $employeeId);
+
+        if ($outsideScope || $notTheirs) {
             throw new AccountingException(AccountingError::JournalNotFound, "Journal {$journal->journal_id} does not exist.");
         }
     }
 
     /**
+     * The branch a journal goes to: the one asked for, else the employee's default. It must be
+     * an active branch of the company inside the employee's scope.
+     *
+     * @throws BranchException
+     */
+    private function resolveBranch(mixed $requested, ?int $employeeId): int
+    {
+        $branchId = (int) $requested > 0 ? (int) $requested : $this->branches->defaultBranchId($employeeId);
+        $branch   = $this->db->table('branches')->where('branch_id', $branchId)->where('company_id', CompanyContext::id())->get()->getRow();
+
+        if ($branch === null) {
+            throw new BranchException(BranchError::NotFound, "Branch {$branchId} does not exist.", ['branch_id' => $branchId]);
+        }
+
+        $this->branches->requireBranch($branchId, $employeeId);
+
+        if ((int) $branch->active === 0) {
+            throw new BranchException(BranchError::Inactive, "Branch {$branchId} is inactive.", ['branch_id' => $branchId]);
+        }
+
+        return $branchId;
+    }
+
+    /**
      * @param list<array<string, mixed>> $lines
      */
-    private function toPostingDraft(string $date, string $description, array $lines, ?int $employeeId): JournalDraft
+    private function toPostingDraft(string $date, string $description, array $lines, ?int $employeeId, int $branchId): JournalDraft
     {
         return new JournalDraft(
             date: $date,
@@ -521,6 +585,7 @@ final class JournalService
             origin: JournalOrigin::User,
             employeeId: $employeeId,
             description: $description,
+            branchId: $branchId,
         );
     }
 

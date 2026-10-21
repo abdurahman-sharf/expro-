@@ -2,6 +2,7 @@
 
 namespace App\Libraries\Accounting;
 
+use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
@@ -24,27 +25,38 @@ final class AuditLog
         ?int $employeeId,
         JournalOrigin $origin,
         array $details = [],
+        ?int $branchId = null,
     ): void {
         $this->db->table('accounting_audit_log')->insert([
             'entity_type' => $entityType,
             'entity_id'   => $entityId,
             'action'      => $action,
             'employee_id' => $employeeId,
+            'branch_id'   => $branchId,
             'origin'      => $origin->value,
             'details'     => $details === [] ? null : json_encode($details, JSON_UNESCAPED_UNICODE),
         ]);
     }
 
     /**
-     * @param array{date_from?: string, date_to?: string, action?: string, entity_type?: string, entity_id?: int|string, employee_id?: int|string, origin?: string} $filters
+     * @param array{date_from?: string, date_to?: string, action?: string, entity_type?: string, entity_id?: int|string, employee_id?: int|string, origin?: string, branch_id?: int|string} $filters
+     * @param list<int>|null                                                                                                                                                                $branchIds The branches the reader may see, null for every branch. Entries that belong to no branch (the whole company) are for readers of every branch.
      *
      * @return array{total: int, rows: list<object>}
      */
-    public function search(array $filters, string $order = 'desc', int $limit = 25, int $offset = 0): array
+    public function search(array $filters, string $order = 'desc', int $limit = 25, int $offset = 0, ?array $branchIds = null): array
     {
         $builder = $this->db->table('accounting_audit_log a')
-            ->select("a.audit_id, a.entity_type, a.entity_id, a.action, a.employee_id, a.origin, a.details, a.created_at, TRIM(CONCAT(p.first_name, ' ', p.last_name)) AS employee_name", false)
+            ->select("a.audit_id, a.entity_type, a.entity_id, a.action, a.employee_id, a.branch_id, a.origin, a.details, a.created_at, TRIM(CONCAT(p.first_name, ' ', p.last_name)) AS employee_name", false)
             ->join('people p', 'p.person_id = a.employee_id', 'left');
+
+        $this->limitToBranches($builder, $branchIds);
+
+        $branchId = (int) ($filters['branch_id'] ?? 0);
+
+        if ($branchId > 0) {
+            $builder->where('a.branch_id', $branchId);
+        }
 
         foreach (['action' => 'a.action', 'entity_type' => 'a.entity_type', 'origin' => 'a.origin'] as $key => $column) {
             $value = trim((string) ($filters[$key] ?? ''));
@@ -82,26 +94,54 @@ final class AuditLog
     }
 
     /**
+     * @param list<int>|null $branchIds
+     *
      * @return list<string>
      */
-    public function actions(): array
+    public function actions(?array $branchIds = null): array
     {
-        return array_column($this->db->table('accounting_audit_log')->distinct()->select('action')->orderBy('action', 'ASC')->get()->getResultArray(), 'action');
+        $builder = $this->db->table('accounting_audit_log a')->distinct()->select('a.action')->orderBy('a.action', 'ASC');
+
+        $this->limitToBranches($builder, $branchIds);
+
+        return array_column($builder->get()->getResultArray(), 'action');
     }
 
     /**
      * People who appear in the log, for the employee filter.
      *
+     * @param list<int>|null $branchIds
+     *
      * @return list<object>
      */
-    public function employees(): array
+    public function employees(?array $branchIds = null): array
     {
-        return $this->db->table('accounting_audit_log a')
+        $builder = $this->db->table('accounting_audit_log a')
             ->select("a.employee_id, TRIM(CONCAT(p.first_name, ' ', p.last_name)) AS name", false)
             ->join('people p', 'p.person_id = a.employee_id')
             ->distinct()
-            ->orderBy('name', 'ASC')
-            ->get()
-            ->getResult();
+            ->orderBy('name', 'ASC');
+
+        $this->limitToBranches($builder, $branchIds);
+
+        return $builder->get()->getResult();
+    }
+
+    /**
+     * @param list<int>|null $branchIds
+     */
+    private function limitToBranches(BaseBuilder $builder, ?array $branchIds): void
+    {
+        if ($branchIds === null) {
+            return;
+        }
+
+        if ($branchIds === []) {
+            $builder->where('1 = 0', null, false);
+
+            return;
+        }
+
+        $builder->whereIn('a.branch_id', $branchIds);
     }
 }

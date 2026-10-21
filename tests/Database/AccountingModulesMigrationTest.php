@@ -114,7 +114,7 @@ class AccountingModulesMigrationTest extends CIUnitTestCase
 
             $this->assertSame(0, $this->accountingDb()->table('modules')->like('module_id', 'accounting_', 'after')->countAllResults());
             $this->assertSame(0, $this->accountingDb()->table('permissions')->like('module_id', 'accounting_', 'after')->countAllResults());
-            $this->assertSame(0, $this->accountingDb()->table('grants')->where('person_id', $employee)->countAllResults());
+            $this->assertSame(0, $this->accountingDb()->table('grants')->where('person_id', $employee)->whereIn('permission_id', $this->allAccountingPermissions())->countAllResults());
         } finally {
             $migration->up();
         }

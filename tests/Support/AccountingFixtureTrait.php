@@ -5,6 +5,7 @@ namespace Tests\Support;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountService;
 use App\Libraries\Accounting\DefaultChart;
+use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
 use CodeIgniter\Database\BaseConnection;
@@ -61,6 +62,32 @@ trait AccountingFixtureTrait
         $db->query('SET FOREIGN_KEY_CHECKS = 1');
 
         (new DefaultChart($db))->install();
+
+        $this->resetBranches();
+    }
+
+    /**
+     * Leaves only the default branch, which every test starts from.
+     */
+    protected function resetBranches(): void
+    {
+        $db = $this->accountingDb();
+        $db->query('SET FOREIGN_KEY_CHECKS = 0');
+
+        $db->table('employee_branches')->where('branch_id !=', 1)->delete();
+        $db->table('stock_locations')->update(['branch_id' => 1]);
+        $db->table('branches')->where('branch_id !=', 1)->delete();
+        $db->table('branches')->where('branch_id', 1)->update(['active' => 1, 'is_default' => 1, 'code' => 'HQ']);
+
+        $db->query('SET FOREIGN_KEY_CHECKS = 1');
+    }
+
+    protected function createBranch(string $code = 'B2', string $name = 'Second branch', bool $active = true): int
+    {
+        $db = $this->accountingDb();
+        $db->table('branches')->insert(['company_id' => 1, 'code' => $code, 'name' => $name, 'active' => $active ? 1 : 0]);
+
+        return (int) $db->insertID();
     }
 
     protected function releaseOpenTransactions(): void
@@ -107,16 +134,29 @@ trait AccountingFixtureTrait
     }
 
     /**
-     * An employee holding exactly the given permissions and nothing else.
+     * An employee holding exactly the given permissions and nothing else. Without branches the
+     * employee may work in every branch. With a list of branch ids the employee is limited to
+     * those, and the first one is the default.
      *
-     * @param list<string> $permissionIds
+     * @param list<string>   $permissionIds
+     * @param list<int>|null $branchIds
      */
-    protected function employeeWithGrants(array $permissionIds): int
+    protected function employeeWithGrants(array $permissionIds, ?array $branchIds = null): int
     {
-        return $this->createEmployee(grants: array_map(
+        if ($branchIds === null) {
+            $permissionIds[] = BranchGuard::ALL_BRANCHES;
+        }
+
+        $personId = $this->createEmployee(grants: array_map(
             static fn (string $permissionId): array => ['permission_id' => $permissionId, 'menu_group' => 'home'],
-            $permissionIds,
+            array_values(array_unique($permissionIds)),
         ));
+
+        foreach ($branchIds ?? [] as $index => $branchId) {
+            $this->accountingDb()->table('employee_branches')->insert(['person_id' => $personId, 'branch_id' => $branchId, 'is_default' => $index === 0 ? 1 : 0]);
+        }
+
+        return $personId;
     }
 
     /**

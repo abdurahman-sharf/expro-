@@ -2,6 +2,7 @@
 
 namespace App\Libraries\Accounting;
 
+use App\Libraries\Organization\BranchGuard;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
@@ -15,12 +16,14 @@ final class AccountService
     private BaseConnection $db;
     private AuditLog $audit;
     private AccountingGuard $guard;
+    private BranchGuard $branches;
 
-    public function __construct(?BaseConnection $db = null, ?AccountingGuard $guard = null)
+    public function __construct(?BaseConnection $db = null, ?AccountingGuard $guard = null, ?BranchGuard $branches = null)
     {
-        $this->db    = $db ?? Database::connect();
-        $this->audit = new AuditLog($this->db);
-        $this->guard = $guard ?? new AccountingGuard();
+        $this->db       = $db ?? Database::connect();
+        $this->audit    = new AuditLog($this->db);
+        $this->guard    = $guard ?? new AccountingGuard();
+        $this->branches = $branches ?? new BranchGuard($this->db);
     }
 
     /**
@@ -31,6 +34,7 @@ final class AccountService
     public function create(array $input, ?int $employeeId = null): int
     {
         $this->guard->require(AccountingGuard::CHART_MANAGE, $employeeId);
+        $this->branches->requireCompanyScope($employeeId);
 
         $parent = $this->requireParent((int) ($input['parent_id'] ?? 0));
         $code   = $this->normalizeCode((string) ($input['code'] ?? ''));
@@ -77,6 +81,7 @@ final class AccountService
     public function update(int $accountId, array $input, ?int $employeeId = null): void
     {
         $this->guard->require(AccountingGuard::CHART_MANAGE, $employeeId);
+        $this->branches->requireCompanyScope($employeeId);
 
         $account = $this->requireAccount($accountId);
         $used    = $this->isUsed($accountId);
@@ -140,6 +145,7 @@ final class AccountService
     public function deactivate(int $accountId, ?int $employeeId = null): void
     {
         $this->guard->require(AccountingGuard::CHART_MANAGE, $employeeId);
+        $this->branches->requireCompanyScope($employeeId);
 
         $account = $this->requireAccount($accountId);
 
@@ -168,6 +174,7 @@ final class AccountService
     public function activate(int $accountId, ?int $employeeId = null): void
     {
         $this->guard->require(AccountingGuard::CHART_MANAGE, $employeeId);
+        $this->branches->requireCompanyScope($employeeId);
 
         $account = $this->requireAccount($accountId);
 
@@ -190,6 +197,7 @@ final class AccountService
     public function delete(int $accountId, ?int $employeeId = null): void
     {
         $this->guard->require(AccountingGuard::CHART_MANAGE, $employeeId);
+        $this->branches->requireCompanyScope($employeeId);
 
         $account = $this->requireAccount($accountId);
 
@@ -291,20 +299,28 @@ final class AccountService
 
     /**
      * Balances of posted and reversed journals, each account including its descendants.
-     * The balance is signed to the account's normal direction.
+     * The balance is signed to the account's normal direction. With a list of branches only the
+     * journals of those branches count, so a reader never sees another branch's activity.
+     *
+     * @param list<int>|null $branchIds Null counts every branch.
      *
      * @return array<int, array{debit: string, credit: string, balance: string}>
      */
-    public function balances(): array
+    public function balances(?array $branchIds = null): array
     {
         $accounts = $this->all();
         $own      = [];
+        $scope    = '';
+
+        if ($branchIds !== null) {
+            $scope = $branchIds === [] ? ' AND 1 = 0' : ' AND j.branch_id IN (' . implode(',', array_map('intval', $branchIds)) . ')';
+        }
 
         $rows = $this->db->query(
             'SELECT l.account_id, SUM(l.debit) AS debit, SUM(l.credit) AS credit
              FROM ' . $this->db->prefixTable('accounting_journal_lines') . ' l
              JOIN ' . $this->db->prefixTable('accounting_journals') . ' j ON j.journal_id = l.journal_id
-             WHERE j.status IN (?, ?)
+             WHERE j.status IN (?, ?)' . $scope . '
              GROUP BY l.account_id',
             [JournalStatus::Posted->value, JournalStatus::Reversed->value],
         )->getResult();
