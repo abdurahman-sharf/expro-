@@ -57,80 +57,43 @@ final class EmployeeBranchService
 
     /**
      * Sets the branches of an employee. The employee's branches the actor cannot see stay as they
-     * are. With $dryRun nothing is written, so a screen can reject the change before it saves
-     * anything else.
+     * are.
      *
      * @param list<int> $branchIds
      *
      * @throws BranchException
      */
-    public function setScope(?int $actorId, int $targetId, bool $allBranches, array $branchIds, ?int $defaultBranchId = null, bool $dryRun = false): void
+    public function setScope(?int $actorId, int $targetId, bool $allBranches, array $branchIds, ?int $defaultBranchId = null): void
     {
-        if (! $this->guard->has(BranchGuard::SCOPE_MANAGE, $actorId)) {
-            throw new BranchException(BranchError::PermissionDenied, 'Missing permission ' . BranchGuard::SCOPE_MANAGE . '.');
-        }
+        $plan = $this->plan($actorId, $targetId, $allBranches, $branchIds, $defaultBranchId);
 
-        if ($actorId !== null && $actorId === $targetId) {
-            throw new BranchException(BranchError::OwnScope, 'Nobody changes their own branches.');
-        }
-
-        if ($this->db->table('employees')->where('person_id', $targetId)->where('deleted', 0)->countAllResults() === 0) {
-            throw new BranchException(BranchError::EmployeeNotFound, "Employee {$targetId} does not exist.");
-        }
-
-        $current      = $this->scopeOf($targetId);
-        $branchIds    = array_values(array_unique(array_map('intval', $branchIds)));
-        $actorAllowed = $this->guard->allowedBranchIds($actorId);
-
-        if ($actorAllowed !== null && ($allBranches || $current['all'])) {
-            throw new BranchException(BranchError::ScopeTooWide, 'Only someone with every branch can give or change every branch.');
-        }
-
-        $this->assertBranchesExist($branchIds);
-
-        if ($actorAllowed !== null) {
-            foreach ($branchIds as $branchId) {
-                if (! in_array($branchId, $actorAllowed, true)) {
-                    throw new BranchException(BranchError::ScopeTooWide, "The branch {$branchId} is outside your own branches.", ['branch_id' => $branchId]);
-                }
-            }
-
-            $preserved = array_values(array_filter($current['branch_ids'], static fn (int $id): bool => ! in_array($id, $actorAllowed, true)));
-            $branchIds = array_values(array_unique([...$branchIds, ...$preserved]));
-        }
-
-        if (! $allBranches && $branchIds === []) {
-            throw new BranchException(BranchError::NoBranch, 'An employee needs at least one branch or every branch.');
-        }
-
-        $default = $defaultBranchId ?? ($branchIds[0] ?? null);
-
-        if ($default !== null && $branchIds !== [] && ! in_array($default, $branchIds, true)) {
-            throw new BranchException(BranchError::InvalidDefault, 'The default branch must be one of the employee branches.');
-        }
-
-        if ($current['all'] && ! $allBranches && $this->otherUnrestrictedEmployees($targetId) === 0) {
-            throw new BranchException(BranchError::LastUnrestricted, 'The last employee with every branch keeps it.');
-        }
-
-        if ($dryRun) {
-            return;
-        }
-
-        $this->transactional(function () use ($targetId, $allBranches, $branchIds, $default, $current, $actorId): void {
+        $this->transactional(function () use ($targetId, $allBranches, $plan, $actorId): void {
             $this->db->table('employee_branches')->where('person_id', $targetId)->delete();
 
-            foreach ($branchIds as $branchId) {
-                $this->db->table('employee_branches')->insert(['person_id' => $targetId, 'branch_id' => $branchId, 'is_default' => $branchId === $default ? 1 : 0]);
+            foreach ($plan['branch_ids'] as $branchId) {
+                $this->db->table('employee_branches')->insert(['person_id' => $targetId, 'branch_id' => $branchId, 'is_default' => $branchId === $plan['default'] ? 1 : 0]);
             }
 
             $this->setAllBranchesGrant($targetId, $allBranches);
 
             $this->audit->write('employee_scope', $targetId, 'scope_changed', $actorId, JournalOrigin::User, [
-                'before' => $current,
-                'after'  => ['all' => $allBranches, 'branch_ids' => $branchIds, 'default_branch_id' => $default],
+                'before' => $plan['current'],
+                'after'  => ['all' => $allBranches, 'branch_ids' => $plan['branch_ids'], 'default_branch_id' => $plan['default']],
             ]);
         });
+    }
+
+    /**
+     * Applies every rule of setScope without writing, so a screen can refuse a request before it
+     * saves anything else. A null target is an employee that does not exist yet.
+     *
+     * @param list<int> $branchIds
+     *
+     * @throws BranchException
+     */
+    public function validateScope(?int $actorId, ?int $targetId, bool $allBranches, array $branchIds, ?int $defaultBranchId = null): void
+    {
+        $this->plan($actorId, $targetId, $allBranches, $branchIds, $defaultBranchId);
     }
 
     /**
@@ -161,6 +124,65 @@ final class EmployeeBranchService
                 'is_default' => 1,
             ]);
         }
+    }
+
+    /**
+     * @param list<int> $branchIds
+     *
+     * @return array{branch_ids: list<int>, default: ?int, current: array{all: bool, branch_ids: list<int>, default_branch_id: ?int}}
+     *
+     * @throws BranchException
+     */
+    private function plan(?int $actorId, ?int $targetId, bool $allBranches, array $branchIds, ?int $defaultBranchId): array
+    {
+        if (! $this->guard->has(BranchGuard::SCOPE_MANAGE, $actorId)) {
+            throw new BranchException(BranchError::PermissionDenied, 'Missing permission ' . BranchGuard::SCOPE_MANAGE . '.');
+        }
+
+        if ($targetId !== null && $actorId !== null && $actorId === $targetId) {
+            throw new BranchException(BranchError::OwnScope, 'Nobody changes their own branches.');
+        }
+
+        if ($targetId !== null && $this->db->table('employees')->where('person_id', $targetId)->where('deleted', 0)->countAllResults() === 0) {
+            throw new BranchException(BranchError::EmployeeNotFound, "Employee {$targetId} does not exist.");
+        }
+
+        $current      = $targetId === null ? ['all' => false, 'branch_ids' => [], 'default_branch_id' => null] : $this->scopeOf($targetId);
+        $branchIds    = array_values(array_unique(array_map('intval', $branchIds)));
+        $actorAllowed = $this->guard->allowedBranchIds($actorId);
+
+        if ($actorAllowed !== null && ($allBranches || $current['all'])) {
+            throw new BranchException(BranchError::ScopeTooWide, 'Only someone with every branch can give or change every branch.');
+        }
+
+        $this->assertBranchesExist($branchIds);
+
+        if ($actorAllowed !== null) {
+            foreach ($branchIds as $branchId) {
+                if (! in_array($branchId, $actorAllowed, true)) {
+                    throw new BranchException(BranchError::ScopeTooWide, "The branch {$branchId} is outside your own branches.", ['branch_id' => $branchId]);
+                }
+            }
+
+            $preserved = array_values(array_filter($current['branch_ids'], static fn (int $id): bool => ! in_array($id, $actorAllowed, true)));
+            $branchIds = array_values(array_unique([...$branchIds, ...$preserved]));
+        }
+
+        if (! $allBranches && $branchIds === []) {
+            throw new BranchException(BranchError::NoBranch, 'An employee needs at least one branch or every branch.');
+        }
+
+        $default = $defaultBranchId ?? ($branchIds[0] ?? null);
+
+        if ($default !== null && $branchIds !== [] && ! in_array($default, $branchIds, true)) {
+            throw new BranchException(BranchError::InvalidDefault, 'The default branch must be one of the employee branches.');
+        }
+
+        if ($targetId !== null && $current['all'] && ! $allBranches && $this->otherUnrestrictedEmployees($targetId) === 0) {
+            throw new BranchException(BranchError::LastUnrestricted, 'The last employee with every branch keeps it.');
+        }
+
+        return ['branch_ids' => $branchIds, 'default' => $default, 'current' => $current];
     }
 
     private function setAllBranchesGrant(int $personId, bool $granted): void

@@ -1,6 +1,8 @@
 <?php
 /**
  * @var object|null $journal
+ * @var list<object> $branches
+ * @var int $branch_id
  * @var list<object> $accounts
  * @var list<object> $cost_centers
  * @var string $currency
@@ -92,6 +94,18 @@ $rows   = $lines === [] ? [null, null] : $lines;
                 <input type="date" name="date" id="journal_date" class="form-control form-control-sm" value="<?= esc($isNew ? date('Y-m-d') : $journal->journal_date, 'attr') ?>" required>
             </div>
         </div>
+        <?php if ($branches !== []): ?>
+            <div class="field">
+                <label class="form-label" for="journal_branch"><?= lang('Accounting_journals.branch') ?></label>
+                <div class="field-control">
+                    <select name="branch_id" id="journal_branch" class="form-select form-select-sm">
+                        <?php foreach ($branches as $branch): ?>
+                            <option value="<?= (int) $branch->branch_id ?>"<?= $branch_id === (int) $branch->branch_id ? ' selected' : '' ?>><?= esc($branch->code . ' - ' . $branch->name) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+            </div>
+        <?php endif; ?>
         <div class="field">
             <span class="form-label"><?= lang('Accounting_journals.number') ?></span>
             <div class="field-control">

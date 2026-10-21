@@ -24,7 +24,7 @@ class AccountingCostCenters extends AccountingController
     {
         return view('accounting_cost_centers/manage', [
             'table_headers' => transform_headers($this->headers(), true, true),
-            'can_manage'    => $this->can(AccountingGuard::COST_CENTERS_MANAGE),
+            'can_manage'    => $this->canManage(AccountingGuard::COST_CENTERS_MANAGE),
         ]);
     }
 
@@ -76,7 +76,7 @@ class AccountingCostCenters extends AccountingController
 
     public function getView(int $costCenterId = NEW_ENTRY): string
     {
-        if (! $this->can(AccountingGuard::COST_CENTERS_MANAGE)) {
+        if (! $this->canManage(AccountingGuard::COST_CENTERS_MANAGE)) {
             throw PageNotFoundException::forPageNotFound();
         }
 
@@ -236,7 +236,7 @@ class AccountingCostCenters extends AccountingController
 
     private function actions(object $center): string
     {
-        if (! $this->can(AccountingGuard::COST_CENTERS_MANAGE)) {
+        if (! $this->canManage(AccountingGuard::COST_CENTERS_MANAGE)) {
             return '';
         }
 

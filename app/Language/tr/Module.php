@@ -12,6 +12,8 @@ return [
     'attributes'                   => 'Öznitelikler',
     'attributes_desc'              => 'Ekleme, Güncelleme, Silme ve Arama özellikleri.',
     'both'                         => 'Her ikisi de',
+    'branches'                     => '',
+    'branches_desc'                => '',
     'cashups'                      => 'Cash ups',
     'cashups_desc'                 => 'Cashups, Güncelleme, Silme ve Arama.',
     'config'                       => 'Yapılandırma',

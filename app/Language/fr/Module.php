@@ -12,6 +12,8 @@ return [
     'attributes'                   => 'Attributs',
     'attributes_desc'              => 'Ajout, mise à jour, suppression et recherche d\'attributs.',
     'both'                         => 'Tous les deux',
+    'branches'                     => '',
+    'branches_desc'                => '',
     'cashups'                      => 'Encaissements',
     'cashups_desc'                 => 'Ajout, mise à jour, suppression et recherche d\'encaissements.',
     'config'                       => 'Paramètres',

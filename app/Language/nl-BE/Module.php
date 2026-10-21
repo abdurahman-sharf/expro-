@@ -12,6 +12,8 @@ return [
     'attributes'                   => 'Attributen',
     'attributes_desc'              => 'Zoek, bewerk, verwijder en voeg attributen toe.',
     'both'                         => 'Beide',
+    'branches'                     => '',
+    'branches_desc'                => '',
     'cashups'                      => 'Geldophalingen',
     'cashups_desc'                 => 'Zoek, bewerk, verwijder en voeg cashups toe.',
     'config'                       => 'Configuratie',

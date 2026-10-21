@@ -223,6 +223,18 @@
     unicode-bidi: isolate;
 }
 
+.app-branch {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    color: var(--muted);
+}
+
+.app-branch .form-select {
+    max-width: 220px;
+}
+
 .app-menu-toggle {
     display: none;
 }
@@ -357,6 +369,10 @@
     .app-company,
     .app-clock {
         display: none;
+    }
+
+    .app-branch .form-select {
+        max-width: 140px;
     }
 
     .app-main {

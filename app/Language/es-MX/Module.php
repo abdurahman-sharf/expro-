@@ -12,6 +12,8 @@ return [
     'attributes'                   => 'Atributos',
     'attributes_desc'              => 'Agregar, Actualizar, Borrar y Buscar atributos.',
     'both'                         => 'Ambos',
+    'branches'                     => '',
+    'branches_desc'                => '',
     'cashups'                      => 'Retiros',
     'cashups_desc'                 => 'Agregar, Actualizar, Borrar y Buscar Cortes de Caja.',
     'config'                       => 'Configuración',

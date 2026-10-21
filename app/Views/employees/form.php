@@ -5,6 +5,7 @@
  * @var array $all_modules
  * @var array $all_subpermissions
  * @var int $employee_id
+ * @var array{scope: array{all: bool, branch_ids: list<int>, default_branch_id: ?int}, branches: list<object>, can_all: bool, locked: bool, hidden: bool}|null $branch_tab
  */
 ?>
 
@@ -22,6 +23,11 @@
         <li class="nav-item" role="presentation">
             <a class="nav-link" data-bs-toggle="tab" role="tab" aria-controls="employee_permission_info" href="#employee_permission_info"><?= lang('Employees.permission_info') ?></a>
         </li>
+        <?php if ($branch_tab !== null): ?>
+            <li class="nav-item" role="presentation">
+                <a class="nav-link" data-bs-toggle="tab" role="tab" aria-controls="employee_branch_info" href="#employee_branch_info"><?= lang('Branches.employee_tab') ?></a>
+            </li>
+        <?php endif; ?>
     </ul>
 
     <ul id="error_message_box" class="error_message_box"></ul>
@@ -177,6 +183,59 @@
                 </div>
             </fieldset>
         </div>
+
+        <?php if ($branch_tab !== null): ?>
+            <?php $scope = $branch_tab['scope']; ?>
+            <div class="tab-pane fade" id="employee_branch_info" role="tabpanel">
+                <fieldset>
+                    <p class="perm-desc"><?= lang('Branches.scope_desc') ?></p>
+
+                    <?php if ($branch_tab['locked']): ?>
+                        <p class="text-secondary" role="note"><span class="bi bi-lock" aria-hidden="true"></span> <?= lang('Branches.scope_locked_note') ?></p>
+                    <?php else: ?>
+                        <input type="hidden" name="branch_scope_present" value="1">
+
+                        <div class="branch-scope">
+                            <?php if ($branch_tab['can_all']): ?>
+                                <div class="form-check">
+                                    <input type="radio" class="form-check-input" name="branch_scope" id="branch_scope_all" value="all"<?= $scope['all'] ? ' checked' : '' ?>>
+                                    <label class="form-check-label" for="branch_scope_all"><?= lang('Branches.scope_all') ?></label>
+                                </div>
+                            <?php endif; ?>
+                            <div class="form-check">
+                                <input type="radio" class="form-check-input" name="branch_scope" id="branch_scope_selected" value="selected"<?= $scope['all'] ? '' : ' checked' ?>>
+                                <label class="form-check-label" for="branch_scope_selected"><?= lang('Branches.scope_selected') ?></label>
+                            </div>
+
+                            <ul class="branch-scope-list" id="branch_scope_list">
+                                <?php foreach ($branch_tab['branches'] as $branch): ?>
+                                    <?php $branchId = (int) $branch->branch_id; ?>
+                                    <li>
+                                        <div class="form-check">
+                                            <input type="checkbox" class="form-check-input" name="branch_ids[]" id="branch_<?= $branchId ?>" value="<?= $branchId ?>"<?= in_array($branchId, $scope['branch_ids'], true) ? ' checked' : '' ?>>
+                                            <label class="form-check-label" for="branch_<?= $branchId ?>">
+                                                <bdi dir="ltr"><?= esc($branch->code) ?></bdi> <?= esc($branch->name) ?>
+                                                <?php if ((int) $branch->active === 0): ?>
+                                                    <span class="badge text-bg-secondary"><?= lang('Branches.inactive') ?></span>
+                                                <?php endif; ?>
+                                            </label>
+                                        </div>
+                                        <div class="form-check branch-default">
+                                            <input type="radio" class="form-check-input" name="default_branch_id" id="default_branch_<?= $branchId ?>" value="<?= $branchId ?>"<?= $scope['default_branch_id'] === $branchId ? ' checked' : '' ?>>
+                                            <label class="form-check-label text-secondary small" for="default_branch_<?= $branchId ?>"><?= lang('Branches.scope_default') ?></label>
+                                        </div>
+                                    </li>
+                                <?php endforeach; ?>
+                            </ul>
+
+                            <?php if ($branch_tab['hidden']): ?>
+                                <p class="form-text"><?= lang('Branches.scope_hidden_note') ?></p>
+                            <?php endif; ?>
+                        </div>
+                    <?php endif; ?>
+                </fieldset>
+            </div>
+        <?php endif; ?>
     </div>
 
 <?= form_close() ?>
@@ -227,6 +286,19 @@
         });
 
         refreshSelectAll();
+
+        const syncBranchScope = function() {
+            const everything = $('#branch_scope_all').is(':checked');
+            $('#branch_scope_list').find('input').prop('disabled', everything);
+        };
+
+        $('input[name="branch_scope"]').on('change', syncBranchScope);
+        $('#branch_scope_list').on('change', 'input[name="branch_ids[]"]', function() {
+            if (!this.checked) {
+                $('#default_branch_' + this.value).prop('checked', false);
+            }
+        });
+        syncBranchScope();
 
         $('#employee_form').validate($.extend({
             submitHandler: function(form) {

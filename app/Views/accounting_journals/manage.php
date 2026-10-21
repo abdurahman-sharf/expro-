@@ -2,6 +2,8 @@
 /**
  * @var string $table_headers
  * @var list<object> $accounts
+ * @var list<object> $branches
+ * @var int|null $current_branch
  * @var list<object> $creators
  * @var bool $can_draft
  * @var bool $can_post
@@ -31,6 +33,7 @@ $empty     = '<p class="mb-2">' . esc(lang('Accounting_journals.empty')) . '</p>
         const filterValues = function() {
             return {
                 account_id: $('#f_account').val(),
+                branch_id: $('#f_branch').val() || '',
                 number: $('#f_number').val(),
                 description: $('#f_description').val(),
                 date_from: $('#f_date_from').val(),
@@ -119,6 +122,17 @@ $empty     = '<p class="mb-2">' . esc(lang('Accounting_journals.empty')) . '</p>
 
 <form id="journal_filters" class="acc-filters print_hide" role="search" aria-label="<?= lang('Accounting_journals.filters') ?>">
     <div class="acc-filter-row">
+        <?php if ($branches !== []): ?>
+            <div class="acc-filter">
+                <label class="form-label" for="f_branch"><?= lang('Accounting_journals.branch') ?></label>
+                <select id="f_branch" class="form-select form-select-sm">
+                    <option value=""><?= lang('Accounting_journals.all_branches') ?></option>
+                    <?php foreach ($branches as $branch): ?>
+                        <option value="<?= (int) $branch->branch_id ?>"<?= $current_branch === (int) $branch->branch_id ? ' selected' : '' ?>><?= esc($branch->code . ' - ' . $branch->name) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+        <?php endif; ?>
         <div class="acc-filter">
             <label class="form-label" for="f_account_text"><?= lang('Accounting_journals.account') ?></label>
             <input type="text" id="f_account_text" class="form-control form-control-sm" list="accounts_list" autocomplete="off" placeholder="<?= esc(lang('Accounting_journals.all_accounts'), 'attr') ?>">

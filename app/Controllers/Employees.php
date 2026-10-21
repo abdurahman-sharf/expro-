@@ -2,6 +2,10 @@
 
 namespace App\Controllers;
 
+use App\Libraries\Organization\BranchException;
+use App\Libraries\Organization\BranchGuard;
+use App\Libraries\Organization\BranchService;
+use App\Libraries\Organization\EmployeeBranchService;
 use App\Models\Module;
 use CodeIgniter\HTTP\Exceptions\RedirectException;
 use CodeIgniter\HTTP\ResponseInterface;
@@ -15,11 +19,14 @@ use Config\Services;
  */
 class Employees extends Persons
 {
+    private EmployeeBranchService $branchScopes;
+
     public function __construct()
     {
         parent::__construct('employees');
 
-        $this->module = model('Module');
+        $this->module       = model('Module');
+        $this->branchScopes = new EmployeeBranchService(null, new BranchGuard(null, $this->employee));
     }
 
     /**
@@ -100,12 +107,17 @@ class Employees extends Persons
 
         $permissions = [];
         foreach ($this->module->get_all_subpermissions()->getResult() as $permission) {    // TODO: subpermissions does not follow naming standards.
+            if ($permission->permission_id === BranchGuard::ALL_BRANCHES) {
+                continue;
+            }
+
             $permission->permission_id = str_replace(' ', '_', $permission->permission_id);
             $permission->grant = $this->employee->has_grant($permission->permission_id, $person_info->person_id);
 
             $permissions[] = $permission;
         }
         $data['all_subpermissions'] = $permissions;
+        $data['branch_tab']         = $this->branchTab($employee_id, $current_user->person_id);
 
         return view('employees/form', $data);
     }
@@ -169,6 +181,22 @@ class Employees extends Persons
             }
         }
 
+        $targetId       = $employeeId == NEW_ENTRY ? null : (int) $employeeId;
+        $previousScope  = $targetId === null ? null : $this->branchScopes->scopeOf($targetId);
+        $requestedScope = $this->requestedBranchScope($currentUser->person_id, $targetId);
+
+        if ($requestedScope !== null) {
+            try {
+                $this->branchScopes->validateScope($currentUser->person_id, $targetId, $requestedScope['all'], $requestedScope['branch_ids'], $requestedScope['default_branch_id']);
+            } catch (BranchException $exception) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => lang('Branches.error_' . $exception->error->value),
+                    'id'      => $employeeId
+                ]);
+            }
+        }
+
         $minimumGrants = ['employees', 'home', 'office'];
         $missingMinimumGrant = array_diff($minimumGrants, array_column($grantsArray, 'permission_id'));
 
@@ -227,6 +255,16 @@ class Employees extends Persons
         }
 
         if ($this->employee->save_employee($personData, $employeeData, $grantsArray, $employeeId)) {
+            try {
+                $this->branchScopes->afterEmployeeSave($currentUser->person_id, (int) ($employeeId == NEW_ENTRY ? $employeeData['person_id'] : $employeeId), $previousScope, $requestedScope);
+            } catch (BranchException $exception) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => lang('Branches.error_' . $exception->error->value),
+                    'id'      => $employeeId
+                ]);
+            }
+
             // New employee
             if ($employeeId == NEW_ENTRY) {
                 return $this->response->setJSON([
@@ -264,7 +302,10 @@ class Employees extends Persons
         $currentGrantIds = [];
 
         if ($employeeId != NEW_ENTRY) {
-            $currentGrantIds = array_column($this->employee->get_employee_grants($employeeId), 'permission_id');
+            $currentGrantIds = array_values(array_diff(
+                array_column($this->employee->get_employee_grants($employeeId), 'permission_id'),
+                [BranchGuard::ALL_BRANCHES],
+            ));
 
             if (!$isAdmin) {
                 $currentGrantIds = array_values(array_filter(
@@ -280,6 +321,65 @@ class Employees extends Persons
         sort($submittedGrantIds);
 
         return $currentGrantIds !== $submittedGrantIds;
+    }
+
+    /**
+     * The branches an employee works in, as the form shows them. Null hides the tab: it is only
+     * for someone who may set branches, and only once the company has more than one.
+     *
+     * @return array{scope: array{all: bool, branch_ids: list<int>, default_branch_id: ?int}, branches: list<object>, can_all: bool, locked: bool, hidden: bool}|null
+     */
+    private function branchTab(int $employeeId, int $actorId): ?array
+    {
+        $targetId = $employeeId == NEW_ENTRY ? null : $employeeId;
+
+        if (! $this->branchScopes->canManageScope($actorId, $targetId)) {
+            return null;
+        }
+
+        $branches = (new BranchService())->all($actorId);
+
+        if (count((new BranchService())->all()) < 2) {
+            return null;
+        }
+
+        $guard   = new BranchGuard(null, $this->employee);
+        $scope   = $targetId === null
+            ? ['all' => false, 'branch_ids' => [$guard->defaultBranchId($actorId)], 'default_branch_id' => $guard->defaultBranchId($actorId)]
+            : $this->branchScopes->scopeOf($targetId);
+        $visible = array_map(static fn (object $branch): int => (int) $branch->branch_id, $branches);
+
+        return [
+            'scope'    => $scope,
+            'branches' => $branches,
+            'can_all'  => $guard->isUnrestricted($actorId),
+            'locked'   => $scope['all'] && ! $guard->isUnrestricted($actorId),
+            'hidden'   => array_diff($scope['branch_ids'], $visible) !== [],
+        ];
+    }
+
+    /**
+     * The branches the employee form asked for, null when the form carried none or the actor may
+     * not change them.
+     *
+     * @return array{all: bool, branch_ids: list<int>, default_branch_id: ?int}|null
+     */
+    private function requestedBranchScope(int $actorId, ?int $targetId): ?array
+    {
+        if ($this->request->getPost('branch_scope_present') === null
+            || ! $this->branchScopes->canManageScope($actorId, $targetId)
+            || filter_var(getenv('DISALLOW_GRANT_CHANGE'), FILTER_VALIDATE_BOOLEAN)) {
+            return null;
+        }
+
+        $branchIds = $this->request->getPost('branch_ids');
+        $default   = (int) $this->request->getPost('default_branch_id');
+
+        return [
+            'all'               => $this->request->getPost('branch_scope') === 'all',
+            'branch_ids'        => is_array($branchIds) ? array_values(array_map('intval', $branchIds)) : [],
+            'default_branch_id' => $default > 0 ? $default : null,
+        ];
     }
 
     /**

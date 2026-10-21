@@ -10,6 +10,7 @@
  * @var string $status_badge
  * @var string $source_label
  * @var string $number_label
+ * @var bool $show_branch
  */
 
 $isDraft  = $journal->status === 'draft';
@@ -86,6 +87,12 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
             <dt><?= lang('Accounting_journals.date') ?></dt>
             <dd><bdi dir="ltr"><?= esc($date($journal->journal_date)) ?></bdi></dd>
         </div>
+        <?php if ($show_branch): ?>
+            <div>
+                <dt><?= lang('Accounting_journals.branch') ?></dt>
+                <dd><bdi dir="ltr"><?= esc((string) $journal->branch_code) ?></bdi> <?= esc((string) $journal->branch_name) ?></dd>
+            </div>
+        <?php endif; ?>
         <div>
             <dt><?= lang('Accounting.status') ?></dt>
             <dd><?= $status_badge ?></dd>

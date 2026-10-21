@@ -384,3 +384,7 @@
 .acc-lines .acc-account-text {
     min-width: 200px;
 }
+
+.acc-scope-note {
+    margin: 0 0 12px;
+}

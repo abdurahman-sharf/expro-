@@ -9,7 +9,7 @@ const NAVIGATION_GROUPS = [
     'group_finance'    => ['expenses', 'expenses_categories', 'cashups', 'taxes'],
     'group_accounting' => ['accounting_chart', 'accounting_journals', 'accounting_cost_centers'],
     'group_analysis'   => ['reports'],
-    'group_admin'      => ['employees', 'config'],
+    'group_admin'      => ['employees', 'branches', 'config'],
 ];
 
 const NAVIGATION_ICONS = [
@@ -32,6 +32,7 @@ const NAVIGATION_ICONS = [
     'accounting_cost_centers' => 'bi-bullseye',
     'reports'                 => 'bi-bar-chart-line',
     'employees'               => 'bi-person-badge',
+    'branches'                => 'bi-building',
     'config'                  => 'bi-gear',
 ];
 

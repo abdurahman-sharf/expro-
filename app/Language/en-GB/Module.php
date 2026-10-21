@@ -12,6 +12,8 @@ return [
     'attributes'                   => 'Attributes',
     'attributes_desc'              => 'Add, Update, Delete, and Search attributes.',
     'both'                         => 'Both',
+    'branches'                     => 'Branches',
+    'branches_desc'                => 'Manage the company branches and the stock locations that belong to them.',
     'cashups'                      => 'Cashups',
     'cashups_desc'                 => 'Add, Update, Delete, and Search Cashups.',
     'config'                       => 'Configuration',

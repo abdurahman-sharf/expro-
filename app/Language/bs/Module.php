@@ -12,6 +12,8 @@ return [
     'attributes'                   => 'Atributi',
     'attributes_desc'              => 'Dodavanje, ažuriranje, brisanje i pretraživanje atributa.',
     'both'                         => 'Oba',
+    'branches'                     => '',
+    'branches_desc'                => '',
     'cashups'                      => 'Gotovinsko plaćanje',
     'cashups_desc'                 => 'Dodavanje, ažuriranje, brisanje i pretraživanje isplata.',
     'config'                       => 'Podešavanja',

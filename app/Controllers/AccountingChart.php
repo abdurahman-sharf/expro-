@@ -28,7 +28,8 @@ class AccountingChart extends AccountingController
         return view('accounting_chart/manage', [
             'table_headers' => transform_headers($this->headers(), true, true),
             'parent_id'     => $parentId,
-            'can_manage'    => $this->can(AccountingGuard::CHART_MANAGE),
+            'can_manage'    => $this->canManage(AccountingGuard::CHART_MANAGE),
+            'scope_notice'  => $this->scopeNoticeNeeded(),
             'tree'          => $this->treeData($parentId),
             'panel'         => $this->panelData($parentId),
         ]);
@@ -41,7 +42,7 @@ class AccountingChart extends AccountingController
 
     public function getPanel(): string
     {
-        return view('accounting_chart/panel', $this->panelData($this->selectedId()) + ['can_manage' => $this->can(AccountingGuard::CHART_MANAGE)]);
+        return view('accounting_chart/panel', $this->panelData($this->selectedId()) + ['can_manage' => $this->canManage(AccountingGuard::CHART_MANAGE)]);
     }
 
     public function getSearch(): ResponseInterface
@@ -53,7 +54,7 @@ class AccountingChart extends AccountingController
         $limit    = max(1, min((int) $this->request->getGet('limit') ?: self::DEFAULT_PAGE_SIZE, 500));
         $offset   = max(0, (int) $this->request->getGet('offset'));
 
-        $balances = $this->accounts->balances();
+        $balances = $this->accounts->balances($this->branchIds());
         $accounts = $term !== '' ? $this->accounts->search($term, 200) : $this->accounts->children($parentId);
 
         usort($accounts, fn (object $first, object $second): int => $order * $this->compare($first, $second, $sort, $balances));
@@ -76,12 +77,12 @@ class AccountingChart extends AccountingController
             throw PageNotFoundException::forPageNotFound();
         }
 
-        return $this->response->setJSON($this->row($account, $this->accounts->balances()[$accountId]['balance'] ?? '0.0000', $this->namesById(), false));
+        return $this->response->setJSON($this->row($account, $this->accounts->balances($this->branchIds())[$accountId]['balance'] ?? '0.0000', $this->namesById(), false));
     }
 
     public function getView(int $accountId = NEW_ENTRY): string
     {
-        if (! $this->can(AccountingGuard::CHART_MANAGE)) {
+        if (! $this->canManage(AccountingGuard::CHART_MANAGE)) {
             throw PageNotFoundException::forPageNotFound();
         }
 
@@ -279,7 +280,7 @@ class AccountingChart extends AccountingController
         return [
             'account' => $byId[$selectedId],
             'path'    => $path,
-            'balance' => $this->accounts->balances()[$selectedId]['balance'] ?? '0.0000',
+            'balance' => $this->accounts->balances($this->branchIds())[$selectedId]['balance'] ?? '0.0000',
         ];
     }
 
@@ -314,7 +315,7 @@ class AccountingChart extends AccountingController
 
     private function actions(object $account): string
     {
-        if (! $this->can(AccountingGuard::CHART_MANAGE)) {
+        if (! $this->canManage(AccountingGuard::CHART_MANAGE)) {
             return '';
         }
 

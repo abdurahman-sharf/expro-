@@ -12,6 +12,8 @@ return [
     'attributes'                   => 'Attributi',
     'attributes_desc'              => 'Aggiungi, aggiorna, cancella e ricerca attributi.',
     'both'                         => 'Entrambi',
+    'branches'                     => '',
+    'branches_desc'                => '',
     'cashups'                      => 'Incassi',
     'cashups_desc'                 => 'Aggiungi, aggiorna, elimina e cerca incassi.',
     'config'                       => 'Configurazione',

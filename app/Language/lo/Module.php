@@ -12,6 +12,8 @@ return [
     'attributes'                   => '',
     'attributes_desc'              => '',
     'both'                         => 'Both',
+    'branches'                     => '',
+    'branches_desc'                => '',
     'cashups'                      => '',
     'cashups_desc'                 => '',
     'config'                       => 'Configuration',

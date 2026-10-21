@@ -12,6 +12,8 @@ return [
     'attributes'                   => 'Atributlar',
     'attributes_desc'              => 'Atributları əlavə et, yenilə, sil və ya axtar.',
     'both'                         => 'Hər ikizi',
+    'branches'                     => '',
+    'branches_desc'                => '',
     'cashups'                      => 'Qazanclar',
     'cashups_desc'                 => 'Əlavə et, Yenilə, Sil və Qazancları axtar.',
     'config'                       => 'Konfiqursiya',

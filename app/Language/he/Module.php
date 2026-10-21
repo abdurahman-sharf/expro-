@@ -12,6 +12,8 @@ return [
     'attributes'                   => 'תכונות',
     'attributes_desc'              => 'הוסף, עדכן, מחק וחפש תכונות.',
     'both'                         => 'שניהם',
+    'branches'                     => '',
+    'branches_desc'                => '',
     'cashups'                      => 'סגירת קופת מזומנים',
     'cashups_desc'                 => 'הוספה, עדכון, מחיקה וחיפוש בקופת מזומן.',
     'config'                       => 'הגדרות',

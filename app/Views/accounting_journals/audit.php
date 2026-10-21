@@ -3,6 +3,8 @@
  * @var string $table_headers
  * @var list<string> $actions
  * @var list<object> $employees
+ * @var list<object> $branches
+ * @var int|null $current_branch
  * @var array $config
  */
 
@@ -34,7 +36,8 @@ $actionLabel = static function (string $action): string {
                     date_to: $('#a_date_to').val(),
                     action: $('#a_action').val(),
                     entity_type: $('#a_entity').val(),
-                    employee_id: $('#a_employee').val()
+                    employee_id: $('#a_employee').val(),
+                    branch_id: $('#a_branch').val() || ''
                 });
             }
         });
@@ -59,6 +62,17 @@ $actionLabel = static function (string $action): string {
 
 <form id="audit_filters" class="acc-filters print_hide" role="search" aria-label="<?= lang('Accounting_journals.filters') ?>">
     <div class="acc-filter-row">
+        <?php if ($branches !== []): ?>
+            <div class="acc-filter">
+                <label class="form-label" for="a_branch"><?= lang('Accounting_journals.branch') ?></label>
+                <select id="a_branch" class="form-select form-select-sm">
+                    <option value=""><?= lang('Accounting_journals.all_branches') ?></option>
+                    <?php foreach ($branches as $branch): ?>
+                        <option value="<?= (int) $branch->branch_id ?>"<?= $current_branch === (int) $branch->branch_id ? ' selected' : '' ?>><?= esc($branch->code . ' - ' . $branch->name) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+        <?php endif; ?>
         <div class="acc-filter">
             <label class="form-label" for="a_date_from"><?= lang('Accounting_journals.date_from') ?></label>
             <input type="date" id="a_date_from" class="form-control form-control-sm">
@@ -84,6 +98,8 @@ $actionLabel = static function (string $action): string {
                 <option value="cost_center"><?= lang('Accounting.entity_cost_center') ?></option>
                 <option value="journal"><?= lang('Accounting.entity_journal') ?></option>
                 <option value="settings"><?= lang('Accounting.entity_settings') ?></option>
+                <option value="branch"><?= lang('Accounting.entity_branch') ?></option>
+                <option value="employee_scope"><?= lang('Accounting.entity_employee_scope') ?></option>
             </select>
         </div>
         <div class="acc-filter">

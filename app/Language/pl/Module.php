@@ -12,6 +12,8 @@ return [
     'attributes'                   => 'Atrybuty',
     'attributes_desc'              => '',
     'both'                         => '',
+    'branches'                     => '',
+    'branches_desc'                => '',
     'cashups'                      => '',
     'cashups_desc'                 => '',
     'config'                       => '',

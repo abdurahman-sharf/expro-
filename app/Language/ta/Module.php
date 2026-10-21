@@ -12,6 +12,8 @@ return [
     'attributes'                   => 'Attributes',
     'attributes_desc'              => 'Add, Update, Delete, and Search attributes.',
     'both'                         => 'Both',
+    'branches'                     => '',
+    'branches_desc'                => '',
     'cashups'                      => 'Cashups',
     'cashups_desc'                 => 'Add, Update, Delete, and Search Cashups.',
     'config'                       => 'Configuration',

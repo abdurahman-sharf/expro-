@@ -12,6 +12,8 @@ return [
     'attributes'                   => 'Атрибуты',
     'attributes_desc'              => 'Добавление, обновление, удаление и поиск атрибутов.',
     'both'                         => 'Оба',
+    'branches'                     => '',
+    'branches_desc'                => '',
     'cashups'                      => '',
     'cashups_desc'                 => '',
     'config'                       => 'Конфигурация',

@@ -12,6 +12,8 @@ return [
     'attributes'                   => '',
     'attributes_desc'              => '',
     'both'                         => '',
+    'branches'                     => '',
+    'branches_desc'                => '',
     'cashups'                      => '',
     'cashups_desc'                 => '',
     'config'                       => '系統配置',

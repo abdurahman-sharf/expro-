@@ -12,6 +12,8 @@ return [
     'attributes'                   => 'Atributos',
     'attributes_desc'              => 'Agregar, Actualizar, Eliminar y Buscar atributos.',
     'both'                         => 'Ambos',
+    'branches'                     => '',
+    'branches_desc'                => '',
     'cashups'                      => 'Día de Apertura o Cierre',
     'cashups_desc'                 => 'Agregar, Actualizar, Borrar y Buscar Turnos.',
     'config'                       => 'Configuración de la Tienda',

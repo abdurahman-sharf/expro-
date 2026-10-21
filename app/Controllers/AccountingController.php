@@ -6,6 +6,8 @@ use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\Organization\BranchException;
+use App\Libraries\Organization\BranchGuard;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\HTTP\ResponseInterface;
 
@@ -13,6 +15,8 @@ abstract class AccountingController extends Secure_Controller
 {
     protected const DEFAULT_PAGE_SIZE = 25;
     private const MESSAGE_ARGUMENTS   = ['line', 'max', 'code', 'name', 'debit', 'credit'];
+
+    private ?BranchGuard $branchGuard = null;
 
     public function __construct(string $moduleId)
     {
@@ -33,6 +37,42 @@ abstract class AccountingController extends Secure_Controller
         return $this->employee->has_grant($permissionId, $this->employeeId());
     }
 
+    protected function branchGuard(): BranchGuard
+    {
+        return $this->branchGuard ??= new BranchGuard(null, $this->employee);
+    }
+
+    /**
+     * @return list<int>|null Null means every branch.
+     */
+    protected function branchIds(): ?array
+    {
+        return $this->branchGuard()->allowedBranchIds($this->employeeId());
+    }
+
+    protected function seesBranches(): bool
+    {
+        return $this->branchGuard()->seesBranches($this->employeeId());
+    }
+
+    /**
+     * Changes to the chart and the cost centers concern the whole company, so they need every
+     * branch as well as the permission.
+     */
+    protected function canManage(string $permissionId): bool
+    {
+        return $this->can($permissionId) && $this->branchGuard()->isUnrestricted($this->employeeId());
+    }
+
+    /**
+     * Someone limited to some branches is told that totals leave the others out. Someone who
+     * can only ever see one branch has nothing hidden from them to explain.
+     */
+    protected function scopeNoticeNeeded(): bool
+    {
+        return $this->branchIds() !== null && count($this->branchGuard()->selectableBranches(null)) > 1;
+    }
+
     /**
      * @param callable(): array<string, mixed> $action Returns the JSON body of a successful call.
      */
@@ -40,7 +80,7 @@ abstract class AccountingController extends Secure_Controller
     {
         try {
             return $this->response->setJSON($action());
-        } catch (AccountingException|PostingException $exception) {
+        } catch (AccountingException|BranchException|PostingException $exception) {
             return $this->response->setJSON([
                 'success' => false,
                 'message' => $this->messageFor($exception),
@@ -49,11 +89,13 @@ abstract class AccountingController extends Secure_Controller
         }
     }
 
-    protected function messageFor(AccountingException|PostingException $exception): string
+    protected function messageFor(AccountingException|BranchException|PostingException $exception): string
     {
-        $key = $exception instanceof AccountingException
-            ? 'Accounting.error_' . $exception->error->value
-            : 'Accounting.posting_' . $exception->error->value;
+        $key = match (true) {
+            $exception instanceof AccountingException => 'Accounting.error_' . $exception->error->value,
+            $exception instanceof BranchException     => 'Branches.error_' . $exception->error->value,
+            default                                   => 'Accounting.posting_' . $exception->error->value,
+        };
 
         if ($exception instanceof AccountingException && $exception->error === AccountingError::PermissionDenied) {
             return lang('Accounting.error_permission_denied');

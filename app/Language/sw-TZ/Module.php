@@ -12,6 +12,8 @@ return [
     'attributes'                   => 'Sifa',
     'attributes_desc'              => 'Ongeza, Sasisha, Futa, na Tafuta sifa.',
     'both'                         => 'Vyote',
+    'branches'                     => '',
+    'branches_desc'                => '',
     'cashups'                      => 'Fedha Taslimu',
     'cashups_desc'                 => 'Ongeza, Sasisha, Futa, na Tafuta Fedha Taslimu.',
     'config'                       => 'Mipangilio',

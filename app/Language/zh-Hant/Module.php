@@ -12,6 +12,8 @@ return [
     'attributes'                   => '屬性',
     'attributes_desc'              => '新增、修改、刪除、搜尋 屬性.',
     'both'                         => '兩者',
+    'branches'                     => '',
+    'branches_desc'                => '',
     'cashups'                      => '提現',
     'cashups_desc'                 => '添加,更新,刪除和搜索現金提現.',
     'config'                       => '系統配置',

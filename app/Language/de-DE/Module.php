@@ -12,6 +12,8 @@ return [
     'attributes'                   => 'Attribute',
     'attributes_desc'              => 'Hinzufügen, Ändern, Löschen und Suchen von Attributen.',
     'both'                         => 'Beide',
+    'branches'                     => '',
+    'branches_desc'                => '',
     'cashups'                      => 'Auszahlungen',
     'cashups_desc'                 => 'Hinzufügen, Ändern, Löschen und Suchen von Auszahlungen.',
     'config'                       => 'Einstellungen',

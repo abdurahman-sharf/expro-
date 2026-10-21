@@ -4,6 +4,7 @@ namespace Tests;
 
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\PostingError;
+use App\Libraries\Organization\BranchError;
 use CodeIgniter\Test\CIUnitTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
@@ -57,6 +58,20 @@ class LanguageFilesTest extends CIUnitTestCase
 
         foreach (PostingError::cases() as $error) {
             $this->assertNotSame('', $messages['posting_' . $error->value] ?? '', "{$locale} lacks the posting message for {$error->value}");
+        }
+    }
+
+    #[DataProvider('translatedLocaleProvider')]
+    public function testBranchesFile_DefinesAMessageForEveryError(string $locale): void
+    {
+        $messages = include __DIR__ . "/../app/Language/{$locale}/Branches.php";
+
+        foreach (BranchError::cases() as $error) {
+            $this->assertNotSame('', $messages['error_' . $error->value] ?? '', "{$locale} lacks the message for {$error->value}");
+        }
+
+        foreach (['branches_manage', 'scope_manage', 'all_branches'] as $permission) {
+            $this->assertNotSame('', $messages[$permission] ?? '', "{$locale} lacks the label of the permission {$permission}");
         }
     }
 }

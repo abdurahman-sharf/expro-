@@ -12,6 +12,8 @@ return [
     'attributes'                   => 'Atribut',
     'attributes_desc'              => 'Tambah, Perbaharui, Hapus dan Cari atribut.',
     'both'                         => 'Keduanya',
+    'branches'                     => '',
+    'branches_desc'                => '',
     'cashups'                      => 'Kasir',
     'cashups_desc'                 => 'Tambah, Perbaharui, Hapus dan Cari Uang Tunai.',
     'config'                       => 'Konfigurasi',

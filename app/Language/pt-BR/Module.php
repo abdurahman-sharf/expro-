@@ -12,6 +12,8 @@ return [
     'attributes'                   => 'Atributos',
     'attributes_desc'              => 'Adicionar, atualizar, excluir e pesquisar atributos.',
     'both'                         => 'Ambos',
+    'branches'                     => '',
+    'branches_desc'                => '',
     'cashups'                      => 'Liquidação',
     'cashups_desc'                 => 'Adicione, atualize, exclua e pesquise as liquidações.',
     'config'                       => 'Configurações',

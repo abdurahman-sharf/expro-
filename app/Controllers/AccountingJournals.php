@@ -12,6 +12,9 @@ use App\Libraries\Accounting\CostCenterService;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\JournalStatus;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\Organization\BranchContext;
+use App\Libraries\Organization\BranchException;
+use App\Libraries\Organization\BranchService;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\HTTP\ResponseInterface;
 
@@ -36,14 +39,18 @@ class AccountingJournals extends AccountingController
             $accounts[] = $account;
         }
 
+        $seesBranches = $this->seesBranches();
+
         return view('accounting_journals/manage', [
-            'table_headers' => transform_headers($this->headers(), false, true),
-            'accounts'      => $accounts,
-            'creators'      => $this->can(AccountingGuard::JOURNALS_ALL) ? (new AuditLog())->employees() : [],
-            'can_draft'     => $this->can(AccountingGuard::JOURNALS_DRAFT),
-            'can_post'      => $this->can(AccountingGuard::JOURNALS_POST),
-            'can_audit'     => $this->can(AccountingGuard::JOURNALS_AUDIT),
-            'notice'        => session()->getFlashdata('accounting_notice'),
+            'table_headers'  => transform_headers($this->headers($seesBranches), false, true),
+            'accounts'       => $accounts,
+            'branches'       => $seesBranches ? (new BranchService())->all($this->employeeId()) : [],
+            'current_branch' => $this->branchContext()->current($this->employeeId()),
+            'creators'       => $this->can(AccountingGuard::JOURNALS_ALL) ? (new AuditLog())->employees($this->branchIds()) : [],
+            'can_draft'      => $this->can(AccountingGuard::JOURNALS_DRAFT),
+            'can_post'       => $this->can(AccountingGuard::JOURNALS_POST),
+            'can_audit'      => $this->can(AccountingGuard::JOURNALS_AUDIT),
+            'notice'         => session()->getFlashdata('accounting_notice'),
         ]);
     }
 
@@ -100,7 +107,7 @@ class AccountingJournals extends AccountingController
         $audit   = [];
 
         if ($this->can(AccountingGuard::JOURNALS_AUDIT)) {
-            foreach ((new AuditLog())->search(['entity_type' => 'journal', 'entity_id' => $journalId], 'asc', 100)['rows'] as $entry) {
+            foreach ((new AuditLog())->search(['entity_type' => 'journal', 'entity_id' => $journalId], 'asc', 100, 0, $this->branchIds())['rows'] as $entry) {
                 $audit[] = [
                     'time'     => $this->formatDateTime($entry->created_at),
                     'action'   => $this->label('action', $entry->action),
@@ -121,6 +128,7 @@ class AccountingJournals extends AccountingController
             'status_badge' => $this->badge($journal->status),
             'source_label' => $this->label('source', $journal->source_type),
             'number_label' => $this->displayNumber($journal->series, $journal->number),
+            'show_branch'  => $this->seesBranches(),
         ]);
     }
 
@@ -173,7 +181,7 @@ class AccountingJournals extends AccountingController
             try {
                 $this->journals->postDraft($id, $this->employeeId());
                 $posted++;
-            } catch (AccountingException|PostingException $exception) {
+            } catch (AccountingException|BranchException|PostingException $exception) {
                 $failed[] = '#' . $id . ': ' . $this->messageFor($exception);
             }
         }
@@ -242,12 +250,15 @@ class AccountingJournals extends AccountingController
             throw PageNotFoundException::forPageNotFound();
         }
 
-        $log = new AuditLog();
+        $log          = new AuditLog();
+        $seesBranches = $this->seesBranches();
 
         return view('accounting_journals/audit', [
-            'table_headers' => transform_headers($this->auditHeaders(), true, false),
-            'actions'       => $log->actions(),
-            'employees'     => $log->employees(),
+            'table_headers'  => transform_headers($this->auditHeaders($seesBranches), true, false),
+            'actions'        => $log->actions($this->branchIds()),
+            'employees'      => $log->employees($this->branchIds()),
+            'branches'       => $seesBranches ? (new BranchService())->all($this->employeeId()) : [],
+            'current_branch' => $this->branchContext()->current($this->employeeId()),
         ]);
     }
 
@@ -267,7 +278,8 @@ class AccountingJournals extends AccountingController
             'action'      => (string) $this->request->getGet('action'),
             'entity_type' => (string) $this->request->getGet('entity_type'),
             'employee_id' => (int) $this->request->getGet('employee_id'),
-        ], $order === 'asc' ? 'asc' : 'desc', $limit, $offset);
+            'branch_id'   => (int) $this->request->getGet('branch_id'),
+        ], $order === 'asc' ? 'asc' : 'desc', $limit, $offset, $this->branchIds());
 
         $rows = [];
 
@@ -276,6 +288,7 @@ class AccountingJournals extends AccountingController
                 'audit_id'   => (int) $entry->audit_id,
                 'created_at' => $this->formatDateTime($entry->created_at),
                 'action'     => $this->label('action', $entry->action),
+                'branch'     => (string) $entry->branch_code,
                 'entity'     => $this->entityCell($entry),
                 'employee'   => $entry->employee_name ?? '',
                 'origin'     => $this->label('origin', $entry->origin),
@@ -289,11 +302,14 @@ class AccountingJournals extends AccountingController
     /**
      * @return list<array<string, mixed>>
      */
-    private function headers(): array
+    private function headers(bool $withBranch): array
     {
+        $branch = $withBranch ? [['branch_code' => lang('Accounting_journals.branch'), 'sortable' => false]] : [];
+
         return [
             ['number' => lang('Accounting_journals.number')],
-            ['journal_date'    => lang('Accounting_journals.date')],
+            ['journal_date' => lang('Accounting_journals.date')],
+            ...$branch,
             ['description'     => lang('Accounting_journals.description'), 'sortable' => false],
             ['source_type'     => lang('Accounting_journals.source'), 'sortable' => false],
             ['total_debit'     => lang('Accounting_journals.total_debit'), 'escape' => false],
@@ -306,11 +322,14 @@ class AccountingJournals extends AccountingController
     /**
      * @return list<array<string, mixed>>
      */
-    private function auditHeaders(): array
+    private function auditHeaders(bool $withBranch): array
     {
+        $branch = $withBranch ? [['branch' => lang('Accounting_journals.branch'), 'sortable' => false]] : [];
+
         return [
             ['created_at' => lang('Accounting_journals.audit_time'), 'sortable' => true],
-            ['action'   => lang('Accounting_journals.audit_action'), 'sortable' => false],
+            ['action' => lang('Accounting_journals.audit_action'), 'sortable' => false],
+            ...$branch,
             ['entity'   => lang('Accounting_journals.audit_entity'), 'sortable' => false, 'escape' => false],
             ['employee' => lang('Accounting_journals.audit_employee'), 'sortable' => false],
             ['origin'   => lang('Accounting_journals.audit_origin'), 'sortable' => false],
@@ -335,6 +354,7 @@ class AccountingJournals extends AccountingController
             'journal_id'      => $id,
             'number'          => $this->displayNumber($journal->series, $journal->number),
             'journal_date'    => $this->formatDate($journal->journal_date),
+            'branch_code'     => (string) $journal->branch_code,
             'description'     => (string) $journal->description,
             'source_type'     => $this->label('source', $journal->source_type),
             'total_debit'     => $this->amountCell($this->formatAmount($journal->total_debit)),
@@ -365,21 +385,23 @@ class AccountingJournals extends AccountingController
             'created_from' => (string) $this->request->getGet('created_from'),
             'created_to'   => (string) $this->request->getGet('created_to'),
             'created_by'   => (int) $this->request->getGet('created_by'),
+            'branch_id'    => (int) $this->request->getGet('branch_id'),
         ];
     }
 
     /**
-     * @return array{date: string, description: string, lines: list<array<string, mixed>>}
+     * @return array{date: string, description: string, lines: list<array<string, mixed>>, branch_id?: int}
      */
     private function input(): array
     {
-        $lines = $this->request->getPost('lines');
+        $lines  = $this->request->getPost('lines');
+        $branch = (int) $this->request->getPost('branch_id');
 
         return [
             'date'        => (string) $this->request->getPost('date'),
             'description' => (string) $this->request->getPost('description'),
             'lines'       => is_array($lines) ? array_values(array_filter($lines, 'is_array')) : [],
-        ];
+        ] + ($branch > 0 ? ['branch_id' => $branch] : []);
     }
 
     /**
@@ -436,14 +458,23 @@ class AccountingJournals extends AccountingController
             $costCenters[] = $center;
         }
 
+        $branches = $this->seesBranches() ? $this->branchGuard()->selectableBranches($this->employeeId()) : [];
+
         return view('accounting_journals/form', [
             'journal'      => $journal,
+            'branches'     => $branches,
+            'branch_id'    => $journal === null ? $this->branchContext()->formDefault($this->employeeId()) : (int) $journal->branch_id,
             'accounts'     => $this->journals->postableAccounts(),
             'cost_centers' => $costCenters,
             'currency'     => (new AccountingSettings())->baseCurrency(),
             'can_post'     => $this->can(AccountingGuard::JOURNALS_POST),
             'notice'       => session()->getFlashdata('accounting_notice'),
         ]);
+    }
+
+    private function branchContext(): BranchContext
+    {
+        return new BranchContext($this->branchGuard());
     }
 
     private function entityCell(object $entry): string

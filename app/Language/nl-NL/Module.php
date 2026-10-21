@@ -12,6 +12,8 @@ return [
     'attributes'                   => 'Kenmerken',
     'attributes_desc'              => 'Kenmerken toevoegen, bijwerken, verwijderen en zoeken.',
     'both'                         => 'Beide',
+    'branches'                     => '',
+    'branches_desc'                => '',
     'cashups'                      => 'Kasopmaak',
     'cashups_desc'                 => 'Kasopmaak toevoegen, bijwerken, verwijderen en zoeken.',
     'config'                       => 'Configuratie',

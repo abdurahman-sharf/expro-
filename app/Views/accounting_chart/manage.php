@@ -3,6 +3,7 @@
  * @var string $table_headers
  * @var int|null $parent_id
  * @var bool $can_manage
+ * @var bool $scope_notice
  * @var array $tree
  * @var array $panel
  * @var array $config
@@ -73,6 +74,10 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
         </button>
     <?php endif; ?>
 </div>
+
+<?php if ($scope_notice): ?>
+    <p class="acc-scope-note text-secondary small" role="note"><span class="bi bi-info-circle" aria-hidden="true"></span> <?= lang('Accounting.scope_note') ?></p>
+<?php endif; ?>
 
 <div class="acc-chart">
     <button class="btn btn-outline-secondary btn-sm acc-tree-toggle d-lg-none" type="button" data-bs-toggle="collapse" data-bs-target="#chart_tree" aria-expanded="false" aria-controls="chart_tree">

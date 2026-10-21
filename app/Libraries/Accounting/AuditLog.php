@@ -47,8 +47,9 @@ final class AuditLog
     public function search(array $filters, string $order = 'desc', int $limit = 25, int $offset = 0, ?array $branchIds = null): array
     {
         $builder = $this->db->table('accounting_audit_log a')
-            ->select("a.audit_id, a.entity_type, a.entity_id, a.action, a.employee_id, a.branch_id, a.origin, a.details, a.created_at, TRIM(CONCAT(p.first_name, ' ', p.last_name)) AS employee_name", false)
-            ->join('people p', 'p.person_id = a.employee_id', 'left');
+            ->select("a.audit_id, a.entity_type, a.entity_id, a.action, a.employee_id, a.branch_id, br.code AS branch_code, a.origin, a.details, a.created_at, TRIM(CONCAT(p.first_name, ' ', p.last_name)) AS employee_name", false)
+            ->join('people p', 'p.person_id = a.employee_id', 'left')
+            ->join('branches br', 'br.branch_id = a.branch_id', 'left');
 
         $this->limitToBranches($builder, $branchIds);
 

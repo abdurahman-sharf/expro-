@@ -12,6 +12,8 @@ return [
     'attributes'                   => 'Attributer',
     'attributes_desc'              => 'Lägg till, uppdatera, ta bort och sök attributer.',
     'both'                         => 'Båda',
+    'branches'                     => '',
+    'branches_desc'                => '',
     'cashups'                      => 'Dagskassa',
     'cashups_desc'                 => 'Lägg till, uppdatera, ta bort och sök i dagskassor.',
     'config'                       => 'Konfiguration',

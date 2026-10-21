@@ -41,6 +41,19 @@ $routes->add('reports/specific_employees', 'Reports::specific_employee_input');
 $routes->add('reports/specific_discounts', 'Reports::specific_discount_input');
 $routes->add('reports/specific_suppliers', 'Reports::specific_supplier_input');
 
+$routes->group('branches', static function (RouteCollection $routes): void {
+    $routes->get('/', 'Branches::getIndex');
+    $routes->get('search', 'Branches::getSearch');
+    $routes->get('row/(:num)', 'Branches::getRow/$1');
+    $routes->get('view', 'Branches::getView');
+    $routes->get('view/(:segment)', 'Branches::getView/$1');
+    $routes->post('save', 'Branches::postSave');
+    $routes->post('save/(:segment)', 'Branches::postSave/$1');
+    $routes->post('deactivate/(:num)', 'Branches::postDeactivate/$1');
+    $routes->post('activate/(:num)', 'Branches::postActivate/$1');
+    $routes->post('delete/(:num)', 'Branches::postDeleteBranch/$1');
+});
+
 $routes->group('accounting_chart', static function (RouteCollection $routes): void {
     $routes->get('/', 'AccountingChart::getIndex');
     $routes->get('tree', 'AccountingChart::getTree');

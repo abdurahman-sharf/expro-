@@ -253,16 +253,28 @@ class EmployeeBranchServiceTest extends CIUnitTestCase
         $this->assertFalse($this->service->scopeOf($target)['all']);
     }
 
-    public function testSetScope_WritesNothingForADryRun(): void
+    public function testValidateScope_WritesNothing(): void
     {
         $second = $this->createBranch('B2');
         $target = $this->employeeWithGrants([], [1]);
         $before = $this->service->scopeOf($target);
 
-        $this->service->setScope($this->scopeManager(), $target, false, [$second], dryRun: true);
+        $this->service->validateScope($this->scopeManager(), $target, false, [$second]);
 
         $this->assertSame($before, $this->service->scopeOf($target));
-        $this->assertFailsWith(BranchError::NoBranch, fn () => $this->service->setScope($this->scopeManager(), $target, false, [], dryRun: true));
+        $this->assertFailsWith(BranchError::NoBranch, fn () => $this->service->validateScope($this->scopeManager(), $target, false, []));
+    }
+
+    public function testValidateScope_AppliesTheRulesToAnEmployeeThatDoesNotExistYet(): void
+    {
+        $second = $this->createBranch('B2');
+        $actor  = $this->scopeManager([1]);
+
+        $this->service->validateScope($actor, null, false, [1]);
+
+        $this->assertFailsWith(BranchError::ScopeTooWide, fn () => $this->service->validateScope($actor, null, false, [1, $second]));
+        $this->assertFailsWith(BranchError::NoBranch, fn () => $this->service->validateScope($actor, null, false, []));
+        $this->assertFailsWith(BranchError::PermissionDenied, fn () => $this->service->validateScope($this->employeeWithGrants([]), null, false, [1]));
     }
 
     public function testSetScope_RecordsTheChangeInTheAuditLog(): void

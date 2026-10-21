@@ -12,6 +12,8 @@ return [
     'attributes'                   => 'Thuộc tính',
     'attributes_desc'              => 'Thêm, Cập nhật, Xóa và Tìm kiếm các thuộc tính.',
     'both'                         => 'Cả hai',
+    'branches'                     => '',
+    'branches_desc'                => '',
     'cashups'                      => 'Tiền mặt',
     'cashups_desc'                 => 'Thêm, cập nhật, xóa và tìm kiếm về tiền mặt.',
     'config'                       => 'Cấu hình',
