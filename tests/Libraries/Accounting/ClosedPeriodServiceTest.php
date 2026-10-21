@@ -8,8 +8,11 @@ use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\ClosedPeriodService;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\PeriodGuard;
+use App\Libraries\Accounting\PostingError;
+use App\Libraries\Accounting\PostingException;
 use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
+use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -26,6 +29,7 @@ class ClosedPeriodServiceTest extends CIUnitTestCase
     protected $namespace   = null;
 
     private ClosedPeriodService $service;
+    private ?BaseConnection $other = null;
 
     public static function setUpBeforeClass(): void
     {
@@ -46,6 +50,12 @@ class ClosedPeriodServiceTest extends CIUnitTestCase
     protected function tearDown(): void
     {
         $this->releaseOpenTransactions();
+
+        if ($this->other !== null) {
+            $this->other->transRollback();
+            $this->other->close();
+            $this->other = null;
+        }
 
         parent::tearDown();
     }
@@ -416,5 +426,101 @@ class ClosedPeriodServiceTest extends CIUnitTestCase
 
         $this->assertSame('Late invoice', $row->reopen_reason);
         $this->assertNotSame('', (string) $row->reopened_by_name);
+    }
+
+    private function holdOpen(callable $work): void
+    {
+        $db = $this->accountingDb();
+        $db->resetTransStatus();
+        $db->transStart();
+        $work();
+    }
+
+    public function testClose_WaitsForAnotherClosingOfTheSameScopeAndThenRefusesTheSameDate(): void
+    {
+        $employee    = $this->closer();
+        $this->other = $this->openSecondConnection();
+        $date        = $this->ago(30);
+
+        $this->holdOpen(fn () => $this->service->close(null, $date, '', $employee));
+
+        $this->assertWaitsForLock(fn () => (new ClosedPeriodService($this->other))->close(null, $date, '', $employee));
+
+        $this->accountingDb()->transComplete();
+
+        $this->assertFailsWith(AccountingError::ClosingNotAfterPrevious, fn () => (new ClosedPeriodService($this->other))->close(null, $date, '', $employee));
+        $this->assertSame(1, $this->accountingDb()->table('accounting_closed_periods')->countAllResults());
+    }
+
+    public function testClose_DoesNotWaitForAClosingOfAnotherBranch(): void
+    {
+        $employee    = $this->closer();
+        $second      = $this->createBranch('B2');
+        $this->other = $this->openSecondConnection();
+
+        $this->holdOpen(fn () => $this->service->close(1, $this->ago(30), '', $employee));
+
+        (new ClosedPeriodService($this->other))->close($second, $this->ago(30), '', $employee);
+
+        $this->accountingDb()->transComplete();
+
+        $this->assertSame(2, $this->accountingDb()->table('accounting_closed_periods')->countAllResults());
+    }
+
+    public function testReopen_WaitsForAnotherReopeningOfTheSameScope(): void
+    {
+        $employee    = $this->closer();
+        $this->other = $this->openSecondConnection();
+        $this->service->close(null, $this->ago(40), '', $employee);
+        $this->service->close(null, $this->ago(10), '', $employee);
+
+        $this->holdOpen(fn () => $this->service->reopen(null, 'First', $employee, $this->ago(10)));
+
+        $this->assertWaitsForLock(fn () => (new ClosedPeriodService($this->other))->reopen(null, 'Second', $employee, $this->ago(10)));
+
+        $this->accountingDb()->transComplete();
+
+        $this->assertSame($this->ago(40), $this->service->cutoff(null));
+    }
+
+    public function testReopen_RefusesAClosingThatIsNotTheOneTheScreenShowed(): void
+    {
+        $employee = $this->closer();
+        $this->service->close(null, $this->ago(40), '', $employee);
+        $this->service->close(null, $this->ago(10), '', $employee);
+        $this->service->reopen(null, 'First', $employee, $this->ago(10));
+
+        $exception = $this->assertFailsWith(AccountingError::ClosingChanged, fn () => $this->service->reopen(null, 'Second', $employee, $this->ago(10)));
+
+        $this->assertSame($this->ago(40), $exception->context['date']);
+        $this->assertSame($this->ago(40), $this->service->cutoff(null));
+    }
+
+    public function testReopen_AcceptsTheClosingTheScreenShowed(): void
+    {
+        $employee = $this->closer();
+        $this->service->close(null, $this->ago(10), '', $employee);
+
+        $this->service->reopen(null, 'Late invoice', $employee, $this->ago(10));
+
+        $this->assertNull($this->service->cutoff(null));
+    }
+
+    public function testClose_RefusesAJournalPostedByARequestHoldingAnOlderSnapshot(): void
+    {
+        $employee    = $this->closer();
+        $this->other = $this->openSecondConnection();
+
+        $this->startWithSnapshot($this->other);
+        $this->service->close(null, '2026-03-31', '', $employee);
+
+        try {
+            (new JournalService($this->other))->postNew(['date' => '2026-03-15'] + $this->journalInput());
+            $this->fail('Expected the journal to be refused.');
+        } catch (PostingException $exception) {
+            $this->assertSame(PostingError::PeriodClosed, $exception->error);
+        }
+
+        $this->assertSame(0, $this->accountingDb()->table('accounting_journals')->countAllResults());
     }
 }

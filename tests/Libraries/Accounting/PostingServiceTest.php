@@ -9,6 +9,7 @@ use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\PostingFailureLog;
 use App\Libraries\Accounting\PostingService;
+use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -25,6 +26,7 @@ class PostingServiceTest extends CIUnitTestCase
     protected $refresh     = false;
     protected $namespace   = null;
     private PostingService $service;
+    private ?BaseConnection $other = null;
 
     public static function setUpBeforeClass(): void
     {
@@ -45,6 +47,12 @@ class PostingServiceTest extends CIUnitTestCase
     protected function tearDown(): void
     {
         $this->releaseOpenTransactions();
+
+        if ($this->other !== null) {
+            $this->other->transRollback();
+            $this->other->close();
+            $this->other = null;
+        }
 
         parent::tearDown();
     }
@@ -812,5 +820,46 @@ class PostingServiceTest extends CIUnitTestCase
             new JournalLineDraft($this->accountId('cash'), debit: '10.00'),
             new JournalLineDraft($this->accountId('sales_revenue'), credit: '10.00'),
         ], '2026-03-15'));
+    }
+
+    /**
+     * @return array<string, array{bool}>
+     */
+    public static function databaseDebugProvider(): array
+    {
+        return ['the database throws' => [true], 'the database returns false as in production' => [false]];
+    }
+
+    #[DataProvider('databaseDebugProvider')]
+    public function testPost_ReturnsTheJournalAnotherRequestPostedFirstWhenTheUniqueKeyRefusesTheSecond(bool $debug): void
+    {
+        $this->other = $this->openSecondConnection($debug);
+
+        $this->startWithSnapshot($this->other);
+        $first = $this->service->post($this->balancedDraft('sale', 77));
+
+        $second = (new PostingService($this->other))->post($this->balancedDraft('sale', 77));
+
+        $this->assertTrue($first->created);
+        $this->assertFalse($second->created);
+        $this->assertSame($first->journalId, $second->journalId);
+        $this->assertSame(1, $this->accountingDb()->table('accounting_journals')->where('source_type', 'sale')->where('source_id', 77)->countAllResults());
+    }
+
+    public function testPost_RefusesADateClosedByARequestThatCommittedAfterTheCallersSnapshot(): void
+    {
+        $this->other = $this->openSecondConnection();
+
+        $this->startWithSnapshot($this->other);
+        $this->closeThrough('2026-10-31');
+
+        try {
+            (new PostingService($this->other))->post($this->balancedDraft('sale', 78));
+            $this->fail('Expected the period to be refused.');
+        } catch (PostingException $exception) {
+            $this->assertSame(PostingError::PeriodClosed, $exception->error);
+        }
+
+        $this->assertSame(0, $this->accountingDb()->table('accounting_journals')->countAllResults());
     }
 }

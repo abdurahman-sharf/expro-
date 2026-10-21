@@ -9,6 +9,7 @@ use App\Libraries\Accounting\FiscalYearService;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
+use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -25,6 +26,7 @@ class FiscalYearServiceTest extends CIUnitTestCase
     protected $namespace   = null;
 
     private FiscalYearService $service;
+    private ?BaseConnection $other = null;
 
     public static function setUpBeforeClass(): void
     {
@@ -46,6 +48,12 @@ class FiscalYearServiceTest extends CIUnitTestCase
     protected function tearDown(): void
     {
         $this->releaseOpenTransactions();
+
+        if ($this->other !== null) {
+            $this->other->transRollback();
+            $this->other->close();
+            $this->other = null;
+        }
 
         parent::tearDown();
     }
@@ -428,5 +436,36 @@ class FiscalYearServiceTest extends CIUnitTestCase
         $this->accountingDb()->table('accounting_fiscal_years')->where('company_id', 1)->update(['end_date' => date('Y-m-d', strtotime('+30 days'))]);
 
         $this->assertSame(30, $this->service->daysUntilLastYearEnds());
+    }
+
+    public function testDelete_WaitsForAPostingInProgressAndThenRefusesTheYear(): void
+    {
+        $id          = $this->year('2026', '2026-01-01', '2026-12-31');
+        $this->other = $this->openSecondConnection();
+
+        $db = $this->accountingDb();
+        $db->resetTransStatus();
+        $db->transStart();
+        (new JournalService())->postNew(['date' => '2026-05-05'] + $this->journalInput());
+
+        $this->assertWaitsForLock(fn () => (new FiscalYearService($this->other))->delete($id));
+
+        $db->transComplete();
+
+        $this->assertFailsWith(AccountingError::FiscalYearHasJournals, fn () => (new FiscalYearService($this->other))->delete($id));
+        $this->assertNotNull($this->service->find($id));
+    }
+
+    public function testEnsureCovering_CreatesTheYearOnceWhenTwoRequestsNeedIt(): void
+    {
+        $this->year('2026', '2026-01-01', '2026-12-31');
+        $this->other = $this->openSecondConnection();
+
+        $this->startWithSnapshot($this->other);
+        $this->assertTrue($this->service->ensureCovering('2027-03-01'));
+
+        (new FiscalYearService($this->other))->ensureCovering('2027-03-01');
+
+        $this->assertSame(['2026', '2027'], $this->names());
     }
 }

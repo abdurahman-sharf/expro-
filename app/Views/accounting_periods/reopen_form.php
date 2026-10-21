@@ -2,6 +2,7 @@
 /**
  * @var string $scope
  * @var string $cutoff
+ * @var string $cutoff_raw
  */
 ?>
 
@@ -10,6 +11,7 @@
 
 <?= form_open('accounting_periods/closings/reopen', ['id' => 'reopen_form', 'class' => 'app-form']) ?>
     <input type="hidden" name="scope" value="<?= esc($scope, 'attr') ?>">
+    <input type="hidden" name="cutoff" value="<?= esc($cutoff_raw, 'attr') ?>">
     <fieldset>
         <p><?= $cutoff === '' ? esc(lang('Accounting_periods.nothing_closed')) : esc(lang('Accounting_periods.reopen_warning', [$cutoff])) ?></p>
 

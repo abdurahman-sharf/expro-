@@ -99,7 +99,7 @@ final class PostingService
             }
 
             if ($duplicate) {
-                $existingId = $this->findExisting($draft);
+                $existingId = $this->findExisting($draft, true);
 
                 if ($existingId !== null) {
                     return new PostingResult($existingId, false);
@@ -346,13 +346,18 @@ final class PostingService
         }
     }
 
-    private function findExisting(JournalDraft $draft): ?int
+    /**
+     * The journal already posted for the draft's source and revision. With $latest the answer
+     * is what is committed right now, which a transaction holding an older snapshot needs after
+     * the unique key has refused a second journal.
+     */
+    private function findExisting(JournalDraft $draft, bool $latest = false): ?int
     {
         if ($draft->sourceId === null) {
             return null;
         }
 
-        $journal = (new Journal($this->db))->findBySource($draft->sourceType, $draft->sourceId, $draft->revision);
+        $journal = $latest ? $this->findLatest($draft) : (new Journal($this->db))->findBySource($draft->sourceType, $draft->sourceId, $draft->revision);
 
         if ($journal === null) {
             return null;
@@ -366,6 +371,16 @@ final class PostingService
         }
 
         return (int) $journal->journal_id;
+    }
+
+    private function findLatest(JournalDraft $draft): ?object
+    {
+        $result = $this->db->query(
+            'SELECT journal_id, branch_id FROM ' . $this->db->prefixTable('accounting_journals') . ' WHERE source_type = ? AND source_id = ? AND revision = ? LOCK IN SHARE MODE',
+            [$draft->sourceType, $draft->sourceId, $draft->revision],
+        );
+
+        return $result === false ? null : $result->getRow();
     }
 
     /**
@@ -400,7 +415,7 @@ final class PostingService
         ]);
 
         if ($inserted === false) {
-            throw new PostingException(PostingError::WriteFailed, 'The journal header could not be written.');
+            throw new PostingException(PostingError::WriteFailed, 'The journal header could not be written.', ['database_code' => $this->db->error()['code'] ?? 0]);
         }
 
         $journalId = (int) $this->db->insertID();
@@ -429,6 +444,10 @@ final class PostingService
 
     private function isDuplicateEntry(Throwable $exception): bool
     {
+        if ($exception instanceof PostingException) {
+            return ($exception->context['database_code'] ?? 0) === self::MYSQL_DUPLICATE_ENTRY;
+        }
+
         return $exception->getCode() === self::MYSQL_DUPLICATE_ENTRY || str_contains($exception->getMessage(), 'Duplicate entry');
     }
 }

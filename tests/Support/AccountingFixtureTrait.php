@@ -2,6 +2,8 @@
 
 namespace Tests\Support;
 
+use App\Libraries\Accounting\AccountingError;
+use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountService;
 use App\Libraries\Accounting\DefaultChart;
@@ -9,6 +11,7 @@ use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
 use CodeIgniter\Database\BaseConnection;
+use CodeIgniter\Database\Exceptions\DatabaseException;
 use Config\Database;
 
 trait AccountingFixtureTrait
@@ -128,6 +131,54 @@ trait AccountingFixtureTrait
             'date_to'    => $date,
             'active'     => 1,
         ]);
+    }
+
+    /**
+     * A second connection to the test database, standing for a request running at the same
+     * time. It gives up on a lock after a second instead of waiting out the server's default,
+     * and with $debug false it behaves as production does: a failed query returns false.
+     */
+    protected function openSecondConnection(bool $debug = true): BaseConnection
+    {
+        $config            = (new Database())->tests;
+        $config['DBDebug'] = $debug;
+
+        $connection = Database::connect($config, false);
+        $connection->query('SET SESSION innodb_lock_wait_timeout = 1');
+
+        return $connection;
+    }
+
+    /**
+     * Starts a transaction on the connection and reads once, which fixes the snapshot that its
+     * later plain reads see.
+     */
+    protected function startWithSnapshot(BaseConnection $connection): void
+    {
+        $connection->resetTransStatus();
+        $connection->transStart();
+        $connection->query('SELECT COUNT(*) FROM ' . $connection->prefixTable('accounting_closed_periods'));
+    }
+
+    /**
+     * The action must stop on a lock another connection holds: either the accounting layer
+     * reports the write as failed or the database reports the wait as timed out.
+     */
+    protected function assertWaitsForLock(callable $action): void
+    {
+        try {
+            $action();
+        } catch (AccountingException $exception) {
+            $this->assertSame(AccountingError::WriteFailed, $exception->error);
+
+            return;
+        } catch (DatabaseException $exception) {
+            $this->assertStringContainsString('Lock wait timeout', $exception->getMessage());
+
+            return;
+        }
+
+        $this->fail('Expected the request to wait for a lock.');
     }
 
     protected function releaseOpenTransactions(): void

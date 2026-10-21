@@ -11,9 +11,11 @@ use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
+use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
 
 class OpeningBalanceServiceTest extends CIUnitTestCase
@@ -27,6 +29,7 @@ class OpeningBalanceServiceTest extends CIUnitTestCase
     protected $namespace   = null;
 
     private OpeningBalanceService $service;
+    private ?BaseConnection $other = null;
 
     public static function setUpBeforeClass(): void
     {
@@ -47,6 +50,12 @@ class OpeningBalanceServiceTest extends CIUnitTestCase
     protected function tearDown(): void
     {
         $this->releaseOpenTransactions();
+
+        if ($this->other !== null) {
+            $this->other->transRollback();
+            $this->other->close();
+            $this->other = null;
+        }
 
         parent::tearDown();
     }
@@ -342,5 +351,147 @@ class OpeningBalanceServiceTest extends CIUnitTestCase
         $manual = (new JournalService())->postNew($this->journalInput());
 
         $this->assertFailsWith(AccountingError::JournalNotFound, fn () => (new JournalService())->reverseOpening($manual, '2026-10-22', 'Reason', $this->manager()));
+    }
+
+    private function holdOpen(callable $work): void
+    {
+        $db = $this->accountingDb();
+        $db->resetTransStatus();
+        $db->transStart();
+        $work();
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function openingRevisions(int $branchId = 1): array
+    {
+        $rows = $this->accountingDb()->table('accounting_journals')->select('revision')->where('source_type', 'opening')->where('source_id', $branchId)->orderBy('revision')->get()->getResultArray();
+
+        return array_map(static fn (array $row): string => (string) $row['revision'], $rows);
+    }
+
+    public function testPost_WaitsForAnotherPostOfTheSameBranchAndThenFindsItsJournal(): void
+    {
+        $employee    = $this->manager();
+        $this->other = $this->openSecondConnection();
+
+        $this->holdOpen(fn () => $this->service->post(1, $this->balancedLines(), false, $employee));
+
+        $this->assertWaitsForLock(fn () => (new OpeningBalanceService($this->other))->post(1, $this->balancedLines('50.00'), false, $employee));
+
+        $this->accountingDb()->transComplete();
+
+        $this->assertFailsWith(AccountingError::OpeningAlreadyPosted, fn () => (new OpeningBalanceService($this->other))->post(1, $this->balancedLines('50.00'), false, $employee));
+        $this->assertSame(['1'], $this->openingRevisions());
+    }
+
+    public function testPost_DoesNotWaitForAPostOfAnotherBranch(): void
+    {
+        $second      = $this->createBranch('B2');
+        $employee    = $this->manager();
+        $this->other = $this->openSecondConnection();
+
+        $this->holdOpen(fn () => $this->service->post(1, $this->balancedLines(), false, $employee));
+
+        (new OpeningBalanceService($this->other))->post($second, $this->balancedLines('50.00'), false, $employee);
+
+        $this->accountingDb()->transComplete();
+
+        $this->assertSame(['1'], $this->openingRevisions(1));
+        $this->assertSame(['1'], $this->openingRevisions($second));
+    }
+
+    /**
+     * @return array<string, array{bool}>
+     */
+    public static function databaseDebugProvider(): array
+    {
+        return ['the database throws' => [true], 'the database returns false as in production' => [false]];
+    }
+
+    #[DataProvider('databaseDebugProvider')]
+    public function testPost_RefusesAnOpeningPostedMeanwhileByARequestHoldingAnOlderSnapshot(bool $debug): void
+    {
+        $employee    = $this->manager();
+        $this->other = $this->openSecondConnection($debug);
+
+        $this->startWithSnapshot($this->other);
+        $this->service->post(1, $this->balancedLines(), false, $employee);
+
+        $this->assertFailsWith(AccountingError::OpeningAlreadyPosted, fn () => (new OpeningBalanceService($this->other))->post(1, $this->balancedLines('50.00'), false, $employee));
+        $this->assertSame(['1'], $this->openingRevisions());
+        $this->assertSame(1, $this->accountingDb()->table('accounting_journals')->where('source_type', 'opening')->where('status', 'posted')->countAllResults());
+    }
+
+    public function testSaveDraft_WaitsForAPostInProgressAndThenRefusesToKeepADraft(): void
+    {
+        $employee    = $this->manager();
+        $this->other = $this->openSecondConnection();
+
+        $this->holdOpen(fn () => $this->service->post(1, $this->balancedLines(), false, $employee));
+
+        $this->assertWaitsForLock(fn () => (new OpeningBalanceService($this->other))->saveDraft(1, $this->balancedLines('50.00'), $employee));
+
+        $this->accountingDb()->transComplete();
+
+        $this->assertFailsWith(AccountingError::OpeningAlreadyPosted, fn () => (new OpeningBalanceService($this->other))->saveDraft(1, $this->balancedLines('50.00'), $employee));
+        $this->assertSame(0, $this->accountingDb()->table('accounting_opening_drafts')->countAllResults());
+    }
+
+    public function testReverse_WaitsForAnotherReversalAndThenFindsNothingToReverse(): void
+    {
+        $employee    = $this->manager();
+        $this->other = $this->openSecondConnection();
+        $this->service->post(1, $this->balancedLines(), false, $employee);
+
+        $this->holdOpen(fn () => $this->service->reverse(1, '2026-01-02', 'First', $employee));
+
+        $this->assertWaitsForLock(fn () => (new OpeningBalanceService($this->other))->reverse(1, '2026-01-02', 'Second', $employee));
+
+        $this->accountingDb()->transComplete();
+
+        $this->assertFailsWith(AccountingError::OpeningNotPosted, fn () => (new OpeningBalanceService($this->other))->reverse(1, '2026-01-02', 'Second', $employee));
+        $this->assertSame(1, $this->accountingDb()->table('accounting_journals')->where('reverses_journal_id IS NOT NULL', null, false)->countAllResults());
+    }
+
+    public function testReverse_RefusesAnOpeningReversedMeanwhileByARequestHoldingAnOlderSnapshot(): void
+    {
+        $employee    = $this->manager();
+        $this->other = $this->openSecondConnection();
+        $this->service->post(1, $this->balancedLines(), false, $employee);
+
+        $this->startWithSnapshot($this->other);
+        $this->service->reverse(1, '2026-01-02', 'First', $employee);
+
+        $this->assertFailsWith(AccountingError::AlreadyReversed, fn () => (new OpeningBalanceService($this->other))->reverse(1, '2026-01-02', 'Second', $employee));
+        $this->assertSame(1, $this->accountingDb()->table('accounting_journals')->where('reverses_journal_id IS NOT NULL', null, false)->countAllResults());
+    }
+
+    public function testPost_KeepsRevisionsUniqueAndTheBalancesRightAcrossRepeatedReversalAndReplacement(): void
+    {
+        $employee = $this->manager();
+        $amounts  = ['100.00', '250.00', '400.00'];
+
+        foreach ($amounts as $index => $amount) {
+            if ($index > 0) {
+                $this->service->reverse(1, '2026-01-02', 'Wrong counts', $employee);
+            }
+
+            $this->service->post(1, $this->balancedLines($amount), false, $employee);
+            $this->assertFailsWith(AccountingError::OpeningAlreadyPosted, fn () => $this->service->post(1, $this->balancedLines($amount), false, $employee));
+        }
+
+        $this->assertSame(['1', '2', '3'], $this->openingRevisions());
+        $this->assertSame(1, $this->accountingDb()->table('accounting_journals')->where('source_type', 'opening')->where('status', 'posted')->countAllResults());
+        $this->assertSame(2, $this->accountingDb()->table('accounting_journals')->where('source_type', 'opening')->where('status', 'reversed')->countAllResults());
+
+        $cash = $this->accountingDb()->table('accounting_journal_lines')
+            ->select('COALESCE(SUM(debit), 0) - COALESCE(SUM(credit), 0) AS balance', false)
+            ->where('account_id', $this->accountId('cash'))
+            ->get()
+            ->getRow();
+
+        $this->assertSame('400.0000', (string) $cash->balance);
     }
 }

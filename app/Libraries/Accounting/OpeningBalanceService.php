@@ -38,6 +38,7 @@ final class OpeningBalanceService
     private AuditLog $audit;
     private AccountingGuard $guard;
     private BranchGuard $branches;
+    private PeriodLocks $locks;
 
     public function __construct(?BaseConnection $db = null, ?AccountingGuard $guard = null, ?BranchGuard $branches = null)
     {
@@ -45,6 +46,7 @@ final class OpeningBalanceService
         $this->audit    = new AuditLog($this->db);
         $this->guard    = $guard ?? new AccountingGuard();
         $this->branches = $branches ?? new BranchGuard($this->db);
+        $this->locks    = new PeriodLocks($this->db);
     }
 
     /**
@@ -131,14 +133,19 @@ final class OpeningBalanceService
 
         $lines = $this->normalizeLines($lines);
 
-        $this->db->query(
-            'INSERT INTO ' . $this->db->prefixTable('accounting_opening_drafts') . ' (branch_id, company_id, `lines`, updated_by)
-             VALUES (?, ?, ?, ?)
-             ON DUPLICATE KEY UPDATE `lines` = VALUES(`lines`), updated_by = VALUES(updated_by)',
-            [$branchId, CompanyContext::id(), json_encode($lines, JSON_UNESCAPED_UNICODE), $employeeId],
-        );
+        $this->transactional(function () use ($branchId, $lines, $employeeId): void {
+            $this->locks->holdBranch($branchId);
+            $this->assertNotPosted($branchId);
 
-        $this->audit->write('opening_balance', $branchId, 'opening_draft_saved', $employeeId, JournalOrigin::User, ['lines' => count($lines)], $branchId);
+            $this->db->query(
+                'INSERT INTO ' . $this->db->prefixTable('accounting_opening_drafts') . ' (branch_id, company_id, `lines`, updated_by)
+                 VALUES (?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE `lines` = VALUES(`lines`), updated_by = VALUES(updated_by)',
+                [$branchId, CompanyContext::id(), json_encode($lines, JSON_UNESCAPED_UNICODE), $employeeId],
+            );
+
+            $this->audit->write('opening_balance', $branchId, 'opening_draft_saved', $employeeId, JournalOrigin::User, ['lines' => count($lines)], $branchId);
+        });
     }
 
     /**
@@ -157,6 +164,11 @@ final class OpeningBalanceService
      * Posts the opening journal of the branch from the given lines, or from the stored draft
      * when none are given. With $balanceWithOpening the difference between the two sides is
      * put on the opening balance equity account.
+     *
+     * The branch's period lock is held exclusively while the journal is written, so two posts
+     * for the same branch run one after the other and the second finds the first one's journal.
+     * The check and the revision are read after the lock is taken, from a transaction this
+     * method starts.
      *
      * @param list<array<string, mixed>>|null $lines
      *
@@ -177,6 +189,9 @@ final class OpeningBalanceService
         $lines = $this->balanced($lines, $balanceWithOpening);
 
         return $this->transactional(function () use ($branchId, $lines, $startDate, $employeeId): int {
+            $this->locks->holdBranch($branchId);
+            $this->assertNotPosted($branchId);
+
             $this->db->table('accounting_opening_drafts')->where('branch_id', $branchId)->delete();
 
             $draft = new JournalDraft(
@@ -195,7 +210,13 @@ final class OpeningBalanceService
                 branchId: $branchId,
             );
 
-            return (new PostingService($this->db))->post($draft)->journalId;
+            $result = (new PostingService($this->db))->post($draft);
+
+            if (! $result->created) {
+                throw new AccountingException(AccountingError::OpeningAlreadyPosted, 'The branch already has posted opening balances. Reverse them first.');
+            }
+
+            return $result->journalId;
         });
     }
 

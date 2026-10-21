@@ -59,6 +59,7 @@ enum AccountingError: string
     case ClosingNotAfterPrevious  = 'closing_not_after_previous';
     case ClosingBlockedByDrafts   = 'closing_blocked_by_drafts';
     case NothingToReopen          = 'nothing_to_reopen';
+    case ClosingChanged           = 'closing_changed';
 
     case InvalidCurrency            = 'invalid_currency';
     case SettingsLocked             = 'settings_locked';

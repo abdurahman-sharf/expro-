@@ -21,7 +21,7 @@ final class JournalNumbering
     {
         $companyId ??= CompanyContext::id();
         $table = $this->db->prefixTable('accounting_sequences');
-        $row   = $this->db->query("SELECT last_number FROM {$table} WHERE company_id = ? AND series = ? FOR UPDATE", [$companyId, 'manual'])->getRow();
+        $row   = LockedRead::row($this->db, "SELECT last_number FROM {$table} WHERE company_id = ? AND series = ? FOR UPDATE", [$companyId, 'manual']);
 
         if ($row === null) {
             throw new PostingException(PostingError::WriteFailed, 'The manual journal number series is missing.');

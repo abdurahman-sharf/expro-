@@ -263,7 +263,7 @@ final class JournalService
 
         return $this->transactional(function () use ($journalId, $date, $reason, $employeeId, $checkAccess): int {
             $table    = $this->db->prefixTable('accounting_journals');
-            $original = $this->db->query("SELECT * FROM {$table} WHERE journal_id = ? FOR UPDATE", [$journalId])->getRow();
+            $original = LockedRead::row($this->db, "SELECT * FROM {$table} WHERE journal_id = ? FOR UPDATE", [$journalId]);
 
             if ($original === null) {
                 throw new AccountingException(AccountingError::JournalNotFound, "Journal {$journalId} does not exist.");
@@ -545,7 +545,7 @@ final class JournalService
     private function lockDraft(int $journalId, ?int $employeeId): object
     {
         $table = $this->db->prefixTable('accounting_journals');
-        $row   = $this->db->query("SELECT * FROM {$table} WHERE journal_id = ? FOR UPDATE", [$journalId])->getRow();
+        $row   = LockedRead::row($this->db, "SELECT * FROM {$table} WHERE journal_id = ? FOR UPDATE", [$journalId]);
 
         if ($row === null || $row->source_type !== JournalDraft::SOURCE_MANUAL) {
             throw new AccountingException(AccountingError::JournalNotFound, "Journal {$journalId} does not exist.");

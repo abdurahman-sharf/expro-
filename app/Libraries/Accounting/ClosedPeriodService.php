@@ -135,7 +135,10 @@ final class ClosedPeriodService
     }
 
     /**
-     * Closes the scope up to and including the date.
+     * Closes the scope up to and including the date. The scope's lock is taken before anything
+     * is read, so the transaction this method starts sees every closing committed before it
+     * got the lock. Two closings of the same scope therefore run one after the other, and the
+     * second finds the first.
      *
      * @throws AccountingException|BranchException
      */
@@ -207,11 +210,12 @@ final class ClosedPeriodService
 
     /**
      * Reopens the latest closing of the scope. Reopening the company does not reopen a branch
-     * that closed on its own.
+     * that closed on its own. A screen passes the date it showed, so a second request that
+     * arrives after another one already reopened does not reopen the closing before it.
      *
      * @throws AccountingException|BranchException
      */
-    public function reopen(?int $branchId, string $reason, ?int $employeeId): int
+    public function reopen(?int $branchId, string $reason, ?int $employeeId, ?string $expectedCutoff = null): int
     {
         $this->guard->require(AccountingGuard::PERIODS_REOPEN, $employeeId);
         $this->requireScope($branchId, $employeeId);
@@ -222,19 +226,24 @@ final class ClosedPeriodService
             throw new AccountingException(AccountingError::ReasonRequired, 'A reason of 1 to 255 characters is required.');
         }
 
-        return $this->transactional(function () use ($branchId, $reason, $employeeId): int {
+        return $this->transactional(function () use ($branchId, $reason, $employeeId, $expectedCutoff): int {
             $this->hold($branchId);
 
             $table  = $this->db->prefixTable('accounting_closed_periods');
             $scope  = $branchId === null ? 'branch_id IS NULL' : 'branch_id = ?';
             $params = $branchId === null ? [CompanyContext::id()] : [CompanyContext::id(), $branchId];
-            $latest = $this->db->query(
+            $latest = LockedRead::row(
+                $this->db,
                 "SELECT closed_period_id, date_to FROM {$table} WHERE company_id = ? AND {$scope} AND active = 1 ORDER BY date_to DESC LIMIT 1 FOR UPDATE",
                 $params,
-            )->getRow();
+            );
 
             if ($latest === null) {
                 throw new AccountingException(AccountingError::NothingToReopen, 'There is no closing to reopen.');
+            }
+
+            if ($expectedCutoff !== null && $expectedCutoff !== $latest->date_to) {
+                throw new AccountingException(AccountingError::ClosingChanged, 'The latest closing changed since it was shown.', ['date' => $latest->date_to]);
             }
 
             $this->db->table('accounting_closed_periods')->where('closed_period_id', $latest->closed_period_id)->update([

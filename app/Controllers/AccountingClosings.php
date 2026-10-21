@@ -139,8 +139,9 @@ class AccountingClosings extends AccountingController
         $cutoff = $this->closings->cutoff($scope === null ? null : (int) $scope);
 
         return view('accounting_periods/reopen_form', [
-            'scope'  => $scope ?? 'company',
-            'cutoff' => $cutoff === null ? '' : $this->formatDate($cutoff),
+            'scope'      => $scope ?? 'company',
+            'cutoff'     => $cutoff === null ? '' : $this->formatDate($cutoff),
+            'cutoff_raw' => $cutoff ?? '',
         ]);
     }
 
@@ -149,7 +150,9 @@ class AccountingClosings extends AccountingController
         return $this->attempt(function (): array {
             $scope = $this->scopeParameter(true);
 
-            $this->closings->reopen($scope === null ? null : (int) $scope, (string) $this->request->getPost('reason'), $this->employeeId());
+            $expected = (string) $this->request->getPost('cutoff');
+
+            $this->closings->reopen($scope === null ? null : (int) $scope, (string) $this->request->getPost('reason'), $this->employeeId(), $expected === '' ? null : $expected);
 
             $message = lang('Accounting_periods.reopened');
             session()->setFlashdata('accounting_notice', $message);
