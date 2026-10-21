@@ -61,10 +61,10 @@ $reopenUrl = static fn (string $scope): string => esc('accounting_periods/closin
         <?php if ($is_unrestricted && ($can_close || ($can_reopen && $has_company))): ?>
             <div class="mt-1">
                 <?php if ($can_close): ?>
-                    <button type="button" class="btn btn-outline-primary btn-sm modal-dlg" data-btn-submit="<?= esc(lang('Accounting_periods.close_action'), 'attr') ?>" data-href="<?= $closeUrl('company') ?>" title="<?= esc(lang('Accounting_periods.close_title'), 'attr') ?>"><?= lang('Accounting_periods.close_action') ?></button>
+                    <button type="button" class="btn btn-outline-primary btn-sm modal-dlg" data-btn-submit="<?= esc(lang('Accounting_periods.close_submit'), 'attr') ?>" data-href="<?= $closeUrl('company') ?>" title="<?= esc(lang('Accounting_periods.close_title'), 'attr') ?>"><?= lang('Accounting_periods.close_action') ?></button>
                 <?php endif; ?>
                 <?php if ($can_reopen && $has_company): ?>
-                    <button type="button" class="btn btn-outline-danger btn-sm modal-dlg" data-btn-submit="<?= esc(lang('Accounting_periods.reopen_action'), 'attr') ?>" data-href="<?= $reopenUrl('company') ?>" title="<?= esc(lang('Accounting_periods.reopen_title'), 'attr') ?>"><?= lang('Accounting_periods.reopen_action') ?></button>
+                    <button type="button" class="btn btn-outline-danger btn-sm modal-dlg" data-btn-submit="<?= esc(lang('Accounting_periods.reopen_submit'), 'attr') ?>" data-href="<?= $reopenUrl('company') ?>" title="<?= esc(lang('Accounting_periods.reopen_title'), 'attr') ?>"><?= lang('Accounting_periods.reopen_action') ?></button>
                 <?php endif; ?>
             </div>
         <?php endif; ?>
@@ -78,10 +78,10 @@ $reopenUrl = static fn (string $scope): string => esc('accounting_periods/closin
                 <?php if ($can_close || ($can_reopen && $branch['has_close'])): ?>
                     <div class="mt-1">
                         <?php if ($can_close): ?>
-                            <button type="button" class="btn btn-outline-primary btn-sm modal-dlg" data-btn-submit="<?= esc(lang('Accounting_periods.close_action'), 'attr') ?>" data-href="<?= $closeUrl((string) $branch['branch_id']) ?>" title="<?= esc(lang('Accounting_periods.close_title'), 'attr') ?>"><?= lang('Accounting_periods.close_action') ?></button>
+                            <button type="button" class="btn btn-outline-primary btn-sm modal-dlg" data-btn-submit="<?= esc(lang('Accounting_periods.close_submit'), 'attr') ?>" data-href="<?= $closeUrl((string) $branch['branch_id']) ?>" title="<?= esc(lang('Accounting_periods.close_title'), 'attr') ?>"><?= lang('Accounting_periods.close_action') ?></button>
                         <?php endif; ?>
                         <?php if ($can_reopen && $branch['has_close']): ?>
-                            <button type="button" class="btn btn-outline-danger btn-sm modal-dlg" data-btn-submit="<?= esc(lang('Accounting_periods.reopen_action'), 'attr') ?>" data-href="<?= $reopenUrl((string) $branch['branch_id']) ?>" title="<?= esc(lang('Accounting_periods.reopen_title'), 'attr') ?>"><?= lang('Accounting_periods.reopen_action') ?></button>
+                            <button type="button" class="btn btn-outline-danger btn-sm modal-dlg" data-btn-submit="<?= esc(lang('Accounting_periods.reopen_submit'), 'attr') ?>" data-href="<?= $reopenUrl((string) $branch['branch_id']) ?>" title="<?= esc(lang('Accounting_periods.reopen_title'), 'attr') ?>"><?= lang('Accounting_periods.reopen_action') ?></button>
                         <?php endif; ?>
                     </div>
                 <?php endif; ?>

@@ -42,7 +42,7 @@ class AccountingSetup extends AccountingController
         ]);
     }
 
-    public function postSave(): ResponseInterface
+    public function postSaveSettings(): ResponseInterface
     {
         return $this->attempt(function (): array {
             $this->settings->update([

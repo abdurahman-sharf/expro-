@@ -56,7 +56,7 @@ $routes->group('branches', static function (RouteCollection $routes): void {
 
 $routes->group('accounting_settings', static function (RouteCollection $routes): void {
     $routes->get('/', 'AccountingSetup::getIndex');
-    $routes->post('save', 'AccountingSetup::postSave');
+    $routes->post('save', 'AccountingSetup::postSaveSettings');
     $routes->post('first_year', 'AccountingSetup::postFirstYear');
     $routes->post('enable', 'AccountingSetup::postEnable');
     $routes->post('disable', 'AccountingSetup::postDisable');

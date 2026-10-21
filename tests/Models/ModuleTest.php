@@ -108,4 +108,33 @@ class ModuleTest extends CIUnitTestCase
 
         $this->assertSame([], $this->allowedModuleIds($personId));
     }
+
+    public function testGetAllowedModules_KeepsTheSettingsModuleVisibleWhileAccountingIsDisabled(): void
+    {
+        $this->setAccountingEnabled('0');
+
+        $personId = $this->createEmployee(grants: [
+            ['permission_id' => 'accounting_settings', 'menu_group' => 'home'],
+            ['permission_id' => 'accounting_periods', 'menu_group' => 'home'],
+            ['permission_id' => 'accounting_chart', 'menu_group' => 'home'],
+        ]);
+
+        $this->assertSame(['accounting_settings'], $this->allowedModuleIds($personId));
+    }
+
+    public function testGetAllowedModules_ShowsThePeriodsModuleOnceAccountingIsEnabled(): void
+    {
+        $this->setAccountingEnabled('1');
+
+        try {
+            $personId = $this->createEmployee(grants: [
+                ['permission_id' => 'accounting_periods', 'menu_group' => 'home'],
+                ['permission_id' => 'accounting_settings', 'menu_group' => 'home'],
+            ]);
+
+            $this->assertSame(['accounting_settings', 'accounting_periods'], array_values(array_intersect(['accounting_settings', 'accounting_periods'], $this->allowedModuleIds($personId))));
+        } finally {
+            $this->setAccountingEnabled('0');
+        }
+    }
 }

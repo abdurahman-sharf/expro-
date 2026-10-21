@@ -70,7 +70,14 @@ INSERT IGNORE INTO ospos_grants (permission_id, person_id, menu_group) VALUES
 ('branches', 1, 'office'),
 ('org_branches_manage', 1, '--'),
 ('org_scope_manage', 1, '--'),
-('org_all_branches', 1, '--');
+('org_all_branches', 1, '--'),
+('accounting_settings', 1, 'office'),
+('accounting_periods', 1, 'office'),
+('acc_settings_manage', 1, '--'),
+('acc_periods_manage', 1, '--'),
+('acc_periods_close', 1, '--'),
+('acc_periods_reopen', 1, '--'),
+('acc_opening_manage', 1, '--');
 
 INSERT INTO ospos_branches (company_id, code, name, address, phone, is_default, active) VALUES
 (1, 'JED', 'فرع جدة', 'طريق الكورنيش، جدة', '0125550100', 0, 1);

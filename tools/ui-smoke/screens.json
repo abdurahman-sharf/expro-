@@ -1053,6 +1053,79 @@
       "id": "accounting-journal-view-second-branch",
       "group": "accounting",
       "path": "/accounting_journals/view/5"
+    },
+    {
+      "id": "accounting-settings",
+      "group": "accounting",
+      "path": "/accounting_settings"
+    },
+    {
+      "id": "accounting-periods",
+      "group": "accounting",
+      "path": "/accounting_periods"
+    },
+    {
+      "id": "accounting-periods-new-modal",
+      "group": "accounting",
+      "path": "/accounting_periods",
+      "steps": [
+        {
+          "click": "#title_bar button[data-href=\"accounting_periods/view\"]"
+        },
+        {
+          "waitFor": ".modal-body #year_form"
+        },
+        {
+          "pause": 1000
+        }
+      ]
+    },
+    {
+      "id": "accounting-closings",
+      "group": "accounting",
+      "path": "/accounting_periods/closings"
+    },
+    {
+      "id": "accounting-closings-close-modal",
+      "group": "accounting",
+      "path": "/accounting_periods/closings",
+      "steps": [
+        {
+          "click": "button[data-href=\"accounting_periods/closings/close_form?scope=company\"]"
+        },
+        {
+          "waitFor": ".modal-body #close_form"
+        },
+        {
+          "pause": 1200
+        }
+      ]
+    },
+    {
+      "id": "accounting-closings-reopen-modal",
+      "group": "accounting",
+      "path": "/accounting_periods/closings",
+      "steps": [
+        {
+          "click": "button[data-href=\"accounting_periods/closings/reopen_form?scope=company\"]"
+        },
+        {
+          "waitFor": ".modal-body #reopen_form"
+        },
+        {
+          "pause": 1000
+        }
+      ]
+    },
+    {
+      "id": "accounting-opening-posted",
+      "group": "accounting",
+      "path": "/accounting_periods/opening?branch=1"
+    },
+    {
+      "id": "accounting-opening-new",
+      "group": "accounting",
+      "path": "/accounting_periods/opening?branch=2"
     }
   ]
 }

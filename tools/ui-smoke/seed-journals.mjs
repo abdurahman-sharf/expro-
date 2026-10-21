@@ -103,6 +103,21 @@ try {
         ]
     });
     console.log('Posted journal in the second branch', jeddah.id);
+
+    const equity = await accountId('3102');
+    const openingBody = new URLSearchParams({
+        branch_id: await branchId('HQ'),
+        'lines[0][account_id]': cash,
+        'lines[0][description]': 'رصيد الصندوق الافتتاحي',
+        'lines[0][debit]': '25000.00',
+        'lines[1][account_id]': equity,
+        'lines[1][credit]': '25000.00'
+    });
+    const openingBalances = await postJson('accounting_periods/opening/post', openingBody.toString());
+    console.log('Posted the opening balances of the head office', openingBalances.success);
+
+    const closing = await postJson('accounting_periods/closings/close', new URLSearchParams({ scope: 'company', date: '2026-09-30', note: 'إقفال حتى نهاية سبتمبر' }).toString());
+    console.log('Closed the company through September', closing.success);
 } finally {
     await browser.close();
 }

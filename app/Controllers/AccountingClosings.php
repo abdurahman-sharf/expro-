@@ -34,7 +34,7 @@ class AccountingClosings extends AccountingController
                 'cutoff'    => $branch->cutoff === null ? null : $this->formatDate($branch->cutoff),
                 'has_close' => $branch->cutoff !== null,
             ], $summary['branches']),
-            'show_branches'   => $this->seesBranches() || count($summary['branches']) > 1,
+            'show_branches'   => ! $this->branchGuard()->isUnrestricted($this->employeeId()) || count($summary['branches']) > 1,
             'can_close'       => $this->can(AccountingGuard::PERIODS_CLOSE),
             'can_reopen'      => $this->can(AccountingGuard::PERIODS_REOPEN),
             'is_unrestricted' => $this->branchGuard()->isUnrestricted($this->employeeId()),
