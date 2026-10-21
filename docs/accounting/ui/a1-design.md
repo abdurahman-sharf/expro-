@@ -154,7 +154,8 @@
 
 ## الربط بالخدمات المحاسبية
 
-- **خدمات A0 المستدعاة:** `Account_service` (إنشاء/تعديل/تعطيل/حذف مع الحماية)، `Journal_service` (`createDraft`، `updateDraft`، `post`، `reverse`، `deleteDraft`)، `CostCenter_service`، وسجل التدقيق.
+- **من A0 (منفّذة):** `PostingService::post` (توازن، عدم تكرار، ترقيم، سجل تدقيق)، و`AccountingSettings` (مفتاح التشغيل وفاحص الاكتمال)، وسجلا التدقيق والفشل.
+- **تُبنى في A1 مع الواجهة بعد اعتمادها:** `AccountService` (إنشاء/تعديل/تعطيل/حذف مع الحماية)، و`JournalService` (`createDraft`، `updateDraft`، ترحيل مسودة، `reverse`، `deleteDraft`) فوق `PostingService`، و`CostCenterService`.
 - **الترحيل والعكس** معاملة واحدة، وعند الفشل (D2) يتراجع كل شيء ويُسجَّل السبب خارج المعاملة وتبقى مدخلات المستخدم في النموذج.
 - مع `accounting_enabled` معطّلًا (D1) لا تظهر وحدات المحاسبة في القائمة ولا يُنفَّذ أي كود محاسبي.
 
