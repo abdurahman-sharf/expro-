@@ -255,4 +255,30 @@ class AccountingCostCentersControllerTest extends CIUnitTestCase
 
         $this->assertSame('1', $row['code']);
     }
+
+    public function testGetIndex_HidesTheAddButtonFromSomeoneLimitedToBranches(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_cost_centers', AccountingGuard::COST_CENTERS_MANAGE], [1]));
+
+        $this->get('/accounting_cost_centers')->assertDontSee('data-href="accounting_cost_centers/view"');
+    }
+
+    public function testGetView_IsNotFoundForSomeoneLimitedToBranches(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_cost_centers', AccountingGuard::COST_CENTERS_MANAGE], [1]));
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_cost_centers/view');
+    }
+
+    public function testPostSave_RefusesSomeoneLimitedToBranches(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_cost_centers', AccountingGuard::COST_CENTERS_MANAGE], [1]));
+
+        $result = $this->jsonOf($this->post('/accounting_cost_centers/save', ['code' => 'MAIN', 'name' => 'Main']));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(0, $this->countRows('accounting_cost_centers'));
+    }
 }

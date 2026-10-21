@@ -7,6 +7,9 @@ const session = await newSession(browser, config, { width: 1440, height: 900 });
 
 const encode = (journal) => {
     const body = new URLSearchParams({ date: journal.date, description: journal.description });
+    if (journal.branchId) {
+        body.set('branch_id', journal.branchId);
+    }
     journal.lines.forEach((line, index) => {
         for (const [field, value] of Object.entries(line)) {
             body.set(`lines[${index}][${field}]`, value);
@@ -49,6 +52,12 @@ try {
         return result;
     };
 
+    const branchId = async (code) => {
+        const response = await page.request.get(`${config.baseUrl}/branches/search`);
+        const row = (await response.json()).rows.find((item) => item.code === code);
+        return row ? String(row.branch_id) : '';
+    };
+
     const cash = await accountId('1101');
     const sales = await accountId('4101');
     const front = await costCenterId('21');
@@ -83,6 +92,17 @@ try {
         ]
     });
     console.log('Saved draft', draft.id);
+
+    const jeddah = await send('post', {
+        date: '2026-10-12',
+        description: 'مبيعات نقدية في فرع جدة',
+        branchId: await branchId('JED'),
+        lines: [
+            { account_id: cash, description: '', cost_center_id: '', debit: '1800.00', credit: '' },
+            { account_id: sales, description: '', cost_center_id: '', debit: '', credit: '1800.00' }
+        ]
+    });
+    console.log('Posted journal in the second branch', jeddah.id);
 } finally {
     await browser.close();
 }

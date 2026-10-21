@@ -82,7 +82,7 @@ $value     = static fn (string $field): string => $isNew ? '' : (string) ($branc
                             <label class="form-check-label" for="location_<?= (int) $location->location_id ?>">
                                 <?= esc($location->location_name) ?>
                                 <?php if (! $mine): ?>
-                                    <span class="text-secondary small">— <?= esc(lang('Branches.location_now_in', [$location->branch_code])) ?></span>
+                                    <bdi class="text-secondary small">— <?= esc(lang('Branches.location_now_in', [$location->branch_code])) ?></bdi>
                                 <?php endif; ?>
                             </label>
                         </div>

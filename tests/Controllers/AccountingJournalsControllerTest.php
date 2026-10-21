@@ -558,4 +558,191 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         $response->assertSee('1 - Head office');
         $response->assertDontSee('2 - Closed branch');
     }
+
+    /**
+     * @param list<int> $branchIds
+     */
+    private function scopedAccountant(array $branchIds): int
+    {
+        $personId = $this->employeeWithGrants([
+            'accounting_journals',
+            AccountingGuard::JOURNALS_ALL,
+            AccountingGuard::JOURNALS_DRAFT,
+            AccountingGuard::JOURNALS_POST,
+            AccountingGuard::JOURNALS_REVERSE,
+            AccountingGuard::JOURNALS_AUDIT,
+        ], $branchIds);
+        $this->actAs($personId);
+
+        return $personId;
+    }
+
+    private function journalIn(int $branchId, string $amount = '100.00'): int
+    {
+        return (new JournalService())->postNew($this->journalInput($amount) + ['branch_id' => $branchId]);
+    }
+
+    public function testGetIndex_ShowsTheBranchColumnAndFilterOnlyWhenSeveralBranchesAreUsable(): void
+    {
+        $this->accountant();
+
+        $single = $this->get('/accounting_journals');
+
+        $single->assertDontSee('id="f_branch"');
+        $single->assertDontSee('branch_code');
+
+        $this->createBranch('B2');
+
+        $several = $this->get('/accounting_journals');
+
+        $several->assertSee('id="f_branch"');
+        $several->assertSee('branch_code');
+    }
+
+    public function testGetIndex_HidesTheBranchControlsFromSomeoneLimitedToOneBranch(): void
+    {
+        $second = $this->createBranch('B2');
+        $this->scopedAccountant([$second]);
+
+        $response = $this->get('/accounting_journals');
+
+        $response->assertDontSee('id="f_branch"');
+        $response->assertDontSee('branch_code');
+    }
+
+    public function testGetSearch_ListsOnlyTheJournalsOfTheEmployeesBranches(): void
+    {
+        $second = $this->createBranch('B2');
+        $first  = $this->journalIn(1);
+        $other  = $this->journalIn($second);
+        $this->scopedAccountant([$second]);
+
+        $rows = $this->jsonOf($this->get('/accounting_journals/search'))['rows'];
+
+        $this->assertSame([$other], array_column($rows, 'journal_id'));
+        $this->assertNotContains($first, array_column($rows, 'journal_id'));
+    }
+
+    public function testGetSearch_FiltersByBranch(): void
+    {
+        $second = $this->createBranch('B2');
+        $this->journalIn(1);
+        $other = $this->journalIn($second);
+        $this->accountant();
+
+        $result = $this->jsonOf($this->get('/accounting_journals/search?branch_id=' . $second));
+
+        $this->assertSame([$other], array_column($result['rows'], 'journal_id'));
+        $this->assertSame('B2', $result['rows'][0]['branch_code']);
+    }
+
+    public function testGetView_IsNotFoundForAJournalOfAnotherBranch(): void
+    {
+        $second    = $this->createBranch('B2');
+        $journalId = $this->journalIn($second);
+        $this->scopedAccountant([1]);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_journals/view/' . $journalId);
+    }
+
+    public function testGetView_ShowsTheBranchToSomeoneWhoCanUseSeveral(): void
+    {
+        $second    = $this->createBranch('B2', 'Second branch');
+        $journalId = $this->journalIn($second);
+        $this->accountant();
+
+        $this->get('/accounting_journals/view/' . $journalId)->assertSee('Second branch');
+    }
+
+    public function testGetEdit_IsNotFoundForADraftOfAnotherBranch(): void
+    {
+        $second  = $this->createBranch('B2');
+        $draftId = (new JournalService())->saveDraft($this->journalInput() + ['branch_id' => $second]);
+        $this->scopedAccountant([1]);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_journals/edit/' . $draftId);
+    }
+
+    public function testGetNew_OffersTheBranchesTheEmployeeMayPostIn(): void
+    {
+        $second = $this->createBranch('B2', 'Second branch');
+        $this->createBranch('B3', 'Third branch');
+        $this->scopedAccountant([1, $second]);
+
+        $response = $this->get('/accounting_journals/new');
+
+        $response->assertSee('B2 - Second branch');
+        $response->assertDontSee('B3 - Third branch');
+    }
+
+    public function testPostPost_RejectsABranchOutsideTheEmployeesScope(): void
+    {
+        $second = $this->createBranch('B2');
+        $this->scopedAccountant([1]);
+
+        $result = $this->jsonOf($this->post('/accounting_journals/post', $this->formInput() + ['branch_id' => (string) $second]));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(0, $this->countRows('accounting_journals'));
+    }
+
+    public function testPostSaveDraft_StoresTheChosenBranch(): void
+    {
+        $second = $this->createBranch('B2');
+        $this->accountant();
+
+        $result = $this->jsonOf($this->post('/accounting_journals/save_draft', $this->formInput() + ['branch_id' => (string) $second]));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame($second, (int) $this->accountingDb()->table('accounting_journals')->where('journal_id', $result['id'])->get()->getRow()->branch_id);
+    }
+
+    public function testPostReverse_RefusesAJournalOfAnotherBranch(): void
+    {
+        $second    = $this->createBranch('B2');
+        $journalId = $this->journalIn($second);
+        $this->scopedAccountant([1]);
+
+        $result = $this->jsonOf($this->post('/accounting_journals/reverse/' . $journalId, ['date' => '2026-10-22', 'reason' => 'Mistake']));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame('posted', $this->accountingDb()->table('accounting_journals')->where('journal_id', $journalId)->get()->getRow()->status);
+    }
+
+    public function testPostPostDrafts_ReportsADraftOfAnotherBranchAsMissing(): void
+    {
+        $second  = $this->createBranch('B2');
+        $draftId = (new JournalService())->saveDraft($this->journalInput() + ['branch_id' => $second]);
+        $this->scopedAccountant([1]);
+
+        $result = $this->jsonOf($this->post('/accounting_journals/post_drafts', ['ids' => [(string) $draftId]]));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame('draft', $this->accountingDb()->table('accounting_journals')->where('journal_id', $draftId)->get()->getRow()->status);
+    }
+
+    public function testGetAuditSearch_ListsOnlyTheEntriesOfTheEmployeesBranches(): void
+    {
+        $second = $this->createBranch('B2');
+        $first  = $this->journalIn(1);
+        $other  = $this->journalIn($second);
+        $this->scopedAccountant([$second]);
+
+        $rows = $this->jsonOf($this->get('/accounting_journals/audit/search'))['rows'];
+
+        $journalIds = [];
+
+        foreach ($rows as $row) {
+            if (preg_match('/#(\d+)/', $row['entity'], $match) === 1) {
+                $journalIds[] = (int) $match[1];
+            }
+        }
+
+        $this->assertContains($other, $journalIds);
+        $this->assertNotContains($first, $journalIds);
+    }
 }

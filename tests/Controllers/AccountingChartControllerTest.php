@@ -4,6 +4,7 @@ namespace Tests\Controllers;
 
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountService;
+use App\Libraries\Accounting\JournalService;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -349,5 +350,84 @@ class AccountingChartControllerTest extends CIUnitTestCase
 
         $this->assertSame('1110', $row['code']);
         $this->assertSame($accountId, $row['account_id']);
+    }
+
+    /**
+     * @param array<string, mixed> $result
+     */
+    private function balanceOf(array $result, int $accountId): string
+    {
+        foreach ($result['rows'] as $row) {
+            if ((int) $row['account_id'] === $accountId) {
+                return strip_tags((string) $row['balance']);
+            }
+        }
+
+        $this->fail("The account {$accountId} is not in the list.");
+    }
+
+    private function postInBranch(int $branchId, string $amount): void
+    {
+        (new JournalService())->postNew($this->journalInput($amount) + ['branch_id' => $branchId]);
+    }
+
+    public function testGetSearch_CountsOnlyTheBranchesTheEmployeeMayUse(): void
+    {
+        $second = $this->createBranch('B2');
+        $this->postInBranch(1, '100.00');
+        $this->postInBranch($second, '40.00');
+
+        $assets = $this->accountIdByCode('1');
+
+        $this->actAs($this->employeeWithGrants(['accounting_chart'], [$second]));
+        $limited = $this->jsonOf($this->get('/accounting_chart/search'));
+
+        $this->actAs($this->employeeWithGrants(['accounting_chart']));
+        $everything = $this->jsonOf($this->get('/accounting_chart/search'));
+
+        $this->assertStringContainsString('40.00', $this->balanceOf($limited, $assets));
+        $this->assertStringNotContainsString('140.00', $this->balanceOf($limited, $assets));
+        $this->assertStringContainsString('140.00', $this->balanceOf($everything, $assets));
+    }
+
+    public function testGetIndex_HidesTheAddButtonFromSomeoneLimitedToBranches(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_chart', AccountingGuard::CHART_MANAGE], [1]));
+
+        $this->get('/accounting_chart')->assertDontSee('accounting_chart/view?parent_id');
+    }
+
+    public function testGetIndex_ExplainsThatBalancesLeaveOutOtherBranches(): void
+    {
+        $this->createBranch('B2');
+        $this->actAs($this->employeeWithGrants(['accounting_chart'], [1]));
+
+        $this->get('/accounting_chart')->assertSee('acc-scope-note');
+    }
+
+    public function testGetIndex_HasNothingToExplainWhenThereIsOnlyOneBranch(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_chart'], [1]));
+
+        $this->get('/accounting_chart')->assertDontSee('acc-scope-note');
+    }
+
+    public function testGetView_IsNotFoundForSomeoneLimitedToBranches(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_chart', AccountingGuard::CHART_MANAGE], [1]));
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_chart/view');
+    }
+
+    public function testPostSave_RefusesSomeoneLimitedToBranches(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_chart', AccountingGuard::CHART_MANAGE], [1]));
+
+        $result = $this->jsonOf($this->post('/accounting_chart/save', ['parent_id' => (string) $this->accountIdByCode('11'), 'code' => '1110', 'name' => 'Custom']));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(0, $this->accountingDb()->table('accounting_accounts')->where('code', '1110')->countAllResults());
     }
 }

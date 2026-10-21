@@ -66,7 +66,14 @@ INSERT IGNORE INTO ospos_grants (permission_id, person_id, menu_group) VALUES
 ('acc_journals_post', 1, '--'),
 ('acc_journals_reverse', 1, '--'),
 ('acc_journals_audit', 1, '--'),
-('acc_cost_centers_manage', 1, '--');
+('acc_cost_centers_manage', 1, '--'),
+('branches', 1, 'office'),
+('org_branches_manage', 1, '--'),
+('org_scope_manage', 1, '--'),
+('org_all_branches', 1, '--');
+
+INSERT INTO ospos_branches (company_id, code, name, address, phone, is_default, active) VALUES
+(1, 'JED', 'فرع جدة', 'طريق الكورنيش، جدة', '0125550100', 0, 1);
 
 REPLACE INTO ospos_app_config (`key`, `value`) VALUES
 ('accounting_base_currency', 'SAR'),

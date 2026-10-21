@@ -8,6 +8,8 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use CodeIgniter\Config\Services;
 use App\Models\Employee;
+use App\Libraries\Organization\BranchGuard;
+use App\Libraries\Organization\EmployeeBranchService;
 use App\Models\Module;
 use Tests\Support\EmployeeFixtureTrait;
 
@@ -381,5 +383,221 @@ class EmployeesControllerTest extends CIUnitTestCase
         $response->assertStatus(200);
         $response->assertSeeElement('textarea[name=comments]');
         $response->assertSeeElement('#permission_select_all');
+    }
+
+    private function onlyTheDefaultBranch(): void
+    {
+        $this->db->query('SET FOREIGN_KEY_CHECKS = 0');
+        $this->db->table('employee_branches')->where('branch_id !=', 1)->delete();
+        $this->db->table('stock_locations')->update(['branch_id' => 1]);
+        $this->db->table('branches')->where('branch_id !=', 1)->delete();
+        $this->db->query('SET FOREIGN_KEY_CHECKS = 1');
+    }
+
+    private function addBranch(string $code): int
+    {
+        $this->db->table('branches')->insert(['company_id' => 1, 'code' => $code, 'name' => "Branch {$code}"]);
+
+        return (int) $this->db->insertID();
+    }
+
+    private function allowScopeChanges(int $personId): void
+    {
+        $this->db->table('grants')->where('person_id', $personId)->whereIn('permission_id', [BranchGuard::SCOPE_MANAGE, BranchGuard::ALL_BRANCHES])->delete();
+        $this->db->table('grants')->insertBatch([
+            ['permission_id' => BranchGuard::SCOPE_MANAGE, 'person_id' => $personId, 'menu_group' => '--'],
+            ['permission_id' => BranchGuard::ALL_BRANCHES, 'person_id' => $personId, 'menu_group' => '--'],
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function formFor(string $username, array $extra = []): array
+    {
+        return $extra + [
+            'first_name'   => 'Branch',
+            'last_name'    => 'Worker',
+            'email'        => $username . '@test.com',
+            'phone_number' => '555-1234',
+            'address_1'    => '',
+            'address_2'    => '',
+            'city'         => '',
+            'state'        => '',
+            'zip'          => '',
+            'country'      => '',
+            'comments'     => '',
+            'username'     => $username,
+            'language'     => 'en:english',
+        ];
+    }
+
+    public function testGetView_KeepsTheAllBranchesGrantOffThePermissionList(): void
+    {
+        $this->loginAsAdmin();
+
+        $response = $this->get('/employees/view/-1');
+
+        $response->assertSee('grant_org_branches_manage');
+        $response->assertSee('grant_org_scope_manage');
+        $response->assertDontSee('grant_org_all_branches');
+    }
+
+    public function testGetView_HidesTheBranchesTabWhileThereIsOneBranch(): void
+    {
+        $this->onlyTheDefaultBranch();
+        $this->allowScopeChanges(1);
+        $this->loginAsAdmin();
+
+        $this->get('/employees/view/-1')->assertDontSee('employee_branch_info');
+    }
+
+    public function testGetView_ShowsTheBranchesTabToSomeoneWhoSetsBranchesOnceThereAreSeveral(): void
+    {
+        $this->onlyTheDefaultBranch();
+        $this->addBranch('B2');
+        $this->allowScopeChanges(1);
+        $this->loginAsAdmin();
+
+        $response = $this->get('/employees/view/-1');
+
+        $response->assertSee('employee_branch_info');
+        $response->assertSee('name="branch_ids[]"');
+        $response->assertSee('id="branch_scope_all"');
+    }
+
+    public function testGetView_HidesTheBranchesTabFromSomeoneWhoCannotSetBranches(): void
+    {
+        $this->onlyTheDefaultBranch();
+        $this->addBranch('B2');
+        $this->db->table('grants')->where('person_id', 1)->where('permission_id', BranchGuard::SCOPE_MANAGE)->delete();
+        $this->loginAsAdmin();
+
+        $this->get('/employees/view/-1')->assertDontSee('employee_branch_info');
+    }
+
+    public function testPostSave_PutsBackTheAllBranchesGrantTheFormRewrote(): void
+    {
+        $this->allowScopeChanges(1);
+        $employeeId = $this->createEmployee(grants: [
+            ['permission_id' => 'customers', 'menu_group' => 'home'],
+            ['permission_id' => BranchGuard::ALL_BRANCHES, 'menu_group' => '--'],
+        ]);
+        $this->loginAsAdmin();
+
+        $result = json_decode($this->post('/employees/save/' . $employeeId, $this->formFor('keepall' . uniqid(), ['grant_customers' => 'customers']))->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertTrue(model(Employee::class)->has_grant(BranchGuard::ALL_BRANCHES, $employeeId));
+    }
+
+    public function testPostSave_GivesANewEmployeeTheStartingBranch(): void
+    {
+        $this->onlyTheDefaultBranch();
+        $this->loginAsAdmin();
+
+        $username = 'newbranch' . uniqid();
+        $result   = json_decode($this->post('/employees/save', $this->formFor($username, ['password' => 'password123', 'grant_customers' => 'customers']))->getJSON(), true);
+
+        $this->assertTrue($result['success'], (string) ($result['message'] ?? ''));
+        $scope = (new EmployeeBranchService())->scopeOf((int) $result['id']);
+        $this->assertSame([1], $scope['branch_ids']);
+        $this->assertFalse($scope['all']);
+    }
+
+    public function testPostSave_AppliesTheBranchesTheFormAskedFor(): void
+    {
+        $this->onlyTheDefaultBranch();
+        $second = $this->addBranch('B2');
+        $this->allowScopeChanges(1);
+        $employeeId = $this->createEmployee(grants: [['permission_id' => 'customers', 'menu_group' => 'home']]);
+        $this->loginAsAdmin();
+
+        $result = json_decode($this->post('/employees/save/' . $employeeId, $this->formFor('apply' . uniqid(), [
+            'grant_customers'      => 'customers',
+            'branch_scope_present' => '1',
+            'branch_scope'         => 'selected',
+            'branch_ids'           => [(string) $second],
+            'default_branch_id'    => (string) $second,
+        ]))->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(['all' => false, 'branch_ids' => [$second], 'default_branch_id' => $second], (new EmployeeBranchService())->scopeOf($employeeId));
+    }
+
+    public function testPostSave_GivesEveryBranchWhenTheFormAsksForIt(): void
+    {
+        $this->onlyTheDefaultBranch();
+        $this->addBranch('B2');
+        $this->allowScopeChanges(1);
+        $employeeId = $this->createEmployee(grants: [['permission_id' => 'customers', 'menu_group' => 'home']]);
+        $this->loginAsAdmin();
+
+        $this->post('/employees/save/' . $employeeId, $this->formFor('all' . uniqid(), ['grant_customers' => 'customers', 'branch_scope_present' => '1', 'branch_scope' => 'all']));
+
+        $this->assertTrue((new EmployeeBranchService())->scopeOf($employeeId)['all']);
+    }
+
+    public function testPostSave_SavesNothingWhenTheRequestedBranchesAreNotValid(): void
+    {
+        $this->onlyTheDefaultBranch();
+        $this->addBranch('B2');
+        $this->allowScopeChanges(1);
+        $employeeId = $this->createEmployee(first_name: 'Before', grants: [['permission_id' => 'customers', 'menu_group' => 'home']]);
+        $this->loginAsAdmin();
+
+        $result = json_decode($this->post('/employees/save/' . $employeeId, $this->formFor('invalid' . uniqid(), ['first_name' => 'After', 'grant_customers' => 'customers', 'branch_scope_present' => '1', 'branch_scope' => 'selected']))->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame('Before', $this->db->table('people')->where('person_id', $employeeId)->get()->getRow()->first_name);
+    }
+
+    public function testPostSave_IgnoresABranchRequestFromSomeoneWhoCannotSetBranches(): void
+    {
+        $this->onlyTheDefaultBranch();
+        $second = $this->addBranch('B2');
+        $this->db->table('grants')->where('person_id', 1)->where('permission_id', BranchGuard::SCOPE_MANAGE)->delete();
+        $employeeId = $this->createEmployee(grants: [['permission_id' => 'customers', 'menu_group' => 'home']]);
+        $this->db->table('employee_branches')->insert(['person_id' => $employeeId, 'branch_id' => 1, 'is_default' => 1]);
+        $this->loginAsAdmin();
+
+        $result = json_decode($this->post('/employees/save/' . $employeeId, $this->formFor('ignored' . uniqid(), ['grant_customers' => 'customers', 'branch_scope_present' => '1', 'branch_scope' => 'selected', 'branch_ids' => [(string) $second]]))->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame([1], (new EmployeeBranchService())->scopeOf($employeeId)['branch_ids']);
+    }
+
+    public function testPostSave_LeavesTheBranchesAloneWhenGrantChangeIsDisallowed(): void
+    {
+        $this->onlyTheDefaultBranch();
+        $second = $this->addBranch('B2');
+        $this->allowScopeChanges(1);
+        $unique     = uniqid();
+        $employeeId = $this->createEmployee(email: "locked{$unique}@test.com", username: "locked{$unique}", grants: [['permission_id' => 'customers', 'menu_group' => 'home']]);
+        $this->db->table('employee_branches')->insert(['person_id' => $employeeId, 'branch_id' => 1, 'is_default' => 1]);
+        $this->loginAsAdmin();
+
+        putenv('DISALLOW_GRANT_CHANGE=true');
+
+        $result = json_decode($this->post('/employees/save/' . $employeeId, $this->formFor("locked{$unique}", ['grant_customers' => 'customers', 'branch_scope_present' => '1', 'branch_scope' => 'selected', 'branch_ids' => [(string) $second]]))->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame([1], (new EmployeeBranchService())->scopeOf($employeeId)['branch_ids']);
+    }
+
+    public function testPostSave_DoesNotCountTheAllBranchesGrantAsAChangeWhenGrantChangeIsDisallowed(): void
+    {
+        $unique     = uniqid();
+        $employeeId = $this->createEmployee(email: "samegrants{$unique}@test.com", username: "samegrants{$unique}", grants: [
+            ['permission_id' => 'customers', 'menu_group' => 'home'],
+            ['permission_id' => BranchGuard::ALL_BRANCHES, 'menu_group' => '--'],
+        ]);
+        $this->loginAsAdmin();
+
+        putenv('DISALLOW_GRANT_CHANGE=true');
+
+        $result = json_decode($this->post('/employees/save/' . $employeeId, $this->formFor("samegrants{$unique}", ['grant_customers' => 'customers']))->getJSON(), true);
+
+        $this->assertTrue($result['success']);
     }
 }

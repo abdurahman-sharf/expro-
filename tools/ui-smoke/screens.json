@@ -992,6 +992,67 @@
       "id": "accounting-audit",
       "group": "accounting",
       "path": "/accounting_journals/audit"
+    },
+    {
+      "id": "branches",
+      "group": "office",
+      "path": "/branches"
+    },
+    {
+      "id": "branches-new-modal",
+      "group": "office",
+      "path": "/branches",
+      "steps": [
+        {
+          "click": "#title_bar button[data-href=\"branches/view\"]"
+        },
+        {
+          "waitFor": ".modal-body #branch_form"
+        },
+        {
+          "pause": 1000
+        }
+      ]
+    },
+    {
+      "id": "branches-edit-modal",
+      "group": "office",
+      "path": "/branches",
+      "steps": [
+        {
+          "click": "#table a[href$=\"branches/view/2\"]"
+        },
+        {
+          "waitFor": ".modal-body #branch_form"
+        },
+        {
+          "pause": 1000
+        }
+      ]
+    },
+    {
+      "id": "employees-branches-modal",
+      "group": "office",
+      "path": "/employees",
+      "steps": [
+        {
+          "click": "#title_bar button[data-href=\"employees/view\"]"
+        },
+        {
+          "waitFor": ".modal-body form"
+        },
+        {
+          "click": ".modal-body a[href=\"#employee_branch_info\"]"
+        },
+        {
+          "pause": 800
+        }
+      ]
+    },
+    {
+      "id": "accounting-journal-view-second-branch",
+      "group": "accounting",
+      "path": "/accounting_journals/view/5"
     }
   ]
 }
