@@ -665,6 +665,35 @@
       ]
     },
     {
+      "id": "styleguide",
+      "group": "config",
+      "path": "/styleguide",
+      "steps": [
+        {
+          "waitFor": "#sg_table tbody tr"
+        },
+        {
+          "pause": 700
+        }
+      ]
+    },
+    {
+      "id": "styleguide-modal",
+      "group": "config",
+      "path": "/styleguide",
+      "steps": [
+        {
+          "click": "button[data-bs-target=\"#sg_modal\"]"
+        },
+        {
+          "waitFor": "#sg_modal.show"
+        },
+        {
+          "pause": 500
+        }
+      ]
+    },
+    {
       "id": "suppliers-new-modal",
       "group": "people",
       "path": "/suppliers",

@@ -1,0 +1,47 @@
+name: UI gates
+
+on:
+  push:
+    paths:
+      - 'app/Views/**'
+      - 'app/Helpers/**'
+      - 'app/Controllers/**'
+      - 'app/Libraries/**'
+      - 'app/Models/**'
+      - 'resources/assets/**'
+      - 'tools/ui-smoke/**'
+      - '.github/workflows/ui-gates.yml'
+  pull_request:
+    paths:
+      - 'app/Views/**'
+      - 'app/Helpers/**'
+      - 'app/Controllers/**'
+      - 'app/Libraries/**'
+      - 'app/Models/**'
+      - 'resources/assets/**'
+      - 'tools/ui-smoke/**'
+      - '.github/workflows/ui-gates.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  gates:
+    name: Design standard gates
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Check legacy markup, inline styles, physical directions and hard-coded colors
+        run: node tools/ui-smoke/gates.mjs

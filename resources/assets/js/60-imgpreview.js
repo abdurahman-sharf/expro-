@@ -16,7 +16,7 @@
 
     $.fn.imgPreview = function(userDefinedSettings){
 
-        var s = $.extend({
+        const s = $.extend({
 
             /* DEFAULTS */
 
@@ -60,9 +60,9 @@
 
         if (s.preloadImages) {
             (function(i){
-                var tempIMG = new Image(),
-                    callee = arguments.callee;
-                var src = $($collection[i]).attr(s.srcAttr)
+                const tempIMG = new Image();
+                const callee = arguments.callee;
+                const src = $($collection[i]).attr(s.srcAttr);
                 if (src)
                 {
                     tempIMG.src = addPrefix(src);
@@ -84,7 +84,7 @@
             })
             .hover(function(){
 
-                var link = this;
+                const link = this;
                 $container
                     .addClass(s.containerLoadingClass)
                     .show();

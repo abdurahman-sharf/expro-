@@ -17,6 +17,7 @@
   "labelBs3": 0,
   "textAlign": 0,
   "imgResponsive": 0,
+  "physicalUtility": 0,
   "inlineStyle": 0,
   "pluginBootstrapDialog": 0,
   "pluginSelectpicker": 14,
@@ -24,6 +25,12 @@
   "pluginToggle": 0,
   "pluginTagsinput": 0,
   "pluginJasny": 0,
-  "pluginNotify": 39,
-  "pluginChartist": 0
+  "pluginNotify": 34,
+  "pluginChartist": 0,
+  "varInScripts": 0,
+  "varInViews": 0,
+  "inlineHandler": 0,
+  "physicalCss": 0,
+  "hexColor": 0,
+  "importantCss": 9
 }

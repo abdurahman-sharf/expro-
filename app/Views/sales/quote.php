@@ -54,7 +54,7 @@ if (isset($error_message)) {
 <?= view('partial/print_receipt', ['print_after_sale' => $print_after_sale, 'selected_printer' => 'invoice_printer']) ?>
 
 <?= view('partial/document_actions', ['actions' => array_values(array_filter([
-        ['id' => 'show_print_button', 'label' => lang('Common.print'), 'icon' => 'bi-printer', 'onclick' => 'printdoc();'],
+        ['id' => 'show_print_button', 'label' => lang('Common.print'), 'icon' => 'bi-printer', 'action' => 'print'],
         model(Employee::class)->has_grant('reports_sales', session('person_id')) ? ['id' => 'show_pdf_button', 'label' => lang('Sales.pdf'), 'icon' => 'bi-file-earmark-pdf', 'href' => "sales/pdf/$sale_id_num/quote", 'target' => '_blank'] : null,
         !empty($customer_email) ? ['id' => 'show_email_button', 'label' => lang('Sales.send_quote'), 'icon' => 'bi-envelope'] : null,
         ['id' => 'show_sales_button', 'label' => lang('Sales.register'), 'icon' => 'bi-cart3', 'href' => 'sales', 'class' => 'btn-primary'],

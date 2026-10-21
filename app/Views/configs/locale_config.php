@@ -312,7 +312,7 @@
     $(document).ready(function() {
         $('span').tooltip();
 
-        var primaryColor = $('.btn-primary').css('background-color');
+        const primaryColor = $('.btn-primary').css('background-color');
         $('<style>').text(
             '#payment_reference_code_slider .ui-slider-range { background: ' + primaryColor + '; }' +
             '#payment_reference_code_slider .ui-slider-handle { border-color: ' + primaryColor + '; }'

@@ -73,7 +73,7 @@
 <?= view('partial/print_receipt', ['print_after_sale' => false, 'selected_printer' => 'takings_printer']) ?>
 
 <div id="title_bar" class="print_hide btn-toolbar">
-    <button onclick="printdoc()" class="btn btn-primary btn-sm float-end">
+    <button type="button" data-action="print" class="btn btn-primary btn-sm float-end">
         <span class="bi bi-printer" aria-hidden="true">&nbsp;</span><?= lang('Common.print') ?>
     </button>
     <?= anchor("sales", '<span class="bi bi-cart3" aria-hidden="true">&nbsp;</span>' . lang('Sales.register'), ['class' => 'btn btn-primary btn-sm float-end', 'id' => 'show_sales_button']) ?>

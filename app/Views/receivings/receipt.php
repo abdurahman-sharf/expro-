@@ -27,7 +27,7 @@ if (isset($error_message)) {
 echo view('partial/print_receipt', ['print_after_sale', $print_after_sale, 'selected_printer' => 'receipt_printer']) ?>
 
 <?= view('partial/document_actions', ['actions' => array_values(array_filter([
-        ['id' => 'show_print_button', 'label' => lang('Common.print'), 'icon' => 'bi-printer', 'onclick' => 'printdoc();'],
+        ['id' => 'show_print_button', 'label' => lang('Common.print'), 'icon' => 'bi-printer', 'action' => 'print'],
         ['id' => 'show_sales_button', 'label' => lang('Receivings.register'), 'icon' => 'bi-box-arrow-in-down', 'href' => 'receivings', 'class' => 'btn-primary']
     ]))]) ?>
 

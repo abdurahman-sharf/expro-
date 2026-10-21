@@ -1,6 +1,6 @@
 <?php
 /**
- * @var list<array{id: string, label: string, icon: string, class?: string, href?: string, target?: string, onclick?: string}> $actions
+ * @var list<array{id: string, label: string, icon: string, class?: string, href?: string, target?: string, action?: string}> $actions
  */
 ?>
 
@@ -13,7 +13,7 @@
                 <?= esc($action['label']) ?>
             </a>
         <?php else: ?>
-            <button type="button" <?= $attributes ?><?= isset($action['onclick']) ? ' onclick="' . esc($action['onclick'], 'attr') . '"' : '' ?>>
+            <button type="button" <?= $attributes ?><?= isset($action['action']) ? ' data-action="' . esc($action['action'], 'attr') . '"' : '' ?>>
                 <span class="bi <?= esc($action['icon'], 'attr') ?>" aria-hidden="true"></span>
                 <?= esc($action['label']) ?>
             </button>

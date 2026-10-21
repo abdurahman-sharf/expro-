@@ -43,6 +43,22 @@ This document provides guidance for AI agents working on the Open Source Point o
 - Use CodeIgniter 4 framework patterns and helpers
 - Sanitize user input; escape output using `esc()` helper
 
+## UI Standard (locked)
+
+The interface design is final. Every new or changed screen follows `docs/ui-redesign/design-system.md` and the skeletons in `docs/ui-redesign/patterns.md`. The live reference is the `/styleguide` page (administrators only).
+
+- Start from an existing pattern: module list, modal form, report, settings section, KPI cards. Do not design a screen from scratch.
+- Bootstrap 5.3 with logical, RTL-safe utilities only: `ms-*`, `me-*`, `ps-*`, `pe-*`, `text-start`/`text-end`, `float-start`/`float-end`, `margin-inline-*`. Never `ml-*`, `mr-*`, `pl-*`, `pr-*`, `text-left`/`text-right`, `margin-left` or Bootstrap 3 classes.
+- Colors come only from the tokens in `resources/assets/css/00-theme.css`; never write a hex value anywhere else. A new color is a new token, documented in the design system.
+- No inline `style=` attributes, no inline `on*=` handlers (bind events in the page script; printing is `data-action="print"`), no `!important`, no `var` in JavaScript (use `const`, then `let`). Print, email, PDF and barcode markup is the only exception.
+- Notifications in new code go through `notify_support.show(message, 'success'|'danger'|'info')`, not `$.notify` directly.
+- Everything user visible is a language key (see Localization). Numbers, currency and dates inside Arabic text are isolated with `<bdi dir="ltr">`. Latin digits everywhere.
+- Every control has an associated label, icon-only buttons have an `aria-label`, and the screen works with the keyboard.
+- No new UI library. Available: Bootstrap 5, bootstrap-table, bootstrap-select, flatpickr, daterangepicker, Chart.js.
+- A component the standard does not cover needs a row in `docs/ui-redesign/decisions.md` plus an entry in `/styleguide` and in `patterns.md`, in the same change.
+- Source CSS and JS live in `resources/assets/`. Run `npm run build` and commit `public/assets/` (the Assets workflow rejects stale builds). Never edit `public/assets/` by hand.
+- Before committing UI work: `node tools/ui-smoke/gates.mjs` must pass, new screens go into `tools/ui-smoke/screens.json`, and the screen is checked in Arabic (RTL) and English at 390, 768 and 1440 px. The `UI gates` workflow and the pull request template enforce this.
+
 ## Localization
 
 - When adding new keys to language files, add the key to all `app/Language/*/` variants

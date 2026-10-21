@@ -62,7 +62,7 @@
 <?= view('partial/print_receipt', ['print_after_sale' => false, 'selected_printer' => 'takings_printer']) ?>
 
 <div id="title_bar" class="print_hide btn-toolbar">
-    <button onclick="printdoc()" class="btn btn-primary btn-sm float-end">
+    <button type="button" data-action="print" class="btn btn-primary btn-sm float-end">
         <span class="bi bi-printer" aria-hidden="true">&nbsp;</span><?= lang('Common.print') ?>
     </button>
     <button class="btn btn-primary btn-sm float-end modal-dlg" data-btn-submit="<?= lang('Common.submit') ?>" data-href="<?= "$controller_name/view" ?>" title="<?= lang(ucfirst($controller_name) . '.new') ?>">

@@ -1,4 +1,4 @@
-(function($) {
+(function(notify_support, $) {
 
     $(function() {
         $.notifyDefaults({
@@ -13,7 +13,13 @@
         });
     });
 
-})(jQuery);
+    $.extend(notify_support, {
+        show: function(message, type) {
+            $.notify(message, {type: type || 'info'});
+        }
+    });
+
+})(window.notify_support = window.notify_support || {}, jQuery);
 ;
 (function(dialog_support, $) {
 
@@ -247,9 +253,9 @@
                         } else {
                             location.reload();
                         }
-                        $.notify(response.message, {type: 'success'});
+                        notify_support.show(response.message, 'success');
                     } else {
-                        $.notify(response.message, {type: 'danger'});
+                        notify_support.show(response.message, 'danger');
                     }
                 }, "json");
             } else {
@@ -413,7 +419,7 @@
         return function (resource, response) {
             const id = response.id !== undefined ? response.id.toString() : "";
             if (!response.success) {
-                $.notify(response.message, { type: 'danger' });
+                notify_support.show(response.message, 'danger');
             } else {
                 const message = response.message;
                 const selector = rows_selector(response.id);
@@ -435,7 +441,7 @@
                     };
                     refresh();
                 }
-                $.notify(message, {type: 'success' });
+                notify_support.show(message, 'success');
             }
             return false;
         };
@@ -492,7 +498,7 @@
             $(form).ajaxSubmit({
                 success: function(response)
                 {
-                    $.notify(response.message, { type: response.success ? 'success' : 'danger' });
+                    notify_support.show(response.message, response.success ? 'success' : 'danger');
                 },
                 dataType: 'json'
             });
@@ -593,7 +599,7 @@ function number_sorter(a, b) {
                     event: function() {
                         const payload = collect(this, all);
                         if (payload.rows.length > MAX_ROWS) {
-                            $.notify(lang.line('table_export_too_many_rows'), { type: 'danger' });
+                            notify_support.show(lang.line('table_export_too_many_rows'), 'danger');
                             return;
                         }
                         submit(payload);
@@ -1003,7 +1009,7 @@ function number_sorter(a, b) {
 
     $.fn.imgPreview = function(userDefinedSettings){
 
-        var s = $.extend({
+        const s = $.extend({
 
             /* DEFAULTS */
 
@@ -1047,9 +1053,9 @@ function number_sorter(a, b) {
 
         if (s.preloadImages) {
             (function(i){
-                var tempIMG = new Image(),
-                    callee = arguments.callee;
-                var src = $($collection[i]).attr(s.srcAttr)
+                const tempIMG = new Image();
+                const callee = arguments.callee;
+                const src = $($collection[i]).attr(s.srcAttr);
                 if (src)
                 {
                     tempIMG.src = addPrefix(src);
@@ -1071,7 +1077,7 @@ function number_sorter(a, b) {
             })
             .hover(function(){
 
-                var link = this;
+                const link = this;
                 $container
                     .addClass(s.containerLoadingClass)
                     .show();
@@ -1566,6 +1572,10 @@ function number_sorter(a, b) {
 
     $(document).on('post-body.bs.table', function(event) {
         $(event.target).find('a.detail-icon').attr('aria-label', lang.line('table_row_details'));
+    });
+
+    $(document).on('click', '[data-action="print"]', function() {
+        printdoc();
     });
 
     $(function() {

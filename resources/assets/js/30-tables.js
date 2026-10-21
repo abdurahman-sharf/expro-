@@ -63,9 +63,9 @@
                         } else {
                             location.reload();
                         }
-                        $.notify(response.message, {type: 'success'});
+                        notify_support.show(response.message, 'success');
                     } else {
-                        $.notify(response.message, {type: 'danger'});
+                        notify_support.show(response.message, 'danger');
                     }
                 }, "json");
             } else {
@@ -229,7 +229,7 @@
         return function (resource, response) {
             const id = response.id !== undefined ? response.id.toString() : "";
             if (!response.success) {
-                $.notify(response.message, { type: 'danger' });
+                notify_support.show(response.message, 'danger');
             } else {
                 const message = response.message;
                 const selector = rows_selector(response.id);
@@ -251,7 +251,7 @@
                     };
                     refresh();
                 }
-                $.notify(message, {type: 'success' });
+                notify_support.show(message, 'success');
             }
             return false;
         };
@@ -308,7 +308,7 @@
             $(form).ajaxSubmit({
                 success: function(response)
                 {
-                    $.notify(response.message, { type: response.success ? 'success' : 'danger' });
+                    notify_support.show(response.message, response.success ? 'success' : 'danger');
                 },
                 dataType: 'json'
             });

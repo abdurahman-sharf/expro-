@@ -5,7 +5,7 @@
 .kbd-inverse {
     border-color: rgba(255, 255, 255, .45);
     background: rgba(1, 15, 52, .35);
-    color: #fff;
+    color: var(--white);
 }
 
 .pos {
@@ -275,7 +275,7 @@
     align-items: center;
     border: 1px solid var(--field);
     border-radius: 8px;
-    background: #fff;
+    background: var(--surface);
 }
 
 .qty-b {
@@ -438,7 +438,7 @@
     padding: 0 10px;
     border: 1px solid var(--field);
     border-radius: 10px;
-    background: #fff;
+    background: var(--surface);
     color: var(--text);
     font-weight: 600;
     cursor: pointer;
@@ -684,7 +684,7 @@
         gap: 12px;
         padding: 10px 12px;
         border-top: 1px solid var(--line);
-        background: #fff;
+        background: var(--surface);
         box-shadow: 0 -8px 20px rgba(2, 30, 93, .1);
     }
 

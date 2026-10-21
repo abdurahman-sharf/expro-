@@ -61,15 +61,26 @@ The run writes `report.json` and a screenshot gallery `index.html` to the output
 
 `baseline.json` was captured on the commit recorded in `docs/ui-redesign/baseline.md`.
 
-## Bootstrap 3 gate
+## Design standard gates
 
 ```sh
-npm run gates
-npm run gates -- --update
+npm run gates          # from the project root, or: node tools/ui-smoke/gates.mjs
+node tools/ui-smoke/gates.mjs --update
 ```
 
-Counts legacy Bootstrap 3 classes, inline `style=` attributes and plugin references in `app/` and `resources/assets/js`. Every count must be zero, except `pluginSelectpicker` and `pluginNotify`, the two plugins that stay by decision, which must not exceed `gates.baseline.json`. Inline styles in receipts, documents, the barcode sheet and the mPDF footer are not counted, because print and email markup cannot rely on a stylesheet. Run with `--update` after one of the retained plugins is removed.
+Scans `app/` (views, helpers, controllers, libraries, models), `public/js` and `resources/assets` for what the design standard forbids (`docs/ui-redesign/design-system.md`). The `UI gates` workflow runs it on every change to those paths.
+
+| Count | Meaning |
+|---|---|
+| Bootstrap 3 classes and removed plugins | legacy markup |
+| `physicalUtility`, `physicalCss` | left/right utilities and properties (`ml-*`, `text-left`, `margin-left`, `float: left`) instead of logical ones |
+| `inlineStyle` | `style=` attributes |
+| `varInScripts` | `var` in `resources/assets/js` |
+| `varInViews`, `inlineHandler` | `var` statements and inline `on*=` handlers in views |
+| `hexColor` | color literals outside `00-theme.css` |
+
+Every count must be zero, with three exceptions that may not exceed the numbers in `gates.baseline.json`: the plugins that stay by decision (`pluginSelectpicker`, `pluginNotify`) and `importantCss`. Print and email markup (receipts, documents, the barcode sheet, the PDF footer, `80-receipt.css`, `81-document.css`, `82-print.css`) is not counted. Run with `--update` only after one of the retained patterns goes down, so the baseline goes down with it.
 
 ## Screens
 
-`screens.json` lists the screens in the order they are visited. Screens of the office menu group come last, because the active menu group is kept in the session. Steps are `click`, `open`, `fill`, `type`, `press`, `waitFor`, `pause` and `idle`. `open` clicks its selector only when it is visible, which opens the collapsed settings navigation on narrow screens.
+`screens.json` lists the screens in the order they are visited. The `styleguide` screens render the live component reference (`/styleguide`). Screens of the office menu group come last, because the active menu group is kept in the session. Steps are `click`, `open`, `fill`, `type`, `press`, `waitFor`, `pause` and `idle`. `open` clicks its selector only when it is visible, which opens the collapsed settings navigation on narrow screens.

@@ -4,9 +4,10 @@
  * @var array $allowed_modules
  * @var string $controller_name
  * @var array $config
+ * @var string|null $pageTitleOverride
  */
 
-$pageTitle = navigationPageTitle($controller_name ?? '');
+$pageTitle = $pageTitleOverride ?? navigationPageTitle($controller_name ?? '');
 ?>
 
 <!doctype html>

@@ -24,6 +24,15 @@
     --warning-bg: #fff1d6;
     --danger: #b42318;
     --danger-bg: #fdeae7;
+    --danger-600: #8f1b12;
+    --danger-700: #7a1710;
+    --danger-border: #d69a93;
+    --success-600: #095f3a;
+    --placeholder: #5f6e8c;
+    --white: #fff;
+    --on-navy: #d2d7e1;
+    --on-navy-muted: #a0abc0;
+    --on-navy-subtle: #a7b2c5;
     --radius-sm: 6px;
     --radius-md: 10px;
     --radius-lg: 14px;
@@ -48,6 +57,7 @@
     --bs-border-radius-xl: var(--radius-lg);
     --bs-emphasis-color: var(--text);
     --bs-heading-color: var(--text);
+    --bs-code-color: var(--blue-700);
     --bs-link-color: var(--blue-500);
     --bs-link-color-rgb: 1, 92, 228;
     --bs-link-hover-color: var(--blue-600);

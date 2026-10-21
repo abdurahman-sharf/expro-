@@ -29,6 +29,7 @@
     },
     "scripts": {
         "build": "node tools/build-assets.mjs",
+        "gates": "node tools/ui-smoke/gates.mjs",
         "gulp": "gulp"
     },
     "dependencies": {

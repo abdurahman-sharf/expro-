@@ -19,6 +19,10 @@
         $(event.target).find('a.detail-icon').attr('aria-label', lang.line('table_row_details'));
     });
 
+    $(document).on('click', '[data-action="print"]', function() {
+        printdoc();
+    });
+
     $(function() {
         initTooltips();
         phoneQuery.addEventListener('change', closeDrawerWhenWide);

@@ -74,7 +74,7 @@
                     event: function() {
                         const payload = collect(this, all);
                         if (payload.rows.length > MAX_ROWS) {
-                            $.notify(lang.line('table_export_too_many_rows'), { type: 'danger' });
+                            notify_support.show(lang.line('table_export_too_many_rows'), 'danger');
                             return;
                         }
                         submit(payload);

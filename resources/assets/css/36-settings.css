@@ -180,7 +180,7 @@
 
 #issuetemplate {
     direction: ltr;
-    text-align: left;
+    text-align: start;
 }
 
 @media (min-width: 768px) {

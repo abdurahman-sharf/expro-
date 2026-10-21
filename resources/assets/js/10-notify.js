@@ -1,4 +1,4 @@
-(function($) {
+(function(notify_support, $) {
 
     $(function() {
         $.notifyDefaults({
@@ -13,4 +13,10 @@
         });
     });
 
-})(jQuery);
+    $.extend(notify_support, {
+        show: function(message, type) {
+            $.notify(message, {type: type || 'info'});
+        }
+    });
+
+})(window.notify_support = window.notify_support || {}, jQuery);
