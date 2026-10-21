@@ -954,4 +954,76 @@ class JournalServiceTest extends CIUnitTestCase
         $this->assertNotContains($this->accountIdByCode('11'), $ids);
         $this->assertNotContains($inactive, $ids);
     }
+
+    public function testPostNew_RejectsADateInAClosedPeriod(): void
+    {
+        $this->closeThrough('2026-03-31');
+
+        $this->assertPostingFailsWith(PostingError::PeriodClosed, fn () => $this->service->postNew(['date' => '2026-03-31'] + $this->journalInput()));
+        $this->assertSame(0, $this->countRows('accounting_journals'));
+
+        $this->service->postNew(['date' => '2026-04-01'] + $this->journalInput());
+
+        $this->assertSame(1, $this->countRows('accounting_journals'));
+    }
+
+    public function testPostNew_RejectsADateOutsideEveryFiscalYear(): void
+    {
+        $this->assertPostingFailsWith(PostingError::OutsideFiscalYear, fn () => $this->service->postNew(['date' => '2019-06-01'] + $this->journalInput()));
+    }
+
+    public function testPostDraft_RejectsADateInAClosedPeriodAndKeepsTheDraft(): void
+    {
+        $draftId = $this->service->saveDraft(['date' => '2026-03-15'] + $this->journalInput());
+        $this->closeThrough('2026-03-31');
+
+        $this->assertPostingFailsWith(PostingError::PeriodClosed, fn () => $this->service->postDraft($draftId));
+
+        $this->assertSame('draft', $this->journal($draftId)->status);
+        $this->assertNull($this->journal($draftId)->number);
+    }
+
+    public function testPostDraft_PostsOnceTheClosingIsReopened(): void
+    {
+        $draftId = $this->service->saveDraft(['date' => '2026-03-15'] + $this->journalInput());
+        $this->closeThrough('2026-03-31');
+
+        $this->assertPostingFailsWith(PostingError::PeriodClosed, fn () => $this->service->postDraft($draftId));
+
+        $this->accountingDb()->table('accounting_closed_periods')->update(['active' => 0]);
+        $this->service->postDraft($draftId);
+
+        $this->assertSame('posted', $this->journal($draftId)->status);
+    }
+
+    public function testPostDraft_ChecksTheDateOfTheEditedInputToo(): void
+    {
+        $draftId = $this->service->saveDraft(['date' => '2026-04-15'] + $this->journalInput());
+        $this->closeThrough('2026-03-31');
+
+        $this->assertPostingFailsWith(PostingError::PeriodClosed, fn () => $this->service->postDraft($draftId, null, ['date' => '2026-03-20'] + $this->journalInput()));
+    }
+
+    public function testSaveDraft_AcceptsADateInAClosedPeriod(): void
+    {
+        $this->closeThrough('2026-03-31');
+
+        $draftId = $this->service->saveDraft(['date' => '2026-03-15'] + $this->journalInput());
+
+        $this->assertSame('draft', $this->journal($draftId)->status);
+    }
+
+    public function testReverse_RejectsAReversalDateInAClosedPeriodAndAcceptsAnOpenDate(): void
+    {
+        $journalId = $this->service->postNew(['date' => '2026-03-10'] + $this->journalInput());
+        $this->closeThrough('2026-03-31');
+
+        $this->assertPostingFailsWith(PostingError::PeriodClosed, fn () => $this->service->reverse($journalId, '2026-03-20', 'Mistake'));
+        $this->assertSame('posted', $this->journal($journalId)->status);
+
+        $reversalId = $this->service->reverse($journalId, '2026-04-02', 'Mistake');
+
+        $this->assertSame('2026-04-02', $this->journal($reversalId)->journal_date);
+        $this->assertSame('reversed', $this->journal($journalId)->status);
+    }
 }

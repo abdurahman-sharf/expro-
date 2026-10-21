@@ -666,4 +666,151 @@ class PostingServiceTest extends CIUnitTestCase
 
         $this->fail('Expected posting to fail with ' . $expected->value . '.');
     }
+
+    private function postingFailure(string $date, ?int $branchId = null, string $sourceType = 'sale', ?int $sourceId = 901): ?PostingException
+    {
+        try {
+            $this->service->post(new JournalDraft(
+                date: $date,
+                lines: [
+                    new JournalLineDraft($this->accountId('cash'), debit: '10.00'),
+                    new JournalLineDraft($this->accountId('sales_revenue'), credit: '10.00'),
+                ],
+                sourceType: $sourceType,
+                sourceId: $sourceId,
+                currencyCode: 'SAR',
+                branchId: $branchId,
+            ));
+        } catch (PostingException $failure) {
+            return $failure;
+        }
+
+        return null;
+    }
+
+    public function testPost_RejectsADateBeforeEveryFiscalYear(): void
+    {
+        $failure = $this->postingFailure('2019-06-01');
+
+        $this->assertSame(PostingError::OutsideFiscalYear, $failure->error);
+        $this->assertSame(0, $this->countRows('accounting_journals'));
+    }
+
+    public function testPost_RejectsADateInAGapBetweenFiscalYears(): void
+    {
+        $this->accountingDb()->table('accounting_fiscal_years')->where('start_date', '2027-01-01')->delete();
+
+        $this->assertSame(PostingError::OutsideFiscalYear, $this->postingFailure('2027-05-05')->error);
+    }
+
+    public function testPost_CreatesTheNextFiscalYearWhenTheDateNeedsIt(): void
+    {
+        $this->setConfigValue('accounting_auto_fiscal_year', '1');
+
+        $this->assertNull($this->postingFailure('2036-02-01'));
+
+        $year = $this->accountingDb()->table('accounting_fiscal_years')->where('start_date', '2036-01-01')->get()->getRow();
+
+        $this->assertNotNull($year);
+        $this->assertSame('2036-12-31', $year->end_date);
+    }
+
+    public function testPost_DoesNotCreateAYearWhenAutomaticCreationIsOff(): void
+    {
+        $this->setConfigValue('accounting_auto_fiscal_year', '0');
+
+        $this->assertSame(PostingError::OutsideFiscalYear, $this->postingFailure('2036-02-01')->error);
+        $this->assertSame(0, $this->accountingDb()->table('accounting_fiscal_years')->where('start_date', '2036-01-01')->countAllResults());
+
+        $this->setConfigValue('accounting_auto_fiscal_year', '1');
+    }
+
+    public function testPost_RejectsADateInAClosedPeriodOfTheCompany(): void
+    {
+        $this->closeThrough('2026-03-31');
+
+        $failure = $this->postingFailure('2026-03-31');
+
+        $this->assertSame(PostingError::PeriodClosed, $failure->error);
+        $this->assertSame('2026-03-31', $failure->context['until']);
+        $this->assertSame('2026-03-31', $failure->context['date']);
+        $this->assertSame(0, $this->countRows('accounting_journals'));
+    }
+
+    public function testPost_AcceptsTheDayAfterTheClosing(): void
+    {
+        $this->closeThrough('2026-03-31');
+
+        $this->assertNull($this->postingFailure('2026-04-01'));
+    }
+
+    public function testPost_RejectsADateInTheClosedPeriodOfTheJournalsBranchOnly(): void
+    {
+        $second = $this->createBranch('B2');
+        $this->closeThrough('2026-03-31', $second);
+
+        $failure = $this->postingFailure('2026-03-15', $second);
+
+        $this->assertSame(PostingError::PeriodClosed, $failure->error);
+        $this->assertSame('B2', $failure->context['scope_name']);
+        $this->assertNull($this->postingFailure('2026-03-15', 1, 'sale', 902));
+    }
+
+    public function testPost_UsesTheLaterOfTheCompanyAndTheBranchClosing(): void
+    {
+        $second = $this->createBranch('B2');
+        $this->closeThrough('2026-03-31');
+        $this->closeThrough('2026-05-31', $second);
+
+        $this->assertSame(PostingError::PeriodClosed, $this->postingFailure('2026-05-15', $second)->error);
+        $this->assertNull($this->postingFailure('2026-05-15', 1, 'sale', 903));
+    }
+
+    public function testPost_IgnoresAReopenedClosing(): void
+    {
+        $this->closeThrough('2026-03-31');
+        $this->accountingDb()->table('accounting_closed_periods')->update(['active' => 0]);
+
+        $this->assertNull($this->postingFailure('2026-03-15'));
+    }
+
+    public function testPost_AppliesToManualAndReversalJournalsToo(): void
+    {
+        $original = $this->service->post($this->draftInBranch(1, 910));
+        $this->closeThrough('2026-10-31');
+
+        $manual = $this->postingFailure('2026-10-15', null, JournalDraft::SOURCE_MANUAL, null);
+
+        $this->assertSame(PostingError::PeriodClosed, $manual->error);
+
+        try {
+            $this->service->post($this->draftInBranch(1, $original->journalId, JournalDraft::SOURCE_REVERSAL, $original->journalId));
+            $this->fail('A reversal dated in a closed period should be refused.');
+        } catch (PostingException $failure) {
+            $this->assertSame(PostingError::PeriodClosed, $failure->error);
+        }
+    }
+
+    public function testPost_RecordsTheFailureOfAnAutomaticJournalInAClosedPeriod(): void
+    {
+        $this->closeThrough('2026-03-31');
+
+        $this->postingFailure('2026-03-15');
+
+        $row = $this->accountingDb()->table('accounting_posting_failures')->get()->getRow();
+
+        $this->assertSame('period_closed', $row->error_code);
+    }
+
+    public function testValidate_ReportsAClosedPeriodWithoutWritingAnything(): void
+    {
+        $this->closeThrough('2026-03-31');
+
+        $this->expectException(PostingException::class);
+
+        $this->service->validate($this->draftWithLines([
+            new JournalLineDraft($this->accountId('cash'), debit: '10.00'),
+            new JournalLineDraft($this->accountId('sales_revenue'), credit: '10.00'),
+        ], '2026-03-15'));
+    }
 }

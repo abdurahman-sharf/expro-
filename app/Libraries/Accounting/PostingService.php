@@ -26,6 +26,7 @@ final class PostingService
     private AuditLog $audit;
     private PostingFailureLog $failures;
     private JournalNumbering $numbering;
+    private PeriodGuard $periods;
 
     public function __construct(?BaseConnection $db = null)
     {
@@ -33,6 +34,7 @@ final class PostingService
         $this->audit     = new AuditLog($this->db);
         $this->failures  = new PostingFailureLog($this->db);
         $this->numbering = new JournalNumbering($this->db);
+        $this->periods   = new PeriodGuard($this->db);
     }
 
     /**
@@ -48,6 +50,8 @@ final class PostingService
     public function post(JournalDraft $draft): PostingResult
     {
         $ownsTransaction = $this->db->transDepth === 0;
+
+        $this->periods->prepare($draft->date);
 
         try {
             $prepared = $this->validate($draft);
@@ -188,13 +192,17 @@ final class PostingService
         $this->assertAccountsPostable($lines, $draft->reversesJournalId !== null);
         $this->assertCostCentersExist($lines);
 
+        $branchId = $this->resolveBranch($draft);
+
+        $this->periods->check($draft->date, $branchId);
+
         return [
             'lines'     => $lines,
             'debit'     => $totalDebit,
             'credit'    => $totalCredit,
             'currency'  => $this->resolveCurrency($draft->currencyCode),
             'rate'      => $this->normalizeRate($draft->exchangeRate),
-            'branch_id' => $this->resolveBranch($draft),
+            'branch_id' => $branchId,
         ];
     }
 
@@ -365,6 +373,8 @@ final class PostingService
      */
     private function write(JournalDraft $draft, array $prepared): int
     {
+        $this->periods->enforce($draft->date, $prepared['branch_id']);
+
         $userNumbered = in_array($draft->sourceType, [JournalDraft::SOURCE_MANUAL, JournalDraft::SOURCE_REVERSAL], true);
 
         $inserted = $this->db->table('accounting_journals')->insert([

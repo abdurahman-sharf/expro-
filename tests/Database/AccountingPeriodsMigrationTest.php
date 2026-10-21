@@ -70,16 +70,14 @@ class AccountingPeriodsMigrationTest extends CIUnitTestCase
     {
         $this->reinstallChart();
         $db = $this->accountingDb();
-        $db->table('accounting_fiscal_years')->insert(['company_id' => 1, 'name' => 'A', 'start_date' => '2030-01-01', 'end_date' => '2030-12-31']);
 
         try {
-            $db->table('accounting_fiscal_years')->insert(['company_id' => 1, 'name' => 'B', 'start_date' => '2030-01-01', 'end_date' => '2030-06-30']);
-            $this->fail('The second year with the same start should have been refused.');
+            $db->table('accounting_fiscal_years')->insert(['company_id' => 1, 'name' => 'Duplicate', 'start_date' => '2030-01-01', 'end_date' => '2030-06-30']);
+            $this->fail('A second year with the same start should have been refused.');
         } catch (DatabaseException) {
             $this->addToAssertionCount(1);
-        } finally {
-            $db->table('accounting_fiscal_years')->where('start_date', '2030-01-01')->delete();
         }
+
     }
 
     public function testUp_CreatesTheOpeningDraftTableAndTheAutoYearSetting(): void
@@ -134,7 +132,6 @@ class AccountingPeriodsMigrationTest extends CIUnitTestCase
     {
         $this->reinstallChart();
         $db = $this->accountingDb();
-        $db->table('accounting_fiscal_years')->insert(['company_id' => 1, 'name' => '2026', 'start_date' => '2026-01-01', 'end_date' => '2026-12-31']);
         $db->table('accounting_closed_periods')->insert(['company_id' => 1, 'branch_id' => null, 'date_from' => '2026-01-01', 'date_to' => '2026-03-31', 'note' => 'Q1']);
 
         $migration = new AccountingPeriods();
@@ -157,6 +154,5 @@ class AccountingPeriodsMigrationTest extends CIUnitTestCase
         $this->assertSame(1, $db->table('accounting_period_locks')->where('company_id', 1)->where('branch_id', 0)->countAllResults());
 
         $db->table('accounting_closed_periods')->where('note', 'Q1')->delete();
-        $db->table('accounting_fiscal_years')->where('name', '2026')->delete();
     }
 }

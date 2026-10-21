@@ -37,6 +37,8 @@ trait AccountingFixtureTrait
             'accounting_journals',
             'accounting_posting_failures',
             'accounting_audit_log',
+            'accounting_closed_periods',
+            'accounting_opening_drafts',
         ] as $table) {
             $db->table($table)->truncate();
         }
@@ -45,6 +47,28 @@ trait AccountingFixtureTrait
         $db->table('accounting_sequences')->where('series', 'manual')->update(['last_number' => 0]);
 
         $this->resetBranches();
+        $this->installFiscalYears();
+    }
+
+    /**
+     * One fiscal year per calendar year from 2020 to 2035, so a test can post on any date it
+     * likes. A test about fiscal years starts from reinstallChart() and replaces them.
+     */
+    protected function installFiscalYears(): void
+    {
+        $rows = [];
+
+        for ($year = 2020; $year <= 2035; $year++) {
+            $rows[] = ['company_id' => 1, 'name' => (string) $year, 'start_date' => "{$year}-01-01", 'end_date' => "{$year}-12-31"];
+        }
+
+        $db = $this->accountingDb();
+
+        $db->table('accounting_fiscal_years')
+            ->where('company_id', 1)
+            ->groupStart()->where('start_date <', '2020-01-01')->orWhere('start_date >', '2035-12-31')->groupEnd()
+            ->delete();
+        $db->table('accounting_fiscal_years')->ignore(true)->insertBatch($rows);
     }
 
     /**
@@ -64,6 +88,7 @@ trait AccountingFixtureTrait
         $db->query('SET FOREIGN_KEY_CHECKS = 1');
 
         (new DefaultChart($db))->install();
+        $this->installFiscalYears();
     }
 
     /**
@@ -88,6 +113,21 @@ trait AccountingFixtureTrait
         $db->table('branches')->insert(['company_id' => 1, 'code' => $code, 'name' => $name, 'active' => $active ? 1 : 0]);
 
         return (int) $db->insertID();
+    }
+
+    /**
+     * Closes a scope through a date by writing the row directly, so a test about posting needs
+     * no permission or service to set it up. A null branch closes the company.
+     */
+    protected function closeThrough(string $date, ?int $branchId = null): void
+    {
+        $this->accountingDb()->table('accounting_closed_periods')->insert([
+            'company_id' => 1,
+            'branch_id'  => $branchId,
+            'date_from'  => '2020-01-01',
+            'date_to'    => $date,
+            'active'     => 1,
+        ]);
     }
 
     protected function releaseOpenTransactions(): void

@@ -369,4 +369,21 @@ class BranchServiceTest extends CIUnitTestCase
         $this->assertFalse((new AccountingGuard())->has(AccountingGuard::JOURNALS_POST, $employee));
         $this->assertGreaterThan(0, $this->service->create(['code' => 'JED', 'name' => 'Jeddah'], $employee));
     }
+
+    public function testCreate_GivesTheBranchARowForThePeriodLocks(): void
+    {
+        $branchId = $this->service->create(['code' => 'JED', 'name' => 'Jeddah'], $this->manager());
+
+        $this->assertSame(1, $this->accountingDb()->table('accounting_period_locks')->where('company_id', 1)->where('branch_id', $branchId)->countAllResults());
+    }
+
+    public function testDelete_RemovesTheRowOfThePeriodLocks(): void
+    {
+        $employee = $this->manager();
+        $branchId = $this->service->create(['code' => 'JED', 'name' => 'Jeddah'], $employee);
+
+        $this->service->delete($branchId, $employee);
+
+        $this->assertSame(0, $this->accountingDb()->table('accounting_period_locks')->where('branch_id', $branchId)->countAllResults());
+    }
 }

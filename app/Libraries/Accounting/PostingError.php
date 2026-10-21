@@ -19,5 +19,7 @@ enum PostingError: string
     case BranchNotFound     = 'branch_not_found';
     case BranchInactive     = 'branch_inactive';
     case BranchMismatch     = 'branch_mismatch';
+    case OutsideFiscalYear  = 'outside_fiscal_year';
+    case PeriodClosed       = 'period_closed';
     case WriteFailed        = 'write_failed';
 }

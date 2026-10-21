@@ -41,4 +41,30 @@ enum AccountingError: string
     case LineAmountInvalid     = 'line_amount_invalid';
     case LineOnBothSides       = 'line_on_both_sides';
     case LineCostCenterInvalid = 'line_cost_center_invalid';
+
+    case FiscalYearNotFound    = 'fiscal_year_not_found';
+    case FiscalYearRange       = 'fiscal_year_range';
+    case FiscalYearTooLong     = 'fiscal_year_too_long';
+    case FiscalYearOverlap     = 'fiscal_year_overlap';
+    case FiscalYearGap         = 'fiscal_year_gap';
+    case FiscalYearBoundary    = 'fiscal_year_boundary';
+    case FiscalYearHasJournals = 'fiscal_year_has_journals';
+    case FiscalYearClosed      = 'fiscal_year_closed';
+
+    case ClosingInFuture          = 'closing_in_future';
+    case ClosingBeforeStart       = 'closing_before_start';
+    case ClosingOutsideFiscalYear = 'closing_outside_fiscal_year';
+    case ClosingNotAfterPrevious  = 'closing_not_after_previous';
+    case ClosingBlockedByDrafts   = 'closing_blocked_by_drafts';
+    case NothingToReopen          = 'nothing_to_reopen';
+
+    case InvalidCurrency            = 'invalid_currency';
+    case SettingsLocked             = 'settings_locked';
+    case StartDateOutsideFiscalYear = 'start_date_outside_fiscal_year';
+
+    case OpeningStartDateMissing  = 'opening_start_date_missing';
+    case OpeningAccountNotAllowed = 'opening_account_not_allowed';
+    case OpeningUnbalanced        = 'opening_unbalanced';
+    case OpeningAlreadyPosted     = 'opening_already_posted';
+    case OpeningNotPosted         = 'opening_not_posted';
 }

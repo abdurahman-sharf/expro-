@@ -26,6 +26,7 @@ final class JournalService
     private PostingService $posting;
     private JournalNumbering $numbering;
     private BranchGuard $branches;
+    private PeriodGuard $periods;
 
     public function __construct(?BaseConnection $db = null, ?AccountingGuard $guard = null, ?PostingService $posting = null, ?BranchGuard $branches = null)
     {
@@ -35,6 +36,7 @@ final class JournalService
         $this->posting   = $posting ?? new PostingService($this->db);
         $this->numbering = new JournalNumbering($this->db);
         $this->branches  = $branches ?? new BranchGuard($this->db);
+        $this->periods   = new PeriodGuard($this->db);
     }
 
     /**
@@ -165,9 +167,12 @@ final class JournalService
             ], $stored->lines);
         }
 
+        $this->periods->prepare($date);
+
         $prepared = $this->posting->validate($this->toPostingDraft($date, $description, $lines, $employeeId, $branchId));
 
         return $this->transactional(function () use ($journalId, $employeeId, $prepared, $date, $description): int {
+            $this->periods->enforce($date, $prepared['branch_id']);
             $this->lockDraft($journalId, $employeeId);
 
             $this->db->table('accounting_journals')->where('journal_id', $journalId)->update([
@@ -226,6 +231,29 @@ final class JournalService
     {
         $this->guard->require(AccountingGuard::JOURNALS_REVERSE, $employeeId);
 
+        return $this->reverseJournal($journalId, $date, $reason, $employeeId, true);
+    }
+
+    /**
+     * Reverses an opening balance journal. The caller has already checked the permission to
+     * manage opening balances and that the branch is within the employee's scope, so the
+     * journal does not have to be the employee's own.
+     *
+     * @throws AccountingException|PostingException
+     */
+    public function reverseOpening(int $journalId, string $date, string $reason, ?int $employeeId): int
+    {
+        $isOpening = $this->db->table('accounting_journals')->where('journal_id', $journalId)->where('source_type', 'opening')->countAllResults() > 0;
+
+        if (! $isOpening) {
+            throw new AccountingException(AccountingError::JournalNotFound, "Journal {$journalId} does not exist.");
+        }
+
+        return $this->reverseJournal($journalId, $date, $reason, $employeeId, false);
+    }
+
+    private function reverseJournal(int $journalId, string $date, string $reason, ?int $employeeId, bool $checkAccess): int
+    {
         $date   = $this->normalizeDate($date);
         $reason = trim($reason);
 
@@ -233,7 +261,7 @@ final class JournalService
             throw new AccountingException(AccountingError::ReasonRequired, 'A reason of 1 to 255 characters is required.');
         }
 
-        return $this->transactional(function () use ($journalId, $date, $reason, $employeeId): int {
+        return $this->transactional(function () use ($journalId, $date, $reason, $employeeId, $checkAccess): int {
             $table    = $this->db->prefixTable('accounting_journals');
             $original = $this->db->query("SELECT * FROM {$table} WHERE journal_id = ? FOR UPDATE", [$journalId])->getRow();
 
@@ -241,7 +269,9 @@ final class JournalService
                 throw new AccountingException(AccountingError::JournalNotFound, "Journal {$journalId} does not exist.");
             }
 
-            $this->assertCanAccess($original, $employeeId);
+            if ($checkAccess) {
+                $this->assertCanAccess($original, $employeeId);
+            }
 
             if ($original->status === JournalStatus::Reversed->value) {
                 throw new AccountingException(AccountingError::AlreadyReversed, 'The journal is already reversed.');
