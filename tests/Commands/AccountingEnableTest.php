@@ -31,6 +31,7 @@ class AccountingEnableTest extends CIUnitTestCase
         parent::setUp();
 
         $this->reinstallChart();
+        $this->accountingDb()->table('accounting_fiscal_years')->where('company_id', 1)->delete();
         $this->setConfigValue('accounting_enabled', '0');
         $this->setConfigValue('accounting_base_currency', '');
         $this->setConfigValue('accounting_start_date', '');
