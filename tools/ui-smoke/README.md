@@ -61,6 +61,17 @@ The run writes `report.json` and a screenshot gallery `index.html` to the output
 
 `baseline.json` was captured on the commit recorded in `docs/ui-redesign/baseline.md`.
 
+## Branch-limited employee
+
+`branch-scope.mjs` is an interactive check, not a screenshot sweep. On a database prepared by `npm run setup` it signs in as the administrator, gives the sensitive accounting permissions one by one on the real employee form (and checks that Select all does not tick them), creates an employee limited to the Jeddah branch, then works the closing and opening balance screens as that employee: closes and reopens the branch, fills the opening balance grid, posts, reverses and posts a replacement, and sends forged requests for the head office. Every page and every JSON or HTML response the employee receives is scanned for the head office's code, name, closing date, opening balance and journal descriptions, and a control check proves the same markers fire on the administrator's view.
+
+```sh
+UI_DB_NAME=ospos_ui npm run setup
+npm run branch-scope -- --out build/ui-smoke/branch-scope
+```
+
+It exits with 1 when a check fails. It leaves one extra employee behind and puts the closings back, so run `npm run setup` again before the next run or before `npm run smoke`.
+
 ## Bootstrap 3 gate
 
 ```sh
