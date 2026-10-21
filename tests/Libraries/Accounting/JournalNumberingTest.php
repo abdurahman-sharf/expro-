@@ -61,4 +61,29 @@ class JournalNumberingTest extends CIUnitTestCase
             $this->accountingDb()->table('accounting_sequences')->insert(['series' => 'manual', 'last_number' => 0]);
         }
     }
+
+    public function testNextManual_KeepsASeparateSequenceForEachCompany(): void
+    {
+        $db = $this->accountingDb();
+        $db->table('companies')->insert(['company_id' => 2, 'name' => 'Second company']);
+        $db->table('accounting_sequences')->insert(['company_id' => 2, 'series' => 'manual', 'last_number' => 0]);
+
+        try {
+            $numbering = new JournalNumbering($db);
+
+            $this->assertSame('000001', $numbering->nextManual(1));
+            $this->assertSame('000001', $numbering->nextManual(2));
+            $this->assertSame('000002', $numbering->nextManual(1));
+        } finally {
+            $db->table('accounting_sequences')->where('company_id', 2)->delete();
+            $db->table('companies')->where('company_id', 2)->delete();
+        }
+    }
+
+    public function testNextManual_RejectsACompanyWithoutASeries(): void
+    {
+        $this->expectException(PostingException::class);
+
+        (new JournalNumbering($this->accountingDb()))->nextManual(987654);
+    }
 }

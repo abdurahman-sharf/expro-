@@ -10,6 +10,8 @@ use App\Libraries\Accounting\CostCenterService;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\Organization\BranchError;
+use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -75,6 +77,30 @@ class JournalServiceTest extends CIUnitTestCase
         }
 
         $this->fail('Expected the posting failure ' . $expected->value . '.');
+    }
+
+    private function assertBranchFailsWith(BranchError $expected, callable $action): void
+    {
+        try {
+            $action();
+        } catch (BranchException $exception) {
+            $this->assertSame($expected, $exception->error);
+
+            return;
+        }
+
+        $this->fail('Expected the branch failure ' . $expected->value . '.');
+    }
+
+    /**
+     * @param list<int>|null $branchIds
+     */
+    private function accountant(?array $branchIds = null): int
+    {
+        return $this->employeeWithGrants(
+            ['accounting_journals', AccountingGuard::JOURNALS_DRAFT, AccountingGuard::JOURNALS_POST, AccountingGuard::JOURNALS_REVERSE, AccountingGuard::JOURNALS_ALL],
+            $branchIds,
+        );
     }
 
     private function journal(int $journalId): ?object
@@ -713,6 +739,208 @@ class JournalServiceTest extends CIUnitTestCase
         $rows = $this->service->search([], 'password; DROP TABLE x', 'sideways')['rows'];
 
         $this->assertSame([$last, $first], array_map(static fn (object $row): int => (int) $row->journal_id, $rows));
+    }
+
+    public function testSaveDraft_StoresTheRequestedBranch(): void
+    {
+        $second = $this->createBranch('B2');
+
+        $journalId = $this->service->saveDraft($this->journalInput() + ['branch_id' => $second], $this->accountant());
+
+        $this->assertSame($second, (int) $this->journal($journalId)->branch_id);
+    }
+
+    public function testSaveDraft_UsesTheEmployeesDefaultBranchWhenNoneIsGiven(): void
+    {
+        $second   = $this->createBranch('B2');
+        $employee = $this->accountant([$second, 1]);
+
+        $journalId = $this->service->saveDraft($this->journalInput(), $employee);
+
+        $this->assertSame($second, (int) $this->journal($journalId)->branch_id);
+    }
+
+    public function testSaveDraft_RejectsABranchOutsideTheEmployeesScope(): void
+    {
+        $second   = $this->createBranch('B2');
+        $employee = $this->accountant([1]);
+
+        $this->assertBranchFailsWith(BranchError::NotAllowed, fn () => $this->service->saveDraft($this->journalInput() + ['branch_id' => $second], $employee));
+        $this->assertSame(0, $this->countRows('accounting_journals'));
+    }
+
+    public function testSaveDraft_RejectsAnInactiveBranch(): void
+    {
+        $inactive = $this->createBranch('B2', active: false);
+
+        $this->assertBranchFailsWith(BranchError::Inactive, fn () => $this->service->saveDraft($this->journalInput() + ['branch_id' => $inactive], $this->accountant()));
+    }
+
+    public function testSaveDraft_RejectsABranchThatDoesNotExist(): void
+    {
+        $this->assertBranchFailsWith(BranchError::NotFound, fn () => $this->service->saveDraft($this->journalInput() + ['branch_id' => 987654], $this->accountant()));
+    }
+
+    public function testSaveDraft_RejectsEditingADraftOfAnotherBranch(): void
+    {
+        $second    = $this->createBranch('B2');
+        $journalId = $this->service->saveDraft($this->journalInput() + ['branch_id' => $second], $this->accountant());
+        $outsider  = $this->accountant([1]);
+
+        $this->assertFailsWith(AccountingError::JournalNotFound, fn () => $this->service->saveDraft($this->journalInput('9.00'), $outsider, $journalId));
+        $this->assertSame('100.0000', $this->journal($journalId)->total_debit);
+    }
+
+    public function testDeleteDraft_RejectsADraftOfAnotherBranch(): void
+    {
+        $second    = $this->createBranch('B2');
+        $journalId = $this->service->saveDraft($this->journalInput() + ['branch_id' => $second], $this->accountant());
+
+        $this->assertFailsWith(AccountingError::JournalNotFound, fn () => $this->service->deleteDraft($journalId, $this->accountant([1])));
+        $this->assertNotNull($this->journal($journalId));
+    }
+
+    public function testPostNew_PostsInTheRequestedBranchAndAuditsItThere(): void
+    {
+        $second = $this->createBranch('B2');
+
+        $journalId = $this->service->postNew($this->journalInput() + ['branch_id' => $second], $this->accountant([$second]));
+
+        $this->assertSame($second, (int) $this->journal($journalId)->branch_id);
+
+        $audit = $this->accountingDb()->table('accounting_audit_log')->where('entity_type', 'journal')->where('entity_id', $journalId)->get()->getRow();
+
+        $this->assertSame($second, (int) $audit->branch_id);
+    }
+
+    public function testPostNew_RejectsABranchOutsideTheEmployeesScope(): void
+    {
+        $second   = $this->createBranch('B2');
+        $employee = $this->accountant([$second]);
+
+        $this->assertBranchFailsWith(BranchError::NotAllowed, fn () => $this->service->postNew($this->journalInput() + ['branch_id' => 1], $employee));
+        $this->assertSame(0, $this->countRows('accounting_journals'));
+    }
+
+    public function testPostNew_NumbersManualJournalsOfEveryBranchInOneSeries(): void
+    {
+        $second = $this->createBranch('B2');
+
+        $first  = $this->service->postNew($this->journalInput() + ['branch_id' => 1]);
+        $other  = $this->service->postNew($this->journalInput() + ['branch_id' => $second]);
+        $return = $this->service->postNew($this->journalInput() + ['branch_id' => 1]);
+
+        $this->assertSame(['000001', '000002', '000003'], [$this->journal($first)->number, $this->journal($other)->number, $this->journal($return)->number]);
+    }
+
+    public function testPostDraft_RejectsADraftOfAnotherBranch(): void
+    {
+        $second    = $this->createBranch('B2');
+        $journalId = $this->service->saveDraft($this->journalInput() + ['branch_id' => $second], $this->accountant());
+
+        $this->assertFailsWith(AccountingError::JournalNotFound, fn () => $this->service->postDraft($journalId, $this->accountant([1])));
+        $this->assertSame('draft', $this->journal($journalId)->status);
+    }
+
+    public function testPostDraft_MovesTheDraftToTheBranchGivenInTheInput(): void
+    {
+        $second    = $this->createBranch('B2');
+        $employee  = $this->accountant();
+        $journalId = $this->service->saveDraft($this->journalInput(), $employee);
+
+        $this->service->postDraft($journalId, $employee, $this->journalInput() + ['branch_id' => $second]);
+
+        $this->assertSame($second, (int) $this->journal($journalId)->branch_id);
+        $this->assertSame('posted', $this->journal($journalId)->status);
+    }
+
+    public function testReverse_RejectsAJournalOfAnotherBranch(): void
+    {
+        $second    = $this->createBranch('B2');
+        $journalId = $this->service->postNew($this->journalInput() + ['branch_id' => $second]);
+
+        $this->assertFailsWith(AccountingError::JournalNotFound, fn () => $this->service->reverse($journalId, '2026-10-22', 'Mistake', $this->accountant([1])));
+        $this->assertSame('posted', $this->journal($journalId)->status);
+    }
+
+    public function testReverse_KeepsTheBranchOfTheOriginal(): void
+    {
+        $second     = $this->createBranch('B2');
+        $journalId  = $this->service->postNew($this->journalInput() + ['branch_id' => $second]);
+        $reversalId = $this->service->reverse($journalId, '2026-10-22', 'Mistake', $this->accountant([$second]));
+
+        $this->assertSame($second, (int) $this->journal($reversalId)->branch_id);
+    }
+
+    public function testReverse_AcceptsAJournalOfABranchDeactivatedLater(): void
+    {
+        $second    = $this->createBranch('B2');
+        $journalId = $this->service->postNew($this->journalInput() + ['branch_id' => $second]);
+
+        $this->accountingDb()->table('branches')->where('branch_id', $second)->update(['active' => 0]);
+
+        $reversalId = $this->service->reverse($journalId, '2026-10-22', 'Branch closing');
+
+        $this->assertSame($second, (int) $this->journal($reversalId)->branch_id);
+    }
+
+    public function testFind_ReturnsTheBranchOfTheJournal(): void
+    {
+        $second    = $this->createBranch('B2', 'Second branch');
+        $journalId = $this->service->postNew($this->journalInput() + ['branch_id' => $second]);
+
+        $journal = $this->service->find($journalId, $this->accountant([$second]));
+
+        $this->assertSame('B2', $journal->branch_code);
+        $this->assertSame('Second branch', $journal->branch_name);
+    }
+
+    public function testFind_HidesAJournalOfAnotherBranchAsNotFound(): void
+    {
+        $second    = $this->createBranch('B2');
+        $journalId = $this->service->postNew($this->journalInput() + ['branch_id' => $second]);
+
+        $this->assertFailsWith(AccountingError::JournalNotFound, fn () => $this->service->find($journalId, $this->accountant([1])));
+        $this->assertSame($journalId, (int) $this->service->find($journalId, $this->accountant())->journal_id);
+    }
+
+    public function testSearch_ListsOnlyTheJournalsOfTheEmployeesBranches(): void
+    {
+        $second = $this->createBranch('B2');
+        $first  = $this->service->postNew($this->journalInput() + ['branch_id' => 1]);
+        $other  = $this->service->postNew($this->journalInput() + ['branch_id' => $second]);
+
+        $this->assertSame([$other], array_map(static fn (object $row): int => (int) $row->journal_id, $this->service->search([], employeeId: $this->accountant([$second]))['rows']));
+        $this->assertSame([$first], array_map(static fn (object $row): int => (int) $row->journal_id, $this->service->search([], employeeId: $this->accountant([1]))['rows']));
+        $this->assertSame(2, $this->service->search([], employeeId: $this->accountant())['total']);
+    }
+
+    public function testSearch_ReturnsNothingForAnEmployeeWithoutBranches(): void
+    {
+        $this->service->postNew($this->journalInput());
+
+        $this->assertSame(0, $this->service->search([], employeeId: $this->accountant([]))['total']);
+    }
+
+    public function testSearch_FiltersByBranch(): void
+    {
+        $second = $this->createBranch('B2');
+        $this->service->postNew($this->journalInput() + ['branch_id' => 1]);
+        $other = $this->service->postNew($this->journalInput() + ['branch_id' => $second]);
+
+        $result = $this->service->search(['branch_id' => $second]);
+
+        $this->assertSame(1, $result['total']);
+        $this->assertSame($other, (int) $result['rows'][0]->journal_id);
+        $this->assertSame('B2', $result['rows'][0]->branch_code);
+    }
+
+    public function testSearch_IgnoresABranchFilterOutsideTheEmployeesScope(): void
+    {
+        $second = $this->createBranch('B2');
+        $this->service->postNew($this->journalInput() + ['branch_id' => $second]);
+
+        $this->assertSame(0, $this->service->search(['branch_id' => $second], employeeId: $this->accountant([1]))['total']);
     }
 
     public function testPostableAccounts_ExcludesGroupsAndInactiveAccounts(): void

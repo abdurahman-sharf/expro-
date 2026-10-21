@@ -119,4 +119,68 @@ class AuditLogTest extends CIUnitTestCase
 
         $this->assertSame(['created', 'posted'], $this->audit->actions());
     }
+
+    public function testSearch_ListsOnlyTheEntriesOfTheGivenBranches(): void
+    {
+        $second = $this->createBranch('B2');
+
+        $this->audit->write('journal', 1, 'posted', null, JournalOrigin::User, [], 1);
+        $this->audit->write('journal', 2, 'posted', null, JournalOrigin::User, [], $second);
+        $this->audit->write('settings', null, 'accounting_enabled', null, JournalOrigin::System);
+
+        $this->assertSame([2], array_map(static fn (object $row): int => (int) $row->entity_id, $this->audit->search([], branchIds: [$second])['rows']));
+        $this->assertSame(3, $this->audit->search([])['total']);
+    }
+
+    public function testSearch_HidesEntriesOfTheWholeCompanyFromReadersOfSomeBranches(): void
+    {
+        $this->audit->write('settings', null, 'accounting_enabled', null, JournalOrigin::System);
+
+        $this->assertSame(0, $this->audit->search([], branchIds: [1])['total']);
+        $this->assertSame(1, $this->audit->search([], branchIds: null)['total']);
+    }
+
+    public function testSearch_ReturnsNothingForAnEmptyListOfBranches(): void
+    {
+        $this->audit->write('journal', 1, 'posted', null, JournalOrigin::User, [], 1);
+
+        $this->assertSame(0, $this->audit->search([], branchIds: [])['total']);
+    }
+
+    public function testSearch_FiltersByBranch(): void
+    {
+        $second = $this->createBranch('B2');
+
+        $this->audit->write('journal', 1, 'posted', null, JournalOrigin::User, [], 1);
+        $this->audit->write('journal', 2, 'posted', null, JournalOrigin::User, [], $second);
+
+        $result = $this->audit->search(['branch_id' => $second]);
+
+        $this->assertSame(1, $result['total']);
+        $this->assertSame($second, (int) $result['rows'][0]->branch_id);
+    }
+
+    public function testActions_ListsOnlyTheActionsOfTheGivenBranches(): void
+    {
+        $second = $this->createBranch('B2');
+
+        $this->audit->write('journal', 1, 'posted', null, JournalOrigin::User, [], 1);
+        $this->audit->write('journal', 2, 'reversed', null, JournalOrigin::User, [], $second);
+
+        $this->assertSame(['reversed'], $this->audit->actions([$second]));
+        $this->assertSame(['posted', 'reversed'], $this->audit->actions());
+    }
+
+    public function testEmployees_ListsOnlyThePeopleOfTheGivenBranches(): void
+    {
+        $second = $this->createBranch('B2');
+        $sara   = $this->createEmployee('Sara', 'Nasser');
+        $omar   = $this->createEmployee('Omar', 'Hadi');
+
+        $this->audit->write('journal', 1, 'posted', $sara, JournalOrigin::User, [], 1);
+        $this->audit->write('journal', 2, 'posted', $omar, JournalOrigin::User, [], $second);
+
+        $this->assertSame([$omar], array_map(static fn (object $row): int => (int) $row->employee_id, $this->audit->employees([$second])));
+        $this->assertCount(2, $this->audit->employees());
+    }
 }

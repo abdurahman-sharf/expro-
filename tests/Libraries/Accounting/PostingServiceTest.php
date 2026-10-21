@@ -538,6 +538,122 @@ class PostingServiceTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('accounting_journals'));
     }
 
+    private function draftInBranch(?int $branchId, ?int $sourceId = 1, string $sourceType = 'sale', ?int $reverses = null): JournalDraft
+    {
+        $reversal = $reverses !== null;
+
+        return new JournalDraft(
+            date: '2026-10-21',
+            lines: [
+                new JournalLineDraft($this->accountId('cash'), debit: $reversal ? '0' : '100.00', credit: $reversal ? '100.00' : '0'),
+                new JournalLineDraft($this->accountId('sales_revenue'), debit: $reversal ? '100.00' : '0', credit: $reversal ? '0' : '100.00'),
+            ],
+            sourceType: $sourceType,
+            sourceId: $sourceId,
+            currencyCode: 'SAR',
+            reversesJournalId: $reverses,
+            branchId: $branchId,
+        );
+    }
+
+    private function branchOf(int $journalId): int
+    {
+        return (int) $this->accountingDb()->table('accounting_journals')->where('journal_id', $journalId)->get()->getRow()->branch_id;
+    }
+
+    public function testPost_StoresTheDefaultBranchWhenNoneIsGiven(): void
+    {
+        $result = $this->service->post($this->balancedDraft());
+
+        $this->assertSame(1, $this->branchOf($result->journalId));
+    }
+
+    public function testPost_StoresTheBranchOfTheDraft(): void
+    {
+        $second = $this->createBranch('B2');
+
+        $result = $this->service->post($this->draftInBranch($second));
+
+        $this->assertSame($second, $this->branchOf($result->journalId));
+    }
+
+    public function testPost_AuditsTheJournalInItsBranch(): void
+    {
+        $second = $this->createBranch('B2');
+
+        $result = $this->service->post($this->draftInBranch($second));
+
+        $audit = $this->accountingDb()->table('accounting_audit_log')->where('entity_type', 'journal')->where('entity_id', $result->journalId)->get()->getRow();
+
+        $this->assertSame($second, (int) $audit->branch_id);
+    }
+
+    public function testPost_RejectsABranchThatDoesNotExist(): void
+    {
+        $this->assertPostingFails(PostingError::BranchNotFound, $this->draftInBranch(987654));
+        $this->assertSame(0, $this->countRows('accounting_journals'));
+    }
+
+    public function testPost_RejectsAnInactiveBranch(): void
+    {
+        $inactive = $this->createBranch('B2', active: false);
+
+        $this->assertPostingFails(PostingError::BranchInactive, $this->draftInBranch($inactive));
+    }
+
+    public function testPost_AcceptsAReversalInABranchDeactivatedAfterThePosting(): void
+    {
+        $second   = $this->createBranch('B2');
+        $original = $this->service->post($this->draftInBranch($second, 70));
+
+        $this->accountingDb()->table('branches')->where('branch_id', $second)->update(['active' => 0]);
+
+        $reversal = $this->service->post($this->draftInBranch($second, $original->journalId, JournalDraft::SOURCE_REVERSAL, $original->journalId));
+
+        $this->assertTrue($reversal->created);
+        $this->assertSame($second, $this->branchOf($reversal->journalId));
+    }
+
+    public function testPost_RejectsASourceAlreadyPostedInAnotherBranch(): void
+    {
+        $second = $this->createBranch('B2');
+
+        $this->service->post($this->draftInBranch(1, 80));
+
+        $this->assertPostingFails(PostingError::BranchMismatch, $this->draftInBranch($second, 80));
+        $this->assertSame(1, $this->countRows('accounting_journals'));
+    }
+
+    public function testPost_ReturnsTheExistingJournalForTheSameSourceInTheSameBranch(): void
+    {
+        $second = $this->createBranch('B2');
+
+        $first  = $this->service->post($this->draftInBranch($second, 81));
+        $repeat = $this->service->post($this->draftInBranch($second, 81));
+
+        $this->assertFalse($repeat->created);
+        $this->assertSame($first->journalId, $repeat->journalId);
+    }
+
+    public function testPost_ReturnsTheExistingJournalWhenTheRepeatNamesNoBranch(): void
+    {
+        $second = $this->createBranch('B2');
+
+        $first  = $this->service->post($this->draftInBranch($second, 82));
+        $repeat = $this->service->post($this->draftInBranch(null, 82));
+
+        $this->assertFalse($repeat->created);
+        $this->assertSame($first->journalId, $repeat->journalId);
+    }
+
+    public function testValidate_ReturnsTheBranchTheJournalWouldBePostedIn(): void
+    {
+        $second = $this->createBranch('B2');
+
+        $this->assertSame($second, $this->service->validate($this->draftInBranch($second))['branch_id']);
+        $this->assertSame(1, $this->service->validate($this->balancedDraft())['branch_id']);
+    }
+
     private function assertPostingFails(PostingError $expected, JournalDraft $draft): PostingException
     {
         try {

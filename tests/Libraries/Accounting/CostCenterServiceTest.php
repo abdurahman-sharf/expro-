@@ -7,6 +7,7 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\CostCenterService;
 use App\Libraries\Accounting\JournalService;
+use App\Libraries\Organization\BranchException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -252,5 +253,62 @@ class CostCenterServiceTest extends CIUnitTestCase
         $this->service->create(['code' => 'HQ', 'name' => 'Head office']);
 
         $this->assertSame('8', $this->service->suggestCode());
+    }
+
+    private function limitedCostCenterManager(): int
+    {
+        return $this->employeeWithGrants([AccountingGuard::COST_CENTERS_MANAGE], [1]);
+    }
+
+    public function testCreate_RejectsAnEmployeeLimitedToBranches(): void
+    {
+        $this->expectException(BranchException::class);
+
+        $this->service->create(['code' => 'MAIN', 'name' => 'Main'], $this->limitedCostCenterManager());
+    }
+
+    public function testUpdate_RejectsAnEmployeeLimitedToBranches(): void
+    {
+        $costCenterId = $this->service->create(['code' => 'MAIN', 'name' => 'Main']);
+
+        $this->expectException(BranchException::class);
+
+        $this->service->update($costCenterId, ['name' => 'Renamed'], $this->limitedCostCenterManager());
+    }
+
+    public function testDeactivate_RejectsAnEmployeeLimitedToBranches(): void
+    {
+        $costCenterId = $this->service->create(['code' => 'MAIN', 'name' => 'Main']);
+
+        $this->expectException(BranchException::class);
+
+        $this->service->deactivate($costCenterId, $this->limitedCostCenterManager());
+    }
+
+    public function testActivate_RejectsAnEmployeeLimitedToBranches(): void
+    {
+        $costCenterId = $this->service->create(['code' => 'MAIN', 'name' => 'Main']);
+        $this->service->deactivate($costCenterId);
+
+        $this->expectException(BranchException::class);
+
+        $this->service->activate($costCenterId, $this->limitedCostCenterManager());
+    }
+
+    public function testDelete_RejectsAnEmployeeLimitedToBranches(): void
+    {
+        $costCenterId = $this->service->create(['code' => 'MAIN', 'name' => 'Main']);
+
+        $this->expectException(BranchException::class);
+
+        $this->service->delete($costCenterId, $this->limitedCostCenterManager());
+    }
+
+    public function testCreate_IsIndependentOfTheBranch(): void
+    {
+        $this->createBranch('B2');
+        $costCenterId = $this->service->create(['code' => 'MAIN', 'name' => 'Main'], $this->employeeWithGrants([AccountingGuard::COST_CENTERS_MANAGE]));
+
+        $this->assertNotNull($this->service->find($costCenterId));
     }
 }

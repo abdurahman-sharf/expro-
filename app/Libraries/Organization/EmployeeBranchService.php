@@ -10,8 +10,8 @@ use Config\Database;
 
 /**
  * Which branches an employee belongs to. Changing it is a sensitive act: it needs its own
- * permission, nobody changes their own, nobody hands out more than they can see, and the last
- * employee with every branch is never taken off it.
+ * permission, nobody changes their own, nobody hands out or touches more than they can see, and the
+ * last employee with every branch is never taken off it.
  */
 final class EmployeeBranchService
 {
@@ -82,8 +82,8 @@ final class EmployeeBranchService
         $branchIds    = array_values(array_unique(array_map('intval', $branchIds)));
         $actorAllowed = $this->guard->allowedBranchIds($actorId);
 
-        if ($allBranches && ! $current['all'] && $actorAllowed !== null) {
-            throw new BranchException(BranchError::ScopeTooWide, 'Only someone with every branch can give every branch.');
+        if ($actorAllowed !== null && ($allBranches || $current['all'])) {
+            throw new BranchException(BranchError::ScopeTooWide, 'Only someone with every branch can give or change every branch.');
         }
 
         $this->assertBranchesExist($branchIds);

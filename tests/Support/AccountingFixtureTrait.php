@@ -43,6 +43,8 @@ trait AccountingFixtureTrait
 
         $db->query('SET FOREIGN_KEY_CHECKS = 1');
         $db->table('accounting_sequences')->where('series', 'manual')->update(['last_number' => 0]);
+
+        $this->resetBranches();
     }
 
     /**
@@ -62,8 +64,6 @@ trait AccountingFixtureTrait
         $db->query('SET FOREIGN_KEY_CHECKS = 1');
 
         (new DefaultChart($db))->install();
-
-        $this->resetBranches();
     }
 
     /**

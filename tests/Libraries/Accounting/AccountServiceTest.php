@@ -7,6 +7,7 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountService;
 use App\Libraries\Accounting\JournalService;
+use App\Libraries\Organization\BranchException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -494,5 +495,78 @@ class AccountServiceTest extends CIUnitTestCase
         $this->assertSame('1', (string) $flagged->routed);
         $this->assertSame('0', (string) $flagged->used);
         $this->assertNull($this->service->findFlagged(999999));
+    }
+
+    public function testBalances_CountOnlyTheGivenBranches(): void
+    {
+        $second = $this->createBranch('B2');
+        $posting = new JournalService();
+
+        $posting->postNew($this->journalInput('100.00') + ['branch_id' => 1]);
+        $posting->postNew($this->journalInput('40.00') + ['branch_id' => $second]);
+
+        $cash = $this->accountId('cash');
+
+        $this->assertSame('140.0000', $this->service->balances()[$cash]['balance']);
+        $this->assertSame('100.0000', $this->service->balances([1])[$cash]['balance']);
+        $this->assertSame('40.0000', $this->service->balances([$second])[$cash]['balance']);
+        $this->assertSame('140.0000', $this->service->balances([1, $second])[$this->accountIdByCode('1')]['balance']);
+    }
+
+    public function testBalances_CountNothingForAnEmptyListOfBranches(): void
+    {
+        (new JournalService())->postNew($this->journalInput('100.00'));
+
+        $this->assertSame('0.0000', $this->service->balances([])[$this->accountId('cash')]['balance']);
+    }
+
+    private function limitedChartManager(): int
+    {
+        return $this->employeeWithGrants([AccountingGuard::CHART_MANAGE], [1]);
+    }
+
+    public function testCreate_RejectsAnEmployeeLimitedToBranches(): void
+    {
+        $this->expectException(BranchException::class);
+
+        $this->service->create(['parent_id' => $this->accountIdByCode('11'), 'code' => '1110', 'name' => 'Custom'], $this->limitedChartManager());
+    }
+
+    public function testUpdate_RejectsAnEmployeeLimitedToBranches(): void
+    {
+        $accountId = $this->customAccount();
+
+        $this->expectException(BranchException::class);
+
+        $this->service->update($accountId, ['name' => 'Renamed'], $this->limitedChartManager());
+    }
+
+    public function testDeactivate_RejectsAnEmployeeLimitedToBranches(): void
+    {
+        $accountId = $this->customAccount();
+
+        $this->expectException(BranchException::class);
+
+        $this->service->deactivate($accountId, $this->limitedChartManager());
+    }
+
+    public function testActivate_RejectsAnEmployeeLimitedToBranches(): void
+    {
+        $accountId = $this->customAccount();
+        $this->service->deactivate($accountId);
+
+        $this->expectException(BranchException::class);
+
+        $this->service->activate($accountId, $this->limitedChartManager());
+    }
+
+    public function testDelete_RejectsAnEmployeeLimitedToBranches(): void
+    {
+        $accountId = $this->customAccount();
+
+        $this->expectException(BranchException::class);
+
+        $this->service->delete($accountId, $this->limitedChartManager());
+        $this->assertNotNull($this->service->find($accountId));
     }
 }
