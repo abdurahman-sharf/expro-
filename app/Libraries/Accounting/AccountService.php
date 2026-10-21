@@ -256,23 +256,9 @@ final class AccountService
      */
     public function children(?int $parentId): array
     {
-        $accounts = $this->db->prefixTable('accounting_accounts');
-        $lines    = $this->db->prefixTable('accounting_journal_lines');
-        $routing  = $this->db->prefixTable('accounting_routing');
-
-        $where  = $parentId === null ? 'a.parent_id IS NULL' : 'a.parent_id = ?';
-        $params = $parentId === null ? [] : [$parentId];
-
-        return $this->db->query(
-            "SELECT a.account_id, a.parent_id, a.code, a.name, a.account_type, a.normal_balance, a.is_group, a.is_system, a.active,
-                EXISTS (SELECT 1 FROM {$accounts} c WHERE c.parent_id = a.account_id) AS has_children,
-                EXISTS (SELECT 1 FROM {$lines} l WHERE l.account_id = a.account_id) AS used,
-                EXISTS (SELECT 1 FROM {$routing} r WHERE r.account_id = a.account_id) AS routed
-             FROM {$accounts} a
-             WHERE {$where}
-             ORDER BY a.code ASC",
-            $params,
-        )->getResult();
+        return $parentId === null
+            ? $this->flagged('a.parent_id IS NULL', [])
+            : $this->flagged('a.parent_id = ?', [$parentId]);
     }
 
     /**
@@ -286,16 +272,21 @@ final class AccountService
             return [];
         }
 
-        return $this->db->table('accounting_accounts')
-            ->select('account_id, parent_id, code, name, account_type, is_group, active')
-            ->groupStart()
-            ->like('code', $term, 'after')
-            ->orLike('name', $term)
-            ->groupEnd()
-            ->orderBy('code', 'ASC')
-            ->limit($limit)
-            ->get()
-            ->getResult();
+        $escaped = $this->db->escapeLikeString($term);
+
+        return $this->flagged(
+            "(a.code LIKE '{$escaped}%' ESCAPE '!' OR a.name LIKE '%{$escaped}%' ESCAPE '!')",
+            [],
+            $limit,
+        );
+    }
+
+    /**
+     * An account with the same flags the lists carry.
+     */
+    public function findFlagged(int $accountId): ?object
+    {
+        return $this->flagged('a.account_id = ?', [$accountId])[0] ?? null;
     }
 
     /**
@@ -374,6 +365,30 @@ final class AccountService
         }
 
         return $candidate;
+    }
+
+    /**
+     * @param list<int> $params
+     *
+     * @return list<object>
+     */
+    private function flagged(string $where, array $params, ?int $limit = null): array
+    {
+        $accounts = $this->db->prefixTable('accounting_accounts');
+        $lines    = $this->db->prefixTable('accounting_journal_lines');
+        $routing  = $this->db->prefixTable('accounting_routing');
+        $limitSql = $limit === null ? '' : ' LIMIT ' . max(1, $limit);
+
+        return $this->db->query(
+            "SELECT a.account_id, a.parent_id, a.code, a.name, a.account_type, a.normal_balance, a.is_group, a.is_system, a.active,
+                EXISTS (SELECT 1 FROM {$accounts} c WHERE c.parent_id = a.account_id) AS has_children,
+                EXISTS (SELECT 1 FROM {$lines} l WHERE l.account_id = a.account_id) AS used,
+                EXISTS (SELECT 1 FROM {$routing} r WHERE r.account_id = a.account_id) AS routed
+             FROM {$accounts} a
+             WHERE {$where}
+             ORDER BY a.code ASC{$limitSql}",
+            $params,
+        )->getResult();
     }
 
     private function setActive(int $accountId, int $active, string $action, ?int $employeeId): void

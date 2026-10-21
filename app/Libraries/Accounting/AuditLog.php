@@ -36,7 +36,7 @@ final class AuditLog
     }
 
     /**
-     * @param array{date_from?: string, date_to?: string, action?: string, entity_type?: string, employee_id?: int|string, origin?: string} $filters
+     * @param array{date_from?: string, date_to?: string, action?: string, entity_type?: string, entity_id?: int|string, employee_id?: int|string, origin?: string} $filters
      *
      * @return array{total: int, rows: list<object>}
      */
@@ -52,6 +52,12 @@ final class AuditLog
             if ($value !== '') {
                 $builder->where($column, $value);
             }
+        }
+
+        $entityId = (int) ($filters['entity_id'] ?? 0);
+
+        if ($entityId > 0) {
+            $builder->where('a.entity_id', $entityId);
         }
 
         $employeeId = (int) ($filters['employee_id'] ?? 0);
@@ -81,5 +87,21 @@ final class AuditLog
     public function actions(): array
     {
         return array_column($this->db->table('accounting_audit_log')->distinct()->select('action')->orderBy('action', 'ASC')->get()->getResultArray(), 'action');
+    }
+
+    /**
+     * People who appear in the log, for the employee filter.
+     *
+     * @return list<object>
+     */
+    public function employees(): array
+    {
+        return $this->db->table('accounting_audit_log a')
+            ->select("a.employee_id, TRIM(CONCAT(p.first_name, ' ', p.last_name)) AS name", false)
+            ->join('people p', 'p.person_id = a.employee_id')
+            ->distinct()
+            ->orderBy('name', 'ASC')
+            ->get()
+            ->getResult();
     }
 }
