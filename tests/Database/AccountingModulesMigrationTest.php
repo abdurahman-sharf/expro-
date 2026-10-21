@@ -39,7 +39,7 @@ class AccountingModulesMigrationTest extends CIUnitTestCase
 
     public function testUp_RegistersTheThreeModulesInOrderAfterTheExistingOnes(): void
     {
-        $rows = $this->accountingDb()->table('modules')->like('module_id', 'accounting_', 'after')->orderBy('sort')->get()->getResult();
+        $rows = $this->accountingDb()->table('modules')->whereIn('module_id', array_keys(self::MODULES))->orderBy('sort')->get()->getResult();
 
         $this->assertSame(array_keys(self::MODULES), array_column($rows, 'module_id'));
         $this->assertSame(array_values(self::MODULES), array_map('intval', array_column($rows, 'sort')));
@@ -112,13 +112,13 @@ class AccountingModulesMigrationTest extends CIUnitTestCase
         try {
             $migration->down();
 
-            $this->assertSame(0, $this->accountingDb()->table('modules')->like('module_id', 'accounting_', 'after')->countAllResults());
-            $this->assertSame(0, $this->accountingDb()->table('permissions')->like('module_id', 'accounting_', 'after')->countAllResults());
+            $this->assertSame(0, $this->accountingDb()->table('modules')->whereIn('module_id', array_keys(self::MODULES))->countAllResults());
+            $this->assertSame(0, $this->accountingDb()->table('permissions')->whereIn('module_id', array_keys(self::MODULES))->countAllResults());
             $this->assertSame(0, $this->accountingDb()->table('grants')->where('person_id', $employee)->whereIn('permission_id', $this->allAccountingPermissions())->countAllResults());
         } finally {
             $migration->up();
         }
 
-        $this->assertSame(3, $this->accountingDb()->table('modules')->like('module_id', 'accounting_', 'after')->countAllResults());
+        $this->assertSame(3, $this->accountingDb()->table('modules')->whereIn('module_id', array_keys(self::MODULES))->countAllResults());
     }
 }

@@ -2,6 +2,7 @@
 
 namespace Tests\Database;
 
+use App\Database\Migrations\AccountingPeriods;
 use App\Database\Migrations\BranchesFoundation;
 use App\Libraries\Accounting\PostingService;
 use CodeIgniter\Database\Exceptions\DatabaseException;
@@ -15,7 +16,7 @@ class BranchesFoundationMigrationTest extends CIUnitTestCase
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
 
-    private const NEW_TABLES = ['branches', 'companies', 'employee_branches'];
+    private const NEW_TABLES = ['accounting_opening_drafts', 'accounting_period_locks', 'branches', 'companies', 'employee_branches'];
 
     private const COMPANY_TABLES = [
         'accounting_accounts',
@@ -177,8 +178,10 @@ class BranchesFoundationMigrationTest extends CIUnitTestCase
         $journalId = (new PostingService())->post($this->balancedDraft())->journalId;
         $before    = $this->tableNames();
         $migration = new BranchesFoundation();
+        $periods   = new AccountingPeriods();
 
         try {
+            $periods->down();
             $migration->down();
 
             $this->assertSame(array_values(array_diff($before, $this->prefixedNew())), $this->tableNames());
@@ -188,6 +191,7 @@ class BranchesFoundationMigrationTest extends CIUnitTestCase
             $this->assertSame(1, $this->accountingDb()->table('accounting_journals')->where('journal_id', $journalId)->countAllResults());
         } finally {
             $migration->up();
+            $periods->up();
         }
 
         $this->assertSame($before, $this->tableNames());

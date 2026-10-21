@@ -3,6 +3,7 @@
 namespace Tests\Database;
 
 use App\Database\Migrations\AccountingFoundation;
+use App\Database\Migrations\AccountingPeriods;
 use App\Database\Migrations\BranchesFoundation;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -106,10 +107,11 @@ class AccountingFoundationMigrationTest extends CIUnitTestCase
                 array_values(array_diff($before, $this->prefixed(self::TABLES))),
                 $this->tableNames(),
             );
-            $this->assertSame(0, $this->accountingDb()->table('app_config')->like('key', 'accounting_', 'after')->countAllResults());
+            $this->assertSame(0, $this->accountingDb()->table('app_config')->like('key', 'accounting_', 'after')->where('key !=', 'accounting_auto_fiscal_year')->countAllResults());
         } finally {
             $migration->up();
             (new BranchesFoundation())->up();
+            (new AccountingPeriods())->up();
         }
 
         $this->assertSame($before, $this->tableNames());

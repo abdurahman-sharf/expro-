@@ -48,6 +48,8 @@ final class BranchService
 
             $branchId = (int) $this->db->insertID();
 
+            $this->db->table('accounting_period_locks')->ignore(true)->insert(['company_id' => CompanyContext::id(), 'branch_id' => $branchId]);
+
             $this->audit->write('branch', $branchId, 'created', $employeeId, JournalOrigin::User, ['code' => $fields['code'], 'name' => $fields['name']]);
 
             return $branchId;
@@ -166,6 +168,7 @@ final class BranchService
 
         $this->transactional(function () use ($branchId, $branch, $employeeId): void {
             $this->db->table('branches')->where('branch_id', $branchId)->delete();
+            $this->db->table('accounting_period_locks')->where('company_id', CompanyContext::id())->where('branch_id', $branchId)->delete();
 
             $this->audit->write('branch', $branchId, 'deleted', $employeeId, JournalOrigin::User, ['code' => $branch->code, 'name' => $branch->name]);
         });
