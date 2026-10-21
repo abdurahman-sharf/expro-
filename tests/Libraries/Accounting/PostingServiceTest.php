@@ -432,6 +432,76 @@ class PostingServiceTest extends CIUnitTestCase
         $this->assertSame(1, $this->countRows('accounting_journals'));
     }
 
+    public function testPost_DoesNotRecordAFailureWhenAManualJournalIsRejected(): void
+    {
+        $draft = new JournalDraft(
+            date: '2026-10-21',
+            lines: [new JournalLineDraft($this->accountId('cash'), debit: '10.00')],
+            sourceType: 'manual',
+            origin: JournalOrigin::User,
+            currencyCode: 'SAR',
+        );
+
+        $this->assertPostingFails(PostingError::TooFewLines, $draft);
+
+        $this->assertSame(0, $this->countRows('accounting_posting_failures'));
+    }
+
+    public function testPost_WritesTheReversedJournalIdOfAReversal(): void
+    {
+        $original = $this->service->post($this->balancedDraft(sourceId: 51));
+
+        $reversal = $this->service->post(new JournalDraft(
+            date: '2026-10-22',
+            lines: [
+                new JournalLineDraft($this->accountId('cash'), credit: '100.00'),
+                new JournalLineDraft($this->accountId('sales_revenue'), debit: '100.00'),
+            ],
+            sourceType: JournalDraft::SOURCE_REVERSAL,
+            sourceId: $original->journalId,
+            currencyCode: 'SAR',
+            reversesJournalId: $original->journalId,
+        ));
+
+        $row = $this->accountingDb()->table('accounting_journals')->where('journal_id', $reversal->journalId)->get()->getRow();
+        $this->assertSame((string) $original->journalId, (string) $row->reverses_journal_id);
+    }
+
+    public function testPost_AllowsAnInactiveAccountOnlyForAReversal(): void
+    {
+        $original = $this->service->post($this->balancedDraft(sourceId: 61));
+        $this->accountingDb()->table('accounting_accounts')->where('system_key', 'cash')->update(['active' => 0]);
+
+        $lines = [
+            new JournalLineDraft($this->accountId('cash'), debit: '10.00'),
+            new JournalLineDraft($this->accountId('sales_revenue'), credit: '10.00'),
+        ];
+
+        $this->assertPostingFails(PostingError::AccountNotPostable, $this->draftWithLines($lines));
+
+        $result = $this->service->post(new JournalDraft(
+            date: '2026-10-22',
+            lines: $lines,
+            sourceType: JournalDraft::SOURCE_REVERSAL,
+            sourceId: $original->journalId,
+            currencyCode: 'SAR',
+            reversesJournalId: $original->journalId,
+        ));
+
+        $this->assertTrue($result->created);
+    }
+
+    public function testValidate_ReturnsTheNormalizedValuesWithoutWritingAnything(): void
+    {
+        $prepared = $this->service->validate($this->balancedDraft(amount: '12.5'));
+
+        $this->assertSame('12.5000', $prepared['debit']);
+        $this->assertSame('12.5000', $prepared['credit']);
+        $this->assertSame('SAR', $prepared['currency']);
+        $this->assertCount(2, $prepared['lines']);
+        $this->assertSame(0, $this->countRows('accounting_journals'));
+    }
+
     private function assertPostingFails(PostingError $expected, JournalDraft $draft): PostingException
     {
         try {

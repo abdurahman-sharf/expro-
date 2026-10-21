@@ -4,7 +4,8 @@ namespace App\Libraries\Accounting;
 
 final readonly class JournalDraft
 {
-    public const SOURCE_MANUAL = 'manual';
+    public const SOURCE_MANUAL   = 'manual';
+    public const SOURCE_REVERSAL = 'reversal';
 
     /**
      * @param list<JournalLineDraft> $lines
@@ -20,6 +21,7 @@ final readonly class JournalDraft
         public string $description = '',
         public string $currencyCode = '',
         public string $exchangeRate = '1',
+        public ?int $reversesJournalId = null,
     ) {
     }
 }

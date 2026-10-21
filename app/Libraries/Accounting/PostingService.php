@@ -5,7 +5,6 @@ namespace App\Libraries\Accounting;
 use App\Models\Accounting\Account;
 use App\Models\Accounting\CostCenter;
 use App\Models\Accounting\Journal;
-use App\Models\Appconfig;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 use DateTimeImmutable;
@@ -23,12 +22,14 @@ final class PostingService
     private BaseConnection $db;
     private AuditLog $audit;
     private PostingFailureLog $failures;
+    private JournalNumbering $numbering;
 
     public function __construct(?BaseConnection $db = null)
     {
-        $this->db       = $db ?? Database::connect();
-        $this->audit    = new AuditLog($this->db);
-        $this->failures = new PostingFailureLog($this->db);
+        $this->db        = $db ?? Database::connect();
+        $this->audit     = new AuditLog($this->db);
+        $this->failures  = new PostingFailureLog($this->db);
+        $this->numbering = new JournalNumbering($this->db);
     }
 
     /**
@@ -46,9 +47,9 @@ final class PostingService
         $ownsTransaction = $this->db->transDepth === 0;
 
         try {
-            $prepared = $this->prepare($draft);
+            $prepared = $this->validate($draft);
         } catch (PostingException $failure) {
-            if ($ownsTransaction) {
+            if ($ownsTransaction && $draft->sourceType !== JournalDraft::SOURCE_MANUAL) {
                 $this->failures->record($draft, $failure);
             }
 
@@ -120,11 +121,13 @@ final class PostingService
     }
 
     /**
+     * Checks a journal without writing anything and returns the normalized values.
+     *
      * @return array{lines: list<array<string, mixed>>, debit: string, credit: string, currency: string, rate: string}
      *
      * @throws PostingException
      */
-    private function prepare(JournalDraft $draft): array
+    public function validate(JournalDraft $draft): array
     {
         if (count($draft->lines) < 2) {
             throw new PostingException(PostingError::TooFewLines, 'A journal needs at least two lines.', ['lines' => count($draft->lines)]);
@@ -179,7 +182,7 @@ final class PostingService
             );
         }
 
-        $this->assertAccountsPostable($lines);
+        $this->assertAccountsPostable($lines, $draft->reversesJournalId !== null);
         $this->assertCostCentersExist($lines);
 
         return [
@@ -252,7 +255,7 @@ final class PostingService
 
     private function resolveCurrency(string $currencyCode): string
     {
-        $code = $currencyCode !== '' ? $currencyCode : model(Appconfig::class)->get_value('accounting_base_currency');
+        $code = $currencyCode !== '' ? $currencyCode : (new AccountingSettings($this->db))->baseCurrency();
 
         if (preg_match('/^[A-Z]{3}$/', $code) !== 1) {
             throw new PostingException(PostingError::InvalidCurrency, 'The currency code must be three capital letters.', ['currency' => $code]);
@@ -262,9 +265,11 @@ final class PostingService
     }
 
     /**
+     * A reversal may touch an account that was deactivated after the original was posted.
+     *
      * @param list<array<string, mixed>> $lines
      */
-    private function assertAccountsPostable(array $lines): void
+    private function assertAccountsPostable(array $lines, bool $allowInactive): void
     {
         $accountIds = array_values(array_unique(array_column($lines, 'account_id')));
 
@@ -279,7 +284,7 @@ final class PostingService
                 throw new PostingException(PostingError::AccountNotFound, "Account {$accountId} does not exist.", ['account_id' => $accountId]);
             }
 
-            if ((int) $found[$accountId]->is_group === 1 || (int) $found[$accountId]->active === 0) {
+            if ((int) $found[$accountId]->is_group === 1 || (! $allowInactive && (int) $found[$accountId]->active === 0)) {
                 throw new PostingException(PostingError::AccountNotPostable, "Account {$accountId} is a group or inactive.", ['account_id' => $accountId]);
             }
         }
@@ -328,22 +333,23 @@ final class PostingService
         $manual = $draft->sourceType === JournalDraft::SOURCE_MANUAL;
 
         $inserted = $this->db->table('accounting_journals')->insert([
-            'series'        => $manual ? 'manual' : 'auto',
-            'number'        => $manual ? $this->nextManualNumber() : null,
-            'journal_date'  => $draft->date,
-            'description'   => $draft->description === '' ? null : $draft->description,
-            'status'        => JournalStatus::Posted->value,
-            'source_type'   => $draft->sourceType,
-            'source_id'     => $draft->sourceId,
-            'revision'      => $draft->revision,
-            'origin'        => $draft->origin->value,
-            'currency_code' => $prepared['currency'],
-            'exchange_rate' => $prepared['rate'],
-            'total_debit'   => $prepared['debit'],
-            'total_credit'  => $prepared['credit'],
-            'created_by'    => $draft->employeeId,
-            'posted_by'     => $draft->employeeId,
-            'posted_at'     => date('Y-m-d H:i:s'),
+            'series'              => $manual ? 'manual' : 'auto',
+            'number'              => $manual ? $this->numbering->nextManual() : null,
+            'journal_date'        => $draft->date,
+            'description'         => $draft->description === '' ? null : $draft->description,
+            'status'              => JournalStatus::Posted->value,
+            'source_type'         => $draft->sourceType,
+            'source_id'           => $draft->sourceId,
+            'revision'            => $draft->revision,
+            'origin'              => $draft->origin->value,
+            'currency_code'       => $prepared['currency'],
+            'exchange_rate'       => $prepared['rate'],
+            'total_debit'         => $prepared['debit'],
+            'total_credit'        => $prepared['credit'],
+            'reverses_journal_id' => $draft->reversesJournalId,
+            'created_by'          => $draft->employeeId,
+            'posted_by'           => $draft->employeeId,
+            'posted_at'           => date('Y-m-d H:i:s'),
         ]);
 
         if ($inserted === false) {
@@ -372,21 +378,6 @@ final class PostingService
         ]);
 
         return $journalId;
-    }
-
-    private function nextManualNumber(): string
-    {
-        $table = $this->db->prefixTable('accounting_sequences');
-        $row   = $this->db->query("SELECT last_number FROM {$table} WHERE series = ? FOR UPDATE", ['manual'])->getRow();
-
-        if ($row === null) {
-            throw new PostingException(PostingError::WriteFailed, 'The manual journal number series is missing.');
-        }
-
-        $next = (int) $row->last_number + 1;
-        $this->db->table('accounting_sequences')->where('series', 'manual')->update(['last_number' => $next]);
-
-        return sprintf('%06d', $next);
     }
 
     private function isDuplicateEntry(Throwable $exception): bool

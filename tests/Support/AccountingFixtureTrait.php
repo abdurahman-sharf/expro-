@@ -2,6 +2,9 @@
 
 namespace Tests\Support;
 
+use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\AccountService;
+use App\Libraries\Accounting\DefaultChart;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
 use CodeIgniter\Database\BaseConnection;
@@ -9,6 +12,8 @@ use Config\Database;
 
 trait AccountingFixtureTrait
 {
+    use EmployeeFixtureTrait;
+
     protected function accountingDb(): BaseConnection
     {
         return Database::connect();
@@ -37,6 +42,25 @@ trait AccountingFixtureTrait
 
         $db->query('SET FOREIGN_KEY_CHECKS = 1');
         $db->table('accounting_sequences')->where('series', 'manual')->update(['last_number' => 0]);
+    }
+
+    /**
+     * Empties every accounting table and installs the default chart again, so a test starts
+     * from the chart the migration creates.
+     */
+    protected function reinstallChart(): void
+    {
+        $db = $this->accountingDb();
+        $this->clearJournals();
+        $db->query('SET FOREIGN_KEY_CHECKS = 0');
+
+        foreach (['accounting_routing', 'accounting_cost_centers', 'accounting_accounts', 'accounting_fiscal_years'] as $table) {
+            $db->table($table)->truncate();
+        }
+
+        $db->query('SET FOREIGN_KEY_CHECKS = 1');
+
+        (new DefaultChart($db))->install();
     }
 
     protected function releaseOpenTransactions(): void
@@ -69,6 +93,51 @@ trait AccountingFixtureTrait
         return $this->accountingDb()->table($table)->countAllResults();
     }
 
+    /**
+     * Adds a custom posting account under the account with the given code.
+     */
+    protected function customAccount(string $parentCode = '11', string $code = '1110', string $name = 'Custom account', bool $isGroup = false): int
+    {
+        return (new AccountService())->create([
+            'parent_id' => $this->accountIdByCode($parentCode),
+            'code'      => $code,
+            'name'      => $name,
+            'is_group'  => $isGroup,
+        ]);
+    }
+
+    /**
+     * An employee holding exactly the given permissions and nothing else.
+     *
+     * @param list<string> $permissionIds
+     */
+    protected function employeeWithGrants(array $permissionIds): int
+    {
+        return $this->createEmployee(grants: array_map(
+            static fn (string $permissionId): array => ['permission_id' => $permissionId, 'menu_group' => 'home'],
+            $permissionIds,
+        ));
+    }
+
+    /**
+     * @return list<string>
+     */
+    protected function allAccountingPermissions(): array
+    {
+        return [
+            'accounting_chart',
+            'accounting_journals',
+            'accounting_cost_centers',
+            AccountingGuard::CHART_MANAGE,
+            AccountingGuard::COST_CENTERS_MANAGE,
+            AccountingGuard::JOURNALS_ALL,
+            AccountingGuard::JOURNALS_DRAFT,
+            AccountingGuard::JOURNALS_POST,
+            AccountingGuard::JOURNALS_REVERSE,
+            AccountingGuard::JOURNALS_AUDIT,
+        ];
+    }
+
     protected function balancedDraft(
         string $sourceType = 'sale',
         ?int $sourceId = 1,
@@ -87,6 +156,23 @@ trait AccountingFixtureTrait
             employeeId: 1,
             currencyCode: 'SAR',
         );
+    }
+
+    /**
+     * Input for JournalService with a balanced cash and sales pair.
+     *
+     * @return array{date: string, description: string, lines: list<array<string, mixed>>}
+     */
+    protected function journalInput(string $amount = '100.00', string $description = 'Test journal'): array
+    {
+        return [
+            'date'        => '2026-10-21',
+            'description' => $description,
+            'lines'       => [
+                ['account_id' => $this->accountId('cash'), 'debit' => $amount, 'credit' => ''],
+                ['account_id' => $this->accountId('sales_revenue'), 'debit' => '', 'credit' => $amount],
+            ],
+        ];
     }
 
     /**

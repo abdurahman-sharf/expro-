@@ -24,6 +24,13 @@ final class AccountingSettings
         $this->audit  = new AuditLog($this->db);
     }
 
+    public function baseCurrency(): string
+    {
+        $code = $this->config->get_value(self::BASE_CURRENCY_KEY);
+
+        return preg_match('/^[A-Z]{3}$/', $code) === 1 ? $code : '';
+    }
+
     public function isEnabled(): bool
     {
         return $this->config->get_value(self::ENABLED_KEY, '0') === '1';
@@ -40,7 +47,7 @@ final class AccountingSettings
             $issues[] = new ReadinessIssue(ReadinessCode::NoAccounts);
         }
 
-        if (preg_match('/^[A-Z]{3}$/', $this->config->get_value(self::BASE_CURRENCY_KEY)) !== 1) {
+        if ($this->baseCurrency() === '') {
             $issues[] = new ReadinessIssue(ReadinessCode::BaseCurrencyMissing);
         }
 
