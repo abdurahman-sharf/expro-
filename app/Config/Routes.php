@@ -40,3 +40,99 @@ $routes->add('reports/specific_customers', 'Reports::specific_customer_input');
 $routes->add('reports/specific_employees', 'Reports::specific_employee_input');
 $routes->add('reports/specific_discounts', 'Reports::specific_discount_input');
 $routes->add('reports/specific_suppliers', 'Reports::specific_supplier_input');
+
+$routes->group('branches', static function (RouteCollection $routes): void {
+    $routes->get('/', 'Branches::getIndex');
+    $routes->get('search', 'Branches::getSearch');
+    $routes->get('row/(:num)', 'Branches::getRow/$1');
+    $routes->get('view', 'Branches::getView');
+    $routes->get('view/(:segment)', 'Branches::getView/$1');
+    $routes->post('save', 'Branches::postSave');
+    $routes->post('save/(:segment)', 'Branches::postSave/$1');
+    $routes->post('deactivate/(:num)', 'Branches::postDeactivate/$1');
+    $routes->post('activate/(:num)', 'Branches::postActivate/$1');
+    $routes->post('delete/(:num)', 'Branches::postDeleteBranch/$1');
+});
+
+$routes->group('accounting_settings', static function (RouteCollection $routes): void {
+    $routes->get('/', 'AccountingSetup::getIndex');
+    $routes->post('save', 'AccountingSetup::postSaveSettings');
+    $routes->post('first_year', 'AccountingSetup::postFirstYear');
+    $routes->post('enable', 'AccountingSetup::postEnable');
+    $routes->post('disable', 'AccountingSetup::postDisable');
+});
+
+$routes->group('accounting_periods', static function (RouteCollection $routes): void {
+    $routes->get('/', 'AccountingPeriods::getIndex');
+    $routes->get('search', 'AccountingPeriods::getSearch');
+    $routes->get('row/(:num)', 'AccountingPeriods::getRow/$1');
+    $routes->get('view', 'AccountingPeriods::getView');
+    $routes->get('view/(:segment)', 'AccountingPeriods::getView/$1');
+    $routes->post('save', 'AccountingPeriods::postSave');
+    $routes->post('save/(:segment)', 'AccountingPeriods::postSave/$1');
+    $routes->post('delete/(:num)', 'AccountingPeriods::postDeleteYear/$1');
+
+    $routes->get('closings', 'AccountingClosings::getIndex');
+    $routes->get('closings/search', 'AccountingClosings::getSearch');
+    $routes->get('closings/close_form', 'AccountingClosings::getCloseForm');
+    $routes->get('closings/preview', 'AccountingClosings::getPreview');
+    $routes->get('closings/reopen_form', 'AccountingClosings::getReopenForm');
+    $routes->post('closings/close', 'AccountingClosings::postClose');
+    $routes->post('closings/reopen', 'AccountingClosings::postReopen');
+
+    $routes->get('opening', 'AccountingOpening::getIndex');
+    $routes->get('opening/reverse_form', 'AccountingOpening::getReverseForm');
+    $routes->post('opening/save_draft', 'AccountingOpening::postSaveDraft');
+    $routes->post('opening/post', 'AccountingOpening::postPost');
+    $routes->post('opening/discard', 'AccountingOpening::postDiscard');
+    $routes->post('opening/reverse', 'AccountingOpening::postReverse');
+});
+
+$routes->group('accounting_chart', static function (RouteCollection $routes): void {
+    $routes->get('/', 'AccountingChart::getIndex');
+    $routes->get('tree', 'AccountingChart::getTree');
+    $routes->get('panel', 'AccountingChart::getPanel');
+    $routes->get('search', 'AccountingChart::getSearch');
+    $routes->get('row/(:num)', 'AccountingChart::getRow/$1');
+    $routes->get('view', 'AccountingChart::getView');
+    $routes->get('view/(:segment)', 'AccountingChart::getView/$1');
+    $routes->get('suggest_code/(:num)', 'AccountingChart::getSuggestCode/$1');
+    $routes->post('save', 'AccountingChart::postSave');
+    $routes->post('save/(:segment)', 'AccountingChart::postSave/$1');
+    $routes->post('deactivate/(:num)', 'AccountingChart::postDeactivate/$1');
+    $routes->post('activate/(:num)', 'AccountingChart::postActivate/$1');
+    $routes->post('delete/(:num)', 'AccountingChart::postDeleteAccount/$1');
+});
+
+$routes->group('accounting_cost_centers', static function (RouteCollection $routes): void {
+    $routes->get('/', 'AccountingCostCenters::getIndex');
+    $routes->get('search', 'AccountingCostCenters::getSearch');
+    $routes->get('row/(:num)', 'AccountingCostCenters::getRow/$1');
+    $routes->get('view', 'AccountingCostCenters::getView');
+    $routes->get('view/(:segment)', 'AccountingCostCenters::getView/$1');
+    $routes->post('save', 'AccountingCostCenters::postSave');
+    $routes->post('save/(:segment)', 'AccountingCostCenters::postSave/$1');
+    $routes->post('deactivate/(:num)', 'AccountingCostCenters::postDeactivate/$1');
+    $routes->post('activate/(:num)', 'AccountingCostCenters::postActivate/$1');
+    $routes->post('delete/(:num)', 'AccountingCostCenters::postDeleteCostCenter/$1');
+});
+
+$routes->group('accounting_journals', static function (RouteCollection $routes): void {
+    $routes->get('/', 'AccountingJournals::getIndex');
+    $routes->get('search', 'AccountingJournals::getSearch');
+    $routes->get('row/(:num)', 'AccountingJournals::getRow/$1');
+    $routes->get('new', 'AccountingJournals::getNew');
+    $routes->get('edit/(:num)', 'AccountingJournals::getEdit/$1');
+    $routes->get('view/(:num)', 'AccountingJournals::getShow/$1');
+    $routes->get('reverse_form/(:num)', 'AccountingJournals::getReverseForm/$1');
+    $routes->get('audit', 'AccountingJournals::getAudit');
+    $routes->get('audit/search', 'AccountingJournals::getAuditSearch');
+    $routes->post('save_draft', 'AccountingJournals::postSaveDraft');
+    $routes->post('save_draft/(:num)', 'AccountingJournals::postSaveDraft/$1');
+    $routes->post('post', 'AccountingJournals::postPost');
+    $routes->post('post/(:num)', 'AccountingJournals::postPost/$1');
+    $routes->post('post_drafts', 'AccountingJournals::postPostDrafts');
+    $routes->post('delete_drafts', 'AccountingJournals::postDeleteDrafts');
+    $routes->post('delete_draft/(:num)', 'AccountingJournals::postDeleteDraft/$1');
+    $routes->post('reverse/(:num)', 'AccountingJournals::postReverse/$1');
+});

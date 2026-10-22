@@ -5,6 +5,7 @@ namespace Tests\Models;
 use App\Models\Module;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
+use Config\Database;
 use Tests\Support\EmployeeFixtureTrait;
 
 class ModuleTest extends CIUnitTestCase
@@ -66,10 +67,74 @@ class ModuleTest extends CIUnitTestCase
         $this->assertSame(['sales'], $this->allowedModuleIds($personId));
     }
 
+    private function setAccountingEnabled(string $value): void
+    {
+        Database::connect()->table('app_config')->replace(['key' => 'accounting_enabled', 'value' => $value]);
+    }
+
+    public function testGetAllowedModules_HidesTheAccountingModulesWhileAccountingIsDisabled(): void
+    {
+        $this->setAccountingEnabled('0');
+
+        $personId = $this->createEmployee(grants: [
+            ['permission_id' => 'sales', 'menu_group' => 'home'],
+            ['permission_id' => 'accounting_chart', 'menu_group' => 'home'],
+            ['permission_id' => 'accounting_journals', 'menu_group' => 'home'],
+        ]);
+
+        $this->assertSame(['sales'], $this->allowedModuleIds($personId));
+    }
+
+    public function testGetAllowedModules_ShowsTheAccountingModulesOnceAccountingIsEnabled(): void
+    {
+        $this->setAccountingEnabled('1');
+
+        try {
+            $personId = $this->createEmployee(grants: [
+                ['permission_id' => 'sales', 'menu_group' => 'home'],
+                ['permission_id' => 'accounting_journals', 'menu_group' => 'home'],
+                ['permission_id' => 'accounting_chart', 'menu_group' => 'home'],
+            ]);
+
+            $this->assertSame(['sales', 'accounting_chart', 'accounting_journals'], $this->allowedModuleIds($personId));
+        } finally {
+            $this->setAccountingEnabled('0');
+        }
+    }
+
     public function testGetAllowedModules_ReturnsNothingWithoutGrants(): void
     {
         $personId = $this->createEmployee();
 
         $this->assertSame([], $this->allowedModuleIds($personId));
+    }
+
+    public function testGetAllowedModules_KeepsTheSettingsModuleVisibleWhileAccountingIsDisabled(): void
+    {
+        $this->setAccountingEnabled('0');
+
+        $personId = $this->createEmployee(grants: [
+            ['permission_id' => 'accounting_settings', 'menu_group' => 'home'],
+            ['permission_id' => 'accounting_periods', 'menu_group' => 'home'],
+            ['permission_id' => 'accounting_chart', 'menu_group' => 'home'],
+        ]);
+
+        $this->assertSame(['accounting_settings'], $this->allowedModuleIds($personId));
+    }
+
+    public function testGetAllowedModules_ShowsThePeriodsModuleOnceAccountingIsEnabled(): void
+    {
+        $this->setAccountingEnabled('1');
+
+        try {
+            $personId = $this->createEmployee(grants: [
+                ['permission_id' => 'accounting_periods', 'menu_group' => 'home'],
+                ['permission_id' => 'accounting_settings', 'menu_group' => 'home'],
+            ]);
+
+            $this->assertSame(['accounting_settings', 'accounting_periods'], array_values(array_intersect(['accounting_settings', 'accounting_periods'], $this->allowedModuleIds($personId))));
+        } finally {
+            $this->setAccountingEnabled('0');
+        }
     }
 }

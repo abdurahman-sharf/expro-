@@ -2,6 +2,12 @@
 
 namespace App\Controllers;
 
+use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\SensitivePermissions;
+use App\Libraries\Organization\BranchException;
+use App\Libraries\Organization\BranchGuard;
+use App\Libraries\Organization\BranchService;
+use App\Libraries\Organization\EmployeeBranchService;
 use App\Models\Module;
 use CodeIgniter\HTTP\Exceptions\RedirectException;
 use CodeIgniter\HTTP\ResponseInterface;
@@ -15,11 +21,16 @@ use Config\Services;
  */
 class Employees extends Persons
 {
+    private EmployeeBranchService $branchScopes;
+    private SensitivePermissions $sensitivePermissions;
+
     public function __construct()
     {
         parent::__construct('employees');
 
-        $this->module = model('Module');
+        $this->module               = model('Module');
+        $this->branchScopes         = new EmployeeBranchService(null, new BranchGuard(null, $this->employee));
+        $this->sensitivePermissions = new SensitivePermissions();
     }
 
     /**
@@ -100,12 +111,19 @@ class Employees extends Persons
 
         $permissions = [];
         foreach ($this->module->get_all_subpermissions()->getResult() as $permission) {    // TODO: subpermissions does not follow naming standards.
+            if ($permission->permission_id === BranchGuard::ALL_BRANCHES) {
+                continue;
+            }
+
             $permission->permission_id = str_replace(' ', '_', $permission->permission_id);
             $permission->grant = $this->employee->has_grant($permission->permission_id, $person_info->person_id);
 
             $permissions[] = $permission;
         }
-        $data['all_subpermissions'] = $permissions;
+        $data['all_subpermissions']    = $permissions;
+        $data['sensitive_permissions'] = AccountingGuard::SENSITIVE;
+        $data['is_admin']              = $this->employee->isAdmin($current_user->person_id);
+        $data['branch_tab']            = $this->branchTab($employee_id, $current_user->person_id);
 
         return view('employees/form', $data);
     }
@@ -154,9 +172,19 @@ class Employees extends Persons
 
         $grantsArray = [];
         $isAdmin = $this->employee->isAdmin($currentUser->person_id);
+        $sensitiveHeld = $employeeId == NEW_ENTRY ? [] : $this->sensitivePermissions->heldBy((int) $employeeId);
 
         foreach ($this->module->get_all_permissions()->getResult() as $permission) {
             $grants = [];
+
+            if (!$isAdmin && SensitivePermissions::isSensitive($permission->permission_id)) {
+                if (in_array($permission->permission_id, $sensitiveHeld, true)) {
+                    $grantsArray[] = ['permission_id' => $permission->permission_id, 'menu_group' => '--'];
+                }
+
+                continue;
+            }
+
             $grant = $this->request->getPost('grant_' . $permission->permission_id) != null ? $this->request->getPost('grant_' . $permission->permission_id, FILTER_SANITIZE_FULL_SPECIAL_CHARS) : '';
 
             if ($grant == $permission->permission_id) {
@@ -166,6 +194,22 @@ class Employees extends Persons
                 $grants['permission_id'] = $permission->permission_id;
                 $grants['menu_group'] = $this->request->getPost('menu_group_' . $permission->permission_id) != null ? $this->request->getPost('menu_group_' . $permission->permission_id, FILTER_SANITIZE_FULL_SPECIAL_CHARS) : '--';
                 $grantsArray[] = $grants;
+            }
+        }
+
+        $targetId       = $employeeId == NEW_ENTRY ? null : (int) $employeeId;
+        $previousScope  = $targetId === null ? null : $this->branchScopes->scopeOf($targetId);
+        $requestedScope = $this->requestedBranchScope($currentUser->person_id, $targetId);
+
+        if ($requestedScope !== null) {
+            try {
+                $this->branchScopes->validateScope($currentUser->person_id, $targetId, $requestedScope['all'], $requestedScope['branch_ids'], $requestedScope['default_branch_id']);
+            } catch (BranchException $exception) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => lang('Branches.error_' . $exception->error->value),
+                    'id'      => $employeeId
+                ]);
             }
         }
 
@@ -227,6 +271,23 @@ class Employees extends Persons
         }
 
         if ($this->employee->save_employee($personData, $employeeData, $grantsArray, $employeeId)) {
+            $this->sensitivePermissions->recordChange(
+                $currentUser->person_id,
+                (int) ($employeeId == NEW_ENTRY ? $employeeData['person_id'] : $employeeId),
+                $sensitiveHeld,
+                array_values(array_filter(array_column($grantsArray, 'permission_id'), [SensitivePermissions::class, 'isSensitive'])),
+            );
+
+            try {
+                $this->branchScopes->afterEmployeeSave($currentUser->person_id, (int) ($employeeId == NEW_ENTRY ? $employeeData['person_id'] : $employeeId), $previousScope, $requestedScope);
+            } catch (BranchException $exception) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => lang('Branches.error_' . $exception->error->value),
+                    'id'      => $employeeId
+                ]);
+            }
+
             // New employee
             if ($employeeId == NEW_ENTRY) {
                 return $this->response->setJSON([
@@ -264,7 +325,10 @@ class Employees extends Persons
         $currentGrantIds = [];
 
         if ($employeeId != NEW_ENTRY) {
-            $currentGrantIds = array_column($this->employee->get_employee_grants($employeeId), 'permission_id');
+            $currentGrantIds = array_values(array_diff(
+                array_column($this->employee->get_employee_grants($employeeId), 'permission_id'),
+                [BranchGuard::ALL_BRANCHES],
+            ));
 
             if (!$isAdmin) {
                 $currentGrantIds = array_values(array_filter(
@@ -276,10 +340,76 @@ class Employees extends Persons
 
         $submittedGrantIds = array_column($grantsArray, 'permission_id');
 
+        if (!$isAdmin) {
+            $submittedGrantIds = array_values(array_filter(
+                $submittedGrantIds,
+                fn ($permissionId) => $this->employee->has_grant($permissionId, $currentUser->person_id)
+            ));
+        }
+
         sort($currentGrantIds);
         sort($submittedGrantIds);
 
         return $currentGrantIds !== $submittedGrantIds;
+    }
+
+    /**
+     * The branches an employee works in, as the form shows them. Null hides the tab: it is only
+     * for someone who may set branches, and only once the company has more than one.
+     *
+     * @return array{scope: array{all: bool, branch_ids: list<int>, default_branch_id: ?int}, branches: list<object>, can_all: bool, locked: bool, hidden: bool}|null
+     */
+    private function branchTab(int $employeeId, int $actorId): ?array
+    {
+        $targetId = $employeeId == NEW_ENTRY ? null : $employeeId;
+
+        if (! $this->branchScopes->canManageScope($actorId, $targetId)) {
+            return null;
+        }
+
+        $branches = (new BranchService())->all($actorId);
+
+        if (count((new BranchService())->all()) < 2) {
+            return null;
+        }
+
+        $guard   = new BranchGuard(null, $this->employee);
+        $scope   = $targetId === null
+            ? ['all' => false, 'branch_ids' => [$guard->defaultBranchId($actorId)], 'default_branch_id' => $guard->defaultBranchId($actorId)]
+            : $this->branchScopes->scopeOf($targetId);
+        $visible = array_map(static fn (object $branch): int => (int) $branch->branch_id, $branches);
+
+        return [
+            'scope'    => $scope,
+            'branches' => $branches,
+            'can_all'  => $guard->isUnrestricted($actorId),
+            'locked'   => $scope['all'] && ! $guard->isUnrestricted($actorId),
+            'hidden'   => array_diff($scope['branch_ids'], $visible) !== [],
+        ];
+    }
+
+    /**
+     * The branches the employee form asked for, null when the form carried none or the actor may
+     * not change them.
+     *
+     * @return array{all: bool, branch_ids: list<int>, default_branch_id: ?int}|null
+     */
+    private function requestedBranchScope(int $actorId, ?int $targetId): ?array
+    {
+        if ($this->request->getPost('branch_scope_present') === null
+            || ! $this->branchScopes->canManageScope($actorId, $targetId)
+            || filter_var(getenv('DISALLOW_GRANT_CHANGE'), FILTER_VALIDATE_BOOLEAN)) {
+            return null;
+        }
+
+        $branchIds = $this->request->getPost('branch_ids');
+        $default   = (int) $this->request->getPost('default_branch_id');
+
+        return [
+            'all'               => $this->request->getPost('branch_scope') === 'all',
+            'branch_ids'        => is_array($branchIds) ? array_values(array_map('intval', $branchIds)) : [],
+            'default_branch_id' => $default > 0 ? $default : null,
+        ];
     }
 
     /**
@@ -299,7 +429,21 @@ class Employees extends Persons
             }
         }
 
+        if ((new EmployeeBranchService())->wouldLeaveNobodyWithEveryBranch((array) $employees_to_delete)) {
+            return $this->response->setJSON(['success' => false, 'message' => lang('Branches.error_last_unrestricted')]);
+        }
+
+        $sensitiveHeld = [];
+
+        foreach ((array) $employees_to_delete as $employeeId) {
+            $sensitiveHeld[(int) $employeeId] = $this->sensitivePermissions->heldBy((int) $employeeId);
+        }
+
         if ($this->employee->delete_list($employees_to_delete)) {    // TODO: this is passing a string, but delete_list expects an array
+            foreach ($sensitiveHeld as $employeeId => $held) {
+                $this->sensitivePermissions->recordChange($current_user->person_id, $employeeId, $held, []);
+            }
+
             return $this->response->setJSON([
                 'success' => true,
                 'message' => lang('Employees.successful_deleted') . ' ' . count($employees_to_delete) . ' ' . lang('Employees.one_or_multiple')

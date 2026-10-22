@@ -6,6 +6,7 @@ use CodeIgniter\Database\Config;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
+use App\Libraries\Organization\BranchGuard;
 use App\Models\Employee;
 use RuntimeException;
 
@@ -558,5 +559,89 @@ class HomeTest extends CIUnitTestCase
 
         $response->assertRedirect();
         $this->assertStringContainsString('no_access', $response->getRedirectUrl());
+    }
+
+    private function withSecondBranch(callable $test): void
+    {
+        $this->db->query('SET FOREIGN_KEY_CHECKS = 0');
+        $this->db->table('employee_branches')->where('branch_id !=', 1)->delete();
+        $this->db->table('branches')->where('branch_id !=', 1)->delete();
+        $this->db->query('SET FOREIGN_KEY_CHECKS = 1');
+        $this->db->table('branches')->insert(['company_id' => 1, 'code' => 'B2', 'name' => 'Second branch']);
+
+        $branchId = (int) $this->db->insertID();
+
+        try {
+            $test($branchId);
+        } finally {
+            $this->db->query('SET FOREIGN_KEY_CHECKS = 0');
+            $this->db->table('employee_branches')->where('branch_id', $branchId)->delete();
+            $this->db->table('branches')->where('branch_id', $branchId)->delete();
+            $this->db->query('SET FOREIGN_KEY_CHECKS = 1');
+            service('session')->remove('current_branch_id');
+        }
+    }
+
+    private function withEveryBranch(int $personId): void
+    {
+        $this->db->table('grants')->where('person_id', $personId)->where('permission_id', BranchGuard::ALL_BRANCHES)->delete();
+        $this->db->table('grants')->insert(['permission_id' => BranchGuard::ALL_BRANCHES, 'person_id' => $personId, 'menu_group' => '--']);
+    }
+
+    public function testPostSwitchBranch_RemembersABranchTheEmployeeMayUse(): void
+    {
+        $this->withSecondBranch(function (int $branchId): void {
+            $this->withEveryBranch(1);
+            $this->resetSession();
+
+            $result = json_decode($this->post('/home/switchBranch', ['branch_id' => (string) $branchId])->getJSON(), true);
+
+            $this->assertTrue($result['success']);
+            $this->assertSame((string) $branchId, service('session')->get('current_branch_id'));
+        });
+    }
+
+    public function testPostSwitchBranch_AcceptsEveryBranchAsNoChoice(): void
+    {
+        $this->withSecondBranch(function (int $branchId): void {
+            $this->withEveryBranch(1);
+            $this->resetSession();
+            $this->post('/home/switchBranch', ['branch_id' => (string) $branchId]);
+
+            $result = json_decode($this->post('/home/switchBranch', ['branch_id' => ''])->getJSON(), true);
+
+            $this->assertTrue($result['success']);
+            $this->assertSame('all', service('session')->get('current_branch_id'));
+        });
+    }
+
+    public function testPostSwitchBranch_RefusesABranchOutsideTheEmployeesScope(): void
+    {
+        $this->withSecondBranch(function (int $branchId): void {
+            $employeeId = $this->createNonAdminEmployee();
+            $this->db->table('employee_branches')->insert(['person_id' => $employeeId, 'branch_id' => 1, 'is_default' => 1]);
+            $this->loginAs($employeeId);
+
+            $result = json_decode($this->post('/home/switchBranch', ['branch_id' => (string) $branchId])->getJSON(), true);
+
+            $this->assertFalse($result['success']);
+            $this->assertNull(service('session')->get('current_branch_id'));
+        });
+    }
+
+    public function testGetIndex_ShowsTheBranchSwitcherOnlyToSomeoneWhoCanUseSeveralBranches(): void
+    {
+        $this->withSecondBranch(function (): void {
+            $this->withEveryBranch(1);
+            $this->resetSession();
+
+            $this->get('/home')->assertSee('id="branch_switcher"');
+
+            $employeeId = $this->createNonAdminEmployee();
+            $this->db->table('employee_branches')->insert(['person_id' => $employeeId, 'branch_id' => 1, 'is_default' => 1]);
+            $this->loginAs($employeeId);
+
+            $this->get('/home')->assertDontSee('id="branch_switcher"');
+        });
     }
 }

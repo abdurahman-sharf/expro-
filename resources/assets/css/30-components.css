@@ -315,6 +315,10 @@
     margin: 0;
 }
 
+#app-toasts {
+    z-index: 2000;
+}
+
 .app-toast-in {
     animation: toast-in .2s ease-out;
 }

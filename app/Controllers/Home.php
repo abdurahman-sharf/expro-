@@ -3,6 +3,8 @@
 namespace App\Controllers;
 
 use App\Libraries\Dashboard_lib;
+use App\Libraries\Organization\BranchContext;
+use App\Libraries\Organization\BranchException;
 use App\Models\Employee;
 use CodeIgniter\HTTP\RedirectResponse;
 use CodeIgniter\HTTP\ResponseInterface;
@@ -44,6 +46,24 @@ class Home extends Secure_Controller
         $grants   = array_column($this->employee->get_employee_grants($personId), 'permission_id');
 
         return $this->response->setJSON(navigationSearchIndex($modules, $grants));
+    }
+
+    /**
+     * Remembers the branch the employee chose to work in. It only sets the defaults: every
+     * request still checks the employee's branches.
+     */
+    public function postSwitchBranch(): ResponseInterface
+    {
+        $personId = (int) $this->employee->get_logged_in_employee_info()->person_id;
+        $branchId = (int) $this->request->getPost('branch_id');
+
+        try {
+            (new BranchContext())->switchTo($personId, $branchId > 0 ? $branchId : null);
+        } catch (BranchException $exception) {
+            return $this->response->setJSON(['success' => false, 'message' => lang('Branches.error_' . $exception->error->value)]);
+        }
+
+        return $this->response->setJSON(['success' => true]);
     }
 
     /**

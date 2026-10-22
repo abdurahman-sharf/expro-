@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Libraries\Accounting\AccountingSettings;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Model;
 
@@ -99,6 +100,14 @@ class Module extends Model
         $builder->where('person_id', $personId);
         $builder->where('sort !=', 0);
         $builder->where('modules.module_id !=', 'office');
+
+        if (! (new AccountingSettings($this->db))->isEnabled()) {
+            $builder->groupStart()
+                ->notLike('modules.module_id', 'accounting_', 'after')
+                ->orWhere('modules.module_id', 'accounting_settings')
+                ->groupEnd();
+        }
+
         $builder->orderBy('sort', 'asc');
 
         return $builder->get();
