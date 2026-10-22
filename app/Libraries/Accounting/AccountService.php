@@ -91,6 +91,10 @@ final class AccountService
             $name = $this->normalizeName((string) $input['name']);
 
             if ($name !== $account->name) {
+                if ($account->entity_type !== null) {
+                    throw new AccountingException(AccountingError::SystemAccountLocked, 'The name of an entity account follows the entity.');
+                }
+
                 $this->assertNameFree($name, $account->parent_id === null ? null : (int) $account->parent_id, $accountId);
                 $changes['name'] = $name;
             }

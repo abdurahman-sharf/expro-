@@ -5,53 +5,96 @@ namespace Tests\Libraries\Accounting;
 use App\Libraries\Accounting\InvoiceRounding;
 use CodeIgniter\Test\CIUnitTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\Support\ParityFixture;
 
+/**
+ * Fixture T-04: six invoices entered in the reference system. Four come out the same here. In
+ * the other two the total fell exactly half a halala between two amounts and the reference
+ * system rounded down where this rounds up, so the results differ by one halala. Those two are
+ * pinned as differences: they are not matches, and a change in either direction fails a test.
+ */
 class InvoiceRoundingTest extends CIUnitTestCase
 {
     /**
-     * Net, tax, then the total and revenue the reference system stored, from invoices
-     * entered there. The first four are the cases this reproduces exactly; in the last two the
-     * total fell exactly between two cents and the reference system rounded down.
-     *
-     * @return array<string, array{string, string, string, string, bool}>
+     * @return array<string, array{array<string, mixed>}>
      */
-    public static function recordedInvoicesProvider(): array
+    public static function exactProvider(): array
     {
-        return [
-            'net 0.10'   => ['0.10', '0.015', '0.12', '0.105', true],
-            'net 1.30'   => ['1.30', '0.195', '1.50', '1.305', true],
-            'net 10.10'  => ['10.10', '1.515', '11.62', '10.105', true],
-            'net 20.30'  => ['20.30', '3.045', '23.35', '20.305', true],
-            'net 0.70'   => ['0.70', '0.105', '0.80', '0.695', false],
-            'net 319.50' => ['319.50', '47.925', '367.42', '319.495', false],
-        ];
+        return self::dataSets('exact');
     }
 
-    #[DataProvider('recordedInvoicesProvider')]
-    public function testSplit_StaysWithinOneCentOfTheReferenceSystem(string $net, string $tax, string $total, string $revenue, bool $exact): void
+    /**
+     * @return array<string, array{array<string, mixed>}>
+     */
+    public static function oneHalalaProvider(): array
     {
-        $split = InvoiceRounding::split($net, $tax);
-
-        $this->assertEqualsWithDelta((float) $total, (float) $split['total'], $exact ? 0.00001 : 0.01001);
-        $this->assertEqualsWithDelta((float) $revenue, (float) $split['revenue'], $exact ? 0.00001 : 0.01001);
+        return self::dataSets('one_halala');
     }
 
-    #[DataProvider('recordedInvoicesProvider')]
-    public function testSplit_KeepsTheTaxUnroundedAndBalancesTheJournal(string $net, string $tax): void
+    /**
+     * @return array<string, array{array<string, mixed>}>
+     */
+    private static function dataSets(string $classification): array
     {
-        $split = InvoiceRounding::split($net, $tax);
+        return array_filter(ParityFixture::cases('T-04', 'rounding'), static fn (array $set): bool => $set[0]['classification'] === $classification);
+    }
 
-        $this->assertSame(bcadd($tax, '0', 4), $split['tax']);
+    /**
+     * @param array<string, mixed> $case
+     */
+    #[DataProvider('exactProvider')]
+    public function testSplit_GivesTheTotalAndRevenueTheReferenceSystemStored(array $case): void
+    {
+        $split = InvoiceRounding::split($case['inputs']['net'], $case['inputs']['tax']);
+
+        $this->assertSame(bcadd($case['reference']['total'], '0', 4), $split['total'], $case['id']);
+        $this->assertSame(bcadd($case['reference']['revenue'], '0', 4), $split['revenue'], $case['id']);
+    }
+
+    /**
+     * @param array<string, mixed> $case
+     */
+    #[DataProvider('oneHalalaProvider')]
+    public function testSplit_DiffersFromTheReferenceSystemByExactlyOneHalalaOnADisputedTie(array $case): void
+    {
+        $split = InvoiceRounding::split($case['inputs']['net'], $case['inputs']['tax']);
+
+        $this->assertSame(bcadd($case['expected']['total'], '0', 4), $split['total'], $case['id']);
+        $this->assertSame(bcadd($case['expected']['revenue'], '0', 4), $split['revenue'], $case['id']);
+        $this->assertNotSame(bcadd($case['reference']['total'], '0', 4), $split['total'], "{$case['id']} must not be counted as matching");
+        $this->assertSame('0.0100', bcsub($split['total'], $case['reference']['total'], 4), $case['id']);
+        $this->assertSame('0.0100', bcsub($split['revenue'], $case['reference']['revenue'], 4), $case['id']);
+    }
+
+    /**
+     * @param array<string, mixed> $case
+     */
+    #[DataProvider('oneHalalaProvider')]
+    public function testSplit_OnlyDiffersWhereTheTotalFallsExactlyBetweenTwoHalalas(array $case): void
+    {
+        $exact = bcadd($case['inputs']['net'], $case['inputs']['tax'], 4);
+
+        $this->assertSame('5', substr($exact, -2, 1), $case['id']);
+        $this->assertSame('0', substr($exact, -1), $case['id']);
+    }
+
+    public function testFixture_RecordsFourExactCasesAndTwoThatDifferByOneHalala(): void
+    {
+        $this->assertCount(4, self::exactProvider());
+        $this->assertCount(2, self::oneHalalaProvider());
+        $this->assertCount(6, ParityFixture::cases('T-04', 'rounding'));
+    }
+
+    #[DataProvider('exactProvider')]
+    public function testSplit_KeepsTheTaxUnroundedAndBalancesTheJournal(array $case): void
+    {
+        $split = InvoiceRounding::split($case['inputs']['net'], $case['inputs']['tax']);
+
+        $this->assertSame(bcadd($case['inputs']['tax'], '0', 4), $split['tax']);
         $this->assertSame($split['total'], bcadd($split['revenue'], $split['tax'], 4));
     }
 
-    public function testSplit_RoundsAnExactHalfCentUp(): void
-    {
-        $this->assertSame('0.8100', InvoiceRounding::split('0.70', '0.105')['total']);
-        $this->assertSame('367.4300', InvoiceRounding::split('319.50', '47.925')['total']);
-    }
-
-    public function testSplit_LeavesAWholeCentAlone(): void
+    public function testSplit_LeavesAWholeHalalaAlone(): void
     {
         $split = InvoiceRounding::split('100.00', '15.00');
 

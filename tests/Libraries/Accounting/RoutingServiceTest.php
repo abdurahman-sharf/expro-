@@ -193,6 +193,17 @@ class RoutingServiceTest extends CIUnitTestCase
         $this->assertSame($this->accountId('giftcard_liability'), $items['payment.giftcard']->accountId);
     }
 
+    public function testItems_MarksARowSavedWithATypeNothingAppliesAsNotAppliedYet(): void
+    {
+        $this->service->save(['sales.revenue' => ['type' => 'per_item'], 'sales.customers' => ['type' => 'main_per_entity']], $this->manager);
+
+        $items = $this->itemsByKey();
+
+        $this->assertSame(RoutingItem::UNSUPPORTED, $items['sales.revenue']->status);
+        $this->assertSame(RoutingItem::UNSUPPORTED, $items['sales.customers']->status);
+        $this->assertSame(RoutingItem::COMPLETE, $items['sales.returns']->status);
+    }
+
     public function testItems_MarksAnUnmappedSalesRowMissing(): void
     {
         $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.cogs')->update(['account_id' => null]);

@@ -1,0 +1,72 @@
+{
+  "id": "T-02",
+  "title": "A fixed item discount is a discount for each unit",
+  "recorded": "2026-10-22",
+  "evidence": {
+    "invoice_000003": {
+      "id": "ev_200f0391250683f2cbbda0d17d3c27024df506192a515b033badb36edaca056c",
+      "note": "Invoice 000003: 3 x 75 with a fixed discount of 10, journal 17"
+    }
+  },
+  "cases": [
+    {
+      "id": "line-3x75-fixed-10",
+      "kind": "line",
+      "classification": "exact",
+      "evidence": [
+        "invoice_000003"
+      ],
+      "inputs": {
+        "quantity": "3",
+        "price": "75",
+        "discount": "10",
+        "discount_type": "fixed"
+      },
+      "expected": {
+        "line_total": "195.00",
+        "discount_amount": "30.00"
+      }
+    },
+    {
+      "id": "tax-on-195",
+      "kind": "tax",
+      "classification": "exact",
+      "evidence": [
+        "invoice_000003"
+      ],
+      "inputs": {
+        "basis": "195.00",
+        "rate": "15"
+      },
+      "expected": {
+        "tax": "29.25"
+      }
+    },
+    {
+      "id": "totals-invoice-000003",
+      "kind": "totals",
+      "classification": "exact",
+      "evidence": [
+        "invoice_000003"
+      ],
+      "inputs": {
+        "lines": [
+          {
+            "item_id": 3,
+            "quantity": "3",
+            "price": "75",
+            "discount": "10",
+            "discount_type": "fixed"
+          }
+        ],
+        "tax_rate": "15"
+      },
+      "expected": {
+        "subtotal": "195.00",
+        "tax_total": "29.25",
+        "total": "224.25",
+        "total_discount": "30.00"
+      }
+    }
+  ]
+}

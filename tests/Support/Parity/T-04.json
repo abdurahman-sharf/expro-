@@ -1,0 +1,173 @@
+{
+  "id": "T-04",
+  "title": "Rounding of an invoice journal: tax kept, total to two decimals, revenue as the rest. Two exact half-halala ties differ from the reference system by one halala and are not counted as matching",
+  "recorded": "2026-10-22",
+  "evidence": {
+    "probe_0_10": {
+      "id": "ev_323c827956fbe8b2aef23d0ed7756eced4b34c522f3eb7761d999c7646cf4aa2",
+      "note": "Invoice for a net of 0.10, journal 83"
+    },
+    "probe_1_30": {
+      "id": "ev_25b2f942bbf8fb32950c9c1366bfbacdcaab74b8ceff507b8b8fd2daf76df4d1",
+      "note": "Invoice for a net of 1.30, journal 85"
+    },
+    "probe_0_70": {
+      "id": "ev_a14a57be1fed4a677a40f8841c1985d05430cf3f13b38b5d16edf1d588a58cd1",
+      "note": "Invoice for a net of 0.70, journal 87"
+    },
+    "probe_10_10": {
+      "id": "ev_2c3272611ee08df9d4d70c16ad11b86231a7e4d325e8a0653868fced1ca18da8",
+      "note": "Invoice for a net of 10.10, journal 89"
+    },
+    "probe_20_30": {
+      "id": "ev_1dd50acd5da2b1901b4554397f7bbcdfc2bdf8a9d055122398dfb1c5b0b6370f",
+      "note": "Invoice for a net of 20.30, journal 91"
+    },
+    "raw_journals_probes": {
+      "id": "ev_62568517a0821ff07ddb9e16ddff15dde4c9b9afa0ab9c2a02628ea33ee6c732",
+      "note": "Stored values of journals 83, 85, 87, 89 and 91 read from their edit forms"
+    },
+    "invoice_000004": {
+      "id": "ev_fd535e4a9e671dde66dcfe160ac5a28e87ddb3c46430267091b3deb98bc03c8b",
+      "note": "Invoice 000004, net 319.50 after a 10% invoice discount, journal 19"
+    },
+    "invoice_000004_raw_journal": {
+      "id": "ev_e090fdaa537000abfef1f72052577dedd01206a3d4406eae759b47812f138c7d",
+      "note": "Stored values of journal 19"
+    }
+  },
+  "cases": [
+    {
+      "id": "net-0.10",
+      "kind": "rounding",
+      "classification": "exact",
+      "evidence": [
+        "probe_0_10",
+        "raw_journals_probes"
+      ],
+      "inputs": {
+        "net": "0.10",
+        "tax": "0.015"
+      },
+      "reference": {
+        "total": "0.12",
+        "revenue": "0.105"
+      },
+      "expected": {
+        "total": "0.12",
+        "revenue": "0.105",
+        "difference_to_reference": "0.00"
+      }
+    },
+    {
+      "id": "net-1.30",
+      "kind": "rounding",
+      "classification": "exact",
+      "evidence": [
+        "probe_1_30",
+        "raw_journals_probes"
+      ],
+      "inputs": {
+        "net": "1.30",
+        "tax": "0.195"
+      },
+      "reference": {
+        "total": "1.50",
+        "revenue": "1.305"
+      },
+      "expected": {
+        "total": "1.50",
+        "revenue": "1.305",
+        "difference_to_reference": "0.00"
+      }
+    },
+    {
+      "id": "net-10.10",
+      "kind": "rounding",
+      "classification": "exact",
+      "evidence": [
+        "probe_10_10",
+        "raw_journals_probes"
+      ],
+      "inputs": {
+        "net": "10.10",
+        "tax": "1.515"
+      },
+      "reference": {
+        "total": "11.62",
+        "revenue": "10.105"
+      },
+      "expected": {
+        "total": "11.62",
+        "revenue": "10.105",
+        "difference_to_reference": "0.00"
+      }
+    },
+    {
+      "id": "net-20.30",
+      "kind": "rounding",
+      "classification": "exact",
+      "evidence": [
+        "probe_20_30",
+        "raw_journals_probes"
+      ],
+      "inputs": {
+        "net": "20.30",
+        "tax": "3.045"
+      },
+      "reference": {
+        "total": "23.35",
+        "revenue": "20.305"
+      },
+      "expected": {
+        "total": "23.35",
+        "revenue": "20.305",
+        "difference_to_reference": "0.00"
+      }
+    },
+    {
+      "id": "net-0.70",
+      "kind": "rounding",
+      "classification": "one_halala",
+      "evidence": [
+        "probe_0_70",
+        "raw_journals_probes"
+      ],
+      "inputs": {
+        "net": "0.70",
+        "tax": "0.105"
+      },
+      "reference": {
+        "total": "0.80",
+        "revenue": "0.695"
+      },
+      "expected": {
+        "total": "0.81",
+        "revenue": "0.705",
+        "difference_to_reference": "0.01"
+      }
+    },
+    {
+      "id": "net-319.50",
+      "kind": "rounding",
+      "classification": "one_halala",
+      "evidence": [
+        "invoice_000004",
+        "invoice_000004_raw_journal"
+      ],
+      "inputs": {
+        "net": "319.50",
+        "tax": "47.925"
+      },
+      "reference": {
+        "total": "367.42",
+        "revenue": "319.495"
+      },
+      "expected": {
+        "total": "367.43",
+        "revenue": "319.505",
+        "difference_to_reference": "0.01"
+      }
+    }
+  ]
+}

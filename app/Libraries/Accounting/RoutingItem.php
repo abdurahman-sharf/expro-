@@ -4,10 +4,11 @@ namespace App\Libraries\Accounting;
 
 final readonly class RoutingItem
 {
-    public const COMPLETE = 'complete';
-    public const MISSING  = 'missing';
-    public const INVALID  = 'invalid';
-    public const OPTIONAL = 'optional';
+    public const COMPLETE    = 'complete';
+    public const MISSING     = 'missing';
+    public const INVALID     = 'invalid';
+    public const OPTIONAL    = 'optional';
+    public const UNSUPPORTED = 'unsupported';
 
     /**
      * @param self::*      $status

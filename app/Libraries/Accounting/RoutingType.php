@@ -19,6 +19,19 @@ enum RoutingType: string
      * its own account. Cancelled writes no line for the row, so the amount nets into the
      * line it belongs to. MainPerEntity lets each customer name its own main account.
      */
+    /**
+     * Whether posting acts on this type today. A row may be saved with any type it offers, but
+     * only these two change what a journal does: the others are kept as settings until the
+     * phases that apply them, and a posting that meets one stops instead of guessing.
+     */
+    public function isImplemented(): bool
+    {
+        return match ($this) {
+            self::Auto, self::Cancelled => true,
+            self::PerItem, self::MainPerEntity => false,
+        };
+    }
+
     public function number(): int
     {
         return match ($this) {

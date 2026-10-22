@@ -1,0 +1,196 @@
+{
+  "id": "T-05",
+  "title": "Weighted average cost over purchases, sales and returns. The cost of a return differs: the reference system uses the cost of the original sale, this uses the current average",
+  "recorded": "2026-10-22",
+  "evidence": {
+    "purchase_000003": {
+      "id": "ev_387dfebdc191b2e9464ea7b1b713e85393a14495a790b40acc137045520d974d",
+      "note": "Purchase 000003: 10 units at 50, journal 37"
+    },
+    "purchase_000004": {
+      "id": "ev_ee1563bb6599bebb7f049867210d3ea07472f02b8f0fe740eda5601d9a597d55",
+      "note": "Purchase 000004: 10 units at 70, journal 39"
+    },
+    "sale_000013": {
+      "id": "ev_586c7c617eccd150b64ef98a94e0c634f69bc1ffc94c5a02ef0bebdaa9e9ee19",
+      "note": "Sale 000013: 5 units, cost of sales journal 42 is 300"
+    },
+    "credit_note_000002": {
+      "id": "ev_c51ae6a7d22905f39dedaa832bd59c9c25e1cd560968d52ff43835f0c7c90359",
+      "note": "Credit note 000002: 2 units returned, cost journal 44 is 120"
+    },
+    "purchase_000005": {
+      "id": "ev_a8e2e4121aee8561450b9d7c8e3eb96d7f87512731efbbdd278602f611f23d03",
+      "note": "Purchase 000005: 3 units at 100, journal 45"
+    },
+    "credit_note_000003": {
+      "id": "ev_95c17634fa96121284b3b690b73ed228da58d1952da75ccc991155ffa2f4c757",
+      "note": "Credit note 000003: 1 unit returned, cost journal 48 is 60.00 (the cost of the original sale)"
+    },
+    "sale_000014": {
+      "id": "ev_cc6c8bf46f30ff13654c09de671fe978e6f7c602a9c5520c7f9460910d08617a",
+      "note": "Sale 000014: 1 unit, cost of sales journal 50 is 66.00"
+    },
+    "valuation_report": {
+      "id": "ev_9e474a68111a42879fcc081136dcc2b9ddb65814486e0e1a28d24881065b8e5f",
+      "note": "Stock valuation report on 22/10: 20 units valued 1314 from the movements"
+    }
+  },
+  "cases": [
+    {
+      "id": "sequence",
+      "kind": "cost_sequence",
+      "evidence": [
+        "purchase_000003",
+        "purchase_000004",
+        "sale_000013",
+        "credit_note_000002",
+        "purchase_000005",
+        "credit_note_000003",
+        "sale_000014"
+      ],
+      "steps": [
+        {
+          "name": "P1",
+          "op": "purchase",
+          "quantity": 10,
+          "unit_cost": "50",
+          "old_cost": "0",
+          "stock_after": 10,
+          "evidence": [
+            "purchase_000003"
+          ],
+          "reference": {
+            "cost": "50"
+          },
+          "expected": {
+            "cost": "50"
+          },
+          "classification": "exact"
+        },
+        {
+          "name": "P2",
+          "op": "purchase",
+          "quantity": 10,
+          "unit_cost": "70",
+          "stock_after": 20,
+          "evidence": [
+            "purchase_000004",
+            "sale_000013"
+          ],
+          "reference": {
+            "cost": "60",
+            "note": "the average the reference system used for the next sale (5 x 60)"
+          },
+          "expected": {
+            "cost": "60"
+          },
+          "classification": "exact"
+        },
+        {
+          "name": "S1",
+          "op": "sale",
+          "quantity": 5,
+          "stock_after": 15,
+          "evidence": [
+            "sale_000013"
+          ],
+          "reference": {
+            "cost": "60"
+          },
+          "expected": {
+            "cost": "60"
+          },
+          "classification": "exact"
+        },
+        {
+          "name": "R1",
+          "op": "return",
+          "quantity": 2,
+          "stock_after": 17,
+          "evidence": [
+            "credit_note_000002"
+          ],
+          "reference": {
+            "cost": "60"
+          },
+          "expected": {
+            "cost": "60"
+          },
+          "classification": "exact"
+        },
+        {
+          "name": "P3",
+          "op": "purchase",
+          "quantity": 3,
+          "unit_cost": "100",
+          "stock_after": 20,
+          "evidence": [
+            "purchase_000005"
+          ],
+          "reference": {
+            "cost": "66"
+          },
+          "expected": {
+            "cost": "66"
+          },
+          "classification": "exact"
+        },
+        {
+          "name": "R2",
+          "op": "return",
+          "quantity": 1,
+          "stock_after": 21,
+          "evidence": [
+            "credit_note_000003"
+          ],
+          "reference": {
+            "cost": "60",
+            "note": "the reference system returns at the cost of the original sale"
+          },
+          "expected": {
+            "cost": "66",
+            "note": "this takes the current average cost of the item"
+          },
+          "classification": "differs"
+        },
+        {
+          "name": "S2",
+          "op": "sale",
+          "quantity": 1,
+          "stock_after": 20,
+          "evidence": [
+            "sale_000014"
+          ],
+          "reference": {
+            "cost": "66"
+          },
+          "expected": {
+            "cost": "66"
+          },
+          "classification": "exact"
+        }
+      ]
+    },
+    {
+      "id": "valuation-after-p3",
+      "kind": "valuation",
+      "classification": "differs",
+      "evidence": [
+        "valuation_report"
+      ],
+      "inputs": {
+        "stock": 20,
+        "average_cost": "66"
+      },
+      "reference": {
+        "value": "1314",
+        "note": "from the stock movements"
+      },
+      "expected": {
+        "value": "1320",
+        "note": "average cost times quantity"
+      }
+    }
+  ]
+}

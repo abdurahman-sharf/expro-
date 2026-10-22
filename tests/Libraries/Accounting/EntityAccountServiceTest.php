@@ -4,8 +4,17 @@ namespace Tests\Libraries\Accounting;
 
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\AccountingNotReadyException;
+use App\Libraries\Accounting\AccountingSettings;
+use App\Libraries\Accounting\AccountService;
 use App\Libraries\Accounting\EntityAccountService;
+use App\Libraries\Accounting\ReadinessCode;
+use App\Models\Customer;
+use App\Models\Stock_location;
+use App\Models\Supplier;
 use CodeIgniter\Database\BaseConnection;
+use CodeIgniter\Database\Exceptions\DatabaseException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -21,7 +30,8 @@ class EntityAccountServiceTest extends CIUnitTestCase
     protected $refresh     = false;
     protected $namespace   = null;
     private EntityAccountService $service;
-    private ?BaseConnection $other = null;
+    private ?BaseConnection $other                           = null;
+    private ?int $removeLocationPermissionsAfterTheTest = null;
 
     public static function setUpBeforeClass(): void
     {
@@ -43,6 +53,13 @@ class EntityAccountServiceTest extends CIUnitTestCase
     {
         $this->releaseOpenTransactions();
 
+        if ($this->removeLocationPermissionsAfterTheTest !== null) {
+            $this->removeLocationPermissions($this->removeLocationPermissionsAfterTheTest);
+            $this->removeLocationPermissionsAfterTheTest = null;
+        }
+
+        session()->remove('person_id');
+
         if ($this->other !== null) {
             $this->other->transRollback();
             $this->other->close();
@@ -53,6 +70,25 @@ class EntityAccountServiceTest extends CIUnitTestCase
         $this->setConfigValue('accounting_enabled', '0');
 
         parent::tearDown();
+    }
+
+    /**
+     * @param list<string> $grants
+     */
+    private function actAsEmployeeWith(array $grants): void
+    {
+        session()->set('person_id', $this->employeeWithGrants($grants));
+    }
+
+    private function removeLocationPermissions(int $locationId): void
+    {
+        $db            = $this->accountingDb();
+        $permissionIds = array_column($db->table('permissions')->select('permission_id')->where('location_id', $locationId)->get()->getResultArray(), 'permission_id');
+
+        if ($permissionIds !== []) {
+            $db->table('grants')->whereIn('permission_id', $permissionIds)->delete();
+            $db->table('permissions')->whereIn('permission_id', $permissionIds)->delete();
+        }
     }
 
     private function accountRow(int $accountId): object
@@ -208,6 +244,19 @@ class EntityAccountServiceTest extends CIUnitTestCase
         $accountId = (new EntityAccountService($this->other))->ensure(EntityAccountService::CUSTOMER, $second, 'Hind Saad');
 
         $this->assertSame('12041002', $this->accountRow($accountId)->code);
+    }
+
+    public function testEnsure_ReturnsTheAccountAnotherRequestOpenedMeanwhileInsteadOfFailingOrDuplicating(): void
+    {
+        $this->other = $this->openSecondConnection();
+        $customerId  = $this->insertCustomer();
+
+        $this->startWithSnapshot($this->other);
+        $first  = $this->service->ensure(EntityAccountService::CUSTOMER, $customerId, 'Omar Khaled');
+        $second = (new EntityAccountService($this->other))->ensure(EntityAccountService::CUSTOMER, $customerId, 'Omar Khaled');
+
+        $this->assertSame($first, $second);
+        $this->assertSame(1, $this->accountingDb()->table('accounting_accounts')->where('entity_type', 'customer')->where('entity_id', $customerId)->countAllResults());
     }
 
     public function testAccountFor_FindsTheSubAccountOfAnEntity(): void
@@ -468,6 +517,167 @@ class EntityAccountServiceTest extends CIUnitTestCase
         $this->assertSame(205, $created[EntityAccountService::CUSTOMER]);
         $this->assertSame(205, $db->table('accounting_accounts')->where('entity_type', 'customer')->countAllResults());
         $this->assertSame([], $this->service->missingCounts());
+    }
+
+    public function testIntegration_ACustomerASupplierAndALocationSavedThroughTheModelsEachGetExactlyOneAccount(): void
+    {
+        $customer = model(Customer::class);
+        $supplier = model(Supplier::class);
+        $location = model(Stock_location::class);
+
+        $person       = $this->personData('Omar', 'Khaled');
+        $customerData = ['company_name' => null, 'employee_id' => 1];
+        $customer->save_customer($person, $customerData);
+        $customerId = $this->insertedPeople[] = (int) $person['person_id'];
+
+        $person       = $this->personData('Sara', 'Nasser');
+        $supplierData = ['company_name' => 'Gulf Supplies', 'agency_name' => '', 'category' => 0];
+        $supplier->save_supplier($person, $supplierData);
+        $supplierId = $this->insertedPeople[] = (int) $person['person_id'];
+
+        $locationData = ['location_name' => 'Back store'];
+        $location->save_value($locationData, -1);
+        $locationId = $this->insertedLocations[] = (int) $locationData['location_id'];
+        $this->removeLocationPermissionsAfterTheTest = $locationId;
+
+        $codes = [
+            $this->accountRow((int) $this->service->accountFor(EntityAccountService::CUSTOMER, $customerId))->code,
+            $this->accountRow((int) $this->service->accountFor(EntityAccountService::SUPPLIER, $supplierId))->code,
+            $this->accountRow((int) $this->service->accountFor(EntityAccountService::STOCK_LOCATION, $locationId))->code,
+        ];
+
+        $this->assertSame(['12041001', '2211001', '1203001'], $codes);
+
+        $person['first_name'] = 'Renamed';
+        $customer->save_customer($person, $customerData, $customerId);
+        $supplier->save_supplier($person, $supplierData, $supplierId);
+        $location->save_value($locationData, $locationId);
+
+        $this->assertSame(1, $this->accountingDb()->table('accounting_accounts')->where('entity_type', 'customer')->where('entity_id', $customerId)->countAllResults());
+        $this->assertSame(1, $this->accountingDb()->table('accounting_accounts')->where('entity_type', 'supplier')->where('entity_id', $supplierId)->countAllResults());
+        $this->assertSame(1, $this->accountingDb()->table('accounting_accounts')->where('entity_type', 'stock_location')->where('entity_id', $locationId)->countAllResults());
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function personData(string $firstName, string $lastName): array
+    {
+        return [
+            'first_name'   => $firstName,
+            'last_name'    => $lastName,
+            'gender'       => null,
+            'phone_number' => '',
+            'email'        => '',
+            'address_1'    => '',
+            'address_2'    => '',
+            'city'         => '',
+            'state'        => '',
+            'zip'          => '',
+            'country'      => '',
+            'comments'     => '',
+        ];
+    }
+
+    public function testIntegration_TheDatabaseItselfRefusesASecondAccountForTheSameEntity(): void
+    {
+        $customerId = $this->insertCustomer();
+        $accountId  = $this->service->ensure(EntityAccountService::CUSTOMER, $customerId, 'Omar Khaled');
+        $row        = (array) $this->accountRow($accountId);
+
+        unset($row['account_id']);
+        $row['code'] = '12049999';
+        $row['name'] = 'A second account';
+
+        $this->expectException(DatabaseException::class);
+        $this->expectExceptionMessage('Duplicate entry');
+
+        $this->accountingDb()->table('accounting_accounts')->insert($row);
+    }
+
+    public function testIntegration_TwoRequestsOpeningTheSameEntityEndWithOneAccount(): void
+    {
+        $this->other = $this->openSecondConnection();
+        $customerId  = $this->insertCustomer();
+
+        $this->accountingDb()->resetTransStatus();
+        $this->accountingDb()->transStart();
+        $first = $this->service->ensure(EntityAccountService::CUSTOMER, $customerId, 'Omar Khaled');
+
+        $this->assertWaitsForLock(fn () => (new EntityAccountService($this->other))->ensure(EntityAccountService::CUSTOMER, $customerId, 'Omar Khaled'));
+
+        $this->accountingDb()->transComplete();
+
+        $second = (new EntityAccountService($this->other))->ensure(EntityAccountService::CUSTOMER, $customerId, 'Omar Khaled');
+
+        $this->assertSame($first, $second);
+        $this->assertSame(1, $this->accountingDb()->table('accounting_accounts')->where('entity_type', 'customer')->where('entity_id', $customerId)->countAllResults());
+    }
+
+    public function testIntegration_AnEmployeeWithoutAccountingPermissionsStillGetsTheAccountOfTheCustomerTheySave(): void
+    {
+        $this->actAsEmployeeWith(['customers']);
+
+        $person   = $this->personData('Omar', 'Khaled');
+        $customer = ['company_name' => null, 'employee_id' => 1];
+        model(Customer::class)->save_customer($person, $customer);
+        $customerId = $this->insertedPeople[] = (int) $person['person_id'];
+
+        $accountId = $this->service->accountFor(EntityAccountService::CUSTOMER, $customerId);
+
+        $this->assertNotNull($accountId);
+        $this->assertSame('system', $this->accountingDb()->table('accounting_audit_log')->where('entity_type', 'account')->where('entity_id', $accountId)->where('action', 'created')->get()->getRow()->origin);
+    }
+
+    public function testIntegration_OnlyTheChartManagersMayTouchAnEntityAccountAndEvenTheyMayNotChangeIt(): void
+    {
+        $accountId = $this->service->ensure(EntityAccountService::CUSTOMER, $this->insertCustomer(), 'Omar Khaled');
+        $accounts  = new AccountService();
+        $viewer    = $this->employeeWithGrants(['accounting_chart']);
+        $manager   = $this->employeeWithGrants(['accounting_chart', AccountingGuard::CHART_MANAGE]);
+
+        foreach ([
+            fn (int $by) => $accounts->update($accountId, ['name' => 'Another name'], $by),
+            fn (int $by) => $accounts->deactivate($accountId, $by),
+            fn (int $by) => $accounts->delete($accountId, $by),
+        ] as $change) {
+            $this->assertFailsWith(AccountingError::PermissionDenied, fn () => $change($viewer));
+            $this->assertFailsWith(AccountingError::SystemAccountLocked, fn () => $change($manager));
+        }
+
+        $account = $this->accountRow($accountId);
+        $this->assertSame('Omar Khaled', $account->name);
+        $this->assertSame('1', (string) $account->active);
+    }
+
+    public function testIntegration_EnablingAccountingWaitsForTheAccountsOfTheEntitiesThatExistedBeforeIt(): void
+    {
+        $this->setConfigValue('accounting_enabled', '0');
+        $this->setConfigValue('accounting_start_date', '2026-01-01');
+        $customerId = $this->insertCustomer();
+        $settings   = new AccountingSettings();
+
+        try {
+            $settings->enable();
+            $this->fail('Accounting must not be enabled while an entity has no account.');
+        } catch (AccountingNotReadyException $exception) {
+            $this->assertSame([ReadinessCode::EntityAccountsMissing], array_column($exception->issues, 'code'));
+        }
+
+        $this->assertNull($this->service->accountFor(EntityAccountService::CUSTOMER, $customerId));
+
+        $this->service->fill();
+        $settings->enable();
+
+        $this->assertTrue($settings->isEnabled());
+
+        $person   = $this->personData('Hind', 'Saad');
+        $customer = ['company_name' => null, 'employee_id' => 1];
+        model(Customer::class)->save_customer($person, $customer);
+        $later = $this->insertedPeople[] = (int) $person['person_id'];
+
+        $this->assertNotNull($this->service->accountFor(EntityAccountService::CUSTOMER, $later));
+        $this->assertSame([], $settings->readiness());
     }
 
     public function testKinds_ListsTheEntitiesTheApplicationHasToday(): void

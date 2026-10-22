@@ -27,7 +27,7 @@ class AccountingRouting extends AccountingController
     public function getIndex(): string
     {
         $items   = $this->routing->items();
-        $pending = array_filter($items, static fn (RoutingItem $item): bool => in_array($item->status, [RoutingItem::MISSING, RoutingItem::INVALID], true));
+        $pending = array_filter($items, static fn (RoutingItem $item): bool => in_array($item->status, [RoutingItem::MISSING, RoutingItem::INVALID, RoutingItem::UNSUPPORTED], true));
 
         $sections = [];
 

@@ -116,15 +116,17 @@ final class EntityAccountService
         }
 
         return $this->transactional(function () use ($kind, $entityId, $name, $employeeId): int {
-            $existing = $this->accountFor($kind, $entityId);
+            $parent = $this->mainAccount($kind);
+            $last   = $this->lockSequence($parent);
+
+            $existing = $this->lockedAccountFor($kind, $entityId);
 
             if ($existing !== null) {
                 return $existing;
             }
 
-            $parent = $this->mainAccount($kind);
-            $code   = $this->nextCode($parent, self::CODE_DIGITS[$kind]);
-            $name   = $this->uniqueName($this->normalizeName($name, $code), (int) $parent->account_id, $code);
+            $code = $this->nextCode($parent, self::CODE_DIGITS[$kind], $last);
+            $name = $this->uniqueName($this->normalizeName($name, $code), (int) $parent->account_id, $code);
 
             $this->db->table('accounting_accounts')->insert([
                 'company_id'     => CompanyContext::id(),
@@ -339,20 +341,43 @@ final class EntityAccountService
     }
 
     /**
-     * The next code below the parent: its own code and a counter of fixed width. The counter is
-     * kept in a locked row of the sequences table, one per parent, so two requests never take
-     * the same code. A code somebody typed in by hand is skipped.
+     * Takes the counter of the parent's sub-accounts. It is a locked row of the sequences table,
+     * one per parent, held until the transaction ends, so two requests opening accounts under
+     * the same parent never run side by side.
      */
-    private function nextCode(object $parent, int $digits): string
+    private function lockSequence(object $parent): int
+    {
+        $companyId = CompanyContext::id();
+        $table     = $this->db->prefixTable('accounting_sequences');
+
+        $this->db->table('accounting_sequences')->ignore(true)->insert(['company_id' => $companyId, 'series' => 'sub:' . $parent->account_id, 'last_number' => 0]);
+
+        $row = LockedRead::row($this->db, "SELECT last_number FROM {$table} WHERE company_id = ? AND series = ? FOR UPDATE", [$companyId, 'sub:' . $parent->account_id]);
+
+        return (int) ($row->last_number ?? 0);
+    }
+
+    /**
+     * The account of the entity as it is committed now, even for a request whose snapshot is
+     * older: another request may have opened it while this one waited for the counter.
+     */
+    private function lockedAccountFor(string $kind, int $entityId): ?int
+    {
+        $table = $this->db->prefixTable('accounting_accounts');
+        $row   = LockedRead::row($this->db, "SELECT account_id FROM {$table} WHERE company_id = ? AND entity_type = ? AND entity_id = ? LOCK IN SHARE MODE", [CompanyContext::id(), $kind, $entityId]);
+
+        return $row === null ? null : (int) $row->account_id;
+    }
+
+    /**
+     * The next code below the parent: its own code and a counter of fixed width. A code
+     * somebody typed in by hand is skipped.
+     */
+    private function nextCode(object $parent, int $digits, int $last): string
     {
         $companyId = CompanyContext::id();
         $series    = 'sub:' . $parent->account_id;
-        $table     = $this->db->prefixTable('accounting_sequences');
-
-        $this->db->table('accounting_sequences')->ignore(true)->insert(['company_id' => $companyId, 'series' => $series, 'last_number' => 0]);
-
-        $row    = LockedRead::row($this->db, "SELECT last_number FROM {$table} WHERE company_id = ? AND series = ? FOR UPDATE", [$companyId, $series]);
-        $number = (int) ($row->last_number ?? 0);
+        $number    = $last;
 
         do {
             $number++;

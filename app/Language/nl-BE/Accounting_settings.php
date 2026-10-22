@@ -35,6 +35,7 @@ return [
     'readiness_payment_type_unrouted'          => '',
     'readiness_routing_account_invalid'        => '',
     'readiness_routing_link'                   => '',
+    'readiness_routing_type_unsupported'       => '',
     'readiness_routing_unmapped'               => '',
     'readiness_sales_before_start_date'        => '',
     'readiness_start_date_missing'             => '',

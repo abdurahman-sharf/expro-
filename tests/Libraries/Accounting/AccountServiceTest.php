@@ -281,13 +281,15 @@ class AccountServiceTest extends CIUnitTestCase
         $this->assertFailsWith(AccountingError::AccountNotFound, fn () => $this->service->update(999999, ['name' => 'Ghost']));
     }
 
-    public function testSubAccountOfAnEntity_CannotBeDeletedDeactivatedOrRecoded(): void
+    public function testSubAccountOfAnEntity_CannotBeDeletedDeactivatedRecodedOrRenamed(): void
     {
         $accountId = (new EntityAccountService())->ensure(EntityAccountService::CUSTOMER, $this->insertCustomer(), 'Omar Khaled');
 
         $this->assertFailsWith(AccountingError::SystemAccountLocked, fn () => $this->service->delete($accountId));
         $this->assertFailsWith(AccountingError::SystemAccountLocked, fn () => $this->service->deactivate($accountId));
         $this->assertFailsWith(AccountingError::SystemAccountLocked, fn () => $this->service->update($accountId, ['code' => '12049999']));
+        $this->assertFailsWith(AccountingError::SystemAccountLocked, fn () => $this->service->update($accountId, ['name' => 'Another name']));
+        $this->assertSame('Omar Khaled', $this->service->find($accountId)->name);
     }
 
     public function testDeactivate_DisablesACustomAccount(): void

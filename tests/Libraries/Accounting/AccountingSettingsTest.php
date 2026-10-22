@@ -211,13 +211,43 @@ class AccountingSettingsTest extends CIUnitTestCase
         $this->assertSame([], $this->settings->readiness());
     }
 
-    public function testReadiness_IgnoresEntitiesWhoseRoutingIsNotAutomatic(): void
+    public function testReadiness_IgnoresTheEntitiesOfARowThatIsNotAutomaticButBlocksOnItsType(): void
     {
         $this->completeTheSettings();
         $this->insertCustomer();
         $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.customers')->update(['routing_type' => 'per_item']);
 
-        $this->assertSame([], $this->settings->readiness());
+        $issues = $this->settings->readiness();
+
+        $this->assertSame([ReadinessCode::RoutingTypeUnsupported], array_column($issues, 'code'));
+        $this->assertSame('sales.customers', $issues[0]->subject);
+    }
+
+    public function testReadiness_BlocksARowSavedWithATypePostingDoesNotApply(): void
+    {
+        $this->completeTheSettings();
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.revenue')->update(['routing_type' => 'per_item']);
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'purchases.suppliers')->update(['routing_type' => 'per_item']);
+
+        $issues = $this->settings->readiness();
+
+        $this->assertSame([ReadinessCode::RoutingTypeUnsupported, ReadinessCode::RoutingTypeUnsupported], array_column($issues, 'code'));
+        $this->assertEqualsCanonicalizing(['sales.revenue', 'purchases.suppliers'], array_column($issues, 'subject'));
+    }
+
+    public function testEnable_RefusesWhileARowIsSavedWithATypePostingDoesNotApply(): void
+    {
+        $this->completeTheSettings();
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.customers')->update(['routing_type' => 'main_per_entity']);
+
+        try {
+            $this->settings->enable();
+            $this->fail('Accounting must not be turned on over a routing type it cannot apply.');
+        } catch (AccountingNotReadyException $exception) {
+            $this->assertSame([ReadinessCode::RoutingTypeUnsupported], array_column($exception->issues, 'code'));
+        }
+
+        $this->assertFalse($this->settings->isEnabled());
     }
 
     public function testReadiness_ReportsARequiredPaymentTypeWithoutAnAccount(): void

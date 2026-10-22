@@ -35,6 +35,7 @@ return [
     'readiness_payment_type_unrouted'          => 'اختر حسابًا لنوع الدفع {0}.',
     'readiness_routing_account_invalid'        => 'الحساب المختار لـ{0} مجموعة أو معطّل.',
     'readiness_routing_link'                   => 'فتح توجيه الحسابات',
+    'readiness_routing_type_unsupported'       => 'توجيه {0} مضبوط على نوع لا يطبّقه الترحيل بعد. غيّره قبل تفعيل المحاسبة.',
     'readiness_routing_unmapped'               => 'لم يُختر حساب لـ{0}.',
     'readiness_sales_before_start_date'        => 'يوجد {0} من المبيعات قبل تاريخ البدء ولن تُرحَّل قبل مرحلة الترحيل الرجعي.',
     'readiness_start_date_missing'             => 'حدّد تاريخ بدء المحاسبة.',

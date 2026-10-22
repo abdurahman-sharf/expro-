@@ -21,17 +21,26 @@ final class PostingFailureLog
 
     public function record(JournalDraft $draft, PostingException $failure): void
     {
+        $this->recordUnbuilt($draft->sourceType, $draft->sourceId, $draft->revision, $draft->entryType, $failure, $draft->employeeId, $draft->branchId);
+    }
+
+    /**
+     * For a journal that could not even be drafted, because an account it needs could not be
+     * decided. The failure shows in the failure log like any other.
+     */
+    public function recordUnbuilt(string $sourceType, ?int $sourceId, int $revision, JournalEntryType $entryType, PostingException $failure, ?int $employeeId = null, ?int $branchId = null): void
+    {
         try {
             $this->db->table('accounting_posting_failures')->insert([
-                'source_type' => $draft->sourceType,
-                'source_id'   => $draft->sourceId,
-                'entry_type'  => $draft->entryType->value,
-                'revision'    => $draft->revision,
+                'source_type' => $sourceType,
+                'source_id'   => $sourceId,
+                'entry_type'  => $entryType->value,
+                'revision'    => $revision,
                 'error_code'  => $failure->error->value,
                 'message'     => $failure->getMessage(),
                 'context'     => $failure->context === [] ? null : json_encode($failure->context, JSON_UNESCAPED_UNICODE),
-                'employee_id' => $draft->employeeId,
-                'branch_id'   => $draft->branchId,
+                'employee_id' => $employeeId,
+                'branch_id'   => $branchId,
             ]);
         } catch (Throwable $exception) {
             log_message('error', 'Accounting posting failure could not be recorded: ' . $exception->getMessage());

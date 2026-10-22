@@ -262,7 +262,15 @@ final class AccountingSettings
             $row  = $byKey[$key->value] ?? null;
             $type = $row === null ? null : RoutingType::tryFrom((string) $row->routing_type);
 
-            if (($type ?? $key->defaultType()) === RoutingType::Cancelled) {
+            $effective = $type ?? $key->defaultType();
+
+            if (! $effective->isImplemented()) {
+                $issues[] = new ReadinessIssue(ReadinessCode::RoutingTypeUnsupported, $key->value);
+
+                continue;
+            }
+
+            if ($effective === RoutingType::Cancelled) {
                 continue;
             }
 

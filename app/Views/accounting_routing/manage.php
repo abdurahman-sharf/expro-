@@ -1,9 +1,9 @@
 <?php
 /**
  * @var array<string, list<array<string, mixed>>> $sections
- * @var list<array{key: string, label: string}>    $pending
- * @var bool                                       $can_manage
- * @var bool                                       $can_review
+ * @var list<array{key: string, label: string}>   $pending
+ * @var bool                                      $can_manage
+ * @var bool                                      $can_review
  */
 $slug = static fn (string $key): string => 'route_' . str_replace('.', '_', $key);
 ?>
@@ -141,9 +141,10 @@ $slug = static fn (string $key): string => 'route_' . str_replace('.', '_', $key
                                     <td data-label="<?= esc(lang('Accounting_routing.column_status'), 'attr') ?>">
                                         <?php
                                         $badge = match ($row['status']) {
-                                            'complete' => 'text-bg-success',
-                                            'optional' => 'text-bg-secondary',
-                                            default    => 'text-bg-danger',
+                                            'complete'    => 'text-bg-success',
+                                            'optional'    => 'text-bg-secondary',
+                                            'unsupported' => 'text-bg-warning',
+                                            default       => 'text-bg-danger',
                                         };
                                 ?>
                                         <span class="badge <?= $badge ?>"><?= lang('Accounting_routing.status_' . $row['status']) ?></span>

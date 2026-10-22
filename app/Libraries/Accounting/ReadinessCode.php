@@ -11,6 +11,7 @@ enum ReadinessCode: string
     case StartDateOutsideFiscalYear = 'start_date_outside_fiscal_year';
     case RoutingUnmapped            = 'routing_unmapped';
     case RoutingAccountInvalid      = 'routing_account_invalid';
+    case RoutingTypeUnsupported     = 'routing_type_unsupported';
     case PaymentTypeUnrouted        = 'payment_type_unrouted';
     case PaymentTypeUnknown         = 'payment_type_unknown';
     case StockLocationWithoutBranch = 'stock_location_without_branch';

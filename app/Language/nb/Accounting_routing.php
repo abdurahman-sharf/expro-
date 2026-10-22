@@ -68,6 +68,7 @@ return [
     'status_missing'                => '',
     'status_optional'               => '',
     'status_title'                  => '',
+    'status_unsupported'            => '',
     'stock_permits_desc'            => '',
     'stock_permits_title'           => '',
     'treasuries_desc'               => '',

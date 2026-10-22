@@ -89,6 +89,18 @@ class AccountingRoutingControllerTest extends CIUnitTestCase
         }
     }
 
+    public function testGetIndex_WarnsAboutARowSavedWithATypeNothingAppliesYet(): void
+    {
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.revenue')->update(['routing_type' => 'per_item']);
+        $this->manager();
+
+        $response = $this->get('/accounting_routing');
+
+        $response->assertSee('href="#route_sales_revenue"');
+        $response->assertSee(lang('Accounting_routing.status_unsupported'));
+        $response->assertDontSee(lang('Accounting_routing.complete'));
+    }
+
     public function testGetIndex_ShowsTheCompleteNoticeOnAFreshChart(): void
     {
         $this->manager();

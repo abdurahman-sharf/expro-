@@ -106,7 +106,7 @@ class LanguageFilesTest extends CIUnitTestCase
             $this->assertNotSame('', $messages['payment_' . $type->value] ?? '', "{$locale} lacks the payment label of {$type->value}");
         }
 
-        foreach (['complete', 'invalid', 'missing', 'optional'] as $status) {
+        foreach (['complete', 'invalid', 'missing', 'optional', 'unsupported'] as $status) {
             $this->assertNotSame('', $messages['status_' . $status] ?? '', "{$locale} lacks the status {$status}");
         }
 

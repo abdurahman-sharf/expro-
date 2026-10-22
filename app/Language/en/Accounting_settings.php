@@ -35,6 +35,7 @@ return [
     'readiness_payment_type_unrouted'          => 'Choose an account for the payment type {0}.',
     'readiness_routing_account_invalid'        => 'The account chosen for {0} is a group or inactive.',
     'readiness_routing_link'                   => 'Open the account routing',
+    'readiness_routing_type_unsupported'       => 'The routing of {0} is set to a type that posting does not apply yet. Change it before turning accounting on.',
     'readiness_routing_unmapped'               => 'No account is chosen for {0}.',
     'readiness_sales_before_start_date'        => '{0} earlier sale(s) fall before the start date and will not be posted until the back-posting phase.',
     'readiness_start_date_missing'             => 'Set the accounting start date.',

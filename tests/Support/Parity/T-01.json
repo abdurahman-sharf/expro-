@@ -1,0 +1,209 @@
+{
+  "id": "T-01",
+  "title": "Invoice and credit-note lines, tax and totals, as entered in the reference system (cycle A3-cycle)",
+  "recorded": "2026-10-22",
+  "evidence": {
+    "invoice_000002": {
+      "id": "ev_2add92752dfb9d312e42f1e0f2b46cdce298d6e3436f72bca9945c990309a097",
+      "note": "Invoice 000002: 4 x 75 with 10% off and 2 x 220, 15% tax not included"
+    },
+    "credit_note_000001": {
+      "id": "ev_4cdb369c338cd01b3311349c34a9a482831c785cf4201c0af4a9879ebecdf2d4",
+      "note": "Credit note 000001: 1 x 220"
+    },
+    "journals_a3_cycle": {
+      "id": "ev_8fe9db7d7339f201e73598d494d813003a7ac051e91e4ea808f91539deb2c9d5",
+      "note": "Journals of that cycle"
+    },
+    "purchase_a3_cycle": {
+      "id": null,
+      "note": "The purchase of the A3-cycle was entered with the owner's authorisation and its evidence ids were not kept; the amounts come from the journal read of that cycle"
+    }
+  },
+  "cases": [
+    {
+      "id": "line-4x75-10pct",
+      "kind": "line",
+      "classification": "exact",
+      "evidence": [
+        "invoice_000002"
+      ],
+      "inputs": {
+        "quantity": "4",
+        "price": "75",
+        "discount": "10",
+        "discount_type": "percent"
+      },
+      "expected": {
+        "line_total": "270.00",
+        "discount_amount": "30.00"
+      }
+    },
+    {
+      "id": "line-2x220",
+      "kind": "line",
+      "classification": "exact",
+      "evidence": [
+        "invoice_000002"
+      ],
+      "inputs": {
+        "quantity": "2",
+        "price": "220",
+        "discount": "0",
+        "discount_type": "percent"
+      },
+      "expected": {
+        "line_total": "440.00",
+        "discount_amount": "0.00"
+      }
+    },
+    {
+      "id": "line-credit-note-1x220",
+      "kind": "line",
+      "classification": "exact",
+      "evidence": [
+        "credit_note_000001"
+      ],
+      "inputs": {
+        "quantity": "1",
+        "price": "220",
+        "discount": "0",
+        "discount_type": "percent"
+      },
+      "expected": {
+        "line_total": "220.00",
+        "discount_amount": "0.00"
+      }
+    },
+    {
+      "id": "line-purchase-20x40",
+      "kind": "line",
+      "classification": "exact",
+      "evidence": [
+        "purchase_a3_cycle"
+      ],
+      "inputs": {
+        "quantity": "20",
+        "price": "40",
+        "discount": "0",
+        "discount_type": "percent"
+      },
+      "expected": {
+        "line_total": "800.00",
+        "discount_amount": "0.00"
+      }
+    },
+    {
+      "id": "line-purchase-10x120",
+      "kind": "line",
+      "classification": "exact",
+      "evidence": [
+        "purchase_a3_cycle"
+      ],
+      "inputs": {
+        "quantity": "10",
+        "price": "120",
+        "discount": "0",
+        "discount_type": "percent"
+      },
+      "expected": {
+        "line_total": "1200.00",
+        "discount_amount": "0.00"
+      }
+    },
+    {
+      "id": "tax-on-270",
+      "kind": "tax",
+      "classification": "exact",
+      "evidence": [
+        "invoice_000002"
+      ],
+      "inputs": {
+        "basis": "270.00",
+        "rate": "15"
+      },
+      "expected": {
+        "tax": "40.50"
+      }
+    },
+    {
+      "id": "tax-on-440",
+      "kind": "tax",
+      "classification": "exact",
+      "evidence": [
+        "invoice_000002"
+      ],
+      "inputs": {
+        "basis": "440.00",
+        "rate": "15"
+      },
+      "expected": {
+        "tax": "66.00"
+      }
+    },
+    {
+      "id": "tax-credit-note-220",
+      "kind": "tax",
+      "classification": "exact",
+      "evidence": [
+        "credit_note_000001"
+      ],
+      "inputs": {
+        "basis": "220.00",
+        "rate": "15"
+      },
+      "expected": {
+        "tax": "33.00"
+      }
+    },
+    {
+      "id": "tax-purchase-2000",
+      "kind": "tax",
+      "classification": "exact",
+      "evidence": [
+        "purchase_a3_cycle"
+      ],
+      "inputs": {
+        "basis": "2000.00",
+        "rate": "15"
+      },
+      "expected": {
+        "tax": "300.00"
+      }
+    },
+    {
+      "id": "totals-invoice-000002",
+      "kind": "totals",
+      "classification": "exact",
+      "evidence": [
+        "invoice_000002",
+        "journals_a3_cycle"
+      ],
+      "inputs": {
+        "lines": [
+          {
+            "item_id": 3,
+            "quantity": "4",
+            "price": "75",
+            "discount": "10",
+            "discount_type": "percent"
+          },
+          {
+            "item_id": 4,
+            "quantity": "2",
+            "price": "220",
+            "discount": "0",
+            "discount_type": "percent"
+          }
+        ],
+        "tax_rate": "15"
+      },
+      "expected": {
+        "subtotal": "710.00",
+        "tax_total": "106.50",
+        "total": "816.50",
+        "total_discount": "30.00"
+      }
+    }
+  ]
+}
