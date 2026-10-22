@@ -76,7 +76,8 @@
 
 ## التحقق
 
-- **اختبارات PHPUnit:** *(تُدرج النتيجة بعد التشغيل الكامل)*
+- **اختبارات PHPUnit:** المجموعة الكاملة: **2898 اختبارًا و7022 تأكيدًا بلا فشل**. المتخطّى (4) وتنبيه الـdeprecation الواحد موجودان قبل المحاسبة (اختبارات صلاحيات الملفات تُتخطى كـroot)، ويعيد PHPUnit بسببهما «OK, but there were issues» لا لفشل. المضاف: `PaymentTypeTest` و`RoutingServiceTest` و`PostingFailureReaderTest` و`AccountingRoutingMigrationTest` و`AccountingRoutingControllerTest` و`Stock_locationTest` (ملفات جديدة)، وإضافات في اختبارات الجاهزية (`AccountingSettingsTest`) وشاشة الإعدادات (`AccountingSetupControllerTest`) وسجل الفشل (`AccountingJournalsControllerTest`) والبيع (`SaleTest` و`SalesControllerTest`) والدليل الافتراضي (`DefaultChartTest`) واكتمال اللغات (`LanguageFilesTest`). وعُدِّل اختباران قائمان: `AccountingSettingsTest` (يتوقع الآن أن حسابًا معطّلًا يُبلَّغ عنه أيضًا من صفوف الدفع) و`DefaultChartTest` (عدد صفوف التوجيه). وموظفو `SalesControllerTest` أُعطوا «كل الفروع» كما لكل موظف قائم قبل A2a.
+- **ما كشفته الاختبارات أثناء التنفيذ:** (1) قراءة فروع الموظف داخل بناء استعلام `Stock_location` تُفسد الأسماء المستعارة للاستعلام نفسه (يُقرأ النطاق قبل بنائه). (2) `Sales::postComplete` يعرض الخطأ بمفتاح `error` لا `error_message`. (3) اسم `postSave` محجوز في `Secure_Controller`.
 - **المتصفح (`tools/ui-smoke`):** *(تُدرج النتيجة بعد التشغيل)*
 
 ## ما يلزم عند النشر

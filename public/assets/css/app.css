@@ -2214,6 +2214,61 @@ input.flatpickr-input,
     font-weight: 700;
 }
 
+.acc-routing select {
+    min-width: 220px;
+    max-width: 100%;
+}
+
+@media (max-width: 767.98px) {
+    .acc-routing thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+    }
+
+    .acc-routing,
+    .acc-routing tbody,
+    .acc-routing tr,
+    .acc-routing th,
+    .acc-routing td {
+        display: block;
+        width: 100%;
+    }
+
+    .acc-routing tbody tr {
+        margin-bottom: 12px;
+        padding: 10px 12px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-md);
+        background: var(--surface);
+    }
+
+    .acc-routing th,
+    .acc-routing td {
+        padding: 4px 0;
+        border: 0;
+    }
+
+    .acc-routing th {
+        font-weight: 700;
+    }
+
+    .acc-routing td[data-label]::before {
+        content: attr(data-label);
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    .acc-routing select {
+        min-width: 0;
+        width: 100%;
+    }
+}
+
 .acc-readiness {
     margin: 0 0 12px;
     padding: 0;

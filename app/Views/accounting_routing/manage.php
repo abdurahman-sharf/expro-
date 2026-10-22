@@ -74,7 +74,7 @@ $slug = static fn (string $key): string => 'route_' . str_replace('.', '_', $key
                 <p class="text-body-secondary small"><?= lang('Accounting_routing.' . $group . '_desc') ?></p>
 
                 <div class="table-responsive">
-                    <table class="table table-sm align-middle mb-0" id="<?= esc($group, 'attr') ?>_routing">
+                    <table class="table table-sm align-middle mb-0 acc-routing" id="<?= esc($group, 'attr') ?>_routing">
                         <thead>
                             <tr>
                                 <th scope="col"><?= lang('Accounting_routing.column_item') ?></th>
