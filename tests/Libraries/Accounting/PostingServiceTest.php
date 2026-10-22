@@ -2,6 +2,7 @@
 
 namespace Tests\Libraries\Accounting;
 
+use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\JournalLineDraft;
@@ -54,6 +55,8 @@ class PostingServiceTest extends CIUnitTestCase
             $this->other->close();
             $this->other = null;
         }
+
+        $this->removeInsertedEntities();
 
         parent::tearDown();
     }
@@ -391,18 +394,69 @@ class PostingServiceTest extends CIUnitTestCase
         $this->assertPostingFails(PostingError::InvalidParty, $draft);
     }
 
-    public function testPost_AcceptsACustomerPartyOnAReceivablesLine(): void
+    public function testPost_AcceptsACustomerPartyOnTheCustomersOwnAccount(): void
     {
-        $draft = $this->draftWithLines([
-            new JournalLineDraft($this->accountId('receivables'), debit: '10.00', partyType: 'customer', partyId: 3),
-            new JournalLineDraft($this->accountId('sales_revenue'), credit: '10.00'),
-        ]);
+        $customerId = $this->insertCustomer();
+        $accountId  = (new EntityAccountService())->ensure(EntityAccountService::CUSTOMER, $customerId, 'Omar Khaled');
 
-        $result = $this->service->post($draft);
+        $result = $this->service->post($this->draftWithLines([
+            new JournalLineDraft($accountId, debit: '10.00', partyType: 'customer', partyId: $customerId),
+            new JournalLineDraft($this->accountId('sales_revenue'), credit: '10.00'),
+        ]));
 
         $line = $this->accountingDb()->table('accounting_journal_lines')->where('journal_id', $result->journalId)->where('line_no', 1)->get()->getRow();
         $this->assertSame('customer', $line->party_type);
-        $this->assertSame('3', (string) $line->party_id);
+        $this->assertSame((string) $customerId, (string) $line->party_id);
+    }
+
+    public function testPost_TakesThePartyFromACustomerAccountWhenTheLineNamesNone(): void
+    {
+        $supplierId = $this->insertSupplier();
+        $accountId  = (new EntityAccountService())->ensure(EntityAccountService::SUPPLIER, $supplierId, 'Gulf Supplies');
+
+        $result = $this->service->post($this->draftWithLines([
+            new JournalLineDraft($this->accountId('cash'), debit: '10.00'),
+            new JournalLineDraft($accountId, credit: '10.00'),
+        ]));
+
+        $line = $this->accountingDb()->table('accounting_journal_lines')->where('journal_id', $result->journalId)->where('line_no', 2)->get()->getRow();
+        $this->assertSame('supplier', $line->party_type);
+        $this->assertSame((string) $supplierId, (string) $line->party_id);
+    }
+
+    public function testPost_LeavesTheLineWithoutAPartyOnAStockLocationAccount(): void
+    {
+        $locationId = $this->insertStockLocation('Back store');
+        $accountId  = (new EntityAccountService())->ensure(EntityAccountService::STOCK_LOCATION, $locationId, 'Back store');
+
+        $result = $this->service->post($this->draftWithLines([
+            new JournalLineDraft($accountId, debit: '10.00'),
+            new JournalLineDraft($this->accountId('cash'), credit: '10.00'),
+        ]));
+
+        $line = $this->accountingDb()->table('accounting_journal_lines')->where('journal_id', $result->journalId)->where('line_no', 1)->get()->getRow();
+        $this->assertNull($line->party_type);
+        $this->assertNull($line->party_id);
+    }
+
+    public function testPost_RejectsAPartyThatDoesNotOwnTheAccount(): void
+    {
+        $owner   = $this->insertCustomer();
+        $other   = $this->insertCustomer('Hind', 'Saad');
+        $account = (new EntityAccountService())->ensure(EntityAccountService::CUSTOMER, $owner, 'Omar Khaled');
+
+        $this->assertPostingFails(PostingError::PartyAccountMismatch, $this->draftWithLines([
+            new JournalLineDraft($account, debit: '10.00', partyType: 'customer', partyId: $other),
+            new JournalLineDraft($this->accountId('sales_revenue'), credit: '10.00'),
+        ]));
+    }
+
+    public function testPost_RejectsAPartyOnAnOrdinaryAccount(): void
+    {
+        $this->assertPostingFails(PostingError::PartyAccountMismatch, $this->draftWithLines([
+            new JournalLineDraft($this->accountId('cash'), debit: '10.00', partyType: 'customer', partyId: 3),
+            new JournalLineDraft($this->accountId('sales_revenue'), credit: '10.00'),
+        ]));
     }
 
     public function testPost_RollsBackEverythingAndRecordsTheFailureWhenTheWriteFails(): void

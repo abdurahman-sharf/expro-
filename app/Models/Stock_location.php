@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Organization\BranchGuard;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\ResultInterface;
@@ -241,6 +242,10 @@ class Stock_location extends Model
 
             $this->db->transComplete();
 
+            if ($this->db->transStatus()) {
+                (new EntityAccountService())->sync(EntityAccountService::STOCK_LOCATION, (int) $location_id);
+            }
+
             return $this->db->transStatus();
         }
 
@@ -258,7 +263,13 @@ class Stock_location extends Model
         $builder = $this->db->table('stock_locations');
         $builder->where('location_id', $location_id);
 
-        return $builder->update($location_data_to_save);
+        $updated = $builder->update($location_data_to_save);
+
+        if ($updated) {
+            (new EntityAccountService())->sync(EntityAccountService::STOCK_LOCATION, $location_id);
+        }
+
+        return $updated;
     }
 
     /**
@@ -312,6 +323,10 @@ class Stock_location extends Model
         $builder->delete(['location_id' => $location_id]);
 
         $this->db->transComplete();
+
+        if ($this->db->transStatus()) {
+            (new EntityAccountService())->syncDeleted(EntityAccountService::STOCK_LOCATION, (int) $location_id);
+        }
 
         return $this->db->transStatus();
     }

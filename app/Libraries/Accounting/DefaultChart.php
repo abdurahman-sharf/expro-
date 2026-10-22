@@ -47,9 +47,12 @@ final class DefaultChart
         $accountIdsByKey = $this->accountIdsBySystemKey();
 
         foreach (RoutingKey::cases() as $routingKey) {
+            $systemKey = $routingKey->defaultSystemKey();
+
             $this->db->table('accounting_routing')->ignore(true)->insert([
-                'routing_key' => $routingKey->value,
-                'account_id'  => $accountIdsByKey[$routingKey->defaultSystemKey()] ?? null,
+                'routing_key'  => $routingKey->value,
+                'routing_type' => $routingKey->defaultType()->value,
+                'account_id'   => $systemKey === null ? null : ($accountIdsByKey[$systemKey] ?? null),
             ]);
         }
 
@@ -86,7 +89,9 @@ final class DefaultChart
     }
 
     /**
-     * Rows are [code, name, type, parent code, is group, system key, contra account].
+     * The chart of the reference system as observed in a fresh account, plus one account for
+     * unused gift cards (216) that only this application needs. Rows are [code, name, type,
+     * parent code, is group, system key, contra account].
      *
      * @return list<array{string, string, AccountType, ?string, bool, ?string, bool}>
      */
@@ -95,44 +100,80 @@ final class DefaultChart
         return [
             ['1', 'الأصول', AccountType::Asset, null, true, null, false],
             ['2', 'الخصوم', AccountType::Liability, null, true, null, false],
-            ['3', 'حقوق الملكية', AccountType::Equity, null, true, null, false],
+            ['3', 'رأس المال وحقوق الملكية', AccountType::Equity, null, true, null, false],
             ['4', 'الإيرادات', AccountType::Revenue, null, true, null, false],
             ['5', 'المصروفات', AccountType::Expense, null, true, null, false],
 
-            ['11', 'الأصول المتداولة', AccountType::Asset, '1', true, null, false],
-            ['1101', 'الصندوق', AccountType::Asset, '11', false, 'cash', false],
-            ['1102', 'البنوك', AccountType::Asset, '11', false, null, false],
-            ['1103', 'ذمم العملاء المدينة', AccountType::Asset, '11', false, 'receivables', false],
-            ['1104', 'المخزون', AccountType::Asset, '11', false, 'inventory', false],
-            ['1105', 'ضريبة القيمة المضافة (مدخلات)', AccountType::Asset, '11', false, 'tax_input', false],
+            ['11', 'الأصول الثابتة', AccountType::Asset, '1', true, null, false],
+            ['111', 'حسابات الأصول الثابتة', AccountType::Asset, '11', true, null, false],
+            ['111001', 'أثاث', AccountType::Asset, '111', true, null, false],
+            ['111002', 'الأجهزة والمعدات', AccountType::Asset, '111', true, null, false],
+            ['111003', 'وسائل النقل', AccountType::Asset, '111', true, null, false],
+            ['111004', 'مباني', AccountType::Asset, '111', true, null, false],
+            ['111005', 'أراضي', AccountType::Asset, '111', true, null, false],
+            ['112', 'مجمع الإهلاك', AccountType::Asset, '11', true, null, true],
+            ['112001', 'مجمع إهلاك - أثاث', AccountType::Asset, '112', true, null, true],
+            ['112002', 'مجمع إهلاك - الأجهزة والمعدات', AccountType::Asset, '112', true, null, true],
+            ['112003', 'مجمع إهلاك - وسائل النقل', AccountType::Asset, '112', true, null, true],
+            ['112004', 'مجمع إهلاك - مباني', AccountType::Asset, '112', true, null, true],
+            ['112005', 'مجمع إهلاك - أراضي', AccountType::Asset, '112', true, null, true],
 
-            ['12', 'الأصول الثابتة', AccountType::Asset, '1', true, null, false],
-            ['1201', 'الأصول الثابتة', AccountType::Asset, '12', false, null, false],
-            ['1202', 'مجمع الإهلاك', AccountType::Asset, '12', false, null, true],
+            ['12', 'الأصول المتداولة', AccountType::Asset, '1', true, null, false],
+            ['1201', 'الخزينة', AccountType::Asset, '12', true, 'treasuries', false],
+            ['120101', 'الخزينة الأساسية', AccountType::Asset, '1201', false, 'cash', false],
+            ['1202', 'البنك', AccountType::Asset, '12', true, null, false],
+            ['1203', 'المخزون', AccountType::Asset, '12', true, 'inventory', false],
+            ['1204', 'المدينون', AccountType::Asset, '12', true, null, false],
+            ['12041', 'العملاء', AccountType::Asset, '1204', true, 'receivables', false],
+            ['12042', 'أطراف مدينة أخرى', AccountType::Asset, '1204', false, 'other_receivables', false],
+            ['1205', 'عهد الموظفين', AccountType::Asset, '12', true, null, false],
+            ['1206', 'أوراق القبض', AccountType::Asset, '12', true, null, false],
+            ['1208', 'عجز & زيادة الصندوق', AccountType::Asset, '12', false, 'cash_difference', false],
+            ['1209', 'تغيير عملة', AccountType::Asset, '12', false, null, false],
+            ['1210', 'المشتريات', AccountType::Asset, '12', false, 'purchases', false],
 
             ['21', 'الخصوم المتداولة', AccountType::Liability, '2', true, null, false],
-            ['2101', 'ذمم الموردين الدائنة', AccountType::Liability, '21', false, 'payables', false],
-            ['2102', 'ضريبة القيمة المضافة (مخرجات)', AccountType::Liability, '21', false, 'tax_output', false],
-            ['2103', 'بطاقات الهدايا غير المستخدمة', AccountType::Liability, '21', false, 'giftcard_liability', false],
-            ['2104', 'مصروفات مستحقة', AccountType::Liability, '21', false, null, false],
+            ['211', 'الدائنون', AccountType::Liability, '21', true, null, false],
+            ['2211', 'الموردون', AccountType::Liability, '211', true, 'payables', false],
+            ['2212', 'شركات الشحن', AccountType::Liability, '211', true, null, false],
+            ['2213', 'أطراف دائنة أخرى', AccountType::Liability, '211', false, 'other_payables', false],
+            ['212', 'أوراق الدفع', AccountType::Liability, '21', true, null, false],
+            ['214', 'أرصدة افتتاحية', AccountType::Liability, '21', false, 'opening_balance', false],
+            ['215', 'القيمة المضافة المطلوبة', AccountType::Liability, '21', true, null, false],
+            ['215001', 'القيمة المضافة المحصلة', AccountType::Liability, '215', false, 'tax_output', false],
+            ['215002', 'القيمة المضافة المدفوعة', AccountType::Liability, '215', false, 'tax_input', false],
+            ['216', 'بطاقات الهدايا غير المستخدمة', AccountType::Liability, '21', false, 'giftcard_liability', false],
+            ['22', 'الخصوم طويلة الأجل', AccountType::Liability, '2', true, null, false],
 
-            ['31', 'حقوق الملاك', AccountType::Equity, '3', true, null, false],
-            ['3101', 'رأس المال', AccountType::Equity, '31', false, null, false],
-            ['3102', 'الأرباح المحتجزة', AccountType::Equity, '31', false, 'retained_earnings', false],
-            ['3103', 'الأرصدة الافتتاحية', AccountType::Equity, '31', false, 'opening_balance', false],
+            ['31', 'رأس المال', AccountType::Equity, '3', false, null, false],
+            ['32', 'أرباح وخسائر مرحلة', AccountType::Equity, '3', false, 'retained_earnings', false],
 
-            ['41', 'إيرادات النشاط', AccountType::Revenue, '4', true, null, false],
-            ['4101', 'المبيعات', AccountType::Revenue, '41', false, 'sales_revenue', false],
-            ['4102', 'مردودات المبيعات', AccountType::Revenue, '41', false, 'sales_returns', true],
-            ['4103', 'خصم مسموح به', AccountType::Revenue, '41', false, 'sales_discount', true],
+            ['41', 'إيرادات المبيعات', AccountType::Revenue, '4', true, null, false],
+            ['411', 'المبيعات', AccountType::Revenue, '41', false, 'sales_revenue', false],
+            ['412', 'مردودات المبيعات', AccountType::Revenue, '41', false, 'sales_returns', true],
             ['42', 'إيرادات أخرى', AccountType::Revenue, '4', true, null, false],
-            ['4201', 'إيرادات متنوعة', AccountType::Revenue, '42', false, null, false],
+            ['4201', 'إيرادات أخرى', AccountType::Revenue, '42', false, null, false],
+            ['4202', 'أرباح وخسائر رأسمالية', AccountType::Revenue, '42', false, null, false],
+            ['4203', 'خصم مكتسب', AccountType::Revenue, '42', false, 'purchase_discount', false],
 
             ['51', 'تكلفة المبيعات', AccountType::Expense, '5', true, null, false],
-            ['5101', 'تكلفة البضاعة المباعة', AccountType::Expense, '51', false, 'cogs', false],
-            ['52', 'مصروفات التشغيل', AccountType::Expense, '5', true, null, false],
-            ['5201', 'مصروفات عمومية وإدارية', AccountType::Expense, '52', false, 'expenses_default', false],
-            ['5202', 'فروق الصندوق', AccountType::Expense, '52', false, 'cash_difference', false],
+            ['511', 'تكلفة المبيعات', AccountType::Expense, '51', false, 'cogs', false],
+            ['512', 'شحن مشتريات', AccountType::Expense, '51', false, null, false],
+            ['513', 'خصم مسموح به', AccountType::Expense, '51', false, 'sales_discount', false],
+            ['52', 'مصروفات إدارية وعمومية', AccountType::Expense, '5', true, null, false],
+            ['5201', 'إيجار', AccountType::Expense, '52', false, null, false],
+            ['5202', 'كهرباء', AccountType::Expense, '52', false, null, false],
+            ['5203', 'هاتف وانترنت', AccountType::Expense, '52', false, null, false],
+            ['5204', 'صيانة', AccountType::Expense, '52', false, null, false],
+            ['5205', 'مياه', AccountType::Expense, '52', false, null, false],
+            ['5206', 'مصاريف حكومية', AccountType::Expense, '52', false, null, false],
+            ['53', 'مصروفات الإهلاك', AccountType::Expense, '5', true, null, false],
+            ['54', 'مصروفات أخرى', AccountType::Expense, '5', true, null, false],
+            ['541', 'مصروفات أخرى', AccountType::Expense, '54', false, 'expenses_default', false],
+            ['542', 'الديون المعدومة', AccountType::Expense, '54', false, null, false],
+            ['543', 'عجز وزيادة المخزون', AccountType::Expense, '54', false, null, false],
+            ['544', 'إعادة تقييم', AccountType::Expense, '54', false, null, false],
+            ['545', 'إيجار', AccountType::Expense, '54', false, null, false],
         ];
     }
 }

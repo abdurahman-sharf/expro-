@@ -172,7 +172,7 @@ final class AccountingSettings
             $issues[] = new ReadinessIssue(ReadinessCode::StartDateOutsideFiscalYear, $startDate);
         }
 
-        return [...$issues, ...$this->routingIssues(), ...(new RoutingService($this->db))->blockingIssues()];
+        return [...$issues, ...$this->routingIssues(), ...(new RoutingService($this->db))->blockingIssues(), ...$this->entityAccountIssues()];
     }
 
     /**
@@ -232,10 +232,20 @@ final class AccountingSettings
     /**
      * @return list<ReadinessIssue>
      */
+    private function entityAccountIssues(): array
+    {
+        $missing = array_sum((new EntityAccountService($this->db))->missingCounts());
+
+        return $missing > 0 ? [new ReadinessIssue(ReadinessCode::EntityAccountsMissing, (string) $missing)] : [];
+    }
+
+    /**
+     * @return list<ReadinessIssue>
+     */
     private function routingIssues(): array
     {
         $rows = $this->db->table('accounting_routing r')
-            ->select('r.routing_key, r.account_id, a.is_group, a.active')
+            ->select('r.routing_key, r.routing_type, r.account_id, a.is_group, a.active')
             ->join('accounting_accounts a', 'a.account_id = r.account_id', 'left')
             ->get()
             ->getResult();
@@ -249,11 +259,18 @@ final class AccountingSettings
         $issues = [];
 
         foreach (RoutingKey::cases() as $key) {
-            $row = $byKey[$key->value] ?? null;
+            $row  = $byKey[$key->value] ?? null;
+            $type = $row === null ? null : RoutingType::tryFrom((string) $row->routing_type);
+
+            if (($type ?? $key->defaultType()) === RoutingType::Cancelled) {
+                continue;
+            }
 
             if ($row === null || $row->account_id === null) {
-                $issues[] = new ReadinessIssue(ReadinessCode::RoutingUnmapped, $key->value);
-            } elseif ($row->is_group === null || (int) $row->is_group === 1 || (int) $row->active === 0) {
+                if ($key->accountRequired()) {
+                    $issues[] = new ReadinessIssue(ReadinessCode::RoutingUnmapped, $key->value);
+                }
+            } elseif ($row->is_group === null || (int) $row->is_group !== (int) $key->isEntity() || (int) $row->active === 0) {
                 $issues[] = new ReadinessIssue(ReadinessCode::RoutingAccountInvalid, $key->value);
             }
         }

@@ -9,9 +9,9 @@ use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
 /**
- * Which account each kind of sales posting uses. The rows are company-wide: one routing for
- * every branch. Reading is open to the screen, writing needs the routing permission and every
- * branch, and every change is audited.
+ * Which account each kind of posting uses and how the row picks it. The rows are company-wide:
+ * one routing for every branch. Reading is open to the screen, writing needs the routing
+ * permission and every branch, and every change is audited.
  */
 final class RoutingService
 {
@@ -33,7 +33,7 @@ final class RoutingService
     }
 
     /**
-     * The rows of the screen: the sales accounts first, then one row for each payment type.
+     * The rows of the screen: the routing families in order, then one row for each payment type.
      *
      * @return list<RoutingItem>
      */
@@ -44,19 +44,22 @@ final class RoutingService
         $required = $this->requiredPaymentTypes();
         $items    = [];
 
-        foreach (RoutingKey::sales() as $key) {
-            $default = $defaults[$key->defaultSystemKey()] ?? null;
+        foreach (RoutingKey::GROUPS as $group) {
+            foreach (RoutingKey::inGroup($group) as $key) {
+                $systemKey = $key->defaultSystemKey();
 
-            $items[] = $this->item(
-                key: $key->value,
-                group: 'sales',
-                label: $key->value,
-                route: $routes[$key->value] ?? null,
-                default: $default,
-                required: true,
-                locked: false,
-                allowedTypes: array_map(static fn (AccountType $type): string => $type->value, $key->allowedAccountTypes()),
-            );
+                $items[] = $this->item(
+                    key: $key->value,
+                    group: $group,
+                    label: $key->value,
+                    route: $routes[$key->value] ?? null,
+                    default: $systemKey === null ? null : ($defaults[$systemKey] ?? null),
+                    required: $key->accountRequired(),
+                    locked: false,
+                    allowedTypes: array_map(static fn (AccountType $type): string => $type->value, $key->allowedAccountTypes()),
+                    routingKey: $key,
+                );
+            }
         }
 
         foreach (PaymentType::cases() as $type) {
@@ -75,6 +78,7 @@ final class RoutingService
                 locked: $isLocked,
                 allowedTypes: array_map(static fn (AccountType $accountType): string => $accountType->value, $type->allowedAccountTypes()),
                 lockedTo: $isLocked ? $lockedKey->value : null,
+                entityAccount: $isLocked && $lockedKey->isEntity(),
             );
         }
 
@@ -83,9 +87,10 @@ final class RoutingService
 
     /**
      * Saves every row sent, or none: each row is checked first and the problems come back
-     * together. A row that is not sent is left as it is.
+     * together. A row that is not sent is left as it is. A routing row is sent as its type and
+     * account, a payment row as its account alone.
      *
-     * @param array<string, int|string|null> $input Account id by routing key. An empty value clears an optional payment row.
+     * @param array<string, array{type?: string, account?: int|string|null}|int|string|null> $input By routing key. An empty account clears an optional row.
      *
      * @throws AccountingException|BranchException
      */
@@ -105,14 +110,26 @@ final class RoutingService
 
         foreach ($input as $key => $value) {
             $key        = (string) $key;
-            $accountId  = $this->accountId($value);
-            $salesKey   = RoutingKey::tryFrom($key);
+            $row        = is_array($value) ? $value : ['account' => $value];
+            $routingKey = RoutingKey::tryFrom($key);
             $paymentKey = PaymentType::fromRoutingKey($key);
+            $current    = isset($routes[$key]) && $routes[$key]->account_id !== null ? (int) $routes[$key]->account_id : null;
+            $accountId  = array_key_exists('account', $row) ? $this->accountId($row['account']) : $current;
+            $type       = null;
 
-            if ($salesKey !== null && in_array($salesKey, RoutingKey::sales(), true)) {
-                $problem = $this->problem($accountId, $accounts, true, $salesKey->allowedAccountTypes(), [$salesKey->defaultSystemKey()]);
-            } elseif ($paymentKey !== null && ! $paymentKey->isLocked()) {
-                $problem = $this->problem($accountId, $accounts, in_array($paymentKey, $required, true), $paymentKey->allowedAccountTypes(), $paymentKey->acceptedSystemKeys());
+            if ($routingKey !== null && in_array($routingKey, RoutingKey::editable(), true)) {
+                $type = array_key_exists('type', $row) ? RoutingType::tryFrom((string) $row['type']) : $this->currentType($routingKey, $routes[$key] ?? null);
+
+                if ($type === null || ! in_array($type, $routingKey->allowedTypes(), true)) {
+                    $problem = AccountingError::RoutingTypeInvalid;
+                } elseif ($type === RoutingType::Cancelled) {
+                    $accountId = $current;
+                    $problem   = null;
+                } else {
+                    $problem = $this->problem($accountId, $accounts, $routingKey->accountRequired(), $routingKey->allowedAccountTypes(), $routingKey->acceptedSystemKeys(), $routingKey->isEntity());
+                }
+            } elseif ($paymentKey !== null && ! $paymentKey->isLocked() && ! array_key_exists('type', $row)) {
+                $problem = $this->problem($accountId, $accounts, in_array($paymentKey, $required, true), $paymentKey->allowedAccountTypes(), $paymentKey->acceptedSystemKeys(), false);
             } else {
                 $problem = AccountingError::RoutingKeyUnknown;
             }
@@ -123,10 +140,15 @@ final class RoutingService
                 continue;
             }
 
-            $current = isset($routes[$key]) && $routes[$key]->account_id !== null ? (int) $routes[$key]->account_id : null;
+            $currentType = $routingKey === null ? null : $this->currentType($routingKey, $routes[$key] ?? null);
 
-            if ($current !== $accountId) {
-                $changes[$key] = ['before' => $current, 'after' => $accountId];
+            if ($current !== $accountId || $currentType !== $type) {
+                $changes[$key] = [
+                    'before'      => $current,
+                    'after'       => $accountId,
+                    'type_before' => $currentType,
+                    'type_after'  => $type,
+                ];
             }
         }
 
@@ -144,29 +166,38 @@ final class RoutingService
             foreach ($changes as $key => $change) {
                 $exists = $this->db->table('accounting_routing')->where('company_id', $companyId)->where('routing_key', $key)->countAllResults() > 0;
 
+                $values = ['account_id' => $change['after']];
+
+                if ($change['type_after'] !== null) {
+                    $values['routing_type'] = $change['type_after']->value;
+                }
+
                 if ($exists) {
-                    $this->db->table('accounting_routing')->where('company_id', $companyId)->where('routing_key', $key)->update(['account_id' => $change['after']]);
+                    $this->db->table('accounting_routing')->where('company_id', $companyId)->where('routing_key', $key)->update($values);
                 } else {
-                    $this->db->table('accounting_routing')->insert(['company_id' => $companyId, 'routing_key' => $key, 'account_id' => $change['after']]);
+                    $this->db->table('accounting_routing')->insert(['company_id' => $companyId, 'routing_key' => $key] + $values);
                 }
 
                 $this->audit->write('routing', null, 'routing_changed', $employeeId, JournalOrigin::User, [
-                    'key'    => $key,
-                    'before' => $this->describeAccount($change['before'], $accounts),
-                    'after'  => $this->describeAccount($change['after'], $accounts),
+                    'key'         => $key,
+                    'before'      => $this->describeAccount($change['before'], $accounts),
+                    'after'       => $this->describeAccount($change['after'], $accounts),
+                    'type_before' => $change['type_before']?->value,
+                    'type_after'  => $change['type_after']?->value,
                 ]);
             }
         });
     }
 
     /**
-     * The postable accounts a row of this kind may point at, by code.
+     * The accounts a row of this kind may point at, by code: postable ones, or groups for the
+     * rows that name the main account of an entity kind.
      *
      * @param list<string> $types Account types as stored.
      *
      * @return list<object{account_id: int, code: string, name: string}>
      */
-    public function candidates(array $types): array
+    public function candidates(array $types, bool $groups = false): array
     {
         if ($types === []) {
             return [];
@@ -175,7 +206,7 @@ final class RoutingService
         return $this->db->table('accounting_accounts')
             ->select('account_id, code, name')
             ->where('company_id', CompanyContext::id())
-            ->where('is_group', 0)
+            ->where('is_group', (int) $groups)
             ->where('active', 1)
             ->whereIn('account_type', $types)
             ->orderBy('code', 'ASC')
@@ -285,7 +316,7 @@ final class RoutingService
     private function routes(): array
     {
         $rows = $this->db->table('accounting_routing r')
-            ->select('r.routing_key, r.account_id, a.code, a.name, a.is_group, a.active')
+            ->select('r.routing_key, r.routing_type, r.account_id, a.code, a.name, a.is_group, a.active')
             ->join('accounting_accounts a', 'a.account_id = r.account_id', 'left')
             ->where('r.company_id', CompanyContext::id())
             ->get()
@@ -344,13 +375,17 @@ final class RoutingService
     /**
      * @param list<string> $allowedTypes
      */
-    private function item(string $key, string $group, string $label, ?object $route, ?object $default, bool $required, bool $locked, array $allowedTypes, ?string $lockedTo = null): RoutingItem
+    private function item(string $key, string $group, string $label, ?object $route, ?object $default, bool $required, bool $locked, array $allowedTypes, ?string $lockedTo = null, ?RoutingKey $routingKey = null, bool $entityAccount = false): RoutingItem
     {
         $mapped = $route !== null && $route->account_id !== null;
+        $type   = $routingKey === null ? RoutingType::Auto : $this->currentType($routingKey, $route);
+        $entity = $routingKey?->isEntity() ?? $entityAccount;
 
-        if (! $mapped) {
+        if ($type === RoutingType::Cancelled) {
+            $status = RoutingItem::COMPLETE;
+        } elseif (! $mapped) {
             $status = $required ? RoutingItem::MISSING : RoutingItem::OPTIONAL;
-        } elseif ($route->is_group === null || (int) $route->is_group === 1 || (int) $route->active === 0) {
+        } elseif ($route->is_group === null || (int) $route->is_group !== (int) $entity || (int) $route->active === 0) {
             $status = RoutingItem::INVALID;
         } else {
             $status = RoutingItem::COMPLETE;
@@ -371,7 +406,16 @@ final class RoutingService
             locked: $locked,
             allowedTypes: $allowedTypes,
             lockedTo: $lockedTo,
+            type: $type->value,
+            routingTypes: $routingKey === null ? [] : array_map(static fn (RoutingType $routingType): string => $routingType->value, $routingKey->allowedTypes()),
+            isEntity: $entity,
+            cancelMeansNone: $routingKey?->cancelMeansNone() ?? false,
         );
+    }
+
+    private function currentType(RoutingKey $key, ?object $route): RoutingType
+    {
+        return ($route === null ? null : RoutingType::tryFrom((string) ($route->routing_type ?? ''))) ?? $key->defaultType();
     }
 
     /**
@@ -379,7 +423,7 @@ final class RoutingService
      * @param list<AccountType>  $allowedTypes
      * @param list<string>       $acceptedSystemKeys
      */
-    private function problem(?int $accountId, array $accounts, bool $required, array $allowedTypes, array $acceptedSystemKeys): ?AccountingError
+    private function problem(?int $accountId, array $accounts, bool $required, array $allowedTypes, array $acceptedSystemKeys, bool $needsGroup): ?AccountingError
     {
         if ($accountId === null) {
             return $required ? AccountingError::RoutingAccountRequired : null;
@@ -389,7 +433,8 @@ final class RoutingService
 
         return match (true) {
             $account === null                                                                            => AccountingError::AccountNotFound,
-            (int) $account->is_group === 1                                                               => AccountingError::RoutingAccountNotPostable,
+            $needsGroup && (int) $account->is_group === 0                                                => AccountingError::RoutingAccountNotGroup,
+            ! $needsGroup && (int) $account->is_group === 1                                              => AccountingError::RoutingAccountNotPostable,
             (int) $account->active === 0                                                                 => AccountingError::RoutingAccountInactive,
             ! in_array(AccountType::from($account->account_type), $allowedTypes, true)                   => AccountingError::RoutingAccountTypeInvalid,
             $account->system_key !== null && ! in_array($account->system_key, $acceptedSystemKeys, true) => AccountingError::RoutingAccountReserved,

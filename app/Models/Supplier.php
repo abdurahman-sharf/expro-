@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Libraries\Accounting\EntityAccountService;
 use CodeIgniter\Database\ResultInterface;
 
 /**
@@ -127,6 +128,10 @@ class Supplier extends Person
 
         $success &= $this->db->transStatus();
 
+        if ($success) {
+            (new EntityAccountService())->sync(EntityAccountService::SUPPLIER, (int) ($person_data['person_id'] ?? $supplier_id));
+        }
+
         return $success;
     }
 
@@ -138,7 +143,13 @@ class Supplier extends Person
         $builder = $this->db->table('suppliers');
         $builder->where('person_id', $supplier_id);
 
-        return $builder->update(['deleted' => 1]);
+        $result = $builder->update(['deleted' => 1]);
+
+        if ($result) {
+            (new EntityAccountService())->syncDeleted(EntityAccountService::SUPPLIER, (int) $supplier_id);
+        }
+
+        return $result;
     }
 
     /**
@@ -149,7 +160,15 @@ class Supplier extends Person
         $builder = $this->db->table('suppliers');
         $builder->whereIn('person_id', $person_ids);
 
-        return $builder->update(['deleted' => 1]);
+        $result = $builder->update(['deleted' => 1]);
+
+        if ($result) {
+            foreach ($person_ids as $personId) {
+                (new EntityAccountService())->syncDeleted(EntityAccountService::SUPPLIER, (int) $personId);
+            }
+        }
+
+        return $result;
     }
 
     /**

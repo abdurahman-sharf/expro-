@@ -99,7 +99,10 @@ class RoutingServiceTest extends CIUnitTestCase
         return $saleId;
     }
 
-    private function assertRowIsRefused(AccountingError $expected, string $key, int|string|null $value): void
+    /**
+     * @param int|string|array<string, string>|null $value
+     */
+    private function assertRowIsRefused(AccountingError $expected, string $key, int|string|array|null $value): void
     {
         try {
             $this->service->save([$key => $value], $this->manager);
@@ -121,21 +124,61 @@ class RoutingServiceTest extends CIUnitTestCase
         $keys = array_map(static fn (RoutingItem $item): string => $item->key, $this->service->items());
 
         $this->assertSame([
-            'receivables.control', 'sales.revenue', 'sales.returns', 'sales.discount', 'sales.cogs', 'inventory.stock', 'tax.output', 'cash.difference', 'giftcards.liability',
+            'sales.customers', 'sales.revenue', 'sales.returns', 'sales.discount', 'sales.product', 'sales.adjustment', 'sales.cogs',
+            'purchases.suppliers', 'purchases.purchases', 'purchases.returns', 'purchases.discount', 'purchases.adjustment',
+            'inventory.locations', 'treasuries.accounts',
+            'stock_permits.add', 'stock_permits.issue', 'stock_permits.count_out', 'stock_permits.count_in',
+            'fiscal.retained_earnings',
+            'cash.difference', 'tax.output', 'giftcards.liability',
             'payment.cash', 'payment.debit', 'payment.credit', 'payment.check', 'payment.bank_transfer', 'payment.upi', 'payment.wallet', 'payment.due', 'payment.giftcard', 'payment.rewards',
         ], $keys);
     }
 
-    public function testItems_StartsEverySalesRowOnItsDefaultAccount(): void
+    public function testItems_StartsEveryRowOnItsDefaultAccountAndType(): void
     {
-        foreach (RoutingKey::sales() as $key) {
-            $item = $this->itemsByKey()[$key->value];
+        foreach (RoutingKey::editable() as $key) {
+            $item      = $this->itemsByKey()[$key->value];
+            $systemKey = $key->defaultSystemKey();
 
-            $this->assertSame($this->accountId($key->defaultSystemKey()), $item->accountId, $key->value);
+            $this->assertSame($systemKey === null ? null : $this->accountId($systemKey), $item->accountId, $key->value);
             $this->assertSame($item->accountId, $item->defaultAccountId, $key->value);
-            $this->assertSame(RoutingItem::COMPLETE, $item->status, $key->value);
+            $this->assertSame($key->defaultType()->value, $item->type, $key->value);
+            $this->assertSame($key->isEntity(), $item->isEntity, $key->value);
             $this->assertFalse($item->locked, $key->value);
+            $this->assertSame($key->group(), $item->group, $key->value);
         }
+    }
+
+    public function testItems_OffersTheRoutingTypesOfEachRow(): void
+    {
+        $items = $this->itemsByKey();
+
+        $this->assertSame(['auto', 'per_item', 'main_per_entity'], $items['sales.customers']->routingTypes);
+        $this->assertSame(['cancelled', 'auto'], $items['sales.discount']->routingTypes);
+        $this->assertSame(['auto'], $items['fiscal.retained_earnings']->routingTypes);
+        $this->assertSame([], $items['payment.cash']->routingTypes);
+    }
+
+    public function testItems_MarksACancelledRowCompleteWithoutAnAccount(): void
+    {
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.discount')->update(['account_id' => null]);
+
+        $this->assertSame(RoutingItem::COMPLETE, $this->itemsByKey()['sales.discount']->status);
+    }
+
+    public function testItems_LetsProductSalesAndPurchaseReturnsStayWithoutAnAccount(): void
+    {
+        $items = $this->itemsByKey();
+
+        $this->assertSame(RoutingItem::COMPLETE, $items['sales.product']->status);
+        $this->assertSame(RoutingItem::OPTIONAL, $items['purchases.returns']->status);
+    }
+
+    public function testItems_MarksAPostableAccountOnAnEntityRowInvalid(): void
+    {
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.customers')->update(['account_id' => $this->accountId('cash')]);
+
+        $this->assertSame(RoutingItem::INVALID, $this->itemsByKey()['sales.customers']->status);
     }
 
     public function testItems_ShowsCreditSalesAndGiftCardsAgainstTheirControlAccounts(): void
@@ -144,7 +187,8 @@ class RoutingServiceTest extends CIUnitTestCase
 
         $this->assertTrue($items['payment.due']->locked);
         $this->assertSame($this->accountId('receivables'), $items['payment.due']->accountId);
-        $this->assertSame('receivables.control', $items['payment.due']->lockedTo);
+        $this->assertSame('sales.customers', $items['payment.due']->lockedTo);
+        $this->assertSame(RoutingItem::COMPLETE, $items['payment.due']->status);
         $this->assertTrue($items['payment.giftcard']->locked);
         $this->assertSame($this->accountId('giftcard_liability'), $items['payment.giftcard']->accountId);
     }
@@ -192,8 +236,86 @@ class RoutingServiceTest extends CIUnitTestCase
         $this->assertSame('routing', $entry->entity_type);
         $this->assertSame($this->manager, (int) $entry->employee_id);
         $this->assertSame('sales.revenue', $details['key']);
-        $this->assertSame('4101', $details['before']['code']);
+        $this->assertSame('411', $details['before']['code']);
         $this->assertSame('4110', $details['after']['code']);
+    }
+
+    public function testSave_ChangesTheTypeOfARowAndAuditsIt(): void
+    {
+        $this->service->save(['sales.revenue' => ['type' => 'per_item', 'account' => (string) $this->accountId('sales_revenue')]], $this->manager);
+
+        $this->assertSame('per_item', $this->itemsByKey()['sales.revenue']->type);
+
+        $details = json_decode($this->accountingDb()->table('accounting_audit_log')->where('action', 'routing_changed')->get()->getRow()->details, true);
+        $this->assertSame('auto', $details['type_before']);
+        $this->assertSame('per_item', $details['type_after']);
+    }
+
+    public function testSave_KeepsTheCurrentTypeWhenOnlyTheAccountIsSent(): void
+    {
+        $other = $this->customAccount('41', '4110', 'Other sales');
+        $this->service->save(['sales.revenue' => ['type' => 'cancelled']], $this->manager);
+
+        $this->service->save(['sales.revenue' => ['account' => (string) $other]], $this->manager);
+
+        $this->assertSame('cancelled', $this->itemsByKey()['sales.revenue']->type);
+    }
+
+    public function testSave_KeepsTheCurrentAccountWhenOnlyTheTypeIsSent(): void
+    {
+        $this->service->save(['sales.revenue' => ['type' => 'per_item']], $this->manager);
+
+        $item = $this->itemsByKey()['sales.revenue'];
+
+        $this->assertSame('per_item', $item->type);
+        $this->assertSame($this->accountId('sales_revenue'), $item->accountId);
+    }
+
+    public function testSave_KeepsTheAccountOfARowThatIsCancelled(): void
+    {
+        $this->service->save(['sales.returns' => ['type' => 'cancelled', 'account' => '']], $this->manager);
+
+        $item = $this->itemsByKey()['sales.returns'];
+
+        $this->assertSame('cancelled', $item->type);
+        $this->assertSame($this->accountId('sales_returns'), $item->accountId);
+    }
+
+    public function testSave_RejectsATypeTheRowDoesNotOffer(): void
+    {
+        foreach ([['sales.customers', 'cancelled'], ['sales.revenue', 'main_per_entity'], ['sales.discount', 'per_item'], ['fiscal.retained_earnings', 'cancelled'], ['sales.revenue', 'bogus']] as [$key, $type]) {
+            try {
+                $this->service->save([$key => ['type' => $type]], $this->manager);
+                $this->fail("{$key} should refuse {$type}.");
+            } catch (RoutingException $exception) {
+                $this->assertSame([$key => AccountingError::RoutingTypeInvalid], $exception->errors);
+            }
+        }
+    }
+
+    public function testSave_RejectsATypeOnAPaymentRow(): void
+    {
+        $this->assertRowIsRefused(AccountingError::RoutingKeyUnknown, 'payment.cash', ['type' => 'auto', 'account' => (string) $this->accountId('cash')]);
+    }
+
+    public function testSave_AcceptsAGroupAccountForAnEntityRow(): void
+    {
+        $this->service->save(['sales.customers' => ['account' => (string) $this->accountIdByCode('1205')]], $this->manager);
+
+        $this->assertSame($this->accountIdByCode('1205'), $this->itemsByKey()['sales.customers']->accountId);
+    }
+
+    public function testSave_RejectsAPostableAccountForAnEntityRow(): void
+    {
+        $this->assertRowIsRefused(AccountingError::RoutingAccountNotGroup, 'sales.customers', ['account' => (string) $this->accountId('cash')]);
+    }
+
+    public function testSave_LetsProductSalesAndPurchaseReturnsBeEmpty(): void
+    {
+        $this->service->save(['sales.product' => ['type' => 'per_item', 'account' => ''], 'purchases.returns' => ['account' => '']], $this->manager);
+
+        $this->assertNull($this->itemsByKey()['purchases.returns']->accountId);
+        $this->assertSame('per_item', $this->itemsByKey()['sales.product']->type);
     }
 
     public function testSave_LeavesTheRowsItIsNotGivenAsTheyWere(): void
@@ -331,15 +453,17 @@ class RoutingServiceTest extends CIUnitTestCase
 
     public function testSave_AcceptsALiabilityAccountForAWalletRow(): void
     {
-        $this->service->save(['payment.wallet' => $this->accountIdByCode('2104')], $this->manager);
+        $accrued = $this->customAccount('21', '2150', 'Accrued');
 
-        $this->assertSame($this->accountIdByCode('2104'), $this->itemsByKey()['payment.wallet']->accountId);
+        $this->service->save(['payment.wallet' => $accrued], $this->manager);
+
+        $this->assertSame($accrued, $this->itemsByKey()['payment.wallet']->accountId);
     }
 
     public function testSave_RefusesAnAccountThatSuitsAnotherRow(): void
     {
-        $this->assertRowIsRefused(AccountingError::RoutingAccountTypeInvalid, 'payment.rewards', $this->accountId('inventory'));
-        $this->assertRowIsRefused(AccountingError::RoutingAccountReserved, 'payment.cash', $this->accountId('receivables'));
+        $this->assertRowIsRefused(AccountingError::RoutingAccountTypeInvalid, 'payment.rewards', $this->accountId('purchases'));
+        $this->assertRowIsRefused(AccountingError::RoutingAccountReserved, 'payment.cash', $this->accountId('other_receivables'));
     }
 
     public function testCandidates_ListsPostableActiveAccountsOfTheGivenTypesByCode(): void
@@ -349,11 +473,20 @@ class RoutingServiceTest extends CIUnitTestCase
 
         $codes = array_map(static fn (object $account): string => $account->code, $this->service->candidates(['revenue']));
 
-        $this->assertContains('4101', $codes);
+        $this->assertContains('411', $codes);
         $this->assertNotContains('41', $codes);
         $this->assertNotContains('4110', $codes);
         $this->assertSame($codes, array_values(array_unique($codes)));
         $this->assertSame([], $this->service->candidates([]));
+    }
+
+    public function testCandidates_ListsGroupAccountsForTheRowsOfAnEntityKind(): void
+    {
+        $codes = array_map(static fn (object $account): string => $account->code, $this->service->candidates(['asset'], true));
+
+        $this->assertContains('12041', $codes);
+        $this->assertContains('1203', $codes);
+        $this->assertNotContains('120101', $codes);
     }
 
     public function testRequiredPaymentTypes_AlwaysIncludeGiftCardsAndRewardPoints(): void

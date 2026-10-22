@@ -14,6 +14,7 @@ enum ReadinessCode: string
     case PaymentTypeUnrouted        = 'payment_type_unrouted';
     case PaymentTypeUnknown         = 'payment_type_unknown';
     case StockLocationWithoutBranch = 'stock_location_without_branch';
+    case EntityAccountsMissing      = 'entity_accounts_missing';
     case TaxOutputSharedAccount     = 'tax_output_shared_account';
     case SalesBeforeStartDate       = 'sales_before_start_date';
 }

@@ -3,6 +3,7 @@
 namespace Tests\Controllers;
 
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\RoutingKey;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Tests\Support\AccountingControllerFixtureTrait;
@@ -75,8 +76,12 @@ class AccountingRoutingControllerTest extends CIUnitTestCase
 
         $response = $this->get('/accounting_routing');
 
-        foreach (['sales_revenue', 'sales_returns', 'sales_discount', 'sales_cogs', 'inventory_stock', 'tax_output', 'cash_difference', 'receivables_control', 'giftcards_liability'] as $key) {
-            $response->assertSee(lang('Accounting_routing.item_' . $key));
+        foreach (RoutingKey::editable() as $key) {
+            $response->assertSee(lang('Accounting_routing.item_' . str_replace('.', '_', $key->value)));
+        }
+
+        foreach ([...RoutingKey::GROUPS, 'payments'] as $group) {
+            $response->assertSee(lang('Accounting_routing.' . $group . '_title'));
         }
 
         foreach (['cash', 'debit', 'credit', 'check', 'bank_transfer', 'wallet', 'due', 'giftcard', 'rewards'] as $type) {
@@ -114,6 +119,53 @@ class AccountingRoutingControllerTest extends CIUnitTestCase
 
         $this->assertStringContainsString('4110', $revenueRow);
         $this->assertStringNotContainsString('1110', $revenueRow);
+    }
+
+    public function testGetIndex_OffersGroupAccountsForAnEntityRow(): void
+    {
+        $this->manager();
+
+        $body = $this->get('/accounting_routing')->getBody();
+        $row  = substr($body, (int) strpos($body, 'id="route_sales_customers_account"'));
+        $row  = substr($row, 0, (int) strpos($row, '</select>'));
+
+        $this->assertStringContainsString('12041', $row);
+        $this->assertStringNotContainsString('120101', $row);
+    }
+
+    public function testGetIndex_OffersTheTypesOfARowWithTheCurrentOneSelected(): void
+    {
+        $this->manager();
+
+        $body = $this->get('/accounting_routing')->getBody();
+        $row  = substr($body, (int) strpos($body, 'id="route_sales_discount_type"'));
+        $row  = substr($row, 0, (int) strpos($row, '</select>'));
+
+        $this->assertStringContainsString('value="cancelled" selected', $row);
+        $this->assertStringContainsString('value="auto"', $row);
+        $this->assertStringNotContainsString('per_item', $row);
+    }
+
+    public function testGetIndex_NamesTheTypeSelectOfEveryRowForScreenReaders(): void
+    {
+        $this->manager();
+
+        $body = $this->get('/accounting_routing')->getBody();
+
+        $this->assertSame(count(RoutingKey::editable()), substr_count($body, '][type]"'));
+        $this->assertSame(count(RoutingKey::editable()), substr_count($body, 'aria-label="' . lang('Accounting_routing.column_type') . ': '));
+    }
+
+    public function testGetIndex_CallsTheCancelledTypeNoRoutingOnTheCostRow(): void
+    {
+        $this->manager();
+
+        $body = $this->get('/accounting_routing')->getBody();
+        $row  = substr($body, (int) strpos($body, 'id="route_sales_cogs_type"'));
+        $row  = substr($row, 0, (int) strpos($row, '</select>'));
+
+        $this->assertStringContainsString('>' . lang('Accounting_routing.type_none') . '<', $row);
+        $this->assertStringNotContainsString(lang('Accounting_routing.type_cancelled'), $row);
     }
 
     public function testGetIndex_ShowsCreditSalesAndGiftCardsAsFixedRows(): void
@@ -159,11 +211,31 @@ class AccountingRoutingControllerTest extends CIUnitTestCase
         $other = $this->customAccount('41', '4110', 'Other sales');
         $this->manager();
 
-        $result = $this->jsonOf($this->post('/accounting_routing/save', ['route' => ['sales.revenue' => (string) $other]]));
+        $result = $this->jsonOf($this->post('/accounting_routing/save', ['route' => ['sales.revenue' => ['account' => (string) $other]]]));
 
         $this->assertTrue($result['success']);
         $this->assertSame(lang('Accounting_routing.saved'), $result['message']);
         $this->assertSame($other, $this->routeOf('sales.revenue'));
+    }
+
+    public function testPostSave_ChangesTheTypeOfARow(): void
+    {
+        $this->manager();
+
+        $result = $this->jsonOf($this->post('/accounting_routing/save', ['route' => ['sales.discount' => ['type' => 'auto', 'account' => (string) $this->accountId('sales_discount')]]]));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('auto', $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.discount')->get()->getRow()->routing_type);
+    }
+
+    public function testPostSave_RefusesATypeTheRowDoesNotOffer(): void
+    {
+        $this->manager();
+
+        $result = $this->jsonOf($this->post('/accounting_routing/save', ['route' => ['sales.customers' => ['type' => 'cancelled']]]));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(['sales.customers' => lang('Accounting.error_routing_type_invalid')], $result['errors']);
     }
 
     public function testPostSave_ReportsEveryRowThatIsNotValidAndSavesNone(): void
@@ -172,9 +244,9 @@ class AccountingRoutingControllerTest extends CIUnitTestCase
         $this->manager();
 
         $result = $this->jsonOf($this->post('/accounting_routing/save', ['route' => [
-            'sales.revenue' => (string) $other,
-            'sales.cogs'    => (string) $this->accountIdByCode('5'),
-            'sales.returns' => '',
+            'sales.revenue' => ['account' => (string) $other],
+            'sales.cogs'    => ['account' => (string) $this->accountIdByCode('5')],
+            'sales.returns' => ['account' => ''],
         ]]));
 
         $this->assertFalse($result['success']);
@@ -191,7 +263,7 @@ class AccountingRoutingControllerTest extends CIUnitTestCase
         $this->actAs($this->employeeWithGrants(['accounting_routing']));
         $other = $this->customAccount('41', '4110', 'Other sales');
 
-        $result = $this->jsonOf($this->post('/accounting_routing/save', ['route' => ['sales.revenue' => (string) $other]]));
+        $result = $this->jsonOf($this->post('/accounting_routing/save', ['route' => ['sales.revenue' => ['account' => (string) $other]]]));
 
         $this->assertFalse($result['success']);
         $this->assertSame(lang('Accounting.error_permission_denied'), $result['message']);
@@ -203,7 +275,7 @@ class AccountingRoutingControllerTest extends CIUnitTestCase
         $this->manager([1]);
         $other = $this->customAccount('41', '4110', 'Other sales');
 
-        $result = $this->jsonOf($this->post('/accounting_routing/save', ['route' => ['sales.revenue' => (string) $other]]));
+        $result = $this->jsonOf($this->post('/accounting_routing/save', ['route' => ['sales.revenue' => ['account' => (string) $other]]]));
 
         $this->assertFalse($result['success']);
         $this->assertSame($this->accountId('sales_revenue'), $this->routeOf('sales.revenue'));

@@ -260,8 +260,8 @@ try {
         await row.locator(side === 'debit' ? '.acc-debit' : '.acc-credit').press('Tab');
     };
 
-    await fillRow(0, '1101', 'debit', '1000');
-    await fillRow(1, '3102', 'credit', '1000');
+    await fillRow(0, '120101', 'debit', '1000');
+    await fillRow(1, '32', 'credit', '1000');
     check('opening: the grid shows a balanced entry', (await page.innerText('#balance_state')).trim().length > 0 && (await page.isEnabled('#post_opening')));
     await shot(page, '21-opening-filled');
 
@@ -290,8 +290,8 @@ try {
     await settle(page, 900);
     await page.goto(`${config.baseUrl}/accounting_periods/opening`, { waitUntil: 'networkidle' });
     check('opening: after the reversal the branch gets an empty grid again', (await page.locator('#opening_form').count()) === 1);
-    await fillRow(0, '1101', 'debit', '1500');
-    await fillRow(1, '3102', 'credit', '1500');
+    await fillRow(0, '120101', 'debit', '1500');
+    await fillRow(1, '32', 'credit', '1500');
     await Promise.all([page.waitForNavigation({ waitUntil: 'networkidle' }), page.click('#post_opening')]);
     check('opening: the replacement is posted', (await visibleText(page)).includes('1,500.00'));
     await shot(page, '23-opening-replaced');

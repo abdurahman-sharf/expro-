@@ -19,6 +19,11 @@ trait AccountingFixtureTrait
 {
     use EmployeeFixtureTrait;
 
+    /** @var list<int> */
+    private array $insertedPeople = [];
+    /** @var list<int> */
+    private array $insertedLocations = [];
+
     protected function accountingDb(): BaseConnection
     {
         return Database::connect();
@@ -90,6 +95,7 @@ trait AccountingFixtureTrait
         }
 
         $db->query('SET FOREIGN_KEY_CHECKS = 1');
+        $db->table('accounting_sequences')->like('series', 'sub:', 'after')->delete();
 
         (new DefaultChart($db))->install();
         $this->installFiscalYears();
@@ -205,6 +211,83 @@ trait AccountingFixtureTrait
         $row = $this->accountingDb()->table('accounting_accounts')->where('code', $code)->get()->getRow();
 
         return (int) $row->account_id;
+    }
+
+    protected function insertPerson(string $firstName, string $lastName): int
+    {
+        $db = $this->accountingDb();
+
+        $db->table('people')->insert([
+            'first_name'   => $firstName,
+            'last_name'    => $lastName,
+            'phone_number' => '',
+            'email'        => '',
+            'address_1'    => '',
+            'address_2'    => '',
+            'city'         => '',
+            'state'        => '',
+            'zip'          => '',
+            'country'      => '',
+            'comments'     => '',
+        ]);
+
+        return $this->insertedPeople[] = (int) $db->insertID();
+    }
+
+    /**
+     * Removes the customers, suppliers and locations the helpers wrote, and the accounts that
+     * were opened for them, so the next test starts without entities of its own.
+     */
+    protected function removeInsertedEntities(): void
+    {
+        $db = $this->accountingDb();
+        $this->releaseOpenTransactions();
+        $this->clearJournals();
+
+        if ($this->insertedPeople !== []) {
+            $db->table('accounting_accounts')->whereIn('entity_type', ['customer', 'supplier'])->whereIn('entity_id', $this->insertedPeople)->delete();
+            $db->table('customers')->whereIn('person_id', $this->insertedPeople)->delete();
+            $db->table('suppliers')->whereIn('person_id', $this->insertedPeople)->delete();
+            $db->table('people')->whereIn('person_id', $this->insertedPeople)->delete();
+        }
+
+        if ($this->insertedLocations !== []) {
+            $db->table('accounting_accounts')->where('entity_type', 'stock_location')->whereIn('entity_id', $this->insertedLocations)->delete();
+            $db->table('stock_locations')->whereIn('location_id', $this->insertedLocations)->delete();
+        }
+
+        $this->insertedPeople    = [];
+        $this->insertedLocations = [];
+    }
+
+    /**
+     * Writes the rows directly so the entity hooks of the models stay out of the test.
+     */
+    protected function insertCustomer(string $firstName = 'Omar', string $lastName = 'Khaled', ?string $company = null): int
+    {
+        $personId = $this->insertPerson($firstName, $lastName);
+
+        $this->accountingDb()->table('customers')->insert(['person_id' => $personId, 'company_name' => $company, 'employee_id' => 1]);
+
+        return $personId;
+    }
+
+    protected function insertSupplier(string $company = 'Gulf Supplies', string $firstName = 'Sara', string $lastName = 'Nasser'): int
+    {
+        $personId = $this->insertPerson($firstName, $lastName);
+
+        $this->accountingDb()->table('suppliers')->insert(['person_id' => $personId, 'company_name' => $company, 'agency_name' => '', 'category' => 0]);
+
+        return $personId;
+    }
+
+    protected function insertStockLocation(string $name = 'Warehouse'): int
+    {
+        $db = $this->accountingDb();
+
+        $db->table('stock_locations')->insert(['location_name' => $name, 'deleted' => 0, 'branch_id' => 1]);
+
+        return $this->insertedLocations[] = (int) $db->insertID();
     }
 
     protected function countRows(string $table): int

@@ -3,6 +3,7 @@
 namespace Tests\Support;
 
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\JournalService;
 use CodeIgniter\Test\FeatureTestTrait;
 use CodeIgniter\Test\TestResponse;
@@ -22,6 +23,8 @@ trait AccountingControllerFixtureTrait
     protected function prepareAccounting(bool $enabled = true): void
     {
         $this->reinstallChart();
+        (new EntityAccountService())->fill();
+        $this->accountingDb()->table('accounting_audit_log')->truncate();
         $this->setConfigValue('accounting_base_currency', 'SAR');
         $this->setConfigValue('accounting_enabled', $enabled ? '1' : '0');
     }

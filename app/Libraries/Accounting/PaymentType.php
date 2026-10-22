@@ -44,7 +44,7 @@ enum PaymentType: string
     public function lockedRoutingKey(): ?RoutingKey
     {
         return match ($this) {
-            self::Due      => RoutingKey::ReceivablesControl,
+            self::Due      => RoutingKey::Customers,
             self::Giftcard => RoutingKey::GiftcardLiability,
             default        => null,
         };

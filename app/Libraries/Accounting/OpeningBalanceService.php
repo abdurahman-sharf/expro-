@@ -27,9 +27,9 @@ final class OpeningBalanceService
     private const AMOUNT_PATTERN = '/^\d{1,11}(\.\d{1,4})?$/';
     private const SCALE          = 4;
     private const CONTROL_KEYS   = [
-        RoutingKey::ReceivablesControl,
-        RoutingKey::PayablesControl,
-        RoutingKey::InventoryStock,
+        RoutingKey::Customers,
+        RoutingKey::Suppliers,
+        RoutingKey::StockLocations,
         RoutingKey::TaxOutput,
         RoutingKey::TaxInput,
     ];
@@ -56,20 +56,7 @@ final class OpeningBalanceService
      */
     public function allowedAccounts(): array
     {
-        $blocked = [];
-
-        $routing = $this->db->table('accounting_routing')
-            ->select('account_id')
-            ->where('company_id', CompanyContext::id())
-            ->whereIn('routing_key', array_map(static fn (RoutingKey $key): string => $key->value, self::CONTROL_KEYS))
-            ->get()
-            ->getResult();
-
-        foreach ($routing as $row) {
-            if ($row->account_id !== null) {
-                $blocked[] = (int) $row->account_id;
-            }
-        }
+        $blocked = $this->controlAccountIds();
 
         $builder = $this->db->table('accounting_accounts')
             ->select('account_id, code, name, account_type')
@@ -87,6 +74,40 @@ final class OpeningBalanceService
         }
 
         return $builder->orderBy('code', 'ASC')->get()->getResult();
+    }
+
+    /**
+     * The control accounts and everything below them: the sub-accounts of customers, suppliers
+     * and stock locations hold balances that belong to the screens of those entities.
+     *
+     * @return list<int>
+     */
+    private function controlAccountIds(): array
+    {
+        $routing = $this->db->table('accounting_routing')
+            ->select('account_id')
+            ->where('company_id', CompanyContext::id())
+            ->whereIn('routing_key', array_map(static fn (RoutingKey $key): string => $key->value, self::CONTROL_KEYS))
+            ->where('account_id IS NOT NULL')
+            ->get()
+            ->getResultArray();
+
+        $found    = array_map('intval', array_column($routing, 'account_id'));
+        $frontier = $found;
+
+        while ($frontier !== []) {
+            $children = $this->db->table('accounting_accounts')
+                ->select('account_id')
+                ->where('company_id', CompanyContext::id())
+                ->whereIn('parent_id', $frontier)
+                ->get()
+                ->getResultArray();
+
+            $frontier = array_values(array_diff(array_map('intval', array_column($children, 'account_id')), $found));
+            $found    = [...$found, ...$frontier];
+        }
+
+        return $found;
     }
 
     /**

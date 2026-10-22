@@ -10,9 +10,9 @@ final readonly class RoutingItem
     public const OPTIONAL = 'optional';
 
     /**
-     * @param 'payments'|'sales' $group
-     * @param self::*            $status
-     * @param list<string>       $allowedTypes The account types the row accepts, as stored.
+     * @param self::*      $status
+     * @param list<string> $allowedTypes The account types the row accepts, as stored.
+     * @param list<string> $routingTypes The routing types the row offers, as stored.
      */
     public function __construct(
         public string $key,
@@ -29,6 +29,10 @@ final readonly class RoutingItem
         public bool $locked,
         public array $allowedTypes,
         public ?string $lockedTo = null,
+        public string $type = 'auto',
+        public array $routingTypes = [],
+        public bool $isEntity = false,
+        public bool $cancelMeansNone = false,
     ) {
     }
 }

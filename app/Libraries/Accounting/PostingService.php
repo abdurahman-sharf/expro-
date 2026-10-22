@@ -189,7 +189,8 @@ final class PostingService
             );
         }
 
-        $this->assertAccountsPostable($lines, $draft->reversesJournalId !== null);
+        $accounts = $this->assertAccountsPostable($lines, $draft->reversesJournalId !== null);
+        $lines    = $this->bindParties($lines, $accounts);
         $this->assertCostCentersExist($lines);
 
         $branchId = $this->resolveBranch($draft);
@@ -300,8 +301,10 @@ final class PostingService
      * A reversal may touch an account that was deactivated after the original was posted.
      *
      * @param list<array<string, mixed>> $lines
+     *
+     * @return array<int, object> The accounts of the lines, by id.
      */
-    private function assertAccountsPostable(array $lines, bool $allowInactive): void
+    private function assertAccountsPostable(array $lines, bool $allowInactive): array
     {
         $accountIds = array_values(array_unique(array_column($lines, 'account_id')));
 
@@ -320,6 +323,44 @@ final class PostingService
                 throw new PostingException(PostingError::AccountNotPostable, "Account {$accountId} is a group or inactive.", ['account_id' => $accountId]);
             }
         }
+
+        return $found;
+    }
+
+    /**
+     * The sub-account of a customer or supplier says whose it is, so a line on it carries that
+     * party whether or not the caller named it. A line may not name a party the account does
+     * not belong to, and a party can only be named on its own account.
+     *
+     * @param list<array<string, mixed>> $lines
+     * @param array<int, object>         $accounts
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function bindParties(array $lines, array $accounts): array
+    {
+        foreach ($lines as $index => $line) {
+            $account    = $accounts[(int) $line['account_id']];
+            $isParty    = in_array($account->entity_type, self::PARTY_TYPES, true);
+            $partyKnown = $line['party_type'] !== null;
+
+            if (! $isParty && ! $partyKnown) {
+                continue;
+            }
+
+            if ($isParty && ! $partyKnown) {
+                $lines[$index]['party_type'] = $account->entity_type;
+                $lines[$index]['party_id']   = (int) $account->entity_id;
+
+                continue;
+            }
+
+            if (! $isParty || $line['party_type'] !== $account->entity_type || (int) $line['party_id'] !== (int) $account->entity_id) {
+                throw new PostingException(PostingError::PartyAccountMismatch, "Line {$line['line_no']} names a party that does not own the account.", ['line' => $line['line_no']]);
+            }
+        }
+
+        return $lines;
     }
 
     /**

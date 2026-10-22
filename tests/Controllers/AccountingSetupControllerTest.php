@@ -30,7 +30,9 @@ class AccountingSetupControllerTest extends CIUnitTestCase
         $this->setConfigValue('accounting_auto_fiscal_year', '1');
 
         foreach (RoutingKey::cases() as $key) {
-            $this->accountingDb()->table('accounting_routing')->where('routing_key', $key->value)->update(['account_id' => $this->accountId($key->defaultSystemKey())]);
+            $systemKey = $key->defaultSystemKey();
+
+            $this->accountingDb()->table('accounting_routing')->where('routing_key', $key->value)->update(['account_id' => $systemKey === null ? null : $this->accountId($systemKey)]);
         }
     }
 

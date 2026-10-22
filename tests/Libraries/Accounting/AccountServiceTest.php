@@ -6,6 +6,7 @@ use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountService;
+use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Organization\BranchException;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -44,6 +45,7 @@ class AccountServiceTest extends CIUnitTestCase
     protected function tearDown(): void
     {
         $this->releaseOpenTransactions();
+        $this->removeInsertedEntities();
 
         parent::tearDown();
     }
@@ -159,7 +161,7 @@ class AccountServiceTest extends CIUnitTestCase
     {
         $this->assertFailsWith(AccountingError::CodeTaken, fn () => $this->service->create([
             'parent_id' => $this->accountIdByCode('11'),
-            'code'      => '1101',
+            'code'      => '120101',
             'name'      => 'Another cash',
         ]));
     }
@@ -167,15 +169,15 @@ class AccountServiceTest extends CIUnitTestCase
     public function testCreate_RejectsANameAlreadyUsedUnderTheSameParent(): void
     {
         $this->assertFailsWith(AccountingError::NameTaken, fn () => $this->service->create([
-            'parent_id' => $this->accountIdByCode('11'),
+            'parent_id' => $this->accountIdByCode('1201'),
             'code'      => '1190',
-            'name'      => 'الصندوق',
+            'name'      => 'الخزينة الأساسية',
         ]));
     }
 
     public function testCreate_AllowsTheSameNameUnderAnotherParent(): void
     {
-        $accountId = $this->service->create(['parent_id' => $this->accountIdByCode('21'), 'code' => '2190', 'name' => 'الصندوق']);
+        $accountId = $this->service->create(['parent_id' => $this->accountIdByCode('21'), 'code' => '2190', 'name' => 'الخزينة الأساسية']);
 
         $this->assertGreaterThan(0, $accountId);
     }
@@ -275,8 +277,17 @@ class AccountServiceTest extends CIUnitTestCase
     {
         $accountId = $this->customAccount();
 
-        $this->assertFailsWith(AccountingError::NameTaken, fn () => $this->service->update($accountId, ['name' => 'البنوك']));
+        $this->assertFailsWith(AccountingError::NameTaken, fn () => $this->service->update($accountId, ['name' => 'مجمع الإهلاك']));
         $this->assertFailsWith(AccountingError::AccountNotFound, fn () => $this->service->update(999999, ['name' => 'Ghost']));
+    }
+
+    public function testSubAccountOfAnEntity_CannotBeDeletedDeactivatedOrRecoded(): void
+    {
+        $accountId = (new EntityAccountService())->ensure(EntityAccountService::CUSTOMER, $this->insertCustomer(), 'Omar Khaled');
+
+        $this->assertFailsWith(AccountingError::SystemAccountLocked, fn () => $this->service->delete($accountId));
+        $this->assertFailsWith(AccountingError::SystemAccountLocked, fn () => $this->service->deactivate($accountId));
+        $this->assertFailsWith(AccountingError::SystemAccountLocked, fn () => $this->service->update($accountId, ['code' => '12049999']));
     }
 
     public function testDeactivate_DisablesACustomAccount(): void
@@ -393,7 +404,7 @@ class AccountServiceTest extends CIUnitTestCase
         $balances = $this->service->balances();
 
         $this->assertSame('250.0000', $balances[$this->accountId('cash')]['balance']);
-        $this->assertSame('250.0000', $balances[$this->accountIdByCode('11')]['balance']);
+        $this->assertSame('250.0000', $balances[$this->accountIdByCode('1201')]['balance']);
         $this->assertSame('250.0000', $balances[$this->accountIdByCode('1')]['balance']);
         $this->assertSame('250.0000', $balances[$this->accountId('cash')]['debit']);
         $this->assertSame('0.0000', $balances[$this->accountIdByCode('2')]['balance']);
@@ -432,7 +443,7 @@ class AccountServiceTest extends CIUnitTestCase
 
     public function testSuggestCode_FollowsTheLastSiblingCode(): void
     {
-        $this->assertSame('1106', $this->service->suggestCode($this->accountIdByCode('11')));
+        $this->assertSame('120102', $this->service->suggestCode($this->accountIdByCode('1201')));
     }
 
     public function testSuggestCode_StartsFromTheParentCodeWhenThereAreNoChildren(): void
@@ -452,27 +463,28 @@ class AccountServiceTest extends CIUnitTestCase
     public function testChildren_FlagsWhatTheScreenNeedsToOfferActions(): void
     {
         $this->postUsing($this->accountId('cash'));
+        $this->customAccount('1201', '120102', 'Second treasury');
 
         $children = [];
 
-        foreach ($this->service->children($this->accountIdByCode('11')) as $child) {
+        foreach ($this->service->children($this->accountIdByCode('1201')) as $child) {
             $children[$child->code] = $child;
         }
 
-        $this->assertSame('1', (string) $children['1101']->used);
-        $this->assertSame('1', (string) $children['1101']->routed);
-        $this->assertSame('0', (string) $children['1102']->used);
-        $this->assertSame('0', (string) $children['1102']->routed);
-        $this->assertSame('0', (string) $children['1101']->has_children);
+        $this->assertSame('1', (string) $children['120101']->used);
+        $this->assertSame('1', (string) $children['120101']->routed);
+        $this->assertSame('0', (string) $children['120102']->used);
+        $this->assertSame('0', (string) $children['120102']->routed);
+        $this->assertSame('0', (string) $children['120101']->has_children);
     }
 
     public function testSearch_FindsAnAccountByCodePrefixOrByName(): void
     {
-        $byCode = $this->service->search('1101');
+        $byCode = $this->service->search('120101');
         $byName = $this->service->search('المخزون');
 
-        $this->assertSame(['1101'], array_column($byCode, 'code'));
-        $this->assertContains('1104', array_column($byName, 'code'));
+        $this->assertSame(['120101'], array_column($byCode, 'code'));
+        $this->assertContains('1203', array_column($byName, 'code'));
         $this->assertSame([], $this->service->search('   '));
     }
 

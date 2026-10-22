@@ -2,6 +2,7 @@
 
 namespace Tests\Models;
 
+use App\Libraries\Accounting\EntityAccountService;
 use App\Models\Stock_location;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -53,6 +54,7 @@ class Stock_locationTest extends CIUnitTestCase
 
         $this->createdLocations = [];
         $this->resetBranches();
+        $this->setConfigValue('accounting_enabled', '0');
         session()->remove('person_id');
 
         parent::tearDown();
@@ -83,6 +85,65 @@ class Stock_locationTest extends CIUnitTestCase
         }
 
         return $locationId;
+    }
+
+    private function startAccounting(): EntityAccountService
+    {
+        $this->reinstallChart();
+        $this->setConfigValue('accounting_enabled', '1');
+
+        return new EntityAccountService();
+    }
+
+    private function saveLocation(string $name): int
+    {
+        $data = ['location_name' => $name];
+
+        $this->assertTrue(model(Stock_location::class)->save_value($data, -1));
+
+        return $this->createdLocations[] = (int) $data['location_id'];
+    }
+
+    public function testSaveValue_OpensASubAccountForANewLocationWhileAccountingIsOn(): void
+    {
+        $entities   = $this->startAccounting();
+        $locationId = $this->saveLocation('Back store');
+
+        $accountId = $entities->accountFor(EntityAccountService::STOCK_LOCATION, $locationId);
+
+        $this->assertNotNull($accountId);
+        $this->assertSame('Back store', $this->accountingDb()->table('accounting_accounts')->where('account_id', $accountId)->get()->getRow()->name);
+    }
+
+    public function testSaveValue_OpensNoAccountWhileAccountingIsOff(): void
+    {
+        $entities = $this->startAccounting();
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $locationId = $this->saveLocation('Back store');
+
+        $this->assertNull($entities->accountFor(EntityAccountService::STOCK_LOCATION, $locationId));
+    }
+
+    public function testSaveValue_RenamesTheAccountWhenTheLocationIsRenamed(): void
+    {
+        $entities   = $this->startAccounting();
+        $locationId = $this->saveLocation('Back store');
+
+        $data = ['location_name' => 'Rear store'];
+        model(Stock_location::class)->save_value($data, $locationId);
+
+        $this->assertSame('Rear store', $this->accountingDb()->table('accounting_accounts')->where('account_id', $entities->accountFor(EntityAccountService::STOCK_LOCATION, $locationId))->get()->getRow()->name);
+    }
+
+    public function testDelete_RetiresTheAccountOfTheLocation(): void
+    {
+        $entities   = $this->startAccounting();
+        $locationId = $this->saveLocation('Back store');
+
+        model(Stock_location::class)->delete($locationId);
+
+        $this->assertSame('0', (string) $this->accountingDb()->table('accounting_accounts')->where('account_id', $entities->accountFor(EntityAccountService::STOCK_LOCATION, $locationId))->get()->getRow()->active);
     }
 
     public function testGetAllowedLocations_OffersEveryGrantedLocationToAnEmployeeOfEveryBranch(): void

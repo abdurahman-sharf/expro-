@@ -566,10 +566,10 @@ class JournalServiceTest extends CIUnitTestCase
         $journal = $this->service->find($journalId);
 
         $this->assertCount(2, $journal->lines);
-        $this->assertSame('1101', $journal->lines[0]->account_code);
+        $this->assertSame('120101', $journal->lines[0]->account_code);
         $this->assertSame('MAIN', $journal->lines[0]->cost_center_code);
         $this->assertNull($journal->lines[1]->cost_center_code);
-        $this->assertSame('4101', $journal->lines[1]->account_code);
+        $this->assertSame('411', $journal->lines[1]->account_code);
     }
 
     public function testFind_LinksAReversalToItsOriginal(): void
@@ -685,15 +685,15 @@ class JournalServiceTest extends CIUnitTestCase
         $withStock = $this->service->postNew([
             'date'  => '2026-10-21',
             'lines' => [
-                ['account_id' => $this->accountId('inventory'), 'debit' => '5.00'],
-                ['account_id' => $this->accountId('payables'), 'credit' => '5.00'],
+                ['account_id' => $this->accountId('purchases'), 'debit' => '5.00'],
+                ['account_id' => $this->accountId('other_payables'), 'credit' => '5.00'],
             ],
         ]);
 
         $ids = static fn (array $result): array => array_map(static fn (object $row): int => (int) $row->journal_id, $result['rows']);
 
         $this->assertSame([$withCash], $ids($this->service->search(['account_id' => $this->accountId('cash')])));
-        $this->assertEqualsCanonicalizing([$withCash, $withStock], $ids($this->service->search(['account_id' => $this->accountIdByCode('11')])));
+        $this->assertEqualsCanonicalizing([$withCash, $withStock], $ids($this->service->search(['account_id' => $this->accountIdByCode('12')])));
         $this->assertSame([$withStock], $ids($this->service->search(['account_id' => $this->accountIdByCode('21')])));
     }
 

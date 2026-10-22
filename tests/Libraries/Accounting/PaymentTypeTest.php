@@ -62,7 +62,7 @@ class PaymentTypeTest extends CIUnitTestCase
         $locked = array_filter(PaymentType::cases(), static fn (PaymentType $type): bool => $type->isLocked());
 
         $this->assertSame([PaymentType::Due, PaymentType::Giftcard], array_values($locked));
-        $this->assertSame(RoutingKey::ReceivablesControl, PaymentType::Due->lockedRoutingKey());
+        $this->assertSame(RoutingKey::Customers, PaymentType::Due->lockedRoutingKey());
         $this->assertSame(RoutingKey::GiftcardLiability, PaymentType::Giftcard->lockedRoutingKey());
     }
 

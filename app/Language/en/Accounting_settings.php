@@ -27,6 +27,7 @@ return [
     'next_number'                              => 'Next manual journal number',
     'not_ready'                                => 'Accounting cannot be turned on yet.',
     'readiness_base_currency_missing'          => 'Set the base currency.',
+    'readiness_entity_accounts_missing'        => '{0} customer, supplier or stock location account(s) are not opened yet. Run "php spark accounting:fill_accounts".',
     'readiness_no_accounts'                    => 'The chart of accounts is empty.',
     'readiness_no_fiscal_year'                 => 'Create a fiscal year.',
     'readiness_notices_title'                  => 'Worth knowing (these do not stop you):',

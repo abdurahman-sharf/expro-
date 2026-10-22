@@ -193,6 +193,7 @@ class BranchesFoundation extends Migration
     {
         $this->replaceIndex('accounting_accounts', 'accounting_accounts_code', 'accounting_accounts_company_code', ['company_id', 'code']);
         $this->replaceIndex('accounting_accounts', 'accounting_accounts_system_key', 'accounting_accounts_company_system_key', ['company_id', 'system_key']);
+        $this->replaceIndex('accounting_accounts', 'accounting_accounts_entity', 'accounting_accounts_company_entity', ['company_id', 'entity_type', 'entity_id']);
         $this->replaceIndex('accounting_cost_centers', 'accounting_cost_centers_code', 'accounting_cost_centers_company_code', ['company_id', 'code']);
         $this->replaceIndex('accounting_journals', 'accounting_journals_number', 'accounting_journals_company_number', ['company_id', 'series', 'number']);
 
@@ -204,6 +205,7 @@ class BranchesFoundation extends Migration
     {
         $this->replaceIndex('accounting_accounts', 'accounting_accounts_company_code', 'accounting_accounts_code', ['code']);
         $this->replaceIndex('accounting_accounts', 'accounting_accounts_company_system_key', 'accounting_accounts_system_key', ['system_key']);
+        $this->replaceIndex('accounting_accounts', 'accounting_accounts_company_entity', 'accounting_accounts_entity', ['entity_type', 'entity_id']);
         $this->replaceIndex('accounting_cost_centers', 'accounting_cost_centers_company_code', 'accounting_cost_centers_code', ['code']);
         $this->replaceIndex('accounting_journals', 'accounting_journals_company_number', 'accounting_journals_number', ['series', 'number']);
 

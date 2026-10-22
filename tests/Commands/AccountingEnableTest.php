@@ -3,6 +3,7 @@
 namespace Tests\Commands;
 
 use App\Libraries\Accounting\AccountingSettings;
+use App\Libraries\Accounting\EntityAccountService;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\StreamFilterTrait;
@@ -31,6 +32,7 @@ class AccountingEnableTest extends CIUnitTestCase
         parent::setUp();
 
         $this->reinstallChart();
+        (new EntityAccountService())->fill();
         $this->accountingDb()->table('accounting_fiscal_years')->where('company_id', 1)->delete();
         $this->setConfigValue('accounting_enabled', '0');
         $this->setConfigValue('accounting_base_currency', '');

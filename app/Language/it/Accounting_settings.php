@@ -27,6 +27,7 @@ return [
     'next_number'                              => '',
     'not_ready'                                => '',
     'readiness_base_currency_missing'          => '',
+    'readiness_entity_accounts_missing'        => '',
     'readiness_no_accounts'                    => '',
     'readiness_no_fiscal_year'                 => '',
     'readiness_notices_title'                  => '',

@@ -58,8 +58,8 @@ try {
         return row ? String(row.branch_id) : '';
     };
 
-    const cash = await accountId('1101');
-    const sales = await accountId('4101');
+    const cash = await accountId('120101');
+    const sales = await accountId('411');
     const front = await costCenterId('21');
 
     const opening = await send('post', {
@@ -104,7 +104,7 @@ try {
     });
     console.log('Posted journal in the second branch', jeddah.id);
 
-    const equity = await accountId('3102');
+    const equity = await accountId('32');
     const openingBody = new URLSearchParams({
         branch_id: await branchId('HQ'),
         'lines[0][account_id]': cash,

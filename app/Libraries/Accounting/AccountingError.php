@@ -75,7 +75,12 @@ enum AccountingError: string
     case RoutingKeyUnknown         = 'routing_key_unknown';
     case RoutingAccountRequired    = 'routing_account_required';
     case RoutingAccountNotPostable = 'routing_account_not_postable';
+    case RoutingAccountNotGroup    = 'routing_account_not_group';
     case RoutingAccountInactive    = 'routing_account_inactive';
     case RoutingAccountTypeInvalid = 'routing_account_type_invalid';
     case RoutingAccountReserved    = 'routing_account_reserved';
+    case RoutingTypeInvalid        = 'routing_type_invalid';
+
+    case EntityKindUnknown        = 'entity_kind_unknown';
+    case EntityMainAccountInvalid = 'entity_main_account_invalid';
 }

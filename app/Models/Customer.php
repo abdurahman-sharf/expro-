@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Libraries\Accounting\EntityAccountService;
 use CodeIgniter\Database\ResultInterface;
 use Config\OSPOS;
 use stdClass;
@@ -230,6 +231,10 @@ class Customer extends Person
 
         $success &= $this->db->transStatus();
 
+        if ($success) {
+            (new EntityAccountService())->sync(EntityAccountService::CUSTOMER, (int) ($person_data['person_id'] ?? $customer_id));
+        }
+
         return $success;
     }
 
@@ -313,6 +318,10 @@ class Customer extends Person
             $result &= $builder->update(['deleted' => 1]);
         }
 
+        if ($result) {
+            (new EntityAccountService())->syncDeleted(EntityAccountService::CUSTOMER, (int) $customer_id, (bool) $config['enforce_privacy']);
+        }
+
         return $result;
     }
 
@@ -324,7 +333,15 @@ class Customer extends Person
         $builder = $this->db->table('customers');
         $builder->whereIn('person_id', $person_ids);
 
-        return $builder->update(['deleted' => 1]);
+        $result = $builder->update(['deleted' => 1]);
+
+        if ($result) {
+            foreach ($person_ids as $personId) {
+                (new EntityAccountService())->syncDeleted(EntityAccountService::CUSTOMER, (int) $personId);
+            }
+        }
+
+        return $result;
     }
 
     /**

@@ -5,6 +5,7 @@ namespace Tests\Libraries\Accounting;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\OpeningBalanceService;
 use App\Libraries\Accounting\PostingError;
@@ -56,6 +57,8 @@ class OpeningBalanceServiceTest extends CIUnitTestCase
             $this->other->close();
             $this->other = null;
         }
+
+        $this->removeInsertedEntities();
 
         parent::tearDown();
     }
@@ -109,13 +112,31 @@ class OpeningBalanceServiceTest extends CIUnitTestCase
 
     public function testAllowedAccounts_FollowsTheRoutingOfTheControlAccounts(): void
     {
-        $custom = $this->customAccount();
-        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'receivables.control')->update(['account_id' => $custom]);
+        $group = $this->customAccount('12', '1230', 'Custom customers', true);
+        $child = $this->customAccount('1230', '123001', 'Customer sub-account');
+        $other = $this->customAccount('12', '1231', 'Unrelated asset');
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.customers')->update(['account_id' => $group]);
 
         $ids = array_map('intval', array_column($this->service->allowedAccounts(), 'account_id'));
 
-        $this->assertNotContains($custom, $ids);
-        $this->assertContains($this->accountId('receivables'), $ids);
+        $this->assertNotContains($child, $ids);
+        $this->assertContains($other, $ids);
+    }
+
+    public function testAllowedAccounts_LeavesOutTheSubAccountsOfCustomersSuppliersAndStockLocations(): void
+    {
+        $entities = new EntityAccountService();
+        $blocked  = [
+            $entities->ensure(EntityAccountService::CUSTOMER, $this->insertCustomer(), 'Omar Khaled'),
+            $entities->ensure(EntityAccountService::SUPPLIER, $this->insertSupplier(), 'Gulf Supplies'),
+            $entities->ensure(EntityAccountService::STOCK_LOCATION, $this->insertStockLocation('Back store'), 'Back store'),
+        ];
+
+        $ids = array_map('intval', array_column($this->service->allowedAccounts(), 'account_id'));
+
+        foreach ($blocked as $accountId) {
+            $this->assertNotContains($accountId, $ids);
+        }
     }
 
     public function testSaveDraft_KeepsTheLinesUntilTheyAreChanged(): void

@@ -27,6 +27,7 @@ return [
     'next_number'                              => 'رقم القيد اليدوي التالي',
     'not_ready'                                => 'لا يمكن تشغيل المحاسبة بعد.',
     'readiness_base_currency_missing'          => 'حدّد العملة الأساسية.',
+    'readiness_entity_accounts_missing'        => 'لم تُفتح بعد {0} من حسابات العملاء أو الموردين أو مواقع المخزون. نفّذ الأمر "php spark accounting:fill_accounts".',
     'readiness_no_accounts'                    => 'دليل الحسابات فارغ.',
     'readiness_no_fiscal_year'                 => 'أنشئ سنة مالية.',
     'readiness_notices_title'                  => 'للعلم (لا تمنع التفعيل):',

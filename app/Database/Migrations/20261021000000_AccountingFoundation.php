@@ -73,12 +73,15 @@ class AccountingFoundation extends Migration
                 `is_group` TINYINT(1) NOT NULL DEFAULT 0,
                 `is_system` TINYINT(1) NOT NULL DEFAULT 0,
                 `system_key` VARCHAR(64) NULL,
+                `entity_type` VARCHAR(16) NULL,
+                `entity_id` INT UNSIGNED NULL,
                 `active` TINYINT(1) NOT NULL DEFAULT 1,
                 `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 PRIMARY KEY (`account_id`),
                 UNIQUE KEY `{p}accounting_accounts_code` (`code`),
                 UNIQUE KEY `{p}accounting_accounts_system_key` (`system_key`),
+                UNIQUE KEY `{p}accounting_accounts_entity` (`entity_type`, `entity_id`),
                 KEY `{p}accounting_accounts_parent` (`parent_id`),
                 CONSTRAINT `{p}accounting_accounts_fk_parent` FOREIGN KEY (`parent_id`)
                     REFERENCES `{p}accounting_accounts` (`account_id`) ON DELETE RESTRICT
@@ -131,6 +134,7 @@ class AccountingFoundation extends Migration
 
             "CREATE TABLE IF NOT EXISTS `{p}accounting_routing` (
                 `routing_key` VARCHAR(64) NOT NULL,
+                `routing_type` VARCHAR(16) NOT NULL DEFAULT 'auto',
                 `account_id` INT UNSIGNED NULL,
                 `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 PRIMARY KEY (`routing_key`),

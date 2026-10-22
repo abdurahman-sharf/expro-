@@ -7,6 +7,7 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountingNotReadyException;
 use App\Libraries\Accounting\AccountingSettings;
+use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\ReadinessCode;
@@ -45,10 +46,14 @@ class AccountingSettingsTest extends CIUnitTestCase
         $db->table('accounting_audit_log')->truncate();
 
         foreach (RoutingKey::cases() as $key) {
+            $systemKey = $key->defaultSystemKey();
+
             $db->table('accounting_routing')
                 ->where('routing_key', $key->value)
-                ->update(['account_id' => $this->accountId($key->defaultSystemKey())]);
+                ->update(['account_id' => $systemKey === null ? null : $this->accountId($systemKey), 'routing_type' => $key->defaultType()->value]);
         }
+
+        (new EntityAccountService())->fill();
 
         foreach (PaymentType::cases() as $type) {
             if ($type->defaultSystemKey() !== null) {
@@ -62,6 +67,13 @@ class AccountingSettingsTest extends CIUnitTestCase
         $this->setConfigValue('accounting_base_currency', '');
         $this->setConfigValue('accounting_start_date', '');
         $this->settings = new AccountingSettings();
+    }
+
+    protected function tearDown(): void
+    {
+        $this->removeInsertedEntities();
+
+        parent::tearDown();
     }
 
     private function completeTheSettings(): void
@@ -154,6 +166,58 @@ class AccountingSettingsTest extends CIUnitTestCase
         $this->accountingDb()->table('accounting_accounts')->where('system_key', 'cash')->update(['active' => 0]);
 
         $this->assertContains('routing_account_invalid', $this->codesOf($this->settings->readiness()));
+    }
+
+    public function testReadiness_IgnoresACancelledRowWithoutAnAccount(): void
+    {
+        $this->completeTheSettings();
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.discount')->update(['account_id' => null]);
+
+        $this->assertSame([], $this->settings->readiness());
+    }
+
+    public function testReadiness_IgnoresAnEmptyRowThatMayStayEmpty(): void
+    {
+        $this->completeTheSettings();
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'purchases.returns')->update(['account_id' => null]);
+
+        $this->assertSame([], $this->settings->readiness());
+    }
+
+    public function testReadiness_ReportsAPostableAccountOnAnEntityRow(): void
+    {
+        $this->completeTheSettings();
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.customers')->update(['account_id' => $this->accountId('cash')]);
+
+        $issues = $this->settings->readiness();
+
+        $this->assertSame([ReadinessCode::RoutingAccountInvalid], array_column($issues, 'code'));
+        $this->assertSame('sales.customers', $issues[0]->subject);
+    }
+
+    public function testReadiness_ReportsTheEntitiesThatHaveNoAccountYet(): void
+    {
+        $this->completeTheSettings();
+        $this->insertCustomer();
+        $this->insertSupplier();
+
+        $issues = $this->settings->readiness();
+
+        $this->assertSame([ReadinessCode::EntityAccountsMissing], array_column($issues, 'code'));
+        $this->assertSame('2', $issues[0]->subject);
+
+        (new EntityAccountService())->fill();
+
+        $this->assertSame([], $this->settings->readiness());
+    }
+
+    public function testReadiness_IgnoresEntitiesWhoseRoutingIsNotAutomatic(): void
+    {
+        $this->completeTheSettings();
+        $this->insertCustomer();
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.customers')->update(['routing_type' => 'per_item']);
+
+        $this->assertSame([], $this->settings->readiness());
     }
 
     public function testReadiness_ReportsARequiredPaymentTypeWithoutAnAccount(): void

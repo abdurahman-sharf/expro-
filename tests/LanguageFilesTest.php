@@ -7,6 +7,7 @@ use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\ReadinessCode;
 use App\Libraries\Accounting\RoutingKey;
+use App\Libraries\Accounting\RoutingType;
 use App\Libraries\Organization\BranchError;
 use CodeIgniter\Test\CIUnitTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -83,11 +84,23 @@ class LanguageFilesTest extends CIUnitTestCase
     {
         $messages = include __DIR__ . "/../app/Language/{$locale}/Accounting_routing.php";
 
-        foreach (RoutingKey::sales() as $key) {
+        foreach (RoutingKey::editable() as $key) {
             $line = 'item_' . str_replace('.', '_', $key->value);
 
             $this->assertNotSame('', $messages[$line] ?? '', "{$locale} lacks {$line}");
         }
+
+        foreach ([...RoutingKey::GROUPS, 'payments'] as $group) {
+            foreach (['title', 'desc'] as $part) {
+                $this->assertNotSame('', $messages["{$group}_{$part}"] ?? '', "{$locale} lacks {$group}_{$part}");
+            }
+        }
+
+        foreach (RoutingType::cases() as $type) {
+            $this->assertNotSame('', $messages['type_' . $type->value] ?? '', "{$locale} lacks the label of the routing type {$type->value}");
+        }
+
+        $this->assertNotSame('', $messages['type_none'] ?? '', "{$locale} lacks the no routing label");
 
         foreach (PaymentType::cases() as $type) {
             $this->assertNotSame('', $messages['payment_' . $type->value] ?? '', "{$locale} lacks the payment label of {$type->value}");

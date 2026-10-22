@@ -27,7 +27,7 @@ class AccountTest extends CIUnitTestCase
         $account = model(Account::class)->findBySystemKey('cash');
 
         $this->assertNotNull($account);
-        $this->assertSame('1101', $account->code);
+        $this->assertSame('120101', $account->code);
         $this->assertSame('asset', $account->account_type);
         $this->assertSame('debit', $account->normal_balance);
     }

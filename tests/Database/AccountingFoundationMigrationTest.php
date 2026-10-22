@@ -5,6 +5,7 @@ namespace Tests\Database;
 use App\Database\Migrations\AccountingFoundation;
 use App\Database\Migrations\AccountingPeriods;
 use App\Database\Migrations\BranchesFoundation;
+use App\Libraries\Accounting\RoutingKey;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -90,6 +91,28 @@ class AccountingFoundationMigrationTest extends CIUnitTestCase
         )->getResultArray();
 
         $this->assertSame(['source_type', 'source_id', 'entry_type', 'revision'], array_column($columns, 'name'));
+    }
+
+    public function testUp_KeysASubAccountByCompanyAndEntity(): void
+    {
+        $columns = $this->accountingDb()->query(
+            'SELECT COLUMN_NAME AS name FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ? AND NON_UNIQUE = 0 ORDER BY SEQ_IN_INDEX',
+            [$this->accountingDb()->prefixTable('accounting_accounts'), $this->accountingDb()->prefixTable('accounting_accounts_company_entity')],
+        )->getResultArray();
+
+        $this->assertSame(['company_id', 'entity_type', 'entity_id'], array_column($columns, 'name'));
+    }
+
+    public function testUp_GivesEveryRoutingRowItsDefaultType(): void
+    {
+        $rows = $this->accountingDb()->table('accounting_routing')->select('routing_key, routing_type')->get()->getResultArray();
+
+        foreach (RoutingKey::cases() as $key) {
+            $row = array_values(array_filter($rows, static fn (array $row): bool => $row['routing_key'] === $key->value));
+
+            $this->assertCount(1, $row, $key->value);
+            $this->assertSame($key->defaultType()->value, $row[0]['routing_type'], $key->value);
+        }
     }
 
     public function testUp_IsSafeToRunTwice(): void
