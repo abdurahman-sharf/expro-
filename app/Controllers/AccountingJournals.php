@@ -13,6 +13,7 @@ use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\JournalStatus;
 use App\Libraries\Accounting\PeriodGuard;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\Accounting\PostingFailureReader;
 use App\Libraries\Organization\BranchContext;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchService;
@@ -300,6 +301,58 @@ class AccountingJournals extends AccountingController
         return $this->response->setJSON(['total' => $result['total'], 'rows' => $rows]);
     }
 
+    public function getFailures(): string
+    {
+        if (! $this->can(AccountingGuard::JOURNALS_AUDIT)) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        $seesBranches = $this->seesBranches();
+
+        return view('accounting_journals/failures', [
+            'table_headers'  => transform_headers($this->failureHeaders($seesBranches), true, false),
+            'sources'        => array_map(fn (string $source): array => ['code' => $source, 'label' => $this->label('source', $source)], (new PostingFailureReader())->sources($this->branchIds())),
+            'branches'       => $seesBranches ? (new BranchService())->all($this->employeeId()) : [],
+            'current_branch' => $this->branchContext()->current($this->employeeId()),
+        ]);
+    }
+
+    public function getFailuresSearch(): ResponseInterface
+    {
+        if (! $this->can(AccountingGuard::JOURNALS_AUDIT)) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        $limit  = max(1, min((int) $this->request->getGet('limit') ?: self::DEFAULT_PAGE_SIZE, 500));
+        $offset = max(0, (int) $this->request->getGet('offset'));
+        $order  = (string) $this->request->getGet('order');
+
+        $result = (new PostingFailureReader())->search([
+            'date_from'   => (string) $this->request->getGet('date_from'),
+            'date_to'     => (string) $this->request->getGet('date_to'),
+            'source_type' => (string) $this->request->getGet('source_type'),
+            'branch_id'   => (int) $this->request->getGet('branch_id'),
+        ], $order === 'asc' ? 'asc' : 'desc', $limit, $offset, $this->branchIds());
+
+        $rows = [];
+
+        foreach ($result['rows'] as $failure) {
+            $reason = lang('Accounting.posting_' . $failure->error_code);
+
+            $rows[] = [
+                'failure_id' => (int) $failure->failure_id,
+                'created_at' => $this->formatDateTime($failure->created_at),
+                'source'     => $this->label('source', $failure->source_type) . ($failure->source_id === null ? '' : ' #' . (int) $failure->source_id),
+                'branch'     => (string) $failure->branch_code,
+                'reason'     => $reason === 'Accounting.posting_' . $failure->error_code ? (string) $failure->message : $reason,
+                'employee'   => $failure->employee_name ?? '',
+                'outcome'    => lang('Accounting_journals.failure_rolled_back'),
+            ];
+        }
+
+        return $this->response->setJSON(['total' => $result['total'], 'rows' => $rows]);
+    }
+
     /**
      * @return list<array<string, mixed>>
      */
@@ -317,6 +370,23 @@ class AccountingJournals extends AccountingController
             ['total_credit'    => lang('Accounting_journals.total_credit'), 'sortable' => false, 'escape' => false],
             ['status'          => lang('Accounting.status'), 'escape' => false],
             ['created_by_name' => lang('Accounting_journals.created_by'), 'sortable' => false],
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function failureHeaders(bool $withBranch): array
+    {
+        $branch = $withBranch ? [['branch' => lang('Accounting_journals.branch'), 'sortable' => false]] : [];
+
+        return [
+            ['created_at' => lang('Accounting_journals.failure_time'), 'sortable' => true],
+            ['source' => lang('Accounting_journals.failure_source'), 'sortable' => false],
+            ...$branch,
+            ['reason'   => lang('Accounting_journals.failure_reason'), 'sortable' => false],
+            ['employee' => lang('Accounting_journals.failure_employee'), 'sortable' => false],
+            ['outcome'  => lang('Accounting_journals.failure_outcome'), 'sortable' => false],
         ];
     }
 

@@ -70,4 +70,12 @@ enum AccountingError: string
     case OpeningUnbalanced        = 'opening_unbalanced';
     case OpeningAlreadyPosted     = 'opening_already_posted';
     case OpeningNotPosted         = 'opening_not_posted';
+
+    case RoutingInvalid            = 'routing_invalid';
+    case RoutingKeyUnknown         = 'routing_key_unknown';
+    case RoutingAccountRequired    = 'routing_account_required';
+    case RoutingAccountNotPostable = 'routing_account_not_postable';
+    case RoutingAccountInactive    = 'routing_account_inactive';
+    case RoutingAccountTypeInvalid = 'routing_account_type_invalid';
+    case RoutingAccountReserved    = 'routing_account_reserved';
 }

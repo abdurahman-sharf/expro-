@@ -7,7 +7,7 @@ const NAVIGATION_GROUPS = [
     'group_inventory'  => ['items', 'item_kits', 'attributes'],
     'group_customers'  => ['customers', 'giftcards', 'messages'],
     'group_finance'    => ['expenses', 'expenses_categories', 'cashups', 'taxes'],
-    'group_accounting' => ['accounting_chart', 'accounting_journals', 'accounting_cost_centers', 'accounting_periods', 'accounting_settings'],
+    'group_accounting' => ['accounting_chart', 'accounting_journals', 'accounting_cost_centers', 'accounting_periods', 'accounting_routing', 'accounting_settings'],
     'group_analysis'   => ['reports'],
     'group_admin'      => ['employees', 'branches', 'config'],
 ];
@@ -31,6 +31,7 @@ const NAVIGATION_ICONS = [
     'accounting_journals'     => 'bi-journal-text',
     'accounting_cost_centers' => 'bi-bullseye',
     'accounting_periods'      => 'bi-calendar-range',
+    'accounting_routing'      => 'bi-signpost-split',
     'accounting_settings'     => 'bi-toggles',
     'reports'                 => 'bi-bar-chart-line',
     'employees'               => 'bi-person-badge',

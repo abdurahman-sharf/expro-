@@ -172,7 +172,15 @@ final class AccountingSettings
             $issues[] = new ReadinessIssue(ReadinessCode::StartDateOutsideFiscalYear, $startDate);
         }
 
-        return [...$issues, ...$this->routingIssues()];
+        return [...$issues, ...$this->routingIssues(), ...(new RoutingService($this->db))->blockingIssues()];
+    }
+
+    /**
+     * @return list<ReadinessIssue> What is worth knowing before turning accounting on, none of it a reason to wait.
+     */
+    public function notices(): array
+    {
+        return (new RoutingService($this->db))->notices($this->startDate());
     }
 
     /**

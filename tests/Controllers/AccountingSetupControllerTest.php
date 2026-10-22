@@ -5,6 +5,7 @@ namespace Tests\Controllers;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\JournalService;
+use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\RoutingKey;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -104,6 +105,44 @@ class AccountingSetupControllerTest extends CIUnitTestCase
         $response->assertSee(lang('Accounting_settings.readiness_no_fiscal_year'));
         $response->assertSee('id="first_year_form"');
         $response->assertSee('disabled>' . lang('Accounting_settings.enable'));
+    }
+
+    public function testGetIndex_LinksToTheRoutingScreenOnlyForSomeoneWhoCanOpenIt(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_settings']));
+
+        $this->get('/accounting_settings')->assertDontSee(lang('Accounting_settings.readiness_routing_link'));
+
+        $this->actAs($this->employeeWithGrants(['accounting_settings', 'accounting_routing']));
+
+        $this->get('/accounting_settings')->assertSee(lang('Accounting_settings.readiness_routing_link'));
+    }
+
+    public function testGetIndex_ListsAnUnroutedPaymentTypeAsWhatStopsTurningAccountingOn(): void
+    {
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'payment.cash')->update(['account_id' => null]);
+        $this->manager();
+
+        $response = $this->get('/accounting_settings');
+
+        $response->assertSee(lang('Accounting_settings.readiness_payment_type_unrouted', [PaymentType::Cash->value]));
+        $response->assertSee('disabled>' . lang('Accounting_settings.enable'));
+    }
+
+    public function testGetIndex_ListsNoticesWithoutDisablingTheButton(): void
+    {
+        $this->accountingDb()->table('sales')->insert(['sale_time' => '2025-06-01 10:00:00', 'employee_id' => $this->employeeWithGrants([]), 'comment' => 'earlier sale']);
+        $saleId = (int) $this->accountingDb()->insertID();
+        $this->manager();
+
+        try {
+            $response = $this->get('/accounting_settings');
+
+            $response->assertSee(lang('Accounting_settings.readiness_notices_title'));
+            $response->assertDontSee('disabled>' . lang('Accounting_settings.enable'));
+        } finally {
+            $this->accountingDb()->table('sales')->where('sale_id', $saleId)->delete();
+        }
     }
 
     public function testGetIndex_ShowsReadyWhenEverythingIsSet(): void

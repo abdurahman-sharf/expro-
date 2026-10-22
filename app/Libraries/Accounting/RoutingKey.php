@@ -20,6 +20,42 @@ enum RoutingKey: string
     case OpeningBalance     = 'equity.opening';
     case RetainedEarnings   = 'equity.retained';
 
+    /**
+     * The keys the routing screen edits. The other keys belong to purchases, expenses and
+     * equity and keep the account the chart gave them until their phases.
+     *
+     * @return list<self>
+     */
+    public static function sales(): array
+    {
+        return [
+            self::ReceivablesControl,
+            self::SalesRevenue,
+            self::SalesReturns,
+            self::SalesDiscount,
+            self::CostOfGoodsSold,
+            self::InventoryStock,
+            self::TaxOutput,
+            self::CashDifference,
+            self::GiftcardLiability,
+        ];
+    }
+
+    /**
+     * @return list<AccountType>
+     */
+    public function allowedAccountTypes(): array
+    {
+        return match ($this) {
+            self::ReceivablesControl, self::InventoryStock => [AccountType::Asset],
+            self::SalesRevenue, self::SalesReturns => [AccountType::Revenue],
+            self::SalesDiscount, self::CashDifference => [AccountType::Revenue, AccountType::Expense],
+            self::CostOfGoodsSold => [AccountType::Expense],
+            self::TaxOutput, self::GiftcardLiability => [AccountType::Liability],
+            default => [],
+        };
+    }
+
     public function defaultSystemKey(): string
     {
         return match ($this) {

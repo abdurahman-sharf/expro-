@@ -5,6 +5,7 @@ namespace Tests\Libraries\Accounting;
 use App\Libraries\Accounting\AccountType;
 use App\Libraries\Accounting\DefaultChart;
 use App\Libraries\Accounting\NormalBalance;
+use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\RoutingKey;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -30,7 +31,7 @@ class DefaultChartTest extends CIUnitTestCase
     public function testInstall_IsInstalledByTheMigration(): void
     {
         $this->assertGreaterThan(30, $this->countRows('accounting_accounts'));
-        $this->assertSame(count(RoutingKey::cases()), $this->countRows('accounting_routing'));
+        $this->assertSame($this->expectedRoutingRows(), $this->countRows('accounting_routing'));
     }
 
     public function testInstall_DoesNothingWhenTheChartAlreadyHasAccounts(): void
@@ -122,6 +123,31 @@ class DefaultChartTest extends CIUnitTestCase
 
         $this->assertTrue($installed);
         $this->assertGreaterThan(30, $this->countRows('accounting_accounts'));
-        $this->assertSame(count(RoutingKey::cases()), $this->countRows('accounting_routing'));
+        $this->assertSame($this->expectedRoutingRows(), $this->countRows('accounting_routing'));
+    }
+
+    public function testInstall_RoutesEachPaymentTypeToItsDefaultAccount(): void
+    {
+        $db = $this->accountingDb();
+
+        foreach (PaymentType::cases() as $type) {
+            $row = $db->table('accounting_routing')->where('routing_key', $type->routingKey())->get()->getRow();
+
+            if ($type->defaultSystemKey() === null) {
+                $this->assertNull($row, $type->value);
+
+                continue;
+            }
+
+            $this->assertNotNull($row, $type->value);
+            $this->assertSame($this->accountId($type->defaultSystemKey()), (int) $row->account_id, $type->value);
+        }
+    }
+
+    private function expectedRoutingRows(): int
+    {
+        $paymentRows = array_filter(PaymentType::cases(), static fn (PaymentType $type): bool => $type->defaultSystemKey() !== null);
+
+        return count(RoutingKey::cases()) + count($paymentRows);
     }
 }

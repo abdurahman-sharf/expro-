@@ -53,6 +53,17 @@ final class DefaultChart
             ]);
         }
 
+        foreach (PaymentType::cases() as $paymentType) {
+            $systemKey = $paymentType->defaultSystemKey();
+
+            if ($systemKey !== null) {
+                $this->db->table('accounting_routing')->ignore(true)->insert([
+                    'routing_key' => $paymentType->routingKey(),
+                    'account_id'  => $accountIdsByKey[$systemKey] ?? null,
+                ]);
+            }
+        }
+
         $this->db->table('accounting_sequences')->ignore(true)->insert(['series' => 'manual', 'last_number' => 0]);
 
         $this->db->transComplete();

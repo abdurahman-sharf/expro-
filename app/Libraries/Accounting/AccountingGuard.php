@@ -22,6 +22,7 @@ final class AccountingGuard
     public const PERIODS_CLOSE       = 'acc_periods_close';
     public const PERIODS_REOPEN      = 'acc_periods_reopen';
     public const OPENING_MANAGE      = 'acc_opening_manage';
+    public const ROUTING_MANAGE      = 'acc_routing_manage';
 
     /**
      * Permissions that change what ordinary users cannot undo. Nothing grants them
@@ -32,6 +33,7 @@ final class AccountingGuard
         self::PERIODS_CLOSE,
         self::PERIODS_REOPEN,
         self::OPENING_MANAGE,
+        self::ROUTING_MANAGE,
     ];
 
     private Employee $employee;

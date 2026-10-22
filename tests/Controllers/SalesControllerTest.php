@@ -3,10 +3,12 @@
 namespace Tests\Controllers;
 
 use CodeIgniter\Database\Config;
+use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use CodeIgniter\Config\Services;
+use App\Libraries\Organization\BranchGuard;
 use App\Models\Employee;
 use Config\Database;
 use Tests\Support\ItemFixtureTrait;
@@ -76,6 +78,7 @@ class SalesControllerTest extends CIUnitTestCase
             grants: [
                 ['permission_id' => 'sales', 'menu_group' => 'home'],
                 ['permission_id' => 'sales_stock', 'menu_group' => 'home'],
+                ['permission_id' => BranchGuard::ALL_BRANCHES, 'menu_group' => '--'],
             ],
         );
     }
@@ -90,6 +93,7 @@ class SalesControllerTest extends CIUnitTestCase
             grants: [
                 ['permission_id' => 'sales', 'menu_group' => 'home'],
                 ['permission_id' => 'sales_stock', 'menu_group' => 'home'],
+                ['permission_id' => BranchGuard::ALL_BRANCHES, 'menu_group' => '--'],
                 ['permission_id' => 'reports_sales', 'menu_group' => 'home'],
             ],
         );
@@ -105,6 +109,7 @@ class SalesControllerTest extends CIUnitTestCase
             grants: [
                 ['permission_id' => 'sales', 'menu_group' => 'home'],
                 ['permission_id' => 'sales_stock', 'menu_group' => 'home'],
+                ['permission_id' => BranchGuard::ALL_BRANCHES, 'menu_group' => '--'],
             ],
         );
     }
@@ -119,6 +124,7 @@ class SalesControllerTest extends CIUnitTestCase
             grants: [
                 ['permission_id' => 'sales', 'menu_group' => 'home'],
                 ['permission_id' => 'sales_stock', 'menu_group' => 'home'],
+                ['permission_id' => BranchGuard::ALL_BRANCHES, 'menu_group' => '--'],
                 ['permission_id' => 'sales_change_price', 'menu_group' => 'home'],
             ],
         );
@@ -809,5 +815,143 @@ class SalesControllerTest extends CIUnitTestCase
         $cart = Services::session()->get('sales_cart');
         $this->assertNotEmpty($cart);
         $this->assertNotSame($itemId, array_values($cart)[0]['item_id']);
+    }
+
+    /**
+     * A cashier who also holds the report and delete grants but works only in the given branch.
+     */
+    protected function createBranchLimitedSupervisor(int $branchId): int
+    {
+        $personId = $this->createEmployee(
+            first_name: 'Branch',
+            last_name:  'Supervisor',
+            email:      'branch.' . uniqid() . '@test.com',
+            username:   'branch_' . uniqid(),
+            grants: [
+                ['permission_id' => 'sales', 'menu_group' => 'home'],
+                ['permission_id' => 'sales_stock', 'menu_group' => 'home'],
+                ['permission_id' => 'sales_delete', 'menu_group' => 'home'],
+                ['permission_id' => 'reports_sales', 'menu_group' => 'home'],
+            ],
+        );
+
+        Database::connect()->table('employee_branches')->insert(['person_id' => $personId, 'branch_id' => $branchId, 'is_default' => 1]);
+
+        return $personId;
+    }
+
+    /**
+     * A stock location in the branch that the employee may sell from.
+     */
+    protected function grantStockLocationIn(int $branchId, int $personId): int
+    {
+        $db   = Database::connect();
+        $name = 'depot' . uniqid();
+
+        $db->table('stock_locations')->insert(['location_name' => $name, 'deleted' => 0, 'branch_id' => $branchId]);
+        $locationId = (int) $db->insertID();
+
+        foreach (['items', 'sales'] as $module) {
+            $db->table('permissions')->insert(['permission_id' => "{$module}_{$name}", 'module_id' => $module, 'location_id' => $locationId]);
+            $db->table('grants')->insert(['permission_id' => "{$module}_{$name}", 'person_id' => $personId, 'menu_group' => 'home']);
+        }
+
+        return $locationId;
+    }
+
+    protected function createSecondBranch(): int
+    {
+        $db = Database::connect();
+        $db->table('branches')->insert(['company_id' => 1, 'code' => 'T' . random_int(100, 999), 'name' => 'Test branch', 'active' => 1]);
+
+        return (int) $db->insertID();
+    }
+
+    public function testGetReceipt_HidesASaleOfABranchTheEmployeeDoesNotWorkIn(): void
+    {
+        $supervisorId = $this->createBranchLimitedSupervisor($this->createSecondBranch());
+        $saleId       = $this->createSale($supervisorId);
+        $this->loginAs($supervisorId);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/sales/receipt/' . $saleId);
+    }
+
+    public function testGetReceipt_ShowsASaleOfTheBranchTheEmployeeWorksIn(): void
+    {
+        $branchId     = $this->createSecondBranch();
+        $supervisorId = $this->createBranchLimitedSupervisor($branchId);
+        $saleId       = $this->createSale($supervisorId);
+        Database::connect()->table('sales')->where('sale_id', $saleId)->update(['branch_id' => $branchId]);
+        $this->loginAs($supervisorId);
+
+        $this->get('/sales/receipt/' . $saleId)->assertStatus(200);
+    }
+
+    public function testGetEdit_HidesASaleOfABranchTheEmployeeDoesNotWorkIn(): void
+    {
+        $supervisorId = $this->createBranchLimitedSupervisor($this->createSecondBranch());
+        $saleId       = $this->createSale($supervisorId);
+        $this->loginAs($supervisorId);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/sales/edit/' . $saleId);
+    }
+
+    public function testPostSave_RefusesASaleOfABranchTheEmployeeDoesNotWorkIn(): void
+    {
+        $supervisorId = $this->createBranchLimitedSupervisor($this->createSecondBranch());
+        $saleId       = $this->createSale($supervisorId);
+        $this->loginAs($supervisorId);
+
+        $response = $this->post('/sales/save/' . $saleId, ['date' => date('d/m/Y H:i:s'), 'comment' => 'changed']);
+
+        $response->assertStatus(403);
+        $this->assertSame(lang('Sales.branch_not_allowed'), json_decode($response->getJSON(), true)['message']);
+        $this->assertSame('test sale', Database::connect()->table('sales')->where('sale_id', $saleId)->get()->getRow()->comment);
+    }
+
+    public function testPostDelete_RefusesASaleOfABranchTheEmployeeDoesNotWorkIn(): void
+    {
+        $supervisorId = $this->createBranchLimitedSupervisor($this->createSecondBranch());
+        $saleId       = $this->createSale($supervisorId);
+        $this->loginAs($supervisorId);
+
+        $response = $this->post('/sales/delete', ['ids' => [(string) $saleId]]);
+
+        $response->assertStatus(403);
+        $this->assertSame(lang('Sales.branch_not_allowed'), json_decode($response->getJSON(), true)['message']);
+        $this->assertSame(COMPLETED, (int) Database::connect()->table('sales')->where('sale_id', $saleId)->get()->getRow()->sale_status);
+    }
+
+    public function testGetIndex_SendsAnEmployeeWhoseBranchesHaveNoStockLocationToTheNoAccessPage(): void
+    {
+        $supervisorId = $this->createBranchLimitedSupervisor($this->createSecondBranch());
+        $this->loginAs($supervisorId);
+
+        $response = $this->get('/sales');
+
+        $response->assertStatus(302);
+        $response->assertRedirectTo('no_access/sales/sales_stock');
+    }
+
+    public function testPostComplete_RefusesACartThatSellsFromAnotherBranch(): void
+    {
+        $branchId     = $this->createSecondBranch();
+        $supervisorId = $this->createBranchLimitedSupervisor($branchId);
+        $this->grantStockLocationIn($branchId, $supervisorId);
+        $itemId = $this->createTestItem(HAS_NO_STOCK);
+        $this->loginAs($supervisorId);
+        $this->seedCartLine(1, '100.00', $itemId);
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY]));
+
+        $salesCountBefore = Database::connect()->table('sales')->countAllResults();
+
+        $response = $this->post('/sales/complete');
+
+        $this->assertSame($salesCountBefore, Database::connect()->table('sales')->countAllResults());
+        $response->assertSee(lang('Sales.branch_not_allowed'));
     }
 }

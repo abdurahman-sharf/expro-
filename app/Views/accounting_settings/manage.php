@@ -2,6 +2,8 @@
 /**
  * @var bool $enabled
  * @var list<string> $issues
+ * @var list<string> $notices
+ * @var string|null $routing_url
  * @var string $currency
  * @var string $start_date
  * @var bool $auto_year
@@ -74,6 +76,19 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
                     <li><span class="bi bi-x-circle-fill text-danger" aria-hidden="true"></span> <?= esc($issue) ?></li>
                 <?php endforeach; ?>
             </ul>
+        <?php endif; ?>
+
+        <?php if ($notices !== []): ?>
+            <p class="mb-1"><?= lang('Accounting_settings.readiness_notices_title') ?></p>
+            <ul class="acc-readiness">
+                <?php foreach ($notices as $notice): ?>
+                    <li><span class="bi bi-info-circle-fill text-info" aria-hidden="true"></span> <?= esc($notice) ?></li>
+                <?php endforeach; ?>
+            </ul>
+        <?php endif; ?>
+
+        <?php if ($routing_url !== null): ?>
+            <p class="mb-2"><a href="<?= esc($routing_url, 'attr') ?>"><?= lang('Accounting_settings.readiness_routing_link') ?></a></p>
         <?php endif; ?>
 
         <?php if ($can_manage): ?>

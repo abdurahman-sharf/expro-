@@ -929,7 +929,7 @@ class Sale_lib
     public function get_sale_location(): int
     {
         if (!$this->session->get('sales_location')) {
-            $this->set_sale_location($this->stock_location->get_default_location_id('sales'));
+            $this->set_sale_location($this->stock_location->get_default_location_id('sales', true));
         }
 
         return $this->session->get('sales_location');

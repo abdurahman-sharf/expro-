@@ -9,6 +9,8 @@ return [
     'accounting_journals_desc'     => '',
     'accounting_periods'           => '',
     'accounting_periods_desc'      => '',
+    'accounting_routing'           => '',
+    'accounting_routing_desc'      => '',
     'accounting_settings'          => '',
     'accounting_settings_desc'     => '',
     'admin_cashups'                => 'Administrador de retiro',

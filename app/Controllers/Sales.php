@@ -4,6 +4,7 @@ namespace App\Controllers;
 
 use App\Libraries\Barcode_lib;
 use App\Libraries\Email_lib;
+use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Pdf_lib;
 use App\Libraries\Sale_lib;
 use App\Libraries\Tax_lib;
@@ -21,6 +22,7 @@ use App\Models\Stock_location;
 use App\Models\Tokens\Token_invoice_count;
 use App\Models\Tokens\Token_customer;
 use App\Models\Tokens\Token_invoice_sequence;
+use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\HTTP\ResponseInterface;
 use Config\Services;
 use Config\OSPOS;
@@ -70,6 +72,10 @@ class Sales extends Secure_Controller
 
     public function getIndex(): ResponseInterface|string
     {
+        if ($this->stock_location->get_allowed_locations('sales', true) === []) {
+            return redirect()->to('no_access/sales/sales_stock');
+        }
+
         $this->session->set('allow_temp_items', 1);
         return $this->reload();
     }
@@ -316,7 +322,7 @@ class Sales extends Secure_Controller
             // TODO: The code below was removed in 2017 by @steveireland. We either need to reinstate some of it or remove this entire if block but we can't leave an empty if block
             //            $dinner_table = $this->request->getPost('dinner_table');
             //            $this->sale_lib->set_dinner_table($dinner_table);
-        } elseif ($this->stock_location->is_allowed_location($stock_location, 'sales')) {
+        } elseif ($this->stock_location->is_allowed_location($stock_location, 'sales', true)) {
             $this->sale_lib->set_sale_location($stock_location);
         }
 
@@ -781,11 +787,17 @@ class Sales extends Secure_Controller
 
         $data['cart'] = $this->sale_lib->get_cart();
 
+        $branchProblem = $this->cartBranchProblem($data['cart']);
+
+        if ($branchProblem !== null) {
+            return $this->reload(['error' => $branchProblem]);
+        }
+
         $data['include_hsn'] = (bool)$this->config['include_hsn'];
         $time = time();
         $data['transaction_time'] = to_datetime($time);
         $data['transaction_date'] = to_date($time);
-        $data['show_stock_locations'] = $this->stock_location->show_locations('sales');
+        $data['show_stock_locations'] = $this->stock_location->show_locations('sales', true);
         $data['comments'] = $this->sale_lib->get_comment();
         $employeeId = $this->employee->get_logged_in_employee_info()->person_id;
         $employeeInfo = $this->employee->get_info($employeeId);
@@ -1058,6 +1070,10 @@ class Sales extends Secure_Controller
      */
     public function getPdf(int $saleId, string $type = 'invoice'): ResponseInterface
     {
+        if ($this->outsideBranchScope($saleId)) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
         $personId = $this->session->get('person_id');
 
         if (!$this->employee->has_grant('reports_sales', $personId)) {
@@ -1096,6 +1112,10 @@ class Sales extends Secure_Controller
      */
     public function getSendPdf(int $saleId, string $type = 'invoice'): ResponseInterface
     {
+        if ($this->outsideBranchScope($saleId)) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
         $personId = $this->session->get('person_id');
 
         if (!$this->employee->has_grant('reports_sales', $personId)) {
@@ -1175,6 +1195,10 @@ class Sales extends Secure_Controller
      */
     public function getSendReceipt(int $saleId): ResponseInterface
     {
+        if ($this->outsideBranchScope($saleId)) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
         $personId = $this->session->get('person_id');
 
         if (!$this->employee->has_grant('reports_sales', $personId)) {
@@ -1296,7 +1320,7 @@ class Sales extends Secure_Controller
         $data['discount'] = $this->sale_lib->get_discount();
         $data['transaction_time'] = to_datetime(strtotime($sale_info['sale_time']));
         $data['transaction_date'] = to_date(strtotime($sale_info['sale_time']));
-        $data['show_stock_locations'] = $this->stock_location->show_locations('sales');
+        $data['show_stock_locations'] = $this->stock_location->show_locations('sales', true);
 
         $data['include_hsn'] = (bool)$this->config['include_hsn'];
 
@@ -1382,6 +1406,43 @@ class Sales extends Secure_Controller
     }
 
     /**
+     * A sale sells from the stock locations of one branch, and only a branch the employee works in.
+     */
+    private function cartBranchProblem(array $cart): ?string
+    {
+        $branchIds = $this->sale->branchIdsOfItems($cart);
+
+        if (count($branchIds) > 1) {
+            return lang('Sales.mixed_branches');
+        }
+
+        if ($branchIds !== [] && !(new BranchGuard())->canAccess($branchIds[0], (int)$this->session->get('person_id'))) {
+            return lang('Sales.branch_not_allowed');
+        }
+
+        return null;
+    }
+
+    /**
+     * Whether any of the sales belongs to a branch the employee does not work in.
+     */
+    private function outsideBranchScope(int ...$saleIds): bool
+    {
+        $guard    = new BranchGuard();
+        $personId = (int)$this->session->get('person_id');
+
+        foreach ($saleIds as $saleId) {
+            $branchId = $this->sale->getBranchId($saleId);
+
+            if ($branchId !== null && !$guard->canAccess($branchId, $personId)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * @param array $data
      * @return void
      */
@@ -1406,7 +1467,7 @@ class Sales extends Secure_Controller
         $data['mode'] = $this->sale_lib->get_mode();
         $data['selected_table'] = $this->sale_lib->get_dinner_table();
         $data['empty_tables'] = $this->sale_lib->get_empty_tables($data['selected_table']);
-        $data['stock_locations'] = $this->stock_location->get_allowed_locations('sales');
+        $data['stock_locations'] = $this->stock_location->get_allowed_locations('sales', true);
         $data['stock_location'] = $this->sale_lib->get_sale_location();
         $data['tax_exclusive_subtotal'] = $this->sale_lib->get_subtotal(true, true);
         $tax_details = $this->tax_lib->get_taxes($data['cart']);    // TODO: Duplicated code.
@@ -1507,6 +1568,10 @@ class Sales extends Secure_Controller
      */
     public function getReceipt(int $saleId): string|ResponseInterface
     {
+        if ($this->outsideBranchScope($saleId)) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
         $personId = $this->session->get('person_id');
 
         if (!$this->employee->has_grant('reports_sales', $personId)) {
@@ -1528,6 +1593,10 @@ class Sales extends Secure_Controller
      */
     public function getInvoice(int $saleId): string|ResponseInterface
     {
+        if ($this->outsideBranchScope($saleId)) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
         $personId = $this->session->get('person_id');
 
         if (!$this->employee->has_grant('reports_sales', $personId)) {
@@ -1549,6 +1618,10 @@ class Sales extends Secure_Controller
      */
     public function getEdit(int $saleId): string|ResponseInterface
     {
+        if ($this->outsideBranchScope($saleId)) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
         $personId = $this->session->get('person_id');
 
         if (!$this->employee->has_grant('reports_sales', $personId)) {
@@ -1617,6 +1690,10 @@ class Sales extends Secure_Controller
         } else {
             $sale_ids = $sale_id == NEW_ENTRY ? $this->request->getPost('ids', FILTER_SANITIZE_NUMBER_INT) : [$sale_id];
 
+            if ($this->outsideBranchScope(...array_map('intval', (array) $sale_ids))) {
+                return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.branch_not_allowed')]);
+            }
+
             if ($this->sale->delete_list($sale_ids, $employee_id, $update_inventory)) {
                 return $this->response->setJSON([
                     'success' => true,
@@ -1644,6 +1721,10 @@ class Sales extends Secure_Controller
         } else {
             $sale_ids = $sale_id == NEW_ENTRY ? $this->request->getPost('ids', FILTER_SANITIZE_NUMBER_INT) : [$sale_id];
 
+            if ($this->outsideBranchScope(...array_map('intval', (array) $sale_ids))) {
+                return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.branch_not_allowed')]);
+            }
+
             if ($this->sale->restore_list($sale_ids, $employee_id, $update_inventory)) {
                 return $this->response->setJSON([
                     'success' => true,
@@ -1669,6 +1750,10 @@ class Sales extends Secure_Controller
 
         if (!$this->employee->has_grant('reports_sales', $personId)) {
             return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);
+        }
+
+        if ($this->outsideBranchScope($saleId)) {
+            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.branch_not_allowed')]);
         }
 
         $newdate = $this->request->getPost('date', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
@@ -1863,6 +1948,14 @@ class Sales extends Secure_Controller
 
         $data = [];
         $sales_taxes = [[], []];
+
+        $branchProblem = $this->cartBranchProblem($cart);
+
+        if ($branchProblem !== null) {
+            $data['error'] = $branchProblem;
+
+            return $this->reload($data);
+        }
 
         $saleIdNum = $this->sale->save_value($sale_id, $sale_status, $cart, $customer_id, $employee_id, $comment, $invoice_number, $work_order_number, $quote_number, $sale_type, $payments, $dinner_table, $sales_taxes);
 

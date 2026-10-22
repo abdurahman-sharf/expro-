@@ -994,6 +994,16 @@
       "path": "/accounting_journals/audit"
     },
     {
+      "id": "accounting-failures",
+      "group": "accounting",
+      "path": "/accounting_journals/failures"
+    },
+    {
+      "id": "accounting-routing",
+      "group": "accounting",
+      "path": "/accounting_routing"
+    },
+    {
       "id": "branches",
       "group": "office",
       "path": "/branches"

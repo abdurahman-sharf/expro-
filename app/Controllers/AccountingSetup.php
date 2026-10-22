@@ -18,6 +18,7 @@ class AccountingSetup extends AccountingController
         AccountingGuard::PERIODS_CLOSE   => 'Accounting_periods.periods_close',
         AccountingGuard::PERIODS_REOPEN  => 'Accounting_periods.periods_reopen',
         AccountingGuard::OPENING_MANAGE  => 'Accounting_periods.opening_manage',
+        AccountingGuard::ROUTING_MANAGE  => 'Accounting_routing.routing_manage',
     ];
 
     private AccountingSettings $settings;
@@ -39,6 +40,8 @@ class AccountingSetup extends AccountingController
         return view('accounting_settings/manage', [
             'enabled'        => $this->settings->isEnabled(),
             'issues'         => array_map(fn (ReadinessIssue $issue): string => $this->describe($issue), $issues),
+            'notices'        => array_map(fn (ReadinessIssue $issue): string => $this->describe($issue), $this->settings->notices()),
+            'routing_url'    => $this->can('accounting_routing') ? base_url('accounting_routing') : null,
             'currency'       => $this->settings->baseCurrency(),
             'start_date'     => (string) $this->settings->startDate(),
             'auto_year'      => $this->settings->autoFiscalYear(),

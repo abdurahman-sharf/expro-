@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Libraries\Organization\BranchGuard;
+use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Model;
 use CodeIgniter\Session\Session;
@@ -62,14 +64,16 @@ class Stock_location extends Model
      * @param string $module_id
      * @return ResultInterface
      */
-    public function get_undeleted_all(string $module_id = 'items'): ResultInterface
+    public function get_undeleted_all(string $module_id = 'items', bool $byBranch = false): ResultInterface
     {
+        $branchIds = $this->employeeBranchIds($byBranch);
         $builder = $this->db->table('stock_locations');
         $builder->join('permissions AS permissions', 'permissions.location_id = stock_locations.location_id');
         $builder->join('grants AS grants', 'grants.permission_id = permissions.permission_id');
         $builder->where('person_id', $this->session->get('person_id'));
         $builder->like('permissions.permission_id', $module_id, 'after');
         $builder->where('deleted', 0);
+        $this->limitToBranches($builder, $branchIds);
 
         return $builder->get();
     }
@@ -78,9 +82,9 @@ class Stock_location extends Model
      * @param string $module_id
      * @return bool
      */
-    public function show_locations(string $module_id = 'items'): bool
+    public function show_locations(string $module_id = 'items', bool $byBranch = false): bool
     {
-        $stock_locations = $this->get_allowed_locations($module_id);
+        $stock_locations = $this->get_allowed_locations($module_id, $byBranch);
 
         return count($stock_locations) > 1;
     }
@@ -97,9 +101,9 @@ class Stock_location extends Model
      * @param string $module_id
      * @return array
      */
-    public function get_allowed_locations(string $module_id = 'items'): array
+    public function get_allowed_locations(string $module_id = 'items', bool $byBranch = false): array
     {
-        $stock = $this->get_undeleted_all($module_id)->getResultArray();
+        $stock = $this->get_undeleted_all($module_id, $byBranch)->getResultArray();
         $stock_locations = [];
 
         foreach ($stock as $location_data) {
@@ -114,8 +118,9 @@ class Stock_location extends Model
      * @param string $module_id
      * @return bool
      */
-    public function is_allowed_location(int $location_id, string $module_id = 'items'): bool
+    public function is_allowed_location(int $location_id, string $module_id = 'items', bool $byBranch = false): bool
     {
+        $branchIds = $this->employeeBranchIds($byBranch);
         $builder = $this->db->table('stock_locations');
         $builder->join('permissions AS permissions', 'permissions.location_id = stock_locations.location_id');
         $builder->join('grants AS grants', 'grants.permission_id = permissions.permission_id');
@@ -123,6 +128,7 @@ class Stock_location extends Model
         $builder->like('permissions.permission_id', $module_id, 'after');
         $builder->where('stock_locations.location_id', $location_id);
         $builder->where('deleted', 0);
+        $this->limitToBranches($builder, $branchIds);
 
         return ($builder->get()->getNumRows() == 1);    // TODO: ===
     }
@@ -131,17 +137,45 @@ class Stock_location extends Model
      * @param string $module_id
      * @return int
      */
-    public function get_default_location_id(string $module_id = 'items'): int
+    public function get_default_location_id(string $module_id = 'items', bool $byBranch = false): int
     {
+        $branchIds = $this->employeeBranchIds($byBranch);
         $builder = $this->db->table('stock_locations');
         $builder->join('permissions AS permissions', 'permissions.location_id = stock_locations.location_id');
         $builder->join('grants AS grants', 'grants.permission_id = permissions.permission_id');
         $builder->where('person_id', $this->session->get('person_id'));
         $builder->like('permissions.permission_id', $module_id, 'after');
         $builder->where('deleted', 0);
+        $this->limitToBranches($builder, $branchIds);
         $builder->limit(1);
 
         return $builder->get()->getRow()->location_id;    // TODO: this is puking. Trying to get property 'location_id' of non-object
+    }
+
+    /**
+     * Selling happens in a branch, so the sales register asks for only the stock locations of
+     * the branches the employee works in. Employees who work in every branch get them all, and
+     * callers that do not ask for the limit, such as the reports, get every granted location.
+     * The branches are read before the query is built, because reading them runs queries of
+     * their own on the same connection.
+     *
+     * @return list<int>|null Null means no limit.
+     */
+    private function employeeBranchIds(bool $byBranch): ?array
+    {
+        return $byBranch ? (new BranchGuard($this->db))->allowedBranchIds((int) $this->session->get('person_id')) : null;
+    }
+
+    /**
+     * @param list<int>|null $branchIds
+     */
+    private function limitToBranches(BaseBuilder $builder, ?array $branchIds): void
+    {
+        if ($branchIds === null) {
+            return;
+        }
+
+        $branchIds === [] ? $builder->where('1 = 0', null, false) : $builder->whereIn('stock_locations.branch_id', $branchIds);
     }
 
     /**

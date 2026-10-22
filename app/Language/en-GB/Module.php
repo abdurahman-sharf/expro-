@@ -9,6 +9,8 @@ return [
     'accounting_journals_desc'     => 'Create, post and reverse journal entries.',
     'accounting_periods'           => 'Periods and Closing',
     'accounting_periods_desc'      => 'Manage fiscal years, close and reopen periods, and enter opening balances.',
+    'accounting_routing'           => 'Account Routing',
+    'accounting_routing_desc'      => 'Choose the account each part of a sale is posted to.',
     'accounting_settings'          => 'Accounting Settings',
     'accounting_settings_desc'     => 'Turn accounting on or off and set its currency and start date.',
     'admin_cashups'                => '',

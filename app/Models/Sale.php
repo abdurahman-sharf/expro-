@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Libraries\Organization\BranchGuard;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Model;
@@ -448,6 +449,42 @@ class Sale extends Model
     }
 
     /**
+     * The branch a sale belongs to, or null when there is no such sale
+     */
+    public function getBranchId(int $saleId): ?int
+    {
+        $row = $this->db->table('sales')->select('branch_id')->where('sale_id', $saleId)->get()->getRow();
+
+        return $row === null ? null : (int) $row->branch_id;
+    }
+
+    /**
+     * The branches of the stock locations the lines of a cart sell from, without repeats
+     *
+     * @return list<int>
+     */
+    public function branchIdsOfItems(array $items): array
+    {
+        $locationIds = array_values(array_unique(array_filter(array_column($items, 'item_location'))));
+
+        if ($locationIds === []) {
+            return [];
+        }
+
+        $rows = $this->db->table('stock_locations')->distinct()->select('branch_id')->whereIn('location_id', $locationIds)->orderBy('branch_id', 'ASC')->get()->getResultArray();
+
+        return array_map('intval', array_column($rows, 'branch_id'));
+    }
+
+    /**
+     * A sale belongs to the branch of the stock location it sells from
+     */
+    private function branchIdOfItems(array $items): int
+    {
+        return $this->branchIdsOfItems($items)[0] ?? (new BranchGuard($this->db))->companyDefaultBranchId();
+    }
+
+    /**
      * Update sale
      */
     public function update($sale_id = null, $sale_data = null): bool
@@ -555,7 +592,8 @@ class Sale extends Model
             'quote_number'      => $quoteNumber,
             'work_order_number' => $workOrderNumber,
             'dinner_table_id'   => $dinnerTableId,
-            'sale_type'         => $saleType
+            'sale_type'         => $saleType,
+            'branch_id'         => $this->branchIdOfItems($items),
         ];
 
         // Run these queries as a transaction, we want to make sure we do all or nothing

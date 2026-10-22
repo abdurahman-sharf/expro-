@@ -104,7 +104,7 @@ class Module extends Model
         if (! (new AccountingSettings($this->db))->isEnabled()) {
             $builder->groupStart()
                 ->notLike('modules.module_id', 'accounting_', 'after')
-                ->orWhere('modules.module_id', 'accounting_settings')
+                ->orWhereIn('modules.module_id', ['accounting_settings', 'accounting_routing'])
                 ->groupEnd();
         }
 

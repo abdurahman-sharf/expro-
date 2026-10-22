@@ -60,6 +60,8 @@ $actionLabel = static function (string $action): string {
     </a>
 </div>
 
+<?= view('accounting_journals/audit_tabs', ['active' => 'log']) ?>
+
 <form id="audit_filters" class="acc-filters print_hide" role="search" aria-label="<?= lang('Accounting_journals.filters') ?>">
     <div class="acc-filter-row">
         <?php if ($branches !== []): ?>
@@ -100,6 +102,7 @@ $actionLabel = static function (string $action): string {
                 <option value="settings"><?= lang('Accounting.entity_settings') ?></option>
                 <option value="branch"><?= lang('Accounting.entity_branch') ?></option>
                 <option value="employee_scope"><?= lang('Accounting.entity_employee_scope') ?></option>
+                <option value="routing"><?= lang('Accounting.entity_routing') ?></option>
             </select>
         </div>
         <div class="acc-filter">

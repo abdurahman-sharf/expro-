@@ -3,7 +3,10 @@
 namespace Tests;
 
 use App\Libraries\Accounting\AccountingError;
+use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\PostingError;
+use App\Libraries\Accounting\ReadinessCode;
+use App\Libraries\Accounting\RoutingKey;
 use App\Libraries\Organization\BranchError;
 use CodeIgniter\Test\CIUnitTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -73,5 +76,55 @@ class LanguageFilesTest extends CIUnitTestCase
         foreach (['branches_manage', 'scope_manage', 'all_branches'] as $permission) {
             $this->assertNotSame('', $messages[$permission] ?? '', "{$locale} lacks the label of the permission {$permission}");
         }
+    }
+
+    #[DataProvider('translatedLocaleProvider')]
+    public function testAccountingRoutingFile_LabelsEveryRowStatusAndPaymentType(string $locale): void
+    {
+        $messages = include __DIR__ . "/../app/Language/{$locale}/Accounting_routing.php";
+
+        foreach (RoutingKey::sales() as $key) {
+            $line = 'item_' . str_replace('.', '_', $key->value);
+
+            $this->assertNotSame('', $messages[$line] ?? '', "{$locale} lacks {$line}");
+        }
+
+        foreach (PaymentType::cases() as $type) {
+            $this->assertNotSame('', $messages['payment_' . $type->value] ?? '', "{$locale} lacks the payment label of {$type->value}");
+        }
+
+        foreach (['complete', 'invalid', 'missing', 'optional'] as $status) {
+            $this->assertNotSame('', $messages['status_' . $status] ?? '', "{$locale} lacks the status {$status}");
+        }
+
+        $this->assertNotSame('', $messages['routing_manage'] ?? '', "{$locale} lacks the label of the permission routing_manage");
+    }
+
+    #[DataProvider('translatedLocaleProvider')]
+    public function testAccountingSettingsFile_DescribesEveryReadinessCode(string $locale): void
+    {
+        $messages = include __DIR__ . "/../app/Language/{$locale}/Accounting_settings.php";
+
+        foreach (ReadinessCode::cases() as $code) {
+            $this->assertNotSame('', $messages['readiness_' . $code->value] ?? '', "{$locale} lacks the readiness message for {$code->value}");
+        }
+    }
+
+    #[DataProvider('translatedLocaleProvider')]
+    public function testModuleFile_NamesTheRoutingModule(string $locale): void
+    {
+        $messages = include __DIR__ . "/../app/Language/{$locale}/Module.php";
+
+        $this->assertNotSame('', $messages['accounting_routing'] ?? '', $locale);
+        $this->assertNotSame('', $messages['accounting_routing_desc'] ?? '', $locale);
+    }
+
+    #[DataProvider('translatedLocaleProvider')]
+    public function testSalesFile_ExplainsWhyABranchRefusesASale(string $locale): void
+    {
+        $messages = include __DIR__ . "/../app/Language/{$locale}/Sales.php";
+
+        $this->assertNotSame('', $messages['branch_not_allowed'] ?? '', $locale);
+        $this->assertNotSame('', $messages['mixed_branches'] ?? '', $locale);
     }
 }

@@ -77,7 +77,9 @@ INSERT IGNORE INTO ospos_grants (permission_id, person_id, menu_group) VALUES
 ('acc_periods_manage', 1, '--'),
 ('acc_periods_close', 1, '--'),
 ('acc_periods_reopen', 1, '--'),
-('acc_opening_manage', 1, '--');
+('acc_opening_manage', 1, '--'),
+('accounting_routing', 1, 'office'),
+('acc_routing_manage', 1, '--');
 
 INSERT INTO ospos_branches (company_id, code, name, address, phone, is_default, active) VALUES
 (1, 'JED', 'فرع جدة', 'طريق الكورنيش، جدة', '0125550100', 0, 1);
@@ -88,6 +90,9 @@ REPLACE INTO ospos_app_config (`key`, `value`) VALUES
 ('accounting_enabled', '1');
 
 INSERT INTO ospos_accounting_fiscal_years (name, start_date, end_date) VALUES ('2026', '2026-01-01', '2026-12-31');
+
+INSERT INTO ospos_accounting_posting_failures (source_type, source_id, revision, error_code, message, employee_id, branch_id) VALUES
+('sale', 1001, 1, 'period_closed', 'The date is in a closed period.', 1, 1);
 
 INSERT INTO ospos_accounting_cost_centers (parent_id, code, name, active) VALUES
 (NULL, '1', 'الإدارة', 1),

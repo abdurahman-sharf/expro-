@@ -8,6 +8,7 @@ use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountingNotReadyException;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\JournalService;
+use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\ReadinessCode;
 use App\Libraries\Accounting\ReadinessIssue;
 use App\Libraries\Accounting\RoutingKey;
@@ -47,6 +48,14 @@ class AccountingSettingsTest extends CIUnitTestCase
             $db->table('accounting_routing')
                 ->where('routing_key', $key->value)
                 ->update(['account_id' => $this->accountId($key->defaultSystemKey())]);
+        }
+
+        foreach (PaymentType::cases() as $type) {
+            if ($type->defaultSystemKey() !== null) {
+                $db->table('accounting_routing')
+                    ->where('routing_key', $type->routingKey())
+                    ->update(['account_id' => $this->accountId($type->defaultSystemKey())]);
+            }
         }
 
         $this->setConfigValue('accounting_enabled', '0');
@@ -144,7 +153,52 @@ class AccountingSettingsTest extends CIUnitTestCase
         $this->completeTheSettings();
         $this->accountingDb()->table('accounting_accounts')->where('system_key', 'cash')->update(['active' => 0]);
 
-        $this->assertSame(['routing_account_invalid'], $this->codesOf($this->settings->readiness()));
+        $this->assertContains('routing_account_invalid', $this->codesOf($this->settings->readiness()));
+    }
+
+    public function testReadiness_ReportsARequiredPaymentTypeWithoutAnAccount(): void
+    {
+        $this->completeTheSettings();
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'payment.wallet')->update(['account_id' => null]);
+
+        $issues = $this->settings->readiness();
+
+        $this->assertSame(['payment_type_unrouted'], $this->codesOf($issues));
+        $this->assertSame('wallet', $issues[0]->subject);
+    }
+
+    public function testEnable_RefusesWhileAPaymentTypeHasNoAccount(): void
+    {
+        $this->completeTheSettings();
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'payment.cash')->update(['account_id' => null]);
+
+        try {
+            $this->settings->enable($this->manager());
+            $this->fail('Enabling should have been refused.');
+        } catch (AccountingNotReadyException $exception) {
+            $this->assertSame(['payment_type_unrouted'], $this->codesOf($exception->issues));
+        }
+
+        $this->assertFalse($this->settings->isEnabled());
+    }
+
+    public function testNotices_DoNotStopAccountingFromBeingTurnedOn(): void
+    {
+        $this->completeTheSettings();
+        $this->setConfigValue('accounting_start_date', '2026-12-31');
+        $this->accountingDb()->table('sales')->insert(['sale_time' => '2026-06-01 10:00:00', 'employee_id' => $this->employeeWithGrants([]), 'comment' => 'earlier sale']);
+        $saleId = (int) $this->accountingDb()->insertID();
+
+        try {
+            $this->assertContains('sales_before_start_date', $this->codesOf($this->settings->notices()));
+            $this->assertSame([], $this->settings->readiness());
+
+            $this->settings->enable($this->manager());
+
+            $this->assertTrue($this->settings->isEnabled());
+        } finally {
+            $this->accountingDb()->table('sales')->where('sale_id', $saleId)->delete();
+        }
     }
 
     public function testEnable_RefusesWhileTheSettingsAreIncomplete(): void

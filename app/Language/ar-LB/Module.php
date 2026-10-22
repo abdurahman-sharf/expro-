@@ -9,6 +9,8 @@ return [
     'accounting_journals_desc'     => 'إنشاء القيود اليومية وترحيلها وعكسها.',
     'accounting_periods'           => 'الفترات والإقفال',
     'accounting_periods_desc'      => 'إدارة السنوات المالية وإقفال الفترات وإعادة فتحها وإدخال الأرصدة الافتتاحية.',
+    'accounting_routing'           => 'توجيه الحسابات',
+    'accounting_routing_desc'      => 'اختر الحساب الذي يُرحَّل إليه كل جزء من البيع.',
     'accounting_settings'          => 'إعدادات المحاسبة',
     'accounting_settings_desc'     => 'تشغيل المحاسبة أو إيقافها وضبط عملتها وتاريخ بدئها.',
     'admin_cashups'                => '',

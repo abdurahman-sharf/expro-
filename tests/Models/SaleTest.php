@@ -446,4 +446,61 @@ class SaleTest extends CIUnitTestCase
         $this->assertSame([], $model->get_all_suspended(NEW_ENTRY));
         $this->assertSame([], $model->get_all_suspended(123));
     }
+
+    public function testSaveValue_StoresTheBranchOfTheStockLocationOnTheSale(): void
+    {
+        $db         = \Config\Database::connect();
+        $employeeId = $this->createEmployee();
+        $itemId     = $this->createTestItem(HAS_NO_STOCK);
+        $db->table('branches')->insert(['company_id' => 1, 'code' => 'S' . random_int(100, 999), 'name' => 'Sale branch', 'active' => 1]);
+        $branchId = (int) $db->insertID();
+        $db->table('stock_locations')->where('location_id', self::LOCATION_ID)->update(['branch_id' => $branchId]);
+
+        $saleModel  = model(Sale::class);
+        $saleStatus = COMPLETED;
+        $items      = $this->buildCartLine($itemId, 1, 5.00);
+        $payments   = [0 => ['payment_type' => lang('Sales.cash'), 'payment_amount' => 5.00, 'cash_refund' => 0, 'cash_adjustment' => 0, 'reference_code' => null]];
+        $salesTaxes = [[], []];
+
+        try {
+            $saleId = $saleModel->save_value(NEW_ENTRY, $saleStatus, $items, NEW_ENTRY, $employeeId, 'branch sale', null, null, null, SALE_TYPE_POS, $payments, null, $salesTaxes);
+
+            $this->assertGreaterThan(0, $saleId);
+            $this->assertSame($branchId, $saleModel->getBranchId($saleId));
+        } finally {
+            $db->table('sales')->where('branch_id', $branchId)->update(['branch_id' => 1]);
+            $db->table('stock_locations')->where('location_id', self::LOCATION_ID)->update(['branch_id' => 1]);
+            $db->table('branches')->where('branch_id', $branchId)->delete();
+        }
+    }
+
+    public function testSaveValue_StartsASaleOnTheDefaultBranchWhenTheLocationIsOnIt(): void
+    {
+        $employeeId = $this->createEmployee();
+        $itemId     = $this->createTestItem(HAS_NO_STOCK);
+
+        $saleModel  = model(Sale::class);
+        $saleStatus = COMPLETED;
+        $items      = $this->buildCartLine($itemId, 1, 5.00);
+        $payments   = [0 => ['payment_type' => lang('Sales.cash'), 'payment_amount' => 5.00, 'cash_refund' => 0, 'cash_adjustment' => 0, 'reference_code' => null]];
+        $salesTaxes = [[], []];
+
+        $saleId = $saleModel->save_value(NEW_ENTRY, $saleStatus, $items, NEW_ENTRY, $employeeId, 'default branch sale', null, null, null, SALE_TYPE_POS, $payments, null, $salesTaxes);
+
+        $this->assertSame(1, $saleModel->getBranchId($saleId));
+    }
+
+    public function testGetBranchId_ReturnsNullWhenThereIsNoSuchSale(): void
+    {
+        $this->assertNull(model(Sale::class)->getBranchId(999999999));
+    }
+
+    public function testBranchIdsOfItems_ListsTheBranchOfEveryLocationOnceAndNothingForAnEmptyCart(): void
+    {
+        $saleModel = model(Sale::class);
+        $lines     = [['item_location' => self::LOCATION_ID], ['item_location' => self::LOCATION_ID]];
+
+        $this->assertSame([1], $saleModel->branchIdsOfItems($lines));
+        $this->assertSame([], $saleModel->branchIdsOfItems([]));
+    }
 }

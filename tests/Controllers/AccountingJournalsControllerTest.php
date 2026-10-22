@@ -545,6 +545,105 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         $this->get('/accounting_journals/audit/search');
     }
 
+    private function recordFailure(string $source = 'sale', int $sourceId = 7, string $code = 'period_closed', ?int $branchId = 1): void
+    {
+        $this->accountingDb()->table('accounting_posting_failures')->insert([
+            'source_type' => $source,
+            'source_id'   => $sourceId,
+            'revision'    => 1,
+            'error_code'  => $code,
+            'message'     => 'Stored message for ' . $code,
+            'employee_id' => null,
+            'branch_id'   => $branchId,
+        ]);
+    }
+
+    public function testGetFailures_IsNotFoundWithoutTheAuditPermission(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_journals', AccountingGuard::JOURNALS_ALL]));
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_journals/failures');
+    }
+
+    public function testGetFailures_ShowsTheFiltersAndTheTabsToAUserWithTheAuditPermission(): void
+    {
+        $this->accountant();
+        $this->recordFailure();
+
+        $response = $this->get('/accounting_journals/failures');
+
+        $response->assertStatus(200);
+        $response->assertSee('id="failure_filters"');
+        $response->assertSee(lang('Accounting_journals.audit_tab_log'));
+        $response->assertSee(lang('Accounting_journals.audit_tab_failures'));
+    }
+
+    public function testGetAudit_LinksToTheFailureLogTab(): void
+    {
+        $this->accountant();
+
+        $this->get('/accounting_journals/audit')->assertSee('href="' . base_url('accounting_journals/failures') . '"');
+    }
+
+    public function testGetFailuresSearch_ListsFailuresWithTranslatedReasonsAndTheRolledBackOutcome(): void
+    {
+        $this->accountant();
+        $this->recordFailure('sale', 7, 'period_closed');
+
+        $result = $this->jsonOf($this->get('/accounting_journals/failures/search'));
+
+        $this->assertSame(1, $result['total']);
+        $this->assertSame(lang('Accounting.posting_period_closed'), $result['rows'][0]['reason']);
+        $this->assertSame(lang('Accounting.source_sale') . ' #7', $result['rows'][0]['source']);
+        $this->assertSame(lang('Accounting_journals.failure_rolled_back'), $result['rows'][0]['outcome']);
+    }
+
+    public function testGetFailuresSearch_FallsBackToTheStoredMessageForACodeWithoutATranslation(): void
+    {
+        $this->accountant();
+        $this->recordFailure('sale', 8, 'payment_type_unrouted');
+
+        $result = $this->jsonOf($this->get('/accounting_journals/failures/search'));
+
+        $this->assertSame('Stored message for payment_type_unrouted', $result['rows'][0]['reason']);
+    }
+
+    public function testGetFailuresSearch_FiltersBySource(): void
+    {
+        $this->accountant();
+        $this->recordFailure('sale', 1);
+        $this->recordFailure('receiving', 2);
+
+        $result = $this->jsonOf($this->get('/accounting_journals/failures/search?source_type=receiving'));
+
+        $this->assertSame(1, $result['total']);
+    }
+
+    public function testGetFailuresSearch_ShowsAReaderLimitedToABranchOnlyItsFailures(): void
+    {
+        $other = $this->createBranch('B2');
+        $this->recordFailure('sale', 1, 'period_closed', 1);
+        $this->recordFailure('sale', 2, 'period_closed', $other);
+        $personId = $this->employeeWithGrants(['accounting_journals', AccountingGuard::JOURNALS_AUDIT], [$other]);
+        $this->actAs($personId);
+
+        $result = $this->jsonOf($this->get('/accounting_journals/failures/search'));
+
+        $this->assertSame(1, $result['total']);
+        $this->assertSame('B2', $result['rows'][0]['branch']);
+    }
+
+    public function testGetFailuresSearch_IsNotFoundWithoutTheAuditPermission(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_journals', AccountingGuard::JOURNALS_ALL]));
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_journals/failures/search');
+    }
+
     public function testGetNew_OffersOnlyActiveCostCentersOnTheLines(): void
     {
         $this->accountant();

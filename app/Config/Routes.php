@@ -62,6 +62,11 @@ $routes->group('accounting_settings', static function (RouteCollection $routes):
     $routes->post('disable', 'AccountingSetup::postDisable');
 });
 
+$routes->group('accounting_routing', static function (RouteCollection $routes): void {
+    $routes->get('/', 'AccountingRouting::getIndex');
+    $routes->post('save', 'AccountingRouting::postSaveRouting');
+});
+
 $routes->group('accounting_periods', static function (RouteCollection $routes): void {
     $routes->get('/', 'AccountingPeriods::getIndex');
     $routes->get('search', 'AccountingPeriods::getSearch');
@@ -127,6 +132,8 @@ $routes->group('accounting_journals', static function (RouteCollection $routes):
     $routes->get('reverse_form/(:num)', 'AccountingJournals::getReverseForm/$1');
     $routes->get('audit', 'AccountingJournals::getAudit');
     $routes->get('audit/search', 'AccountingJournals::getAuditSearch');
+    $routes->get('failures', 'AccountingJournals::getFailures');
+    $routes->get('failures/search', 'AccountingJournals::getFailuresSearch');
     $routes->post('save_draft', 'AccountingJournals::postSaveDraft');
     $routes->post('save_draft/(:num)', 'AccountingJournals::postSaveDraft/$1');
     $routes->post('post', 'AccountingJournals::postPost');
