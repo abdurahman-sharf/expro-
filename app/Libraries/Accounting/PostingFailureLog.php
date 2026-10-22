@@ -25,6 +25,7 @@ final class PostingFailureLog
             $this->db->table('accounting_posting_failures')->insert([
                 'source_type' => $draft->sourceType,
                 'source_id'   => $draft->sourceId,
+                'entry_type'  => $draft->entryType->value,
                 'revision'    => $draft->revision,
                 'error_code'  => $failure->error->value,
                 'message'     => $failure->getMessage(),

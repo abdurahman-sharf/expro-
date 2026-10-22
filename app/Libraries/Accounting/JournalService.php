@@ -371,7 +371,7 @@ final class JournalService
     }
 
     /**
-     * @param array{account_id?: int|string, description?: string, number?: string, date_from?: string, date_to?: string, source_type?: string, status?: list<string>, amount_from?: string, amount_to?: string, created_from?: string, created_to?: string, created_by?: int|string, branch_id?: int|string} $filters
+     * @param array{account_id?: int|string, description?: string, number?: string, date_from?: string, date_to?: string, source_type?: string, entry_type?: string, status?: list<string>, amount_from?: string, amount_to?: string, created_from?: string, created_to?: string, created_by?: int|string, branch_id?: int|string} $filters
      *
      * @return array{total: int, rows: list<object>}
      */
@@ -388,7 +388,7 @@ final class JournalService
         $accountIds = (int) ($filters['account_id'] ?? 0) > 0 ? $this->accountWithDescendants((int) $filters['account_id']) : [];
 
         $builder = $this->db->table('accounting_journals j')
-            ->select("j.journal_id, j.branch_id, b.code AS branch_code, b.name AS branch_name, j.series, j.number, j.journal_date, j.description, j.source_type, j.status, j.total_debit, j.total_credit, j.currency_code, j.created_by, j.created_at, TRIM(CONCAT(p.first_name, ' ', p.last_name)) AS created_by_name", false)
+            ->select("j.journal_id, j.branch_id, b.code AS branch_code, b.name AS branch_name, j.series, j.number, j.journal_date, j.description, j.source_type, j.entry_type, j.status, j.total_debit, j.total_credit, j.currency_code, j.created_by, j.created_at, TRIM(CONCAT(p.first_name, ' ', p.last_name)) AS created_by_name", false)
             ->join('people p', 'p.person_id = j.created_by', 'left')
             ->join('branches b', 'b.branch_id = j.branch_id')
             ->where('j.status !=', JournalStatus::Preview->value);
@@ -461,6 +461,12 @@ final class JournalService
 
         if ($sourceType !== '' && preg_match('/^[a-z][a-z0-9_]{0,31}$/', $sourceType) === 1) {
             $builder->where('j.source_type', $sourceType);
+        }
+
+        $entryType = JournalEntryType::tryFrom((string) ($filters['entry_type'] ?? ''));
+
+        if ($entryType !== null) {
+            $builder->where('j.entry_type', $entryType->value);
         }
 
         $known    = array_map(static fn (JournalStatus $status): string => $status->value, [JournalStatus::Draft, JournalStatus::Posted, JournalStatus::Reversed]);

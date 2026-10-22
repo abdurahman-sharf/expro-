@@ -23,6 +23,7 @@ final readonly class JournalDraft
         public string $exchangeRate = '1',
         public ?int $reversesJournalId = null,
         public ?int $branchId = null,
+        public JournalEntryType $entryType = JournalEntryType::General,
     ) {
     }
 }

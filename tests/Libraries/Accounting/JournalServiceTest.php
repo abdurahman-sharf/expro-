@@ -7,7 +7,9 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountService;
 use App\Libraries\Accounting\CostCenterService;
+use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\JournalService;
+use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Organization\BranchError;
@@ -648,6 +650,19 @@ class JournalServiceTest extends CIUnitTestCase
         $this->assertSame([$reversed], $ids($this->service->search(['status' => ['reversed']])));
         $this->assertSame(1, $this->service->search(['source_type' => 'reversal'])['total']);
         $this->assertSame(4, $this->service->search(['status' => ['bogus', 'draft', 'posted', 'reversed']])['total']);
+    }
+
+    public function testSearch_FiltersByEntryType(): void
+    {
+        $revenue = (new PostingService())->post($this->balancedDraft(sourceId: 5, entryType: JournalEntryType::Revenue))->journalId;
+        $cogs    = (new PostingService())->post($this->balancedDraft(sourceId: 5, entryType: JournalEntryType::Cogs))->journalId;
+
+        $ids = static fn (array $result): array => array_map(static fn (object $row): int => (int) $row->journal_id, $result['rows']);
+
+        $this->assertSame([$revenue], $ids($this->service->search(['entry_type' => 'revenue'])));
+        $this->assertSame([$cogs], $ids($this->service->search(['entry_type' => 'cogs'])));
+        $this->assertSame(2, $this->service->search(['entry_type' => 'bogus'])['total']);
+        $this->assertSame('cogs', $this->service->search(['entry_type' => 'cogs'])['rows'][0]->entry_type);
     }
 
     public function testSearch_FiltersByNumberDescriptionAndAmount(): void

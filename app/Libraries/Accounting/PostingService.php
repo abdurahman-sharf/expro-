@@ -357,7 +357,7 @@ final class PostingService
             return null;
         }
 
-        $journal = $latest ? $this->findLatest($draft) : (new Journal($this->db))->findBySource($draft->sourceType, $draft->sourceId, $draft->revision);
+        $journal = $latest ? $this->findLatest($draft) : (new Journal($this->db))->findBySource($draft->sourceType, $draft->sourceId, $draft->revision, $draft->entryType);
 
         if ($journal === null) {
             return null;
@@ -376,8 +376,8 @@ final class PostingService
     private function findLatest(JournalDraft $draft): ?object
     {
         $result = $this->db->query(
-            'SELECT journal_id, branch_id FROM ' . $this->db->prefixTable('accounting_journals') . ' WHERE source_type = ? AND source_id = ? AND revision = ? LOCK IN SHARE MODE',
-            [$draft->sourceType, $draft->sourceId, $draft->revision],
+            'SELECT journal_id, branch_id FROM ' . $this->db->prefixTable('accounting_journals') . ' WHERE source_type = ? AND source_id = ? AND entry_type = ? AND revision = ? LOCK IN SHARE MODE',
+            [$draft->sourceType, $draft->sourceId, $draft->entryType->value, $draft->revision],
         );
 
         return $result === false ? null : $result->getRow();
@@ -402,6 +402,7 @@ final class PostingService
             'status'              => JournalStatus::Posted->value,
             'source_type'         => $draft->sourceType,
             'source_id'           => $draft->sourceId,
+            'entry_type'          => $draft->entryType->value,
             'revision'            => $draft->revision,
             'origin'              => $draft->origin->value,
             'currency_code'       => $prepared['currency'],
@@ -435,6 +436,7 @@ final class PostingService
         $this->audit->write('journal', $journalId, 'posted', $draft->employeeId, $draft->origin, [
             'source_type' => $draft->sourceType,
             'source_id'   => $draft->sourceId,
+            'entry_type'  => $draft->entryType->value,
             'revision'    => $draft->revision,
             'total'       => $prepared['debit'],
         ], $prepared['branch_id']);

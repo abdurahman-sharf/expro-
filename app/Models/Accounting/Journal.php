@@ -2,6 +2,7 @@
 
 namespace App\Models\Accounting;
 
+use App\Libraries\Accounting\JournalEntryType;
 use CodeIgniter\Model;
 
 class Journal extends Model
@@ -19,6 +20,7 @@ class Journal extends Model
         'status',
         'source_type',
         'source_id',
+        'entry_type',
         'revision',
         'origin',
         'currency_code',
@@ -33,11 +35,12 @@ class Journal extends Model
         'posted_at',
     ];
 
-    public function findBySource(string $sourceType, int $sourceId, int $revision): ?object
+    public function findBySource(string $sourceType, int $sourceId, int $revision, JournalEntryType $entryType = JournalEntryType::General): ?object
     {
         return $this->where([
             'source_type' => $sourceType,
             'source_id'   => $sourceId,
+            'entry_type'  => $entryType->value,
             'revision'    => $revision,
         ])->first();
     }

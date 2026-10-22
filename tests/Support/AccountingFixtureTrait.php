@@ -9,6 +9,7 @@ use App\Libraries\Accounting\AccountService;
 use App\Libraries\Accounting\DefaultChart;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Accounting\JournalDraft;
+use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\JournalLineDraft;
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Database\Exceptions\DatabaseException;
@@ -274,6 +275,7 @@ trait AccountingFixtureTrait
         ?int $sourceId = 1,
         int $revision = 1,
         string $amount = '100.00',
+        JournalEntryType $entryType = JournalEntryType::General,
     ): JournalDraft {
         return new JournalDraft(
             date: '2026-10-21',
@@ -286,6 +288,7 @@ trait AccountingFixtureTrait
             revision: $revision,
             employeeId: 1,
             currencyCode: 'SAR',
+            entryType: $entryType,
         );
     }
 

@@ -82,6 +82,16 @@ class AccountingFoundationMigrationTest extends CIUnitTestCase
         $this->assertGreaterThan(30, $this->countRows('accounting_accounts'));
     }
 
+    public function testUp_KeysAJournalBySourceEntryTypeAndRevision(): void
+    {
+        $columns = $this->accountingDb()->query(
+            'SELECT COLUMN_NAME AS name FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ? AND NON_UNIQUE = 0 ORDER BY SEQ_IN_INDEX',
+            [$this->accountingDb()->prefixTable('accounting_journals'), $this->accountingDb()->prefixTable('accounting_journals_source')],
+        )->getResultArray();
+
+        $this->assertSame(['source_type', 'source_id', 'entry_type', 'revision'], array_column($columns, 'name'));
+    }
+
     public function testUp_IsSafeToRunTwice(): void
     {
         $accounts = $this->countRows('accounting_accounts');

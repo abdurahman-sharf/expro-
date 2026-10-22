@@ -3,6 +3,7 @@
 namespace Tests\Libraries\Accounting;
 
 use App\Libraries\Accounting\JournalDraft;
+use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\JournalOrigin;
 use App\Libraries\Accounting\PostingError;
@@ -114,6 +115,44 @@ class PostingServiceTest extends CIUnitTestCase
         $this->assertSame(2, $this->countRows('accounting_journal_lines'));
     }
 
+    public function testPost_WritesOneJournalForEachEntryTypeOfTheSameSourceAndRevision(): void
+    {
+        $revenue = $this->service->post($this->balancedDraft(sourceId: 12, entryType: JournalEntryType::Revenue));
+        $cogs    = $this->service->post($this->balancedDraft(sourceId: 12, entryType: JournalEntryType::Cogs));
+
+        $this->assertTrue($revenue->created);
+        $this->assertTrue($cogs->created);
+        $this->assertNotSame($revenue->journalId, $cogs->journalId);
+        $this->assertSame(2, $this->countRows('accounting_journals'));
+    }
+
+    public function testPost_ReturnsTheExistingJournalOfTheSameEntryType(): void
+    {
+        $first  = $this->service->post($this->balancedDraft(sourceId: 12, entryType: JournalEntryType::Cogs));
+        $second = $this->service->post($this->balancedDraft(sourceId: 12, entryType: JournalEntryType::Cogs));
+
+        $this->assertFalse($second->created);
+        $this->assertSame($first->journalId, $second->journalId);
+        $this->assertSame(1, $this->countRows('accounting_journals'));
+    }
+
+    public function testPost_StoresTheEntryTypeOnTheJournalAndInItsAudit(): void
+    {
+        $result  = $this->service->post($this->balancedDraft(sourceId: 13, entryType: JournalEntryType::Revenue));
+        $journal = $this->accountingDb()->table('accounting_journals')->where('journal_id', $result->journalId)->get()->getRow();
+        $audit   = $this->accountingDb()->table('accounting_audit_log')->where('entity_id', $result->journalId)->get()->getRow();
+
+        $this->assertSame('revenue', $journal->entry_type);
+        $this->assertSame('revenue', json_decode($audit->details, true)['entry_type']);
+    }
+
+    public function testPost_DefaultsTheEntryTypeToGeneral(): void
+    {
+        $result = $this->service->post($this->balancedDraft(sourceId: 14));
+
+        $this->assertSame('general', $this->accountingDb()->table('accounting_journals')->where('journal_id', $result->journalId)->get()->getRow()->entry_type);
+    }
+
     public function testPost_AcceptsANewRevisionOfTheSameSource(): void
     {
         $first  = $this->service->post($this->balancedDraft(sourceId: 11, revision: 1));
@@ -192,6 +231,26 @@ class PostingServiceTest extends CIUnitTestCase
         $this->assertSame('unbalanced', $failure->error_code);
         $this->assertSame('sale', $failure->source_type);
         $this->assertSame('1', (string) $failure->source_id);
+    }
+
+    public function testPost_RecordsTheEntryTypeOfTheRejectedJournal(): void
+    {
+        $draft = new JournalDraft(
+            date: '2026-10-21',
+            lines: [
+                new JournalLineDraft($this->accountId('cash'), debit: '100.00'),
+                new JournalLineDraft($this->accountId('sales_revenue'), credit: '40.00'),
+            ],
+            sourceType: 'sale',
+            sourceId: 9,
+            employeeId: 1,
+            currencyCode: 'SAR',
+            entryType: JournalEntryType::Cogs,
+        );
+
+        $this->assertPostingFails(PostingError::Unbalanced, $draft);
+
+        $this->assertSame('cogs', $this->accountingDb()->table('accounting_posting_failures')->get()->getRow()->entry_type);
     }
 
     public function testPost_RejectsAJournalWithASingleLine(): void

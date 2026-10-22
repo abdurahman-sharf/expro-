@@ -2,6 +2,7 @@
 
 namespace Tests\Models\Accounting;
 
+use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\PostingService;
 use App\Models\Accounting\Journal;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -41,6 +42,16 @@ class JournalTest extends CIUnitTestCase
 
         $this->assertNotNull($journal);
         $this->assertSame($posted->journalId, (int) $journal->journal_id);
+    }
+
+    public function testFindBySource_SeparatesTheEntryTypesOfOneSource(): void
+    {
+        $revenue = (new PostingService())->post($this->balancedDraft(sourceId: 43, entryType: JournalEntryType::Revenue));
+        $cogs    = (new PostingService())->post($this->balancedDraft(sourceId: 43, entryType: JournalEntryType::Cogs));
+
+        $this->assertSame($revenue->journalId, (int) model(Journal::class)->findBySource('sale', 43, 1, JournalEntryType::Revenue)->journal_id);
+        $this->assertSame($cogs->journalId, (int) model(Journal::class)->findBySource('sale', 43, 1, JournalEntryType::Cogs)->journal_id);
+        $this->assertNull(model(Journal::class)->findBySource('sale', 43, 1));
     }
 
     public function testFindBySource_ReturnsNullForADifferentRevision(): void
