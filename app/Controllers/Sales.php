@@ -4,6 +4,11 @@ namespace App\Controllers;
 
 use App\Libraries\Barcode_lib;
 use App\Libraries\Email_lib;
+use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\AccountingMessage;
+use App\Libraries\Accounting\PostingException;
+use App\Libraries\Accounting\SalePosting;
+use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Pdf_lib;
 use App\Libraries\Sale_lib;
@@ -393,6 +398,80 @@ class Sales extends Secure_Controller
     {
         $this->sale_lib->set_print_after_sale($this->request->getPost('sales_print_after_sale') != 'false');
         return $this->response->setJSON(['success' => true]);
+    }
+
+    /**
+     * Sets whether the goods of the invoice leave with it. Used in app/Views/sales/register.php
+     *
+     * @return ResponseInterface
+     * @noinspection PhpUnused
+     */
+    public function postSetDelivered(): ResponseInterface
+    {
+        $this->sale_lib->set_delivered($this->request->getPost('sales_delivered') != 'false');
+
+        return $this->response->setJSON(['success' => true]);
+    }
+
+    /**
+     * Names the sale a return takes its goods back from. Used in app/Views/sales/register.php
+     *
+     * @return ResponseInterface|string
+     * @noinspection PhpUnused
+     */
+    public function postSetReturnOrigin(): ResponseInterface|string
+    {
+        $number = preg_replace('/\D+/', '', (string) $this->request->getPost('return_origin'));
+
+        if ($number === '') {
+            $this->sale_lib->set_return_origin(null);
+
+            return $this->reload();
+        }
+
+        $saleId  = (int) $number;
+        $problem = $this->returnOriginProblem($saleId);
+
+        if ($problem !== null) {
+            return $this->reload(['error' => $problem]);
+        }
+
+        $this->sale_lib->set_return_origin($saleId);
+
+        $customerId = $this->sale->getSummary($saleId)->customer_id;
+
+        if ($customerId !== null && $this->sale_lib->get_customer() == NEW_ENTRY) {
+            $this->sale_lib->set_customer((int) $customerId);
+        }
+
+        return $this->reload();
+    }
+
+    /**
+     * Confirms that the goods of an issued invoice have left. Used in app/Views/sales/form.php
+     *
+     * @param int $saleId
+     * @return ResponseInterface
+     * @noinspection PhpUnused
+     */
+    public function postConfirmDelivery(int $saleId = NEW_ENTRY): ResponseInterface
+    {
+        if ($this->outsideBranchScope($saleId)) {
+            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.branch_not_allowed')]);
+        }
+
+        $employeeId = (int) $this->employee->get_logged_in_employee_info()->person_id;
+        $result     = $this->sale->confirm_delivery($saleId, $employeeId);
+
+        if ($result === ACCOUNTING_FAILED) {
+            return $this->response->setJSON(['success' => false, 'message' => $this->accountingFailureMessage(), 'id' => $saleId]);
+        }
+
+        if ($result === NEW_ENTRY) {
+            return $this->response->setJSON(['success' => false, 'message' => lang('Sales.delivery_not_possible'), 'id' => $saleId]);
+        }
+
+        return $this->response->setJSON(['success' => true, 'message' => lang('Sales.delivery_confirmed'), 'id' => $saleId]);
     }
 
     /**
@@ -915,7 +994,7 @@ class Sales extends Secure_Controller
                 $invoiceView = $invoiceType;
 
                 // Save the data to the sales table
-                $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails);
+                $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, $this->sale_lib->is_delivered());
                 $data['sale_id'] = 'POS ' . $data['sale_id_num'];
 
                 // Resort and filter cart lines for printing
@@ -926,6 +1005,9 @@ class Sales extends Secure_Controller
                     return $this->reload($data);
                 } elseif ($data['sale_id_num'] === INSUFFICIENT_REWARD_POINTS) {
                     $data['error_message'] = lang('Sales.insufficient_reward_points');
+                    return $this->reload($data);
+                } elseif ($data['sale_id_num'] === ACCOUNTING_FAILED) {
+                    $data['error'] = $this->accountingFailureMessage();
                     return $this->reload($data);
                 } elseif ($data['sale_id_num'] == NEW_ENTRY) {
                     $data['error_message'] = lang('Sales.transaction_failed');
@@ -967,6 +1049,9 @@ class Sales extends Secure_Controller
                 } elseif ($data['sale_id_num'] === INSUFFICIENT_REWARD_POINTS) {
                     $data['error_message'] = lang('Sales.insufficient_reward_points');
                     return $this->reload($data);
+                } elseif ($data['sale_id_num'] === ACCOUNTING_FAILED) {
+                    $data['error'] = $this->accountingFailureMessage();
+                    return $this->reload($data);
                 } elseif ($data['sale_id_num'] == NEW_ENTRY) {
                     $data['error_message'] = lang('Sales.transaction_failed');
                     return $this->reload($data);
@@ -1007,6 +1092,9 @@ class Sales extends Secure_Controller
                 } elseif ($data['sale_id_num'] === INSUFFICIENT_REWARD_POINTS) {
                     $data['error_message'] = lang('Sales.insufficient_reward_points');
                     return $this->reload($data);
+                } elseif ($data['sale_id_num'] === ACCOUNTING_FAILED) {
+                    $data['error'] = $this->accountingFailureMessage();
+                    return $this->reload($data);
                 } elseif ($data['sale_id_num'] == NEW_ENTRY) {
                     $data['error_message'] = lang('Sales.transaction_failed');
                     return $this->reload($data);
@@ -1029,7 +1117,7 @@ class Sales extends Secure_Controller
                 $saleType = SALE_TYPE_POS;
             }
 
-            $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails);
+            $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, true, $this->sale_lib->get_return_origin());
 
             $data['sale_id'] = 'POS ' . $data['sale_id_num'];
 
@@ -1040,6 +1128,9 @@ class Sales extends Secure_Controller
                 return $this->reload($data);
             } elseif ($data['sale_id_num'] === INSUFFICIENT_REWARD_POINTS) {
                 $data['error_message'] = lang('Sales.insufficient_reward_points');
+                return $this->reload($data);
+            } elseif ($data['sale_id_num'] === ACCOUNTING_FAILED) {
+                $data['error'] = $this->accountingFailureMessage();
                 return $this->reload($data);
             } elseif ($data['sale_id_num'] == NEW_ENTRY) {
                 $data['error_message'] = lang('Sales.transaction_failed');
@@ -1406,6 +1497,41 @@ class Sales extends Secure_Controller
     }
 
     /**
+     * Why a sale cannot be the one a return is taken from, or null when it can. The return must
+     * be of a sale that was completed and delivered in a branch the employee works in.
+     */
+    private function returnOriginProblem(int $saleId): ?string
+    {
+        $origin = $this->sale->getSummary($saleId);
+
+        if ($origin === null || (int) $origin->sale_status !== COMPLETED || (int) $origin->sale_type === SALE_TYPE_RETURN) {
+            return lang('Sales.return_origin_invalid');
+        }
+
+        if ((int) $origin->delivered !== 1) {
+            return lang('Sales.return_origin_undelivered');
+        }
+
+        if ($this->outsideBranchScope($saleId)) {
+            return lang('Sales.branch_not_allowed');
+        }
+
+        return null;
+    }
+
+    /**
+     * What the books said about the sale that was just refused, in words for the cashier.
+     */
+    private function accountingFailureMessage(): string
+    {
+        $failure = $this->sale->accountingFailure();
+
+        return $failure instanceof AccountingException || $failure instanceof PostingException
+            ? AccountingMessage::of($failure)
+            : lang('Sales.transaction_failed');
+    }
+
+    /**
      * A sale sells from the stock locations of one branch, and only a branch the employee works in.
      */
     private function cartBranchProblem(array $cart): ?string
@@ -1531,6 +1657,9 @@ class Sales extends Secure_Controller
 
         $data['print_after_sale'] = $this->sale_lib->is_print_after_sale();
         $data['price_work_orders'] = $this->sale_lib->is_price_work_orders();
+        $data['accounting_enabled'] = (new AccountingSettings())->isEnabled();
+        $data['delivered'] = $this->sale_lib->is_delivered();
+        $data['return_origin'] = $this->sale_lib->get_return_origin();
 
         $data['pos_mode'] = $data['mode'] == 'sale' || $data['mode'] == 'return';
 
@@ -1652,6 +1781,12 @@ class Sales extends Secure_Controller
             $data['payments'][] = $payment;
         }
 
+        $data['journals'] = [];
+
+        if ((new AccountingSettings())->isEnabled() && $this->employee->has_grant('accounting_journals', $personId)) {
+            $data['journals'] = (new SalePosting())->journalsOf($saleId);
+        }
+
         $data['payment_type_new'] = PAYMENT_TYPE_UNASSIGNED;
         $data['payment_amount_new'] = $balanceDue;
 
@@ -1701,7 +1836,9 @@ class Sales extends Secure_Controller
                     'ids'     => $sale_ids
                 ]);
             } else {
-                return $this->response->setJSON(['success' => false, 'message' => lang('Sales.unsuccessfully_deleted')]);
+                $message = $this->sale->accountingFailure() === null ? lang('Sales.unsuccessfully_deleted') : $this->accountingFailureMessage();
+
+                return $this->response->setJSON(['success' => false, 'message' => $message]);
             }
         }
     }
@@ -1861,11 +1998,14 @@ class Sales extends Secure_Controller
             ];
         }
 
-        $inventory->update('POS ' . $saleId, ['trans_date' => $saleTime]);    // TODO: Reflection Exception
         if ($this->sale->update($saleId, $saleData)) {
+            $inventory->update('POS ' . $saleId, ['trans_date' => $saleTime]);    // TODO: Reflection Exception
+
             return $this->response->setJSON(['success' => true, 'message' => lang('Sales.successfully_updated'), 'id' => $saleId]);
         } else {
-            return $this->response->setJSON(['success' => false, 'message' => lang('Sales.unsuccessfully_updated'), 'id' => $saleId]);
+            $message = $this->sale->accountingFailure() === null ? lang('Sales.unsuccessfully_updated') : $this->accountingFailureMessage();
+
+            return $this->response->setJSON(['success' => false, 'message' => $message, 'id' => $saleId]);
         }
     }
 
@@ -1957,12 +2097,14 @@ class Sales extends Secure_Controller
             return $this->reload($data);
         }
 
-        $saleIdNum = $this->sale->save_value($sale_id, $sale_status, $cart, $customer_id, $employee_id, $comment, $invoice_number, $work_order_number, $quote_number, $sale_type, $payments, $dinner_table, $sales_taxes);
+        $saleIdNum = $this->sale->save_value($sale_id, $sale_status, $cart, $customer_id, $employee_id, $comment, $invoice_number, $work_order_number, $quote_number, $sale_type, $payments, $dinner_table, $sales_taxes, $this->sale_lib->is_delivered());
 
         if ($saleIdNum === INSUFFICIENT_GIFTCARD_BALANCE) {
             $data['error'] = lang('Sales.insufficient_giftcard_balance');
         } elseif ($saleIdNum === INSUFFICIENT_REWARD_POINTS) {
             $data['error'] = lang('Sales.insufficient_reward_points');
+        } elseif ($saleIdNum === ACCOUNTING_FAILED) {
+            $data['error'] = $this->accountingFailureMessage();
         } elseif ($saleIdNum === NEW_ENTRY) {
             $data['error'] = lang('Sales.unsuccessfully_suspended_sale');
             $this->sale_lib->clear_all();

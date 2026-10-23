@@ -128,7 +128,7 @@ class AccountingJournals extends AccountingController
             'can_reverse'  => $this->can(AccountingGuard::JOURNALS_REVERSE),
             'notice'       => session()->getFlashdata('accounting_notice'),
             'status_badge' => $this->badge($journal->status),
-            'source_label' => $this->label('source', $journal->source_type),
+            'source_label' => $this->sourceLabel($journal->source_type, (string) ($journal->entry_type ?? 'general')),
             'number_label' => $this->displayNumber($journal->series, $journal->number),
             'show_branch'  => $this->seesBranches(),
         ]);
@@ -427,7 +427,7 @@ class AccountingJournals extends AccountingController
             'journal_date'    => $this->formatDate($journal->journal_date),
             'branch_code'     => (string) $journal->branch_code,
             'description'     => (string) $journal->description,
-            'source_type'     => $this->label('source', $journal->source_type),
+            'source_type'     => $this->sourceLabel($journal->source_type, (string) ($journal->entry_type ?? 'general')),
             'total_debit'     => $this->amountCell($this->formatAmount($journal->total_debit)),
             'total_credit'    => $this->amountCell($this->formatAmount($journal->total_credit)),
             'status'          => $this->badge($journal->status),
@@ -598,5 +598,16 @@ class AccountingJournals extends AccountingController
         }
 
         return implode(' · ', $parts);
+    }
+
+    /**
+     * The source of a journal in words. The journals a sale posts say which part of the sale
+     * they are, as the invoice and the cost of its goods are two journals of one source.
+     */
+    private function sourceLabel(string $sourceType, string $entryType): string
+    {
+        $label = $this->label('source', $sourceType);
+
+        return in_array($entryType, ['revenue', 'cogs'], true) ? $label . ' — ' . $this->label('entry', $entryType) : $label;
     }
 }

@@ -6,6 +6,7 @@ use App\Models\Sale;
 use CodeIgniter\Database\Config;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
+use Config\Database;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\FailedQueryConnectionTrait;
 use Tests\Support\ItemFixtureTrait;
@@ -108,6 +109,16 @@ class SaleTest extends CIUnitTestCase
                 'print_option'  => 0,
             ],
         ];
+    }
+
+    protected function saveInvoice(bool $delivered, ?int $itemId = null, float $quantity = 1): int
+    {
+        $itemId ??= $this->createTestItem(HAS_STOCK);
+        $status   = COMPLETED;
+        $items    = $this->buildCartLine($itemId, $quantity, 5.00);
+        $taxes    = [[], []];
+
+        return model(Sale::class)->save_value(NEW_ENTRY, $status, $items, NEW_ENTRY, $this->createEmployee(), 'invoice', null, null, null, SALE_TYPE_INVOICE, [], null, $taxes, $delivered);
     }
 
     protected function countSalesRows(): int
@@ -493,6 +504,76 @@ class SaleTest extends CIUnitTestCase
     public function testGetBranchId_ReturnsNullWhenThereIsNoSuchSale(): void
     {
         $this->assertNull(model(Sale::class)->getBranchId(999999999));
+    }
+
+    public function testIsDelivered_IsFalseOnlyForAnInvoiceWhoseGoodsHaveNotLeft(): void
+    {
+        $saleModel = model(Sale::class);
+        $kept      = $this->saveInvoice(false);
+        $sent      = $this->saveInvoice(true);
+
+        $this->assertFalse($saleModel->isDelivered($kept));
+        $this->assertTrue($saleModel->isDelivered($sent));
+        $this->assertTrue($saleModel->isDelivered(999999999));
+    }
+
+    public function testGetReturnOrigin_NamesTheSaleAReturnComesFromAndNothingForOtherSales(): void
+    {
+        $saleModel = model(Sale::class);
+        $invoice   = $this->saveInvoice(true);
+        $itemId    = $this->createTestItem(HAS_STOCK);
+        $status    = COMPLETED;
+        $items     = $this->buildCartLine($itemId, -1, 5.00);
+        $taxes     = [[], []];
+        $return    = $saleModel->save_value(NEW_ENTRY, $status, $items, NEW_ENTRY, $this->createEmployee(), 'return', null, null, null, SALE_TYPE_RETURN, [], null, $taxes, true, $invoice);
+
+        $this->assertGreaterThan(0, $return);
+        $this->assertSame($invoice, $saleModel->getReturnOrigin($return));
+        $this->assertNull($saleModel->getReturnOrigin($invoice));
+        $this->assertNull($saleModel->getReturnOrigin(999999999));
+    }
+
+    public function testGetSummary_GivesTheFactsOfASaleAndNothingForAMissingOne(): void
+    {
+        $saleModel = model(Sale::class);
+        $saleId    = $this->saveInvoice(false);
+        $summary   = $saleModel->getSummary($saleId);
+
+        $this->assertSame((string) SALE_TYPE_INVOICE, (string) $summary->sale_type);
+        $this->assertSame((string) COMPLETED, (string) $summary->sale_status);
+        $this->assertSame('0', (string) $summary->delivered);
+        $this->assertNull($saleModel->getSummary(999999999));
+    }
+
+    public function testConfirmDelivery_TakesTheStockOfAnUndeliveredInvoiceOnceWhileAccountingIsOff(): void
+    {
+        $saleModel = model(Sale::class);
+        $itemId    = $this->createTestItem(HAS_STOCK);
+
+        Database::connect()->table('item_quantities')->insert(['item_id' => $itemId, 'location_id' => self::LOCATION_ID, 'quantity' => 10]);
+
+        $saleId = $this->saveInvoice(false, $itemId, 4);
+
+        $this->assertEqualsWithDelta(10.0, $this->getItemQuantity($itemId, self::LOCATION_ID), 0.001);
+        $this->assertSame($saleId, $saleModel->confirm_delivery($saleId, $this->createEmployee()));
+        $this->assertEqualsWithDelta(6.0, $this->getItemQuantity($itemId, self::LOCATION_ID), 0.001);
+        $this->assertTrue($saleModel->isDelivered($saleId));
+        $this->assertSame($saleId, $saleModel->confirm_delivery($saleId, $this->createEmployee()));
+        $this->assertEqualsWithDelta(6.0, $this->getItemQuantity($itemId, self::LOCATION_ID), 0.001);
+    }
+
+    public function testConfirmDelivery_RefusesASaleThatIsNotAnIssuedInvoice(): void
+    {
+        $saleModel  = model(Sale::class);
+        $itemId     = $this->createTestItem(HAS_STOCK);
+        $saleStatus = COMPLETED;
+        $items      = $this->buildCartLine($itemId, 1, 5.00);
+        $taxes      = [[], []];
+        $payments   = [['payment_type' => lang('Sales.cash'), 'payment_amount' => 5.00, 'cash_refund' => 0, 'cash_adjustment' => 0, 'reference_code' => null]];
+        $pos        = $saleModel->save_value(NEW_ENTRY, $saleStatus, $items, NEW_ENTRY, $this->createEmployee(), 'pos', null, null, null, SALE_TYPE_POS, $payments, null, $taxes);
+
+        $this->assertSame(NEW_ENTRY, $saleModel->confirm_delivery($pos, null));
+        $this->assertSame(NEW_ENTRY, $saleModel->confirm_delivery(999999999, null));
     }
 
     public function testBranchIdsOfItems_ListsTheBranchOfEveryLocationOnceAndNothingForAnEmptyCart(): void

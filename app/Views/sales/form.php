@@ -14,6 +14,7 @@
  * @var int $selected_employee_id
  * @var string $controller_name
  * @var array $config
+ * @var list<object> $journals
  */
 ?>
 
@@ -132,6 +133,39 @@
         echo form_hidden('number_of_payments', strval($i));
         ?>
 
+        <?php if ((int) ($sale_info['sale_type'] ?? 0) === SALE_TYPE_INVOICE && (int) ($sale_info['sale_status'] ?? 0) === COMPLETED): ?>
+            <div class="row mb-3">
+                <?= form_label(lang('Sales.delivery'), 'delivery_status', ['class' => 'col-form-label col-3']) ?>
+                <div class="col-8" id="delivery_status">
+                    <?php if ((int) ($sale_info['delivered'] ?? 1) === 1): ?>
+                        <span class="badge text-bg-success"><?= lang('Sales.delivered') ?></span>
+                    <?php else: ?>
+                        <span class="badge text-bg-warning"><?= lang('Sales.not_delivered') ?></span>
+                        <button type="button" class="btn btn-outline-primary btn-sm ms-2" id="confirm_delivery"><?= lang('Sales.confirm_delivery') ?></button>
+                    <?php endif; ?>
+                </div>
+            </div>
+        <?php endif; ?>
+
+        <?php if (! empty($journals)): ?>
+            <div class="row mb-3">
+                <span class="col-form-label col-3"><?= lang('Sales.accounting_entries') ?></span>
+                <div class="col-8">
+                    <ul class="list-unstyled mb-0" id="sale_journals">
+                        <?php foreach ($journals as $journal): ?>
+                            <li>
+                                <?= anchor('accounting_journals/view/' . (int) $journal->journal_id, esc((string) $journal->number), ['target' => '_blank', 'dir' => 'ltr']) ?>
+                                <?= lang($journal->source_type === 'sale_payment' ? 'Sales.entry_payment' : 'Sales.entry_' . $journal->entry_type) ?>
+                                <?php if ($journal->status === 'reversed'): ?>
+                                    <span class="badge text-bg-secondary"><?= lang('Sales.entry_reversed') ?></span>
+                                <?php endif; ?>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            </div>
+        <?php endif; ?>
+
         <div class="row mb-3">
             <?= form_label(lang('Sales.customer'), 'customer', ['class' => 'col-form-label col-3']) ?>
             <div class="col-8">
@@ -223,6 +257,13 @@
                 $('.reference-code-input-new').addClass('d-none');
                 $('#reference_code_new').attr('disabled', true).val('');
             }
+        });
+
+        $('#confirm_delivery').click(function() {
+            $.post("<?= esc(site_url("{$controller_name}/confirmDelivery/" . $sale_info['sale_id'])) ?>", function(response) {
+                dialog_support.hide();
+                table_support.handle_submit("<?= esc($controller_name) ?>", response);
+            }, 'json');
         });
 
         $('button#delete').click(function() {

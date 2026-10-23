@@ -1,6 +1,6 @@
 {
   "id": "T-02",
-  "title": "A fixed item discount is a discount for each unit",
+  "title": "A fixed item discount is a discount for each unit, and the journal of the invoice it gives",
   "recorded": "2026-10-22",
   "evidence": {
     "invoice_000003": {
@@ -66,6 +66,63 @@
         "tax_total": "29.25",
         "total": "224.25",
         "total_discount": "30.00"
+      }
+    },
+    {
+      "id": "journal-invoice-000003",
+      "kind": "journal",
+      "classification": "exact",
+      "evidence": [
+        "invoice_000003"
+      ],
+      "inputs": {
+        "lines": [
+          {
+            "quantity": "3",
+            "price": "75",
+            "discount": "10",
+            "discount_type": "fixed",
+            "tax": "29.25"
+          }
+        ]
+      },
+      "reference": {
+        "lines": [
+          [
+            "customer",
+            "224.25",
+            "0.00"
+          ],
+          [
+            "sales_revenue",
+            "0.00",
+            "195.00"
+          ],
+          [
+            "tax_output",
+            "0.00",
+            "29.25"
+          ]
+        ]
+      },
+      "expected": {
+        "lines": [
+          [
+            "customer",
+            "224.25",
+            "0.00"
+          ],
+          [
+            "sales_revenue",
+            "0.00",
+            "195.00"
+          ],
+          [
+            "tax_output",
+            "0.00",
+            "29.25"
+          ]
+        ]
       }
     }
   ]

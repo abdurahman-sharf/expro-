@@ -264,7 +264,7 @@ final class AccountingSettings
 
             $effective = $type ?? $key->defaultType();
 
-            if (! $effective->isImplemented()) {
+            if (! $key->applies($effective)) {
                 $issues[] = new ReadinessIssue(ReadinessCode::RoutingTypeUnsupported, $key->value);
 
                 continue;

@@ -26,6 +26,7 @@ return [
     'item_purchases_suppliers'      => 'الموردون (الحساب الرئيسي)',
     'item_sales_adjustment'         => 'تسوية المبيعات',
     'item_sales_cogs'               => 'تكلفة المبيعات',
+    'item_sales_counter'            => 'عملاء نقديون (بيع بلا عميل)',
     'item_sales_customers'          => 'العملاء (الحساب الرئيسي)',
     'item_sales_discount'           => 'خصم مسموح به',
     'item_sales_product'            => 'حساب مبيعات المنتج',

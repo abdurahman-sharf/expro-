@@ -5,7 +5,7 @@ namespace App\Libraries\Accounting;
 /**
  * Every account a posting can need, named by the part of the business it belongs to. The
  * first nineteen keys are the rows of the six routing families of the reference system. The
- * last six are accounts this application needs on top of them.
+ * last seven are accounts this application needs on top of them.
  */
 enum RoutingKey: string
 {
@@ -35,6 +35,7 @@ enum RoutingKey: string
     case ExpensesDefault    = 'expenses.default';
     case GiftcardLiability  = 'giftcards.liability';
     case OpeningBalance     = 'equity.opening';
+    case CounterCustomers   = 'sales.counter';
 
     public const GROUPS = ['sales', 'purchases', 'inventory', 'treasuries', 'stock_permits', 'fiscal', 'other'];
 
@@ -112,6 +113,19 @@ enum RoutingKey: string
         };
     }
 
+    /**
+     * Whether posting applies the type on this row. The settlement rows take amounts that no
+     * document produces yet, so choosing "automatic" there would change nothing and look done.
+     */
+    public function applies(RoutingType $type): bool
+    {
+        if ($type === RoutingType::Auto && in_array($this, [self::SalesAdjustment, self::PurchaseAdjustment], true)) {
+            return false;
+        }
+
+        return $type->isImplemented();
+    }
+
     public function defaultType(): RoutingType
     {
         return match ($this) {
@@ -144,7 +158,7 @@ enum RoutingKey: string
     public function allowedAccountTypes(): array
     {
         return match ($this) {
-            self::Customers, self::StockLocations, self::Treasuries, self::StockPermitIssue, self::CashDefault => [AccountType::Asset],
+            self::Customers, self::StockLocations, self::Treasuries, self::StockPermitIssue, self::CashDefault, self::CounterCustomers => [AccountType::Asset],
             self::Suppliers, self::StockPermitAdd, self::TaxOutput, self::GiftcardLiability => [AccountType::Liability],
             self::SalesRevenue, self::SalesReturns, self::ProductSales => [AccountType::Revenue],
             self::SalesDiscount, self::SalesAdjustment, self::PurchaseDiscount, self::PurchaseAdjustment => [AccountType::Revenue, AccountType::Expense],
@@ -201,6 +215,7 @@ enum RoutingKey: string
             self::ExpensesDefault    => 'expenses_default',
             self::GiftcardLiability  => 'giftcard_liability',
             self::OpeningBalance     => 'opening_balance',
+            self::CounterCustomers   => 'counter_customers',
         };
     }
 }

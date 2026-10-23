@@ -11,8 +11,10 @@ use CodeIgniter\Config\Services;
 use App\Libraries\Organization\BranchGuard;
 use App\Models\Employee;
 use Config\Database;
+use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
+use Tests\Support\SaleAccountingFixtureTrait;
 use Tests\Support\SaleFixtureTrait;
 
 /**
@@ -31,8 +33,10 @@ class SalesControllerTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use FeatureTestTrait;
+    use AccountingFixtureTrait;
     use ItemFixtureTrait;
     use EmployeeFixtureTrait;
+    use SaleAccountingFixtureTrait;
     use SaleFixtureTrait;
 
     protected $migrate     = true;
@@ -57,6 +61,8 @@ class SalesControllerTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->stopSelling();
+
         parent::tearDown();
     }
 
@@ -820,7 +826,7 @@ class SalesControllerTest extends CIUnitTestCase
     /**
      * A cashier who also holds the report and delete grants but works only in the given branch.
      */
-    protected function createBranchLimitedSupervisor(int $branchId): int
+    protected function createBranchLimitedSupervisor(int $branchId, array $extraGrants = []): int
     {
         $personId = $this->createEmployee(
             first_name: 'Branch',
@@ -832,6 +838,7 @@ class SalesControllerTest extends CIUnitTestCase
                 ['permission_id' => 'sales_stock', 'menu_group' => 'home'],
                 ['permission_id' => 'sales_delete', 'menu_group' => 'home'],
                 ['permission_id' => 'reports_sales', 'menu_group' => 'home'],
+                ...array_map(static fn (string $permissionId): array => ['permission_id' => $permissionId, 'menu_group' => 'home'], $extraGrants),
             ],
         );
 
@@ -953,5 +960,279 @@ class SalesControllerTest extends CIUnitTestCase
 
         $this->assertSame($salesCountBefore, Database::connect()->table('sales')->countAllResults());
         $response->assertSee(lang('Sales.branch_not_allowed'));
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Sales that are in the books: who may touch them and what they are told when the books refuse
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * @return array{saleId: int, cream: int, perfume: int}
+     */
+    protected function postedInvoice(bool $delivered = true): array
+    {
+        $this->startSelling();
+
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, $delivered);
+
+        return ['saleId' => $saleId, 'cream' => $cycle['cream'], 'perfume' => $cycle['perfume']];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function jsonOf($response): array
+    {
+        return json_decode($response->getJSON(), true);
+    }
+
+    public function testPostConfirmDelivery_DeliversTheUndeliveredInvoiceOfTheEmployeesBranch(): void
+    {
+        $invoice      = $this->postedInvoice(false);
+        $stock        = $this->stock($invoice['cream']);
+        $supervisorId = $this->createBranchLimitedSupervisor(1);
+        $this->loginAs($supervisorId);
+
+        $response = $this->post('/sales/confirmDelivery/' . $invoice['saleId']);
+
+        $this->assertTrue($this->jsonOf($response)['success']);
+        $this->assertSame('1', (string) $this->saleRow($invoice['saleId'])->delivered);
+        $this->assertEqualsWithDelta($stock - 4, $this->stock($invoice['cream']), 0.0001);
+        $this->assertCount(1, $this->standing($invoice['saleId'], 'cogs'));
+    }
+
+    public function testPostConfirmDelivery_RefusesASaleOfABranchTheEmployeeDoesNotWorkIn(): void
+    {
+        $invoice      = $this->postedInvoice(false);
+        $stock        = $this->stock($invoice['cream']);
+        $supervisorId = $this->createBranchLimitedSupervisor($this->createSecondBranch());
+        $this->loginAs($supervisorId);
+
+        $response = $this->post('/sales/confirmDelivery/' . $invoice['saleId']);
+
+        $response->assertStatus(403);
+        $this->assertSame(lang('Sales.branch_not_allowed'), $this->jsonOf($response)['message']);
+        $this->assertSame('0', (string) $this->saleRow($invoice['saleId'])->delivered);
+        $this->assertEqualsWithDelta($stock, $this->stock($invoice['cream']), 0.0001);
+        $this->assertSame([], $this->standing($invoice['saleId'], 'cogs'));
+    }
+
+    public function testPostConfirmDelivery_SaysWhyTheBooksRefusedAndDeliversNothing(): void
+    {
+        $invoice      = $this->postedInvoice(false);
+        $stock        = $this->stock($invoice['cream']);
+        $supervisorId = $this->createBranchLimitedSupervisor(1);
+        $this->closeThrough(date('Y-m-d'));
+        $this->loginAs($supervisorId);
+
+        $result = $this->jsonOf($this->post('/sales/confirmDelivery/' . $invoice['saleId']));
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString(date('Y-m-d'), $result['message']);
+        $this->assertNotSame(lang('Sales.transaction_failed'), $result['message']);
+        $this->assertSame('0', (string) $this->saleRow($invoice['saleId'])->delivered);
+        $this->assertEqualsWithDelta($stock, $this->stock($invoice['cream']), 0.0001);
+    }
+
+    public function testPostConfirmDelivery_RefusesWhatIsNotAnIssuedInvoice(): void
+    {
+        $this->startSelling();
+        $item = $this->item('20.00');
+        $pos  = $this->save([$this->line($item, 0, '1', '50', '20.00')], [], [$this->payment(lang('Sales.cash'), '50.00')], SALE_TYPE_POS);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $result = $this->jsonOf($this->post('/sales/confirmDelivery/' . $pos));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Sales.delivery_not_possible'), $result['message']);
+    }
+
+    public function testPostDelete_CancelsASaleOfTheEmployeesBranchAndReversesItsJournals(): void
+    {
+        $invoice      = $this->postedInvoice();
+        $stock        = $this->stock($invoice['cream']);
+        $supervisorId = $this->createBranchLimitedSupervisor(1);
+        $this->loginAs($supervisorId);
+
+        $result = $this->jsonOf($this->post('/sales/delete', ['ids' => [(string) $invoice['saleId']]]));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame([], $this->standing($invoice['saleId']));
+        $this->assertEqualsWithDelta($stock + 4, $this->stock($invoice['cream']), 0.0001);
+        $this->assertSame('0.00', $this->balance($this->customerAccount()));
+    }
+
+    public function testPostDelete_RefusesASaleOfAnotherBranchAndLeavesItsJournalsAndStock(): void
+    {
+        $invoice      = $this->postedInvoice();
+        $stock        = $this->stock($invoice['cream']);
+        $supervisorId = $this->createBranchLimitedSupervisor($this->createSecondBranch());
+        $this->loginAs($supervisorId);
+
+        $response = $this->post('/sales/delete', ['ids' => [(string) $invoice['saleId']]]);
+
+        $response->assertStatus(403);
+        $this->assertCount(2, $this->standing($invoice['saleId']));
+        $this->assertSame((string) COMPLETED, (string) $this->saleRow($invoice['saleId'])->sale_status);
+        $this->assertEqualsWithDelta($stock, $this->stock($invoice['cream']), 0.0001);
+    }
+
+    public function testPostDelete_SaysWhyTheBooksRefusedTheCancellationAndCancelsNothing(): void
+    {
+        $invoice      = $this->postedInvoice();
+        $stock        = $this->stock($invoice['cream']);
+        $supervisorId = $this->createBranchLimitedSupervisor(1);
+        $this->closeThrough('2035-12-31');
+        $this->loginAs($supervisorId);
+
+        $result = $this->jsonOf($this->post('/sales/delete', ['ids' => [(string) $invoice['saleId']]]));
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString('2035-12-31', $result['message']);
+        $this->assertSame((string) COMPLETED, (string) $this->saleRow($invoice['saleId'])->sale_status);
+        $this->assertEqualsWithDelta($stock, $this->stock($invoice['cream']), 0.0001);
+        $this->assertCount(2, $this->standing($invoice['saleId']));
+    }
+
+    public function testPostSave_PostsThePaymentAddedFromTheForm(): void
+    {
+        $invoice      = $this->postedInvoice();
+        $supervisorId = $this->createBranchLimitedSupervisor(1);
+        $this->loginAs($supervisorId);
+
+        $result = $this->jsonOf($this->post('/sales/save/' . $invoice['saleId'], [
+            'date'              => date($this->config()['dateformat'] . ' ' . $this->config()['timeformat']),
+            'customer_id'       => (string) $this->customerId,
+            'employee_id'       => (string) $this->employeeId,
+            'comment'           => 'paid',
+            'number_of_payments' => '0',
+            'payment_type_new'  => lang('Sales.cash'),
+            'payment_amount_new' => '100.00',
+        ]));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('716.50', $this->balance($this->customerAccount()));
+        $this->assertSame('100.00', $this->balance($this->accountId('cash')));
+    }
+
+    public function testPostSave_RefusesToChangeTheCustomerOfAPostedSaleAndSaysWhy(): void
+    {
+        $invoice      = $this->postedInvoice();
+        $other        = $this->insertCustomer('Hind', 'Saad');
+        $supervisorId = $this->createBranchLimitedSupervisor(1);
+        $this->loginAs($supervisorId);
+
+        $result = $this->jsonOf($this->post('/sales/save/' . $invoice['saleId'], [
+            'date'               => date($this->config()['dateformat'] . ' ' . $this->config()['timeformat']),
+            'customer_id'        => (string) $other,
+            'employee_id'        => (string) $this->employeeId,
+            'comment'            => 'changed',
+            'number_of_payments' => '0',
+            'payment_type_new'   => PAYMENT_TYPE_UNASSIGNED,
+        ]));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_sale_locked'), $result['message']);
+        $this->assertSame((string) $this->customerId, (string) $this->saleRow($invoice['saleId'])->customer_id);
+        $this->assertSame('test', $this->saleRow($invoice['saleId'])->comment);
+    }
+
+    public function testGetEdit_ListsTheJournalsOfTheSaleForWhoeverMayOpenThem(): void
+    {
+        $invoice = $this->postedInvoice();
+        $with    = $this->createBranchLimitedSupervisor(1, ['accounting_journals']);
+        $without = $this->createBranchLimitedSupervisor(1);
+
+        $this->loginAs($with);
+        $page = $this->get('/sales/edit/' . $invoice['saleId']);
+
+        foreach ($this->journals($invoice['saleId']) as $journal) {
+            $page->assertSee('accounting_journals/view/' . $journal['id']);
+        }
+
+        $this->loginAs($without);
+        $page = $this->get('/sales/edit/' . $invoice['saleId']);
+
+        $page->assertDontSee('accounting_journals/view/');
+    }
+
+    public function testGetEdit_OffersTheDeliveryOfAnInvoiceThatWasNotDelivered(): void
+    {
+        $undelivered = $this->postedInvoice(false);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $this->get('/sales/edit/' . $undelivered['saleId'])->assertSee('confirm_delivery');
+    }
+
+    public function testPostSetReturnOrigin_RefusesASaleOfABranchTheEmployeeDoesNotWorkIn(): void
+    {
+        $invoice      = $this->postedInvoice();
+        $branchId     = $this->createSecondBranch();
+        $supervisorId = $this->createBranchLimitedSupervisor($branchId);
+        $this->grantStockLocationIn($branchId, $supervisorId);
+        $this->loginAs($supervisorId);
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => 'return']));
+
+        $response = $this->post('/sales/setReturnOrigin', ['return_origin' => (string) $invoice['saleId']]);
+
+        $response->assertSee(lang('Sales.branch_not_allowed'));
+        $this->assertNull(Services::session()->get('sales_return_origin'));
+    }
+
+    public function testPostSetReturnOrigin_RefusesASaleThatIsNotCompleteOrWasNotDelivered(): void
+    {
+        $this->startSelling();
+        $item      = $this->item('20.00');
+        $draft     = $this->save([$this->line($item, 0, '1', '50', '20.00')], [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED);
+        $undelivered = $this->save([$this->line($item, 0, '1', '50', '20.00')], [], [], SALE_TYPE_INVOICE, -1, false);
+        $supervisorId = $this->createBranchLimitedSupervisor(1);
+        $this->grantStockLocationIn(1, $supervisorId);
+        $this->loginAs($supervisorId);
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => 'return']));
+
+        $this->post('/sales/setReturnOrigin', ['return_origin' => (string) $draft])->assertSee(lang('Sales.return_origin_invalid'));
+        $this->post('/sales/setReturnOrigin', ['return_origin' => '999999'])->assertSee(lang('Sales.return_origin_invalid'));
+        $this->post('/sales/setReturnOrigin', ['return_origin' => (string) $undelivered])->assertSee(lang('Sales.return_origin_undelivered'));
+
+        $this->assertNull(Services::session()->get('sales_return_origin'));
+    }
+
+    public function testPostSetReturnOrigin_NamesTheSaleAndSelectsItsCustomer(): void
+    {
+        $invoice      = $this->postedInvoice();
+        $supervisorId = $this->createBranchLimitedSupervisor(1);
+        $this->grantStockLocationIn(1, $supervisorId);
+        $this->loginAs($supervisorId);
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => 'return']));
+
+        $this->post('/sales/setReturnOrigin', ['return_origin' => 'POS ' . $invoice['saleId']])->assertStatus(200);
+
+        $this->assertSame($invoice['saleId'], Services::session()->get('sales_return_origin'));
+        $this->assertSame($this->customerId, (int) Services::session()->get('sales_customer'));
+    }
+
+    public function testPostComplete_SaysWhyTheBooksRefusedTheSaleAndKeepsNone(): void
+    {
+        $this->startSelling();
+        $item         = $this->item('0', false);
+        $supervisorId = $this->createBranchLimitedSupervisor(1);
+        $this->grantStockLocationIn(1, $supervisorId);
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.customers')->update(['routing_type' => 'main_per_entity']);
+        $this->loginAs($supervisorId);
+        $this->seedCartLine(1, '100.00', $item);
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_customer' => $this->customerId, 'sales_mode' => 'sale_invoice', 'sales_payments' => []]));
+
+        $sales = $this->countSales();
+
+        $response = $this->post('/sales/complete');
+
+        $response->assertSee(lang('Accounting.posting_routing_type_unsupported'));
+        $this->assertSame($sales, $this->countSales());
+    }
+
+    protected function config(): array
+    {
+        return config(\Config\OSPOS::class)->settings;
     }
 }

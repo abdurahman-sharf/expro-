@@ -1,0 +1,280 @@
+<?php
+
+namespace Tests\Support;
+
+use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\EntityAccountService;
+use App\Libraries\Accounting\PostingException;
+use App\Libraries\Accounting\SalePosting;
+use App\Models\Sale;
+
+/**
+ * What a test needs to put sales through the real sale model with accounting on, and to read
+ * back what they posted. A class that uses it also uses AccountingFixtureTrait,
+ * EmployeeFixtureTrait and ItemFixtureTrait.
+ */
+trait SaleAccountingFixtureTrait
+{
+    protected const LOCATION_ID = 1;
+
+    protected Sale $sales;
+    protected int $employeeId;
+    protected int $customerId;
+
+    /** @var list<int> */
+    protected array $saleIds = [];
+
+    protected bool $sellingStarted = false;
+
+    /**
+     * Installs the chart, turns accounting on, and gives the employee, the customer and the
+     * stock location the accounts they need.
+     */
+    protected function startSelling(): void
+    {
+        $this->reinstallChart();
+        $this->setConfigValue('accounting_base_currency', 'SAR');
+        $this->setConfigValue('accounting_start_date', '2020-01-01');
+        $this->setConfigValue('accounting_enabled', '1');
+
+        $this->sales      = model(Sale::class);
+        $this->employeeId = $this->createEmployee();
+        $this->customerId = $this->insertCustomer();
+
+        $entities = new EntityAccountService();
+        $entities->ensure(EntityAccountService::CUSTOMER, $this->customerId, 'Omar Khaled');
+        $entities->ensure(EntityAccountService::STOCK_LOCATION, self::LOCATION_ID, 'stock');
+
+        $this->dropReportTables();
+        $this->sellingStarted = true;
+    }
+
+    /**
+     * The sales report builds temporary tables that live as long as the connection, and a test
+     * that runs after another on the same connection would find the other's tables in its way.
+     */
+    protected function dropReportTables(): void
+    {
+        foreach (['sales_items_temp', 'sales_payments_temp', 'sales_items_taxes_temp'] as $table) {
+            $this->accountingDb()->query('DROP TEMPORARY TABLE IF EXISTS ' . $this->accountingDb()->prefixTable($table));
+        }
+    }
+
+    /**
+     * Removes the sales a test saved and turns accounting off again.
+     */
+    protected function stopSelling(): void
+    {
+        if (! $this->sellingStarted) {
+            return;
+        }
+
+        $this->sellingStarted = false;
+
+        $db = $this->accountingDb();
+        $db->query('SET FOREIGN_KEY_CHECKS = 0');
+
+        foreach ($this->saleIds as $saleId) {
+            foreach (['sales_payments', 'sales_items_taxes', 'sales_items', 'sales_taxes'] as $table) {
+                $db->table($table)->where('sale_id', $saleId)->delete();
+            }
+
+            $db->table('sales')->where('sale_id', $saleId)->delete();
+        }
+
+        $db->table('inventory')->like('trans_comment', 'POS ', 'after')->delete();
+        $db->query('SET FOREIGN_KEY_CHECKS = 1');
+        $this->saleIds = [];
+
+        $this->setConfigValue('accounting_enabled', '0');
+        $this->removeInsertedEntities();
+    }
+
+    protected function item(string $cost, bool $stock = true): int
+    {
+        $itemId = $this->createTestItem($stock ? HAS_STOCK : HAS_NO_STOCK);
+
+        $this->accountingDb()->table('items')->where('item_id', $itemId)->update(['cost_price' => $cost]);
+
+        return $itemId;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function line(int $itemId, int $line, string $quantity, string $price, string $cost = '0', string $discount = '0', int $discountType = PERCENT, int $locationId = self::LOCATION_ID): array
+    {
+        return [
+            'item_id'       => $itemId,
+            'line'          => $line,
+            'description'   => 'Test item',
+            'serialnumber'  => '',
+            'quantity'      => $quantity,
+            'discount'      => $discount,
+            'discount_type' => $discountType,
+            'cost_price'    => $cost,
+            'price'         => $price,
+            'item_location' => $locationId,
+            'print_option'  => 0,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function tax(int $itemId, int $line, string $amount): array
+    {
+        return [
+            'item_id'           => $itemId,
+            'line'              => $line,
+            'name'              => 'VAT',
+            'percent'           => '15.0000',
+            'tax_type'          => 1,
+            'rounding_code'     => 0,
+            'cascade_sequence'  => 0,
+            'item_tax_amount'   => $amount,
+            'sales_tax_code_id' => null,
+            'tax_category_id'   => null,
+            'jurisdiction_id'   => null,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function payment(string $type, string $amount, string $refund = '0', int $adjustment = 0): array
+    {
+        return ['payment_type' => $type, 'payment_amount' => $amount, 'cash_refund' => $refund, 'cash_adjustment' => $adjustment, 'reference_code' => null];
+    }
+
+    /**
+     * The invoice of the reference cycle: 4 creams at 75 with 10% off and 2 perfumes at 220, tax
+     * 15%, so 816.50 for 710 of goods and 106.50 of tax, and goods that cost 400.
+     *
+     * @return array{items: list<array<string, mixed>>, taxes: list<array<string, mixed>>, cream: int, perfume: int}
+     */
+    protected function referenceInvoice(): array
+    {
+        $cream   = $this->item('40.00');
+        $perfume = $this->item('120.00');
+
+        return [
+            'items'   => [$this->line($cream, 0, '4', '75', '40.00', '10'), $this->line($perfume, 1, '2', '220', '120.00')],
+            'taxes'   => [$this->tax($cream, 0, '40.50'), $this->tax($perfume, 1, '66.00')],
+            'cream'   => $cream,
+            'perfume' => $perfume,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @param list<array<string, mixed>> $taxes
+     * @param list<array<string, mixed>> $payments
+     */
+    protected function save(array $items, array $taxes = [], array $payments = [], int $type = SALE_TYPE_INVOICE, ?int $customerId = -1, bool $delivered = true, ?int $origin = null, int $status = COMPLETED, int $saleId = NEW_ENTRY): int
+    {
+        $saleStatus = $status;
+        $salesTaxes = [[], $taxes];
+        $customer   = $customerId === -1 ? $this->customerId : ($customerId ?? NEW_ENTRY);
+        $result     = $this->sales->save_value($saleId, $saleStatus, $items, $customer, $this->employeeId, 'test', null, null, null, $type, $payments, null, $salesTaxes, $delivered, $origin);
+
+        if ($result > 0) {
+            $this->saleIds[] = $result;
+        }
+
+        return $result;
+    }
+
+    /**
+     * The journals of a sale, oldest first, each with its lines as "account:debit:credit".
+     *
+     * @return list<array{id: int, source: string, entry: string, revision: int, status: string, date: string, lines: list<string>}>
+     */
+    protected function journals(int $saleId): array
+    {
+        $rows = [];
+
+        foreach ((new SalePosting())->journalsOf($saleId) as $journal) {
+            $lines = array_map(
+                static fn (object $line): string => $line->account_id . ':' . bcadd($line->debit, '0', 2) . ':' . bcadd($line->credit, '0', 2),
+                $this->accountingDb()->table('accounting_journal_lines')->select('account_id, debit, credit')->where('journal_id', $journal->journal_id)->orderBy('line_no', 'ASC')->get()->getResult(),
+            );
+
+            $rows[] = [
+                'id'       => (int) $journal->journal_id,
+                'source'   => $journal->source_type,
+                'entry'    => $journal->entry_type,
+                'revision' => (int) $journal->revision,
+                'status'   => $journal->status,
+                'date'     => $journal->journal_date,
+                'lines'    => $lines,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return list<array{id: int, source: string, entry: string, revision: int, status: string, date: string, lines: list<string>}>
+     */
+    protected function standing(int $saleId, ?string $entry = null): array
+    {
+        return array_values(array_filter(
+            $this->journals($saleId),
+            static fn (array $journal): bool => $journal['status'] === 'posted' && ($entry === null || $journal['entry'] === $entry),
+        ));
+    }
+
+    /**
+     * Debit minus credit of an account over everything that was posted, reversals included.
+     */
+    protected function balance(int $accountId): string
+    {
+        $row = $this->accountingDb()->query(
+            'SELECT COALESCE(SUM(l.debit), 0) - COALESCE(SUM(l.credit), 0) AS balance FROM ' . $this->accountingDb()->prefixTable('accounting_journal_lines') . ' l JOIN '
+            . $this->accountingDb()->prefixTable('accounting_journals') . ' j ON j.journal_id = l.journal_id WHERE j.status IN (?, ?) AND l.account_id = ?',
+            ['posted', 'reversed', $accountId],
+        )->getRow();
+
+        return bcadd((string) $row->balance, '0', 2);
+    }
+
+    protected function customerAccount(?int $customerId = null): int
+    {
+        return (int) (new EntityAccountService())->accountFor(EntityAccountService::CUSTOMER, $customerId ?? $this->customerId);
+    }
+
+    protected function stockAccount(): int
+    {
+        return (int) (new EntityAccountService())->accountFor(EntityAccountService::STOCK_LOCATION, self::LOCATION_ID);
+    }
+
+    protected function saleRow(int $saleId): ?object
+    {
+        return $this->accountingDb()->table('sales')->where('sale_id', $saleId)->get()->getRow();
+    }
+
+    protected function countSales(): int
+    {
+        return $this->accountingDb()->table('sales')->countAllResults();
+    }
+
+    protected function countJournals(): int
+    {
+        return $this->accountingDb()->table('accounting_journals')->countAllResults();
+    }
+
+    protected function stock(int $itemId): float
+    {
+        return $this->getItemQuantity($itemId, self::LOCATION_ID);
+    }
+
+    protected function failure(): PostingException|AccountingException
+    {
+        $failure = $this->sales->accountingFailure();
+
+        $this->assertTrue($failure instanceof PostingException || $failure instanceof AccountingException, 'The books were expected to refuse.');
+
+        return $failure;
+    }
+}

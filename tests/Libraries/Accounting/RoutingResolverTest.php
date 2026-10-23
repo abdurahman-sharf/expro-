@@ -117,7 +117,7 @@ class RoutingResolverTest extends CIUnitTestCase
         $entityId = $this->entityIdFor($key);
         $this->setRouting($key, $type);
 
-        if (! $type->isImplemented() || ! in_array($type, $key->allowedTypes(), true)) {
+        if (! $key->applies($type) || ! in_array($type, $key->allowedTypes(), true)) {
             try {
                 $this->resolver->accountFor($key, $entityId);
                 $this->fail("{$key->value} saved as {$type->value} must not be resolved.");

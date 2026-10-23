@@ -15,6 +15,7 @@ use App\Models\Item_taxes;
 use App\Models\Sale;
 use App\Models\Stock_location;
 use CodeIgniter\Config\Factories;
+use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Test\CIUnitTestCase;
 use Config\OSPOS;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -23,7 +24,8 @@ use Tests\Support\ParityFixture;
 
 /**
  * The line and invoice arithmetic, checked against amounts recorded in the reference system
- * (fixtures T-01 to T-03). Each data set is one input and the output the reference system gave.
+ * (fixtures T-01 to T-03), where each data set is one input and the output the reference system
+ * gave, and what the register remembers about the delivery and the origin of the sale it holds.
  */
 class Sale_libTest extends CIUnitTestCase
 {
@@ -136,6 +138,73 @@ class Sale_libTest extends CIUnitTestCase
         }
 
         $this->assertSame('exact', $case['classification']);
+    }
+
+    public function testIsDelivered_IsTrueUntilTheCashierSaysTheGoodsStay(): void
+    {
+        $this->assertTrue($this->saleLib->is_delivered());
+
+        $this->saleLib->set_delivered(false);
+
+        $this->assertFalse($this->saleLib->is_delivered());
+
+        $this->saleLib->clear_delivered();
+
+        $this->assertTrue($this->saleLib->is_delivered());
+    }
+
+    public function testGetReturnOrigin_HoldsTheSaleAReturnComesFromUntilItIsCleared(): void
+    {
+        $this->assertNull($this->saleLib->get_return_origin());
+
+        $this->saleLib->set_return_origin(42);
+
+        $this->assertSame(42, $this->saleLib->get_return_origin());
+
+        $this->saleLib->set_return_origin(null);
+
+        $this->assertNull($this->saleLib->get_return_origin());
+
+        $this->saleLib->set_return_origin(7);
+        $this->saleLib->clear_return_origin();
+
+        $this->assertNull($this->saleLib->get_return_origin());
+    }
+
+    public function testClearAll_ForgetsTheDeliveryAndTheOriginOfTheSaleBeingMade(): void
+    {
+        $this->saleLib->set_delivered(false);
+        $this->saleLib->set_return_origin(42);
+        $this->saleLib->clear_all();
+
+        $this->assertTrue($this->saleLib->is_delivered());
+        $this->assertNull($this->saleLib->get_return_origin());
+    }
+
+    public function testCopyEntireSale_TakesOverWhetherTheGoodsLeftAndWhichSaleAReturnComesFrom(): void
+    {
+        $empty = $this->createStub(ResultInterface::class);
+        $empty->method('getResult')->willReturn([]);
+
+        $sale = $this->createStub(Sale::class);
+        $sale->method('get_sale_items_ordered')->willReturn($empty);
+        $sale->method('get_sale_payments')->willReturn($empty);
+        $sale->method('get_customer')->willReturn((object) ['person_id' => 3]);
+        $sale->method('get_employee')->willReturn((object) ['person_id' => 1]);
+        $sale->method('get_quote_number')->willReturn(null);
+        $sale->method('get_work_order_number')->willReturn(null);
+        $sale->method('get_sale_type')->willReturn(SALE_TYPE_RETURN);
+        $sale->method('get_comment')->willReturn('');
+        $sale->method('get_dinner_table')->willReturn(null);
+        $sale->method('isDelivered')->willReturn(false);
+        $sale->method('getReturnOrigin')->willReturn(42);
+        Factories::injectMock('models', Sale::class, $sale);
+
+        $saleLib = new Sale_lib();
+        $saleLib->copy_entire_sale(9);
+
+        $this->assertFalse($saleLib->is_delivered());
+        $this->assertSame(42, $saleLib->get_return_origin());
     }
 
     private function fourDecimals(string $amount): string

@@ -89,8 +89,9 @@ final class DefaultChart
     }
 
     /**
-     * The chart of the reference system as observed in a fresh account, plus one account for
-     * unused gift cards (216) that only this application needs. Rows are [code, name, type,
+     * The chart of the reference system as observed in a fresh account, plus two accounts
+     * only this application needs: unused gift cards (216) and the customers of sales made
+     * without naming one (12043). Rows are [code, name, type,
      * parent code, is group, system key, contra account].
      *
      * @return list<array{string, string, AccountType, ?string, bool, ?string, bool}>
@@ -126,6 +127,7 @@ final class DefaultChart
             ['1204', 'المدينون', AccountType::Asset, '12', true, null, false],
             ['12041', 'العملاء', AccountType::Asset, '1204', true, 'receivables', false],
             ['12042', 'أطراف مدينة أخرى', AccountType::Asset, '1204', false, 'other_receivables', false],
+            ['12043', 'عملاء نقديون', AccountType::Asset, '1204', false, 'counter_customers', false],
             ['1205', 'عهد الموظفين', AccountType::Asset, '12', true, null, false],
             ['1206', 'أوراق القبض', AccountType::Asset, '12', true, null, false],
             ['1208', 'عجز & زيادة الصندوق', AccountType::Asset, '12', false, 'cash_difference', false],

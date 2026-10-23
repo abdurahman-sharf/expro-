@@ -26,6 +26,7 @@ return [
     'item_purchases_suppliers'      => 'Suppliers (main account)',
     'item_sales_adjustment'         => 'Sales settlement',
     'item_sales_cogs'               => 'Cost of goods sold',
+    'item_sales_counter'            => 'Counter customers (sales without a customer)',
     'item_sales_customers'          => 'Customers (main account)',
     'item_sales_discount'           => 'Discounts allowed',
     'item_sales_product'            => 'Product sales account',

@@ -407,6 +407,45 @@ class Sale_lib
     }
 
     /**
+     * Whether the goods of the invoice being made leave with it. They do unless the cashier says
+     * otherwise.
+     */
+    public function is_delivered(): bool
+    {
+        return (int) ($this->session->get('sales_delivered') ?? 1) === 1;
+    }
+
+    public function set_delivered(bool $delivered): void
+    {
+        $this->session->set('sales_delivered', $delivered ? 1 : 0);
+    }
+
+    public function clear_delivered(): void
+    {
+        $this->session->remove('sales_delivered');
+    }
+
+    /**
+     * The sale a return in the register takes its goods back from.
+     */
+    public function get_return_origin(): ?int
+    {
+        $origin = $this->session->get('sales_return_origin');
+
+        return $origin === null ? null : (int) $origin;
+    }
+
+    public function set_return_origin(?int $saleId): void
+    {
+        $saleId === null ? $this->session->remove('sales_return_origin') : $this->session->set('sales_return_origin', $saleId);
+    }
+
+    public function clear_return_origin(): void
+    {
+        $this->session->remove('sales_return_origin');
+    }
+
+    /**
      * @return void
      */
     public function clear_quote_number(): void
@@ -1404,6 +1443,8 @@ class Sale_lib
         $this->set_sale_type($this->sale->get_sale_type($sale_id));
         $this->set_comment($this->sale->get_comment($sale_id));
         $this->set_dinner_table($this->sale->get_dinner_table($sale_id));
+        $this->set_delivered($this->sale->isDelivered($sale_id));
+        $this->set_return_origin($this->sale->getReturnOrigin($sale_id));
         $this->session->set('sale_id', $sale_id);
     }
 
@@ -1427,6 +1468,8 @@ class Sale_lib
         $this->clear_comment();
         $this->clear_email_receipt();
         $this->clear_invoice_number();
+        $this->clear_delivered();
+        $this->clear_return_origin();
         $this->clear_quote_number();
         $this->clear_work_order_number();
         $this->clear_sale_type();

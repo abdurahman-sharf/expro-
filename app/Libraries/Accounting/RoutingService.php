@@ -381,7 +381,7 @@ final class RoutingService
         $type   = $routingKey === null ? RoutingType::Auto : $this->currentType($routingKey, $route);
         $entity = $routingKey?->isEntity() ?? $entityAccount;
 
-        if (! $type->isImplemented()) {
+        if (! ($routingKey === null ? $type->isImplemented() : $routingKey->applies($type))) {
             $status = RoutingItem::UNSUPPORTED;
         } elseif ($type === RoutingType::Cancelled) {
             $status = RoutingItem::COMPLETE;

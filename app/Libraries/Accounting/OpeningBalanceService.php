@@ -28,6 +28,7 @@ final class OpeningBalanceService
     private const SCALE          = 4;
     private const CONTROL_KEYS   = [
         RoutingKey::Customers,
+        RoutingKey::CounterCustomers,
         RoutingKey::Suppliers,
         RoutingKey::StockLocations,
         RoutingKey::TaxOutput,

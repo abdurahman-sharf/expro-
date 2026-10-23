@@ -1,0 +1,173 @@
+{
+ "id": "T-07",
+ "title": "What a draft, an invoice issued before its goods leave, and the delivery that follows do to the journals and the stock. The structure of the journals was recorded, not every amount, so each case says what it covers",
+ "recorded": "2026-10-23",
+ "evidence": {
+  "draft": {
+   "id": "ev_70ba49f7db16f9e071c95a70b76147cb38d61fdcabb86896fa6bfa2aa9c9ec7b",
+   "note": "A draft invoice: no number, no journal, no stock movement"
+  },
+  "draft_issued": {
+   "id": "ev_df1b8a4724df42a79c3a858cc9c231f88c4289559c8a2993a816a18ccebd0147",
+   "note": "The draft issued: it takes the next number and writes its journals"
+  },
+  "undelivered": {
+   "id": "ev_b0d86c55d7566792d37732f31b1e1ddc57f460236b03fd2b070c716a0cd66912",
+   "note": "An invoice with delivery switched off: the invoice journal only, no stock movement"
+  },
+  "delivery_confirmed": {
+   "id": "ev_230ea1da79cdb40200cb0c98bcb3ebb9e5c9643f266bc0f8440ce475518e816f",
+   "note": "Delivery confirmed: the cost journal is written and the stock taken"
+  },
+  "delivery_before_first_purchase": {
+   "id": "ev_de6ac6f5d36ef699a326458785a8b50698a53655441a63301993ff4aeacbeddd",
+   "note": "Invoice dated the 20th delivered the 21st before the item had any purchase: an invoice journal, no cost journal, the stock taken"
+  },
+  "delivery_after_purchase": {
+   "id": "ev_0b3ce879aa6217bd1f3739f9ae274adae597e03b9aedd6f3005923798a886bcc",
+   "note": "Invoice dated the 20th delivered the 22nd after a purchase: the cost journal carries the date of the invoice and the cost of the item at the delivery"
+  }
+ },
+ "cases": [
+  {
+   "id": "draft-then-issue",
+   "kind": "lifecycle",
+   "classification": "exact",
+   "scope": "structure",
+   "evidence": [
+    "draft",
+    "draft_issued"
+   ],
+   "inputs": {
+    "saved_as": "draft",
+    "then": "issued"
+   },
+   "reference": {
+    "after_saving": {
+     "journals": 0,
+     "stock_taken": false
+    },
+    "after_issuing": {
+     "journals": [
+      "revenue",
+      "cogs"
+     ],
+     "stock_taken": true
+    }
+   },
+   "expected": {
+    "after_saving": {
+     "journals": 0,
+     "stock_taken": false
+    },
+    "after_issuing": {
+     "journals": [
+      "revenue",
+      "cogs"
+     ],
+     "stock_taken": true
+    }
+   }
+  },
+  {
+   "id": "undelivered-invoice",
+   "kind": "lifecycle",
+   "classification": "exact",
+   "scope": "structure",
+   "evidence": [
+    "undelivered"
+   ],
+   "inputs": {
+    "delivered": false
+   },
+   "reference": {
+    "journals": [
+     "revenue"
+    ],
+    "stock_taken": false
+   },
+   "expected": {
+    "journals": [
+     "revenue"
+    ],
+    "stock_taken": false
+   }
+  },
+  {
+   "id": "confirm-delivery",
+   "kind": "lifecycle",
+   "classification": "exact",
+   "scope": "structure",
+   "evidence": [
+    "undelivered",
+    "delivery_confirmed"
+   ],
+   "inputs": {
+    "delivered": false,
+    "then": "confirm_delivery"
+   },
+   "reference": {
+    "journals": [
+     "revenue",
+     "cogs"
+    ],
+    "stock_taken": true
+   },
+   "expected": {
+    "journals": [
+     "revenue",
+     "cogs"
+    ],
+    "stock_taken": true
+   }
+  },
+  {
+   "id": "cost-on-the-day-of-the-invoice-at-the-cost-of-the-delivery",
+   "kind": "lifecycle",
+   "classification": "exact",
+   "scope": "date and cost",
+   "evidence": [
+    "delivery_after_purchase"
+   ],
+   "inputs": {
+    "invoice_date_offset_days": -2,
+    "cost_at_invoice": "40.00",
+    "cost_at_delivery": "45.00",
+    "quantity": "4"
+   },
+   "reference": {
+    "cost_journal_date": "invoice date",
+    "cost": "uses the cost at the delivery"
+   },
+   "expected": {
+    "cost_journal_date": "invoice date",
+    "cost": "180.00"
+   }
+  },
+  {
+   "id": "delivery-before-the-first-purchase",
+   "kind": "lifecycle",
+   "classification": "exact",
+   "scope": "structure",
+   "evidence": [
+    "delivery_before_first_purchase"
+   ],
+   "inputs": {
+    "cost_at_delivery": "0.00",
+    "quantity": "3"
+   },
+   "reference": {
+    "journals": [
+     "revenue"
+    ],
+    "stock_taken": true
+   },
+   "expected": {
+    "journals": [
+     "revenue"
+    ],
+    "stock_taken": true
+   }
+  }
+ ]
+}

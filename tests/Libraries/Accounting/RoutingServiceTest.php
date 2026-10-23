@@ -129,7 +129,7 @@ class RoutingServiceTest extends CIUnitTestCase
             'inventory.locations', 'treasuries.accounts',
             'stock_permits.add', 'stock_permits.issue', 'stock_permits.count_out', 'stock_permits.count_in',
             'fiscal.retained_earnings',
-            'cash.difference', 'tax.output', 'giftcards.liability',
+            'cash.difference', 'tax.output', 'giftcards.liability', 'sales.counter',
             'payment.cash', 'payment.debit', 'payment.credit', 'payment.check', 'payment.bank_transfer', 'payment.upi', 'payment.wallet', 'payment.due', 'payment.giftcard', 'payment.rewards',
         ], $keys);
     }

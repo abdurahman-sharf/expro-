@@ -30,6 +30,9 @@
  * @var string    $mode_label
  * @var string    $comment
  * @var bool      $print_after_sale
+ * @var bool      $accounting_enabled
+ * @var bool      $delivered
+ * @var int|null  $return_origin
  * @var bool      $email_receipt
  * @var bool      $price_work_orders
  * @var string    $invoice_number
@@ -112,6 +115,22 @@ $employee        = model(Employee::class);
                 <?php endif; ?>
             </div>
         <?= form_close() ?>
+
+        <?php if ($mode == 'return' && $accounting_enabled): ?>
+            <?= form_open("{$controller_name}/setReturnOrigin", ['id' => 'return_origin_form', 'class' => 'app-form card']) ?>
+                <div class="card-body pos-bar">
+                    <div class="pos-field">
+                        <label for="return_origin" class="pos-label"><?= lang("{$sectionName}.return_origin") ?></label>
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text">#</span>
+                            <?= form_input(['name' => 'return_origin', 'id' => 'return_origin', 'class' => 'form-control form-control-sm', 'value' => $return_origin ?? '', 'inputmode' => 'numeric', 'autocomplete' => 'off']) ?>
+                            <button type="submit" class="btn btn-outline-secondary btn-sm"><?= lang("{$sectionName}.return_origin_set") ?></button>
+                        </div>
+                    </div>
+                    <span class="text-body-secondary small"><?= lang("{$sectionName}.return_origin_help") ?></span>
+                </div>
+            <?= form_close() ?>
+        <?php endif; ?>
 
         <?= form_open("{$controller_name}/add", ['id' => 'add_item_form', 'class' => 'app-form card']) ?>
             <div class="card-body">
@@ -470,6 +489,13 @@ $employee        = model(Employee::class);
                             </label>
                         <?php endif; ?>
 
+                        <?php if ($mode == 'sale_invoice' && $accounting_enabled): ?>
+                            <label for="sales_delivered" class="choice">
+                                <?= form_checkbox(['name' => 'sales_delivered', 'id' => 'sales_delivered', 'value' => 1, 'checked' => $delivered]) ?>
+                                <?= lang("{$sectionName}.goods_delivered") ?>
+                            </label>
+                        <?php endif; ?>
+
                         <?php if (($mode == 'sale_invoice') && $config['invoice_enable']): ?>
                             <div>
                                 <label for="sales_invoice_number" class="pos-label"><?= lang("{$sectionName}.invoice_enable") ?></label>
@@ -619,6 +645,12 @@ $employee        = model(Employee::class);
         $('#sales_print_after_sale').change(function() {
             $.post("<?= esc(site_url("{$controller_name}/setPrintAfterSale")) ?>", {
                 sales_print_after_sale: $(this).is(':checked')
+            });
+        });
+
+        $('#sales_delivered').change(function() {
+            $.post("<?= esc(site_url("{$controller_name}/setDelivered")) ?>", {
+                sales_delivered: $(this).is(':checked')
             });
         });
 

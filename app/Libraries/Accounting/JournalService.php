@@ -252,7 +252,26 @@ final class JournalService
         return $this->reverseJournal($journalId, $date, $reason, $employeeId, false);
     }
 
-    private function reverseJournal(int $journalId, string $date, string $reason, ?int $employeeId, bool $checkAccess): int
+    /**
+     * Reverses the journal of a sale or of one of its payments when the sale is cancelled or a
+     * payment changes. Who may do that was decided where the sale changed, so no permission is
+     * asked here and the reversal counts as the system's. A journal of any other source is
+     * refused.
+     *
+     * @throws AccountingException|PostingException
+     */
+    public function reverseAutomatic(int $journalId, string $date, string $reason, ?int $employeeId): int
+    {
+        $isSale = $this->db->table('accounting_journals')->where('journal_id', $journalId)->whereIn('source_type', [SalePostingBuilder::SOURCE_SALE, SalePostingBuilder::SOURCE_PAYMENT])->countAllResults() > 0;
+
+        if (! $isSale) {
+            throw new AccountingException(AccountingError::JournalNotFound, "Journal {$journalId} does not exist.");
+        }
+
+        return $this->reverseJournal($journalId, $date, $reason, $employeeId, false, JournalOrigin::System);
+    }
+
+    private function reverseJournal(int $journalId, string $date, string $reason, ?int $employeeId, bool $checkAccess, JournalOrigin $origin = JournalOrigin::User): int
     {
         $date   = $this->normalizeDate($date);
         $reason = trim($reason);
@@ -261,7 +280,7 @@ final class JournalService
             throw new AccountingException(AccountingError::ReasonRequired, 'A reason of 1 to 255 characters is required.');
         }
 
-        return $this->transactional(function () use ($journalId, $date, $reason, $employeeId, $checkAccess): int {
+        return $this->transactional(function () use ($journalId, $date, $reason, $employeeId, $checkAccess, $origin): int {
             $table    = $this->db->prefixTable('accounting_journals');
             $original = LockedRead::row($this->db, "SELECT * FROM {$table} WHERE journal_id = ? FOR UPDATE", [$journalId]);
 
@@ -305,7 +324,7 @@ final class JournalService
                 sourceType: JournalDraft::SOURCE_REVERSAL,
                 sourceId: $journalId,
                 revision: 1,
-                origin: JournalOrigin::User,
+                origin: $origin,
                 employeeId: $employeeId,
                 description: $reason,
                 currencyCode: $original->currency_code,
@@ -318,7 +337,7 @@ final class JournalService
                 ->where('journal_id', $journalId)
                 ->update(['status' => JournalStatus::Reversed->value]);
 
-            $this->audit->write('journal', $journalId, 'reversed', $employeeId, JournalOrigin::User, [
+            $this->audit->write('journal', $journalId, 'reversed', $employeeId, $origin, [
                 'reversal_id' => $result->journalId,
                 'date'        => $date,
                 'reason'      => $reason,

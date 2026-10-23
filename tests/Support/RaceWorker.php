@@ -32,6 +32,10 @@ $result = match ($method) {
         ->adjustRewardPoints((int) $args[0], (float) $args[1]),
     'itemQuantity' => model(App\Models\Item_quantity::class)
         ->changeQuantity((int) $args[0], (int) $args[1], (float) $args[2]),
+    'confirmDelivery' => model(App\Models\Sale::class)
+        ->confirm_delivery((int) $args[0], (int) $args[1]) > 0,
+    'cancelSale' => model(App\Models\Sale::class)
+        ->delete((int) $args[0], false, true, (int) $args[1]),
     default => throw new InvalidArgumentException("Unknown race method: {$method}"),
 };
 

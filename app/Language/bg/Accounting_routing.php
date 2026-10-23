@@ -26,6 +26,7 @@ return [
     'item_purchases_suppliers'      => '',
     'item_sales_adjustment'         => '',
     'item_sales_cogs'               => '',
+    'item_sales_counter'            => '',
     'item_sales_customers'          => '',
     'item_sales_discount'           => '',
     'item_sales_product'            => '',

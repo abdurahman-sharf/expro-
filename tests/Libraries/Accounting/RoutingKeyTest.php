@@ -136,4 +136,24 @@ class RoutingKeyTest extends CIUnitTestCase
         $this->assertSame([AccountType::Asset, AccountType::Liability], RoutingKey::TaxInput->allowedAccountTypes());
         $this->assertSame([AccountType::Liability], RoutingKey::TaxOutput->allowedAccountTypes());
     }
+
+    public function testApplies_RefusesAutomaticOnlyOnTheSettlementRowsBecauseNothingFeedsThem(): void
+    {
+        foreach (RoutingKey::cases() as $key) {
+            foreach (RoutingType::cases() as $type) {
+                $settlement = in_array($key, [RoutingKey::SalesAdjustment, RoutingKey::PurchaseAdjustment], true) && $type === RoutingType::Auto;
+
+                $this->assertSame(! $settlement && $type->isImplemented(), $key->applies($type), "{$key->value} {$type->value}");
+            }
+        }
+    }
+
+    public function testCounterCustomers_IsAnAssetAccountOfItsOwnWithTheOnlyTypeThatPostsIt(): void
+    {
+        $this->assertSame('counter_customers', RoutingKey::CounterCustomers->defaultSystemKey());
+        $this->assertSame([AccountType::Asset], RoutingKey::CounterCustomers->allowedAccountTypes());
+        $this->assertSame([RoutingType::Auto], RoutingKey::CounterCustomers->allowedTypes());
+        $this->assertFalse(RoutingKey::CounterCustomers->isEntity());
+        $this->assertContains(RoutingKey::CounterCustomers, RoutingKey::inGroup('other'));
+    }
 }

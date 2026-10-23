@@ -2,6 +2,12 @@
 
 namespace App\Models;
 
+use App\Libraries\Accounting\AccountingError;
+use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\AccountingSettings;
+use App\Libraries\Accounting\PostingError;
+use App\Libraries\Accounting\PostingException;
+use App\Libraries\Accounting\SalePosting;
 use App\Libraries\Organization\BranchGuard;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\ResultInterface;
@@ -9,6 +15,7 @@ use CodeIgniter\Model;
 use App\Libraries\Sale_lib;
 use Config\OSPOS;
 use ReflectionException;
+use Throwable;
 
 /**
  * Sale class
@@ -32,10 +39,20 @@ class Sale extends Model
         'sale_type'
     ];
 
+    private ?Throwable $accountingFailure = null;
+
     public function __construct()
     {
         parent::__construct();
         helper('text');
+    }
+
+    /**
+     * Why the last change to a sale was refused by the books, or null when it was not.
+     */
+    public function accountingFailure(): ?Throwable
+    {
+        return $this->accountingFailure;
     }
 
     /**
@@ -62,6 +79,9 @@ class Sale extends Model
                 MAX(sales.sale_time) AS sale_time,
                 MAX(sales.comment) AS comment,
                 MAX(sales.sale_status) AS sale_status,
+                MAX(sales.sale_type) AS sale_type,
+                MAX(sales.delivered) AS delivered,
+                MAX(sales.return_of_sale_id) AS return_of_sale_id,
                 MAX(sales.invoice_number) AS invoice_number,
                 MAX(sales.quote_number) AS quote_number,
                 MAX(sales.employee_id) AS employee_id,
@@ -459,6 +479,35 @@ class Sale extends Model
     }
 
     /**
+     * The few facts of a sale that decide whether a return can be taken from it, or null when
+     * there is no such sale.
+     */
+    public function getSummary(int $saleId): ?object
+    {
+        return $this->db->table('sales')->select('sale_id, sale_status, sale_type, delivered, customer_id, branch_id')->where('sale_id', $saleId)->get()->getRow();
+    }
+
+    /**
+     * Whether the goods of a sale have left. A sale that does not exist counts as delivered.
+     */
+    public function isDelivered(int $saleId): bool
+    {
+        $row = $this->db->table('sales')->select('delivered')->where('sale_id', $saleId)->get()->getRow();
+
+        return $row === null || (int) $row->delivered === 1;
+    }
+
+    /**
+     * The sale a return takes its goods back from, or null when it names none.
+     */
+    public function getReturnOrigin(int $saleId): ?int
+    {
+        $row = $this->db->table('sales')->select('return_of_sale_id')->where('sale_id', $saleId)->get()->getRow();
+
+        return $row === null || $row->return_of_sale_id === null ? null : (int) $row->return_of_sale_id;
+    }
+
+    /**
      * The branches of the stock locations the lines of a cart sell from, without repeats
      *
      * @return list<int>
@@ -485,68 +534,106 @@ class Sale extends Model
     }
 
     /**
-     * Update sale
+     * Update sale. When accounting is on, a sale that has been posted keeps its customer and
+     * its date, and every payment that changes is posted again with the change, all in the
+     * transaction of the update.
      */
     public function update($sale_id = null, $sale_data = null): bool
     {
-        $builder = $this->db->table('sales');
-        $builder->where('sale_id', $sale_id);
+        $this->accountingFailure = null;
+
+        $accounting = (new AccountingSettings($this->db))->isEnabled() ? new SalePosting($this->db) : null;
         $update_data = $sale_data;
         unset($update_data['payments']);
-        $success = $builder->update($update_data);
 
-        // Touch payment only if update sale is successful and there is a payments object otherwise the result would be to delete all the payments associated to the sale
-        if ($success && !empty($sale_data['payments'])) {
-            // Run these queries as a transaction, we want to make sure we do all or nothing
-            $this->db->transStart();
+        $this->db->transStart();
 
-            $builder = $this->db->table('sales_payments');
+        try {
+            if ($accounting !== null) {
+                $changes = [];
 
-            // Add new payments
-            foreach ($sale_data['payments'] as $payment) {
-                $payment_id = $payment['payment_id'];
-                $payment_type = $payment['payment_type'];
-                $payment_amount = $payment['payment_amount'];
-                $cash_refund = $payment['cash_refund'];
-                $cash_adjustment = $payment['cash_adjustment'];
-                $employee_id = $payment['employee_id'];
+                if (array_key_exists('customer_id', $update_data)) {
+                    $changes['customer_id'] = $update_data['customer_id'] === null ? null : (int) $update_data['customer_id'];
+                }
 
-                if ($payment_id == NEW_ENTRY && $payment_amount != 0) {
-                    // Add a new payment transaction
-                    $sales_payments_data = [
-                        'sale_id'         => $sale_id,
-                        'payment_type'    => $payment_type,
-                        'payment_amount'  => $payment_amount,
-                        'cash_refund'     => $cash_refund,
-                        'cash_adjustment' => $cash_adjustment,
-                        'employee_id'     => $employee_id,
-                        'reference_code'  => $payment['reference_code'] ?? null,
-                    ];
-                    $success = $builder->insert($sales_payments_data);
-                } elseif ($payment_id != NEW_ENTRY) {
-                    if ($payment_amount != 0) {
-                        // Update existing payment transactions (payment_type only)
+                if (isset($update_data['sale_time'])) {
+                    $changes['date'] = substr((string) $update_data['sale_time'], 0, 10);
+                }
+
+                $accounting->assertEditable((int) $sale_id, $changes);
+            }
+
+            $builder = $this->db->table('sales');
+            $builder->where('sale_id', $sale_id);
+            $success = $builder->update($update_data);
+
+            // Touch payment only if update sale is successful and there is a payments object otherwise the result would be to delete all the payments associated to the sale
+            if ($success && !empty($sale_data['payments'])) {
+                $builder = $this->db->table('sales_payments');
+
+                // Add new payments
+                foreach ($sale_data['payments'] as $payment) {
+                    $payment_id = $payment['payment_id'];
+                    $payment_type = $payment['payment_type'];
+                    $payment_amount = $payment['payment_amount'];
+                    $cash_refund = $payment['cash_refund'];
+                    $cash_adjustment = $payment['cash_adjustment'];
+                    $employee_id = $payment['employee_id'];
+
+                    if ($payment_id == NEW_ENTRY && $payment_amount != 0) {
+                        // Add a new payment transaction
                         $sales_payments_data = [
+                            'sale_id'         => $sale_id,
                             'payment_type'    => $payment_type,
                             'payment_amount'  => $payment_amount,
                             'cash_refund'     => $cash_refund,
-                            'cash_adjustment' => $cash_adjustment
+                            'cash_adjustment' => $cash_adjustment,
+                            'employee_id'     => $employee_id,
+                            'reference_code'  => $payment['reference_code'] ?? '',
                         ];
+                        $success = $builder->insert($sales_payments_data);
+                    } elseif ($payment_id != NEW_ENTRY) {
+                        if ($payment_amount != 0) {
+                            // Update existing payment transactions (payment_type only)
+                            $sales_payments_data = [
+                                'payment_type'    => $payment_type,
+                                'payment_amount'  => $payment_amount,
+                                'cash_refund'     => $cash_refund,
+                                'cash_adjustment' => $cash_adjustment
+                            ];
 
-                        $builder->where('payment_id', $payment_id);
-                        $success = $builder->update($sales_payments_data);
-                    } else {
-                        // Remove existing payment transactions with a payment amount of zero
-                        $success = $builder->delete(['payment_id' => $payment_id]);
+                            $builder->where('payment_id', $payment_id);
+                            $success = $builder->update($sales_payments_data);
+                        } else {
+                            // Remove existing payment transactions with a payment amount of zero
+                            $accounting?->reversePayment((int) $payment_id, $employee_id === null ? null : (int) $employee_id);
+                            $success = $builder->delete(['payment_id' => $payment_id]);
+                        }
                     }
                 }
-            }
 
-            $this->db->transComplete();
-            $success &= $this->db->transStatus();
+                $accounting?->syncPayments((int) $sale_id, isset($employee_id) ? (int) $employee_id : null);
+            }
+        } catch (Throwable $exception) {
+            $this->db->transRollback();
+            $this->recordAccountingFailure((int) $sale_id, $this->asAccountingFailure($exception, (int) $sale_id), $this->employeeOfPayments($sale_data), $this->getBranchId((int) $sale_id));
+
+            return false;
         }
 
-        return $success;
+        $this->db->transComplete();
+
+        return (bool) $success && $this->db->transStatus();
+    }
+
+    /**
+     * The employee who entered the payments of an update, for the record of a failure.
+     */
+    private function employeeOfPayments(?array $saleData): ?int
+    {
+        $employeeId = $saleData['payments'][0]['employee_id'] ?? null;
+
+        return $employeeId === null ? null : (int) $employeeId;
     }
 
     /**
@@ -567,7 +654,9 @@ class Sale extends Model
         int     $saleType,
         ?array  $payments,
         ?int    $dinnerTableId,
-        ?array  &$salesTaxes
+        ?array  &$salesTaxes,
+        bool    $delivered = true,
+        ?int    $returnOfSaleId = null
     ): int {    // TODO: this method returns the sale_id but the override is expecting it to return a bool. The signature needs to be reworked.  Generally when there are more than 3 maybe 4 parameters, there's a good chance that an object needs to be passed rather than so many params.
         $config = config(OSPOS::class)->settings;
         $attribute = model(Attribute::class);
@@ -582,6 +671,11 @@ class Sale extends Model
             return -1;    // TODO: Replace -1 with a constant
         }
 
+        $this->accountingFailure = null;
+
+        // Only an invoice can be issued before its goods leave
+        $delivered = $delivered || $saleType !== SALE_TYPE_INVOICE;
+
         $salesData = [
             'sale_time'         => date('Y-m-d H:i:s'),
             'customer_id'       => $customer->exists($customerId) ? $customerId : null,
@@ -594,6 +688,8 @@ class Sale extends Model
             'dinner_table_id'   => $dinnerTableId,
             'sale_type'         => $saleType,
             'branch_id'         => $this->branchIdOfItems($items),
+            'delivered'         => $delivered ? 1 : 0,
+            'return_of_sale_id' => $saleType === SALE_TYPE_RETURN ? $returnOfSaleId : null,
         ];
 
         // Run these queries as a transaction, we want to make sure we do all or nothing
@@ -680,7 +776,7 @@ class Sale extends Model
             $builder = $this->db->table('sales_items');
             $builder->insert($salesItemsData);
 
-            if ($curItemInfo->stock_type == HAS_STOCK && $saleStatus == COMPLETED) {    // TODO: === ?
+            if ($curItemInfo->stock_type == HAS_STOCK && $saleStatus == COMPLETED && $delivered) {    // TODO: === ?
                 // Update stock quantity if item type is a standard stock item and the sale is a standard sale
                 if (! $itemQuantity->changeQuantity(
                     $itemData['item_id'],
@@ -728,9 +824,70 @@ class Sale extends Model
             }
         }
 
+        if ($saleStatus == COMPLETED) {
+            $failure = $this->postToAccounting($saleId, $employeeId);
+
+            if ($failure !== null) {
+                $this->db->transRollback();
+                $this->recordAccountingFailure($saleId, $failure, $employeeId, (int) $salesData['branch_id']);
+
+                return ACCOUNTING_FAILED;
+            }
+        }
+
         $this->db->transComplete();
 
         return $this->db->transStatus() ? $saleId : -1;
+    }
+
+    /**
+     * Posts a sale that has just been completed, when accounting is on. Nothing of accounting
+     * runs while it is off. A failure is returned and not thrown, so the caller can undo the
+     * sale as a whole.
+     */
+    private function postToAccounting(int $saleId, ?int $employeeId): ?Throwable
+    {
+        if (! (new AccountingSettings($this->db))->isEnabled()) {
+            return null;
+        }
+
+        try {
+            (new SalePosting($this->db))->postCompleted($saleId, $employeeId);
+
+            return null;
+        } catch (Throwable $exception) {
+            return $this->asAccountingFailure($exception, $saleId);
+        }
+    }
+
+    /**
+     * What the books refused is kept as it is. Anything else that went wrong while posting is
+     * logged, and stands for a write that failed.
+     */
+    private function asAccountingFailure(Throwable $exception, int $saleId): AccountingException|PostingException
+    {
+        if ($exception instanceof AccountingException || $exception instanceof PostingException) {
+            return $exception;
+        }
+
+        log_message('error', 'Posting sale ' . $saleId . ' failed: ' . $exception->getMessage());
+
+        return new PostingException(PostingError::WriteFailed, 'The sale could not be posted.', ['reason' => $exception->getMessage()], $exception);
+    }
+
+    /**
+     * Remembers why the books refused a change and writes it in the failure log. It must run
+     * after the transaction has rolled back, or the row would go with it.
+     */
+    private function recordAccountingFailure(int $saleId, Throwable $failure, ?int $employeeId, ?int $branchId = null): void
+    {
+        $this->accountingFailure = $failure;
+
+        $refusal = $failure instanceof AccountingException && $failure->error === AccountingError::SaleLocked;
+
+        if (($failure instanceof PostingException || $failure instanceof AccountingException) && ! $refusal) {
+            (new SalePosting($this->db))->recordFailure($saleId, $failure, $employeeId, $branchId);
+        }
     }
 
     /**
@@ -811,11 +968,15 @@ class Sale extends Model
      */
     public function delete_list(array $sale_ids, int $employee_id, bool $update_inventory = true): bool
     {
-        $result = true;
+        $result  = true;
+        $failure = null;
 
         foreach ($sale_ids as $sale_id) {
             $result &= $this->delete($sale_id, false, $update_inventory, $employee_id);
+            $failure ??= $this->accountingFailure;
         }
+
+        $this->accountingFailure = $failure;
 
         return $result;
     }
@@ -840,12 +1001,17 @@ class Sale extends Model
      */
     public function delete($sale_id = null, bool $purge = false, bool $update_inventory = true, $employee_id = null): bool
     {
+        $this->accountingFailure = null;
+
         // Start a transaction to assure data integrity
         $this->db->transStart();
 
-        $sale_status = $this->getSaleStatus($sale_id);
+        // The lock of the sale comes first, so two requests cancelling it never run side by side
+        $locked = $this->db->query('SELECT sale_status, delivered FROM ' . $this->db->prefixTable('sales') . ' WHERE sale_id = ? FOR UPDATE', [$sale_id]);
+        $sale = $locked === false ? null : $locked->getRow();
+        $sale_status = $sale === null ? null : (int) $sale->sale_status;
 
-        if ($update_inventory && $sale_status == COMPLETED) {
+        if ($update_inventory && $sale_status === COMPLETED && (int) $sale->delivered === 1) {
             // Defect, not all item deletions will be undone?
             // Get array with all the items involved in the sale to update the inventory tracking
             $inventory = model('Inventory');
@@ -878,10 +1044,93 @@ class Sale extends Model
 
         $this->update_sale_status($sale_id, CANCELED);
 
+        if ($sale_status === COMPLETED && (new AccountingSettings($this->db))->isEnabled()) {
+            try {
+                (new SalePosting($this->db))->cancel((int) $sale_id, $employee_id === null ? null : (int) $employee_id);
+            } catch (Throwable $exception) {
+                $this->db->transRollback();
+                $this->recordAccountingFailure((int) $sale_id, $this->asAccountingFailure($exception, (int) $sale_id), $employee_id === null ? null : (int) $employee_id, $this->getBranchId((int) $sale_id));
+
+                return false;
+            }
+        }
+
         // Execute transaction
         $this->db->transComplete();
 
         return $this->db->transStatus();
+    }
+
+    /**
+     * Confirms that the goods of an issued invoice have left. The stock is taken now, the cost of
+     * each item is brought up to what the item costs at this moment, and the cost of the sale
+     * is posted. Confirming again does nothing. Returns the sale id, NEW_ENTRY when there is no
+     * issued invoice to deliver, or ACCOUNTING_FAILED when the books refused.
+     */
+    public function confirm_delivery(int $saleId, ?int $employeeId = null): int
+    {
+        $this->accountingFailure = null;
+
+        $this->db->transStart();
+
+        $locked = $this->db->query('SELECT sale_status, sale_type, delivered, branch_id FROM ' . $this->db->prefixTable('sales') . ' WHERE sale_id = ? FOR UPDATE', [$saleId]);
+        $sale   = $locked === false ? null : $locked->getRow();
+
+        if ($sale === null || (int) $sale->sale_status !== COMPLETED || (int) $sale->sale_type !== SALE_TYPE_INVOICE) {
+            $this->db->transRollback();
+
+            return NEW_ENTRY;
+        }
+
+        if ((int) $sale->delivered === 1) {
+            $this->db->transComplete();
+
+            return $saleId;
+        }
+
+        $inventory    = model('Inventory');
+        $item         = model(Item::class);
+        $itemQuantity = model(Item_quantity::class);
+
+        foreach ($this->get_sale_items($saleId)->getResultArray() as $line) {
+            $info = $item->get_info($line['item_id']);
+
+            if ($info->stock_type != HAS_STOCK) {
+                continue;
+            }
+
+            $this->db->table('sales_items')
+                ->where(['sale_id' => $saleId, 'item_id' => $line['item_id'], 'line' => $line['line']])
+                ->update(['item_cost_price' => $info->cost_price]);
+
+            $itemQuantity->changeQuantity($line['item_id'], $line['item_location'], -(float) $line['quantity_purchased']);
+
+            $inventory->insert([
+                'trans_date'      => date('Y-m-d H:i:s'),
+                'trans_items'     => $line['item_id'],
+                'trans_user'      => $employeeId,
+                'trans_location'  => $line['item_location'],
+                'trans_comment'   => 'POS ' . $saleId,
+                'trans_inventory' => -$line['quantity_purchased'],
+            ], false);
+        }
+
+        $this->db->table('sales')->where('sale_id', $saleId)->update(['delivered' => 1]);
+
+        if ((new AccountingSettings($this->db))->isEnabled()) {
+            try {
+                (new SalePosting($this->db))->postDelivery($saleId, $employeeId);
+            } catch (Throwable $exception) {
+                $this->db->transRollback();
+                $this->recordAccountingFailure($saleId, $this->asAccountingFailure($exception, $saleId), $employeeId, (int) $sale->branch_id);
+
+                return ACCOUNTING_FAILED;
+            }
+        }
+
+        $this->db->transComplete();
+
+        return $this->db->transStatus() ? $saleId : NEW_ENTRY;
     }
 
     /**

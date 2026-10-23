@@ -2,8 +2,8 @@
 
 namespace App\Controllers;
 
-use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Organization\BranchException;
@@ -14,7 +14,6 @@ use CodeIgniter\HTTP\ResponseInterface;
 abstract class AccountingController extends Secure_Controller
 {
     protected const DEFAULT_PAGE_SIZE = 25;
-    private const MESSAGE_ARGUMENTS   = ['line', 'max', 'code', 'name', 'debit', 'credit', 'date', 'until', 'scope_name', 'count'];
 
     private ?BranchGuard $branchGuard = null;
 
@@ -95,25 +94,7 @@ abstract class AccountingController extends Secure_Controller
 
     protected function messageFor(AccountingException|BranchException|PostingException $exception): string
     {
-        $key = match (true) {
-            $exception instanceof AccountingException => 'Accounting.error_' . $exception->error->value,
-            $exception instanceof BranchException     => 'Branches.error_' . $exception->error->value,
-            default                                   => 'Accounting.posting_' . $exception->error->value,
-        };
-
-        if ($exception instanceof AccountingException && $exception->error === AccountingError::PermissionDenied) {
-            return lang('Accounting.error_permission_denied');
-        }
-
-        $arguments = [];
-
-        foreach (self::MESSAGE_ARGUMENTS as $name) {
-            if (array_key_exists($name, $exception->context)) {
-                $arguments[] = (string) $exception->context[$name];
-            }
-        }
-
-        return lang($key, $arguments);
+        return AccountingMessage::of($exception);
     }
 
     protected function formatAmount(?string $amount): string

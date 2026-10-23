@@ -34,6 +34,9 @@ esac
 echo "Loading fixtures"
 $MYSQL --default-character-set=utf8mb4 "$DB_NAME" < "$HERE/seed.sql"
 
+echo "Opening the sub-accounts of the fixture customers"
+(cd "$HERE/../.." && php spark accounting:fill_accounts)
+
 echo "Recording sales through the UI"
 node "$HERE/seed-sales.mjs"
 

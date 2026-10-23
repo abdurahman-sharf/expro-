@@ -1,0 +1,345 @@
+{
+ "id": "T-06",
+ "title": "The journals of a sales cycle as the reference system wrote them: an invoice with a discount and tax, the cost of its goods, a credit note taken from it with the cost of its goods, and three payments that settle it",
+ "recorded": "2026-10-23",
+ "evidence": {
+  "invoice_000002": {
+   "id": "ev_2add92752dfb9d312e42f1e0f2b46cdce298d6e3436f72bca9945c990309a097",
+   "note": "Invoice 000002: 4 x 75 with 10% off and 2 x 220, tax 15% not included"
+  },
+  "credit_note_000001": {
+   "id": "ev_4cdb369c338cd01b3311349c34a9a482831c785cf4201c0af4a9879ebecdf2d4",
+   "note": "Credit note 000001 taken from that invoice: 1 x 220"
+  },
+  "payments_cycle": {
+   "id": "ev_b14146bd15132fc1beca22a1fbc82d1f4ec97daf65400cff93aa66ea1fb3925e",
+   "note": "The three payments of the invoice: 300 cash, 163.50 cheque, 100 transfer"
+  },
+  "journals_a3_cycle": {
+   "id": "ev_8fe9db7d7339f201e73598d494d813003a7ac051e91e4ea808f91539deb2c9d5",
+   "note": "Journals 10 to 16 as read from the reference system"
+  },
+  "journals_a3_cycle_second": {
+   "id": "ev_f0d0423397fd1d8040f3d882d7935755076f8d4b2fd8d0c57a74943e43a071cb",
+   "note": "Second reading of the journals of that cycle"
+  },
+  "journals_a3_cycle_third": {
+   "id": "ev_ae83bb33a62401fa3c9af6107f0ceded2432d5e0370f6ff509c2afd1271ebde1",
+   "note": "Third reading of the journals of that cycle"
+  }
+ },
+ "cases": [
+  {
+   "id": "a3-cycle",
+   "kind": "cycle",
+   "classification": "exact",
+   "evidence": [
+    "invoice_000002",
+    "credit_note_000001",
+    "payments_cycle",
+    "journals_a3_cycle",
+    "journals_a3_cycle_second",
+    "journals_a3_cycle_third"
+   ],
+   "inputs": {
+    "invoice": {
+     "items": [
+      {
+       "name": "cream",
+       "quantity": "4",
+       "price": "75",
+       "discount": "10",
+       "discount_type": "percent",
+       "cost": "40.00",
+       "tax": "40.50"
+      },
+      {
+       "name": "perfume",
+       "quantity": "2",
+       "price": "220",
+       "discount": "0",
+       "discount_type": "percent",
+       "cost": "120.00",
+       "tax": "66.00"
+      }
+     ]
+    },
+    "credit_note": {
+     "item": "perfume",
+     "quantity": "1",
+     "price": "220",
+     "tax": "33.00",
+     "cost_of_the_item_now": "130.00"
+    },
+    "payments": [
+     {
+      "type": "cash",
+      "amount": "300.00"
+     },
+     {
+      "type": "check",
+      "amount": "163.50"
+     },
+     {
+      "type": "bank_transfer",
+      "amount": "100.00"
+     }
+    ]
+   },
+   "reference": {
+    "journals": [
+     {
+      "number": 10,
+      "step": "invoice",
+      "lines": [
+       [
+        "customer",
+        "816.50",
+        "0.00"
+       ],
+       [
+        "sales_revenue",
+        "0.00",
+        "710.00"
+       ],
+       [
+        "tax_output",
+        "0.00",
+        "106.50"
+       ]
+      ]
+     },
+     {
+      "number": 11,
+      "step": "invoice_cost",
+      "lines": [
+       [
+        "cogs",
+        "400.00",
+        "0.00"
+       ],
+       [
+        "inventory",
+        "0.00",
+        "400.00"
+       ]
+      ]
+     },
+     {
+      "number": 12,
+      "step": "credit_note",
+      "lines": [
+       [
+        "sales_returns",
+        "220.00",
+        "0.00"
+       ],
+       [
+        "tax_output",
+        "33.00",
+        "0.00"
+       ],
+       [
+        "customer",
+        "0.00",
+        "253.00"
+       ]
+      ]
+     },
+     {
+      "number": 13,
+      "step": "credit_note_cost",
+      "lines": [
+       [
+        "inventory",
+        "120.00",
+        "0.00"
+       ],
+       [
+        "cogs",
+        "0.00",
+        "120.00"
+       ]
+      ]
+     },
+     {
+      "number": 14,
+      "step": "payment_1",
+      "lines": [
+       [
+        "cash",
+        "300.00",
+        "0.00"
+       ],
+       [
+        "customer",
+        "0.00",
+        "300.00"
+       ]
+      ]
+     },
+     {
+      "number": 15,
+      "step": "payment_2",
+      "lines": [
+       [
+        "cash",
+        "163.50",
+        "0.00"
+       ],
+       [
+        "customer",
+        "0.00",
+        "163.50"
+       ]
+      ]
+     },
+     {
+      "number": 16,
+      "step": "payment_3",
+      "lines": [
+       [
+        "cash",
+        "100.00",
+        "0.00"
+       ],
+       [
+        "customer",
+        "0.00",
+        "100.00"
+       ]
+      ]
+     }
+    ],
+    "customer_balance": "0.00"
+   },
+   "expected": {
+    "journals": [
+     {
+      "step": "invoice",
+      "entry": "revenue",
+      "lines": [
+       [
+        "customer",
+        "816.50",
+        "0.00"
+       ],
+       [
+        "sales_revenue",
+        "0.00",
+        "710.00"
+       ],
+       [
+        "tax_output",
+        "0.00",
+        "106.50"
+       ]
+      ]
+     },
+     {
+      "step": "invoice_cost",
+      "entry": "cogs",
+      "lines": [
+       [
+        "cogs",
+        "400.00",
+        "0.00"
+       ],
+       [
+        "inventory",
+        "0.00",
+        "400.00"
+       ]
+      ]
+     },
+     {
+      "step": "credit_note",
+      "entry": "revenue",
+      "lines": [
+       [
+        "sales_returns",
+        "220.00",
+        "0.00"
+       ],
+       [
+        "tax_output",
+        "33.00",
+        "0.00"
+       ],
+       [
+        "customer",
+        "0.00",
+        "253.00"
+       ]
+      ]
+     },
+     {
+      "step": "credit_note_cost",
+      "entry": "cogs",
+      "lines": [
+       [
+        "inventory",
+        "120.00",
+        "0.00"
+       ],
+       [
+        "cogs",
+        "0.00",
+        "120.00"
+       ]
+      ]
+     },
+     {
+      "step": "payment_1",
+      "entry": "general",
+      "lines": [
+       [
+        "cash",
+        "300.00",
+        "0.00"
+       ],
+       [
+        "customer",
+        "0.00",
+        "300.00"
+       ]
+      ]
+     },
+     {
+      "step": "payment_2",
+      "entry": "general",
+      "lines": [
+       [
+        "cash",
+        "163.50",
+        "0.00"
+       ],
+       [
+        "customer",
+        "0.00",
+        "163.50"
+       ]
+      ]
+     },
+     {
+      "step": "payment_3",
+      "entry": "general",
+      "lines": [
+       [
+        "cash",
+        "100.00",
+        "0.00"
+       ],
+       [
+        "customer",
+        "0.00",
+        "100.00"
+       ]
+      ]
+     }
+    ],
+    "customer_balance": "0.00"
+   }
+  }
+ ]
+}

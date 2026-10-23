@@ -1,0 +1,76 @@
+{
+ "id": "T-08",
+ "title": "The cost a return carries: the cost the goods were sold at, not the cost they have now. Two credit notes taken from the same sale, before and after the average cost of the item moved",
+ "recorded": "2026-10-23",
+ "evidence": {
+  "sale_000013": {
+   "id": "ev_586c7c617eccd150b64ef98a94e0c634f69bc1ffc94c5a02ef0bebdaa9e9ee19",
+   "note": "Sale 000013: 5 units, cost of sales 300 (60 each)"
+  },
+  "credit_note_000002": {
+   "id": "ev_c51ae6a7d22905f39dedaa832bd59c9c25e1cd560968d52ff43835f0c7c90359",
+   "note": "Credit note 000002: 2 units returned, cost journal 120"
+  },
+  "purchase_000005": {
+   "id": "ev_a8e2e4121aee8561450b9d7c8e3eb96d7f87512731efbbdd278602f611f23d03",
+   "note": "Purchase 000005: 3 units at 100, which moved the average cost of the item to 66"
+  },
+  "credit_note_000003": {
+   "id": "ev_95c17634fa96121284b3b690b73ed228da58d1952da75ccc991155ffa2f4c757",
+   "note": "Credit note 000003: 1 unit returned after the average moved to 66, cost journal 60"
+  }
+ },
+ "cases": [
+  {
+   "id": "two-units-at-the-cost-of-the-sale",
+   "kind": "return_cost",
+   "classification": "exact",
+   "evidence": [
+    "sale_000013",
+    "credit_note_000002"
+   ],
+   "inputs": {
+    "sold": {
+     "quantity": "5",
+     "cost": "60.00"
+    },
+    "returned": {
+     "quantity": "2"
+    },
+    "cost_of_the_item_now": "60.00"
+   },
+   "reference": {
+    "cost_journal": "120.00"
+   },
+   "expected": {
+    "cost_journal": "120.00"
+   }
+  },
+  {
+   "id": "one-unit-after-the-average-moved",
+   "kind": "return_cost",
+   "classification": "exact",
+   "evidence": [
+    "sale_000013",
+    "purchase_000005",
+    "credit_note_000003"
+   ],
+   "inputs": {
+    "sold": {
+     "quantity": "5",
+     "cost": "60.00"
+    },
+    "returned": {
+     "quantity": "1"
+    },
+    "cost_of_the_item_now": "66.00"
+   },
+   "reference": {
+    "cost_journal": "60.00"
+   },
+   "expected": {
+    "cost_journal": "60.00"
+   }
+  }
+ ]
+}

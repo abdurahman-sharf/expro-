@@ -42,7 +42,7 @@ final class RoutingResolver
 
         $type = ($route === null ? null : RoutingType::tryFrom((string) $route->routing_type)) ?? $key->defaultType();
 
-        if (! $type->isImplemented() || ! in_array($type, $key->allowedTypes(), true)) {
+        if (! $key->applies($type) || ! in_array($type, $key->allowedTypes(), true)) {
             throw new PostingException(
                 PostingError::RoutingTypeUnsupported,
                 "The routing of {$key->value} is set to {$type->value}, which posting does not apply.",
@@ -52,18 +52,48 @@ final class RoutingResolver
 
         return match ($type) {
             RoutingType::Cancelled => null,
-            RoutingType::Auto      => $key->isEntity() ? $this->entityAccount($key, $entityId) : $this->mappedAccount($key, $route),
+            RoutingType::Auto      => $key->isEntity() ? $this->entityAccount($key, $entityId) : $this->mappedAccount($key->value, $route),
             default                => throw new PostingException(PostingError::RoutingTypeUnsupported, "The routing type {$type->value} has no rule.", ['routing_key' => $key->value, 'routing_type' => $type->value]),
         };
     }
 
     /**
+     * The account a way of paying is posted to, or null for a payment that settles nothing: a
+     * credit sale stays on the customer. Gift cards follow their liability, and every other
+     * way of paying follows the account its row has.
+     *
      * @throws PostingException
      */
-    private function mappedAccount(RoutingKey $key, ?object $route): int
+    public function accountForPayment(PaymentType $type): ?int
+    {
+        if ($type === PaymentType::Due) {
+            return null;
+        }
+
+        $locked = $type->lockedRoutingKey();
+
+        if ($locked !== null) {
+            return $this->accountFor($locked);
+        }
+
+        $route = $this->db->table('accounting_routing r')
+            ->select('r.account_id, a.is_group, a.active')
+            ->join('accounting_accounts a', 'a.account_id = r.account_id', 'left')
+            ->where('r.company_id', CompanyContext::id())
+            ->where('r.routing_key', $type->routingKey())
+            ->get()
+            ->getRow();
+
+        return $this->mappedAccount($type->routingKey(), $route);
+    }
+
+    /**
+     * @throws PostingException
+     */
+    private function mappedAccount(string $routingKey, ?object $route): int
     {
         if ($route === null || $route->account_id === null || (int) $route->is_group === 1 || (int) $route->active === 0) {
-            throw new PostingException(PostingError::RoutingAccountUnusable, "The account chosen for {$key->value} is missing, a group or inactive.", ['routing_key' => $key->value]);
+            throw new PostingException(PostingError::RoutingAccountUnusable, "The account chosen for {$routingKey} is missing, a group or inactive.", ['routing_key' => $routingKey]);
         }
 
         return (int) $route->account_id;

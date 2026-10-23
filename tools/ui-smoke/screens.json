@@ -75,6 +75,25 @@
       "path": "/sales/manage"
     },
     {
+      "id": "sales-edit-modal",
+      "group": "sales",
+      "path": "/sales/manage",
+      "steps": [
+        {
+          "waitFor": "a.modal-dlg[href$=\"sales/edit/1\"]"
+        },
+        {
+          "click": "a.modal-dlg[href$=\"sales/edit/1\"]"
+        },
+        {
+          "waitFor": ".modal-body #sales_edit_form"
+        },
+        {
+          "pause": 1000
+        }
+      ]
+    },
+    {
       "id": "sales-suspended-modal",
       "group": "sales",
       "path": "/sales",
