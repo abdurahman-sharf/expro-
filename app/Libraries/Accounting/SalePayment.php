@@ -11,6 +11,7 @@ final readonly class SalePayment
         public string $cashRefund,
         public bool $cashAdjustment,
         public string $date,
+        public PaymentStatus $status = PaymentStatus::Completed,
     ) {
     }
 }

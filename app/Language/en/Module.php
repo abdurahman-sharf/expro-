@@ -9,6 +9,8 @@ return [
     'accounting_journals_desc'     => 'Create, post and reverse journal entries.',
     'accounting_periods'           => 'Periods and Closing',
     'accounting_periods_desc'      => 'Manage fiscal years, close and reopen periods, and enter opening balances.',
+    'accounting_receivables'       => 'Customer Balances',
+    'accounting_receivables_desc'  => 'See what each customer owes or holds in credit, by invoice and by age.',
     'accounting_routing'           => 'Account Routing',
     'accounting_routing_desc'      => 'Choose the account each part of a sale is posted to.',
     'accounting_settings'          => 'Accounting Settings',

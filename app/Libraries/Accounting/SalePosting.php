@@ -20,6 +20,7 @@ final class SalePosting
     use RunsInTransaction;
 
     private const COMPLETED_TYPES = [SALE_TYPE_POS, SALE_TYPE_INVOICE, SALE_TYPE_RETURN];
+    private const ISSUED_TYPES    = [SALE_TYPE_INVOICE, SALE_TYPE_RETURN];
 
     private BaseConnection $db;
     private PostingService $posting;
@@ -81,6 +82,8 @@ final class SalePosting
             foreach ($sale->payments as $payment) {
                 $this->postPayment($sale, $payment, $employeeId);
             }
+
+            $this->settle($sale->customerId, $employeeId);
         });
     }
 
@@ -122,6 +125,8 @@ final class SalePosting
             foreach ($sale->payments as $payment) {
                 $this->postPayment($sale, $payment, $employeeId);
             }
+
+            $this->settle($sale->customerId, $employeeId);
         });
     }
 
@@ -141,13 +146,20 @@ final class SalePosting
 
     /**
      * Reverses every journal of a sale that has not been reversed: its invoice, its cost and
-     * its payments. A sale that was never posted has none, and nothing happens.
+     * its payments. A sale that was never posted has none, and nothing happens. An invoice or a
+     * credit note that has been issued is not cancelled: it is corrected by a credit note.
      *
      * @throws AccountingException|PostingException
      */
     public function cancel(int $saleId, ?int $employeeId = null): void
     {
         $this->transactional(function () use ($saleId, $employeeId): void {
+            $sale = $this->loader->load($saleId, false);
+
+            if ($sale !== null && in_array($sale->saleType, self::ISSUED_TYPES, true) && $this->isPosted($saleId)) {
+                throw new AccountingException(AccountingError::IssuedDocumentLocked, 'An invoice or a credit note that has been issued cannot be cancelled. Correct it with a credit note.', ['sale_id' => $saleId]);
+            }
+
             $active = array_filter([
                 $this->activeJournal(SalePostingBuilder::SOURCE_SALE, $saleId, JournalEntryType::Revenue),
                 $this->activeJournal(SalePostingBuilder::SOURCE_SALE, $saleId, JournalEntryType::Cogs),
@@ -163,6 +175,10 @@ final class SalePosting
 
             foreach ($active as $journal) {
                 $this->reverse($journal, $employeeId, 'Sale #' . $saleId . ' cancelled');
+            }
+
+            if ($active !== []) {
+                $this->settle($sale?->customerId, $employeeId);
             }
         });
     }
@@ -231,6 +247,13 @@ final class SalePosting
             : new PostingException(PostingError::WriteFailed, $failure->getMessage(), $failure->context, $failure);
 
         (new PostingFailureLog($this->db))->recordUnbuilt(SalePostingBuilder::SOURCE_SALE, $saleId, 1, JournalEntryType::Revenue, $posting, $employeeId, $branchId);
+    }
+
+    private function settle(?int $customerId, ?int $employeeId): void
+    {
+        if ($customerId !== null) {
+            (new CreditSettlement($this->db))->settle($customerId, $employeeId);
+        }
     }
 
     /**

@@ -67,6 +67,13 @@ $routes->group('accounting_routing', static function (RouteCollection $routes): 
     $routes->post('save', 'AccountingRouting::postSaveRouting');
 });
 
+$routes->group('accounting_receivables', static function (RouteCollection $routes): void {
+    $routes->get('/', 'AccountingReceivables::getIndex');
+    $routes->get('search', 'AccountingReceivables::getSearch');
+    $routes->get('row/(:num)', 'AccountingReceivables::getRow/$1');
+    $routes->get('customer/(:num)', 'AccountingReceivables::getCustomer/$1');
+});
+
 $routes->group('accounting_periods', static function (RouteCollection $routes): void {
     $routes->get('/', 'AccountingPeriods::getIndex');
     $routes->get('search', 'AccountingPeriods::getSearch');

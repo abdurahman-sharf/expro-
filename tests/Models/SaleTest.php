@@ -533,6 +533,28 @@ class SaleTest extends CIUnitTestCase
         $this->assertNull($saleModel->getReturnOrigin(999999999));
     }
 
+    public function testGetReturnedQuantities_AddsUpWhatCompletedReturnsTookBackItemByItem(): void
+    {
+        $saleModel = model(Sale::class);
+        $itemId    = $this->createTestItem(HAS_STOCK);
+        $other     = $this->createTestItem(HAS_STOCK);
+        $employee  = $this->createEmployee();
+        $status    = COMPLETED;
+        $taxes     = [[], []];
+        $items     = $this->buildCartLine($itemId, 5, 5.00);
+        $invoice   = $saleModel->save_value(NEW_ENTRY, $status, $items, NEW_ENTRY, $employee, 'invoice', null, null, null, SALE_TYPE_INVOICE, [], null, $taxes);
+
+        foreach ([[$itemId, -2], [$itemId, -1], [$other, -3]] as [$returned, $quantity]) {
+            $items  = $this->buildCartLine($returned, $quantity, 5.00);
+            $status = COMPLETED;
+            $saleModel->save_value(NEW_ENTRY, $status, $items, NEW_ENTRY, $employee, 'return', null, null, null, SALE_TYPE_RETURN, [], null, $taxes, true, $invoice);
+        }
+
+        $this->assertEqualsWithDelta(3.0, $saleModel->getReturnedQuantities($invoice)[$itemId], 0.0001);
+        $this->assertEqualsWithDelta(3.0, $saleModel->getReturnedQuantities($invoice)[$other], 0.0001);
+        $this->assertSame([], $saleModel->getReturnedQuantities(999999999));
+    }
+
     public function testGetSummary_GivesTheFactsOfASaleAndNothingForAMissingOne(): void
     {
         $saleModel = model(Sale::class);

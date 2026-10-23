@@ -3,6 +3,9 @@
 namespace Tests\Support;
 
 use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\CreditSettlement;
+use App\Libraries\Accounting\CustomerLedger;
+use App\Libraries\Accounting\CustomerPosition;
 use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\SalePosting;
@@ -73,6 +76,8 @@ trait SaleAccountingFixtureTrait
 
         $db = $this->accountingDb();
         $db->query('SET FOREIGN_KEY_CHECKS = 0');
+
+        $db->table('customer_credit_applications')->truncate();
 
         foreach ($this->saleIds as $saleId) {
             foreach (['sales_payments', 'sales_items_taxes', 'sales_items', 'sales_taxes'] as $table) {
@@ -247,6 +252,96 @@ trait SaleAccountingFixtureTrait
     protected function stockAccount(): int
     {
         return (int) (new EntityAccountService())->accountFor(EntityAccountService::STOCK_LOCATION, self::LOCATION_ID);
+    }
+
+    /**
+     * A second customer with the account of their own that posting needs.
+     */
+    protected function anotherCustomer(string $firstName = 'Hind', string $lastName = 'Saad'): int
+    {
+        $customerId = $this->insertCustomer($firstName, $lastName);
+
+        (new EntityAccountService())->ensure(EntityAccountService::CUSTOMER, $customerId, trim($firstName . ' ' . $lastName));
+
+        return $customerId;
+    }
+
+    /**
+     * An invoice of a service that comes to exactly the amount, with no tax and no stock, so a
+     * test can talk about what a customer owes without the cost of goods in the way.
+     *
+     * @param list<array<string, mixed>> $payments
+     */
+    protected function invoiceOf(string $total, ?int $customerId = null, array $payments = [], int $type = SALE_TYPE_INVOICE): int
+    {
+        $service = $this->item('0', false);
+
+        return $this->save([$this->line($service, 0, '1', $total)], [], $payments, $type, $customerId ?? -1);
+    }
+
+    /**
+     * A credit note of a service for the amount, taken from an invoice.
+     */
+    protected function creditNoteOf(int $invoiceId, string $total, ?int $customerId = null): int
+    {
+        $service = $this->item('0', false);
+
+        return $this->save([$this->line($service, 0, '-1', $total)], [], [], SALE_TYPE_RETURN, $customerId ?? -1, true, $invoiceId);
+    }
+
+    /**
+     * Adds a payment to a sale the way the edit form does, and returns its id.
+     */
+    protected function addPayment(int $saleId, string $amount, ?string $type = null, int $refund = 0): int
+    {
+        $this->assertTrue($this->sales->update($saleId, ['comment' => 'paid', 'payments' => [
+            ['payment_id' => NEW_ENTRY, 'payment_type' => $type ?? lang('Sales.cash'), 'payment_amount' => $amount, 'cash_refund' => $refund, 'cash_adjustment' => 0, 'employee_id' => $this->employeeId, 'reference_code' => null],
+        ]]));
+
+        return (int) $this->accountingDb()->table('sales_payments')->selectMax('payment_id', 'last')->where('sale_id', $saleId)->get()->getRow()->last;
+    }
+
+    protected function removePayment(int $saleId, int $paymentId): void
+    {
+        $this->assertTrue($this->sales->update($saleId, ['comment' => 'removed', 'payments' => [
+            ['payment_id' => $paymentId, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '0', 'cash_refund' => 0, 'cash_adjustment' => 0, 'employee_id' => $this->employeeId, 'reference_code' => null],
+        ]]));
+    }
+
+    protected function position(?int $customerId = null): CustomerPosition
+    {
+        return (new CustomerLedger())->position($customerId ?? $this->customerId);
+    }
+
+    /**
+     * The open invoices, the credit and the account of the customer say the same thing, and the
+     * aging adds up to what is open.
+     */
+    protected function assertTies(?int $customerId = null): void
+    {
+        $position = $this->position($customerId);
+
+        $this->assertTrue($position->agrees(), 'The account of the customer holds ' . $position->accountBalance . ' and the invoices and credit say ' . $position->ledgerBalance());
+        $this->assertSame($position->open(), array_reduce($position->aging(date('Y-m-d')), static fn (string $sum, string $amount): string => bcadd($sum, $amount, 4), '0.0000'));
+        $this->assertSame(bcadd($position->accountBalance, '0', 2), $this->balance((int) $position->accountId));
+    }
+
+    /**
+     * What stands in the applications of a customer, as "source:id->invoice:amount".
+     *
+     * @return list<string>
+     */
+    protected function applications(?int $customerId = null): array
+    {
+        return array_map(
+            static fn (object $row): string => $row->source_type . ':' . $row->source_id . '->' . $row->invoice_sale_id . ':' . bcadd($row->amount, '0', 2),
+            (new CustomerLedger())->applications($customerId ?? $this->customerId),
+        );
+    }
+
+    protected function settle(?int $customerId = null): void
+    {
+        (new CreditSettlement())->settle($customerId ?? $this->customerId, $this->employeeId);
     }
 
     protected function saleRow(int $saleId): ?object

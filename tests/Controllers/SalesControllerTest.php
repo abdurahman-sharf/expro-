@@ -969,12 +969,12 @@ class SalesControllerTest extends CIUnitTestCase
     /**
      * @return array{saleId: int, cream: int, perfume: int}
      */
-    protected function postedInvoice(bool $delivered = true): array
+    protected function postedInvoice(bool $delivered = true, int $type = SALE_TYPE_INVOICE): array
     {
         $this->startSelling();
 
         $cycle  = $this->referenceInvoice();
-        $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, $delivered);
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [], $type, -1, $delivered);
 
         return ['saleId' => $saleId, 'cream' => $cycle['cream'], 'perfume' => $cycle['perfume']];
     }
@@ -1050,7 +1050,7 @@ class SalesControllerTest extends CIUnitTestCase
 
     public function testPostDelete_CancelsASaleOfTheEmployeesBranchAndReversesItsJournals(): void
     {
-        $invoice      = $this->postedInvoice();
+        $invoice      = $this->postedInvoice(true, SALE_TYPE_POS);
         $stock        = $this->stock($invoice['cream']);
         $supervisorId = $this->createBranchLimitedSupervisor(1);
         $this->loginAs($supervisorId);
@@ -1078,9 +1078,25 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertEqualsWithDelta($stock, $this->stock($invoice['cream']), 0.0001);
     }
 
-    public function testPostDelete_SaysWhyTheBooksRefusedTheCancellationAndCancelsNothing(): void
+    public function testPostDelete_SaysAnIssuedInvoiceIsCorrectedByACreditNoteAndCancelsNothing(): void
     {
         $invoice      = $this->postedInvoice();
+        $stock        = $this->stock($invoice['cream']);
+        $supervisorId = $this->createBranchLimitedSupervisor(1);
+        $this->loginAs($supervisorId);
+
+        $result = $this->jsonOf($this->post('/sales/delete', ['ids' => [(string) $invoice['saleId']]]));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_issued_document_locked'), $result['message']);
+        $this->assertSame((string) COMPLETED, (string) $this->saleRow($invoice['saleId'])->sale_status);
+        $this->assertEqualsWithDelta($stock, $this->stock($invoice['cream']), 0.0001);
+        $this->assertCount(2, $this->standing($invoice['saleId']));
+    }
+
+    public function testPostDelete_SaysWhyTheBooksRefusedTheCancellationAndCancelsNothing(): void
+    {
+        $invoice      = $this->postedInvoice(true, SALE_TYPE_POS);
         $stock        = $this->stock($invoice['cream']);
         $supervisorId = $this->createBranchLimitedSupervisor(1);
         $this->closeThrough('2035-12-31');
@@ -1093,6 +1109,241 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertSame((string) COMPLETED, (string) $this->saleRow($invoice['saleId'])->sale_status);
         $this->assertEqualsWithDelta($stock, $this->stock($invoice['cream']), 0.0001);
         $this->assertCount(2, $this->standing($invoice['saleId']));
+    }
+
+    public function testGetEdit_ShowsWhatIsOwedAndTheStatusOfEachPaymentOfAnIssuedInvoice(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->addPayment($invoice['saleId'], '300.00');
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $response = $this->get('/sales/edit/' . $invoice['saleId']);
+
+        $response->assertStatus(200);
+        $response->assertSee('id="receivable_figures"');
+        $response->assertSee('id="receivable_status"');
+        $response->assertSee(lang('Sales.invoice_partial'));
+        $response->assertSee('name="payment_status_0"');
+
+        foreach (['completed', 'review', 'failed', 'draft', 'incomplete'] as $status) {
+            $response->assertSee('value="' . $status . '"');
+            $response->assertSee(lang('Sales.payment_status_' . $status));
+        }
+    }
+
+    public function testGetEdit_OffersACreditNoteInsteadOfCancellingAnIssuedInvoice(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $response = $this->get('/sales/edit/' . $invoice['saleId']);
+
+        $response->assertSee('id="issued_lock"');
+        $response->assertSee('id="create_credit_note"');
+        $response->assertSee(lang('Sales.credit_note_help_issued'));
+        $response->assertSee("$('button#delete').hide()");
+    }
+
+    public function testGetEdit_KeepsCancellationForAPointOfSaleSale(): void
+    {
+        $sale = $this->postedInvoice(true, SALE_TYPE_POS);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $response = $this->get('/sales/edit/' . $sale['saleId']);
+
+        $response->assertDontSee('id="issued_lock"');
+        $response->assertDontSee('id="create_credit_note"');
+        $response->assertDontSee("$('button#delete').hide()");
+    }
+
+    public function testGetEdit_SaysToConfirmTheDeliveryBeforeACreditNoteWhenTheGoodsDidNotLeave(): void
+    {
+        $invoice = $this->postedInvoice(false);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $response = $this->get('/sales/edit/' . $invoice['saleId']);
+
+        $response->assertSee('id="issued_lock"');
+        $response->assertSee(lang('Sales.credit_note_after_delivery'));
+        $response->assertDontSee('id="create_credit_note"');
+    }
+
+    public function testGetEdit_OffersTheNewPaymentRowOnAnInvoicePaidInFull(): void
+    {
+        $service = $this->item('0', false);
+        $this->startSelling();
+        $saleId = $this->save([$this->line($service, 0, '1', '100')], [], [$this->payment(lang('Sales.cash'), '100.00')]);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $this->get('/sales/edit/' . $saleId)->assertSee('name="payment_amount_new"');
+    }
+
+    public function testGetEdit_LeavesTheAccountingBlocksOutWhileAccountingIsOff(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->setConfigValue('accounting_enabled', '0');
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $response = $this->get('/sales/edit/' . $invoice['saleId']);
+
+        $response->assertStatus(200);
+        $response->assertDontSee('id="receivable_figures"');
+        $response->assertDontSee('id="issued_lock"');
+        $response->assertDontSee('name="payment_status_0"');
+    }
+
+    public function testPostCreditNote_PreparesTheRegisterForWhatHasNotComeBackOfTheInvoice(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $first = $this->jsonOf($this->post('/sales/creditNote/' . $invoice['saleId']));
+
+        $this->assertTrue($first['success']);
+        $this->assertSame((string) $invoice['saleId'], (string) Services::session()->get('sales_return_origin'));
+        $this->assertSame('return', Services::session()->get('sales_mode'));
+        $this->assertSame((string) $this->customerId, (string) Services::session()->get('sales_customer'));
+
+        $quantities = array_map(static fn (array $line): string => (string) $line['quantity'], array_values(Services::session()->get('sales_cart')));
+
+        $this->assertSame(['-4', '-2'], array_map(static fn (string $quantity): string => rtrim(rtrim($quantity, '0'), '.'), $quantities));
+    }
+
+    public function testPostCreditNote_TakesOnlyWhatHasNotComeBackYet(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->save([$this->line($invoice['perfume'], 0, '-1', '220', '120.00')], [$this->tax($invoice['perfume'], 0, '-33.00')], [], SALE_TYPE_RETURN, -1, true, $invoice['saleId']);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $result = $this->jsonOf($this->post('/sales/creditNote/' . $invoice['saleId']));
+
+        $this->assertTrue($result['success']);
+
+        $quantities = [];
+
+        foreach (Services::session()->get('sales_cart') as $line) {
+            $quantities[(int) $line['item_id']] = rtrim(rtrim((string) $line['quantity'], '0'), '.');
+        }
+
+        $this->assertSame([$invoice['cream'] => '-4', $invoice['perfume'] => '-1'], $quantities);
+    }
+
+    public function testPostCreditNote_SaysWhenEverythingOnTheInvoiceHasComeBack(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->save([$this->line($invoice['cream'], 0, '-4', '75', '40.00', '10'), $this->line($invoice['perfume'], 1, '-2', '220', '120.00')], [$this->tax($invoice['cream'], 0, '-40.50'), $this->tax($invoice['perfume'], 1, '-66.00')], [], SALE_TYPE_RETURN, -1, true, $invoice['saleId']);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $result = $this->jsonOf($this->post('/sales/creditNote/' . $invoice['saleId']));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Sales.credit_note_nothing_left'), $result['message']);
+    }
+
+    public function testPostCreditNote_RefusesAnInvoiceOfABranchTheEmployeeDoesNotWorkIn(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor($this->createSecondBranch()));
+
+        $this->post('/sales/creditNote/' . $invoice['saleId'])->assertStatus(403);
+    }
+
+    public function testPostCreditNote_RefusesWhatIsNotAnInvoice(): void
+    {
+        $sale = $this->postedInvoice(true, SALE_TYPE_POS);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $result = $this->jsonOf($this->post('/sales/creditNote/' . $sale['saleId']));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Sales.credit_note_invoice_only'), $result['message']);
+    }
+
+    public function testPostCreditNote_RefusesAnInvoiceWhoseGoodsDidNotLeave(): void
+    {
+        $invoice = $this->postedInvoice(false);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $result = $this->jsonOf($this->post('/sales/creditNote/' . $invoice['saleId']));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Sales.return_origin_undelivered'), $result['message']);
+    }
+
+    public function testPostSave_KeepsAPaymentBeyondTheInvoiceWholeAsCreditOfTheCustomer(): void
+    {
+        $service = $this->item('0', false);
+        $this->startSelling();
+        $saleId = $this->save([$this->line($service, 0, '1', '230')]);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $result = $this->jsonOf($this->post('/sales/save/' . $saleId, [
+            'date'               => date($this->config()['dateformat'] . ' ' . $this->config()['timeformat']),
+            'customer_id'        => (string) $this->customerId,
+            'employee_id'        => (string) $this->employeeId,
+            'comment'            => 'paid',
+            'number_of_payments' => '0',
+            'payment_type_new'   => lang('Sales.cash'),
+            'payment_amount_new' => '300.00',
+        ]));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('0.00', bcadd($this->accountingDb()->table('sales_payments')->where('sale_id', $saleId)->get()->getRow()->cash_refund, '0', 2));
+        $this->assertSame('-70.00', $this->balance($this->customerAccount()));
+        $this->assertSame('70.00', bcadd($this->position()->credit(), '0', 2));
+    }
+
+    public function testPostSave_GivesTheChangeBackForASaleWithoutACustomer(): void
+    {
+        $service = $this->item('0', false);
+        $this->startSelling();
+        $saleId = $this->save([$this->line($service, 0, '1', '230')], [], [$this->payment(lang('Sales.cash'), '230.00')], SALE_TYPE_POS, null);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $this->accountingDb()->table('sales_payments')->where('sale_id', $saleId)->delete();
+        $this->accountingDb()->table('accounting_journals')->where('source_type', 'sale_payment')->update(['status' => 'reversed']);
+
+        $result = $this->jsonOf($this->post('/sales/save/' . $saleId, [
+            'date'               => date($this->config()['dateformat'] . ' ' . $this->config()['timeformat']),
+            'customer_id'        => '',
+            'employee_id'        => (string) $this->employeeId,
+            'comment'            => 'paid',
+            'number_of_payments' => '0',
+            'payment_type_new'   => lang('Sales.cash'),
+            'payment_amount_new' => '300.00',
+        ]));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('70.00', bcadd($this->accountingDb()->table('sales_payments')->where('sale_id', $saleId)->get()->getRow()->cash_refund, '0', 2));
+    }
+
+    public function testPostSave_SetsTheStatusOfAPaymentFromTheForm(): void
+    {
+        $service = $this->item('0', false);
+        $this->startSelling();
+        $saleId = $this->save([$this->line($service, 0, '1', '100')], [], [$this->payment(lang('Sales.cash'), '100.00')]);
+        $row    = $this->accountingDb()->table('sales_payments')->where('sale_id', $saleId)->get()->getRow();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $result = $this->jsonOf($this->post('/sales/save/' . $saleId, [
+            'date'               => date($this->config()['dateformat'] . ' ' . $this->config()['timeformat']),
+            'customer_id'        => (string) $this->customerId,
+            'employee_id'        => (string) $this->employeeId,
+            'comment'            => 'on hold',
+            'number_of_payments' => '1',
+            'payment_id_0'       => (string) $row->payment_id,
+            'payment_type_0'     => lang('Sales.cash'),
+            'payment_amount_0'   => '100.00',
+            'refund_type_0'      => lang('Sales.cash'),
+            'refund_amount_0'    => '0.00',
+            'payment_status_0'   => 'review',
+            'payment_type_new'   => '--',
+        ]));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('review', $this->accountingDb()->table('sales_payments')->where('payment_id', $row->payment_id)->get()->getRow()->payment_status);
+        $this->assertSame('100.00', $this->balance($this->customerAccount()));
+        $this->assertSame('100.00', bcadd($this->position()->open(), '0', 2));
     }
 
     public function testPostSave_PostsThePaymentAddedFromTheForm(): void

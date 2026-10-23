@@ -1361,11 +1361,24 @@ class Sale_lib
         $this->empty_cart();
         $this->remove_customer();
 
+        $left = $this->sale->getReturnedQuantities((int) $sale_id);
+
         foreach ($this->sale->get_sale_items_ordered($sale_id)->getResult() as $row) {
-            $this->add_item($row->item_id, $row->item_location, -$row->quantity_purchased, $row->discount, $row->discount_type, PRICE_MODE_STANDARD, null, null, $row->item_unit_price, $row->description, $row->serialnumber, null, true);
+            $quantity = (float) $row->quantity_purchased - ($left[(int) $row->item_id] ?? 0.0);
+
+            if ($quantity <= 0) {
+                $left[(int) $row->item_id] = ($left[(int) $row->item_id] ?? 0.0) - (float) $row->quantity_purchased;
+
+                continue;
+            }
+
+            $left[(int) $row->item_id] = 0.0;
+
+            $this->add_item($row->item_id, $row->item_location, -$quantity, $row->discount, $row->discount_type, PRICE_MODE_STANDARD, null, null, $row->item_unit_price, $row->description, $row->serialnumber, null, true);
         }
 
         $this->set_customer($this->sale->get_customer($sale_id)->person_id);
+        $this->set_return_origin((int) $sale_id);
     }
 
     /**

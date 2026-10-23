@@ -84,5 +84,7 @@ enum AccountingError: string
     case EntityKindUnknown        = 'entity_kind_unknown';
     case EntityMainAccountInvalid = 'entity_main_account_invalid';
 
-    case SaleLocked = 'sale_locked';
+    case SaleLocked           = 'sale_locked';
+    case IssuedDocumentLocked = 'issued_document_locked';
+    case CustomerBusy         = 'customer_busy';
 }

@@ -568,18 +568,20 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame('40.00', $this->accountingDb()->table('sales_items')->where(['sale_id' => $saleId, 'item_id' => $cycle['cream']])->get()->getRow()->item_cost_price);
     }
 
-    public function testDelete_CancelingAnUndeliveredInvoiceReversesItsInvoiceAndGivesBackNoStock(): void
+    public function testDelete_RefusesToCancelAnIssuedInvoiceThatWasNotDeliveredEither(): void
     {
         $cycle  = $this->referenceInvoice();
         $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, false);
         $stock  = $this->stock($cycle['cream']);
+        $before = $this->journals($saleId);
 
-        $this->assertTrue($this->sales->delete($saleId, false, true, $this->employeeId));
+        $this->assertFalse($this->sales->delete($saleId, false, true, $this->employeeId));
 
+        $this->assertSame(AccountingError::IssuedDocumentLocked, $this->failure()->error);
         $this->assertEqualsWithDelta($stock, $this->stock($cycle['cream']), 0.0001);
-        $this->assertSame([], $this->standing($saleId));
-        $this->assertSame('0.00', $this->balance($this->customerAccount()));
-        $this->assertSame((string) CANCELED, (string) $this->saleRow($saleId)->sale_status);
+        $this->assertSame($before, $this->journals($saleId));
+        $this->assertSame((string) COMPLETED, (string) $this->saleRow($saleId)->sale_status);
+        $this->assertSame(0, $this->countRows('accounting_posting_failures'));
     }
 
     // ---------------------------------------------------------------------------------------
@@ -590,7 +592,7 @@ class SalePostingTest extends CIUnitTestCase
     {
         $cycle  = $this->referenceInvoice();
         $before = $this->stock($cycle['cream']);
-        $saleId = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '300.00')]);
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '300.00')], SALE_TYPE_POS);
 
         $this->assertEqualsWithDelta($before - 4, $this->stock($cycle['cream']), 0.0001);
         $this->assertTrue($this->sales->delete($saleId, false, true, $this->employeeId));
@@ -607,7 +609,7 @@ class SalePostingTest extends CIUnitTestCase
     public function testDelete_CancelingTwiceChangesNothing(): void
     {
         $cycle  = $this->referenceInvoice();
-        $saleId = $this->save($cycle['items'], $cycle['taxes']);
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_POS);
 
         $this->sales->delete($saleId, false, true, $this->employeeId);
 
@@ -622,7 +624,7 @@ class SalePostingTest extends CIUnitTestCase
     public function testDelete_DatesTheReversalOnTheDayOfTheSaleWhenItsPeriodIsOpen(): void
     {
         $cycle  = $this->referenceInvoice();
-        $saleId = $this->save($cycle['items'], $cycle['taxes']);
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_POS);
 
         $this->sales->delete($saleId, false, true, $this->employeeId);
 
@@ -639,7 +641,7 @@ class SalePostingTest extends CIUnitTestCase
     public function testDelete_DatesTheReversalTodayWhenThePeriodOfTheSaleHasBeenClosedSince(): void
     {
         $cycle  = $this->referenceInvoice();
-        $saleId = $this->save($cycle['items'], $cycle['taxes']);
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_POS);
 
         $this->accountingDb()->table('accounting_journals')->whereIn('journal_id', array_column($this->journals($saleId), 'id'))->update(['journal_date' => '2026-03-10']);
         $this->closeThrough('2026-06-30');
@@ -656,7 +658,7 @@ class SalePostingTest extends CIUnitTestCase
     public function testDelete_UndoesTheCancellationWhenItCannotBePosted(): void
     {
         $cycle  = $this->referenceInvoice();
-        $saleId = $this->save($cycle['items'], $cycle['taxes']);
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_POS);
         $stock  = $this->stock($cycle['cream']);
         $this->closeThrough('2035-12-31');
 
@@ -671,13 +673,13 @@ class SalePostingTest extends CIUnitTestCase
     public function testDelete_ARestoredSaleCompletedAgainPostsANewRevision(): void
     {
         $cycle  = $this->referenceInvoice();
-        $saleId = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '300.00')]);
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '300.00')], SALE_TYPE_POS);
 
         $this->sales->delete($saleId, false, true, $this->employeeId);
         $this->sales->restore_list([$saleId], $this->employeeId);
 
         $this->assertSame([], $this->standing($saleId));
-        $this->assertSame($saleId, $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '300.00')], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, $saleId));
+        $this->assertSame($saleId, $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '300.00')], SALE_TYPE_POS, -1, true, null, COMPLETED, $saleId));
 
         $standing = $this->standing($saleId);
 
@@ -842,7 +844,7 @@ class SalePostingTest extends CIUnitTestCase
     {
         $cycle  = $this->referenceInvoice();
         $stock  = $this->stock($cycle['cream']);
-        $saleId = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '300.00')]);
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '300.00')], SALE_TYPE_POS);
 
         [$first, $second] = $this->raceTwoProcesses('cancelSale', [$saleId, $this->employeeId], [$saleId, $this->employeeId]);
 
@@ -1051,7 +1053,7 @@ class SalePostingTest extends CIUnitTestCase
 
     public function testSaveValue_KeepsOnlyWhatWasKeptOfAnOverpaymentWhereTheReferenceSystemKeepsTheWholePayment(): void
     {
-        $case  = $this->behaviourCase('overpayment-keeps-the-whole-payment-as-credit', 'differs');
+        $case  = $this->behaviourCase('overpayment-at-the-register-gives-the-change-back', 'differs');
         $total = $case['inputs']['invoice_total'];
         $paid  = $case['inputs']['payment'];
         $item  = $this->item('100.00');
@@ -1067,17 +1069,42 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertNotSame($case['reference']['customer_balance'], $case['expected']['customer_balance']);
     }
 
-    public function testDelete_CancelsAnIssuedInvoiceWhereTheReferenceSystemRefusesToDeleteIt(): void
+    public function testDelete_RefusesToCancelAnIssuedInvoiceAsTheReferenceSystemDoes(): void
     {
-        $case   = $this->behaviourCase('an-issued-invoice-cannot-be-deleted', 'differs');
+        $case   = $this->behaviourCase('an-issued-invoice-cannot-be-deleted', 'exact');
         $cycle  = $this->referenceInvoice();
         $stock  = $this->stock($cycle['cream']);
         $saleId = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '300.00')]);
+        $before = $this->journals($saleId);
 
-        $this->assertSame('refused', $case['reference']['result']);
+        $this->assertSame($case['reference'], $case['expected']);
+        $this->assertSame('refused', $case['expected']['result']);
+        $this->assertFalse($this->sales->delete($saleId, false, true, $this->employeeId));
+        $this->assertSame(AccountingError::IssuedDocumentLocked, $this->failure()->error);
+        $this->assertSame($before, $this->journals($saleId));
+        $this->assertEqualsWithDelta($stock - 4, $this->stock($cycle['cream']), 0.0001);
+        $this->assertSame('516.50', $this->balance($this->customerAccount()));
+    }
+
+    public function testDelete_RefusesToCancelACreditNoteAsTheReferenceSystemDoes(): void
+    {
+        $cycle    = $this->referenceInvoice();
+        $invoice  = $this->save($cycle['items'], $cycle['taxes']);
+        $returnId = $this->save([$this->line($cycle['perfume'], 0, '-1', '220', '120.00')], [$this->tax($cycle['perfume'], 0, '-33.00')], [], SALE_TYPE_RETURN, -1, true, $invoice);
+        $before   = $this->journals($returnId);
+
+        $this->assertFalse($this->sales->delete($returnId, false, true, $this->employeeId));
+        $this->assertSame(AccountingError::IssuedDocumentLocked, $this->failure()->error);
+        $this->assertSame($before, $this->journals($returnId));
+    }
+
+    public function testDelete_StillCancelsAPointOfSaleSaleWhichTheReferenceSystemHasNoCounterpartFor(): void
+    {
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '816.50')], SALE_TYPE_POS);
+
         $this->assertTrue($this->sales->delete($saleId, false, true, $this->employeeId));
         $this->assertSame([], $this->standing($saleId));
-        $this->assertEqualsWithDelta($stock, $this->stock($cycle['cream']), 0.0001);
         $this->assertSame('0.00', $this->balance($this->customerAccount()));
     }
 
@@ -1116,34 +1143,53 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame($case['reference']['invoice'], $case['expected']['invoice']);
     }
 
-    public function testSaveValue_PostsEveryPaymentWhereTheReferenceSystemPostsOnlyThoseThatAreCompleted(): void
+    public function testUpdate_IgnoresAPaymentStatusItDoesNotKnow(): void
     {
-        $case   = $this->behaviourCase('a-payment-status-decides-whether-it-has-a-journal', 'differs');
         $cycle  = $this->referenceInvoice();
-        $saleId = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '300.00'), $this->payment(lang('Sales.check'), '100.00')]);
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '300.00')]);
+        $row    = $this->accountingDb()->table('sales_payments')->where('sale_id', $saleId)->get()->getRow();
 
-        $payments = array_filter($this->standing($saleId), static fn (array $journal): bool => $journal['source'] === 'sale_payment');
-
-        $this->assertSame('every payment has one', substr($case['expected']['journal'], 0, 21));
-        $this->assertCount(2, $payments);
-        $this->assertSame([], array_filter($this->accountingDb()->getFieldNames('sales_payments'), static fn (string $field): bool => str_contains($field, 'status')));
+        $this->assertTrue($this->sales->update($saleId, ['comment' => 'odd', 'payments' => [$this->editedPayment((int) $row->payment_id, '300.00', 'settled-by-magic')]]));
+        $this->assertSame('completed', $this->accountingDb()->table('sales_payments')->where('payment_id', $row->payment_id)->get()->getRow()->payment_status);
+        $this->assertSame('516.50', $this->balance($this->customerAccount()));
     }
 
-    public function testSaveValue_LeavesTheCreditOfACustomerOnTheCustomerWhereTheReferenceSystemSettlesTheNewInvoiceWithIt(): void
+    public function testUpdate_AddsAPaymentInTheStatusItIsGivenAndPostsNothingUntilItIsCompleted(): void
     {
-        $case    = $this->behaviourCase('customer-credit-settles-a-new-invoice', 'differs');
-        $item    = $this->item('60.00');
-        $first   = $this->save([$this->line($item, 0, '1', '100', '60.00')], [], [$this->payment(lang('Sales.cash'), '100.00')]);
-        $this->save([$this->line($item, 0, '-1', '100', '60.00')], [], [], SALE_TYPE_RETURN, -1, true, $first);
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes']);
 
-        $this->assertSame('-100.00', $this->balance($this->customerAccount()));
+        $this->assertTrue($this->sales->update($saleId, ['comment' => 'pending', 'payments' => [
+            ['payment_id' => NEW_ENTRY, 'payment_type' => lang('Sales.bank_transfer'), 'payment_amount' => '300.00', 'cash_refund' => 0, 'cash_adjustment' => 0, 'employee_id' => $this->employeeId, 'reference_code' => 'TRF1234', 'payment_status' => 'review'],
+        ]]));
 
-        $second = $this->save([$this->line($item, 0, '2', '115', '60.00')]);
+        $this->assertSame([], array_filter($this->standing($saleId), static fn (array $journal): bool => $journal['source'] === 'sale_payment'));
+        $this->assertSame('816.50', $this->balance($this->customerAccount()));
+    }
 
-        $this->assertStringStartsWith('no', $case['expected']['settled']);
-        $this->assertSame('130.00', $this->balance($this->customerAccount()));
-        $this->assertSame([], array_filter($this->standing($second), static fn (array $journal): bool => $journal['source'] === 'sale_payment'));
-        $this->assertSame(0, $this->accountingDb()->table('sales_payments')->where('sale_id', $second)->countAllResults());
+    public function testUpdate_KeepsAPaymentThatIsNotCompletedOutOfTheBooksAsTheReferenceSystemDoes(): void
+    {
+        $case   = $this->behaviourCase('a-payment-status-decides-whether-it-has-a-journal', 'exact');
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '300.00')]);
+        $row    = $this->accountingDb()->table('sales_payments')->where('sale_id', $saleId)->get()->getRow();
+
+        $this->assertSame($case['reference'], $case['expected']);
+        $this->assertSame('516.50', $this->balance($this->customerAccount()));
+
+        foreach (['review', 'failed', 'draft', 'incomplete'] as $status) {
+            $this->assertTrue($this->sales->update($saleId, ['comment' => $status, 'payments' => [$this->editedPayment((int) $row->payment_id, '300.00', $status)]]));
+            $this->assertSame('816.50', $this->balance($this->customerAccount()), $status);
+            $this->assertSame([], array_filter($this->standing($saleId), static fn (array $journal): bool => $journal['source'] === 'sale_payment'), $status);
+        }
+
+        $this->assertTrue($this->sales->update($saleId, ['comment' => 'back', 'payments' => [$this->editedPayment((int) $row->payment_id, '300.00', 'completed')]]));
+
+        $payments = array_values(array_filter($this->journals($saleId), static fn (array $journal): bool => $journal['source'] === 'sale_payment' && $journal['status'] === 'posted'));
+
+        $this->assertCount(1, $payments);
+        $this->assertSame(2, $payments[0]['revision']);
+        $this->assertSame('516.50', $this->balance($this->customerAccount()));
     }
 
     // ---------------------------------------------------------------------------------------
@@ -1166,7 +1212,7 @@ class SalePostingTest extends CIUnitTestCase
     public function testIsPosted_IsTrueOnlyWhileTheInvoiceJournalStands(): void
     {
         $cycle  = $this->referenceInvoice();
-        $saleId = $this->save($cycle['items'], $cycle['taxes']);
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_POS);
         $posting = new SalePosting();
 
         $this->assertTrue($posting->isPosted($saleId));
@@ -1183,6 +1229,14 @@ class SalePostingTest extends CIUnitTestCase
         $this->expectException(AccountingException::class);
 
         (new JournalService())->reverseAutomatic($manual, date('Y-m-d'), 'no', $this->employeeId);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function editedPayment(int $paymentId, string $amount, string $status, string $type = ''): array
+    {
+        return ['payment_id' => $paymentId, 'payment_type' => $type === '' ? lang('Sales.cash') : $type, 'payment_amount' => $amount, 'cash_refund' => 0, 'cash_adjustment' => 0, 'employee_id' => $this->employeeId, 'reference_code' => null, 'payment_status' => $status];
     }
 
     private function postManualJournal(): int

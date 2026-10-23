@@ -5,7 +5,7 @@ const SALES = [
     { items: ['6281001', '6281005', '6281010'], customer: 'أحمد' },
     { items: ['6281003', '6281006', '6281006', '6281012'], customer: 'Michael' },
     { items: ['6281002', '6281004'], customer: null },
-    { items: ['6281009', '6281011', '6281008'], customer: 'سارة' }
+    { items: ['6281009', '6281011', '6281008'], customer: 'سارة', due: true }
 ];
 
 const config = loadConfig([]);
@@ -30,6 +30,11 @@ try {
             await page.waitForSelector('.ui-autocomplete li', { timeout: 10000 });
             await page.click('.ui-autocomplete li:first-child');
             await settle(page);
+        }
+
+        if (sale.due) {
+            const label = await page.locator('#payment_types option').evaluateAll((options) => options.map((option) => option.textContent.trim()).find((text) => ['Due', 'مستحق'].includes(text)));
+            await page.selectOption('#payment_types', { label });
         }
 
         await page.click('#add_payment_button');

@@ -1,0 +1,172 @@
+{
+  "id": "T-10",
+  "title": "What a customer owes after payments, credit notes and credit: an overpayment, a credit note paid into its invoice, a credit note larger than the invoice, a new invoice settled from credit, and a payment deleted after its excess was spent",
+  "recorded": "2026-10-23",
+  "evidence": {
+    "overpayment": {
+      "id": "ev_f00a6d4e84b2553dc6d2555b7536ae607f0e0a619c8cba7b862314b4f7ef3ccb",
+      "note": "A payment of 300 on an invoice of 230: the journal holds the whole 300 and the invoice shows paid in excess"
+    },
+    "credit_note_applied": {
+      "id": "ev_208737ab56010ce6004974f82318fc58c8c9a4cf38e52999ad4066c3ca091935",
+      "note": "A credit note of 253 taken from an invoice is applied to it as a payment of the credit balance"
+    },
+    "credit_larger": {
+      "id": "ev_31c107c3d0fc965d9d51deba1ec91a5905fcd725eed954fa8f301f12fdce0c33",
+      "note": "A credit note larger than what the invoice still owed leaves a credit balance of 156.25 and no cash refund"
+    },
+    "credit_applied": {
+      "id": "ev_58009f39a9e00aab60bc6e060af7e1394688fc1d720269ee600521e8eba8fa4b",
+      "note": "A new invoice of 172.50 of a customer with credit is settled from it at once, 156.25, without journals"
+    },
+    "delete_payment": {
+      "id": "ev_16aa6541877a0d84fcdb197762ef1c9f7e8935ab81ee61cc61f8238a34d83f95",
+      "note": "Deleting a payment leaves the invoice unpaid and does not give back what another invoice spent of its excess"
+    },
+    "credits_pay_invoice": {
+      "id": "ev_f596249fb3cc1dec6938f2e0956569997579f808b41f2e23afd301fed74eaad0",
+      "note": "An invoice paid by a credit note of 253 and two excesses of 70 and 86.25 as payments of the credit balance"
+    }
+  },
+  "cases": [
+    {
+      "id": "overpayment-on-an-invoice",
+      "kind": "receivable",
+      "classification": "exact",
+      "evidence": [
+        "overpayment"
+      ],
+      "inputs": {
+        "invoice_total": "230.00",
+        "payment": "300.00",
+        "added": "after the invoice, with no change given back"
+      },
+      "reference": {
+        "payment_journal": "300.00",
+        "customer_balance": "-70.00",
+        "payment_state": "excess"
+      },
+      "expected": {
+        "payment_journal": "300.00",
+        "customer_balance": "-70.00",
+        "payment_state": "excess"
+      }
+    },
+    {
+      "id": "credit-note-is-paid-into-its-invoice",
+      "kind": "receivable",
+      "classification": "exact",
+      "evidence": [
+        "credit_note_applied"
+      ],
+      "inputs": {
+        "invoice_total": "816.50",
+        "credit_note": "253.00",
+        "scope": "the status and the amount applied; the invoice total is ours"
+      },
+      "reference": {
+        "applied": "253.00",
+        "payment_state": "partial",
+        "return_state": "partial"
+      },
+      "expected": {
+        "applied": "253.00",
+        "payment_state": "partial",
+        "return_state": "partial"
+      }
+    },
+    {
+      "id": "credit-note-larger-than-the-invoice-leaves-credit",
+      "kind": "receivable",
+      "classification": "exact",
+      "evidence": [
+        "credit_larger"
+      ],
+      "inputs": {
+        "invoice_total": "100.00",
+        "credit_note": "256.25",
+        "scope": "the credit left; the invoice total is ours"
+      },
+      "reference": {
+        "credit": "156.25",
+        "customer_balance": "-156.25"
+      },
+      "expected": {
+        "credit": "156.25",
+        "customer_balance": "-156.25"
+      }
+    },
+    {
+      "id": "credit-settles-a-new-invoice-at-once",
+      "kind": "receivable",
+      "classification": "exact",
+      "evidence": [
+        "credit_applied"
+      ],
+      "inputs": {
+        "credit": "156.25",
+        "invoice_total": "172.50"
+      },
+      "reference": {
+        "applied": "156.25",
+        "open": "16.25",
+        "journals_for_the_application": 0
+      },
+      "expected": {
+        "applied": "156.25",
+        "open": "16.25",
+        "journals_for_the_application": 0
+      }
+    },
+    {
+      "id": "three-credits-settle-one-invoice",
+      "kind": "receivable",
+      "classification": "exact",
+      "evidence": [
+        "credits_pay_invoice"
+      ],
+      "inputs": {
+        "invoice_total": "409.25",
+        "credit_note": "253.00",
+        "excesses": [
+          "70.00",
+          "86.25"
+        ],
+        "scope": "the amounts applied; the invoices the excesses came from are ours"
+      },
+      "reference": {
+        "applied_total": "409.25",
+        "open": "0.00",
+        "credit_left": "0.00"
+      },
+      "expected": {
+        "applied_total": "409.25",
+        "open": "0.00",
+        "credit_left": "0.00"
+      }
+    },
+    {
+      "id": "deleting-a-payment-after-its-excess-was-spent",
+      "kind": "receivable",
+      "classification": "differs",
+      "evidence": [
+        "delete_payment"
+      ],
+      "inputs": {
+        "first_invoice": "70.00",
+        "second_invoice": "230.00",
+        "payment": "300.00 on the second",
+        "then": "the payment is deleted"
+      },
+      "reference": {
+        "second_invoice": "unpaid",
+        "first_invoice": "stays paid"
+      },
+      "expected": {
+        "second_invoice": "unpaid",
+        "first_invoice": "open again",
+        "why": "the credit it spent is gone, and the open invoices must add up to the account of the customer"
+      }
+    }
+  ]
+}

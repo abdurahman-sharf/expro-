@@ -154,8 +154,8 @@ final class SalePostingBuilder
     }
 
     /**
-     * The journal of one payment, or null when it settles nothing: a payment left on credit, or
-     * one that nets to zero after the change given back. A refund (a negative payment) mirrors
+     * The journal of one payment, or null when it settles nothing: a payment that is not
+     * completed, a payment left on credit, or one that nets to zero after the change given back. A refund (a negative payment) mirrors
      * a receipt. A cash adjustment is the cash rounding of the sale, which goes to the cash
      * differences account.
      *
@@ -163,6 +163,10 @@ final class SalePostingBuilder
      */
     public function payment(SaleDocument $sale, SalePayment $payment, int $revision, ?int $employeeId = null): ?JournalDraft
     {
+        if (! $payment->status->posts()) {
+            return null;
+        }
+
         $receivable = $this->receivableAccount($sale);
 
         if ($payment->cashAdjustment) {
@@ -233,6 +237,10 @@ final class SalePostingBuilder
         $settled = '0';
 
         foreach ($sale->payments as $payment) {
+            if (! $payment->status->posts()) {
+                continue;
+            }
+
             if ($payment->cashAdjustment) {
                 $settled = bcsub($settled, $payment->amount, SaleAmounts::SCALE);
 

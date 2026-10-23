@@ -60,6 +60,7 @@ INSERT IGNORE INTO ospos_grants (permission_id, person_id, menu_group) VALUES
 ('accounting_chart', 1, 'office'),
 ('accounting_journals', 1, 'office'),
 ('accounting_cost_centers', 1, 'office'),
+('accounting_receivables', 1, 'office'),
 ('acc_chart_manage', 1, '--'),
 ('acc_journals_all', 1, '--'),
 ('acc_journals_draft', 1, '--'),

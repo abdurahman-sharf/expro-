@@ -36,6 +36,25 @@ $result = match ($method) {
         ->confirm_delivery((int) $args[0], (int) $args[1]) > 0,
     'cancelSale' => model(App\Models\Sale::class)
         ->delete((int) $args[0], false, true, (int) $args[1]),
+    'serviceInvoice' => (static function (array $args): bool {
+        $status = COMPLETED;
+        $items  = [[
+            'item_id'       => (int) $args[1],
+            'line'          => 0,
+            'description'   => 'Race',
+            'serialnumber'  => '',
+            'quantity'      => '1',
+            'discount'      => '0',
+            'discount_type' => 0,
+            'cost_price'    => '0',
+            'price'         => (string) $args[2],
+            'item_location' => 1,
+            'print_option'  => 0,
+        ]];
+        $taxes = [[], []];
+
+        return model(App\Models\Sale::class)->save_value(NEW_ENTRY, $status, $items, (int) $args[0], (int) $args[3], 'race', null, null, null, SALE_TYPE_INVOICE, [], null, $taxes) > 0;
+    })($args),
     default => throw new InvalidArgumentException("Unknown race method: {$method}"),
 };
 

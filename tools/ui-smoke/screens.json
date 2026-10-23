@@ -94,6 +94,25 @@
       ]
     },
     {
+      "id": "sales-edit-modal-due",
+      "group": "sales",
+      "path": "/sales/manage",
+      "steps": [
+        {
+          "waitFor": "a.modal-dlg[href$=\"sales/edit/4\"]"
+        },
+        {
+          "click": "a.modal-dlg[href$=\"sales/edit/4\"]"
+        },
+        {
+          "waitFor": ".modal-body #receivable_figures"
+        },
+        {
+          "pause": 1000
+        }
+      ]
+    },
+    {
       "id": "sales-suspended-modal",
       "group": "sales",
       "path": "/sales",
@@ -914,6 +933,16 @@
       "id": "accounting-journals",
       "group": "accounting",
       "path": "/accounting_journals"
+    },
+    {
+      "id": "accounting-receivables",
+      "group": "accounting",
+      "path": "/accounting_receivables"
+    },
+    {
+      "id": "accounting-receivable-statement",
+      "group": "accounting",
+      "path": "/accounting_receivables/customer/3"
     },
     {
       "id": "accounting-journals-advanced",

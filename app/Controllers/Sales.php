@@ -6,9 +6,11 @@ use App\Libraries\Barcode_lib;
 use App\Libraries\Email_lib;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingMessage;
+use App\Libraries\Accounting\AccountingSettings;
+use App\Libraries\Accounting\CustomerLedger;
+use App\Libraries\Accounting\PaymentStatus;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\SalePosting;
-use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Pdf_lib;
 use App\Libraries\Sale_lib;
@@ -1500,6 +1502,100 @@ class Sales extends Secure_Controller
      * Why a sale cannot be the one a return is taken from, or null when it can. The return must
      * be of a sale that was completed and delivered in a branch the employee works in.
      */
+    /**
+     * Prepares the register for a credit note of an issued invoice: a return of what has not
+     * come back yet, naming the invoice and its customer. Used in app/Views/sales/form.php
+     *
+     * @param int $saleId
+     * @return ResponseInterface
+     * @noinspection PhpUnused
+     */
+    public function postCreditNote(int $saleId = NEW_ENTRY): ResponseInterface
+    {
+        if ($this->outsideBranchScope($saleId)) {
+            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.branch_not_allowed')]);
+        }
+
+        $problem = $this->returnOriginProblem($saleId);
+
+        if ($problem === null && (int) $this->sale->getSummary($saleId)->sale_type !== SALE_TYPE_INVOICE) {
+            $problem = lang('Sales.credit_note_invoice_only');
+        }
+
+        if ($problem === null && $this->nothingLeftToReturn($saleId)) {
+            $problem = lang('Sales.credit_note_nothing_left');
+        }
+
+        if ($problem !== null) {
+            return $this->response->setJSON(['success' => false, 'message' => $problem]);
+        }
+
+        $this->sale_lib->clear_all();
+        $this->sale_lib->set_mode('return');
+        $this->sale_lib->set_sale_type(SALE_TYPE_RETURN);
+        $this->sale_lib->return_entire_sale('POS ' . $saleId);
+
+        return $this->response->setJSON(['success' => true, 'redirect' => site_url('sales')]);
+    }
+
+    private function nothingLeftToReturn(int $saleId): bool
+    {
+        $left = $this->sale->getReturnedQuantities($saleId);
+
+        foreach ($this->sale->get_sale_items_ordered($saleId)->getResult() as $row) {
+            $remaining = (float) $row->quantity_purchased - ($left[(int) $row->item_id] ?? 0.0);
+
+            if ($remaining > 0) {
+                return false;
+            }
+
+            $left[(int) $row->item_id] = -$remaining;
+        }
+
+        return true;
+    }
+
+    /**
+     * Whether a payment added to the sale is kept whole when it is more than the sale came to.
+     * It is for an invoice of a customer that the books follow, where the rest stays with the
+     * customer as credit. Anywhere else the change is given back.
+     *
+     * @param array<string, mixed> $saleInfo
+     */
+    private function keepsOverpayment(int $saleId, array $saleInfo): bool
+    {
+        return $saleInfo['customer_id'] !== null
+            && (new AccountingSettings())->isEnabled()
+            && (new SalePosting())->isPosted($saleId);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function paymentStatusOptions(): array
+    {
+        $options = [];
+
+        foreach (PaymentStatus::cases() as $status) {
+            $options[$status->value] = lang($status->languageKey());
+        }
+
+        return $options;
+    }
+
+    /**
+     * What was applied to or taken from a sale, for the edit form.
+     *
+     * @return list<object>
+     */
+    private function applicationsOf(int $saleId, int $customerId): array
+    {
+        return array_values(array_filter(
+            (new CustomerLedger())->applications($customerId),
+            static fn (object $application): bool => (int) $application->invoice_sale_id === $saleId || ($application->source_type === 'credit_note' && (int) $application->source_id === $saleId),
+        ));
+    }
+
     private function returnOriginProblem(int $saleId): ?string
     {
         $origin = $this->sale->getSummary($saleId);
@@ -1781,16 +1877,52 @@ class Sales extends Secure_Controller
             $data['payments'][] = $payment;
         }
 
-        $data['journals'] = [];
+        $data['journals']         = [];
+        $data['accounting_on']    = false;
+        $data['issued_lock']      = false;
+        $data['receivable']       = null;
+        $data['credit_note_help'] = null;
+        $data['payment_statuses'] = [];
+        $showPaymentRow           = false;
 
-        if ((new AccountingSettings())->isEnabled() && $this->employee->has_grant('accounting_journals', $personId)) {
-            $data['journals'] = (new SalePosting())->journalsOf($saleId);
+        if ((new AccountingSettings())->isEnabled()) {
+            $posting                  = new SalePosting();
+            $posted                   = $posting->isPosted($saleId);
+            $data['accounting_on']    = true;
+            $data['payment_statuses'] = $this->paymentStatusOptions();
+
+            if ($this->employee->has_grant('accounting_journals', $personId)) {
+                $data['journals'] = $posting->journalsOf($saleId);
+            }
+
+            if ($posted) {
+                $data['issued_lock'] = in_array((int) $saleInfo['sale_type'], [SALE_TYPE_INVOICE, SALE_TYPE_RETURN], true);
+                $customerId          = $saleInfo['customer_id'] === null ? null : (int) $saleInfo['customer_id'];
+
+                if ($customerId !== null) {
+                    $position              = (new CustomerLedger())->position($customerId);
+                    $data['receivable']    = $position->invoice($saleId);
+                    $data['credit']        = $position->credit();
+                    $showPaymentRow        = $data['receivable'] !== null;
+                    $data['applications']  = $this->applicationsOf($saleId, $customerId);
+                }
+            }
+
+            if ((int) $saleInfo['sale_type'] === SALE_TYPE_INVOICE && $posted && (int) ($saleInfo['delivered'] ?? 1) !== 1) {
+                $data['credit_note_help'] = lang('Sales.credit_note_after_delivery');
+            }
+
+            foreach ($data['payments'] as $payment) {
+                if (! PaymentStatus::fromStored($payment->payment_status ?? null)->posts()) {
+                    $balanceDue = round($balanceDue + (float) $payment->payment_amount - (float) $payment->cash_refund, totals_decimals(), PHP_ROUND_HALF_UP);
+                }
+            }
         }
 
         $data['payment_type_new'] = PAYMENT_TYPE_UNASSIGNED;
-        $data['payment_amount_new'] = $balanceDue;
+        $data['payment_amount_new'] = max($balanceDue, 0);
 
-        $data['balance_due'] = $balanceDue != 0;
+        $data['balance_due'] = $balanceDue != 0 || $showPaymentRow;
 
         // Don't allow gift card to be a payment option in a sale transaction edit because it's a complex change
         $paymentOptions = $this->sale->get_payment_options(false);
@@ -1941,6 +2073,7 @@ class Sales extends Secure_Controller
             $refundType = $this->request->getPost("refund_type_$i", FILTER_SANITIZE_FULL_SPECIAL_CHARS);
             $cashRefund = parse_decimals($this->request->getPost("refund_amount_$i"));
             $referenceCode = $this->request->getPost("reference_code_$i", FILTER_SANITIZE_FULL_SPECIAL_CHARS) ?: null;
+            $paymentStatus = $this->request->getPost("payment_status_$i", FILTER_SANITIZE_FULL_SPECIAL_CHARS);
 
             $cashAdjustment = $paymentType == lang('Sales.cash_adjustment') ? CASH_ADJUSTMENT_TRUE : CASH_ADJUSTMENT_FALSE;
 
@@ -1964,6 +2097,7 @@ class Sales extends Secure_Controller
                 'cash_adjustment' => $cashAdjustment,
                 'employee_id'     => $employeeId,
                 'reference_code'  => $referenceCode,
+                'payment_status'  => $paymentStatus,
             ];
         }
 
@@ -1982,7 +2116,7 @@ class Sales extends Secure_Controller
                 $amountTendered += $paymentAmount;
                 $saleInfo = $this->sale->get_info($saleId)->getRowArray();
 
-                if ($amountTendered > $saleInfo['amount_due']) {
+                if ($amountTendered > $saleInfo['amount_due'] && ! $this->keepsOverpayment($saleId, $saleInfo)) {
                     $cashRefund = $amountTendered - $saleInfo['amount_due'];
                 }
             }

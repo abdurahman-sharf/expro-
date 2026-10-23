@@ -9,6 +9,8 @@ return [
     'accounting_journals_desc'     => '',
     'accounting_periods'           => '',
     'accounting_periods_desc'      => '',
+    'accounting_receivables'       => '',
+    'accounting_receivables_desc'  => '',
     'accounting_routing'           => '',
     'accounting_routing_desc'      => '',
     'accounting_settings'          => '',

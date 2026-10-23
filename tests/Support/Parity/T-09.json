@@ -1,145 +1,121 @@
 {
- "id": "T-09",
- "title": "Behaviours of the reference system that this application does not copy, or copies only in part, each with what it does instead. None counts as a match unless it says exact",
- "recorded": "2026-10-23",
- "evidence": {
-  "overpayment": {
-   "id": "ev_f00a6d4e84b2553dc6d2555b7536ae607f0e0a619c8cba7b862314b4f7ef3ccb",
-   "note": "A payment of 300 on an invoice of 230: the journal holds the whole 300 and the invoice shows paid in excess"
+  "id": "T-09",
+  "title": "Behaviours of the reference system around payments, cancellation and locks, each with what this application does. None counts as a match unless it says exact",
+  "recorded": "2026-10-23",
+  "evidence": {
+    "overpayment": {
+      "id": "ev_f00a6d4e84b2553dc6d2555b7536ae607f0e0a619c8cba7b862314b4f7ef3ccb",
+      "note": "A payment of 300 on an invoice of 230: the journal holds the whole 300 and the invoice shows paid in excess"
+    },
+    "locks": {
+      "id": "ev_282337200e952c9a5ba4fdbdaffc318866f94428d32aa89ca917b74f9b0ff053",
+      "note": "The fields of an issued invoice, a credit note and a returned invoice are locked"
+    },
+    "delete_invoice": {
+      "id": "ev_053d9b6d484463c925be35855a4c2d28fa29fe8236b1854c143da1db5696d0bf",
+      "note": "Deleting an issued invoice is refused: it is corrected by a credit note or a returned invoice"
+    },
+    "delete_payment": {
+      "id": "ev_16aa6541877a0d84fcdb197762ef1c9f7e8935ab81ee61cc61f8238a34d83f95",
+      "note": "Deleting a payment deletes its journal and leaves the invoice unpaid"
+    },
+    "payment_statuses": {
+      "id": "ev_19a4a0eb0e99288a081a9fe8225c20179bc3fb976586b7c6b81adcf0920d8f32",
+      "note": "A payment has five statuses and only the completed one has a journal"
+    }
   },
-  "locks": {
-   "id": "ev_282337200e952c9a5ba4fdbdaffc318866f94428d32aa89ca917b74f9b0ff053",
-   "note": "The fields of an issued invoice, a credit note and a returned invoice are locked"
-  },
-  "delete_invoice": {
-   "id": "ev_053d9b6d484463c925be35855a4c2d28fa29fe8236b1854c143da1db5696d0bf",
-   "note": "Deleting an issued invoice is refused: it is corrected by a credit note or a returned invoice"
-  },
-  "delete_payment": {
-   "id": "ev_16aa6541877a0d84fcdb197762ef1c9f7e8935ab81ee61cc61f8238a34d83f95",
-   "note": "Deleting a payment deletes its journal and leaves the invoice unpaid"
-  },
-  "payment_statuses": {
-   "id": "ev_19a4a0eb0e99288a081a9fe8225c20179bc3fb976586b7c6b81adcf0920d8f32",
-   "note": "A payment has five statuses and only the completed one has a journal"
-  },
-  "credit_applied": {
-   "id": "ev_58009f39a9e00aab60bc6e060af7e1394688fc1d720269ee600521e8eba8fa4b",
-   "note": "A new invoice of a customer with credit is settled from it at once, without journals"
-  }
- },
- "cases": [
-  {
-   "id": "overpayment-keeps-the-whole-payment-as-credit",
-   "kind": "behaviour",
-   "classification": "differs",
-   "evidence": [
-    "overpayment"
-   ],
-   "inputs": {
-    "invoice_total": "230.00",
-    "payment": "300.00"
-   },
-   "reference": {
-    "payment_journal": "300.00",
-    "customer_balance": "-70.00"
-   },
-   "expected": {
-    "payment_journal": "230.00",
-    "customer_balance": "0.00",
-    "why": "the register gives the change back, so the journal holds what was kept"
-   }
-  },
-  {
-   "id": "an-issued-invoice-cannot-be-deleted",
-   "kind": "behaviour",
-   "classification": "differs",
-   "evidence": [
-    "delete_invoice"
-   ],
-   "inputs": {
-    "action": "cancel an issued invoice"
-   },
-   "reference": {
-    "result": "refused"
-   },
-   "expected": {
-    "result": "allowed with the permission to delete sales, by reversing every journal and giving the stock back",
-    "why": "pending the owner's decision on locking issued invoices"
-   }
-  },
-  {
-   "id": "an-issued-invoice-keeps-its-customer-and-its-date",
-   "kind": "behaviour",
-   "classification": "exact",
-   "evidence": [
-    "locks"
-   ],
-   "inputs": {
-    "action": "change the customer or the date of an issued invoice"
-   },
-   "reference": {
-    "result": "refused"
-   },
-   "expected": {
-    "result": "refused"
-   }
-  },
-  {
-   "id": "deleting-a-payment-removes-its-journal",
-   "kind": "behaviour",
-   "classification": "differs",
-   "evidence": [
-    "delete_payment"
-   ],
-   "inputs": {
-    "action": "remove a payment of 300 from an invoice"
-   },
-   "reference": {
-    "journal": "deleted",
-    "invoice": "unpaid"
-   },
-   "expected": {
-    "journal": "reversed, never deleted",
-    "invoice": "unpaid",
-    "why": "a posted journal is never deleted (E15)"
-   }
-  },
-  {
-   "id": "a-payment-status-decides-whether-it-has-a-journal",
-   "kind": "behaviour",
-   "classification": "differs",
-   "evidence": [
-    "payment_statuses"
-   ],
-   "inputs": {
-    "action": "set a payment to review, failed or draft"
-   },
-   "reference": {
-    "journal": "only while completed"
-   },
-   "expected": {
-    "journal": "every payment has one",
-    "why": "payment statuses arrive with the payment documents (P5)"
-   }
-  },
-  {
-   "id": "customer-credit-settles-a-new-invoice",
-   "kind": "behaviour",
-   "classification": "differs",
-   "evidence": [
-    "credit_applied"
-   ],
-   "inputs": {
-    "action": "issue an invoice to a customer who has credit"
-   },
-   "reference": {
-    "settled": "from the credit at once, without journals"
-   },
-   "expected": {
-    "settled": "no, the invoice stays open and the credit stays on the customer",
-    "why": "the settlement of credit arrives with P5"
-   }
-  }
- ]
+  "cases": [
+    {
+      "id": "overpayment-at-the-register-gives-the-change-back",
+      "kind": "behaviour",
+      "classification": "differs",
+      "evidence": [
+        "overpayment"
+      ],
+      "inputs": {
+        "invoice_total": "230.00",
+        "payment": "300.00"
+      },
+      "reference": {
+        "payment_journal": "300.00",
+        "customer_balance": "-70.00"
+      },
+      "expected": {
+        "payment_journal": "230.00",
+        "customer_balance": "0.00",
+        "why": "the register gives the change back when more cash is handed over than the sale comes to, so the journal holds what was kept. A payment added to an issued invoice is another matter and is kept whole (T-10)"
+      }
+    },
+    {
+      "id": "an-issued-invoice-cannot-be-deleted",
+      "kind": "behaviour",
+      "classification": "exact",
+      "evidence": [
+        "delete_invoice"
+      ],
+      "inputs": {
+        "action": "cancel an issued invoice"
+      },
+      "reference": {
+        "result": "refused"
+      },
+      "expected": {
+        "result": "refused"
+      }
+    },
+    {
+      "id": "an-issued-invoice-keeps-its-customer-and-its-date",
+      "kind": "behaviour",
+      "classification": "exact",
+      "evidence": [
+        "locks"
+      ],
+      "inputs": {
+        "action": "change the customer or the date of an issued invoice"
+      },
+      "reference": {
+        "result": "refused"
+      },
+      "expected": {
+        "result": "refused"
+      }
+    },
+    {
+      "id": "deleting-a-payment-removes-its-journal",
+      "kind": "behaviour",
+      "classification": "differs",
+      "evidence": [
+        "delete_payment"
+      ],
+      "inputs": {
+        "action": "remove a payment of 300 from an invoice"
+      },
+      "reference": {
+        "journal": "deleted",
+        "invoice": "unpaid"
+      },
+      "expected": {
+        "journal": "reversed, never deleted",
+        "invoice": "unpaid",
+        "why": "a posted journal is never deleted (E15)"
+      }
+    },
+    {
+      "id": "a-payment-status-decides-whether-it-has-a-journal",
+      "kind": "behaviour",
+      "classification": "exact",
+      "evidence": [
+        "payment_statuses"
+      ],
+      "inputs": {
+        "action": "set a payment to review, failed, draft or incomplete, then back to completed"
+      },
+      "reference": {
+        "journal": "only while completed"
+      },
+      "expected": {
+        "journal": "only while completed"
+      }
+    }
+  ]
 }

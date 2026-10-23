@@ -207,6 +207,39 @@ class Sale_libTest extends CIUnitTestCase
         $this->assertSame(42, $saleLib->get_return_origin());
     }
 
+    public function testReturnEntireSale_NamesTheSaleAsTheOriginAndTakesBackOnlyWhatHasNotComeBack(): void
+    {
+        $lines = [
+            (object) ['item_id' => 11, 'item_location' => 1, 'quantity_purchased' => '4', 'discount' => '0', 'discount_type' => 0, 'item_unit_price' => '10', 'description' => 'a', 'serialnumber' => ''],
+            (object) ['item_id' => 12, 'item_location' => 1, 'quantity_purchased' => '2', 'discount' => '0', 'discount_type' => 0, 'item_unit_price' => '20', 'description' => 'b', 'serialnumber' => ''],
+            (object) ['item_id' => 13, 'item_location' => 1, 'quantity_purchased' => '1', 'discount' => '0', 'discount_type' => 0, 'item_unit_price' => '30', 'description' => 'c', 'serialnumber' => ''],
+        ];
+
+        $sold = $this->createStub(ResultInterface::class);
+        $sold->method('getResult')->willReturn($lines);
+
+        $added = [];
+
+        $sale = $this->createStub(Sale::class);
+        $sale->method('get_sale_items_ordered')->willReturn($sold);
+        $sale->method('getReturnedQuantities')->willReturn([11 => 1.0, 12 => 2.0]);
+        $sale->method('get_customer')->willReturn((object) ['person_id' => 3]);
+        Factories::injectMock('models', Sale::class, $sale);
+
+        $saleLib = $this->getMockBuilder(Sale_lib::class)->onlyMethods(['add_item'])->getMock();
+        $saleLib->method('add_item')->willReturnCallback(static function (string &$itemId, int $location, string $quantity) use (&$added): bool {
+            $added[(int) $itemId] = (float) $quantity;
+
+            return true;
+        });
+
+        $saleLib->return_entire_sale('POS 9');
+
+        $this->assertSame([11 => -3.0, 13 => -1.0], $added);
+        $this->assertSame(9, $saleLib->get_return_origin());
+        $this->assertSame(3, $saleLib->get_customer());
+    }
+
     private function fourDecimals(string $amount): string
     {
         return bcadd($amount, '0', 4);

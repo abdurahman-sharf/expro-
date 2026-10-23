@@ -5,6 +5,8 @@ namespace App\Models;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingSettings;
+use App\Libraries\Accounting\CustomerLock;
+use App\Libraries\Accounting\PaymentStatus;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\SalePosting;
@@ -508,6 +510,31 @@ class Sale extends Model
     }
 
     /**
+     * How much of each item of a sale has been taken back by completed returns, by item id.
+     *
+     * @return array<int, float>
+     */
+    public function getReturnedQuantities(int $saleId): array
+    {
+        $rows = $this->db->query(
+            'SELECT i.item_id, SUM(ABS(i.quantity_purchased)) AS returned
+             FROM ' . $this->db->prefixTable('sales') . ' s
+             JOIN ' . $this->db->prefixTable('sales_items') . ' i ON i.sale_id = s.sale_id
+             WHERE s.return_of_sale_id = ? AND s.sale_status = ? AND s.sale_type = ?
+             GROUP BY i.item_id',
+            [$saleId, COMPLETED, SALE_TYPE_RETURN],
+        )->getResult();
+
+        $returned = [];
+
+        foreach ($rows as $row) {
+            $returned[(int) $row->item_id] = (float) $row->returned;
+        }
+
+        return $returned;
+    }
+
+    /**
      * The branches of the stock locations the lines of a cart sell from, without repeats
      *
      * @return list<int>
@@ -539,6 +566,21 @@ class Sale extends Model
      * transaction of the update.
      */
     public function update($sale_id = null, $sale_data = null): bool
+    {
+        try {
+            return (new CustomerLock($this->db))->run($this->customerOf((int) $sale_id), fn (): bool => $this->updateLocked($sale_id, $sale_data));
+        } catch (AccountingException $busy) {
+            if ($busy->error !== AccountingError::CustomerBusy) {
+                throw $busy;
+            }
+
+            $this->accountingFailure = $busy;
+
+            return false;
+        }
+    }
+
+    private function updateLocked($sale_id, $sale_data): bool
     {
         $this->accountingFailure = null;
 
@@ -590,6 +632,7 @@ class Sale extends Model
                             'cash_adjustment' => $cash_adjustment,
                             'employee_id'     => $employee_id,
                             'reference_code'  => $payment['reference_code'] ?? '',
+                            'payment_status'  => PaymentStatus::fromStored($payment['payment_status'] ?? null)->value,
                         ];
                         $success = $builder->insert($sales_payments_data);
                     } elseif ($payment_id != NEW_ENTRY) {
@@ -601,6 +644,10 @@ class Sale extends Model
                                 'cash_refund'     => $cash_refund,
                                 'cash_adjustment' => $cash_adjustment
                             ];
+
+                            if (isset($payment['payment_status']) && PaymentStatus::tryFrom((string) $payment['payment_status']) !== null) {
+                                $sales_payments_data['payment_status'] = $payment['payment_status'];
+                            }
 
                             $builder->where('payment_id', $payment_id);
                             $success = $builder->update($sales_payments_data);
@@ -624,6 +671,17 @@ class Sale extends Model
         $this->db->transComplete();
 
         return (bool) $success && $this->db->transStatus();
+    }
+
+    /**
+     * The customer a sale is stored for, read before its transaction starts so that the lock of
+     * the customer is taken before the transaction reads anything.
+     */
+    private function customerOf(int $saleId): ?int
+    {
+        $row = $this->db->table('sales')->select('customer_id')->where('sale_id', $saleId)->get()->getRow();
+
+        return $row === null || $row->customer_id === null ? null : (int) $row->customer_id;
     }
 
     /**
@@ -658,6 +716,41 @@ class Sale extends Model
         bool    $delivered = true,
         ?int    $returnOfSaleId = null
     ): int {    // TODO: this method returns the sale_id but the override is expecting it to return a bool. The signature needs to be reworked.  Generally when there are more than 3 maybe 4 parameters, there's a good chance that an object needs to be passed rather than so many params.
+        try {
+            return (new CustomerLock($this->db))->run(
+                $customerId,
+                function () use (&$saleStatus, &$items, &$salesTaxes, $saleId, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $delivered, $returnOfSaleId): int {
+                    return $this->saveValueLocked($saleId, $saleStatus, $items, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $salesTaxes, $delivered, $returnOfSaleId);
+                },
+            );
+        } catch (AccountingException $busy) {
+            if ($busy->error !== AccountingError::CustomerBusy) {
+                throw $busy;
+            }
+
+            $this->accountingFailure = $busy;
+
+            return ACCOUNTING_FAILED;
+        }
+    }
+
+    private function saveValueLocked(
+        int     $saleId,
+        string  &$saleStatus,
+        array   &$items,
+        int     $customerId,
+        int     $employeeId,
+        string  $comment,
+        ?string $invoiceNumber,
+        ?string $workOrderNumber,
+        ?string $quoteNumber,
+        int     $saleType,
+        ?array  $payments,
+        ?int    $dinnerTableId,
+        ?array  &$salesTaxes,
+        bool    $delivered,
+        ?int    $returnOfSaleId
+    ): int {
         $config = config(OSPOS::class)->settings;
         $attribute = model(Attribute::class);
         $customer = model(Customer::class);
@@ -883,7 +976,7 @@ class Sale extends Model
     {
         $this->accountingFailure = $failure;
 
-        $refusal = $failure instanceof AccountingException && $failure->error === AccountingError::SaleLocked;
+        $refusal = $failure instanceof AccountingException && in_array($failure->error, [AccountingError::SaleLocked, AccountingError::IssuedDocumentLocked], true);
 
         if (($failure instanceof PostingException || $failure instanceof AccountingException) && ! $refusal) {
             (new SalePosting($this->db))->recordFailure($saleId, $failure, $employeeId, $branchId);
@@ -1000,6 +1093,21 @@ class Sale extends Model
      * @throws ReflectionException
      */
     public function delete($sale_id = null, bool $purge = false, bool $update_inventory = true, $employee_id = null): bool
+    {
+        try {
+            return (new CustomerLock($this->db))->run($this->customerOf((int) $sale_id), fn (): bool => $this->deleteLocked($sale_id, $update_inventory, $employee_id));
+        } catch (AccountingException $busy) {
+            if ($busy->error !== AccountingError::CustomerBusy) {
+                throw $busy;
+            }
+
+            $this->accountingFailure = $busy;
+
+            return false;
+        }
+    }
+
+    private function deleteLocked($sale_id, bool $update_inventory, $employee_id): bool
     {
         $this->accountingFailure = null;
 

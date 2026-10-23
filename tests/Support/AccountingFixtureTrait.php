@@ -41,6 +41,7 @@ trait AccountingFixtureTrait
         $db->query('SET FOREIGN_KEY_CHECKS = 0');
 
         foreach ([
+            'customer_credit_applications',
             'accounting_allocations',
             'accounting_journal_lines',
             'accounting_journals',

@@ -5,6 +5,7 @@ namespace Tests\Libraries\Accounting;
 use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalEntryType;
+use App\Libraries\Accounting\PaymentStatus;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\RoutingKey;
@@ -95,9 +96,9 @@ class SalePostingBuilderTest extends CIUnitTestCase
         );
     }
 
-    private function payment(string $type, string $amount, string $refund = '0', bool $adjustment = false, int $id = 1): SalePayment
+    private function payment(string $type, string $amount, string $refund = '0', bool $adjustment = false, int $id = 1, PaymentStatus $status = PaymentStatus::Completed): SalePayment
     {
-        return new SalePayment($id, $type, $amount, $refund, $adjustment, '2026-10-21');
+        return new SalePayment($id, $type, $amount, $refund, $adjustment, '2026-10-21', $status);
     }
 
     /**
@@ -559,6 +560,50 @@ class SalePostingBuilderTest extends CIUnitTestCase
 
         $this->assertSame($this->accountId('giftcard_liability') . ':40.00:0.00', $this->shape($giftcard)[0]);
         $this->assertSame($this->accountId('sales_discount') . ':10.00:0.00', $this->shape($rewards)[0]);
+    }
+
+    /**
+     * @return array<string, array{PaymentStatus}>
+     */
+    public static function notCompletedProvider(): array
+    {
+        return [
+            'incomplete' => [PaymentStatus::Incomplete],
+            'review'     => [PaymentStatus::Review],
+            'failed'     => [PaymentStatus::Failed],
+            'draft'      => [PaymentStatus::Draft],
+        ];
+    }
+
+    #[DataProvider('notCompletedProvider')]
+    public function testPayment_PostsNothingForAPaymentThatIsNotCompleted(PaymentStatus $status): void
+    {
+        $sale = $this->sale([$this->line('1', '100')], [$this->payment(lang('Sales.cash'), '100', status: $status)]);
+
+        $this->assertNull($this->builder->payment($sale, $sale->payments[0], 1));
+    }
+
+    public function testPayment_PostsAPaymentThatIsCompleted(): void
+    {
+        $sale = $this->sale([$this->line('1', '100')], [$this->payment(lang('Sales.cash'), '100', status: PaymentStatus::Completed)]);
+
+        $this->assertNotNull($this->builder->payment($sale, $sale->payments[0], 1));
+    }
+
+    public function testPayment_DoesNotJudgeTheTypeOfAPaymentThatIsNotCompletedYet(): void
+    {
+        $sale = $this->sale([$this->line('1', '100')], [$this->payment('Barter', '100', status: PaymentStatus::Draft)]);
+
+        $this->assertNull($this->builder->payment($sale, $sale->payments[0], 1));
+    }
+
+    public function testAssertSettled_CountsOnlyThePaymentsThatAreCompleted(): void
+    {
+        $unpaid = $this->sale([$this->line('1', '100')], [$this->payment(lang('Sales.cash'), '100', status: PaymentStatus::Review)], customerId: null);
+
+        $this->expectException(PostingException::class);
+
+        $this->builder->assertSettled($unpaid);
     }
 
     public function testPayment_RefusesAPaymentTypeItDoesNotKnow(): void

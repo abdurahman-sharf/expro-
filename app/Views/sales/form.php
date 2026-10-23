@@ -15,6 +15,13 @@
  * @var string $controller_name
  * @var array $config
  * @var list<object> $journals
+ * @var bool $accounting_on
+ * @var bool $issued_lock
+ * @var App\Libraries\Accounting\InvoiceFigures|null $receivable
+ * @var string|null $credit
+ * @var list<object>|null $applications
+ * @var string|null $credit_note_help
+ * @var array<string, string> $payment_statuses
  */
 ?>
 
@@ -32,7 +39,7 @@
         <div class="row mb-3">
             <?= form_label(lang('Sales.date'), 'date', ['class' => 'col-form-label col-3']) ?>
             <div class="col-8">
-                <?= form_input(['name' => 'date', 'value' => to_datetime(strtotime($sale_info['sale_time'])), 'class' => 'datetime form-control form-control-sm']) ?>
+                <?= form_input(['name' => 'date', 'id' => 'date', 'value' => to_datetime(strtotime($sale_info['sale_time'])), 'class' => 'datetime form-control form-control-sm']) ?>
             </div>
         </div>
 
@@ -52,7 +59,7 @@
 
         <?php if ($balance_due) { ?>
             <div class="row mb-3">
-                <?= form_label(lang('Sales.payment'), 'payment_new', ['class' => 'col-form-label col-3']) ?>
+                <?= form_label(lang('Sales.payment'), 'payment_types_new', ['class' => 'col-form-label col-3']) ?>
                 <div class="col-4">
                     <?= form_dropdown('payment_type_new', $new_payment_options, $payment_type_new, ['id' => 'payment_types_new', 'class' => 'form-select']) ?>
                 </div>
@@ -61,7 +68,7 @@
                         <?php if (!is_right_side_currency_symbol()): ?>
                             <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
                         <?php endif; ?>
-                        <?= form_input(['name' => 'payment_amount_new', 'value' => $payment_amount_new, 'id' => 'payment_amount_new', 'class' => 'form-control form-control-sm']) // TODO: potentially we need to add type to be float/decimal/numeric to reduce improper data entry ?>
+                        <?= form_input(['name' => 'payment_amount_new', 'value' => $payment_amount_new, 'id' => 'payment_amount_new', 'class' => 'form-control form-control-sm', 'aria-label' => lang('Sales.amount_tendered')]) // TODO: potentially we need to add type to be float/decimal/numeric to reduce improper data entry ?>
                         <?php if (is_right_side_currency_symbol()): ?>
                             <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
                         <?php endif; ?>
@@ -81,7 +88,7 @@
         foreach ($payments as $row) {
         ?>
             <div class="row mb-3">
-                <?= form_label(lang('Sales.payment'), "payment_$i", ['class' => 'col-form-label col-3']) ?>
+                <?= form_label(lang('Sales.payment'), "payment_types_$i", ['class' => 'col-form-label col-3']) ?>
                 <div class="col-4">
                     <?php // No editing of Gift Card payments as it's a complex change ?>
                     <?= form_hidden("payment_id_$i", $row->payment_id) ?>
@@ -97,7 +104,7 @@
                         <?php if (!is_right_side_currency_symbol()): ?>
                             <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
                         <?php endif; ?>
-                        <?= form_input(['name' => "payment_amount_$i", 'value' => to_currency_no_money($row->payment_amount), 'id' => "payment_amount_$i", 'class' => 'form-control form-control-sm', 'readonly' => 'true'])    // TODO: add type attribute ?>
+                        <?= form_input(['name' => "payment_amount_$i", 'value' => to_currency_no_money($row->payment_amount), 'id' => "payment_amount_$i", 'class' => 'form-control form-control-sm', 'readonly' => 'true', 'aria-label' => lang('Sales.amount_tendered')])    // TODO: add type attribute ?>
                         <?php if (is_right_side_currency_symbol()): ?>
                             <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
                         <?php endif; ?>
@@ -106,7 +113,7 @@
             </div>
 
             <div class="row mb-3">
-                <?= form_label(lang('Sales.refund'), "refund_$i", ['class' => 'col-form-label col-3']) ?>
+                <?= form_label(lang('Sales.refund'), "refund_types_$i", ['class' => 'col-form-label col-3']) ?>
                 <div class="col-4">
                     <?php // No editing of Gift Card payments as it's a complex change ?>
                     <?php if (!empty(strstr($row->payment_type, lang('Sales.giftcard')))): ?>
@@ -120,18 +127,79 @@
                         <?php if (!is_right_side_currency_symbol()): ?>
                             <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
                         <?php endif; ?>
-                        <?= form_input(['name' => "refund_amount_$i", 'value' => to_currency_no_money($row->cash_refund), 'id' => "refund_amount_$i", 'class' => 'form-control form-control-sm', 'readonly' => 'true']) ?>
+                        <?= form_input(['name' => "refund_amount_$i", 'value' => to_currency_no_money($row->cash_refund), 'id' => "refund_amount_$i", 'class' => 'form-control form-control-sm', 'readonly' => 'true', 'aria-label' => lang('Sales.refund')]) ?>
                         <?php if (is_right_side_currency_symbol()): ?>
                             <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
                         <?php endif; ?>
                     </div>
                 </div>
             </div>
+
+            <?php if (! empty($accounting_on)): ?>
+                <div class="row mb-3">
+                    <?= form_label(lang('Sales.payment_status') . ' #' . (int) $row->payment_id, "payment_status_$i", ['class' => 'col-form-label col-3']) ?>
+                    <div class="col-8">
+                        <?= form_dropdown("payment_status_$i", $payment_statuses, $row->payment_status ?? 'completed', ['id' => "payment_status_$i", 'class' => 'form-select form-select-sm']) ?>
+                    </div>
+                </div>
+            <?php endif; ?>
         <?php
             ++$i;
         }
         echo form_hidden('number_of_payments', strval($i));
         ?>
+
+        <?php if (! empty($receivable)): ?>
+            <div class="row mb-3" id="receivable_figures">
+                <span class="col-form-label col-3"><?= lang('Sales.receivable') ?></span>
+                <div class="col-8">
+                    <table class="table table-sm mb-1">
+                        <tbody>
+                            <tr><th scope="row"><?= lang('Sales.receivable_total') ?></th><td><bdi dir="ltr"><?= to_currency($receivable->total) ?></bdi></td></tr>
+                            <tr><th scope="row"><?= lang('Sales.receivable_paid') ?></th><td><bdi dir="ltr"><?= to_currency($receivable->paid) ?></bdi></td></tr>
+                            <tr><th scope="row"><?= lang('Sales.receivable_credit_applied') ?></th><td><bdi dir="ltr"><?= to_currency($receivable->applied) ?></bdi></td></tr>
+                            <tr><th scope="row"><?= lang('Sales.receivable_returned') ?></th><td><bdi dir="ltr"><?= to_currency($receivable->returned) ?></bdi></td></tr>
+                            <tr><th scope="row"><?= lang('Sales.receivable_open') ?></th><td><bdi dir="ltr"><?= to_currency($receivable->open()) ?></bdi></td></tr>
+                            <?php if (bccomp($receivable->excess(), '0', 4) > 0): ?>
+                                <tr><th scope="row"><?= lang('Sales.receivable_excess') ?></th><td><bdi dir="ltr"><?= to_currency($receivable->excess()) ?></bdi></td></tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                    <span class="badge text-bg-primary" id="receivable_status"><?= lang($receivable->paymentState()->languageKey()) ?></span>
+                    <?php if ($receivable->returnState()->languageKey() !== null): ?>
+                        <span class="badge text-bg-secondary"><?= lang($receivable->returnState()->languageKey()) ?></span>
+                    <?php endif; ?>
+                    <?php if (! empty($applications)): ?>
+                        <ul class="list-unstyled small mt-2 mb-0" id="credit_applications">
+                            <?php foreach ($applications as $application): ?>
+                                <li>
+                                    <?= lang($application->source_type === 'credit_note' ? 'Sales.credit_from_note' : 'Sales.credit_from_excess') ?>
+                                    <bdi dir="ltr">#<?= (int) $application->source_id ?></bdi>
+                                    &rarr; <bdi dir="ltr">#<?= (int) $application->invoice_sale_id ?></bdi>
+                                    <bdi dir="ltr"><?= to_currency($application->amount) ?></bdi>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    <?php endif; ?>
+                </div>
+            </div>
+        <?php endif; ?>
+
+        <?php if (! empty($issued_lock)): ?>
+            <div class="row mb-3" id="issued_lock">
+                <span class="col-form-label col-3"><?= lang('Sales.credit_note') ?></span>
+                <div class="col-8">
+                    <p class="small text-body-secondary mb-2"><?= lang('Sales.credit_note_help_issued') ?></p>
+                    <?php if ((int) ($sale_info['sale_type'] ?? 0) === SALE_TYPE_INVOICE): ?>
+                        <?php if (! empty($credit_note_help)): ?>
+                            <p class="small text-body-secondary mb-0"><?= esc($credit_note_help) ?></p>
+                        <?php else: ?>
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="create_credit_note"><?= lang('Sales.credit_note_create') ?></button>
+                        <?php endif; ?>
+                    <?php endif; ?>
+                </div>
+            </div>
+        <?php endif; ?>
 
         <?php if ((int) ($sale_info['sale_type'] ?? 0) === SALE_TYPE_INVOICE && (int) ($sale_info['sale_status'] ?? 0) === COMPLETED): ?>
             <div class="row mb-3">
@@ -167,7 +235,7 @@
         <?php endif; ?>
 
         <div class="row mb-3">
-            <?= form_label(lang('Sales.customer'), 'customer', ['class' => 'col-form-label col-3']) ?>
+            <?= form_label(lang('Sales.customer'), 'customer_name', ['class' => 'col-form-label col-3']) ?>
             <div class="col-8">
                 <?= form_input(['name' => 'customer_name', 'value' => $selected_customer_name, 'id' => 'customer_name', 'class' => 'form-control form-control-sm']) ?>
                 <?= form_hidden('customer_id', $selected_customer_id ?? '') ?>
@@ -175,7 +243,7 @@
         </div>
 
         <div class="row mb-3">
-            <?= form_label(lang('Sales.employee'), 'employee', ['class' => 'col-form-label col-3']) ?>
+            <?= form_label(lang('Sales.employee'), 'employee_name', ['class' => 'col-form-label col-3']) ?>
             <div class="col-8">
                 <?= form_input(['name' => 'employee_name', 'value' => $selected_employee_name, 'id' => 'employee_name', 'class' => 'form-control form-control-sm']) ?>
                 <?= form_hidden('employee_id', $selected_employee_id) ?>
@@ -263,6 +331,20 @@
             $.post("<?= esc(site_url("{$controller_name}/confirmDelivery/" . $sale_info['sale_id'])) ?>", function(response) {
                 dialog_support.hide();
                 table_support.handle_submit("<?= esc($controller_name) ?>", response);
+            }, 'json');
+        });
+
+        <?php if (! empty($issued_lock)): ?>
+            $('button#delete').hide();
+        <?php endif; ?>
+
+        $('#create_credit_note').click(function() {
+            $.post("<?= esc(site_url("{$controller_name}/creditNote/" . $sale_info['sale_id'])) ?>", function(response) {
+                if (response.success) {
+                    window.location.href = response.redirect;
+                } else {
+                    $.notify({message: response.message}, {type: 'danger'});
+                }
             }, 'json');
         });
 
