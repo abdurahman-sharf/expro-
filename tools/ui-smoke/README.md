@@ -28,7 +28,7 @@ npm install
 
 ## Fixtures
 
-`setup.sh` resets the database, runs the migrations through the login page, loads `seed.sql` (which also turns accounting on and grants the accounting screens to `admin`), records four sales through the UI, and posts accounting journals through the real endpoints (`seed-journals.mjs`: two posted, one of them reversed, and one draft). The application under test must already be running against that database.
+`setup.sh` resets the database, runs the migrations through the login page, loads `seed.sql` (which also turns accounting on and grants the accounting screens to `admin`), records four sales and then a purchase and a return from it through the UI, posts the opening stock of the first location from the opening balances screen (`seed-opening-stock.mjs`, which checks the location is ready before and posted after; it runs before the journals because that script closes a period), and posts accounting journals through the real endpoints (`seed-journals.mjs`: two posted, one of them reversed, and one draft). The application under test must already be running against that database.
 
 ```sh
 UI_DB_NAME=ospos_ui UI_BASE_URL=http://127.0.0.1 npm run setup

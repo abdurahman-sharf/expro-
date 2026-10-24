@@ -243,7 +243,7 @@ final class JournalService
      */
     public function reverseOpening(int $journalId, string $date, string $reason, ?int $employeeId): int
     {
-        $isOpening = $this->db->table('accounting_journals')->where('journal_id', $journalId)->where('source_type', 'opening')->countAllResults() > 0;
+        $isOpening = $this->db->table('accounting_journals')->where('journal_id', $journalId)->whereIn('source_type', ['opening', OpeningStock::SOURCE])->countAllResults() > 0;
 
         if (! $isOpening) {
             throw new AccountingException(AccountingError::JournalNotFound, "Journal {$journalId} does not exist.");

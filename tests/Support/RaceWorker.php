@@ -75,6 +75,20 @@ $result = match ($method) {
 
         return model(App\Models\Sale::class)->save_value(NEW_ENTRY, $status, $items, (int) $args[5] > 0 ? (int) $args[5] : NEW_ENTRY, (int) $args[6], 'race', null, null, null, SALE_TYPE_RETURN, $payments, null, $taxes, true, (int) $args[0]) > 0;
     })($args),
+    'openingStock' => (static function (array $args): bool {
+        $results = (new App\Libraries\Accounting\OpeningStock())->post(array_map('intval', explode(',', (string) $args[0])), null);
+
+        return count(array_filter($results, static fn (App\Libraries\Accounting\OpeningStockResult $result): bool => $result->plan->status === App\Libraries\Accounting\OpeningStockStatus::Posted)) > 0;
+    })($args),
+    'reverseOpeningStock' => (static function (array $args): bool {
+        try {
+            (new App\Libraries\Accounting\OpeningStock())->reverse((int) $args[0], (string) $args[1], 'race', null);
+
+            return true;
+        } catch (Throwable) {
+            return false;
+        }
+    })($args),
     'purchase' => (static function (array $args): bool {
         $lines = [[
             'item_id'            => (int) $args[1],

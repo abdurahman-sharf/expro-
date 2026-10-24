@@ -71,6 +71,11 @@ enum AccountingError: string
     case OpeningAlreadyPosted     = 'opening_already_posted';
     case OpeningNotPosted         = 'opening_not_posted';
 
+    case OpeningStockAccountingOff    = 'opening_stock_accounting_off';
+    case OpeningStockAlreadyPosted    = 'opening_stock_already_posted';
+    case OpeningStockLocationNotFound = 'opening_stock_location_not_found';
+    case OpeningStockNotPosted        = 'opening_stock_not_posted';
+
     case RoutingInvalid            = 'routing_invalid';
     case RoutingKeyUnknown         = 'routing_key_unknown';
     case RoutingAccountRequired    = 'routing_account_required';

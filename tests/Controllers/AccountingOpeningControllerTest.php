@@ -3,21 +3,28 @@
 namespace Tests\Controllers;
 
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\OpeningBalanceService;
+use App\Libraries\Accounting\OpeningStock;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Tests\Support\AccountingControllerFixtureTrait;
+use Tests\Support\ItemFixtureTrait;
 
 class AccountingOpeningControllerTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingControllerFixtureTrait;
+    use ItemFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
     protected $refresh     = false;
     protected $namespace   = null;
+
+    /** @var list<array<string, mixed>> */
+    private array $shelfBackup = [];
 
     protected function setUp(): void
     {
@@ -25,11 +32,23 @@ class AccountingOpeningControllerTest extends CIUnitTestCase
 
         $this->prepareAccounting();
         $this->setConfigValue('accounting_start_date', '2026-01-01');
+
+        $this->shelfBackup = $this->accountingDb()->table('item_quantities')->get()->getResultArray();
+        $this->accountingDb()->table('item_quantities')->emptyTable();
     }
 
     protected function tearDown(): void
     {
         $this->releaseOpenTransactions();
+
+        $this->accountingDb()->table('item_quantities')->emptyTable();
+
+        if ($this->shelfBackup !== []) {
+            $this->accountingDb()->table('item_quantities')->insertBatch($this->shelfBackup);
+        }
+
+        $this->shelfBackup = [];
+        $this->removeInsertedEntities();
 
         parent::tearDown();
     }
@@ -57,6 +76,40 @@ class AccountingOpeningControllerTest extends CIUnitTestCase
                 ['account_id' => (string) $this->accountId('retained_earnings'), 'description' => '', 'debit' => '', 'credit' => $amount],
             ],
         ];
+    }
+
+    private function shelves(string $cost, string $quantity, int $locationId = 1): int
+    {
+        $itemId = $this->createTestItem();
+
+        $this->accountingDb()->table('items')->where('item_id', $itemId)->update(['cost_price' => $cost]);
+        $this->accountingDb()->table('item_quantities')->replace(['item_id' => $itemId, 'location_id' => $locationId, 'quantity' => $quantity]);
+
+        return $itemId;
+    }
+
+    /**
+     * @return array{int, int} The branch and the stock location, with its account, that the first branch's employees may not see.
+     */
+    private function otherBranchLocation(): array
+    {
+        $branch   = $this->createBranch('B2');
+        $location = $this->insertStockLocation('Other branch store');
+
+        $this->accountingDb()->table('stock_locations')->where('location_id', $location)->update(['branch_id' => $branch]);
+        (new EntityAccountService())->ensure(EntityAccountService::STOCK_LOCATION, $location, 'Other branch store');
+
+        return [$branch, $location];
+    }
+
+    private function stockPost(int $locationId = 1, int $branchId = 1): array
+    {
+        return $this->jsonOf($this->post('/accounting_periods/opening/stock/post', ['branch_id' => (string) $branchId, 'location_id' => (string) $locationId]));
+    }
+
+    private function openingStockJournals(): int
+    {
+        return $this->accountingDb()->table('accounting_journals')->where('source_type', OpeningStock::SOURCE)->countAllResults();
     }
 
     public function testGetIndex_ShowsTheGridToAUserWithTheModuleGrant(): void
@@ -276,5 +329,230 @@ class AccountingOpeningControllerTest extends CIUnitTestCase
         $this->manager();
 
         $this->get('/accounting_periods/opening')->assertDontSee(lang('Accounting_periods.permission_note'));
+    }
+
+    public function testGetIndex_ListsTheStockLocationsOfTheBranchWithTheirStateAndLeavesOtherBranchesOut(): void
+    {
+        $this->manager();
+        $this->otherBranchLocation();
+        $this->shelves('50.00', '10');
+
+        $response = $this->get('/accounting_periods/opening');
+
+        $response->assertSee('id="opening_stock"');
+        $response->assertSee('id="stock_location_1"');
+        $response->assertSee(lang('Accounting_periods.opening_stock_state_postable'));
+        $response->assertSee('500.00');
+        $response->assertDontSee('Other branch store');
+    }
+
+    public function testGetIndex_OffersThePostButtonsOnlyToSomeoneWhoManagesOpeningBalancesForStock(): void
+    {
+        $this->shelves('50.00', '10');
+        $this->actAs($this->employeeWithGrants(['accounting_periods']));
+
+        $response = $this->get('/accounting_periods/opening');
+
+        $response->assertSee('id="stock_location_1"');
+        $response->assertDontSee('stock-post" data-location');
+
+        $this->manager();
+
+        $this->get('/accounting_periods/opening')->assertSee('stock-post" data-location="1"');
+    }
+
+    public function testGetIndex_ExplainsWhatKeepsALocationFromBeingPosted(): void
+    {
+        $this->manager();
+        $this->shelves('50.00', '10');
+        $this->shelves('9.00', '-2');
+        $this->accountingDb()->table('accounting_accounts')->where('entity_type', EntityAccountService::STOCK_LOCATION)->where('entity_id', 1)->delete();
+
+        $response = $this->get('/accounting_periods/opening');
+
+        $response->assertSee(lang('Accounting_periods.opening_stock_state_blocked'));
+        $response->assertSee(lang('Accounting_periods.opening_stock_problem_account_missing'));
+        $response->assertDontSee('stock-post" data-location');
+    }
+
+    public function testGetIndex_ShowsPostedStockWithTheReverseButtonAndNoPostButton(): void
+    {
+        $this->manager();
+        $this->shelves('50.00', '10');
+        (new OpeningStock())->post([1], null);
+
+        $response = $this->get('/accounting_periods/opening');
+
+        $response->assertSee(lang('Accounting_periods.opening_stock_state_already_posted'));
+        $response->assertSee('500.00');
+        $response->assertSee('opening/stock/reverse_form?location=1');
+        $response->assertDontSee('stock-post" data-location');
+    }
+
+    public function testPostStockPost_PostsTheLocationOnceAndARetryPostsNothingMore(): void
+    {
+        $this->manager();
+        $this->shelves('50.00', '10');
+
+        $first = $this->stockPost();
+
+        $this->assertTrue($first['success']);
+        $this->assertSame(lang('Accounting_periods.opening_stock_posted', ['1']), $first['message']);
+        $this->assertSame(1, $this->openingStockJournals());
+        $this->assertSame(1, $this->accountingDb()->table('accounting_stock_entries')->where('source_type', OpeningStock::SOURCE)->countAllResults());
+
+        $second = $this->stockPost();
+
+        $this->assertFalse($second['success']);
+        $this->assertSame(lang('Accounting_periods.opening_stock_nothing_posted'), $second['message']);
+        $this->assertSame(1, $this->openingStockJournals());
+        $this->assertSame(1, $this->accountingDb()->table('accounting_stock_entries')->where('source_type', OpeningStock::SOURCE)->countAllResults());
+        $this->assertSame('10.000', bcadd((string) $this->accountingDb()->table('item_quantities')->get()->getRow()->quantity, '0', 3));
+    }
+
+    public function testPostStockPost_PostsEveryLocationThatIsReadyWhenNoneIsNamed(): void
+    {
+        $this->manager();
+        $store = $this->insertStockLocation('Second store');
+        (new EntityAccountService())->ensure(EntityAccountService::STOCK_LOCATION, $store, 'Second store');
+        $this->shelves('50.00', '10');
+        $this->shelves('20.00', '3', $store);
+        $this->shelves('5.00', '0', 1);
+
+        $result = $this->stockPost(0);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(lang('Accounting_periods.opening_stock_posted', ['2']), $result['message']);
+        $this->assertSame(2, $this->openingStockJournals());
+    }
+
+    public function testPostStockPost_RefusesWithoutThePermissionToManageOpeningBalances(): void
+    {
+        $this->shelves('50.00', '10');
+        $this->actAs($this->employeeWithGrants(['accounting_periods']));
+
+        $result = $this->stockPost();
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(0, $this->openingStockJournals());
+        $this->assertSame(0, $this->accountingDb()->table('accounting_stock_entries')->countAllResults());
+    }
+
+    public function testPostStockPost_RefusesALocationOfABranchOutsideTheEmployeesScope(): void
+    {
+        [$branch, $location] = $this->otherBranchLocation();
+        $this->shelves('50.00', '10');
+        $this->shelves('50.00', '10', $location);
+        $this->manager([1]);
+
+        $named    = $this->stockPost($location, $branch);
+        $smuggled = $this->stockPost($location, 1);
+        $all      = $this->stockPost(0, $branch);
+
+        $this->assertFalse($named['success']);
+        $this->assertFalse($smuggled['success']);
+        $this->assertFalse($all['success']);
+        $this->assertSame(0, $this->openingStockJournals());
+    }
+
+    public function testPostStockPost_ReportsALocationThatNeedsAPersonAndPostsNothing(): void
+    {
+        $this->manager();
+        $this->shelves('50.00', '10');
+        $this->accountingDb()->table('accounting_accounts')->where('entity_type', EntityAccountService::STOCK_LOCATION)->where('entity_id', 1)->delete();
+
+        $result = $this->stockPost();
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting_periods.opening_stock_problem_account_missing'), $result['message']);
+        $this->assertSame(0, $this->openingStockJournals());
+    }
+
+    public function testPostStockPost_ReportsAClosedPeriodAndPostsNothing(): void
+    {
+        $this->manager();
+        $this->shelves('50.00', '10');
+        $this->closeThrough('2026-01-31');
+
+        $result = $this->stockPost();
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString('2026-01-31', $result['message']);
+        $this->assertSame(0, $this->openingStockJournals());
+        $this->assertSame(0, $this->accountingDb()->table('accounting_stock_entries')->countAllResults());
+    }
+
+    public function testGetStockReverseForm_IsNotFoundWithoutPostedOpeningStockOrWithoutThePermission(): void
+    {
+        $this->manager();
+        $this->shelves('50.00', '10');
+
+        try {
+            $this->get('/accounting_periods/opening/stock/reverse_form?location=1');
+            $this->fail('Expected the form to be hidden without posted opening stock.');
+        } catch (PageNotFoundException) {
+            $this->addToAssertionCount(1);
+        }
+
+        (new OpeningStock())->post([1], null);
+
+        $this->get('/accounting_periods/opening/stock/reverse_form?location=1')->assertSee('opening_stock_reverse_form');
+
+        $this->actAs($this->employeeWithGrants(['accounting_periods']));
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_periods/opening/stock/reverse_form?location=1');
+    }
+
+    public function testGetStockReverseForm_IsNotFoundForALocationOfABranchOutsideTheEmployeesScope(): void
+    {
+        [, $location] = $this->otherBranchLocation();
+        $this->shelves('50.00', '10', $location);
+        (new OpeningStock())->post([$location], null);
+        $this->manager([1]);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_periods/opening/stock/reverse_form?location=' . $location);
+    }
+
+    public function testPostStockReverse_ReversesWithAReasonAndTheLocationCanBePostedAgain(): void
+    {
+        $this->manager();
+        $this->shelves('50.00', '10');
+        $this->stockPost();
+
+        $missing = $this->jsonOf($this->post('/accounting_periods/opening/stock/reverse', ['branch_id' => '1', 'location_id' => '1', 'date' => '2026-01-05', 'reason' => '']));
+
+        $this->assertFalse($missing['success']);
+        $this->assertNotNull((new OpeningStock())->plan(1, null)->activeRevision);
+
+        $reversed = $this->jsonOf($this->post('/accounting_periods/opening/stock/reverse', ['branch_id' => '1', 'location_id' => '1', 'date' => '2026-01-05', 'reason' => 'Wrong counts']));
+
+        $this->assertTrue($reversed['success']);
+        $this->assertSame(lang('Accounting_periods.opening_stock_reversed'), $reversed['message']);
+        $this->assertNull((new OpeningStock())->plan(1, null)->activeRevision);
+
+        $again = $this->stockPost();
+
+        $this->assertTrue($again['success']);
+        $this->assertSame(2, (new OpeningStock())->plan(1, null)->activeRevision);
+    }
+
+    public function testPostStockReverse_RefusesWithoutThePermissionAndLeavesThePostingAlone(): void
+    {
+        $this->manager();
+        $this->shelves('50.00', '10');
+        $this->stockPost();
+        $journals = $this->countRows('accounting_journals');
+
+        $this->actAs($this->employeeWithGrants(['accounting_periods']));
+
+        $result = $this->jsonOf($this->post('/accounting_periods/opening/stock/reverse', ['branch_id' => '1', 'location_id' => '1', 'date' => '2026-01-05', 'reason' => 'No right']));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame($journals, $this->countRows('accounting_journals'));
+        $this->assertNotNull((new OpeningStock())->plan(1, null)->activeRevision);
     }
 }
