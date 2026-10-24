@@ -198,6 +198,7 @@ final class OpeningStock
         $lines       = [];
         $differences = [];
         $items       = [];
+        $posted      = $this->postedCosts($locationId);
 
         foreach ($this->ledger->positions([$locationId]) as $position) {
             if ($position->covered()) {
@@ -205,7 +206,8 @@ final class OpeningStock
             }
 
             $unposted = $position->unposted();
-            $line     = new OpeningStockLine($position->itemId, $position->itemName, $unposted, $position->itemCost, $this->valueOf($unposted, $position->itemCost));
+            $cost     = $posted[$position->itemId] ?? $position->itemCost;
+            $line     = new OpeningStockLine($position->itemId, $position->itemName, $unposted, $cost, $this->valueOf($unposted, $cost));
 
             if (bccomp($unposted, '0', StockLedger::QUANTITY_SCALE) > 0) {
                 $lines[] = $line;
@@ -264,6 +266,36 @@ final class OpeningStock
             $active === null ? [] : $this->standingLines($locationId, $active),
             $differences,
         );
+    }
+
+    /**
+     * The cost per unit each item was last posted at in this location, whichever revision that
+     * was. Posting again after a reversal puts an item back at that cost: the cost the item carries
+     * has moved with every purchase since, and valuing the opening units at it would change what
+     * the opening was worth after the books had already moved on from it.
+     *
+     * @return array<int, string>
+     */
+    private function postedCosts(int $locationId): array
+    {
+        $rows = $this->db->table('accounting_stock_entries')
+            ->select('item_id, quantity, value')
+            ->where('source_type', self::SOURCE)
+            ->where('source_id', $locationId)
+            ->where('kind', 'posting')
+            ->orderBy('revision', 'ASC')
+            ->orderBy('entry_id', 'ASC')
+            ->get()
+            ->getResult();
+        $costs = [];
+
+        foreach ($rows as $row) {
+            if (bccomp((string) $row->quantity, '0', StockLedger::QUANTITY_SCALE) !== 0) {
+                $costs[(int) $row->item_id] = bcdiv(SaleAmounts::absolute((string) $row->value), SaleAmounts::absolute((string) $row->quantity), 8);
+            }
+        }
+
+        return $costs;
     }
 
     /**

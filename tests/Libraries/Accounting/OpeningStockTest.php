@@ -374,6 +374,58 @@ class OpeningStockTest extends CIUnitTestCase
         return ['rice' => $rice, 'owed' => $owed, 'short' => $short];
     }
 
+    /**
+     * Every journal, journal line and stock movement as it stands, keyed by its id, with the
+     * shelves and the size of the inventory log.
+     *
+     * @return array{journals: array<int, array<string, mixed>>, lines: array<int, array<string, mixed>>, entries: array<int, array<string, mixed>>, shelves: array<string, string>, log: int}
+     */
+    private function history(): array
+    {
+        return [
+            'journals' => array_column($this->accountingDb()->table('accounting_journals')->get()->getResultArray(), null, 'journal_id'),
+            'lines'    => array_column($this->accountingDb()->table('accounting_journal_lines')->get()->getResultArray(), null, 'line_id'),
+            'entries'  => array_column($this->accountingDb()->table('accounting_stock_entries')->get()->getResultArray(), null, 'entry_id'),
+            'shelves'  => $this->shelfRows(),
+            'log'      => $this->countRows('inventory'),
+        ];
+    }
+
+    /**
+     * Nothing that stood before is gone or different, except that the journals named may have
+     * moved from posted to reversed, which is the whole of what reversing does to a journal.
+     *
+     * @param array{journals: array<int, array<string, mixed>>, lines: array<int, array<string, mixed>>, entries: array<int, array<string, mixed>>, shelves: array<string, string>, log: int} $before
+     * @param list<int>                                                                                                                                                                      $reversed
+     */
+    private function assertHistoryKept(array $before, array $after, array $reversed = []): void
+    {
+        foreach ($before['journals'] as $id => $journal) {
+            $this->assertArrayHasKey($id, $after['journals'], "Journal {$id} was deleted");
+
+            $now = $after['journals'][$id];
+
+            if (in_array($id, $reversed, true)) {
+                $this->assertSame(['status' => 'posted'], ['status' => $journal['status']]);
+                $this->assertSame('reversed', $now['status'], "Journal {$id} is marked reversed");
+                unset($journal['status'], $now['status'], $journal['updated_at'], $now['updated_at']);
+            }
+
+            $this->assertSame($journal, $now, "Journal {$id} changed");
+        }
+
+        foreach ($before['lines'] as $id => $line) {
+            $this->assertSame($line, $after['lines'][$id] ?? null, "Journal line {$id} changed or was deleted");
+        }
+
+        foreach ($before['entries'] as $id => $entry) {
+            $this->assertSame($entry, $after['entries'][$id] ?? null, "Stock movement {$id} changed or was deleted");
+        }
+
+        $this->assertSame($before['shelves'], $after['shelves'], 'The shelves are not touched');
+        $this->assertSame($before['log'], $after['log'], 'The inventory log is not touched');
+    }
+
     public function testPlan_ALocationPostedWithItemsLeftOutIsNeverShownAsDoneAndKeepsListingThem(): void
     {
         $items = $this->locationWithItemsLeftOut();
@@ -866,8 +918,8 @@ class OpeningStockTest extends CIUnitTestCase
         $this->assertSame(OpeningStockStatus::AlreadyPosted, $third->plan->status);
         $this->assertSame([$first->journalId, $second->journalId], array_map(static fn (object $journal): int => (int) $journal->journal_id, $this->openingJournals()));
         $this->assertSame(['reversed', 'posted'], array_map(static fn (object $journal): string => $journal->status, $this->openingJournals()));
-        $this->assertSame('550.00', $this->balance($this->stockAccount()));
-        $this->assertSame(['quantity' => '10.000', 'value' => '550.00'], $this->stockOf($item));
+        $this->assertSame('500.00', $this->balance($this->stockAccount()), 'A cost edited after the reversal is not taken: the units go back at the cost they were posted at');
+        $this->assertSame(['quantity' => '10.000', 'value' => '500.00'], $this->stockOf($item));
         $this->assertStockTies();
     }
 
@@ -881,6 +933,155 @@ class OpeningStockTest extends CIUnitTestCase
 
         $this->assertSame(['quantity' => '0.000', 'value' => '0.00'], $this->stockOf($free));
         $this->assertSame(OpeningStockStatus::Postable, $this->opening->plan(self::LOCATION_ID, null)->status);
+    }
+
+    public function testReverse_ThenSettlingAPartiallyPostedLocationKeepsEveryEarlierJournalAndMovementAndCountsNothingTwice(): void
+    {
+        $items = $this->locationWithItemsLeftOut();
+        $first = $this->onlyResult($this->opening->post([self::LOCATION_ID], null));
+
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($items['rice'], 0, '10', '50')]));
+        $this->assertGreaterThan(0, $this->save([$this->line($items['rice'], 0, '3', '100', '50.00')]));
+        $this->assertSame('17.000', $this->onHand($items['rice']));
+        $this->assertStockTies();
+
+        $before = $this->history();
+        $stock  = $this->balance($this->stockAccount());
+        $equity = $this->balance($this->accountId('opening_balance'));
+        $rice   = $this->stockOf($items['rice']);
+
+        $this->opening->reverse(self::LOCATION_ID, self::START, 'Taking in the items left out', null);
+
+        $plan = $this->opening->plan(self::LOCATION_ID, null);
+
+        $this->assertSame(['10.000'], array_map(static fn ($line): string => $line->units, $plan->lines), 'Only the units no movement accounts for: not the purchase and not the sale');
+        $this->assertSame(['-3.000', '-3.000'], array_map(static fn ($line): string => $line->units, $plan->differences));
+
+        $second = $this->onlyResult($this->opening->post([self::LOCATION_ID], null, true, 'Counted: the shelves are right'));
+        $after  = $this->history();
+
+        $this->assertSame(2, $second->revision);
+        $this->assertSame(OpeningStockStatus::Posted, $second->plan->status);
+        $this->assertHistoryKept($before, $after, [$first->journalId]);
+
+        $newJournals = array_diff_key($after['journals'], $before['journals']);
+        $newEntries  = array_diff_key($after['entries'], $before['entries']);
+
+        $this->assertCount(2, $newJournals, 'The reversal and the second opening, nothing else');
+        $this->assertSame([$first->journalId], array_values(array_filter(array_map(static fn (array $journal): ?int => $journal['reverses_journal_id'] === null ? null : (int) $journal['reverses_journal_id'], $newJournals))));
+        $this->assertSame([OpeningStock::SOURCE], array_values(array_unique(array_column($newEntries, 'source_type'))), 'No purchase or sale movement was taken back or written again');
+        $this->assertSame(['reversal:1:1', 'posting:2:3'], array_map(
+            static fn (string $key): string => $key,
+            [
+                'reversal:1:' . count(array_filter($newEntries, static fn (array $entry): bool => $entry['kind'] === 'reversal' && (int) $entry['revision'] === 1)),
+                'posting:2:' . count(array_filter($newEntries, static fn (array $entry): bool => $entry['kind'] === 'posting' && (int) $entry['revision'] === 2)),
+            ],
+        ));
+
+        $this->assertSame(bcsub($stock, '69.00', 2), $this->balance($this->stockAccount()), 'Only the two items left out are added: 9 and 60 less');
+        $this->assertSame(bcadd($equity, '69.00', 2), $this->balance($this->accountId('opening_balance')), 'The equity gives up the same 69 and no more');
+        $this->assertSame($rice, $this->stockOf($items['rice']), 'The rice is counted once: the purchase and the sale stand and the opening is back as it was');
+        $this->assertSame('17.000', $this->onHand($items['rice']));
+        $this->assertStockTies();
+        $this->assertSame(OpeningStockStatus::AlreadyPosted, $this->opening->plan(self::LOCATION_ID, null)->status);
+    }
+
+    public function testReverse_ThenPostingAgainKeepsTheCostTheOpeningWasPostedAtWhenLaterPurchasesMovedTheCostOfTheItem(): void
+    {
+        $item = $this->item('50.00');
+        $this->shelves($item, '10');
+        $first = $this->onlyResult($this->opening->post([self::LOCATION_ID], null));
+
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($item, 0, '10', '70')]));
+        $this->assertSame('60.0000', $this->itemCostOf($item), 'The cost the item carries has moved from 50 to 60');
+        $this->assertSame('1200.00', $this->stockOf($item)['value']);
+        $before = $this->history();
+
+        $this->opening->reverse(self::LOCATION_ID, self::START, 'Posting again', null);
+        $plan = $this->opening->plan(self::LOCATION_ID, null);
+
+        $this->assertSame(['500.0000'], array_map(static fn ($line): string => $line->value, $plan->lines), 'The units are back at the cost they were posted at, not at the cost the later purchase made');
+
+        $second = $this->onlyResult($this->opening->post([self::LOCATION_ID], null));
+        $after  = $this->history();
+
+        $this->assertSame(2, $second->revision);
+        $this->assertHistoryKept($before, $after, [$first->journalId]);
+        $this->assertSame([$this->stockAccount() . ':500.0000:0.0000', $this->accountId('opening_balance') . ':0.0000:500.0000'], $this->linesOf($second->journalId));
+        $this->assertSame(['quantity' => '20.000', 'value' => '1200.00'], $this->stockOf($item), 'What the stock is worth has not moved by posting the opening again');
+        $this->assertSame('1200.00', $this->balance($this->stockAccount()));
+        $this->assertSame('-500.00', $this->balance($this->accountId('opening_balance')));
+        $this->assertSame('60.0000', $this->itemCostOf($item), 'Posting does not touch the cost of the item');
+        $this->assertStockTies();
+    }
+
+    public function testReverse_ThenPostingAgainOfStockSoldSinceTakesInTheUnitsThatStoodThereAndNotTheOnesThatLeft(): void
+    {
+        $item = $this->item('50.00');
+        $this->shelves($item, '10');
+        $first = $this->onlyResult($this->opening->post([self::LOCATION_ID], null));
+
+        $this->assertGreaterThan(0, $this->save([$this->line($item, 0, '8', '100', '50.00')]));
+        $this->assertSame(['quantity' => '2.000', 'value' => '100.00'], $this->stockOf($item));
+        $before = $this->history();
+
+        $this->opening->reverse(self::LOCATION_ID, self::START, 'Posting again', null);
+
+        $this->assertSame(['quantity' => '-8.000', 'value' => '-400.00'], $this->stockOf($item), 'With the opening taken back only the sale is left');
+        $this->assertSame(['10.000'], array_map(static fn ($line): string => $line->units, $this->opening->plan(self::LOCATION_ID, null)->lines));
+
+        $second = $this->onlyResult($this->opening->post([self::LOCATION_ID], null));
+
+        $this->assertSame(OpeningStockStatus::Posted, $second->plan->status);
+        $this->assertHistoryKept($before, $this->history(), [$first->journalId]);
+        $this->assertSame(['quantity' => '2.000', 'value' => '100.00'], $this->stockOf($item));
+        $this->assertSame('2.000', $this->onHand($item));
+        $this->assertSame('100.00', $this->balance($this->stockAccount()), '500 of opening stock less the 400 the sale took out');
+        $this->assertStockTies();
+    }
+
+    public function testReverse_ThenPostingAgainValuesTheDifferencesAtTheCostTheyWerePostedAt(): void
+    {
+        $owed = $this->item('3.00');
+        $this->shelves($owed, '-3');
+        $first = $this->onlyResult($this->opening->post([self::LOCATION_ID], null, true, 'Sold before the books began'));
+
+        $this->assertSame('-9.00', $this->stockOf($owed)['value']);
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($owed, 0, '10', '9')]));
+        $this->assertSame('9.0000', $this->itemCostOf($owed), 'The purchase has moved the cost of the item from 3 to 9');
+        $before = $this->history();
+
+        $this->opening->reverse(self::LOCATION_ID, self::START, 'Posting again', null);
+        $second = $this->onlyResult($this->opening->post([self::LOCATION_ID], null, true, 'Posting again'));
+
+        $this->assertSame([$this->accountId('opening_balance') . ':9.0000:0.0000', $this->stockAccount() . ':0.0000:9.0000'], $this->linesOf($second->journalId), '3 units at 3, not 3 units at 9');
+        $this->assertHistoryKept($before, $this->history(), [$first->journalId]);
+        $this->assertSame(['quantity' => '7.000', 'value' => '81.00'], $this->stockOf($owed));
+        $this->assertStockTies();
+    }
+
+    public function testReverse_TwiceOverAPartiallyPostedLocationLeavesTheBooksAsTheFirstTimeDidAndKeepsEveryRevision(): void
+    {
+        $items = $this->locationWithItemsLeftOut();
+        $this->opening->post([self::LOCATION_ID], null);
+        $this->opening->reverse(self::LOCATION_ID, self::START, 'Taking in the items left out', null);
+        $second = $this->onlyResult($this->opening->post([self::LOCATION_ID], null, true, 'Counted'));
+        $stock  = $this->balance($this->stockAccount());
+        $equity = $this->balance($this->accountId('opening_balance'));
+        $before = $this->history();
+
+        $this->opening->reverse(self::LOCATION_ID, self::START, 'Once more', null);
+        $third = $this->onlyResult($this->opening->post([self::LOCATION_ID], null, true, 'Counted again'));
+
+        $this->assertSame(3, $third->revision);
+        $this->assertHistoryKept($before, $this->history(), [$second->journalId]);
+        $this->assertSame($stock, $this->balance($this->stockAccount()));
+        $this->assertSame($equity, $this->balance($this->accountId('opening_balance')));
+        $this->assertSame(['reversed', 'reversed', 'posted'], array_map(static fn (object $journal): string => $journal->status, array_values(array_filter($this->openingJournals(), static fn (object $journal): bool => (int) $journal->source_id === self::LOCATION_ID))));
+        $this->assertSame(['quantity' => '10.000', 'value' => '500.00'], $this->stockOf($items['rice']));
+        $this->assertSame(['quantity' => '-3.000', 'value' => '-9.00'], $this->stockOf($items['owed']));
+        $this->assertStockTies();
+        $this->assertSame(OpeningStockStatus::AlreadyPosted, $this->opening->plan(self::LOCATION_ID, null)->status);
     }
 
     public function testPost_TheOpeningStockLetsLaterPurchasesAndReturnsAverageOverTheWholeOfTheStock(): void
