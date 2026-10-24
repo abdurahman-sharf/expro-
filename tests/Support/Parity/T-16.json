@@ -1,0 +1,112 @@
+{
+  "id": "T-16",
+  "title": "A discount on a purchase line, and on the whole purchase, with 15% input tax: 10 units at 100",
+  "recorded": "2026-10-24",
+  "evidence": {
+    "line_discount_percent": {
+      "id": "ev_1983ec53d4f40a3b6ad6d49b467e3038a71426017bd53004621a558469683041",
+      "note": "Purchase with a 10% discount on the line"
+    },
+    "line_discount_percent_journal": {
+      "id": "ev_45079971de577b39e2095cbf0cbbe46ff983961e0505cfff2a1907a1a488e6d2",
+      "note": "Inventory 900, input tax 135, supplier 1,035"
+    },
+    "line_discount_fixed": {
+      "id": "ev_b9a16dbdf069c2a96bd3dd98a8730f65591b78b18c3a9283b34d46cf84894f71",
+      "note": "Purchase with a fixed discount of 50 on the line"
+    },
+    "line_discount_fixed_journal": {
+      "id": "ev_1c5f6ac38c2dab05c7e06896311fba5f39fa84517216c0a8a1240410c2765465",
+      "note": "Inventory 500, input tax 75, supplier 575: the 50 comes off each unit"
+    },
+    "line_and_invoice_discount": {
+      "id": "ev_962ca573bf7bd3a863d6766ab5efa4a32d49cb81b9f242f40c7caa54a6791cf6",
+      "note": "Purchase with 10% on the line and 10% on the whole purchase"
+    },
+    "line_and_invoice_discount_journal": {
+      "id": "ev_d76eca4cb6a95f40a9f0b965a376abc4d8710b059ba7cd6dcff2b8a8d6a9ecb5",
+      "note": "Inventory 810, input tax 121.50, supplier 931.50"
+    },
+    "average_after": {
+      "id": "ev_ec6ec16d4c59b3ac6c78cf656f587695b91a78932bc1926bd929de3f4a3af756",
+      "note": "Thirty units in stock at an average of 73.67 for the three purchases"
+    }
+  },
+  "cases": [
+    {
+      "id": "line-discount-percent",
+      "kind": "purchase_discount",
+      "classification": "exact",
+      "evidence": [
+        "line_discount_percent",
+        "line_discount_percent_journal"
+      ],
+      "inputs": {
+        "line": "10 at 100",
+        "discount": "10%",
+        "tax": "15%"
+      },
+      "reference": {
+        "inventory": "900.00",
+        "input_tax": "135.00",
+        "supplier": "1035.00",
+        "unit_cost": "90.0000"
+      },
+      "expected": {
+        "inventory": "900.00",
+        "input_tax": "135.00",
+        "supplier": "1035.00",
+        "unit_cost": "90.0000"
+      }
+    },
+    {
+      "id": "line-discount-fixed-is-taken-off-each-unit",
+      "kind": "purchase_discount",
+      "classification": "differs",
+      "evidence": [
+        "line_discount_fixed",
+        "line_discount_fixed_journal"
+      ],
+      "inputs": {
+        "line": "10 at 100",
+        "discount": "fixed 50",
+        "tax": "15%"
+      },
+      "reference": {
+        "inventory": "500.00",
+        "input_tax": "75.00",
+        "supplier": "575.00",
+        "unit_cost": "50.0000"
+      },
+      "expected": {
+        "inventory": "950.00",
+        "input_tax": "142.50",
+        "supplier": "1092.50",
+        "unit_cost": "95.0000"
+      }
+    },
+    {
+      "id": "discount-on-the-whole-purchase-after-the-line-discount",
+      "kind": "purchase_discount",
+      "classification": "differs",
+      "evidence": [
+        "line_and_invoice_discount",
+        "line_and_invoice_discount_journal"
+      ],
+      "inputs": {
+        "line": "10 at 100",
+        "line_discount": "10%",
+        "invoice_discount": "10%",
+        "tax": "15%"
+      },
+      "reference": {
+        "inventory": "810.00",
+        "input_tax": "121.50",
+        "supplier": "931.50"
+      },
+      "expected": {
+        "discount_on_the_whole_purchase": "not_available"
+      }
+    }
+  ]
+}

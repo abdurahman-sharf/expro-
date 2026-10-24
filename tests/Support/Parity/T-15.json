@@ -1,0 +1,117 @@
+{
+  "id": "T-15",
+  "title": "A return to a supplier of part of a purchase: what it books, what it cannot exceed, and what it does to the average cost",
+  "recorded": "2026-10-24",
+  "evidence": {
+    "purchase": {
+      "id": "ev_6ef183dbbd94cd31e669c998382ee037df6bf951742507c61ec58090d65211ff",
+      "note": "Purchase of 10 units at 100 with 15% tax, paid"
+    },
+    "return_of_4": {
+      "id": "ev_8976949f4a1561da7e2fd5aa34b1b20debc8a081dd4b37b54048eec0d69156f3",
+      "note": "Return of 4 of them"
+    },
+    "return_of_4_journals": {
+      "id": "ev_d25819a2cd0d011833e836788769f0eac472914824a5906cdd63f376554012b2",
+      "note": "The return journal and the refund journal"
+    },
+    "return_of_7": {
+      "id": "ev_6d84652c085b8b103e041e6f526ef2aac2683d9ae44079e15785a55ac078b7d1",
+      "note": "A return of 7 when 6 remain: refused with a message that the item exceeded the quantity it may return, and nothing saved"
+    },
+    "return_of_11": {
+      "id": "ev_72a55aaa806f9fa4a713740501eb71b7f807d9904a8e27e570efee75e136c113",
+      "note": "A return of 11 when 10 were bought: refused the same way"
+    },
+    "state_after_the_attempts": {
+      "id": "ev_2416dbce584fb0752b7755a9ede693a59d90f0de9719f2dbd4b2217300567494",
+      "note": "Stock 6, average 100.00, and only the return of 4 among the returns"
+    },
+    "purchase_6_at_70": {
+      "id": "ev_ae1c542e30697c6c4e684a88437da9e4c8c0806fa77df3ca5ebff2c62219bf5d",
+      "note": "Purchase of 6 units at 70"
+    },
+    "after_the_purchase": {
+      "id": "ev_365cfb8b25911b0d9c9edfa9ac05f93495204c05c0cb1e7cc1550a8ce3039695",
+      "note": "Stock 12 and an average of 85.00"
+    }
+  },
+  "cases": [
+    {
+      "id": "return-of-4-of-10",
+      "kind": "purchase_return",
+      "classification": "exact",
+      "evidence": [
+        "purchase",
+        "return_of_4",
+        "return_of_4_journals"
+      ],
+      "inputs": {
+        "purchase": "10 at 100, tax 15%",
+        "return": "4 units"
+      },
+      "reference": {
+        "supplier": "460.00",
+        "input_tax": "60.00",
+        "inventory": "400.00",
+        "refund_in_cash": "460.00"
+      },
+      "expected": {
+        "supplier": "460.00",
+        "input_tax": "60.00",
+        "inventory": "400.00",
+        "refund_in_cash": "460.00"
+      }
+    },
+    {
+      "id": "return-beyond-what-remains-is-refused",
+      "kind": "purchase_return",
+      "classification": "exact",
+      "evidence": [
+        "return_of_7",
+        "return_of_11",
+        "state_after_the_attempts"
+      ],
+      "inputs": {
+        "bought": "10",
+        "returned_before": "4",
+        "attempts": [
+          "7",
+          "11"
+        ]
+      },
+      "reference": {
+        "attempts_saved": "0",
+        "stock": "6.000"
+      },
+      "expected": {
+        "attempts_saved": "0",
+        "stock": "6.000"
+      }
+    },
+    {
+      "id": "return-does-not-change-the-average-cost",
+      "kind": "purchase_return",
+      "classification": "exact",
+      "evidence": [
+        "state_after_the_attempts",
+        "purchase_6_at_70",
+        "after_the_purchase"
+      ],
+      "inputs": {
+        "after_the_return": "6 units at 100",
+        "then_bought": "6 at 70"
+      },
+      "reference": {
+        "average_after_the_return": "100.00",
+        "average_after_the_purchase": "85.00",
+        "quantity": "12.000"
+      },
+      "expected": {
+        "average_after_the_return": "100.00",
+        "average_after_the_purchase": "85.00",
+        "quantity": "12.000"
+      }
+    }
+  ]
+}

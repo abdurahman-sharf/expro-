@@ -1,0 +1,136 @@
+{
+  "id": "T-14",
+  "title": "Cost of what is sold when the average is not a round number, and the average after stock went negative: 3 units bought at 100 and 4 at 50, all 7 sold, 2 more sold with none left, then 5 bought at 80",
+  "recorded": "2026-10-24",
+  "evidence": {
+    "purchase_3_at_100": {
+      "id": "ev_fa95e2968bf33938082d9208c0ca47db6181f21b5ae8111e61a9df69ef7b4adb",
+      "note": "Purchase of 3 units at 100 with 15% tax for a test supplier"
+    },
+    "purchase_4_at_50": {
+      "id": "ev_ddaf7e3cf8a9f2177605f6c351dfefbdf96186918b60ba944ef8333346fc1bde",
+      "note": "Purchase of 4 units at 50 with 15% tax: the average becomes 71.428571 and the stock is worth 500.00"
+    },
+    "sale_of_7": {
+      "id": "ev_7d685c6fcabc61730bd38ae21f8c3e51eb25f85b62b26e1ddd59dc435a0f9111",
+      "note": "Sale of all 7 units at 200"
+    },
+    "sale_of_7_journals": {
+      "id": "ev_d00e6d529b336ac61f8e84915dce83a69895888a40cbef902ff860dbc25a37d6",
+      "note": "The revenue journal of 1,610 and the cost journal of 500.00"
+    },
+    "sale_of_7_raw": {
+      "id": "ev_a85459d7a6b1bc93c0ca1e959f0f204aa990ad5a1dd45dce54820fec7a4a8a26",
+      "note": "The values the cost journal stores: 500 exactly"
+    },
+    "sale_of_2": {
+      "id": "ev_515585615241b615778ef2b204e37cf111732889c2c614425d7ac3e50e4ef8e2",
+      "note": "Sale of 2 units with no stock left, which the reference system saves"
+    },
+    "sale_of_2_raw": {
+      "id": "ev_c3bd81172804cbedacd78d014813d282cb324a947ac7cbca6b705dff63b32124",
+      "note": "The values the cost journal of that sale stores: 142.8571, to four decimals"
+    },
+    "average_while_negative": {
+      "id": "ev_4508e2703088825d25f5b5d36456ecb065d4343540264576f15b9c0d5af9b09d",
+      "note": "Average 71.43 and a stock of minus 2 worth minus 142.86"
+    },
+    "purchase_5_at_80": {
+      "id": "ev_55acec888de7a29442fab5fd6d7d4eb7ccaf2170f8d4a9325e5dfc929fdaeb4d",
+      "note": "Purchase of 5 units at 80 while the stock is minus 2"
+    },
+    "after_the_purchase": {
+      "id": "ev_94c83af2c7bcef4628dfef90bb591885769c82604bb37b4385c32ab443d9d62c",
+      "note": "The product shows an average of 80.00 for 3 units"
+    }
+  },
+  "cases": [
+    {
+      "id": "cogs-of-all-7-units-sold",
+      "kind": "cost",
+      "classification": "one_halala",
+      "evidence": [
+        "purchase_3_at_100",
+        "purchase_4_at_50",
+        "sale_of_7",
+        "sale_of_7_journals",
+        "sale_of_7_raw"
+      ],
+      "inputs": {
+        "purchases": "3 at 100, then 4 at 50, tax 15%",
+        "sale": "all 7 units",
+        "line_cost_the_screen_keeps": "71.43"
+      },
+      "reference": {
+        "average_cost": "71.43",
+        "cost_journal": "500.0000"
+      },
+      "expected": {
+        "average_cost": "71.43",
+        "cost_journal": "500.0100"
+      }
+    },
+    {
+      "id": "cogs-of-2-units-sold-with-no-stock-left",
+      "kind": "cost",
+      "classification": "differs",
+      "evidence": [
+        "sale_of_2",
+        "sale_of_2_raw"
+      ],
+      "inputs": {
+        "sale": "2 units with a stock of 0",
+        "line_cost_the_screen_keeps": "71.43"
+      },
+      "reference": {
+        "cost_journal": "142.8571",
+        "shown_as": "142.86"
+      },
+      "expected": {
+        "cost_journal": "142.8600",
+        "shown_as": "142.86"
+      }
+    },
+    {
+      "id": "average-after-negative-stock-and-a-purchase",
+      "kind": "cost",
+      "classification": "exact",
+      "evidence": [
+        "average_while_negative",
+        "purchase_5_at_80",
+        "after_the_purchase"
+      ],
+      "inputs": {
+        "stock_before": "-2",
+        "purchase": "5 at 80"
+      },
+      "reference": {
+        "item_cost": "80.00",
+        "quantity": "3.000"
+      },
+      "expected": {
+        "item_cost": "80.00",
+        "quantity": "3.000"
+      }
+    },
+    {
+      "id": "stock-value-in-the-books-after-the-sequence",
+      "kind": "cost",
+      "classification": "differs",
+      "evidence": [
+        "purchase_5_at_80",
+        "sale_of_7_raw",
+        "sale_of_2_raw"
+      ],
+      "inputs": {
+        "sum_of_the_item_journals": "300 + 200 - 500 - 142.8571 + 400"
+      },
+      "reference": {
+        "value_of_3_units": "257.1429"
+      },
+      "expected": {
+        "value_of_3_units": "257.1300"
+      }
+    }
+  ]
+}

@@ -1,0 +1,92 @@
+{
+  "id": "T-17",
+  "title": "When the credit a debit note leaves is spent on the supplier's open purchases: two unpaid purchases of 69 and a debit note of 230, then a new purchase of 115",
+  "recorded": "2026-10-24",
+  "evidence": {
+    "paid_purchase": {
+      "id": "ev_6c3ba259f7f721eb000a7df272532f65ca6f84698ba843c4a52580d1fa52b4af",
+      "note": "Purchase of 3 units at 100 with tax, paid at once: 345"
+    },
+    "older_purchase": {
+      "id": "ev_6aba63d3a7154a984d2ac54bb738fa1e1feed3c1644b1de328addad0d8d08a97",
+      "note": "Unpaid purchase of 69 dated 20 October"
+    },
+    "newer_purchase": {
+      "id": "ev_57a7cd8b6cde479c7ffb2a1583ffbae939d4576f3a9d628ae54cbe7e31f07e97",
+      "note": "Unpaid purchase of 69 dated 22 October"
+    },
+    "debit_note": {
+      "id": "ev_c38bfc2dab87d446246beb3e14de33a8bb500815ebcddf8df4390a0bed5ee8d1",
+      "note": "Debit note of 2 units from the paid purchase: 230, with no refund journal"
+    },
+    "after_the_debit_note": {
+      "id": "ev_5c6b681ae03750be3db2ecac7d3d1330292819cfcd0c6b4a37a0e75707d99ce9",
+      "note": "The two unpaid purchases are still unpaid and the supplier shows minus 92 owed"
+    },
+    "new_purchase": {
+      "id": "ev_10f59ec7589e34966b776e7ce3e1c500c6aeabf67b4d7a05074536eb375b23c2",
+      "note": "Unpaid purchase of 115 saved afterwards"
+    },
+    "after_the_new_purchase": {
+      "id": "ev_63c2a1c06bec5f6908181422df7deafed3b3ff9a55127249e443689ac6c481e2",
+      "note": "The credit was spent on the older purchase, then the newer one, then the new one: 69, 69 and 92, with 23 left to pay"
+    }
+  },
+  "cases": [
+    {
+      "id": "credit-is-spent-oldest-first-when-a-new-purchase-is-saved",
+      "kind": "payable",
+      "classification": "exact",
+      "evidence": [
+        "older_purchase",
+        "newer_purchase",
+        "debit_note",
+        "new_purchase",
+        "after_the_new_purchase"
+      ],
+      "inputs": {
+        "open_purchases": "69 (20 Oct) and 69 (22 Oct)",
+        "debit_note": "230",
+        "new_purchase": "115"
+      },
+      "reference": {
+        "older_applied": "69.00",
+        "newer_applied": "69.00",
+        "new_applied": "92.00",
+        "new_open": "23.00",
+        "owed": "23.00"
+      },
+      "expected": {
+        "older_applied": "69.00",
+        "newer_applied": "69.00",
+        "new_applied": "92.00",
+        "new_open": "23.00",
+        "owed": "23.00"
+      }
+    },
+    {
+      "id": "credit-of-a-debit-note-waits-for-the-next-purchase",
+      "kind": "payable",
+      "classification": "differs",
+      "evidence": [
+        "debit_note",
+        "after_the_debit_note"
+      ],
+      "inputs": {
+        "open_purchases": "69 and 69",
+        "debit_note": "230",
+        "read_after": "the note, before any new purchase"
+      },
+      "reference": {
+        "older_open": "69.00",
+        "newer_open": "69.00",
+        "owed": "-92.00"
+      },
+      "expected": {
+        "older_open": "0.00",
+        "newer_open": "0.00",
+        "owed": "-92.00"
+      }
+    }
+  ]
+}

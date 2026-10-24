@@ -1,0 +1,109 @@
+{
+  "id": "T-18",
+  "title": "Where a payment to a supplier stands: a purchase of 115 left unpaid, a payment of 40, and the payment taken through each of its five statuses",
+  "recorded": "2026-10-24",
+  "evidence": {
+    "unpaid_purchase": {
+      "id": "ev_36531908cac71e326dadfded31211e1da0582398c5022fc8940c0e5c4b1fc4d6",
+      "note": "Purchase of 115 left unpaid"
+    },
+    "payment_of_40": {
+      "id": "ev_1a0dafede0ebf171d7d001e0f4317c037a18daa9f2c2ed927e2e70aa184aa652",
+      "note": "Payment of 40 in cash, completed: the purchase is partly paid"
+    },
+    "journal_of_the_payment": {
+      "id": "ev_174b7517b69b5269a4dc3b4c1fc36f9ec8dc18e836c8004878d20e50e82b98f1",
+      "note": "The payment journal: the supplier debited 40 and the cash account credited 40"
+    },
+    "status_incomplete": {
+      "id": "ev_964322f6da35222b5f4ee728b852964086c2894b0a3019058871e3e3bd10778e",
+      "note": "Not complete: no journal and the purchase unpaid again"
+    },
+    "status_review": {
+      "id": "ev_f0e29e7be1d06e1733565309eee10a1b7a72bdba9b97254a4de3597562eb3751",
+      "note": "Under review: the same"
+    },
+    "status_failed": {
+      "id": "ev_53ed645e8fb5fe4ccc1534edd135f8be50781f2d1671172f2faa5067f1807cac",
+      "note": "Failed: the same"
+    },
+    "status_draft": {
+      "id": "ev_ce18c6dc59f055fa14b178efc2d58f23e7b51e6370d8944ebe2fad81e2dad06d",
+      "note": "Draft: the same"
+    },
+    "status_completed_again": {
+      "id": "ev_8455588821322d141e5e4ae09c2f254c6806781727e120e8272347f2b799cda8",
+      "note": "Completed again: the journal comes back under a new number and the purchase is partly paid"
+    },
+    "journal_after_completing_again": {
+      "id": "ev_2d7a41038b009d1659d593b195ce7a02a763a8ec3dfd51f0ff8571ad28e6cf49",
+      "note": "The journal of the payment after it was completed again"
+    }
+  },
+  "cases": [
+    {
+      "id": "only-a-completed-payment-is-in-the-books",
+      "kind": "payment_status",
+      "classification": "exact",
+      "evidence": [
+        "unpaid_purchase",
+        "payment_of_40",
+        "journal_of_the_payment",
+        "status_incomplete",
+        "status_review",
+        "status_failed",
+        "status_draft"
+      ],
+      "inputs": {
+        "purchase": "115, unpaid",
+        "payment": "40 in cash",
+        "statuses": [
+          "incomplete",
+          "review",
+          "failed",
+          "draft",
+          "completed"
+        ]
+      },
+      "reference": {
+        "in_books_incomplete": "0.00",
+        "in_books_review": "0.00",
+        "in_books_failed": "0.00",
+        "in_books_draft": "0.00",
+        "in_books_completed": "40.00",
+        "open_when_not_completed": "115.00",
+        "open_when_completed": "75.00"
+      },
+      "expected": {
+        "in_books_incomplete": "0.00",
+        "in_books_review": "0.00",
+        "in_books_failed": "0.00",
+        "in_books_draft": "0.00",
+        "in_books_completed": "40.00",
+        "open_when_not_completed": "115.00",
+        "open_when_completed": "75.00"
+      }
+    },
+    {
+      "id": "completing-again-books-a-fresh-journal",
+      "kind": "payment_status",
+      "classification": "exact",
+      "evidence": [
+        "status_completed_again",
+        "journal_after_completing_again"
+      ],
+      "inputs": {
+        "payment": "40 in cash",
+        "path": "completed, then not complete, then completed"
+      },
+      "reference": {
+        "fresh_journal": "yes",
+        "amount": "40.00"
+      },
+      "expected": {
+        "fresh_journal": "yes",
+        "amount": "40.00"
+      }
+    }
+  ]
+}

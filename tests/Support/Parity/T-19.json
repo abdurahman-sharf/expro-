@@ -1,0 +1,91 @@
+{
+  "id": "T-19",
+  "title": "A payment beyond what a purchase needs, spent on a later purchase, and then taken away: purchase of 115, payment of 165, purchase of 57.50, payment deleted",
+  "recorded": "2026-10-24",
+  "evidence": {
+    "first_purchase": {
+      "id": "ev_72958582c6d77b9bcaeaf4b3d0a12c0315e5ffd27447b2dbd6c9e8f9f57b4602",
+      "note": "Unpaid purchase of 115"
+    },
+    "payment_of_165": {
+      "id": "ev_5543d6de6696ee0e6f76e46dbc6d986d482c7fd8493ed3c53f06029c0eb79c6b",
+      "note": "Payment of 165 in cash: the purchase is paid in excess"
+    },
+    "journal_of_the_payment": {
+      "id": "ev_52c1b07c2531e05cd866b0d11da2564a26c2c147b227f33fd977d878803af6bf",
+      "note": "The payment journal holds the whole 165"
+    },
+    "second_purchase": {
+      "id": "ev_23a4a8815d8a9cb570c36aaaa443a1b6c2b64b207d472408df6684d269dfe3ca",
+      "note": "Unpaid purchase of 57.50 saved afterwards"
+    },
+    "state_before_the_deletion": {
+      "id": "ev_7412b6a8ed5b6ae7edb800d99f1ff90dfde66c706ce46cb1aa69bfff0777e150",
+      "note": "The second purchase carries an automatic payment of 50 from the supplier credit and 7.50 is left to pay"
+    },
+    "deletion": {
+      "id": "ev_b40ae518b300a344f6877266f6bc1a91f7a766c90db6116aebca0d0cf9fec3e5",
+      "note": "The payment of 165 deleted after its confirmation"
+    },
+    "state_after_the_deletion": {
+      "id": "ev_6149e8aaffb017c08fd756eb19bb486eb6faf84329067cd27247fac5159daa25",
+      "note": "Both purchases unpaid again: the credit payment on the second one is gone and 172.50 is owed"
+    }
+  },
+  "cases": [
+    {
+      "id": "excess-of-a-payment-settles-a-later-purchase",
+      "kind": "payable",
+      "classification": "exact",
+      "evidence": [
+        "first_purchase",
+        "payment_of_165",
+        "journal_of_the_payment",
+        "second_purchase",
+        "state_before_the_deletion"
+      ],
+      "inputs": {
+        "first_purchase": "115",
+        "payment": "165",
+        "second_purchase": "57.50"
+      },
+      "reference": {
+        "first_state": "excess",
+        "owed_after_the_payment": "-50.00",
+        "second_applied": "50.00",
+        "second_open": "7.50",
+        "owed_after_the_second": "7.50"
+      },
+      "expected": {
+        "first_state": "excess",
+        "owed_after_the_payment": "-50.00",
+        "second_applied": "50.00",
+        "second_open": "7.50",
+        "owed_after_the_second": "7.50"
+      }
+    },
+    {
+      "id": "deleting-the-payment-takes-back-what-it-settled",
+      "kind": "payable",
+      "classification": "exact",
+      "evidence": [
+        "deletion",
+        "state_after_the_deletion"
+      ],
+      "inputs": {
+        "payment": "165, deleted",
+        "second_purchase": "settled 50 from its excess"
+      },
+      "reference": {
+        "first_open": "115.00",
+        "second_open": "57.50",
+        "owed": "172.50"
+      },
+      "expected": {
+        "first_open": "115.00",
+        "second_open": "57.50",
+        "owed": "172.50"
+      }
+    }
+  ]
+}

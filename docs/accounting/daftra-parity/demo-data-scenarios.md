@@ -1,6 +1,6 @@
 # السيناريوهات التي تحتاج بيانات تجريبية في دفترة
 
-**التاريخ:** 2026-10-22. **الحالة:** **الحزمة A نُفِّذت** بإذن المالك (E12 في [decisions.md](../decisions.md))، وسُجِّلت نتائجها أدناه. **والحزمة B نُفِّذت** (E13). والحزمتان C وD لم تُنفَّذا وتنتظران إذنًا مستقلًا لكل منهما. **والحزمة F** (رصد ما بقي مفتوحًا بعد P4 وP5: دقة تكلفة السطر، وحدّ المرتجع، وخصم سطر الشراء، وترتيب تطبيق رصيد المورد وحالات دفعته وحذفها، والتحويل والجرد) **مقترحة بانتظار موافقتك** ولم يُكتب لها شيء: [الخطة](observation-package-f-plan.md). يغطي هذا الملف المخرج الرابع المطلوب.
+**التاريخ:** 2026-10-22. **الحالة:** **الحزمة A نُفِّذت** بإذن المالك (E12 في [decisions.md](../decisions.md))، وسُجِّلت نتائجها أدناه. **والحزمة B نُفِّذت** (E13). والحزمتان C وD لم تُنفَّذا وتنتظران إذنًا مستقلًا لكل منهما. **والحزمة F** (رصد ما بقي مفتوحًا بعد P4 وP5) **نُفِّذت شريحتها الأولى بإذن المالك (2026-10-24)** وسُجِّلت نتائجها أدناه، وبقيت الشريحة الثانية وF-04ج وكتابة F-08 وF-09 غير مأذونة: [الخطة](observation-package-f-plan.md) و[التقرير](observation-package-f-report.md). يغطي هذا الملف المخرج الرابع المطلوب.
 
 ## قواعد التنفيذ المقترحة
 
@@ -236,3 +236,154 @@
 
 المستندات الجديدة (الحزمة B): فاتورة مسودة 000019 (قيدا 75 و76)، وفاتورة شراء 000007 ثم 000008 (قيدا 77 و78 حُذفا عند تحويلها لمسودة، ثم قيدا 80 و81 حُذفا بحذفها)، وقيد عكسي يدوي 82، وفواتير التقريب 000020 إلى 000024 (قيود 83 إلى 92). **حُذف فعليًا:** دفعة العميل #11 (وقيدها 59)، وفاتورة الشراء 000008 ودفعتها (وقيداهما 80 و81). وقيد الدفعة #13 أُعيد إنشاؤه برقم 79 بدل 60. وقيد 17 صار رقمه 000999 وأوصافه معدّلة.
 
+### نتيجة الحزمة F (2026-10-24، الشريحة الأولى بإذن المالك)
+
+نُفِّذت الشريحة الأولى فقط بإذن المالك الصريح (F-00 وF-01 وF-01ب وF-02 وF-03 وF-04 دون F-04ج وF-05 وF-06 وF-07 قراءة فقط)، في حساب `opes.daftra.com` الذي أكد المالك أنه **حساب تجارب بالكامل**، ببيانات موسومة «افتراضي-F»، **سيناريو واحدًا في كل مرة** (تجهيز ← تنفيذ ← قراءة المستند والقيود والتقارير ← تسجيل الدليل). **لم يُحذف شيء** من المستندات (بتوجيه المالك) إلا الدفعة المقصودة في F-06. **ولم يُنفَّذ** F-04ج (زر «تسوية») ولا أي كتابة في F-08 وF-09 ولا الشريحة الثانية. وفحص F-08 وF-09 كان قراءة فقط ولم يغيّر إعدادًا.
+
+**ما أُنشئ فعلًا (يطابق حدود الخطة):** 4 موردين و3 أصناف، **15 فاتورة شراء**، مرتجع شراء وإشعار مدين واحد (كلاهما مقبول)، دفعتان يدويتان (إحداهما حُذفت في السيناريو)، **فاتورتا بيع دائمتان**، ومحاولتا مرتجع مرفوضتان لم تُنشئا مستندًا.
+
+| السيناريو | ما نُفِّذ | الأرقام | النتيجة |
+|---|---|---|---|
+| `F-00` | موردون F1 إلى F4 وأصناف «افتراضي-F أ» و«ب» و«ج» | موردون #000003 إلى #000006 (حساباتهم 2211003 إلى 2211006)، أصناف #000006 إلى #000008 | لكل مورد حساب أستاذ فرعي يُفتح عند إنشائه. حقل البريد الإلكتروني للمورد مطلوب |
+| `F-01` | شراء 3×100 ثم 4×50 (ضريبة 15%) للصنف أ، ثم بيع 7 وحدات | شراءان #000009 و#000010، بيع #000025، قيود 93 إلى 98 | المتوسط 71.428571 (يُعرض 71.43)، **قيد تكلفة البيع 500.0000 بالضبط** (المخزَّن `500`)، لا 500.01 |
+| `F-01ب` | بيع وحدتين بعد نفاد المخزون، ثم شراء 5×80 | بيع #000026، شراء #000011، قيود 99 إلى 102 | قيد التكلفة المخزَّن **142.8571 (أربع منازل)** ويُعرض 142.86. بعد الشراء المتوسط **80.00** لثلاث وحدات: **الوحدات الجديدة تأخذ تكلفتها وحدها** |
+| `F-03` | ثلاث فواتير شراء للصنف ج: 10×100 بخصم سطر 10% وبخصم ثابت 50 وبخصم سطر 10% مع خصم 10% على الفاتورة | شراء #000012 و#000013 و#000014، قيود 103 إلى 108 | (أ) مخزون 900 وضريبة 135 ومورد 1,035. (ب) **مخزون 500 وضريبة 75 ومورد 575: الخصم الثابت 50 على كل وحدة**. (ج) مخزون 810 وضريبة 121.50 ومورد 931.50: **خصم الفاتورة يدخل في تكلفة المخزون وأساس الضريبة** ولا سطر خصم في القيد |
+| `F-02` | صنف ب للمورد F1: شراء 10×100، مرتجع 4، محاولتا مرتجع 7 و11، ثم شراء 6×70 | شراء #000015 و#000016، مرتجع #000002 (`view_refund/17`)، قيود 109 إلى 114 | المرتجع: مدين المورد 460 ودائن الضريبة 60 والمخزون 400، وقيد استرداد نقدي 460. **المحاولتان رُفضتا** برسالة «لقد تخطي البند الكمية المسموح بإرجاعها» **ولم يُحفظ شيء**. المتوسط بعد المرتجع 100.00 وبعد شراء 6×70 **85.00** (المرتجع لا يغيّر المتوسط) |
+| `F-05` | مورد F4: شراء 115 غير مدفوع، دفعة 40 نقدًا، ثم تحويل حالتها بين الخمس | شراء #000017، دفعة #000020 (المعرّف 22)، قيود 115 إلى 117 | في كل حالة غير «مكتمل» (غير مكتمل، تحت المراجعة، فاشلة، مسودة) **يُحذف قيد الدفعة (116) والشراء غير مدفوع (115)**. وبالعودة إلى «مكتمل» **قيد جديد برقم 117** والشراء «مدفوعة جزئياً» (75). مطابق لحالات دفعة العميل (`S-37`) |
+| `F-04` | مورد F2: شراء 345 مدفوع، ثم شراءان غير مدفوعين 69 (20/10) و69 (22/10)، ثم إشعار مدين 230، ثم شراء جديد 115 | شراءات #000018 إلى #000021، إشعار مدين #00002 (`view_debit_note/23`)، قيود 118 إلى 123 | **بعد الإشعار لم يُطبَّق الرصيد**: الشراءان بقيا «غير مدفوع» والمورد «مستحق −92». **عند حفظ الشراء الجديد** طُبِّق الرصيد **الأقدم فالأقدم**: 69 ثم 69 ثم 92 على الجديد (مدفوعات «رصيد المورد» #000022 و#000023 و#000024، آلية بلا قيود) والمتبقي 23 |
+| `F-06` | مورد F3: شراء 115 غير مدفوع، دفعة 165، شراء 57.50، ثم حذف الدفعة | شراء #000022 و#000023، دفعة #000025 (المعرّف 27)، قيود 124 إلى 126 | الدفعة تعطي «مدفوع بالزيادة» والمورد «−50». الشراء الجديد **سُدِّد آليًا بـ50 من الزيادة** (دفعة #000026). **بحذف الدفعة** حُذف القيد 125 وعاد الشراءان **غير مدفوعين** وحُذفت دفعة الرصيد على الثاني: المورد «مستحق 172.50» |
+| `F-07` (قراءة) | شاشات المدفوعات والإشعارات المدينة وكشف المورد وتقارير الأرصدة والأعمار، وفحص F-08 وF-09 | بلا كتابة | قائمة مدفوعات الموردين بترقيمها الخاص ودفعة الاسترداد تظهر سالبة. **«أضف رصيد مدفوعات» دفعة مورد مستقلة بلا شراء موجودة**. تقرير الأعمار بست خانات (اليوم، 1 إلى 30، 31 إلى 60، 61 إلى 90، 91 إلى 120، أكثر من 120). تقرير الأرصدة بأعمدة (قبل، مشتريات، مرتجع، صافي، مدفوعات، تسويات، رصيد) والإشعار المدين تحت «تسويات». شاشتا الجرد والأذون المخزنية **تعملان دون تغيير إعداد** وفي الحساب موقع واحد |
+
+**ما تعذّر نقره مرتين** (تبويب «المدفوعات» في F-06) فشل بمهلة REA العابرة المعروفة ولم يُكرَّر معه أي إنشاء: تحققتُ بقراءة القيود (125 دفعة واحدة، ولا 126 قبل الشراء الثاني) ثم قرأتُ الحالة من نموذج الشراء مباشرة. وبقيت ثلاث جلسات دخول بلا خروج، تنتهي بمهلتها.
+
+#### المستندات المتبقية في الحساب بعد الحزمة F (لم يُحذف منها شيء)
+
+| المستند | المورد أو العميل | ما هو | حالته الآن |
+|---|---|---|---|
+| فاتورة شراء #000009 (`view/10`) | F4 | صنف أ: 3×100 | 345 مدفوعة |
+| فاتورة شراء #000010 (`view/11`) | F4 | صنف أ: 4×50 | 230 مدفوعة |
+| فاتورة شراء #000011 (`view/12`) | F4 | صنف أ: 5×80 | 460 مدفوعة |
+| فاتورة شراء #000012 (`view/13`) | F4 | صنف ج: 10×100 بخصم 10% | 1,035 مدفوعة |
+| فاتورة شراء #000013 (`view/14`) | F4 | صنف ج: 10×100 بخصم ثابت 50 | 575 مدفوعة |
+| فاتورة شراء #000014 (`view/15`) | F4 | صنف ج: بخصم سطر وخصم فاتورة | 931.50 مدفوعة |
+| فاتورة شراء #000015 (`view/16`) | F1 | صنف ب: 10×100 | 1,150 مدفوعة (مرتجع منها #000002) |
+| فاتورة شراء #000016 (`view/18`) | F1 | صنف ب: 6×70 | 483 مدفوعة |
+| فاتورة شراء #000017 (`view/19`) | F4 | صنف ب: 1×100 غير مدفوعة ودفعة #000020 بـ40 | 115، مستحق 75 |
+| فاتورة شراء #000018 (`view/20`) | F2 | صنف ب: 3×100 | 345 مدفوعة (إشعار مدين منها #00002) |
+| فاتورة شراء #000019 (`view/21`) | F2 | صنف ب: 1×60 بتاريخ 20/10/2026 | 69 مدفوعة برصيد المورد |
+| فاتورة شراء #000020 (`view/22`) | F2 | صنف ب: 1×60 بتاريخ 22/10/2026 | 69 مدفوعة برصيد المورد |
+| فاتورة شراء #000021 (`view/24`) | F2 | صنف ب: 1×100 | 115 مدفوعة جزئيًا، مستحق 23 |
+| فاتورة شراء #000022 (`view/25`) | F3 | صنف ب: 1×100 | 115 غير مدفوعة |
+| فاتورة شراء #000023 (`view/26`) | F3 | صنف ب: 1×50 | 57.50 غير مدفوعة |
+| مرتجع مشتريات #000002 (`view_refund/17`) | F1 | 4 وحدات من #000015 | 460 مردود نقدًا |
+| إشعار مدين #00002 (`view_debit_note/23`) | F2 | وحدتان من #000018 | 230 |
+| فاتورة بيع #000025 (`view/33`) **دائمة** | عميل الحزمة A | 7 وحدات من الصنف أ | 1,610 غير مدفوعة |
+| فاتورة بيع #000026 (`view/34`) **دائمة** | عميل الحزمة A | وحدتان من الصنف أ | 460 غير مدفوعة |
+| قيود | | 93 إلى 128 (125 حُذف بحذف الدفعة، و116 حُذف ثم أُعيد برقم 117) | آخر رقم 126 |
+
+الموردون #000003 إلى #000006 والأصناف #000006 إلى #000008 باقية. والأرصدة الآن: F1 صفر، F2 مستحق 23.00، F3 مستحق 172.50، F4 مستحق 75.00، ومجموع تقرير الأعمار 270.50.
+
+#### معرّفات أدلة REA (الحزمة F)
+
+المفاتيح هي مفاتيح ملفات التثبيت `T-14` إلى `T-19`؛ وما لم يُدرَج في ملف تثبيت (فحوص الإعداد والقراءة) في الجدول الأخير.
+
+**T-14** — Cost of what is sold when the average is not a round number, and the average after stock went negative: 3 units bought at 100 and 4 at 50, all 7 sold, 2 more sold with none left, then 5 bought at 80
+
+| الغرض | `evidence_id` |
+|---|---|
+| Purchase of 3 units at 100 with 15% tax for a test supplier | `ev_fa95e2968bf33938082d9208c0ca47db6181f21b5ae8111e61a9df69ef7b4adb` |
+| Purchase of 4 units at 50 with 15% tax: the average becomes 71.428571 and the stock is worth 500.00 | `ev_ddaf7e3cf8a9f2177605f6c351dfefbdf96186918b60ba944ef8333346fc1bde` |
+| Sale of all 7 units at 200 | `ev_7d685c6fcabc61730bd38ae21f8c3e51eb25f85b62b26e1ddd59dc435a0f9111` |
+| The revenue journal of 1,610 and the cost journal of 500.00 | `ev_d00e6d529b336ac61f8e84915dce83a69895888a40cbef902ff860dbc25a37d6` |
+| The values the cost journal stores: 500 exactly | `ev_a85459d7a6b1bc93c0ca1e959f0f204aa990ad5a1dd45dce54820fec7a4a8a26` |
+| Sale of 2 units with no stock left, which the reference system saves | `ev_515585615241b615778ef2b204e37cf111732889c2c614425d7ac3e50e4ef8e2` |
+| The values the cost journal of that sale stores: 142.8571, to four decimals | `ev_c3bd81172804cbedacd78d014813d282cb324a947ac7cbca6b705dff63b32124` |
+| Average 71.43 and a stock of minus 2 worth minus 142.86 | `ev_4508e2703088825d25f5b5d36456ecb065d4343540264576f15b9c0d5af9b09d` |
+| Purchase of 5 units at 80 while the stock is minus 2 | `ev_55acec888de7a29442fab5fd6d7d4eb7ccaf2170f8d4a9325e5dfc929fdaeb4d` |
+| The product shows an average of 80.00 for 3 units | `ev_94c83af2c7bcef4628dfef90bb591885769c82604bb37b4385c32ab443d9d62c` |
+
+**T-15** — A return to a supplier of part of a purchase: what it books, what it cannot exceed, and what it does to the average cost
+
+| الغرض | `evidence_id` |
+|---|---|
+| Purchase of 10 units at 100 with 15% tax, paid | `ev_6ef183dbbd94cd31e669c998382ee037df6bf951742507c61ec58090d65211ff` |
+| Return of 4 of them | `ev_8976949f4a1561da7e2fd5aa34b1b20debc8a081dd4b37b54048eec0d69156f3` |
+| The return journal and the refund journal | `ev_d25819a2cd0d011833e836788769f0eac472914824a5906cdd63f376554012b2` |
+| A return of 7 when 6 remain: refused with a message that the item exceeded the quantity it may return, and nothing saved | `ev_6d84652c085b8b103e041e6f526ef2aac2683d9ae44079e15785a55ac078b7d1` |
+| A return of 11 when 10 were bought: refused the same way | `ev_72a55aaa806f9fa4a713740501eb71b7f807d9904a8e27e570efee75e136c113` |
+| Stock 6, average 100.00, and only the return of 4 among the returns | `ev_2416dbce584fb0752b7755a9ede693a59d90f0de9719f2dbd4b2217300567494` |
+| Purchase of 6 units at 70 | `ev_ae1c542e30697c6c4e684a88437da9e4c8c0806fa77df3ca5ebff2c62219bf5d` |
+| Stock 12 and an average of 85.00 | `ev_365cfb8b25911b0d9c9edfa9ac05f93495204c05c0cb1e7cc1550a8ce3039695` |
+
+**T-16** — A discount on a purchase line, and on the whole purchase, with 15% input tax: 10 units at 100
+
+| الغرض | `evidence_id` |
+|---|---|
+| Purchase with a 10% discount on the line | `ev_1983ec53d4f40a3b6ad6d49b467e3038a71426017bd53004621a558469683041` |
+| Inventory 900, input tax 135, supplier 1,035 | `ev_45079971de577b39e2095cbf0cbbe46ff983961e0505cfff2a1907a1a488e6d2` |
+| Purchase with a fixed discount of 50 on the line | `ev_b9a16dbdf069c2a96bd3dd98a8730f65591b78b18c3a9283b34d46cf84894f71` |
+| Inventory 500, input tax 75, supplier 575: the 50 comes off each unit | `ev_1c5f6ac38c2dab05c7e06896311fba5f39fa84517216c0a8a1240410c2765465` |
+| Purchase with 10% on the line and 10% on the whole purchase | `ev_962ca573bf7bd3a863d6766ab5efa4a32d49cb81b9f242f40c7caa54a6791cf6` |
+| Inventory 810, input tax 121.50, supplier 931.50 | `ev_d76eca4cb6a95f40a9f0b965a376abc4d8710b059ba7cd6dcff2b8a8d6a9ecb5` |
+| Thirty units in stock at an average of 73.67 for the three purchases | `ev_ec6ec16d4c59b3ac6c78cf656f587695b91a78932bc1926bd929de3f4a3af756` |
+
+**T-17** — When the credit a debit note leaves is spent on the supplier's open purchases: two unpaid purchases of 69 and a debit note of 230, then a new purchase of 115
+
+| الغرض | `evidence_id` |
+|---|---|
+| Purchase of 3 units at 100 with tax, paid at once: 345 | `ev_6c3ba259f7f721eb000a7df272532f65ca6f84698ba843c4a52580d1fa52b4af` |
+| Unpaid purchase of 69 dated 20 October | `ev_6aba63d3a7154a984d2ac54bb738fa1e1feed3c1644b1de328addad0d8d08a97` |
+| Unpaid purchase of 69 dated 22 October | `ev_57a7cd8b6cde479c7ffb2a1583ffbae939d4576f3a9d628ae54cbe7e31f07e97` |
+| Debit note of 2 units from the paid purchase: 230, with no refund journal | `ev_c38bfc2dab87d446246beb3e14de33a8bb500815ebcddf8df4390a0bed5ee8d1` |
+| The two unpaid purchases are still unpaid and the supplier shows minus 92 owed | `ev_5c6b681ae03750be3db2ecac7d3d1330292819cfcd0c6b4a37a0e75707d99ce9` |
+| Unpaid purchase of 115 saved afterwards | `ev_10f59ec7589e34966b776e7ce3e1c500c6aeabf67b4d7a05074536eb375b23c2` |
+| The credit was spent on the older purchase, then the newer one, then the new one: 69, 69 and 92, with 23 left to pay | `ev_63c2a1c06bec5f6908181422df7deafed3b3ff9a55127249e443689ac6c481e2` |
+
+**T-18** — Where a payment to a supplier stands: a purchase of 115 left unpaid, a payment of 40, and the payment taken through each of its five statuses
+
+| الغرض | `evidence_id` |
+|---|---|
+| Purchase of 115 left unpaid | `ev_36531908cac71e326dadfded31211e1da0582398c5022fc8940c0e5c4b1fc4d6` |
+| Payment of 40 in cash, completed: the purchase is partly paid | `ev_1a0dafede0ebf171d7d001e0f4317c037a18daa9f2c2ed927e2e70aa184aa652` |
+| The payment journal: the supplier debited 40 and the cash account credited 40 | `ev_174b7517b69b5269a4dc3b4c1fc36f9ec8dc18e836c8004878d20e50e82b98f1` |
+| Not complete: no journal and the purchase unpaid again | `ev_964322f6da35222b5f4ee728b852964086c2894b0a3019058871e3e3bd10778e` |
+| Under review: the same | `ev_f0e29e7be1d06e1733565309eee10a1b7a72bdba9b97254a4de3597562eb3751` |
+| Failed: the same | `ev_53ed645e8fb5fe4ccc1534edd135f8be50781f2d1671172f2faa5067f1807cac` |
+| Draft: the same | `ev_ce18c6dc59f055fa14b178efc2d58f23e7b51e6370d8944ebe2fad81e2dad06d` |
+| Completed again: the journal comes back under a new number and the purchase is partly paid | `ev_8455588821322d141e5e4ae09c2f254c6806781727e120e8272347f2b799cda8` |
+| The journal of the payment after it was completed again | `ev_2d7a41038b009d1659d593b195ce7a02a763a8ec3dfd51f0ff8571ad28e6cf49` |
+
+**T-19** — A payment beyond what a purchase needs, spent on a later purchase, and then taken away: purchase of 115, payment of 165, purchase of 57.50, payment deleted
+
+| الغرض | `evidence_id` |
+|---|---|
+| Unpaid purchase of 115 | `ev_72958582c6d77b9bcaeaf4b3d0a12c0315e5ffd27447b2dbd6c9e8f9f57b4602` |
+| Payment of 165 in cash: the purchase is paid in excess | `ev_5543d6de6696ee0e6f76e46dbc6d986d482c7fd8493ed3c53f06029c0eb79c6b` |
+| The payment journal holds the whole 165 | `ev_52c1b07c2531e05cd866b0d11da2564a26c2c147b227f33fd977d878803af6bf` |
+| Unpaid purchase of 57.50 saved afterwards | `ev_23a4a8815d8a9cb570c36aaaa443a1b6c2b64b207d472408df6684d269dfe3ca` |
+| The second purchase carries an automatic payment of 50 from the supplier credit and 7.50 is left to pay | `ev_7412b6a8ed5b6ae7edb800d99f1ff90dfde66c706ce46cb1aa69bfff0777e150` |
+| The payment of 165 deleted after its confirmation | `ev_b40ae518b300a344f6877266f6bc1a91f7a766c90db6116aebca0d0cf9fec3e5` |
+| Both purchases unpaid again: the credit payment on the second one is gone and 172.50 is owed | `ev_6149e8aaffb017c08fd756eb19bb486eb6faf84329067cd27247fac5159daa25` |
+
+**قراءة وفحوص (بلا ملف تثبيت)**
+
+| الغرض | `evidence_id` |
+|---|---|
+| قراءة أولية: قوائم الموردين والأصناف والمشتريات والقيود والمخازن قبل أي كتابة | `ev_29d77aad24be4bdbad577f01530488f051b94d350d4dc9a8b75bb169dd39d643` |
+| نموذج إضافة مورد (قراءة) | `ev_d1dfe06dddb373850ef9baf2cc97ced64c4e5fa515faf5997690be78b0261660` |
+| إنشاء المورد F1 | `ev_1b6c6927be4620a5994259397452573932298d82a2816aa1ae8fd6ce6a02d0f0` |
+| إنشاء المورد F2 | `ev_a6efd51304698c6c1566f7b1c99bc5ea379ce50be81cb5133f69be11f7e54b0b` |
+| إنشاء المورد F3 | `ev_647723784c59898b092a20cc7de3d64628efd85503282b4de604dfe7b005474e` |
+| إنشاء المورد F4 | `ev_d65afbb66525131a3ff54bd6760bf416252759c6ab08c53bc8d8a649e0b79b2c` |
+| إنشاء الصنف أ | `ev_bc77c70736825f6172bcc791c77bba283a32c2e336814f9e59648409151643bb` |
+| إنشاء الصنف ب | `ev_2b4b4179b6cbe9d4ab74f4534e6f0b6d554eb6971f1be905fe8e38d6c49b4357` |
+| إنشاء الصنف ج | `ev_ab8a065583cba54c4fe90280b765822c20f0df66e41981beec3cae02f445b027` |
+| شراء 345 مدفوع للمورد F2 (F-04) | `ev_6c3ba259f7f721eb000a7df272532f65ca6f84698ba843c4a52580d1fa52b4af` |
+| قراءة: قائمة التقارير وقوائم المدفوعات والجرد والأذون وإعدادات المخزون | `ev_69a40de5be133b12aa3908159c442a5764aa7318a4a194b2647ee88cfdceef44` |
+| قراءة: تقارير أعمار الدائنين وأرصدة الموردين وكشف الموردين | `ev_c6e3b09e870b2add2cb15ca4d21f51dc2dd4b34ce00b6e4bb3445990cfc017ea` |
+| قراءة: تقرير أرصدة الموردين بمرشحات (ملخص وتفصيل) | `ev_e39d0287dd342bd26c032b847ff085f9ce595afcf4105c0c7ec011daa6d03c45` |
+| قراءة: نماذج الجرد والأذون المخزنية | `ev_4b4486723c0e12cfa5b34b976bc68aff3d5c462879efc1ce93a10a0e3a640567` |
+| قراءة: صفحة المورد وقائمة الإشعارات المدينة | `ev_ad920e1f3f25d8cf337db7af533e05c3789935863b15468a3f6b241b71f10fb2` |
+| قراءة: نموذج «أضف رصيد مدفوعات» ونموذج الرصيد الافتتاحي (بلا حفظ) | `ev_3c7a376b593ba8900541afe88525bec5afcbde5ec978d99175df67213c6876b5` |
+| قراءة: كشف حساب المورد F2 | `ev_d78b62ece03d145b97ff7aa255d69c59728a34fcfd3bafe6dde583a233892c5e` |
+| قراءة: الحالة النهائية لقوائم المشتريات والدفعات والمبيعات والمرتجعات والقيود | `ev_daf5cada8dfd5a90b603c4acb0189b9b75a95f386d34da17bb90d4a41aaffc34` |

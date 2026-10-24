@@ -312,12 +312,120 @@ class SupplierSettlementTest extends CIUnitTestCase
         $this->assertSame([], $this->supplierPosition()->purchases);
     }
 
+    // ---------------------------------------------------------------------------------------
+    // What the reference system recorded in observation package F: fixtures T-17 and T-19
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * @param array<string, int> $purchases
+     *
+     * @return array<string, string>
+     */
+    private function figuresOf(array $purchases): array
+    {
+        $figures = [];
+
+        foreach ($purchases as $name => $id) {
+            $figures[$name . '_applied'] = bcadd($this->supplierPosition()->purchase($id)->applied, '0', 2);
+            $figures[$name . '_open']    = bcadd($this->supplierPosition()->purchase($id)->open(), '0', 2);
+        }
+
+        $figures['owed'] = $this->owed();
+
+        return $figures;
+    }
+
+    /**
+     * Two unpaid purchases of 69, a paid purchase of 345 and a debit note of 230 from it: 3 units
+     * at 115 and a return of 2.
+     *
+     * @return array{older: int, newer: int, note: int}
+     */
+    private function twoOpenPurchasesAndADebitNote(): array
+    {
+        $item  = $this->item('0.00');
+        $paid  = $this->buy([$this->purchaseLine($item, 0, '3', '115')], -1, lang('Sales.cash'));
+        $older = $this->purchaseOf('69.00');
+        $newer = $this->purchaseOf('69.00');
+        $note  = $this->buy([$this->purchaseLine($item, 0, '-2', '115')], -1, null, $paid);
+
+        $this->assertGreaterThan(0, $paid);
+        $this->assertGreaterThan(0, $note);
+
+        return ['older' => $older, 'newer' => $newer, 'note' => $note];
+    }
+
+    public function testSettle_SpendsTheCreditOldestFirstWhenANewPurchaseIsSavedAsTheReferenceSystemDoes(): void
+    {
+        $case = $this->payable('credit-is-spent-oldest-first-when-a-new-purchase-is-saved', 'exact', 'T-17');
+        $made = $this->twoOpenPurchasesAndADebitNote();
+        $new  = $this->purchaseOf('115.00');
+
+        $figures = $this->figuresOf(['older' => $made['older'], 'newer' => $made['newer'], 'new' => $new]);
+
+        $this->assertSame($case['expected']['older_applied'], $figures['older_applied']);
+        $this->assertSame($case['expected']['newer_applied'], $figures['newer_applied']);
+        $this->assertSame($case['expected']['new_applied'], $figures['new_applied']);
+        $this->assertSame($case['expected']['new_open'], $figures['new_open']);
+        $this->assertSame($case['expected']['owed'], $figures['owed']);
+        $this->assertSupplierTies();
+    }
+
+    public function testSettle_SpendsTheCreditOfADebitNoteAtOnceWhereTheReferenceSystemWaitsForTheNextPurchase(): void
+    {
+        $case = $this->payable('credit-of-a-debit-note-waits-for-the-next-purchase', 'differs', 'T-17');
+        $made = $this->twoOpenPurchasesAndADebitNote();
+
+        $figures = $this->figuresOf(['older' => $made['older'], 'newer' => $made['newer']]);
+
+        $this->assertSame($case['expected']['older_open'], $figures['older_open']);
+        $this->assertSame($case['expected']['newer_open'], $figures['newer_open']);
+        $this->assertSame($case['expected']['owed'], $figures['owed'], 'What the supplier is owed is the same either way');
+        $this->assertSupplierTies();
+    }
+
+    public function testSettle_SpendsTheExcessOfAPaymentOnALaterPurchaseAsTheReferenceSystemDoes(): void
+    {
+        $case  = $this->payable('excess-of-a-payment-settles-a-later-purchase', 'exact', 'T-19');
+        $first = $this->purchaseOf('115.00');
+
+        $this->payPurchase($first, '165.00');
+
+        $this->assertSame($case['expected']['first_state'], $this->supplierPosition()->purchase($first)->paymentState()->value);
+        $this->assertSame($case['expected']['owed_after_the_payment'], $this->owed());
+
+        $second = $this->purchaseOf('57.50');
+        $figures = $this->figuresOf(['second' => $second]);
+
+        $this->assertSame($case['expected']['second_applied'], $figures['second_applied']);
+        $this->assertSame($case['expected']['second_open'], $figures['second_open']);
+        $this->assertSame($case['expected']['owed_after_the_second'], $figures['owed']);
+        $this->assertSupplierTies();
+    }
+
+    public function testSettle_TakesBackWhatTheDeletedPaymentSettledOnALaterPurchaseAsTheReferenceSystemDoes(): void
+    {
+        $case    = $this->payable('deleting-the-payment-takes-back-what-it-settled', 'exact', 'T-19');
+        $first   = $this->purchaseOf('115.00');
+        $payment = $this->payPurchase($first, '165.00');
+        $second  = $this->purchaseOf('57.50');
+
+        $this->assertTrue($this->changePayment($first, $payment, ['payment_amount' => '0']));
+
+        $figures = $this->figuresOf(['first' => $first, 'second' => $second]);
+
+        $this->assertSame($case['expected']['first_open'], $figures['first_open']);
+        $this->assertSame($case['expected']['second_open'], $figures['second_open']);
+        $this->assertSame($case['expected']['owed'], $figures['owed']);
+        $this->assertSupplierTies();
+    }
+
     /**
      * @return array<string, mixed>
      */
-    private function payable(string $id, string $classification): array
+    private function payable(string $id, string $classification, string $fixture = 'T-13'): array
     {
-        $case = ParityFixture::cases('T-13', 'payable')[$id][0];
+        $case = ParityFixture::cases($fixture, 'payable')[$id][0];
 
         $this->assertSame($classification, $case['classification'], $id);
 

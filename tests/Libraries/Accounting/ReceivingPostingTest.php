@@ -12,6 +12,7 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use PHPUnit\Framework\Attributes\DataProvider;
+use ReflectionMethod;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ConcurrentDbRaceTrait;
 use Tests\Support\EmployeeFixtureTrait;
@@ -1292,5 +1293,256 @@ class ReceivingPostingTest extends CIUnitTestCase
 
         $this->assertGreaterThan(0, $purchase);
         $this->assertSame($branch, (int) $this->paymentJournals($payment)[0]->branch_id);
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // What the reference system recorded in observation package F: fixtures T-14 to T-16 and T-18
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function parityCase(string $fixture, string $kind, string $id, string $classification): array
+    {
+        $case = ParityFixture::cases($fixture, $kind)[$id][0];
+
+        $this->assertSame($classification, $case['classification'], $id);
+
+        if ($classification === 'exact') {
+            $this->assertSame($case['reference'], $case['expected'], "{$id} is recorded as exact and must expect what the reference system recorded");
+        } else {
+            $this->assertNotSame($case['reference'], $case['expected'], "{$id} is recorded as a difference and cannot expect what the reference system does");
+        }
+
+        return $case;
+    }
+
+    private function costOfSale(int $saleId): string
+    {
+        $row = $this->accountingDb()->table('accounting_journals')->where(['source_type' => 'sale', 'source_id' => $saleId, 'entry_type' => 'cogs'])->get()->getRow();
+
+        return bcadd((string) $row->total_debit, '0', 4);
+    }
+
+    /**
+     * Fixture T-14: 3 units bought at 100 and 4 at 50, all 7 sold at the line cost the screen keeps,
+     * 2 more sold with none left, then 5 bought at 80.
+     *
+     * @return array<string, string>
+     */
+    private function costSequence(): array
+    {
+        $item = $this->item('100.00');
+
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($item, 0, '3', '100', '15')]));
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($item, 0, '4', '50', '15')]));
+
+        $average = bcadd($this->itemCostOf($item), '0', 2);
+        $all     = $this->save([$this->line($item, 0, '7', '200', $average)]);
+        $two     = $this->save([$this->line($item, 0, '2', '200', $average)]);
+
+        $this->assertGreaterThan(0, $all);
+        $this->assertGreaterThan(0, $two);
+
+        $costAll = $this->costOfSale($all);
+        $costTwo = $this->costOfSale($two);
+
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($item, 0, '5', '80', '15')]));
+
+        return [
+            'average_cost'   => $average,
+            'cost_of_all'    => $costAll,
+            'cost_of_two'    => $costTwo,
+            'item_cost_last' => bcadd($this->itemCostOf($item), '0', 2),
+            'quantity_last'  => $this->onHand($item),
+            'value_last'     => bcadd($this->stockOf($item)['value'], '0', 4),
+        ];
+    }
+
+    public function testSaveValue_CostsASaleOfTheWholeStockAtTheRoundedLineCostOneHalalaAboveTheReferenceSystem(): void
+    {
+        $case = $this->parityCase('T-14', 'cost', 'cogs-of-all-7-units-sold', 'one_halala');
+        $made = $this->costSequence();
+
+        $this->assertSame($case['expected']['average_cost'], $made['average_cost']);
+        $this->assertSame($case['expected']['cost_journal'], $made['cost_of_all']);
+        $this->assertSame('0.0100', bcsub($made['cost_of_all'], $case['reference']['cost_journal'], 4), 'One halala above the 500.00 the reference system books');
+    }
+
+    public function testSaveValue_KeepsTheCostOfASaleWithNoStockToTwoDecimalsWhereTheReferenceSystemKeepsFour(): void
+    {
+        $case = $this->parityCase('T-14', 'cost', 'cogs-of-2-units-sold-with-no-stock-left', 'differs');
+        $made = $this->costSequence();
+
+        $this->assertSame($case['expected']['cost_journal'], $made['cost_of_two']);
+        $this->assertSame($case['expected']['shown_as'], bcadd($made['cost_of_two'], '0', 2));
+        $this->assertSame($case['reference']['shown_as'], bcadd($made['cost_of_two'], '0', 2), 'Shown the same, stored differently');
+    }
+
+    public function testSaveValue_GivesUnitsBoughtAfterNegativeStockTheirOwnCostAsTheReferenceSystemDoes(): void
+    {
+        $case = $this->parityCase('T-14', 'cost', 'average-after-negative-stock-and-a-purchase', 'exact');
+        $made = $this->costSequence();
+
+        $this->assertSame($case['expected']['item_cost'], $made['item_cost_last']);
+        $this->assertSame($case['expected']['quantity'], $made['quantity_last']);
+    }
+
+    public function testSaveValue_ValuesTheStockAfterTheSequenceOneRoundingOffTheReferenceSystem(): void
+    {
+        $case = $this->parityCase('T-14', 'cost', 'stock-value-in-the-books-after-the-sequence', 'differs');
+        $made = $this->costSequence();
+
+        $this->assertSame($case['expected']['value_of_3_units'], $made['value_last']);
+    }
+
+    /**
+     * What a purchase journal put on each role, as an amount.
+     *
+     * @return array<string, string>
+     */
+    private function amountsOfPurchase(int $receivingId): array
+    {
+        $roles   = array_flip($this->roles());
+        $journal = $this->purchaseJournals($receivingId)[0];
+        $amounts = [];
+
+        foreach ($journal['lines'] as $line) {
+            [$account, $debit, $credit] = explode(':', $line);
+
+            if (isset($roles[(int) $account])) {
+                $amounts[$roles[(int) $account]] = bcadd($debit, $credit, 2);
+            }
+        }
+
+        return $amounts;
+    }
+
+    public function testSaveValue_BooksAReturnOfPartOfAPurchaseAndRefusesOneBeyondWhatRemainsAsTheReferenceSystemDoes(): void
+    {
+        $booked  = $this->parityCase('T-15', 'purchase_return', 'return-of-4-of-10', 'exact');
+        $refused = $this->parityCase('T-15', 'purchase_return', 'return-beyond-what-remains-is-refused', 'exact');
+        $average = $this->parityCase('T-15', 'purchase_return', 'return-does-not-change-the-average-cost', 'exact');
+
+        $item     = $this->item('100.00');
+        $purchase = $this->buy([$this->purchaseLine($item, 0, '10', '100', '15')], -1, lang('Sales.cash'));
+        $return   = $this->buy([$this->purchaseLine($item, 0, '-4', '100', '15')], -1, lang('Sales.cash'), $purchase);
+
+        $this->assertGreaterThan(0, $return);
+
+        $amounts = $this->amountsOfPurchase($return);
+
+        $this->assertSame($booked['expected']['supplier'], $amounts['supplier']);
+        $this->assertSame($booked['expected']['input_tax'], $amounts['tax_input']);
+        $this->assertSame($booked['expected']['inventory'], $amounts['inventory']);
+
+        [, $refund] = explode(':', $this->purchaseJournals($return)[1]['lines'][0]);
+
+        $this->assertSame($booked['expected']['refund_in_cash'], $refund);
+
+        $saved = 0;
+
+        foreach ($refused['inputs']['attempts'] as $units) {
+            $attempt = $this->buy([$this->purchaseLine($item, 0, '-' . $units, '100', '15')], -1, lang('Sales.cash'), $purchase);
+
+            $this->assertRefusedWith(PostingError::PurchaseReturnExceedsOrigin, $attempt);
+            $saved += $attempt > 0 ? 1 : 0;
+        }
+
+        $this->assertSame($refused['expected']['attempts_saved'], (string) $saved);
+        $this->assertSame($refused['expected']['stock'], $this->onHand($item));
+        $this->assertSame($average['expected']['average_after_the_return'], bcadd($this->itemCostOf($item), '0', 2));
+
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($item, 0, '6', '70', '15')], -1, lang('Sales.cash')));
+        $this->assertSame($average['expected']['average_after_the_purchase'], bcadd($this->itemCostOf($item), '0', 2));
+        $this->assertSame($average['expected']['quantity'], $this->onHand($item));
+        $this->assertStockTies();
+    }
+
+    public function testSaveValue_TakesALineDiscountOffTheCostAndTheTaxTogetherAsTheReferenceSystemDoes(): void
+    {
+        $case = $this->parityCase('T-16', 'purchase_discount', 'line-discount-percent', 'exact');
+        $item = $this->item('100.00');
+        $id   = $this->buy([$this->purchaseLine($item, 0, '10', '100', '15', '10', PERCENT)], -1, lang('Sales.cash'));
+
+        $this->assertGreaterThan(0, $id);
+
+        $amounts = $this->amountsOfPurchase($id);
+
+        $this->assertSame($case['expected']['inventory'], $amounts['inventory']);
+        $this->assertSame($case['expected']['input_tax'], $amounts['tax_input']);
+        $this->assertSame($case['expected']['supplier'], $amounts['supplier']);
+        $this->assertSame($case['expected']['unit_cost'], bcadd($this->itemCostOf($item), '0', 4));
+    }
+
+    public function testSaveValue_TakesAFixedLineDiscountOffTheWholeLineWhereTheReferenceSystemTakesItOffEachUnit(): void
+    {
+        $case = $this->parityCase('T-16', 'purchase_discount', 'line-discount-fixed-is-taken-off-each-unit', 'differs');
+        $item = $this->item('100.00');
+        $id   = $this->buy([$this->purchaseLine($item, 0, '10', '100', '15', '50', FIXED)], -1, lang('Sales.cash'));
+
+        $this->assertGreaterThan(0, $id);
+
+        $amounts = $this->amountsOfPurchase($id);
+
+        $this->assertSame($case['expected']['inventory'], $amounts['inventory']);
+        $this->assertSame($case['expected']['input_tax'], $amounts['tax_input']);
+        $this->assertSame($case['expected']['supplier'], $amounts['supplier']);
+        $this->assertSame($case['expected']['unit_cost'], bcadd($this->itemCostOf($item), '0', 4));
+    }
+
+    public function testSaveValue_HasNoDiscountOnTheWholePurchaseThatTheReferenceSystemTakesAfterTheLineDiscount(): void
+    {
+        $case = $this->parityCase('T-16', 'purchase_discount', 'discount-on-the-whole-purchase-after-the-line-discount', 'differs');
+        $names = array_map(static fn ($parameter): string => $parameter->getName(), (new ReflectionMethod($this->purchases, 'save_value'))->getParameters());
+
+        $this->assertSame('not_available', $case['expected']['discount_on_the_whole_purchase']);
+        $this->assertSame([], array_values(array_filter($names, static fn (string $name): bool => str_contains($name, 'discount'))));
+    }
+
+    /**
+     * What a payment has put in the books, as the journals of it that stand.
+     */
+    private function paymentInTheBooks(int $paymentId): string
+    {
+        $row = $this->accountingDb()->table('accounting_journals')->selectSum('total_debit', 'total')->where(['source_type' => 'supplier_payment', 'source_id' => $paymentId, 'status' => 'posted'])->get()->getRow();
+
+        return bcadd((string) ($row->total ?? '0'), '0', 2);
+    }
+
+    public function testUpdate_PutsAPaymentInTheBooksOnlyWhileItIsCompletedAsTheReferenceSystemDoes(): void
+    {
+        $case     = $this->parityCase('T-18', 'payment_status', 'only-a-completed-payment-is-in-the-books', 'exact');
+        $purchase = $this->purchaseOf('115.00');
+        $payment  = $this->payPurchase($purchase, '40.00');
+
+        $this->assertSame($case['expected']['in_books_completed'], $this->paymentInTheBooks($payment));
+        $this->assertSame($case['expected']['open_when_completed'], bcadd($this->supplierPosition()->purchase($purchase)->open(), '0', 2));
+
+        foreach (['incomplete', 'review', 'failed', 'draft'] as $status) {
+            $this->assertTrue($this->changePayment($purchase, $payment, ['payment_status' => $status]));
+            $this->assertSame($case['expected']['in_books_' . $status], $this->paymentInTheBooks($payment), $status);
+            $this->assertSame($case['expected']['open_when_not_completed'], bcadd($this->supplierPosition()->purchase($purchase)->open(), '0', 2), $status);
+        }
+
+        $this->assertSupplierTies();
+    }
+
+    public function testUpdate_PostsAFreshJournalWhenAPaymentIsCompletedAgainAsTheReferenceSystemDoes(): void
+    {
+        $case     = $this->parityCase('T-18', 'payment_status', 'completing-again-books-a-fresh-journal', 'exact');
+        $purchase = $this->purchaseOf('115.00');
+        $payment  = $this->payPurchase($purchase, '40.00');
+        $first    = (int) $this->accountingDb()->table('accounting_journals')->where(['source_type' => 'supplier_payment', 'source_id' => $payment, 'status' => 'posted'])->get()->getRow()->journal_id;
+
+        $this->assertTrue($this->changePayment($purchase, $payment, ['payment_status' => 'failed']));
+        $this->assertTrue($this->changePayment($purchase, $payment, ['payment_status' => 'completed']));
+
+        $standing = $this->accountingDb()->table('accounting_journals')->where(['source_type' => 'supplier_payment', 'source_id' => $payment, 'status' => 'posted'])->get()->getResult();
+
+        $this->assertCount(1, $standing);
+        $this->assertNotSame($first, (int) $standing[0]->journal_id);
+        $this->assertSame($case['expected']['fresh_journal'], 'yes');
+        $this->assertSame($case['expected']['amount'], bcadd((string) $standing[0]->total_debit, '0', 2));
     }
 }
