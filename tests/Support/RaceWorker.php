@@ -107,6 +107,9 @@ $result = match ($method) {
         return model(App\Models\Receiving::class)->save_value($lines, (int) $args[0], (int) $args[4], 'race', 'REF', 'Due', NEW_ENTRY, isset($args[5]) ? (int) $args[5] : null) > 0;
     })($args),
     'deletePurchase' => model(App\Models\Receiving::class)->delete_value((int) $args[0], (int) $args[1]),
+    'payPurchase' => model(App\Models\Receiving::class)->update((int) $args[0], ['payments' => [
+        ['payment_id' => NEW_ENTRY, 'payment_type' => 'Cash', 'payment_amount' => (string) $args[1], 'employee_id' => (int) $args[2], 'payment_status' => 'completed', 'reference_code' => ''],
+    ]]),
     default => throw new InvalidArgumentException("Unknown race method: {$method}"),
 };
 

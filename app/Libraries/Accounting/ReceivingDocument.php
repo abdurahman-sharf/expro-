@@ -9,7 +9,8 @@ namespace App\Libraries\Accounting;
 final readonly class ReceivingDocument
 {
     /**
-     * @param list<ReceivingLine> $lines
+     * @param list<ReceivingLine>   $lines
+     * @param list<SupplierPayment> $payments The payments made against the purchase after it was saved.
      */
     public function __construct(
         public int $receivingId,
@@ -21,6 +22,7 @@ final readonly class ReceivingDocument
         public ?int $returnOfReceivingId,
         public array $lines,
         public ?self $origin = null,
+        public array $payments = [],
     ) {
     }
 }

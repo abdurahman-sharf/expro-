@@ -233,4 +233,89 @@ trait ConcurrentDbRaceTrait
 
         return [trim($output1) === '1', trim($output2) === '1'];
     }
+
+    /**
+     * Starts one model-method invocation in its own PHP CLI process and lets it go, then gives it
+     * time to reach whatever it waits for. Finish it with finishRaceWorker().
+     *
+     * @return array{process: resource, pipes: array<int, resource>, files: list<string>}
+     */
+    protected function startRaceWorker(string $method, array $arguments): array
+    {
+        $ready = tempnam(sys_get_temp_dir(), 'race_ready_');
+        $go    = tempnam(sys_get_temp_dir(), 'race_go_');
+        unlink($ready);
+        unlink($go);
+
+        $environment = array_merge(array_filter($_SERVER, static fn ($value): bool => is_scalar($value)), ['RACE_READY_FILE' => $ready, 'RACE_GO_FILE' => $go]);
+        $process     = proc_open([PHP_BINARY, __DIR__ . '/RaceWorker.php', $method, ...array_map('strval', $arguments)], [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, ROOTPATH, $environment);
+
+        if (! is_resource($process)) {
+            throw new RuntimeException('The worker did not start.');
+        }
+
+        fclose($pipes[0]);
+
+        $deadline = microtime(true) + 10.0;
+
+        while (! file_exists($ready) && microtime(true) < $deadline) {
+            usleep(1000);
+        }
+
+        if (! file_exists($ready)) {
+            throw new RuntimeException('The worker did not reach its barrier.');
+        }
+
+        file_put_contents($go, '1');
+        usleep(800000);
+
+        return ['process' => $process, 'pipes' => $pipes, 'files' => [$ready, $go]];
+    }
+
+    /**
+     * @param array{process: resource, pipes: array<int, resource>, files: list<string>} $worker
+     */
+    protected function raceWorkerIsRunning(array $worker): bool
+    {
+        return proc_get_status($worker['process'])['running'];
+    }
+
+    /**
+     * Waits for a worker to end and returns what it printed.
+     *
+     * @param array{process: resource, pipes: array<int, resource>, files: list<string>} $worker
+     */
+    protected function finishRaceWorker(array $worker): string
+    {
+        $output   = '';
+        $deadline = microtime(true) + 20.0;
+
+        stream_set_blocking($worker['pipes'][1], false);
+        stream_set_blocking($worker['pipes'][2], false);
+
+        do {
+            $output .= stream_get_contents($worker['pipes'][1]);
+            stream_get_contents($worker['pipes'][2]);
+            $status = proc_get_status($worker['process']);
+            usleep(5000);
+        } while ($status['running'] && microtime(true) < $deadline);
+
+        $output .= stream_get_contents($worker['pipes'][1]);
+
+        if ($status['running']) {
+            proc_terminate($worker['process']);
+        }
+
+        fclose($worker['pipes'][1]);
+        fclose($worker['pipes'][2]);
+        proc_close($worker['process']);
+
+        foreach ($worker['files'] as $file) {
+            if (file_exists($file)) {
+                unlink($file);
+            }
+        }
+
+        return trim($output);
+    }
 }

@@ -3,13 +3,15 @@
 namespace App\Libraries\Accounting;
 
 /**
- * Credit a customer holds that no journal of their own spends: a credit note (what it came to
- * less what was paid back) or what a payment came to beyond its invoice. Applying it to an
- * invoice writes no journal, because the account of the customer already carries it.
+ * Credit a customer or a supplier holds that no journal of their own spends: a credit note or a
+ * debit note (what it came to less what was paid back) or what a payment came to beyond its
+ * invoice. Applying it to an invoice writes no journal, because the account of the customer or
+ * of the supplier already carries it.
  */
 final readonly class CreditSource
 {
     public const CREDIT_NOTE    = 'credit_note';
+    public const DEBIT_NOTE     = 'debit_note';
     public const INVOICE_EXCESS = 'invoice_excess';
 
     public function __construct(

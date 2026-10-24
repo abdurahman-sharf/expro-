@@ -11,8 +11,10 @@ use Config\Database;
  * A journal that is already there is never written twice, and neither are the stock movements
  * that go with it.
  *
- * The journals are the purchase itself and, when it was paid at once, one for the payment. See
- * ReceivingPostingBuilder for what each holds.
+ * The journals are the purchase itself and, when it was paid at once, one for the payment, and
+ * one for each payment made against it later. After anything that changes what is owed to a
+ * supplier the credit held with them is settled (SupplierSettlement), inside the same
+ * transaction. See ReceivingPostingBuilder for what each journal holds.
  */
 final class ReceivingPosting
 {
@@ -72,7 +74,46 @@ final class ReceivingPosting
         $this->transactional(function () use ($purchase, $employeeId): void {
             $this->postPurchase($purchase, $employeeId);
             $this->postPayment($purchase, $employeeId);
+            $this->settle($purchase->supplierId, $employeeId);
         });
+    }
+
+    /**
+     * Brings the journals of the payments made against a purchase in line with the payments as
+     * they are now: new ones are posted, changed ones reversed and posted again, and unchanged
+     * ones left alone. Then the credit of the supplier is settled.
+     *
+     * @throws AccountingException|PostingException
+     */
+    public function syncPayments(int $receivingId, ?int $employeeId = null): void
+    {
+        $purchase = $this->loader->load($receivingId, false);
+
+        if (! $this->follows($purchase) || $this->activeJournal(ReceivingPostingBuilder::SOURCE_PURCHASE, $receivingId, JournalEntryType::General) === null) {
+            return;
+        }
+
+        $this->transactional(function () use ($purchase, $employeeId): void {
+            foreach ($purchase->payments as $payment) {
+                $this->postSupplierPayment($purchase, $payment, $employeeId);
+            }
+
+            $this->settle($purchase->supplierId, $employeeId);
+        });
+    }
+
+    /**
+     * Takes back the journal of a payment that is about to be removed.
+     *
+     * @throws AccountingException|PostingException
+     */
+    public function reversePayment(int $paymentId, ?int $employeeId = null): void
+    {
+        $active = $this->activeJournal(ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT, $paymentId, JournalEntryType::General);
+
+        if ($active !== null) {
+            $this->reverse($active, $employeeId, 'Payment removed');
+        }
     }
 
     /**
@@ -89,8 +130,18 @@ final class ReceivingPosting
             $purchase = $this->activeJournal(ReceivingPostingBuilder::SOURCE_PURCHASE, $receivingId, JournalEntryType::General);
             $payment  = $this->activeJournal(ReceivingPostingBuilder::SOURCE_PAYMENT, $receivingId, JournalEntryType::General);
             $reversed = null;
+            $document = $this->loader->load($receivingId, false);
+            $later    = [];
 
-            foreach ([$payment, $purchase] as $journal) {
+            foreach ($this->paymentIds($receivingId) as $paymentId) {
+                $journal = $this->activeJournal(ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT, $paymentId, JournalEntryType::General);
+
+                if ($journal !== null) {
+                    $later[] = $journal;
+                }
+            }
+
+            foreach ([...$later, $payment, $purchase] as $journal) {
                 if ($journal === null) {
                     continue;
                 }
@@ -103,6 +154,10 @@ final class ReceivingPosting
             }
 
             $this->ledger->reverseSource(ReceivingPostingBuilder::SOURCE_PURCHASE, $receivingId, JournalEntryType::General, $date, $reversed);
+
+            if ($purchase !== null || $payment !== null || $later !== []) {
+                $this->settle($document?->supplierId, $employeeId);
+            }
         });
     }
 
@@ -146,15 +201,24 @@ final class ReceivingPosting
      */
     public function journalsOf(int $receivingId): array
     {
-        return $this->db->table('accounting_journals')
+        $builder = $this->db->table('accounting_journals')
             ->select('journal_id, number, journal_date, status, source_type, source_id, entry_type, revision, total_debit')
+            ->groupStart()
             ->groupStart()
             ->whereIn('source_type', [ReceivingPostingBuilder::SOURCE_PURCHASE, ReceivingPostingBuilder::SOURCE_PAYMENT])
             ->where('source_id', $receivingId)
-            ->groupEnd()
-            ->orderBy('journal_id', 'ASC')
-            ->get()
-            ->getResult();
+            ->groupEnd();
+
+        $paymentIds = $this->paymentIds($receivingId);
+
+        if ($paymentIds !== []) {
+            $builder->orGroupStart()
+                ->where('source_type', ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT)
+                ->whereIn('source_id', $paymentIds)
+                ->groupEnd();
+        }
+
+        return $builder->groupEnd()->orderBy('journal_id', 'ASC')->get()->getResult();
     }
 
     /**
@@ -168,6 +232,13 @@ final class ReceivingPosting
             : new PostingException(PostingError::WriteFailed, $failure->getMessage(), $failure->context, $failure);
 
         (new PostingFailureLog($this->db))->recordUnbuilt(ReceivingPostingBuilder::SOURCE_PURCHASE, $receivingId, 1, JournalEntryType::General, $posting, $employeeId, $branchId);
+    }
+
+    private function settle(?int $supplierId, ?int $employeeId): void
+    {
+        if ($supplierId !== null) {
+            (new SupplierSettlement($this->db))->settle($supplierId, $employeeId);
+        }
     }
 
     /**
@@ -201,6 +272,60 @@ final class ReceivingPosting
         if ($draft !== null) {
             $this->posting->post($draft);
         }
+    }
+
+    /**
+     * @throws AccountingException|PostingException
+     */
+    private function postSupplierPayment(ReceivingDocument $purchase, SupplierPayment $payment, ?int $employeeId): void
+    {
+        $active = $this->activeJournal(ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT, $payment->paymentId, JournalEntryType::General);
+        $draft  = $this->builder->supplierPayment($purchase, $payment, $this->nextRevision(ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT, $payment->paymentId), $employeeId);
+
+        if ($active !== null) {
+            if ($draft !== null && $this->holds($active, $draft)) {
+                return;
+            }
+
+            $this->reverse($active, $employeeId, 'Payment #' . $payment->paymentId . ' changed');
+        }
+
+        if ($draft !== null) {
+            $this->posting->post($draft);
+        }
+    }
+
+    /**
+     * Whether a journal that stands has the date and lines of a draft.
+     */
+    private function holds(object $journal, JournalDraft $draft): bool
+    {
+        if ($journal->journal_date !== $draft->date) {
+            return false;
+        }
+
+        $stored = array_map(
+            static fn (object $line): string => $line->account_id . ':' . bcadd($line->debit, '0', SaleAmounts::SCALE) . ':' . bcadd($line->credit, '0', SaleAmounts::SCALE),
+            $this->db->table('accounting_journal_lines')->select('account_id, debit, credit')->where('journal_id', $journal->journal_id)->get()->getResult(),
+        );
+
+        $wanted = array_map(
+            static fn (JournalLineDraft $line): string => $line->accountId . ':' . bcadd($line->debit, '0', SaleAmounts::SCALE) . ':' . bcadd($line->credit, '0', SaleAmounts::SCALE),
+            $draft->lines,
+        );
+
+        sort($stored);
+        sort($wanted);
+
+        return $stored === $wanted;
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function paymentIds(int $receivingId): array
+    {
+        return array_map('intval', array_column($this->db->table('receivings_payments')->select('payment_id')->where('receiving_id', $receivingId)->get()->getResultArray(), 'payment_id'));
     }
 
     /**

@@ -95,4 +95,8 @@ enum AccountingError: string
 
     case PurchaseLocked     = 'purchase_locked';
     case PurchaseHasReturns = 'purchase_has_returns';
+
+    case SupplierBusy                 = 'supplier_busy';
+    case SupplierPaymentNeedsSupplier = 'supplier_payment_needs_supplier';
+    case SupplierPaymentNotOnInvoice  = 'supplier_payment_not_on_invoice';
 }

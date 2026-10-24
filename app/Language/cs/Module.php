@@ -7,6 +7,8 @@ return [
     'accounting_cost_centers_desc' => '',
     'accounting_journals'          => '',
     'accounting_journals_desc'     => '',
+    'accounting_payables'          => '',
+    'accounting_payables_desc'     => '',
     'accounting_periods'           => '',
     'accounting_periods_desc'      => '',
     'accounting_receivables'       => '',

@@ -8,6 +8,14 @@
  * @var bool $can_assign_employee
  * @var bool $locked
  * @var list<object> $journals
+ * @var bool $takes_payments
+ * @var list<object> $payments
+ * @var array<string, string> $payment_statuses
+ * @var array<string, string> $payment_options
+ * @var App\Libraries\Accounting\PurchaseFigures|null $payable
+ * @var string $credit
+ * @var list<object> $applications
+ * @var bool $can_debit_note
  */
 ?>
 
@@ -73,6 +81,99 @@
             </div>
         </div>
 
+        <?php if ($takes_payments): ?>
+            <?php $i = 0; ?>
+            <?php foreach ($payments as $row): ?>
+                <?php ++$i; ?>
+                <div class="row mb-3 supplier-payment">
+                    <?= form_label(lang('Receivings.payment') . ' #' . (int) $row->payment_id, 'payment_types_' . $i, ['class' => 'col-form-label col-3']) ?>
+                    <div class="col-5">
+                        <?= form_hidden('payment_id_' . $i, $row->payment_id) ?>
+                        <?= form_dropdown('payment_type_' . $i, $payment_options, $row->payment_type, ['id' => 'payment_types_' . $i, 'class' => 'form-select form-select-sm']) ?>
+                    </div>
+                    <div class="col-3">
+                        <?= form_input(['name' => 'payment_amount_' . $i, 'value' => to_currency_no_money($row->payment_amount), 'id' => 'payment_amount_' . $i, 'class' => 'form-control form-control-sm', 'aria-label' => lang('Receivings.payment_amount'), 'inputmode' => 'decimal', 'dir' => 'ltr']) ?>
+                    </div>
+                    <?php if ($payment_statuses !== []): ?>
+                        <div class="col-3 offset-3 mt-2">
+                            <?= form_dropdown('payment_status_' . $i, $payment_statuses, $row->payment_status ?? 'completed', ['id' => 'payment_status_' . $i, 'class' => 'form-select form-select-sm', 'aria-label' => lang('Sales.payment_status')]) ?>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            <?php endforeach; ?>
+            <?= form_hidden('number_of_payments', (string) $i) ?>
+
+            <div class="row mb-3" id="new_supplier_payment">
+                <?= form_label(lang('Receivings.payment_new'), 'payment_types_new', ['class' => 'col-form-label col-3']) ?>
+                <div class="col-5">
+                    <?= form_dropdown('payment_type_new', [PAYMENT_TYPE_UNASSIGNED => lang('Common.none_selected_text')] + $payment_options, PAYMENT_TYPE_UNASSIGNED, ['id' => 'payment_types_new', 'class' => 'form-select form-select-sm']) ?>
+                </div>
+                <div class="col-3">
+                    <?= form_input(['name' => 'payment_amount_new', 'value' => $payable === null ? '' : to_currency_no_money($payable->open()), 'id' => 'payment_amount_new', 'class' => 'form-control form-control-sm', 'aria-label' => lang('Receivings.payment_amount'), 'inputmode' => 'decimal', 'dir' => 'ltr']) ?>
+                </div>
+                <?php if ($payment_statuses !== []): ?>
+                    <div class="col-3 offset-3 mt-2">
+                        <?= form_dropdown('payment_status_new', $payment_statuses, 'completed', ['id' => 'payment_status_new', 'class' => 'form-select form-select-sm', 'aria-label' => lang('Sales.payment_status')]) ?>
+                    </div>
+                <?php endif; ?>
+                <?php if ($payment_statuses !== []): ?>
+                    <p class="small text-body-secondary col-8 offset-3 mb-0 mt-1"><?= lang('Receivings.payments_note') ?></p>
+                <?php endif; ?>
+            </div>
+        <?php endif; ?>
+
+        <?php if (! empty($payable)): ?>
+            <div class="row mb-3" id="payable_figures">
+                <span class="col-form-label col-3"><?= lang('Receivings.payable') ?></span>
+                <div class="col-8">
+                    <table class="table table-sm mb-1">
+                        <tbody>
+                            <tr><th scope="row"><?= lang('Receivings.payable_total') ?></th><td><bdi dir="ltr"><?= to_currency($payable->total) ?></bdi></td></tr>
+                            <tr><th scope="row"><?= lang('Receivings.payable_paid') ?></th><td><bdi dir="ltr"><?= to_currency($payable->paid) ?></bdi></td></tr>
+                            <tr><th scope="row"><?= lang('Receivings.payable_credit_applied') ?></th><td><bdi dir="ltr"><?= to_currency($payable->applied) ?></bdi></td></tr>
+                            <tr><th scope="row"><?= lang('Receivings.payable_returned') ?></th><td><bdi dir="ltr"><?= to_currency($payable->returned) ?></bdi></td></tr>
+                            <tr><th scope="row"><?= lang('Receivings.payable_open') ?></th><td><bdi dir="ltr"><?= to_currency($payable->open()) ?></bdi></td></tr>
+                            <?php if (bccomp($payable->excess(), '0', 4) > 0): ?>
+                                <tr><th scope="row"><?= lang('Receivings.payable_excess') ?></th><td><bdi dir="ltr"><?= to_currency($payable->excess()) ?></bdi></td></tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                    <span class="badge text-bg-primary" id="payable_status"><?= lang($payable->paymentState()->languageKey()) ?></span>
+                    <?php if ($payable->returnState()->languageKey() !== null): ?>
+                        <span class="badge text-bg-secondary"><?= lang($payable->returnState()->languageKey()) ?></span>
+                    <?php endif; ?>
+                </div>
+            </div>
+        <?php endif; ?>
+
+        <?php if (! empty($applications)): ?>
+            <div class="row mb-3">
+                <span class="col-form-label col-3"><?= lang('Receivings.credit_applications') ?></span>
+                <div class="col-8">
+                    <ul class="list-unstyled small mb-0" id="credit_applications">
+                        <?php foreach ($applications as $application): ?>
+                            <li>
+                                <?= lang($application->source_type === 'debit_note' ? 'Receivings.credit_from_note' : 'Receivings.credit_from_excess') ?>
+                                <bdi dir="ltr">#<?= (int) $application->source_id ?></bdi>
+                                &rarr; <bdi dir="ltr">#<?= (int) $application->invoice_receiving_id ?></bdi>
+                                <bdi dir="ltr"><?= to_currency($application->amount) ?></bdi>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($can_debit_note): ?>
+            <div class="row mb-3" id="debit_note_box">
+                <span class="col-form-label col-3"><?= lang('Receivings.debit_note') ?></span>
+                <div class="col-8">
+                    <p class="small text-body-secondary mb-2"><?= lang('Receivings.debit_note_help') ?></p>
+                    <button type="button" class="btn btn-outline-primary btn-sm" id="create_debit_note"><?= lang('Receivings.debit_note_create') ?></button>
+                </div>
+            </div>
+        <?php endif; ?>
+
         <?php if (! empty($journals)): ?>
             <div class="row mb-3">
                 <span class="col-form-label col-3"><?= lang('Receivings.journals') ?></span>
@@ -113,6 +214,22 @@
             focus: fill_value
         });
         <?php endif; ?>
+
+        $('#create_debit_note').on('click', function() {
+            const button = $(this);
+
+            button.prop('disabled', true);
+            $.post("<?= esc(site_url('receivings/debitNote/' . $receiving_info['receiving_id'])) ?>", function(response) {
+                if (response.success) {
+                    window.location.href = response.redirect;
+                    return;
+                }
+                button.prop('disabled', false);
+                $('#error_message_box').empty().append($('<li></li>').text(response.message));
+            }, 'json').fail(function() {
+                button.prop('disabled', false);
+            });
+        });
 
         $('button#delete').click(function() {
             dialog_support.hide();

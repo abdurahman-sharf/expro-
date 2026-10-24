@@ -1,0 +1,75 @@
+{
+  "id": "T-13",
+  "title": "What is owed to a supplier after debit notes, credit held with them and payments: a debit note that leaves credit, a new purchase settled from that credit at once, and a payment after it",
+  "recorded": "2026-10-23",
+  "evidence": {
+    "debit_note": {
+      "id": "ev_e1bafa6defdcd1719cbdc11455c155b57c6d9a0e4e48c3acce0cba0b67cae3aa",
+      "note": "A debit note of 115 taken from a purchase that was already paid leaves a credit of 115 with the supplier, with no cash given back"
+    },
+    "purchase_settled": {
+      "id": "ev_15c9a2250a189e1f6ba117b529a6a06fe3734b3559acb38c175d47c1f1de5ff4",
+      "note": "A new purchase of 115 of a supplier with that credit is settled by it when it is created, as a payment of the supplier credit with no journal"
+    },
+    "payment_beyond": {
+      "id": "ev_520652fa775b8e8ecd3aef09035d7943508736c568f46c4fa5b5957c39a5df06",
+      "note": "A payment of 50 after that shows the purchase paid in excess, 165 paid of 115, with a settle button, and its journal holds the 50"
+    }
+  },
+  "cases": [
+    {
+      "id": "debit-note-credit-settles-a-new-purchase-at-once",
+      "kind": "payable",
+      "classification": "exact",
+      "evidence": [
+        "debit_note",
+        "purchase_settled"
+      ],
+      "inputs": {
+        "first_purchase": "115.00, paid in full",
+        "debit_note": "115.00 from it",
+        "new_purchase": "115.00"
+      },
+      "reference": {
+        "credit_after_the_note": "115.00",
+        "applied_to_the_new_purchase": "115.00",
+        "open": "0.00",
+        "payment_state": "paid",
+        "journals_for_the_application": 0
+      },
+      "expected": {
+        "credit_after_the_note": "115.00",
+        "applied_to_the_new_purchase": "115.00",
+        "open": "0.00",
+        "payment_state": "paid",
+        "journals_for_the_application": 0
+      }
+    },
+    {
+      "id": "payment-beyond-a-purchase-the-credit-settled",
+      "kind": "payable",
+      "classification": "differs",
+      "evidence": [
+        "purchase_settled",
+        "payment_beyond"
+      ],
+      "inputs": {
+        "purchase": "115.00, settled by credit",
+        "payment": "50.00 after it"
+      },
+      "reference": {
+        "settled": "165.00",
+        "payment_state": "excess",
+        "payment_journal": "50.00",
+        "credit_held": "50.00"
+      },
+      "expected": {
+        "settled": "115.00",
+        "payment_state": "paid",
+        "payment_journal": "50.00",
+        "credit_held": "50.00",
+        "why": "money paid into a purchase that credit had settled takes back that much of the credit, so the purchase is paid and the supplier holds the same 50 in credit"
+      }
+    }
+  ]
+}

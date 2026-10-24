@@ -16,9 +16,10 @@ namespace App\Libraries\Accounting;
  */
 final class ReceivingPostingBuilder
 {
-    public const SOURCE_PURCHASE = 'purchase';
-    public const SOURCE_PAYMENT  = 'purchase_payment';
-    private const SCALE          = ReceivingAmounts::SCALE;
+    public const SOURCE_PURCHASE         = 'purchase';
+    public const SOURCE_PAYMENT          = 'purchase_payment';
+    public const SOURCE_SUPPLIER_PAYMENT = 'supplier_payment';
+    private const SCALE                  = ReceivingAmounts::SCALE;
 
     public function __construct(
         private readonly RoutingResolver $resolver,
@@ -83,6 +84,60 @@ final class ReceivingPostingBuilder
             origin: JournalOrigin::System,
             employeeId: $employeeId,
             description: ($purchase->type === ReceivingType::Receive ? 'Payment of purchase #' : 'Refund of purchase return #') . $purchase->receivingId,
+            branchId: $purchase->branchId,
+            entryType: JournalEntryType::General,
+        );
+    }
+
+    /**
+     * The journal of a payment made against a purchase after it was saved, or null when the
+     * payment is not one the books hold (it is not completed). A payment to the supplier debits
+     * the account of the supplier and credits the account it was paid from; a negative one is
+     * money the supplier gave back, and goes the other way.
+     *
+     * @throws PostingException
+     */
+    public function supplierPayment(ReceivingDocument $purchase, SupplierPayment $payment, int $revision, ?int $employeeId = null): ?JournalDraft
+    {
+        if (! $payment->status->posts()) {
+            return null;
+        }
+
+        if ($purchase->type !== ReceivingType::Receive) {
+            throw new PostingException(PostingError::PurchaseNotPostable, 'A payment is made against a purchase, not against a return or a transfer.', ['receiving_id' => $purchase->receivingId]);
+        }
+
+        if ($purchase->supplierId === null) {
+            throw new PostingException(PostingError::SupplierRequired, 'A payment to a supplier needs the purchase to have a supplier.', ['receiving_id' => $purchase->receivingId]);
+        }
+
+        $account = $this->paymentAccount($payment->type);
+
+        if ($account === null) {
+            throw new PostingException(PostingError::PaymentTypeUnknown, "The payment type {$payment->type} is not one a supplier can be paid with.", ['payment_type' => $payment->type]);
+        }
+
+        $sign = bccomp($payment->amount, '0', self::SCALE);
+
+        if ($sign === 0) {
+            return null;
+        }
+
+        $magnitude = SaleAmounts::absolute($payment->amount);
+        $supplier  = $this->required(RoutingKey::Suppliers, $purchase->supplierId);
+        $lines     = $sign > 0
+            ? [new JournalLineDraft($supplier, debit: $magnitude), new JournalLineDraft($account, credit: $magnitude)]
+            : [new JournalLineDraft($account, debit: $magnitude), new JournalLineDraft($supplier, credit: $magnitude)];
+
+        return new JournalDraft(
+            date: $payment->date,
+            lines: $lines,
+            sourceType: self::SOURCE_SUPPLIER_PAYMENT,
+            sourceId: $payment->paymentId,
+            revision: $revision,
+            origin: JournalOrigin::System,
+            employeeId: $employeeId,
+            description: 'Payment #' . $payment->paymentId . ' of purchase #' . $purchase->receivingId,
             branchId: $purchase->branchId,
             entryType: JournalEntryType::General,
         );

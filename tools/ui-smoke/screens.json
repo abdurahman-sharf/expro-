@@ -1019,6 +1019,35 @@
       "path": "/accounting_receivables/customer/3"
     },
     {
+      "id": "accounting-payables",
+      "group": "accounting",
+      "path": "/accounting_payables"
+    },
+    {
+      "id": "accounting-payable-statement",
+      "group": "accounting",
+      "path": "/accounting_payables/supplier/6"
+    },
+    {
+      "id": "receivings-edit-modal-payments",
+      "group": "receivings",
+      "path": "/reports/detailed_receivings/2020-01-01/2099-12-31/all/all",
+      "steps": [
+        {
+          "waitFor": "a.modal-dlg[href$=\"receivings/edit/1\"]"
+        },
+        {
+          "click": "a.modal-dlg[href$=\"receivings/edit/1\"]"
+        },
+        {
+          "waitFor": "#payable_figures"
+        },
+        {
+          "pause": 1000
+        }
+      ]
+    },
+    {
       "id": "accounting-journals-advanced",
       "group": "accounting",
       "path": "/accounting_journals",

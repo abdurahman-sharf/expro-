@@ -7,6 +7,8 @@ return [
     'accounting_cost_centers_desc' => 'View and manage cost centers.',
     'accounting_journals'          => 'Journal Entries',
     'accounting_journals_desc'     => 'Create, post and reverse journal entries.',
+    'accounting_payables'          => 'Supplier Balances',
+    'accounting_payables_desc'     => 'See what is owed to each supplier or held with them in credit, by purchase and by age.',
     'accounting_periods'           => 'Periods and Closing',
     'accounting_periods_desc'      => 'Manage fiscal years, close and reopen periods, and enter opening balances.',
     'accounting_receivables'       => 'Customer Balances',

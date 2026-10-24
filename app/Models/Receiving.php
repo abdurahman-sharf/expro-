@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingSettings;
+use App\Libraries\Accounting\PaymentStatus;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\ReceivingAmounts;
@@ -12,6 +13,7 @@ use App\Libraries\Accounting\ReceivingLoader;
 use App\Libraries\Accounting\ReceivingPosting;
 use App\Libraries\Accounting\ReceivingType;
 use App\Libraries\Accounting\ReturnLimit;
+use App\Libraries\Accounting\SupplierLock;
 use App\Libraries\Organization\BranchGuard;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Model;
@@ -38,6 +40,18 @@ class Receiving extends Model
         'reference',
     ];
     private ?Throwable $accountingFailure = null;
+    private int $supplierLockWait         = 15;
+
+    /**
+     * How long a change to a purchase waits for another change to the same supplier to finish
+     * before it is refused.
+     */
+    public function setSupplierLockWait(int $seconds): static
+    {
+        $this->supplierLockWait = $seconds;
+
+        return $this;
+    }
 
     /**
      * Why the last change to a purchase was refused by the books, or null when it was not.
@@ -91,13 +105,39 @@ class Receiving extends Model
 
     /**
      * Updates a purchase. When accounting is on, a purchase that has been posted keeps its
-     * supplier and its date: what it needs corrected is corrected by a return.
+     * supplier and its date: what it needs corrected is corrected by a return. The payments
+     * made against it, when the data carry them, are saved with it and posted again where they
+     * changed, and the credit of the supplier is settled, all in the transaction of the update
+     * and under the lock of the supplier.
      */
     public function update($receiving_id = null, $receiving_data = null): bool
     {
         $this->accountingFailure = null;
 
-        if ((new AccountingSettings($this->db))->isEnabled() && is_array($receiving_data)) {
+        try {
+            return (new SupplierLock($this->db, $this->supplierLockWait))->run($this->supplierOf((int) $receiving_id), fn (): bool => $this->updateLocked($receiving_id, $receiving_data));
+        } catch (AccountingException $busy) {
+            if ($busy->error !== AccountingError::SupplierBusy) {
+                throw $busy;
+            }
+
+            $this->accountingFailure = $busy;
+
+            return false;
+        }
+    }
+
+    private function updateLocked($receiving_id, $receiving_data): bool
+    {
+        $payments     = is_array($receiving_data) && isset($receiving_data['payments']) ? $receiving_data['payments'] : [];
+        $accountingOn = (new AccountingSettings($this->db))->isEnabled();
+        $employeeId   = isset($payments[0]['employee_id']) ? (int) $payments[0]['employee_id'] : null;
+
+        if (is_array($receiving_data)) {
+            unset($receiving_data['payments']);
+        }
+
+        if ($accountingOn && is_array($receiving_data)) {
             $changes = [];
 
             if (array_key_exists('supplier_id', $receiving_data)) {
@@ -117,10 +157,131 @@ class Receiving extends Model
             }
         }
 
-        $builder = $this->db->table('receivings');
-        $builder->where('receiving_id', $receiving_id);
+        $this->db->transStart();
 
-        return $builder->update($receiving_data);
+        try {
+            $success = true;
+
+            if (is_array($receiving_data) && $receiving_data !== []) {
+                $builder = $this->db->table('receivings');
+                $builder->where('receiving_id', $receiving_id);
+                $success = $builder->update($receiving_data);
+            }
+
+            if ($success && $payments !== []) {
+                $this->savePayments((int) $receiving_id, $payments, $accountingOn);
+            }
+        } catch (AccountingException|PostingException $failure) {
+            $this->db->transRollback();
+            $this->accountingFailure = $failure;
+
+            if ($accountingOn && $failure instanceof PostingException) {
+                (new ReceivingPosting($this->db))->recordFailure((int) $receiving_id, $failure, $employeeId, $this->getBranchId((int) $receiving_id));
+            }
+
+            return false;
+        } catch (Throwable $unexpected) {
+            $this->db->transRollback();
+
+            throw $unexpected;
+        }
+
+        $this->db->transComplete();
+
+        return (bool) $success && $this->db->transStatus();
+    }
+
+    /**
+     * Saves the payments made against a purchase: new ones are added, changed ones updated, and
+     * one given an amount of nothing is removed with its journal. Only a purchase of goods
+     * received from a supplier takes payments.
+     *
+     * @param list<array<string, mixed>> $payments
+     *
+     * @throws AccountingException|PostingException
+     */
+    private function savePayments(int $receivingId, array $payments, bool $accountingOn): void
+    {
+        $purchase = $this->db->table('receivings')->select('receiving_type, supplier_id')->where('receiving_id', $receivingId)->get()->getRow();
+
+        if ($purchase === null || $purchase->receiving_type !== ReceivingType::Receive->value) {
+            throw new AccountingException(AccountingError::SupplierPaymentNotOnInvoice, 'A payment is made against a purchase, not against a return or a transfer.', ['receiving_id' => $receivingId]);
+        }
+
+        if ($purchase->supplier_id === null) {
+            throw new AccountingException(AccountingError::SupplierPaymentNeedsSupplier, 'A payment to a supplier needs the purchase to have a supplier.', ['receiving_id' => $receivingId]);
+        }
+
+        $builder = $this->db->table('receivings_payments');
+        $posting = $accountingOn ? new ReceivingPosting($this->db) : null;
+        $last    = null;
+
+        foreach ($payments as $payment) {
+            $paymentId = (int) ($payment['payment_id'] ?? NEW_ENTRY);
+            $amount    = (string) ($payment['payment_amount'] ?? '0');
+            $last      = isset($payment['employee_id']) ? (int) $payment['employee_id'] : $last;
+
+            if ($paymentId === NEW_ENTRY) {
+                if (bccomp($amount, '0', 2) === 0) {
+                    continue;
+                }
+
+                $builder->insert([
+                    'receiving_id'   => $receivingId,
+                    'payment_type'   => (string) $payment['payment_type'],
+                    'payment_amount' => $amount,
+                    'employee_id'    => $payment['employee_id'] ?? null,
+                    'reference_code' => (string) ($payment['reference_code'] ?? ''),
+                    'payment_status' => PaymentStatus::fromStored($payment['payment_status'] ?? null)->value,
+                ]);
+
+                continue;
+            }
+
+            $stored = $this->db->table('receivings_payments')->select('receiving_id')->where('payment_id', $paymentId)->get()->getRow();
+
+            if ($stored === null || (int) $stored->receiving_id !== $receivingId) {
+                throw new AccountingException(AccountingError::SupplierPaymentNotOnInvoice, 'The payment does not belong to this purchase.', ['receiving_id' => $receivingId]);
+            }
+
+            if (bccomp($amount, '0', 2) === 0) {
+                $posting?->reversePayment($paymentId, $last);
+                $this->db->table('receivings_payments')->where('payment_id', $paymentId)->delete();
+
+                continue;
+            }
+
+            $changes = ['payment_type' => (string) $payment['payment_type'], 'payment_amount' => $amount];
+
+            if (isset($payment['payment_status']) && PaymentStatus::tryFrom((string) $payment['payment_status']) !== null) {
+                $changes['payment_status'] = $payment['payment_status'];
+            }
+
+            $this->db->table('receivings_payments')->where('payment_id', $paymentId)->update($changes);
+        }
+
+        $posting?->syncPayments($receivingId, $last);
+    }
+
+    /**
+     * The payments made against a purchase, oldest first.
+     *
+     * @return list<object>
+     */
+    public function get_payments(int $receivingId): array
+    {
+        return $this->db->table('receivings_payments')->where('receiving_id', $receivingId)->orderBy('payment_id', 'ASC')->get()->getResult();
+    }
+
+    /**
+     * The supplier a purchase is stored for, read before its transaction starts so that the lock
+     * of the supplier is taken before the transaction reads anything.
+     */
+    private function supplierOf(int $receivingId): ?int
+    {
+        $row = $this->db->table('receivings')->select('supplier_id')->where('receiving_id', $receivingId)->get()->getRow();
+
+        return $row === null || $row->supplier_id === null ? null : (int) $row->supplier_id;
     }
 
     /**
@@ -133,6 +294,26 @@ class Receiving extends Model
      * @throws ReflectionException
      */
     public function save_value(array $items, int $supplier_id, int $employee_id, string $comment, string $reference, ?string $payment_type, int $receiving_id = NEW_ENTRY, ?int $returnOfReceivingId = null): int    // TODO: $receiving_id gets overwritten before it's evaluated. It doesn't make sense to pass this here.
+    {
+        $this->accountingFailure = null;
+
+        try {
+            return (new SupplierLock($this->db, $this->supplierLockWait))->run($supplier_id > 0 ? $supplier_id : null, fn (): int => $this->saveValueLocked($items, $supplier_id, $employee_id, $comment, $reference, $payment_type, $receiving_id, $returnOfReceivingId));
+        } catch (AccountingException $busy) {
+            if ($busy->error !== AccountingError::SupplierBusy) {
+                throw $busy;
+            }
+
+            $this->accountingFailure = $busy;
+
+            return ACCOUNTING_FAILED;
+        }
+    }
+
+    /**
+     * @throws ReflectionException
+     */
+    private function saveValueLocked(array $items, int $supplier_id, int $employee_id, string $comment, string $reference, ?string $payment_type, int $receiving_id, ?int $returnOfReceivingId): int
     {
         $attribute    = model(Attribute::class);
         $inventory    = model('Inventory');
@@ -385,6 +566,56 @@ class Receiving extends Model
     {
         $this->accountingFailure = null;
 
+        $suppliers = [];
+
+        foreach ($receiving_ids as $receiving_id) {
+            $supplier = $this->supplierOf((int) $receiving_id);
+
+            if ($supplier !== null) {
+                $suppliers[$supplier] = $supplier;
+            }
+        }
+
+        ksort($suppliers);
+
+        try {
+            return $this->lockSuppliers(array_values($suppliers), fn (): bool => $this->deleteListLocked($receiving_ids, $employee_id, $update_inventory));
+        } catch (AccountingException $busy) {
+            if ($busy->error !== AccountingError::SupplierBusy) {
+                throw $busy;
+            }
+
+            $this->accountingFailure = $busy;
+
+            return false;
+        }
+    }
+
+    /**
+     * Runs work with the lock of every supplier given, taken in the order of their ids so that
+     * two requests for the same suppliers never wait for each other, before any transaction.
+     *
+     * @param list<int>        $supplierIds
+     * @param callable(): bool $work
+     *
+     * @throws AccountingException
+     */
+    private function lockSuppliers(array $supplierIds, callable $work): bool
+    {
+        if ($supplierIds === []) {
+            return $work();
+        }
+
+        $first = array_shift($supplierIds);
+
+        return (new SupplierLock($this->db, $this->supplierLockWait))->run($first, fn (): bool => $this->lockSuppliers($supplierIds, $work));
+    }
+
+    /**
+     * @throws ReflectionException
+     */
+    private function deleteListLocked(array $receiving_ids, int $employee_id, bool $update_inventory): bool
+    {
         // Start a transaction to assure data integrity
         $this->db->transStart();
 
@@ -413,6 +644,24 @@ class Receiving extends Model
     {
         $this->accountingFailure = null;
 
+        try {
+            return (new SupplierLock($this->db, $this->supplierLockWait))->run($this->supplierOf($receiving_id), fn (): bool => $this->deleteValueLocked($receiving_id, $employee_id, $update_inventory));
+        } catch (AccountingException $busy) {
+            if ($busy->error !== AccountingError::SupplierBusy) {
+                throw $busy;
+            }
+
+            $this->accountingFailure = $busy;
+
+            return false;
+        }
+    }
+
+    /**
+     * @throws ReflectionException
+     */
+    private function deleteValueLocked(int $receiving_id, int $employee_id, bool $update_inventory): bool
+    {
         // Start a transaction to assure data integrity
         $this->db->transStart();
 
@@ -471,6 +720,8 @@ class Receiving extends Model
                 return false;
             }
         }
+
+        $this->db->table('receivings_payments')->where('receiving_id', $receiving_id)->delete();
 
         // Delete all items
         $builder = $this->db->table('receivings_items');

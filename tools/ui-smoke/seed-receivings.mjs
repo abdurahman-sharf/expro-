@@ -54,6 +54,23 @@ try {
     await pickSupplier(giveBack);
     await finish(giveBack, 'purchase return');
     await giveBack.close();
+
+    const payment = await session.openPage();
+    await payment.goto(`${config.baseUrl}/reports/detailed_receivings/2020-01-01/2099-12-31/all/all`, { waitUntil: 'networkidle' });
+    await payment.click('a.modal-dlg[href$="receivings/edit/1"]');
+    await payment.waitForSelector('#payment_amount_new', { timeout: 15000 });
+    const cash = await payment.locator('#payment_types_new option').evaluateAll((options) => options.map((option) => option.textContent.trim()).find((text) => ['Cash', 'نقدي', 'نقدًا'].includes(text)));
+    await payment.selectOption('#payment_types_new', { label: cash });
+    const open = Number(await payment.inputValue('#payment_amount_new'));
+    await payment.fill('#payment_amount_new', (Math.floor(open * 50) / 100).toFixed(2));
+    await payment.click('#submit');
+    await settle(payment);
+    await payment.goto(`${config.baseUrl}/accounting_payables/supplier/6`, { waitUntil: 'networkidle' });
+    if (await payment.locator('#payable_statement').count() === 0) {
+        throw new Error('The payment made from the purchase did not reach the supplier statement');
+    }
+    console.log('supplier payment recorded');
+    await payment.close();
 } finally {
     await browser.close();
 }

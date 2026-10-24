@@ -22,7 +22,8 @@ use Tests\Support\SaleAccountingFixtureTrait;
 
 /**
  * What a purchase puts in the books, through the real purchase model: the goods and the tax in,
- * what the supplier is owed, the payment made at once, goods going back to a supplier at what they
+ * what the supplier is owed, the payment made at once and the payments made afterwards (a journal
+ * of their own, only a completed one in the books), goods going back to a supplier at what they
  * are worth in stock, stock moving between locations, and the purchase taken back out when it is
  * deleted. Every refusal leaves nothing of the purchase behind, and every test ends with the stock
  * of every location tying to its account.
@@ -962,5 +963,334 @@ class ReceivingPostingTest extends CIUnitTestCase
         foreach ($this->accountingDb()->table('receivings')->select('receiving_id')->where('comment', 'race')->get()->getResult() as $row) {
             $this->receivingIds[] = (int) $row->receiving_id;
         }
+    }
+
+    /**
+     * @return list<object>
+     */
+    private function paymentJournals(int $paymentId): array
+    {
+        return $this->accountingDb()->table('accounting_journals')->where(['source_type' => 'supplier_payment', 'source_id' => $paymentId])->orderBy('revision')->get()->getResult();
+    }
+
+    /**
+     * @return list<string> "account:debit:credit" of each line.
+     */
+    private function linesOf(int $journalId): array
+    {
+        return array_map(
+            static fn (object $line): string => $line->account_id . ':' . bcadd($line->debit, '0', 2) . ':' . bcadd($line->credit, '0', 2),
+            $this->accountingDb()->table('accounting_journal_lines')->select('account_id, debit, credit')->where('journal_id', $journalId)->orderBy('line_no', 'ASC')->get()->getResult(),
+        );
+    }
+
+    public function testUpdate_PostsAPaymentAsADebitToTheSupplierAndACreditToTheAccountItWasPaidFrom(): void
+    {
+        $purchase = $this->purchaseOf('100.00');
+        $payment  = $this->payPurchase($purchase, '40.00');
+
+        $journals = $this->paymentJournals($payment);
+
+        $this->assertCount(1, $journals);
+        $this->assertSame([$this->supplierAccount() . ':40.00:0.00', $this->accountId('cash') . ':0.00:40.00'], $this->linesOf((int) $journals[0]->journal_id));
+        $this->assertSame(date('Y-m-d'), $journals[0]->journal_date);
+        $this->assertSame('posted', $journals[0]->status);
+        $this->assertSame(1, (int) $journals[0]->branch_id);
+        $this->assertSame('60.00', $this->owed());
+        $this->assertSupplierTies();
+    }
+
+    public function testUpdate_PostsEachPaymentOfAPurchaseInItsOwnJournal(): void
+    {
+        $purchase = $this->purchaseOf('100.00');
+        $first    = $this->payPurchase($purchase, '30.00');
+        $second   = $this->payPurchase($purchase, '20.00', lang('Sales.bank_transfer'));
+
+        $this->assertCount(1, $this->paymentJournals($first));
+        $this->assertCount(1, $this->paymentJournals($second));
+        $this->assertNotSame($this->paymentJournals($first)[0]->journal_id, $this->paymentJournals($second)[0]->journal_id);
+        $this->assertSame('50.00', $this->owed());
+    }
+
+    public function testUpdate_PostsANegativePaymentAsMoneyTheSupplierGaveBack(): void
+    {
+        $purchase = $this->purchaseOf('100.00');
+        $this->payPurchase($purchase, '100.00');
+        $payment = $this->payPurchase($purchase, '-30.00');
+
+        $journals = $this->paymentJournals($payment);
+
+        $this->assertSame([$this->accountId('cash') . ':30.00:0.00', $this->supplierAccount() . ':0.00:30.00'], $this->linesOf((int) $journals[0]->journal_id));
+        $this->assertSame('30.00', $this->owed());
+        $this->assertSupplierTies();
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function statusProvider(): array
+    {
+        return ['incomplete' => ['incomplete'], 'under review' => ['review'], 'failed' => ['failed'], 'draft' => ['draft']];
+    }
+
+    #[DataProvider('statusProvider')]
+    public function testUpdate_KeepsAPaymentThatIsNotCompletedOutOfTheBooks(string $status): void
+    {
+        $purchase = $this->purchaseOf('100.00');
+        $payment  = $this->payPurchase($purchase, '40.00', null, $status);
+
+        $this->assertSame([], $this->paymentJournals($payment));
+        $this->assertSame('100.00', $this->owed());
+        $this->assertSame('0.00', bcadd($this->supplierPosition()->purchase($purchase)->paid, '0', 2));
+        $this->assertSupplierTies();
+    }
+
+    public function testUpdate_PostsAPaymentWhenItBecomesCompletedAndTakesItBackWhenItStopsBeingCompleted(): void
+    {
+        $purchase = $this->purchaseOf('100.00');
+        $payment  = $this->payPurchase($purchase, '40.00', null, 'draft');
+
+        $this->assertTrue($this->changePayment($purchase, $payment, ['payment_status' => 'completed']));
+
+        $this->assertCount(1, $this->paymentJournals($payment));
+        $this->assertSame('60.00', $this->owed());
+
+        $this->assertTrue($this->changePayment($purchase, $payment, ['payment_status' => 'failed']));
+
+        $journals = $this->paymentJournals($payment);
+
+        $this->assertSame('reversed', $journals[0]->status);
+        $this->assertSame('100.00', $this->owed());
+
+        $this->assertTrue($this->changePayment($purchase, $payment, ['payment_status' => 'completed']));
+
+        $journals = $this->paymentJournals($payment);
+
+        $this->assertSame(['reversed', 'posted'], array_map(static fn (object $journal): string => $journal->status, array_values(array_filter($journals, static fn (object $journal): bool => (int) $journal->revision === 1 || (int) $journal->revision === 2))));
+        $this->assertSame(2, (int) end($journals)->revision);
+        $this->assertSame('60.00', $this->owed());
+        $this->assertSupplierTies();
+    }
+
+    public function testUpdate_ReversesAndPostsAgainAPaymentWhoseAmountChangedAndLeavesTheOthersAlone(): void
+    {
+        $purchase = $this->purchaseOf('100.00');
+        $first    = $this->payPurchase($purchase, '30.00');
+        $second   = $this->payPurchase($purchase, '20.00');
+        $kept     = $this->paymentJournals($first)[0]->journal_id;
+
+        $this->assertTrue($this->changePayment($purchase, $second, ['payment_amount' => '25.00']));
+
+        $this->assertSame([(string) $kept], array_map(static fn (object $journal): string => (string) $journal->journal_id, $this->paymentJournals($first)), 'The journal of the payment that did not change is the one it had');
+        $this->assertSame(['reversed', 'posted'], array_map(static fn (object $journal): string => $journal->status, array_slice($this->paymentJournals($second), 0, 2)));
+        $this->assertSame('45.00', $this->owed());
+        $this->assertSupplierTies();
+    }
+
+    public function testUpdate_TakesBackTheJournalOfAPaymentGivenAnAmountOfNothingAndDeletesTheRow(): void
+    {
+        $purchase = $this->purchaseOf('100.00');
+        $payment  = $this->payPurchase($purchase, '40.00');
+
+        $this->assertTrue($this->changePayment($purchase, $payment, ['payment_amount' => '0']));
+
+        $this->assertSame(0, $this->accountingDb()->table('receivings_payments')->where('payment_id', $payment)->countAllResults());
+        $this->assertSame('reversed', $this->paymentJournals($payment)[0]->status);
+        $this->assertSame('100.00', $this->owed());
+        $this->assertSupplierTies();
+    }
+
+    public function testUpdate_RunAgainWithTheSamePaymentsPostsNothingMore(): void
+    {
+        $purchase = $this->purchaseOf('100.00');
+        $payment  = $this->payPurchase($purchase, '40.00');
+        $journals = $this->countRows('accounting_journals');
+
+        $this->assertTrue($this->changePayment($purchase, $payment, []));
+        $this->assertTrue($this->changePayment($purchase, $payment, []));
+
+        $this->assertSame($journals, $this->countRows('accounting_journals'));
+        $this->assertCount(1, $this->paymentJournals($payment));
+    }
+
+    public function testUpdate_RefusesAPaymentOnAPurchaseWithoutASupplierAndSavesNothing(): void
+    {
+        $item     = $this->item('0.00');
+        $purchase = $this->buy([$this->purchaseLine($item, 0, '1', '40.00')], null, lang('Sales.cash'));
+        $journals = $this->countRows('accounting_journals');
+
+        $paid = $this->purchases->update($purchase, ['payments' => [
+            ['payment_id' => NEW_ENTRY, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '10.00', 'employee_id' => $this->employeeId, 'payment_status' => 'completed', 'reference_code' => ''],
+        ]]);
+
+        $this->assertFalse($paid);
+        $this->assertSame(AccountingError::SupplierPaymentNeedsSupplier, $this->purchases->accountingFailure()->error);
+        $this->assertSame(0, $this->countRows('receivings_payments'));
+        $this->assertSame($journals, $this->countRows('accounting_journals'));
+    }
+
+    public function testUpdate_RefusesAPaymentOnADebitNote(): void
+    {
+        $purchase = $this->purchaseOf('100.00');
+        $note     = $this->debitNoteOf($purchase, '30.00');
+
+        $paid = $this->purchases->update($note, ['payments' => [
+            ['payment_id' => NEW_ENTRY, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '10.00', 'employee_id' => $this->employeeId, 'payment_status' => 'completed', 'reference_code' => ''],
+        ]]);
+
+        $this->assertFalse($paid);
+        $this->assertSame(AccountingError::SupplierPaymentNotOnInvoice, $this->purchases->accountingFailure()->error);
+        $this->assertSame(0, $this->countRows('receivings_payments'));
+    }
+
+    public function testUpdate_RefusesToTouchAPaymentOfAnotherPurchase(): void
+    {
+        $one     = $this->purchaseOf('100.00');
+        $another = $this->purchaseOf('100.00');
+        $payment = $this->payPurchase($one, '40.00');
+
+        $changed = $this->purchases->update($another, ['payments' => [
+            ['payment_id' => $payment, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '0', 'employee_id' => $this->employeeId, 'payment_status' => 'completed', 'reference_code' => ''],
+        ]]);
+
+        $this->assertFalse($changed);
+        $this->assertSame(AccountingError::SupplierPaymentNotOnInvoice, $this->purchases->accountingFailure()->error);
+        $this->assertSame(1, $this->accountingDb()->table('receivings_payments')->where('payment_id', $payment)->countAllResults());
+        $this->assertSame('posted', $this->paymentJournals($payment)[0]->status);
+    }
+
+    public function testUpdate_UndoesThePaymentAndItsJournalWhenThePeriodIsClosed(): void
+    {
+        $purchase = $this->purchaseOf('100.00');
+        $journals = $this->countRows('accounting_journals');
+
+        $this->closeThrough(date('Y-m-d'));
+
+        $paid = $this->purchases->update($purchase, ['payments' => [
+            ['payment_id' => NEW_ENTRY, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '40.00', 'employee_id' => $this->employeeId, 'payment_status' => 'completed', 'reference_code' => ''],
+        ]]);
+
+        $this->assertFalse($paid);
+        $this->assertSame(PostingError::PeriodClosed, $this->purchases->accountingFailure()->error);
+        $this->assertSame(0, $this->countRows('receivings_payments'));
+        $this->assertSame($journals, $this->countRows('accounting_journals'));
+        $this->assertSame(1, $this->accountingDb()->table('accounting_posting_failures')->where('source_type', 'purchase')->where('source_id', $purchase)->where('error_code', 'period_closed')->countAllResults(), 'The refusal is written down after the rollback');
+    }
+
+    public function testUpdate_UndoesThePaymentWhenTheAccountItIsPaidFromIsNotMapped(): void
+    {
+        $purchase = $this->purchaseOf('100.00');
+        $journals = $this->countRows('accounting_journals');
+
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'payment.cash')->update(['account_id' => null]);
+
+        $paid = $this->purchases->update($purchase, ['payments' => [
+            ['payment_id' => NEW_ENTRY, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '40.00', 'employee_id' => $this->employeeId, 'payment_status' => 'completed', 'reference_code' => ''],
+        ]]);
+
+        $this->assertFalse($paid);
+        $this->assertSame(0, $this->countRows('receivings_payments'));
+        $this->assertSame($journals, $this->countRows('accounting_journals'));
+    }
+
+    public function testUpdate_RefusesAPaymentTypeThatIsNotOneASupplierIsPaidWithAndSavesNothingOfTheSameSave(): void
+    {
+        $purchase = $this->purchaseOf('100.00');
+        $journals = $this->countRows('accounting_journals');
+
+        $paid = $this->purchases->update($purchase, ['comment' => 'both', 'payments' => [
+            ['payment_id' => NEW_ENTRY, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '10.00', 'employee_id' => $this->employeeId, 'payment_status' => 'completed', 'reference_code' => ''],
+            ['payment_id' => NEW_ENTRY, 'payment_type' => lang('Sales.due'), 'payment_amount' => '10.00', 'employee_id' => $this->employeeId, 'payment_status' => 'completed', 'reference_code' => ''],
+        ]]);
+
+        $this->assertFalse($paid);
+        $this->assertSame(PostingError::PaymentTypeUnknown, $this->purchases->accountingFailure()->error);
+        $this->assertSame(0, $this->countRows('receivings_payments'), 'The first payment of the save went with the rollback');
+        $this->assertSame($journals, $this->countRows('accounting_journals'));
+        $this->assertSame('test', $this->accountingDb()->table('receivings')->where('receiving_id', $purchase)->get()->getRow()->comment, 'The comment of the same save did not stay either');
+    }
+
+    public function testUpdate_ChangesThePurchaseAndItsPaymentsTogether(): void
+    {
+        $purchase = $this->purchaseOf('100.00');
+
+        $this->assertTrue($this->purchases->update($purchase, ['comment' => 'with a payment', 'payments' => [
+            ['payment_id' => NEW_ENTRY, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '10.00', 'employee_id' => $this->employeeId, 'payment_status' => 'completed', 'reference_code' => ''],
+        ]]));
+
+        $this->assertSame('with a payment', $this->accountingDb()->table('receivings')->where('receiving_id', $purchase)->get()->getRow()->comment);
+        $this->assertSame(1, $this->countRows('receivings_payments'));
+    }
+
+    public function testUpdate_StoresThePaymentAndPostsNothingWhenTheBooksAreOff(): void
+    {
+        $purchase = $this->purchaseOf('100.00');
+        $this->setConfigValue('accounting_enabled', '0');
+        $journals = $this->countRows('accounting_journals');
+
+        $this->assertTrue($this->purchases->update($purchase, ['payments' => [
+            ['payment_id' => NEW_ENTRY, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '40.00', 'employee_id' => $this->employeeId, 'payment_status' => 'completed', 'reference_code' => ''],
+        ]]));
+
+        $this->assertSame(1, $this->countRows('receivings_payments'));
+        $this->assertSame($journals, $this->countRows('accounting_journals'));
+        $this->assertSame(0, $this->countRows('accounting_posting_failures'));
+    }
+
+    public function testDeleteValue_TakesBackThePaymentsOfAPurchaseWithItAndRemovesTheirRows(): void
+    {
+        $purchase = $this->purchaseOf('100.00');
+        $one      = $this->payPurchase($purchase, '30.00');
+        $two      = $this->payPurchase($purchase, '20.00');
+
+        $this->assertSame('50.00', $this->owed());
+        $this->assertTrue($this->purchases->delete_value($purchase, $this->employeeId));
+
+        $this->assertSame(0, $this->countRows('receivings_payments'));
+        $this->assertSame('reversed', $this->paymentJournals($one)[0]->status);
+        $this->assertSame('reversed', $this->paymentJournals($two)[0]->status);
+        $this->assertSame('0.00', $this->owed());
+        $this->assertSupplierTies();
+    }
+
+    public function testDeleteValue_LeavesThePurchaseAndItsPaymentsWhenThePeriodIsClosed(): void
+    {
+        $purchase = $this->purchaseOf('100.00');
+        $payment  = $this->payPurchase($purchase, '30.00');
+        $journals = $this->countRows('accounting_journals');
+
+        $this->closeThrough(date('Y-m-d'));
+
+        $this->assertFalse($this->purchases->delete_value($purchase, $this->employeeId));
+
+        $this->assertSame(1, $this->accountingDb()->table('receivings')->where('receiving_id', $purchase)->countAllResults());
+        $this->assertSame(1, $this->accountingDb()->table('receivings_payments')->where('payment_id', $payment)->countAllResults());
+        $this->assertSame($journals, $this->countRows('accounting_journals'));
+        $this->assertSame('70.00', $this->owed());
+    }
+
+    public function testJournalsOf_ListsTheJournalsOfThePaymentsWithThoseOfThePurchase(): void
+    {
+        $purchase = $this->purchaseOf('100.00', null, lang('Sales.cash'));
+        $payment  = $this->payPurchase($purchase, '10.00');
+
+        $sources = array_map(static fn (object $journal): string => $journal->source_type . ':' . $journal->source_id, (new ReceivingPosting())->journalsOf($purchase));
+
+        $this->assertSame(['purchase:' . $purchase, 'purchase_payment:' . $purchase, 'supplier_payment:' . $payment], $sources);
+    }
+
+    public function testUpdate_PutsThePaymentJournalInTheBranchOfThePurchase(): void
+    {
+        $branch   = $this->createBranch();
+        $location = $this->anotherLocation('Branch store');
+
+        $this->accountingDb()->table('stock_locations')->where('location_id', $location)->update(['branch_id' => $branch]);
+
+        $item     = $this->item('0.00');
+        $purchase = $this->buy([$this->purchaseLine($item, 0, '1', '100.00', '0', '0', PERCENT, $location)]);
+        $payment  = $this->payPurchase($purchase, '40.00');
+
+        $this->assertGreaterThan(0, $purchase);
+        $this->assertSame($branch, (int) $this->paymentJournals($payment)[0]->branch_id);
     }
 }

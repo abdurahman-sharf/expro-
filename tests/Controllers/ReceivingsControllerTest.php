@@ -660,4 +660,254 @@ class ReceivingsControllerTest extends CIUnitTestCase
     {
         return date($this->dateFormat(), strtotime((string) $this->receivingRow($receivingId)->receiving_time));
     }
+
+    // ---------------------------------------------------------------------------------------
+    // What is owed to the supplier: payments, figures and the debit note
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * What the edit form posts for payments: the ones the purchase has and, when a type and an
+     * amount are given, a new one.
+     *
+     * @param list<array{int, string, string, string}> $existing id, type, amount and status of the payments already there
+     *
+     * @return array<string, string>
+     */
+    private function paymentFields(array $existing = [], ?string $type = null, string $amount = ''): array
+    {
+        $fields = ['number_of_payments' => (string) count($existing), 'payment_type_new' => $type ?? PAYMENT_TYPE_UNASSIGNED, 'payment_amount_new' => $amount];
+
+        foreach ($existing as $i => [$id, $paymentType, $paymentAmount, $status]) {
+            $fields["payment_id_{$i}"]     = (string) $id;
+            $fields["payment_type_{$i}"]   = $paymentType;
+            $fields["payment_amount_{$i}"] = $paymentAmount;
+            $fields["payment_status_{$i}"] = $status;
+        }
+
+        return $fields;
+    }
+
+    /**
+     * @param array<string, string> $payments
+     *
+     * @return array<string, string>
+     */
+    private function savedWith(int $receivingId, array $payments, string $comment = 'test'): array
+    {
+        return ['date' => $this->dateOf($receivingId), 'comment' => $comment, 'supplier_id' => (string) $this->supplierId, 'employee_id' => (string) $this->employeeId, 'reference' => 'X'] + $payments;
+    }
+
+    public function testGetEdit_ShowsThePaymentsTheFiguresAndTheDebitNoteButtonOfAPostedPurchaseOfASupplier(): void
+    {
+        $purchase = $this->purchaseOf('500.00');
+        $this->payPurchase($purchase, '100.00');
+        $this->loginAs($this->buyer());
+
+        $response = $this->get('/receivings/edit/' . $purchase);
+
+        $response->assertStatus(200);
+        $response->assertSee('id="new_supplier_payment"');
+        $response->assertSee('name="payment_id_1"');
+        $response->assertSee('name="payment_status_1"');
+        $response->assertSee('id="payable_figures"');
+        $response->assertSee(lang('Receivings.payable_open'));
+        $response->assertSee('400.00');
+        $response->assertSee('id="create_debit_note"');
+    }
+
+    public function testGetEdit_OffersNoPaymentsForADebitNoteOrAPurchaseWithoutASupplier(): void
+    {
+        $purchase = $this->purchaseOf('500.00');
+        $note     = $this->debitNoteOf($purchase, '50.00');
+        $item     = $this->item('0.00');
+        $cash     = $this->buy([$this->purchaseLine($item, 0, '1', '40.00')], null, lang('Sales.cash'));
+        $this->loginAs($this->buyer());
+
+        foreach ([$note, $cash] as $receivingId) {
+            $response = $this->get('/receivings/edit/' . $receivingId);
+
+            $response->assertStatus(200);
+            $response->assertDontSee('id="new_supplier_payment"');
+            $response->assertDontSee('id="payable_figures"');
+            $response->assertDontSee('id="create_debit_note"');
+        }
+    }
+
+    public function testGetEdit_HidesTheDebitNoteButtonWhenEverythingWasReturned(): void
+    {
+        $purchase = $this->purchaseOf('100.00');
+        $this->debitNoteOf($purchase, '100.00');
+        $this->loginAs($this->buyer());
+
+        $response = $this->get('/receivings/edit/' . $purchase);
+
+        $response->assertSee('id="payable_figures"');
+        $response->assertDontSee('id="create_debit_note"');
+    }
+
+    public function testGetEdit_ListsWhatWasAppliedToThePurchaseAndWhatTheDebitNoteGave(): void
+    {
+        $paid = $this->purchaseOf('100.00', null, lang('Sales.cash'));
+        $note = $this->debitNoteOf($paid, '100.00');
+        $next = $this->purchaseOf('60.00');
+        $this->loginAs($this->buyer());
+
+        $response = $this->get('/receivings/edit/' . $next);
+
+        $response->assertSee('id="credit_applications"');
+        $response->assertSee(lang('Receivings.credit_from_note'));
+        $response->assertSee('#' . $note);
+
+        $this->get('/receivings/edit/' . $note)->assertSee('id="credit_applications"');
+    }
+
+    public function testPostSave_AddsAPaymentFromTheFormAndPostsIt(): void
+    {
+        $purchase = $this->purchaseOf('500.00');
+        $this->loginAs($this->buyer());
+
+        $result = $this->jsonOf($this->post('/receivings/save/' . $purchase, $this->savedWith($purchase, $this->paymentFields([], lang('Sales.cash'), '150.00'))));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(1, $this->countRows('receivings_payments'));
+        $this->assertSame('350.00', $this->owed());
+        $this->assertSame(1, $this->accountingDb()->table('accounting_journals')->where('source_type', 'supplier_payment')->countAllResults());
+        $this->assertSupplierTies();
+    }
+
+    public function testPostSave_ChangesAndThenRemovesAPaymentFromTheForm(): void
+    {
+        $purchase = $this->purchaseOf('500.00');
+        $payment  = $this->payPurchase($purchase, '100.00');
+        $this->loginAs($this->buyer());
+
+        $changed = $this->jsonOf($this->post('/receivings/save/' . $purchase, $this->savedWith($purchase, $this->paymentFields([[$payment, lang('Sales.cash'), '175.00', 'completed']]))));
+
+        $this->assertTrue($changed['success']);
+        $this->assertSame('325.00', $this->owed());
+
+        $removed = $this->jsonOf($this->post('/receivings/save/' . $purchase, $this->savedWith($purchase, $this->paymentFields([[$payment, lang('Sales.cash'), '0', 'completed']]))));
+
+        $this->assertTrue($removed['success']);
+        $this->assertSame(0, $this->countRows('receivings_payments'));
+        $this->assertSame('500.00', $this->owed());
+        $this->assertSupplierTies();
+    }
+
+    public function testPostSave_KeepsAPaymentThatIsNotCompletedOutOfTheBooksUntilItIs(): void
+    {
+        $purchase = $this->purchaseOf('500.00');
+        $payment  = $this->payPurchase($purchase, '100.00', null, 'draft');
+        $this->loginAs($this->buyer());
+
+        $this->assertSame('500.00', $this->owed());
+
+        $result = $this->jsonOf($this->post('/receivings/save/' . $purchase, $this->savedWith($purchase, $this->paymentFields([[$payment, lang('Sales.cash'), '100.00', 'completed']]))));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('400.00', $this->owed());
+    }
+
+    public function testPostSave_SaysWhyAClosedPeriodRefusesAPaymentAndSavesNothingOfTheForm(): void
+    {
+        $purchase = $this->purchaseOf('500.00');
+        $this->loginAs($this->buyer());
+        $this->closeThrough(date('Y-m-d'));
+
+        $result = $this->jsonOf($this->post('/receivings/save/' . $purchase, $this->savedWith($purchase, $this->paymentFields([], lang('Sales.cash'), '150.00'), 'with a payment')));
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString(date('Y-m-d'), $result['message']);
+        $this->assertSame(0, $this->countRows('receivings_payments'));
+        $this->assertSame('test', $this->receivingRow($purchase)->comment);
+    }
+
+    public function testPostSave_RefusesAPaymentOnAPurchaseOfABranchTheEmployeeDoesNotWorkIn(): void
+    {
+        $purchase = $this->purchaseOf('500.00');
+        $this->loginAs($this->buyer([$this->anotherBranch()]));
+
+        $response = $this->post('/receivings/save/' . $purchase, $this->savedWith($purchase, $this->paymentFields([], lang('Sales.cash'), '150.00')));
+
+        $response->assertStatus(403);
+        $this->assertSame(0, $this->countRows('receivings_payments'));
+        $this->assertSame('500.00', $this->owed());
+    }
+
+    public function testPostSave_RefusesAPaymentTypeThatIsNotOneASupplierIsPaidWith(): void
+    {
+        $purchase = $this->purchaseOf('500.00');
+        $this->loginAs($this->buyer());
+
+        $result = $this->jsonOf($this->post('/receivings/save/' . $purchase, $this->savedWith($purchase, $this->paymentFields([], lang('Sales.giftcard'), '150.00'))));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(0, $this->countRows('receivings_payments'));
+    }
+
+    public function testPostDebitNote_PreparesTheRegisterForAReturnOfWhatIsLeftToTakeBack(): void
+    {
+        $item     = $this->item('0.00');
+        $purchase = $this->buy([$this->purchaseLine($item, 0, '10', '50')]);
+        $this->buy([$this->purchaseLine($item, 0, '-3', '50')], -1, null, $purchase);
+        $this->loginAs($this->buyer());
+
+        $response = $this->post('/receivings/debitNote/' . $purchase);
+        $result   = $this->jsonOf($response);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(site_url('receivings'), $result['redirect']);
+        $this->assertSame('return', session()->get('recv_mode'));
+        $this->assertSame($purchase, session()->get('recv_return_origin'));
+        $this->assertSame((int) $this->supplierId, (int) session()->get('recv_supplier'));
+
+        $cart = session()->get('recv_cart');
+
+        $this->assertCount(1, $cart);
+        $this->assertSame([$item, -7.0], [(int) reset($cart)['item_id'], (float) reset($cart)['quantity']]);
+    }
+
+    public function testPostDebitNote_SaysThatEverythingWasReturnedAndLeavesTheRegisterAlone(): void
+    {
+        $item     = $this->item('0.00');
+        $purchase = $this->buy([$this->purchaseLine($item, 0, '4', '50')]);
+        $this->buy([$this->purchaseLine($item, 0, '-4', '50')], -1, null, $purchase);
+        $this->loginAs($this->buyer(), ['recv_cart' => []]);
+
+        $result = $this->jsonOf($this->post('/receivings/debitNote/' . $purchase));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Receivings.debit_note_nothing_left'), $result['message']);
+        $this->assertNull(session()->get('recv_return_origin'));
+    }
+
+    public function testPostDebitNote_RefusesAPurchaseOfABranchTheEmployeeDoesNotWorkInAndAReturn(): void
+    {
+        $purchase = $this->purchaseOf('100.00');
+        $note     = $this->debitNoteOf($purchase, '10.00');
+
+        $this->loginAs($this->buyer([$this->anotherBranch()]));
+
+        $this->post('/receivings/debitNote/' . $purchase)->assertStatus(403);
+        $this->assertNull(session()->get('recv_return_origin'));
+
+        $this->loginAs($this->buyer());
+
+        $result = $this->jsonOf($this->post('/receivings/debitNote/' . $note));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Receivings.return_origin_invalid'), $result['message']);
+    }
+
+    public function testPostDebitNote_NeedsAPurchaseWithASupplier(): void
+    {
+        $item     = $this->item('0.00');
+        $purchase = $this->buy([$this->purchaseLine($item, 0, '1', '40.00')], null, lang('Sales.cash'));
+        $this->loginAs($this->buyer());
+
+        $result = $this->jsonOf($this->post('/receivings/debitNote/' . $purchase));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Receivings.debit_note_needs_supplier'), $result['message']);
+    }
 }

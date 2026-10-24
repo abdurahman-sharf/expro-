@@ -42,7 +42,33 @@ final class ReceivingLoader
             returnOfReceivingId: $receiving->return_of_receiving_id === null ? null : (int) $receiving->return_of_receiving_id,
             lines: $this->lines($receivingId),
             origin: $origin,
+            payments: $this->payments($receivingId),
         );
+    }
+
+    /**
+     * @return list<SupplierPayment>
+     */
+    private function payments(int $receivingId): array
+    {
+        $payments = [];
+
+        foreach ($this->db->table('receivings_payments')
+            ->select('payment_id, payment_type, payment_amount, payment_time, payment_status')
+            ->where('receiving_id', $receivingId)
+            ->orderBy('payment_id', 'ASC')
+            ->get()
+            ->getResult() as $row) {
+            $payments[] = new SupplierPayment(
+                paymentId: (int) $row->payment_id,
+                type: (string) $row->payment_type,
+                amount: (string) $row->payment_amount,
+                date: substr((string) $row->payment_time, 0, 10),
+                status: PaymentStatus::fromStored($row->payment_status),
+            );
+        }
+
+        return $payments;
     }
 
     /**

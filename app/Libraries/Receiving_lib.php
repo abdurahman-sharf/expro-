@@ -213,7 +213,7 @@ class Receiving_lib
     /**
      * @param string|null $taxPercent The tax rate of the line, or null for the rate the item carries.
      */
-    public function add_item(string $itemId, int $quantity = 1, ?int $itemLocation = null, float $discount = 0, int $discountType = 0, ?float $price = null, ?string $description = null, ?string $serialNumber = null, ?float $receivingQuantity = null, ?int $receivingId = null, bool $includeDeleted = false, ?string $taxPercent = null): bool
+    public function add_item(string $itemId, int|float $quantity = 1, ?int $itemLocation = null, float $discount = 0, int $discountType = 0, ?float $price = null, ?string $description = null, ?string $serialNumber = null, ?float $receivingQuantity = null, ?int $receivingId = null, bool $includeDeleted = false, ?string $taxPercent = null): bool
     {
         $config   = config(OSPOS::class)->settings;
         $itemInfo = $this->item->get_info_by_id_or_number($itemId, $includeDeleted);
@@ -361,6 +361,42 @@ class Receiving_lib
 
         $this->set_supplier($this->receiving->get_supplier($receiving_id)->person_id);
         $this->set_return_origin((int) $receiving_id);
+    }
+
+    /**
+     * Prepares a return of what a purchase brought in and has not been given back yet: the units
+     * of each line less what earlier returns took from the same item, at the price and the tax of
+     * the line. It is the debit note of the purchase.
+     */
+    public function return_remaining_of_receiving(int $receivingId): void
+    {
+        $this->empty_cart();
+        $this->remove_supplier();
+        $this->clear_comment();
+
+        $left = [];
+
+        foreach ($this->receiving->getReturnableQuantities($receivingId) as $itemId => $quantities) {
+            $left[$itemId] = $quantities['returned'];
+        }
+
+        foreach ($this->receiving->get_receiving_items($receivingId)->getResult() as $row) {
+            $perPack   = (float) $row->receiving_quantity !== 0.0 ? (float) $row->receiving_quantity : 1.0;
+            $units     = (float) $row->quantity_purchased * $perPack;
+            $taken     = min($units, $left[(int) $row->item_id] ?? 0.0);
+            $remaining = $units - $taken;
+
+            $left[(int) $row->item_id] = ($left[(int) $row->item_id] ?? 0.0) - $taken;
+
+            if ($remaining <= 0) {
+                continue;
+            }
+
+            $this->add_item($row->item_id, -($remaining / $perPack), $row->item_location, $row->discount, $row->discount_type, $row->item_unit_price, $row->description, $row->serialnumber, $row->receiving_quantity, $receivingId, true, (string) $row->tax_percent);
+        }
+
+        $this->set_supplier($this->receiving->get_supplier($receivingId)->person_id);
+        $this->set_return_origin($receivingId);
     }
 
     public function add_item_kit(string $external_item_kit_id, int $item_location, float $discount, int $discount_type): void

@@ -267,6 +267,7 @@ final class JournalService
             SalePostingBuilder::SOURCE_PAYMENT,
             ReceivingPostingBuilder::SOURCE_PURCHASE,
             ReceivingPostingBuilder::SOURCE_PAYMENT,
+            ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT,
         ])->countAllResults() > 0;
 
         if (! $isAutomatic) {

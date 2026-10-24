@@ -25,9 +25,9 @@ class ParityFixtureTest extends CIUnitTestCase
         return $sets;
     }
 
-    public function testIds_ListsFixturesT01ToT12(): void
+    public function testIds_ListsFixturesT01ToT13(): void
     {
-        $this->assertSame(['T-01', 'T-02', 'T-03', 'T-04', 'T-05', 'T-06', 'T-07', 'T-08', 'T-09', 'T-10', 'T-11', 'T-12'], ParityFixture::ids());
+        $this->assertSame(['T-01', 'T-02', 'T-03', 'T-04', 'T-05', 'T-06', 'T-07', 'T-08', 'T-09', 'T-10', 'T-11', 'T-12', 'T-13'], ParityFixture::ids());
     }
 
     #[DataProvider('fixtureProvider')]

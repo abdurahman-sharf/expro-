@@ -74,6 +74,13 @@ $routes->group('accounting_receivables', static function (RouteCollection $route
     $routes->get('customer/(:num)', 'AccountingReceivables::getCustomer/$1');
 });
 
+$routes->group('accounting_payables', static function (RouteCollection $routes): void {
+    $routes->get('/', 'AccountingPayables::getIndex');
+    $routes->get('search', 'AccountingPayables::getSearch');
+    $routes->get('row/(:num)', 'AccountingPayables::getRow/$1');
+    $routes->get('supplier/(:num)', 'AccountingPayables::getSupplier/$1');
+});
+
 $routes->group('accounting_periods', static function (RouteCollection $routes): void {
     $routes->get('/', 'AccountingPeriods::getIndex');
     $routes->get('search', 'AccountingPeriods::getSearch');

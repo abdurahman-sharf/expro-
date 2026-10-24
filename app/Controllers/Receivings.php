@@ -5,8 +5,11 @@ namespace App\Controllers;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\AccountingSettings;
+use App\Libraries\Accounting\PaymentStatus;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\ReceivingPosting;
+use App\Libraries\Accounting\ReceivingType;
+use App\Libraries\Accounting\SupplierLedger;
 use App\Libraries\Barcode_lib;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Receiving_lib;
@@ -318,14 +321,33 @@ class Receivings extends Secure_Controller
         $data['can_assign_employee']    = $can_assign_employee;
         $data['locked']                 = false;
         $data['journals']               = [];
+        $data['takes_payments']         = $receiving_info['receiving_type'] === ReceivingType::Receive->value && $receiving_info['supplier_id'] !== null;
+        $data['payments']               = $data['takes_payments'] ? $this->receiving->get_payments((int) $receiving_id) : [];
+        $data['payment_statuses']       = [];
+        $data['payable']                = null;
+        $data['credit']                 = '0';
+        $data['applications']           = [];
+        $data['can_debit_note']         = false;
+        $data['payment_options']        = $this->supplierPaymentOptions();
 
         if ((new AccountingSettings())->isEnabled()) {
             $posting = new ReceivingPosting();
 
-            $data['locked'] = $posting->isPosted((int) $receiving_id);
+            $data['locked']           = $posting->isPosted((int) $receiving_id);
+            $data['payment_statuses'] = $this->paymentStatusOptions();
 
             if ($this->employee->has_grant('accounting_journals', $current_employee_id)) {
                 $data['journals'] = $posting->journalsOf((int) $receiving_id);
+            }
+
+            if ($data['locked'] && $data['takes_payments']) {
+                $position                = (new SupplierLedger())->position((int) $receiving_info['supplier_id']);
+                $data['payable']         = $position->purchase((int) $receiving_id);
+                $data['credit']          = $position->credit();
+                $data['applications']    = $this->applicationsOf((int) $receiving_id, (int) $receiving_info['supplier_id']);
+                $data['can_debit_note']  = $data['payable'] !== null && ! $this->nothingLeftToReturn((int) $receiving_id);
+            } elseif ($data['locked'] && $receiving_info['receiving_type'] === ReceivingType::Return->value && $receiving_info['supplier_id'] !== null) {
+                $data['applications'] = $this->applicationsOf((int) $receiving_id, (int) $receiving_info['supplier_id']);
             }
         }
 
@@ -611,6 +633,12 @@ class Receivings extends Secure_Controller
             'reference'      => $this->request->getPost('reference') != '' ? $this->request->getPost('reference', FILTER_SANITIZE_FULL_SPECIAL_CHARS) : null,
         ];
 
+        $payments = $this->postedPayments((int) $current_employee_id);
+
+        if ($payments !== []) {
+            $receiving_data['payments'] = $payments;
+        }
+
         if ($this->receiving->update($receiving_id, $receiving_data)) {
             $this->inventory->update('RECV ' . $receiving_id, ['trans_date' => $receiving_time]);
 
@@ -644,6 +672,137 @@ class Receivings extends Secure_Controller
      * Why the books refused the last change, in the words of the language in use, or null when
      * they did not.
      */
+    /**
+     * Prepares the register for the debit note of a purchase: a return of what it brought in and
+     * has not been given back yet, naming the purchase. Used in app/Views/receivings/form.php
+     *
+     * @noinspection PhpUnused
+     */
+    public function postDebitNote(int $receivingId = NEW_ENTRY): ResponseInterface
+    {
+        if ($this->outsideBranchScope($receivingId)) {
+            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Receivings.branch_not_allowed')]);
+        }
+
+        $origin = $this->receiving->get_info($receivingId)->getRowArray();
+
+        if ($origin === null || $origin['receiving_type'] !== ReceivingType::Receive->value) {
+            return $this->response->setJSON(['success' => false, 'message' => lang('Receivings.return_origin_invalid')]);
+        }
+
+        if ($origin['supplier_id'] === null) {
+            return $this->response->setJSON(['success' => false, 'message' => lang('Receivings.debit_note_needs_supplier')]);
+        }
+
+        if ($this->nothingLeftToReturn($receivingId)) {
+            return $this->response->setJSON(['success' => false, 'message' => lang('Receivings.debit_note_nothing_left')]);
+        }
+
+        $this->receiving_lib->clear_all();
+        $this->receiving_lib->set_mode('return');
+        $this->receiving_lib->return_remaining_of_receiving($receivingId);
+
+        return $this->response->setJSON(['success' => true, 'redirect' => site_url('receivings')]);
+    }
+
+    private function nothingLeftToReturn(int $receivingId): bool
+    {
+        $left = [];
+
+        foreach ($this->receiving->getReturnableQuantities($receivingId) as $itemId => $quantities) {
+            $left[$itemId] = $quantities['bought'] - $quantities['returned'];
+        }
+
+        foreach ($left as $remaining) {
+            if ($remaining > 0.0005) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * The payments of the edit form: the ones the purchase has, as they now stand in the form,
+     * and a new one when a type and an amount were given.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function postedPayments(int $employeeId): array
+    {
+        $payments = [];
+        $number   = (int) $this->request->getPost('number_of_payments', FILTER_SANITIZE_NUMBER_INT);
+
+        for ($i = 0; $i < $number; ++$i) {
+            $payments[] = [
+                'payment_id'     => (int) $this->request->getPost("payment_id_{$i}", FILTER_SANITIZE_NUMBER_INT),
+                'payment_type'   => $this->request->getPost("payment_type_{$i}", FILTER_SANITIZE_FULL_SPECIAL_CHARS),
+                'payment_amount' => number_format((float) parse_decimals($this->request->getPost("payment_amount_{$i}")), 2, '.', ''),
+                'payment_status' => $this->request->getPost("payment_status_{$i}", FILTER_SANITIZE_FULL_SPECIAL_CHARS),
+                'reference_code' => (string) $this->request->getPost("reference_code_{$i}", FILTER_SANITIZE_FULL_SPECIAL_CHARS),
+                'employee_id'    => $employeeId,
+            ];
+        }
+
+        $type   = $this->request->getPost('payment_type_new', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+        $amount = $this->request->getPost('payment_amount_new');
+
+        if ($type !== null && $type !== PAYMENT_TYPE_UNASSIGNED && ! empty($amount)) {
+            $payments[] = [
+                'payment_id'     => NEW_ENTRY,
+                'payment_type'   => $type,
+                'payment_amount' => number_format((float) parse_decimals($amount), 2, '.', ''),
+                'payment_status' => $this->request->getPost('payment_status_new', FILTER_SANITIZE_FULL_SPECIAL_CHARS) ?: PaymentStatus::Completed->value,
+                'reference_code' => (string) $this->request->getPost('reference_code_new', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
+                'employee_id'    => $employeeId,
+            ];
+        }
+
+        return $payments;
+    }
+
+    /**
+     * The ways a supplier can be paid: the ways a purchase can be paid at once, less leaving it
+     * on credit.
+     *
+     * @return array<string, string>
+     */
+    private function supplierPaymentOptions(): array
+    {
+        $options = $this->receiving->get_payment_options();
+
+        unset($options[lang('Sales.due')]);
+
+        return $options;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function paymentStatusOptions(): array
+    {
+        $options = [];
+
+        foreach (PaymentStatus::cases() as $status) {
+            $options[$status->value] = lang($status->languageKey());
+        }
+
+        return $options;
+    }
+
+    /**
+     * What was applied to or taken from a purchase, for the edit form.
+     *
+     * @return list<object>
+     */
+    private function applicationsOf(int $receivingId, int $supplierId): array
+    {
+        return array_values(array_filter(
+            (new SupplierLedger())->applications($supplierId),
+            static fn (object $application): bool => (int) $application->invoice_receiving_id === $receivingId || ($application->source_type === 'debit_note' && (int) $application->source_id === $receivingId),
+        ));
+    }
+
     private function accountingFailureMessage(): ?string
     {
         $failure = $this->receiving->accountingFailure();

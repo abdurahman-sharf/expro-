@@ -7,6 +7,8 @@ return [
     'accounting_cost_centers_desc' => 'عرض مراكز التكلفة وإدارتها.',
     'accounting_journals'          => 'القيود اليومية',
     'accounting_journals_desc'     => 'إنشاء القيود اليومية وترحيلها وعكسها.',
+    'accounting_payables'          => 'أرصدة الموردين',
+    'accounting_payables_desc'     => 'اطّلع على ما هو مستحق لكل مورد أو لنا عنده رصيدًا دائنًا، بحسب الشراء والعمر.',
     'accounting_periods'           => 'الفترات والإقفال',
     'accounting_periods_desc'      => 'إدارة السنوات المالية وإقفال الفترات وإعادة فتحها وإدخال الأرصدة الافتتاحية.',
     'accounting_receivables'       => 'أرصدة العملاء',
