@@ -4,14 +4,18 @@ namespace App\Libraries\Accounting;
 
 /**
  * What posting the opening stock of a stock location would do, and why it would not when it
- * would not.
+ * would not. The lines are the units that stand on the shelves and that no movement accounts
+ * for. The differences are the items whose movements account for more than the shelves hold, or
+ * whose shelves are negative: they are left out, and a person may choose to post them too, as
+ * negative lines, so that the books say what the shelves say.
  */
 final readonly class OpeningStockPlan
 {
     /**
-     * @param list<OpeningStockLine>    $lines    What posting would add now.
+     * @param list<OpeningStockLine>    $lines       What posting would add now.
      * @param list<OpeningStockFinding> $findings
-     * @param list<OpeningStockLine>    $standing What the opening stock that stands has posted.
+     * @param list<OpeningStockLine>    $standing    What the opening stock that stands has posted.
+     * @param list<OpeningStockLine>    $differences What would be posted for the items left out, with the sign of their units.
      */
     public function __construct(
         public int $locationId,
@@ -22,7 +26,65 @@ final readonly class OpeningStockPlan
         public array $findings,
         public ?int $activeRevision,
         public array $standing = [],
+        public array $differences = [],
     ) {
+    }
+
+    public function hasDifferences(): bool
+    {
+        return $this->differences !== [];
+    }
+
+    public function canSettleDifferences(): bool
+    {
+        if ($this->differences === [] || $this->activeRevision !== null) {
+            return false;
+        }
+
+        foreach ($this->findings as $finding) {
+            if ($finding->problem->concernsTheLocation()) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    public function settled(): self
+    {
+        $lines = [...$this->lines, ...$this->differences];
+
+        usort($lines, static fn (OpeningStockLine $a, OpeningStockLine $b): int => $a->itemId <=> $b->itemId);
+
+        return new self($this->locationId, $this->locationName, $this->branchId, OpeningStockStatus::Postable, $lines, [], $this->activeRevision, $this->standing);
+    }
+
+    /**
+     * @return numeric-string
+     */
+    public function differenceUnits(): string
+    {
+        $units = '0';
+
+        foreach ($this->differences as $line) {
+            $units = bcadd($units, $line->units, StockLedger::QUANTITY_SCALE);
+        }
+
+        return $units;
+    }
+
+    /**
+     * @return numeric-string
+     */
+    public function differenceValue(): string
+    {
+        $value = '0';
+
+        foreach ($this->differences as $line) {
+            $value = bcadd($value, $line->value, StockLedger::VALUE_SCALE);
+        }
+
+        return $value;
     }
 
     /**
@@ -83,6 +145,6 @@ final readonly class OpeningStockPlan
 
     public function with(OpeningStockStatus $status): self
     {
-        return new self($this->locationId, $this->locationName, $this->branchId, $status, $this->lines, $this->findings, $this->activeRevision, $this->standing);
+        return new self($this->locationId, $this->locationName, $this->branchId, $status, $this->lines, $this->findings, $this->activeRevision, $this->standing, $this->differences);
     }
 }

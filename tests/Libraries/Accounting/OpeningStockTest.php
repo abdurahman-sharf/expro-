@@ -16,6 +16,7 @@ use App\Libraries\Accounting\OpeningStockStatus;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\PostingService;
+use App\Libraries\Accounting\StockAdjustment;
 use App\Libraries\Accounting\StockLedger;
 use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
@@ -315,7 +316,7 @@ class OpeningStockTest extends CIUnitTestCase
 
         $result = $this->onlyResult($this->opening->post([self::LOCATION_ID], null));
 
-        $this->assertSame(OpeningStockStatus::Posted, $result->plan->status);
+        $this->assertSame(OpeningStockStatus::PartiallyPosted, $result->plan->status);
         $this->assertFindings([OpeningStockProblem::NegativeStock], $result->plan);
         $this->assertSame($owed, $result->plan->findings[0]->itemId);
         $this->assertSame('-3.000', $result->plan->findings[0]->amount);
@@ -325,14 +326,15 @@ class OpeningStockTest extends CIUnitTestCase
         $this->assertStockTies();
     }
 
-    public function testPost_AloneNegativeStockIsNothingToPostAndIsReported(): void
+    public function testPost_AloneNegativeStockNeedsAPersonAndIsNeverShownAsNothingToPost(): void
     {
         $owed = $this->item('3.00');
         $this->shelves($owed, '-3');
 
         $result = $this->onlyResult($this->opening->post([self::LOCATION_ID], null));
 
-        $this->assertSame(OpeningStockStatus::NothingToPost, $result->plan->status);
+        $this->assertSame(OpeningStockStatus::Blocked, $result->plan->status);
+        $this->assertFalse($result->written());
         $this->assertFindings([OpeningStockProblem::NegativeStock], $result->plan);
         $this->assertSame([], $this->openingEntries());
     }
@@ -345,11 +347,177 @@ class OpeningStockTest extends CIUnitTestCase
 
         $result = $this->onlyResult($this->opening->post([self::LOCATION_ID], null));
 
-        $this->assertSame(OpeningStockStatus::NothingToPost, $result->plan->status);
+        $this->assertSame(OpeningStockStatus::Blocked, $result->plan->status);
         $this->assertFindings([OpeningStockProblem::MovementsExceedShelves], $result->plan);
         $this->assertSame('3.000', $result->plan->findings[0]->amount);
         $this->assertSame([], $this->openingEntries());
         $this->assertSame('7.000', $this->onHand($item));
+    }
+
+    /**
+     * The location of the case: rice that can be posted, an item whose shelves are negative, and
+     * an item bought for ten whose shelves hold seven.
+     *
+     * @return array{rice: int, owed: int, short: int}
+     */
+    private function locationWithItemsLeftOut(): array
+    {
+        $rice  = $this->item('50.00');
+        $owed  = $this->item('3.00');
+        $short = $this->item('0.00');
+
+        $this->shelves($rice, '10');
+        $this->shelves($owed, '-3');
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($short, 0, '10', '20')]));
+        $this->accountingDb()->table('item_quantities')->where('item_id', $short)->where('location_id', self::LOCATION_ID)->update(['quantity' => '7']);
+
+        return ['rice' => $rice, 'owed' => $owed, 'short' => $short];
+    }
+
+    public function testPlan_ALocationPostedWithItemsLeftOutIsNeverShownAsDoneAndKeepsListingThem(): void
+    {
+        $items = $this->locationWithItemsLeftOut();
+
+        $result = $this->onlyResult($this->opening->post([self::LOCATION_ID], null));
+
+        $this->assertSame(OpeningStockStatus::PartiallyPosted, $result->plan->status);
+        $this->assertTrue($result->written());
+
+        foreach ([$this->opening->plan(self::LOCATION_ID, null), $this->opening->plans(1, null)[0]] as $plan) {
+            $this->assertSame(OpeningStockStatus::PartiallyPosted, $plan->status, 'Not Posted and not AlreadyPosted while an item is left out');
+            $this->assertSame(1, $plan->activeRevision);
+            $this->assertFindings([OpeningStockProblem::NegativeStock, OpeningStockProblem::MovementsExceedShelves], $plan);
+            $this->assertSame([$items['owed'], $items['short']], array_map(static fn ($finding): ?int => $finding->itemId, $plan->findings));
+            $this->assertSame(['-3.000', '3.000'], array_map(static fn ($finding): string => $finding->amount, $plan->findings));
+            $this->assertSame('500.0000', $plan->postedValue(), 'What was posted stays visible');
+            $this->assertSame(['-9.0000', '-60.0000'], array_map(static fn ($line): string => $line->value, $plan->differences), 'What is still left out, at the cost of each item');
+        }
+
+        $this->assertFalse($this->opening->plan(self::LOCATION_ID, null)->canSettleDifferences(), 'The opening that stands is reversed first');
+        $this->assertSame('700.00', $this->balance($this->stockAccount()), '500 of opening stock and the 200 of the purchase');
+    }
+
+    public function testPlan_ALocationWithItemsLeftOutStaysPartiallyPostedWhenPostedAgainAndPostsNothingMore(): void
+    {
+        $this->locationWithItemsLeftOut();
+        $this->opening->post([self::LOCATION_ID], null);
+        $counts = $this->counts();
+
+        $again = $this->onlyResult($this->opening->post([self::LOCATION_ID], null));
+
+        $this->assertFalse($again->written());
+        $this->assertSame(OpeningStockStatus::PartiallyPosted, $again->plan->status);
+        $this->assertSame($counts, $this->counts());
+        $this->assertCount(1, $this->openingJournals());
+    }
+
+    public function testPlan_ACountAdjustmentDoesNotCureAnItemLeftOutBecauseItMovesTheShelvesAndTheMovementsTogether(): void
+    {
+        $owed = $this->item('3.00');
+        $this->shelves($owed, '-3');
+        $before = $this->opening->plan(self::LOCATION_ID, null);
+
+        $this->accountingDb()->table('item_quantities')->where('item_id', $owed)->update(['quantity' => '0']);
+        (new StockAdjustment())->post($owed, self::LOCATION_ID, '3.000', null, 900001);
+        $after = $this->opening->plan(self::LOCATION_ID, null);
+
+        $this->assertSame(['-3.000'], array_map(static fn ($line): string => $line->units, $before->differences));
+        $this->assertSame(['-3.000'], array_map(static fn ($line): string => $line->units, $after->differences), 'The difference the books have to take in has not moved');
+        $this->assertSame(OpeningStockStatus::Blocked, $after->status);
+        $this->assertFindings([OpeningStockProblem::MovementsExceedShelves], $after);
+    }
+
+    public function testPost_SettlingTheDifferencesPostsTheItemsLeftOutAsNegativeLinesWithAReasonAndCountsNothingTwice(): void
+    {
+        $items = $this->locationWithItemsLeftOut();
+        $this->assertRefusedWith(AccountingError::ReasonRequired, fn () => $this->opening->post([self::LOCATION_ID], null, true, '  '));
+        $this->assertSame([], $this->openingJournals());
+        $shelves = $this->shelfRows();
+
+        $result = $this->onlyResult($this->opening->post([self::LOCATION_ID], null, true, 'Counted: the shelves are right'));
+
+        $this->assertSame(OpeningStockStatus::Posted, $result->plan->status);
+        $this->assertSame([$this->stockAccount() . ':431.0000:0.0000', $this->accountId('opening_balance') . ':0.0000:431.0000'], $this->linesOf($result->journalId), '500 for the rice less 9 and 60 for the two items left out');
+
+        $entries = $this->openingEntries();
+
+        $this->assertSame([$items['rice'], $items['owed'], $items['short']], array_map(static fn (object $entry): int => (int) $entry->item_id, $entries));
+        $this->assertSame(['10.000', '-3.000', '-3.000'], array_map(static fn (object $entry): string => $entry->quantity, $entries));
+        $this->assertSame(['500.0000', '-9.0000', '-60.0000'], array_map(static fn (object $entry): string => $entry->value, $entries));
+        $this->assertSame($shelves, $this->shelfRows(), 'The shelves are not touched');
+        $this->assertSame('-3.000', $this->onHand($items['owed']));
+        $this->assertStockTies();
+
+        $plan = $this->opening->plan(self::LOCATION_ID, null);
+
+        $this->assertSame(OpeningStockStatus::AlreadyPosted, $plan->status);
+        $this->assertSame([], $plan->findings);
+        $this->assertSame([], $plan->differences);
+        $this->assertSame('431.0000', $plan->postedValue());
+
+        $audit = json_decode($this->accountingDb()->table('accounting_audit_log')->where('entity_type', 'opening_stock')->get()->getRow()->details, true);
+
+        $this->assertSame([true, 'Counted: the shelves are right'], [$audit['differences_settled'], $audit['reason']]);
+
+        $counts = $this->counts();
+        $this->assertFalse($this->onlyResult($this->opening->post([self::LOCATION_ID], null, true, 'Again'))->written());
+        $this->assertSame($counts, $this->counts());
+    }
+
+    public function testPost_SettlingTheDifferencesOfALocationWithNothingElseToPostPostsTheirNegativeValueAgainstTheEquity(): void
+    {
+        $this->shelves($this->item('3.00'), '-3');
+
+        $result = $this->onlyResult($this->opening->post([self::LOCATION_ID], null, true, 'Sold before the books began'));
+
+        $this->assertSame(OpeningStockStatus::Posted, $result->plan->status);
+        $this->assertSame([$this->accountId('opening_balance') . ':9.0000:0.0000', $this->stockAccount() . ':0.0000:9.0000'], $this->linesOf($result->journalId));
+        $this->assertSame('-9.00', $this->balance($this->stockAccount()));
+        $this->assertStockTies();
+    }
+
+    public function testPost_TheWayToTakeInTheDifferencesOfALocationPostedWithoutThemIsToReverseItAndPostItAgainSettled(): void
+    {
+        $items = $this->locationWithItemsLeftOut();
+        $first = $this->onlyResult($this->opening->post([self::LOCATION_ID], null));
+
+        $refused = $this->onlyResult($this->opening->post([self::LOCATION_ID], null, true, 'Without reversing first'));
+
+        $this->assertFalse($refused->written(), 'The opening that stands is not added to');
+        $this->assertSame(OpeningStockStatus::PartiallyPosted, $refused->plan->status);
+
+        $this->opening->reverse(self::LOCATION_ID, self::START, 'Taking in the items left out', null);
+        $this->assertSame('200.00', $this->balance($this->stockAccount()), 'The reversal takes back the 500 the first posting put and leaves the purchase');
+
+        $second = $this->onlyResult($this->opening->post([self::LOCATION_ID], null, true, 'Counted: the shelves are right'));
+
+        $this->assertSame(2, $second->revision);
+        $this->assertSame(OpeningStockStatus::Posted, $second->plan->status);
+        $this->assertSame('631.00', $this->balance($this->stockAccount()), 'The purchase of 200 and 431 of opening stock: the rice is counted once, not twice');
+        $this->assertSame(['reversed', 'posted'], array_map(static fn (object $journal): string => $journal->status, $this->openingJournals()));
+        $this->assertSame([$first->journalId, $second->journalId], array_map(static fn (object $journal): int => (int) $journal->journal_id, $this->openingJournals()), 'The first opening is not deleted');
+        $this->assertSame(['quantity' => '10.000', 'value' => '500.00'], $this->stockOf($items['rice']));
+        $this->assertSame(['quantity' => '-3.000', 'value' => '-9.00'], $this->stockOf($items['owed']));
+        $this->assertStockTies();
+        $this->assertSame(OpeningStockStatus::AlreadyPosted, $this->opening->plan(self::LOCATION_ID, null)->status);
+    }
+
+    public function testPost_SettlingTheDifferencesLeavesOutALocationWhoseAccountHoldsValueThatNoMovementAccountsFor(): void
+    {
+        $this->shelves($this->item('50.00'), '10');
+        $this->shelves($this->item('3.00'), '-3');
+        (new PostingService())->post(new JournalDraft(
+            date: self::START,
+            lines: [new JournalLineDraft($this->stockAccount(), debit: '100.00'), new JournalLineDraft($this->accountId('opening_balance'), credit: '100.00')],
+            sourceType: JournalDraft::SOURCE_MANUAL,
+        ));
+        $counts = $this->counts();
+
+        $result = $this->onlyResult($this->opening->post([self::LOCATION_ID], null, true, 'Counted'));
+
+        $this->assertSame(OpeningStockStatus::Blocked, $result->plan->status);
+        $this->assertFalse($result->plan->canSettleDifferences());
+        $this->assertSame($counts, $this->counts());
     }
 
     public function testPost_PostsOnlyTheUnitsNoMovementAccountsForAndNeverCountsAPostedPurchaseAgain(): void

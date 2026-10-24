@@ -10,4 +10,9 @@ final readonly class OpeningStockResult
         public ?int $revision = null,
     ) {
     }
+
+    public function written(): bool
+    {
+        return $this->revision !== null;
+    }
 }

@@ -98,6 +98,7 @@ $routes->group('accounting_periods', static function (RouteCollection $routes): 
     $routes->post('opening/post', 'AccountingOpening::postPost');
     $routes->post('opening/discard', 'AccountingOpening::postDiscard');
     $routes->post('opening/reverse', 'AccountingOpening::postReverse');
+    $routes->get('opening/stock/differences_form', 'AccountingOpening::getStockDifferencesForm');
     $routes->get('opening/stock/reverse_form', 'AccountingOpening::getStockReverseForm');
     $routes->post('opening/stock/post', 'AccountingOpening::postStockPost');
     $routes->post('opening/stock/reverse', 'AccountingOpening::postStockReverse');

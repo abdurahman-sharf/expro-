@@ -1260,6 +1260,22 @@
       "path": "/accounting_periods/opening?branch=2"
     },
     {
+      "id": "accounting-opening-stock-differences-modal",
+      "group": "accounting",
+      "path": "/accounting_periods/opening?branch=2",
+      "steps": [
+        {
+          "click": "button[data-href*=\"stock/differences_form\"]"
+        },
+        {
+          "waitFor": ".modal-body #opening_stock_differences_form"
+        },
+        {
+          "pause": 1000
+        }
+      ]
+    },
+    {
       "id": "accounting-opening-stock-reverse-modal",
       "group": "accounting",
       "path": "/accounting_periods/opening?branch=1",

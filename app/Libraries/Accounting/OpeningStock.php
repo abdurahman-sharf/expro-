@@ -21,8 +21,12 @@ use DateTimeImmutable;
  * A location is posted once. What stops it, or leaves an item out, is reported and left alone:
  * an account that already holds value no movement accounts for, an opening that was posted and
  * has since been joined by more unposted units, and an item whose shelves are negative or hold
- * less than its movements say. A posted opening is never changed or deleted: it is reversed on
- * purpose, with a reason, and can then be posted again.
+ * less than its movements say. A location with an item left out is never shown as done. Those
+ * items are not cured by a count adjustment, which moves the shelves and the movements by the
+ * same quantity and so leaves the difference where it was; a person who has looked at them may
+ * post them too, with a reason, as negative lines that make the books say what the shelves say.
+ * A posted opening is never changed or deleted: it is reversed on purpose, with a reason, and
+ * can then be posted again.
  */
 final class OpeningStock
 {
@@ -90,7 +94,9 @@ final class OpeningStock
      * posted, because the books refuse it or a row cannot be written, undoes the others too. A
      * location that is merely not postable (already posted, nothing to post, or blocked by what
      * a person has to settle) is reported and the rest go ahead. Running it again posts nothing
-     * twice.
+     * twice. With the differences settled, the items that were left out are posted too, as
+     * negative lines, in the locations where nothing else stands in the way, and the reason is
+     * written to the audit trail.
      *
      * @param list<int> $locationIds
      *
@@ -98,12 +104,17 @@ final class OpeningStock
      *
      * @throws AccountingException|BranchException|PostingException
      */
-    public function post(array $locationIds, ?int $employeeId): array
+    public function post(array $locationIds, ?int $employeeId, bool $settleDifferences = false, string $reason = ''): array
     {
         $this->guard->require(AccountingGuard::OPENING_MANAGE, $employeeId);
 
-        $date = $this->startDate();
-        $ids  = $this->normalized($locationIds);
+        $date   = $this->startDate();
+        $ids    = $this->normalized($locationIds);
+        $reason = trim($reason);
+
+        if ($settleDifferences && ($reason === '' || mb_strlen($reason) > 255)) {
+            throw new AccountingException(AccountingError::ReasonRequired, 'A reason of 1 to 255 characters is required.');
+        }
 
         if ($ids === []) {
             return [];
@@ -112,12 +123,18 @@ final class OpeningStock
         $this->requireLocations($ids, $employeeId);
 
         try {
-            return $this->transactional(function () use ($ids, $date, $employeeId): array {
+            return $this->transactional(function () use ($ids, $date, $employeeId, $settleDifferences, $reason): array {
                 $results = [];
 
                 foreach ($this->lockedLocations($ids) as $location) {
-                    $plan      = $this->buildPlan($location);
-                    $results[] = $plan->status === OpeningStockStatus::Postable ? $this->write($plan, $date, $employeeId) : new OpeningStockResult($plan);
+                    $plan = $this->buildPlan($location);
+                    $with = $settleDifferences && $plan->canSettleDifferences();
+
+                    if ($with) {
+                        $plan = $plan->settled();
+                    }
+
+                    $results[] = $plan->status === OpeningStockStatus::Postable ? $this->write($plan, $date, $employeeId, $with ? $reason : null) : new OpeningStockResult($plan);
                 }
 
                 return $results;
@@ -176,10 +193,11 @@ final class OpeningStock
 
     private function buildPlan(object $location): OpeningStockPlan
     {
-        $locationId = (int) $location->location_id;
-        $active     = $this->activeRevision($locationId);
-        $lines      = [];
-        $items      = [];
+        $locationId  = (int) $location->location_id;
+        $active      = $this->activeRevision($locationId);
+        $lines       = [];
+        $differences = [];
+        $items       = [];
 
         foreach ($this->ledger->positions([$locationId]) as $position) {
             if ($position->covered()) {
@@ -187,21 +205,17 @@ final class OpeningStock
             }
 
             $unposted = $position->unposted();
+            $line     = new OpeningStockLine($position->itemId, $position->itemName, $unposted, $position->itemCost, $this->valueOf($unposted, $position->itemCost));
 
             if (bccomp($unposted, '0', StockLedger::QUANTITY_SCALE) > 0) {
-                $lines[] = new OpeningStockLine(
-                    $position->itemId,
-                    $position->itemName,
-                    $unposted,
-                    $position->itemCost,
-                    SaleAmounts::round(bcmul($unposted, $position->itemCost, 8), StockLedger::VALUE_SCALE),
-                );
+                $lines[] = $line;
 
                 continue;
             }
 
-            $negative = bccomp($position->onHand, '0', StockLedger::QUANTITY_SCALE) < 0;
-            $items[]  = new OpeningStockFinding(
+            $negative      = bccomp($position->onHand, '0', StockLedger::QUANTITY_SCALE) < 0;
+            $differences[] = $line;
+            $items[]       = new OpeningStockFinding(
                 $negative ? OpeningStockProblem::NegativeStock : OpeningStockProblem::MovementsExceedShelves,
                 $negative ? $position->onHand : bcsub('0', $unposted, StockLedger::QUANTITY_SCALE),
                 $position->itemId,
@@ -214,27 +228,53 @@ final class OpeningStock
         $name     = (string) $location->location_name;
         $branchId = (int) $location->branch_id;
         $value    = (new OpeningStockPlan($locationId, $name, $branchId, OpeningStockStatus::Postable, $lines, [], $active))->value();
-        $findings = [];
-        $status   = OpeningStockStatus::Postable;
+        $blocker  = null;
 
-        if ($lines === []) {
-            $status = $active === null ? OpeningStockStatus::NothingToPost : OpeningStockStatus::AlreadyPosted;
-        } elseif ($active !== null) {
-            $status     = OpeningStockStatus::Blocked;
-            $findings[] = new OpeningStockFinding(OpeningStockProblem::PostedBefore, $value);
-        } elseif ($this->entities->accountFor(EntityAccountService::STOCK_LOCATION, $locationId) === null) {
-            $status     = OpeningStockStatus::Blocked;
-            $findings[] = new OpeningStockFinding(OpeningStockProblem::AccountMissing, '0');
-        } else {
-            $held = $this->ledger->reconcile([$locationId])[0]['unattributed'];
+        if ($active !== null) {
+            if ($lines !== []) {
+                $blocker = new OpeningStockFinding(OpeningStockProblem::PostedBefore, $value);
+            }
+        } elseif ($lines !== [] || $differences !== []) {
+            if ($this->entities->accountFor(EntityAccountService::STOCK_LOCATION, $locationId) === null) {
+                $blocker = new OpeningStockFinding(OpeningStockProblem::AccountMissing, '0');
+            } else {
+                $held = $this->ledger->reconcile([$locationId])[0]['unattributed'];
 
-            if (bccomp(ltrim($held, '-') === '' ? '0' : ltrim($held, '-'), self::VALUE_TOLERANCE, StockLedger::VALUE_SCALE) > 0) {
-                $status     = OpeningStockStatus::Blocked;
-                $findings[] = new OpeningStockFinding(OpeningStockProblem::AccountHoldsValue, $held);
+                if (bccomp(ltrim($held, '-') === '' ? '0' : ltrim($held, '-'), self::VALUE_TOLERANCE, StockLedger::VALUE_SCALE) > 0) {
+                    $blocker = new OpeningStockFinding(OpeningStockProblem::AccountHoldsValue, $held);
+                }
             }
         }
 
-        return new OpeningStockPlan($locationId, $name, $branchId, $status, $lines, [...$findings, ...$items], $active, $active === null ? [] : $this->standingLines($locationId, $active));
+        $status = match (true) {
+            $blocker !== null   => OpeningStockStatus::Blocked,
+            $lines !== []       => OpeningStockStatus::Postable,
+            $differences !== [] => $active === null ? OpeningStockStatus::Blocked : OpeningStockStatus::PartiallyPosted,
+            default             => $active === null ? OpeningStockStatus::NothingToPost : OpeningStockStatus::AlreadyPosted,
+        };
+
+        return new OpeningStockPlan(
+            $locationId,
+            $name,
+            $branchId,
+            $status,
+            $lines,
+            [...($blocker === null ? [] : [$blocker]), ...$items],
+            $active,
+            $active === null ? [] : $this->standingLines($locationId, $active),
+            $differences,
+        );
+    }
+
+    /**
+     * What the units are worth at the cost, rounded on their size so that a negative line is the
+     * mirror of the positive one.
+     */
+    private function valueOf(string $units, string $cost): string
+    {
+        $value = SaleAmounts::round(bcmul(SaleAmounts::absolute($units), $cost, 8), StockLedger::VALUE_SCALE);
+
+        return bccomp($units, '0', StockLedger::QUANTITY_SCALE) < 0 ? bcsub('0', $value, StockLedger::VALUE_SCALE) : $value;
     }
 
     /**
@@ -266,7 +306,7 @@ final class OpeningStock
     /**
      * @throws AccountingException|PostingException
      */
-    private function write(OpeningStockPlan $plan, string $date, ?int $employeeId): OpeningStockResult
+    private function write(OpeningStockPlan $plan, string $date, ?int $employeeId, ?string $settledBecause): OpeningStockResult
     {
         $revision  = $this->nextRevision($plan->locationId);
         $value     = $plan->value();
@@ -277,7 +317,7 @@ final class OpeningStock
 
         $journalId = null;
 
-        if (bccomp($value, '0', StockLedger::VALUE_SCALE) > 0) {
+        if (bccomp($value, '0', StockLedger::VALUE_SCALE) !== 0) {
             $inventory = $this->entities->accountFor(EntityAccountService::STOCK_LOCATION, $plan->locationId);
             $equity    = $this->resolver->accountFor(RoutingKey::OpeningBalance);
 
@@ -285,9 +325,13 @@ final class OpeningStock
                 throw new PostingException(PostingError::RoutingRowCancelled, 'The opening stock cannot be posted without the account of the stock location and the opening balance equity account.', ['routing_key' => RoutingKey::OpeningBalance->value]);
             }
 
+            $gained = bccomp($value, '0', StockLedger::VALUE_SCALE) > 0;
+            $amount = SaleAmounts::absolute($value);
             $result = $this->posting->post(new JournalDraft(
                 date: $date,
-                lines: [new JournalLineDraft($inventory, debit: $value), new JournalLineDraft($equity, credit: $value)],
+                lines: $gained
+                    ? [new JournalLineDraft($inventory, debit: $amount), new JournalLineDraft($equity, credit: $amount)]
+                    : [new JournalLineDraft($equity, debit: $amount), new JournalLineDraft($inventory, credit: $amount)],
                 sourceType: self::SOURCE,
                 sourceId: $plan->locationId,
                 revision: $revision,
@@ -313,9 +357,10 @@ final class OpeningStock
             'units'    => $plan->units(),
             'value'    => $value,
             'location' => $plan->locationName,
+            ...($settledBecause === null ? [] : ['differences_settled' => true, 'reason' => $settledBecause]),
         ], $plan->branchId);
 
-        return new OpeningStockResult($plan->with(OpeningStockStatus::Posted), $journalId, $revision);
+        return new OpeningStockResult($plan->with($plan->findings === [] ? OpeningStockStatus::Posted : OpeningStockStatus::PartiallyPosted), $journalId, $revision);
     }
 
     /**

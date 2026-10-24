@@ -13,4 +13,12 @@ enum OpeningStockProblem: string
     case PostedBefore           = 'posted_before';
     case NegativeStock          = 'negative_stock';
     case MovementsExceedShelves = 'movements_exceed_shelves';
+
+    public function concernsTheLocation(): bool
+    {
+        return match ($this) {
+            self::AccountMissing, self::AccountHoldsValue, self::PostedBefore => true,
+            self::NegativeStock, self::MovementsExceedShelves => false,
+        };
+    }
 }

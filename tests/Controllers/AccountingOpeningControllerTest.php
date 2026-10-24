@@ -555,4 +555,130 @@ class AccountingOpeningControllerTest extends CIUnitTestCase
         $this->assertSame($journals, $this->countRows('accounting_journals'));
         $this->assertNotNull((new OpeningStock())->plan(1, null)->activeRevision);
     }
+
+    public function testGetIndex_ShowsALocationPostedWithItemsLeftOutAsPartiallyPostedWithThemListedAndNeverAsDone(): void
+    {
+        $this->manager();
+        $this->shelves('50.00', '10');
+        $this->shelves('3.00', '-3');
+        (new OpeningStock())->post([1], null);
+
+        $response = $this->get('/accounting_periods/opening');
+
+        $response->assertSee(lang('Accounting_periods.opening_stock_state_partially_posted'));
+        $response->assertSee(lang('Accounting_periods.opening_stock_problem_negative_stock', ['Test Item', to_quantity_decimals('-3')]));
+        $response->assertSee(lang('Accounting_periods.opening_stock_partial_hint'));
+        $response->assertSee('opening/stock/reverse_form?location=1');
+        $response->assertDontSee('badge text-bg-success">' . lang('Accounting_periods.opening_stock_state_already_posted'));
+        $response->assertDontSee('differences_form?location=1');
+    }
+
+    public function testGetIndex_OffersToPostTheDifferencesOfALocationThatCannotPostAnythingElse(): void
+    {
+        $this->shelves('3.00', '-3');
+        $this->actAs($this->employeeWithGrants(['accounting_periods']));
+
+        $this->get('/accounting_periods/opening')->assertDontSee('differences_form?location=1');
+
+        $this->manager();
+
+        $response = $this->get('/accounting_periods/opening');
+
+        $response->assertSee(lang('Accounting_periods.opening_stock_state_blocked'));
+        $response->assertDontSee(lang('Accounting_periods.opening_stock_state_nothing_to_post'));
+        $response->assertSee('differences_form?location=1');
+        $response->assertDontSee('stock-post" data-location');
+    }
+
+    public function testGetStockDifferencesForm_ListsTheItemsLeftOutAndAsksForAReason(): void
+    {
+        $this->manager();
+        $this->shelves('3.00', '-3');
+
+        $response = $this->get('/accounting_periods/opening/stock/differences_form?location=1');
+
+        $response->assertSee('opening_stock_differences_form');
+        $response->assertSee('Test Item');
+        $response->assertSee('-9.00');
+        $response->assertSee('name="reason"');
+        $response->assertSee('name="with_differences" value="1"');
+    }
+
+    public function testGetStockDifferencesForm_IsNotFoundWithoutDifferencesWithoutThePermissionAndForAPostedLocation(): void
+    {
+        $this->manager();
+        $this->shelves('50.00', '10');
+
+        try {
+            $this->get('/accounting_periods/opening/stock/differences_form?location=1');
+            $this->fail('Expected the form to be hidden when nothing was left out.');
+        } catch (PageNotFoundException) {
+            $this->addToAssertionCount(1);
+        }
+
+        $this->shelves('3.00', '-3');
+        (new OpeningStock())->post([1], null);
+
+        try {
+            $this->get('/accounting_periods/opening/stock/differences_form?location=1');
+            $this->fail('Expected the form to be hidden once the opening stock stands.');
+        } catch (PageNotFoundException) {
+            $this->addToAssertionCount(1);
+        }
+
+        (new OpeningStock())->reverse(1, '2026-01-05', 'Taking in the items left out', null);
+        $this->get('/accounting_periods/opening/stock/differences_form?location=1')->assertSee('opening_stock_differences_form');
+
+        $this->actAs($this->employeeWithGrants(['accounting_periods']));
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_periods/opening/stock/differences_form?location=1');
+    }
+
+    public function testPostStockPost_SaysHowManyLocationsAreStillPartlyPostedAndPostsTheItemsLeftOutOnlyWhenAskedToWithAReason(): void
+    {
+        $this->manager();
+        $this->shelves('50.00', '10');
+        $owed = $this->shelves('3.00', '-3');
+
+        $partly = $this->stockPost();
+
+        $this->assertTrue($partly['success']);
+        $this->assertSame(lang('Accounting_periods.opening_stock_posted_partly', ['1', '1']), $partly['message']);
+        $this->assertSame(0, $this->accountingDb()->table('accounting_stock_entries')->where('source_type', OpeningStock::SOURCE)->where('item_id', $owed)->countAllResults());
+
+        $this->post('/accounting_periods/opening/stock/reverse', ['branch_id' => '1', 'location_id' => '1', 'date' => '2026-01-05', 'reason' => 'Taking in the items left out']);
+
+        $everyone = $this->jsonOf($this->post('/accounting_periods/opening/stock/post', ['branch_id' => '1', 'location_id' => '0', 'with_differences' => '1', 'reason' => 'Counted']));
+
+        $this->assertTrue($everyone['success']);
+        $this->assertSame(lang('Accounting_periods.opening_stock_posted_partly', ['1', '1']), $everyone['message'], 'Naming no location never settles');
+
+        $this->post('/accounting_periods/opening/stock/reverse', ['branch_id' => '1', 'location_id' => '1', 'date' => '2026-01-06', 'reason' => 'Taking in the items left out']);
+
+        $noReason = $this->jsonOf($this->post('/accounting_periods/opening/stock/post', ['branch_id' => '1', 'location_id' => '1', 'with_differences' => '1', 'reason' => '']));
+
+        $this->assertFalse($noReason['success']);
+        $this->assertSame(lang('Accounting.error_reason_required'), $noReason['message']);
+
+        $settled = $this->jsonOf($this->post('/accounting_periods/opening/stock/post', ['branch_id' => '1', 'location_id' => '1', 'with_differences' => '1', 'reason' => 'Counted: the shelves are right']));
+
+        $this->assertTrue($settled['success']);
+        $this->assertSame(lang('Accounting_periods.opening_stock_posted', ['1']), $settled['message']);
+        $this->assertSame(1, $this->accountingDb()->table('accounting_stock_entries')->where('source_type', OpeningStock::SOURCE)->where('item_id', $owed)->where('kind', 'posting')->where('revision', 3)->countAllResults());
+        $this->assertNull((new OpeningStock())->plan(1, null)->differences[0] ?? null);
+    }
+
+    public function testPostStockPost_RefusesToSettleTheDifferencesWithoutThePermission(): void
+    {
+        $this->shelves('3.00', '-3');
+        $this->actAs($this->employeeWithGrants(['accounting_periods']));
+
+        $result = $this->jsonOf($this->post('/accounting_periods/opening/stock/post', ['branch_id' => '1', 'location_id' => '1', 'with_differences' => '1', 'reason' => 'Counted']));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(0, $this->openingStockJournals());
+        $this->assertSame(0, $this->accountingDb()->table('accounting_stock_entries')->countAllResults());
+    }
 }

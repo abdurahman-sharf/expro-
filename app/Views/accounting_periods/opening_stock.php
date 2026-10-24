@@ -1,6 +1,6 @@
 <?php
 /**
- * @var list<array{location_id: int, name: string, items: int, units: string, value: string, status: string, status_label: string, posted: bool, messages: list<string>}> $stock
+ * @var list<array{location_id: int, name: string, items: int, units: string, value: string, status: string, status_label: string, posted: bool, settleable: bool, messages: list<string>}> $stock
  * @var int $branch_id
  * @var bool $can_manage
  * @var string $start_date
@@ -9,10 +9,11 @@
 
 $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 $badge     = static fn (string $status): string => match ($status) {
-    'postable'        => 'text-bg-primary',
-    'already_posted'  => 'text-bg-success',
-    'blocked'         => 'text-bg-warning',
-    default           => 'text-bg-secondary',
+    'postable'         => 'text-bg-primary',
+    'already_posted'   => 'text-bg-success',
+    'blocked'          => 'text-bg-warning',
+    'partially_posted' => 'text-bg-warning',
+    default            => 'text-bg-secondary',
 };
 $ready = count(array_filter($stock, static fn (array $row): bool => $row['status'] === 'postable'));
 ?>
@@ -57,6 +58,11 @@ $ready = count(array_filter($stock, static fn (array $row): bool => $row['status
                             <td class="acc-line-actions">
                                 <?php if ($can_manage && $row['status'] === 'postable'): ?>
                                     <button type="button" class="btn btn-primary btn-sm stock-post" data-location="<?= (int) $row['location_id'] ?>"><?= lang('Accounting_periods.opening_stock_post') ?></button>
+                                <?php endif; ?>
+                                <?php if ($can_manage && $row['settleable']): ?>
+                                    <button type="button" class="btn btn-outline-primary btn-sm modal-dlg" data-btn-submit="<?= esc(lang('Accounting_periods.opening_stock_post'), 'attr') ?>" data-href="<?= esc('accounting_periods/opening/stock/differences_form?location=' . (int) $row['location_id'], 'attr') ?>" title="<?= esc(lang('Accounting_periods.opening_stock_differences_title'), 'attr') ?>">
+                                        <span class="bi bi-exclamation-triangle" aria-hidden="true">&nbsp;</span><?= lang('Accounting_periods.opening_stock_differences_action') ?>
+                                    </button>
                                 <?php endif; ?>
                                 <?php if ($can_manage && $row['posted']): ?>
                                     <button type="button" class="btn btn-outline-danger btn-sm modal-dlg" data-btn-submit="<?= esc(lang('Accounting_journals.reverse'), 'attr') ?>" data-href="<?= esc('accounting_periods/opening/stock/reverse_form?location=' . (int) $row['location_id'], 'attr') ?>" title="<?= esc(lang('Accounting_periods.opening_stock_reverse_title'), 'attr') ?>">

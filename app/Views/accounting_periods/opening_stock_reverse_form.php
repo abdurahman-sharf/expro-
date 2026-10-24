@@ -8,7 +8,7 @@
 ?>
 
 <div id="required_fields_message"><?= lang('Common.fields_required_message') ?></div>
-<ul id="error_message_box" class="error_message_box" role="alert"></ul>
+<ul id="stock_form_error_box" class="error_message_box" role="alert"></ul>
 
 <?= form_open('accounting_periods/opening/stock/reverse', ['id' => 'opening_stock_reverse_form', 'class' => 'app-form']) ?>
     <input type="hidden" name="branch_id" value="<?= $branch_id ?>">
@@ -37,7 +37,7 @@
 
 <script type="text/javascript">
     $(document).ready(function() {
-        $('#opening_stock_reverse_form').validate($.extend({
+        $('#opening_stock_reverse_form').validate($.extend({}, form_support.error, {
             submitHandler: function(form) {
                 $(form).ajaxSubmit({
                     success: function(response) {
@@ -46,13 +46,13 @@
                             window.location.href = response.redirect;
                             return;
                         }
-                        $('#error_message_box').empty().append($('<li></li>').text(response.message));
+                        $('#stock_form_error_box').empty().append($('<li></li>').text(response.message));
                     },
                     dataType: 'json'
                 });
             },
 
-            errorLabelContainer: '#error_message_box',
+            errorLabelContainer: '#stock_form_error_box',
 
             rules: {date: 'required', reason: 'required'},
 
@@ -60,6 +60,6 @@
                 date: "<?= esc(lang('Accounting_periods.date_required'), 'js') ?>",
                 reason: "<?= esc(lang('Accounting_periods.reason_required'), 'js') ?>"
             }
-        }, form_support.error));
+        }));
     });
 </script>
