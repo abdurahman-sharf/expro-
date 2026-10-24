@@ -15,6 +15,9 @@
  * @var string $reference
  * @var array  $payment_options
  * @var array  $config
+ * @var string $tax_total
+ * @var string $total_with_tax
+ * @var int|null $return_origin
  */
 $sectionName = ucfirst($controller_name);
 $hasCart     = count($cart) > 0;
@@ -103,6 +106,7 @@ $hasCart     = count($cart) > 0;
                     <span><?= lang("{$sectionName}.quantity") ?></span>
                     <span><?= lang("{$sectionName}.ship_pack") ?></span>
                     <span><?= lang("{$sectionName}.discount") ?></span>
+                    <span><?= lang("{$sectionName}.tax") ?></span>
                     <span class="num"><?= lang("{$sectionName}.total") ?></span>
                     <span></span>
                 </div>
@@ -156,6 +160,15 @@ $hasCart     = count($cart) > 0;
                                 <?php else: ?>
                                     <span class="num"><?= esc($item['discount']) ?></span>
                                     <?= form_hidden('discount', (string) $item['discount']) ?>
+                                <?php endif; ?>
+                            </div>
+
+                            <div class="cart-field" data-label="<?= lang("{$sectionName}.tax") ?>">
+                                <?php if ($canEditCost): ?>
+                                    <?= form_input(['name' => 'tax_percent', 'class' => 'form-control form-control-sm', 'value' => to_decimals($item['tax_percent'] ?? 0), 'inputmode' => 'decimal', 'aria-label' => lang("{$sectionName}.tax"), 'onClick' => 'this.select();']) ?>
+                                <?php else: ?>
+                                    <span class="num"><?= $mode == 'requisition' ? '' : esc(to_decimals($item['tax_percent'] ?? 0)) ?></span>
+                                    <?= form_hidden('tax_percent', (string) ($item['tax_percent'] ?? 0)) ?>
                                 <?php endif; ?>
                             </div>
 
@@ -231,11 +244,25 @@ $hasCart     = count($cart) > 0;
             </div>
         </div>
 
+        <?php if ($mode == 'return'): ?>
+            <div class="card">
+                <div class="card-body">
+                    <label for="return_origin" class="pos-label"><?= lang("{$sectionName}.return_origin") ?></label>
+                    <?= form_input(['name' => 'return_origin', 'id' => 'return_origin', 'class' => 'form-control', 'value' => $return_origin === null ? '' : (string) $return_origin, 'inputmode' => 'numeric', 'aria-describedby' => 'return_origin_help']) ?>
+                    <div class="form-text" id="return_origin_help"><?= lang("{$sectionName}.return_origin_help") ?></div>
+                </div>
+            </div>
+        <?php endif; ?>
+
         <?php if ($mode != 'requisition'): ?>
             <div class="card">
                 <div class="card-body">
                     <dl class="pos-sum" id="sale_totals">
-                        <div class="pos-sum-total"><dt><?= lang('Sales.total') ?></dt><dd><?= to_currency($total) ?></dd></div>
+                        <?php if (bccomp((string) $tax_total, '0', 8) > 0): ?>
+                            <div><dt><?= lang("{$sectionName}.sub_total") ?></dt><dd><?= to_currency($total) ?></dd></div>
+                            <div id="receiving_tax"><dt><?= lang("{$sectionName}.tax_total") ?></dt><dd><?= to_currency($tax_total) ?></dd></div>
+                        <?php endif; ?>
+                        <div class="pos-sum-total"><dt><?= lang("{$sectionName}.total_with_tax") ?></dt><dd><?= to_currency($total_with_tax) ?></dd></div>
                     </dl>
                 </div>
             </div>
@@ -295,7 +322,7 @@ $hasCart     = count($cart) > 0;
             <div class="pos-total-text">
                 <?php if ($mode != 'requisition'): ?>
                     <span><?= lang('Sales.total') ?></span>
-                    <strong id="pos_total_value"><?= to_currency($total) ?></strong>
+                    <strong id="pos_total_value"><?= to_currency($total_with_tax) ?></strong>
                 <?php endif; ?>
             </div>
             <button type="button" class="btn btn-primary btn-lg" id="pos_total_action"><?= lang("{$sectionName}.complete_receiving") ?></button>
@@ -340,6 +367,21 @@ $hasCart     = count($cart) > 0;
             $.post('<?= esc("{$controller_name}/setReference") ?>', {
                 recv_reference: $('#recv_reference').val()
             });
+        });
+
+        $('#return_origin').change(function() {
+            $.post('<?= esc("{$controller_name}/setReturnOrigin") ?>', {
+                recv_return_origin: $('#return_origin').val()
+            }, function(response) {
+                if (!response.success) {
+                    $.notify({
+                        message: response.message
+                    }, {
+                        type: 'danger'
+                    });
+                    $('#return_origin').val('');
+                }
+            }, 'json');
         });
 
         $("#recv_print_after_sale").change(function() {
@@ -392,7 +434,7 @@ $hasCart     = count($cart) > 0;
             }
         }
 
-        $('[name="price"],[name="quantity"],[name="receiving_quantity"],[name="discount"],[name="description"],[name="serialnumber"]').change(function() {
+        $('[name="price"],[name="quantity"],[name="receiving_quantity"],[name="discount"],[name="tax_percent"],[name="description"],[name="serialnumber"]').change(function() {
             $(this).closest('form').submit();
         });
 

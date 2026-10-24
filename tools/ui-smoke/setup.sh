@@ -40,6 +40,9 @@ echo "Opening the sub-accounts of the fixture customers"
 echo "Recording sales through the UI"
 node "$HERE/seed-sales.mjs"
 
+echo "Recording receivings through the UI"
+node "$HERE/seed-receivings.mjs"
+
 echo "Recording journals"
 node "$HERE/seed-journals.mjs"
 

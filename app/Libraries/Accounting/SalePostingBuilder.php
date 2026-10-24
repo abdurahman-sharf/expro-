@@ -83,18 +83,32 @@ final class SalePostingBuilder
      */
     public function cost(SaleDocument $sale, int $revision, ?int $employeeId = null): ?JournalDraft
     {
+        return $this->costPlan($sale, $revision, $employeeId)->journal;
+    }
+
+    /**
+     * The cost journal of a sale with the stock movements that give it its stock lines. The
+     * movements are empty when nothing is posted: the sale has not been delivered, or the cost
+     * of sales row is cancelled, so that no stock reaches the books without its journal. Goods
+     * that cost nothing are movements without a journal.
+     *
+     * @throws PostingException
+     */
+    public function costPlan(SaleDocument $sale, int $revision, ?int $employeeId = null): StockPostingPlan
+    {
         $this->assertPostable($sale);
 
         if (! $sale->delivered) {
-            return null;
+            return new StockPostingPlan(null, []);
         }
 
         $cogs = $this->resolver->accountFor(RoutingKey::CostOfGoodsSold);
 
         if ($cogs === null) {
-            return null;
+            return new StockPostingPlan(null, []);
         }
 
+        $movements  = [];
         $byLocation = [];
         $total      = '0';
 
@@ -107,12 +121,17 @@ final class SalePostingBuilder
                 ? $this->returnedCost($sale, $line)
                 : SaleAmounts::cost($line->quantity, $line->costPrice);
 
+            $units       = SaleAmounts::absolute($line->quantity);
+            $movements[] = $sale->isReturn()
+                ? new StockMovement($line->itemId, $line->locationId, $units, $cost)
+                : new StockMovement($line->itemId, $line->locationId, bcsub('0', $units, 3), bcsub('0', $cost, SaleAmounts::SCALE));
+
             $byLocation[$line->locationId] = bcadd($byLocation[$line->locationId] ?? '0', $cost, SaleAmounts::SCALE);
             $total                         = bcadd($total, $cost, SaleAmounts::SCALE);
         }
 
         if (bccomp($total, '0', SaleAmounts::SCALE) === 0) {
-            return null;
+            return new StockPostingPlan(null, $movements);
         }
 
         $inventory = [];
@@ -139,7 +158,7 @@ final class SalePostingBuilder
             }
         }
 
-        return new JournalDraft(
+        return new StockPostingPlan(new JournalDraft(
             date: $sale->date,
             lines: $lines,
             sourceType: self::SOURCE_SALE,
@@ -150,7 +169,7 @@ final class SalePostingBuilder
             description: ($sale->isReturn() ? 'Cost of return #' : 'Cost of sale #') . $sale->saleId,
             branchId: $sale->branchId,
             entryType: JournalEntryType::Cogs,
-        );
+        ), $movements);
     }
 
     /**

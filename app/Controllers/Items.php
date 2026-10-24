@@ -2,6 +2,10 @@
 
 namespace App\Controllers;
 
+use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\AccountingMessage;
+use App\Libraries\Accounting\PostingException;
+use App\Libraries\Accounting\StockAdjustment;
 use App\Libraries\Barcode_lib;
 use App\Libraries\Item_lib;
 use App\Models\Attribute;
@@ -42,6 +46,7 @@ class Items extends Secure_Controller
     private Supplier $supplier;
     private Tax_category $tax_category;
     private array $config;
+    private AccountingException|PostingException|null $adjustmentFailure = null;
 
 
     public function __construct()
@@ -887,10 +892,11 @@ class Items extends Secure_Controller
                         'trans_user'      => $employeeId,
                         'trans_location'  => $location['location_id'],
                         'trans_comment'   => lang('Items.manually_editing_of_quantity'),
-                        'trans_inventory' => $updatedQuantity - $itemQuantity->quantity
+                        'trans_inventory' => $updatedQuantity - $itemQuantity->quantity,
                     ];
 
-                    $success = $success && $this->inventory->insert($invData, false);
+                    $inventoryId = $success ? $this->inventory->insert($invData, true) : false;
+                    $success     = $success && $this->postAdjustment($itemId, $location['location_id'], $invData['trans_inventory'], $employeeId, $inventoryId);
                 }
             }
             $success = $success && $this->saveItemAttributes($itemId);
@@ -906,7 +912,7 @@ class Items extends Secure_Controller
 
         // Rollback on failure
         $db->transRollback();
-        $message = $uploadSuccess ? lang('Items.error_adding_updating') . ' ' . $itemData['name'] : strip_tags($uploadData['error']);
+        $message = $uploadSuccess ? lang('Items.error_adding_updating') . ' ' . $itemData['name'] . $this->adjustmentFailureNote() : strip_tags($uploadData['error']);
 
         return $this->response->setJSON(['success' => false, 'message' => $message, 'id' => $itemId]);
     }
@@ -1020,7 +1026,10 @@ class Items extends Secure_Controller
             'trans_inventory' => parse_quantity($new_quantity)
         ];
 
-        $this->inventory->insert($inv_data, false);
+        $db = db_connect();
+        $db->transStart();
+
+        $inventoryId = $this->inventory->insert($inv_data, true);
 
         // Update stock quantity
         $item_quantity = $this->item_quantity->get_item_quantity($item_id, $location_id);
@@ -1030,15 +1039,21 @@ class Items extends Secure_Controller
             'quantity'    => $item_quantity->quantity + parse_quantity($this->request->getPost('newquantity'))
         ];
 
-        if ($this->item_quantity->save_value($item_quantity_data, $item_id, $location_id)) {
-            $message = lang('Items.successful_updating') . " $cur_item_info->name";
+        $saved = $inventoryId !== false
+            && $this->item_quantity->save_value($item_quantity_data, $item_id, $location_id)
+            && $this->postAdjustment((int) $item_id, (int) $location_id, $inv_data['trans_inventory'], $employee_id, $inventoryId);
+
+        if ($saved) {
+            $db->transComplete();
+            $message = lang('Items.successful_updating') . " {$cur_item_info->name}";
 
             return $this->response->setJSON(['success' => true, 'message' => $message, 'id' => $item_id]);
-        } else {
-            $message = lang('Items.error_adding_updating') . " $cur_item_info->name";
-
-            return $this->response->setJSON(['success' => false, 'message' => $message, 'id' => NEW_ENTRY]);
         }
+
+        $db->transRollback();
+        $message = lang('Items.error_adding_updating') . " {$cur_item_info->name}" . $this->adjustmentFailureNote();
+
+        return $this->response->setJSON(['success' => false, 'message' => $message, 'id' => NEW_ENTRY]);
     }
 
     /**
@@ -1090,9 +1105,12 @@ class Items extends Secure_Controller
         if ($this->item->delete_list($items_to_delete)) {
             $message = lang('Items.successful_deleted') . ' ' . count($items_to_delete) . ' ' . lang('Items.one_or_multiple');
             return $this->response->setJSON(['success' => true, 'message' => $message]);
-        } else {
-            return $this->response->setJSON(['success' => false, 'message' => lang('Items.cannot_be_deleted')]);
         }
+
+        $failure = $this->item->accountingFailure();
+        $note    = $failure instanceof AccountingException || $failure instanceof PostingException ? ' — ' . AccountingMessage::of($failure) : '';
+
+        return $this->response->setJSON(['success' => false, 'message' => lang('Items.cannot_be_deleted') . $note]);
     }
 
     /**
@@ -1441,27 +1459,57 @@ class Items extends Secure_Controller
                 'trans_items'    => $item_data['item_id'],
                 'trans_user'     => $employee_id,
                 'trans_comment'  => $comment,
-                'trans_location' => $location_id
+                'trans_location' => $location_id,
             ];
+
+            $before = $this->item_quantity->get_item_quantity((int) $item_data['item_id'], (int) $location_id)->quantity;
 
             if (!empty($row["location_$location_name"]) || $row["location_$location_name"] === '0') {
                 $item_quantity_data['quantity'] = $row["location_$location_name"];
                 $success &= $this->item_quantity->save_value($item_quantity_data, $item_data['item_id'], $location_id);
 
-                $csv_data['trans_inventory'] = $row["location_$location_name"];
-                $success &= (bool)$this->inventory->insert($csv_data, false);
+                $csv_data['trans_inventory'] = $row["location_{$location_name}"] - $before;
             } elseif ($is_update) {
                 continue;
             } else {
                 $item_quantity_data['quantity'] = 0;
                 $success &= $this->item_quantity->save_value($item_quantity_data, $item_data['item_id'], $location_id);
 
-                $csv_data['trans_inventory'] = 0;
-                $success &= (bool)$this->inventory->insert($csv_data, false);
+                $csv_data['trans_inventory'] = 0 - $before;
             }
+
+            $inventoryId = $this->inventory->insert($csv_data, true);
+            $success &= $inventoryId !== false && $this->postAdjustment((int) $item_data['item_id'], (int) $location_id, $csv_data['trans_inventory'], $employee_id, $inventoryId);
         }
 
         return (bool)$success;
+    }
+
+    /**
+     * Posts a change of the stock of an item to the books, when accounting is on. Returns false
+     * when the books refused it, and says why in the message of the failed save.
+     */
+    private function postAdjustment(int $itemId, int $locationId, float|int|string $change, int $employeeId, false|int|string $inventoryId): bool
+    {
+        if ($inventoryId === false) {
+            return false;
+        }
+
+        try {
+            (new StockAdjustment())->post($itemId, $locationId, sprintf('%.3F', (float) $change), $employeeId > 0 ? $employeeId : null, (int) $inventoryId);
+
+            return true;
+        } catch (AccountingException|PostingException $failure) {
+            $this->adjustmentFailure = $failure;
+            log_message('error', 'Stock adjustment of item ' . $itemId . ' refused: ' . $failure->getMessage());
+
+            return false;
+        }
+    }
+
+    private function adjustmentFailureNote(): string
+    {
+        return $this->adjustmentFailure === null ? '' : ' — ' . AccountingMessage::of($this->adjustmentFailure);
     }
 
     /**

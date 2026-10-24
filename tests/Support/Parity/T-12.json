@@ -1,0 +1,300 @@
+{
+  "id": "T-12",
+  "title": "The journals of a purchase: goods and tax from a supplier, the payment made at once, and the refund of a return",
+  "recorded": "2026-10-24",
+  "evidence": {
+    "journals_a3_cycle": {
+      "id": "ev_8fe9db7d7339f201e73598d494d813003a7ac051e91e4ea808f91539deb2c9d5",
+      "note": "Journals of the A3 cycle, whose purchase is 20 x 40 and 10 x 120 with 15% tax: stock 2000, tax paid 300, supplier 2300"
+    },
+    "purchase_return": {
+      "id": "ev_aeb76a341bff3b7751ce83a40f124129b992b40c57433fabbdc046e0a42e9d9b",
+      "note": "Purchase return 000001 and its refund journal: the treasury is debited 161.00 and the supplier credited 161.00 when the money came back"
+    },
+    "supplier_payment": {
+      "id": "ev_520652fa775b8e8ecd3aef09035d7943508736c568f46c4fa5b5957c39a5df06",
+      "note": "S-24: payment #8 to a supplier, over what was owed: the supplier is debited and the treasury credited by the amount paid"
+    }
+  },
+  "cases": [
+    {
+      "id": "purchase-2000-with-tax-on-credit",
+      "kind": "purchase_journal",
+      "classification": "exact",
+      "evidence": [
+        "journals_a3_cycle"
+      ],
+      "inputs": {
+        "lines": [
+          {
+            "quantity": "20",
+            "price": "40"
+          },
+          {
+            "quantity": "10",
+            "price": "120"
+          }
+        ],
+        "tax_percent": "15",
+        "payment": "due"
+      },
+      "reference": {
+        "journals": [
+          {
+            "step": "purchase",
+            "lines": [
+              [
+                "inventory",
+                "2000.00",
+                "0.00"
+              ],
+              [
+                "tax_input",
+                "300.00",
+                "0.00"
+              ],
+              [
+                "supplier",
+                "0.00",
+                "2300.00"
+              ]
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "journals": [
+          {
+            "step": "purchase",
+            "lines": [
+              [
+                "inventory",
+                "2000.00",
+                "0.00"
+              ],
+              [
+                "tax_input",
+                "300.00",
+                "0.00"
+              ],
+              [
+                "supplier",
+                "0.00",
+                "2300.00"
+              ]
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "purchase-2000-with-tax-paid-in-cash",
+      "kind": "purchase_journal",
+      "classification": "exact",
+      "evidence": [
+        "journals_a3_cycle",
+        "supplier_payment"
+      ],
+      "inputs": {
+        "lines": [
+          {
+            "quantity": "20",
+            "price": "40"
+          },
+          {
+            "quantity": "10",
+            "price": "120"
+          }
+        ],
+        "tax_percent": "15",
+        "payment": "cash"
+      },
+      "reference": {
+        "journals": [
+          {
+            "step": "purchase",
+            "lines": [
+              [
+                "inventory",
+                "2000.00",
+                "0.00"
+              ],
+              [
+                "tax_input",
+                "300.00",
+                "0.00"
+              ],
+              [
+                "supplier",
+                "0.00",
+                "2300.00"
+              ]
+            ]
+          },
+          {
+            "step": "payment",
+            "lines": [
+              [
+                "supplier",
+                "2300.00",
+                "0.00"
+              ],
+              [
+                "cash",
+                "0.00",
+                "2300.00"
+              ]
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "journals": [
+          {
+            "step": "purchase",
+            "lines": [
+              [
+                "inventory",
+                "2000.00",
+                "0.00"
+              ],
+              [
+                "tax_input",
+                "300.00",
+                "0.00"
+              ],
+              [
+                "supplier",
+                "0.00",
+                "2300.00"
+              ]
+            ]
+          },
+          {
+            "step": "payment",
+            "lines": [
+              [
+                "supplier",
+                "2300.00",
+                "0.00"
+              ],
+              [
+                "cash",
+                "0.00",
+                "2300.00"
+              ]
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "return-refunded-in-cash",
+      "kind": "purchase_journal",
+      "classification": "exact",
+      "evidence": [
+        "purchase_return"
+      ],
+      "inputs": {
+        "stock": {
+          "quantity": "20",
+          "value": "1314.00"
+        },
+        "return": {
+          "quantity": "2",
+          "price": "70",
+          "tax_percent": "15"
+        },
+        "payment": "cash"
+      },
+      "reference": {
+        "journals": [
+          {
+            "step": "return",
+            "lines": [
+              [
+                "supplier",
+                "161.00",
+                "0.00"
+              ],
+              [
+                "tax_input",
+                "0.00",
+                "21.00"
+              ],
+              [
+                "inventory",
+                "0.00",
+                "131.40"
+              ],
+              [
+                "cogs",
+                "0.00",
+                "8.60"
+              ]
+            ]
+          },
+          {
+            "step": "refund",
+            "lines": [
+              [
+                "cash",
+                "161.00",
+                "0.00"
+              ],
+              [
+                "supplier",
+                "0.00",
+                "161.00"
+              ]
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "journals": [
+          {
+            "step": "return",
+            "lines": [
+              [
+                "supplier",
+                "161.00",
+                "0.00"
+              ],
+              [
+                "tax_input",
+                "0.00",
+                "21.00"
+              ],
+              [
+                "inventory",
+                "0.00",
+                "131.40"
+              ],
+              [
+                "cogs",
+                "0.00",
+                "8.60"
+              ]
+            ]
+          },
+          {
+            "step": "refund",
+            "lines": [
+              [
+                "cash",
+                "161.00",
+                "0.00"
+              ],
+              [
+                "supplier",
+                "0.00",
+                "161.00"
+              ]
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

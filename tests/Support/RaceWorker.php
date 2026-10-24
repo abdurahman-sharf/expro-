@@ -55,6 +55,44 @@ $result = match ($method) {
 
         return model(App\Models\Sale::class)->save_value(NEW_ENTRY, $status, $items, (int) $args[0], (int) $args[3], 'race', null, null, null, SALE_TYPE_INVOICE, [], null, $taxes) > 0;
     })($args),
+    'returnSale' => (static function (array $args): bool {
+        $status = COMPLETED;
+        $items  = [[
+            'item_id'       => (int) $args[1],
+            'line'          => 0,
+            'description'   => 'Race',
+            'serialnumber'  => '',
+            'quantity'      => (string) $args[2],
+            'discount'      => '0',
+            'discount_type' => 0,
+            'cost_price'    => (string) $args[3],
+            'price'         => (string) $args[4],
+            'item_location' => 1,
+            'print_option'  => 0,
+        ]];
+        $taxes    = [[], []];
+        $payments = isset($args[7]) ? [['payment_type' => (string) $args[7], 'payment_amount' => (string) $args[8], 'cash_refund' => '0', 'cash_adjustment' => 0, 'reference_code' => null]] : [];
+
+        return model(App\Models\Sale::class)->save_value(NEW_ENTRY, $status, $items, (int) $args[5] > 0 ? (int) $args[5] : NEW_ENTRY, (int) $args[6], 'race', null, null, null, SALE_TYPE_RETURN, $payments, null, $taxes, true, (int) $args[0]) > 0;
+    })($args),
+    'purchase' => (static function (array $args): bool {
+        $lines = [[
+            'item_id'            => (int) $args[1],
+            'line'               => 0,
+            'description'        => 'Race',
+            'serialnumber'       => '',
+            'quantity'           => (string) $args[2],
+            'receiving_quantity' => 1,
+            'discount'           => 0,
+            'discount_type'      => 0,
+            'price'              => (string) $args[3],
+            'item_location'      => 1,
+            'tax_percent'        => 0,
+        ]];
+
+        return model(App\Models\Receiving::class)->save_value($lines, (int) $args[0], (int) $args[4], 'race', 'REF', 'Due', NEW_ENTRY, isset($args[5]) ? (int) $args[5] : null) > 0;
+    })($args),
+    'deletePurchase' => model(App\Models\Receiving::class)->delete_value((int) $args[0], (int) $args[1]),
     default => throw new InvalidArgumentException("Unknown race method: {$method}"),
 };
 

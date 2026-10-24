@@ -87,4 +87,7 @@ enum AccountingError: string
     case SaleLocked           = 'sale_locked';
     case IssuedDocumentLocked = 'issued_document_locked';
     case CustomerBusy         = 'customer_busy';
+
+    case PurchaseLocked     = 'purchase_locked';
+    case PurchaseHasReturns = 'purchase_has_returns';
 }

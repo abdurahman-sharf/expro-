@@ -2,6 +2,7 @@
 
 namespace Tests\Controllers;
 
+use App\Controllers\Items;
 use CodeIgniter\Database\Config;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -13,13 +14,22 @@ use App\Models\Item_taxes;
 use App\Models\Attribute;
 use App\Models\Stock_location;
 use App\Models\Supplier;
+use ReflectionClass;
+use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
+use Tests\Support\ItemFixtureTrait;
+use Tests\Support\PurchaseAccountingFixtureTrait;
+use Tests\Support\SaleAccountingFixtureTrait;
 
 class ItemsControllerTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use FeatureTestTrait;
+    use AccountingFixtureTrait;
     use EmployeeFixtureTrait;
+    use ItemFixtureTrait;
+    use SaleAccountingFixtureTrait;
+    use PurchaseAccountingFixtureTrait;
 
     protected $migrate = true;
     protected $migrateOnce = true;
@@ -62,6 +72,8 @@ class ItemsControllerTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->stopBuying();
+
         parent::tearDown();
     }
 
@@ -1400,6 +1412,204 @@ class ItemsControllerTest extends CIUnitTestCase
         $this->assertArrayHasKey('location_Store', $locationColumns);
         $this->assertEquals('Warehouse', $locationColumns['location_Warehouse']);
         $this->assertEquals('Store', $locationColumns['location_Store']);
+    }
+
+    /**
+     * Ten units bought at 50, so the books hold them at 500.00, and an employee who may edit items.
+     */
+    private function itemInTheBooks(): int
+    {
+        $this->startBuying();
+
+        $itemId = $this->item('0.00');
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($itemId, 0, '10', '50')]));
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+        return $itemId;
+    }
+
+    /**
+     * @return list<object>
+     */
+    private function adjustmentJournals(): array
+    {
+        return $this->accountingDb()->table('accounting_journals')->where('source_type', 'stock_adjustment')->get()->getResult();
+    }
+
+    private function inventoryLog(int $itemId): array
+    {
+        return $this->accountingDb()->table('inventory')->where('trans_items', $itemId)->where('trans_comment NOT LIKE', 'RECV %')->get()->getResult();
+    }
+
+    /**
+     * The controller method that saves the quantities of a row of the items file, which no
+     * request reaches without a file to upload.
+     *
+     * @param array<string, mixed> $row
+     */
+    private function importQuantities(array $row, int $itemId, int $employeeId): bool
+    {
+        $reflection = new ReflectionClass(Items::class);
+        $controller = $reflection->newInstanceWithoutConstructor();
+
+        foreach (['item_quantity' => $this->item_quantity, 'inventory' => $this->inventory] as $name => $model) {
+            $reflection->getProperty($name)->setValue($controller, $model);
+        }
+
+        return $reflection->getMethod('save_inventory_quantities')->invoke($controller, $row, ['item_id' => $itemId], [1 => 'stock'], $employeeId);
+    }
+
+    public function testPostSaveInventory_PostsWhatWasAddedToTheBooks(): void
+    {
+        $itemId = $this->itemInTheBooks();
+
+        $response = $this->post('/items/saveInventory/' . $itemId, ['stock_location' => '1', 'newquantity' => '2', 'trans_comment' => 'Found two']);
+
+        $this->assertTrue(json_decode($response->getJSON(), true)['success']);
+        $this->assertSame('12.000', $this->onHand($itemId));
+        $this->assertSame(['quantity' => '12.000', 'value' => '600.00'], $this->stockOf($itemId));
+        $this->assertCount(1, $this->adjustmentJournals());
+        $this->assertStockTies();
+    }
+
+    public function testPostSaveInventory_PostsWhatWasTakenOffAtWhatAUnitIsWorth(): void
+    {
+        $itemId = $this->itemInTheBooks();
+
+        $response = $this->post('/items/saveInventory/' . $itemId, ['stock_location' => '1', 'newquantity' => '-4', 'trans_comment' => 'Broken']);
+
+        $this->assertTrue(json_decode($response->getJSON(), true)['success']);
+        $this->assertSame(['quantity' => '6.000', 'value' => '300.00'], $this->stockOf($itemId));
+        $this->assertStockTies();
+    }
+
+    public function testPostSaveInventory_RefusedByTheBooksLeavesTheShelvesAndTheLogAsTheyWere(): void
+    {
+        $itemId = $this->itemInTheBooks();
+        $log    = count($this->inventoryLog($itemId));
+        $this->closeThrough(date('Y-m-d'));
+
+        $result = json_decode($this->post('/items/saveInventory/' . $itemId, ['stock_location' => '1', 'newquantity' => '2', 'trans_comment' => 'Found two'])->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString('period closed through', $result['message']);
+        $this->assertSame('10.000', $this->onHand($itemId));
+        $this->assertSame($log, count($this->inventoryLog($itemId)));
+        $this->assertSame([], $this->adjustmentJournals());
+    }
+
+    public function testPostSaveInventory_KeepsNoBooksWhileAccountingIsOff(): void
+    {
+        $itemId = $this->createTestItem();
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+        $result = json_decode($this->post('/items/saveInventory/' . $itemId, ['stock_location' => '1', 'newquantity' => '2', 'trans_comment' => 'Found two'])->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame([], $this->adjustmentJournals());
+        $this->assertSame(0, $this->countRows('accounting_stock_entries'));
+    }
+
+    public function testPostSave_PostsAQuantityEditedOnTheItem(): void
+    {
+        $itemId = $this->itemInTheBooks();
+
+        $postData = array_merge($this->baseItemPostData(), ['tax_names' => ['VAT'], 'tax_percents' => ['0'], 'quantity_1' => '13', 'cost_price' => '50.00']);
+        $result   = json_decode($this->post('/items/save/' . $itemId, $postData)->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('13.000', $this->onHand($itemId));
+        $this->assertSame(['quantity' => '13.000', 'value' => '650.00'], $this->stockOf($itemId));
+        $this->assertCount(1, $this->adjustmentJournals());
+        $this->assertStockTies();
+    }
+
+    public function testPostSave_PostsNothingWhenTheQuantityIsNotEdited(): void
+    {
+        $itemId = $this->itemInTheBooks();
+
+        $postData = array_merge($this->baseItemPostData(), ['tax_names' => ['VAT'], 'tax_percents' => ['0'], 'quantity_1' => '10', 'name' => 'Renamed', 'cost_price' => '50.00']);
+        $result   = json_decode($this->post('/items/save/' . $itemId, $postData)->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame([], $this->adjustmentJournals());
+    }
+
+    public function testPostSave_RefusedByTheBooksKeepsTheItemAsItWas(): void
+    {
+        $itemId = $this->itemInTheBooks();
+        $name   = $this->item->get_info($itemId)->name;
+        $this->closeThrough(date('Y-m-d'));
+
+        $postData = array_merge($this->baseItemPostData(), ['tax_names' => ['VAT'], 'tax_percents' => ['0'], 'quantity_1' => '13', 'name' => 'Renamed', 'cost_price' => '50.00']);
+        $result   = json_decode($this->post('/items/save/' . $itemId, $postData)->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame($name, $this->item->get_info($itemId)->name);
+        $this->assertSame('10.000', $this->onHand($itemId));
+        $this->assertSame([], $this->adjustmentJournals());
+    }
+
+    public function testPostSave_PostsTheOpeningQuantityOfANewItemAtItsCost(): void
+    {
+        $this->startBuying();
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+        $postData = array_merge($this->baseItemPostData(), ['tax_names' => ['VAT'], 'tax_percents' => ['0'], 'quantity_1' => '5', 'cost_price' => '8.00']);
+        $result   = json_decode($this->post('/items/save', $postData)->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(['quantity' => '5.000', 'value' => '40.00'], $this->stockOf((int) $result['id']));
+        $this->assertStockTies();
+    }
+
+    public function testSaveInventoryQuantities_PostsTheDifferenceAndNotTheQuantityOfTheFile(): void
+    {
+        $itemId = $this->itemInTheBooks();
+
+        $this->assertTrue($this->importQuantities(['Id' => (string) $itemId, 'location_stock' => '14'], $itemId, $this->employeeId));
+
+        $this->assertSame('14.000', $this->onHand($itemId));
+        $this->assertSame(['quantity' => '14.000', 'value' => '700.00'], $this->stockOf($itemId));
+        $this->assertSame('4.000', (string) $this->inventoryLog($itemId)[count($this->inventoryLog($itemId)) - 1]->trans_inventory);
+        $this->assertStockTies();
+    }
+
+    public function testSaveInventoryQuantities_RefusedByTheBooksReportsFailure(): void
+    {
+        $itemId = $this->itemInTheBooks();
+        $this->closeThrough(date('Y-m-d'));
+
+        $this->assertFalse($this->importQuantities(['Id' => (string) $itemId, 'location_stock' => '14'], $itemId, $this->employeeId));
+        $this->assertSame([], $this->adjustmentJournals());
+    }
+
+    public function testPostDelete_TakesTheStockOfTheItemOffTheBooks(): void
+    {
+        $itemId = $this->itemInTheBooks();
+
+        $result = json_decode($this->post('/items/delete', ['ids' => [(string) $itemId]])->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(1, (int) $this->item->get_info($itemId)->deleted);
+        $this->assertSame('0.000', $this->onHand($itemId));
+        $this->assertSame('0.00', $this->stockOf($itemId)['value']);
+        $this->assertCount(1, $this->adjustmentJournals());
+        $this->assertStockTies();
+    }
+
+    public function testPostDelete_RefusedByTheBooksLeavesTheItemAndItsStock(): void
+    {
+        $itemId = $this->itemInTheBooks();
+        $this->closeThrough(date('Y-m-d'));
+
+        $result = json_decode($this->post('/items/delete', ['ids' => [(string) $itemId]])->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString(lang('Items.cannot_be_deleted'), $result['message']);
+        $this->assertSame(0, (int) $this->item->get_info($itemId)->deleted);
+        $this->assertSame('10.000', $this->onHand($itemId));
+        $this->assertSame([], $this->adjustmentJournals());
     }
 
     public function testValidateLocationNamesCaseSensitivity(): void

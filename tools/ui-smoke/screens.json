@@ -197,6 +197,80 @@
       ]
     },
     {
+      "id": "receivings-return",
+      "group": "receivings",
+      "path": "/receivings",
+      "steps": [
+        {
+          "select": [
+            "#register_mode",
+            "return"
+          ]
+        },
+        {
+          "idle": true
+        },
+        {
+          "waitFor": "#return_origin"
+        },
+        {
+          "fill": [
+            "#return_origin",
+            "1"
+          ]
+        },
+        {
+          "press": [
+            "#return_origin",
+            "Tab"
+          ]
+        },
+        {
+          "idle": true
+        }
+      ]
+    },
+    {
+      "id": "receivings-reset",
+      "group": "receivings",
+      "path": "/receivings",
+      "steps": [
+        {
+          "select": [
+            "#register_mode",
+            "receive"
+          ]
+        },
+        {
+          "idle": true
+        }
+      ]
+    },
+    {
+      "id": "receivings-receipt",
+      "group": "receivings",
+      "path": "/receivings/receipt/1"
+    },
+    {
+      "id": "receivings-edit-modal",
+      "group": "receivings",
+      "path": "/reports/detailed_receivings/2020-01-01/2099-12-31/all/all",
+      "steps": [
+        {
+          "waitFor": "a.modal-dlg[href$=\"receivings/edit/1\"]"
+        },
+        {
+          "click": "a.modal-dlg[href$=\"receivings/edit/1\"]"
+        },
+        {
+          "waitFor": ".modal-body form"
+        },
+        {
+          "pause": 1000
+        }
+      ]
+    },
+    {
       "id": "items",
       "group": "items",
       "path": "/items"

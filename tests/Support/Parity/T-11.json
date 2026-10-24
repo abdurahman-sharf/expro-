@@ -1,0 +1,216 @@
+{
+  "id": "T-11",
+  "title": "What stock is worth: the movements of one item added up, against the cost the item carries times its quantity, and what the stock of that item is worth when a unit goes back to the supplier",
+  "recorded": "2026-10-24",
+  "evidence": {
+    "purchase_000003": {
+      "id": "ev_387dfebdc191b2e9464ea7b1b713e85393a14495a790b40acc137045520d974d",
+      "note": "Purchase 000003: 10 units at 50, journal 37"
+    },
+    "purchase_000004": {
+      "id": "ev_ee1563bb6599bebb7f049867210d3ea07472f02b8f0fe740eda5601d9a597d55",
+      "note": "Purchase 000004: 10 units at 70, journal 39"
+    },
+    "sale_000013": {
+      "id": "ev_586c7c617eccd150b64ef98a94e0c634f69bc1ffc94c5a02ef0bebdaa9e9ee19",
+      "note": "Sale 000013: 5 units, cost of sales journal 42 is 300"
+    },
+    "credit_note_000002": {
+      "id": "ev_c51ae6a7d22905f39dedaa832bd59c9c25e1cd560968d52ff43835f0c7c90359",
+      "note": "Credit note 000002: 2 units returned, cost journal 44 is 120"
+    },
+    "purchase_000005": {
+      "id": "ev_a8e2e4121aee8561450b9d7c8e3eb96d7f87512731efbbdd278602f611f23d03",
+      "note": "Purchase 000005: 3 units at 100, journal 45"
+    },
+    "credit_note_000003": {
+      "id": "ev_95c17634fa96121284b3b690b73ed228da58d1952da75ccc991155ffa2f4c757",
+      "note": "Credit note 000003: 1 unit returned, cost journal 48 is 60.00 (the cost of the original sale)"
+    },
+    "sale_000014": {
+      "id": "ev_cc6c8bf46f30ff13654c09de671fe978e6f7c602a9c5520c7f9460910d08617a",
+      "note": "Sale 000014: 1 unit, cost of sales journal 50 is 66.00"
+    },
+    "valuation_report": {
+      "id": "ev_9e474a68111a42879fcc081136dcc2b9ddb65814486e0e1a28d24881065b8e5f",
+      "note": "Stock valuation report on 22/10: 20 units valued 1314 from the movements, which is what the account of the stock held"
+    },
+    "purchase_return": {
+      "id": "ev_aeb76a341bff3b7751ce83a40f124129b992b40c57433fabbdc046e0a42e9d9b",
+      "note": "Purchase return 000001: 2 units bought at 70 with 15% tax, supplier 161.00, tax 21.00, stock 131.40 and cost of sales 8.60"
+    },
+    "debit_note": {
+      "id": "ev_e1bafa6defdcd1719cbdc11455c155b57c6d9a0e4e48c3acce0cba0b67cae3aa",
+      "note": "Debit note 000001: 1 unit bought at 100 with 15% tax, supplier 115.00, tax 15.00, stock 65.70 and cost of sales 34.30"
+    }
+  },
+  "cases": [
+    {
+      "id": "valuation-from-movements",
+      "kind": "movement_valuation",
+      "classification": "exact",
+      "evidence": [
+        "purchase_000003",
+        "purchase_000004",
+        "sale_000013",
+        "credit_note_000002",
+        "purchase_000005",
+        "credit_note_000003",
+        "sale_000014",
+        "valuation_report"
+      ],
+      "inputs": {
+        "movements": [
+          {
+            "name": "P1",
+            "op": "purchase",
+            "quantity": "10",
+            "value": "500.00",
+            "evidence": "purchase_000003"
+          },
+          {
+            "name": "P2",
+            "op": "purchase",
+            "quantity": "10",
+            "value": "700.00",
+            "evidence": "purchase_000004"
+          },
+          {
+            "name": "S1",
+            "op": "sale",
+            "quantity": "-5",
+            "value": "-300.00",
+            "evidence": "sale_000013"
+          },
+          {
+            "name": "R1",
+            "op": "return",
+            "quantity": "2",
+            "value": "120.00",
+            "evidence": "credit_note_000002"
+          },
+          {
+            "name": "P3",
+            "op": "purchase",
+            "quantity": "3",
+            "value": "300.00",
+            "evidence": "purchase_000005"
+          },
+          {
+            "name": "R2",
+            "op": "return",
+            "quantity": "1",
+            "value": "60.00",
+            "evidence": "credit_note_000003"
+          },
+          {
+            "name": "S2",
+            "op": "sale",
+            "quantity": "-1",
+            "value": "-66.00",
+            "evidence": "sale_000014"
+          }
+        ]
+      },
+      "reference": {
+        "quantity": "20",
+        "value": "1314"
+      },
+      "expected": {
+        "quantity": "20",
+        "value": "1314.00",
+        "item_cost": "66.00"
+      }
+    },
+    {
+      "id": "item-cost-times-quantity-is-not-the-valuation",
+      "kind": "valuation_difference",
+      "classification": "exact",
+      "evidence": [
+        "credit_note_000003",
+        "sale_000014",
+        "valuation_report"
+      ],
+      "inputs": {
+        "quantity": "20",
+        "item_cost": "66.00",
+        "returned_at": "60.00",
+        "units_returned_at_that_cost": "1"
+      },
+      "reference": {
+        "value": "1314",
+        "note": "what the report and the account held"
+      },
+      "expected": {
+        "value_at_item_cost": "1320.00",
+        "movements_value": "1314.00",
+        "difference": "6.00",
+        "difference_of_the_return": "6.00"
+      }
+    },
+    {
+      "id": "purchase-return-two-units-at-the-average-of-the-movements",
+      "kind": "purchase_return",
+      "classification": "exact",
+      "evidence": [
+        "valuation_report",
+        "purchase_return"
+      ],
+      "inputs": {
+        "stock": {
+          "quantity": "20",
+          "value": "1314.00"
+        },
+        "return": {
+          "quantity": "2",
+          "price": "70",
+          "tax_percent": "15"
+        }
+      },
+      "reference": {
+        "supplier": "161.00",
+        "tax": "21.00",
+        "inventory": "131.40",
+        "cost_of_sales_credit": "8.60"
+      },
+      "expected": {
+        "supplier": "161.00",
+        "tax": "21.00",
+        "inventory": "131.40",
+        "cost_of_sales_credit": "8.60"
+      }
+    },
+    {
+      "id": "debit-note-one-unit-at-the-average-of-the-movements",
+      "kind": "purchase_return",
+      "classification": "exact",
+      "evidence": [
+        "valuation_report",
+        "debit_note"
+      ],
+      "inputs": {
+        "stock": {
+          "quantity": "20",
+          "value": "1314.00"
+        },
+        "return": {
+          "quantity": "1",
+          "price": "100",
+          "tax_percent": "15"
+        }
+      },
+      "reference": {
+        "supplier": "115.00",
+        "tax": "15.00",
+        "inventory": "65.70",
+        "cost_of_sales_credit": "34.30"
+      },
+      "expected": {
+        "supplier": "115.00",
+        "tax": "15.00",
+        "inventory": "65.70",
+        "cost_of_sales_credit": "34.30"
+      }
+    }
+  ]
+}

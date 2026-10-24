@@ -9,6 +9,7 @@ use App\Libraries\Accounting\CustomerLock;
 use App\Libraries\Accounting\PaymentStatus;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\Accounting\ReturnLimit;
 use App\Libraries\Accounting\SalePosting;
 use App\Libraries\Organization\BranchGuard;
 use CodeIgniter\Database\BaseBuilder;
@@ -788,6 +789,11 @@ class Sale extends Model
         // Run these queries as a transaction, we want to make sure we do all or nothing
         $this->db->transStart();
 
+        if ($salesData['return_of_sale_id'] !== null) {
+            // The sale a return comes from is locked while the return is saved, so that two returns of it never run side by side
+            $this->db->query('SELECT sale_id FROM ' . $this->db->prefixTable('sales') . ' WHERE sale_id = ? FOR UPDATE', [$salesData['return_of_sale_id']]);
+        }
+
         if ($saleId != NEW_ENTRY) {
             $this->clear_suspended_sale_detail($saleId);
         }
@@ -914,6 +920,22 @@ class Sale extends Model
                 $dinnerTable->release($dinnerTableId);
             } else {
                 $dinnerTable->occupy($dinnerTableId);
+            }
+        }
+
+        if ($saleStatus == COMPLETED && $salesData['return_of_sale_id'] !== null) {
+            try {
+                (new ReturnLimit($this->db))->assertSaleReturnWithin($saleId);
+            } catch (PostingException $failure) {
+                $this->db->transRollback();
+
+                if ((new AccountingSettings($this->db))->isEnabled()) {
+                    $this->recordAccountingFailure($saleId, $failure, $employeeId, (int) $salesData['branch_id']);
+                } else {
+                    $this->accountingFailure = $failure;
+                }
+
+                return ACCOUNTING_FAILED;
             }
         }
 

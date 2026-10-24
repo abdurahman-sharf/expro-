@@ -6,6 +6,8 @@
  * @var array $employees
  * @var string $controller_name
  * @var bool $can_assign_employee
+ * @var bool $locked
+ * @var list<object> $journals
  */
 ?>
 
@@ -15,13 +17,17 @@
 <?= form_open("receivings/save/" . $receiving_info['receiving_id'], ['id' => 'receivings_edit_form', 'class' => 'app-form']) ?>
     <fieldset id="receiving_basic_info">
 
+        <?php if ($locked): ?>
+            <div class="alert alert-info" id="posted_lock" role="note"><?= lang('Receivings.posted_lock') ?></div>
+        <?php endif; ?>
+
         <div class="row mb-3">
-            <?= form_label(lang('Receivings.receipt_number'), 'supplier', ['class' => 'col-form-label col-3']) ?>
+            <span class="col-form-label col-3"><?= lang('Receivings.receipt_number') ?></span>
             <?= anchor('receivings/receipt/' . $receiving_info['receiving_id'], 'RECV ' . $receiving_info['receiving_id'], ['target' => '_blank', 'class' => 'col-form-label col-8', "style" => "text-align: left"]) ?>
         </div>
 
         <div class="row mb-3">
-            <?= form_label(lang('Receivings.date'), 'date', ['class' => 'col-form-label col-3']) ?>
+            <?= form_label(lang('Receivings.date'), 'datetime', ['class' => 'col-form-label col-3']) ?>
             <div class="col-8">
                 <?= form_input([
                     'name'     => 'date',
@@ -34,9 +40,9 @@
         </div>
 
         <div class="row mb-3">
-            <?= form_label(lang('Receivings.supplier'), 'supplier', ['class' => 'col-form-label col-3']) ?>
+            <?= form_label(lang('Receivings.supplier'), 'supplier_name', ['class' => 'col-form-label col-3']) ?>
             <div class="col-8">
-                <?= form_input(['name' => 'supplier_name', 'value' => $selected_supplier_name, 'id' => 'supplier_name', 'class' => 'form-control form-control-sm']) ?>
+                <?= form_input(['name' => 'supplier_name', 'value' => $selected_supplier_name, 'id' => 'supplier_name', 'class' => 'form-control form-control-sm'] + ($locked ? ['readonly' => 'readonly'] : [])) ?>
                 <?= form_hidden('supplier_id', $selected_supplier_id ?? '') ?>
             </div>
         </div>
@@ -49,13 +55,13 @@
         </div>
 
         <div class="row mb-3">
-            <?= form_label(lang('Receivings.employee'), 'employee', ['class' => 'col-form-label col-3']) ?>
+            <?= form_label(lang('Receivings.employee'), $can_assign_employee ? 'employee_id' : 'employee_name', ['class' => 'col-form-label col-3']) ?>
             <div class="col-8">
                 <?php if ($can_assign_employee): ?>
                     <?= form_dropdown('employee_id', $employees, $receiving_info['employee_id'], 'id="employee_id" class="form-select"') ?>
                 <?php else: ?>
                     <?= form_hidden('employee_id', $receiving_info['employee_id']) ?>
-                    <?= form_input(['name' => 'employee_name', 'value' => $employees[$receiving_info['employee_id']] ?? '', 'class' => 'form-control form-control-sm', 'readonly' => 'readonly']) ?>
+                    <?= form_input(['name' => 'employee_name', 'id' => 'employee_name', 'value' => $employees[$receiving_info['employee_id']] ?? '', 'class' => 'form-control form-control-sm', 'readonly' => 'readonly']) ?>
                 <?php endif; ?>
             </div>
         </div>
@@ -66,6 +72,22 @@
                 <?= form_textarea(['name' => 'comment', 'value' => $receiving_info['comment'], 'id' => 'comment', 'class' => 'form-control form-control-sm']) ?>
             </div>
         </div>
+
+        <?php if (! empty($journals)): ?>
+            <div class="row mb-3">
+                <span class="col-form-label col-3"><?= lang('Receivings.journals') ?></span>
+                <div class="col-8">
+                    <ul class="list-unstyled mb-0" id="receiving_journals">
+                        <?php foreach ($journals as $journal): ?>
+                            <li>
+                                <?= anchor('accounting_journals/view/' . (int) $journal->journal_id, esc((string) $journal->number), ['target' => '_blank', 'dir' => 'ltr']) ?>
+                                <span class="text-secondary"><?= esc($journal->journal_date) ?> · <?= esc(lang('Accounting.source_' . $journal->source_type)) ?> · <?= esc(to_currency($journal->total_debit)) ?></span>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            </div>
+        <?php endif; ?>
 
     </fieldset>
 <?= form_close() ?>
@@ -80,6 +102,7 @@
             $("input[name='supplier_name']").val(ui.item.label);
         };
 
+        <?php if (! $locked): ?>
         $('#supplier_name').autocomplete({
             source: "<?= 'suppliers/suggest' ?>",
             minChars: 0,
@@ -89,6 +112,7 @@
             select: fill_value,
             focus: fill_value
         });
+        <?php endif; ?>
 
         $('button#delete').click(function() {
             dialog_support.hide();

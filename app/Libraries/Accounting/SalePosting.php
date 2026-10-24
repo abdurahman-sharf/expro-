@@ -27,6 +27,7 @@ final class SalePosting
     private JournalService $journals;
     private SaleLoader $loader;
     private SalePostingBuilder $builder;
+    private StockLedger $stock;
     private AccountingSettings $settings;
     private PeriodGuard $periods;
 
@@ -36,6 +37,7 @@ final class SalePosting
         $this->posting  = new PostingService($this->db);
         $this->journals = new JournalService($this->db);
         $this->loader   = new SaleLoader($this->db);
+        $this->stock    = new StockLedger($this->db);
         $this->settings = new AccountingSettings($this->db);
         $this->periods  = new PeriodGuard($this->db);
         $this->builder  = new SalePostingBuilder(
@@ -160,9 +162,10 @@ final class SalePosting
                 throw new AccountingException(AccountingError::IssuedDocumentLocked, 'An invoice or a credit note that has been issued cannot be cancelled. Correct it with a credit note.', ['sale_id' => $saleId]);
             }
 
+            $cost   = $this->activeJournal(SalePostingBuilder::SOURCE_SALE, $saleId, JournalEntryType::Cogs);
             $active = array_filter([
                 $this->activeJournal(SalePostingBuilder::SOURCE_SALE, $saleId, JournalEntryType::Revenue),
-                $this->activeJournal(SalePostingBuilder::SOURCE_SALE, $saleId, JournalEntryType::Cogs),
+                $cost,
             ]);
 
             foreach ($this->paymentIds($saleId) as $paymentId) {
@@ -173,9 +176,19 @@ final class SalePosting
                 }
             }
 
+            $stockDate    = date('Y-m-d');
+            $stockJournal = null;
+
             foreach ($active as $journal) {
-                $this->reverse($journal, $employeeId, 'Sale #' . $saleId . ' cancelled');
+                [$reversalId, $date] = $this->reverse($journal, $employeeId, 'Sale #' . $saleId . ' cancelled');
+
+                if ($journal === $cost) {
+                    $stockDate    = $date;
+                    $stockJournal = $reversalId;
+                }
             }
+
+            $this->stock->reverseSource(SalePostingBuilder::SOURCE_SALE, $saleId, JournalEntryType::Cogs, $stockDate, $stockJournal);
 
             if ($active !== []) {
                 $this->settle($sale?->customerId, $employeeId);
@@ -281,11 +294,11 @@ final class SalePosting
             return;
         }
 
-        $draft = $this->builder->cost($sale, $this->nextRevision(SalePostingBuilder::SOURCE_SALE, $sale->saleId, JournalEntryType::Cogs), $employeeId);
+        $revision  = $this->nextRevision(SalePostingBuilder::SOURCE_SALE, $sale->saleId, JournalEntryType::Cogs);
+        $plan      = $this->builder->costPlan($sale, $revision, $employeeId);
+        $journalId = $plan->journal === null ? null : $this->posting->post($plan->journal)->journalId;
 
-        if ($draft !== null) {
-            $this->posting->post($draft);
-        }
+        $this->stock->record(SalePostingBuilder::SOURCE_SALE, $sale->saleId, JournalEntryType::Cogs, $revision, $sale->date, $sale->branchId, $plan->movements, $journalId);
     }
 
     /**
@@ -335,14 +348,16 @@ final class SalePosting
     }
 
     /**
+     * @return array{int, string} The reversal and the date it was made on.
+     *
      * @throws AccountingException|PostingException
      */
-    private function reverse(object $journal, ?int $employeeId, string $reason): void
+    private function reverse(object $journal, ?int $employeeId, string $reason): array
     {
         $cutoff = $this->periods->effectiveCutoff((int) $journal->branch_id, true);
         $date   = $cutoff !== null && $journal->journal_date <= $cutoff['date'] ? date('Y-m-d') : $journal->journal_date;
 
-        $this->journals->reverseAutomatic((int) $journal->journal_id, $date, $reason, $employeeId);
+        return [$this->journals->reverseAutomatic((int) $journal->journal_id, $date, $reason, $employeeId), $date];
     }
 
     /**

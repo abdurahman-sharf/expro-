@@ -67,6 +67,8 @@ export const runSteps = async (page, steps = []) => {
             await page.fill(step.fill[0], step.fill[1]);
         } else if (step.type) {
             await page.locator(step.type[0]).pressSequentially(step.type[1], { delay: 90 });
+        } else if (step.select) {
+            await page.selectOption(step.select[0], step.select[1]);
         } else if (step.press) {
             await page.press(step.press[0], step.press[1]);
         } else if (step.waitFor) {

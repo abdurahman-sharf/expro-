@@ -85,6 +85,47 @@ class Inventory extends Model
     }
 
     /**
+     * Takes every unit an item has on the shelves of the stock locations that are in use off
+     * them, logging each location that held some as the item being deleted. The shelves
+     * themselves are zeroed by Item_quantity. Returns what was taken, one row for each location
+     * and the id of its row in the log, or false when a row could not be written.
+     *
+     * @return false|list<array{inventory_id: int, location_id: int, change: string}>
+     */
+    public function resetRows(int $item_id): array|false
+    {
+        $rows = $this->db->table('item_quantities')
+            ->select('item_quantities.location_id, item_quantities.quantity')
+            ->join('stock_locations', 'stock_locations.location_id = item_quantities.location_id')
+            ->where('item_quantities.item_id', $item_id)
+            ->where('stock_locations.deleted', 0)
+            ->where('item_quantities.quantity <>', 0)
+            ->get()
+            ->getResult();
+
+        $reset = [];
+
+        foreach ($rows as $row) {
+            $change = bcsub('0', (string) $row->quantity, 3);
+            $id     = $this->insert([
+                'trans_inventory' => $change,
+                'trans_items'     => $item_id,
+                'trans_location'  => $row->location_id,
+                'trans_comment'   => lang('Items.is_deleted'),
+                'trans_user'      => model(Employee::class)->get_logged_in_employee_info()->person_id,
+            ]);
+
+            if ($id === false) {
+                return false;
+            }
+
+            $reset[] = ['inventory_id' => (int) $id, 'location_id' => (int) $row->location_id, 'change' => $change];
+        }
+
+        return $reset;
+    }
+
+    /**
      * @param int $item_id
      * @return array
      */

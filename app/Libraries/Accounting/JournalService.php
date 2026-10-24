@@ -253,18 +253,23 @@ final class JournalService
     }
 
     /**
-     * Reverses the journal of a sale or of one of its payments when the sale is cancelled or a
-     * payment changes. Who may do that was decided where the sale changed, so no permission is
-     * asked here and the reversal counts as the system's. A journal of any other source is
-     * refused.
+     * Reverses the journal of a sale or a purchase, or of one of their payments, when the
+     * document is cancelled or a payment changes. Who may do that was decided where the document
+     * changed, so no permission is asked here and the reversal counts as the system's. A journal
+     * of any other source is refused.
      *
      * @throws AccountingException|PostingException
      */
     public function reverseAutomatic(int $journalId, string $date, string $reason, ?int $employeeId): int
     {
-        $isSale = $this->db->table('accounting_journals')->where('journal_id', $journalId)->whereIn('source_type', [SalePostingBuilder::SOURCE_SALE, SalePostingBuilder::SOURCE_PAYMENT])->countAllResults() > 0;
+        $isAutomatic = $this->db->table('accounting_journals')->where('journal_id', $journalId)->whereIn('source_type', [
+            SalePostingBuilder::SOURCE_SALE,
+            SalePostingBuilder::SOURCE_PAYMENT,
+            ReceivingPostingBuilder::SOURCE_PURCHASE,
+            ReceivingPostingBuilder::SOURCE_PAYMENT,
+        ])->countAllResults() > 0;
 
-        if (! $isSale) {
+        if (! $isAutomatic) {
             throw new AccountingException(AccountingError::JournalNotFound, "Journal {$journalId} does not exist.");
         }
 

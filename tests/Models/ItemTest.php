@@ -8,15 +8,21 @@ use CodeIgniter\Database\Config;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\ParityFixture;
+use Tests\Support\PurchaseAccountingFixtureTrait;
+use Tests\Support\SaleAccountingFixtureTrait;
 
 class ItemTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
+    use AccountingFixtureTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
+    use SaleAccountingFixtureTrait;
+    use PurchaseAccountingFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -36,6 +42,32 @@ class ItemTest extends CIUnitTestCase
         }
 
         parent::setUp();
+    }
+
+    protected function tearDown(): void
+    {
+        $this->stopBuying();
+        session()->remove('person_id');
+
+        parent::tearDown();
+    }
+
+    /**
+     * Two items with ten units each, bought at 50 and 20, in the books of a logged-in employee.
+     *
+     * @return array{int, int}
+     */
+    private function twoItemsInTheBooks(): array
+    {
+        $this->startBuying();
+        session()->set('person_id', $this->employeeId);
+
+        $first  = $this->item('0.00');
+        $second = $this->item('0.00');
+
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($first, 0, '10', '50'), $this->purchaseLine($second, 1, '10', '20')]));
+
+        return [$first, $second];
     }
 
     private function recordSale(int $itemId, float $quantity, int $status = COMPLETED, string $daysAgo = '0'): void
@@ -71,18 +103,17 @@ class ItemTest extends CIUnitTestCase
 
     /**
      * Fixture T-05: a purchase, a sale and a return in the order the reference system saw them.
-     * Every step compares the cost an item carries with the cost the reference system used. The
-     * return of a unit of an earlier sale is the one step that differs, and it is pinned as such.
+     * Every step compares the cost an item carries with the cost the reference system used for
+     * the next sale. Only a purchase moves it: a sale and a return leave it as it is.
      */
     public function testChangeCostPrice_FollowsTheWeightedAverageOfTheReferenceSystem(): void
     {
         bcscale(4);
 
-        $items   = model(Item::class);
-        $stock   = model(Item_quantity::class);
-        $itemId  = $this->createTestItem();
-        $case    = ParityFixture::cases('T-05', 'cost_sequence')['sequence'][0];
-        $differs = 0;
+        $items  = model(Item::class);
+        $stock  = model(Item_quantity::class);
+        $itemId = $this->createTestItem();
+        $case   = ParityFixture::cases('T-05', 'cost_sequence')['sequence'][0];
 
         foreach ($case['steps'] as $step) {
             if ($step['op'] === 'purchase') {
@@ -93,19 +124,10 @@ class ItemTest extends CIUnitTestCase
 
             $cost = bcadd((string) $items->get_info($itemId)->cost_price, '0', 4);
 
+            $this->assertSame('exact', $step['classification'], "{$step['name']} must match the reference system");
             $this->assertSame(bcadd($step['expected']['cost'], '0', 4), $cost, "{$step['name']}: the cost this carries");
-
-            if ($step['classification'] === 'exact') {
-                $this->assertSame(bcadd($step['reference']['cost'], '0', 4), $cost, "{$step['name']} must match the reference system");
-
-                continue;
-            }
-
-            $differs++;
-            $this->assertNotSame(bcadd($step['reference']['cost'], '0', 4), $cost, "{$step['name']} is a known difference and must not be counted as matching");
+            $this->assertSame(bcadd($step['reference']['cost'], '0', 4), $cost, "{$step['name']} must match the reference system");
         }
-
-        $this->assertSame(1, $differs);
 
         $database = Database::connect();
 
@@ -114,17 +136,103 @@ class ItemTest extends CIUnitTestCase
         $database->table('items')->where('item_id', $itemId)->delete();
     }
 
-    public function testChangeCostPrice_ValuesStockAtAverageCostWhileTheReferenceSystemValuesItFromMovements(): void
+    public function testApplyPurchaseCost_WeighsTheStockOnHandAndKeepsTheRoundingToTheEnd(): void
     {
-        bcscale(4);
+        $items  = model(Item::class);
+        $stock  = model(Item_quantity::class);
+        $itemId = $this->createTestItem();
 
-        $case = ParityFixture::cases('T-05', 'valuation')['valuation-after-p3'][0];
+        $stock->save_value(['item_id' => $itemId, 'location_id' => 1, 'quantity' => 3], $itemId, 1);
+        $items->applyPurchaseCost($itemId, '4', '10.00', '1.00');
 
-        $value = bcmul((string) $case['inputs']['stock'], $case['inputs']['average_cost']);
+        $this->assertSame('6.14', bcadd((string) $items->get_info($itemId)->cost_price, '0', 2), 'Three units at 1.00 and four at 10.00 average 43/7 = 6.142857, kept at two decimals');
+    }
 
-        $this->assertSame(bcadd($case['expected']['value'], '0', 4), $value);
-        $this->assertSame('6.0000', bcsub($value, $case['reference']['value']));
-        $this->assertSame('differs', $case['classification']);
+    public function testApplyPurchaseCost_TakesTheCostOfTheNewUnitsWhenNoStockIsOnHand(): void
+    {
+        $items  = model(Item::class);
+        $stock  = model(Item_quantity::class);
+        $itemId = $this->createTestItem();
+
+        $stock->save_value(['item_id' => $itemId, 'location_id' => 1, 'quantity' => -4], $itemId, 1);
+        $items->applyPurchaseCost($itemId, '10', '7.50', '99.00');
+
+        $this->assertSame('7.50', bcadd((string) $items->get_info($itemId)->cost_price, '0', 2));
+
+        $stock->save_value(['item_id' => $itemId, 'location_id' => 1, 'quantity' => 0], $itemId, 1);
+        $items->applyPurchaseCost($itemId, '2', '9.00', '7.50');
+
+        $this->assertSame('9.00', bcadd((string) $items->get_info($itemId)->cost_price, '0', 2));
+    }
+
+    public function testDelete_TakesTheStockOffTheBooksAndLogsItForTheLocation(): void
+    {
+        [$itemId] = $this->twoItemsInTheBooks();
+
+        $this->assertTrue(model(Item::class)->delete($itemId));
+
+        $log = $this->accountingDb()->table('inventory')->where('trans_items', $itemId)->where('trans_comment', lang('Items.is_deleted'))->get()->getResult();
+
+        $this->assertCount(1, $log);
+        $this->assertSame('-10.000', (string) $log[0]->trans_inventory);
+        $this->assertSame('0.00', $this->stockOf($itemId)['value']);
+        $this->assertSame(1, $this->accountingDb()->table('accounting_journals')->where('source_type', 'stock_adjustment')->where('source_id', $log[0]->trans_id)->countAllResults());
+        $this->assertStockTies();
+    }
+
+    public function testDelete_RefusedByTheBooksLeavesTheItemItsStockAndItsLog(): void
+    {
+        [$itemId] = $this->twoItemsInTheBooks();
+        $this->closeThrough(date('Y-m-d'));
+        $items = model(Item::class);
+
+        $this->assertFalse($items->delete($itemId));
+
+        $this->assertSame(0, (int) $items->get_info($itemId)->deleted);
+        $this->assertSame('10.000', $this->onHand($itemId));
+        $this->assertSame(0, $this->accountingDb()->table('inventory')->where('trans_items', $itemId)->where('trans_comment', lang('Items.is_deleted'))->countAllResults());
+        $this->assertNotNull($items->accountingFailure());
+    }
+
+    public function testDeleteList_PostsEveryItemAndTiesToTheLedger(): void
+    {
+        [$first, $second] = $this->twoItemsInTheBooks();
+
+        $this->assertTrue(model(Item::class)->delete_list([$first, $second]));
+
+        $this->assertSame('0.000', $this->onHand($first));
+        $this->assertSame('0.000', $this->onHand($second));
+        $this->assertSame(2, $this->accountingDb()->table('accounting_journals')->where('source_type', 'stock_adjustment')->countAllResults());
+        $this->assertStockTies();
+    }
+
+    public function testDeleteList_RefusedByTheBooksTakesNoItemAndLeavesNoLog(): void
+    {
+        [$first, $second] = $this->twoItemsInTheBooks();
+        $this->closeThrough(date('Y-m-d'));
+        $items = model(Item::class);
+
+        $this->assertFalse($items->delete_list([$first, $second]));
+
+        $this->assertSame(0, (int) $items->get_info($first)->deleted);
+        $this->assertSame(0, (int) $items->get_info($second)->deleted);
+        $this->assertSame('10.000', $this->onHand($first));
+        $this->assertSame('10.000', $this->onHand($second));
+        $this->assertSame(0, $this->accountingDb()->table('inventory')->where('trans_comment', lang('Items.is_deleted'))->whereIn('trans_items', [$first, $second])->countAllResults());
+    }
+
+    public function testDeleteList_KeepsNoBooksWhileAccountingIsOff(): void
+    {
+        $this->startBuying();
+        session()->set('person_id', $this->employeeId);
+        $itemId = $this->item('5.00');
+        $this->setConfigValue('accounting_enabled', '0');
+        model(Item_quantity::class)->save_value(['item_id' => $itemId, 'location_id' => 1, 'quantity' => 3], $itemId, 1);
+
+        $this->assertTrue(model(Item::class)->delete_list([$itemId]));
+
+        $this->assertSame(0, $this->countRows('accounting_journals'));
+        $this->assertSame('0.000', $this->onHand($itemId));
     }
 
     public function testSuggestionsColumnValidationRejectsSQLInjection(): void

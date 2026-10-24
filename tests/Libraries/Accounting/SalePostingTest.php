@@ -824,6 +824,121 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame('0.00', $this->balance($this->stockAccount()));
     }
 
+    public function testSaveValue_RefusesAReturnOfMoreThanTheSaleBroughtAndLeavesNothingOfIt(): void
+    {
+        $item    = $this->item('60.00');
+        $invoice = $this->save([$this->line($item, 0, '5', '100', '60.00')]);
+        $sales   = $this->countSales();
+        $stock   = $this->stock($item);
+        $entries = $this->countRows('accounting_stock_entries');
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save([$this->line($item, 0, '-6', '100', '60.00')], [], [], SALE_TYPE_RETURN, -1, true, $invoice));
+
+        $this->assertSame(PostingError::SaleReturnExceedsOrigin, $this->failure()->error);
+        $this->assertSame('5.000', $this->failure()->context['max']);
+        $this->assertSame($sales, $this->countSales());
+        $this->assertSame($entries, $this->countRows('accounting_stock_entries'));
+        $this->assertEqualsWithDelta($stock, $this->stock($item), 0.0001);
+        $this->assertSame('500.00', $this->balance($this->customerAccount()));
+    }
+
+    public function testSaveValue_AllowsAReturnOfExactlyWhatTheSaleBrought(): void
+    {
+        $item    = $this->item('60.00');
+        $invoice = $this->save([$this->line($item, 0, '5', '100', '60.00')]);
+
+        $this->assertGreaterThan(0, $this->save([$this->line($item, 0, '-5', '100', '60.00')], [], [], SALE_TYPE_RETURN, -1, true, $invoice));
+    }
+
+    public function testSaveValue_CountsWhatEarlierReturnsGaveBackAgainstTheSale(): void
+    {
+        $item    = $this->item('60.00');
+        $invoice = $this->save([$this->line($item, 0, '5', '100', '60.00')]);
+
+        $this->assertGreaterThan(0, $this->save([$this->line($item, 0, '-3', '100', '60.00')], [], [], SALE_TYPE_RETURN, -1, true, $invoice));
+        $this->assertSame(ACCOUNTING_FAILED, $this->save([$this->line($item, 0, '-3', '100', '60.00')], [], [], SALE_TYPE_RETURN, -1, true, $invoice));
+        $this->assertSame(PostingError::SaleReturnExceedsOrigin, $this->failure()->error);
+        $this->assertSame('2.000', $this->failure()->context['max']);
+        $this->assertGreaterThan(0, $this->save([$this->line($item, 0, '-2', '100', '60.00')], [], [], SALE_TYPE_RETURN, -1, true, $invoice));
+        $this->assertSame('0.00', $this->balance($this->customerAccount()));
+    }
+
+    public function testSaveValue_AReturnTheBooksRefuseLeavesNoStockMovementOfItsOwn(): void
+    {
+        $item    = $this->item('60.00');
+        $invoice = $this->save([$this->line($item, 0, '5', '100', '60.00')]);
+        $entries = $this->countRows('accounting_stock_entries');
+
+        $this->closeThrough(date('Y-m-d'));
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save([$this->line($item, 0, '-2', '100', '60.00')], [], [], SALE_TYPE_RETURN, -1, true, $invoice));
+        $this->assertSame($entries, $this->countRows('accounting_stock_entries'));
+    }
+
+    public function testSaveValue_ReturnsFromTwoRequestsAtTheSameMomentGiveBackNoMoreThanTheSaleBrought(): void
+    {
+        $item    = $this->item('60.00');
+        $invoice = $this->save([$this->line($item, 0, '5', '100', '60.00')], [], [$this->payment(lang('Sales.cash'), '500.00')], SALE_TYPE_POS, null);
+        $stock   = $this->stock($item);
+        $cash    = lang('Sales.cash');
+
+        $arguments = [$invoice, $item, '-3', '60.00', '100', 0, $this->employeeId, $cash, '-300.00'];
+
+        [$first, $second] = $this->raceTwoProcesses('returnSale', $arguments, $arguments);
+
+        $this->assertSame(1, (int) $first + (int) $second, 'Of two returns of 3 against a sale of 5, one is taken and the other refused');
+
+        $returns = $this->accountingDb()->table('sales')->where('return_of_sale_id', $invoice)->get()->getResult();
+
+        foreach ($returns as $return) {
+            $this->saleIds[] = (int) $return->sale_id;
+        }
+
+        $this->assertCount(1, $returns);
+        $this->assertEqualsWithDelta($stock + 3, $this->stock($item), 0.0001);
+        $this->assertSame('200.00', $this->balance($this->accountId('cash')));
+        $this->assertSame('-120.00', $this->balance($this->stockAccount()));
+    }
+
+    public function testSaveValue_RecordsTheStockMovementsOfTheCostAndTiesToTheInventoryAccount(): void
+    {
+        $item = $this->item('60.00');
+        $this->assertGreaterThan(0, $this->save([$this->line($item, 0, '5', '100', '60.00')]));
+
+        $entries = $this->accountingDb()->table('accounting_stock_entries')->where('item_id', $item)->where('source_type', 'sale')->get()->getResult();
+
+        $this->assertCount(1, $entries);
+        $this->assertSame('-5.000', $entries[0]->quantity);
+        $this->assertSame('-300.0000', $entries[0]->value);
+        $this->assertSame('posting', $entries[0]->kind);
+        $this->assertSame('-300.00', $this->balance($this->stockAccount()));
+    }
+
+    public function testDelete_TakesTheStockMovementsOfTheCostBackWithTheJournal(): void
+    {
+        $item   = $this->item('60.00');
+        $saleId = $this->save([$this->line($item, 0, '5', '100', '60.00')], [], [$this->payment(lang('Sales.cash'), '500.00')], SALE_TYPE_POS);
+
+        $this->assertTrue($this->sales->delete($saleId, false, true, $this->employeeId));
+
+        $kinds = array_column($this->accountingDb()->table('accounting_stock_entries')->select('kind')->where('item_id', $item)->where('source_id', $saleId)->orderBy('kind', 'ASC')->get()->getResultArray(), 'kind');
+
+        $this->assertSame(['posting', 'reversal'], $kinds);
+        $this->assertSame('0.00', $this->balance($this->stockAccount()));
+    }
+
+    public function testConfirmDelivery_RecordsTheStockMovementsOnlyWhenTheGoodsLeave(): void
+    {
+        $item   = $this->item('60.00');
+        $saleId = $this->save([$this->line($item, 0, '5', '100', '60.00')], [], [], SALE_TYPE_INVOICE, -1, false);
+
+        $this->assertSame(0, $this->accountingDb()->table('accounting_stock_entries')->where('source_id', $saleId)->where('item_id', $item)->countAllResults());
+
+        $this->assertGreaterThan(0, $this->sales->confirm_delivery($saleId, $this->employeeId));
+
+        $this->assertSame(1, $this->accountingDb()->table('accounting_stock_entries')->where('source_id', $saleId)->where('item_id', $item)->where('source_type', 'sale')->countAllResults());
+    }
+
     public function testConfirmDelivery_TwoRequestsAtTheSameTimeTakeTheStockAndPostTheCostOnce(): void
     {
         $cycle  = $this->referenceInvoice();

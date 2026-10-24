@@ -2,6 +2,9 @@
 
 namespace App\Models;
 
+use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\PostingException;
+use App\Libraries\Accounting\StockAdjustment;
 use CodeIgniter\Database\RawSql;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Model;
@@ -9,6 +12,7 @@ use Config\OSPOS;
 use DateTime;
 use ReflectionException;
 use stdClass;
+use Throwable;
 
 /**
  * Item class
@@ -18,9 +22,10 @@ use stdClass;
  */
 class Item extends Model
 {
-
     public const ALLOWED_SUGGESTIONS_COLUMNS = ['name', 'item_number', 'description', 'cost_price', 'unit_price'];
     public const ALLOWED_SUGGESTIONS_COLUMNS_WITH_EMPTY = ['', 'name', 'item_number', 'description', 'cost_price', 'unit_price'];
+
+    private ?Throwable $accountingFailure = null;
 
     /**
      * Sentinel posted by the bulk edit form to clear supplier_id, since an empty
@@ -849,6 +854,9 @@ class Item extends Model
         $this->db->transStart();
 
         // Set to 0 quantities
+        $inventory = model(Inventory::class);
+        $removed   = $inventory->resetRows($item_id);
+
         $item_quantity = model(Item_quantity::class);
         $item_quantity->reset_quantity($item_id);
 
@@ -856,14 +864,47 @@ class Item extends Model
         $builder->where('item_id', $item_id);
         $success = $builder->update(['deleted' => 1]);
 
-        $inventory = model(Inventory::class);
-        $success &= $inventory->reset_quantity($item_id);
+        $success &= $removed !== false && $this->postStockRemoved($item_id, $removed);
+
+        if (! $success) {
+            $this->db->transRollback();
+
+            return false;
+        }
 
         $this->db->transComplete();
 
-        $success &= $this->db->transStatus();
+        return (bool) ($success & $this->db->transStatus());
+    }
 
-        return $success;
+    /**
+     * Posts the stock an item took with it when it was deleted, when accounting is on.
+     *
+     * @param list<array{inventory_id: int, location_id: int, change: string}> $removed
+     */
+    private function postStockRemoved(int $itemId, array $removed): bool
+    {
+        $employeeId = (int) (model(Employee::class)->get_logged_in_employee_info()->person_id ?? 0);
+
+        foreach ($removed as $row) {
+            try {
+                (new StockAdjustment($this->db))->post($itemId, $row['location_id'], $row['change'], $employeeId > 0 ? $employeeId : null, $row['inventory_id']);
+            } catch (AccountingException|PostingException $failure) {
+                $this->accountingFailure = $failure;
+
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Why the books refused the last change of the stock of an item, or null when they did not.
+     */
+    public function accountingFailure(): ?Throwable
+    {
+        return $this->accountingFailure;
     }
 
     /**
@@ -886,6 +927,21 @@ class Item extends Model
         $this->db->transStart();
 
         // Set to 0 quantities
+        $inventory = model(Inventory::class);
+        $removed   = [];
+
+        foreach ($item_ids as $item_id) {
+            $rows = $inventory->resetRows((int) $item_id);
+
+            if ($rows === false) {
+                $this->db->transRollback();
+
+                return false;
+            }
+
+            $removed[(int) $item_id] = $rows;
+        }
+
         $item_quantity = model(Item_quantity::class);
         $item_quantity->reset_quantity_list($item_ids);
 
@@ -893,10 +949,12 @@ class Item extends Model
         $builder->whereIn('item_id', $item_ids);
         $success = $builder->update(['deleted' => 1]);
 
-        $inventory = model(Inventory::class);
+        foreach ($removed as $itemId => $rows) {
+            if (! $this->postStockRemoved($itemId, $rows)) {
+                $this->db->transRollback();
 
-        foreach ($item_ids as $item_id) {
-            $success &= $inventory->reset_quantity($item_id);
+                return false;
+            }
         }
 
         $this->db->transComplete();
@@ -1430,24 +1488,41 @@ class Item extends Model
      */
     public function change_cost_price(int $item_id, float $items_received, float $new_price, ?float $old_price = null): bool
     {
-        if ($old_price === null) {
-            $item_info = $this->get_info($item_id);
-            $old_price = $item_info->cost_price;
-        }
+        return $this->applyPurchaseCost($item_id, sprintf('%.3F', $items_received), sprintf('%.8F', $new_price), $old_price === null ? null : sprintf('%.8F', $old_price));
+    }
+
+    /**
+     * Brings the cost an item carries to the weighted average of the stock it has and the units
+     * just bought, at what those units cost. When there is no stock to weigh, because there is
+     * none or it is owed, the cost is what the new units cost. The average is worked out to
+     * eight decimals and kept at the decimals of the cost column, rounded once. Nothing else
+     * moves the cost: a sale, a return and a transfer leave it as it is.
+     *
+     * Must run before the stock of the purchase is added, and while the item is locked, or two
+     * purchases of the same item would each average with the stock the other found.
+     *
+     * @param numeric-string      $unitsReceived
+     * @param numeric-string      $unitCost
+     * @param numeric-string|null $oldCost
+     */
+    public function applyPurchaseCost(int $itemId, string $unitsReceived, string $unitCost, ?string $oldCost = null): bool
+    {
+        $oldCost ??= (string) $this->get_info($itemId)->cost_price;
 
         $builder = $this->db->table('item_quantities');
         $builder->selectSum('quantity');
-        $builder->where('item_id', $item_id);
+        $builder->where('item_id', $itemId);
         $builder->join('stock_locations', 'stock_locations.location_id=item_quantities.location_id');
         $builder->where('stock_locations.deleted', 0);
-        $old_total_quantity = $builder->get()->getRow()->quantity;
+        $onHand = (string) ($builder->get()->getRow()->quantity ?? '0');
 
-        $total_quantity = $old_total_quantity + $items_received;
-        $average_price = bcdiv(bcadd(bcmul((string)$items_received, (string)$new_price), bcmul((string)$old_total_quantity, (string)$old_price)), (string)$total_quantity);
+        $average = bccomp($onHand, '0', 3) <= 0 || bccomp(bcadd($onHand, $unitsReceived, 3), '0', 3) <= 0
+            ? bcadd($unitCost, '0', 8)
+            : bcdiv(bcadd(bcmul($unitsReceived, $unitCost, 8), bcmul($onHand, $oldCost, 8), 8), bcadd($onHand, $unitsReceived, 3), 8);
 
-        $data = ['cost_price' => $average_price];
+        $data = ['cost_price' => $average];
 
-        return $this->save_value($data, $item_id);
+        return $this->save_value($data, $itemId);
     }
 
     /**

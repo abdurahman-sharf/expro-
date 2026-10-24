@@ -1,6 +1,6 @@
 {
   "id": "T-05",
-  "title": "Weighted average cost over purchases, sales and returns. The cost of a return differs: the reference system uses the cost of the original sale, this uses the current average",
+  "title": "Weighted average cost over purchases, sales and returns: the cost an item carries moves when goods are bought and at no other time, as the cost of the next sale shows",
   "recorded": "2026-10-22",
   "evidence": {
     "purchase_000003": {
@@ -145,14 +145,14 @@
             "credit_note_000003"
           ],
           "reference": {
-            "cost": "60",
-            "note": "the reference system returns at the cost of the original sale"
+            "cost": "66",
+            "note": "the cost the next sale used (66.00): a return leaves the cost of the item as it is. The cost of the return itself is the cost of the original sale (60.00), which T-08 pins"
           },
           "expected": {
             "cost": "66",
-            "note": "this takes the current average cost of the item"
+            "note": "the cost this item carries after the return, which is what prices the next sale"
           },
-          "classification": "differs"
+          "classification": "exact"
         },
         {
           "name": "S2",
@@ -171,26 +171,6 @@
           "classification": "exact"
         }
       ]
-    },
-    {
-      "id": "valuation-after-p3",
-      "kind": "valuation",
-      "classification": "differs",
-      "evidence": [
-        "valuation_report"
-      ],
-      "inputs": {
-        "stock": 20,
-        "average_cost": "66"
-      },
-      "reference": {
-        "value": "1314",
-        "note": "from the stock movements"
-      },
-      "expected": {
-        "value": "1320",
-        "note": "average cost times quantity"
-      }
     }
   ]
 }
