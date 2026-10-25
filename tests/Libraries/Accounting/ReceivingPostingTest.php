@@ -248,15 +248,29 @@ class ReceivingPostingTest extends CIUnitTestCase
         $this->assertStockTies();
     }
 
-    public function testPostCompleted_TakesAFixedDiscountOffTheLine(): void
+    public function testPostCompleted_TakesAFixedDiscountOffEachUnit(): void
     {
         $itemId = $this->item('0.00');
 
-        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '50', '0', '20', FIXED)]);
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '50', '0', '2', FIXED)]);
 
         $this->assertGreaterThan(0, $receivingId);
         $this->assertSame($this->expectedLines([['inventory', '480.00', '0.00'], ['supplier', '0.00', '480.00']]), $this->standingPurchase($receivingId)[0]['lines']);
         $this->assertSame('48.0000', $this->itemCostOf($itemId));
+    }
+
+    public function testCreateTempTable_TakesAFixedDiscountOffEachUnit(): void
+    {
+        $itemId = $this->item('0.00');
+
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '50', '0', '2', FIXED)]);
+
+        $this->purchases->create_temp_table(['receiving_id' => $receivingId]);
+
+        $row = $this->accountingDb()->table('receivings_items_temp')->get()->getRow();
+
+        $this->assertSame('480.0000', bcadd((string) $row->total, '0', 4));
+        $this->assertSame('480.0000', bcadd((string) $row->subtotal, '0', 4));
     }
 
     public function testPostCompleted_CountsThePacksOfALineAsTheUnitsInThem(): void
@@ -378,7 +392,7 @@ class ReceivingPostingTest extends CIUnitTestCase
         $this->accountingDb()->table('item_quantities')->insert(['item_id' => $itemId, 'location_id' => self::LOCATION_ID, 'quantity' => '3']);
 
         $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($itemId, 0, '4', '10')]));
-        $this->assertSame('6.1400', $this->itemCostOf($itemId), '43/7 = 6.142857, which the cost column keeps at two decimals');
+        $this->assertSame('6.142857', $this->exactCostOf($itemId), '43/7 = 6.142857142, which the cost column keeps at six decimals');
     }
 
     public function testSaveValue_AveragesWhateverTheSettingSaysWhileTheBooksAreOn(): void
@@ -1325,8 +1339,8 @@ class ReceivingPostingTest extends CIUnitTestCase
     }
 
     /**
-     * Fixture T-14: 3 units bought at 100 and 4 at 50, all 7 sold at the line cost the screen keeps,
-     * 2 more sold with none left, then 5 bought at 80.
+     * Fixture T-14: 3 units bought at 100 and 4 at 50, all 7 sold, 2 more sold with none left, then
+     * 5 bought at 80. The line carries the average the item carries, 71.428571.
      *
      * @return array<string, string>
      */
@@ -1337,7 +1351,7 @@ class ReceivingPostingTest extends CIUnitTestCase
         $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($item, 0, '3', '100', '15')]));
         $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($item, 0, '4', '50', '15')]));
 
-        $average = bcadd($this->itemCostOf($item), '0', 2);
+        $average = $this->exactCostOf($item);
         $all     = $this->save([$this->line($item, 0, '7', '200', $average)]);
         $two     = $this->save([$this->line($item, 0, '2', '200', $average)]);
 
@@ -1350,33 +1364,33 @@ class ReceivingPostingTest extends CIUnitTestCase
         $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($item, 0, '5', '80', '15')]));
 
         return [
-            'average_cost'   => $average,
+            'average_cost'   => number_format((float) $average, 2, '.', ''),
             'cost_of_all'    => $costAll,
             'cost_of_two'    => $costTwo,
-            'item_cost_last' => bcadd($this->itemCostOf($item), '0', 2),
+            'item_cost_last' => number_format((float) $this->exactCostOf($item), 2, '.', ''),
             'quantity_last'  => $this->onHand($item),
-            'value_last'     => bcadd($this->stockOf($item)['value'], '0', 4),
+            'value_last'     => (new StockLedger())->position($item, self::LOCATION_ID)['value'],
         ];
     }
 
-    public function testSaveValue_CostsASaleOfTheWholeStockAtTheRoundedLineCostOneHalalaAboveTheReferenceSystem(): void
+    public function testSaveValue_CostsASaleOfTheWholeStockAtTheExactAverageAsTheReferenceSystemDoes(): void
     {
-        $case = $this->parityCase('T-14', 'cost', 'cogs-of-all-7-units-sold', 'one_halala');
+        $case = $this->parityCase('T-14', 'cost', 'cogs-of-all-7-units-sold', 'exact');
         $made = $this->costSequence();
 
         $this->assertSame($case['expected']['average_cost'], $made['average_cost']);
         $this->assertSame($case['expected']['cost_journal'], $made['cost_of_all']);
-        $this->assertSame('0.0100', bcsub($made['cost_of_all'], $case['reference']['cost_journal'], 4), 'One halala above the 500.00 the reference system books');
+        $this->assertSame($case['reference']['cost_journal'], $made['cost_of_all']);
     }
 
-    public function testSaveValue_KeepsTheCostOfASaleWithNoStockToTwoDecimalsWhereTheReferenceSystemKeepsFour(): void
+    public function testSaveValue_CostsASaleWithNoStockAtTheAverageTheLastUnitsWentOutAtAsTheReferenceSystemDoes(): void
     {
-        $case = $this->parityCase('T-14', 'cost', 'cogs-of-2-units-sold-with-no-stock-left', 'differs');
+        $case = $this->parityCase('T-14', 'cost', 'cogs-of-2-units-sold-with-no-stock-left', 'exact');
         $made = $this->costSequence();
 
         $this->assertSame($case['expected']['cost_journal'], $made['cost_of_two']);
-        $this->assertSame($case['expected']['shown_as'], bcadd($made['cost_of_two'], '0', 2));
-        $this->assertSame($case['reference']['shown_as'], bcadd($made['cost_of_two'], '0', 2), 'Shown the same, stored differently');
+        $this->assertSame($case['reference']['cost_journal'], $made['cost_of_two']);
+        $this->assertSame($case['reference']['shown_as'], number_format((float) $made['cost_of_two'], 2, '.', ''), 'Shown the same and stored the same');
     }
 
     public function testSaveValue_GivesUnitsBoughtAfterNegativeStockTheirOwnCostAsTheReferenceSystemDoes(): void
@@ -1388,12 +1402,56 @@ class ReceivingPostingTest extends CIUnitTestCase
         $this->assertSame($case['expected']['quantity'], $made['quantity_last']);
     }
 
-    public function testSaveValue_ValuesTheStockAfterTheSequenceOneRoundingOffTheReferenceSystem(): void
+    public function testSaveValue_ValuesTheStockAfterTheSequenceAsTheReferenceSystemDoes(): void
     {
-        $case = $this->parityCase('T-14', 'cost', 'stock-value-in-the-books-after-the-sequence', 'differs');
+        $case = $this->parityCase('T-14', 'cost', 'stock-value-in-the-books-after-the-sequence', 'exact');
         $made = $this->costSequence();
 
         $this->assertSame($case['expected']['value_of_3_units'], $made['value_last']);
+        $this->assertSame($case['reference']['value_of_3_units'], $made['value_last']);
+    }
+
+    private function sevenUnitsAtAnAverageThatDoesNotEnd(): int
+    {
+        $item = $this->item('100.00');
+
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($item, 0, '3', '100')]));
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($item, 0, '4', '50')]));
+        $this->assertSame('71.428571', $this->exactCostOf($item));
+
+        return $item;
+    }
+
+    public function testSaveValue_LeavesNoRoundingInTheStockWhenTheWholeStockIsSold(): void
+    {
+        $item = $this->sevenUnitsAtAnAverageThatDoesNotEnd();
+        $sale = $this->save([$this->line($item, 0, '7', '200', $this->exactCostOf($item))]);
+
+        $this->assertGreaterThan(0, $sale);
+        $this->assertSame(['quantity' => '0.000', 'value' => '0.0000'], (new StockLedger())->position($item, self::LOCATION_ID));
+        $this->assertStockTies();
+    }
+
+    public function testSaveValue_KeepsTheCostOfALineAtTheSixDecimalsTheItemCarries(): void
+    {
+        $item = $this->sevenUnitsAtAnAverageThatDoesNotEnd();
+        $sale = $this->save([$this->line($item, 0, '3', '200', $this->exactCostOf($item))]);
+
+        $this->assertGreaterThan(0, $sale);
+        $this->assertSame('71.428571', (string) $this->accountingDb()->table('sales_items')->where(['sale_id' => $sale, 'item_id' => $item])->get()->getRow()->item_cost_price);
+        $this->assertSame('214.2857', $this->costOfSale($sale), '3 units at 71.428571 come to 214.285713');
+    }
+
+    public function testSaveValue_TakesAWholeSaleBackAtExactlyWhatItTookOut(): void
+    {
+        $item   = $this->sevenUnitsAtAnAverageThatDoesNotEnd();
+        $sale   = $this->save([$this->line($item, 0, '7', '200', $this->exactCostOf($item))]);
+        $return = $this->save([$this->line($item, 0, '-7', '200', $this->exactCostOf($item))], [], [], SALE_TYPE_RETURN, -1, true, $sale);
+
+        $this->assertGreaterThan(0, $return);
+        $this->assertSame($this->costOfSale($sale), $this->costOfSale($return));
+        $this->assertSame(['quantity' => '7.000', 'value' => '500.0000'], (new StockLedger())->position($item, self::LOCATION_ID));
+        $this->assertStockTies();
     }
 
     /**
@@ -1475,9 +1533,9 @@ class ReceivingPostingTest extends CIUnitTestCase
         $this->assertSame($case['expected']['unit_cost'], bcadd($this->itemCostOf($item), '0', 4));
     }
 
-    public function testSaveValue_TakesAFixedLineDiscountOffTheWholeLineWhereTheReferenceSystemTakesItOffEachUnit(): void
+    public function testSaveValue_TakesAFixedLineDiscountOffEachUnitAsTheReferenceSystemDoes(): void
     {
-        $case = $this->parityCase('T-16', 'purchase_discount', 'line-discount-fixed-is-taken-off-each-unit', 'differs');
+        $case = $this->parityCase('T-16', 'purchase_discount', 'line-discount-fixed-is-taken-off-each-unit', 'exact');
         $item = $this->item('100.00');
         $id   = $this->buy([$this->purchaseLine($item, 0, '10', '100', '15', '50', FIXED)], -1, lang('Sales.cash'));
 

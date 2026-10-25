@@ -169,6 +169,42 @@ class ItemsControllerTest extends CIUnitTestCase
         $this->assertTrue($result['success']);
     }
 
+    public function testPostSave_KeepsTheCostOfAnItemThatIsPostedAsItWasShown(): void
+    {
+        $employeeId = $this->createItemsEmployee();
+        $this->loginAsItemsEmployee($employeeId);
+
+        $itemId = $this->createTestItem();
+        $this->accountingDb()->table('items')->where('item_id', $itemId)->update(['cost_price' => '71.428571']);
+
+        $postData               = $this->baseItemPostData();
+        $postData['cost_price'] = '71.43';
+        $postData['tax_names']  = ['VAT'];
+
+        $result = json_decode($this->post('/items/save/' . $itemId, $postData)->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('71.428571', (string) $this->accountingDb()->table('items')->where('item_id', $itemId)->get()->getRow()->cost_price);
+    }
+
+    public function testPostSave_TakesACostThatWasChanged(): void
+    {
+        $employeeId = $this->createItemsEmployee();
+        $this->loginAsItemsEmployee($employeeId);
+
+        $itemId = $this->createTestItem();
+        $this->accountingDb()->table('items')->where('item_id', $itemId)->update(['cost_price' => '71.428571']);
+
+        $postData               = $this->baseItemPostData();
+        $postData['cost_price'] = '80.00';
+        $postData['tax_names']  = ['VAT'];
+
+        $result = json_decode($this->post('/items/save/' . $itemId, $postData)->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('80.000000', (string) $this->accountingDb()->table('items')->where('item_id', $itemId)->get()->getRow()->cost_price);
+    }
+
     public function testPostBulkUpdateRejectsMaliciousTaxName(): void
     {
         $employeeId = $this->createItemsEmployee();

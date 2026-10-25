@@ -48,7 +48,7 @@
     {
       "id": "cogs-of-all-7-units-sold",
       "kind": "cost",
-      "classification": "one_halala",
+      "classification": "exact",
       "evidence": [
         "purchase_3_at_100",
         "purchase_4_at_50",
@@ -67,13 +67,13 @@
       },
       "expected": {
         "average_cost": "71.43",
-        "cost_journal": "500.0100"
+        "cost_journal": "500.0000"
       }
     },
     {
       "id": "cogs-of-2-units-sold-with-no-stock-left",
       "kind": "cost",
-      "classification": "differs",
+      "classification": "exact",
       "evidence": [
         "sale_of_2",
         "sale_of_2_raw"
@@ -87,7 +87,7 @@
         "shown_as": "142.86"
       },
       "expected": {
-        "cost_journal": "142.8600",
+        "cost_journal": "142.8571",
         "shown_as": "142.86"
       }
     },
@@ -116,7 +116,7 @@
     {
       "id": "stock-value-in-the-books-after-the-sequence",
       "kind": "cost",
-      "classification": "differs",
+      "classification": "exact",
       "evidence": [
         "purchase_5_at_80",
         "sale_of_7_raw",
@@ -129,7 +129,7 @@
         "value_of_3_units": "257.1429"
       },
       "expected": {
-        "value_of_3_units": "257.1300"
+        "value_of_3_units": "257.1429"
       }
     }
   ]

@@ -759,6 +759,21 @@ class Items extends Secure_Controller
     }
 
     /**
+     * The cost an item carries has more decimals than the form shows. A cost posted as it was shown
+     * is not a change, so the cost it was shown from stays as it is.
+     */
+    private function costAsKept(int $itemId, mixed $posted): mixed
+    {
+        $stored = $itemId === NEW_ENTRY ? null : $this->item->get_info($itemId)->cost_price ?? null;
+
+        if (! is_numeric($stored) || ! is_numeric($posted)) {
+            return $posted;
+        }
+
+        return round((float) $stored, totals_decimals()) === round((float) $posted, totals_decimals()) ? $stored : $posted;
+    }
+
+    /**
      * @param int $itemId
      * @return ResponseInterface
      * @throws ReflectionException
@@ -785,7 +800,7 @@ class Items extends Secure_Controller
 
         $defaultPackName = lang('Items.default_pack_name');
 
-        $costPrice = parse_decimals($this->request->getPost('cost_price'));
+        $costPrice = $this->costAsKept($itemId, parse_decimals($this->request->getPost('cost_price')));
         $unitPrice = parse_decimals($this->request->getPost('unit_price'));
         $reorderLevel = parse_quantity($this->request->getPost('reorder_level'));
         $qtyPerPack = parse_quantity($this->request->getPost('qty_per_pack') ?? '');

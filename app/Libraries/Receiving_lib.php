@@ -437,7 +437,7 @@ class Receiving_lib
     {
         $extended_quantity = bcmul($quantity, $receiving_quantity);
         $total             = bcmul($extended_quantity, $price);
-        $discount_amount   = $discount;
+        $discount_amount   = bcmul($extended_quantity, $discount);
 
         if ($discount_type == PERCENT) {    // TODO: === ?
             $discount_fraction = bcdiv($discount, 100);

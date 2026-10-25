@@ -204,7 +204,15 @@ trait PurchaseAccountingFixtureTrait
 
     protected function itemCostOf(int $itemId): string
     {
-        return bcadd((string) $this->accountingDb()->table('items')->select('cost_price')->where('item_id', $itemId)->get()->getRow()->cost_price, '0', 4);
+        return bcadd($this->exactCostOf($itemId), '0', 4);
+    }
+
+    /**
+     * The cost an item carries to every decimal it is kept at.
+     */
+    protected function exactCostOf(int $itemId): string
+    {
+        return (string) $this->accountingDb()->table('items')->select('cost_price')->where('item_id', $itemId)->get()->getRow()->cost_price;
     }
 
     /**

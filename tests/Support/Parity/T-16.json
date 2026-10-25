@@ -62,7 +62,7 @@
     {
       "id": "line-discount-fixed-is-taken-off-each-unit",
       "kind": "purchase_discount",
-      "classification": "differs",
+      "classification": "exact",
       "evidence": [
         "line_discount_fixed",
         "line_discount_fixed_journal"
@@ -79,10 +79,10 @@
         "unit_cost": "50.0000"
       },
       "expected": {
-        "inventory": "950.00",
-        "input_tax": "142.50",
-        "supplier": "1092.50",
-        "unit_cost": "95.0000"
+        "inventory": "500.00",
+        "input_tax": "75.00",
+        "supplier": "575.00",
+        "unit_cost": "50.0000"
       }
     },
     {

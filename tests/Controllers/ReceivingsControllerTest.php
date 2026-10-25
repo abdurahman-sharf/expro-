@@ -250,6 +250,28 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $this->assertSame('15', (string) session()->get('recv_cart')[1]['tax_percent']);
     }
 
+    public function testPostEditItem_TakesAFixedDiscountOffEachUnitOfTheLine(): void
+    {
+        $itemId = $this->item('0.00');
+        $this->loginAs($this->buyer(), $this->cart([$this->cartLine($itemId, 1, '10', '100', '15')]));
+
+        $this->post('/receivings/editItem/1', ['price' => '100', 'quantity' => '10', 'discount' => '50', 'receiving_quantity' => '1', 'tax_percent' => '15', 'description' => 'x', 'discount_type' => '1'])->assertStatus(200);
+
+        $this->assertSame('500.00', bcadd((string) session()->get('recv_cart')[1]['total'], '0', 2));
+    }
+
+    public function testGetIndex_ShowsTheTotalTheCartHoldsForALineWithAFixedDiscount(): void
+    {
+        $itemId = $this->item('0.00');
+        $line   = array_merge($this->cartLine($itemId, 1, '10', '100'), ['discount' => '50', 'discount_type' => 1, 'total' => '500.0000']);
+        $this->loginAs($this->buyer(), $this->cart([$line]));
+
+        $response = $this->get('/receivings');
+
+        $response->assertSee(to_currency('500'));
+        $response->assertDontSee(to_currency('950'));
+    }
+
     public function testGetIndex_ShowsTheTaxAndTheTotalWithTax(): void
     {
         $itemId = $this->item('0.00');

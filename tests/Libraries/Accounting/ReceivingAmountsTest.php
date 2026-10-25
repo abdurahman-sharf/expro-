@@ -9,8 +9,8 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * The amounts of a purchase line by the rules of the purchase screen: units times price, less a
- * discount that is a percentage of that or a fixed amount for the whole line, and the tax on what
- * is left. Every amount is positive, whichever way the goods go.
+ * discount that is a percentage of that or a fixed amount taken from every unit, and the tax on
+ * what is left. Every amount is positive, whichever way the goods go.
  */
 class ReceivingAmountsTest extends CIUnitTestCase
 {
@@ -25,15 +25,17 @@ class ReceivingAmountsTest extends CIUnitTestCase
     public static function lines(): array
     {
         return [
-            'plain'                       => [self::line('20', '40'), '800.0000', '0.0000', '800.0000', '0.0000'],
-            'with tax'                    => [self::line('10', '120', tax: '15'), '1200.0000', '0.0000', '1200.0000', '180.0000'],
-            'percent discount'            => [self::line('10', '100', '10', tax: '15'), '1000.0000', '100.0000', '900.0000', '135.0000'],
-            'fixed discount for the line' => [self::line('10', '100', '50', FIXED), '1000.0000', '50.0000', '950.0000', '0.0000'],
-            'packs'                       => [self::line('3', '2.50', perPack: '12'), '90.0000', '0.0000', '90.0000', '0.0000'],
-            'a return counts positive'    => [self::line('-2', '70', tax: '15'), '140.0000', '0.0000', '140.0000', '21.0000'],
-            'tax kept unrounded'          => [self::line('1', '0.70', tax: '15'), '0.7000', '0.0000', '0.7000', '0.1050'],
-            'discount above the line'     => [self::line('1', '10', '50', FIXED), '10.0000', '50.0000', '0.0000', '0.0000'],
-            'a pack of zero is one unit'  => [self::line('4', '5', perPack: '0'), '20.0000', '0.0000', '20.0000', '0.0000'],
+            'plain'                      => [self::line('20', '40'), '800.0000', '0.0000', '800.0000', '0.0000'],
+            'with tax'                   => [self::line('10', '120', tax: '15'), '1200.0000', '0.0000', '1200.0000', '180.0000'],
+            'percent discount'           => [self::line('10', '100', '10', tax: '15'), '1000.0000', '100.0000', '900.0000', '135.0000'],
+            'fixed discount per unit'    => [self::line('10', '100', '50', FIXED, tax: '15'), '1000.0000', '500.0000', '500.0000', '75.0000'],
+            'fixed discount of packs'    => [self::line('2', '5', '1', FIXED, perPack: '12'), '120.0000', '24.0000', '96.0000', '0.0000'],
+            'packs'                      => [self::line('3', '2.50', perPack: '12'), '90.0000', '0.0000', '90.0000', '0.0000'],
+            'a return counts positive'   => [self::line('-2', '70', tax: '15'), '140.0000', '0.0000', '140.0000', '21.0000'],
+            'tax kept unrounded'         => [self::line('1', '0.70', tax: '15'), '0.7000', '0.0000', '0.7000', '0.1050'],
+            'discount above the line'    => [self::line('1', '10', '50', FIXED), '10.0000', '50.0000', '0.0000', '0.0000'],
+            'a return takes the same'    => [self::line('-4', '10', '1', FIXED), '40.0000', '4.0000', '36.0000', '0.0000'],
+            'a pack of zero is one unit' => [self::line('4', '5', perPack: '0'), '20.0000', '0.0000', '20.0000', '0.0000'],
         ];
     }
 

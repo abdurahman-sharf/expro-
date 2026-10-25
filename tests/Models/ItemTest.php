@@ -145,7 +145,7 @@ class ItemTest extends CIUnitTestCase
         $stock->save_value(['item_id' => $itemId, 'location_id' => 1, 'quantity' => 3], $itemId, 1);
         $items->applyPurchaseCost($itemId, '4', '10.00', '1.00');
 
-        $this->assertSame('6.14', bcadd((string) $items->get_info($itemId)->cost_price, '0', 2), 'Three units at 1.00 and four at 10.00 average 43/7 = 6.142857, kept at two decimals');
+        $this->assertSame('6.142857', (string) $items->get_info($itemId)->cost_price, 'Three units at 1.00 and four at 10.00 average 43/7 = 6.142857142, kept at six decimals');
     }
 
     public function testApplyPurchaseCost_TakesTheCostOfTheNewUnitsWhenNoStockIsOnHand(): void

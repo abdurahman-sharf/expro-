@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\Accounting\SaleAmounts;
 use App\Libraries\Accounting\StockAdjustment;
 use CodeIgniter\Database\RawSql;
 use CodeIgniter\Database\ResultInterface;
@@ -1495,7 +1496,7 @@ class Item extends Model
      * Brings the cost an item carries to the weighted average of the stock it has and the units
      * just bought, at what those units cost. When there is no stock to weigh, because there is
      * none or it is owed, the cost is what the new units cost. The average is worked out to
-     * eight decimals and kept at the decimals of the cost column, rounded once. Nothing else
+     * eight decimals and kept at the six of the cost column, rounded once. Nothing else
      * moves the cost: a sale, a return and a transfer leave it as it is.
      *
      * Must run before the stock of the purchase is added, and while the item is locked, or two
@@ -1520,7 +1521,7 @@ class Item extends Model
             ? bcadd($unitCost, '0', 8)
             : bcdiv(bcadd(bcmul($unitsReceived, $unitCost, 8), bcmul($onHand, $oldCost, 8), 8), bcadd($onHand, $unitsReceived, 3), 8);
 
-        $data = ['cost_price' => $average];
+        $data = ['cost_price' => SaleAmounts::round($average, 6)];
 
         return $this->save_value($data, $itemId);
     }

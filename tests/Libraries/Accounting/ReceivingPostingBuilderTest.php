@@ -192,11 +192,11 @@ class ReceivingPostingBuilderTest extends CIUnitTestCase
         $this->assertSame(['1:' . $this->warehouse . ':10.000:900.0000'], $this->movements($plan->movements));
     }
 
-    public function testPurchase_TakesAFixedDiscountOffTheLineAndNotOffEachUnit(): void
+    public function testPurchase_TakesAFixedDiscountOffEachUnit(): void
     {
         $plan = $this->builder->purchase($this->purchase([$this->line('10', '100', '0', '50', FIXED)]), 1);
 
-        $this->assertSame(['1:' . $this->warehouse . ':10.000:950.0000'], $this->movements($plan->movements));
+        $this->assertSame(['1:' . $this->warehouse . ':10.000:500.0000'], $this->movements($plan->movements));
     }
 
     public function testPurchase_CountsThePacksOfALineAsTheUnitsInThem(): void

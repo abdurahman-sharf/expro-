@@ -173,7 +173,7 @@ $hasCart     = count($cart) > 0;
                             </div>
 
                             <div class="cart-field cart-total" data-label="<?= lang("{$sectionName}.total") ?>">
-                                <span class="num"><?= to_currency(($item['discount_type'] == PERCENT) ? $item['price'] * $item['quantity'] * $item['receiving_quantity'] - $item['price'] * $item['quantity'] * $item['receiving_quantity'] * $item['discount'] / 100 : $item['price'] * $item['quantity'] * $item['receiving_quantity'] - $item['discount']) ?></span>
+                                <span class="num"><?= to_currency($item['total']) ?></span>
                             </div>
 
                             <div class="cart-actions">

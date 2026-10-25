@@ -523,7 +523,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame('1', (string) $this->saleRow($saleId)->delivered);
         $this->assertEqualsWithDelta($stock - 4, $this->stock($cycle['cream']), 0.0001);
         $this->assertEqualsWithDelta($perfume - 2, $this->stock($cycle['perfume']), 0.0001);
-        $this->assertSame('45.00', $this->accountingDb()->table('sales_items')->where(['sale_id' => $saleId, 'item_id' => $cycle['cream']])->get()->getRow()->item_cost_price);
+        $this->assertSame('45.000000', $this->accountingDb()->table('sales_items')->where(['sale_id' => $saleId, 'item_id' => $cycle['cream']])->get()->getRow()->item_cost_price);
     }
 
     public function testConfirmDelivery_ConfirmingAgainChangesNothing(): void
@@ -565,7 +565,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame('0', (string) $this->saleRow($saleId)->delivered);
         $this->assertEqualsWithDelta($stock, $this->stock($cycle['cream']), 0.0001);
         $this->assertSame([], $this->standing($saleId, 'cogs'));
-        $this->assertSame('40.00', $this->accountingDb()->table('sales_items')->where(['sale_id' => $saleId, 'item_id' => $cycle['cream']])->get()->getRow()->item_cost_price);
+        $this->assertSame('40.000000', $this->accountingDb()->table('sales_items')->where(['sale_id' => $saleId, 'item_id' => $cycle['cream']])->get()->getRow()->item_cost_price);
     }
 
     public function testDelete_RefusesToCancelAnIssuedInvoiceThatWasNotDeliveredEither(): void
