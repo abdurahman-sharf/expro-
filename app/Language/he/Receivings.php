@@ -83,6 +83,8 @@ return [
     'total'                        => 'סהכ',
     'total_with_tax'               => '',
     'transaction_failed'           => 'פעולת ההחזרה(ות) נכשלה.',
+    'treasury'                     => '',
+    'treasury_default'             => '',
     'unable_to_add_item'           => 'הוספת פריט להחזרה נכשל.',
     'unsuccessfully_updated'       => 'עדכון החזרה נכשל.',
     'update'                       => 'עדכן',

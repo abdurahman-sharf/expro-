@@ -83,6 +83,8 @@ return [
     'total'                        => 'Итог',
     'total_with_tax'               => '',
     'transaction_failed'           => 'Ошибка транзакции закупки.',
+    'treasury'                     => '',
+    'treasury_default'             => '',
     'unable_to_add_item'           => 'Невозможно добавить товар в закупку.',
     'unsuccessfully_updated'       => 'Ошибка при обновлении закупки.',
     'update'                       => 'Обновить',

@@ -1155,6 +1155,53 @@
       "path": "/accounting_routing"
     },
     {
+      "id": "accounting-treasuries",
+      "group": "accounting",
+      "path": "/accounting_treasuries"
+    },
+    {
+      "id": "accounting-treasuries-new-modal",
+      "group": "accounting",
+      "path": "/accounting_treasuries",
+      "steps": [
+        {
+          "click": "#title_bar button[data-href=\"accounting_treasuries/view\"]"
+        },
+        {
+          "waitFor": ".modal-body #treasury_form"
+        },
+        {
+          "pause": 1000
+        }
+      ]
+    },
+    {
+      "id": "accounting-treasury-transfers",
+      "group": "accounting",
+      "path": "/accounting_treasuries/transfers"
+    },
+    {
+      "id": "accounting-treasury-transfer-modal",
+      "group": "accounting",
+      "path": "/accounting_treasuries/transfers",
+      "steps": [
+        {
+          "click": "#title_bar button[data-href=\"accounting_treasuries/transfer_form\"]"
+        },
+        {
+          "waitFor": ".modal-body #transfer_form"
+        },
+        {
+          "pause": 1000
+        }
+      ]
+    },
+    {
+      "id": "accounting-treasury-defaults",
+      "group": "accounting",
+      "path": "/accounting_treasuries/defaults"
+    },
+    {
       "id": "branches",
       "group": "office",
       "path": "/branches"

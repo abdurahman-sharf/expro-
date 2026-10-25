@@ -83,6 +83,8 @@ return [
     'total'                        => '總數量',
     'total_with_tax'               => '',
     'transaction_failed'           => '进货交易失败。',
+    'treasury'                     => '',
+    'treasury_default'             => '',
     'unable_to_add_item'           => '无法新增进货商品。',
     'unsuccessfully_updated'       => '进货记录更新失败。',
     'update'                       => '編輯',

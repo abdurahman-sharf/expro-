@@ -276,6 +276,8 @@ return [
     'total'                             => 'Ukupno',
     'total_tax_exclusive'               => 'Porez isključen',
     'transaction_failed'                => 'Obrada nije ispravna.',
+    'treasury'                          => '',
+    'treasury_default'                  => '',
     'unable_to_add_item'                => 'Dodavanje artikla u rasprodaju nije uspjelo',
     'unsuccessfully_deleted'            => 'Brisanje prodaje nije uspjelo.',
     'unsuccessfully_restored'           => 'Obnova prodaje(a) nije uspjela.',

@@ -276,6 +276,8 @@ return [
     'total'                             => 'Обща сума',
     'total_tax_exclusive'               => 'Без данък',
     'transaction_failed'                => 'Продажната транзакция е неуспешна.',
+    'treasury'                          => '',
+    'treasury_default'                  => '',
     'unable_to_add_item'                => 'Добавянето на продукта към продажбата не бе успешно',
     'unsuccessfully_deleted'            => 'Изтриването на продажба (и) не бе успешно.',
     'unsuccessfully_restored'           => 'Възстановяването на Продажбата (ите) не бе успешна.',

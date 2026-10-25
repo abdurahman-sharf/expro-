@@ -276,6 +276,8 @@ return [
     'total'                             => 'گشتی',
     'total_tax_exclusive'               => 'باج لەخۆناگرێت',
     'transaction_failed'                => 'مامەڵەی فرۆشتن شکستی هێنا.',
+    'treasury'                          => '',
+    'treasury_default'                  => '',
     'unable_to_add_item'                => 'زیادکردنی ئایتم بۆ فرۆشتن شکستی هێنا',
     'unsuccessfully_deleted'            => 'سڕینەوەی فرۆشتن(ەکان) شکستی هێنا.',
     'unsuccessfully_restored'           => 'گەڕاندنەوەی فرۆشتن(ەکان) شکستی هێنا.',

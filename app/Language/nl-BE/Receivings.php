@@ -83,6 +83,8 @@ return [
     'total'                        => 'Totaal',
     'total_with_tax'               => '',
     'transaction_failed'           => 'Order transactie mislukt.',
+    'treasury'                     => '',
+    'treasury_default'             => '',
     'unable_to_add_item'           => 'Onmogelijk om product aan order toe te voegen.',
     'unsuccessfully_updated'       => 'Order kon niet bijgewerkt worden.',
     'update'                       => 'Bewerk',

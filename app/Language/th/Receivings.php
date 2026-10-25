@@ -83,6 +83,8 @@ return [
     'total'                        => 'รวม',
     'total_with_tax'               => '',
     'transaction_failed'           => 'ทำรายการใบรับสินค้าล้มเหลว',
+    'treasury'                     => '',
+    'treasury_default'             => '',
     'unable_to_add_item'           => 'ไม่สามารถเพิ่มสินค้าได้',
     'unsuccessfully_updated'       => 'ทำการปรับปรุง Receiving ไม่ได้',
     'update'                       => 'ปรับปรุง',

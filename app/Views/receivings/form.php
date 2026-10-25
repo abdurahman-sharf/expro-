@@ -12,6 +12,8 @@
  * @var list<object> $payments
  * @var array<string, string> $payment_statuses
  * @var array<string, string> $payment_options
+ * @var array<int, string> $treasury_options
+ * @var array<int, string> $new_treasury_options
  * @var App\Libraries\Accounting\PurchaseFigures|null $payable
  * @var string $credit
  * @var list<object> $applications
@@ -82,9 +84,7 @@
         </div>
 
         <?php if ($takes_payments): ?>
-            <?php $i = 0; ?>
-            <?php foreach ($payments as $row): ?>
-                <?php ++$i; ?>
+            <?php foreach (array_values($payments) as $i => $row): ?>
                 <div class="row mb-3 supplier-payment">
                     <?= form_label(lang('Receivings.payment') . ' #' . (int) $row->payment_id, 'payment_types_' . $i, ['class' => 'col-form-label col-3']) ?>
                     <div class="col-5">
@@ -95,13 +95,18 @@
                         <?= form_input(['name' => 'payment_amount_' . $i, 'value' => to_currency_no_money($row->payment_amount), 'id' => 'payment_amount_' . $i, 'class' => 'form-control form-control-sm', 'aria-label' => lang('Receivings.payment_amount'), 'inputmode' => 'decimal', 'dir' => 'ltr']) ?>
                     </div>
                     <?php if ($payment_statuses !== []): ?>
-                        <div class="col-3 offset-3 mt-2">
+                        <div class="col-5 offset-3 mt-2">
                             <?= form_dropdown('payment_status_' . $i, $payment_statuses, $row->payment_status ?? 'completed', ['id' => 'payment_status_' . $i, 'class' => 'form-select form-select-sm', 'aria-label' => lang('Sales.payment_status')]) ?>
+                        </div>
+                    <?php endif; ?>
+                    <?php if ($treasury_options !== []): ?>
+                        <div class="col-9 offset-3 mt-2">
+                            <?= form_dropdown('treasury_id_' . $i, $treasury_options, (string) ($row->treasury_id ?? 0), ['id' => 'treasury_id_' . $i, 'class' => 'form-select form-select-sm', 'aria-label' => lang('Receivings.treasury')]) ?>
                         </div>
                     <?php endif; ?>
                 </div>
             <?php endforeach; ?>
-            <?= form_hidden('number_of_payments', (string) $i) ?>
+            <?= form_hidden('number_of_payments', (string) count($payments)) ?>
 
             <div class="row mb-3" id="new_supplier_payment">
                 <?= form_label(lang('Receivings.payment_new'), 'payment_types_new', ['class' => 'col-form-label col-3']) ?>
@@ -112,8 +117,13 @@
                     <?= form_input(['name' => 'payment_amount_new', 'value' => $payable === null ? '' : to_currency_no_money($payable->open()), 'id' => 'payment_amount_new', 'class' => 'form-control form-control-sm', 'aria-label' => lang('Receivings.payment_amount'), 'inputmode' => 'decimal', 'dir' => 'ltr']) ?>
                 </div>
                 <?php if ($payment_statuses !== []): ?>
-                    <div class="col-3 offset-3 mt-2">
+                    <div class="col-5 offset-3 mt-2">
                         <?= form_dropdown('payment_status_new', $payment_statuses, 'completed', ['id' => 'payment_status_new', 'class' => 'form-select form-select-sm', 'aria-label' => lang('Sales.payment_status')]) ?>
+                    </div>
+                <?php endif; ?>
+                <?php if ($new_treasury_options !== []): ?>
+                    <div class="col-9 offset-3 mt-2">
+                        <?= form_dropdown('treasury_id_new', $new_treasury_options, '0', ['id' => 'treasury_id_new', 'class' => 'form-select form-select-sm', 'aria-label' => lang('Receivings.treasury')]) ?>
                     </div>
                 <?php endif; ?>
                 <?php if ($payment_statuses !== []): ?>

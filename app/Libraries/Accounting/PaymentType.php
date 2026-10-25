@@ -56,6 +56,15 @@ enum PaymentType: string
     }
 
     /**
+     * Whether money paid this way goes into a treasury: a credit sale settles nothing, a gift
+     * card is a liability and reward points are a discount.
+     */
+    public function usesTreasury(): bool
+    {
+        return ! in_array($this, [self::Due, self::Giftcard, self::Rewards], true);
+    }
+
+    /**
      * The system account a new routing row starts with. Everything that is not cash is treated
      * as cash until the treasuries and bank accounts exist, and reward points are a discount.
      */

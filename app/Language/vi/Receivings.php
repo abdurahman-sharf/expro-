@@ -83,6 +83,8 @@ return [
     'total'                        => 'Tổng cộng',
     'total_with_tax'               => '',
     'transaction_failed'           => 'Nhận các giao dịch gặp lỗi.',
+    'treasury'                     => '',
+    'treasury_default'             => '',
     'unable_to_add_item'           => 'Hàng hóa thêm vào Nhập hàng gặp lỗi.',
     'unsuccessfully_updated'       => 'Gặp lỗi khi cập nhật nhập hàng.',
     'update'                       => 'Cập nhật',

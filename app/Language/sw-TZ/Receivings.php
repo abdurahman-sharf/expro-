@@ -84,6 +84,8 @@ return [
     'total'                        => 'Jumla',
     'total_with_tax'               => '',
     'transaction_failed'           => 'Muamala wa Manunuzi umeshindikana.',
+    'treasury'                     => '',
+    'treasury_default'             => '',
     'unable_to_add_item'           => 'Kuongeza bidhaa kwenye Manunuzi kimeshindikana.',
     'unsuccessfully_updated'       => 'Kusasisha Manunuzi kimeshindikana.',
     'update'                       => 'Sasisha',

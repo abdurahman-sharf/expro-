@@ -276,6 +276,8 @@ return [
     'total'                             => 'Total',
     'total_tax_exclusive'               => 'Tax excluded',
     'transaction_failed'                => 'Sales Transaction failed.',
+    'treasury'                          => '',
+    'treasury_default'                  => '',
     'unable_to_add_item'                => 'Item add to Sale failed',
     'unsuccessfully_deleted'            => 'Sale(s) delete failed.',
     'unsuccessfully_restored'           => 'Sale(s) restore failed.',

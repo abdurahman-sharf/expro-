@@ -43,6 +43,7 @@ trait AccountingFixtureTrait
         foreach ([
             'customer_credit_applications',
             'supplier_credit_applications',
+            'treasury_transfers',
             'accounting_stock_entries',
             'accounting_allocations',
             'accounting_journal_lines',
@@ -55,11 +56,32 @@ trait AccountingFixtureTrait
             $db->table($table)->truncate();
         }
 
+        $this->removeTreasuries();
         $db->query('SET FOREIGN_KEY_CHECKS = 1');
         $db->table('accounting_sequences')->where('series', 'manual')->update(['last_number' => 0]);
 
         $this->resetBranches();
         $this->installFiscalYears();
+    }
+
+    /**
+     * Takes the treasuries a test made out of the books: the accounts opened for them, and the main
+     * treasury's hold on the account every payment goes to, so the next test starts without one.
+     */
+    private function removeTreasuries(): void
+    {
+        $db = $this->accountingDb();
+
+        $db->table('employees')->update(['default_treasury_id' => null]);
+        $db->table('treasuries')->truncate();
+        $db->table('accounting_accounts')->where('entity_type', 'treasury')->where('system_key IS NULL', null, false)->delete();
+        $db->table('accounting_accounts')->where('entity_type', 'treasury')->update(['entity_type' => null, 'entity_id' => null]);
+
+        $parent = $db->table('accounting_accounts')->select('account_id')->where('system_key', 'treasuries')->get()->getRow();
+
+        if ($parent !== null) {
+            $db->table('accounting_sequences')->where('series', 'sub:' . $parent->account_id)->delete();
+        }
     }
 
     /**

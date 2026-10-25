@@ -83,6 +83,8 @@ return [
     'total'                        => 'جمع',
     'total_with_tax'               => '',
     'transaction_failed'           => 'معامله دریافت ها ناموفق بود.',
+    'treasury'                     => '',
+    'treasury_default'             => '',
     'unable_to_add_item'           => 'افزودن مورد به دریافت نشد.',
     'unsuccessfully_updated'       => 'دریافت به روزرسانی انجام نشد.',
     'update'                       => 'به روز رسانی',

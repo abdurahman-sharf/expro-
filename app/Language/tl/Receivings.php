@@ -83,6 +83,8 @@ return [
     'total'                        => 'Total',
     'total_with_tax'               => '',
     'transaction_failed'           => 'Receivings transaction(s) failed.',
+    'treasury'                     => '',
+    'treasury_default'             => '',
     'unable_to_add_item'           => 'Item add to Receiving failed.',
     'unsuccessfully_updated'       => 'Receiving update failed.',
     'update'                       => 'Update',

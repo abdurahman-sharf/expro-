@@ -83,6 +83,8 @@ return [
     'total'                        => 'Total',
     'total_with_tax'               => '',
     'transaction_failed'           => 'Recebimentos Transações Falharam.',
+    'treasury'                     => '',
+    'treasury_default'             => '',
     'unable_to_add_item'           => 'Não é possível adicionar item para recebimento.',
     'unsuccessfully_updated'       => 'Recebimento não atualizado.',
     'update'                       => 'Atualizar',

@@ -83,6 +83,8 @@ return [
     'total'                        => 'Ukupno',
     'total_with_tax'               => '',
     'transaction_failed'           => 'Greška kod transakcije primki',
+    'treasury'                     => '',
+    'treasury_default'             => '',
     'unable_to_add_item'           => 'Ne mogu dodati artikal u primku',
     'unsuccessfully_updated'       => 'Neuspješno ažurirana primka',
     'update'                       => 'Ažuriraj',

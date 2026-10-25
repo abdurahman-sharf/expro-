@@ -17,6 +17,8 @@ return [
     'accounting_routing_desc'      => '',
     'accounting_settings'          => '',
     'accounting_settings_desc'     => '',
+    'accounting_treasuries'        => '',
+    'accounting_treasuries_desc'   => '',
     'admin_cashups'                => '',
     'admin_cashups_desc'           => '',
     'attributes'                   => 'Atributos',

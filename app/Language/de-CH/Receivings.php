@@ -83,6 +83,8 @@ return [
     'total'                        => 'Total',
     'total_with_tax'               => '',
     'transaction_failed'           => 'Eingangstransaktion fehlerhaft',
+    'treasury'                     => '',
+    'treasury_default'             => '',
     'unable_to_add_item'           => 'Kann Artikel nicht zum Eingang hinzufügen',
     'unsuccessfully_updated'       => 'Eingang nicht erfolgreich geändert',
     'update'                       => 'Ändern',

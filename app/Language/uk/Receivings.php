@@ -83,6 +83,8 @@ return [
     'total'                        => 'Сума',
     'total_with_tax'               => '',
     'transaction_failed'           => 'Помилка отримання транзакції.',
+    'treasury'                     => '',
+    'treasury_default'             => '',
     'unable_to_add_item'           => 'Неможливо додати товар на отримання.',
     'unsuccessfully_updated'       => 'Помилка отримання оновлення.',
     'update'                       => 'Редагувати',

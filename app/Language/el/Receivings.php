@@ -83,6 +83,8 @@ return [
     'total'                        => 'Σύνολο',
     'total_with_tax'               => '',
     'transaction_failed'           => 'Συναλλαγές παραλαβής/ων ανεπιτυχής.',
+    'treasury'                     => '',
+    'treasury_default'             => '',
     'unable_to_add_item'           => 'Ανεπιτυχής προσθήκη Είδους στην Παραλαβή.',
     'unsuccessfully_updated'       => 'Ανεπιτυχής ενημέρωση Παραλαβής.',
     'update'                       => 'Ενημέρωση',

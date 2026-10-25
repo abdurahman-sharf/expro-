@@ -83,6 +83,8 @@ return [
     'total'                        => 'Toplam',
     'total_with_tax'               => '',
     'transaction_failed'           => 'Alım İşlemi Hatası.',
+    'treasury'                     => '',
+    'treasury_default'             => '',
     'unable_to_add_item'           => 'Ürünler alıma eklenemedi.',
     'unsuccessfully_updated'       => 'Alım güncellenemedi.',
     'update'                       => 'Düzenle',

@@ -8,6 +8,8 @@ use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\ReceivingPosting;
 use App\Libraries\Accounting\StockLedger;
+use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\Organization\BranchGuard;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -271,6 +273,91 @@ class ReceivingPostingTest extends CIUnitTestCase
 
         $this->assertSame('480.0000', bcadd((string) $row->total, '0', 4));
         $this->assertSame('480.0000', bcadd((string) $row->subtotal, '0', 4));
+    }
+
+    /**
+     * A treasury the employee who buys works from.
+     */
+    private function drawerOfTheBuyer(): int
+    {
+        $this->accountingDb()->table('grants')->insert(['person_id' => $this->employeeId, 'permission_id' => BranchGuard::ALL_BRANCHES, 'menu_group' => 'home']);
+
+        $treasuries = new TreasuryService();
+        $drawer     = $treasuries->create(['name' => 'Buyer drawer', 'kind' => 'cash']);
+
+        $treasuries->setDefaultFor($this->employeeId, $drawer);
+
+        return $drawer;
+    }
+
+    public function testPostCompleted_PaysAPurchaseMadeAtOnceFromTheTreasuryTheBuyerWorksFrom(): void
+    {
+        $drawer = $this->drawerOfTheBuyer();
+        $itemId = $this->item('0.00');
+        $id     = $this->buy([$this->purchaseLine($itemId, 0, '2', '50')], -1, lang('Sales.cash'));
+        $stored = $this->accountingDb()->table('receivings')->where('receiving_id', $id)->get()->getRow();
+        $paid   = array_values(array_filter($this->purchaseJournals($id), static fn (array $journal): bool => $journal['source'] === 'purchase_payment'))[0];
+
+        $this->assertSame($drawer, (int) $stored->treasury_id);
+        $this->assertSame([$this->supplierAccount() . ':100.00:0.00', (new TreasuryService())->accountOf($drawer) . ':0.00:100.00'], $paid['lines']);
+        $this->assertSame('-100.0000', (new TreasuryService())->position($drawer)->balance);
+        $this->assertStockTies();
+    }
+
+    public function testPostCompleted_PaysAPurchaseMadeAtOnceFromTheAccountOfItsTypeWhenTheBuyerHasNoTreasury(): void
+    {
+        $itemId = $this->item('0.00');
+        $id     = $this->buy([$this->purchaseLine($itemId, 0, '2', '50')], -1, lang('Sales.cash'));
+
+        $this->assertNull($this->accountingDb()->table('receivings')->where('receiving_id', $id)->get()->getRow()->treasury_id);
+        $this->assertSame('-100.00', $this->balance($this->accountId('cash')));
+    }
+
+    public function testPostCompleted_PutsNoTreasuryOnAPurchaseLeftOnCredit(): void
+    {
+        $this->drawerOfTheBuyer();
+
+        $itemId = $this->item('0.00');
+        $id     = $this->buy([$this->purchaseLine($itemId, 0, '2', '50')]);
+
+        $this->assertNull($this->accountingDb()->table('receivings')->where('receiving_id', $id)->get()->getRow()->treasury_id);
+    }
+
+    public function testUpdate_PaysASupplierFromTheTreasuryTheBuyerWorksFromAndFromAnotherOneWhenItIsNamed(): void
+    {
+        $treasuries = new TreasuryService();
+        $drawer     = $this->drawerOfTheBuyer();
+        $bank       = $treasuries->create(['name' => 'Gulf Bank', 'kind' => 'bank']);
+        $itemId     = $this->item('0.00');
+        $id         = $this->buy([$this->purchaseLine($itemId, 0, '4', '50')]);
+        $first      = $this->payPurchase($id, '60.00');
+
+        $this->assertTrue($this->purchases->update($id, ['comment' => 'bank', 'payments' => [
+            ['payment_id' => NEW_ENTRY, 'payment_type' => lang('Sales.bank_transfer'), 'payment_amount' => '40.00', 'employee_id' => $this->employeeId, 'payment_status' => 'completed', 'reference_code' => '', 'treasury_id' => $bank],
+        ]]));
+
+        $payments = $this->accountingDb()->table('receivings_payments')->where('receiving_id', $id)->orderBy('payment_id', 'ASC')->get()->getResult();
+
+        $this->assertSame([$drawer, $bank], array_map(static fn (object $payment): int => (int) $payment->treasury_id, $payments));
+        $this->assertSame('-60.0000', $treasuries->position($drawer)->balance);
+        $this->assertSame('-40.0000', $treasuries->position($bank)->balance);
+        $this->assertSame('0.00', $this->balance($this->accountId('cash')));
+        $this->assertGreaterThan(0, $first);
+    }
+
+    public function testUpdate_MovesASupplierPaymentToAnotherTreasuryByReversingAndPostingItAgain(): void
+    {
+        $treasuries = new TreasuryService();
+        $bank       = $treasuries->create(['name' => 'Gulf Bank', 'kind' => 'bank']);
+        $itemId     = $this->item('0.00');
+        $id         = $this->buy([$this->purchaseLine($itemId, 0, '4', '50')]);
+        $paymentId  = $this->payPurchase($id, '60.00');
+
+        $this->assertSame('-60.00', $this->balance($this->accountId('cash')));
+        $this->assertTrue($this->changePayment($id, $paymentId, ['treasury_id' => $bank]));
+        $this->assertSame('0.00', $this->balance($this->accountId('cash')));
+        $this->assertSame('-60.0000', $treasuries->position($bank)->balance);
+        $this->assertSame(['reversed', 'posted'], array_map(static fn (object $journal): string => $journal->status, $this->paymentJournals($paymentId)));
     }
 
     public function testPostCompleted_CountsThePacksOfALineAsTheUnitsInThem(): void

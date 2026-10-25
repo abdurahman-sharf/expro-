@@ -276,6 +276,8 @@ return [
     'total'                             => 'Toplam',
     'total_tax_exclusive'               => 'Vergi hariç',
     'transaction_failed'                => 'Satış işlemi hatası.',
+    'treasury'                          => '',
+    'treasury_default'                  => '',
     'unable_to_add_item'                => 'Ürün satışa eklenemedi',
     'unsuccessfully_deleted'            => 'Satış silinemedi.',
     'unsuccessfully_restored'           => 'Satış onarılamadı.',

@@ -58,7 +58,7 @@ final class ReceivingPostingBuilder
             return null;
         }
 
-        $account = $this->paymentAccount($purchase->paymentType);
+        $account = $this->paymentAccount($purchase->paymentType, $purchase->treasuryId);
 
         if ($account === null) {
             return null;
@@ -111,7 +111,7 @@ final class ReceivingPostingBuilder
             throw new PostingException(PostingError::SupplierRequired, 'A payment to a supplier needs the purchase to have a supplier.', ['receiving_id' => $purchase->receivingId]);
         }
 
-        $account = $this->paymentAccount($payment->type);
+        $account = $this->paymentAccount($payment->type, $payment->treasuryId);
 
         if ($account === null) {
             throw new PostingException(PostingError::PaymentTypeUnknown, "The payment type {$payment->type} is not one a supplier can be paid with.", ['payment_type' => $payment->type]);
@@ -432,7 +432,7 @@ final class ReceivingPostingBuilder
             return $this->required(RoutingKey::Suppliers, $purchase->supplierId);
         }
 
-        $account = $this->paymentAccount($purchase->paymentType);
+        $account = $this->paymentAccount($purchase->paymentType, $purchase->treasuryId);
 
         if ($account === null) {
             throw new PostingException(PostingError::SupplierRequired, 'A purchase that is not paid at once needs a supplier to owe it.');
@@ -442,11 +442,12 @@ final class ReceivingPostingBuilder
     }
 
     /**
-     * The account a purchase is paid from, or null when it is left on credit.
+     * The account a purchase is paid from, or null when it is left on credit: the account of the
+     * treasury it was paid from, and without one the account of the way it was paid.
      *
      * @throws PostingException
      */
-    private function paymentAccount(?string $label): ?int
+    private function paymentAccount(?string $label, ?int $treasuryId = null): ?int
     {
         if ($label === null) {
             return null;
@@ -456,6 +457,10 @@ final class ReceivingPostingBuilder
 
         if ($type === null || $type === PaymentType::Giftcard || $type === PaymentType::Rewards) {
             throw new PostingException(PostingError::PaymentTypeUnknown, "The payment type {$label} is not one a purchase can be paid with.", ['payment_type' => $label]);
+        }
+
+        if ($treasuryId !== null && $type->usesTreasury()) {
+            return $this->resolver->accountFor(RoutingKey::Treasuries, $treasuryId);
         }
 
         return $this->resolver->accountForPayment($type);

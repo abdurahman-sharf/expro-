@@ -276,6 +276,8 @@ return [
     'total'                             => 'ยอดรวม',
     'total_tax_exclusive'               => 'ยอดไม่รวมภาษี',
     'transaction_failed'                => 'การดำเนินการขายล้มเหลว',
+    'treasury'                          => '',
+    'treasury_default'                  => '',
     'unable_to_add_item'                => 'เพิ่มรายการไปยังการขายล้มเหลว',
     'unsuccessfully_deleted'            => 'ลบการขายไม่สำเร็จ',
     'unsuccessfully_restored'           => 'การคืนค่ารายการขายล้มเหลว',

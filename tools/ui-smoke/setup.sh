@@ -50,6 +50,9 @@ $MYSQL "$DB_NAME" < "$HERE/seed-stock-differences.sql"
 echo "Posting the opening stock through the UI"
 node "$HERE/seed-opening-stock.mjs"
 
+echo "Adding treasuries and a transfer through the UI"
+node "$HERE/seed-treasuries.mjs"
+
 echo "Recording journals"
 node "$HERE/seed-journals.mjs"
 

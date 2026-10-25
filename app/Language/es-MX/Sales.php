@@ -276,6 +276,8 @@ return [
     'total'                             => 'Total',
     'total_tax_exclusive'               => 'Sin impuesto',
     'transaction_failed'                => 'Ha fallado la venta.',
+    'treasury'                          => '',
+    'treasury_default'                  => '',
     'unable_to_add_item'                => 'Falló al agregar artículos para venta',
     'unsuccessfully_deleted'            => 'La eliminación de venta falló.',
     'unsuccessfully_restored'           => 'La restauración de la venta falló.',

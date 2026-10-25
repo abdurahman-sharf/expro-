@@ -83,6 +83,8 @@ return [
     'total'                        => 'Totalt',
     'total_with_tax'               => '',
     'transaction_failed'           => 'Mottagande transaktioner misslyckades.',
+    'treasury'                     => '',
+    'treasury_default'             => '',
     'unable_to_add_item'           => 'Artikel tillägg i Mottagning misslyckades.',
     'unsuccessfully_updated'       => 'Mottagning uppdateringen misslyckades.',
     'update'                       => 'Uppdatera',

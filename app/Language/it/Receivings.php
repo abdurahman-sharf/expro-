@@ -83,6 +83,8 @@ return [
     'total'                        => 'Totale',
     'total_with_tax'               => '',
     'transaction_failed'           => 'Transazione di Ricezione fallita.',
+    'treasury'                     => '',
+    'treasury_default'             => '',
     'unable_to_add_item'           => 'Fallita aggiunta dell\'elemento alla Ricezione.',
     'unsuccessfully_updated'       => 'Fallito aggiornamento Ricezione.',
     'update'                       => 'Aggiorna',

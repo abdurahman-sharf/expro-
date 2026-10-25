@@ -81,6 +81,30 @@ $routes->group('accounting_payables', static function (RouteCollection $routes):
     $routes->get('supplier/(:num)', 'AccountingPayables::getSupplier/$1');
 });
 
+$routes->group('accounting_treasuries', static function (RouteCollection $routes): void {
+    $routes->get('/', 'AccountingTreasuries::getIndex');
+    $routes->get('search', 'AccountingTreasuries::getSearch');
+    $routes->get('row/(:num)', 'AccountingTreasuries::getRow/$1');
+    $routes->get('view', 'AccountingTreasuries::getView');
+    $routes->get('view/(:segment)', 'AccountingTreasuries::getView/$1');
+    $routes->post('save', 'AccountingTreasuries::postSave');
+    $routes->post('save/(:segment)', 'AccountingTreasuries::postSave/$1');
+    $routes->post('deactivate/(:num)', 'AccountingTreasuries::postDeactivate/$1');
+    $routes->post('activate/(:num)', 'AccountingTreasuries::postActivate/$1');
+    $routes->post('delete/(:num)', 'AccountingTreasuries::postDeleteTreasury/$1');
+
+    $routes->get('transfers', 'AccountingTreasuries::getTransfers');
+    $routes->get('transfers/search', 'AccountingTreasuries::getTransfersSearch');
+    $routes->get('transfers/row/(:num)', 'AccountingTreasuries::getTransferRow/$1');
+    $routes->get('transfer_form', 'AccountingTreasuries::getTransferForm');
+    $routes->post('transfer', 'AccountingTreasuries::postTransfer');
+    $routes->get('cancel_transfer_form/(:num)', 'AccountingTreasuries::getCancelTransferForm/$1');
+    $routes->post('cancel_transfer/(:num)', 'AccountingTreasuries::postCancelTransfer/$1');
+
+    $routes->get('defaults', 'AccountingTreasuries::getDefaults');
+    $routes->post('default/(:num)', 'AccountingTreasuries::postDefault/$1');
+});
+
 $routes->group('accounting_periods', static function (RouteCollection $routes): void {
     $routes->get('/', 'AccountingPeriods::getIndex');
     $routes->get('search', 'AccountingPeriods::getSearch');

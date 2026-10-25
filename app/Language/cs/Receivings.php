@@ -83,6 +83,8 @@ return [
     'total'                        => 'Celkem',
     'total_with_tax'               => '',
     'transaction_failed'           => 'Zpracování příjmu neproběhlo.',
+    'treasury'                     => '',
+    'treasury_default'             => '',
     'unable_to_add_item'           => 'Vložení položky do příjemky se nezdařilo.',
     'unsuccessfully_updated'       => 'Změna příjemky se nezdařila.',
     'update'                       => 'Upravit',

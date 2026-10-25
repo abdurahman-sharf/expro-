@@ -276,6 +276,8 @@ return [
     'total'                             => 'جمع',
     'total_tax_exclusive'               => 'پرداخت مالیات',
     'transaction_failed'                => 'معاملات معامله نشد.',
+    'treasury'                          => '',
+    'treasury_default'                  => '',
     'unable_to_add_item'                => 'افزودن مورد به فروش انجام نشد',
     'unsuccessfully_deleted'            => 'حذف (فروش) انجام نشد.',
     'unsuccessfully_restored'           => 'بازگرداندن فروش (ها) انجام نشد.',

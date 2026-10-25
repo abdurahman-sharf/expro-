@@ -83,6 +83,8 @@ return [
     'total'                        => '',
     'total_with_tax'               => '',
     'transaction_failed'           => '',
+    'treasury'                     => '',
+    'treasury_default'             => '',
     'unable_to_add_item'           => '',
     'unsuccessfully_updated'       => '',
     'update'                       => '',

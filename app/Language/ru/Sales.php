@@ -276,6 +276,8 @@ return [
     'total'                             => 'Итог',
     'total_tax_exclusive'               => 'Без налога',
     'transaction_failed'                => 'Ошибка транзакции продажи.',
+    'treasury'                          => '',
+    'treasury_default'                  => '',
     'unable_to_add_item'                => 'Не удалось добавить товар в продажу',
     'unsuccessfully_deleted'            => 'Продажу(и) удалить не удалось.',
     'unsuccessfully_restored'           => 'Не удалось восстановить продажу(и).',

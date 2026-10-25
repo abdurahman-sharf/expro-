@@ -7,10 +7,12 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\CustomerLock;
 use App\Libraries\Accounting\PaymentStatus;
+use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\ReturnLimit;
 use App\Libraries\Accounting\SalePosting;
+use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Organization\BranchGuard;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\ResultInterface;
@@ -634,6 +636,7 @@ class Sale extends Model
                             'employee_id'     => $employee_id,
                             'reference_code'  => $payment['reference_code'] ?? '',
                             'payment_status'  => PaymentStatus::fromStored($payment['payment_status'] ?? null)->value,
+                            'treasury_id'     => $this->treasuryOfPayment($payment, $employee_id === null ? null : (int) $employee_id, (int) $this->getBranchId((int) $sale_id)),
                         ];
                         $success = $builder->insert($sales_payments_data);
                     } elseif ($payment_id != NEW_ENTRY) {
@@ -648,6 +651,10 @@ class Sale extends Model
 
                             if (isset($payment['payment_status']) && PaymentStatus::tryFrom((string) $payment['payment_status']) !== null) {
                                 $sales_payments_data['payment_status'] = $payment['payment_status'];
+                            }
+
+                            if (array_key_exists('treasury_id', $payment)) {
+                                $sales_payments_data['treasury_id'] = $this->namedTreasury($payment, (int) $this->getBranchId((int) $sale_id));
                             }
 
                             $builder->where('payment_id', $payment_id);
@@ -672,6 +679,50 @@ class Sale extends Model
         $this->db->transComplete();
 
         return (bool) $success && $this->db->transStatus();
+    }
+
+    /**
+     * The treasury a payment goes into: the one it names, or else the treasury its employee works
+     * from when it belongs to the branch of the sale. A payment that settles nothing in cash, or
+     * has no such treasury, goes to the account of its type as it always did.
+     *
+     * @param array<string, mixed> $payment
+     */
+    private function treasuryOfPayment(array $payment, ?int $employeeId, int $branchId): ?int
+    {
+        $type = PaymentType::fromLabel((string) ($payment['payment_type'] ?? ''));
+
+        if ($type === null || ! $type->usesTreasury() || ! empty($payment['cash_adjustment'])) {
+            return null;
+        }
+
+        $treasuries = new TreasuryService($this->db);
+
+        if ((int) ($payment['treasury_id'] ?? 0) > 0) {
+            $treasuries->assertForBranch((int) $payment['treasury_id'], $branchId);
+
+            return (int) $payment['treasury_id'];
+        }
+
+        return $treasuries->stampFor($employeeId, $branchId);
+    }
+
+    /**
+     * The treasury an existing payment is moved to, or none for one that goes where its type does.
+     *
+     * @param array<string, mixed> $payment
+     */
+    private function namedTreasury(array $payment, int $branchId): ?int
+    {
+        $treasuryId = (int) ($payment['treasury_id'] ?? 0);
+
+        if ($treasuryId <= 0) {
+            return null;
+        }
+
+        (new TreasuryService($this->db))->assertForBranch($treasuryId, $branchId);
+
+        return $treasuryId;
     }
 
     /**
@@ -838,6 +889,7 @@ class Sale extends Model
                 'cash_adjustment' => $payment['cash_adjustment'],
                 'employee_id'     => $employeeId,
                 'reference_code'  => $payment['reference_code'] ?? '',
+                'treasury_id'     => $this->treasuryOfPayment($payment, $employeeId === null ? null : (int) $employeeId, (int) $salesData['branch_id']),
             ];
 
             $builder = $this->db->table('sales_payments');

@@ -276,6 +276,8 @@ return [
     'total'                             => 'Total',
     'total_tax_exclusive'               => 'Total exkl. MWSt.',
     'transaction_failed'                => 'Verarbeitung fehlerhaft',
+    'treasury'                          => '',
+    'treasury_default'                  => '',
     'unable_to_add_item'                => 'Kann Artikel nicht zum Auftrag hinzufügen',
     'unsuccessfully_deleted'            => 'Löschung nicht erfolgreich',
     'unsuccessfully_restored'           => '',

@@ -83,6 +83,8 @@ return [
     'total'                        => 'Összesen',
     'total_with_tax'               => '',
     'transaction_failed'           => 'Átvételi tranzakció sikertelen',
+    'treasury'                     => '',
+    'treasury_default'             => '',
     'unable_to_add_item'           => 'Nem sikerült terméket hozzáadni',
     'unsuccessfully_updated'       => 'Átvétel sikertelenül módositva',
     'update'                       => 'Módosít',

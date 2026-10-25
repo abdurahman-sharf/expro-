@@ -276,6 +276,8 @@ return [
     'total'                             => '總計',
     'total_tax_exclusive'               => 'Tax excluded',
     'transaction_failed'                => '銷售交易失敗',
+    'treasury'                          => '',
+    'treasury_default'                  => '',
     'unable_to_add_item'                => '無法增加出售產品',
     'unsuccessfully_deleted'            => '銷售資料刪除失敗',
     'unsuccessfully_restored'           => '',

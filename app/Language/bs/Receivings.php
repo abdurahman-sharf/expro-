@@ -83,6 +83,8 @@ return [
     'total'                        => 'Ukupno',
     'total_with_tax'               => '',
     'transaction_failed'           => 'Transakcija(e) prijema nije uspela.',
+    'treasury'                     => '',
+    'treasury_default'             => '',
     'unable_to_add_item'           => 'Dodavanje stavke u prijem nije uspelo.',
     'unsuccessfully_updated'       => 'Ažuriranje ulaza nije uspjelo.',
     'update'                       => 'Ažuriraj',

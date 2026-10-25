@@ -22,6 +22,8 @@
  * @var list<object>|null $applications
  * @var string|null $credit_note_help
  * @var array<string, string> $payment_statuses
+ * @var array<int, string> $treasury_options
+ * @var array<int, string> $new_treasury_options
  */
 ?>
 
@@ -75,6 +77,14 @@
                     </div>
                 </div>
             </div>
+            <?php if ($new_treasury_options !== []): ?>
+                <div class="row mb-3">
+                    <?= form_label(lang('Sales.treasury'), 'treasury_id_new', ['class' => 'col-form-label col-3']) ?>
+                    <div class="col-8">
+                        <?= form_dropdown('treasury_id_new', $new_treasury_options, '0', ['id' => 'treasury_id_new', 'class' => 'form-select form-select-sm']) ?>
+                    </div>
+                </div>
+            <?php endif; ?>
             <div class="row mb-3 reference-code-input-new d-none">
                 <?= form_label(lang('Sales.reference_code'), 'reference_code_new', ['class' => 'col-form-label col-3']) ?>
                 <div class="col-8">
@@ -140,6 +150,15 @@
                     <?= form_label(lang('Sales.payment_status') . ' #' . (int) $row->payment_id, "payment_status_$i", ['class' => 'col-form-label col-3']) ?>
                     <div class="col-8">
                         <?= form_dropdown("payment_status_$i", $payment_statuses, $row->payment_status ?? 'completed', ['id' => "payment_status_$i", 'class' => 'form-select form-select-sm']) ?>
+                    </div>
+                </div>
+            <?php endif; ?>
+
+            <?php if ($treasury_options !== [] && ! empty($row->uses_treasury)): ?>
+                <div class="row mb-3">
+                    <?= form_label(lang('Sales.treasury') . ' #' . (int) $row->payment_id, "treasury_id_$i", ['class' => 'col-form-label col-3']) ?>
+                    <div class="col-8">
+                        <?= form_dropdown("treasury_id_$i", $treasury_options, (string) ($row->treasury_id ?? 0), ['id' => "treasury_id_$i", 'class' => 'form-select form-select-sm']) ?>
                     </div>
                 </div>
             <?php endif; ?>

@@ -199,7 +199,9 @@ final class SalePostingBuilder
                 throw new PostingException(PostingError::PaymentTypeUnknown, "The payment type {$payment->type} is not one posting knows.", ['payment_type' => $payment->type]);
             }
 
-            $account = $this->resolver->accountForPayment($type);
+            $account = $payment->treasuryId !== null && $type->usesTreasury()
+                ? $this->resolver->accountFor(RoutingKey::Treasuries, $payment->treasuryId)
+                : $this->resolver->accountForPayment($type);
 
             if ($account === null) {
                 return null;

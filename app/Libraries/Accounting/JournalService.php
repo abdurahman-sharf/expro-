@@ -253,8 +253,8 @@ final class JournalService
     }
 
     /**
-     * Reverses the journal of a sale or a purchase, or of one of their payments, when the
-     * document is cancelled or a payment changes. Who may do that was decided where the document
+     * Reverses the journal of a sale or a purchase, or of one of their payments, or of a transfer
+     * between treasuries, when the document is cancelled or a payment changes. Who may do that was decided where the document
      * changed, so no permission is asked here and the reversal counts as the system's. A journal
      * of any other source is refused.
      *
@@ -268,6 +268,7 @@ final class JournalService
             ReceivingPostingBuilder::SOURCE_PURCHASE,
             ReceivingPostingBuilder::SOURCE_PAYMENT,
             ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT,
+            TreasuryTransfers::SOURCE,
         ])->countAllResults() > 0;
 
         if (! $isAutomatic) {

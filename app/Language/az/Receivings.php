@@ -83,6 +83,8 @@ return [
     'total'                        => 'Cəm',
     'total_with_tax'               => '',
     'transaction_failed'           => 'Alınan əməliyyatlar uğursuz oldu.',
+    'treasury'                     => '',
+    'treasury_default'             => '',
     'unable_to_add_item'           => 'Qəbul etmək üçün əlavə addım uğursuz oldu.',
     'unsuccessfully_updated'       => 'Yeniləmə alınmadı.',
     'update'                       => 'Yenilə',

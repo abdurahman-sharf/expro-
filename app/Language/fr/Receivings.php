@@ -83,6 +83,8 @@ return [
     'total'                        => 'Total',
     'total_with_tax'               => '',
     'transaction_failed'           => 'Transaction(s) de réception(s) échouée(s).',
+    'treasury'                     => '',
+    'treasury_default'             => '',
     'unable_to_add_item'           => 'Ajout de l\'article à la réception échoué.',
     'unsuccessfully_updated'       => 'Mise à jour de la réception échouée.',
     'update'                       => 'Mise à jour',

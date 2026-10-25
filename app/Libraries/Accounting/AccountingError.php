@@ -99,4 +99,19 @@ enum AccountingError: string
     case SupplierBusy                 = 'supplier_busy';
     case SupplierPaymentNeedsSupplier = 'supplier_payment_needs_supplier';
     case SupplierPaymentNotOnInvoice  = 'supplier_payment_not_on_invoice';
+
+    case TreasuryNotFound    = 'treasury_not_found';
+    case TreasuryInvalidName = 'treasury_invalid_name';
+    case TreasuryInvalidKind = 'treasury_invalid_kind';
+    case TreasuryNameTaken   = 'treasury_name_taken';
+    case TreasuryIsMain      = 'treasury_is_main';
+    case TreasuryHasBalance  = 'treasury_has_balance';
+    case TreasuryInUse       = 'treasury_in_use';
+    case TreasuryInactive    = 'treasury_inactive';
+
+    case TransferNotFound         = 'transfer_not_found';
+    case TransferSameTreasury     = 'transfer_same_treasury';
+    case TransferAmountInvalid    = 'transfer_amount_invalid';
+    case TransferCrossBranch      = 'transfer_cross_branch';
+    case TransferAlreadyCancelled = 'transfer_already_cancelled';
 }

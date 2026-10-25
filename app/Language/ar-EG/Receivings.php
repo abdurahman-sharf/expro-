@@ -83,6 +83,8 @@ return [
     'total'                        => 'الإجمالي',
     'total_with_tax'               => 'الإجمالي بالضريبة',
     'transaction_failed'           => 'حركات الإستلام فشلت.',
+    'treasury'                     => 'الخزينة',
+    'treasury_default'             => 'الخزينة الافتراضية',
     'unable_to_add_item'           => 'غير قادر على إضافة صنف للإستلام.',
     'unsuccessfully_updated'       => 'لم يتم تحديث الإستلام بنجاح.',
     'update'                       => 'تحديث',

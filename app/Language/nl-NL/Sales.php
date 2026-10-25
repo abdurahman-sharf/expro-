@@ -276,6 +276,8 @@ return [
     'total'                             => 'Totaal',
     'total_tax_exclusive'               => 'Belasting uitsluiten',
     'transaction_failed'                => 'Verkooptransactie mislukt.',
+    'treasury'                          => '',
+    'treasury_default'                  => '',
     'unable_to_add_item'                => 'Artikel toevoegen aan verkoop mislukt',
     'unsuccessfully_deleted'            => 'Verko(o)p(en) verwijderen mislukt.',
     'unsuccessfully_restored'           => 'Verko(o)p(en) herstellen mislukt.',

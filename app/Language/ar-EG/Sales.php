@@ -276,6 +276,8 @@ return [
     'total'                             => 'المجموع',
     'total_tax_exclusive'               => 'الإجمالي بدون الضرائب',
     'transaction_failed'                => 'فشل حركة البيع.',
+    'treasury'                          => 'الخزينة',
+    'treasury_default'                  => 'الخزينة الافتراضية',
     'unable_to_add_item'                => 'غير قادر على إضافة صنف لعملية البيع',
     'unsuccessfully_deleted'            => 'لايمكن حذف عملية/عمليات البيع.',
     'unsuccessfully_restored'           => 'فشل في استعادة عملية البيع.',

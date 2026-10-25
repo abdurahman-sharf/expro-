@@ -83,6 +83,8 @@ return [
     'total'                        => 'Total',
     'total_with_tax'               => '',
     'transaction_failed'           => 'Transaksi Pembelian gagal.',
+    'treasury'                     => '',
+    'treasury_default'             => '',
     'unable_to_add_item'           => 'Penambahan Item kedalam Pembelian Barang gagal.',
     'unsuccessfully_updated'       => 'Pembelian barang gagal Diperbaharui.',
     'update'                       => 'Memperbarui',

@@ -83,6 +83,8 @@ return [
     'total'                        => 'گشتی',
     'total_with_tax'               => '',
     'transaction_failed'           => 'مامەڵەی وەرگرتنەکان شکستی هێنا.',
+    'treasury'                     => '',
+    'treasury_default'             => '',
     'unable_to_add_item'           => 'زیادکردنی ئایتم بۆ وەرگرتن شکستی هێنا.',
     'unsuccessfully_updated'       => 'نوێکردنەوەی وەرگرتن شکستی هێنا.',
     'update'                       => 'نوێکردنەوە',

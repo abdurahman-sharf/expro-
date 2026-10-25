@@ -276,6 +276,8 @@ return [
     'total'                             => 'Total',
     'total_tax_exclusive'               => 'Fara taxe',
     'transaction_failed'                => 'Tranzactie nereusita.',
+    'treasury'                          => '',
+    'treasury_default'                  => '',
     'unable_to_add_item'                => 'Adaugare articol la Vanzare nereusita',
     'unsuccessfully_deleted'            => 'Stergere Vanzare(i) nereusita.',
     'unsuccessfully_restored'           => 'Restaurare Vanzare(i) nereusita.',

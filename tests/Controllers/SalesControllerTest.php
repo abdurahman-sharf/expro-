@@ -8,6 +8,7 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use CodeIgniter\Config\Services;
+use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Organization\BranchGuard;
 use App\Models\Employee;
 use Config\Database;
@@ -1365,6 +1366,186 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertTrue($result['success']);
         $this->assertSame('716.50', $this->balance($this->customerAccount()));
         $this->assertSame('100.00', $this->balance($this->accountId('cash')));
+    }
+
+    protected function treasuryOfBranch(string $name, int $branchId = 1): int
+    {
+        return (new TreasuryService())->create(['name' => $name, 'kind' => 'cash', 'branch_id' => $branchId]);
+    }
+
+    /**
+     * The payments are named in English because the form is read in the language of the request
+     * and the English name of a type is known in every language.
+     *
+     * @return array<string, string>
+     */
+    protected function savedPayment(object $row, array $extra = []): array
+    {
+        return [
+            'date'               => date($this->config()['dateformat'] . ' ' . $this->config()['timeformat']),
+            'customer_id'        => (string) $this->customerId,
+            'employee_id'        => (string) $this->employeeId,
+            'comment'            => 'treasury',
+            'number_of_payments' => '1',
+            'payment_id_0'       => (string) $row->payment_id,
+            'payment_type_0'     => 'Cash',
+            'payment_amount_0'   => to_currency_no_money($row->payment_amount),
+            'refund_type_0'      => 'Cash',
+            'refund_amount_0'    => '0.00',
+            'payment_type_new'   => '--',
+            ...$extra,
+        ];
+    }
+
+    public function testGetEdit_OffersTheTreasuriesOfTheBranchWhenThereIsAChoice(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->addPayment($invoice['saleId'], '300.00', 'Cash');
+        $this->treasuryOfBranch('Second drawer');
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $response = $this->get('/sales/edit/' . $invoice['saleId']);
+
+        $response->assertStatus(200);
+        $response->assertSee('name="treasury_id_0"');
+        $response->assertSee('name="treasury_id_new"');
+        $response->assertSee('Second drawer');
+        $response->assertSee(lang('Sales.treasury_default'));
+    }
+
+    public function testGetEdit_OffersNoTreasuryWhileTheBranchHasOnlyTheMainOne(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->addPayment($invoice['saleId'], '300.00', 'Cash');
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $response = $this->get('/sales/edit/' . $invoice['saleId']);
+
+        $response->assertStatus(200);
+        $response->assertDontSee('name="treasury_id_0"');
+        $response->assertDontSee('name="treasury_id_new"');
+    }
+
+    public function testGetEdit_OffersNoTreasuryWhileAccountingIsOff(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->addPayment($invoice['saleId'], '300.00', 'Cash');
+        $this->treasuryOfBranch('Second drawer');
+        $this->setConfigValue('accounting_enabled', '0');
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $response = $this->get('/sales/edit/' . $invoice['saleId']);
+
+        $response->assertStatus(200);
+        $response->assertDontSee('name="treasury_id_0"');
+        $response->assertDontSee('name="treasury_id_new"');
+    }
+
+    public function testGetEdit_LeavesTheTreasuryOutOfAPaymentThatSettlesNothingInCash(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->addPayment($invoice['saleId'], '300.00', 'Due');
+        $this->treasuryOfBranch('Second drawer');
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $response = $this->get('/sales/edit/' . $invoice['saleId']);
+
+        $response->assertDontSee('name="treasury_id_0"');
+        $response->assertSee('name="treasury_id_new"');
+    }
+
+    public function testGetEdit_KeepsTheRetiredTreasuryAPaymentAlreadyCarries(): void
+    {
+        $invoice = $this->postedInvoice();
+        $retired = $this->treasuryOfBranch('Retired drawer');
+        $this->treasuryOfBranch('Open drawer');
+        $paymentId = $this->addPayment($invoice['saleId'], '300.00', 'Cash');
+        $this->accountingDb()->table('sales_payments')->where('payment_id', $paymentId)->update(['treasury_id' => $retired]);
+        (new TreasuryService())->deactivate($retired);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $response = $this->get('/sales/edit/' . $invoice['saleId']);
+
+        $response->assertSee('Retired drawer');
+        $this->assertMatchesRegularExpression('/<option value="' . $retired . '"\s+selected>Retired drawer<\/option>/', $response->getBody());
+        $this->assertSame(1, substr_count($response->getBody(), 'Retired drawer'), 'The new payment cannot be put into a retired treasury');
+    }
+
+    public function testPostSave_PutsTheNewPaymentIntoTheTreasuryTheFormNames(): void
+    {
+        $invoice = $this->postedInvoice();
+        $drawer  = $this->treasuryOfBranch('Second drawer');
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $result = $this->jsonOf($this->post('/sales/save/' . $invoice['saleId'], [
+            'date'               => date($this->config()['dateformat'] . ' ' . $this->config()['timeformat']),
+            'customer_id'        => (string) $this->customerId,
+            'employee_id'        => (string) $this->employeeId,
+            'comment'            => 'paid',
+            'number_of_payments' => '0',
+            'payment_type_new'   => 'Cash',
+            'payment_amount_new' => '100.00',
+            'treasury_id_new'    => (string) $drawer,
+        ]));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame($drawer, (int) $this->accountingDb()->table('sales_payments')->where('sale_id', $invoice['saleId'])->get()->getRow()->treasury_id);
+        $this->assertSame('100.0000', (new TreasuryService())->position($drawer)->balance);
+        $this->assertSame('0.00', $this->balance($this->accountId('cash')));
+    }
+
+    public function testPostSave_MovesAPaymentToTheTreasuryTheFormNames(): void
+    {
+        $invoice   = $this->postedInvoice();
+        $drawer    = $this->treasuryOfBranch('Second drawer');
+        $paymentId = $this->addPayment($invoice['saleId'], '100.00', 'Cash');
+        $row       = $this->accountingDb()->table('sales_payments')->where('payment_id', $paymentId)->get()->getRow();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $result = $this->jsonOf($this->post('/sales/save/' . $invoice['saleId'], $this->savedPayment($row, ['treasury_id_0' => (string) $drawer])));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame($drawer, (int) $this->accountingDb()->table('sales_payments')->where('payment_id', $paymentId)->get()->getRow()->treasury_id);
+        $this->assertSame('100.0000', (new TreasuryService())->position($drawer)->balance);
+        $this->assertSame('0.00', $this->balance($this->accountId('cash')));
+    }
+
+    public function testPostSave_KeepsTheTreasuryOfAPaymentTheFormDoesNotName(): void
+    {
+        $invoice   = $this->postedInvoice();
+        $drawer    = $this->treasuryOfBranch('Second drawer');
+        $paymentId = $this->addPayment($invoice['saleId'], '100.00', 'Cash');
+        $this->accountingDb()->table('sales_payments')->where('payment_id', $paymentId)->update(['treasury_id' => $drawer]);
+        $row = $this->accountingDb()->table('sales_payments')->where('payment_id', $paymentId)->get()->getRow();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $result = $this->jsonOf($this->post('/sales/save/' . $invoice['saleId'], $this->savedPayment($row)));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame($drawer, (int) $this->accountingDb()->table('sales_payments')->where('payment_id', $paymentId)->get()->getRow()->treasury_id);
+    }
+
+    public function testPostSave_RefusesATreasuryOfAnotherBranchAndChangesNothing(): void
+    {
+        $invoice   = $this->postedInvoice();
+        $elsewhere = $this->treasuryOfBranch('Far drawer', $this->createSecondBranch());
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $result = $this->jsonOf($this->post('/sales/save/' . $invoice['saleId'], [
+            'date'               => date($this->config()['dateformat'] . ' ' . $this->config()['timeformat']),
+            'customer_id'        => (string) $this->customerId,
+            'employee_id'        => (string) $this->employeeId,
+            'comment'            => 'paid',
+            'number_of_payments' => '0',
+            'payment_type_new'   => 'Cash',
+            'payment_amount_new' => '100.00',
+            'treasury_id_new'    => (string) $elsewhere,
+        ]));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_treasury_not_found'), $result['message']);
+        $this->assertSame(0, $this->accountingDb()->table('sales_payments')->where('sale_id', $invoice['saleId'])->countAllResults());
+        $this->assertSame('0.0000', (new TreasuryService())->position($elsewhere)->balance);
     }
 
     public function testPostSave_RefusesToChangeTheCustomerOfAPostedSaleAndSaysWhy(): void

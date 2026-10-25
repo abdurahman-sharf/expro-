@@ -17,6 +17,8 @@ return [
     'accounting_routing_desc'      => 'Choose the account each part of a sale is posted to.',
     'accounting_settings'          => 'Accounting Settings',
     'accounting_settings_desc'     => 'Turn accounting on or off and set its currency and start date.',
+    'accounting_treasuries'        => 'Treasuries',
+    'accounting_treasuries_desc'   => 'See what each treasury and bank account holds, transfer money between them and choose the treasury each employee works from.',
     'admin_cashups'                => '',
     'admin_cashups_desc'           => '',
     'attributes'                   => 'Attributes',

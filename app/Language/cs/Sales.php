@@ -276,6 +276,8 @@ return [
     'total'                             => 'Celkem',
     'total_tax_exclusive'               => 'Bez DPH',
     'transaction_failed'                => '',
+    'treasury'                          => '',
+    'treasury_default'                  => '',
     'unable_to_add_item'                => 'Přidání položky se nepovedlo',
     'unsuccessfully_deleted'            => 'Účtenka nebyla smazána.',
     'unsuccessfully_restored'           => 'Účtenka nebyla obnovena.',

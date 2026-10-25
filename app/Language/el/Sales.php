@@ -276,6 +276,8 @@ return [
     'total'                             => 'Σύνολο',
     'total_tax_exclusive'               => 'Εξαιρουμένου Φόρου',
     'transaction_failed'                => 'Συναλλαγή Πώλησης απέτυχε.',
+    'treasury'                          => '',
+    'treasury_default'                  => '',
     'unable_to_add_item'                => 'Προσθήκη είδους στην Πώληση απέτυχε',
     'unsuccessfully_deleted'            => 'Διαγραφή Πώλησης/εων απέτυχε.',
     'unsuccessfully_restored'           => 'Επαναφορά Πώλησης/εων απέτυχε.',

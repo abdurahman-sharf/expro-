@@ -12,6 +12,7 @@ final readonly class SalePayment
         public bool $cashAdjustment,
         public string $date,
         public PaymentStatus $status = PaymentStatus::Completed,
+        public ?int $treasuryId = null,
     ) {
     }
 }

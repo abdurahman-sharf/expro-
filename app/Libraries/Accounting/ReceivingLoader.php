@@ -21,7 +21,7 @@ final class ReceivingLoader
     public function load(int $receivingId, bool $withOrigin = true): ?ReceivingDocument
     {
         $receiving = $this->db->table('receivings')
-            ->select('receiving_id, receiving_time, receiving_type, supplier_id, branch_id, payment_type, return_of_receiving_id')
+            ->select('receiving_id, receiving_time, receiving_type, supplier_id, branch_id, payment_type, return_of_receiving_id, treasury_id')
             ->where('receiving_id', $receivingId)
             ->get()
             ->getRow();
@@ -43,6 +43,7 @@ final class ReceivingLoader
             lines: $this->lines($receivingId),
             origin: $origin,
             payments: $this->payments($receivingId),
+            treasuryId: $receiving->treasury_id === null ? null : (int) $receiving->treasury_id,
         );
     }
 
@@ -54,7 +55,7 @@ final class ReceivingLoader
         $payments = [];
 
         foreach ($this->db->table('receivings_payments')
-            ->select('payment_id, payment_type, payment_amount, payment_time, payment_status')
+            ->select('payment_id, payment_type, payment_amount, payment_time, payment_status, treasury_id')
             ->where('receiving_id', $receivingId)
             ->orderBy('payment_id', 'ASC')
             ->get()
@@ -65,6 +66,7 @@ final class ReceivingLoader
                 amount: (string) $row->payment_amount,
                 date: substr((string) $row->payment_time, 0, 10),
                 status: PaymentStatus::fromStored($row->payment_status),
+                treasuryId: $row->treasury_id === null ? null : (int) $row->treasury_id,
             );
         }
 

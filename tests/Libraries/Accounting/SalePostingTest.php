@@ -12,6 +12,8 @@ use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\RoutingKey;
 use App\Libraries\Accounting\RoutingType;
 use App\Libraries\Accounting\SalePosting;
+use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\Organization\BranchGuard;
 use CodeIgniter\Database\Query;
 use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -265,6 +267,82 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame(['general', 'general', 'general'], array_column($payments, 'entry'));
         $this->assertSame('253.00', $this->balance($this->customerAccount()));
         $this->assertSame('563.50', $this->balance($this->accountId('cash')));
+    }
+
+    /**
+     * A treasury the employee who sells works from.
+     */
+    private function drawerOfTheSeller(): int
+    {
+        $this->accountingDb()->table('grants')->insert(['person_id' => $this->employeeId, 'permission_id' => BranchGuard::ALL_BRANCHES, 'menu_group' => 'home']);
+
+        $treasuries = new TreasuryService();
+        $drawer     = $treasuries->create(['name' => 'Seller drawer', 'kind' => 'cash']);
+
+        $treasuries->setDefaultFor($this->employeeId, $drawer);
+
+        return $drawer;
+    }
+
+    private function paymentRow(int $saleId): object
+    {
+        return $this->accountingDb()->table('sales_payments')->where('sale_id', $saleId)->orderBy('payment_id', 'ASC')->get()->getRow();
+    }
+
+    public function testSaveValue_PostsAPaymentToTheTreasuryTheSellerWorksFrom(): void
+    {
+        $drawer = $this->drawerOfTheSeller();
+        $item   = $this->item('10.00');
+        $saleId = $this->save([$this->line($item, 0, '1', '100', '10.00')], [], [$this->payment(lang('Sales.cash'), '100.00')]);
+        $payment = array_values(array_filter($this->journals($saleId), static fn (array $journal): bool => $journal['source'] === 'sale_payment'))[0];
+        $account = (int) (new TreasuryService())->accountOf($drawer);
+
+        $this->assertSame($drawer, (int) $this->paymentRow($saleId)->treasury_id);
+        $this->assertSame([$account . ':100.00:0.00', $this->customerAccount() . ':0.00:100.00'], $payment['lines']);
+        $this->assertSame('100.0000', (new TreasuryService())->position($drawer)->balance);
+        $this->assertSame('0.00', $this->balance($this->accountId('cash')), 'The main treasury received nothing');
+    }
+
+    public function testSaveValue_PostsAPaymentToTheAccountOfItsTypeWhenTheSellerHasNoTreasury(): void
+    {
+        $item   = $this->item('10.00');
+        $saleId = $this->save([$this->line($item, 0, '1', '100', '10.00')], [], [$this->payment(lang('Sales.cash'), '100.00')]);
+
+        $this->assertNull($this->paymentRow($saleId)->treasury_id);
+        $this->assertSame('100.00', $this->balance($this->accountId('cash')));
+    }
+
+    public function testSaveValue_PutsNoTreasuryOnAPaymentThatSettlesNothingInCash(): void
+    {
+        $this->drawerOfTheSeller();
+
+        $item   = $this->item('10.00');
+        $saleId = $this->save([$this->line($item, 0, '1', '100', '10.00')], [], [$this->payment(lang('Sales.due'), '100.00')]);
+
+        $this->assertNull($this->paymentRow($saleId)->treasury_id);
+    }
+
+    public function testUpdate_MovesAPaymentToTheTreasuryItIsGivenByReversingAndPostingItAgain(): void
+    {
+        $treasuries = new TreasuryService();
+        $drawer     = $treasuries->create(['name' => 'Drawer', 'kind' => 'cash']);
+        $item       = $this->item('10.00');
+        $saleId     = $this->save([$this->line($item, 0, '1', '100', '10.00')], [], [$this->payment(lang('Sales.cash'), '100.00')]);
+        $paymentId  = (int) $this->paymentRow($saleId)->payment_id;
+
+        $this->assertSame('100.00', $this->balance($this->accountId('cash')));
+
+        $this->assertTrue($this->sales->update($saleId, ['comment' => 'moved', 'payments' => [
+            ['payment_id' => $paymentId, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '100.00', 'cash_refund' => 0, 'cash_adjustment' => 0, 'employee_id' => $this->employeeId, 'reference_code' => null, 'treasury_id' => $drawer],
+        ]]));
+
+        $this->assertSame($drawer, (int) $this->paymentRow($saleId)->treasury_id);
+        $this->assertSame('0.00', $this->balance($this->accountId('cash')));
+        $this->assertSame('100.0000', $treasuries->position($drawer)->balance);
+        $this->assertSame(['1:reversed', '2:posted'], array_map(
+            static fn (array $journal): string => $journal['revision'] . ':' . $journal['status'],
+            array_values(array_filter($this->journals($saleId), static fn (array $journal): bool => $journal['source'] === 'sale_payment' && $journal['entry'] === 'general' && $journal['revision'] <= 2)),
+        ));
     }
 
     public function testSaveValue_LeavesWhatIsNotPaidOnTheCustomerAndPostsNothingForACreditPayment(): void

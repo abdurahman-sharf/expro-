@@ -10,6 +10,7 @@ use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\ReceivingPosting;
 use App\Libraries\Accounting\ReceivingType;
 use App\Libraries\Accounting\SupplierLedger;
+use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Barcode_lib;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Receiving_lib;
@@ -329,8 +330,13 @@ class Receivings extends Secure_Controller
         $data['applications']           = [];
         $data['can_debit_note']         = false;
         $data['payment_options']        = $this->supplierPaymentOptions();
+        $data['treasury_options']       = [];
+        $data['new_treasury_options']   = [];
 
         if ((new AccountingSettings())->isEnabled()) {
+            $data['treasury_options']     = $data['takes_payments'] ? $this->treasuryOptions((int) ($receiving_info['branch_id'] ?? 0), $data['payments']) : [];
+            $data['new_treasury_options'] = $data['takes_payments'] ? $this->treasuryOptions((int) ($receiving_info['branch_id'] ?? 0), []) : [];
+
             $posting = new ReceivingPosting();
 
             $data['locked']           = $posting->isPosted((int) $receiving_id);
@@ -741,6 +747,7 @@ class Receivings extends Secure_Controller
                 'payment_status' => $this->request->getPost("payment_status_{$i}", FILTER_SANITIZE_FULL_SPECIAL_CHARS),
                 'reference_code' => (string) $this->request->getPost("reference_code_{$i}", FILTER_SANITIZE_FULL_SPECIAL_CHARS),
                 'employee_id'    => $employeeId,
+                ...$this->postedTreasury("treasury_id_{$i}"),
             ];
         }
 
@@ -755,10 +762,46 @@ class Receivings extends Secure_Controller
                 'payment_status' => $this->request->getPost('payment_status_new', FILTER_SANITIZE_FULL_SPECIAL_CHARS) ?: PaymentStatus::Completed->value,
                 'reference_code' => (string) $this->request->getPost('reference_code_new', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
                 'employee_id'    => $employeeId,
+                ...$this->postedTreasury('treasury_id_new'),
             ];
         }
 
         return $payments;
+    }
+
+    /**
+     * The treasury a payment of the form names, when the form has the field: without it the
+     * payment keeps the treasury it has.
+     *
+     * @return array{treasury_id?: int}
+     */
+    private function postedTreasury(string $field): array
+    {
+        $posted = $this->request->getPost($field, FILTER_SANITIZE_NUMBER_INT);
+
+        return $posted === null ? [] : ['treasury_id' => (int) $posted];
+    }
+
+    /**
+     * The treasuries a payment of a purchase can be made from, when there is a choice: the active
+     * ones of the branch of the purchase and any the payments of the purchase already carry.
+     *
+     * @param list<object> $payments
+     *
+     * @return array<int, string>
+     */
+    private function treasuryOptions(int $branchId, array $payments): array
+    {
+        $carried = array_map(static fn (object $payment): int => (int) ($payment->treasury_id ?? 0), $payments);
+        $options = [];
+
+        foreach ((new TreasuryService())->all([$branchId]) as $treasury) {
+            if ((int) $treasury->active === 1 || in_array((int) $treasury->treasury_id, $carried, true)) {
+                $options[(int) $treasury->treasury_id] = $treasury->name;
+            }
+        }
+
+        return count($options) < 2 ? [] : [0 => lang('Receivings.treasury_default')] + $options;
     }
 
     /**
