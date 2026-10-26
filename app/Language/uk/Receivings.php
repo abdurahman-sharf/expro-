@@ -37,6 +37,7 @@ return [
     'id'                           => 'Надходження ІН',
     'item_name'                    => 'Назва товару',
     'journals'                     => '',
+    'location_not_allowed'         => '',
     'mixed_branches'               => '',
     'mode'                         => 'Спосіб отримання',
     'new_supplier'                 => 'Новий постачальник',

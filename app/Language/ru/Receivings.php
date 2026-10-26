@@ -37,6 +37,7 @@ return [
     'id'                           => '№ закупки',
     'item_name'                    => 'Название товара',
     'journals'                     => '',
+    'location_not_allowed'         => '',
     'mixed_branches'               => '',
     'mode'                         => 'Режим закупок',
     'new_supplier'                 => 'Новый поставщик',

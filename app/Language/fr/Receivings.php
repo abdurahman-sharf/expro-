@@ -37,6 +37,7 @@ return [
     'id'                           => 'ID Réception',
     'item_name'                    => 'Nom d\'article',
     'journals'                     => '',
+    'location_not_allowed'         => '',
     'mixed_branches'               => '',
     'mode'                         => 'Mode de réception',
     'new_supplier'                 => 'Nouveau fournisseur',

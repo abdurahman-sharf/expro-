@@ -37,6 +37,7 @@ return [
     'id'                           => 'ID ya Manunuzi',
     'item_name'                    => 'Jina la Bidhaa',
     'journals'                     => '',
+    'location_not_allowed'         => '',
     'mixed_branches'               => '',
     'mode'                         => 'Hali ya Manunuzi',
     'new_supplier'                 => 'Msambazaji Mpya',

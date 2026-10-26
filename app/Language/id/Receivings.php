@@ -37,6 +37,7 @@ return [
     'id'                           => 'ID Pembelian',
     'item_name'                    => 'Nama Item',
     'journals'                     => '',
+    'location_not_allowed'         => '',
     'mixed_branches'               => '',
     'mode'                         => 'Jenis Pembelian',
     'new_supplier'                 => 'Pemasok Baru',

@@ -37,6 +37,7 @@ return [
     'id'                           => 'Mã đơn nhập hàng',
     'item_name'                    => 'Tên Hàng hóa',
     'journals'                     => '',
+    'location_not_allowed'         => '',
     'mixed_branches'               => '',
     'mode'                         => 'Chế độ nhập hàng',
     'new_supplier'                 => 'Nhà cung cấp mới',

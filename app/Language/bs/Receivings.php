@@ -37,6 +37,7 @@ return [
     'id'                           => 'ID prijema',
     'item_name'                    => 'Naziv artikla',
     'journals'                     => '',
+    'location_not_allowed'         => '',
     'mixed_branches'               => '',
     'mode'                         => 'Način prijema',
     'new_supplier'                 => 'Novi dobavljač',

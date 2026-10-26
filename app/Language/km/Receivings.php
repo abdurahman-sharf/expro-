@@ -37,6 +37,7 @@ return [
     'id'                           => 'លេខសំគាល់ទទួល',
     'item_name'                    => 'ឈ្មោះទំនិញ',
     'journals'                     => '',
+    'location_not_allowed'         => '',
     'mixed_branches'               => '',
     'mode'                         => 'របៀបទទួល',
     'new_supplier'                 => 'អ្នកផ្គត់ផ្គង់ថ្មី',

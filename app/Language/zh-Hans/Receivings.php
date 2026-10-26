@@ -37,6 +37,7 @@ return [
     'id'                           => '进货ID',
     'item_name'                    => '产品名称',
     'journals'                     => '',
+    'location_not_allowed'         => '',
     'mixed_branches'               => '',
     'mode'                         => '进货方式',
     'new_supplier'                 => '新建供应商',

@@ -37,6 +37,7 @@ return [
     'id'                           => 'Inleverans-ID',
     'item_name'                    => 'Namn på artikel',
     'journals'                     => '',
+    'location_not_allowed'         => '',
     'mixed_branches'               => '',
     'mode'                         => 'Inleveransläge',
     'new_supplier'                 => 'Ny leverantör',

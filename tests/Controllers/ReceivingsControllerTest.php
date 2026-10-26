@@ -111,6 +111,16 @@ class ReceivingsControllerTest extends CIUnitTestCase
         return $locationId;
     }
 
+    private function grantOnLocation(int $locationId, int $personId): void
+    {
+        $permissions = $this->accountingDb()->table('permissions')->whereIn('module_id', ['items', 'receivings'])->where('location_id', $locationId)->get()->getResult();
+
+        $this->accountingDb()->table('grants')->insertBatch(array_map(
+            static fn (object $permission): array => ['permission_id' => $permission->permission_id, 'person_id' => $personId, 'menu_group' => 'home'],
+            $permissions,
+        ));
+    }
+
     private function anotherBranch(): int
     {
         return $this->createBranch('R' . substr(md5(uniqid('', true)), 0, 10), 'Receiving branch');
@@ -579,7 +589,7 @@ class ReceivingsControllerTest extends CIUnitTestCase
 
         foreach ([[1], [$branchId]] as $works) {
             $buyerId = $this->buyer($works);
-            $this->depotIn($branchId, $buyerId);
+            $this->grantOnLocation($other, $buyerId);
 
             $this->loginAs($buyerId, $this->cart([$this->cartLine($itemId, 1, '4', '0')], 'requisition', null) + ['recv_stock_destination' => $other]);
 
@@ -744,6 +754,78 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $this->post('/receivings/setReturnOrigin', ['recv_return_origin' => '0'])->assertStatus(200);
 
         $this->assertNull(session()->get('recv_return_origin'));
+    }
+
+    public function testPostChangeMode_RejectsADestinationTheEmployeeHoldsNoGrantOn(): void
+    {
+        $buyerId   = $this->buyer();
+        $granted   = $this->depotIn(1, $buyerId);
+        $ungranted = $this->locationOfBranch(1, 'No grant ' . uniqid());
+        $itemId    = $this->item('0.00');
+        $cart      = $this->cart([$this->cartLine($itemId, 1, '4', '0')], 'requisition', null);
+        $this->loginAs($buyerId, $cart + ['recv_stock_destination' => $granted]);
+
+        $this->post('/receivings/changeMode', ['mode' => 'requisition', 'stock_source' => (string) self::LOCATION_ID, 'stock_destination' => (string) $ungranted])->assertSee(lang('Receivings.location_not_allowed'));
+
+        $this->assertSame((string) $granted, (string) session()->get('recv_stock_destination'));
+        $this->assertSame($cart['recv_cart'], session()->get('recv_cart'));
+    }
+
+    public function testPostChangeMode_AcceptsADestinationTheEmployeeHoldsAGrantOn(): void
+    {
+        $buyerId = $this->buyer();
+        $granted = $this->depotIn(1, $buyerId);
+        $this->loginAs($buyerId, ['recv_mode' => 'requisition', 'recv_stock_source' => self::LOCATION_ID]);
+
+        $response = $this->post('/receivings/changeMode', ['mode' => 'requisition', 'stock_source' => (string) self::LOCATION_ID, 'stock_destination' => (string) $granted]);
+
+        $response->assertDontSee(lang('Receivings.location_not_allowed'));
+        $this->assertSame((string) $granted, (string) session()->get('recv_stock_destination'));
+    }
+
+    public function testPostChangeMode_RejectsADestinationInABranchTheEmployeeDoesNotWorkIn(): void
+    {
+        $everyBranch = $this->buyer();
+        $branchId    = $this->anotherBranch();
+        $other       = $this->depotIn($branchId, $everyBranch);
+        $own         = $this->depotIn(1, $everyBranch);
+        $limited     = $this->buyer([1]);
+
+        $this->grantOnLocation($other, $limited);
+        $this->grantOnLocation($own, $limited);
+
+        $this->loginAs($limited, ['recv_mode' => 'requisition', 'recv_stock_source' => self::LOCATION_ID, 'recv_stock_destination' => $own]);
+
+        $this->post('/receivings/changeMode', ['mode' => 'requisition', 'stock_source' => (string) self::LOCATION_ID, 'stock_destination' => (string) $other])->assertSee(lang('Receivings.location_not_allowed'));
+
+        $this->assertSame((string) $own, (string) session()->get('recv_stock_destination'));
+    }
+
+    public function testPostChangeMode_KeepsOnlyTheNumberOfTheDestination(): void
+    {
+        $buyerId = $this->buyer();
+        $granted = $this->depotIn(1, $buyerId);
+        $this->loginAs($buyerId, ['recv_mode' => 'requisition', 'recv_stock_source' => self::LOCATION_ID]);
+
+        $this->post('/receivings/changeMode', ['mode' => 'requisition', 'stock_source' => (string) self::LOCATION_ID, 'stock_destination' => $granted . 'abc'])->assertStatus(200);
+
+        $this->assertSame((string) $granted, (string) session()->get('recv_stock_destination'));
+    }
+
+    public function testPostRequisitionComplete_RefusesADestinationTheEmployeeNoLongerHoldsAGrantOn(): void
+    {
+        $buyerId   = $this->buyer();
+        $itemId    = $this->item('0.00');
+        $ungranted = $this->locationOfBranch(1, 'No grant ' . uniqid());
+        $cart      = $this->cart([$this->cartLine($itemId, 1, '4', '0')], 'requisition', null);
+        $this->loginAs($buyerId, $cart + ['recv_stock_destination' => $ungranted]);
+        $before = $this->countRows('receivings');
+
+        $this->post('/receivings/requisitionComplete', $this->completeForm())->assertSee(lang('Receivings.location_not_allowed'));
+
+        $this->assertSame($before, $this->countRows('receivings'));
+        $this->assertSame($cart['recv_cart'], session()->get('recv_cart'));
+        $this->assertSame('0.000', $this->onHand($itemId, $ungranted));
     }
 
     public function testPostChangeMode_ForgetsTheReceivingAReturnCameFromWhenTheModeLeavesReturn(): void

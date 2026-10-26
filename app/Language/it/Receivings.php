@@ -37,6 +37,7 @@ return [
     'id'                           => 'Ricezione ID',
     'item_name'                    => 'Nome Elemento',
     'journals'                     => '',
+    'location_not_allowed'         => '',
     'mixed_branches'               => '',
     'mode'                         => 'Modalità di Ricezione',
     'new_supplier'                 => 'Nuovo Fornitore',

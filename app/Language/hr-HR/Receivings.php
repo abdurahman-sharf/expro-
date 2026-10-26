@@ -37,6 +37,7 @@ return [
     'id'                           => 'Primka br.',
     'item_name'                    => 'Naziv artikla',
     'journals'                     => '',
+    'location_not_allowed'         => '',
     'mixed_branches'               => '',
     'mode'                         => 'Ulazni mod',
     'new_supplier'                 => 'Novi dobavljač',

@@ -37,6 +37,7 @@ return [
     'id'                           => 'מזהה החזרה',
     'item_name'                    => 'שם פריט',
     'journals'                     => '',
+    'location_not_allowed'         => '',
     'mixed_branches'               => '',
     'mode'                         => 'סוג החזרה',
     'new_supplier'                 => 'ספק חדש',

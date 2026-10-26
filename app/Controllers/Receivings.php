@@ -126,16 +126,23 @@ class Receivings extends Secure_Controller
             $this->receiving_lib->clear_reference();
             $mode = $this->request->getPost('mode', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
             $this->receiving_lib->set_mode($mode);
-        } elseif ($this->stock_location->is_allowed_location($stock_source, 'receivings', true)) {
+        } elseif ($this->stock_location->is_allowed_location((int) $stock_source, 'receivings', true) && $this->destinationAllowed($stock_destination)) {
             $this->receiving_lib->set_stock_source($stock_source);
-            $this->receiving_lib->set_stock_destination($stock_destination);
+            $this->receiving_lib->set_stock_destination($stock_destination === null || $stock_destination === '' ? null : (string) (int) $stock_destination);
+        } else {
+            $refused = ['error' => lang('Receivings.location_not_allowed')];
         }
 
         if ($this->receiving_lib->get_mode() !== 'return') {
             $this->receiving_lib->set_return_origin(null);
         }
 
-        return $this->_reload();    // TODO: Hungarian notation
+        return $this->_reload($refused ?? []);    // TODO: Hungarian notation
+    }
+
+    private function destinationAllowed(?string $destination): bool
+    {
+        return $destination === null || $destination === '' || $this->stock_location->is_allowed_location((int) $destination, 'receivings', true);
     }
 
     /**
@@ -499,6 +506,12 @@ class Receivings extends Secure_Controller
      */
     public function postRequisitionComplete(): string
     {
+        if (! $this->stock_location->is_allowed_location($this->receiving_lib->get_stock_source(), 'receivings')
+            || ! $this->stock_location->is_allowed_location((int) $this->receiving_lib->get_stock_destination(), 'receivings')
+        ) {
+            return $this->_reload(['error' => lang('Receivings.location_not_allowed')]);
+        }
+
         if ($this->receiving_lib->get_stock_source() != $this->receiving_lib->get_stock_destination()) {
             $this->restoreRequisitionCart();
 
