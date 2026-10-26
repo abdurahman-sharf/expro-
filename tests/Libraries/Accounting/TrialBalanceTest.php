@@ -2,10 +2,18 @@
 
 namespace Tests\Libraries\Accounting;
 
+use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\CustomerLedger;
 use App\Libraries\Accounting\EntityAccountService;
+use App\Libraries\Accounting\JournalDraft;
+use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\JournalService;
+use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\ReportPeriod;
 use App\Libraries\Accounting\ReportScope;
+use App\Libraries\Accounting\StockLedger;
+use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\Accounting\TreasuryTransfers;
 use App\Libraries\Accounting\TrialBalance;
 use App\Libraries\Accounting\TrialBalanceReport;
 use App\Libraries\Accounting\TrialBalanceRow;
@@ -13,7 +21,11 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\EmployeeFixtureTrait;
+use Tests\Support\ItemFixtureTrait;
+use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\ReportFixtureTrait;
+use Tests\Support\SaleAccountingFixtureTrait;
 
 /**
  * What the accounts of the chart hold, read from the journals that are in the books: the shape of
@@ -23,7 +35,11 @@ class TrialBalanceTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
+    use EmployeeFixtureTrait;
+    use ItemFixtureTrait;
     use ReportFixtureTrait;
+    use SaleAccountingFixtureTrait;
+    use PurchaseAccountingFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -53,6 +69,7 @@ class TrialBalanceTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->stopBuying();
         $this->clearJournals();
         $this->reinstallChart();
         $this->resetBranches();
@@ -345,5 +362,283 @@ class TrialBalanceTest extends CIUnitTestCase
         $cash = $this->row($this->build(), '120101');
 
         $this->assertSame('1234567.8913', $cash->debit);
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // The trial balance and the books of the documents: what it holds is what they say
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * Starting to sell installs the chart again, which leaves the default branch only, so the
+     * second branch is made after it.
+     */
+    private function startBooks(): void
+    {
+        $this->startBuying();
+
+        $this->second = $this->createBranch('T2', 'Second branch');
+    }
+
+    private function everything(): TrialBalanceReport
+    {
+        return $this->build('2099-12-31', expand: true);
+    }
+
+    private function rowOf(TrialBalanceReport $report, int $accountId): ?TrialBalanceRow
+    {
+        return $this->row($report, $this->codeOf($accountId));
+    }
+
+    private function parentOf(int $accountId): int
+    {
+        return (int) $this->accountingDb()->table('accounting_accounts')->select('parent_id')->where('account_id', $accountId)->get()->getRow()->parent_id;
+    }
+
+    private function putInTreasury(int $treasuryId, string $amount): void
+    {
+        (new PostingService())->post(new JournalDraft(
+            date: '2026-10-20',
+            lines: [new JournalLineDraft((int) (new TreasuryService())->accountOf($treasuryId), debit: $amount), new JournalLineDraft($this->accountId('opening_balance'), credit: $amount)],
+            sourceType: 'opening',
+            sourceId: random_int(1000, 9999),
+            currencyCode: 'SAR',
+        ));
+    }
+
+    /**
+     * Sales and a credit note in two branches, purchases and a debit note, stock bought and moved
+     * from the first branch to the second, a transfer of money between the treasuries of the
+     * two, and a sale that was cancelled.
+     *
+     * @return array{treasury: int, depot: int, item: int, other: int}
+     */
+    private function mixedBooks(): array
+    {
+        $this->startBooks();
+
+        $customer = $this->anotherCustomer();
+        $supplier = $this->anotherSupplier();
+        $depot    = $this->locationOfBranch($this->second, 'Second depot');
+        $item     = $this->item('0.00');
+
+        $this->workInEveryBranch();
+        $manager  = $this->employeeWithGrants([AccountingGuard::TREASURIES_MANAGE]);
+        $main     = (new TreasuryService())->ensureMain();
+        $there    = (new TreasuryService())->create(['name' => 'Second branch drawer', 'kind' => 'cash', 'branch_id' => $this->second], $manager);
+
+        $this->putInTreasury($main, '500.00');
+        (new TreasuryTransfers())->transfer($main, $there, '150.00', '2026-10-21', '', $manager);
+
+        $this->workInBranches(1);
+        $invoice = $this->invoiceOf('100.00', $this->customerId);
+        $this->invoiceOf('40.00', $customer, [$this->payment(lang('Sales.cash'), '15.00')]);
+        $this->creditNoteOf($invoice, '10.00', $this->customerId);
+
+        $purchase = $this->purchaseOf('300.00');
+        $this->debitNoteOf($purchase, '60.00');
+        $this->payPurchase($purchase, '100.00');
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($item, 0, '10', '50')], $supplier));
+
+        $this->workInEveryBranch();
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($item, 0, '4', '0', '0', '0', PERCENT, $depot), $this->purchaseLine($item, 1, '-4', '0')], null, null));
+
+        $this->workInBranches($this->second);
+        $this->invoiceOf('70.00', $this->customerId, [$this->payment(lang('Sales.cash'), '20.00')]);
+        $cancelled = $this->save([$this->line($this->item('0', false), 0, '1', '55.00')], [], [$this->payment(lang('Sales.cash'), '55.00')], SALE_TYPE_POS, $customer);
+
+        $this->assertTrue($this->sales->delete($cancelled, false, true, $this->employeeId));
+
+        return ['treasury' => $there, 'depot' => $depot, 'item' => $item, 'other' => $customer];
+    }
+
+    public function testBuild_HoldsInTheReceivablesWhatEveryCustomerOwesAcrossTheBranches(): void
+    {
+        $this->startBooks();
+
+        $other = $this->anotherCustomer();
+
+        $this->workInBranches(1);
+        $first = $this->invoiceOf('100.00', $this->customerId);
+        $this->invoiceOf('40.00', $other);
+        $this->creditNoteOf($first, '10.00', $this->customerId);
+
+        $this->workInBranches($this->second);
+        $this->invoiceOf('70.00', $this->customerId, [$this->payment(lang('Sales.cash'), '20.00')]);
+
+        $report  = $this->everything();
+        $control = $this->rowOf($report, $this->parentOf($this->customerAccount()));
+        $sum     = '0.0000';
+
+        foreach ([$this->customerId, $other] as $customerId) {
+            $row = $this->rowOf($report, $this->customerAccount($customerId));
+
+            $this->assertNotNull($row);
+            $this->assertSame(bcadd((new CustomerLedger())->position($customerId)->accountBalance, '0', 4), $row->closing(), 'The account of the customer and what the ledger of customers says differ');
+
+            $sum = bcadd($sum, $row->closing(), 4);
+        }
+
+        $this->assertSame('180.0000', $sum, '100 less 10 and 70 less 20 for the first customer, and 40 for the other');
+        $this->assertSame($sum, $control->closing());
+    }
+
+    public function testBuild_HoldsInThePayablesWhatIsOwedToEverySupplierAcrossTheBranches(): void
+    {
+        $this->startBooks();
+
+        $other = $this->anotherSupplier();
+        $depot = $this->locationOfBranch($this->second, 'Second depot');
+        $item  = $this->item('0.00');
+
+        $first = $this->purchaseOf('300.00');
+        $this->debitNoteOf($first, '60.00');
+        $this->payPurchase($first, '100.00');
+
+        $this->workInBranches($this->second);
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($item, 0, '2', '100.00', '0', '0', PERCENT, $depot)], $other));
+
+        $report  = $this->everything();
+        $control = $this->rowOf($report, $this->parentOf($this->supplierAccount()));
+        $sum     = '0.0000';
+
+        foreach ([$this->supplierId, $other] as $supplierId) {
+            $row = $this->rowOf($report, $this->supplierAccount($supplierId));
+
+            $this->assertNotNull($row);
+            $this->assertSame(bcsub('0', bcadd($this->supplierPosition($supplierId)->accountBalance, '0', 4), 4), $row->closing(), 'The account of the supplier and what the ledger of suppliers says differ');
+
+            $sum = bcadd($sum, $row->closing(), 4);
+        }
+
+        $this->assertSame('-340.0000', $sum, '300 less 60 and 100 for the first supplier, and 200 for the other');
+        $this->assertSame($sum, $control->closing());
+    }
+
+    public function testBuild_HoldsInTheStockAccountsWhatTheMovementsOfEveryLocationAreWorth(): void
+    {
+        $this->startBooks();
+
+        $item  = $this->item('0.00');
+        $depot = $this->locationOfBranch($this->second, 'Second depot');
+
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($item, 0, '10', '50')]));
+        $this->workInEveryBranch();
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($item, 0, '4', '0', '0', '0', PERCENT, $depot), $this->purchaseLine($item, 1, '-4', '0')], null, null));
+        $this->assertGreaterThan(0, $this->save([$this->line($item, 0, '2', '80', '50')]));
+        $this->assertStockTies();
+
+        $report = $this->everything();
+        $sum    = '0.0000';
+
+        foreach ((new StockLedger())->reconcile() as $location) {
+            $row = $this->rowOf($report, $this->stockAccountOf((int) $location['location_id']));
+
+            if ($row === null) {
+                $this->assertSame('0.00', bcadd($location['movements_value'], '0', 2));
+
+                continue;
+            }
+
+            $this->assertSame(bcadd($location['movements_value'], '0', 4), $row->closing(), 'Location ' . $location['location_id'] . ': the trial balance and the stock movements differ');
+
+            $sum = bcadd($sum, $row->closing(), 4);
+        }
+
+        $this->assertSame('400.0000', $sum, '500 bought, 200 moved out of one location and into the other, 100 sold at cost');
+        $this->assertSame($sum, $this->rowOf($report, $this->parentOf($this->stockAccountOf(self::LOCATION_ID)))->closing());
+    }
+
+    public function testBuild_HoldsInTheTreasuryAccountsWhatEveryTreasuryHolds(): void
+    {
+        $this->startBooks();
+
+        $treasuries = new TreasuryService();
+        $manager    = $this->employeeWithGrants([AccountingGuard::TREASURIES_MANAGE]);
+        $main       = $treasuries->ensureMain();
+        $there      = $treasuries->create(['name' => 'Second branch drawer', 'kind' => 'cash', 'branch_id' => $this->second], $manager);
+
+        $this->putInTreasury($main, '500.00');
+        (new TreasuryTransfers())->transfer($main, $there, '150.00', '2026-10-21', '', $manager);
+
+        $report = $this->everything();
+
+        foreach ([$main => '350.0000', $there => '150.0000'] as $treasuryId => $expected) {
+            $row = $this->rowOf($report, (int) $treasuries->accountOf($treasuryId));
+
+            $this->assertNotNull($row);
+            $this->assertSame($expected, $row->closing());
+            $this->assertSame(bcadd($treasuries->position($treasuryId)->balance, '0', 4), $row->closing(), 'The account of the treasury and its position differ');
+        }
+    }
+
+    public function testBuild_LeavesTheTwoAccountsBetweenTheBranchesOffsettingAcrossTheCompany(): void
+    {
+        $this->mixedBooks();
+
+        $report     = $this->build('2099-12-31');
+        $receivable = $this->row($report, $this->codeOf($this->accountId('branches_receivable')));
+        $payable    = $this->row($report, $this->codeOf($this->accountId('branches_payable')));
+
+        $this->assertNotNull($receivable);
+        $this->assertNotNull($payable);
+        $this->assertSame('350.0000', $receivable->closing(), '150 of money and 200 of stock sent out of the first branch');
+        $this->assertSame('-350.0000', $payable->closing());
+        $this->assertSame('0.0000', $report->interBranchDifference);
+    }
+
+    public function testBuild_ShowsEachBranchItsOwnSideOfWhatIsBetweenTheBranches(): void
+    {
+        $this->mixedBooks();
+
+        $receivable = $this->codeOf($this->accountId('branches_receivable'));
+        $payable    = $this->codeOf($this->accountId('branches_payable'));
+
+        $sending   = $this->build('2099-12-31', scope: ReportScope::resolve([1], null));
+        $receiving = $this->build('2099-12-31', scope: ReportScope::resolve([$this->second], null));
+
+        $this->assertSame('350.0000', $this->row($sending, $receivable)->closing());
+        $this->assertNull($this->row($sending, $payable));
+        $this->assertSame('-350.0000', $this->row($receiving, $payable)->closing());
+        $this->assertNull($this->row($receiving, $receivable));
+        $this->assertNull($sending->interBranchDifference);
+        $this->assertNull($receiving->interBranchDifference);
+    }
+
+    public function testBuild_BalancesForTheCompanyAndForEveryBranchAndEveryPairOfBranchesAfterAMixedBooks(): void
+    {
+        $this->mixedBooks();
+
+        $third = $this->createBranch('T3', 'Third branch');
+
+        foreach ([[1], [$this->second], [$third], [1, $this->second], [1, $third], [$this->second, $third], [1, $this->second, $third]] as $branches) {
+            $report = $this->build('2099-12-31', scope: ReportScope::resolve($branches, null));
+
+            $this->assertTrue($report->balances(), 'Branches ' . implode(',', $branches) . ': ' . json_encode($report->totals));
+            $this->assertSame($report->totals['debit'], $report->totals['credit']);
+        }
+
+        $this->assertGreaterThan(0, bccomp($this->build('2099-12-31')->totals['debit'], '0', 4));
+    }
+
+    public function testBuild_ReadsTheBooksAsTheyWereOnceADocumentIsCancelledWithItsReversal(): void
+    {
+        $this->startBooks();
+
+        $this->workInBranches(1);
+        $this->invoiceOf('100.00', $this->customerId, [$this->payment(lang('Sales.cash'), '30.00')]);
+
+        $closings = static fn (TrialBalanceReport $report): array => array_column(array_map(static fn (TrialBalanceRow $row): array => [$row->code, $row->closing()], $report->rows), 1, 0);
+        $before   = $closings($this->everything());
+
+        $saleId = $this->save([$this->line($this->item('0', false), 0, '1', '55.00')], [], [$this->payment(lang('Sales.cash'), '55.00')], SALE_TYPE_POS);
+
+        $this->assertNotSame($before, $closings($this->everything()));
+        $this->assertTrue($this->sales->delete($saleId, false, true, $this->employeeId));
+
+        $after = $this->everything();
+
+        $this->assertSame($before, $closings($after));
+        $this->assertTrue($after->balances());
+        $this->assertSame($this->row($after, '411')->debit, '55.0000', 'The reversal is in the movement of the sales account');
     }
 }

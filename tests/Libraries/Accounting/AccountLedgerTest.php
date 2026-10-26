@@ -9,6 +9,7 @@ use App\Libraries\Accounting\AccountLedgerReport;
 use App\Libraries\Accounting\NormalBalance;
 use App\Libraries\Accounting\ReportPeriod;
 use App\Libraries\Accounting\ReportScope;
+use App\Libraries\Accounting\TrialBalance;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -238,5 +239,29 @@ class AccountLedgerTest extends CIUnitTestCase
 
         $this->assertSame([], $report->rows);
         $this->assertSame(['0.0000', '0.0000', '0.0000', '0.0000'], [$report->opening, $report->debit, $report->credit, $report->closing]);
+    }
+
+    public function testBuild_ClosesEveryAccountAtWhatTheTrialBalanceHoldsForItInAnySetOfBranches(): void
+    {
+        $this->cashSale('2026-10-05', 1, '100.00');
+        $this->cashSale('2026-10-06', $this->second, '60.00');
+        $this->postOn('2026-10-07', 1, [[$this->accountId('cogs'), '30.00', '0'], [$this->accountId('cash'), '0', '30.00']]);
+        $this->postOn('2026-10-08', $this->second, [[$this->accountId('sales_revenue'), '15.00', '0'], [$this->accountId('cash'), '0', '15.00']]);
+        $this->reverseOn($this->cashSale('2026-10-09', 1, '25.00'), '2026-10-10');
+
+        foreach ([null, [1], [$this->second]] as $branches) {
+            $scope  = ReportScope::resolve($branches, null);
+            $period = ReportPeriod::of(null, '2026-12-31');
+            $report = (new TrialBalance())->build($scope, $period, true);
+
+            $this->assertNotSame([], $report->rows);
+
+            foreach ($report->rows as $row) {
+                $statement = $this->ledger->build($scope, $row->accountId, $period, 1);
+                $expected  = $statement->normal === NormalBalance::Debit ? $row->closing() : bcsub('0', $row->closing(), 4);
+
+                $this->assertSame($expected, $statement->closing, 'Account ' . $row->code . ' in branches ' . json_encode($branches) . ': the statement and the trial balance differ');
+            }
+        }
     }
 }
