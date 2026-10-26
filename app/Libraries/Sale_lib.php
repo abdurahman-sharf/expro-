@@ -627,8 +627,9 @@ class Sale_lib
      * @param string $paymentAmount
      * @param string|null $referenceCode
      * @param int $cashAdjustment
+     * @param int $treasuryId The treasury the payment goes into, or 0 for the one of the employee.
      */
-    public function addPayment(string $paymentId, string $paymentAmount, ?string $referenceCode = null, int $cashAdjustment = CASH_ADJUSTMENT_FALSE): void
+    public function addPayment(string $paymentId, string $paymentAmount, ?string $referenceCode = null, int $cashAdjustment = CASH_ADJUSTMENT_FALSE, int $treasuryId = 0): void
     {
         $payments = $this->getPayments();
         if (isset($payments[$paymentId])) {
@@ -643,6 +644,7 @@ class Sale_lib
                     'cash_refund'     => 0,
                     'cash_adjustment' => $cashAdjustment,
                     'reference_code'  => $referenceCode,
+                    'treasury_id'     => $treasuryId,
                 ]
             ];
 
@@ -656,6 +658,17 @@ class Sale_lib
         }
 
         $this->setPayments($payments);
+    }
+
+    /**
+     * The treasury a payment in the cart goes into (0 for the one of the employee), or null when
+     * the cart has no payment of that type.
+     */
+    public function paymentTreasury(string $paymentId): ?int
+    {
+        $payments = $this->getPayments();
+
+        return isset($payments[$paymentId]) ? (int) ($payments[$paymentId]['treasury_id'] ?? 0) : null;
     }
 
     /**
@@ -1446,7 +1459,7 @@ class Sale_lib
 
         // Now load payments
         foreach ($this->sale->get_sale_payments($sale_id)->getResult() as $row) {
-            $this->addPayment($row->payment_type, $row->payment_amount, $row->reference_code ?? null, $row->cash_adjustment);
+            $this->addPayment($row->payment_type, $row->payment_amount, $row->reference_code ?? null, $row->cash_adjustment, (int) ($row->treasury_id ?? 0));
         }
 
         $this->set_customer($this->sale->get_customer($sale_id)->person_id);

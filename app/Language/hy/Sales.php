@@ -278,6 +278,7 @@ return [
     'transaction_failed'                => '',
     'treasury'                          => '',
     'treasury_default'                  => '',
+    'treasury_payment_conflict'         => '',
     'unable_to_add_item'                => '',
     'unsuccessfully_deleted'            => '',
     'unsuccessfully_restored'           => '',

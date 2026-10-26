@@ -278,6 +278,7 @@ return [
     'transaction_failed'                => 'Muamala wa Mauzo umeshindikana.',
     'treasury'                          => '',
     'treasury_default'                  => '',
+    'treasury_payment_conflict'         => '',
     'unable_to_add_item'                => 'Imeshindikana kuongeza bidhaa kwenye Mauzo',
     'unsuccessfully_deleted'            => 'Imeshindikana kufuta Mauzo.',
     'unsuccessfully_restored'           => 'Imeshindikana kurejesha Mauzo.',

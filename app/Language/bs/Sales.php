@@ -278,6 +278,7 @@ return [
     'transaction_failed'                => 'Obrada nije ispravna.',
     'treasury'                          => '',
     'treasury_default'                  => '',
+    'treasury_payment_conflict'         => '',
     'unable_to_add_item'                => 'Dodavanje artikla u rasprodaju nije uspjelo',
     'unsuccessfully_deleted'            => 'Brisanje prodaje nije uspjelo.',
     'unsuccessfully_restored'           => 'Obnova prodaje(a) nije uspjela.',

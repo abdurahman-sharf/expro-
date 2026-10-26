@@ -278,6 +278,7 @@ return [
     'transaction_failed'                => 'فشل حركة البيع.',
     'treasury'                          => 'الخزينة',
     'treasury_default'                  => 'الخزينة الافتراضية',
+    'treasury_payment_conflict'         => 'في البيع دفعة من هذا النوع بخزينة أخرى. احذفها أولًا أو اختر الخزينة نفسها.',
     'unable_to_add_item'                => 'غير قادر على إضافة صنف لعملية البيع',
     'unsuccessfully_deleted'            => 'لايمكن حذف عملية/عمليات البيع.',
     'unsuccessfully_restored'           => 'فشل في استعادة عملية البيع.',

@@ -100,6 +100,14 @@ enum AccountingError: string
     case SupplierPaymentNeedsSupplier = 'supplier_payment_needs_supplier';
     case SupplierPaymentNotOnInvoice  = 'supplier_payment_not_on_invoice';
 
+    case AdvanceNotFound         = 'advance_not_found';
+    case AdvanceAmountInvalid    = 'advance_amount_invalid';
+    case AdvanceAlreadyCancelled = 'advance_already_cancelled';
+    case AdvanceKindInvalid      = 'advance_kind_invalid';
+    case AdvanceSupplierMissing  = 'advance_supplier_missing';
+    case AdvancePaymentUnknown   = 'advance_payment_unknown';
+    case OpeningNotFound         = 'opening_not_found';
+
     case TreasuryNotFound    = 'treasury_not_found';
     case TreasuryInvalidName = 'treasury_invalid_name';
     case TreasuryInvalidKind = 'treasury_invalid_kind';

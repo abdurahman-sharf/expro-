@@ -149,6 +149,7 @@ const SALE_TYPE_RETURN = 4;
 
 const PERCENT = 0;
 const FIXED = 1;
+const FIXED_LINE = 2;
 
 const PRICE_MODE_STANDARD = 0;
 const PRICE_MODE_KIT = 1;

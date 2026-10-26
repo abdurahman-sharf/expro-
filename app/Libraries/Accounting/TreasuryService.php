@@ -415,6 +415,61 @@ final class TreasuryService
         return new TreasuryPosition($treasuryId, $accountId, bcadd((string) $row->balance, '0', SaleAmounts::SCALE), bcadd((string) $row->manual, '0', SaleAmounts::SCALE));
     }
 
+    /**
+     * What went into and out of the treasury, oldest first, with the balance after each movement,
+     * so that whoever finds the balance below zero can see which movement took it there.
+     *
+     * @return array{rows: list<array<string, mixed>>, crossings: list<array<string, mixed>>, lowest: string}
+     */
+    public function movements(int $treasuryId): array
+    {
+        $accountId = $this->accountOf($treasuryId);
+        $empty     = ['rows' => [], 'crossings' => [], 'lowest' => '0.0000'];
+
+        if ($accountId === null) {
+            return $empty;
+        }
+
+        $journals = $this->db->prefixTable('accounting_journals');
+        $lines    = $this->db->prefixTable('accounting_journal_lines');
+        $statuses = [JournalStatus::Posted->value, JournalStatus::Reversed->value];
+
+        $result = $this->db->query(
+            "SELECT j.journal_id, j.number, j.journal_date, j.source_type, j.source_id, j.reverses_journal_id,
+                    COALESCE(NULLIF(l.description, ''), j.description) AS description, l.debit, l.credit
+             FROM {$lines} l
+             JOIN {$journals} j ON j.journal_id = l.journal_id
+             WHERE j.status IN (?, ?) AND l.account_id = ?
+             ORDER BY j.journal_date ASC, j.journal_id ASC, l.line_no ASC",
+            [...$statuses, $accountId],
+        );
+
+        $rows      = [];
+        $crossings = [];
+        $balance   = '0.0000';
+        $lowest    = '0.0000';
+
+        while (($row = $result->getUnbufferedRow('array')) !== null) {
+            $before  = $balance;
+            $balance = bcsub(bcadd($balance, (string) $row['debit'], SaleAmounts::SCALE), (string) $row['credit'], SaleAmounts::SCALE);
+
+            $row['balance'] = $balance;
+            $row['crossed'] = bccomp($before, '0', SaleAmounts::SCALE) >= 0 && bccomp($balance, '0', SaleAmounts::SCALE) < 0;
+
+            if (bccomp($balance, $lowest, SaleAmounts::SCALE) < 0) {
+                $lowest = $balance;
+            }
+
+            if ($row['crossed']) {
+                $crossings[] = $row;
+            }
+
+            $rows[] = $row;
+        }
+
+        return ['rows' => $rows, 'crossings' => $crossings, 'lowest' => $lowest];
+    }
+
     private function mainRow(bool $lock = false): ?object
     {
         $table = $this->db->prefixTable('treasuries');

@@ -2,9 +2,12 @@
 
 namespace Tests\Controllers;
 
+use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\PostingService;
+use App\Libraries\Accounting\SupplierAdvances;
+use App\Libraries\Accounting\TreasuryService;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -283,5 +286,191 @@ class AccountingPayablesControllerTest extends CIUnitTestCase
 
         $this->assertSame('Gulf Supplies', $row['supplier_name']);
         $this->assertStringContainsString('100.00', $row['balance']);
+    }
+
+    /**
+     * @param list<int>|null $branchIds
+     */
+    private function clerk(?array $branchIds = null): int
+    {
+        $personId = $this->employeeWithGrants(['accounting_payables', AccountingGuard::PAYABLES_MANAGE, AccountingGuard::TREASURIES_MANAGE], $branchIds);
+
+        $this->withSession(['person_id' => $personId, 'menu_group' => 'home']);
+
+        return $personId;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function jsonOf($response): array
+    {
+        return json_decode($response->getJSON(), true);
+    }
+
+    public function testGetSupplier_OffersThePaymentAndOpeningButtonsToWhoMayManage(): void
+    {
+        $this->clerk();
+
+        $response = $this->get('/accounting_payables/supplier/' . $this->supplierId);
+
+        $response->assertStatus(200);
+        $response->assertSee('accounting_payables/payment_form/' . $this->supplierId);
+        $response->assertSee('accounting_payables/opening_form/' . $this->supplierId);
+        $response->assertSee('id="payable_advances"');
+    }
+
+    public function testGetSupplier_OffersNoButtonToWhoMayOnlyRead(): void
+    {
+        $this->viewer();
+
+        $response = $this->get('/accounting_payables/supplier/' . $this->supplierId);
+
+        $response->assertStatus(200);
+        $response->assertDontSee('accounting_payables/payment_form/');
+        $response->assertDontSee('accounting_payables/opening_form/');
+        $response->assertSee('id="payable_advances"');
+    }
+
+    public function testGetPaymentForm_ShowsTheFieldsAndOffersTreasuriesOnlyWhenThereIsAChoice(): void
+    {
+        $manager = $this->clerk();
+
+        $alone = $this->get('/accounting_payables/payment_form/' . $this->supplierId);
+
+        $alone->assertStatus(200);
+        $alone->assertSee('name="amount"');
+        $alone->assertSee('name="advance_date"');
+        $alone->assertSee('name="payment_type"');
+        $alone->assertDontSee('name="treasury_id"');
+
+        (new TreasuryService())->create(['name' => 'Advance drawer', 'kind' => 'cash'], $manager);
+
+        $this->get('/accounting_payables/payment_form/' . $this->supplierId)->assertSee('name="treasury_id"');
+    }
+
+    public function testGetPaymentForm_IsNotFoundWithoutThePermissionToManage(): void
+    {
+        $this->viewer();
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_payables/payment_form/' . $this->supplierId);
+    }
+
+    public function testPostPayment_EntersTheAdvanceAndSpendsItOnTheOpenPurchase(): void
+    {
+        $purchase = $this->purchaseOf('300.00');
+        $this->clerk();
+
+        $result = $this->jsonOf($this->post('/accounting_payables/payment/' . $this->supplierId, [
+            'amount'         => '120.00',
+            'advance_date'   => date('Y-m-d'),
+            'payment_type'   => 'Cash',
+            'reference_code' => 'R-1',
+            'note'           => 'on account',
+        ]));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(lang('Accounting_payables.payment_done'), $result['message']);
+        $this->assertSame('180.00', $this->owed());
+        $this->assertSame('180.00', bcadd($this->supplierPosition()->purchase($purchase)->open(), '0', 2));
+        $this->assertSupplierTies();
+    }
+
+    public function testPostPayment_SaysWhyItWasRefused(): void
+    {
+        $this->clerk();
+
+        $result = $this->jsonOf($this->post('/accounting_payables/payment/' . $this->supplierId, ['amount' => '0', 'advance_date' => date('Y-m-d'), 'payment_type' => 'Cash']));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_advance_amount_invalid'), $result['message']);
+        $this->assertSame(0, $this->countRows('supplier_advances'));
+    }
+
+    public function testPostPayment_IsRefusedToWhoHoldsNoPermissionToManage(): void
+    {
+        $this->viewer();
+
+        $result = $this->jsonOf($this->post('/accounting_payables/payment/' . $this->supplierId, ['amount' => '10', 'advance_date' => date('Y-m-d'), 'payment_type' => 'Cash']));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_permission_denied'), $result['message']);
+        $this->assertSame(0, $this->countRows('supplier_advances'));
+    }
+
+    public function testPostOpening_EntersWhatWeOweAsAPurchaseAndWhatTheyOweAsCredit(): void
+    {
+        $this->clerk();
+
+        $owed = $this->jsonOf($this->post('/accounting_payables/opening/' . $this->supplierId, ['side' => 'we_owe', 'amount' => '500.00', 'advance_date' => '2026-01-01', 'note' => 'old books']));
+
+        $this->assertTrue($owed['success']);
+        $this->receivingIds[] = (int) $owed['id'];
+        $this->assertSame('500.00', $this->owed());
+        $this->assertTrue($this->supplierPosition()->purchase((int) $owed['id'])->opening);
+
+        $owes = $this->jsonOf($this->post('/accounting_payables/opening/' . $this->supplierId, ['side' => 'they_owe', 'amount' => '200.00', 'advance_date' => '2026-01-01']));
+
+        $this->assertTrue($owes['success']);
+        $this->assertSame('300.00', $this->owed());
+        $this->assertSupplierTies();
+
+        $statement = $this->get('/accounting_payables/supplier/' . $this->supplierId);
+
+        $statement->assertSee(lang('Accounting_payables.opening_balance'));
+        $statement->assertSee(lang('Accounting_payables.source_advance_opening'));
+    }
+
+    public function testPostOpening_RefusesASideThatIsNeither(): void
+    {
+        $this->clerk();
+
+        $result = $this->jsonOf($this->post('/accounting_payables/opening/' . $this->supplierId, ['side' => 'none', 'amount' => '5', 'advance_date' => '2026-01-01']));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_advance_kind_invalid'), $result['message']);
+    }
+
+    public function testPostCancel_CancelsAnAdvanceAndAnOpeningBalanceWithAReason(): void
+    {
+        $manager   = $this->clerk();
+        $advances  = new SupplierAdvances();
+        $advanceId = $advances->pay($this->supplierId, '70.00', date('Y-m-d'), 'Cash', null, '', '', $manager);
+        $opening   = $advances->openingBalance($this->supplierId, SupplierAdvances::WE_OWE, '90.00', '2026-01-01', '', $manager);
+        $this->receivingIds[] = $opening;
+
+        $form = $this->get('/accounting_payables/cancel_form/supplier_advance/' . $advanceId);
+
+        $form->assertStatus(200);
+        $form->assertSee('name="reason"');
+
+        $withoutReason = $this->jsonOf($this->post('/accounting_payables/cancel/supplier_advance/' . $advanceId, ['reason' => ' ']));
+
+        $this->assertFalse($withoutReason['success']);
+
+        $this->assertTrue($this->jsonOf($this->post('/accounting_payables/cancel/supplier_advance/' . $advanceId, ['reason' => 'paid twice']))['success']);
+        $this->assertTrue($this->jsonOf($this->post('/accounting_payables/cancel/opening/' . $opening, ['reason' => 'entered twice']))['success']);
+        $this->assertSame('0.00', $this->owed());
+        $this->assertSupplierTies();
+    }
+
+    public function testGetCancelForm_IsNotFoundForWhatIsNeitherAnAdvanceNorAnOpeningBalance(): void
+    {
+        $this->clerk();
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_payables/cancel_form/purchase/' . $this->purchaseOf('10.00'));
+    }
+
+    public function testPostPayment_IsNotFoundForSomeoneLimitedToABranch(): void
+    {
+        $this->clerk([1]);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->post('/accounting_payables/payment/' . $this->supplierId, ['amount' => '10', 'advance_date' => date('Y-m-d'), 'payment_type' => 'Cash']);
     }
 }

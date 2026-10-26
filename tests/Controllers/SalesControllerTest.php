@@ -824,6 +824,27 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertNotSame($itemId, array_values($cart)[0]['item_id']);
     }
 
+    public function testPostUnsuspend_BringsBackTheTreasuryOfThePaymentsOfTheSuspendedSale(): void
+    {
+        $employeeId      = $this->createReportsSalesEmployee();
+        $drawer          = $this->treasuryOfBranch('Suspended drawer');
+        $suspendedSaleId = $this->createSuspendedSale($employeeId);
+        $this->accountingDb()->table('sales_payments')->insert([
+            'sale_id'         => $suspendedSaleId,
+            'payment_type'    => 'Cash',
+            'payment_amount'  => '5.00',
+            'cash_refund'     => 0,
+            'cash_adjustment' => 0,
+            'employee_id'     => $employeeId,
+            'treasury_id'     => $drawer,
+        ]);
+        $this->loginAs($employeeId);
+
+        $this->post('/sales/unsuspend', ['suspended_sale_id' => (string) $suspendedSaleId]);
+
+        $this->assertSame($drawer, (int) Services::session()->get('sales_payments')['Cash']['treasury_id']);
+    }
+
     /**
      * A cashier who also holds the report and delete grants but works only in the given branch.
      */
@@ -1661,6 +1682,132 @@ class SalesControllerTest extends CIUnitTestCase
 
         $response->assertSee(lang('Accounting.posting_routing_type_unsupported'));
         $this->assertSame($sales, $this->countSales());
+    }
+
+    /**
+     * A supervisor of the first branch with a cart of one line of 100 at the register.
+     */
+    protected function registerWithACart(): int
+    {
+        $this->startSelling();
+        $item         = $this->item('0', false);
+        $supervisorId = $this->createBranchLimitedSupervisor(1);
+        $this->grantStockLocationIn(1, $supervisorId);
+        $this->loginAs($supervisorId);
+        $this->seedCartLine(1, '100.00', $item);
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_payments' => []]));
+
+        return $supervisorId;
+    }
+
+    /**
+     * What the cart holds after a request, handed to the next one the way the browser does.
+     */
+    protected function carryPaymentsToTheNextRequest(): void
+    {
+        $this->withSession(array_merge($this->session, ['sales_payments' => Services::session()->get('sales_payments')]));
+    }
+
+    public function testGetIndex_OffersTheTreasuriesOfTheBranchAtTheRegisterWhenThereIsAChoice(): void
+    {
+        $this->registerWithACart();
+        $this->treasuryOfBranch('Register drawer');
+
+        $response = $this->get('/sales');
+
+        $response->assertStatus(200);
+        $response->assertSee('name="treasury_id"');
+        $response->assertSee('Register drawer');
+        $response->assertSee('id="treasury_choice"');
+    }
+
+    public function testGetIndex_OffersNoTreasuryAtTheRegisterWhileTheBranchHasOnlyTheMainOne(): void
+    {
+        $this->registerWithACart();
+
+        $response = $this->get('/sales');
+
+        $response->assertStatus(200);
+        $response->assertDontSee('name="treasury_id"');
+    }
+
+    public function testPostAddPayment_KeepsTheTreasuryTheCashierChose(): void
+    {
+        $this->registerWithACart();
+        $drawer = $this->treasuryOfBranch('Register drawer');
+
+        $response = $this->post('/sales/addPayment', ['payment_type' => 'Cash', 'amount_tendered' => '40.00', 'treasury_id' => (string) $drawer]);
+
+        $payments = Services::session()->get('sales_payments');
+
+        $this->assertSame($drawer, (int) $payments['Cash']['treasury_id']);
+        $response->assertSee('(Register drawer)');
+    }
+
+    public function testPostAddPayment_AddsToThePaymentOfTheSameTypeAndTreasuryButRefusesAnotherTreasury(): void
+    {
+        $this->registerWithACart();
+        $drawer = $this->treasuryOfBranch('Register drawer');
+        $other  = $this->treasuryOfBranch('Other drawer');
+
+        $this->post('/sales/addPayment', ['payment_type' => 'Cash', 'amount_tendered' => '40.00', 'treasury_id' => (string) $drawer]);
+        $this->carryPaymentsToTheNextRequest();
+        $this->post('/sales/addPayment', ['payment_type' => 'Cash', 'amount_tendered' => '10.00', 'treasury_id' => (string) $drawer]);
+
+        $this->assertSame('50.00', bcadd((string) Services::session()->get('sales_payments')['Cash']['payment_amount'], '0', 2));
+
+        $this->carryPaymentsToTheNextRequest();
+
+        $response = $this->post('/sales/addPayment', ['payment_type' => 'Cash', 'amount_tendered' => '5.00', 'treasury_id' => (string) $other]);
+
+        $response->assertSee(lang('Sales.treasury_payment_conflict'));
+
+        $payments = Services::session()->get('sales_payments');
+
+        $this->assertSame('50.00', bcadd((string) $payments['Cash']['payment_amount'], '0', 2));
+        $this->assertSame($drawer, (int) $payments['Cash']['treasury_id']);
+    }
+
+    public function testPostAddPayment_RefusesATreasuryOfAnotherBranchAndAddsNothing(): void
+    {
+        $this->registerWithACart();
+        $elsewhere = $this->treasuryOfBranch('Far drawer', $this->createSecondBranch());
+
+        $response = $this->post('/sales/addPayment', ['payment_type' => 'Cash', 'amount_tendered' => '40.00', 'treasury_id' => (string) $elsewhere]);
+
+        $response->assertSee(lang('Accounting.error_treasury_not_found'));
+        $this->assertEmpty(Services::session()->get('sales_payments'));
+    }
+
+    public function testPostAddPayment_PutsNoTreasuryOnAPaymentThatSettlesNothingInCash(): void
+    {
+        $this->registerWithACart();
+        $drawer = $this->treasuryOfBranch('Register drawer');
+
+        $this->post('/sales/addPayment', ['payment_type' => 'Due', 'amount_tendered' => '40.00', 'treasury_id' => (string) $drawer]);
+
+        $this->assertSame(0, (int) Services::session()->get('sales_payments')['Due']['treasury_id']);
+    }
+
+    public function testPostComplete_PostsThePaymentToTheTreasuryChosenAtTheRegister(): void
+    {
+        $this->registerWithACart();
+        $drawer = $this->treasuryOfBranch('Register drawer');
+
+        $this->post('/sales/addPayment', ['payment_type' => 'Cash', 'amount_tendered' => '100.00', 'treasury_id' => (string) $drawer]);
+        $this->carryPaymentsToTheNextRequest();
+
+        $sales = $this->countSales();
+
+        $this->post('/sales/complete');
+
+        $this->assertSame($sales + 1, $this->countSales());
+
+        $payment = $this->accountingDb()->table('sales_payments')->orderBy('payment_id', 'DESC')->get()->getRow();
+
+        $this->assertSame($drawer, (int) $payment->treasury_id);
+        $this->assertSame('100.0000', (new TreasuryService())->position($drawer)->balance);
+        $this->assertSame('0.00', $this->balance($this->accountId('cash')), 'The main treasury received nothing');
     }
 
     protected function config(): array

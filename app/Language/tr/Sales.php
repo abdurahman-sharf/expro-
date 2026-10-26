@@ -278,6 +278,7 @@ return [
     'transaction_failed'                => 'Satış işlemi hatası.',
     'treasury'                          => '',
     'treasury_default'                  => '',
+    'treasury_payment_conflict'         => '',
     'unable_to_add_item'                => 'Ürün satışa eklenemedi',
     'unsuccessfully_deleted'            => 'Satış silinemedi.',
     'unsuccessfully_restored'           => 'Satış onarılamadı.',

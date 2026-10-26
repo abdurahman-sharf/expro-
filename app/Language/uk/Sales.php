@@ -278,6 +278,7 @@ return [
     'transaction_failed'                => 'Не вдалося здійснити продажну транзакцію.',
     'treasury'                          => '',
     'treasury_default'                  => '',
+    'treasury_payment_conflict'         => '',
     'unable_to_add_item'                => 'Помилка додавання товару до продажу',
     'unsuccessfully_deleted'            => 'Продажі невдало видалено.',
     'unsuccessfully_restored'           => 'Не вдалось відновити продажі.',

@@ -838,7 +838,10 @@ class Receiving extends Model
 
         $units = '`quantity_purchased` * `' . $db_prefix . 'receivings_items`.`receiving_quantity`';
         $gross = '`item_unit_price` * ' . $units;
-        $net   = 'CASE WHEN `' . $db_prefix . 'receivings_items`.`discount_type` = ' . PERCENT . ' THEN ' . $gross . ' - ' . $gross . ' * `discount` / 100 ELSE ' . $gross . ' - `discount` * ' . $units . ' END';
+        $type  = '`' . $db_prefix . 'receivings_items`.`discount_type`';
+        $net   = 'CASE WHEN ' . $type . ' = ' . PERCENT . ' THEN ' . $gross . ' - ' . $gross . ' * `discount` / 100'
+            . ' WHEN ' . $type . ' = ' . FIXED_LINE . ' THEN ' . $gross . ' - SIGN(`quantity_purchased`) * `discount`'
+            . ' ELSE ' . $gross . ' - `discount` * ' . $units . ' END';
 
         $builder = $this->db->table('receivings_items');
         $builder->select([

@@ -278,6 +278,7 @@ return [
     'transaction_failed'                => '',
     'treasury'                          => '',
     'treasury_default'                  => '',
+    'treasury_payment_conflict'         => '',
     'unable_to_add_item'                => 'Přidání položky se nepovedlo',
     'unsuccessfully_deleted'            => 'Účtenka nebyla smazána.',
     'unsuccessfully_restored'           => 'Účtenka nebyla obnovena.',

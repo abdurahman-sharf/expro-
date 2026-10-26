@@ -16,7 +16,8 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * What the purchase screen says a line and the whole purchase come to, with a percentage
- * discount taken from the line and a fixed discount taken from every unit.
+ * discount taken from the line and a fixed discount taken from every unit (or from the whole
+ * line, on a line saved before it was taken from every unit).
  */
 class Receiving_libTest extends CIUnitTestCase
 {
@@ -54,6 +55,9 @@ class Receiving_libTest extends CIUnitTestCase
             'fixed discount of packs'      => [2, 5, 1, FIXED, 12, '96.0000'],
             'percent discount of packs'    => [2, 5, 10, PERCENT, 12, '108.0000'],
             'a return of units'            => [-4, 10, 1, FIXED, 1, '-36.0000'],
+            'fixed discount of a line saved before it was per unit' => [10, 100, 50, FIXED_LINE, 1, '950.0000'],
+            'fixed discount of a line of packs saved before'         => [2, 5, 1, FIXED_LINE, 12, '119.0000'],
+            'a return of a line saved before'                        => [-4, 10, 5, FIXED_LINE, 1, '-35.0000'],
         ];
     }
 

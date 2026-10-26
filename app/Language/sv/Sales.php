@@ -278,6 +278,7 @@ return [
     'transaction_failed'                => 'Försäljningstransaktionen misslyckades.',
     'treasury'                          => '',
     'treasury_default'                  => '',
+    'treasury_payment_conflict'         => '',
     'unable_to_add_item'                => 'Artikel tillägg till försäljning misslyckades',
     'unsuccessfully_deleted'            => 'Försäljning (ar) radering misslyckades.',
     'unsuccessfully_restored'           => 'Återställningen av försäljning (ar) misslyckades.',

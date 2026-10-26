@@ -2,6 +2,7 @@
 
 namespace Tests\Database;
 
+use App\Database\Migrations\SupplierAdvances;
 use App\Database\Migrations\Treasuries;
 use CodeIgniter\Database\Exceptions\DatabaseException;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -219,8 +220,10 @@ class TreasuriesMigrationTest extends CIUnitTestCase
     {
         $employee  = $this->employeeWithGrants([self::MODULE_ID, self::PERMISSION]);
         $migration = new Treasuries();
+        $later     = new SupplierAdvances();
 
         try {
+            $later->down();
             $migration->down();
 
             $this->assertFalse($this->hasTable('treasuries'));
@@ -236,6 +239,7 @@ class TreasuriesMigrationTest extends CIUnitTestCase
             $this->assertSame(0, $this->accountingDb()->table('grants')->where('person_id', $employee)->whereIn('permission_id', [self::MODULE_ID, self::PERMISSION])->countAllResults());
         } finally {
             $migration->up();
+            $later->up();
         }
 
         $this->assertTrue($this->hasTable('treasuries'));

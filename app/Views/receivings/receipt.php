@@ -82,7 +82,7 @@ echo view('partial/print_receipt', ['print_after_sale', $print_after_sale, 'sele
             </tr>
             <?php if ($item['discount'] > 0) { ?>
                 <tr>
-                    <?php if ($item['discount_type'] == FIXED) { ?>
+                    <?php if ($item['discount_type'] == FIXED || $item['discount_type'] == FIXED_LINE) { ?>
                         <td colspan="3" class="discount"><?= to_currency($item['discount']) . ' ' . lang('Sales.discount') ?></td>
                     <?php } elseif ($item['discount_type'] == PERCENT) { ?>
                         <td colspan="3" class="discount"><?= to_decimals($item['discount']) . ' ' . lang('Sales.discount_included') ?></td>

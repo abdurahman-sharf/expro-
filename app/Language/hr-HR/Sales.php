@@ -278,6 +278,7 @@ return [
     'transaction_failed'                => 'Greška kod prodaje',
     'treasury'                          => '',
     'treasury_default'                  => '',
+    'treasury_payment_conflict'         => '',
     'unable_to_add_item'                => 'Artikal nije moguće dodati',
     'unsuccessfully_deleted'            => 'Prodaju(e) nije moguće izbrisati',
     'unsuccessfully_restored'           => '',

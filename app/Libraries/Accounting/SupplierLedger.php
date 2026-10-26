@@ -13,7 +13,7 @@ use Config\Database;
  */
 final class SupplierLedger
 {
-    private const TYPES = [ReceivingType::Receive->value, ReceivingType::Return->value];
+    private const TYPES = [ReceivingType::Receive->value, ReceivingType::Return->value, SupplierAdvances::OPENING_TYPE];
 
     private BaseConnection $db;
 
@@ -66,6 +66,7 @@ final class SupplierLedger
                 $paid[$receivingId] ?? '0.0000',
                 $applied['into'][$receivingId] ?? '0.0000',
                 $returned[$receivingId] ?? '0.0000',
+                $purchase->receiving_type === SupplierAdvances::OPENING_TYPE,
             );
         }
 
@@ -78,6 +79,10 @@ final class SupplierLedger
             if (bccomp($excess, '0', SaleAmounts::SCALE) > 0) {
                 $credits[$receivingId] = [CreditSource::INVOICE_EXCESS, $receivingId, null, $purchase->date, $excess];
             }
+        }
+
+        foreach ($this->advances($supplierId, $accountId) as $advance) {
+            $credits['advance:' . $advance->advance_id] = [CreditSource::ADVANCE, (int) $advance->advance_id, null, (string) $advance->advance_date, bcadd((string) $advance->amount, '0', SaleAmounts::SCALE)];
         }
 
         $sources = [];
@@ -169,9 +174,27 @@ final class SupplierLedger
                     (SELECT COALESCE(SUM(l.credit - l.debit), 0) FROM ' . $this->db->prefixTable('accounting_journal_lines') . ' l WHERE l.journal_id = j.journal_id AND l.account_id = ?) AS total
              FROM ' . $this->db->prefixTable('receivings') . ' r
              JOIN ' . $this->db->prefixTable('accounting_journals') . ' j ON j.source_type = ? AND j.source_id = r.receiving_id AND j.entry_type = ? AND j.status = ?
-             WHERE r.supplier_id = ? AND r.receiving_type IN (?, ?)
+             WHERE r.supplier_id = ? AND r.receiving_type IN (' . implode(', ', array_fill(0, count(self::TYPES), '?')) . ')
              ORDER BY r.receiving_time ASC, r.receiving_id ASC',
             [$accountId, ReceivingPostingBuilder::SOURCE_PURCHASE, JournalEntryType::General->value, JournalStatus::Posted->value, $supplierId, ...self::TYPES],
+        )->getResult();
+    }
+
+    /**
+     * The payments to the supplier that belong to no purchase, and what the supplier owed us from
+     * before the books started, with what their journal debited the account of the supplier.
+     *
+     * @return list<object>
+     */
+    private function advances(int $supplierId, int $accountId): array
+    {
+        return $this->db->query(
+            'SELECT a.advance_id, a.advance_date,
+                    (SELECT COALESCE(SUM(l.debit - l.credit), 0) FROM ' . $this->db->prefixTable('accounting_journal_lines') . ' l WHERE l.journal_id = j.journal_id AND l.account_id = ?) AS amount
+             FROM ' . $this->db->prefixTable('supplier_advances') . ' a
+             JOIN ' . $this->db->prefixTable('accounting_journals') . ' j ON j.source_type = ? AND j.source_id = a.advance_id AND j.entry_type = ? AND j.status = ?
+             WHERE a.supplier_id = ? AND a.status = ?',
+            [$accountId, SupplierAdvances::SOURCE, JournalEntryType::General->value, JournalStatus::Posted->value, $supplierId, 'completed'],
         )->getResult();
     }
 

@@ -5,7 +5,8 @@ namespace App\Libraries\Accounting;
 /**
  * A purchase of a supplier as the books hold it: what it came to, what was paid into it, what
  * credit was applied to it and what was taken back by debit notes. Every amount is read from
- * journals that stand, so it cannot disagree with the account of the supplier.
+ * journals that stand, so it cannot disagree with the account of the supplier. An opening
+ * balance owed to the supplier is a purchase without lines and is read the same way.
  */
 final readonly class PurchaseFigures
 {
@@ -16,6 +17,7 @@ final readonly class PurchaseFigures
         public string $paid,
         public string $applied,
         public string $returned,
+        public bool $opening = false,
     ) {
     }
 

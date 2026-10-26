@@ -392,7 +392,9 @@ class Receiving_lib
                 continue;
             }
 
-            $this->add_item($row->item_id, -($remaining / $perPack), $row->item_location, $row->discount, $row->discount_type, $row->item_unit_price, $row->description, $row->serialnumber, $row->receiving_quantity, $receivingId, true, (string) $row->tax_percent);
+            $discount = (int) $row->discount_type === FIXED_LINE ? round((float) $row->discount * $remaining / $units, 2) : $row->discount;
+
+            $this->add_item($row->item_id, -($remaining / $perPack), $row->item_location, $discount, $row->discount_type, $row->item_unit_price, $row->description, $row->serialnumber, $row->receiving_quantity, $receivingId, true, (string) $row->tax_percent);
         }
 
         $this->set_supplier($this->receiving->get_supplier($receivingId)->person_id);
@@ -442,6 +444,8 @@ class Receiving_lib
         if ($discount_type == PERCENT) {    // TODO: === ?
             $discount_fraction = bcdiv($discount, 100);
             $discount_amount   = bcmul($total, $discount_fraction);
+        } elseif ($discount_type == FIXED_LINE) {
+            $discount_amount = bccomp($extended_quantity, '0', 3) < 0 ? bcmul($discount, '-1') : (string) $discount;
         }
 
         return bcsub($total, $discount_amount);

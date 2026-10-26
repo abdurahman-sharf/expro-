@@ -278,6 +278,7 @@ return [
     'transaction_failed'                => 'Ha fallado la venta.',
     'treasury'                          => '',
     'treasury_default'                  => '',
+    'treasury_payment_conflict'         => '',
     'unable_to_add_item'                => 'Falló al agregar artículos para venta',
     'unsuccessfully_deleted'            => 'La eliminación de venta falló.',
     'unsuccessfully_restored'           => 'La restauración de la venta falló.',

@@ -285,4 +285,36 @@ class TreasuryTransfersTest extends CIUnitTestCase
         $this->assertSame(['total' => 0, 'rows' => []], $this->transfers->search([]));
         $this->assertSame(0, $this->transfers->search([$this->createBranch('B2')])['total']);
     }
+
+    public function testMovements_ShowTheBalanceAfterEachMovementAndWhichOneTookItBelowZero(): void
+    {
+        $this->transfers->transfer($this->main, $this->drawer, '200.00', '2026-10-21', '', $this->manager);
+        $second = $this->transfers->transfer($this->drawer, $this->main, '300.00', '2026-10-22', '', $this->manager);
+
+        $movements = $this->treasuries->movements($this->drawer);
+
+        $this->assertSame(['200.0000', '-100.0000'], array_column($movements['rows'], 'balance'));
+        $this->assertSame([false, true], array_column($movements['rows'], 'crossed'));
+        $this->assertCount(1, $movements['crossings']);
+        $this->assertSame(['treasury_transfer', $second], [$movements['crossings'][0]['source_type'], (int) $movements['crossings'][0]['source_id']]);
+        $this->assertSame('-100.0000', $movements['lowest']);
+        $this->assertSame('-100.0000', $this->balanceOf($this->drawer));
+    }
+
+    public function testMovements_CountTheReversalOfATransferAndItsOriginalBoth(): void
+    {
+        $transferId = $this->transfers->transfer($this->main, $this->drawer, '200.00', '2026-10-21', '', $this->manager);
+        $this->transfers->cancel($transferId, 'wrong drawer', $this->manager);
+
+        $rows = $this->treasuries->movements($this->drawer)['rows'];
+
+        $this->assertSame(['200.0000', '0.0000'], array_column($rows, 'balance'));
+        $this->assertNull($rows[0]['reverses_journal_id']);
+        $this->assertNotNull($rows[1]['reverses_journal_id']);
+    }
+
+    public function testMovements_AreEmptyForATreasuryNothingWasPostedTo(): void
+    {
+        $this->assertSame(['rows' => [], 'crossings' => [], 'lowest' => '0.0000'], $this->treasuries->movements($this->drawer));
+    }
 }

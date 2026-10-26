@@ -36,6 +36,9 @@ class ReceivingAmountsTest extends CIUnitTestCase
             'discount above the line'    => [self::line('1', '10', '50', FIXED), '10.0000', '50.0000', '0.0000', '0.0000'],
             'a return takes the same'    => [self::line('-4', '10', '1', FIXED), '40.0000', '4.0000', '36.0000', '0.0000'],
             'a pack of zero is one unit' => [self::line('4', '5', perPack: '0'), '20.0000', '0.0000', '20.0000', '0.0000'],
+            'fixed discount of a line saved before it was per unit' => [self::line('10', '100', '50', FIXED_LINE, tax: '15'), '1000.0000', '50.0000', '950.0000', '142.5000'],
+            'the same line of packs'                                 => [self::line('2', '5', '1', FIXED_LINE, perPack: '12'), '120.0000', '1.0000', '119.0000', '0.0000'],
+            'a return of such a line takes the same amount'          => [self::line('-4', '10', '5', FIXED_LINE), '40.0000', '5.0000', '35.0000', '0.0000'],
         ];
     }
 

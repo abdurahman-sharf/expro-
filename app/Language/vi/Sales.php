@@ -278,6 +278,7 @@ return [
     'transaction_failed'                => 'Gặp lỗi khi giao dịch bán hàng.',
     'treasury'                          => '',
     'treasury_default'                  => '',
+    'treasury_payment_conflict'         => '',
     'unable_to_add_item'                => 'Gặp lỗi khi thêm hàng hóa vào đơn hàng',
     'unsuccessfully_deleted'            => 'Gặp lỗi khi xóa các lần bán hàng.',
     'unsuccessfully_restored'           => 'Gặp lỗi khi hoàn lại các lần bán hàng.',

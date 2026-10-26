@@ -2,8 +2,12 @@
 
 namespace App\Controllers;
 
+use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\SupplierAdvances;
 use App\Libraries\Accounting\SupplierLedger;
 use App\Libraries\Accounting\SupplierPosition;
+use App\Libraries\Accounting\TreasuryService;
+use App\Models\Receiving;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\HTTP\ResponseInterface;
 
@@ -17,12 +21,14 @@ class AccountingPayables extends AccountingController
     private const MAX_PAGE_SIZE = 500;
 
     private SupplierLedger $ledger;
+    private SupplierAdvances $advances;
 
     public function __construct()
     {
         parent::__construct('accounting_payables');
 
-        $this->ledger = new SupplierLedger();
+        $this->ledger   = new SupplierLedger();
+        $this->advances = new SupplierAdvances(null, null, $this->branchGuard());
     }
 
     public function getIndex(): string
@@ -77,14 +83,131 @@ class AccountingPayables extends AccountingController
             throw PageNotFoundException::forPageNotFound();
         }
 
+        $advances = $this->advances->forSupplier($supplierId);
+
         return view('accounting_payables/supplier', [
+            'supplier_id'   => $supplierId,
             'supplier_name' => $this->supplierName($supplierId),
             'position'      => $position,
             'today'         => date('Y-m-d'),
             'applications'  => $this->ledger->applications($supplierId, true),
+            'advances'      => $advances,
+            'advance_kinds' => array_column($advances, 'kind', 'advance_id'),
+            'can_manage'    => $this->can(AccountingGuard::PAYABLES_MANAGE),
             'amount'        => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
             'date'          => fn (string $value): string => $this->formatDate($value),
         ]);
+    }
+
+    public function getPaymentForm(int $supplierId): string
+    {
+        $this->requireManage($supplierId);
+
+        $options = model(Receiving::class)->get_payment_options();
+
+        unset($options[lang('Sales.due')]);
+
+        $treasuries = [0 => lang('Accounting_payables.treasury_default')];
+
+        foreach ((new TreasuryService())->all($this->branchIds(), false) as $treasury) {
+            $treasuries[(int) $treasury->treasury_id] = $treasury->name . ' (' . $treasury->branch_code . ')';
+        }
+
+        return view('accounting_payables/payment_form', [
+            'supplier_id'     => $supplierId,
+            'supplier_name'   => $this->supplierName($supplierId),
+            'payment_options' => $options,
+            'treasuries'      => count($treasuries) > 2 ? $treasuries : [],
+            'today'           => date('Y-m-d'),
+        ]);
+    }
+
+    public function postPayment(int $supplierId): ResponseInterface
+    {
+        $this->requireCompanyScope();
+
+        return $this->attempt(function () use ($supplierId): array {
+            $treasuryId = (int) $this->request->getPost('treasury_id');
+
+            $id = $this->advances->pay(
+                $supplierId,
+                trim((string) $this->request->getPost('amount')),
+                trim((string) $this->request->getPost('advance_date')),
+                trim((string) $this->request->getPost('payment_type')),
+                $treasuryId > 0 ? $treasuryId : null,
+                (string) $this->request->getPost('reference_code'),
+                (string) $this->request->getPost('note'),
+                $this->employeeId(),
+            );
+
+            return ['success' => true, 'message' => lang('Accounting_payables.payment_done'), 'id' => $id];
+        });
+    }
+
+    public function getOpeningForm(int $supplierId): string
+    {
+        $this->requireManage($supplierId);
+
+        return view('accounting_payables/opening_form', [
+            'supplier_id'   => $supplierId,
+            'supplier_name' => $this->supplierName($supplierId),
+            'today'         => date('Y-m-d'),
+        ]);
+    }
+
+    public function postOpening(int $supplierId): ResponseInterface
+    {
+        $this->requireCompanyScope();
+
+        return $this->attempt(function () use ($supplierId): array {
+            $id = $this->advances->openingBalance(
+                $supplierId,
+                (string) $this->request->getPost('side'),
+                trim((string) $this->request->getPost('amount')),
+                trim((string) $this->request->getPost('advance_date')),
+                (string) $this->request->getPost('note'),
+                $this->employeeId(),
+            );
+
+            return ['success' => true, 'message' => lang('Accounting_payables.opening_done'), 'id' => $id];
+        });
+    }
+
+    public function getCancelForm(string $what, int $id): string
+    {
+        $this->requireCompanyScope();
+
+        if (! $this->can(AccountingGuard::PAYABLES_MANAGE) || ! in_array($what, [SupplierAdvances::SOURCE, SupplierAdvances::OPENING_TYPE], true) || $this->advances->branchOf($what, $id) === null) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        return view('accounting_payables/cancel_form', ['what' => $what, 'id' => $id]);
+    }
+
+    public function postCancel(string $what, int $id): ResponseInterface
+    {
+        $this->requireCompanyScope();
+
+        return $this->attempt(function () use ($what, $id): array {
+            $reason = (string) $this->request->getPost('reason');
+
+            match ($what) {
+                SupplierAdvances::SOURCE       => $this->advances->cancel($id, $reason, $this->employeeId()),
+                SupplierAdvances::OPENING_TYPE => $this->advances->cancelOpening($id, $reason, $this->employeeId()),
+                default                        => throw PageNotFoundException::forPageNotFound(),
+            };
+
+            return ['success' => true, 'message' => lang('Accounting_payables.cancelled_done'), 'id' => $id];
+        });
+    }
+
+    private function requireManage(int $supplierId): void
+    {
+        $this->requireCompanyScope();
+
+        if (! $this->can(AccountingGuard::PAYABLES_MANAGE) || $this->ledger->position($supplierId)->accountId === null) {
+            throw PageNotFoundException::forPageNotFound();
+        }
     }
 
     private function requireCompanyScope(): void

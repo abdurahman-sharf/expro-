@@ -278,6 +278,7 @@ return [
     'transaction_failed'                => 'Sales Transaction failed.',
     'treasury'                          => 'Treasury',
     'treasury_default'                  => 'Default treasury',
+    'treasury_payment_conflict'         => 'A payment of this type is already in the sale with another treasury. Remove it first, or choose the same treasury.',
     'unable_to_add_item'                => 'Item add to Sale failed',
     'unsuccessfully_deleted'            => 'Sale(s) delete failed.',
     'unsuccessfully_restored'           => 'Sale(s) restore failed.',

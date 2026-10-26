@@ -192,6 +192,98 @@ class AccountingTreasuriesControllerTest extends CIUnitTestCase
         $this->assertStringContainsString(lang('Accounting_treasuries.by_hand_none'), strip_tags($rows[0]['by_hand']));
     }
 
+    /**
+     * Two treasuries, the first holding 100 and then sending 160 to the second, so that it ends
+     * 60 below zero.
+     *
+     * @return array{int, int, int} The overdrawn treasury, the one that received, and the transfer.
+     */
+    private function overdrawn(): array
+    {
+        $manager = $this->manager();
+        $short   = $this->treasuries->create(['name' => 'Short drawer', 'kind' => 'cash'], $manager);
+        $other   = $this->treasuries->create(['name' => 'Other drawer', 'kind' => 'cash'], $manager);
+
+        $this->fund($short, '100.00');
+
+        $transferId = (new TreasuryTransfers())->transfer($short, $other, '160.00', '2026-10-22', '', $manager);
+
+        return [$short, $other, $transferId];
+    }
+
+    public function testGetSearch_MarksATreasuryThatHoldsLessThanNothing(): void
+    {
+        $this->overdrawn();
+
+        $byName = [];
+
+        foreach ($this->rowsOf()['rows'] as $row) {
+            $byName[strip_tags($row['name'])] = $row;
+        }
+
+        $this->assertCount(3, $byName);
+        $this->assertStringContainsString('text-bg-danger', $byName['Short drawer']['balance']);
+        $this->assertStringContainsString('60.00', strip_tags($byName['Short drawer']['balance']));
+        $this->assertStringNotContainsString('text-bg-danger', $byName['Other drawer']['balance']);
+    }
+
+    public function testGetStatement_ShowsWhereTheBalanceWentBelowZero(): void
+    {
+        [$short, , $transferId] = $this->overdrawn();
+
+        $response = $this->get('/accounting_treasuries/statement/' . $short);
+
+        $response->assertStatus(200);
+        $response->assertSee('id="treasury_negative"');
+        $response->assertSee('id="treasury_negative_note"');
+        $response->assertSee('id="treasury_crossings"');
+        $response->assertSee('id="treasury_movements"');
+        $response->assertSee(lang('Accounting.source_treasury_transfer'));
+        $response->assertSee('#' . $transferId);
+        $response->assertSee('-60.00');
+        $response->assertSee('table-danger');
+    }
+
+    public function testGetStatement_SaysTheBalanceNeverWentBelowZeroForATreasuryThatDidNot(): void
+    {
+        [, $other] = $this->overdrawn();
+
+        $response = $this->get('/accounting_treasuries/statement/' . $other);
+
+        $response->assertStatus(200);
+        $response->assertSee('id="treasury_no_crossings"');
+        $response->assertDontSee('id="treasury_negative"');
+        $response->assertDontSee('id="treasury_negative_note"');
+    }
+
+    public function testGetStatement_IsOpenToWhoeverMayOnlyReadAndLinksJournalsOnlyToWhoMayOpenThem(): void
+    {
+        [$short] = $this->overdrawn();
+
+        $this->actAsWith(['accounting_treasuries']);
+
+        $readOnly = $this->get('/accounting_treasuries/statement/' . $short);
+
+        $readOnly->assertStatus(200);
+        $readOnly->assertDontSee('accounting_journals/view');
+
+        $this->actAsWith(['accounting_treasuries', 'accounting_journals']);
+
+        $this->get('/accounting_treasuries/statement/' . $short)->assertSee('accounting_journals/view');
+    }
+
+    public function testGetStatement_IsNotFoundForATreasuryOfAnotherBranch(): void
+    {
+        $manager = $this->manager();
+        $other   = $this->treasuries->create(['name' => 'Elsewhere', 'kind' => 'cash', 'branch_id' => $this->createBranch('B2')], $manager);
+
+        $this->actAsWith(['accounting_treasuries'], [1]);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_treasuries/statement/' . $other);
+    }
+
     public function testGetRow_IsNotFoundForATreasuryOfAnotherBranch(): void
     {
         $manager = $this->manager();

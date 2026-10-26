@@ -27,6 +27,8 @@
  * @var array     $selected_payment_type
  * @var bool      $pos_mode
  * @var array     $payments
+ * @var array<int, string> $treasury_options
+ * @var list<string> $treasury_free_types
  * @var string    $mode_label
  * @var string    $comment
  * @var bool      $print_after_sale
@@ -390,6 +392,13 @@ $employee        = model(Employee::class);
                             <label for="payment_types" class="pos-label"><?= lang("{$sectionName}.payment") ?></label>
                             <?= form_dropdown('payment_type', $payment_options, $selected_payment_type, ['id' => 'payment_types', 'class' => 'form-select', 'data-option-buttons' => 'true']) ?>
 
+                            <?php if ($treasury_options !== []): ?>
+                                <div id="treasury_choice">
+                                    <label for="treasury_id" class="pos-label mt-3"><?= lang('Sales.treasury') ?></label>
+                                    <?= form_dropdown('treasury_id', $treasury_options, '0', ['id' => 'treasury_id', 'class' => 'form-select']) ?>
+                                </div>
+                            <?php endif; ?>
+
                             <label for="amount_tendered" class="pos-label mt-3"><span id="amount_tendered_label"><?= lang("{$sectionName}.amount_tendered") ?></span></label>
                             <?= form_input(['name' => 'amount_tendered', 'id' => 'amount_tendered', 'class' => 'form-control form-control-lg non-giftcard-input', 'value' => to_currency_no_money($amount_due), 'inputmode' => 'decimal', 'onClick' => 'this.select();']) ?>
                             <?= form_input(['name' => 'amount_tendered', 'id' => 'amount_tendered_giftcard', 'class' => 'form-control form-control-lg giftcard-input', 'disabled' => true, 'value' => to_currency_no_money($amount_due), 'autocomplete' => 'off']) ?>
@@ -419,7 +428,7 @@ $employee        = model(Employee::class);
                         <ul class="pos-payments" id="payment_contents">
                             <?php foreach ($payments as $paymentId => $payment): ?>
                                 <li>
-                                    <span><?= $payment['payment_type'] ?></span>
+                                    <span><?= $payment['payment_type'] ?><?php if (! empty($payment['treasury_id']) && isset($treasury_options[(int) $payment['treasury_id']])): ?> <small class="text-body-secondary">(<?= esc($treasury_options[(int) $payment['treasury_id']]) ?>)</small><?php endif; ?></span>
                                     <strong><?= to_currency($payment['payment_amount']) ?></strong>
                                     <?= anchor(
                                         "{$controller_name}/deletePayment/" . esc(base64url_encode($paymentId), 'url'),
@@ -528,6 +537,7 @@ $employee        = model(Employee::class);
     const keyboardShortcuts = <?= json_encode($keyboardShortcuts) ?>;
     const paymentsCoverTotal = <?= json_encode((bool) $payments_cover_total) ?>;
     const referenceCodePaymentTypes = <?= json_encode($reference_code_payment_types) ?>;
+    const typesWithoutTreasury = <?= json_encode($treasury_free_types) ?>;
     const shortcutCodes = {
         items: keyboardShortcuts?.items?.code ?? null,
         customers: keyboardShortcuts?.customers?.code ?? null,
@@ -740,6 +750,7 @@ $employee        = model(Employee::class);
         const isGiftCard = paymentType == "<?= lang(ucfirst($controller_name) . '.giftcard') ?>";
         const isCash = paymentType == "<?= lang(ucfirst($controller_name) . '.cash') ?>";
         const needsReferenceCode = referenceCodePaymentTypes.indexOf(paymentType) !== -1;
+        $("#treasury_choice").toggle(typesWithoutTreasury.indexOf(paymentType) === -1);
 
         if (isGiftCard) {
             $("#sale_total").html("<?= to_currency($total) ?>");

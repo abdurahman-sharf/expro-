@@ -24,6 +24,7 @@ final class AccountingGuard
     public const OPENING_MANAGE      = 'acc_opening_manage';
     public const ROUTING_MANAGE      = 'acc_routing_manage';
     public const TREASURIES_MANAGE   = 'acc_treasuries_manage';
+    public const PAYABLES_MANAGE     = 'acc_payables_manage';
 
     /**
      * Permissions that change what ordinary users cannot undo. Nothing grants them

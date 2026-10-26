@@ -278,6 +278,7 @@ return [
     'transaction_failed'                => 'การดำเนินการขายล้มเหลว',
     'treasury'                          => '',
     'treasury_default'                  => '',
+    'treasury_payment_conflict'         => '',
     'unable_to_add_item'                => 'เพิ่มรายการไปยังการขายล้มเหลว',
     'unsuccessfully_deleted'            => 'ลบการขายไม่สำเร็จ',
     'unsuccessfully_restored'           => 'การคืนค่ารายการขายล้มเหลว',

@@ -278,6 +278,7 @@ return [
     'transaction_failed'                => 'Tranzakció sikertelen',
     'treasury'                          => '',
     'treasury_default'                  => '',
+    'treasury_payment_conflict'         => '',
     'unable_to_add_item'                => 'Nem adható termék az értékesitéshez',
     'unsuccessfully_deleted'            => 'Értékesités(ek) nem törölhető(k)',
     'unsuccessfully_restored'           => '',

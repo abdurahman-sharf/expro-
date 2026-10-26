@@ -1029,6 +1029,38 @@
       "path": "/accounting_payables/supplier/6"
     },
     {
+      "id": "accounting-payable-payment-modal",
+      "group": "accounting",
+      "path": "/accounting_payables/supplier/6",
+      "steps": [
+        {
+          "click": "#title_bar button[data-href^=\"accounting_payables/payment_form/\"]"
+        },
+        {
+          "waitFor": ".modal-body #advance_payment_form"
+        },
+        {
+          "pause": 1000
+        }
+      ]
+    },
+    {
+      "id": "accounting-payable-opening-modal",
+      "group": "accounting",
+      "path": "/accounting_payables/supplier/6",
+      "steps": [
+        {
+          "click": "#title_bar button[data-href^=\"accounting_payables/opening_form/\"]"
+        },
+        {
+          "waitFor": ".modal-body #supplier_opening_form"
+        },
+        {
+          "pause": 1000
+        }
+      ]
+    },
+    {
       "id": "receivings-edit-modal-payments",
       "group": "receivings",
       "path": "/reports/detailed_receivings/2020-01-01/2099-12-31/all/all",
@@ -1090,7 +1122,21 @@
     {
       "id": "accounting-journal-edit-draft",
       "group": "accounting",
-      "path": "/accounting_journals/edit/4"
+      "path": "/accounting_journals",
+      "steps": [
+        {
+          "waitFor": "a[href*=\"accounting_journals/edit/\"]"
+        },
+        {
+          "click": "a[href*=\"accounting_journals/edit/\"]"
+        },
+        {
+          "waitFor": "#journal_form"
+        },
+        {
+          "pause": 500
+        }
+      ]
     },
     {
       "id": "accounting-journal-view",

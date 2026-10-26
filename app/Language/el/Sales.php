@@ -278,6 +278,7 @@ return [
     'transaction_failed'                => 'Συναλλαγή Πώλησης απέτυχε.',
     'treasury'                          => '',
     'treasury_default'                  => '',
+    'treasury_payment_conflict'         => '',
     'unable_to_add_item'                => 'Προσθήκη είδους στην Πώληση απέτυχε',
     'unsuccessfully_deleted'            => 'Διαγραφή Πώλησης/εων απέτυχε.',
     'unsuccessfully_restored'           => 'Επαναφορά Πώλησης/εων απέτυχε.',

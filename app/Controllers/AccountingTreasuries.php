@@ -15,7 +15,8 @@ use CodeIgniter\HTTP\ResponseInterface;
  */
 class AccountingTreasuries extends AccountingController
 {
-    private const MAX_PAGE_SIZE = 500;
+    private const MAX_PAGE_SIZE   = 500;
+    private const STATEMENT_ROWS = 200;
 
     private TreasuryService $treasuries;
     private TreasuryTransfers $transfers;
@@ -57,6 +58,25 @@ class AccountingTreasuries extends AccountingController
     public function getRow(int $treasuryId): ResponseInterface
     {
         return $this->response->setJSON($this->row($this->visible($treasuryId)));
+    }
+
+    public function getStatement(int $treasuryId): string
+    {
+        $treasury  = $this->visible($treasuryId);
+        $position  = $this->treasuries->position($treasuryId);
+        $movements = $this->treasuries->movements($treasuryId);
+
+        return view('accounting_treasuries/statement', [
+            'treasury'      => $treasury,
+            'balance'       => $position->balance,
+            'rows'          => array_slice(array_reverse($movements['rows']), 0, self::STATEMENT_ROWS),
+            'total_rows'    => count($movements['rows']),
+            'crossings'     => array_reverse($movements['crossings']),
+            'lowest'        => $movements['lowest'],
+            'journal_links' => $this->can('accounting_journals'),
+            'amount'        => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
+            'date'          => fn (string $value): string => $this->formatDate($value),
+        ]);
     }
 
     public function getView(int $treasuryId = NEW_ENTRY): string
@@ -293,7 +313,7 @@ class AccountingTreasuries extends AccountingController
             'name'        => $name,
             'kind'        => lang('Accounting_treasuries.kind_' . $treasury->kind),
             'branch_code' => $treasury->branch_code,
-            'balance'     => $this->amountCell($this->formatAmount($position->balance)),
+            'balance'     => $this->balanceCell($position->balance),
             'by_hand'     => $position->agrees()
                 ? '<span class="text-body-secondary">' . esc(lang('Accounting_treasuries.by_hand_none')) . '</span>'
                 : '<span class="badge text-bg-warning">' . $this->amountCell($this->formatAmount($position->manual)) . '</span>',
@@ -302,14 +322,31 @@ class AccountingTreasuries extends AccountingController
         ];
     }
 
-    private function actions(object $treasury): string
+    private function balanceCell(string $balance): string
     {
-        if (! $this->can(AccountingGuard::TREASURIES_MANAGE)) {
-            return '';
+        $cell = $this->amountCell($this->formatAmount($balance));
+
+        if (bccomp($balance, '0', 4) >= 0) {
+            return $cell;
         }
 
-        $id   = (int) $treasury->treasury_id;
-        $html = anchor(
+        return '<span class="badge text-bg-danger" title="' . esc(lang('Accounting_treasuries.negative_note'), 'attr') . '">' . esc(lang('Accounting_treasuries.negative')) . '</span> ' . $cell;
+    }
+
+    private function actions(object $treasury): string
+    {
+        $id        = (int) $treasury->treasury_id;
+        $statement = anchor(
+            "accounting_treasuries/statement/{$id}",
+            '<span class="bi bi-journal-text" aria-hidden="true"></span>',
+            ['title' => lang('Accounting_treasuries.statement'), 'aria-label' => lang('Accounting_treasuries.statement')],
+        );
+
+        if (! $this->can(AccountingGuard::TREASURIES_MANAGE)) {
+            return $statement;
+        }
+
+        $html = $statement . anchor(
             "accounting_treasuries/view/{$id}",
             '<span class="bi bi-pencil-square" aria-hidden="true"></span>',
             ['class' => 'modal-dlg', 'data-btn-submit' => lang('Common.submit'), 'title' => lang('Accounting_treasuries.update')],

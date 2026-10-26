@@ -278,6 +278,7 @@ return [
     'transaction_failed'                => 'Verarbeitung fehlerhaft.',
     'treasury'                          => '',
     'treasury_default'                  => '',
+    'treasury_payment_conflict'         => '',
     'unable_to_add_item'                => 'Kann Artikel nicht zum Auftrag hinzufügen',
     'unsuccessfully_deleted'            => 'Löschen des Verkaufs fehlgeschlagen.',
     'unsuccessfully_restored'           => 'Wiederherstellung fehlgeschlagen.',

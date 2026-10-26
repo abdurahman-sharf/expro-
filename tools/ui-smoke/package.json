@@ -7,6 +7,7 @@
     "setup": "sh setup.sh",
     "smoke": "node run.mjs",
     "branch-scope": "node branch-scope.mjs",
+    "purchase-discount": "node check-purchase-discount.mjs",
     "gates": "node gates.mjs"
   },
   "engines": {

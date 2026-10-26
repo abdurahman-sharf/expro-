@@ -622,11 +622,13 @@ class Sales extends Secure_Controller
                         $this->sale_lib->addPayment($paymentType, $amountTendered);
                     }
                 }
+            } elseif (is_string($treasuryId = $this->registerTreasury($paymentType))) {
+                $data['error'] = $treasuryId;
             } elseif ($paymentType === lang('Sales.cash')) {
                 $amountDue = $this->sale_lib->get_total();
                 $salesTotal = $this->sale_lib->get_total(false);
                 $amountTendered = parse_decimals($this->request->getPost('amount_tendered'));
-                $this->sale_lib->addPayment($paymentType, $amountTendered);
+                $this->sale_lib->addPayment($paymentType, $amountTendered, null, CASH_ADJUSTMENT_FALSE, $treasuryId);
                 $cashAdjustmentAmount = $amountDue - $salesTotal;
                 if ($cashAdjustmentAmount <> 0) {
                     $this->session->set('cash_mode', CASH_MODE_TRUE);
@@ -635,7 +637,7 @@ class Sales extends Secure_Controller
             } else {
                 $amountTendered = parse_decimals($this->request->getPost('amount_tendered'));
                 $referenceCode = $this->request->getPost('reference_code');
-                $this->sale_lib->addPayment($paymentType, $amountTendered, $referenceCode);
+                $this->sale_lib->addPayment($paymentType, $amountTendered, $referenceCode, CASH_ADJUSTMENT_FALSE, $treasuryId);
             }
         }
 
@@ -1572,6 +1574,64 @@ class Sales extends Secure_Controller
     }
 
     /**
+     * The names of the payment types that settle nothing in a treasury, in the languages they are
+     * stored in, so that the register does not ask for a treasury for them.
+     *
+     * @return list<string>
+     */
+    private function labelsWithoutTreasury(): array
+    {
+        $labels = [];
+
+        foreach (PaymentType::cases() as $type) {
+            if (! $type->usesTreasury()) {
+                array_push($labels, ...$type->labels());
+            }
+        }
+
+        return $labels;
+    }
+
+    /**
+     * The treasury a payment added at the register goes into: 0 for the one of the employee, or
+     * the text that says why the one named cannot be used.
+     */
+    private function registerTreasury(string $paymentType): int|string
+    {
+        $type   = PaymentType::fromLabel($paymentType);
+        $posted = (int) $this->request->getPost('treasury_id', FILTER_SANITIZE_NUMBER_INT);
+
+        if ($type === null || ! $type->usesTreasury() || $posted <= 0) {
+            return 0;
+        }
+
+        if (! isset($this->registerTreasuries()[$posted])) {
+            return lang('Accounting.error_treasury_not_found');
+        }
+
+        $inCart = $this->sale_lib->paymentTreasury($paymentType);
+
+        return $inCart !== null && $inCart !== $posted ? lang('Sales.treasury_payment_conflict') : $posted;
+    }
+
+    /**
+     * The treasuries a payment at the register can go into, when there is a choice: those of the
+     * branch the cart sells from.
+     *
+     * @return array<int, string>
+     */
+    private function registerTreasuries(): array
+    {
+        if (! (new AccountingSettings())->isEnabled()) {
+            return [];
+        }
+
+        $branches = $this->sale->branchIdsOfItems($this->sale_lib->get_cart()) ?: $this->sale->branchIdsOfItems([['item_location' => $this->sale_lib->get_sale_location()]]);
+
+        return $branches === [] ? [] : $this->treasuryOptions($branches[0], []);
+    }
+
+    /**
      * The treasury a payment of the form names, when the form has the field: without it the
      * payment keeps the treasury it has.
      *
@@ -1775,6 +1835,8 @@ class Sales extends Secure_Controller
         }
 
         $data['reference_code_payment_types'] = get_reference_code_payment_types();
+        $data['treasury_options'] = $this->registerTreasuries();
+        $data['treasury_free_types'] = $this->labelsWithoutTreasury();
 
         $data['items_module_allowed'] = $this->employee->has_grant('items', $this->employee->get_logged_in_employee_info()->person_id);
         $data['change_price'] = $this->employee->has_grant('sales_change_price', $this->employee->get_logged_in_employee_info()->person_id);

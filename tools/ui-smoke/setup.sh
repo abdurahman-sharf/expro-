@@ -53,6 +53,9 @@ node "$HERE/seed-opening-stock.mjs"
 echo "Adding treasuries and a transfer through the UI"
 node "$HERE/seed-treasuries.mjs"
 
+echo "Entering an opening balance and a payment without a purchase for a supplier through the UI"
+node "$HERE/seed-supplier-advances.mjs"
+
 echo "Recording journals"
 node "$HERE/seed-journals.mjs"
 

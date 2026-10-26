@@ -278,6 +278,7 @@ return [
     'transaction_failed'                => 'Продажната транзакция е неуспешна.',
     'treasury'                          => '',
     'treasury_default'                  => '',
+    'treasury_payment_conflict'         => '',
     'unable_to_add_item'                => 'Добавянето на продукта към продажбата не бе успешно',
     'unsuccessfully_deleted'            => 'Изтриването на продажба (и) не бе успешно.',
     'unsuccessfully_restored'           => 'Възстановяването на Продажбата (ите) не бе успешна.',

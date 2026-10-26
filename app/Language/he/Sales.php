@@ -278,6 +278,7 @@ return [
     'transaction_failed'                => 'עסקת המכירה נכשלה.',
     'treasury'                          => '',
     'treasury_default'                  => '',
+    'treasury_payment_conflict'         => '',
     'unable_to_add_item'                => 'הוספת פריט למכירה נכשל',
     'unsuccessfully_deleted'            => 'מחיקת מכירה(ות) נכשלה.',
     'unsuccessfully_restored'           => 'שחזור מכירה(ות) נכשלה.',

@@ -83,7 +83,8 @@ INSERT IGNORE INTO ospos_grants (permission_id, person_id, menu_group) VALUES
 ('accounting_routing', 1, 'office'),
 ('acc_routing_manage', 1, '--'),
 ('accounting_treasuries', 1, 'office'),
-('acc_treasuries_manage', 1, '--');
+('acc_treasuries_manage', 1, '--'),
+('acc_payables_manage', 1, '--');
 
 INSERT INTO ospos_branches (company_id, code, name, address, phone, is_default, active) VALUES
 (1, 'JED', 'فرع جدة', 'طريق الكورنيش، جدة', '0125550100', 0, 1);

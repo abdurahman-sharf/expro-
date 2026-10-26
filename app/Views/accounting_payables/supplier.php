@@ -4,6 +4,10 @@
  * @var SupplierPosition $position
  * @var string           $today
  * @var list<object>     $applications
+ * @var int              $supplier_id
+ * @var list<object>     $advances
+ * @var array<int,string> $advance_kinds
+ * @var bool             $can_manage
  * @var Closure          $amount
  * @var Closure          $date
  */
@@ -20,6 +24,14 @@ $aging = $position->aging($today);
     <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('accounting_payables'), 'attr') ?>">
         <span class="bi bi-list-ul" aria-hidden="true">&nbsp;</span><?= lang('Accounting_payables.back') ?>
     </a>
+    <?php if ($can_manage): ?>
+        <button class="btn btn-outline-secondary btn-sm modal-dlg" data-btn-submit="<?= lang('Common.submit') ?>" data-href="accounting_payables/opening_form/<?= $supplier_id ?>" title="<?= lang('Accounting_payables.opening_new') ?>">
+            <span class="bi bi-flag" aria-hidden="true">&nbsp;</span><?= lang('Accounting_payables.opening_new') ?>
+        </button>
+        <button class="btn btn-primary btn-sm modal-dlg" data-btn-submit="<?= lang('Common.submit') ?>" data-href="accounting_payables/payment_form/<?= $supplier_id ?>" title="<?= lang('Accounting_payables.payment_new') ?>">
+            <span class="bi bi-cash-coin" aria-hidden="true">&nbsp;</span><?= lang('Accounting_payables.payment_new') ?>
+        </button>
+    <?php endif; ?>
 </div>
 
 <div class="container-fluid py-3" id="payable_statement">
@@ -80,7 +92,20 @@ $aging = $position->aging($today);
             <tbody>
                 <?php foreach ($position->purchases as $purchase): ?>
                     <tr>
-                        <td><?= anchor('receivings/receipt/' . $purchase->receivingId, 'RECV ' . $purchase->receivingId, ['target' => '_blank', 'dir' => 'ltr']) ?></td>
+                        <td>
+                            <?php if ($purchase->opening): ?>
+                                <?= lang('Accounting_payables.opening_balance') ?>
+                                <?php if ($can_manage): ?>
+                                    <?= anchor(
+                                        'accounting_payables/cancel_form/opening/' . $purchase->receivingId,
+                                        '<span class="bi bi-x-circle" aria-hidden="true"></span>',
+                                        ['class' => 'modal-dlg', 'data-btn-submit' => lang('Common.submit'), 'title' => lang('Accounting_payables.cancel'), 'aria-label' => lang('Accounting_payables.cancel')],
+                                    ) ?>
+                                <?php endif; ?>
+                            <?php else: ?>
+                                <?= anchor('receivings/receipt/' . $purchase->receivingId, 'RECV ' . $purchase->receivingId, ['target' => '_blank', 'dir' => 'ltr']) ?>
+                            <?php endif; ?>
+                        </td>
                         <td><?= esc($date($purchase->date)) ?></td>
                         <td><?= $amount($purchase->total) ?></td>
                         <td><?= $amount($purchase->paid) ?></td>
@@ -117,7 +142,13 @@ $aging = $position->aging($today);
             <tbody>
                 <?php foreach ($position->credits as $source): ?>
                     <tr>
-                        <td><?= esc(lang($source->type === CreditSource::DEBIT_NOTE ? 'Accounting_payables.source_debit_note' : 'Accounting_payables.source_excess')) ?> <?= anchor('receivings/receipt/' . $source->sourceId, 'RECV ' . $source->sourceId, ['target' => '_blank', 'dir' => 'ltr']) ?></td>
+                        <td>
+                            <?php if ($source->type === CreditSource::ADVANCE): ?>
+                                <?= esc(lang(($advance_kinds[$source->sourceId] ?? 'payment') === 'opening' ? 'Accounting_payables.source_advance_opening' : 'Accounting_payables.source_advance')) ?> <bdi dir="ltr">#<?= $source->sourceId ?></bdi>
+                            <?php else: ?>
+                                <?= esc(lang($source->type === CreditSource::DEBIT_NOTE ? 'Accounting_payables.source_debit_note' : 'Accounting_payables.source_excess')) ?> <?= anchor('receivings/receipt/' . $source->sourceId, 'RECV ' . $source->sourceId, ['target' => '_blank', 'dir' => 'ltr']) ?>
+                            <?php endif; ?>
+                        </td>
                         <td><?= esc($date($source->date)) ?></td>
                         <td><?= $amount($source->amount) ?></td>
                         <td><?= $amount($source->applied) ?></td>
@@ -126,6 +157,51 @@ $aging = $position->aging($today);
                 <?php endforeach; ?>
                 <?php if ($position->credits === []): ?>
                     <tr><td colspan="5"><?= lang('Accounting_payables.no_credits') ?></td></tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
+
+    <h2 class="h5"><?= lang('Accounting_payables.advances') ?></h2>
+    <div class="table-responsive mb-4">
+        <table class="table table-sm" id="payable_advances">
+            <thead>
+                <tr>
+                    <th scope="col"><?= lang('Accounting_payables.advance_number') ?></th>
+                    <th scope="col"><?= lang('Accounting_payables.date') ?></th>
+                    <th scope="col"><?= lang('Accounting_payables.kind') ?></th>
+                    <th scope="col"><?= lang('Accounting_payables.amount') ?></th>
+                    <th scope="col"><?= lang('Accounting_payables.treasury') ?></th>
+                    <th scope="col"><?= lang('Accounting_payables.reference') ?></th>
+                    <th scope="col"><?= lang('Accounting_payables.note_label') ?></th>
+                    <th scope="col"><?= lang('Accounting_payables.status') ?></th>
+                    <th scope="col"></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($advances as $advance): ?>
+                    <tr>
+                        <td><bdi dir="ltr">#<?= (int) $advance->advance_id ?></bdi></td>
+                        <td><?= esc($date((string) $advance->advance_date)) ?></td>
+                        <td><?= esc(lang($advance->kind === 'opening' ? 'Accounting_payables.source_advance_opening' : 'Accounting_payables.source_advance')) ?></td>
+                        <td><?= $amount((string) $advance->amount) ?></td>
+                        <td><?= esc((string) ($advance->treasury_name ?? '')) ?></td>
+                        <td><?= esc((string) $advance->reference_code) ?></td>
+                        <td><?= esc((string) $advance->note) ?></td>
+                        <td><span class="badge <?= $advance->status === 'cancelled' ? 'text-bg-secondary' : 'text-bg-success' ?>"><?= esc(lang('Accounting_payables.status_' . $advance->status)) ?></span></td>
+                        <td>
+                            <?php if ($can_manage && $advance->status === 'completed'): ?>
+                                <?= anchor(
+                                    'accounting_payables/cancel_form/supplier_advance/' . (int) $advance->advance_id,
+                                    '<span class="bi bi-x-circle" aria-hidden="true"></span>',
+                                    ['class' => 'modal-dlg', 'data-btn-submit' => lang('Common.submit'), 'title' => lang('Accounting_payables.cancel'), 'aria-label' => lang('Accounting_payables.cancel')],
+                                ) ?>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+                <?php if ($advances === []): ?>
+                    <tr><td colspan="9"><?= lang('Accounting_payables.no_advances') ?></td></tr>
                 <?php endif; ?>
             </tbody>
         </table>
@@ -146,7 +222,11 @@ $aging = $position->aging($today);
             <tbody>
                 <?php foreach ($applications as $application): ?>
                     <tr>
-                        <td><?= esc(lang($application->source_type === CreditSource::DEBIT_NOTE ? 'Accounting_payables.source_debit_note' : 'Accounting_payables.source_excess')) ?> <bdi dir="ltr"><?= (int) $application->source_id ?></bdi></td>
+                        <td><?= esc(lang(match ($application->source_type) {
+                            CreditSource::DEBIT_NOTE => 'Accounting_payables.source_debit_note',
+                            CreditSource::ADVANCE    => 'Accounting_payables.source_advance',
+                            default                  => 'Accounting_payables.source_excess',
+                        })) ?> <bdi dir="ltr"><?= (int) $application->source_id ?></bdi></td>
                         <td><bdi dir="ltr"><?= (int) $application->invoice_receiving_id ?></bdi></td>
                         <td><?= $amount($application->amount) ?></td>
                         <td><?= esc($date($application->created_at)) ?></td>

@@ -278,6 +278,7 @@ return [
     'transaction_failed'                => '銷售交易失敗.',
     'treasury'                          => '',
     'treasury_default'                  => '',
+    'treasury_payment_conflict'         => '',
     'unable_to_add_item'                => '無法增加出售產品',
     'unsuccessfully_deleted'            => '銷售資料刪除失敗.',
     'unsuccessfully_restored'           => '銷售還原失敗.',

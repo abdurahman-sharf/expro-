@@ -1001,6 +1001,35 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $this->assertSame([$item, -7.0], [(int) reset($cart)['item_id'], (float) reset($cart)['quantity']]);
     }
 
+    public function testPostDebitNote_TakesTheShareOfAWholeLineDiscountThatIsLeftToTakeBack(): void
+    {
+        $item     = $this->item('0.00');
+        $purchase = $this->buy([$this->purchaseLine($item, 0, '10', '50', '0', '100', FIXED_LINE)]);
+        $this->buy([$this->purchaseLine($item, 0, '-3', '50')], -1, null, $purchase);
+        $this->loginAs($this->buyer());
+
+        $this->assertTrue($this->jsonOf($this->post('/receivings/debitNote/' . $purchase))['success']);
+
+        $cart = session()->get('recv_cart');
+        $line = reset($cart);
+
+        $this->assertSame([-7.0, FIXED_LINE, 70.0], [(float) $line['quantity'], (int) $line['discount_type'], (float) $line['discount']]);
+        $this->assertSame('-280.0000', bcadd((string) $line['total'], '0', 4));
+    }
+
+    public function testGetReceipt_ShowsTheFixedDiscountOfALineSavedForTheWholeLine(): void
+    {
+        $item     = $this->item('0.00');
+        $purchase = $this->buy([$this->purchaseLine($item, 0, '10', '50', '0', '100', FIXED_LINE)]);
+        $this->loginAs($this->buyer());
+
+        $response = $this->get('/receivings/receipt/' . $purchase);
+
+        $response->assertStatus(200);
+        $response->assertSee('class="discount"');
+        $response->assertSee(lang('Sales.discount'));
+    }
+
     public function testPostDebitNote_SaysThatEverythingWasReturnedAndLeavesTheRegisterAlone(): void
     {
         $item     = $this->item('0.00');

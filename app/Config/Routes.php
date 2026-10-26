@@ -79,12 +79,19 @@ $routes->group('accounting_payables', static function (RouteCollection $routes):
     $routes->get('search', 'AccountingPayables::getSearch');
     $routes->get('row/(:num)', 'AccountingPayables::getRow/$1');
     $routes->get('supplier/(:num)', 'AccountingPayables::getSupplier/$1');
+    $routes->get('payment_form/(:num)', 'AccountingPayables::getPaymentForm/$1');
+    $routes->post('payment/(:num)', 'AccountingPayables::postPayment/$1');
+    $routes->get('opening_form/(:num)', 'AccountingPayables::getOpeningForm/$1');
+    $routes->post('opening/(:num)', 'AccountingPayables::postOpening/$1');
+    $routes->get('cancel_form/(:segment)/(:num)', 'AccountingPayables::getCancelForm/$1/$2');
+    $routes->post('cancel/(:segment)/(:num)', 'AccountingPayables::postCancel/$1/$2');
 });
 
 $routes->group('accounting_treasuries', static function (RouteCollection $routes): void {
     $routes->get('/', 'AccountingTreasuries::getIndex');
     $routes->get('search', 'AccountingTreasuries::getSearch');
     $routes->get('row/(:num)', 'AccountingTreasuries::getRow/$1');
+    $routes->get('statement/(:num)', 'AccountingTreasuries::getStatement/$1');
     $routes->get('view', 'AccountingTreasuries::getView');
     $routes->get('view/(:segment)', 'AccountingTreasuries::getView/$1');
     $routes->post('save', 'AccountingTreasuries::postSave');

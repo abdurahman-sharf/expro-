@@ -267,12 +267,51 @@ class ReceivingPostingTest extends CIUnitTestCase
 
         $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '50', '0', '2', FIXED)]);
 
-        $this->purchases->create_temp_table(['receiving_id' => $receivingId]);
-
-        $row = $this->accountingDb()->table('receivings_items_temp')->get()->getRow();
+        $row = $this->reportRowOf($receivingId);
 
         $this->assertSame('480.0000', bcadd((string) $row->total, '0', 4));
         $this->assertSame('480.0000', bcadd((string) $row->subtotal, '0', 4));
+    }
+
+    private function reportRowOf(int $receivingId): object
+    {
+        $this->accountingDb()->query('DROP TEMPORARY TABLE IF EXISTS ' . $this->accountingDb()->prefixTable('receivings_items_temp'));
+        $this->purchases->create_temp_table(['receiving_id' => $receivingId]);
+
+        return $this->accountingDb()->table('receivings_items_temp')->get()->getRow();
+    }
+
+    public function testPostCompleted_KeepsTheMeaningOfAFixedDiscountSavedForTheWholeLine(): void
+    {
+        $itemId = $this->item('0.00');
+
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '50', '0', '20', FIXED_LINE)]);
+
+        $this->assertGreaterThan(0, $receivingId);
+        $this->assertSame($this->expectedLines([['inventory', '480.00', '0.00'], ['supplier', '0.00', '480.00']]), $this->standingPurchase($receivingId)[0]['lines']);
+        $this->assertSame('48.0000', $this->itemCostOf($itemId));
+    }
+
+    public function testCreateTempTable_KeepsTheMeaningOfAFixedDiscountSavedForTheWholeLine(): void
+    {
+        $itemId = $this->item('0.00');
+
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '50', '0', '20', FIXED_LINE)]);
+
+        $row = $this->reportRowOf($receivingId);
+
+        $this->assertSame('480.0000', bcadd((string) $row->total, '0', 4));
+        $this->assertSame('20.00', (string) $row->discount);
+        $this->assertSame('2', (string) $row->discount_type);
+    }
+
+    public function testCreateTempTable_TakesTheWholeLineDiscountOffTheUnitsOfAReturnToo(): void
+    {
+        $itemId    = $this->item('0.00');
+        $receiving = $this->buy([$this->purchaseLine($itemId, 0, '10', '50', '0', '20', FIXED_LINE)]);
+        $returnId  = $this->buy([$this->purchaseLine($itemId, 0, '-10', '50', '0', '20', FIXED_LINE)], -1, null, $receiving);
+
+        $this->assertSame('-480.0000', bcadd((string) $this->reportRowOf($returnId)->total, '0', 4));
     }
 
     /**

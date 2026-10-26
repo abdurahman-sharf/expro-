@@ -278,6 +278,7 @@ return [
     'transaction_failed'                => 'Échec de Transaction de vente.',
     'treasury'                          => '',
     'treasury_default'                  => '',
+    'treasury_payment_conflict'         => '',
     'unable_to_add_item'                => 'Erreur d\'ajout d\'article à la vente',
     'unsuccessfully_deleted'            => 'Échec de suppression.',
     'unsuccessfully_restored'           => 'Restauration de(s) vente(s) échouée.',

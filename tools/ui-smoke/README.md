@@ -72,6 +72,16 @@ npm run branch-scope -- --out build/ui-smoke/branch-scope
 
 It exits with 1 when a check fails. It leaves one extra employee behind and puts the closings back, so run `npm run setup` again before the next run or before `npm run smoke`.
 
+## Purchase discount
+
+`check-purchase-discount.mjs` works the purchase register the way a buyer does: it adds an item, sets its cost to 100 and its quantity to 10, switches the line discount to a fixed amount and enters 50, and checks that the line total on the screen is 500.00 (a fixed purchase discount comes off every unit, not off the line once). It cancels the purchase afterwards and records nothing, so it can run on any database prepared by `npm run setup`.
+
+```sh
+npm run purchase-discount
+```
+
+It exits with 1 when the total differs.
+
 ## Bootstrap 3 gate
 
 ```sh

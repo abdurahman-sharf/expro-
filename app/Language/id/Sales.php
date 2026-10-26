@@ -278,6 +278,7 @@ return [
     'transaction_failed'                => 'Transaksi Penjualan gagal.',
     'treasury'                          => '',
     'treasury_default'                  => '',
+    'treasury_payment_conflict'         => '',
     'unable_to_add_item'                => 'Tidak dapat menambahkan item pada penjualan',
     'unsuccessfully_deleted'            => 'Transaksi Penjualan gagal dihapus.',
     'unsuccessfully_restored'           => 'Transaksi Penjualan gagal dikembalikan.',
