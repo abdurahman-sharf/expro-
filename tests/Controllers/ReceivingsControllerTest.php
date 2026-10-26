@@ -925,6 +925,22 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $response->assertDontSee('name="treasury_id_new"');
     }
 
+    public function testGetEdit_KeepsTheTreasuryOfAnotherBranchAPaymentAlreadyCarriesSoTheFormSendsItBack(): void
+    {
+        $purchase = $this->purchaseOf('500.00');
+        $this->treasuryOfBranch('Open drawer');
+        $this->accountingDb()->table('branches')->insert(['company_id' => 1, 'code' => 'T' . random_int(100, 999), 'name' => 'Test branch', 'active' => 1]);
+        $second    = (int) $this->accountingDb()->insertID();
+        $elsewhere = $this->treasuryOfBranch('Main of another branch', $second);
+        $payment   = $this->payPurchase($purchase, '100.00', 'Cash');
+        $this->accountingDb()->table('receivings_payments')->where('payment_id', $payment)->update(['treasury_id' => $elsewhere]);
+        $this->loginAs($this->buyer());
+
+        $response = $this->get('/receivings/edit/' . $purchase);
+
+        $this->assertMatchesRegularExpression('/<option value="' . $elsewhere . '"\s+selected>Main of another branch<\/option>/', $response->getBody());
+    }
+
     public function testGetEdit_KeepsTheRetiredTreasuryAPaymentAlreadyCarriesButNotForANewPayment(): void
     {
         $purchase = $this->purchaseOf('500.00');

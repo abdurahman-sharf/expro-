@@ -324,6 +324,8 @@ final class SalePosting
             (new TreasuryScopes($this->db))->assertMayReplace((int) $active->journal_id, $draft, $employeeId);
 
             $this->reverse($active, $employeeId, 'Payment #' . $payment->paymentId . ' changed');
+        } elseif ($draft !== null) {
+            (new TreasuryScopes($this->db))->assertMayPost($draft->lines, $employeeId);
         }
 
         if ($draft !== null) {

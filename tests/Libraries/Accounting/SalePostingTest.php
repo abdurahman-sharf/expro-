@@ -751,6 +751,26 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame($drawer, (int) $this->paymentRow($saleId)->treasury_id);
     }
 
+    public function testUpdate_RefusesToCompleteAPaymentIntoATreasuryTheEditorMayNotDepositInto(): void
+    {
+        $treasuries = new TreasuryService();
+        $drawer     = $this->drawerOpenOnlyTo([$this->employeeId]);
+        $item       = $this->item('10.00');
+        $saleId     = $this->save([$this->line($item, 0, '1', '100', '10.00')], [], [$this->payment(lang('Sales.cash'), '100.00') + ['treasury_id' => $drawer]]);
+        $paymentId  = (int) $this->paymentRow($saleId)->payment_id;
+
+        $this->assertTrue($this->sales->update($saleId, ['comment' => 'not paid yet', 'payments' => [$this->scopeEditedPayment($paymentId, ['payment_status' => 'draft'])]]));
+        $this->assertSame('0.0000', $treasuries->position($drawer)->balance);
+
+        $this->accountingDb()->table('treasury_scope_members')->where('treasury_id', $drawer)->delete();
+        $this->accountingDb()->table('treasury_scope_members')->insert(['treasury_id' => $drawer, 'direction' => 'deposit', 'member_id' => $this->employeeWithGrants([])]);
+
+        $this->assertFalse($this->sales->update($saleId, ['comment' => 'paid after all', 'payments' => [$this->scopeEditedPayment($paymentId, ['payment_status' => 'completed'])]]));
+        $this->assertSame(AccountingError::TreasuryDepositDenied, $this->sales->accountingFailure()->error);
+        $this->assertSame('0.0000', $treasuries->position($drawer)->balance);
+        $this->assertSame('draft', $this->paymentRow($saleId)->payment_status);
+    }
+
     public function testUpdate_AsksTheScopeAgainWhenTheAmountOfAPaymentChanges(): void
     {
         $drawer    = $this->drawerOpenOnlyTo([$this->employeeId]);

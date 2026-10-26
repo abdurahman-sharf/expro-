@@ -40,7 +40,7 @@ final class PaymentTreasuryStamping
      *
      * @param list<PaymentType>|null $types Only the payments of these ways of payment.
      *
-     * @return array{stamp: list<array{table: string, payment_id: int, treasury_id: int}>, skipped: list<array{table: string, payment_id: int, reason: string}>}
+     * @return array{stamp: list<array{table: string, payment_id: int, treasury_id: int, payment_type: string}>, skipped: list<array{table: string, payment_id: int, reason: string}>}
      */
     public function plan(?array $types = null): array
     {
@@ -64,7 +64,9 @@ final class PaymentTreasuryStamping
                     continue;
                 }
 
-                $account[$treasuryId] ??= $this->resolver->accountFor(RoutingKey::Treasuries, $treasuryId);
+                if (! array_key_exists($treasuryId, $account)) {
+                    $account[$treasuryId] = $this->accountOf($treasuryId);
+                }
 
                 if ($account[$treasuryId] !== (int) $row->account_id) {
                     $skipped[] = ['table' => $table, 'payment_id' => (int) $row->payment_id, 'reason' => 'account_differs'];
@@ -72,7 +74,7 @@ final class PaymentTreasuryStamping
                     continue;
                 }
 
-                $stamp[] = ['table' => $table, 'payment_id' => (int) $row->payment_id, 'treasury_id' => $treasuryId];
+                $stamp[] = ['table' => $table, 'payment_id' => (int) $row->payment_id, 'treasury_id' => $treasuryId, 'payment_type' => (string) $row->payment_type];
             }
         }
 
@@ -80,29 +82,27 @@ final class PaymentTreasuryStamping
     }
 
     /**
-     * Stamps what plan() lists, in one transaction, and writes down how many.
+     * Stamps what plan() lists, in one transaction, and writes down how many. The payments that
+     * have no stamp are locked before they are read, so an edit that is changing one of them
+     * finishes first and one that starts after waits.
      *
      * @param list<PaymentType>|null $types Only the payments of these ways of payment.
      *
-     * @return list<array{table: string, payment_id: int, treasury_id: int}>
+     * @return list<array{table: string, payment_id: int, treasury_id: int, payment_type: string}>
      *
      * @throws AccountingException|PostingException
      */
     public function stamp(?array $types = null, ?int $employeeId = null): array
     {
         return $this->transactional(function () use ($types, $employeeId): array {
-            $stamped = [];
-
-            foreach ($this->plan($types)['stamp'] as $row) {
-                $this->db->table($row['table'])->where(['payment_id' => $row['payment_id'], 'treasury_id' => null])->update(['treasury_id' => $row['treasury_id']]);
-
-                if ($this->db->affectedRows() === 1) {
-                    $stamped[] = $row;
-                }
+            foreach (array_keys(self::TABLES) as $table) {
+                $this->db->query('SELECT payment_id FROM ' . $this->db->prefixTable($table) . ' WHERE treasury_id IS NULL FOR UPDATE');
             }
 
+            $stamped = $this->apply($this->plan($types)['stamp']);
+
             if ($stamped !== []) {
-                $this->audit->write('payment', null, 'treasury_stamped', $employeeId, JournalOrigin::User, [
+                $this->audit->write('payment', null, 'treasury_stamped', $employeeId, $employeeId === null ? JournalOrigin::System : JournalOrigin::User, [
                     'sales'     => count(array_filter($stamped, static fn (array $row): bool => $row['table'] === 'sales_payments')),
                     'purchases' => count(array_filter($stamped, static fn (array $row): bool => $row['table'] === 'receivings_payments')),
                 ]);
@@ -110,6 +110,42 @@ final class PaymentTreasuryStamping
 
             return $stamped;
         });
+    }
+
+    /**
+     * Stamps the rows of a plan. A payment is stamped only while it still has no treasury and
+     * still the way of payment the plan saw, so a plan that an edit has outdated stamps nothing.
+     *
+     * @param list<array{table: string, payment_id: int, treasury_id: int, payment_type: string}> $rows
+     *
+     * @return list<array{table: string, payment_id: int, treasury_id: int, payment_type: string}> The rows that were stamped.
+     */
+    public function apply(array $rows): array
+    {
+        $stamped = [];
+
+        foreach ($rows as $row) {
+            $this->db->table($row['table'])->where(['payment_id' => $row['payment_id'], 'treasury_id' => null, 'payment_type' => $row['payment_type']])->update(['treasury_id' => $row['treasury_id']]);
+
+            if ($this->db->affectedRows() === 1) {
+                $stamped[] = $row;
+            }
+        }
+
+        return $stamped;
+    }
+
+    /**
+     * The account posting would use for a payment stamped with the treasury, or null when the
+     * routing of the treasuries cannot name one.
+     */
+    private function accountOf(int $treasuryId): ?int
+    {
+        try {
+            return $this->resolver->accountFor(RoutingKey::Treasuries, $treasuryId);
+        } catch (PostingException) {
+            return null;
+        }
     }
 
     /**

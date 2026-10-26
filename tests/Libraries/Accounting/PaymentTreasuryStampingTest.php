@@ -2,6 +2,8 @@
 
 namespace Tests\Libraries\Accounting;
 
+use App\Libraries\Accounting\AccountingError;
+use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\PaymentTreasuryStamping;
 use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\RoutingService;
@@ -90,7 +92,7 @@ class PaymentTreasuryStampingTest extends CIUnitTestCase
     }
 
     /**
-     * @param array{stamp: list<array{table: string, payment_id: int, treasury_id: int}>, skipped: list<array<string, mixed>>} $plan
+     * @param array{stamp: list<array{table: string, payment_id: int, treasury_id: int, payment_type: string}>, skipped: list<array<string, mixed>>} $plan
      */
     private function stampOf(array $plan, string $table, int $paymentId): ?int
     {
@@ -236,5 +238,78 @@ class PaymentTreasuryStampingTest extends CIUnitTestCase
 
         $this->assertNull($this->stampOf($plan, 'sales_payments', $cashId));
         $this->assertSame($this->main, $this->stampOf($plan, 'sales_payments', $debitId));
+    }
+
+    public function testPlan_ListsAPaymentAsOneThatCannotBeStampedWhenTheRoutingOfTheTreasuriesCannotNameItsAccount(): void
+    {
+        [, $paymentId] = $this->saleWithPayment(lang('Sales.cash'));
+
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'treasuries.accounts')->update(['routing_type' => 'per_item']);
+
+        $plan = $this->stamping->plan();
+
+        $this->assertNull($this->stampOf($plan, 'sales_payments', $paymentId));
+        $this->assertContains($paymentId, array_column($plan['skipped'], 'payment_id'));
+        $this->assertSame([], $this->stamping->stamp(), 'Stamping does not fail');
+    }
+
+    public function testStamp_WritesTheEntryOfARunWithoutAnEmployeeAsTheSystemsOwn(): void
+    {
+        $this->saleWithPayment(lang('Sales.cash'));
+
+        $this->stamping->stamp();
+
+        $entry = $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'payment', 'action' => 'treasury_stamped'])->orderBy('audit_id', 'DESC')->get()->getRow();
+
+        $this->assertSame('system', $entry->origin);
+    }
+
+    public function testStamp_FailsRatherThanWriteWhileAnEditHoldsAPayment(): void
+    {
+        [, $paymentId] = $this->saleWithPayment(lang('Sales.cash'));
+        $other         = $this->openSecondConnection();
+
+        $other->transStart();
+        $other->table('sales_payments')->where('payment_id', $paymentId)->update(['payment_type' => lang('Sales.debit')]);
+
+        $this->accountingDb()->query('SET SESSION innodb_lock_wait_timeout = 1');
+
+        try {
+            $this->stamping->stamp();
+            $this->fail('Stamping did not wait for the edit that holds the payment.');
+        } catch (AccountingException $waited) {
+            $this->assertSame(AccountingError::WriteFailed, $waited->error);
+        } finally {
+            $other->transRollback();
+            $other->close();
+            $this->accountingDb()->query('SET SESSION innodb_lock_wait_timeout = 50');
+        }
+
+        $this->assertNull($this->treasuryOfSalePayment($paymentId));
+        $this->assertNotEmpty($this->stamping->stamp(), 'It stamps once the edit is gone');
+    }
+
+    public function testApply_StampsNothingForAPaymentWhoseWayOfPaymentChangedAfterThePlanWasMade(): void
+    {
+        [, $paymentId] = $this->saleWithPayment(lang('Sales.cash'));
+        $plan          = $this->stamping->plan();
+
+        $this->accountingDb()->table('sales_payments')->where('payment_id', $paymentId)->update(['payment_type' => lang('Sales.debit')]);
+
+        $this->assertNotNull($this->stampOf($plan, 'sales_payments', $paymentId));
+        $this->assertSame([], array_filter($this->stamping->apply($plan['stamp']), static fn (array $row): bool => $row['payment_id'] === $paymentId && $row['table'] === 'sales_payments'));
+        $this->assertNull($this->treasuryOfSalePayment($paymentId));
+    }
+
+    public function testApply_StampsNothingForAPaymentThatWasGivenATreasuryAfterThePlanWasMade(): void
+    {
+        [, $paymentId] = $this->saleWithPayment(lang('Sales.cash'));
+        $plan          = $this->stamping->plan();
+        $drawer        = $this->treasuries->create(['name' => 'Named later', 'kind' => 'cash']);
+
+        $this->accountingDb()->table('sales_payments')->where('payment_id', $paymentId)->update(['treasury_id' => $drawer]);
+        $this->stamping->apply($plan['stamp']);
+
+        $this->assertSame($drawer, $this->treasuryOfSalePayment($paymentId));
     }
 }

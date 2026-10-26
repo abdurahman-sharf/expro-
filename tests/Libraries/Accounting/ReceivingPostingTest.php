@@ -627,6 +627,24 @@ class ReceivingPostingTest extends CIUnitTestCase
         $this->assertSame($drawer, (int) $this->accountingDb()->table('receivings_payments')->where('payment_id', $paymentId)->get()->getRow()->treasury_id);
     }
 
+    public function testUpdate_RefusesToCompleteASupplierPaymentOutOfATreasuryTheEditorMayNotWithdrawFrom(): void
+    {
+        $drawer    = $this->drawerOpenOnlyTo([$this->employeeId]);
+        $itemId    = $this->item('0.00');
+        $id        = $this->buy([$this->purchaseLine($itemId, 0, '4', '50')]);
+        $paymentId = $this->payPurchase($id, '60.00', null, 'review');
+
+        $this->assertTrue($this->changePayment($id, $paymentId, ['treasury_id' => $drawer]));
+
+        $this->accountingDb()->table('treasury_scope_members')->where('treasury_id', $drawer)->delete();
+        $this->accountingDb()->table('treasury_scope_members')->insert(['treasury_id' => $drawer, 'direction' => 'withdraw', 'member_id' => $this->employeeWithGrants([])]);
+
+        $this->assertFalse($this->changePayment($id, $paymentId, ['payment_status' => 'completed']));
+        $this->assertSame(AccountingError::TreasuryWithdrawDenied, $this->purchases->accountingFailure()->error);
+        $this->assertSame('0.0000', (new TreasuryService())->position($drawer)->balance);
+        $this->assertSame('review', $this->accountingDb()->table('receivings_payments')->where('payment_id', $paymentId)->get()->getRow()->payment_status);
+    }
+
     public function testDeleteValue_RefusesToDeleteAPurchaseWhoseSupplierPaymentCameOutOfATreasuryTheEditorMayNotDepositInto(): void
     {
         $drawer    = $this->drawerOpenOnlyTo([$this->employeeWithGrants([])], 'deposit');

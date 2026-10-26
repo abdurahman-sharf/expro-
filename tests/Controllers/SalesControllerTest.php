@@ -1572,6 +1572,20 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertSame(1, substr_count($response->getBody(), 'Retired drawer'), 'The new payment cannot be put into a retired treasury');
     }
 
+    public function testGetEdit_KeepsTheTreasuryOfAnotherBranchAPaymentAlreadyCarriesSoTheFormSendsItBack(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->treasuryOfBranch('Open drawer');
+        $elsewhere = $this->treasuryOfBranch('Main of another branch', $this->createSecondBranch());
+        $paymentId = $this->addPayment($invoice['saleId'], '300.00', 'Cash');
+        $this->accountingDb()->table('sales_payments')->where('payment_id', $paymentId)->update(['treasury_id' => $elsewhere]);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $response = $this->get('/sales/edit/' . $invoice['saleId']);
+
+        $this->assertMatchesRegularExpression('/<option value="' . $elsewhere . '"\s+selected>Main of another branch<\/option>/', $response->getBody());
+    }
+
     public function testPostSave_PutsTheNewPaymentIntoTheTreasuryTheFormNames(): void
     {
         $invoice = $this->postedInvoice();

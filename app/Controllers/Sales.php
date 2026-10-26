@@ -1661,10 +1661,20 @@ class Sales extends Secure_Controller
         $scopes     = new TreasuryScopes();
         $options    = [];
 
-        foreach ((new TreasuryService())->all([$branchId]) as $treasury) {
+        $treasuries = new TreasuryService();
+
+        foreach ($treasuries->all([$branchId]) as $treasury) {
             $id = (int) $treasury->treasury_id;
 
             if (in_array($id, $carried, true) || ((int) $treasury->active === 1 && $scopes->allows($id, TreasuryScopes::DEPOSIT, $employeeId))) {
+                $options[$id] = $treasury->name;
+            }
+        }
+
+        foreach ($carried as $id) {
+            $treasury = $id > 0 && ! isset($options[$id]) ? $treasuries->find($id) : null;
+
+            if ($treasury !== null) {
                 $options[$id] = $treasury->name;
             }
         }
