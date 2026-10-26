@@ -4,6 +4,8 @@ namespace Tests\Database;
 
 use App\Database\Migrations\LegacyFixedPurchaseDiscount;
 use App\Database\Migrations\ReceivingCostPrecision;
+use App\Libraries\Accounting\LegacyDiscountBlocked;
+use App\Libraries\Accounting\LegacyPurchaseDiscount;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -45,6 +47,7 @@ class LegacyFixedPurchaseDiscountMigrationTest extends CIUnitTestCase
         $db->query('SET FOREIGN_KEY_CHECKS = 1');
         $this->receivingIds = [];
 
+        (new LegacyPurchaseDiscount())->clearResolution();
         (new ReceivingCostPrecision())->up();
 
         parent::tearDown();
@@ -61,11 +64,11 @@ class LegacyFixedPurchaseDiscountMigrationTest extends CIUnitTestCase
     /**
      * @return int The receiving, with one line of an item.
      */
-    private function receiveWith(string $quantity, string $discount, int $discountType, string $perPack = '1', string $cost = '1.00'): int
+    private function receiveWith(string $quantity, string $discount, int $discountType, string $perPack = '1', string $cost = '1.00', string $savedAt = '2026-10-01 09:00:00'): int
     {
         $db = $this->accountingDb();
 
-        $db->table('receivings')->insert(['employee_id' => $this->employeeWithGrants([]), 'comment' => '']);
+        $db->table('receivings')->insert(['employee_id' => $this->employeeWithGrants([]), 'comment' => '', 'receiving_time' => $savedAt]);
 
         $receivingId          = (int) $db->insertID();
         $this->receivingIds[] = $receivingId;
@@ -126,6 +129,34 @@ class LegacyFixedPurchaseDiscountMigrationTest extends CIUnitTestCase
 
         $this->assertSame(FIXED_LINE, $this->discountTypeOf($line));
         $this->assertSame('100.00', (string) $this->accountingDb()->table('receivings_items')->where('receiving_id', $line)->get()->getRow()->discount);
+    }
+
+    public function testUp_StopsAndChangesNothingWhileALineCannotBeToldApart(): void
+    {
+        $before    = $this->receiveWith('10', '100.00', FIXED);
+        $undecided = $this->receiveWith('10', '100.00', FIXED, '1', '1.00', date('Y-m-d H:i:s'));
+
+        try {
+            (new LegacyFixedPurchaseDiscount())->up();
+            $this->fail('A line nothing decides must stop the migration.');
+        } catch (LegacyDiscountBlocked $blocked) {
+            $this->assertStringContainsString('php spark accounting:purchase_discount', $blocked->getMessage());
+        }
+
+        $this->assertSame(FIXED, $this->discountTypeOf($before));
+        $this->assertSame(FIXED, $this->discountTypeOf($undecided));
+    }
+
+    public function testUp_MarksWhatTheOperatorDecidedWasSavedBeforeTheMoment(): void
+    {
+        $early = $this->receiveWith('10', '100.00', FIXED, '1', '1.00', '2026-10-26 08:00:00');
+        $late  = $this->receiveWith('10', '100.00', FIXED, '1', '1.00', '2026-10-26 18:00:00');
+
+        (new LegacyPurchaseDiscount())->resolve(LegacyPurchaseDiscount::BEFORE, '2026-10-26 12:00:00');
+        (new LegacyFixedPurchaseDiscount())->up();
+
+        $this->assertSame(FIXED_LINE, $this->discountTypeOf($early));
+        $this->assertSame(FIXED, $this->discountTypeOf($late));
     }
 
     public function testDown_GivesTheMarkedLinesTheMeaningOfAFixedDiscountAgain(): void

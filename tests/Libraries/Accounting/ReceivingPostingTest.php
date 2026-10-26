@@ -314,6 +314,29 @@ class ReceivingPostingTest extends CIUnitTestCase
         $this->assertSame('-480.0000', bcadd((string) $this->reportRowOf($returnId)->total, '0', 4));
     }
 
+    public function testPostCompleted_PostsAPartialReturnWithAWholeLineDiscountAtWhatTheOldRulesPostedAndTheReportShowsTheSame(): void
+    {
+        $itemId = $this->item('0.00');
+        $origin = $this->buy([$this->purchaseLine($itemId, 0, '10', '50', '15', '20', FIXED_LINE)]);
+        $return = $this->buy([$this->purchaseLine($itemId, 0, '-4', '50', '15', '8', FIXED_LINE)], -1, null, $origin);
+
+        $this->assertGreaterThan(0, $return);
+
+        $net      = bcsub(bcmul('4', '50', 4), '8', 4);
+        $tax      = bcmul($net, '0.15', 4);
+        $supplier = bcadd($net, $tax, 2);
+        $amounts  = $this->amountsOfPurchase($return);
+
+        $this->assertSame('192.0000', $net);
+        $this->assertSame($supplier, $amounts['supplier']);
+        $this->assertSame(bcadd($tax, '0', 2), $amounts['tax_input']);
+
+        $row = $this->reportRowOf($return);
+
+        $this->assertSame('-' . $net, bcadd((string) $row->total, '0', 4));
+        $this->assertSame($supplier, bcadd(bcadd(ltrim((string) $row->total, '-'), '0', 4), $tax, 2));
+    }
+
     /**
      * A treasury the employee who buys works from.
      */

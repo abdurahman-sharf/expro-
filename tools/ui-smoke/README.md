@@ -82,6 +82,14 @@ npm run purchase-discount
 
 It exits with 1 when the total differs.
 
+`check-legacy-purchase-discount.mjs` does the same for a purchase saved before the fixed discount became an amount for every unit. It records two purchases through the register (10 units at 100 with a fixed discount of 5), turns one of them into what the old code stored (a fixed discount of 50 for the line) and adds a purchase that never reached the books, then runs `php spark accounting:purchase_discount` and `php spark migrate` against the same database: the scan must read one purchase by what the books posted for the whole line, one for every unit and leave one undecided, the migration must stop and change nothing, and after the decision is recorded it must mark only the whole-line purchase. It then checks that the journal did not change and that the receipt, the purchase report and the edit form still show 950.00, and that the debit note of the purchase takes the whole discount for every unit and its share for what remains after a partial return. It needs `mysql` and `php` on the path (`UI_MYSQL`, `UI_DB_NAME` and `UI_DB_PREFIX` override the defaults), leaves its purchases and the two returns behind and puts the migration back, so run `npm run setup` again before `npm run smoke`.
+
+```sh
+npm run legacy-purchase-discount
+```
+
+`UI_SHOW=1` prints the scan and the refusal of the migration.
+
 ## Bootstrap 3 gate
 
 ```sh
