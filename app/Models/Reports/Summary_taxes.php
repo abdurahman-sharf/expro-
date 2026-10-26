@@ -35,8 +35,6 @@ class Summary_taxes extends Summary_report
         } else {
             $builder->where('sales.sale_time BETWEEN ' . $this->db->escape(rawurldecode($inputs['start_date'])) . ' AND ' . $this->db->escape(rawurldecode($inputs['end_date'])));
         }
-
-        $this->limitToBranches($builder, 'sales.branch_id');
     }
 
     public function getData(array $inputs): array

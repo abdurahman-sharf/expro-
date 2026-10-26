@@ -102,6 +102,22 @@ class NamedLockTest extends CIUnitTestCase
         $this->assertTrue($this->anotherConnectionCanTake(self::NAME));
     }
 
+    public function testTake_StillCountsItsOwnHoldAsItsOwnAfterOneOfTwoReleases(): void
+    {
+        $lock = new NamedLock(Database::connect(), 0);
+
+        $this->assertSame(LockOutcome::Taken, $lock->take(self::NAME));
+        $this->assertSame(LockOutcome::Taken, $lock->take(self::NAME));
+        $lock->release(self::NAME);
+
+        $this->assertSame(LockOutcome::Taken, $lock->take(self::NAME));
+
+        $lock->release(self::NAME);
+        $lock->release(self::NAME);
+
+        $this->assertTrue($this->anotherConnectionCanTake(self::NAME));
+    }
+
     public function testProbe_SaysTheConnectionKeepsNamedLocksAndLeavesNothingHeld(): void
     {
         $this->assertSame(LockOutcome::Taken, (new NamedLock(Database::connect(), 0))->probe());
