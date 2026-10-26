@@ -159,6 +159,8 @@ final class TreasuryTransfers
                 ->getRow();
 
             if ($journal !== null) {
+                (new TreasuryScopes($this->db, $this->branches))->assertMayReverse((int) $journal->journal_id, $employeeId);
+
                 $cutoff = $this->periods->effectiveCutoff($branchId, true);
                 $date   = $cutoff !== null && $journal->journal_date <= $cutoff['date'] ? date('Y-m-d') : $journal->journal_date;
 

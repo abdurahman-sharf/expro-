@@ -507,6 +507,79 @@ class ReceivingPostingTest extends CIUnitTestCase
         $this->assertSame(0, $this->accountingDb()->table('receivings')->where('employee_id', $this->employeeId)->countAllResults());
     }
 
+    public function testUpdate_RefusesToRemoveASupplierPaymentFromATreasuryTheEditorMayNotDepositInto(): void
+    {
+        $drawer    = $this->drawerOpenOnlyTo([$this->employeeWithGrants([])], 'deposit');
+        $itemId    = $this->item('0.00');
+        $id        = $this->buy([$this->purchaseLine($itemId, 0, '4', '50')]);
+        $paymentId = $this->payPurchase($id, '60.00');
+
+        $this->assertTrue($this->changePayment($id, $paymentId, ['treasury_id' => $drawer]), 'Paying from it was not limited');
+        $this->assertFalse($this->changePayment($id, $paymentId, ['payment_amount' => '0.00', 'treasury_id' => $drawer]));
+        $this->assertSame(AccountingError::TreasuryDepositDenied, $this->purchases->accountingFailure()->error);
+        $this->assertSame(1, $this->accountingDb()->table('receivings_payments')->where('payment_id', $paymentId)->countAllResults());
+        $this->assertSame('-60.0000', (new TreasuryService())->position($drawer)->balance);
+    }
+
+    public function testUpdate_RemovesASupplierPaymentFromATreasuryTheEditorMayDepositInto(): void
+    {
+        $drawer    = $this->drawerOpenOnlyTo([$this->employeeId], 'deposit');
+        $itemId    = $this->item('0.00');
+        $id        = $this->buy([$this->purchaseLine($itemId, 0, '4', '50')]);
+        $paymentId = $this->payPurchase($id, '60.00');
+
+        $this->assertTrue($this->changePayment($id, $paymentId, ['treasury_id' => $drawer]));
+        $this->assertTrue($this->changePayment($id, $paymentId, ['payment_amount' => '0.00', 'treasury_id' => $drawer]));
+        $this->assertSame('0.0000', (new TreasuryService())->position($drawer)->balance);
+    }
+
+    public function testUpdate_RefusesToRemoveAnUnstampedSupplierPaymentThatLandedOnATreasuryThroughTheRoutingOfItsType(): void
+    {
+        $treasuries = new TreasuryService();
+        $bank       = $treasuries->create(['name' => 'Routed bank', 'kind' => 'bank', 'bank_name' => 'Gulf Bank', 'account_number' => '1234567890', 'deposit_scope' => 'staff', 'deposit_members' => [$this->employeeWithGrants([])]]);
+
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'payment.cash')->update(['account_id' => $treasuries->accountOf($bank)]);
+
+        $itemId    = $this->item('0.00');
+        $id        = $this->buy([$this->purchaseLine($itemId, 0, '4', '50')]);
+        $paymentId = $this->payPurchase($id, '60.00');
+
+        $this->assertFalse($this->changePayment($id, $paymentId, ['payment_amount' => '0.00']));
+        $this->assertSame(AccountingError::TreasuryDepositDenied, $this->purchases->accountingFailure()->error);
+        $this->assertSame('-60.0000', $treasuries->position($bank)->balance);
+    }
+
+    public function testUpdate_RefusesToChangeTheAmountOfASupplierPaymentOfATreasuryClosedToTheEditorEvenWhenTheEditNamesNoTreasury(): void
+    {
+        $drawer    = $this->drawerOpenOnlyTo([$this->employeeId], 'withdraw');
+        $itemId    = $this->item('0.00');
+        $id        = $this->buy([$this->purchaseLine($itemId, 0, '4', '50')]);
+        $paymentId = $this->payPurchase($id, '60.00');
+
+        $this->assertTrue($this->changePayment($id, $paymentId, ['treasury_id' => $drawer]));
+
+        $this->accountingDb()->table('treasury_scope_members')->where('treasury_id', $drawer)->delete();
+        $this->accountingDb()->table('treasury_scope_members')->insert(['treasury_id' => $drawer, 'direction' => 'withdraw', 'member_id' => $this->employeeWithGrants([])]);
+
+        $this->assertFalse($this->changePayment($id, $paymentId, ['payment_amount' => '90.00']));
+        $this->assertSame(AccountingError::TreasuryWithdrawDenied, $this->purchases->accountingFailure()->error);
+        $this->assertSame('-60.0000', (new TreasuryService())->position($drawer)->balance);
+    }
+
+    public function testDeleteValue_RefusesToDeleteAPurchaseWhoseSupplierPaymentCameOutOfATreasuryTheEditorMayNotDepositInto(): void
+    {
+        $drawer    = $this->drawerOpenOnlyTo([$this->employeeWithGrants([])], 'deposit');
+        $itemId    = $this->item('0.00');
+        $id        = $this->buy([$this->purchaseLine($itemId, 0, '4', '50')]);
+        $paymentId = $this->payPurchase($id, '60.00');
+
+        $this->assertTrue($this->changePayment($id, $paymentId, ['treasury_id' => $drawer]));
+        $this->assertFalse($this->purchases->delete_value($id, $this->employeeId));
+        $this->assertSame(AccountingError::TreasuryDepositDenied, $this->purchases->accountingFailure()->error);
+        $this->assertSame('-60.0000', (new TreasuryService())->position($drawer)->balance);
+        $this->assertSame(1, $this->accountingDb()->table('receivings')->where('receiving_id', $id)->countAllResults(), 'The purchase stands');
+    }
+
     public function testUpdate_RefusesToMoveASupplierPaymentToATreasuryTheBuyerMayNotWithdrawFrom(): void
     {
         $itemId    = $this->item('0.00');

@@ -654,8 +654,10 @@ class Sale extends Model
                                 $sales_payments_data['payment_status'] = $payment['payment_status'];
                             }
 
+                            $treasuryId = $this->treasuryAfterChange($payment, (int) $payment_id, $employee_id === null ? null : (int) $employee_id, (int) $this->getBranchId((int) $sale_id));
+
                             if (array_key_exists('treasury_id', $payment)) {
-                                $sales_payments_data['treasury_id'] = $this->namedTreasury($payment, (int) $payment_id, $employee_id === null ? null : (int) $employee_id, (int) $this->getBranchId((int) $sale_id));
+                                $sales_payments_data['treasury_id'] = $treasuryId;
                             }
 
                             $builder->where('payment_id', $payment_id);
@@ -703,32 +705,36 @@ class Sale extends Model
 
     /**
      * The treasury an existing payment is moved to, or none for one that goes where its type does.
-     * Only a change of the treasury or of the amount asks the scope of the treasuries involved.
+     * A change of the treasury, of the way of payment or of the amount asks the scope of the
+     * treasuries involved, whether or not the edit names a treasury.
      *
      * @param array<string, mixed> $payment
      */
-    private function namedTreasury(array $payment, int $paymentId, ?int $employeeId, int $branchId): ?int
+    private function treasuryAfterChange(array $payment, int $paymentId, ?int $employeeId, int $branchId): ?int
     {
-        $treasuryId = (int) ($payment['treasury_id'] ?? 0);
         $treasuries = new TreasuryService($this->db);
+        $stored     = $this->db->table('sales_payments')->select('treasury_id, payment_type, payment_amount, cash_refund')->where('payment_id', $paymentId)->get()->getRow();
+        $storedId   = $stored === null || $stored->treasury_id === null ? 0 : (int) $stored->treasury_id;
+        $named      = array_key_exists('treasury_id', $payment);
+        $treasuryId = $named ? (int) $payment['treasury_id'] : $storedId;
 
-        if ($treasuryId > 0) {
+        if ($named && $treasuryId > 0) {
             $treasuries->assertForBranch($treasuryId, $branchId);
         }
 
-        $type   = PaymentType::fromLabel((string) ($payment['payment_type'] ?? ''));
-        $stored = $this->db->table('sales_payments')->select('treasury_id, payment_amount, cash_refund')->where('payment_id', $paymentId)->get()->getRow();
+        $type = PaymentType::fromLabel((string) ($payment['payment_type'] ?? ''));
 
         if ($type !== null && $type->usesTreasury() && $stored !== null) {
             $net = (float) ($payment['payment_amount'] ?? 0) - (float) ($payment['cash_refund'] ?? 0);
 
             $treasuries->assertMayChangePayment(
                 $treasuryId > 0 ? $treasuryId : null,
-                $stored->treasury_id === null ? null : (int) $stored->treasury_id,
+                $storedId > 0 ? $storedId : null,
                 abs($net - ((float) $stored->payment_amount - (float) $stored->cash_refund)) > 0.00001,
                 $type,
                 $net < 0 ? TreasuryScopes::WITHDRAW : TreasuryScopes::DEPOSIT,
                 $employeeId,
+                PaymentType::fromLabel((string) $stored->payment_type),
             );
         }
 

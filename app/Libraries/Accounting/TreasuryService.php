@@ -353,43 +353,37 @@ final class TreasuryService
         $stamped = $this->stampFor($employeeId, $branchId, $direction);
 
         if ($stamped === null) {
-            $this->scopes->assertMainAllows($type, $direction, $employeeId);
+            $this->scopes->assertRoutedAllows($type, $direction, $employeeId);
         }
 
         return $stamped;
     }
 
     /**
-     * Whether an employee may change a payment that was written before: only a change of its
-     * treasury or of its amount is a new deposit or withdrawal. Taking a payment off a treasury is
-     * the opposite of putting it there, so it needs the opposite scope of the treasury it leaves.
+     * Whether an employee may change a payment that was written before: only a change of the
+     * treasury it lands on or of its amount is a new deposit or withdrawal. A payment with no
+     * treasury lands on the treasury that owns the account its way of payment is routed to, so a
+     * change of the way of payment can move it too. Taking a payment off a treasury is the opposite
+     * of putting it there, so it needs the opposite scope of the treasury it leaves.
      *
      * @throws AccountingException
      */
-    public function assertMayChangePayment(?int $newTreasuryId, ?int $oldTreasuryId, bool $amountChanged, PaymentType $type, string $direction, ?int $employeeId): void
+    public function assertMayChangePayment(?int $newTreasuryId, ?int $oldTreasuryId, bool $amountChanged, PaymentType $type, string $direction, ?int $employeeId, ?PaymentType $oldType = null): void
     {
         $newTreasuryId = $newTreasuryId !== null && $newTreasuryId > 0 ? $newTreasuryId : null;
+        $newOwner      = $newTreasuryId ?? $this->scopes->ownerOfRoutedType($type);
+        $oldOwner      = $oldTreasuryId ?? $this->scopes->ownerOfRoutedType($oldType ?? $type);
 
-        if (! $amountChanged && $newTreasuryId === $oldTreasuryId) {
+        if (! $amountChanged && $newOwner === $oldOwner) {
             return;
         }
 
-        if ($newTreasuryId !== null) {
-            $this->scopes->assertAllows($newTreasuryId, $direction, $employeeId);
-        } else {
-            $this->scopes->assertMainAllows($type, $direction, $employeeId);
+        if ($newOwner !== null) {
+            $this->scopes->assertAllows($newOwner, $direction, $employeeId);
         }
 
-        if ($oldTreasuryId === $newTreasuryId) {
-            return;
-        }
-
-        $opposite = $direction === TreasuryScopes::DEPOSIT ? TreasuryScopes::WITHDRAW : TreasuryScopes::DEPOSIT;
-
-        if ($oldTreasuryId === null) {
-            $this->scopes->assertMainAllows($type, $opposite, $employeeId);
-        } else {
-            $this->scopes->assertAllows($oldTreasuryId, $opposite, $employeeId);
+        if ($oldOwner !== null && $oldOwner !== $newOwner) {
+            $this->scopes->assertAllows($oldOwner, $direction === TreasuryScopes::DEPOSIT ? TreasuryScopes::WITHDRAW : TreasuryScopes::DEPOSIT, $employeeId);
         }
     }
 

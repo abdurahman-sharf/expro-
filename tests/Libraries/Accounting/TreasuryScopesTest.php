@@ -5,7 +5,10 @@ namespace Tests\Libraries\Accounting;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\JournalDraft;
+use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\PaymentType;
+use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -247,7 +250,7 @@ class TreasuryScopesTest extends CIUnitTestCase
         $this->addToAssertionCount(1);
     }
 
-    public function testAssertMainAllows_AppliesTheScopeOfTheMainTreasuryToAPaymentThatNamesNoTreasury(): void
+    public function testAssertRoutedAllows_AppliesTheScopeOfTheMainTreasuryToAPaymentThatNamesNoTreasury(): void
     {
         $named = $this->employeeWithGrants([]);
         $other = $this->employeeWithGrants([]);
@@ -255,14 +258,14 @@ class TreasuryScopesTest extends CIUnitTestCase
 
         $this->treasuries->update($main, ['name' => 'Main', 'kind' => 'cash', 'deposit_scope' => 'staff', 'deposit_members' => [$named]], $this->manager());
 
-        $this->scopes->assertMainAllows(PaymentType::Cash, TreasuryScopes::DEPOSIT, $named);
-        $this->assertSame(AccountingError::TreasuryDepositDenied, $this->refusal(fn () => $this->scopes->assertMainAllows(PaymentType::Cash, TreasuryScopes::DEPOSIT, $other))->error);
-        $this->scopes->assertMainAllows(PaymentType::Cash, TreasuryScopes::WITHDRAW, $other);
-        $this->scopes->assertMainAllows(PaymentType::Cash, TreasuryScopes::DEPOSIT, null);
+        $this->scopes->assertRoutedAllows(PaymentType::Cash, TreasuryScopes::DEPOSIT, $named);
+        $this->assertSame(AccountingError::TreasuryDepositDenied, $this->refusal(fn () => $this->scopes->assertRoutedAllows(PaymentType::Cash, TreasuryScopes::DEPOSIT, $other))->error);
+        $this->scopes->assertRoutedAllows(PaymentType::Cash, TreasuryScopes::WITHDRAW, $other);
+        $this->scopes->assertRoutedAllows(PaymentType::Cash, TreasuryScopes::DEPOSIT, null);
         $this->addToAssertionCount(3);
     }
 
-    public function testAssertMainAllows_LeavesAPaymentAloneWhenItsTypeDoesNotGoToTheAccountOfTheMainTreasury(): void
+    public function testAssertRoutedAllows_LeavesAPaymentAloneWhenItsTypeIsRoutedToAnAccountNoTreasuryOwns(): void
     {
         $other = $this->employeeWithGrants([]);
         $main  = $this->treasuries->ensureMain();
@@ -271,13 +274,134 @@ class TreasuryScopesTest extends CIUnitTestCase
         $this->treasuries->update($main, ['name' => 'Main', 'kind' => 'cash', 'deposit_scope' => 'staff', 'deposit_members' => [$named]], $this->manager());
         $this->accountingDb()->table('accounting_routing')->where('routing_key', 'payment.bank_transfer')->update(['account_id' => $this->accountId('receivables')]);
 
-        $this->scopes->assertMainAllows(PaymentType::BankTransfer, TreasuryScopes::DEPOSIT, $other);
-        $this->assertSame(AccountingError::TreasuryDepositDenied, $this->refusal(fn () => $this->scopes->assertMainAllows(PaymentType::Cash, TreasuryScopes::DEPOSIT, $other))->error);
+        $this->scopes->assertRoutedAllows(PaymentType::BankTransfer, TreasuryScopes::DEPOSIT, $other);
+        $this->assertSame(AccountingError::TreasuryDepositDenied, $this->refusal(fn () => $this->scopes->assertRoutedAllows(PaymentType::Cash, TreasuryScopes::DEPOSIT, $other))->error);
     }
 
-    public function testAssertMainAllows_LeavesEveryonePaymentAloneWhileThereIsNoMainTreasury(): void
+    public function testAssertRoutedAllows_AppliesTheScopeOfWhicheverTreasuryTheTypeIsRoutedTo(): void
     {
-        $this->scopes->assertMainAllows(PaymentType::Cash, TreasuryScopes::DEPOSIT, $this->employeeWithGrants([]));
+        $manager = $this->manager();
+        $named   = $this->employeeWithGrants([]);
+        $other   = $this->employeeWithGrants([]);
+        $bank    = $this->treasuries->create(['name' => 'Routed bank', 'kind' => 'bank', 'bank_name' => 'Gulf Bank', 'account_number' => '1234567890', 'deposit_scope' => 'staff', 'deposit_members' => [$named], 'withdraw_scope' => 'staff', 'withdraw_members' => [$named]], $manager);
+
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'payment.bank_transfer')->update(['account_id' => $this->treasuries->accountOf($bank)]);
+
+        $this->scopes->assertRoutedAllows(PaymentType::BankTransfer, TreasuryScopes::DEPOSIT, $named);
+        $this->scopes->assertRoutedAllows(PaymentType::Cash, TreasuryScopes::DEPOSIT, $other);
+
+        $deposit  = $this->refusal(fn () => $this->scopes->assertRoutedAllows(PaymentType::BankTransfer, TreasuryScopes::DEPOSIT, $other));
+        $withdraw = $this->refusal(fn () => $this->scopes->assertRoutedAllows(PaymentType::BankTransfer, TreasuryScopes::WITHDRAW, $other));
+
+        $this->assertSame(AccountingError::TreasuryDepositDenied, $deposit->error);
+        $this->assertSame(AccountingError::TreasuryWithdrawDenied, $withdraw->error);
+        $this->assertSame('Routed bank', $deposit->context['name']);
+        $this->addToAssertionCount(2);
+    }
+
+    public function testAssertRoutedAllows_AppliesTheScopeOfACashTreasuryTheTypeIsRoutedTo(): void
+    {
+        $manager = $this->manager();
+        $other   = $this->employeeWithGrants([]);
+        $drawer  = $this->treasuries->create(['name' => 'Routed drawer', 'kind' => 'cash', 'deposit_scope' => 'staff', 'deposit_members' => [$manager]], $manager);
+
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'payment.debit')->update(['account_id' => $this->treasuries->accountOf($drawer)]);
+
+        $this->assertSame(AccountingError::TreasuryDepositDenied, $this->refusal(fn () => $this->scopes->assertRoutedAllows(PaymentType::Debit, TreasuryScopes::DEPOSIT, $other))->error);
+        $this->scopes->assertRoutedAllows(PaymentType::Debit, TreasuryScopes::DEPOSIT, $manager);
+        $this->addToAssertionCount(1);
+    }
+
+    public function testAssertRoutedAllows_AsksNoTreasuryOnceTheTypeIsRoutedAwayFromAllOfThem(): void
+    {
+        $manager = $this->manager();
+        $other   = $this->employeeWithGrants([]);
+        $bank    = $this->treasuries->create(['name' => 'Routed bank', 'kind' => 'bank', 'bank_name' => 'Gulf Bank', 'account_number' => '1234567890', 'deposit_scope' => 'staff', 'deposit_members' => [$manager]], $manager);
+
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'payment.bank_transfer')->update(['account_id' => $this->treasuries->accountOf($bank)]);
+
+        $this->assertSame(AccountingError::TreasuryDepositDenied, $this->refusal(fn () => $this->scopes->assertRoutedAllows(PaymentType::BankTransfer, TreasuryScopes::DEPOSIT, $other))->error);
+
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'payment.bank_transfer')->update(['account_id' => $this->accountId('receivables')]);
+
+        $this->scopes->assertRoutedAllows(PaymentType::BankTransfer, TreasuryScopes::DEPOSIT, $other);
+        $this->addToAssertionCount(1);
+    }
+
+    private function journalBetween(int $debitAccount, int $creditAccount, string $amount = '30.00'): int
+    {
+        return (new PostingService())->post(new JournalDraft(
+            date: '2026-10-21',
+            lines: [new JournalLineDraft($debitAccount, debit: $amount), new JournalLineDraft($creditAccount, credit: $amount)],
+            sourceType: 'opening',
+            sourceId: random_int(1000, 9999),
+            currencyCode: 'SAR',
+        ))->journalId;
+    }
+
+    public function testAssertMayReverse_AsksTheWithdrawalScopeOfTheTreasuryAJournalPutMoneyInto(): void
+    {
+        $named  = $this->employeeWithGrants([]);
+        $other  = $this->employeeWithGrants([]);
+        $drawer = $this->drawer(['withdraw_scope' => 'staff', 'withdraw_members' => [$named]]);
+        $in     = $this->journalBetween((int) $this->treasuries->accountOf($drawer), $this->accountId('opening_balance'));
+
+        $this->scopes->assertMayReverse($in, $named);
+        $this->assertSame(AccountingError::TreasuryWithdrawDenied, $this->refusal(fn () => $this->scopes->assertMayReverse($in, $other))->error);
+    }
+
+    public function testAssertMayReverse_AsksTheDepositScopeOfTheTreasuryAJournalTookMoneyOutOf(): void
+    {
+        $named  = $this->employeeWithGrants([]);
+        $other  = $this->employeeWithGrants([]);
+        $drawer = $this->drawer(['deposit_scope' => 'staff', 'deposit_members' => [$named]]);
+        $out    = $this->journalBetween($this->accountId('opening_balance'), (int) $this->treasuries->accountOf($drawer));
+
+        $this->scopes->assertMayReverse($out, $named);
+        $this->assertSame(AccountingError::TreasuryDepositDenied, $this->refusal(fn () => $this->scopes->assertMayReverse($out, $other))->error);
+    }
+
+    public function testAssertMayReverse_AsksBothTreasuriesOfAJournalBetweenTwoOfThem(): void
+    {
+        $named = $this->employeeWithGrants([]);
+        $other = $this->employeeWithGrants([]);
+        $from  = $this->drawer(['deposit_scope' => 'staff', 'deposit_members' => [$named]], 'From');
+        $to    = $this->drawer(['withdraw_scope' => 'staff', 'withdraw_members' => [$named]], 'To');
+        $moved = $this->journalBetween((int) $this->treasuries->accountOf($to), (int) $this->treasuries->accountOf($from));
+
+        $this->scopes->assertMayReverse($moved, $named);
+
+        $refusal = $this->refusal(fn () => $this->scopes->assertMayReverse($moved, $other));
+
+        $this->assertContains($refusal->error, [AccountingError::TreasuryWithdrawDenied, AccountingError::TreasuryDepositDenied]);
+    }
+
+    public function testAssertMayReverse_AsksNothingOfAJournalThatTouchesNoTreasuryAndNothingOfTheBooks(): void
+    {
+        $named   = $this->employeeWithGrants([]);
+        $drawer  = $this->drawer(['withdraw_scope' => 'staff', 'withdraw_members' => [$named]]);
+        $plain   = $this->journalBetween($this->accountId('sales_revenue'), $this->accountId('opening_balance'));
+        $treated = $this->journalBetween((int) $this->treasuries->accountOf($drawer), $this->accountId('opening_balance'));
+
+        $this->scopes->assertMayReverse($plain, $this->employeeWithGrants([]));
+        $this->scopes->assertMayReverse($treated, null);
+        $this->addToAssertionCount(2);
+    }
+
+    public function testOwnerOfAccount_NamesTheTreasuryWhoseAccountItIsAndNobodyForAnyOther(): void
+    {
+        $drawer = $this->drawer();
+        $main   = $this->treasuries->ensureMain();
+
+        $this->assertSame($drawer, $this->scopes->ownerOfAccount((int) $this->treasuries->accountOf($drawer)));
+        $this->assertSame($main, $this->scopes->ownerOfAccount($this->accountId('cash')));
+        $this->assertNull($this->scopes->ownerOfAccount($this->accountId('receivables')));
+        $this->assertNull($this->scopes->ownerOfAccount(999999));
+    }
+
+    public function testAssertRoutedAllows_LeavesEveryPaymentAloneWhileThereIsNoMainTreasury(): void
+    {
+        $this->scopes->assertRoutedAllows(PaymentType::Cash, TreasuryScopes::DEPOSIT, $this->employeeWithGrants([]));
         $this->addToAssertionCount(1);
     }
 

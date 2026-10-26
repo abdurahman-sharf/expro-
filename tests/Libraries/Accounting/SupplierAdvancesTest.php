@@ -181,6 +181,65 @@ class SupplierAdvancesTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('supplier_advances'));
     }
 
+    public function testPay_AppliesTheScopeOfTheTreasuryTheWayOfPaymentIsRoutedToWhenNoTreasuryIsNamed(): void
+    {
+        $treasuries = new TreasuryService();
+        $other      = $this->employeeWithGrants([]);
+        $bank       = $treasuries->create(['name' => 'Routed bank', 'kind' => 'bank', 'bank_name' => 'Gulf Bank', 'account_number' => '1234567890', 'withdraw_scope' => 'staff', 'withdraw_members' => [$other]], $this->clerk);
+
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'payment.cash')->update(['account_id' => $treasuries->accountOf($bank)]);
+
+        $refusal = $this->refusal(fn () => $this->advances->pay($this->supplierId, '120.00', '2026-10-20', 'Cash', null, '', '', $this->clerk));
+
+        $this->assertSame(AccountingError::TreasuryWithdrawDenied, $refusal->error);
+        $this->assertSame('Routed bank', $refusal->context['name']);
+        $this->assertSame(0, $this->countRows('supplier_advances'));
+    }
+
+    public function testCancel_RefusesAnEmployeeWhoMayNotDepositIntoTheTreasuryTheAdvanceWasPaidFrom(): void
+    {
+        $treasuries = new TreasuryService();
+        $other      = $this->employeeWithGrants([]);
+        $drawer     = $treasuries->create(['name' => 'Advance drawer', 'kind' => 'cash', 'deposit_scope' => 'staff', 'deposit_members' => [$other]], $this->clerk);
+        $advanceId  = $this->advances->pay($this->supplierId, '120.00', '2026-10-20', 'Cash', $drawer, '', '', $this->clerk);
+
+        $refusal = $this->refusal(fn () => $this->advances->cancel($advanceId, 'paid twice', $this->clerk));
+
+        $this->assertSame(AccountingError::TreasuryDepositDenied, $refusal->error);
+        $this->assertSame('-120.0000', $treasuries->position($drawer)->balance);
+        $this->assertSame('completed', $this->accountingDb()->table('supplier_advances')->where('advance_id', $advanceId)->get()->getRow()->status);
+    }
+
+    public function testCancel_AcceptsAnEmployeeWhoMayDepositIntoTheTreasuryAndTheBooksAlways(): void
+    {
+        $treasuries = new TreasuryService();
+        $other      = $this->employeeWithGrants([]);
+        $drawer     = $treasuries->create(['name' => 'Advance drawer', 'kind' => 'cash', 'deposit_scope' => 'staff', 'deposit_members' => [$this->clerk]], $this->clerk);
+        $first      = $this->advances->pay($this->supplierId, '120.00', '2026-10-20', 'Cash', $drawer, '', '', $this->clerk);
+        $second     = $this->advances->pay($this->supplierId, '80.00', '2026-10-20', 'Cash', $drawer, '', '', $this->clerk);
+
+        $this->advances->cancel($first, 'paid twice', $this->clerk);
+
+        $treasuries->update($drawer, ['name' => 'Advance drawer', 'kind' => 'cash', 'deposit_scope' => 'staff', 'deposit_members' => [$other]], $this->clerk);
+        $this->advances->cancel($second, 'paid twice');
+
+        $this->assertSame('0.0000', $treasuries->position($drawer)->balance);
+    }
+
+    public function testCancel_RefusesAnAdvancePaidWithoutATreasuryWhenItsTypeIsRoutedToATreasuryClosedToTheEmployee(): void
+    {
+        $treasuries = new TreasuryService();
+        $other      = $this->employeeWithGrants([]);
+        $bank       = $treasuries->create(['name' => 'Routed bank', 'kind' => 'bank', 'bank_name' => 'Gulf Bank', 'account_number' => '1234567890', 'deposit_scope' => 'staff', 'deposit_members' => [$other]], $this->clerk);
+
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'payment.cash')->update(['account_id' => $treasuries->accountOf($bank)]);
+
+        $advanceId = $this->advances->pay($this->supplierId, '120.00', '2026-10-20', 'Cash', null, '', '');
+
+        $this->assertSame(AccountingError::TreasuryDepositDenied, $this->refusal(fn () => $this->advances->cancel($advanceId, 'paid twice', $this->clerk))->error);
+        $this->assertSame('-120.0000', $treasuries->position($bank)->balance);
+    }
+
     public function testPay_LetsTheBooksPayWhateverTheScopeOfTheTreasury(): void
     {
         $treasuries = new TreasuryService();

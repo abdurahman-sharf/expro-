@@ -38,6 +38,9 @@ Events::on('pre_system', static function (): void {
         }
 
         ob_start(static fn ($buffer) => $buffer);
+    } else {
+        // Every test request runs in the one process of the suite, where the shared renderer would keep the view data of the request before.
+        service('renderer')->resetData();
     }
 
     /*

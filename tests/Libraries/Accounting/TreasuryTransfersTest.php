@@ -226,7 +226,46 @@ class TreasuryTransfersTest extends CIUnitTestCase
         $this->assertSame('40.0000', $this->balanceOf($this->drawer));
     }
 
-    public function testCancel_NeedsOnlyThePermissionToManageWhateverTheScopes(): void
+    public function testCancel_RefusesAnEmployeeWhoMayNotWithdrawFromTheTreasuryTheTransferWentInto(): void
+    {
+        $other      = $this->employeeWithGrants([]);
+        $transferId = $this->transfers->transfer($this->main, $this->drawer, '40.00', '2026-10-21', '', $this->manager);
+
+        $this->treasuries->update($this->drawer, ['name' => 'Drawer', 'kind' => 'cash', 'withdraw_scope' => 'staff', 'withdraw_members' => [$other]], $this->manager);
+
+        $refusal = $this->refusal(fn () => $this->transfers->cancel($transferId, 'entered twice', $this->manager));
+
+        $this->assertSame(AccountingError::TreasuryWithdrawDenied, $refusal->error);
+        $this->assertSame('Drawer', $refusal->context['name']);
+        $this->assertSame('40.0000', $this->balanceOf($this->drawer), 'The money the cancellation would have taken out is still there');
+        $this->assertSame('completed', $this->accountingDb()->table('treasury_transfers')->where('transfer_id', $transferId)->get()->getRow()->status);
+    }
+
+    public function testCancel_RefusesAnEmployeeWhoMayNotDepositIntoTheTreasuryTheTransferCameOutOf(): void
+    {
+        $other      = $this->employeeWithGrants([]);
+        $transferId = $this->transfers->transfer($this->main, $this->drawer, '40.00', '2026-10-21', '', $this->manager);
+
+        $this->treasuries->update($this->main, ['name' => 'Main', 'kind' => 'cash', 'deposit_scope' => 'staff', 'deposit_members' => [$other]], $this->manager);
+
+        $this->assertSame(AccountingError::TreasuryDepositDenied, $this->refusal(fn () => $this->transfers->cancel($transferId, 'entered twice', $this->manager))->error);
+        $this->assertSame('460.0000', $this->balanceOf($this->main));
+    }
+
+    public function testCancel_AcceptsAnEmployeeWhoMayWithdrawFromTheOneItWentIntoAndDepositIntoTheOneItCameOutOf(): void
+    {
+        $this->treasuries->update($this->drawer, ['name' => 'Drawer', 'kind' => 'cash', 'withdraw_scope' => 'staff', 'withdraw_members' => [$this->manager]], $this->manager);
+        $this->treasuries->update($this->main, ['name' => 'Main', 'kind' => 'cash', 'deposit_scope' => 'staff', 'deposit_members' => [$this->manager]], $this->manager);
+
+        $transferId = $this->transfers->transfer($this->main, $this->drawer, '40.00', '2026-10-21', '', $this->manager);
+
+        $this->transfers->cancel($transferId, 'entered twice', $this->manager);
+
+        $this->assertSame('0.0000', $this->balanceOf($this->drawer));
+        $this->assertSame('500.0000', $this->balanceOf($this->main));
+    }
+
+    public function testCancel_LetsTheBooksTakeATransferBackWhateverTheScopes(): void
     {
         $other      = $this->employeeWithGrants([]);
         $transferId = $this->transfers->transfer($this->main, $this->drawer, '40.00', '2026-10-21', '', $this->manager);
@@ -234,9 +273,22 @@ class TreasuryTransfersTest extends CIUnitTestCase
         $this->treasuries->update($this->main, ['name' => 'Main', 'kind' => 'cash', 'deposit_scope' => 'staff', 'deposit_members' => [$other]], $this->manager);
         $this->treasuries->update($this->drawer, ['name' => 'Drawer', 'kind' => 'cash', 'withdraw_scope' => 'staff', 'withdraw_members' => [$other]], $this->manager);
 
-        $this->transfers->cancel($transferId, 'entered twice', $this->manager);
+        $this->transfers->cancel($transferId, 'entered twice');
 
         $this->assertSame('0.0000', $this->balanceOf($this->drawer));
+    }
+
+    public function testCancel_DoesNotLetTheScopeOfTheTreasuryTheMoneyLeftStopTheOneThatNeverMovedMoney(): void
+    {
+        $other      = $this->employeeWithGrants([]);
+        $transferId = $this->transfers->transfer($this->main, $this->drawer, '40.00', '2026-10-21', '', $this->manager);
+
+        $this->treasuries->update($this->main, ['name' => 'Main', 'kind' => 'cash', 'withdraw_scope' => 'staff', 'withdraw_members' => [$other]], $this->manager);
+        $this->treasuries->update($this->drawer, ['name' => 'Drawer', 'kind' => 'cash', 'deposit_scope' => 'staff', 'deposit_members' => [$other]], $this->manager);
+
+        $this->transfers->cancel($transferId, 'entered twice', $this->manager);
+
+        $this->assertSame('0.0000', $this->balanceOf($this->drawer), 'Taking back a transfer needs the opposite scopes, not the ones the transfer needed');
     }
 
     public function testTransfer_DebitsTheTreasuryItGoesIntoAndCreditsTheOneItComesOutOf(): void

@@ -72,34 +72,89 @@ final class TreasuryScopes
     }
 
     /**
-     * A payment that names no treasury goes to the account of its way of payment, and by default
-     * that account is the one of the main treasury, so the scope of the main treasury governs it.
+     * A payment that names no treasury goes to the account its way of payment is routed to. When
+     * that account belongs to a treasury, whether the main one or any other, the scope of that
+     * treasury governs the payment, or leaving the treasury empty would pass the scope by.
      *
      * @throws AccountingException
      */
-    public function assertMainAllows(PaymentType $type, string $direction, ?int $employeeId): void
+    public function assertRoutedAllows(PaymentType $type, string $direction, ?int $employeeId): void
     {
         if ($employeeId === null) {
             return;
         }
 
-        $main = $this->db->table('treasuries')->select('treasury_id')->where(['company_id' => CompanyContext::id(), 'is_main' => 1])->get()->getRow();
+        $owner = $this->ownerOfRoutedType($type);
 
-        if ($main === null) {
-            return;
+        if ($owner !== null) {
+            $this->assertAllows($owner, $direction, $employeeId);
         }
+    }
 
+    /**
+     * The treasury that owns the account a way of payment is routed to now, or null when the way
+     * of payment goes to an account no treasury owns.
+     */
+    public function ownerOfRoutedType(PaymentType $type): ?int
+    {
         try {
             $account = (new RoutingResolver($this->db))->accountForPayment($type);
         } catch (PostingException) {
+            return null;
+        }
+
+        return $account === null ? null : $this->ownerOfAccount($account);
+    }
+
+    /**
+     * Taking a journal back is the opposite movement of what it did: a journal that put money
+     * into a treasury is undone by a withdrawal from it, and one that took money out by a deposit.
+     * The treasuries are read from the lines of the journal, whatever stamped the payment or the
+     * routing of the day it was posted.
+     *
+     * @throws AccountingException
+     */
+    public function assertMayReverse(int $journalId, ?int $employeeId): void
+    {
+        if ($employeeId === null) {
             return;
         }
 
-        if ($account === null || $account !== (new EntityAccountService($this->db))->accountFor(EntityAccountService::TREASURY, (int) $main->treasury_id)) {
-            return;
-        }
+        $rows = $this->db->table('accounting_journal_lines l')
+            ->select('t.treasury_id, SUM(l.debit) AS debit, SUM(l.credit) AS credit', false)
+            ->join('accounting_accounts a', 'a.account_id = l.account_id')
+            ->join('treasuries t', 't.treasury_id = a.entity_id AND t.company_id = a.company_id')
+            ->where('l.journal_id', $journalId)
+            ->where('a.entity_type', EntityAccountService::TREASURY)
+            ->groupBy('t.treasury_id')
+            ->orderBy('t.treasury_id', 'ASC')
+            ->get()
+            ->getResult();
 
-        $this->assertAllows((int) $main->treasury_id, $direction, $employeeId);
+        foreach ($rows as $row) {
+            $net = bccomp(bcsub((string) $row->debit, (string) $row->credit, 4), '0', 4);
+
+            if ($net !== 0) {
+                $this->assertAllows((int) $row->treasury_id, $net > 0 ? self::WITHDRAW : self::DEPOSIT, $employeeId);
+            }
+        }
+    }
+
+    /**
+     * The treasury an account is the account of, or null for an account no treasury owns.
+     */
+    public function ownerOfAccount(int $accountId): ?int
+    {
+        $row = $this->db->table('accounting_accounts a')
+            ->select('t.treasury_id')
+            ->join('treasuries t', 't.treasury_id = a.entity_id AND t.company_id = a.company_id')
+            ->where('a.company_id', CompanyContext::id())
+            ->where('a.account_id', $accountId)
+            ->where('a.entity_type', EntityAccountService::TREASURY)
+            ->get()
+            ->getRow();
+
+        return $row === null ? null : (int) $row->treasury_id;
     }
 
     /**

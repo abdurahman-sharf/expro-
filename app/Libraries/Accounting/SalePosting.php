@@ -142,6 +142,8 @@ final class SalePosting
         $active = $this->activeJournal(SalePostingBuilder::SOURCE_PAYMENT, $paymentId, JournalEntryType::General);
 
         if ($active !== null) {
+            (new TreasuryScopes($this->db))->assertMayReverse((int) $active->journal_id, $employeeId);
+
             $this->reverse($active, $employeeId, 'Payment removed');
         }
     }
@@ -178,6 +180,11 @@ final class SalePosting
 
             $stockDate    = date('Y-m-d');
             $stockJournal = null;
+            $scopes       = new TreasuryScopes($this->db);
+
+            foreach ($active as $journal) {
+                $scopes->assertMayReverse((int) $journal->journal_id, $employeeId);
+            }
 
             foreach ($active as $journal) {
                 [$reversalId, $date] = $this->reverse($journal, $employeeId, 'Sale #' . $saleId . ' cancelled');

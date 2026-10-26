@@ -84,7 +84,7 @@ final class SupplierAdvances
         if ($treasury !== null) {
             $scopes->assertAllows((int) $treasury->treasury_id, TreasuryScopes::WITHDRAW, $employeeId);
         } else {
-            $scopes->assertMainAllows($type, TreasuryScopes::WITHDRAW, $employeeId);
+            $scopes->assertRoutedAllows($type, TreasuryScopes::WITHDRAW, $employeeId);
         }
 
         $branchId = $treasury === null ? $this->branches->defaultBranchId($employeeId) : (int) $treasury->branch_id;
@@ -329,6 +329,8 @@ final class SupplierAdvances
         if ($journal === null) {
             throw new AccountingException(AccountingError::AdvanceAlreadyCancelled, 'There is nothing posted to cancel.', ['source_id' => $sourceId]);
         }
+
+        (new TreasuryScopes($this->db, $this->branches))->assertMayReverse((int) $journal->journal_id, $employeeId);
 
         $cutoff = $this->periods->effectiveCutoff($branchId, true);
         $date   = $cutoff !== null && $journal->journal_date <= $cutoff['date'] ? date('Y-m-d') : $journal->journal_date;

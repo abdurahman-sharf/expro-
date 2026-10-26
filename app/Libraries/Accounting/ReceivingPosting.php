@@ -112,6 +112,8 @@ final class ReceivingPosting
         $active = $this->activeJournal(ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT, $paymentId, JournalEntryType::General);
 
         if ($active !== null) {
+            (new TreasuryScopes($this->db))->assertMayReverse((int) $active->journal_id, $employeeId);
+
             $this->reverse($active, $employeeId, 'Payment removed');
         }
     }
@@ -138,6 +140,14 @@ final class ReceivingPosting
 
                 if ($journal !== null) {
                     $later[] = $journal;
+                }
+            }
+
+            $scopes = new TreasuryScopes($this->db);
+
+            foreach ([...$later, $payment, $purchase] as $journal) {
+                if ($journal !== null) {
+                    $scopes->assertMayReverse((int) $journal->journal_id, $employeeId);
                 }
             }
 
