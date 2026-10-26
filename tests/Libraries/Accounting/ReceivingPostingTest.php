@@ -592,7 +592,7 @@ class ReceivingPostingTest extends CIUnitTestCase
         $this->assertSame('-30.0000', (new TreasuryService())->position($drawer)->balance);
     }
 
-    public function testUpdate_RefusesToChangeASupplierPaymentOfATreasuryToAWayOfPaymentThatUsesNoTreasury(): void
+    public function testUpdate_RefusesToTakeASupplierPaymentOfATreasuryOutOfTheBooksByChangingItsStatus(): void
     {
         $drawer    = $this->drawerOpenOnlyTo([$this->employeeWithGrants([])], 'deposit');
         $itemId    = $this->item('0.00');
@@ -600,9 +600,10 @@ class ReceivingPostingTest extends CIUnitTestCase
         $paymentId = $this->payPurchase($id, '60.00');
 
         $this->assertTrue($this->changePayment($id, $paymentId, ['treasury_id' => $drawer]), 'Paying from it was not limited');
-        $this->assertFalse($this->changePayment($id, $paymentId, ['payment_type' => lang('Sales.due')]));
+        $this->assertFalse($this->changePayment($id, $paymentId, ['payment_status' => 'draft']));
         $this->assertSame(AccountingError::TreasuryDepositDenied, $this->purchases->accountingFailure()->error);
         $this->assertSame('-60.0000', (new TreasuryService())->position($drawer)->balance);
+        $this->assertSame('completed', $this->accountingDb()->table('receivings_payments')->where('payment_id', $paymentId)->get()->getRow()->payment_status);
     }
 
     public function testDeleteValue_RefusesToDeleteAPurchaseWhoseSupplierPaymentCameOutOfATreasuryTheEditorMayNotDepositInto(): void

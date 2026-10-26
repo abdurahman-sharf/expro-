@@ -719,6 +719,20 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame('200.0000', $treasuries->position($drawer)->balance);
     }
 
+    public function testUpdate_RefusesToTakeThePaymentOfATreasuryOutOfTheBooksByChangingItsStatus(): void
+    {
+        $treasuries = new TreasuryService();
+        $drawer     = $this->drawerOpenOnlyTo([$this->employeeWithGrants([])], 'withdraw');
+        $item       = $this->item('10.00');
+        $saleId     = $this->save([$this->line($item, 0, '1', '100', '10.00')], [], [$this->payment(lang('Sales.cash'), '100.00') + ['treasury_id' => $drawer]]);
+        $paymentId  = (int) $this->paymentRow($saleId)->payment_id;
+
+        $this->assertFalse($this->sales->update($saleId, ['comment' => 'not paid after all', 'payments' => [$this->scopeEditedPayment($paymentId, ['payment_status' => 'draft'])]]));
+        $this->assertSame(AccountingError::TreasuryWithdrawDenied, $this->sales->accountingFailure()->error);
+        $this->assertSame('100.0000', $treasuries->position($drawer)->balance);
+        $this->assertSame('completed', $this->paymentRow($saleId)->payment_status);
+    }
+
     public function testUpdate_AsksTheScopeAgainWhenTheAmountOfAPaymentChanges(): void
     {
         $drawer    = $this->drawerOpenOnlyTo([$this->employeeId]);
