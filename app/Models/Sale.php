@@ -1562,6 +1562,10 @@ class Sale extends Model
             $where = 'sales.sale_id = ' . $this->db->escape($inputs['sale_id']);
         }
 
+        if (isset($inputs['branch_ids'])) {
+            $where .= $inputs['branch_ids'] === [] ? ' AND 1 = 0' : ' AND sales.branch_id IN (' . implode(', ', array_map('intval', $inputs['branch_ids'])) . ')';
+        }
+
         $decimals = totals_decimals();
 
         $sale_price = 'CASE WHEN sales_items.discount_type = ' . PERCENT

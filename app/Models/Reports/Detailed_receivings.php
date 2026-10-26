@@ -20,7 +20,7 @@ class Detailed_receivings extends Report
     {
         // Create our temp tables to work with the data in our report
         $receiving = model(Receiving::class);
-        $receiving->create_temp_table($inputs);
+        $receiving->create_temp_table($this->limitedInputs($inputs));
     }
 
     /**
@@ -53,9 +53,9 @@ class Detailed_receivings extends Report
 
     /**
      * @param string $receiving_id
-     * @return array
+     * @return array|null
      */
-    public function getDataByReceivingId(string $receiving_id): array
+    public function getDataByReceivingId(string $receiving_id): ?array
     {
         $builder = $this->db->table('receivings_items_temp');
         $builder->select('receiving_id,

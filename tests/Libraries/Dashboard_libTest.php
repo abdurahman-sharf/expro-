@@ -3,6 +3,7 @@
 namespace Tests\Libraries;
 
 use App\Libraries\Dashboard_lib;
+use App\Libraries\Organization\BranchGuard;
 use CodeIgniter\Config\Factories;
 use CodeIgniter\Database\Config;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -52,14 +53,64 @@ final class Dashboard_libTest extends CIUnitTestCase
     protected function tearDown(): void
     {
         $this->clearCache();
+        session()->remove('person_id');
+
+        $db = Database::connect();
+
+        foreach ($this->branchesMade as $branchId) {
+            $db->table('employee_branches')->where('branch_id', $branchId)->delete();
+            $db->table('branches')->where('branch_id', $branchId)->delete();
+        }
+
+        $this->branchesMade = [];
 
         parent::tearDown();
+    }
+
+    /**
+     * @var list<int>
+     */
+    private array $branchesMade = [];
+
+    private function newBranch(): int
+    {
+        $db = Database::connect();
+
+        $db->table('branches')->insert(['company_id' => 1, 'code' => 'D' . substr(md5(uniqid('', true)), 0, 8), 'name' => 'Dashboard branch']);
+
+        return $this->branchesMade[] = (int) $db->insertID();
+    }
+
+    /**
+     * Logs in an employee who works in the branches given, or in every branch.
+     *
+     * @param list<int> $branchIds
+     */
+    private function loggedInWorkingIn(array $branchIds, bool $everyBranch = false): int
+    {
+        $db       = Database::connect();
+        $personId = $this->createEmployee(grants: $everyBranch ? [['permission_id' => BranchGuard::ALL_BRANCHES, 'menu_group' => '--']] : []);
+
+        foreach ($branchIds as $branchId) {
+            $db->table('employee_branches')->insert(['person_id' => $personId, 'branch_id' => $branchId, 'is_default' => 1]);
+        }
+
+        session()->set('person_id', $personId);
+
+        return $personId;
     }
 
     private function clearCache(): void
     {
         foreach (['sales', 'top_items_100', 'low_stock_100', 'expenses_month'] as $section) {
             cache()->delete('dashboard_' . $section . '_' . date('Ymd'));
+
+            foreach ($this->branchesMade as $branchId) {
+                cache()->delete('dashboard_' . $section . '_b' . $branchId . '_' . date('Ymd'));
+                cache()->delete('dashboard_' . $section . '_b1-' . $branchId . '_' . date('Ymd'));
+            }
+
+            cache()->delete('dashboard_' . $section . '_b1_' . date('Ymd'));
         }
     }
 
@@ -141,5 +192,60 @@ final class Dashboard_libTest extends CIUnitTestCase
         $total = (new Dashboard_lib())->expensesThisMonth();
 
         $this->assertGreaterThanOrEqual(125.5, $total);
+    }
+
+    public function testSalesAddsUpOnlyTheBranchesTheEmployeeWorksInAndKeepsWhatIsKeptForOneSetOfBranchesApart(): void
+    {
+        $this->createSale($this->createEmployee());
+
+        $other = $this->newBranch();
+
+        $this->loggedInWorkingIn([$other]);
+        $inTheOther = (new Dashboard_lib())->sales();
+
+        $this->loggedInWorkingIn([1]);
+        $inTheFirst = (new Dashboard_lib())->sales();
+
+        $this->loggedInWorkingIn([], true);
+        $inEvery = (new Dashboard_lib())->sales();
+
+        $this->assertSame(0, $inTheOther['today']['count']);
+        $this->assertGreaterThanOrEqual(1, $inTheFirst['today']['count']);
+        $this->assertSame($inTheFirst['today']['count'], $inEvery['today']['count']);
+    }
+
+    public function testTopItemsRanksOnlyWhatTheBranchesTheEmployeeWorksInSold(): void
+    {
+        $this->createSale($this->createEmployee());
+
+        $other = $this->newBranch();
+
+        $this->loggedInWorkingIn([$other]);
+        $this->assertSame([], (new Dashboard_lib())->topItems(100));
+
+        $this->loggedInWorkingIn([1]);
+        $this->assertNotEmpty((new Dashboard_lib())->topItems(100));
+    }
+
+    public function testExpensesThisMonthIsNotShownToAnEmployeeWhoDoesNotWorkInEveryBranchBecauseExpensesBelongToNoBranch(): void
+    {
+        $db = Database::connect();
+        $db->table('expense_categories')->insert(['category_name' => 'Dashboard ' . uniqid(), 'category_description' => '', 'deleted' => 0]);
+        $db->table('expenses')->insert([
+            'date'                => date('Y-m-d H:i:s'),
+            'amount'              => 75,
+            'tax_amount'          => 0,
+            'payment_type'        => 'Cash',
+            'expense_category_id' => (int) $db->insertID(),
+            'description'         => 'dashboard fixture',
+            'employee_id'         => $this->createEmployee(),
+            'deleted'             => 0,
+        ]);
+
+        $this->loggedInWorkingIn([1]);
+        $this->assertNull((new Dashboard_lib())->expensesThisMonth());
+
+        $this->loggedInWorkingIn([], true);
+        $this->assertGreaterThanOrEqual(75.0, (new Dashboard_lib())->expensesThisMonth());
     }
 }

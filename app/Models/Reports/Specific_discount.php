@@ -20,7 +20,7 @@ class Specific_discount extends Report
     {
         // Create our temp tables to work with the data in our report
         $sale = model(Sale::class);
-        $sale->create_temp_table($inputs);
+        $sale->create_temp_table($this->limitedInputs($inputs));
     }
 
     /**

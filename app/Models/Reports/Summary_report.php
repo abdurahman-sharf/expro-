@@ -149,6 +149,8 @@ abstract class Summary_report extends Report
             $builder->where('sales.sale_status', COMPLETED);
             $builder->where('sales.sale_type', SALE_TYPE_RETURN);
         }
+
+        $this->limitToBranches($builder, 'sales.branch_id');
     }
 
     /**

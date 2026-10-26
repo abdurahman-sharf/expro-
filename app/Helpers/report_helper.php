@@ -1,5 +1,8 @@
 <?php
 
+use App\Libraries\Accounting\ReportScope;
+use App\Libraries\Organization\BranchGuard;
+
 /**
  * @param string $report_name
  * @param string $report_prefix
@@ -154,4 +157,15 @@ function reportCatalog(array $permissionIds): array
     }
 
     return $catalog;
+}
+
+/**
+ * The branches the logged-in employee reads in the operational reports, for the note that says
+ * whose figures a report holds.
+ */
+function reportScope(): ReportScope
+{
+    $employeeId = (int) session()->get('person_id');
+
+    return ReportScope::resolve(null, $employeeId > 0 ? (new BranchGuard())->allowedBranchIds($employeeId) : null);
 }

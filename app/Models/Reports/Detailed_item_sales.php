@@ -9,7 +9,7 @@ class Detailed_item_sales extends Report
     public function create(array $inputs): void
     {
         $sale = model(Sale::class);
-        $sale->create_temp_table($inputs);
+        $sale->create_temp_table($this->limitedInputs($inputs));
     }
 
     public function getDataColumns(): array

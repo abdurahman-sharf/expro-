@@ -70,6 +70,24 @@ final readonly class ReportScope
         return count($this->choices) > 1;
     }
 
+    /**
+     * Whose figures the report holds, said only to someone who reads more than one branch.
+     */
+    public function label(): ?string
+    {
+        if (! $this->choosable() || $this->isEmpty()) {
+            return null;
+        }
+
+        $codes = implode(lang('Accounting_reports.branch_separator'), $this->codes);
+
+        return match ($this->kind) {
+            ReportScopeKind::Company  => lang('Accounting_reports.scope_company'),
+            ReportScopeKind::Partial  => lang('Accounting_reports.scope_partial', [$codes]),
+            ReportScopeKind::Selected => lang('Accounting_reports.scope_selected', [$codes]),
+        };
+    }
+
     public function isEmpty(): bool
     {
         return $this->ids === [];

@@ -996,6 +996,11 @@ class Receiving extends Model
             $where = 'receivings_items.receiving_id = ' . $this->db->escape($inputs['receiving_id']);
         }
 
+        if (isset($inputs['branch_ids'])) {
+            $list   = implode(', ', array_map('intval', $inputs['branch_ids']));
+            $where .= $inputs['branch_ids'] === [] ? ' AND 1 = 0' : " AND (receivings.branch_id IN ({$list}) OR receivings.to_branch_id IN ({$list}))";
+        }
+
         $units = '`quantity_purchased` * `' . $db_prefix . 'receivings_items`.`receiving_quantity`';
         $gross = '`item_unit_price` * ' . $units;
         $type  = '`' . $db_prefix . 'receivings_items`.`discount_type`';

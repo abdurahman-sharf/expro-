@@ -35,6 +35,8 @@ class Summary_taxes extends Summary_report
         } else {
             $builder->where('sales.sale_time BETWEEN ' . $this->db->escape(rawurldecode($inputs['start_date'])) . ' AND ' . $this->db->escape(rawurldecode($inputs['end_date'])));
         }
+
+        $this->limitToBranches($builder, 'sales.branch_id');
     }
 
     public function getData(array $inputs): array
@@ -86,6 +88,8 @@ class Summary_taxes extends Summary_report
                 . ' AND ' . $this->db->escape(rawurldecode($inputs['end_date']))
             );
         }
+
+        $this->limitToBranches($subquery_builder, 'sales.branch_id');
 
         $builder = $this->db->newQuery()->fromSubquery($subquery_builder, 'temp_taxes');
         $builder->select(
