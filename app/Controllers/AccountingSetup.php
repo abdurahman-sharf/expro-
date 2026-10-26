@@ -14,11 +14,13 @@ use CodeIgniter\HTTP\ResponseInterface;
 class AccountingSetup extends AccountingController
 {
     private const PERMISSION_LABELS = [
-        AccountingGuard::SETTINGS_MANAGE => 'Accounting_settings.settings_manage',
-        AccountingGuard::PERIODS_CLOSE   => 'Accounting_periods.periods_close',
-        AccountingGuard::PERIODS_REOPEN  => 'Accounting_periods.periods_reopen',
-        AccountingGuard::OPENING_MANAGE  => 'Accounting_periods.opening_manage',
-        AccountingGuard::ROUTING_MANAGE  => 'Accounting_routing.routing_manage',
+        AccountingGuard::SETTINGS_MANAGE   => 'Accounting_settings.settings_manage',
+        AccountingGuard::PERIODS_CLOSE     => 'Accounting_periods.periods_close',
+        AccountingGuard::PERIODS_REOPEN    => 'Accounting_periods.periods_reopen',
+        AccountingGuard::OPENING_MANAGE    => 'Accounting_periods.opening_manage',
+        AccountingGuard::ROUTING_MANAGE    => 'Accounting_routing.routing_manage',
+        AccountingGuard::TREASURIES_MANAGE => 'Accounting_treasuries.treasuries_manage',
+        AccountingGuard::PAYABLES_MANAGE   => 'Accounting_payables.payables_manage',
     ];
 
     private AccountingSettings $settings;

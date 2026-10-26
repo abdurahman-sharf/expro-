@@ -815,4 +815,107 @@ class EmployeesControllerTest extends CIUnitTestCase
         $this->assertTrue($result['success']);
         $this->assertSame([AccountingGuard::PERIODS_CLOSE], $this->auditedPermissions($target, 'permission_revoked'));
     }
+
+    /**
+     * @return list<array{string, string}> The permission, and the module whose screen it belongs to.
+     */
+    private function moneyPermissions(): array
+    {
+        return [
+            [AccountingGuard::TREASURIES_MANAGE, 'accounting_treasuries'],
+            [AccountingGuard::PAYABLES_MANAGE, 'accounting_payables'],
+        ];
+    }
+
+    public function testGetView_MarksTheTreasuriesAndPayablesPermissionsAsSensitiveAndLocksThemForANonAdministrator(): void
+    {
+        $this->loginAsNonAdmin($this->createNonAdminEmployee());
+
+        $html = $this->get('/employees/view/-1')->getBody();
+
+        foreach ($this->moneyPermissions() as [$permissionId]) {
+            $this->assertMatchesRegularExpression('/<input[^>]*id="grant_' . $permissionId . '"[^>]*sensitive-permission[^>]*>/', $html, $permissionId);
+            $this->assertMatchesRegularExpression('/<input[^>]*id="grant_' . $permissionId . '"[^>]*data-locked="1"[^>]*>/', $html, $permissionId);
+        }
+
+        $this->loginAsAdmin();
+
+        $html = $this->get('/employees/view/-1')->getBody();
+
+        foreach ($this->moneyPermissions() as [$permissionId]) {
+            $this->assertMatchesRegularExpression('/<input[^>]*id="grant_' . $permissionId . '"[^>]*sensitive-permission[^>]*>/', $html, $permissionId);
+            $this->assertDoesNotMatchRegularExpression('/<input[^>]*id="grant_' . $permissionId . '"[^>]*data-locked="1"[^>]*>/', $html, $permissionId);
+        }
+    }
+
+    public function testPostSave_LetsAnAdministratorGrantAndRemoveTheTreasuriesAndPayablesPermissionsAndRecordsBoth(): void
+    {
+        $target = $this->createNonAdminEmployee();
+        $this->loginAsAdmin();
+
+        foreach ($this->moneyPermissions() as [$permissionId, $moduleId]) {
+            $result = json_decode($this->post('/employees/save/' . $target, $this->formFor('moneyon' . uniqid(), [
+                'grant_employees'        => 'employees',
+                'grant_' . $moduleId     => $moduleId,
+                'grant_' . $permissionId => $permissionId,
+            ]))->getJSON(), true);
+
+            $this->assertTrue($result['success'], $permissionId);
+            $this->assertTrue(model(Employee::class)->has_grant($permissionId, $target), $permissionId);
+            $this->assertSame([$permissionId], $this->auditedPermissions($target, 'permission_granted'));
+
+            $result = json_decode($this->post('/employees/save/' . $target, $this->formFor('moneyoff' . uniqid(), ['grant_employees' => 'employees']))->getJSON(), true);
+
+            $this->assertTrue($result['success'], $permissionId);
+            $this->assertFalse(model(Employee::class)->has_grant($permissionId, $target), $permissionId);
+            $this->assertSame([$permissionId], $this->auditedPermissions($target, 'permission_revoked'));
+
+            $this->db->table('accounting_audit_log')->where('entity_type', 'employee_permission')->where('entity_id', $target)->delete();
+        }
+    }
+
+    public function testPostSave_IgnoresATreasuriesOrPayablesPermissionTickedByAnEditorWhoIsNotAnAdministrator(): void
+    {
+        foreach ($this->moneyPermissions() as [$permissionId, $moduleId]) {
+            $editor = $this->createEmployee(grants: [
+                ['permission_id' => 'employees', 'menu_group' => 'office'],
+                ['permission_id' => $moduleId, 'menu_group' => 'office'],
+                ['permission_id' => $permissionId, 'menu_group' => '--'],
+            ]);
+            $target = $this->createNonAdminEmployee();
+            $this->loginAsNonAdmin($editor);
+
+            $result = json_decode($this->post('/employees/save/' . $target, $this->formFor('nomoney' . uniqid(), [
+                'grant_employees'        => 'employees',
+                'grant_' . $moduleId     => $moduleId,
+                'grant_' . $permissionId => $permissionId,
+            ]))->getJSON(), true);
+
+            $this->assertTrue($result['success'], $permissionId);
+            $this->assertFalse(model(Employee::class)->has_grant($permissionId, $target), $permissionId);
+            $this->assertSame([], $this->auditedPermissions($target, 'permission_granted'), $permissionId);
+        }
+    }
+
+    public function testPostSave_KeepsTheTreasuriesAndPayablesPermissionsOfAnEmployeeEditedByANonAdministrator(): void
+    {
+        $editor = $this->createNonAdminEmployee();
+        $target = $this->createEmployee(grants: [
+            ['permission_id' => 'employees', 'menu_group' => 'office'],
+            ['permission_id' => AccountingGuard::TREASURIES_MANAGE, 'menu_group' => '--'],
+            ['permission_id' => AccountingGuard::PAYABLES_MANAGE, 'menu_group' => '--'],
+        ]);
+        $this->loginAsNonAdmin($editor);
+
+        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor('keepmoney' . uniqid(), ['grant_employees' => 'employees']))->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+
+        foreach ($this->moneyPermissions() as [$permissionId]) {
+            $this->assertTrue(model(Employee::class)->has_grant($permissionId, $target), $permissionId);
+        }
+
+        $this->assertSame([], $this->auditedPermissions($target, 'permission_revoked'));
+        $this->assertSame([], $this->auditedPermissions($target, 'permission_granted'));
+    }
 }

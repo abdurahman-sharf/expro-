@@ -7,8 +7,9 @@ use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
 /**
- * Who holds the permissions that close and reopen periods, enter opening balances and turn
- * accounting on and off, and the record of who handed them out or took them back.
+ * Who holds the permissions that close and reopen periods, enter opening balances, turn accounting
+ * on and off, change the routing, open treasuries and move money between them, and enter supplier
+ * payments and opening balances, and the record of who handed them out or took them back.
  */
 final class SensitivePermissions
 {

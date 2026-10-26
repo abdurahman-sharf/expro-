@@ -37,7 +37,7 @@ return [
     'permission_select_all'                 => 'Select all',
     'repeat_password'                       => 'Password Again',
     'sensitive_locked'                      => 'Only an administrator can grant or remove this permission.',
-    'sensitive_note'                        => 'Permissions marked Sensitive close and reopen periods, enter opening balances or turn accounting on and off. They are never given automatically or by Select all, and only an administrator can grant or remove them.',
+    'sensitive_note'                        => 'Permissions marked Sensitive close and reopen periods, enter opening balances, change the routing, turn accounting on and off, manage treasuries and the money moved between them, or enter supplier payments. They are never given automatically or by Select all, and only an administrator can grant or remove them.',
     'sensitive_permission'                  => 'Sensitive',
     'subpermission_required'                => 'Add at least one grant for each module.',
     'successful_adding'                     => 'Employee add successful.',

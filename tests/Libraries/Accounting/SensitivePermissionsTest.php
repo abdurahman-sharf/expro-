@@ -49,15 +49,41 @@ class SensitivePermissionsTest extends CIUnitTestCase
         return $byId;
     }
 
-    public function testIsSensitive_NamesTheFourPermissionsThatCannotBeUndoneByOrdinaryUsers(): void
+    public function testIsSensitive_NamesThePermissionsThatCannotBeUndoneByOrdinaryUsers(): void
     {
-        foreach ([AccountingGuard::SETTINGS_MANAGE, AccountingGuard::PERIODS_CLOSE, AccountingGuard::PERIODS_REOPEN, AccountingGuard::OPENING_MANAGE] as $permissionId) {
+        $sensitive = [
+            AccountingGuard::SETTINGS_MANAGE,
+            AccountingGuard::PERIODS_CLOSE,
+            AccountingGuard::PERIODS_REOPEN,
+            AccountingGuard::OPENING_MANAGE,
+            AccountingGuard::ROUTING_MANAGE,
+            AccountingGuard::TREASURIES_MANAGE,
+            AccountingGuard::PAYABLES_MANAGE,
+        ];
+
+        foreach ($sensitive as $permissionId) {
             $this->assertTrue(SensitivePermissions::isSensitive($permissionId), $permissionId);
         }
 
-        foreach ([AccountingGuard::PERIODS_MANAGE, AccountingGuard::JOURNALS_POST, AccountingGuard::JOURNALS_REVERSE, 'accounting_periods'] as $permissionId) {
+        foreach ([AccountingGuard::PERIODS_MANAGE, AccountingGuard::JOURNALS_POST, AccountingGuard::JOURNALS_REVERSE, 'accounting_periods', 'accounting_treasuries', 'accounting_payables'] as $permissionId) {
             $this->assertFalse(SensitivePermissions::isSensitive($permissionId), $permissionId);
         }
+    }
+
+    public function testIsSensitive_CoversEveryPermissionOfTheGuardThatMovesMoneyOrChangesTheBooksSetup(): void
+    {
+        $this->assertSame(
+            [
+                AccountingGuard::SETTINGS_MANAGE,
+                AccountingGuard::PERIODS_CLOSE,
+                AccountingGuard::PERIODS_REOPEN,
+                AccountingGuard::OPENING_MANAGE,
+                AccountingGuard::ROUTING_MANAGE,
+                AccountingGuard::TREASURIES_MANAGE,
+                AccountingGuard::PAYABLES_MANAGE,
+            ],
+            AccountingGuard::SENSITIVE,
+        );
     }
 
     public function testHeldBy_ListsOnlyTheSensitivePermissionsTheEmployeeHolds(): void
@@ -86,6 +112,14 @@ class SensitivePermissionsTest extends CIUnitTestCase
         $this->assertSame(['B2'], $holders[$limited]['branches']);
 
         $this->assertArrayNotHasKey($ordinary, $holders);
+    }
+
+    public function testHolders_ListsWhoHoldsTheTreasuriesAndPayablesPermissions(): void
+    {
+        $manager = $this->employeeWithGrants([AccountingGuard::TREASURIES_MANAGE, AccountingGuard::PAYABLES_MANAGE]);
+
+        $this->assertSame([AccountingGuard::TREASURIES_MANAGE, AccountingGuard::PAYABLES_MANAGE], $this->service->heldBy($manager));
+        $this->assertSame([AccountingGuard::TREASURIES_MANAGE, AccountingGuard::PAYABLES_MANAGE], $this->holdersById()[$manager]['permissions']);
     }
 
     public function testHolders_LeavesOutDeletedEmployees(): void

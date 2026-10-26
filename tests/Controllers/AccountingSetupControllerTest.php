@@ -314,6 +314,25 @@ class AccountingSetupControllerTest extends CIUnitTestCase
         });
     }
 
+    public function testGetIndex_ListsWhoHoldsTheTreasuriesAndPayablesPermissionsByName(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_settings']));
+
+        $this->whileNobodyHoldsSensitivePermissions(function (): void {
+            $treasurer = $this->employeeWithGrants([AccountingGuard::TREASURIES_MANAGE]);
+            $clerk     = $this->employeeWithGrants([AccountingGuard::PAYABLES_MANAGE]);
+
+            $response = $this->get('/accounting_settings');
+
+            $response->assertSee('sensitive_holders');
+            $response->assertSee(lang('Accounting_treasuries.treasuries_manage'));
+            $response->assertSee(lang('Accounting_payables.payables_manage'));
+            $response->assertSee($this->usernameOf($treasurer));
+            $response->assertSee($this->usernameOf($clerk));
+            $response->assertDontSee(lang('Accounting_settings.holders_none'));
+        });
+    }
+
     public function testGetIndex_SaysNobodyHoldsThemWhenNobodyDoes(): void
     {
         $this->actAs($this->employeeWithGrants(['accounting_settings']));
