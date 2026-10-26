@@ -19,12 +19,16 @@
                         <select name="<?= $name ?>" id="<?= $name ?>" class="form-select form-select-sm">
                             <option value=""></option>
                             <?php foreach ($treasuries as $treasury): ?>
-                                <option value="<?= (int) $treasury->treasury_id ?>"><?= esc($treasury->name . ' (' . $treasury->branch_code . ')') ?></option>
+                                <option value="<?= (int) $treasury->treasury_id ?>" data-branch="<?= (int) $treasury->branch_id ?>"><?= esc($treasury->name . ' (' . $treasury->branch_code . ')') ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
                 </div>
             <?php endforeach; ?>
+
+            <div class="field" id="between_note" hidden>
+                <div class="alert alert-info mb-0" role="note"><?= esc(lang('Accounting_treasuries.between_branches_note')) ?></div>
+            </div>
 
             <div class="field">
                 <?= form_label(lang('Accounting_treasuries.amount'), 'amount', ['class' => 'form-label text-danger required']) ?>
@@ -55,6 +59,15 @@
         $.validator.addMethod('differentTreasury', function(value) {
             return value === '' || value !== $('#from_treasury_id').val();
         });
+
+        const showBetweenNote = function() {
+            const from = $('#from_treasury_id option:selected').data('branch');
+            const to = $('#to_treasury_id option:selected').data('branch');
+
+            $('#between_note').prop('hidden', from === undefined || to === undefined || from === to);
+        };
+
+        $('#from_treasury_id, #to_treasury_id').on('change', showBetweenNote);
 
         $('#transfer_form').validate($.extend({
             submitHandler: function(form) {

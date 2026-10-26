@@ -281,6 +281,7 @@ final class JournalService
             ReceivingPostingBuilder::SOURCE_PAYMENT,
             ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT,
             TreasuryTransfers::SOURCE,
+            TreasuryTransfers::SOURCE_RECEIPT,
             SupplierAdvances::SOURCE,
         ])->countAllResults() > 0;
 

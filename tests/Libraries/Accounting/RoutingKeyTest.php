@@ -108,11 +108,11 @@ class RoutingKeyTest extends CIUnitTestCase
         $this->assertFalse(RoutingKey::SalesDiscount->cancelMeansNone());
     }
 
-    public function testAccountRequired_LetsProductSalesAndPurchaseReturnsStayEmpty(): void
+    public function testAccountRequired_LetsProductSalesPurchaseReturnsAndTheTwoRowsBetweenBranchesStayEmpty(): void
     {
         $optional = array_filter(RoutingKey::cases(), static fn (RoutingKey $key): bool => ! $key->accountRequired());
 
-        $this->assertEqualsCanonicalizing([RoutingKey::ProductSales, RoutingKey::PurchaseReturns], array_values($optional));
+        $this->assertEqualsCanonicalizing([RoutingKey::ProductSales, RoutingKey::PurchaseReturns, RoutingKey::InterBranchReceivable, RoutingKey::InterBranchPayable], array_values($optional));
     }
 
     public function testDefaultSystemKey_PointsEveryRequiredRowAtAnAccount(): void
@@ -155,5 +155,21 @@ class RoutingKeyTest extends CIUnitTestCase
         $this->assertSame([RoutingType::Auto], RoutingKey::CounterCustomers->allowedTypes());
         $this->assertFalse(RoutingKey::CounterCustomers->isEntity());
         $this->assertContains(RoutingKey::CounterCustomers, RoutingKey::inGroup('other'));
+    }
+
+    public function testInterBranchRows_AreAnAssetAndALiabilityAccountOfTheTreasuriesFamilyWithTheOnlyTypeThatPostsThem(): void
+    {
+        $this->assertSame([AccountType::Asset], RoutingKey::InterBranchReceivable->allowedAccountTypes());
+        $this->assertSame([AccountType::Liability], RoutingKey::InterBranchPayable->allowedAccountTypes());
+
+        foreach ([RoutingKey::InterBranchReceivable, RoutingKey::InterBranchPayable] as $key) {
+            $this->assertSame([RoutingType::Auto], $key->allowedTypes());
+            $this->assertFalse($key->isEntity());
+            $this->assertContains($key, RoutingKey::inGroup('treasuries'));
+            $this->assertContains($key, RoutingKey::editable());
+        }
+
+        $this->assertSame('branches_receivable', RoutingKey::InterBranchReceivable->defaultSystemKey());
+        $this->assertSame('branches_payable', RoutingKey::InterBranchPayable->defaultSystemKey());
     }
 }

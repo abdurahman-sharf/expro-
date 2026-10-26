@@ -209,12 +209,12 @@ class DefaultChartTest extends CIUnitTestCase
         $this->assertSame($parentCode, $db->table('accounting_accounts')->where('account_id', $account->parent_id)->get()->getRow()->code, $code);
     }
 
-    public function testInstall_AddsOnlyTheGiftCardAndTheCounterCustomersAccountsToTheReferenceChart(): void
+    public function testInstall_AddsOnlyTheGiftCardTheCounterCustomersAndTheTwoBranchAccountsToTheReferenceChart(): void
     {
         $codes    = array_column($this->accountingDb()->table('accounting_accounts')->select('code')->get()->getResultArray(), 'code');
         $observed = array_merge(['1', '2', '3', '4', '5'], array_column(self::observedChartProvider(), 0));
 
-        $this->assertEqualsCanonicalizing([...$observed, '216', '12043'], $codes);
+        $this->assertEqualsCanonicalizing([...$observed, '216', '12043', '12044', '2214'], $codes);
     }
 
     public function testInstall_PutsInputTaxAmongTheLiabilitiesBesideOutputTax(): void

@@ -15,6 +15,8 @@ return [
     'incomplete'                    => '{0} item(s) need attention:',
     'inventory_desc'                => 'The main account under which every stock location gets its own account.',
     'inventory_title'               => 'Inventory',
+    'item_branches_payable'         => 'Due to other branches',
+    'item_branches_receivable'      => 'Due from other branches',
     'item_cash_difference'          => 'Cash rounding and till differences',
     'item_fiscal_retained_earnings' => 'Retained earnings',
     'item_giftcards_liability'      => 'Gift card liability',

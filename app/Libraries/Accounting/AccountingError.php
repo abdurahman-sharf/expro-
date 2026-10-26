@@ -124,9 +124,9 @@ enum AccountingError: string
     case TreasuryWithdrawDenied       = 'treasury_withdraw_denied';
     case TreasuryScopeInvalid         = 'treasury_scope_invalid';
 
-    case TransferNotFound         = 'transfer_not_found';
-    case TransferSameTreasury     = 'transfer_same_treasury';
-    case TransferAmountInvalid    = 'transfer_amount_invalid';
-    case TransferCrossBranch      = 'transfer_cross_branch';
-    case TransferAlreadyCancelled = 'transfer_already_cancelled';
+    case TransferNotFound           = 'transfer_not_found';
+    case TransferSameTreasury       = 'transfer_same_treasury';
+    case TransferAmountInvalid      = 'transfer_amount_invalid';
+    case InterBranchAccountsMissing = 'inter_branch_accounts_missing';
+    case TransferAlreadyCancelled   = 'transfer_already_cancelled';
 }

@@ -5,6 +5,7 @@ namespace App\Controllers;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\Accounting\InterBranchPosition;
 use App\Libraries\Accounting\TreasuryTransfers;
 use App\Libraries\Organization\BranchService;
 use CodeIgniter\Exceptions\PageNotFoundException;
@@ -164,9 +165,21 @@ class AccountingTreasuries extends AccountingController
 
     public function getTransfers(): string
     {
+        $position = new InterBranchPosition();
+        $branches = array_values(array_filter(
+            $position->byBranch($this->branchIds()),
+            static fn (object $row): bool => bccomp($row->receivable, '0', 4) !== 0 || bccomp($row->payable, '0', 4) !== 0,
+        ));
+
         return view('accounting_treasuries/transfers', [
-            'table_headers' => transform_headers($this->transferHeaders(), true, true),
-            'can_manage'    => $this->can(AccountingGuard::TREASURIES_MANAGE),
+            'table_headers'    => transform_headers($this->transferHeaders(), true, true),
+            'can_manage'       => $this->can(AccountingGuard::TREASURIES_MANAGE),
+            'branch_balances'  => array_map(fn (object $row): array => [
+                'code'       => $row->code,
+                'receivable' => $this->formatAmount($row->receivable),
+                'payable'    => $this->formatAmount($row->payable),
+            ], $branches),
+            'branch_unmatched' => $this->branchIds() === null && bccomp($position->difference(), '0', 4) !== 0 ? $this->formatAmount($position->difference()) : null,
         ]);
     }
 
@@ -186,7 +199,7 @@ class AccountingTreasuries extends AccountingController
     {
         $transfer = $this->transfers->find($transferId);
 
-        if ($transfer === null || ! $this->branchGuard()->canAccess((int) $transfer->branch_id, $this->employeeId())) {
+        if ($transfer === null || ! $this->canSeeTransfer($transfer)) {
             throw PageNotFoundException::forPageNotFound();
         }
 
@@ -228,7 +241,7 @@ class AccountingTreasuries extends AccountingController
 
         $transfer = $this->transfers->find($transferId);
 
-        if ($transfer === null || ! $this->branchGuard()->canAccess((int) $transfer->branch_id, $this->employeeId())) {
+        if ($transfer === null || ! $this->canSeeTransfer($transfer, true)) {
             throw PageNotFoundException::forPageNotFound();
         }
 
@@ -306,6 +319,17 @@ class AccountingTreasuries extends AccountingController
     }
 
     /**
+     * A transfer is seen by whoever works in a branch it touches, and cancelled only by whoever
+     * works in all of them.
+     */
+    private function canSeeTransfer(object $transfer, bool $inAll = false): bool
+    {
+        $allowed = array_map(fn (int $branchId): bool => $this->branchGuard()->canAccess($branchId, $this->employeeId()), TreasuryTransfers::branchesOf($transfer));
+
+        return $inAll ? ! in_array(false, $allowed, true) : in_array(true, $allowed, true);
+    }
+
+    /**
      * @return list<array<string, mixed>>
      */
     private function transferHeaders(): array
@@ -316,7 +340,7 @@ class AccountingTreasuries extends AccountingController
             ['from_name'     => lang('Accounting_treasuries.from_treasury'), 'sortable' => false],
             ['to_name'       => lang('Accounting_treasuries.to_treasury'), 'sortable' => false],
             ['amount'        => lang('Accounting_treasuries.amount'), 'sortable' => false, 'escape' => false],
-            ['branch_code'   => lang('Accounting_treasuries.branch'), 'sortable' => false],
+            ['branch_code'   => lang('Accounting_treasuries.branch'), 'sortable' => false, 'escape' => false],
             ['note'          => lang('Accounting_treasuries.note_label'), 'sortable' => false],
             ['status'        => lang('Accounting_treasuries.status'), 'sortable' => false, 'escape' => false],
         ];
@@ -454,7 +478,7 @@ class AccountingTreasuries extends AccountingController
             'from_name'     => $transfer->from_name,
             'to_name'       => $transfer->to_name,
             'amount'        => $this->amountCell($this->formatAmount((string) $transfer->amount)),
-            'branch_code'   => $transfer->branch_code,
+            'branch_code'   => $this->amountCell((string) $transfer->branch_code) . ($transfer->to_branch_code === null ? '' : ' <span class="bi bi-arrow-left-right" aria-hidden="true"></span> ' . $this->amountCell((string) $transfer->to_branch_code) . ' <span class="badge text-bg-primary">' . esc(lang('Accounting_treasuries.between_branches')) . '</span>'),
             'note'          => $transfer->note,
             'status'        => '<span class="badge ' . ($cancelled ? 'text-bg-secondary' : 'text-bg-success') . '">' . esc(lang('Accounting_treasuries.status_' . $transfer->status)) . '</span>',
             'edit'          => $edit,

@@ -12,16 +12,20 @@ use DateTimeImmutable;
 
 /**
  * Money moved from one treasury to another: a document of its own and a journal that debits the
- * treasury it goes into and credits the one it comes out of. A transfer stays within a branch,
- * because a journal belongs to one, and is taken back by reversing its journal, never by deleting.
+ * treasury it goes into and credits the one it comes out of. A journal belongs to one branch, so a
+ * transfer between two branches is two journals that meet in the accounts between branches: the
+ * sending branch debits what the other branches owe it and credits its treasury, and the receiving
+ * branch debits its treasury and credits what it owes the other branches. A transfer is taken
+ * back by reversing its journals, never by deleting.
  */
 final class TreasuryTransfers
 {
     use RunsInTransaction;
 
-    public const SOURCE      = 'treasury_transfer';
-    private const NOTE_MAX   = 500;
-    private const REASON_MAX = 255;
+    public const SOURCE         = 'treasury_transfer';
+    public const SOURCE_RECEIPT = 'treasury_transfer_receipt';
+    private const NOTE_MAX      = 500;
+    private const REASON_MAX    = 255;
 
     private BaseConnection $db;
     private AccountingGuard $guard;
@@ -30,6 +34,7 @@ final class TreasuryTransfers
     private JournalService $journals;
     private PeriodGuard $periods;
     private EntityAccountService $accounts;
+    private RoutingResolver $resolver;
     private AuditLog $audit;
 
     public function __construct(?BaseConnection $db = null, ?AccountingGuard $guard = null, ?BranchGuard $branches = null)
@@ -41,6 +46,7 @@ final class TreasuryTransfers
         $this->journals = new JournalService($this->db);
         $this->periods  = new PeriodGuard($this->db);
         $this->accounts = new EntityAccountService($this->db);
+        $this->resolver = new RoutingResolver($this->db);
         $this->audit    = new AuditLog($this->db);
     }
 
@@ -68,13 +74,15 @@ final class TreasuryTransfers
                 }
             }
 
-            if ((int) $from->branch_id !== (int) $to->branch_id) {
-                throw new AccountingException(AccountingError::TransferCrossBranch, 'The two treasuries are in different branches.', ['from_branch' => (int) $from->branch_id, 'to_branch' => (int) $to->branch_id]);
-            }
-
-            $branchId = (int) $from->branch_id;
+            $branchId   = (int) $from->branch_id;
+            $toBranchId = (int) $to->branch_id;
+            $between    = $branchId !== $toBranchId;
 
             $this->branches->requireBranch($branchId, $employeeId);
+
+            if ($between) {
+                $this->branches->requireBranch($toBranchId, $employeeId);
+            }
 
             $scopes = new TreasuryScopes($this->db, $this->branches);
 
@@ -88,9 +96,12 @@ final class TreasuryTransfers
                 throw new PostingException(PostingError::EntityAccountMissing, 'A treasury has no account of its own yet.', ['entity_id' => $fromAccount === null ? $fromId : $toId]);
             }
 
+            [$receivable, $payable] = $between ? $this->accountsBetweenBranches() : [null, null];
+
             $this->db->table('treasury_transfers')->insert([
                 'company_id'       => CompanyContext::id(),
                 'branch_id'        => $branchId,
+                'to_branch_id'     => $between ? $toBranchId : null,
                 'from_treasury_id' => $fromId,
                 'to_treasury_id'   => $toId,
                 'amount'           => $amount,
@@ -99,21 +110,48 @@ final class TreasuryTransfers
                 'created_by'       => $employeeId,
             ]);
 
-            $transferId = (int) $this->db->insertID();
+            $transferId  = (int) $this->db->insertID();
+            $description = 'Transfer #' . $transferId . ($note === '' ? '' : ': ' . $note);
 
-            $this->posting->post(new JournalDraft(
-                date: $date,
-                lines: [new JournalLineDraft($toAccount, debit: $amount), new JournalLineDraft($fromAccount, credit: $amount)],
-                sourceType: self::SOURCE,
-                sourceId: $transferId,
-                origin: JournalOrigin::System,
-                employeeId: $employeeId,
-                description: 'Transfer #' . $transferId . ($note === '' ? '' : ': ' . $note),
-                branchId: $branchId,
-                entryType: JournalEntryType::General,
-            ));
+            if (! $between) {
+                $this->posting->post(new JournalDraft(
+                    date: $date,
+                    lines: [new JournalLineDraft($toAccount, debit: $amount), new JournalLineDraft($fromAccount, credit: $amount)],
+                    sourceType: self::SOURCE,
+                    sourceId: $transferId,
+                    origin: JournalOrigin::System,
+                    employeeId: $employeeId,
+                    description: $description,
+                    branchId: $branchId,
+                    entryType: JournalEntryType::General,
+                ));
+            } else {
+                $this->posting->post(new JournalDraft(
+                    date: $date,
+                    lines: [new JournalLineDraft((int) $receivable, debit: $amount), new JournalLineDraft($fromAccount, credit: $amount)],
+                    sourceType: self::SOURCE,
+                    sourceId: $transferId,
+                    origin: JournalOrigin::System,
+                    employeeId: $employeeId,
+                    description: $description . ' (to branch ' . $this->branchCode($toBranchId) . ')',
+                    branchId: $branchId,
+                    entryType: JournalEntryType::General,
+                ));
 
-            $this->audit->write('treasury_transfer', $transferId, 'created', $employeeId, JournalOrigin::User, ['from' => $fromId, 'to' => $toId, 'amount' => $amount], $branchId);
+                $this->posting->post(new JournalDraft(
+                    date: $date,
+                    lines: [new JournalLineDraft($toAccount, debit: $amount), new JournalLineDraft((int) $payable, credit: $amount)],
+                    sourceType: self::SOURCE_RECEIPT,
+                    sourceId: $transferId,
+                    origin: JournalOrigin::System,
+                    employeeId: $employeeId,
+                    description: $description . ' (from branch ' . $this->branchCode($branchId) . ')',
+                    branchId: $toBranchId,
+                    entryType: JournalEntryType::General,
+                ));
+            }
+
+            $this->audit->write('treasury_transfer', $transferId, 'created', $employeeId, JournalOrigin::User, ['from' => $fromId, 'to' => $toId, 'amount' => $amount] + ($between ? ['to_branch' => $toBranchId] : []), $branchId);
 
             return $transferId;
         });
@@ -142,26 +180,30 @@ final class TreasuryTransfers
 
             $branchId = (int) $transfer->branch_id;
 
-            $this->branches->requireBranch($branchId, $employeeId);
+            foreach (self::branchesOf($transfer) as $involved) {
+                $this->branches->requireBranch($involved, $employeeId);
+            }
 
             if ($transfer->status === 'cancelled') {
                 throw new AccountingException(AccountingError::TransferAlreadyCancelled, 'The transfer is already cancelled.', ['transfer_id' => $transferId]);
             }
 
-            $journal = $this->db->table('accounting_journals')
-                ->select('journal_id, journal_date')
-                ->where('source_type', self::SOURCE)
+            $journals = $this->db->table('accounting_journals')
+                ->select('journal_id, journal_date, branch_id')
                 ->where('source_id', $transferId)
+                ->whereIn('source_type', [self::SOURCE, self::SOURCE_RECEIPT])
                 ->where('status', JournalStatus::Posted->value)
-                ->orderBy('revision', 'DESC')
-                ->limit(1)
+                ->orderBy('journal_id', 'ASC')
                 ->get()
-                ->getRow();
+                ->getResult();
+            $scopes = new TreasuryScopes($this->db, $this->branches);
 
-            if ($journal !== null) {
-                (new TreasuryScopes($this->db, $this->branches))->assertMayReverse((int) $journal->journal_id, $employeeId);
+            foreach ($journals as $journal) {
+                $scopes->assertMayReverse((int) $journal->journal_id, $employeeId);
+            }
 
-                $cutoff = $this->periods->effectiveCutoff($branchId, true);
+            foreach ($journals as $journal) {
+                $cutoff = $this->periods->effectiveCutoff((int) $journal->branch_id, true);
                 $date   = $cutoff !== null && $journal->journal_date <= $cutoff['date'] ? date('Y-m-d') : $journal->journal_date;
 
                 $this->journals->reverseAutomatic((int) $journal->journal_id, $date, $reason, $employeeId);
@@ -184,7 +226,8 @@ final class TreasuryTransfers
     }
 
     /**
-     * The transfers a reader may see, the newest first.
+     * The transfers a reader may see, the newest first: those that leave a branch of theirs and
+     * those that go into one.
      *
      * @param list<int>|null $branchIds Null for every branch.
      *
@@ -199,27 +242,74 @@ final class TreasuryTransfers
         $count = $this->db->table('treasury_transfers tt')->where('tt.company_id', CompanyContext::id());
 
         if ($branchIds !== null) {
-            $count->whereIn('tt.branch_id', $branchIds);
+            $count->groupStart()->whereIn('tt.branch_id', $branchIds)->orWhereIn('tt.to_branch_id', $branchIds)->groupEnd();
         }
 
         $total = $count->countAllResults();
         $rows  = $this->query();
 
         if ($branchIds !== null) {
-            $rows->whereIn('tt.branch_id', $branchIds);
+            $rows->groupStart()->whereIn('tt.branch_id', $branchIds)->orWhereIn('tt.to_branch_id', $branchIds)->groupEnd();
         }
 
         return ['total' => $total, 'rows' => $rows->orderBy('tt.transfer_id', 'DESC')->limit($limit, $offset)->get()->getResult()];
     }
 
+    /**
+     * The branches a transfer touches: the one it leaves, and the one it goes to when that is
+     * another.
+     *
+     * @return list<int>
+     */
+    public static function branchesOf(object $transfer): array
+    {
+        $branches = [(int) $transfer->branch_id];
+
+        if ($transfer->to_branch_id !== null) {
+            $branches[] = (int) $transfer->to_branch_id;
+        }
+
+        return $branches;
+    }
+
     private function query(): BaseBuilder
     {
         return $this->db->table('treasury_transfers tt')
-            ->select('tt.*, f.name AS from_name, t.name AS to_name, b.code AS branch_code')
+            ->select('tt.*, f.name AS from_name, t.name AS to_name, b.code AS branch_code, tb.code AS to_branch_code')
             ->join('treasuries f', 'f.treasury_id = tt.from_treasury_id')
             ->join('treasuries t', 't.treasury_id = tt.to_treasury_id')
             ->join('branches b', 'b.branch_id = tt.branch_id')
+            ->join('branches tb', 'tb.branch_id = tt.to_branch_id', 'left')
             ->where('tt.company_id', CompanyContext::id());
+    }
+
+    /**
+     * The accounts the two branches of a transfer meet in: what the sending branch is owed and
+     * what the receiving branch owes.
+     *
+     * @return array{int, int}
+     *
+     * @throws AccountingException
+     */
+    private function accountsBetweenBranches(): array
+    {
+        try {
+            $receivable = $this->resolver->accountFor(RoutingKey::InterBranchReceivable);
+            $payable    = $this->resolver->accountFor(RoutingKey::InterBranchPayable);
+        } catch (PostingException) {
+            $receivable = $payable = null;
+        }
+
+        if ($receivable === null || $payable === null) {
+            throw new AccountingException(AccountingError::InterBranchAccountsMissing, 'A transfer between branches needs the two accounts between branches in the routing.');
+        }
+
+        return [$receivable, $payable];
+    }
+
+    private function branchCode(int $branchId): string
+    {
+        return (string) ($this->db->table('branches')->select('code')->where('branch_id', $branchId)->get()->getRow()->code ?? $branchId);
     }
 
     /**

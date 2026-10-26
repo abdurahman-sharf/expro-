@@ -15,6 +15,8 @@ return [
     'incomplete'                    => '',
     'inventory_desc'                => '',
     'inventory_title'               => '',
+    'item_branches_payable'         => '',
+    'item_branches_receivable'      => '',
     'item_cash_difference'          => '',
     'item_fiscal_retained_earnings' => '',
     'item_giftcards_liability'      => '',

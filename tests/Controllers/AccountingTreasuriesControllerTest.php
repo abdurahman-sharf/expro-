@@ -506,6 +506,110 @@ class AccountingTreasuriesControllerTest extends CIUnitTestCase
         $this->assertSame('cancelled', (new TreasuryTransfers())->find($transferId)->status);
     }
 
+    /**
+     * A treasury in a second branch and the branch.
+     *
+     * @return array{int, int}
+     */
+    private function inSecondBranch(int $manager, string $name = 'Elsewhere'): array
+    {
+        $branch = $this->createBranch('B2');
+
+        return [$this->treasuries->create(['name' => $name, 'kind' => 'cash', 'branch_id' => $branch], $manager), $branch];
+    }
+
+    public function testPostTransfer_MovesMoneyBetweenTwoBranchesAndListsItWithBothBranches(): void
+    {
+        $manager         = $this->manager();
+        [$other, $branch] = $this->inSecondBranch($manager);
+        $main            = $this->treasuries->ensureMain();
+
+        $done = json_decode($this->post('/accounting_treasuries/transfer', ['from_treasury_id' => $main, 'to_treasury_id' => $other, 'amount' => '75.50', 'transfer_date' => '2026-10-22', 'note' => 'Float'])->getJSON(), true);
+
+        $this->assertTrue($done['success']);
+        $this->assertSame('75.5000', $this->treasuries->position($other)->balance);
+
+        $rows = json_decode($this->get('/accounting_treasuries/transfers/search')->getJSON(), true);
+        $row  = $rows['rows'][0];
+
+        $this->assertStringContainsString('B2', $row['branch_code']);
+        $this->assertStringContainsString(lang('Accounting_treasuries.between_branches'), $row['branch_code']);
+    }
+
+    public function testPostTransfer_SaysTheAccountsBetweenBranchesAreMissingWhenTheRoutingHasNone(): void
+    {
+        $manager   = $this->manager();
+        [$other]   = $this->inSecondBranch($manager);
+
+        $this->accountingDb()->table('accounting_routing')->whereIn('routing_key', ['branches.receivable', 'branches.payable'])->update(['account_id' => null]);
+
+        $result = json_decode($this->post('/accounting_treasuries/transfer', ['from_treasury_id' => $this->treasuries->ensureMain(), 'to_treasury_id' => $other, 'amount' => '5', 'transfer_date' => '2026-10-22'])->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_inter_branch_accounts_missing'), $result['message']);
+    }
+
+    public function testGetTransferForm_OffersTheTreasuriesOfEveryBranchOfTheManagerAndNamesTheBranchOfEach(): void
+    {
+        $manager = $this->manager();
+
+        $this->inSecondBranch($manager);
+
+        $body = $this->get('/accounting_treasuries/transfer_form')->getBody();
+
+        $this->assertStringContainsString('Elsewhere (B2)', $body);
+        $this->assertStringContainsString('data-branch="', $body);
+        $this->assertStringContainsString('id="between_note"', $body);
+    }
+
+    public function testGetTransfers_ShowsWhatEachBranchIsOwedAndOwesAndNothingWhenThereIsNoTransferBetweenBranches(): void
+    {
+        $manager = $this->manager();
+
+        $this->get('/accounting_treasuries/transfers')->assertDontSee('id="branch_balances"');
+
+        [$other] = $this->inSecondBranch($manager);
+
+        $this->post('/accounting_treasuries/transfer', ['from_treasury_id' => $this->treasuries->ensureMain(), 'to_treasury_id' => $other, 'amount' => '40', 'transfer_date' => '2026-10-22']);
+
+        $page = $this->get('/accounting_treasuries/transfers');
+
+        $page->assertSee('id="branch_balances"');
+        $page->assertSee(lang('Accounting_treasuries.branch_balances_title'));
+        $this->assertStringNotContainsString(lang('Accounting_treasuries.between_difference', ['0.00']), $page->getBody());
+    }
+
+    public function testGetTransfers_WarnsWhenTheAccountsBetweenBranchesDoNotOffset(): void
+    {
+        $this->manager();
+
+        (new PostingService())->post(new JournalDraft(
+            date: '2026-10-21',
+            lines: [new JournalLineDraft($this->accountId('branches_receivable'), debit: '50.00'), new JournalLineDraft($this->accountId('opening_balance'), credit: '50.00')],
+            sourceType: 'opening',
+            sourceId: random_int(1000, 9999),
+            currencyCode: 'SAR',
+        ));
+
+        $this->get('/accounting_treasuries/transfers')->assertSee(lang('Accounting_treasuries.between_difference', ['50.00']));
+    }
+
+    public function testGetCancelTransferForm_IsNotFoundToSomeoneWhoWorksInOnlyOneOfTheBranchesButTheTransferIsStillListedForThem(): void
+    {
+        $manager          = $this->manager();
+        [$other, $branch] = $this->inSecondBranch($manager);
+        $id               = (new TreasuryTransfers())->transfer($this->treasuries->ensureMain(), $other, '10', '2026-10-22', '', $manager);
+
+        $this->actAsWith(['accounting_treasuries', AccountingGuard::TREASURIES_MANAGE], [$branch]);
+
+        $this->assertSame(1, json_decode($this->get('/accounting_treasuries/transfers/search')->getJSON(), true)['total']);
+        $this->get('/accounting_treasuries/transfers/row/' . $id)->assertStatus(200);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_treasuries/cancel_transfer_form/' . $id);
+    }
+
     public function testGetTransferForm_OffersOnlyActiveTreasuriesOfTheBranchesOfTheManager(): void
     {
         $manager = $this->manager();

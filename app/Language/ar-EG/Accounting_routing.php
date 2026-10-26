@@ -15,6 +15,8 @@ return [
     'incomplete'                    => '{0} بند يحتاج إلى مراجعة:',
     'inventory_desc'                => 'الحساب الرئيسي الذي يُفتح تحته حساب لكل موقع مخزون.',
     'inventory_title'               => 'المخزون',
+    'item_branches_payable'         => 'ذمم بين الفروع (دائنة)',
+    'item_branches_receivable'      => 'ذمم بين الفروع (مدينة)',
     'item_cash_difference'          => 'فروقات التقريب والصندوق',
     'item_fiscal_retained_earnings' => 'الأرباح المرحلة',
     'item_giftcards_liability'      => 'التزام بطاقات الهدايا',

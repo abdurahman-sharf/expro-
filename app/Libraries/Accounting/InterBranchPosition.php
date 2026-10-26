@@ -1,0 +1,104 @@
+<?php
+
+namespace App\Libraries\Accounting;
+
+use App\Libraries\Organization\CompanyContext;
+use CodeIgniter\Database\BaseConnection;
+use Config\Database;
+
+/**
+ * What each branch is owed by the other branches and what it owes them, from the two accounts
+ * the transfers between branches meet in. Taken together the branches owe what they are owed, so
+ * the two accounts offset to nothing across the company: a difference means a journal of one of
+ * the accounts has no counterpart in the other branch.
+ */
+final class InterBranchPosition
+{
+    private BaseConnection $db;
+    private RoutingResolver $resolver;
+
+    public function __construct(?BaseConnection $db = null)
+    {
+        $this->db       = $db ?? Database::connect();
+        $this->resolver = new RoutingResolver($this->db);
+    }
+
+    /**
+     * Every branch with its debit balance on the receivable account and its credit balance on the
+     * payable account, as positive amounts, reversals included.
+     *
+     * @param list<int>|null $branchIds Null for every branch.
+     *
+     * @return list<object{branch_id: int, code: string, receivable: string, payable: string}>
+     */
+    public function byBranch(?array $branchIds = null): array
+    {
+        if ($branchIds === []) {
+            return [];
+        }
+
+        [$receivable, $payable] = $this->accounts();
+
+        $builder = $this->db->table('branches b')
+            ->select('b.branch_id, b.code', false)
+            ->where('b.company_id', CompanyContext::id())
+            ->orderBy('b.branch_id', 'ASC');
+
+        if ($branchIds !== null) {
+            $builder->whereIn('b.branch_id', $branchIds);
+        }
+
+        $rows = [];
+
+        foreach ($builder->get()->getResult() as $branch) {
+            $rows[] = (object) [
+                'branch_id'  => (int) $branch->branch_id,
+                'code'       => (string) $branch->code,
+                'receivable' => $receivable === null ? '0.0000' : $this->net($receivable, (int) $branch->branch_id),
+                'payable'    => $payable === null ? '0.0000' : bcsub('0', $this->net($payable, (int) $branch->branch_id), SaleAmounts::SCALE),
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * What the branches are owed less what they owe, across the company: nothing, unless a
+     * journal of the one account has no counterpart in the other.
+     */
+    public function difference(): string
+    {
+        [$receivable, $payable] = $this->accounts();
+        $owed                   = $receivable === null ? '0' : $this->net($receivable, null);
+        $owing                  = $payable === null ? '0' : bcsub('0', $this->net($payable, null), SaleAmounts::SCALE);
+
+        return bcsub($owed, $owing, SaleAmounts::SCALE);
+    }
+
+    /**
+     * @return array{int|null, int|null}
+     */
+    private function accounts(): array
+    {
+        try {
+            return [$this->resolver->accountFor(RoutingKey::InterBranchReceivable), $this->resolver->accountFor(RoutingKey::InterBranchPayable)];
+        } catch (PostingException) {
+            return [null, null];
+        }
+    }
+
+    private function net(int $accountId, ?int $branchId): string
+    {
+        $builder = $this->db->table('accounting_journal_lines l')
+            ->select('COALESCE(SUM(l.debit), 0) - COALESCE(SUM(l.credit), 0) AS balance', false)
+            ->join('accounting_journals j', 'j.journal_id = l.journal_id')
+            ->where('l.account_id', $accountId)
+            ->whereIn('j.status', [JournalStatus::Posted->value, JournalStatus::Reversed->value]);
+
+        if ($branchId !== null) {
+            $builder->where('j.branch_id', $branchId);
+        }
+
+        return bcadd((string) $builder->get()->getRow()->balance, '0', SaleAmounts::SCALE);
+    }
+}

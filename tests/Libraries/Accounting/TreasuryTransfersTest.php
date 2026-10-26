@@ -6,6 +6,7 @@ use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\JournalDraft;
+use App\Libraries\Accounting\InterBranchPosition;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
@@ -26,7 +27,8 @@ use Tests\Support\SaleAccountingFixtureTrait;
 
 /**
  * Money moved from one treasury to another: a journal that debits the treasury it goes into and
- * credits the one it comes out of, within one branch, taken back by reversing it.
+ * credits the one it comes out of, in one branch or, between two branches, a journal in each that
+ * meet in the accounts between branches, taken back by reversing them.
  */
 class TreasuryTransfersTest extends CIUnitTestCase
 {
@@ -357,12 +359,187 @@ class TreasuryTransfersTest extends CIUnitTestCase
         $this->assertSame(AccountingError::TreasuryInactive, $this->refusal(fn () => $this->transfers->transfer($this->main, $this->drawer, '1', '2026-10-21', '', $this->manager))->error);
     }
 
-    public function testTransfer_RefusesTreasuriesOfDifferentBranches(): void
+    /**
+     * A treasury of a second branch, and the branch.
+     *
+     * @return array{int, int}
+     */
+    private function elsewhere(string $scopes = ''): array
     {
-        $other = $this->treasuries->create(['name' => 'Elsewhere', 'kind' => 'cash', 'branch_id' => $this->createBranch('B2')], $this->manager);
+        $branch   = $this->createBranch('B2');
+        $treasury = $this->treasuries->create(['name' => 'Elsewhere', 'kind' => 'cash', 'branch_id' => $branch] + ($scopes === 'deposit-closed' ? ['deposit_scope' => 'staff', 'deposit_members' => [$this->employeeWithGrants([])]] : []) + ($scopes === 'withdraw-closed' ? ['withdraw_scope' => 'staff', 'withdraw_members' => [$this->employeeWithGrants([])]] : []), $this->manager);
 
-        $this->assertSame(AccountingError::TransferCrossBranch, $this->refusal(fn () => $this->transfers->transfer($this->main, $other, '1', '2026-10-21', '', $this->manager))->error);
+        return [$treasury, $branch];
+    }
+
+    /**
+     * The standing journals of a transfer with their branch and lines as "account:debit:credit".
+     *
+     * @return array<string, array{branch: int, lines: list<string>}>
+     */
+    private function journalsOf(int $transferId, string $status = 'posted'): array
+    {
+        $found = [];
+
+        foreach ($this->accountingDb()->table('accounting_journals')->whereIn('source_type', ['treasury_transfer', 'treasury_transfer_receipt'])->where(['source_id' => $transferId, 'status' => $status])->orderBy('journal_id', 'ASC')->get()->getResult() as $journal) {
+            $found[$journal->source_type] = [
+                'branch' => (int) $journal->branch_id,
+                'lines'  => array_map(
+                    static fn (object $line): string => $line->account_id . ':' . bcadd((string) $line->debit, '0', 2) . ':' . bcadd((string) $line->credit, '0', 2),
+                    $this->accountingDb()->table('accounting_journal_lines')->select('account_id, debit, credit')->where('journal_id', $journal->journal_id)->orderBy('line_no', 'ASC')->get()->getResult(),
+                ),
+            ];
+        }
+
+        return $found;
+    }
+
+    public function testTransfer_PostsAJournalInEachBranchThatMeetInTheAccountsBetweenBranches(): void
+    {
+        [$other, $branch] = $this->elsewhere();
+
+        $id = $this->transfers->transfer($this->main, $other, '100.00', '2026-10-21', 'to the second branch', $this->manager);
+
+        $journals = $this->journalsOf($id);
+
+        $this->assertSame([
+            'treasury_transfer'         => ['branch' => 1, 'lines' => [$this->accountId('branches_receivable') . ':100.00:0.00', $this->treasuries->accountOf($this->main) . ':0.00:100.00']],
+            'treasury_transfer_receipt' => ['branch' => $branch, 'lines' => [$this->treasuries->accountOf($other) . ':100.00:0.00', $this->accountId('branches_payable') . ':0.00:100.00']],
+        ], $journals);
+        $this->assertSame('400.0000', $this->balanceOf($this->main));
+        $this->assertSame('100.0000', $this->balanceOf($other));
+        $this->assertSame((string) $branch, (string) $this->transfers->find($id)->to_branch_id);
+        $this->assertSame('B2', $this->transfers->find($id)->to_branch_code);
+    }
+
+    public function testTransfer_LeavesTheTransferWithinOneBranchWithNoBranchItGoesTo(): void
+    {
+        $id = $this->transfers->transfer($this->main, $this->drawer, '10.00', '2026-10-21', '', $this->manager);
+
+        $this->assertNull($this->transfers->find($id)->to_branch_id);
+        $this->assertSame(['treasury_transfer'], array_keys($this->journalsOf($id)));
+    }
+
+    public function testTransfer_RefusesBetweenBranchesWhenTheRoutingNamesNoAccountsBetweenBranches(): void
+    {
+        [$other] = $this->elsewhere();
+
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'branches.payable')->update(['account_id' => null]);
+
+        $before  = $this->countRows('accounting_journals');
+        $refusal = $this->refusal(fn () => $this->transfers->transfer($this->main, $other, '10', '2026-10-21', '', $this->manager));
+
+        $this->assertSame(AccountingError::InterBranchAccountsMissing, $refusal->error);
         $this->assertSame(0, $this->countRows('treasury_transfers'));
+        $this->assertSame($before, $this->countRows('accounting_journals'));
+    }
+
+    public function testTransfer_RefusesAnEmployeeWhoWorksInOnlyOneOfTheTwoBranches(): void
+    {
+        [$other, $branch] = $this->elsewhere();
+
+        $inFirst  = $this->employeeWithGrants([AccountingGuard::TREASURIES_MANAGE], [1]);
+        $inSecond = $this->employeeWithGrants([AccountingGuard::TREASURIES_MANAGE], [$branch]);
+
+        foreach ([$inFirst, $inSecond] as $employee) {
+            try {
+                $this->transfers->transfer($this->main, $other, '10', '2026-10-21', '', $employee);
+                $this->fail('A branch the employee does not work in was accepted.');
+            } catch (BranchException) {
+                $this->addToAssertionCount(1);
+            }
+        }
+
+        $this->assertSame(0, $this->countRows('treasury_transfers'));
+        $this->assertGreaterThan(0, $this->transfers->transfer($this->main, $other, '10', '2026-10-21', '', $this->employeeWithGrants([AccountingGuard::TREASURIES_MANAGE], [1, $branch])));
+    }
+
+    public function testTransfer_AsksTheScopesOfBothTreasuriesBetweenBranches(): void
+    {
+        [$closedToDeposits] = $this->elsewhere('deposit-closed');
+
+        $this->assertSame(AccountingError::TreasuryDepositDenied, $this->refusal(fn () => $this->transfers->transfer($this->main, $closedToDeposits, '10', '2026-10-21', '', $this->manager))->error);
+        $this->assertSame(0, $this->countRows('treasury_transfers'));
+    }
+
+    public function testTransfer_LeavesNothingBehindWhenThePeriodOfTheReceivingBranchIsClosed(): void
+    {
+        [$other, $branch] = $this->elsewhere();
+
+        $this->closeThrough('2026-10-31', $branch);
+
+        $before  = $this->countRows('accounting_journals');
+        $refusal = $this->refusal(fn () => $this->transfers->transfer($this->main, $other, '10', '2026-10-21', '', $this->manager));
+
+        $this->assertSame(PostingError::PeriodClosed, $refusal->error);
+        $this->assertSame(0, $this->countRows('treasury_transfers'));
+        $this->assertSame($before, $this->countRows('accounting_journals'), 'The sending branch journal went with it');
+        $this->assertSame('500.0000', $this->balanceOf($this->main));
+    }
+
+    public function testCancel_ReversesTheJournalOfEachBranchAndTheAccountsBetweenBranchesOffsetAgain(): void
+    {
+        [$other, $branch] = $this->elsewhere();
+        $id               = $this->transfers->transfer($this->main, $other, '100.00', '2026-10-21', '', $this->manager);
+
+        $this->transfers->cancel($id, 'Wrong branch', $this->manager);
+
+        $this->assertSame([], $this->journalsOf($id));
+        $this->assertSame(['treasury_transfer', 'treasury_transfer_receipt'], array_keys($this->journalsOf($id, 'reversed')));
+        $this->assertSame('500.0000', $this->balanceOf($this->main));
+        $this->assertSame('0.0000', $this->balanceOf($other));
+        $this->assertSame('cancelled', $this->transfers->find($id)->status);
+
+        $reversals = $this->accountingDb()->table('accounting_journals')->where('source_type', 'reversal')->orderBy('journal_id', 'ASC')->get()->getResult();
+
+        $this->assertSame([1, $branch], array_map(static fn (object $journal): int => (int) $journal->branch_id, array_slice($reversals, -2)));
+        $this->assertSame('0.0000', (new InterBranchPosition())->difference());
+    }
+
+    public function testCancel_RefusesAnEmployeeWhoWorksInOnlyOneOfTheBranchesAndReversesNothing(): void
+    {
+        [$other, $branch] = $this->elsewhere();
+        $id               = $this->transfers->transfer($this->main, $other, '100.00', '2026-10-21', '', $this->manager);
+
+        foreach ([$this->employeeWithGrants([AccountingGuard::TREASURIES_MANAGE], [1]), $this->employeeWithGrants([AccountingGuard::TREASURIES_MANAGE], [$branch])] as $local) {
+            try {
+                $this->transfers->cancel($id, 'Reason', $local);
+                $this->fail('A branch the employee does not work in was accepted.');
+            } catch (BranchException) {
+                $this->addToAssertionCount(1);
+            }
+        }
+
+        $this->assertSame(['treasury_transfer', 'treasury_transfer_receipt'], array_keys($this->journalsOf($id)));
+        $this->assertSame('completed', $this->transfers->find($id)->status);
+    }
+
+    public function testCancel_AsksTheScopesOfBothTreasuriesAndReversesNothingWhenOneIsClosed(): void
+    {
+        [$other] = $this->elsewhere();
+        $id      = $this->transfers->transfer($this->main, $other, '100.00', '2026-10-21', '', $this->manager);
+        $editor  = $this->employeeWithGrants([AccountingGuard::TREASURIES_MANAGE]);
+
+        $this->treasuries->update($other, ['name' => 'Elsewhere', 'kind' => 'cash', 'withdraw_scope' => 'staff', 'withdraw_members' => [$this->employeeWithGrants([])]], $this->manager);
+
+        $this->assertSame(AccountingError::TreasuryWithdrawDenied, $this->refusal(fn () => $this->transfers->cancel($id, 'Reason', $editor))->error);
+        $this->assertSame(['treasury_transfer', 'treasury_transfer_receipt'], array_keys($this->journalsOf($id)));
+        $this->assertSame('100.0000', $this->balanceOf($other));
+    }
+
+    public function testSearch_ListsATransferToTheEmployeesOfEitherBranchAndToNoOneElse(): void
+    {
+        [$other, $branch] = $this->elsewhere();
+        $third            = $this->createBranch('B3');
+        $id               = $this->transfers->transfer($this->main, $other, '100.00', '2026-10-21', '', $this->manager);
+
+        foreach ([[1], [$branch], [1, $third], null] as $seen) {
+            $this->assertContains($id, array_map(static fn (object $row): int => (int) $row->transfer_id, $this->transfers->search($seen)['rows']));
+        }
+
+        $this->assertNotContains($id, array_map(static fn (object $row): int => (int) $row->transfer_id, $this->transfers->search([$third])['rows']));
+        $this->assertSame(0, $this->transfers->search([$third])['total']);
+        $this->assertSame(1, $this->transfers->search([$branch])['total']);
     }
 
     public function testTransfer_RefusesAnEmployeeWithoutThePermissionOrOfAnotherBranch(): void

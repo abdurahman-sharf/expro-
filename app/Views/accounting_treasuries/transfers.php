@@ -2,6 +2,8 @@
 /**
  * @var string $table_headers
  * @var bool $can_manage
+ * @var list<array{code: string, receivable: string, payable: string}> $branch_balances
+ * @var string|null $branch_unmatched
  * @var array $config
  */
 
@@ -35,6 +37,34 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
         </button>
     <?php endif; ?>
 </div>
+
+<?php if ($branch_unmatched !== null): ?>
+    <div class="alert alert-warning mx-2" role="alert"><?= esc(lang('Accounting_treasuries.between_difference', [$branch_unmatched])) ?></div>
+<?php endif; ?>
+
+<?php if ($branch_balances !== []): ?>
+    <div class="mx-2 mb-2">
+        <h2 class="h6"><?= esc(lang('Accounting_treasuries.branch_balances_title')) ?></h2>
+        <table class="table table-sm table-bordered w-auto mb-0" id="branch_balances">
+            <thead>
+                <tr>
+                    <th scope="col"><?= esc(lang('Accounting_treasuries.branch_balances_branch')) ?></th>
+                    <th scope="col"><?= esc(lang('Accounting_treasuries.branch_balances_owed')) ?></th>
+                    <th scope="col"><?= esc(lang('Accounting_treasuries.branch_balances_owing')) ?></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($branch_balances as $row): ?>
+                    <tr>
+                        <th scope="row"><bdi dir="ltr"><?= esc($row['code']) ?></bdi></th>
+                        <td><bdi dir="ltr"><?= esc($row['receivable']) ?></bdi></td>
+                        <td><bdi dir="ltr"><?= esc($row['payable']) ?></bdi></td>
+                    </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+<?php endif; ?>
 
 <div id="toolbar"></div>
 

@@ -5,38 +5,40 @@ namespace App\Libraries\Accounting;
 /**
  * Every account a posting can need, named by the part of the business it belongs to. The
  * first nineteen keys are the rows of the six routing families of the reference system. The
- * last eight are accounts this application needs on top of them.
+ * last ten are accounts this application needs on top of them.
  */
 enum RoutingKey: string
 {
-    case Customers          = 'sales.customers';
-    case SalesRevenue       = 'sales.revenue';
-    case SalesReturns       = 'sales.returns';
-    case SalesDiscount      = 'sales.discount';
-    case ProductSales       = 'sales.product';
-    case SalesAdjustment    = 'sales.adjustment';
-    case CostOfGoodsSold    = 'sales.cogs';
-    case Suppliers          = 'purchases.suppliers';
-    case Purchases          = 'purchases.purchases';
-    case PurchaseReturns    = 'purchases.returns';
-    case PurchaseDiscount   = 'purchases.discount';
-    case PurchaseAdjustment = 'purchases.adjustment';
-    case StockLocations     = 'inventory.locations';
-    case Treasuries         = 'treasuries.accounts';
-    case StockPermitAdd     = 'stock_permits.add';
-    case StockPermitIssue   = 'stock_permits.issue';
-    case StockCountOut      = 'stock_permits.count_out';
-    case StockCountIn       = 'stock_permits.count_in';
-    case RetainedEarnings   = 'fiscal.retained_earnings';
-    case CashDefault        = 'cash.default';
-    case CashDifference     = 'cash.difference';
-    case TaxOutput          = 'tax.output';
-    case TaxInput           = 'tax.input';
-    case ExpensesDefault    = 'expenses.default';
-    case GiftcardLiability  = 'giftcards.liability';
-    case OpeningBalance     = 'equity.opening';
-    case CounterCustomers   = 'sales.counter';
-    case Banks              = 'treasuries.banks';
+    case Customers             = 'sales.customers';
+    case SalesRevenue          = 'sales.revenue';
+    case SalesReturns          = 'sales.returns';
+    case SalesDiscount         = 'sales.discount';
+    case ProductSales          = 'sales.product';
+    case SalesAdjustment       = 'sales.adjustment';
+    case CostOfGoodsSold       = 'sales.cogs';
+    case Suppliers             = 'purchases.suppliers';
+    case Purchases             = 'purchases.purchases';
+    case PurchaseReturns       = 'purchases.returns';
+    case PurchaseDiscount      = 'purchases.discount';
+    case PurchaseAdjustment    = 'purchases.adjustment';
+    case StockLocations        = 'inventory.locations';
+    case Treasuries            = 'treasuries.accounts';
+    case StockPermitAdd        = 'stock_permits.add';
+    case StockPermitIssue      = 'stock_permits.issue';
+    case StockCountOut         = 'stock_permits.count_out';
+    case StockCountIn          = 'stock_permits.count_in';
+    case RetainedEarnings      = 'fiscal.retained_earnings';
+    case CashDefault           = 'cash.default';
+    case CashDifference        = 'cash.difference';
+    case TaxOutput             = 'tax.output';
+    case TaxInput              = 'tax.input';
+    case ExpensesDefault       = 'expenses.default';
+    case GiftcardLiability     = 'giftcards.liability';
+    case OpeningBalance        = 'equity.opening';
+    case CounterCustomers      = 'sales.counter';
+    case Banks                 = 'treasuries.banks';
+    case InterBranchReceivable = 'branches.receivable';
+    case InterBranchPayable    = 'branches.payable';
 
     public const GROUPS = ['sales', 'purchases', 'inventory', 'treasuries', 'stock_permits', 'fiscal', 'other'];
 
@@ -46,7 +48,7 @@ enum RoutingKey: string
             self::Customers, self::SalesRevenue, self::SalesReturns, self::SalesDiscount, self::ProductSales, self::SalesAdjustment, self::CostOfGoodsSold => 'sales',
             self::Suppliers, self::Purchases, self::PurchaseReturns, self::PurchaseDiscount, self::PurchaseAdjustment => 'purchases',
             self::StockLocations => 'inventory',
-            self::Treasuries, self::Banks => 'treasuries',
+            self::Treasuries, self::Banks, self::InterBranchReceivable, self::InterBranchPayable => 'treasuries',
             self::StockPermitAdd, self::StockPermitIssue, self::StockCountOut, self::StockCountIn => 'stock_permits',
             self::RetainedEarnings => 'fiscal',
             default                => 'other',
@@ -146,11 +148,12 @@ enum RoutingKey: string
 
     /**
      * Whether the row needs an account while its type uses one. The product sales row and the
-     * purchase returns row may stay empty: the document decides.
+     * purchase returns row may stay empty: the document decides. So may the two rows between
+     * branches, which only a transfer between branches reads.
      */
     public function accountRequired(): bool
     {
-        return ! in_array($this, [self::ProductSales, self::PurchaseReturns], true);
+        return ! in_array($this, [self::ProductSales, self::PurchaseReturns, self::InterBranchReceivable, self::InterBranchPayable], true);
     }
 
     /**
@@ -159,8 +162,8 @@ enum RoutingKey: string
     public function allowedAccountTypes(): array
     {
         return match ($this) {
-            self::Customers, self::StockLocations, self::Treasuries, self::Banks, self::StockPermitIssue, self::CashDefault, self::CounterCustomers => [AccountType::Asset],
-            self::Suppliers, self::StockPermitAdd, self::TaxOutput, self::GiftcardLiability => [AccountType::Liability],
+            self::Customers, self::StockLocations, self::Treasuries, self::Banks, self::StockPermitIssue, self::CashDefault, self::CounterCustomers, self::InterBranchReceivable => [AccountType::Asset],
+            self::Suppliers, self::StockPermitAdd, self::TaxOutput, self::GiftcardLiability, self::InterBranchPayable => [AccountType::Liability],
             self::SalesRevenue, self::SalesReturns, self::ProductSales => [AccountType::Revenue],
             self::SalesDiscount, self::SalesAdjustment, self::PurchaseDiscount, self::PurchaseAdjustment => [AccountType::Revenue, AccountType::Expense],
             self::CostOfGoodsSold, self::StockCountOut, self::StockCountIn => [AccountType::Expense],
@@ -190,34 +193,36 @@ enum RoutingKey: string
     public function defaultSystemKey(): ?string
     {
         return match ($this) {
-            self::Customers          => 'receivables',
-            self::SalesRevenue       => 'sales_revenue',
-            self::SalesReturns       => 'sales_returns',
-            self::SalesDiscount      => 'sales_discount',
-            self::ProductSales       => null,
-            self::SalesAdjustment    => 'sales_discount',
-            self::CostOfGoodsSold    => 'cogs',
-            self::Suppliers          => 'payables',
-            self::Purchases          => 'purchases',
-            self::PurchaseReturns    => null,
-            self::PurchaseDiscount   => 'purchase_discount',
-            self::PurchaseAdjustment => 'purchase_discount',
-            self::StockLocations     => 'inventory',
-            self::Treasuries         => 'treasuries',
-            self::Banks              => 'banks',
-            self::StockPermitAdd     => 'other_payables',
-            self::StockPermitIssue   => 'other_receivables',
-            self::StockCountOut      => 'cogs',
-            self::StockCountIn       => 'cogs',
-            self::RetainedEarnings   => 'retained_earnings',
-            self::CashDefault        => 'cash',
-            self::CashDifference     => 'cash_difference',
-            self::TaxOutput          => 'tax_output',
-            self::TaxInput           => 'tax_input',
-            self::ExpensesDefault    => 'expenses_default',
-            self::GiftcardLiability  => 'giftcard_liability',
-            self::OpeningBalance     => 'opening_balance',
-            self::CounterCustomers   => 'counter_customers',
+            self::Customers             => 'receivables',
+            self::SalesRevenue          => 'sales_revenue',
+            self::SalesReturns          => 'sales_returns',
+            self::SalesDiscount         => 'sales_discount',
+            self::ProductSales          => null,
+            self::SalesAdjustment       => 'sales_discount',
+            self::CostOfGoodsSold       => 'cogs',
+            self::Suppliers             => 'payables',
+            self::Purchases             => 'purchases',
+            self::PurchaseReturns       => null,
+            self::PurchaseDiscount      => 'purchase_discount',
+            self::PurchaseAdjustment    => 'purchase_discount',
+            self::StockLocations        => 'inventory',
+            self::Treasuries            => 'treasuries',
+            self::Banks                 => 'banks',
+            self::StockPermitAdd        => 'other_payables',
+            self::StockPermitIssue      => 'other_receivables',
+            self::StockCountOut         => 'cogs',
+            self::StockCountIn          => 'cogs',
+            self::RetainedEarnings      => 'retained_earnings',
+            self::CashDefault           => 'cash',
+            self::CashDifference        => 'cash_difference',
+            self::TaxOutput             => 'tax_output',
+            self::TaxInput              => 'tax_input',
+            self::ExpensesDefault       => 'expenses_default',
+            self::GiftcardLiability     => 'giftcard_liability',
+            self::OpeningBalance        => 'opening_balance',
+            self::CounterCustomers      => 'counter_customers',
+            self::InterBranchReceivable => 'branches_receivable',
+            self::InterBranchPayable    => 'branches_payable',
         };
     }
 }
