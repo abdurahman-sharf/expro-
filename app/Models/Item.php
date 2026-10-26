@@ -6,6 +6,9 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\SaleAmounts;
 use App\Libraries\Accounting\StockAdjustment;
+use App\Libraries\Organization\BranchError;
+use App\Libraries\Organization\BranchException;
+use App\Libraries\Organization\BranchGuard;
 use CodeIgniter\Database\RawSql;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Model;
@@ -852,6 +855,12 @@ class Item extends Model
      */
     public function delete($item_id = null, bool $purge = false): bool|int|string
     {
+        $this->accountingFailure = null;
+
+        if ($this->holdsStockOutsideTheEmployeesBranches([$item_id])) {
+            return false;
+        }
+
         $this->db->transStart();
 
         // Set to 0 quantities
@@ -890,12 +899,49 @@ class Item extends Model
         foreach ($removed as $row) {
             try {
                 (new StockAdjustment($this->db))->post($itemId, $row['location_id'], $row['change'], $employeeId > 0 ? $employeeId : null, $row['inventory_id']);
-            } catch (AccountingException|PostingException $failure) {
+            } catch (AccountingException|BranchException|PostingException $failure) {
                 $this->accountingFailure = $failure;
 
                 return false;
             }
         }
+
+        return true;
+    }
+
+    /**
+     * Deleting an item takes its stock off every shelf, so an employee who does not work in the
+     * branch of a location where the item has stock cannot delete it.
+     *
+     * @param list<int|string> $itemIds
+     */
+    private function holdsStockOutsideTheEmployeesBranches(array $itemIds): bool
+    {
+        $employeeId = (int) (model(Employee::class)->get_logged_in_employee_info()->person_id ?? 0);
+        $allowed    = $employeeId > 0 ? (new BranchGuard($this->db))->allowedBranchIds($employeeId) : null;
+
+        if ($allowed === null || $itemIds === []) {
+            return false;
+        }
+
+        $builder = $this->db->table('item_quantities')
+            ->select('stock_locations.branch_id')
+            ->join('stock_locations', 'stock_locations.location_id = item_quantities.location_id')
+            ->whereIn('item_quantities.item_id', $itemIds)
+            ->where('item_quantities.quantity <>', 0)
+            ->where('stock_locations.deleted', 0);
+
+        if ($allowed !== []) {
+            $builder->whereNotIn('stock_locations.branch_id', $allowed);
+        }
+
+        $outside = $builder->limit(1)->get()->getRow();
+
+        if ($outside === null) {
+            return false;
+        }
+
+        $this->accountingFailure = new BranchException(BranchError::NotAllowed, "The item has stock in the branch {$outside->branch_id}, which is outside the employee's scope.", ['branch_id' => (int) $outside->branch_id]);
 
         return true;
     }
@@ -924,6 +970,12 @@ class Item extends Model
      */
     public function delete_list(array $item_ids): bool
     {
+        $this->accountingFailure = null;
+
+        if ($this->holdsStockOutsideTheEmployeesBranches($item_ids)) {
+            return false;
+        }
+
         // Run these queries as a transaction, we want to make sure we do all or nothing
         $this->db->transStart();
 

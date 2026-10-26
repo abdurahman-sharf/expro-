@@ -5,6 +5,8 @@ namespace Tests\Libraries\Accounting;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\StockAdjustment;
+use App\Libraries\Organization\BranchError;
+use App\Libraries\Organization\BranchException;
 use App\Models\Item_quantity;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -46,6 +48,7 @@ class StockAdjustmentTest extends CIUnitTestCase
         parent::setUp();
 
         $this->startBuying();
+        $this->workInEveryBranch();
         $this->adjustment = new StockAdjustment();
     }
 
@@ -231,5 +234,84 @@ class StockAdjustmentTest extends CIUnitTestCase
         $this->assertSame($branch, (int) $this->accountingDb()->table('accounting_journals')->where('source_type', 'stock_adjustment')->get()->getRow()->branch_id);
         $this->assertSame($branch, (int) $this->accountingDb()->table('accounting_stock_entries')->where('source_type', 'stock_adjustment')->get()->getRow()->branch_id);
         $this->assertStockTies();
+    }
+
+    /**
+     * An item that costs 10, with a location in a branch of its own.
+     *
+     * @return array{item: int, location: int, branch: int}
+     */
+    private function itemInAnotherBranch(): array
+    {
+        $itemId   = $this->item('0.00');
+        $branchId = $this->createBranch('B' . substr(md5(uniqid('', true)), 0, 6), 'Branch of the stock');
+        $location = $this->locationOfBranch($branchId, 'Branch store ' . uniqid());
+
+        $this->accountingDb()->table('items')->where('item_id', $itemId)->update(['cost_price' => '10.00']);
+
+        return ['item' => $itemId, 'location' => $location, 'branch' => $branchId];
+    }
+
+    public function testPost_RefusesAnEmployeeWhoDoesNotWorkInTheBranchOfTheLocationAndPostsNothing(): void
+    {
+        ['item' => $itemId, 'location' => $location] = $this->itemInAnotherBranch();
+        $journals = $this->countRows('accounting_journals');
+        $entries  = $this->countRows('accounting_stock_entries');
+
+        try {
+            $this->adjustment->post($itemId, $location, '3', $this->employeeWithGrants([], [1]), 9014);
+            $this->fail('An employee of another branch must not post a change of stock.');
+        } catch (BranchException $refusal) {
+            $this->assertSame(BranchError::NotAllowed, $refusal->error);
+        }
+
+        $this->assertSame($journals, $this->countRows('accounting_journals'));
+        $this->assertSame($entries, $this->countRows('accounting_stock_entries'));
+        $this->assertSame([], $this->adjustments(9014));
+    }
+
+    public function testPost_RefusesAnEmployeeWithNoBranchAtAll(): void
+    {
+        ['item' => $itemId, 'location' => $location] = $this->itemInAnotherBranch();
+
+        $this->expectException(BranchException::class);
+
+        $this->adjustment->post($itemId, $location, '3', $this->employeeWithGrants([], []), 9015);
+    }
+
+    public function testPost_PostsInTheBranchOfTheLocationForAnEmployeeWhoWorksThereAndTheStockTies(): void
+    {
+        ['item' => $itemId, 'location' => $location, 'branch' => $branch] = $this->itemInAnotherBranch();
+        $this->workInBranches($branch);
+
+        $this->change($itemId, '3', 9016, $location);
+
+        $journal = $this->accountingDb()->table('accounting_journals')->where('source_type', 'stock_adjustment')->where('source_id', 9016)->get()->getRow();
+
+        $this->assertSame($branch, (int) $journal->branch_id);
+        $this->assertSame($branch, (int) $this->accountingDb()->table('accounting_stock_entries')->where('source_type', 'stock_adjustment')->where('source_id', 9016)->get()->getRow()->branch_id);
+        $this->assertStockTies();
+    }
+
+    public function testPost_PostsInTheDefaultBranchForAnEmployeeConfinedToIt(): void
+    {
+        $itemId = $this->tenAtFifty();
+        $this->workInBranches(1);
+
+        $this->change($itemId, '2', 9017);
+
+        $this->assertSame(1, (int) $this->adjustments(9017)[0]->branch_id);
+        $this->assertSame(['quantity' => '12.000', 'value' => '600.00'], $this->stockOf($itemId));
+        $this->assertStockTies();
+    }
+
+    public function testPost_IsNotLimitedForTheSystemItself(): void
+    {
+        ['item' => $itemId, 'location' => $location, 'branch' => $branch] = $this->itemInAnotherBranch();
+
+        $this->assertTrue(model(Item_quantity::class)->changeQuantity($itemId, $location, 3.0));
+        $this->adjustment->post($itemId, $location, '3', null, 9018);
+
+        $this->assertSame($branch, (int) $this->adjustments(9018)[0]->branch_id);
     }
 }
