@@ -216,6 +216,7 @@ return [
     'source_stock_adjustment'                    => 'تسوية مخزون',
     'source_stock_transfer'                      => 'تحويل مخزون (الفرع المُرسِل)',
     'source_stock_transfer_receipt'              => 'تحويل مخزون (الفرع المستلِم)',
+    'source_supplier_advance'                    => 'دفعة مقدمة لمورد',
     'source_supplier_payment'                    => 'دفعة مورد',
     'source_treasury_transfer'                   => 'تحويل بين الخزائن',
     'source_treasury_transfer_receipt'           => 'تحويل بين الفروع (قيد الفرع المستلم)',

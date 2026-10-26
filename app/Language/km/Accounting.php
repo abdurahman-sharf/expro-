@@ -216,6 +216,7 @@ return [
     'source_stock_adjustment'                    => '',
     'source_stock_transfer'                      => '',
     'source_stock_transfer_receipt'              => '',
+    'source_supplier_advance'                    => '',
     'source_supplier_payment'                    => '',
     'source_treasury_transfer'                   => '',
     'source_treasury_transfer_receipt'           => '',

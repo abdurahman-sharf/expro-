@@ -216,6 +216,7 @@ return [
     'source_stock_adjustment'                    => 'Stock adjustment',
     'source_stock_transfer'                      => 'Stock transfer (sending branch)',
     'source_stock_transfer_receipt'              => 'Stock transfer (receiving branch)',
+    'source_supplier_advance'                    => 'Supplier advance',
     'source_supplier_payment'                    => 'Supplier payment',
     'source_treasury_transfer'                   => 'Treasury transfer',
     'source_treasury_transfer_receipt'           => 'Treasury transfer (receiving branch)',
