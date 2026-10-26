@@ -127,6 +127,7 @@ return [
     'error_routing_key_unknown'                  => 'This item cannot be routed here.',
     'error_routing_type_invalid'                 => 'This routing type is not available for this item.',
     'error_sale_locked'                          => 'The customer and the date of a sale that has been posted cannot change. Correct it with a return.',
+    'error_sale_payment_not_on_sale'             => 'The payment does not belong to this sale.',
     'error_settings_locked'                      => 'The currency and the start date cannot change once a journal is posted.',
     'error_start_date_outside_fiscal_year'       => 'The start date {0} is outside every fiscal year.',
     'error_supplier_busy'                        => 'Another change to this supplier is still running. Try again in a moment.',

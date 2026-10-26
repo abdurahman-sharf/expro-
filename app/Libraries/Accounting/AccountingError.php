@@ -90,6 +90,7 @@ enum AccountingError: string
     case EntityMainAccountInvalid = 'entity_main_account_invalid';
 
     case SaleLocked           = 'sale_locked';
+    case SalePaymentNotOnSale = 'sale_payment_not_on_sale';
     case IssuedDocumentLocked = 'issued_document_locked';
     case CustomerBusy         = 'customer_busy';
 

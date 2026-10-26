@@ -127,6 +127,7 @@ return [
     'error_routing_key_unknown'                  => 'لا يُوجَّه هذا البند من هنا.',
     'error_routing_type_invalid'                 => 'نوع التوجيه هذا غير متاح لهذا البند.',
     'error_sale_locked'                          => 'لا يتغير عميل البيع المرحَّل ولا تاريخه. يُصحَّح بمرتجع.',
+    'error_sale_payment_not_on_sale'             => 'الدفعة لا تخص هذا البيع.',
     'error_settings_locked'                      => 'لا تتغير العملة وتاريخ البدء بعد ترحيل أول قيد.',
     'error_start_date_outside_fiscal_year'       => 'تاريخ البدء {0} خارج كل السنوات المالية.',
     'error_supplier_busy'                        => 'تغيير آخر على هذا المورد لم ينتهِ بعد. أعد المحاولة بعد لحظة.',

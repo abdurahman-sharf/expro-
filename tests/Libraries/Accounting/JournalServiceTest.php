@@ -10,6 +10,7 @@ use App\Libraries\Accounting\CostCenterService;
 use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\PostingService;
+use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Organization\BranchError;
@@ -542,6 +543,36 @@ class JournalServiceTest extends CIUnitTestCase
         $reverser = $this->employeeWithGrants(['accounting_journals', AccountingGuard::JOURNALS_REVERSE]);
 
         $this->assertFailsWith(AccountingError::JournalNotFound, fn () => $this->service->reverse($original, '2026-10-22', 'Reason', $reverser));
+    }
+
+    public function testReverse_RefusesAnEmployeeWhoMayNotWithdrawFromTheTreasuryTheJournalPutMoneyInto(): void
+    {
+        $treasuries                      = new TreasuryService();
+        $drawer                          = $treasuries->create(['name' => 'Closed drawer', 'kind' => 'cash', 'withdraw_scope' => 'staff', 'withdraw_members' => [$this->employeeWithGrants([])]]);
+        $input                           = $this->journalInput('75.00');
+        $input['lines'][0]['account_id'] = (int) $treasuries->accountOf($drawer);
+        $original                        = $this->service->postNew($input);
+
+        $this->assertFailsWith(AccountingError::TreasuryWithdrawDenied, fn () => $this->service->reverse($original, '2026-10-22', 'Reason', $this->accountant()));
+        $this->assertSame('posted', $this->journal($original)->status);
+        $this->assertSame(0, $this->accountingDb()->table('accounting_journals')->where('source_type', 'reversal')->countAllResults());
+    }
+
+    public function testReverse_AcceptsAnEmployeeWhoMayWithdrawFromTheTreasuryTheJournalPutMoneyIntoAndTheBooksAlways(): void
+    {
+        $treasuries                      = new TreasuryService();
+        $reverser                        = $this->accountant();
+        $drawer                          = $treasuries->create(['name' => 'Open drawer', 'kind' => 'cash', 'withdraw_scope' => 'staff', 'withdraw_members' => [$reverser]]);
+        $input                           = $this->journalInput('75.00');
+        $input['lines'][0]['account_id'] = (int) $treasuries->accountOf($drawer);
+        $first                           = $this->service->postNew($input);
+        $second                          = $this->service->postNew($input);
+
+        $this->assertSame('posted', $this->journal($this->service->reverse($first, '2026-10-22', 'Reason', $reverser))->status);
+
+        $treasuries->update($drawer, ['name' => 'Open drawer', 'kind' => 'cash', 'withdraw_scope' => 'staff', 'withdraw_members' => [$this->employeeWithGrants([])]]);
+
+        $this->assertSame('posted', $this->journal($this->service->reverse($second, '2026-10-22', 'The books act'))->status);
     }
 
     public function testReverse_WritesAnAuditEntryWithTheReason(): void

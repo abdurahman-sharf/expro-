@@ -1100,6 +1100,65 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertEqualsWithDelta($stock, $this->stock($invoice['cream']), 0.0001);
     }
 
+    /**
+     * A point of sale sale paid in cash into a treasury that only an employee other than the
+     * one given may withdraw from.
+     *
+     * @return array{saleId: int, drawer: int}
+     */
+    private function saleIntoTreasuryClosedToWithdrawals(): array
+    {
+        $this->startSelling();
+
+        $drawer  = (new TreasuryService())->create(['name' => 'Closed drawer', 'kind' => 'cash', 'withdraw_scope' => 'staff', 'withdraw_members' => [$this->createCashierEmployee()]]);
+        $service = $this->item('0', false);
+        $saleId  = $this->save([$this->line($service, 0, '1', '50')], [], [$this->payment(lang('Sales.cash'), '50.00') + ['treasury_id' => $drawer]], SALE_TYPE_POS);
+
+        return ['saleId' => $saleId, 'drawer' => $drawer];
+    }
+
+    public function testPostDelete_RefusesToCancelASaleWhosePaymentWentIntoATreasuryTheEmployeeMayNotWithdrawFrom(): void
+    {
+        $sale = $this->saleIntoTreasuryClosedToWithdrawals();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $result = $this->jsonOf($this->post('/sales/delete', ['ids' => [(string) $sale['saleId']]]));
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString('Closed drawer', $result['message']);
+        $this->assertSame((string) COMPLETED, (string) $this->saleRow($sale['saleId'])->sale_status);
+        $this->assertSame('50.0000', (new TreasuryService())->position($sale['drawer'])->balance);
+    }
+
+    public function testPostCancel_RefusesToCancelACompletedSaleWhosePaymentWentIntoATreasuryTheEmployeeMayNotWithdrawFrom(): void
+    {
+        $sale = $this->saleIntoTreasuryClosedToWithdrawals();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+        $this->withSession(array_merge($this->session, ['sale_id' => $sale['saleId'], 'sale_type' => SALE_TYPE_POS]));
+
+        $this->post('/sales/cancel');
+
+        $this->assertSame((string) COMPLETED, (string) $this->saleRow($sale['saleId'])->sale_status);
+        $this->assertSame('50.0000', (new TreasuryService())->position($sale['drawer'])->balance);
+    }
+
+    public function testPostCancel_CancelsACompletedSaleWhosePaymentWentIntoATreasuryTheEmployeeMayWithdrawFrom(): void
+    {
+        $this->startSelling();
+
+        $supervisorId = $this->createBranchLimitedSupervisor(1);
+        $drawer       = (new TreasuryService())->create(['name' => 'Open drawer', 'kind' => 'cash', 'withdraw_scope' => 'staff', 'withdraw_members' => [$supervisorId]]);
+        $service      = $this->item('0', false);
+        $saleId       = $this->save([$this->line($service, 0, '1', '50')], [], [$this->payment(lang('Sales.cash'), '50.00') + ['treasury_id' => $drawer]], SALE_TYPE_POS);
+
+        $this->loginAs($supervisorId);
+        $this->withSession(array_merge($this->session, ['sale_id' => $saleId, 'sale_type' => SALE_TYPE_POS]));
+        $this->post('/sales/cancel');
+
+        $this->assertSame((string) CANCELED, (string) $this->saleRow($saleId)->sale_status);
+        $this->assertSame('0.0000', (new TreasuryService())->position($drawer)->balance);
+    }
+
     public function testPostDelete_SaysAnIssuedInvoiceIsCorrectedByACreditNoteAndCancelsNothing(): void
     {
         $invoice      = $this->postedInvoice();

@@ -25,6 +25,7 @@ final class TreasuryScopes
     public const BRANCHES    = 'branches';
     public const MODES       = [self::ALL, self::STAFF, self::BRANCHES];
     private const DIRECTIONS = [self::DEPOSIT, self::WITHDRAW];
+    private const SCALE      = 4;
 
     private BaseConnection $db;
     private BranchGuard $branches;
@@ -120,22 +121,47 @@ final class TreasuryScopes
             return;
         }
 
-        $rows = $this->db->table('accounting_journal_lines l')
-            ->select('t.treasury_id, SUM(l.debit) AS debit, SUM(l.credit) AS credit', false)
-            ->join('accounting_accounts a', 'a.account_id = l.account_id')
-            ->join('treasuries t', 't.treasury_id = a.entity_id AND t.company_id = a.company_id')
-            ->where('l.journal_id', $journalId)
-            ->where('a.entity_type', EntityAccountService::TREASURY)
-            ->groupBy('t.treasury_id')
-            ->orderBy('t.treasury_id', 'ASC')
-            ->get()
-            ->getResult();
+        foreach ($this->netOfJournal($journalId) as $treasuryId => $net) {
+            if (bccomp($net, '0', self::SCALE) !== 0) {
+                $this->assertAllows($treasuryId, bccomp($net, '0', self::SCALE) > 0 ? self::WITHDRAW : self::DEPOSIT, $employeeId);
+            }
+        }
+    }
 
-        foreach ($rows as $row) {
-            $net = bccomp(bcsub((string) $row->debit, (string) $row->credit, 4), '0', 4);
+    /**
+     * Replacing the journal of a payment by another moves the difference. What a treasury holds
+     * more of afterwards is a deposit into it, what it holds less of is a withdrawal from it, and
+     * a payment that stops using a treasury, or is paid in less, takes money out of it.
+     *
+     * @throws AccountingException
+     */
+    public function assertMayReplace(int $journalId, ?JournalDraft $replacement, ?int $employeeId): void
+    {
+        if ($employeeId === null) {
+            return;
+        }
 
-            if ($net !== 0) {
-                $this->assertAllows((int) $row->treasury_id, $net > 0 ? self::WITHDRAW : self::DEPOSIT, $employeeId);
+        $delta = [];
+
+        foreach ($this->netOfJournal($journalId) as $treasuryId => $net) {
+            $delta[$treasuryId] = bcsub('0', $net, self::SCALE);
+        }
+
+        foreach ($replacement?->lines ?? [] as $line) {
+            $owner = $this->ownerOfAccount($line->accountId);
+
+            if ($owner !== null) {
+                $delta[$owner] = bcadd($delta[$owner] ?? '0', bcsub($line->debit, $line->credit, self::SCALE), self::SCALE);
+            }
+        }
+
+        ksort($delta);
+
+        foreach ($delta as $treasuryId => $amount) {
+            $sign = bccomp($amount, '0', self::SCALE);
+
+            if ($sign !== 0) {
+                $this->assertAllows($treasuryId, $sign > 0 ? self::DEPOSIT : self::WITHDRAW, $employeeId);
             }
         }
     }
@@ -243,6 +269,33 @@ final class TreasuryScopes
                 $this->audit->write('treasury', $treasuryId, 'scope_changed', $employeeId, JournalOrigin::User, ['before' => $before, 'after' => $after], $branchId);
             }
         });
+    }
+
+    /**
+     * What a journal moved into each treasury it touches: debits less credits, by treasury.
+     *
+     * @return array<int, string>
+     */
+    private function netOfJournal(int $journalId): array
+    {
+        $rows = $this->db->table('accounting_journal_lines l')
+            ->select('t.treasury_id, SUM(l.debit) AS debit, SUM(l.credit) AS credit', false)
+            ->join('accounting_accounts a', 'a.account_id = l.account_id')
+            ->join('treasuries t', 't.treasury_id = a.entity_id AND t.company_id = a.company_id')
+            ->where('l.journal_id', $journalId)
+            ->where('a.entity_type', EntityAccountService::TREASURY)
+            ->groupBy('t.treasury_id')
+            ->orderBy('t.treasury_id', 'ASC')
+            ->get()
+            ->getResult();
+
+        $net = [];
+
+        foreach ($rows as $row) {
+            $net[(int) $row->treasury_id] = bcsub((string) $row->debit, (string) $row->credit, self::SCALE);
+        }
+
+        return $net;
     }
 
     /**

@@ -321,6 +321,8 @@ final class SalePosting
                 return;
             }
 
+            (new TreasuryScopes($this->db))->assertMayReplace((int) $active->journal_id, $draft, $employeeId);
+
             $this->reverse($active, $employeeId, 'Payment #' . $payment->paymentId . ' changed');
         }
 

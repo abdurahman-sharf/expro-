@@ -388,6 +388,84 @@ class TreasuryScopesTest extends CIUnitTestCase
         $this->addToAssertionCount(2);
     }
 
+    private function draftBetween(int $debitAccount, int $creditAccount, string $amount): JournalDraft
+    {
+        return new JournalDraft(
+            date: '2026-10-21',
+            lines: [new JournalLineDraft($debitAccount, debit: $amount), new JournalLineDraft($creditAccount, credit: $amount)],
+            sourceType: 'opening',
+            sourceId: random_int(1000, 9999),
+            currencyCode: 'SAR',
+        );
+    }
+
+    public function testAssertMayReplace_AsksTheWithdrawalScopeWhenAJournalIsReplacedByOneThatPutsLessIntoTheTreasury(): void
+    {
+        $named  = $this->employeeWithGrants([]);
+        $other  = $this->employeeWithGrants([]);
+        $drawer = $this->drawer(['withdraw_scope' => 'staff', 'withdraw_members' => [$named]]);
+        $in     = $this->journalBetween((int) $this->treasuries->accountOf($drawer), $this->accountId('opening_balance'), '100.00');
+        $less   = $this->draftBetween((int) $this->treasuries->accountOf($drawer), $this->accountId('opening_balance'), '60.00');
+
+        $this->scopes->assertMayReplace($in, $less, $named);
+        $this->assertSame(AccountingError::TreasuryWithdrawDenied, $this->refusal(fn () => $this->scopes->assertMayReplace($in, $less, $other))->error);
+    }
+
+    public function testAssertMayReplace_AsksTheDepositScopeWhenAJournalIsReplacedByOneThatPutsMoreIntoTheTreasury(): void
+    {
+        $named  = $this->employeeWithGrants([]);
+        $other  = $this->employeeWithGrants([]);
+        $drawer = $this->drawer(['deposit_scope' => 'staff', 'deposit_members' => [$named]]);
+        $in     = $this->journalBetween((int) $this->treasuries->accountOf($drawer), $this->accountId('opening_balance'), '60.00');
+        $more   = $this->draftBetween((int) $this->treasuries->accountOf($drawer), $this->accountId('opening_balance'), '100.00');
+
+        $this->scopes->assertMayReplace($in, $more, $named);
+        $this->assertSame(AccountingError::TreasuryDepositDenied, $this->refusal(fn () => $this->scopes->assertMayReplace($in, $more, $other))->error);
+    }
+
+    public function testAssertMayReplace_AsksTheWithdrawalScopeWhenTheReplacementUsesNoTreasuryAtAll(): void
+    {
+        $named  = $this->employeeWithGrants([]);
+        $other  = $this->employeeWithGrants([]);
+        $drawer = $this->drawer(['withdraw_scope' => 'staff', 'withdraw_members' => [$named]]);
+        $in     = $this->journalBetween((int) $this->treasuries->accountOf($drawer), $this->accountId('opening_balance'));
+        $plain  = $this->draftBetween($this->accountId('receivables'), $this->accountId('opening_balance'), '30.00');
+
+        $this->scopes->assertMayReplace($in, $plain, $named);
+        $this->scopes->assertMayReplace($in, null, $named);
+        $this->assertSame(AccountingError::TreasuryWithdrawDenied, $this->refusal(fn () => $this->scopes->assertMayReplace($in, $plain, $other))->error);
+        $this->assertSame(AccountingError::TreasuryWithdrawDenied, $this->refusal(fn () => $this->scopes->assertMayReplace($in, null, $other))->error);
+    }
+
+    public function testAssertMayReplace_AsksBothTreasuriesWhenTheMoneyMovesFromOneToTheOther(): void
+    {
+        $named = $this->employeeWithGrants([]);
+        $other = $this->employeeWithGrants([]);
+        $from  = $this->drawer(['withdraw_scope' => 'staff', 'withdraw_members' => [$named]], 'From');
+        $to    = $this->drawer(['deposit_scope' => 'staff', 'deposit_members' => [$named]], 'To');
+        $in    = $this->journalBetween((int) $this->treasuries->accountOf($from), $this->accountId('opening_balance'));
+        $moved = $this->draftBetween((int) $this->treasuries->accountOf($to), $this->accountId('opening_balance'), '30.00');
+
+        $this->scopes->assertMayReplace($in, $moved, $named);
+
+        $refusal = $this->refusal(fn () => $this->scopes->assertMayReplace($in, $moved, $other));
+
+        $this->assertContains($refusal->error, [AccountingError::TreasuryWithdrawDenied, AccountingError::TreasuryDepositDenied]);
+    }
+
+    public function testAssertMayReplace_AsksNothingWhenTheTreasuryHoldsTheSameAfterwardsAndNothingOfTheBooks(): void
+    {
+        $named  = $this->employeeWithGrants([]);
+        $drawer = $this->drawer(['deposit_scope' => 'staff', 'deposit_members' => [$named], 'withdraw_scope' => 'staff', 'withdraw_members' => [$named]]);
+        $in     = $this->journalBetween((int) $this->treasuries->accountOf($drawer), $this->accountId('opening_balance'));
+        $same   = $this->draftBetween((int) $this->treasuries->accountOf($drawer), $this->accountId('sales_revenue'), '30.00');
+        $less   = $this->draftBetween((int) $this->treasuries->accountOf($drawer), $this->accountId('opening_balance'), '10.00');
+
+        $this->scopes->assertMayReplace($in, $same, $this->employeeWithGrants([]));
+        $this->scopes->assertMayReplace($in, $less, null);
+        $this->addToAssertionCount(2);
+    }
+
     public function testOwnerOfAccount_NamesTheTreasuryWhoseAccountItIsAndNobodyForAnyOther(): void
     {
         $drawer = $this->drawer();

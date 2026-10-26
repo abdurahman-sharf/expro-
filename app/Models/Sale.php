@@ -641,6 +641,12 @@ class Sale extends Model
                         ];
                         $success = $builder->insert($sales_payments_data);
                     } elseif ($payment_id != NEW_ENTRY) {
+                        $stored = $this->db->table('sales_payments')->select('sale_id')->where('payment_id', $payment_id)->get()->getRow();
+
+                        if ($stored === null || (int) $stored->sale_id !== (int) $sale_id) {
+                            throw new AccountingException(AccountingError::SalePaymentNotOnSale, 'The payment does not belong to this sale.', ['sale_id' => (int) $sale_id]);
+                        }
+
                         if ($payment_amount != 0) {
                             // Update existing payment transactions (payment_type only)
                             $sales_payments_data = [
@@ -660,12 +666,12 @@ class Sale extends Model
                                 $sales_payments_data['treasury_id'] = $treasuryId;
                             }
 
-                            $builder->where('payment_id', $payment_id);
+                            $builder->where(['payment_id' => $payment_id, 'sale_id' => $sale_id]);
                             $success = $builder->update($sales_payments_data);
                         } else {
                             // Remove existing payment transactions with a payment amount of zero
                             $accounting?->reversePayment((int) $payment_id, $employee_id === null ? null : (int) $employee_id);
-                            $success = $builder->delete(['payment_id' => $payment_id]);
+                            $success = $builder->delete(['payment_id' => $payment_id, 'sale_id' => $sale_id]);
                         }
                     }
                 }

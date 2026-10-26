@@ -231,6 +231,8 @@ final class JournalService
     {
         $this->guard->require(AccountingGuard::JOURNALS_REVERSE, $employeeId);
 
+        (new TreasuryScopes($this->db))->assertMayReverse($journalId, $employeeId);
+
         return $this->reverseJournal($journalId, $date, $reason, $employeeId, true);
     }
 

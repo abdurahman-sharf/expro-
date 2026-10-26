@@ -127,6 +127,7 @@ return [
     'error_routing_key_unknown'                  => '',
     'error_routing_type_invalid'                 => '',
     'error_sale_locked'                          => '',
+    'error_sale_payment_not_on_sale'             => '',
     'error_settings_locked'                      => '',
     'error_start_date_outside_fiscal_year'       => '',
     'error_supplier_busy'                        => '',

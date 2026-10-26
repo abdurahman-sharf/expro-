@@ -662,6 +662,63 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame('0.0000', $treasuries->position($drawer)->balance);
     }
 
+    public function testUpdate_RefusesToLowerThePaymentOfATreasuryTheEditorMayNotWithdrawFrom(): void
+    {
+        $treasuries = new TreasuryService();
+        $drawer     = $this->drawerOpenOnlyTo([$this->employeeWithGrants([])], 'withdraw');
+        $item       = $this->item('10.00');
+        $saleId     = $this->save([$this->line($item, 0, '1', '100', '10.00')], [], [$this->payment(lang('Sales.cash'), '100.00') + ['treasury_id' => $drawer]]);
+        $paymentId  = (int) $this->paymentRow($saleId)->payment_id;
+
+        $this->assertFalse($this->sales->update($saleId, ['comment' => 'less money', 'payments' => [$this->scopeEditedPayment($paymentId, ['payment_amount' => '60.00'])]]));
+        $this->assertSame(AccountingError::TreasuryWithdrawDenied, $this->sales->accountingFailure()->error);
+        $this->assertSame('100.0000', $treasuries->position($drawer)->balance);
+        $this->assertSame('100.00', $this->paymentRow($saleId)->payment_amount);
+    }
+
+    public function testUpdate_LowersThePaymentOfATreasuryTheEditorMayWithdrawFrom(): void
+    {
+        $treasuries = new TreasuryService();
+        $drawer     = $this->drawerOpenOnlyTo([$this->employeeId], 'withdraw');
+        $item       = $this->item('10.00');
+        $saleId     = $this->save([$this->line($item, 0, '1', '100', '10.00')], [], [$this->payment(lang('Sales.cash'), '100.00') + ['treasury_id' => $drawer]]);
+        $paymentId  = (int) $this->paymentRow($saleId)->payment_id;
+
+        $this->assertTrue($this->sales->update($saleId, ['comment' => 'less money', 'payments' => [$this->scopeEditedPayment($paymentId, ['payment_amount' => '60.00'])]]));
+        $this->assertSame('60.0000', $treasuries->position($drawer)->balance);
+    }
+
+    public function testUpdate_RefusesToChangeThePaymentOfATreasuryToAWayOfPaymentThatUsesNoTreasury(): void
+    {
+        $treasuries = new TreasuryService();
+        $drawer     = $this->drawerOpenOnlyTo([$this->employeeWithGrants([])], 'withdraw');
+        $item       = $this->item('10.00');
+        $saleId     = $this->save([$this->line($item, 0, '1', '100', '10.00')], [], [$this->payment(lang('Sales.cash'), '100.00') + ['treasury_id' => $drawer]]);
+        $paymentId  = (int) $this->paymentRow($saleId)->payment_id;
+
+        $this->assertFalse($this->sales->update($saleId, ['comment' => 'on account', 'payments' => [$this->scopeEditedPayment($paymentId, ['payment_type' => lang('Sales.due')])]]));
+        $this->assertSame(AccountingError::TreasuryWithdrawDenied, $this->sales->accountingFailure()->error);
+        $this->assertSame('100.0000', $treasuries->position($drawer)->balance);
+        $this->assertSame(lang('Sales.cash'), $this->paymentRow($saleId)->payment_type);
+    }
+
+    public function testUpdate_RefusesToChangeOrRemoveAPaymentThatBelongsToAnotherSale(): void
+    {
+        $treasuries = new TreasuryService();
+        $drawer     = $treasuries->create(['name' => 'Drawer', 'kind' => 'cash']);
+        $item       = $this->item('10.00');
+        $mine       = $this->save([$this->line($item, 0, '1', '100', '10.00')], [], [$this->payment(lang('Sales.cash'), '100.00') + ['treasury_id' => $drawer]]);
+        $other      = $this->save([$this->line($item, 0, '1', '100', '10.00')], [], [$this->payment(lang('Sales.cash'), '100.00') + ['treasury_id' => $drawer]]);
+        $foreignId  = (int) $this->paymentRow($other)->payment_id;
+
+        $this->assertFalse($this->sales->update($mine, ['comment' => 'removes it', 'payments' => [$this->scopeEditedPayment($foreignId, ['payment_amount' => '0.00'])]]));
+        $this->assertSame(AccountingError::SalePaymentNotOnSale, $this->sales->accountingFailure()->error);
+        $this->assertFalse($this->sales->update($mine, ['comment' => 'lowers it', 'payments' => [$this->scopeEditedPayment($foreignId, ['payment_amount' => '60.00'])]]));
+        $this->assertSame(AccountingError::SalePaymentNotOnSale, $this->sales->accountingFailure()->error);
+        $this->assertSame('100.00', $this->paymentRow($other)->payment_amount);
+        $this->assertSame('200.0000', $treasuries->position($drawer)->balance);
+    }
+
     public function testUpdate_AsksTheScopeAgainWhenTheAmountOfAPaymentChanges(): void
     {
         $drawer    = $this->drawerOpenOnlyTo([$this->employeeId]);
