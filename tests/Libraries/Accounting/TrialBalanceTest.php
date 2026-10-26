@@ -364,6 +364,46 @@ class TrialBalanceTest extends CIUnitTestCase
         $this->assertSame('1234567.8913', $cash->debit);
     }
 
+    public function testBuild_SaysItDoesNotBalanceWhenAJournalWasChangedOutsideTheBooks(): void
+    {
+        $this->cashSale('2026-10-05', 1, '100.00');
+
+        $this->assertTrue($this->build()->balances());
+
+        $this->accountingDb()->query('UPDATE ' . $this->accountingDb()->prefixTable('accounting_journal_lines') . ' SET debit = debit + 5 LIMIT 1');
+
+        $report = $this->build();
+
+        $this->assertFalse($report->balances());
+        $this->assertSame('105.0000', $report->totals['debit']);
+        $this->assertSame('100.0000', $report->totals['credit']);
+    }
+
+    public function testBuild_CountsOnlyTheAccountsThatAreShownWhenIndentingAndAddingUp(): void
+    {
+        $customer = $this->insertCustomer();
+        $entity   = (new EntityAccountService())->ensure(EntityAccountService::CUSTOMER, $customer, 'Omar Khaled');
+        $now      = date('Y-m-d H:i:s');
+        $db       = $this->accountingDb();
+        $parent   = $db->table('accounting_accounts')->where('account_id', $entity)->get()->getRowArray();
+
+        unset($parent['account_id']);
+        $db->table('accounting_accounts')->insert([...$parent, 'parent_id' => $entity, 'code' => $parent['code'] . '01', 'name' => 'Under a customer', 'entity_type' => null, 'entity_id' => null, 'is_system' => 0, 'system_key' => null, 'created_at' => $now, 'updated_at' => $now]);
+        $child = (int) $db->insertID();
+
+        $this->postOn('2026-10-05', 1, [[$child, '30.00', '0'], [$this->accountId('sales_revenue'), '0', '30.00']]);
+
+        $report   = $this->build();
+        $control  = $this->row($report, $this->codeOf($this->parentOf($entity)));
+        $under    = $this->row($report, $this->codeOf($child));
+
+        $this->assertNull($this->row($report, $this->codeOf($entity)), 'The account of the customer is folded');
+        $this->assertNotNull($under);
+        $this->assertSame($control->depth + 1, $under->depth, 'It is indented under the rows above it, not under the account that is folded away');
+        $this->assertSame('30.0000', $report->totals['debit']);
+        $this->assertTrue($report->balances());
+    }
+
     // ---------------------------------------------------------------------------------------
     // The trial balance and the books of the documents: what it holds is what they say
     // ---------------------------------------------------------------------------------------

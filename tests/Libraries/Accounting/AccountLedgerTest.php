@@ -118,6 +118,17 @@ class AccountLedgerTest extends CIUnitTestCase
         $this->assertSame('170.0000', $report->closing);
     }
 
+    public function testBuild_CountsTheFirstDayInThePeriodAndNotInWhatCameBefore(): void
+    {
+        $this->cashSale('2026-09-30', 1, '10.00');
+        $this->cashSale('2026-10-01', 1, '100.00');
+
+        $report = $this->statement('cash', '2026-10-31', '2026-10-01');
+
+        $this->assertSame('10.0000', $report->opening);
+        $this->assertSame(['2026-10-01 100.0000 0.0000 110.0000'], $this->lines($report));
+    }
+
     public function testBuild_StartsFromWhereTheAccountStoodInTheDirectionItNormallyHolds(): void
     {
         $this->cashSale('2026-09-30', 1, '60.00');

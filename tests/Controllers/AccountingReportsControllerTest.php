@@ -353,6 +353,21 @@ class AccountingReportsControllerTest extends CIUnitTestCase
         $response->assertSee(lang('Accounting.error_report_period_invalid'));
     }
 
+    public function testGetIndex_SaysTheTrialBalanceDoesNotBalanceWhenAJournalWasChangedOutsideTheBooks(): void
+    {
+        $this->cashSale('2026-10-05', 1, '100.00');
+        $this->viewer();
+
+        $this->get('/accounting_reports')->assertSee('id="report_balanced"');
+
+        $this->accountingDb()->query('UPDATE ' . $this->accountingDb()->prefixTable('accounting_journal_lines') . ' SET debit = debit + 5 LIMIT 1');
+
+        $response = $this->get('/accounting_reports');
+
+        $response->assertSee('id="report_unbalanced"');
+        $response->assertDontSee('id="report_balanced"');
+    }
+
     public function testGetIndex_LinksEachAccountToItsStatement(): void
     {
         $this->cashSale('2026-10-05', 1, '100.00');
