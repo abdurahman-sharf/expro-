@@ -88,6 +88,21 @@ class AccountingReportsControllerTest extends CIUnitTestCase
         return substr_count($response->getBody(), '<tr>');
     }
 
+    /**
+     * @return list<string> The balance after each line of the statement on the screen.
+     */
+    private function balancesOf(TestResponse $response): array
+    {
+        preg_match_all('#<td class="text-end"><bdi dir="ltr">([^<]*)</bdi></td>\s*</tr>#', $response->getBody(), $found);
+
+        return $found[1];
+    }
+
+    private function codes(string ...$codes): string
+    {
+        return implode(lang('Accounting_reports.branch_separator'), $codes);
+    }
+
     private function accountRowsOf(TestResponse $response): int
     {
         return substr_count($response->getBody(), 'data-account="');
@@ -102,7 +117,7 @@ class AccountingReportsControllerTest extends CIUnitTestCase
 
         $response->assertStatus(200);
         $response->assertSee('id="trial_balance_table"');
-        $response->assertSee($this->amountOf('7777.00'));
+        $response->assertSee('<bdi dir="ltr">' . $this->amountOf('7777.00') . '</bdi>');
         $response->assertSee('id="report_balanced"');
         $response->assertSee(lang('Accounting_reports.scope_company'));
         $response->assertDontSee('id="report_error"');
@@ -168,7 +183,7 @@ class AccountingReportsControllerTest extends CIUnitTestCase
         $response->assertSee($this->amountOf('3333.00'));
         $response->assertDontSee($this->amountOf('4444.00'));
         $response->assertDontSee($this->amountOf('7777.00'));
-        $response->assertSee(lang('Accounting_reports.scope_selected', [$this->branchCode(1) . '، ' . 'T2']));
+        $response->assertSee(lang('Accounting_reports.scope_selected', [$this->codes($this->branchCode(1), 'T2')]));
     }
 
     public function testGetIndex_CutsWhatIsAskedDownToTheBranchesTheEmployeeWorksIn(): void
@@ -191,7 +206,9 @@ class AccountingReportsControllerTest extends CIUnitTestCase
 
         $response = $this->get('/accounting_reports');
 
-        $response->assertSee(lang('Accounting_reports.scope_partial', [$this->branchCode(1) . '، T2']));
+        $response->assertSee(lang('Accounting_reports.scope_partial', [$this->codes($this->branchCode(1), 'T2')]));
+        $response->assertSee('HQ, T2');
+        $response->assertSee('class="alert alert-warning" id="report_scope"');
         $response->assertDontSee(lang('Accounting_reports.scope_company'));
         $response->assertSee($this->amountOf('3333.00'));
     }
@@ -383,7 +400,7 @@ class AccountingReportsControllerTest extends CIUnitTestCase
         $this->cashSale('2026-10-05', $this->second, '100.00');
         $this->viewer();
 
-        $response = $this->get('/accounting_reports?branches[]=' . $this->second . '&from=2026-10-01&to=2026-10-31');
+        $response = $this->get('/accounting_reports?type=movement&branches[]=' . $this->second . '&from=2026-10-01&to=2026-10-31');
 
         $response->assertSee('branches%5B0%5D=' . $this->second);
         $response->assertSee('from=2026-10-01');
@@ -412,18 +429,16 @@ class AccountingReportsControllerTest extends CIUnitTestCase
     public function testGetLedger_ShowsTheLinesOfAnAccountWithTheBalanceAfterEach(): void
     {
         $this->cashSale('2026-10-05', 1, '1111.00');
-        $this->cashSale('2026-10-15', 1, '500.00');
+        $this->postOn('2026-10-15', 1, [[$this->accountId('cogs'), '300.00', '0'], [$this->accountId('cash'), '0', '300.00']]);
         $this->viewer();
 
         $response = $this->get('/accounting_reports/ledger?account=' . $this->accountId('cash'));
 
         $response->assertStatus(200);
         $response->assertSee('id="ledger_table"');
-        $response->assertSee($this->amountOf('1111.00'));
-        $response->assertSee($this->amountOf('500.00'));
-        $response->assertSee($this->amountOf('1611.00'));
         $response->assertSee('id="ledger_summary"');
         $this->assertSame(3, $this->rowsOf($response), 'One heading row and the two lines');
+        $this->assertSame([$this->amountOf('1111.00'), $this->amountOf('811.00')], $this->balancesOf($response), 'The balance after each line');
     }
 
     public function testGetLedger_StartsFromWhereTheAccountStoodWhenThePeriodOpened(): void
@@ -473,9 +488,9 @@ class AccountingReportsControllerTest extends CIUnitTestCase
 
         $response = $this->get('/accounting_reports/ledger?account=' . $this->accountId('cash'));
 
-        $response->assertSee(lang('Accounting_reports.ledger_branch'));
+        $response->assertSee('<th scope="col">' . lang('Accounting_reports.ledger_branch') . '</th>');
         $response->assertSee('>T2<');
-        $response->assertSee(lang('Accounting_reports.scope_partial', [$this->branchCode(1) . '، T2']));
+        $response->assertSee(lang('Accounting_reports.scope_partial', [$this->codes($this->branchCode(1), 'T2')]));
     }
 
     public function testGetLedger_LinksTheJournalOnlyToWhoMayOpenJournals(): void
@@ -512,12 +527,13 @@ class AccountingReportsControllerTest extends CIUnitTestCase
         $response = $this->get('/accounting_reports/ledger?account=' . $this->accountIdByCode('1201'));
 
         $response->assertSee('id="ledger_accounts_counted"');
-        $response->assertSee('120101');
+        $response->assertSee('<th scope="col">' . lang('Accounting_reports.account') . '</th>');
+        $response->assertSee('<td><bdi dir="ltr">120101</bdi> ');
     }
 
-    public function testGetLedger_PagesALongStatement(): void
+    public function testGetLedger_PagesALongStatementWithTheBalanceGoingOnFromPageToPage(): void
     {
-        foreach (range(1, 102) as $day) {
+        foreach (range(1, 102) as $line) {
             $this->cashSale('2026-10-05', 1, '1.00');
         }
 
@@ -530,13 +546,49 @@ class AccountingReportsControllerTest extends CIUnitTestCase
         $this->assertSame(101, $this->rowsOf($first), 'One heading row and a hundred lines');
         $first->assertSee('rel="next"');
         $first->assertDontSee('rel="prev"');
-        $first->assertSee($this->amountOf('100.00'));
+        $this->assertSame([$this->amountOf('1.00'), $this->amountOf('100.00')], [$this->balancesOf($first)[0], $this->balancesOf($first)[99]]);
 
         $this->assertSame(3, $this->rowsOf($second), 'One heading row and the two lines left');
         $second->assertSee('rel="prev"');
         $second->assertDontSee('rel="next"');
-        $second->assertSee($this->amountOf('102.00'));
+        $this->assertSame([$this->amountOf('101.00'), $this->amountOf('102.00')], $this->balancesOf($second));
         $second->assertSee('account=' . $cash);
+    }
+
+    public function testGetLedger_OffersNoNextPageForExactlyOnePageAndOffersItForOneLineMore(): void
+    {
+        foreach (range(1, 100) as $line) {
+            $this->cashSale('2026-10-05', 1, '1.00');
+        }
+
+        $this->viewer();
+        $address = '/accounting_reports/ledger?account=' . $this->accountId('cash');
+
+        $this->get($address)->assertDontSee('rel="next"');
+
+        $this->cashSale('2026-10-05', 1, '1.00');
+
+        $this->get($address)->assertSee('rel="next"');
+        $this->assertSame([$this->amountOf('101.00')], $this->balancesOf($this->get($address . '&page=2')));
+    }
+
+    public function testGetLedger_ShowsTheLastPageForAPageBeyondIt(): void
+    {
+        foreach (range(1, 102) as $line) {
+            $this->cashSale('2026-10-05', 1, '1.00');
+        }
+
+        $this->viewer();
+        $cash = $this->accountId('cash');
+
+        foreach (['9', '9223372036854775807', '99999999999999999999'] as $page) {
+            $response = $this->get('/accounting_reports/ledger?account=' . $cash . '&page=' . $page);
+
+            $response->assertStatus(200);
+            $response->assertDontSee('id="ledger_empty"');
+            $response->assertSee('rel="prev"');
+            $this->assertSame([$this->amountOf('101.00'), $this->amountOf('102.00')], $this->balancesOf($response), 'Page ' . $page);
+        }
     }
 
     public function testGetLedger_ShowsAMessageForADayThatIsNotOne(): void
@@ -548,6 +600,8 @@ class AccountingReportsControllerTest extends CIUnitTestCase
         $response->assertStatus(200);
         $response->assertSee('id="report_error"');
         $response->assertSee(lang('Accounting.error_invalid_date'));
+        $response->assertSee('value="2026-02-31"');
+        $response->assertSee('<option value="' . $this->accountId('cash') . '" selected>');
     }
 
     public function testGetLedger_OffersTheAccountOfAPartyOnlyWhenItIsTheOneChosen(): void
@@ -564,5 +618,147 @@ class AccountingReportsControllerTest extends CIUnitTestCase
         $none->assertDontSee('Omar Khaled');
         $chosen->assertSee('Omar Khaled');
         $chosen->assertSee($this->amountOf('250.00'));
+    }
+
+    public function testGetIndex_ReadsAnAddressThatNamesAnOptionMoreThanOnceAsNamingNone(): void
+    {
+        $this->cashSale('2026-10-05', 1, '1111.00');
+        $this->viewer();
+
+        $response = $this->get('/accounting_reports?type[]=movement&from[]=2026-10-01&to[]=2026-10-31&entities[]=1&empty[]=1');
+
+        $response->assertStatus(200);
+        $response->assertDontSee('id="report_error"');
+        $response->assertSee($this->amountOf('1111.00'));
+    }
+
+    public function testGetLedger_ReadsAnAddressThatNamesAnOptionMoreThanOnceAsNamingNone(): void
+    {
+        $this->cashSale('2026-10-05', 1, '1111.00');
+        $this->viewer();
+
+        $response = $this->get('/accounting_reports/ledger?account=' . $this->accountId('cash') . '&from[]=2026-10-01&to[]=2026-10-31&page[]=2&branches[]=1');
+
+        $response->assertStatus(200);
+        $response->assertDontSee('id="report_error"');
+        $this->assertSame([$this->amountOf('1111.00')], $this->balancesOf($response));
+    }
+
+    public function testGetIndex_AddsUpABranchThatWasDeactivatedAndOffersItToBeChosen(): void
+    {
+        $this->threeBranches();
+        $this->accountingDb()->table('branches')->where('branch_id', $this->third)->update(['active' => 0]);
+        $this->viewer();
+
+        $everything = $this->get('/accounting_reports');
+
+        $everything->assertSee($this->amountOf('7777.00'));
+        $everything->assertSee(lang('Accounting_reports.scope_company'));
+        $everything->assertSee('T3 - Third branch (' . lang('Accounting_reports.branch_inactive') . ')');
+
+        $applied = $this->get('/accounting_reports?branches[]=1&branches[]=' . $this->second . '&branches[]=' . $this->third);
+
+        $applied->assertSee($this->amountOf('7777.00'));
+        $applied->assertSee(lang('Accounting_reports.scope_company'));
+    }
+
+    public function testGetIndex_SaysTheTotalIsPartialToWhoWorksInAnActiveAndADeactivatedBranch(): void
+    {
+        $this->threeBranches();
+        $this->accountingDb()->table('branches')->where('branch_id', $this->third)->update(['active' => 0]);
+        $this->viewer([1, $this->third]);
+
+        $response = $this->get('/accounting_reports');
+
+        $response->assertSee(lang('Accounting_reports.scope_partial', [$this->codes($this->branchCode(1), 'T3')]));
+        $response->assertSee('name="branches[]"');
+        $response->assertSee($this->amountOf('5555.00'));
+        $response->assertDontSee($this->amountOf('7777.00'));
+    }
+
+    public function testGetIndex_KeepsNothingToAddUpInTheLinksToStatements(): void
+    {
+        $this->cashSale('2026-10-05', $this->second, '2222.00');
+        $this->cashSale('2026-10-05', 1, '1111.00');
+        $this->viewer([1]);
+
+        $response = $this->get('/accounting_reports?empty=1&branches[]=' . $this->second);
+
+        $response->assertSee('branches%5B0%5D=0');
+
+        $followed = $this->get('/accounting_reports/ledger?account=' . $this->accountId('cash') . '&branches[0]=0');
+
+        $followed->assertSee('id="report_no_branches"');
+        $followed->assertDontSee($this->amountOf('1111.00'));
+        $followed->assertDontSee($this->amountOf('2222.00'));
+    }
+
+    public function testGetIndex_SaysNoWhoseFiguresWhenThereIsNothingToAddUp(): void
+    {
+        $this->viewer([1, $this->second]);
+
+        $response = $this->get('/accounting_reports?branches[]=' . $this->third);
+
+        $response->assertSee('id="report_no_branches"');
+        $response->assertDontSee('id="report_scope"');
+    }
+
+    public function testGetIndex_AddsUpFromTheStartOfTheBooksInTheLayoutsThatIgnoreTheFirstDayAndSaysSo(): void
+    {
+        $this->cashSale('2026-10-05', 1, '1111.00');
+        $this->cashSale('2026-10-20', 1, '500.00');
+        $this->viewer();
+
+        foreach (['balances', 'totals_balances'] as $type) {
+            $response = $this->get('/accounting_reports?type=' . $type . '&from=2026-10-10&to=2026-10-31');
+
+            $response->assertSee('id="report_from_ignored"');
+            $response->assertSee($this->amountOf('1611.00'));
+            $response->assertSee(lang('Accounting_reports.period_to', [to_date(strtotime('2026-10-31'))]));
+        }
+
+        $movement = $this->get('/accounting_reports?type=movement&from=2026-10-10&to=2026-10-31');
+
+        $movement->assertDontSee('id="report_from_ignored"');
+        $movement->assertSee($this->amountOf('1111.00'));
+    }
+
+    public function testGetIndex_SaysThatRevenueAndExpenseAddUpFromTheStartOfTheBooks(): void
+    {
+        $this->viewer();
+
+        $this->get('/accounting_reports')->assertSee('id="report_nominal_note"');
+    }
+
+    public function testGetIndex_SaysThereIsNothingToShowForAPeriodWithNoJournals(): void
+    {
+        $this->cashSale('2026-10-05', 1, '1111.00');
+        $this->viewer();
+
+        $response = $this->get('/accounting_reports?to=2000-01-01');
+
+        $response->assertSee('id="report_empty"');
+        $response->assertDontSee($this->amountOf('1111.00'));
+    }
+
+    public function testGetIndex_OffersTheLayoutsAndKeepsTheOneChosen(): void
+    {
+        $this->viewer();
+
+        $response = $this->get('/accounting_reports?type=movement');
+
+        $response->assertSee('<option value="movement" selected>');
+        $response->assertSee('<option value="balances">');
+    }
+
+    public function testGetLedger_SaysEmptyForAnAccountThatNothingTouchedInThePeriod(): void
+    {
+        $this->cashSale('2026-10-05', 1, '1111.00');
+        $this->viewer();
+
+        $response = $this->get('/accounting_reports/ledger?account=' . $this->accountId('cash') . '&from=2026-10-20&to=2026-10-31');
+
+        $response->assertSee('id="ledger_empty"');
+        $response->assertSee('id="ledger_summary"');
     }
 }

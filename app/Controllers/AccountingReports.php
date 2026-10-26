@@ -5,6 +5,7 @@ namespace App\Controllers;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountLedger;
+use App\Libraries\Accounting\AccountLedgerReport;
 use App\Libraries\Accounting\ReportPeriod;
 use App\Libraries\Accounting\ReportScope;
 use App\Libraries\Accounting\ReportScopeKind;
@@ -21,6 +22,7 @@ use CodeIgniter\Exceptions\PageNotFoundException;
 class AccountingReports extends AccountingController
 {
     private const PAGE_SIZE = 100;
+    private const LAST_PAGE = 1_000_000;
 
     private TrialBalance $trialBalance;
     private AccountLedger $ledger;
@@ -35,40 +37,46 @@ class AccountingReports extends AccountingController
 
     public function getIndex(): string
     {
-        $type      = TrialBalanceType::fromRequest($this->request->getGet('type'));
+        $type      = TrialBalanceType::fromRequest($this->query('type'));
         $scope     = $this->scope();
         $expand    = $this->flag('entities');
         $showEmpty = $this->flag('empty');
         $error     = null;
-        $report    = null;
+        $ignored   = false;
 
         try {
-            $report = $this->trialBalance->build($scope, $this->period(), $expand, $showEmpty);
+            $period  = $this->period();
+            $ignored = $period->from !== null && ! $type->showsOpening();
+            $counted = $type->showsOpening() ? $period : ReportPeriod::of(null, $period->to);
         } catch (AccountingException $refusal) {
-            $error  = $this->messageFor($refusal);
-            $report = $this->trialBalance->build($scope, ReportPeriod::of(null, date('Y-m-d')), $expand, $showEmpty);
+            $error   = $this->messageFor($refusal);
+            $counted = ReportPeriod::of(null, date('Y-m-d'));
         }
 
+        $linkedFrom = $type->showsOpening() ? $this->query('from') : '';
+
         return view('accounting_reports/trial_balance', [
-            'report'      => $report,
-            'type'        => $type,
-            'error'       => $error,
-            'filters'     => $this->filterValues($scope),
-            'expand'      => $expand,
-            'show_empty'  => $showEmpty,
-            'branches'    => $this->branchChoices(),
-            'scope_label' => $this->scopeLabel($scope),
-            'amount'      => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
-            'date'        => fn (string $value): string => $this->formatDate($value),
-            'ledger_url'  => fn (int $accountId): string => $this->ledgerUrl($accountId, $scope),
+            'report'       => $this->trialBalance->build($scope, $counted, $expand, $showEmpty),
+            'type'         => $type,
+            'error'        => $error,
+            'from_ignored' => $ignored,
+            'filters'      => $this->filterValues($scope),
+            'expand'       => $expand,
+            'show_empty'   => $showEmpty,
+            'branches'     => $this->branchChoices($scope),
+            'scope_label'  => $this->scopeLabel($scope),
+            'scope_kind'   => $scope->kind,
+            'amount'       => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
+            'date'         => fn (string $value): string => $this->formatDate($value),
+            'ledger_url'   => fn (int $accountId): string => $this->ledgerUrl($accountId, $scope, $linkedFrom, $this->query('to')),
         ]);
     }
 
     public function getLedger(): string
     {
-        $accountId = (int) $this->request->getGet('account');
+        $accountId = (int) $this->query('account');
         $scope     = $this->scope();
-        $page      = max(1, (int) $this->request->getGet('page'));
+        $page      = min(self::LAST_PAGE, max(1, (int) $this->query('page')));
         $error     = null;
 
         try {
@@ -82,8 +90,21 @@ class AccountingReports extends AccountingController
             return view('accounting_reports/ledger', $this->ledgerData(null, $scope, $period, $page, $error));
         }
 
+        $report = $this->statement($scope, $accountId, $period, $page);
+        $pages  = $this->pagesOf($report);
+
+        if ($page > $pages) {
+            $page   = $pages;
+            $report = $this->statement($scope, $accountId, $period, $page);
+        }
+
+        return view('accounting_reports/ledger', $this->ledgerData($report, $scope, $period, $page, $error));
+    }
+
+    private function statement(ReportScope $scope, int $accountId, ReportPeriod $period, int $page): AccountLedgerReport
+    {
         try {
-            $report = $this->ledger->build($scope, $accountId, $period, self::PAGE_SIZE, ($page - 1) * self::PAGE_SIZE);
+            return $this->ledger->build($scope, $accountId, $period, self::PAGE_SIZE, ($page - 1) * self::PAGE_SIZE);
         } catch (AccountingException $refusal) {
             if ($refusal->error === AccountingError::ReportAccountMissing) {
                 throw PageNotFoundException::forPageNotFound();
@@ -91,35 +112,49 @@ class AccountingReports extends AccountingController
 
             throw $refusal;
         }
+    }
 
-        return view('accounting_reports/ledger', $this->ledgerData($report, $scope, $period, $page, $error));
+    private function pagesOf(AccountLedgerReport $report): int
+    {
+        return max(1, intdiv($report->totalRows + self::PAGE_SIZE - 1, self::PAGE_SIZE));
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function ledgerData(?object $report, ReportScope $scope, ReportPeriod $period, int $page, ?string $error): array
+    private function ledgerData(?AccountLedgerReport $report, ReportScope $scope, ReportPeriod $period, int $page, ?string $error): array
     {
-        $accountId = $report === null ? null : $report->accountId;
+        $accountId = $report?->accountId;
 
         return [
             'report'       => $report,
             'error'        => $error,
             'accounts'     => $this->ledger->pickable($accountId),
             'account_id'   => $accountId,
-            'filters'      => ['from' => $period->from ?? '', 'to' => $period->to, 'branches' => $scope->ids],
-            'branches'     => $this->branchChoices(),
+            'filters'      => $this->filterValues($scope),
+            'branches'     => $this->branchChoices($scope),
             'scope_label'  => $this->scopeLabel($scope),
+            'scope_kind'   => $scope->kind,
             'page'         => $page,
-            'page_size'    => self::PAGE_SIZE,
-            'pages'        => $report === null ? 1 : max(1, (int) ceil($report->totalRows / self::PAGE_SIZE)),
+            'pages'        => $report === null ? 1 : $this->pagesOf($report),
             'journals_url' => $this->can('accounting_journals'),
             'amount'       => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
             'date'         => fn (string $value): string => $this->formatDate($value),
             'source'       => fn (string $type): string => $this->label('source', $type),
             'number'       => fn (?string $series, ?string $number): string => $this->displayNumber($series, $number),
-            'page_url'     => fn (int $target): string => $this->ledgerUrl($accountId ?? 0, $scope, $period, $target),
+            'page_url'     => fn (int $target): string => $this->ledgerUrl($accountId ?? 0, $scope, $period->from ?? '', $period->to, $target),
         ];
+    }
+
+    /**
+     * What the request names, and nothing when it names it more than once or not as text, which
+     * is how a hand-made address gives an array.
+     */
+    private function query(string $name): string
+    {
+        $value = $this->request->getGet($name);
+
+        return is_string($value) ? trim($value) : '';
     }
 
     private function scope(): ReportScope
@@ -134,14 +169,14 @@ class AccountingReports extends AccountingController
      */
     private function period(): ReportPeriod
     {
-        $to = trim((string) $this->request->getGet('to'));
+        $to = $this->query('to');
 
-        return ReportPeriod::of((string) $this->request->getGet('from'), $to === '' ? date('Y-m-d') : $to);
+        return ReportPeriod::of($this->query('from'), $to === '' ? date('Y-m-d') : $to);
     }
 
     private function flag(string $name): bool
     {
-        return (string) $this->request->getGet($name) === '1';
+        return $this->query($name) === '1';
     }
 
     /**
@@ -152,42 +187,42 @@ class AccountingReports extends AccountingController
      */
     private function filterValues(ReportScope $scope): array
     {
-        $to = trim((string) $this->request->getGet('to'));
+        $to = $this->query('to');
 
-        return ['from' => trim((string) $this->request->getGet('from')), 'to' => $to === '' ? date('Y-m-d') : $to, 'branches' => $scope->ids];
+        return ['from' => $this->query('from'), 'to' => $to === '' ? date('Y-m-d') : $to, 'branches' => $scope->ids];
     }
 
     /**
-     * The branches the employee may choose from, none for someone who works in one only.
+     * The branches the employee may choose from, none for someone who reads one only.
      *
      * @return list<object>
      */
-    private function branchChoices(): array
+    private function branchChoices(ReportScope $scope): array
     {
-        return $this->seesBranches() ? $this->branchGuard()->selectableBranches($this->employeeId()) : [];
+        return $scope->choosable() ? $scope->choices : [];
     }
 
     /**
-     * Whose figures the report holds, said only to someone who works in more than one branch.
+     * Whose figures the report holds, said only to someone who reads more than one branch.
      */
     private function scopeLabel(ReportScope $scope): ?string
     {
-        if (! $this->seesBranches()) {
+        if (! $scope->choosable() || $scope->isEmpty()) {
             return null;
         }
 
+        $codes = implode(lang('Accounting_reports.branch_separator'), $scope->codes);
+
         return match ($scope->kind) {
             ReportScopeKind::Company  => lang('Accounting_reports.scope_company'),
-            ReportScopeKind::Partial  => lang('Accounting_reports.scope_partial', [implode('، ', $scope->codes)]),
-            ReportScopeKind::Selected => lang('Accounting_reports.scope_selected', [implode('، ', $scope->codes)]),
+            ReportScopeKind::Partial  => lang('Accounting_reports.scope_partial', [$codes]),
+            ReportScopeKind::Selected => lang('Accounting_reports.scope_selected', [$codes]),
         };
     }
 
-    private function ledgerUrl(int $accountId, ReportScope $scope, ?ReportPeriod $period = null, int $page = 1): string
+    private function ledgerUrl(int $accountId, ReportScope $scope, string $from, string $to, int $page = 1): string
     {
         $query = ['account' => $accountId];
-        $from  = $period === null ? trim((string) $this->request->getGet('from')) : ($period->from ?? '');
-        $to    = $period === null ? trim((string) $this->request->getGet('to')) : $period->to;
 
         if ($from !== '') {
             $query['from'] = $from;
@@ -198,7 +233,7 @@ class AccountingReports extends AccountingController
         }
 
         if ($this->request->getGet('branches') !== null) {
-            $query['branches'] = $scope->ids;
+            $query['branches'] = $scope->isEmpty() ? [0] : $scope->ids;
         }
 
         if ($page > 1) {

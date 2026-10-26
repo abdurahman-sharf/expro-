@@ -209,6 +209,49 @@ class InterBranchPositionTest extends CIUnitTestCase
         $this->assertSame('50.0000', $this->position->difference());
     }
 
+    public function testDifference_CountsOnlyWhatWasPostedByTheLastDayAsked(): void
+    {
+        foreach (['2026-10-21' => '50.00', '2026-11-15' => '20.00'] as $date => $amount) {
+            (new PostingService())->post(new JournalDraft(
+                date: $date,
+                lines: [new JournalLineDraft($this->accountId('branches_receivable'), debit: $amount), new JournalLineDraft($this->accountId('opening_balance'), credit: $amount)],
+                sourceType: 'opening',
+                sourceId: random_int(1000, 9999),
+                currencyCode: 'SAR',
+            ));
+        }
+
+        $this->assertSame('0.0000', $this->position->difference('2026-10-20'));
+        $this->assertSame('50.0000', $this->position->difference('2026-10-21'));
+        $this->assertSame('50.0000', $this->position->difference('2026-11-14'));
+        $this->assertSame('70.0000', $this->position->difference('2026-11-15'));
+        $this->assertSame('70.0000', $this->position->difference());
+    }
+
+    public function testDifference_IgnoresTheJournalsOfAnotherCompany(): void
+    {
+        $db = $this->accountingDb();
+
+        $db->table('companies')->insert(['name' => 'Another company']);
+        $other = (int) $db->insertID();
+
+        try {
+            (new PostingService())->post(new JournalDraft(
+                date: '2026-10-21',
+                lines: [new JournalLineDraft($this->accountId('branches_receivable'), debit: '50.00'), new JournalLineDraft($this->accountId('opening_balance'), credit: '50.00')],
+                sourceType: 'opening',
+                sourceId: random_int(1000, 9999),
+                currencyCode: 'SAR',
+            ));
+            $db->table('accounting_journals')->update(['company_id' => $other]);
+
+            $this->assertSame('0.0000', $this->position->difference());
+        } finally {
+            $db->table('accounting_journals')->update(['company_id' => 1]);
+            $db->table('companies')->where('company_id', $other)->delete();
+        }
+    }
+
     public function testPosition_IsNothingWhenTheRoutingNamesNoAccountsBetweenBranches(): void
     {
         $this->accountingDb()->table('accounting_routing')->whereIn('routing_key', ['branches.receivable', 'branches.payable'])->update(['account_id' => null]);

@@ -3,16 +3,19 @@
  * @var TrialBalanceReport                                   $report
  * @var TrialBalanceType                                     $type
  * @var string|null                                          $error
+ * @var bool                                                 $from_ignored
  * @var array{from: string, to: string, branches: list<int>} $filters
  * @var bool                                                 $expand
  * @var bool                                                 $show_empty
  * @var list<object>                                         $branches
  * @var string|null                                          $scope_label
+ * @var ReportScopeKind                                      $scope_kind
  * @var Closure                                              $amount
  * @var Closure                                              $date
  * @var Closure                                              $ledger_url
  */
 
+use App\Libraries\Accounting\ReportScopeKind;
 use App\Libraries\Accounting\TrialBalanceReport;
 use App\Libraries\Accounting\TrialBalanceRow;
 use App\Libraries\Accounting\TrialBalanceType;
@@ -59,7 +62,7 @@ $span = $type->showsOpening() ? 8 : ($type->showsMovement() ? 6 : 4);
             <fieldset class="acc-filter acc-filter-status" id="f_branches">
                 <legend class="form-label"><?= lang('Accounting_reports.branches') ?></legend>
                 <?php foreach ($branches as $branch): ?>
-                    <label class="choice"><input type="checkbox" class="form-check-input" name="branches[]" value="<?= (int) $branch->branch_id ?>"<?= in_array((int) $branch->branch_id, $filters['branches'], true) ? ' checked' : '' ?>> <?= esc($branch->code . ' - ' . $branch->name) ?></label>
+                    <label class="choice"><input type="checkbox" class="form-check-input" name="branches[]" value="<?= (int) $branch->branch_id ?>"<?= in_array((int) $branch->branch_id, $filters['branches'], true) ? ' checked' : '' ?>> <?= esc($branch->code . ' - ' . $branch->name) ?><?= $branch->active ? '' : ' (' . esc(lang('Accounting_reports.branch_inactive')) . ')' ?></label>
                 <?php endforeach; ?>
             </fieldset>
         <?php endif; ?>
@@ -87,7 +90,15 @@ $span = $type->showsOpening() ? 8 : ($type->showsMovement() ? 6 : 4);
     <?php endif; ?>
 
     <?php if ($scope_label !== null): ?>
-        <p class="mb-2"><span class="badge text-bg-info" id="report_scope"><?= esc($scope_label) ?></span></p>
+        <?php if ($scope_kind === ReportScopeKind::Partial): ?>
+            <p class="alert alert-warning" id="report_scope" role="note"><?= esc($scope_label) ?></p>
+        <?php else: ?>
+            <p class="acc-scope-note text-secondary small" id="report_scope" role="note"><span class="bi bi-info-circle" aria-hidden="true"></span> <?= esc($scope_label) ?></p>
+        <?php endif; ?>
+    <?php endif; ?>
+
+    <?php if ($from_ignored): ?>
+        <p class="small text-body-secondary" id="report_from_ignored" role="note"><?= lang('Accounting_reports.from_ignored') ?></p>
     <?php endif; ?>
 
     <?php if ($report->scope->isEmpty()): ?>
@@ -109,15 +120,15 @@ $span = $type->showsOpening() ? 8 : ($type->showsMovement() ? 6 : 4);
                     <th scope="col"><?= lang('Accounting_reports.code') ?></th>
                     <th scope="col"><?= lang('Accounting_reports.account') ?></th>
                     <?php if ($type->showsOpening()): ?>
-                        <th scope="col"><?= lang('Accounting_reports.opening_debit') ?></th>
-                        <th scope="col"><?= lang('Accounting_reports.opening_credit') ?></th>
+                        <th scope="col" class="text-end"><?= lang('Accounting_reports.opening_debit') ?></th>
+                        <th scope="col" class="text-end"><?= lang('Accounting_reports.opening_credit') ?></th>
                     <?php endif; ?>
                     <?php if ($type->showsMovement()): ?>
-                        <th scope="col"><?= lang('Accounting_reports.period_debit') ?></th>
-                        <th scope="col"><?= lang('Accounting_reports.period_credit') ?></th>
+                        <th scope="col" class="text-end"><?= lang('Accounting_reports.period_debit') ?></th>
+                        <th scope="col" class="text-end"><?= lang('Accounting_reports.period_credit') ?></th>
                     <?php endif; ?>
-                    <th scope="col"><?= lang('Accounting_reports.closing_debit') ?></th>
-                    <th scope="col"><?= lang('Accounting_reports.closing_credit') ?></th>
+                    <th scope="col" class="text-end"><?= lang('Accounting_reports.closing_debit') ?></th>
+                    <th scope="col" class="text-end"><?= lang('Accounting_reports.closing_credit') ?></th>
                 </tr>
             </thead>
             <tbody>
@@ -133,15 +144,15 @@ $span = $type->showsOpening() ? 8 : ($type->showsMovement() ? 6 : 4);
                         <td><bdi dir="ltr"><?= esc($row->code) ?></bdi></td>
                         <td><span class="acc-depth acc-depth-<?= min(6, max(0, $row->depth)) ?>"><a href="<?= esc($ledger_url($row->accountId), 'attr') ?>"><?= esc($row->name) ?></a></span></td>
                         <?php if ($type->showsOpening()): ?>
-                            <td><?= $side($openingDebit, $amount) ?></td>
-                            <td><?= $side($openingCredit, $amount) ?></td>
+                            <td class="text-end"><?= $side($openingDebit, $amount) ?></td>
+                            <td class="text-end"><?= $side($openingCredit, $amount) ?></td>
                         <?php endif; ?>
                         <?php if ($type->showsMovement()): ?>
-                            <td><?= $side($row->debit, $amount) ?></td>
-                            <td><?= $side($row->credit, $amount) ?></td>
+                            <td class="text-end"><?= $side($row->debit, $amount) ?></td>
+                            <td class="text-end"><?= $side($row->credit, $amount) ?></td>
                         <?php endif; ?>
-                        <td><?= $side($closingDebit, $amount) ?></td>
-                        <td><?= $side($closingCredit, $amount) ?></td>
+                        <td class="text-end"><?= $side($closingDebit, $amount) ?></td>
+                        <td class="text-end"><?= $side($closingCredit, $amount) ?></td>
                     </tr>
                 <?php endforeach; ?>
             </tbody>
@@ -149,19 +160,21 @@ $span = $type->showsOpening() ? 8 : ($type->showsMovement() ? 6 : 4);
                 <tr class="fw-bold" id="trial_balance_totals">
                     <th scope="row" colspan="2"><?= lang('Accounting_reports.totals') ?></th>
                     <?php if ($type->showsOpening()): ?>
-                        <td><?= $amount($report->totals['opening_debit']) ?></td>
-                        <td><?= $amount($report->totals['opening_credit']) ?></td>
+                        <td class="text-end"><?= $amount($report->totals['opening_debit']) ?></td>
+                        <td class="text-end"><?= $amount($report->totals['opening_credit']) ?></td>
                     <?php endif; ?>
                     <?php if ($type->showsMovement()): ?>
-                        <td><?= $amount($report->totals['debit']) ?></td>
-                        <td><?= $amount($report->totals['credit']) ?></td>
+                        <td class="text-end"><?= $amount($report->totals['debit']) ?></td>
+                        <td class="text-end"><?= $amount($report->totals['credit']) ?></td>
                     <?php endif; ?>
-                    <td><?= $amount($report->totals['closing_debit']) ?></td>
-                    <td><?= $amount($report->totals['closing_credit']) ?></td>
+                    <td class="text-end"><?= $amount($report->totals['closing_debit']) ?></td>
+                    <td class="text-end"><?= $amount($report->totals['closing_credit']) ?></td>
                 </tr>
             </tfoot>
         </table>
     </div>
+
+    <p class="small text-body-secondary" id="report_nominal_note"><?= lang('Accounting_reports.nominal_note') ?></p>
 
     <?php if ($report->balances()): ?>
         <p class="text-success" id="report_balanced"><span class="bi bi-check-circle" aria-hidden="true">&nbsp;</span><?= lang('Accounting_reports.balanced') ?></p>

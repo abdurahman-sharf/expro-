@@ -38,16 +38,16 @@ class ReportPeriodTest extends TestCase
     public static function invalidDays(): array
     {
         return [
-            'text'            => [null, 'yesterday'],
-            'a day that is not'    => [null, '2026-02-30'],
-            'the wrong order'      => [null, '31/10/2026'],
-            'a bad first day'      => ['2026-13-01', '2026-10-31'],
-            'empty last day'       => [null, ''],
+            'text'              => [null, 'yesterday'],
+            'a day that is not' => [null, '2026-02-30'],
+            'the wrong format'  => [null, '31/10/2026'],
+            'a bad first day'   => ['2026-13-01', '2026-10-31'],
+            'empty last day'    => [null, ''],
         ];
     }
 
     #[DataProvider('invalidDays')]
-    public function testOf_RefusesADayThatIsNotOne(?string $from, string $to): void
+    public function testOf_RejectsADayThatIsNotOne(?string $from, string $to): void
     {
         $this->expectException(AccountingException::class);
 
@@ -60,7 +60,7 @@ class ReportPeriodTest extends TestCase
         }
     }
 
-    public function testOf_RefusesAPeriodThatEndsBeforeItStarts(): void
+    public function testOf_RejectsAPeriodThatEndsBeforeItStarts(): void
     {
         try {
             ReportPeriod::of('2026-11-01', '2026-10-31');

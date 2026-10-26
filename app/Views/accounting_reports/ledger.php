@@ -7,8 +7,8 @@
  * @var array{from: string, to: string, branches: list<int>} $filters
  * @var list<object>                                         $branches
  * @var string|null                                          $scope_label
+ * @var ReportScopeKind                                      $scope_kind
  * @var int                                                  $page
- * @var int                                                  $page_size
  * @var int                                                  $pages
  * @var bool                                                 $journals_url
  * @var Closure                                              $amount
@@ -19,6 +19,7 @@
  */
 
 use App\Libraries\Accounting\AccountLedgerReport;
+use App\Libraries\Accounting\ReportScopeKind;
 
 $kind = static function (array $row) use ($source): string {
     $label = $source((string) $row['source_type']);
@@ -71,7 +72,7 @@ $side = static fn (string $value, Closure $amount): string => bccomp($value, '0'
             <fieldset class="acc-filter acc-filter-status" id="f_branches">
                 <legend class="form-label"><?= lang('Accounting_reports.branches') ?></legend>
                 <?php foreach ($branches as $branch): ?>
-                    <label class="choice"><input type="checkbox" class="form-check-input" name="branches[]" value="<?= (int) $branch->branch_id ?>"<?= in_array((int) $branch->branch_id, $filters['branches'], true) ? ' checked' : '' ?>> <?= esc($branch->code . ' - ' . $branch->name) ?></label>
+                    <label class="choice"><input type="checkbox" class="form-check-input" name="branches[]" value="<?= (int) $branch->branch_id ?>"<?= in_array((int) $branch->branch_id, $filters['branches'], true) ? ' checked' : '' ?>> <?= esc($branch->code . ' - ' . $branch->name) ?><?= $branch->active ? '' : ' (' . esc(lang('Accounting_reports.branch_inactive')) . ')' ?></label>
                 <?php endforeach; ?>
             </fieldset>
         <?php endif; ?>
@@ -102,7 +103,11 @@ $side = static fn (string $value, Closure $amount): string => bccomp($value, '0'
         </p>
 
         <?php if ($scope_label !== null): ?>
-            <p class="mb-2"><span class="badge text-bg-info" id="report_scope"><?= esc($scope_label) ?></span></p>
+            <?php if ($scope_kind === ReportScopeKind::Partial): ?>
+                <p class="alert alert-warning" id="report_scope" role="note"><?= esc($scope_label) ?></p>
+            <?php else: ?>
+                <p class="acc-scope-note text-secondary small" id="report_scope" role="note"><span class="bi bi-info-circle" aria-hidden="true"></span> <?= esc($scope_label) ?></p>
+            <?php endif; ?>
         <?php endif; ?>
 
         <?php if ($report->scope->isEmpty()): ?>
@@ -141,9 +146,9 @@ $side = static fn (string $value, Closure $amount): string => bccomp($value, '0'
                             <?php if ($branches !== []): ?>
                                 <th scope="col"><?= lang('Accounting_reports.ledger_branch') ?></th>
                             <?php endif; ?>
-                            <th scope="col"><?= lang('Accounting_reports.debit') ?></th>
-                            <th scope="col"><?= lang('Accounting_reports.credit') ?></th>
-                            <th scope="col"><?= lang('Accounting_reports.ledger_balance') ?></th>
+                            <th scope="col" class="text-end"><?= lang('Accounting_reports.debit') ?></th>
+                            <th scope="col" class="text-end"><?= lang('Accounting_reports.credit') ?></th>
+                            <th scope="col" class="text-end"><?= lang('Accounting_reports.ledger_balance') ?></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -159,9 +164,9 @@ $side = static fn (string $value, Closure $amount): string => bccomp($value, '0'
                                 <?php if ($branches !== []): ?>
                                     <td><?= esc($row['branch_code']) ?></td>
                                 <?php endif; ?>
-                                <td><?= $side($row['debit'], $amount) ?></td>
-                                <td><?= $side($row['credit'], $amount) ?></td>
-                                <td><?= $amount($row['balance']) ?></td>
+                                <td class="text-end"><?= $side($row['debit'], $amount) ?></td>
+                                <td class="text-end"><?= $side($row['credit'], $amount) ?></td>
+                                <td class="text-end"><?= $amount($row['balance']) ?></td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>

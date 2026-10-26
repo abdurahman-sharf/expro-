@@ -34,8 +34,8 @@ final class TrialBalance
      */
     public function build(ReportScope $scope, ReportPeriod $period, bool $expandEntities = false, bool $showEmpty = false): TrialBalanceReport
     {
-        $accounts = $this->accounts();
         $amounts  = $scope->isEmpty() ? [] : $this->amounts($scope, $period);
+        $accounts = $this->accounts();
         $totals   = $this->rollUp($accounts, $amounts);
         $shown    = $this->shown($accounts, $amounts, $expandEntities, $showEmpty);
 
@@ -45,7 +45,7 @@ final class TrialBalance
             $scope,
             $period->from,
             $period->to,
-            $scope->isCompany() ? (new InterBranchPosition($this->db))->difference() : null,
+            $scope->isCompany() ? (new InterBranchPosition($this->db))->difference($period->to) : null,
         );
     }
 
@@ -155,7 +155,9 @@ final class TrialBalance
     }
 
     /**
-     * The accounts that have a row.
+     * The accounts that have a row. The account of a customer, a supplier, a location or a treasury
+     * has one only when it holds something in the branches of the report, so asking for the empty
+     * accounts never lists the parties of other branches.
      *
      * @param array<int, object>                                                $accounts
      * @param array<int, array{opening: string, debit: string, credit: string}> $amounts
@@ -178,7 +180,11 @@ final class TrialBalance
         $shown = [];
 
         foreach ($accounts as $accountId => $account) {
-            if (! $expandEntities && $account->entity_type !== null) {
+            if ($account->entity_type !== null) {
+                if ($expandEntities && isset($touched[$accountId])) {
+                    $shown[$accountId] = true;
+                }
+
                 continue;
             }
 
@@ -201,7 +207,7 @@ final class TrialBalance
     {
         $rows = [];
 
-        foreach (array_keys($shown) as $accountId) {
+        foreach ($this->inTreeOrder($accounts, $shown) as $accountId) {
             $account = $accounts[$accountId];
 
             $rows[] = new TrialBalanceRow(
@@ -222,6 +228,55 @@ final class TrialBalance
     }
 
     /**
+     * The accounts that have a row, each followed by the accounts under it, those of one parent in
+     * the order of their codes. A code does not always sort beside its parent's, so the order of
+     * the codes alone would draw an account under another account's rows.
+     *
+     * @param array<int, object> $accounts In the order of their codes.
+     * @param array<int, true>   $shown
+     *
+     * @return list<int>
+     */
+    private function inTreeOrder(array $accounts, array $shown): array
+    {
+        $children = [];
+
+        foreach (array_keys($accounts) as $accountId) {
+            $children[$this->parentOf($accounts, $accountId) ?? 0][] = $accountId;
+        }
+
+        $ordered = [];
+        $seen    = [];
+        $stack   = array_reverse($children[0] ?? []);
+
+        while ($stack !== []) {
+            $accountId = array_pop($stack);
+
+            if (isset($seen[$accountId])) {
+                continue;
+            }
+
+            $seen[$accountId] = true;
+
+            if (isset($shown[$accountId])) {
+                $ordered[] = $accountId;
+            }
+
+            foreach (array_reverse($children[$accountId] ?? []) as $childId) {
+                $stack[] = $childId;
+            }
+        }
+
+        foreach (array_keys($shown) as $accountId) {
+            if (! isset($seen[$accountId])) {
+                $ordered[] = $accountId;
+            }
+        }
+
+        return $ordered;
+    }
+
+    /**
      * How many of the accounts above this one have a row.
      *
      * @param array<int, object> $accounts
@@ -231,8 +286,10 @@ final class TrialBalance
     {
         $depth    = 0;
         $parentId = $this->parentOf($accounts, $accountId);
+        $seen     = [$accountId => true];
 
-        while ($parentId !== null) {
+        while ($parentId !== null && ! isset($seen[$parentId])) {
+            $seen[$parentId] = true;
             $depth += isset($shown[$parentId]) ? 1 : 0;
             $parentId = $this->parentOf($accounts, $parentId);
         }

@@ -113,4 +113,34 @@ class ReportScopeTest extends CIUnitTestCase
 
         $this->assertSame([$this->second], $scope->ids);
     }
+
+    public function testResolve_OffersEveryBranchTheEmployeeReadsADeactivatedOneIncluded(): void
+    {
+        $this->accountingDb()->table('branches')->where('branch_id', $this->third)->update(['active' => 0]);
+
+        $scope = ReportScope::resolve(null, null);
+
+        $this->assertSame([1, $this->second, $this->third], $scope->ids);
+        $this->assertSame(ReportScopeKind::Company, $scope->kind);
+        $this->assertSame([1, $this->second, $this->third], array_map(static fn (object $branch): int => $branch->branch_id, $scope->choices));
+        $this->assertSame([true, true, false], array_map(static fn (object $branch): bool => $branch->active, $scope->choices));
+    }
+
+    public function testResolve_OffersOnlyTheBranchesTheEmployeeWorksIn(): void
+    {
+        $scope = ReportScope::resolve(null, [1, $this->third]);
+
+        $this->assertSame([1, $this->third], array_map(static fn (object $branch): int => $branch->branch_id, $scope->choices));
+        $this->assertSame('S3', $scope->choices[1]->code);
+        $this->assertSame('Third branch', $scope->choices[1]->name);
+    }
+
+    public function testChoosable_IsTrueOnlyForWhoReadsMoreThanOneBranchEvenIfOneWasDeactivated(): void
+    {
+        $this->accountingDb()->table('branches')->where('branch_id', $this->third)->update(['active' => 0]);
+
+        $this->assertTrue(ReportScope::resolve(null, [1, $this->third])->choosable());
+        $this->assertFalse(ReportScope::resolve(null, [1])->choosable());
+        $this->assertTrue(ReportScope::resolve(null, null)->choosable());
+    }
 }

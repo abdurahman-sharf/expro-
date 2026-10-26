@@ -6,6 +6,7 @@ use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountLedger;
 use App\Libraries\Accounting\AccountLedgerReport;
+use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\NormalBalance;
 use App\Libraries\Accounting\ReportPeriod;
 use App\Libraries\Accounting\ReportScope;
@@ -129,6 +130,28 @@ class AccountLedgerTest extends CIUnitTestCase
         $this->assertSame(['2026-10-01 100.0000 0.0000 110.0000'], $this->lines($report));
     }
 
+    public function testBuild_CountsTheLastDayInThePeriodAndNotWhatCameAfter(): void
+    {
+        $this->cashSale('2026-10-31', 1, '100.00');
+        $this->cashSale('2026-11-01', 1, '1000.00');
+
+        $report = $this->statement('cash', '2026-10-31');
+
+        $this->assertSame(['2026-10-31 100.0000 0.0000 100.0000'], $this->lines($report));
+        $this->assertSame('100.0000', $report->closing);
+    }
+
+    public function testBuild_LeavesOutADraftThatWasNeverPosted(): void
+    {
+        $this->cashSale('2026-10-05', 1, '100.00');
+        (new JournalService())->saveDraft($this->journalInput('500.00'), null);
+
+        $report = $this->statement('cash');
+
+        $this->assertSame(['2026-10-05 100.0000 0.0000 100.0000'], $this->lines($report));
+        $this->assertSame(1, $report->totalRows);
+    }
+
     public function testBuild_StartsFromWhereTheAccountStoodInTheDirectionItNormallyHolds(): void
     {
         $this->cashSale('2026-09-30', 1, '60.00');
@@ -234,7 +257,7 @@ class AccountLedgerTest extends CIUnitTestCase
         $this->assertSame(['The journal says'], array_column($this->statement('cash')->rows, 'description'));
     }
 
-    public function testBuild_RefusesAnAccountThatIsNotInTheChart(): void
+    public function testBuild_RejectsAnAccountThatIsNotInTheChart(): void
     {
         try {
             $this->ledger->build(ReportScope::resolve(null, null), 987654, ReportPeriod::of(null, '2026-12-31'));

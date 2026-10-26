@@ -404,6 +404,58 @@ class TrialBalanceTest extends CIUnitTestCase
         $this->assertTrue($report->balances());
     }
 
+    public function testBuild_DrawsEachAccountUnderItsParentWhateverItsCodeSortsBeside(): void
+    {
+        $this->postOn('2026-10-05', 1, [[$this->accountId('tax_input'), '50.00', '0'], [$this->accountId('branches_payable'), '0', '50.00']]);
+
+        $codes   = $this->codes($this->build());
+        $payable = $this->codeOf($this->accountId('branches_payable'));
+        $tax     = $this->codeOf($this->accountId('tax_input'));
+
+        $this->assertSame(['211', $payable, '215', $tax], array_slice($codes, array_search('211', $codes, true), 4), 'Under 211 come its own accounts and then the accounts of 215, not the accounts that sort between them');
+    }
+
+    public function testBuild_ListsAnAccountOfAPartyOnlyWhenItHoldsSomethingInTheBranchesOfTheReport(): void
+    {
+        $customer = $this->insertCustomer();
+        $entity   = (new EntityAccountService())->ensure(EntityAccountService::CUSTOMER, $customer, 'Omar Khaled');
+        $other    = (new EntityAccountService())->ensure(EntityAccountService::CUSTOMER, $this->insertCustomer('Hind', 'Saad'), 'Hind Saad');
+
+        $this->postOn('2026-10-05', $this->second, [[$entity, '250.00', '0'], [$this->accountId('sales_revenue'), '0', '250.00']]);
+
+        $inFirst  = $this->build(scope: ReportScope::resolve([1], null), expand: true, showEmpty: true);
+        $inSecond = $this->build(scope: ReportScope::resolve([$this->second], null), expand: true, showEmpty: true);
+
+        $this->assertNull($this->row($inFirst, $this->codeOf($entity)), 'A party that holds nothing in the branch is not named');
+        $this->assertNull($this->row($inFirst, $this->codeOf($other)));
+        $this->assertNotNull($this->row($inSecond, $this->codeOf($entity)));
+        $this->assertNull($this->row($inSecond, $this->codeOf($other)));
+    }
+
+    public function testBuild_FinishesWhenTheAccountsOfTheChartAreEachOtherParents(): void
+    {
+        $cash  = $this->accountId('cash');
+        $sales = $this->accountId('sales_revenue');
+
+        $this->postOn('2026-10-05', 1, [[$cash, '100.00', '0'], [$sales, '0', '100.00']]);
+
+        $this->accountingDb()->table('accounting_accounts')->where('account_id', $cash)->update(['parent_id' => $sales]);
+        $this->accountingDb()->table('accounting_accounts')->where('account_id', $sales)->update(['parent_id' => $cash]);
+
+        $report = $this->build();
+
+        $this->assertNotNull($this->row($report, $this->codeOf($cash)));
+        $this->assertNotNull($this->row($report, $this->codeOf($sales)));
+    }
+
+    public function testBuild_SaysWhatIsLeftBetweenTheBranchesAsOfTheLastDayOfTheReport(): void
+    {
+        $this->postOn('2026-11-15', 1, [[$this->accountId('branches_receivable'), '50.00', '0'], [$this->accountId('cash'), '0', '50.00']]);
+
+        $this->assertSame('0.0000', $this->build('2026-10-31')->interBranchDifference);
+        $this->assertSame('50.0000', $this->build('2026-11-15')->interBranchDifference);
+    }
+
     // ---------------------------------------------------------------------------------------
     // The trial balance and the books of the documents: what it holds is what they say
     // ---------------------------------------------------------------------------------------

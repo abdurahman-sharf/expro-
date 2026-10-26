@@ -67,12 +67,14 @@ final class InterBranchPosition
     /**
      * What the branches are owed less what they owe, across the company: nothing, unless a
      * journal of the one account has no counterpart in the other.
+     *
+     * @param string|null $asOf The last day counted, none for everything in the books.
      */
-    public function difference(): string
+    public function difference(?string $asOf = null): string
     {
         [$receivable, $payable] = $this->accounts();
-        $owed                   = $this->net($receivable, null);
-        $owing                  = bcsub('0', $this->net($payable, null), SaleAmounts::SCALE);
+        $owed                   = $this->net($receivable, null, $asOf);
+        $owing                  = bcsub('0', $this->net($payable, null, $asOf), SaleAmounts::SCALE);
 
         return bcsub($owed, $owing, SaleAmounts::SCALE);
     }
@@ -107,7 +109,7 @@ final class InterBranchPosition
             $ids[] = $routed;
         }
 
-        $system = $this->db->table('accounting_accounts')->select('account_id')->where('system_key', (string) $key->defaultSystemKey())->get()->getRow();
+        $system = $this->db->table('accounting_accounts')->select('account_id')->where('company_id', CompanyContext::id())->where('system_key', (string) $key->defaultSystemKey())->get()->getRow();
 
         if ($system !== null) {
             $ids[] = (int) $system->account_id;
@@ -118,6 +120,7 @@ final class InterBranchPosition
             ->distinct()
             ->join('accounting_journals j', 'j.journal_id = l.journal_id')
             ->join('accounting_accounts a', 'a.account_id = l.account_id')
+            ->where('j.company_id', CompanyContext::id())
             ->whereIn('j.source_type', $legSources)
             ->where('a.entity_type IS NULL', null, false)
             ->get()
@@ -133,7 +136,7 @@ final class InterBranchPosition
     /**
      * @param list<int> $accountIds
      */
-    private function net(array $accountIds, ?int $branchId): string
+    private function net(array $accountIds, ?int $branchId, ?string $asOf = null): string
     {
         if ($accountIds === []) {
             return '0.0000';
@@ -142,11 +145,16 @@ final class InterBranchPosition
         $builder = $this->db->table('accounting_journal_lines l')
             ->select('COALESCE(SUM(l.debit), 0) - COALESCE(SUM(l.credit), 0) AS balance', false)
             ->join('accounting_journals j', 'j.journal_id = l.journal_id')
+            ->where('j.company_id', CompanyContext::id())
             ->whereIn('l.account_id', $accountIds)
             ->whereIn('j.status', [JournalStatus::Posted->value, JournalStatus::Reversed->value]);
 
         if ($branchId !== null) {
             $builder->where('j.branch_id', $branchId);
+        }
+
+        if ($asOf !== null) {
+            $builder->where('j.journal_date <=', $asOf);
         }
 
         return bcadd((string) $builder->get()->getRow()->balance, '0', SaleAmounts::SCALE);
