@@ -1872,6 +1872,20 @@ class ItemsControllerTest extends CIUnitTestCase
         $this->assertSame([], $this->adjustmentJournals());
     }
 
+    public function testPostDelete_RefusesAnItemWithStockInABranchTheEmployeeDoesNotWorkInWhileAccountingIsOff(): void
+    {
+        ['item' => $itemId, 'store' => $store] = $this->itemWithAStoreInAnotherBranch();
+        $this->assertTrue($this->item_quantity->changeQuantity($itemId, $store, 4.0));
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $result = json_decode($this->post('/items/delete', ['ids' => [(string) $itemId]])->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(0, (int) $this->item->get_info($itemId)->deleted);
+        $this->assertSame('10.000', $this->onHand($itemId));
+        $this->assertSame('4.000', $this->onHand($itemId, $store));
+    }
+
     public function testPostDelete_DeletesAnItemWhoseStockIsAllInTheBranchesOfTheEmployeeAndPostsInThem(): void
     {
         $this->itemWithAStoreInAnotherBranch();
