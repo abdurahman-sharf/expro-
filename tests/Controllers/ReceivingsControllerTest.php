@@ -2,7 +2,6 @@
 
 namespace Tests\Controllers;
 
-use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Organization\BranchGuard;
 use CodeIgniter\Exceptions\PageNotFoundException;
@@ -114,7 +113,7 @@ class ReceivingsControllerTest extends CIUnitTestCase
 
     private function anotherBranch(): int
     {
-        return $this->createBranch('R' . random_int(100, 999), 'Receiving branch');
+        return $this->createBranch('R' . substr(md5(uniqid('', true)), 0, 10), 'Receiving branch');
     }
 
     /**
@@ -496,6 +495,50 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $response->assertSee('id="between_branches_note"');
     }
 
+    public function testGetIndex_SaysTheSameOfARequisitionBetweenBranchesWithAccountingOffWithoutPromisingJournals(): void
+    {
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $buyerId = $this->buyer();
+        $other   = $this->depotIn($this->anotherBranch(), $buyerId);
+
+        $this->loginAs($buyerId, ['recv_mode' => 'requisition', 'recv_stock_source' => self::LOCATION_ID, 'recv_stock_destination' => $other]);
+
+        $response = $this->get('/receivings');
+
+        $response->assertSee('id="between_branches_note"');
+        $this->assertStringContainsString('with accounting on', lang('Receivings.between_branches'));
+    }
+
+    public function testPostRequisitionComplete_StartsAgainFromWhatWasEnteredAfterARefusal(): void
+    {
+        $buyerId = $this->buyer();
+        ['item' => $itemId, 'other' => $other] = $this->transferSetup($buyerId);
+        $before = $this->countRows('receivings');
+
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'branches.payable')->update(['account_id' => null]);
+        $this->loginAs($buyerId, $this->cart([$this->cartLine($itemId, 1, '4', '0')], 'requisition', null) + ['recv_stock_destination' => $other]);
+
+        $this->post('/receivings/requisitionComplete', $this->completeForm())->assertSee(lang('Accounting.posting_inter_branch_accounts_missing'));
+
+        $refused = session()->get('recv_cart');
+
+        $this->assertSame($before, $this->countRows('receivings'));
+        $this->assertSame(['4.000', '-4.000'], array_values(array_map(static fn (array $item): string => bcadd((string) $item['quantity'], '0', 3), $refused)), 'The refused cart shows what goes in and what comes out');
+
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'branches.payable')->update(['account_id' => $this->accountId('branches_payable')]);
+        $this->loginAs($buyerId, ['recv_cart' => $refused, 'recv_mode' => 'requisition', 'recv_stock_source' => self::LOCATION_ID, 'recv_stock_destination' => $other]);
+
+        $this->post('/receivings/requisitionComplete', $this->completeForm())->assertSee('RECV ');
+
+        $receiving = $this->newestReceiving();
+
+        $this->assertSame('requisition', $receiving->receiving_type);
+        $this->assertSame($before + 1, $this->countRows('receivings'));
+        $this->assertSame('6.000', $this->onHand($itemId));
+        $this->assertSame('4.000', $this->onHand($itemId, $other));
+    }
+
     public function testGetIndex_SaysNothingOfBranchesForARequisitionWithinOneBranch(): void
     {
         $buyerId = $this->buyer();
@@ -589,11 +632,20 @@ class ReceivingsControllerTest extends CIUnitTestCase
     {
         ['receiving' => $receivingId, 'branch' => $branchId] = $this->transferInTheBooks();
 
-        $this->loginAs($this->buyer([$branchId]));
+        foreach ([[1], [$branchId]] as $works) {
+            $this->loginAs($this->buyer($works));
 
-        $this->expectException(PageNotFoundException::class);
+            try {
+                $this->get('/receivings/edit/' . $receivingId);
+                $this->fail('The edit form of a transfer was shown to an employee of only one of its branches.');
+            } catch (PageNotFoundException) {
+                $this->addToAssertionCount(1);
+            }
+        }
 
-        $this->get('/receivings/edit/' . $receivingId);
+        $this->loginAs($this->buyer());
+
+        $this->get('/receivings/edit/' . $receivingId)->assertStatus(200);
     }
 
     public function testPostSave_RefusesATransferBetweenBranchesToAnEmployeeOfOnlyOneOfThem(): void
@@ -640,15 +692,6 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $this->assertSame([], $this->standingPurchase($receivingId, 'stock_transfer_receipt'));
         $this->assertSame('10.000', $this->onHand($itemId));
         $this->assertSame('0.000', $this->onHand($itemId, $other));
-    }
-
-    public function testPostDelete_SaysWhyAnEmployeeOfOnlyOneBranchCannotDeleteATransferWhenTheModelIsCalledDirectly(): void
-    {
-        ['receiving' => $receivingId, 'branch' => $branchId] = $this->transferInTheBooks();
-
-        $this->assertFalse($this->purchases->delete_value($receivingId, $this->buyer([$branchId])));
-
-        $this->assertSame(lang('Branches.error_not_allowed'), AccountingMessage::of($this->purchases->accountingFailure()));
     }
 
     // ---------------------------------------------------------------------------------------

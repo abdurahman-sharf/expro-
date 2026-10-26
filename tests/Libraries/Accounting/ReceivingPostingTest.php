@@ -4,6 +4,7 @@ namespace Tests\Libraries\Accounting;
 
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\InterBranchPosition;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
@@ -1417,6 +1418,7 @@ class ReceivingPostingTest extends CIUnitTestCase
         foreach ([[1], [$branch]] as $works) {
             $this->assertFalse($this->purchases->delete_value($receivingId, $this->employeeWithGrants([], $works)));
             $this->assertInstanceOf(BranchException::class, $this->purchases->accountingFailure());
+            $this->assertSame(lang('Branches.error_not_allowed'), AccountingMessage::of($this->purchases->accountingFailure()));
             $this->assertCount(1, $this->standingPurchase($receivingId, 'stock_transfer'));
             $this->assertCount(1, $this->standingPurchase($receivingId, 'stock_transfer_receipt'));
             $this->assertSame(1, $this->accountingDb()->table('receivings')->where('receiving_id', $receivingId)->countAllResults());

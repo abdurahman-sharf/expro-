@@ -96,11 +96,18 @@ class StockTransfersBetweenBranchesMigrationTest extends CIUnitTestCase
 
     public function testUp_LeavesAnExistingPurchaseWithNoBranchItGoesTo(): void
     {
+        $migration = new StockTransfersBetweenBranches();
+
+        $migration->down();
+
+        $this->assertFalse($this->hasColumn(), 'The state before the migration');
+
         $this->accountingDb()->table('receivings')->insert(['receiving_time' => '2026-10-21 10:00:00', 'supplier_id' => null, 'employee_id' => 1, 'comment' => 'migration', 'reference' => 'M-1', 'payment_type' => null]);
         $id = (int) $this->accountingDb()->insertID();
 
-        (new StockTransfersBetweenBranches())->up();
+        $migration->up();
 
+        $this->assertTrue($this->hasColumn());
         $this->assertNull($this->accountingDb()->table('receivings')->where('receiving_id', $id)->get()->getRow()->to_branch_id);
 
         $this->accountingDb()->table('receivings')->where('receiving_id', $id)->delete();

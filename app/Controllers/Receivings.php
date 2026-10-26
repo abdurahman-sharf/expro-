@@ -500,6 +500,8 @@ class Receivings extends Secure_Controller
     public function postRequisitionComplete(): string
     {
         if ($this->receiving_lib->get_stock_source() != $this->receiving_lib->get_stock_destination()) {
+            $this->restoreRequisitionCart();
+
             foreach ($this->receiving_lib->get_cart() as $item) {
                 $this->receiving_lib->delete_item($item['line']);
                 $this->receiving_lib->add_item($item['item_id'], $item['quantity'], $this->receiving_lib->get_stock_destination(), $item['discount_type']);
@@ -511,6 +513,30 @@ class Receivings extends Secure_Controller
         $data['error'] = lang('Receivings.error_requisition');
 
         return $this->_reload($data);    // TODO: Hungarian notation
+    }
+
+    /**
+     * A requisition that was refused leaves its cart split into what goes in and what comes out. The next
+     * attempt starts again from what was entered, the lines that go in put back at the source, so that it
+     * does not take the two halves for lines of its own and turn them into goods that come from nowhere.
+     */
+    private function restoreRequisitionCart(): void
+    {
+        $cart = $this->receiving_lib->get_cart();
+
+        if (array_filter($cart, static fn (array $item): bool => (float) $item['quantity'] < 0) === []) {
+            return;
+        }
+
+        foreach ($cart as $item) {
+            $this->receiving_lib->delete_item($item['line']);
+        }
+
+        foreach ($cart as $item) {
+            if ((float) $item['quantity'] > 0) {
+                $this->receiving_lib->add_item($item['item_id'], $item['quantity'], $this->receiving_lib->get_stock_source(), $item['discount_type']);
+            }
+        }
     }
 
     /**

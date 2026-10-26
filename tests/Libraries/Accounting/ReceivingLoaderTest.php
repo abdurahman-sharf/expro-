@@ -53,19 +53,24 @@ class ReceivingLoaderTest extends CIUnitTestCase
 
     public function testLoad_KeepsTheBranchOfTheStockLocationOfEachLine(): void
     {
-        $itemId   = $this->item('0.00');
-        $branch   = $this->createBranch('L2', 'Loader branch');
-        $depot    = $this->locationOfBranch($branch, 'Loader depot');
-        $purchase = $this->buy([$this->purchaseLine($itemId, 0, '5', '10')]);
+        $itemId = $this->item('0.00');
+        $branch = $this->createBranch('L2', 'Loader branch');
+        $depot  = $this->locationOfBranch($branch, 'Loader depot');
+        $here   = $this->buy([$this->purchaseLine($itemId, 0, '5', '10')]);
+        $there  = $this->buy([$this->purchaseLine($itemId, 0, '5', '10', locationId: $depot)]);
 
-        $this->assertGreaterThan(0, $purchase);
+        $this->assertGreaterThan(0, $here);
+        $this->assertGreaterThan(0, $there);
 
-        $document = (new ReceivingLoader())->load($purchase);
+        $loader = new ReceivingLoader();
 
-        $this->assertSame([1], array_map(static fn ($line): ?int => $line->branchId, $document->lines));
-        $this->assertNull($document->toBranchId);
-        $this->assertSame([], $document->branchCodes);
-        $this->assertGreaterThan(0, $depot);
+        foreach ([[$here, 1], [$there, $branch]] as [$receivingId, $expected]) {
+            $document = $loader->load($receivingId);
+
+            $this->assertSame([$expected], array_map(static fn ($line): ?int => $line->branchId, $document->lines));
+            $this->assertNull($document->toBranchId);
+            $this->assertSame([], $document->branchCodes);
+        }
     }
 
     public function testLoad_KeepsTheBranchTheStockOfATransferGoesToAndTheCodesOfBothBranches(): void

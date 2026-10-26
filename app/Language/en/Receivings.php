@@ -2,7 +2,7 @@
 
 return [
     'amount_due'                   => '',
-    'between_branches'             => 'The stock goes from branch {0} to branch {1}. It is posted as a journal in each branch, and you must work in both branches.',
+    'between_branches'             => 'The stock goes from branch {0} to branch {1}. You must work in both branches, and with accounting on it is posted as a journal in each branch.',
     'branch_not_allowed'           => 'You do not work in the branch of this receiving.',
     'cancel_receiving'             => 'Cancel',
     'cannot_be_deleted'            => 'Receiving(s) delete failed.',
