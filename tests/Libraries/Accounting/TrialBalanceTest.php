@@ -17,6 +17,7 @@ use App\Libraries\Accounting\TreasuryTransfers;
 use App\Libraries\Accounting\TrialBalance;
 use App\Libraries\Accounting\TrialBalanceReport;
 use App\Libraries\Accounting\TrialBalanceRow;
+use App\Models\Expense;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -732,5 +733,64 @@ class TrialBalanceTest extends CIUnitTestCase
         $this->assertSame($before, $closings($after));
         $this->assertTrue($after->balances());
         $this->assertSame($this->row($after, '411')->debit, '55.0000', 'The reversal is in the movement of the sales account');
+    }
+
+    public function testBuild_BalancesAndKeepsEachBranchWholeWhileExpensesAreSavedEditedAndDeleted(): void
+    {
+        $db = $this->accountingDb();
+
+        $this->setConfigValue('accounting_start_date', '2020-01-01');
+        $this->setConfigValue('accounting_enabled', '1');
+
+        $employeeId = $this->employeeWithGrants([]);
+        $expenses   = model(Expense::class);
+        $remote     = (new TreasuryService())->create(['name' => 'Branch drawer', 'kind' => 'cash', 'branch_id' => $this->second]);
+
+        $db->table('expense_categories')->insert(['category_name' => 'Trial ' . uniqid(), 'category_description' => '']);
+        $categoryId = (int) $db->insertID();
+
+        $expense = static fn (string $amount, string $tax, ?int $treasuryId = null): array => array_filter([
+            'date'                => '2026-10-20 10:00:00',
+            'supplier_id'         => null,
+            'supplier_tax_code'   => '',
+            'amount'              => $amount,
+            'tax_amount'          => $tax,
+            'payment_type'        => 'Cash',
+            'expense_category_id' => $categoryId,
+            'description'         => 'Trial balance',
+            'employee_id'         => $employeeId,
+            'deleted'             => 0,
+            'treasury_id'         => $treasuryId,
+        ], static fn ($value, $key): bool => $key !== 'treasury_id' || $value !== null, ARRAY_FILTER_USE_BOTH);
+
+        try {
+            $mine   = $expense('230.00', '30.00');
+            $theirs = $expense('115.00', '15.00', $remote);
+
+            $this->assertTrue($expenses->save_value($mine, NEW_ENTRY, $employeeId));
+            $this->assertTrue($expenses->save_value($theirs, NEW_ENTRY, $employeeId));
+
+            $edited = $expense('300.00', '0');
+
+            $this->assertTrue($expenses->save_value($edited, (int) $mine['expense_id'], $employeeId));
+            $this->assertTrue($expenses->delete_list([(int) $theirs['expense_id']], $employeeId));
+
+            foreach ([null, [1], [$this->second], [1, $this->second]] as $branches) {
+                $this->assertTrue($this->build(scope: ReportScope::resolve($branches, null))->balances(), 'Branches ' . json_encode($branches));
+            }
+
+            $first = $this->build(scope: ReportScope::resolve([1], null), expand: true);
+            $other = $this->build(scope: ReportScope::resolve([$this->second], null), expand: true);
+
+            $this->assertSame('300.0000', $this->row($first, '541')->closing());
+            $this->assertSame('-300.0000', $this->row($first, '120101')->closing());
+            $this->assertSame(['0.0000', '0.0000'], [$this->row($other, '541')->closing(), $this->row($other, '215002')->closing()], 'What was posted in the other branch and taken back leaves nothing');
+            $this->assertSame('100.0000', $this->row($other, '541')->debit);
+            $this->assertSame('-300.0000', $this->row($this->build(expand: true), '120101')->closing(), 'The company holds what its branches hold');
+        } finally {
+            $this->setConfigValue('accounting_enabled', '0');
+            $db->table('expenses')->truncate();
+            $db->table('expense_categories')->where('expense_category_id', $categoryId)->delete();
+        }
     }
 }

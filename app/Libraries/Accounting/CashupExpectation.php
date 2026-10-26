@@ -12,8 +12,9 @@ use Config\OSPOS;
  * The cash a drawer should hold when it is counted: what it was opened with and what was moved
  * into it, plus the cash payments of the sales of its branch in the time between opening and
  * closing, less the cash that was paid out for expenses of the branch in the same time. A payment
- * counts as cash by what its name stands for in any language, and a payment that is not completed
- * is not cash that came in. An expense that belongs to no branch is one of the default branch.
+ * counts as cash by what its name stands for in the language in use or in English, and a payment
+ * that is not completed is not cash that came in. An expense that belongs to no branch is one of
+ * the default branch.
  */
 final class CashupExpectation
 {
@@ -34,15 +35,17 @@ final class CashupExpectation
      */
     public function expected(int $branchId, string $openDate, string $closeDate, string $openAmount, string $transferAmount): string
     {
-        $expected = bcadd(bcadd($openAmount, $transferAmount, SaleAmounts::SCALE), $this->cashSales($branchId, $openDate, $closeDate), SaleAmounts::SCALE);
+        $byDay    = empty(config(OSPOS::class)->settings['date_or_time_format']);
+        $default  = (new BranchGuard($this->db))->companyDefaultBranchId();
+        $expected = bcadd(bcadd($openAmount, $transferAmount, SaleAmounts::SCALE), $this->cashSales($branchId, $openDate, $closeDate, $byDay), SaleAmounts::SCALE);
 
-        return bcsub($expected, $this->cashExpenses($branchId, $openDate, $closeDate), SaleAmounts::SCALE);
+        return bcsub($expected, $this->cashExpenses($branchId, $openDate, $closeDate, $byDay, $branchId === $default), SaleAmounts::SCALE);
     }
 
     /**
      * @return numeric-string
      */
-    private function cashSales(int $branchId, string $openDate, string $closeDate): string
+    private function cashSales(int $branchId, string $openDate, string $closeDate, bool $byDay): string
     {
         $builder = $this->db->table('sales_payments p')
             ->select('p.payment_type, SUM(p.payment_amount - p.cash_refund) AS amount', false)
@@ -53,7 +56,7 @@ final class CashupExpectation
             ->where('p.payment_status', PaymentStatus::Completed->value)
             ->groupBy('p.payment_type');
 
-        $this->within($builder, 's.sale_time', $openDate, $closeDate);
+        $this->within($builder, 's.sale_time', $openDate, $closeDate, $byDay);
 
         return $this->cashTotal($builder->get()->getResult());
     }
@@ -61,10 +64,9 @@ final class CashupExpectation
     /**
      * @return numeric-string
      */
-    private function cashExpenses(int $branchId, string $openDate, string $closeDate): string
+    private function cashExpenses(int $branchId, string $openDate, string $closeDate, bool $byDay, bool $isDefault): string
     {
-        $isDefault = $branchId === (new BranchGuard($this->db))->companyDefaultBranchId();
-        $builder   = $this->db->table('expenses e')
+        $builder = $this->db->table('expenses e')
             ->select('e.payment_type, SUM(e.amount) AS amount', false)
             ->where('e.deleted', 0)
             ->groupBy('e.payment_type');
@@ -75,7 +77,7 @@ final class CashupExpectation
             $builder->where('e.branch_id', $branchId);
         }
 
-        $this->within($builder, 'e.date', $openDate, $closeDate);
+        $this->within($builder, 'e.date', $openDate, $closeDate, $byDay);
 
         return $this->cashTotal($builder->get()->getResult());
     }
@@ -102,9 +104,9 @@ final class CashupExpectation
      * The days, or the days and times, between opening and closing, as the cash-up screen takes
      * them.
      */
-    private function within(BaseBuilder $builder, string $column, string $openDate, string $closeDate): void
+    private function within(BaseBuilder $builder, string $column, string $openDate, string $closeDate, bool $byDay): void
     {
-        if (empty(config(OSPOS::class)->settings['date_or_time_format'])) {
+        if ($byDay) {
             $builder->where("DATE({$column}) BETWEEN " . $this->db->escape(substr($openDate, 0, 10)) . ' AND ' . $this->db->escape(substr($closeDate, 0, 10)), null, false);
 
             return;

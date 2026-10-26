@@ -112,8 +112,8 @@ class Cashup extends Model
         if ($count_only == null) $count_only = false;
 
         $config = config(OSPOS::class)->settings;
-        $builder = $this->db->table('cash_up AS cash_up');
         $accountingOn = (new AccountingSettings($this->db))->isEnabled();
+        $builder = $this->db->table('cash_up AS cash_up');
 
         // get_found_rows case
         if ($count_only) {
@@ -141,7 +141,7 @@ class Cashup extends Model
         ');
 
             if ($accountingOn) {
-                $builder->select('MAX(CASE WHEN cash_up.branch_id IS NULL THEN 0 ELSE 1 END) AS ledger_state', false);
+                $builder->select('MAX(CASE WHEN cash_up.branch_id IS NULL AND cash_up.deleted = 0 THEN 0 ELSE 1 END) AS ledger_state', false);
             }
         }
 
@@ -162,7 +162,7 @@ class Cashup extends Model
         $builder->where('cash_up.deleted', $filters['is_deleted']);
 
         if ($accountingOn && !empty($filters['only_unposted'])) {
-            $builder->where('cash_up.branch_id IS NULL', null, false);
+            $builder->where('cash_up.branch_id IS NULL AND cash_up.deleted = 0', null, false);
         }
 
         if (empty($config['date_or_time_format'])) {    // TODO: convert this to ternary notation.
@@ -192,6 +192,7 @@ class Cashup extends Model
      */
     public function get_info(int $cashup_id): object
     {
+        $accountingOn = (new AccountingSettings($this->db))->isEnabled();
         $builder = $this->db->table('cash_up AS cash_up');
         $builder->select('
             cash_up.cashup_id AS cashup_id,
@@ -220,8 +221,8 @@ class Cashup extends Model
         $builder->join('people AS close_employees', 'close_employees.person_id = cash_up.close_employee_id', 'LEFT');
         $builder->where('cashup_id', $cashup_id);
 
-        if ((new AccountingSettings($this->db))->isEnabled()) {
-            $builder->select('CASE WHEN cash_up.branch_id IS NULL THEN 0 ELSE 1 END AS ledger_state', false);
+        if ($accountingOn) {
+            $builder->select('CASE WHEN cash_up.branch_id IS NULL AND cash_up.deleted = 0 THEN 0 ELSE 1 END AS ledger_state', false);
         }
 
         $query = $builder->get();

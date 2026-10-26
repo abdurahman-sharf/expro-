@@ -689,6 +689,28 @@ class JournalServiceTest extends CIUnitTestCase
         }
     }
 
+    public function testReverse_RefusesTheJournalsOfAnExpenseAndACashUpAndLeavesThemToTheirDeletion(): void
+    {
+        $reverser = $this->accountant();
+
+        foreach (['expense', 'cashup'] as $source) {
+            $journalId = $this->journalOfAStockTransfer($source);
+
+            $this->assertFailsWith(AccountingError::DocumentJournalLocked, fn () => $this->service->reverse($journalId, '2026-10-22', 'By hand', $reverser));
+            $this->assertSame('posted', $this->journal($journalId)->status);
+        }
+    }
+
+    public function testReverseAutomatic_TakesBackTheJournalsOfAnExpenseAndACashUp(): void
+    {
+        foreach (['expense', 'cashup'] as $source) {
+            $journalId = $this->journalOfAStockTransfer($source);
+
+            $this->assertGreaterThan(0, $this->service->reverseAutomatic($journalId, '2026-10-22', 'Document deleted', null));
+            $this->assertSame('reversed', $this->journal($journalId)->status);
+        }
+    }
+
     public function testReverse_WritesAnAuditEntryWithTheReason(): void
     {
         $original = $this->service->postNew($this->journalInput());

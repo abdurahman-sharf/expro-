@@ -2,6 +2,8 @@
 
 namespace Tests\Controllers;
 
+use App\Libraries\Accounting\TreasuryScopes;
+use App\Libraries\Accounting\TreasuryService;
 use App\Models\Cashup;
 use CodeIgniter\Config\Factories;
 use CodeIgniter\Database\Config;
@@ -9,13 +11,17 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use Config\OSPOS;
+use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
+use Tests\Support\ExpenseAccountingFixtureTrait;
 
 class CashupControllerTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use FeatureTestTrait;
     use EmployeeFixtureTrait;
+    use AccountingFixtureTrait;
+    use ExpenseAccountingFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -44,12 +50,14 @@ class CashupControllerTest extends CIUnitTestCase
             'number_locale'       => 'en_US',
             'currency_decimals'   => 2,
             'thousands_separator' => ',',
+            'currency_symbol'     => '$',
         ];
         Factories::injectMock('config', OSPOS::class, $ospos);
     }
 
     protected function tearDown(): void
     {
+        $this->stopExpenses();
         Factories::reset();
         parent::tearDown();
     }
@@ -136,5 +144,225 @@ class CashupControllerTest extends CIUnitTestCase
         $this->assertEquals(155.0, (float) $cashup->closed_amount_total);
         $this->assertEquals($cashierId, (int) $cashup->open_employee_id);
         $this->assertEquals($cashierId, (int) $cashup->close_employee_id);
+    }
+
+    /**
+     * @param array<string, string> $overrides
+     *
+     * @return array<string, string>
+     */
+    private function closingForm(string $counted, array $overrides = []): array
+    {
+        return array_merge([
+            'open_date'            => '2026-10-20 08:00:00',
+            'close_date'           => '2026-10-20 18:00:00',
+            'open_amount_cash'     => '100',
+            'transfer_amount_cash' => '0',
+            'closed_amount_cash'   => $counted,
+            'closed_amount_due'    => '0',
+            'closed_amount_card'   => '0',
+            'closed_amount_check'  => '0',
+            'description'          => 'Closing through the screen',
+        ], $overrides);
+    }
+
+    private function accountingCashier(?array $branchIds = null): int
+    {
+        $this->startExpenses();
+
+        $cashierId = $this->employeeWithGrants(['cashups'], $branchIds);
+
+        $this->loginAs($cashierId);
+
+        return $cashierId;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function saveClosing(array $form, int $cashupId = NEW_ENTRY): array
+    {
+        return json_decode($this->post('/cashups/save/' . $cashupId, $form)->getJSON(), true);
+    }
+
+    public function testPostSave_PostsTheCashDifferenceOfTheCountWhenAccountingIsOn(): void
+    {
+        $this->accountingCashier();
+        $this->sellFor('250.00');
+        $this->sellFor('150.00');
+
+        $result = $this->saveClosing($this->closingForm('485.50'));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(
+            [$this->accountId('cash_difference') . '=14.50/0.00', $this->accountId('cash') . '=0.00/14.50'],
+            $this->postedLines('cashup', (int) $result['id']),
+        );
+        $this->assertSame('-14.5000', $this->accountingDb()->table('cash_up')->where('cashup_id', $result['id'])->get()->getRow()->cash_difference);
+    }
+
+    public function testPostSave_PostsNothingWhenTheCountIsWhatWasExpected(): void
+    {
+        $this->accountingCashier();
+        $this->sellFor('400.00');
+
+        $result = $this->saveClosing($this->closingForm('500.00'));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(0, $this->countRows('accounting_journals'));
+    }
+
+    public function testPostSave_SaysInWordsThatTheDateIsInAClosedPeriod(): void
+    {
+        $this->accountingCashier();
+        $this->sellFor('400.00');
+        $this->closeThrough('2026-10-31');
+
+        $result = $this->saveClosing($this->closingForm('450.00'));
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString('2026-10-31', $result['message']);
+        $this->assertSame([0, 0], [$this->countRows('cash_up'), $this->countRows('accounting_journals')]);
+    }
+
+    public function testPostSave_SaysInWordsThatTheEmployeeMayNotWithdrawFromTheirTreasury(): void
+    {
+        $cashierId = $this->accountingCashier();
+        $this->sellFor('400.00');
+
+        $drawer = $this->treasury('Own drawer');
+
+        (new TreasuryService())->setDefaultFor($cashierId, $drawer);
+        $this->restrictTreasury($drawer, TreasuryScopes::WITHDRAW, [$this->clerkId]);
+
+        $result = $this->saveClosing($this->closingForm('450.00'));
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString(explode('{0}', lang('Accounting.error_treasury_withdraw_denied'))[0], $result['message']);
+        $this->assertSame(0, $this->countRows('cash_up'));
+    }
+
+    public function testPostSave_ForcesTheEmployeesToTheLoggedInOneAndUsesThemToDecideWhatIsAllowed(): void
+    {
+        $limited = $this->accountingCashier([1]);
+        $second  = $this->createBranch('B2');
+        $this->sellFor('400.00', 'Cash', '2026-10-20 12:00:00', $second);
+
+        $result = $this->saveClosing($this->closingForm('450.00', ['open_employee_id' => (string) $this->clerkId, 'close_employee_id' => (string) $this->clerkId]));
+
+        $cashup = model(Cashup::class)->get_info($result['id']);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame([$limited, $limited], [(int) $cashup->open_employee_id, (int) $cashup->close_employee_id]);
+        $this->assertSame(1, (int) $this->accountingDb()->table('cash_up')->where('cashup_id', $result['id'])->get()->getRow()->branch_id);
+        $this->assertSame('100.0000', $this->accountingDb()->table('cash_up')->where('cashup_id', $result['id'])->get()->getRow()->expected_amount_cash);
+    }
+
+    public function testPostSave_ChangesNothingInTheBooksWhileAccountingIsOff(): void
+    {
+        $this->startExpenses();
+        $this->setConfigValue('accounting_enabled', '0');
+        $this->sellFor('400.00');
+        $this->loginAs($this->employeeWithGrants(['cashups']));
+
+        $result = $this->saveClosing($this->closingForm('450.00'));
+        $row    = $this->accountingDb()->table('cash_up')->where('cashup_id', $result['id'])->get()->getRow();
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(0, $this->countRows('accounting_journals'));
+        $this->assertSame([null, null, null], [$row->branch_id, $row->expected_amount_cash, $row->cash_difference]);
+    }
+
+    public function testPostSave_ReversesAndPostsAgainWhenTheCountIsEdited(): void
+    {
+        $this->accountingCashier();
+        $this->sellFor('400.00');
+
+        $created = $this->saveClosing($this->closingForm('485.50'));
+        $edited  = $this->saveClosing($this->closingForm('490.00'), (int) $created['id']);
+
+        $this->assertTrue($edited['success']);
+        $this->assertSame(['reversed', 'posted'], array_column($this->journalsOfSource('cashup', (int) $created['id']), 'status'));
+    }
+
+    public function testPostDelete_ReversesTheJournalOfTheCashUps(): void
+    {
+        $this->accountingCashier();
+        $this->sellFor('400.00');
+
+        $created  = $this->saveClosing($this->closingForm('485.50'));
+        $response = json_decode($this->post('/cashups/delete', ['ids' => [(string) $created['id']]])->getJSON(), true);
+
+        $this->assertTrue($response['success']);
+        $this->assertSame('0.00', $this->balanceOf($this->accountId('cash_difference')));
+    }
+
+    public function testPostDelete_SaysInWordsThatTheEmployeeMayNotDepositBackIntoTheTreasury(): void
+    {
+        $cashierId = $this->accountingCashier();
+        $this->sellFor('400.00');
+
+        $drawer = $this->treasury('Own drawer');
+
+        (new TreasuryService())->setDefaultFor($cashierId, $drawer);
+
+        $created = $this->saveClosing($this->closingForm('485.50'));
+
+        $this->restrictTreasury($drawer, TreasuryScopes::DEPOSIT, [$this->clerkId]);
+
+        $response = json_decode($this->post('/cashups/delete', ['ids' => [(string) $created['id']]])->getJSON(), true);
+
+        $this->assertFalse($response['success']);
+        $this->assertStringContainsString(explode('{0}', lang('Accounting.error_treasury_deposit_denied'))[0], $response['message']);
+        $this->assertSame(0, $this->accountingDb()->table('cash_up')->where('deleted', 1)->countAllResults());
+    }
+
+    public function testGetView_ShowsTheExpectedCashOfTheBranchWhenTheCashUpIsClosed(): void
+    {
+        $this->accountingCashier();
+        $this->sellFor('400.00', 'Cash', date('Y-m-d') . ' 09:00:00');
+
+        $opened = $this->saveClosing($this->closingForm('0', ['open_date' => date('Y-m-d') . ' 08:00:00', 'close_date' => date('Y-m-d') . ' 18:00:00']));
+
+        $this->assertTrue($opened['success']);
+        $this->assertSame(0, $this->countRows('accounting_journals'));
+
+        $response = $this->get('/cashups/view/' . $opened['id']);
+
+        $response->assertSee(lang('Cashups.expected_cash'));
+        $response->assertSee('500.00');
+    }
+
+    public function testGetView_ShowsNoExpectedCashWhileAccountingIsOff(): void
+    {
+        $this->startExpenses();
+        $this->setConfigValue('accounting_enabled', '0');
+        $this->loginAs($this->employeeWithGrants(['cashups']));
+
+        $opened = $this->saveClosing($this->closingForm('0'));
+
+        $this->get('/cashups/view/' . $opened['id'])->assertDontSee(lang('Cashups.expected_cash'));
+    }
+
+    public function testGetSearch_ShowsWhichCashUpsAreInTheBooksAndFiltersTheOnesThatAreNot(): void
+    {
+        $this->accountingCashier();
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $legacy = (int) $this->saveClosing($this->closingForm('0'))['id'];
+
+        $this->setConfigValue('accounting_enabled', '1');
+
+        $followed = (int) $this->saveClosing($this->closingForm('0'))['id'];
+        $query    = '?search=&start_date=2026-10-01&end_date=2026-10-31&limit=25&offset=0&sort=cashup_id&order=asc';
+        $rows     = json_decode($this->get('/cashups/search' . $query)->getJSON(), true)['rows'];
+        $byId     = array_column($rows, 'ledger_state', 'cashup_id');
+
+        $this->assertSame(lang('Cashups.ledger_unposted'), $byId[$legacy]);
+        $this->assertSame(lang('Cashups.ledger_posted'), $byId[$followed]);
+
+        $only = json_decode($this->get('/cashups/search' . $query . '&filters[]=only_unposted')->getJSON(), true);
+
+        $this->assertSame([(string) $legacy], array_column($only['rows'], 'cashup_id'));
     }
 }

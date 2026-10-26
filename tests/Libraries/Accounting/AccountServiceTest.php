@@ -314,6 +314,39 @@ class AccountServiceTest extends CIUnitTestCase
         $this->assertFailsWith(AccountingError::AccountRouted, fn () => $this->service->deactivate($accountId));
     }
 
+    public function testDeactivate_RejectsTheAccountOfAnExpenseCategory(): void
+    {
+        $accountId  = $this->customAccount('5', '5980', 'Marketing', false);
+        $categoryId = $this->categoryOf($accountId);
+
+        try {
+            $this->assertFailsWith(AccountingError::AccountRouted, fn () => $this->service->deactivate($accountId));
+            $this->assertSame('1', (string) $this->account($accountId)->active);
+        } finally {
+            $this->accountingDb()->table('expense_categories')->where('expense_category_id', $categoryId)->delete();
+        }
+    }
+
+    public function testDelete_RejectsTheAccountOfAnExpenseCategory(): void
+    {
+        $accountId  = $this->customAccount('5', '5981', 'Marketing', false);
+        $categoryId = $this->categoryOf($accountId);
+
+        try {
+            $this->assertFailsWith(AccountingError::AccountRouted, fn () => $this->service->delete($accountId));
+            $this->assertNotNull($this->service->find($accountId));
+        } finally {
+            $this->accountingDb()->table('expense_categories')->where('expense_category_id', $categoryId)->delete();
+        }
+    }
+
+    private function categoryOf(int $accountId): int
+    {
+        $this->accountingDb()->table('expense_categories')->insert(['category_name' => 'Marketing ' . uniqid(), 'category_description' => '', 'account_id' => $accountId]);
+
+        return (int) $this->accountingDb()->insertID();
+    }
+
     public function testDeactivate_RejectsAGroupThatStillHasActiveChildren(): void
     {
         $group = $this->customAccount('11', '1140', 'Group', true);

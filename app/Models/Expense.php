@@ -128,8 +128,8 @@ class Expense extends Model
         if ($count_only == null) $count_only = false;
 
         $config = config(OSPOS::class)->settings;
-        $builder = $this->db->table('expenses AS expenses');
         $accountingOn = (new AccountingSettings($this->db))->isEnabled();
+        $builder = $this->db->table('expenses AS expenses');
 
         // get_found_rows case
         if ($count_only) {
@@ -223,6 +223,7 @@ class Expense extends Model
      */
     public function get_info(int $expense_id): object
     {
+        $accountingOn = (new AccountingSettings($this->db))->isEnabled();
         $builder = $this->db->table('expenses AS expenses');
         $builder->select('
             expenses.expense_id AS expense_id,
@@ -249,7 +250,7 @@ class Expense extends Model
         $builder->join('suppliers AS suppliers', 'suppliers.person_id = expenses.supplier_id', 'LEFT');
         $builder->where('expense_id', $expense_id);
 
-        if ((new AccountingSettings($this->db))->isEnabled()) {
+        if ($accountingOn) {
             $builder->select($this->ledgerState('expenses') . ' AS ledger_state', false);
         }
 
@@ -268,11 +269,12 @@ class Expense extends Model
     }
 
     /**
-     * 1 when the expense has a journal that stands in the books, 0 when it has none.
+     * 1 when the books hold all the expense calls for: a journal that stands, or an amount of zero
+     * or a deletion that call for none. 0 when a journal is still missing.
      */
     private function ledgerState(string $alias): string
     {
-        return '(CASE WHEN EXISTS (SELECT 1 FROM ' . $this->db->prefixTable('accounting_journals') . ' j WHERE j.source_type = '
+        return "(CASE WHEN {$alias}.amount = 0 OR {$alias}.deleted = 1 OR EXISTS (SELECT 1 FROM " . $this->db->prefixTable('accounting_journals') . ' j WHERE j.source_type = '
             . $this->db->escape(ExpensePostingBuilder::SOURCE) . " AND j.source_id = {$alias}.expense_id AND j.status = "
             . $this->db->escape(JournalStatus::Posted->value) . ') THEN 1 ELSE 0 END)';
     }
