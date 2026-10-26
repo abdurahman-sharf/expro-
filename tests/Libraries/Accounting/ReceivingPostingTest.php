@@ -606,6 +606,27 @@ class ReceivingPostingTest extends CIUnitTestCase
         $this->assertSame('completed', $this->accountingDb()->table('receivings_payments')->where('payment_id', $paymentId)->get()->getRow()->payment_status);
     }
 
+    public function testUpdate_KeepsTheTreasuryTheSupplierPaymentCarriesEvenWhenItBelongsToAnotherBranchButRefusesToMoveItThere(): void
+    {
+        $treasuries = new TreasuryService();
+        $drawer     = $treasuries->create(['name' => 'Carried drawer', 'kind' => 'cash']);
+        $other      = $treasuries->create(['name' => 'Other drawer', 'kind' => 'cash']);
+        $itemId     = $this->item('0.00');
+        $id         = $this->buy([$this->purchaseLine($itemId, 0, '4', '50')]);
+        $paymentId  = $this->payPurchase($id, '60.00');
+
+        $this->assertTrue($this->changePayment($id, $paymentId, ['treasury_id' => $drawer]));
+
+        $branch = $this->createBranch('B2');
+
+        $this->accountingDb()->table('treasuries')->whereIn('treasury_id', [$drawer, $other])->update(['branch_id' => $branch]);
+
+        $this->assertTrue($this->changePayment($id, $paymentId, ['treasury_id' => $drawer, 'reference_code' => 'only a note']));
+        $this->assertFalse($this->changePayment($id, $paymentId, ['treasury_id' => $other]));
+        $this->assertSame(AccountingError::TreasuryNotFound, $this->purchases->accountingFailure()->error);
+        $this->assertSame($drawer, (int) $this->accountingDb()->table('receivings_payments')->where('payment_id', $paymentId)->get()->getRow()->treasury_id);
+    }
+
     public function testDeleteValue_RefusesToDeleteAPurchaseWhoseSupplierPaymentCameOutOfATreasuryTheEditorMayNotDepositInto(): void
     {
         $drawer    = $this->drawerOpenOnlyTo([$this->employeeWithGrants([])], 'deposit');

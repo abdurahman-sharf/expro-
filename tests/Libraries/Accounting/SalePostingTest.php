@@ -733,6 +733,24 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame('completed', $this->paymentRow($saleId)->payment_status);
     }
 
+    public function testUpdate_KeepsTheTreasuryThePaymentCarriesEvenWhenItBelongsToAnotherBranchButRefusesToMoveItThere(): void
+    {
+        $treasuries = new TreasuryService();
+        $drawer     = $treasuries->create(['name' => 'Carried drawer', 'kind' => 'cash']);
+        $other      = $treasuries->create(['name' => 'Other drawer', 'kind' => 'cash']);
+        $item       = $this->item('10.00');
+        $saleId     = $this->save([$this->line($item, 0, '1', '100', '10.00')], [], [$this->payment(lang('Sales.cash'), '100.00') + ['treasury_id' => $drawer]]);
+        $paymentId  = (int) $this->paymentRow($saleId)->payment_id;
+        $branch     = $this->createBranch('B2');
+
+        $this->accountingDb()->table('treasuries')->whereIn('treasury_id', [$drawer, $other])->update(['branch_id' => $branch]);
+
+        $this->assertTrue($this->sales->update($saleId, ['comment' => 'only a note', 'payments' => [$this->scopeEditedPayment($paymentId, ['treasury_id' => $drawer])]]));
+        $this->assertFalse($this->sales->update($saleId, ['comment' => 'moved', 'payments' => [$this->scopeEditedPayment($paymentId, ['treasury_id' => $other])]]));
+        $this->assertSame(AccountingError::TreasuryNotFound, $this->sales->accountingFailure()->error);
+        $this->assertSame($drawer, (int) $this->paymentRow($saleId)->treasury_id);
+    }
+
     public function testUpdate_AsksTheScopeAgainWhenTheAmountOfAPaymentChanges(): void
     {
         $drawer    = $this->drawerOpenOnlyTo([$this->employeeId]);

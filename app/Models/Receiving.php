@@ -307,7 +307,7 @@ class Receiving extends Model
         $named      = array_key_exists('treasury_id', $payment);
         $treasuryId = $named ? (int) $payment['treasury_id'] : $storedId;
 
-        if ($named && $treasuryId > 0) {
+        if ($named && $treasuryId > 0 && $treasuryId !== $storedId) {
             $treasuries->assertForBranch($treasuryId, $branchId);
         }
 

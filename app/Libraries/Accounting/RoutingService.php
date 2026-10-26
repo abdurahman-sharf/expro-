@@ -162,6 +162,19 @@ final class RoutingService
 
         $this->transactional(function () use ($changes, $accounts, $employeeId): void {
             $companyId = CompanyContext::id();
+            $moved     = [];
+
+            foreach ($changes as $key => $change) {
+                $type = PaymentType::fromRoutingKey((string) $key);
+
+                if ($type !== null && $change['before'] !== $change['after']) {
+                    $moved[] = $type;
+                }
+            }
+
+            if ($moved !== []) {
+                (new PaymentTreasuryStamping($this->db))->stamp($moved, $employeeId);
+            }
 
             foreach ($changes as $key => $change) {
                 $exists = $this->db->table('accounting_routing')->where('company_id', $companyId)->where('routing_key', $key)->countAllResults() > 0;
