@@ -120,6 +120,8 @@ return [
     'error_purchase_has_returns'                 => 'لا يُحذف استلام رُدَّت منه بضاعة. احذف مرتجعاته أولًا.',
     'error_purchase_locked'                      => 'لا يتغير مورد الاستلام المرحَّل ولا تاريخه. صحّحه بمرتجع.',
     'error_reason_required'                      => 'السبب مطلوب ولا يزيد على 255 حرفًا.',
+    'error_report_account_missing'               => 'هذا الحساب غير موجود.',
+    'error_report_period_invalid'                => 'بداية الفترة أحدث من نهايتها.',
     'error_routing_account_inactive'             => 'هذا الحساب غير فعّال.',
     'error_routing_account_not_group'            => 'اختر حساب مجموعة، فيُفتح تحته حساب لكل كيان.',
     'error_routing_account_not_postable'         => 'اختر حسابًا تُرحَّل إليه القيود لا حساب مجموعة.',

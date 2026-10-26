@@ -120,6 +120,8 @@ return [
     'error_purchase_has_returns'                 => 'A receiving that goods have been returned from cannot be deleted. Delete its returns first.',
     'error_purchase_locked'                      => 'The supplier and the date of a receiving that has been posted cannot change. Correct it with a return.',
     'error_reason_required'                      => 'A reason is required, up to 255 characters.',
+    'error_report_account_missing'               => 'This account does not exist.',
+    'error_report_period_invalid'                => 'The start of the period is later than its end.',
     'error_routing_account_inactive'             => 'This account is inactive.',
     'error_routing_account_not_group'            => 'Choose a group account: every entity gets its own account under it.',
     'error_routing_account_not_postable'         => 'Choose an account that takes entries, not a group.',

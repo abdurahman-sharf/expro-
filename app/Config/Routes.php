@@ -87,6 +87,12 @@ $routes->group('accounting_payables', static function (RouteCollection $routes):
     $routes->post('cancel/(:segment)/(:num)', 'AccountingPayables::postCancel/$1/$2');
 });
 
+$routes->group('accounting_reports', static function (RouteCollection $routes): void {
+    $routes->get('/', 'AccountingReports::getIndex');
+    $routes->get('trial_balance', 'AccountingReports::getIndex');
+    $routes->get('ledger', 'AccountingReports::getLedger');
+});
+
 $routes->group('accounting_treasuries', static function (RouteCollection $routes): void {
     $routes->get('/', 'AccountingTreasuries::getIndex');
     $routes->get('search', 'AccountingTreasuries::getSearch');

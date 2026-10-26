@@ -130,4 +130,7 @@ enum AccountingError: string
     case InterBranchAccountsMissing = 'inter_branch_accounts_missing';
     case TransferJournalLocked      = 'transfer_journal_locked';
     case TransferAlreadyCancelled   = 'transfer_already_cancelled';
+
+    case ReportPeriodInvalid  = 'report_period_invalid';
+    case ReportAccountMissing = 'report_account_missing';
 }

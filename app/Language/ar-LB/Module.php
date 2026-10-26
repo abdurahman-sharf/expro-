@@ -13,6 +13,8 @@ return [
     'accounting_periods_desc'      => 'إدارة السنوات المالية وإقفال الفترات وإعادة فتحها وإدخال الأرصدة الافتتاحية.',
     'accounting_receivables'       => 'أرصدة العملاء',
     'accounting_receivables_desc'  => 'اطّلع على ما يدين به كل عميل أو يملكه رصيدًا دائنًا، بحسب الفاتورة والعمر.',
+    'accounting_reports'           => 'التقارير المالية',
+    'accounting_reports_desc'      => 'اطّلع على ميزان المراجعة وكشف أي حساب، لفرع واحد أو عدة فروع أو الشركة كلها.',
     'accounting_routing'           => 'توجيه الحسابات',
     'accounting_routing_desc'      => 'اختر الحساب الذي يُرحَّل إليه كل جزء من البيع.',
     'accounting_settings'          => 'إعدادات المحاسبة',

@@ -120,6 +120,8 @@ return [
     'error_purchase_has_returns'                 => '',
     'error_purchase_locked'                      => '',
     'error_reason_required'                      => '',
+    'error_report_account_missing'               => '',
+    'error_report_period_invalid'                => '',
     'error_routing_account_inactive'             => '',
     'error_routing_account_not_group'            => '',
     'error_routing_account_not_postable'         => '',

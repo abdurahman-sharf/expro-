@@ -1,0 +1,278 @@
+<?php
+
+namespace App\Libraries\Accounting;
+
+use App\Libraries\Organization\CompanyContext;
+use CodeIgniter\Database\BaseConnection;
+use Config\Database;
+
+/**
+ * What every account of the chart holds at the end of a period, and how it got there: where it
+ * stood when the period opened, what was debited and credited in it, and where it stands now. It
+ * reads the journals that are in the books, a journal that was reversed with its reversal, so a
+ * reversal leaves the two of them adding up to nothing. A group holds its own lines and those of
+ * every account under it. The accounts of customers, suppliers, stock locations and treasuries
+ * are folded into the account they sit under unless they are asked for, because there can be a
+ * thousand of them.
+ *
+ * The journals of one branch balance on their own, so the report balances for any set of branches.
+ */
+final class TrialBalance
+{
+    private const SCALE = 4;
+
+    private BaseConnection $db;
+
+    public function __construct(?BaseConnection $db = null)
+    {
+        $this->db = $db ?? Database::connect();
+    }
+
+    /**
+     * @param bool $expandEntities Whether the account of each customer, supplier, location and treasury has a row.
+     * @param bool $showEmpty      Whether accounts that never held anything have a row.
+     */
+    public function build(ReportScope $scope, ReportPeriod $period, bool $expandEntities = false, bool $showEmpty = false): TrialBalanceReport
+    {
+        $accounts = $this->accounts();
+        $amounts  = $scope->isEmpty() ? [] : $this->amounts($scope, $period);
+        $totals   = $this->rollUp($accounts, $amounts);
+        $shown    = $this->shown($accounts, $amounts, $expandEntities, $showEmpty);
+
+        return new TrialBalanceReport(
+            $this->rows($accounts, $totals, $shown),
+            $this->grandTotals($accounts, $totals, $shown),
+            $scope,
+            $period->from,
+            $period->to,
+            $scope->isCompany() ? (new InterBranchPosition($this->db))->difference() : null,
+        );
+    }
+
+    /**
+     * @return array<int, object> The accounts of the company by id, in the order of their codes.
+     */
+    private function accounts(): array
+    {
+        $accounts = [];
+
+        foreach ($this->db->table('accounting_accounts')->select('account_id, parent_id, code, name, account_type, is_group, entity_type')->where('company_id', CompanyContext::id())->orderBy('code', 'ASC')->get()->getResult() as $account) {
+            $accounts[(int) $account->account_id] = $account;
+        }
+
+        return $accounts;
+    }
+
+    /**
+     * What each account holds from its own lines.
+     *
+     * @return array<int, array{opening: string, debit: string, credit: string}>
+     */
+    private function amounts(ReportScope $scope, ReportPeriod $period): array
+    {
+        $from = $period->from;
+        $to   = $period->to;
+
+        $before = $from === null ? '0' : 'IF(j.journal_date < ' . $this->db->escape($from) . ', %s, 0)';
+        $within = $from === null ? '%s' : 'IF(j.journal_date >= ' . $this->db->escape($from) . ', %s, 0)';
+
+        $rows = $this->db->table('accounting_journal_lines l')
+            ->select(
+                'l.account_id, '
+                . 'SUM(' . ($from === null ? '0' : sprintf($before, 'l.debit - l.credit')) . ') AS opening, '
+                . 'SUM(' . sprintf($within, 'l.debit') . ') AS debit, '
+                . 'SUM(' . sprintf($within, 'l.credit') . ') AS credit',
+                false,
+            )
+            ->join('accounting_journals j', 'j.journal_id = l.journal_id')
+            ->where('j.company_id', CompanyContext::id())
+            ->whereIn('j.status', [JournalStatus::Posted->value, JournalStatus::Reversed->value])
+            ->whereIn('j.branch_id', $scope->ids)
+            ->where('j.journal_date <=', $to)
+            ->groupBy('l.account_id')
+            ->get()
+            ->getResult();
+
+        $amounts = [];
+
+        foreach ($rows as $row) {
+            $amounts[(int) $row->account_id] = [
+                'opening' => bcadd((string) $row->opening, '0', self::SCALE),
+                'debit'   => bcadd((string) $row->debit, '0', self::SCALE),
+                'credit'  => bcadd((string) $row->credit, '0', self::SCALE),
+            ];
+        }
+
+        return $amounts;
+    }
+
+    /**
+     * What each account holds with the accounts under it.
+     *
+     * @param array<int, object>                                                $accounts
+     * @param array<int, array{opening: string, debit: string, credit: string}> $amounts
+     *
+     * @return array<int, array{opening: string, debit: string, credit: string}>
+     */
+    private function rollUp(array $accounts, array $amounts): array
+    {
+        $totals = [];
+
+        foreach (array_keys($accounts) as $accountId) {
+            $totals[$accountId] = $amounts[$accountId] ?? ['opening' => '0.0000', 'debit' => '0.0000', 'credit' => '0.0000'];
+        }
+
+        // An account comes after the accounts under it in the order of the codes only when the codes
+        // follow the chart, which nothing demands, so the way up is walked from every account.
+        $rolled = $totals;
+
+        foreach ($amounts as $accountId => $own) {
+            $parentId = $this->parentOf($accounts, $accountId);
+            $seen     = [$accountId => true];
+
+            while ($parentId !== null && ! isset($seen[$parentId])) {
+                $seen[$parentId] = true;
+
+                foreach (['opening', 'debit', 'credit'] as $measure) {
+                    $rolled[$parentId][$measure] = bcadd($rolled[$parentId][$measure], $own[$measure], self::SCALE);
+                }
+
+                $parentId = $this->parentOf($accounts, $parentId);
+            }
+        }
+
+        return $rolled;
+    }
+
+    /**
+     * @param array<int, object> $accounts
+     */
+    private function parentOf(array $accounts, int $accountId): ?int
+    {
+        $parent = $accounts[$accountId]->parent_id ?? null;
+
+        return $parent === null || ! isset($accounts[(int) $parent]) ? null : (int) $parent;
+    }
+
+    /**
+     * The accounts that have a row.
+     *
+     * @param array<int, object>                                                $accounts
+     * @param array<int, array{opening: string, debit: string, credit: string}> $amounts
+     *
+     * @return array<int, true>
+     */
+    private function shown(array $accounts, array $amounts, bool $expandEntities, bool $showEmpty): array
+    {
+        $touched = [];
+
+        foreach (array_keys($amounts) as $accountId) {
+            $parentId = $accountId;
+
+            while ($parentId !== null && ! isset($touched[$parentId])) {
+                $touched[$parentId] = true;
+                $parentId           = $this->parentOf($accounts, $parentId);
+            }
+        }
+
+        $shown = [];
+
+        foreach ($accounts as $accountId => $account) {
+            if (! $expandEntities && $account->entity_type !== null) {
+                continue;
+            }
+
+            if ($showEmpty || isset($touched[$accountId])) {
+                $shown[$accountId] = true;
+            }
+        }
+
+        return $shown;
+    }
+
+    /**
+     * @param array<int, object>                                                $accounts
+     * @param array<int, array{opening: string, debit: string, credit: string}> $totals
+     * @param array<int, true>                                                  $shown
+     *
+     * @return list<TrialBalanceRow>
+     */
+    private function rows(array $accounts, array $totals, array $shown): array
+    {
+        $rows = [];
+
+        foreach (array_keys($shown) as $accountId) {
+            $account = $accounts[$accountId];
+
+            $rows[] = new TrialBalanceRow(
+                $accountId,
+                (string) $account->code,
+                (string) $account->name,
+                AccountType::from((string) $account->account_type),
+                (int) $account->is_group === 1,
+                $account->entity_type !== null,
+                $this->depthOf($accounts, $shown, $accountId),
+                $totals[$accountId]['opening'],
+                $totals[$accountId]['debit'],
+                $totals[$accountId]['credit'],
+            );
+        }
+
+        return $rows;
+    }
+
+    /**
+     * How many of the accounts above this one have a row.
+     *
+     * @param array<int, object> $accounts
+     * @param array<int, true>   $shown
+     */
+    private function depthOf(array $accounts, array $shown, int $accountId): int
+    {
+        $depth    = 0;
+        $parentId = $this->parentOf($accounts, $accountId);
+
+        while ($parentId !== null) {
+            $depth += isset($shown[$parentId]) ? 1 : 0;
+            $parentId = $this->parentOf($accounts, $parentId);
+        }
+
+        return $depth;
+    }
+
+    /**
+     * The total of the accounts that have no account with a row above them, each of them holding
+     * everything under it.
+     *
+     * @param array<int, object>                                                $accounts
+     * @param array<int, array{opening: string, debit: string, credit: string}> $totals
+     * @param array<int, true>                                                  $shown
+     *
+     * @return array{opening_debit: string, opening_credit: string, debit: string, credit: string, closing_debit: string, closing_credit: string}
+     */
+    private function grandTotals(array $accounts, array $totals, array $shown): array
+    {
+        $grand = ['opening_debit' => '0.0000', 'opening_credit' => '0.0000', 'debit' => '0.0000', 'credit' => '0.0000', 'closing_debit' => '0.0000', 'closing_credit' => '0.0000'];
+
+        foreach (array_keys($shown) as $accountId) {
+            if ($this->depthOf($accounts, $shown, $accountId) !== 0) {
+                continue;
+            }
+
+            $row     = $totals[$accountId];
+            $closing = bcadd(bcadd($row['opening'], $row['debit'], self::SCALE), bcsub('0', $row['credit'], self::SCALE), self::SCALE);
+
+            [$openingDebit, $openingCredit] = TrialBalanceRow::sides($row['opening']);
+            [$closingDebit, $closingCredit] = TrialBalanceRow::sides($closing);
+
+            $grand['opening_debit']  = bcadd($grand['opening_debit'], $openingDebit, self::SCALE);
+            $grand['opening_credit'] = bcadd($grand['opening_credit'], $openingCredit, self::SCALE);
+            $grand['debit']          = bcadd($grand['debit'], $row['debit'], self::SCALE);
+            $grand['credit']         = bcadd($grand['credit'], $row['credit'], self::SCALE);
+            $grand['closing_debit']  = bcadd($grand['closing_debit'], $closingDebit, self::SCALE);
+            $grand['closing_credit'] = bcadd($grand['closing_credit'], $closingCredit, self::SCALE);
+        }
+
+        return $grand;
+    }
+}

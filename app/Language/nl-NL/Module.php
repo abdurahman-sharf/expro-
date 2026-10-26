@@ -13,6 +13,8 @@ return [
     'accounting_periods_desc'      => '',
     'accounting_receivables'       => '',
     'accounting_receivables_desc'  => '',
+    'accounting_reports'           => '',
+    'accounting_reports_desc'      => '',
     'accounting_routing'           => '',
     'accounting_routing_desc'      => '',
     'accounting_settings'          => '',
