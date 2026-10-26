@@ -38,6 +38,7 @@ return [
     'item_stock_permits_issue'      => 'إذن صرف مخزن',
     'item_tax_output'               => 'ضريبة المخرجات',
     'item_treasuries_accounts'      => 'الخزائن (الحساب الرئيسي)',
+    'item_treasuries_banks'         => 'الحسابات البنكية (الحساب الرئيسي)',
     'locked_note'                   => 'يتبع دائمًا: {0}',
     'not_set'                       => 'غير محدد',
     'not_used'                      => 'غير مستخدم',

@@ -79,6 +79,14 @@ final class SupplierAdvances
         $this->assertSupplier($supplierId);
 
         $treasury = $treasuryId !== null && $treasuryId > 0 && $type->usesTreasury() ? $this->treasury($treasuryId) : null;
+        $scopes   = new TreasuryScopes($this->db, $this->branches);
+
+        if ($treasury !== null) {
+            $scopes->assertAllows((int) $treasury->treasury_id, TreasuryScopes::WITHDRAW, $employeeId);
+        } else {
+            $scopes->assertMainAllows($type, TreasuryScopes::WITHDRAW, $employeeId);
+        }
+
         $branchId = $treasury === null ? $this->branches->defaultBranchId($employeeId) : (int) $treasury->branch_id;
 
         $this->branches->requireBranch($branchId, $employeeId);

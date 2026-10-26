@@ -1,0 +1,110 @@
+{
+  "id": "T-22",
+  "title": "Money moved between treasuries: 10 from the treasury to the bank account, 25 beyond what the treasury held, and the 25 moved back",
+  "recorded": "2026-10-26",
+  "evidence": {
+    "transfer_form": {
+      "id": "ev_7d6208f1c43688b81ed5723a59bd53e9d0f2e83118a7678a9ab1d6957fa548a1",
+      "note": "The transfer form: the treasuries to move from and to, the amount, the date and a note"
+    },
+    "transfer_10": {
+      "id": "ev_fc706f05504f9c126ad25b427b493e1fe022a7fe619edb2deaa7fd22d06a4441",
+      "note": "A transfer of 10 from the treasury to the bank account"
+    },
+    "transfer_10_balances": {
+      "id": "ev_dd07282b6511e18562e3e65261e674fe9774e106bdff664302f6f50df5e82808",
+      "note": "The balances after the transfer of 10: the treasury 20 and the bank account 40"
+    },
+    "transfer_25": {
+      "id": "ev_4f80a94ee3f01383f9154285e07a7d88ad15feedf659462ff836e285ac8c56ff",
+      "note": "A transfer of 25 from a treasury holding 20, accepted without a refusal or a warning"
+    },
+    "transfer_25_balances": {
+      "id": "ev_42e4d5751f9cf6dea1988297ba0bd2ba024b2447fa27a2153fcc5c1ae0a9e885",
+      "note": "The balances after it: the treasury -5 and the bank account 65"
+    },
+    "transfer_back_25": {
+      "id": "ev_f80013aaef829452f7b4367dfe4360711e0b94f600539085020a25a7c3c7174f",
+      "note": "The opposite transfer of 25 from the bank account to the treasury"
+    },
+    "balances_restored": {
+      "id": "ev_85563a2d1468783df2c1a9669a7f94336abb31c4c9b1b402898ae7424e03ac00",
+      "note": "The balances after it: the treasury 20 and the bank account 40, as before the transfer of 25"
+    }
+  },
+  "cases": [
+    {
+      "id": "transfer-debits-the-receiver-and-credits-the-sender",
+      "kind": "treasury_transfer",
+      "classification": "exact",
+      "evidence": [
+        "transfer_form",
+        "transfer_10",
+        "transfer_10_balances"
+      ],
+      "inputs": {
+        "from_balance": "30.00",
+        "to_balance": "30.00",
+        "amount": "10.00"
+      },
+      "reference": {
+        "from_balance": "20.00",
+        "to_balance": "40.00",
+        "debit": "to",
+        "credit": "from"
+      },
+      "expected": {
+        "from_balance": "20.00",
+        "to_balance": "40.00",
+        "debit": "to",
+        "credit": "from"
+      }
+    },
+    {
+      "id": "transfer-beyond-the-balance-is-accepted",
+      "kind": "treasury_transfer",
+      "classification": "exact",
+      "evidence": [
+        "transfer_25",
+        "transfer_25_balances"
+      ],
+      "inputs": {
+        "from_balance": "20.00",
+        "to_balance": "40.00",
+        "amount": "25.00"
+      },
+      "reference": {
+        "accepted": true,
+        "from_balance": "-5.00",
+        "to_balance": "65.00"
+      },
+      "expected": {
+        "accepted": true,
+        "from_balance": "-5.00",
+        "to_balance": "65.00"
+      }
+    },
+    {
+      "id": "the-opposite-transfer-restores-the-balances",
+      "kind": "treasury_transfer",
+      "classification": "exact",
+      "evidence": [
+        "transfer_back_25",
+        "balances_restored"
+      ],
+      "inputs": {
+        "from_balance": "65.00",
+        "to_balance": "-5.00",
+        "amount": "25.00"
+      },
+      "reference": {
+        "from_balance": "40.00",
+        "to_balance": "20.00"
+      },
+      "expected": {
+        "from_balance": "40.00",
+        "to_balance": "20.00"
+      }
+    }
+  ]
+}

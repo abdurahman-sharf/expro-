@@ -389,7 +389,7 @@ class ReceivingPostingTest extends CIUnitTestCase
     {
         $treasuries = new TreasuryService();
         $drawer     = $this->drawerOfTheBuyer();
-        $bank       = $treasuries->create(['name' => 'Gulf Bank', 'kind' => 'bank']);
+        $bank       = $treasuries->create(['name' => 'Gulf Bank', 'kind' => 'bank', 'bank_name' => 'Gulf Bank', 'account_number' => '1234567890']);
         $itemId     = $this->item('0.00');
         $id         = $this->buy([$this->purchaseLine($itemId, 0, '4', '50')]);
         $first      = $this->payPurchase($id, '60.00');
@@ -410,7 +410,7 @@ class ReceivingPostingTest extends CIUnitTestCase
     public function testUpdate_MovesASupplierPaymentToAnotherTreasuryByReversingAndPostingItAgain(): void
     {
         $treasuries = new TreasuryService();
-        $bank       = $treasuries->create(['name' => 'Gulf Bank', 'kind' => 'bank']);
+        $bank       = $treasuries->create(['name' => 'Gulf Bank', 'kind' => 'bank', 'bank_name' => 'Gulf Bank', 'account_number' => '1234567890']);
         $itemId     = $this->item('0.00');
         $id         = $this->buy([$this->purchaseLine($itemId, 0, '4', '50')]);
         $paymentId  = $this->payPurchase($id, '60.00');
@@ -420,6 +420,131 @@ class ReceivingPostingTest extends CIUnitTestCase
         $this->assertSame('0.00', $this->balance($this->accountId('cash')));
         $this->assertSame('-60.0000', $treasuries->position($bank)->balance);
         $this->assertSame(['reversed', 'posted'], array_map(static fn (object $journal): string => $journal->status, $this->paymentJournals($paymentId)));
+    }
+
+    /**
+     * A treasury of the buyer's branch that only the employees given may withdraw from.
+     *
+     * @param list<int> $employees
+     */
+    private function drawerOpenOnlyTo(array $employees, string $direction = 'withdraw'): int
+    {
+        $this->accountingDb()->table('grants')->insert(['person_id' => $this->employeeId, 'permission_id' => BranchGuard::ALL_BRANCHES, 'menu_group' => 'home']);
+
+        return (new TreasuryService())->create(['name' => 'Scoped drawer', 'kind' => 'cash', $direction . '_scope' => 'staff', $direction . '_members' => $employees]);
+    }
+
+    public function testUpdate_RefusesAPaymentFromATreasuryTheBuyerMayNotWithdrawFromAndSavesNothing(): void
+    {
+        $drawer = $this->drawerOpenOnlyTo([$this->employeeWithGrants([])]);
+        $itemId = $this->item('0.00');
+        $id     = $this->buy([$this->purchaseLine($itemId, 0, '4', '50')]);
+
+        $this->assertFalse($this->purchases->update($id, ['comment' => 'paid', 'payments' => [
+            ['payment_id' => NEW_ENTRY, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '60.00', 'employee_id' => $this->employeeId, 'payment_status' => 'completed', 'reference_code' => '', 'treasury_id' => $drawer],
+        ]]));
+
+        $this->assertSame(AccountingError::TreasuryWithdrawDenied, $this->purchases->accountingFailure()->error);
+        $this->assertSame(0, $this->accountingDb()->table('receivings_payments')->where('receiving_id', $id)->countAllResults());
+        $this->assertSame('0.0000', (new TreasuryService())->position($drawer)->balance);
+    }
+
+    public function testUpdate_AcceptsAPaymentFromATreasuryTheBuyerMayWithdrawFrom(): void
+    {
+        $drawer = $this->drawerOpenOnlyTo([$this->employeeId]);
+        $itemId = $this->item('0.00');
+        $id     = $this->buy([$this->purchaseLine($itemId, 0, '4', '50')]);
+
+        $this->assertTrue($this->purchases->update($id, ['comment' => 'paid', 'payments' => [
+            ['payment_id' => NEW_ENTRY, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '60.00', 'employee_id' => $this->employeeId, 'payment_status' => 'completed', 'reference_code' => '', 'treasury_id' => $drawer],
+        ]]));
+
+        $this->assertSame('-60.0000', (new TreasuryService())->position($drawer)->balance);
+    }
+
+    public function testUpdate_PaysFromTheMainTreasuryWhenTheTreasuryTheBuyerWorksFromIsClosedToThem(): void
+    {
+        $drawer = $this->drawerOpenOnlyTo([$this->employeeWithGrants([])]);
+
+        (new TreasuryService())->setDefaultFor($this->employeeId, $drawer);
+
+        $itemId    = $this->item('0.00');
+        $id        = $this->buy([$this->purchaseLine($itemId, 0, '4', '50')]);
+        $paymentId = $this->payPurchase($id, '60.00');
+
+        $this->assertNull($this->accountingDb()->table('receivings_payments')->where('payment_id', $paymentId)->get()->getRow()->treasury_id);
+        $this->assertSame('-60.00', $this->balance($this->accountId('cash')));
+    }
+
+    public function testUpdate_RefusesAPaymentThatWouldComeOutOfTheMainTreasuryWhenItIsClosedToTheBuyer(): void
+    {
+        $treasuries = new TreasuryService();
+        $main       = $treasuries->ensureMain();
+
+        $treasuries->update($main, ['name' => 'Main', 'kind' => 'cash', 'withdraw_scope' => 'staff', 'withdraw_members' => [$this->employeeWithGrants([])]]);
+
+        $itemId = $this->item('0.00');
+        $id     = $this->buy([$this->purchaseLine($itemId, 0, '4', '50')]);
+
+        $this->assertFalse($this->purchases->update($id, ['comment' => 'paid', 'payments' => [
+            ['payment_id' => NEW_ENTRY, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '60.00', 'employee_id' => $this->employeeId, 'payment_status' => 'completed', 'reference_code' => ''],
+        ]]));
+        $this->assertSame(AccountingError::TreasuryWithdrawDenied, $this->purchases->accountingFailure()->error);
+    }
+
+    public function testPostCompleted_RefusesAPurchaseMadeAtOnceWhenTheMainTreasuryItIsPaidFromIsClosedToTheBuyer(): void
+    {
+        $treasuries = new TreasuryService();
+        $main       = $treasuries->ensureMain();
+
+        $treasuries->update($main, ['name' => 'Main', 'kind' => 'cash', 'withdraw_scope' => 'staff', 'withdraw_members' => [$this->employeeWithGrants([])]]);
+
+        $itemId = $this->item('0.00');
+        $result = $this->buy([$this->purchaseLine($itemId, 0, '2', '50')], -1, lang('Sales.cash'));
+
+        $this->assertSame(ACCOUNTING_FAILED, $result);
+        $this->assertSame(AccountingError::TreasuryWithdrawDenied, $this->purchases->accountingFailure()->error);
+        $this->assertSame(0, $this->accountingDb()->table('receivings')->where('employee_id', $this->employeeId)->countAllResults());
+    }
+
+    public function testUpdate_RefusesToMoveASupplierPaymentToATreasuryTheBuyerMayNotWithdrawFrom(): void
+    {
+        $itemId    = $this->item('0.00');
+        $id        = $this->buy([$this->purchaseLine($itemId, 0, '4', '50')]);
+        $paymentId = $this->payPurchase($id, '60.00');
+        $drawer    = $this->drawerOpenOnlyTo([$this->employeeWithGrants([])]);
+
+        $this->assertFalse($this->changePayment($id, $paymentId, ['treasury_id' => $drawer]));
+        $this->assertSame(AccountingError::TreasuryWithdrawDenied, $this->purchases->accountingFailure()->error);
+        $this->assertNull($this->accountingDb()->table('receivings_payments')->where('payment_id', $paymentId)->get()->getRow()->treasury_id);
+    }
+
+    public function testUpdate_AsksTheDepositScopeOfTheTreasuryASupplierPaymentIsTakenOff(): void
+    {
+        $drawer    = $this->drawerOpenOnlyTo([$this->employeeWithGrants([])], 'deposit');
+        $itemId    = $this->item('0.00');
+        $id        = $this->buy([$this->purchaseLine($itemId, 0, '4', '50')]);
+        $paymentId = $this->payPurchase($id, '60.00');
+
+        $this->assertTrue($this->changePayment($id, $paymentId, ['treasury_id' => $drawer]), 'Paying from it was not limited');
+        $this->assertFalse($this->changePayment($id, $paymentId, ['treasury_id' => 0]));
+        $this->assertSame(AccountingError::TreasuryDepositDenied, $this->purchases->accountingFailure()->error);
+        $this->assertSame($drawer, (int) $this->accountingDb()->table('receivings_payments')->where('payment_id', $paymentId)->get()->getRow()->treasury_id);
+    }
+
+    public function testUpdate_AsksNothingOfAnEditThatChangesNeitherTheAmountNorTheTreasuryOfASupplierPayment(): void
+    {
+        $drawer    = $this->drawerOpenOnlyTo([$this->employeeId]);
+        $itemId    = $this->item('0.00');
+        $id        = $this->buy([$this->purchaseLine($itemId, 0, '4', '50')]);
+        $paymentId = $this->payPurchase($id, '60.00');
+
+        $this->assertTrue($this->changePayment($id, $paymentId, ['treasury_id' => $drawer]));
+
+        $this->accountingDb()->table('treasury_scope_members')->where('treasury_id', $drawer)->delete();
+        $this->accountingDb()->table('treasury_scope_members')->insert(['treasury_id' => $drawer, 'direction' => 'withdraw', 'member_id' => $this->employeeWithGrants([])]);
+
+        $this->assertTrue($this->changePayment($id, $paymentId, ['treasury_id' => $drawer, 'reference_code' => 'only a note']));
     }
 
     public function testPostCompleted_CountsThePacksOfALineAsTheUnitsInThem(): void

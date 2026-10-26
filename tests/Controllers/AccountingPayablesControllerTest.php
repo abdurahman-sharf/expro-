@@ -349,6 +349,33 @@ class AccountingPayablesControllerTest extends CIUnitTestCase
         $this->get('/accounting_payables/payment_form/' . $this->supplierId)->assertSee('name="treasury_id"');
     }
 
+    public function testGetPaymentForm_OffersOnlyTheTreasuriesTheManagerMayWithdrawFrom(): void
+    {
+        $manager = $this->clerk();
+        $other   = $this->employeeWithGrants([]);
+
+        (new TreasuryService())->create(['name' => 'Open drawer', 'kind' => 'cash'], $manager);
+        (new TreasuryService())->create(['name' => 'Locked drawer', 'kind' => 'cash', 'withdraw_scope' => 'staff', 'withdraw_members' => [$other]], $manager);
+
+        $response = $this->get('/accounting_payables/payment_form/' . $this->supplierId);
+
+        $response->assertSee('Open drawer');
+        $response->assertDontSee('Locked drawer');
+    }
+
+    public function testPostPayment_RefusesATreasuryTheManagerMayNotWithdrawFromAndSaysWhich(): void
+    {
+        $manager = $this->clerk();
+        $other   = $this->employeeWithGrants([]);
+        $locked  = (new TreasuryService())->create(['name' => 'Locked drawer', 'kind' => 'cash', 'withdraw_scope' => 'staff', 'withdraw_members' => [$other]], $manager);
+
+        $result = $this->jsonOf($this->post('/accounting_payables/payment/' . $this->supplierId, ['amount' => '50', 'advance_date' => date('Y-m-d'), 'payment_type' => 'Cash', 'treasury_id' => $locked]));
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString('Locked drawer', $result['message']);
+        $this->assertSame(0, $this->countRows('supplier_advances'));
+    }
+
     public function testGetPaymentForm_IsNotFoundWithoutThePermissionToManage(): void
     {
         $this->viewer();

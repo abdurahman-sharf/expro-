@@ -122,7 +122,7 @@ final class DefaultChart
             ['12', 'الأصول المتداولة', AccountType::Asset, '1', true, null, false],
             ['1201', 'الخزينة', AccountType::Asset, '12', true, 'treasuries', false],
             ['120101', 'الخزينة الأساسية', AccountType::Asset, '1201', false, 'cash', false],
-            ['1202', 'البنك', AccountType::Asset, '12', true, null, false],
+            ['1202', 'البنك', AccountType::Asset, '12', true, 'banks', false],
             ['1203', 'المخزون', AccountType::Asset, '12', true, 'inventory', false],
             ['1204', 'المدينون', AccountType::Asset, '12', true, null, false],
             ['12041', 'العملاء', AccountType::Asset, '1204', true, 'receivables', false],

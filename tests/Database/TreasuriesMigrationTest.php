@@ -2,8 +2,10 @@
 
 namespace Tests\Database;
 
+use App\Database\Migrations\BankAccounts;
 use App\Database\Migrations\SupplierAdvances;
 use App\Database\Migrations\Treasuries;
+use App\Database\Migrations\TreasuryScopes as TreasuryScopesMigration;
 use CodeIgniter\Database\Exceptions\DatabaseException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -221,8 +223,10 @@ class TreasuriesMigrationTest extends CIUnitTestCase
         $employee  = $this->employeeWithGrants([self::MODULE_ID, self::PERMISSION]);
         $migration = new Treasuries();
         $later     = new SupplierAdvances();
+        $scopes    = new TreasuryScopesMigration();
 
         try {
+            $scopes->down();
             $later->down();
             $migration->down();
 
@@ -240,6 +244,8 @@ class TreasuriesMigrationTest extends CIUnitTestCase
         } finally {
             $migration->up();
             $later->up();
+            (new BankAccounts())->up();
+            $scopes->up();
         }
 
         $this->assertTrue($this->hasTable('treasuries'));

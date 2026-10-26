@@ -5,7 +5,7 @@ namespace App\Libraries\Accounting;
 /**
  * Every account a posting can need, named by the part of the business it belongs to. The
  * first nineteen keys are the rows of the six routing families of the reference system. The
- * last seven are accounts this application needs on top of them.
+ * last eight are accounts this application needs on top of them.
  */
 enum RoutingKey: string
 {
@@ -36,6 +36,7 @@ enum RoutingKey: string
     case GiftcardLiability  = 'giftcards.liability';
     case OpeningBalance     = 'equity.opening';
     case CounterCustomers   = 'sales.counter';
+    case Banks              = 'treasuries.banks';
 
     public const GROUPS = ['sales', 'purchases', 'inventory', 'treasuries', 'stock_permits', 'fiscal', 'other'];
 
@@ -45,7 +46,7 @@ enum RoutingKey: string
             self::Customers, self::SalesRevenue, self::SalesReturns, self::SalesDiscount, self::ProductSales, self::SalesAdjustment, self::CostOfGoodsSold => 'sales',
             self::Suppliers, self::Purchases, self::PurchaseReturns, self::PurchaseDiscount, self::PurchaseAdjustment => 'purchases',
             self::StockLocations => 'inventory',
-            self::Treasuries     => 'treasuries',
+            self::Treasuries, self::Banks => 'treasuries',
             self::StockPermitAdd, self::StockPermitIssue, self::StockCountOut, self::StockCountIn => 'stock_permits',
             self::RetainedEarnings => 'fiscal',
             default                => 'other',
@@ -89,8 +90,8 @@ enum RoutingKey: string
             self::Customers      => 'customer',
             self::Suppliers      => 'supplier',
             self::StockLocations => 'stock_location',
-            self::Treasuries     => 'treasury',
-            default              => null,
+            self::Treasuries, self::Banks => 'treasury',
+            default => null,
         };
     }
 
@@ -108,7 +109,7 @@ enum RoutingKey: string
             self::ProductSales => [RoutingType::Cancelled, RoutingType::PerItem],
             self::SalesAdjustment, self::PurchaseAdjustment => [RoutingType::Cancelled, RoutingType::Auto, RoutingType::PerItem],
             self::CostOfGoodsSold => [RoutingType::Cancelled, RoutingType::Auto],
-            self::Suppliers, self::StockLocations, self::Treasuries => [RoutingType::Auto, RoutingType::PerItem],
+            self::Suppliers, self::StockLocations, self::Treasuries, self::Banks => [RoutingType::Auto, RoutingType::PerItem],
             default => [RoutingType::Auto],
         };
     }
@@ -158,7 +159,7 @@ enum RoutingKey: string
     public function allowedAccountTypes(): array
     {
         return match ($this) {
-            self::Customers, self::StockLocations, self::Treasuries, self::StockPermitIssue, self::CashDefault, self::CounterCustomers => [AccountType::Asset],
+            self::Customers, self::StockLocations, self::Treasuries, self::Banks, self::StockPermitIssue, self::CashDefault, self::CounterCustomers => [AccountType::Asset],
             self::Suppliers, self::StockPermitAdd, self::TaxOutput, self::GiftcardLiability => [AccountType::Liability],
             self::SalesRevenue, self::SalesReturns, self::ProductSales => [AccountType::Revenue],
             self::SalesDiscount, self::SalesAdjustment, self::PurchaseDiscount, self::PurchaseAdjustment => [AccountType::Revenue, AccountType::Expense],
@@ -203,6 +204,7 @@ enum RoutingKey: string
             self::PurchaseAdjustment => 'purchase_discount',
             self::StockLocations     => 'inventory',
             self::Treasuries         => 'treasuries',
+            self::Banks              => 'banks',
             self::StockPermitAdd     => 'other_payables',
             self::StockPermitIssue   => 'other_receivables',
             self::StockCountOut      => 'cogs',

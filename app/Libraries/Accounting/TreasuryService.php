@@ -10,10 +10,12 @@ use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
 /**
- * The treasuries and bank accounts: each is an entity with an account of its own under the main
- * treasury account, so what it holds is what its account says. The main treasury is the account
- * every payment already went to, and takes its place without a journal changing. A treasury that
- * holds money is not deactivated, and one that has been used is not deleted.
+ * The treasuries and bank accounts: each is an entity with an account of its own, so what it holds
+ * is what its account says: a cash treasury under the main treasury account and a bank account
+ * under the main account of the banks, which takes the name of the bank and the number of the
+ * account. The main treasury is the account every payment already went to, and takes its place
+ * without a journal changing. A treasury that holds money is not deactivated, and one that has
+ * been used is not deleted.
  */
 final class TreasuryService
 {
@@ -23,6 +25,9 @@ final class TreasuryService
     public const BANK          = 'bank';
     private const KINDS        = [self::CASH, self::BANK];
     private const NAME_MAX     = 255;
+    private const BANK_MAX     = 120;
+    private const NUMBER_MIN   = 4;
+    private const NUMBER_MAX   = 34;
     private const MAIN_NAME    = 'الخزينة الأساسية';
     private const DESCRIPTION  = 500;
     private const HAND_WRITTEN = 'manual';
@@ -31,6 +36,7 @@ final class TreasuryService
     private EntityAccountService $accounts;
     private AccountingGuard $guard;
     private BranchGuard $branches;
+    private TreasuryScopes $scopes;
     private AuditLog $audit;
 
     public function __construct(?BaseConnection $db = null, ?AccountingGuard $guard = null, ?BranchGuard $branches = null)
@@ -39,6 +45,7 @@ final class TreasuryService
         $this->accounts = new EntityAccountService($this->db);
         $this->guard    = $guard ?? new AccountingGuard();
         $this->branches = $branches ?? new BranchGuard($this->db);
+        $this->scopes   = new TreasuryScopes($this->db, $this->branches);
         $this->audit    = new AuditLog($this->db);
     }
 
@@ -93,7 +100,7 @@ final class TreasuryService
     }
 
     /**
-     * @param array{name?: mixed, kind?: mixed, description?: mixed, branch_id?: mixed} $input
+     * @param array{name?: mixed, kind?: mixed, description?: mixed, branch_id?: mixed, bank_name?: mixed, account_number?: mixed, deposit_scope?: mixed, deposit_members?: mixed, withdraw_scope?: mixed, withdraw_members?: mixed} $input
      *
      * @throws AccountingException|BranchException|PostingException
      */
@@ -103,6 +110,8 @@ final class TreasuryService
 
         $name        = $this->name($input['name'] ?? '');
         $kind        = $this->kind($input['kind'] ?? self::CASH);
+        $bank        = $this->bankDetails($kind, $input);
+        $scopes      = $this->scopes->validated($input);
         $description = $this->description($input['description'] ?? '');
         $branchId    = (int) ($input['branch_id'] ?? 0) > 0 ? (int) $input['branch_id'] : $this->branches->defaultBranchId($employeeId);
 
@@ -110,29 +119,36 @@ final class TreasuryService
         $this->assertBranchExists($branchId);
         $this->ensureMain($employeeId);
 
-        return $this->transactional(function () use ($name, $kind, $description, $branchId, $employeeId): int {
+        return $this->transactional(function () use ($name, $kind, $bank, $scopes, $description, $branchId, $employeeId): int {
             $this->assertNameFree($name);
+            $this->assertBankAccountFree($bank);
 
             $this->db->table('treasuries')->insert([
-                'company_id'  => CompanyContext::id(),
-                'branch_id'   => $branchId,
-                'name'        => $name,
-                'kind'        => $kind,
-                'description' => $description,
-                'created_by'  => $employeeId,
+                'company_id'     => CompanyContext::id(),
+                'branch_id'      => $branchId,
+                'name'           => $name,
+                'kind'           => $kind,
+                'bank_name'      => $bank['bank_name'],
+                'account_number' => $bank['account_number'],
+                'description'    => $description,
+                'created_by'     => $employeeId,
             ]);
 
             $treasuryId = (int) $this->db->insertID();
 
-            $this->accounts->ensure(EntityAccountService::TREASURY, $treasuryId, $name, $employeeId);
-            $this->audit->write('treasury', $treasuryId, 'created', $employeeId, JournalOrigin::User, ['name' => $name, 'kind' => $kind], $branchId);
+            $this->accounts->ensure(EntityAccountService::TREASURY, $treasuryId, $name, $employeeId, $this->parentKey($kind));
+            $this->scopes->apply($treasuryId, $scopes, $employeeId, $branchId);
+            $this->audit->write('treasury', $treasuryId, 'created', $employeeId, JournalOrigin::User, ['name' => $name, 'kind' => $kind] + $bank, $branchId);
 
             return $treasuryId;
         });
     }
 
     /**
-     * @param array{name?: mixed, kind?: mixed, description?: mixed} $input
+     * A treasury that changes between cash and bank takes its account to the main account of the
+     * other: only its place in the chart changes, so its balance and its entries stay as they are.
+     *
+     * @param array{name?: mixed, kind?: mixed, description?: mixed, bank_name?: mixed, account_number?: mixed, deposit_scope?: mixed, deposit_members?: mixed, withdraw_scope?: mixed, withdraw_members?: mixed} $input
      *
      * @throws AccountingException|BranchException
      */
@@ -142,23 +158,32 @@ final class TreasuryService
 
         $name        = $this->name($input['name'] ?? '');
         $kind        = $this->kind($input['kind'] ?? self::CASH);
+        $bank        = $this->bankDetails($kind, $input);
+        $scopes      = $this->scopes->validated($input);
         $description = $this->description($input['description'] ?? '');
 
-        $this->transactional(function () use ($treasuryId, $name, $kind, $description, $employeeId): void {
+        $this->transactional(function () use ($treasuryId, $name, $kind, $bank, $scopes, $description, $employeeId): void {
             $treasury = $this->lock($treasuryId);
 
             $this->branches->requireBranch((int) $treasury->branch_id, $employeeId);
             $this->assertNameFree($name, $treasuryId);
+            $this->assertBankAccountFree($bank, $treasuryId);
 
             if ((int) $treasury->is_main === 1 && $kind !== self::CASH) {
                 throw new AccountingException(AccountingError::TreasuryIsMain, 'The main treasury is a cash treasury.', ['treasury_id' => $treasuryId]);
             }
 
-            $this->db->table('treasuries')->where('treasury_id', $treasuryId)->update(['name' => $name, 'kind' => $kind, 'description' => $description]);
+            $this->db->table('treasuries')->where('treasury_id', $treasuryId)->update(['name' => $name, 'kind' => $kind, 'description' => $description] + $bank);
+
+            if ($treasury->kind !== $kind) {
+                $this->accounts->relocate(EntityAccountService::TREASURY, $treasuryId, $this->parentKey($kind) ?? RoutingKey::Treasuries, $employeeId);
+            }
+
             $this->accounts->rename(EntityAccountService::TREASURY, $treasuryId, $name, $employeeId);
+            $this->scopes->apply($treasuryId, $scopes, $employeeId, (int) $treasury->branch_id);
             $this->audit->write('treasury', $treasuryId, 'updated', $employeeId, JournalOrigin::User, [
-                'before' => ['name' => $treasury->name, 'kind' => $treasury->kind, 'description' => $treasury->description],
-                'after'  => ['name' => $name, 'kind' => $kind, 'description' => $description],
+                'before' => ['name' => $treasury->name, 'kind' => $treasury->kind, 'description' => $treasury->description, 'bank_name' => $treasury->bank_name, 'account_number' => $treasury->account_number],
+                'after'  => ['name' => $name, 'kind' => $kind, 'description' => $description] + $bank,
             ], (int) $treasury->branch_id);
         });
     }
@@ -282,10 +307,10 @@ final class TreasuryService
 
     /**
      * The treasury a new payment is written into, or none, which sends it to the account of its
-     * type as before: the treasury the employee works from, when it is active and belongs to the
-     * branch of the document.
+     * type as before: the treasury the employee works from, when it is active, belongs to the
+     * branch of the document and, for a direction given, lets the employee deposit or withdraw.
      */
-    public function stampFor(?int $employeeId, int $branchId): ?int
+    public function stampFor(?int $employeeId, int $branchId, ?string $direction = null): ?int
     {
         if ($employeeId === null) {
             return null;
@@ -301,7 +326,71 @@ final class TreasuryService
             ->get()
             ->getRow();
 
-        return $row === null ? null : (int) $row->treasury_id;
+        if ($row === null || ($direction !== null && ! $this->scopes->allows((int) $row->treasury_id, $direction, $employeeId))) {
+            return null;
+        }
+
+        return (int) $row->treasury_id;
+    }
+
+    /**
+     * The treasury a new payment goes into or out of, with the scope of the treasury enforced: the
+     * one it names, which must be of the branch and open to the employee in the direction, or else
+     * the treasury the employee works from when that is open to them, or else none, which sends it
+     * to the account of its way of payment and so to the main treasury, whose scope then governs.
+     *
+     * @throws AccountingException
+     */
+    public function ofPayment(?int $named, PaymentType $type, string $direction, ?int $employeeId, int $branchId): ?int
+    {
+        if ($named !== null && $named > 0) {
+            $this->assertForBranch($named, $branchId);
+            $this->scopes->assertAllows($named, $direction, $employeeId);
+
+            return $named;
+        }
+
+        $stamped = $this->stampFor($employeeId, $branchId, $direction);
+
+        if ($stamped === null) {
+            $this->scopes->assertMainAllows($type, $direction, $employeeId);
+        }
+
+        return $stamped;
+    }
+
+    /**
+     * Whether an employee may change a payment that was written before: only a change of its
+     * treasury or of its amount is a new deposit or withdrawal. Taking a payment off a treasury is
+     * the opposite of putting it there, so it needs the opposite scope of the treasury it leaves.
+     *
+     * @throws AccountingException
+     */
+    public function assertMayChangePayment(?int $newTreasuryId, ?int $oldTreasuryId, bool $amountChanged, PaymentType $type, string $direction, ?int $employeeId): void
+    {
+        $newTreasuryId = $newTreasuryId !== null && $newTreasuryId > 0 ? $newTreasuryId : null;
+
+        if (! $amountChanged && $newTreasuryId === $oldTreasuryId) {
+            return;
+        }
+
+        if ($newTreasuryId !== null) {
+            $this->scopes->assertAllows($newTreasuryId, $direction, $employeeId);
+        } else {
+            $this->scopes->assertMainAllows($type, $direction, $employeeId);
+        }
+
+        if ($oldTreasuryId === $newTreasuryId) {
+            return;
+        }
+
+        $opposite = $direction === TreasuryScopes::DEPOSIT ? TreasuryScopes::WITHDRAW : TreasuryScopes::DEPOSIT;
+
+        if ($oldTreasuryId === null) {
+            $this->scopes->assertMainAllows($type, $opposite, $employeeId);
+        } else {
+            $this->scopes->assertAllows($oldTreasuryId, $opposite, $employeeId);
+        }
     }
 
     /**
@@ -548,6 +637,73 @@ final class TreasuryService
         }
 
         return $name;
+    }
+
+    /**
+     * Whether a bank account still lacks the name of the bank or the number of the account, as the
+     * ones opened before both were required do. Editing one asks for both.
+     */
+    public static function lacksBankDetails(object $treasury): bool
+    {
+        return $treasury->kind === self::BANK && (trim((string) ($treasury->bank_name ?? '')) === '' || trim((string) ($treasury->account_number ?? '')) === '');
+    }
+
+    private function parentKey(string $kind): ?RoutingKey
+    {
+        return $kind === self::BANK ? RoutingKey::Banks : null;
+    }
+
+    /**
+     * The name of the bank and the number of the account of a bank account, which a cash treasury
+     * does not have.
+     *
+     * @param array<string, mixed> $input
+     *
+     * @return array{bank_name: ?string, account_number: ?string}
+     *
+     * @throws AccountingException
+     */
+    private function bankDetails(string $kind, array $input): array
+    {
+        if ($kind !== self::BANK) {
+            return ['bank_name' => null, 'account_number' => null];
+        }
+
+        $bankName = is_string($input['bank_name'] ?? null) ? trim($input['bank_name']) : '';
+
+        if ($bankName === '' || mb_strlen($bankName) > self::BANK_MAX) {
+            throw new AccountingException(AccountingError::TreasuryBankNameInvalid, 'A bank account needs the name of its bank.', ['max' => self::BANK_MAX]);
+        }
+
+        $number = strtoupper((string) preg_replace('/[\s-]+/', '', is_string($input['account_number'] ?? null) ? $input['account_number'] : ''));
+
+        if (preg_match('/^[A-Z0-9]{' . self::NUMBER_MIN . ',' . self::NUMBER_MAX . '}$/', $number) !== 1) {
+            throw new AccountingException(AccountingError::TreasuryAccountNumberInvalid, 'A bank account needs its account number.', ['min' => self::NUMBER_MIN, 'max' => self::NUMBER_MAX]);
+        }
+
+        return ['bank_name' => $bankName, 'account_number' => $number];
+    }
+
+    /**
+     * @param array{bank_name: ?string, account_number: ?string} $bank
+     *
+     * @throws AccountingException
+     */
+    private function assertBankAccountFree(array $bank, ?int $exceptId = null): void
+    {
+        if ($bank['account_number'] === null) {
+            return;
+        }
+
+        $builder = $this->db->table('treasuries')->where('company_id', CompanyContext::id())->where('bank_name', $bank['bank_name'])->where('account_number', $bank['account_number']);
+
+        if ($exceptId !== null) {
+            $builder->where('treasury_id !=', $exceptId);
+        }
+
+        if ($builder->countAllResults() > 0) {
+            throw new AccountingException(AccountingError::TreasuryBankAccountTaken, 'This bank account is already one of the treasuries.', ['bank_name' => $bank['bank_name'], 'account_number' => $bank['account_number']]);
+        }
     }
 
     /**

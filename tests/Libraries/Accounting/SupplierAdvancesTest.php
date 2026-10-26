@@ -13,9 +13,11 @@ use App\Libraries\Organization\BranchException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
+use Tests\Support\ParityFixture;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 
@@ -114,6 +116,80 @@ class SupplierAdvancesTest extends CIUnitTestCase
         $this->assertSame([$this->supplierAccount() . '=120.00/0.00', (new TreasuryService())->accountOf($drawer) . '=0.00/120.00'], $this->linesOf(SupplierAdvances::SOURCE, $advanceId));
         $this->assertSame('-120.0000', (new TreasuryService())->position($drawer)->balance);
         $this->assertSame($drawer, (int) $this->accountingDb()->table('supplier_advances')->where('advance_id', $advanceId)->get()->getRow()->treasury_id);
+    }
+
+    /**
+     * @return array<string, array{array<string, mixed>}>
+     */
+    public static function referenceSupplierPayments(): array
+    {
+        return array_filter(ParityFixture::cases('T-21', 'treasury_payment'), static fn (array $set): bool => $set[0]['inputs']['payer'] === 'supplier');
+    }
+
+    /**
+     * @param array<string, mixed> $case
+     */
+    #[DataProvider('referenceSupplierPayments')]
+    public function testPay_DebitsTheSupplierAndCreditsTheChosenTreasuryAsTheReferenceSystemDoes(array $case): void
+    {
+        $treasuries = new TreasuryService();
+        $drawer     = $treasuries->create(['name' => 'Fixture drawer', 'kind' => 'cash'], $this->clerk);
+        $amount     = $case['inputs']['amount'];
+
+        $advanceId = $this->advances->pay($this->supplierId, $amount, '2026-10-20', 'Cash', $drawer, '', '', $this->clerk);
+
+        $this->assertSame([$this->supplierAccount() . '=' . $amount . '/0.00', $treasuries->accountOf($drawer) . '=0.00/' . $amount], $this->linesOf(SupplierAdvances::SOURCE, $advanceId));
+        $this->assertSame($case['expected'], ['debit' => 'supplier', 'credit' => 'treasury', 'amount' => $amount]);
+        $this->assertSame($case['reference'], $case['expected']);
+    }
+
+    public function testPay_RefusesATreasuryTheEmployeeMayNotWithdrawFrom(): void
+    {
+        $treasuries = new TreasuryService();
+        $other      = $this->employeeWithGrants([]);
+        $drawer     = $treasuries->create(['name' => 'Locked drawer', 'kind' => 'cash', 'withdraw_scope' => 'staff', 'withdraw_members' => [$other]], $this->clerk);
+
+        $refusal = $this->refusal(fn () => $this->advances->pay($this->supplierId, '120.00', '2026-10-20', 'Cash', $drawer, '', '', $this->clerk));
+
+        $this->assertSame(AccountingError::TreasuryWithdrawDenied, $refusal->error);
+        $this->assertSame('Locked drawer', $refusal->context['name']);
+        $this->assertSame(0, $this->countRows('supplier_advances'));
+        $this->assertSame('0.0000', $treasuries->position($drawer)->balance);
+    }
+
+    public function testPay_AcceptsATreasuryTheEmployeeIsAllowedToWithdrawFrom(): void
+    {
+        $treasuries = new TreasuryService();
+        $drawer     = $treasuries->create(['name' => 'Own drawer', 'kind' => 'cash', 'withdraw_scope' => 'staff', 'withdraw_members' => [$this->clerk]], $this->clerk);
+
+        $this->advances->pay($this->supplierId, '120.00', '2026-10-20', 'Cash', $drawer, '', '', $this->clerk);
+
+        $this->assertSame('-120.0000', $treasuries->position($drawer)->balance);
+    }
+
+    public function testPay_AppliesTheScopeOfTheMainTreasuryWhenNoTreasuryIsNamed(): void
+    {
+        $treasuries = new TreasuryService();
+        $other      = $this->employeeWithGrants([]);
+        $main       = $treasuries->ensureMain();
+
+        $treasuries->update($main, ['name' => 'Main', 'kind' => 'cash', 'withdraw_scope' => 'staff', 'withdraw_members' => [$other]], $this->clerk);
+
+        $refusal = $this->refusal(fn () => $this->advances->pay($this->supplierId, '120.00', '2026-10-20', 'Cash', null, '', '', $this->clerk));
+
+        $this->assertSame(AccountingError::TreasuryWithdrawDenied, $refusal->error);
+        $this->assertSame(0, $this->countRows('supplier_advances'));
+    }
+
+    public function testPay_LetsTheBooksPayWhateverTheScopeOfTheTreasury(): void
+    {
+        $treasuries = new TreasuryService();
+        $other      = $this->employeeWithGrants([]);
+        $drawer     = $treasuries->create(['name' => 'Locked drawer', 'kind' => 'cash', 'withdraw_scope' => 'staff', 'withdraw_members' => [$other]], $this->clerk);
+
+        $this->advances->pay($this->supplierId, '120.00', '2026-10-20', 'Cash', $drawer);
+
+        $this->assertSame('-120.0000', $treasuries->position($drawer)->balance);
     }
 
     public function testPay_IsSpentOnTheOpenPurchasesOfTheSupplierTheOldestFirst(): void

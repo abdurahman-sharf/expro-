@@ -239,6 +239,7 @@ class RoutingResolverTest extends CIUnitTestCase
         $allowed = [
             'Libraries/Accounting/AccountService.php',
             'Libraries/Accounting/AccountingSettings.php',
+            'Libraries/Accounting/BankAccountPlacement.php',
             'Libraries/Accounting/DefaultChart.php',
             'Libraries/Accounting/EntityAccountService.php',
             'Libraries/Accounting/OpeningBalanceService.php',

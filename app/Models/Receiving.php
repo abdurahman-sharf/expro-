@@ -15,6 +15,7 @@ use App\Libraries\Accounting\ReceivingPosting;
 use App\Libraries\Accounting\ReceivingType;
 use App\Libraries\Accounting\ReturnLimit;
 use App\Libraries\Accounting\SupplierLock;
+use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Organization\BranchGuard;
 use CodeIgniter\Database\ResultInterface;
@@ -235,7 +236,7 @@ class Receiving extends Model
                     'employee_id'    => $payment['employee_id'] ?? null,
                     'reference_code' => (string) ($payment['reference_code'] ?? ''),
                     'payment_status' => PaymentStatus::fromStored($payment['payment_status'] ?? null)->value,
-                    'treasury_id'    => $this->treasuryOfPayment($payment, isset($payment['employee_id']) ? (int) $payment['employee_id'] : null, (int) $purchase->branch_id),
+                    'treasury_id'    => $this->treasuryOfPayment($payment, isset($payment['employee_id']) ? (int) $payment['employee_id'] : null, (int) $purchase->branch_id, bccomp($amount, '0', 2) < 0 ? TreasuryScopes::DEPOSIT : TreasuryScopes::WITHDRAW),
                 ]);
 
                 continue;
@@ -261,7 +262,7 @@ class Receiving extends Model
             }
 
             if (array_key_exists('treasury_id', $payment)) {
-                $changes['treasury_id'] = $this->namedTreasury($payment, (int) $purchase->branch_id);
+                $changes['treasury_id'] = $this->namedTreasury($payment, $paymentId, isset($payment['employee_id']) ? (int) $payment['employee_id'] : null, (int) $purchase->branch_id);
             }
 
             $this->db->table('receivings_payments')->where('payment_id', $paymentId)->update($changes);
@@ -273,11 +274,12 @@ class Receiving extends Model
     /**
      * The treasury a payment is made from: the one it names, or else the treasury its employee
      * works from when it belongs to the branch of the purchase. A payment left on credit, or one
-     * with no such treasury, goes to the account of its type as it always did.
+     * with no such treasury, goes to the account of its type as it always did. Money paid out is a
+     * withdrawal from the treasury, and money a supplier gives back is a deposit.
      *
      * @param array<string, mixed> $payment
      */
-    private function treasuryOfPayment(array $payment, ?int $employeeId, int $branchId): ?int
+    private function treasuryOfPayment(array $payment, ?int $employeeId, int $branchId, string $direction = TreasuryScopes::WITHDRAW): ?int
     {
         $type = PaymentType::fromLabel((string) ($payment['payment_type'] ?? ''));
 
@@ -285,33 +287,41 @@ class Receiving extends Model
             return null;
         }
 
-        $treasuries = new TreasuryService($this->db);
-
-        if ((int) ($payment['treasury_id'] ?? 0) > 0) {
-            $treasuries->assertForBranch((int) $payment['treasury_id'], $branchId);
-
-            return (int) $payment['treasury_id'];
-        }
-
-        return $treasuries->stampFor($employeeId, $branchId);
+        return (new TreasuryService($this->db))->ofPayment((int) ($payment['treasury_id'] ?? 0), $type, $direction, $employeeId, $branchId);
     }
 
     /**
      * The treasury an existing payment is moved to, or none for one that goes where its type does.
+     * Only a change of the treasury or of the amount asks the scope of the treasuries involved.
      *
      * @param array<string, mixed> $payment
      */
-    private function namedTreasury(array $payment, int $branchId): ?int
+    private function namedTreasury(array $payment, int $paymentId, ?int $employeeId, int $branchId): ?int
     {
         $treasuryId = (int) ($payment['treasury_id'] ?? 0);
+        $treasuries = new TreasuryService($this->db);
 
-        if ($treasuryId <= 0) {
-            return null;
+        if ($treasuryId > 0) {
+            $treasuries->assertForBranch($treasuryId, $branchId);
         }
 
-        (new TreasuryService($this->db))->assertForBranch($treasuryId, $branchId);
+        $type   = PaymentType::fromLabel((string) ($payment['payment_type'] ?? ''));
+        $stored = $this->db->table('receivings_payments')->select('treasury_id, payment_amount')->where('payment_id', $paymentId)->get()->getRow();
 
-        return $treasuryId;
+        if ($type !== null && $type->usesTreasury() && $stored !== null) {
+            $amount = (string) ($payment['payment_amount'] ?? '0');
+
+            $treasuries->assertMayChangePayment(
+                $treasuryId > 0 ? $treasuryId : null,
+                $stored->treasury_id === null ? null : (int) $stored->treasury_id,
+                bccomp($amount, (string) $stored->payment_amount, 2) !== 0,
+                $type,
+                bccomp($amount, '0', 2) < 0 ? TreasuryScopes::DEPOSIT : TreasuryScopes::WITHDRAW,
+                $employeeId,
+            );
+        }
+
+        return $treasuryId > 0 ? $treasuryId : null;
     }
 
     /**
@@ -384,6 +394,14 @@ class Receiving extends Model
         $branchId     = $branchIds[0] ?? (new BranchGuard($this->db))->companyDefaultBranchId();
         $accountingOn = (new AccountingSettings($this->db))->isEnabled();
 
+        try {
+            $treasuryId = $this->treasuryOfPayment(['payment_type' => $payment_type], $employee_id === null ? null : (int) $employee_id, $branchId, $type === ReceivingType::Return ? TreasuryScopes::DEPOSIT : TreasuryScopes::WITHDRAW);
+        } catch (AccountingException $refusal) {
+            $this->accountingFailure = $refusal;
+
+            return ACCOUNTING_FAILED;
+        }
+
         $receivings_data = [
             'receiving_time'         => date('Y-m-d H:i:s'),
             'supplier_id'            => $supplier->exists($supplier_id) ? $supplier_id : null,
@@ -394,7 +412,7 @@ class Receiving extends Model
             'receiving_type'         => $type->value,
             'branch_id'              => $branchId,
             'return_of_receiving_id' => $type === ReceivingType::Return ? $returnOfReceivingId : null,
-            'treasury_id'            => $this->treasuryOfPayment(['payment_type' => $payment_type], $employee_id === null ? null : (int) $employee_id, $branchId),
+            'treasury_id'            => $treasuryId,
         ];
 
         // Run these queries as a transaction, we want to make sure we do all or nothing

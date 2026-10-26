@@ -1,0 +1,40 @@
+{
+  "id": "T-23",
+  "title": "Deactivating a treasury that holds 20.00: accepted by the reference system, which then leaves it out of the transfer lists, and refused by the Awwal Pro on purpose",
+  "recorded": "2026-10-26",
+  "evidence": {
+    "deactivation": {
+      "id": "ev_ee11639b41e89023510051bc6891b3a8392a22a4b13dff3fe65ce1fed7a3d661",
+      "note": "The deactivation of a treasury holding 20.00, accepted with a success message"
+    },
+    "transfer_form_after": {
+      "id": "ev_78bc1ec305896c0d5abb5cbfd3bcd378a63e879a1d84593dfeefcf9e6c4e290e",
+      "note": "The transfer form after it: the deactivated treasury is in neither the from list nor the to list"
+    }
+  },
+  "cases": [
+    {
+      "id": "deactivation-with-a-balance",
+      "kind": "treasury_deactivation",
+      "classification": "differs",
+      "evidence": [
+        "deactivation",
+        "transfer_form_after"
+      ],
+      "inputs": {
+        "balance": "20.00"
+      },
+      "reference": {
+        "accepted": true,
+        "balance_after": "20.00",
+        "in_transfer_lists_after": false
+      },
+      "expected": {
+        "accepted": false,
+        "error": "treasury_has_balance",
+        "balance_after": "20.00",
+        "in_transfer_lists_after": true
+      }
+    }
+  ]
+}

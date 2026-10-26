@@ -108,14 +108,20 @@ enum AccountingError: string
     case AdvancePaymentUnknown   = 'advance_payment_unknown';
     case OpeningNotFound         = 'opening_not_found';
 
-    case TreasuryNotFound    = 'treasury_not_found';
-    case TreasuryInvalidName = 'treasury_invalid_name';
-    case TreasuryInvalidKind = 'treasury_invalid_kind';
-    case TreasuryNameTaken   = 'treasury_name_taken';
-    case TreasuryIsMain      = 'treasury_is_main';
-    case TreasuryHasBalance  = 'treasury_has_balance';
-    case TreasuryInUse       = 'treasury_in_use';
-    case TreasuryInactive    = 'treasury_inactive';
+    case TreasuryNotFound             = 'treasury_not_found';
+    case TreasuryInvalidName          = 'treasury_invalid_name';
+    case TreasuryInvalidKind          = 'treasury_invalid_kind';
+    case TreasuryNameTaken            = 'treasury_name_taken';
+    case TreasuryBankNameInvalid      = 'treasury_bank_name_invalid';
+    case TreasuryAccountNumberInvalid = 'treasury_account_number_invalid';
+    case TreasuryBankAccountTaken     = 'treasury_bank_account_taken';
+    case TreasuryIsMain               = 'treasury_is_main';
+    case TreasuryHasBalance           = 'treasury_has_balance';
+    case TreasuryInUse                = 'treasury_in_use';
+    case TreasuryInactive             = 'treasury_inactive';
+    case TreasuryDepositDenied        = 'treasury_deposit_denied';
+    case TreasuryWithdrawDenied       = 'treasury_withdraw_denied';
+    case TreasuryScopeInvalid         = 'treasury_scope_invalid';
 
     case TransferNotFound         = 'transfer_not_found';
     case TransferSameTreasury     = 'transfer_same_treasury';

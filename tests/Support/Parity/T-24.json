@@ -1,0 +1,69 @@
+{
+  "id": "T-24",
+  "title": "Who may deposit into and withdraw from a treasury: two fields of the treasury, each with a scope, apart from the permission to manage treasuries",
+  "recorded": "2026-10-26",
+  "evidence": {
+    "scope_fields": {
+      "id": "ev_80ad644bf547a1f4650a1b4ce0bed6c733715db0f5e2d0ef5cb566945779370e",
+      "note": "The treasury form: deposit and withdraw each take a scope chosen from everybody, employees, roles or branches, and a new treasury takes everybody for both"
+    },
+    "staff_treasuries_screen": {
+      "id": "ev_17e0468e9b24e8c6e5bda9d72a71d355cecee28e7fe19929b011f19a440e0118",
+      "note": "The separate screen of the treasuries of employees, empty, with the owner as the only employee"
+    }
+  },
+  "cases": [
+    {
+      "id": "a-new-treasury-is-open-to-everybody",
+      "kind": "treasury_scope",
+      "classification": "exact",
+      "evidence": [
+        "scope_fields",
+        "staff_treasuries_screen"
+      ],
+      "inputs": {
+        "treasury": "new"
+      },
+      "reference": {
+        "deposit": "all",
+        "withdraw": "all"
+      },
+      "expected": {
+        "deposit": "all",
+        "withdraw": "all"
+      }
+    },
+    {
+      "id": "the-scopes-that-can-be-chosen",
+      "kind": "treasury_scope_kinds",
+      "classification": "differs",
+      "evidence": [
+        "scope_fields"
+      ],
+      "inputs": {
+        "fields": [
+          "deposit",
+          "withdraw"
+        ]
+      },
+      "reference": {
+        "scopes": [
+          "all",
+          "staff",
+          "roles",
+          "branches"
+        ]
+      },
+      "expected": {
+        "scopes": [
+          "all",
+          "staff",
+          "branches"
+        ],
+        "refused": [
+          "roles"
+        ]
+      }
+    }
+  ]
+}

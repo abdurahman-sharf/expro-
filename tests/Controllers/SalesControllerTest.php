@@ -1434,6 +1434,27 @@ class SalesControllerTest extends CIUnitTestCase
         $response->assertSee(lang('Sales.treasury_default'));
     }
 
+    public function testGetEdit_LeavesOutTheTreasuriesTheEditorMayNotDepositIntoButKeepsTheOneAPaymentAlreadyCarries(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->addPayment($invoice['saleId'], '300.00', 'Cash');
+        $this->treasuryOfBranch('Open drawer');
+
+        $locked = (new TreasuryService())->create(['name' => 'Locked drawer', 'kind' => 'cash', 'deposit_scope' => 'staff', 'deposit_members' => [$this->employeeId]]);
+
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $response = $this->get('/sales/edit/' . $invoice['saleId']);
+
+        $response->assertStatus(200);
+        $response->assertSee('Open drawer');
+        $response->assertDontSee('Locked drawer');
+
+        $this->accountingDb()->table('sales_payments')->where('sale_id', $invoice['saleId'])->update(['treasury_id' => $locked]);
+
+        $this->get('/sales/edit/' . $invoice['saleId'])->assertSee('Locked drawer');
+    }
+
     public function testGetEdit_OffersNoTreasuryWhileTheBranchHasOnlyTheMainOne(): void
     {
         $invoice = $this->postedInvoice();

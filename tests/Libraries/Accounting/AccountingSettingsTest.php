@@ -147,6 +147,28 @@ class AccountingSettingsTest extends CIUnitTestCase
         $this->assertSame('sales.cogs', $issues[0]->subject);
     }
 
+    public function testReadiness_ReportsTheMainAccountOfTheBanksLeftUnmapped(): void
+    {
+        $this->completeTheSettings();
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'treasuries.banks')->update(['account_id' => null]);
+
+        $issues = $this->settings->readiness();
+
+        $this->assertSame([ReadinessCode::RoutingUnmapped], array_column($issues, 'code'));
+        $this->assertSame('treasuries.banks', $issues[0]->subject);
+    }
+
+    public function testReadiness_ReportsAPostableAccountOnTheRowOfTheBanks(): void
+    {
+        $this->completeTheSettings();
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'treasuries.banks')->update(['account_id' => $this->accountId('cash')]);
+
+        $issues = $this->settings->readiness();
+
+        $this->assertSame([ReadinessCode::RoutingAccountInvalid], array_column($issues, 'code'));
+        $this->assertSame('treasuries.banks', $issues[0]->subject);
+    }
+
     public function testReadiness_ReportsARoutingKeyPointingToAGroupAccount(): void
     {
         $this->completeTheSettings();

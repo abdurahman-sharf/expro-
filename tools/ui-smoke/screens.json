@@ -1222,6 +1222,28 @@
       ]
     },
     {
+      "id": "accounting-treasuries-new-bank-modal",
+      "group": "accounting",
+      "path": "/accounting_treasuries",
+      "steps": [
+        {
+          "click": "#title_bar button[data-href=\"accounting_treasuries/view\"]"
+        },
+        {
+          "waitFor": ".modal-body #treasury_form"
+        },
+        {
+          "select": [".modal-body #kind", "bank"]
+        },
+        {
+          "waitFor": ".modal-body #bank_name:visible"
+        },
+        {
+          "pause": 1000
+        }
+      ]
+    },
+    {
       "id": "accounting-treasury-transfers",
       "group": "accounting",
       "path": "/accounting_treasuries/transfers"

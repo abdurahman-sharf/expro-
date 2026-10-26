@@ -89,12 +89,12 @@ class RoutingKeyTest extends CIUnitTestCase
         $this->assertEqualsCanonicalizing(RoutingKey::editable(), $seen);
     }
 
-    public function testIsEntity_MarksTheMainAccountsOfCustomersSuppliersLocationsAndTreasuries(): void
+    public function testIsEntity_MarksTheMainAccountsOfCustomersSuppliersLocationsTreasuriesAndBanks(): void
     {
         $entities = array_filter(RoutingKey::cases(), static fn (RoutingKey $key): bool => $key->isEntity());
 
         $this->assertEqualsCanonicalizing(
-            [RoutingKey::Customers, RoutingKey::Suppliers, RoutingKey::StockLocations, RoutingKey::Treasuries],
+            [RoutingKey::Customers, RoutingKey::Suppliers, RoutingKey::StockLocations, RoutingKey::Treasuries, RoutingKey::Banks],
             array_values($entities),
         );
         $this->assertSame('customer', RoutingKey::Customers->entityKind());

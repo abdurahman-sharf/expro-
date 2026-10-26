@@ -74,13 +74,12 @@ trait AccountingFixtureTrait
         $db = $this->accountingDb();
 
         $db->table('employees')->update(['default_treasury_id' => null]);
+        $db->table('treasury_scope_members')->truncate();
         $db->table('treasuries')->truncate();
         $db->table('accounting_accounts')->where('entity_type', 'treasury')->where('system_key IS NULL', null, false)->delete();
         $db->table('accounting_accounts')->where('entity_type', 'treasury')->update(['entity_type' => null, 'entity_id' => null]);
 
-        $parent = $db->table('accounting_accounts')->select('account_id')->where('system_key', 'treasuries')->get()->getRow();
-
-        if ($parent !== null) {
+        foreach ($db->table('accounting_accounts')->select('account_id')->whereIn('system_key', ['treasuries', 'banks'])->get()->getResult() as $parent) {
             $db->table('accounting_sequences')->where('series', 'sub:' . $parent->account_id)->delete();
         }
     }

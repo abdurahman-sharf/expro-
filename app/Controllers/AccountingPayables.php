@@ -6,6 +6,7 @@ use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\SupplierAdvances;
 use App\Libraries\Accounting\SupplierLedger;
 use App\Libraries\Accounting\SupplierPosition;
+use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
 use App\Models\Receiving;
 use CodeIgniter\Exceptions\PageNotFoundException;
@@ -109,7 +110,9 @@ class AccountingPayables extends AccountingController
 
         $treasuries = [0 => lang('Accounting_payables.treasury_default')];
 
-        foreach ((new TreasuryService())->all($this->branchIds(), false) as $treasury) {
+        $active = (new TreasuryService())->all($this->branchIds(), false);
+
+        foreach ((new TreasuryScopes())->usable($active, TreasuryScopes::WITHDRAW, $this->employeeId()) as $treasury) {
             $treasuries[(int) $treasury->treasury_id] = $treasury->name . ' (' . $treasury->branch_code . ')';
         }
 

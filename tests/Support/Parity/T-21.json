@@ -1,0 +1,109 @@
+{
+  "id": "T-21",
+  "title": "A payment made into or out of a chosen treasury: payments of 60 in cash and 30 by bank transfer on a sale, and a payment of 30 to a supplier",
+  "recorded": "2026-10-26",
+  "evidence": {
+    "sale_payments_60_and_30": {
+      "id": "ev_da0228c5fa3c4635df5a572a35c79750b2d7a0c1afc24e69f8a02f3c517304fe",
+      "note": "Sale of 115 with two payments, the first in cash to the new treasury and the second by bank transfer to the bank account"
+    },
+    "payment_journal_cash": {
+      "id": "ev_d936b1d99015e5162ec5e617d0c2e18c58d6316b71c493763db5e27207c16bdf",
+      "note": "The journal of the payment of 60: the treasury debited and the customer credited"
+    },
+    "payment_journal_bank": {
+      "id": "ev_d59ae74d9ff69379dc3b1461613a3112a2245e9200af156504534d96e0868bd8",
+      "note": "The journal of the payment of 30: the bank account debited and the customer credited"
+    },
+    "sale_after_payments": {
+      "id": "ev_9d2d45f20051de51430435d4e5524776d9181af7da68efe51dc1f7cb1968d286",
+      "note": "The sale after both payments with 25 still owed"
+    },
+    "supplier_payment_30": {
+      "id": "ev_28608dbebcf3712bd1464f74f4491b0e52297d8143c833801680c846cac97c7f",
+      "note": "A payment of 30 in cash from the new treasury against a purchase of 115"
+    },
+    "supplier_payment_journal": {
+      "id": "ev_fd220559736a80f478b81fd0b64f515c0e496ee308f51ada5f5af3e3d739e1ed",
+      "note": "The journal of the payment to the supplier: the supplier debited and the treasury credited"
+    }
+  },
+  "cases": [
+    {
+      "id": "customer-payment-in-cash-to-a-treasury",
+      "kind": "treasury_payment",
+      "classification": "exact",
+      "evidence": [
+        "sale_payments_60_and_30",
+        "payment_journal_cash"
+      ],
+      "inputs": {
+        "payer": "customer",
+        "way": "cash",
+        "amount": "60.00",
+        "treasury": "cash"
+      },
+      "reference": {
+        "debit": "treasury",
+        "credit": "customer",
+        "amount": "60.00"
+      },
+      "expected": {
+        "debit": "treasury",
+        "credit": "customer",
+        "amount": "60.00"
+      }
+    },
+    {
+      "id": "customer-payment-by-bank-transfer-to-a-bank-account",
+      "kind": "treasury_payment",
+      "classification": "exact",
+      "evidence": [
+        "sale_payments_60_and_30",
+        "payment_journal_bank",
+        "sale_after_payments"
+      ],
+      "inputs": {
+        "payer": "customer",
+        "way": "bank_transfer",
+        "amount": "30.00",
+        "treasury": "bank"
+      },
+      "reference": {
+        "debit": "treasury",
+        "credit": "customer",
+        "amount": "30.00"
+      },
+      "expected": {
+        "debit": "treasury",
+        "credit": "customer",
+        "amount": "30.00"
+      }
+    },
+    {
+      "id": "supplier-payment-from-a-treasury",
+      "kind": "treasury_payment",
+      "classification": "exact",
+      "evidence": [
+        "supplier_payment_30",
+        "supplier_payment_journal"
+      ],
+      "inputs": {
+        "payer": "supplier",
+        "way": "cash",
+        "amount": "30.00",
+        "treasury": "cash"
+      },
+      "reference": {
+        "debit": "supplier",
+        "credit": "treasury",
+        "amount": "30.00"
+      },
+      "expected": {
+        "debit": "supplier",
+        "credit": "treasury",
+        "amount": "30.00"
+      }
+    }
+  ]
+}

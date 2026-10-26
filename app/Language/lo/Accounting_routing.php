@@ -38,6 +38,7 @@ return [
     'item_stock_permits_issue'      => '',
     'item_tax_output'               => '',
     'item_treasuries_accounts'      => '',
+    'item_treasuries_banks'         => '',
     'locked_note'                   => '',
     'not_set'                       => '',
     'not_used'                      => '',

@@ -1,7 +1,8 @@
 <?php
 /**
- * @var list<object> $treasuries
- * @var string $today
+ * @var list<object> $from_treasuries
+ * @var list<object> $to_treasuries
+ * @var string       $today
  */
 ?>
 
@@ -11,7 +12,7 @@
 <?= form_open('accounting_treasuries/transfer', ['id' => 'transfer_form', 'class' => 'app-form']) ?>
     <fieldset id="transfer_fields">
         <div class="form-grid">
-            <?php foreach (['from_treasury_id' => 'from_treasury', 'to_treasury_id' => 'to_treasury'] as $name => $label): ?>
+            <?php foreach (['from_treasury_id' => ['from_treasury', $from_treasuries], 'to_treasury_id' => ['to_treasury', $to_treasuries]] as $name => [$label, $treasuries]): ?>
                 <div class="field">
                     <?= form_label(lang('Accounting_treasuries.' . $label), $name, ['class' => 'form-label text-danger required']) ?>
                     <div class="field-control">

@@ -6,6 +6,7 @@ use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\PostingService;
+use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Accounting\TreasuryTransfers;
 use CodeIgniter\Exceptions\PageNotFoundException;
@@ -163,10 +164,13 @@ class AccountingTreasuriesControllerTest extends CIUnitTestCase
         $manager = $this->manager();
         $other   = $this->createBranch('B2');
 
-        $this->treasuries->create(['name' => 'Bank Alpha', 'kind' => 'bank'], $manager);
+        $this->treasuries->create(['name' => 'Bank Alpha', 'kind' => 'bank', 'bank_name' => 'Gulf Bank', 'account_number' => '1234567890'], $manager);
         $this->treasuries->create(['name' => 'Elsewhere', 'kind' => 'cash', 'branch_id' => $other], $manager);
 
-        $this->assertSame(['Bank Alpha'], array_map(static fn (array $row): string => strip_tags($row['name']), $this->rowsOf('?search=alpha')['rows']));
+        $rows = $this->rowsOf('?search=alpha')['rows'];
+
+        $this->assertCount(1, $rows);
+        $this->assertStringStartsWith('Bank Alpha', strip_tags($rows[0]['name']));
 
         $this->actAsWith(['accounting_treasuries'], [$other]);
 
@@ -305,10 +309,92 @@ class AccountingTreasuriesControllerTest extends CIUnitTestCase
         $this->assertTrue($added['success']);
         $this->assertSame(lang('Accounting_treasuries.successful_adding'), $added['message']);
 
-        $again = json_decode($this->post('/accounting_treasuries/save', ['name' => 'Drawer', 'kind' => 'bank'])->getJSON(), true);
+        $again = json_decode($this->post('/accounting_treasuries/save', ['name' => 'Drawer', 'kind' => 'bank', 'bank_name' => 'Gulf Bank', 'account_number' => '1234567890'])->getJSON(), true);
 
         $this->assertFalse($again['success']);
         $this->assertSame(lang('Accounting.error_treasury_name_taken', ['Drawer']), $again['message']);
+    }
+
+    public function testPostSave_KeepsTheNameOfTheBankAndTheNumberOfTheAccountOfABank(): void
+    {
+        $this->manager();
+
+        $added = json_decode($this->post('/accounting_treasuries/save', ['name' => 'Savings', 'kind' => 'bank', 'bank_name' => 'Gulf Bank', 'account_number' => 'sa03 8000 0000 6080'])->getJSON(), true);
+
+        $this->assertTrue($added['success']);
+        $this->assertSame('Gulf Bank', $this->treasuries->find($added['id'])->bank_name);
+        $this->assertSame('SA03800000006080', $this->treasuries->find($added['id'])->account_number);
+    }
+
+    public function testPostSave_RefusesABankAccountWithoutItsBankOrItsNumberAndSaysWhichIsMissing(): void
+    {
+        $this->manager();
+
+        $noBank = json_decode($this->post('/accounting_treasuries/save', ['name' => 'Savings', 'kind' => 'bank', 'bank_name' => '', 'account_number' => '1234567890'])->getJSON(), true);
+
+        $this->assertFalse($noBank['success']);
+        $this->assertSame(lang('Accounting.error_treasury_bank_name_invalid'), $noBank['message']);
+
+        $noNumber = json_decode($this->post('/accounting_treasuries/save', ['name' => 'Savings', 'kind' => 'bank', 'bank_name' => 'Gulf Bank', 'account_number' => '12'])->getJSON(), true);
+
+        $this->assertFalse($noNumber['success']);
+        $this->assertSame(lang('Accounting.error_treasury_account_number_invalid'), $noNumber['message']);
+        $this->assertSame(0, $this->countRows('treasuries'), 'Nothing was kept');
+    }
+
+    public function testPostSave_RefusesAnAccountThatIsAlreadyOneOfTheTreasuries(): void
+    {
+        $this->manager();
+
+        $this->post('/accounting_treasuries/save', ['name' => 'Savings', 'kind' => 'bank', 'bank_name' => 'Gulf Bank', 'account_number' => '1234567890']);
+
+        $again = json_decode($this->post('/accounting_treasuries/save', ['name' => 'Savings 2', 'kind' => 'bank', 'bank_name' => 'Gulf Bank', 'account_number' => '1234-567890'])->getJSON(), true);
+
+        $this->assertFalse($again['success']);
+        $this->assertSame(lang('Accounting.error_treasury_bank_account_taken'), $again['message']);
+    }
+
+    public function testGetView_AsksForTheBankAndTheAccountNumberOfABankOnly(): void
+    {
+        $manager = $this->manager();
+        $bank    = $this->treasuries->create(['name' => 'Gulf Bank', 'kind' => 'bank', 'bank_name' => 'Gulf Bank', 'account_number' => '1234567890'], $manager);
+        $drawer  = $this->treasuries->create(['name' => 'Drawer', 'kind' => 'cash'], $manager);
+
+        $bankForm = $this->get('/accounting_treasuries/view/' . $bank);
+
+        $this->assertStringContainsString('name="bank_name"', $bankForm->getBody());
+        $this->assertStringContainsString('name="account_number"', $bankForm->getBody());
+        $this->assertStringContainsString('value="1234567890"', $bankForm->getBody());
+        $this->assertStringNotContainsString('id="bank_details_missing"', $bankForm->getBody());
+        $this->assertStringNotContainsString('class="field bank-field" hidden', $bankForm->getBody());
+
+        $drawerForm = $this->get('/accounting_treasuries/view/' . $drawer);
+
+        $this->assertStringContainsString('class="field bank-field" hidden', $drawerForm->getBody());
+    }
+
+    public function testGetView_AsksToCompleteABankAccountThatWasOpenedBeforeTheDetailsWereAsked(): void
+    {
+        $manager = $this->manager();
+        $bank    = $this->treasuries->create(['name' => 'Old bank', 'kind' => 'bank', 'bank_name' => 'Gulf Bank', 'account_number' => '1234567890'], $manager);
+
+        $this->accountingDb()->table('treasuries')->where('treasury_id', $bank)->update(['bank_name' => null, 'account_number' => null]);
+
+        $this->assertStringContainsString('id="bank_details_missing"', $this->get('/accounting_treasuries/view/' . $bank)->getBody());
+    }
+
+    public function testGetSearch_ShowsTheBankAndTheNumberOfABankAndAWarningForOneThatLacksThem(): void
+    {
+        $manager = $this->manager();
+        $this->treasuries->create(['name' => 'Gulf savings', 'kind' => 'bank', 'bank_name' => 'Gulf Bank', 'account_number' => '1234567890'], $manager);
+        $old = $this->treasuries->create(['name' => 'Old bank', 'kind' => 'bank', 'bank_name' => 'Gulf Bank', 'account_number' => '9999999999'], $manager);
+
+        $this->accountingDb()->table('treasuries')->where('treasury_id', $old)->update(['bank_name' => null, 'account_number' => null]);
+
+        $names = array_column($this->rowsOf()['rows'], 'name');
+
+        $this->assertStringContainsString('Gulf Bank · <bdi dir="ltr">1234567890</bdi>', implode('|', $names));
+        $this->assertStringContainsString(lang('Accounting_treasuries.bank_details_missing'), implode('|', $names));
     }
 
     public function testPostSave_UpdatesATreasuryAndKeepsTheOneWithoutThePermissionOut(): void
@@ -435,6 +521,138 @@ class AccountingTreasuriesControllerTest extends CIUnitTestCase
         $response->assertStatus(200);
         $response->assertDontSee('Closed drawer');
         $response->assertDontSee('Elsewhere');
+    }
+
+    public function testGetTransferForm_OffersTheTreasuriesTheManagerMayWithdrawFromAndDepositIntoEachInItsOwnList(): void
+    {
+        $manager = $this->manager();
+        $other   = $this->employeeWithGrants([]);
+
+        $this->treasuries->create(['name' => 'Payout only', 'kind' => 'cash', 'deposit_scope' => 'staff', 'deposit_members' => [$other]], $manager);
+        $this->treasuries->create(['name' => 'Intake only', 'kind' => 'cash', 'withdraw_scope' => 'staff', 'withdraw_members' => [$other]], $manager);
+
+        $body = $this->get('/accounting_treasuries/transfer_form')->getBody();
+
+        [$from, $to] = explode('name="to_treasury_id"', $body, 2);
+
+        $this->assertStringContainsString('Payout only', $from);
+        $this->assertStringNotContainsString('Intake only', $from);
+        $this->assertStringContainsString('Intake only', $to);
+        $this->assertStringNotContainsString('Payout only', $to);
+    }
+
+    public function testPostTransfer_RefusesATreasuryTheManagerMayNotWithdrawFromAndSaysWhich(): void
+    {
+        $manager = $this->manager();
+        $other   = $this->employeeWithGrants([]);
+        $source  = $this->treasuries->create(['name' => 'Locked source', 'kind' => 'cash', 'withdraw_scope' => 'staff', 'withdraw_members' => [$other]], $manager);
+        $target  = $this->treasuries->create(['name' => 'Target', 'kind' => 'cash'], $manager);
+
+        $refused = json_decode($this->post('/accounting_treasuries/transfer', ['from_treasury_id' => $source, 'to_treasury_id' => $target, 'amount' => '5', 'transfer_date' => '2026-10-22'])->getJSON(), true);
+
+        $this->assertFalse($refused['success']);
+        $this->assertSame(lang('Accounting.error_treasury_withdraw_denied', ['Locked source']), $refused['message']);
+        $this->assertStringContainsString('Locked source', $refused['message']);
+    }
+
+    public function testGetView_OffersTheScopesOfATreasuryWithTheEmployeesAndTheBranchesToChooseFrom(): void
+    {
+        $manager = $this->manager();
+        $branch  = $this->createBranch('B2');
+        $drawer  = $this->treasuries->create(['name' => 'Scoped drawer', 'kind' => 'cash', 'deposit_scope' => 'staff', 'deposit_members' => [$manager], 'withdraw_scope' => 'branches', 'withdraw_members' => [$branch]], $manager);
+
+        $body = $this->get('/accounting_treasuries/view/' . $drawer)->getBody();
+
+        $this->assertStringContainsString('name="deposit_scope"', $body);
+        $this->assertStringContainsString('name="withdraw_scope"', $body);
+        $this->assertMatchesRegularExpression('/<option value="staff" selected>/', $body);
+        $this->assertMatchesRegularExpression('/<option value="branches" selected>/', $body);
+        $this->assertMatchesRegularExpression('/name="deposit_members\[\]" value="' . $manager . '" checked/', $body);
+        $this->assertMatchesRegularExpression('/name="withdraw_members\[\]" value="' . $branch . '" checked/', $body);
+        $this->assertStringContainsString(lang('Accounting_treasuries.scope_title'), $body);
+    }
+
+    public function testGetView_OffersEverybodyAsTheScopeOfANewTreasury(): void
+    {
+        $this->manager();
+
+        $body = $this->get('/accounting_treasuries/view')->getBody();
+
+        $this->assertMatchesRegularExpression('/<option value="all" selected>/', $body);
+        $this->assertStringNotContainsString('<option value="staff" selected>', $body);
+    }
+
+    public function testPostSave_StoresTheScopesTheFormSends(): void
+    {
+        $manager = $this->manager();
+        $branch  = $this->createBranch('B2');
+
+        $added = json_decode($this->post('/accounting_treasuries/save', [
+            'name'             => 'Scoped drawer',
+            'kind'             => 'cash',
+            'deposit_scope'    => 'staff',
+            'deposit_members'  => [(string) $manager],
+            'withdraw_scope'   => 'branches',
+            'withdraw_members' => [(string) $branch],
+        ])->getJSON(), true);
+
+        $this->assertTrue($added['success']);
+
+        $scopes = new TreasuryScopes();
+
+        $this->assertSame(['mode' => 'staff', 'members' => [$manager], 'exists' => true], $scopes->scopeOf($added['id'], TreasuryScopes::DEPOSIT));
+        $this->assertSame(['mode' => 'branches', 'members' => [$branch], 'exists' => true], $scopes->scopeOf($added['id'], TreasuryScopes::WITHDRAW));
+    }
+
+    public function testPostSave_RefusesAScopeOfEmployeesThatNamesNobodyAndKeepsTheOldOne(): void
+    {
+        $manager = $this->manager();
+        $drawer  = $this->treasuries->create(['name' => 'Scoped drawer', 'kind' => 'cash', 'deposit_scope' => 'staff', 'deposit_members' => [$manager]], $manager);
+
+        $refused = json_decode($this->post('/accounting_treasuries/save/' . $drawer, ['name' => 'Renamed', 'kind' => 'cash', 'deposit_scope' => 'staff'])->getJSON(), true);
+
+        $this->assertFalse($refused['success']);
+        $this->assertSame(lang('Accounting.error_treasury_scope_invalid'), $refused['message']);
+        $this->assertSame('Scoped drawer', $this->treasuries->find($drawer)->name);
+        $this->assertSame([$manager], (new TreasuryScopes())->scopeOf($drawer, TreasuryScopes::DEPOSIT)['members']);
+    }
+
+    public function testPostSave_LeavesTheScopesAloneWhenTheFormSendsNone(): void
+    {
+        $manager = $this->manager();
+        $drawer  = $this->treasuries->create(['name' => 'Scoped drawer', 'kind' => 'cash', 'withdraw_scope' => 'staff', 'withdraw_members' => [$manager]], $manager);
+
+        $this->post('/accounting_treasuries/save/' . $drawer, ['name' => 'Renamed', 'kind' => 'cash']);
+
+        $this->assertSame('Renamed', $this->treasuries->find($drawer)->name);
+        $this->assertSame('staff', (new TreasuryScopes())->scopeOf($drawer, TreasuryScopes::WITHDRAW)['mode']);
+    }
+
+    public function testPostSave_DoesNotLetAnEmployeeWithoutThePermissionToManageChangeAScopeHoweverTheyAreListedInIt(): void
+    {
+        $manager = $this->manager();
+        $drawer  = $this->treasuries->create(['name' => 'Scoped drawer', 'kind' => 'cash'], $manager);
+        $member  = $this->actAsWith(['accounting_treasuries']);
+
+        $refused = json_decode($this->post('/accounting_treasuries/save/' . $drawer, ['name' => 'Scoped drawer', 'kind' => 'cash', 'deposit_scope' => 'staff', 'deposit_members' => [(string) $member]])->getJSON(), true);
+
+        $this->assertFalse($refused['success']);
+        $this->assertSame(lang('Accounting.error_permission_denied'), $refused['message']);
+        $this->assertSame('all', (new TreasuryScopes())->scopeOf($drawer, TreasuryScopes::DEPOSIT)['mode']);
+    }
+
+    public function testGetSearch_ShowsWhoMayDepositAndWithdrawWhenItIsNotEverybody(): void
+    {
+        $manager = $this->manager();
+
+        $this->treasuries->create(['name' => 'Open drawer', 'kind' => 'cash'], $manager);
+        $this->treasuries->create(['name' => 'Scoped drawer', 'kind' => 'cash', 'deposit_scope' => 'staff', 'deposit_members' => [$manager], 'withdraw_scope' => 'branches', 'withdraw_members' => [1]], $manager);
+
+        $rows = array_column($this->rowsOf('?search=drawer')['rows'], 'name');
+
+        $this->assertStringNotContainsString(explode('{0}', lang('Accounting_treasuries.scope_line_deposit', ['{0}']))[0], $rows[0]);
+        $this->assertStringContainsString(lang('Accounting_treasuries.scope_line_deposit', [lang('Accounting_treasuries.scope_staff_count', [1])]), $rows[1]);
+        $this->assertStringContainsString(lang('Accounting_treasuries.scope_line_withdraw', [lang('Accounting_treasuries.scope_branches_count', [1])]), $rows[1]);
     }
 
     public function testGetTransferForm_IsNotFoundWithoutThePermissionToManage(): void

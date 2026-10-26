@@ -12,6 +12,7 @@ use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\ReturnLimit;
 use App\Libraries\Accounting\SalePosting;
+use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Organization\BranchGuard;
 use CodeIgniter\Database\BaseBuilder;
@@ -654,7 +655,7 @@ class Sale extends Model
                             }
 
                             if (array_key_exists('treasury_id', $payment)) {
-                                $sales_payments_data['treasury_id'] = $this->namedTreasury($payment, (int) $this->getBranchId((int) $sale_id));
+                                $sales_payments_data['treasury_id'] = $this->namedTreasury($payment, (int) $payment_id, $employee_id === null ? null : (int) $employee_id, (int) $this->getBranchId((int) $sale_id));
                             }
 
                             $builder->where('payment_id', $payment_id);
@@ -684,7 +685,8 @@ class Sale extends Model
     /**
      * The treasury a payment goes into: the one it names, or else the treasury its employee works
      * from when it belongs to the branch of the sale. A payment that settles nothing in cash, or
-     * has no such treasury, goes to the account of its type as it always did.
+     * has no such treasury, goes to the account of its type as it always did. A payment that is
+     * refused by the scope of the treasury is refused with the sale.
      *
      * @param array<string, mixed> $payment
      */
@@ -696,33 +698,52 @@ class Sale extends Model
             return null;
         }
 
-        $treasuries = new TreasuryService($this->db);
-
-        if ((int) ($payment['treasury_id'] ?? 0) > 0) {
-            $treasuries->assertForBranch((int) $payment['treasury_id'], $branchId);
-
-            return (int) $payment['treasury_id'];
-        }
-
-        return $treasuries->stampFor($employeeId, $branchId);
+        return (new TreasuryService($this->db))->ofPayment((int) ($payment['treasury_id'] ?? 0), $type, $this->directionOf($payment), $employeeId, $branchId);
     }
 
     /**
      * The treasury an existing payment is moved to, or none for one that goes where its type does.
+     * Only a change of the treasury or of the amount asks the scope of the treasuries involved.
      *
      * @param array<string, mixed> $payment
      */
-    private function namedTreasury(array $payment, int $branchId): ?int
+    private function namedTreasury(array $payment, int $paymentId, ?int $employeeId, int $branchId): ?int
     {
         $treasuryId = (int) ($payment['treasury_id'] ?? 0);
+        $treasuries = new TreasuryService($this->db);
 
-        if ($treasuryId <= 0) {
-            return null;
+        if ($treasuryId > 0) {
+            $treasuries->assertForBranch($treasuryId, $branchId);
         }
 
-        (new TreasuryService($this->db))->assertForBranch($treasuryId, $branchId);
+        $type   = PaymentType::fromLabel((string) ($payment['payment_type'] ?? ''));
+        $stored = $this->db->table('sales_payments')->select('treasury_id, payment_amount, cash_refund')->where('payment_id', $paymentId)->get()->getRow();
 
-        return $treasuryId;
+        if ($type !== null && $type->usesTreasury() && $stored !== null) {
+            $net = (float) ($payment['payment_amount'] ?? 0) - (float) ($payment['cash_refund'] ?? 0);
+
+            $treasuries->assertMayChangePayment(
+                $treasuryId > 0 ? $treasuryId : null,
+                $stored->treasury_id === null ? null : (int) $stored->treasury_id,
+                abs($net - ((float) $stored->payment_amount - (float) $stored->cash_refund)) > 0.00001,
+                $type,
+                $net < 0 ? TreasuryScopes::WITHDRAW : TreasuryScopes::DEPOSIT,
+                $employeeId,
+            );
+        }
+
+        return $treasuryId > 0 ? $treasuryId : null;
+    }
+
+    /**
+     * Money that comes into the treasury is a deposit, and a payment that gives money back to the
+     * customer is a withdrawal.
+     *
+     * @param array<string, mixed> $payment
+     */
+    private function directionOf(array $payment): string
+    {
+        return (float) ($payment['payment_amount'] ?? 0) - (float) ($payment['cash_refund'] ?? 0) < 0 ? TreasuryScopes::WITHDRAW : TreasuryScopes::DEPOSIT;
     }
 
     /**
@@ -881,6 +902,15 @@ class Sale extends Model
                 $totalAmountUsed = floatval($totalAmountUsed) + floatval($payment['payment_amount']);
             }
 
+            try {
+                $treasuryId = $this->treasuryOfPayment($payment, $employeeId === null ? null : (int) $employeeId, (int) $salesData['branch_id']);
+            } catch (AccountingException $refusal) {
+                $this->db->transRollback();
+                $this->recordAccountingFailure($saleId, $refusal, $employeeId, (int) $salesData['branch_id']);
+
+                return ACCOUNTING_FAILED;
+            }
+
             $salesPaymentsData = [
                 'sale_id'         => $saleId,
                 'payment_type'    => $payment['payment_type'],
@@ -889,7 +919,7 @@ class Sale extends Model
                 'cash_adjustment' => $payment['cash_adjustment'],
                 'employee_id'     => $employeeId,
                 'reference_code'  => $payment['reference_code'] ?? '',
-                'treasury_id'     => $this->treasuryOfPayment($payment, $employeeId === null ? null : (int) $employeeId, (int) $salesData['branch_id']),
+                'treasury_id'     => $treasuryId,
             ];
 
             $builder = $this->db->table('sales_payments');
@@ -1050,7 +1080,7 @@ class Sale extends Model
     {
         $this->accountingFailure = $failure;
 
-        $refusal = $failure instanceof AccountingException && in_array($failure->error, [AccountingError::SaleLocked, AccountingError::IssuedDocumentLocked], true);
+        $refusal = $failure instanceof AccountingException && in_array($failure->error, [AccountingError::SaleLocked, AccountingError::IssuedDocumentLocked, AccountingError::TreasuryDepositDenied, AccountingError::TreasuryWithdrawDenied], true);
 
         if (($failure instanceof PostingException || $failure instanceof AccountingException) && ! $refusal) {
             (new SalePosting($this->db))->recordFailure($saleId, $failure, $employeeId, $branchId);

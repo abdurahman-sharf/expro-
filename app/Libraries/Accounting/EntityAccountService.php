@@ -33,8 +33,9 @@ final class EntityAccountService
         self::STOCK_LOCATION => 3,
         self::TREASURY       => 2,
     ];
-    private const CHUNK    = 200;
-    private const NAME_MAX = 255;
+    private const BANK_DIGITS = 3;
+    private const CHUNK       = 200;
+    private const NAME_MAX    = 255;
 
     private BaseConnection $db;
     private AuditLog $audit;
@@ -103,11 +104,12 @@ final class EntityAccountService
     }
 
     /**
-     * The sub-account of the entity, opened now when it has none.
+     * The sub-account of the entity, opened now when it has none. A bank account of the treasuries
+     * is opened under the main account of the banks instead of the one of the cash treasuries.
      *
      * @throws AccountingException
      */
-    public function ensure(string $kind, int $entityId, string $name, ?int $employeeId = null): int
+    public function ensure(string $kind, int $entityId, string $name, ?int $employeeId = null, ?RoutingKey $under = null): int
     {
         $existing = $this->accountFor($kind, $entityId);
 
@@ -115,8 +117,8 @@ final class EntityAccountService
             return $existing;
         }
 
-        return $this->transactional(function () use ($kind, $entityId, $name, $employeeId): int {
-            $parent = $this->mainAccount($kind);
+        return $this->transactional(function () use ($kind, $entityId, $name, $employeeId, $under): int {
+            $parent = $this->mainAccount($kind, $under);
             $last   = $this->lockSequence($parent);
 
             $existing = $this->lockedAccountFor($kind, $entityId);
@@ -125,7 +127,7 @@ final class EntityAccountService
                 return $existing;
             }
 
-            $code = $this->nextCode($parent, self::CODE_DIGITS[$kind], $last);
+            $code = $this->nextCode($parent, $this->digits($kind, $under), $last);
             $name = $this->uniqueName($this->normalizeName($name, $code), (int) $parent->account_id, $code);
 
             $this->db->table('accounting_accounts')->insert([
@@ -153,6 +155,53 @@ final class EntityAccountService
             ]);
 
             return $accountId;
+        });
+    }
+
+    /**
+     * Moves the sub-account of an entity under another main account, with a code of that account.
+     * Only the place in the chart changes: the account keeps its identity, so no journal line moves
+     * and its balance stays what it was. Returns false when it already stands there.
+     *
+     * @throws AccountingException
+     */
+    public function relocate(string $kind, int $entityId, RoutingKey $under, ?int $employeeId = null): bool
+    {
+        $account = $this->accountRow($kind, $entityId);
+
+        if ($account === null) {
+            return false;
+        }
+
+        $parent = $this->mainAccount($kind, $under);
+
+        if ((int) $account->parent_id === (int) $parent->account_id) {
+            return false;
+        }
+
+        return $this->transactional(function () use ($account, $parent, $kind, $under, $employeeId): bool {
+            $last = $this->lockSequence($parent);
+            $row  = LockedRead::row($this->db, 'SELECT * FROM ' . $this->db->prefixTable('accounting_accounts') . ' WHERE account_id = ? FOR UPDATE', [$account->account_id]);
+
+            if ($row === null || (int) $row->parent_id === (int) $parent->account_id) {
+                return false;
+            }
+
+            $code = $this->nextCode($parent, $this->digits($kind, $under), $last);
+            $name = $this->uniqueName((string) $row->name, (int) $parent->account_id, $code, (int) $row->account_id);
+
+            $this->db->table('accounting_accounts')->where('account_id', $row->account_id)->update([
+                'parent_id' => (int) $parent->account_id,
+                'code'      => $code,
+                'name'      => $name,
+            ]);
+
+            $this->audit->write('account', (int) $row->account_id, 'moved', $employeeId, JournalOrigin::System, [
+                'before' => ['parent_id' => (int) $row->parent_id, 'code' => $row->code, 'name' => $row->name],
+                'after'  => ['parent_id' => (int) $parent->account_id, 'code' => $code, 'name' => $name],
+            ]);
+
+            return true;
         });
     }
 
@@ -317,9 +366,9 @@ final class EntityAccountService
     /**
      * @throws AccountingException
      */
-    private function mainAccount(string $kind): object
+    private function mainAccount(string $kind, ?RoutingKey $under = null): object
     {
-        $key = self::KEYS[$kind] ?? null;
+        $key = $under ?? self::KEYS[$kind] ?? null;
 
         if ($key === null) {
             throw new AccountingException(AccountingError::EntityKindUnknown, "There are no accounts for {$kind}.", ['kind' => $kind]);
@@ -387,6 +436,11 @@ final class EntityAccountService
         $this->db->table('accounting_sequences')->where('company_id', $companyId)->where('series', $series)->update(['last_number' => $number]);
 
         return $code;
+    }
+
+    private function digits(string $kind, ?RoutingKey $under): int
+    {
+        return $under === RoutingKey::Banks ? self::BANK_DIGITS : self::CODE_DIGITS[$kind];
     }
 
     private function normalizeName(string $name, string $fallback): string

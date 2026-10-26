@@ -20,6 +20,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
+use Tests\Support\ParityFixture;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 
@@ -113,6 +114,129 @@ class TreasuryTransfersTest extends CIUnitTestCase
             static fn (object $line): array => [(string) $line->account_id, bcadd((string) $line->debit, '0', 2) . ':' . bcadd((string) $line->credit, '0', 2)],
             $this->accountingDb()->table('accounting_journal_lines')->select('account_id, debit, credit')->where('journal_id', $journal->journal_id)->orderBy('line_no', 'ASC')->get()->getResult(),
         );
+    }
+
+    /**
+     * @return array<string, array{array<string, mixed>}>
+     */
+    public static function referenceTransfers(): array
+    {
+        return ParityFixture::cases('T-22', 'treasury_transfer');
+    }
+
+    /**
+     * Brings a treasury to the balance the case starts from, a negative one by drawing on it.
+     */
+    private function startAt(int $treasuryId, string $balance): void
+    {
+        if (bccomp($balance, '0', 2) > 0) {
+            $this->transfers->transfer($this->main, $treasuryId, $balance, '2026-10-20');
+        } elseif (bccomp($balance, '0', 2) < 0) {
+            $this->transfers->transfer($treasuryId, $this->main, ltrim($balance, '-'), '2026-10-20');
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $case
+     */
+    #[DataProvider('referenceTransfers')]
+    public function testTransfer_MovesMoneyAsTheReferenceSystemDoes(array $case): void
+    {
+        $bank = $this->treasuries->create(['name' => 'Fixture bank', 'kind' => 'bank', 'bank_name' => 'Riyad Bank', 'account_number' => '3500000001'], $this->manager);
+
+        $this->startAt($this->drawer, $case['inputs']['from_balance']);
+        $this->startAt($bank, $case['inputs']['to_balance']);
+
+        $transferId = $this->transfers->transfer($this->drawer, $bank, $case['inputs']['amount'], '2026-10-21', '', $this->manager);
+        $journal    = $this->accountingDb()->table('accounting_journals')->where(['source_type' => TreasuryTransfers::SOURCE, 'source_id' => $transferId])->get()->getRow();
+        $lines      = $this->accountingDb()->table('accounting_journal_lines')->where('journal_id', $journal->journal_id)->orderBy('line_no')->get()->getResult();
+
+        $this->assertSame((int) $this->treasuries->accountOf($bank), (int) $lines[0]->account_id, 'The receiver is debited');
+        $this->assertSame((int) $this->treasuries->accountOf($this->drawer), (int) $lines[1]->account_id, 'The sender is credited');
+
+        $outcome = ['from_balance' => bcadd($this->balanceOf($this->drawer), '0', 2), 'to_balance' => bcadd($this->balanceOf($bank), '0', 2)];
+
+        foreach (['from_balance', 'to_balance'] as $key) {
+            if (array_key_exists($key, $case['expected'])) {
+                $this->assertSame($case['expected'][$key], $outcome[$key], $key);
+            }
+        }
+
+        $this->assertSame($case['reference'], $case['expected'], 'A case that is exact has the same outcome as the reference system');
+    }
+
+    public function testTransfer_RefusesAnEmployeeWhoMayNotWithdrawFromTheTreasuryItComesOutOf(): void
+    {
+        $other = $this->employeeWithGrants([]);
+
+        $this->treasuries->update($this->main, ['name' => 'Main', 'kind' => 'cash', 'withdraw_scope' => 'staff', 'withdraw_members' => [$other]], $this->manager);
+
+        $refusal = $this->refusal(fn () => $this->transfers->transfer($this->main, $this->drawer, '40.00', '2026-10-21', '', $this->manager));
+
+        $this->assertSame(AccountingError::TreasuryWithdrawDenied, $refusal->error);
+        $this->assertSame('500.0000', $this->balanceOf($this->main));
+        $this->assertSame('0.0000', $this->balanceOf($this->drawer));
+        $this->assertSame(0, $this->countRows('treasury_transfers'));
+    }
+
+    public function testTransfer_RefusesAnEmployeeWhoMayNotDepositIntoTheTreasuryItGoesInto(): void
+    {
+        $other = $this->employeeWithGrants([]);
+
+        $this->treasuries->update($this->drawer, ['name' => 'Drawer', 'kind' => 'cash', 'deposit_scope' => 'staff', 'deposit_members' => [$other]], $this->manager);
+
+        $refusal = $this->refusal(fn () => $this->transfers->transfer($this->main, $this->drawer, '40.00', '2026-10-21', '', $this->manager));
+
+        $this->assertSame(AccountingError::TreasuryDepositDenied, $refusal->error);
+        $this->assertSame('Drawer', $refusal->context['name']);
+        $this->assertSame(0, $this->countRows('treasury_transfers'));
+    }
+
+    public function testTransfer_AcceptsAnEmployeeWhoIsInTheScopeOfBothTreasuries(): void
+    {
+        $this->treasuries->update($this->main, ['name' => 'Main', 'kind' => 'cash', 'withdraw_scope' => 'staff', 'withdraw_members' => [$this->manager]], $this->manager);
+        $this->treasuries->update($this->drawer, ['name' => 'Drawer', 'kind' => 'cash', 'deposit_scope' => 'staff', 'deposit_members' => [$this->manager]], $this->manager);
+
+        $this->transfers->transfer($this->main, $this->drawer, '40.00', '2026-10-21', '', $this->manager);
+
+        $this->assertSame('40.0000', $this->balanceOf($this->drawer));
+    }
+
+    public function testTransfer_DoesNotNeedTheScopeOfTheTreasuryItDoesNotTouchInThatDirection(): void
+    {
+        $other = $this->employeeWithGrants([]);
+
+        $this->treasuries->update($this->main, ['name' => 'Main', 'kind' => 'cash', 'deposit_scope' => 'staff', 'deposit_members' => [$other]], $this->manager);
+        $this->treasuries->update($this->drawer, ['name' => 'Drawer', 'kind' => 'cash', 'withdraw_scope' => 'staff', 'withdraw_members' => [$other]], $this->manager);
+
+        $this->transfers->transfer($this->main, $this->drawer, '40.00', '2026-10-21', '', $this->manager);
+
+        $this->assertSame('40.0000', $this->balanceOf($this->drawer), 'Main was only drawn on and the drawer only paid into');
+    }
+
+    public function testTransfer_LetsTheBooksMoveMoneyWhateverTheScopes(): void
+    {
+        $other = $this->employeeWithGrants([]);
+
+        $this->treasuries->update($this->main, ['name' => 'Main', 'kind' => 'cash', 'withdraw_scope' => 'staff', 'withdraw_members' => [$other]], $this->manager);
+        $this->treasuries->update($this->drawer, ['name' => 'Drawer', 'kind' => 'cash', 'deposit_scope' => 'staff', 'deposit_members' => [$other]], $this->manager);
+
+        $this->transfers->transfer($this->main, $this->drawer, '40.00', '2026-10-21');
+
+        $this->assertSame('40.0000', $this->balanceOf($this->drawer));
+    }
+
+    public function testCancel_NeedsOnlyThePermissionToManageWhateverTheScopes(): void
+    {
+        $other      = $this->employeeWithGrants([]);
+        $transferId = $this->transfers->transfer($this->main, $this->drawer, '40.00', '2026-10-21', '', $this->manager);
+
+        $this->treasuries->update($this->main, ['name' => 'Main', 'kind' => 'cash', 'deposit_scope' => 'staff', 'deposit_members' => [$other]], $this->manager);
+        $this->treasuries->update($this->drawer, ['name' => 'Drawer', 'kind' => 'cash', 'withdraw_scope' => 'staff', 'withdraw_members' => [$other]], $this->manager);
+
+        $this->transfers->cancel($transferId, 'entered twice', $this->manager);
+
+        $this->assertSame('0.0000', $this->balanceOf($this->drawer));
     }
 
     public function testTransfer_DebitsTheTreasuryItGoesIntoAndCreditsTheOneItComesOutOf(): void

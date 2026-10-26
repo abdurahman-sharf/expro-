@@ -19,12 +19,18 @@ const submit = async (page) => {
     await settle(page);
 };
 
-const addTreasury = async (page, name, kind) => {
+const addTreasury = async (page, name, kind, bank = null) => {
     await page.goto(treasuries, { waitUntil: 'networkidle' });
     await page.click('#title_bar button[data-href="accounting_treasuries/view"]');
     await page.waitForSelector('.modal-body #treasury_form', { timeout: 15000 });
     await page.fill('.modal-body #name', name);
     await page.selectOption('.modal-body #kind', kind);
+
+    if (bank !== null) {
+        await page.fill('.modal-body #bank_name', bank.name);
+        await page.fill('.modal-body #account_number', bank.number);
+    }
+
     await submit(page);
     await page.waitForSelector('.modal-body #treasury_form', { state: 'detached', timeout: 15000 });
 };
@@ -33,7 +39,7 @@ try {
     const page = await session.openPage();
 
     await addTreasury(page, 'خزينة المعرض', 'cash');
-    await addTreasury(page, 'البنك الأهلي', 'bank');
+    await addTreasury(page, 'البنك الأهلي', 'bank', { name: 'البنك الأهلي', number: 'SA0380000000608010167519' });
 
     await page.goto(treasuries, { waitUntil: 'networkidle' });
     await expect(page, '#table tbody tr', 3, 'The main treasury and the two added are not listed');

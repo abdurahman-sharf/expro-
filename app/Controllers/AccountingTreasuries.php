@@ -3,8 +3,10 @@
 namespace App\Controllers;
 
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Accounting\TreasuryTransfers;
+use App\Libraries\Organization\BranchService;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\HTTP\ResponseInterface;
 
@@ -15,11 +17,12 @@ use CodeIgniter\HTTP\ResponseInterface;
  */
 class AccountingTreasuries extends AccountingController
 {
-    private const MAX_PAGE_SIZE   = 500;
+    private const MAX_PAGE_SIZE  = 500;
     private const STATEMENT_ROWS = 200;
 
     private TreasuryService $treasuries;
     private TreasuryTransfers $transfers;
+    private TreasuryScopes $scopes;
 
     public function __construct()
     {
@@ -27,6 +30,7 @@ class AccountingTreasuries extends AccountingController
 
         $this->treasuries = new TreasuryService(null, null, $this->branchGuard());
         $this->transfers  = new TreasuryTransfers(null, null, $this->branchGuard());
+        $this->scopes     = new TreasuryScopes(null, $this->branchGuard());
     }
 
     public function getIndex(): string
@@ -89,6 +93,12 @@ class AccountingTreasuries extends AccountingController
             'treasury' => $treasury,
             'branches' => $this->branchGuard()->selectableBranches($this->employeeId()),
             'kinds'    => [TreasuryService::CASH => lang('Accounting_treasuries.kind_cash'), TreasuryService::BANK => lang('Accounting_treasuries.kind_bank')],
+            'scopes'   => $treasury === null ? [] : [
+                TreasuryScopes::DEPOSIT  => $this->scopes->scopeOf((int) $treasury->treasury_id, TreasuryScopes::DEPOSIT),
+                TreasuryScopes::WITHDRAW => $this->scopes->scopeOf((int) $treasury->treasury_id, TreasuryScopes::WITHDRAW),
+            ],
+            'staff'          => $this->treasuries->employees(),
+            'scope_branches' => array_values(array_filter((new BranchService())->all(), static fn (object $branch): bool => (int) $branch->active === 1)),
         ]);
     }
 
@@ -96,11 +106,20 @@ class AccountingTreasuries extends AccountingController
     {
         return $this->attempt(function () use ($treasuryId): array {
             $input = [
-                'name'        => (string) $this->request->getPost('name'),
-                'kind'        => (string) $this->request->getPost('kind'),
-                'description' => (string) $this->request->getPost('description'),
-                'branch_id'   => (int) $this->request->getPost('branch_id'),
+                'name'           => (string) $this->request->getPost('name'),
+                'kind'           => (string) $this->request->getPost('kind'),
+                'bank_name'      => (string) $this->request->getPost('bank_name'),
+                'account_number' => (string) $this->request->getPost('account_number'),
+                'description'    => (string) $this->request->getPost('description'),
+                'branch_id'      => (int) $this->request->getPost('branch_id'),
             ];
+
+            foreach ([TreasuryScopes::DEPOSIT, TreasuryScopes::WITHDRAW] as $direction) {
+                if ($this->request->getPost($direction . '_scope') !== null) {
+                    $input[$direction . '_scope']   = $this->request->getPost($direction . '_scope');
+                    $input[$direction . '_members'] = $this->request->getPost($direction . '_members') ?? [];
+                }
+            }
 
             if ($treasuryId === NEW_ENTRY) {
                 return ['success' => true, 'message' => lang('Accounting_treasuries.successful_adding'), 'id' => $this->treasuries->create($input, $this->employeeId())];
@@ -178,9 +197,12 @@ class AccountingTreasuries extends AccountingController
     {
         $this->requireManage();
 
+        $active = $this->treasuries->all($this->branchIds(), false);
+
         return view('accounting_treasuries/transfer_form', [
-            'treasuries' => $this->treasuries->all($this->branchIds(), false),
-            'today'      => date('Y-m-d'),
+            'from_treasuries' => $this->scopes->usable($active, TreasuryScopes::WITHDRAW, $this->employeeId()),
+            'to_treasuries'   => $this->scopes->usable($active, TreasuryScopes::DEPOSIT, $this->employeeId()),
+            'today'           => date('Y-m-d'),
         ]);
     }
 
@@ -306,7 +328,7 @@ class AccountingTreasuries extends AccountingController
     private function row(object $treasury): array
     {
         $position = $this->treasuries->position((int) $treasury->treasury_id);
-        $name     = esc($treasury->name) . ((int) $treasury->is_main === 1 ? ' <span class="badge text-bg-primary">' . esc(lang('Accounting_treasuries.main')) . '</span>' : '');
+        $name     = esc($treasury->name) . ((int) $treasury->is_main === 1 ? ' <span class="badge text-bg-primary">' . esc(lang('Accounting_treasuries.main')) . '</span>' : '') . $this->bankLine($treasury) . $this->scopeLine($treasury);
 
         return [
             'treasury_id' => (int) $treasury->treasury_id,
@@ -320,6 +342,46 @@ class AccountingTreasuries extends AccountingController
             'status' => $this->badge((int) $treasury->active === 1 ? 'active' : 'inactive'),
             'edit'   => $this->actions($treasury),
         ];
+    }
+
+    private function bankLine(object $treasury): string
+    {
+        if ($treasury->kind !== TreasuryService::BANK) {
+            return '';
+        }
+
+        if (TreasuryService::lacksBankDetails($treasury)) {
+            return '<div><span class="badge text-bg-warning" title="' . esc(lang('Accounting_treasuries.bank_details_missing_hint'), 'attr') . '">' . esc(lang('Accounting_treasuries.bank_details_missing')) . '</span></div>';
+        }
+
+        return '<div class="small text-body-secondary">' . esc($treasury->bank_name) . ' · <bdi dir="ltr">' . esc($treasury->account_number) . '</bdi></div>';
+    }
+
+    private function scopeLine(object $treasury): string
+    {
+        $parts = [];
+
+        foreach ([TreasuryScopes::DEPOSIT => 'deposit', TreasuryScopes::WITHDRAW => 'withdraw'] as $direction => $label) {
+            $scope = $this->scopes->scopeOf((int) $treasury->treasury_id, $direction);
+
+            if ($scope['mode'] !== TreasuryScopes::ALL) {
+                $parts[] = lang('Accounting_treasuries.scope_line_' . $label, [$this->scopeSummary($scope)]);
+            }
+        }
+
+        return $parts === [] ? '' : '<div class="small text-body-secondary">' . esc(implode(' · ', $parts)) . '</div>';
+    }
+
+    /**
+     * @param array{mode: string, members: list<int>, exists: bool} $scope
+     */
+    private function scopeSummary(array $scope): string
+    {
+        return match ($scope['mode']) {
+            TreasuryScopes::STAFF    => lang('Accounting_treasuries.scope_staff_count', [count($scope['members'])]),
+            TreasuryScopes::BRANCHES => lang('Accounting_treasuries.scope_branches_count', [count($scope['members'])]),
+            default                  => lang('Accounting_treasuries.scope_all'),
+        };
     }
 
     private function balanceCell(string $balance): string

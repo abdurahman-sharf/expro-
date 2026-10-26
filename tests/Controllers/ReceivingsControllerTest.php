@@ -891,6 +891,27 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $response->assertSee(lang('Receivings.treasury_default'));
     }
 
+    public function testGetEdit_LeavesOutTheTreasuriesTheEditorMayNotWithdrawFromButKeepsTheOneAPaymentAlreadyCarries(): void
+    {
+        $purchase = $this->purchaseOf('500.00');
+        $this->payPurchase($purchase, '100.00', 'Cash');
+        $this->treasuryOfBranch('Open drawer');
+
+        $locked = (new TreasuryService())->create(['name' => 'Locked drawer', 'kind' => 'cash', 'withdraw_scope' => 'staff', 'withdraw_members' => [$this->employeeId]]);
+
+        $this->loginAs($this->buyer());
+
+        $response = $this->get('/receivings/edit/' . $purchase);
+
+        $response->assertStatus(200);
+        $response->assertSee('Open drawer');
+        $response->assertDontSee('Locked drawer');
+
+        $this->accountingDb()->table('receivings_payments')->where('receiving_id', $purchase)->update(['treasury_id' => $locked]);
+
+        $this->get('/receivings/edit/' . $purchase)->assertSee('Locked drawer');
+    }
+
     public function testGetEdit_OffersNoTreasuryWhileTheBranchHasOnlyTheMainOne(): void
     {
         $purchase = $this->purchaseOf('500.00');

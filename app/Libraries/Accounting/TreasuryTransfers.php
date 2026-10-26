@@ -76,6 +76,11 @@ final class TreasuryTransfers
 
             $this->branches->requireBranch($branchId, $employeeId);
 
+            $scopes = new TreasuryScopes($this->db, $this->branches);
+
+            $scopes->assertAllows($fromId, TreasuryScopes::WITHDRAW, $employeeId);
+            $scopes->assertAllows($toId, TreasuryScopes::DEPOSIT, $employeeId);
+
             $fromAccount = $this->accounts->accountFor(EntityAccountService::TREASURY, $fromId);
             $toAccount   = $this->accounts->accountFor(EntityAccountService::TREASURY, $toId);
 

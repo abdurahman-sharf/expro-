@@ -1,0 +1,102 @@
+{
+  "id": "T-20",
+  "title": "The accounts of a cash treasury and of a bank account: the first cash treasury after the main one, and a bank account with the name of its bank and its account number",
+  "recorded": "2026-10-26",
+  "evidence": {
+    "treasury_written": {
+      "id": "ev_593567fb1daf8877790e135d1f04fdf6a1df4ff2246510d14fc629c63c09a9d2",
+      "note": "The cash treasury written in the S-35 account: its account is opened under the main treasury account and no journal is made"
+    },
+    "treasury_read": {
+      "id": "ev_1dfe2bb25c174581c0b02b25873e00c89f7569fa66d1eb516a53037310ec067e",
+      "note": "The treasury read back, and the chart showing its account with a balance of nothing"
+    },
+    "bank_lookup": {
+      "id": "ev_c06bdb1457d0af4665fa0cc16f6ec44655fb6d5f1fc7ba05f36075340f37cfb0",
+      "note": "The form of a bank account refused at the screen without the name of its bank, which keeps no record"
+    },
+    "bank_written": {
+      "id": "ev_752e1a605c1fb98ffa5b6a49b5c482ae9964bbb89267a7c7a946b563ad507b4a",
+      "note": "The bank account written with the name of a bank from the list and an account number"
+    },
+    "bank_read": {
+      "id": "ev_833de91cf1fd98afcabb71354966bb4498daf1459117238eff89b16ed3bafe1e",
+      "note": "The bank account read back: its account is coded under the main account of the banks"
+    }
+  },
+  "cases": [
+    {
+      "id": "cash-treasury-account-under-the-treasuries",
+      "kind": "treasury_account",
+      "classification": "exact",
+      "evidence": [
+        "treasury_written",
+        "treasury_read"
+      ],
+      "inputs": {
+        "kind": "cash",
+        "after": "the main treasury, coded 120101"
+      },
+      "reference": {
+        "parent_code": "1201",
+        "code": "120102",
+        "journals_on_creation": 0,
+        "balance": "0.00"
+      },
+      "expected": {
+        "parent_code": "1201",
+        "code": "120102",
+        "journals_on_creation": 0,
+        "balance": "0.00"
+      }
+    },
+    {
+      "id": "bank-account-under-the-banks",
+      "kind": "treasury_account",
+      "classification": "exact",
+      "evidence": [
+        "bank_written",
+        "bank_read"
+      ],
+      "inputs": {
+        "kind": "bank",
+        "bank_name": "Riyad Bank",
+        "account_number": "3500000001"
+      },
+      "reference": {
+        "parent_code": "1202",
+        "code": "1202001",
+        "journals_on_creation": 0,
+        "balance": "0.00"
+      },
+      "expected": {
+        "parent_code": "1202",
+        "code": "1202001",
+        "journals_on_creation": 0,
+        "balance": "0.00"
+      }
+    },
+    {
+      "id": "bank-account-needs-its-bank-and-its-number",
+      "kind": "treasury_account_required",
+      "classification": "exact",
+      "evidence": [
+        "bank_lookup",
+        "bank_written"
+      ],
+      "inputs": {
+        "kind": "bank",
+        "bank_name": "",
+        "account_number": "3500000001"
+      },
+      "reference": {
+        "refused": true,
+        "records_kept": 0
+      },
+      "expected": {
+        "refused": true,
+        "records_kept": 0
+      }
+    }
+  ]
+}

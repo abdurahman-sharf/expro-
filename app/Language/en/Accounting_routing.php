@@ -38,6 +38,7 @@ return [
     'item_stock_permits_issue'      => 'Stock issue note',
     'item_tax_output'               => 'Output tax',
     'item_treasuries_accounts'      => 'Treasuries (main account)',
+    'item_treasuries_banks'         => 'Bank accounts (main account)',
     'locked_note'                   => 'Always follows: {0}',
     'not_set'                       => 'Not set',
     'not_used'                      => 'Not used',

@@ -12,6 +12,7 @@ use App\Libraries\Accounting\PaymentStatus;
 use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\SalePosting;
+use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Pdf_lib;
@@ -1646,7 +1647,8 @@ class Sales extends Secure_Controller
 
     /**
      * The treasuries a payment of a sale can go into, when there is a choice: the active ones of
-     * the branch of the sale and any the payments of the sale already carry.
+     * the branch of the sale that the employee may deposit into and any the payments of the sale
+     * already carry.
      *
      * @param list<object> $payments
      *
@@ -1654,12 +1656,16 @@ class Sales extends Secure_Controller
      */
     private function treasuryOptions(int $branchId, array $payments): array
     {
-        $carried = array_map(static fn (object $payment): int => (int) ($payment->treasury_id ?? 0), $payments);
-        $options = [];
+        $carried    = array_map(static fn (object $payment): int => (int) ($payment->treasury_id ?? 0), $payments);
+        $employeeId = (int) $this->employee->get_logged_in_employee_info()->person_id;
+        $scopes     = new TreasuryScopes();
+        $options    = [];
 
         foreach ((new TreasuryService())->all([$branchId]) as $treasury) {
-            if ((int) $treasury->active === 1 || in_array((int) $treasury->treasury_id, $carried, true)) {
-                $options[(int) $treasury->treasury_id] = $treasury->name;
+            $id = (int) $treasury->treasury_id;
+
+            if (in_array($id, $carried, true) || ((int) $treasury->active === 1 && $scopes->allows($id, TreasuryScopes::DEPOSIT, $employeeId))) {
+                $options[$id] = $treasury->name;
             }
         }
 

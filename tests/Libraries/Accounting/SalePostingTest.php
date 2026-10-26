@@ -322,6 +322,198 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertNull($this->paymentRow($saleId)->treasury_id);
     }
 
+    /**
+     * A treasury of the seller's branch that only the employees given may deposit into.
+     *
+     * @param list<int> $employees
+     */
+    private function drawerOpenOnlyTo(array $employees, string $direction = 'deposit'): int
+    {
+        $this->accountingDb()->table('grants')->insert(['person_id' => $this->employeeId, 'permission_id' => BranchGuard::ALL_BRANCHES, 'menu_group' => 'home']);
+
+        return (new TreasuryService())->create(['name' => 'Scoped drawer', 'kind' => 'cash', $direction . '_scope' => 'staff', $direction . '_members' => $employees]);
+    }
+
+    /**
+     * @return array<string, array{array<string, mixed>}>
+     */
+    public static function referenceCustomerPayments(): array
+    {
+        return array_filter(ParityFixture::cases('T-21', 'treasury_payment'), static fn (array $set): bool => $set[0]['inputs']['payer'] === 'customer');
+    }
+
+    /**
+     * @param array<string, mixed> $case
+     */
+    #[DataProvider('referenceCustomerPayments')]
+    public function testSaveValue_PostsAPaymentToTheChosenTreasuryAsTheReferenceSystemDoes(array $case): void
+    {
+        $this->accountingDb()->table('grants')->insert(['person_id' => $this->employeeId, 'permission_id' => BranchGuard::ALL_BRANCHES, 'menu_group' => 'home']);
+
+        $treasuries = new TreasuryService();
+        $treasury   = $treasuries->create($case['inputs']['treasury'] === 'bank'
+            ? ['name' => 'Fixture bank', 'kind' => 'bank', 'bank_name' => 'Riyad Bank', 'account_number' => '3500000001']
+            : ['name' => 'Fixture drawer', 'kind' => 'cash']);
+        $item       = $this->item('10.00');
+        $way        = $case['inputs']['way'] === 'bank_transfer' ? lang('Sales.bank_transfer') : lang('Sales.cash');
+        $saleId     = $this->save([$this->line($item, 0, '1', '100', '10.00')], [], [$this->payment($way, $case['inputs']['amount']) + ['treasury_id' => $treasury]]);
+        $payment    = array_values(array_filter($this->journals($saleId), static fn (array $journal): bool => $journal['source'] === 'sale_payment'))[0];
+        $amount     = $case['inputs']['amount'];
+
+        $this->assertSame([(int) $treasuries->accountOf($treasury) . ':' . $amount . ':0.00', $this->customerAccount() . ':0.00:' . $amount], $payment['lines']);
+        $this->assertSame($case['expected'], ['debit' => 'treasury', 'credit' => 'customer', 'amount' => $amount]);
+        $this->assertSame($case['reference'], $case['expected']);
+    }
+
+    public function testSaveValue_RefusesAPaymentIntoATreasuryTheSellerMayNotDepositIntoAndSavesNothing(): void
+    {
+        $drawer = $this->drawerOpenOnlyTo([$this->employeeWithGrants([])]);
+        $item   = $this->item('10.00');
+        $sales  = $this->countSales();
+
+        $result = $this->save([$this->line($item, 0, '1', '100', '10.00')], [], [$this->payment(lang('Sales.cash'), '100.00') + ['treasury_id' => $drawer]]);
+
+        $this->assertSame(ACCOUNTING_FAILED, $result);
+        $this->assertSame(AccountingError::TreasuryDepositDenied, $this->sales->accountingFailure()->error);
+        $this->assertSame($sales, $this->countSales());
+        $this->assertSame('0.0000', (new TreasuryService())->position($drawer)->balance);
+        $this->assertSame(0, $this->countRows('sales_payments'));
+    }
+
+    public function testSaveValue_AcceptsAPaymentIntoATreasuryTheSellerMayDepositInto(): void
+    {
+        $drawer = $this->drawerOpenOnlyTo([$this->employeeId]);
+        $item   = $this->item('10.00');
+        $saleId = $this->save([$this->line($item, 0, '1', '100', '10.00')], [], [$this->payment(lang('Sales.cash'), '100.00') + ['treasury_id' => $drawer]]);
+
+        $this->assertGreaterThan(0, $saleId);
+        $this->assertSame($drawer, (int) $this->paymentRow($saleId)->treasury_id);
+        $this->assertSame('100.0000', (new TreasuryService())->position($drawer)->balance);
+    }
+
+    public function testSaveValue_SendsAPaymentToTheMainTreasuryWhenTheTreasuryTheSellerWorksFromIsClosedToThem(): void
+    {
+        $drawer = $this->drawerOpenOnlyTo([$this->employeeWithGrants([])]);
+
+        (new TreasuryService())->setDefaultFor($this->employeeId, $drawer);
+
+        $item   = $this->item('10.00');
+        $saleId = $this->save([$this->line($item, 0, '1', '100', '10.00')], [], [$this->payment(lang('Sales.cash'), '100.00')]);
+
+        $this->assertGreaterThan(0, $saleId);
+        $this->assertNull($this->paymentRow($saleId)->treasury_id);
+        $this->assertSame('100.00', $this->balance($this->accountId('cash')));
+        $this->assertSame('0.0000', (new TreasuryService())->position($drawer)->balance);
+    }
+
+    public function testSaveValue_RefusesAPaymentThatWouldGoToTheMainTreasuryWhenItIsClosedToTheSeller(): void
+    {
+        $treasuries = new TreasuryService();
+        $main       = $treasuries->ensureMain();
+
+        $treasuries->update($main, ['name' => 'Main', 'kind' => 'cash', 'deposit_scope' => 'staff', 'deposit_members' => [$this->employeeWithGrants([])]]);
+
+        $item  = $this->item('10.00');
+        $sales = $this->countSales();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save([$this->line($item, 0, '1', '100', '10.00')], [], [$this->payment(lang('Sales.cash'), '100.00')]));
+        $this->assertSame(AccountingError::TreasuryDepositDenied, $this->sales->accountingFailure()->error);
+        $this->assertSame($sales, $this->countSales());
+    }
+
+    public function testSaveValue_LeavesAPaymentThatSettlesNothingInCashToTheScopeOfNoTreasury(): void
+    {
+        $treasuries = new TreasuryService();
+        $main       = $treasuries->ensureMain();
+
+        $treasuries->update($main, ['name' => 'Main', 'kind' => 'cash', 'deposit_scope' => 'staff', 'deposit_members' => [$this->employeeWithGrants([])]]);
+
+        $item   = $this->item('10.00');
+        $saleId = $this->save([$this->line($item, 0, '1', '100', '10.00')], [], [$this->payment(lang('Sales.due'), '100.00')]);
+
+        $this->assertGreaterThan(0, $saleId);
+    }
+
+    public function testSaveValue_AsksTheWithdrawalScopeOfAPaymentThatGivesMoneyBackToTheCustomer(): void
+    {
+        $item    = $this->item('60.00');
+        $invoice = $this->save([$this->line($item, 0, '5', '100', '60.00')], [], [$this->payment(lang('Sales.cash'), '500.00')]);
+        $drawer  = $this->drawerOpenOnlyTo([$this->employeeWithGrants([])], 'withdraw');
+        $refund  = [$this->payment(lang('Sales.cash'), '-100.00') + ['treasury_id' => $drawer]];
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save([$this->line($item, 0, '-1', '100', '66.00')], [], $refund, SALE_TYPE_RETURN, -1, true, $invoice));
+        $this->assertSame(AccountingError::TreasuryWithdrawDenied, $this->sales->accountingFailure()->error);
+
+        $sale = $this->save([$this->line($item, 0, '1', '100', '60.00')], [], [$this->payment(lang('Sales.cash'), '100.00') + ['treasury_id' => $drawer]]);
+
+        $this->assertGreaterThan(0, $sale, 'Putting money in was not limited');
+    }
+
+    public function testUpdate_RefusesToMoveAPaymentToATreasuryTheEditorMayNotDepositIntoAndChangesNothing(): void
+    {
+        $item      = $this->item('10.00');
+        $saleId    = $this->save([$this->line($item, 0, '1', '100', '10.00')], [], [$this->payment(lang('Sales.cash'), '100.00')]);
+        $paymentId = (int) $this->paymentRow($saleId)->payment_id;
+        $drawer    = $this->drawerOpenOnlyTo([$this->employeeWithGrants([])]);
+
+        $this->assertFalse($this->sales->update($saleId, ['comment' => 'moved', 'payments' => [
+            ['payment_id' => $paymentId, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '100.00', 'cash_refund' => 0, 'cash_adjustment' => 0, 'employee_id' => $this->employeeId, 'reference_code' => null, 'treasury_id' => $drawer],
+        ]]));
+
+        $this->assertSame(AccountingError::TreasuryDepositDenied, $this->sales->accountingFailure()->error);
+        $this->assertNull($this->paymentRow($saleId)->treasury_id);
+        $this->assertSame('100.00', $this->balance($this->accountId('cash')));
+    }
+
+    public function testUpdate_AsksTheWithdrawalScopeOfTheTreasuryAPaymentIsTakenOffAndAcceptsItWhenTheEditorMayWithdraw(): void
+    {
+        $drawer    = $this->drawerOpenOnlyTo([$this->employeeWithGrants([])], 'withdraw');
+        $item      = $this->item('10.00');
+        $saleId    = $this->save([$this->line($item, 0, '1', '100', '10.00')], [], [$this->payment(lang('Sales.cash'), '100.00') + ['treasury_id' => $drawer]]);
+        $paymentId = (int) $this->paymentRow($saleId)->payment_id;
+        $payment   = ['payment_id' => $paymentId, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '100.00', 'cash_refund' => 0, 'cash_adjustment' => 0, 'employee_id' => $this->employeeId, 'reference_code' => null, 'treasury_id' => 0];
+
+        $this->assertFalse($this->sales->update($saleId, ['comment' => 'back to main', 'payments' => [$payment]]));
+        $this->assertSame(AccountingError::TreasuryWithdrawDenied, $this->sales->accountingFailure()->error);
+        $this->assertSame($drawer, (int) $this->paymentRow($saleId)->treasury_id);
+
+        $this->accountingDb()->table('treasuries')->where('treasury_id', $drawer)->update(['withdraw_scope' => 'all']);
+
+        $this->assertTrue($this->sales->update($saleId, ['comment' => 'back to main', 'payments' => [$payment]]));
+        $this->assertNull($this->paymentRow($saleId)->treasury_id);
+    }
+
+    public function testUpdate_AsksNothingOfAnEditThatChangesNeitherTheAmountNorTheTreasuryOfAPayment(): void
+    {
+        $drawer    = $this->drawerOpenOnlyTo([$this->employeeId]);
+        $item      = $this->item('10.00');
+        $saleId    = $this->save([$this->line($item, 0, '1', '100', '10.00')], [], [$this->payment(lang('Sales.cash'), '100.00') + ['treasury_id' => $drawer]]);
+        $paymentId = (int) $this->paymentRow($saleId)->payment_id;
+
+        $this->accountingDb()->table('treasuries')->where('treasury_id', $drawer)->update(['deposit_scope' => 'branches']);
+        $this->accountingDb()->table('treasury_scope_members')->where('treasury_id', $drawer)->delete();
+
+        $this->assertTrue($this->sales->update($saleId, ['comment' => 'only a note', 'payments' => [
+            ['payment_id' => $paymentId, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '100.00', 'cash_refund' => 0, 'cash_adjustment' => 0, 'employee_id' => $this->employeeId, 'reference_code' => null, 'treasury_id' => $drawer],
+        ]]));
+    }
+
+    public function testUpdate_AsksTheScopeAgainWhenTheAmountOfAPaymentChanges(): void
+    {
+        $drawer    = $this->drawerOpenOnlyTo([$this->employeeId]);
+        $item      = $this->item('10.00');
+        $saleId    = $this->save([$this->line($item, 0, '1', '100', '10.00')], [], [$this->payment(lang('Sales.cash'), '60.00') + ['treasury_id' => $drawer]]);
+        $paymentId = (int) $this->paymentRow($saleId)->payment_id;
+        $payment   = ['payment_id' => $paymentId, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '100.00', 'cash_refund' => 0, 'cash_adjustment' => 0, 'employee_id' => $this->employeeId, 'reference_code' => null, 'treasury_id' => $drawer];
+
+        $this->accountingDb()->table('treasury_scope_members')->where('treasury_id', $drawer)->delete();
+        $this->accountingDb()->table('treasury_scope_members')->insert(['treasury_id' => $drawer, 'direction' => 'deposit', 'member_id' => $this->employeeWithGrants([])]);
+
+        $this->assertFalse($this->sales->update($saleId, ['comment' => 'more money', 'payments' => [$payment]]));
+        $this->assertSame(AccountingError::TreasuryDepositDenied, $this->sales->accountingFailure()->error);
+        $this->assertSame('60.0000', (new TreasuryService())->position($drawer)->balance);
+    }
+
     public function testUpdate_MovesAPaymentToTheTreasuryItIsGivenByReversingAndPostingItAgain(): void
     {
         $treasuries = new TreasuryService();
