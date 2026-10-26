@@ -140,6 +140,7 @@ return [
     'error_too_many_lines'                       => 'عدد أسطر القيد أكبر من المسموح. الحد الأقصى {0}.',
     'error_transfer_already_cancelled'           => 'هذا التحويل ملغى من قبل.',
     'error_transfer_amount_invalid'              => 'يجب أن يكون مبلغ التحويل أكبر من صفر.',
+    'error_transfer_journal_locked'              => 'يُلغى قيد التحويل بين الخزائن بإلغاء التحويل لا بعكس القيد.',
     'error_transfer_not_found'                   => 'هذا التحويل غير موجود.',
     'error_transfer_same_treasury'               => 'يحتاج التحويل خزينتين مختلفتين.',
     'error_treasury_account_number_invalid'      => 'يحتاج الحساب البنكي إلى رقمه: من 4 إلى 34 حرفًا ورقمًا.',

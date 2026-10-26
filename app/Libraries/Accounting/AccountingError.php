@@ -128,5 +128,6 @@ enum AccountingError: string
     case TransferSameTreasury       = 'transfer_same_treasury';
     case TransferAmountInvalid      = 'transfer_amount_invalid';
     case InterBranchAccountsMissing = 'inter_branch_accounts_missing';
+    case TransferJournalLocked      = 'transfer_journal_locked';
     case TransferAlreadyCancelled   = 'transfer_already_cancelled';
 }

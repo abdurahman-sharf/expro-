@@ -464,7 +464,7 @@ class AccountingTreasuries extends AccountingController
 
         $edit = '';
 
-        if (! $cancelled && $this->can(AccountingGuard::TREASURIES_MANAGE)) {
+        if (! $cancelled && $this->can(AccountingGuard::TREASURIES_MANAGE) && $this->canSeeTransfer($transfer, true)) {
             $edit = anchor(
                 "accounting_treasuries/cancel_transfer_form/{$id}",
                 '<span class="bi bi-x-circle" aria-hidden="true"></span>',

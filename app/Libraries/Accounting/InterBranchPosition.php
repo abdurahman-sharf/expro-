@@ -10,7 +10,9 @@ use Config\Database;
  * What each branch is owed by the other branches and what it owes them, from the two accounts
  * the transfers between branches meet in. Taken together the branches owe what they are owed, so
  * the two accounts offset to nothing across the company: a difference means a journal of one of
- * the accounts has no counterpart in the other branch.
+ * the accounts has no counterpart in the other branch. The accounts are those the routing names,
+ * the system accounts, and any account a transfer was ever posted to, so changing the routing
+ * later does not hide what was posted before.
  */
 final class InterBranchPosition
 {
@@ -54,8 +56,8 @@ final class InterBranchPosition
             $rows[] = (object) [
                 'branch_id'  => (int) $branch->branch_id,
                 'code'       => (string) $branch->code,
-                'receivable' => $receivable === null ? '0.0000' : $this->net($receivable, (int) $branch->branch_id),
-                'payable'    => $payable === null ? '0.0000' : bcsub('0', $this->net($payable, (int) $branch->branch_id), SaleAmounts::SCALE),
+                'receivable' => $this->net($receivable, (int) $branch->branch_id),
+                'payable'    => bcsub('0', $this->net($payable, (int) $branch->branch_id), SaleAmounts::SCALE),
             ];
         }
 
@@ -69,30 +71,76 @@ final class InterBranchPosition
     public function difference(): string
     {
         [$receivable, $payable] = $this->accounts();
-        $owed                   = $receivable === null ? '0' : $this->net($receivable, null);
-        $owing                  = $payable === null ? '0' : bcsub('0', $this->net($payable, null), SaleAmounts::SCALE);
+        $owed                   = $this->net($receivable, null);
+        $owing                  = bcsub('0', $this->net($payable, null), SaleAmounts::SCALE);
 
         return bcsub($owed, $owing, SaleAmounts::SCALE);
     }
 
     /**
-     * @return array{int|null, int|null}
+     * @return array{list<int>, list<int>} The accounts of what is owed to a branch and of what it owes.
      */
     private function accounts(): array
     {
-        try {
-            return [$this->resolver->accountFor(RoutingKey::InterBranchReceivable), $this->resolver->accountFor(RoutingKey::InterBranchPayable)];
-        } catch (PostingException) {
-            return [null, null];
-        }
+        return [
+            $this->accountsOf(RoutingKey::InterBranchReceivable, TreasuryTransfers::SOURCE),
+            $this->accountsOf(RoutingKey::InterBranchPayable, TreasuryTransfers::SOURCE_RECEIPT),
+        ];
     }
 
-    private function net(int $accountId, ?int $branchId): string
+    /**
+     * @return list<int>
+     */
+    private function accountsOf(RoutingKey $key, string $legSource): array
     {
+        $ids = [];
+
+        try {
+            $routed = $this->resolver->accountFor($key);
+        } catch (PostingException) {
+            $routed = null;
+        }
+
+        if ($routed !== null) {
+            $ids[] = $routed;
+        }
+
+        $system = $this->db->table('accounting_accounts')->select('account_id')->where('system_key', (string) $key->defaultSystemKey())->get()->getRow();
+
+        if ($system !== null) {
+            $ids[] = (int) $system->account_id;
+        }
+
+        $used = $this->db->table('accounting_journal_lines l')
+            ->select('l.account_id')
+            ->distinct()
+            ->join('accounting_journals j', 'j.journal_id = l.journal_id')
+            ->join('accounting_accounts a', 'a.account_id = l.account_id')
+            ->where('j.source_type', $legSource)
+            ->where('a.entity_type IS NULL', null, false)
+            ->get()
+            ->getResultArray();
+
+        foreach ($used as $row) {
+            $ids[] = (int) $row['account_id'];
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    /**
+     * @param list<int> $accountIds
+     */
+    private function net(array $accountIds, ?int $branchId): string
+    {
+        if ($accountIds === []) {
+            return '0.0000';
+        }
+
         $builder = $this->db->table('accounting_journal_lines l')
             ->select('COALESCE(SUM(l.debit), 0) - COALESCE(SUM(l.credit), 0) AS balance', false)
             ->join('accounting_journals j', 'j.journal_id = l.journal_id')
-            ->where('l.account_id', $accountId)
+            ->whereIn('l.account_id', $accountIds)
             ->whereIn('j.status', [JournalStatus::Posted->value, JournalStatus::Reversed->value]);
 
         if ($branchId !== null) {

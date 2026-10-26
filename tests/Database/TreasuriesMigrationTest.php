@@ -3,6 +3,7 @@
 namespace Tests\Database;
 
 use App\Database\Migrations\BankAccounts;
+use App\Database\Migrations\InterBranchTransfers;
 use App\Database\Migrations\SupplierAdvances;
 use App\Database\Migrations\Treasuries;
 use App\Database\Migrations\TreasuryScopes as TreasuryScopesMigration;
@@ -246,9 +247,11 @@ class TreasuriesMigrationTest extends CIUnitTestCase
             $later->up();
             (new BankAccounts())->up();
             $scopes->up();
+            (new InterBranchTransfers())->up();
         }
 
         $this->assertTrue($this->hasTable('treasuries'));
+        $this->assertTrue($this->hasColumn('treasury_transfers', 'to_branch_id'), 'The migrations that came after it are run again');
         $this->assertTrue($this->hasColumn('sales_payments', 'treasury_id'));
         $this->assertSame(1, $this->accountingDb()->table('modules')->where('module_id', self::MODULE_ID)->countAllResults());
     }

@@ -9,6 +9,7 @@ use App\Libraries\Accounting\JournalOrigin;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\Accounting\TreasuryTransfers;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -275,6 +276,19 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         $response->assertStatus(200);
         $response->assertSee('accounting_journals/reverse_form/' . $journalId);
         $response->assertDontSee('id="post_draft"');
+    }
+
+    public function testGetView_HidesTheReverseButtonOfAJournalOfATransferBetweenTreasuries(): void
+    {
+        $treasuries = new TreasuryService();
+        $from       = $treasuries->create(['name' => 'Sending drawer', 'kind' => 'cash']);
+        $to         = $treasuries->create(['name' => 'Receiving drawer', 'kind' => 'cash']);
+        $id         = (new TreasuryTransfers())->transfer($from, $to, '25.00', '2026-10-21');
+        $journalId  = (int) $this->accountingDb()->table('accounting_journals')->where(['source_type' => 'treasury_transfer', 'source_id' => $id])->get()->getRow()->journal_id;
+
+        $this->accountant();
+
+        $this->get('/accounting_journals/view/' . $journalId)->assertDontSee('accounting_journals/reverse_form/' . $journalId);
     }
 
     public function testGetView_HidesTheReverseButtonWithoutThePermission(): void

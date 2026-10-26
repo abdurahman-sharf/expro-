@@ -115,6 +115,35 @@ class InterBranchPositionTest extends CIUnitTestCase
         $this->assertSame('0.0000', $this->position->difference());
     }
 
+    public function testByBranch_StillCountsWhatWasPostedBeforeTheRoutingWasPointedAtAnotherAccount(): void
+    {
+        $this->transfers->transfer($this->first, $this->second, '100.00', '2026-10-21', '', $this->manager);
+
+        $elsewhere = $this->customAccount('1204', '12049', 'Another receivable');
+
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'branches.receivable')->update(['account_id' => $elsewhere]);
+
+        $this->assertSame(['100.0000', '0.0000'], $this->balances()[1]);
+        $this->assertSame('0.0000', $this->position->difference());
+
+        $this->transfers->transfer($this->first, $this->second, '40.00', '2026-10-22', '', $this->manager);
+
+        $this->assertSame(['140.0000', '0.0000'], $this->balances()[1]);
+        $this->assertSame('0.0000', $this->position->difference());
+    }
+
+    public function testByBranch_CountsAnAccountATransferWasPostedToThatIsNoLongerInTheRouting(): void
+    {
+        $other = $this->customAccount('1204', '12048', 'Receivable of an earlier routing');
+
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'branches.receivable')->update(['account_id' => $other]);
+        $this->transfers->transfer($this->first, $this->second, '100.00', '2026-10-21', '', $this->manager);
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'branches.receivable')->update(['account_id' => $this->accountId('branches_receivable')]);
+
+        $this->assertSame(['100.0000', '0.0000'], $this->balances()[1]);
+        $this->assertSame('0.0000', $this->position->difference());
+    }
+
     public function testByBranch_ListsOnlyTheBranchesAskedFor(): void
     {
         $this->assertSame([], $this->position->byBranch([]));

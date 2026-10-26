@@ -48,6 +48,22 @@ class InterBranchTransfersMigrationTest extends CIUnitTestCase
         )->getRow()->found > 0;
     }
 
+    private function hasIndex(): bool
+    {
+        return $this->accountingDb()->query(
+            'SELECT COUNT(*) AS found FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?',
+            [$this->accountingDb()->prefixTable('treasury_transfers'), $this->accountingDb()->prefixTable('treasury_transfers_to_branch')],
+        )->getRow()->found > 0;
+    }
+
+    private function hasForeignKey(): bool
+    {
+        return $this->accountingDb()->query(
+            'SELECT COUNT(*) AS found FROM information_schema.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND CONSTRAINT_NAME = ? AND CONSTRAINT_TYPE = ?',
+            [$this->accountingDb()->prefixTable('treasury_transfers'), $this->accountingDb()->prefixTable('treasury_transfers_fk_to_branch'), 'FOREIGN KEY'],
+        )->getRow()->found > 0;
+    }
+
     private function accountOf(string $systemKey): ?object
     {
         return $this->accountingDb()->table('accounting_accounts')->where('system_key', $systemKey)->get()->getRow();
@@ -133,5 +149,31 @@ class InterBranchTransfersMigrationTest extends CIUnitTestCase
 
         $this->assertSame(0, $this->countRows('accounting_accounts'));
         $this->assertTrue($this->hasColumn());
+    }
+
+    public function testUp_CompletesARunThatStoppedAfterTheColumnWasAdded(): void
+    {
+        $this->chartBefore();
+
+        $this->accountingDb()->query('ALTER TABLE `' . $this->accountingDb()->prefixTable('treasury_transfers') . '` ADD COLUMN `to_branch_id` INT UNSIGNED NULL DEFAULT NULL AFTER `branch_id`');
+
+        $this->assertFalse($this->hasIndex());
+        $this->assertFalse($this->hasForeignKey());
+
+        (new InterBranchTransfers())->up();
+
+        $this->assertTrue($this->hasIndex());
+        $this->assertTrue($this->hasForeignKey());
+    }
+
+    public function testUp_AddsTheColumnTheIndexAndTheForeignKeyOnTheirOwn(): void
+    {
+        $this->chartBefore();
+
+        (new InterBranchTransfers())->up();
+
+        $this->assertTrue($this->hasColumn());
+        $this->assertTrue($this->hasIndex());
+        $this->assertTrue($this->hasForeignKey());
     }
 }

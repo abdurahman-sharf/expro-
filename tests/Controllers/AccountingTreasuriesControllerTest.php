@@ -594,6 +594,20 @@ class AccountingTreasuriesControllerTest extends CIUnitTestCase
         $this->get('/accounting_treasuries/transfers')->assertSee(lang('Accounting_treasuries.between_difference', ['50.00']));
     }
 
+    public function testGetTransfersSearch_OffersTheCancelIconOnlyToWhoWorksInEveryBranchOfTheTransfer(): void
+    {
+        $manager          = $this->manager();
+        [$other, $branch] = $this->inSecondBranch($manager);
+
+        (new TreasuryTransfers())->transfer($this->treasuries->ensureMain(), $other, '10', '2026-10-22', '', $manager);
+
+        $this->assertStringContainsString('cancel_transfer_form', json_decode($this->get('/accounting_treasuries/transfers/search')->getJSON(), true)['rows'][0]['edit']);
+
+        $this->actAsWith(['accounting_treasuries', AccountingGuard::TREASURIES_MANAGE], [$branch]);
+
+        $this->assertSame('', json_decode($this->get('/accounting_treasuries/transfers/search')->getJSON(), true)['rows'][0]['edit']);
+    }
+
     public function testGetCancelTransferForm_IsNotFoundToSomeoneWhoWorksInOnlyOneOfTheBranchesButTheTransferIsStillListedForThem(): void
     {
         $manager          = $this->manager();

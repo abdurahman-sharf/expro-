@@ -10,6 +10,7 @@ use App\Libraries\Accounting\AccountService;
 use App\Libraries\Accounting\AuditLog;
 use App\Libraries\Accounting\CostCenterService;
 use App\Libraries\Accounting\JournalService;
+use App\Libraries\Accounting\TreasuryTransfers;
 use App\Libraries\Accounting\JournalStatus;
 use App\Libraries\Accounting\PeriodGuard;
 use App\Libraries\Accounting\PostingException;
@@ -125,7 +126,7 @@ class AccountingJournals extends AccountingController
             'currency'     => (new AccountingSettings())->baseCurrency(),
             'can_draft'    => $this->can(AccountingGuard::JOURNALS_DRAFT),
             'can_post'     => $this->can(AccountingGuard::JOURNALS_POST),
-            'can_reverse'  => $this->can(AccountingGuard::JOURNALS_REVERSE),
+            'can_reverse'  => $this->can(AccountingGuard::JOURNALS_REVERSE) && ! in_array($journal->source_type, [TreasuryTransfers::SOURCE, TreasuryTransfers::SOURCE_RECEIPT], true),
             'notice'       => session()->getFlashdata('accounting_notice'),
             'status_badge' => $this->badge($journal->status),
             'source_label' => $this->sourceLabel($journal->source_type, (string) ($journal->entry_type ?? 'general')),

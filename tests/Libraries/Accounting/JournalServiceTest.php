@@ -11,6 +11,7 @@ use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\Accounting\TreasuryTransfers;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Organization\BranchError;
@@ -628,6 +629,25 @@ class JournalServiceTest extends CIUnitTestCase
         $this->assertFailsWith(AccountingError::TreasuryDepositDenied, fn () => $this->service->postDraft($draftId, $accountant, $input));
         $this->assertSame('draft', $this->journal($draftId)->status);
         $this->assertSame($draftId, $this->service->postDraft($draftId), 'The books may post it');
+    }
+
+    public function testReverse_RefusesTheJournalOfATransferBetweenTreasuriesAndLeavesItToTheCancellationOfTheTransfer(): void
+    {
+        $treasuries = new TreasuryService();
+        $branch     = $this->createBranch('B2');
+        $from       = $treasuries->create(['name' => 'Sending drawer', 'kind' => 'cash']);
+        $to         = $treasuries->create(['name' => 'Receiving drawer', 'kind' => 'cash', 'branch_id' => $branch]);
+        $id         = (new TreasuryTransfers())->transfer($from, $to, '25.00', '2026-10-21');
+        $reverser   = $this->accountant();
+
+        foreach ($this->accountingDb()->table('accounting_journals')->whereIn('source_type', ['treasury_transfer', 'treasury_transfer_receipt'])->where('source_id', $id)->get()->getResult() as $journal) {
+            $this->assertFailsWith(AccountingError::TransferJournalLocked, fn () => $this->service->reverse((int) $journal->journal_id, '2026-10-22', 'By hand', $reverser));
+            $this->assertSame('posted', $this->journal((int) $journal->journal_id)->status);
+        }
+
+        (new TreasuryTransfers())->cancel($id, 'The right way');
+
+        $this->assertSame('0.0000', $treasuries->position($to)->balance);
     }
 
     public function testReverse_WritesAnAuditEntryWithTheReason(): void

@@ -311,6 +311,10 @@ final class JournalService
 
             if ($checkAccess) {
                 $this->assertCanAccess($original, $employeeId);
+
+                if (in_array($original->source_type, [TreasuryTransfers::SOURCE, TreasuryTransfers::SOURCE_RECEIPT], true)) {
+                    throw new AccountingException(AccountingError::TransferJournalLocked, 'The journal of a transfer between treasuries is taken back by cancelling the transfer.', ['journal_id' => $journalId]);
+                }
             }
 
             if ($original->status === JournalStatus::Reversed->value) {

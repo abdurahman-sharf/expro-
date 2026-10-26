@@ -113,8 +113,10 @@ final class TreasuryTransfers
             $transferId  = (int) $this->db->insertID();
             $description = 'Transfer #' . $transferId . ($note === '' ? '' : ': ' . $note);
 
+            $drafts = [];
+
             if (! $between) {
-                $this->posting->post(new JournalDraft(
+                $drafts[$branchId] = new JournalDraft(
                     date: $date,
                     lines: [new JournalLineDraft($toAccount, debit: $amount), new JournalLineDraft($fromAccount, credit: $amount)],
                     sourceType: self::SOURCE,
@@ -124,9 +126,9 @@ final class TreasuryTransfers
                     description: $description,
                     branchId: $branchId,
                     entryType: JournalEntryType::General,
-                ));
+                );
             } else {
-                $this->posting->post(new JournalDraft(
+                $drafts[$branchId] = new JournalDraft(
                     date: $date,
                     lines: [new JournalLineDraft((int) $receivable, debit: $amount), new JournalLineDraft($fromAccount, credit: $amount)],
                     sourceType: self::SOURCE,
@@ -136,9 +138,9 @@ final class TreasuryTransfers
                     description: $description . ' (to branch ' . $this->branchCode($toBranchId) . ')',
                     branchId: $branchId,
                     entryType: JournalEntryType::General,
-                ));
+                );
 
-                $this->posting->post(new JournalDraft(
+                $drafts[$toBranchId] = new JournalDraft(
                     date: $date,
                     lines: [new JournalLineDraft($toAccount, debit: $amount), new JournalLineDraft((int) $payable, credit: $amount)],
                     sourceType: self::SOURCE_RECEIPT,
@@ -148,7 +150,15 @@ final class TreasuryTransfers
                     description: $description . ' (from branch ' . $this->branchCode($branchId) . ')',
                     branchId: $toBranchId,
                     entryType: JournalEntryType::General,
-                ));
+                );
+            }
+
+            // Written in the order of the branch ids whichever way the money goes, so that two transfers in opposite
+            // directions take the period locks of the two branches in the same order.
+            ksort($drafts);
+
+            foreach ($drafts as $draft) {
+                $this->posting->post($draft);
             }
 
             $this->audit->write('treasury_transfer', $transferId, 'created', $employeeId, JournalOrigin::User, ['from' => $fromId, 'to' => $toId, 'amount' => $amount] + ($between ? ['to_branch' => $toBranchId] : []), $branchId);
@@ -193,7 +203,8 @@ final class TreasuryTransfers
                 ->where('source_id', $transferId)
                 ->whereIn('source_type', [self::SOURCE, self::SOURCE_RECEIPT])
                 ->where('status', JournalStatus::Posted->value)
-                ->orderBy('journal_id', 'ASC')
+                // Reversed in the same order of the branch ids, for the same reason.
+                ->orderBy('branch_id', 'ASC')
                 ->get()
                 ->getResult();
             $scopes = new TreasuryScopes($this->db, $this->branches);

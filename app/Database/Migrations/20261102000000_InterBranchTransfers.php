@@ -23,10 +23,18 @@ class InterBranchTransfers extends Migration
         $transfers = $this->db->prefixTable('treasury_transfers');
         $branches  = $this->db->prefixTable('branches');
 
-        if ($this->hasTable('treasury_transfers') && ! $this->hasColumn('treasury_transfers', 'to_branch_id')) {
-            $this->db->query("ALTER TABLE `{$transfers}` ADD COLUMN `to_branch_id` INT UNSIGNED NULL DEFAULT NULL AFTER `branch_id`");
-            $this->db->query("ALTER TABLE `{$transfers}` ADD KEY `{$transfers}_to_branch` (`to_branch_id`)");
-            $this->db->query("ALTER TABLE `{$transfers}` ADD CONSTRAINT `{$transfers}_fk_to_branch` FOREIGN KEY (`to_branch_id`) REFERENCES `{$branches}` (`branch_id`) ON DELETE RESTRICT");
+        if ($this->hasTable('treasury_transfers')) {
+            if (! $this->hasColumn('treasury_transfers', 'to_branch_id')) {
+                $this->db->query("ALTER TABLE `{$transfers}` ADD COLUMN `to_branch_id` INT UNSIGNED NULL DEFAULT NULL AFTER `branch_id`");
+            }
+
+            if (! $this->hasIndex('treasury_transfers', 'treasury_transfers_to_branch')) {
+                $this->db->query("ALTER TABLE `{$transfers}` ADD KEY `{$transfers}_to_branch` (`to_branch_id`)");
+            }
+
+            if (! $this->hasForeignKey('treasury_transfers', 'treasury_transfers_fk_to_branch')) {
+                $this->db->query("ALTER TABLE `{$transfers}` ADD CONSTRAINT `{$transfers}_fk_to_branch` FOREIGN KEY (`to_branch_id`) REFERENCES `{$branches}` (`branch_id`) ON DELETE RESTRICT");
+            }
         }
 
         if ($this->hasTable('accounting_accounts') && $this->db->table('accounting_accounts')->countAllResults() > 0) {
@@ -40,10 +48,18 @@ class InterBranchTransfers extends Migration
     {
         $transfers = $this->db->prefixTable('treasury_transfers');
 
-        if ($this->hasTable('treasury_transfers') && $this->hasColumn('treasury_transfers', 'to_branch_id')) {
-            $this->db->query("ALTER TABLE `{$transfers}` DROP FOREIGN KEY `{$transfers}_fk_to_branch`");
-            $this->db->query("ALTER TABLE `{$transfers}` DROP KEY `{$transfers}_to_branch`");
-            $this->db->query("ALTER TABLE `{$transfers}` DROP COLUMN `to_branch_id`");
+        if ($this->hasTable('treasury_transfers')) {
+            if ($this->hasForeignKey('treasury_transfers', 'treasury_transfers_fk_to_branch')) {
+                $this->db->query("ALTER TABLE `{$transfers}` DROP FOREIGN KEY `{$transfers}_fk_to_branch`");
+            }
+
+            if ($this->hasIndex('treasury_transfers', 'treasury_transfers_to_branch')) {
+                $this->db->query("ALTER TABLE `{$transfers}` DROP KEY `{$transfers}_to_branch`");
+            }
+
+            if ($this->hasColumn('treasury_transfers', 'to_branch_id')) {
+                $this->db->query("ALTER TABLE `{$transfers}` DROP COLUMN `to_branch_id`");
+            }
         }
 
         if (! $this->hasTable('accounting_accounts')) {
@@ -118,6 +134,22 @@ class InterBranchTransfers extends Migration
         } elseif ($route->account_id === null) {
             $this->db->table('accounting_routing')->where('routing_key', $account['routing'])->update(['account_id' => $accountId]);
         }
+    }
+
+    private function hasIndex(string $table, string $index): bool
+    {
+        return $this->db->query(
+            'SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?',
+            [$this->db->prefixTable($table), $this->db->prefixTable($index)],
+        )->getRow() !== null;
+    }
+
+    private function hasForeignKey(string $table, string $constraint): bool
+    {
+        return $this->db->query(
+            'SELECT 1 FROM information_schema.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND CONSTRAINT_NAME = ? AND CONSTRAINT_TYPE = ?',
+            [$this->db->prefixTable($table), $this->db->prefixTable($constraint), 'FOREIGN KEY'],
+        )->getRow() !== null;
     }
 
     private function hasTable(string $table): bool

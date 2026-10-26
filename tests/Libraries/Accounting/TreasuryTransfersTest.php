@@ -496,6 +496,51 @@ class TreasuryTransfersTest extends CIUnitTestCase
         $this->assertSame('0.0000', (new InterBranchPosition())->difference());
     }
 
+    /**
+     * The journal ids of a transfer by the branch of each journal.
+     *
+     * @return array<int, int>
+     */
+    private function journalIdsByBranch(int $transferId, string $source = 'treasury_transfer'): array
+    {
+        $ids = [];
+
+        foreach ($this->accountingDb()->table('accounting_journals')->whereIn('source_type', [$source, $source . '_receipt'])->where('source_id', $transferId)->get()->getResult() as $journal) {
+            $ids[(int) $journal->branch_id] = (int) $journal->journal_id;
+        }
+
+        return $ids;
+    }
+
+    public function testTransfer_WritesTheJournalOfTheLowerBranchFirstWhicheverWayTheMoneyGoes(): void
+    {
+        [$other, $branch] = $this->elsewhere();
+
+        $forward  = $this->journalIdsByBranch($this->transfers->transfer($this->main, $other, '10.00', '2026-10-21', '', $this->manager));
+        $backward = $this->journalIdsByBranch($this->transfers->transfer($other, $this->main, '5.00', '2026-10-21', '', $this->manager));
+
+        $this->assertLessThan($forward[$branch], $forward[1]);
+        $this->assertLessThan($backward[$branch], $backward[1]);
+    }
+
+    public function testCancel_ReversesTheJournalOfTheLowerBranchFirstWhicheverWayTheMoneyGoes(): void
+    {
+        [$other, $branch] = $this->elsewhere();
+        $forward          = $this->transfers->transfer($this->main, $other, '10.00', '2026-10-21', '', $this->manager);
+        $backward         = $this->transfers->transfer($other, $this->main, '5.00', '2026-10-21', '', $this->manager);
+
+        $this->transfers->cancel($forward, 'Reason', $this->manager);
+        $this->transfers->cancel($backward, 'Reason', $this->manager);
+
+        foreach ([$forward, $backward] as $transferId) {
+            $originals = $this->journalIdsByBranch($transferId);
+            $first     = (int) $this->accountingDb()->table('accounting_journals')->where('reverses_journal_id', $originals[1])->get()->getRow()->journal_id;
+            $second    = (int) $this->accountingDb()->table('accounting_journals')->where('reverses_journal_id', $originals[$branch])->get()->getRow()->journal_id;
+
+            $this->assertLessThan($second, $first);
+        }
+    }
+
     public function testCancel_RefusesAnEmployeeWhoWorksInOnlyOneOfTheBranchesAndReversesNothing(): void
     {
         [$other, $branch] = $this->elsewhere();

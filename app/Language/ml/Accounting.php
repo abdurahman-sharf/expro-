@@ -140,6 +140,7 @@ return [
     'error_too_many_lines'                       => '',
     'error_transfer_already_cancelled'           => '',
     'error_transfer_amount_invalid'              => '',
+    'error_transfer_journal_locked'              => '',
     'error_transfer_not_found'                   => '',
     'error_transfer_same_treasury'               => '',
     'error_treasury_account_number_invalid'      => '',

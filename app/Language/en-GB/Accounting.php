@@ -140,6 +140,7 @@ return [
     'error_too_many_lines'                       => 'The journal has too many lines. The limit is {0}.',
     'error_transfer_already_cancelled'           => 'This transfer is already cancelled.',
     'error_transfer_amount_invalid'              => 'The amount of a transfer must be more than zero.',
+    'error_transfer_journal_locked'              => 'A journal of a transfer between treasuries is taken back by cancelling the transfer, not by reversing the journal.',
     'error_transfer_not_found'                   => 'This transfer does not exist.',
     'error_transfer_same_treasury'               => 'A transfer needs two different treasuries.',
     'error_treasury_account_number_invalid'      => 'A bank account needs its account number: 4 to 34 letters and digits.',
