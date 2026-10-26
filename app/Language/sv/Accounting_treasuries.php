@@ -16,6 +16,7 @@ return [
     'between_difference' => '',
     'branch' => '',
     'branch_balances_branch' => '',
+    'branch_balances_note' => '',
     'branch_balances_owed' => '',
     'branch_balances_owing' => '',
     'branch_balances_title' => '',

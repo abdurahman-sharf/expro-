@@ -21,7 +21,7 @@ final class ReceivingLoader
     public function load(int $receivingId, bool $withOrigin = true): ?ReceivingDocument
     {
         $receiving = $this->db->table('receivings')
-            ->select('receiving_id, receiving_time, receiving_type, supplier_id, branch_id, payment_type, return_of_receiving_id, treasury_id')
+            ->select('receiving_id, receiving_time, receiving_type, supplier_id, branch_id, to_branch_id, payment_type, return_of_receiving_id, treasury_id')
             ->where('receiving_id', $receivingId)
             ->get()
             ->getRow();
@@ -44,7 +44,27 @@ final class ReceivingLoader
             origin: $origin,
             payments: $this->payments($receivingId),
             treasuryId: $receiving->treasury_id === null ? null : (int) $receiving->treasury_id,
+            toBranchId: $receiving->to_branch_id === null ? null : (int) $receiving->to_branch_id,
+            branchCodes: $this->branchCodes((int) $receiving->branch_id, $receiving->to_branch_id === null ? null : (int) $receiving->to_branch_id),
         );
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function branchCodes(int $branchId, ?int $toBranchId): array
+    {
+        if ($toBranchId === null) {
+            return [];
+        }
+
+        $codes = [];
+
+        foreach ($this->db->table('branches')->select('branch_id, code')->whereIn('branch_id', [$branchId, $toBranchId])->get()->getResult() as $row) {
+            $codes[(int) $row->branch_id] = (string) $row->code;
+        }
+
+        return $codes;
     }
 
     /**
@@ -81,8 +101,9 @@ final class ReceivingLoader
         $lines = [];
 
         foreach ($this->db->table('receivings_items l')
-            ->select('l.item_id, l.line, l.quantity_purchased, l.receiving_quantity, l.item_unit_price, l.discount, l.discount_type, l.tax_percent, l.item_location, it.stock_type, it.cost_price')
+            ->select('l.item_id, l.line, l.quantity_purchased, l.receiving_quantity, l.item_unit_price, l.discount, l.discount_type, l.tax_percent, l.item_location, it.stock_type, it.cost_price, sl.branch_id AS location_branch_id')
             ->join('items it', 'it.item_id = l.item_id')
+            ->join('stock_locations sl', 'sl.location_id = l.item_location', 'left')
             ->where('l.receiving_id', $receivingId)
             ->orderBy('l.line', 'ASC')
             ->get()
@@ -99,6 +120,7 @@ final class ReceivingLoader
                 locationId: (int) $row->item_location,
                 hasStock: (int) $row->stock_type === HAS_STOCK,
                 itemCost: (string) $row->cost_price,
+                branchId: $row->location_branch_id === null ? null : (int) $row->location_branch_id,
             );
         }
 

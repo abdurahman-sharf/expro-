@@ -2,6 +2,7 @@
 
 return [
     'amount_due'                   => 'Importe Adeudado',
+    'between_branches'             => '',
     'branch_not_allowed'           => '',
     'cancel_receiving'             => 'Cancelar',
     'cannot_be_deleted'            => 'Ingreso(s) no se borraron.',

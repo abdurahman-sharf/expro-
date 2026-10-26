@@ -144,6 +144,52 @@ class InterBranchPositionTest extends CIUnitTestCase
         $this->assertSame('0.0000', $this->position->difference());
     }
 
+    /**
+     * One journal of a stock transfer: what the branch is owed or owes on the account given against cash.
+     */
+    private function stockLeg(string $source, int $sourceId, int $branchId, int $account, string $amount, bool $owed): void
+    {
+        $cash  = $this->accountId('cash');
+        $lines = $owed
+            ? [new JournalLineDraft($account, debit: $amount), new JournalLineDraft($cash, credit: $amount)]
+            : [new JournalLineDraft($cash, debit: $amount), new JournalLineDraft($account, credit: $amount)];
+
+        (new PostingService())->post(new JournalDraft(date: '2026-10-21', lines: $lines, sourceType: $source, sourceId: $sourceId, branchId: $branchId, currencyCode: 'SAR'));
+    }
+
+    public function testByBranch_CountsAStockTransferBetweenBranchesAsItCountsATransferOfMoney(): void
+    {
+        $this->stockLeg('stock_transfer', 501, 1, $this->accountId('branches_receivable'), '70.00', true);
+        $this->stockLeg('stock_transfer_receipt', 501, $this->secondBranch, $this->accountId('branches_payable'), '70.00', false);
+        $this->transfers->transfer($this->first, $this->second, '100.00', '2026-10-21', '', $this->manager);
+
+        $balances = $this->balances();
+
+        $this->assertSame(['170.0000', '0.0000'], $balances[1]);
+        $this->assertSame(['0.0000', '170.0000'], $balances[$this->secondBranch]);
+        $this->assertSame('0.0000', $this->position->difference());
+    }
+
+    public function testDifference_ShowsAStockTransferWhoseReceiptIsMissing(): void
+    {
+        $this->stockLeg('stock_transfer', 502, 1, $this->accountId('branches_receivable'), '70.00', true);
+
+        $this->assertSame('70.0000', $this->position->difference());
+    }
+
+    public function testByBranch_StillCountsAStockTransferPostedToAccountsThatAreNoLongerInTheRouting(): void
+    {
+        $receivable = $this->customAccount('1204', '12047', 'Receivable of an earlier routing');
+        $payable    = $this->customAccount('211', '2217', 'Payable of an earlier routing');
+
+        $this->stockLeg('stock_transfer', 503, 1, $receivable, '80.00', true);
+        $this->stockLeg('stock_transfer_receipt', 503, $this->secondBranch, $payable, '80.00', false);
+
+        $this->assertSame(['80.0000', '0.0000'], $this->balances()[1]);
+        $this->assertSame(['0.0000', '80.0000'], $this->balances()[$this->secondBranch]);
+        $this->assertSame('0.0000', $this->position->difference());
+    }
+
     public function testByBranch_ListsOnlyTheBranchesAskedFor(): void
     {
         $this->assertSame([], $this->position->byBranch([]));

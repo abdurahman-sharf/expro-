@@ -17,6 +17,7 @@ use App\Libraries\Accounting\ReturnLimit;
 use App\Libraries\Accounting\SupplierLock;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Model;
@@ -397,8 +398,19 @@ class Receiving extends Model
         $config       = config(OSPOS::class)->settings;
         $type         = ReceivingType::ofQuantities(array_map(static fn (array $line): string => self::unitsOf($line), $items));
         $branchIds    = $this->branchIdsOfItems($items);
-        $branchId     = $branchIds[0] ?? (new BranchGuard($this->db))->companyDefaultBranchId();
+        $between      = $this->transferBetweenBranches($items);
+        $branchId     = $between['from'] ?? $branchIds[0] ?? (new BranchGuard($this->db))->companyDefaultBranchId();
         $accountingOn = (new AccountingSettings($this->db))->isEnabled();
+
+        if ($between !== null) {
+            try {
+                $this->requireBranches($between, $employee_id);
+            } catch (BranchException $refusal) {
+                $this->accountingFailure = $refusal;
+
+                return ACCOUNTING_FAILED;
+            }
+        }
 
         try {
             $treasuryId = $this->treasuryOfPayment(['payment_type' => $payment_type], $employee_id === null ? null : (int) $employee_id, $branchId, $type === ReceivingType::Return ? TreasuryScopes::DEPOSIT : TreasuryScopes::WITHDRAW);
@@ -417,6 +429,7 @@ class Receiving extends Model
             'reference'              => $reference,
             'receiving_type'         => $type->value,
             'branch_id'              => $branchId,
+            'to_branch_id'           => $between['to'] ?? null,
             'return_of_receiving_id' => $type === ReceivingType::Return ? $returnOfReceivingId : null,
             'treasury_id'            => $treasuryId,
         ];
@@ -425,8 +438,8 @@ class Receiving extends Model
         $this->db->transStart();
 
         try {
-            if ($accountingOn && count($branchIds) > 1) {
-                throw new PostingException(PostingError::PurchaseAcrossBranches, 'A purchase or a transfer stays within one branch.');
+            if ($accountingOn && count($branchIds) > 1 && $between === null) {
+                throw new PostingException(PostingError::PurchaseAcrossBranches, 'A purchase or a return stays within one branch; only a transfer between stock locations goes from one branch to another.');
             }
 
             $this->lockItems($items);
@@ -531,6 +544,85 @@ class Receiving extends Model
     }
 
     /**
+     * The branches a transfer between locations works in when it takes its stock out of the
+     * locations of one branch and puts all of it in those of another, or null when it is not such
+     * a transfer.
+     *
+     * @return array{from: int, to: int}|null
+     */
+    public function transferBetweenBranches(array $items): ?array
+    {
+        $locationIds = array_values(array_unique(array_filter(array_map('intval', array_column($items, 'item_location')))));
+
+        if ($locationIds === []) {
+            return null;
+        }
+
+        $branchOf = [];
+
+        foreach ($this->db->table('stock_locations')->select('location_id, branch_id')->whereIn('location_id', $locationIds)->get()->getResultArray() as $row) {
+            $branchOf[(int) $row['location_id']] = (int) $row['branch_id'];
+        }
+
+        $out = [];
+        $in  = [];
+
+        foreach ($items as $line) {
+            $branch = $branchOf[(int) ($line['item_location'] ?? 0)] ?? null;
+            $sign   = bccomp(self::unitsOf($line), '0', 3);
+
+            if ($branch === null) {
+                return null;
+            }
+
+            if ($sign < 0) {
+                $out[$branch] = true;
+            } elseif ($sign > 0) {
+                $in[$branch] = true;
+            }
+        }
+
+        if (count($out) !== 1 || count($in) !== 1) {
+            return null;
+        }
+
+        $from = array_key_first($out);
+        $to   = array_key_first($in);
+
+        return $from === $to ? null : ['from' => $from, 'to' => $to];
+    }
+
+    /**
+     * The codes of the branches two stock locations belong to when they belong to different ones,
+     * or null when they belong to the same branch or one of them does not exist.
+     *
+     * @return array{from: string, to: string}|null
+     */
+    public function branchesBetweenLocations(int $sourceId, int $destinationId): ?array
+    {
+        $rows = $this->db->table('stock_locations l')
+            ->select('l.location_id, l.branch_id, b.code')
+            ->join('branches b', 'b.branch_id = l.branch_id')
+            ->whereIn('l.location_id', [$sourceId, $destinationId])
+            ->get()
+            ->getResult();
+        $byLocation = [];
+
+        foreach ($rows as $row) {
+            $byLocation[(int) $row->location_id] = $row;
+        }
+
+        $from = $byLocation[$sourceId] ?? null;
+        $to   = $byLocation[$destinationId] ?? null;
+
+        if ($from === null || $to === null || (int) $from->branch_id === (int) $to->branch_id) {
+            return null;
+        }
+
+        return ['from' => (string) $from->code, 'to' => (string) $to->code];
+    }
+
+    /**
      * The branch a purchase belongs to, or null when there is no such purchase.
      */
     public function getBranchId(int $receivingId): ?int
@@ -538,6 +630,39 @@ class Receiving extends Model
         $row = $this->db->table('receivings')->select('branch_id')->where('receiving_id', $receivingId)->get()->getRow();
 
         return $row === null ? null : (int) $row->branch_id;
+    }
+
+    /**
+     * Every branch a purchase works in: the one it belongs to, and the one its stock goes to when
+     * it is a transfer between branches. Empty when there is no such purchase.
+     *
+     * @return list<int>
+     */
+    public function getBranchIds(int $receivingId): array
+    {
+        $row = $this->db->table('receivings')->select('branch_id, to_branch_id')->where('receiving_id', $receivingId)->get()->getRow();
+
+        if ($row === null) {
+            return [];
+        }
+
+        return $row->to_branch_id === null ? [(int) $row->branch_id] : [(int) $row->branch_id, (int) $row->to_branch_id];
+    }
+
+    /**
+     * A transfer between branches is made and taken back by an employee who works in both.
+     *
+     * @param array{from: int, to: int} $between
+     *
+     * @throws BranchException
+     */
+    private function requireBranches(array $between, int $employeeId): void
+    {
+        $guard = new BranchGuard($this->db);
+
+        foreach ([$between['from'], $between['to']] as $branchId) {
+            $guard->requireBranch($branchId, $employeeId);
+        }
     }
 
     /**
@@ -742,13 +867,24 @@ class Receiving extends Model
         $this->db->transStart();
 
         // The lock of the purchase comes first, so two requests deleting it never run side by side
-        $locked   = $this->db->query('SELECT receiving_id, branch_id FROM ' . $this->db->prefixTable('receivings') . ' WHERE receiving_id = ? FOR UPDATE', [$receiving_id]);
+        $locked   = $this->db->query('SELECT receiving_id, branch_id, to_branch_id FROM ' . $this->db->prefixTable('receivings') . ' WHERE receiving_id = ? FOR UPDATE', [$receiving_id]);
         $purchase = $locked === false ? null : $locked->getRow();
 
         if ($purchase === null) {
             $this->db->transComplete();
 
             return $this->db->transStatus();
+        }
+
+        if ($purchase->to_branch_id !== null) {
+            try {
+                $this->requireBranches(['from' => (int) $purchase->branch_id, 'to' => (int) $purchase->to_branch_id], $employee_id);
+            } catch (BranchException $refusal) {
+                $this->db->transRollback();
+                $this->accountingFailure = $refusal;
+
+                return false;
+            }
         }
 
         if ($this->hasReturns($receiving_id)) {

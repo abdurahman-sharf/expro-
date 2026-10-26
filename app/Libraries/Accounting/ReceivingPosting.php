@@ -128,11 +128,11 @@ final class ReceivingPosting
     {
         $this->transactional(function () use ($receivingId, $employeeId): void {
             $reason   = 'Purchase #' . $receivingId . ' deleted';
-            $date     = date('Y-m-d');
-            $purchase = $this->activeJournal(ReceivingPostingBuilder::SOURCE_PURCHASE, $receivingId, JournalEntryType::General);
-            $payment  = $this->activeJournal(ReceivingPostingBuilder::SOURCE_PAYMENT, $receivingId, JournalEntryType::General);
-            $reversed = null;
             $document = $this->loader->load($receivingId, false);
+            $source   = $document === null ? ReceivingPostingBuilder::SOURCE_PURCHASE : ReceivingPostingBuilder::issueSourceOf($document);
+            $purchase = $this->activeJournal($source, $receivingId, JournalEntryType::General);
+            $receipt  = $this->activeJournal(ReceivingPostingBuilder::SOURCE_TRANSFER_RECEIPT, $receivingId, JournalEntryType::General);
+            $payment  = $this->activeJournal(ReceivingPostingBuilder::SOURCE_PAYMENT, $receivingId, JournalEntryType::General);
             $later    = [];
 
             foreach ($this->paymentIds($receivingId) as $paymentId) {
@@ -143,27 +143,29 @@ final class ReceivingPosting
                 }
             }
 
-            $scopes = new TreasuryScopes($this->db);
+            $legs = array_values(array_filter([$purchase, $receipt]));
 
-            foreach ([...$later, $payment, $purchase] as $journal) {
-                if ($journal !== null) {
-                    $scopes->assertMayReverse((int) $journal->journal_id, $employeeId);
-                }
+            // The journals of a transfer between branches are taken back in the order of the branch ids, as they were
+            // written, so that two requests never take the period locks of the two branches in opposite orders.
+            usort($legs, static fn (object $a, object $b): int => (int) $a->branch_id <=> (int) $b->branch_id);
+
+            $ordered = [...$later, ...($payment === null ? [] : [$payment]), ...$legs];
+            $scopes  = new TreasuryScopes($this->db);
+
+            foreach ($ordered as $journal) {
+                $scopes->assertMayReverse((int) $journal->journal_id, $employeeId);
             }
 
-            foreach ([...$later, $payment, $purchase] as $journal) {
-                if ($journal === null) {
-                    continue;
-                }
+            $reversals = [];
 
-                [$reversalId, $date] = $this->reverse($journal, $employeeId, $reason);
-
-                if ($journal === $purchase) {
-                    $reversed = $reversalId;
-                }
+            foreach ($ordered as $journal) {
+                $reversals[(int) $journal->journal_id] = $this->reverse($journal, $employeeId, $reason);
             }
 
-            $this->ledger->reverseSource(ReceivingPostingBuilder::SOURCE_PURCHASE, $receivingId, JournalEntryType::General, $date, $reversed);
+            $lastDate = $reversals === [] ? date('Y-m-d') : end($reversals)[1];
+
+            $this->takeBackStock($source, $receivingId, $purchase, $reversals, $lastDate);
+            $this->takeBackStock(ReceivingPostingBuilder::SOURCE_TRANSFER_RECEIPT, $receivingId, $receipt, $reversals, $lastDate);
 
             if ($purchase !== null || $payment !== null || $later !== []) {
                 $this->settle($document?->supplierId, $employeeId);
@@ -176,8 +178,13 @@ final class ReceivingPosting
      */
     public function isPosted(int $receivingId): bool
     {
-        return $this->activeJournal(ReceivingPostingBuilder::SOURCE_PURCHASE, $receivingId, JournalEntryType::General) !== null
-            || $this->db->table('accounting_stock_entries')->where('source_type', ReceivingPostingBuilder::SOURCE_PURCHASE)->where('source_id', $receivingId)->countAllResults() > 0;
+        foreach ([ReceivingPostingBuilder::SOURCE_PURCHASE, ReceivingPostingBuilder::SOURCE_STOCK_TRANSFER] as $source) {
+            if ($this->activeJournal($source, $receivingId, JournalEntryType::General) !== null) {
+                return true;
+            }
+        }
+
+        return $this->db->table('accounting_stock_entries')->whereIn('source_type', [ReceivingPostingBuilder::SOURCE_PURCHASE, ReceivingPostingBuilder::SOURCE_STOCK_TRANSFER])->where('source_id', $receivingId)->countAllResults() > 0;
     }
 
     /**
@@ -215,7 +222,7 @@ final class ReceivingPosting
             ->select('journal_id, number, journal_date, status, source_type, source_id, entry_type, revision, total_debit')
             ->groupStart()
             ->groupStart()
-            ->whereIn('source_type', [ReceivingPostingBuilder::SOURCE_PURCHASE, ReceivingPostingBuilder::SOURCE_PAYMENT])
+            ->whereIn('source_type', [ReceivingPostingBuilder::SOURCE_PURCHASE, ReceivingPostingBuilder::SOURCE_PAYMENT, ReceivingPostingBuilder::SOURCE_STOCK_TRANSFER, ReceivingPostingBuilder::SOURCE_TRANSFER_RECEIPT])
             ->where('source_id', $receivingId)
             ->groupEnd();
 
@@ -256,16 +263,41 @@ final class ReceivingPosting
      */
     private function postPurchase(ReceivingDocument $purchase, ?int $employeeId): void
     {
-        $revision = $this->nextRevision(ReceivingPostingBuilder::SOURCE_PURCHASE, $purchase->receivingId);
+        $source   = ReceivingPostingBuilder::issueSourceOf($purchase);
+        $revision = $this->nextRevision($source, $purchase->receivingId);
 
-        if ($this->activeJournal(ReceivingPostingBuilder::SOURCE_PURCHASE, $purchase->receivingId, JournalEntryType::General) !== null) {
+        if ($purchase->toBranchId !== null) {
+            $revision = max($revision, $this->nextRevision(ReceivingPostingBuilder::SOURCE_TRANSFER_RECEIPT, $purchase->receivingId));
+        }
+
+        if ($this->activeJournal($source, $purchase->receivingId, JournalEntryType::General) !== null) {
             return;
         }
 
-        $plan      = $this->builder->purchase($purchase, $revision, $employeeId);
-        $journalId = $plan->journal === null ? null : $this->posting->post($plan->journal)->journalId;
+        $plan = $this->builder->purchase($purchase, $revision, $employeeId);
 
-        $this->ledger->record(ReceivingPostingBuilder::SOURCE_PURCHASE, $purchase->receivingId, JournalEntryType::General, $revision, $purchase->date, $purchase->branchId, $plan->movements, $journalId);
+        if ($purchase->toBranchId === null) {
+            $journalId = $plan->journal === null ? null : $this->posting->post($plan->journal)->journalId;
+
+            $this->ledger->record($source, $purchase->receivingId, JournalEntryType::General, $revision, $purchase->date, $purchase->branchId, $plan->movements, $journalId);
+
+            return;
+        }
+
+        $legs = [
+            $purchase->branchId   => [$source, $plan->journal, $plan->movements],
+            $purchase->toBranchId => [ReceivingPostingBuilder::SOURCE_TRANSFER_RECEIPT, $plan->receipt, $plan->receiptMovements],
+        ];
+
+        // Written in the order of the branch ids whichever way the stock goes, so that two transfers in opposite
+        // directions take the period locks of the two branches in the same order.
+        ksort($legs);
+
+        foreach ($legs as $branchId => [$legSource, $draft, $movements]) {
+            $journalId = $draft === null ? null : $this->posting->post($draft)->journalId;
+
+            $this->ledger->record($legSource, $purchase->receivingId, JournalEntryType::General, $revision, $purchase->date, $branchId, $movements, $journalId);
+        }
     }
 
     /**
@@ -340,6 +372,21 @@ final class ReceivingPosting
     private function paymentIds(int $receivingId): array
     {
         return array_map('intval', array_column($this->db->table('receivings_payments')->select('payment_id')->where('receiving_id', $receivingId)->get()->getResultArray(), 'payment_id'));
+    }
+
+    /**
+     * Takes back the stock movements of a source, on the date its journal was reversed, or on the
+     * date given when it has no journal.
+     *
+     * @param array<int, array{int, string}> $reversals The reversal and its date, by the journal reversed.
+     *
+     * @throws PostingException
+     */
+    private function takeBackStock(string $source, int $receivingId, ?object $journal, array $reversals, string $fallbackDate): void
+    {
+        [$reversalId, $date] = $journal === null ? [null, $fallbackDate] : $reversals[(int) $journal->journal_id];
+
+        $this->ledger->reverseSource($source, $receivingId, JournalEntryType::General, $date, $reversalId);
     }
 
     /**

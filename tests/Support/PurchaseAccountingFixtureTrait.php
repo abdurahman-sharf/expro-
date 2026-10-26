@@ -103,6 +103,31 @@ trait PurchaseAccountingFixtureTrait
     }
 
     /**
+     * A stock location, with its account, that belongs to the branch given.
+     */
+    protected function locationOfBranch(int $branchId, string $name = 'Branch warehouse'): int
+    {
+        $locationId = $this->anotherLocation($name);
+
+        $this->accountingDb()->table('stock_locations')->where('location_id', $locationId)->update(['branch_id' => $branchId]);
+
+        return $locationId;
+    }
+
+    /**
+     * Makes the employee of the test work in the branches given and no others.
+     */
+    protected function workInBranches(int ...$branchIds): void
+    {
+        $this->employeeId = $this->employeeWithGrants([], array_values($branchIds));
+    }
+
+    protected function workInEveryBranch(): void
+    {
+        $this->employeeId = $this->employeeWithGrants([]);
+    }
+
+    /**
      * @return array<string, mixed>
      */
     protected function purchaseLine(int $itemId, int $line, string $quantity, string $price, string $tax = '0', string $discount = '0', int $discountType = PERCENT, int $locationId = self::LOCATION_ID, string $perPack = '1'): array

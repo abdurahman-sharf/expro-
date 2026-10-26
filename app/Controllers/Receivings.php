@@ -13,6 +13,7 @@ use App\Libraries\Accounting\SupplierLedger;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Barcode_lib;
+use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Receiving_lib;
 use App\Libraries\Token_lib;
@@ -521,7 +522,7 @@ class Receivings extends Secure_Controller
      */
     public function getReceipt($receiving_id): ResponseInterface|string
     {
-        if ($this->outsideBranchScope((int) $receiving_id)) {
+        if ($this->outsideViewScope((int) $receiving_id)) {
             throw PageNotFoundException::forPageNotFound();
         }
 
@@ -576,6 +577,10 @@ class Receivings extends Secure_Controller
             $data['modes']['requisition'] = lang('Receivings.requisition');
             $data['stock_source']         = $this->receiving_lib->get_stock_source();
             $data['stock_destination']    = $this->receiving_lib->get_stock_destination();
+
+            if ($data['mode'] === 'requisition') {
+                $data['between_branches'] = $this->receiving->branchesBetweenLocations((int) $data['stock_source'], (int) $data['stock_destination']);
+            }
         }
 
         $data['total']                = $this->receiving_lib->get_total();
@@ -866,30 +871,37 @@ class Receivings extends Secure_Controller
     {
         $failure = $this->receiving->accountingFailure();
 
-        return $failure instanceof AccountingException || $failure instanceof PostingException ? AccountingMessage::of($failure) : null;
+        return $failure instanceof AccountingException || $failure instanceof BranchException || $failure instanceof PostingException ? AccountingMessage::of($failure) : null;
     }
 
     /**
      * A receiving works in the stock locations of one branch, and only a branch the employee
-     * works in.
+     * works in. A transfer between locations may go from one branch to another, and then the
+     * employee must work in both.
      */
     private function cartBranchProblem(array $cart): ?string
     {
-        $branchIds = $this->receiving->branchIdsOfItems($cart);
+        $guard     = new BranchGuard();
+        $personId  = (int) $this->session->get('person_id');
+        $between   = $this->receiving->transferBetweenBranches($cart);
+        $branchIds = $between === null ? $this->receiving->branchIdsOfItems($cart) : [$between['from'], $between['to']];
 
-        if (count($branchIds) > 1) {
+        if ($between === null && count($branchIds) > 1) {
             return lang('Receivings.mixed_branches');
         }
 
-        if ($branchIds !== [] && ! (new BranchGuard())->canAccess($branchIds[0], (int) $this->session->get('person_id'))) {
-            return lang('Receivings.branch_not_allowed');
+        foreach ($branchIds as $branchId) {
+            if (! $guard->canAccess($branchId, $personId)) {
+                return lang('Receivings.branch_not_allowed');
+            }
         }
 
         return null;
     }
 
     /**
-     * Whether any of the receivings belongs to a branch the employee does not work in.
+     * Whether the employee does not work in every branch of a receiving, which is what changing or
+     * deleting a transfer between branches asks of them.
      */
     private function outsideBranchScope(int ...$receivingIds): bool
     {
@@ -897,14 +909,32 @@ class Receivings extends Secure_Controller
         $personId = (int) $this->session->get('person_id');
 
         foreach ($receivingIds as $receivingId) {
-            $branchId = $this->receiving->getBranchId($receivingId);
-
-            if ($branchId !== null && ! $guard->canAccess($branchId, $personId)) {
-                return true;
+            foreach ($this->receiving->getBranchIds($receivingId) as $branchId) {
+                if (! $guard->canAccess($branchId, $personId)) {
+                    return true;
+                }
             }
         }
 
         return false;
+    }
+
+    /**
+     * Whether the employee works in none of the branches of a receiving: the employees of either
+     * branch of a transfer between branches may look at it.
+     */
+    private function outsideViewScope(int $receivingId): bool
+    {
+        $guard    = new BranchGuard();
+        $personId = (int) $this->session->get('person_id');
+
+        foreach ($this->receiving->getBranchIds($receivingId) as $branchId) {
+            if ($guard->canAccess($branchId, $personId)) {
+                return false;
+            }
+        }
+
+        return $this->receiving->getBranchIds($receivingId) !== [];
     }
 
     /**

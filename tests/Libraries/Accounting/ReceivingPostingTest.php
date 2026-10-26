@@ -4,11 +4,14 @@ namespace Tests\Libraries\Accounting;
 
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\InterBranchPosition;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\ReceivingPosting;
 use App\Libraries\Accounting\StockLedger;
 use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\Organization\BranchError;
+use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -1066,21 +1069,426 @@ class ReceivingPostingTest extends CIUnitTestCase
         $this->assertStockTies();
     }
 
-    public function testSaveValue_RefusesAMoveBetweenLocationsOfDifferentBranches(): void
+    public function testSaveValue_RefusesAPurchaseAndAReturnThatWorkInLocationsOfDifferentBranches(): void
     {
         $itemId = $this->item('0.00');
-        $other  = $this->anotherLocation('Branch warehouse');
         $branch = $this->createBranch('B3', 'Third branch');
+        $other  = $this->locationOfBranch($branch, 'Branch warehouse');
 
-        $this->accountingDb()->table('stock_locations')->where('location_id', $other)->update(['branch_id' => $branch]);
-        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($itemId, 0, '10', '50')]));
+        $purchase = $this->buy([$this->purchaseLine($itemId, 0, '10', '50')]);
 
-        $result = $this->buy([$this->purchaseLine($itemId, 0, '4', '0', '0', '0', PERCENT, $other), $this->purchaseLine($itemId, 1, '-4', '0')], null, null);
+        $this->assertGreaterThan(0, $purchase);
 
-        $this->assertRefusedWith(PostingError::PurchaseAcrossBranches, $result);
+        $across = $this->buy([$this->purchaseLine($itemId, 0, '4', '50'), $this->purchaseLine($itemId, 1, '4', '50', '0', '0', PERCENT, $other)]);
+
+        $this->assertRefusedWith(PostingError::PurchaseAcrossBranches, $across);
+
+        $back = $this->buy([$this->purchaseLine($itemId, 0, '-1', '50'), $this->purchaseLine($itemId, 1, '-1', '50', '0', '0', PERCENT, $other)], -1, null, $purchase);
+
+        $this->assertRefusedWith(PostingError::PurchaseAcrossBranches, $back);
         $this->assertSame('10.000', $this->onHand($itemId));
         $this->assertSame('0.000', $this->onHand($itemId, $other));
         $this->assertStockTies();
+    }
+
+    public function testSaveValue_RefusesAMoveThatIsNotFromOneBranchToAnotherAmongThreeBranches(): void
+    {
+        $itemId = $this->item('0.00');
+        $second = $this->locationOfBranch($this->createBranch('B3', 'Third branch'), 'Second branch warehouse');
+        $third  = $this->locationOfBranch($this->createBranch('B4', 'Fourth branch'), 'Third branch warehouse');
+
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($itemId, 0, '10', '50')]));
+        $this->workInEveryBranch();
+
+        $result = $this->buy([$this->purchaseLine($itemId, 0, '2', '0', '0', '0', PERCENT, $second), $this->purchaseLine($itemId, 1, '2', '0', '0', '0', PERCENT, $third), $this->purchaseLine($itemId, 2, '-4', '0')], null, null);
+
+        $this->assertRefusedWith(PostingError::PurchaseAcrossBranches, $result);
+        $this->assertSame('10.000', $this->onHand($itemId));
+        $this->assertSame('0.000', $this->onHand($itemId, $second));
+        $this->assertStockTies();
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Stock moving between branches
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * Ten units bought at 50 in the first branch, which the item carries at 60, and a location of another branch.
+     *
+     * @return array{item: int, branch: int, other: int}
+     */
+    private function stockAndALocationOfAnotherBranch(): array
+    {
+        $itemId = $this->item('0.00');
+        $branch = $this->createBranch('B3', 'Third branch');
+        $other  = $this->locationOfBranch($branch, 'Branch warehouse');
+
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($itemId, 0, '10', '50')]));
+        $this->accountingDb()->table('items')->where('item_id', $itemId)->update(['cost_price' => '60.00']);
+
+        return ['item' => $itemId, 'branch' => $branch, 'other' => $other];
+    }
+
+    private function moveBetweenBranches(int $itemId, string $units, int $to, int $from = self::LOCATION_ID): int
+    {
+        return $this->buy([$this->purchaseLine($itemId, 0, $units, '0', '0', '0', PERCENT, $to), $this->purchaseLine($itemId, 1, '-' . $units, '0', '0', '0', PERCENT, $from)], null, null);
+    }
+
+    private function branchOfJournal(int $journalId): int
+    {
+        return (int) $this->accountingDb()->table('accounting_journals')->select('branch_id')->where('journal_id', $journalId)->get()->getRow()->branch_id;
+    }
+
+    public function testPostCompleted_PostsAJournalInEachBranchThatMeetInTheAccountsBetweenBranches(): void
+    {
+        ['item' => $itemId, 'branch' => $branch, 'other' => $other] = $this->stockAndALocationOfAnotherBranch();
+        $this->workInBranches(1, $branch);
+
+        $receivingId = $this->moveBetweenBranches($itemId, '4', $other);
+
+        $this->assertGreaterThan(0, $receivingId);
+
+        $issue   = $this->standingPurchase($receivingId, 'stock_transfer');
+        $receipt = $this->standingPurchase($receivingId, 'stock_transfer_receipt');
+
+        $this->assertCount(1, $issue);
+        $this->assertCount(1, $receipt);
+        $this->assertSame([$this->accountId('branches_receivable') . ':200.00:0.00', $this->stockAccount() . ':0.00:200.00'], $issue[0]['lines'], 'At what the issuing location holds the unit (50.00), not what the item carries (60.00)');
+        $this->assertSame([$this->stockAccountOf($other) . ':200.00:0.00', $this->accountId('branches_payable') . ':0.00:200.00'], $receipt[0]['lines']);
+        $this->assertSame(1, $this->branchOfJournal($issue[0]['id']));
+        $this->assertSame($branch, $this->branchOfJournal($receipt[0]['id']));
+        $this->assertSame([], $this->standingPurchase($receivingId, 'purchase'));
+        $this->assertSame(['quantity' => '6.000', 'value' => '300.00'], $this->stockOf($itemId));
+        $this->assertSame(['quantity' => '4.000', 'value' => '200.00'], $this->stockOf($itemId, $other));
+        $this->assertSame('6.000', $this->onHand($itemId));
+        $this->assertSame('4.000', $this->onHand($itemId, $other));
+        $this->assertStockTies();
+    }
+
+    public function testPostCompleted_KeepsTheTwoBranchesOnTheDocumentAndTheMovementsInTheirOwnBranch(): void
+    {
+        ['item' => $itemId, 'branch' => $branch, 'other' => $other] = $this->stockAndALocationOfAnotherBranch();
+        $this->workInBranches(1, $branch);
+
+        $receivingId = $this->moveBetweenBranches($itemId, '4', $other);
+        $document    = $this->accountingDb()->table('receivings')->where('receiving_id', $receivingId)->get()->getRow();
+
+        $this->assertSame('requisition', $document->receiving_type);
+        $this->assertSame([1, $branch], [(int) $document->branch_id, (int) $document->to_branch_id]);
+
+        $entries = [];
+
+        foreach ($this->accountingDb()->table('accounting_stock_entries')->whereIn('source_type', ['stock_transfer', 'stock_transfer_receipt'])->where('source_id', $receivingId)->orderBy('entry_id', 'ASC')->get()->getResult() as $entry) {
+            $entries[] = [$entry->source_type, (int) $entry->branch_id, (int) $entry->location_id, bcadd($entry->quantity, '0', 3), bcadd($entry->value, '0', 2), $this->branchOfJournal((int) $entry->journal_id)];
+        }
+
+        $this->assertSame([
+            ['stock_transfer', 1, self::LOCATION_ID, '-4.000', '-200.00', 1],
+            ['stock_transfer_receipt', $branch, $other, '4.000', '200.00', $branch],
+        ], $entries);
+    }
+
+    public function testPostCompleted_LeavesWhatEachBranchIsOwedAndOwesOffsettingAcrossTheCompany(): void
+    {
+        ['item' => $itemId, 'branch' => $branch, 'other' => $other] = $this->stockAndALocationOfAnotherBranch();
+        $this->workInBranches(1, $branch);
+
+        $this->assertGreaterThan(0, $this->moveBetweenBranches($itemId, '4', $other));
+        $this->assertGreaterThan(0, $this->moveBetweenBranches($itemId, '1', self::LOCATION_ID, $other));
+
+        $position = [];
+
+        foreach ((new InterBranchPosition())->byBranch() as $row) {
+            $position[$row->branch_id] = [$row->receivable, $row->payable];
+        }
+
+        $this->assertSame(['200.0000', '50.0000'], $position[1], 'The first branch gave 200.00 and took 50.00 back');
+        $this->assertSame(['50.0000', '200.0000'], $position[$branch]);
+        $this->assertSame('0.0000', (new InterBranchPosition())->difference());
+        $this->assertStockTies();
+    }
+
+    public function testPostCompleted_WritesTheJournalOfTheLowerBranchFirstWhicheverWayTheStockGoes(): void
+    {
+        ['item' => $itemId, 'branch' => $branch, 'other' => $other] = $this->stockAndALocationOfAnotherBranch();
+        $this->workInBranches(1, $branch);
+
+        $forward  = $this->moveBetweenBranches($itemId, '4', $other);
+        $backward = $this->moveBetweenBranches($itemId, '1', self::LOCATION_ID, $other);
+
+        foreach ([$forward, $backward] as $receivingId) {
+            $ids = [];
+
+            foreach ($this->accountingDb()->table('accounting_journals')->whereIn('source_type', ['stock_transfer', 'stock_transfer_receipt'])->where('source_id', $receivingId)->get()->getResult() as $journal) {
+                $ids[(int) $journal->branch_id] = (int) $journal->journal_id;
+            }
+
+            $this->assertLessThan($ids[$branch], $ids[1], 'The journal of the lower branch is written first');
+        }
+    }
+
+    public function testPostCompleted_MovesStockThatIsWorthNothingWithoutAnyJournal(): void
+    {
+        ['item' => $itemId, 'branch' => $branch, 'other' => $other] = $this->stockAndALocationOfAnotherBranch();
+        $free = $this->item('0.00');
+        $this->workInBranches(1, $branch);
+
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($free, 0, '5', '0')]));
+
+        $before      = $this->countRows('accounting_journals');
+        $receivingId = $this->moveBetweenBranches($free, '2', $other);
+
+        $this->assertGreaterThan(0, $receivingId);
+        $this->assertSame($before, $this->countRows('accounting_journals'));
+        $this->assertSame(['quantity' => '2.000', 'value' => '0.00'], $this->stockOf($free, $other));
+        $this->assertSame('2.000', $this->onHand($free, $other));
+        $this->assertSame('3.000', $this->onHand($free));
+        $this->assertStockTies();
+    }
+
+    public function testPostCompleted_SplitsAnItemTakenFromOneLocationAcrossSeveralLocationsOfTheOtherBranch(): void
+    {
+        ['item' => $itemId, 'branch' => $branch, 'other' => $other] = $this->stockAndALocationOfAnotherBranch();
+        $second = $this->locationOfBranch($branch, 'Branch shop');
+        $this->workInBranches(1, $branch);
+
+        $receivingId = $this->buy([
+            $this->purchaseLine($itemId, 0, '1', '0', '0', '0', PERCENT, $other),
+            $this->purchaseLine($itemId, 1, '2', '0', '0', '0', PERCENT, $second),
+            $this->purchaseLine($itemId, 2, '-3', '0'),
+        ], null, null);
+
+        $this->assertGreaterThan(0, $receivingId);
+        $this->assertSame(['quantity' => '1.000', 'value' => '50.00'], $this->stockOf($itemId, $other));
+        $this->assertSame(['quantity' => '2.000', 'value' => '100.00'], $this->stockOf($itemId, $second));
+
+        $receipt = $this->standingPurchase($receivingId, 'stock_transfer_receipt')[0]['lines'];
+
+        $this->assertEqualsCanonicalizing([$this->stockAccountOf($other) . ':50.00:0.00', $this->stockAccountOf($second) . ':100.00:0.00', $this->accountId('branches_payable') . ':0.00:150.00'], $receipt);
+        $this->assertSame('0.0000', (new InterBranchPosition())->difference());
+        $this->assertStockTies();
+    }
+
+    public function testSaveValue_RefusesAMoveBetweenBranchesWhenTheRoutingNamesNoAccountsBetweenBranches(): void
+    {
+        ['item' => $itemId, 'branch' => $branch, 'other' => $other] = $this->stockAndALocationOfAnotherBranch();
+        $this->workInBranches(1, $branch);
+
+        foreach (['branches.receivable', 'branches.payable'] as $key) {
+            $this->accountingDb()->table('accounting_routing')->where('routing_key', $key)->update(['account_id' => null]);
+
+            $journals  = $this->countRows('accounting_journals');
+            $entries   = $this->countRows('accounting_stock_entries');
+            $receivings = $this->countRows('receivings');
+
+            $this->assertRefusedWith(PostingError::InterBranchAccountsMissing, $this->moveBetweenBranches($itemId, '4', $other));
+            $this->assertSame([$receivings, $journals, $entries], [$this->countRows('receivings'), $this->countRows('accounting_journals'), $this->countRows('accounting_stock_entries')]);
+            $this->assertSame('10.000', $this->onHand($itemId));
+            $this->assertSame('0.000', $this->onHand($itemId, $other));
+
+            $this->accountingDb()->table('accounting_routing')->where('routing_key', $key)->update(['account_id' => $this->accountId($key === 'branches.receivable' ? 'branches_receivable' : 'branches_payable')]);
+        }
+
+        $this->assertGreaterThan(0, $this->moveBetweenBranches($itemId, '4', $other));
+    }
+
+    public function testSaveValue_LeavesNothingOfAMoveBetweenBranchesWhenThePeriodOfEitherBranchIsClosed(): void
+    {
+        ['item' => $itemId, 'branch' => $branch, 'other' => $other] = $this->stockAndALocationOfAnotherBranch();
+        $this->workInBranches(1, $branch);
+
+        foreach ([$branch, 1] as $closed) {
+            $this->closeThrough(date('Y-m-d'), $closed);
+
+            $journals   = $this->countRows('accounting_journals');
+            $entries    = $this->countRows('accounting_stock_entries');
+            $receivings = $this->countRows('receivings');
+
+            $this->assertRefusedWith(PostingError::PeriodClosed, $this->moveBetweenBranches($itemId, '4', $other));
+            $this->assertSame([$receivings, $journals, $entries], [$this->countRows('receivings'), $this->countRows('accounting_journals'), $this->countRows('accounting_stock_entries')], 'A leg of the transfer went into the books');
+            $this->assertSame('10.000', $this->onHand($itemId));
+            $this->assertSame('0.000', $this->onHand($itemId, $other));
+
+            $this->accountingDb()->table('accounting_closed_periods')->where('branch_id', $closed)->delete();
+        }
+    }
+
+    public function testSaveValue_RefusesAnEmployeeWhoWorksInOnlyOneOfTheTwoBranches(): void
+    {
+        ['item' => $itemId, 'branch' => $branch, 'other' => $other] = $this->stockAndALocationOfAnotherBranch();
+
+        foreach ([[1], [$branch], []] as $works) {
+            $this->employeeId = $this->employeeWithGrants([], $works);
+
+            $receivings = $this->countRows('receivings');
+            $journals   = $this->countRows('accounting_journals');
+            $result     = $this->moveBetweenBranches($itemId, '4', $other);
+
+            $this->assertSame(ACCOUNTING_FAILED, $result);
+            $this->assertInstanceOf(BranchException::class, $this->purchases->accountingFailure());
+            $this->assertSame(BranchError::NotAllowed, $this->purchases->accountingFailure()->error);
+            $this->assertSame([$receivings, $journals], [$this->countRows('receivings'), $this->countRows('accounting_journals')]);
+            $this->assertSame('10.000', $this->onHand($itemId));
+            $this->assertSame('0.000', $this->onHand($itemId, $other));
+        }
+
+        $this->employeeId = $this->employeeWithGrants([], [1, $branch]);
+
+        $this->assertGreaterThan(0, $this->moveBetweenBranches($itemId, '4', $other));
+    }
+
+    public function testSaveValue_AcceptsAnEmployeeWhoWorksInEveryBranch(): void
+    {
+        ['item' => $itemId, 'other' => $other] = $this->stockAndALocationOfAnotherBranch();
+
+        $this->employeeId = $this->employeeWithGrants([]);
+
+        $this->assertGreaterThan(0, $this->moveBetweenBranches($itemId, '4', $other));
+    }
+
+    public function testSaveValue_AsksTheTwoBranchesEvenWithAccountingOff(): void
+    {
+        ['item' => $itemId, 'branch' => $branch, 'other' => $other] = $this->stockAndALocationOfAnotherBranch();
+        $this->setConfigValue('accounting_enabled', '0');
+        $this->employeeId = $this->employeeWithGrants([], [1]);
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->moveBetweenBranches($itemId, '4', $other));
+        $this->assertSame('10.000', $this->onHand($itemId));
+
+        $this->employeeId = $this->employeeWithGrants([], [1, $branch]);
+
+        $this->assertGreaterThan(0, $this->moveBetweenBranches($itemId, '4', $other));
+        $this->assertSame('4.000', $this->onHand($itemId, $other));
+    }
+
+    public function testDeleteValue_TakesBackTheJournalOfEachBranchTheMovementsAndTheStockOfBoth(): void
+    {
+        ['item' => $itemId, 'branch' => $branch, 'other' => $other] = $this->stockAndALocationOfAnotherBranch();
+        $this->workInBranches(1, $branch);
+
+        $receivingId = $this->moveBetweenBranches($itemId, '4', $other);
+
+        $this->assertGreaterThan(0, $receivingId);
+        $this->assertTrue($this->purchases->delete_value($receivingId, $this->employeeId));
+
+        $this->assertSame([], $this->standingPurchase($receivingId, 'stock_transfer'));
+        $this->assertSame([], $this->standingPurchase($receivingId, 'stock_transfer_receipt'));
+        $this->assertSame(['reversed', 'reversed'], array_column($this->purchaseJournals($receivingId), 'status'));
+        $this->assertSame(['quantity' => '10.000', 'value' => '500.00'], $this->stockOf($itemId));
+        $this->assertSame(['quantity' => '0.000', 'value' => '0.00'], $this->stockOf($itemId, $other));
+        $this->assertSame('10.000', $this->onHand($itemId));
+        $this->assertSame('0.000', $this->onHand($itemId, $other));
+        $this->assertSame('0.0000', (new InterBranchPosition())->difference());
+
+        foreach ((new InterBranchPosition())->byBranch() as $row) {
+            $this->assertSame(['0.0000', '0.0000'], [$row->receivable, $row->payable]);
+        }
+
+        $this->assertStockTies();
+    }
+
+    public function testDeleteValue_ReversesTheJournalOfTheLowerBranchFirstWhicheverWayTheStockWent(): void
+    {
+        ['item' => $itemId, 'branch' => $branch, 'other' => $other] = $this->stockAndALocationOfAnotherBranch();
+        $this->workInBranches(1, $branch);
+
+        $forward  = $this->moveBetweenBranches($itemId, '4', $other);
+        $backward = $this->moveBetweenBranches($itemId, '1', self::LOCATION_ID, $other);
+
+        foreach ([$backward, $forward] as $receivingId) {
+            $this->assertTrue($this->purchases->delete_value($receivingId, $this->employeeId));
+
+            $reversals = $this->accountingDb()->table('accounting_journals')->where('source_type', 'reversal')->orderBy('journal_id', 'DESC')->limit(2)->get()->getResult();
+
+            $this->assertLessThan((int) $reversals[0]->journal_id, (int) $reversals[1]->journal_id);
+            $this->assertSame([1, $branch], [(int) $reversals[1]->branch_id, (int) $reversals[0]->branch_id], 'The journal of the lower branch is reversed first');
+        }
+
+        $this->assertStockTies();
+    }
+
+    public function testDeleteValue_RefusesAnEmployeeWhoWorksInOnlyOneOfTheTwoBranchesAndTakesBackNothing(): void
+    {
+        ['item' => $itemId, 'branch' => $branch, 'other' => $other] = $this->stockAndALocationOfAnotherBranch();
+        $this->workInBranches(1, $branch);
+
+        $receivingId = $this->moveBetweenBranches($itemId, '4', $other);
+
+        foreach ([[1], [$branch]] as $works) {
+            $this->assertFalse($this->purchases->delete_value($receivingId, $this->employeeWithGrants([], $works)));
+            $this->assertInstanceOf(BranchException::class, $this->purchases->accountingFailure());
+            $this->assertCount(1, $this->standingPurchase($receivingId, 'stock_transfer'));
+            $this->assertCount(1, $this->standingPurchase($receivingId, 'stock_transfer_receipt'));
+            $this->assertSame(1, $this->accountingDb()->table('receivings')->where('receiving_id', $receivingId)->countAllResults());
+            $this->assertSame('4.000', $this->onHand($itemId, $other));
+            $this->assertSame('6.000', $this->onHand($itemId));
+        }
+
+        $this->assertTrue($this->purchases->delete_value($receivingId, $this->employeeWithGrants([], [1, $branch])));
+    }
+
+    public function testDeleteValue_DeletingATransferAgainChangesNothing(): void
+    {
+        ['item' => $itemId, 'branch' => $branch, 'other' => $other] = $this->stockAndALocationOfAnotherBranch();
+        $this->workInBranches(1, $branch);
+
+        $receivingId = $this->moveBetweenBranches($itemId, '4', $other);
+
+        $this->assertTrue($this->purchases->delete_value($receivingId, $this->employeeId));
+
+        $journals = $this->countRows('accounting_journals');
+        $entries  = $this->countRows('accounting_stock_entries');
+
+        $this->assertTrue($this->purchases->delete_value($receivingId, $this->employeeId));
+        $this->assertSame([$journals, $entries], [$this->countRows('accounting_journals'), $this->countRows('accounting_stock_entries')]);
+    }
+
+    public function testDeleteValue_LeavesBothLegsWhenThePeriodOfOneBranchIsClosed(): void
+    {
+        ['item' => $itemId, 'branch' => $branch, 'other' => $other] = $this->stockAndALocationOfAnotherBranch();
+        $this->workInBranches(1, $branch);
+
+        $receivingId = $this->moveBetweenBranches($itemId, '4', $other);
+
+        $this->closeThrough('2099-12-31', $branch);
+
+        $journals = $this->countRows('accounting_journals');
+        $entries  = $this->countRows('accounting_stock_entries');
+
+        $this->assertFalse($this->purchases->delete_value($receivingId, $this->employeeId));
+        $this->assertInstanceOf(PostingException::class, $this->purchases->accountingFailure());
+        $this->assertSame(PostingError::PeriodClosed, $this->purchases->accountingFailure()->error);
+        $this->assertCount(1, $this->standingPurchase($receivingId, 'stock_transfer'), 'The branch that was open was reversed alone');
+        $this->assertCount(1, $this->standingPurchase($receivingId, 'stock_transfer_receipt'));
+        $this->assertSame([$journals, $entries], [$this->countRows('accounting_journals'), $this->countRows('accounting_stock_entries')]);
+        $this->assertSame('4.000', $this->onHand($itemId, $other));
+        $this->assertSame('6.000', $this->onHand($itemId));
+        $this->assertStockTies();
+    }
+
+    public function testUpdate_RefusesToChangeTheDateOfATransferBetweenBranchesThatIsInTheBooks(): void
+    {
+        ['item' => $itemId, 'branch' => $branch, 'other' => $other] = $this->stockAndALocationOfAnotherBranch();
+        $this->workInBranches(1, $branch);
+
+        $receivingId = $this->moveBetweenBranches($itemId, '4', $other);
+
+        $this->assertFalse($this->purchases->update($receivingId, ['receiving_time' => '2020-02-02 10:00:00']));
+        $this->assertInstanceOf(AccountingException::class, $this->purchases->accountingFailure());
+        $this->assertSame(AccountingError::PurchaseLocked, $this->purchases->accountingFailure()->error);
+        $this->assertTrue($this->purchases->update($receivingId, ['comment' => 'noted']), 'What is not the date or the supplier can still change');
+    }
+
+    public function testIsPosted_SeesAJournalAndMovementsOfATransferBetweenBranches(): void
+    {
+        ['item' => $itemId, 'branch' => $branch, 'other' => $other] = $this->stockAndALocationOfAnotherBranch();
+        $this->workInBranches(1, $branch);
+
+        $receivingId = $this->moveBetweenBranches($itemId, '4', $other);
+        $posting     = new ReceivingPosting();
+
+        $this->assertTrue($posting->isPosted($receivingId));
+        $this->assertSame(['stock_transfer', 'stock_transfer_receipt'], array_map(static fn (object $journal): string => $journal->source_type, $posting->journalsOf($receivingId)));
     }
 
     // ---------------------------------------------------------------------------------------

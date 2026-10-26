@@ -576,6 +576,7 @@ class AccountingTreasuriesControllerTest extends CIUnitTestCase
 
         $page->assertSee('id="branch_balances"');
         $page->assertSee(lang('Accounting_treasuries.branch_balances_title'));
+        $page->assertSee('id="branch_balances_note"');
         $this->assertStringNotContainsString(lang('Accounting_treasuries.between_difference', ['0.00']), $page->getBody());
     }
 

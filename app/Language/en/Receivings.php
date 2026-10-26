@@ -2,6 +2,7 @@
 
 return [
     'amount_due'                   => '',
+    'between_branches'             => 'The stock goes from branch {0} to branch {1}. It is posted as a journal in each branch, and you must work in both branches.',
     'branch_not_allowed'           => 'You do not work in the branch of this receiving.',
     'cancel_receiving'             => 'Cancel',
     'cannot_be_deleted'            => 'Receiving(s) delete failed.',
@@ -36,7 +37,7 @@ return [
     'id'                           => 'Receiving ID',
     'item_name'                    => 'Item Name',
     'journals'                     => 'Journals',
-    'mixed_branches'               => 'A receiving works with the stock locations of one branch. Remove the items of the other branch.',
+    'mixed_branches'               => 'A receiving or a return works with the stock locations of one branch; only a transfer can go from one branch to another. Remove the items of the other branch.',
     'mode'                         => 'Receiving Mode',
     'new_supplier'                 => 'New Supplier',
     'one_or_multiple'              => 'receiving(s)',

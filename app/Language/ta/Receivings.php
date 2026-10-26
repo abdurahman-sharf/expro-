@@ -2,6 +2,7 @@
 
 return [
     'amount_due'                   => '',
+    'between_branches'             => '',
     'branch_not_allowed'           => '',
     'cancel_receiving'             => 'ரத்து செய்',
     'cannot_be_deleted'            => 'Receiving(s) delete failed.',

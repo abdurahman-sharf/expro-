@@ -2,6 +2,7 @@
 
 return [
     'amount_due'                   => '',
+    'between_branches'             => '',
     'branch_not_allowed'           => '',
     'cancel_receiving'             => 'İmtina',
     'cannot_be_deleted'            => 'Qəbul olunanlar silinmədi.',

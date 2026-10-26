@@ -151,6 +151,86 @@ class ReceivingTest extends CIUnitTestCase
         $this->assertNull($this->purchases->getBranchId(0));
     }
 
+    /**
+     * @return array{branch: int, depot: int, second: int}
+     */
+    private function twoBranchesOfLocations(): array
+    {
+        $branch = $this->createBranch('R7', 'Seventh branch');
+        $depot  = $this->locationOfBranch($branch, 'Depot');
+        $second = $this->locationOfBranch($branch, 'Second depot');
+
+        return ['branch' => $branch, 'depot' => $depot, 'second' => $second];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function lineAt(int $location, string $quantity, string $perPack = '1'): array
+    {
+        return ['item_location' => $location, 'quantity' => $quantity, 'receiving_quantity' => $perPack];
+    }
+
+    public function testTransferBetweenBranches_NamesTheBranchTheStockLeavesAndTheOneItGoesTo(): void
+    {
+        $this->startBuying();
+        ['branch' => $branch, 'depot' => $depot, 'second' => $second] = $this->twoBranchesOfLocations();
+        $receivings = model(Receiving::class);
+
+        $this->assertSame(['from' => 1, 'to' => $branch], $receivings->transferBetweenBranches([$this->lineAt($depot, '4'), $this->lineAt(self::LOCATION_ID, '-4')]));
+        $this->assertSame(['from' => $branch, 'to' => 1], $receivings->transferBetweenBranches([$this->lineAt($depot, '-4'), $this->lineAt(self::LOCATION_ID, '4')]));
+        $this->assertSame(['from' => 1, 'to' => $branch], $receivings->transferBetweenBranches([$this->lineAt($depot, '1'), $this->lineAt($second, '1'), $this->lineAt(self::LOCATION_ID, '-2')]), 'Two locations of the branch it goes to are one branch');
+        $this->assertSame(['from' => 1, 'to' => $branch], $receivings->transferBetweenBranches([$this->lineAt($depot, '1', '6'), $this->lineAt(self::LOCATION_ID, '-6')]), 'The units of a pack count');
+    }
+
+    public function testTransferBetweenBranches_IsNullForEverythingThatIsNotOneBranchToAnother(): void
+    {
+        $this->startBuying();
+        ['depot' => $depot] = $this->twoBranchesOfLocations();
+        $third      = $this->locationOfBranch($this->createBranch('R6', 'Sixth branch'), 'Third depot');
+        $near       = $this->anotherLocation('Near depot');
+        $receivings = model(Receiving::class);
+
+        $this->assertNull($receivings->transferBetweenBranches([]));
+        $this->assertNull($receivings->transferBetweenBranches([$this->lineAt($depot, '4'), $this->lineAt(self::LOCATION_ID, '4')]), 'A purchase across branches');
+        $this->assertNull($receivings->transferBetweenBranches([$this->lineAt($depot, '-4'), $this->lineAt(self::LOCATION_ID, '-4')]), 'A return across branches');
+        $this->assertNull($receivings->transferBetweenBranches([$this->lineAt($near, '4'), $this->lineAt(self::LOCATION_ID, '-4')]), 'Within one branch');
+        $this->assertNull($receivings->transferBetweenBranches([$this->lineAt($depot, '2'), $this->lineAt($third, '2'), $this->lineAt(self::LOCATION_ID, '-4')]), 'Into two other branches');
+        $this->assertNull($receivings->transferBetweenBranches([$this->lineAt($depot, '4'), $this->lineAt(self::LOCATION_ID, '-3'), $this->lineAt($depot, '-1')]), 'Out of the branch it goes into as well');
+        $this->assertNull($receivings->transferBetweenBranches([$this->lineAt(987654, '4'), $this->lineAt(self::LOCATION_ID, '-4')]), 'A location that does not exist');
+    }
+
+    public function testGetBranchIds_AreTheBranchOfThePurchaseAndTheOneItsStockGoesTo(): void
+    {
+        $this->startBuying();
+        ['branch' => $branch, 'depot' => $depot] = $this->twoBranchesOfLocations();
+        $itemId = $this->item('0.00');
+        $this->workInEveryBranch();
+
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($itemId, 0, '10', '50')]));
+
+        $within  = $this->buy([$this->purchaseLine($itemId, 0, '1', '10')]);
+        $between = $this->buy([$this->purchaseLine($itemId, 0, '4', '0', '0', '0', PERCENT, $depot), $this->purchaseLine($itemId, 1, '-4', '0')], null, null);
+
+        $this->assertSame([1], $this->purchases->getBranchIds($within));
+        $this->assertSame([1, $branch], $this->purchases->getBranchIds($between));
+        $this->assertSame([], $this->purchases->getBranchIds(0));
+    }
+
+    public function testBranchesBetweenLocations_NamesTheCodesOfTheBranchesOnlyWhenTheyDiffer(): void
+    {
+        $this->startBuying();
+        ['depot' => $depot, 'second' => $second] = $this->twoBranchesOfLocations();
+        $receivings = model(Receiving::class);
+
+        $first = (string) $this->accountingDb()->table('branches')->where('branch_id', 1)->get()->getRow()->code;
+
+        $this->assertSame(['from' => $first, 'to' => 'R7'], $receivings->branchesBetweenLocations(self::LOCATION_ID, $depot));
+        $this->assertSame(['from' => 'R7', 'to' => $first], $receivings->branchesBetweenLocations($depot, self::LOCATION_ID));
+        $this->assertNull($receivings->branchesBetweenLocations($depot, $second));
+        $this->assertNull($receivings->branchesBetweenLocations(self::LOCATION_ID, 987654));
+    }
+
     public function testHasReturns_IsTrueOnlyForAPurchaseGoodsWentBackFrom(): void
     {
         $this->startBuying();

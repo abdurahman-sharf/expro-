@@ -2,6 +2,7 @@
 
 return [
     'amount_due'                   => '',
+    'between_branches'             => '',
     'branch_not_allowed'           => '',
     'cancel_receiving'             => 'ยกเลิก',
     'cannot_be_deleted'            => 'ไม่สามารถลบใบรับสินค้าได้',

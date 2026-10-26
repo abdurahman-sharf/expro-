@@ -2,6 +2,7 @@
 
 return [
     'amount_due'                   => '',
+    'between_branches'             => '',
     'branch_not_allowed'           => '',
     'cancel_receiving'             => 'Ακύρωση',
     'cannot_be_deleted'            => 'Αποτυχία διαγραφής Παραλαβής/ων.',

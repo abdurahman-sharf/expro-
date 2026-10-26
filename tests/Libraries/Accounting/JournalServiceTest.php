@@ -7,7 +7,9 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountService;
 use App\Libraries\Accounting\CostCenterService;
+use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalEntryType;
+use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\TreasuryService;
@@ -648,6 +650,43 @@ class JournalServiceTest extends CIUnitTestCase
         (new TreasuryTransfers())->cancel($id, 'The right way');
 
         $this->assertSame('0.0000', $treasuries->position($to)->balance);
+    }
+
+    /**
+     * A journal of one of the sources the stock transfers between branches write, posted by the system.
+     */
+    private function journalOfAStockTransfer(string $source): int
+    {
+        $draft = new JournalDraft(
+            date: '2026-10-21',
+            lines: [new JournalLineDraft($this->accountId('cash'), debit: '10.00'), new JournalLineDraft($this->accountId('sales_revenue'), credit: '10.00')],
+            sourceType: $source,
+            sourceId: random_int(1000, 999999),
+        );
+
+        return (new PostingService())->post($draft)->journalId;
+    }
+
+    public function testReverse_RefusesTheJournalsOfAStockTransferAndLeavesThemToItsDeletion(): void
+    {
+        $reverser = $this->accountant();
+
+        foreach (['stock_transfer', 'stock_transfer_receipt'] as $source) {
+            $journalId = $this->journalOfAStockTransfer($source);
+
+            $this->assertFailsWith(AccountingError::TransferJournalLocked, fn () => $this->service->reverse($journalId, '2026-10-22', 'By hand', $reverser));
+            $this->assertSame('posted', $this->journal($journalId)->status);
+        }
+    }
+
+    public function testReverseAutomatic_TakesBackTheJournalsOfAStockTransfer(): void
+    {
+        foreach (['stock_transfer', 'stock_transfer_receipt'] as $source) {
+            $journalId = $this->journalOfAStockTransfer($source);
+
+            $this->assertGreaterThan(0, $this->service->reverseAutomatic($journalId, '2026-10-22', 'Transfer deleted', null));
+            $this->assertSame('reversed', $this->journal($journalId)->status);
+        }
     }
 
     public function testReverse_WritesAnAuditEntryWithTheReason(): void

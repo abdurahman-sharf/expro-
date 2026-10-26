@@ -5,6 +5,8 @@ namespace Tests\Controllers;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AuditLog;
 use App\Libraries\Accounting\CostCenterService;
+use App\Libraries\Accounting\JournalDraft;
+use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\JournalOrigin;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\PostingService;
@@ -289,6 +291,25 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         $this->accountant();
 
         $this->get('/accounting_journals/view/' . $journalId)->assertDontSee('accounting_journals/reverse_form/' . $journalId);
+    }
+
+    public function testGetView_HidesTheReverseButtonOfTheJournalsOfAStockTransferBetweenBranches(): void
+    {
+        $this->accountant();
+
+        foreach (['stock_transfer', 'stock_transfer_receipt'] as $source) {
+            $journalId = (new PostingService())->post(new JournalDraft(
+                date: '2026-10-21',
+                lines: [new JournalLineDraft($this->accountId('cash'), debit: '10.00'), new JournalLineDraft($this->accountId('sales_revenue'), credit: '10.00')],
+                sourceType: $source,
+                sourceId: random_int(1000, 999999),
+            ))->journalId;
+
+            $page = $this->get('/accounting_journals/view/' . $journalId);
+
+            $page->assertDontSee('accounting_journals/reverse_form/' . $journalId);
+            $page->assertSee(lang('Accounting.source_' . $source));
+        }
     }
 
     public function testGetView_HidesTheReverseButtonWithoutThePermission(): void

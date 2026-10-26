@@ -2,6 +2,7 @@
 
 return [
     'amount_due'                   => '',
+    'between_branches'             => '',
     'branch_not_allowed'           => '',
     'cancel_receiving'             => 'Otkaži',
     'cannot_be_deleted'            => 'Ulaz(i) ne mogu biti Izbrisani.',

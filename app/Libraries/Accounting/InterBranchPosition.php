@@ -83,15 +83,17 @@ final class InterBranchPosition
     private function accounts(): array
     {
         return [
-            $this->accountsOf(RoutingKey::InterBranchReceivable, TreasuryTransfers::SOURCE),
-            $this->accountsOf(RoutingKey::InterBranchPayable, TreasuryTransfers::SOURCE_RECEIPT),
+            $this->accountsOf(RoutingKey::InterBranchReceivable, [TreasuryTransfers::SOURCE, ReceivingPostingBuilder::SOURCE_STOCK_TRANSFER]),
+            $this->accountsOf(RoutingKey::InterBranchPayable, [TreasuryTransfers::SOURCE_RECEIPT, ReceivingPostingBuilder::SOURCE_TRANSFER_RECEIPT]),
         ];
     }
 
     /**
+     * @param list<string> $legSources The sources of the journals that put a transfer on the account.
+     *
      * @return list<int>
      */
-    private function accountsOf(RoutingKey $key, string $legSource): array
+    private function accountsOf(RoutingKey $key, array $legSources): array
     {
         $ids = [];
 
@@ -116,7 +118,7 @@ final class InterBranchPosition
             ->distinct()
             ->join('accounting_journals j', 'j.journal_id = l.journal_id')
             ->join('accounting_accounts a', 'a.account_id = l.account_id')
-            ->where('j.source_type', $legSource)
+            ->whereIn('j.source_type', $legSources)
             ->where('a.entity_type IS NULL', null, false)
             ->get()
             ->getResultArray();

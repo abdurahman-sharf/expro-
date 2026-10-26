@@ -16,6 +16,12 @@ final class JournalService
 {
     use RunsInTransaction;
 
+    public const TRANSFER_SOURCES = [
+        TreasuryTransfers::SOURCE,
+        TreasuryTransfers::SOURCE_RECEIPT,
+        ReceivingPostingBuilder::SOURCE_STOCK_TRANSFER,
+        ReceivingPostingBuilder::SOURCE_TRANSFER_RECEIPT,
+    ];
     private const MAX_LINES      = 500;
     private const AMOUNT_PATTERN = '/^\d{1,11}(\.\d{1,4})?$/';
     private const SORTABLE       = ['journal_date', 'number', 'created_at', 'total_debit', 'status'];
@@ -266,9 +272,10 @@ final class JournalService
 
     /**
      * Reverses the journal of a sale or a purchase, or of one of their payments, or of a transfer
-     * between treasuries or an advance to a supplier, when the document is cancelled or a payment changes. Who may do that was decided where the document
-     * changed, so no permission is asked here and the reversal counts as the system's. A journal
-     * of any other source is refused.
+     * of money or of stock, or an advance to a supplier, when the document is cancelled or a
+     * payment changes. Who may do that was decided where the document changed, so no permission
+     * is asked here and the reversal counts as the system's. A journal of any other source is
+     * refused.
      *
      * @throws AccountingException|PostingException
      */
@@ -280,8 +287,7 @@ final class JournalService
             ReceivingPostingBuilder::SOURCE_PURCHASE,
             ReceivingPostingBuilder::SOURCE_PAYMENT,
             ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT,
-            TreasuryTransfers::SOURCE,
-            TreasuryTransfers::SOURCE_RECEIPT,
+            ...self::TRANSFER_SOURCES,
             SupplierAdvances::SOURCE,
         ])->countAllResults() > 0;
 
@@ -312,8 +318,8 @@ final class JournalService
             if ($checkAccess) {
                 $this->assertCanAccess($original, $employeeId);
 
-                if (in_array($original->source_type, [TreasuryTransfers::SOURCE, TreasuryTransfers::SOURCE_RECEIPT], true)) {
-                    throw new AccountingException(AccountingError::TransferJournalLocked, 'The journal of a transfer between treasuries is taken back by cancelling the transfer.', ['journal_id' => $journalId]);
+                if (in_array($original->source_type, self::TRANSFER_SOURCES, true)) {
+                    throw new AccountingException(AccountingError::TransferJournalLocked, 'The journal of a transfer is taken back by cancelling the transfer.', ['journal_id' => $journalId]);
                 }
             }
 

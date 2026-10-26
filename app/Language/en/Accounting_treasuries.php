@@ -16,6 +16,7 @@ return [
     'between_difference' => 'The accounts between branches do not offset to nothing: the difference is {0}. A journal of one of them has no counterpart in the other branch.',
     'branch' => 'Branch',
     'branch_balances_branch' => 'Branch',
+    'branch_balances_note' => 'They come from transfers of money between treasuries and of stock between locations of different branches.',
     'branch_balances_owed' => 'Owed by the other branches',
     'branch_balances_owing' => 'Owed to the other branches',
     'branch_balances_title' => 'Balances between branches',

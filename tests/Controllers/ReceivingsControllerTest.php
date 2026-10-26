@@ -2,6 +2,7 @@
 
 namespace Tests\Controllers;
 
+use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Organization\BranchGuard;
 use CodeIgniter\Exceptions\PageNotFoundException;
@@ -431,6 +432,223 @@ class ReceivingsControllerTest extends CIUnitTestCase
 
         $response->assertSee(lang('Receivings.branch_not_allowed'));
         $this->assertSame($before, $this->countRows('receivings'));
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Stock moving from one branch to another
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * Ten units in the first branch, a location of another, and a transfer of four ready in the register.
+     *
+     * @return array{item: int, branch: int, other: int}
+     */
+    private function transferSetup(int $buyerId): array
+    {
+        $branchId = $this->anotherBranch();
+        $other    = $this->depotIn($branchId, $buyerId);
+        $itemId   = $this->item('0.00');
+
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($itemId, 0, '10', '50')]));
+
+        return ['item' => $itemId, 'branch' => $branchId, 'other' => $other];
+    }
+
+    private function newestReceiving(): object
+    {
+        $row = $this->accountingDb()->table('receivings')->orderBy('receiving_id', 'DESC')->limit(1)->get()->getRow();
+
+        $this->receivingIds[] = (int) $row->receiving_id;
+
+        return $row;
+    }
+
+    /**
+     * A transfer between branches that is already in the books.
+     */
+    private function transferInTheBooks(): array
+    {
+        $itemId = $this->item('0.00');
+        $branch = $this->anotherBranch();
+        $other  = $this->locationOfBranch($branch, 'Branch warehouse');
+
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($itemId, 0, '10', '50')]));
+        $this->workInEveryBranch();
+
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '4', '0', '0', '0', PERCENT, $other), $this->purchaseLine($itemId, 1, '-4', '0')], null, null);
+
+        $this->assertGreaterThan(0, $receivingId);
+
+        return ['receiving' => $receivingId, 'item' => $itemId, 'branch' => $branch, 'other' => $other];
+    }
+
+    public function testGetIndex_SaysThatARequisitionBetweenBranchesIsPostedInBothBranches(): void
+    {
+        $buyerId  = $this->buyer();
+        $branchId = $this->anotherBranch();
+        $other    = $this->depotIn($branchId, $buyerId);
+
+        $this->loginAs($buyerId, ['recv_mode' => 'requisition', 'recv_stock_source' => self::LOCATION_ID, 'recv_stock_destination' => $other]);
+
+        $response = $this->get('/receivings');
+
+        $response->assertStatus(200);
+        $response->assertSee('id="between_branches_note"');
+    }
+
+    public function testGetIndex_SaysNothingOfBranchesForARequisitionWithinOneBranch(): void
+    {
+        $buyerId = $this->buyer();
+        $same    = $this->depotIn(1, $buyerId);
+
+        $this->loginAs($buyerId, ['recv_mode' => 'requisition', 'recv_stock_source' => self::LOCATION_ID, 'recv_stock_destination' => $same]);
+
+        $this->get('/receivings')->assertDontSee('id="between_branches_note"');
+    }
+
+    public function testPostRequisitionComplete_MovesStockFromOneBranchToAnotherForAnEmployeeOfBoth(): void
+    {
+        $buyerId = $this->buyer();
+        ['item' => $itemId, 'branch' => $branchId, 'other' => $other] = $this->transferSetup($buyerId);
+
+        $this->loginAs($buyerId, $this->cart([$this->cartLine($itemId, 1, '4', '0')], 'requisition', null) + ['recv_stock_destination' => $other]);
+
+        $response = $this->post('/receivings/requisitionComplete', $this->completeForm());
+
+        $response->assertStatus(200);
+        $response->assertSee('RECV ');
+
+        $receiving = $this->newestReceiving();
+
+        $this->assertSame('requisition', $receiving->receiving_type);
+        $this->assertSame([1, $branchId], [(int) $receiving->branch_id, (int) $receiving->to_branch_id]);
+        $this->assertCount(1, $this->standingPurchase((int) $receiving->receiving_id, 'stock_transfer'));
+        $this->assertCount(1, $this->standingPurchase((int) $receiving->receiving_id, 'stock_transfer_receipt'));
+        $this->assertSame('6.000', $this->onHand($itemId));
+        $this->assertSame('4.000', $this->onHand($itemId, $other));
+    }
+
+    public function testPostRequisitionComplete_RefusesAnEmployeeWhoWorksInOnlyOneOfTheTwoBranches(): void
+    {
+        $everyBranch = $this->buyer();
+        ['item' => $itemId, 'branch' => $branchId, 'other' => $other] = $this->transferSetup($everyBranch);
+        $before = $this->countRows('receivings');
+
+        foreach ([[1], [$branchId]] as $works) {
+            $buyerId = $this->buyer($works);
+            $this->depotIn($branchId, $buyerId);
+
+            $this->loginAs($buyerId, $this->cart([$this->cartLine($itemId, 1, '4', '0')], 'requisition', null) + ['recv_stock_destination' => $other]);
+
+            $this->post('/receivings/requisitionComplete', $this->completeForm())->assertSee(lang('Receivings.branch_not_allowed'));
+            $this->assertSame($before, $this->countRows('receivings'));
+            $this->assertSame('10.000', $this->onHand($itemId));
+            $this->assertSame('0.000', $this->onHand($itemId, $other));
+        }
+    }
+
+    public function testPostComplete_RefusesACartThatMixesThreeBranchesEvenWhenItMovesStock(): void
+    {
+        $buyerId  = $this->buyer();
+        $second   = $this->depotIn($this->anotherBranch(), $buyerId);
+        $third    = $this->depotIn($this->anotherBranch(), $buyerId);
+        $itemId   = $this->item('0.00');
+
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($itemId, 0, '10', '50')]));
+
+        $before = $this->countRows('receivings');
+
+        $this->loginAs($buyerId, $this->cart([
+            $this->cartLine($itemId, 1, '2', '0', '0', $second),
+            $this->cartLine($itemId, 2, '2', '0', '0', $third),
+            $this->cartLine($itemId, 3, '-4', '0'),
+        ], 'requisition', null));
+
+        $this->post('/receivings/complete', $this->completeForm())->assertSee(lang('Receivings.mixed_branches'));
+        $this->assertSame($before, $this->countRows('receivings'));
+    }
+
+    public function testGetReceipt_ShowsATransferBetweenBranchesToTheEmployeesOfEitherBranchAndHidesItFromOthers(): void
+    {
+        ['receiving' => $receivingId, 'branch' => $branchId] = $this->transferInTheBooks();
+
+        foreach ([[1], [$branchId], [1, $branchId]] as $works) {
+            $this->loginAs($this->buyer($works));
+
+            $this->get('/receivings/receipt/' . $receivingId)->assertStatus(200);
+        }
+
+        $this->loginAs($this->buyer([$this->anotherBranch()]));
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/receivings/receipt/' . $receivingId);
+    }
+
+    public function testGetEdit_HidesATransferBetweenBranchesFromAnEmployeeOfOnlyOneOfThem(): void
+    {
+        ['receiving' => $receivingId, 'branch' => $branchId] = $this->transferInTheBooks();
+
+        $this->loginAs($this->buyer([$branchId]));
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/receivings/edit/' . $receivingId);
+    }
+
+    public function testPostSave_RefusesATransferBetweenBranchesToAnEmployeeOfOnlyOneOfThem(): void
+    {
+        ['receiving' => $receivingId, 'branch' => $branchId] = $this->transferInTheBooks();
+
+        foreach ([[1], [$branchId]] as $works) {
+            $this->loginAs($this->buyer($works));
+
+            $this->post('/receivings/save/' . $receivingId, ['date' => $this->dateOf($receivingId), 'comment' => 'changed', 'supplier_id' => '', 'employee_id' => (string) $this->employeeId, 'reference' => 'X'])->assertStatus(403);
+            $this->assertSame('test', $this->receivingRow($receivingId)->comment);
+        }
+    }
+
+    public function testPostDelete_RefusesATransferBetweenBranchesToAnEmployeeOfOnlyOneOfThemAndLeavesBothLegs(): void
+    {
+        ['receiving' => $receivingId, 'item' => $itemId, 'branch' => $branchId, 'other' => $other] = $this->transferInTheBooks();
+
+        foreach ([[1], [$branchId]] as $works) {
+            $this->loginAs($this->buyer($works));
+
+            $response = $this->post('/receivings/delete/' . $receivingId);
+
+            $response->assertStatus(403);
+            $this->assertSame(lang('Receivings.branch_not_allowed'), $this->jsonOf($response)['message']);
+            $this->assertNotNull($this->receivingRow($receivingId));
+            $this->assertCount(1, $this->standingPurchase($receivingId, 'stock_transfer'));
+            $this->assertCount(1, $this->standingPurchase($receivingId, 'stock_transfer_receipt'));
+            $this->assertSame('4.000', $this->onHand($itemId, $other));
+        }
+    }
+
+    public function testPostDelete_TakesBackBothLegsOfATransferBetweenBranchesForAnEmployeeOfBoth(): void
+    {
+        ['receiving' => $receivingId, 'item' => $itemId, 'other' => $other] = $this->transferInTheBooks();
+
+        $this->loginAs($this->buyer());
+
+        $result = $this->jsonOf($this->post('/receivings/delete/' . $receivingId));
+
+        $this->assertTrue($result['success']);
+        $this->assertNull($this->receivingRow($receivingId));
+        $this->assertSame([], $this->standingPurchase($receivingId, 'stock_transfer'));
+        $this->assertSame([], $this->standingPurchase($receivingId, 'stock_transfer_receipt'));
+        $this->assertSame('10.000', $this->onHand($itemId));
+        $this->assertSame('0.000', $this->onHand($itemId, $other));
+    }
+
+    public function testPostDelete_SaysWhyAnEmployeeOfOnlyOneBranchCannotDeleteATransferWhenTheModelIsCalledDirectly(): void
+    {
+        ['receiving' => $receivingId, 'branch' => $branchId] = $this->transferInTheBooks();
+
+        $this->assertFalse($this->purchases->delete_value($receivingId, $this->buyer([$branchId])));
+
+        $this->assertSame(lang('Branches.error_not_allowed'), AccountingMessage::of($this->purchases->accountingFailure()));
     }
 
     // ---------------------------------------------------------------------------------------

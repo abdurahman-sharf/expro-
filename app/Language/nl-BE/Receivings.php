@@ -2,6 +2,7 @@
 
 return [
     'amount_due'                   => '',
+    'between_branches'             => '',
     'branch_not_allowed'           => '',
     'cancel_receiving'             => 'Annuleer',
     'cannot_be_deleted'            => 'Order(s) konden niet bijgewerkt worden.',

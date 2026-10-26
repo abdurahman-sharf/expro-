@@ -2,6 +2,7 @@
 
 return [
     'amount_due'                   => '',
+    'between_branches'             => '',
     'branch_not_allowed'           => '',
     'cancel_receiving'             => 'Hủy',
     'cannot_be_deleted'            => 'Gặp lỗi khi xóa đơn nhập hàng.',

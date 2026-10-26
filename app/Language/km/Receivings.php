@@ -2,6 +2,7 @@
 
 return [
     'amount_due'                   => '',
+    'between_branches'             => '',
     'branch_not_allowed'           => '',
     'cancel_receiving'             => 'បោះបង់',
     'cannot_be_deleted'            => 'លប់ការទទួលមិនបានជោគជ័យ។',

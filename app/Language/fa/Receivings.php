@@ -2,6 +2,7 @@
 
 return [
     'amount_due'                   => '',
+    'between_branches'             => '',
     'branch_not_allowed'           => '',
     'cancel_receiving'             => 'لغو',
     'cannot_be_deleted'            => 'دریافت (ها) حذف نشد.',

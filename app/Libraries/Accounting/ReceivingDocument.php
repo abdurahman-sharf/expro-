@@ -10,8 +10,10 @@ final readonly class ReceivingDocument
 {
     /**
      * @param list<ReceivingLine>   $lines
-     * @param list<SupplierPayment> $payments   The payments made against the purchase after it was saved.
-     * @param int|null              $treasuryId The treasury the purchase was paid from at once, when it was.
+     * @param list<SupplierPayment> $payments    The payments made against the purchase after it was saved.
+     * @param int|null              $treasuryId  The treasury the purchase was paid from at once, when it was.
+     * @param int|null              $toBranchId  The branch the stock of a transfer goes to when it leaves the branch of the document for another.
+     * @param array<int, string>    $branchCodes The codes of the two branches of a transfer between branches, by branch.
      */
     public function __construct(
         public int $receivingId,
@@ -25,6 +27,8 @@ final readonly class ReceivingDocument
         public ?self $origin = null,
         public array $payments = [],
         public ?int $treasuryId = null,
+        public ?int $toBranchId = null,
+        public array $branchCodes = [],
     ) {
     }
 }

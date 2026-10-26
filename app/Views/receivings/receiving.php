@@ -18,6 +18,7 @@
  * @var string $tax_total
  * @var string $total_with_tax
  * @var int|null $return_origin
+ * @var array{from: string, to: string}|null $between_branches
  */
 $sectionName = ucfirst($controller_name);
 $hasCart     = count($cart) > 0;
@@ -61,6 +62,9 @@ $hasCart     = count($cart) > 0;
                     <?php endif; ?>
                 <?php endif; ?>
             </div>
+            <?php if (! empty($between_branches)): ?>
+                <div class="card-footer form-text" id="between_branches_note"><?= esc(lang("{$sectionName}.between_branches", [$between_branches['from'], $between_branches['to']])) ?></div>
+            <?php endif; ?>
         <?= form_close() ?>
 
         <?= form_open("{$controller_name}/add", ['id' => 'add_item_form', 'class' => 'app-form card']) ?>

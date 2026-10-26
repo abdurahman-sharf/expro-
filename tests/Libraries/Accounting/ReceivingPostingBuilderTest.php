@@ -71,15 +71,15 @@ class ReceivingPostingBuilderTest extends CIUnitTestCase
         parent::tearDown();
     }
 
-    private function line(string $quantity, string $price, string $tax = '0', string $discount = '0', int $discountType = PERCENT, ?int $location = null, bool $stock = true, string $cost = '0', int $itemId = 1, string $perPack = '1'): ReceivingLine
+    private function line(string $quantity, string $price, string $tax = '0', string $discount = '0', int $discountType = PERCENT, ?int $location = null, bool $stock = true, string $cost = '0', int $itemId = 1, string $perPack = '1', ?int $branch = null): ReceivingLine
     {
-        return new ReceivingLine($itemId, $itemId, $quantity, $perPack, $price, $discount, $discountType, $tax, $location ?? $this->warehouse, $stock, $cost);
+        return new ReceivingLine($itemId, $itemId, $quantity, $perPack, $price, $discount, $discountType, $tax, $location ?? $this->warehouse, $stock, $cost, $branch);
     }
 
     /**
      * @param list<ReceivingLine> $lines
      */
-    private function purchase(array $lines, ReceivingType $type = ReceivingType::Receive, ?string $payment = null, ?int $supplierId = -1, ?ReceivingDocument $origin = null): ReceivingDocument
+    private function purchase(array $lines, ReceivingType $type = ReceivingType::Receive, ?string $payment = null, ?int $supplierId = -1, ?ReceivingDocument $origin = null, ?int $toBranchId = null): ReceivingDocument
     {
         return new ReceivingDocument(
             receivingId: 7,
@@ -91,6 +91,8 @@ class ReceivingPostingBuilderTest extends CIUnitTestCase
             returnOfReceivingId: $origin?->receivingId,
             lines: $lines,
             origin: $origin,
+            toBranchId: $toBranchId,
+            branchCodes: $toBranchId === null ? [] : [1 => 'MAIN', $toBranchId => 'JED'],
         );
     }
 
@@ -403,6 +405,176 @@ class ReceivingPostingBuilderTest extends CIUnitTestCase
         ], ReceivingType::Requisition, supplierId: null), 1));
 
         $this->assertSame(PostingError::PurchaseNotPostable, $failure->error);
+    }
+
+    /**
+     * A move from the first branch to the second, with the locations of the second branch given.
+     *
+     * @param list<ReceivingLine> $lines
+     */
+    private function betweenBranches(array $lines): ReceivingDocument
+    {
+        return $this->purchase($lines, ReceivingType::Requisition, supplierId: null, toBranchId: 2);
+    }
+
+    public function testPurchase_DrawsAJournalInEachBranchForAMoveBetweenBranches(): void
+    {
+        $plan = $this->builder->purchase($this->betweenBranches([
+            $this->line('-4', '0', cost: '25', branch: 1),
+            $this->line('4', '0', location: $this->shop, cost: '25', branch: 2),
+        ]), 3, 9);
+
+        $issue   = $plan->journal;
+        $receipt = $plan->receipt;
+
+        $this->assertSame([$this->accountId('branches_receivable') . ':100.0000:0.0000', $this->stockAccount($this->warehouse) . ':0.0000:100.0000'], $this->shape($issue));
+        $this->assertSame([$this->stockAccount($this->shop) . ':100.0000:0.0000', $this->accountId('branches_payable') . ':0.0000:100.0000'], $this->shape($receipt));
+        $this->assertSame(['stock_transfer', 1, 7, 3, 9, 'Stock transfer #7 (to branch JED)'], [$issue->sourceType, $issue->branchId, $issue->sourceId, $issue->revision, $issue->employeeId, $issue->description]);
+        $this->assertSame(['stock_transfer_receipt', 2, 7, 3, 9, 'Stock transfer #7 (from branch MAIN)'], [$receipt->sourceType, $receipt->branchId, $receipt->sourceId, $receipt->revision, $receipt->employeeId, $receipt->description]);
+        $this->assertSame(['1:' . $this->warehouse . ':-4.000:-100.0000'], $this->movements($plan->movements));
+        $this->assertSame(['1:' . $this->shop . ':4.000:100.0000'], $this->movements($plan->receiptMovements));
+    }
+
+    public function testPurchase_SharesWhatLeftAmongTheLocationsOfTheOtherBranchWithTheLastOneTakingTheRounding(): void
+    {
+        $annex = $this->insertStockLocation('Annex');
+
+        (new EntityAccountService())->ensure(EntityAccountService::STOCK_LOCATION, $annex, 'Annex');
+
+        $plan = $this->builder->purchase($this->betweenBranches([
+            $this->line('-3', '0', cost: '10', branch: 1),
+            $this->line('1', '0', location: $this->shop, cost: '10', branch: 2),
+            $this->line('2', '0', location: $annex, cost: '10', branch: 2),
+        ]), 1);
+
+        $this->assertSame(
+            [$this->stockAccount($this->shop) . ':10.0000:0.0000', $this->stockAccount($annex) . ':20.0000:0.0000', $this->accountId('branches_payable') . ':0.0000:30.0000'],
+            $this->shape($plan->receipt),
+        );
+        $this->assertSame([$this->accountId('branches_receivable') . ':30.0000:0.0000', $this->stockAccount($this->warehouse) . ':0.0000:30.0000'], $this->shape($plan->journal));
+    }
+
+    public function testPurchase_OwesWhatTheOtherBranchIsOwedWhateverTheRounding(): void
+    {
+        $plan = $this->builder->purchase($this->betweenBranches([
+            $this->line('-3', '0', cost: '3.3333', branch: 1),
+            $this->line('1', '0', location: $this->shop, cost: '3.3333', branch: 2),
+            $this->line('2', '0', location: $this->shop, cost: '3.3333', branch: 2),
+        ]), 1);
+
+        $owed = $plan->journal->lines[0]->debit;
+        $owes = $plan->receipt->lines[array_key_last($plan->receipt->lines)]->credit;
+
+        $this->assertSame(bcadd($owed, '0', 4), bcadd($owes, '0', 4));
+
+        $net = '0';
+
+        foreach ([...$plan->movements, ...$plan->receiptMovements] as $movement) {
+            $net = bcadd($net, $movement->value, 4);
+        }
+
+        $this->assertSame('0.0000', $net);
+    }
+
+    public function testPurchase_DrawsNoJournalForAMoveBetweenBranchesOfStockWorthNothingButKeepsItsMovements(): void
+    {
+        $plan = $this->builder->purchase($this->betweenBranches([
+            $this->line('-4', '0', cost: '0', branch: 1),
+            $this->line('4', '0', location: $this->shop, cost: '0', branch: 2),
+        ]), 1);
+
+        $this->assertNull($plan->journal);
+        $this->assertNull($plan->receipt);
+        $this->assertSame(['1:' . $this->warehouse . ':-4.000:0.0000'], $this->movements($plan->movements));
+        $this->assertSame(['1:' . $this->shop . ':4.000:0.0000'], $this->movements($plan->receiptMovements));
+    }
+
+    public function testPurchase_RefusesAMoveBetweenBranchesThatTakesStockOutOfTheOtherBranch(): void
+    {
+        $failure = $this->failureOf(fn () => $this->builder->purchase($this->betweenBranches([
+            $this->line('-4', '0', cost: '25', branch: 2),
+            $this->line('4', '0', location: $this->shop, cost: '25', branch: 2),
+        ]), 1));
+
+        $this->assertSame(PostingError::TransferBranchesInvalid, $failure->error);
+    }
+
+    public function testPurchase_RefusesAMoveBetweenBranchesThatPutsStockInTheBranchItLeaves(): void
+    {
+        $failure = $this->failureOf(fn () => $this->builder->purchase($this->betweenBranches([
+            $this->line('-4', '0', cost: '25', branch: 1),
+            $this->line('4', '0', location: $this->shop, cost: '25', branch: 1),
+        ]), 1));
+
+        $this->assertSame(PostingError::TransferBranchesInvalid, $failure->error);
+    }
+
+    public function testPurchase_RefusesALocationWhoseBranchIsNotKnown(): void
+    {
+        $failure = $this->failureOf(fn () => $this->builder->purchase($this->betweenBranches([
+            $this->line('-4', '0', cost: '25', branch: 1),
+            $this->line('4', '0', location: $this->shop, cost: '25'),
+        ]), 1));
+
+        $this->assertSame(PostingError::TransferBranchesInvalid, $failure->error);
+    }
+
+    public function testPurchase_RefusesABranchThatGoesToItselfAndDocumentsThatAreNotTransfers(): void
+    {
+        $toItself = $this->purchase([$this->line('-4', '0', cost: '25', branch: 1), $this->line('4', '0', location: $this->shop, cost: '25', branch: 1)], ReceivingType::Requisition, supplierId: null, toBranchId: 1);
+        $received = $this->purchase([$this->line('4', '10', branch: 2)], toBranchId: 2);
+
+        foreach ([$toItself, $received] as $document) {
+            $this->assertSame(PostingError::TransferBranchesInvalid, $this->failureOf(fn () => $this->builder->purchase($document, 1))->error);
+        }
+    }
+
+    public function testPurchase_RefusesAMoveBetweenBranchesThatTakesOutAnItemItDoesNotPutIn(): void
+    {
+        $failure = $this->failureOf(fn () => $this->builder->purchase($this->betweenBranches([
+            $this->line('-4', '0', cost: '25', branch: 1),
+            $this->line('-1', '0', cost: '25', itemId: 2, branch: 1),
+            $this->line('4', '0', location: $this->shop, cost: '25', branch: 2),
+        ]), 1));
+
+        $this->assertSame(PostingError::TransferBranchesInvalid, $failure->error);
+        $this->assertSame(['receiving_id' => 7, 'item_id' => 2], $failure->context);
+    }
+
+    public function testPurchase_RefusesAMoveBetweenBranchesThatPutsInAnItemItNeverTookOut(): void
+    {
+        $failure = $this->failureOf(fn () => $this->builder->purchase($this->betweenBranches([
+            $this->line('-4', '0', cost: '25', branch: 1),
+            $this->line('4', '0', location: $this->shop, cost: '25', itemId: 2, branch: 2),
+        ]), 1));
+
+        $this->assertContains($failure->error, [PostingError::TransferBranchesInvalid, PostingError::PurchaseNotPostable]);
+    }
+
+    public function testPurchase_RefusesAMoveBetweenBranchesWhenTheRoutingNamesNoAccountBetweenBranches(): void
+    {
+        foreach (['branches.receivable', 'branches.payable'] as $key) {
+            $this->accountingDb()->table('accounting_routing')->where('routing_key', $key)->update(['account_id' => null]);
+
+            $failure = $this->failureOf(fn () => (new ReceivingPostingBuilder(new RoutingResolver(), new StockLedger()))->purchase($this->betweenBranches([
+                $this->line('-4', '0', cost: '25', branch: 1),
+                $this->line('4', '0', location: $this->shop, cost: '25', branch: 2),
+            ]), 1));
+
+            $this->assertSame(PostingError::InterBranchAccountsMissing, $failure->error);
+
+            $this->accountingDb()->table('accounting_routing')->where('routing_key', $key)->update(['account_id' => $this->accountId($key === 'branches.receivable' ? 'branches_receivable' : 'branches_payable')]);
+        }
+    }
+
+    public function testIssueSourceOf_IsTheStockTransferOnlyForStockThatGoesToAnotherBranch(): void
+    {
+        $within  = $this->purchase([$this->line('-1', '0', cost: '5'), $this->line('1', '0', location: $this->shop, cost: '5')], ReceivingType::Requisition, supplierId: null);
+        $between = $this->betweenBranches([$this->line('-1', '0', cost: '5', branch: 1), $this->line('1', '0', location: $this->shop, cost: '5', branch: 2)]);
+
+        $this->assertSame('purchase', ReceivingPostingBuilder::issueSourceOf($this->purchase([$this->line('1', '10')])));
+        $this->assertSame('purchase', ReceivingPostingBuilder::issueSourceOf($within));
+        $this->assertSame('stock_transfer', ReceivingPostingBuilder::issueSourceOf($between));
     }
 
     public function testPayment_DebitsTheSupplierAndCreditsTheTreasuryForAPaidPurchase(): void

@@ -5,7 +5,7 @@ namespace App\Libraries\Accounting;
 /**
  * A line of a saved purchase as posting reads it. The quantity counts packs and the units of a
  * pack multiply it, as the purchase screen does. Amounts are strings so that nothing is rounded
- * before posting does it.
+ * before posting does it. The branch is the one the stock location of the line belongs to.
  */
 final readonly class ReceivingLine
 {
@@ -21,6 +21,7 @@ final readonly class ReceivingLine
         public int $locationId,
         public bool $hasStock,
         public string $itemCost,
+        public ?int $branchId = null,
     ) {
     }
 

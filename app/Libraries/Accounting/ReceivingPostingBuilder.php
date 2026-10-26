@@ -12,19 +12,33 @@ namespace App\Libraries\Accounting;
  * they cost, and the tax on them into the account of tax paid. Goods that go back to the
  * supplier leave the account at what they are worth in stock, and what the supplier gives back
  * for them beyond that goes to the cost of sales. A transfer moves stock from one location to
- * another at what it is worth where it leaves.
+ * another at what it is worth where it leaves. A transfer between locations of two branches is two
+ * journals, one in each branch, that meet in the accounts between branches: the branch it leaves
+ * debits what the other branches owe it and credits the stock it gave up, and the branch it goes to
+ * debits the stock it received and credits what it owes the other branches.
  */
 final class ReceivingPostingBuilder
 {
     public const SOURCE_PURCHASE         = 'purchase';
     public const SOURCE_PAYMENT          = 'purchase_payment';
     public const SOURCE_SUPPLIER_PAYMENT = 'supplier_payment';
+    public const SOURCE_STOCK_TRANSFER   = 'stock_transfer';
+    public const SOURCE_TRANSFER_RECEIPT = 'stock_transfer_receipt';
     private const SCALE                  = ReceivingAmounts::SCALE;
 
     public function __construct(
         private readonly RoutingResolver $resolver,
         private readonly StockLedger $ledger,
     ) {
+    }
+
+    /**
+     * The source of the journal of a purchase: the stock transfer when the stock goes from one
+     * branch to another, and the purchase for everything else.
+     */
+    public static function issueSourceOf(ReceivingDocument $purchase): string
+    {
+        return $purchase->toBranchId === null ? self::SOURCE_PURCHASE : self::SOURCE_STOCK_TRANSFER;
     }
 
     /**
@@ -331,6 +345,10 @@ final class ReceivingPostingBuilder
             }
         }
 
+        if ($purchase->toBranchId !== null) {
+            return $this->betweenBranches($purchase, $movements, $revision, $employeeId);
+        }
+
         $debit  = [];
         $credit = [];
 
@@ -359,6 +377,121 @@ final class ReceivingPostingBuilder
         }
 
         return new StockPostingPlan($this->draft($purchase, $lines, $revision, $employeeId, 'Stock transfer #'), $movements);
+    }
+
+    /**
+     * Stock that leaves a branch for another: the journal of the branch it leaves, with the
+     * movements that took it out, and the receipt of the branch it goes to, with the movements that
+     * brought it in. What the receipt owes the other branches is what the issue is owed by them.
+     *
+     * @param list<StockMovement> $movements
+     *
+     * @throws PostingException
+     */
+    private function betweenBranches(ReceivingDocument $purchase, array $movements, int $revision, ?int $employeeId): StockPostingPlan
+    {
+        [$receivable, $payable] = $this->interBranchAccounts();
+
+        $issued   = [];
+        $received = [];
+        $taken    = [];
+        $given    = [];
+        $total    = '0';
+
+        foreach ($movements as $movement) {
+            $amount = SaleAmounts::absolute($movement->value);
+
+            if (bccomp($movement->quantity, '0', 3) < 0) {
+                $issued[]                     = $movement;
+                $taken[$movement->locationId] = bcadd($taken[$movement->locationId] ?? '0', $amount, self::SCALE);
+                $total                        = bcadd($total, $amount, self::SCALE);
+            } else {
+                $received[]                   = $movement;
+                $given[$movement->locationId] = bcadd($given[$movement->locationId] ?? '0', $amount, self::SCALE);
+            }
+        }
+
+        $issueLines = [];
+
+        if (bccomp($total, '0', self::SCALE) > 0) {
+            $issueLines[] = new JournalLineDraft($receivable, debit: $total);
+        }
+
+        foreach ($taken as $locationId => $amount) {
+            if (bccomp($amount, '0', self::SCALE) > 0) {
+                $issueLines[] = new JournalLineDraft($this->required(RoutingKey::StockLocations, $locationId), credit: $amount);
+            }
+        }
+
+        $receiptLines = [];
+
+        foreach ($given as $locationId => $amount) {
+            if (bccomp($amount, '0', self::SCALE) > 0) {
+                $receiptLines[] = new JournalLineDraft($this->required(RoutingKey::StockLocations, $locationId), debit: $amount);
+            }
+        }
+
+        if (bccomp($total, '0', self::SCALE) > 0) {
+            $receiptLines[] = new JournalLineDraft($payable, credit: $total);
+        }
+
+        $description = 'Stock transfer #' . $purchase->receivingId;
+        $to          = $purchase->branchCodes[$purchase->toBranchId] ?? (string) $purchase->toBranchId;
+        $from        = $purchase->branchCodes[$purchase->branchId] ?? (string) $purchase->branchId;
+
+        return new StockPostingPlan(
+            $this->legDraft($purchase, $issueLines, self::SOURCE_STOCK_TRANSFER, $purchase->branchId, $revision, $employeeId, $description . ' (to branch ' . $to . ')'),
+            $issued,
+            $this->legDraft($purchase, $receiptLines, self::SOURCE_TRANSFER_RECEIPT, (int) $purchase->toBranchId, $revision, $employeeId, $description . ' (from branch ' . $from . ')'),
+            $received,
+        );
+    }
+
+    /**
+     * @param list<JournalLineDraft> $lines
+     */
+    private function legDraft(ReceivingDocument $purchase, array $lines, string $sourceType, int $branchId, int $revision, ?int $employeeId, string $description): ?JournalDraft
+    {
+        if (count($lines) < 2) {
+            return null;
+        }
+
+        return new JournalDraft(
+            date: $purchase->date,
+            lines: $lines,
+            sourceType: $sourceType,
+            sourceId: $purchase->receivingId,
+            revision: $revision,
+            origin: JournalOrigin::System,
+            employeeId: $employeeId,
+            description: $description,
+            branchId: $branchId,
+            entryType: JournalEntryType::General,
+        );
+    }
+
+    /**
+     * The accounts the two branches of a transfer meet in: what the branch that gives the stock up
+     * is owed and what the branch that receives it owes.
+     *
+     * @return array{int, int}
+     *
+     * @throws PostingException
+     */
+    private function interBranchAccounts(): array
+    {
+        try {
+            $receivable = $this->resolver->accountFor(RoutingKey::InterBranchReceivable);
+            $payable    = $this->resolver->accountFor(RoutingKey::InterBranchPayable);
+        } catch (PostingException) {
+            $receivable = $payable = null;
+        }
+
+        if ($receivable === null || $payable === null) {
+            throw new PostingException(PostingError::InterBranchAccountsMissing, 'A transfer of stock between branches needs the two accounts between branches in the routing.');
+        }
+
+        return [$receivable, $payable];
     }
 
     /**
@@ -475,6 +608,59 @@ final class ReceivingPostingBuilder
 
         if ($actual !== $purchase->type && $purchase->lines !== []) {
             throw new PostingException(PostingError::PurchaseNotPostable, 'The lines of the purchase do not fit a ' . $purchase->type->value . '.', ['type' => $purchase->type->value]);
+        }
+
+        if ($purchase->toBranchId !== null) {
+            $this->assertBetweenBranches($purchase);
+        }
+    }
+
+    /**
+     * A transfer between branches takes its stock out of the locations of the branch of the
+     * document and puts it in the locations of the other branch, and puts in every item it takes
+     * out, so that what the one branch is owed is what the other owes.
+     *
+     * @throws PostingException
+     */
+    private function assertBetweenBranches(ReceivingDocument $purchase): void
+    {
+        $invalid = static fn (string $reason, array $context = []): PostingException => new PostingException(
+            PostingError::TransferBranchesInvalid,
+            $reason,
+            ['receiving_id' => $purchase->receivingId] + $context,
+        );
+
+        if ($purchase->type !== ReceivingType::Requisition || $purchase->toBranchId === $purchase->branchId) {
+            throw $invalid('Only a transfer between stock locations goes from one branch to another.');
+        }
+
+        $out = [];
+        $in  = [];
+
+        foreach ($purchase->lines as $line) {
+            if (! $line->hasStock) {
+                continue;
+            }
+
+            if (bccomp($line->units(), '0', 3) < 0) {
+                $out[$line->itemId] = true;
+
+                if ($line->branchId !== $purchase->branchId) {
+                    throw $invalid('The stock of a transfer between branches leaves the locations of the branch of the document.', ['item_id' => $line->itemId]);
+                }
+            } elseif (bccomp($line->units(), '0', 3) > 0) {
+                $in[$line->itemId] = true;
+
+                if ($line->branchId !== $purchase->toBranchId) {
+                    throw $invalid('The stock of a transfer between branches goes into the locations of the other branch.', ['item_id' => $line->itemId]);
+                }
+            }
+        }
+
+        foreach ($out as $itemId => $unused) {
+            if (! isset($in[$itemId])) {
+                throw $invalid('A transfer between branches must put in the other branch every item it takes out.', ['item_id' => $itemId]);
+            }
         }
     }
 

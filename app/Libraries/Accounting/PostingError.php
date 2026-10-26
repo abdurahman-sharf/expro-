@@ -37,6 +37,8 @@ enum PostingError: string
     case DiscountNeedsAdditiveTax      = 'discount_needs_additive_tax';
     case PurchaseNotPostable           = 'purchase_not_postable';
     case PurchaseAcrossBranches        = 'purchase_across_branches';
+    case TransferBranchesInvalid       = 'transfer_branches_invalid';
+    case InterBranchAccountsMissing    = 'inter_branch_accounts_missing';
     case SupplierRequired              = 'supplier_required';
     case PurchaseReturnOriginRequired  = 'purchase_return_origin_required';
     case PurchaseReturnOriginInvalid   = 'purchase_return_origin_invalid';

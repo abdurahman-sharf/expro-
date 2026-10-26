@@ -2,6 +2,7 @@
 
 return [
     'amount_due'                   => '',
+    'between_branches'             => '',
     'branch_not_allowed'           => '',
     'cancel_receiving'             => 'Abbrechen',
     'cannot_be_deleted'            => 'Eingangsbestellung(en) konnten nicht gelöscht werden',

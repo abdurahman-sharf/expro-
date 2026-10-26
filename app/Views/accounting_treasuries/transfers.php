@@ -45,6 +45,7 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 <?php if ($branch_balances !== []): ?>
     <div class="mx-2 mb-2">
         <h2 class="h6"><?= esc(lang('Accounting_treasuries.branch_balances_title')) ?></h2>
+        <p class="form-text mb-1" id="branch_balances_note"><?= esc(lang('Accounting_treasuries.branch_balances_note')) ?></p>
         <table class="table table-sm table-bordered w-auto mb-0" id="branch_balances">
             <thead>
                 <tr>

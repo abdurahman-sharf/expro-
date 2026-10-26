@@ -16,6 +16,7 @@ return [
     'between_difference' => 'لا يتقاصّ حسابا الذمم بين الفروع صفرًا: الفرق {0}. أي أن قيدًا في أحدهما لا يقابله قيد في الفرع الآخر.',
     'branch' => 'الفرع',
     'branch_balances_branch' => 'الفرع',
+    'branch_balances_note' => 'تأتي من تحويل المال بين الخزائن وتحويل المخزون بين مواقع فروع مختلفة.',
     'branch_balances_owed' => 'مستحق على الفروع الأخرى',
     'branch_balances_owing' => 'مستحق للفروع الأخرى',
     'branch_balances_title' => 'الأرصدة بين الفروع',
