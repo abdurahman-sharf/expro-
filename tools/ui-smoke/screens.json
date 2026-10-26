@@ -1434,6 +1434,31 @@
           "pause": 1000
         }
       ]
+    },
+    {
+      "id": "accounting-reports-trial-balance",
+      "group": "accounting",
+      "path": "/accounting_reports"
+    },
+    {
+      "id": "accounting-reports-trial-balance-movement",
+      "group": "accounting",
+      "path": "/accounting_reports?type=movement&entities=1&empty=1"
+    },
+    {
+      "id": "accounting-reports-ledger-empty",
+      "group": "accounting",
+      "path": "/accounting_reports/ledger"
+    },
+    {
+      "id": "accounting-reports-ledger-cash",
+      "group": "accounting",
+      "path": "/accounting_reports/ledger?account=21"
+    },
+    {
+      "id": "accounting-reports-ledger-group",
+      "group": "accounting",
+      "path": "/accounting_reports/ledger?account=20"
     }
   ]
 }
