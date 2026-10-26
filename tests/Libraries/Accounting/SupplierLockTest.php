@@ -5,6 +5,7 @@ namespace Tests\Libraries\Accounting;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\SupplierLock;
+use App\Libraries\Accounting\LockOutcome;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -14,6 +15,7 @@ use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ConcurrentDbRaceTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
+use Tests\Support\PooledConnection;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 
@@ -111,6 +113,77 @@ class SupplierLockTest extends CIUnitTestCase
         }
     }
 
+    private function connectionBehindAPooler(): PooledConnection
+    {
+        $pooled = new PooledConnection(config('Database')->tests);
+
+        $pooled->sendStatementsMentioning('IS_USED_LOCK', Database::connect('tests', false));
+
+        return $pooled;
+    }
+
+    public function testRun_RefusesAndDoesNotRunTheWorkWhenTheServerDoesNotHoldTheLockOnTheConnectionThatRunsIt(): void
+    {
+        $lock = new SupplierLock($this->connectionBehindAPooler());
+        $ran  = false;
+
+        try {
+            $lock->run($this->supplierId, static function () use (&$ran): void {
+                $ran = true;
+            });
+            $this->fail('A change must be refused when the lock is not held on the connection that makes it.');
+        } catch (AccountingException $exception) {
+            $this->assertSame(AccountingError::SupplierBusy, $exception->error);
+            $this->assertSame(LockOutcome::NotHeld->value, $exception->context['lock']);
+            $this->assertSame($this->supplierId, $exception->context['supplier_id']);
+        }
+
+        $this->assertFalse($ran);
+        $this->assertTrue($this->anotherConnectionCanTake($lock->nameOf($this->supplierId)), 'A refused change leaves no lock behind');
+    }
+
+    public function testRun_RefusesAndLeavesTheLockToItsHolderWhenTheConnectionAlreadyHeldItForSomebodyElse(): void
+    {
+        $db   = Database::connect();
+        $lock = new SupplierLock($db);
+        $name = $lock->nameOf($this->supplierId);
+        $ran  = false;
+
+        $db->query('SELECT GET_LOCK(?, 0)', [$name]);
+
+        try {
+            $lock->run($this->supplierId, static function () use (&$ran): void {
+                $ran = true;
+            });
+            $this->fail('A lock the connection already held for somebody else cannot protect the change.');
+        } catch (AccountingException $exception) {
+            $this->assertSame(AccountingError::SupplierBusy, $exception->error);
+            $this->assertSame(LockOutcome::Occupied->value, $exception->context['lock']);
+        }
+
+        $this->assertFalse($ran);
+        $this->assertSame(1, (int) $db->query('SELECT IS_USED_LOCK(?) = CONNECTION_ID() AS mine', [$name])->getRow()->mine, 'The holder keeps what it holds');
+        $this->assertFalse($this->anotherConnectionCanTake($name));
+
+        $db->query('SELECT RELEASE_LOCK(?)', [$name]);
+    }
+
+    public function testRun_LetsTheSameChangeTakeTheLockOfTheSameSupplierAgainAndLetsGoOnlyWhenItEnds(): void
+    {
+        $lock  = new SupplierLock();
+        $inner = null;
+        $after = null;
+
+        $lock->run($this->supplierId, function () use ($lock, &$inner, &$after): void {
+            $inner = $lock->run($this->supplierId, fn (): string => 'inner');
+            $after = $this->anotherConnectionCanTake($lock->nameOf($this->supplierId));
+        });
+
+        $this->assertSame('inner', $inner);
+        $this->assertFalse($after, 'The outer change still holds the lock when the inner one ends');
+        $this->assertTrue($this->anotherConnectionCanTake($lock->nameOf($this->supplierId)));
+    }
+
     public function testRun_TakesNoLockForAPurchaseWithoutASupplier(): void
     {
         $this->assertSame('ran', (new SupplierLock())->run(null, static fn (): string => 'ran'));
@@ -141,6 +214,28 @@ class SupplierLockTest extends CIUnitTestCase
 
         $this->assertSame(ACCOUNTING_FAILED, $result);
         $this->assertSame(AccountingError::SupplierBusy, $this->purchases->accountingFailure()->error);
+        $this->assertSame($rows, $this->countRows('receivings'));
+        $this->assertSame('0.000', $this->onHand($item));
+    }
+
+    public function testSaveValue_IsRefusedAndSavesNothingWhenTheLockOfTheSupplierIsNotHeldByTheConnectionThatSaves(): void
+    {
+        $db   = Database::connect();
+        $name = (new SupplierLock($db))->nameOf($this->supplierId);
+        $item = $this->item('0.00');
+        $rows = $this->countRows('receivings');
+
+        $db->query('SELECT GET_LOCK(?, 0)', [$name]);
+
+        try {
+            $result = $this->purchases->save_value([$this->purchaseLine($item, 0, '1', '10.00')], $this->supplierId, $this->employeeId, 'shared', 'REF', lang('Sales.due'));
+        } finally {
+            $db->query('SELECT RELEASE_LOCK(?)', [$name]);
+        }
+
+        $this->assertSame(ACCOUNTING_FAILED, $result);
+        $this->assertSame(AccountingError::SupplierBusy, $this->purchases->accountingFailure()->error);
+        $this->assertSame(LockOutcome::Occupied->value, $this->purchases->accountingFailure()->context['lock']);
         $this->assertSame($rows, $this->countRows('receivings'));
         $this->assertSame('0.000', $this->onHand($item));
     }

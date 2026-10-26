@@ -5,6 +5,7 @@ namespace Tests\Libraries\Accounting;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\CustomerLock;
+use App\Libraries\Accounting\LockOutcome;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -14,6 +15,7 @@ use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ConcurrentDbRaceTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
+use Tests\Support\PooledConnection;
 use Tests\Support\SaleAccountingFixtureTrait;
 
 /**
@@ -105,6 +107,77 @@ class CustomerLockTest extends CIUnitTestCase
         } finally {
             mysqli_close($link);
         }
+    }
+
+    private function connectionBehindAPooler(): PooledConnection
+    {
+        $pooled = new PooledConnection(config('Database')->tests);
+
+        $pooled->sendStatementsMentioning('IS_USED_LOCK', Database::connect('tests', false));
+
+        return $pooled;
+    }
+
+    public function testRun_RefusesAndDoesNotRunTheWorkWhenTheServerDoesNotHoldTheLockOnTheConnectionThatRunsIt(): void
+    {
+        $lock = new CustomerLock($this->connectionBehindAPooler());
+        $ran  = false;
+
+        try {
+            $lock->run($this->customerId, static function () use (&$ran): void {
+                $ran = true;
+            });
+            $this->fail('A change must be refused when the lock is not held on the connection that makes it.');
+        } catch (AccountingException $exception) {
+            $this->assertSame(AccountingError::CustomerBusy, $exception->error);
+            $this->assertSame(LockOutcome::NotHeld->value, $exception->context['lock']);
+            $this->assertSame($this->customerId, $exception->context['customer_id']);
+        }
+
+        $this->assertFalse($ran);
+        $this->assertTrue($this->anotherConnectionCanTake($lock->nameOf($this->customerId)), 'A refused change leaves no lock behind');
+    }
+
+    public function testRun_RefusesAndLeavesTheLockToItsHolderWhenTheConnectionAlreadyHeldItForSomebodyElse(): void
+    {
+        $db   = Database::connect();
+        $lock = new CustomerLock($db);
+        $name = $lock->nameOf($this->customerId);
+        $ran  = false;
+
+        $db->query('SELECT GET_LOCK(?, 0)', [$name]);
+
+        try {
+            $lock->run($this->customerId, static function () use (&$ran): void {
+                $ran = true;
+            });
+            $this->fail('A lock the connection already held for somebody else cannot protect the change.');
+        } catch (AccountingException $exception) {
+            $this->assertSame(AccountingError::CustomerBusy, $exception->error);
+            $this->assertSame(LockOutcome::Occupied->value, $exception->context['lock']);
+        }
+
+        $this->assertFalse($ran);
+        $this->assertSame(1, (int) $db->query('SELECT IS_USED_LOCK(?) = CONNECTION_ID() AS mine', [$name])->getRow()->mine, 'The holder keeps what it holds');
+        $this->assertFalse($this->anotherConnectionCanTake($name));
+
+        $db->query('SELECT RELEASE_LOCK(?)', [$name]);
+    }
+
+    public function testRun_LetsTheSameChangeTakeTheLockOfTheSameCustomerAgainAndLetsGoOnlyWhenItEnds(): void
+    {
+        $lock  = new CustomerLock();
+        $inner = null;
+        $after = null;
+
+        $lock->run($this->customerId, function () use ($lock, &$inner, &$after): void {
+            $inner = $lock->run($this->customerId, fn (): string => 'inner');
+            $after = $this->anotherConnectionCanTake($lock->nameOf($this->customerId));
+        });
+
+        $this->assertSame('inner', $inner);
+        $this->assertFalse($after, 'The outer change still holds the lock when the inner one ends');
+        $this->assertTrue($this->anotherConnectionCanTake($lock->nameOf($this->customerId)));
     }
 
     public function testRun_TakesNoLockForASaleWithoutACustomer(): void
