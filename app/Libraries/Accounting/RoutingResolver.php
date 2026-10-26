@@ -88,6 +88,29 @@ final class RoutingResolver
     }
 
     /**
+     * A system account that no routing row points to, by the key the chart gave it. It is for the
+     * rare posting that needs one fixed account, such as what is owed to parties that are not
+     * suppliers, and it stops with a named failure when the account cannot take entries.
+     *
+     * @throws PostingException
+     */
+    public function systemAccount(string $systemKey): int
+    {
+        $account = $this->db->table('accounting_accounts')
+            ->select('account_id, is_group, active')
+            ->where('company_id', CompanyContext::id())
+            ->where('system_key', $systemKey)
+            ->get()
+            ->getRow();
+
+        if ($account === null || (int) $account->is_group === 1 || (int) $account->active === 0) {
+            throw new PostingException(PostingError::RoutingAccountUnusable, "The system account {$systemKey} is missing, a group or inactive.", ['routing_key' => $systemKey]);
+        }
+
+        return (int) $account->account_id;
+    }
+
+    /**
      * @throws PostingException
      */
     private function mappedAccount(string $routingKey, ?object $route): int

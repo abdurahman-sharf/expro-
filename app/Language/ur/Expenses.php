@@ -32,6 +32,9 @@ return [
     'info'                       => '',
     'ip_address'                 => '',
     'is_deleted'                 => '',
+    'ledger'                     => '',
+    'ledger_posted'              => '',
+    'ledger_unposted'            => '',
     'name_required'              => '',
     'new'                        => '',
     'new_supplier'               => '',
@@ -47,5 +50,8 @@ return [
     'supplier_tax_code'          => '',
     'tax_amount'                 => '',
     'tax_amount_number'          => '',
+    'treasury'                   => '',
+    'treasury_default'           => '',
+    'unposted_filter'            => '',
     'update'                     => '',
 ];

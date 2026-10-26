@@ -32,6 +32,9 @@ return [
     'info'                       => 'Gider Bilgisi',
     'ip_address'                 => '',
     'is_deleted'                 => 'Silinmiş',
+    'ledger'                     => '',
+    'ledger_posted'              => '',
+    'ledger_unposted'            => '',
     'name_required'              => 'Gider Adı gereklidir',
     'new'                        => 'Yeni Gider',
     'new_supplier'               => '',
@@ -47,5 +50,8 @@ return [
     'supplier_tax_code'          => 'Vergi Kodu',
     'tax_amount'                 => 'Vergi',
     'tax_amount_number'          => '',
+    'treasury'                   => '',
+    'treasury_default'           => '',
+    'unposted_filter'            => '',
     'update'                     => 'Gider Güncelle',
 ];

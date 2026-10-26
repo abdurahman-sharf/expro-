@@ -32,6 +32,9 @@ return [
     'info'                       => 'Informação da despesa',
     'ip_address'                 => '',
     'is_deleted'                 => 'Apagado',
+    'ledger'                     => '',
+    'ledger_posted'              => '',
+    'ledger_unposted'            => '',
     'name_required'              => 'Nome da Despesa Requerido',
     'new'                        => 'Nova despesa',
     'new_supplier'               => '',
@@ -47,5 +50,8 @@ return [
     'supplier_tax_code'          => 'Código imposto',
     'tax_amount'                 => 'Imposto',
     'tax_amount_number'          => '',
+    'treasury'                   => '',
+    'treasury_default'           => '',
+    'unposted_filter'            => '',
     'update'                     => 'Atualizar Despesa',
 ];

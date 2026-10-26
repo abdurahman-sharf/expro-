@@ -32,6 +32,9 @@ return [
     'info'                       => 'اطلاعات هزینه',
     'ip_address'                 => '',
     'is_deleted'                 => 'حذف شده',
+    'ledger'                     => '',
+    'ledger_posted'              => '',
+    'ledger_unposted'            => '',
     'name_required'              => 'نام هزینه لازم است',
     'new'                        => 'هزینه جدید',
     'new_supplier'               => '',
@@ -47,5 +50,8 @@ return [
     'supplier_tax_code'          => 'کد مالیاتی',
     'tax_amount'                 => 'مالیات',
     'tax_amount_number'          => '',
+    'treasury'                   => '',
+    'treasury_default'           => '',
+    'unposted_filter'            => '',
     'update'                     => 'به روز رسانی هزینه',
 ];

@@ -2,6 +2,14 @@
 
 namespace App\Controllers;
 
+use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\AccountingMessage;
+use App\Libraries\Accounting\AccountingSettings;
+use App\Libraries\Accounting\PostingException;
+use App\Libraries\Accounting\TreasuryScopes;
+use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\Organization\BranchException;
+use App\Libraries\Organization\BranchGuard;
 use App\Models\Expense;
 use App\Models\Expense_category;
 use CodeIgniter\HTTP\ResponseInterface;
@@ -38,6 +46,10 @@ class Expenses extends Secure_Controller
             'is_deleted'  => lang('Expenses.is_deleted')
         ];
 
+        if ((new AccountingSettings())->isEnabled()) {
+            $data['filters']['only_unposted'] = lang('Expenses.unposted_filter');
+        }
+
         // Restore filters from URL
         $data = array_merge($data, restoreTableFilters($this->request));
 
@@ -62,6 +74,7 @@ class Expenses extends Secure_Controller
             'only_check'  => false,
             'only_credit' => false,
             'only_debit'  => false,
+            'only_unposted' => false,
             'is_deleted'  => false
         ];
 
@@ -133,6 +146,7 @@ class Expenses extends Secure_Controller
 
         // Don't allow gift card to be a payment option in a sale transaction edit because it's a complex change
         $data['payment_options'] = $this->expense->get_payment_options();
+        $data['treasury_options'] = $this->treasuryOptions((int) ($data['expenses_info']->treasury_id ?? 0));
 
         return view("expenses/form", $data);
     }
@@ -187,7 +201,13 @@ class Expenses extends Secure_Controller
             'deleted'             => $this->request->getPost('deleted') != null
         ];
 
-        if ($this->expense->save_value($expense_data, $expense_id)) {
+        $accountingOn = (new AccountingSettings())->isEnabled();
+
+        if ($accountingOn && $this->request->getPost('treasury_id') !== null) {
+            $expense_data['treasury_id'] = (int) $this->request->getPost('treasury_id', FILTER_SANITIZE_NUMBER_INT);
+        }
+
+        if ($this->expense->save_value($expense_data, $expense_id, (int) $current_employee_id)) {
             // New Expense
             if ($expense_id == NEW_ENTRY) {
                 return $this->response->setJSON(['success' => true, 'message' => lang('Expenses.successful_adding'), 'id' => $expense_data['expense_id']]);
@@ -195,7 +215,7 @@ class Expenses extends Secure_Controller
                 return $this->response->setJSON(['success' => true, 'message' => lang('Expenses.successful_updating'), 'id' => $expense_id]);
             }
         } else { // Failure
-            return $this->response->setJSON(['success' => false, 'message' => lang('Expenses.error_adding_updating'), 'id' => NEW_ENTRY]);
+            return $this->response->setJSON(['success' => false, 'message' => $this->refusal(lang('Expenses.error_adding_updating')), 'id' => NEW_ENTRY]);
         }
     }
 
@@ -206,10 +226,54 @@ class Expenses extends Secure_Controller
     {
         $expenses_to_delete = $this->request->getPost('ids', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
 
-        if ($this->expense->delete_list($expenses_to_delete)) {
+        if ($this->expense->delete_list($expenses_to_delete, (int) $this->employee->get_logged_in_employee_info()->person_id)) {
             return $this->response->setJSON(['success' => true, 'message' => lang('Expenses.successful_deleted') . ' ' . count($expenses_to_delete) . ' ' . lang('Expenses.one_or_multiple'), 'ids' => $expenses_to_delete]);
         } else {
-            return $this->response->setJSON(['success' => false, 'message' => lang('Expenses.cannot_be_deleted'), 'ids' => $expenses_to_delete]);
+            return $this->response->setJSON(['success' => false, 'message' => $this->refusal(lang('Expenses.cannot_be_deleted')), 'ids' => $expenses_to_delete]);
         }
+    }
+
+    /**
+     * What the books said about the change that was just refused, in words for the employee, or the
+     * usual message when the books had nothing to say.
+     */
+    private function refusal(string $usual): string
+    {
+        $failure = $this->expense->accountingFailure();
+
+        return $failure instanceof AccountingException || $failure instanceof BranchException || $failure instanceof PostingException
+            ? AccountingMessage::of($failure)
+            : $usual;
+    }
+
+    /**
+     * The treasuries an expense can be paid from, when there is a choice: the active ones the
+     * employee may withdraw from, in the branches they work in, and the one the expense already
+     * uses. Without accounting, or with nothing to choose from, there are none.
+     *
+     * @return array<int, string>
+     */
+    private function treasuryOptions(int $current): array
+    {
+        if (! (new AccountingSettings())->isEnabled()) {
+            return [];
+        }
+
+        $employeeId = (int) $this->employee->get_logged_in_employee_info()->person_id;
+        $treasuries = new TreasuryService();
+        $branchIds  = (new BranchGuard())->allowedBranchIds($employeeId);
+        $options    = [];
+
+        foreach ((new TreasuryScopes())->usable($treasuries->all($branchIds, false), TreasuryScopes::WITHDRAW, $employeeId) as $treasury) {
+            $options[(int) $treasury->treasury_id] = $treasury->name . ' (' . $treasury->branch_code . ')';
+        }
+
+        $carried = $current > 0 && ! isset($options[$current]) ? $treasuries->find($current) : null;
+
+        if ($carried !== null) {
+            $options[$current] = $carried->name . ' (' . $carried->branch_code . ')';
+        }
+
+        return $options === [] ? [] : [0 => lang('Expenses.treasury_default')] + $options;
     }
 }

@@ -16,6 +16,7 @@ final class AccountingSettings
     private const BASE_CURRENCY_KEY = 'accounting_base_currency';
     private const START_DATE_KEY    = 'accounting_start_date';
     private const AUTO_YEAR_KEY     = 'accounting_auto_fiscal_year';
+    private const EXPENSE_ACCOUNT_KEY = 'accounting_expense_account_required';
 
     private BaseConnection $db;
     private Appconfig $config;
@@ -58,6 +59,15 @@ final class AccountingSettings
     }
 
     /**
+     * Whether an expense must be charged to a category that has an account of its own, instead of
+     * falling back to the account of expenses the routing names.
+     */
+    public function expenseAccountRequired(): bool
+    {
+        return $this->config->get_value(self::EXPENSE_ACCOUNT_KEY, '0') === '1';
+    }
+
+    /**
      * The currency and the start date are fixed once a journal has been posted.
      */
     public function isLocked(): bool
@@ -76,7 +86,7 @@ final class AccountingSettings
     }
 
     /**
-     * @param array{base_currency?: string, start_date?: string, auto_fiscal_year?: bool} $input
+     * @param array{base_currency?: string, start_date?: string, auto_fiscal_year?: bool, expense_account_required?: bool} $input
      *
      * @throws AccountingException|BranchException
      */
@@ -84,7 +94,7 @@ final class AccountingSettings
     {
         $this->requireManage($employeeId);
 
-        $before  = ['base_currency' => $this->baseCurrency(), 'start_date' => $this->startDate(), 'auto_fiscal_year' => $this->autoFiscalYear()];
+        $before  = ['base_currency' => $this->baseCurrency(), 'start_date' => $this->startDate(), 'auto_fiscal_year' => $this->autoFiscalYear(), 'expense_account_required' => $this->expenseAccountRequired()];
         $after   = $before;
         $changes = [];
 
@@ -113,6 +123,10 @@ final class AccountingSettings
             $after['auto_fiscal_year'] = (bool) $input['auto_fiscal_year'];
         }
 
+        if (array_key_exists('expense_account_required', $input)) {
+            $after['expense_account_required'] = (bool) $input['expense_account_required'];
+        }
+
         foreach ($after as $key => $value) {
             if ($value !== $before[$key]) {
                 $changes[$key] = $value;
@@ -138,6 +152,7 @@ final class AccountingSettings
                 'base_currency'    => self::BASE_CURRENCY_KEY,
                 'start_date'       => self::START_DATE_KEY,
                 'auto_fiscal_year' => self::AUTO_YEAR_KEY,
+                'expense_account_required' => self::EXPENSE_ACCOUNT_KEY,
             }] = is_bool($value) ? ($value ? '1' : '0') : $value;
         }
 
@@ -180,7 +195,7 @@ final class AccountingSettings
      */
     public function notices(): array
     {
-        return (new RoutingService($this->db))->notices($this->startDate());
+        return [...(new RoutingService($this->db))->notices($this->startDate()), ...$this->unpostedNotices()];
     }
 
     /**
@@ -218,6 +233,26 @@ final class AccountingSettings
 
         $this->guard->require(AccountingGuard::SETTINGS_MANAGE, $employeeId);
         $this->branches->requireCompanyScope($employeeId);
+    }
+
+    /**
+     * @return list<ReadinessIssue> The expenses and the cash-ups the books do not hold, which only the retroactive posting adds.
+     */
+    private function unpostedNotices(): array
+    {
+        $issues   = [];
+        $expenses = (new ExpensePosting($this->db))->unpostedCount();
+        $cashups  = (new CashupPosting($this->db))->unpostedCount();
+
+        if ($expenses > 0) {
+            $issues[] = new ReadinessIssue(ReadinessCode::ExpensesUnposted, (string) $expenses);
+        }
+
+        if ($cashups > 0) {
+            $issues[] = new ReadinessIssue(ReadinessCode::CashupsUnposted, (string) $cashups);
+        }
+
+        return $issues;
     }
 
     private function fiscalYearCovers(string $date): bool

@@ -125,7 +125,7 @@ class AccountingJournals extends AccountingController
             'currency'     => (new AccountingSettings())->baseCurrency(),
             'can_draft'    => $this->can(AccountingGuard::JOURNALS_DRAFT),
             'can_post'     => $this->can(AccountingGuard::JOURNALS_POST),
-            'can_reverse'  => $this->can(AccountingGuard::JOURNALS_REVERSE) && ! in_array($journal->source_type, JournalService::TRANSFER_SOURCES, true),
+            'can_reverse'  => $this->can(AccountingGuard::JOURNALS_REVERSE) && ! in_array($journal->source_type, [...JournalService::TRANSFER_SOURCES, ...JournalService::DOCUMENT_SOURCES], true),
             'notice'       => session()->getFlashdata('accounting_notice'),
             'status_badge' => $this->badge($journal->status),
             'source_label' => $this->sourceLabel($journal->source_type, (string) ($journal->entry_type ?? 'general')),

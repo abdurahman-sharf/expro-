@@ -32,6 +32,9 @@ return [
     'info'                       => 'Expense Info',
     'ip_address'                 => '',
     'is_deleted'                 => 'Deleted',
+    'ledger'                     => 'Books',
+    'ledger_posted'              => 'In the books',
+    'ledger_unposted'            => 'Not in the books',
     'name_required'              => 'Expense Name required',
     'new'                        => 'New Expense',
     'new_supplier'               => '',
@@ -47,5 +50,8 @@ return [
     'supplier_tax_code'          => 'Tax Code',
     'tax_amount'                 => 'Tax',
     'tax_amount_number'          => '',
+    'treasury'                   => 'Paid from treasury',
+    'treasury_default'           => 'Default treasury',
+    'unposted_filter'            => 'Not in the books',
     'update'                     => 'Update Expense',
 ];

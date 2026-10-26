@@ -32,6 +32,9 @@ return [
     'info'                       => 'Xərc Məlumatı',
     'ip_address'                 => '',
     'is_deleted'                 => 'Silinib',
+    'ledger'                     => '',
+    'ledger_posted'              => '',
+    'ledger_unposted'            => '',
     'name_required'              => 'Xərcin məlumatı qeyd edilməlidir',
     'new'                        => 'Yeni Xərc',
     'new_supplier'               => '',
@@ -47,5 +50,8 @@ return [
     'supplier_tax_code'          => 'Vergi Məcəlləsi',
     'tax_amount'                 => 'Vergi',
     'tax_amount_number'          => '',
+    'treasury'                   => '',
+    'treasury_default'           => '',
+    'unposted_filter'            => '',
     'update'                     => 'Xərci Yenilə',
 ];

@@ -32,6 +32,9 @@ return [
     'info'                       => 'Taarifa za Matumizi',
     'ip_address'                 => '',
     'is_deleted'                 => 'Imefutwa',
+    'ledger'                     => '',
+    'ledger_posted'              => '',
+    'ledger_unposted'            => '',
     'name_required'              => 'Jina la Matumizi linahitajika',
     'new'                        => 'Matumizi Mpya',
     'new_supplier'               => '',
@@ -47,5 +50,8 @@ return [
     'supplier_tax_code'          => 'Namba ya Kodi',
     'tax_amount'                 => 'Kodi',
     'tax_amount_number'          => '',
+    'treasury'                   => '',
+    'treasury_default'           => '',
+    'unposted_filter'            => '',
     'update'                     => 'Sasisha Matumizi',
 ];

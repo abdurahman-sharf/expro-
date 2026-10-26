@@ -2,6 +2,11 @@
 
 namespace App\Controllers;
 
+use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\AccountingMessage;
+use App\Libraries\Accounting\AccountingSettings;
+use App\Libraries\Accounting\ExpenseCategoryAccounts;
+use App\Libraries\Organization\BranchException;
 use App\Models\Expense_category;
 use CodeIgniter\HTTP\ResponseInterface;
 use Config\Services;
@@ -68,6 +73,20 @@ class Expenses_categories extends Secure_Controller    // TODO: Is this class ev
     {
         $data['category_info'] = $this->expense_category->get_info($expense_category_id);
 
+        $accounts                  = new ExpenseCategoryAccounts();
+        $employeeId                = (int) $this->employee->get_logged_in_employee_info()->person_id;
+        $data['accounting_on']     = (new AccountingSettings())->isEnabled();
+        $data['account_options']   = [];
+        $data['can_assign_account'] = $data['accounting_on'] && $accounts->mayAssign($employeeId);
+
+        if ($data['accounting_on']) {
+            $data['account_options'] = [0 => lang('Expenses_categories.account_default')];
+
+            foreach ($accounts->options() as $account) {
+                $data['account_options'][(int) $account->account_id] = $account->code . ' - ' . $account->name;
+            }
+        }
+
         return view("expenses_categories/form", $data);
     }
 
@@ -82,7 +101,13 @@ class Expenses_categories extends Secure_Controller    // TODO: Is this class ev
             'category_description' => $this->request->getPost('category_description', FILTER_SANITIZE_FULL_SPECIAL_CHARS)
         ];
 
-        if ($this->expense_category->save_value($expense_category_data, $expense_category_id)) {
+        $account = $this->request->getPost('account_id', FILTER_SANITIZE_NUMBER_INT);
+
+        if ($account !== null && (new AccountingSettings())->isEnabled()) {
+            $expense_category_data['account_id'] = $account;
+        }
+
+        if ($this->expense_category->save_value($expense_category_data, $expense_category_id, (int) $this->employee->get_logged_in_employee_info()->person_id)) {
             // New expense_category
             if ($expense_category_id == NEW_ENTRY) {
                 return $this->response->setJSON([
@@ -98,6 +123,12 @@ class Expenses_categories extends Secure_Controller    // TODO: Is this class ev
                 ]);
             }
         } else { // Failure
+            $failure = $this->expense_category->accountingFailure();
+
+            if ($failure instanceof AccountingException || $failure instanceof BranchException) {
+                return $this->response->setJSON(['success' => false, 'message' => AccountingMessage::of($failure), 'id' => NEW_ENTRY]);
+            }
+
             return $this->response->setJSON([
                 'success' => true,
                 'message' => lang('Expenses_categories.error_adding_updating') . ' ' . $expense_category_data['category_name'],

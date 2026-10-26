@@ -32,6 +32,9 @@ return [
     'info'                       => 'Info de frais',
     'ip_address'                 => '',
     'is_deleted'                 => 'Supprimé',
+    'ledger'                     => '',
+    'ledger_posted'              => '',
+    'ledger_unposted'            => '',
     'name_required'              => 'Nom de frais requis',
     'new'                        => 'Nouvelle dépense',
     'new_supplier'               => '',
@@ -47,5 +50,8 @@ return [
     'supplier_tax_code'          => 'Code du taxe',
     'tax_amount'                 => 'Taxe',
     'tax_amount_number'          => '',
+    'treasury'                   => '',
+    'treasury_default'           => '',
+    'unposted_filter'            => '',
     'update'                     => 'Actualiser des dépenses',
 ];

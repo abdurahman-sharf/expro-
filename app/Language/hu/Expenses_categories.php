@@ -1,10 +1,14 @@
 <?php
 
 return [
-    'category_name_required'            => '',
+    'account'                           => '',
+    'account_default'                   => '',
+    'account_desc'                      => '',
+    'account_locked'                    => '',
     'add_item'                          => '',
     'cannot_be_deleted'                 => '',
     'category_id'                       => '',
+    'category_name_required'            => '',
     'confirm_delete'                    => '',
     'confirm_restore'                   => '',
     'description'                       => '',

@@ -32,6 +32,9 @@ return [
     'info'                       => 'ข้อมูลค่าใช้จ่าย',
     'ip_address'                 => '',
     'is_deleted'                 => 'ถูกลบ',
+    'ledger'                     => '',
+    'ledger_posted'              => '',
+    'ledger_unposted'            => '',
     'name_required'              => 'ต้องระบุชื่อค่าใช้จ่าย',
     'new'                        => 'เพิ่มค่าใช้จ่ายใหม่',
     'new_supplier'               => '',
@@ -47,5 +50,8 @@ return [
     'supplier_tax_code'          => 'รหัสภาษี',
     'tax_amount'                 => 'ภาษี',
     'tax_amount_number'          => '',
+    'treasury'                   => '',
+    'treasury_default'           => '',
+    'unposted_filter'            => '',
     'update'                     => 'ปรับปรุงค่าใช้จ่าย',
 ];

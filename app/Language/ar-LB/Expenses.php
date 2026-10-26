@@ -32,6 +32,9 @@ return [
     'info'                       => 'معلومات عن المصاريف',
     'ip_address'                 => '',
     'is_deleted'                 => 'ممسوحة',
+    'ledger'                     => 'الدفاتر',
+    'ledger_posted'              => 'في الدفاتر',
+    'ledger_unposted'            => 'خارج الدفاتر',
     'name_required'              => 'خانة مطلوبة: اسم المصاريف',
     'new'                        => 'مصاريف جديدة',
     'new_supplier'               => '',
@@ -47,5 +50,8 @@ return [
     'supplier_tax_code'          => 'كود ضريبة المورد',
     'tax_amount'                 => 'قيمة الضريبة',
     'tax_amount_number'          => '',
+    'treasury'                   => 'المدفوع من الخزينة',
+    'treasury_default'           => 'الخزينة الافتراضية',
+    'unposted_filter'            => 'خارج الدفاتر',
     'update'                     => 'تعديل',
 ];

@@ -2,9 +2,14 @@
 
 namespace App\Models;
 
+use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\AccountingSettings;
+use App\Libraries\Accounting\ExpenseCategoryAccounts;
+use App\Libraries\Organization\BranchException;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Model;
 use stdClass;
+use Throwable;
 
 /**
  * Expense_category class
@@ -18,8 +23,18 @@ class Expense_category extends Model
     protected $allowedFields = [
         'category_name',
         'category_description',
-        'deleted'
+        'deleted',
+        'account_id'
     ];
+    private ?Throwable $accountingFailure = null;
+
+    /**
+     * Why the last change to the account of a category was refused, or null when it was not.
+     */
+    public function accountingFailure(): ?Throwable
+    {
+        return $this->accountingFailure;
+    }
 
     /**
      * Determines if a given Expense_id is an Expense category
@@ -101,9 +116,48 @@ class Expense_category extends Model
     }
 
     /**
-     * Inserts or updates an expense_category
+     * Inserts or updates an expense_category. The account of the category is changed only with
+     * accounting on, only by an employee who may change the routing, and together with the rest of
+     * the category: the account being refused undoes the save, and accountingFailure() says why.
      */
-    public function save_value(array &$expense_category_data, int $expense_category_id = NEW_ENTRY): bool
+    public function save_value(array &$expense_category_data, int $expense_category_id = NEW_ENTRY, ?int $employeeId = null): bool
+    {
+        $this->accountingFailure = null;
+
+        $asked = array_key_exists('account_id', $expense_category_data);
+        $value = $expense_category_data['account_id'] ?? null;
+
+        unset($expense_category_data['account_id']);
+
+        if (! $asked || ! (new AccountingSettings($this->db))->isEnabled()) {
+            return $this->saveRow($expense_category_data, $expense_category_id);
+        }
+
+        $this->db->transStart();
+
+        try {
+            $success = $this->saveRow($expense_category_data, $expense_category_id);
+
+            if ($success) {
+                (new ExpenseCategoryAccounts($this->db))->assign((int) $expense_category_data['expense_category_id'], $value, $employeeId);
+            }
+        } catch (AccountingException|BranchException $failure) {
+            $this->db->transRollback();
+            $this->accountingFailure = $failure;
+
+            return false;
+        } catch (Throwable $unexpected) {
+            $this->db->transRollback();
+
+            throw $unexpected;
+        }
+
+        $this->db->transComplete();
+
+        return $success && $this->db->transStatus();
+    }
+
+    private function saveRow(array &$expense_category_data, int $expense_category_id): bool
     {
         $builder = $this->db->table('expense_categories');
 
@@ -118,8 +172,11 @@ class Expense_category extends Model
         }
 
         $builder->where('expense_category_id', $expense_category_id);
+        $success = $builder->update($expense_category_data);
 
-        return $builder->update($expense_category_data);
+        $expense_category_data['expense_category_id'] = $expense_category_id;
+
+        return $success;
     }
 
     /**

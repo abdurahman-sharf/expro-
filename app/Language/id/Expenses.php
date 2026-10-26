@@ -32,6 +32,9 @@ return [
     'info'                       => 'Info Biaya',
     'ip_address'                 => '',
     'is_deleted'                 => 'Dihapus',
+    'ledger'                     => '',
+    'ledger_posted'              => '',
+    'ledger_unposted'            => '',
     'name_required'              => 'Nama Biaya harus diisi',
     'new'                        => 'Biaya baru',
     'new_supplier'               => '',
@@ -47,5 +50,8 @@ return [
     'supplier_tax_code'          => 'Kode Pajak',
     'tax_amount'                 => 'Pajak',
     'tax_amount_number'          => '',
+    'treasury'                   => '',
+    'treasury_default'           => '',
+    'unposted_filter'            => '',
     'update'                     => 'Perbarui Biaya',
 ];

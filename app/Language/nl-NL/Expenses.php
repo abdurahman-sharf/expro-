@@ -32,6 +32,9 @@ return [
     'info'                       => 'Onkosten info',
     'ip_address'                 => '',
     'is_deleted'                 => 'Verwijderd',
+    'ledger'                     => '',
+    'ledger_posted'              => '',
+    'ledger_unposted'            => '',
     'name_required'              => 'Onkosten naam vereist',
     'new'                        => 'Nieuwe onkosten',
     'new_supplier'               => '',
@@ -47,5 +50,8 @@ return [
     'supplier_tax_code'          => 'Belastingcode',
     'tax_amount'                 => 'Belasting',
     'tax_amount_number'          => '',
+    'treasury'                   => '',
+    'treasury_default'           => '',
+    'unposted_filter'            => '',
     'update'                     => 'Onkosten bijwerken',
 ];

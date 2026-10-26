@@ -2,10 +2,17 @@
 
 namespace App\Models;
 
+use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\AccountingSettings;
+use App\Libraries\Accounting\CashupPosting;
+use App\Libraries\Accounting\LockedRead;
+use App\Libraries\Accounting\PostingException;
+use App\Libraries\Organization\BranchException;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Model;
 use Config\OSPOS;
 use stdClass;
+use Throwable;
 
 /**
  * Cashup class
@@ -31,8 +38,21 @@ class Cashup extends Model
         'open_employee_id',
         'close_employee_id',
         'deleted',
-        'closed_amount_due'
+        'closed_amount_due',
+        'branch_id',
+        'treasury_id',
+        'expected_amount_cash',
+        'cash_difference'
     ];
+    private ?Throwable $accountingFailure = null;
+
+    /**
+     * Why the last change to a cash-up was refused by the books, or null when it was not.
+     */
+    public function accountingFailure(): ?Throwable
+    {
+        return $this->accountingFailure;
+    }
 
     /**
      * Determines if a given Cashup_id is a Cashup
@@ -93,6 +113,7 @@ class Cashup extends Model
 
         $config = config(OSPOS::class)->settings;
         $builder = $this->db->table('cash_up AS cash_up');
+        $accountingOn = (new AccountingSettings($this->db))->isEnabled();
 
         // get_found_rows case
         if ($count_only) {
@@ -118,6 +139,10 @@ class Cashup extends Model
             MAX(close_employees.first_name) AS close_first_name,
             MAX(close_employees.last_name) AS close_last_name
         ');
+
+            if ($accountingOn) {
+                $builder->select('MAX(CASE WHEN cash_up.branch_id IS NULL THEN 0 ELSE 1 END) AS ledger_state', false);
+            }
         }
 
         $builder->join('people AS open_employees', 'open_employees.person_id = cash_up.open_employee_id', 'LEFT');
@@ -135,6 +160,10 @@ class Cashup extends Model
         $builder->groupEnd();
 
         $builder->where('cash_up.deleted', $filters['is_deleted']);
+
+        if ($accountingOn && !empty($filters['only_unposted'])) {
+            $builder->where('cash_up.branch_id IS NULL', null, false);
+        }
 
         if (empty($config['date_or_time_format'])) {    // TODO: convert this to ternary notation.
             $builder->where('DATE_FORMAT(cash_up.open_date, "%Y-%m-%d") BETWEEN ' . $this->db->escape($filters['start_date']) . ' AND ' . $this->db->escape($filters['end_date']));
@@ -180,6 +209,8 @@ class Cashup extends Model
             cash_up.open_employee_id AS open_employee_id,
             cash_up.close_employee_id AS close_employee_id,
             cash_up.deleted AS deleted,
+            cash_up.expected_amount_cash AS expected_amount_cash,
+            cash_up.cash_difference AS cash_difference,
             open_employees.first_name AS open_first_name,
             open_employees.last_name AS open_last_name,
             close_employees.first_name AS close_first_name,
@@ -188,6 +219,10 @@ class Cashup extends Model
         $builder->join('people AS open_employees', 'open_employees.person_id = cash_up.open_employee_id', 'LEFT');
         $builder->join('people AS close_employees', 'close_employees.person_id = cash_up.close_employee_id', 'LEFT');
         $builder->where('cashup_id', $cashup_id);
+
+        if ((new AccountingSettings($this->db))->isEnabled()) {
+            $builder->select('CASE WHEN cash_up.branch_id IS NULL THEN 0 ELSE 1 END AS ledger_state', false);
+        }
 
         $query = $builder->get();
         if ($query->getNumRows() == 1) {    // TODO: ===
@@ -223,9 +258,64 @@ class Cashup extends Model
 
 
     /**
-     * Inserts or updates a cashup
+     * Inserts or updates a cashup. With accounting on, a cash-up the books follow is saved with the
+     * journal of its cash difference in one transaction, and the books refusing it undoes both;
+     * accountingFailure() then says why. The actor is the employee who makes the change, whose
+     * branches and treasuries decide what is allowed, and is the employee who closes the cash-up
+     * when none is given.
      */
-    public function save_value(array &$cash_up_data, $cashup_id = NEW_ENTRY): bool
+    public function save_value(array &$cash_up_data, $cashup_id = NEW_ENTRY, ?int $actorId = null): bool
+    {
+        $this->accountingFailure = null;
+
+        if (! (new AccountingSettings($this->db))->isEnabled()) {
+            unset($cash_up_data['branch_id'], $cash_up_data['treasury_id'], $cash_up_data['expected_amount_cash'], $cash_up_data['cash_difference']);
+
+            return $this->saveRow($cash_up_data, $cashup_id);
+        }
+
+        $cashup_id = (int) $cashup_id;
+        $actorId ??= isset($cash_up_data['close_employee_id']) ? (int) $cash_up_data['close_employee_id'] : null;
+        $posting = new CashupPosting($this->db);
+        $branch  = null;
+        $stored  = null;
+
+        $this->db->transStart();
+
+        try {
+            if ($cashup_id !== NEW_ENTRY) {
+                $stored = LockedRead::row($this->db, 'SELECT * FROM ' . $this->db->prefixTable('cash_up') . ' WHERE cashup_id = ? FOR UPDATE', [$cashup_id]);
+            }
+
+            $plan         = $posting->plan($cash_up_data, $stored, $actorId);
+            $branch       = $plan['branch_id'];
+            $cash_up_data = $plan['data'];
+            $success      = $this->saveRow($cash_up_data, $cashup_id);
+
+            if ($success && $plan['post']) {
+                $posting->sync($stored === null ? (int) $cash_up_data['cashup_id'] : $cashup_id, $actorId);
+            }
+        } catch (AccountingException|BranchException|PostingException $failure) {
+            $this->db->transRollback();
+            $this->accountingFailure = $failure;
+
+            if ($failure instanceof PostingException) {
+                $posting->recordFailure($stored === null ? null : $cashup_id, $failure, $actorId, $branch);
+            }
+
+            return false;
+        } catch (Throwable $unexpected) {
+            $this->db->transRollback();
+
+            throw $unexpected;
+        }
+
+        $this->db->transComplete();
+
+        return $success && $this->db->transStatus();
+    }
+
+    private function saveRow(array &$cash_up_data, $cashup_id): bool
     {
         if (!$cashup_id == NEW_ENTRY || !$this->exists($cashup_id)) {
             $builder = $this->db->table('cash_up');
@@ -245,9 +335,59 @@ class Cashup extends Model
     }
 
     /**
-     * Deletes a list of cashups
+     * Deletes a list of cashups. With accounting on, the journal of each cash-up that is in the
+     * books is reversed with it, all in one transaction: either every cash-up goes or none.
      */
-    public function delete_list(array $cashup_ids): bool
+    public function delete_list(array $cashup_ids, ?int $actorId = null): bool
+    {
+        $this->accountingFailure = null;
+
+        if (! (new AccountingSettings($this->db))->isEnabled()) {
+            return $this->deleteRows($cashup_ids);
+        }
+
+        $posting = new CashupPosting($this->db);
+        $ids     = array_values(array_unique(array_map('intval', $cashup_ids)));
+
+        sort($ids);
+
+        $current = null;
+
+        $this->db->transStart();
+
+        try {
+            foreach ($ids as $cashupId) {
+                $current = $cashupId;
+                $row     = LockedRead::row($this->db, 'SELECT cashup_id FROM ' . $this->db->prefixTable('cash_up') . ' WHERE cashup_id = ? FOR UPDATE', [$cashupId]);
+
+                if ($row === null) {
+                    continue;
+                }
+
+                $posting->cancel($cashupId, $actorId);
+                $this->db->table('cash_up')->where('cashup_id', $cashupId)->update(['deleted' => 1]);
+            }
+        } catch (AccountingException|BranchException|PostingException $failure) {
+            $this->db->transRollback();
+            $this->accountingFailure = $failure;
+
+            if ($failure instanceof PostingException) {
+                $posting->recordFailure($current, $failure, $actorId);
+            }
+
+            return false;
+        } catch (Throwable $unexpected) {
+            $this->db->transRollback();
+
+            throw $unexpected;
+        }
+
+        $this->db->transComplete();
+
+        return $this->db->transStatus();
+    }
+
+    private function deleteRows(array $cashup_ids): bool
     {
         // Run these queries as a transaction, we want to make sure we do all or nothing
         $this->db->transStart();

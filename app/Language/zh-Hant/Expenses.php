@@ -32,6 +32,9 @@ return [
     'info'                       => '費用信息',
     'ip_address'                 => '',
     'is_deleted'                 => '已刪除',
+    'ledger'                     => '',
+    'ledger_posted'              => '',
+    'ledger_unposted'            => '',
     'name_required'              => '費用名稱必填',
     'new'                        => '新費用',
     'new_supplier'               => '',
@@ -47,5 +50,8 @@ return [
     'supplier_tax_code'          => '稅法',
     'tax_amount'                 => '稅',
     'tax_amount_number'          => '',
+    'treasury'                   => '',
+    'treasury_default'           => '',
+    'unposted_filter'            => '',
     'update'                     => '更新費用',
 ];

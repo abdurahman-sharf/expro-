@@ -1,6 +1,9 @@
 <?php
 /**
  * @var object $category_info
+ * @var bool $accounting_on
+ * @var array<int, string> $account_options
+ * @var bool $can_assign_account
  * @var string $controller_name
  */
 ?>
@@ -34,6 +37,16 @@
                 ]) ?>
             </div>
         </div>
+
+        <?php if (! empty($accounting_on)): ?>
+            <div class="field">
+                <?= form_label(lang('Expenses_categories.account'), 'account_id', ['class' => 'form-label']) ?>
+                <div class="field-control">
+                    <?= form_dropdown('account_id', $account_options, (string) ((int) $category_info->account_id), ['class' => 'form-select', 'id' => 'account_id'] + ($can_assign_account ? [] : ['disabled' => 'disabled'])) ?>
+                    <p class="form-text mb-0"><?= lang($can_assign_account ? 'Expenses_categories.account_desc' : 'Expenses_categories.account_locked') ?></p>
+                </div>
+            </div>
+        <?php endif; ?>
 
     </fieldset>
 <?= form_close() ?>

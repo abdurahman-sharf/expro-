@@ -1,10 +1,14 @@
 <?php
 
 return [
-    'category_name_required'            => 'Expense Category name required',
+    'account'                           => 'Account',
+    'account_default'                   => 'Automatic (the account of expenses in the routing)',
+    'account_desc'                      => 'The expenses of this category are charged to this account.',
+    'account_locked'                    => 'Only someone who can change the account routing can choose the account.',
     'add_item'                          => 'Add Category',
     'cannot_be_deleted'                 => 'Could not delete Category Expense(s)',
     'category_id'                       => 'Id',
+    'category_name_required'            => 'Expense Category name required',
     'confirm_delete'                    => 'Are you sure you want to delete the selected Expense Category?',
     'confirm_restore'                   => 'Are you sure you want to restore the selected Expense Category?',
     'description'                       => 'Category Description',

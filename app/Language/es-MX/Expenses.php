@@ -32,6 +32,9 @@ return [
     'info'                       => 'Información de Gasto',
     'ip_address'                 => '',
     'is_deleted'                 => 'Eliminado',
+    'ledger'                     => '',
+    'ledger_posted'              => '',
+    'ledger_unposted'            => '',
     'name_required'              => 'Se requiere el Nombre del Gasto',
     'new'                        => 'Nuevo Gasto',
     'new_supplier'               => '',
@@ -47,5 +50,8 @@ return [
     'supplier_tax_code'          => 'Código de Impuesto',
     'tax_amount'                 => 'Impuesto',
     'tax_amount_number'          => '',
+    'treasury'                   => '',
+    'treasury_default'           => '',
+    'unposted_filter'            => '',
     'update'                     => 'Actualizar Gasto',
 ];

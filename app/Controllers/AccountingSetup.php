@@ -45,6 +45,7 @@ class AccountingSetup extends AccountingController
             'currency'       => $this->settings->baseCurrency(),
             'start_date'     => (string) $this->settings->startDate(),
             'auto_year'      => $this->settings->autoFiscalYear(),
+            'expense_account_required' => $this->settings->expenseAccountRequired(),
             'locked'         => $this->settings->isLocked(),
             'next_number'    => $this->settings->lastManualNumber() + 1,
             'can_manage'     => $this->canManageSettings(),
@@ -67,6 +68,7 @@ class AccountingSetup extends AccountingController
                 'base_currency'    => (string) $this->request->getPost('base_currency'),
                 'start_date'       => (string) $this->request->getPost('start_date'),
                 'auto_fiscal_year' => $this->request->getPost('auto_fiscal_year') === '1',
+                'expense_account_required' => $this->request->getPost('expense_account_required') === '1',
             ], $this->employeeId());
 
             return ['success' => true, 'message' => lang('Accounting_settings.saved'), 'id' => 1];

@@ -2,6 +2,8 @@
 /**
  * @var object $cash_ups_info
  * @var array $employees
+ * @var bool $accounting_on
+ * @var string $expected_cash
  * @var string $controller_name
  * @var array $config
  */
@@ -127,6 +129,19 @@
             </div>
         </div>
 
+        <?php if (! empty($accounting_on) && isset($expected_cash)): ?>
+            <div class="field span-all">
+                <span class="form-label"><?= lang('Cashups.expected_cash') ?></span>
+                <div class="field-control">
+                    <span class="form-control-plaintext"><bdi dir="ltr"><?= esc(to_currency($expected_cash)) ?></bdi></span>
+                    <?php if (($cash_ups_info->cash_difference ?? null) !== null): ?>
+                        <span class="form-control-plaintext"><?= lang('Cashups.difference') ?>: <bdi dir="ltr"><?= esc(to_currency($cash_ups_info->cash_difference)) ?></bdi></span>
+                    <?php endif; ?>
+                    <p class="form-text mb-0"><?= lang('Cashups.difference_note') ?></p>
+                </div>
+            </div>
+        <?php endif; ?>
+
         <div class="field field-check span-all">
             <?= form_label(lang('Cashups.note'), 'note', ['class' => 'form-label']) ?>
             <div class="field-control">
@@ -219,6 +234,20 @@
                 </div>
             </div>
         </div>
+
+        <?php if (! empty($accounting_on) && isset($expected_cash)): ?>
+            <div class="field">
+                <span class="form-label"><?= lang('Cashups.expected_cash') ?></span>
+                <div class="field-control"><span class="form-control-plaintext"><bdi dir="ltr"><?= esc(to_currency($expected_cash)) ?></bdi></span></div>
+            </div>
+            <?php if (isset($cash_ups_info->cash_difference)): ?>
+                <div class="field">
+                    <span class="form-label"><?= lang('Cashups.difference') ?></span>
+                    <div class="field-control"><span class="form-control-plaintext"><bdi dir="ltr"><?= esc(to_currency($cash_ups_info->cash_difference)) ?></bdi></span></div>
+                </div>
+            <?php endif; ?>
+            <p class="form-text span-all"><span class="bi bi-info-circle" aria-hidden="true"></span> <?= lang('Cashups.difference_note') ?></p>
+        <?php endif; ?>
 
         <div class="field span-all">
             <?= form_label(lang('Cashups.description'), 'description', ['class' => 'form-label']) ?>

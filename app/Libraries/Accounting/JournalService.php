@@ -22,6 +22,10 @@ final class JournalService
         ReceivingPostingBuilder::SOURCE_STOCK_TRANSFER,
         ReceivingPostingBuilder::SOURCE_TRANSFER_RECEIPT,
     ];
+    public const DOCUMENT_SOURCES = [
+        ExpensePostingBuilder::SOURCE,
+        CashupPostingBuilder::SOURCE,
+    ];
     private const MAX_LINES      = 500;
     private const AMOUNT_PATTERN = '/^\d{1,11}(\.\d{1,4})?$/';
     private const SORTABLE       = ['journal_date', 'number', 'created_at', 'total_debit', 'status'];
@@ -288,6 +292,7 @@ final class JournalService
             ReceivingPostingBuilder::SOURCE_PAYMENT,
             ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT,
             ...self::TRANSFER_SOURCES,
+            ...self::DOCUMENT_SOURCES,
             SupplierAdvances::SOURCE,
         ])->countAllResults() > 0;
 
@@ -320,6 +325,10 @@ final class JournalService
 
                 if (in_array($original->source_type, self::TRANSFER_SOURCES, true)) {
                     throw new AccountingException(AccountingError::TransferJournalLocked, 'The journal of a transfer is taken back by cancelling the transfer.', ['journal_id' => $journalId]);
+                }
+
+                if (in_array($original->source_type, self::DOCUMENT_SOURCES, true)) {
+                    throw new AccountingException(AccountingError::DocumentJournalLocked, 'The journal of an expense or a cash-up is taken back by deleting it or changing it.', ['journal_id' => $journalId]);
                 }
             }
 

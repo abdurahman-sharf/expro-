@@ -32,6 +32,9 @@ return [
     'info'                       => 'Информация о расходах',
     'ip_address'                 => '',
     'is_deleted'                 => 'Удалено',
+    'ledger'                     => '',
+    'ledger_posted'              => '',
+    'ledger_unposted'            => '',
     'name_required'              => 'Назавние расходов - обязательно для заполнения',
     'new'                        => 'Новый расход',
     'new_supplier'               => '',
@@ -47,5 +50,8 @@ return [
     'supplier_tax_code'          => 'Налоговый код',
     'tax_amount'                 => 'Налог',
     'tax_amount_number'          => '',
+    'treasury'                   => '',
+    'treasury_default'           => '',
+    'unposted_filter'            => '',
     'update'                     => 'Обновление расходов',
 ];

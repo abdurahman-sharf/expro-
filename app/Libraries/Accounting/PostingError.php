@@ -45,4 +45,5 @@ enum PostingError: string
     case PurchaseReturnLineNotOnOrigin = 'purchase_return_line_not_on_origin';
     case PurchaseReturnExceedsOrigin   = 'purchase_return_exceeds_origin';
     case SaleReturnExceedsOrigin       = 'sale_return_exceeds_origin';
+    case ExpenseTaxInvalid             = 'expense_tax_invalid';
 }

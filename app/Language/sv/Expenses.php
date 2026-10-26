@@ -32,6 +32,9 @@ return [
     'info'                       => 'Utgifter info',
     'ip_address'                 => '',
     'is_deleted'                 => 'Raderad',
+    'ledger'                     => '',
+    'ledger_posted'              => '',
+    'ledger_unposted'            => '',
     'name_required'              => 'Expense Kategori namn krävs',
     'new'                        => 'Ny kostnad',
     'new_supplier'               => '',
@@ -47,5 +50,8 @@ return [
     'supplier_tax_code'          => 'Skattesats',
     'tax_amount'                 => 'Skatt',
     'tax_amount_number'          => '',
+    'treasury'                   => '',
+    'treasury_default'           => '',
+    'unposted_filter'            => '',
     'update'                     => 'Uppdatera kostnad',
 ];
