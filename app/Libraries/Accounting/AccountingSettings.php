@@ -12,10 +12,10 @@ use DateTimeImmutable;
 
 final class AccountingSettings
 {
-    private const ENABLED_KEY       = 'accounting_enabled';
-    private const BASE_CURRENCY_KEY = 'accounting_base_currency';
-    private const START_DATE_KEY    = 'accounting_start_date';
-    private const AUTO_YEAR_KEY     = 'accounting_auto_fiscal_year';
+    private const ENABLED_KEY         = 'accounting_enabled';
+    private const BASE_CURRENCY_KEY   = 'accounting_base_currency';
+    private const START_DATE_KEY      = 'accounting_start_date';
+    private const AUTO_YEAR_KEY       = 'accounting_auto_fiscal_year';
     private const EXPENSE_ACCOUNT_KEY = 'accounting_expense_account_required';
 
     private BaseConnection $db;
@@ -149,9 +149,9 @@ final class AccountingSettings
 
         foreach ($changes as $key => $value) {
             $values[match ($key) {
-                'base_currency'    => self::BASE_CURRENCY_KEY,
-                'start_date'       => self::START_DATE_KEY,
-                'auto_fiscal_year' => self::AUTO_YEAR_KEY,
+                'base_currency'            => self::BASE_CURRENCY_KEY,
+                'start_date'               => self::START_DATE_KEY,
+                'auto_fiscal_year'         => self::AUTO_YEAR_KEY,
                 'expense_account_required' => self::EXPENSE_ACCOUNT_KEY,
             }] = is_bool($value) ? ($value ? '1' : '0') : $value;
         }
