@@ -235,6 +235,11 @@ class ExpensePostingBuilderTest extends CIUnitTestCase
         $this->expectPostingFailure(PostingError::PaymentTypeUnknown, fn () => $this->draftOf($this->expense('100.00', '0', 'Gift Card')));
     }
 
+    public function testExpense_RejectsRewardPointsAsTheWayOfPayment(): void
+    {
+        $this->expectPostingFailure(PostingError::PaymentTypeUnknown, fn () => $this->draftOf($this->expense('100.00', '0', 'Reward Points')));
+    }
+
     public function testExpense_RejectsWhenTheAccountOfTaxPaidCannotTakeEntries(): void
     {
         $this->accountingDb()->table('accounting_routing')->where('routing_key', 'tax.input')->update(['account_id' => null]);

@@ -169,7 +169,7 @@ trait ExpenseAccountingFixtureTrait
     /**
      * A completed sale with one payment, written straight to the rows a cash-up reads.
      */
-    protected function sellFor(string $amount, string $paymentType = 'Cash', string $time = '2026-10-20 12:00:00', int $branchId = 1, string $status = 'completed', string $refund = '0'): int
+    protected function sellFor(string $amount, string $paymentType = 'Cash', string $time = '2026-10-20 12:00:00', int $branchId = 1, string $status = 'completed', string $refund = '0', int $saleType = SALE_TYPE_POS): int
     {
         $db = $this->accountingDb();
 
@@ -178,7 +178,7 @@ trait ExpenseAccountingFixtureTrait
             'employee_id' => $this->clerkId,
             'comment'     => '',
             'sale_status' => COMPLETED,
-            'sale_type'   => SALE_TYPE_POS,
+            'sale_type'   => $saleType,
             'branch_id'   => $branchId,
         ]);
 
