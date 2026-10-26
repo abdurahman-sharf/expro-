@@ -232,6 +232,8 @@ final class OpeningBalanceService
                 branchId: $branchId,
             );
 
+            (new TreasuryScopes($this->db))->assertMayPost($draft->lines, $employeeId);
+
             $result = (new PostingService($this->db))->post($draft);
 
             if (! $result->created) {

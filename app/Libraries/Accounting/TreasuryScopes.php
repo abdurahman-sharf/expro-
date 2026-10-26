@@ -121,11 +121,13 @@ final class TreasuryScopes
             return;
         }
 
+        $delta = [];
+
         foreach ($this->netOfJournal($journalId) as $treasuryId => $net) {
-            if (bccomp($net, '0', self::SCALE) !== 0) {
-                $this->assertAllows($treasuryId, bccomp($net, '0', self::SCALE) > 0 ? self::WITHDRAW : self::DEPOSIT, $employeeId);
-            }
+            $delta[$treasuryId] = bcsub('0', $net, self::SCALE);
         }
+
+        $this->assertMoves($delta, $employeeId);
     }
 
     /**
@@ -147,23 +149,30 @@ final class TreasuryScopes
             $delta[$treasuryId] = bcsub('0', $net, self::SCALE);
         }
 
-        foreach ($replacement?->lines ?? [] as $line) {
-            $owner = $this->ownerOfAccount($line->accountId);
-
-            if ($owner !== null) {
-                $delta[$owner] = bcadd($delta[$owner] ?? '0', bcsub($line->debit, $line->credit, self::SCALE), self::SCALE);
-            }
+        foreach ($this->netOfLines($replacement?->lines ?? []) as $treasuryId => $net) {
+            $delta[$treasuryId] = bcadd($delta[$treasuryId] ?? '0', $net, self::SCALE);
         }
 
-        ksort($delta);
+        $this->assertMoves($delta, $employeeId);
+    }
 
-        foreach ($delta as $treasuryId => $amount) {
-            $sign = bccomp($amount, '0', self::SCALE);
-
-            if ($sign !== 0) {
-                $this->assertAllows($treasuryId, $sign > 0 ? self::DEPOSIT : self::WITHDRAW, $employeeId);
-            }
+    /**
+     * A journal written by hand, or an opening balance, moves money when it debits or credits the
+     * account of a treasury just as a payment does: what it debits is a deposit into the treasury
+     * and what it credits is a withdrawal from it. Posting a draft is what moves the money, so
+     * saving one asks nothing.
+     *
+     * @param list<JournalLineDraft> $lines
+     *
+     * @throws AccountingException
+     */
+    public function assertMayPost(array $lines, ?int $employeeId): void
+    {
+        if ($employeeId === null) {
+            return;
         }
+
+        $this->assertMoves($this->netOfLines($lines), $employeeId);
     }
 
     /**
@@ -269,6 +278,49 @@ final class TreasuryScopes
                 $this->audit->write('treasury', $treasuryId, 'scope_changed', $employeeId, JournalOrigin::User, ['before' => $before, 'after' => $after], $branchId);
             }
         });
+    }
+
+    /**
+     * What lines move into each treasury they touch: debits less credits, by treasury.
+     *
+     * @param iterable<JournalLineDraft> $lines
+     *
+     * @return array<int, string>
+     */
+    private function netOfLines(iterable $lines): array
+    {
+        $net = [];
+
+        foreach ($lines as $line) {
+            $owner = $this->ownerOfAccount($line->accountId);
+
+            if ($owner !== null) {
+                $net[$owner] = bcadd($net[$owner] ?? '0', bcsub($line->debit === '' ? '0' : $line->debit, $line->credit === '' ? '0' : $line->credit, self::SCALE), self::SCALE);
+            }
+        }
+
+        return $net;
+    }
+
+    /**
+     * Asks the deposit scope of each treasury that is to hold more and the withdrawal scope of
+     * each that is to hold less.
+     *
+     * @param array<int, string> $delta
+     *
+     * @throws AccountingException
+     */
+    private function assertMoves(array $delta, int $employeeId): void
+    {
+        ksort($delta);
+
+        foreach ($delta as $treasuryId => $amount) {
+            $sign = bccomp($amount, '0', self::SCALE);
+
+            if ($sign !== 0) {
+                $this->assertAllows($treasuryId, $sign > 0 ? self::DEPOSIT : self::WITHDRAW, $employeeId);
+            }
+        }
     }
 
     /**

@@ -575,6 +575,61 @@ class JournalServiceTest extends CIUnitTestCase
         $this->assertSame('posted', $this->journal($this->service->reverse($second, '2026-10-22', 'The books act'))->status);
     }
 
+    /**
+     * A journal of the given amount that debits a treasury scoped to the employees given, or credits it.
+     *
+     * @return array<string, mixed>
+     */
+    private function journalOnATreasury(string $scope, array $members, bool $debit, string $amount = '75.00'): array
+    {
+        $treasuries = new TreasuryService();
+        $drawer     = $treasuries->create(['name' => 'Scoped drawer ' . uniqid(), 'kind' => 'cash', ($debit ? 'deposit' : 'withdraw') . '_scope' => $scope, ($debit ? 'deposit' : 'withdraw') . '_members' => $members]);
+        $input      = $this->journalInput($amount);
+        $line       = $debit ? 0 : 1;
+
+        $input['lines'][$line]['account_id'] = (int) $treasuries->accountOf($drawer);
+
+        return $input;
+    }
+
+    public function testPostNew_RefusesAnEmployeeWhoMayNotDepositIntoTheTreasuryTheJournalDebits(): void
+    {
+        $input = $this->journalOnATreasury('staff', [$this->employeeWithGrants([])], true);
+
+        $this->assertFailsWith(AccountingError::TreasuryDepositDenied, fn () => $this->service->postNew($input, $this->accountant()));
+        $this->assertSame(0, $this->accountingDb()->table('accounting_journals')->where('source_type', 'manual')->countAllResults());
+    }
+
+    public function testPostNew_RefusesAnEmployeeWhoMayNotWithdrawFromTheTreasuryTheJournalCredits(): void
+    {
+        $input = $this->journalOnATreasury('staff', [$this->employeeWithGrants([])], false);
+
+        $this->assertFailsWith(AccountingError::TreasuryWithdrawDenied, fn () => $this->service->postNew($input, $this->accountant()));
+        $this->assertSame(0, $this->accountingDb()->table('accounting_journals')->where('source_type', 'manual')->countAllResults());
+    }
+
+    public function testPostNew_AcceptsAnEmployeeWhoMayUseTheTreasuryAndTheBooksAlways(): void
+    {
+        $accountant = $this->accountant();
+        $closed     = $this->journalOnATreasury('staff', [$this->employeeWithGrants([])], true);
+        $open       = $this->journalOnATreasury('staff', [$accountant], true);
+
+        $this->assertGreaterThan(0, $this->service->postNew($open, $accountant));
+        $this->assertGreaterThan(0, $this->service->postNew($closed));
+    }
+
+    public function testPostDraft_RefusesWhatPostNewRefusesAndSavingTheDraftAsksNothing(): void
+    {
+        $input      = $this->journalOnATreasury('staff', [$this->employeeWithGrants([])], true);
+        $accountant = $this->accountant();
+        $draftId    = $this->service->saveDraft($input, $accountant);
+
+        $this->assertFailsWith(AccountingError::TreasuryDepositDenied, fn () => $this->service->postDraft($draftId, $accountant));
+        $this->assertFailsWith(AccountingError::TreasuryDepositDenied, fn () => $this->service->postDraft($draftId, $accountant, $input));
+        $this->assertSame('draft', $this->journal($draftId)->status);
+        $this->assertSame($draftId, $this->service->postDraft($draftId), 'The books may post it');
+    }
+
     public function testReverse_WritesAnAuditEntryWithTheReason(): void
     {
         $original = $this->service->postNew($this->journalInput());

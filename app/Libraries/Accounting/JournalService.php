@@ -169,7 +169,11 @@ final class JournalService
 
         $this->periods->prepare($date);
 
-        $prepared = $this->posting->validate($this->toPostingDraft($date, $description, $lines, $employeeId, $branchId));
+        $draft = $this->toPostingDraft($date, $description, $lines, $employeeId, $branchId);
+
+        (new TreasuryScopes($this->db))->assertMayPost($draft->lines, $employeeId);
+
+        $prepared = $this->posting->validate($draft);
 
         return $this->transactional(function () use ($journalId, $employeeId, $prepared, $date, $description): int {
             $this->periods->enforce($date, $prepared['branch_id']);
@@ -218,7 +222,11 @@ final class JournalService
         $description = trim((string) ($input['description'] ?? ''));
         $lines       = $this->normalizeDraftLines($input['lines'] ?? []);
 
-        return $this->posting->post($this->toPostingDraft($date, $description, $lines, $employeeId, $branchId))->journalId;
+        $draft = $this->toPostingDraft($date, $description, $lines, $employeeId, $branchId);
+
+        (new TreasuryScopes($this->db))->assertMayPost($draft->lines, $employeeId);
+
+        return $this->posting->post($draft)->journalId;
     }
 
     /**
@@ -250,6 +258,8 @@ final class JournalService
         if (! $isOpening) {
             throw new AccountingException(AccountingError::JournalNotFound, "Journal {$journalId} does not exist.");
         }
+
+        (new TreasuryScopes($this->db))->assertMayReverse($journalId, $employeeId);
 
         return $this->reverseJournal($journalId, $date, $reason, $employeeId, false);
     }

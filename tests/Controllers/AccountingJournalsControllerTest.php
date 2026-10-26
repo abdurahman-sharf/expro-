@@ -8,6 +8,7 @@ use App\Libraries\Accounting\CostCenterService;
 use App\Libraries\Accounting\JournalOrigin;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\PostingService;
+use App\Libraries\Accounting\TreasuryService;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -160,6 +161,23 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         $this->assertFalse($result['success']);
         $this->assertStringContainsString('100', $result['message']);
         $this->assertStringContainsString('90', $result['message']);
+        $this->assertSame(0, $this->countRows('accounting_journals'));
+    }
+
+    public function testPostPost_SaysWhichTreasuryTheEmployeeMayNotDepositIntoAndPostsNothing(): void
+    {
+        $treasuries = new TreasuryService();
+        $drawer     = $treasuries->create(['name' => 'Closed drawer', 'kind' => 'cash', 'deposit_scope' => 'staff', 'deposit_members' => [$this->employeeWithGrants([])]]);
+        $input      = $this->formInput();
+
+        $input['lines'][0]['account_id'] = (string) $treasuries->accountOf($drawer);
+
+        $this->accountant();
+
+        $result = $this->jsonOf($this->post('/accounting_journals/post', $input));
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString('Closed drawer', $result['message']);
         $this->assertSame(0, $this->countRows('accounting_journals'));
     }
 

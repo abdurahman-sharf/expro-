@@ -10,6 +10,7 @@ use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\OpeningBalanceService;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
 use CodeIgniter\Database\BaseConnection;
@@ -365,6 +366,51 @@ class OpeningBalanceServiceTest extends CIUnitTestCase
 
         $this->assertFailsWith(AccountingError::ReasonRequired, fn () => $this->service->reverse(1, '2026-01-02', ' ', $employee));
         $this->assertFailsWith(AccountingError::PermissionDenied, fn () => $this->service->reverse(1, '2026-01-02', 'Reason', $this->employeeWithGrants([AccountingGuard::JOURNALS_REVERSE])));
+    }
+
+    /**
+     * @return list<array<string, string>>
+     */
+    private function linesOnATreasury(string $direction, array $scopeMembers, string $amount = '500.00'): array
+    {
+        $treasuries = new TreasuryService();
+        $drawer     = $treasuries->create(['name' => 'Scoped drawer', 'kind' => 'cash', $direction . '_scope' => 'staff', $direction . '_members' => $scopeMembers]);
+        $account    = (string) $treasuries->accountOf($drawer);
+
+        return [
+            ['account_id' => $account, 'description' => '', 'debit' => $amount, 'credit' => ''],
+            ['account_id' => (string) $this->accountId('retained_earnings'), 'description' => '', 'debit' => '', 'credit' => $amount],
+        ];
+    }
+
+    public function testPost_RefusesAnEmployeeWhoMayNotDepositIntoATreasuryTheOpeningDebits(): void
+    {
+        $employee = $this->manager();
+        $lines    = $this->linesOnATreasury('deposit', [$this->employeeWithGrants([])]);
+
+        $this->service->saveDraft(1, $lines, $employee);
+
+        $this->assertFailsWith(AccountingError::TreasuryDepositDenied, fn () => $this->service->post(1, null, false, $employee));
+        $this->assertNull($this->service->state(1, $employee)['posted']);
+        $this->assertNotNull($this->service->state(1, $employee)['draft'], 'The draft stays');
+        $this->assertGreaterThan(0, $this->service->post(1, $lines, false, null), 'The books may post it');
+    }
+
+    public function testPost_AcceptsAnEmployeeWhoMayDepositIntoThatTreasury(): void
+    {
+        $employee = $this->manager();
+
+        $this->assertGreaterThan(0, $this->service->post(1, $this->linesOnATreasury('deposit', [$employee]), false, $employee));
+    }
+
+    public function testReverse_RefusesAnEmployeeWhoMayNotWithdrawFromATreasuryTheOpeningPutMoneyInto(): void
+    {
+        $employee = $this->manager();
+        $original = $this->service->post(1, $this->linesOnATreasury('withdraw', [$this->employeeWithGrants([])]), false, null);
+
+        $this->assertFailsWith(AccountingError::TreasuryWithdrawDenied, fn () => $this->service->reverse(1, '2026-01-02', 'Wrong counts', $employee));
+        $this->assertSame('posted', $this->accountingDb()->table('accounting_journals')->where('journal_id', $original)->get()->getRow()->status);
+        $this->assertGreaterThan(0, $this->service->reverse(1, '2026-01-02', 'The books act', null));
     }
 
     public function testReverseOpening_RefusesAJournalThatIsNotAnOpeningBalance(): void

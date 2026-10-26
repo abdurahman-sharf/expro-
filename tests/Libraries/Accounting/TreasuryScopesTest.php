@@ -466,6 +466,58 @@ class TreasuryScopesTest extends CIUnitTestCase
         $this->addToAssertionCount(2);
     }
 
+    public function testAssertMayPost_AsksTheDepositScopeOfWhatTheLinesDebitAndLeavesWhatTheyCreditToTheWithdrawalScope(): void
+    {
+        $named  = $this->employeeWithGrants([]);
+        $other  = $this->employeeWithGrants([]);
+        $drawer = $this->drawer(['deposit_scope' => 'staff', 'deposit_members' => [$named]]);
+        $into   = $this->draftBetween((int) $this->treasuries->accountOf($drawer), $this->accountId('opening_balance'), '30.00');
+        $out    = $this->draftBetween($this->accountId('opening_balance'), (int) $this->treasuries->accountOf($drawer), '30.00');
+
+        $this->scopes->assertMayPost($into->lines, $named);
+        $this->assertSame(AccountingError::TreasuryDepositDenied, $this->refusal(fn () => $this->scopes->assertMayPost($into->lines, $other))->error);
+        $this->scopes->assertMayPost($out->lines, $other);
+        $this->addToAssertionCount(1);
+    }
+
+    public function testAssertMayPost_AsksTheWithdrawalScopeOfWhatTheLinesCredit(): void
+    {
+        $named  = $this->employeeWithGrants([]);
+        $other  = $this->employeeWithGrants([]);
+        $drawer = $this->drawer(['withdraw_scope' => 'staff', 'withdraw_members' => [$named]]);
+        $out    = $this->draftBetween($this->accountId('opening_balance'), (int) $this->treasuries->accountOf($drawer), '30.00');
+
+        $this->scopes->assertMayPost($out->lines, $named);
+        $this->assertSame(AccountingError::TreasuryWithdrawDenied, $this->refusal(fn () => $this->scopes->assertMayPost($out->lines, $other))->error);
+    }
+
+    public function testAssertMayPost_AsksBothTreasuriesOfLinesBetweenTwoOfThem(): void
+    {
+        $named = $this->employeeWithGrants([]);
+        $other = $this->employeeWithGrants([]);
+        $from  = $this->drawer(['withdraw_scope' => 'staff', 'withdraw_members' => [$named]], 'From');
+        $to    = $this->drawer(['deposit_scope' => 'staff', 'deposit_members' => [$named]], 'To');
+        $moved = $this->draftBetween((int) $this->treasuries->accountOf($to), (int) $this->treasuries->accountOf($from), '30.00');
+
+        $this->scopes->assertMayPost($moved->lines, $named);
+
+        $refusal = $this->refusal(fn () => $this->scopes->assertMayPost($moved->lines, $other));
+
+        $this->assertContains($refusal->error, [AccountingError::TreasuryWithdrawDenied, AccountingError::TreasuryDepositDenied]);
+    }
+
+    public function testAssertMayPost_AsksNothingOfLinesThatTouchNoTreasuryAndNothingOfTheBooks(): void
+    {
+        $named  = $this->employeeWithGrants([]);
+        $drawer = $this->drawer(['deposit_scope' => 'staff', 'deposit_members' => [$named], 'withdraw_scope' => 'staff', 'withdraw_members' => [$named]]);
+        $plain  = $this->draftBetween($this->accountId('sales_revenue'), $this->accountId('opening_balance'), '30.00');
+        $into   = $this->draftBetween((int) $this->treasuries->accountOf($drawer), $this->accountId('opening_balance'), '30.00');
+
+        $this->scopes->assertMayPost($plain->lines, $this->employeeWithGrants([]));
+        $this->scopes->assertMayPost($into->lines, null);
+        $this->addToAssertionCount(2);
+    }
+
     public function testOwnerOfAccount_NamesTheTreasuryWhoseAccountItIsAndNobodyForAnyOther(): void
     {
         $drawer = $this->drawer();
