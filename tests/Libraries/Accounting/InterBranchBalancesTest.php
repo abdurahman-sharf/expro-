@@ -288,6 +288,28 @@ class InterBranchBalancesTest extends CIUnitTestCase
         $this->assertFalse($plan->canBeSettled());
     }
 
+    public function testReport_LeavesOutADraftAndTheJournalsOfAnotherCompany(): void
+    {
+        $this->send($this->first, $this->second, '100.00');
+
+        $db      = $this->accountingDb();
+        $this->recordedJournal('branches_receivable', '70.00', 1, 'draft', 1);
+
+        $this->assertSame('100.0000', $this->rows()['1>' . $this->secondBranch]->owed, 'A draft is not what a branch is owed');
+
+        $db->table('companies')->insert(['name' => 'Another company']);
+        $company = (int) $db->insertID();
+
+        try {
+            $db->table('accounting_journals')->whereIn('source_type', [TreasuryTransfers::SOURCE, TreasuryTransfers::SOURCE_RECEIPT])->update(['company_id' => $company]);
+
+            $this->assertSame([], $this->rows(), 'The journals of another company are not these');
+        } finally {
+            $db->table('accounting_journals')->whereIn('source_type', [TreasuryTransfers::SOURCE, TreasuryTransfers::SOURCE_RECEIPT])->update(['company_id' => 1]);
+            $db->table('companies')->where('company_id', $company)->delete();
+        }
+    }
+
     public function testReport_ShowsOnlyThePairsOfTheBranchesTheReaderMaySeeAndNotTheCompanyCheck(): void
     {
         $this->send($this->first, $this->second, '100.00');
@@ -367,6 +389,23 @@ class InterBranchBalancesTest extends CIUnitTestCase
             $owing = $this->journalOn('branches_payable', $amount, false, $this->secondBranch, $date, $number + 100000);
             $legs->record($owing, $this->accountId('branches_payable'), InterBranchLegs::PAYABLE, 1, 'interbranch_test', $number, 1);
         }
+    }
+
+    private function recordedJournal(string $systemKey, string $amount, int $branchId, string $status, int $counterpartId): int
+    {
+        $db = $this->accountingDb();
+
+        $db->table('accounting_journals')->insert(['series' => 'draft', 'number' => 'D' . uniqid(), 'journal_date' => '2026-10-21', 'status' => $status, 'source_type' => 'interbranch_test', 'source_id' => random_int(100000, 900000), 'currency_code' => 'SAR', 'total_debit' => $amount, 'total_credit' => $amount, 'branch_id' => $branchId]);
+
+        $journalId = (int) $db->insertID();
+
+        $db->table('accounting_journal_lines')->insertBatch([
+            ['journal_id' => $journalId, 'line_no' => 1, 'account_id' => $this->accountId($systemKey), 'debit' => $amount, 'credit' => 0],
+            ['journal_id' => $journalId, 'line_no' => 2, 'account_id' => $this->accountId('opening_balance'), 'debit' => 0, 'credit' => $amount],
+        ]);
+        (new InterBranchLegs())->record($journalId, $this->accountId($systemKey), InterBranchLegs::RECEIVABLE, $this->secondBranch, 'interbranch_test', $journalId, 1);
+
+        return $journalId;
     }
 
     private function journalOn(string $systemKey, string $amount, bool $debit, int $branchId, string $date, int $number): int
