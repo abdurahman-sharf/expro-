@@ -1,6 +1,6 @@
 # تقرير WP3: المصروفات وإقفال الصندوق في الدفاتر
 
-> الحالة (2026-10-26): **نُفِّذ على الفرع `wp/WP3`** (نسخة العمل `/home/user/wt/WP3`، من الإيداع `f5d4927`) بالتفويض التنفيذي الشامل (E47)، حزمة **WP3**: بنود `FIN-05` و`FIN-02` و`FIN-04` و`A4`. **كل مصروف وتعديله وحذفه يُرحَّل إلى الدفتر في معاملة الحفظ نفسها بقيد واحد متوازن**، **وإقفال الصندوق يُرحَّل فرقه وحده** (تصميم متحفظ للمالك حق نقضه، القسم 3). **لا دمج في `master`، ولا دفع، ولا نشر، ولا شيكات، ولا كتابة في دفترة** (الحزمة لا تحتاج دخولًا إلى دفترة: القيد المرجعي `S-25` مرصود ومثبَّت في `T-25`، وبيانات الدخول المرسلة لم تُستعمل). ولم أعدّل `decisions.md` ولا المصفوفة ولا تقرير الفجوات ولا قائمة النشر: النص المقترح لها في آخر هذا التقرير للمُدمِج.
+> الحالة (2026-10-27): **نُفِّذ على الفرع `wp/WP3`** (نسخة العمل `/home/user/wt/WP3`، من الإيداع `f5d4927`) بالتفويض التنفيذي الشامل (E47)، حزمة **WP3**: بنود `FIN-05` و`FIN-02` و`FIN-04` و`A4`. **كل مصروف وتعديله وحذفه يُرحَّل إلى الدفتر في معاملة الحفظ نفسها بقيد واحد متوازن**، **وإقفال الصندوق يُرحَّل فرقه وحده** (تصميم متحفظ للمالك حق نقضه، القسم 3). **لا دمج في `master`، ولا دفع، ولا نشر، ولا شيكات، ولا كتابة في دفترة** (الحزمة لا تحتاج دخولًا إلى دفترة: القيد المرجعي `S-25` مرصود ومثبَّت في `T-25`، وبيانات الدخول المرسلة لم تُستعمل). ولم أعدّل `decisions.md` ولا المصفوفة ولا تقرير الفجوات ولا قائمة النشر: النص المقترح لها في آخر هذا التقرير للمُدمِج.
 
 ## 1. ما نُفِّذ
 
@@ -24,10 +24,10 @@
 ## 2. الأدلة
 
 - **مطابقة `S-25` (مرصودة):** ملف التثبيت `tests/Support/Parity/T-25.json` بثلاث حالات: `expense-200-with-15-percent-tax` **مطابقة تامة** (مدين `541` بـ200، مدين `215002` بـ30، دائن الخزينة 230)، و`expense-journal-owes-nobody` **مطابقة تامة** (لا طرف في أي سطر)، و`amount-entered-includes-the-tax` **يختلف**: في دفترة يُدخل المستخدم 200 وتُضاف الضريبة فيصير 230، وعندنا `amount` هو المدفوع شاملًا الضريبة و`tax_amount` جزؤه (القسم 3، الافتراض 1). ويقرؤه `ExpensePostingBuilderTest` فيبني القيد من الملف نفسه. (ما عدا هذه الحالة: **لا ادعاء مطابقة**، كله افتراض مدوَّن.)
-- **اختبارات جديدة (218 اختبارًا في 12 ملفًا، ملف لكل صنف):** `ExpensePostingBuilderTest` (18) و`ExpensePostingTest` (48: كل مسار حفظ وتعديل وحذف عبر نموذج المصروف الحقيقي، الفترة المقفلة، الفرع، نطاق السحب والإيداع، التراجع الكامل وتسجيل الفشل، التاريخي، المحاسبة المعطَّلة، توازن الميزان بعد كل تغيير) و`CashupPostingBuilderTest` (7) و`CashupPostingTest` (30) و`CashupExpectationTest` (13) و`DocumentJournalsTest` (24) و`ExpenseCategoryAccountsTest` (13) و`ExpensesControllerTest` (23) و`ExpensesCategoriesControllerTest` (9) و`tests/Models/ExpenseTest` (13) و`tests/Models/CashupTest` (12) و`ExpensesAccountingMigrationTest` (8).
-- **اختبارات أُضيفت إلى ملفات قائمة (22):** `CashupControllerTest` (12: الشاشة والنقد المتوقع والرفض بكلمات) و`AccountingSettingsTest` (3) و`AccountServiceTest` (2) و`JournalServiceTest` (2: قفل العكس اليدوي وعكس آلي لمصدر المستند) و`TreasuryServiceTest` (1: خزينة استُعملت في مصروف أو إقفال تُعدّ مستعمَلة) و`TrialBalanceTest` (1: **الميزان متوازن للشركة ولكل فرع بعد المصروفات**) و`AccountingJournalsControllerTest` (1: زر العكس مخفي لقيدي المصروف والإقفال).
+- **اختبارات جديدة (276 اختبارًا في 13 ملفًا، ملف لكل صنف):** `ExpensePostingBuilderTest` (22) و`ExpensePostingTest` (70) و`CashupPostingBuilderTest` (7) و`CashupPostingTest` (46) و`CashupExpectationTest` (16) و`DocumentJournalsTest` (24) و`ExpenseCategoryAccountsTest` (16) و`ExpensesControllerTest` (25) و`ExpensesCategoriesControllerTest` (10) و`tests/Models/ExpenseTest` (13) و`tests/Models/CashupTest` (13) و`tests/Models/Expense_categoryTest` (6) و`ExpensesAccountingMigrationTest` (8). تغطي كل مسار حفظ وتعديل وحذف عبر النماذج الحقيقية، والفترة المقفلة، والفرع، ونطاق السحب والإيداع، والتراجع الكامل وتسجيل الفشل، والتاريخي، والمحاسبة المعطَّلة، وأقفال الصفوف وترتيبها، وتوازن الميزان بعد كل تغيير، وشاشات المصروف والتصنيف والإقفال.
+- **اختبارات أُضيفت إلى ملفات قائمة (29 طريقة في 8 ملفات):** `CashupControllerTest` (17: الشاشة والنقد المتوقع والرفض بكلمات والعمود والفلتر) و`AccountingSetupControllerTest` (2: إعداد حساب التصنيف حفظًا وعرضًا) و`AccountingSettingsTest` (3) و`AccountServiceTest` (2) و`JournalServiceTest` (2: قفل العكس اليدوي وعكس آلي لمصدر المستند) و`TreasuryServiceTest` (1: خزينة استُعملت في مصروف أو إقفال تُعدّ مستعمَلة) و`TrialBalanceTest` (1: **الميزان متوازن للشركة ولكل فرع بعد المصروفات**) و`AccountingJournalsControllerTest` (1: زر العكس مخفي لقيدي المصروف والإقفال). وعدّلتُ `TreasuriesMigrationTest` (تراجع ترحيل المصروفات قبل ترحيل الخزائن) و`ParityFixtureTest` (قائمة معرّفات تضم `T-25`).
 - **تعطيل الحراس:** <!-- MUT-SUMMARY-START -->عطّلتُ **234 حارسًا** من حراس الحزمة (كل إذن وفحص نطاق وقفل وتحقق وفريدة وطريق عكس وفحص فترة مقفلة وفحص فرع وكل ما في الفرق بين التفعيل والتعطيل) **كلًّا على حدة** بأداة `mutate_generic.py` في دفعات لا تزيد على عشرة: تُعطَّل الحراسة وتُشغَّل الاختبارات المعنية بها ويُعاد الملف. **كُشف 234 من 234**، وكان 56 منها غير مكشوف في المرة الأولى فقُوّيت اختباراتها حتى كُشف (الجدول في 2.1). **ملاحظات على القياس:** (1) الحارسان `H04` و`H05` هما فحصا الفترة المقفلة المتتاليان في `PostingService` (قبل المعاملة وداخلها): كلٌّ منهما يغطي الآخر فلا يُكشف تعطيل أحدهما وحده بتصميم الفحص المزدوج، فعُطِّل الفحص عند نقطته الوحيدة `PeriodGuard::assert` (الحارسان `H04` للمصروف و`H06` للإقفال) وحُذف `H05` من القائمة. (2) الحارس `G106` يُثبته اختبار نموذج التصنيف `Expense_categoryTest` لا اختبار المتحكم، لأن المتحكم لا يرسل الحساب أصلًا حين تكون المحاسبة معطَّلة. (3) الحارس `H68` كان غير مكشوف على الاختبارات القديمة (قيس قبل دفعته) فأُضيف له اختبار. (4) الحراس `H32` و`H33` (في `ExpensePostingBuilder`: حساب الدفع وحساب `required`) و`H60` و`H61` (في `CashupPostingBuilder`: حساب فرق الصندوق وحساب النقد) هي فحوص `null` دفاعية تفرضها أنواع الإرجاع `?int`، ولا يبلغها أي بيان: التوجيه المُلغى لا يُسمح به أصلًا لمفاتيح `treasuries.accounts` و`tax.input` و`expenses.default` و`cash.difference` (`RoutingKey::allowedTypes`) ولا لحساب وسيلة الدفع، فيرمي `RoutingResolver` استثناءً مسمّى قبل أن يعيد `null`؛ فهي معادلة (equivalent mutants) وحُذفت من القائمة ولم تُعدّ مكشوفة (والرفض الفعلي بحساب غير صالح مُثبَت بحارسي `H35` للمصروف الآجل وباختبار توجيه الضريبة). (5) الحارسان `H83` و`H93` (`$plan['post']` في `Expense::save_value` و`Cashup::save_value`) يكرران ما يقرره `document()` الذي يعيد `null` لكل صف بلا فرع، وكل خطة `post = false` صفّها بلا فرع حتمًا (القاعدة التاريخية)، فتعطيل أحدهما وحده لا يغيّر أثرًا يُرى ويبقى المنع قائمًا بالآخر (حارسا `G13` و`G45` وحارسا `H22` و`H51`)؛ فهما معادلان وحُذفا من القائمة. (6) الحارس `H112` (`Expenses::save` لا يمرّر `treasury_id` إلا والمحاسبة تعمل) يكرر ما يفعله النموذج حين تكون المحاسبة معطَّلة (`unset` للعمودين، الحارس `G93`)، فتعطيله وحده بلا أثر يُرى؛ معادل وحُذف من القائمة، ويبقى المنع مُثبَتًا عند النموذج. (7) الحارسان `H117` (`Cashups::postSave` يمرّر المسجَّل دخوله فاعلًا) و`H122` (`Expenses_categories::postSave` لا يمرّر الحساب إلا والمحاسبة تعمل) معادلان للسبب نفسه: المتحكم يضع `close_employee_id` بالمسجَّل دخوله أصلًا فيطابق ما يرجع إليه النموذج فاعلًا، والنموذج `Expense_category::save_value` يتجاهل الحساب والمحاسبة معطَّلة (الحارس `G106`)؛ حُذفا من القائمة. (8) الحارس `K18` (ترتيب `DocumentJournals::active` بأحدث مراجعة) معادل: لا يقوم لمستند إلا قيد واحد مرحَّل في وقت واحد (ما قبله معكوس)، فالترتيب لا يغيّر النتيجة؛ حُذف من القائمة.<!-- MUT-SUMMARY-END -->
-- **الجولة المنتظمة الأخيرة (الملفات الجديدة والمتغيرة وذات الصلة، كل ملف وحده على `ospos_test_b`):** @@RUNS@@ (المجموعة الكاملة يشغّلها المُدمِج، ولم أشغّلها).
+- **الجولة المنتظمة الأخيرة:** شُغّل **كل ملف وحده** على `ospos_test_b` (59 ملفًا: كل الجديدة والمتغيرة وكل اختبارات المحاسبة والخزائن والتوجيه والفترات والترحيلات ذات الصلة، وفحص اللغات والمساعدات)، **فنجحت كلها: 3264 اختبارًا و10384 تأكيدًا، ولا فاشل ولا مُتخطّى** (القائمة الكاملة في 2.2). المجموعة الكاملة يشغّلها المُدمِج ولم أشغّلها.
 - **التنسيق:** شُغّل `php-cs-fixer` (إعداد `.php-cs-fixer.no-header.php`) على كل ملفات `app/` الجديدة (11 ملفًا: صفر تغيير) وعلى المكتبات والمتحكمات المعدَّلة، فاقتصر الإصلاح على محاذاة مفتاح الإعداد الجديد في `AccountingSettings` و`AccountingSetup`. أما ملفات `app/Controllers` و`app/Models` و`tabular_helper.php` القديمة التي لمستُ فيها **سطورًا قليلة** فلم أُعد تنسيقها كلها (تغيير يغطي الملف بأكمله ويصعّب على المُدمِج الدمج)، وكل سطر جديد فيها على المعيار. واختبارات الملفات الجديدة على PSR-12 (صفر مخالفة).
 
 ### 2.1 جدول تعطيل الحراس
@@ -271,6 +271,72 @@
 | `K26` | a refusal of a branch is said in words (categories) | مكشوف بعد تقوية الاختبار | 1 |
 <!-- MUT-TABLE-END -->
 
+### 2.2 الملفات التي شُغّلت
+
+<!-- RUNS-START -->
+```text
+tests/Libraries/Accounting/ExpensePostingBuilderTest.php: 22 tests, 32 assertions
+tests/Libraries/Accounting/ExpensePostingTest.php: 70 tests, 435 assertions
+tests/Libraries/Accounting/CashupPostingBuilderTest.php: 7 tests, 10 assertions
+tests/Libraries/Accounting/CashupPostingTest.php: 46 tests, 289 assertions
+tests/Libraries/Accounting/CashupExpectationTest.php: 16 tests, 51 assertions
+tests/Libraries/Accounting/DocumentJournalsTest.php: 24 tests, 99 assertions
+tests/Libraries/Accounting/ExpenseCategoryAccountsTest.php: 16 tests, 114 assertions
+tests/Libraries/Accounting/AccountServiceTest.php: 60 tests, 122 assertions
+tests/Libraries/Accounting/AccountingSettingsTest.php: 35 tests, 111 assertions
+tests/Libraries/Accounting/JournalServiceTest.php: 96 tests, 352 assertions
+tests/Libraries/Accounting/TreasuryServiceTest.php: 59 tests, 392 assertions
+tests/Libraries/Accounting/TrialBalanceTest.php: 34 tests, 236 assertions
+tests/Models/ExpenseTest.php: 13 tests, 60 assertions
+tests/Models/CashupTest.php: 13 tests, 61 assertions
+tests/Controllers/ExpensesControllerTest.php: 25 tests, 161 assertions
+tests/Controllers/CashupControllerTest.php: 19 tests, 131 assertions
+tests/Controllers/ExpensesCategoriesControllerTest.php: 10 tests, 64 assertions
+tests/Controllers/AccountingJournalsControllerTest.php: 66 tests, 285 assertions
+tests/Database/ExpensesAccountingMigrationTest.php: 8 tests, 68 assertions
+tests/Support/ParityFixtureTest.php: 104 tests, 1115 assertions
+tests/Controllers/AccountingSetupControllerTest.php: 24 tests, 127 assertions
+tests/Controllers/AccountingTreasuriesControllerTest.php: 46 tests, 367 assertions
+tests/Controllers/AccountingRoutingControllerTest.php: 21 tests, 136 assertions
+tests/Controllers/AccountingChartControllerTest.php: 33 tests, 132 assertions
+tests/Libraries/Accounting/RoutingResolverTest.php: 129 tests, 304 assertions
+tests/Libraries/Accounting/RoutingServiceTest.php: 52 tests, 364 assertions
+tests/Libraries/Accounting/TreasuryScopesTest.php: 51 tests, 426 assertions
+tests/Libraries/Accounting/TreasuryTransfersTest.php: 45 tests, 359 assertions
+tests/Libraries/Accounting/PaymentTreasuryStampingTest.php: 14 tests, 71 assertions
+tests/Libraries/Accounting/PostingServiceTest.php: 75 tests, 165 assertions
+tests/Libraries/Accounting/PeriodGuardTest.php: 5 tests, 10 assertions
+tests/Libraries/Accounting/AuditLogTest.php: 13 tests, 45 assertions
+tests/Libraries/Accounting/AccountingMessageTest.php: 159 tests, 159 assertions
+tests/Libraries/Accounting/PostingFailureReaderTest.php: 7 tests, 23 assertions
+tests/Libraries/Accounting/AccountingGuardTest.php: 4 tests, 12 assertions
+tests/Models/Accounting/JournalTest.php: 3 tests, 6 assertions
+tests/Models/Accounting/AccountTest.php: 2 tests, 5 assertions
+tests/Database/TreasuriesMigrationTest.php: 11 tests, 55 assertions
+tests/Database/TreasuryScopesMigrationTest.php: 7 tests, 16 assertions
+tests/Database/AccountingRoutingMigrationTest.php: 10 tests, 44 assertions
+tests/LanguageFilesTest.php: 1680 tests, 2716 assertions
+tests/helpers/GetItemDataRowTest.php: 4 tests, 5 assertions
+tests/helpers/NavigationHelperTest.php: 16 tests, 22 assertions
+tests/Models/Expense_categoryTest.php: 6 tests, 43 assertions
+tests/Database/AccountingAccountNameIndexMigrationTest.php: 4 tests, 6 assertions
+tests/Database/AccountingFoundationMigrationTest.php: 7 tests, 83 assertions
+tests/Database/AccountingModulesMigrationTest.php: 8 tests, 41 assertions
+tests/Database/AccountingPeriodsMigrationTest.php: 10 tests, 47 assertions
+tests/Database/BankAccountsMigrationTest.php: 10 tests, 35 assertions
+tests/Database/BranchesFoundationMigrationTest.php: 9 tests, 47 assertions
+tests/Database/CostPrecisionMigrationTest.php: 4 tests, 18 assertions
+tests/Database/FinancialReportsMigrationTest.php: 5 tests, 109 assertions
+tests/Database/InterBranchTransfersMigrationTest.php: 6 tests, 20 assertions
+tests/Database/LegacyFixedPurchaseDiscountMigrationTest.php: 8 tests, 45 assertions
+tests/Database/PurchasesAccountingMigrationTest.php: 10 tests, 45 assertions
+tests/Database/SalesAccountingMigrationTest.php: 5 tests, 18 assertions
+tests/Database/SalesReceivablesMigrationTest.php: 6 tests, 20 assertions
+tests/Database/StockTransfersBetweenBranchesMigrationTest.php: 5 tests, 17 assertions
+tests/Database/SupplierAdvancesMigrationTest.php: 7 tests, 33 assertions
+```
+<!-- RUNS-END -->
+
 ## 3. ما افترضتُه (**لم يؤكّدها المالك بعد**)
 
 1. **`amount` يشمل الضريبة** (ما دفعه الصندوق فعلًا)، و`tax_amount` جزء منه: القيد مدين المصروف `amount − tax_amount` ومدين الضريبة `tax_amount` ودائن الخزينة `amount`. **الاستنتاج** من أن إقفال الصندوق القديم في الأول برو يطرح `amount` وحده من النقد، فلو كان `amount` بلا ضريبة لنقص الصندوق عن المتوقع بقيمتها. **هذا يختلف عن شاشة دفترة** (تُدخل 200 وتضيف 15% فيصير 230): من يُدخل 200 مع ضريبة 30 عندنا يصل إلى 170 مصروفًا و30 ضريبة. إن أردتَ سلوك دفترة (المبلغ قبل الضريبة) فالتغيير في المتحكم والنموذج وحدهما، لا في الباني.
@@ -284,6 +350,8 @@
 9. **العلامة التاريخية = `branch_id` فارغ.** مصروف مؤرَّخ قبل بدء المحاسبة لا يُعطى فرعًا فلا يُرحَّل ولو عُدِّل بعد التفعيل. ومصروف حُفظ مرحَّلًا ثم نُقل تاريخه إلى ما قبل البدء **يُعكس قيده** (لأن الدفتر لم يعد يتبعه) ويبقى بفرعه.
 10. **القائمة:** «الدفتر» مرحَّل حين يقوم له قيد، **أو حين لا يلزمه قيد** (مبلغ صفر أو محذوف)، فيتفق الفلتر وعدّاد الجاهزية.
 11. **إعداد `accounting_expense_account_required`** لإلزام الحساب للمصروفات فقط (دفترة فيها إعدادان للمصروف والإيراد؛ الإيراد خارج الحزمة).
+12. **أعمدة الإقفال المختومة** (`expected_amount_cash` و`cash_difference`) **تبقى كما خُتمت** حين يُحذف الإقفال أو يُنقل تاريخه قبل بدء الدفتر (يُعكس قيده فقط ولا يُعاد حسابهما)، فقد تعرض شاشة الإقفال المحذوف فرقًا لا قيد له الآن. (تثبّته اختبارات؛ والبديل تصفيرهما عند العكس قرار للمالك.)
+13. **مصروف أو إقفال يُحفظ محذوفًا أول مرة ثم يُسترجع** لا فرع له (لا يتبعه الدفتر لحظة حفظه) فيبقى بلا قيد ويُسرد غير مرحّل، لأن علامة التاريخي هي الفرع الفارغ؛ يُرحَّل بالترحيل بأثر رجعي وحده.
 
 ## 4. ما بقي
 
@@ -293,6 +361,8 @@
 - **رصد دفترة** (`daftraObservationsNeeded`): ما يفعله المصروف غير المدفوع، وهل يعدَّل قيد المصروف بعكس وإعادة أم في مكانه، وما يظهر عند حذفه، وهل المبلغ المُدخَل قبل الضريبة أم بعدها إن كُتبت الضريبة مبلغًا لا نسبة.
 - **تقارير المصروفات حسب التصنيف والحساب** (`REP-15`): ليست في الحزمة.
 - شاشة الإقفال تعرض النقد المتوقع للفرع الافتراضي للموظف المسجَّل دخوله فقط (فرع الإقفال الأول)، وتعديل إقفال قديم يعرض ما حُفظ.
+- **لا اختبار سباق حقيقي بين عمليتين** على المصروف أو الإقفال نفسه: أقفال الصفوف (`FOR UPDATE` قبل أي تغيير) وترتيبها بأرقام المستندات في الحذف المتعدد تثبتها اختبارات ترتيب العبارات (الحارسان `H80` و`H81` ونظيراهما للإقفال)، لا تنفيذ فعلي لعمليتين معًا كما في اختبارات التزامن الأخرى (`ConcurrentDbRaceTrait`).
+- **أحد عشر حارسًا معادلًا** (`H05` و`H32` و`H33` و`H60` و`H61` و`H83` و`H93` و`H112` و`H117` و`H122` و`K18`): فحوص دفاعية أو مكررة لا يغيّر تعطيلها وحدها أثرًا يُرى (الأسباب في ملاحظات القياس تحت 2.1)، فلم تُعدّ ضمن المقاسة ولا ضمن المكشوفة، وليست قصورًا في الاختبارات.
 
 ## 5. قبل النشر
 
@@ -309,7 +379,7 @@
 ### 6.1 `decisions.md` (صف مقترح في آخر الجدول، بعد آخر صف)
 
 ```text
-| — | **تنفيذ WP3: المصروفات وإقفال الصندوق في الدفاتر** (2026-10-26، [التقرير](daftra-parity/wp3-report.md)) بالتفويض التنفيذي الشامل: (1) **كل مصروف وتعديله وحذفه يُرحَّل في معاملة الحفظ بقيد واحد متوازن** (المصدر `expense`، مفتاح `(source_type, source_id, entry_type, revision)`)؛ **مدين** حساب التصنيف أو `541` الموجَّه بصافي المصروف **ومدين** `tax.input` (`215002`) بالضريبة **ودائن** حساب خزينة الدفع بالمبلغ كله بلا طرف، مطابق لقيد دفترة المرصود `S-25` (200 + 15% = 230). التعديل **عكس وإعادة ترحيل بمراجعة جديدة** (E15) والحذف عكس، والمعكوس في فترة مقفلة يُعكس بتاريخ اليوم. (2) **الفترات المقفلة ونطاق الفرع (`BranchGuard`) ونطاق سحب الخزينة (`TreasuryScopes`) تُفرض في النموذج** بحكم الموظف المسجَّل دخوله، ورصيد الخزينة يساوي رصيد حسابها. (3) **`FIN-04`:** للتصنيف حساب اختياري يقع عند غيابه على `541` الموجَّه، واختياره يلزمه إذن تغيير التوجيه وكل الفروع، وإعداد `accounting_expense_account_required` (مطفأ افتراضيًا) يشترط الحساب. (4) **إقفال الصندوق (A4) بتصميم متحفظ:** يُرحَّل **الفرق وحده** بين النقد المتوقع (يُحسب في الخادم: افتتاح + مُحوَّل + نقد البيع المكتمل في الفرع − المردود − مصروفات النقد) والمعدود: عجز مدين `1208` ودائن الخزينة، وزيادة عكسه، بالانضباط نفسه، **وللمالك نقض هذا التصميم**. (5) **التاريخي:** مصروف أو إقفال حُفظ قبل أن يتبعه الدفتر **لا قيد له ويُسرد غير مرحَّل** ولا يُرحَّل إلا بحزمة الترحيل بأثر رجعي؛ والمحاسبة المعطَّلة لا أثر لها (D1). (6) **قيدا المصروف والإقفال لا يُعكسان من شاشة القيود** (يُصحَّح المستند). **افتراضات بانتظار تأكيدك:** `amount` يشمل الضريبة (يخالف شاشة دفترة التي تضيفها)، والمصروف الآجل يُرحَّل إلى `2213`، وإذن اختيار حساب التصنيف هو إذن التوجيه، وتعريف النقد المتوقع، وفرع المصروف من خزينته أو من فرع موظفه الافتراضي. |
+| — | **تنفيذ WP3: المصروفات وإقفال الصندوق في الدفاتر** (2026-10-26، [التقرير](daftra-parity/wp3-report.md)) بالتفويض التنفيذي الشامل: (1) **كل مصروف وتعديله وحذفه يُرحَّل في معاملة الحفظ بقيد واحد متوازن** (المصدر `expense`، مفتاح `(source_type, source_id, entry_type, revision)`)؛ **مدين** حساب التصنيف أو `541` الموجَّه بصافي المصروف **ومدين** `tax.input` (`215002`) بالضريبة **ودائن** حساب خزينة الدفع بالمبلغ كله بلا طرف، مطابق لقيد دفترة المرصود `S-25` (200 + 15% = 230). التعديل **عكس وإعادة ترحيل بمراجعة جديدة** (E15) والحذف عكس، والمعكوس في فترة مقفلة يُعكس بتاريخ اليوم. (2) **الفترات المقفلة ونطاق الفرع (`BranchGuard`) ونطاق سحب الخزينة (`TreasuryScopes`) تُفرض في النموذج** بحكم الموظف المسجَّل دخوله، ورصيد الخزينة يساوي رصيد حسابها. (3) **`FIN-04`:** للتصنيف حساب اختياري يقع عند غيابه على `541` الموجَّه، واختياره يلزمه إذن تغيير التوجيه وكل الفروع، وإعداد `accounting_expense_account_required` (مطفأ افتراضيًا) يشترط الحساب. (4) **إقفال الصندوق (A4) بتصميم متحفظ:** يُرحَّل **الفرق وحده** بين النقد المتوقع (يُحسب في الخادم: افتتاح + مُحوَّل + نقد البيع المكتمل في الفرع − المردود − مصروفات النقد) والمعدود: عجز مدين `1208` ودائن الخزينة، وزيادة عكسه، بالانضباط نفسه، **وللمالك نقض هذا التصميم**. (5) **التاريخي:** مصروف أو إقفال حُفظ قبل أن يتبعه الدفتر **لا قيد له ويُسرد غير مرحَّل** ولا يُرحَّل إلا بحزمة الترحيل بأثر رجعي؛ والمحاسبة المعطَّلة لا أثر لها (D1). (6) **قيدا المصروف والإقفال لا يُعكسان من شاشة القيود** (يُصحَّح المستند). **افتراضات بانتظار تأكيدك:** `amount` يشمل الضريبة (يخالف شاشة دفترة التي تضيفها)، والمصروف الآجل يُرحَّل إلى `2213`، وإذن اختيار حساب التصنيف هو إذن التوجيه، وتعريف النقد المتوقع، وفرع المصروف من خزينته أو من فرع موظفه الافتراضي، وبقاء `expected_amount_cash` و`cash_difference` المختومتين كما هما حين يُحذف الإقفال أو يُنقل قبل بدء الدفتر. |
 ```
 
 ### 6.2 `conformance-matrix.md` (القسم 5، تعديل ثلاثة صفوف وملاحظة)
