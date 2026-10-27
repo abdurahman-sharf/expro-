@@ -257,7 +257,7 @@ class ReportsControllerTest extends CIUnitTestCase
 
         $response = $this->get('/reports/' . $report . '/' . $this->reportDay . '/' . $this->reportDay . '/sales');
 
-        $response->assertRedirect();
+        $response->assertStatus(302);
         $this->assertStringContainsString('no_access/reports/reports_expenses_categories', $response->getRedirectUrl(), $report);
     }
 
