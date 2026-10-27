@@ -95,3 +95,18 @@ DETECTED  A2A-3 item form saves only the quantities of allowed locations: Tests:
 DETECTED  A2A-4 import header check uses the allowed locations: Tests: 81, Assertions: 541, Failures: 1.; failing: 1
 10 of 10 guards detected
 ```
+
+### الدفعة 2
+
+```
+DETECTED  A2A-5 import row check uses the allowed locations: Tests: 81, Assertions: 541, Failures: 1.; failing: 1
+DETECTED  A2A-6 item list offers only the allowed locations: Tests: 81, Assertions: 549, Errors: 1.; failing: 1
+DETECTED  A2A-7 no access when the employee holds no location of the branches: Tests: 81, Assertions: 549, Errors: 1.; failing: 1
+DETECTED  A2A-8 item form lists only the allowed locations: Tests: 81, Assertions: 540, Failures: 1.; failing: 1
+DETECTED  A2A-8b inventory form lists only the allowed locations: Tests: 81, Assertions: 544, Failures: 1.; failing: 1
+DETECTED  A2A-8c count form lists only the allowed locations: Tests: 81, Assertions: 547, Failures: 1.; failing: 1
+DETECTED  A2A-9 an item with stock outside the branches cannot be deleted: Tests: 21, Assertions: 178, Failures: 1.; failing: 1
+DETECTED  A2A-10 a list of items with stock outside the branches cannot be deleted: Tests: 21, Assertions: 177, Failures: 1.; failing: 1
+DETECTED  A2A-10b a list of items with stock outside the branches cannot be deleted (screen): Tests: 6, Assertions: 72, Failures: 1.; failing: 1
+9 of 9 guards detected
+```
