@@ -333,6 +333,21 @@ class CashupControllerTest extends CIUnitTestCase
         $response->assertSee('500.00');
     }
 
+    public function testGetView_ShowsWhatWasExpectedWhenAClosedCashUpWasSaved(): void
+    {
+        $this->accountingCashier();
+        $this->sellFor('400.00', 'Cash', date('Y-m-d') . ' 09:00:00');
+
+        $closed = $this->saveClosing($this->closingForm('485.50', ['open_date' => date('Y-m-d') . ' 08:00:00', 'close_date' => date('Y-m-d') . ' 18:00:00']));
+
+        $this->assertTrue($closed['success']);
+
+        $response = $this->get('/cashups/view/' . $closed['id']);
+
+        $response->assertSee(lang('Cashups.expected_cash'));
+        $response->assertSee('500.00');
+    }
+
     public function testGetView_ShowsNoExpectedCashWhileAccountingIsOff(): void
     {
         $this->startExpenses();

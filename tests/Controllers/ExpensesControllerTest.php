@@ -197,7 +197,7 @@ class ExpensesControllerTest extends CIUnitTestCase
 
     public function testPostSave_UsesTheLoggedInEmployeeToDecideWhatIsAllowedWhoeverTheExpenseIsFor(): void
     {
-        $limited = $this->actAsWith(['expenses', 'expenses_categories'], [1]);
+        $limited = $this->actAsWith(['expenses', 'expenses_categories', 'employees'], [1]);
         $second  = $this->createBranch('B2');
 
         $result = $this->save($this->form(['employee_id' => (string) $this->clerkId, 'treasury_id' => (string) $this->treasury('Remote', $second)]));
@@ -328,6 +328,21 @@ class ExpensesControllerTest extends CIUnitTestCase
 
         $response->assertSee('Open drawer');
         $response->assertDontSee('Locked drawer');
+    }
+
+    public function testGetView_OffersOnlyTheTreasuriesOfTheBranchesTheEmployeeWorksIn(): void
+    {
+        $this->actAsWith(['expenses', 'expenses_categories'], [1]);
+
+        $second = $this->createBranch('B2');
+
+        $this->treasury('Home drawer', 1);
+        $this->treasury('Far drawer', $second);
+
+        $response = $this->get('/expenses/view/-1');
+
+        $response->assertSee('Home drawer');
+        $response->assertDontSee('Far drawer');
     }
 
     public function testGetView_OffersNoTreasuryWhileAccountingIsOff(): void
