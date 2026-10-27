@@ -536,6 +536,20 @@ class CashupPostingTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('accounting_journals'));
     }
 
+    public function testSaveValue_StampsNothingOnANewCashUpThatIsAlreadyMarkedDeleted(): void
+    {
+        $this->aDayOfCash();
+
+        $data            = $this->cashupData('485.50');
+        $data['deleted'] = 1;
+
+        $cashupId = $this->saveCashup($data);
+
+        $this->assertNotNull($cashupId);
+        $this->assertSame([null, null, null, null], $this->claimedColumns($cashupId));
+        $this->assertSame(0, $this->countRows('accounting_journals'));
+    }
+
     public function testUnposted_ListsOnlyTheCashUpsTheBooksNeverFollowed(): void
     {
         $this->aDayOfCash();

@@ -247,6 +247,27 @@ class ExpensePostingBuilderTest extends CIUnitTestCase
         $this->expectPostingFailure(PostingError::RoutingAccountUnusable, fn () => $this->draftOf($this->expense('115.00', '15.00')));
     }
 
+    public function testExpense_RejectsAnExpenseThatIsDueWhenTheAccountOfOtherCreditorsIsMissing(): void
+    {
+        $this->accountingDb()->table('accounting_accounts')->where('system_key', 'other_payables')->update(['system_key' => null]);
+
+        $this->expectPostingFailure(PostingError::RoutingAccountUnusable, fn () => $this->draftOf($this->expense('100.00', '0', 'Due', null, null)));
+    }
+
+    public function testExpense_RejectsAnExpenseThatIsDueWhenTheAccountOfOtherCreditorsIsAGroup(): void
+    {
+        $this->accountingDb()->table('accounting_accounts')->where('system_key', 'other_payables')->update(['is_group' => 1]);
+
+        $this->expectPostingFailure(PostingError::RoutingAccountUnusable, fn () => $this->draftOf($this->expense('100.00', '0', 'Due', null, null)));
+    }
+
+    public function testExpense_RejectsAnExpenseThatIsDueWhenTheAccountOfOtherCreditorsIsInactive(): void
+    {
+        $this->accountingDb()->table('accounting_accounts')->where('system_key', 'other_payables')->update(['active' => 0]);
+
+        $this->expectPostingFailure(PostingError::RoutingAccountUnusable, fn () => $this->draftOf($this->expense('100.00', '0', 'Due', null, null)));
+    }
+
     private function expectPostingFailure(PostingError $error, callable $action): void
     {
         try {
