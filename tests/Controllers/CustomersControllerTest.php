@@ -213,7 +213,7 @@ class CustomersControllerTest extends CIUnitTestCase
 
     public function testGetView_OffersNoAutomaticNumberWhileTheSequenceIsOff(): void
     {
-        $this->get('/customers/view/-1')->assertDontSee(lang('Customers.account_number_automatic', ['']));
+        $this->get('/customers/view/-1')->assertDontSee(lang('Customers.account_number_automatic', ['1']));
     }
 
     public function testGetView_OffersNoAutomaticNumberOnTheFormOfACustomerThatExists(): void

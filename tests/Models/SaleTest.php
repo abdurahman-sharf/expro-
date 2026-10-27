@@ -859,6 +859,22 @@ class SaleTest extends CIUnitTestCase
         $this->assertSame('PAY-0002', $this->numberOf(DocumentType::CustomerPayment, 'sales_payments', $second));
     }
 
+    public function testUpdate_GivesNoNumberToAPaymentAddedToASaleThatIsNotCompleted(): void
+    {
+        $this->switchOn(DocumentType::CustomerPayment, 'PAY-', 4, 1);
+
+        $saleId   = $this->saveSale(SALE_TYPE_POS, [], SUSPENDED);
+        $employee = $this->createEmployee();
+
+        $this->assertTrue(model(Sale::class)->update($saleId, ['comment' => 'more', 'payments' => [
+            ['payment_id' => NEW_ENTRY, 'payment_type' => lang('Sales.debit'), 'payment_amount' => '6.00', 'cash_refund' => 0, 'cash_adjustment' => 0, 'employee_id' => $employee, 'reference_code' => null],
+        ]]));
+
+        $this->assertCount(1, $this->paymentIdsOf($saleId));
+        $this->assertSame(0, \Config\Database::connect()->table('document_numbers')->countAllResults());
+        $this->assertSame(1, (new DocumentNumbering())->sequence(DocumentType::CustomerPayment)->nextNumber);
+    }
+
     public function testUpdate_KeepsThePaymentNumberWhenThePaymentIsEdited(): void
     {
         $this->switchOn(DocumentType::CustomerPayment, 'PAY-', 4, 1);

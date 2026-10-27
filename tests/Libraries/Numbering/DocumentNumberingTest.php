@@ -106,6 +106,38 @@ class DocumentNumberingTest extends CIUnitTestCase
         $this->assertSame('1', $this->numbering->assign(DocumentType::CreditNote, 'sales', 11)?->number);
     }
 
+    public function testAssign_GivesNothingAfterTheSequenceIsSwitchedOff(): void
+    {
+        $this->numbering->configure(DocumentType::CreditNote, ['enabled' => true, 'padding' => 3]);
+
+        $this->assertSame('001', $this->numbering->assign(DocumentType::CreditNote, 'sales', 11)?->number);
+
+        $this->numbering->configure(DocumentType::CreditNote, ['enabled' => false]);
+
+        $this->assertNull($this->numbering->assign(DocumentType::CreditNote, 'sales', 12));
+        $this->assertSame(1, $this->countRows('document_numbers'));
+    }
+
+    public function testPeek_ShowsTheNextNumberWithoutTakingIt(): void
+    {
+        $this->numbering->configure(DocumentType::CreditNote, ['enabled' => true, 'prefix' => 'CN-', 'padding' => 3]);
+
+        $this->assertSame('CN-001', $this->numbering->peek(DocumentType::CreditNote));
+        $this->assertSame('CN-001', $this->numbering->peek(DocumentType::CreditNote));
+        $this->assertSame('CN-001', $this->numbering->assign(DocumentType::CreditNote, 'sales', 11)?->number);
+        $this->assertSame('CN-002', $this->numbering->peek(DocumentType::CreditNote));
+    }
+
+    public function testPeek_ShowsNothingWhileTheSequenceIsOff(): void
+    {
+        $this->assertNull($this->numbering->peek(DocumentType::CreditNote));
+
+        $this->numbering->configure(DocumentType::CreditNote, ['enabled' => true]);
+        $this->numbering->configure(DocumentType::CreditNote, ['enabled' => false]);
+
+        $this->assertNull($this->numbering->peek(DocumentType::CreditNote));
+    }
+
     public function testAssign_ReturnsTheNumberADocumentAlreadyHasAndTakesNoSecondOne(): void
     {
         $this->numbering->configure(DocumentType::CreditNote, ['enabled' => true, 'padding' => 3]);
@@ -358,10 +390,10 @@ class DocumentNumberingTest extends CIUnitTestCase
         $first  = $this->insertExpense();
         $second = $this->insertExpense();
         $this->numbering->configure(DocumentType::Expense, ['enabled' => true]);
-        $this->accountingDb()->table('document_numbers')->insert(['company_id' => 1, 'doc_type' => 'expense', 'source_table' => 'expenses', 'source_id' => $second, 'sequence_number' => $second + 1, 'number' => (string) ($second + 1)]);
+        $this->accountingDb()->table('document_numbers')->insert(['company_id' => 1, 'doc_type' => 'expense', 'source_table' => 'expenses', 'source_id' => $second, 'sequence_number' => 1, 'number' => '1']);
 
-        $this->assertSame($second + 2, $this->numbering->floor(DocumentType::Expense, ''));
         $this->assertGreaterThan($first, $second);
+        $this->assertSame($first + 1, $this->numbering->floor(DocumentType::Expense, ''));
     }
 
     public function testFloor_DoesNotUseIdsForADocumentThatNeverShowedItsIdAlone(): void
@@ -439,6 +471,15 @@ class DocumentNumberingTest extends CIUnitTestCase
 
         $this->assertRefusal(AccountingError::NumberingNextTooLow, fn () => $this->numbering->configure(DocumentType::CreditNote, ['next_number' => 3]));
         $this->numbering->configure(DocumentType::CreditNote, ['next_number' => 4]);
+    }
+
+    public function testConfigure_RejectsANextNumberBelowTheRegisterWhenTheCounterRowIsMissing(): void
+    {
+        $this->accountingDb()->table('document_numbers')->insert(['company_id' => 1, 'doc_type' => 'credit_note', 'source_table' => 'sales', 'source_id' => 900001, 'sequence_number' => 7, 'number' => '7']);
+
+        $this->assertSame(8, $this->numbering->floor(DocumentType::CreditNote, ''));
+        $this->assertRefusal(AccountingError::NumberingNextTooLow, fn () => $this->numbering->configure(DocumentType::CreditNote, ['enabled' => true, 'next_number' => 5]));
+        $this->assertSame(8, $this->numbering->configure(DocumentType::CreditNote, ['enabled' => true, 'next_number' => 8])->nextNumber);
     }
 
     public function testConfigure_KeepsTheCounterWhenThePrefixChanges(): void
