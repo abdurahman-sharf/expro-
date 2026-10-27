@@ -206,3 +206,19 @@ DETECTED  A2A-18 stock inside the branches of the employee does not block a dele
 DETECTED  A2A-19 an employee of no branch cannot delete an item with stock: Tests: 26, Assertions: 230, Errors: 2.; failing: 2
 10 of 10 guards detected
 ```
+
+### الدفعة 9
+
+```
+DETECTED  A2A-20 an empty shelf of another branch does not block a delete: Tests: 30, Assertions: 282, Failures: 1.; failing: 1
+DETECTED  A2A-21 a deleted location of another branch does not block a delete: Tests: 30, Assertions: 282, Failures: 1.; failing: 1
+DETECTED  A2A-22 the refusal of an earlier delete is not carried to the next one: Tests: 30, Assertions: 284, Failures: 1.; failing: 1
+DETECTED  A2A-23 the refusal of an earlier list delete is not carried to the next one: Tests: 30, Assertions: 284, Failures: 1.; failing: 1
+DETECTED  G41-A5-4 the destination is kept as a number: Tests: 78, Assertions: 666, Failures: 1.; failing: 1
+DETECTED  G41-A5-5 the refusal of a destination is told to the employee: Tests: 78, Assertions: 663, Failures: 2.; failing: 2
+DETECTED  G48-35 the system with nobody logged in is not limited: Tests: 8, Assertions: 38, Failures: 1.; failing: 1
+DETECTED  G48-7 Summary_categories limits its sales: Tests: 3, Assertions: 31, Failures: 2.; failing: 2
+DETECTED  G48-7 Summary_customers limits its sales: Tests: 3, Assertions: 31, Failures: 2.; failing: 2
+DETECTED  G48-7 Summary_discounts limits its sales: Tests: 3, Assertions: 31, Failures: 2.; failing: 2
+10 of 10 guards detected
+```
