@@ -108,6 +108,18 @@ class ExpensesCategoriesControllerTest extends CIUnitTestCase
         $this->assertSame($before, $this->countRows('expense_categories'));
     }
 
+    public function testPostSave_RefusesAnAccountFromAnEmployeeWhoWorksInSomeBranchesOnlyAndSavesNothing(): void
+    {
+        $this->actAsWith([AccountingGuard::ROUTING_MANAGE], [1]);
+
+        $before  = $this->countRows('expense_categories');
+        $account = $this->customAccount('5', '5986', 'Marketing', false);
+        $result  = $this->save(['category_name' => $this->nameOf(), 'category_description' => '', 'account_id' => (string) $account]);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame($before, $this->countRows('expense_categories'));
+    }
+
     public function testPostSave_SavesTheCategoryOfAnEmployeeWhoLeavesTheAccountAsItIs(): void
     {
         $this->actAsWith([]);

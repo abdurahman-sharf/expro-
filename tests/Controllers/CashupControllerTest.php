@@ -297,6 +297,28 @@ class CashupControllerTest extends CIUnitTestCase
         $this->assertSame('0.00', $this->balanceOf($this->accountId('cash_difference')));
     }
 
+    public function testPostSave_SaysInWordsThatTheCashUpIsOfABranchTheEmployeeDoesNotWorkIn(): void
+    {
+        $this->accountingCashier();
+
+        $second = $this->createBranch('B2');
+        $remote = $this->employeeWithGrants(['cashups'], [$second]);
+
+        $this->loginAs($remote);
+
+        $created = $this->saveClosing($this->closingForm('90'));
+
+        $this->assertTrue($created['success']);
+
+        $this->loginAs($this->employeeWithGrants(['cashups'], [1]));
+
+        $result = $this->saveClosing($this->closingForm('60'), (int) $created['id']);
+
+        $this->assertFalse($result['success']);
+        $this->assertNotSame(lang('Cashups.error_adding_updating'), $result['message']);
+        $this->assertSame('90.00', $this->accountingDb()->table('cash_up')->where('cashup_id', $created['id'])->get()->getRow()->closed_amount_cash);
+    }
+
     public function testPostDelete_SaysInWordsThatTheEmployeeMayNotDepositBackIntoTheTreasury(): void
     {
         $cashierId = $this->accountingCashier();
