@@ -1065,8 +1065,10 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
 
         $response->assertDontSee('<script>alert(1)</script>');
         $response->assertDontSee('<script>alert(2)</script>');
-        $response->assertSee('&lt;/textarea&gt;&lt;script&gt;alert(1)&lt;/script&gt;');
-        $response->assertSee('&quot;&gt;&lt;script&gt;alert&#x28;2&#x29;');
+        $body = $response->response()->getBody();
+
+        $this->assertStringContainsString('&lt;/textarea&gt;&lt;script&gt;alert(1)&lt;/script&gt;', $body);
+        $this->assertStringContainsString('value="&quot;&gt;&lt;script&gt;alert&#x28;2&#x29;&lt;&#x2F;script&gt;"', $body);
     }
 
     public function testPostSaveDetails_SavesTheTextAndSendsTheUserBackToTheJournal(): void
