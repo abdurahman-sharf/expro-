@@ -46,5 +46,6 @@ return [
     'unposted_legend'     => '',
     'unposted_negative'   => '',
     'unposted_note'       => '',
+    'unposted_summary'    => '',
     'unposted_units'      => '',
 ];

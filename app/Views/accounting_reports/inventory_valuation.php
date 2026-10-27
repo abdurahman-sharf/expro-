@@ -104,6 +104,10 @@ $verdict = static function (InventoryValuationLocation $location): string {
         <p class="alert alert-danger" id="report_differs" role="alert"><?= lang('Accounting_inventory_reports.differs_all') ?></p>
     <?php endif; ?>
 
+    <?php if ($report->unpostedLines() > 0): ?>
+        <p class="alert alert-warning" id="report_unposted" role="note"><?= lang('Accounting_inventory_reports.unposted_summary', [$report->unpostedLines()]) ?></p>
+    <?php endif; ?>
+
     <?php if ($report->locations === []): ?>
         <p class="text-body-secondary" id="report_empty"><?= lang('Accounting_inventory_reports.empty') ?></p>
     <?php endif; ?>

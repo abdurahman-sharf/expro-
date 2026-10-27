@@ -155,6 +155,7 @@ class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $response->assertSee('id="report_ties"');
         $response->assertSee('data-status="ties"');
         $response->assertDontSee('data-status="differs"');
+        $response->assertDontSee('id="report_unposted"');
         $response->assertDontSee('id="report_error"');
         $response->assertSee(lang('Accounting_reports.scope_company'));
         $response->assertSee('window.print()');
@@ -304,6 +305,8 @@ class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $response->assertSee('data-unposted="1"');
         $response->assertSee(lang('Accounting_inventory_reports.unposted_units'));
         $response->assertSee('data-verdict="unposted"');
+        $response->assertSee('id="report_unposted"');
+        $response->assertSee(lang('Accounting_inventory_reports.unposted_summary', [1]));
         $response->assertSee('<bdi dir="ltr">' . $this->amountOf('0.00') . '</bdi>');
         $this->assertSame($this->amountOf('0.00'), $this->totalShown($response), 'The cost of the item is not the value of units no movement accounts for');
     }

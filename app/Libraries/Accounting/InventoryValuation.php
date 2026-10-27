@@ -15,10 +15,13 @@ use Config\Database;
  * only, up to a day, so that it can be set beside the trial balance of the same branches and day.
  * The shelves are compared with the movements only for the stock as it stands now, because what a
  * shelf held on a past day is not recorded: the units there that no movement accounts for are then
- * listed as not in the books, and are not given a value. Reading changes nothing.
+ * listed as not in the books, and are not given a value. Reading changes nothing, and it is done in
+ * one snapshot, so that a document posted while the report is read is in all of it or in none.
  */
 final class InventoryValuation
 {
+    use RunsInTransaction;
+
     private const SCALE = 4;
 
     private BaseConnection $db;
@@ -36,8 +39,14 @@ final class InventoryValuation
      */
     public function build(ReportScope $scope, ?string $asOf = null, bool $showEmpty = false): InventoryValuationReport
     {
-        $day     = $asOf === null || trim($asOf) === '' ? null : ReportPeriod::of(null, $asOf)->to;
-        $current = $day === null  || $day >= date('Y-m-d');
+        $day = $asOf === null || trim($asOf) === '' ? null : ReportPeriod::of(null, $asOf)->to;
+
+        return $this->transactional(fn (): InventoryValuationReport => $this->read($scope, $day, $showEmpty));
+    }
+
+    private function read(ReportScope $scope, ?string $day, bool $showEmpty): InventoryValuationReport
+    {
+        $current = $day === null || $day >= date('Y-m-d');
         $until   = $current ? null : $day;
         $control = $this->stockAccounts();
 

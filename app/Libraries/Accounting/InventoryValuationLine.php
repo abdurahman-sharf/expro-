@@ -49,7 +49,6 @@ final readonly class InventoryValuationLine
     {
         return bccomp($this->position->quantity, '0', 3) === 0
             && bccomp($this->position->value, '0', 4) === 0
-            && ! $this->hasUnpostedUnits()
             && ($this->onHand() === null || bccomp((string) $this->onHand(), '0', 3) === 0);
     }
 }

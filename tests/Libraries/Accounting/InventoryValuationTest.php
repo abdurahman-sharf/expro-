@@ -19,6 +19,8 @@ use App\Libraries\Accounting\ReportScopeKind;
 use App\Libraries\Accounting\StockLedger;
 use App\Libraries\Accounting\StockMovement;
 use App\Models\Reports\Inventory_summary;
+use CodeIgniter\Database\Query;
+use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -784,6 +786,137 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertSame('V2', $location->branchCode);
         $this->assertSame($this->stockAccountOf($depot), $location->accountId);
         $this->assertStringStartsWith('1203', (string) $location->accountCode);
+    }
+
+    public function testBuild_ReadsOneSnapshotWhileAnotherRequestPostsStock(): void
+    {
+        $item   = $this->item('0.00');
+        $reader = $this->openSecondConnection();
+        $posted = false;
+
+        $this->bookStock('2026-10-05', 1, $item, '10', '100.00');
+
+        $listener = function (Query $query) use (&$posted, $item): void {
+            if ($posted || ! str_contains((string) $query, 'accounting_stock_entries')) {
+                return;
+            }
+
+            $posted = true;
+            $this->bookStock('2026-10-06', 1, $item, '5', '50.00');
+        };
+
+        Events::on('DBQuery', $listener);
+
+        try {
+            $report = (new InventoryValuation($reader))->build($this->company());
+        } finally {
+            Events::removeListener('DBQuery', $listener);
+        }
+
+        $this->assertTrue($posted, 'Another request posted stock while the report was being read');
+        $this->assertSame('100.0000', $report->value());
+        $this->assertSame('100.0000', $this->location($report, self::LOCATION_ID)->accountBalance, 'What was read of the movements and of the journals is of one moment');
+        $this->assertTrue($report->ties());
+        $this->assertSame('150.0000', $this->build()->value(), 'The next report has the new stock, in the movements and the account alike');
+        $this->assertTrue($this->build()->ties());
+    }
+
+    public function testBuild_IgnoresWhatBelongsToAnotherCompany(): void
+    {
+        $db   = $this->accountingDb();
+        $item = $this->item('0.00');
+
+        $this->bookStock('2026-10-05', 1, $item, '10', '100.00');
+
+        $db->table('companies')->insert(['name' => 'Another company']);
+        $other = (int) $db->insertID();
+
+        try {
+            $db->table('accounting_stock_entries')->update(['company_id' => $other]);
+            $db->table('accounting_journals')->update(['company_id' => $other]);
+
+            $report = $this->build();
+
+            $this->assertSame([], $report->locations);
+            $this->assertSame('0.0000', $report->value());
+            $this->assertSame('0.0000', $report->stockAccountBalance);
+        } finally {
+            $db->table('accounting_stock_entries')->update(['company_id' => 1]);
+            $db->table('accounting_journals')->update(['company_id' => 1]);
+            $db->table('companies')->where('company_id', $other)->delete();
+        }
+    }
+
+    public function testBuild_ReadsOnlyTheAccountsAndTheRoutingOfTheCompany(): void
+    {
+        $db     = $this->accountingDb();
+        $item   = $this->item('0.00');
+        $custom = $this->customAccount('1203', '120399', 'Stock outside the locations');
+
+        $this->bookStock('2026-10-05', 1, $item, '10', '100.00');
+        $this->manualToStock('25.00');
+
+        (new PostingService())->post(new JournalDraft(
+            date: '2026-10-06',
+            lines: [new JournalLineDraft($custom, debit: '40.00'), new JournalLineDraft($this->accountId('opening_balance'), credit: '40.00')],
+            sourceType: JournalDraft::SOURCE_MANUAL,
+            currencyCode: 'SAR',
+        ));
+
+        $db->table('companies')->insert(['name' => 'Another company']);
+        $other = (int) $db->insertID();
+
+        try {
+            $db->table('accounting_accounts')->where('account_id', $custom)->update(['company_id' => $other]);
+
+            $withoutIt = $this->build();
+
+            $this->assertSame('125.0000', $withoutIt->stockAccountBalance, 'An account of another company is not under the stock account of this one');
+
+            $db->table('accounting_accounts')->where('entity_type', 'stock_location')->update(['company_id' => $other]);
+
+            $location = $this->location($this->build(), self::LOCATION_ID);
+
+            $this->assertNull($location->accountId, 'The account of a location of another company is not the account of this one');
+
+            $db->table('accounting_routing')->update(['company_id' => $other]);
+
+            $this->assertNull($this->build()->stockAccountCode);
+            $this->assertNull($this->build()->stockAccountBalance);
+        } finally {
+            $db->table('accounting_routing')->update(['company_id' => 1]);
+            $db->table('accounting_accounts')->where('company_id', $other)->update(['company_id' => 1]);
+            $db->table('companies')->where('company_id', $other)->delete();
+        }
+    }
+
+    public function testBuild_CountsEveryMovementForTheStockAsItStandsNowEvenOneDatedLater(): void
+    {
+        $item = $this->item('0.00');
+
+        $this->bookStock('2035-06-01', 1, $item, '10', '100.00');
+        $this->putOnShelf($item, '10');
+
+        foreach ([null, date('Y-m-d')] as $day) {
+            $report = $this->build(asOf: $day);
+
+            $this->assertSame('100.0000', $report->value(), 'Day ' . json_encode($day));
+            $this->assertSame('100.0000', $report->stockAccountBalance, 'Day ' . json_encode($day));
+            $this->assertSame(0, $report->unpostedLines(), 'Day ' . json_encode($day));
+        }
+
+        $this->assertSame([], $this->build(asOf: '2026-10-05')->locations, 'A day before it is dated, it is not in the books');
+    }
+
+    public function testBuild_LeavesOutAnItemWithAnEmptyShelfAndNoMovementEvenWhenAskedForEmptyOnes(): void
+    {
+        $item = $this->item('0.00');
+
+        $this->putOnShelf($item, '0');
+
+        $location = $this->location($this->build(showEmpty: true), self::LOCATION_ID);
+
+        $this->assertSame([], $location->lines, 'Every item has a row of zero in every location, and listing them all would bury the stock');
     }
 
     public function testBuild_ChangesNothingInTheBooks(): void

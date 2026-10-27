@@ -46,5 +46,6 @@ return [
     'unposted_legend'     => 'Units on the shelves that no stock movement accounts for (stock from before the books began, or moved without being posted) are flagged and are not given a value here. The column "At item cost" is what the legacy inventory report calls the value: the cost an item carries times its quantity.',
     'unposted_negative'   => 'More in the books than on the shelves',
     'unposted_note'       => 'The quantity on the shelves differs from the books for {0} item(s) in this location. Units on the shelves that no stock movement accounts for are flagged as not in the books and are not given a value.',
+    'unposted_summary'    => 'The shelves differ from the books for {0} item line(s), marked below. Units on the shelves that no stock movement accounts for are not given a value in this report.',
     'unposted_units'      => 'Not in the books',
 ];
