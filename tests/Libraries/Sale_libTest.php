@@ -2,6 +2,7 @@
 
 namespace Tests\Libraries;
 
+use App\Libraries\InvoiceDiscountProblem;
 use App\Libraries\Sale_lib;
 use App\Libraries\Tax_lib;
 use App\Models\Attribute;
@@ -238,6 +239,262 @@ class Sale_libTest extends CIUnitTestCase
         $this->assertSame([11 => -3.0, 13 => -1.0], $added);
         $this->assertSame(9, $saleLib->get_return_origin());
         $this->assertSame(3, $saleLib->get_customer());
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function referenceCart(): array
+    {
+        return [
+            1 => ['item_id' => 3, 'item_location' => 1, 'line' => 1, 'quantity' => '2', 'price' => '75', 'discount' => '10', 'discount_type' => PERCENT, 'stock_type' => HAS_STOCK],
+            2 => ['item_id' => 4, 'item_location' => 1, 'line' => 2, 'quantity' => '1', 'price' => '220', 'discount' => '0', 'discount_type' => PERCENT, 'stock_type' => HAS_STOCK],
+        ];
+    }
+
+    public function testGetCart_GivesEveryLineTheShareOfTheDiscountOnTheWholeOfTheSale(): void
+    {
+        $this->saleLib->set_cart($this->referenceCart());
+        $this->saleLib->setInvoiceDiscount(PERCENT, '10');
+
+        $cart = $this->saleLib->get_cart();
+
+        $this->assertSame('13.5000', $cart[1]['invoice_discount_share']);
+        $this->assertSame('22.0000', $cart[2]['invoice_discount_share']);
+        $this->assertSame('35.5000', $this->saleLib->getInvoiceDiscountTotal());
+        $this->assertNull($this->saleLib->invoiceDiscountProblem());
+    }
+
+    public function testGetCart_GivesTheLinesAnAmountSharedInProportionToWhatTheyComeTo(): void
+    {
+        $this->saleLib->set_cart($this->referenceCart());
+        $this->saleLib->setInvoiceDiscount(FIXED, '20');
+
+        $cart = $this->saleLib->get_cart();
+
+        $this->assertSame('7.6056', $cart[1]['invoice_discount_share']);
+        $this->assertSame('12.3944', $cart[2]['invoice_discount_share']);
+    }
+
+    public function testGetCart_LeavesTheCartAsItIsWhenThereIsNoDiscount(): void
+    {
+        $this->saleLib->set_cart($this->referenceCart());
+
+        $this->assertSame($this->referenceCart(), $this->saleLib->get_cart());
+        $this->assertSame('0.0000', $this->fourDecimals($this->saleLib->getInvoiceDiscountTotal()));
+    }
+
+    public function testGetCart_TakesTheSharesOffWhenTheDiscountIsCleared(): void
+    {
+        $this->saleLib->set_cart($this->referenceCart());
+        $this->saleLib->setInvoiceDiscount(PERCENT, '10');
+        $this->saleLib->set_cart($this->saleLib->get_cart());
+        $this->saleLib->clearInvoiceDiscount();
+
+        $this->assertSame($this->referenceCart(), $this->saleLib->get_cart());
+        $this->assertNull($this->saleLib->getInvoiceDiscount());
+    }
+
+    public function testGetCart_AppliesNoShareToAnyLineWhenTheDiscountCannotBeTakenOffWhatTheyComeTo(): void
+    {
+        $this->saleLib->set_cart($this->referenceCart());
+        $this->saleLib->setInvoiceDiscount(FIXED, '355.01');
+
+        $this->assertSame($this->referenceCart(), $this->saleLib->get_cart());
+        $this->assertSame(InvoiceDiscountProblem::ExceedsTotal, $this->saleLib->invoiceDiscountProblem());
+    }
+
+    public function testGetCart_FollowsTheLinesWhenTheyChange(): void
+    {
+        $this->saleLib->set_cart($this->referenceCart());
+        $this->saleLib->setInvoiceDiscount(PERCENT, '10');
+
+        $cart = $this->saleLib->get_cart();
+        unset($cart[2]);
+        $this->saleLib->set_cart($cart);
+
+        $this->assertSame('13.5000', $this->saleLib->get_cart()[1]['invoice_discount_share']);
+        $this->assertSame('13.5000', $this->saleLib->getInvoiceDiscountTotal());
+    }
+
+    public function testGetCart_GivesAReturnTheShareOfTheDiscountOfTheSaleItComesFrom(): void
+    {
+        $sale = $this->createStub(Sale::class);
+        $sale->method('invoiceDiscountOrigin')->willReturn([3 => ['sold' => '4', 'share' => '8.0000', 'returned' => '0', 'returnedShare' => '0.0000']]);
+        Factories::injectMock('models', Sale::class, $sale);
+
+        $saleLib = new Sale_lib();
+        $saleLib->set_mode('return');
+        $saleLib->set_return_origin(9);
+        $saleLib->set_cart([1 => ['item_id' => 3, 'item_location' => 1, 'line' => 1, 'quantity' => '-1', 'price' => '75', 'discount' => '0', 'discount_type' => PERCENT, 'stock_type' => HAS_STOCK]]);
+
+        $this->assertSame('-2.0000', $saleLib->get_cart()[1]['invoice_discount_share']);
+        $this->assertSame('-2.0000', $saleLib->getInvoiceDiscountTotal());
+    }
+
+    public function testGetCart_GivesAReturnNoShareWhenItNamesNoSale(): void
+    {
+        $this->saleLib->set_mode('return');
+        $this->saleLib->set_cart([1 => ['item_id' => 3, 'item_location' => 1, 'line' => 1, 'quantity' => '-1', 'price' => '75', 'discount' => '0', 'discount_type' => PERCENT, 'stock_type' => HAS_STOCK]]);
+
+        $this->assertArrayNotHasKey('invoice_discount_share', $this->saleLib->get_cart()[1]);
+    }
+
+    public function testGetCart_IgnoresTheDiscountEnteredBeforeTheRegisterTookAReturn(): void
+    {
+        $this->saleLib->setInvoiceDiscount(PERCENT, '10');
+        $this->saleLib->set_mode('return');
+        $this->saleLib->set_return_origin(9);
+        $this->saleLib->set_cart([1 => ['item_id' => 3, 'item_location' => 1, 'line' => 1, 'quantity' => '-1', 'price' => '75', 'discount' => '0', 'discount_type' => PERCENT, 'stock_type' => HAS_STOCK]]);
+
+        $this->assertArrayNotHasKey('invoice_discount_share', $this->saleLib->get_cart()[1]);
+        $this->assertNull($this->saleLib->invoiceDiscountProblem());
+    }
+
+    public function testGetTotals_TakesTheDiscountOnTheWholeOfTheSaleOffTheSubtotalAndTheTotal(): void
+    {
+        $this->saleLib->set_cart($this->referenceCart());
+        $this->saleLib->setInvoiceDiscount(PERCENT, '10');
+
+        $totals = $this->saleLib->get_totals(['VAT' => ['tax_type' => Tax_lib::TAX_TYPE_EXCLUDED, 'sale_tax_amount' => '47.925']]);
+
+        $this->assertSame('319.5000', $this->fourDecimals($totals['subtotal']));
+        $this->assertSame('367.4250', $this->fourDecimals($totals['total']));
+        $this->assertSame('35.5000', $this->fourDecimals($totals['invoice_discount']));
+        $this->assertSame('355.0000', $this->fourDecimals(bcadd($totals['subtotal'], $totals['invoice_discount'])));
+        $this->assertSame('15.0000', $this->fourDecimals($totals['total_discount']), 'the discounts of the lines stay their own');
+    }
+
+    public function testGetTotals_AreTheSameWithoutADiscountAsTheyWereBefore(): void
+    {
+        $this->saleLib->set_cart($this->referenceCart());
+
+        $totals = $this->saleLib->get_totals(['VAT' => ['tax_type' => Tax_lib::TAX_TYPE_EXCLUDED, 'sale_tax_amount' => '53.25']]);
+
+        $this->assertSame('355.0000', $this->fourDecimals($totals['subtotal']));
+        $this->assertSame('408.2500', $this->fourDecimals($totals['total']));
+        $this->assertSame('0.0000', $this->fourDecimals($totals['invoice_discount']));
+    }
+
+    public function testGetItemTotal_TakesTheShareOffTheLineWhenAskedToAndOtherwiseLeavesItAlone(): void
+    {
+        $this->assertSame('121.5000', $this->fourDecimals($this->saleLib->get_item_total('2', '75', '10', PERCENT, true, '13.5')));
+        $this->assertSame('135.0000', $this->fourDecimals($this->saleLib->get_item_total('2', '75', '10', PERCENT, true)));
+        $this->assertSame('150.0000', $this->fourDecimals($this->saleLib->get_item_total('2', '75', '10', PERCENT, false, '13.5')), 'without the discounts the share is not taken off');
+    }
+
+    public function testGetItemTax_WorksTheTaxOutOnWhatIsLeftAfterTheShare(): void
+    {
+        $this->assertSame('18.2250', $this->fourDecimals($this->saleLib->get_item_tax('2', '75', '10', PERCENT, '15', '13.5')));
+        $this->assertSame('20.2500', $this->fourDecimals($this->saleLib->get_item_tax('2', '75', '10', PERCENT, '15')));
+    }
+
+    public function testClearAll_ForgetsTheDiscountOnTheWholeOfTheSale(): void
+    {
+        $this->saleLib->setInvoiceDiscount(FIXED, '20');
+        $this->saleLib->clear_all();
+
+        $this->assertNull($this->saleLib->getInvoiceDiscount());
+    }
+
+    /**
+     * @param list<object> $lines
+     */
+    private function loadSale(array $lines, int $status, ?array $discount): Sale_lib
+    {
+        $rows = $this->createStub(ResultInterface::class);
+        $rows->method('getResult')->willReturn($lines);
+
+        $empty = $this->createStub(ResultInterface::class);
+        $empty->method('getResult')->willReturn([]);
+
+        $sale = $this->createStub(Sale::class);
+        $sale->method('get_sale_items_ordered')->willReturn($rows);
+        $sale->method('get_sale_payments')->willReturn($empty);
+        $sale->method('get_customer')->willReturn((object) ['person_id' => 3]);
+        $sale->method('get_employee')->willReturn((object) ['person_id' => 1]);
+        $sale->method('get_sale_type')->willReturn(SALE_TYPE_INVOICE);
+        $sale->method('get_comment')->willReturn('');
+        $sale->method('isDelivered')->willReturn(true);
+        $sale->method('getInvoiceDiscount')->willReturn($discount);
+        $sale->method('getSaleStatus')->willReturn($status);
+        Factories::injectMock('models', Sale::class, $sale);
+
+        $saleLib = $this->getMockBuilder(Sale_lib::class)->onlyMethods(['add_item'])->getMock();
+        $saleLib->method('add_item')->willReturnCallback(static function (string &$itemId, int $location, string $quantity, string &$discount, int $discountType, int $mode, ?int $kitPrice, ?int $kitPrint, ?string $price) use ($saleLib): bool {
+            $cart = session()->get('sales_cart') ?? [];
+            $line = $cart === [] ? 1 : max(array_keys($cart)) + 1;
+
+            foreach ($cart as $key => $row) {
+                if ($row['item_id'] == $itemId && $row['item_location'] == $location) {
+                    $cart[$key]['quantity'] = bcadd($row['quantity'], $quantity);
+                    session()->set('sales_cart', $cart);
+
+                    return true;
+                }
+            }
+
+            $cart[$line] = ['item_id' => $itemId, 'item_location' => $location, 'line' => $line, 'quantity' => $quantity, 'price' => $price, 'discount' => $discount, 'discount_type' => $discountType, 'stock_type' => HAS_STOCK];
+            session()->set('sales_cart', $cart);
+
+            return true;
+        });
+
+        $saleLib->copy_entire_sale(9);
+
+        return $saleLib;
+    }
+
+    public function testCopyEntireSale_KeepsTheSharesOfACompletedSaleAsTheyWereSaved(): void
+    {
+        $saleLib = $this->loadSale([
+            (object) ['item_id' => 3, 'item_location' => 1, 'quantity_purchased' => '2', 'discount' => '10', 'discount_type' => PERCENT, 'item_unit_price' => '75', 'description' => 'a', 'serialnumber' => '', 'print_option' => 0, 'invoice_discount_share' => '13.0000'],
+            (object) ['item_id' => 4, 'item_location' => 1, 'quantity_purchased' => '1', 'discount' => '0', 'discount_type' => PERCENT, 'item_unit_price' => '220', 'description' => 'b', 'serialnumber' => '', 'print_option' => 0, 'invoice_discount_share' => '22.5000'],
+        ], COMPLETED, ['type' => PERCENT, 'value' => '10.0000']);
+
+        $cart = $saleLib->get_cart();
+
+        $this->assertSame('13.0000', $cart[1]['invoice_discount_share']);
+        $this->assertSame('22.5000', $cart[2]['invoice_discount_share']);
+        $this->assertSame('35.5000', $saleLib->getInvoiceDiscountTotal());
+        $this->assertSame(['type' => PERCENT, 'value' => '10'], $saleLib->getInvoiceDiscount());
+    }
+
+    public function testCopyEntireSale_AddsUpTheSharesOfLinesThatWereMergedIntoOne(): void
+    {
+        $saleLib = $this->loadSale([
+            (object) ['item_id' => 3, 'item_location' => 1, 'quantity_purchased' => '1', 'discount' => '0', 'discount_type' => PERCENT, 'item_unit_price' => '75', 'description' => 'a', 'serialnumber' => '', 'print_option' => 0, 'invoice_discount_share' => '1.5000'],
+            (object) ['item_id' => 3, 'item_location' => 1, 'quantity_purchased' => '1', 'discount' => '0', 'discount_type' => PERCENT, 'item_unit_price' => '75', 'description' => 'a', 'serialnumber' => '', 'print_option' => 0, 'invoice_discount_share' => '2.0000'],
+        ], COMPLETED, ['type' => FIXED, 'value' => '3.5']);
+
+        $cart = $saleLib->get_cart();
+
+        $this->assertCount(1, $cart);
+        $this->assertSame('3.5000', $cart[1]['invoice_discount_share']);
+    }
+
+    public function testCopyEntireSale_GivesBackTheDiscountOfASuspendedSaleToBeWorkedOutAgainAsItsLinesChange(): void
+    {
+        $saleLib = $this->loadSale([
+            (object) ['item_id' => 3, 'item_location' => 1, 'quantity_purchased' => '2', 'discount' => '10', 'discount_type' => PERCENT, 'item_unit_price' => '75', 'description' => 'a', 'serialnumber' => '', 'print_option' => 0, 'invoice_discount_share' => '13.0000'],
+            (object) ['item_id' => 4, 'item_location' => 1, 'quantity_purchased' => '1', 'discount' => '0', 'discount_type' => PERCENT, 'item_unit_price' => '220', 'description' => 'b', 'serialnumber' => '', 'print_option' => 0, 'invoice_discount_share' => '22.5000'],
+        ], SUSPENDED, ['type' => PERCENT, 'value' => '10.0000']);
+
+        $cart = $saleLib->get_cart();
+
+        $this->assertSame('13.5000', $cart[1]['invoice_discount_share'], 'what the lines come to now, not what was saved');
+        $this->assertSame('22.0000', $cart[2]['invoice_discount_share']);
+        $this->assertSame(['type' => PERCENT, 'value' => '10'], $saleLib->getInvoiceDiscount());
+    }
+
+    public function testCopyEntireSale_LeavesASaleWithoutADiscountWithoutShares(): void
+    {
+        $saleLib = $this->loadSale([
+            (object) ['item_id' => 3, 'item_location' => 1, 'quantity_purchased' => '2', 'discount' => '10', 'discount_type' => PERCENT, 'item_unit_price' => '75', 'description' => 'a', 'serialnumber' => '', 'print_option' => 0, 'invoice_discount_share' => null],
+        ], COMPLETED, null);
+
+        $this->assertArrayNotHasKey('invoice_discount_share', $saleLib->get_cart()[1]);
+        $this->assertNull($saleLib->getInvoiceDiscount());
     }
 
     private function fourDecimals(string $amount): string
