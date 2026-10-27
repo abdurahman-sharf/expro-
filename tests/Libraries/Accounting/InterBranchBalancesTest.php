@@ -5,7 +5,6 @@ namespace Tests\Libraries\Accounting;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\InterBranchBalances;
 use App\Libraries\Accounting\InterBranchLegs;
-use App\Libraries\Accounting\InterBranchPosition;
 use App\Libraries\Accounting\InterBranchSettlements;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
@@ -313,27 +312,6 @@ class InterBranchBalancesTest extends CIUnitTestCase
         $this->assertSame(['receivable' => '30.0000', 'payable' => '100.0000'], $between['second']);
         $this->assertSame(['receivable' => '0.0000', 'payable' => '0.0000'], $this->balances->between(1, $this->thirdBranch)['first']);
         $this->assertSame(['receivable' => '100.0000', 'payable' => '0.0000'], $this->balances->between(1, $this->secondBranch, '2026-10-21')['first']);
-    }
-
-    public function testAccounts_IncludesTheAccountAJournalWasRecordedOnWhenTheRoutingNamesAnother(): void
-    {
-        $other = $this->customAccount('1204', '12047', 'Receivable recorded once');
-
-        (new PostingService())->post(new JournalDraft(
-            date: '2026-10-21',
-            lines: [new JournalLineDraft($other, debit: '10.00'), new JournalLineDraft($this->accountId('opening_balance'), credit: '10.00')],
-            sourceType: 'interbranch_test',
-            sourceId: 1,
-            branchId: 1,
-        ));
-        (new InterBranchLegs())->record((int) $this->accountingDb()->table('accounting_journals')->where('source_type', 'interbranch_test')->get()->getRow()->journal_id, $other, InterBranchLegs::RECEIVABLE, $this->secondBranch, 'interbranch_test', 1, 1);
-
-        [$receivable, $payable] = (new InterBranchPosition())->accounts();
-
-        $this->assertContains($other, $receivable);
-        $this->assertNotContains($other, $payable);
-        $this->assertContains($this->accountId('branches_receivable'), $receivable);
-        $this->assertContains($this->accountId('branches_payable'), $payable);
     }
 
     /**

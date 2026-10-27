@@ -4,18 +4,17 @@ namespace Tests\Libraries\Accounting;
 
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
-use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\InterBranchBalances;
 use App\Libraries\Accounting\InterBranchPosition;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\JournalService;
+use App\Libraries\Accounting\PairBalance;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\RoutingKey;
 use App\Libraries\Accounting\RoutingType;
-use App\Libraries\Accounting\PairBalance;
 use App\Libraries\Accounting\SalePosting;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\InvoiceDiscountProblem;
@@ -2976,27 +2975,6 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame(AccountingError::TreasuryWithdrawDenied, $this->sales->accountingFailure()->error);
         $this->assertSame(['sale_payment', 'sale_payment_branch'], array_keys($this->paymentJournals($saleId)));
         $this->assertSame(COMPLETED, (int) $this->accountingDb()->table('sales')->where('sale_id', $saleId)->get()->getRow()->sale_status);
-    }
-
-    public function testReverse_RejectsToTakeBackOneJournalOfAPaymentAcrossBranchesByHand(): void
-    {
-        ['treasury' => $treasury] = $this->treasuryOfAnotherBranch();
-
-        $saleId   = $this->saleWithPaymentInto($treasury);
-        $reverser = $this->employeeWithGrants([AccountingGuard::JOURNALS_REVERSE, AccountingGuard::JOURNALS_ALL]);
-
-        foreach ($this->journals($saleId) as $journal) {
-            if (str_starts_with($journal['source'], 'sale_payment')) {
-                try {
-                    (new JournalService())->reverse($journal['id'], date('Y-m-d'), 'By hand', $reverser);
-                    $this->fail('A journal of a pair was reversed by hand');
-                } catch (AccountingException $refusal) {
-                    $this->assertSame(AccountingError::TransferJournalLocked, $refusal->error, $journal['source']);
-                }
-            }
-        }
-
-        $this->assertSame(['sale_payment', 'sale_payment_branch'], array_keys($this->paymentJournals($saleId)));
     }
 
     public function testSyncPayments_KeepsAPaymentThatWasStampedWithATreasuryOfAnotherBranchBeforeThisAsTheOneJournalItHas(): void

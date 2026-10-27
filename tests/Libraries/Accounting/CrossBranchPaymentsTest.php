@@ -11,10 +11,8 @@ use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
-use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\SalePostingBuilder;
 use App\Libraries\Accounting\TreasuryService;
-use App\Libraries\Organization\BranchGuard;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -508,7 +506,7 @@ class CrossBranchPaymentsTest extends CIUnitTestCase
         $this->assertSame(2, $this->accountingDb()->table('accounting_journals')->where('source_id', 5054)->countAllResults());
     }
 
-    public function testAssertMayPost_NeedsTheEmployeeToWorkInBothBranchesAndToMoveTheTreasury(): void
+    public function testAssertMayPost_RejectsAnEmployeeWhoWorksInOnlyOneOfTheBranches(): void
     {
         $drafts = $this->payments->drafts($this->draft(true, '100.00', 5040), $this->treasury, $this->branch);
 
@@ -517,6 +515,18 @@ class CrossBranchPaymentsTest extends CIUnitTestCase
 
         $this->assertSame(AccountingError::InterBranchBranchesDenied, $this->refusal(fn () => $this->payments->assertMayPost($drafts, $this->employeeWithGrants([], [1])))->error);
         $this->assertSame(AccountingError::InterBranchBranchesDenied, $this->refusal(fn () => $this->payments->assertMayPost($drafts, $this->employeeWithGrants([], [$this->branch])))->error);
-        $this->assertTrue((new BranchGuard())->canAccess($this->branch, $this->employeeWithGrants([], [$this->branch])));
+    }
+
+    public function testAssertMayPost_AsksTheDepositScopeOfTheTreasuryOfTheOtherBranch(): void
+    {
+        $member   = $this->employeeWithGrants([], [1, $this->branch]);
+        $outsider = $this->employeeWithGrants([], [1, $this->branch]);
+        $drafts   = $this->payments->drafts($this->draft(true, '100.00', 5041), $this->treasury, $this->branch);
+
+        $this->treasuries->update($this->treasury, ['name' => 'Branch drawer', 'kind' => 'cash', 'deposit_scope' => 'staff', 'deposit_members' => [$member]]);
+
+        $this->payments->assertMayPost($drafts, $member);
+
+        $this->assertSame(AccountingError::TreasuryDepositDenied, $this->refusal(fn () => $this->payments->assertMayPost($drafts, $outsider))->error);
     }
 }

@@ -5,9 +5,7 @@ namespace Tests\Libraries\Accounting;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingMessage;
-use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\InterBranchPosition;
-use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\ReceivingPosting;
@@ -2737,28 +2735,6 @@ class ReceivingPostingTest extends CIUnitTestCase
         $this->assertFalse($this->purchases->delete_value($receivingId, $this->employeeId));
         $this->assertSame(['supplier_payment', 'supplier_payment_branch'], array_keys($this->supplierPaymentJournals($paymentId)));
         $this->assertSame('-100.0000', (new TreasuryService())->position($treasury)->balance);
-    }
-
-    public function testReverse_RejectsToTakeBackOneJournalOfASupplierPaymentAcrossBranchesByHand(): void
-    {
-        ['treasury' => $treasury] = $this->treasuryOfAnotherBranch();
-
-        $receivingId = $this->purchaseOf('300.00');
-
-        $this->assertTrue($this->payPurchaseFrom($receivingId, '100.00', $treasury));
-
-        $reverser = $this->employeeWithGrants([AccountingGuard::JOURNALS_REVERSE, AccountingGuard::JOURNALS_ALL]);
-
-        foreach ($this->accountingDb()->table('accounting_journals')->whereIn('source_type', ['supplier_payment', 'supplier_payment_branch'])->get()->getResult() as $journal) {
-            try {
-                (new JournalService())->reverse((int) $journal->journal_id, date('Y-m-d'), 'By hand', $reverser);
-                $this->fail('A journal of a pair was reversed by hand');
-            } catch (AccountingException $refusal) {
-                $this->assertSame(AccountingError::TransferJournalLocked, $refusal->error, $journal->source_type);
-            }
-        }
-
-        $this->assertSame(2, $this->accountingDb()->table('accounting_journals')->whereIn('source_type', ['supplier_payment', 'supplier_payment_branch'])->where('status', 'posted')->countAllResults());
     }
 
     public function testUpdate_KeepsAPaymentStampedWithATreasuryOfAnotherBranchBeforeThisAsTheOneJournalItHas(): void

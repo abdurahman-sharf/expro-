@@ -6,11 +6,9 @@ use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\ExpensePosting;
-use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\ExpensePostingBuilder;
 use App\Libraries\Accounting\InterBranchPosition;
 use App\Libraries\Accounting\JournalChange;
-use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\TreasuryScopes;
@@ -1437,25 +1435,6 @@ class ExpensePostingTest extends CIUnitTestCase
         $this->assertFalse($this->expenses->delete_list([$expenseId], $this->clerkId));
         $this->assertSame(['expense', 'expense_branch'], array_keys($this->expenseJournals($expenseId)));
         $this->assertSame('-100.00', $this->assertTreasuryTiesToItsAccount($treasury));
-    }
-
-    public function testReverse_RejectsToTakeBackOneJournalOfAnExpenseAcrossBranchesByHand(): void
-    {
-        ['treasury' => $treasury] = $this->treasuryOfAnotherBranch();
-
-        $expenseId = $this->saveExpense($this->acrossBranches($treasury));
-        $reverser  = $this->employeeWithGrants([AccountingGuard::JOURNALS_REVERSE, AccountingGuard::JOURNALS_ALL]);
-
-        foreach ($this->accountingDb()->table('accounting_journals')->whereIn('source_type', ['expense', 'expense_branch'])->where('source_id', $expenseId)->get()->getResult() as $journal) {
-            try {
-                (new JournalService())->reverse((int) $journal->journal_id, date('Y-m-d'), 'By hand', $reverser);
-                $this->fail('A journal of a pair was reversed by hand');
-            } catch (AccountingException $refusal) {
-                $this->assertContains($refusal->error, [AccountingError::DocumentJournalLocked, AccountingError::TransferJournalLocked], $journal->source_type);
-            }
-        }
-
-        $this->assertSame(['expense', 'expense_branch'], array_keys($this->expenseJournals($expenseId)));
     }
 
     public function testJournalsOf_ListsTheJournalOfTheTreasuryBranchWithTheJournalOfTheExpense(): void

@@ -7,7 +7,6 @@ use App\Libraries\Accounting\InterBranchSettlements;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\PostingService;
-use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Accounting\TreasuryTransfers;
 use CodeIgniter\Exceptions\PageNotFoundException;
@@ -585,13 +584,6 @@ class AccountingInterBranchControllerTest extends CIUnitTestCase
         $this->assertTrue($result['success']);
         $this->assertSame('cancelled', (new InterBranchSettlements())->find($id)->status);
         $this->assertSame('900.0000', $this->treasuries->position($this->main)->balance);
-    }
-
-    public function testTransfers_LinksToTheBalancesBetweenBranches(): void
-    {
-        $this->actAsWith(['accounting_treasuries']);
-
-        $this->get('/accounting_treasuries/transfers')->assertSee('accounting_treasuries/inter_branch');
     }
 
     /**

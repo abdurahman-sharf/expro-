@@ -10,7 +10,6 @@ use App\Libraries\Accounting\InterBranchPosition;
 use App\Libraries\Accounting\InterBranchSettlements;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
-use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\PostingService;
@@ -942,20 +941,6 @@ class InterBranchSettlementsTest extends CIUnitTestCase
 
         $this->assertSame([1, $this->branch], array_map(static fn (object $entry): int => (int) $entry->branch_id, $entries));
         $this->assertSame('Reason', json_decode($entries[0]->details, true)['reason']);
-    }
-
-    public function testReverse_RejectsToTakeBackOneJournalOfASettlementByHand(): void
-    {
-        $this->send(true, '100.00');
-
-        $id      = $this->settle($this->other, $this->main);
-        $journal = $this->accountingDb()->table('accounting_journals')->where(['source_type' => InterBranchSettlements::SOURCE, 'source_id' => $id])->get()->getRow();
-        $editor  = $this->employeeWithGrants([AccountingGuard::JOURNALS_REVERSE, AccountingGuard::JOURNALS_ALL]);
-
-        $refusal = $this->refusal(fn () => (new JournalService())->reverse((int) $journal->journal_id, '2026-10-31', 'By hand', $editor));
-
-        $this->assertSame(AccountingError::TransferJournalLocked, $refusal->error);
-        $this->assertSame([1, $this->branch], array_keys($this->journalsOf($id)));
     }
 
     public function testSearch_ListsASettlementToTheEmployeesOfEitherBranchAndToNoOneElse(): void

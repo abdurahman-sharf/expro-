@@ -93,6 +93,11 @@ class InterBranchSettlementsMigrationTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('interbranch_settlements'));
     }
 
+    private function newBranch(): int
+    {
+        return $this->createBranch('MG' . substr(md5(uniqid('', true)), 0, 10));
+    }
+
     private function rebuilt(): void
     {
         $migration = new InterBranchSettlements();
@@ -169,7 +174,7 @@ class InterBranchSettlementsMigrationTest extends CIUnitTestCase
     {
         $this->rebuilt();
 
-        $branchId = $this->createBranch('MG' . random_int(10, 99));
+        $branchId = $this->newBranch();
 
         $this->assertTrue($this->insertsSettlement($this->settlement($branchId, ['request_key' => 'same'])));
         $this->assertFalse($this->insertsSettlement($this->settlement($branchId, ['request_key' => 'same'])), 'The same key twice');
@@ -183,7 +188,7 @@ class InterBranchSettlementsMigrationTest extends CIUnitTestCase
     {
         $this->rebuilt();
 
-        $branchId = $this->createBranch('MG' . random_int(10, 99));
+        $branchId = $this->newBranch();
 
         $this->assertFalse($this->insertsSettlement($this->settlement(1, ['branch_id' => $branchId])), 'The higher branch first');
         $this->assertFalse($this->insertsSettlement($this->settlement(1)), 'The same branch twice');
@@ -196,7 +201,7 @@ class InterBranchSettlementsMigrationTest extends CIUnitTestCase
     {
         $this->rebuilt();
 
-        $branchId = $this->createBranch('MG' . random_int(10, 99));
+        $branchId = $this->newBranch();
 
         $this->assertFalse($this->insertsSettlement($this->settlement($branchId, ['kind' => 'barter'])));
         $this->assertFalse($this->insertsSettlement($this->settlement($branchId, ['status' => 'half'])));
@@ -209,8 +214,8 @@ class InterBranchSettlementsMigrationTest extends CIUnitTestCase
     {
         $this->rebuilt();
 
-        $gone  = $this->createBranch('MG' . random_int(10, 99));
-        $there = $this->createBranch('MH' . random_int(10, 99));
+        $gone  = $this->newBranch();
+        $there = $this->newBranch();
 
         $this->accountingDb()->table('branches')->where('branch_id', $gone)->delete();
 
@@ -227,7 +232,7 @@ class InterBranchSettlementsMigrationTest extends CIUnitTestCase
         $this->rebuilt();
         $this->reinstallChart();
 
-        $branchId   = $this->createBranch('MG' . random_int(10, 99));
+        $branchId   = $this->newBranch();
         $treasuries = new TreasuryService();
         $from       = $treasuries->create(['name' => 'Settlement from ' . uniqid(), 'kind' => 'cash', 'branch_id' => $branchId]);
         $to         = $treasuries->create(['name' => 'Settlement to ' . uniqid(), 'kind' => 'cash']);
@@ -261,7 +266,7 @@ class InterBranchSettlementsMigrationTest extends CIUnitTestCase
 
         $this->rebuilt();
 
-        $gone = $this->createBranch('MG' . random_int(10, 99));
+        $gone = $this->newBranch();
 
         $this->accountingDb()->table('branches')->where('branch_id', $gone)->delete();
 

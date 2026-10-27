@@ -9,6 +9,8 @@ use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountService;
 use App\Libraries\Accounting\CostCenterService;
 use App\Libraries\Accounting\CrossBranchPayments;
+use App\Libraries\Accounting\InterBranchLegs;
+use App\Libraries\Accounting\InterBranchSettlements;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\JournalAttachments;
@@ -727,6 +729,47 @@ class JournalServiceTest extends CIUnitTestCase
 
             $this->assertGreaterThan(0, $this->service->reverseAutomatic($journalId, '2026-10-22', 'Document deleted', null));
             $this->assertSame('reversed', $this->journal($journalId)->status);
+        }
+    }
+
+    public function testReverse_RefusesTheJournalsOfASettlementBetweenBranchesAndLeavesThemToItsCancellation(): void
+    {
+        $reverser = $this->accountant();
+
+        foreach ([InterBranchSettlements::SOURCE, InterBranchSettlements::SOURCE_SECOND] as $source) {
+            $journalId = $this->journalOfAStockTransfer($source);
+
+            $this->assertFailsWith(AccountingError::TransferJournalLocked, fn () => $this->service->reverse($journalId, '2026-10-22', 'By hand', $reverser));
+            $this->assertSame('posted', $this->journal($journalId)->status);
+            $this->assertGreaterThan(0, $this->service->reverseAutomatic($journalId, '2026-10-22', 'Settlement cancelled', null));
+            $this->assertSame('reversed', $this->journal($journalId)->status);
+        }
+    }
+
+    public function testReverse_RefusesAJournalThatHasARecordOfTheOtherBranchWhateverItsSource(): void
+    {
+        $branchId = $this->createBranch('B2');
+        $reverser = $this->accountant();
+
+        foreach (['sale_payment', 'sale_payment_branch', 'supplier_payment', 'supplier_payment_branch', 'expense_branch'] as $source) {
+            $journalId = $this->journalOfAStockTransfer($source);
+
+            (new InterBranchLegs())->record($journalId, $this->accountId('cash'), InterBranchLegs::RECEIVABLE, $branchId, $source, $journalId, 1);
+
+            $this->assertFailsWith(AccountingError::TransferJournalLocked, fn () => $this->service->reverse($journalId, '2026-10-22', 'By hand', $reverser));
+            $this->assertSame('posted', $this->journal($journalId)->status, $source);
+        }
+    }
+
+    public function testReverse_TakesBackAPaymentThatHasNoRecordOfAnotherBranchByHand(): void
+    {
+        $reverser = $this->accountant();
+
+        foreach (['sale_payment', 'supplier_payment'] as $source) {
+            $journalId = $this->journalOfAStockTransfer($source);
+
+            $this->assertGreaterThan(0, $this->service->reverse($journalId, '2026-10-22', 'By hand', $reverser));
+            $this->assertSame('reversed', $this->journal($journalId)->status, $source);
         }
     }
 
