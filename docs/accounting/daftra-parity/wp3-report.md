@@ -26,7 +26,7 @@
 - **مطابقة `S-25` (مرصودة):** ملف التثبيت `tests/Support/Parity/T-25.json` بثلاث حالات: `expense-200-with-15-percent-tax` **مطابقة تامة** (مدين `541` بـ200، مدين `215002` بـ30، دائن الخزينة 230)، و`expense-journal-owes-nobody` **مطابقة تامة** (لا طرف في أي سطر)، و`amount-entered-includes-the-tax` **يختلف**: في دفترة يُدخل المستخدم 200 وتُضاف الضريبة فيصير 230، وعندنا `amount` هو المدفوع شاملًا الضريبة و`tax_amount` جزؤه (القسم 3، الافتراض 1). ويقرؤه `ExpensePostingBuilderTest` فيبني القيد من الملف نفسه. (ما عدا هذه الحالة: **لا ادعاء مطابقة**، كله افتراض مدوَّن.)
 - **اختبارات جديدة (276 اختبارًا في 13 ملفًا، ملف لكل صنف):** `ExpensePostingBuilderTest` (22) و`ExpensePostingTest` (70) و`CashupPostingBuilderTest` (7) و`CashupPostingTest` (46) و`CashupExpectationTest` (16) و`DocumentJournalsTest` (24) و`ExpenseCategoryAccountsTest` (16) و`ExpensesControllerTest` (25) و`ExpensesCategoriesControllerTest` (10) و`tests/Models/ExpenseTest` (13) و`tests/Models/CashupTest` (13) و`tests/Models/Expense_categoryTest` (6) و`ExpensesAccountingMigrationTest` (8). تغطي كل مسار حفظ وتعديل وحذف عبر النماذج الحقيقية، والفترة المقفلة، والفرع، ونطاق السحب والإيداع، والتراجع الكامل وتسجيل الفشل، والتاريخي، والمحاسبة المعطَّلة، وأقفال الصفوف وترتيبها، وتوازن الميزان بعد كل تغيير، وشاشات المصروف والتصنيف والإقفال.
 - **اختبارات أُضيفت إلى ملفات قائمة (29 طريقة في 8 ملفات):** `CashupControllerTest` (17: الشاشة والنقد المتوقع والرفض بكلمات والعمود والفلتر) و`AccountingSetupControllerTest` (2: إعداد حساب التصنيف حفظًا وعرضًا) و`AccountingSettingsTest` (3) و`AccountServiceTest` (2) و`JournalServiceTest` (2: قفل العكس اليدوي وعكس آلي لمصدر المستند) و`TreasuryServiceTest` (1: خزينة استُعملت في مصروف أو إقفال تُعدّ مستعمَلة) و`TrialBalanceTest` (1: **الميزان متوازن للشركة ولكل فرع بعد المصروفات**) و`AccountingJournalsControllerTest` (1: زر العكس مخفي لقيدي المصروف والإقفال). وعدّلتُ `TreasuriesMigrationTest` (تراجع ترحيل المصروفات قبل ترحيل الخزائن) و`ParityFixtureTest` (قائمة معرّفات تضم `T-25`).
-- **تعطيل الحراس:** <!-- MUT-SUMMARY-START -->عطّلتُ **234 حارسًا** من حراس الحزمة (كل إذن وفحص نطاق وقفل وتحقق وفريدة وطريق عكس وفحص فترة مقفلة وفحص فرع وكل ما في الفرق بين التفعيل والتعطيل) **كلًّا على حدة** بأداة `mutate_generic.py` في دفعات لا تزيد على عشرة: تُعطَّل الحراسة وتُشغَّل الاختبارات المعنية بها ويُعاد الملف. **كُشف 234 من 234**، وكان 56 منها غير مكشوف في المرة الأولى فقُوّيت اختباراتها حتى كُشف (الجدول في 2.1). **ملاحظات على القياس:** (1) الحارسان `H04` و`H05` هما فحصا الفترة المقفلة المتتاليان في `PostingService` (قبل المعاملة وداخلها): كلٌّ منهما يغطي الآخر فلا يُكشف تعطيل أحدهما وحده بتصميم الفحص المزدوج، فعُطِّل الفحص عند نقطته الوحيدة `PeriodGuard::assert` (الحارسان `H04` للمصروف و`H06` للإقفال) وحُذف `H05` من القائمة. (2) الحارس `G106` يُثبته اختبار نموذج التصنيف `Expense_categoryTest` لا اختبار المتحكم، لأن المتحكم لا يرسل الحساب أصلًا حين تكون المحاسبة معطَّلة. (3) الحارس `H68` كان غير مكشوف على الاختبارات القديمة (قيس قبل دفعته) فأُضيف له اختبار. (4) الحراس `H32` و`H33` (في `ExpensePostingBuilder`: حساب الدفع وحساب `required`) و`H60` و`H61` (في `CashupPostingBuilder`: حساب فرق الصندوق وحساب النقد) هي فحوص `null` دفاعية تفرضها أنواع الإرجاع `?int`، ولا يبلغها أي بيان: التوجيه المُلغى لا يُسمح به أصلًا لمفاتيح `treasuries.accounts` و`tax.input` و`expenses.default` و`cash.difference` (`RoutingKey::allowedTypes`) ولا لحساب وسيلة الدفع، فيرمي `RoutingResolver` استثناءً مسمّى قبل أن يعيد `null`؛ فهي معادلة (equivalent mutants) وحُذفت من القائمة ولم تُعدّ مكشوفة (والرفض الفعلي بحساب غير صالح مُثبَت بحارسي `H35` للمصروف الآجل وباختبار توجيه الضريبة). (5) الحارسان `H83` و`H93` (`$plan['post']` في `Expense::save_value` و`Cashup::save_value`) يكرران ما يقرره `document()` الذي يعيد `null` لكل صف بلا فرع، وكل خطة `post = false` صفّها بلا فرع حتمًا (القاعدة التاريخية)، فتعطيل أحدهما وحده لا يغيّر أثرًا يُرى ويبقى المنع قائمًا بالآخر (حارسا `G13` و`G45` وحارسا `H22` و`H51`)؛ فهما معادلان وحُذفا من القائمة. (6) الحارس `H112` (`Expenses::save` لا يمرّر `treasury_id` إلا والمحاسبة تعمل) يكرر ما يفعله النموذج حين تكون المحاسبة معطَّلة (`unset` للعمودين، الحارس `G93`)، فتعطيله وحده بلا أثر يُرى؛ معادل وحُذف من القائمة، ويبقى المنع مُثبَتًا عند النموذج. (7) الحارسان `H117` (`Cashups::postSave` يمرّر المسجَّل دخوله فاعلًا) و`H122` (`Expenses_categories::postSave` لا يمرّر الحساب إلا والمحاسبة تعمل) معادلان للسبب نفسه: المتحكم يضع `close_employee_id` بالمسجَّل دخوله أصلًا فيطابق ما يرجع إليه النموذج فاعلًا، والنموذج `Expense_category::save_value` يتجاهل الحساب والمحاسبة معطَّلة (الحارس `G106`)؛ حُذفا من القائمة. (8) الحارس `K18` (ترتيب `DocumentJournals::active` بأحدث مراجعة) معادل: لا يقوم لمستند إلا قيد واحد مرحَّل في وقت واحد (ما قبله معكوس)، فالترتيب لا يغيّر النتيجة؛ حُذف من القائمة.<!-- MUT-SUMMARY-END -->
+- **تعطيل الحراس:** <!-- MUT-SUMMARY-START -->**قيد القياس: قيس 244 من 262 حارسًا حتى الآن، كُشف منها 244** (الجدول في 2.1 يُملأ دفعةً دفعة).<!-- MUT-SUMMARY-END -->
 - **إعادة قياس الحراس على الحالة النهائية:** بعد آخر تعديل للاختبارات (الإيداع `ca99e3b`، وما بعده ملف التقرير وحده) **أُعيد تعطيل الحراس الـ234 كلها كلًّا على حدة في الدفعات الخمس والعشرين نفسها** (لا أكثر من عشرة في الدفعة) على `ospos_test_b`، **فكُشف 234 من 234 ولا حارس غير مكشوف ولا نص لم يوجد**، وبقيت شجرة العمل نظيفة بعد القياس (لا ملف معطَّل ولا نسخة احتياطية متبقية). وكل دفعة حُفظت نتيجتها في ملف مستقل خارج المستودع.
 - **الجولة المنتظمة الأخيرة:** شُغّل **كل ملف وحده** على `ospos_test_b` (59 ملفًا: كل الجديدة والمتغيرة وكل اختبارات المحاسبة والخزائن والتوجيه والفترات والترحيلات ذات الصلة، وفحص اللغات والمساعدات)، **فنجحت كلها: 3264 اختبارًا و10384 تأكيدًا، ولا فاشل ولا مُتخطّى** (القائمة الكاملة في 2.2). المجموعة الكاملة يشغّلها المُدمِج ولم أشغّلها.
 - **التنسيق:** شُغّل `php-cs-fixer` (إعداد `.php-cs-fixer.no-header.php`) على كل ملفات `app/` الجديدة (11 ملفًا: صفر تغيير) وعلى المكتبات والمتحكمات المعدَّلة، فاقتصر الإصلاح على محاذاة مفتاح الإعداد الجديد في `AccountingSettings` و`AccountingSetup`. أما ملفات `app/Controllers` و`app/Models` و`tabular_helper.php` القديمة التي لمستُ فيها **سطورًا قليلة** فلم أُعد تنسيقها كلها (تغيير يغطي الملف بأكمله ويصعّب على المُدمِج الدمج)، وكل سطر جديد فيها على المعيار. واختبارات الملفات الجديدة على PSR-12 (صفر مخالفة).
@@ -45,11 +45,11 @@
 | `G07` | a journal of a closed period is taken back today (reverse date) | مكشوف | 1 |
 | `G08` | only a journal in the books stands (active: posted) | مكشوف | 1 |
 | `G09` | each change is the next revision (nextRevision) | مكشوف | 6 |
-| `G10` | an expense is checked against the branches of the employee (plan, followed) | مكشوف | 2 |
+| `G10` | an expense is checked against the branches of the employee (plan, followed) | مكشوف | 3 |
 | `G11` | an expense is checked against the branches of the employee (plan, deleted or moved out) | مكشوف | 2 |
 | `G12` | deleting an expense is checked against the branches of the employee (cancel) | مكشوف | 1 |
-| `G13` | an expense saved before the books followed it never gets a journal (legacy rule) | مكشوف | 1 |
-| `G14` | an expense dated before accounting starts is not followed (follows) | مكشوف | 2 |
+| `G13` | an expense saved before the books followed it never gets a journal (legacy rule) | مكشوف | 2 |
+| `G14` | an expense dated before accounting starts is not followed (follows) | مكشوف | 4 |
 | `G15` | a deactivated treasury cannot be named | مكشوف | 1 |
 | `G16` | an expense keeps a treasury that was deactivated later | مكشوف | 1 |
 | `G17` | a treasury that does not exist is refused | مكشوف | 1 |
@@ -64,31 +64,31 @@
 | `G26` | the unposted list shows nothing to a reader without branches | مكشوف | 1 |
 | `G27` | an expense without a branch is shown only to the default branch | مكشوف | 1 |
 | `G28` | cancelling an expense is audited | مكشوف | 1 |
-| `G29` | a deleted expense is reversed, not posted again (sync) | مكشوف | 2 |
-| `G30` | an expense moved before accounting starts is reversed (sync) | مكشوف | 1 |
+| `G29` | a deleted expense is reversed, not posted again (sync) | مكشوف | 3 |
+| `G30` | an expense moved before accounting starts is reversed (sync) | مكشوف | 2 |
 | `G31` | the tax has the sign of the amount | مكشوف | 1 |
 | `G32` | the tax is not more than the amount | مكشوف | 1 |
 | `G33` | a gift card does not pay an expense | مكشوف | 1 |
 | `G34` | reward points do not pay an expense | مكشوف | 1 |
 | `G35` | a way of payment the books do not know is refused | مكشوف | 1 |
-| `G36` | an expense that is due is owed to other creditors | مكشوف | 2 |
+| `G36` | an expense that is due is owed to other creditors | مكشوف | 5 |
 | `G37` | an expense of zero posts nothing | مكشوف | 1 |
 | `G38` | the cost goes to the account of the category (FIN-04) | مكشوف | 1 |
 | `G39` | the tax goes to the routed account of tax paid (FIN-02) | مكشوف | 4 |
 | `G40` | the credit goes to the account of the treasury | مكشوف | 3 |
 | `G41` | money that came back turns the sides around | مكشوف | 1 |
-| `G42` | a cash-up is checked against the branches of the employee (plan, followed) | مكشوف بعد تقوية الاختبار | 1 |
+| `G42` | a cash-up is checked against the branches of the employee (plan, followed) | مكشوف بعد تقوية الاختبار | 2 |
 | `G43` | a cash-up is checked against the branches of the employee (plan, deleted or moved out) | مكشوف بعد تقوية الاختبار | 2 |
 | `G44` | deleting a cash-up is checked against the branches of the employee (cancel) | مكشوف | 1 |
-| `G45` | a cash-up saved before the books followed it never gets a journal (legacy rule) | مكشوف | 1 |
-| `G46` | a cash-up closed before accounting starts is not followed (follows) | مكشوف | 1 |
+| `G45` | a cash-up saved before the books followed it never gets a journal (legacy rule) | مكشوف | 2 |
+| `G46` | a cash-up closed before accounting starts is not followed (follows) | مكشوف | 3 |
 | `G47` | a cash-up with nothing counted yet is still open and posts nothing | مكشوف | 1 |
 | `G48` | a change that does not name the counted cash keeps the counted cash of the stored cash-up | مكشوف بعد تقوية الاختبار | 1 |
 | `G49` | the expected cash and the difference are never taken from the form | مكشوف بعد تقوية الاختبار | 1 |
 | `G50` | a new cash-up is stamped with the treasury of the employee | مكشوف | 4 |
 | `G51` | an edited cash-up keeps its treasury | مكشوف | 1 |
-| `G52` | an edited cash-up keeps its branch | مكشوف | 1 |
-| `G53` | a deleted cash-up is reversed, not posted again (sync) | مكشوف | 1 |
+| `G52` | an edited cash-up keeps its branch | مكشوف | 2 |
+| `G53` | a deleted cash-up is reversed, not posted again (sync) | مكشوف | 3 |
 | `G54` | the unposted list leaves out deleted cash-ups | مكشوف بعد تقوية الاختبار | 1 |
 | `G55` | the unposted cash-ups are shown only to the default branch | مكشوف | 1 |
 | `G56` | cancelling a cash-up is audited | مكشوف بعد تقوية الاختبار | 1 |
@@ -109,7 +109,7 @@
 | `G71` | only the kinds of sale that take cash count | مكشوف بعد تقوية الاختبار | 1 |
 | `G72` | choosing the account of a category needs the permission to change the routing | مكشوف | 1 |
 | `G73` | choosing the account of a category needs every branch | مكشوف | 1 |
-| `G74` | the account of a category must be one that takes expenses (assertUsable) | مكشوف | 3 |
+| `G74` | the account of a category must be one that takes expenses (assertUsable) | مكشوف | 4 |
 | `G75` | keeping the account a category has changes nothing and asks for nothing | مكشوف | 1 |
 | `G76` | a category that does not exist is left alone | مكشوف | 1 |
 | `G77` | the permission shown to the screen needs every branch too (mayAssign) | مكشوف | 1 |
@@ -142,9 +142,9 @@
 | `G104` | the unposted filter of the cash-up list | مكشوف | 3 |
 | `G105` | the unposted filter is ignored while accounting is off (cash-ups) | مكشوف | 1 |
 | `G106` | the category account is ignored while accounting is off | مكشوف بعد تقوية الاختبار | 1 |
-| `G107` | a refused category save is rolled back | مكشوف | 2 |
+| `G107` | a refused category save is rolled back | مكشوف | 3 |
 | `G108` | the books refusal is said in words (expenses) | مكشوف | 5 |
-| `G109` | the books refusal is said in words (cash-ups) | مكشوف | 3 |
+| `G109` | the books refusal is said in words (cash-ups) | مكشوف | 4 |
 | `G110` | the account of a category is locked for who may not change the routing | مكشوف | 1 |
 | `G111` | the treasuries offered are the ones the employee may withdraw from | مكشوف | 1 |
 | `G112` | the treasury an expense already uses stays offered | مكشوف | 1 |
@@ -156,15 +156,15 @@
 | `H01` | a journal that still matches the document is left alone (idempotent sync) | مكشوف | 4 |
 | `H02` | a document that calls for no journal and has none posts nothing | مكشوف | 1 |
 | `H03` | a document that calls for no journal has its journal only reversed | مكشوف | 5 |
-| `H04` | a date in a closed period is refused for an expense (PeriodGuard::assert, the one point behind both period checks of PostingService) | مكشوف بعد تقوية الاختبار | 3 |
-| `H06` | a date in a closed period is refused for a cash-up (PeriodGuard::assert) | مكشوف بعد تقوية الاختبار | 2 |
+| `H04` | a date in a closed period is refused for an expense (PeriodGuard::assert, the one point behind both period checks of PostingService) | مكشوف بعد تقوية الاختبار | 4 |
+| `H06` | a date in a closed period is refused for a cash-up (PeriodGuard::assert) | مكشوف بعد تقوية الاختبار | 3 |
 | `H10` | the category account is checked when an expense is saved (assertCategoryAccount call) | مكشوف | 2 |
-| `H11` | with the setting off no category account is required | مكشوف | 48 |
+| `H11` | with the setting off no category account is required | مكشوف | 54 |
 | `H12` | a new expense that is already deleted is not stamped or posted | مكشوف بعد تقوية الاختبار | 1 |
-| `H13` | a new expense dated before accounting starts is not stamped or posted | مكشوف | 1 |
+| `H13` | a new expense dated before accounting starts is not stamped or posted | مكشوف | 2 |
 | `H14` | an expense moved before accounting starts is not stamped again | مكشوف بعد تقوية الاختبار | 1 |
 | `H15` | an expense that is marked deleted is not stamped again | مكشوف بعد تقوية الاختبار | 1 |
-| `H16` | the treasury that is named decides the branch | مكشوف | 6 |
+| `H16` | the treasury that is named decides the branch | مكشوف | 9 |
 | `H17` | a new expense is paid from the default treasury of the employee (stampFor) | مكشوف | 3 |
 | `H18` | an edited expense keeps its branch | مكشوف بعد تقوية الاختبار | 2 |
 | `H19` | a treasury of 0 asks for the default treasury | مكشوف بعد تقوية الاختبار | 1 |
@@ -186,7 +186,7 @@
 | `H41` | a new cash-up closed before accounting starts is not stamped or posted | مكشوف | 2 |
 | `H42` | a cash-up moved before accounting starts is not stamped again | مكشوف بعد تقوية الاختبار | 1 |
 | `H43` | a cash-up that is marked deleted is not stamped again | مكشوف بعد تقوية الاختبار | 1 |
-| `H44` | the difference is the counted cash less the expected cash | مكشوف | 17 |
+| `H44` | the difference is the counted cash less the expected cash | مكشوف | 19 |
 | `H45` | the counted cash of a change defaults to the stored one | مكشوف | 1 |
 | `H46` | the dates of a change default to the stored ones | مكشوف | 1 |
 | `H47` | the opening cash of a change defaults to the stored one | مكشوف | 1 |
@@ -206,7 +206,7 @@
 | `H68` | the times of the cash-up count when the screen asks for them | مكشوف بعد تقوية الاختبار | 1 |
 | `H70` | a value that is not a number is no account | مكشوف بعد تقوية الاختبار | 1 |
 | `H71` | an account of 0 is no account | مكشوف بعد تقوية الاختبار | 1 |
-| `H72` | the account chosen for a category is saved | مكشوف | 4 |
+| `H72` | the account chosen for a category is saved | مكشوف | 6 |
 | `H73` | the screen asks for the permission to change the routing (mayAssign) | مكشوف | 1 |
 | `H80` | an expense that is changed is read under a lock | مكشوف بعد تقوية الاختبار | 1 |
 | `H81` | the expenses of a delete are locked in order | مكشوف بعد تقوية الاختبار | 1 |
@@ -223,7 +223,7 @@
 | `H95` | the ledger state is read only with accounting on (get_info) | مكشوف | 1 |
 | `H96` | a deleted cash-up is marked deleted by the delete | مكشوف | 2 |
 | `H97` | the ledger state of one cash-up is not unposted once deleted (get_info) | مكشوف بعد تقوية الاختبار | 1 |
-| `H100` | the category is saved with its account in one transaction | مكشوف | 2 |
+| `H100` | the category is saved with its account in one transaction | مكشوف | 3 |
 | `H101` | the account is assigned only when the category was saved | مكشوف بعد تقوية الاختبار | 1 |
 | `H102` | a form that does not carry an account leaves the account alone | مكشوف | 1 |
 | `H110` | the filter of unposted expenses is offered only with accounting on | مكشوف | 1 |
@@ -246,7 +246,7 @@
 | `H136` | the account of a category is locked for who may not change the routing (view) | مكشوف | 1 |
 | `H137` | the setting of the category account shows its state (view) | مكشوف بعد تقوية الاختبار | 1 |
 | `K01` | a branch sent with an expense is never written (plan unset branch_id) | مكشوف بعد تقوية الاختبار | 1 |
-| `K02` | a treasury sent with an expense is never written unchecked (plan unset treasury_id) | مكشوف | 1 |
+| `K02` | a treasury sent with an expense is never written unchecked (plan unset treasury_id) | مكشوف | 2 |
 | `K03` | a branch sent with a cash-up is never written (plan unset branch_id) | مكشوف | 1 |
 | `K04` | a treasury sent with a cash-up is never written unchecked (plan unset treasury_id) | مكشوف | 1 |
 | `K05` | the books follow an expense only while accounting is on (follows: isEnabled) | مكشوف بعد تقوية الاختبار | 1 |
@@ -270,6 +270,16 @@
 | `K24` | a refusal of the posting is said in words (cash-ups) | مكشوف | 1 |
 | `K25` | a refusal of the accounting rules is said in words (categories) | مكشوف | 2 |
 | `K26` | a refusal of a branch is said in words (categories) | مكشوف بعد تقوية الاختبار | 1 |
+| `N01` | an edit is checked against the branches of the employee even when it names a treasury of another branch (plan, stored branch) | مكشوف | 1 |
+| `N02` | a form that asks for the default treasury keeps an expense that has none without one | مكشوف | 1 |
+| `N03` | an expense the books never followed has nothing to cancel and may be deleted by anyone (cancel) | مكشوف | 4 |
+| `N04` | a cash-up the books never followed has nothing to cancel and may be deleted by anyone (cancel) | مكشوف | 3 |
+| `N05` | the treasury field is not offered for an expense the books never followed | مكشوف | 1 |
+| `N06` | the form hides the treasury when the way of payment uses none (script) | مكشوف | 1 |
+| `N07` | the ways of payment that use no treasury are listed for the form | مكشوف | 1 |
+| `N08` | the names of the treasuries offered are escaped | مكشوف | 1 |
+| `N09` | the name of the treasury an expense already uses is escaped | مكشوف | 1 |
+| `N10` | the names of the accounts offered to a category are escaped | مكشوف | 1 |
 <!-- MUT-TABLE-END -->
 
 ### 2.2 الملفات التي شُغّلت
