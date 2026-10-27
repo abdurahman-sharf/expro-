@@ -160,13 +160,13 @@
 | `H04` | a date in a closed period is refused for an expense (PeriodGuard::assert, the one point behind both period checks of PostingService) | مكشوف بعد تقوية الاختبار | 4 |
 | `H06` | a date in a closed period is refused for a cash-up (PeriodGuard::assert) | مكشوف بعد تقوية الاختبار | 3 |
 | `H10` | the category account is checked when an expense is saved (assertCategoryAccount call) | مكشوف | 2 |
-| `H11` | with the setting off no category account is required | مكشوف | 54 |
+| `H11` | with the setting off no category account is required | مكشوف | 59 |
 | `H12` | a new expense that is already deleted is not stamped or posted | مكشوف بعد تقوية الاختبار | 1 |
 | `H13` | a new expense dated before accounting starts is not stamped or posted | مكشوف | 2 |
 | `H14` | an expense moved before accounting starts is not stamped again | مكشوف بعد تقوية الاختبار | 1 |
 | `H15` | an expense that is marked deleted is not stamped again | مكشوف بعد تقوية الاختبار | 1 |
-| `H16` | the treasury that is named decides the branch | مكشوف | 9 |
-| `H17` | a new expense is paid from the default treasury of the employee (stampFor) | مكشوف | 3 |
+| `H16` | the treasury that is named decides the branch | مكشوف | 11 |
+| `H17` | a new expense is paid from the default treasury of the employee (stampFor) | مكشوف | 4 |
 | `H18` | an edited expense keeps its branch | مكشوف بعد تقوية الاختبار | 2 |
 | `H19` | a treasury of 0 asks for the default treasury | مكشوف بعد تقوية الاختبار | 1 |
 | `H20` | posting an expense is audited | مكشوف | 2 |
