@@ -2,7 +2,9 @@
 
 namespace Tests\Controllers;
 
+use App\Controllers\Sales;
 use CodeIgniter\Database\Config;
+use ReflectionMethod;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -2108,6 +2110,22 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertSame('12.5000', $sale->invoice_discount);
     }
 
+    public function testPostSuspend_DoesNotCarryTheDiscountOfTheRegisterIntoASuspendedReturn(): void
+    {
+        $this->registerWithTheDiscountGrant();
+        $this->withSession(array_merge($this->session, ['sales_mode' => 'return', 'sale_type' => SALE_TYPE_RETURN, 'sales_invoice_discount' => ['type' => PERCENT, 'value' => '10']]));
+
+        $sales = $this->countSales();
+
+        $this->post('/sales/suspend');
+
+        $sale = $this->accountingDb()->table('sales')->orderBy('sale_id', 'DESC')->get()->getRow();
+
+        $this->assertSame($sales + 1, $this->countSales());
+        $this->assertSame((string) SALE_TYPE_RETURN, (string) $sale->sale_type);
+        $this->assertNull($sale->invoice_discount_type);
+    }
+
     public function testPostUnsuspend_GivesTheRegisterBackTheDiscountOfTheSuspendedSale(): void
     {
         $supervisorId = $this->registerWithTheDiscountGrant();
@@ -2180,6 +2198,27 @@ class SalesControllerTest extends CIUnitTestCase
         } finally {
             $this->setConfigValue('receipt_template', 'receipt_default');
         }
+    }
+
+    public function testReceiptEmail_ShowsTheDiscountOnTheWholeOfTheSaleAsItWasSaved(): void
+    {
+        $this->startSelling();
+
+        $cycle  = $this->discountedReferenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_POS, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $this->get('/sales/receipt/' . $saleId);
+
+        $controller = new Sales();
+        $controller->initController(service('request'), service('response'), service('logger'));
+
+        $load = new ReflectionMethod($controller, '_load_sale_data');
+        $data = $load->invoke($controller, $saleId);
+        $html = view('sales/receipt_email', $data + ['pdf' => false]);
+
+        $this->assertStringContainsString(lang('Sales.invoice_discount') . ' (' . to_decimals('10') . '%)', $html);
+        $this->assertStringContainsString(to_currency('-71'), $html);
     }
 
     public function testGetInvoice_ShowsASaleWithoutADiscountWithoutItsRow(): void
