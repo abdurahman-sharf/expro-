@@ -1611,6 +1611,19 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame([$this->customerAccount() . ':734.85:0.00', $this->accountId('sales_revenue') . ':0.00:639.00', $this->accountId('tax_output') . ':0.00:95.85'], $this->standing($saleId, 'revenue')[0]['lines']);
     }
 
+    public function testSaveValue_SavesASuspendedSaleWithTheSharesWorkedOutAndNotTheOnesTheRegisterCarried(): void
+    {
+        $cycle = $this->discountedReferenceInvoice();
+
+        $cycle['items'][0]['invoice_discount_share'] = '1.0000';
+        $cycle['items'][1]['invoice_discount_share'] = '2.0000';
+
+        $saleId = $this->save($cycle['items'], [], [], SALE_TYPE_QUOTE, -1, true, null, SUSPENDED, NEW_ENTRY, $cycle['discount']);
+
+        $this->assertGreaterThan(0, $saleId);
+        $this->assertSame(['0' => '27.0000', '1' => '44.0000'], $this->sharesOf($saleId));
+    }
+
     public function testSaveValue_ReplacesTheDiscountOfASuspendedSaleWhenItIsSavedAgainWithAnother(): void
     {
         $cycle  = $this->discountedReferenceInvoice();
