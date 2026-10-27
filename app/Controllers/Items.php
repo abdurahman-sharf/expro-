@@ -927,6 +927,11 @@ class Items extends Secure_Controller
                     $success     = $success && $this->postAdjustment($itemId, $location['location_id'], $invData['trans_inventory'], $employeeId, $inventoryId);
                 }
             }
+
+            if ($newItem) {
+                $success = $success && $this->item_quantity->createMissingRows($itemId);
+            }
+
             $success = $success && $this->saveItemAttributes($itemId);
         }
 
@@ -1266,6 +1271,9 @@ class Items extends Secure_Controller
                                 $isFailedRow = true;
                             }
                             if (!$this->save_inventory_quantities($row, $itemData, $allowedStockLocations, $employeeId)) {
+                                $isFailedRow = true;
+                            }
+                            if (!$isUpdate && !$this->item_quantity->createMissingRows((int) $itemData['item_id'])) {
                                 $isFailedRow = true;
                             }
                             $csvAttributeValues = $this->extractAttributeData($row);

@@ -1832,13 +1832,16 @@ class ItemsControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('quantity_' . $store, $this->get('/items/view/' . $itemId)->getBody());
     }
 
+    private function grantTheStore(int $personId, int $store): int
+    {
+        $this->accountingDb()->table('grants')->insert(['permission_id' => $this->accountingDb()->table('permissions')->where('location_id', $store)->get()->getRow()->permission_id, 'person_id' => $personId, 'menu_group' => 'home']);
+
+        return $personId;
+    }
+
     private function employeeOfEveryBranchWithTheStore(int $store): int
     {
-        $everyBranch = $this->createItemsEmployee();
-
-        $this->accountingDb()->table('grants')->insert(['permission_id' => $this->accountingDb()->table('permissions')->where('location_id', $store)->get()->getRow()->permission_id, 'person_id' => $everyBranch, 'menu_group' => 'home']);
-
-        return $everyBranch;
+        return $this->grantTheStore($this->createItemsEmployee(), $store);
     }
 
     public function testGetCountDetails_ListsTheInventoryLogOfTheLocationsOfTheEmployeesBranchesOnly(): void
@@ -1860,6 +1863,32 @@ class ItemsControllerTest extends CIUnitTestCase
 
         $this->assertStringContainsString('Counted on the own shelf', $body);
         $this->assertStringContainsString('Found five on the other shelf', $body);
+    }
+
+    public function testPostSave_AcceptsANewItemOfAnEmployeeConfinedToABranchAndGivesItAnEmptyShelfInTheOtherBranches(): void
+    {
+        ['store' => $store, 'branch' => $branch] = $this->itemWithAStoreInAnotherBranch();
+        $name     = 'New item ' . uniqid();
+        $journals = count($this->adjustmentJournals());
+
+        $result = json_decode($this->post('/items/save', array_merge($this->baseItemPostData(), ['name' => $name, 'tax_names' => ['VAT'], 'tax_percents' => ['0'], 'quantity_1' => '3', 'cost_price' => '8.00']))->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+
+        $itemId = (int) $result['id'];
+
+        $this->assertSame('3.000', $this->onHand($itemId));
+        $this->assertSame(1, $this->accountingDb()->table('item_quantities')->where('item_id', $itemId)->where('location_id', $store)->countAllResults());
+        $this->assertSame('0.000', $this->onHand($itemId, $store));
+        $this->assertSame(0, $this->accountingDb()->table('inventory')->where('trans_items', $itemId)->where('trans_location', $store)->countAllResults());
+        $this->assertCount($journals + 1, $this->adjustmentJournals());
+
+        $inTheOtherBranch = $this->grantTheStore($this->createItemsEmployee([$branch]), $store);
+        $this->loginAsItemsEmployee($inTheOtherBranch);
+
+        $found = json_decode($this->get('/items/search', ['search' => $name, 'stock_location' => (string) $store, 'limit' => '10', 'offset' => '0', 'order' => 'asc'])->getJSON(), true);
+
+        $this->assertSame(1, $found['total']);
     }
 
     public function testGetSearch_FallsBackToALocationOfTheEmployeesBranchesWhenAnotherIsAsked(): void
@@ -2135,7 +2164,7 @@ class ItemsControllerTest extends CIUnitTestCase
 
     public function testPostImportCsvFile_ImportsTheStoresOfTheBranchesTheEmployeeWorksInAndPostsInThem(): void
     {
-        $this->itemWithAStoreInAnotherBranch();
+        ['store' => $store] = $this->itemWithAStoreInAnotherBranch();
         $columns = $this->importColumnsOfTheEmployee();
         $name    = 'Csv own item ' . uniqid();
 
@@ -2146,6 +2175,7 @@ class ItemsControllerTest extends CIUnitTestCase
         $itemId = (int) $this->accountingDb()->table('items')->where('name', $name)->get()->getRow()->item_id;
 
         $this->assertSame('3.000', $this->onHand($itemId));
+        $this->assertSame(1, $this->accountingDb()->table('item_quantities')->where('item_id', $itemId)->where('location_id', $store)->countAllResults());
 
         $inventoryId = (int) $this->accountingDb()->table('inventory')->where('trans_items', $itemId)->get()->getRow()->trans_id;
         $journal     = $this->accountingDb()->table('accounting_journals')->where('source_type', 'stock_adjustment')->where('source_id', $inventoryId)->get()->getRow();
