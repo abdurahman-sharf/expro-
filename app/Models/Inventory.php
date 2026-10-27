@@ -40,19 +40,20 @@ class Inventory extends Model
     }
 
     /**
-     * Retrieves inventory data given an item_id.
+     * Retrieves inventory data given an item_id, of the location or the list of locations given.
+     * An empty list matches nothing.
      *
-     * @param int $item_id
-     * @param bool $location_id
-     * @return ResultInterface
+     * @param array<int, int|string>|int|false $locations
      */
-    public function get_inventory_data_for_item(int $item_id, bool $location_id = false): ResultInterface
+    public function get_inventory_data_for_item(int $item_id, array|int|false $locations = false): ResultInterface
     {
         $builder = $this->db->table('inventory');
         $builder->where('trans_items', $item_id);
 
-        if ($location_id) {
-            $builder->where('trans_location', $location_id);
+        if (is_array($locations)) {
+            $locations === [] ? $builder->where('1 = 0', null, false) : $builder->whereIn('trans_location', $locations);
+        } elseif ($locations !== false) {
+            $builder->where('trans_location', $locations);
         }
 
         $builder->orderBy('trans_date', 'desc');

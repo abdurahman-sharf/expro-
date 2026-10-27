@@ -1827,11 +1827,39 @@ class ItemsControllerTest extends CIUnitTestCase
             $this->assertStringContainsString('stock', $body, $screen);
         }
 
-        $everyBranch = $this->createItemsEmployee();
-        $this->accountingDb()->table('grants')->insert(['permission_id' => $this->accountingDb()->table('permissions')->where('location_id', $store)->get()->getRow()->permission_id, 'person_id' => $everyBranch, 'menu_group' => 'home']);
-        $this->loginAsItemsEmployee($everyBranch);
+        $this->loginAsItemsEmployee($this->employeeOfEveryBranchWithTheStore($store));
 
         $this->assertStringContainsString('quantity_' . $store, $this->get('/items/view/' . $itemId)->getBody());
+    }
+
+    private function employeeOfEveryBranchWithTheStore(int $store): int
+    {
+        $everyBranch = $this->createItemsEmployee();
+
+        $this->accountingDb()->table('grants')->insert(['permission_id' => $this->accountingDb()->table('permissions')->where('location_id', $store)->get()->getRow()->permission_id, 'person_id' => $everyBranch, 'menu_group' => 'home']);
+
+        return $everyBranch;
+    }
+
+    public function testGetCountDetails_ListsTheInventoryLogOfTheLocationsOfTheEmployeesBranchesOnly(): void
+    {
+        ['item' => $itemId, 'store' => $store, 'limited' => $limited] = $this->itemWithAStoreInAnotherBranch();
+        $db = $this->accountingDb();
+
+        foreach ([[1, 'Counted on the own shelf'], [$store, 'Found five on the other shelf']] as [$location, $comment]) {
+            $db->table('inventory')->insert(['trans_items' => $itemId, 'trans_user' => $limited, 'trans_location' => $location, 'trans_comment' => $comment, 'trans_inventory' => 5, 'trans_date' => date('Y-m-d H:i:s')]);
+        }
+
+        $body = $this->get('/items/countDetails/' . $itemId)->getBody();
+
+        $this->assertStringContainsString('Counted on the own shelf', $body);
+        $this->assertStringNotContainsString('Found five on the other shelf', $body);
+
+        $this->loginAsItemsEmployee($this->employeeOfEveryBranchWithTheStore($store));
+        $body = $this->get('/items/countDetails/' . $itemId)->getBody();
+
+        $this->assertStringContainsString('Counted on the own shelf', $body);
+        $this->assertStringContainsString('Found five on the other shelf', $body);
     }
 
     public function testGetSearch_FallsBackToALocationOfTheEmployeesBranchesWhenAnotherIsAsked(): void

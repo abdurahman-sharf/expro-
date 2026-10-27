@@ -99,7 +99,7 @@ use App\Models\Inventory;
         $employee = model(Employee::class);
         $inventory = model(Inventory::class);
 
-        $inventory_array = $inventory->get_inventory_data_for_item($item_info->item_id)->getResultArray();
+        $inventory_array = $inventory->get_inventory_data_for_item($item_info->item_id, array_keys($stock_locations))->getResultArray();
         $employee_name = [];
 
         foreach ($inventory_array as $row) {
