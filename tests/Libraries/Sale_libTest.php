@@ -324,10 +324,12 @@ class Sale_libTest extends CIUnitTestCase
         Factories::injectMock('models', Sale::class, $sale);
 
         $saleLib = new Sale_lib();
+        $saleLib->setInvoiceDiscount(PERCENT, '10');
         $saleLib->set_mode('return');
         $saleLib->set_return_origin(9);
         $saleLib->set_cart([1 => ['item_id' => 3, 'item_location' => 1, 'line' => 1, 'quantity' => '-1', 'price' => '75', 'discount' => '0', 'discount_type' => PERCENT, 'stock_type' => HAS_STOCK]]);
 
+        $this->assertArrayHasKey('invoice_discount_share', $saleLib->get_cart()[1]);
         $this->assertSame('-2.0000', $saleLib->get_cart()[1]['invoice_discount_share']);
         $this->assertSame('-2.0000', $saleLib->getInvoiceDiscountTotal());
     }
@@ -365,7 +367,7 @@ class Sale_libTest extends CIUnitTestCase
         $this->assertSame('15.0000', $this->fourDecimals($totals['total_discount']), 'the discounts of the lines stay their own');
     }
 
-    public function testGetTotals_AreTheSameWithoutADiscountAsTheyWereBefore(): void
+    public function testGetTotals_GivesTheSameWithoutADiscountAsBefore(): void
     {
         $this->saleLib->set_cart($this->referenceCart());
 

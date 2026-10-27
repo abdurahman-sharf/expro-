@@ -119,7 +119,7 @@ class InvoiceDiscountTest extends CIUnitTestCase
         $this->assertSame($bases, $shares);
     }
 
-    public function testAllocate_NeverTakesMoreOffALineThanItComesToNorLessThanNothing(): void
+    public function testAllocate_TakesNoMoreOffALineThanItComesToNorLessThanNothing(): void
     {
         mt_srand(20261240);
 
@@ -190,7 +190,7 @@ class InvoiceDiscountTest extends CIUnitTestCase
         $this->assertSame('10.0000', $given);
     }
 
-    public function testReturnShares_NeverTakesBackMoreThanIsLeft(): void
+    public function testReturnShares_TakesBackNoMoreThanIsLeft(): void
     {
         $origin = [10 => ['sold' => '4', 'share' => '8.0000', 'returned' => '1', 'returnedShare' => '7.9000']];
 
@@ -319,7 +319,7 @@ class InvoiceDiscountTest extends CIUnitTestCase
         $this->assertTrue(InvoiceDiscount::forReturn($rows, [], 2)->isEmpty());
     }
 
-    public function testForReturn_NeverTakesBackMoreThanTheLineItselfComesToWhenItsPriceWasLowered(): void
+    public function testForReturn_TakesBackNoMoreThanTheLineItselfComesToWhenItsPriceWasLowered(): void
     {
         $rows   = [1 => ['item_id' => 10, 'quantity' => '-1', 'price' => '1', 'discount' => '0', 'discount_type' => PERCENT]];
         $origin = [10 => ['sold' => '1', 'share' => '8.0000', 'returned' => '0', 'returnedShare' => '0.0000']];

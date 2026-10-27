@@ -9,10 +9,7 @@ use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 
-/**
- * @internal
- */
-final class SalesInvoiceDiscountPermissionMigrationTest extends CIUnitTestCase
+class SalesInvoiceDiscountPermissionMigrationTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
@@ -41,13 +38,13 @@ final class SalesInvoiceDiscountPermissionMigrationTest extends CIUnitTestCase
         return $this->accountingDb()->table('permissions')->where('permission_id', 'sales_invoice_discount')->get()->getRow();
     }
 
-    public function testUpRegistersThePermissionUnderTheSalesModuleAndGrantsItToNobody(): void
+    public function testUp_RegistersThePermissionUnderTheSalesModuleAndGrantsItToNobody(): void
     {
         $this->assertSame('sales', $this->permission()->module_id);
         $this->assertSame(0, $this->accountingDb()->table('grants')->where('permission_id', 'sales_invoice_discount')->countAllResults());
     }
 
-    public function testUpIsSafeToRunAgainAndKeepsWhatWasGranted(): void
+    public function testUp_IsSafeToRunAgainAndKeepsWhatWasGranted(): void
     {
         $employeeId = $this->createEmployee(grants: [['permission_id' => 'sales_invoice_discount', 'menu_group' => 'home']]);
 
@@ -58,7 +55,7 @@ final class SalesInvoiceDiscountPermissionMigrationTest extends CIUnitTestCase
         $this->assertSame(1, $this->accountingDb()->table('grants')->where(['permission_id' => 'sales_invoice_discount', 'person_id' => $employeeId])->countAllResults());
     }
 
-    public function testDownRemovesThePermissionAndWhatWasGrantedOfIt(): void
+    public function testDown_RemovesThePermissionAndWhatWasGrantedOfIt(): void
     {
         $this->createEmployee(grants: [['permission_id' => 'sales_invoice_discount', 'menu_group' => 'home']]);
 

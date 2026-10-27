@@ -1712,7 +1712,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame($sales, $this->countSales());
     }
 
-    public function testSaveValue_AReturnOfADiscountedInvoiceTakesBackTheShareOfTheDiscountOfItsUnits(): void
+    public function testSaveValue_TakesBackTheShareOfTheDiscountOfItsUnitsInAReturnOfADiscountedInvoice(): void
     {
         $cycle     = $this->discountedReferenceInvoice();
         $invoiceId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']);
@@ -1730,7 +1730,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame('664.99', $this->balance($this->customerAccount()));
     }
 
-    public function testSaveValue_TheReturnsOfADiscountedInvoiceGiveBackExactlyTheDiscountItWasGiven(): void
+    public function testSaveValue_GivesBackExactlyTheDiscountItWasGivenInTheReturnsOfADiscountedInvoice(): void
     {
         $cycle     = $this->discountedReferenceInvoice();
         $invoiceId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']);
@@ -1765,7 +1765,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertGreaterThan(0, $this->save([$stale], [$this->tax($cycle['cream'], 0, '-9.1125')], [], SALE_TYPE_RETURN, -1, true, $invoiceId));
     }
 
-    public function testSaveValue_AReturnOfASaleWithoutADiscountTakesBackNoShare(): void
+    public function testSaveValue_TakesBackNoShareInAReturnOfASaleWithoutADiscount(): void
     {
         $cycle     = $this->referenceInvoice();
         $invoiceId = $this->save($cycle['items'], $cycle['taxes']);
@@ -1776,7 +1776,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame(['0' => null], $this->sharesOf($returnId));
     }
 
-    public function testUpdate_AddingAPaymentToADiscountedInvoiceLeavesItsInvoiceJournalAsItWas(): void
+    public function testUpdate_LeavesTheInvoiceJournalAsItWasWhenAPaymentIsAddedToADiscountedInvoice(): void
     {
         $cycle  = $this->discountedReferenceInvoice();
         $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']);
@@ -1789,7 +1789,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertTies();
     }
 
-    public function testPostCompleted_RunAgainOnADiscountedSaleWritesNothingMore(): void
+    public function testPostCompleted_WritesNothingMoreWhenRunAgainOnADiscountedSale(): void
     {
         $cycle    = $this->discountedReferenceInvoice();
         $saleId   = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']);
@@ -1816,7 +1816,7 @@ class SalePostingTest extends CIUnitTestCase
         }
     }
 
-    public function testDelete_ARestoredDiscountedSaleCompletedAgainPostsTheSameAmountsInANewRevision(): void
+    public function testDelete_PostsTheSameAmountsInANewRevisionWhenARestoredDiscountedSaleIsCompletedAgain(): void
     {
         $cycle  = $this->discountedReferenceInvoice();
         $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_POS, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']);
@@ -1911,7 +1911,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame([(string) $this->saleRow($saleId)->branch_id], array_values($branches));
     }
 
-    public function testSaveValue_TheDiscountedInvoiceTiesToTheCustomerAccountAndTheOpenInvoicesOfTheCustomer(): void
+    public function testSaveValue_TiesTheDiscountedInvoiceToTheCustomerAccountAndTheOpenInvoicesOfTheCustomer(): void
     {
         $cycle  = $this->discountedReferenceInvoice();
         $saleId = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '300.00')], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']);
@@ -1938,7 +1938,7 @@ class SalePostingTest extends CIUnitTestCase
         return ['subtotal' => bcadd((string) $row->subtotal, '0', 2), 'tax' => bcadd((string) $row->tax, '0', 2), 'total' => bcadd((string) $row->total, '0', 2)];
     }
 
-    public function testSaveValue_TheSalesReportOfADiscountedInvoiceAndOfItsReturnTiesToTheAccountsOfTheBooks(): void
+    public function testSaveValue_TiesTheSalesReportOfADiscountedInvoiceAndOfItsReturnToTheAccountsOfTheBooks(): void
     {
         $cycle     = $this->discountedReferenceInvoice();
         $invoiceId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']);
@@ -1957,7 +1957,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame(bcadd($invoice['total'], $return['total'], 2), $this->balance($this->customerAccount()));
     }
 
-    public function testSaveValue_TheSalesReportOfASaleWithoutADiscountIsWhatItWasBefore(): void
+    public function testSaveValue_KeepsTheSalesReportOfASaleWithoutADiscountAsItWasBefore(): void
     {
         $cycle  = $this->referenceInvoice();
         $saleId = $this->save($cycle['items'], $cycle['taxes']);

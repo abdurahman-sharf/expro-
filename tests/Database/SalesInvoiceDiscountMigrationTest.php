@@ -10,10 +10,7 @@ use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 
-/**
- * @internal
- */
-final class SalesInvoiceDiscountMigrationTest extends CIUnitTestCase
+class SalesInvoiceDiscountMigrationTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
@@ -51,14 +48,14 @@ final class SalesInvoiceDiscountMigrationTest extends CIUnitTestCase
         return $row === null ? null : ['type' => strtolower((string) $row->type), 'nullable' => (string) $row->nullable, 'default' => in_array($row->dflt, [null, 'NULL'], true) ? null : $row->dflt];
     }
 
-    public function testUpAddsTheDiscountOfTheSaleAndTheShareOfEachLineAsColumnsThatMayBeEmpty(): void
+    public function testUp_AddsTheDiscountOfTheSaleAndTheShareOfEachLineAsColumnsThatMayBeEmpty(): void
     {
         $this->assertSame(['type' => 'tinyint(1)', 'nullable' => 'YES', 'default' => null], $this->column('sales', 'invoice_discount_type'));
         $this->assertSame(['type' => 'decimal(15,4)', 'nullable' => 'YES', 'default' => null], $this->column('sales', 'invoice_discount'));
         $this->assertSame(['type' => 'decimal(15,4)', 'nullable' => 'YES', 'default' => null], $this->column('sales_items', 'invoice_discount_share'));
     }
 
-    public function testUpIsSafeToRunAgain(): void
+    public function testUp_IsSafeToRunAgain(): void
     {
         (new SalesInvoiceDiscount())->up();
         (new SalesInvoiceDiscount())->up();
@@ -68,7 +65,7 @@ final class SalesInvoiceDiscountMigrationTest extends CIUnitTestCase
         $this->assertNotNull($this->column('sales_items', 'invoice_discount_share'));
     }
 
-    public function testUpFinishesWhatWasStoppedHalfWay(): void
+    public function testUp_FinishesWhatWasStoppedHalfWay(): void
     {
         $sales = $this->accountingDb()->prefixTable('sales');
 
@@ -81,7 +78,7 @@ final class SalesInvoiceDiscountMigrationTest extends CIUnitTestCase
         $this->assertNotNull($this->column('sales', 'invoice_discount'));
     }
 
-    public function testUpLeavesASaleThatExistsAndItsLinesExactlyAsTheyWere(): void
+    public function testUp_LeavesASaleThatExistsAndItsLinesExactlyAsTheyWere(): void
     {
         $migration = new SalesInvoiceDiscount();
         $itemId    = $this->createTestItem(HAS_NO_STOCK);
@@ -112,7 +109,7 @@ final class SalesInvoiceDiscountMigrationTest extends CIUnitTestCase
         $this->accountingDb()->table('sales')->where('sale_id', $saleId)->delete();
     }
 
-    public function testDownRemovesTheColumnsAndTakingItDownAgainChangesNothing(): void
+    public function testDown_RemovesTheColumnsAndTakingItDownAgainChangesNothing(): void
     {
         (new SalesInvoiceDiscount())->down();
 

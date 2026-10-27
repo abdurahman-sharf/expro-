@@ -11,10 +11,7 @@ use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 
-/**
- * @internal
- */
-final class SaleLoaderTest extends CIUnitTestCase
+class SaleLoaderTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
@@ -47,7 +44,7 @@ final class SaleLoaderTest extends CIUnitTestCase
         parent::tearDown();
     }
 
-    public function testLoadReadsTheShareOfTheDiscountOnTheWholeOfTheSaleThatEachLineWasSavedWith(): void
+    public function testLoad_ReadsTheShareOfTheDiscountOnTheWholeOfTheSaleThatEachLineWasSavedWith(): void
     {
         $cycle  = $this->discountedReferenceInvoice(false);
         $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']);
@@ -57,7 +54,7 @@ final class SaleLoaderTest extends CIUnitTestCase
         $this->assertSame(['7.6056', '12.3944'], array_map(static fn ($line): string => bcadd($line->invoiceDiscountShare, '0', 4), $document->lines));
     }
 
-    public function testLoadReadsASaleSavedBeforeTheDiscountExistedAsOneWithoutShares(): void
+    public function testLoad_ReadsASaleSavedBeforeTheDiscountExistedAsOneWithoutShares(): void
     {
         $cycle  = $this->referenceInvoice();
         $saleId = $this->save($cycle['items'], $cycle['taxes']);
@@ -69,7 +66,7 @@ final class SaleLoaderTest extends CIUnitTestCase
         $this->assertSame(['0', '0'], array_map(static fn ($line): string => $line->invoiceDiscountShare, $document->lines));
     }
 
-    public function testLoadReadsTheSharesOfAReturnWithTheSignOfItsLines(): void
+    public function testLoad_ReadsTheSharesOfAReturnWithTheSignOfItsLines(): void
     {
         $cycle     = $this->discountedReferenceInvoice();
         $invoiceId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']);
