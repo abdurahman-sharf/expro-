@@ -2,6 +2,7 @@
 
 namespace app\Libraries;
 
+use CodeIgniter\HTTP\Exceptions\RedirectException;
 use CodeIgniter\Model;
 use CodeIgniter\Session\Session;
 use App\Models\Stock_location;
@@ -30,9 +31,13 @@ class Item_lib
     {
         $current = $this->session->get('item_location');
 
-        if (!$current || !$this->stock_location->is_allowed_location((int) $current, 'items', true)) {
-            $location_id = $this->stock_location->get_default_location_id('items', true);
-            $this->set_item_location($location_id);
+        if (! $current || ! $this->stock_location->is_allowed_location((int) $current, 'items', true)) {
+            if ($this->stock_location->get_allowed_locations('items', true) === []) {
+                throw new RedirectException('no_access/items/items_stock');
+            }
+
+            $locationId = $this->stock_location->get_default_location_id('items', true);
+            $this->set_item_location($locationId);
         }
 
         return $this->session->get('item_location');

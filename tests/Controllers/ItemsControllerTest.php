@@ -1948,6 +1948,18 @@ class ItemsControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('no_access/items/items_stock', $response->getRedirectUrl());
     }
 
+    public function testGetSearch_SendsAnEmployeeWhoseBranchesHaveNoLocationTheyMayUseToTheNoAccessPage(): void
+    {
+        ['limited' => $limited] = $this->itemWithAStoreInAnotherBranch();
+        $this->accountingDb()->table('grants')->where('person_id', $limited)->where('permission_id', 'items_stock')->delete();
+        $this->withSession(['person_id' => $limited, 'menu_group' => 'home']);
+
+        $response = $this->get('/items/search', ['search' => '', 'limit' => '10', 'offset' => '0', 'order' => 'asc']);
+
+        $this->assertSame(302, $response->response()->getStatusCode());
+        $this->assertStringContainsString('no_access/items/items_stock', $response->getRedirectUrl());
+    }
+
     public function testPostDelete_RefusesAnItemWithStockInABranchTheEmployeeDoesNotWorkInAndChangesNothing(): void
     {
         ['item' => $itemId, 'store' => $store] = $this->itemWithAStoreInAnotherBranch();
