@@ -50,6 +50,24 @@ final class TrialBalance
     }
 
     /**
+     * What every account holds in the period with the accounts under it, for the statements that
+     * are drawn from the same figures as the trial balance.
+     *
+     * @param bool $leaveOutYearEnd Whether the journals that close a year are left out.
+     *
+     * @return array{accounts: array<int, object>, totals: array<int, array{opening: string, debit: string, credit: string}>}
+     */
+    public function totals(ReportScope $scope, ReportPeriod $period, bool $leaveOutYearEnd = false): array
+    {
+        $accounts = $this->accounts();
+
+        return [
+            'accounts' => $accounts,
+            'totals'   => $this->rollUp($accounts, $scope->isEmpty() ? [] : $this->amounts($scope, $period, $leaveOutYearEnd)),
+        ];
+    }
+
+    /**
      * @return array<int, object> The accounts of the company by id, in the order of their codes.
      */
     private function accounts(): array
@@ -68,7 +86,7 @@ final class TrialBalance
      *
      * @return array<int, array{opening: string, debit: string, credit: string}>
      */
-    private function amounts(ReportScope $scope, ReportPeriod $period): array
+    private function amounts(ReportScope $scope, ReportPeriod $period, bool $leaveOutYearEnd = false): array
     {
         $from = $period->from;
         $to   = $period->to;
@@ -76,7 +94,7 @@ final class TrialBalance
         $before = $from === null ? '0' : 'IF(j.journal_date < ' . $this->db->escape($from) . ', %s, 0)';
         $within = $from === null ? '%s' : 'IF(j.journal_date >= ' . $this->db->escape($from) . ', %s, 0)';
 
-        $rows = $this->db->table('accounting_journal_lines l')
+        $builder = $this->db->table('accounting_journal_lines l')
             ->select(
                 'l.account_id, '
                 . 'SUM(' . ($from === null ? '0' : sprintf($before, 'l.debit - l.credit')) . ') AS opening, '
@@ -89,9 +107,13 @@ final class TrialBalance
             ->whereIn('j.status', [JournalStatus::Posted->value, JournalStatus::Reversed->value])
             ->whereIn('j.branch_id', $scope->ids)
             ->where('j.journal_date <=', $to)
-            ->groupBy('l.account_id')
-            ->get()
-            ->getResult();
+            ->groupBy('l.account_id');
+
+        if ($leaveOutYearEnd) {
+            YearEndEntries::leaveOut($builder);
+        }
+
+        $rows = $builder->get()->getResult();
 
         $amounts = [];
 
