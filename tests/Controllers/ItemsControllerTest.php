@@ -1718,7 +1718,7 @@ class ItemsControllerTest extends CIUnitTestCase
         return ['item' => $itemId, 'store' => $store, 'branch' => $branch, 'limited' => $limited];
     }
 
-    public function testPostSaveInventory_RefusesALocationOfABranchTheEmployeeDoesNotWorkInAndChangesNothing(): void
+    public function testPostSaveInventory_RejectsALocationOfABranchTheEmployeeDoesNotWorkInAndChangesNothing(): void
     {
         ['item' => $itemId, 'store' => $store] = $this->itemWithAStoreInAnotherBranch();
         $log      = count($this->inventoryLog($itemId));
@@ -1733,7 +1733,7 @@ class ItemsControllerTest extends CIUnitTestCase
         $this->assertCount($journals, $this->adjustmentJournals());
     }
 
-    public function testPostSaveInventory_RefusesALocationOfAnotherBranchWhileAccountingIsOff(): void
+    public function testPostSaveInventory_RejectsALocationOfAnotherBranchWhileAccountingIsOff(): void
     {
         ['item' => $itemId, 'store' => $store] = $this->itemWithAStoreInAnotherBranch();
         $this->setConfigValue('accounting_enabled', '0');
@@ -1773,7 +1773,7 @@ class ItemsControllerTest extends CIUnitTestCase
         $this->assertSame([$branch], array_map(static fn (object $journal): int => (int) $journal->branch_id, $this->adjustmentJournals()));
     }
 
-    public function testPostSaveInventory_RefusesALocationInTheBranchOfTheEmployeeThatTheyHoldNoItemsPermissionOn(): void
+    public function testPostSaveInventory_RejectsALocationInTheBranchOfTheEmployeeThatTheyHoldNoItemsPermissionOn(): void
     {
         $itemId = $this->itemInTheBooks();
         $store  = $this->storeIn(1, null);
@@ -1960,7 +1960,7 @@ class ItemsControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('no_access/items/items_stock', $response->getRedirectUrl());
     }
 
-    public function testPostDelete_RefusesAnItemWithStockInABranchTheEmployeeDoesNotWorkInAndChangesNothing(): void
+    public function testPostDelete_RejectsAnItemWithStockInABranchTheEmployeeDoesNotWorkInAndChangesNothing(): void
     {
         ['item' => $itemId, 'store' => $store] = $this->itemWithAStoreInAnotherBranch();
         $this->assertTrue($this->item_quantity->changeQuantity($itemId, $store, 4.0));
@@ -1978,7 +1978,7 @@ class ItemsControllerTest extends CIUnitTestCase
         $this->assertSame([], $this->adjustmentJournals());
     }
 
-    public function testPostDelete_RefusesAnItemWithStockInABranchTheEmployeeDoesNotWorkInWhileAccountingIsOff(): void
+    public function testPostDelete_RejectsAnItemWithStockInABranchTheEmployeeDoesNotWorkInWhileAccountingIsOff(): void
     {
         ['item' => $itemId, 'store' => $store] = $this->itemWithAStoreInAnotherBranch();
         $this->assertTrue($this->item_quantity->changeQuantity($itemId, $store, 4.0));
@@ -2155,7 +2155,7 @@ class ItemsControllerTest extends CIUnitTestCase
         }
     }
 
-    public function testPostImportCsvFile_RefusesAColumnOfAStoreInABranchTheEmployeeDoesNotWorkInAndSavesNothing(): void
+    public function testPostImportCsvFile_RejectsAColumnOfAStoreInABranchTheEmployeeDoesNotWorkInAndSavesNothing(): void
     {
         ['store' => $store] = $this->itemWithAStoreInAnotherBranch();
         $storeName = $this->accountingDb()->table('stock_locations')->where('location_id', $store)->get()->getRow()->location_name;

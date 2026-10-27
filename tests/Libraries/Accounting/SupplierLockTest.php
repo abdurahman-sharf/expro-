@@ -122,7 +122,7 @@ class SupplierLockTest extends CIUnitTestCase
         return $pooled;
     }
 
-    public function testRun_RefusesAndDoesNotRunTheWorkWhenTheServerDoesNotHoldTheLockOnTheConnectionThatRunsIt(): void
+    public function testRun_RejectsAndDoesNotRunTheWorkWhenTheServerDoesNotHoldTheLockOnTheConnectionThatRunsIt(): void
     {
         $lock = new SupplierLock($this->connectionBehindAPooler());
         $ran  = false;
@@ -142,7 +142,7 @@ class SupplierLockTest extends CIUnitTestCase
         $this->assertTrue($this->anotherConnectionCanTake($lock->nameOf($this->supplierId)), 'A refused change leaves no lock behind');
     }
 
-    public function testRun_RefusesAndLeavesTheLockToItsHolderWhenTheConnectionAlreadyHeldItForSomebodyElse(): void
+    public function testRun_RejectsAndLeavesTheLockToItsHolderWhenTheConnectionAlreadyHeldItForSomebodyElse(): void
     {
         $db   = Database::connect();
         $lock = new SupplierLock($db);
@@ -218,7 +218,7 @@ class SupplierLockTest extends CIUnitTestCase
         $this->assertSame('0.000', $this->onHand($item));
     }
 
-    public function testSaveValue_IsRefusedAndSavesNothingWhenTheLockOfTheSupplierIsNotHeldByTheConnectionThatSaves(): void
+    public function testSaveValue_RejectsTheSaveWhenTheLockOfTheSupplierIsNotHeldByTheConnectionThatSavesAndSavesNothing(): void
     {
         $db   = Database::connect();
         $name = (new SupplierLock($db))->nameOf($this->supplierId);

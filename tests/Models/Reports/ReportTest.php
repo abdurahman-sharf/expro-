@@ -144,7 +144,7 @@ class ReportTest extends CIUnitTestCase
         $this->assertStringContainsString('`sales`.`branch_id` IN (' . $second . ')', $builder->getCompiledSelect());
     }
 
-    public function testLimitToBranches_RefusesEveryRowToAnEmployeeWhoWorksInNoBranch(): void
+    public function testLimitToBranches_RejectsEveryRowToAnEmployeeWhoWorksInNoBranch(): void
     {
         session()->set('person_id', $this->employeeWithGrants([], []));
 

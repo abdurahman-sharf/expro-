@@ -118,7 +118,7 @@ class CustomerLockTest extends CIUnitTestCase
         return $pooled;
     }
 
-    public function testRun_RefusesAndDoesNotRunTheWorkWhenTheServerDoesNotHoldTheLockOnTheConnectionThatRunsIt(): void
+    public function testRun_RejectsAndDoesNotRunTheWorkWhenTheServerDoesNotHoldTheLockOnTheConnectionThatRunsIt(): void
     {
         $lock = new CustomerLock($this->connectionBehindAPooler());
         $ran  = false;
@@ -138,7 +138,7 @@ class CustomerLockTest extends CIUnitTestCase
         $this->assertTrue($this->anotherConnectionCanTake($lock->nameOf($this->customerId)), 'A refused change leaves no lock behind');
     }
 
-    public function testRun_RefusesAndLeavesTheLockToItsHolderWhenTheConnectionAlreadyHeldItForSomebodyElse(): void
+    public function testRun_RejectsAndLeavesTheLockToItsHolderWhenTheConnectionAlreadyHeldItForSomebodyElse(): void
     {
         $db   = Database::connect();
         $lock = new CustomerLock($db);

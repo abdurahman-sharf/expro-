@@ -812,7 +812,7 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $this->assertSame((string) $granted, (string) session()->get('recv_stock_destination'));
     }
 
-    public function testPostRequisitionComplete_RefusesADestinationTheEmployeeNoLongerHoldsAGrantOn(): void
+    public function testPostRequisitionComplete_RejectsADestinationTheEmployeeNoLongerHoldsAGrantOn(): void
     {
         $buyerId   = $this->buyer();
         $itemId    = $this->item('0.00');
@@ -828,7 +828,7 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $this->assertSame('0.000', $this->onHand($itemId, $ungranted));
     }
 
-    public function testPostRequisitionComplete_RefusesASourceTheEmployeeNoLongerHoldsAGrantOn(): void
+    public function testPostRequisitionComplete_RejectsASourceTheEmployeeNoLongerHoldsAGrantOn(): void
     {
         $buyerId   = $this->buyer();
         $itemId    = $this->item('0.00');
