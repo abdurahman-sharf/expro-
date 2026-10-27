@@ -37,10 +37,6 @@ final class InterBranchBalances
      */
     public function report(?array $branchIds = null, ?string $asOf = null): PairwiseReport
     {
-        if ($branchIds === []) {
-            return new PairwiseReport([], [], null, $asOf);
-        }
-
         $matrix = $this->matrix($asOf);
         $codes  = $this->codes();
         $rows   = [];

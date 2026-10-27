@@ -226,12 +226,21 @@ class InterBranchBalancesTest extends CIUnitTestCase
             description: 'By hand',
         ));
 
+        (new PostingService())->post(new JournalDraft(
+            date: '2026-10-21',
+            lines: [new JournalLineDraft($this->accountId('opening_balance'), debit: '10.00'), new JournalLineDraft($this->accountId('branches_payable'), credit: '10.00')],
+            sourceType: JournalDraft::SOURCE_MANUAL,
+            description: 'By hand in the second branch',
+            branchId: $this->secondBranch,
+        ));
+
         $report = $this->balances->report();
 
         $this->assertSame([], $report->rows);
-        $this->assertCount(1, $report->unattributed);
-        $this->assertSame(['1', '25.0000', '0.0000'], [(string) $report->unattributed[0]->branch_id, $report->unattributed[0]->receivable, $report->unattributed[0]->payable]);
-        $this->assertSame('25.0000', $report->difference, 'The company check still sees it');
+        $this->assertSame([['1', '25.0000', '0.0000'], [(string) $this->secondBranch, '0.0000', '10.0000']], array_map(static fn (object $row): array => [(string) $row->branch_id, $row->receivable, $row->payable], $report->unattributed));
+        $this->assertSame('15.0000', $report->difference, 'The company check still sees both');
+        $this->assertSame([(string) $this->secondBranch], array_map(static fn (object $row): string => (string) $row->branch_id, $this->balances->report([$this->secondBranch])->unattributed));
+        $this->assertSame(['1'], array_map(static fn (object $row): string => (string) $row->branch_id, $this->balances->report([1, $this->thirdBranch])->unattributed));
     }
 
     public function testReport_SaysAPairDoesNotAgreeWhenOnlyOneBranchHasTheJournal(): void

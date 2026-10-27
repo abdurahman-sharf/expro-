@@ -587,9 +587,14 @@ class InterBranchSettlementsTest extends CIUnitTestCase
 
     public function testPlan_RefusesAnEmployeeWhoWorksInOnlyOneOfTheBranches(): void
     {
-        $refusal = $this->refusal(fn () => $this->settlements->plan(1, $this->branch, '2026-10-31', $this->employeeWithGrants([], [1])));
+        foreach ([1, $this->branch] as $branchId) {
+            $refusal = $this->refusal(fn () => $this->settlements->plan(1, $this->branch, '2026-10-31', $this->employeeWithGrants([], [$branchId])));
 
-        $this->assertInstanceOf(BranchException::class, $refusal);
+            $this->assertInstanceOf(BranchException::class, $refusal);
+            $this->assertSame(BranchError::NotAllowed, $refusal->error);
+        }
+
+        $this->assertSame(1, $this->settlements->plan(1, $this->branch, '2026-10-31', $this->employeeWithGrants([], [1, $this->branch]))->firstBranchId);
     }
 
     public function testCancel_ReversesTheJournalsOfBothBranchesAndRestoresTheBalances(): void
