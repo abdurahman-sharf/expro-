@@ -121,13 +121,14 @@ class AccountingJournals extends AccountingController
         }
 
         return view('accounting_journals/edit_details', [
-            'journal'      => $journal,
-            'cost_centers' => $costCenters,
-            'currency'     => (new AccountingSettings())->baseCurrency(),
-            'number_label' => $this->displayNumber($journal->series, $journal->number),
-            'source_label' => $this->sourceLabel($journal->source_type, (string) ($journal->entry_type ?? 'general')),
-            'show_branch'  => $this->seesBranches(),
-            'notice'       => session()->getFlashdata('accounting_notice'),
+            'journal'     => $journal,
+            'costCenters' => $costCenters,
+            'currency'    => (new AccountingSettings())->baseCurrency(),
+            'numberLabel' => $this->displayNumber($journal->series, $journal->number),
+            'sourceLabel' => $this->sourceLabel($journal->source_type, (string) ($journal->entry_type ?? 'general')),
+            'showBranch'  => $this->seesBranches(),
+            'version'     => $this->journals->detailsVersion($journal, $journal->lines),
+            'notice'      => session()->getFlashdata('accounting_notice'),
         ]);
     }
 
@@ -148,20 +149,20 @@ class AccountingJournals extends AccountingController
         }
 
         return view('accounting_journals/view', [
-            'journal'      => $journal,
-            'audit'        => $audit,
-            'currency'     => (new AccountingSettings())->baseCurrency(),
-            'can_draft'    => $this->can(AccountingGuard::JOURNALS_DRAFT),
-            'can_post'     => $this->can(AccountingGuard::JOURNALS_POST),
-            'can_reverse'  => $this->can(AccountingGuard::JOURNALS_REVERSE) && ! in_array($journal->source_type, JournalService::TRANSFER_SOURCES, true),
-            'can_details'  => $this->can(AccountingGuard::JOURNALS_EDIT) && $this->journals->canEditDetails($journal),
-            'attachments'  => $this->attachmentRows($journalId),
-            'can_attach'   => $this->attachments->canChange($journal, $this->employeeId()),
-            'notice'       => session()->getFlashdata('accounting_notice'),
-            'status_badge' => $this->badge($journal->status),
-            'source_label' => $this->sourceLabel($journal->source_type, (string) ($journal->entry_type ?? 'general')),
-            'number_label' => $this->displayNumber($journal->series, $journal->number),
-            'show_branch'  => $this->seesBranches(),
+            'journal'        => $journal,
+            'audit'          => $audit,
+            'currency'       => (new AccountingSettings())->baseCurrency(),
+            'can_draft'      => $this->can(AccountingGuard::JOURNALS_DRAFT),
+            'can_post'       => $this->can(AccountingGuard::JOURNALS_POST),
+            'can_reverse'    => $this->can(AccountingGuard::JOURNALS_REVERSE) && ! in_array($journal->source_type, JournalService::TRANSFER_SOURCES, true),
+            'canEditDetails' => $this->can(AccountingGuard::JOURNALS_EDIT) && $this->journals->canEditDetails($journal),
+            'attachments'    => $this->attachmentRows($journalId),
+            'canAttach'      => $this->attachments->canChange($journal, $this->employeeId()),
+            'notice'         => session()->getFlashdata('accounting_notice'),
+            'status_badge'   => $this->badge($journal->status),
+            'source_label'   => $this->sourceLabel($journal->source_type, (string) ($journal->entry_type ?? 'general')),
+            'number_label'   => $this->displayNumber($journal->series, $journal->number),
+            'show_branch'    => $this->seesBranches(),
         ]);
     }
 
@@ -316,11 +317,10 @@ class AccountingJournals extends AccountingController
 
         $fallback = (string) preg_replace('/[^A-Za-z0-9._() -]/', '_', $file['name']);
 
-        return $this->response
-            ->setHeader('Content-Type', $file['mime'])
+        return $this->response->download($file['path'], null)
+            ->setContentType($file['mime'], '')
             ->setHeader('Content-Disposition', 'attachment; filename="' . $fallback . '"; filename*=UTF-8\'\'' . rawurlencode($file['name']))
-            ->setHeader('Cache-Control', 'private, no-store')
-            ->setBody((string) file_get_contents($file['path']));
+            ->noCache();
     }
 
     public function postReverse(int $journalId): ResponseInterface
@@ -580,14 +580,17 @@ class AccountingJournals extends AccountingController
     }
 
     /**
-     * @return array{description?: string, lines: array<int|string, array<string, mixed>>}
+     * @return array{description?: string, version?: mixed, lines: array<int|string, array<string, mixed>>}
      */
     private function detailsInput(): array
     {
         $description = $this->request->getPost('description');
+        $version     = $this->request->getPost('version');
         $lines       = $this->request->getPost('lines');
 
-        return (is_string($description) ? ['description' => $description] : []) + ['lines' => is_array($lines) ? array_filter($lines, 'is_array') : []];
+        return (is_string($description) ? ['description' => $description] : [])
+            + ($version === null ? [] : ['version' => $version])
+            + ['lines' => is_array($lines) ? array_filter($lines, 'is_array') : []];
     }
 
     /**
@@ -658,18 +661,18 @@ class AccountingJournals extends AccountingController
         $branchId = $journal === null ? $this->branchContext()->formDefault($this->employeeId()) : (int) $journal->branch_id;
 
         return view('accounting_journals/form', [
-            'journal'      => $journal,
-            'attachments'  => $journal === null ? [] : $this->attachmentRows((int) $journal->journal_id),
-            'can_attach'   => $journal !== null && $this->attachments->canChange($journal, $this->employeeId()),
-            'line_text'    => (new AccountingSettings())->lineDescriptionRequired(),
-            'branches'     => $branches,
-            'branch_id'    => $branchId,
-            'cutoffs'      => $this->cutoffs($branches === [] ? [$branchId] : array_map(static fn (object $branch): int => (int) $branch->branch_id, $branches)),
-            'accounts'     => $this->journals->postableAccounts(),
-            'cost_centers' => $costCenters,
-            'currency'     => (new AccountingSettings())->baseCurrency(),
-            'can_post'     => $this->can(AccountingGuard::JOURNALS_POST),
-            'notice'       => session()->getFlashdata('accounting_notice'),
+            'journal'                 => $journal,
+            'attachments'             => $journal === null ? [] : $this->attachmentRows((int) $journal->journal_id),
+            'canAttach'               => $journal !== null && $this->attachments->canChange($journal, $this->employeeId()),
+            'lineDescriptionRequired' => (new AccountingSettings())->lineDescriptionRequired(),
+            'branches'                => $branches,
+            'branch_id'               => $branchId,
+            'cutoffs'                 => $this->cutoffs($branches === [] ? [$branchId] : array_map(static fn (object $branch): int => (int) $branch->branch_id, $branches)),
+            'accounts'                => $this->journals->postableAccounts(),
+            'cost_centers'            => $costCenters,
+            'currency'                => (new AccountingSettings())->baseCurrency(),
+            'can_post'                => $this->can(AccountingGuard::JOURNALS_POST),
+            'notice'                  => session()->getFlashdata('accounting_notice'),
         ]);
     }
 

@@ -7,7 +7,7 @@
  * @var string $currency
  * @var string $start_date
  * @var bool $auto_year
- * @var bool $line_text
+ * @var bool $lineDescriptionRequired
  * @var bool $locked
  * @var int $next_number
  * @var bool $can_manage
@@ -136,7 +136,7 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
                 <div class="field span-all">
                     <div class="form-check form-switch">
                         <input type="hidden" name="line_description_required" value="0">
-                        <input type="checkbox" class="form-check-input" role="switch" name="line_description_required" id="line_description_required" value="1"<?= $line_text ? ' checked' : '' ?><?= $can_manage ? '' : ' disabled' ?>>
+                        <input type="checkbox" class="form-check-input" role="switch" name="line_description_required" id="line_description_required" value="1"<?= $lineDescriptionRequired ? ' checked' : '' ?><?= $can_manage ? '' : ' disabled' ?>>
                         <label class="form-check-label" for="line_description_required"><?= lang('Accounting_settings.line_description_required') ?></label>
                     </div>
                     <p class="form-text"><?= lang('Accounting_settings.line_description_required_desc') ?></p>

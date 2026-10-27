@@ -84,14 +84,14 @@ class JournalAttachmentsMigrationTest extends CIUnitTestCase
         $this->assertSame(1, $this->countRows('accounting_journal_attachments'));
     }
 
-    public function testUp_RefusesARowForAJournalThatDoesNotExist(): void
+    public function testUp_RejectsARowForAJournalThatDoesNotExist(): void
     {
         $this->expectException(DatabaseException::class);
 
         $this->accountingDb()->table('accounting_journal_attachments')->insert($this->row(999999));
     }
 
-    public function testUp_RefusesToDeleteAJournalThatStillHoldsAFile(): void
+    public function testUp_RejectsToDeleteAJournalThatStillHoldsAFile(): void
     {
         $journalId = (new JournalService())->saveDraft($this->journalInput());
         $this->accountingDb()->table('accounting_journal_attachments')->insert($this->row($journalId));
@@ -105,7 +105,7 @@ class JournalAttachmentsMigrationTest extends CIUnitTestCase
         }
     }
 
-    public function testUp_RefusesTwoRowsForOneStoredFile(): void
+    public function testUp_RejectsTwoRowsForOneStoredFile(): void
     {
         $journalId = (new JournalService())->postNew($this->journalInput());
         $this->accountingDb()->table('accounting_journal_attachments')->insert($this->row($journalId));
@@ -115,7 +115,7 @@ class JournalAttachmentsMigrationTest extends CIUnitTestCase
         $this->accountingDb()->table('accounting_journal_attachments')->insert($this->row($journalId));
     }
 
-    public function testUp_RefusesAFileOfNoBytes(): void
+    public function testUp_RejectsAFileOfNoBytes(): void
     {
         $journalId = (new JournalService())->postNew($this->journalInput());
 

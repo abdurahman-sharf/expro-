@@ -220,6 +220,16 @@ class AccountingSetupControllerTest extends CIUnitTestCase
         $this->get('/accounting_settings')->assertSee('id="line_description_required" value="1" checked');
     }
 
+    public function testGetIndex_PostsZeroBeforeTheLineDescriptionSwitchSoUntickingItTurnsTheRequirementOff(): void
+    {
+        $this->manager();
+
+        $this->assertMatchesRegularExpression(
+            '/<input type="hidden" name="line_description_required" value="0">\s*<input type="checkbox"[^>]*name="line_description_required"/',
+            $this->get('/accounting_settings')->getBody(),
+        );
+    }
+
     public function testGetIndex_LocksTheLineDescriptionSwitchForSomeoneWhoCannotManageSettings(): void
     {
         $this->actAs($this->employeeWithGrants(['accounting_settings']));
@@ -253,7 +263,7 @@ class AccountingSetupControllerTest extends CIUnitTestCase
         $this->assertTrue((new AccountingSettings())->lineDescriptionRequired());
     }
 
-    public function testPostSave_RefusesTheLineDescriptionRequirementToSomeoneWithoutThePermission(): void
+    public function testPostSave_RejectsTheLineDescriptionRequirementToSomeoneWithoutThePermission(): void
     {
         $this->actAs($this->employeeWithGrants(['accounting_settings']));
 
@@ -381,6 +391,23 @@ class AccountingSetupControllerTest extends CIUnitTestCase
             $response->assertDontSee($this->usernameOf($ordinary));
             $response->assertSee($this->usernameOf($everyone));
             $response->assertSee($this->usernameOf($limited));
+        });
+    }
+
+    public function testGetIndex_ListsWhoHoldsThePermissionToEditJournalTextUnderItsOwnName(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_settings']));
+
+        $this->whileNobodyHoldsSensitivePermissions(function (): void {
+            $editor = $this->employeeWithGrants([AccountingGuard::JOURNALS_EDIT]);
+
+            $response = $this->get('/accounting_settings');
+
+            $response->assertStatus(200);
+            $response->assertSee('sensitive_holders');
+            $response->assertSee(lang('Accounting_journals.journals_edit_details'));
+            $response->assertSee($this->usernameOf($editor));
+            $response->assertDontSee(lang('Accounting_settings.holders_none'));
         });
     }
 

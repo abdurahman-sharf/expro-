@@ -65,16 +65,18 @@ final class JournalAttachments
     /**
      * The name a person gave a file, made safe to show and to offer for download: no folder, no
      * dot except the one before the extension, no control or direction character, at most 100
-     * letters before the extension.
+     * letters before the extension. The marks that belong to a letter stay, the vowel signs of
+     * Thai or Tamil and the diacritics of Arabic, and so do the joiners that Persian words need,
+     * which no direction can be changed with.
      */
     public static function sanitizeName(string $name, string $extension): string
     {
         $base = pathinfo(str_replace('\\', '/', $name), PATHINFO_FILENAME);
-        $base = (string) preg_replace('/[^\p{L}\p{N} ()-]+/u', '_', $base);
+        $base = (string) preg_replace('/[^\p{L}\p{M}\p{N} ()\x{200C}\x{200D}-]+/u', '_', $base);
         $base = (string) preg_replace('/\s+/u', ' ', $base);
         $base = mb_substr(trim($base, ' _-'), 0, self::NAME_MAX);
 
-        return ($base === '' ? 'file' : $base) . '.' . $extension;
+        return (preg_match('/[\p{L}\p{N}]/u', $base) === 1 ? $base : 'file') . '.' . $extension;
     }
 
     /**

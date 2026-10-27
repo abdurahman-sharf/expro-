@@ -84,6 +84,7 @@ return [
     'error_cost_center_not_found'                => '',
     'error_customer_busy'                        => '',
     'error_description_too_long'                 => '',
+    'error_details_changed'                      => '',
     'error_entity_kind_unknown'                  => '',
     'error_entity_main_account_invalid'          => '',
     'error_fiscal_year_boundary'                 => '',

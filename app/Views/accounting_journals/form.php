@@ -10,8 +10,8 @@
  * @var bool $can_post
  * @var string|null $notice
  * @var list<array{id: int, name: string, size: string, by: string, at: string, url: string}> $attachments
- * @var bool $can_attach
- * @var bool $line_text
+ * @var bool $canAttach
+ * @var bool $lineDescriptionRequired
  */
 
 $isNew       = $journal === null;
@@ -53,7 +53,7 @@ $rows   = $lines === [] ? [null, null] : $lines;
             <?= $accountInputs('lines[__INDEX__][account_id]', null) ?>
         </td>
         <td data-label="<?= esc(lang('Accounting_journals.line_description'), 'attr') ?>">
-            <input type="text" name="lines[__INDEX__][description]" class="form-control form-control-sm acc-line-text" maxlength="255"<?= $line_text ? ' aria-required="true"' : '' ?> aria-label="<?= esc(lang('Accounting_journals.line_description'), 'attr') ?>">
+            <input type="text" name="lines[__INDEX__][description]" class="form-control form-control-sm acc-line-text" maxlength="255"<?= $lineDescriptionRequired ? ' aria-required="true"' : '' ?> aria-label="<?= esc(lang('Accounting_journals.line_description'), 'attr') ?>">
         </td>
         <td data-label="<?= esc(lang('Accounting_journals.cost_center'), 'attr') ?>">
             <select name="lines[__INDEX__][cost_center_id]" class="form-select form-select-sm" aria-label="<?= esc(lang('Accounting_journals.cost_center'), 'attr') ?>"><?= $costCenterOptions(null) ?></select>
@@ -136,7 +136,7 @@ $rows   = $lines === [] ? [null, null] : $lines;
             <thead>
                 <tr>
                     <th scope="col"><?= lang('Accounting_journals.account') ?></th>
-                    <th scope="col"><?= lang('Accounting_journals.line_description') ?><?php if ($line_text): ?> <span class="text-danger" aria-hidden="true">*</span><?php endif; ?></th>
+                    <th scope="col"><?= lang('Accounting_journals.line_description') ?><?php if ($lineDescriptionRequired): ?> <span class="text-danger" aria-hidden="true">*</span><?php endif; ?></th>
                     <th scope="col"><?= lang('Accounting_journals.cost_center') ?></th>
                     <th scope="col" class="acc-amount"><?= lang('Accounting_journals.debit') ?></th>
                     <th scope="col" class="acc-amount"><?= lang('Accounting_journals.credit') ?></th>
@@ -150,7 +150,7 @@ $rows   = $lines === [] ? [null, null] : $lines;
                             <?= $accountInputs("lines[{$index}][account_id]", $line === null ? null : (int) $line->account_id) ?>
                         </td>
                         <td data-label="<?= esc(lang('Accounting_journals.line_description'), 'attr') ?>">
-                            <input type="text" name="lines[<?= $index ?>][description]" class="form-control form-control-sm acc-line-text" maxlength="255"<?= $line_text ? ' aria-required="true"' : '' ?> value="<?= esc($line === null ? '' : (string) $line->description, 'attr') ?>" aria-label="<?= esc(lang('Accounting_journals.line_description'), 'attr') ?>">
+                            <input type="text" name="lines[<?= $index ?>][description]" class="form-control form-control-sm acc-line-text" maxlength="255"<?= $lineDescriptionRequired ? ' aria-required="true"' : '' ?> value="<?= esc($line === null ? '' : (string) $line->description, 'attr') ?>" aria-label="<?= esc(lang('Accounting_journals.line_description'), 'attr') ?>">
                         </td>
                         <td data-label="<?= esc(lang('Accounting_journals.cost_center'), 'attr') ?>">
                             <select name="lines[<?= $index ?>][cost_center_id]" class="form-select form-select-sm" aria-label="<?= esc(lang('Accounting_journals.cost_center'), 'attr') ?>"><?= $costCenterOptions($line === null || $line->cost_center_id === null ? null : (int) $line->cost_center_id) ?></select>
@@ -177,12 +177,12 @@ $rows   = $lines === [] ? [null, null] : $lines;
         <div><span class="acc-totals-label"><?= lang('Accounting_journals.total_credit') ?></span> <bdi dir="ltr" id="total_credit">0.00</bdi></div>
         <div id="difference_box" class="acc-difference"><span class="acc-totals-label"><?= lang('Accounting_journals.difference') ?></span> <bdi dir="ltr" id="difference">0.00</bdi> <span id="balance_state"></span></div>
     </div>
-    <?php if ($line_text): ?>
+    <?php if ($lineDescriptionRequired): ?>
         <p class="form-text" id="line_text_hint" role="note"><?= lang('Accounting_journals.line_description_required_hint') ?></p>
     <?php endif; ?>
 </form>
 
-<?= view('accounting_journals/attachments', ['journal_id' => $isNew ? 0 : $journalId, 'attachments' => $attachments, 'can_attach' => $can_attach]) ?>
+<?= view('accounting_journals/attachments', ['journalId' => $isNew ? 0 : $journalId, 'attachments' => $attachments, 'canAttach' => $canAttach]) ?>
 
 <script type="text/javascript">
     $(document).ready(function() {
@@ -195,7 +195,7 @@ $rows   = $lines === [] ? [null, null] : $lines;
             'closed' => lang('Accounting_journals.closed_until'),
         ], $jsonFlags) ?>;
         const cutoffs = <?= json_encode($cutoffs, $jsonFlags) ?>;
-        const textRequired = <?= $line_text ? 'true' : 'false' ?>;
+        const textRequired = <?= $lineDescriptionRequired ? 'true' : 'false' ?>;
         const branchId = <?= (int) $branch_id ?>;
         const SCALE = 10000;
         const picker = accounting_support.accountPicker('accounts_list');

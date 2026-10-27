@@ -84,6 +84,7 @@ return [
     'error_cost_center_not_found'                => 'The cost center does not exist.',
     'error_customer_busy'                        => 'Another change to this customer is still running. Try again in a moment.',
     'error_description_too_long'                 => 'The text is too long. The most allowed is {0} characters.',
+    'error_details_changed'                      => 'Someone changed the text of this journal after you opened it. Reload the page and edit it again.',
     'error_entity_kind_unknown'                  => 'There are no accounts for this kind of entity.',
     'error_entity_main_account_invalid'          => 'The main account chosen in the routing is missing, inactive or not a group. Fix the routing first.',
     'error_fiscal_year_boundary'                 => 'Only the start of the first year and the end of the last year can change, and only those years can be deleted.',

@@ -325,7 +325,7 @@ class JournalAttachmentsTest extends CIUnitTestCase
     }
 
     #[DataProvider('refusedNames')]
-    public function testAdd_RefusesAKindOfFileThatIsNotAllowed(string $name): void
+    public function testAdd_RejectsAKindOfFileThatIsNotAllowed(string $name): void
     {
         $journalId = $this->automaticJournal();
         [$path]    = $this->file($name, 'anything');
@@ -355,7 +355,7 @@ class JournalAttachmentsTest extends CIUnitTestCase
         ];
     }
 
-    public function testAdd_RefusesAFileWhoseContentIsNotWhatItsNameSays(): void
+    public function testAdd_RejectsAFileWhoseContentIsNotWhatItsNameSays(): void
     {
         $journalId = $this->automaticJournal();
         $employee  = $this->editor();
@@ -376,7 +376,7 @@ class JournalAttachmentsTest extends CIUnitTestCase
         $this->assertSame([], $this->filesIn($this->directory));
     }
 
-    public function testAdd_RefusesAnEmptyFile(): void
+    public function testAdd_RejectsAnEmptyFile(): void
     {
         $journalId = $this->automaticJournal();
         [$path]    = $this->file('empty.txt', '');
@@ -385,14 +385,14 @@ class JournalAttachmentsTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('accounting_journal_attachments'));
     }
 
-    public function testAdd_RefusesAFileThatCannotBeRead(): void
+    public function testAdd_RejectsAFileThatCannotBeRead(): void
     {
         $journalId = $this->automaticJournal();
 
         $this->assertFailsWith(AccountingError::AttachmentUploadFailed, fn () => $this->attachments->add($journalId, sys_get_temp_dir() . '/acc_missing_' . bin2hex(random_bytes(4)), 'receipt.pdf', $this->editor()));
     }
 
-    public function testAdd_AcceptsAFileOfExactlyTheLimitAndRefusesOneByteMore(): void
+    public function testAdd_AcceptsAFileOfExactlyTheLimitAndRejectsOneByteMore(): void
     {
         $journalId = $this->automaticJournal();
         $employee  = $this->editor();
@@ -410,7 +410,7 @@ class JournalAttachmentsTest extends CIUnitTestCase
         $this->assertSame((string) JournalAttachments::MAX_BYTES, (string) $this->rowOf($attachmentId)->size_bytes);
     }
 
-    public function testAdd_RefusesTheFileAfterTheLastOneAJournalMayHold(): void
+    public function testAdd_RejectsTheFileAfterTheLastOneAJournalMayHold(): void
     {
         $journalId = $this->automaticJournal();
         $employee  = $this->editor();
@@ -459,6 +459,16 @@ class JournalAttachmentsTest extends CIUnitTestCase
             'empty'                 => ['', 'pdf', 'file.pdf'],
             'very long'             => [str_repeat('a', 300) . '.pdf', 'pdf', str_repeat('a', 100) . '.pdf'],
             'very long arabic'      => [str_repeat('ع', 300) . '.pdf', 'pdf', str_repeat('ع', 100) . '.pdf'],
+            'arabic with diacritics' => ['فَاتُورَة.pdf', 'pdf', 'فَاتُورَة.pdf'],
+            'persian with a joiner' => ["می\u{200C}خواهم.pdf", 'pdf', "می\u{200C}خواهم.pdf"],
+            'thai'                  => ['ใบแจ้งหนี้.pdf', 'pdf', 'ใบแจ้งหนี้.pdf'],
+            'tamil'                 => ['விலைப்பட்டியல்.pdf', 'pdf', 'விலைப்பட்டியல்.pdf'],
+            'lao'                   => ['ໃບແຈ້ງໜີ້.pdf', 'pdf', 'ໃບແຈ້ງໜີ້.pdf'],
+            'devanagari'            => ['चालान.pdf', 'pdf', 'चालान.pdf'],
+            'only joiners'          => ["\u{200D}\u{200C}.pdf", 'pdf', 'file.pdf'],
+            'only a mark'           => ["\u{0301}\u{0301}.pdf", 'pdf', 'file.pdf'],
+            'only brackets'         => ['().pdf', 'pdf', 'file.pdf'],
+            'isolates and spaces of no width' => ["a\u{2066}b\u{2069}c\u{200B}d\u{200E}e\u{FEFF}f.pdf", 'pdf', 'a_b_c_d_e_f.pdf'],
         ];
     }
 
@@ -512,7 +522,7 @@ class JournalAttachmentsTest extends CIUnitTestCase
         $this->assertSame('posted', $this->bookedState($manualId)['journal']['status']);
     }
 
-    public function testAdd_RefusesAReversedJournalAndTheReversalOfOne(): void
+    public function testAdd_RejectsAReversedJournalAndTheReversalOfOne(): void
     {
         $manualId   = $this->journals->postNew($this->journalInput());
         $reversalId = $this->journals->reverse($manualId, '2026-10-22', 'Mistake');
@@ -525,7 +535,7 @@ class JournalAttachmentsTest extends CIUnitTestCase
         $this->assertSame(1, $this->countRows('accounting_journal_attachments'));
     }
 
-    public function testAdd_RefusesAPostedJournalOfAClosedPeriodAndKeepsNoFile(): void
+    public function testAdd_RejectsAPostedJournalOfAClosedPeriodAndKeepsNoFile(): void
     {
         $journalId = $this->automaticJournal(date: '2026-03-15');
         $this->closeThrough('2026-03-31');
@@ -537,7 +547,7 @@ class JournalAttachmentsTest extends CIUnitTestCase
         $this->assertSame([], $this->auditOf($journalId, 'attachment_added'));
     }
 
-    public function testAdd_RefusesAJournalWhenOnlyItsOwnBranchIsClosedAndAcceptsAnotherBranchsClosing(): void
+    public function testAdd_RejectsAJournalWhenOnlyItsOwnBranchIsClosedAndAcceptsAnotherBranchsClosing(): void
     {
         $second = $this->createBranch('B2');
         $first  = $this->automaticJournal(date: '2026-03-15');
@@ -644,7 +654,7 @@ class JournalAttachmentsTest extends CIUnitTestCase
         $this->assertJournalLockedBeforePeriods($this->queriesDuring(fn () => $this->attachments->delete($attachmentId, $employee)));
     }
 
-    public function testAdd_RefusesAJournalThatWasPostedWhileTheFileWasBeingSaved(): void
+    public function testAdd_RejectsAJournalThatWasPostedWhileTheFileWasBeingSaved(): void
     {
         $draftId  = $this->journals->saveDraft(['date' => '2026-03-15'] + $this->journalInput());
         $employee = $this->employeeWithGrants(['accounting_journals', AccountingGuard::JOURNALS_ALL, AccountingGuard::JOURNALS_DRAFT, AccountingGuard::JOURNALS_EDIT]);
@@ -661,7 +671,7 @@ class JournalAttachmentsTest extends CIUnitTestCase
         $this->assertSame([], $this->filesIn($this->directory));
     }
 
-    public function testAdd_RefusesADraftThatWasDeletedWhileTheFileWasBeingSaved(): void
+    public function testAdd_RejectsADraftThatWasDeletedWhileTheFileWasBeingSaved(): void
     {
         $draftId  = $this->journals->saveDraft($this->journalInput());
         $employee = $this->employeeWithGrants(['accounting_journals', AccountingGuard::JOURNALS_ALL, AccountingGuard::JOURNALS_DRAFT]);
@@ -754,7 +764,7 @@ class JournalAttachmentsTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('accounting_journal_attachments'));
     }
 
-    public function testDelete_RefusesTheFileOfAJournalInAClosedPeriodAndKeepsIt(): void
+    public function testDelete_RejectsTheFileOfAJournalInAClosedPeriodAndKeepsIt(): void
     {
         $journalId    = $this->automaticJournal(date: '2026-03-15');
         $employee     = $this->editor();
@@ -769,7 +779,7 @@ class JournalAttachmentsTest extends CIUnitTestCase
         $this->assertSame([], $this->auditOf($journalId, 'attachment_deleted'));
     }
 
-    public function testDelete_RefusesAReversedJournalsFileAndKeepsIt(): void
+    public function testDelete_RejectsAReversedJournalsFileAndKeepsIt(): void
     {
         $manualId     = $this->journals->postNew($this->journalInput());
         $employee     = $this->editor();
@@ -797,7 +807,7 @@ class JournalAttachmentsTest extends CIUnitTestCase
         $this->assertFileExists($this->pathOf($attachmentId));
     }
 
-    public function testDelete_RefusesAFileThatWasRemovedWhileTheRequestWasWaiting(): void
+    public function testDelete_RejectsAFileThatWasRemovedWhileTheRequestWasWaiting(): void
     {
         $employee     = $this->editor();
         $journalId    = $this->automaticJournal();
@@ -858,7 +868,7 @@ class JournalAttachmentsTest extends CIUnitTestCase
         $this->assertSame('receipt.pdf', $this->attachments->open($attachmentId, $this->editor())['name']);
     }
 
-    public function testOpen_RefusesAFileWhoseBytesChangedOnTheDisk(): void
+    public function testOpen_RejectsAFileWhoseBytesChangedOnTheDisk(): void
     {
         $attachmentId = $this->addFile($this->automaticJournal(), $this->editor());
         file_put_contents($this->pathOf($attachmentId), $this->pdfContent() . 'tampered');
@@ -866,7 +876,7 @@ class JournalAttachmentsTest extends CIUnitTestCase
         $this->assertFailsWith(AccountingError::AttachmentUnavailable, fn () => $this->attachments->open($attachmentId, $this->editor()));
     }
 
-    public function testOpen_RefusesAFileThatIsMissingFromTheDisk(): void
+    public function testOpen_RejectsAFileThatIsMissingFromTheDisk(): void
     {
         $attachmentId = $this->addFile($this->automaticJournal(), $this->editor());
         unlink($this->pathOf($attachmentId));

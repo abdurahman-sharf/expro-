@@ -1,21 +1,22 @@
 <?php
 /**
  * @var object       $journal
- * @var list<object> $cost_centers
+ * @var list<object> $costCenters
  * @var string       $currency
- * @var string       $number_label
- * @var string       $source_label
- * @var bool         $show_branch
+ * @var string       $numberLabel
+ * @var string       $version
+ * @var string       $sourceLabel
+ * @var bool         $showBranch
  * @var string|null  $notice
  */
 $format        = static fn (?string $value): string => to_currency_no_money($value ?? '0');
 $date          = static fn (?string $value): string => $value === null || strtotime($value) === false ? '' : to_date(strtotime($value));
 $jsonFlags     = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
-$centerOptions = static function (?int $selected, string $currentLabel) use ($cost_centers): string {
+$centerOptions = static function (?int $selected, string $currentLabel) use ($costCenters): string {
     $html  = '<option value="">' . esc(lang('Accounting_journals.no_cost_center')) . '</option>';
     $found = false;
 
-    foreach ($cost_centers as $center) {
+    foreach ($costCenters as $center) {
         $isSelected = $selected === (int) $center->cost_center_id;
         $found      = $found || $isSelected;
         $html .= '<option value="' . (int) $center->cost_center_id . '"' . ($isSelected ? ' selected' : '') . '>' . esc($center->code . ' - ' . $center->name) . '</option>';
@@ -38,6 +39,8 @@ $centerOptions = static function (?int $selected, string $currentLabel) use ($co
         <a class="btn btn-link btn-sm" href="<?= esc(base_url('accounting_journals/view/' . (int) $journal->journal_id), 'attr') ?>"><?= lang('Accounting_journals.cancel') ?></a>
     </div>
 
+    <input type="hidden" name="version" value="<?= esc($version, 'attr') ?>">
+
     <ul id="error_message_box" class="error_message_box" role="alert"></ul>
 
     <p class="form-text" role="note"><span class="bi bi-lock" aria-hidden="true"></span> <?= lang('Accounting_journals.details_locked_note') ?></p>
@@ -45,13 +48,13 @@ $centerOptions = static function (?int $selected, string $currentLabel) use ($co
     <dl class="acc-summary">
         <div>
             <dt><?= lang('Accounting_journals.number') ?></dt>
-            <dd><bdi dir="ltr"><?= esc($number_label) ?></bdi></dd>
+            <dd><bdi dir="ltr"><?= esc($numberLabel) ?></bdi></dd>
         </div>
         <div>
             <dt><?= lang('Accounting_journals.date') ?></dt>
             <dd><bdi dir="ltr"><?= esc($date($journal->journal_date)) ?></bdi></dd>
         </div>
-        <?php if ($show_branch): ?>
+        <?php if ($showBranch): ?>
             <div>
                 <dt><?= lang('Accounting_journals.branch') ?></dt>
                 <dd><bdi dir="ltr"><?= esc((string) $journal->branch_code) ?></bdi> <?= esc((string) $journal->branch_name) ?></dd>
@@ -59,7 +62,7 @@ $centerOptions = static function (?int $selected, string $currentLabel) use ($co
         <?php endif; ?>
         <div>
             <dt><?= lang('Accounting_journals.source') ?></dt>
-            <dd><?= esc($source_label) ?></dd>
+            <dd><?= esc($sourceLabel) ?></dd>
         </div>
         <div>
             <dt><?= lang('Accounting_journals.currency') ?></dt>

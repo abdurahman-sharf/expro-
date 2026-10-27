@@ -45,6 +45,7 @@ enum AccountingError: string
     case PostedJournalLocked     = 'posted_journal_locked';
     case JournalNotPosted        = 'journal_not_posted';
     case JournalLineNotFound     = 'journal_line_not_found';
+    case DetailsChanged          = 'details_changed';
     case DescriptionTooLong      = 'description_too_long';
     case LineDescriptionRequired = 'line_description_required';
 

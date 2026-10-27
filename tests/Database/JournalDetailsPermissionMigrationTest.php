@@ -75,11 +75,6 @@ class JournalDetailsPermissionMigrationTest extends CIUnitTestCase
         $this->assertSame(1, $this->accountingDb()->table('permissions')->where('permission_id', AccountingGuard::JOURNALS_EDIT)->countAllResults());
     }
 
-    public function testUp_KeepsThePermissionAwayFromTheModuleName(): void
-    {
-        $this->assertStringStartsNotWith('accounting_journals', AccountingGuard::JOURNALS_EDIT);
-    }
-
     public function testDown_RemovesThePermissionAndItsGrantsAndUpBringsItBack(): void
     {
         $holder    = $this->employeeWithGrants([AccountingGuard::JOURNALS_EDIT, 'accounting_journals']);

@@ -1,8 +1,8 @@
 <?php
 /**
- * @var int                                                                                   $journal_id Zero while the journal is not saved yet.
+ * @var int                                                                                   $journalId Zero while the journal is not saved yet.
  * @var list<array{id: int, name: string, size: string, by: string, at: string, url: string}> $attachments
- * @var bool                                                                                  $can_attach
+ * @var bool                                                                                  $canAttach
  */
 
 use App\Libraries\Accounting\JournalAttachments;
@@ -22,16 +22,16 @@ $maxMb     = JournalAttachments::MAX_BYTES / 1048576;
                 <span class="bi bi-paperclip" aria-hidden="true"></span>
                 <a href="<?= esc($file['url'], 'attr') ?>"><bdi><?= esc($file['name']) ?></bdi></a>
                 <span class="text-body-secondary small"><bdi dir="ltr"><?= esc($file['size']) ?></bdi> · <?= esc($file['by']) ?> · <bdi dir="ltr"><?= esc($file['at']) ?></bdi></span>
-                <?php if ($can_attach): ?>
+                <?php if ($canAttach): ?>
                     <button type="button" class="btn btn-outline-danger btn-sm" data-delete-attachment="<?= (int) $file['id'] ?>" title="<?= esc(lang('Accounting_journals.attachment_delete'), 'attr') ?>" aria-label="<?= esc(lang('Accounting_journals.attachment_delete'), 'attr') ?>"><span class="bi bi-trash" aria-hidden="true"></span></button>
                 <?php endif; ?>
             </li>
         <?php endforeach; ?>
     </ul>
 
-    <?php if ($journal_id === 0): ?>
+    <?php if ($journalId === 0): ?>
         <p class="form-text" role="note"><?= lang('Accounting_journals.attachments_save_first') ?></p>
-    <?php elseif ($can_attach): ?>
+    <?php elseif ($canAttach): ?>
         <form id="attachment_form" class="d-flex flex-wrap align-items-end gap-2" enctype="multipart/form-data" novalidate>
             <div>
                 <label class="form-label" for="attachment_file"><?= lang('Accounting_journals.attachment_file') ?></label>
@@ -43,7 +43,7 @@ $maxMb     = JournalAttachments::MAX_BYTES / 1048576;
 
         <script type="text/javascript">
             $(document).ready(function() {
-                const journalId = <?= (int) $journal_id ?>;
+                const journalId = <?= (int) $journalId ?>;
                 const text = <?= json_encode([
                     'confirm' => lang('Accounting_journals.attachment_confirm_delete'),
                     'delete'  => lang('Accounting_journals.attachment_delete'),

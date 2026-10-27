@@ -264,7 +264,7 @@ final class JournalService
      * so a closing that queues between the two cannot make them wait for each other.
      * Each edit is written to the audit log with what the text was and what it became.
      *
-     * @param array{description?: string, lines?: array<int|string, array{description?: string, cost_center_id?: int|string}>} $input The lines are keyed by their line id.
+     * @param array{description?: string, version?: string, lines?: array<int|string, array{description?: string, cost_center_id?: int|string}>} $input The lines are keyed by their line id. A version, as detailsVersion() gave it when the text was read, makes the edit refuse to overwrite text that someone else changed since.
      *
      * @return bool Whether anything changed. Nothing is written when nothing did.
      *
@@ -279,8 +279,9 @@ final class JournalService
         $this->assertDetailsEditable($stored);
 
         $details = $this->normalizeDetails($input);
+        $version = array_key_exists('version', $input) ? (is_string($input['version']) ? $input['version'] : '') : null;
 
-        return $this->transactional(function () use ($journalId, $details, $employeeId): bool {
+        return $this->transactional(function () use ($journalId, $details, $version, $employeeId): bool {
             $table  = $this->db->prefixTable('accounting_journals');
             $locked = LockedRead::row($this->db, "SELECT * FROM {$table} WHERE journal_id = ? FOR UPDATE", [$journalId]);
 
@@ -291,7 +292,12 @@ final class JournalService
             $this->assertDetailsEditable($locked);
             $this->periods->enforce($locked->journal_date, (int) $locked->branch_id);
 
-            $lines   = LockedRead::rows($this->db, 'SELECT * FROM ' . $this->db->prefixTable('accounting_journal_lines') . ' WHERE journal_id = ? ORDER BY line_no FOR UPDATE', [$journalId]);
+            $lines = LockedRead::rows($this->db, 'SELECT * FROM ' . $this->db->prefixTable('accounting_journal_lines') . ' WHERE journal_id = ? ORDER BY line_no FOR UPDATE', [$journalId]);
+
+            if ($version !== null && ! hash_equals($this->detailsVersion($locked, $lines), $version)) {
+                throw new AccountingException(AccountingError::DetailsChanged, "The text of journal {$journalId} changed after it was read.");
+            }
+
             $changes = $this->detailChanges($locked, $lines, $details);
 
             if ($changes['after'] === []) {
@@ -313,6 +319,27 @@ final class JournalService
 
             return true;
         });
+    }
+
+    /**
+     * A fingerprint of the text a person edits: the description of the journal and, for each line,
+     * its description and cost center. The edit screen carries it, so a form opened before someone
+     * else changed the text is refused and does not write the old text back over the new.
+     *
+     * @param list<object> $lines
+     */
+    public function detailsVersion(object $journal, array $lines): string
+    {
+        $text = static fn (?string $value): ?string => $value === '' ? null : $value;
+
+        return hash('sha256', (string) json_encode([
+            $text($journal->description),
+            array_map(static fn (object $line): array => [
+                (int) $line->line_id,
+                $text($line->description),
+                $line->cost_center_id === null ? null : (int) $line->cost_center_id,
+            ], $lines),
+        ], JSON_UNESCAPED_UNICODE));
     }
 
     /**
@@ -723,7 +750,8 @@ final class JournalService
 
     /**
      * What the caller asked to change, cleaned: the description of the journal, and for the lines
-     * it names the description and the cost center. Anything else in the input is left out.
+     * it names the description and the cost center. Anything else in the input is left out, and
+     * so is a value that is not text, such as the list a malformed request can send.
      *
      * @param array<string, mixed> $input
      *
@@ -735,7 +763,7 @@ final class JournalService
     {
         $details = ['lines' => []];
 
-        if (array_key_exists('description', $input)) {
+        if (array_key_exists('description', $input) && $this->isText($input['description'])) {
             $details['description'] = $this->boundedText((string) $input['description'], self::TEXT_MAX);
         }
 
@@ -744,11 +772,11 @@ final class JournalService
                 continue;
             }
 
-            if (array_key_exists('description', $line)) {
+            if (array_key_exists('description', $line) && $this->isText($line['description'])) {
                 $details['lines'][(int) $lineId]['description'] = $this->boundedText((string) $line['description'], self::LINE_TEXT_MAX);
             }
 
-            if (array_key_exists('cost_center_id', $line)) {
+            if (array_key_exists('cost_center_id', $line) && $this->isText($line['cost_center_id'])) {
                 $costCenterId = (int) $line['cost_center_id'];
 
                 $details['lines'][(int) $lineId]['cost_center_id'] = $costCenterId > 0 ? $costCenterId : null;
@@ -756,6 +784,11 @@ final class JournalService
         }
 
         return $details;
+    }
+
+    private function isText(mixed $value): bool
+    {
+        return $value === null || is_scalar($value);
     }
 
     /**

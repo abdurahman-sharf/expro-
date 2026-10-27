@@ -14,6 +14,7 @@ use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Accounting\TreasuryTransfers;
 use CodeIgniter\Exceptions\PageNotFoundException;
+use CodeIgniter\HTTP\ResponseInterface;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Tests\Support\AccountingControllerFixtureTrait;
@@ -943,9 +944,25 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         service('superglobals')->setFilesArray(['file' => ['name' => $clientName, 'type' => 'application/octet-stream', 'tmp_name' => $path, 'error' => $error, 'size' => strlen($content)]]);
     }
 
-    private function addFileTo(int $journalId, int $employeeId, string $name = 'receipt.pdf'): int
+    private function versionOf(int $journalId): string
     {
-        return (new JournalAttachments())->add($journalId, $this->upload($this->pdfContent()), $name, $employeeId);
+        $journals = new JournalService();
+        $journal  = $journals->find($journalId);
+
+        return $journals->detailsVersion($journal, $journal->lines);
+    }
+
+    private function addFileTo(int $journalId, int $employeeId, string $name = 'receipt.pdf', ?string $content = null): int
+    {
+        return (new JournalAttachments())->add($journalId, $this->upload($content ?? $this->pdfContent()), $name, $employeeId);
+    }
+
+    private function servedBytes(ResponseInterface $response): string
+    {
+        ob_start();
+        $response->sendBody();
+
+        return (string) ob_get_clean();
     }
 
     public function testGetEditDetails_OffersOnlyTheTextFieldsOfAPostedAutomaticJournal(): void
@@ -962,7 +979,7 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         preg_match_all('/<(?:input|textarea|select)[^>]*\sname="([^"]+)"/', $form[0], $names);
 
         $this->assertEqualsCanonicalizing([
-            'description', 'honeypot',
+            'description', 'honeypot', 'version',
             "lines[{$first}][description]", "lines[{$first}][cost_center_id]",
             "lines[{$second}][description]", "lines[{$second}][cost_center_id]",
         ], $names[1]);
@@ -1097,6 +1114,75 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         $this->assertSame((string) $journalId, (string) $audit->entity_id);
     }
 
+    public function testGetEditDetails_CarriesTheVersionOfTheTextItShowsInTheForm(): void
+    {
+        $journalId = $this->automaticJournal();
+        $this->detailsEditor();
+
+        $response = $this->get('/accounting_journals/edit_details/' . $journalId);
+
+        preg_match('#<form id="details_form".*?</form>#s', $response->getBody(), $form);
+
+        $this->assertSame(1, preg_match('/<input type="hidden" name="version" value="([0-9a-f]{64})">/', $form[0], $found));
+        $this->assertSame($this->versionOf($journalId), $found[1]);
+    }
+
+    public function testPostSaveDetails_SavesAFormOpenedOnTheTextThatIsStillCurrent(): void
+    {
+        $journalId = $this->automaticJournal();
+        $this->detailsEditor();
+
+        $result = $this->jsonOf($this->post('/accounting_journals/save_details/' . $journalId, ['description' => 'Edited', 'version' => $this->versionOf($journalId)]));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('Edited', (new JournalService())->find($journalId)->description);
+    }
+
+    public function testPostSaveDetails_RejectsAFormOpenedBeforeSomeoneElseChangedTheTextAndKeepsTheirChange(): void
+    {
+        $journalId        = $this->automaticJournal();
+        [$first, $second] = $this->lineIdsOf($journalId);
+        $employee         = $this->detailsEditor();
+        $opened           = $this->versionOf($journalId);
+
+        (new JournalService())->updateDetails($journalId, ['lines' => [$second => ['description' => 'Changed by someone else']]], $employee);
+
+        $result = $this->jsonOf($this->post('/accounting_journals/save_details/' . $journalId, [
+            'description' => 'Edited',
+            'version'     => $opened,
+            'lines'       => [$first => ['description' => 'Edited line'], $second => ['description' => 'Sales']],
+        ]));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_details_changed'), $result['message']);
+
+        $journal = (new JournalService())->find($journalId);
+
+        $this->assertSame('Invoice 7', $journal->description);
+        $this->assertSame(['Cash received', 'Changed by someone else'], array_map(static fn (object $line): string => $line->description, $journal->lines));
+    }
+
+    public function testPostSaveDetails_IgnoresValuesThatAreNotTextInsteadOfFailing(): void
+    {
+        $journalId        = $this->automaticJournal();
+        [$first, $second] = $this->lineIdsOf($journalId);
+        $this->detailsEditor();
+
+        $result = $this->jsonOf($this->post('/accounting_journals/save_details/' . $journalId, [
+            'description' => ['x'],
+            'lines'       => [$first => ['description' => ['x'], 'cost_center_id' => ['1']], $second => ['description' => 'Shop sales']],
+        ]));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(lang('Accounting_journals.details_saved'), $result['message']);
+
+        $journal = (new JournalService())->find($journalId);
+
+        $this->assertSame('Invoice 7', $journal->description);
+        $this->assertSame(['Cash received', 'Shop sales'], array_map(static fn (object $line): string => $line->description, $journal->lines));
+        $this->assertNull($journal->lines[0]->cost_center_id);
+    }
+
     public function testPostSaveDetails_SaysNothingChangedWhenTheFormIsSentAsItWas(): void
     {
         $journalId = $this->automaticJournal();
@@ -1139,7 +1225,7 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         );
     }
 
-    public function testPostSaveDetails_RefusesSomeoneWithoutThePermissionAndChangesNothing(): void
+    public function testPostSaveDetails_RejectsSomeoneWithoutThePermissionAndChangesNothing(): void
     {
         $journalId = $this->automaticJournal();
         $this->accountant();
@@ -1151,7 +1237,7 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         $this->assertSame('Invoice 7', (new JournalService())->find($journalId)->description);
     }
 
-    public function testPostSaveDetails_RefusesAManualJournalWithAReadableMessage(): void
+    public function testPostSaveDetails_RejectsAManualJournalWithAReadableMessage(): void
     {
         $journalId = $this->postedJournalBy();
         $this->detailsEditor();
@@ -1163,7 +1249,7 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         $this->assertSame('Test journal', (new JournalService())->find($journalId)->description);
     }
 
-    public function testPostSaveDetails_RefusesAJournalInAClosedPeriod(): void
+    public function testPostSaveDetails_RejectsAJournalInAClosedPeriod(): void
     {
         $journalId = $this->automaticJournal(date: '2026-03-15');
         $this->closeThrough('2026-03-31');
@@ -1175,7 +1261,7 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         $this->assertSame('Invoice 7', (new JournalService())->find($journalId)->description);
     }
 
-    public function testPostSaveDetails_RefusesTextThatIsTooLong(): void
+    public function testPostSaveDetails_RejectsTextThatIsTooLong(): void
     {
         $journalId = $this->automaticJournal();
         $this->detailsEditor();
@@ -1306,7 +1392,7 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         $this->assertSame($before->total_debit, (new JournalService())->find($journalId)->total_debit);
     }
 
-    public function testPostAttach_RefusesAKindOfFileThatIsNotAllowed(): void
+    public function testPostAttach_RejectsAKindOfFileThatIsNotAllowed(): void
     {
         $journalId = $this->automaticJournal();
         $this->detailsEditor();
@@ -1348,7 +1434,7 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('accounting_journal_attachments'));
     }
 
-    public function testPostAttach_RefusesSomeoneWithoutThePermissionToEditAPostedJournal(): void
+    public function testPostAttach_RejectsSomeoneWithoutThePermissionToEditAPostedJournal(): void
     {
         $journalId = $this->automaticJournal();
         $this->accountant();
@@ -1361,7 +1447,7 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('accounting_journal_attachments'));
     }
 
-    public function testPostAttach_RefusesAJournalInAClosedPeriod(): void
+    public function testPostAttach_RejectsAJournalInAClosedPeriod(): void
     {
         $journalId = $this->automaticJournal(date: '2026-03-15');
         $this->closeThrough('2026-03-31');
@@ -1398,7 +1484,7 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         $this->assertSame(1, $this->accountingDb()->table('accounting_audit_log')->where('action', 'attachment_deleted')->where('employee_id', $employee)->countAllResults());
     }
 
-    public function testPostDeleteAttachment_RefusesSomeoneWithoutThePermissionAndKeepsTheFile(): void
+    public function testPostDeleteAttachment_RejectsSomeoneWithoutThePermissionAndKeepsTheFile(): void
     {
         $journalId = $this->automaticJournal();
         $employee  = $this->detailsEditor();
@@ -1420,7 +1506,7 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         $response = $this->get('/accounting_journals/attachment/' . $fileId);
 
         $response->assertStatus(200);
-        $this->assertSame($this->pdfContent(), $response->response()->getBody());
+        $this->assertSame($this->pdfContent(), $this->servedBytes($response->response()));
         $response->assertHeader('Content-Type', 'application/pdf');
         $response->assertHeader('X-Content-Type-Options', 'nosniff');
         $this->assertStringContainsString('no-store', $response->response()->getHeaderLine('Cache-Control'));
@@ -1433,6 +1519,21 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         $this->assertStringContainsString("filename*=UTF-8''" . rawurlencode('فاتورة المورد.pdf'), $disposition);
         $this->assertStringEndsWith('.pdf', explode('"', $disposition)[1]);
         $this->assertMatchesRegularExpression('/^[A-Za-z0-9._() -]+$/', explode('"', $disposition)[1]);
+    }
+
+    public function testGetAttachment_SendsTheStoredBytesEvenWhenTheFileHoldsTheEndOfAForm(): void
+    {
+        $journalId = $this->automaticJournal();
+        $employee  = $this->detailsEditor();
+        $content   = "A note that quotes </form> and </FORM> as they are.\n";
+        $fileId    = $this->addFileTo($journalId, $employee, 'note.txt', $content);
+
+        $response = $this->get('/accounting_journals/attachment/' . $fileId);
+
+        $response->assertStatus(200);
+        $this->assertSame($content, $this->servedBytes($response->response()));
+        $this->assertSame((string) $this->accountingDb()->table('accounting_journal_attachments')->where('attachment_id', $fileId)->get()->getRow()->sha256, hash('sha256', $this->servedBytes($response->response())));
+        $this->assertStringNotContainsString('honeypot', $this->servedBytes($response->response()));
     }
 
     public function testGetAttachment_IsNotFoundForAnUnknownFileAndForOneMissingFromTheServer(): void
