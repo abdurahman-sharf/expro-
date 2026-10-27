@@ -90,7 +90,7 @@
                 <div class="row mb-3">
                     <?= form_label(lang('Sales.treasury'), 'treasury_id_new', ['class' => 'col-form-label col-3']) ?>
                     <div class="col-8">
-                        <?= form_dropdown('treasury_id_new', $new_treasury_options, '0', ['id' => 'treasury_id_new', 'class' => 'form-select form-select-sm']) ?>
+                        <?= form_dropdown('treasury_id_new', array_map('esc', $new_treasury_options), '0', ['id' => 'treasury_id_new', 'class' => 'form-select form-select-sm']) ?>
                     </div>
                 </div>
             <?php endif; ?>
@@ -167,7 +167,7 @@
                 <div class="row mb-3">
                     <?= form_label(lang('Sales.treasury') . ' #' . esc($payment_numbers[(int) $row->payment_id] ?? (string) (int) $row->payment_id), "treasury_id_$i", ['class' => 'col-form-label col-3']) ?>
                     <div class="col-8">
-                        <?= form_dropdown("treasury_id_$i", $treasury_options, (string) ($row->treasury_id ?? 0), ['id' => "treasury_id_$i", 'class' => 'form-select form-select-sm']) ?>
+                        <?= form_dropdown("treasury_id_$i", array_map('esc', $treasury_options), (string) ($row->treasury_id ?? 0), ['id' => "treasury_id_$i", 'class' => 'form-select form-select-sm']) ?>
                     </div>
                 </div>
             <?php endif; ?>

@@ -1701,6 +1701,36 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertStringNotContainsString('Far drawer', $this->get('/sales/edit/' . $invoice['saleId'])->getBody());
     }
 
+    public function testGetEdit_EscapesTheNamesOfTheTreasuriesItOffersInTheDropdownsOfTheNewAndTheExistingPayments(): void
+    {
+        $invoice = $this->postedInvoice();
+        $branch  = $this->createSecondBranch();
+        $this->treasuryOfBranch('Open <b>drawer</b>');
+        $far       = $this->treasuryOfBranch('Far <img src=x onerror=alert(1)>', $branch);
+        $paymentId = $this->addPayment($invoice['saleId'], '300.00', 'Cash');
+        $this->accountingDb()->table('sales_payments')->where('payment_id', $paymentId)->update(['treasury_id' => $far]);
+
+        $this->loginAs($this->supervisorInBoth($branch));
+
+        $body = $this->get('/sales/edit/' . $invoice['saleId'])->getBody();
+
+        $this->assertStringNotContainsString('<img src=x', $body);
+        $this->assertStringNotContainsString('<b>drawer</b>', $body);
+        $this->assertSame(2, substr_count($body, 'Far &lt;img src=x onerror=alert(1)&gt; ('), 'The dropdown of the payment and the one of a new payment');
+        $this->assertSame(2, substr_count($body, 'Open &lt;b&gt;drawer&lt;/b&gt;</option>'));
+    }
+
+    public function testGetIndex_EscapesTheNamesOfTheTreasuriesItOffersAtTheRegister(): void
+    {
+        $this->registerWithACart();
+        $this->treasuryOfBranch('Register <img src=x onerror=alert(1)>');
+
+        $body = $this->get('/sales')->getBody();
+
+        $this->assertStringNotContainsString('<img src=x', $body);
+        $this->assertStringContainsString('Register &lt;img src=x onerror=alert(1)&gt;</option>', $body);
+    }
+
     public function testPostSave_PutsTheNewPaymentIntoATreasuryOfAnotherBranchForAnEmployeeWhoWorksInBoth(): void
     {
         $invoice = $this->postedInvoice();

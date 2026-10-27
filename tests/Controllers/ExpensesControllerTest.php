@@ -685,6 +685,26 @@ class ExpensesControllerTest extends CIUnitTestCase
         $this->assertStringNotContainsString('name="expense_branch_id"', $this->get('/expenses/view/-1')->getBody());
     }
 
+    public function testGetView_EscapesTheNamesOfTheBranchesAndTreasuriesItOffers(): void
+    {
+        $second = $this->createBranch('B2');
+
+        $this->accountingDb()->table('branches')->where('branch_id', $second)->update(['name' => '<img src=x onerror=alert(1)>']);
+        $this->treasury('Home <b>drawer</b>', 1);
+        $this->treasury('Far <script>alert(2)</script>', $second);
+
+        $this->actAsWith(['expenses', 'expenses_categories']);
+
+        $body = $this->get('/expenses/view/-1')->getBody();
+
+        $this->assertStringNotContainsString('<img src=x', $body);
+        $this->assertStringNotContainsString('<script>alert(2)', $body);
+        $this->assertStringNotContainsString('<b>drawer</b>', $body);
+        $this->assertStringContainsString('B2 - &lt;img src=x onerror=alert(1)&gt;</option>', $body);
+        $this->assertMatchesRegularExpression('/Far &lt;script&gt;alert\(2\)&lt;\/script&gt; \w+ \(B2\)<\/option>/', $body);
+        $this->assertMatchesRegularExpression('/Home &lt;b&gt;drawer&lt;\/b&gt; \w+ \(HQ\)<\/option>/', $body);
+    }
+
     public function testGetView_OffersNoBranchWhileAccountingIsOffOrThereIsNoTreasuryToChooseFrom(): void
     {
         $this->createBranch('B2');

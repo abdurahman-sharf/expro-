@@ -129,7 +129,7 @@
             <div class="field">
                 <?= form_label(lang('Expenses.treasury'), 'treasury_id', ['class' => 'form-label']) ?>
                 <div class="field-control">
-                    <?= form_dropdown('treasury_id', $treasury_options, (string) ($expenses_info->treasury_id ?? 0), ['class' => 'form-select', 'id' => 'treasury_id']) ?>
+                    <?= form_dropdown('treasury_id', array_map('esc', $treasury_options), (string) ($expenses_info->treasury_id ?? 0), ['class' => 'form-select', 'id' => 'treasury_id']) ?>
                 </div>
             </div>
         <?php endif; ?>
@@ -138,7 +138,7 @@
             <div class="field">
                 <?= form_label(lang('Expenses.branch'), 'expense_branch_id', ['class' => 'form-label']) ?>
                 <div class="field-control">
-                    <?= form_dropdown('expense_branch_id', $branch_options, (string) ($branch_selected ?? 0), ['class' => 'form-select', 'id' => 'expense_branch_id', 'aria-describedby' => 'expense_branch_note']) ?>
+                    <?= form_dropdown('expense_branch_id', array_map('esc', $branch_options), (string) ($branch_selected ?? 0), ['class' => 'form-select', 'id' => 'expense_branch_id', 'aria-describedby' => 'expense_branch_note']) ?>
                     <div class="form-text" id="expense_branch_note"><?= esc(lang('Expenses.branch_note')) ?></div>
                 </div>
             </div>

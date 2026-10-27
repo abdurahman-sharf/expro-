@@ -1383,6 +1383,25 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $this->assertStringNotContainsString('Far drawer', $this->get('/receivings/edit/' . $purchase)->getBody());
     }
 
+    public function testGetEdit_EscapesTheNamesOfTheTreasuriesItOffersInTheDropdownsOfTheNewAndTheExistingPayments(): void
+    {
+        $purchase = $this->purchaseOf('500.00');
+        $payment  = $this->payPurchase($purchase, '100.00', 'Cash');
+        $this->treasuryOfBranch('Open <b>drawer</b>');
+        $branch = $this->anotherBranch();
+        $far    = $this->treasuryOfBranch('Far <img src=x onerror=alert(1)>', $branch);
+        $this->accountingDb()->table('receivings_payments')->where('payment_id', $payment)->update(['treasury_id' => $far]);
+
+        $this->loginAs($this->buyer([1, $branch]));
+
+        $body = $this->get('/receivings/edit/' . $purchase)->getBody();
+
+        $this->assertStringNotContainsString('<img src=x', $body);
+        $this->assertStringNotContainsString('<b>drawer</b>', $body);
+        $this->assertSame(2, substr_count($body, 'Far &lt;img src=x onerror=alert(1)&gt; ('), 'The dropdown of the payment and the one of a new payment');
+        $this->assertSame(2, substr_count($body, 'Open &lt;b&gt;drawer&lt;/b&gt;</option>'));
+    }
+
     public function testPostSave_PaysTheSupplierOutOfATreasuryOfAnotherBranchForABuyerWhoWorksInBoth(): void
     {
         $purchase = $this->purchaseOf('500.00');
