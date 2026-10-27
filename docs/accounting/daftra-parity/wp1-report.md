@@ -296,3 +296,19 @@ DETECTED  FIX-3c the shelves that exist are left as they are: Tests: 4, Assertio
 DETECTED  FIX-3d a deleted location gets no shelf: Tests: 4, Assertions: 13, Failures: 1.; failing: 1
 10 of 10 guards detected
 ```
+
+### الدفعة 13
+
+```
+DETECTED  FIX-4 an employee with no usable location is sent to the no-access page by every items action: Tests: 3, Assertions: 10, Failures: 1.; failing: 1
+DETECTED  FIX-5a the prefill of the cash-up reads every branch: Tests: 3, Assertions: 26, Failures: 1.; failing: 1
+DETECTED  FIX-5b a read of the whole company is not limited to the branches: Tests: 10, Assertions: 45, Failures: 1.; failing: 1
+DETECTED  FIX-5c the reads that follow a read of the whole company are limited again: Tests: 10, Assertions: 46, Failures: 2.; failing: 2
+DETECTED  FIX-6a the refusal of the expenses report says it concerns the whole company: Tests: 26, Assertions: 300, Failures: 2.; failing: 2
+DETECTED  FIX-6b the refusal of the expenses report is a 403: Tests: 26, Assertions: 298, Failures: 2.; failing: 2
+DETECTED  FIX-6c the listing shows the error it is given: Tests: 26, Assertions: 300, Failures: 2.; failing: 2
+DETECTED  FIX-6d the expenses reports are left out for an employee of some branches: Tests: 8, Assertions: 28, Failures: 1.; failing: 1
+DETECTED  FIX-6e the list of reports leaves the expenses reports out: Tests: 26, Assertions: 298, Failures: 1.; failing: 1
+DETECTED  FIX-6f the search index leaves the expenses reports out: Tests: 2, Assertions: 4, Failures: 1.; failing: 1
+10 of 10 guards detected
+```
