@@ -126,3 +126,19 @@ DETECTED  P5-LOCK-4 a name taken again is counted: Tests: 8, Assertions: 17, Fai
 DETECTED  P5-LOCK-5 the probe reports what the lock gave: Tests: 8, Assertions: 18, Failures: 1.; failing: 1
 10 of 10 guards detected
 ```
+
+### الدفعة 4
+
+```
+DETECTED  P5-LOCK-6 the customer is refused when the lock is not held: Tests: 10, Assertions: 47, Failures: 2.; failing: 2
+DETECTED  P5-LOCK-7 the supplier is refused when the lock is not held: Tests: 17, Assertions: 110, Failures: 3.; failing: 3
+DETECTED  P5-LOCK-8 the check command fails when locks are not kept: Tests: 2, Assertions: 3, Failures: 1.; failing: 1
+DETECTED  G48-1 limitToBranches limits the query: Tests: 8, Assertions: 38, Failures: 2.; failing: 2
+DETECTED  G48-2 limitToBranches refuses everything to an employee of no branch: Tests: 8, Assertions: 38, Failures: 1.; failing: 1
+DETECTED  G48-3 branchCondition limits a hand-written query: Tests: 8, Assertions: 32, Failures: 1.; failing: 1
+DETECTED  G48-4 branchCondition refuses everything to an employee of no branch: Tests: 8, Assertions: 35, Failures: 1.; failing: 1
+DETECTED  G48-5 limitedInputs carries the branches: Tests: 8, Assertions: 35, Failures: 1.; failing: 1
+DETECTED  G48-6 the table aliases of the query are put back: Tests: 8, Assertions: 37, Failures: 1.; failing: 1
+DETECTED  G48-7 summary reports limit their sales: Tests: 4, Assertions: 37, Failures: 3.; failing: 3
+10 of 10 guards detected
+```
