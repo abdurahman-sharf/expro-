@@ -42,7 +42,122 @@
 
 ## 3. الأدلة
 
-__EVIDENCE__
+- **اختبارات الكود (160 دالة اختبار جديدة، تتوسع ببيانات الاختبار إلى أكثر منها):**
+  - `JournalAttachmentsTest` (جديد، 80 حالة): النوع والمحتوى (PHP وHTML في ملف باسم صورة أو PDF أو نص)، والحجم (5 ميغابايت بالضبط يُقبل وبايت زيادة يُرفض)، والعدد (10 تُقبل والحادي عشر يُرفض ويبقى الأول لقيد آخر)، وتنقية الاسم (14 حالة بينها `../` و`C:\` وحروف التحكم والاتجاه والعربية الطويلة)، والصلاحية بحسب حالة القيد (مسودة/مرحَّل/معكوس/معاينة)، والفروع وملكية المسودة، والفترة المقفلة (للشركة ولفرع القيد دون فرع آخر وبعد إعادة الفتح وللمسودة)، وانتظار إقفال جارٍ بلا ملف متبقٍّ، **وسباقان حقيقيان** (قيد رُحِّل أو حُذف أثناء الحفظ، وملف حُذف أثناء الانتظار)، وفحص البصمة عند التنزيل (ملف عُبث به أو مفقود)، وقيد المعاينة، وأسطر التدقيق، **وأن الإضافة والحذف لا يغيّران أي عمود غير نصي في القيد ولا ميزان المراجعة**، وأن لا ملف يبقى على القرص عند أي رفض، وأن القيد ذا الملف لا يُحذف من قاعدة البيانات.
+  - `JournalServiceTest` (+41): تعديل النص (ثلاثة حقول فقط، وكل ما عداها يُتجاهل، والحدود 2000 و255 بالعربية، والمسح بالفراغ، وعدم الكتابة بلا تغيير، وسطر تدقيق بما كان وما صار ولكل تعديل سطر)، **والقيد اليدوي والعكس والمسودة والمعكوس مرفوضة (وبسبب «مقفل» لا «فترة مقفلة»)**، **والقيد القديم**، وقيد الرصيد الافتتاحي، والصلاحية (حاملو كل صلاحيات القيود عدا التعديل مرفوضون)، والفروع وملكية القيد، **والفترة المقفلة** (الشركة، الفرع، فرع آخر، بعد التاريخ، بعد إعادة الفتح)، وخطأ سطر قيد آخر لا يغيّر شيئًا مما قبله، ومركز التكلفة (مجهول، معطّل، حذف)، **وانتظار إقفال جارٍ وانتظار من يمسك القيد أو أسطره وقيد حُذف أثناء الانتظار وقيد عُكس أثناء الانتظار**، ووصف السطر الإلزامي (الترحيل الجديد والمسودة المخزَّنة وبمدخلات معدَّلة، والمسودة تُحفظ ناقصة، والعكس لا يُسأل)، وحذف المسودة بملفاتها.
+  - **ربط بالدفاتر:** تعديل النص **لا يغيّر ميزان المراجعة ولا أي رصيد في كشف الحساب** ويغيّر نص الكشف (`TrialBalance` و`AccountLedger`)؛ على **فاتورة بيع حقيقية** (قيداها يُعدَّل نصهما ثم يُلغى البيع بنموذج البيع الحقيقي فينعكس القيدان وتتصفّر الحسابات وتبقى النصوص المعدَّلة)؛ على **قيدي تحويل بين خزينتين** (أرصدة الخزينتين كما كانت ثم يُلغى التحويل فتعود الأرصدة صفرًا).
+  - `AccountingJournalsControllerTest` (+40): شاشة التعديل تحوي **حقول النص فقط** (تُستخرج أسماء الحقول من النموذج وتُقارن)، وتظهر الحسابات والمبالغ نصًّا، و404 للقيد اليدوي والمسودة والمعكوس وبلا الصلاحية وللفرع الآخر وعند تعطيل المحاسبة، وهروب النص (`</textarea><script>`)، والحفظ (يتجاهل المبلغ والحساب والتاريخ والرقم في الطلب، ويرفض بلا صلاحية ولليدوي وللفترة المقفلة وللنص الطويل)، وزر التعديل، وسجل التدقيق في العرض، والمرفقات (الرفع والرفض بأنواعه وحد PHP والحذف والتنزيل بترويساته: **تنزيل لا عرض**، `no-store`، اسم ASCII احتياطي، **و404 لملف مفقود أو لفرع آخر**، وتحويل لمن بلا الوحدة)، ونموذج الجديد «احفظ أولًا»، وعلامة وصف السطر الإلزامي في النموذج، ورفض الترحيل برسالة تذكر رقم السطر.
+  - `AccountingSettingsTest` (+5) و`AccountingSetupControllerTest` (+6): الإعداد (الافتراضي مطفأ، يُحفظ بعد ترحيل القيود، يُدقَّق، لا يُكتب بلا تغيير، يلزمه الإذن، ولا يُمسّ إن لم يرسله النموذج، ويُقفل المفتاح لمن لا يملك الإذن).
+  - `SensitivePermissionsTest` (+1) و`EmployeesControllerTest` (+3): الصلاحية الجديدة حساسة: يمنحها المدير فيُسجَّل، ولا يمنحها محرِّر ليس مديرًا.
+  - `PostingServiceTest` (+1): **ترحيل النظام لا يُسأل عن وصف السطر** حتى والإعداد مفعّل.
+  - `JournalAttachmentsMigrationTest` و`JournalDetailsPermissionMigrationTest` (جديدان، 13): الجدول والمفاتيح والقيود (مفتاح أجنبي `RESTRICT`، فرادة الاسم المخزَّن، حجم أكبر من صفر)، وإعادة التشغيل مرتين، والتراجع، والصلاحية تُسجَّل بلا منح.
+  - **مساعد اختبار جديد:** `tests/Support/JournalAttachmentFixtureTrait` (يصنع ملفات صغيرة صحيحة النوع ويزيل ما صنعه فقط من مجلد المرفقات المشترك)، وإضافة جدول المرفقات إلى `clearJournals()` في `AccountingFixtureTrait`.
+- **تعطيل الحارس:** عطّلتُ **94 حارسًا** على حدة بـ`mutate_generic.py` (**94 من 94 كُشفت**، والقائمة الكاملة في الملحق أدناه): في خدمة تعديل النص 27 (الصلاحية ونطاق الفرع وتقديم رفض اليدوي على الفترة وإعادة الفحص بعد القفل والفترة المقفلة وقفل القيد وأسطره وقيد اختفى وسطر قيد آخر وحدّا النص وحدّه الأقصى ومركز التكلفة النشِط وسطر التدقيق وعدم الكتابة بلا تغيير وحالة القيد واليدوي والعكس وقص النص وإفراغه ووصف السطر الإلزامي بأوجهه الخمسة وحذف المسودة بملفاتها)، وفي المرفقات 38 (النوع والمحتوى والفراغ والحجم وحدّه والعدد وحدّه والقراءة والصلاحية بأوجهها والفترة وتغيّر القيد وغيابه وإزالة الملف عند الفشل والصلاحية `0640` و`.htaccess` والاسم العشوائي والبصمة والتدقيق الثلاثي ونطاق الفرع في الإضافة والحذف والقائمة والتنزيل والمعاينة والبصمة عند التنزيل والملف المفقود وأربع خطوات تنقية الاسم)، وفي المتحكم 14 (حراسة الشاشة وزرّا التعديل والمرفقات والموظف في الحفظ والرفع والحذف والتنزيل وترويستا التنزيل ورسالة الحجم و404 وتنقية اسم الترويسة وإرسال الإعداد)، وثلاثة هروب في العرض، وحساسية الصلاحية، وأربعة في الترحيلات (RESTRICT والفرادة وحجم أكبر من صفر والوحدة)، وسبعة في الإعداد ومجلد الملفات خارج الجذر العام. **في الجولتين الأوليين لم تُكشف 7 فعالجتُها:** (أ) **حذفتُ 3 فحوصًا مكررة** لا تضيف حماية: قصّ الفراغات في فحص وصف السطر (الأسطر تُنظَّف قبله)، وفحص الصلاحية الثاني داخل قفل المرفقات (فحص الصلاحية الأول يسبقه وفحص تغيّر الحالة يغطي ما بينهما)، وترويسة `nosniff` (تضعها أصلًا مرشّحة `secureheaders` العامة، واختبار التنزيل يثبت وجودها). (ب) **قوّيتُ اختبارين**: قفل صف القيد لا يظهر إن عُدّل وصف القيد لأن التحديث نفسه ينتظر، فصار الاختبار يعدّل سطرًا فقط؛ واختبار المفتاح الأجنبي كان يصطدم بمفتاح الأسطر قبله فصار يحذف الأسطر أولًا. (ج) **اثنان كان الفحص المكرَّر يخفيهما** (صلاحية الإضافة وصلاحية الحذف) فانكشفا بالاختبارات القائمة حين حُذف المكرَّر. ثم أعدتُ **التشغيل الكامل على الشيفرة النهائية** فكُشفت الـ94 كلها. ولم أُبقِ شيئًا معطّلًا.
+- **الوصل بين الأجزاء:** `php -l` على كل الملفات المتغيرة، و`php-cs-fixer` نظيف على كل ملفات التطبيق الجديدة (الشيفرة والترحيلان والعرضان) وعلى ملفات اللغة الثلاثة في كل اللغات، **وJavaScript المضمَّن في صفحتي العرض والتعديل** (بعد تصييرهما فعلًا بالاختبار) **فحصتُه بـ`node --check`**.
+- **الملفات ذات الصلة التي شغّلتُها كلها خضراء:** `tests/Libraries/Accounting` كلها و`tests/Database` كلها و12 ملف متحكم محاسبي ومتحكم الموظفين والفروع و`LanguageFilesTest` (**4250 اختبارًا و16131 تأكيدًا**)، ثم `tests/Commands` و`tests/Libraries/Organization` و`tests/Models/Accounting/JournalTest` ومتحكمات الأصناف والاستلام والبيع ونماذج العميل والصنف والاستلام والموقع والمورد (**409 اختبارات و2291 تأكيدًا**). **لم أشغّل المجموعة الكاملة** (يشغّلها المُدمِج بعد الدمج).
+- **ما لم أفعله:** **لا جولة متصفح** (ui-smoke) ولا فحص وصول (axe) للشاشتين الجديدتين، **ولا تجربة رفع وتنزيل في متصفح حقيقي** (اختُبر المتحكم بطلبات حقيقية وبالملفات عبر `Superglobals`)، ولا مراجعة مستقلة للقراءة فقط: يُجريها المُدمِج مع بقية الحزم.
+
+
+### ملحق: الحراس الـ94 وما كشفها
+
+كل حارس عُطِّل وحده (نص الشيفرة الذي يحميه حُذف أو غُيّر) ثم شُغِّلت الاختبارات المذكورة ففشلت.
+
+| الرمز | الحارس | ملف الاختبار | النتيجة |
+|---|---|---|---|
+| `JS-01` | permission to edit details | `JournalServiceTest` | كُشف |
+| `JS-02` | branch and ownership scope of the edit | `JournalServiceTest` | كُشف |
+| `JS-03` | refusal of manual journals before the period is mentioned | `JournalServiceTest` | كُشف |
+| `JS-04` | editability checked again after locking | `JournalServiceTest` | كُشف |
+| `JS-05` | closed period refuses the edit | `JournalServiceTest` | كُشف |
+| `JS-06` | journal row locked for the edit | `JournalServiceTest` | كُشف |
+| `JS-07` | lines locked before they are compared | `JournalServiceTest` | كُشف |
+| `JS-08` | journal that vanished while waiting | `JournalServiceTest` | كُشف |
+| `JS-09` | a line of another journal is refused | `JournalServiceTest` | كُشف |
+| `JS-10` | description length limit | `JournalServiceTest` | كُشف |
+| `JS-11` | description length boundary | `JournalServiceTest` | كُشف |
+| `JS-12` | cost centre must be active | `JournalServiceTest` | كُشف |
+| `JS-13` | audit entry of the edit | `JournalServiceTest` | كُشف |
+| `JS-14` | nothing written when nothing changed | `JournalServiceTest` | كُشف |
+| `JS-15` | only manual journals are refused (status) | `JournalServiceTest` | كُشف |
+| `JS-16` | manual journals are not editable | `JournalServiceTest` | كُشف |
+| `JS-17` | reversals are not editable | `JournalServiceTest` | كُشف |
+| `JS-18` | blank text clears instead of keeping a blank | `JournalServiceTest` | كُشف |
+| `JS-19` | text trimmed | `JournalServiceTest` | كُشف |
+| `JS-20` | line description requirement never asked | `JournalServiceTest` | كُشف |
+| `JS-21` | line description always asked | `JournalServiceTest` | كُشف |
+| `JS-22` | a line without a description is refused | `JournalServiceTest` | كُشف |
+| `JS-23` | description checked when posting a new journal | `JournalServiceTest` | كُشف |
+| `JS-24` | description checked when posting a draft | `JournalServiceTest` | كُشف |
+| `JS-25` | the files leave with a deleted draft | `JournalServiceTest` | كُشف |
+| `JS-26` | the stored files are removed after the draft is deleted | `JournalServiceTest` | كُشف |
+| `JS-27` | the line is found by id only (cost centre column written) | `JournalServiceTest` | كُشف |
+| `JA-01` | kinds of file are limited by extension | `JournalAttachmentsTest` | كُشف |
+| `JA-02` | content must match the kind | `JournalAttachmentsTest` | كُشف |
+| `JA-03` | empty files refused | `JournalAttachmentsTest` | كُشف |
+| `JA-04` | size limit | `JournalAttachmentsTest` | كُشف |
+| `JA-05` | size limit boundary | `JournalAttachmentsTest` | كُشف |
+| `JA-06` | count limit | `JournalAttachmentsTest` | كُشف |
+| `JA-07` | count limit boundary | `JournalAttachmentsTest` | كُشف |
+| `JA-08` | unreadable upload refused | `JournalAttachmentsTest` | كُشف |
+| `JA-09` | permission when adding | `JournalAttachmentsTest` | كُشف |
+| `JA-10` | permission when deleting | `JournalAttachmentsTest` | كُشف |
+| `JA-11` | permission of a posted journal | `JournalAttachmentsTest` | كُشف |
+| `JA-12` | permission of a draft | `JournalAttachmentsTest` | كُشف |
+| `JA-13` | reversed and preview journals keep their files | `JournalAttachmentsTest` | كُشف |
+| `JA-14` | closed period refuses adding and deleting | `JournalAttachmentsTest` | كُشف |
+| `JA-15` | journal changed while the file was saved | `JournalAttachmentsTest` | كُشف |
+| `JA-16` | journal vanished while the file was saved | `JournalAttachmentsTest` | كُشف |
+| `JA-17` | the permission of a file is asked before anything else | `JournalAttachmentsTest` | كُشف |
+| `JA-18` | file removed from the disk when saving fails | `JournalAttachmentsTest` | كُشف |
+| `JA-19` | stored file is not world readable | `JournalAttachmentsTest` | كُشف |
+| `JA-20` | the folder refuses to be served | `JournalAttachmentsTest` | كُشف |
+| `JA-21` | stored name is random | `JournalAttachmentsTest` | كُشف |
+| `JA-22` | hash of the stored file kept | `JournalAttachmentsTest` | كُشف |
+| `JA-23` | audit entry of an added file | `JournalAttachmentsTest` | كُشف |
+| `JA-24` | audit entry of a deleted file | `JournalAttachmentsTest` | كُشف |
+| `JA-25` | audit entry of the files that leave with a draft | `JournalAttachmentsTest` | كُشف |
+| `JA-26` | file already deleted by someone else | `JournalAttachmentsTest` | كُشف |
+| `JA-27` | branch scope when listing the files | `JournalAttachmentsTest` | كُشف |
+| `JA-28` | branch scope when opening a file | `JournalAttachmentsTest` | كُشف |
+| `JA-29` | preview journals keep their files private | `JournalAttachmentsTest` | كُشف |
+| `JA-30` | the hash is checked before a file is served | `JournalAttachmentsTest` | كُشف |
+| `JA-31` | a missing file is not served | `JournalAttachmentsTest` | كُشف |
+| `JA-32` | branch scope when adding | `JournalAttachmentsTest` | كُشف |
+| `JA-33` | branch scope when deleting | `JournalAttachmentsTest` | كُشف |
+| `JA-34` | name: folders removed | `JournalAttachmentsTest` | كُشف |
+| `JA-35` | name: unsafe characters replaced | `JournalAttachmentsTest` | كُشف |
+| `JA-36` | name: length limited | `JournalAttachmentsTest` | كُشف |
+| `JA-37` | name: spaces squeezed | `JournalAttachmentsTest` | كُشف |
+| `JA-38` | files leave with the draft | `JournalAttachmentsTest` | كُشف |
+| `CT-01` | details screen guarded | `AccountingJournalsControllerTest` | كُشف |
+| `CT-02` | edit button only for who may edit | `AccountingJournalsControllerTest` | كُشف |
+| `CT-03` | file buttons only for who may change files | `AccountingJournalsControllerTest` | كُشف |
+| `CT-04` | save goes through the employee | `AccountingJournalsControllerTest` | كُشف |
+| `CT-05` | upload goes through the employee | `AccountingJournalsControllerTest` | كُشف |
+| `CT-06` | delete goes through the employee | `AccountingJournalsControllerTest` | كُشف |
+| `CT-07` | download goes through the employee | `AccountingJournalsControllerTest` | كُشف |
+| `CT-08` | download is not shown in the browser | `AccountingJournalsControllerTest` | كُشف |
+| `CT-10` | the download is not cached by shared caches | `AccountingJournalsControllerTest` | كُشف |
+| `CT-11` | a missing file is a 404 | `AccountingJournalsControllerTest` | كُشف |
+| `CT-12` | too large upload says so | `AccountingJournalsControllerTest` | كُشف |
+| `CT-13` | a failed upload is refused | `AccountingJournalsControllerTest` | كُشف |
+| `CT-14` | file name header is plain ASCII | `AccountingJournalsControllerTest` | كُشف |
+| `CT-15` | the form sends the line description setting only when present | `AccountingSetupControllerTest` | كُشف |
+| `VW-01` | file name escaped | `AccountingJournalsControllerTest` | كُشف |
+| `VW-02` | journal text escaped on the edit screen | `AccountingJournalsControllerTest` | كُشف |
+| `VW-03` | line text escaped on the edit screen | `AccountingJournalsControllerTest` | كُشف |
+| `GD-01` | the text permission is sensitive | `SensitivePermissionsTest` | كُشف |
+| `MG-01` | a journal with a file cannot be deleted | `JournalAttachmentsMigrationTest` | كُشف |
+| `MG-02` | a stored file belongs to one row | `JournalAttachmentsMigrationTest` | كُشف |
+| `MG-03` | a file has bytes | `JournalAttachmentsMigrationTest` | كُشف |
+| `MG-04` | the permission is registered under the journals module | `JournalDetailsPermissionMigrationTest` | كُشف |
+| `EX-01` | the requirement is stored under its own key | `AccountingSettingsTest` | كُشف |
+| `EX-02` | the requirement is off by default | `AccountingSettingsTest` | كُشف |
+| `EX-03` | the audit entry names the requirement as it was | `AccountingSettingsTest` | كُشف |
+| `EX-04` | the requirement is written only when it is sent | `AccountingSettingsTest` | كُشف |
+| `EX-05` | the form tells the screen about the requirement | `AccountingJournalsControllerTest` | كُشف |
+| `EX-06` | the files folder is outside the public web root | `JournalAttachmentsTest` | كُشف |
+| `EX-07` | settings screen shows the switch state | `AccountingSetupControllerTest` | كُشف |
 
 ## 4. ما افترضتُه
 
