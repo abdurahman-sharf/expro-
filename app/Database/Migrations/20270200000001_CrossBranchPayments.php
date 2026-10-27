@@ -20,10 +20,6 @@ class CrossBranchPayments extends Migration
         $branches = $this->db->prefixTable('branches');
 
         foreach (self::TABLES as $table) {
-            if (! $this->hasTable($table)) {
-                continue;
-            }
-
             $name = $this->db->prefixTable($table);
 
             if (! $this->hasColumn($table, 'treasury_branch_id')) {
@@ -43,10 +39,6 @@ class CrossBranchPayments extends Migration
     public function down(): void
     {
         foreach (self::TABLES as $table) {
-            if (! $this->hasTable($table)) {
-                continue;
-            }
-
             $name = $this->db->prefixTable($table);
 
             if ($this->hasForeignKey($table, $table . '_fk_treasury_branch')) {
@@ -61,14 +53,6 @@ class CrossBranchPayments extends Migration
                 $this->db->query("ALTER TABLE `{$name}` DROP COLUMN `treasury_branch_id`");
             }
         }
-    }
-
-    private function hasTable(string $table): bool
-    {
-        return $this->db->query(
-            'SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?',
-            [$this->db->prefixTable($table)],
-        )->getRow() !== null;
     }
 
     private function hasIndex(string $table, string $index): bool
