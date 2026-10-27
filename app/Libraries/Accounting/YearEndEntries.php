@@ -2,7 +2,6 @@
 
 namespace App\Libraries\Accounting;
 
-use App\Libraries\Organization\CompanyContext;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\BaseConnection;
 
@@ -41,8 +40,8 @@ final class YearEndEntries
         $journals = $db->prefixTable('accounting_journals');
 
         $level = self::idsOf($db->query(
-            "SELECT journal_id FROM {$journals} WHERE company_id = ? AND (source_type = ? OR entry_type = ?)",
-            [CompanyContext::id(), self::SOURCE_TYPE, self::ENTRY_TYPE],
+            "SELECT journal_id FROM {$journals} WHERE source_type = ? OR entry_type = ?",
+            [self::SOURCE_TYPE, self::ENTRY_TYPE],
         )->getResult());
 
         $seen      = array_fill_keys($level, true);

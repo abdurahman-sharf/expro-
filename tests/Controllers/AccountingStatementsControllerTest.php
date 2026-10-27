@@ -269,6 +269,18 @@ class AccountingStatementsControllerTest extends CIUnitTestCase
         $this->assertNotContains('549901', $this->listedCodes($this->get('/accounting_statements/income_statement?level=3')));
     }
 
+    public function testGetBalanceSheet_OffersNoLevelThatOnlyRevenueOrExpenseAccountsReach(): void
+    {
+        $this->viewer();
+
+        $this->customAccount('54', '5499', 'Rare expenses', true);
+        $this->customAccount('5499', '549901', 'Rarer expenses', true);
+        $this->customAccount('549901', '54990101', 'Rarest expenses');
+
+        $this->assertSame(['1', '2', '3', '4', '5'], $this->optionValues($this->get('/accounting_statements/income_statement'), 'f_level'));
+        $this->assertSame(['1', '2', '3', '4'], $this->optionValues($this->get('/accounting_statements/balance_sheet'), 'f_level'), 'The sheet lists no revenue or expense account, so no level they alone reach');
+    }
+
     public function testGetIncomeStatement_OffersNoChoiceOfPartyAccountsBecauseNoneIsRevenueOrExpense(): void
     {
         $this->viewer();
@@ -1046,6 +1058,28 @@ class AccountingStatementsControllerTest extends CIUnitTestCase
         $plain->assertDontSee('id="f_entities" name="entities" value="1" checked');
         $plain->assertSee('<option value="3" selected>');
         $this->assertEqualsCanonicalizing([1, $this->second, $this->third], $this->tickedBranches($plain));
+    }
+
+    public function testGetIncomeStatement_EscapesTheNameOfABranchItOffers(): void
+    {
+        $this->createBranch('T4', '<i>Evil</i> branch');
+        $this->viewer();
+
+        $response = $this->get('/accounting_statements/income_statement');
+
+        $response->assertSee('T4 - &lt;i&gt;Evil&lt;/i&gt; branch');
+        $response->assertDontSee('<i>Evil</i>');
+    }
+
+    public function testGetBalanceSheet_EscapesTheNameOfABranchItOffers(): void
+    {
+        $this->createBranch('T4', '<i>Evil</i> branch');
+        $this->viewer();
+
+        $response = $this->get('/accounting_statements/balance_sheet');
+
+        $response->assertSee('T4 - &lt;i&gt;Evil&lt;/i&gt; branch');
+        $response->assertDontSee('<i>Evil</i>');
     }
 
     public function testGetIncomeStatement_EscapesAHostileFirstAndLastDayThatItShowsBackInTheForm(): void
