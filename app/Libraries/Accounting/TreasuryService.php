@@ -387,11 +387,12 @@ final class TreasuryService
      * branch of the document. A treasury of another branch is for an employee who works in both
      * branches, as moving money between branches is, and it must be open unless the payment is
      * already in it. A treasury the employee may not use that way is as good as not there, and so is
-     * every treasury of another branch while the books are off.
+     * every treasury of another branch while the books are off. A payment that is already in it is
+     * known to the employee, and is told that both branches are needed.
      *
      * @throws AccountingException
      */
-    public function otherBranchOf(int $treasuryId, int $branchId, ?int $employeeId, bool $allowInactive = false): ?int
+    public function otherBranchOf(int $treasuryId, int $branchId, ?int $employeeId, bool $alreadyUsed = false): ?int
     {
         $treasury = $this->find($treasuryId);
 
@@ -405,11 +406,19 @@ final class TreasuryService
             return null;
         }
 
-        if (! (new AccountingSettings($this->db))->isEnabled() || ! $this->branches->canAccess($treasuryBranch, $employeeId) || ! $this->branches->canAccess($branchId, $employeeId)) {
+        if (! (new AccountingSettings($this->db))->isEnabled()) {
             throw new AccountingException(AccountingError::TreasuryNotFound, "Treasury {$treasuryId} is not one of branch {$branchId}.", ['treasury_id' => $treasuryId]);
         }
 
-        if (! $allowInactive && (int) $treasury->active === 0) {
+        foreach ([$treasuryBranch, $branchId] as $needed) {
+            if (! $this->branches->canAccess($needed, $employeeId)) {
+                throw $alreadyUsed
+                    ? new AccountingException(AccountingError::InterBranchBranchesDenied, "The branch {$needed} is outside the employee's scope.", ['branch_id' => $needed, 'name' => (string) ($this->db->table('branches')->select('code')->where('branch_id', $needed)->get()->getRow()->code ?? $needed)])
+                    : new AccountingException(AccountingError::TreasuryNotFound, "Treasury {$treasuryId} is not one of branch {$branchId}.", ['treasury_id' => $treasuryId]);
+            }
+        }
+
+        if (! $alreadyUsed && (int) $treasury->active === 0) {
             throw new AccountingException(AccountingError::TreasuryInactive, 'A payment cannot go into a deactivated treasury of another branch.', ['treasury_id' => $treasuryId]);
         }
 

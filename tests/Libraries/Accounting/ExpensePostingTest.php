@@ -6,8 +6,11 @@ use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\ExpensePosting;
+use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\ExpensePostingBuilder;
+use App\Libraries\Accounting\InterBranchPosition;
 use App\Libraries\Accounting\JournalChange;
+use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\TreasuryScopes;
@@ -1118,5 +1121,317 @@ class ExpensePostingTest extends CIUnitTestCase
 
         $this->assertNull($this->accountingDb()->table('expenses')->where('expense_id', $expenseId)->get()->getRow()->treasury_id);
         $this->assertSame('0.00', $this->assertTreasuryTiesToItsAccount($treasury));
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // An expense of one branch paid out of a treasury of another
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * A second branch with a treasury of its own.
+     *
+     * @return array{branch: int, treasury: int, account: int}
+     */
+    private function treasuryOfAnotherBranch(): array
+    {
+        $branch   = $this->createBranch('B2');
+        $treasury = $this->treasury('Branch drawer', $branch);
+
+        return ['branch' => $branch, 'treasury' => $treasury, 'account' => (int) (new TreasuryService())->accountOf($treasury)];
+    }
+
+    /**
+     * An expense of the first branch, paid from the treasury of another branch.
+     *
+     * @return array<string, mixed>
+     */
+    private function acrossBranches(int $treasury, string $amount = '100.00', string $tax = '0'): array
+    {
+        return $this->expenseData($amount, $tax) + ['treasury_id' => $treasury, 'expense_branch_id' => 1];
+    }
+
+    /**
+     * The journals that stand for an expense, by source, with their branch and lines.
+     *
+     * @return array<string, array{branch: int, lines: list<string>, revision: int}>
+     */
+    private function expenseJournals(int $expenseId, string $status = 'posted'): array
+    {
+        $found = [];
+
+        foreach ($this->accountingDb()->table('accounting_journals')->whereIn('source_type', ['expense', 'expense_branch'])->where(['source_id' => $expenseId, 'status' => $status])->orderBy('journal_id', 'ASC')->get()->getResult() as $journal) {
+            $found[$journal->source_type] = ['branch' => (int) $journal->branch_id, 'lines' => $this->linesOfJournal((int) $journal->journal_id), 'revision' => (int) $journal->revision];
+        }
+
+        return $found;
+    }
+
+    private function assertEveryBranchBalancedAndTheAccountsBetweenBranchesOffset(): void
+    {
+        foreach ($this->accountingDb()->table('branches')->get()->getResult() as $branch) {
+            $sums = $this->accountingDb()->table('accounting_journal_lines l')->select('SUM(l.debit) AS debit, SUM(l.credit) AS credit', false)->join('accounting_journals j', 'j.journal_id = l.journal_id')->where('j.branch_id', $branch->branch_id)->get()->getRow();
+
+            $this->assertSame(bcadd((string) $sums->debit, '0', 4), bcadd((string) $sums->credit, '0', 4), 'The trial balance of branch ' . $branch->code . ' balances');
+        }
+
+        $this->assertSame('0.0000', (new InterBranchPosition())->difference());
+    }
+
+    public function testSaveValue_PaysAnExpenseOfOneBranchOutOfATreasuryOfAnotherAsAJournalInEachBranch(): void
+    {
+        ['branch' => $branch, 'treasury' => $treasury, 'account' => $account] = $this->treasuryOfAnotherBranch();
+
+        $expenseId = $this->saveExpense($this->acrossBranches($treasury, '230.00', '30.00'));
+        $row       = $this->accountingDb()->table('expenses')->where('expense_id', $expenseId)->get()->getRow();
+
+        $this->assertSame([1, $treasury, $branch], [(int) $row->branch_id, (int) $row->treasury_id, (int) $row->treasury_branch_id]);
+        $this->assertSame([
+            'expense'        => ['branch' => 1, 'lines' => [$this->accountId('expenses_default') . '=200.00/0.00', $this->accountId('tax_input') . '=30.00/0.00', $this->accountId('branches_payable') . '=0.00/230.00'], 'revision' => 1],
+            'expense_branch' => ['branch' => $branch, 'lines' => [$this->accountId('branches_receivable') . '=230.00/0.00', $account . '=0.00/230.00'], 'revision' => 1],
+        ], $this->expenseJournals($expenseId));
+        $this->assertSame('-230.00', $this->assertTreasuryTiesToItsAccount($treasury));
+        $this->assertEveryBranchBalancedAndTheAccountsBetweenBranchesOffset();
+    }
+
+    public function testSaveValue_PostsMoneyReceivedBackOnAnExpenseAcrossBranchesTheOtherWay(): void
+    {
+        ['branch' => $branch, 'treasury' => $treasury, 'account' => $account] = $this->treasuryOfAnotherBranch();
+
+        $expenseId = $this->saveExpense($this->acrossBranches($treasury, '-40.00'));
+
+        $this->assertSame([
+            'expense'        => ['branch' => 1, 'lines' => [$this->accountId('expenses_default') . '=0.00/40.00', $this->accountId('branches_receivable') . '=40.00/0.00'], 'revision' => 1],
+            'expense_branch' => ['branch' => $branch, 'lines' => [$account . '=40.00/0.00', $this->accountId('branches_payable') . '=0.00/40.00'], 'revision' => 1],
+        ], $this->expenseJournals($expenseId));
+        $this->assertSame('40.00', $this->assertTreasuryTiesToItsAccount($treasury));
+        $this->assertEveryBranchBalancedAndTheAccountsBetweenBranchesOffset();
+    }
+
+    public function testSaveValue_ChargesTheExpenseToTheBranchOfItsTreasuryWhenNoOtherBranchIsAsked(): void
+    {
+        ['branch' => $branch, 'treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        foreach ([[], ['expense_branch_id' => 0], ['expense_branch_id' => $branch]] as $asked) {
+            $expenseId = $this->saveExpense($this->expenseData('100.00') + ['treasury_id' => $treasury] + $asked);
+            $row       = $this->accountingDb()->table('expenses')->where('expense_id', $expenseId)->get()->getRow();
+
+            $this->assertSame($branch, (int) $row->branch_id);
+            $this->assertNull($row->treasury_branch_id);
+            $this->assertSame(['expense'], array_keys($this->expenseJournals($expenseId)));
+        }
+
+        $this->assertSame(0, $this->countRows('accounting_interbranch_legs'));
+    }
+
+    public function testSaveValue_RefusesATreasuryOfAnotherBranchToAnEmployeeWhoWorksInOnlyOneOfTheTwo(): void
+    {
+        ['branch' => $branch, 'treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        foreach ([[1], [$branch]] as $works) {
+            $limited = $this->employeeWithGrants([], $works);
+
+            $this->assertNull($this->saveExpense($this->acrossBranches($treasury), NEW_ENTRY, $limited));
+
+            $this->assertSame(AccountingError::TreasuryNotFound, $this->failure()->error);
+            $this->assertNothingWritten();
+        }
+    }
+
+    public function testSaveValue_AsksTheWithdrawScopeOfTheTreasuryOfTheOtherBranch(): void
+    {
+        ['treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        $this->restrictTreasury($treasury, TreasuryScopes::WITHDRAW, [$this->employeeWithGrants([])]);
+
+        $this->assertNull($this->saveExpense($this->acrossBranches($treasury)));
+        $this->assertRefused(AccountingError::TreasuryWithdrawDenied);
+        $this->assertNothingWritten();
+    }
+
+    public function testSaveValue_RefusesAnExpenseAcrossBranchesPaidFromATreasuryThatIsDeactivated(): void
+    {
+        ['treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        (new TreasuryService())->deactivate($treasury);
+
+        $this->assertNull($this->saveExpense($this->acrossBranches($treasury)));
+        $this->assertRefused(AccountingError::TreasuryInactive);
+        $this->assertNothingWritten();
+    }
+
+    public function testSaveValue_LeavesNothingOfTheExpenseWhenThePeriodOfEitherBranchIsClosed(): void
+    {
+        ['branch' => $branch, 'treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        foreach ([$branch, 1] as $closed) {
+            $this->closeThrough('2026-10-31', $closed);
+
+            $this->assertNull($this->saveExpense($this->acrossBranches($treasury)));
+            $this->assertRefused(PostingError::PeriodClosed);
+            $this->assertNothingWritten();
+            $this->assertSame(0, $this->countRows('accounting_interbranch_legs'));
+
+            $this->accountingDb()->table('accounting_closed_periods')->truncate();
+        }
+    }
+
+    public function testSaveValue_LeavesNothingOfTheExpenseWhenTheRoutingNamesNoAccountsBetweenBranches(): void
+    {
+        ['treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'branches.payable')->update(['account_id' => null]);
+
+        $this->assertNull($this->saveExpense($this->acrossBranches($treasury)));
+        $this->assertRefused(PostingError::InterBranchAccountsMissing);
+        $this->assertNothingWritten();
+    }
+
+    public function testSaveValue_ReversesBothJournalsAndPostsThePairAgainWhenTheExpenseChanges(): void
+    {
+        ['branch' => $branch, 'treasury' => $treasury, 'account' => $account] = $this->treasuryOfAnotherBranch();
+
+        $expenseId = $this->saveExpense($this->acrossBranches($treasury));
+
+        $this->assertSame($expenseId, $this->saveExpense($this->acrossBranches($treasury, '60.00'), $expenseId));
+        $this->assertSame([
+            'expense'        => ['branch' => 1, 'lines' => [$this->accountId('expenses_default') . '=60.00/0.00', $this->accountId('branches_payable') . '=0.00/60.00'], 'revision' => 2],
+            'expense_branch' => ['branch' => $branch, 'lines' => [$this->accountId('branches_receivable') . '=60.00/0.00', $account . '=0.00/60.00'], 'revision' => 2],
+        ], $this->expenseJournals($expenseId));
+        $this->assertSame(['expense', 'expense_branch'], array_keys($this->expenseJournals($expenseId, 'reversed')));
+        $this->assertSame('-60.00', $this->assertTreasuryTiesToItsAccount($treasury));
+        $this->assertEveryBranchBalancedAndTheAccountsBetweenBranchesOffset();
+    }
+
+    public function testSaveValue_LeavesThePairAloneWhenNothingAboutTheExpenseChanges(): void
+    {
+        ['treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        $expenseId = $this->saveExpense($this->acrossBranches($treasury));
+        $before    = $this->countRows('accounting_journals');
+
+        $this->assertSame($expenseId, $this->saveExpense($this->acrossBranches($treasury), $expenseId));
+
+        $unnamed = $this->expenseData('100.00');
+
+        $this->assertSame($expenseId, $this->saveExpense($unnamed, $expenseId));
+        $this->assertSame($before, $this->countRows('accounting_journals'), 'The form that names neither the treasury nor the branch keeps both');
+        $this->assertSame(1, (int) $this->accountingDb()->table('expenses')->where('expense_id', $expenseId)->get()->getRow()->branch_id);
+    }
+
+    public function testSaveValue_KeepsTheBranchOfTheExpenseWhenTheFormNamesTheSameTreasuryAndNoBranch(): void
+    {
+        ['branch' => $branch, 'treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        $expenseId = $this->saveExpense($this->acrossBranches($treasury));
+        $before    = $this->countRows('accounting_journals');
+
+        $this->assertSame($expenseId, $this->saveExpense($this->expenseData('100.00') + ['treasury_id' => $treasury], $expenseId));
+
+        $row = $this->accountingDb()->table('expenses')->where('expense_id', $expenseId)->get()->getRow();
+
+        $this->assertSame([1, $branch], [(int) $row->branch_id, (int) $row->treasury_branch_id], 'The expense stays charged to its own branch');
+        $this->assertSame($before, $this->countRows('accounting_journals'));
+    }
+
+    public function testSaveValue_MovesAnExpenseFromATreasuryOfAnotherBranchToOneOfItsOwnAndBack(): void
+    {
+        ['branch' => $branch, 'treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        $own       = $this->treasury('Own drawer');
+        $expenseId = $this->saveExpense($this->acrossBranches($treasury));
+
+        $this->assertSame($expenseId, $this->saveExpense($this->expenseData('100.00') + ['treasury_id' => $own, 'expense_branch_id' => 1], $expenseId));
+        $this->assertSame(['expense'], array_keys($this->expenseJournals($expenseId)));
+        $this->assertNull($this->accountingDb()->table('expenses')->where('expense_id', $expenseId)->get()->getRow()->treasury_branch_id);
+        $this->assertSame(['0.00', '-100.00'], [$this->assertTreasuryTiesToItsAccount($treasury), $this->assertTreasuryTiesToItsAccount($own)]);
+
+        $this->assertSame($expenseId, $this->saveExpense($this->acrossBranches($treasury), $expenseId));
+        $this->assertSame(['expense', 'expense_branch'], array_keys($this->expenseJournals($expenseId)));
+        $this->assertSame($branch, (int) $this->accountingDb()->table('expenses')->where('expense_id', $expenseId)->get()->getRow()->treasury_branch_id);
+        $this->assertSame(['-100.00', '0.00'], [$this->assertTreasuryTiesToItsAccount($treasury), $this->assertTreasuryTiesToItsAccount($own)]);
+        $this->assertEveryBranchBalancedAndTheAccountsBetweenBranchesOffset();
+    }
+
+    public function testSaveValue_RefusesAnEmployeeWhoWorksInOnlyOneOfTheBranchesToChangeAnExpenseAcrossThemAndChangesNothing(): void
+    {
+        ['treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        $expenseId = $this->saveExpense($this->acrossBranches($treasury));
+        $limited   = $this->employeeWithGrants([], [1]);
+        $before    = $this->countRows('accounting_journals');
+
+        $this->assertNull($this->saveExpense($this->acrossBranches($treasury, '60.00'), $expenseId, $limited));
+        $this->assertRefused(AccountingError::InterBranchBranchesDenied);
+        $this->assertSame($before, $this->countRows('accounting_journals'));
+        $this->assertSame('100.00', $this->accountingDb()->table('expenses')->where('expense_id', $expenseId)->get()->getRow()->amount);
+    }
+
+    public function testDeleteList_TakesBackBothJournalsOfAnExpenseAcrossBranches(): void
+    {
+        ['treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        $expenseId = $this->saveExpense($this->acrossBranches($treasury));
+
+        $this->assertTrue($this->expenses->delete_list([$expenseId], $this->clerkId));
+        $this->assertSame([], $this->expenseJournals($expenseId));
+        $this->assertSame(['expense', 'expense_branch'], array_keys($this->expenseJournals($expenseId, 'reversed')));
+        $this->assertSame('0.00', $this->assertTreasuryTiesToItsAccount($treasury));
+        $this->assertEveryBranchBalancedAndTheAccountsBetweenBranchesOffset();
+    }
+
+    public function testDeleteList_RefusesAnEmployeeWhoMayNotDepositIntoTheTreasuryOfTheOtherBranchAndReversesNothing(): void
+    {
+        ['treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        $expenseId = $this->saveExpense($this->acrossBranches($treasury));
+
+        $this->restrictTreasury($treasury, TreasuryScopes::DEPOSIT, [$this->employeeWithGrants([])]);
+
+        $this->assertFalse($this->expenses->delete_list([$expenseId], $this->clerkId));
+        $this->assertSame(['expense', 'expense_branch'], array_keys($this->expenseJournals($expenseId)));
+        $this->assertSame('-100.00', $this->assertTreasuryTiesToItsAccount($treasury));
+    }
+
+    public function testReverse_RefusesToTakeBackOneJournalOfAnExpenseAcrossBranchesByHand(): void
+    {
+        ['treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        $expenseId = $this->saveExpense($this->acrossBranches($treasury));
+        $reverser  = $this->employeeWithGrants([AccountingGuard::JOURNALS_REVERSE, AccountingGuard::JOURNALS_ALL]);
+
+        foreach ($this->accountingDb()->table('accounting_journals')->whereIn('source_type', ['expense', 'expense_branch'])->where('source_id', $expenseId)->get()->getResult() as $journal) {
+            try {
+                (new JournalService())->reverse((int) $journal->journal_id, date('Y-m-d'), 'By hand', $reverser);
+                $this->fail('A journal of a pair was reversed by hand');
+            } catch (AccountingException $refusal) {
+                $this->assertContains($refusal->error, [AccountingError::DocumentJournalLocked, AccountingError::TransferJournalLocked], $journal->source_type);
+            }
+        }
+
+        $this->assertSame(['expense', 'expense_branch'], array_keys($this->expenseJournals($expenseId)));
+    }
+
+    public function testJournalsOf_ListsTheJournalOfTheTreasuryBranchWithTheJournalOfTheExpense(): void
+    {
+        ['treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        $expenseId = $this->saveExpense($this->acrossBranches($treasury));
+        $journals  = (new ExpensePosting())->journalsOf($expenseId);
+
+        $this->assertSame(array_map(static fn (array $journal): int => $journal['branch'], array_values($this->expenseJournals($expenseId))), array_map(fn (object $journal): int => (int) $this->accountingDb()->table('accounting_journals')->where('journal_id', $journal->journal_id)->get()->getRow()->branch_id, $journals));
+        $this->assertSame(['100.0000', '100.0000'], array_map(static fn (object $journal): string => (string) $journal->total_debit, $journals));
+    }
+
+    public function testSaveValue_IgnoresTheBranchOfTheExpenseWhileTheBooksAreOff(): void
+    {
+        ['treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $expenseId = $this->saveExpense($this->acrossBranches($treasury));
+
+        $this->assertNotNull($expenseId, 'The expense is saved as it always was');
+        $this->assertSame(0, $this->countRows('accounting_journals'));
+        $this->assertNull($this->accountingDb()->table('expenses')->where('expense_id', $expenseId)->get()->getRow()->treasury_branch_id);
     }
 }
