@@ -68,7 +68,7 @@ final class InvoiceDiscountShares
             $taken = bcadd($taken, $shares[$index], self::SCALE);
         }
 
-        return self::within($shares, $nets, (int) $last);
+        return array_map(static fn (string $share): string => bcadd($share, '0', self::SCALE), self::within($shares, $nets, (int) $last));
     }
 
     /**
