@@ -418,6 +418,23 @@ class CashupPostingTest extends CIUnitTestCase
         $this->assertSame(1, $this->postedJournals($cashupId));
     }
 
+    public function testDeleteList_RefusesWhenTheDayOfTheReversalIsClosedAndLogsTheFailure(): void
+    {
+        $this->aDayOfCash();
+
+        $cashupId = $this->saveCashup($this->cashupData('485.50'));
+
+        $this->closeThrough(date('Y-m-d', strtotime('+1 year')));
+
+        $this->assertFalse($this->cashups->delete_list([$cashupId], $this->clerkId));
+        $this->assertSame(PostingError::PeriodClosed, $this->failure()->error);
+        $this->assertSame(1, $this->postedJournals($cashupId));
+
+        $failure = $this->accountingDb()->table('accounting_posting_failures')->get()->getRow();
+
+        $this->assertSame([self::SOURCE, $cashupId, 'period_closed'], [$failure->source_type, (int) $failure->source_id, $failure->error_code]);
+    }
+
     public function testSaveValue_RollsTheCashUpBackWhenThePostingFailsAndLogsWhy(): void
     {
         $this->aDayOfCash();

@@ -381,6 +381,21 @@ class ExpensePostingTest extends CIUnitTestCase
         $this->assertSame([self::SOURCE, 'period_closed'], [$failure->source_type, $failure->error_code]);
     }
 
+    public function testDeleteList_RefusesWhenTheDayOfTheReversalIsClosedAndLogsTheFailure(): void
+    {
+        $expenseId = $this->saveExpense($this->expenseData('100.00'));
+
+        $this->closeThrough(date('Y-m-d', strtotime('+1 year')));
+
+        $this->assertFalse($this->expenses->delete_list([$expenseId], $this->clerkId));
+        $this->assertSame(PostingError::PeriodClosed, $this->failure()->error);
+        $this->assertSame(1, $this->postedJournals($expenseId));
+
+        $failure = $this->accountingDb()->table('accounting_posting_failures')->get()->getRow();
+
+        $this->assertSame([self::SOURCE, $expenseId, 'period_closed'], [$failure->source_type, (int) $failure->source_id, $failure->error_code]);
+    }
+
     public function testSaveValue_RefusesMovingAnExpenseIntoAClosedPeriodAndKeepsItAsItWas(): void
     {
         $category  = $this->category();
