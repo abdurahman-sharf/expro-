@@ -26,7 +26,7 @@
 - **مطابقة `S-25` (مرصودة):** ملف التثبيت `tests/Support/Parity/T-25.json` بثلاث حالات: `expense-200-with-15-percent-tax` **مطابقة تامة** (مدين `541` بـ200، مدين `215002` بـ30، دائن الخزينة 230)، و`expense-journal-owes-nobody` **مطابقة تامة** (لا طرف في أي سطر)، و`amount-entered-includes-the-tax` **يختلف**: في دفترة يُدخل المستخدم 200 وتُضاف الضريبة فيصير 230، وعندنا `amount` هو المدفوع شاملًا الضريبة و`tax_amount` جزؤه (القسم 3، الافتراض 1). ويقرؤه `ExpensePostingBuilderTest` فيبني القيد من الملف نفسه. (ما عدا هذه الحالة: **لا ادعاء مطابقة**، كله افتراض مدوَّن.)
 - **اختبارات جديدة (276 اختبارًا في 13 ملفًا، ملف لكل صنف):** `ExpensePostingBuilderTest` (22) و`ExpensePostingTest` (70) و`CashupPostingBuilderTest` (7) و`CashupPostingTest` (46) و`CashupExpectationTest` (16) و`DocumentJournalsTest` (24) و`ExpenseCategoryAccountsTest` (16) و`ExpensesControllerTest` (25) و`ExpensesCategoriesControllerTest` (10) و`tests/Models/ExpenseTest` (13) و`tests/Models/CashupTest` (13) و`tests/Models/Expense_categoryTest` (6) و`ExpensesAccountingMigrationTest` (8). تغطي كل مسار حفظ وتعديل وحذف عبر النماذج الحقيقية، والفترة المقفلة، والفرع، ونطاق السحب والإيداع، والتراجع الكامل وتسجيل الفشل، والتاريخي، والمحاسبة المعطَّلة، وأقفال الصفوف وترتيبها، وتوازن الميزان بعد كل تغيير، وشاشات المصروف والتصنيف والإقفال.
 - **اختبارات أُضيفت إلى ملفات قائمة (29 طريقة في 8 ملفات):** `CashupControllerTest` (17: الشاشة والنقد المتوقع والرفض بكلمات والعمود والفلتر) و`AccountingSetupControllerTest` (2: إعداد حساب التصنيف حفظًا وعرضًا) و`AccountingSettingsTest` (3) و`AccountServiceTest` (2) و`JournalServiceTest` (2: قفل العكس اليدوي وعكس آلي لمصدر المستند) و`TreasuryServiceTest` (1: خزينة استُعملت في مصروف أو إقفال تُعدّ مستعمَلة) و`TrialBalanceTest` (1: **الميزان متوازن للشركة ولكل فرع بعد المصروفات**) و`AccountingJournalsControllerTest` (1: زر العكس مخفي لقيدي المصروف والإقفال). وعدّلتُ `TreasuriesMigrationTest` (تراجع ترحيل المصروفات قبل ترحيل الخزائن) و`ParityFixtureTest` (قائمة معرّفات تضم `T-25`).
-- **تعطيل الحراس:** <!-- MUT-SUMMARY-START -->**قيد القياس: قيس 244 من 262 حارسًا حتى الآن، كُشف منها 244** (الجدول في 2.1 يُملأ دفعةً دفعة).<!-- MUT-SUMMARY-END -->
+- **تعطيل الحراس:** <!-- MUT-SUMMARY-START -->**قيد القياس: قيس 254 من 262 حارسًا حتى الآن، كُشف منها 254** (الجدول في 2.1 يُملأ دفعةً دفعة).<!-- MUT-SUMMARY-END -->
 - **إعادة قياس الحراس على الحالة النهائية:** بعد آخر تعديل للاختبارات (الإيداع `ca99e3b`، وما بعده ملف التقرير وحده) **أُعيد تعطيل الحراس الـ234 كلها كلًّا على حدة في الدفعات الخمس والعشرين نفسها** (لا أكثر من عشرة في الدفعة) على `ospos_test_b`، **فكُشف 234 من 234 ولا حارس غير مكشوف ولا نص لم يوجد**، وبقيت شجرة العمل نظيفة بعد القياس (لا ملف معطَّل ولا نسخة احتياطية متبقية). وكل دفعة حُفظت نتيجتها في ملف مستقل خارج المستودع.
 - **الجولة المنتظمة الأخيرة:** شُغّل **كل ملف وحده** على `ospos_test_b` (59 ملفًا: كل الجديدة والمتغيرة وكل اختبارات المحاسبة والخزائن والتوجيه والفترات والترحيلات ذات الصلة، وفحص اللغات والمساعدات)، **فنجحت كلها: 3264 اختبارًا و10384 تأكيدًا، ولا فاشل ولا مُتخطّى** (القائمة الكاملة في 2.2). المجموعة الكاملة يشغّلها المُدمِج ولم أشغّلها.
 - **التنسيق:** شُغّل `php-cs-fixer` (إعداد `.php-cs-fixer.no-header.php`) على كل ملفات `app/` الجديدة (11 ملفًا: صفر تغيير) وعلى المكتبات والمتحكمات المعدَّلة، فاقتصر الإصلاح على محاذاة مفتاح الإعداد الجديد في `AccountingSettings` و`AccountingSetup`. أما ملفات `app/Controllers` و`app/Models` و`tabular_helper.php` القديمة التي لمستُ فيها **سطورًا قليلة** فلم أُعد تنسيقها كلها (تغيير يغطي الملف بأكمله ويصعّب على المُدمِج الدمج)، وكل سطر جديد فيها على المعيار. واختبارات الملفات الجديدة على PSR-12 (صفر مخالفة).
@@ -280,6 +280,16 @@
 | `N08` | the names of the treasuries offered are escaped | مكشوف | 1 |
 | `N09` | the name of the treasury an expense already uses is escaped | مكشوف | 1 |
 | `N10` | the names of the accounts offered to a category are escaped | مكشوف | 1 |
+| `N11` | the audit filter offers the entity of expenses | مكشوف | 1 |
+| `N12` | the audit filter offers the entity of cash-ups | مكشوف | 1 |
+| `N13` | the audit filter offers the entity of expense categories | مكشوف | 1 |
+| `N14` | the ledger column of the cash-up list exists only with accounting on (header) | مكشوف | 2 |
+| `N15` | the cash-up list may be sorted by its ledger column | مكشوف | 1 |
+| `N16` | the treasury field selects the treasury of the expense | مكشوف | 1 |
+| `N17` | the account field selects the account of the category | مكشوف | 1 |
+| `N18` | the setting that asks for a category account shows its state | مكشوف | 1 |
+| `N19` | the audit names the change of the account of a category (language key action_account_changed) | مكشوف | 1 |
+| `N20` | the audit names the cancellation of an expense or a cash-up (language key action_cancelled) | مكشوف | 1 |
 <!-- MUT-TABLE-END -->
 
 ### 2.2 الملفات التي شُغّلت
