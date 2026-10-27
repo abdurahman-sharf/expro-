@@ -10,9 +10,9 @@ namespace App\Libraries\Accounting;
 final readonly class PairwiseReport
 {
     /**
-     * @param list<PairBalance>                                                          $rows
+     * @param list<PairBalance>                                                               $rows
      * @param list<object{branch_id: int, code: string, receivable: string, payable: string}> $unattributed What journals on the accounts between branches that name no other branch put on each branch.
-     * @param numeric-string|null                                                        $difference   Null when the reader does not see every branch.
+     * @param numeric-string|null                                                             $difference   Null when the reader does not see every branch.
      */
     public function __construct(
         public array $rows,

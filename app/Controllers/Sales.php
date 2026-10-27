@@ -1741,8 +1741,8 @@ class Sales extends Secure_Controller
 
     /**
      * The treasuries a payment of a sale can go into, when there is a choice: the active ones of
-     * the branch of the sale that the employee may deposit into and any the payments of the sale
-     * already carry.
+     * the branch of the sale that the employee may deposit into, those of the other branches they
+     * work in when they work in the branch of the sale, and any the payments of the sale already carry.
      *
      * @param list<object> $payments
      *
@@ -1752,26 +1752,7 @@ class Sales extends Secure_Controller
     {
         $carried    = array_map(static fn (object $payment): int => (int) ($payment->treasury_id ?? 0), $payments);
         $employeeId = (int) $this->employee->get_logged_in_employee_info()->person_id;
-        $scopes     = new TreasuryScopes();
-        $options    = [];
-
-        $treasuries = new TreasuryService();
-
-        foreach ($treasuries->all([$branchId]) as $treasury) {
-            $id = (int) $treasury->treasury_id;
-
-            if (in_array($id, $carried, true) || ((int) $treasury->active === 1 && $scopes->allows($id, TreasuryScopes::DEPOSIT, $employeeId))) {
-                $options[$id] = $treasury->name;
-            }
-        }
-
-        foreach ($carried as $id) {
-            $treasury = $id > 0 && ! isset($options[$id]) ? $treasuries->find($id) : null;
-
-            if ($treasury !== null) {
-                $options[$id] = $treasury->name;
-            }
-        }
+        $options    = (new TreasuryService())->choicesFor($branchId, TreasuryScopes::DEPOSIT, $employeeId, $carried);
 
         return count($options) < 2 ? [] : [0 => lang('Sales.treasury_default')] + $options;
     }

@@ -360,6 +360,51 @@ final class TreasuryService
     }
 
     /**
+     * The treasuries a payment on a document of a branch can go into or come out of, by id: the
+     * active ones of the branch that the employee may use in the direction, and for an employee who
+     * works in the branch of the document the ones of the other branches they work in, named with the
+     * code of their branch, and any that a payment of the document already carries.
+     *
+     * @param list<int> $carried
+     *
+     * @return array<int, string>
+     */
+    public function choicesFor(int $branchId, string $direction, ?int $employeeId, array $carried = []): array
+    {
+        $branchIds = [$branchId];
+
+        if ((new AccountingSettings($this->db))->isEnabled() && $this->branches->canAccess($branchId, $employeeId)) {
+            $allowed   = $this->branches->allowedBranchIds($employeeId);
+            $branchIds = $allowed === null ? null : array_values(array_unique([$branchId, ...$allowed]));
+        }
+
+        $options = [];
+
+        foreach ($this->all($branchIds) as $treasury) {
+            $id = (int) $treasury->treasury_id;
+
+            if (in_array($id, $carried, true) || ((int) $treasury->active === 1 && $this->scopes->allows($id, $direction, $employeeId))) {
+                $options[$id] = $this->labelOf($treasury, $branchId);
+            }
+        }
+
+        foreach ($carried as $id) {
+            $treasury = $id > 0 && ! isset($options[$id]) ? $this->find($id) : null;
+
+            if ($treasury !== null) {
+                $options[$id] = $this->labelOf($treasury, $branchId);
+            }
+        }
+
+        return $options;
+    }
+
+    private function labelOf(object $treasury, int $branchId): string
+    {
+        return (int) $treasury->branch_id === $branchId ? (string) $treasury->name : $treasury->name . ' (' . $treasury->branch_code . ')';
+    }
+
+    /**
      * Where a new payment goes, with the branch of the treasury when that is not the branch of the
      * document: the treasury it names, which may be one of another branch for an employee who works
      * in both, and open to the employee in the direction, or else what ofPayment() chooses, which is

@@ -134,7 +134,7 @@ final class InterBranchSettlements
                 'created_by'            => $employeeId,
             ]);
 
-            $settlementId = (int) $this->db->insertID();
+            $settlementId           = (int) $this->db->insertID();
             [$receivable, $payable] = $this->accountsBetweenBranches();
 
             $drafts = [

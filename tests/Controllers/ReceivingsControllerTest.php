@@ -1288,7 +1288,7 @@ class ReceivingsControllerTest extends CIUnitTestCase
 
         $response = $this->get('/receivings/edit/' . $purchase);
 
-        $this->assertMatchesRegularExpression('/<option value="' . $elsewhere . '"\s+selected>Main of another branch<\/option>/', $response->getBody());
+        $this->assertMatchesRegularExpression('/<option value="' . $elsewhere . '"\s+selected>Main of another branch \([^)]+\)<\/option>/', $response->getBody(), 'It is named with the code of its branch');
     }
 
     public function testGetEdit_KeepsTheRetiredTreasuryAPaymentAlreadyCarriesButNotForANewPayment(): void
@@ -1352,11 +1352,11 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $this->assertSame($drawer, (int) $this->accountingDb()->table('receivings_payments')->where('payment_id', $payment)->get()->getRow()->treasury_id);
     }
 
-    public function testPostSave_RefusesATreasuryOfAnotherBranchAndSavesNothingOfTheForm(): void
+    public function testPostSave_RefusesATreasuryOfAnotherBranchToABuyerWhoDoesNotWorkInItAndSavesNothingOfTheForm(): void
     {
         $purchase  = $this->purchaseOf('500.00');
         $elsewhere = $this->treasuryOfBranch('Far drawer', $this->anotherBranch());
-        $this->loginAs($this->buyer());
+        $this->loginAs($this->buyer([1]));
 
         $result = $this->jsonOf($this->post('/receivings/save/' . $purchase, $this->savedWith($purchase, $this->paymentFields([], 'Cash', '150.00') + ['treasury_id_new' => (string) $elsewhere], 'with a payment')));
 

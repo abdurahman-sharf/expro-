@@ -23,7 +23,6 @@ final class CrossBranchPayments
         'supplier_payment_branch',
         'expense_branch',
     ];
-
     private const COMPANIONS = [
         SalePostingBuilder::SOURCE_PAYMENT               => 'sale_payment_branch',
         ReceivingPostingBuilder::SOURCE_PAYMENT          => 'purchase_payment_branch',
@@ -152,8 +151,8 @@ final class CrossBranchPayments
      * together, and posts the drafts. The branches and the treasuries are asked before anything is
      * written.
      *
-     * @param list<JournalDraft>        $drafts
-     * @param callable(object): mixed   $reverse Takes back a journal of the payment the way its document does, with the companions that go with it.
+     * @param list<JournalDraft>      $drafts
+     * @param callable(object): mixed $reverse Takes back a journal of the payment the way its document does, with the companions that go with it.
      *
      * @throws AccountingException|PostingException
      */

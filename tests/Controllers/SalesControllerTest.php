@@ -1593,7 +1593,7 @@ class SalesControllerTest extends CIUnitTestCase
 
         $response = $this->get('/sales/edit/' . $invoice['saleId']);
 
-        $this->assertMatchesRegularExpression('/<option value="' . $elsewhere . '"\s+selected>Main of another branch<\/option>/', $response->getBody());
+        $this->assertMatchesRegularExpression('/<option value="' . $elsewhere . '"\s+selected>Main of another branch \([^)]+\)<\/option>/', $response->getBody(), 'It is named with the code of its branch');
     }
 
     public function testPostSave_PutsTheNewPaymentIntoTheTreasuryTheFormNames(): void

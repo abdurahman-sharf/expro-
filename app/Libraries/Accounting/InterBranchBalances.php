@@ -96,9 +96,9 @@ final class InterBranchBalances
     }
 
     /**
-     * @param array{receivable: string, payable: string, bases: array<string, true>} $pair
+     * @param array{receivable: string, payable: string, bases: array<string, true>}      $pair
      * @param array{receivable: string, payable: string, bases: array<string, true>}|null $other
-     * @param array<int, string> $codes
+     * @param array<int, string>                                                          $codes
      */
     private function row(int $branchId, int $counterpartId, array $pair, ?array $other, array $codes): PairBalance
     {
@@ -153,8 +153,8 @@ final class InterBranchBalances
             [$counterpartId, $basis] = $found;
 
             $pairs[$branchId][$counterpartId] ??= ['receivable' => self::ZERO, 'payable' => self::ZERO, 'bases' => []];
-            $pairs[$branchId][$counterpartId]['receivable']   = bcadd($pairs[$branchId][$counterpartId]['receivable'], (string) $journal->receivable, SaleAmounts::SCALE);
-            $pairs[$branchId][$counterpartId]['payable']      = bcadd($pairs[$branchId][$counterpartId]['payable'], (string) $journal->payable, SaleAmounts::SCALE);
+            $pairs[$branchId][$counterpartId]['receivable']    = bcadd($pairs[$branchId][$counterpartId]['receivable'], (string) $journal->receivable, SaleAmounts::SCALE);
+            $pairs[$branchId][$counterpartId]['payable']       = bcadd($pairs[$branchId][$counterpartId]['payable'], (string) $journal->payable, SaleAmounts::SCALE);
             $pairs[$branchId][$counterpartId]['bases'][$basis] = true;
         }
 
@@ -225,9 +225,9 @@ final class InterBranchBalances
             $ids[$journal->reverses_journal_id === null ? (int) $journal->journal_id : (int) $journal->reverses_journal_id] = true;
         }
 
-        $ids    = array_keys($ids);
-        $found  = [];
-        $legs   = $this->db->table('accounting_interbranch_legs')->select('journal_id, counterpart_branch_id')->where('company_id', CompanyContext::id())->whereIn('journal_id', $ids)->get()->getResult();
+        $ids   = array_keys($ids);
+        $found = [];
+        $legs  = $this->db->table('accounting_interbranch_legs')->select('journal_id, counterpart_branch_id')->where('company_id', CompanyContext::id())->whereIn('journal_id', $ids)->get()->getResult();
 
         foreach ($legs as $leg) {
             $found[(int) $leg->journal_id] = [(int) $leg->counterpart_branch_id, PairBalance::RECORDED];
@@ -256,9 +256,9 @@ final class InterBranchBalances
 
         foreach ($documents as $document) {
             $branches = match ($document->source_type) {
-                TreasuryTransfers::SOURCE, TreasuryTransfers::SOURCE_RECEIPT                                         => $transferBranches[(int) $document->source_id] ?? null,
+                TreasuryTransfers::SOURCE, TreasuryTransfers::SOURCE_RECEIPT => $transferBranches[(int) $document->source_id] ?? null,
                 ReceivingPostingBuilder::SOURCE_STOCK_TRANSFER, ReceivingPostingBuilder::SOURCE_TRANSFER_RECEIPT => $stockBranches[(int) $document->source_id] ?? null,
-                default                                                                                          => null,
+                default => null,
             };
 
             if ($branches === null || $branches['to'] === null) {
