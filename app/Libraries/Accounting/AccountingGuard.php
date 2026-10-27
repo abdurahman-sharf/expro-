@@ -26,6 +26,7 @@ final class AccountingGuard
     public const ROUTING_MANAGE      = 'acc_routing_manage';
     public const TREASURIES_MANAGE   = 'acc_treasuries_manage';
     public const PAYABLES_MANAGE     = 'acc_payables_manage';
+    public const INTERBRANCH_SETTLE  = 'acc_interbranch_settle';
 
     /**
      * Permissions that change what ordinary users cannot undo. Nothing grants them
@@ -40,6 +41,7 @@ final class AccountingGuard
         self::ROUTING_MANAGE,
         self::TREASURIES_MANAGE,
         self::PAYABLES_MANAGE,
+        self::INTERBRANCH_SETTLE,
     ];
 
     private Employee $employee;

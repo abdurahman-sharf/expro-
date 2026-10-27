@@ -82,20 +82,21 @@ final class InterBranchPosition
     /**
      * @return array{list<int>, list<int>} The accounts of what is owed to a branch and of what it owes.
      */
-    private function accounts(): array
+    public function accounts(): array
     {
         return [
-            $this->accountsOf(RoutingKey::InterBranchReceivable, [TreasuryTransfers::SOURCE, ReceivingPostingBuilder::SOURCE_STOCK_TRANSFER]),
-            $this->accountsOf(RoutingKey::InterBranchPayable, [TreasuryTransfers::SOURCE_RECEIPT, ReceivingPostingBuilder::SOURCE_TRANSFER_RECEIPT]),
+            $this->accountsOf(RoutingKey::InterBranchReceivable, [TreasuryTransfers::SOURCE, ReceivingPostingBuilder::SOURCE_STOCK_TRANSFER], InterBranchLegs::RECEIVABLE),
+            $this->accountsOf(RoutingKey::InterBranchPayable, [TreasuryTransfers::SOURCE_RECEIPT, ReceivingPostingBuilder::SOURCE_TRANSFER_RECEIPT], InterBranchLegs::PAYABLE),
         ];
     }
 
     /**
      * @param list<string> $legSources The sources of the journals that put a transfer on the account.
+     * @param string       $side       The side a settlement or a payment recorded the account on.
      *
      * @return list<int>
      */
-    private function accountsOf(RoutingKey $key, array $legSources): array
+    private function accountsOf(RoutingKey $key, array $legSources, string $side): array
     {
         $ids = [];
 
@@ -127,6 +128,12 @@ final class InterBranchPosition
             ->getResultArray();
 
         foreach ($used as $row) {
+            $ids[] = (int) $row['account_id'];
+        }
+
+        $recorded = $this->db->table('accounting_interbranch_legs')->select('account_id')->distinct()->where('company_id', CompanyContext::id())->where('side', $side)->get()->getResultArray();
+
+        foreach ($recorded as $row) {
             $ids[] = (int) $row['account_id'];
         }
 

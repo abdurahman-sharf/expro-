@@ -160,4 +160,12 @@ enum AccountingError: string
     case ExpenseCategoryAccountRequired = 'expense_category_account_required';
     case ExpenseCategoryAccountInvalid  = 'expense_category_account_invalid';
     case DocumentJournalLocked          = 'document_journal_locked';
+
+    case SettlementNotFound         = 'settlement_not_found';
+    case SettlementAlreadyCancelled = 'settlement_already_cancelled';
+    case SettlementNothingToSettle  = 'settlement_nothing_to_settle';
+    case SettlementPairNotAgreed    = 'settlement_pair_not_agreed';
+    case SettlementSameBranch       = 'settlement_same_branch';
+    case SettlementTreasuryRequired = 'settlement_treasury_required';
+    case InterBranchBranchesDenied  = 'interbranch_branches_denied';
 }

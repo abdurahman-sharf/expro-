@@ -21,6 +21,9 @@ final class JournalService
         TreasuryTransfers::SOURCE_RECEIPT,
         ReceivingPostingBuilder::SOURCE_STOCK_TRANSFER,
         ReceivingPostingBuilder::SOURCE_TRANSFER_RECEIPT,
+        InterBranchSettlements::SOURCE,
+        InterBranchSettlements::SOURCE_SECOND,
+        ...CrossBranchPayments::COMPANION_SOURCES,
     ];
     public const DOCUMENT_SOURCES = [
         ExpensePostingBuilder::SOURCE,
@@ -407,7 +410,64 @@ final class JournalService
             throw new AccountingException(AccountingError::JournalNotFound, "Journal {$journalId} does not exist.");
         }
 
-        return $this->reverseJournal($journalId, $date, $reason, $employeeId, false, JournalOrigin::System);
+        $partners = (new InterBranchLegs($this->db))->partnersOf($journalId);
+
+        if ($partners === []) {
+            return $this->reverseJournal($journalId, $date, $reason, $employeeId, false, JournalOrigin::System);
+        }
+
+        return $this->reversePair($journalId, $partners, $date, $reason, $employeeId);
+    }
+
+    /**
+     * Takes back a journal together with the journals that stand with it, in the order of the
+     * branch numbers, each on its own day. What the employee may do is asked of all of them before
+     * the first is reversed, so that one that is refused leaves the others as they are.
+     *
+     * @param list<object> $partners
+     *
+     * @throws AccountingException|PostingException
+     */
+    private function reversePair(int $journalId, array $partners, string $date, string $reason, ?int $employeeId): int
+    {
+        return $this->transactional(function () use ($journalId, $partners, $date, $reason, $employeeId): int {
+            $own = $this->db->table('accounting_journals')->select('journal_id, journal_date, branch_id')->where('journal_id', $journalId)->get()->getRow();
+
+            if ($own === null) {
+                throw new AccountingException(AccountingError::JournalNotFound, "Journal {$journalId} does not exist.");
+            }
+
+            $scopes = new TreasuryScopes($this->db, $this->branches);
+
+            foreach ($partners as $partner) {
+                if (! $this->branches->canAccess((int) $partner->branch_id, $employeeId)) {
+                    throw new AccountingException(AccountingError::InterBranchBranchesDenied, "The branch {$partner->branch_id} is outside the employee's scope.", ['branch_id' => (int) $partner->branch_id, 'name' => (string) ($this->db->table('branches')->select('code')->where('branch_id', $partner->branch_id)->get()->getRow()->code ?? $partner->branch_id)]);
+                }
+
+                $scopes->assertMayReverse((int) $partner->journal_id, $employeeId);
+            }
+
+            $journals = [[(int) $own->branch_id, $journalId, $date]];
+
+            foreach ($partners as $partner) {
+                $cutoff     = $this->periods->effectiveCutoff((int) $partner->branch_id, true);
+                $journals[] = [(int) $partner->branch_id, (int) $partner->journal_id, $cutoff !== null && $partner->journal_date <= $cutoff['date'] ? date('Y-m-d') : $partner->journal_date];
+            }
+
+            usort($journals, static fn (array $a, array $b): int => [$a[0], $a[1]] <=> [$b[0], $b[1]]);
+
+            $reversal = 0;
+
+            foreach ($journals as [, $id, $on]) {
+                $made = $this->reverseJournal($id, $on, $reason, $employeeId, false, JournalOrigin::System);
+
+                if ($id === $journalId) {
+                    $reversal = $made;
+                }
+            }
+
+            return $reversal;
+        });
     }
 
     private function reverseJournal(int $journalId, string $date, string $reason, ?int $employeeId, bool $checkAccess, JournalOrigin $origin = JournalOrigin::User): int
@@ -430,7 +490,7 @@ final class JournalService
             if ($checkAccess) {
                 $this->assertCanAccess($original, $employeeId);
 
-                if (in_array($original->source_type, self::TRANSFER_SOURCES, true)) {
+                if (in_array($original->source_type, self::TRANSFER_SOURCES, true) || (new InterBranchLegs($this->db))->isPaired($journalId)) {
                     throw new AccountingException(AccountingError::TransferJournalLocked, 'The journal of a transfer is taken back by cancelling the transfer.', ['journal_id' => $journalId]);
                 }
 
