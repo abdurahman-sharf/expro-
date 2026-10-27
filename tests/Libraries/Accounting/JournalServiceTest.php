@@ -1725,17 +1725,18 @@ class JournalServiceTest extends CIUnitTestCase
         $other->resetTransStatus();
         $other->transStart();
         $other->query('SELECT journal_id FROM ' . $other->prefixTable('accounting_journals') . ' WHERE journal_id = ? FOR UPDATE', [$journalId]);
+        [$first] = $this->lineIds($journalId);
         $this->accountingDb()->query('SET SESSION innodb_lock_wait_timeout = 1');
 
         try {
-            $this->assertWaitsForLock(fn () => $this->service->updateDetails($journalId, ['description' => 'Edited'], $employee));
+            $this->assertWaitsForLock(fn () => $this->service->updateDetails($journalId, ['lines' => [$first => ['description' => 'Edited line']]], $employee));
         } finally {
             $other->transRollback();
             $other->close();
             $this->accountingDb()->query('SET SESSION innodb_lock_wait_timeout = 50');
         }
 
-        $this->assertSame('Invoice 7', $this->journal($journalId)->description);
+        $this->assertSame('Cash received', $this->lines($journalId)[0]->description);
         $this->assertSame([], $this->detailsAudit($journalId));
     }
 

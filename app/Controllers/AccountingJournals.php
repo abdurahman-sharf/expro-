@@ -286,9 +286,10 @@ class AccountingJournals extends AccountingController
                 );
             }
 
-            $id = $this->attachments->add($journalId, $file->getTempName(), $file->getClientName(), $this->employeeId());
+            $id   = $this->attachments->add($journalId, $file->getTempName(), $file->getClientName(), $this->employeeId());
+            $rows = array_filter($this->attachmentRows($journalId), static fn (array $row): bool => $row['id'] === $id);
 
-            return ['success' => true, 'message' => lang('Accounting_journals.attachment_added'), 'id' => $id];
+            return ['success' => true, 'message' => lang('Accounting_journals.attachment_added'), 'id' => $id, 'file' => $rows === [] ? null : reset($rows)];
         });
     }
 

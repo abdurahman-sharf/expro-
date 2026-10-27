@@ -1294,6 +1294,9 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
 
         $this->assertTrue($result['success']);
         $this->assertSame(lang('Accounting_journals.attachment_added'), $result['message']);
+        $this->assertSame('invoice.pdf', $result['file']['name']);
+        $this->assertSame($result['id'], $result['file']['id']);
+        $this->assertStringContainsString('accounting_journals/attachment/' . $result['id'], $result['file']['url']);
 
         $row = $this->accountingDb()->table('accounting_journal_attachments')->where('attachment_id', $result['id'])->get()->getRow();
 
