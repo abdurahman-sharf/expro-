@@ -21,6 +21,7 @@ use App\Libraries\Accounting\ReportScopeKind;
 use App\Libraries\Accounting\StockLedger;
 use App\Libraries\Accounting\StockMovement;
 use App\Libraries\Accounting\TrialBalance;
+use App\Libraries\Organization\BranchService;
 use App\Models\Reports\Inventory_summary;
 use CodeIgniter\Database\Query;
 use CodeIgniter\Events\Events;
@@ -41,8 +42,10 @@ use Tests\Support\StockBooksFixtureTrait;
  * the valued movements and not from the cost an item carries times its quantity, that it ties to
  * the account of each location, which branches and which day it adds up, and what it says of units
  * that stand on the shelves with no movement behind them.
+ *
+ * @internal
  */
-class InventoryValuationTest extends CIUnitTestCase
+final class InventoryValuationTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
@@ -56,8 +59,7 @@ class InventoryValuationTest extends CIUnitTestCase
     protected $migrate     = true;
     protected $migrateOnce = true;
     protected $refresh     = false;
-    protected $namespace   = null;
-
+    protected $namespace;
     private InventoryValuation $valuation;
     private StockLedger $ledger;
     private int $second;
@@ -128,7 +130,7 @@ class InventoryValuationTest extends CIUnitTestCase
         return array_map(static fn (InventoryValuationLocation $location): int => $location->locationId, $report->locations);
     }
 
-    public function testBuild_ShowsTheQuantityAverageCostAndValueOfEachItemInEachLocation(): void
+    public function testBuildShowsTheQuantityAverageCostAndValueOfEachItemInEachLocation(): void
     {
         $first  = $this->item('0.00');
         $second = $this->item('0.00');
@@ -154,7 +156,7 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertSame(['4.000', '30.0000', '7.50000000'], [$other->position->quantity, $other->position->value, bcadd((string) $other->averageCost(), '0', 8)]);
     }
 
-    public function testBuild_TotalsEveryLocationAndTheCompany(): void
+    public function testBuildTotalsEveryLocationAndTheCompany(): void
     {
         $item  = $this->item('0.00');
         $depot = $this->anotherLocation('Depot');
@@ -172,7 +174,7 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertTrue($report->scope->isCompany());
     }
 
-    public function testBuild_TiesEachLocationToTheAccountOfTheLocationAndTheMainStockAccount(): void
+    public function testBuildTiesEachLocationToTheAccountOfTheLocationAndTheMainStockAccount(): void
     {
         $item  = $this->item('0.00');
         $depot = $this->anotherLocation('Depot');
@@ -201,7 +203,7 @@ class InventoryValuationTest extends CIUnitTestCase
      * the movements is 1,314 and what the legacy report makes of the same stock is 1,320, because
      * it multiplies the cost the item carries by the units, and one unit came back at 60.00.
      */
-    public function testBuild_EndsAtTheValueTheReferenceReportHeldWhileTheLegacyReportSaysMore(): void
+    public function testBuildEndsAtTheValueTheReferenceReportHeldWhileTheLegacyReportSaysMore(): void
     {
         $sequence = ParityFixture::cases('T-05', 'cost_sequence')['sequence'][0]['steps'];
         $itemId   = $this->item('0.00');
@@ -249,7 +251,7 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertSame('6.0000', bcsub($line->valueAtItemCost(), $line->position->value, 4));
     }
 
-    public function testBuild_AgreesWithWhatTheStockLedgerSaysForEveryLocationAndItem(): void
+    public function testBuildAgreesWithWhatTheStockLedgerSaysForEveryLocationAndItem(): void
     {
         $first  = $this->item('0.00');
         $second = $this->item('0.00');
@@ -290,7 +292,7 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertTrue($report->ties());
     }
 
-    public function testBuild_FlagsALocationWhoseAccountHoldsWhatNoMovementAccountsFor(): void
+    public function testBuildFlagsALocationWhoseAccountHoldsWhatNoMovementAccountsFor(): void
     {
         $item = $this->item('0.00');
 
@@ -308,7 +310,7 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertSame('30.0000', $report->stockAccountDifference());
     }
 
-    public function testBuild_DoesNotTieWhenTwoLocationsDifferInOppositeWaysThoughTheStockAccountsAddUp(): void
+    public function testBuildDoesNotTieWhenTwoLocationsDifferInOppositeWaysThoughTheStockAccountsAddUp(): void
     {
         $item  = $this->item('0.00');
         $depot = $this->anotherLocation('Depot');
@@ -326,7 +328,7 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertFalse($report->ties(), 'But each location is wrong');
     }
 
-    public function testBuild_FlagsAMovementThatReachedNoAccount(): void
+    public function testBuildFlagsAMovementThatReachedNoAccount(): void
     {
         $item = $this->item('0.00');
 
@@ -341,7 +343,7 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertSame('-50.0000', $report->stockAccountDifference());
     }
 
-    public function testBuild_ShowsAMovementOfALocationThatHasNoAccountAsOneThatDoesNotTie(): void
+    public function testBuildShowsAMovementOfALocationThatHasNoAccountAsOneThatDoesNotTie(): void
     {
         $item  = $this->item('0.00');
         $depot = $this->insertStockLocation('Depot without an account');
@@ -356,7 +358,7 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertFalse($location->ties());
     }
 
-    public function testBuild_SeesValuePostedToAnAccountUnderTheMainStockAccountThatIsNoLocation(): void
+    public function testBuildSeesValuePostedToAnAccountUnderTheMainStockAccountThatIsNoLocation(): void
     {
         $item   = $this->item('0.00');
         $custom = $this->customAccount('1203', '120399', 'Stock outside the locations');
@@ -378,7 +380,7 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertFalse($report->ties());
     }
 
-    public function testBuild_LeavesOutADraftJournalOfTheStockAccount(): void
+    public function testBuildLeavesOutADraftJournalOfTheStockAccount(): void
     {
         $item = $this->item('0.00');
 
@@ -400,7 +402,7 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertTrue($report->ties());
     }
 
-    public function testBuild_ListsUnitsOnTheShelvesThatNoMovementAccountsForAndDoesNotValueThem(): void
+    public function testBuildListsUnitsOnTheShelvesThatNoMovementAccountsForAndDoesNotValueThem(): void
     {
         $item  = $this->item('12.00');
         $other = $this->item('9.00');
@@ -425,7 +427,7 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertSame('36.0000', $report->value());
     }
 
-    public function testBuild_ShowsALocationWhoseOpeningStockWasPostedAsTiedAndOneThatGrewSinceAsPartiallyPosted(): void
+    public function testBuildShowsALocationWhoseOpeningStockWasPostedAsTiedAndOneThatGrewSinceAsPartiallyPosted(): void
     {
         $first  = $this->item('10.00');
         $second = $this->item('20.00');
@@ -456,7 +458,7 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertSame('3.000', $this->lineOf($grown, $second)->unposted());
     }
 
-    public function testBuild_FlagsTheItemsThatThePartialOpeningOfALocationLeftOut(): void
+    public function testBuildFlagsTheItemsThatThePartialOpeningOfALocationLeftOut(): void
     {
         $rice  = $this->item('50.00');
         $owed  = $this->item('3.00');
@@ -482,7 +484,7 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertSame('0.0000', $this->lineOf($location, $owed)->position->value);
     }
 
-    public function testBuild_ShowsStockThatWentNegativeWithoutAnAverageCost(): void
+    public function testBuildShowsStockThatWentNegativeWithoutAnAverageCost(): void
     {
         $item = $this->item('0.00');
 
@@ -497,7 +499,7 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertFalse($line->hasUnpostedUnits());
     }
 
-    public function testBuild_ShowsAnItemWhoseMovementsLeftValueButNoUnits(): void
+    public function testBuildShowsAnItemWhoseMovementsLeftValueButNoUnits(): void
     {
         $item = $this->item('0.00');
 
@@ -510,7 +512,7 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertSame(['0.000', '0.0500'], [$line->position->quantity, $line->position->value]);
     }
 
-    public function testBuild_LeavesOutItemsAndLocationsWithNothingInThemUnlessAsked(): void
+    public function testBuildLeavesOutItemsAndLocationsWithNothingInThemUnlessAsked(): void
     {
         $item  = $this->item('0.00');
         $depot = $this->anotherLocation('Empty depot');
@@ -527,7 +529,7 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertNotNull($this->lineOf($this->location($shown, self::LOCATION_ID), $item));
     }
 
-    public function testBuild_ShowsALocationWithNoStockWhoseAccountHoldsSomething(): void
+    public function testBuildShowsALocationWithNoStockWhoseAccountHoldsSomething(): void
     {
         $this->manualToStock('40.00');
 
@@ -538,7 +540,7 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertSame('40.0000', $location->difference());
     }
 
-    public function testBuild_LeavesOutItemsThatAreNotStockOnTheShelves(): void
+    public function testBuildLeavesOutItemsThatAreNotStockOnTheShelves(): void
     {
         $service = $this->item('0.00', false);
 
@@ -547,7 +549,7 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertSame([], $this->build()->locations);
     }
 
-    public function testBuild_CountsTheStockUpToTheDayAsked(): void
+    public function testBuildCountsTheStockUpToTheDayAsked(): void
     {
         $item = $this->item('0.00');
 
@@ -571,7 +573,7 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertSame([], $this->build(asOf: '2026-09-30')->locations, 'Nothing was in the books before the first day');
     }
 
-    public function testBuild_ReadsTheJournalsOfTheAccountsUpToTheSameDay(): void
+    public function testBuildReadsTheJournalsOfTheAccountsUpToTheSameDay(): void
     {
         $item = $this->item('0.00');
 
@@ -582,7 +584,7 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertFalse($this->build(asOf: '2026-10-25')->ties());
     }
 
-    public function testBuild_DoesNotCompareTheShelvesForADayThatIsPast(): void
+    public function testBuildDoesNotCompareTheShelvesForADayThatIsPast(): void
     {
         $item  = $this->item('10.00');
         $other = $this->item('10.00');
@@ -607,7 +609,7 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertNotNull($this->lineOf($this->location($everything, self::LOCATION_ID), $item));
     }
 
-    public function testBuild_TreatsTodayAndLaterDaysAsTheStockAsItStandsNow(): void
+    public function testBuildTreatsTodayAndLaterDaysAsTheStockAsItStandsNow(): void
     {
         $item = $this->item('10.00');
 
@@ -625,7 +627,7 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertNull($this->build()->asOf);
     }
 
-    public function testBuild_RejectsADayThatIsNotADate(): void
+    public function testBuildRejectsADayThatIsNotADate(): void
     {
         foreach (['2026-02-31', 'yesterday', '31/10/2026'] as $day) {
             try {
@@ -637,7 +639,7 @@ class InventoryValuationTest extends CIUnitTestCase
         }
     }
 
-    public function testBuild_AddsUpTheBranchesOfTheScopeAndNoOther(): void
+    public function testBuildAddsUpTheBranchesOfTheScopeAndNoOther(): void
     {
         $item  = $this->item('0.00');
         $depot = $this->locationOfBranch($this->second, 'Second depot');
@@ -675,7 +677,7 @@ class InventoryValuationTest extends CIUnitTestCase
         return $ids;
     }
 
-    public function testBuild_ReadsTheJournalsOfTheAccountsInTheBranchesOfTheScopeOnly(): void
+    public function testBuildReadsTheJournalsOfTheAccountsInTheBranchesOfTheScopeOnly(): void
     {
         $item = $this->item('0.00');
 
@@ -691,7 +693,7 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertFalse($company->ties());
     }
 
-    public function testBuild_LabelsAScopeOfSomeBranchesPartialAndTheWholeCompanyAsCompany(): void
+    public function testBuildLabelsAScopeOfSomeBranchesPartialAndTheWholeCompanyAsCompany(): void
     {
         $item = $this->item('0.00');
 
@@ -702,7 +704,7 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertSame(ReportScopeKind::Selected, $this->build(ReportScope::resolve([1], null))->scope->kind);
     }
 
-    public function testBuild_ShowsNothingForAScopeWithNoBranch(): void
+    public function testBuildShowsNothingForAScopeWithNoBranch(): void
     {
         $item = $this->item('0.00');
 
@@ -716,7 +718,7 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertSame('0.0000', $report->stockAccountBalance);
     }
 
-    public function testBuild_DoesNotListTheShelvesOfALocationOfABranchOutsideTheScope(): void
+    public function testBuildDoesNotListTheShelvesOfALocationOfABranchOutsideTheScope(): void
     {
         $item  = $this->item('10.00');
         $depot = $this->locationOfBranch($this->second, 'Second depot');
@@ -727,7 +729,148 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertSame([$depot], $this->locationIds($this->build(ReportScope::resolve([$this->second], null))));
     }
 
-    public function testBuild_LeavesOutALocationThatWasDeletedUnlessItHoldsWhatTheBooksHave(): void
+    /**
+     * A shelf that holds an item the first branch has stock of in the books, and one of the second
+     * branch that no movement accounts for, in a location that then goes to the second branch.
+     *
+     * @return array{moved: int, own: int, theirs: int}
+     */
+    private function locationThatChangedBranch(): array
+    {
+        $own    = $this->item('10.00');
+        $theirs = $this->item('20.00');
+        $moved  = $this->anotherLocation('Moved shelf');
+
+        $this->bookStock('2026-10-05', 1, $own, '10', '100.00', $moved);
+        $this->putOnShelf($own, '10', $moved);
+
+        (new BranchService())->assignLocations($this->second, [$moved], 1);
+
+        $this->putOnShelf($theirs, '7', $moved);
+
+        return ['moved' => $moved, 'own' => $own, 'theirs' => $theirs];
+    }
+
+    public function testBuildGivesNoStockOfAnotherBranchAwayForALocationThatLeftTheBranchOfTheScope(): void
+    {
+        $stock = $this->locationThatChangedBranch();
+
+        $report   = $this->build(ReportScope::resolve([1], null));
+        $location = $this->location($report, $stock['moved']);
+
+        $this->assertNotNull($location, 'Its movements are of this branch');
+        $this->assertSame([$stock['own']], array_map(static fn (InventoryValuationLine $line): int => $line->position->itemId, $location->lines));
+        $this->assertNull($this->lineOf($location, $stock['theirs']));
+        $this->assertFalse($location->shelvesCompared);
+        $this->assertNull($this->lineOf($location, $stock['own'])->onHand());
+        $this->assertSame(0, $report->unpostedLines());
+        $this->assertSame('100.0000', $location->value);
+        $this->assertTrue($location->ties());
+    }
+
+    public function testBuildDoesNotCallStockOfAnEarlierBranchUnpostedForTheBranchTheLocationNowBelongsTo(): void
+    {
+        $stock = $this->locationThatChangedBranch();
+
+        $report   = $this->build(ReportScope::resolve([$this->second], null), showEmpty: true);
+        $location = $this->location($report, $stock['moved']);
+
+        $this->assertNotNull($location);
+        $this->assertSame([], $location->lines);
+        $this->assertFalse($location->shelvesCompared);
+        $this->assertSame(0, $report->unpostedLines());
+        $this->assertSame('0.0000', $report->value());
+    }
+
+    public function testBuildComparesTheShelvesOfALocationWithMovementsInTwoBranchesForTheScopeThatHoldsBoth(): void
+    {
+        $stock = $this->locationThatChangedBranch();
+
+        $this->bookStock('2026-10-06', $this->second, $stock['theirs'], '7', '140.00', $stock['moved']);
+
+        $company  = $this->build();
+        $location = $this->location($company, $stock['moved']);
+
+        $this->assertTrue($location->shelvesCompared);
+        $this->assertSame('10.000', $this->lineOf($location, $stock['own'])->position->quantity);
+        $this->assertSame('10.000', $this->lineOf($location, $stock['own'])->onHand());
+        $this->assertSame('7.000', $this->lineOf($location, $stock['theirs'])->onHand());
+        $this->assertSame(0, $company->unpostedLines());
+        $this->assertSame('240.0000', $location->value);
+        $this->assertTrue($location->ties());
+
+        $other = $this->location($this->build(ReportScope::resolve([$this->second], null)), $stock['moved']);
+
+        $this->assertFalse($other->shelvesCompared, 'Half of what the location holds in the books is of the other branch');
+        $this->assertNull($this->lineOf($other, $stock['theirs'])->onHand());
+    }
+
+    public function testBuildComparesTheShelvesOfALocationWithNoMovementOfItsBranchAndFlagsWhatNoMovementAccountsFor(): void
+    {
+        $stock = $this->locationThatChangedBranch();
+
+        $location = $this->location($this->build(), $stock['moved']);
+
+        $this->assertTrue($location->shelvesCompared);
+        $this->assertSame(1, $location->unpostedLines());
+        $this->assertTrue($this->lineOf($location, $stock['theirs'])->hasUnpostedUnits());
+        $this->assertFalse($this->lineOf($location, $stock['own'])->hasUnpostedUnits());
+    }
+
+    public function testBuildComparesTheShelvesWhateverMovementsAnotherCompanyHasInTheLocation(): void
+    {
+        $db   = $this->accountingDb();
+        $item = $this->item('10.00');
+
+        $this->bookStock('2026-10-05', 1, $item, '4', '40.00');
+        $this->putOnShelf($item, '4');
+
+        $db->table('companies')->insert(['name' => 'Another company']);
+        $other = (int) $db->insertID();
+        $db->table('branches')->insert(['company_id' => $other, 'code' => 'OC', 'name' => 'Branch of another company', 'active' => 1]);
+        $branch = (int) $db->insertID();
+        $db->table('accounting_stock_entries')->insert([
+            'company_id'  => $other,
+            'branch_id'   => $branch,
+            'source_type' => 'purchase',
+            'source_id'   => 889900,
+            'line_no'     => 1,
+            'entry_date'  => '2026-10-05',
+            'item_id'     => $item,
+            'location_id' => self::LOCATION_ID,
+            'quantity'    => '1',
+            'value'       => '1.00',
+        ]);
+
+        try {
+            $location = $this->location($this->build(), self::LOCATION_ID);
+
+            $this->assertTrue($location->shelvesCompared);
+            $this->assertSame('4.000', $this->lineOf($location, $item)->onHand());
+        } finally {
+            $db->table('accounting_stock_entries')->where('company_id', $other)->delete();
+            $db->table('branches')->where('branch_id', $branch)->delete();
+            $db->table('companies')->where('company_id', $other)->delete();
+        }
+    }
+
+    public function testBuildValuesAMovementOfAnItemThatBecameNonStockSoTheLocationStillTiesToItsAccount(): void
+    {
+        $item = $this->item('0.00');
+
+        $this->bookStock('2026-10-05', 1, $item, '5', '50.00');
+        $this->accountingDb()->table('items')->where('item_id', $item)->update(['stock_type' => HAS_NO_STOCK]);
+
+        $report   = $this->build();
+        $location = $this->location($report, self::LOCATION_ID);
+
+        $this->assertSame('50.0000', $report->value());
+        $this->assertSame('50.0000', $this->lineOf($location, $item)->position->value);
+        $this->assertTrue($location->ties());
+        $this->assertTrue($report->ties());
+    }
+
+    public function testBuildLeavesOutALocationThatWasDeletedUnlessItHoldsWhatTheBooksHave(): void
     {
         $item  = $this->item('10.00');
         $empty = $this->anotherLocation('Closed shelf');
@@ -749,7 +892,7 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertNotNull($this->location($everything, $kept));
     }
 
-    public function testBuild_ListsAmongTheEmptyLocationsThoseOfTheBranchesOfTheScopeOnly(): void
+    public function testBuildListsAmongTheEmptyLocationsThoseOfTheBranchesOfTheScopeOnly(): void
     {
         $depot = $this->locationOfBranch($this->second, 'Idle second depot');
         $own   = $this->anotherLocation('Idle first depot');
@@ -762,7 +905,7 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertSame([$depot], $this->locationIds($other));
     }
 
-    public function testBuild_TakesBackTheStockOfASaleThatWasCancelled(): void
+    public function testBuildTakesBackTheStockOfASaleThatWasCancelled(): void
     {
         $item = $this->item('0.00');
 
@@ -784,7 +927,7 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertSame(0, $report->unpostedLines());
     }
 
-    public function testBuild_TiesTheCompanyAndEveryBranchAfterStockWasMovedBetweenTwoBranches(): void
+    public function testBuildTiesTheCompanyAndEveryBranchAfterStockWasMovedBetweenTwoBranches(): void
     {
         $item  = $this->item('0.00');
         $depot = $this->locationOfBranch($this->second, 'Second depot');
@@ -806,7 +949,7 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertSame('200.0000', $this->build(ReportScope::resolve([$this->second], null))->value());
     }
 
-    public function testBuild_SortsLocationsAndItemsByName(): void
+    public function testBuildSortsLocationsAndItemsByName(): void
     {
         $zebra = $this->item('0.00');
         $apple = $this->item('0.00');
@@ -824,7 +967,7 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertSame(['Apple', 'Zebra'], array_map(static fn (InventoryValuationLine $line): string => $line->position->itemName, $report->locations[1]->lines));
     }
 
-    public function testBuild_SortsByNameWhateverTheCaseOfTheLetters(): void
+    public function testBuildSortsByNameWhateverTheCaseOfTheLetters(): void
     {
         $upper = $this->item('0.00');
         $lower = $this->item('0.00');
@@ -843,7 +986,7 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertSame(['apple', 'Zebra'], array_map(static fn (InventoryValuationLine $line): string => $line->position->itemName, $report->locations[1]->lines));
     }
 
-    public function testBuild_NamesTheBranchOfEachLocationAndItsAccount(): void
+    public function testBuildNamesTheBranchOfEachLocationAndItsAccount(): void
     {
         $item  = $this->item('0.00');
         $depot = $this->locationOfBranch($this->second, 'Second depot');
@@ -858,7 +1001,7 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertStringStartsWith('1203', (string) $location->accountCode);
     }
 
-    public function testBuild_ReadsOneSnapshotWhileAnotherRequestPostsStock(): void
+    public function testBuildReadsOneSnapshotWhileAnotherRequestPostsStock(): void
     {
         $item   = $this->item('0.00');
         $reader = $this->openSecondConnection();
@@ -891,7 +1034,7 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertTrue($this->build()->ties());
     }
 
-    public function testBuild_IgnoresWhatBelongsToAnotherCompany(): void
+    public function testBuildIgnoresWhatBelongsToAnotherCompany(): void
     {
         $db   = $this->accountingDb();
         $item = $this->item('0.00');
@@ -917,7 +1060,7 @@ class InventoryValuationTest extends CIUnitTestCase
         }
     }
 
-    public function testBuild_ReadsOnlyTheAccountsAndTheRoutingOfTheCompany(): void
+    public function testBuildReadsOnlyTheAccountsAndTheRoutingOfTheCompany(): void
     {
         $db     = $this->accountingDb();
         $item   = $this->item('0.00');
@@ -960,7 +1103,7 @@ class InventoryValuationTest extends CIUnitTestCase
         }
     }
 
-    public function testBuild_CountsEveryMovementForTheStockAsItStandsNowEvenOneDatedLater(): void
+    public function testBuildCountsEveryMovementForTheStockAsItStandsNowEvenOneDatedLater(): void
     {
         $item = $this->item('0.00');
 
@@ -978,7 +1121,7 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertSame([], $this->build(asOf: '2026-10-05')->locations, 'A day before it is dated, it is not in the books');
     }
 
-    public function testBuild_LeavesOutAnItemWithAnEmptyShelfAndNoMovementEvenWhenAskedForEmptyOnes(): void
+    public function testBuildLeavesOutAnItemWithAnEmptyShelfAndNoMovementEvenWhenAskedForEmptyOnes(): void
     {
         $item = $this->item('0.00');
 
@@ -989,7 +1132,7 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertSame([], $location->lines, 'Every item has a row of zero in every location, and listing them all would bury the stock');
     }
 
-    public function testBuild_HoldsForTheStockAccountsWhatTheTrialBalanceHoldsForTheSameBranchesAndDay(): void
+    public function testBuildHoldsForTheStockAccountsWhatTheTrialBalanceHoldsForTheSameBranchesAndDay(): void
     {
         $item  = $this->item('0.00');
         $depot = $this->locationOfBranch($this->second, 'Second depot');
@@ -1017,7 +1160,7 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertSame('516.0000', $this->build()->value(), '500 bought, which moving 200 of it to the other branch does not change, and 16 booked');
     }
 
-    public function testBuild_ReadsTheSameWhenAPeriodIsClosed(): void
+    public function testBuildReadsTheSameWhenAPeriodIsClosed(): void
     {
         $item = $this->item('0.00');
 
@@ -1036,7 +1179,7 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertSame('100.0000', $this->build(asOf: '2026-10-06')->value(), 'A day inside a closed period is read as it was posted');
     }
 
-    public function testBuild_ChangesNothingInTheBooks(): void
+    public function testBuildChangesNothingInTheBooks(): void
     {
         $item = $this->item('0.00');
 

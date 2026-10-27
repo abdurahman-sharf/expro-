@@ -34,7 +34,7 @@ trait ScopedReportRequest
     {
         $requested = $this->request->getGet('branches');
 
-        return ReportScope::resolve(is_array($requested) ? array_map('intval', $requested) : null, $this->branchIds());
+        return ReportScope::resolve(is_array($requested) ? array_map(static fn (mixed $id): int => is_string($id) ? (int) $id : 0, $requested) : null, $this->branchIds());
     }
 
     /**

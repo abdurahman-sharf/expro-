@@ -37,6 +37,7 @@ return [
     'row_location'        => '',
     'row_total_branches'  => '',
     'row_total_company'   => '',
+    'shelves_skipped'     => '',
     'show_empty'          => '',
     'stock_account_row'   => '',
     'stock_accounts'      => '',

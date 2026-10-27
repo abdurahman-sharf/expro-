@@ -12,8 +12,9 @@ final readonly class InventoryValuationLocation
 {
     /**
      * @param list<InventoryValuationLine> $lines
-     * @param numeric-string               $value          What the movements of the location add up to, shown or not.
-     * @param numeric-string               $accountBalance What the account of the location holds.
+     * @param numeric-string               $value           What the movements of the location add up to, shown or not.
+     * @param numeric-string               $accountBalance  What the account of the location holds.
+     * @param bool                         $shelvesCompared Whether the shelves were set beside the movements, which they are not for a past day, nor for a location that is not wholly in the scope.
      */
     public function __construct(
         public int $locationId,
@@ -25,6 +26,7 @@ final readonly class InventoryValuationLocation
         public array $lines,
         public string $value,
         public string $accountBalance,
+        public bool $shelvesCompared = true,
     ) {
     }
 

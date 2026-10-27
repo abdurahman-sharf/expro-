@@ -14,9 +14,10 @@ use Config\Database;
  * The report adds up the branches of a scope and the movements and journals of those branches
  * only, up to a day, so that it can be set beside the trial balance of the same branches and day.
  * The shelves are compared with the movements only for the stock as it stands now, because what a
- * shelf held on a past day is not recorded: the units there that no movement accounts for are then
- * listed as not in the books, and are not given a value. Reading changes nothing, and it is done in
- * one snapshot, so that a document posted while the report is read is in all of it or in none.
+ * shelf held on a past day is not recorded, and only for a location that belongs to the scope and
+ * has no movement outside it: the units there that no movement accounts for are then listed as not
+ * in the books, and are not given a value. Reading changes nothing, and it is done in one snapshot,
+ * so that a document posted while the report is read is in all of it or in none.
  */
 final class InventoryValuation
 {
@@ -54,17 +55,19 @@ final class InventoryValuation
             return new InventoryValuationReport([], $scope, $day, $current, $control['code'], $control['code'] === null ? null : '0.0000', '0.0000');
         }
 
-        $entries   = $this->entries($scope, $until);
-        $shelves   = $current ? $this->shelves($scope, $entries) : [];
-        $locations = $this->locations($scope, array_values(array_unique([...array_keys($entries), ...array_keys($shelves)])));
-        $balances  = $this->balances($scope, $until, array_merge($control['ids'], array_column($locations, 'account_id')));
-        $built     = [];
-        $total     = '0';
+        $entries    = $this->entries($scope, $until);
+        $locations  = $this->locations($scope, array_keys($entries));
+        $comparable = $current ? $this->comparable($scope, $locations) : [];
+        $shelves    = $this->shelves($comparable);
+        $balances   = $this->balances($scope, $until, array_merge($control['ids'], array_column($locations, 'account_id')));
+        $built      = [];
+        $total      = '0';
 
         foreach ($locations as $locationId => $location) {
-            $lines = $this->lines($entries[$locationId] ?? [], $shelves[$locationId] ?? [], $current, $showEmpty);
-            $value = array_reduce($entries[$locationId] ?? [], static fn (string $sum, object $row): string => bcadd($sum, (string) $row->value, self::SCALE), '0');
-            $total = bcadd($total, $value, self::SCALE);
+            $compared = in_array($locationId, $comparable, true);
+            $lines    = $this->lines($entries[$locationId] ?? [], $shelves[$locationId] ?? [], $compared, $showEmpty);
+            $value    = array_reduce($entries[$locationId] ?? [], static fn (string $sum, object $row): string => bcadd($sum, (string) $row->value, self::SCALE), '0');
+            $total    = bcadd($total, $value, self::SCALE);
 
             $accountId = $location['account_id'];
             $balance   = $accountId === null ? '0' : ($balances[$accountId] ?? '0');
@@ -83,6 +86,7 @@ final class InventoryValuation
                 $lines,
                 bcadd($value, '0', self::SCALE),
                 bcadd($balance, '0', self::SCALE),
+                $compared,
             );
         }
 
@@ -121,35 +125,57 @@ final class InventoryValuation
     }
 
     /**
-     * What the shelves hold of every item that has stock there or has movements, in the locations
-     * of the branches and in those the movements are in.
+     * The locations whose shelves can be set beside the movements: those of the branches of the
+     * scope that have no movement in a branch outside it. The quantity on a shelf is not kept per
+     * branch, so once a location has changed branch, or has movements in two, the shelves hold what
+     * the movements of the scope do not account for, and showing them would give another branch's
+     * stock away and call stock of an earlier branch unposted.
      *
-     * @param array<int, array<int, object>> $entries
+     * @param array<int, array{branch_id: ?int}> $locations
+     *
+     * @return list<int>
+     */
+    private function comparable(ReportScope $scope, array $locations): array
+    {
+        $own = array_keys(array_filter($locations, static fn (array $location): bool => in_array($location['branch_id'], $scope->ids, true)));
+
+        if ($own === []) {
+            return [];
+        }
+
+        $shared = [];
+
+        foreach ($this->db->table('accounting_stock_entries')->select('location_id')->distinct()->where('company_id', CompanyContext::id())->whereIn('location_id', $own)->whereNotIn('branch_id', $scope->ids)->get()->getResult() as $row) {
+            $shared[] = (int) $row->location_id;
+        }
+
+        return array_values(array_diff($own, $shared));
+    }
+
+    /**
+     * What the shelves hold of every stock item in the locations given.
+     *
+     * @param list<int> $locationIds
      *
      * @return array<int, array<int, object>> By location, then by item.
      */
-    private function shelves(ReportScope $scope, array $entries): array
+    private function shelves(array $locationIds): array
     {
+        if ($locationIds === []) {
+            return [];
+        }
+
         $builder = $this->db->table('item_quantities q')
             ->select('q.location_id, q.item_id, q.quantity, i.name, i.item_number, i.cost_price')
             ->join('items i', 'i.item_id = q.item_id')
-            ->join('stock_locations s', 's.location_id = q.location_id')
             ->where('i.stock_type', HAS_STOCK)
-            ->groupStart()
-            ->groupStart()->whereIn('s.branch_id', $scope->ids)->where('s.deleted', 0)->groupEnd();
-
-        if ($entries !== []) {
-            $builder->orWhereIn('q.location_id', array_keys($entries));
-        }
+            ->whereIn('q.location_id', $locationIds);
 
         $found = [];
 
-        foreach ($builder->groupEnd()->get()->getResult() as $row) {
-            $locationId = (int) $row->location_id;
-            $itemId     = (int) $row->item_id;
-
-            if (bccomp((string) $row->quantity, '0', 3) !== 0 || isset($entries[$locationId][$itemId])) {
-                $found[$locationId][$itemId] = $row;
+        foreach ($builder->get()->getResult() as $row) {
+            if (bccomp((string) $row->quantity, '0', 3) !== 0) {
+                $found[(int) $row->location_id][(int) $row->item_id] = $row;
             }
         }
 
@@ -157,8 +183,8 @@ final class InventoryValuation
     }
 
     /**
-     * The locations the report may show: those of the branches, and those with movements or
-     * shelves in them, with the account each has.
+     * The locations the report may show: those of the branches, and those with movements in
+     * them, with the account each has.
      *
      * @param list<int> $withStock
      *
@@ -276,7 +302,7 @@ final class InventoryValuation
      *
      * @return list<InventoryValuationLine>
      */
-    private function lines(array $entries, array $shelves, bool $current, bool $showEmpty): array
+    private function lines(array $entries, array $shelves, bool $compared, bool $showEmpty): array
     {
         $lines = [];
 
@@ -295,7 +321,7 @@ final class InventoryValuation
                     itemCost: (string) $row->cost_price,
                 ),
                 $row->item_number === null || $row->item_number === '' ? null : (string) $row->item_number,
-                $current,
+                $compared,
             );
 
             if ($showEmpty || ! $line->isEmpty()) {

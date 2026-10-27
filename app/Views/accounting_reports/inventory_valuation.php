@@ -153,7 +153,9 @@ $verdict = static function (InventoryValuationLocation $location): string {
                                 <td class="text-end"><?= $quantity($line->position->quantity) ?></td>
                                 <td class="text-end"><?= $line->averageCost() === null ? '&mdash;' : $amount($line->averageCost()) ?></td>
                                 <td class="text-end"><?= $amount($line->position->value) ?></td>
-                                <?php if ($shelves): ?>
+                                <?php if ($shelves && $line->onHand() === null): ?>
+                                    <td class="text-end text-body-secondary" colspan="3">&mdash;</td>
+                                <?php elseif ($shelves): ?>
                                     <td class="text-end"><?= $quantity((string) $line->onHand()) ?></td>
                                     <td class="text-end">
                                         <?php if ($line->hasUnpostedUnits()): ?>
@@ -193,6 +195,9 @@ $verdict = static function (InventoryValuationLocation $location): string {
 
             <?php if (! $location->ties()): ?>
                 <p class="alert alert-danger small" data-verdict="differs" role="alert"><?= esc($verdict($location)) ?></p>
+            <?php endif; ?>
+            <?php if ($shelves && ! $location->shelvesCompared): ?>
+                <p class="alert alert-secondary small" data-verdict="shelves_skipped" role="note"><?= lang('Accounting_inventory_reports.shelves_skipped') ?></p>
             <?php endif; ?>
             <?php if ($location->unpostedLines() > 0): ?>
                 <p class="alert alert-warning small" data-verdict="unposted" role="note"><?= lang('Accounting_inventory_reports.unposted_note', [$location->unpostedLines()]) ?></p>
