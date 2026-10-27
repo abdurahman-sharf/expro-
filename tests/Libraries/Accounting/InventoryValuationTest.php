@@ -15,10 +15,12 @@ use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\OpeningStock;
 use App\Libraries\Accounting\OpeningStockStatus;
 use App\Libraries\Accounting\PostingService;
+use App\Libraries\Accounting\ReportPeriod;
 use App\Libraries\Accounting\ReportScope;
 use App\Libraries\Accounting\ReportScopeKind;
 use App\Libraries\Accounting\StockLedger;
 use App\Libraries\Accounting\StockMovement;
+use App\Libraries\Accounting\TrialBalance;
 use App\Models\Reports\Inventory_summary;
 use CodeIgniter\Database\Query;
 use CodeIgniter\Events\Events;
@@ -985,6 +987,53 @@ class InventoryValuationTest extends CIUnitTestCase
         $location = $this->location($this->build(showEmpty: true), self::LOCATION_ID);
 
         $this->assertSame([], $location->lines, 'Every item has a row of zero in every location, and listing them all would bury the stock');
+    }
+
+    public function testBuild_HoldsForTheStockAccountsWhatTheTrialBalanceHoldsForTheSameBranchesAndDay(): void
+    {
+        $item  = $this->item('0.00');
+        $depot = $this->locationOfBranch($this->second, 'Second depot');
+
+        $this->workInEveryBranch();
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($item, 0, '10', '50')]));
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($item, 0, '4', '0', '0', '0', PERCENT, $depot), $this->purchaseLine($item, 1, '-4', '0')], null, null));
+        $this->bookStock('2026-10-05', 1, $item, '2', '16.00');
+
+        foreach ([[1], [$this->second], [1, $this->second]] as $branches) {
+            $scope = ReportScope::resolve($branches, null);
+            $row   = null;
+
+            foreach ((new TrialBalance())->build($scope, ReportPeriod::of(null, '2099-12-31'))->rows as $candidate) {
+                $row = $candidate->code === '1203' ? $candidate : $row;
+            }
+
+            $report = $this->build($scope);
+
+            $this->assertNotNull($row, 'Branches ' . implode(',', $branches));
+            $this->assertSame($row->closing(), $report->stockAccountBalance, 'Branches ' . implode(',', $branches));
+            $this->assertSame($report->value(), $row->closing(), 'Branches ' . implode(',', $branches));
+        }
+
+        $this->assertSame('516.0000', $this->build()->value(), '500 bought, which moving 200 of it to the other branch does not change, and 16 booked');
+    }
+
+    public function testBuild_ReadsTheSameWhenAPeriodIsClosed(): void
+    {
+        $item = $this->item('0.00');
+
+        $this->bookStock('2026-10-05', 1, $item, '10', '100.00');
+
+        $before = $this->build();
+
+        $this->closeThrough('2026-12-31');
+        $this->closeThrough('2026-12-31', $this->second);
+
+        $after = $this->build();
+
+        $this->assertSame($before->value(), $after->value());
+        $this->assertSame($before->stockAccountBalance, $after->stockAccountBalance);
+        $this->assertTrue($after->ties());
+        $this->assertSame('100.0000', $this->build(asOf: '2026-10-06')->value(), 'A day inside a closed period is read as it was posted');
     }
 
     public function testBuild_ChangesNothingInTheBooks(): void
