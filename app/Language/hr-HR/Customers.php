@@ -2,6 +2,7 @@
 
 return [
     'account_number'                => 'IBAN:',
+    'account_number_automatic'      => '',
     'account_number_duplicate'      => 'Ovaj IBAN već postoji',
     'available_points'              => '',
     'available_points_value'        => '',
@@ -44,6 +45,7 @@ return [
     'none_selected'                 => 'Niste odabrali nijednog kupca za brisanje',
     'one_or_multiple'               => 'Kupac(i)',
     'quantity'                      => '',
+    'rewards_package'               => '',
     'stats_info'                    => '',
     'successful_adding'             => 'Uspješno ste dodali kupca',
     'successful_deleted'            => 'Kupac je uspješno obrisan',
@@ -53,5 +55,4 @@ return [
     'taxable'                       => 'Oporezivo',
     'total'                         => 'Total',
     'update'                        => 'Ažuriraj kupca',
-    'rewards_package'               => '',
 ];

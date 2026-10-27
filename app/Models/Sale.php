@@ -14,6 +14,8 @@ use App\Libraries\Accounting\ReturnLimit;
 use App\Libraries\Accounting\SalePosting;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\Numbering\DocumentNumbering;
+use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchGuard;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\ResultInterface;
@@ -589,7 +591,7 @@ class Sale extends Model
         $this->accountingFailure = null;
 
         $accounting = (new AccountingSettings($this->db))->isEnabled() ? new SalePosting($this->db) : null;
-        $update_data = $sale_data;
+        $update_data = $this->keepNumbersOfTheSequences((int) $sale_id, $sale_data);
         unset($update_data['payments']);
 
         $this->db->transStart();
@@ -639,7 +641,12 @@ class Sale extends Model
                             'payment_status'  => PaymentStatus::fromStored($payment['payment_status'] ?? null)->value,
                             'treasury_id'     => $this->treasuryOfPayment($payment, $employee_id === null ? null : (int) $employee_id, (int) $this->getBranchId((int) $sale_id)),
                         ];
-                        $success = $builder->insert($sales_payments_data);
+                        $success      = $builder->insert($sales_payments_data);
+                        $newPaymentId = (int) $this->db->insertID();
+
+                        if ($success && $this->isPaymentDocument($payment) && $this->getSaleStatus((int) $sale_id) == COMPLETED) {
+                            (new DocumentNumbering($this->db))->assign(DocumentType::CustomerPayment, 'sales_payments', $newPaymentId, (int) $this->getBranchId((int) $sale_id));
+                        }
                     } elseif ($payment_id != NEW_ENTRY) {
                         $stored = $this->db->table('sales_payments')->select('sale_id')->where('payment_id', $payment_id)->get()->getRow();
 
@@ -893,6 +900,7 @@ class Sale extends Model
 
         $totalAmount = 0;
         $totalAmountUsed = 0;
+        $paymentIds = [];
 
         foreach ($payments as $paymentId => $payment) {
             $splitPayment = explode(':', $payment['payment_type'], 2);
@@ -936,6 +944,10 @@ class Sale extends Model
 
             $builder = $this->db->table('sales_payments');
             $builder->insert($salesPaymentsData);
+
+            if ($this->isPaymentDocument($payment)) {
+                $paymentIds[] = (int) $this->db->insertID();
+            }
 
             $totalAmount = floatval($totalAmount) + floatval($payment['payment_amount']) - floatval($payment['cash_refund']);
         }
@@ -1033,6 +1045,16 @@ class Sale extends Model
             }
         }
 
+        try {
+            $this->numberDocuments($saleId, $saleType, $saleStatus == COMPLETED, $invoiceNumber, $quoteNumber, $paymentIds, (int) $salesData['branch_id']);
+        } catch (AccountingException $failure) {
+            log_message('error', 'Numbering sale ' . $saleId . ' failed: ' . $failure->getMessage());
+            $this->db->transRollback();
+            $this->accountingFailure = $failure;
+
+            return ACCOUNTING_FAILED;
+        }
+
         if ($saleStatus == COMPLETED) {
             $failure = $this->postToAccounting($saleId, $employeeId);
 
@@ -1047,6 +1069,72 @@ class Sale extends Model
         $this->db->transComplete();
 
         return $this->db->transStatus() ? $saleId : -1;
+    }
+
+    /**
+     * A payment is a document of its own, with a number, unless it only records what stays unpaid
+     * (a credit sale) or a rounding of cash.
+     *
+     * @param array<string, mixed> $payment
+     */
+    private function isPaymentDocument(array $payment): bool
+    {
+        return empty($payment['cash_adjustment']) && PaymentType::fromLabel((string) ($payment['payment_type'] ?? '')) !== PaymentType::Due;
+    }
+
+    /**
+     * Gives the documents of a sale the numbers of their sequences, for the sequences that are on:
+     * a quote when it is saved, and an invoice, a credit note and each payment when the sale is
+     * completed. A number typed by hand is kept as it is.
+     *
+     * @param list<int> $paymentIds
+     *
+     * @throws AccountingException
+     */
+    private function numberDocuments(int $saleId, int $saleType, bool $completed, ?string $invoiceNumber, ?string $quoteNumber, array $paymentIds, int $branchId): void
+    {
+        $numbering = new DocumentNumbering($this->db);
+
+        if ($saleType === SALE_TYPE_QUOTE && ($quoteNumber ?? '') === '') {
+            $numbering->assign(DocumentType::SalesQuote, 'sales', $saleId, $branchId);
+        }
+
+        if (! $completed) {
+            return;
+        }
+
+        if ($saleType === SALE_TYPE_INVOICE && ($invoiceNumber ?? '') === '') {
+            $numbering->assign(DocumentType::SalesInvoice, 'sales', $saleId, $branchId);
+        }
+
+        if ($saleType === SALE_TYPE_RETURN) {
+            $numbering->assign(DocumentType::CreditNote, 'sales', $saleId, $branchId);
+        }
+
+        foreach ($paymentIds as $paymentId) {
+            $numbering->assign(DocumentType::CustomerPayment, 'sales_payments', $paymentId, $branchId);
+        }
+    }
+
+    /**
+     * An edit that leaves the invoice or the quote number blank does not take away the number the
+     * sequence gave the document.
+     *
+     * @param array<string, mixed> $updateData
+     *
+     * @return array<string, mixed>
+     */
+    private function keepNumbersOfTheSequences(int $saleId, array $updateData): array
+    {
+        $numbering = new DocumentNumbering($this->db);
+
+        foreach (['invoice_number' => DocumentType::SalesInvoice, 'quote_number' => DocumentType::SalesQuote] as $column => $type) {
+            if (array_key_exists($column, $updateData) && ($updateData[$column] ?? '') === '' && $numbering->numbers($type, 'sales', [$saleId]) !== []) {
+                unset($updateData[$column]);
+            }
+        }
+
+        return $updateData;
     }
 
     /**
@@ -1761,6 +1849,13 @@ class Sale extends Model
 
         $builder->where('sale_id', $sale_id);
         $builder->update(['sale_status' => $sale_status]);
+    }
+
+    public function getInvoiceNumber(int $saleId): ?string
+    {
+        $row = $this->db->table('sales')->select('invoice_number')->where('sale_id', $saleId)->get()->getRow();
+
+        return $row === null ? null : $row->invoice_number;
     }
 
     /**

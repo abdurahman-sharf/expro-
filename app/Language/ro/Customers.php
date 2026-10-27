@@ -2,6 +2,7 @@
 
 return [
     'account_number'                => 'Cont #',
+    'account_number_automatic'      => '',
     'account_number_duplicate'      => 'Numarul de cont exista deja in baza de date.',
     'available_points'              => 'Puncte disponibile',
     'available_points_value'        => '',
@@ -44,6 +45,7 @@ return [
     'none_selected'                 => 'Nu ati selectat niciun client de sters.',
     'one_or_multiple'               => 'client(i)',
     'quantity'                      => 'Cantitate',
+    'rewards_package'               => 'Pachet recompense',
     'stats_info'                    => 'Statistici',
     'successful_adding'             => 'Ati adaugat cu succes clientul',
     'successful_deleted'            => 'Ati sters cu succes',
@@ -53,5 +55,4 @@ return [
     'taxable'                       => 'Taxabil',
     'total'                         => 'Total cheltuit',
     'update'                        => 'Actualizeaza Client',
-    'rewards_package'               => 'Pachet recompense',
 ];

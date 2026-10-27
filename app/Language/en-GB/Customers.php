@@ -2,6 +2,7 @@
 
 return [
     'account_number'                => 'Account #',
+    'account_number_automatic'      => 'Leave it empty to take the next automatic number, {0}.',
     'account_number_duplicate'      => 'Account Number is already present in the database.',
     'available_points'              => 'Points Available',
     'available_points_value'        => '',
@@ -44,6 +45,7 @@ return [
     'none_selected'                 => 'You have not selected any Customer(s) to delete.',
     'one_or_multiple'               => 'Customer(s)',
     'quantity'                      => 'Quantity',
+    'rewards_package'               => 'Rewards',
     'stats_info'                    => 'Stats',
     'successful_adding'             => 'You have successfully added Customer',
     'successful_deleted'            => 'You have successfully deleted Customer',
@@ -53,5 +55,4 @@ return [
     'taxable'                       => 'Taxable',
     'total'                         => 'Total spent',
     'update'                        => 'Update Customer',
-    'rewards_package'               => 'Rewards',
 ];

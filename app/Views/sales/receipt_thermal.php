@@ -41,6 +41,9 @@ foreach ($payments as $payment) {
     <dl class="rt-info">
         <div><dt><?= lang('Common.date') ?></dt><dd><?= documentIsolate($transaction_time) ?></dd></div>
         <div><dt><?= lang('Sales.id') ?></dt><dd><?= documentIsolate((string) $sale_id) ?></dd></div>
+        <?php if (! empty($credit_note_number)): ?>
+            <div><dt><?= lang('Numbering.type_credit_note') ?></dt><dd><?= documentIsolate((string) $credit_note_number) ?></dd></div>
+        <?php endif; ?>
         <?php if (! empty($invoice_number)): ?>
             <div><dt><?= lang('Sales.invoice_number') ?></dt><dd><?= documentIsolate($invoice_number) ?></dd></div>
         <?php endif; ?>

@@ -2,6 +2,7 @@
 
 return [
     'account_number'                => 'Btwnummer',
+    'account_number_automatic'      => '',
     'account_number_duplicate'      => 'Deze VAT nummer is reeds aanwezig in de database.',
     'available_points'              => 'Beschikbare Punten',
     'available_points_value'        => '',
@@ -44,6 +45,7 @@ return [
     'none_selected'                 => 'U hebt geen klanten geselecteerd om te verwijderen.',
     'one_or_multiple'               => 'klant(en) verwijderd',
     'quantity'                      => 'Hoeveelheid',
+    'rewards_package'               => 'Spaarpunten',
     'stats_info'                    => 'Statistieken',
     'successful_adding'             => 'Klant succesvol aangemaakt',
     'successful_deleted'            => 'Er werd(en)',
@@ -53,5 +55,4 @@ return [
     'taxable'                       => 'Belastbaar',
     'total'                         => 'Totaal',
     'update'                        => 'Bewerk Klant',
-    'rewards_package'               => 'Spaarpunten',
 ];

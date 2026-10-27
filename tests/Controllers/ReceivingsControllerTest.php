@@ -3,6 +3,8 @@
 namespace Tests\Controllers;
 
 use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\Numbering\DocumentNumbering;
+use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchGuard;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -52,6 +54,11 @@ class ReceivingsControllerTest extends CIUnitTestCase
     protected function tearDown(): void
     {
         $this->stopBuying();
+
+        $db = $this->accountingDb();
+        $db->table('document_numbers')->truncate();
+        $db->table('document_sequences')->truncate();
+        $db->table('accounting_audit_log')->where('entity_type', 'document_numbering')->delete();
 
         parent::tearDown();
     }
@@ -1452,5 +1459,80 @@ class ReceivingsControllerTest extends CIUnitTestCase
 
         $this->assertFalse($result['success']);
         $this->assertSame(lang('Receivings.debit_note_needs_supplier'), $result['message']);
+    }
+
+    private function switchOn(DocumentType $type, string $prefix, int $padding = 3): void
+    {
+        (new DocumentNumbering())->configure($type, ['enabled' => true, 'prefix' => $prefix, 'padding' => $padding, 'next_number' => 1]);
+    }
+
+    public function testPostComplete_ShowsTheNumberOfThePurchaseOnTheReceipt(): void
+    {
+        $this->switchOn(DocumentType::Purchase, 'PUR-');
+        $itemId = $this->item('0.00');
+        $this->loginAs($this->buyer(), $this->cart([$this->cartLine($itemId, 1, '20', '100', '15')]));
+
+        $response = $this->post('/receivings/complete', $this->completeForm('Due'));
+
+        $response->assertSee('id="document_number"');
+        $response->assertSee('PUR-001');
+
+        $this->receivingIds[] = (int) $this->accountingDb()->table('receivings')->selectMax('receiving_id', 'last')->get()->getRow()->last;
+    }
+
+    public function testPostComplete_ShowsNoNumberLineWhileTheSequencesAreOff(): void
+    {
+        $itemId = $this->item('0.00');
+        $this->loginAs($this->buyer(), $this->cart([$this->cartLine($itemId, 1, '20', '100', '15')]));
+
+        $response = $this->post('/receivings/complete', $this->completeForm('Due'));
+
+        $response->assertSee('RECV ');
+        $response->assertDontSee('id="document_number"');
+
+        $this->receivingIds[] = (int) $this->accountingDb()->table('receivings')->selectMax('receiving_id', 'last')->get()->getRow()->last;
+    }
+
+    public function testGetReceipt_ShowsTheNumberOfAPurchaseAndOfAReturnToTheSupplier(): void
+    {
+        $this->switchOn(DocumentType::Purchase, 'PUR-');
+        $this->switchOn(DocumentType::DebitNote, 'DN-');
+        $purchase = $this->purchaseOf('100.00');
+        $note     = $this->debitNoteOf($purchase, '10.00');
+        $this->loginAs($this->buyer());
+
+        $this->get('/receivings/receipt/' . $purchase)->assertSee('PUR-001');
+        $response = $this->get('/receivings/receipt/' . $note);
+
+        $response->assertSee('DN-001');
+        $response->assertSee(lang('Numbering.type_debit_note'));
+    }
+
+    public function testGetEdit_ShowsTheNumberOfThePurchaseAndOfItsPayments(): void
+    {
+        $this->switchOn(DocumentType::Purchase, 'PUR-');
+        $this->switchOn(DocumentType::SupplierPayment, 'SP-');
+        $purchase  = $this->purchaseOf('100.00');
+        $paymentId = $this->payPurchase($purchase, '20.00');
+        $this->loginAs($this->buyer());
+
+        $response = $this->get('/receivings/edit/' . $purchase);
+
+        $response->assertSee('id="document_number"');
+        $response->assertSee('PUR-001');
+        $response->assertSee('#SP-001');
+        $response->assertDontSee('#' . $paymentId . '<');
+    }
+
+    public function testGetEdit_ShowsThePaymentsByTheirIdWhileTheSequencesAreOff(): void
+    {
+        $purchase  = $this->purchaseOf('100.00');
+        $paymentId = $this->payPurchase($purchase, '20.00');
+        $this->loginAs($this->buyer());
+
+        $response = $this->get('/receivings/edit/' . $purchase);
+
+        $response->assertSee(lang('Receivings.payment') . ' #' . $paymentId);
+        $response->assertDontSee('id="document_number"');
     }
 }

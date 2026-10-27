@@ -2,6 +2,9 @@
 
 namespace App\Models;
 
+use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Numbering\DocumentNumbering;
+use App\Libraries\Numbering\DocumentType;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Model;
 use Config\OSPOS;
@@ -264,13 +267,26 @@ class Expense extends Model
         $builder = $this->db->table('expenses');
 
         if ($expense_id == NEW_ENTRY || !$this->exists($expense_id)) {
-            if ($builder->insert($expense_data)) {
+            $this->db->transStart();
+
+            $inserted = $builder->insert($expense_data);
+
+            if ($inserted) {
                 $expense_data['expense_id'] = $this->db->insertID();
 
-                return true;
+                try {
+                    (new DocumentNumbering($this->db))->assign(DocumentType::Expense, 'expenses', (int) $expense_data['expense_id']);
+                } catch (AccountingException $failure) {
+                    log_message('error', 'Numbering expense ' . $expense_data['expense_id'] . ' failed: ' . $failure->getMessage());
+                    $this->db->transRollback();
+
+                    return false;
+                }
             }
 
-            return false;
+            $this->db->transComplete();
+
+            return $inserted && $this->db->transStatus();
         }
 
         $builder->where('expense_id', $expense_id);

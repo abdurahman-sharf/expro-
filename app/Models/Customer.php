@@ -2,7 +2,10 @@
 
 namespace App\Models;
 
+use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\EntityAccountService;
+use App\Libraries\Numbering\DocumentNumbering;
+use App\Libraries\Numbering\DocumentType;
 use CodeIgniter\Database\ResultInterface;
 use Config\OSPOS;
 use stdClass;
@@ -56,7 +59,7 @@ class Customer extends Person
             $builder->where('person_id !=', $person_id);
         }
 
-        return ($builder->get()->getNumRows() == 1);    // TODO: ===
+        return $builder->get()->getNumRows() > 0;
     }
 
     /**
@@ -221,6 +224,19 @@ class Customer extends Person
             if ($customer_id == NEW_ENTRY || !$customer_id || !$this->exists($customer_id)) {
                 $customer_data['person_id'] = $person_data['person_id'];
                 $success = $builder->insert($customer_data);
+
+                if ($success && ($customer_data['account_number'] ?? '') === '') {
+                    try {
+                        $number = (new DocumentNumbering($this->db))->assign(DocumentType::Customer, 'customers', (int) $customer_data['person_id']);
+                    } catch (AccountingException $failure) {
+                        log_message('error', 'Numbering customer ' . $customer_data['person_id'] . ' failed: ' . $failure->getMessage());
+                        $this->db->transRollback();
+
+                        return false;
+                    }
+
+                    $customer_data['account_number'] = $number?->number ?? $customer_data['account_number'] ?? null;
+                }
             } else {
                 $builder->where('person_id', $customer_id);
                 $success = $builder->update($customer_data);

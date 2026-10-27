@@ -2,6 +2,7 @@
 
 return [
     'account_number'                => 'رقم الحساب',
+    'account_number_automatic'      => 'اتركه فارغًا ليُعطى الرقم التلقائي التالي، {0}.',
     'account_number_duplicate'      => 'رقم الحساب هذا موجود فى قاعدة البيانات من قبل.',
     'available_points'              => 'النقاط المتاحة',
     'available_points_value'        => '',
@@ -44,6 +45,7 @@ return [
     'none_selected'                 => 'لم تختار عملاء للحذف.',
     'one_or_multiple'               => 'عميل/عملاء',
     'quantity'                      => 'العدد',
+    'rewards_package'               => 'فئة المكافئة',
     'stats_info'                    => 'الحالة',
     'successful_adding'             => 'لقد أضفت عميل بنجاح',
     'successful_deleted'            => 'لقد قمت بالحذف بنجاح',
@@ -53,5 +55,4 @@ return [
     'taxable'                       => 'خاضع للضريبة',
     'total'                         => 'المجموع',
     'update'                        => 'تحديث بيانات عميل',
-    'rewards_package'               => 'فئة المكافئة',
 ];

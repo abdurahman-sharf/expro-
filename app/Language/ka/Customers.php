@@ -2,6 +2,7 @@
 
 return [
     'account_number'                => '',
+    'account_number_automatic'      => '',
     'account_number_duplicate'      => '',
     'available_points'              => '',
     'available_points_value'        => '',
@@ -44,6 +45,7 @@ return [
     'none_selected'                 => '',
     'one_or_multiple'               => '',
     'quantity'                      => '',
+    'rewards_package'               => '',
     'stats_info'                    => '',
     'successful_adding'             => '',
     'successful_deleted'            => '',
@@ -53,5 +55,4 @@ return [
     'taxable'                       => '',
     'total'                         => '',
     'update'                        => '',
-    'rewards_package'               => '',
 ];

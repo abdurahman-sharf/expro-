@@ -89,6 +89,14 @@ enum AccountingError: string
     case EntityKindUnknown        = 'entity_kind_unknown';
     case EntityMainAccountInvalid = 'entity_main_account_invalid';
 
+    case NumberingTypeUnknown    = 'numbering_type_unknown';
+    case NumberingPrefixInvalid  = 'numbering_prefix_invalid';
+    case NumberingPaddingInvalid = 'numbering_padding_invalid';
+    case NumberingNextInvalid    = 'numbering_next_invalid';
+    case NumberingNextTooLow     = 'numbering_next_too_low';
+    case NumberingSourceInvalid  = 'numbering_source_invalid';
+    case NumberingExhausted      = 'numbering_exhausted';
+
     case SaleLocked           = 'sale_locked';
     case SalePaymentNotOnSale = 'sale_payment_not_on_sale';
     case IssuedDocumentLocked = 'issued_document_locked';

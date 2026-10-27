@@ -2,6 +2,7 @@
 
 return [
     'account_number'                => 'Hesap No',
+    'account_number_automatic'      => '',
     'account_number_duplicate'      => 'Bu hesap numarası zaten var.',
     'available_points'              => 'Var Olan Puanlar',
     'available_points_value'        => '',
@@ -44,6 +45,7 @@ return [
     'none_selected'                 => 'Silmek için müşteri seçmediniz.',
     'one_or_multiple'               => 'müşteri',
     'quantity'                      => 'Miktar',
+    'rewards_package'               => 'Ödül Paketi',
     'stats_info'                    => 'İstatistikler',
     'successful_adding'             => 'Müşteri eklendi',
     'successful_deleted'            => 'Silme başarılı',
@@ -53,5 +55,4 @@ return [
     'taxable'                       => 'Vergilendirilebilir',
     'total'                         => 'Toplam',
     'update'                        => 'Müşteri Güncelle',
-    'rewards_package'               => 'Ödül Paketi',
 ];

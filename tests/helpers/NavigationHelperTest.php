@@ -106,7 +106,7 @@ class NavigationHelperTest extends CIUnitTestCase
             }
         }
 
-        $this->assertCount(12, $ids);
+        $this->assertCount(13, $ids);
         $this->assertSame($ids, array_values(array_unique($ids)));
     }
 
@@ -140,7 +140,7 @@ class NavigationHelperTest extends CIUnitTestCase
         $entries  = navigationSearchIndex($this->modules('config'), []);
         $settings = array_values(array_filter($entries, static fn (array $entry): bool => $entry['type'] === 'setting'));
 
-        $this->assertCount(12, $settings);
+        $this->assertCount(13, $settings);
         $this->assertStringEndsWith('config#info_tab', $settings[0]['url']);
     }
 

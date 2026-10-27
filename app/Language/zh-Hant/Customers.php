@@ -2,6 +2,7 @@
 
 return [
     'account_number'                => '帳號 #',
+    'account_number_automatic'      => '',
     'account_number_duplicate'      => '帳號已存在於數據庫中。',
     'available_points'              => '現有積分',
     'available_points_value'        => '',
@@ -44,6 +45,7 @@ return [
     'none_selected'                 => '您還沒有選擇任何客戶進行刪除.',
     'one_or_multiple'               => '客戶',
     'quantity'                      => '數量',
+    'rewards_package'               => '獎勵禮包',
     'stats_info'                    => '客戶統計信息',
     'successful_adding'             => '成功新增顧客',
     'successful_deleted'            => '成功刪除',
@@ -53,5 +55,4 @@ return [
     'taxable'                       => '應課稅',
     'total'                         => 'Total',
     'update'                        => '更新客戶',
-    'rewards_package'               => '獎勵禮包',
 ];

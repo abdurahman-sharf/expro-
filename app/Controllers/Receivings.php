@@ -13,6 +13,8 @@ use App\Libraries\Accounting\SupplierLedger;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Barcode_lib;
+use App\Libraries\Numbering\DocumentNumbering;
+use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Receiving_lib;
@@ -339,6 +341,8 @@ class Receivings extends Secure_Controller
         $data['applications']           = [];
         $data['can_debit_note']         = false;
         $data['payment_options']        = $this->supplierPaymentOptions();
+        $data['payment_numbers']        = (new DocumentNumbering())->numbers(DocumentType::SupplierPayment, 'receivings_payments', array_map(static fn (object $payment): int => (int) $payment->payment_id, $data['payments']));
+        $data += $this->documentNumberOf((int) $receiving_id);
         $data['treasury_options']       = [];
         $data['new_treasury_options']   = [];
 
@@ -488,6 +492,7 @@ class Receivings extends Secure_Controller
 
         $data['receiving_id'] = 'RECV ' . $saved;
         $data['barcode']      = $this->barcode_lib->generate_receipt_barcode($data['receiving_id']);
+        $data += $this->documentNumberOf((int) $saved);
 
         $data['print_after_sale'] = $this->receiving_lib->is_print_after_sale();
 
@@ -578,6 +583,7 @@ class Receivings extends Secure_Controller
         $data['reference']            = $this->receiving_lib->get_reference();
         $data['receiving_id']         = 'RECV ' . $receiving_id;
         $data['barcode']              = $this->barcode_lib->generate_receipt_barcode($data['receiving_id']);
+        $data += $this->documentNumberOf((int) $receiving_id);
         $employee_info                = $this->employee->get_info($receiving_info['employee_id']);
         $data['employee']             = $employee_info->first_name . ' ' . $employee_info->last_name;
 
@@ -891,6 +897,27 @@ class Receivings extends Secure_Controller
         }
 
         return $options;
+    }
+
+    /**
+     * The number of a purchase or of a return to the supplier, with the name of its kind, for the
+     * screens that show the document. Nothing when it has none, so it shows what it always showed.
+     *
+     * @return array{document_label?: string, document_number?: string}
+     */
+    private function documentNumberOf(int $receivingId): array
+    {
+        $numbering = new DocumentNumbering();
+
+        foreach ([DocumentType::Purchase, DocumentType::DebitNote] as $type) {
+            $number = $numbering->numbers($type, 'receivings', [$receivingId])[$receivingId] ?? null;
+
+            if ($number !== null) {
+                return ['document_label' => lang($type->labelKey()), 'document_number' => $number];
+            }
+        }
+
+        return [];
     }
 
     /**

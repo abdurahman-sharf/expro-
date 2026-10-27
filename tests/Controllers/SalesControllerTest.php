@@ -9,6 +9,8 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use CodeIgniter\Config\Services;
 use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\Numbering\DocumentNumbering;
+use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchGuard;
 use App\Models\Employee;
 use Config\Database;
@@ -63,6 +65,11 @@ class SalesControllerTest extends CIUnitTestCase
     protected function tearDown(): void
     {
         $this->stopSelling();
+
+        $db = Database::connect();
+        $db->table('document_numbers')->truncate();
+        $db->table('document_sequences')->truncate();
+        $db->table('accounting_audit_log')->where('entity_type', 'document_numbering')->delete();
 
         parent::tearDown();
     }
@@ -1907,5 +1914,189 @@ class SalesControllerTest extends CIUnitTestCase
     protected function config(): array
     {
         return config(\Config\OSPOS::class)->settings;
+    }
+
+    private function freshPrefix(): string
+    {
+        return 'T' . random_int(100000, 999999) . '-';
+    }
+
+    private function switchOn(DocumentType $type, string $prefix, int $padding = 3): void
+    {
+        (new DocumentNumbering())->configure($type, ['enabled' => true, 'prefix' => $prefix, 'padding' => $padding, 'next_number' => 1]);
+    }
+
+    /**
+     * Completes the sale of one cart line in the mode given, as the register does, and returns the response.
+     */
+    private function completeAs(string $mode): \CodeIgniter\Test\TestResponse
+    {
+        $cashierId = $this->createCashierEmployee();
+        $itemId    = $this->createTestItem(HAS_NO_STOCK);
+
+        $this->loginAs($cashierId);
+        $this->seedCartLine(1, '100.00', $itemId);
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => $mode]));
+
+        return $this->post('/sales/complete');
+    }
+
+    public function testPostComplete_GivesTheInvoiceTheNumberOfItsSequenceAndShowsItOnTheInvoice(): void
+    {
+        $prefix = $this->freshPrefix();
+        $this->switchOn(DocumentType::SalesInvoice, $prefix, 4);
+
+        $response = $this->completeAs('sale_invoice');
+
+        $response->assertSee($prefix . '0001');
+        $this->assertSame($prefix . '0001', Database::connect()->table('sales')->where('invoice_number', $prefix . '0001')->get()->getRow()->invoice_number);
+        $this->assertSame(2, (new DocumentNumbering())->sequence(DocumentType::SalesInvoice)->nextNumber);
+    }
+
+    public function testPostComplete_KeepsTheFormatOfTheInvoiceSettingsWhileTheSequenceIsOff(): void
+    {
+        $format = 'LGC' . random_int(100000, 999999);
+        $before = $this->config()['sales_invoice_format'];
+        config(\Config\OSPOS::class)->settings['sales_invoice_format'] = $format;
+
+        try {
+            $response = $this->completeAs('sale_invoice');
+        } finally {
+            config(\Config\OSPOS::class)->settings['sales_invoice_format'] = $before;
+        }
+
+        $response->assertSee($format);
+        $this->assertSame(1, Database::connect()->table('sales')->where('invoice_number', $format)->countAllResults());
+        $this->assertSame(0, Database::connect()->table('document_numbers')->countAllResults());
+    }
+
+    public function testPostComplete_GivesTheQuoteTheNumberOfItsSequence(): void
+    {
+        $prefix = $this->freshPrefix();
+        $this->switchOn(DocumentType::SalesQuote, $prefix, 4);
+
+        $response = $this->completeAs('sale_quote');
+
+        $response->assertSee($prefix . '0001');
+        $this->assertSame(1, Database::connect()->table('sales')->where('quote_number', $prefix . '0001')->countAllResults());
+    }
+
+    public function testPostComplete_KeepsTheFormatOfTheInvoiceSettingsForAQuoteWhileTheSequenceIsOff(): void
+    {
+        $format = 'QLG' . random_int(100000, 999999);
+        $before = $this->config()['sales_quote_format'];
+        config(\Config\OSPOS::class)->settings['sales_quote_format'] = $format;
+
+        try {
+            $response = $this->completeAs('sale_quote');
+        } finally {
+            config(\Config\OSPOS::class)->settings['sales_quote_format'] = $before;
+        }
+
+        $response->assertSee($format);
+        $this->assertSame(1, Database::connect()->table('sales')->where('quote_number', $format)->countAllResults());
+        $this->assertSame(0, Database::connect()->table('document_numbers')->countAllResults());
+    }
+
+    public function testPostComplete_ShowsTheCreditNoteNumberOnTheReceiptOfAReturn(): void
+    {
+        $this->switchOn(DocumentType::CreditNote, 'CN-', 5);
+        $cashierId = $this->createCashierEmployee();
+        $itemId    = $this->createTestItem(HAS_NO_STOCK);
+
+        $this->loginAs($cashierId);
+        $this->seedCartLine(1, '10.00', $itemId);
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => 'return']));
+
+        $response = $this->post('/sales/complete');
+
+        $response->assertSee('id="credit_note_number"');
+        $response->assertSee('CN-00001');
+    }
+
+    public function testRegister_OffersTheNextNumberOfTheInvoiceSequenceInTheInvoiceField(): void
+    {
+        $prefix = $this->freshPrefix();
+        $this->switchOn(DocumentType::SalesInvoice, $prefix, 4);
+        $cashierId = $this->createCashierEmployee();
+        $itemId    = $this->createTestItem(HAS_NO_STOCK);
+
+        $this->loginAs($cashierId);
+        $this->seedCartLine(1, '100.00', $itemId);
+        $this->withSession(array_merge($this->session, ['sales_mode' => 'sale_invoice']));
+
+        $this->get('/sales')->assertSee('value="' . $prefix . '0001"');
+    }
+
+    public function testGetReceipt_ShowsTheCreditNoteNumberOfAReturnAndNothingForAnotherSale(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->switchOn(DocumentType::CreditNote, 'CN-', 5);
+        $note = $this->creditNoteOf($invoice['saleId'], '10.00');
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $this->get('/sales/receipt/' . $note)->assertSee('CN-00001');
+        $this->get('/sales/receipt/' . $invoice['saleId'])->assertDontSee('id="credit_note_number"');
+    }
+
+    public function testGetReceipt_ShowsNoCreditNoteLineWhileTheSequenceIsOff(): void
+    {
+        $invoice = $this->postedInvoice();
+        $note    = $this->creditNoteOf($invoice['saleId'], '10.00');
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $this->get('/sales/receipt/' . $note)->assertDontSee('id="credit_note_number"');
+    }
+
+    public function testGetEdit_ShowsTheNumberOfTheCreditNoteAndOfEachPayment(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->switchOn(DocumentType::CustomerPayment, 'PAY-', 4);
+        $this->switchOn(DocumentType::CreditNote, 'CN-', 5);
+        $this->addPayment($invoice['saleId'], '300.00');
+        $note = $this->creditNoteOf($invoice['saleId'], '10.00');
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $response = $this->get('/sales/edit/' . $invoice['saleId']);
+
+        $response->assertSee('PAY-0001');
+        $response->assertDontSee('id="credit_note_number"');
+        $this->get('/sales/edit/' . $note)->assertSee('CN-00001');
+    }
+
+    public function testGetEdit_ShowsThePaymentsByTheirIdWhileTheSequenceIsOff(): void
+    {
+        $invoice   = $this->postedInvoice();
+        $paymentId = $this->addPayment($invoice['saleId'], '300.00');
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $response = $this->get('/sales/edit/' . $invoice['saleId']);
+
+        $response->assertSee(lang('Sales.payment_status') . ' #' . $paymentId);
+        $response->assertDontSee('PAY-');
+    }
+
+    public function testPostSave_KeepsTheInvoiceNumberOfTheSequenceWhenTheFormLeavesItBlank(): void
+    {
+        $prefix = $this->freshPrefix();
+        $this->switchOn(DocumentType::SalesInvoice, $prefix, 4);
+        $this->startSelling();
+        $service = $this->item('0', false);
+        $saleId  = $this->save([$this->line($service, 0, '1', '100')]);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $result = $this->jsonOf($this->post('/sales/save/' . $saleId, [
+            'date'               => date($this->config()['dateformat'] . ' ' . $this->config()['timeformat']),
+            'customer_id'        => (string) $this->customerId,
+            'employee_id'        => (string) $this->employeeId,
+            'comment'            => 'edited',
+            'invoice_number'     => '',
+            'number_of_payments' => '0',
+            'payment_type_new'   => '--',
+            'payment_amount_new' => '0',
+        ]));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame($prefix . '0001', Database::connect()->table('sales')->where('sale_id', $saleId)->get()->getRow()->invoice_number);
     }
 }

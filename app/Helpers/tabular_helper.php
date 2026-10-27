@@ -1,5 +1,7 @@
 <?php
 
+use App\Libraries\Numbering\DocumentNumbering;
+use App\Libraries\Numbering\DocumentType;
 use App\Models\Attribute;
 use App\Models\Employee;
 use CodeIgniter\Database\ResultInterface;
@@ -790,18 +792,25 @@ function expense_headers(): array
  */
 function get_expenses_manage_table_headers(): string
 {
-    return transform_headers(expense_headers());
+    $headers = expense_headers();
+
+    if ((new DocumentNumbering())->isEnabled(DocumentType::Expense)) {
+        array_splice($headers, 1, 0, [['expense_number' => lang('Numbering.document_number'), 'sortable' => false]]);
+    }
+
+    return transform_headers($headers);
 }
 
 /**
  * Gets the html data row for the expenses
  */
-function get_expenses_data_row(object $expense): array
+function get_expenses_data_row(object $expense, ?string $number = null): array
 {
     $controller = get_controller();
 
     return [
         'expense_id'        => $expense->expense_id,
+        'expense_number'    => $number ?? '',
         'date'              => to_datetime(strtotime($expense->date)),
         'supplier_name'     => $expense->supplier_name,
         'supplier_tax_code' => $expense->supplier_tax_code,

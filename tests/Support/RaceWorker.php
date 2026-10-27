@@ -9,9 +9,35 @@
  * Usage: php RaceWorker.php <method> <arg> [<arg> ...]
  */
 
-chdir(dirname(__DIR__, 2));
+use App\Libraries\Numbering\DocumentNumbering;
+use App\Libraries\Numbering\DocumentType;
+use Config\Database;
 
-require __DIR__ . '/../../vendor/codeigniter4/framework/system/Test/bootstrap.php';
+$root = dirname(__DIR__, 2);
+
+chdir($root);
+
+$loader     = require $root . '/vendor/autoload.php';
+$vendorHome = dirname((string) realpath($root . '/vendor'));
+
+// A git worktree shares the vendor directory of the main checkout, whose class map points App\
+// at the main checkout. The worker must run the code of the checkout it sits in.
+if ($vendorHome !== $root) {
+    $classMap = [];
+
+    foreach ($loader->getClassMap() as $class => $file) {
+        $path = (string) realpath($file);
+
+        if (str_starts_with($path, $vendorHome . '/app/') && is_file($root . substr($path, strlen($vendorHome)))) {
+            $classMap[$class] = $root . substr($path, strlen($vendorHome));
+        }
+    }
+
+    $loader->addClassMap($classMap);
+    $loader->setPsr4('App\\', [$root . '/app']);
+}
+
+require $root . '/vendor/codeigniter4/framework/system/Test/bootstrap.php';
 
 $method = $argv[1];
 $args   = array_slice($argv, 2);
@@ -105,6 +131,20 @@ $result = match ($method) {
         ]];
 
         return model(App\Models\Receiving::class)->save_value($lines, (int) $args[0], (int) $args[4], 'race', 'REF', 'Due', NEW_ENTRY, isset($args[5]) ? (int) $args[5] : null) > 0;
+    })($args),
+    'assignNumber' => (static function (array $args): bool {
+        $db = Database::connect();
+
+        try {
+            $db->transStart();
+            $number = (new DocumentNumbering($db))->assign(DocumentType::from((string) $args[0]), (string) $args[1], (int) $args[2]);
+            usleep((int) $args[3] * 1000);
+            $db->transComplete();
+
+            return $number !== null && $db->transStatus();
+        } catch (Throwable) {
+            return false;
+        }
     })($args),
     'deletePurchase' => model(App\Models\Receiving::class)->delete_value((int) $args[0], (int) $args[1]),
     'payPurchase' => model(App\Models\Receiving::class)->update((int) $args[0], ['payments' => [

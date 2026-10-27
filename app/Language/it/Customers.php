@@ -2,6 +2,7 @@
 
 return [
     'account_number'                => 'Codice Fiscale',
+    'account_number_automatic'      => '',
     'account_number_duplicate'      => 'Il numero dell\'account è già presente nel database.',
     'available_points'              => 'Punti Dispnibili',
     'available_points_value'        => '',
@@ -44,6 +45,7 @@ return [
     'none_selected'                 => 'Non hai selezionato nessun cliente da eliminare.',
     'one_or_multiple'               => 'cliente(i)',
     'quantity'                      => 'Quantità',
+    'rewards_package'               => 'Pacchetto di ricompensa',
     'stats_info'                    => 'Stats',
     'successful_adding'             => 'Hai aggiunto con Successo un cliente',
     'successful_deleted'            => 'Eliminazione con successo',
@@ -53,5 +55,4 @@ return [
     'taxable'                       => 'Tassabile',
     'total'                         => 'Spesa Totale',
     'update'                        => 'Aggiorna Cliente',
-    'rewards_package'               => 'Pacchetto di ricompensa',
 ];
