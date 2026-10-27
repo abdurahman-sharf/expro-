@@ -26,7 +26,7 @@
 - **مطابقة `S-25` (مرصودة):** ملف التثبيت `tests/Support/Parity/T-25.json` بثلاث حالات: `expense-200-with-15-percent-tax` **مطابقة تامة** (مدين `541` بـ200، مدين `215002` بـ30، دائن الخزينة 230)، و`expense-journal-owes-nobody` **مطابقة تامة** (لا طرف في أي سطر)، و`amount-entered-includes-the-tax` **يختلف**: في دفترة يُدخل المستخدم 200 وتُضاف الضريبة فيصير 230، وعندنا `amount` هو المدفوع شاملًا الضريبة و`tax_amount` جزؤه (القسم 3، الافتراض 1). ويقرؤه `ExpensePostingBuilderTest` فيبني القيد من الملف نفسه. (ما عدا هذه الحالة: **لا ادعاء مطابقة**، كله افتراض مدوَّن.)
 - **اختبارات جديدة (218 اختبارًا في 12 ملفًا، ملف لكل صنف):** `ExpensePostingBuilderTest` (18) و`ExpensePostingTest` (48: كل مسار حفظ وتعديل وحذف عبر نموذج المصروف الحقيقي، الفترة المقفلة، الفرع، نطاق السحب والإيداع، التراجع الكامل وتسجيل الفشل، التاريخي، المحاسبة المعطَّلة، توازن الميزان بعد كل تغيير) و`CashupPostingBuilderTest` (7) و`CashupPostingTest` (30) و`CashupExpectationTest` (13) و`DocumentJournalsTest` (24) و`ExpenseCategoryAccountsTest` (13) و`ExpensesControllerTest` (23) و`ExpensesCategoriesControllerTest` (9) و`tests/Models/ExpenseTest` (13) و`tests/Models/CashupTest` (12) و`ExpensesAccountingMigrationTest` (8).
 - **اختبارات أُضيفت إلى ملفات قائمة (22):** `CashupControllerTest` (12: الشاشة والنقد المتوقع والرفض بكلمات) و`AccountingSettingsTest` (3) و`AccountServiceTest` (2) و`JournalServiceTest` (2: قفل العكس اليدوي وعكس آلي لمصدر المستند) و`TreasuryServiceTest` (1: خزينة استُعملت في مصروف أو إقفال تُعدّ مستعمَلة) و`TrialBalanceTest` (1: **الميزان متوازن للشركة ولكل فرع بعد المصروفات**) و`AccountingJournalsControllerTest` (1: زر العكس مخفي لقيدي المصروف والإقفال).
-- **تعطيل الحراس:** <!-- MUT-SUMMARY-START -->**قيد القياس: قيس 209 من 235 حارسًا حتى الآن، كُشف منها 209** (الجدول في 2.1 يُملأ دفعةً دفعة).<!-- MUT-SUMMARY-END -->
+- **تعطيل الحراس:** <!-- MUT-SUMMARY-START -->**قيد القياس: قيس 218 من 235 حارسًا حتى الآن، كُشف منها 215** (الجدول في 2.1 يُملأ دفعةً دفعة).<!-- MUT-SUMMARY-END -->
 - **الجولة المنتظمة الأخيرة (الملفات الجديدة والمتغيرة وذات الصلة، كل ملف وحده على `ospos_test_b`):** @@RUNS@@ (المجموعة الكاملة يشغّلها المُدمِج، ولم أشغّلها).
 - **التنسيق:** شُغّل `php-cs-fixer` (إعداد `.php-cs-fixer.no-header.php`) على كل ملفات `app/` الجديدة (11 ملفًا: صفر تغيير) وعلى المكتبات والمتحكمات المعدَّلة، فاقتصر الإصلاح على محاذاة مفتاح الإعداد الجديد في `AccountingSettings` و`AccountingSetup`. أما ملفات `app/Controllers` و`app/Models` و`tabular_helper.php` القديمة التي لمستُ فيها **سطورًا قليلة** فلم أُعد تنسيقها كلها (تغيير يغطي الملف بأكمله ويصعّب على المُدمِج الدمج)، وكل سطر جديد فيها على المعيار. واختبارات الملفات الجديدة على PSR-12 (صفر مخالفة).
 
@@ -244,6 +244,15 @@
 | `H135` | the account of a category is offered only with accounting on (view) | مكشوف بعد تقوية الاختبار | 1 |
 | `H136` | the account of a category is locked for who may not change the routing (view) | مكشوف | 1 |
 | `H137` | the setting of the category account shows its state (view) | مكشوف بعد تقوية الاختبار | 1 |
+| `K01` | a branch sent with an expense is never written (plan unset branch_id) | غير مكشوف | 0 |
+| `K02` | a treasury sent with an expense is never written unchecked (plan unset treasury_id) | مكشوف | 1 |
+| `K03` | a branch sent with a cash-up is never written (plan unset branch_id) | مكشوف | 1 |
+| `K04` | a treasury sent with a cash-up is never written unchecked (plan unset treasury_id) | مكشوف | 1 |
+| `K05` | the books follow an expense only while accounting is on (follows: isEnabled) | غير مكشوف | 0 |
+| `K06` | the books follow a cash-up only while accounting is on (follows: isEnabled) | غير مكشوف | 0 |
+| `K07` | a stale refusal is cleared by the next expense save | مكشوف | 1 |
+| `K08` | a stale refusal is cleared by the next expense delete | مكشوف | 1 |
+| `K09` | a stale refusal is cleared by the next cash-up save | مكشوف | 1 |
 <!-- MUT-TABLE-END -->
 
 ## 3. ما افترضتُه (**لم يؤكّدها المالك بعد**)
