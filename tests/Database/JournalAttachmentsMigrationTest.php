@@ -136,12 +136,12 @@ class JournalAttachmentsMigrationTest extends CIUnitTestCase
         try {
             $migration->down();
 
-            $this->assertFalse($this->accountingDb()->tableExists('accounting_journal_attachments', false));
+            $this->assertFalse($this->accountingDb()->tableExists($this->accountingDb()->prefixTable('accounting_journal_attachments'), false));
         } finally {
             $migration->up();
         }
 
-        $this->assertTrue($this->accountingDb()->tableExists('accounting_journal_attachments', false));
+        $this->assertTrue($this->accountingDb()->tableExists($this->accountingDb()->prefixTable('accounting_journal_attachments'), false));
         $this->assertSame(0, $this->countRows('accounting_journal_attachments'));
     }
 }
