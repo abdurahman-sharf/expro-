@@ -647,6 +647,15 @@ class DocumentNumberingTest extends CIUnitTestCase
         }
     }
 
+    public function testMessage_ExplainsEveryNumberingRefusalInTheLanguageInUse(): void
+    {
+        foreach (AccountingError::cases() as $error) {
+            if (str_starts_with($error->value, 'numbering_')) {
+                $this->assertNotSame('Accounting.error_' . $error->value, AccountingMessage::of(new AccountingException($error, '', ['max' => 9, 'min' => 3])), $error->value);
+            }
+        }
+    }
+
     public function testMessage_NamesTheLowestNextNumber(): void
     {
         try {
