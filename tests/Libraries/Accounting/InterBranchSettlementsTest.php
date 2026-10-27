@@ -561,6 +561,15 @@ class InterBranchSettlementsTest extends CIUnitTestCase
         }
     }
 
+    public function testSettle_TrimsTheNoteAndKeepsTheFirst500Characters(): void
+    {
+        $this->send(true, '100.00');
+
+        $id = $this->settle($this->other, $this->main, '2026-10-31', null, '  ' . str_repeat('x', 600) . '  ');
+
+        $this->assertSame(str_repeat('x', 500), $this->settlements->find($id)->note);
+    }
+
     public function testSettle_WritesOneAuditEntryForEachBranch(): void
     {
         $this->send(true, '100.00');

@@ -417,6 +417,29 @@ class AccountingInterBranchControllerTest extends CIUnitTestCase
         $this->assertSame(0, $this->getJsonOf('/accounting_treasuries/inter_branch/settlements/search')['total']);
     }
 
+    public function testGetSettlementsSearch_PagesTheListAndKeepsThePageBetweenOneAndFiveHundred(): void
+    {
+        $rows = [];
+
+        for ($number = 0; $number < 501; $number++) {
+            $rows[] = ['company_id' => 1, 'branch_id' => 1, 'counterpart_branch_id' => $this->branch, 'kind' => 'netting', 'settle_date' => '2026-10-31'];
+        }
+
+        $this->accountingDb()->table('interbranch_settlements')->insertBatch($rows);
+        $this->settler();
+
+        try {
+            $this->assertCount(25, $this->getJsonOf('/accounting_treasuries/inter_branch/settlements/search')['rows']);
+            $this->assertCount(500, $this->getJsonOf('/accounting_treasuries/inter_branch/settlements/search?limit=100000')['rows']);
+            $this->assertCount(1, $this->getJsonOf('/accounting_treasuries/inter_branch/settlements/search?limit=-5')['rows']);
+            $this->assertCount(1, $this->getJsonOf('/accounting_treasuries/inter_branch/settlements/search?limit=1&offset=-5')['rows']);
+            $this->assertCount(1, $this->getJsonOf('/accounting_treasuries/inter_branch/settlements/search?limit=10&offset=500')['rows']);
+            $this->assertSame(501, $this->getJsonOf('/accounting_treasuries/inter_branch/settlements/search?limit=1')['total']);
+        } finally {
+            $this->accountingDb()->table('interbranch_settlements')->truncate();
+        }
+    }
+
     public function testGetSettlementsRow_ShowsTheCancelIconOnlyToWhoMaySettleAndWorksInBothBranches(): void
     {
         $this->send(true, '100.00');
