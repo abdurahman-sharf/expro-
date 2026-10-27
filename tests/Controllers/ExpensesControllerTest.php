@@ -664,4 +664,96 @@ class ExpensesControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('ledger_state', $index);
         $this->assertSame(['EXP-00001', lang('Expenses.ledger_posted')], [$row['expense_number'], $row['ledger_state']]);
     }
+
+    public function testGetView_OffersTheBranchTheExpenseIsChargedToOnlyToWhoWorksInMoreThanOne(): void
+    {
+        $second = $this->createBranch('B2');
+
+        $this->treasury('Home drawer', 1);
+        $this->treasury('Far drawer', $second);
+
+        $this->actAsWith(['expenses', 'expenses_categories']);
+
+        $response = $this->get('/expenses/view/-1');
+
+        $this->assertStringContainsString('name="expense_branch_id"', $response->getBody());
+        $this->assertStringContainsString('<option value="' . $second . '">B2 - Second branch</option>', $response->getBody());
+        $this->assertStringContainsString(lang('Expenses.branch_of_treasury'), $response->getBody());
+
+        $this->actAsWith(['expenses', 'expenses_categories'], [1]);
+
+        $this->assertStringNotContainsString('name="expense_branch_id"', $this->get('/expenses/view/-1')->getBody());
+    }
+
+    public function testGetView_OffersNoBranchWhileAccountingIsOffOrThereIsNoTreasuryToChooseFrom(): void
+    {
+        $this->createBranch('B2');
+        $this->actAsWith();
+
+        $this->assertStringNotContainsString('name="expense_branch_id"', $this->get('/expenses/view/-1')->getBody(), 'No treasury to choose from');
+
+        $this->treasury('Home drawer', 1);
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $this->assertStringNotContainsString('name="expense_branch_id"', $this->get('/expenses/view/-1')->getBody());
+    }
+
+    public function testGetView_PreselectsTheBranchOfAnExpenseThatIsPaidAcrossBranches(): void
+    {
+        $second = $this->createBranch('B2');
+
+        $this->actAsWith();
+
+        $expenseId = (int) $this->save($this->form(['treasury_id' => (string) $this->treasury('Far drawer', $second), 'expense_branch_id' => '1']))['id'];
+
+        $this->assertMatchesRegularExpression('/<option value="1"\s+selected>HQ - [^<]+<\/option>/', $this->get('/expenses/view/' . $expenseId)->getBody());
+
+        $same = (int) $this->save($this->form(['treasury_id' => (string) $this->treasury('Other far drawer', $second)]))['id'];
+
+        $this->assertMatchesRegularExpression('/<option value="0"\s+selected>' . preg_quote(lang('Expenses.branch_of_treasury'), '/') . '<\/option>/', $this->get('/expenses/view/' . $same)->getBody());
+    }
+
+    public function testPostSave_ChargesTheExpenseToTheBranchTheFormNamesAndPaysItFromTheTreasuryOfAnother(): void
+    {
+        $second   = $this->createBranch('B2');
+        $treasury = $this->treasury('Far drawer', $second);
+
+        $this->actAsWith();
+
+        $result = $this->save($this->form(['treasury_id' => (string) $treasury, 'expense_branch_id' => '1']));
+        $row    = $this->savedRow((int) $result['id']);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame([1, $treasury, $second], [(int) $row->branch_id, (int) $row->treasury_id, (int) $row->treasury_branch_id]);
+        $this->assertSame('-230.00', $this->assertTreasuryTiesToItsAccount($treasury));
+    }
+
+    public function testPostSave_SaysInWordsThatTheTreasuryOfAnotherBranchIsNotOneTheEmployeeMayPayFrom(): void
+    {
+        $second   = $this->createBranch('B2');
+        $treasury = $this->treasury('Far drawer', $second);
+
+        $this->actAsWith(['expenses', 'expenses_categories'], [1]);
+
+        $result = $this->save($this->form(['treasury_id' => (string) $treasury, 'expense_branch_id' => '1']));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_treasury_not_found'), $result['message']);
+        $this->assertSame(0, $this->countRows('expenses'));
+    }
+
+    public function testPostSave_IgnoresTheBranchTheFormNamesWhileAccountingIsOff(): void
+    {
+        $second   = $this->createBranch('B2');
+        $treasury = $this->treasury('Far drawer', $second);
+
+        $this->actAsWith();
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $result = $this->save($this->form(['treasury_id' => (string) $treasury, 'expense_branch_id' => '1']));
+        $row    = $this->savedRow((int) $result['id']);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame([null, null, null], [$row->branch_id, $row->treasury_id, $row->treasury_branch_id]);
+    }
 }

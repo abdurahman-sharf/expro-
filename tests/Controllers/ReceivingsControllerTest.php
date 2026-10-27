@@ -1366,6 +1366,40 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $this->assertSame('500.00', $this->owed());
     }
 
+    public function testGetEdit_OffersTheTreasuriesOfTheOtherBranchesToABuyerWhoWorksInBothWithTheirCode(): void
+    {
+        $purchase = $this->purchaseOf('500.00');
+        $this->payPurchase($purchase, '100.00', 'Cash');
+        $this->treasuryOfBranch('Second drawer');
+        $branch = $this->anotherBranch();
+        $far    = $this->treasuryOfBranch('Far drawer', $branch);
+
+        $this->loginAs($this->buyer([1, $branch]));
+
+        $this->assertMatchesRegularExpression('/<option value="' . $far . '">Far drawer \([^)]+\)<\/option>/', $this->get('/receivings/edit/' . $purchase)->getBody());
+
+        $this->loginAs($this->buyer([1]));
+
+        $this->assertStringNotContainsString('Far drawer', $this->get('/receivings/edit/' . $purchase)->getBody());
+    }
+
+    public function testPostSave_PaysTheSupplierOutOfATreasuryOfAnotherBranchForABuyerWhoWorksInBoth(): void
+    {
+        $purchase = $this->purchaseOf('500.00');
+        $branch   = $this->anotherBranch();
+        $far      = $this->treasuryOfBranch('Far drawer', $branch);
+        $this->loginAs($this->buyer([1, $branch]));
+
+        $result = $this->jsonOf($this->post('/receivings/save/' . $purchase, $this->savedWith($purchase, $this->paymentFields([], 'Cash', '150.00') + ['treasury_id_new' => (string) $far], 'with a payment')));
+
+        $payment = $this->accountingDb()->table('receivings_payments')->where('receiving_id', $purchase)->get()->getRow();
+
+        $this->assertTrue($result['success']);
+        $this->assertSame([$far, $branch], [(int) $payment->treasury_id, (int) $payment->treasury_branch_id]);
+        $this->assertSame('-150.0000', (new TreasuryService())->position($far)->balance);
+        $this->assertSame('350.00', $this->owed());
+    }
+
     public function testPostDebitNote_PreparesTheRegisterForAReturnOfWhatIsLeftToTakeBack(): void
     {
         $item     = $this->item('0.00');

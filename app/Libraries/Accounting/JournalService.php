@@ -23,7 +23,6 @@ final class JournalService
         ReceivingPostingBuilder::SOURCE_TRANSFER_RECEIPT,
         InterBranchSettlements::SOURCE,
         InterBranchSettlements::SOURCE_SECOND,
-        ...CrossBranchPayments::COMPANION_SOURCES,
     ];
     public const DOCUMENT_SOURCES = [
         ExpensePostingBuilder::SOURCE,

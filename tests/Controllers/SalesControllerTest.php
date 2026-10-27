@@ -1673,6 +1673,61 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertSame('0.0000', (new TreasuryService())->position($elsewhere)->balance);
     }
 
+    /**
+     * A supervisor who works in the first branch and in the one given.
+     */
+    protected function supervisorInBoth(int $branchId): int
+    {
+        $personId = $this->createBranchLimitedSupervisor(1);
+
+        $this->accountingDb()->table('employee_branches')->insert(['person_id' => $personId, 'branch_id' => $branchId, 'is_default' => 0]);
+
+        return $personId;
+    }
+
+    public function testGetEdit_OffersTheTreasuriesOfTheOtherBranchesToAnEmployeeWhoWorksInBothWithTheirCode(): void
+    {
+        $invoice = $this->postedInvoice();
+        $branch  = $this->createSecondBranch();
+        $this->treasuryOfBranch('Open drawer');
+        $far = $this->treasuryOfBranch('Far drawer', $branch);
+
+        $this->loginAs($this->supervisorInBoth($branch));
+
+        $this->assertMatchesRegularExpression('/<option value="' . $far . '">Far drawer \([^)]+\)<\/option>/', $this->get('/sales/edit/' . $invoice['saleId'])->getBody());
+
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $this->assertStringNotContainsString('Far drawer', $this->get('/sales/edit/' . $invoice['saleId'])->getBody());
+    }
+
+    public function testPostSave_PutsTheNewPaymentIntoATreasuryOfAnotherBranchForAnEmployeeWhoWorksInBoth(): void
+    {
+        $invoice = $this->postedInvoice();
+        $branch  = $this->createSecondBranch();
+        $far     = $this->treasuryOfBranch('Far drawer', $branch);
+
+        $this->loginAs($this->supervisorInBoth($branch));
+
+        $result = $this->jsonOf($this->post('/sales/save/' . $invoice['saleId'], [
+            'date'               => date($this->config()['dateformat'] . ' ' . $this->config()['timeformat']),
+            'customer_id'        => (string) $this->customerId,
+            'employee_id'        => (string) $this->employeeId,
+            'comment'            => 'paid',
+            'number_of_payments' => '0',
+            'payment_type_new'   => 'Cash',
+            'payment_amount_new' => '100.00',
+            'treasury_id_new'    => (string) $far,
+        ]));
+
+        $payment = $this->accountingDb()->table('sales_payments')->where('sale_id', $invoice['saleId'])->get()->getRow();
+
+        $this->assertTrue($result['success']);
+        $this->assertSame([$far, $branch], [(int) $payment->treasury_id, (int) $payment->treasury_branch_id]);
+        $this->assertSame('100.0000', (new TreasuryService())->position($far)->balance);
+        $this->assertSame(2, $this->accountingDb()->table('accounting_journals')->whereIn('source_type', ['sale_payment', 'sale_payment_branch'])->where('source_id', (int) $payment->payment_id)->countAllResults());
+    }
+
     public function testPostSave_RefusesToChangeTheCustomerOfAPostedSaleAndSaysWhy(): void
     {
         $invoice      = $this->postedInvoice();
