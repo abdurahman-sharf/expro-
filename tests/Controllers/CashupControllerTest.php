@@ -491,4 +491,53 @@ class CashupControllerTest extends CIUnitTestCase
             $this->removeTheReportItems();
         }
     }
+
+    public function testGetView_ShowsTheExpectedCashTheDifferenceAndTheNoteOnceEach(): void
+    {
+        $this->accountingCashier();
+        $this->sellFor('400.00', 'Cash', date('Y-m-d') . ' 09:00:00');
+
+        $closed = $this->saveClosing($this->closingForm('485.50', ['open_date' => date('Y-m-d') . ' 08:00:00', 'close_date' => date('Y-m-d') . ' 18:00:00']));
+        $body   = $this->get('/cashups/view/' . $closed['id'])->getBody();
+
+        $this->assertSame(1, substr_count($body, lang('Cashups.expected_cash')));
+        $this->assertSame(1, substr_count($body, lang('Cashups.difference')));
+        $this->assertSame(1, substr_count($body, lang('Cashups.difference_note')));
+    }
+
+    public function testGetSearch_SortsByWhetherTheCashUpIsInTheBooks(): void
+    {
+        $this->accountingCashier();
+
+        $followed = (int) $this->saveClosing($this->closingForm('0'))['id'];
+
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $legacy = (int) $this->saveClosing($this->closingForm('0'))['id'];
+
+        $this->setConfigValue('accounting_enabled', '1');
+
+        $query = '?search=&start_date=2026-10-01&end_date=2026-10-31&limit=25&offset=0&sort=ledger_state';
+        $up    = json_decode($this->get('/cashups/search' . $query . '&order=asc')->getJSON(), true)['rows'];
+        $down  = json_decode($this->get('/cashups/search' . $query . '&order=desc')->getJSON(), true)['rows'];
+
+        $this->assertGreaterThan($followed, $legacy);
+        $this->assertSame([(string) $legacy, (string) $followed], array_column($up, 'cashup_id'));
+        $this->assertSame([(string) $followed, (string) $legacy], array_column($down, 'cashup_id'));
+    }
+
+    public function testGetSearch_IgnoresASortByTheLedgerColumnWhileAccountingIsOff(): void
+    {
+        $this->accountingCashier();
+
+        $first  = (int) $this->saveClosing($this->closingForm('0'))['id'];
+        $second = (int) $this->saveClosing($this->closingForm('0'))['id'];
+
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $response = $this->get('/cashups/search?search=&start_date=2026-10-01&end_date=2026-10-31&limit=25&offset=0&sort=ledger_state&order=desc');
+
+        $response->assertStatus(200);
+        $this->assertSame([(string) $second, (string) $first], array_column(json_decode($response->getJSON(), true)['rows'], 'cashup_id'));
+    }
 }

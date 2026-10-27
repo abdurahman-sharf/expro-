@@ -596,6 +596,8 @@ class AccountingSettingsTest extends CIUnitTestCase
         $db         = $this->accountingDb();
         $employeeId = $this->employeeWithGrants([]);
 
+        $db->table('expenses')->truncate();
+        $db->table('cash_up')->truncate();
         $db->table('expense_categories')->insert(['category_name' => 'Notice ' . uniqid(), 'category_description' => '']);
         $categoryId = (int) $db->insertID();
 

@@ -191,9 +191,10 @@ class AccountingSetupControllerTest extends CIUnitTestCase
         $this->manager();
 
         $this->setConfigValue('accounting_expense_account_required', '1');
-        $this->assertStringContainsString('value="1" checked', $this->get('/accounting_settings')->getBody());
+        $this->assertStringContainsString('id="expense_account_required" value="1" checked', $this->get('/accounting_settings')->getBody());
 
         $this->setConfigValue('accounting_expense_account_required', '0');
+        $this->assertStringContainsString('id="expense_account_required" value="1"', $this->get('/accounting_settings')->getBody());
         $this->assertStringNotContainsString('id="expense_account_required" value="1" checked', $this->get('/accounting_settings')->getBody());
     }
 

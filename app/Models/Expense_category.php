@@ -120,26 +120,26 @@ class Expense_category extends Model
      * accounting on, only by an employee who may change the routing, and together with the rest of
      * the category: the account being refused undoes the save, and accountingFailure() says why.
      */
-    public function save_value(array &$expense_category_data, int $expense_category_id = NEW_ENTRY, ?int $employeeId = null): bool
+    public function save_value(array &$expenseCategoryData, int $expenseCategoryId = NEW_ENTRY, ?int $employeeId = null): bool
     {
         $this->accountingFailure = null;
 
-        $asked = array_key_exists('account_id', $expense_category_data);
-        $value = $expense_category_data['account_id'] ?? null;
+        $asked = array_key_exists('account_id', $expenseCategoryData);
+        $value = $expenseCategoryData['account_id'] ?? null;
 
-        unset($expense_category_data['account_id']);
+        unset($expenseCategoryData['account_id']);
 
         if (! $asked || ! (new AccountingSettings($this->db))->isEnabled()) {
-            return $this->saveRow($expense_category_data, $expense_category_id);
+            return $this->saveRow($expenseCategoryData, $expenseCategoryId);
         }
 
         $this->db->transStart();
 
         try {
-            $success = $this->saveRow($expense_category_data, $expense_category_id);
+            $success = $this->saveRow($expenseCategoryData, $expenseCategoryId);
 
             if ($success) {
-                (new ExpenseCategoryAccounts($this->db))->assign((int) $expense_category_data['expense_category_id'], $value, $employeeId);
+                (new ExpenseCategoryAccounts($this->db))->assign((int) $expenseCategoryData['expense_category_id'], $value, $employeeId);
             }
         } catch (AccountingException|BranchException $failure) {
             $this->db->transRollback();
@@ -157,13 +157,13 @@ class Expense_category extends Model
         return $success && $this->db->transStatus();
     }
 
-    private function saveRow(array &$expense_category_data, int $expense_category_id): bool
+    private function saveRow(array &$expenseCategoryData, int $expenseCategoryId): bool
     {
         $builder = $this->db->table('expense_categories');
 
-        if ($expense_category_id == NEW_ENTRY || !$this->exists($expense_category_id)) {
-            if ($builder->insert($expense_category_data)) {
-                $expense_category_data['expense_category_id'] = $this->db->insertID();
+        if ($expenseCategoryId == NEW_ENTRY || !$this->exists($expenseCategoryId)) {
+            if ($builder->insert($expenseCategoryData)) {
+                $expenseCategoryData['expense_category_id'] = $this->db->insertID();
 
                 return true;
             }
@@ -171,10 +171,10 @@ class Expense_category extends Model
             return false;
         }
 
-        $builder->where('expense_category_id', $expense_category_id);
-        $success = $builder->update($expense_category_data);
+        $builder->where('expense_category_id', $expenseCategoryId);
+        $success = $builder->update($expenseCategoryData);
 
-        $expense_category_data['expense_category_id'] = $expense_category_id;
+        $expenseCategoryData['expense_category_id'] = $expenseCategoryId;
 
         return $success;
     }

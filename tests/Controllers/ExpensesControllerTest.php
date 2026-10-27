@@ -4,6 +4,7 @@ namespace Tests\Controllers;
 
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\TreasuryScopes;
+use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Models\Expense;
@@ -663,5 +664,92 @@ class ExpensesControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('expense_number', $index);
         $this->assertStringContainsString('ledger_state', $index);
         $this->assertSame(['EXP-00001', lang('Expenses.ledger_posted')], [$row['expense_number'], $row['ledger_state']]);
+    }
+
+    private function treasurySelect(string $body): string
+    {
+        $this->assertSame(1, preg_match('#<select name="treasury_id".*?</select>#s', $body, $matches), 'The form has no treasury field.');
+
+        return $matches[0];
+    }
+
+    public function testGetView_EscapesTheNamesOfTheTreasuriesOffered(): void
+    {
+        $this->actAsWith();
+
+        $this->treasury('<b>Bold</b> drawer');
+
+        $used    = $this->treasury('<i>Used</i> drawer');
+        $expense = (int) $this->save($this->form(['treasury_id' => (string) $used]))['id'];
+
+        $this->treasury('Another drawer');
+        $this->restrictTreasury($used, TreasuryScopes::WITHDRAW, [$this->clerkId]);
+
+        $select = $this->treasurySelect($this->get('/expenses/view/' . $expense)->getBody());
+
+        $this->assertStringContainsString('&lt;b&gt;Bold&lt;/b&gt; drawer', $select);
+        $this->assertStringContainsString('&lt;i&gt;Used&lt;/i&gt; drawer', $select);
+        $this->assertStringNotContainsString('<b>Bold</b>', $select);
+        $this->assertStringNotContainsString('<i>Used</i>', $select);
+    }
+
+    public function testGetView_SelectsTheTreasuryTheExpenseUsesAndTheDefaultForOneThatHasNone(): void
+    {
+        $this->actAsWith();
+
+        $treasury = $this->treasury('Used drawer');
+        $paid     = (int) $this->save($this->form(['treasury_id' => (string) $treasury]))['id'];
+        $unpaid   = (int) $this->save($this->form())['id'];
+
+        $this->assertStringContainsString('<option value="' . $treasury . '" selected>', $this->treasurySelect($this->get('/expenses/view/' . $paid)->getBody()));
+        $this->assertStringNotContainsString('<option value="0" selected>', $this->treasurySelect($this->get('/expenses/view/' . $paid)->getBody()));
+        $this->assertStringContainsString('<option value="0" selected>', $this->treasurySelect($this->get('/expenses/view/' . $unpaid)->getBody()));
+    }
+
+    public function testPostSave_KeepsAnExpenseThatHasNoTreasuryWithoutOneWhenTheFormPostsTheDefault(): void
+    {
+        $category = $this->category();
+        $created  = $this->saveExpense($this->expenseData('100.00', '0', 'Cash', $category));
+        $editor   = $this->actAsWith();
+        $drawer   = $this->treasury('Editor drawer');
+
+        (new TreasuryService())->setDefaultFor($editor, $drawer);
+
+        $this->assertStringContainsString('<option value="0" selected>', $this->treasurySelect($this->get('/expenses/view/' . $created)->getBody()));
+
+        $result = $this->save($this->form(['amount' => '100.00', 'tax_amount' => '0', 'expense_category_id' => (string) $category, 'treasury_id' => '0', 'description' => 'Only the description changed']), $created);
+
+        $this->assertTrue($result['success']);
+        $this->assertNull($this->savedRow($created)->treasury_id);
+        $this->assertSame(1, count($this->journalsOfSource('expense', $created)));
+        $this->assertSame('0.00', $this->assertTreasuryTiesToItsAccount($drawer));
+    }
+
+    public function testGetView_OffersNoTreasuryForAnExpenseTheBooksNeverFollowed(): void
+    {
+        $this->actAsWith();
+        $this->treasury('Open drawer');
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $legacy = (int) $this->save($this->form())['id'];
+
+        $this->setConfigValue('accounting_enabled', '1');
+
+        $followed = (int) $this->save($this->form())['id'];
+
+        $this->assertStringNotContainsString('id="treasury_id"', $this->get('/expenses/view/' . $legacy)->getBody());
+        $this->assertStringContainsString('id="treasury_id"', $this->get('/expenses/view/' . $followed)->getBody());
+        $this->assertStringContainsString('id="treasury_id"', $this->get('/expenses/view/-1')->getBody());
+    }
+
+    public function testGetView_ListsTheWaysOfPaymentThatUseNoTreasuryForTheForm(): void
+    {
+        $this->actAsWith();
+        $this->treasury('Open drawer');
+
+        $body = $this->get('/expenses/view/-1')->getBody();
+
+        $this->assertStringContainsString('const noTreasuryPayments = ' . json_encode([lang('Sales.due')], JSON_UNESCAPED_UNICODE) . ';', $body);
+        $this->assertStringContainsString('id="treasury_field"', $body);
     }
 }

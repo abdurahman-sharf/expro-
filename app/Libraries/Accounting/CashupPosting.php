@@ -165,20 +165,27 @@ final class CashupPosting
     }
 
     /**
-     * Takes back the journal of a cash-up that is being deleted. A cash-up that is not in the books
-     * has none, and nothing happens.
+     * Takes back the journal of a cash-up that is being deleted, after checking that the employee
+     * works in its branch, whether or not it has a journal. A cash-up the books never followed has
+     * no branch and no journal, and nothing happens.
      *
      * @throws AccountingException|BranchException|PostingException
      */
     public function cancel(int $cashupId, ?int $actorId): JournalChange
     {
+        $cashup = $this->document($cashupId);
+
+        if ($cashup === null) {
+            return JournalChange::None;
+        }
+
+        $this->branches->requireBranch($cashup->branchId, $actorId);
+
         $active = $this->journals->active(CashupPostingBuilder::SOURCE, $cashupId);
 
         if ($active === null) {
             return JournalChange::None;
         }
-
-        $this->branches->requireBranch((int) $active->branch_id, $actorId);
 
         $change = $this->journals->sync(CashupPostingBuilder::SOURCE, $cashupId, null, $actorId, 'Cash-up #' . $cashupId . ' deleted');
 

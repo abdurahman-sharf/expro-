@@ -124,7 +124,7 @@
         </div>
 
         <?php if (($treasury_options ?? []) !== []): ?>
-            <div class="field">
+            <div class="field" id="treasury_field">
                 <?= form_label(lang('Expenses.treasury'), 'treasury_id', ['class' => 'form-label']) ?>
                 <div class="field-control">
                     <?= form_dropdown('treasury_id', $treasury_options, (string) ($expenses_info->treasury_id ?? 0), ['class' => 'form-select', 'id' => 'treasury_id']) ?>
@@ -212,6 +212,14 @@
             $('#supplier_name').val('<?= esc($expenses_info->supplier_name, 'js') ?>').attr('readonly', 'readonly');
             $('#remove_supplier_button').removeClass('d-none');
         <?php } ?>
+
+        <?php if (($treasury_options ?? []) !== []): ?>
+            const noTreasuryPayments = <?= json_encode($no_treasury_payments ?? [], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+
+            $('#payment_type').on('change', function() {
+                $('#treasury_field').toggleClass('d-none', noTreasuryPayments.includes($(this).val()));
+            }).trigger('change');
+        <?php endif; ?>
 
         $('#expenses_edit_form').validate($.extend({
             submitHandler: function(form) {

@@ -235,20 +235,6 @@
             </div>
         </div>
 
-        <?php if (! empty($accounting_on) && isset($expected_cash)): ?>
-            <div class="field">
-                <span class="form-label"><?= lang('Cashups.expected_cash') ?></span>
-                <div class="field-control"><span class="form-control-plaintext"><bdi dir="ltr"><?= esc(to_currency($expected_cash)) ?></bdi></span></div>
-            </div>
-            <?php if (isset($cash_ups_info->cash_difference)): ?>
-                <div class="field">
-                    <span class="form-label"><?= lang('Cashups.difference') ?></span>
-                    <div class="field-control"><span class="form-control-plaintext"><bdi dir="ltr"><?= esc(to_currency($cash_ups_info->cash_difference)) ?></bdi></span></div>
-                </div>
-            <?php endif; ?>
-            <p class="form-text span-all"><span class="bi bi-info-circle" aria-hidden="true"></span> <?= lang('Cashups.difference_note') ?></p>
-        <?php endif; ?>
-
         <div class="field span-all">
             <?= form_label(lang('Cashups.description'), 'description', ['class' => 'form-label']) ?>
             <div class="field-control">
