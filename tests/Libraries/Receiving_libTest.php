@@ -3,6 +3,7 @@
 namespace Tests\Libraries;
 
 use App\Libraries\Accounting\InvoiceDiscount;
+use App\Libraries\Accounting\InvoiceDiscountProblem;
 use App\Libraries\Receiving_lib;
 use App\Models\Attribute;
 use App\Models\Item;
@@ -157,6 +158,64 @@ class Receiving_libTest extends CIUnitTestCase
         $this->receivingLib->clear_all();
 
         $this->assertTrue($this->receivingLib->getInvoiceDiscount()->isNone());
+    }
+
+    public function testInvoiceDiscountProblem_AcceptsADiscountTheLinesCarry(): void
+    {
+        session()->set('recv_cart', self::twoLines());
+
+        foreach ([InvoiceDiscount::of(PERCENT, '100'), InvoiceDiscount::of(FIXED, '1000')] as $discount) {
+            $this->receivingLib->setInvoiceDiscount($discount);
+
+            $this->assertNull($this->receivingLib->invoiceDiscountProblem());
+        }
+    }
+
+    public function testInvoiceDiscountProblem_RejectsAnAmountAboveWhatTheLinesCameToAfterOneWasLowered(): void
+    {
+        $items = self::twoLines();
+
+        session()->set('recv_cart', $items);
+        $this->receivingLib->setInvoiceDiscount(InvoiceDiscount::of(FIXED, '1000'));
+
+        $items[1]['quantity'] = 5;
+
+        session()->set('recv_cart', $items);
+
+        $this->assertSame(InvoiceDiscountProblem::MoreThanTheLines, $this->receivingLib->invoiceDiscountProblem());
+    }
+
+    public function testInvoiceDiscountProblem_RejectsALineOfGoodsGoingOut(): void
+    {
+        $items = self::twoLines();
+
+        $items[2]['quantity'] = -5;
+
+        session()->set('recv_cart', $items);
+        $this->receivingLib->setInvoiceDiscount(InvoiceDiscount::of(PERCENT, '10'));
+
+        $this->assertSame(InvoiceDiscountProblem::NotGoodsIn, $this->receivingLib->invoiceDiscountProblem());
+    }
+
+    public function testInvoiceDiscountProblem_AcceptsARegisterWithoutADiscountWithoutLinesOrNotReceiving(): void
+    {
+        $items = self::twoLines();
+
+        $items[2]['quantity'] = -5;
+
+        session()->set('recv_cart', $items);
+
+        $this->assertNull($this->receivingLib->invoiceDiscountProblem(), 'No discount');
+
+        $this->receivingLib->setInvoiceDiscount(InvoiceDiscount::of(FIXED, '5000'));
+        session()->set('recv_cart', []);
+
+        $this->assertNull($this->receivingLib->invoiceDiscountProblem(), 'No lines');
+
+        session()->set('recv_cart', $items);
+        session()->set('recv_mode', 'return');
+
+        $this->assertNull($this->receivingLib->invoiceDiscountProblem(), 'Not the receive mode');
     }
 
     public function testSetInvoiceDiscount_ClearsWhatWasKeptWhenTheDiscountIsNone(): void
