@@ -2,6 +2,7 @@
 
 namespace Tests\Libraries\Accounting;
 
+use App\Libraries\Accounting\AccountLedger;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
@@ -9,26 +10,39 @@ use App\Libraries\Accounting\AccountService;
 use App\Libraries\Accounting\CostCenterService;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalEntryType;
+use App\Libraries\Accounting\JournalAttachments;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\JournalService;
+use App\Libraries\Accounting\PeriodLocks;
 use App\Libraries\Accounting\PostingService;
+use App\Libraries\Accounting\ReportPeriod;
+use App\Libraries\Accounting\ReportScope;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Accounting\TreasuryTransfers;
+use App\Libraries\Accounting\TrialBalance;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
+use CodeIgniter\Database\Query;
+use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\ItemFixtureTrait;
+use Tests\Support\JournalAttachmentFixtureTrait;
+use Tests\Support\SaleAccountingFixtureTrait;
 
 class JournalServiceTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
+    use ItemFixtureTrait;
+    use JournalAttachmentFixtureTrait;
+    use SaleAccountingFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -49,12 +63,16 @@ class JournalServiceTest extends CIUnitTestCase
 
         $this->reinstallChart();
         $this->setConfigValue('accounting_base_currency', 'SAR');
+        $this->setConfigValue('accounting_line_description_required', '0');
         $this->service = new JournalService();
     }
 
     protected function tearDown(): void
     {
         $this->releaseOpenTransactions();
+        $this->removeAttachmentFiles();
+        $this->stopSelling();
+        $this->setConfigValue('accounting_line_description_required', '0');
 
         parent::tearDown();
     }
@@ -1185,5 +1203,940 @@ class JournalServiceTest extends CIUnitTestCase
 
         $this->assertSame('2026-04-02', $this->journal($reversalId)->journal_date);
         $this->assertSame('reversed', $this->journal($journalId)->status);
+    }
+
+    /**
+     * @param list<int>|null $branchIds
+     */
+    private function detailsEditor(?array $branchIds = null): int
+    {
+        return $this->employeeWithGrants(['accounting_journals', AccountingGuard::JOURNALS_ALL, AccountingGuard::JOURNALS_EDIT], $branchIds);
+    }
+
+    private function automaticJournal(?int $branchId = null, string $date = '2026-10-21', int $sourceId = 1, string $sourceType = 'sale'): int
+    {
+        return (new PostingService())->post(new JournalDraft(
+            date: $date,
+            lines: [
+                new JournalLineDraft($this->accountId('cash'), debit: '100.00', description: 'Cash received'),
+                new JournalLineDraft($this->accountId('sales_revenue'), credit: '100.00', description: 'Sales'),
+            ],
+            sourceType: $sourceType,
+            sourceId: $sourceId,
+            description: 'Invoice 7',
+            currencyCode: 'SAR',
+            branchId: $branchId,
+        ))->journalId;
+    }
+
+    /**
+     * @return list<int> The ids of the lines of a journal in line order.
+     */
+    private function lineIds(int $journalId): array
+    {
+        return array_map(static fn (object $line): int => (int) $line->line_id, $this->lines($journalId));
+    }
+
+    /**
+     * What the books hold of a journal apart from the text that may be edited and the time it was
+     * last touched.
+     *
+     * @return array{journal: array<string, mixed>, lines: list<array<string, mixed>>}
+     */
+    private function lockedState(int $journalId): array
+    {
+        $journal = (array) $this->journal($journalId);
+        unset($journal['description'], $journal['updated_at']);
+
+        $lines = array_map(static function (object $line): array {
+            $line = (array) $line;
+            unset($line['description'], $line['cost_center_id']);
+
+            return $line;
+        }, $this->lines($journalId));
+
+        return ['journal' => $journal, 'lines' => $lines];
+    }
+
+    private function trialBalance(): array
+    {
+        $report = (new TrialBalance())->build(ReportScope::resolve(null, null), ReportPeriod::of(null, '2026-12-31'));
+
+        return ['rows' => $report->rows, 'totals' => $report->totals];
+    }
+
+    private function detailsAudit(int $journalId): array
+    {
+        return $this->accountingDb()->table('accounting_audit_log')->where('entity_type', 'journal')->where('entity_id', $journalId)->where('action', 'details_edited')->orderBy('audit_id')->get()->getResult();
+    }
+
+    public function testUpdateDetails_ChangesTheTextOfAPostedAutomaticJournalAndNothingElse(): void
+    {
+        $journalId = $this->automaticJournal();
+        $center    = (new CostCenterService())->create(['code' => 'MAIN', 'name' => 'Main']);
+        $before    = $this->lockedState($journalId);
+        [$first, $second] = $this->lineIds($journalId);
+
+        $changed = $this->service->updateDetails($journalId, [
+            'description' => '  Invoice 7, corrected  ',
+            'lines'       => [
+                $first  => ['description' => 'Cash from the customer', 'cost_center_id' => (string) $center],
+                $second => ['description' => 'Revenue of the shop'],
+            ],
+        ], $this->detailsEditor());
+
+        $this->assertTrue($changed);
+        $this->assertSame('Invoice 7, corrected', $this->journal($journalId)->description);
+
+        $lines = $this->lines($journalId);
+
+        $this->assertSame('Cash from the customer', $lines[0]->description);
+        $this->assertSame((string) $center, (string) $lines[0]->cost_center_id);
+        $this->assertSame('Revenue of the shop', $lines[1]->description);
+        $this->assertNull($lines[1]->cost_center_id);
+        $this->assertSame($before, $this->lockedState($journalId));
+    }
+
+    public function testUpdateDetails_LeavesTheTrialBalanceAndTheAccountsExactlyAsTheyWere(): void
+    {
+        $journalId = $this->automaticJournal();
+        $this->automaticJournal(null, '2026-10-22', 2);
+        $center  = (new CostCenterService())->create(['code' => 'MAIN', 'name' => 'Main']);
+        $balance = $this->trialBalance();
+        $cash    = $this->balanceOf('cash');
+
+        $this->service->updateDetails($journalId, ['description' => 'Another text', 'lines' => [$this->lineIds($journalId)[0] => ['cost_center_id' => $center]]], $this->detailsEditor());
+
+        $this->assertEquals($balance, $this->trialBalance());
+        $this->assertSame($cash, $this->balanceOf('cash'));
+        $this->assertSame('200.0000', $this->journalTotals()['debit']);
+        $this->assertSame('200.0000', $this->journalTotals()['credit']);
+    }
+
+    private function balanceOf(string $systemKey): string
+    {
+        $row = $this->accountingDb()->table('accounting_journal_lines')->select('SUM(debit - credit) AS balance', false)->where('account_id', $this->accountId($systemKey))->get()->getRow();
+
+        return (string) $row->balance;
+    }
+
+    /**
+     * @return array{debit: string, credit: string}
+     */
+    private function journalTotals(): array
+    {
+        $row = $this->accountingDb()->table('accounting_journal_lines')->select('SUM(debit) AS debit, SUM(credit) AS credit', false)->get()->getRow();
+
+        return ['debit' => (string) $row->debit, 'credit' => (string) $row->credit];
+    }
+
+    public function testUpdateDetails_ShowsTheNewTextInTheAccountStatementAndMovesNoBalance(): void
+    {
+        $journalId = $this->automaticJournal();
+        [$first]   = $this->lineIds($journalId);
+        $cash      = $this->accountId('cash');
+        $ledger    = new AccountLedger();
+        $scope     = ReportScope::resolve(null, null);
+        $period    = ReportPeriod::of(null, '2026-12-31');
+        $before    = $ledger->build($scope, $cash, $period);
+
+        $this->service->updateDetails($journalId, ['description' => 'Edited header', 'lines' => [$first => ['description' => 'Edited cash line']]], $this->detailsEditor());
+
+        $after = $ledger->build($scope, $cash, $period);
+
+        $this->assertSame('Cash received', $before->rows[0]['description']);
+        $this->assertSame('Edited cash line', $after->rows[0]['description']);
+        $this->assertSame([$before->opening, $before->debit, $before->credit, $before->closing], [$after->opening, $after->debit, $after->credit, $after->closing]);
+        $this->assertSame($before->rows[0]['balance'], $after->rows[0]['balance']);
+        $this->assertSame($before->rows[0]['debit'], $after->rows[0]['debit']);
+    }
+
+    public function testUpdateDetails_WritesAnAuditEntryWithWhatTheTextWasAndWhatItBecame(): void
+    {
+        $journalId = $this->automaticJournal();
+        $employee  = $this->detailsEditor();
+        $center    = (new CostCenterService())->create(['code' => 'MAIN', 'name' => 'Main']);
+        [$first]   = $this->lineIds($journalId);
+
+        $this->service->updateDetails($journalId, ['description' => 'Corrected', 'lines' => [$first => ['description' => 'Cash in', 'cost_center_id' => $center]]], $employee);
+
+        $entries = $this->detailsAudit($journalId);
+
+        $this->assertCount(1, $entries);
+        $this->assertSame((string) $employee, (string) $entries[0]->employee_id);
+        $this->assertSame('user', $entries[0]->origin);
+        $this->assertSame('1', (string) $entries[0]->branch_id);
+        $this->assertSame([
+            'before' => ['description' => 'Invoice 7', 'lines' => [1 => ['description' => 'Cash received', 'cost_center_id' => null]]],
+            'after'  => ['description' => 'Corrected', 'lines' => [1 => ['description' => 'Cash in', 'cost_center_id' => $center]]],
+        ], json_decode($entries[0]->details, true));
+    }
+
+    public function testUpdateDetails_WritesOneEntryForEachEditSoTheHistoryKeepsEveryVersion(): void
+    {
+        $journalId = $this->automaticJournal();
+        $employee  = $this->detailsEditor();
+
+        $this->service->updateDetails($journalId, ['description' => 'Second text'], $employee);
+        $this->service->updateDetails($journalId, ['description' => 'Third text'], $employee);
+
+        $entries = $this->detailsAudit($journalId);
+
+        $this->assertCount(2, $entries);
+        $this->assertSame('Invoice 7', json_decode($entries[0]->details, true)['before']['description']);
+        $this->assertSame('Second text', json_decode($entries[0]->details, true)['after']['description']);
+        $this->assertSame('Second text', json_decode($entries[1]->details, true)['before']['description']);
+        $this->assertSame('Third text', json_decode($entries[1]->details, true)['after']['description']);
+    }
+
+    public function testUpdateDetails_WritesNothingWhenNothingChanged(): void
+    {
+        $journalId = $this->automaticJournal();
+        [$first]   = $this->lineIds($journalId);
+        $employee  = $this->detailsEditor();
+
+        $changed = $this->service->updateDetails($journalId, ['description' => 'Invoice 7', 'lines' => [$first => ['description' => 'Cash received', 'cost_center_id' => '']]], $employee);
+
+        $this->assertFalse($changed);
+        $this->assertSame([], $this->detailsAudit($journalId));
+        $this->assertFalse($this->service->updateDetails($journalId, [], $employee));
+        $this->assertFalse($this->service->updateDetails($journalId, ['lines' => []], $employee));
+    }
+
+    public function testUpdateDetails_RecordsOnlyWhatChangedInTheAuditEntry(): void
+    {
+        $journalId = $this->automaticJournal();
+        [$first, $second] = $this->lineIds($journalId);
+
+        $this->service->updateDetails($journalId, ['description' => 'Invoice 7', 'lines' => [$first => ['description' => 'Cash received'], $second => ['description' => 'Shop revenue']]], $this->detailsEditor());
+
+        $this->assertSame([
+            'before' => ['lines' => [2 => ['description' => 'Sales']]],
+            'after'  => ['lines' => [2 => ['description' => 'Shop revenue']]],
+        ], json_decode($this->detailsAudit($journalId)[0]->details, true));
+    }
+
+    public function testUpdateDetails_IgnoresEverythingThatIsNotText(): void
+    {
+        $journalId = $this->automaticJournal();
+        $before    = $this->lockedState($journalId);
+        [$first, $second] = $this->lineIds($journalId);
+        $other     = $this->accountId('cogs');
+
+        $this->service->updateDetails($journalId, [
+            'description'   => 'Edited',
+            'date'          => '2025-01-01',
+            'number'        => '999999',
+            'status'        => 'draft',
+            'source_type'   => 'manual',
+            'source_id'     => 99,
+            'branch_id'     => 7,
+            'total_debit'   => '1.00',
+            'currency_code' => 'USD',
+            'lines'         => [
+                $first  => ['description' => 'Edited line', 'account_id' => $other, 'debit' => '1.00', 'credit' => '0.00', 'party_type' => 'customer', 'party_id' => 5],
+                $second => ['account_id' => $other, 'debit' => '0.00', 'credit' => '5.00'],
+            ],
+        ], $this->detailsEditor());
+
+        $this->assertSame('Edited', $this->journal($journalId)->description);
+        $this->assertSame('Edited line', $this->lines($journalId)[0]->description);
+        $this->assertSame($before, $this->lockedState($journalId));
+    }
+
+    public function testUpdateDetails_LeavesOutValuesThatAreNotTextAndStillAppliesTheRest(): void
+    {
+        $journalId        = $this->automaticJournal();
+        [$first, $second] = $this->lineIds($journalId);
+        $center           = (new CostCenterService())->create(['code' => 'ON', 'name' => 'On']);
+
+        $changed = $this->service->updateDetails($journalId, [
+            'description' => ['not', 'text'],
+            'lines'       => [
+                $first  => ['description' => ['not', 'text'], 'cost_center_id' => [$center]],
+                $second => ['description' => 'Shop sales'],
+            ],
+        ], $this->detailsEditor());
+
+        $this->assertTrue($changed);
+        $this->assertSame('Invoice 7', $this->journal($journalId)->description);
+        $this->assertSame('Cash received', $this->lines($journalId)[0]->description);
+        $this->assertNull($this->lines($journalId)[0]->cost_center_id);
+        $this->assertSame('Shop sales', $this->lines($journalId)[1]->description);
+        $this->assertFalse($this->service->updateDetails($journalId, ['description' => ['x'], 'lines' => [$first => ['description' => ['x'], 'cost_center_id' => ['x']]]], $this->detailsEditor()));
+    }
+
+    public function testDetailsVersion_ChangesWithTheTextTheScreenEditsAndWithNothingElse(): void
+    {
+        $journalId        = $this->automaticJournal();
+        [$first, $second] = $this->lineIds($journalId);
+        $employee         = $this->detailsEditor();
+        $center           = (new CostCenterService())->create(['code' => 'ON', 'name' => 'On']);
+        $versionOf        = fn (): string => $this->service->detailsVersion($this->journal($journalId), $this->lines($journalId));
+        $seen             = [$versionOf()];
+
+        $this->assertSame($seen[0], $versionOf());
+        $this->assertSame($seen[0], $this->service->detailsVersion($this->service->find($journalId), $this->service->find($journalId)->lines));
+
+        foreach ([
+            ['description' => 'Edited'],
+            ['lines' => [$first => ['description' => 'Edited line']]],
+            ['lines' => [$second => ['cost_center_id' => $center]]],
+        ] as $edit) {
+            $this->service->updateDetails($journalId, $edit, $employee);
+            $seen[] = $versionOf();
+        }
+
+        $this->assertCount(4, array_unique($seen));
+
+        $this->accountingDb()->table('accounting_journals')->where('journal_id', $journalId)->update(['journal_date' => '2026-10-22', 'total_debit' => '5.00']);
+        $this->accountingDb()->table('accounting_journal_lines')->where('line_id', $first)->update(['debit' => '5.00']);
+
+        $this->assertSame($seen[3], $versionOf());
+
+        $this->accountingDb()->table('accounting_journals')->where('journal_id', $journalId)->update(['description' => '']);
+        $blank = $versionOf();
+        $this->accountingDb()->table('accounting_journals')->where('journal_id', $journalId)->update(['description' => null]);
+
+        $this->assertSame($blank, $versionOf());
+    }
+
+    public function testUpdateDetails_AcceptsAnEditMadeFromTheVersionThatIsStillCurrent(): void
+    {
+        $journalId = $this->automaticJournal();
+        $employee  = $this->detailsEditor();
+        $version   = $this->service->detailsVersion($this->journal($journalId), $this->lines($journalId));
+
+        $this->assertTrue($this->service->updateDetails($journalId, ['description' => 'Edited', 'version' => $version], $employee));
+        $this->assertSame('Edited', $this->journal($journalId)->description);
+        $this->assertFalse($this->service->updateDetails($journalId, ['description' => 'Edited', 'version' => $this->service->detailsVersion($this->journal($journalId), $this->lines($journalId))], $employee));
+    }
+
+    public function testUpdateDetails_RejectsAnEditMadeFromTextThatSomeoneElseChangedSinceAndKeepsTheirChange(): void
+    {
+        $journalId        = $this->automaticJournal();
+        [$first, $second] = $this->lineIds($journalId);
+        $employee         = $this->detailsEditor();
+        $center           = (new CostCenterService())->create(['code' => 'ON', 'name' => 'On']);
+        $opened           = $this->service->detailsVersion($this->journal($journalId), $this->lines($journalId));
+
+        $this->service->updateDetails($journalId, ['lines' => [$second => ['cost_center_id' => $center]]], $employee);
+
+        $this->assertFailsWith(AccountingError::DetailsChanged, fn () => $this->service->updateDetails($journalId, [
+            'description' => 'Edited',
+            'version'     => $opened,
+            'lines'       => [$first => ['description' => 'Edited line'], $second => ['cost_center_id' => '']],
+        ], $employee));
+
+        $this->assertSame('Invoice 7', $this->journal($journalId)->description);
+        $this->assertSame('Cash received', $this->lines($journalId)[0]->description);
+        $this->assertSame((string) $center, (string) $this->lines($journalId)[1]->cost_center_id);
+        $this->assertCount(1, $this->detailsAudit($journalId));
+    }
+
+    public function testUpdateDetails_RejectsAVersionThatIsNotAFingerprint(): void
+    {
+        $journalId = $this->automaticJournal();
+        $employee  = $this->detailsEditor();
+
+        foreach ([['x'], '', 'abc', null] as $version) {
+            $this->assertFailsWith(AccountingError::DetailsChanged, fn () => $this->service->updateDetails($journalId, ['description' => 'Edited', 'version' => $version], $employee));
+        }
+
+        $this->assertSame('Invoice 7', $this->journal($journalId)->description);
+        $this->assertSame([], $this->detailsAudit($journalId));
+    }
+
+    public function testUpdateDetails_ComparesTheVersionWithTheTextAsItIsOnceTheJournalIsLocked(): void
+    {
+        $journalId = $this->automaticJournal();
+        $employee  = $this->detailsEditor();
+        $opened    = $this->service->detailsVersion($this->journal($journalId), $this->lines($journalId));
+        $other     = $this->openSecondConnection(false);
+        $done      = false;
+        $listen    = function (Query $query) use (&$done, $other, $journalId): void {
+            if (! $done && str_contains($query->getQuery(), 'SELECT j.*')) {
+                $done = true;
+                $other->query('UPDATE ' . $other->prefixTable('accounting_journals') . " SET description = 'Changed meanwhile' WHERE journal_id = ?", [$journalId]);
+            }
+        };
+
+        Events::on('DBQuery', $listen);
+
+        try {
+            $this->assertFailsWith(AccountingError::DetailsChanged, fn () => $this->service->updateDetails($journalId, ['description' => 'Edited', 'version' => $opened], $employee));
+        } finally {
+            Events::removeListener('DBQuery', $listen);
+            $other->close();
+        }
+
+        $this->assertTrue($done);
+        $this->assertSame('Changed meanwhile', $this->journal($journalId)->description);
+        $this->assertSame([], $this->detailsAudit($journalId));
+    }
+
+    public function testUpdateDetails_ClearsATextSentBlankAndKeepsWhatIsNotMentioned(): void
+    {
+        $journalId = $this->automaticJournal();
+        [$first, $second] = $this->lineIds($journalId);
+
+        $this->service->updateDetails($journalId, ['description' => "   \n ", 'lines' => [$first => ['description' => '']]], $this->detailsEditor());
+
+        $this->assertNull($this->journal($journalId)->description);
+        $this->assertNull($this->lines($journalId)[0]->description);
+        $this->assertSame('Sales', $this->lines($journalId)[1]->description);
+        $this->assertSame(
+            ['before' => ['description' => 'Invoice 7', 'lines' => [1 => ['description' => 'Cash received']]], 'after' => ['description' => null, 'lines' => [1 => ['description' => null]]]],
+            json_decode($this->detailsAudit($journalId)[0]->details, true),
+        );
+    }
+
+    public function testUpdateDetails_AcceptsTextOfExactlyTheMaximumLengthAndRejectsOneMoreCharacter(): void
+    {
+        $journalId = $this->automaticJournal();
+        [$first]   = $this->lineIds($journalId);
+        $employee  = $this->detailsEditor();
+
+        $this->service->updateDetails($journalId, ['description' => str_repeat('ع', 2000), 'lines' => [$first => ['description' => str_repeat('ع', 255)]]], $employee);
+
+        $this->assertSame(str_repeat('ع', 2000), $this->journal($journalId)->description);
+        $this->assertSame(str_repeat('ع', 255), $this->lines($journalId)[0]->description);
+
+        $this->assertFailsWith(AccountingError::DescriptionTooLong, fn () => $this->service->updateDetails($journalId, ['description' => str_repeat('a', 2001)], $employee));
+        $this->assertFailsWith(AccountingError::DescriptionTooLong, fn () => $this->service->updateDetails($journalId, ['lines' => [$first => ['description' => str_repeat('a', 256)]]], $employee));
+
+        $this->assertSame(str_repeat('ع', 2000), $this->journal($journalId)->description);
+        $this->assertCount(1, $this->detailsAudit($journalId));
+    }
+
+    public function testUpdateDetails_RejectsAManualJournalAndTheReversalOfOneAndChangesNothing(): void
+    {
+        $manualId   = $this->service->postNew($this->journalInput());
+        $reversalId = $this->service->reverse($manualId, '2026-10-22', 'Mistake');
+        $other      = $this->service->postNew($this->journalInput('30.00', 'Second manual'));
+        $employee   = $this->detailsEditor();
+
+        $this->assertFailsWith(AccountingError::PostedJournalLocked, fn () => $this->service->updateDetails($other, ['description' => 'Edited'], $employee));
+        $this->assertFailsWith(AccountingError::PostedJournalLocked, fn () => $this->service->updateDetails($reversalId, ['description' => 'Edited'], $employee));
+
+        $this->assertSame('Second manual', $this->journal($other)->description);
+        $this->assertSame('Mistake', $this->journal($reversalId)->description);
+        $this->assertSame([], $this->detailsAudit($other));
+        $this->assertSame([], $this->detailsAudit($reversalId));
+    }
+
+    public function testUpdateDetails_RejectsADraftAndAReversedJournal(): void
+    {
+        $draftId  = $this->service->saveDraft($this->journalInput());
+        $reversed = $this->automaticJournal();
+        $this->service->reverse($reversed, '2026-10-22', 'Undone');
+        $employee = $this->detailsEditor();
+
+        $this->assertFailsWith(AccountingError::JournalNotPosted, fn () => $this->service->updateDetails($draftId, ['description' => 'Edited'], $employee));
+        $this->assertFailsWith(AccountingError::JournalNotPosted, fn () => $this->service->updateDetails($reversed, ['description' => 'Edited'], $employee));
+
+        $this->assertSame('Invoice 7', $this->journal($reversed)->description);
+        $this->assertSame('Test journal', $this->journal($draftId)->description);
+    }
+
+    public function testUpdateDetails_RejectsAnUnknownJournal(): void
+    {
+        $this->assertFailsWith(AccountingError::JournalNotFound, fn () => $this->service->updateDetails(999999, ['description' => 'Edited'], $this->detailsEditor()));
+    }
+
+    public function testUpdateDetails_AcceptsAnOpeningBalanceJournalBecauseTheBooksMadeIt(): void
+    {
+        $journalId = $this->automaticJournal(sourceType: 'opening');
+
+        $this->assertTrue($this->service->updateDetails($journalId, ['description' => 'Opening balances of the shop'], $this->detailsEditor()));
+        $this->assertSame('Opening balances of the shop', $this->journal($journalId)->description);
+    }
+
+    public function testUpdateDetails_AcceptsAJournalWrittenBeforeTheTextHadAnythingToSay(): void
+    {
+        $journalId = $this->automaticJournal();
+        $db        = $this->accountingDb();
+        $db->table('accounting_journals')->where('journal_id', $journalId)->update(['description' => null, 'origin' => 'system', 'posted_by' => null, 'created_by' => null]);
+        $db->table('accounting_journal_lines')->where('journal_id', $journalId)->update(['description' => null, 'cost_center_id' => null]);
+        [$first] = $this->lineIds($journalId);
+        $before  = $this->lockedState($journalId);
+
+        $this->service->updateDetails($journalId, ['description' => 'Described now', 'lines' => [$first => ['description' => 'Cash']]], $this->detailsEditor());
+
+        $this->assertSame('Described now', $this->journal($journalId)->description);
+        $this->assertSame('Cash', $this->lines($journalId)[0]->description);
+        $this->assertSame($before, $this->lockedState($journalId));
+        $this->assertSame(['before' => ['description' => null, 'lines' => [1 => ['description' => null]]], 'after' => ['description' => 'Described now', 'lines' => [1 => ['description' => 'Cash']]]], json_decode($this->detailsAudit($journalId)[0]->details, true));
+    }
+
+    public function testUpdateDetails_RequiresThePermissionToEditDetails(): void
+    {
+        $journalId = $this->automaticJournal();
+        $everythingElse = $this->employeeWithGrants(['accounting_journals', AccountingGuard::JOURNALS_ALL, AccountingGuard::JOURNALS_DRAFT, AccountingGuard::JOURNALS_POST, AccountingGuard::JOURNALS_REVERSE, AccountingGuard::JOURNALS_AUDIT]);
+
+        $this->assertFailsWith(AccountingError::PermissionDenied, fn () => $this->service->updateDetails($journalId, ['description' => 'Edited'], $everythingElse));
+
+        $this->assertSame('Invoice 7', $this->journal($journalId)->description);
+        $this->assertSame([], $this->detailsAudit($journalId));
+
+        $this->assertTrue($this->service->updateDetails($journalId, ['description' => 'Edited by the books'], null));
+        $this->assertTrue($this->service->updateDetails($journalId, ['description' => 'Edited by a holder'], $this->detailsEditor()));
+    }
+
+    public function testUpdateDetails_HidesAJournalOfAnotherBranchAsNotFoundAndAcceptsOneOfTheEmployeesOwn(): void
+    {
+        $second  = $this->createBranch('B2', 'Second branch');
+        $journal = $this->automaticJournal();
+        $own     = $this->automaticJournal($second, '2026-10-21', 2);
+        $limited = $this->detailsEditor([$second]);
+
+        $this->assertFailsWith(AccountingError::JournalNotFound, fn () => $this->service->updateDetails($journal, ['description' => 'Edited'], $limited));
+        $this->assertSame('Invoice 7', $this->journal($journal)->description);
+        $this->assertSame([], $this->detailsAudit($journal));
+
+        $this->assertTrue($this->service->updateDetails($own, ['description' => 'Edited in B2'], $limited));
+        $this->assertSame((string) $second, (string) $this->detailsAudit($own)[0]->branch_id);
+    }
+
+    public function testUpdateDetails_HidesAJournalFromAnEmployeeWhoMayNotSeeEveryJournal(): void
+    {
+        $journalId = $this->automaticJournal();
+        $employee  = $this->employeeWithGrants(['accounting_journals', AccountingGuard::JOURNALS_EDIT]);
+
+        $this->assertFailsWith(AccountingError::JournalNotFound, fn () => $this->service->updateDetails($journalId, ['description' => 'Edited'], $employee));
+        $this->assertSame('Invoice 7', $this->journal($journalId)->description);
+    }
+
+    public function testUpdateDetails_RejectsAJournalInAPeriodClosedForTheCompany(): void
+    {
+        $journalId = $this->automaticJournal(date: '2026-03-15');
+        $employee  = $this->detailsEditor();
+        $this->closeThrough('2026-03-31');
+
+        $this->assertPostingFailsWith(PostingError::PeriodClosed, fn () => $this->service->updateDetails($journalId, ['description' => 'Edited'], $employee));
+        $this->assertSame('Invoice 7', $this->journal($journalId)->description);
+        $this->assertSame([], $this->detailsAudit($journalId));
+    }
+
+    public function testUpdateDetails_RejectsAJournalInAPeriodClosedForItsBranchOnly(): void
+    {
+        $second   = $this->createBranch('B2', 'Second branch');
+        $inFirst  = $this->automaticJournal(date: '2026-03-15');
+        $inSecond = $this->automaticJournal($second, '2026-03-15', 2);
+        $employee = $this->detailsEditor();
+        $this->closeThrough('2026-03-31', $second);
+
+        $this->assertPostingFailsWith(PostingError::PeriodClosed, fn () => $this->service->updateDetails($inSecond, ['description' => 'Edited'], $employee));
+        $this->assertSame('Invoice 7', $this->journal($inSecond)->description);
+
+        $this->assertTrue($this->service->updateDetails($inFirst, ['description' => 'Edited'], $employee));
+    }
+
+    public function testUpdateDetails_AcceptsAJournalDatedAfterTheClosingAndOneOnceTheClosingIsReopened(): void
+    {
+        $closed   = $this->automaticJournal(date: '2026-03-15');
+        $open     = $this->automaticJournal(null, '2026-04-01', 2);
+        $employee = $this->detailsEditor();
+        $this->closeThrough('2026-03-31');
+
+        $this->assertTrue($this->service->updateDetails($open, ['description' => 'After the closing'], $employee));
+        $this->assertPostingFailsWith(PostingError::PeriodClosed, fn () => $this->service->updateDetails($closed, ['description' => 'Edited'], $employee));
+
+        $this->accountingDb()->table('accounting_closed_periods')->update(['active' => 0]);
+
+        $this->assertTrue($this->service->updateDetails($closed, ['description' => 'Reopened'], $employee));
+    }
+
+    public function testUpdateDetails_RejectsALineOfAnotherJournalAndChangesNothingOfTheRest(): void
+    {
+        $journalId = $this->automaticJournal();
+        $other     = $this->automaticJournal(null, '2026-10-21', 2);
+        [$mine]    = $this->lineIds($journalId);
+        [$theirs]  = $this->lineIds($other);
+
+        $this->assertFailsWith(AccountingError::JournalLineNotFound, fn () => $this->service->updateDetails($journalId, [
+            'description' => 'Edited',
+            'lines'       => [$mine => ['description' => 'Edited line'], $theirs => ['description' => 'Stolen line']],
+        ], $this->detailsEditor()));
+
+        $this->assertSame('Invoice 7', $this->journal($journalId)->description);
+        $this->assertSame('Cash received', $this->lines($journalId)[0]->description);
+        $this->assertSame('Cash received', $this->lines($other)[0]->description);
+        $this->assertSame([], $this->detailsAudit($journalId));
+        $this->assertFailsWith(AccountingError::JournalLineNotFound, fn () => $this->service->updateDetails($journalId, ['lines' => [999999 => ['description' => 'Nothing']]], $this->detailsEditor()));
+    }
+
+    public function testUpdateDetails_RejectsAnUnknownOrInactiveCostCenterAndAcceptsRemovingOne(): void
+    {
+        $journalId = $this->automaticJournal();
+        [$first]   = $this->lineIds($journalId);
+        $employee  = $this->detailsEditor();
+        $active    = (new CostCenterService())->create(['code' => 'ON', 'name' => 'On']);
+        $inactive  = (new CostCenterService())->create(['code' => 'OFF', 'name' => 'Off']);
+        (new CostCenterService())->deactivate($inactive);
+
+        $this->assertFailsWith(AccountingError::LineCostCenterInvalid, fn () => $this->service->updateDetails($journalId, ['lines' => [$first => ['cost_center_id' => 999999]]], $employee));
+        $this->assertFailsWith(AccountingError::LineCostCenterInvalid, fn () => $this->service->updateDetails($journalId, ['description' => 'Edited', 'lines' => [$first => ['cost_center_id' => $inactive]]], $employee));
+        $this->assertNull($this->lines($journalId)[0]->cost_center_id);
+        $this->assertSame('Invoice 7', $this->journal($journalId)->description);
+
+        $this->service->updateDetails($journalId, ['lines' => [$first => ['cost_center_id' => $active]]], $employee);
+        $this->assertSame((string) $active, (string) $this->lines($journalId)[0]->cost_center_id);
+
+        $this->accountingDb()->table('accounting_cost_centers')->where('cost_center_id', $active)->update(['active' => 0]);
+        $this->assertFalse($this->service->updateDetails($journalId, ['lines' => [$first => ['cost_center_id' => $active]]], $employee));
+
+        $this->service->updateDetails($journalId, ['lines' => [$first => ['cost_center_id' => '']]], $employee);
+        $this->assertNull($this->lines($journalId)[0]->cost_center_id);
+    }
+
+    public function testUpdateDetails_WaitsForAClosingInProgressAndChangesNothingWhenItCannotHaveTheLock(): void
+    {
+        $journalId = $this->automaticJournal(date: '2026-03-15');
+        $employee  = $this->detailsEditor();
+        $other     = $this->openSecondConnection(false);
+        $other->resetTransStatus();
+        $other->transStart();
+        (new PeriodLocks($other))->holdCompany();
+        $this->accountingDb()->query('SET SESSION innodb_lock_wait_timeout = 1');
+
+        try {
+            $this->assertWaitsForLock(fn () => $this->service->updateDetails($journalId, ['description' => 'Edited'], $employee));
+        } finally {
+            $other->transRollback();
+            $other->close();
+            $this->accountingDb()->query('SET SESSION innodb_lock_wait_timeout = 50');
+        }
+
+        $this->assertSame('Invoice 7', $this->journal($journalId)->description);
+        $this->assertSame([], $this->detailsAudit($journalId));
+        $this->assertTrue($this->service->updateDetails($journalId, ['description' => 'Edited'], $employee));
+    }
+
+    public function testUpdateDetails_LocksTheJournalBeforeThePeriodLocksAsAReversalDoes(): void
+    {
+        $journalId = $this->automaticJournal();
+        $employee  = $this->detailsEditor();
+
+        $this->assertJournalLockedBeforePeriods($this->queriesDuring(fn () => $this->service->updateDetails($journalId, ['description' => 'Edited'], $employee)));
+        $this->assertJournalLockedBeforePeriods($this->queriesDuring(fn () => $this->service->reverseAutomatic($journalId, '2026-10-22', 'Cancelled', null)));
+    }
+
+    public function testUpdateDetails_ChecksTheJournalAgainAfterLockingItAndRejectsOneReversedMeanwhile(): void
+    {
+        $journalId = $this->automaticJournal();
+        $employee  = $this->detailsEditor();
+        $other     = $this->openSecondConnection(false);
+        $done      = false;
+        $listen    = function (Query $query) use (&$done, $other, $journalId): void {
+            if (! $done && str_contains($query->getQuery(), 'SELECT j.*')) {
+                $done = true;
+                $other->query('UPDATE ' . $other->prefixTable('accounting_journals') . " SET status = 'reversed' WHERE journal_id = ?", [$journalId]);
+            }
+        };
+
+        Events::on('DBQuery', $listen);
+
+        try {
+            $this->assertFailsWith(AccountingError::JournalNotPosted, fn () => $this->service->updateDetails($journalId, ['description' => 'Edited'], $employee));
+        } finally {
+            Events::removeListener('DBQuery', $listen);
+            $other->close();
+        }
+
+        $this->assertTrue($done);
+        $this->assertSame('Invoice 7', $this->journal($journalId)->description);
+        $this->assertSame([], $this->detailsAudit($journalId));
+    }
+
+    public function testUpdateDetails_SaysAManualJournalIsLockedBeforeItTalksAboutAClosedPeriod(): void
+    {
+        $manualId = $this->service->postNew(['date' => '2026-03-15'] + $this->journalInput());
+        $this->closeThrough('2026-03-31');
+
+        $this->assertFailsWith(AccountingError::PostedJournalLocked, fn () => $this->service->updateDetails($manualId, ['description' => 'Edited'], $this->detailsEditor()));
+    }
+
+    public function testUpdateDetails_SaysAManualJournalIsLockedBeforeItTalksAboutTheTextBeingTooLong(): void
+    {
+        $manualId = $this->service->postNew($this->journalInput());
+
+        $this->assertFailsWith(AccountingError::PostedJournalLocked, fn () => $this->service->updateDetails($manualId, ['description' => str_repeat('a', 2001)], $this->detailsEditor()));
+    }
+
+    public function testUpdateDetails_WaitsForARequestThatHoldsTheJournalAndChangesNothingWhenItCannotHaveIt(): void
+    {
+        $journalId = $this->automaticJournal();
+        $employee  = $this->detailsEditor();
+        $other     = $this->openSecondConnection(false);
+        $other->resetTransStatus();
+        $other->transStart();
+        $other->query('SELECT journal_id FROM ' . $other->prefixTable('accounting_journals') . ' WHERE journal_id = ? FOR UPDATE', [$journalId]);
+        [$first] = $this->lineIds($journalId);
+        $this->accountingDb()->query('SET SESSION innodb_lock_wait_timeout = 1');
+
+        try {
+            $this->assertWaitsForLock(fn () => $this->service->updateDetails($journalId, ['lines' => [$first => ['description' => 'Edited line']]], $employee));
+        } finally {
+            $other->transRollback();
+            $other->close();
+            $this->accountingDb()->query('SET SESSION innodb_lock_wait_timeout = 50');
+        }
+
+        $this->assertSame('Cash received', $this->lines($journalId)[0]->description);
+        $this->assertSame([], $this->detailsAudit($journalId));
+    }
+
+    public function testUpdateDetails_WaitsForARequestThatHoldsTheLinesBeforeItReadsThem(): void
+    {
+        $journalId = $this->automaticJournal();
+        $employee  = $this->detailsEditor();
+        $other     = $this->openSecondConnection(false);
+        $other->resetTransStatus();
+        $other->transStart();
+        $other->query('SELECT line_id FROM ' . $other->prefixTable('accounting_journal_lines') . ' WHERE journal_id = ? FOR UPDATE', [$journalId]);
+        $this->accountingDb()->query('SET SESSION innodb_lock_wait_timeout = 1');
+
+        try {
+            $this->assertWaitsForLock(fn () => $this->service->updateDetails($journalId, ['description' => 'Edited'], $employee));
+        } finally {
+            $other->transRollback();
+            $other->close();
+            $this->accountingDb()->query('SET SESSION innodb_lock_wait_timeout = 50');
+        }
+
+        $this->assertSame('Invoice 7', $this->journal($journalId)->description);
+    }
+
+    public function testUpdateDetails_RejectsAJournalThatVanishedWhileTheRequestWasWaiting(): void
+    {
+        $journalId = $this->automaticJournal();
+        $employee  = $this->detailsEditor();
+        $other     = $this->openSecondConnection(false);
+        $done      = false;
+        $listen    = function (Query $query) use (&$done, $other, $journalId): void {
+            if (! $done && str_contains($query->getQuery(), 'SELECT j.*')) {
+                $done = true;
+                $other->query('SET FOREIGN_KEY_CHECKS = 0');
+                $other->query('DELETE FROM ' . $other->prefixTable('accounting_journal_lines') . ' WHERE journal_id = ?', [$journalId]);
+                $other->query('DELETE FROM ' . $other->prefixTable('accounting_journals') . ' WHERE journal_id = ?', [$journalId]);
+            }
+        };
+
+        Events::on('DBQuery', $listen);
+
+        try {
+            $this->assertFailsWith(AccountingError::JournalNotFound, fn () => $this->service->updateDetails($journalId, ['description' => 'Edited'], $employee));
+        } finally {
+            Events::removeListener('DBQuery', $listen);
+            $other->close();
+        }
+
+        $this->assertTrue($done);
+        $this->assertSame([], $this->detailsAudit($journalId));
+    }
+
+    public function testUpdateDetails_LeavesTheTreasuryBalancesAndTheCancellationOfATransferAsTheyWere(): void
+    {
+        $treasuries = new TreasuryService();
+        $branch     = $this->createBranch('B2');
+        $from       = $treasuries->create(['name' => 'Sending drawer', 'kind' => 'cash']);
+        $to         = $treasuries->create(['name' => 'Receiving drawer', 'kind' => 'cash', 'branch_id' => $branch]);
+        $transferId = (new TreasuryTransfers())->transfer($from, $to, '25.00', '2026-10-21');
+        $employee   = $this->detailsEditor();
+        $balances   = [$treasuries->position($from)->balance, $treasuries->position($to)->balance];
+        $journals   = $this->accountingDb()->table('accounting_journals')->whereIn('source_type', ['treasury_transfer', 'treasury_transfer_receipt'])->where('source_id', $transferId)->get()->getResult();
+
+        $this->assertCount(2, $journals);
+
+        foreach ($journals as $journal) {
+            $this->assertTrue($this->service->updateDetails((int) $journal->journal_id, ['description' => 'Checked by the accountant'], $employee));
+        }
+
+        $this->assertSame($balances, [$treasuries->position($from)->balance, $treasuries->position($to)->balance]);
+
+        (new TreasuryTransfers())->cancel($transferId, 'The right way');
+
+        $this->assertSame(['0.0000', '0.0000'], [$treasuries->position($from)->balance, $treasuries->position($to)->balance]);
+    }
+
+    public function testUpdateDetails_LeavesTheSaleFreeToBeCancelledAndTheBooksTieAfterwards(): void
+    {
+        $this->startSelling();
+        $item   = $this->item('10.00');
+        $saleId = $this->save([$this->line($item, 0, '2', '100', '10.00')], [], [$this->payment(lang('Sales.cash'), '200.00')], SALE_TYPE_POS);
+
+        $standing = $this->standing($saleId);
+
+        $this->assertNotSame([], $standing);
+
+        $employee = $this->detailsEditor();
+        $balance  = $this->trialBalance();
+
+        foreach ($standing as $journal) {
+            $this->service->updateDetails($journal['id'], ['description' => 'Checked by the accountant ' . $journal['id']], $employee);
+        }
+
+        $this->assertEquals($balance, $this->trialBalance());
+
+        $this->assertTrue($this->sales->delete($saleId, false, true, $this->employeeId));
+
+        foreach ($standing as $journal) {
+            $this->assertSame('reversed', $this->journal($journal['id'])->status);
+            $this->assertSame('Checked by the accountant ' . $journal['id'], $this->journal($journal['id'])->description);
+        }
+
+        $this->assertSame([], $this->standing($saleId));
+        $this->assertSame('0.0000', bcadd($this->balance($this->accountId('sales_revenue')), '0', 4));
+    }
+
+    public function testCanEditDetails_AcceptsAPostedAutomaticJournalAndRejectsTheRest(): void
+    {
+        $automatic = $this->automaticJournal();
+        $manual    = $this->service->postNew($this->journalInput());
+        $reversal  = $this->service->reverse($manual, '2026-10-22', 'Mistake');
+        $draft     = $this->service->saveDraft($this->journalInput());
+        $undone    = $this->automaticJournal(null, '2026-10-21', 2);
+        $this->service->reverse($undone, '2026-10-22', 'Undone');
+
+        $this->assertTrue($this->service->canEditDetails($this->service->find($automatic)));
+        $this->assertFalse($this->service->canEditDetails($this->service->find($manual)));
+        $this->assertFalse($this->service->canEditDetails($this->service->find($reversal)));
+        $this->assertFalse($this->service->canEditDetails($this->service->find($draft)));
+        $this->assertFalse($this->service->canEditDetails($this->service->find($undone)));
+    }
+
+    public function testPostNew_AcceptsLinesWithoutDescriptionsWhileTheBooksDoNotAskForThem(): void
+    {
+        $journalId = $this->service->postNew($this->journalInput());
+
+        $this->assertSame('posted', $this->journal($journalId)->status);
+    }
+
+    public function testPostNew_RequiresADescriptionOnEveryLineWhenTheBooksAskForIt(): void
+    {
+        $this->setConfigValue('accounting_line_description_required', '1');
+        $input                                = $this->journalInput();
+        $input['lines'][0]['description']     = 'Cash in';
+
+        try {
+            $this->service->postNew($input);
+            $this->fail('A line without a description must be refused.');
+        } catch (AccountingException $exception) {
+            $this->assertSame(AccountingError::LineDescriptionRequired, $exception->error);
+            $this->assertSame(2, $exception->context['line']);
+        }
+
+        $this->assertSame(0, $this->countRows('accounting_journals'));
+
+        $input['lines'][1]['description'] = 'Sales';
+
+        $this->assertSame('posted', $this->journal($this->service->postNew($input))->status);
+    }
+
+    public function testPostNew_RejectsALineDescriptionOfOnlySpacesWhenTheBooksAskForOne(): void
+    {
+        $this->setConfigValue('accounting_line_description_required', '1');
+        $input                            = $this->journalInput();
+        $input['lines'][0]['description'] = 'Cash in';
+        $input['lines'][1]['description'] = " \t ";
+
+        $this->assertFailsWith(AccountingError::LineDescriptionRequired, fn () => $this->service->postNew($input));
+    }
+
+    public function testPostDraft_RequiresADescriptionOnEveryLineWhenTheBooksAskForIt(): void
+    {
+        $draftId = $this->service->saveDraft($this->journalInput());
+        $this->setConfigValue('accounting_line_description_required', '1');
+
+        $this->assertFailsWith(AccountingError::LineDescriptionRequired, fn () => $this->service->postDraft($draftId));
+        $this->assertSame('draft', $this->journal($draftId)->status);
+
+        $input                            = $this->journalInput();
+        $input['lines'][0]['description'] = 'Cash in';
+
+        $this->assertFailsWith(AccountingError::LineDescriptionRequired, fn () => $this->service->postDraft($draftId, null, $input));
+
+        $input['lines'][1]['description'] = 'Sales';
+        $this->service->postDraft($draftId, null, $input);
+
+        $this->assertSame('posted', $this->journal($draftId)->status);
+    }
+
+    public function testPostDraft_PostsADraftWithCompleteDescriptionsWhenTheBooksAskForThem(): void
+    {
+        $input                            = $this->journalInput();
+        $input['lines'][0]['description'] = 'Cash in';
+        $input['lines'][1]['description'] = 'Sales';
+        $draftId                          = $this->service->saveDraft($input);
+        $this->setConfigValue('accounting_line_description_required', '1');
+
+        $this->service->postDraft($draftId);
+
+        $this->assertSame('posted', $this->journal($draftId)->status);
+    }
+
+    public function testSaveDraft_AcceptsALineWithoutADescriptionWhenTheBooksAskForOne(): void
+    {
+        $this->setConfigValue('accounting_line_description_required', '1');
+
+        $draftId = $this->service->saveDraft($this->journalInput());
+
+        $this->assertSame('draft', $this->journal($draftId)->status);
+    }
+
+    public function testReverse_AcceptsAJournalWhoseLinesHaveNoDescriptionWhenTheBooksAskForOne(): void
+    {
+        $journalId = $this->service->postNew($this->journalInput());
+        $this->setConfigValue('accounting_line_description_required', '1');
+
+        $reversalId = $this->service->reverse($journalId, '2026-10-22', 'Mistake');
+
+        $this->assertSame('posted', $this->journal($reversalId)->status);
+        $this->assertSame('reversed', $this->journal($journalId)->status);
+    }
+
+    public function testDeleteDraft_TakesItsFilesOutWithItAndWritesOneAuditEntryForEach(): void
+    {
+        $branchId = $this->createBranch('B2');
+        $employee = $this->employeeWithGrants(['accounting_journals', AccountingGuard::JOURNALS_ALL, AccountingGuard::JOURNALS_DRAFT]);
+        $draftId  = $this->service->saveDraft(['branch_id' => $branchId] + $this->journalInput(), $employee);
+        $attach   = new JournalAttachments();
+        $first    = $attach->add($draftId, $this->upload($this->pdfContent()), 'first.pdf', $employee);
+        $second   = $attach->add($draftId, $this->upload($this->pdfContent()), 'second.pdf', $employee);
+        $paths    = array_map(fn (int $id): string => $attach->open($id, $employee)['path'], [$first, $second]);
+
+        $this->service->deleteDraft($draftId, $employee);
+
+        $this->assertNull($this->journal($draftId));
+        $this->assertSame(0, $this->countRows('accounting_journal_attachments'));
+        $this->assertFileDoesNotExist($paths[0]);
+        $this->assertFileDoesNotExist($paths[1]);
+
+        $audit = $this->accountingDb()->table('accounting_audit_log')->where('entity_id', $draftId)->where('action', 'attachment_deleted')->get()->getResult();
+
+        $this->assertCount(2, $audit);
+        $this->assertTrue(json_decode($audit[0]->details, true)['with_draft']);
+
+        $deleted = $this->accountingDb()->table('accounting_audit_log')->where('entity_id', $draftId)->where('action', 'draft_deleted')->get()->getRow();
+
+        $this->assertSame(['attachments' => 2], json_decode($deleted->details, true));
+        $this->assertSame([(string) $branchId, (string) $branchId, (string) $branchId], [(string) $audit[0]->branch_id, (string) $audit[1]->branch_id, (string) $deleted->branch_id]);
+    }
+
+    public function testDeleteDraft_KeepsTheFilesOfADraftItCannotDelete(): void
+    {
+        $owner    = $this->employeeWithGrants(['accounting_journals', AccountingGuard::JOURNALS_DRAFT]);
+        $stranger = $this->employeeWithGrants(['accounting_journals', AccountingGuard::JOURNALS_DRAFT]);
+        $draftId  = $this->service->saveDraft($this->journalInput(), $owner);
+        $attach   = new JournalAttachments();
+        $fileId   = $attach->add($draftId, $this->upload($this->pdfContent()), 'first.pdf', $owner);
+        $path     = $attach->open($fileId, $owner)['path'];
+
+        $this->assertFailsWith(AccountingError::JournalNotFound, fn () => $this->service->deleteDraft($draftId, $stranger));
+
+        $this->assertNotNull($this->journal($draftId));
+        $this->assertSame(1, $this->countRows('accounting_journal_attachments'));
+        $this->assertFileExists($path);
     }
 }

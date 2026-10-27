@@ -16,6 +16,7 @@ final class AccountingSettings
     private const BASE_CURRENCY_KEY = 'accounting_base_currency';
     private const START_DATE_KEY    = 'accounting_start_date';
     private const AUTO_YEAR_KEY     = 'accounting_auto_fiscal_year';
+    private const LINE_TEXT_KEY     = 'accounting_line_description_required';
 
     private BaseConnection $db;
     private Appconfig $config;
@@ -57,6 +58,11 @@ final class AccountingSettings
         return $this->config->get_value(self::AUTO_YEAR_KEY, '1') === '1';
     }
 
+    public function lineDescriptionRequired(): bool
+    {
+        return $this->config->get_value(self::LINE_TEXT_KEY, '0') === '1';
+    }
+
     /**
      * The currency and the start date are fixed once a journal has been posted.
      */
@@ -76,7 +82,7 @@ final class AccountingSettings
     }
 
     /**
-     * @param array{base_currency?: string, start_date?: string, auto_fiscal_year?: bool} $input
+     * @param array{base_currency?: string, start_date?: string, auto_fiscal_year?: bool, line_description_required?: bool} $input
      *
      * @throws AccountingException|BranchException
      */
@@ -84,7 +90,7 @@ final class AccountingSettings
     {
         $this->requireManage($employeeId);
 
-        $before  = ['base_currency' => $this->baseCurrency(), 'start_date' => $this->startDate(), 'auto_fiscal_year' => $this->autoFiscalYear()];
+        $before  = ['base_currency' => $this->baseCurrency(), 'start_date' => $this->startDate(), 'auto_fiscal_year' => $this->autoFiscalYear(), 'line_description_required' => $this->lineDescriptionRequired()];
         $after   = $before;
         $changes = [];
 
@@ -113,6 +119,10 @@ final class AccountingSettings
             $after['auto_fiscal_year'] = (bool) $input['auto_fiscal_year'];
         }
 
+        if (array_key_exists('line_description_required', $input)) {
+            $after['line_description_required'] = (bool) $input['line_description_required'];
+        }
+
         foreach ($after as $key => $value) {
             if ($value !== $before[$key]) {
                 $changes[$key] = $value;
@@ -135,9 +145,10 @@ final class AccountingSettings
 
         foreach ($changes as $key => $value) {
             $values[match ($key) {
-                'base_currency'    => self::BASE_CURRENCY_KEY,
-                'start_date'       => self::START_DATE_KEY,
-                'auto_fiscal_year' => self::AUTO_YEAR_KEY,
+                'base_currency'             => self::BASE_CURRENCY_KEY,
+                'start_date'                => self::START_DATE_KEY,
+                'auto_fiscal_year'          => self::AUTO_YEAR_KEY,
+                'line_description_required' => self::LINE_TEXT_KEY,
             }] = is_bool($value) ? ($value ? '1' : '0') : $value;
         }
 

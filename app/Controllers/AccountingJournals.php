@@ -9,6 +9,7 @@ use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\AccountService;
 use App\Libraries\Accounting\AuditLog;
 use App\Libraries\Accounting\CostCenterService;
+use App\Libraries\Accounting\JournalAttachments;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\JournalStatus;
 use App\Libraries\Accounting\PeriodGuard;
@@ -25,12 +26,14 @@ class AccountingJournals extends AccountingController
     private const DETAIL_LIMIT = 8;
 
     private JournalService $journals;
+    private JournalAttachments $attachments;
 
     public function __construct()
     {
         parent::__construct('accounting_journals');
 
-        $this->journals = new JournalService();
+        $this->journals    = new JournalService();
+        $this->attachments = new JournalAttachments();
     }
 
     public function getIndex(): string
@@ -103,6 +106,32 @@ class AccountingJournals extends AccountingController
         return $this->form($journal);
     }
 
+    public function getEditDetails(int $journalId): string
+    {
+        $journal = $this->findOrFail($journalId);
+
+        if (! $this->can(AccountingGuard::JOURNALS_EDIT) || ! $this->journals->canEditDetails($journal)) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        $costCenters = [];
+
+        foreach ((new CostCenterService())->selectable() as $center) {
+            $costCenters[] = $center;
+        }
+
+        return view('accounting_journals/edit_details', [
+            'journal'     => $journal,
+            'costCenters' => $costCenters,
+            'currency'    => (new AccountingSettings())->baseCurrency(),
+            'numberLabel' => $this->displayNumber($journal->series, $journal->number),
+            'sourceLabel' => $this->sourceLabel($journal->source_type, (string) ($journal->entry_type ?? 'general')),
+            'showBranch'  => $this->seesBranches(),
+            'version'     => $this->journals->detailsVersion($journal, $journal->lines),
+            'notice'      => session()->getFlashdata('accounting_notice'),
+        ]);
+    }
+
     public function getShow(int $journalId): string
     {
         $journal = $this->findOrFail($journalId);
@@ -120,17 +149,20 @@ class AccountingJournals extends AccountingController
         }
 
         return view('accounting_journals/view', [
-            'journal'      => $journal,
-            'audit'        => $audit,
-            'currency'     => (new AccountingSettings())->baseCurrency(),
-            'can_draft'    => $this->can(AccountingGuard::JOURNALS_DRAFT),
-            'can_post'     => $this->can(AccountingGuard::JOURNALS_POST),
-            'can_reverse'  => $this->can(AccountingGuard::JOURNALS_REVERSE) && ! in_array($journal->source_type, JournalService::TRANSFER_SOURCES, true),
-            'notice'       => session()->getFlashdata('accounting_notice'),
-            'status_badge' => $this->badge($journal->status),
-            'source_label' => $this->sourceLabel($journal->source_type, (string) ($journal->entry_type ?? 'general')),
-            'number_label' => $this->displayNumber($journal->series, $journal->number),
-            'show_branch'  => $this->seesBranches(),
+            'journal'        => $journal,
+            'audit'          => $audit,
+            'currency'       => (new AccountingSettings())->baseCurrency(),
+            'can_draft'      => $this->can(AccountingGuard::JOURNALS_DRAFT),
+            'can_post'       => $this->can(AccountingGuard::JOURNALS_POST),
+            'can_reverse'    => $this->can(AccountingGuard::JOURNALS_REVERSE) && ! in_array($journal->source_type, JournalService::TRANSFER_SOURCES, true),
+            'canEditDetails' => $this->can(AccountingGuard::JOURNALS_EDIT) && $this->journals->canEditDetails($journal),
+            'attachments'    => $this->attachmentRows($journalId),
+            'canAttach'      => $this->attachments->canChange($journal, $this->employeeId()),
+            'notice'         => session()->getFlashdata('accounting_notice'),
+            'status_badge'   => $this->badge($journal->status),
+            'source_label'   => $this->sourceLabel($journal->source_type, (string) ($journal->entry_type ?? 'general')),
+            'number_label'   => $this->displayNumber($journal->series, $journal->number),
+            'show_branch'    => $this->seesBranches(),
         ]);
     }
 
@@ -227,6 +259,67 @@ class AccountingJournals extends AccountingController
 
             return ['success' => true, 'message' => lang('Accounting_journals.drafts_deleted', ['1']), 'id' => $journalId, 'redirect' => base_url('accounting_journals')];
         });
+    }
+
+    public function postSaveDetails(int $journalId): ResponseInterface
+    {
+        return $this->attempt(function () use ($journalId): array {
+            $changed = $this->journals->updateDetails($journalId, $this->detailsInput(), $this->employeeId());
+            $message = lang($changed ? 'Accounting_journals.details_saved' : 'Accounting_journals.details_unchanged');
+            session()->setFlashdata('accounting_notice', $message);
+
+            return ['success' => true, 'message' => $message, 'id' => $journalId, 'redirect' => base_url('accounting_journals/view/' . $journalId)];
+        });
+    }
+
+    public function postAttach(int $journalId): ResponseInterface
+    {
+        return $this->attempt(function () use ($journalId): array {
+            $file = $this->request->getFile('file');
+
+            if ($file === null || $file->getError() !== UPLOAD_ERR_OK) {
+                $tooLarge = $file !== null && in_array($file->getError(), [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true);
+
+                throw new AccountingException(
+                    $tooLarge ? AccountingError::AttachmentTooLarge : AccountingError::AttachmentUploadFailed,
+                    'The file was not uploaded.',
+                    ['max' => JournalAttachments::MAX_BYTES / 1048576],
+                );
+            }
+
+            $id   = $this->attachments->add($journalId, $file->getTempName(), $file->getClientName(), $this->employeeId());
+            $rows = array_filter($this->attachmentRows($journalId), static fn (array $row): bool => $row['id'] === $id);
+
+            return ['success' => true, 'message' => lang('Accounting_journals.attachment_added'), 'id' => $id, 'file' => $rows === [] ? null : reset($rows)];
+        });
+    }
+
+    public function postDeleteAttachment(int $attachmentId): ResponseInterface
+    {
+        return $this->attempt(function () use ($attachmentId): array {
+            $this->attachments->delete($attachmentId, $this->employeeId());
+
+            return ['success' => true, 'message' => lang('Accounting_journals.attachment_deleted'), 'id' => $attachmentId];
+        });
+    }
+
+    public function getAttachment(int $attachmentId): ResponseInterface
+    {
+        try {
+            $file = $this->attachments->open($attachmentId, $this->employeeId());
+        } catch (AccountingException $exception) {
+            if (in_array($exception->error, [AccountingError::AttachmentNotFound, AccountingError::AttachmentUnavailable, AccountingError::JournalNotFound], true)) {
+                throw PageNotFoundException::forPageNotFound();
+            }
+
+            throw $exception;
+        }
+
+        $fallback = (string) preg_replace('/[^A-Za-z0-9._() -]/', '_', $file['name']);
+
+        return $this->response->download($file['path'], null)
+            ->setContentType($file['mime'], '')
+            ->setHeader('Content-Disposition', 'attachment; filename="' . $fallback . '"; filename*=UTF-8\'\'' . rawurlencode($file['name']));
     }
 
     public function postReverse(int $journalId): ResponseInterface
@@ -485,6 +578,40 @@ class AccountingJournals extends AccountingController
         return is_array($ids) ? array_values(array_unique(array_filter(array_map('intval', $ids), static fn (int $id): bool => $id > 0))) : [];
     }
 
+    /**
+     * @return array{description?: string, version?: mixed, lines: array<int|string, array<string, mixed>>}
+     */
+    private function detailsInput(): array
+    {
+        $description = $this->request->getPost('description');
+        $version     = $this->request->getPost('version');
+        $lines       = $this->request->getPost('lines');
+
+        return (is_string($description) ? ['description' => $description] : [])
+            + ($version === null ? [] : ['version' => $version])
+            + ['lines' => is_array($lines) ? array_filter($lines, 'is_array') : []];
+    }
+
+    /**
+     * @return list<array{id: int, name: string, size: string, by: string, at: string, url: string}>
+     */
+    private function attachmentRows(int $journalId): array
+    {
+        return array_map(fn (object $file): array => [
+            'id'   => (int) $file->attachment_id,
+            'name' => (string) $file->original_name,
+            'size' => $this->sizeText((int) $file->size_bytes),
+            'by'   => (string) $file->uploaded_by_name,
+            'at'   => $this->formatDateTime($file->uploaded_at),
+            'url'  => base_url('accounting_journals/attachment/' . (int) $file->attachment_id),
+        ], $this->attachments->forJournal($journalId, $this->employeeId()));
+    }
+
+    private function sizeText(int $bytes): string
+    {
+        return $bytes < 1048576 ? number_format($bytes / 1024, 1) . ' KB' : number_format($bytes / 1048576, 1) . ' MB';
+    }
+
     private function requireDraftPermission(): void
     {
         if (! $this->can(AccountingGuard::JOURNALS_DRAFT)) {
@@ -533,15 +660,18 @@ class AccountingJournals extends AccountingController
         $branchId = $journal === null ? $this->branchContext()->formDefault($this->employeeId()) : (int) $journal->branch_id;
 
         return view('accounting_journals/form', [
-            'journal'      => $journal,
-            'branches'     => $branches,
-            'branch_id'    => $branchId,
-            'cutoffs'      => $this->cutoffs($branches === [] ? [$branchId] : array_map(static fn (object $branch): int => (int) $branch->branch_id, $branches)),
-            'accounts'     => $this->journals->postableAccounts(),
-            'cost_centers' => $costCenters,
-            'currency'     => (new AccountingSettings())->baseCurrency(),
-            'can_post'     => $this->can(AccountingGuard::JOURNALS_POST),
-            'notice'       => session()->getFlashdata('accounting_notice'),
+            'journal'                 => $journal,
+            'attachments'             => $journal === null ? [] : $this->attachmentRows((int) $journal->journal_id),
+            'canAttach'               => $journal !== null && $this->attachments->canChange($journal, $this->employeeId()),
+            'lineDescriptionRequired' => (new AccountingSettings())->lineDescriptionRequired(),
+            'branches'                => $branches,
+            'branch_id'               => $branchId,
+            'cutoffs'                 => $this->cutoffs($branches === [] ? [$branchId] : array_map(static fn (object $branch): int => (int) $branch->branch_id, $branches)),
+            'accounts'                => $this->journals->postableAccounts(),
+            'cost_centers'            => $costCenters,
+            'currency'                => (new AccountingSettings())->baseCurrency(),
+            'can_post'                => $this->can(AccountingGuard::JOURNALS_POST),
+            'notice'                  => session()->getFlashdata('accounting_notice'),
         ]);
     }
 

@@ -71,6 +71,7 @@ class AccountingSettingsTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->setConfigValue('accounting_line_description_required', '0');
         $this->removeInsertedEntities();
 
         parent::tearDown();
@@ -458,6 +459,75 @@ class AccountingSettingsTest extends CIUnitTestCase
 
         $this->settings->update(['base_currency' => 'SAR', 'start_date' => '2026-01-01'], $this->manager());
 
+        $this->assertSame(0, $this->countRows('accounting_audit_log'));
+    }
+
+    public function testLineDescriptionRequired_IsOffUntilTheBooksAskForIt(): void
+    {
+        $this->accountingDb()->table('app_config')->where('key', 'accounting_line_description_required')->delete();
+
+        $this->assertFalse($this->settings->lineDescriptionRequired());
+
+        $this->setConfigValue('accounting_line_description_required', '1');
+
+        $this->assertTrue($this->settings->lineDescriptionRequired());
+
+        $this->setConfigValue('accounting_line_description_required', '0');
+
+        $this->assertFalse($this->settings->lineDescriptionRequired());
+    }
+
+    public function testUpdate_SavesTheLineDescriptionRequirementEvenAfterAJournalIsPosted(): void
+    {
+        $this->reinstallChart();
+        $this->setConfigValue('accounting_base_currency', 'SAR');
+        $this->setConfigValue('accounting_start_date', '2026-01-01');
+        $this->setConfigValue('accounting_line_description_required', '0');
+        (new JournalService())->postNew($this->journalInput());
+
+        $this->assertTrue($this->settings->isLocked());
+
+        $this->settings->update(['line_description_required' => true], $this->manager());
+        $this->assertTrue($this->settings->lineDescriptionRequired());
+        $this->assertSame('SAR', $this->settings->baseCurrency());
+
+        $this->settings->update(['line_description_required' => false], $this->manager());
+        $this->assertFalse($this->settings->lineDescriptionRequired());
+    }
+
+    public function testUpdate_RecordsTheLineDescriptionRequirementInTheAuditLogAndLeavesTheOtherSettingsAlone(): void
+    {
+        $this->clearJournals();
+        $this->setConfigValue('accounting_line_description_required', '0');
+        $employee = $this->manager();
+
+        $this->settings->update(['line_description_required' => true], $employee);
+
+        $audit = $this->accountingDb()->table('accounting_audit_log')->where('action', 'settings_updated')->get()->getRow();
+
+        $this->assertSame((string) $employee, (string) $audit->employee_id);
+        $this->assertSame(['before' => ['line_description_required' => false], 'after' => ['line_description_required' => true]], json_decode($audit->details, true));
+    }
+
+    public function testUpdate_WritesNothingWhenTheLineDescriptionRequirementIsUnchanged(): void
+    {
+        $this->clearJournals();
+        $this->setConfigValue('accounting_line_description_required', '1');
+
+        $this->settings->update(['line_description_required' => true], $this->manager());
+
+        $this->assertSame(0, $this->countRows('accounting_audit_log'));
+        $this->assertTrue($this->settings->lineDescriptionRequired());
+    }
+
+    public function testUpdate_RequiresThePermissionToChangeTheLineDescriptionRequirement(): void
+    {
+        $this->clearJournals();
+        $this->setConfigValue('accounting_line_description_required', '0');
+
+        $this->assertUpdateFails(AccountingError::PermissionDenied, ['line_description_required' => true], $this->employeeWithGrants([]));
+
+        $this->assertFalse($this->settings->lineDescriptionRequired());
         $this->assertSame(0, $this->countRows('accounting_audit_log'));
     }
 

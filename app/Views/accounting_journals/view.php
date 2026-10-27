@@ -6,6 +6,9 @@
  * @var bool $can_draft
  * @var bool $can_post
  * @var bool $can_reverse
+ * @var bool $canEditDetails
+ * @var list<array{id: int, name: string, size: string, by: string, at: string, url: string}> $attachments
+ * @var bool $canAttach
  * @var string|null $notice
  * @var string $status_badge
  * @var string $source_label
@@ -69,6 +72,9 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
     <?php endif; ?>
     <?php if ($isDraft && $can_draft): ?>
         <button type="button" id="delete_draft" class="btn btn-outline-danger btn-sm"><span class="bi bi-trash" aria-hidden="true">&nbsp;</span><?= lang('Accounting_journals.delete_draft') ?></button>
+    <?php endif; ?>
+    <?php if ($canEditDetails): ?>
+        <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('accounting_journals/edit_details/' . (int) $journal->journal_id), 'attr') ?>"><span class="bi bi-pencil-square" aria-hidden="true">&nbsp;</span><?= lang('Accounting_journals.edit_details') ?></a>
     <?php endif; ?>
     <?php if ($isPosted && $can_reverse && $journal->reverses_journal_id === null): ?>
         <button type="button" class="btn btn-outline-danger btn-sm modal-dlg" data-btn-submit="<?= esc(lang('Accounting_journals.reverse'), 'attr') ?>" data-href="<?= esc('accounting_journals/reverse_form/' . (int) $journal->journal_id, 'attr') ?>" title="<?= esc(lang('Accounting_journals.reverse'), 'attr') ?>">
@@ -164,6 +170,8 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
             </tfoot>
         </table>
     </div>
+
+    <?= view('accounting_journals/attachments', ['journalId' => (int) $journal->journal_id, 'attachments' => $attachments, 'canAttach' => $canAttach]) ?>
 
     <?php if ($audit !== []): ?>
         <h2 class="acc-section-title"><?= lang('Accounting_journals.history') ?></h2>

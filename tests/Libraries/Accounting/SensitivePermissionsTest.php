@@ -52,6 +52,7 @@ class SensitivePermissionsTest extends CIUnitTestCase
     public function testIsSensitive_NamesThePermissionsThatCannotBeUndoneByOrdinaryUsers(): void
     {
         $sensitive = [
+            AccountingGuard::JOURNALS_EDIT,
             AccountingGuard::SETTINGS_MANAGE,
             AccountingGuard::PERIODS_CLOSE,
             AccountingGuard::PERIODS_REOPEN,
@@ -65,7 +66,7 @@ class SensitivePermissionsTest extends CIUnitTestCase
             $this->assertTrue(SensitivePermissions::isSensitive($permissionId), $permissionId);
         }
 
-        foreach ([AccountingGuard::PERIODS_MANAGE, AccountingGuard::JOURNALS_POST, AccountingGuard::JOURNALS_REVERSE, 'accounting_periods', 'accounting_treasuries', 'accounting_payables'] as $permissionId) {
+        foreach ([AccountingGuard::PERIODS_MANAGE, AccountingGuard::JOURNALS_POST, AccountingGuard::JOURNALS_REVERSE, AccountingGuard::JOURNALS_DRAFT, 'accounting_periods', 'accounting_treasuries', 'accounting_payables'] as $permissionId) {
             $this->assertFalse(SensitivePermissions::isSensitive($permissionId), $permissionId);
         }
     }
@@ -74,6 +75,7 @@ class SensitivePermissionsTest extends CIUnitTestCase
     {
         $this->assertSame(
             [
+                AccountingGuard::JOURNALS_EDIT,
                 AccountingGuard::SETTINGS_MANAGE,
                 AccountingGuard::PERIODS_CLOSE,
                 AccountingGuard::PERIODS_REOPEN,
@@ -92,6 +94,14 @@ class SensitivePermissionsTest extends CIUnitTestCase
 
         $this->assertSame([AccountingGuard::PERIODS_CLOSE, AccountingGuard::OPENING_MANAGE], $this->service->heldBy($employee));
         $this->assertSame([], $this->service->heldBy($this->employeeWithGrants(['accounting_periods'])));
+    }
+
+    public function testHeldBy_ListsThePermissionToEditJournalTextAmongWhatAnEmployeeHolds(): void
+    {
+        $editor = $this->employeeWithGrants([AccountingGuard::JOURNALS_EDIT, AccountingGuard::JOURNALS_DRAFT]);
+
+        $this->assertSame([AccountingGuard::JOURNALS_EDIT], $this->service->heldBy($editor));
+        $this->assertSame([AccountingGuard::JOURNALS_EDIT], $this->holdersById()[$editor]['permissions']);
     }
 
     public function testHolders_ListsActiveEmployeesWithWhatTheyHoldAndWhereTheyMayWork(): void

@@ -86,6 +86,7 @@ auth.json
 /writable/debugbar/*.json
 /app/Database/database.sql
 /writable/cache/*
+/writable/accounting_attachments/
 /.env.bak
 
 # Brand images are committed

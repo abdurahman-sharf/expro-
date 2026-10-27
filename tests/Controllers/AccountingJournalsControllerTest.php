@@ -6,6 +6,7 @@ use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AuditLog;
 use App\Libraries\Accounting\CostCenterService;
 use App\Libraries\Accounting\JournalDraft;
+use App\Libraries\Accounting\JournalAttachments;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\JournalOrigin;
 use App\Libraries\Accounting\JournalService;
@@ -13,14 +14,17 @@ use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Accounting\TreasuryTransfers;
 use CodeIgniter\Exceptions\PageNotFoundException;
+use CodeIgniter\HTTP\ResponseInterface;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Tests\Support\AccountingControllerFixtureTrait;
+use Tests\Support\JournalAttachmentFixtureTrait;
 
 class AccountingJournalsControllerTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingControllerFixtureTrait;
+    use JournalAttachmentFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -37,6 +41,9 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
     protected function tearDown(): void
     {
         $this->releaseOpenTransactions();
+        $this->removeAttachmentFiles();
+        $this->setConfigValue('accounting_line_description_required', '0');
+        service('superglobals')->setFilesArray([]);
 
         parent::tearDown();
     }
@@ -896,5 +903,746 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
 
         $this->assertContains($other, $journalIds);
         $this->assertNotContains($first, $journalIds);
+    }
+
+    private function detailsEditor(?array $branchIds = null): int
+    {
+        $personId = $this->employeeWithGrants(['accounting_journals', AccountingGuard::JOURNALS_ALL, AccountingGuard::JOURNALS_EDIT, AccountingGuard::JOURNALS_AUDIT], $branchIds);
+        $this->actAs($personId);
+
+        return $personId;
+    }
+
+    private function automaticJournal(?int $branchId = null, string $date = '2026-10-21', int $sourceId = 1): int
+    {
+        return (new PostingService())->post(new JournalDraft(
+            date: $date,
+            lines: [
+                new JournalLineDraft($this->accountId('cash'), debit: '100.00', description: 'Cash received'),
+                new JournalLineDraft($this->accountId('sales_revenue'), credit: '100.00', description: 'Sales'),
+            ],
+            sourceType: 'sale',
+            sourceId: $sourceId,
+            description: 'Invoice 7',
+            currencyCode: 'SAR',
+            branchId: $branchId,
+        ))->journalId;
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function lineIdsOf(int $journalId): array
+    {
+        return array_map(static fn (object $line): int => (int) $line->line_id, (new JournalService())->find($journalId)->lines);
+    }
+
+    private function uploadAs(string $clientName, string $content, int $error = UPLOAD_ERR_OK): void
+    {
+        $path = $this->upload($content);
+
+        service('superglobals')->setFilesArray(['file' => ['name' => $clientName, 'type' => 'application/octet-stream', 'tmp_name' => $path, 'error' => $error, 'size' => strlen($content)]]);
+    }
+
+    private function versionOf(int $journalId): string
+    {
+        $journals = new JournalService();
+        $journal  = $journals->find($journalId);
+
+        return $journals->detailsVersion($journal, $journal->lines);
+    }
+
+    private function addFileTo(int $journalId, int $employeeId, string $name = 'receipt.pdf', ?string $content = null): int
+    {
+        return (new JournalAttachments())->add($journalId, $this->upload($content ?? $this->pdfContent()), $name, $employeeId);
+    }
+
+    private function servedBytes(ResponseInterface $response): string
+    {
+        ob_start();
+        $response->sendBody();
+
+        return (string) ob_get_clean();
+    }
+
+    public function testGetEditDetails_OffersOnlyTheTextFieldsOfAPostedAutomaticJournal(): void
+    {
+        $journalId        = $this->automaticJournal();
+        [$first, $second] = $this->lineIdsOf($journalId);
+        $this->detailsEditor();
+
+        $response = $this->get('/accounting_journals/edit_details/' . $journalId);
+
+        $response->assertStatus(200);
+
+        preg_match('#<form id="details_form".*?</form>#s', $response->getBody(), $form);
+        preg_match_all('/<(?:input|textarea|select)[^>]*\sname="([^"]+)"/', $form[0], $names);
+
+        $this->assertEqualsCanonicalizing([
+            'description', 'honeypot', 'version',
+            "lines[{$first}][description]", "lines[{$first}][cost_center_id]",
+            "lines[{$second}][description]", "lines[{$second}][cost_center_id]",
+        ], $names[1]);
+        $response->assertSee('Invoice 7');
+        $response->assertSee('Cash received');
+        $response->assertSee(lang('Accounting_journals.details_locked_note'));
+    }
+
+    public function testGetEditDetails_ShowsTheAccountsAmountsDateAndNumberAsPlainText(): void
+    {
+        $journalId = $this->automaticJournal();
+        $this->detailsEditor();
+
+        $response = $this->get('/accounting_journals/edit_details/' . $journalId);
+
+        $response->assertSee('A-' . sprintf('%06d', $journalId));
+        $response->assertSee('100.00');
+        $response->assertDontSee('name="date"');
+        $response->assertDontSee('[account_id]');
+        $response->assertDontSee('[debit]');
+        $response->assertDontSee('[credit]');
+    }
+
+    public function testGetEditDetails_IsNotFoundForAManualJournalADraftAndAReversedJournal(): void
+    {
+        $manual   = $this->postedJournalBy();
+        $draft    = (new JournalService())->saveDraft($this->journalInput());
+        $reversed = $this->automaticJournal();
+        (new JournalService())->reverse($reversed, '2026-10-22', 'Undone');
+        $this->detailsEditor();
+
+        foreach ([$manual, $draft, $reversed] as $journalId) {
+            try {
+                $this->get('/accounting_journals/edit_details/' . $journalId);
+                $this->fail("Journal {$journalId} must not open for editing.");
+            } catch (PageNotFoundException) {
+                $this->addToAssertionCount(1);
+            }
+        }
+    }
+
+    public function testGetEditDetails_IsNotFoundWithoutThePermissionToEditDetails(): void
+    {
+        $journalId = $this->automaticJournal();
+        $this->accountant();
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_journals/edit_details/' . $journalId);
+    }
+
+    public function testGetEditDetails_IsNotFoundForAJournalOfAnotherBranch(): void
+    {
+        $second    = $this->createBranch('B2');
+        $journalId = $this->automaticJournal();
+        $this->detailsEditor([$second]);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_journals/edit_details/' . $journalId);
+    }
+
+    public function testGetEditDetails_IsNotFoundWhileAccountingIsDisabled(): void
+    {
+        $journalId = $this->automaticJournal();
+        $this->prepareAccounting(false);
+        $this->actAs($this->employeeWithGrants(['accounting_journals', AccountingGuard::JOURNALS_ALL, AccountingGuard::JOURNALS_EDIT]));
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_journals/edit_details/' . $journalId);
+    }
+
+    public function testGetEditDetails_OffersTheActiveCostCentersAndKeepsTheOneTheLineAlreadyHas(): void
+    {
+        $costCenters = new CostCenterService();
+        $active      = $costCenters->create(['code' => 'ACT', 'name' => 'Active center']);
+        $retired     = $costCenters->create(['code' => 'OLD', 'name' => 'Retired center']);
+        $journalId   = $this->automaticJournal();
+        [$first]     = $this->lineIdsOf($journalId);
+        $this->detailsEditor();
+        $this->accountingDb()->table('accounting_journal_lines')->where('line_id', $first)->update(['cost_center_id' => $retired]);
+        $costCenters->deactivate($retired);
+
+        $response = $this->get('/accounting_journals/edit_details/' . $journalId);
+
+        $response->assertSee('Active center');
+        $response->assertSee('value="' . $retired . '" selected');
+    }
+
+    public function testGetEditDetails_EscapesTheTextItShowsInTheFields(): void
+    {
+        $journalId = $this->automaticJournal();
+        [$first]   = $this->lineIdsOf($journalId);
+        $this->accountingDb()->table('accounting_journals')->where('journal_id', $journalId)->update(['description' => '</textarea><script>alert(1)</script>']);
+        $this->accountingDb()->table('accounting_journal_lines')->where('line_id', $first)->update(['description' => '"><script>alert(2)</script>']);
+        $this->detailsEditor();
+
+        $response = $this->get('/accounting_journals/edit_details/' . $journalId);
+
+        $response->assertDontSee('<script>alert(1)</script>');
+        $response->assertDontSee('<script>alert(2)</script>');
+        $body = $response->response()->getBody();
+
+        $this->assertStringContainsString('&lt;/textarea&gt;&lt;script&gt;alert(1)&lt;/script&gt;', $body);
+        $this->assertStringContainsString('value="&quot;&gt;&lt;script&gt;alert&#x28;2&#x29;&lt;&#x2F;script&gt;"', $body);
+    }
+
+    public function testPostSaveDetails_SavesTheTextAndSendsTheUserBackToTheJournal(): void
+    {
+        $journalId        = $this->automaticJournal();
+        [$first, $second] = $this->lineIdsOf($journalId);
+        $employee         = $this->detailsEditor();
+
+        $result = $this->jsonOf($this->post('/accounting_journals/save_details/' . $journalId, [
+            'description' => 'Invoice 7, corrected',
+            'lines'       => [$first => ['description' => 'Cash in', 'cost_center_id' => ''], $second => ['description' => 'Shop sales', 'cost_center_id' => '']],
+        ]));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(lang('Accounting_journals.details_saved'), $result['message']);
+        $this->assertStringContainsString('accounting_journals/view/' . $journalId, $result['redirect']);
+
+        $journal = (new JournalService())->find($journalId);
+
+        $this->assertSame('Invoice 7, corrected', $journal->description);
+        $this->assertSame(['Cash in', 'Shop sales'], array_map(static fn (object $line): string => $line->description, $journal->lines));
+
+        $audit = $this->accountingDb()->table('accounting_audit_log')->where('action', 'details_edited')->get()->getRow();
+
+        $this->assertSame((string) $employee, (string) $audit->employee_id);
+        $this->assertSame((string) $journalId, (string) $audit->entity_id);
+    }
+
+    public function testGetEditDetails_CarriesTheVersionOfTheTextItShowsInTheForm(): void
+    {
+        $journalId = $this->automaticJournal();
+        $this->detailsEditor();
+
+        $response = $this->get('/accounting_journals/edit_details/' . $journalId);
+
+        preg_match('#<form id="details_form".*?</form>#s', $response->getBody(), $form);
+
+        $this->assertSame(1, preg_match('/<input type="hidden" name="version" value="([0-9a-f]{64})">/', $form[0], $found));
+        $this->assertSame($this->versionOf($journalId), $found[1]);
+    }
+
+    public function testPostSaveDetails_SavesAFormOpenedOnTheTextThatIsStillCurrent(): void
+    {
+        $journalId = $this->automaticJournal();
+        $this->detailsEditor();
+
+        $result = $this->jsonOf($this->post('/accounting_journals/save_details/' . $journalId, ['description' => 'Edited', 'version' => $this->versionOf($journalId)]));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('Edited', (new JournalService())->find($journalId)->description);
+    }
+
+    public function testPostSaveDetails_RejectsAFormOpenedBeforeSomeoneElseChangedTheTextAndKeepsTheirChange(): void
+    {
+        $journalId        = $this->automaticJournal();
+        [$first, $second] = $this->lineIdsOf($journalId);
+        $employee         = $this->detailsEditor();
+        $opened           = $this->versionOf($journalId);
+
+        (new JournalService())->updateDetails($journalId, ['lines' => [$second => ['description' => 'Changed by someone else']]], $employee);
+
+        $result = $this->jsonOf($this->post('/accounting_journals/save_details/' . $journalId, [
+            'description' => 'Edited',
+            'version'     => $opened,
+            'lines'       => [$first => ['description' => 'Edited line'], $second => ['description' => 'Sales']],
+        ]));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_details_changed'), $result['message']);
+
+        $journal = (new JournalService())->find($journalId);
+
+        $this->assertSame('Invoice 7', $journal->description);
+        $this->assertSame(['Cash received', 'Changed by someone else'], array_map(static fn (object $line): string => $line->description, $journal->lines));
+    }
+
+    public function testPostSaveDetails_IgnoresValuesThatAreNotTextInsteadOfFailing(): void
+    {
+        $journalId        = $this->automaticJournal();
+        [$first, $second] = $this->lineIdsOf($journalId);
+        $this->detailsEditor();
+
+        $result = $this->jsonOf($this->post('/accounting_journals/save_details/' . $journalId, [
+            'description' => ['x'],
+            'lines'       => [$first => ['description' => ['x'], 'cost_center_id' => ['1']], $second => ['description' => 'Shop sales']],
+        ]));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(lang('Accounting_journals.details_saved'), $result['message']);
+
+        $journal = (new JournalService())->find($journalId);
+
+        $this->assertSame('Invoice 7', $journal->description);
+        $this->assertSame(['Cash received', 'Shop sales'], array_map(static fn (object $line): string => $line->description, $journal->lines));
+        $this->assertNull($journal->lines[0]->cost_center_id);
+    }
+
+    public function testPostSaveDetails_SaysNothingChangedWhenTheFormIsSentAsItWas(): void
+    {
+        $journalId = $this->automaticJournal();
+        $this->detailsEditor();
+
+        $result = $this->jsonOf($this->post('/accounting_journals/save_details/' . $journalId, ['description' => 'Invoice 7']));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(lang('Accounting_journals.details_unchanged'), $result['message']);
+        $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where('action', 'details_edited')->countAllResults());
+    }
+
+    public function testPostSaveDetails_IgnoresAmountsAccountsAndDatesInTheRequest(): void
+    {
+        $journalId        = $this->automaticJournal();
+        [$first, $second] = $this->lineIdsOf($journalId);
+        $before           = (new JournalService())->find($journalId);
+        $this->detailsEditor();
+
+        $result = $this->jsonOf($this->post('/accounting_journals/save_details/' . $journalId, [
+            'description' => 'Edited',
+            'date'        => '2020-01-01',
+            'number'      => '000999',
+            'lines'       => [
+                $first  => ['description' => 'Edited line', 'account_id' => (string) $this->accountId('cogs'), 'debit' => '1.00', 'credit' => '0'],
+                $second => ['account_id' => (string) $this->accountId('cogs'), 'credit' => '1.00', 'debit' => '0'],
+            ],
+        ]));
+
+        $after = (new JournalService())->find($journalId);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('Edited', $after->description);
+        $this->assertSame($before->journal_date, $after->journal_date);
+        $this->assertSame($before->number, $after->number);
+        $this->assertSame($before->total_debit, $after->total_debit);
+        $this->assertSame(
+            array_map(static fn (object $line): array => [$line->account_id, $line->debit, $line->credit], $before->lines),
+            array_map(static fn (object $line): array => [$line->account_id, $line->debit, $line->credit], $after->lines),
+        );
+    }
+
+    public function testPostSaveDetails_RejectsSomeoneWithoutThePermissionAndChangesNothing(): void
+    {
+        $journalId = $this->automaticJournal();
+        $this->accountant();
+
+        $result = $this->jsonOf($this->post('/accounting_journals/save_details/' . $journalId, ['description' => 'Edited']));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_permission_denied'), $result['message']);
+        $this->assertSame('Invoice 7', (new JournalService())->find($journalId)->description);
+    }
+
+    public function testPostSaveDetails_RejectsAManualJournalWithAReadableMessage(): void
+    {
+        $journalId = $this->postedJournalBy();
+        $this->detailsEditor();
+
+        $result = $this->jsonOf($this->post('/accounting_journals/save_details/' . $journalId, ['description' => 'Edited']));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_posted_journal_locked'), $result['message']);
+        $this->assertSame('Test journal', (new JournalService())->find($journalId)->description);
+    }
+
+    public function testPostSaveDetails_RejectsAJournalInAClosedPeriod(): void
+    {
+        $journalId = $this->automaticJournal(date: '2026-03-15');
+        $this->closeThrough('2026-03-31');
+        $this->detailsEditor();
+
+        $result = $this->jsonOf($this->post('/accounting_journals/save_details/' . $journalId, ['description' => 'Edited']));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame('Invoice 7', (new JournalService())->find($journalId)->description);
+    }
+
+    public function testPostSaveDetails_RejectsTextThatIsTooLong(): void
+    {
+        $journalId = $this->automaticJournal();
+        $this->detailsEditor();
+
+        $result = $this->jsonOf($this->post('/accounting_journals/save_details/' . $journalId, ['description' => str_repeat('a', 2001)]));
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString('2000', $result['message']);
+        $this->assertSame('Invoice 7', (new JournalService())->find($journalId)->description);
+    }
+
+    public function testPostSaveDetails_ReportsAJournalOfAnotherBranchAsMissing(): void
+    {
+        $second    = $this->createBranch('B2');
+        $journalId = $this->automaticJournal();
+        $this->detailsEditor([$second]);
+
+        $result = $this->jsonOf($this->post('/accounting_journals/save_details/' . $journalId, ['description' => 'Edited']));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_journal_not_found'), $result['message']);
+    }
+
+    public function testGetView_OffersTheEditLinkOnlyOnAPostedAutomaticJournalToAHolderOfThePermission(): void
+    {
+        $automatic = $this->automaticJournal();
+        $manual    = $this->postedJournalBy();
+        $this->detailsEditor();
+
+        $this->get('/accounting_journals/view/' . $automatic)->assertSee('accounting_journals/edit_details/' . $automatic);
+        $this->get('/accounting_journals/view/' . $manual)->assertDontSee('accounting_journals/edit_details/');
+
+        $this->accountant();
+
+        $this->get('/accounting_journals/view/' . $automatic)->assertDontSee('accounting_journals/edit_details/');
+    }
+
+    public function testGetView_ShowsTheTextEditInTheHistoryOfSomeoneWhoMayReadTheAuditLog(): void
+    {
+        $journalId = $this->automaticJournal();
+        $this->detailsEditor();
+        $this->post('/accounting_journals/save_details/' . $journalId, ['description' => 'Corrected text']);
+
+        $response = $this->get('/accounting_journals/view/' . $journalId);
+
+        $response->assertSee(lang('Accounting.action_details_edited'));
+        $response->assertSee('Corrected text');
+    }
+
+    public function testGetView_ListsTheFilesOfTheJournalAndOffersDeleteToTheHolderOfThePermission(): void
+    {
+        $journalId = $this->automaticJournal();
+        $employee  = $this->detailsEditor();
+        $fileId    = $this->addFileTo($journalId, $employee, 'supplier invoice.pdf');
+
+        $response = $this->get('/accounting_journals/view/' . $journalId);
+
+        $response->assertSee('supplier invoice.pdf');
+        $response->assertSee('accounting_journals/attachment/' . $fileId);
+        $response->assertSee('data-delete-attachment="' . $fileId . '"');
+        $response->assertSee('id="attachment_form"');
+
+        $this->actAs($this->employeeWithGrants(['accounting_journals', AccountingGuard::JOURNALS_ALL]));
+
+        $reader = $this->get('/accounting_journals/view/' . $journalId);
+
+        $reader->assertSee('supplier invoice.pdf');
+        $reader->assertDontSee('data-delete-attachment');
+        $reader->assertDontSee('id="attachment_form"');
+    }
+
+    public function testGetView_EscapesTheNameOfAFile(): void
+    {
+        $journalId = $this->automaticJournal();
+        $employee  = $this->detailsEditor();
+        $fileId    = $this->addFileTo($journalId, $employee);
+        $this->accountingDb()->table('accounting_journal_attachments')->where('attachment_id', $fileId)->update(['original_name' => '<script>alert(1)</script>.pdf']);
+
+        $response = $this->get('/accounting_journals/view/' . $journalId);
+
+        $response->assertDontSee('<script>alert(1)</script>.pdf');
+        $response->assertSee('&lt;script&gt;alert(1)&lt;/script&gt;.pdf');
+    }
+
+    public function testGetEdit_OffersTheFilesOfADraftToItsEditor(): void
+    {
+        $employee = $this->accountant();
+        $draftId  = (new JournalService())->saveDraft($this->journalInput(), $employee);
+        $fileId   = $this->addFileTo($draftId, $employee, 'draft note.pdf');
+
+        $response = $this->get('/accounting_journals/edit/' . $draftId);
+
+        $response->assertSee('draft note.pdf');
+        $response->assertSee('data-delete-attachment="' . $fileId . '"');
+        $response->assertSee('id="attachment_form"');
+    }
+
+    public function testGetNew_AsksToSaveTheDraftBeforeFilesCanBeAttached(): void
+    {
+        $this->accountant();
+
+        $response = $this->get('/accounting_journals/new');
+
+        $response->assertSee(lang('Accounting_journals.attachments_save_first'));
+        $response->assertDontSee('id="attachment_form"');
+    }
+
+    public function testPostAttach_StoresTheFileAndLeavesTheAmountsAlone(): void
+    {
+        $journalId = $this->automaticJournal();
+        $employee  = $this->detailsEditor();
+        $before    = (new JournalService())->find($journalId);
+        $this->uploadAs('invoice.pdf', $this->pdfContent());
+
+        $result = $this->jsonOf($this->post('/accounting_journals/attach/' . $journalId));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(lang('Accounting_journals.attachment_added'), $result['message']);
+        $this->assertSame('invoice.pdf', $result['file']['name']);
+        $this->assertSame($result['id'], $result['file']['id']);
+        $this->assertStringContainsString('accounting_journals/attachment/' . $result['id'], $result['file']['url']);
+
+        $row = $this->accountingDb()->table('accounting_journal_attachments')->where('attachment_id', $result['id'])->get()->getRow();
+
+        $this->assertSame((string) $journalId, (string) $row->journal_id);
+        $this->assertSame('invoice.pdf', $row->original_name);
+        $this->assertSame((string) $employee, (string) $row->uploaded_by);
+        $this->assertSame($before->total_debit, (new JournalService())->find($journalId)->total_debit);
+    }
+
+    public function testPostAttach_RejectsAKindOfFileThatIsNotAllowed(): void
+    {
+        $journalId = $this->automaticJournal();
+        $this->detailsEditor();
+        $this->uploadAs('shell.php', '<?php echo 1;');
+
+        $result = $this->jsonOf($this->post('/accounting_journals/attach/' . $journalId));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_attachment_type_not_allowed'), $result['message']);
+        $this->assertSame(0, $this->countRows('accounting_journal_attachments'));
+    }
+
+    public function testPostAttach_SaysTheFileIsTooLargeWhenThePhpLimitStoppedTheUpload(): void
+    {
+        $journalId = $this->automaticJournal();
+        $this->detailsEditor();
+        $this->uploadAs('large.pdf', $this->pdfContent(), UPLOAD_ERR_INI_SIZE);
+
+        $result = $this->jsonOf($this->post('/accounting_journals/attach/' . $journalId));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_attachment_too_large', [5]), $result['message']);
+    }
+
+    public function testPostAttach_SaysTheUploadFailedWhenNoFileCame(): void
+    {
+        $journalId = $this->automaticJournal();
+        $this->detailsEditor();
+
+        $none = $this->jsonOf($this->post('/accounting_journals/attach/' . $journalId));
+
+        $this->uploadAs('partial.pdf', $this->pdfContent(), UPLOAD_ERR_PARTIAL);
+
+        $partial = $this->jsonOf($this->post('/accounting_journals/attach/' . $journalId));
+
+        $this->assertFalse($none['success']);
+        $this->assertFalse($partial['success']);
+        $this->assertSame(lang('Accounting.error_attachment_upload_failed'), $partial['message']);
+        $this->assertSame(0, $this->countRows('accounting_journal_attachments'));
+    }
+
+    public function testPostAttach_RejectsSomeoneWithoutThePermissionToEditAPostedJournal(): void
+    {
+        $journalId = $this->automaticJournal();
+        $this->accountant();
+        $this->uploadAs('invoice.pdf', $this->pdfContent());
+
+        $result = $this->jsonOf($this->post('/accounting_journals/attach/' . $journalId));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_permission_denied'), $result['message']);
+        $this->assertSame(0, $this->countRows('accounting_journal_attachments'));
+    }
+
+    public function testPostAttach_RejectsAJournalInAClosedPeriod(): void
+    {
+        $journalId = $this->automaticJournal(date: '2026-03-15');
+        $this->closeThrough('2026-03-31');
+        $this->detailsEditor();
+        $this->uploadAs('invoice.pdf', $this->pdfContent());
+
+        $result = $this->jsonOf($this->post('/accounting_journals/attach/' . $journalId));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(0, $this->countRows('accounting_journal_attachments'));
+    }
+
+    public function testPostAttach_AcceptsAFileOnADraftFromItsEditor(): void
+    {
+        $employee = $this->accountant();
+        $draftId  = (new JournalService())->saveDraft($this->journalInput(), $employee);
+        $this->uploadAs('draft.pdf', $this->pdfContent());
+
+        $result = $this->jsonOf($this->post('/accounting_journals/attach/' . $draftId));
+
+        $this->assertTrue($result['success']);
+    }
+
+    public function testPostDeleteAttachment_RemovesTheFileAndRecordsIt(): void
+    {
+        $journalId = $this->automaticJournal();
+        $employee  = $this->detailsEditor();
+        $fileId    = $this->addFileTo($journalId, $employee);
+
+        $result = $this->jsonOf($this->post('/accounting_journals/delete_attachment/' . $fileId));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(0, $this->countRows('accounting_journal_attachments'));
+        $this->assertSame(1, $this->accountingDb()->table('accounting_audit_log')->where('action', 'attachment_deleted')->where('employee_id', $employee)->countAllResults());
+    }
+
+    public function testPostDeleteAttachment_RejectsSomeoneWithoutThePermissionAndKeepsTheFile(): void
+    {
+        $journalId = $this->automaticJournal();
+        $employee  = $this->detailsEditor();
+        $fileId    = $this->addFileTo($journalId, $employee);
+        $this->accountant();
+
+        $result = $this->jsonOf($this->post('/accounting_journals/delete_attachment/' . $fileId));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(1, $this->countRows('accounting_journal_attachments'));
+    }
+
+    public function testGetAttachment_SendsTheFileAsADownloadThatTheBrowserMustNotRun(): void
+    {
+        $journalId = $this->automaticJournal();
+        $employee  = $this->detailsEditor();
+        $fileId    = $this->addFileTo($journalId, $employee, 'فاتورة المورد.pdf');
+
+        $response = $this->get('/accounting_journals/attachment/' . $fileId);
+
+        $response->assertStatus(200);
+        $this->assertSame($this->pdfContent(), $this->servedBytes($response->response()));
+        $response->assertHeader('Content-Type', 'application/pdf');
+        $response->assertHeader('X-Content-Type-Options', 'nosniff');
+        $this->assertStringContainsString('no-store', $response->response()->getHeaderLine('Cache-Control'));
+        $this->assertStringContainsString('private', $response->response()->getHeaderLine('Cache-Control'));
+        $this->assertStringNotContainsString('public', $response->response()->getHeaderLine('Cache-Control'));
+
+        $disposition = $response->response()->getHeaderLine('Content-Disposition');
+
+        $this->assertStringStartsWith('attachment; filename="', $disposition);
+        $this->assertStringContainsString("filename*=UTF-8''" . rawurlencode('فاتورة المورد.pdf'), $disposition);
+        $this->assertStringEndsWith('.pdf', explode('"', $disposition)[1]);
+        $this->assertMatchesRegularExpression('/^[A-Za-z0-9._() -]+$/', explode('"', $disposition)[1]);
+    }
+
+    public function testGetAttachment_SendsTheStoredBytesEvenWhenTheFileHoldsTheEndOfAForm(): void
+    {
+        $journalId = $this->automaticJournal();
+        $employee  = $this->detailsEditor();
+        $content   = "A note that quotes </form> and </FORM> as they are.\n";
+        $fileId    = $this->addFileTo($journalId, $employee, 'note.txt', $content);
+
+        $response = $this->get('/accounting_journals/attachment/' . $fileId);
+
+        $response->assertStatus(200);
+        $this->assertSame($content, $this->servedBytes($response->response()));
+        $this->assertSame((string) $this->accountingDb()->table('accounting_journal_attachments')->where('attachment_id', $fileId)->get()->getRow()->sha256, hash('sha256', $this->servedBytes($response->response())));
+        $this->assertStringNotContainsString('honeypot', $this->servedBytes($response->response()));
+    }
+
+    public function testGetAttachment_IsNotFoundForAnUnknownFileAndForOneMissingFromTheServer(): void
+    {
+        $journalId = $this->automaticJournal();
+        $employee  = $this->detailsEditor();
+        $fileId    = $this->addFileTo($journalId, $employee);
+        $path      = (new JournalAttachments())->open($fileId, $employee)['path'];
+
+        try {
+            $this->get('/accounting_journals/attachment/999999');
+            $this->fail('An unknown file must not be found.');
+        } catch (PageNotFoundException) {
+            $this->addToAssertionCount(1);
+        }
+
+        unlink($path);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_journals/attachment/' . $fileId);
+    }
+
+    public function testGetAttachment_IsNotFoundForSomeoneWhoMayNotReadTheJournal(): void
+    {
+        $second    = $this->createBranch('B2');
+        $journalId = $this->automaticJournal();
+        $employee  = $this->detailsEditor();
+        $fileId    = $this->addFileTo($journalId, $employee);
+        $this->detailsEditor([$second]);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_journals/attachment/' . $fileId);
+    }
+
+    public function testGetAttachment_RedirectsSomeoneWithoutTheJournalsModule(): void
+    {
+        $journalId = $this->automaticJournal();
+        $fileId    = $this->addFileTo($journalId, $this->detailsEditor());
+        $this->actAs($this->employeeWithGrants(['accounting_chart']));
+
+        $this->get('/accounting_journals/attachment/' . $fileId)->assertRedirect();
+    }
+
+    public function testGetAttachment_IsNotFoundWhileAccountingIsDisabled(): void
+    {
+        $journalId = $this->automaticJournal();
+        $employee  = $this->detailsEditor();
+        $fileId    = $this->addFileTo($journalId, $employee);
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_journals/attachment/' . $fileId);
+    }
+
+    public function testPostDeleteDraft_TakesTheFilesOfTheDraftWithIt(): void
+    {
+        $employee = $this->accountant();
+        $draftId  = (new JournalService())->saveDraft($this->journalInput(), $employee);
+        $this->addFileTo($draftId, $employee);
+
+        $result = $this->jsonOf($this->post('/accounting_journals/delete_draft/' . $draftId));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(0, $this->countRows('accounting_journal_attachments'));
+    }
+
+    public function testGetNew_MarksTheLineDescriptionAsRequiredOnlyWhenTheBooksAskForIt(): void
+    {
+        $this->accountant();
+
+        $this->get('/accounting_journals/new')->assertDontSee('line_text_hint');
+
+        $this->setConfigValue('accounting_line_description_required', '1');
+
+        $response = $this->get('/accounting_journals/new');
+
+        $response->assertSee('id="line_text_hint"');
+        $response->assertSee(lang('Accounting_journals.line_description_required_hint'));
+        $response->assertSee('const textRequired = true;');
+    }
+
+    public function testPostPost_RejectsALineWithoutADescriptionWhenTheBooksAskForIt(): void
+    {
+        $this->accountant();
+        $this->setConfigValue('accounting_line_description_required', '1');
+        $input                                = $this->formInput();
+        $input['lines'][0]['description']     = 'Cash in';
+
+        $result = $this->jsonOf($this->post('/accounting_journals/post', $input));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_line_description_required', [2]), $result['message']);
+        $this->assertSame(0, $this->countRows('accounting_journals'));
+
+        $input['lines'][1]['description'] = 'Sales';
+
+        $this->assertTrue($this->jsonOf($this->post('/accounting_journals/post', $input))['success']);
+    }
+
+    public function testPostSaveDraft_StoresALineWithoutADescriptionWhenTheBooksAskForIt(): void
+    {
+        $this->accountant();
+        $this->setConfigValue('accounting_line_description_required', '1');
+
+        $result = $this->jsonOf($this->post('/accounting_journals/save_draft', $this->formInput()));
+
+        $this->assertTrue($result['success']);
     }
 }

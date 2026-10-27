@@ -39,6 +39,7 @@ class AccountingSetupControllerTest extends CIUnitTestCase
     protected function tearDown(): void
     {
         $this->releaseOpenTransactions();
+        $this->setConfigValue('accounting_line_description_required', '0');
 
         parent::tearDown();
     }
@@ -204,6 +205,85 @@ class AccountingSetupControllerTest extends CIUnitTestCase
         $this->assertSame('SAR', (new AccountingSettings())->baseCurrency());
     }
 
+    public function testGetIndex_ShowsTheLineDescriptionSwitchOffByDefaultAndOnWhenTheBooksAskForIt(): void
+    {
+        $this->manager();
+        $this->setConfigValue('accounting_line_description_required', '0');
+
+        $off = $this->get('/accounting_settings');
+
+        $off->assertSee('id="line_description_required"');
+        $off->assertDontSee('id="line_description_required" value="1" checked');
+
+        $this->setConfigValue('accounting_line_description_required', '1');
+
+        $this->get('/accounting_settings')->assertSee('id="line_description_required" value="1" checked');
+    }
+
+    public function testGetIndex_PostsZeroBeforeTheLineDescriptionSwitchSoUntickingItTurnsTheRequirementOff(): void
+    {
+        $this->manager();
+
+        $this->assertMatchesRegularExpression(
+            '/<input type="hidden" name="line_description_required" value="0">\s*<input type="checkbox"[^>]*name="line_description_required"/',
+            $this->get('/accounting_settings')->getBody(),
+        );
+    }
+
+    public function testGetIndex_LocksTheLineDescriptionSwitchForSomeoneWhoCannotManageSettings(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_settings']));
+
+        $this->get('/accounting_settings')->assertSee('id="line_description_required" value="1" disabled');
+    }
+
+    public function testPostSave_SavesTheLineDescriptionRequirement(): void
+    {
+        $this->manager();
+
+        $result = $this->jsonOf($this->post('/accounting_settings/save', ['base_currency' => 'SAR', 'start_date' => '2026-01-01', 'auto_fiscal_year' => '1', 'line_description_required' => '1']));
+
+        $this->assertTrue($result['success']);
+        $this->assertTrue((new AccountingSettings())->lineDescriptionRequired());
+
+        $result = $this->jsonOf($this->post('/accounting_settings/save', ['base_currency' => 'SAR', 'start_date' => '2026-01-01', 'auto_fiscal_year' => '1', 'line_description_required' => '0']));
+
+        $this->assertTrue($result['success']);
+        $this->assertFalse((new AccountingSettings())->lineDescriptionRequired());
+    }
+
+    public function testPostSave_LeavesTheLineDescriptionRequirementAloneWhenTheFormDoesNotSendIt(): void
+    {
+        $this->manager();
+        $this->setConfigValue('accounting_line_description_required', '1');
+
+        $result = $this->jsonOf($this->post('/accounting_settings/save', ['base_currency' => 'SAR', 'start_date' => '2026-01-01', 'auto_fiscal_year' => '1']));
+
+        $this->assertTrue($result['success']);
+        $this->assertTrue((new AccountingSettings())->lineDescriptionRequired());
+    }
+
+    public function testPostSave_RejectsTheLineDescriptionRequirementToSomeoneWithoutThePermission(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_settings']));
+
+        $result = $this->jsonOf($this->post('/accounting_settings/save', ['base_currency' => 'SAR', 'start_date' => '2026-01-01', 'line_description_required' => '1']));
+
+        $this->assertFalse($result['success']);
+        $this->assertFalse((new AccountingSettings())->lineDescriptionRequired());
+    }
+
+    public function testPostSave_SavesTheLineDescriptionRequirementAfterAJournalIsPosted(): void
+    {
+        (new JournalService())->postNew($this->journalInput());
+        $this->manager();
+
+        $result = $this->jsonOf($this->post('/accounting_settings/save', ['base_currency' => 'SAR', 'start_date' => '2026-01-01', 'auto_fiscal_year' => '1', 'line_description_required' => '1']));
+
+        $this->assertTrue($result['success']);
+        $this->assertTrue((new AccountingSettings())->lineDescriptionRequired());
+    }
+
     public function testPostEnable_TurnsAccountingOnWhenEverythingIsSet(): void
     {
         $this->manager();
@@ -329,6 +409,23 @@ class AccountingSetupControllerTest extends CIUnitTestCase
             $response->assertSee(lang('Accounting_payables.payables_manage'));
             $response->assertSee($this->usernameOf($treasurer));
             $response->assertSee($this->usernameOf($clerk));
+            $response->assertDontSee(lang('Accounting_settings.holders_none'));
+        });
+    }
+
+    public function testGetIndex_ListsWhoHoldsThePermissionToEditJournalTextUnderItsOwnName(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_settings']));
+
+        $this->whileNobodyHoldsSensitivePermissions(function (): void {
+            $editor = $this->employeeWithGrants([AccountingGuard::JOURNALS_EDIT]);
+
+            $response = $this->get('/accounting_settings');
+
+            $response->assertStatus(200);
+            $response->assertSee('sensitive_holders');
+            $response->assertSee(lang('Accounting_journals.journals_edit_details'));
+            $response->assertSee($this->usernameOf($editor));
             $response->assertDontSee(lang('Accounting_settings.holders_none'));
         });
     }

@@ -718,6 +718,49 @@ class EmployeesControllerTest extends CIUnitTestCase
         $this->assertSame('1', (string) $entry->employee_id);
     }
 
+    public function testGetView_OffersThePermissionToEditJournalTextAmongTheSensitiveOnes(): void
+    {
+        $this->loginAsAdmin();
+
+        $response = $this->get('/employees/view/-1');
+
+        $response->assertSee('grant_acc_journals_edit_details');
+        $this->assertContains(AccountingGuard::JOURNALS_EDIT, AccountingGuard::SENSITIVE);
+    }
+
+    public function testPostSave_LetsAnAdministratorGrantThePermissionToEditJournalTextAndRecordsIt(): void
+    {
+        $target = $this->createNonAdminEmployee();
+        $this->loginAsAdmin();
+
+        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor('jtext' . uniqid(), [
+            'grant_employees'                 => 'employees',
+            'grant_accounting_journals'       => 'accounting_journals',
+            'grant_acc_journals_edit_details' => AccountingGuard::JOURNALS_EDIT,
+        ]))->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertTrue(model(Employee::class)->has_grant(AccountingGuard::JOURNALS_EDIT, $target));
+        $this->assertSame([AccountingGuard::JOURNALS_EDIT], $this->auditedPermissions($target, 'permission_granted'));
+    }
+
+    public function testPostSave_IgnoresThePermissionToEditJournalTextTickedByAnEditorWhoIsNotAnAdministrator(): void
+    {
+        $editor = $this->sensitiveHolder();
+        $target = $this->createNonAdminEmployee();
+        $this->loginAsNonAdmin($editor);
+
+        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor('nojtext' . uniqid(), [
+            'grant_employees'                 => 'employees',
+            'grant_accounting_journals'       => 'accounting_journals',
+            'grant_acc_journals_edit_details' => AccountingGuard::JOURNALS_EDIT,
+        ]))->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertFalse(model(Employee::class)->has_grant(AccountingGuard::JOURNALS_EDIT, $target));
+        $this->assertSame([], $this->auditedPermissions($target, 'permission_granted'));
+    }
+
     public function testPostSave_RecordsTheRemovalOfASensitivePermissionByAnAdministrator(): void
     {
         $target = $this->sensitiveHolder(AccountingGuard::PERIODS_REOPEN);

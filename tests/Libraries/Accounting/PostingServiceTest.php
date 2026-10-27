@@ -56,6 +56,7 @@ class PostingServiceTest extends CIUnitTestCase
             $this->other = null;
         }
 
+        $this->setConfigValue('accounting_line_description_required', '0');
         $this->removeInsertedEntities();
 
         parent::tearDown();
@@ -80,6 +81,17 @@ class PostingServiceTest extends CIUnitTestCase
         $this->assertSame('115.5000', $lines[0]->debit);
         $this->assertSame('0.0000', $lines[0]->credit);
         $this->assertSame('115.5000', $lines[1]->credit);
+    }
+
+    public function testPost_NeverAsksForLineDescriptionsOfTheJournalsTheBooksMakeThemselves(): void
+    {
+        $this->setConfigValue('accounting_line_description_required', '1');
+
+        $result = $this->service->post($this->balancedDraft(sourceId: 41));
+
+        $this->assertTrue($result->created);
+        $this->assertSame(2, $this->countRows('accounting_journal_lines'));
+        $this->assertSame(2, $this->accountingDb()->table('accounting_journal_lines')->where('description IS NULL', null, false)->countAllResults());
     }
 
     public function testPost_NumbersManualJournalsSequentially(): void
