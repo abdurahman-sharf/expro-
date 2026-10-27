@@ -240,6 +240,7 @@ class Expense extends Model
             expenses.employee_id AS employee_id,
             expenses.deleted AS deleted,
             expenses.treasury_id AS treasury_id,
+            expenses.treasury_branch_id AS treasury_branch_id,
             expenses.branch_id AS branch_id,
             employees.first_name AS first_name,
             employees.last_name AS last_name,
@@ -316,7 +317,7 @@ class Expense extends Model
         $this->accountingFailure = null;
 
         if (! (new AccountingSettings($this->db))->isEnabled()) {
-            unset($expense_data['treasury_id'], $expense_data['branch_id']);
+            unset($expense_data['treasury_id'], $expense_data['branch_id'], $expense_data['expense_branch_id'], $expense_data['treasury_branch_id']);
 
             try {
                 return $this->saveRow($expense_data, $expense_id);

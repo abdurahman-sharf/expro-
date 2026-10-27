@@ -23,6 +23,7 @@ final readonly class ExpenseDocument
         public ?int $treasuryId,
         public int $branchId,
         public bool $deleted,
+        public ?int $treasuryBranchId = null,
     ) {
     }
 }

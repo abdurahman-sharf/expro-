@@ -20,6 +20,7 @@ final class DocumentJournals
     private JournalService $journals;
     private PeriodGuard $periods;
     private TreasuryScopes $scopes;
+    private CrossBranchPayments $crossBranch;
 
     public function __construct(?BaseConnection $db = null, ?BranchGuard $branches = null)
     {
@@ -28,6 +29,8 @@ final class DocumentJournals
         $this->journals = new JournalService($this->db);
         $this->periods  = new PeriodGuard($this->db);
         $this->scopes   = new TreasuryScopes($this->db, $branches);
+
+        $this->crossBranch = new CrossBranchPayments($this->db, $branches);
     }
 
     /**
@@ -94,6 +97,27 @@ final class DocumentJournals
         $this->posting->post($draft);
 
         return JournalChange::Replaced;
+    }
+
+    /**
+     * Keeps the journals of a document that is posted in two branches in step with it, together, or
+     * the one journal of any other document as sync() does.
+     *
+     * @param list<JournalDraft> $drafts
+     *
+     * @throws AccountingException|PostingException
+     */
+    public function syncAll(string $sourceType, int $sourceId, array $drafts, ?int $employeeId, string $reason): JournalChange
+    {
+        $active = $this->active($sourceType, $sourceId);
+
+        if (count($drafts) < 2 && ($active === null || ! $this->crossBranch->isPaired($active))) {
+            return $this->sync($sourceType, $sourceId, $drafts[0] ?? null, $employeeId, $reason);
+        }
+
+        return $this->crossBranch->sync($active, $drafts, $employeeId, function (object $journal) use ($employeeId, $reason): void {
+            $this->reverse($journal, $employeeId, $reason);
+        });
     }
 
     /**

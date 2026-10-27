@@ -360,6 +360,62 @@ final class TreasuryService
     }
 
     /**
+     * Where a new payment goes, with the branch of the treasury when that is not the branch of the
+     * document: the treasury it names, which may be one of another branch for an employee who works
+     * in both, and open to the employee in the direction, or else what ofPayment() chooses, which is
+     * always of the branch of the document.
+     *
+     * @return array{?int, ?int} The treasury and the branch it belongs to when that is another.
+     *
+     * @throws AccountingException
+     */
+    public function placeOfPayment(?int $named, PaymentType $type, string $direction, ?int $employeeId, int $branchId): array
+    {
+        if ($named !== null && $named > 0) {
+            $other = $this->otherBranchOf($named, $branchId, $employeeId);
+
+            $this->scopes->assertAllows($named, $direction, $employeeId);
+
+            return [$named, $other];
+        }
+
+        return [$this->ofPayment(null, $type, $direction, $employeeId, $branchId), null];
+    }
+
+    /**
+     * The branch of a treasury a document of a branch names for a payment, or null when it is the
+     * branch of the document. A treasury of another branch is for an employee who works in both
+     * branches, as moving money between branches is, and it must be open unless the payment is
+     * already in it. A treasury the employee may not use that way is as good as not there.
+     *
+     * @throws AccountingException
+     */
+    public function otherBranchOf(int $treasuryId, int $branchId, ?int $employeeId, bool $allowInactive = false): ?int
+    {
+        $treasury = $this->find($treasuryId);
+
+        if ($treasury === null) {
+            throw new AccountingException(AccountingError::TreasuryNotFound, "Treasury {$treasuryId} does not exist.", ['treasury_id' => $treasuryId]);
+        }
+
+        $treasuryBranch = (int) $treasury->branch_id;
+
+        if ($treasuryBranch === $branchId) {
+            return null;
+        }
+
+        if (! $this->branches->canAccess($treasuryBranch, $employeeId) || ! $this->branches->canAccess($branchId, $employeeId)) {
+            throw new AccountingException(AccountingError::TreasuryNotFound, "Treasury {$treasuryId} is not one of branch {$branchId}.", ['treasury_id' => $treasuryId]);
+        }
+
+        if (! $allowInactive && (int) $treasury->active === 0) {
+            throw new AccountingException(AccountingError::TreasuryInactive, 'A payment cannot go into a deactivated treasury of another branch.', ['treasury_id' => $treasuryId]);
+        }
+
+        return $treasuryBranch;
+    }
+
+    /**
      * Whether an employee may change a payment that was written before: only a change of the
      * treasury it lands on or of its amount is a new deposit or withdrawal. A payment with no
      * treasury lands on the treasury that owns the account its way of payment is routed to, so a

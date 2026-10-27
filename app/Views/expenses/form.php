@@ -3,6 +3,8 @@
  * @var object $expenses_info
  * @var array $payment_options
  * @var array<int, string> $treasury_options
+ * @var array<int, string> $branch_options
+ * @var int $branch_selected
  * @var array $expense_categories
  * @var array $employees
  * @var string $controller_name
@@ -128,6 +130,16 @@
                 <?= form_label(lang('Expenses.treasury'), 'treasury_id', ['class' => 'form-label']) ?>
                 <div class="field-control">
                     <?= form_dropdown('treasury_id', $treasury_options, (string) ($expenses_info->treasury_id ?? 0), ['class' => 'form-select', 'id' => 'treasury_id']) ?>
+                </div>
+            </div>
+        <?php endif; ?>
+
+        <?php if (($branch_options ?? []) !== []): ?>
+            <div class="field">
+                <?= form_label(lang('Expenses.branch'), 'expense_branch_id', ['class' => 'form-label']) ?>
+                <div class="field-control">
+                    <?= form_dropdown('expense_branch_id', $branch_options, (string) ($branch_selected ?? 0), ['class' => 'form-select', 'id' => 'expense_branch_id', 'aria-describedby' => 'expense_branch_note']) ?>
+                    <div class="form-text" id="expense_branch_note"><?= esc(lang('Expenses.branch_note')) ?></div>
                 </div>
             </div>
         <?php endif; ?>

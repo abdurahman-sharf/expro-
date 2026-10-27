@@ -72,6 +72,10 @@ final class CrossBranchPayments
 
         $moved = array_values(array_filter($draft->lines, static fn (JournalLineDraft $line): bool => $line->accountId === $treasury));
 
+        if ($moved === []) {
+            return [$draft];
+        }
+
         if (count($moved) !== 1) {
             throw new PostingException(PostingError::CrossBranchPaymentInvalid, 'A payment into a treasury of another branch moves the treasury once.', ['treasury_id' => $treasuryId]);
         }

@@ -30,6 +30,7 @@ final class SalePosting
     private StockLedger $stock;
     private AccountingSettings $settings;
     private PeriodGuard $periods;
+    private CrossBranchPayments $crossBranch;
 
     public function __construct(?BaseConnection $db = null)
     {
@@ -45,6 +46,8 @@ final class SalePosting
             totals_decimals(),
             (bool) (config(OSPOS::class)->settings['tax_included'] ?? false),
         );
+
+        $this->crossBranch = new CrossBranchPayments($this->db);
     }
 
     /**
@@ -315,6 +318,13 @@ final class SalePosting
     {
         $active = $this->activeJournal(SalePostingBuilder::SOURCE_PAYMENT, $payment->paymentId, JournalEntryType::General);
         $draft  = $this->builder->payment($sale, $payment, $this->nextRevision(SalePostingBuilder::SOURCE_PAYMENT, $payment->paymentId, JournalEntryType::General), $employeeId);
+        $drafts = $draft === null ? [] : $this->crossBranch->drafts($draft, $payment->treasuryId, $payment->treasuryBranchId);
+
+        if (count($drafts) > 1 || ($active !== null && $this->crossBranch->isPaired($active))) {
+            $this->crossBranch->sync($active, $drafts, $employeeId, fn (object $journal): array => $this->reverse($journal, $employeeId, 'Payment #' . $payment->paymentId . ' changed'));
+
+            return;
+        }
 
         if ($active !== null) {
             if ($draft !== null && $this->holds($active, $draft)) {

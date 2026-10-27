@@ -13,7 +13,7 @@ use CodeIgniter\Database\Migration;
  */
 class CrossBranchPayments extends Migration
 {
-    private const TABLES = ['sales_payments', 'receivings_payments', 'receivings', 'expenses'];
+    private const TABLES = ['sales_payments', 'receivings_payments', 'expenses'];
 
     public function up(): void
     {

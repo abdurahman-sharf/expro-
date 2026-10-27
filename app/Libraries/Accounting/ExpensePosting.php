@@ -27,6 +27,7 @@ final class ExpensePosting
     private TreasuryService $treasuries;
     private BranchGuard $branches;
     private AuditLog $audit;
+    private CrossBranchPayments $crossBranch;
 
     public function __construct(?BaseConnection $db = null, ?BranchGuard $branches = null)
     {
@@ -37,6 +38,8 @@ final class ExpensePosting
         $this->builder    = new ExpensePostingBuilder(new RoutingResolver($this->db));
         $this->treasuries = new TreasuryService($this->db, null, $this->branches);
         $this->audit      = new AuditLog($this->db);
+
+        $this->crossBranch = new CrossBranchPayments($this->db, $this->branches);
     }
 
     /**
@@ -60,7 +63,7 @@ final class ExpensePosting
      * follow, or one that has been stamped with a branch by the books before, is checked and
      * stamped; any other is saved as it always was.
      *
-     * @param array<string, mixed> $data   The columns of the expense; treasury_id, when present, is the treasury asked for, and 0 or empty asks for the default.
+     * @param array<string, mixed> $data   The columns of the expense; treasury_id, when present, is the treasury asked for, and 0 or empty asks for the default. expense_branch_id, when present, is the branch the expense belongs to when that is not the branch of the treasury.
      * @param object|null          $stored The row as it is now, locked, or null for a new expense.
      *
      * @return array{data: array<string, mixed>, post: bool, branch_id: ?int}
@@ -69,9 +72,10 @@ final class ExpensePosting
      */
     public function plan(array $data, ?object $stored, ?int $actorId): array
     {
-        $asked = array_key_exists('treasury_id', $data) ? (int) $data['treasury_id'] : null;
+        $asked       = array_key_exists('treasury_id', $data) ? (int) $data['treasury_id'] : null;
+        $askedBranch = isset($data['expense_branch_id']) ? (int) $data['expense_branch_id'] : null;
 
-        unset($data['treasury_id'], $data['branch_id']);
+        unset($data['treasury_id'], $data['branch_id'], $data['expense_branch_id'], $data['treasury_branch_id']);
 
         $isNew = $stored === null;
 
@@ -94,11 +98,11 @@ final class ExpensePosting
 
         $this->assertCategoryAccount($data, $stored);
 
-        [$branchId, $treasuryId] = $this->resolve($data, $stored, $asked, $actorId);
+        [$branchId, $treasuryId, $treasuryBranchId] = $this->resolve($data, $stored, $asked, $askedBranch, $actorId);
 
         $this->branches->requireBranch($branchId, $actorId);
 
-        return ['data' => array_merge($data, ['branch_id' => $branchId, 'treasury_id' => $treasuryId]), 'post' => true, 'branch_id' => $branchId];
+        return ['data' => array_merge($data, ['branch_id' => $branchId, 'treasury_id' => $treasuryId, 'treasury_branch_id' => $treasuryBranchId]), 'post' => true, 'branch_id' => $branchId];
     }
 
     /**
@@ -120,7 +124,8 @@ final class ExpensePosting
         $wanted   = ! $expense->deleted && $this->follows($expense->date);
         $revision = $this->journals->nextRevision(ExpensePostingBuilder::SOURCE, $expenseId);
         $draft    = $wanted ? $this->builder->expense($expense, $revision, $actorId) : null;
-        $change   = $this->journals->sync(ExpensePostingBuilder::SOURCE, $expenseId, $draft, $actorId, 'Expense #' . $expenseId . ($expense->deleted ? ' deleted' : ' changed'));
+        $drafts   = $draft === null ? [] : $this->crossBranch->drafts($draft, $expense->treasuryId, $expense->treasuryBranchId);
+        $change   = $this->journals->syncAll(ExpensePostingBuilder::SOURCE, $expenseId, $drafts, $actorId, 'Expense #' . $expenseId . ($expense->deleted ? ' deleted' : ' changed'));
 
         $this->record($expense, $change, $draft?->revision, $actorId);
 
@@ -143,7 +148,7 @@ final class ExpensePosting
 
         $this->branches->requireBranch((int) $active->branch_id, $actorId);
 
-        $change = $this->journals->sync(ExpensePostingBuilder::SOURCE, $expenseId, null, $actorId, 'Expense #' . $expenseId . ' deleted');
+        $change = $this->journals->syncAll(ExpensePostingBuilder::SOURCE, $expenseId, [], $actorId, 'Expense #' . $expenseId . ' deleted');
 
         $this->audit->write('expense', $expenseId, 'cancelled', $actorId, JournalOrigin::User, ['revision' => (int) $active->revision], (int) $active->branch_id);
 
@@ -153,7 +158,7 @@ final class ExpensePosting
     public function document(int $expenseId): ?ExpenseDocument
     {
         $row = $this->db->table('expenses e')
-            ->select('e.expense_id, e.date, e.amount, e.tax_amount, e.payment_type, e.treasury_id, e.branch_id, e.deleted, c.account_id')
+            ->select('e.expense_id, e.date, e.amount, e.tax_amount, e.payment_type, e.treasury_id, e.treasury_branch_id, e.branch_id, e.deleted, c.account_id')
             ->join('expense_categories c', 'c.expense_category_id = e.expense_category_id', 'left')
             ->where('e.expense_id', $expenseId)
             ->get()
@@ -173,6 +178,7 @@ final class ExpensePosting
             treasuryId: $row->treasury_id === null ? null : (int) $row->treasury_id,
             branchId: (int) $row->branch_id,
             deleted: (int) $row->deleted === 1,
+            treasuryBranchId: $row->treasury_branch_id === null ? null : (int) $row->treasury_branch_id,
         );
     }
 
@@ -290,18 +296,20 @@ final class ExpensePosting
 
     /**
      * The branch an expense belongs to and the treasury it is paid from. A treasury that is named
-     * decides the branch, and must be active unless the expense already used it. Without one, an
-     * expense that has been posted keeps its treasury, and a new one is paid from the treasury its
-     * employee works from, when that is open to them, or else from the account of its way of
-     * payment. An expense that is owed, or has no way of payment the books know, uses no treasury.
+     * decides the branch, unless the expense is asked to belong to another, which an employee who
+     * works in both branches may do and which is paid across the branches. It must be active unless
+     * the expense already used it. Without one, an expense that has been posted keeps its treasury, and a
+     * new one is paid from the treasury its employee works from, when that is open to them, or else
+     * from the account of its way of payment. An expense that is owed, or has no way of payment the
+     * books know, uses no treasury.
      *
      * @param array<string, mixed> $data
      *
-     * @return array{int, ?int} The branch and the treasury.
+     * @return array{int, ?int, ?int} The branch, the treasury and the branch of the treasury when it is not the branch of the expense.
      *
      * @throws AccountingException|BranchException
      */
-    private function resolve(array $data, ?object $stored, ?int $asked, ?int $actorId): array
+    private function resolve(array $data, ?object $stored, ?int $asked, ?int $askedBranch, ?int $actorId): array
     {
         $type           = PaymentType::fromLabel((string) ($data['payment_type'] ?? $stored->payment_type ?? ''));
         $usesTreasury   = $type !== null && $type->usesTreasury();
@@ -311,7 +319,7 @@ final class ExpensePosting
         $direction      = bccomp($amount === '' ? '0' : $amount, '0', SaleAmounts::SCALE) < 0 ? TreasuryScopes::DEPOSIT : TreasuryScopes::WITHDRAW;
 
         if (! $usesTreasury) {
-            return [$stored === null ? $this->branches->defaultBranchId($actorId) : (int) $stored->branch_id, null];
+            return [$stored === null ? $this->branches->defaultBranchId($actorId) : (int) $stored->branch_id, null, null];
         }
 
         if ($asked !== null && $asked > 0) {
@@ -325,16 +333,19 @@ final class ExpensePosting
                 throw new AccountingException(AccountingError::TreasuryInactive, 'An expense cannot be paid from a deactivated treasury.', ['treasury_id' => $asked]);
             }
 
-            return [(int) $treasury->branch_id, $asked];
+            $keepsOtherBranch = $stored !== null && $asked === $storedTreasury && $stored->treasury_branch_id !== null;
+            $branchId         = $askedBranch !== null && $askedBranch > 0 ? $askedBranch : ($keepsOtherBranch ? (int) $stored->branch_id : (int) $treasury->branch_id);
+
+            return [$branchId, $asked, $this->treasuries->otherBranchOf($asked, $branchId, $actorId, $asked === $storedTreasury)];
         }
 
         if ($asked === null && $stored !== null && $storedType !== null && $storedType->usesTreasury()) {
-            return [(int) $stored->branch_id, $storedTreasury];
+            return [(int) $stored->branch_id, $storedTreasury, $stored->treasury_branch_id === null ? null : (int) $stored->treasury_branch_id];
         }
 
         $branchId = $stored === null ? $this->branches->defaultBranchId($actorId) : (int) $stored->branch_id;
 
-        return [$branchId, $this->treasuries->stampFor($actorId, $branchId, $direction)];
+        return [$branchId, $this->treasuries->stampFor($actorId, $branchId, $direction), null];
     }
 
     private function record(ExpenseDocument $expense, JournalChange $change, ?int $revision, ?int $actorId): void
