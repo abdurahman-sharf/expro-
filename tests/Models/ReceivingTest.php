@@ -405,7 +405,7 @@ class ReceivingTest extends CIUnitTestCase
         $this->switchOn(DocumentType::Purchase, 'PUR-', 0);
         $db = $this->accountingDb();
         $db->table('document_sequences')->where('doc_type', 'purchase')->update(['next_number' => 4294967294]);
-        $db->table('document_numbers')->insert(['company_id' => 1, 'doc_type' => 'purchase', 'source_table' => 'receivings', 'source_id' => 1, 'sequence_number' => 4294967294, 'number' => 'PUR-4294967294']);
+        $db->table('document_numbers')->insert(['company_id' => 1, 'doc_type' => 'purchase', 'source_table' => 'receivings', 'source_id' => 999999999, 'sequence_number' => 4294967294, 'number' => 'PUR-4294967294']);
 
         $before = $this->countRows('receivings');
         $item   = $this->item('0.00');

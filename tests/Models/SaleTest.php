@@ -828,7 +828,7 @@ class SaleTest extends CIUnitTestCase
         $db = \Config\Database::connect();
         $this->switchOn(DocumentType::CustomerPayment, 'PAY-', 0, 1);
         $db->table('document_sequences')->where('doc_type', 'customer_payment')->update(['next_number' => 4294967294]);
-        $db->table('document_numbers')->insert(['company_id' => 1, 'doc_type' => 'customer_payment', 'source_table' => 'sales_payments', 'source_id' => 1, 'sequence_number' => 4294967294, 'number' => 'PAY-4294967294']);
+        $db->table('document_numbers')->insert(['company_id' => 1, 'doc_type' => 'customer_payment', 'source_table' => 'sales_payments', 'source_id' => 999999999, 'sequence_number' => 4294967294, 'number' => 'PAY-4294967294']);
 
         $before = $db->table('sales')->countAllResults();
         $result = $this->saveSale(SALE_TYPE_POS, [$this->cashPayment()]);

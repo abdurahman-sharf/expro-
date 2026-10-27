@@ -3,6 +3,8 @@
 namespace Tests\Models;
 
 use App\Libraries\Accounting\EntityAccountService;
+use App\Libraries\Numbering\DocumentNumbering;
+use App\Libraries\Numbering\DocumentType;
 use App\Models\Customer;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -41,13 +43,19 @@ class CustomerTest extends CIUnitTestCase
     protected function tearDown(): void
     {
         config(OSPOS::class)->settings['enforce_privacy'] = $this->privacy;
+        $this->accountingDb()->table('document_numbers')->truncate();
+        $this->accountingDb()->table('document_sequences')->truncate();
+        $this->accountingDb()->table('accounting_audit_log')->where('entity_type', 'document_numbering')->delete();
         $this->removeInsertedEntities();
         $this->setConfigValue('accounting_enabled', '0');
 
         parent::tearDown();
     }
 
-    private function saveCustomer(string $firstName, string $lastName, ?string $company = null, int $customerId = -1): int
+    /**
+     * @param array<string, mixed> $extra
+     */
+    private function saveCustomer(string $firstName, string $lastName, ?string $company = null, int $customerId = -1, array $extra = []): int
     {
         $person = [
             'first_name'   => $firstName,
@@ -63,7 +71,7 @@ class CustomerTest extends CIUnitTestCase
             'country'      => '',
             'comments'     => '',
         ];
-        $customer = ['company_name' => $company, 'employee_id' => 1];
+        $customer = ['company_name' => $company, 'employee_id' => 1, ...$extra];
 
         $this->assertTrue((bool) model(Customer::class)->save_customer($person, $customer, $customerId));
 
@@ -177,5 +185,130 @@ class CustomerTest extends CIUnitTestCase
         $this->saveCustomer('Omar', 'Khaled', null, $customerId);
 
         $this->assertSame('1', (string) $this->accountOf($customerId)->active);
+    }
+
+    private function accountNumberOf(int $customerId): ?string
+    {
+        return $this->accountingDb()->table('customers')->where('person_id', $customerId)->get()->getRow()->account_number;
+    }
+
+    private function switchOn(string $prefix = 'C', int $padding = 5, ?int $next = 1): void
+    {
+        (new DocumentNumbering())->configure(DocumentType::Customer, ['enabled' => true, 'prefix' => $prefix, 'padding' => $padding, 'next_number' => $next]);
+    }
+
+    public function testSaveCustomer_GivesNoAccountNumberWhileTheSequenceIsOff(): void
+    {
+        $customerId = $this->saveCustomer('Omar', 'Khaled');
+
+        $this->assertNull($this->accountNumberOf($customerId));
+        $this->assertSame(0, $this->countRows('document_numbers'));
+    }
+
+    public function testSaveCustomer_GivesANewCustomerTheNextNumberWhenNoneIsTyped(): void
+    {
+        $this->switchOn();
+
+        $first  = $this->saveCustomer('Omar', 'Khaled');
+        $second = $this->saveCustomer('Sara', 'Nasser', extra: ['account_number' => '']);
+
+        $this->assertSame('C00001', $this->accountNumberOf($first));
+        $this->assertSame('C00002', $this->accountNumberOf($second));
+        $this->assertSame(3, (new DocumentNumbering())->sequence(DocumentType::Customer)->nextNumber);
+    }
+
+    public function testSaveCustomer_HandsTheNumberBackToTheCaller(): void
+    {
+        $this->switchOn();
+
+        $person   = ['first_name' => 'Omar', 'last_name' => 'Khaled', 'gender' => null, 'phone_number' => '', 'email' => '', 'address_1' => '', 'address_2' => '', 'city' => '', 'state' => '', 'zip' => '', 'country' => '', 'comments' => ''];
+        $customer = ['company_name' => null, 'employee_id' => 1, 'account_number' => null];
+
+        $this->assertTrue((bool) model(Customer::class)->save_customer($person, $customer));
+        $this->insertedPeople[] = (int) $person['person_id'];
+
+        $this->assertSame('C00001', $customer['account_number']);
+    }
+
+    public function testSaveCustomer_KeepsAnAccountNumberTypedByHand(): void
+    {
+        $this->switchOn();
+
+        $customerId = $this->saveCustomer('Omar', 'Khaled', extra: ['account_number' => 'VIP-7']);
+
+        $this->assertSame('VIP-7', $this->accountNumberOf($customerId));
+        $this->assertSame(0, $this->countRows('document_numbers'));
+        $this->assertSame(1, (new DocumentNumbering())->sequence(DocumentType::Customer)->nextNumber);
+    }
+
+    public function testSaveCustomer_NeverRenumbersACustomerThatExists(): void
+    {
+        $before = $this->saveCustomer('Omar', 'Khaled');
+
+        $this->switchOn();
+
+        $this->saveCustomer('Omar', 'Al-Khaled', null, $before);
+        $other = $this->saveCustomer('Sara', 'Nasser');
+
+        $this->assertNull($this->accountNumberOf($before));
+        $this->assertSame('C00001', $this->accountNumberOf($other));
+    }
+
+    public function testSaveCustomer_KeepsTheNumberWhenTheCustomerIsEdited(): void
+    {
+        $this->switchOn();
+        $customerId = $this->saveCustomer('Omar', 'Khaled');
+
+        $this->saveCustomer('Omar', 'Al-Khaled', null, $customerId, ['account_number' => 'C00001']);
+
+        $this->assertSame('C00001', $this->accountNumberOf($customerId));
+        $this->assertSame(2, (new DocumentNumbering())->sequence(DocumentType::Customer)->nextNumber);
+    }
+
+    public function testSaveCustomer_SkipsANumberAnotherCustomerAlreadyHas(): void
+    {
+        $this->switchOn();
+        $this->saveCustomer('Typed', 'ByHand', extra: ['account_number' => 'C00001']);
+
+        $customerId = $this->saveCustomer('Omar', 'Khaled');
+
+        $this->assertSame('C00002', $this->accountNumberOf($customerId));
+    }
+
+    public function testSaveCustomer_NumbersTheCustomerWhileAccountingIsOffToo(): void
+    {
+        $this->setConfigValue('accounting_enabled', '0');
+        $this->switchOn();
+
+        $customerId = $this->saveCustomer('Omar', 'Khaled');
+
+        $this->assertSame('C00001', $this->accountNumberOf($customerId));
+    }
+
+    public function testSaveCustomer_RefusesTheCustomerAndLeavesNothingWhenNoNumberCanBeGiven(): void
+    {
+        $this->switchOn('C', 0, 1);
+        $db = $this->accountingDb();
+        $db->table('document_sequences')->where('doc_type', 'customer')->update(['next_number' => 4294967294]);
+        $db->table('customers')->where('person_id', $this->saveCustomer('Typed', 'ByHand', extra: ['account_number' => 'C4294967294']))->update(['account_number' => 'C4294967294']);
+
+        $people = $this->countRows('people');
+        $person = ['first_name' => 'Omar', 'last_name' => 'Khaled', 'gender' => null, 'phone_number' => '', 'email' => '', 'address_1' => '', 'address_2' => '', 'city' => '', 'state' => '', 'zip' => '', 'country' => '', 'comments' => ''];
+        $customer = ['company_name' => null, 'employee_id' => 1, 'account_number' => null];
+
+        $this->assertFalse((bool) model(Customer::class)->save_customer($person, $customer));
+        $this->assertSame($people, $this->countRows('people'));
+    }
+
+    public function testCheckAccountNumberExists_SeesTheNumberEvenWhenSeveralCustomersAlreadyShareIt(): void
+    {
+        $first  = $this->saveCustomer('One', 'Customer', extra: ['account_number' => 'DUP-1']);
+        $second = $this->saveCustomer('Two', 'Customer', extra: ['account_number' => 'DUP-1']);
+        $model  = model(Customer::class);
+
+        $this->assertTrue($model->check_account_number_exists('DUP-1'));
+        $this->assertTrue($model->check_account_number_exists('DUP-1', (string) $first));
+        $this->assertFalse($model->check_account_number_exists('DUP-2'));
+        $this->assertGreaterThan($first, $second);
     }
 }

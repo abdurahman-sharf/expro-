@@ -9,6 +9,8 @@ use App\Libraries\Accounting\CreditSource;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\SupplierAdvances;
 use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\Numbering\DocumentNumbering;
+use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -63,6 +65,11 @@ class SupplierAdvancesTest extends CIUnitTestCase
     protected function tearDown(): void
     {
         $this->stopBuying();
+
+        $db = $this->accountingDb();
+        $db->table('document_numbers')->truncate();
+        $db->table('document_sequences')->truncate();
+        $db->table('accounting_audit_log')->where('entity_type', 'document_numbering')->delete();
 
         parent::tearDown();
     }
@@ -446,5 +453,70 @@ class SupplierAdvancesTest extends CIUnitTestCase
         $this->assertSame(1, $this->advances->branchOf(SupplierAdvances::SOURCE, $advanceId));
         $this->assertSame(1, $this->advances->branchOf(SupplierAdvances::OPENING_TYPE, $opening));
         $this->assertNull($this->advances->branchOf(SupplierAdvances::SOURCE, 999999));
+    }
+
+    private function numberOfAdvance(int $advanceId): ?string
+    {
+        return (new DocumentNumbering())->numbers(DocumentType::SupplierPayment, 'supplier_advances', [$advanceId])[$advanceId] ?? null;
+    }
+
+    public function testPay_GivesNoNumberWhileTheSequenceIsOff(): void
+    {
+        $advanceId = $this->advances->pay($this->supplierId, '50.00', '2026-10-20', 'Cash', null, '', '', $this->clerk);
+
+        $this->assertNull($this->numberOfAdvance($advanceId));
+        $this->assertSame(0, $this->countRows('document_numbers'));
+    }
+
+    public function testPay_NumbersThePaymentInTheSequenceOfSupplierPayments(): void
+    {
+        (new DocumentNumbering())->configure(DocumentType::SupplierPayment, ['enabled' => true, 'prefix' => 'SP-', 'padding' => 3]);
+
+        $first  = $this->advances->pay($this->supplierId, '50.00', '2026-10-20', 'Cash', null, '', '', $this->clerk);
+        $second = $this->advances->pay($this->supplierId, '60.00', '2026-10-21', 'Cash', null, '', '', $this->clerk);
+
+        $this->assertSame('SP-001', $this->numberOfAdvance($first));
+        $this->assertSame('SP-002', $this->numberOfAdvance($second));
+    }
+
+    public function testPay_SharesTheSequenceWithThePaymentsMadeAgainstAPurchase(): void
+    {
+        (new DocumentNumbering())->configure(DocumentType::SupplierPayment, ['enabled' => true, 'prefix' => 'SP-', 'padding' => 3]);
+
+        $purchase  = $this->purchaseOf('100.00');
+        $onInvoice = $this->payPurchase($purchase, '10.00');
+        $advanceId = $this->advances->pay($this->supplierId, '60.00', '2026-10-21', 'Cash', null, '', '', $this->clerk);
+
+        $this->assertSame('SP-001', (new DocumentNumbering())->numbers(DocumentType::SupplierPayment, 'receivings_payments', [$onInvoice])[$onInvoice]);
+        $this->assertSame('SP-002', $this->numberOfAdvance($advanceId));
+    }
+
+    public function testOpeningBalance_IsNotAPaymentAndGetsNoNumber(): void
+    {
+        (new DocumentNumbering())->configure(DocumentType::SupplierPayment, ['enabled' => true, 'prefix' => 'SP-', 'padding' => 3]);
+
+        $weOwe = $this->advances->openingBalance($this->supplierId, SupplierAdvances::WE_OWE, '10.00', '2026-01-01', '', $this->clerk);
+        $this->receivingIds[] = $weOwe;
+        $theyOwe = $this->advances->openingBalance($this->supplierId, SupplierAdvances::THEY_OWE, '20.00', '2026-01-01', '', $this->clerk);
+
+        $this->assertNull($this->numberOfAdvance($theyOwe));
+        $this->assertSame(0, $this->countRows('document_numbers'));
+        $this->assertSame(1, (new DocumentNumbering())->sequence(DocumentType::SupplierPayment)->nextNumber);
+    }
+
+    public function testPay_RefusesThePaymentAndLeavesNothingWhenNoNumberCanBeGiven(): void
+    {
+        $db = $this->accountingDb();
+        (new DocumentNumbering())->configure(DocumentType::SupplierPayment, ['enabled' => true, 'prefix' => 'SP-']);
+        $db->table('document_sequences')->where('doc_type', 'supplier_payment')->update(['next_number' => 4294967294]);
+        $db->table('document_numbers')->insert(['company_id' => 1, 'doc_type' => 'supplier_payment', 'source_table' => 'supplier_advances', 'source_id' => 999999999, 'sequence_number' => 4294967294, 'number' => 'SP-4294967294']);
+
+        $before  = $this->countRows('supplier_advances');
+        $refusal = $this->refusal(fn () => $this->advances->pay($this->supplierId, '50.00', '2026-10-20', 'Cash', null, '', '', $this->clerk));
+
+        $this->assertInstanceOf(AccountingException::class, $refusal);
+        $this->assertSame(AccountingError::NumberingExhausted, $refusal->error);
+        $this->assertSame($before, $this->countRows('supplier_advances'));
+        $this->assertSame(1, $this->countRows('document_numbers'));
     }
 }
