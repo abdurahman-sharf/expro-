@@ -65,6 +65,7 @@ return [
     'inventory_reports'                       => 'تقارير المخزن',
     'inventory_summary'                       => 'ملخص المخزن',
     'inventory_summary_report'                => 'تقرير ملخص المخزن',
+    'invoice_discount'                        => 'خصم الفاتورة',
     'item'                                    => 'صنف',
     'item_count'                              => 'تصفية عداد الصنف',
     'item_name'                               => 'اسم الصنف',

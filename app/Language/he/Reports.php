@@ -65,6 +65,7 @@ return [
     'inventory_reports'                       => 'דוחות מלאי',
     'inventory_summary'                       => 'סיכום מלאי',
     'inventory_summary_report'                => 'דוח סיכום מלאי',
+    'invoice_discount'                        => '',
     'item'                                    => 'פריט',
     'item_count'                              => 'סנן פריט לפי ספירה',
     'item_name'                               => 'שם פריט',

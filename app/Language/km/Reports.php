@@ -65,6 +65,7 @@ return [
     'inventory_reports'                       => '',
     'inventory_summary'                       => '',
     'inventory_summary_report'                => '',
+    'invoice_discount'                        => '',
     'item'                                    => '',
     'item_count'                              => '',
     'item_name'                               => '',

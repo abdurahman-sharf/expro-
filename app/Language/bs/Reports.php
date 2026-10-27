@@ -65,6 +65,7 @@ return [
     'inventory_reports'                       => 'Izvještaji zalihe',
     'inventory_summary'                       => 'Sažetak zalihe',
     'inventory_summary_report'                => 'Sumarni izvještaj zaliha',
+    'invoice_discount'                        => '',
     'item'                                    => 'Artikl',
     'item_count'                              => 'Filtriraj po broju artikala',
     'item_name'                               => 'Naziv artikla',

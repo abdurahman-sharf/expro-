@@ -65,6 +65,7 @@ return [
     'inventory_reports'                       => 'சரக்கு அறிக்கைகள்',
     'inventory_summary'                       => 'சரக்கு சுருக்கம்',
     'inventory_summary_report'                => 'சரக்கு சுருக்க அறிக்கை',
+    'invoice_discount'                        => '',
     'item'                                    => 'Item',
     'item_count'                              => 'உருப்படி எண்ணிக்கையை வடிகட்டவும்',
     'item_name'                               => 'Item Name',

@@ -65,6 +65,7 @@ return [
     'inventory_reports'                       => 'Skladové sestavy',
     'inventory_summary'                       => 'Přehled stavu skladu',
     'inventory_summary_report'                => 'Přehled skladu',
+    'invoice_discount'                        => '',
     'item'                                    => 'Položka',
     'item_count'                              => 'Filtr podle počtu',
     'item_name'                               => 'Název položky',

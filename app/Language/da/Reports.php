@@ -65,6 +65,7 @@ return [
     'inventory_reports'                       => 'Lagerrapporter',
     'inventory_summary'                       => 'Inventaroversigt',
     'inventory_summary_report'                => 'Opgørelsesoversigt',
+    'invoice_discount'                        => '',
     'item'                                    => 'Vare',
     'item_count'                              => 'Filtrer vareantal',
     'item_name'                               => 'Varens navn',

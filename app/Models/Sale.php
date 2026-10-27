@@ -1769,6 +1769,7 @@ class Sale extends Model
                     MAX(sales_items.item_cost_price) AS item_cost_price,
                     MAX(sales_items.item_unit_price) AS item_unit_price,
                     MAX(sales_items.discount) AS discount,
+                    MAX(IFNULL(sales_items.invoice_discount_share, 0)) AS invoice_discount,
                     sales_items.discount_type AS discount_type,
                     sales_items.line AS line,
                     MAX(sales_items.serialnumber) AS serialnumber,

@@ -65,6 +65,7 @@ return [
     'inventory_reports'                       => 'malın nomrəsi',
     'inventory_summary'                       => 'mallar',
     'inventory_summary_report'                => 'alınan mallar',
+    'invoice_discount'                        => '',
     'item'                                    => 'gondərilən mallar',
     'item_count'                              => 'mal hesabatı',
     'item_name'                               => 'aşağı hesabatlar',

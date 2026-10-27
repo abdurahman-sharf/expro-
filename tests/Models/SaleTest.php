@@ -45,13 +45,41 @@ class SaleTest extends CIUnitTestCase
         }
 
         parent::setUp();
+        $this->removeTheSalesOfTheReportDays();
     }
 
     protected function tearDown(): void
     {
         $this->dropReportTables();
+        $this->removeTheSalesOfTheReportDays();
 
         parent::tearDown();
+    }
+
+    /**
+     * The sales the report tests make are dated in months no other test uses, and are removed so
+     * that the next run finds the days empty.
+     */
+    private function removeTheSalesOfTheReportDays(): void
+    {
+        $db  = \Config\Database::connect();
+        $ids = [];
+
+        foreach (['2001-02-', '2002-03-'] as $month) {
+            $ids = array_merge($ids, array_column($db->table('sales')->select('sale_id')->like('sale_time', $month, 'after')->get()->getResultArray(), 'sale_id'));
+        }
+
+        if ($ids === []) {
+            return;
+        }
+
+        $db->query('SET FOREIGN_KEY_CHECKS = 0');
+
+        foreach (['sales_payments', 'sales_items_taxes', 'sales_items', 'sales_taxes', 'sales'] as $table) {
+            $db->table($table)->whereIn('sale_id', $ids)->delete();
+        }
+
+        $db->query('SET FOREIGN_KEY_CHECKS = 1');
     }
 
     /**

@@ -65,6 +65,7 @@ return [
     'inventory_reports'                       => 'Voorraad rapporten',
     'inventory_summary'                       => 'Voorraad overzicht',
     'inventory_summary_report'                => 'Voorraad overzicht rapport',
+    'invoice_discount'                        => '',
     'item'                                    => 'Artikel',
     'item_count'                              => 'Filter artikel aantal',
     'item_name'                               => 'Artikelnaam',

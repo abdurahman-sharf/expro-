@@ -65,6 +65,7 @@ return [
     'inventory_reports'                       => 'Báo cáo tồn kho',
     'inventory_summary'                       => 'Tổng hợp tồn kho',
     'inventory_summary_report'                => 'Báo cáo tổng thể Tồn kho',
+    'invoice_discount'                        => '',
     'item'                                    => 'Hàng hóa',
     'item_count'                              => 'Lọc số lượng Hàng hóa',
     'item_name'                               => 'Tên Hàng hóa',

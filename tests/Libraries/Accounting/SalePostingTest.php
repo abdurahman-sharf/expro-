@@ -1851,6 +1851,50 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame('434.85', bcadd($this->position()->open(), '0', 2));
     }
 
+    /**
+     * What the sales report says of one sale: its subtotal, tax and total, as the lines of the report add up.
+     *
+     * @return array{subtotal: string, tax: string, total: string}
+     */
+    private function reportOf(int $saleId): array
+    {
+        $this->dropReportTables();
+        $this->sales->create_temp_table(['sale_id' => $saleId]);
+
+        $row = $this->accountingDb()->query('SELECT SUM(subtotal) AS subtotal, SUM(tax) AS tax, SUM(total) AS total FROM ' . $this->accountingDb()->prefixTable('sales_items_temp') . ' WHERE sale_id = ?', [$saleId])->getRow();
+
+        $this->dropReportTables();
+
+        return ['subtotal' => bcadd((string) $row->subtotal, '0', 2), 'tax' => bcadd((string) $row->tax, '0', 2), 'total' => bcadd((string) $row->total, '0', 2)];
+    }
+
+    public function testSaveValue_TheSalesReportOfADiscountedInvoiceAndOfItsReturnTiesToTheAccountsOfTheBooks(): void
+    {
+        $cycle     = $this->discountedReferenceInvoice();
+        $invoiceId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']);
+        $returnId  = $this->save([$this->line($cycle['perfume'], 0, '-1', '220', '120.00')], [$this->tax($cycle['perfume'], 0, '-29.70')], [], SALE_TYPE_RETURN, -1, true, $invoiceId);
+
+        $this->assertGreaterThan(0, $returnId);
+
+        $invoice = $this->reportOf($invoiceId);
+        $return  = $this->reportOf($returnId);
+
+        $this->assertSame(['subtotal' => '639.00', 'tax' => '95.85', 'total' => '734.85'], $invoice);
+        $this->assertSame(['subtotal' => '-198.00', 'tax' => '-29.70', 'total' => '-227.70'], $return);
+        $this->assertSame($invoice['subtotal'], bcsub('0', $this->balance($this->accountId('sales_revenue')), 2), 'the report of the invoice is the revenue account');
+        $this->assertSame(bcsub('0', $return['subtotal'], 2), $this->balance($this->accountId('sales_returns')), 'the report of the return is the returns account');
+        $this->assertSame(bcsub('0', bcadd($invoice['tax'], $return['tax'], 2), 2), $this->balance($this->accountId('tax_output')));
+        $this->assertSame(bcadd($invoice['total'], $return['total'], 2), $this->balance($this->customerAccount()));
+    }
+
+    public function testSaveValue_TheSalesReportOfASaleWithoutADiscountIsWhatItWasBefore(): void
+    {
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes']);
+
+        $this->assertSame(['subtotal' => '710.00', 'tax' => '106.50', 'total' => '816.50'], $this->reportOf($saleId));
+    }
+
     // ---------------------------------------------------------------------------------------
     // Against the reference system: fixtures T-06 to T-09
     // ---------------------------------------------------------------------------------------

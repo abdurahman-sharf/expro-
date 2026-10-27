@@ -65,6 +65,7 @@ return [
     'inventory_reports'                       => 'Laporan Persediaan',
     'inventory_summary'                       => 'Laporan Ringkasan Persediaan',
     'inventory_summary_report'                => 'Laporan Ringkasan Persediaan',
+    'invoice_discount'                        => '',
     'item'                                    => 'Produk/Item',
     'item_count'                              => 'Filter Jumlah Item',
     'item_name'                               => 'Nama Barang',
