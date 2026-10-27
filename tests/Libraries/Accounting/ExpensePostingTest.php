@@ -819,6 +819,47 @@ class ExpensePostingTest extends CIUnitTestCase
         $this->assertSame([$expenseId], array_map(static fn (object $expense): int => (int) $expense->expense_id, (new ExpensePosting())->unposted()));
     }
 
+    public function testSaveValue_AsksNoCategoryAccountOfAnExpenseThatMovesBeforeTheStartOfTheBooks(): void
+    {
+        $this->setConfigValue('accounting_start_date', '2026-10-01');
+
+        $withAccount = $this->category('Rent', $this->customAccount('5', '5970', 'Rent'));
+        $without     = $this->category('Misc');
+        $expenseId   = $this->saveExpense($this->expenseData('100.00', '0', 'Cash', $withAccount, '2026-10-20 10:00:00'));
+
+        $this->setConfigValue('accounting_expense_account_required', '1');
+
+        $this->assertSame($expenseId, $this->saveExpense($this->expenseData('100.00', '0', 'Cash', $without, '2026-09-15 10:00:00'), $expenseId));
+        $this->assertSame(0, $this->postedJournals($expenseId));
+    }
+
+    public function testSaveValue_AsksNoCategoryAccountOfAnExpenseThatIsMarkedDeleted(): void
+    {
+        $withAccount = $this->category('Rent', $this->customAccount('5', '5971', 'Rent'));
+        $without     = $this->category('Misc');
+        $expenseId   = $this->saveExpense($this->expenseData('100.00', '0', 'Cash', $withAccount));
+
+        $this->setConfigValue('accounting_expense_account_required', '1');
+
+        $data            = $this->expenseData('100.00', '0', 'Cash', $without);
+        $data['deleted'] = 1;
+
+        $this->assertSame($expenseId, $this->saveExpense($data, $expenseId));
+        $this->assertSame(0, $this->postedJournals($expenseId));
+    }
+
+    public function testSaveValue_StampsNothingOnANewExpenseThatIsAlreadyMarkedDeleted(): void
+    {
+        $data            = $this->expenseData('100.00');
+        $data['deleted'] = 1;
+
+        $expenseId = $this->saveExpense($data);
+        $row       = $this->accountingDb()->table('expenses')->where('expense_id', $expenseId)->get()->getRow();
+
+        $this->assertSame([null, null], [$row->branch_id, $row->treasury_id]);
+        $this->assertSame(0, $this->countRows('accounting_journals'));
+    }
+
     public function testSaveValue_AuditsTheCancellationOfAnExpenseMarkedDeleted(): void
     {
         $category  = $this->category();
