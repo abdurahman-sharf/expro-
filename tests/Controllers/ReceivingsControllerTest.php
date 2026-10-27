@@ -1816,6 +1816,61 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $this->assertSame([PERCENT, '5.0000'], [session()->get('recv_invoice_discount')['type'], session()->get('recv_invoice_discount')['value']]);
     }
 
+    public function testPostSetInvoiceDiscount_LeavesOutTheTaxRowWhenTheLinesCarryNoTax(): void
+    {
+        $itemId = $this->item('0.00');
+        $this->loginAs($this->buyer(), $this->cart([$this->cartLine($itemId, 1, '10', '100')]));
+
+        $response = $this->post('/receivings/setInvoiceDiscount', ['invoice_discount' => '10', 'invoice_discount_type' => '0']);
+
+        $response->assertDontSeeElement('#receiving_tax');
+        $this->assertSame(array_map('to_currency', ['1000', '-100', '900']), $this->registerAmounts($response->getBody()));
+    }
+
+    public function testGetReceipt_LeavesOutTheTaxRowOfAPurchaseWithADiscountAndNoTax(): void
+    {
+        $itemId   = $this->item('0.00');
+        $purchase = $this->buy([$this->purchaseLine($itemId, 0, '10', '100')], -1, null, null, InvoiceDiscount::of(PERCENT, '10'));
+        $this->loginAs($this->buyer());
+
+        $receipt = $this->get('/receivings/receipt/' . $purchase);
+
+        $receipt->assertDontSeeElement('#receipt_tax');
+        $this->assertSame(array_map('to_currency', ['1000', '-100', '900']), $this->receiptAmounts($receipt->getBody()));
+    }
+
+    public function testGetIndex_SaysNothingOfADiscountWhileTheRegisterHoldsNoLines(): void
+    {
+        $this->loginAs($this->buyer(), $this->withInvoiceDiscount(['recv_mode' => 'receive'], FIXED, '50.00'));
+
+        $response = $this->get('/receivings');
+
+        $response->assertDontSee(lang('Receivings.invoice_discount_invalid'));
+        $response->assertDontSee(lang('Receivings.invoice_discount_wrong_mode'));
+    }
+
+    public function testGetIndex_SaysNothingOfGoodsGoingOutWhenThereIsNoDiscount(): void
+    {
+        $itemId = $this->item('0.00');
+        $this->loginAs($this->buyer(), $this->cart([$this->cartLine($itemId, 1, '-2', '100')]));
+
+        $response = $this->get('/receivings');
+
+        $response->assertDontSee(lang('Receivings.invoice_discount_invalid'));
+        $response->assertDontSee(lang('Receivings.invoice_discount_wrong_mode'));
+    }
+
+    public function testGetIndex_SaysNothingOfADiscountKeptWhileTheRegisterIsNotInReceiveMode(): void
+    {
+        $itemId = $this->item('0.00');
+        $this->loginAs($this->buyer(), $this->withInvoiceDiscount($this->cart([$this->cartLine($itemId, 1, '-2', '100')], 'return'), PERCENT, '10.0000'));
+
+        $response = $this->get('/receivings');
+
+        $response->assertDontSee(lang('Receivings.invoice_discount_invalid'));
+        $response->assertDontSee(lang('Receivings.invoice_discount_wrong_mode'));
+    }
+
     /**
      * @return list<string> what the rows of the totals show as their amounts, in the order they are shown
      */

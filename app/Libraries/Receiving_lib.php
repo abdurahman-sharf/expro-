@@ -575,7 +575,7 @@ class Receiving_lib
         $discount = $this->getInvoiceDiscount();
         $items    = array_values($this->get_cart());
 
-        if ($discount->isNone() || $items === [] || $this->get_mode() !== 'receive' || $this->keepsStoredShares($items)) {
+        if ($discount->isNone() || $items === [] || $this->get_mode() !== 'receive') {
             return null;
         }
 
@@ -645,7 +645,7 @@ class Receiving_lib
      */
     private function sharesOf(array $items, array $lines, ReceivingType $type): array
     {
-        if ($this->keepsStoredShares($items)) {
+        if (count(array_filter($items, static fn (array $item): bool => array_key_exists('invoice_discount_share', $item))) === count($items)) {
             return array_map(static fn (array $item): string => bcadd((string) $item['invoice_discount_share'], '0', ReceivingAmounts::SCALE), $items);
         }
 
@@ -656,15 +656,5 @@ class Receiving_lib
             $type === ReceivingType::Return && $origin !== null => (new ReturnDiscountShares())->forReturn($origin, $lines),
             default                                              => array_fill(0, count($lines), '0.0000'),
         };
-    }
-
-    /**
-     * Whether every line of the cart is one of a saved purchase, carrying what it took of the discount.
-     *
-     * @param list<array<string, mixed>> $items
-     */
-    private function keepsStoredShares(array $items): bool
-    {
-        return count(array_filter($items, static fn (array $item): bool => array_key_exists('invoice_discount_share', $item))) === count($items);
     }
 }
