@@ -25,6 +25,10 @@ class Summary_expenses_categories extends Summary_report
      */
     public function getData(array $inputs): array
     {
+        if ($this->branchIds() !== null) {
+            return [];
+        }
+
         $config = config(OSPOS::class)->settings;
 
         $builder = $this->db->table('expenses AS expenses');
@@ -52,6 +56,10 @@ class Summary_expenses_categories extends Summary_report
      */
     public function getSummaryData(array $inputs): array
     {
+        if ($this->branchIds() !== null) {
+            return [];
+        }
+
         $config = config(OSPOS::class)->settings;
 
         $builder = $this->db->table('expenses AS expenses');

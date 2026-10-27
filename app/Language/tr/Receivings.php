@@ -37,6 +37,7 @@ return [
     'id'                           => 'Alım No',
     'item_name'                    => 'Ürün Adı',
     'journals'                     => '',
+    'location_not_allowed'         => '',
     'mixed_branches'               => '',
     'mode'                         => 'Alım Türü',
     'new_supplier'                 => 'Yeni Sağlayıcı',

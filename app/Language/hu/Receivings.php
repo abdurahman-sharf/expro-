@@ -37,6 +37,7 @@ return [
     'id'                           => 'Átvételi ID',
     'item_name'                    => 'Termék neve',
     'journals'                     => '',
+    'location_not_allowed'         => '',
     'mixed_branches'               => '',
     'mode'                         => 'Átvétel módja',
     'new_supplier'                 => 'Új beszállitó',

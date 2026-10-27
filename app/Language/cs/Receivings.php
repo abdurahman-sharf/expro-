@@ -37,6 +37,7 @@ return [
     'id'                           => 'Číslo příjemky',
     'item_name'                    => 'Název položky',
     'journals'                     => '',
+    'location_not_allowed'         => '',
     'mixed_branches'               => '',
     'mode'                         => 'Druh příjmu',
     'new_supplier'                 => 'Nový dodavatel',

@@ -37,6 +37,7 @@ return [
     'id'                           => 'دریافت شناسه',
     'item_name'                    => 'نام مورد',
     'journals'                     => '',
+    'location_not_allowed'         => '',
     'mixed_branches'               => '',
     'mode'                         => 'دریافت حالت',
     'new_supplier'                 => 'تامین کننده جدید',

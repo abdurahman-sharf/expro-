@@ -28,8 +28,10 @@ class Item_lib
      */
     public function get_item_location(): string
     {
-        if (!$this->session->get('item_location')) {
-            $location_id = $this->stock_location->get_default_location_id();
+        $current = $this->session->get('item_location');
+
+        if (!$current || !$this->stock_location->is_allowed_location((int) $current, 'items', true)) {
+            $location_id = $this->stock_location->get_default_location_id('items', true);
             $this->set_item_location($location_id);
         }
 

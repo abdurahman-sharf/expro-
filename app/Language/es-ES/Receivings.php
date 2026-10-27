@@ -37,6 +37,7 @@ return [
     'id'                           => 'ID de Entrada',
     'item_name'                    => 'Nombre del Artículo',
     'journals'                     => '',
+    'location_not_allowed'         => '',
     'mixed_branches'               => '',
     'mode'                         => 'Modo de Entradas',
     'new_supplier'                 => 'Nuevo Proveedor',

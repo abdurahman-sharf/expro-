@@ -36,6 +36,8 @@ final class AccountingGuard
         self::PERIODS_REOPEN,
         self::OPENING_MANAGE,
         self::ROUTING_MANAGE,
+        self::TREASURIES_MANAGE,
+        self::PAYABLES_MANAGE,
     ];
 
     private Employee $employee;

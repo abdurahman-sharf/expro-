@@ -37,6 +37,7 @@ return [
     'id'                           => 'alınma rejimi',
     'item_name'                    => 'yeni tədarükçü',
     'journals'                     => '',
+    'location_not_allowed'         => '',
     'mixed_branches'               => '',
     'mode'                         => 'Qəbul Rejimi',
     'new_supplier'                 => 'Yeni Təchizatçı',

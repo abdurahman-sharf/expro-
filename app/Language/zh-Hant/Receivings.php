@@ -37,6 +37,7 @@ return [
     'id'                           => '進貨編號',
     'item_name'                    => '產品名稱',
     'journals'                     => '',
+    'location_not_allowed'         => '',
     'mixed_branches'               => '',
     'mode'                         => '進貨模式',
     'new_supplier'                 => '新供應商',

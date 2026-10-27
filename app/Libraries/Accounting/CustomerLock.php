@@ -9,7 +9,8 @@ use Config\Database;
  * One change at a time to what a customer owes. Settling credit reads the ledger of the customer
  * and writes from it, so two changes that run side by side could spend the same credit twice. The
  * lock is taken before the transaction starts, so the transaction reads what the one before it
- * left, and it is let go after the transaction ends.
+ * left, and it is let go after the transaction ends. When the database does not keep the lock on
+ * the connection that makes the change, the change is refused: it would run unprotected.
  */
 final class CustomerLock
 {
@@ -35,17 +36,22 @@ final class CustomerLock
             return $work();
         }
 
-        $name = $this->nameOf($customerId);
-        $got  = (int) ($this->db->query('SELECT GET_LOCK(?, ?) AS got', [$name, $this->waitSeconds])->getRow()->got ?? 0);
+        $name  = $this->nameOf($customerId);
+        $lock  = new NamedLock($this->db, $this->waitSeconds);
+        $taken = $lock->take($name);
 
-        if ($got !== 1) {
-            throw new AccountingException(AccountingError::CustomerBusy, 'Another change to this customer is still running.', ['customer_id' => $customerId]);
+        if ($taken !== LockOutcome::Taken) {
+            throw new AccountingException(
+                AccountingError::CustomerBusy,
+                $taken === LockOutcome::Busy ? 'Another change to this customer is still running.' : 'The lock of this customer is not held by the connection that makes the change, so it is refused.',
+                ['customer_id' => $customerId, 'lock' => $taken->value],
+            );
         }
 
         try {
             return $work();
         } finally {
-            $this->db->query('SELECT RELEASE_LOCK(?)', [$name]);
+            $lock->release($name);
         }
     }
 

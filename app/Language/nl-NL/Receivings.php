@@ -37,6 +37,7 @@ return [
     'id'                           => 'Levering ID',
     'item_name'                    => 'Artikelnaam',
     'journals'                     => '',
+    'location_not_allowed'         => '',
     'mixed_branches'               => '',
     'mode'                         => 'Leveringsmodus',
     'new_supplier'                 => 'Nieuwe leverancier',

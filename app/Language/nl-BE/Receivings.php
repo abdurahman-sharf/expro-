@@ -37,6 +37,7 @@ return [
     'id'                           => 'Ordernummer',
     'item_name'                    => 'Productnaam',
     'journals'                     => '',
+    'location_not_allowed'         => '',
     'mixed_branches'               => '',
     'mode'                         => 'Order type',
     'new_supplier'                 => 'N. Leverancier',

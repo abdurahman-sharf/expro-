@@ -2,6 +2,7 @@
 
 namespace App\Libraries;
 
+use App\Libraries\Organization\BranchGuard;
 use App\Models\Reports\Inventory_low;
 use App\Models\Reports\Summary_expenses_categories;
 use App\Models\Reports\Summary_items;
@@ -128,6 +129,10 @@ class Dashboard_lib
 
     public function expensesThisMonth(): ?float
     {
+        if ($this->workingBranchIds() !== null) {
+            return null;
+        }
+
         return $this->guarded('expenses_month', function (): float {
             $summary = model(Summary_expenses_categories::class)->getSummaryData($this->range($this->today->modify('first day of this month'), $this->today));
 
@@ -153,10 +158,37 @@ class Dashboard_lib
         ];
     }
 
+    /**
+     * @return list<int>|null Null for someone who works in every branch.
+     */
+    private function workingBranchIds(): ?array
+    {
+        $employeeId = (int) session()->get('person_id');
+
+        return $employeeId > 0 ? (new BranchGuard())->allowedBranchIds($employeeId) : null;
+    }
+
+    /**
+     * The figures of the home page are the ones of the branches the employee works in, so what is
+     * kept for one set of branches must never be shown to someone who works in another.
+     */
+    private function branchKey(): string
+    {
+        $branchIds = $this->workingBranchIds();
+
+        if ($branchIds === null) {
+            return '';
+        }
+
+        sort($branchIds);
+
+        return '_b' . implode('-', $branchIds);
+    }
+
     private function guarded(string $section, callable $load): mixed
     {
         try {
-            return cache()->remember('dashboard_' . $section . '_' . $this->today->format('Ymd'), self::CACHE_SECONDS, $load);
+            return cache()->remember('dashboard_' . $section . $this->branchKey() . '_' . $this->today->format('Ymd'), self::CACHE_SECONDS, $load);
         } catch (Throwable $exception) {
             log_message('error', "Dashboard section {$section} failed: " . $exception->getMessage());
 

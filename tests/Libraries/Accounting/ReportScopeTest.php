@@ -143,4 +143,33 @@ class ReportScopeTest extends CIUnitTestCase
         $this->assertFalse(ReportScope::resolve(null, [1])->choosable());
         $this->assertTrue(ReportScope::resolve(null, null)->choosable());
     }
+
+    public function testLabel_SaysTheWholeCompanyIsAddedUpToSomeoneWhoWorksInEveryBranch(): void
+    {
+        $this->assertSame(lang('Accounting_reports.scope_company'), ReportScope::resolve(null, null)->label());
+    }
+
+    public function testLabel_NamesTheBranchesAddedUpAndSaysItIsNotTheTotalOfTheCompanyForSomeoneLimitedToSome(): void
+    {
+        $label = ReportScope::resolve(null, [1, $this->second])->label();
+        $codes = implode(lang('Accounting_reports.branch_separator'), ['HQ', 'S2']);
+
+        $this->assertSame(lang('Accounting_reports.scope_partial', [$codes]), $label);
+        $this->assertStringContainsString($codes, $label);
+    }
+
+    public function testLabel_NamesTheBranchesChosen(): void
+    {
+        $this->assertSame(lang('Accounting_reports.scope_selected', ['S3']), ReportScope::resolve([$this->third], null)->label());
+    }
+
+    public function testLabel_SaysNothingToSomeoneWhoReadsOneBranchOnly(): void
+    {
+        $this->assertNull(ReportScope::resolve(null, [$this->second])->label());
+    }
+
+    public function testLabel_SaysNothingToSomeoneWhoReadsNoBranch(): void
+    {
+        $this->assertNull(ReportScope::resolve(null, [])->label());
+    }
 }

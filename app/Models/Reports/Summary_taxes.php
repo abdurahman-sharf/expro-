@@ -87,6 +87,8 @@ class Summary_taxes extends Summary_report
             );
         }
 
+        $this->limitToBranches($subquery_builder, 'sales.branch_id');
+
         $builder = $this->db->newQuery()->fromSubquery($subquery_builder, 'temp_taxes');
         $builder->select(
             "name, percent, COUNT(DISTINCT sale_id) AS count, "

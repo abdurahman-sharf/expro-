@@ -37,6 +37,7 @@ return [
     'id'                           => '',
     'item_name'                    => '',
     'journals'                     => '',
+    'location_not_allowed'         => '',
     'mixed_branches'               => '',
     'mode'                         => '',
     'new_supplier'                 => '',

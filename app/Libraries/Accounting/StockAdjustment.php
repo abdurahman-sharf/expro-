@@ -2,6 +2,8 @@
 
 namespace App\Libraries\Accounting;
 
+use App\Libraries\Organization\BranchException;
+use App\Libraries\Organization\BranchGuard;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
@@ -11,7 +13,8 @@ use Config\Database;
  * from a file, or the stock an item took with it when it was deleted. The change is worth what a
  * unit is worth where it happens, and its other side is the account of the stock count the routing
  * names. Call it after the shelves have changed, with the id of the row of the inventory log that
- * says so: one adjustment is posted once for each such row.
+ * says so: one adjustment is posted once for each such row. The journal belongs to the branch of
+ * the location, and an employee who does not work in that branch cannot post it.
  */
 final class StockAdjustment
 {
@@ -24,6 +27,7 @@ final class StockAdjustment
     private StockLedger $ledger;
     private RoutingResolver $resolver;
     private AccountingSettings $settings;
+    private BranchGuard $branches;
 
     public function __construct(?BaseConnection $db = null)
     {
@@ -32,12 +36,13 @@ final class StockAdjustment
         $this->ledger   = new StockLedger($this->db);
         $this->resolver = new RoutingResolver($this->db);
         $this->settings = new AccountingSettings($this->db);
+        $this->branches = new BranchGuard($this->db);
     }
 
     /**
      * @param numeric-string $quantityChange Positive when the shelves gained units, negative when they lost them.
      *
-     * @throws AccountingException|PostingException
+     * @throws AccountingException|BranchException|PostingException
      */
     public function post(int $itemId, int $locationId, string $quantityChange, ?int $employeeId, int $inventoryId): void
     {
@@ -64,6 +69,8 @@ final class StockAdjustment
         if ($location === null) {
             return;
         }
+
+        $this->branches->requireBranch((int) $location->branch_id, $employeeId);
 
         $this->transactional(function () use ($itemId, $locationId, $quantityChange, $employeeId, $inventoryId, $date, $item, $location): void {
             $gained = bccomp($quantityChange, '0', 3) > 0;

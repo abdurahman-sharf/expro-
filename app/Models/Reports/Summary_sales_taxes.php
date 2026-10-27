@@ -44,6 +44,8 @@ class Summary_sales_taxes extends Summary_report
             $builder->where('sales.sale_time >=', $inputs['start_date']);
             $builder->where('sales.sale_time <=', $inputs['end_date']);
         }
+
+        $this->limitToBranches($builder, 'sales.branch_id');
     }
 
     /**
@@ -66,6 +68,7 @@ class Summary_sales_taxes extends Summary_report
         $builder->join('sales', 'sales_taxes.sale_id = sales.sale_id', 'left');
         $builder->join('tax_categories', 'sales_taxes.tax_category_id = tax_categories.tax_category_id', 'left');
         $builder->join('tax_jurisdictions', 'sales_taxes.jurisdiction_id = tax_jurisdictions.jurisdiction_id', 'left');
+        $this->limitToBranches($builder, 'sales.branch_id');
         $builder->groupBy('reporting_authority, jurisdiction_name, tax_category, tax_rate');
 
         $query = $builder->get();

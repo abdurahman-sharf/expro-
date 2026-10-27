@@ -37,6 +37,7 @@ return [
     'id'                           => 'รายการสินค้าเข้า ID',
     'item_name'                    => 'ชื่อสินคัา',
     'journals'                     => '',
+    'location_not_allowed'         => '',
     'mixed_branches'               => '',
     'mode'                         => 'ประเภทธุรกรรม',
     'new_supplier'                 => 'ผู้ผลิตรายใหม่',

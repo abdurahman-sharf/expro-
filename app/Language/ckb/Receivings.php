@@ -37,6 +37,7 @@ return [
     'id'                           => 'وەرگرتنی ناسنامە',
     'item_name'                    => 'ناوی ئایتم',
     'journals'                     => '',
+    'location_not_allowed'         => '',
     'mixed_branches'               => '',
     'mode'                         => 'دۆخی وەرگرتن',
     'new_supplier'                 => 'دابینکەری نوێ',

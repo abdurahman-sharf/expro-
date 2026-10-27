@@ -2,12 +2,14 @@
 
 namespace Tests\Models;
 
+use App\Libraries\Organization\BranchException;
 use App\Models\Item;
 use App\Models\Item_quantity;
 use CodeIgniter\Database\Config;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use ReflectionMethod;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
@@ -60,6 +62,7 @@ class ItemTest extends CIUnitTestCase
     private function twoItemsInTheBooks(): array
     {
         $this->startBuying();
+        $this->workInEveryBranch();
         session()->set('person_id', $this->employeeId);
 
         $first  = $this->item('0.00');
@@ -194,6 +197,201 @@ class ItemTest extends CIUnitTestCase
         $this->assertNotNull($items->accountingFailure());
     }
 
+    private function stockOfAnotherBranchOutOfReachOfTheEmployee(int $itemId): int
+    {
+        $branch = $this->createBranch('B' . substr(md5(uniqid('', true)), 0, 6), 'Second branch');
+        $store  = $this->locationOfBranch($branch, 'Store ' . substr(md5(uniqid('', true)), 0, 6));
+
+        $this->assertTrue(model(Item_quantity::class)->changeQuantity($itemId, $store, 4.0));
+        session()->set('person_id', $this->employeeWithGrants([], [1]));
+
+        return $store;
+    }
+
+    public function testDelete_RefusesAnItemWithStockInABranchTheEmployeeDoesNotWorkInAndChangesNothing(): void
+    {
+        [$itemId] = $this->twoItemsInTheBooks();
+        $store    = $this->stockOfAnotherBranchOutOfReachOfTheEmployee($itemId);
+        $items    = model(Item::class);
+
+        $this->assertFalse($items->delete($itemId));
+
+        $this->assertSame(0, (int) $items->get_info($itemId)->deleted);
+        $this->assertSame('10.000', $this->onHand($itemId));
+        $this->assertSame('4.000', $this->onHand($itemId, $store));
+        $this->assertInstanceOf(BranchException::class, $items->accountingFailure());
+        $this->assertSame(0, $this->accountingDb()->table('inventory')->where('trans_items', $itemId)->where('trans_comment', lang('Items.is_deleted'))->countAllResults());
+    }
+
+    public function testDelete_RefusesAnItemWithStockInABranchTheEmployeeDoesNotWorkInWhileAccountingIsOff(): void
+    {
+        [$itemId] = $this->twoItemsInTheBooks();
+        $store    = $this->stockOfAnotherBranchOutOfReachOfTheEmployee($itemId);
+        $this->setConfigValue('accounting_enabled', '0');
+        $items = model(Item::class);
+
+        $this->assertFalse($items->delete($itemId));
+
+        $this->assertSame(0, (int) $items->get_info($itemId)->deleted);
+        $this->assertSame('10.000', $this->onHand($itemId));
+        $this->assertSame('4.000', $this->onHand($itemId, $store));
+    }
+
+    public function testDelete_DeletesAnItemWithStockInEveryBranchForAnEmployeeOfEveryBranch(): void
+    {
+        [$itemId] = $this->twoItemsInTheBooks();
+        $store    = $this->stockOfAnotherBranchOutOfReachOfTheEmployee($itemId);
+        session()->set('person_id', $this->employeeWithGrants([]));
+
+        $this->assertTrue(model(Item::class)->delete($itemId));
+
+        $this->assertSame('0.000', $this->onHand($itemId));
+        $this->assertSame('0.000', $this->onHand($itemId, $store));
+    }
+
+    public function testDeleteList_RefusesEveryItemWhenOneHasStockInABranchTheEmployeeDoesNotWorkInAndChangesNothing(): void
+    {
+        [$first, $second] = $this->twoItemsInTheBooks();
+        $store            = $this->stockOfAnotherBranchOutOfReachOfTheEmployee($second);
+        $items            = model(Item::class);
+
+        $this->assertFalse($items->delete_list([$first, $second]));
+
+        $this->assertSame(0, (int) $items->get_info($first)->deleted);
+        $this->assertSame(0, (int) $items->get_info($second)->deleted);
+        $this->assertSame('10.000', $this->onHand($first));
+        $this->assertSame('4.000', $this->onHand($second, $store));
+        $this->assertInstanceOf(BranchException::class, $items->accountingFailure());
+    }
+
+    public function testDeleteList_RefusesEveryItemWhenOneHasStockInABranchTheEmployeeDoesNotWorkInWhileAccountingIsOff(): void
+    {
+        [$first, $second] = $this->twoItemsInTheBooks();
+        $store            = $this->stockOfAnotherBranchOutOfReachOfTheEmployee($second);
+        $this->setConfigValue('accounting_enabled', '0');
+        $items = model(Item::class);
+
+        $this->assertFalse($items->delete_list([$first, $second]));
+
+        $this->assertSame(0, (int) $items->get_info($first)->deleted);
+        $this->assertSame(0, (int) $items->get_info($second)->deleted);
+        $this->assertSame('10.000', $this->onHand($first));
+        $this->assertSame('4.000', $this->onHand($second, $store));
+    }
+
+    public function testDelete_DeletesAnItemWhoseStockIsAllInTheBranchesOfTheEmployee(): void
+    {
+        [$itemId] = $this->twoItemsInTheBooks();
+        session()->set('person_id', $this->employeeWithGrants([], [1]));
+
+        $this->assertTrue(model(Item::class)->delete($itemId));
+
+        $this->assertSame(1, (int) model(Item::class)->get_info($itemId)->deleted);
+        $this->assertSame('0.000', $this->onHand($itemId));
+        $this->assertStockTies();
+    }
+
+    public function testDelete_RefusesAnItemWithStockToAnEmployeeWhoWorksInNoBranch(): void
+    {
+        [$itemId] = $this->twoItemsInTheBooks();
+        session()->set('person_id', $this->employeeWithGrants([], []));
+        $items = model(Item::class);
+
+        $this->assertFalse($items->delete($itemId));
+
+        $this->assertSame(0, (int) $items->get_info($itemId)->deleted);
+        $this->assertSame('10.000', $this->onHand($itemId));
+        $this->assertInstanceOf(BranchException::class, $items->accountingFailure());
+    }
+
+    public function testDeleteList_DeletesItemsWhoseStockIsAllInTheBranchesOfTheEmployee(): void
+    {
+        [$first, $second] = $this->twoItemsInTheBooks();
+        session()->set('person_id', $this->employeeWithGrants([], [1]));
+
+        $this->assertTrue(model(Item::class)->delete_list([$first, $second]));
+
+        $this->assertSame('0.000', $this->onHand($first));
+        $this->assertSame('0.000', $this->onHand($second));
+        $this->assertStockTies();
+    }
+
+    public function testDeleteList_RefusesItemsWithStockToAnEmployeeWhoWorksInNoBranch(): void
+    {
+        [$first, $second] = $this->twoItemsInTheBooks();
+        session()->set('person_id', $this->employeeWithGrants([], []));
+        $items = model(Item::class);
+
+        $this->assertFalse($items->delete_list([$first, $second]));
+
+        $this->assertSame('10.000', $this->onHand($first));
+        $this->assertSame('10.000', $this->onHand($second));
+        $this->assertInstanceOf(BranchException::class, $items->accountingFailure());
+    }
+
+    public function testDelete_DeletesAnItemWhoseShelfInAnotherBranchIsEmpty(): void
+    {
+        [$itemId] = $this->twoItemsInTheBooks();
+        $store    = $this->stockOfAnotherBranchOutOfReachOfTheEmployee($itemId);
+        $this->accountingDb()->table('item_quantities')->where('item_id', $itemId)->where('location_id', $store)->update(['quantity' => 0]);
+
+        $this->assertTrue(model(Item::class)->delete($itemId));
+
+        $this->assertSame(1, (int) model(Item::class)->get_info($itemId)->deleted);
+        $this->assertSame('0.000', $this->onHand($itemId));
+    }
+
+    public function testDelete_DeletesAnItemWhoseOnlyStockInAnotherBranchSitsInADeletedLocation(): void
+    {
+        [$itemId] = $this->twoItemsInTheBooks();
+        $store    = $this->stockOfAnotherBranchOutOfReachOfTheEmployee($itemId);
+        $this->accountingDb()->table('stock_locations')->where('location_id', $store)->update(['deleted' => 1]);
+
+        $this->assertTrue(model(Item::class)->delete($itemId));
+
+        $this->assertSame(1, (int) model(Item::class)->get_info($itemId)->deleted);
+        $this->assertSame([1], array_map(static fn (object $journal): int => (int) $journal->branch_id, $this->accountingDb()->table('accounting_journals')->where('source_type', 'stock_adjustment')->get()->getResult()));
+    }
+
+    public function testDelete_ForgetsTheRefusalOfAnEarlierDelete(): void
+    {
+        [$first, $second] = $this->twoItemsInTheBooks();
+        $this->stockOfAnotherBranchOutOfReachOfTheEmployee($first);
+        $items = model(Item::class);
+
+        $this->assertFalse($items->delete($first));
+        $this->assertInstanceOf(BranchException::class, $items->accountingFailure());
+
+        $this->assertTrue($items->delete($second));
+        $this->assertNull($items->accountingFailure());
+    }
+
+    public function testDeleteList_ForgetsTheRefusalOfAnEarlierDelete(): void
+    {
+        [$first, $second] = $this->twoItemsInTheBooks();
+        $this->stockOfAnotherBranchOutOfReachOfTheEmployee($first);
+        $items = model(Item::class);
+
+        $this->assertFalse($items->delete_list([$first]));
+        $this->assertInstanceOf(BranchException::class, $items->accountingFailure());
+
+        $this->assertTrue($items->delete_list([$second]));
+        $this->assertNull($items->accountingFailure());
+    }
+
+    public function testPostStockRemoved_ReportsAJournalOfABranchTheEmployeeDoesNotWorkInInsteadOfThrowing(): void
+    {
+        [$itemId] = $this->twoItemsInTheBooks();
+        $store    = $this->stockOfAnotherBranchOutOfReachOfTheEmployee($itemId);
+        $items    = model(Item::class);
+
+        $removed = (new ReflectionMethod(Item::class, 'postStockRemoved'))->invoke($items, $itemId, [['inventory_id' => 1, 'location_id' => $store, 'change' => '-4.000']]);
+
+        $this->assertFalse($removed);
+        $this->assertInstanceOf(BranchException::class, $items->accountingFailure());
+        $this->assertSame([], $this->accountingDb()->table('accounting_journals')->where('source_type', 'stock_adjustment')->get()->getResult());
+    }
+
     public function testDeleteList_PostsEveryItemAndTiesToTheLedger(): void
     {
         [$first, $second] = $this->twoItemsInTheBooks();
@@ -224,6 +422,7 @@ class ItemTest extends CIUnitTestCase
     public function testDeleteList_KeepsNoBooksWhileAccountingIsOff(): void
     {
         $this->startBuying();
+        $this->workInEveryBranch();
         session()->set('person_id', $this->employeeId);
         $itemId = $this->item('5.00');
         $this->setConfigValue('accounting_enabled', '0');

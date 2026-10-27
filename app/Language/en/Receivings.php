@@ -37,6 +37,7 @@ return [
     'id'                           => 'Receiving ID',
     'item_name'                    => 'Item Name',
     'journals'                     => 'Journals',
+    'location_not_allowed'         => 'You do not have access to this stock location. Choose one of your own locations.',
     'mixed_branches'               => 'A receiving or a return works with the stock locations of one branch; only a transfer can go from one branch to another. Remove the items of the other branch.',
     'mode'                         => 'Receiving Mode',
     'new_supplier'                 => 'New Supplier',

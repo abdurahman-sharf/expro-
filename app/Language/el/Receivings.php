@@ -37,6 +37,7 @@ return [
     'id'                           => 'ID Παραλαβής',
     'item_name'                    => 'Όνομα Είδους',
     'journals'                     => '',
+    'location_not_allowed'         => '',
     'mixed_branches'               => '',
     'mode'                         => 'Τρόπος Παραλαβής',
     'new_supplier'                 => 'Νέος Προμηθευτής',

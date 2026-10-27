@@ -8,6 +8,7 @@ use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\StockAdjustment;
 use App\Libraries\Barcode_lib;
 use App\Libraries\Item_lib;
+use App\Libraries\Organization\BranchException;
 use App\Models\Attribute;
 use App\Models\Inventory;
 use App\Models\Item;
@@ -18,6 +19,7 @@ use App\Models\Stock_location;
 use App\Models\Supplier;
 use App\Models\Tax_category;
 use CodeIgniter\Database\BaseConnection;
+use CodeIgniter\HTTP\Exceptions\RedirectException;
 use CodeIgniter\HTTP\ResponseInterface;
 use CodeIgniter\Images\Handlers\BaseHandler;
 use CodeIgniter\HTTP\DownloadResponse;
@@ -46,7 +48,7 @@ class Items extends Secure_Controller
     private Supplier $supplier;
     private Tax_category $tax_category;
     private array $config;
-    private AccountingException|PostingException|null $adjustmentFailure = null;
+    private AccountingException|BranchException|PostingException|null $adjustmentFailure = null;
 
 
     public function __construct()
@@ -83,12 +85,17 @@ class Items extends Secure_Controller
 
         $data['table_headers'] = getItemsManageTableHeaders();
 
+        $data['stock_locations'] = $this->itemLocations();
+
+        if ($data['stock_locations'] === []) {
+            throw new RedirectException('no_access/items/items_stock');
+        }
+
         // Restore stock_location from URL or session
         $stockLocation = $this->request->getGet('stock_location', FILTER_SANITIZE_NUMBER_INT);
-        $data['stock_location'] = $stockLocation
+        $data['stock_location'] = $stockLocation && array_key_exists((int) $stockLocation, $data['stock_locations'])
             ? $stockLocation
             : $this->item_lib->get_item_location();
-        $data['stock_locations'] = $this->stock_location->get_allowed_locations();
 
         // Filters that will be loaded in the multiselect dropdown
         $data['filters'] = [
@@ -475,7 +482,7 @@ class Items extends Secure_Controller
             $data['image_path']    = '';
         }
 
-        $stock_locations = $this->stock_location->get_undeleted_all()->getResultArray();
+        $stock_locations = $this->stock_location->get_undeleted_all('items', true)->getResultArray();
 
         foreach ($stock_locations as $location) {
             $quantity = $this->item_quantity->get_item_quantity($item_id, $location['location_id'])->quantity;
@@ -513,7 +520,7 @@ class Items extends Secure_Controller
 
         $data['item_info'] = $item_info;
         $data['stock_locations'] = [];
-        $stock_locations = $this->stock_location->get_undeleted_all()->getResultArray();
+        $stock_locations = $this->stock_location->get_undeleted_all('items', true)->getResultArray();
 
         foreach ($stock_locations as $location) {
             $quantity = $this->item_quantity->get_item_quantity($item_id, $location['location_id'])->quantity;
@@ -540,7 +547,7 @@ class Items extends Secure_Controller
 
         $data['item_info'] = $item_info;
         $data['stock_locations'] = [];
-        $stock_locations = $this->stock_location->get_undeleted_all()->getResultArray();
+        $stock_locations = $this->stock_location->get_undeleted_all('items', true)->getResultArray();
 
         foreach ($stock_locations as $location) {
             $quantity = $this->item_quantity->get_item_quantity($item_id, $location['location_id'])->quantity;
@@ -882,7 +889,7 @@ class Items extends Secure_Controller
             }
 
             // Save item quantity
-            $stockLocations = $this->stock_location->get_undeleted_all()->getResultArray();
+            $stockLocations = $this->stock_location->get_undeleted_all('items', true)->getResultArray();
             foreach ($stockLocations as $location) {
                 $updatedQuantity = parse_quantity($this->request->getPost('quantity_' . $location['location_id']));
 
@@ -1030,8 +1037,13 @@ class Items extends Secure_Controller
     {
         $employee_id = $this->employee->get_logged_in_employee_info()->person_id;
         $cur_item_info = $this->item->get_info($item_id);
-        $location_id = $this->request->getPost('stock_location');
+        $location_id = (int) $this->request->getPost('stock_location');
         $new_quantity = $this->request->getPost('newquantity');
+
+        if (! $this->stock_location->is_allowed_location($location_id, 'items', true)) {
+            return $this->response->setJSON(['success' => false, 'message' => lang('Items.stock_location_not_allowed'), 'id' => NEW_ENTRY]);
+        }
+
         $inv_data = [
             'trans_date'      => date('Y-m-d H:i:s'),
             'trans_items'     => $item_id,
@@ -1123,7 +1135,7 @@ class Items extends Secure_Controller
         }
 
         $failure = $this->item->accountingFailure();
-        $note    = $failure instanceof AccountingException || $failure instanceof PostingException ? ' — ' . AccountingMessage::of($failure) : '';
+        $note    = $failure instanceof AccountingException || $failure instanceof BranchException || $failure instanceof PostingException ? ' — ' . AccountingMessage::of($failure) : '';
 
         return $this->response->setJSON(['success' => false, 'message' => lang('Items.cannot_be_deleted') . $note]);
     }
@@ -1138,7 +1150,7 @@ class Items extends Secure_Controller
     {
         helper('importfile');
         $name = 'import_items.csv';
-        $allowed_locations = $this->stock_location->get_allowed_locations();
+        $allowed_locations = $this->itemLocations();
         $allowedAttributes = $this->attribute->getDefinitionNames();
         $data = generate_import_items_csv($allowed_locations, $allowedAttributes);
 
@@ -1171,7 +1183,7 @@ class Items extends Secure_Controller
 
                     $failCodes = [];
                     $csvRows = get_csv_file($_FILES['file_path']['tmp_name']);
-                    $allowedStockLocations = $this->stock_location->get_allowed_locations();
+                    $allowedStockLocations = $this->itemLocations();
                     $attributeDefinitionNames    = $this->attribute->getDefinitionNames();
 
                     if (!csvImportHasRequiredItemHeaders($csvRows, $allowedStockLocations, $attributeDefinitionNames)) {
@@ -1230,7 +1242,7 @@ class Items extends Secure_Controller
                         }
 
                         if (!$isFailedRow) {
-                            $allowedStockLocations = $this->stock_location->get_allowed_locations();
+                            $allowedStockLocations = $this->itemLocations();
                             $isFailedRow = $this->validateCSVData($row, $itemData, $allowedStockLocations, $attributeDefinitionNames, $attributeData);
                             if (!empty($invalidLocations)) {
                                 $isFailedRow = true;
@@ -1501,6 +1513,17 @@ class Items extends Secure_Controller
     }
 
     /**
+     * The stock locations whose stock the employee may look at and change: the ones they hold the
+     * items permission for, in a branch they work in.
+     *
+     * @return array<int, string>
+     */
+    private function itemLocations(): array
+    {
+        return $this->stock_location->get_allowed_locations('items', true);
+    }
+
+    /**
      * Posts a change of the stock of an item to the books, when accounting is on. Returns false
      * when the books refused it, and says why in the message of the failed save.
      */
@@ -1514,7 +1537,7 @@ class Items extends Secure_Controller
             (new StockAdjustment())->post($itemId, $locationId, sprintf('%.3F', (float) $change), $employeeId > 0 ? $employeeId : null, (int) $inventoryId);
 
             return true;
-        } catch (AccountingException|PostingException $failure) {
+        } catch (AccountingException|BranchException|PostingException $failure) {
             $this->adjustmentFailure = $failure;
             log_message('error', 'Stock adjustment of item ' . $itemId . ' refused: ' . $failure->getMessage());
 
