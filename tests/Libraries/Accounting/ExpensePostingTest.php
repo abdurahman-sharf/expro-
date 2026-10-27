@@ -1453,11 +1453,11 @@ class ExpensePostingTest extends CIUnitTestCase
 
     public function testSaveValue_IgnoresTheBranchOfTheExpenseWhileTheBooksAreOff(): void
     {
-        ['treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+        ['branch' => $branch, 'treasury' => $treasury] = $this->treasuryOfAnotherBranch();
 
         $this->setConfigValue('accounting_enabled', '0');
 
-        $expenseId = $this->saveExpense($this->acrossBranches($treasury));
+        $expenseId = $this->saveExpense($this->acrossBranches($treasury) + ['treasury_branch_id' => $branch]);
 
         $this->assertNotNull($expenseId, 'The expense is saved as it always was');
         $this->assertSame(0, $this->countRows('accounting_journals'));

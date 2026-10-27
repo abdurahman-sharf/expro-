@@ -565,9 +565,17 @@ class InterBranchSettlementsTest extends CIUnitTestCase
     {
         $this->send(true, '100.00');
 
-        $id = $this->settle($this->other, $this->main, '2026-10-31', null, '  ' . str_repeat('x', 600) . '  ');
+        $mode = (string) $this->accountingDb()->query('SELECT @@SESSION.sql_mode AS mode')->getRow()->mode;
 
-        $this->assertSame(str_repeat('x', 500), $this->settlements->find($id)->note);
+        $this->accountingDb()->query("SET SESSION sql_mode = CONCAT(@@SESSION.sql_mode, ',STRICT_ALL_TABLES')");
+
+        try {
+            $id = $this->settle($this->other, $this->main, '2026-10-31', null, '  ' . str_repeat('x', 600) . '  ');
+        } finally {
+            $this->accountingDb()->query('SET SESSION sql_mode = ?', [$mode]);
+        }
+
+        $this->assertSame(str_repeat('x', 500), $this->settlements->find($id)->note, 'A server that refuses what is too long does not refuse the note');
     }
 
     public function testSettle_WritesOneAuditEntryForEachBranch(): void
