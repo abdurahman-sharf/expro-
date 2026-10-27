@@ -43,12 +43,12 @@ class Inventory extends Model
      * Retrieves inventory data given an item_id, of the location or the list of locations given.
      * An empty list matches nothing.
      *
-     * @param array<int, int|string>|int|false $locations
+     * @param array<int, int|string>|false|int $locations
      */
-    public function get_inventory_data_for_item(int $item_id, array|int|false $locations = false): ResultInterface
+    public function get_inventory_data_for_item(int $itemId, array|false|int $locations = false): ResultInterface
     {
         $builder = $this->db->table('inventory');
-        $builder->where('trans_items', $item_id);
+        $builder->where('trans_items', $itemId);
 
         if (is_array($locations)) {
             $locations === [] ? $builder->where('1 = 0', null, false) : $builder->whereIn('trans_location', $locations);

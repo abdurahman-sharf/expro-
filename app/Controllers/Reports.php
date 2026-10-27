@@ -2,6 +2,7 @@
 
 namespace App\Controllers;
 
+use App\Libraries\Organization\BranchGuard;
 use App\Models\Attribute;
 use App\Models\Customer;
 use App\Models\Stock_location;
@@ -26,7 +27,6 @@ use App\Models\Reports\Summary_sales;
 use App\Models\Reports\Summary_sales_taxes;
 use App\Models\Reports\Summary_suppliers;
 use App\Models\Reports\Summary_taxes;
-use App\Libraries\Organization\BranchGuard;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\HTTP\Exceptions\RedirectException;
 use CodeIgniter\HTTP\ResponseInterface;
@@ -560,12 +560,12 @@ class Reports extends Secure_Controller
     {
         $this->clearCache();
 
-        $stock_locations = $data = $this->stock_location->get_allowed_locations('sales', true);
-        $stock_locations['all'] = lang('Reports.all');
-        $data['stock_locations'] = array_reverse($stock_locations, true);
-        $data['mode'] = 'sale';
+        $stockLocations                = $data = $this->stock_location->get_allowed_locations('sales', true);
+        $stockLocations['all']         = lang('Reports.all');
+        $data['stock_locations']       = array_reverse($stockLocations, true);
+        $data['mode']                  = 'sale';
         $data['discount_type_options'] = ['0' => lang('Reports.discount_percent'), '1' => lang('Reports.discount_fixed')];
-        $data['sale_type_options'] = $this->get_sale_type_options();
+        $data['sale_type_options']     = $this->get_sale_type_options();
 
         return view('reports/date_input', $data);
     }
@@ -678,10 +678,10 @@ class Reports extends Secure_Controller
     {   // TODO: Duplicated Code
         $this->clearCache();
 
-        $stock_locations = $data = $this->stock_location->get_allowed_locations('sales', true);
-        $stock_locations['all'] = lang('Reports.all');
-        $data['stock_locations'] = array_reverse($stock_locations, true);
-        $data['mode'] = 'sale';
+        $stockLocations            = $data = $this->stock_location->get_allowed_locations('sales', true);
+        $stockLocations['all']     = lang('Reports.all');
+        $data['stock_locations']   = array_reverse($stockLocations, true);
+        $data['mode']              = 'sale';
         $data['sale_type_options'] = $this->get_sale_type_options();
 
         return view('reports/date_input', $data);
@@ -711,10 +711,10 @@ class Reports extends Secure_Controller
     {   // TODO: Duplicated Code
         $this->clearCache();
 
-        $stock_locations = $data = $this->stock_location->get_allowed_locations('sales', true);
-        $stock_locations['all'] =  lang('Reports.all');
-        $data['stock_locations'] = array_reverse($stock_locations, true);
-        $data['mode'] = 'sale';
+        $stockLocations            = $data = $this->stock_location->get_allowed_locations('sales', true);
+        $stockLocations['all']     = lang('Reports.all');
+        $data['stock_locations']   = array_reverse($stockLocations, true);
+        $data['mode']              = 'sale';
         $data['sale_type_options'] = $this->get_sale_type_options();
 
         return view('reports/date_input', $data);
@@ -724,13 +724,13 @@ class Reports extends Secure_Controller
     {
         $this->clearCache();
 
-        $stockLocations = $data = $this->stock_location->get_allowed_locations('sales', true);
-        $stockLocations['all'] = lang('Reports.all');
-        $data['stock_locations'] = array_reverse($stockLocations, true);
-        $data['mode'] = 'sale';
-        $data['sale_type_options'] = $this->get_sale_type_options();
-        $data['selected_sale_type'] = 'sales';
-        $data['discount_type_options'] = ['all' => lang('Reports.all'), '0' => lang('Reports.discount_percent'), '1' => lang('Reports.discount_fixed')];
+        $stockLocations                 = $data = $this->stock_location->get_allowed_locations('sales', true);
+        $stockLocations['all']          = lang('Reports.all');
+        $data['stock_locations']        = array_reverse($stockLocations, true);
+        $data['mode']                   = 'sale';
+        $data['sale_type_options']      = $this->get_sale_type_options();
+        $data['selected_sale_type']     = 'sales';
+        $data['discount_type_options']  = ['all' => lang('Reports.all'), '0' => lang('Reports.discount_percent'), '1' => lang('Reports.discount_fixed')];
         $data['selected_discount_type'] = 'all';
 
         return view('reports/date_input', $data);
@@ -739,15 +739,14 @@ class Reports extends Secure_Controller
     /**
      * Receivings date input. Used in app/Config/Routes.php
      *
-     * @return string
      * @noinspection PhpUnused
      */
     public function date_input_recv(): string
     {
-        $stock_locations = $data = $this->stock_location->get_allowed_locations('receivings', true);
-        $stock_locations['all'] =  lang('Reports.all');
-        $data['stock_locations'] = array_reverse($stock_locations, true);
-        $data['mode'] = 'receiving';
+        $stockLocations          = $data = $this->stock_location->get_allowed_locations('receivings', true);
+        $stockLocations['all']   = lang('Reports.all');
+        $data['stock_locations'] = array_reverse($stockLocations, true);
+        $data['mode']            = 'receiving';
 
         return view('reports/date_input', $data);
     }
@@ -1668,21 +1667,21 @@ class Reports extends Secure_Controller
      * @return ResponseInterface
      * @noinspection PhpUnused
      */
-    public function getGet_detailed_sales_row(string $sale_id): ResponseInterface
+    public function getGet_detailed_sales_row(string $saleId): ResponseInterface
     {
         $this->clearCache();
 
-        $inputs = ['sale_id' => $sale_id];
+        $inputs = ['sale_id' => $saleId];
 
         $this->detailed_sales->create($inputs);
 
-        $report_data = $this->detailed_sales->getDataBySaleId($sale_id);
+        $reportData = $this->detailed_sales->getDataBySaleId($saleId);
 
-        if ($report_data['sale_id'] === null) {
+        if ($reportData['sale_id'] === null) {
             throw PageNotFoundException::forPageNotFound();
         }
 
-        if ($report_data['sale_status'] == CANCELED) {
+        if ($reportData['sale_status'] == CANCELED) {
             $button_key = 'data-btn-restore';
             $button_label = lang('Common.restore');
         } else {
@@ -1691,20 +1690,20 @@ class Reports extends Secure_Controller
         }
 
         $summary_data = [
-            'sale_id'       => $report_data['sale_id'],
-            'sale_time'     => to_datetime(strtotime($report_data['sale_time'])),
-            'quantity'      => to_quantity_decimals($report_data['items_purchased']),
-            'employee_name' => $report_data['employee_name'],
-            'customer_name' => $report_data['customer_name'],
-            'subtotal'      => to_currency($report_data['subtotal']),
-            'tax'           => to_currency_tax($report_data['tax']),
-            'total'         => to_currency($report_data['total']),
-            'cost'          => to_currency($report_data['cost']),
-            'profit'        => to_currency($report_data['profit']),
-            'payment_type'  => $report_data['payment_type'],
-            'comment'       => $report_data['comment'],
+            'sale_id'       => $reportData['sale_id'],
+            'sale_time'     => to_datetime(strtotime($reportData['sale_time'])),
+            'quantity'      => to_quantity_decimals($reportData['items_purchased']),
+            'employee_name' => $reportData['employee_name'],
+            'customer_name' => $reportData['customer_name'],
+            'subtotal'      => to_currency($reportData['subtotal']),
+            'tax'           => to_currency_tax($reportData['tax']),
+            'total'         => to_currency($reportData['total']),
+            'cost'          => to_currency($reportData['cost']),
+            'profit'        => to_currency($reportData['profit']),
+            'payment_type'  => $reportData['payment_type'],
+            'comment'       => $reportData['comment'],
             'edit'          => anchor(
-                'sales/edit/' . $report_data['sale_id'],
+                'sales/edit/' . $reportData['sale_id'],
                 '<span class="bi bi-pencil-square" aria-hidden="true"></span>',
                 [
                     'class'           => 'modal-dlg print_hide',
@@ -1715,7 +1714,7 @@ class Reports extends Secure_Controller
             )
         ];
 
-        return $this->response->setJSON([$sale_id => $summary_data]);
+        return $this->response->setJSON([$saleId => $summary_data]);
     }
 
     /**
@@ -1997,30 +1996,30 @@ class Reports extends Secure_Controller
      * @return ResponseInterface
      * @noinspection PhpUnused
      */
-    public function getGet_detailed_receivings_row(string $receiving_id): ResponseInterface
+    public function getGet_detailed_receivings_row(string $receivingId): ResponseInterface
     {
-        $inputs = ['receiving_id' => $receiving_id];
+        $inputs = ['receiving_id' => $receivingId];
 
         $this->detailed_receivings->create($inputs);
 
-        $report_data = $this->detailed_receivings->getDataByReceivingId($receiving_id);
+        $reportData = $this->detailed_receivings->getDataByReceivingId($receivingId);
 
-        if ($report_data === null) {
+        if ($reportData === null) {
             throw PageNotFoundException::forPageNotFound();
         }
 
         $summary_data = [
-            'receiving_id'   => $report_data['receiving_id'],
-            'receiving_time' => to_datetime(strtotime($report_data['receiving_time'])),
-            'quantity'       => to_quantity_decimals($report_data['items_purchased']),
-            'employee_name'  => $report_data['employee_name'],
-            'supplier_name'  => $report_data['supplier_name'],
-            'total'          => to_currency($report_data['total']),
-            'payment_type'   => $report_data['payment_type'],
-            'reference'      => $report_data['reference'],
-            'comment'        => $report_data['comment'],
+            'receiving_id'   => $reportData['receiving_id'],
+            'receiving_time' => to_datetime(strtotime($reportData['receiving_time'])),
+            'quantity'       => to_quantity_decimals($reportData['items_purchased']),
+            'employee_name'  => $reportData['employee_name'],
+            'supplier_name'  => $reportData['supplier_name'],
+            'total'          => to_currency($reportData['total']),
+            'payment_type'   => $reportData['payment_type'],
+            'reference'      => $reportData['reference'],
+            'comment'        => $reportData['comment'],
             'edit'           => anchor(
-                'receivings/edit/' . $report_data['receiving_id'],
+                'receivings/edit/' . $reportData['receiving_id'],
                 '<span class="bi bi-pencil-square" aria-hidden="true"></span>',
                 [
                     'class'           => 'modal-dlg print_hide',
@@ -2031,7 +2030,7 @@ class Reports extends Secure_Controller
             )
         ];
 
-        return $this->response->setJSON([$receiving_id => $summary_data]);
+        return $this->response->setJSON([$receivingId => $summary_data]);
     }
 
     /**
@@ -2168,12 +2167,12 @@ class Reports extends Secure_Controller
     {
         $this->clearCache();
 
-        $data = [];
+        $data               = [];
         $data['item_count'] = $this->inventory_summary->getItemCountDropdownArray();
 
-        $stock_locations = $this->stock_location->get_allowed_locations('items', true);
-        $stock_locations['all'] = lang('Reports.all');
-        $data['stock_locations'] = array_reverse($stock_locations, true);
+        $stockLocations          = $this->stock_location->get_allowed_locations('items', true);
+        $stockLocations['all']   = lang('Reports.all');
+        $data['stock_locations'] = array_reverse($stockLocations, true);
 
         return view('reports/inventory_summary_input', $data);
     }

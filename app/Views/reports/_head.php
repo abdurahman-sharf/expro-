@@ -7,7 +7,6 @@ use App\Libraries\Accounting\ReportScopeKind;
  * @var string $subtitle
  * @var bool   $sensitiveToggle
  */
-
 $scope      = reportScope();
 $scopeLabel = $scope->label();
 ?>

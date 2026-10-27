@@ -2,10 +2,9 @@
 
 namespace app\Libraries;
 
-use CodeIgniter\HTTP\Exceptions\RedirectException;
-use CodeIgniter\Model;
-use CodeIgniter\Session\Session;
 use App\Models\Stock_location;
+use CodeIgniter\HTTP\Exceptions\RedirectException;
+use CodeIgniter\Session\Session;
 
 /**
  * Item library
