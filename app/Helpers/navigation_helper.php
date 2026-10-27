@@ -171,7 +171,7 @@ function navigationSearchIndex(array $allowedModules, array $reportPermissionIds
     if (in_array('reports', $moduleIds, true)) {
         helper('report');
 
-        foreach (reportCatalog($reportPermissionIds) as $reportGroup) {
+        foreach (reportCatalog(openableReportPermissions($reportPermissionIds)) as $reportGroup) {
             foreach ($reportGroup['subjects'] as $subject) {
                 foreach ($subject['links'] as $link) {
                     $entries[] = ['type' => 'report', 'label' => $subject['label'] . ' — ' . $link['label'], 'group' => lang('Module.reports'), 'url' => $link['path'], 'icon' => $link['icon']];

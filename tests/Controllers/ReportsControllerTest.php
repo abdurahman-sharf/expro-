@@ -257,8 +257,9 @@ class ReportsControllerTest extends CIUnitTestCase
 
         $response = $this->get('/reports/' . $report . '/' . $this->reportDay . '/' . $this->reportDay . '/sales');
 
-        $response->assertStatus(302);
-        $this->assertStringContainsString('no_access/reports/reports_expenses_categories', $response->getRedirectUrl(), $report);
+        $this->assertSame(403, $response->response()->getStatusCode(), $report);
+        $this->assertStringContainsString(lang('Branches.error_company_scope_needed'), $response->getBody(), $report);
+        $this->assertStringNotContainsString(lang('Error.no_permission_module'), $response->getBody(), $report);
     }
 
     private function openTheBooks(): void
@@ -470,6 +471,22 @@ class ReportsControllerTest extends CIUnitTestCase
     public function testGraphicalSummaryExpensesCategories_RejectsAnEmployeeWhoDoesNotWorkInEveryBranch(): void
     {
         $this->assertExpensesReportIsRefusedToAnEmployeeOfOneBranch('graphical_summary_expenses_categories');
+    }
+
+    public function testGetIndex_OffersTheExpensesReportsOnlyToAnEmployeeOfEveryBranch(): void
+    {
+        $this->openTheBooks();
+        $this->readerOfTheBranches([1]);
+
+        $body = $this->get('/reports')->getBody();
+
+        $this->assertStringContainsString('reports/summary_categories', $body);
+        $this->assertStringNotContainsString('reports/summary_expenses_categories', $body);
+        $this->assertStringNotContainsString('reports/graphical_summary_expenses_categories', $body);
+
+        $this->readerOfTheBranches(null);
+
+        $this->assertStringContainsString('reports/summary_expenses_categories', $this->get('/reports')->getBody());
     }
 
     public function testSummaryExpensesCategories_AcceptsAnEmployeeOfEveryBranch(): void

@@ -114,6 +114,11 @@ class Reports extends Secure_Controller
      */
     public function getIndex(): string
     {
+        return $this->listing();
+    }
+
+    private function listing(?string $error = null): string
+    {
         $person_id = $this->session->get('person_id');
         $grants = $this->employee->get_employee_grants($this->session->get('person_id'));
         $permissions_ids = array_column($grants, 'permission_id');
@@ -123,6 +128,10 @@ class Reports extends Secure_Controller
             'grants'         => $grants,
             'permission_ids' => $permissions_ids,
         ];
+
+        if ($error !== null) {
+            $data['error'] = $error;
+        }
 
         return view('reports/listing', $data);
     }
@@ -229,7 +238,12 @@ class Reports extends Secure_Controller
      */
     public function summary_expenses_categories(string $start_date, string $end_date, string $sale_type): string
     {
-        $this->requireCompanyWideExpenses();
+        $refusal = $this->refuseExpensesOutsideTheCompany();
+
+        if ($refusal !== null) {
+            return $refusal;
+        }
+
         $this->clearCache();
 
         $inputs = ['start_date' => $start_date, 'end_date' => $end_date, 'sale_type' => $sale_type];    // TODO: Duplicated Code
@@ -749,7 +763,12 @@ class Reports extends Secure_Controller
      */
     public function graphical_summary_expenses_categories(string $start_date, string $end_date, string $sale_type): string
     {
-        $this->requireCompanyWideExpenses();
+        $refusal = $this->refuseExpensesOutsideTheCompany();
+
+        if ($refusal !== null) {
+            return $refusal;
+        }
+
         $this->clearCache();
 
         $inputs = [
@@ -2203,11 +2222,15 @@ class Reports extends Secure_Controller
      * Expenses are not kept by branch, so their figures belong to the whole company and only an
      * employee who works in every branch reads them.
      */
-    private function requireCompanyWideExpenses(): void
+    private function refuseExpensesOutsideTheCompany(): ?string
     {
-        if (! (new BranchGuard())->isUnrestricted((int) $this->session->get('person_id'))) {
-            throw new RedirectException('no_access/reports/reports_expenses_categories');
+        if ((new BranchGuard())->isUnrestricted((int) $this->session->get('person_id'))) {
+            return null;
         }
+
+        $this->response->setStatusCode(403);
+
+        return $this->listing(lang('Branches.error_company_scope_needed'));
     }
 
     /**
