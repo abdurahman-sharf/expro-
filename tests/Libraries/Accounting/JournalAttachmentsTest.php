@@ -645,6 +645,26 @@ class JournalAttachmentsTest extends CIUnitTestCase
         $this->assertSame([], $this->filesIn($this->directory));
     }
 
+    public function testAdd_RefusesADraftThatWasDeletedWhileTheFileWasBeingSaved(): void
+    {
+        $draftId  = $this->journals->saveDraft($this->journalInput());
+        $employee = $this->employeeWithGrants(['accounting_journals', AccountingGuard::JOURNALS_ALL, AccountingGuard::JOURNALS_DRAFT]);
+        $other    = $this->openSecondConnection(false);
+
+        $this->afterFirstQuery(
+            'SELECT j.*',
+            function () use ($other, $draftId): void {
+                $other->query('DELETE FROM ' . $other->prefixTable('accounting_journal_lines') . ' WHERE journal_id = ?', [$draftId]);
+                $other->query('DELETE FROM ' . $other->prefixTable('accounting_journals') . ' WHERE journal_id = ?', [$draftId]);
+            },
+            fn () => $this->assertFailsWith(AccountingError::JournalNotFound, fn () => $this->addFile($draftId, $employee)),
+        );
+        $other->close();
+
+        $this->assertSame(0, $this->countRows('accounting_journal_attachments'));
+        $this->assertSame([], $this->filesIn($this->directory));
+    }
+
     public function testAdd_LeavesAJournalThatTheDatabaseWillNotLetGoOf(): void
     {
         $draftId = $this->journals->saveDraft($this->journalInput());

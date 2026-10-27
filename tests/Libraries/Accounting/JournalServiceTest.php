@@ -2,6 +2,7 @@
 
 namespace Tests\Libraries\Accounting;
 
+use App\Libraries\Accounting\AccountLedger;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
@@ -1329,6 +1330,27 @@ class JournalServiceTest extends CIUnitTestCase
         return ['debit' => (string) $row->debit, 'credit' => (string) $row->credit];
     }
 
+    public function testUpdateDetails_ShowsTheNewTextInTheAccountStatementAndMovesNoBalance(): void
+    {
+        $journalId = $this->automaticJournal();
+        [$first]   = $this->lineIds($journalId);
+        $cash      = $this->accountId('cash');
+        $ledger    = new AccountLedger();
+        $scope     = ReportScope::resolve(null, null);
+        $period    = ReportPeriod::of(null, '2026-12-31');
+        $before    = $ledger->build($scope, $cash, $period);
+
+        $this->service->updateDetails($journalId, ['description' => 'Edited header', 'lines' => [$first => ['description' => 'Edited cash line']]], $this->detailsEditor());
+
+        $after = $ledger->build($scope, $cash, $period);
+
+        $this->assertSame('Cash received', $before->rows[0]['description']);
+        $this->assertSame('Edited cash line', $after->rows[0]['description']);
+        $this->assertSame([$before->opening, $before->debit, $before->credit, $before->closing], [$after->opening, $after->debit, $after->credit, $after->closing]);
+        $this->assertSame($before->rows[0]['balance'], $after->rows[0]['balance']);
+        $this->assertSame($before->rows[0]['debit'], $after->rows[0]['debit']);
+    }
+
     public function testUpdateDetails_WritesAnAuditEntryWithWhatTheTextWasAndWhatItBecame(): void
     {
         $journalId = $this->automaticJournal();
@@ -1684,6 +1706,85 @@ class JournalServiceTest extends CIUnitTestCase
 
         $this->assertTrue($done);
         $this->assertSame('Invoice 7', $this->journal($journalId)->description);
+        $this->assertSame([], $this->detailsAudit($journalId));
+    }
+
+    public function testUpdateDetails_SaysAManualJournalIsLockedBeforeItTalksAboutAClosedPeriod(): void
+    {
+        $manualId = $this->service->postNew(['date' => '2026-03-15'] + $this->journalInput());
+        $this->closeThrough('2026-03-31');
+
+        $this->assertFailsWith(AccountingError::PostedJournalLocked, fn () => $this->service->updateDetails($manualId, ['description' => 'Edited'], $this->detailsEditor()));
+    }
+
+    public function testUpdateDetails_WaitsForARequestThatHoldsTheJournalAndChangesNothingWhenItCannotHaveIt(): void
+    {
+        $journalId = $this->automaticJournal();
+        $employee  = $this->detailsEditor();
+        $other     = $this->openSecondConnection(false);
+        $other->resetTransStatus();
+        $other->transStart();
+        $other->query('SELECT journal_id FROM ' . $other->prefixTable('accounting_journals') . ' WHERE journal_id = ? FOR UPDATE', [$journalId]);
+        $this->accountingDb()->query('SET SESSION innodb_lock_wait_timeout = 1');
+
+        try {
+            $this->assertWaitsForLock(fn () => $this->service->updateDetails($journalId, ['description' => 'Edited'], $employee));
+        } finally {
+            $other->transRollback();
+            $other->close();
+            $this->accountingDb()->query('SET SESSION innodb_lock_wait_timeout = 50');
+        }
+
+        $this->assertSame('Invoice 7', $this->journal($journalId)->description);
+        $this->assertSame([], $this->detailsAudit($journalId));
+    }
+
+    public function testUpdateDetails_WaitsForARequestThatHoldsTheLinesBeforeItReadsThem(): void
+    {
+        $journalId = $this->automaticJournal();
+        $employee  = $this->detailsEditor();
+        $other     = $this->openSecondConnection(false);
+        $other->resetTransStatus();
+        $other->transStart();
+        $other->query('SELECT line_id FROM ' . $other->prefixTable('accounting_journal_lines') . ' WHERE journal_id = ? FOR UPDATE', [$journalId]);
+        $this->accountingDb()->query('SET SESSION innodb_lock_wait_timeout = 1');
+
+        try {
+            $this->assertWaitsForLock(fn () => $this->service->updateDetails($journalId, ['description' => 'Edited'], $employee));
+        } finally {
+            $other->transRollback();
+            $other->close();
+            $this->accountingDb()->query('SET SESSION innodb_lock_wait_timeout = 50');
+        }
+
+        $this->assertSame('Invoice 7', $this->journal($journalId)->description);
+    }
+
+    public function testUpdateDetails_RefusesAJournalThatVanishedWhileTheRequestWasWaiting(): void
+    {
+        $journalId = $this->automaticJournal();
+        $employee  = $this->detailsEditor();
+        $other     = $this->openSecondConnection(false);
+        $done      = false;
+        $listen    = function (Query $query) use (&$done, $other, $journalId): void {
+            if (! $done && str_contains($query->getQuery(), 'SELECT j.*')) {
+                $done = true;
+                $other->query('SET FOREIGN_KEY_CHECKS = 0');
+                $other->query('DELETE FROM ' . $other->prefixTable('accounting_journal_lines') . ' WHERE journal_id = ?', [$journalId]);
+                $other->query('DELETE FROM ' . $other->prefixTable('accounting_journals') . ' WHERE journal_id = ?', [$journalId]);
+            }
+        };
+
+        Events::on('DBQuery', $listen);
+
+        try {
+            $this->assertFailsWith(AccountingError::JournalNotFound, fn () => $this->service->updateDetails($journalId, ['description' => 'Edited'], $employee));
+        } finally {
+            Events::removeListener('DBQuery', $listen);
+            $other->close();
+        }
+
+        $this->assertTrue($done);
         $this->assertSame([], $this->detailsAudit($journalId));
     }
 

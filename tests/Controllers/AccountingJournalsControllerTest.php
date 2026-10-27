@@ -1053,6 +1053,22 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         $response->assertSee('value="' . $retired . '" selected');
     }
 
+    public function testGetEditDetails_EscapesTheTextItShowsInTheFields(): void
+    {
+        $journalId = $this->automaticJournal();
+        [$first]   = $this->lineIdsOf($journalId);
+        $this->accountingDb()->table('accounting_journals')->where('journal_id', $journalId)->update(['description' => '</textarea><script>alert(1)</script>']);
+        $this->accountingDb()->table('accounting_journal_lines')->where('line_id', $first)->update(['description' => '"><script>alert(2)</script>']);
+        $this->detailsEditor();
+
+        $response = $this->get('/accounting_journals/edit_details/' . $journalId);
+
+        $response->assertDontSee('<script>alert(1)</script>');
+        $response->assertDontSee('<script>alert(2)</script>');
+        $response->assertSee('&lt;/textarea&gt;&lt;script&gt;alert(1)&lt;/script&gt;');
+        $response->assertSee('&quot;&gt;&lt;script&gt;alert(2)');
+    }
+
     public function testPostSaveDetails_SavesTheTextAndSendsTheUserBackToTheJournal(): void
     {
         $journalId        = $this->automaticJournal();

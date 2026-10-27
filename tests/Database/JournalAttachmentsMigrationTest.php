@@ -32,6 +32,10 @@ class JournalAttachmentsMigrationTest extends CIUnitTestCase
 
         $this->reinstallChart();
         $this->setConfigValue('accounting_base_currency', 'SAR');
+
+        $migration = new JournalAttachmentsMigration();
+        $migration->down();
+        $migration->up();
     }
 
     protected function tearDown(): void

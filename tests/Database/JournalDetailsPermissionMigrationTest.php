@@ -25,6 +25,15 @@ class JournalDetailsPermissionMigrationTest extends CIUnitTestCase
         $seeder->call('TestDatabaseBootstrapSeeder');
     }
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $migration = new JournalDetailsPermission();
+        $migration->down();
+        $migration->up();
+    }
+
     private function grantsOf(string $permissionId): int
     {
         return $this->accountingDb()->table('grants')->where('permission_id', $permissionId)->countAllResults();
