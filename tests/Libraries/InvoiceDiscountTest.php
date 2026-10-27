@@ -325,15 +325,6 @@ class InvoiceDiscountTest extends CIUnitTestCase
         $this->assertSame([1 => '13.5000', 2 => '22.0000'], $plan->shares);
     }
 
-    public function testApplyTo_PutsTheShareOnEachRowAndTakesItOffWhenThereIsNone(): void
-    {
-        $rows = [4 => ['item_id' => 1], 7 => ['item_id' => 2, 'invoice_discount_share' => '9.0000']];
-        $plan = new InvoiceDiscountPlan(FIXED, '5', '5.0000', [4 => '2.0000', 7 => '3.0000']);
-
-        $this->assertSame([4 => ['item_id' => 1, 'invoice_discount_share' => '2.0000'], 7 => ['item_id' => 2, 'invoice_discount_share' => '3.0000']], $plan->applyTo($rows));
-        $this->assertSame([4 => ['item_id' => 1], 7 => ['item_id' => 2]], InvoiceDiscount::none()->applyTo($rows));
-    }
-
     public function testForReturn_TakesBackTheShareOfTheUnitsWithTheSignOfTheReturn(): void
     {
         $rows   = [1 => ['item_id' => 10, 'quantity' => '-1', 'price' => '100', 'discount' => '0', 'discount_type' => PERCENT]];

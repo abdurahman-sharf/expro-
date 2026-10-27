@@ -385,11 +385,11 @@ $employee        = model(Employee::class);
                     <?= form_open("{$controller_name}/setInvoiceDiscount", ['id' => 'invoice_discount_form', 'class' => 'app-form pos-invoice-discount']) ?>
                         <label for="invoice_discount" class="pos-label"><?= lang("{$sectionName}.invoice_discount") ?></label>
                         <div class="input-group input-group-sm">
-                            <?= form_input(['name' => 'invoice_discount', 'id' => 'invoice_discount', 'class' => 'form-control form-control-sm', 'value' => isset($invoice_discount_entry) ? esc($invoice_discount_entry['value']) : '', 'inputmode' => 'decimal', 'autocomplete' => 'off']) ?>
-                            <?= form_dropdown('invoice_discount_type', [PERCENT => lang("{$sectionName}.invoice_discount_type_percent"), FIXED => lang("{$sectionName}.invoice_discount_type_fixed")], $invoice_discount_entry['type'] ?? PERCENT, ['id' => 'invoice_discount_type', 'class' => 'form-select form-select-sm']) ?>
+                            <?= form_input(['name' => 'invoice_discount', 'id' => 'invoice_discount', 'class' => 'form-control form-control-sm', 'value' => isset($invoice_discount_entry) ? esc($invoice_discount_entry['value']) : '', 'inputmode' => 'decimal', 'autocomplete' => 'off', 'aria-describedby' => 'invoice_discount_help']) ?>
+                            <?= form_dropdown('invoice_discount_type', [PERCENT => lang("{$sectionName}.invoice_discount_type_percent"), FIXED => lang("{$sectionName}.invoice_discount_type_fixed")], $invoice_discount_entry['type'] ?? PERCENT, ['id' => 'invoice_discount_type', 'class' => 'form-select form-select-sm', 'aria-label' => lang("{$sectionName}.invoice_discount"), 'aria-describedby' => 'invoice_discount_help']) ?>
                             <button type="submit" class="btn btn-outline-secondary btn-sm" id="invoice_discount_apply"><?= lang("{$sectionName}.invoice_discount_apply") ?></button>
                         </div>
-                        <span class="text-body-secondary small"><?= lang("{$sectionName}.invoice_discount_help") ?></span>
+                        <span class="text-body-secondary small" id="invoice_discount_help"><?= lang("{$sectionName}.invoice_discount_help") ?></span>
                     <?= form_close() ?>
                 <?php endif; ?>
 

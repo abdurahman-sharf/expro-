@@ -1776,6 +1776,37 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame(['0' => null], $this->sharesOf($returnId));
     }
 
+    public function testSaveValue_ReturnsFromTwoRequestsAtTheSameMomentTakeBackNoMoreOfTheDiscountThanTheSaleGave(): void
+    {
+        $item    = $this->item('60.00');
+        $invoice = $this->save([$this->line($item, 0, '2', '100', '60.00')], [], [$this->payment(lang('Sales.cash'), '199.99')], SALE_TYPE_POS, -1, true, null, COMPLETED, NEW_ENTRY, ['type' => FIXED, 'value' => '0.01']);
+
+        $this->assertGreaterThan(0, $invoice);
+
+        $arguments = [$invoice, $item, '-1', '60.00', '100', $this->customerId, $this->employeeId];
+
+        [$first, $second] = $this->raceTwoProcesses('returnSale', $arguments, $arguments);
+
+        $returns = $this->accountingDb()->table('sales')->where('return_of_sale_id', $invoice)->get()->getResult();
+
+        foreach ($returns as $return) {
+            $this->saleIds[] = (int) $return->sale_id;
+        }
+
+        $this->assertTrue($first);
+        $this->assertTrue($second);
+        $this->assertCount(2, $returns);
+
+        $taken = '0';
+
+        foreach ($returns as $return) {
+            $taken = bcadd($taken, ltrim((string) array_values($this->sharesOf((int) $return->sale_id))[0], '-'), 4);
+        }
+
+        $this->assertSame('0.0100', $taken, 'the two returns of the two units take back the one cent the sale gave, not a cent each');
+        $this->assertSame('199.99', $this->balance($this->accountId('sales_returns')));
+    }
+
     public function testUpdate_LeavesTheInvoiceJournalAsItWasWhenAPaymentIsAddedToADiscountedInvoice(): void
     {
         $cycle  = $this->discountedReferenceInvoice();

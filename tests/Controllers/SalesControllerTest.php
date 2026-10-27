@@ -1954,6 +1954,20 @@ class SalesControllerTest extends CIUnitTestCase
         $this->get('/sales')->assertDontSee('id="invoice_discount_form"');
     }
 
+    public function testGetIndex_NamesEveryControlOfTheDiscountFormAndTiesItsHelpToThem(): void
+    {
+        $this->registerWithTheDiscountGrant();
+
+        $page = $this->get('/sales');
+
+        $body = $page->getBody();
+
+        $this->assertStringContainsString('<label for="invoice_discount" class="pos-label">', $body);
+        $this->assertStringContainsString('id="invoice_discount_help"', $body);
+        $this->assertSame(2, substr_count($body, 'aria-describedby="invoice_discount_help"'));
+        $this->assertMatchesRegularExpression('/<select name="invoice_discount_type"[^>]*aria-label="' . preg_quote(lang('Sales.invoice_discount'), '/') . '"/', $body);
+    }
+
     public function testGetIndex_OffersNoDiscountOnTheWholeOfTheSaleWhileTheRegisterTakesAReturn(): void
     {
         $this->registerWithTheDiscountGrant();
