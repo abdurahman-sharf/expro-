@@ -57,7 +57,7 @@ class CashupExpectationTest extends CIUnitTestCase
         return $this->expectation->expected($branchId, '2026-10-20 08:00:00', '2026-10-20 18:00:00', $open, $transfer);
     }
 
-    private function insertExpense(string $amount, string $payment = 'Cash', ?int $branchId = 1, int $deleted = 0, string $date = '2026-10-20 13:00:00'): void
+    private function insertExpense(string $amount, string $payment = 'Cash', ?int $branchId = 1, int $deleted = 0, string $date = '2026-10-20 13:00:00', ?int $treasuryBranchId = null): void
     {
         $this->accountingDb()->table('expenses')->insert([
             'date'                => $date,
@@ -68,6 +68,7 @@ class CashupExpectationTest extends CIUnitTestCase
             'employee_id'         => $this->clerkId,
             'deleted'             => $deleted,
             'branch_id'           => $branchId,
+            'treasury_branch_id'  => $treasuryBranchId,
         ]);
     }
 
@@ -116,6 +117,48 @@ class CashupExpectationTest extends CIUnitTestCase
 
         $this->assertSame('100.0000', $this->expected(1));
         $this->assertSame('350.0000', $this->expected($second));
+    }
+
+    public function testExpected_CountsACashPaymentIntoTheTreasuryOfAnotherBranchInTheDrawerThatHoldsIt(): void
+    {
+        $second = $this->createBranch('B2');
+        $saleId = $this->sellFor('250.00');
+
+        $this->accountingDb()->table('sales_payments')->where('sale_id', $saleId)->update(['treasury_branch_id' => $second]);
+
+        $this->assertSame('100.0000', $this->expected(1), 'The sale is of the first branch but the money is in the drawer of the second');
+        $this->assertSame('350.0000', $this->expected($second));
+    }
+
+    public function testExpected_CountsEachCashPaymentOfASaleInTheDrawerThatHoldsIt(): void
+    {
+        $second = $this->createBranch('B2');
+        $saleId = $this->sellFor('250.00');
+
+        $this->accountingDb()->table('sales_payments')->insert([
+            'sale_id'            => $saleId,
+            'payment_type'       => 'Cash',
+            'payment_amount'     => '60.00',
+            'cash_refund'        => '0',
+            'employee_id'        => $this->clerkId,
+            'reference_code'     => '',
+            'payment_status'     => 'completed',
+            'treasury_branch_id' => $second,
+        ]);
+
+        $this->assertSame('350.0000', $this->expected(1));
+        $this->assertSame('160.0000', $this->expected($second));
+    }
+
+    public function testExpected_TakesTheCashOfAnExpensePaidOutOfATreasuryOfAnotherBranchOffTheDrawerThatPaidIt(): void
+    {
+        $second = $this->createBranch('B2');
+
+        $this->insertExpense('30.00', 'Cash', 1, 0, '2026-10-20 13:00:00', $second);
+        $this->insertExpense('12.00', 'Cash', $second, 0, '2026-10-20 14:00:00', 1);
+
+        $this->assertSame('88.0000', $this->expected(1), 'The expense of the first branch is paid by the second drawer, the one of the second by the first');
+        $this->assertSame('70.0000', $this->expected($second));
     }
 
     public function testExpected_LeavesOutSalesOutsideTheTimeOfTheCashUp(): void
