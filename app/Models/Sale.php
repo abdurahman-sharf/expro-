@@ -1847,12 +1847,9 @@ class Sale extends Model
         $builder->update(['sale_status' => $sale_status]);
     }
 
-    /**
-     * Gets the invoice number for the selected sale
-     */
-    public function get_invoice_number(int $sale_id): ?string
+    public function getInvoiceNumber(int $saleId): ?string
     {
-        $row = $this->db->table('sales')->select('invoice_number')->where('sale_id', $sale_id)->get()->getRow();
+        $row = $this->db->table('sales')->select('invoice_number')->where('sale_id', $saleId)->get()->getRow();
 
         return $row === null ? null : $row->invoice_number;
     }

@@ -241,7 +241,7 @@ class CustomerTest extends CIUnitTestCase
         $this->assertSame(1, (new DocumentNumbering())->sequence(DocumentType::Customer)->nextNumber);
     }
 
-    public function testSaveCustomer_NeverRenumbersACustomerThatExists(): void
+    public function testSaveCustomer_DoesNotRenumberACustomerThatExists(): void
     {
         $before = $this->saveCustomer('Omar', 'Khaled');
 

@@ -672,7 +672,7 @@ class SaleTest extends CIUnitTestCase
 
         $this->assertGreaterThan(0, min($pos, $invoice, $quote, $return));
         $this->assertSame(0, \Config\Database::connect()->table('document_numbers')->countAllResults());
-        $this->assertNull(model(Sale::class)->get_invoice_number($invoice));
+        $this->assertNull(model(Sale::class)->getInvoiceNumber($invoice));
         $this->assertNull(model(Sale::class)->get_quote_number($quote));
     }
 
@@ -682,7 +682,7 @@ class SaleTest extends CIUnitTestCase
         $invoice = $this->saveSale(SALE_TYPE_INVOICE, [], COMPLETED, NEW_ENTRY, $prefix . 'A');
         $quote   = $this->saveSale(SALE_TYPE_QUOTE, [], SUSPENDED, NEW_ENTRY, null, $prefix . 'Q');
 
-        $this->assertSame($prefix . 'A', model(Sale::class)->get_invoice_number($invoice));
+        $this->assertSame($prefix . 'A', model(Sale::class)->getInvoiceNumber($invoice));
         $this->assertSame($prefix . 'Q', model(Sale::class)->get_quote_number($quote));
     }
 
@@ -755,8 +755,8 @@ class SaleTest extends CIUnitTestCase
         $first  = $this->saveSale(SALE_TYPE_INVOICE, []);
         $second = $this->saveSale(SALE_TYPE_INVOICE, []);
 
-        $this->assertSame($prefix . '000001', model(Sale::class)->get_invoice_number($first));
-        $this->assertSame($prefix . '000002', model(Sale::class)->get_invoice_number($second));
+        $this->assertSame($prefix . '000001', model(Sale::class)->getInvoiceNumber($first));
+        $this->assertSame($prefix . '000002', model(Sale::class)->getInvoiceNumber($second));
         $this->assertSame($prefix . '000002', $this->numberOf(DocumentType::SalesInvoice, 'sales', $second));
     }
 
@@ -767,7 +767,7 @@ class SaleTest extends CIUnitTestCase
 
         $invoice = $this->saveSale(SALE_TYPE_INVOICE, [], COMPLETED, NEW_ENTRY, $prefix . 'HAND');
 
-        $this->assertSame($prefix . 'HAND', model(Sale::class)->get_invoice_number($invoice));
+        $this->assertSame($prefix . 'HAND', model(Sale::class)->getInvoiceNumber($invoice));
         $this->assertNull($this->numberOf(DocumentType::SalesInvoice, 'sales', $invoice));
         $this->assertSame(1, (new DocumentNumbering())->sequence(DocumentType::SalesInvoice)->nextNumber);
     }
@@ -780,7 +780,7 @@ class SaleTest extends CIUnitTestCase
 
         $invoice = $this->saveSale(SALE_TYPE_INVOICE, []);
 
-        $this->assertSame($prefix . '002', model(Sale::class)->get_invoice_number($invoice));
+        $this->assertSame($prefix . '002', model(Sale::class)->getInvoiceNumber($invoice));
     }
 
     public function testSaveValue_NumbersAQuoteWhenItIsSavedAndKeepsItWhenItIsSavedAgain(): void
@@ -804,7 +804,7 @@ class SaleTest extends CIUnitTestCase
 
         $draft = $this->saveSale(SALE_TYPE_INVOICE, [], SUSPENDED);
 
-        $this->assertNull(model(Sale::class)->get_invoice_number($draft));
+        $this->assertNull(model(Sale::class)->getInvoiceNumber($draft));
         $this->assertSame(1, (new DocumentNumbering())->sequence(DocumentType::SalesInvoice)->nextNumber);
     }
 
@@ -899,7 +899,7 @@ class SaleTest extends CIUnitTestCase
 
         $this->assertTrue(model(Sale::class)->update($invoice, ['comment' => 'edited', 'invoice_number' => null]));
 
-        $this->assertSame($prefix . '001', model(Sale::class)->get_invoice_number($invoice));
+        $this->assertSame($prefix . '001', model(Sale::class)->getInvoiceNumber($invoice));
     }
 
     public function testUpdate_ClearsATypedInvoiceNumberTheFormLeavesBlankAsBefore(): void
@@ -909,7 +909,7 @@ class SaleTest extends CIUnitTestCase
 
         $this->assertTrue(model(Sale::class)->update($invoice, ['comment' => 'edited', 'invoice_number' => null]));
 
-        $this->assertNull(model(Sale::class)->get_invoice_number($invoice));
+        $this->assertNull(model(Sale::class)->getInvoiceNumber($invoice));
     }
 
     public function testUpdate_ReplacesTheInvoiceNumberOfTheSequenceWithOneTypedByHand(): void
@@ -920,11 +920,11 @@ class SaleTest extends CIUnitTestCase
 
         $this->assertTrue(model(Sale::class)->update($invoice, ['comment' => 'edited', 'invoice_number' => $prefix . 'HAND']));
 
-        $this->assertSame($prefix . 'HAND', model(Sale::class)->get_invoice_number($invoice));
+        $this->assertSame($prefix . 'HAND', model(Sale::class)->getInvoiceNumber($invoice));
     }
 
     public function testGetInvoiceNumber_ReturnsNothingForAMissingSale(): void
     {
-        $this->assertNull(model(Sale::class)->get_invoice_number(999999999));
+        $this->assertNull(model(Sale::class)->getInvoiceNumber(999999999));
     }
 }

@@ -433,7 +433,7 @@ class ReceivingTest extends CIUnitTestCase
         $this->assertSame(3, (new DocumentNumbering())->sequence(DocumentType::SupplierPayment)->nextNumber);
     }
 
-    public function testUpdate_NeverGivesTheNumberOfARemovedPaymentToAnotherOne(): void
+    public function testUpdate_DoesNotGiveTheNumberOfARemovedPaymentToAnotherOne(): void
     {
         $this->startBuying();
         $this->switchOn(DocumentType::SupplierPayment, 'SP-');

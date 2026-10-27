@@ -99,7 +99,7 @@ class DocumentNumberingTest extends CIUnitTestCase
         $this->assertSame(3, $this->numbering->sequence(DocumentType::CreditNote)->nextNumber);
     }
 
-    public function testAssign_WithoutDigitsOrPrefixGivesTheBareNumber(): void
+    public function testAssign_GivesTheBareNumberWithoutDigitsOrPrefix(): void
     {
         $this->numbering->configure(DocumentType::CreditNote, ['enabled' => true]);
 
@@ -261,7 +261,7 @@ class DocumentNumberingTest extends CIUnitTestCase
         $this->assertSame(1001, $this->countRows('document_numbers'));
     }
 
-    public function testAssign_NeverGivesANumberAgainWhenTheDocumentIsGone(): void
+    public function testAssign_DoesNotGiveANumberAgainWhenTheDocumentIsGone(): void
     {
         $this->numbering->configure(DocumentType::Expense, ['enabled' => true, 'padding' => 2]);
         $this->numbering->assign(DocumentType::Expense, 'expenses', 5);
@@ -319,7 +319,7 @@ class DocumentNumberingTest extends CIUnitTestCase
         $this->assertSame('002', $this->numbering->assign(DocumentType::CreditNote, 'sales', 12)?->number);
     }
 
-    public function testAssign_NeverRepeatsANumberAcrossTwoConnections(): void
+    public function testAssign_DoesNotRepeatANumberAcrossTwoConnections(): void
     {
         $this->numbering->configure(DocumentType::CreditNote, ['enabled' => true, 'padding' => 4]);
 
@@ -800,7 +800,7 @@ class DocumentNumberingTest extends CIUnitTestCase
         return ['invoice' => $invoice, 'payment' => $payment, 'note' => $note, 'purchase' => $purchase, 'debit' => $debit, 'supplierPayment' => $paid, 'customer' => $customerId];
     }
 
-    public function testGolden_DefaultSettingsLeaveEveryDocumentWithTheNumberItAlwaysShowed(): void
+    public function testGolden_KeepsEveryDocumentNumberWithDefaultSettings(): void
     {
         $this->startBuying();
         $firstCustomer = $this->anotherCustomer('Golden', 'First');
@@ -833,7 +833,7 @@ class DocumentNumberingTest extends CIUnitTestCase
         }
     }
 
-    public function testGolden_ASequenceThatIsSwitchedOnNumbersNewDocumentsAndNoneThatExist(): void
+    public function testGolden_NumbersNewDocumentsAndNoneThatExistWhenASequenceIsSwitchedOn(): void
     {
         $this->startBuying();
         $secondSupplier = $this->anotherSupplier();
@@ -854,7 +854,7 @@ class DocumentNumberingTest extends CIUnitTestCase
         $this->assertStringStartsWith('SAL-', (string) $this->saleRow($after['invoice'])->invoice_number);
     }
 
-    public function testGolden_TheBooksSaySameWhetherOrNotTheDocumentsAreNumbered(): void
+    public function testGolden_KeepsTheBooksTheSameWhetherOrNotTheDocumentsAreNumbered(): void
     {
         $this->startBuying();
         $secondSupplier = $this->anotherSupplier();
@@ -878,7 +878,7 @@ class DocumentNumberingTest extends CIUnitTestCase
         $this->assertSame([], (new StockLedger())->mismatchedJournals());
     }
 
-    public function testGolden_NumberingWorksWhileAccountingIsOffAndLeavesTheBooksEmpty(): void
+    public function testGolden_NumbersWhileAccountingIsOffAndLeavesTheBooksEmpty(): void
     {
         $this->startBuying();
         $this->setConfigValue('accounting_enabled', '0');

@@ -1059,9 +1059,6 @@ class Config extends Secure_Controller
 
     /**
      * Saves the numbering of one kind of document. Used in app/Views/configs/numbering_config.php.
-     *
-     * @return ResponseInterface
-     * @noinspection PhpUnused
      */
     public function postSaveNumbering(string $type = ''): ResponseInterface
     {

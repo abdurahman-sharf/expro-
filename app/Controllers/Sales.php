@@ -1024,7 +1024,7 @@ class Sales extends Secure_Controller
                     return $this->reload($data);
                 } else {
                     if ($invoiceBySequence) {
-                        $data['invoice_number'] = $this->sale->get_invoice_number($data['sale_id_num']);
+                        $data['invoice_number'] = $this->sale->getInvoiceNumber($data['sale_id_num']);
                     }
 
                     $data['barcode'] = $this->barcode_lib->generate_receipt_barcode($data['sale_id']);
