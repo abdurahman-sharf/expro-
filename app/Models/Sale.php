@@ -641,10 +641,11 @@ class Sale extends Model
                             'payment_status'  => PaymentStatus::fromStored($payment['payment_status'] ?? null)->value,
                             'treasury_id'     => $this->treasuryOfPayment($payment, $employee_id === null ? null : (int) $employee_id, (int) $this->getBranchId((int) $sale_id)),
                         ];
-                        $success = $builder->insert($sales_payments_data);
+                        $success      = $builder->insert($sales_payments_data);
+                        $newPaymentId = (int) $this->db->insertID();
 
                         if ($success && $this->isPaymentDocument($payment) && $this->getSaleStatus((int) $sale_id) == COMPLETED) {
-                            (new DocumentNumbering($this->db))->assign(DocumentType::CustomerPayment, 'sales_payments', (int) $this->db->insertID(), (int) $this->getBranchId((int) $sale_id));
+                            (new DocumentNumbering($this->db))->assign(DocumentType::CustomerPayment, 'sales_payments', $newPaymentId, (int) $this->getBranchId((int) $sale_id));
                         }
                     } elseif ($payment_id != NEW_ENTRY) {
                         $stored = $this->db->table('sales_payments')->select('sale_id')->where('payment_id', $payment_id)->get()->getRow();
