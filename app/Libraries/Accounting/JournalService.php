@@ -302,7 +302,7 @@ final class JournalService
             }
 
             foreach ($changes['lines'] as $lineId => $columns) {
-                $this->db->table('accounting_journal_lines')->where('journal_id', $journalId)->where('line_id', $lineId)->update($columns);
+                $this->db->table('accounting_journal_lines')->where('line_id', $lineId)->update($columns);
             }
 
             $this->audit->write('journal', $journalId, 'details_edited', $employeeId, JournalOrigin::User, [
