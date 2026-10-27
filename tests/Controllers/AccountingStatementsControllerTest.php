@@ -10,6 +10,7 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\TestResponse;
 use Config\Services;
+use DOMDocument;
 use Tests\Support\AccountingControllerFixtureTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\ReportFixtureTrait;
@@ -128,6 +129,38 @@ class AccountingStatementsControllerTest extends CIUnitTestCase
         return $found[1];
     }
 
+    /**
+     * @return list<int> The branches whose box is ticked, whichever are offered.
+     */
+    private function tickedBranches(TestResponse $response): array
+    {
+        preg_match_all('#name="branches\[\]" value="(\d+)"( checked)?>#', $response->getBody(), $found, PREG_SET_ORDER);
+
+        return array_values(array_map(static fn (array $box): int => (int) $box[1], array_filter($found, static fn (array $box): bool => isset($box[2]))));
+    }
+
+    private function valueOfInput(TestResponse $response, string $id): ?string
+    {
+        $document = new DOMDocument();
+
+        $previous = libxml_use_internal_errors(true);
+        $document->loadHTML('<?xml encoding="utf-8"?>' . $response->getBody());
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+
+        return $document->getElementById($id)?->getAttribute('value');
+    }
+
+    /**
+     * @return list<int> The branches that have a box.
+     */
+    private function offeredBranches(TestResponse $response): array
+    {
+        preg_match_all('#name="branches\[\]" value="(\d+)"#', $response->getBody(), $found);
+
+        return array_map('intval', $found[1]);
+    }
+
     private function useArabic(int $personId): void
     {
         $this->accountingDb()->table('employees')->where('person_id', $personId)->update(['language_code' => 'ar-EG', 'language' => 'arabic-egypt']);
@@ -212,23 +245,59 @@ class AccountingStatementsControllerTest extends CIUnitTestCase
 
         $response = $this->get('/accounting_statements/income_statement');
 
-        $this->assertSame(['1', '2', '3', '4'], $this->optionValues($response, 'f_level'), 'The default chart is four accounts deep');
+        $this->assertSame(['1', '2', '3'], $this->optionValues($response, 'f_level'), 'Revenue and expenses are three accounts deep in the default chart, the chart as a whole four');
         $this->assertSame(['all', 'activity', 'hide_zero'], $this->optionValues($response, 'f_display'));
         $response->assertSee('<option value="2" selected>');
         $this->assertSame(['4', '41', '42', '5', '51', '52', '53', '54'], $this->listedCodes($response), 'The default level lists the groups of two digits under the two roots');
     }
 
-    public function testGetIncomeStatement_OffersAFifthLevelOnlyOnceTheChartHasAccountsThatDeep(): void
+    public function testGetIncomeStatement_OffersAFourthLevelOnlyOnceARevenueOrExpenseAccountIsThatDeep(): void
     {
         $this->viewer();
 
-        $this->assertNotContains('5', $this->optionValues($this->get('/accounting_statements/income_statement'), 'f_level'));
-
         (new EntityAccountService())->ensure(EntityAccountService::CUSTOMER, $this->insertCustomer(), 'Omar Khaled');
+
+        $this->assertSame(['1', '2', '3'], $this->optionValues($this->get('/accounting_statements/income_statement'), 'f_level'), 'The accounts of customers are assets and make no level of this screen');
+
+        $this->customAccount('54', '5499', 'Rare expenses', true);
+        $this->customAccount('5499', '549901', 'Rarer expenses');
 
         $levels = $this->optionValues($this->get('/accounting_statements/income_statement'), 'f_level');
 
-        $this->assertSame(['1', '2', '3', '4', '5'], $levels, 'The chart is cut off at the fifth level');
+        $this->assertSame(['1', '2', '3', '4'], $levels);
+        $this->assertContains('549901', $this->listedCodes($this->get('/accounting_statements/income_statement?level=4')));
+        $this->assertNotContains('549901', $this->listedCodes($this->get('/accounting_statements/income_statement?level=3')));
+    }
+
+    public function testGetIncomeStatement_OffersNoChoiceOfPartyAccountsBecauseNoneIsRevenueOrExpense(): void
+    {
+        $this->viewer();
+
+        $response = $this->get('/accounting_statements/income_statement');
+
+        $response->assertDontSee('id="f_entities"');
+        $response->assertDontSee('name="entities"');
+        $response->assertDontSee(lang('Accounting_statements.entities_hint'));
+        $this->get('/accounting_statements/balance_sheet')->assertSee('id="f_entities"');
+    }
+
+    public function testGetIncomeStatement_NeverNamesTheAccountOfACustomerWhateverTheAddressAsks(): void
+    {
+        $customer = (new EntityAccountService())->ensure(EntityAccountService::CUSTOMER, $this->insertCustomer('Omar', 'Khaled'), 'Omar Khaled');
+
+        $this->postOn('2026-10-05', 1, [[$customer, '250.00', '0'], [$this->accountId('sales_revenue'), '0', '250.00']]);
+        $this->viewer();
+
+        $plain = $this->get('/accounting_statements/income_statement?level=5');
+        $asked = $this->get('/accounting_statements/income_statement?level=5&entities=1');
+
+        $plain->assertDontSee('Omar Khaled');
+        $asked->assertDontSee('Omar Khaled');
+        $this->assertSame($this->amountOf('250.00'), $this->amountOfRow($asked, 'total_revenue'));
+
+        foreach ($this->listedCodes($asked) as $code) {
+            $this->assertMatchesRegularExpression('/^[45]/', $code, 'Only revenue and expense accounts are listed');
+        }
     }
 
     public function testGetIncomeStatement_ListsEveryLevelDownToTheOneAsked(): void
@@ -247,12 +316,12 @@ class AccountingStatementsControllerTest extends CIUnitTestCase
         $this->abScenario();
         $this->viewer();
 
-        $response = $this->get('/accounting_statements/income_statement?level=abc&display=nonsense&entities=yes');
+        $response = $this->get('/accounting_statements/income_statement?level=abc&display=nonsense');
 
         $response->assertStatus(200);
         $this->assertSame($this->listedCodes($this->get('/accounting_statements/income_statement')), $this->listedCodes($response));
         $response->assertSee('<option value="all" selected>');
-        $response->assertDontSee('id="f_entities" name="entities" value="1" checked');
+        $response->assertSee('<option value="2" selected>');
     }
 
     public function testGetIncomeStatement_ListsOnlyTheAccountsThatMovedOrStandAtSomethingWhenAsked(): void
@@ -392,17 +461,6 @@ class AccountingStatementsControllerTest extends CIUnitTestCase
 
         $ledger->assertStatus(200);
         $ledger->assertSee($this->amountOf('100.00'));
-    }
-
-    public function testGetIncomeStatement_FoldsTheAccountOfACustomerUnlessAsked(): void
-    {
-        $customer = (new EntityAccountService())->ensure(EntityAccountService::CUSTOMER, $this->insertCustomer('Omar', 'Khaled'), 'Omar Khaled');
-
-        $this->postOn('2026-10-05', 1, [[$customer, '250.00', '0'], [$this->accountId('sales_revenue'), '0', '250.00']]);
-        $this->viewer();
-
-        $this->get('/accounting_statements/income_statement?level=5')->assertDontSee('Omar Khaled');
-        $this->assertSame($this->amountOf('250.00'), $this->amountOfRow($this->get('/accounting_statements/income_statement?level=5&entities=1'), 'total_revenue'));
     }
 
     public function testGetIncomeStatement_ShowsAMessageForADayThatIsNotOneAndStillShowsTheStatement(): void
@@ -572,6 +630,37 @@ class AccountingStatementsControllerTest extends CIUnitTestCase
         $this->assertSame($this->amountOf('0.00'), $this->amountOfRow($closed, 'result_unclosed'));
         $this->assertSame($this->amountOfRow($open, 'total_equity'), $this->amountOfRow($closed, 'total_equity'));
         $closed->assertSee('id="report_balanced"');
+    }
+
+    public function testGetBalanceSheet_FoldsTheAccountOfACustomerUnlessAsked(): void
+    {
+        $customer = (new EntityAccountService())->ensure(EntityAccountService::CUSTOMER, $this->insertCustomer('Omar', 'Khaled'), 'Omar Khaled');
+
+        $this->postOn('2026-10-05', 1, [[$customer, '250.00', '0'], [$this->accountId('sales_revenue'), '0', '250.00']]);
+        $this->viewer();
+
+        $folded = $this->get('/accounting_statements/balance_sheet?level=5');
+        $listed = $this->get('/accounting_statements/balance_sheet?level=5&entities=1');
+
+        $folded->assertDontSee('Omar Khaled');
+        $folded->assertDontSee('id="f_entities" name="entities" value="1" checked');
+        $listed->assertSee('Omar Khaled');
+        $listed->assertSee('id="f_entities" name="entities" value="1" checked');
+        $this->assertEquals($this->amountOfRow($folded, 'total_assets'), $this->amountOfRow($listed, 'total_assets'));
+    }
+
+    public function testGetBalanceSheet_FallsBackToTheDefaultsForChoicesItDoesNotKnow(): void
+    {
+        $this->cashSale('2026-10-05', 1, '10.00');
+        $this->viewer();
+
+        $response = $this->get('/accounting_statements/balance_sheet?level=abc&display=nonsense&entities=yes');
+
+        $response->assertStatus(200);
+        $this->assertSame($this->listedCodes($this->get('/accounting_statements/balance_sheet')), $this->listedCodes($response));
+        $response->assertSee('<option value="all" selected>');
+        $response->assertSee('<option value="3" selected>');
+        $response->assertDontSee('id="f_entities" name="entities" value="1" checked');
     }
 
     public function testGetBalanceSheet_ShowsADebitBalanceInsideTheLiabilitiesAsNegative(): void
@@ -828,6 +917,162 @@ class AccountingStatementsControllerTest extends CIUnitTestCase
         $this->get('/accounting_statements/balance_sheet?level=4&entities=1&display=hide_zero');
 
         $this->assertSame($before, array_map(fn (string $table): int => $this->countRows($table), $tables));
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // What an address can ask for, and what the form says back
+    // ---------------------------------------------------------------------------------------
+
+    public function testGetIncomeStatement_ReadsAnAddressThatNamesAnOptionMoreThanOnceAsNamingNone(): void
+    {
+        $this->abScenario();
+        $this->viewer();
+
+        $response = $this->get('/accounting_statements/income_statement?from[]=2026-10-01&to[]=2026-10-31&level[]=3&display[]=activity&entities[]=1');
+
+        $response->assertStatus(200);
+        $response->assertDontSee('id="report_error"');
+        $this->assertSame($this->listedCodes($this->get('/accounting_statements/income_statement')), $this->listedCodes($response));
+        $this->assertSame($this->amountOf('1990.00'), $this->amountOfRow($response, 'total_revenue'));
+        $response->assertSee('<option value="all" selected>');
+    }
+
+    public function testGetBalanceSheet_ReadsAnAddressThatNamesAnOptionMoreThanOnceAsNamingNone(): void
+    {
+        $this->cashSale('2026-10-05', 1, '1111.00');
+        $this->viewer();
+
+        $response = $this->get('/accounting_statements/balance_sheet?from[]=2026-10-01&to[]=2026-09-01&level[]=1&display[]=hide_zero&entities[]=1');
+
+        $response->assertStatus(200);
+        $response->assertDontSee('id="report_error"');
+        $this->assertSame($this->listedCodes($this->get('/accounting_statements/balance_sheet')), $this->listedCodes($response));
+        $this->assertSame($this->amountOf('1111.00'), $this->amountOfRow($response, 'total_assets'));
+        $response->assertSee('id="report_balanced"');
+        $response->assertDontSee('id="f_entities" name="entities" value="1" checked');
+    }
+
+    public function testGetIncomeStatement_ReadsBranchesNamedAsOneValueAsNamingNone(): void
+    {
+        $this->threeBranches();
+        $this->viewer();
+
+        $response = $this->get('/accounting_statements/income_statement?branches=1&level=3');
+
+        $response->assertStatus(200);
+        $this->assertSame($this->amountOf('7777.00'), $this->amountOfRow($response, 'total_revenue'));
+        $response->assertSee(lang('Accounting_reports.scope_company'));
+        $response->assertSee('accounting_reports/ledger?account=');
+        $response->assertDontSee('branches%5B');
+    }
+
+    public function testGetBalanceSheet_ReadsBranchesNamedAsOneValueAsNamingNone(): void
+    {
+        $this->threeBranches();
+        $this->viewer();
+
+        $response = $this->get('/accounting_statements/balance_sheet?branches=1');
+
+        $response->assertStatus(200);
+        $this->assertSame($this->amountOf('7777.00'), $this->amountOfRow($response, 'total_assets'));
+        $response->assertSee(lang('Accounting_reports.scope_company'));
+        $response->assertDontSee('branches%5B');
+    }
+
+    public function testGetIncomeStatement_AddsUpABranchThatWasDeactivatedAndOffersItToBeChosen(): void
+    {
+        $this->threeBranches();
+        $this->accountingDb()->table('branches')->where('branch_id', $this->third)->update(['active' => 0]);
+        $this->viewer();
+
+        $everything = $this->get('/accounting_statements/income_statement');
+
+        $this->assertSame($this->amountOf('7777.00'), $this->amountOfRow($everything, 'total_revenue'));
+        $everything->assertSee(lang('Accounting_reports.scope_company'));
+        $everything->assertSee('T3 - Third branch (' . lang('Accounting_reports.branch_inactive') . ')');
+        $everything->assertDontSee('T2 - Second branch (');
+
+        $applied = $this->get('/accounting_statements/income_statement?branches[]=1&branches[]=' . $this->second . '&branches[]=' . $this->third);
+
+        $this->assertSame($this->amountOf('7777.00'), $this->amountOfRow($applied, 'total_revenue'));
+        $applied->assertSee(lang('Accounting_reports.scope_company'));
+    }
+
+    public function testGetBalanceSheet_AddsUpABranchThatWasDeactivatedAndOffersItToBeChosen(): void
+    {
+        $this->threeBranches();
+        $this->accountingDb()->table('branches')->where('branch_id', $this->third)->update(['active' => 0]);
+        $this->viewer();
+
+        $everything = $this->get('/accounting_statements/balance_sheet');
+
+        $this->assertSame($this->amountOf('7777.00'), $this->amountOfRow($everything, 'total_assets'));
+        $everything->assertSee(lang('Accounting_reports.scope_company'));
+        $everything->assertSee('T3 - Third branch (' . lang('Accounting_reports.branch_inactive') . ')');
+        $everything->assertDontSee('T2 - Second branch (');
+    }
+
+    public function testGetIncomeStatement_ShowsTheChoicesItWasReadWithOnTheFilterForm(): void
+    {
+        $this->threeBranches();
+        $this->viewer();
+
+        $response = $this->get('/accounting_statements/income_statement?level=3&display=activity&from=2026-10-01&to=2026-10-31&branches[]=1&branches[]=' . $this->third);
+
+        $response->assertSee('<option value="3" selected>');
+        $response->assertSee('<option value="activity" selected>');
+        $response->assertDontSee('<option value="all" selected>');
+        $response->assertSee('id="f_from" name="from" class="form-control form-control-sm" value="2026-10-01"');
+        $response->assertSee('id="f_to" name="to" class="form-control form-control-sm" value="2026-10-31"');
+        $this->assertEqualsCanonicalizing([1, $this->second, $this->third], $this->offeredBranches($response));
+        $this->assertEqualsCanonicalizing([1, $this->third], $this->tickedBranches($response));
+    }
+
+    public function testGetBalanceSheet_ShowsTheChoicesItWasReadWithOnTheFilterForm(): void
+    {
+        $this->threeBranches();
+        $this->viewer();
+
+        $response = $this->get('/accounting_statements/balance_sheet?level=2&display=hide_zero&entities=1&to=2026-10-31&branches[]=' . $this->second);
+
+        $response->assertSee('<option value="2" selected>');
+        $response->assertSee('<option value="hide_zero" selected>');
+        $response->assertSee('id="f_entities" name="entities" value="1" checked');
+        $response->assertSee('id="f_to" name="to" class="form-control form-control-sm" value="2026-10-31"');
+        $this->assertSame([$this->second], $this->tickedBranches($response));
+
+        $plain = $this->get('/accounting_statements/balance_sheet');
+
+        $plain->assertDontSee('id="f_entities" name="entities" value="1" checked');
+        $plain->assertSee('<option value="3" selected>');
+        $this->assertEqualsCanonicalizing([1, $this->second, $this->third], $this->tickedBranches($plain));
+    }
+
+    public function testGetIncomeStatement_EscapesAHostileFirstAndLastDayThatItShowsBackInTheForm(): void
+    {
+        $this->viewer();
+
+        $response = $this->get('/accounting_statements/income_statement?from=' . urlencode('"><script>alert(1)</script>') . '&to=' . urlencode('"><img src=x onerror=alert(2)>'));
+
+        $response->assertStatus(200);
+        $response->assertSee('id="report_error"');
+        $response->assertDontSee('<script>alert(1)</script>');
+        $response->assertDontSee('onerror="alert(2)"');
+        $this->assertSame('"><script>alert(1)</script>', $this->valueOfInput($response, 'f_from'));
+        $this->assertSame('"><img src=x onerror=alert(2)>', $this->valueOfInput($response, 'f_to'));
+    }
+
+    public function testGetBalanceSheet_EscapesAHostileLastDayThatItShowsBackInTheForm(): void
+    {
+        $this->viewer();
+
+        $response = $this->get('/accounting_statements/balance_sheet?from=' . urlencode('"><script>alert(1)</script>') . '&to=' . urlencode('"><img src=x onerror=alert(2)>'));
+
+        $response->assertStatus(200);
+        $response->assertSee('id="report_error"');
+        $response->assertDontSee('<script>alert(1)</script>');
+        $response->assertDontSee('onerror="alert(2)"');
+        $this->assertSame('"><img src=x onerror=alert(2)>', $this->valueOfInput($response, 'f_to'));
     }
 
     // ---------------------------------------------------------------------------------------

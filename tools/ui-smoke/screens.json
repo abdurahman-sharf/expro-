@@ -1468,7 +1468,7 @@
     {
       "id": "accounting-statements-income-statement-detail",
       "group": "accounting",
-      "path": "/accounting_statements/income_statement?level=4&display=activity&entities=1"
+      "path": "/accounting_statements/income_statement?level=3&display=activity"
     },
     {
       "id": "accounting-statements-balance-sheet",

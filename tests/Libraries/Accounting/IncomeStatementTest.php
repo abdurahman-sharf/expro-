@@ -78,9 +78,9 @@ class IncomeStatementTest extends CIUnitTestCase
         parent::tearDown();
     }
 
-    private function statement(string $to = '2026-12-31', ?string $from = null, ?ReportScope $scope = null, ?int $level = null, StatementDisplay $display = StatementDisplay::All, bool $expand = false): IncomeStatementReport
+    private function statement(string $to = '2026-12-31', ?string $from = null, ?ReportScope $scope = null, ?int $level = null, StatementDisplay $display = StatementDisplay::All): IncomeStatementReport
     {
-        return $this->statements->build($scope ?? ReportScope::resolve(null, null), ReportPeriod::of($from, $to), $level, $display, $expand);
+        return $this->statements->build($scope ?? ReportScope::resolve(null, null), ReportPeriod::of($from, $to), $level, $display);
     }
 
     private function lineOf(StatementSection $section, string $code): ?StatementLine

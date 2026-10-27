@@ -377,9 +377,13 @@ class BalanceSheetTest extends CIUnitTestCase
         $journal = $this->cashSale('2026-10-12', 1, '700.00');
 
         $this->accountingDb()->table('accounting_journals')->where('journal_id', $journal)->update(['status' => 'preview']);
-        $this->accountingDb()->table('accounting_journals')->insert(['series' => 'manual', 'journal_date' => '2026-10-12', 'status' => 'draft', 'source_type' => 'manual', 'currency_code' => 'SAR', 'branch_id' => 1, 'company_id' => 1, 'total_debit' => 5, 'total_credit' => 5]);
 
-        $this->assertEquals($before, $this->sheet());
+        $this->assertEquals($before, $this->sheet(), 'A preview adds nothing');
+
+        $draft = (new JournalService())->saveDraft($this->journalInput('500.00'), null);
+
+        $this->assertGreaterThan(0, $this->accountingDb()->table('accounting_journal_lines')->where('journal_id', $draft)->countAllResults(), 'The draft has lines that would be counted if drafts were');
+        $this->assertEquals($before, $this->sheet(), 'A draft adds nothing');
     }
 
     public function testBuild_TiesToTheRootsOfTheTrialBalanceForEveryChoiceOfBranches(): void

@@ -22,26 +22,38 @@ final readonly class StatementFigures
     /**
      * @param array<int, object>                                                $accounts
      * @param array<int, array{opening: string, debit: string, credit: string}> $totals
+     * @param list<AccountType>                                                 $shown
      */
-    private function __construct(private array $accounts, private array $totals)
+    private function __construct(private array $accounts, private array $totals, private array $shown)
     {
         $this->levels = self::levelsOf($accounts);
     }
 
-    public static function read(TrialBalance $trialBalance, ReportScope $scope, ReportPeriod $period, bool $leaveOutYearEnd): self
+    /**
+     * @param list<AccountType> $shown The types the statement lists, so that it offers only the levels they reach; every type when empty.
+     */
+    public static function read(TrialBalance $trialBalance, ReportScope $scope, ReportPeriod $period, bool $leaveOutYearEnd, array $shown = []): self
     {
         $read = $trialBalance->totals($scope, $period, $leaveOutYearEnd);
 
-        return new self($read['accounts'], $read['totals']);
+        return new self($read['accounts'], $read['totals'], $shown);
     }
 
     /**
-     * The deepest level a statement can be asked for: that of the deepest account of the chart,
-     * and never past the fifth.
+     * The deepest level a statement can be asked for: that of the deepest account of the types it
+     * lists, and never past the fifth.
      */
     public function deepestLevel(): int
     {
-        return min(self::MAX_LEVEL, max([1, ...array_values($this->levels)]));
+        $levels = [1];
+
+        foreach ($this->levels as $accountId => $level) {
+            if ($this->shown === [] || in_array($this->typeOf($accountId), $this->shown, true)) {
+                $levels[] = $level;
+            }
+        }
+
+        return min(self::MAX_LEVEL, max($levels));
     }
 
     public function levelFor(?int $requested, int $default): int

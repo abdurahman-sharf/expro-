@@ -33,7 +33,7 @@ final class BalanceSheet
     public function build(ReportScope $scope, string $asOf, ?int $level = null, StatementDisplay $display = StatementDisplay::All, bool $expandEntities = false): BalanceSheetReport
     {
         $period  = ReportPeriod::of(null, $asOf);
-        $figures = StatementFigures::read($this->trialBalance, $scope, $period, leaveOutYearEnd: false);
+        $figures = StatementFigures::read($this->trialBalance, $scope, $period, leaveOutYearEnd: false, shown: [AccountType::Asset, AccountType::Liability, AccountType::Equity]);
         $level   = $figures->levelFor($level, self::DEFAULT_LEVEL);
 
         return new BalanceSheetReport(

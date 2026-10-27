@@ -69,9 +69,12 @@ class StatementFiguresTest extends CIUnitTestCase
         parent::tearDown();
     }
 
-    private function figures(string $to = '2026-12-31', ?string $from = null, bool $leaveOutYearEnd = false, ?ReportScope $scope = null): StatementFigures
+    /**
+     * @param list<AccountType> $shown
+     */
+    private function figures(string $to = '2026-12-31', ?string $from = null, bool $leaveOutYearEnd = false, ?ReportScope $scope = null, array $shown = []): StatementFigures
     {
-        return StatementFigures::read(new TrialBalance(), $scope ?? ReportScope::resolve(null, null), ReportPeriod::of($from, $to), $leaveOutYearEnd);
+        return StatementFigures::read(new TrialBalance(), $scope ?? ReportScope::resolve(null, null), ReportPeriod::of($from, $to), $leaveOutYearEnd, $shown);
     }
 
     /**
@@ -120,6 +123,21 @@ class StatementFiguresTest extends CIUnitTestCase
         (new EntityAccountService())->ensure(EntityAccountService::CUSTOMER, $this->insertCustomer(), 'Omar Khaled');
 
         $this->assertSame(5, $this->figures()->deepestLevel(), '1, 12, 1204, 12041 and the account of the customer');
+    }
+
+    public function testDeepestLevel_CountsOnlyTheAccountsOfTheTypesTheStatementLists(): void
+    {
+        (new EntityAccountService())->ensure(EntityAccountService::CUSTOMER, $this->insertCustomer(), 'Omar Khaled');
+
+        $this->assertSame(3, $this->figures(shown: [AccountType::Revenue, AccountType::Expense])->deepestLevel(), 'Revenue and expenses stop at 4, 41, 411');
+        $this->assertSame(5, $this->figures(shown: [AccountType::Asset, AccountType::Liability, AccountType::Equity])->deepestLevel());
+        $this->assertSame(2, $this->figures(shown: [AccountType::Equity])->deepestLevel(), 'Equity is two accounts deep: 3, 31');
+        $this->assertSame(3, $this->figures(shown: [AccountType::Revenue, AccountType::Expense])->levelFor(99, 2), 'A level past the deepest of the listed types is that deepest');
+
+        $this->customAccount('54', '5499', 'Rare expenses', true);
+        $this->customAccount('5499', '549901', 'Rarer expenses');
+
+        $this->assertSame(4, $this->figures(shown: [AccountType::Revenue, AccountType::Expense])->deepestLevel());
     }
 
     public function testDeepestLevel_StopsAtTheFifthWhateverTheChartHolds(): void

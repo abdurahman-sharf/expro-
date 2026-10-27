@@ -3,6 +3,7 @@
  * @var array{level: int, display: StatementDisplay, entities: bool, branches: list<int>} $filters
  * @var list<int>                                                                         $levels
  * @var list<object>                                                                      $branches
+ * @var bool                                                                              $offerEntities
  */
 
 use App\Libraries\Accounting\StatementDisplay;
@@ -24,10 +25,12 @@ use App\Libraries\Accounting\StatementDisplay;
         <?php endforeach; ?>
     </select>
 </div>
-<fieldset class="acc-filter acc-filter-status">
-    <legend class="form-label"><?= lang('Accounting_reports.show') ?></legend>
-    <label class="choice"><input type="checkbox" class="form-check-input" id="f_entities" name="entities" value="1"<?= $filters['entities'] ? ' checked' : '' ?>> <?= lang('Accounting_reports.show_entities') ?></label>
-</fieldset>
+<?php if ($offerEntities): ?>
+    <fieldset class="acc-filter acc-filter-status">
+        <legend class="form-label"><?= lang('Accounting_reports.show') ?></legend>
+        <label class="choice"><input type="checkbox" class="form-check-input" id="f_entities" name="entities" value="1"<?= $filters['entities'] ? ' checked' : '' ?>> <?= lang('Accounting_reports.show_entities') ?></label>
+    </fieldset>
+<?php endif; ?>
 <?php if ($branches !== []): ?>
     <fieldset class="acc-filter acc-filter-status" id="f_branches">
         <legend class="form-label"><?= lang('Accounting_reports.branches') ?></legend>

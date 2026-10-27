@@ -9,7 +9,8 @@ use CodeIgniter\Database\BaseConnection;
  * books, a journal that was reversed with its reversal. A debit balance inside the revenue, such
  * as the returns of sales, reads as a minus, and the cost of sales is one of the expenses. The
  * journals that close a year are left out, so a year reads the same before and after it is closed.
- * Without a first day the period starts with the books.
+ * Without a first day the period starts with the books. The accounts of customers, suppliers,
+ * locations and treasuries are assets and liabilities, so none of them is among the lines.
  */
 final class IncomeStatement
 {
@@ -22,12 +23,12 @@ final class IncomeStatement
         $this->trialBalance = new TrialBalance($db);
     }
 
-    public function build(ReportScope $scope, ReportPeriod $period, ?int $level = null, StatementDisplay $display = StatementDisplay::All, bool $expandEntities = false): IncomeStatementReport
+    public function build(ReportScope $scope, ReportPeriod $period, ?int $level = null, StatementDisplay $display = StatementDisplay::All): IncomeStatementReport
     {
-        $figures = StatementFigures::read($this->trialBalance, $scope, $period, leaveOutYearEnd: true);
+        $figures = StatementFigures::read($this->trialBalance, $scope, $period, leaveOutYearEnd: true, shown: [AccountType::Revenue, AccountType::Expense]);
         $level   = $figures->levelFor($level, self::DEFAULT_LEVEL);
-        $revenue = $figures->section(AccountType::Revenue, $level, $display, $expandEntities);
-        $expense = $figures->section(AccountType::Expense, $level, $display, $expandEntities);
+        $revenue = $figures->section(AccountType::Revenue, $level, $display, expandEntities: false);
+        $expense = $figures->section(AccountType::Expense, $level, $display, expandEntities: false);
 
         return new IncomeStatementReport(
             $revenue,
@@ -39,7 +40,6 @@ final class IncomeStatement
             $level,
             $figures->deepestLevel(),
             $display,
-            $expandEntities,
         );
     }
 }

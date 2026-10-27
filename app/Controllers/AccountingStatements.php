@@ -39,19 +39,19 @@ class AccountingStatements extends AccountingController
             $period = ReportPeriod::of(null, date('Y-m-d'));
         }
 
-        $report = $this->incomeStatement->build($scope, $period, $this->level(), StatementDisplay::fromRequest($this->query('display')), $this->flag('entities'));
+        $report = $this->incomeStatement->build($scope, $period, $this->level(), StatementDisplay::fromRequest($this->query('display')));
 
         return view('accounting_statements/income_statement', [
-            'report'      => $report,
-            'error'       => $error,
-            'filters'     => $this->filterValues($scope, $report->level, $report->display, $report->expandEntities) + ['from' => $this->query('from')],
-            'levels'      => range(1, $report->deepestLevel),
-            'branches'    => $this->branchChoices($scope),
-            'scope_label' => $scope->label(),
-            'amount'      => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
-            'date'        => fn (string $value): string => $this->formatDate($value),
-            'ledger_url'  => fn (int $accountId): string => $this->ledgerUrl($accountId, $scope, $report->from ?? '', $report->to),
-            'other_url'   => $this->statementUrl('balance_sheet', $scope, $report->to),
+            'report'     => $report,
+            'error'      => $error,
+            'filters'    => $this->filterValues($scope, $report->level, $report->display) + ['from' => $this->query('from')],
+            'levels'     => range(1, $report->deepestLevel),
+            'branches'   => $this->branchChoices($scope),
+            'scopeLabel' => $scope->label(),
+            'amount'     => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
+            'date'       => fn (string $value): string => $this->formatDate($value),
+            'ledgerUrl'  => fn (int $accountId): string => $this->ledgerUrl($accountId, $scope, $report->from ?? '', $report->to),
+            'otherUrl'   => $this->statementUrl('balance_sheet', $scope, $report->to),
         ]);
     }
 
@@ -71,17 +71,17 @@ class AccountingStatements extends AccountingController
         }
 
         return view('accounting_statements/balance_sheet', [
-            'report'       => $report,
-            'error'        => $error,
-            'filters'      => $this->filterValues($scope, $report->level, $report->display, $report->expandEntities),
-            'from_ignored' => $this->query('from') !== '',
-            'levels'       => range(1, $report->deepestLevel),
-            'branches'     => $this->branchChoices($scope),
-            'scope_label'  => $scope->label(),
-            'amount'       => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
-            'date'         => fn (string $value): string => $this->formatDate($value),
-            'ledger_url'   => fn (int $accountId): string => $this->ledgerUrl($accountId, $scope, '', $report->asOf),
-            'other_url'    => $this->statementUrl('income_statement', $scope, $report->asOf),
+            'report'      => $report,
+            'error'       => $error,
+            'filters'     => $this->filterValues($scope, $report->level, $report->display, $report->expandEntities),
+            'fromIgnored' => $this->query('from') !== '',
+            'levels'      => range(1, $report->deepestLevel),
+            'branches'    => $this->branchChoices($scope),
+            'scopeLabel'  => $scope->label(),
+            'amount'      => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
+            'date'        => fn (string $value): string => $this->formatDate($value),
+            'ledgerUrl'   => fn (int $accountId): string => $this->ledgerUrl($accountId, $scope, '', $report->asOf),
+            'otherUrl'    => $this->statementUrl('income_statement', $scope, $report->asOf),
         ]);
     }
 
@@ -96,11 +96,19 @@ class AccountingStatements extends AccountingController
         return is_string($value) ? trim($value) : '';
     }
 
-    private function scope(): ReportScope
+    /**
+     * @return list<int>|null The branches the request names, nothing when it names none or not as a list.
+     */
+    private function requestedBranches(): ?array
     {
         $requested = $this->request->getGet('branches');
 
-        return ReportScope::resolve(is_array($requested) ? array_map('intval', $requested) : null, $this->branchIds());
+        return is_array($requested) ? array_values(array_map('intval', $requested)) : null;
+    }
+
+    private function scope(): ReportScope
+    {
+        return ReportScope::resolve($this->requestedBranches(), $this->branchIds());
     }
 
     private function asOf(): string
@@ -128,7 +136,7 @@ class AccountingStatements extends AccountingController
      *
      * @return array{to: string, level: int, display: StatementDisplay, entities: bool, branches: list<int>}
      */
-    private function filterValues(ReportScope $scope, int $level, StatementDisplay $display, bool $entities): array
+    private function filterValues(ReportScope $scope, int $level, StatementDisplay $display, bool $entities = false): array
     {
         return ['to' => $this->asOf(), 'level' => $level, 'display' => $display, 'entities' => $entities, 'branches' => $scope->ids];
     }
@@ -153,7 +161,7 @@ class AccountingStatements extends AccountingController
 
         $query['to'] = $to;
 
-        if ($this->request->getGet('branches') !== null) {
+        if ($this->requestedBranches() !== null) {
             $query['branches'] = $scope->isEmpty() ? [0] : $scope->ids;
         }
 
@@ -164,7 +172,7 @@ class AccountingStatements extends AccountingController
     {
         $query = ['to' => $to];
 
-        if ($this->request->getGet('branches') !== null) {
+        if ($this->requestedBranches() !== null) {
             $query['branches'] = $scope->isEmpty() ? [0] : $scope->ids;
         }
 

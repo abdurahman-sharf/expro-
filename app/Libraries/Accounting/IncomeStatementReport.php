@@ -21,7 +21,6 @@ final readonly class IncomeStatementReport
         public int $level,
         public int $deepestLevel,
         public StatementDisplay $display,
-        public bool $expandEntities,
     ) {
     }
 }
