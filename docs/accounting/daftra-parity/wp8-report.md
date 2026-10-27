@@ -1,6 +1,6 @@
 # تقرير WP8: خدمة الترقيم لكل مستند (G-08 وCUS-02)
 
-> الحالة (2026-10-27): **نُفِّذ على الفرع `wp/WP8`** (من `f5d4927`) بتفويض E47، بلا دمج في `master` ولا نشر ولا كتابة في دفترة. **خدمة ترقيم** لتسعة أنواع من المستندات: تسلسل لكل نوع بـ**بادئة وعدد منازل ورقم تالٍ**، يُحجز **داخل معاملة الحفظ نفسها** بقفل صف التسلسل فلا يتكرر رقم حتى مع اتصالين متزامنين، ويُعرض على المستندات والقوائم التي تعرض الرقم اليوم، وله **شاشة إعدادات** تحت منطقة الإعدادات وصلاحيتها القائمة (`config`). **الافتراضات تعيد الترقيم الحالي بالتمام** (كل تسلسل معطَّل حتى يفعّله المالك، ولا مستند قائم يُعاد ترقيمه أو يُعاد تاريخه)، وفيه اختبار ذهبي يثبت ذلك على كل نوع. **بُني النصف الآمن فقط:** الرقم التالي لا يُعدَّل إلا للأعلى، والفرادة مفروضة؛ وتعديله للأسفل وتكرار الأرقام المكتوبة يدويًا ومتغيرات البادئة **تنتظر رصد دفترة (`S-33`)** فلا أدّعي فيها تطابقًا.
+> الحالة (2026-10-27): **نُفِّذ على الفرع `wp/WP8`** (من `f5d4927`) بتفويض E47، بلا دمج في `master` ولا نشر ولا كتابة في دفترة. **خدمة ترقيم** لتسعة أنواع من المستندات: تسلسل لكل نوع بـ**بادئة وعدد منازل ورقم تالٍ**، يُحجز **داخل معاملة الحفظ نفسها** بقفل صف التسلسل فلا يتكرر رقم حتى مع اتصالين متزامنين، ويُعرض على المستندات والقوائم التي تعرض الرقم اليوم، وله **شاشة إعدادات** تحت منطقة الإعدادات وصلاحيتها القائمة (`config`). **الافتراضات تعيد الترقيم الحالي بالتمام** (كل تسلسل معطَّل حتى يفعّله المالك، ولا مستند قائم يُعاد ترقيمه أو يُعاد تاريخه)، وفيه اختبار ذهبي يثبت ذلك على المستندات التي ينشئها التطبيق (فاتورة ودفعتان وإشعار دائن وعرض سعر وعميل وفاتورة شراء وإشعار مدين ودفعة مورد). **بُني النصف الآمن فقط:** الرقم التالي لا يُعدَّل إلا للأعلى، والفرادة مفروضة؛ وتعديله للأسفل وتكرار الأرقام المكتوبة يدويًا ومتغيرات البادئة **تنتظر رصد دفترة (`S-33`)** فلا أدّعي فيها تطابقًا.
 
 ## 1. ما نُفِّذ
 
@@ -9,7 +9,7 @@
 | **الجدولان** (ترحيل `20261210000000_DocumentSequences`) | `document_sequences`: صف لكل (شركة، نوع) فيه التفعيل والبادئة (حتى 16 حرفًا) وعدد المنازل (0 إلى 10) والرقم التالي (≥ 1) وخيار منع التكرار ومن عدّل ومتى. `document_numbers`: **سجل الأرقام المعطاة**، صف لكل (نوع، جدول المصدر، معرّف المصدر) بمفتاح فريد، **ومفتاح فريد ثانٍ على (شركة، نوع، رقم)** شبكةَ أمان تحت الشيفرة. الترحيل إضافي (`CREATE TABLE IF NOT EXISTS`) ويُعاد تشغيله بأمان ولا يمنح صلاحية ولا وحدة ولا يمس صفًّا قائمًا |
 | **الأنواع التسعة** (`DocumentType`) | فاتورة بيع، عرض سعر، إشعار دائن، دفعة عميل، عميل، فاتورة شراء، إشعار مدين، دفعة مورد، مصروف. **لكل نوع الجدول الذي يخزَّن فيه** (فلا يُرقَّم مستند من جدول لا يخصّه: يُرفض `numbering_source_invalid`)، وما يعرضه المستند **قبل أن يُرقَّم** (`POS 12` للإشعار الدائن، `RECV 7` للشراء والإشعار المدين، المعرّف المجرد للدفعتين والمصروف، والفراغ للباقي) |
 | **متى يُعطى الرقم** | **فاتورة البيع** عند إتمام البيع (لا مسودة ولا معلَّق)، **وعرض السعر** عند حفظه، **والإشعار الدائن** عند إتمام مرتجع البيع، **وكل دفعة عميل** عند إتمام البيع (ودفعة تُضاف لاحقًا من نموذج التعديل إلى بيع مكتمل؛ ودفعات البيع المعلَّق تُرقَّم عند إتمامه)، **وفاتورة الشراء والإشعار المدين** عند حفظ الاستلام (الاستلام وبه المرتجع)، **ودفعة المورد** (صف دفعة الاستلام الجديد، والدفعة المستقلة من `supplier_advances`)، **والمصروف** عند إضافته، **والعميل** عند إضافته بلا رقم حساب مكتوب. **لا يُرقَّم:** صف دفعة «آجل» (`Due`) ولا تقريب النقد، ولا طلب التوريد (التحويل بين مواقع) ولا الاستلام الافتتاحي، ولا الرصيد الافتتاحي للمورد |
-| **الحجز والقفل** | `DocumentNumbering::assign` يقرأ صف التسلسل بـ`SELECT … FOR UPDATE` **داخل معاملة المتصل** (نفس انضباط `accounting_sequences` وقفل `lockSequence`: `INSERT IGNORE` ثم قراءة مقفولة)، فيطابق الحجز بين اتصالين على الترتيب. الإدراج في السجل وتحريك العدّاد **في المعاملة نفسها**: **ما يُلغى حفظه لا يترك رقمًا ولا ثغرة**، والمستند المحذوف **يبقى رقمه في السجل ولا يُعطى لغيره أبدًا**. وإن وجد الخدمة رقمًا مأخوذًا (في السجل أو في عمود المستند القديم) **تتخطاه** حتى 1000 محاولة ثم ترفض `numbering_exhausted` |
+| **الحجز والقفل** | `DocumentNumbering::assign` يقرأ صف التسلسل بـ`SELECT … FOR UPDATE` **داخل معاملة المتصل** (نفس انضباط `accounting_sequences` وقفل `lockSequence`: `INSERT IGNORE` ثم قراءة مقفولة)، فيُحجز الرقم بين اتصالين على الترتيب. الإدراج في السجل وتحريك العدّاد **في المعاملة نفسها**: **ما يُلغى حفظه لا يترك رقمًا ولا ثغرة**، والمستند المحذوف **يبقى رقمه في السجل ولا يُعطى لغيره أبدًا**. وإن وجدت الخدمة رقمًا مأخوذًا (في السجل أو في عمود المستند القديم) **تتخطاه** حتى 1000 محاولة ثم ترفض `numbering_exhausted` |
 | **حدّ الرقم التالي** | لا يقل عن: الرقم المخزَّن، و**1 + أعلى رقم أُعطي**، و**1 + أعلى رقم في عمود المستند القديم من شكل بادئة + أرقام** (`invoice_number` و`quote_number` و`account_number`)، **و1 + أعلى معرّف لمستند ما زال يظهر بمعرّفه** (الدفعتان والمصروف) حين تكون البادئة فارغة. فلا يتضارب تسلسل جديد مع ما تعرضه الشاشات. **يُرفع الرقم التالي للأعلى فقط**؛ تخفيضه يُرفض `numbering_next_too_low` برسالة تذكر الحدّ الأدنى |
 | **الأعمدة القديمة** | الفاتورة والعرض والعميل **تُكتب أرقامها في أعمدتها القديمة** (`sales.invoice_number` و`sales.quote_number` و`customers.account_number`) فتعمل كل شاشة وبحث يقرؤها كما كانت. **رقم مكتوب بيد المستخدم يبقى** ولا يُستبدل، ويُتخطى رقم التسلسل الذي يساويه. **تعديل فاتورة يترك رقمها فارغًا لا ينزع رقم التسلسل عنها** |
 | **سجل البيع** | فاتورة وعرض: **إن كان التسلسل مفعّلًا** لا يُولَّد الرقم من تنسيق الإعدادات (`sales_invoice_format` وعدّاده) بل يمرّ `null` فيُحجز داخل المعاملة، ويقرأ الإيصال الرقم الممنوح بعد الحفظ؛ وحقل رقم الفاتورة في السجل **يقترح الرقم التالي** (`peek` بلا حجز). **إن كان معطَّلًا** فكل شيء كما كان |
@@ -30,14 +30,129 @@
 ## 3. الأدلة
 
 - **اختبارات الكود (ملف واحد لكل صنف، بأسماء `test{الدالة}_{السلوك}`):**
-  - `tests/Libraries/Numbering/DocumentNumberingTest.php` (@@SVC_TESTS@@ اختبارًا: الأنواع والجداول، تسلسل لكل نوع ولكل شركة ولفرع المستند، التتابع والبادئة والمنازل، الرقم الموجود للمستند، تخطي رقم مأخوذ في السجل أو عند عميل آخر، عدم إعادة رقم حُذف مستنده، التراجع، الانضمام لمعاملة المتصل، الانتظار على اتصال آخر يمسك التسلسل واتصالين متتاليين على الترتيب، حد الرقم التالي (المعرّفات والأعمدة القديمة)، التهيئة وكل رفض (سبعة أنواع) وحواف الإعدادات والعربية في البادئة، الصلاحية، السجل، رسائل الرفض بكل اللغات المترجمة، **أربعة اختبارات ذهبية**، **وعمليتان حقيقيتان متزامنتان** (واحدة تحفظ فاتورتين كاملتين معًا، وأخرى تمسك معاملتها مفتوحة 400 ملّي ثانية لتتداخل)).
-  - `tests/Database/DocumentSequencesMigrationTest.php` (@@MIG_TESTS@@ اختبارًا: الجدولان والأعمدة، البداية فارغة ومعطَّلة، الإعادة بلا فقد، عدم مسّ أرقام المستندات القائمة، لا صلاحية ولا منحة ولا وحدة، رفض تسلسلين من نوع واحد، رفض منازل فوق عشرة ورقم تالٍ دون الواحد، رفض شركة غير موجودة، رفض الرقم نفسه مرتين لنوع واحد ورقمين لمستند واحد، قبول الرقم نفسه لنوعين، `down` ثم `up`). **يُعيد بناء الجدولين قبل كل اختبار** ليكشف أي تغيير في مخططهما.
+  - `tests/Libraries/Numbering/DocumentNumberingTest.php` (72 اختبارًا: الأنواع والجداول، تسلسل لكل نوع ولكل شركة ولفرع المستند، التتابع والبادئة والمنازل، الرقم الموجود للمستند، تخطي رقم مأخوذ في السجل أو عند عميل آخر، عدم إعادة رقم حُذف مستنده، التراجع، الانضمام لمعاملة المتصل، الانتظار على اتصال آخر يمسك التسلسل واتصالين متتاليين على الترتيب، حد الرقم التالي (المعرّفات والأعمدة القديمة)، التهيئة وكل رفض (سبعة أنواع) وحواف الإعدادات والعربية في البادئة، الصلاحية، السجل، رسائل الرفض بكل اللغات المترجمة، **أربعة اختبارات ذهبية**، **وعمليتان حقيقيتان متزامنتان** (واحدة تحفظ فاتورتين كاملتين معًا، وأخرى تمسك معاملتها مفتوحة 400 ملّي ثانية لتتداخل)).
+  - `tests/Database/DocumentSequencesMigrationTest.php` (12 اختبارًا: الجدولان والأعمدة، البداية فارغة ومعطَّلة، الإعادة بلا فقد، عدم مسّ أرقام المستندات القائمة، لا صلاحية ولا منحة ولا وحدة، رفض تسلسلين من نوع واحد، رفض منازل فوق عشرة ورقم تالٍ دون الواحد، رفض شركة غير موجودة، رفض الرقم نفسه مرتين لنوع واحد ورقمين لمستند واحد، قبول الرقم نفسه لنوعين، `down` ثم `up`). **يُعيد بناء الجدولين قبل كل اختبار** ليكشف أي تغيير في مخططهما.
   - الموجودة وقد زيدت: `SaleTest` و`ReceivingTest` و`CustomerTest` و`ExpenseTest` (جديد) و`SupplierAdvancesTest` (النماذج الحقيقية: الترقيم مع المحاسبة ومعطَّلة، التراجع الكامل عند الرفض أو عند استحالة الرقم)، و`SalesControllerTest` و`ReceivingsControllerTest` و`CustomersControllerTest` (جديد) و`ExpensesControllerTest` (جديد) و`ConfigTest` (الشاشات والمتحكمات: الإيصالات ونموذج التعديل والقائمة والاقتراح والرفض في الخادم وشاشة الإعدادات بصلاحيتها)، و`NavigationHelperTest` (أقسام الإعدادات 12 ← 13).
-- **الاختبار الذهبي** (`DocumentNumberingTest::testGolden_*`): (1) **الإعدادات الافتراضية تترك كل مستند من التسعة بالرقم الذي كان يعرضه** بعد حفظ كل نوع عبر النماذج الحقيقية، **ومقارنة كل رقم بما كان عليه قبل الميزة**؛ (2) **تفعيل تسلسل يرقّم المستندات الجديدة وبعدها فقط ولا يمس واحدًا قائمًا**؛ (3) **أرصدة الدفاتر والحركة متطابقة** سواء رُقّمت المستندات أم لا؛ (4) **الترقيم يعمل والمحاسبة معطَّلة ويترك الدفاتر فارغة**.
+- **الاختبار الذهبي** (`DocumentNumberingTest::testGolden_*`): (1) **بالإعدادات الافتراضية** (لا صف في الجدولين) يُنتج التطبيق، عبر نماذجه الحقيقية، فاتورة بدفعتين وإشعارًا دائنًا وعرض سعر ورقم عرض وفاتورة مكتوبَين بيد المستخدم وعميلًا برقم حساب مكتوب وفاتورة شراء وإشعارًا مدينًا ودفعة مورد: **كل مستند يعرض ما كان يعرضه** (`POS n` و`RECV n` والمعرّف المجرد، والأرقام المكتوبة كما هي، والفاتورة بلا رقم تبقى بلا رقم)، والسجل فارغ، وكل تسلسل معطَّل بلا بادئة ولا منازل؛ (2) **تفعيل التسلسلات التسعة يرقّم ما يُحفظ بعده ولا يمس واحدًا قائمًا**؛ (3) **حركة أرصدة الدفاتر لمجموعة المستندات نفسها متطابقة** سواء رُقّمت أم لا، ولا اختلاف بين قيد مخزون وحركاته (`mismatchedJournals`)؛ (4) **الترقيم يعمل والمحاسبة معطَّلة ويترك القيود كما هي**. **وملف التثبيت `ParityFixtureTest` (كل أرقام `T-xx` بقيود دفترة) يمرّ بلا تغيير** وهو يعمل بالإعدادات الافتراضية.
 - **التزامن:** تسلسلان مفتوحان في اتصالين يحجزان بالترتيب (10 أرقام متتالية بلا تكرار بين اتصالين)، **وعمليتان حقيقيتان** (`RaceWorker` في عمليتي PHP منفصلتين): الأولى تحفظ فاتورتين كاملتين معًا فتأخذان `…-0001` و`…-0002`؛ **والثانية تُبقي كل معاملة مفتوحة 400 ملّي ثانية فتتداخلان ويأخذ كل مستند رقمًا مختلفًا** (بدون قفل الصف تتصادم الثانية على المفتاح الفريد). **تعديل `RaceWorker`:** صار يحمّل صفوف التطبيق من نسخة العمل التي يقع فيها (في شجرة عمل git تشارك `vendor` مع الفرع الرئيس، فكان العامل يشغّل شيفرة الفرع الرئيس القديمة ولا يرى الميزة)، ولا أثر له في مستودع عادي.
-- **تعطيل الحراس (`mutate_generic.py`، قياس فعلي):** @@GUARDS_SENTENCE@@
-- **اختبارات ذات صلة شُغِّلت (النتائج كما طُبعت):** @@RELATED_RUNS@@
+- **تعطيل الحراس (`mutate_generic.py`، قياس فعلي):** عطّلتُ **77 حارسًا** على حدة (30 في الخدمة وكائنَي القيمة والنوع، و10 في نموذج البيع، و6 في نموذج الاستلام ودفعة المورد، و5 في نموذجَي المصروف والعميل، و3 في متحكم العملاء، و8 في متحكم المبيعات، و1 في متحكم الاستلام، و2 في المصروفات، و5 في الإعدادات والتنقل ورسالة الرفض، و7 في الترحيل) **فتفشل اختبارات كلٍّ منها** (**77 من 77**). **كُشف 70 من أول مرة وبقيت ستة بلا كشف** فأضفتُ لها اختبارات: (1) حدّ الرقم التالي فوق سجل الأرقام حين يضيع صف العدّاد، (2) استبعاد المستند المرقَّم من الأرقام المعروضة بمعرّفها (كان الاختبار يرتب المعرّفات بحيث لا يفرّق)، (3) التسلسل بعد تعطيله لا يعطي رقمًا (حارسان متداخلان، عُطِّلا معًا)، (4) معاينة الرقم لا تُظهر شيئًا والتسلسل معطَّل، (5) دفعة تُضاف من نموذج التعديل إلى بيع غير مكتمل لا تُرقَّم بعد، (6) فحص التكرار لفاتورة بلا رقم بعد: **كان تعطيلي له مكافئًا للأصل** (تحويل `null` إلى نص فارغ) **فصحّحتُ التعطيل** بحذف الفحص نفسه فكُشف، وأضفتُ حارسًا سابعًا لنظيره في عرض السعر. **وأضفتُ اختبار معاينة الرقم** لأنه لم يكن له اختبار في الخدمة نفسها. **ولا يعدّ حارسًا مستقلًا:** قفل `FOR UPDATE` في `configure` (قفل `INSERT IGNORE` يحمي الصف قبله، وهو الانضباط نفسه في `lockSequence` القائم) فلم أدّعِ له دليلًا. ولم أُبقِ شيئًا معطّلًا؛ نتائج كل حارس في آخر هذا القسم
+- **اختبارات ذات صلة شُغِّلت (النتائج كما طُبعت):** 
+  - `tests/Database/DocumentSequencesMigrationTest.php`: OK (12 tests, 50 assertions)
+  - `tests/Libraries/Numbering/DocumentNumberingTest.php`: OK (72 tests, 346 assertions)
+  - `tests/Models/SaleTest.php`: OK (38 tests, 210 assertions)
+  - `tests/Models/ReceivingTest.php`: OK (21 tests, 136 assertions)
+  - `tests/Models/CustomerTest.php`: OK (19 tests, 67 assertions)
+  - `tests/Models/ExpenseTest.php`: OK (7 tests, 40 assertions)
+  - `tests/Libraries/Accounting/SupplierAdvancesTest.php`: OK (31 tests, 272 assertions)
+  - `tests/Controllers/SalesControllerTest.php`: OK (108 tests, 650 assertions)
+  - `tests/Controllers/ReceivingsControllerTest.php`: OK (78 tests, 670 assertions)
+  - `tests/Controllers/CustomersControllerTest.php`: OK (13 tests, 27 assertions)
+  - `tests/Controllers/ExpensesControllerTest.php`: OK (6 tests, 15 assertions)
+  - `tests/Controllers/ConfigTest.php`: OK (31 tests, 99 assertions)
+  - `tests/helpers/NavigationHelperTest.php`: OK (16 tests, 22 assertions)
+  - `tests/LanguageFilesTest.php`: OK (1726 tests, 2766 assertions)
+  - `tests/Libraries/Accounting/AccountingMessageTest.php`: OK (162 tests, 162 assertions)
+  - `tests/Libraries/Accounting/SalePostingTest.php`: OK (112 tests, 777 assertions)
+  - `tests/Libraries/Accounting/ReceivingPostingTest.php`: OK (138 tests, 1263 assertions)
+  - `tests/Libraries/Accounting/CustomerLockTest.php`: OK (7 tests, 36 assertions)
+  - `tests/Libraries/Accounting/SupplierLockTest.php`: OK (13 tests, 96 assertions)
+  - `tests/Libraries/Accounting/OpeningStockTest.php`: OK (47 tests, 576 assertions)
+  - `tests/Models/CustomerRewardPointsTest.php`: OK (5 tests, 10 assertions)
+  - `tests/Models/GiftcardTest.php`: OK (7 tests, 14 assertions)
+  - `tests/Models/ItemQuantityTest.php`: OK (3 tests, 7 assertions)
+  - `tests/Controllers/AccountingJournalsControllerTest.php`: OK (65 tests, 279 assertions)
+  - `tests/Support/ParityFixtureTest.php`: OK (100 tests, 1090 assertions)
+  - `tests/Libraries/Accounting/CustomerLedgerTest.php`: OK (18 tests, 152 assertions)
+  - `tests/Libraries/Accounting/CreditSettlementTest.php`: OK (18 tests, 169 assertions)
+  - `tests/Libraries/Accounting/SupplierLedgerTest.php`: OK (20 tests, 208 assertions)
+  - `tests/Libraries/Accounting/SupplierSettlementTest.php`: OK (19 tests, 241 assertions)
+  - `tests/Libraries/Accounting/PaymentTreasuryStampingTest.php`: OK (14 tests, 71 assertions)
+  - `tests/Libraries/Accounting/StockLedgerTest.php`: OK (18 tests, 100 assertions)
+  - **لم أشغّل المجموعة الكاملة** (بحسب القيد): شغّلتُ ملفات الحزمة الجديدة والمعدَّلة وكل ملف يستعمل نموذج البيع أو الاستلام أو دفعة المورد أو عامل التزامن `RaceWorker` أو ملفات اللغة أو سجل التدقيق أو أقسام الإعدادات. كلها بقاعدة `ospos_test_c`.
 - **التنسيق:** `php-cs-fixer` على كل ملف جديد غير قديم (الترحيل وأصناف `Numbering` الأربعة وعرض الإعدادات وملفات `Numbering.php` الستة والأربعين): **صفر ملف يحتاج إصلاحًا (52 من 52 نظيفة)**. وتصحيح أثناء العمل: كانت وثيقة `applicationsOf` في `Receivings` قد انزاحت إلى دالتي الجديدة فأعدتُها.
+
+### نتائج تعطيل الحراس كما طُبعت
+
+```
+DETECTED  G01: configure needs the settings permission: Tests: 1, Assertions: 3, Failures: 1.; failing: 1
+DETECTED  G02: the sequence row is locked before a number is taken: Tests: 3, Assertions: 9, Failures: 1.; failing: 1
+DETECTED  G03: a document that has a number keeps it and takes no second one: Tests: 1, Assertions: 0, Errors: 1.; failing: 1
+DETECTED  G04: a number already in the register is never given again: Tests: 1, Assertions: 1, Errors: 1.; failing: 1
+DETECTED  G05: a number typed in the column of another document is skipped: Tests: 1, Assertions: 1, Failures: 1.; failing: 1
+DETECTED  G06: the search for a free number stops after a thousand: Tests: 1, Assertions: 1, Failures: 1.; failing: 1
+DETECTED  G07: the counter stops below what its column can hold: Tests: 1, Assertions: 3, Failures: 1.; failing: 1
+DETECTED  G08: the next number stays above every number given: Tests: 1, Assertions: 1, Failures: 1.; failing: 1
+DETECTED  G09: the next number stays above the numbers the documents carry: Tests: 1, Assertions: 1, Failures: 1.; failing: 1
+DETECTED  G10: the next number stays above the ids that documents still show: Tests: 1, Assertions: 1, Failures: 1.; failing: 1
+DETECTED  G11: a document that has a number no longer counts as showing its id: Tests: 1, Assertions: 2, Failures: 1.; failing: 1
+DETECTED  G12: ids count only for an empty prefix: Tests: 35, Assertions: 80, Failures: 1.; failing: 1
+DETECTED  G13: the next number is never lowered: Tests: 1, Assertions: 1, Failures: 1.; failing: 1
+DETECTED  G14: a prefix is no longer than 16 characters: Tests: 13, Assertions: 25, Failures: 1.; failing: 1
+DETECTED  G15: a prefix takes letters, digits and a few separators only: Tests: 13, Assertions: 23, Failures: 3.; failing: 3
+DETECTED  G16: the digits are a whole number: Tests: 13, Assertions: 24, Failures: 2.; failing: 2
+DETECTED  G17: the digits are between 0 and 10: Tests: 13, Assertions: 24, Failures: 2.; failing: 2
+DETECTED  G18: the next number is a whole number: Tests: 13, Assertions: 25, Failures: 1.; failing: 1
+DETECTED  G19: the next number is between 1 and the maximum: Tests: 13, Assertions: 23, Failures: 3.; failing: 3
+DETECTED  G20: every change of the numbering is written in the audit log: Tests: 2, Assertions: 3, Errors: 1, Failures: 1.; failing: 2
+DETECTED  G21: nothing is written or audited when nothing changed: Tests: 1, Assertions: 1, Failures: 1.; failing: 1
+DETECTED  G22: a document takes the sequence of the company of its branch: Tests: 1, Assertions: 2, Failures: 1.; failing: 1
+DETECTED  G23: only a table that holds the kind of document is accepted: Tests: 1, Assertions: 0, Errors: 1.; failing: 1
+DETECTED  G24: the number is written in the column the document always had: Tests: 1, Assertions: 2, Failures: 1.; failing: 1
+DETECTED  G25: a document without a number shows what it showed before: Tests: 1, Assertions: 1, Failures: 1.; failing: 1
+DETECTED  G26: the preview takes nothing while the sequence is off: Tests: 1, Assertions: 1, Failures: 1.; failing: 1
+DETECTED  G27: the digits pad the number with zeros: Tests: 1, Assertions: 1, Failures: 1.; failing: 1
+DETECTED  G28: the prefix starts the number: Tests: 1, Assertions: 1, Failures: 1.; failing: 1
+DETECTED  G29: a credit note shows POS and its id until it has a number: Tests: 1, Assertions: 1, Failures: 1.; failing: 1
+DETECTED  G30: a sequence that is off gives no number: Tests: 1, Assertions: 2, Failures: 1.; failing: 1
+DETECTED  G31: an invoice is numbered only when the sale is completed: Tests: 2, Assertions: 6, Failures: 2.; failing: 2
+DETECTED  G32: an invoice number typed by hand is kept: Tests: 1, Assertions: 3, Failures: 1.; failing: 1
+DETECTED  G33: a quote is numbered when it is saved: Tests: 1, Assertions: 3, Failures: 1.; failing: 1
+DETECTED  G34: a return is numbered as a credit note: Tests: 1, Assertions: 5, Failures: 1.; failing: 1
+DETECTED  G35: each payment of a completed sale is numbered: Tests: 1, Assertions: 3, Failures: 1.; failing: 1
+DETECTED  G36: what only records what stays unpaid is not a payment document: Tests: 1, Assertions: 4, Failures: 1.; failing: 1
+DETECTED  G37: a sale that cannot be numbered is undone as a whole: Tests: 1, Assertions: 4, Failures: 1.; failing: 1
+DETECTED  G38: an edit that leaves the number blank keeps the number of the sequence: Tests: 1, Assertions: 4, Failures: 1.; failing: 1
+DETECTED  G39: a payment added to a completed sale is numbered: Tests: 1, Assertions: 7, Failures: 1.; failing: 1
+DETECTED  G40: a payment added to a sale that is not completed is not numbered yet: Tests: 1, Assertions: 7, Failures: 1.; failing: 1
+DETECTED  G41: a completed purchase is numbered: Tests: 1, Assertions: 6, Failures: 1.; failing: 1
+DETECTED  G42: a return to the supplier is a debit note: Tests: 1, Assertions: 8, Failures: 1.; failing: 1
+DETECTED  G43: a transfer between locations gets no number: Tests: 1, Assertions: 5, Failures: 1.; failing: 1
+DETECTED  G44: each new supplier payment of a purchase is numbered: Tests: 1, Assertions: 6, Failures: 1.; failing: 1
+DETECTED  G45: an opening balance of a supplier is not a payment document: Tests: 1, Assertions: 5, Failures: 1.; failing: 1
+DETECTED  G46: a payment to a supplier is numbered: Tests: 1, Assertions: 5, Failures: 1.; failing: 1
+DETECTED  G47: a new expense is numbered: Tests: 1, Assertions: 5, Failures: 1.; failing: 1
+DETECTED  G48: an expense that cannot be numbered is undone: Tests: 1, Assertions: 4, Failures: 1.; failing: 1
+DETECTED  G49: an account number typed by hand is kept: Tests: 1, Assertions: 2, Failures: 1.; failing: 1
+DETECTED  G50: a customer that cannot be numbered is undone: Tests: 1, Assertions: 3, Failures: 1.; failing: 1
+DETECTED  G51: an account number is taken even when several customers share it: Tests: 1, Assertions: 3, Failures: 1.; failing: 1
+DETECTED  G52: a customer account number another customer has is refused: Tests: 1, Assertions: 2, Failures: 1.; failing: 1
+DETECTED  G53: the duplicate option of the customer sequence is honoured: Tests: 1, Assertions: 1, Failures: 1.; failing: 1
+DETECTED  G54: only a new customer is offered the automatic number: Tests: 1, Assertions: 1, Failures: 1.; failing: 1
+DETECTED  G55: the invoice format of the settings gives way to the sequence: Tests: 1, Assertions: 3, Failures: 1.; failing: 1
+DETECTED  G56: the quote format of the settings gives way to the sequence: Tests: 1, Assertions: 3, Failures: 1.; failing: 1
+DETECTED  G57: an invoice that has no number yet is not looked up as a duplicate: Tests: 1, Assertions: 2, Errors: 1.; failing: 1
+DETECTED  G58: the invoice shows the number the sequence gave it: Tests: 1, Assertions: 3, Failures: 1.; failing: 1
+DETECTED  G59: the register offers the next number of the invoice sequence: Tests: 1, Assertions: 3, Failures: 1.; failing: 1
+DETECTED  G60: the receipt of a return shows the credit note number: Tests: 1, Assertions: 3, Failures: 1.; failing: 1
+DETECTED  G61: the edit form shows the number of each payment: Tests: 1, Assertions: 6, Failures: 1.; failing: 1
+DETECTED  G62: the receipt of a purchase shows its number: Tests: 1, Assertions: 5, Failures: 1.; failing: 1
+DETECTED  G63: the expense list shows the number column only while the sequence is on: Tests: 1, Assertions: 1, Failures: 1.; failing: 1
+DETECTED  G64: the expense rows show their numbers: Tests: 1, Assertions: 4, Failures: 1.; failing: 1
+DETECTED  G65: an unknown kind of document is refused by the settings screen: Tests: 1, Assertions: 0, Errors: 1.; failing: 1
+DETECTED  G66: the settings screen saves as the employee who is logged in: Tests: 2, Assertions: 7, Failures: 1.; failing: 1
+DETECTED  G67: the duplicate option belongs to the customer sequence only: Tests: 1, Assertions: 1, Failures: 1.; failing: 1
+DETECTED  G68: the numbering is a section of the settings: Tests: 16, Assertions: 20, Failures: 2.; failing: 2
+DETECTED  G69: a message names the lowest next number: Tests: 1, Assertions: 1, Failures: 1.; failing: 1
+DETECTED  G70: a quote that has no number yet is not looked up as a duplicate: Tests: 1, Assertions: 2, Errors: 1.; failing: 1
+DETECTED  M01: a number is unique per company and kind: Tests: 1, Assertions: 1, Failures: 1.; failing: 1
+DETECTED  M02: a document has one number per kind: Tests: 1, Assertions: 2, Failures: 1.; failing: 1
+DETECTED  M03: one sequence per company and kind: Tests: 1, Assertions: 1, Failures: 1.; failing: 1
+DETECTED  M04: the digits are at most ten: Tests: 1, Assertions: 1, Failures: 1.; failing: 1
+DETECTED  M05: the next number is at least one: Tests: 1, Assertions: 2, Failures: 1.; failing: 1
+DETECTED  M06: a sequence belongs to a company that exists: Tests: 1, Assertions: 1, Failures: 1.; failing: 1
+DETECTED  M07: the migration is safe to run twice: Tests: 1, Assertions: 0, Errors: 1.; failing: 1
+77 of 77 guards detected
+```
 
 ## 4. ما افترضتُه (للمراجعة)
 
@@ -62,7 +177,7 @@
 
 - **لا قوائم جديدة** للدفعات والإشعارات (`G-34`، `G-51`، WP9 وWP10): الرقم يُعرض في النماذج والإيصالات وقائمة المصروفات فقط.
 - **أوامر العمل (`work_order_number`)** لم تدخل (ليست في نطاق الحزمة).
-- **تسلسل `INSERT IGNORE` ثم `FOR UPDATE` في `configure`** هو نفسه انضباط `lockSequence` القائم، فلا يُفصل عنه حارس مستقل (قفل الإدراج يحمي الصف)؛ وفي حالة حفظين متزامنين لإعداد نوع واحد في اللحظة نفسها قد يُرفض أحدهما بالتعليق المعتاد عندنا ويُعاد.
+- **`configure` يستعمل `INSERT IGNORE` ثم `FOR UPDATE`** وهو انضباط `lockSequence` القائم نفسه، فلا حارس مستقل له؛ **ولم أجرّب حفظين متزامنين لإعداد نوع واحد من اتصالين** (جرّبتُ تزامن الحجز لا تزامن التهيئة).
 - **الأرقام المُنحت بقاعدة الفروع** تتبع شركة الفرع عند الحفظ؛ نقل مستند من فرع إلى فرع لا يغيّر رقمه.
 
 ## 7. قبل النشر
