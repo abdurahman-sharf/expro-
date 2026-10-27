@@ -242,7 +242,7 @@ class ReportsControllerTest extends CIUnitTestCase
     private function readerOfTheBranches(?array $branchIds): int
     {
         $personId = $this->employeeWithGrants([
-            'reports', 'reports_sales', 'reports_categories', 'reports_taxes', 'reports_inventory', 'reports_receivings', 'reports_expenses_categories', 'reports_customers',
+            'reports', 'reports_sales', 'reports_categories', 'reports_taxes', 'reports_inventory', 'reports_receivings', 'reports_expenses_categories', 'reports_customers', 'reports_discounts',
         ], $branchIds);
 
         $this->loginAs($personId);
@@ -378,19 +378,49 @@ class ReportsControllerTest extends CIUnitTestCase
 
     public function testDateInput_OffersOnlyTheStockLocationsOfTheBranchesTheEmployeeWorksIn(): void
     {
+        $this->assertTheScreenOffersOnlyTheStoresOfTheBranchesOfTheEmployee('/reports/summary_sales', 'sales');
+    }
+
+    public function testSummaryDiscountsInput_OffersOnlyTheStockLocationsOfTheBranchesTheEmployeeWorksIn(): void
+    {
+        $this->assertTheScreenOffersOnlyTheStoresOfTheBranchesOfTheEmployee('/reports/summary_discounts', 'sales');
+    }
+
+    public function testDateInputSales_OffersOnlyTheStockLocationsOfTheBranchesTheEmployeeWorksIn(): void
+    {
+        $this->assertTheScreenOffersOnlyTheStoresOfTheBranchesOfTheEmployee('/reports/detailed_sales', 'sales');
+    }
+
+    public function testDateInputItemSales_OffersOnlyTheStockLocationsOfTheBranchesTheEmployeeWorksIn(): void
+    {
+        $this->assertTheScreenOffersOnlyTheStoresOfTheBranchesOfTheEmployee('/reports/detailed_item_sales', 'sales');
+    }
+
+    public function testDateInputRecv_OffersOnlyTheStockLocationsOfTheBranchesTheEmployeeWorksIn(): void
+    {
+        $this->assertTheScreenOffersOnlyTheStoresOfTheBranchesOfTheEmployee('/reports/detailed_receivings', 'receivings');
+    }
+
+    public function testInventorySummaryInput_OffersOnlyTheStockLocationsOfTheBranchesTheEmployeeWorksIn(): void
+    {
+        $this->assertTheScreenOffersOnlyTheStoresOfTheBranchesOfTheEmployee('/reports/inventory_summary', 'items');
+    }
+
+    private function assertTheScreenOffersOnlyTheStoresOfTheBranchesOfTheEmployee(string $path, string $module): void
+    {
         $this->openTheBooks();
         $db        = $this->accountingDb();
         $storeName = (string) $db->table('stock_locations')->where('location_id', $this->storeB)->get()->getRow()->location_name;
 
         $personId = $this->readerOfTheBranches([1]);
-        $this->grantTheStore($personId, 'sales', 1);
-        $this->grantTheStore($personId, 'sales', $this->storeB);
-        $this->assertStringNotContainsString($storeName, $this->pageOf('/reports/summary_sales'));
+        $this->grantTheStore($personId, $module, 1);
+        $this->grantTheStore($personId, $module, $this->storeB);
+        $this->assertStringNotContainsString($storeName, $this->pageOf($path));
 
         $personId = $this->readerOfTheBranches(null);
-        $this->grantTheStore($personId, 'sales', 1);
-        $this->grantTheStore($personId, 'sales', $this->storeB);
-        $this->assertStringContainsString($storeName, $this->pageOf('/reports/summary_sales'));
+        $this->grantTheStore($personId, $module, 1);
+        $this->grantTheStore($personId, $module, $this->storeB);
+        $this->assertStringContainsString($storeName, $this->pageOf($path));
     }
 
     private function grantTheStore(int $personId, string $module, int $locationId): void
