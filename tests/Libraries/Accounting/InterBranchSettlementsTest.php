@@ -535,6 +535,15 @@ class InterBranchSettlementsTest extends CIUnitTestCase
         $this->assertSame((int) $draftSource->journal_id, $existing->journalId);
     }
 
+    public function testSettle_TakesThePeriodLockOfTheLowerBranchBeforeTheOtherWhicheverBranchPays(): void
+    {
+        foreach ([[true, $this->other, $this->main], [false, $this->main, $this->other]] as [$fromFirst, $from, $to]) {
+            $this->send($fromFirst, '10.00');
+
+            $this->assertSame([1, $this->branch], $this->periodLocksTakenBy(fn () => $this->settle($from, $to)));
+        }
+    }
+
     public function testSettle_WritesOneAuditEntryForEachBranch(): void
     {
         $this->send(true, '100.00');
@@ -727,6 +736,17 @@ class InterBranchSettlementsTest extends CIUnitTestCase
         $this->assertNotSame($first, $second);
         $this->assertNothingOwedBetweenTheBranches();
         $this->assertSame('1000.0000', $this->balanceOf($this->main));
+    }
+
+    public function testCancel_TakesThePeriodLockOfTheLowerBranchBeforeTheOtherWhicheverBranchPaid(): void
+    {
+        foreach ([[true, $this->other, $this->main], [false, $this->main, $this->other]] as [$fromFirst, $from, $to]) {
+            $this->send($fromFirst, '10.00');
+
+            $id = $this->settle($from, $to);
+
+            $this->assertSame([1, $this->branch], $this->periodLocksTakenBy(fn () => $this->settlements->cancel($id, 'Reason', $this->settler)));
+        }
     }
 
     public function testCancel_WaitsForAnotherSettlementOfTheSamePair(): void

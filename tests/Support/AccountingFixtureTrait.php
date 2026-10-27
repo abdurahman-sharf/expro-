@@ -13,6 +13,7 @@ use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\JournalLineDraft;
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Database\Exceptions\DatabaseException;
+use CodeIgniter\Events\Events;
 use Config\Database;
 
 trait AccountingFixtureTrait
@@ -215,6 +216,31 @@ trait AccountingFixtureTrait
         }
 
         $this->fail('Expected the request to wait for a lock.');
+    }
+
+    /**
+     * The branches whose period lock the action takes, in the order it takes them, each when it first does.
+     *
+     * @return list<int>
+     */
+    protected function periodLocksTakenBy(callable $action): array
+    {
+        $branches = [];
+        $listener = static function ($query) use (&$branches): void {
+            if (preg_match('/accounting_period_locks WHERE company_id = \d+ AND branch_id = (\d+) (?:LOCK IN SHARE MODE|FOR UPDATE)/', (string) $query->getQuery(), $found) === 1 && (int) $found[1] !== 0 && end($branches) !== (int) $found[1]) {
+                $branches[] = (int) $found[1];
+            }
+        };
+
+        Events::on('DBQuery', $listener);
+
+        try {
+            $action();
+        } finally {
+            Events::removeListener('DBQuery', $listener);
+        }
+
+        return $branches;
     }
 
     protected function releaseOpenTransactions(): void

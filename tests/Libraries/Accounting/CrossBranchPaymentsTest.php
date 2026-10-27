@@ -245,6 +245,21 @@ class CrossBranchPaymentsTest extends CIUnitTestCase
         $this->assertSame([[(int) $journals[0]->journal_id, 'receivable', $this->branch, 1], [(int) $journals[1]->journal_id, 'payable', 1, 1]], array_map(static fn (object $leg): array => [(int) $leg->journal_id, $leg->side, (int) $leg->counterpart_branch_id, (int) $leg->revision], $legs));
     }
 
+    public function testPost_TakesThePeriodLockOfTheLowerBranchBeforeTheOtherWhicheverBranchHoldsTheTreasury(): void
+    {
+        $low  = $this->treasuries->create(['name' => 'Low drawer', 'kind' => 'cash']);
+        $high = new JournalDraft(
+            date: '2026-10-21',
+            lines: [new JournalLineDraft((int) $this->treasuries->accountOf($low), debit: '10.00'), new JournalLineDraft($this->customerAccount(), credit: '10.00')],
+            sourceType: SalePostingBuilder::SOURCE_PAYMENT,
+            sourceId: 5030,
+            branchId: $this->branch,
+        );
+
+        $this->assertSame([1, $this->branch], $this->periodLocksTakenBy(fn () => $this->payments->post($this->payments->drafts($this->draft(true, '100.00', 5031), $this->treasury, $this->branch))));
+        $this->assertSame([1, $this->branch], $this->periodLocksTakenBy(fn () => $this->payments->post($this->payments->drafts($high, $low, 1))));
+    }
+
     public function testPost_RecordsNothingForAPaymentOfOneJournal(): void
     {
         $this->payments->post([$this->draft(true, '100.00', 5011)]);
