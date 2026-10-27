@@ -312,3 +312,12 @@ DETECTED  FIX-6e the list of reports leaves the expenses reports out: Tests: 26,
 DETECTED  FIX-6f the search index leaves the expenses reports out: Tests: 2, Assertions: 4, Failures: 1.; failing: 1
 10 of 10 guards detected
 ```
+
+### الدفعة 14
+
+```
+DETECTED  FIX-6g the system with nobody logged in keeps every report: Tests: 8, Assertions: 28, Failures: 1.; failing: 1
+DETECTED  FIX-7 the source of a requisition is checked again when it is completed: Tests: 79, Assertions: 671, Failures: 1.; failing: 1
+DETECTED  FIX-8 the system with nobody logged in is not limited when it deletes an item: Tests: 31, Assertions: 294, Failures: 1.; failing: 1
+3 of 3 guards detected
+```
