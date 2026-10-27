@@ -185,6 +185,7 @@ return [
     'posting_payment_type_unknown'               => 'نوع الدفع ليس مما تعرفه الدفاتر.',
     'posting_period_closed'                      => 'التاريخ {0} في فترة مقفلة حتى {1} ({2}).',
     'posting_purchase_across_branches'           => 'الاستلام أو المرتجع يتم داخل فرع واحد، والتحويل وحده يكون بين فرعين.',
+    'posting_purchase_discount_invalid'          => 'خصم إجمالي الشراء أكبر من قيمة الشراء، أو لا يجوز على هذا النوع من المستندات.',
     'posting_purchase_not_postable'              => 'سطور هذا الاستلام لا تناسب استلامًا ولا مرتجعًا ولا تحويلًا.',
     'posting_purchase_return_exceeds_origin'     => 'لا يرجع المرتجع أكثر مما أدخله الاستلام. المتبقي للإرجاع: {0}.',
     'posting_purchase_return_line_not_on_origin' => 'صنف في المرتجع ليس في الاستلام الذي يُرجَع منه.',

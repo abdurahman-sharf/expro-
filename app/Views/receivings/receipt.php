@@ -9,6 +9,8 @@
  * @var float $total
  * @var string $tax_total
  * @var string $total_with_tax
+ * @var App\Libraries\Accounting\InvoiceDiscount $invoice_discount
+ * @var string $invoice_discount_amount
  * @var string $mode
  * @var string $payment_type
  * @var float $amount_tendered
@@ -90,13 +92,24 @@ echo view('partial/print_receipt', ['print_after_sale', $print_after_sale, 'sele
                 </tr>
             <?php } ?>
         <?php } ?>
-        <?php if (bccomp((string) ($tax_total ?? '0'), '0', 8) > 0) { ?>
+        <?php $hasInvoiceDiscount = bccomp((string) ($invoice_discount_amount ?? '0'), '0', 4) !== 0; ?>
+        <?php if (bccomp((string) ($tax_total ?? '0'), '0', 8) > 0 || $hasInvoiceDiscount) { ?>
             <tr>
                 <td colspan="3" style="text-align: right; border-top: 2px solid #000000;"><?= lang('Receivings.sub_total') ?></td>
                 <td style="border-top: 2px solid #000000;">
                     <div class="total-value"><?= to_currency($total) ?></div>
                 </td>
             </tr>
+        <?php } ?>
+        <?php if ($hasInvoiceDiscount) { ?>
+            <tr id="receipt_invoice_discount">
+                <td colspan="3" style="text-align: right;"><?= lang(bccomp((string) $invoice_discount_amount, '0', 4) > 0 ? 'Receivings.invoice_discount_share' : 'Receivings.invoice_discount_amount') ?><?= isset($invoice_discount) && $invoice_discount->type === PERCENT && ! $invoice_discount->isNone() ? esc(' (' . to_decimals($invoice_discount->value) . '%)') : '' ?></td>
+                <td>
+                    <div class="total-value"><?= to_currency($invoice_discount_amount) ?></div>
+                </td>
+            </tr>
+        <?php } ?>
+        <?php if (bccomp((string) ($tax_total ?? '0'), '0', 8) > 0) { ?>
             <tr>
                 <td colspan="3" style="text-align: right;"><?= lang('Receivings.tax_total') ?></td>
                 <td>

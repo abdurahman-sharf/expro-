@@ -5,8 +5,11 @@ namespace App\Controllers;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\AccountingSettings;
+use App\Libraries\Accounting\InvoiceDiscount;
 use App\Libraries\Accounting\PaymentStatus;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\Accounting\ReceivingAmounts;
+use App\Libraries\Accounting\ReceivingLoader;
 use App\Libraries\Accounting\ReceivingPosting;
 use App\Libraries\Accounting\ReceivingType;
 use App\Libraries\Accounting\SupplierLedger;
@@ -135,6 +138,10 @@ class Receivings extends Secure_Controller
             $this->receiving_lib->set_return_origin(null);
         }
 
+        if ($this->receiving_lib->get_mode() !== 'receive') {
+            $this->receiving_lib->clear_invoice_discount();
+        }
+
         return $this->_reload();    // TODO: Hungarian notation
     }
 
@@ -202,6 +209,41 @@ class Receivings extends Secure_Controller
         $this->receiving_lib->set_return_origin($receivingId);
 
         return $this->response->setJSON(['success' => true]);
+    }
+
+    /**
+     * Sets or removes the discount on the whole receiving: a percentage or an amount, taken after the
+     * discounts of the lines. Only goods that come in take one. Used in app/Views/receivings/receiving.php
+     *
+     * @noinspection PhpUnused
+     */
+    public function postSetInvoiceDiscount(): string
+    {
+        if ($this->receiving_lib->get_mode() !== 'receive') {
+            return $this->_reload(['error' => lang('Receivings.invoice_discount_receive_only')]);
+        }
+
+        $raw = trim((string) $this->request->getPost('invoice_discount'));
+
+        if ($raw === '') {
+            $this->receiving_lib->clear_invoice_discount();
+
+            return $this->_reload();
+        }
+
+        $type   = (int) $this->request->getPost('invoice_discount_type', FILTER_SANITIZE_NUMBER_INT) === FIXED ? FIXED : PERCENT;
+        $parsed = parse_decimals($raw);
+
+        $discount = $parsed === false || ! is_numeric($parsed) ? null : InvoiceDiscount::of($type, number_format((float) $parsed, InvoiceDiscount::SCALE, '.', ''));
+        $base     = $this->receiving_lib->get_total();
+
+        if ($discount === null || ($this->receiving_lib->get_cart() !== [] && ! $discount->fitsOn(bcadd($base, '0', InvoiceDiscount::SCALE)))) {
+            return $this->_reload(['error' => lang('Receivings.invoice_discount_invalid')]);
+        }
+
+        $this->receiving_lib->set_invoice_discount($discount);
+
+        return $this->_reload();
     }
 
     /**
@@ -331,6 +373,8 @@ class Receivings extends Secure_Controller
         $data['credit']                 = '0';
         $data['applications']           = [];
         $data['can_debit_note']         = false;
+        $data['invoice_discount']       = InvoiceDiscount::stored($receiving_info['invoice_discount_type'] === null ? null : (int) $receiving_info['invoice_discount_type'], $receiving_info['invoice_discount'] === null ? null : (string) $receiving_info['invoice_discount']);
+        $data['invoice_discount_share'] = $this->invoiceDiscountOf((int) $receiving_id);
         $data['payment_options']        = $this->supplierPaymentOptions();
         $data['treasury_options']       = [];
         $data['new_treasury_options']   = [];
@@ -434,11 +478,13 @@ class Receivings extends Secure_Controller
             return $this->_reload(['error' => $problem]);
         }
 
-        $data['total']                = $this->receiving_lib->get_total();
-        $data['tax_total']            = $this->receiving_lib->get_tax_total();
-        $data['total_with_tax']       = $this->receiving_lib->get_total_with_tax();
-        $data['transaction_time']     = to_datetime(time());
-        $data['mode']                 = $this->receiving_lib->get_mode();
+        $data['total']                   = $this->receiving_lib->get_total();
+        $data['tax_total']               = $this->receiving_lib->get_tax_total();
+        $data['total_with_tax']          = $this->receiving_lib->get_total_with_tax();
+        $data['invoice_discount']        = $this->receiving_lib->get_invoice_discount();
+        $data['invoice_discount_amount'] = $this->receiving_lib->get_invoice_discount_amount();
+        $data['transaction_time']        = to_datetime(time());
+        $data['mode']                    = $this->receiving_lib->get_mode();
         $data['comment']              = $this->receiving_lib->get_comment();
         $data['reference']            = $this->receiving_lib->get_reference();
         $data['payment_type']         = $this->request->getPost('payment_type', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
@@ -469,7 +515,7 @@ class Receivings extends Secure_Controller
         }
 
         // SAVE receiving to database
-        $saved = $this->receiving->save_value($data['cart'], $supplier_id, $employee_id, $data['comment'], $data['reference'], $data['payment_type'], $data['stock_location'], $origin);
+        $saved = $this->receiving->save_value($data['cart'], $supplier_id, $employee_id, $data['comment'], $data['reference'], $data['payment_type'], $data['stock_location'], $origin, $data['mode'] === 'receive' ? $data['invoice_discount'] : null);
 
         if ($saved === ACCOUNTING_FAILED) {
             return $this->_reload(['error' => $this->accountingFailureMessage() ?? lang('Receivings.transaction_failed')]);
@@ -555,11 +601,13 @@ class Receivings extends Secure_Controller
         $receiving_info = $this->receiving->get_info($receiving_id)->getRowArray();
         $this->receiving_lib->copy_entire_receiving($receiving_id);
         $data['cart']                 = $this->receiving_lib->get_cart();
-        $data['total']                = $this->receiving_lib->get_total();
-        $data['tax_total']            = $this->receiving_lib->get_tax_total();
-        $data['total_with_tax']       = $this->receiving_lib->get_total_with_tax();
-        $data['mode']                 = $this->receiving_lib->get_mode();
-        $data['transaction_time']     = to_datetime(strtotime($receiving_info['receiving_time']));
+        $data['total']                   = $this->receiving_lib->get_total();
+        $data['tax_total']               = $this->receiving_lib->get_tax_total();
+        $data['total_with_tax']          = $this->receiving_lib->get_total_with_tax();
+        $data['invoice_discount']        = $this->receiving_lib->get_invoice_discount();
+        $data['invoice_discount_amount'] = $this->receiving_lib->get_invoice_discount_amount();
+        $data['mode']                    = $this->receiving_lib->get_mode();
+        $data['transaction_time']        = to_datetime(strtotime($receiving_info['receiving_time']));
         $data['show_stock_locations'] = $this->stock_location->show_locations('receivings');
         $data['payment_type']         = $receiving_info['payment_type'];
         $data['reference']            = $this->receiving_lib->get_reference();
@@ -609,10 +657,12 @@ class Receivings extends Secure_Controller
             }
         }
 
-        $data['total']                = $this->receiving_lib->get_total();
-        $data['tax_total']            = $this->receiving_lib->get_tax_total();
-        $data['total_with_tax']       = $this->receiving_lib->get_total_with_tax();
-        $data['return_origin']        = $this->receiving_lib->get_return_origin();
+        $data['total']                   = $this->receiving_lib->get_total();
+        $data['tax_total']               = $this->receiving_lib->get_tax_total();
+        $data['total_with_tax']          = $this->receiving_lib->get_total_with_tax();
+        $data['invoice_discount']        = $this->receiving_lib->get_invoice_discount();
+        $data['invoice_discount_amount'] = $this->receiving_lib->get_invoice_discount_amount();
+        $data['return_origin']           = $this->receiving_lib->get_return_origin();
         $data['items_module_allowed'] = $this->employee->has_grant('items', $this->employee->get_logged_in_employee_info()->person_id);
         $data['comment']              = $this->receiving_lib->get_comment();
         $data['reference']            = $this->receiving_lib->get_reference();
@@ -741,6 +791,21 @@ class Receivings extends Secure_Controller
         $this->receiving_lib->return_remaining_of_receiving($receivingId);
 
         return $this->response->setJSON(['success' => true, 'redirect' => site_url('receivings')]);
+    }
+
+    /**
+     * What the lines of a saved receiving took of the discount on the whole receiving.
+     */
+    private function invoiceDiscountOf(int $receivingId): string
+    {
+        $document = (new ReceivingLoader())->load($receivingId, false);
+        $given    = '0';
+
+        foreach ($document?->lines ?? [] as $line) {
+            $given = bcadd($given, ReceivingAmounts::invoiceDiscount($line), ReceivingAmounts::SCALE);
+        }
+
+        return $given;
     }
 
     private function nothingLeftToReturn(int $receivingId): bool

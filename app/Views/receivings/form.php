@@ -18,6 +18,8 @@
  * @var string $credit
  * @var list<object> $applications
  * @var bool $can_debit_note
+ * @var App\Libraries\Accounting\InvoiceDiscount $invoice_discount
+ * @var string $invoice_discount_share
  */
 ?>
 
@@ -63,6 +65,13 @@
                 <?= form_input(['name' => 'reference', 'value' => $receiving_info['reference'], 'id' => 'reference', 'class' => 'form-control form-control-sm']) ?>
             </div>
         </div>
+
+        <?php if (bccomp($invoice_discount_share, '0', 4) > 0): ?>
+            <div class="row mb-3" id="invoice_discount_info">
+                <span class="col-form-label col-3"><?= lang($receiving_info['receiving_type'] === 'return' ? 'Receivings.invoice_discount_share' : 'Receivings.invoice_discount') ?></span>
+                <span class="col-form-label col-8" dir="ltr" style="text-align: left"><?= esc(to_currency($invoice_discount_share)) ?><?= $invoice_discount->type === PERCENT && ! $invoice_discount->isNone() ? esc(' (' . to_decimals($invoice_discount->value) . '%)') : '' ?></span>
+            </div>
+        <?php endif; ?>
 
         <div class="row mb-3">
             <?= form_label(lang('Receivings.employee'), $can_assign_employee ? 'employee_id' : 'employee_name', ['class' => 'col-form-label col-3']) ?>

@@ -185,6 +185,7 @@ return [
     'posting_payment_type_unknown'               => 'The payment type is not one the books know.',
     'posting_period_closed'                      => 'The date {0} is in a period closed through {1} ({2}).',
     'posting_purchase_across_branches'           => 'A receiving or a return works within one branch; only a transfer goes from one branch to another.',
+    'posting_purchase_discount_invalid'          => 'The discount on the whole purchase is more than the purchase comes to, or is not allowed on this kind of document.',
     'posting_purchase_not_postable'              => 'The lines of this receiving do not fit a receiving, a return or a transfer.',
     'posting_purchase_return_exceeds_origin'     => 'A return cannot give back more than the receiving brought in. What is left to return: {0}.',
     'posting_purchase_return_line_not_on_origin' => 'An item of the return is not on the receiving it comes from.',
