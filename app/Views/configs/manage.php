@@ -6,6 +6,7 @@ $panes = [
     'general'   => 'configs/general_config',
     'receipt'   => 'configs/receipt_config',
     'invoice'   => 'configs/invoice_config',
+    'numbering' => 'configs/numbering_config',
     'shortcuts' => 'configs/shortcuts_config',
     'stock'     => 'configs/stock_config',
     'barcode'   => 'configs/barcode_config',

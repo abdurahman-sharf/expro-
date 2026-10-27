@@ -62,7 +62,7 @@ final class DocumentNumbering
     public function overview(?int $companyId = null): array
     {
         $companyId ??= CompanyContext::id();
-        $rows        = [];
+        $rows = [];
 
         foreach (DocumentType::cases() as $type) {
             $sequence = $this->sequence($type, $companyId);
@@ -87,9 +87,9 @@ final class DocumentNumbering
     public function floor(DocumentType $type, string $prefix, ?int $companyId = null): int
     {
         $companyId ??= CompanyContext::id();
-        $issued     = $this->db->table('document_numbers')->selectMax('sequence_number', 'top')->where(['company_id' => $companyId, 'doc_type' => $type->value])->get()->getRow();
-        $floor      = (int) ($issued->top ?? 0) + 1;
-        $column     = $type->numberColumn();
+        $issued = $this->db->table('document_numbers')->selectMax('sequence_number', 'top')->where(['company_id' => $companyId, 'doc_type' => $type->value])->get()->getRow();
+        $floor  = (int) ($issued->top ?? 0) + 1;
+        $column = $type->numberColumn();
 
         if ($column !== null) {
             $floor = max($floor, $this->aboveNumbersOf(array_key_first($type->sources()), $column, $prefix));
@@ -117,9 +117,9 @@ final class DocumentNumbering
         $this->guard->require(self::PERMISSION, $employeeId);
 
         $companyId ??= CompanyContext::id();
-        $prefix      = array_key_exists('prefix', $input) ? $this->validPrefix((string) $input['prefix']) : null;
-        $padding     = array_key_exists('padding', $input) ? $this->validPadding($input['padding']) : null;
-        $next        = array_key_exists('next_number', $input) ? $this->validNext($input['next_number']) : null;
+        $prefix  = array_key_exists('prefix', $input) ? $this->validPrefix((string) $input['prefix']) : null;
+        $padding = array_key_exists('padding', $input) ? $this->validPadding($input['padding']) : null;
+        $next    = array_key_exists('next_number', $input) ? $this->validNext($input['next_number']) : null;
 
         return $this->transactional(function () use ($type, $input, $employeeId, $companyId, $prefix, $padding, $next): NumberingSequence {
             $table = $this->db->prefixTable('document_sequences');
@@ -208,7 +208,7 @@ final class DocumentNumbering
     public function peek(DocumentType $type, ?int $companyId = null): ?string
     {
         $companyId ??= CompanyContext::id();
-        $sequence   = $this->sequence($type, $companyId);
+        $sequence = $this->sequence($type, $companyId);
 
         if (! $sequence->enabled) {
             return null;

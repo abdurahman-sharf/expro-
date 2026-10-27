@@ -2,8 +2,12 @@
 
 namespace App\Controllers;
 
+use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Barcode_lib;
 use App\Libraries\Mailchimp_lib;
+use App\Libraries\Numbering\DocumentNumbering;
+use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Receiving_lib;
 use App\Libraries\Sale_lib;
 use App\Libraries\Tax_lib;
@@ -229,6 +233,7 @@ class Config extends Secure_Controller
         $data['tax_jurisdiction_options'] = $this->tax_lib->get_tax_jurisdiction_options();
         $data['currency_code'] = $this->config['currency_code'] ?? '';
         $data['dbVersion'] = mysqli_get_server_info($this->db->getConnection());
+        $data['numbering'] = (new DocumentNumbering())->overview();
 
         // Load all the license statements, they are already XSS cleaned in the private function
         $data['licenses'] = $this->_licenses();
@@ -1050,6 +1055,43 @@ class Config extends Secure_Controller
         }
 
         return $this->response->setJSON(['success' => $success, 'message' => lang('Config.saved_' . ($success ? '' : 'un') . 'successfully')]);
+    }
+
+    /**
+     * Saves the numbering of one kind of document. Used in app/Views/configs/numbering_config.php.
+     *
+     * @return ResponseInterface
+     * @noinspection PhpUnused
+     */
+    public function postSaveNumbering(string $type = ''): ResponseInterface
+    {
+        $documentType = DocumentType::tryFrom($type);
+
+        if ($documentType === null) {
+            return $this->response->setJSON(['success' => false, 'message' => lang('Accounting.error_numbering_type_unknown')]);
+        }
+
+        $input = [
+            'enabled' => $this->request->getPost('enabled') !== null,
+            'prefix'  => (string) $this->request->getPost('prefix'),
+            'padding' => trim((string) $this->request->getPost('padding')) === '' ? 0 : $this->request->getPost('padding'),
+        ];
+
+        if (trim((string) $this->request->getPost('next_number')) !== '') {
+            $input['next_number'] = $this->request->getPost('next_number');
+        }
+
+        if ($documentType->hasDuplicateOption()) {
+            $input['prevent_duplicates'] = $this->request->getPost('prevent_duplicates') !== null;
+        }
+
+        try {
+            $sequence = (new DocumentNumbering())->configure($documentType, $input, (int) $this->employee->get_logged_in_employee_info()->person_id);
+        } catch (AccountingException $refusal) {
+            return $this->response->setJSON(['success' => false, 'message' => AccountingMessage::of($refusal)]);
+        }
+
+        return $this->response->setJSON(['success' => true, 'message' => lang('Numbering.saved'), 'next' => $sequence->nextNumber, 'preview' => $sequence->preview()]);
     }
 
     /**

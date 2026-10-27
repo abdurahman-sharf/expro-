@@ -106,7 +106,7 @@ class NavigationHelperTest extends CIUnitTestCase
             }
         }
 
-        $this->assertCount(12, $ids);
+        $this->assertCount(13, $ids);
         $this->assertSame($ids, array_values(array_unique($ids)));
     }
 

@@ -1157,6 +1157,7 @@ class Sales extends Secure_Controller
                 return $this->reload($data);
             } else {
                 $data['barcode'] = $this->barcode_lib->generate_receipt_barcode($data['sale_id']);
+                $data['credit_note_number'] = $this->creditNoteNumberOf((int) $data['sale_id_num']);
 
                 // Validate receipt template to prevent path traversal
                 $receiptTemplate = $this->config['receipt_template'] ?? '';
@@ -1169,6 +1170,11 @@ class Sales extends Secure_Controller
                 return view('sales/receipt', $data);
             }
         }
+    }
+
+    private function creditNoteNumberOf(int $saleId): ?string
+    {
+        return (new DocumentNumbering())->numbers(DocumentType::CreditNote, 'sales', [$saleId])[$saleId] ?? null;
     }
 
     /**
@@ -1467,6 +1473,7 @@ class Sales extends Secure_Controller
         $data['comments'] = $sale_info['comment'];
         $data['invoice_number'] = $sale_info['invoice_number'];
         $data['quote_number'] = $sale_info['quote_number'];
+        $data['credit_note_number'] = $this->creditNoteNumberOf((int) $sale_id);
         $data['work_order_number'] = $this->sale_lib->get_work_order_number();
         $data['sale_status'] = $sale_info['sale_status'];
 
@@ -2005,6 +2012,10 @@ class Sales extends Secure_Controller
             $payment->uses_treasury = (PaymentType::fromLabel((string) $payment->payment_type)?->usesTreasury() ?? false) && ! $payment->cash_adjustment;
             $data['payments'][] = $payment;
         }
+
+        $numbering                 = new DocumentNumbering();
+        $data['payment_numbers']   = $numbering->numbers(DocumentType::CustomerPayment, 'sales_payments', array_map(static fn (object $payment): int => (int) $payment->payment_id, $data['payments']));
+        $data['credit_note_number'] = $numbering->numbers(DocumentType::CreditNote, 'sales', [$saleId])[$saleId] ?? null;
 
         $data['treasury_options']     = [];
         $data['new_treasury_options'] = [];

@@ -15,6 +15,8 @@
  * @var float $amount_change
  * @var string $barcode
  * @var array $config
+ * @var string|null $document_label
+ * @var string|null $document_number
  */
 ?>
 
@@ -56,6 +58,9 @@ echo view('partial/print_receipt', ['print_after_sale', $print_after_sale, 'sele
             <div id="customer"><?= lang('Suppliers.supplier') . esc(": $supplier") ?></div>
         <?php } ?>
         <div id="sale_id"><?= lang('Receivings.id') . ": $receiving_id" ?></div>
+        <?php if (!empty($document_number)) { ?>
+            <div id="document_number"><?= esc($document_label) . esc(": $document_number") ?></div>
+        <?php } ?>
         <?php if (!empty($reference)) { ?>
             <div id="reference"><?= lang('Receivings.reference') . esc(": $reference") ?></div>
         <?php } ?>

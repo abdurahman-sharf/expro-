@@ -2,6 +2,8 @@
 
 namespace App\Controllers;
 
+use App\Libraries\Numbering\DocumentNumbering;
+use App\Libraries\Numbering\DocumentType;
 use App\Models\Expense;
 use App\Models\Expense_category;
 use CodeIgniter\HTTP\ResponseInterface;
@@ -74,8 +76,10 @@ class Expenses extends Secure_Controller
         $payment_summary = get_expenses_manage_payments_summary($payments, $expenses);
         $data_rows = [];
 
+        $numbers = (new DocumentNumbering())->numbers(DocumentType::Expense, 'expenses', array_map(static fn (object $expense): int => (int) $expense->expense_id, $expenses->getResult()));
+
         foreach ($expenses->getResult() as $expense) {
-            $data_rows[] = get_expenses_data_row($expense);
+            $data_rows[] = get_expenses_data_row($expense, $numbers[(int) $expense->expense_id] ?? null);
         }
 
         if ($total_rows > 0) {
@@ -122,6 +126,8 @@ class Expenses extends Secure_Controller
             $data['expenses_info']->employee_id = $current_employee_id;
         }
 
+        $data['expense_number'] = (new DocumentNumbering())->numbers(DocumentType::Expense, 'expenses', [(int) $expense_id])[(int) $expense_id] ?? null;
+
         $data['payments'] = [];
         foreach ($this->expense->get_expense_payment($expense_id)->getResult() as $payment) {
             foreach (get_object_vars($payment) as $property => $value) {
@@ -144,7 +150,7 @@ class Expenses extends Secure_Controller
     public function getRow(int $row_id): ResponseInterface
     {
         $expense_info = $this->expense->get_info($row_id);
-        $data_row = get_expenses_data_row($expense_info);
+        $data_row = get_expenses_data_row($expense_info, (new DocumentNumbering())->numbers(DocumentType::Expense, 'expenses', [$row_id])[$row_id] ?? null);
 
         return $this->response->setJSON($data_row);
     }

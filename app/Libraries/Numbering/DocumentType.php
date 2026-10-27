@@ -10,15 +10,15 @@ namespace App\Libraries\Numbering;
  */
 enum DocumentType: string
 {
-    case SalesInvoice     = 'sales_invoice';
-    case SalesQuote       = 'sales_quote';
-    case CreditNote       = 'credit_note';
-    case CustomerPayment  = 'customer_payment';
-    case Customer         = 'customer';
-    case Purchase         = 'purchase';
-    case DebitNote        = 'debit_note';
-    case SupplierPayment  = 'supplier_payment';
-    case Expense          = 'expense';
+    case SalesInvoice    = 'sales_invoice';
+    case SalesQuote      = 'sales_quote';
+    case CreditNote      = 'credit_note';
+    case CustomerPayment = 'customer_payment';
+    case Customer        = 'customer';
+    case Purchase        = 'purchase';
+    case DebitNote       = 'debit_note';
+    case SupplierPayment = 'supplier_payment';
+    case Expense         = 'expense';
 
     /**
      * The tables a document of this kind may be stored in, with the column of its id.
@@ -29,11 +29,11 @@ enum DocumentType: string
     {
         return match ($this) {
             self::SalesInvoice, self::SalesQuote, self::CreditNote => ['sales' => 'sale_id'],
-            self::CustomerPayment                                  => ['sales_payments' => 'payment_id'],
-            self::Customer                                         => ['customers' => 'person_id'],
-            self::Purchase, self::DebitNote                        => ['receivings' => 'receiving_id'],
-            self::SupplierPayment                                  => ['receivings_payments' => 'payment_id', 'supplier_advances' => 'advance_id'],
-            self::Expense                                          => ['expenses' => 'expense_id'],
+            self::CustomerPayment => ['sales_payments' => 'payment_id'],
+            self::Customer        => ['customers' => 'person_id'],
+            self::Purchase, self::DebitNote => ['receivings' => 'receiving_id'],
+            self::SupplierPayment => ['receivings_payments' => 'payment_id', 'supplier_advances' => 'advance_id'],
+            self::Expense         => ['expenses' => 'expense_id'],
         };
     }
 
@@ -61,7 +61,7 @@ enum DocumentType: string
     {
         return match ($this) {
             self::CustomerPayment, self::SupplierPayment, self::Expense => $this->sources(),
-            default                                                     => [],
+            default => [],
         };
     }
 
@@ -71,10 +71,10 @@ enum DocumentType: string
     public function fallback(int $id): string
     {
         return match ($this) {
-            self::CreditNote           => 'POS ' . $id,
+            self::CreditNote => 'POS ' . $id,
             self::Purchase, self::DebitNote => 'RECV ' . $id,
             self::CustomerPayment, self::SupplierPayment, self::Expense => (string) $id,
-            default                    => '',
+            default => '',
         };
     }
 

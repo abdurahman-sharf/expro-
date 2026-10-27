@@ -40,6 +40,10 @@
 
         <div id="sale_id"><?= lang('Sales.id') . esc(": $sale_id") ?></div>
 
+        <?php if (!empty($credit_note_number)) { ?>
+            <div id="credit_note_number"><?= lang('Numbering.type_credit_note') . esc(": $credit_note_number") ?></div>
+        <?php } ?>
+
         <?php if (!empty($invoice_number)) { ?>
             <div id="invoice_number"><?= lang('Sales.invoice_number') . ": $invoice_number" ?></div>
         <?php } ?>

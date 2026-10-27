@@ -131,6 +131,7 @@ function settingsSections(): array
         ['Config.settings_group_sales', [
             ['receipt', 'bi-receipt', 'Config.receipt', 'Config.receipt_configuration'],
             ['invoice', 'bi-file-earmark-text', 'Config.invoice', 'Config.invoice_configuration'],
+            ['numbering', 'bi-123', 'Numbering.menu', 'Numbering.title'],
             ['shortcuts', 'bi-keyboard', 'Config.shortcuts', 'Config.shortcuts_configuration'],
         ]],
         ['Config.settings_group_stock', [
