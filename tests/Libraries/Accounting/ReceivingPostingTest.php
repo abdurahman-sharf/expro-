@@ -6,6 +6,7 @@ use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\InterBranchPosition;
+use App\Libraries\Accounting\InvoiceDiscount;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\ReceivingPosting;
@@ -17,14 +18,15 @@ use App\Libraries\Organization\BranchGuard;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use Config\OSPOS;
 use PHPUnit\Framework\Attributes\DataProvider;
-use ReflectionMethod;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ConcurrentDbRaceTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\ParityFixture;
 use Tests\Support\PurchaseAccountingFixtureTrait;
+use Tests\Support\PurchaseGoldenTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 
 /**
@@ -44,6 +46,7 @@ class ReceivingPostingTest extends CIUnitTestCase
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
     use PurchaseAccountingFixtureTrait;
+    use PurchaseGoldenTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -2385,13 +2388,388 @@ class ReceivingPostingTest extends CIUnitTestCase
         $this->assertSame($case['expected']['unit_cost'], bcadd($this->itemCostOf($item), '0', 4));
     }
 
-    public function testSaveValue_HasNoDiscountOnTheWholePurchaseThatTheReferenceSystemTakesAfterTheLineDiscount(): void
+    /**
+     * @return array<string, array{array<string, mixed>}>
+     */
+    public static function goldenProvider(): array
     {
-        $case = $this->parityCase('T-16', 'purchase_discount', 'discount-on-the-whole-purchase-after-the-line-discount', 'differs');
-        $names = array_map(static fn ($parameter): string => $parameter->getName(), (new ReflectionMethod($this->purchases, 'save_value'))->getParameters());
+        $sets = [];
 
-        $this->assertSame('not_available', $case['expected']['discount_on_the_whole_purchase']);
-        $this->assertSame([], array_values(array_filter($names, static fn (string $name): bool => str_contains($name, 'discount'))));
+        foreach (self::goldenScenarios() as $scenario) {
+            $sets[$scenario['name']] = [$scenario];
+        }
+
+        return $sets;
+    }
+
+    /**
+     * The expected figures were recorded by running the same purchases through the code as it was
+     * before the discount on the whole purchase existed.
+     *
+     * @param array<string, mixed> $scenario
+     */
+    #[DataProvider('goldenProvider')]
+    public function testSaveValue_KeepsEveryJournalMovementCostAndReportRowOfAPurchaseSavedWithoutADiscountOnTheWholePurchase(array $scenario): void
+    {
+        $this->assertSame($scenario['expected'], $this->runGoldenScenario($scenario), $scenario['name']);
+        $this->assertStockTies();
+    }
+
+    public function testSaveValue_StoresNoDiscountOnTheWholePurchaseWhenNoneWasGiven(): void
+    {
+        $item = $this->item('0.00');
+        $id   = $this->buy([$this->purchaseLine($item, 0, '4', '25', '15', '10', PERCENT), $this->purchaseLine($item, 1, '1', '9.99', '15')]);
+
+        $this->assertGreaterThan(0, $id);
+
+        $header = $this->accountingDb()->table('receivings')->select('invoice_discount_type, invoice_discount')->where('receiving_id', $id)->get()->getRow();
+
+        $this->assertNull($header->invoice_discount_type);
+        $this->assertSame('0.0000', bcadd((string) $header->invoice_discount, '0', 4));
+        $this->assertSame([null, null], array_map(static fn (object $line) => $line->invoice_discount_share, $this->accountingDb()->table('receivings_items')->select('invoice_discount_share')->where('receiving_id', $id)->orderBy('line', 'ASC')->get()->getResult()));
+    }
+
+    public function testSaveValue_TakesTheDiscountOnTheWholePurchaseOffTheCostAndTheTaxAfterTheLineDiscountAsTheReferenceSystemDoes(): void
+    {
+        $case = $this->parityCase('T-16', 'purchase_discount', 'discount-on-the-whole-purchase-after-the-line-discount', 'exact');
+        $item = $this->item('100.00');
+        $id   = $this->buy([$this->purchaseLine($item, 0, '10', '100', '15', '10', PERCENT)], -1, lang('Sales.cash'), null, InvoiceDiscount::of(PERCENT, '10'));
+
+        $this->assertGreaterThan(0, $id);
+
+        $amounts = $this->amountsOfPurchase($id);
+
+        $this->assertSame($case['expected']['inventory'], $amounts['inventory']);
+        $this->assertSame($case['expected']['input_tax'], $amounts['tax_input']);
+        $this->assertSame($case['expected']['supplier'], $amounts['supplier']);
+        $this->assertSame('81.0000', bcadd($this->itemCostOf($item), '0', 4), 'Ten units that cost 810 after both discounts');
+        $this->assertSame($this->expectedLines([['inventory', '810.00', '0.00'], ['tax_input', '121.50', '0.00'], ['supplier', '0.00', '931.50']]), $this->standingPurchase($id)[0]['lines'], 'No journal line says discount: it is inside the cost and the tax');
+        $this->assertSame($this->expectedLines([['supplier', '931.50', '0.00'], ['cash', '0.00', '931.50']]), $this->standingPurchase($id, 'purchase_payment')[0]['lines']);
+        $this->assertSame(['quantity' => '10.000', 'value' => '810.00'], $this->stockOf($item));
+        $this->assertSame('0.00', $this->owed(), 'Paid at once');
+
+        $header = $this->accountingDb()->table('receivings')->select('invoice_discount_type, invoice_discount')->where('receiving_id', $id)->get()->getRow();
+
+        $this->assertSame([PERCENT, '10.0000'], [(int) $header->invoice_discount_type, bcadd((string) $header->invoice_discount, '0', 4)]);
+        $this->assertSame('90.0000', bcadd((string) $this->accountingDb()->table('receivings_items')->where('receiving_id', $id)->get()->getRow()->invoice_discount_share, '0', 4));
+        $this->assertStockTies();
+        $this->assertSupplierTies();
+    }
+
+    public function testSaveValue_AveragesTheCostOfThePurchasesWithTheLineAndTheInvoiceDiscountsAsTheReferenceSystemDoes(): void
+    {
+        $case = $this->parityCase('T-16', 'purchase_discount_average', 'average-after-the-three-purchases-with-the-invoice-discount', 'exact');
+        $item = $this->item('0.00');
+
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($item, 0, '10', '100', '15', '10', PERCENT)]));
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($item, 0, '10', '100', '15', '50', FIXED)]));
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($item, 0, '10', '100', '15', '10', PERCENT)], -1, null, null, InvoiceDiscount::of(PERCENT, '10')));
+
+        $this->assertSame($case['expected']['quantity'], $this->onHand($item));
+        $this->assertSame($case['expected']['average'], sprintf('%.2F', (float) $this->itemCostOf($item)));
+        $this->assertSame(['quantity' => '30.000', 'value' => '2210.00'], $this->stockOf($item));
+        $this->assertStockTies();
+    }
+
+    public function testSaveValue_SharesAnAmountOverTheLinesInProportionToWhatTheyCostAndPutsTheRemainderOnTheLast(): void
+    {
+        $first   = $this->item('0.00');
+        $second  = $this->item('0.00');
+        $service = $this->item('0.00', false);
+
+        $id = $this->buy([
+            $this->purchaseLine($first, 0, '3', '33.33', '15'),
+            $this->purchaseLine($second, 1, '2', '20.01', '5'),
+            $this->purchaseLine($service, 2, '1', '10.00'),
+        ], -1, null, null, InvoiceDiscount::of(FIXED, '15'));
+
+        $this->assertGreaterThan(0, $id);
+
+        $shares = array_map(static fn (object $line): string => bcadd((string) $line->invoice_discount_share, '0', 4), $this->accountingDb()->table('receivings_items')->select('invoice_discount_share')->where('receiving_id', $id)->orderBy('line', 'ASC')->get()->getResult());
+
+        $this->assertSame(['10.0000', '4.0000', '1.0000'], $shares);
+        $this->assertSame('15.0000', array_reduce($shares, static fn (string $sum, string $share): string => bcadd($sum, $share, 4), '0'));
+
+        $roles = $this->roles();
+
+        $this->assertSame(
+            [$roles['inventory'] . ':126.0105:0.0000', $roles['cogs'] . ':9.0000:0.0000', $roles['tax_input'] . ':15.2995:0.0000', $roles['supplier'] . ':0.0000:150.3100'],
+            $this->exactLines($this->standingPurchase($id)[0]['id']),
+            'Each line costs what it came to less its share, the tax follows, the supplier is owed the total to two decimals and the stock takes the rounding',
+        );
+        $this->assertSame('89.9905', bcadd((new StockLedger())->position($first, self::LOCATION_ID)['value'], '0', 4));
+        $this->assertSame('36.0200', bcadd((new StockLedger())->position($second, self::LOCATION_ID)['value'], '0', 4));
+        $this->assertSame('29.9966', bcadd($this->itemCostOf($first), '0', 4));
+        $this->assertSame('18.0100', bcadd($this->itemCostOf($second), '0', 4));
+        $this->assertStockTies();
+        $this->assertSupplierTies();
+    }
+
+    public function testSaveValue_WeighsTheCostOfTheStockAtWhatTheUnitsCostAfterTheDiscountOnTheWholePurchase(): void
+    {
+        $item = $this->item('0.00');
+
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($item, 0, '10', '50')]));
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($item, 0, '10', '60')], -1, null, null, InvoiceDiscount::of(FIXED, '100')));
+
+        $this->assertSame('50.0000', $this->itemCostOf($item), 'The second ten cost 500 after the discount, which is 50 a unit');
+        $this->assertSame(['quantity' => '20.000', 'value' => '1000.00'], $this->stockOf($item));
+        $this->assertStockTies();
+    }
+
+    public function testSaveValue_AcceptsADiscountOfTheWholePurchaseAndKeepsTheGoodsThatCostNothing(): void
+    {
+        $item = $this->item('0.00');
+        $id   = $this->buy([$this->purchaseLine($item, 0, '5', '20')], -1, null, null, InvoiceDiscount::of(PERCENT, '100'));
+
+        $this->assertGreaterThan(0, $id);
+        $this->assertSame([], $this->standingPurchase($id));
+        $this->assertSame(['quantity' => '5.000', 'value' => '0.00'], $this->stockOf($item));
+        $this->assertSame('5.000', $this->onHand($item));
+        $this->assertStockTies();
+    }
+
+    /**
+     * @return array<string, array{int, string}>
+     */
+    public static function refusedDiscounts(): array
+    {
+        return [
+            'a percentage above the whole'         => [PERCENT, '100.0001'],
+            'an amount above what the lines cost'  => [FIXED, '1000.01'],
+        ];
+    }
+
+    #[DataProvider('refusedDiscounts')]
+    public function testSaveValue_RefusesADiscountOnTheWholePurchaseBeyondWhatItComesToAndLeavesNothingOfIt(int $type, string $value): void
+    {
+        $item = $this->item('5.00');
+
+        $result = $this->buy([$this->purchaseLine($item, 0, '10', '100')], -1, null, null, InvoiceDiscount::of($type, $value));
+
+        $this->assertRefusedWith(PostingError::PurchaseDiscountInvalid, $result);
+        $this->assertNothingLeft(0, $item, '5.0000');
+        $this->assertSame(1, $this->countRows('accounting_posting_failures'), 'The refusal is written down after the rollback, as every other');
+    }
+
+    public function testSaveValue_AcceptsADiscountEqualToWhatTheLinesCome(): void
+    {
+        $item = $this->item('0.00');
+        $id   = $this->buy([$this->purchaseLine($item, 0, '10', '100')], -1, null, null, InvoiceDiscount::of(FIXED, '1000'));
+
+        $this->assertGreaterThan(0, $id);
+        $this->assertSame('0.00', $this->owed());
+    }
+
+    public function testSaveValue_RefusesADiscountOnTheWholePurchaseOnAReturnAndOnATransfer(): void
+    {
+        $item   = $this->item('0.00');
+        $origin = $this->buy([$this->purchaseLine($item, 0, '10', '100')], -1, null, null, InvoiceDiscount::of(FIXED, '100'));
+        $second = $this->anotherLocation();
+
+        $return   = $this->buy([$this->purchaseLine($item, 0, '-2', '100')], -1, null, $origin, InvoiceDiscount::of(FIXED, '10'));
+        $transfer = $this->buy([$this->purchaseLine($item, 0, '-2', '0'), $this->purchaseLine($item, 1, '2', '0', '0', '0', PERCENT, $second)], null, null, null, InvoiceDiscount::of(PERCENT, '10'));
+
+        $this->assertRefusedWith(PostingError::PurchaseDiscountInvalid, $return);
+        $this->assertRefusedWith(PostingError::PurchaseDiscountInvalid, $transfer);
+        $this->assertSame(1, $this->countRows('receivings'));
+        $this->assertSame('10.000', $this->onHand($item));
+    }
+
+    public function testSaveValue_GivesBackTheShareOfTheDiscountOfTheUnitsThatGoBackAndTheLastReturnTakesWhatIsLeft(): void
+    {
+        $item   = $this->item('0.00');
+        $origin = $this->buy([$this->purchaseLine($item, 0, '10', '100', '15')], -1, null, null, InvoiceDiscount::of(FIXED, '100'));
+
+        $this->assertSame('1035.00', $this->owed());
+
+        $first  = $this->buy([$this->purchaseLine($item, 0, '-4', '100', '15')], -1, null, $origin);
+        $second = $this->buy([$this->purchaseLine($item, 0, '-6', '100', '15')], -1, null, $origin);
+
+        $this->assertGreaterThan(0, $first);
+        $this->assertGreaterThan(0, $second);
+
+        $this->assertSame($this->expectedLines([['supplier', '414.00', '0.00'], ['tax_input', '0.00', '54.00'], ['inventory', '0.00', '360.00']]), $this->standingPurchase($first)[0]['lines'], 'Four of ten units take four tenths of the 100 given, 40');
+        $this->assertSame($this->expectedLines([['supplier', '621.00', '0.00'], ['tax_input', '0.00', '81.00'], ['inventory', '0.00', '540.00']]), $this->standingPurchase($second)[0]['lines'], 'The rest takes the 60 that is left');
+        $this->assertSame('0.00', $this->owed(), 'Everything came back, so nothing is owed');
+        $this->assertSame(['quantity' => '0.000', 'value' => '0.00'], $this->stockOf($item));
+        $this->assertSame('0.00', $this->balance($this->accountId('tax_input')));
+        $this->assertSame('0.00', $this->balance($this->accountId('cogs')));
+        $this->assertStockTies();
+        $this->assertSupplierTies();
+    }
+
+    public function testSaveValue_SplitsADiscountThatDoesNotDivideAmongTheReturnsWithoutLosingACent(): void
+    {
+        $item   = $this->item('0.00');
+        $origin = $this->buy([$this->purchaseLine($item, 0, '3', '10')], -1, null, null, InvoiceDiscount::of(FIXED, '10'));
+        $shares = [];
+
+        for ($turn = 0; $turn < 3; $turn++) {
+            $return   = $this->buy([$this->purchaseLine($item, 0, '-1', '10')], -1, null, $origin);
+            $shares[] = bcadd((string) $this->accountingDb()->table('receivings_items')->where('receiving_id', $return)->get()->getRow()->invoice_discount_share, '0', 4);
+        }
+
+        $this->assertSame(['3.3300', '3.3300', '3.3400'], $shares);
+        $this->assertSame('0.00', $this->owed());
+        $this->assertSame(['quantity' => '0.000', 'value' => '0.00'], $this->stockOf($item));
+        $this->assertStockTies();
+    }
+
+    public function testSaveValue_GivesBackAPercentageDiscountInProportionAndLeavesTheCostOfTheStockAtTheAverage(): void
+    {
+        $item   = $this->item('0.00');
+        $origin = $this->buy([$this->purchaseLine($item, 0, '10', '100', '15', '10', PERCENT)], -1, null, null, InvoiceDiscount::of(PERCENT, '10'));
+        $cost   = $this->itemCostOf($item);
+
+        $first = $this->buy([$this->purchaseLine($item, 0, '-4', '100', '15', '10', PERCENT)], -1, null, $origin);
+
+        $this->assertGreaterThan(0, $first);
+        $this->assertSame($cost, $this->itemCostOf($item), 'A return does not change the average');
+        $this->assertSame($this->expectedLines([['supplier', '372.60', '0.00'], ['tax_input', '0.00', '48.60'], ['inventory', '0.00', '324.00']]), $this->standingPurchase($first)[0]['lines'], 'Four units cost 360 after their own discount, less 36 of the 90 the whole purchase was given');
+        $this->assertSame('558.90', $this->owed());
+
+        $rest = $this->buy([$this->purchaseLine($item, 0, '-6', '100', '15', '10', PERCENT)], -1, null, $origin);
+
+        $this->assertGreaterThan(0, $rest);
+        $this->assertSame($this->expectedLines([['supplier', '558.90', '0.00'], ['tax_input', '0.00', '72.90'], ['inventory', '0.00', '486.00']]), $this->standingPurchase($rest)[0]['lines']);
+        $this->assertSame('0.00', $this->owed());
+        $this->assertStockTies();
+        $this->assertSupplierTies();
+    }
+
+    public function testSaveValue_GivesAReturnNoShareWhenThePurchaseItComesFromHadNoDiscount(): void
+    {
+        $item   = $this->item('0.00');
+        $origin = $this->buy([$this->purchaseLine($item, 0, '10', '100', '15')]);
+        $return = $this->buy([$this->purchaseLine($item, 0, '-4', '100', '15')], -1, null, $origin);
+
+        $this->assertGreaterThan(0, $return);
+        $this->assertNull($this->accountingDb()->table('receivings_items')->where('receiving_id', $return)->get()->getRow()->invoice_discount_share);
+        $this->assertSame($this->expectedLines([['supplier', '460.00', '0.00'], ['tax_input', '0.00', '60.00'], ['inventory', '0.00', '400.00']]), $this->standingPurchase($return)[0]['lines']);
+    }
+
+    public function testDeleteValue_TakesBackAPurchaseWithADiscountOnTheWholePurchaseToTheCent(): void
+    {
+        $item = $this->item('0.00');
+        $id   = $this->buy([$this->purchaseLine($item, 0, '10', '100', '15', '10', PERCENT)], -1, lang('Sales.cash'), null, InvoiceDiscount::of(PERCENT, '10'));
+
+        $this->assertTrue($this->purchases->delete_value($id, $this->employeeId));
+
+        $this->assertSame([], $this->standingPurchase($id));
+        $this->assertSame('0.00', $this->balance($this->stockAccount()));
+        $this->assertSame('0.00', $this->balance($this->supplierAccount()));
+        $this->assertSame('0.00', $this->balance($this->accountId('cash')));
+        $this->assertSame('0.00', $this->balance($this->accountId('tax_input')));
+        $this->assertSame(['quantity' => '0.000', 'value' => '0.00'], $this->stockOf($item));
+        $this->assertSame(0, $this->accountingDb()->table('receivings')->where('receiving_id', $id)->countAllResults());
+        $this->assertStockTies();
+    }
+
+    public function testDeleteValue_RefusesAPurchaseWithADiscountThatGoodsHaveGoneBackFromAndChangesNothing(): void
+    {
+        $item   = $this->item('0.00');
+        $origin = $this->buy([$this->purchaseLine($item, 0, '10', '100')], -1, null, null, InvoiceDiscount::of(FIXED, '100'));
+        $this->buy([$this->purchaseLine($item, 0, '-4', '100')], -1, null, $origin);
+
+        $this->assertFalse($this->purchases->delete_value($origin, $this->employeeId));
+        $this->assertSame(['quantity' => '6.000', 'value' => '540.00'], $this->stockOf($item));
+        $this->assertSame('540.00', $this->owed());
+    }
+
+    public function testUpdate_LeavesThePurchaseJournalAloneWhenAPaymentIsAddedToAPurchaseWithADiscount(): void
+    {
+        $item = $this->item('0.00');
+        $id   = $this->buy([$this->purchaseLine($item, 0, '10', '100', '15', '10', PERCENT)], -1, null, null, InvoiceDiscount::of(PERCENT, '10'));
+        $then = $this->standingPurchase($id)[0];
+
+        $this->payPurchase($id, '500.00');
+
+        $now = $this->standingPurchase($id)[0];
+
+        $this->assertSame([$then['id'], $then['revision'], $then['lines']], [$now['id'], $now['revision'], $now['lines']]);
+        $this->assertSame('431.50', bcadd($this->supplierPosition()->purchase($id)->open(), '0', 2));
+        $this->assertSame('431.50', $this->owed());
+        $this->assertSupplierTies();
+        $this->assertStockTies();
+    }
+
+    public function testCreateTempTable_TakesTheShareOfTheDiscountOnTheWholePurchaseOffTheLinesAndTheReturns(): void
+    {
+        $item   = $this->item('0.00');
+        $origin = $this->buy([$this->purchaseLine($item, 0, '10', '100', '15', '10', PERCENT)], -1, null, null, InvoiceDiscount::of(PERCENT, '10'));
+        $return = $this->buy([$this->purchaseLine($item, 0, '-4', '100', '15', '10', PERCENT)], -1, null, $origin);
+        $row    = $this->reportRowOf($origin);
+
+        $this->assertSame('810.0000', bcadd((string) $row->total, '0', 4));
+        $this->assertSame('810.0000', bcadd((string) $row->subtotal, '0', 4));
+        $this->assertSame('-324.0000', bcadd((string) $this->reportRowOf($return)->total, '0', 4), 'A return of four tenths takes four tenths of the 90, 36, so 360 less 36');
+        $this->assertSame($this->purchaseNetOf($origin), bcadd((string) $row->total, '0', 4));
+    }
+
+    /**
+     * What the stock lines and the expense of a purchase journal come to, which is what the report
+     * adds up too.
+     */
+    private function purchaseNetOf(int $receivingId): string
+    {
+        $journal = $this->standingPurchase($receivingId)[0];
+        $net     = '0';
+
+        foreach ($this->exactLines($journal['id']) as $line) {
+            [$account, $debit] = explode(':', $line);
+
+            if (in_array((int) $account, [$this->roles()['inventory'], $this->roles()['cogs']], true)) {
+                $net = bcadd($net, $debit, 4);
+            }
+        }
+
+        return $net;
+    }
+
+    public function testSaveValue_StoresTheDiscountAndTheSharesAndKeepsTheAverageWhileAccountingIsOff(): void
+    {
+        $item = $this->item('0.00');
+
+        $this->setConfigValue('accounting_enabled', '0');
+        $this->setConfigValue('receiving_calculate_average_price', '1');
+        config(OSPOS::class)->settings['receiving_calculate_average_price'] = '1';
+
+        $id = $this->buy([$this->purchaseLine($item, 0, '10', '100', '15', '10', PERCENT)], -1, null, null, InvoiceDiscount::of(PERCENT, '10'));
+
+        $this->assertGreaterThan(0, $id);
+        $this->assertSame(0, $this->countRows('accounting_journals'));
+        $this->assertSame(0, $this->countRows('accounting_stock_entries'));
+        $this->assertSame('90.0000', bcadd((string) $this->accountingDb()->table('receivings_items')->where('receiving_id', $id)->get()->getRow()->invoice_discount_share, '0', 4));
+        $this->assertSame('81.0000', $this->itemCostOf($item));
+        $this->assertSame('10.000', $this->onHand($item));
+    }
+
+    public function testSaveValue_RefusesADiscountBeyondThePurchaseWhileAccountingIsOffToo(): void
+    {
+        $item = $this->item('5.00');
+
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $result = $this->buy([$this->purchaseLine($item, 0, '10', '100')], -1, null, null, InvoiceDiscount::of(FIXED, '1000.01'));
+
+        $this->assertRefusedWith(PostingError::PurchaseDiscountInvalid, $result);
+        $this->assertSame(0, $this->countRows('receivings'));
+        $this->assertSame('0.000', $this->onHand($item));
+        $this->assertSame('5.0000', $this->itemCostOf($item));
+        $this->assertSame(0, $this->countRows('accounting_posting_failures'), 'The books are off, so nothing is written there');
+    }
+
+    public function testSaveValue_RefusesAPurchaseWithADiscountInAClosedPeriodAndLeavesNothingOfIt(): void
+    {
+        $item = $this->item('5.00');
+        $this->closeThrough(date('Y-m-d'));
+
+        $result = $this->buy([$this->purchaseLine($item, 0, '10', '40')], -1, null, null, InvoiceDiscount::of(PERCENT, '10'));
+
+        $this->assertRefusedWith(PostingError::PeriodClosed, $result);
+        $this->assertNothingLeft(0, $item, '5.0000');
+        $this->assertSame(0, $this->accountingDb()->table('receivings_items')->where('invoice_discount_share IS NOT NULL', null, false)->countAllResults());
     }
 
     /**

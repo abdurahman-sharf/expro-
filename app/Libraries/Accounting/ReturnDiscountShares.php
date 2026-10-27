@@ -92,7 +92,7 @@ final class ReturnDiscountShares
             return $left;
         }
 
-        $proportional = SaleAmounts::round(bcmul($origin['share'], bcdiv($giving, $origin['units'], 12), 12), self::SCALE);
+        $proportional = SaleAmounts::round(bcmul($origin['share'], bcdiv($giving, $origin['units'], 12), 12), InvoiceDiscountShares::SHARE_SCALE);
 
         return bccomp($proportional, $left, self::SCALE) > 0 ? $left : $proportional;
     }

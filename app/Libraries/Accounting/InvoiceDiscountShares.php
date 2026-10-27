@@ -6,13 +6,14 @@ namespace App\Libraries\Accounting;
  * Splits the discount on the whole of a purchase over its lines, so that what each line costs, the
  * tax on it and the cost the stock is held at all come after the discount, and the lines add up to
  * what the supplier is owed. The rule: each line takes a share proportional to what it comes to after
- * its own discount and before its tax, rounded to four decimals, and the last line that comes to
+ * its own discount and before its tax, rounded to the cent, and the last line that comes to
  * something takes what is left, so the shares add up to the discount exactly. A line never takes more
  * than it comes to. This is an assumption: the reference system was only observed with one line.
  */
 final class InvoiceDiscountShares
 {
-    private const SCALE = ReceivingAmounts::SCALE;
+    private const SCALE      = ReceivingAmounts::SCALE;
+    public const SHARE_SCALE = InvoiceDiscount::AMOUNT_SCALE;
 
     /**
      * What each line takes of the discount, in the order of the lines.
@@ -63,7 +64,7 @@ final class InvoiceDiscountShares
 
             $shares[$index] = $index === $last
                 ? bcsub($amount, $taken, self::SCALE)
-                : SaleAmounts::round(bcmul($amount, bcdiv($net, $total, 12), 12), self::SCALE);
+                : SaleAmounts::round(bcmul($amount, bcdiv($net, $total, 12), 12), self::SHARE_SCALE);
             $taken = bcadd($taken, $shares[$index], self::SCALE);
         }
 

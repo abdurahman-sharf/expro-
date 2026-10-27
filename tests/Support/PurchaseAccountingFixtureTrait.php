@@ -3,6 +3,7 @@
 namespace Tests\Support;
 
 use App\Libraries\Accounting\EntityAccountService;
+use App\Libraries\Accounting\InvoiceDiscount;
 use App\Libraries\Accounting\ReceivingPosting;
 use App\Libraries\Accounting\StockLedger;
 use App\Libraries\Accounting\SupplierLedger;
@@ -152,7 +153,7 @@ trait PurchaseAccountingFixtureTrait
      *
      * @param list<array<string, mixed>> $lines
      */
-    protected function buy(array $lines, ?int $supplierId = -1, ?string $paymentType = null, ?int $origin = null): int
+    protected function buy(array $lines, ?int $supplierId = -1, ?string $paymentType = null, ?int $origin = null, ?InvoiceDiscount $discount = null): int
     {
         $result = $this->purchases->save_value(
             $lines,
@@ -163,6 +164,7 @@ trait PurchaseAccountingFixtureTrait
             $paymentType ?? lang('Sales.due'),
             NEW_ENTRY,
             $origin,
+            $discount,
         );
 
         if ($result > 0) {

@@ -4,13 +4,14 @@ namespace App\Libraries\Accounting;
 
 /**
  * The discount on the whole of a purchase, as it was entered: a percentage of what the lines come to
- * after their own discounts, or an amount. What each line takes of it is worked out once, when the
- * purchase is saved (InvoiceDiscountShares), and kept on the line, so the discount is only ever read
- * back from there.
+ * after their own discounts, or an amount. What it comes to is kept to the cent, like the total of the
+ * purchase. What each line takes of it is worked out once, when the purchase is saved
+ * (InvoiceDiscountShares), and kept on the line, so the discount is only ever read back from there.
  */
 final readonly class InvoiceDiscount
 {
-    public const SCALE = ReceivingAmounts::SCALE;
+    public const SCALE        = ReceivingAmounts::SCALE;
+    public const AMOUNT_SCALE = 2;
 
     /**
      * @param numeric-string $value
@@ -38,7 +39,7 @@ final readonly class InvoiceDiscount
             return null;
         }
 
-        return new self($type, SaleAmounts::round($value, self::SCALE));
+        return new self($type, SaleAmounts::round($value, $type === FIXED ? self::AMOUNT_SCALE : self::SCALE));
     }
 
     /**
@@ -72,7 +73,8 @@ final readonly class InvoiceDiscount
     }
 
     /**
-     * What the discount comes to on lines that come to the base, never more than the base.
+     * What the discount comes to on lines that come to the base, to the cent and never more than the
+     * base.
      *
      * @param numeric-string $base
      *
@@ -85,9 +87,9 @@ final readonly class InvoiceDiscount
         }
 
         $amount = $this->type === PERCENT
-            ? SaleAmounts::round(bcmul($base, bcdiv($this->value, '100', 8), 8), self::SCALE)
+            ? SaleAmounts::round(bcmul($base, bcdiv($this->value, '100', 8), 8), self::AMOUNT_SCALE)
             : $this->value;
 
-        return bccomp($amount, $base, self::SCALE) > 0 ? bcadd($base, '0', self::SCALE) : $amount;
+        return bccomp($amount, $base, self::SCALE) > 0 ? bcadd($base, '0', self::SCALE) : bcadd($amount, '0', self::SCALE);
     }
 }
