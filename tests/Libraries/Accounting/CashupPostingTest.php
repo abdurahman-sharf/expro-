@@ -567,6 +567,18 @@ class CashupPostingTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('accounting_journals'));
     }
 
+    public function testFollows_IsFalseWhileAccountingIsOffWhateverTheDate(): void
+    {
+        $posting = new CashupPosting();
+
+        $this->assertTrue($posting->follows('2026-10-20'));
+
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $this->assertFalse($posting->follows('2026-10-20'));
+        $this->assertFalse($posting->follows('2030-01-01'));
+    }
+
     public function testSaveValue_StampsNothingOnANewCashUpThatIsAlreadyMarkedDeleted(): void
     {
         $this->aDayOfCash();

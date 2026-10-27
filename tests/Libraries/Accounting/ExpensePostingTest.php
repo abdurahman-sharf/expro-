@@ -945,6 +945,45 @@ class ExpensePostingTest extends CIUnitTestCase
         $this->assertSame([$first, $second, $third], $locked);
     }
 
+    public function testSaveValue_NeverStoresWhatTheFormClaimsAboutAnExpenseTheBooksDoNotFollow(): void
+    {
+        $category = $this->category();
+
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $legacy = $this->saveExpense($this->expenseData('100.00', '0', 'Cash', $category));
+
+        $this->setConfigValue('accounting_enabled', '1');
+
+        $claims = ['branch_id' => 1, 'treasury_id' => $this->treasury('Claimed drawer')];
+
+        $this->assertSame($legacy, $this->saveExpense($this->expenseData('120.00', '0', 'Cash', $category) + $claims, $legacy));
+
+        $row = $this->accountingDb()->table('expenses')->where('expense_id', $legacy)->get()->getRow();
+
+        $this->assertSame([null, null], [$row->branch_id, $row->treasury_id]);
+
+        $this->setConfigValue('accounting_start_date', '2026-10-21');
+
+        $early = $this->saveExpense($this->expenseData('100.00', '0', 'Cash', $category, '2026-10-20 10:00:00') + $claims);
+        $row   = $this->accountingDb()->table('expenses')->where('expense_id', $early)->get()->getRow();
+
+        $this->assertSame([null, null], [$row->branch_id, $row->treasury_id]);
+        $this->assertSame(0, $this->countRows('accounting_journals'));
+    }
+
+    public function testFollows_IsFalseWhileAccountingIsOffWhateverTheDate(): void
+    {
+        $posting = new ExpensePosting();
+
+        $this->assertTrue($posting->follows('2026-10-20'));
+
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $this->assertFalse($posting->follows('2026-10-20'));
+        $this->assertFalse($posting->follows('2030-01-01'));
+    }
+
     public function testSaveValue_StampsNothingOnANewExpenseThatIsAlreadyMarkedDeleted(): void
     {
         $data            = $this->expenseData('100.00');
