@@ -4,6 +4,8 @@ namespace Tests\Models;
 
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Numbering\DocumentNumbering;
+use App\Libraries\Numbering\DocumentType;
 use App\Models\Receiving;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -42,6 +44,11 @@ class ReceivingTest extends CIUnitTestCase
     protected function tearDown(): void
     {
         $this->stopBuying();
+
+        $db = Database::connect();
+        $db->table('document_numbers')->truncate();
+        $db->table('document_sequences')->truncate();
+        $db->table('accounting_audit_log')->where('entity_type', 'document_numbering')->delete();
 
         parent::tearDown();
     }
@@ -307,5 +314,147 @@ class ReceivingTest extends CIUnitTestCase
 
         $this->assertTrue($receivings->update($purchase, ['supplier_id' => $other]));
         $this->assertSame($other, (int) Database::connect()->table('receivings')->where('receiving_id', $purchase)->get()->getRow()->supplier_id);
+    }
+
+    private function switchOn(DocumentType $type, string $prefix, int $padding = 3): void
+    {
+        (new DocumentNumbering())->configure($type, ['enabled' => true, 'prefix' => $prefix, 'padding' => $padding]);
+    }
+
+    private function numberOf(DocumentType $type, string $table, int $id): ?string
+    {
+        return (new DocumentNumbering())->numbers($type, $table, [$id])[$id] ?? null;
+    }
+
+    public function testSaveValue_GivesNoNumberWhileTheSequencesAreOff(): void
+    {
+        $this->startBuying();
+        $purchase = $this->purchaseOf('100.00');
+
+        $this->debitNoteOf($purchase, '10.00');
+        $this->payPurchase($purchase, '20.00');
+
+        $this->assertSame(0, $this->countRows('document_numbers'));
+        $this->assertSame(0, $this->countRows('document_sequences'));
+    }
+
+    public function testSaveValue_NumbersAPurchaseAndAReturnToTheSupplierEachInItsOwnSequence(): void
+    {
+        $this->startBuying();
+        $this->switchOn(DocumentType::Purchase, 'PUR-');
+        $this->switchOn(DocumentType::DebitNote, 'DN-');
+
+        $first  = $this->purchaseOf('100.00');
+        $note   = $this->debitNoteOf($first, '10.00');
+        $second = $this->purchaseOf('50.00');
+
+        $this->assertSame('PUR-001', $this->numberOf(DocumentType::Purchase, 'receivings', $first));
+        $this->assertSame('PUR-002', $this->numberOf(DocumentType::Purchase, 'receivings', $second));
+        $this->assertSame('DN-001', $this->numberOf(DocumentType::DebitNote, 'receivings', $note));
+        $this->assertNull($this->numberOf(DocumentType::Purchase, 'receivings', $note));
+        $this->assertNull($this->numberOf(DocumentType::DebitNote, 'receivings', $first));
+    }
+
+    public function testSaveValue_NumbersAPurchaseWhileAccountingIsOffToo(): void
+    {
+        $this->startBuying();
+        $this->setConfigValue('accounting_enabled', '0');
+        $this->switchOn(DocumentType::Purchase, 'PUR-');
+
+        $purchase = $this->purchaseOf('100.00');
+
+        $this->assertSame('PUR-001', $this->numberOf(DocumentType::Purchase, 'receivings', $purchase));
+    }
+
+    public function testSaveValue_DoesNotNumberATransferBetweenLocations(): void
+    {
+        $this->startBuying();
+        $this->switchOn(DocumentType::Purchase, 'PUR-');
+        $this->switchOn(DocumentType::DebitNote, 'DN-');
+
+        $item  = $this->item('0.00');
+        $depot = $this->anotherLocation('Depot');
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($item, 0, '5', '10')]));
+
+        $before   = $this->countRows('document_numbers');
+        $transfer = $this->buy([$this->purchaseLine($item, 0, '-2', '10'), $this->purchaseLine($item, 1, '2', '10', locationId: $depot)]);
+
+        $this->assertGreaterThan(0, $transfer);
+        $this->assertSame($before, $this->countRows('document_numbers'));
+        $this->assertNull($this->numberOf(DocumentType::Purchase, 'receivings', $transfer));
+        $this->assertNull($this->numberOf(DocumentType::DebitNote, 'receivings', $transfer));
+    }
+
+    public function testSaveValue_LeavesNoNumberBehindWhenTheReturnIsRefused(): void
+    {
+        $this->startBuying();
+        $this->switchOn(DocumentType::DebitNote, 'DN-');
+
+        $purchase = $this->purchaseOf('100.00');
+        $line     = $this->accountingDb()->table('receivings_items')->where('receiving_id', $purchase)->get()->getRow();
+        $result   = $this->buy([$this->purchaseLine((int) $line->item_id, 0, '-2', (string) $line->item_unit_price)], -1, null, $purchase);
+
+        $this->assertSame(ACCOUNTING_FAILED, $result);
+        $this->assertSame(0, $this->countRows('document_numbers'));
+        $this->assertSame(1, (new DocumentNumbering())->sequence(DocumentType::DebitNote)->nextNumber);
+    }
+
+    public function testSaveValue_RefusesThePurchaseWhenNoNumberCanBeGiven(): void
+    {
+        $this->startBuying();
+        $this->switchOn(DocumentType::Purchase, 'PUR-', 0);
+        $db = $this->accountingDb();
+        $db->table('document_sequences')->where('doc_type', 'purchase')->update(['next_number' => 4294967294]);
+        $db->table('document_numbers')->insert(['company_id' => 1, 'doc_type' => 'purchase', 'source_table' => 'receivings', 'source_id' => 1, 'sequence_number' => 4294967294, 'number' => 'PUR-4294967294']);
+
+        $before = $this->countRows('receivings');
+        $item   = $this->item('0.00');
+        $result = $this->buy([$this->purchaseLine($item, 0, '1', '10')]);
+
+        $this->assertSame(ACCOUNTING_FAILED, $result);
+        $this->assertSame($before, $this->countRows('receivings'));
+        $this->assertSame(AccountingError::NumberingExhausted, $this->purchases->accountingFailure()?->error);
+    }
+
+    public function testUpdate_NumbersEachNewSupplierPaymentAndKeepsTheNumberWhenItIsChanged(): void
+    {
+        $this->startBuying();
+        $this->switchOn(DocumentType::SupplierPayment, 'SP-');
+
+        $purchase = $this->purchaseOf('100.00');
+        $first    = $this->payPurchase($purchase, '20.00');
+        $second   = $this->payPurchase($purchase, '30.00');
+
+        $this->assertSame('SP-001', $this->numberOf(DocumentType::SupplierPayment, 'receivings_payments', $first));
+        $this->assertSame('SP-002', $this->numberOf(DocumentType::SupplierPayment, 'receivings_payments', $second));
+
+        $this->assertTrue($this->changePayment($purchase, $first, ['payment_amount' => '25.00']));
+        $this->assertSame('SP-001', $this->numberOf(DocumentType::SupplierPayment, 'receivings_payments', $first));
+        $this->assertSame(3, (new DocumentNumbering())->sequence(DocumentType::SupplierPayment)->nextNumber);
+    }
+
+    public function testUpdate_NeverGivesTheNumberOfARemovedPaymentToAnotherOne(): void
+    {
+        $this->startBuying();
+        $this->switchOn(DocumentType::SupplierPayment, 'SP-');
+
+        $purchase = $this->purchaseOf('100.00');
+        $first    = $this->payPurchase($purchase, '20.00');
+
+        $this->assertTrue($this->changePayment($purchase, $first, ['payment_amount' => '0']));
+
+        $second = $this->payPurchase($purchase, '30.00');
+
+        $this->assertSame('SP-002', $this->numberOf(DocumentType::SupplierPayment, 'receivings_payments', $second));
+    }
+
+    public function testUpdate_GivesNoNumberToPaymentsWhileTheSequenceIsOff(): void
+    {
+        $this->startBuying();
+        $purchase = $this->purchaseOf('100.00');
+
+        $this->payPurchase($purchase, '20.00');
+
+        $this->assertSame(0, $this->countRows('document_numbers'));
     }
 }

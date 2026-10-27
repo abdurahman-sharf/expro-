@@ -2,6 +2,10 @@
 
 namespace Tests\Models;
 
+use App\Libraries\Accounting\AccountingError;
+use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Numbering\DocumentNumbering;
+use App\Libraries\Numbering\DocumentType;
 use App\Models\Sale;
 use CodeIgniter\Database\Config;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -47,7 +51,59 @@ class SaleTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $db = \Config\Database::connect();
+        $db->table('document_numbers')->truncate();
+        $db->table('document_sequences')->truncate();
+        $db->table('accounting_audit_log')->where('entity_type', 'document_numbering')->delete();
+
         parent::tearDown();
+    }
+
+    /**
+     * A prefix no other run of the tests used, because the invoices these tests save stay in the
+     * database and an invoice number is never given twice.
+     */
+    private function freshPrefix(): string
+    {
+        return 'T' . random_int(100000, 999999) . '-';
+    }
+
+    private function switchOn(DocumentType $type, string $prefix = '', int $padding = 3, ?int $next = null): void
+    {
+        (new DocumentNumbering())->configure($type, array_filter(['enabled' => true, 'prefix' => $prefix, 'padding' => $padding, 'next_number' => $next], static fn (mixed $value): bool => $value !== null));
+    }
+
+    private function numberOf(DocumentType $type, string $table, int $id): ?string
+    {
+        return (new DocumentNumbering())->numbers($type, $table, [$id])[$id] ?? null;
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function paymentIdsOf(int $saleId): array
+    {
+        return array_map('intval', array_column(\Config\Database::connect()->table('sales_payments')->select('payment_id')->where('sale_id', $saleId)->orderBy('payment_id')->get()->getResultArray(), 'payment_id'));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $payments
+     */
+    private function saveSale(int $type, array $payments, int $status = COMPLETED, int $saleId = NEW_ENTRY, ?string $invoiceNumber = null, ?string $quoteNumber = null, ?int $origin = null, float $quantity = 1): int
+    {
+        $itemId = $this->createTestItem(HAS_NO_STOCK);
+        $items  = $this->buildCartLine($itemId, $quantity, 10.00);
+        $taxes  = [[], []];
+
+        return model(Sale::class)->save_value($saleId, $status, $items, NEW_ENTRY, $this->createEmployee(), 'numbering', $invoiceNumber, null, $quoteNumber, $type, $payments, null, $taxes, true, $origin);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function cashPayment(float $amount = 10.00, int $adjustment = 0): array
+    {
+        return ['payment_type' => lang('Sales.cash'), 'payment_amount' => $amount, 'cash_refund' => 0, 'cash_adjustment' => $adjustment, 'reference_code' => null];
     }
 
     protected function createGiftcard(float $value): int
@@ -605,5 +661,254 @@ class SaleTest extends CIUnitTestCase
 
         $this->assertSame([1], $saleModel->branchIdsOfItems($lines));
         $this->assertSame([], $saleModel->branchIdsOfItems([]));
+    }
+
+    public function testSaveValue_GivesNoNumberWhileTheSequencesAreOff(): void
+    {
+        $pos     = $this->saveSale(SALE_TYPE_POS, [$this->cashPayment()]);
+        $invoice = $this->saveSale(SALE_TYPE_INVOICE, [$this->cashPayment()]);
+        $quote   = $this->saveSale(SALE_TYPE_QUOTE, [], SUSPENDED);
+        $return  = $this->saveSale(SALE_TYPE_RETURN, [], COMPLETED, NEW_ENTRY, null, null, $invoice, -1);
+
+        $this->assertGreaterThan(0, min($pos, $invoice, $quote, $return));
+        $this->assertSame(0, \Config\Database::connect()->table('document_numbers')->countAllResults());
+        $this->assertNull(model(Sale::class)->get_invoice_number($invoice));
+        $this->assertNull(model(Sale::class)->get_quote_number($quote));
+    }
+
+    public function testSaveValue_KeepsTheNumbersTypedByHandWhileTheSequencesAreOff(): void
+    {
+        $prefix  = $this->freshPrefix();
+        $invoice = $this->saveSale(SALE_TYPE_INVOICE, [], COMPLETED, NEW_ENTRY, $prefix . 'A');
+        $quote   = $this->saveSale(SALE_TYPE_QUOTE, [], SUSPENDED, NEW_ENTRY, null, $prefix . 'Q');
+
+        $this->assertSame($prefix . 'A', model(Sale::class)->get_invoice_number($invoice));
+        $this->assertSame($prefix . 'Q', model(Sale::class)->get_quote_number($quote));
+    }
+
+    public function testSaveValue_NumbersEachPaymentOfACompletedSaleExceptWhatOnlyRecordsWhatStaysUnpaid(): void
+    {
+        $this->switchOn(DocumentType::CustomerPayment, 'PAY-', 4, 1);
+
+        $saleId = $this->saveSale(SALE_TYPE_POS, [
+            $this->cashPayment(4.00),
+            ['payment_type' => lang('Sales.due'), 'payment_amount' => 3.00, 'cash_refund' => 0, 'cash_adjustment' => 0, 'reference_code' => null],
+            ['payment_type' => lang('Sales.debit'), 'payment_amount' => 2.00, 'cash_refund' => 0, 'cash_adjustment' => 0, 'reference_code' => null],
+            $this->cashPayment(1.00, 1),
+        ]);
+
+        [$cash, $due, $debit, $adjustment] = $this->paymentIdsOf($saleId);
+
+        $this->assertSame('PAY-0001', $this->numberOf(DocumentType::CustomerPayment, 'sales_payments', $cash));
+        $this->assertNull($this->numberOf(DocumentType::CustomerPayment, 'sales_payments', $due));
+        $this->assertSame('PAY-0002', $this->numberOf(DocumentType::CustomerPayment, 'sales_payments', $debit));
+        $this->assertNull($this->numberOf(DocumentType::CustomerPayment, 'sales_payments', $adjustment));
+        $this->assertSame(3, (new DocumentNumbering())->sequence(DocumentType::CustomerPayment)->nextNumber);
+    }
+
+    public function testSaveValue_GivesTheNumbersOfAConsecutiveSalesInOrder(): void
+    {
+        $this->switchOn(DocumentType::CustomerPayment, 'PAY-', 4, 1);
+
+        $first  = $this->paymentIdsOf($this->saveSale(SALE_TYPE_POS, [$this->cashPayment()]))[0];
+        $second = $this->paymentIdsOf($this->saveSale(SALE_TYPE_POS, [$this->cashPayment()]))[0];
+
+        $this->assertSame('PAY-0001', $this->numberOf(DocumentType::CustomerPayment, 'sales_payments', $first));
+        $this->assertSame('PAY-0002', $this->numberOf(DocumentType::CustomerPayment, 'sales_payments', $second));
+    }
+
+    public function testSaveValue_NumbersThePaymentsOfASuspendedSaleOnlyWhenItIsCompleted(): void
+    {
+        $this->switchOn(DocumentType::CustomerPayment, 'PAY-', 4, 1);
+
+        $saleId = $this->saveSale(SALE_TYPE_POS, [$this->cashPayment()], SUSPENDED);
+
+        $this->assertSame(0, \Config\Database::connect()->table('document_numbers')->countAllResults());
+
+        $this->saveSale(SALE_TYPE_POS, [$this->cashPayment()], SUSPENDED, $saleId);
+
+        $this->assertSame(0, \Config\Database::connect()->table('document_numbers')->countAllResults());
+        $this->assertSame(1, (new DocumentNumbering())->sequence(DocumentType::CustomerPayment)->nextNumber);
+
+        $this->saveSale(SALE_TYPE_POS, [$this->cashPayment()], COMPLETED, $saleId);
+
+        $this->assertSame(1, \Config\Database::connect()->table('document_numbers')->countAllResults());
+        $this->assertSame('PAY-0001', $this->numberOf(DocumentType::CustomerPayment, 'sales_payments', $this->paymentIdsOf($saleId)[0]));
+    }
+
+    public function testSaveValue_NumbersAReturnAsACreditNote(): void
+    {
+        $this->switchOn(DocumentType::CreditNote, 'CN-', 5, 1);
+
+        $invoice = $this->saveSale(SALE_TYPE_INVOICE, []);
+        $return  = $this->saveSale(SALE_TYPE_RETURN, [], COMPLETED, NEW_ENTRY, null, null, $invoice, -1);
+
+        $this->assertSame('CN-00001', $this->numberOf(DocumentType::CreditNote, 'sales', $return));
+        $this->assertNull($this->numberOf(DocumentType::CreditNote, 'sales', $invoice));
+    }
+
+    public function testSaveValue_GivesAnInvoiceTheNextNumberOfItsSequenceWhenNoneIsTyped(): void
+    {
+        $prefix = $this->freshPrefix();
+        $this->switchOn(DocumentType::SalesInvoice, $prefix, 6, 1);
+
+        $first  = $this->saveSale(SALE_TYPE_INVOICE, []);
+        $second = $this->saveSale(SALE_TYPE_INVOICE, []);
+
+        $this->assertSame($prefix . '000001', model(Sale::class)->get_invoice_number($first));
+        $this->assertSame($prefix . '000002', model(Sale::class)->get_invoice_number($second));
+        $this->assertSame($prefix . '000002', $this->numberOf(DocumentType::SalesInvoice, 'sales', $second));
+    }
+
+    public function testSaveValue_KeepsAnInvoiceNumberTypedByHandAndGivesNoSequenceNumber(): void
+    {
+        $prefix = $this->freshPrefix();
+        $this->switchOn(DocumentType::SalesInvoice, $prefix, 6, 1);
+
+        $invoice = $this->saveSale(SALE_TYPE_INVOICE, [], COMPLETED, NEW_ENTRY, $prefix . 'HAND');
+
+        $this->assertSame($prefix . 'HAND', model(Sale::class)->get_invoice_number($invoice));
+        $this->assertNull($this->numberOf(DocumentType::SalesInvoice, 'sales', $invoice));
+        $this->assertSame(1, (new DocumentNumbering())->sequence(DocumentType::SalesInvoice)->nextNumber);
+    }
+
+    public function testSaveValue_SkipsTheNumberAnInvoiceTypedByHandAlreadyUsed(): void
+    {
+        $prefix = $this->freshPrefix();
+        $this->switchOn(DocumentType::SalesInvoice, $prefix, 3, 1);
+        $this->saveSale(SALE_TYPE_INVOICE, [], COMPLETED, NEW_ENTRY, $prefix . '001');
+
+        $invoice = $this->saveSale(SALE_TYPE_INVOICE, []);
+
+        $this->assertSame($prefix . '002', model(Sale::class)->get_invoice_number($invoice));
+    }
+
+    public function testSaveValue_NumbersAQuoteWhenItIsSavedAndKeepsItWhenItIsSavedAgain(): void
+    {
+        $prefix = $this->freshPrefix();
+        $this->switchOn(DocumentType::SalesQuote, $prefix, 4, 1);
+
+        $quote = $this->saveSale(SALE_TYPE_QUOTE, [], SUSPENDED);
+
+        $this->assertSame($prefix . '0001', model(Sale::class)->get_quote_number($quote));
+
+        $this->saveSale(SALE_TYPE_QUOTE, [], SUSPENDED, $quote);
+
+        $this->assertSame($prefix . '0001', model(Sale::class)->get_quote_number($quote));
+        $this->assertSame(2, (new DocumentNumbering())->sequence(DocumentType::SalesQuote)->nextNumber);
+    }
+
+    public function testSaveValue_DoesNotNumberAnInvoiceThatIsNotCompletedYet(): void
+    {
+        $this->switchOn(DocumentType::SalesInvoice, $this->freshPrefix(), 3, 1);
+
+        $draft = $this->saveSale(SALE_TYPE_INVOICE, [], SUSPENDED);
+
+        $this->assertNull(model(Sale::class)->get_invoice_number($draft));
+        $this->assertSame(1, (new DocumentNumbering())->sequence(DocumentType::SalesInvoice)->nextNumber);
+    }
+
+    public function testSaveValue_LeavesNoNumberBehindWhenTheSaleIsRefused(): void
+    {
+        $this->switchOn(DocumentType::CustomerPayment, 'PAY-', 4, 1);
+
+        $giftcard = $this->createGiftcard(5.00);
+        $result   = $this->saveSale(SALE_TYPE_POS, [
+            $this->cashPayment(4.00),
+            ['payment_type' => lang('Sales.giftcard') . ':' . $giftcard, 'payment_amount' => 60.00, 'cash_refund' => 0, 'cash_adjustment' => 0, 'reference_code' => null],
+        ]);
+
+        $this->assertSame(INSUFFICIENT_GIFTCARD_BALANCE, $result);
+        $this->assertSame(0, \Config\Database::connect()->table('document_numbers')->countAllResults());
+        $this->assertSame(1, (new DocumentNumbering())->sequence(DocumentType::CustomerPayment)->nextNumber);
+    }
+
+    public function testSaveValue_RefusesTheWholeSaleWhenNoNumberCanBeGiven(): void
+    {
+        $db = \Config\Database::connect();
+        $this->switchOn(DocumentType::CustomerPayment, 'PAY-', 0, 1);
+        $db->table('document_sequences')->where('doc_type', 'customer_payment')->update(['next_number' => 4294967294]);
+        $db->table('document_numbers')->insert(['company_id' => 1, 'doc_type' => 'customer_payment', 'source_table' => 'sales_payments', 'source_id' => 1, 'sequence_number' => 4294967294, 'number' => 'PAY-4294967294']);
+
+        $before = $db->table('sales')->countAllResults();
+        $result = $this->saveSale(SALE_TYPE_POS, [$this->cashPayment()]);
+        $failure = model(Sale::class)->accountingFailure();
+
+        $this->assertSame(ACCOUNTING_FAILED, $result);
+        $this->assertSame($before, $db->table('sales')->countAllResults());
+        $this->assertInstanceOf(AccountingException::class, $failure);
+        $this->assertSame(AccountingError::NumberingExhausted, $failure->error);
+        $this->assertSame(1, $db->table('document_numbers')->countAllResults());
+    }
+
+    public function testUpdate_NumbersAPaymentAddedToACompletedSale(): void
+    {
+        $this->switchOn(DocumentType::CustomerPayment, 'PAY-', 4, 1);
+
+        $saleId   = $this->saveSale(SALE_TYPE_POS, [$this->cashPayment(4.00)]);
+        $employee = $this->createEmployee();
+        $model    = model(Sale::class);
+
+        $this->assertTrue($model->update($saleId, ['comment' => 'more', 'payments' => [
+            ['payment_id' => NEW_ENTRY, 'payment_type' => lang('Sales.debit'), 'payment_amount' => '6.00', 'cash_refund' => 0, 'cash_adjustment' => 0, 'employee_id' => $employee, 'reference_code' => null],
+        ]]));
+
+        [$first, $second] = $this->paymentIdsOf($saleId);
+
+        $this->assertSame('PAY-0001', $this->numberOf(DocumentType::CustomerPayment, 'sales_payments', $first));
+        $this->assertSame('PAY-0002', $this->numberOf(DocumentType::CustomerPayment, 'sales_payments', $second));
+    }
+
+    public function testUpdate_KeepsThePaymentNumberWhenThePaymentIsEdited(): void
+    {
+        $this->switchOn(DocumentType::CustomerPayment, 'PAY-', 4, 1);
+
+        $saleId   = $this->saveSale(SALE_TYPE_POS, [$this->cashPayment(4.00)]);
+        $employee = $this->createEmployee();
+        $payment  = $this->paymentIdsOf($saleId)[0];
+
+        $this->assertTrue(model(Sale::class)->update($saleId, ['comment' => 'edited', 'payments' => [
+            ['payment_id' => $payment, 'payment_type' => lang('Sales.debit'), 'payment_amount' => '4.00', 'cash_refund' => 0, 'cash_adjustment' => 0, 'employee_id' => $employee, 'reference_code' => null],
+        ]]));
+
+        $this->assertSame('PAY-0001', $this->numberOf(DocumentType::CustomerPayment, 'sales_payments', $payment));
+        $this->assertSame(2, (new DocumentNumbering())->sequence(DocumentType::CustomerPayment)->nextNumber);
+    }
+
+    public function testUpdate_KeepsTheInvoiceNumberOfTheSequenceWhenTheFormLeavesItBlank(): void
+    {
+        $prefix = $this->freshPrefix();
+        $this->switchOn(DocumentType::SalesInvoice, $prefix, 3, 1);
+        $invoice = $this->saveSale(SALE_TYPE_INVOICE, []);
+
+        $this->assertTrue(model(Sale::class)->update($invoice, ['comment' => 'edited', 'invoice_number' => null]));
+
+        $this->assertSame($prefix . '001', model(Sale::class)->get_invoice_number($invoice));
+    }
+
+    public function testUpdate_ClearsATypedInvoiceNumberTheFormLeavesBlankAsBefore(): void
+    {
+        $prefix  = $this->freshPrefix();
+        $invoice = $this->saveSale(SALE_TYPE_INVOICE, [], COMPLETED, NEW_ENTRY, $prefix . 'HAND');
+
+        $this->assertTrue(model(Sale::class)->update($invoice, ['comment' => 'edited', 'invoice_number' => null]));
+
+        $this->assertNull(model(Sale::class)->get_invoice_number($invoice));
+    }
+
+    public function testUpdate_ReplacesTheInvoiceNumberOfTheSequenceWithOneTypedByHand(): void
+    {
+        $prefix = $this->freshPrefix();
+        $this->switchOn(DocumentType::SalesInvoice, $prefix, 3, 1);
+        $invoice = $this->saveSale(SALE_TYPE_INVOICE, []);
+
+        $this->assertTrue(model(Sale::class)->update($invoice, ['comment' => 'edited', 'invoice_number' => $prefix . 'HAND']));
+
+        $this->assertSame($prefix . 'HAND', model(Sale::class)->get_invoice_number($invoice));
+    }
+
+    public function testGetInvoiceNumber_ReturnsNothingForAMissingSale(): void
+    {
+        $this->assertNull(model(Sale::class)->get_invoice_number(999999999));
     }
 }
