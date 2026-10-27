@@ -8,8 +8,9 @@ use Config\Database;
 
 /**
  * Who holds the permissions that close and reopen periods, enter opening balances, turn accounting
- * on and off, change the routing, open treasuries and move money between them, and enter supplier
- * payments and opening balances, and the record of who handed them out or took them back.
+ * on and off, change the routing, open treasuries and move money between them, settle what branches
+ * owe each other, and enter supplier payments and opening balances, and the record of who handed
+ * them out or took them back.
  */
 final class SensitivePermissions
 {
