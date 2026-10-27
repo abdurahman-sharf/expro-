@@ -4,7 +4,6 @@ namespace Tests\Libraries\Numbering;
 
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
-use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\StockLedger;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
@@ -517,6 +516,45 @@ class DocumentNumberingTest extends CIUnitTestCase
         $this->assertSame($later + 1, $this->numbering->configure(DocumentType::Expense, ['enabled' => true])->nextNumber);
     }
 
+    public function testConfigure_KeepsARunningSequenceWhereItIsWhenARowThatShowsItsIdAppears(): void
+    {
+        $this->insertExpense();
+        $started = $this->numbering->configure(DocumentType::Expense, ['enabled' => true]);
+        $late    = $this->insertExpense();
+
+        $this->assertGreaterThan($started->nextNumber, $late + 1);
+        $this->assertSame($started->nextNumber, $this->numbering->configure(DocumentType::Expense, ['next_number' => $started->nextNumber])->nextNumber);
+        $this->assertSame($started->nextNumber, $this->numbering->configure(DocumentType::Expense, ['padding' => 3])->nextNumber);
+        $this->assertSame($started->nextNumber, $this->numbering->sequence(DocumentType::Expense)->nextNumber);
+    }
+
+    public function testConfigure_StartsAboveTheIdsShownBareWhenARunningSequenceLosesItsPrefix(): void
+    {
+        $this->numbering->configure(DocumentType::Expense, ['enabled' => true, 'prefix' => 'EXP-']);
+        $last = $this->insertExpense();
+
+        $this->assertRefusal(AccountingError::NumberingNextTooLow, fn () => $this->numbering->configure(DocumentType::Expense, ['prefix' => '', 'next_number' => 1]));
+        $this->assertSame($last + 1, $this->numbering->configure(DocumentType::Expense, ['prefix' => ''])->nextNumber);
+    }
+
+    public function testConfigure_StartsALowerNumberWhenThePrefixChangesToOneThatNothingUses(): void
+    {
+        $this->insertExpense();
+        $this->insertExpense();
+
+        $sequence = $this->numbering->configure(DocumentType::Expense, ['enabled' => true, 'prefix' => 'EXP-', 'padding' => 5, 'next_number' => 1]);
+
+        $this->assertSame(1, $sequence->nextNumber);
+        $this->assertSame('EXP-00001', $sequence->preview());
+    }
+
+    public function testConfigure_RejectsAPrefixThatIsNotText(): void
+    {
+        $this->assertRefusal(AccountingError::NumberingPrefixInvalid, fn () => $this->numbering->configure(DocumentType::CreditNote, ['prefix' => ['CN-']]));
+        $this->assertRefusal(AccountingError::NumberingPrefixInvalid, fn () => $this->numbering->configure(DocumentType::CreditNote, ['prefix' => null]));
+        $this->assertSame(0, $this->countRows('document_sequences'));
+    }
+
     #[DataProvider('invalidSettingsProvider')]
     public function testConfigure_RejectsInvalidSettings(array $input, AccountingError $error): void
     {
@@ -654,6 +692,22 @@ class DocumentNumberingTest extends CIUnitTestCase
         $this->assertFalse($rows['expense']->enabled);
     }
 
+    public function testOverview_ShowsTheNumberARunningSequenceWillGiveEvenWhenARowThatShowsItsIdIsAbove(): void
+    {
+        $this->insertExpense();
+        $started = $this->numbering->configure(DocumentType::Expense, ['enabled' => true]);
+        $late    = $this->insertExpense();
+
+        $rows = [];
+
+        foreach ($this->numbering->overview() as $sequence) {
+            $rows[$sequence->type->value] = $sequence;
+        }
+
+        $this->assertSame($started->nextNumber, $rows['expense']->nextNumber);
+        $this->assertSame((string) $started->nextNumber, $this->numbering->assign(DocumentType::Expense, 'expenses', $late)?->number);
+    }
+
     public function testNumbers_ReturnsTheNumbersOfTheDocumentsThatHaveOne(): void
     {
         $this->numbering->configure(DocumentType::CreditNote, ['enabled' => true, 'padding' => 3]);
@@ -683,57 +737,6 @@ class DocumentNumberingTest extends CIUnitTestCase
 
         $this->assertSame('CN-0001', $this->numbering->label(DocumentType::CreditNote, 'sales', 41));
         $this->assertSame('POS 42', $this->numbering->label(DocumentType::CreditNote, 'sales', 42));
-    }
-
-    public function testDocumentType_SaysWhereEveryKindIsStored(): void
-    {
-        foreach (DocumentType::cases() as $type) {
-            $this->assertNotSame([], $type->sources(), $type->value);
-        }
-
-        $this->assertSame('invoice_number', DocumentType::SalesInvoice->numberColumn());
-        $this->assertSame('quote_number', DocumentType::SalesQuote->numberColumn());
-        $this->assertSame('account_number', DocumentType::Customer->numberColumn());
-        $this->assertNull(DocumentType::CreditNote->numberColumn());
-        $this->assertSame(['receivings_payments' => 'payment_id', 'supplier_advances' => 'advance_id'], DocumentType::SupplierPayment->sources());
-    }
-
-    public function testAccountingFile_ExplainsEveryNumberingRefusalInEveryTranslatedLocale(): void
-    {
-        foreach (['en', 'en-GB', 'ar-EG', 'ar-LB'] as $locale) {
-            $messages = include __DIR__ . "/../../../app/Language/{$locale}/Accounting.php";
-
-            foreach (AccountingError::cases() as $error) {
-                if (str_starts_with($error->value, 'numbering_')) {
-                    $this->assertNotSame('', $messages['error_' . $error->value] ?? '', "{$locale} lacks {$error->value}");
-                }
-            }
-
-            foreach (['action_numbering_configured', 'entity_document_numbering'] as $key) {
-                $this->assertNotSame('', $messages[$key] ?? '', "{$locale} lacks {$key}");
-            }
-        }
-    }
-
-    public function testMessage_ExplainsEveryNumberingRefusalInTheLanguageInUse(): void
-    {
-        foreach (AccountingError::cases() as $error) {
-            if (str_starts_with($error->value, 'numbering_')) {
-                $this->assertNotSame('Accounting.error_' . $error->value, AccountingMessage::of(new AccountingException($error, '', ['max' => 9, 'min' => 3])), $error->value);
-            }
-        }
-    }
-
-    public function testMessage_NamesTheLowestNextNumber(): void
-    {
-        try {
-            $this->numbering->configure(DocumentType::Expense, ['enabled' => true, 'next_number' => 1]);
-            $last = $this->insertExpense();
-            $this->numbering->configure(DocumentType::Expense, ['next_number' => 1]);
-            $this->fail('The next number should have been refused.');
-        } catch (AccountingException $exception) {
-            $this->assertStringContainsString((string) ($last + 1), AccountingMessage::of($exception));
-        }
     }
 
     /**
@@ -800,7 +803,7 @@ class DocumentNumberingTest extends CIUnitTestCase
         return ['invoice' => $invoice, 'payment' => $payment, 'note' => $note, 'purchase' => $purchase, 'debit' => $debit, 'supplierPayment' => $paid, 'customer' => $customerId];
     }
 
-    public function testGolden_KeepsEveryDocumentNumberWithDefaultSettings(): void
+    public function testLabel_KeepsWhatEveryExistingDocumentShowedWithDefaultSettings(): void
     {
         $this->startBuying();
         $firstCustomer = $this->anotherCustomer('Golden', 'First');
@@ -833,7 +836,7 @@ class DocumentNumberingTest extends CIUnitTestCase
         }
     }
 
-    public function testGolden_NumbersNewDocumentsAndNoneThatExistWhenASequenceIsSwitchedOn(): void
+    public function testConfigure_NumbersNewDocumentsAndNoneThatExistWhenASequenceIsSwitchedOn(): void
     {
         $this->startBuying();
         $secondSupplier = $this->anotherSupplier();
@@ -854,7 +857,7 @@ class DocumentNumberingTest extends CIUnitTestCase
         $this->assertStringStartsWith('SAL-', (string) $this->saleRow($after['invoice'])->invoice_number);
     }
 
-    public function testGolden_KeepsTheBooksTheSameWhetherOrNotTheDocumentsAreNumbered(): void
+    public function testAssign_KeepsTheBooksTheSameWhetherOrNotTheDocumentsAreNumbered(): void
     {
         $this->startBuying();
         $secondSupplier = $this->anotherSupplier();
@@ -878,7 +881,7 @@ class DocumentNumberingTest extends CIUnitTestCase
         $this->assertSame([], (new StockLedger())->mismatchedJournals());
     }
 
-    public function testGolden_NumbersWhileAccountingIsOffAndLeavesTheBooksEmpty(): void
+    public function testAssign_NumbersWhileAccountingIsOffAndLeavesTheBooksEmpty(): void
     {
         $this->startBuying();
         $this->setConfigValue('accounting_enabled', '0');

@@ -1068,14 +1068,17 @@ class Config extends Secure_Controller
             return $this->response->setJSON(['success' => false, 'message' => lang('Accounting.error_numbering_type_unknown')]);
         }
 
+        $padding    = $this->request->getPost('padding') ?? '';
+        $nextNumber = $this->request->getPost('next_number');
+
         $input = [
             'enabled' => $this->request->getPost('enabled') !== null,
-            'prefix'  => (string) $this->request->getPost('prefix'),
-            'padding' => trim((string) $this->request->getPost('padding')) === '' ? 0 : $this->request->getPost('padding'),
+            'prefix'  => $this->request->getPost('prefix') ?? '',
+            'padding' => is_string($padding) && trim($padding) === '' ? 0 : $padding,
         ];
 
-        if (trim((string) $this->request->getPost('next_number')) !== '') {
-            $input['next_number'] = $this->request->getPost('next_number');
+        if ($nextNumber !== null && (! is_string($nextNumber) || trim($nextNumber) !== '')) {
+            $input['next_number'] = $nextNumber;
         }
 
         if ($documentType->hasDuplicateOption()) {

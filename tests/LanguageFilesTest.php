@@ -8,6 +8,7 @@ use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\ReadinessCode;
 use App\Libraries\Accounting\RoutingKey;
 use App\Libraries\Accounting\RoutingType;
+use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchError;
 use CodeIgniter\Test\CIUnitTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -62,6 +63,31 @@ class LanguageFilesTest extends CIUnitTestCase
 
         foreach (PostingError::cases() as $error) {
             $this->assertNotSame('', $messages['posting_' . $error->value] ?? '', "{$locale} lacks the posting message for {$error->value}");
+        }
+    }
+
+    #[DataProvider('translatedLocaleProvider')]
+    public function testAccountingFile_LabelsTheNumberingAuditEntries(string $locale): void
+    {
+        $messages = include __DIR__ . "/../app/Language/{$locale}/Accounting.php";
+
+        foreach (['action_numbering_configured', 'entity_document_numbering'] as $key) {
+            $this->assertNotSame('', $messages[$key] ?? '', "{$locale} lacks {$key}");
+        }
+    }
+
+    #[DataProvider('translatedLocaleProvider')]
+    public function testNumberingFile_LabelsEveryKindOfDocumentAndEveryLineOfTheScreen(string $locale): void
+    {
+        $messages = include __DIR__ . "/../app/Language/{$locale}/Numbering.php";
+        $english  = include __DIR__ . '/../app/Language/en/Numbering.php';
+
+        foreach (DocumentType::cases() as $type) {
+            $this->assertNotSame('', $messages['type_' . $type->value] ?? '', "{$locale} lacks the label of {$type->value}");
+        }
+
+        foreach (array_keys($english) as $key) {
+            $this->assertNotSame('', $messages[$key] ?? '', "{$locale} lacks {$key}");
         }
     }
 

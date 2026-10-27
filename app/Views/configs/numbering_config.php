@@ -81,7 +81,7 @@ $numbering ??= [];
                             'type'  => 'number',
                             'class' => 'form-control form-control-sm',
                             'value' => $sequence->nextNumber,
-                            'min'   => $sequence->nextNumber,
+                            'min'   => $sequence->enabled ? $sequence->nextNumber : 1,
                             'max'   => DocumentNumbering::MAX_NEXT,
                             'dir'   => 'ltr',
                         ]) ?>
@@ -140,7 +140,7 @@ $numbering ??= [];
                             if (response.success) {
                                 const enabled = form.find('input[name="enabled"]').is(':checked');
 
-                                form.find('input[name="next_number"]').val(response.next).attr('min', response.next);
+                                form.find('input[name="next_number"]').val(response.next).attr('min', enabled ? response.next : 1);
                                 form.find('.numbering-preview').text(response.preview);
                                 form.find('.numbering-status')
                                     .text(enabled ? <?= json_encode(lang('Numbering.status_on')) ?> : <?= json_encode(lang('Numbering.status_off')) ?>)

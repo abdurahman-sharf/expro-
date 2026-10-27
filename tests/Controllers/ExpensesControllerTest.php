@@ -9,6 +9,7 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use Config\Database;
+use Config\OSPOS;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 
@@ -156,7 +157,7 @@ class ExpensesControllerTest extends CIUnitTestCase
     public function testPostSave_NumbersTheExpenseThatTheFormAdds(): void
     {
         $this->switchOn();
-        $settings = config(\Config\OSPOS::class)->settings;
+        $settings = config(OSPOS::class)->settings;
 
         $response = $this->post('/expenses/save/-1', [
             'date'                => date(($settings['dateformat'] ?? 'm/d/Y') . ' ' . ($settings['timeformat'] ?? 'H:i:s')),

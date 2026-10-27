@@ -13,7 +13,9 @@ use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchGuard;
 use App\Models\Employee;
+use CodeIgniter\Test\TestResponse;
 use Config\Database;
+use Config\OSPOS;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
@@ -1929,7 +1931,7 @@ class SalesControllerTest extends CIUnitTestCase
     /**
      * Completes the sale of one cart line in the mode given, as the register does, and returns the response.
      */
-    private function completeAs(string $mode): \CodeIgniter\Test\TestResponse
+    private function completeAs(string $mode): TestResponse
     {
         $cashierId = $this->createCashierEmployee();
         $itemId    = $this->createTestItem(HAS_NO_STOCK);
@@ -1957,12 +1959,12 @@ class SalesControllerTest extends CIUnitTestCase
     {
         $format = 'LGC' . random_int(100000, 999999);
         $before = $this->config()['sales_invoice_format'];
-        config(\Config\OSPOS::class)->settings['sales_invoice_format'] = $format;
+        config(OSPOS::class)->settings['sales_invoice_format'] = $format;
 
         try {
             $response = $this->completeAs('sale_invoice');
         } finally {
-            config(\Config\OSPOS::class)->settings['sales_invoice_format'] = $before;
+            config(OSPOS::class)->settings['sales_invoice_format'] = $before;
         }
 
         $response->assertSee($format);
@@ -1985,12 +1987,12 @@ class SalesControllerTest extends CIUnitTestCase
     {
         $format = 'QLG' . random_int(100000, 999999);
         $before = $this->config()['sales_quote_format'];
-        config(\Config\OSPOS::class)->settings['sales_quote_format'] = $format;
+        config(OSPOS::class)->settings['sales_quote_format'] = $format;
 
         try {
             $response = $this->completeAs('sale_quote');
         } finally {
-            config(\Config\OSPOS::class)->settings['sales_quote_format'] = $before;
+            config(OSPOS::class)->settings['sales_quote_format'] = $before;
         }
 
         $response->assertSee($format);
