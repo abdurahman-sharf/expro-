@@ -51,7 +51,7 @@ class SaleLoaderTest extends CIUnitTestCase
 
         $document = (new SaleLoader())->load($saleId);
 
-        $this->assertSame(['7.6056', '12.3944'], array_map(static fn ($line): string => bcadd($line->invoiceDiscountShare, '0', 4), $document->lines));
+        $this->assertSame(['7.6100', '12.3900'], array_map(static fn ($line): string => bcadd($line->invoiceDiscountShare, '0', 4), $document->lines));
     }
 
     public function testLoad_ReadsASaleSavedBeforeTheDiscountExistedAsOneWithoutShares(): void

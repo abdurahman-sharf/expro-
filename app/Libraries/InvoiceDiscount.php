@@ -7,8 +7,9 @@ use App\Libraries\Accounting\SaleAmounts;
 /**
  * The discount on the whole of a sale, taken after the discounts of its lines. It is a percentage of
  * what the lines come to or an amount, rounded to the decimals the shop works in, and it is shared
- * out over the lines in proportion to what each comes to, with what rounding leaves over on the last
- * line that carries any. Every figure that depends on it (the tax of each line, the journal of the
+ * out over the lines in proportion to what each comes to, every share rounded to those decimals too
+ * so that a line never sells for more decimals than it did without the discount, with what rounding
+ * leaves over on the last line that carries any. Every figure that depends on it (the tax of each line, the journal of the
  * invoice, the reports) reads these shares and never works the discount out again, so they cannot
  * disagree. A return takes back the share of what it returns, and the last return of an item takes
  * all that is left of it, so the returns of a sale give back exactly what it was given.
@@ -61,7 +62,7 @@ final class InvoiceDiscount
 
         return bccomp($amount, '0', self::SCALE) === 0
             ? self::none()
-            : new InvoiceDiscountPlan($type, $value, $amount, self::allocate($bases, $amount));
+            : new InvoiceDiscountPlan($type, $value, $amount, self::allocate($bases, $amount, $decimals));
     }
 
     /**
@@ -83,7 +84,7 @@ final class InvoiceDiscount
         $shares = [];
         $amount = '0';
 
-        foreach (self::returnShares($lines, $origin) as $key => $share) {
+        foreach (self::returnShares($lines, $origin, $decimals) as $key => $share) {
             $share        = bccomp($share, $bases[$key], self::SCALE) > 0 ? $bases[$key] : $share;
             $shares[$key] = bccomp($share, '0', self::SCALE) === 0 ? '0.0000' : bcsub('0', $share, self::SCALE);
             $amount       = bcadd($amount, $share, self::SCALE);
@@ -204,11 +205,11 @@ final class InvoiceDiscount
      *
      * @return array<int|string, string>
      */
-    public static function allocate(array $bases, string $amount): array
+    public static function allocate(array $bases, string $amount, int $decimals): array
     {
         $open = array_keys(array_filter($bases, static fn (string $base): bool => bccomp($base, '0', self::SCALE) > 0));
 
-        return $open === [] ? self::proportional($bases, '0.0000') : self::keptWithin(self::proportional($bases, $amount), $bases, $open);
+        return $open === [] ? self::proportional($bases, '0.0000', $decimals) : self::keptWithin(self::proportional($bases, $amount, $decimals), $bases, $open);
     }
 
     /**
@@ -221,7 +222,7 @@ final class InvoiceDiscount
      *
      * @return array<int|string, string>
      */
-    public static function returnShares(array $lines, array $origin): array
+    public static function returnShares(array $lines, array $origin, int $decimals): array
     {
         $shares = array_fill_keys(array_keys($lines), '0.0000');
         $byItem = [];
@@ -250,11 +251,11 @@ final class InvoiceDiscount
             if (bccomp($giving, $leftUnits, self::UNITS) >= 0) {
                 $total = $leftShare;
             } else {
-                $part  = SaleAmounts::round(bcdiv(bcmul($basis['share'], $giving, self::WORK), $basis['sold'], self::WORK), self::SCALE);
+                $part  = SaleAmounts::round(bcdiv(bcmul($basis['share'], $giving, self::WORK), $basis['sold'], self::WORK), $decimals);
                 $total = bccomp($part, $leftShare, self::SCALE) > 0 ? $leftShare : $part;
             }
 
-            foreach (self::proportional($units, $total) as $key => $share) {
+            foreach (self::proportional($units, $total, $decimals) as $key => $share) {
                 $shares[$key] = $share;
             }
         }
@@ -267,7 +268,7 @@ final class InvoiceDiscount
      *
      * @return array<int|string, string>
      */
-    private static function proportional(array $weights, string $amount): array
+    private static function proportional(array $weights, string $amount, int $decimals): array
     {
         $shares = array_fill_keys(array_keys($weights), '0.0000');
         $open   = array_keys(array_filter($weights, static fn (string $weight): bool => bccomp($weight, '0', self::SCALE) > 0));
@@ -288,7 +289,7 @@ final class InvoiceDiscount
         foreach ($open as $position => $key) {
             $share = $position === $last
                 ? bcsub($amount, $given, self::SCALE)
-                : SaleAmounts::round(bcdiv(bcmul($amount, $weights[$key], self::WORK), $total, self::WORK), self::SCALE);
+                : bcadd(SaleAmounts::round(bcdiv(bcmul($amount, $weights[$key], self::WORK), $total, self::WORK), $decimals), '0', self::SCALE);
 
             $shares[$key] = $share;
             $given        = bcadd($given, $share, self::SCALE);

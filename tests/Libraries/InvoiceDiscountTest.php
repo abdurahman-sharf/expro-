@@ -77,44 +77,44 @@ class InvoiceDiscountTest extends CIUnitTestCase
 
     public function testAllocate_SharesTheReferenceFixedDiscountInProportionToTheLines(): void
     {
-        $shares = InvoiceDiscount::allocate(['a' => '135.0000', 'b' => '220.0000'], '20.0000');
+        $shares = InvoiceDiscount::allocate(['a' => '135.0000', 'b' => '220.0000'], '20.0000', 2);
 
-        $this->assertSame(['a' => '7.6056', 'b' => '12.3944'], $shares);
+        $this->assertSame(['a' => '7.6100', 'b' => '12.3900'], $shares);
     }
 
     public function testAllocate_SharesThePercentageDiscountExactlyInProportion(): void
     {
-        $shares = InvoiceDiscount::allocate([1 => '135.0000', 2 => '220.0000'], '35.5000');
+        $shares = InvoiceDiscount::allocate([1 => '135.0000', 2 => '220.0000'], '35.5000', 2);
 
         $this->assertSame([1 => '13.5000', 2 => '22.0000'], $shares);
     }
 
     public function testAllocate_LeavesWhatRoundingLeavesOverOnTheLastLine(): void
     {
-        $shares = InvoiceDiscount::allocate([1 => '10.0000', 2 => '10.0000', 3 => '10.0000'], '10.0000');
+        $shares = InvoiceDiscount::allocate([1 => '10.0000', 2 => '10.0000', 3 => '10.0000'], '10.0000', 2);
 
-        $this->assertSame(['3.3333', '3.3333', '3.3334'], array_values($shares));
+        $this->assertSame(['3.3300', '3.3300', '3.3400'], array_values($shares));
         $this->assertSame('10.0000', $this->sum($shares));
     }
 
     public function testAllocate_GivesNothingToALineThatComesToNothing(): void
     {
-        $shares = InvoiceDiscount::allocate([1 => '50.0000', 2 => '0.0000', 3 => '50.0000', 4 => '0.0000'], '10.0000');
+        $shares = InvoiceDiscount::allocate([1 => '50.0000', 2 => '0.0000', 3 => '50.0000', 4 => '0.0000'], '10.0000', 2);
 
         $this->assertSame([1 => '5.0000', 2 => '0.0000', 3 => '5.0000', 4 => '0.0000'], $shares);
     }
 
     public function testAllocate_GivesNothingWhenThereIsNoDiscountOrNothingToTakeItFrom(): void
     {
-        $this->assertSame([1 => '0.0000', 2 => '0.0000'], InvoiceDiscount::allocate([1 => '5.0000', 2 => '5.0000'], '0.0000'));
-        $this->assertSame([1 => '0.0000'], InvoiceDiscount::allocate([1 => '0.0000'], '5.0000'));
-        $this->assertSame([], InvoiceDiscount::allocate([], '5.0000'));
+        $this->assertSame([1 => '0.0000', 2 => '0.0000'], InvoiceDiscount::allocate([1 => '5.0000', 2 => '5.0000'], '0.0000', 2));
+        $this->assertSame([1 => '0.0000'], InvoiceDiscount::allocate([1 => '0.0000'], '5.0000', 2));
+        $this->assertSame([], InvoiceDiscount::allocate([], '5.0000', 2));
     }
 
     public function testAllocate_TakesAWholeSaleBackToTheLastCent(): void
     {
         $bases  = [1 => '135.0000', 2 => '220.0000', 3 => '9.9900'];
-        $shares = InvoiceDiscount::allocate($bases, '364.9900');
+        $shares = InvoiceDiscount::allocate($bases, '364.9900', 2);
 
         $this->assertSame($bases, $shares);
     }
@@ -137,7 +137,7 @@ class InvoiceDiscountTest extends CIUnitTestCase
             }
 
             $amount = bcmul($total, number_format(mt_rand(0, 10000) / 10000, 4, '.', ''), 2);
-            $shares = InvoiceDiscount::allocate($bases, $amount);
+            $shares = InvoiceDiscount::allocate($bases, $amount, 2);
 
             foreach ($bases as $key => $base) {
                 $this->assertGreaterThanOrEqual(0, bccomp($shares[$key], '0', 4), "round {$round}");
@@ -150,7 +150,7 @@ class InvoiceDiscountTest extends CIUnitTestCase
 
     public function testAllocate_MovesAHairOfRoundingOffALineThatWouldGoBelowNothing(): void
     {
-        $shares = InvoiceDiscount::allocate([1 => '0.0001', 2 => '0.0001', 3 => '0.0001', 4 => '0.0001'], '0.0003');
+        $shares = InvoiceDiscount::allocate([1 => '0.0001', 2 => '0.0001', 3 => '0.0001', 4 => '0.0001'], '0.0003', 4);
 
         $this->assertSame('0.0003', $this->sum($shares));
 
@@ -160,33 +160,70 @@ class InvoiceDiscountTest extends CIUnitTestCase
         }
     }
 
+    public function testAllocate_MovesAHairOfRoundingOffALineThatWouldGoBelowNothingAtTheDecimalsOfTheShop(): void
+    {
+        $shares = InvoiceDiscount::allocate([1 => '0.03', 2 => '0.03', 3 => '0.03', 4 => '0.01'], '0.05', 2);
+
+        $this->assertSame('0.0500', $this->sum($shares));
+
+        foreach ([1 => '0.03', 2 => '0.03', 3 => '0.03', 4 => '0.01'] as $key => $base) {
+            $this->assertGreaterThanOrEqual(0, bccomp($shares[$key], '0', 4));
+            $this->assertLessThanOrEqual(0, bccomp($shares[$key], $base, 4));
+        }
+    }
+
+    public function testAllocate_RoundsEveryShareToTheDecimalsTheShopWorksIn(): void
+    {
+        mt_srand(20261241);
+
+        foreach ([0, 1, 2] as $decimals) {
+            for ($round = 0; $round < 200; $round++) {
+                $bases = [];
+
+                for ($line = 0, $count = mt_rand(2, 6); $line < $count; $line++) {
+                    $bases[$line] = number_format(mt_rand(1, 200000) / (10 ** $decimals), 4, '.', '');
+                }
+
+                $total  = array_reduce($bases, static fn (string $sum, string $base): string => bcadd($sum, $base, 4), '0');
+                $amount = InvoiceDiscount::amount(PERCENT, (string) mt_rand(1, 99), $total, $decimals);
+
+                foreach (InvoiceDiscount::allocate($bases, $amount, $decimals) as $key => $share) {
+                    $this->assertSame(0, bccomp($share, bcadd($share, '0', $decimals), 4), "{$decimals} decimals, round {$round}, line {$key}: {$share}");
+                }
+            }
+        }
+    }
+
     public function testReturnShares_TakesBackTheShareOfTheUnitsReturned(): void
     {
         $origin = [10 => ['sold' => '4', 'share' => '8.0000', 'returned' => '0', 'returnedShare' => '0.0000']];
 
-        $this->assertSame([1 => '2.0000'], InvoiceDiscount::returnShares([1 => [10, '1']], $origin));
-        $this->assertSame([1 => '6.0000'], InvoiceDiscount::returnShares([1 => [10, '3']], $origin));
+        $this->assertSame([1 => '2.0000'], InvoiceDiscount::returnShares([1 => [10, '1']], $origin, 2));
+        $this->assertSame([1 => '6.0000'], InvoiceDiscount::returnShares([1 => [10, '3']], $origin, 2));
     }
 
     public function testReturnShares_GivesTheLastReturnOfAnItemAllThatIsLeftOfItsShare(): void
     {
-        $origin = [10 => ['sold' => '3', 'share' => '10.0000', 'returned' => '2', 'returnedShare' => '6.6666']];
+        $origin = [10 => ['sold' => '3', 'share' => '10.0000', 'returned' => '2', 'returnedShare' => '6.6600']];
 
-        $this->assertSame([1 => '3.3334'], InvoiceDiscount::returnShares([1 => [10, '1']], $origin));
+        $this->assertSame([1 => '3.3400'], InvoiceDiscount::returnShares([1 => [10, '1']], $origin, 2));
     }
 
     public function testReturnShares_AddsUpToExactlyTheShareOfTheSaleAcrossAllItsReturns(): void
     {
-        $given   = '0.0000';
+        $given    = '0.0000';
         $returned = '0';
+        $taken    = [];
 
         foreach (['1', '1', '1'] as $units) {
-            $origin = [10 => ['sold' => '3', 'share' => '10.0000', 'returned' => $returned, 'returnedShare' => $given]];
-            $share  = InvoiceDiscount::returnShares([1 => [10, $units]], $origin)[1];
+            $origin   = [10 => ['sold' => '3', 'share' => '10.0000', 'returned' => $returned, 'returnedShare' => $given]];
+            $share    = InvoiceDiscount::returnShares([1 => [10, $units]], $origin, 2)[1];
+            $taken[]  = $share;
             $given    = bcadd($given, $share, 4);
             $returned = bcadd($returned, $units, 3);
         }
 
+        $this->assertSame(['3.3300', '3.3300', '3.3400'], $taken);
         $this->assertSame('10.0000', $given);
     }
 
@@ -194,21 +231,21 @@ class InvoiceDiscountTest extends CIUnitTestCase
     {
         $origin = [10 => ['sold' => '4', 'share' => '8.0000', 'returned' => '1', 'returnedShare' => '7.9000']];
 
-        $this->assertSame([1 => '0.1000'], InvoiceDiscount::returnShares([1 => [10, '2']], $origin));
+        $this->assertSame([1 => '0.1000'], InvoiceDiscount::returnShares([1 => [10, '2']], $origin, 2));
     }
 
     public function testReturnShares_GivesNothingBackForAnItemTheSaleNeverHad(): void
     {
         $origin = [10 => ['sold' => '4', 'share' => '8.0000', 'returned' => '0', 'returnedShare' => '0.0000']];
 
-        $this->assertSame([1 => '0.0000', 2 => '2.0000'], InvoiceDiscount::returnShares([1 => [99, '1'], 2 => [10, '1']], $origin));
+        $this->assertSame([1 => '0.0000', 2 => '2.0000'], InvoiceDiscount::returnShares([1 => [99, '1'], 2 => [10, '1']], $origin, 2));
     }
 
     public function testReturnShares_SharesAnItemAcrossTheLinesItIsReturnedOnInProportionToTheirUnits(): void
     {
         $origin = [10 => ['sold' => '4', 'share' => '8.0000', 'returned' => '0', 'returnedShare' => '0.0000']];
 
-        $this->assertSame([1 => '2.0000', 2 => '4.0000'], InvoiceDiscount::returnShares([1 => [10, '1'], 2 => [10, '2']], $origin));
+        $this->assertSame([1 => '2.0000', 2 => '4.0000'], InvoiceDiscount::returnShares([1 => [10, '1'], 2 => [10, '2']], $origin, 2));
     }
 
     /**

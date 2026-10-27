@@ -174,15 +174,15 @@ trait SaleAccountingFixtureTrait
     /**
      * The reference invoice with a discount on the whole of it, as the register would save it: the
      * taxes are of what is left of each line after its share. A tenth of 710 takes 27 off the creams and
-     * 44 off the perfumes, so there is 639 of goods and 95.85 of tax. An amount of 20 takes 7.6056 and
-     * 12.3944 off, so there is 690 of goods and 103.50 of tax.
+     * 44 off the perfumes, so there is 639 of goods and 95.85 of tax. An amount of 20 takes 7.61 and
+     * 12.39 off, so there is 690 of goods and 103.50 of tax.
      *
      * @return array{items: list<array<string, mixed>>, taxes: list<array<string, mixed>>, cream: int, perfume: int, discount: array{type: int, value: string}}
      */
     protected function discountedReferenceInvoice(bool $percent = true): array
     {
         $cycle = $this->referenceInvoice();
-        [$creamTax, $perfumeTax] = $percent ? ['36.45', '59.40'] : ['39.3592', '64.1408'];
+        [$creamTax, $perfumeTax] = $percent ? ['36.45', '59.40'] : ['39.3585', '64.1415'];
 
         return [
             'items'    => $cycle['items'],

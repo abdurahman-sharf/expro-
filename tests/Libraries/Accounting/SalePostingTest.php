@@ -1562,7 +1562,7 @@ class SalePostingTest extends CIUnitTestCase
 
         $this->assertSame((string) FIXED, (string) $sale->invoice_discount_type);
         $this->assertSame('20.0000', $sale->invoice_discount);
-        $this->assertSame(['0' => '7.6056', '1' => '12.3944'], $this->sharesOf($saleId));
+        $this->assertSame(['0' => '7.6100', '1' => '12.3900'], $this->sharesOf($saleId));
     }
 
     public function testSaveValue_LeavesTheColumnsOfTheDiscountEmptyOnASaleWithoutOne(): void
@@ -1632,7 +1632,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->save($cycle['items'], [], [], SALE_TYPE_QUOTE, -1, true, null, SUSPENDED, $saleId, ['type' => FIXED, 'value' => '20']);
 
         $this->assertSame((string) FIXED, (string) $this->saleRow($saleId)->invoice_discount_type);
-        $this->assertSame(['0' => '7.6056', '1' => '12.3944'], $this->sharesOf($saleId));
+        $this->assertSame(['0' => '7.6100', '1' => '12.3900'], $this->sharesOf($saleId));
 
         $this->save($cycle['items'], [], [], SALE_TYPE_QUOTE, -1, true, null, SUSPENDED, $saleId);
 
@@ -1955,6 +1955,34 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame(bcsub('0', $return['subtotal'], 2), $this->balance($this->accountId('sales_returns')), 'the report of the return is the returns account');
         $this->assertSame(bcsub('0', bcadd($invoice['tax'], $return['tax'], 2), 2), $this->balance($this->accountId('tax_output')));
         $this->assertSame(bcadd($invoice['total'], $return['total'], 2), $this->balance($this->customerAccount()));
+    }
+
+    public function testSaveValue_TiesTheSalesReportOfAnInvoiceWhoseDiscountDoesNotShareOutEvenlyOverItsLinesToTheLastCent(): void
+    {
+        $items = [];
+        $taxes = [];
+        $first = $this->item('10.00');
+
+        foreach ([0 => [$first, '14.5005'], 1 => [$this->item('10.00'), '14.5005'], 2 => [$this->item('10.00'), '14.4990']] as $line => [$item, $tax]) {
+            $items[] = $this->line($item, $line, '1', '100', '10.00');
+            $taxes[] = $this->tax($item, $line, $tax);
+        }
+
+        $invoiceId = $this->save($items, $taxes, [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, ['type' => FIXED, 'value' => '10']);
+
+        $this->assertGreaterThan(0, $invoiceId);
+        $this->assertSame(['0' => '3.3300', '1' => '3.3300', '2' => '3.3400'], $this->sharesOf($invoiceId));
+        $this->assertSame(['subtotal' => '290.00', 'tax' => '43.50', 'total' => '333.50'], $this->reportOf($invoiceId));
+        $this->assertSame('290.00', bcsub('0', $this->balance($this->accountId('sales_revenue')), 2));
+        $this->assertSame('43.50', bcsub('0', $this->balance($this->accountId('tax_output')), 2));
+        $this->assertSame('333.50', $this->balance($this->customerAccount()));
+
+        $returnId = $this->save([$this->line($first, 0, '-1', '100', '10.00')], [$this->tax($first, 0, '-14.50')], [], SALE_TYPE_RETURN, -1, true, $invoiceId);
+
+        $this->assertGreaterThan(0, $returnId);
+        $this->assertSame(['0' => '-3.3300'], $this->sharesOf($returnId));
+        $this->assertSame(['subtotal' => '-96.67', 'tax' => '-14.50', 'total' => '-111.17'], $this->reportOf($returnId));
+        $this->assertSame('96.67', $this->balance($this->accountId('sales_returns')));
     }
 
     public function testSaveValue_KeepsTheSalesReportOfASaleWithoutADiscountAsItWasBefore(): void

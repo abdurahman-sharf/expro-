@@ -272,8 +272,8 @@ class Sale_libTest extends CIUnitTestCase
 
         $cart = $this->saleLib->get_cart();
 
-        $this->assertSame('7.6056', $cart[1]['invoice_discount_share']);
-        $this->assertSame('12.3944', $cart[2]['invoice_discount_share']);
+        $this->assertSame('7.6100', $cart[1]['invoice_discount_share']);
+        $this->assertSame('12.3900', $cart[2]['invoice_discount_share']);
     }
 
     public function testGetCart_LeavesTheCartAsItIsWhenThereIsNoDiscount(): void

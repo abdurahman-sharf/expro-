@@ -121,10 +121,11 @@ class Tax_libTest extends CIUnitTestCase
 
     public function testGetTaxes_WorksTheTaxOfALineWithAnAmountSharedOutOnWhatIsLeft(): void
     {
-        $cart  = $this->cart('7.6056', '12.3944');
+        $cart  = $this->cart('7.6100', '12.3900');
         $taxes = $this->taxLib(false)->get_taxes($cart);
 
-        $this->assertSame('50.250', bcadd((string) array_sum(array_column($taxes[1], 'item_tax_amount')), '0', 3));
+        $this->assertSame(['19.109', '31.142'], array_map(static fn (array $row): string => bcadd($row['item_tax_amount'], '0', 3), $taxes[1]));
+        $this->assertSame('50.25', bcadd((string) array_sum(array_column($taxes[1], 'item_tax_amount')), '0', 2));
     }
 
     public function testGetTaxes_TaxesALineAsItAlwaysDidWhenItCarriesNoShare(): void
