@@ -26,9 +26,36 @@
 - **مطابقة `S-25` (مرصودة):** ملف التثبيت `tests/Support/Parity/T-25.json` بثلاث حالات: `expense-200-with-15-percent-tax` **مطابقة تامة** (مدين `541` بـ200، مدين `215002` بـ30، دائن الخزينة 230)، و`expense-journal-owes-nobody` **مطابقة تامة** (لا طرف في أي سطر)، و`amount-entered-includes-the-tax` **يختلف**: في دفترة يُدخل المستخدم 200 وتُضاف الضريبة فيصير 230، وعندنا `amount` هو المدفوع شاملًا الضريبة و`tax_amount` جزؤه (القسم 3، الافتراض 1). ويقرؤه `ExpensePostingBuilderTest` فيبني القيد من الملف نفسه. (ما عدا هذه الحالة: **لا ادعاء مطابقة**، كله افتراض مدوَّن.)
 - **اختبارات جديدة (218 اختبارًا في 12 ملفًا، ملف لكل صنف):** `ExpensePostingBuilderTest` (18) و`ExpensePostingTest` (48: كل مسار حفظ وتعديل وحذف عبر نموذج المصروف الحقيقي، الفترة المقفلة، الفرع، نطاق السحب والإيداع، التراجع الكامل وتسجيل الفشل، التاريخي، المحاسبة المعطَّلة، توازن الميزان بعد كل تغيير) و`CashupPostingBuilderTest` (7) و`CashupPostingTest` (30) و`CashupExpectationTest` (13) و`DocumentJournalsTest` (24) و`ExpenseCategoryAccountsTest` (13) و`ExpensesControllerTest` (23) و`ExpensesCategoriesControllerTest` (9) و`tests/Models/ExpenseTest` (13) و`tests/Models/CashupTest` (12) و`ExpensesAccountingMigrationTest` (8).
 - **اختبارات أُضيفت إلى ملفات قائمة (22):** `CashupControllerTest` (12: الشاشة والنقد المتوقع والرفض بكلمات) و`AccountingSettingsTest` (3) و`AccountServiceTest` (2) و`JournalServiceTest` (2: قفل العكس اليدوي وعكس آلي لمصدر المستند) و`TreasuryServiceTest` (1: خزينة استُعملت في مصروف أو إقفال تُعدّ مستعمَلة) و`TrialBalanceTest` (1: **الميزان متوازن للشركة ولكل فرع بعد المصروفات**) و`AccountingJournalsControllerTest` (1: زر العكس مخفي لقيدي المصروف والإقفال).
-- **تعطيل الحراس:** @@MUT@@
+- **تعطيل الحراس:** <!-- MUT-SUMMARY-START -->**قيد القياس: قيس 20 من 219 حارسًا حتى الآن، كُشف منها 20** (الجدول في 2.1 يُملأ دفعةً دفعة).<!-- MUT-SUMMARY-END -->
 - **الجولة المنتظمة الأخيرة (الملفات الجديدة والمتغيرة وذات الصلة، كل ملف وحده على `ospos_test_b`):** @@RUNS@@ (المجموعة الكاملة يشغّلها المُدمِج، ولم أشغّلها).
 - **التنسيق:** شُغّل `php-cs-fixer` (إعداد `.php-cs-fixer.no-header.php`) على كل ملفات `app/` الجديدة (11 ملفًا: صفر تغيير) وعلى المكتبات والمتحكمات المعدَّلة، فاقتصر الإصلاح على محاذاة مفتاح الإعداد الجديد في `AccountingSettings` و`AccountingSetup`. أما ملفات `app/Controllers` و`app/Models` و`tabular_helper.php` القديمة التي لمستُ فيها **سطورًا قليلة** فلم أُعد تنسيقها كلها (تغيير يغطي الملف بأكمله ويصعّب على المُدمِج الدمج)، وكل سطر جديد فيها على المعيار. واختبارات الملفات الجديدة على PSR-12 (صفر مخالفة).
+
+### 2.1 جدول تعطيل الحراس
+
+<!-- MUT-TABLE-START -->
+| الحارس | ما يحميه | النتيجة | اختبارات فاشلة |
+|---|---|---|---|
+| `G01` | a treasury the employee may not withdraw from cannot be posted into (assertMayPost) | مكشوف | 1 |
+| `G02` | a journal of a treasury cannot be replaced or reversed against the scopes (assertMayReplace) | مكشوف | 2 |
+| `G03` | a changed date is a change (holds: date) | مكشوف | 1 |
+| `G04` | a changed branch is a change (holds: branch) | مكشوف | 1 |
+| `G05` | changed lines are a change (holds: lines) | مكشوف | 4 |
+| `G06` | the order of the lines is not a change (holds: sort) | مكشوف | 1 |
+| `G07` | a journal of a closed period is taken back today (reverse date) | مكشوف | 1 |
+| `G08` | only a journal in the books stands (active: posted) | مكشوف | 1 |
+| `G09` | each change is the next revision (nextRevision) | مكشوف | 6 |
+| `G10` | an expense is checked against the branches of the employee (plan, followed) | مكشوف | 2 |
+| `G11` | an expense is checked against the branches of the employee (plan, deleted or moved out) | مكشوف | 2 |
+| `G12` | deleting an expense is checked against the branches of the employee (cancel) | مكشوف | 1 |
+| `G13` | an expense saved before the books followed it never gets a journal (legacy rule) | مكشوف | 1 |
+| `G14` | an expense dated before accounting starts is not followed (follows) | مكشوف | 2 |
+| `G15` | a deactivated treasury cannot be named | مكشوف | 1 |
+| `G16` | an expense keeps a treasury that was deactivated later | مكشوف | 1 |
+| `G17` | a treasury that does not exist is refused | مكشوف | 1 |
+| `G18` | a category without an account is refused when the setting asks (FIN-04) | مكشوف | 2 |
+| `G19` | an edit of the same category is not blocked by the setting | مكشوف | 1 |
+| `G20` | moving an expense to a category without an account is refused when the setting asks | مكشوف | 1 |
+<!-- MUT-TABLE-END -->
 
 ## 3. ما افترضتُه (**لم يؤكّدها المالك بعد**)
 
