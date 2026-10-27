@@ -3,8 +3,8 @@
  * @var object $expenses_info
  * @var array $payment_options
  * @var array<int, string> $treasury_options
- * @var array<int, string> $branch_options
- * @var int $branch_selected
+ * @var array<int, string> $branchOptions
+ * @var int $branchSelected
  * @var array $expense_categories
  * @var array $employees
  * @var string $controller_name
@@ -134,11 +134,11 @@
             </div>
         <?php endif; ?>
 
-        <?php if (($branch_options ?? []) !== []): ?>
+        <?php if (($branchOptions ?? []) !== []): ?>
             <div class="field">
                 <?= form_label(lang('Expenses.branch'), 'expense_branch_id', ['class' => 'form-label']) ?>
                 <div class="field-control">
-                    <?= form_dropdown('expense_branch_id', array_map('esc', $branch_options), (string) ($branch_selected ?? 0), ['class' => 'form-select', 'id' => 'expense_branch_id', 'aria-describedby' => 'expense_branch_note']) ?>
+                    <?= form_dropdown('expense_branch_id', array_map('esc', $branchOptions), (string) ($branchSelected ?? 0), ['class' => 'form-select', 'id' => 'expense_branch_id', 'aria-describedby' => 'expense_branch_note']) ?>
                     <div class="form-text" id="expense_branch_note"><?= esc(lang('Expenses.branch_note')) ?></div>
                 </div>
             </div>

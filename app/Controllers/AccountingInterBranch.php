@@ -43,7 +43,7 @@ class AccountingInterBranch extends AccountingController
     public function getIndex(): string
     {
         return view('accounting_treasuries/inter_branch', [
-            'tableHeaders'  => transform_headers($this->settlementHeaders(), true, true),
+            'tableHeaders' => transform_headers($this->settlementHeaders(), true, true),
             ...$this->pairsData(),
         ]);
     }
@@ -91,13 +91,13 @@ class AccountingInterBranch extends AccountingController
         }
 
         return view('accounting_treasuries/settle_form', [
-            'plan'            => $plan,
+            'plan'           => $plan,
             'fromTreasuries' => $this->choices($plan->payerBranchId, TreasuryScopes::WITHDRAW),
-            'toTreasuries'     => $this->choices($plan->payeeBranchId, TreasuryScopes::DEPOSIT),
-            'requestKey'      => bin2hex(random_bytes(16)),
-            'amount'          => fn (string $value): string => $this->formatAmount($value),
-            'payerCode'       => $plan->payerBranchId === null ? '' : ($plan->payerBranchId === $plan->firstBranchId ? $plan->firstCode : $plan->secondCode),
-            'payeeCode'       => $plan->payeeBranchId === null ? '' : ($plan->payeeBranchId === $plan->firstBranchId ? $plan->firstCode : $plan->secondCode),
+            'toTreasuries'   => $this->choices($plan->payeeBranchId, TreasuryScopes::DEPOSIT),
+            'requestKey'     => bin2hex(random_bytes(16)),
+            'amount'         => fn (string $value): string => $this->formatAmount($value),
+            'payerCode'      => $plan->payerBranchId === null ? '' : ($plan->payerBranchId === $plan->firstBranchId ? $plan->firstCode : $plan->secondCode),
+            'payeeCode'      => $plan->payeeBranchId === null ? '' : ($plan->payeeBranchId === $plan->firstBranchId ? $plan->firstCode : $plan->secondCode),
         ]);
     }
 
@@ -190,15 +190,15 @@ class AccountingInterBranch extends AccountingController
                 'receivable' => $this->formatAmount($row->receivable),
                 'payable'    => $this->formatAmount($row->payable),
             ], $report->unattributed),
-            'difference'    => $report->difference !== null && bccomp($report->difference, '0', 4) !== 0 ? $this->formatAmount($report->difference) : null,
-            'error'         => $error,
-            'asOf'          => $asOf,
-            'branches'      => $scope->choosable() ? $scope->choices : [],
-            'selected'      => $scope->ids,
-            'scopeLabel'    => $scope->label(),
-            'scopeEmpty'    => $scope->isEmpty(),
-            'scopePartial'  => $scope->kind === ReportScopeKind::Partial,
-            'canSettle'     => $this->can(AccountingGuard::INTERBRANCH_SETTLE),
+            'difference'   => $report->difference !== null && bccomp($report->difference, '0', 4) !== 0 ? $this->formatAmount($report->difference) : null,
+            'error'        => $error,
+            'asOf'         => $asOf,
+            'branches'     => $scope->choosable() ? $scope->choices : [],
+            'selected'     => $scope->ids,
+            'scopeLabel'   => $scope->label(),
+            'scopeEmpty'   => $scope->isEmpty(),
+            'scopePartial' => $scope->kind === ReportScopeKind::Partial,
+            'canSettle'    => $this->can(AccountingGuard::INTERBRANCH_SETTLE),
         ];
     }
 
