@@ -268,6 +268,41 @@ class StatementFiguresTest extends CIUnitTestCase
         $this->assertSame('250.0000', $this->amount($figures, AccountType::Asset, '12041', 4, expand: true), 'It stays in the account above');
     }
 
+    public function testSection_ListsAPartyThatMovedAndNetsToNothingOnlyWhenActivityIsAsked(): void
+    {
+        $customer = (new EntityAccountService())->ensure(EntityAccountService::CUSTOMER, $this->insertCustomer(), 'Omar Khaled');
+
+        $this->postOn('2026-10-05', 1, [[$customer, '100.00', '0'], [$this->accountId('sales_revenue'), '0', '100.00']]);
+        $this->postOn('2026-10-06', 1, [[$this->accountId('cash'), '100.00', '0'], [$customer, '0', '100.00']]);
+
+        $ids = fn (StatementDisplay $display): array => array_map(static fn (StatementLine $line): int => $line->accountId, $this->figures()->section(AccountType::Asset, 5, $display, true)->lines);
+
+        $this->assertContains($customer, $ids(StatementDisplay::WithActivity));
+        $this->assertContains($customer, $ids(StatementDisplay::All));
+        $this->assertNotContains($customer, $ids(StatementDisplay::HideZero), 'It stands at nothing');
+    }
+
+    public function testSection_ListsAnAccountUnderAFoldedLocationWithoutTheAccountOfTheLocation(): void
+    {
+        $entity = (new EntityAccountService())->ensure(EntityAccountService::STOCK_LOCATION, $this->insertStockLocation('Depot'), 'Depot');
+        $now    = date('Y-m-d H:i:s');
+        $db     = $this->accountingDb();
+        $parent = $db->table('accounting_accounts')->where('account_id', $entity)->get()->getRowArray();
+
+        unset($parent['account_id']);
+        $db->table('accounting_accounts')->insert([...$parent, 'parent_id' => $entity, 'code' => $parent['code'] . '01', 'name' => 'Under a location', 'entity_type' => null, 'entity_id' => null, 'is_system' => 0, 'system_key' => null, 'created_at' => $now, 'updated_at' => $now]);
+
+        $child = (int) $db->insertID();
+
+        $this->postOn('2026-10-05', 1, [[$child, '30.00', '0'], [$this->accountId('sales_revenue'), '0', '30.00']]);
+
+        $ids = static fn (StatementFigures $figures, bool $expand): array => array_map(static fn (StatementLine $line): int => $line->accountId, $figures->section(AccountType::Asset, 5, StatementDisplay::HideZero, $expand)->lines);
+
+        $this->assertContains($child, $ids($this->figures(), false));
+        $this->assertNotContains($entity, $ids($this->figures(), false), 'The account of the location is folded away');
+        $this->assertContains($entity, $ids($this->figures(), true));
+    }
+
     private function codeOfAccount(int $accountId): string
     {
         return (string) $this->accountingDb()->table('accounting_accounts')->select('code')->where('account_id', $accountId)->get()->getRow()->code;
