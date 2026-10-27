@@ -677,6 +677,11 @@ class CashupPostingTest extends CIUnitTestCase
         $this->setConfigValue('accounting_enabled', '1');
 
         $this->assertSame(JournalChange::None, (new CashupPosting())->sync($legacy, $this->clerkId));
+
+        $this->accountingDb()->table('cash_up')->where('cashup_id', $legacy)->update(['cash_difference' => '-19.5000']);
+
+        $this->assertSame(JournalChange::None, (new CashupPosting())->sync($legacy, $this->clerkId));
+        $this->assertSame([], $this->journalsOfSource(self::SOURCE, $legacy));
     }
 
     public function testExpectedFor_TellsTheScreenWhatTheDrawerOfTheEmployeeShouldHold(): void
@@ -684,6 +689,18 @@ class CashupPostingTest extends CIUnitTestCase
         $this->aDayOfCash();
 
         $this->assertSame('500.0000', (new CashupPosting())->expectedFor($this->clerkId, '2026-10-20 08:00:00', '2026-10-20 18:00:00', '100', '0'));
+    }
+
+    public function testExpectedFor_CountsTheBranchTheEmployeeWorksInByDefault(): void
+    {
+        $second = $this->createBranch('B2');
+        $worker = $this->employeeWithGrants([], [$second]);
+
+        $this->sellFor('250.00', 'Cash', '2026-10-20 12:00:00', 1);
+        $this->sellFor('40.00', 'Cash', '2026-10-20 12:00:00', $second);
+
+        $this->assertSame('140.0000', (new CashupPosting())->expectedFor($worker, '2026-10-20 08:00:00', '2026-10-20 18:00:00', '100', '0'));
+        $this->assertSame('350.0000', (new CashupPosting())->expectedFor($this->clerkId, '2026-10-20 08:00:00', '2026-10-20 18:00:00', '100', '0'));
     }
 
     public function testSaveValue_KeepsTheTreasuryAndTheTrialBalanceInStepWhateverIsDone(): void
