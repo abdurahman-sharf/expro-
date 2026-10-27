@@ -48,7 +48,7 @@
 | `G09` | each change is the next revision (nextRevision) | مكشوف | 6 |
 | `G10` | an expense is checked against the branches of the employee (plan, followed) | مكشوف | 2 |
 | `G11` | an expense is checked against the branches of the employee (plan, deleted or moved out) | مكشوف | 2 |
-| `G12` | deleting an expense is checked against the branches of the employee (cancel) | مكشوف | 1 |
+| `G12` | deleting an expense is checked against the branches of the employee (cancel) | مكشوف | 2 |
 | `G13` | an expense saved before the books followed it never gets a journal (legacy rule) | مكشوف | 2 |
 | `G14` | an expense dated before accounting starts is not followed (follows) | مكشوف | 4 |
 | `G15` | a deactivated treasury cannot be named | مكشوف | 1 |
