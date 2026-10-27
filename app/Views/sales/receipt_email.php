@@ -109,6 +109,10 @@ $summaryRow = static fn (string $label, string $value, string $style = ''): stri
             <?= $summaryRow(lang('Sales.discount'), to_currency($discount * -1)) ?>
         <?php endif; ?>
 
+        <?php if (bccomp((string) ($invoice_discount ?? '0'), '0') !== 0): ?>
+            <?= $summaryRow(esc(invoiceDiscountLabel($invoice_discount_entry ?? null)), to_currency($invoice_discount * -1)) ?>
+        <?php endif; ?>
+
         <?php if ($config['receipt_show_taxes']): ?>
             <?= $summaryRow(lang('Sales.sub_total'), to_currency($subtotal), 'border-top: 2px solid #042359;') ?>
             <?php foreach ($taxes as $tax): ?>

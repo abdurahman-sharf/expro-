@@ -14,6 +14,9 @@ use App\Libraries\Accounting\ReturnLimit;
 use App\Libraries\Accounting\SalePosting;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\InvoiceDiscount;
+use App\Libraries\InvoiceDiscountPlan;
+use App\Libraries\InvoiceDiscountProblem;
 use App\Libraries\Organization\BranchGuard;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\ResultInterface;
@@ -47,10 +50,20 @@ class Sale extends Model
 
     private ?Throwable $accountingFailure = null;
 
+    private ?InvoiceDiscountProblem $invoiceDiscountProblem = null;
+
     public function __construct()
     {
         parent::__construct();
         helper('text');
+    }
+
+    /**
+     * Why the discount on the whole of the last sale saved was refused, or null when it was not.
+     */
+    public function invoiceDiscountProblem(): ?InvoiceDiscountProblem
+    {
+        return $this->invoiceDiscountProblem;
     }
 
     /**
@@ -74,7 +87,7 @@ class Sale extends Model
         $cash_adjustment = 'IFNULL(SUM(payments.sale_cash_adjustment), 0)';
         $sale_price = 'CASE WHEN sales_items.discount_type = ' . PERCENT
             . " THEN sales_items.quantity_purchased * sales_items.item_unit_price - ROUND(sales_items.quantity_purchased * sales_items.item_unit_price * sales_items.discount / 100, $decimals) "
-            . 'ELSE sales_items.quantity_purchased * (sales_items.item_unit_price - sales_items.discount) END';
+            . 'ELSE sales_items.quantity_purchased * (sales_items.item_unit_price - sales_items.discount) END - ' . InvoiceDiscount::sqlShare('sales_items');
 
         $sale_total = $config['tax_included']
             ? "ROUND(SUM($sale_price), $decimals) + $cash_adjustment"
@@ -162,7 +175,7 @@ class Sale extends Model
 
         $sale_price = 'CASE WHEN `sales_items`.`discount_type` = ' . PERCENT
             . " THEN `sales_items`.`quantity_purchased` * `sales_items`.`item_unit_price` - ROUND(`sales_items`.`quantity_purchased` * `sales_items`.`item_unit_price` * `sales_items`.`discount` / 100, $decimals) "
-            . 'ELSE `sales_items`.`quantity_purchased` * (`sales_items`.`item_unit_price` - `sales_items`.`discount`) END';
+            . 'ELSE `sales_items`.`quantity_purchased` * (`sales_items`.`item_unit_price` - `sales_items`.`discount`) END - ' . InvoiceDiscount::sqlShare('`sales_items`');
 
         $sale_cost = 'SUM(`sales_items`.`item_cost_price` * `sales_items`.`quantity_purchased`)';
 
@@ -799,13 +812,14 @@ class Sale extends Model
         ?int    $dinnerTableId,
         ?array  &$salesTaxes,
         bool    $delivered = true,
-        ?int    $returnOfSaleId = null
+        ?int    $returnOfSaleId = null,
+        ?array  $invoiceDiscount = null
     ): int {    // TODO: this method returns the sale_id but the override is expecting it to return a bool. The signature needs to be reworked.  Generally when there are more than 3 maybe 4 parameters, there's a good chance that an object needs to be passed rather than so many params.
         try {
             return (new CustomerLock($this->db))->run(
                 $customerId,
-                function () use (&$saleStatus, &$items, &$salesTaxes, $saleId, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $delivered, $returnOfSaleId): int {
-                    return $this->saveValueLocked($saleId, $saleStatus, $items, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $salesTaxes, $delivered, $returnOfSaleId);
+                function () use (&$saleStatus, &$items, &$salesTaxes, $saleId, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $delivered, $returnOfSaleId, $invoiceDiscount): int {
+                    return $this->saveValueLocked($saleId, $saleStatus, $items, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $salesTaxes, $delivered, $returnOfSaleId, $invoiceDiscount);
                 },
             );
         } catch (AccountingException $busy) {
@@ -834,7 +848,8 @@ class Sale extends Model
         ?int    $dinnerTableId,
         ?array  &$salesTaxes,
         bool    $delivered,
-        ?int    $returnOfSaleId
+        ?int    $returnOfSaleId,
+        ?array  $invoiceDiscount
     ): int {
         $config = config(OSPOS::class)->settings;
         $attribute = model(Attribute::class);
@@ -850,6 +865,7 @@ class Sale extends Model
         }
 
         $this->accountingFailure = null;
+        $this->invoiceDiscountProblem = null;
 
         // Only an invoice can be issued before its goods leave
         $delivered = $delivered || $saleType !== SALE_TYPE_INVOICE;
@@ -877,6 +893,19 @@ class Sale extends Model
             // The sale a return comes from is locked while the return is saved, so that two returns of it never run side by side
             $this->db->query('SELECT sale_id FROM ' . $this->db->prefixTable('sales') . ' WHERE sale_id = ? FOR UPDATE', [$salesData['return_of_sale_id']]);
         }
+
+        $discountPlan = $this->invoiceDiscountPlan($items, $saleType, $salesData['return_of_sale_id'], $invoiceDiscount, $saleId);
+
+        if ($discountPlan instanceof InvoiceDiscountProblem) {
+            $this->db->transRollback();
+            $this->invoiceDiscountProblem = $discountPlan;
+
+            return INVOICE_DISCOUNT_INVALID;
+        }
+
+        $items = $discountPlan->applyTo($items);
+        $salesData['invoice_discount_type'] = $discountPlan->type;
+        $salesData['invoice_discount'] = $discountPlan->value;
 
         if ($saleId != NEW_ENTRY) {
             $this->clear_suspended_sale_detail($saleId);
@@ -952,18 +981,19 @@ class Sale extends Model
             }
 
             $salesItemsData = [
-                'sale_id'            => $saleId,
-                'item_id'            => $itemData['item_id'],
-                'line'               => $itemData['line'],
-                'description'        => character_limiter($itemData['description'], 255),
-                'serialnumber'       => character_limiter($itemData['serialnumber'], 30),
-                'quantity_purchased' => $itemData['quantity'],
-                'discount'           => $itemData['discount'],
-                'discount_type'      => $itemData['discount_type'],
-                'item_cost_price'    => $itemData['cost_price'],
-                'item_unit_price'    => $itemData['price'],
-                'item_location'      => $itemData['item_location'],
-                'print_option'       => $itemData['print_option']
+                'sale_id'                => $saleId,
+                'item_id'                => $itemData['item_id'],
+                'line'                   => $itemData['line'],
+                'description'            => character_limiter($itemData['description'], 255),
+                'serialnumber'           => character_limiter($itemData['serialnumber'], 30),
+                'quantity_purchased'     => $itemData['quantity'],
+                'discount'               => $itemData['discount'],
+                'discount_type'          => $itemData['discount_type'],
+                'item_cost_price'        => $itemData['cost_price'],
+                'item_unit_price'        => $itemData['price'],
+                'item_location'          => $itemData['item_location'],
+                'print_option'           => $itemData['print_option'],
+                'invoice_discount_share' => $itemData['invoice_discount_share'] ?? null,
             ];
 
             $builder = $this->db->table('sales_items');
@@ -1047,6 +1077,91 @@ class Sale extends Model
         $this->db->transComplete();
 
         return $this->db->transStatus() ? $saleId : -1;
+    }
+
+    /**
+     * The discount on the whole of a sale as it is saved, from the lines being saved and what was
+     * entered, or for a return from the sale it takes its goods back from. It is worked out here, after
+     * the sale a return comes from is locked, so that what is saved is what the books of that sale
+     * allow. The figures the taxes of the lines were worked out with must be the ones saved.
+     *
+     * @param array<int|string, array<string, mixed>> $items
+     * @param array{type: int, value: string}|null    $invoiceDiscount
+     */
+    private function invoiceDiscountPlan(array $items, int $saleType, ?int $returnOfSaleId, ?array $invoiceDiscount, int $saleId): InvoiceDiscountPlan|InvoiceDiscountProblem
+    {
+        $decimals = totals_decimals();
+
+        if ($saleType === SALE_TYPE_RETURN) {
+            if ($invoiceDiscount !== null) {
+                return InvoiceDiscountProblem::OnReturn;
+            }
+
+            $plan = $returnOfSaleId === null ? InvoiceDiscount::none() : InvoiceDiscount::forReturn($items, $this->invoiceDiscountOrigin($returnOfSaleId, $saleId), $decimals);
+        } else {
+            $plan = $invoiceDiscount === null ? InvoiceDiscount::none() : InvoiceDiscount::forSale($items, (int) $invoiceDiscount['type'], (string) $invoiceDiscount['value'], $decimals);
+        }
+
+        if ($plan instanceof InvoiceDiscountProblem) {
+            return $plan;
+        }
+
+        foreach ($items as $key => $row) {
+            if (array_key_exists('invoice_discount_share', $row) && bccomp((string) $row['invoice_discount_share'], $plan->share($key), InvoiceDiscount::SCALE) !== 0) {
+                return InvoiceDiscountProblem::Changed;
+            }
+        }
+
+        return $plan;
+    }
+
+    /**
+     * What a sale gave in units and in discount for each item, and what its returns have taken back.
+     *
+     * @return array<int, array{sold: string, share: string, returned: string, returnedShare: string}>
+     */
+    public function invoiceDiscountOrigin(int $saleId, int $exceptSaleId = NEW_ENTRY): array
+    {
+        $prefix = $this->db->getPrefix();
+        $rows   = $this->db->query(
+            "SELECT i.item_id,
+                    SUM(CASE WHEN s.sale_id = ? THEN i.quantity_purchased ELSE 0 END) AS sold,
+                    SUM(CASE WHEN s.sale_id = ? THEN IFNULL(i.invoice_discount_share, 0) ELSE 0 END) AS share,
+                    SUM(CASE WHEN s.sale_id <> ? THEN ABS(i.quantity_purchased) ELSE 0 END) AS returned,
+                    SUM(CASE WHEN s.sale_id <> ? THEN ABS(IFNULL(i.invoice_discount_share, 0)) ELSE 0 END) AS returned_share
+             FROM {$prefix}sales s
+             JOIN {$prefix}sales_items i ON i.sale_id = s.sale_id
+             WHERE s.sale_id = ? OR (s.return_of_sale_id = ? AND s.sale_status = ? AND s.sale_type = ? AND s.sale_id <> ?)
+             GROUP BY i.item_id",
+            [$saleId, $saleId, $saleId, $saleId, $saleId, $saleId, COMPLETED, SALE_TYPE_RETURN, $exceptSaleId],
+        )->getResult();
+
+        $origin = [];
+
+        foreach ($rows as $row) {
+            $origin[(int) $row->item_id] = [
+                'sold'          => bcadd((string) $row->sold, '0', 3),
+                'share'         => bcadd((string) $row->share, '0', InvoiceDiscount::SCALE),
+                'returned'      => bcadd((string) $row->returned, '0', 3),
+                'returnedShare' => bcadd((string) $row->returned_share, '0', InvoiceDiscount::SCALE),
+            ];
+        }
+
+        return $origin;
+    }
+
+    /**
+     * What was entered as the discount on the whole of a sale, or null when there was none.
+     *
+     * @return array{type: int, value: string}|null
+     */
+    public function getInvoiceDiscount(int $saleId): ?array
+    {
+        $row = $this->db->table('sales')->select('invoice_discount_type, invoice_discount')->where('sale_id', $saleId)->get()->getRow();
+
+        return $row === null || $row->invoice_discount_type === null || $row->invoice_discount === null
+            ? null
+            : ['type' => (int) $row->invoice_discount_type, 'value' => (string) $row->invoice_discount];
     }
 
     /**
@@ -1390,6 +1505,7 @@ class Sale extends Model
             discount_type,
             item_location,
             print_option,
+            invoice_discount_share,
             ' . $item->get_item_name('name') . ',
             category,
             item_type,
@@ -1566,7 +1682,7 @@ class Sale extends Model
 
         $sale_price = 'CASE WHEN sales_items.discount_type = ' . PERCENT
             . " THEN sales_items.quantity_purchased * sales_items.item_unit_price - ROUND(sales_items.quantity_purchased * sales_items.item_unit_price * sales_items.discount / 100, $decimals) "
-            . 'ELSE sales_items.quantity_purchased * (sales_items.item_unit_price - sales_items.discount) END';
+            . 'ELSE sales_items.quantity_purchased * (sales_items.item_unit_price - sales_items.discount) END - ' . InvoiceDiscount::sqlShare('sales_items');
 
         $sale_cost = 'SUM(sales_items.item_cost_price * sales_items.quantity_purchased)';
 

@@ -14,32 +14,36 @@ final class SaleAmounts
     public const SCALE       = 4;
 
     /**
-     * Gross is what the lines come to before any discount, net what is left after the discounts
-     * without the tax that was inside the prices, and tax all the tax of the sale.
+     * Gross is what the lines come to before any discount, discount what their own discounts take
+     * off, invoiceDiscount what the discount on the whole sale takes off after them, net what is
+     * left without the tax that was inside the prices, and tax all the tax of the sale.
      *
-     * @return array{gross: numeric-string, discount: numeric-string, net: numeric-string, tax: numeric-string}
+     * @return array{gross: numeric-string, discount: numeric-string, invoiceDiscount: numeric-string, net: numeric-string, tax: numeric-string}
      */
     public static function totals(SaleDocument $sale, int $decimals): array
     {
-        $gross    = '0';
-        $discount = '0';
-        $included = '0';
-        $added    = '0';
+        $gross           = '0';
+        $discount        = '0';
+        $invoiceDiscount = '0';
+        $included        = '0';
+        $added           = '0';
 
         foreach ($sale->lines as $line) {
-            $gross    = bcadd($gross, self::lineGross($line), self::WORK_SCALE);
-            $discount = bcadd($discount, self::lineDiscount($line, $decimals), self::WORK_SCALE);
-            $included = bcadd($included, self::absolute($line->includedTax), self::WORK_SCALE);
-            $added    = bcadd($added, self::absolute($line->addedTax), self::WORK_SCALE);
+            $gross           = bcadd($gross, self::lineGross($line), self::WORK_SCALE);
+            $discount        = bcadd($discount, self::lineDiscount($line, $decimals), self::WORK_SCALE);
+            $invoiceDiscount = bcadd($invoiceDiscount, self::absolute($line->invoiceDiscountShare), self::WORK_SCALE);
+            $included        = bcadd($included, self::absolute($line->includedTax), self::WORK_SCALE);
+            $added           = bcadd($added, self::absolute($line->addedTax), self::WORK_SCALE);
         }
 
-        $net = bcsub(bcsub($gross, $discount, self::WORK_SCALE), $included, self::WORK_SCALE);
+        $net = bcsub(bcsub(bcsub($gross, $discount, self::WORK_SCALE), $invoiceDiscount, self::WORK_SCALE), $included, self::WORK_SCALE);
 
         return [
-            'gross'    => bcadd($gross, '0', self::SCALE),
-            'discount' => bcadd($discount, '0', self::SCALE),
-            'net'      => bcadd($net, '0', self::SCALE),
-            'tax'      => bcadd(bcadd($included, $added, self::WORK_SCALE), '0', self::SCALE),
+            'gross'           => bcadd($gross, '0', self::SCALE),
+            'discount'        => bcadd($discount, '0', self::SCALE),
+            'invoiceDiscount' => bcadd($invoiceDiscount, '0', self::SCALE),
+            'net'             => bcadd($net, '0', self::SCALE),
+            'tax'             => bcadd(bcadd($included, $added, self::WORK_SCALE), '0', self::SCALE),
         ];
     }
 

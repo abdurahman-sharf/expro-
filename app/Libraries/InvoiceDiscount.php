@@ -41,6 +41,127 @@ final class InvoiceDiscount
     }
 
     /**
+     * The plan of the discount on a sale whose lines are the rows of a cart: a problem when what was
+     * entered cannot be taken off what the lines come to.
+     *
+     * @param array<int|string, array<string, mixed>> $rows
+     */
+    public static function forSale(array $rows, int $type, string $value, int $decimals): InvoiceDiscountPlan|InvoiceDiscountProblem
+    {
+        $bases = self::basesOf($rows, $decimals, false);
+        $base  = self::sum($bases);
+
+        $problem = self::problem($type, $value, $base, $decimals);
+
+        if ($problem !== null) {
+            return $problem;
+        }
+
+        $amount = self::amount($type, $value, $base, $decimals);
+
+        return bccomp($amount, '0', self::SCALE) === 0
+            ? self::none()
+            : new InvoiceDiscountPlan($type, $value, $amount, self::allocate($bases, $amount));
+    }
+
+    /**
+     * The plan of a return: the share of the discount on the sale it comes from that belongs to the
+     * units it takes back, never more than what its lines come to.
+     *
+     * @param array<int|string, array<string, mixed>>                                                 $rows
+     * @param array<int, array{sold: string, share: string, returned: string, returnedShare: string}> $origin By item.
+     */
+    public static function forReturn(array $rows, array $origin, int $decimals): InvoiceDiscountPlan
+    {
+        $lines = [];
+
+        foreach ($rows as $key => $row) {
+            $lines[$key] = [(int) $row['item_id'], SaleAmounts::absolute((string) $row['quantity'])];
+        }
+
+        $bases  = self::basesOf($rows, $decimals, true);
+        $shares = [];
+        $amount = '0';
+
+        foreach (self::returnShares($lines, $origin) as $key => $share) {
+            $share          = bccomp($share, $bases[$key], self::SCALE) > 0 ? $bases[$key] : $share;
+            $shares[$key]   = bccomp($share, '0', self::SCALE) === 0 ? '0.0000' : bcsub('0', $share, self::SCALE);
+            $amount         = bcadd($amount, $share, self::SCALE);
+        }
+
+        return bccomp($amount, '0', self::SCALE) === 0 ? self::none() : new InvoiceDiscountPlan(FIXED, $amount, $amount, $shares);
+    }
+
+    /**
+     * The share of the discount on the whole of a sale that a row of its lines carries, as a term of
+     * the SQL that works out what the line sells for. A sale without such a discount carries none.
+     */
+    public static function sqlShare(string $salesItems): string
+    {
+        return "IFNULL({$salesItems}.invoice_discount_share, 0)";
+    }
+
+    /**
+     * What the rows of a cart come to after their own discounts.
+     *
+     * @param array<int|string, array<string, mixed>> $rows
+     *
+     * @return numeric-string
+     */
+    public static function baseOf(array $rows, int $decimals): string
+    {
+        return self::sum(self::basesOf($rows, $decimals, false));
+    }
+
+    /**
+     * @param array<int|string, string> $amounts
+     *
+     * @return numeric-string
+     */
+    private static function sum(array $amounts): string
+    {
+        $sum = '0';
+
+        foreach ($amounts as $amount) {
+            $sum = bcadd($sum, $amount, self::SCALE);
+        }
+
+        return bcadd($sum, '0', self::SCALE);
+    }
+
+    /**
+     * A number as it is written back to whoever entered it: without the zeros stored after the point.
+     */
+    public static function normalise(string $value): string
+    {
+        return str_contains($value, '.') ? rtrim(rtrim($value, '0'), '.') : $value;
+    }
+
+    public static function none(): InvoiceDiscountPlan
+    {
+        return new InvoiceDiscountPlan(null, null, '0.0000', []);
+    }
+
+    /**
+     * What each row of a cart sells for after its own discount.
+     *
+     * @param array<int|string, array<string, mixed>> $rows
+     *
+     * @return array<int|string, string>
+     */
+    public static function basesOf(array $rows, int $decimals, bool $returned): array
+    {
+        $bases = [];
+
+        foreach ($rows as $key => $row) {
+            $quantity    = (string) $row['quantity'];
+            $bases[$key] = self::lineBase($returned ? SaleAmounts::absolute($quantity) : $quantity, (string) $row['price'], (string) $row['discount'], (int) $row['discount_type'], $decimals);
+        }
+
+        return $bases;
+    }
+
+    /**
      * What the discount comes to on lines that come to the base, never more than the base.
      *
      * @return numeric-string

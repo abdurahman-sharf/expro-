@@ -9,6 +9,8 @@ enum InvoiceDiscountProblem: string
     case Negative       = 'negative';
     case PercentOver100 = 'percent_over_100';
     case ExceedsTotal   = 'exceeds_total';
+    case Changed        = 'changed';
+    case OnReturn       = 'on_return';
 
     public function languageKey(): string
     {
@@ -17,6 +19,8 @@ enum InvoiceDiscountProblem: string
             self::Negative       => 'Sales.negative_discount_invalid',
             self::PercentOver100 => 'Sales.discount_percent_exceeds_100',
             self::ExceedsTotal   => 'Sales.invoice_discount_exceeds_total',
+            self::Changed        => 'Sales.invoice_discount_changed',
+            self::OnReturn       => 'Sales.invoice_discount_not_on_return',
         };
     }
 }

@@ -68,7 +68,7 @@ final class SaleLoader
         $lines = [];
 
         foreach ($this->db->table('sales_items i')
-            ->select('i.item_id, i.line, i.quantity_purchased, i.item_unit_price, i.discount, i.discount_type, i.item_cost_price, i.item_location, it.stock_type')
+            ->select('i.item_id, i.line, i.quantity_purchased, i.item_unit_price, i.discount, i.discount_type, i.item_cost_price, i.item_location, i.invoice_discount_share, it.stock_type')
             ->join('items it', 'it.item_id = i.item_id')
             ->where('i.sale_id', $saleId)
             ->orderBy('i.line', 'ASC')
@@ -88,6 +88,7 @@ final class SaleLoader
                 hasStock: (int) $row->stock_type === HAS_STOCK,
                 includedTax: $lineTaxes[0] ?? '0',
                 addedTax: $lineTaxes[1] ?? '0',
+                invoiceDiscountShare: (string) ($row->invoice_discount_share ?? '0'),
             );
         }
 

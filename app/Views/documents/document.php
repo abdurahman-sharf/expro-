@@ -117,10 +117,22 @@ $notes = array_filter([
             <td class="doc-totals-cell">
                 <?php if ($profile['showPrices']): ?>
                     <table class="doc-totals">
-                        <tr>
-                            <td class="<?= $alignStart ?>"><?= lang('Sales.sub_total') ?></td>
-                            <td class="<?= $alignEnd ?>"><?= documentIsolate(to_currency($sale['subtotal'])) ?></td>
-                        </tr>
+                        <?php $invoiceDiscount = (string) ($sale['invoice_discount'] ?? '0'); ?>
+                        <?php if (bccomp($invoiceDiscount, '0') !== 0): ?>
+                            <tr>
+                                <td class="<?= $alignStart ?>"><?= lang('Sales.sub_total') ?></td>
+                                <td class="<?= $alignEnd ?>"><?= documentIsolate(to_currency(bcadd((string) $sale['subtotal'], $invoiceDiscount))) ?></td>
+                            </tr>
+                            <tr class="doc-invoice-discount">
+                                <td class="<?= $alignStart ?>"><?= esc(invoiceDiscountLabel($sale['invoice_discount_entry'] ?? null)) ?></td>
+                                <td class="<?= $alignEnd ?>"><?= documentIsolate(to_currency($invoiceDiscount * -1)) ?></td>
+                            </tr>
+                        <?php else: ?>
+                            <tr>
+                                <td class="<?= $alignStart ?>"><?= lang('Sales.sub_total') ?></td>
+                                <td class="<?= $alignEnd ?>"><?= documentIsolate(to_currency($sale['subtotal'])) ?></td>
+                            </tr>
+                        <?php endif; ?>
                         <?php foreach ($sale['taxes'] ?? [] as $tax): ?>
                             <tr>
                                 <td class="<?= $alignStart ?>"><?= documentIsolate((float) $tax['tax_rate'] . '%') ?> <?= esc($tax['tax_group']) ?></td>

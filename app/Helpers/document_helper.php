@@ -80,6 +80,19 @@ function documentLogoSource(array $config, string $context): string
 }
 
 /**
+ * The name of the discount on the whole of a sale as the documents print it, with its percentage
+ * when it was entered as one.
+ *
+ * @param array{type: int, value: string}|null $entry
+ */
+function invoiceDiscountLabel(?array $entry): string
+{
+    $label = lang('Sales.invoice_discount');
+
+    return $entry !== null && (int) $entry['type'] === PERCENT ? $label . ' (' . to_decimals($entry['value']) . '%)' : $label;
+}
+
+/**
  * Keeps amounts and numbers in left-to-right order inside right-to-left text.
  */
 function documentIsolate(string $text): string
