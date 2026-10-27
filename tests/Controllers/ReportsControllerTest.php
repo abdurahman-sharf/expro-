@@ -250,6 +250,17 @@ class ReportsControllerTest extends CIUnitTestCase
         return $personId;
     }
 
+    private function assertExpensesReportIsRefusedToAnEmployeeOfOneBranch(string $report): void
+    {
+        $this->openTheBooks();
+        $this->readerOfTheBranches([1]);
+
+        $response = $this->get('/reports/' . $report . '/' . $this->reportDay . '/' . $this->reportDay . '/sales');
+
+        $response->assertRedirect();
+        $this->assertStringContainsString('no_access/reports/reports_expenses_categories', $response->getRedirectUrl(), $report);
+    }
+
     private function openTheBooks(): void
     {
         $this->startBuying();
@@ -421,29 +432,30 @@ class ReportsControllerTest extends CIUnitTestCase
         $this->assertStringNotContainsString('id="report_scope"', $this->pageOf('/reports/summary_categories/' . $this->reportDay . '/' . $this->reportDay . '/sales/all'));
     }
 
-    public function testExpensesReports_AreRefusedToAnEmployeeWhoDoesNotWorkInEveryBranch(): void
+    public function testSummaryExpensesCategories_RejectsAnEmployeeWhoDoesNotWorkInEveryBranch(): void
     {
-        $this->openTheBooks();
-
-        foreach (['summary_expenses_categories', 'graphical_summary_expenses_categories'] as $report) {
-            $this->readerOfTheBranches([1]);
-
-            $response = $this->get('/reports/' . $report . '/' . $this->reportDay . '/' . $this->reportDay . '/sales');
-
-            $response->assertRedirect();
-            $this->assertStringContainsString('no_access/reports/reports_expenses_categories', $response->getRedirectUrl(), $report);
-        }
+        $this->assertExpensesReportIsRefusedToAnEmployeeOfOneBranch('summary_expenses_categories');
     }
 
-    public function testExpensesReports_AreShownToAnEmployeeOfEveryBranch(): void
+    public function testGraphicalSummaryExpensesCategories_RejectsAnEmployeeWhoDoesNotWorkInEveryBranch(): void
+    {
+        $this->assertExpensesReportIsRefusedToAnEmployeeOfOneBranch('graphical_summary_expenses_categories');
+    }
+
+    public function testSummaryExpensesCategories_AcceptsAnEmployeeOfEveryBranch(): void
     {
         $this->openTheBooks();
+        $this->readerOfTheBranches(null);
 
-        foreach (['summary_expenses_categories', 'graphical_summary_expenses_categories'] as $report) {
-            $this->readerOfTheBranches(null);
+        $this->get('/reports/summary_expenses_categories/' . $this->reportDay . '/' . $this->reportDay . '/sales')->assertStatus(200);
+    }
 
-            $this->get('/reports/' . $report . '/' . $this->reportDay . '/' . $this->reportDay . '/sales')->assertStatus(200);
-        }
+    public function testGraphicalSummaryExpensesCategories_AcceptsAnEmployeeOfEveryBranch(): void
+    {
+        $this->openTheBooks();
+        $this->readerOfTheBranches(null);
+
+        $this->get('/reports/graphical_summary_expenses_categories/' . $this->reportDay . '/' . $this->reportDay . '/sales')->assertStatus(200);
     }
 
     public function testGetDetailedSalesRow_FindsASaleOfTheBranchesTheEmployeeWorksInAndNotOfAnother(): void
