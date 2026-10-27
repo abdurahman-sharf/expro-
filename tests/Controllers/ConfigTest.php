@@ -7,6 +7,7 @@ use App\Libraries\Numbering\DocumentType;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
+use CodeIgniter\Test\TestResponse;
 use Config\Database;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\TaxFixtureTrait;
@@ -483,30 +484,96 @@ class ConfigTest extends CIUnitTestCase
         $this->assertSame(0, Database::connect()->table('document_sequences')->countAllResults());
     }
 
-    public function testNumberingConfigView_ListsEveryKindOfDocumentWithItsSettings(): void
+    public function testSaveNumbering_RejectsFieldsThatComeAsListsInsteadOfThrowing(): void
     {
-        helper('form');
-        (new DocumentNumbering())->configure(DocumentType::CreditNote, ['enabled' => true, 'prefix' => 'CN-', 'padding' => 5]);
+        $this->resetSession();
 
-        $html = view('configs/numbering_config', ['numbering' => (new DocumentNumbering())->overview()]);
+        $prefix  = $this->saveNumbering('credit_note', ['enabled' => '1', 'prefix' => ['a', 'b'], 'padding' => '5']);
+        $padding = $this->saveNumbering('credit_note', ['enabled' => '1', 'prefix' => 'CN-', 'padding' => ['5']]);
+        $next    = $this->saveNumbering('credit_note', ['enabled' => '1', 'prefix' => 'CN-', 'padding' => '5', 'next_number' => ['7']]);
 
-        foreach (DocumentType::cases() as $type) {
-            $this->assertStringContainsString('id="numbering_form_' . $type->value . '"', $html);
-            $this->assertStringContainsString(lang($type->labelKey()), $html);
-        }
-
-        $this->assertStringContainsString('CN-00001', $html);
-        $this->assertSame(1, substr_count($html, 'name="prevent_duplicates"'));
-        $this->assertSame(2, substr_count($html, lang('Numbering.invoice_note')));
+        $this->assertFalse($prefix['success']);
+        $this->assertSame(lang('Accounting.error_numbering_prefix_invalid', [DocumentNumbering::MAX_PREFIX_LENGTH]), $prefix['message']);
+        $this->assertSame(lang('Accounting.error_numbering_padding_invalid', [DocumentNumbering::MAX_PADDING]), $padding['message']);
+        $this->assertSame(lang('Accounting.error_numbering_next_invalid', [DocumentNumbering::MAX_NEXT]), $next['message']);
+        $this->assertSame(0, Database::connect()->table('document_sequences')->countAllResults());
     }
 
-    public function testNumberingConfigView_KeepsTheNextNumberNoLowerThanTheOneThatMayBeGiven(): void
+    public function testSaveNumbering_ReadsMissingFieldsAsAnEmptyPrefixAndNoDigits(): void
     {
-        helper('form');
+        $this->resetSession();
+
+        $result = $this->saveNumbering('credit_note', ['enabled' => '1']);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('1', $result['preview']);
+    }
+
+    private function settingsPage(): TestResponse
+    {
+        $directory = getcwd();
+        $server    = $_SERVER;
+        chdir(FCPATH);
+        $_SERVER += ['HTTP_USER_AGENT' => 'PHPUnit', 'SERVER_SOFTWARE' => 'PHPUnit', 'SERVER_PORT' => '80'];
+
+        try {
+            return $this->get('/config');
+        } finally {
+            $_SERVER = $server;
+            chdir($directory);
+        }
+    }
+
+    private function nextNumberInput(string $page, DocumentType $type): string
+    {
+        preg_match('/<input[^>]*id="numbering_next_' . $type->value . '"[^>]*>/', $page, $matches);
+
+        return $matches[0] ?? '';
+    }
+
+    public function testGetIndex_ShowsTheNumberingTabWithAFormForEveryKindOfDocument(): void
+    {
+        $this->resetSession();
+        (new DocumentNumbering())->configure(DocumentType::CreditNote, ['enabled' => true, 'prefix' => 'CN-', 'padding' => 5]);
+
+        $response = $this->settingsPage();
+        $page     = $response->getBody();
+
+        $response->assertStatus(200);
+        $this->assertStringContainsString('id="settings_tab_numbering"', $page);
+        $this->assertStringContainsString('id="numbering_tab"', $page);
+
+        foreach (DocumentType::cases() as $type) {
+            $this->assertStringContainsString('id="numbering_form_' . $type->value . '"', $page);
+            $this->assertStringContainsString(lang($type->labelKey()), $page);
+        }
+
+        $this->assertStringContainsString('CN-00001', $page);
+        $this->assertSame(1, substr_count($page, 'name="prevent_duplicates"'));
+        $this->assertSame(2, substr_count($page, lang('Numbering.invoice_note')));
+    }
+
+    public function testGetIndex_KeepsTheNextNumberOfARunningSequenceNoLowerThanItsCurrentOne(): void
+    {
+        $this->resetSession();
         (new DocumentNumbering())->configure(DocumentType::CreditNote, ['enabled' => true, 'next_number' => 40]);
 
-        $html = view('configs/numbering_config', ['numbering' => (new DocumentNumbering())->overview()]);
+        $input = $this->nextNumberInput($this->settingsPage()->getBody(), DocumentType::CreditNote);
 
-        $this->assertMatchesRegularExpression('/name="next_number"[^>]*value="40"[^>]*min="40"/', preg_replace('/\s+/', ' ', $html) ?? '');
+        $this->assertStringContainsString('value="40"', $input);
+        $this->assertStringContainsString('min="40"', $input);
+    }
+
+    public function testGetIndex_LetsASequenceThatIsOffStartLowerWhenItsPrefixChanges(): void
+    {
+        $this->resetSession();
+        $numbering = new DocumentNumbering();
+        $numbering->configure(DocumentType::CreditNote, ['enabled' => true, 'next_number' => 40]);
+        $numbering->configure(DocumentType::CreditNote, ['enabled' => false]);
+
+        $input = $this->nextNumberInput($this->settingsPage()->getBody(), DocumentType::CreditNote);
+
+        $this->assertStringContainsString('value="40"', $input);
+        $this->assertStringContainsString('min="1"', $input);
     }
 }

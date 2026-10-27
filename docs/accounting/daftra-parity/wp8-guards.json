@@ -1,0 +1,863 @@
+[
+ {
+  "name": "G01: configure needs the settings permission",
+  "file": "app/Libraries/Numbering/DocumentNumbering.php",
+  "needle": "        $this->guard->require(self::PERMISSION, $employeeId);\n",
+  "replacement": "",
+  "test": "tests/Libraries/Numbering/DocumentNumberingTest.php",
+  "filter": "testConfigure_RejectsAnEmployeeWithoutTheSettingsPermission"
+ },
+ {
+  "name": "G02: the sequence row is locked before a number is taken",
+  "file": "app/Libraries/Numbering/DocumentNumbering.php",
+  "needle": "FROM {$sequences} WHERE company_id = ? AND doc_type = ? FOR UPDATE",
+  "replacement": "FROM {$sequences} WHERE company_id = ? AND doc_type = ?",
+  "test": "tests/Libraries/Numbering/DocumentNumberingTest.php",
+  "filter": "testAssign_GivesTwoDocumentsNumberedByTwoProcesses|testAssign_WaitsForAnotherConnection|testAssign_SerialisesTwoOpenTransactions"
+ },
+ {
+  "name": "G03: a document that has a number keeps it and takes no second one",
+  "file": "app/Libraries/Numbering/DocumentNumbering.php",
+  "needle": "        if ($known !== null) {",
+  "replacement": "        if (false) {",
+  "test": "tests/Libraries/Numbering/DocumentNumberingTest.php",
+  "filter": "testAssign_ReturnsTheNumberADocumentAlreadyHasAndTakesNoSecondOne"
+ },
+ {
+  "name": "G04: a number already in the register is never given again",
+  "file": "app/Libraries/Numbering/DocumentNumbering.php",
+  "needle": "        if ($this->db->table('document_numbers')->where(['company_id' => $companyId, 'doc_type' => $type->value, 'number' => $number])->countAllResults() > 0) {\n            return true;\n        }\n\n",
+  "replacement": "",
+  "test": "tests/Libraries/Numbering/DocumentNumberingTest.php",
+  "filter": "testAssign_SkipsANumberThatAnEarlierPrefixAlreadyGave"
+ },
+ {
+  "name": "G05: a number typed in the column of another document is skipped",
+  "file": "app/Libraries/Numbering/DocumentNumbering.php",
+  "needle": "        return $column !== null && $this->db->table($sourceTable)->where($column, $number)->countAllResults() > 0;",
+  "replacement": "        return false;",
+  "test": "tests/Libraries/Numbering/DocumentNumberingTest.php",
+  "filter": "testAssign_SkipsANumberAnotherCustomerAlreadyHas"
+ },
+ {
+  "name": "G06: the search for a free number stops after a thousand",
+  "file": "app/Libraries/Numbering/DocumentNumbering.php",
+  "needle": "$attempt >= self::SEARCH_LIMIT || ",
+  "replacement": "",
+  "test": "tests/Libraries/Numbering/DocumentNumberingTest.php",
+  "filter": "testAssign_RefusesWhenEveryNumberOfTheNextThousandIsAlreadyTaken"
+ },
+ {
+  "name": "G07: the counter stops below what its column can hold",
+  "file": "app/Libraries/Numbering/DocumentNumbering.php",
+  "needle": " || $candidate >= 4_294_967_294",
+  "replacement": "",
+  "test": "tests/Models/SaleTest.php",
+  "filter": "testSaveValue_RefusesTheWholeSaleWhenNoNumberCanBeGiven"
+ },
+ {
+  "name": "G08: the next number stays above every number given",
+  "file": "app/Libraries/Numbering/DocumentNumbering.php",
+  "needle": "        return (int) ($issued->top ?? 0) + 1;",
+  "replacement": "        return 1;",
+  "test": "tests/Libraries/Numbering/DocumentNumberingTest.php",
+  "filter": "testConfigure_RejectsANextNumberBelowTheRegisterWhenTheCounterRowIsMissing"
+ },
+ {
+  "name": "G09: the next number stays above the numbers the documents carry",
+  "file": "app/Libraries/Numbering/DocumentNumbering.php",
+  "needle": "            $floor = max($floor, $this->aboveNumbersOf(array_key_first($type->sources()), $column, $prefix));\n",
+  "replacement": "",
+  "test": "tests/Libraries/Numbering/DocumentNumberingTest.php",
+  "filter": "testFloor_StaysAboveTheAccountNumbersOfTheSameShape"
+ },
+ {
+  "name": "G10: the next number stays above the ids that documents still show",
+  "file": "app/Libraries/Numbering/DocumentNumbering.php",
+  "needle": "                $floor = max($floor, $this->aboveIdsShownBare($type, $table, $idColumn));\n",
+  "replacement": "",
+  "test": "tests/Libraries/Numbering/DocumentNumberingTest.php",
+  "filter": "testFloor_StaysAboveTheIdsOfDocumentsThatShowTheirId"
+ },
+ {
+  "name": "G11: a document that has a number no longer counts as showing its id",
+  "file": "app/Libraries/Numbering/DocumentNumbering.php",
+  "needle": "s WHERE NOT EXISTS (",
+  "replacement": "s WHERE 1 OR EXISTS (",
+  "test": "tests/Libraries/Numbering/DocumentNumberingTest.php",
+  "filter": "testFloor_IgnoresTheIdsOfDocumentsThatHaveANumber"
+ },
+ {
+  "name": "G12: ids count only for an empty prefix",
+  "file": "app/Libraries/Numbering/DocumentNumbering.php",
+  "needle": "        if ($prefix === '') {",
+  "replacement": "        if (true) {",
+  "test": "tests/Libraries/Numbering/DocumentNumberingTest.php",
+  "filter": "testFloor_|testConfigure_"
+ },
+ {
+  "name": "G13: the next number is never lowered",
+  "file": "app/Libraries/Numbering/DocumentNumbering.php",
+  "needle": "            if ($target < $minimum) {",
+  "replacement": "            if (false) {",
+  "test": "tests/Libraries/Numbering/DocumentNumberingTest.php",
+  "filter": "testConfigure_RejectsLoweringTheNextNumber"
+ },
+ {
+  "name": "G14: a prefix is no longer than 16 characters",
+  "file": "app/Libraries/Numbering/DocumentNumbering.php",
+  "needle": "mb_strlen($prefix) > self::MAX_PREFIX_LENGTH || preg_match",
+  "replacement": "preg_match",
+  "test": "tests/Libraries/Numbering/DocumentNumberingTest.php",
+  "filter": "testConfigure_RejectsInvalidSettings"
+ },
+ {
+  "name": "G15: a prefix takes letters, digits and a few separators only",
+  "file": "app/Libraries/Numbering/DocumentNumbering.php",
+  "needle": " || preg_match(self::PREFIX_PATTERN, $prefix) !== 1)",
+  "replacement": ")",
+  "test": "tests/Libraries/Numbering/DocumentNumberingTest.php",
+  "filter": "testConfigure_RejectsInvalidSettings"
+ },
+ {
+  "name": "G16: the digits are a whole number",
+  "file": "app/Libraries/Numbering/DocumentNumbering.php",
+  "needle": "        if (! is_int($padding) && ! (is_string($padding) && preg_match('/^\\d{1,2}$/', trim($padding)) === 1)) {",
+  "replacement": "        if (false) {",
+  "test": "tests/Libraries/Numbering/DocumentNumberingTest.php",
+  "filter": "testConfigure_RejectsInvalidSettings"
+ },
+ {
+  "name": "G17: the digits are between 0 and 10",
+  "file": "app/Libraries/Numbering/DocumentNumbering.php",
+  "needle": "        if ($padding < 0 || $padding > self::MAX_PADDING) {",
+  "replacement": "        if (false) {",
+  "test": "tests/Libraries/Numbering/DocumentNumberingTest.php",
+  "filter": "testConfigure_RejectsInvalidSettings"
+ },
+ {
+  "name": "G18: the next number is a whole number",
+  "file": "app/Libraries/Numbering/DocumentNumbering.php",
+  "needle": "        if (! is_int($next) && ! (is_string($next) && preg_match('/^\\d{1,10}$/', trim($next)) === 1)) {",
+  "replacement": "        if (false) {",
+  "test": "tests/Libraries/Numbering/DocumentNumberingTest.php",
+  "filter": "testConfigure_RejectsInvalidSettings"
+ },
+ {
+  "name": "G19: the next number is between 1 and the maximum",
+  "file": "app/Libraries/Numbering/DocumentNumbering.php",
+  "needle": "        if ($next < 1 || $next > self::MAX_NEXT) {",
+  "replacement": "        if (false) {",
+  "test": "tests/Libraries/Numbering/DocumentNumberingTest.php",
+  "filter": "testConfigure_RejectsInvalidSettings"
+ },
+ {
+  "name": "G20: every change of the numbering is written in the audit log",
+  "file": "app/Libraries/Numbering/DocumentNumbering.php",
+  "needle": "            (new AuditLog($this->db))->write(\n                'document_numbering',\n                null,\n                'numbering_configured',\n                $employeeId,\n                $employeeId === null ? JournalOrigin::System : JournalOrigin::User,\n                ['doc_type' => $type->value, 'before' => $this->describe($before), 'after' => $this->describe($after)],\n            );\n\n",
+  "replacement": "",
+  "test": "tests/Libraries/Numbering/DocumentNumberingTest.php",
+  "filter": "testConfigure_WritesWhatChangedInTheAuditLog|testConfigure_RecordsTheSystemWhenNoEmployeeActs"
+ },
+ {
+  "name": "G21: nothing is written or audited when nothing changed",
+  "file": "app/Libraries/Numbering/DocumentNumbering.php",
+  "needle": "            if ($this->same($before, $after)) {\n                return $before;\n            }\n\n",
+  "replacement": "",
+  "test": "tests/Libraries/Numbering/DocumentNumberingTest.php",
+  "filter": "testConfigure_WritesNothingWhenNothingChanges"
+ },
+ {
+  "name": "G22: a document takes the sequence of the company of its branch",
+  "file": "app/Libraries/Numbering/DocumentNumbering.php",
+  "needle": "        $row = $this->db->table('branches')->select('company_id')->where('branch_id', $branchId)->get()->getRow();",
+  "replacement": "        $row = null;",
+  "test": "tests/Libraries/Numbering/DocumentNumberingTest.php",
+  "filter": "testAssign_TakesTheCompanyOfTheBranchOfTheDocument"
+ },
+ {
+  "name": "G23: only a table that holds the kind of document is accepted",
+  "file": "app/Libraries/Numbering/DocumentNumbering.php",
+  "needle": "        if ($idColumn === null || $sourceId <= 0) {",
+  "replacement": "        if (false) {",
+  "test": "tests/Libraries/Numbering/DocumentNumberingTest.php",
+  "filter": "testAssign_RejectsATableThatDoesNotHoldTheKindOfDocument"
+ },
+ {
+  "name": "G24: the number is written in the column the document always had",
+  "file": "app/Libraries/Numbering/DocumentNumbering.php",
+  "needle": "            $this->db->table($sourceTable)->where($idColumn, $sourceId)->update([$column => $number]);",
+  "replacement": "            $number = $number;",
+  "test": "tests/Libraries/Numbering/DocumentNumberingTest.php",
+  "filter": "testAssign_WritesTheNumberOfACustomerInItsAccountNumber"
+ },
+ {
+  "name": "G25: a document without a number shows what it showed before",
+  "file": "app/Libraries/Numbering/DocumentNumbering.php",
+  "needle": "        return $this->numbers($type, $sourceTable, [$id])[$id] ?? $type->fallback($id);",
+  "replacement": "        return $this->numbers($type, $sourceTable, [$id])[$id] ?? '';",
+  "test": "tests/Libraries/Numbering/DocumentNumberingTest.php",
+  "filter": "testLabel_FallsBackToWhatTheDocumentShowedBeforeThereWasANumber"
+ },
+ {
+  "name": "G26: the preview takes nothing while the sequence is off",
+  "file": "app/Libraries/Numbering/DocumentNumbering.php",
+  "needle": "        if (! $sequence->enabled) {\n            return null;\n        }\n\n        try {",
+  "replacement": "        try {",
+  "test": "tests/Libraries/Numbering/DocumentNumberingTest.php",
+  "filter": "testPeek_ShowsNothingWhileTheSequenceIsOff"
+ },
+ {
+  "name": "G27: the digits pad the number with zeros",
+  "file": "app/Libraries/Numbering/NumberingSequence.php",
+  "needle": "$this->padding > 0 ? str_pad((string) $number, $this->padding, '0', STR_PAD_LEFT) : (string) $number",
+  "replacement": "(string) $number",
+  "test": "tests/Libraries/Numbering/NumberingSequenceTest.php"
+ },
+ {
+  "name": "G28: the prefix starts the number",
+  "file": "app/Libraries/Numbering/NumberingSequence.php",
+  "needle": "        return $this->prefix . (",
+  "replacement": "        return (",
+  "test": "tests/Libraries/Numbering/NumberingSequenceTest.php"
+ },
+ {
+  "name": "G29: a credit note shows POS and its id until it has a number",
+  "file": "app/Libraries/Numbering/DocumentType.php",
+  "needle": "self::CreditNote => 'POS ' . $id,",
+  "replacement": "self::CreditNote => '' . $id,",
+  "test": "tests/Libraries/Numbering/DocumentNumberingTest.php",
+  "filter": "testLabel_FallsBackToWhatTheDocumentShowedBeforeThereWasANumber"
+ },
+ {
+  "name": "G30: a sequence that is off gives no number",
+  "file": "app/Libraries/Numbering/DocumentNumbering.php",
+  "needle": "        if (! $this->sequence($type, $companyId)->enabled) {\n            return null;\n        }\n\n        return $this->transactional(fn (): ?DocumentNumber => $this->assignLocked($type, $sourceTable, $idColumn, $sourceId, $companyId));\n    }\n\n    /**\n     * The number the next document of the kind would get, or null while the sequence is off. It\n     * takes nothing, so a screen can show it before the document is saved.\n     */\n    public function peek(DocumentType $type, ?int $companyId = null): ?string\n    {\n        $companyId ??= CompanyContext::id();\n        $sequence = $this->sequence($type, $companyId);\n\n        if (! $sequence->enabled) {\n            return null;\n        }\n\n        try {\n            return $this->nextFree($sequence, $companyId, (string) array_key_first($type->sources()))[1];\n        } catch (AccountingException) {\n            return null;\n        }\n    }\n\n    /**\n     * @param list<int> $ids\n     *\n     * @return array<int, string> The numbers of the documents that have one, by id.\n     */\n    public function numbers(DocumentType $type, string $sourceTable, array $ids): array\n    {\n        $ids = array_values(array_unique(array_filter(array_map('intval', $ids), static fn (int $id): bool => $id > 0)));\n\n        if ($ids === [] || ! isset($type->sources()[$sourceTable])) {\n            return [];\n        }\n\n        $numbers = [];\n\n        foreach ($this->db->table('document_numbers')->select('source_id, number')->where(['doc_type' => $type->value, 'source_table' => $sourceTable])->whereIn('source_id', $ids)->get()->getResult() as $row) {\n            $numbers[(int) $row->source_id] = (string) $row->number;\n        }\n\n        return $numbers;\n    }\n\n    public function label(DocumentType $type, string $sourceTable, int $id): string\n    {\n        return $this->numbers($type, $sourceTable, [$id])[$id] ?? $type->fallback($id);\n    }\n\n    private function assignLocked(DocumentType $type, string $sourceTable, string $idColumn, int $sourceId, int $companyId): ?DocumentNumber\n    {\n        $sequences = $this->db->prefixTable('document_sequences');\n        $row       = LockedRead::row($this->db, \"SELECT enabled, prefix, padding, next_number, prevent_duplicates FROM {$sequences} WHERE company_id = ? AND doc_type = ? FOR UPDATE\", [$companyId, $type->value]);\n\n        if ($row === null || (int) $row->enabled !== 1) {",
+  "replacement": "        return $this->transactional(fn (): ?DocumentNumber => $this->assignLocked($type, $sourceTable, $idColumn, $sourceId, $companyId));\n    }\n\n    /**\n     * The number the next document of the kind would get, or null while the sequence is off. It\n     * takes nothing, so a screen can show it before the document is saved.\n     */\n    public function peek(DocumentType $type, ?int $companyId = null): ?string\n    {\n        $companyId ??= CompanyContext::id();\n        $sequence = $this->sequence($type, $companyId);\n\n        if (! $sequence->enabled) {\n            return null;\n        }\n\n        try {\n            return $this->nextFree($sequence, $companyId, (string) array_key_first($type->sources()))[1];\n        } catch (AccountingException) {\n            return null;\n        }\n    }\n\n    /**\n     * @param list<int> $ids\n     *\n     * @return array<int, string> The numbers of the documents that have one, by id.\n     */\n    public function numbers(DocumentType $type, string $sourceTable, array $ids): array\n    {\n        $ids = array_values(array_unique(array_filter(array_map('intval', $ids), static fn (int $id): bool => $id > 0)));\n\n        if ($ids === [] || ! isset($type->sources()[$sourceTable])) {\n            return [];\n        }\n\n        $numbers = [];\n\n        foreach ($this->db->table('document_numbers')->select('source_id, number')->where(['doc_type' => $type->value, 'source_table' => $sourceTable])->whereIn('source_id', $ids)->get()->getResult() as $row) {\n            $numbers[(int) $row->source_id] = (string) $row->number;\n        }\n\n        return $numbers;\n    }\n\n    public function label(DocumentType $type, string $sourceTable, int $id): string\n    {\n        return $this->numbers($type, $sourceTable, [$id])[$id] ?? $type->fallback($id);\n    }\n\n    private function assignLocked(DocumentType $type, string $sourceTable, string $idColumn, int $sourceId, int $companyId): ?DocumentNumber\n    {\n        $sequences = $this->db->prefixTable('document_sequences');\n        $row       = LockedRead::row($this->db, \"SELECT enabled, prefix, padding, next_number, prevent_duplicates FROM {$sequences} WHERE company_id = ? AND doc_type = ? FOR UPDATE\", [$companyId, $type->value]);\n\n        if ($row === null) {",
+  "test": "tests/Libraries/Numbering/DocumentNumberingTest.php",
+  "filter": "testAssign_GivesNothingAfterTheSequenceIsSwitchedOff"
+ },
+ {
+  "name": "G31: an invoice is numbered only when the sale is completed",
+  "file": "app/Models/Sale.php",
+  "needle": "        if (! $completed) {\n            return;\n        }\n",
+  "replacement": "",
+  "test": "tests/Models/SaleTest.php",
+  "filter": "testSaveValue_DoesNotNumberAnInvoiceThatIsNotCompletedYet|testSaveValue_NumbersThePaymentsOfASuspendedSaleOnlyWhenItIsCompleted"
+ },
+ {
+  "name": "G32: an invoice number typed by hand is kept",
+  "file": "app/Models/Sale.php",
+  "needle": "        if ($saleType === SALE_TYPE_INVOICE && ($invoiceNumber ?? '') === '') {",
+  "replacement": "        if ($saleType === SALE_TYPE_INVOICE) {",
+  "test": "tests/Models/SaleTest.php",
+  "filter": "testSaveValue_KeepsAnInvoiceNumberTypedByHandAndGivesNoSequenceNumber"
+ },
+ {
+  "name": "G33: a quote is numbered when it is saved",
+  "file": "app/Models/Sale.php",
+  "needle": "        if ($saleType === SALE_TYPE_QUOTE && ($quoteNumber ?? '') === '') {",
+  "replacement": "        if (false) {",
+  "test": "tests/Models/SaleTest.php",
+  "filter": "testSaveValue_NumbersAQuoteWhenItIsSavedAndKeepsItWhenItIsSavedAgain"
+ },
+ {
+  "name": "G34: a return is numbered as a credit note",
+  "file": "app/Models/Sale.php",
+  "needle": "            $numbering->assign(DocumentType::CreditNote, 'sales', $saleId, $branchId);\n",
+  "replacement": "",
+  "test": "tests/Models/SaleTest.php",
+  "filter": "testSaveValue_NumbersAReturnAsACreditNote"
+ },
+ {
+  "name": "G35: each payment of a completed sale is numbered",
+  "file": "app/Models/Sale.php",
+  "needle": "            $numbering->assign(DocumentType::CustomerPayment, 'sales_payments', $paymentId, $branchId);\n",
+  "replacement": "",
+  "test": "tests/Models/SaleTest.php",
+  "filter": "testSaveValue_NumbersEachPaymentOfACompletedSaleExceptWhatOnlyRecordsWhatStaysUnpaid"
+ },
+ {
+  "name": "G36: what only records what stays unpaid is not a payment document",
+  "file": "app/Models/Sale.php",
+  "needle": "        return empty($payment['cash_adjustment']) && PaymentType::fromLabel((string) ($payment['payment_type'] ?? '')) !== PaymentType::Due;",
+  "replacement": "        return true;",
+  "test": "tests/Models/SaleTest.php",
+  "filter": "testSaveValue_NumbersEachPaymentOfACompletedSaleExceptWhatOnlyRecordsWhatStaysUnpaid"
+ },
+ {
+  "name": "G37: a sale that cannot be numbered is undone as a whole",
+  "file": "app/Models/Sale.php",
+  "needle": "            log_message('error', 'Numbering sale ' . $saleId . ' failed: ' . $failure->getMessage());\n            $this->db->transRollback();\n",
+  "replacement": "            log_message('error', 'Numbering sale ' . $saleId . ' failed: ' . $failure->getMessage());\n",
+  "test": "tests/Models/SaleTest.php",
+  "filter": "testSaveValue_RefusesTheWholeSaleWhenNoNumberCanBeGiven"
+ },
+ {
+  "name": "G38: an edit that leaves the number blank keeps the number of the sequence",
+  "file": "app/Models/Sale.php",
+  "needle": "                unset($updateData[$column]);\n",
+  "replacement": "",
+  "test": "tests/Models/SaleTest.php",
+  "filter": "testUpdate_KeepsTheInvoiceNumberOfTheSequenceWhenTheFormLeavesItBlank"
+ },
+ {
+  "name": "G39: a payment added to a completed sale is numbered",
+  "file": "app/Models/Sale.php",
+  "needle": "                        if ($success && $this->isPaymentDocument($payment) && $this->getSaleStatus((int) $sale_id) == COMPLETED) {",
+  "replacement": "                        if (false) {",
+  "test": "tests/Models/SaleTest.php",
+  "filter": "testUpdate_NumbersAPaymentAddedToACompletedSale"
+ },
+ {
+  "name": "G40: a payment added to a sale that is not completed is not numbered yet",
+  "file": "app/Models/Sale.php",
+  "needle": " && $this->getSaleStatus((int) $sale_id) == COMPLETED) {",
+  "replacement": ") {",
+  "test": "tests/Models/SaleTest.php",
+  "filter": "testUpdate_GivesNoNumberToAPaymentAddedToASaleThatIsNotCompleted"
+ },
+ {
+  "name": "G41: a completed purchase is numbered",
+  "file": "app/Models/Receiving.php",
+  "needle": "            $this->numberDocument($type, (int) $receiving_id, $branchId);\n\n",
+  "replacement": "",
+  "test": "tests/Models/ReceivingTest.php",
+  "filter": "testSaveValue_NumbersAPurchaseAndAReturnToTheSupplierEachInItsOwnSequence"
+ },
+ {
+  "name": "G42: a return to the supplier is a debit note",
+  "file": "app/Models/Receiving.php",
+  "needle": "            ReceivingType::Return  => DocumentType::DebitNote,\n",
+  "replacement": "",
+  "test": "tests/Models/ReceivingTest.php",
+  "filter": "testSaveValue_NumbersAPurchaseAndAReturnToTheSupplierEachInItsOwnSequence"
+ },
+ {
+  "name": "G43: a transfer between locations gets no number",
+  "file": "app/Models/Receiving.php",
+  "needle": "            default                => null,",
+  "replacement": "            default                => DocumentType::Purchase,",
+  "test": "tests/Models/ReceivingTest.php",
+  "filter": "testSaveValue_DoesNotNumberATransferBetweenLocations"
+ },
+ {
+  "name": "G44: each new supplier payment of a purchase is numbered",
+  "file": "app/Models/Receiving.php",
+  "needle": "                (new DocumentNumbering($this->db))->assign(DocumentType::SupplierPayment, 'receivings_payments', (int) $this->db->insertID(), (int) $purchase->branch_id);\n\n",
+  "replacement": "",
+  "test": "tests/Models/ReceivingTest.php",
+  "filter": "testUpdate_NumbersEachNewSupplierPaymentAndKeepsTheNumberWhenItIsChanged"
+ },
+ {
+  "name": "G45: an opening balance of a supplier is not a payment document",
+  "file": "app/Libraries/Accounting/SupplierAdvances.php",
+  "needle": "        if ($kind === self::PAYMENT) {",
+  "replacement": "        if (true) {",
+  "test": "tests/Libraries/Accounting/SupplierAdvancesTest.php",
+  "filter": "testOpeningBalance_IsNotAPaymentAndGetsNoNumber"
+ },
+ {
+  "name": "G46: a payment to a supplier is numbered",
+  "file": "app/Libraries/Accounting/SupplierAdvances.php",
+  "needle": "            (new DocumentNumbering($this->db))->assign(DocumentType::SupplierPayment, 'supplier_advances', $advanceId, $branchId);\n",
+  "replacement": "",
+  "test": "tests/Libraries/Accounting/SupplierAdvancesTest.php",
+  "filter": "testPay_NumbersThePaymentInTheSequenceOfSupplierPayments"
+ },
+ {
+  "name": "G47: a new expense is numbered",
+  "file": "app/Models/Expense.php",
+  "needle": "                    (new DocumentNumbering($this->db))->assign(DocumentType::Expense, 'expenses', (int) $expense_data['expense_id']);\n",
+  "replacement": "",
+  "test": "tests/Models/ExpenseTest.php",
+  "filter": "testSaveValue_NumbersANewExpenseWhenTheSequenceIsOn"
+ },
+ {
+  "name": "G48: an expense that cannot be numbered is undone",
+  "file": "app/Models/Expense.php",
+  "needle": "                    log_message('error', 'Numbering expense ' . $expense_data['expense_id'] . ' failed: ' . $failure->getMessage());\n                    $this->db->transRollback();\n",
+  "replacement": "                    log_message('error', 'Numbering expense ' . $expense_data['expense_id'] . ' failed: ' . $failure->getMessage());\n",
+  "test": "tests/Models/ExpenseTest.php",
+  "filter": "testSaveValue_RefusesTheExpenseAndLeavesNothingWhenNoNumberCanBeGiven"
+ },
+ {
+  "name": "G49: an account number typed by hand is kept",
+  "file": "app/Models/Customer.php",
+  "needle": "                if ($success && ($customer_data['account_number'] ?? '') === '') {",
+  "replacement": "                if ($success) {",
+  "test": "tests/Models/CustomerTest.php",
+  "filter": "testSaveCustomer_KeepsAnAccountNumberTypedByHand"
+ },
+ {
+  "name": "G50: a customer that cannot be numbered is undone",
+  "file": "app/Models/Customer.php",
+  "needle": "                        log_message('error', 'Numbering customer ' . $customer_data['person_id'] . ' failed: ' . $failure->getMessage());\n                        $this->db->transRollback();\n",
+  "replacement": "                        log_message('error', 'Numbering customer ' . $customer_data['person_id'] . ' failed: ' . $failure->getMessage());\n",
+  "test": "tests/Models/CustomerTest.php",
+  "filter": "testSaveCustomer_RefusesTheCustomerAndLeavesNothingWhenNoNumberCanBeGiven"
+ },
+ {
+  "name": "G51: an account number is taken even when several customers share it",
+  "file": "app/Models/Customer.php",
+  "needle": "        return $builder->get()->getNumRows() > 0;",
+  "replacement": "        return $builder->get()->getNumRows() == 1;",
+  "test": "tests/Models/CustomerTest.php",
+  "filter": "testCheckAccountNumberExists_SeesTheNumberEvenWhenSeveralCustomersAlreadyShareIt"
+ },
+ {
+  "name": "G54: only a new customer is offered the automatic number",
+  "file": "app/Controllers/Customers.php",
+  "needle": "$customer_id == NEW_ENTRY ? (new DocumentNumbering())->peek(DocumentType::Customer) : null",
+  "replacement": "(new DocumentNumbering())->peek(DocumentType::Customer)",
+  "test": "tests/Controllers/CustomersControllerTest.php",
+  "filter": "testGetView_OffersNoAutomaticNumberOnTheFormOfACustomerThatExists"
+ },
+ {
+  "name": "G55: the invoice format of the settings gives way to the sequence",
+  "file": "app/Controllers/Sales.php",
+  "needle": "            if (!$invoiceBySequence && !empty($invoiceFormat) && $invoiceNumber == null) {",
+  "replacement": "            if (!empty($invoiceFormat) && $invoiceNumber == null) {",
+  "test": "tests/Controllers/SalesControllerTest.php",
+  "filter": "testPostComplete_GivesTheInvoiceTheNumberOfItsSequenceAndShowsItOnTheInvoice"
+ },
+ {
+  "name": "G56: the quote format of the settings gives way to the sequence",
+  "file": "app/Controllers/Sales.php",
+  "needle": "            if ($quoteNumber == null && !$quoteBySequence) {",
+  "replacement": "            if ($quoteNumber == null) {",
+  "test": "tests/Controllers/SalesControllerTest.php",
+  "filter": "testPostComplete_GivesTheQuoteTheNumberOfItsSequence"
+ },
+ {
+  "name": "G57: an invoice that has no number yet is not looked up as a duplicate",
+  "file": "app/Controllers/Sales.php",
+  "needle": "$saleId == NEW_ENTRY && $invoiceNumber !== null && ",
+  "replacement": "$saleId == NEW_ENTRY && ",
+  "test": "tests/Controllers/SalesControllerTest.php",
+  "filter": "testPostComplete_GivesTheInvoiceTheNumberOfItsSequenceAndShowsItOnTheInvoice"
+ },
+ {
+  "name": "G70: a quote that has no number yet is not looked up as a duplicate",
+  "file": "app/Controllers/Sales.php",
+  "needle": "$saleId == NEW_ENTRY && $quoteNumber !== null && ",
+  "replacement": "$saleId == NEW_ENTRY && ",
+  "test": "tests/Controllers/SalesControllerTest.php",
+  "filter": "testPostComplete_GivesTheQuoteTheNumberOfItsSequence"
+ },
+ {
+  "name": "G58: the invoice shows the number the sequence gave it",
+  "file": "app/Controllers/Sales.php",
+  "needle": "                    if ($invoiceBySequence) {\n                        $data['invoice_number'] = $this->sale->getInvoiceNumber($data['sale_id_num']);\n                    }\n\n",
+  "replacement": "",
+  "test": "tests/Controllers/SalesControllerTest.php",
+  "filter": "testPostComplete_GivesTheInvoiceTheNumberOfItsSequenceAndShowsItOnTheInvoice"
+ },
+ {
+  "name": "G62: the receipt of a purchase shows its number",
+  "file": "app/Controllers/Receivings.php",
+  "needle": "        $data += $this->documentNumberOf((int) $saved);\n",
+  "replacement": "",
+  "test": "tests/Controllers/ReceivingsControllerTest.php",
+  "filter": "testPostComplete_ShowsTheNumberOfThePurchaseOnTheReceipt"
+ },
+ {
+  "name": "G63: the expense list shows the number column only while the sequence is on",
+  "file": "app/Helpers/tabular_helper.php",
+  "needle": "    if ((new DocumentNumbering())->isEnabled(DocumentType::Expense)) {",
+  "replacement": "    if (true) {",
+  "test": "tests/Controllers/ExpensesControllerTest.php",
+  "filter": "testGetIndex_AddsTheNumberColumnOnlyWhileTheSequenceIsOn"
+ },
+ {
+  "name": "G64: the expense rows show their numbers",
+  "file": "app/Controllers/Expenses.php",
+  "needle": "$numbers[(int) $expense->expense_id] ?? null",
+  "replacement": "null",
+  "test": "tests/Controllers/ExpensesControllerTest.php",
+  "filter": "testGetSearch_ListsTheNumberOfEachExpenseThatHasOne"
+ },
+ {
+  "name": "G65: an unknown kind of document is refused by the settings screen",
+  "file": "app/Controllers/Config.php",
+  "needle": "        if ($documentType === null) {",
+  "replacement": "        if (false) {",
+  "test": "tests/Controllers/ConfigTest.php",
+  "filter": "testSaveNumbering_RejectsAKindOfDocumentThatDoesNotExist"
+ },
+ {
+  "name": "G66: the settings screen saves as the employee who is logged in",
+  "file": "app/Controllers/Config.php",
+  "needle": "$input, (int) $this->employee->get_logged_in_employee_info()->person_id);",
+  "replacement": "$input);",
+  "test": "tests/Controllers/ConfigTest.php",
+  "filter": "testSaveNumbering_RefusesAnEmployeeWithoutTheSettingsPermission|testSaveNumbering_NamesTheEmployeeWhoSavedItInTheAuditLog"
+ },
+ {
+  "name": "G67: the duplicate option belongs to the customer sequence only",
+  "file": "app/Controllers/Config.php",
+  "needle": "        if ($documentType->hasDuplicateOption()) {",
+  "replacement": "        if (true) {",
+  "test": "tests/Controllers/ConfigTest.php",
+  "filter": "testSaveNumbering_KeepsTheDuplicateOptionOnlyForTheCustomerSequence"
+ },
+ {
+  "name": "G68: the numbering is a section of the settings",
+  "file": "app/Helpers/navigation_helper.php",
+  "needle": "            ['numbering', 'bi-123', 'Numbering.menu', 'Numbering.title'],\n",
+  "replacement": "",
+  "test": "tests/helpers/NavigationHelperTest.php"
+ },
+ {
+  "name": "G69: a message names the lowest next number",
+  "file": "app/Libraries/Accounting/AccountingMessage.php",
+  "needle": ", 'difference', 'min'];",
+  "replacement": ", 'difference'];",
+  "test": "tests/Libraries/Accounting/AccountingMessageTest.php",
+  "filter": "testOf_NamesTheLowestNextNumberOfANumberingRefusal"
+ },
+ {
+  "name": "M01: a number is unique per company and kind",
+  "file": "app/Database/Migrations/20261210000000_DocumentSequences.php",
+  "needle": "                UNIQUE KEY `{$numbers}_number` (`company_id`, `doc_type`, `number`),\n",
+  "replacement": "",
+  "test": "tests/Database/DocumentSequencesMigrationTest.php",
+  "filter": "testUp_RefusesTheSameNumberTwiceForOneKindAndTwoNumbersForOneDocument"
+ },
+ {
+  "name": "M02: a document has one number per kind",
+  "file": "app/Database/Migrations/20261210000000_DocumentSequences.php",
+  "needle": "                UNIQUE KEY `{$numbers}_source` (`doc_type`, `source_table`, `source_id`),\n",
+  "replacement": "",
+  "test": "tests/Database/DocumentSequencesMigrationTest.php",
+  "filter": "testUp_RefusesTheSameNumberTwiceForOneKindAndTwoNumbersForOneDocument"
+ },
+ {
+  "name": "M03: one sequence per company and kind",
+  "file": "app/Database/Migrations/20261210000000_DocumentSequences.php",
+  "needle": "                PRIMARY KEY (`company_id`, `doc_type`),\n",
+  "replacement": "",
+  "test": "tests/Database/DocumentSequencesMigrationTest.php",
+  "filter": "testUp_RefusesTwoSequencesOfTheSameKindForOneCompany"
+ },
+ {
+  "name": "M04: the digits are at most ten",
+  "file": "app/Database/Migrations/20261210000000_DocumentSequences.php",
+  "needle": "CHECK (`padding` <= 10)",
+  "replacement": "CHECK (`padding` <= 255)",
+  "test": "tests/Database/DocumentSequencesMigrationTest.php",
+  "filter": "testUp_RefusesAPaddingAboveTenAndANextNumberBelowOne"
+ },
+ {
+  "name": "M05: the next number is at least one",
+  "file": "app/Database/Migrations/20261210000000_DocumentSequences.php",
+  "needle": "CHECK (`next_number` >= 1)",
+  "replacement": "CHECK (`next_number` >= 0)",
+  "test": "tests/Database/DocumentSequencesMigrationTest.php",
+  "filter": "testUp_RefusesAPaddingAboveTenAndANextNumberBelowOne"
+ },
+ {
+  "name": "M06: a sequence belongs to a company that exists",
+  "file": "app/Database/Migrations/20261210000000_DocumentSequences.php",
+  "needle": "                CONSTRAINT `{$sequences}_fk_company` FOREIGN KEY (`company_id`) REFERENCES `{$companies}` (`company_id`) ON DELETE RESTRICT,\n",
+  "replacement": "",
+  "test": "tests/Database/DocumentSequencesMigrationTest.php",
+  "filter": "testUp_RefusesASequenceOfACompanyThatDoesNotExist"
+ },
+ {
+  "name": "M07: the migration is safe to run twice",
+  "file": "app/Database/Migrations/20261210000000_DocumentSequences.php",
+  "needle": "            \"CREATE TABLE IF NOT EXISTS `{$sequences}` (",
+  "replacement": "            \"CREATE TABLE `{$sequences}` (",
+  "test": "tests/Database/DocumentSequencesMigrationTest.php",
+  "filter": "testUp_RunsTwiceWithoutLosingASequenceOrANumber"
+ },
+ {
+  "name": "G71: a sale the books refuse after its invoice was numbered leaves no number",
+  "file": "app/Models/Sale.php",
+  "needle": "            if ($failure !== null) {\n                $this->db->transRollback();\n                $this->recordAccountingFailure($saleId, $failure, $employeeId, (int) $salesData['branch_id']);\n\n                return ACCOUNTING_FAILED;",
+  "replacement": "            if ($failure !== null) {\n                $this->recordAccountingFailure($saleId, $failure, $employeeId, (int) $salesData['branch_id']);\n\n                return ACCOUNTING_FAILED;",
+  "test": "tests/Controllers/SalesControllerTest.php",
+  "filter": "testPostComplete_LeavesNoNumberBehindWhenTheBooksRefuseTheNumberedSale"
+ },
+ {
+  "name": "G72: a payment that cannot be numbered takes back the invoice number already given",
+  "file": "app/Models/Sale.php",
+  "needle": "            log_message('error', 'Numbering sale ' . $saleId . ' failed: ' . $failure->getMessage());\n            $this->db->transRollback();\n",
+  "replacement": "            log_message('error', 'Numbering sale ' . $saleId . ' failed: ' . $failure->getMessage());\n",
+  "test": "tests/Models/SaleTest.php",
+  "filter": "testSaveValue_TakesBackTheInvoiceNumberWhenAPaymentCannotBeNumbered"
+ },
+ {
+  "name": "G73: a purchase the books refuse after it was numbered leaves no number",
+  "file": "app/Models/Receiving.php",
+  "needle": "        } catch (AccountingException|PostingException $failure) {\n            $this->db->transRollback();\n            $this->accountingFailure = $failure;\n\n            if ($accountingOn && $failure instanceof PostingException) {\n                (new ReceivingPosting($this->db))->recordFailure($receiving_id > 0",
+  "replacement": "        } catch (AccountingException|PostingException $failure) {\n            $this->accountingFailure = $failure;\n\n            if ($accountingOn && $failure instanceof PostingException) {\n                (new ReceivingPosting($this->db))->recordFailure($receiving_id > 0",
+  "test": "tests/Models/ReceivingTest.php",
+  "filter": "testSaveValue_LeavesNoNumberBehindWhenTheBooksRefuseAPurchaseThatWasNumbered"
+ },
+ {
+  "name": "G74: a transaction the work owns is rolled back when the work fails after a number was taken",
+  "file": "app/Libraries/Accounting/RunsInTransaction.php",
+  "needle": "            $ownsTransaction ? $this->db->transRollback() : $this->db->transComplete();\n",
+  "replacement": "            $this->db->transComplete();\n",
+  "test": "tests/Libraries/Accounting/SupplierAdvancesTest.php",
+  "filter": "testPay_LeavesNoNumberBehindWhenTheBooksRefuseAPaymentThatWasNumbered"
+ },
+ {
+  "name": "G75: a running sequence keeps its next number when a row that never gets a number appears",
+  "file": "app/Libraries/Numbering/DocumentNumbering.php",
+  "needle": "        $runningAsItIs = $current->enabled && $current->prefix === $prefix;",
+  "replacement": "        $runningAsItIs = false;",
+  "test": "tests/Libraries/Numbering/DocumentNumberingTest.php",
+  "filter": "testConfigure_KeepsARunningSequenceWhereItIsWhenARowThatShowsItsIdAppears|testOverview_ShowsTheNumberARunningSequenceWillGive"
+ },
+ {
+  "name": "G76: a running sequence that changes its prefix starts above the ids shown bare",
+  "file": "app/Libraries/Numbering/DocumentNumbering.php",
+  "needle": "        $runningAsItIs = $current->enabled && $current->prefix === $prefix;",
+  "replacement": "        $runningAsItIs = $current->enabled;",
+  "test": "tests/Libraries/Numbering/DocumentNumberingTest.php",
+  "filter": "testConfigure_StartsAboveTheIdsShownBareWhenARunningSequenceLosesItsPrefix"
+ },
+ {
+  "name": "G77: a sequence that is off starts above the numbers the documents carry or show",
+  "file": "app/Libraries/Numbering/DocumentNumbering.php",
+  "needle": "        $runningAsItIs = $current->enabled && $current->prefix === $prefix;",
+  "replacement": "        $runningAsItIs = $current->prefix === $prefix;",
+  "test": "tests/Libraries/Numbering/DocumentNumberingTest.php",
+  "filter": "testConfigure_RaisesTheNextNumberAboveDocumentsMadeWhileTheSequenceWasOff|testConfigure_StartsTheSequenceAboveTheDocumentsThatExist"
+ },
+ {
+  "name": "G78: the service refuses a prefix that is not text",
+  "file": "app/Libraries/Numbering/DocumentNumbering.php",
+  "needle": "        $prefix = is_string($prefix) ? trim($prefix) : null;",
+  "replacement": "        $prefix = trim((string) $prefix);",
+  "test": "tests/Libraries/Numbering/DocumentNumberingTest.php",
+  "filter": "testConfigure_RejectsAPrefixThatIsNotText"
+ },
+ {
+  "name": "G79: the settings screen reads a list given as the prefix without a PHP warning",
+  "file": "app/Controllers/Config.php",
+  "needle": "            'prefix'  => $this->request->getPost('prefix') ?? '',",
+  "replacement": "            'prefix'  => (string) $this->request->getPost('prefix'),",
+  "test": "tests/Controllers/ConfigTest.php",
+  "filter": "testSaveNumbering_RejectsFieldsThatComeAsListsInsteadOfThrowing"
+ },
+ {
+  "name": "G80: the settings screen reads a list given as the digits without a PHP warning",
+  "file": "app/Controllers/Config.php",
+  "needle": "            'padding' => is_string($padding) && trim($padding) === '' ? 0 : $padding,",
+  "replacement": "            'padding' => trim((string) $padding) === '' ? 0 : $padding,",
+  "test": "tests/Controllers/ConfigTest.php",
+  "filter": "testSaveNumbering_RejectsFieldsThatComeAsListsInsteadOfThrowing"
+ },
+ {
+  "name": "G81: the settings screen reads a list given as the next number without a PHP warning",
+  "file": "app/Controllers/Config.php",
+  "needle": "        if ($nextNumber !== null && (! is_string($nextNumber) || trim($nextNumber) !== '')) {",
+  "replacement": "        if (trim((string) $nextNumber) !== '') {",
+  "test": "tests/Controllers/ConfigTest.php",
+  "filter": "testSaveNumbering_RejectsFieldsThatComeAsListsInsteadOfThrowing"
+ },
+ {
+  "name": "G82: a sequence that is off may be started lower when its prefix changes (the field does not block it)",
+  "file": "app/Views/configs/numbering_config.php",
+  "needle": "                            'min'   => $sequence->enabled ? $sequence->nextNumber : 1,",
+  "replacement": "                            'min'   => $sequence->nextNumber,",
+  "test": "tests/Controllers/ConfigTest.php",
+  "filter": "testGetIndex_LetsASequenceThatIsOffStartLowerWhenItsPrefixChanges"
+ },
+ {
+  "name": "G83: a running sequence cannot be lowered from the field",
+  "file": "app/Views/configs/numbering_config.php",
+  "needle": "                            'min'   => $sequence->enabled ? $sequence->nextNumber : 1,",
+  "replacement": "                            'min'   => 1,",
+  "test": "tests/Controllers/ConfigTest.php",
+  "filter": "testGetIndex_KeepsTheNextNumberOfARunningSequenceNoLowerThanItsCurrentOne"
+ },
+ {
+  "name": "G84: the settings page hands the numbering to its tab",
+  "file": "app/Controllers/Config.php",
+  "needle": "        $data['numbering'] = (new DocumentNumbering())->overview();\n",
+  "replacement": "",
+  "test": "tests/Controllers/ConfigTest.php",
+  "filter": "testGetIndex_ShowsTheNumberingTabWithAFormForEveryKindOfDocument"
+ },
+ {
+  "name": "G85: the settings page has a pane for the numbering",
+  "file": "app/Views/configs/manage.php",
+  "needle": "    'numbering' => 'configs/numbering_config',\n",
+  "replacement": "",
+  "test": "tests/Controllers/ConfigTest.php",
+  "filter": "testGetIndex_ShowsTheNumberingTabWithAFormForEveryKindOfDocument"
+ },
+ {
+  "name": "G86: an invoice number typed by hand that another invoice has is refused",
+  "file": "app/Controllers/Sales.php",
+  "needle": "$saleId == NEW_ENTRY && $invoiceNumber !== null && $this->sale->check_invoice_number_exists($invoiceNumber)",
+  "replacement": "false",
+  "test": "tests/Controllers/SalesControllerTest.php",
+  "filter": "testPostComplete_RefusesAnInvoiceNumberTypedByHand"
+ },
+ {
+  "name": "G87: a quote number typed by hand that another quote has is refused",
+  "file": "app/Controllers/Sales.php",
+  "needle": "$saleId == NEW_ENTRY && $quoteNumber !== null && $this->sale->check_quote_number_exists($quoteNumber)",
+  "replacement": "false",
+  "test": "tests/Controllers/SalesControllerTest.php",
+  "filter": "testPostComplete_RefusesAQuoteNumberTypedByHand"
+ },
+ {
+  "name": "G52: a customer account number another customer has is refused",
+  "file": "app/Models/Customer.php",
+  "needle": "            && $this->check_account_number_exists($accountNumber, $personId);",
+  "replacement": "            && false;",
+  "test": "tests/Models/CustomerTest.php",
+  "filter": "testRefusesAccountNumber_RefusesANumberAnotherCustomerHasWhileTheOptionIsOn"
+ },
+ {
+  "name": "G53: the duplicate option of the customer sequence is honoured",
+  "file": "app/Models/Customer.php",
+  "needle": "            && (new DocumentNumbering($this->db))->sequence(DocumentType::Customer)->preventDuplicates\n",
+  "replacement": "",
+  "test": "tests/Models/CustomerTest.php",
+  "filter": "testRefusesAccountNumber_AcceptsANumberAnotherCustomerHasWhenTheOptionIsOff"
+ },
+ {
+  "name": "G88: an empty account number is never refused",
+  "file": "app/Models/Customer.php",
+  "needle": "        return $accountNumber !== ''\n            && ",
+  "replacement": "        return ",
+  "test": "tests/Models/CustomerTest.php",
+  "filter": "testRefusesAccountNumber_AcceptsAnEmptyNumberEvenWhenAnotherCustomerHasOne"
+ },
+ {
+  "name": "G89: the form save asks the model whether a customer number is refused",
+  "file": "app/Controllers/Customers.php",
+  "needle": "$this->customer->refusesAccountNumber($customerData['account_number'], (string) $customer_id)",
+  "replacement": "false",
+  "test": "tests/Controllers/CustomersControllerTest.php",
+  "filter": "testPostSave_RefusesAnAccountNumberAnotherCustomerAlreadyHas"
+ },
+ {
+  "name": "G90: the remote check of the form follows the duplicate option",
+  "file": "app/Controllers/Customers.php",
+  "needle": "$this->customer->refusesAccountNumber((string) $this->request->getPost('account_number'), (string) $this->request->getPost('person_id', FILTER_SANITIZE_NUMBER_INT))",
+  "replacement": "$this->customer->check_account_number_exists((string) $this->request->getPost('account_number'), (string) $this->request->getPost('person_id', FILTER_SANITIZE_NUMBER_INT))",
+  "test": "tests/Controllers/CustomersControllerTest.php",
+  "filter": "testPostCheckAccountNumber_"
+ },
+ {
+  "name": "G91: the CSV import refuses a taken account number even with a new email",
+  "file": "app/Controllers/Customers.php",
+  "needle": "                            $invalidated |= $this->customer->refusesAccountNumber($accountNumber);\n",
+  "replacement": "",
+  "test": "tests/Controllers/CustomersControllerTest.php",
+  "filter": "testPostImportCsvFile_"
+ },
+ {
+  "name": "G92: the CSV import follows the duplicate option",
+  "file": "app/Controllers/Customers.php",
+  "needle": "$invalidated |= $this->customer->refusesAccountNumber($accountNumber);",
+  "replacement": "$invalidated |= $this->customer->check_account_number_exists($accountNumber);",
+  "test": "tests/Controllers/CustomersControllerTest.php",
+  "filter": "testPostImportCsvFile_AcceptsARowWhoseAccountNumberAnotherCustomerHasWhenTheOptionIsOff"
+ },
+ {
+  "name": "G59: the register offers the next number of the invoice sequence",
+  "file": "app/Controllers/Sales.php",
+  "needle": "$nextInvoiceNumber = (new DocumentNumbering())->peek(DocumentType::SalesInvoice);",
+  "replacement": "$nextInvoiceNumber = null;",
+  "test": "tests/Controllers/SalesControllerTest.php",
+  "filter": "testGetIndex_OffersTheNextNumberOfTheInvoiceSequenceAsThePlaceholderOfTheInvoiceField"
+ },
+ {
+  "name": "G93: the next number is a placeholder and not a value that the field would post",
+  "file": "app/Controllers/Sales.php",
+  "needle": "                $tempInvoiceNumber = '';\n",
+  "replacement": "                $tempInvoiceNumber = $nextInvoiceNumber;\n",
+  "test": "tests/Controllers/SalesControllerTest.php",
+  "filter": "testGetIndex_OffersTheNextNumberOfTheInvoiceSequenceAsThePlaceholderOfTheInvoiceField"
+ },
+ {
+  "name": "G94: the placeholder shows the next number",
+  "file": "app/Controllers/Sales.php",
+  "needle": "                $invoiceNumberPlaceholder = $nextInvoiceNumber;\n",
+  "replacement": "",
+  "test": "tests/Controllers/SalesControllerTest.php",
+  "filter": "testGetIndex_OffersTheNextNumberOfTheInvoiceSequenceAsThePlaceholderOfTheInvoiceField"
+ },
+ {
+  "name": "G95: the invoice format of the settings still fills the field while the sequence is off",
+  "file": "app/Controllers/Sales.php",
+  "needle": "                $tempInvoiceNumber = $this->token_lib->render($invoiceFormat, [], false);",
+  "replacement": "                $tempInvoiceNumber = '';",
+  "test": "tests/Controllers/SalesControllerTest.php",
+  "filter": "testGetIndex_FillsTheInvoiceFieldWithTheFormatOfTheSettingsWhileTheSequenceIsOff"
+ },
+ {
+  "name": "G96: a number typed in the register keeps its letters and separators",
+  "file": "app/Controllers/Sales.php",
+  "needle": "DocumentNumbering::typed((string) $this->request->getPost('sales_invoice_number'))",
+  "replacement": "(string) $this->request->getPost('sales_invoice_number', FILTER_SANITIZE_NUMBER_INT)",
+  "test": "tests/Controllers/SalesControllerTest.php",
+  "filter": "testPostSetInvoiceNumber_"
+ },
+ {
+  "name": "G97: a number typed in the register loses what a number cannot have",
+  "file": "app/Controllers/Sales.php",
+  "needle": "DocumentNumbering::typed((string) $this->request->getPost('sales_invoice_number'))",
+  "replacement": "(string) $this->request->getPost('sales_invoice_number')",
+  "test": "tests/Controllers/SalesControllerTest.php",
+  "filter": "testPostSetInvoiceNumber_DropsTheCharactersANumberCannotHave"
+ },
+ {
+  "name": "G98: the typed number keeps only letters, digits and the separators of a prefix",
+  "file": "app/Libraries/Numbering/DocumentNumbering.php",
+  "needle": "'/[^' . self::CHARACTERS . ']/u'",
+  "replacement": "'/[^0-9]/u'",
+  "test": "tests/Libraries/Numbering/DocumentNumberingTest.php",
+  "filter": "testTyped_"
+ },
+ {
+  "name": "G99: the typed number keeps the separators of a prefix",
+  "file": "app/Libraries/Numbering/DocumentNumbering.php",
+  "needle": "    private const CHARACTERS       = '\\p{L}\\p{N}._\\/#-';",
+  "replacement": "    private const CHARACTERS       = '\\p{L}\\p{N}';",
+  "test": "tests/Libraries/Numbering/DocumentNumberingTest.php",
+  "filter": "testTyped_"
+ },
+ {
+  "name": "G100: an emptied invoice number field leaves the number to the sequence",
+  "file": "app/Libraries/Sale_lib.php",
+  "needle": "            if ($invoice_number === '') {",
+  "replacement": "            if (false) {",
+  "test": "tests/Libraries/Sale_libTest.php",
+  "filter": "testSetInvoiceNumber_ForgetsTheNumberWhenItIsEmptied"
+ },
+ {
+  "name": "G101: a number typed in the register is held as text",
+  "file": "app/Libraries/Sale_lib.php",
+  "needle": "    public function set_invoice_number(string $invoice_number, bool $keep_custom = false): void",
+  "replacement": "    public function set_invoice_number(int $invoice_number, bool $keep_custom = false): void",
+  "test": "tests/Libraries/Sale_libTest.php",
+  "filter": "testSetInvoiceNumber_HoldsANumberWithLettersAndLeadingZerosAsTyped"
+ },
+ {
+  "name": "G60: the receipt of a return shows the credit note number",
+  "file": "app/Controllers/Sales.php",
+  "needle": "                $data['creditNoteNumber'] = $this->creditNoteNumberOf((int) $data['sale_id_num']);\n",
+  "replacement": "",
+  "test": "tests/Controllers/SalesControllerTest.php",
+  "filter": "testPostComplete_ShowsTheCreditNoteNumberOnTheReceiptOfAReturn"
+ },
+ {
+  "name": "G61: the edit form shows the number of each payment",
+  "file": "app/Controllers/Sales.php",
+  "needle": "        $data['paymentNumbers']   = $numbering->numbers(DocumentType::CustomerPayment, 'sales_payments', array_map(static fn (object $payment): int => (int) $payment->payment_id, $data['payments']));",
+  "replacement": "        $data['paymentNumbers']   = [];",
+  "test": "tests/Controllers/SalesControllerTest.php",
+  "filter": "testGetEdit_ShowsTheNumberOfTheCreditNoteAndOfEachPayment"
+ }
+]

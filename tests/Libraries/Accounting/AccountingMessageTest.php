@@ -63,6 +63,13 @@ class AccountingMessageTest extends CIUnitTestCase
         $this->assertStringContainsString('40.0000', $message);
     }
 
+    public function testOf_NamesTheLowestNextNumberOfANumberingRefusal(): void
+    {
+        $message = AccountingMessage::of(new AccountingException(AccountingError::NumberingNextTooLow, 'x', ['min' => 417]));
+
+        $this->assertStringContainsString('417', $message);
+    }
+
     public function testOf_SaysTheSameForAPermissionRefusalWhateverItsContext(): void
     {
         $this->assertSame(lang('Accounting.error_permission_denied'), AccountingMessage::of(new AccountingException(AccountingError::PermissionDenied, 'no', ['x' => 1])));

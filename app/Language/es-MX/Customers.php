@@ -45,7 +45,6 @@ return [
     'none_selected'                 => 'No ha seleccionado un Cliente para borrar.',
     'one_or_multiple'               => 'Cliente(s)',
     'quantity'                      => 'Cantidad',
-    'rewards_package'               => 'Paquete de Recompensas',
     'stats_info'                    => 'Estadísticas',
     'successful_adding'             => 'Ha agregado un Cliente con éxito',
     'successful_deleted'            => 'Se ha borrado correctamente',
@@ -55,4 +54,5 @@ return [
     'taxable'                       => 'Impuestable',
     'total'                         => 'Gasto total',
     'update'                        => 'Actualizar Cliente',
+    'rewards_package'               => 'Paquete de Recompensas',
 ];

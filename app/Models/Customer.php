@@ -62,6 +62,13 @@ class Customer extends Person
         return $builder->get()->getNumRows() > 0;
     }
 
+    public function refusesAccountNumber(string $accountNumber, string $personId = ''): bool
+    {
+        return $accountNumber !== ''
+            && (new DocumentNumbering($this->db))->sequence(DocumentType::Customer)->preventDuplicates
+            && $this->check_account_number_exists($accountNumber, $personId);
+    }
+
     /**
      * Gets total of rows
      */

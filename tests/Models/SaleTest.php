@@ -88,7 +88,7 @@ class SaleTest extends CIUnitTestCase
      */
     private function paymentIdsOf(int $saleId): array
     {
-        return array_map('intval', array_column(\Config\Database::connect()->table('sales_payments')->select('payment_id')->where('sale_id', $saleId)->orderBy('payment_id')->get()->getResultArray(), 'payment_id'));
+        return array_map('intval', array_column(Database::connect()->table('sales_payments')->select('payment_id')->where('sale_id', $saleId)->orderBy('payment_id')->get()->getResultArray(), 'payment_id'));
     }
 
     /**
@@ -711,7 +711,7 @@ class SaleTest extends CIUnitTestCase
         $return  = $this->saveSale(SALE_TYPE_RETURN, [], COMPLETED, NEW_ENTRY, null, null, $invoice, -1);
 
         $this->assertGreaterThan(0, min($pos, $invoice, $quote, $return));
-        $this->assertSame(0, \Config\Database::connect()->table('document_numbers')->countAllResults());
+        $this->assertSame(0, Database::connect()->table('document_numbers')->countAllResults());
         $this->assertNull(model(Sale::class)->getInvoiceNumber($invoice));
         $this->assertNull(model(Sale::class)->get_quote_number($quote));
     }
@@ -763,16 +763,16 @@ class SaleTest extends CIUnitTestCase
 
         $saleId = $this->saveSale(SALE_TYPE_POS, [$this->cashPayment()], SUSPENDED);
 
-        $this->assertSame(0, \Config\Database::connect()->table('document_numbers')->countAllResults());
+        $this->assertSame(0, Database::connect()->table('document_numbers')->countAllResults());
 
         $this->saveSale(SALE_TYPE_POS, [$this->cashPayment()], SUSPENDED, $saleId);
 
-        $this->assertSame(0, \Config\Database::connect()->table('document_numbers')->countAllResults());
+        $this->assertSame(0, Database::connect()->table('document_numbers')->countAllResults());
         $this->assertSame(1, (new DocumentNumbering())->sequence(DocumentType::CustomerPayment)->nextNumber);
 
         $this->saveSale(SALE_TYPE_POS, [$this->cashPayment()], COMPLETED, $saleId);
 
-        $this->assertSame(1, \Config\Database::connect()->table('document_numbers')->countAllResults());
+        $this->assertSame(1, Database::connect()->table('document_numbers')->countAllResults());
         $this->assertSame('PAY-0001', $this->numberOf(DocumentType::CustomerPayment, 'sales_payments', $this->paymentIdsOf($saleId)[0]));
     }
 
@@ -859,13 +859,13 @@ class SaleTest extends CIUnitTestCase
         ]);
 
         $this->assertSame(INSUFFICIENT_GIFTCARD_BALANCE, $result);
-        $this->assertSame(0, \Config\Database::connect()->table('document_numbers')->countAllResults());
+        $this->assertSame(0, Database::connect()->table('document_numbers')->countAllResults());
         $this->assertSame(1, (new DocumentNumbering())->sequence(DocumentType::CustomerPayment)->nextNumber);
     }
 
     public function testSaveValue_RefusesTheWholeSaleWhenNoNumberCanBeGiven(): void
     {
-        $db = \Config\Database::connect();
+        $db = Database::connect();
         $this->switchOn(DocumentType::CustomerPayment, 'PAY-', 0, 1);
         $db->table('document_sequences')->where('doc_type', 'customer_payment')->update(['next_number' => 4294967294]);
         $db->table('document_numbers')->insert(['company_id' => 1, 'doc_type' => 'customer_payment', 'source_table' => 'sales_payments', 'source_id' => 999999999, 'sequence_number' => 4294967294, 'number' => 'PAY-4294967294']);
@@ -879,6 +879,30 @@ class SaleTest extends CIUnitTestCase
         $this->assertInstanceOf(AccountingException::class, $failure);
         $this->assertSame(AccountingError::NumberingExhausted, $failure->error);
         $this->assertSame(1, $db->table('document_numbers')->countAllResults());
+    }
+
+    public function testSaveValue_TakesBackTheInvoiceNumberWhenAPaymentCannotBeNumbered(): void
+    {
+        $db     = Database::connect();
+        $prefix = $this->freshPrefix();
+        $this->switchOn(DocumentType::SalesInvoice, $prefix, 3, 1);
+        $this->switchOn(DocumentType::CustomerPayment, 'PAY-', 0, 1);
+        $db->table('document_sequences')->where('doc_type', 'customer_payment')->update(['next_number' => 4294967294]);
+        $db->table('document_numbers')->insert(['company_id' => 1, 'doc_type' => 'customer_payment', 'source_table' => 'sales_payments', 'source_id' => 999999999, 'sequence_number' => 4294967294, 'number' => 'PAY-4294967294']);
+
+        $sales  = $db->table('sales')->countAllResults();
+        $result = $this->saveSale(SALE_TYPE_INVOICE, [$this->cashPayment()]);
+
+        $this->assertSame(ACCOUNTING_FAILED, $result);
+        $this->assertSame($sales, $db->table('sales')->countAllResults());
+        $this->assertSame(0, $db->table('document_numbers')->where('doc_type', 'sales_invoice')->countAllResults());
+        $this->assertSame(1, (new DocumentNumbering())->sequence(DocumentType::SalesInvoice)->nextNumber);
+
+        (new DocumentNumbering())->configure(DocumentType::CustomerPayment, ['enabled' => false]);
+
+        $invoice = $this->saveSale(SALE_TYPE_INVOICE, [$this->cashPayment()]);
+
+        $this->assertSame($prefix . '001', model(Sale::class)->getInvoiceNumber($invoice));
     }
 
     public function testUpdate_NumbersAPaymentAddedToACompletedSale(): void
@@ -911,7 +935,7 @@ class SaleTest extends CIUnitTestCase
         ]]));
 
         $this->assertCount(1, $this->paymentIdsOf($saleId));
-        $this->assertSame(0, \Config\Database::connect()->table('document_numbers')->countAllResults());
+        $this->assertSame(0, Database::connect()->table('document_numbers')->countAllResults());
         $this->assertSame(1, (new DocumentNumbering())->sequence(DocumentType::CustomerPayment)->nextNumber);
     }
 

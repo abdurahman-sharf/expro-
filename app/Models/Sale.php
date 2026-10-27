@@ -606,8 +606,8 @@ class Sale extends Model
         $this->accountingFailure = null;
 
         $accounting = (new AccountingSettings($this->db))->isEnabled() ? new SalePosting($this->db) : null;
-        $update_data = $this->keepNumbersOfTheSequences((int) $sale_id, $sale_data);
-        unset($update_data['payments']);
+        $updateData = $this->keepNumbersOfTheSequences((int) $sale_id, $sale_data);
+        unset($updateData['payments']);
 
         $this->db->transStart();
 
@@ -615,12 +615,12 @@ class Sale extends Model
             if ($accounting !== null) {
                 $changes = [];
 
-                if (array_key_exists('customer_id', $update_data)) {
-                    $changes['customer_id'] = $update_data['customer_id'] === null ? null : (int) $update_data['customer_id'];
+                if (array_key_exists('customer_id', $updateData)) {
+                    $changes['customer_id'] = $updateData['customer_id'] === null ? null : (int) $updateData['customer_id'];
                 }
 
-                if (isset($update_data['sale_time'])) {
-                    $changes['date'] = substr((string) $update_data['sale_time'], 0, 10);
+                if (isset($updateData['sale_time'])) {
+                    $changes['date'] = substr((string) $updateData['sale_time'], 0, 10);
                 }
 
                 $accounting->assertEditable((int) $sale_id, $changes);
@@ -628,7 +628,7 @@ class Sale extends Model
 
             $builder = $this->db->table('sales');
             $builder->where('sale_id', $sale_id);
-            $success = $builder->update($update_data);
+            $success = $builder->update($updateData);
 
             // Touch payment only if update sale is successful and there is a payments object otherwise the result would be to delete all the payments associated to the sale
             if ($success && !empty($sale_data['payments'])) {
@@ -636,69 +636,69 @@ class Sale extends Model
 
                 // Add new payments
                 foreach ($sale_data['payments'] as $payment) {
-                    $payment_id = $payment['payment_id'];
-                    $payment_type = $payment['payment_type'];
-                    $payment_amount = $payment['payment_amount'];
-                    $cash_refund = $payment['cash_refund'];
-                    $cash_adjustment = $payment['cash_adjustment'];
-                    $employee_id = $payment['employee_id'];
+                    $paymentId = $payment['payment_id'];
+                    $paymentType = $payment['payment_type'];
+                    $paymentAmount = $payment['payment_amount'];
+                    $cashRefund = $payment['cash_refund'];
+                    $cashAdjustment = $payment['cash_adjustment'];
+                    $employeeId = $payment['employee_id'];
 
-                    if ($payment_id == NEW_ENTRY && $payment_amount != 0) {
+                    if ($paymentId == NEW_ENTRY && $paymentAmount != 0) {
                         // Add a new payment transaction
-                        $sales_payments_data = [
+                        $salesPaymentsData = [
                             'sale_id'         => $sale_id,
-                            'payment_type'    => $payment_type,
-                            'payment_amount'  => $payment_amount,
-                            'cash_refund'     => $cash_refund,
-                            'cash_adjustment' => $cash_adjustment,
-                            'employee_id'     => $employee_id,
+                            'payment_type'    => $paymentType,
+                            'payment_amount'  => $paymentAmount,
+                            'cash_refund'     => $cashRefund,
+                            'cash_adjustment' => $cashAdjustment,
+                            'employee_id'     => $employeeId,
                             'reference_code'  => $payment['reference_code'] ?? '',
                             'payment_status'  => PaymentStatus::fromStored($payment['payment_status'] ?? null)->value,
-                            'treasury_id'     => $this->treasuryOfPayment($payment, $employee_id === null ? null : (int) $employee_id, (int) $this->getBranchId((int) $sale_id)),
+                            'treasury_id'     => $this->treasuryOfPayment($payment, $employeeId === null ? null : (int) $employeeId, (int) $this->getBranchId((int) $sale_id)),
                         ];
-                        $success      = $builder->insert($sales_payments_data);
+                        $success      = $builder->insert($salesPaymentsData);
                         $newPaymentId = (int) $this->db->insertID();
 
                         if ($success && $this->isPaymentDocument($payment) && $this->getSaleStatus((int) $sale_id) == COMPLETED) {
                             (new DocumentNumbering($this->db))->assign(DocumentType::CustomerPayment, 'sales_payments', $newPaymentId, (int) $this->getBranchId((int) $sale_id));
                         }
-                    } elseif ($payment_id != NEW_ENTRY) {
-                        $stored = $this->db->table('sales_payments')->select('sale_id')->where('payment_id', $payment_id)->get()->getRow();
+                    } elseif ($paymentId != NEW_ENTRY) {
+                        $stored = $this->db->table('sales_payments')->select('sale_id')->where('payment_id', $paymentId)->get()->getRow();
 
                         if ($stored === null || (int) $stored->sale_id !== (int) $sale_id) {
                             throw new AccountingException(AccountingError::SalePaymentNotOnSale, 'The payment does not belong to this sale.', ['sale_id' => (int) $sale_id]);
                         }
 
-                        if ($payment_amount != 0) {
+                        if ($paymentAmount != 0) {
                             // Update existing payment transactions (payment_type only)
-                            $sales_payments_data = [
-                                'payment_type'    => $payment_type,
-                                'payment_amount'  => $payment_amount,
-                                'cash_refund'     => $cash_refund,
-                                'cash_adjustment' => $cash_adjustment
+                            $salesPaymentsData = [
+                                'payment_type'    => $paymentType,
+                                'payment_amount'  => $paymentAmount,
+                                'cash_refund'     => $cashRefund,
+                                'cash_adjustment' => $cashAdjustment
                             ];
 
                             if (isset($payment['payment_status']) && PaymentStatus::tryFrom((string) $payment['payment_status']) !== null) {
-                                $sales_payments_data['payment_status'] = $payment['payment_status'];
+                                $salesPaymentsData['payment_status'] = $payment['payment_status'];
                             }
 
-                            $treasuryId = $this->treasuryAfterChange($payment, (int) $payment_id, $employee_id === null ? null : (int) $employee_id, (int) $this->getBranchId((int) $sale_id));
+                            $treasuryId = $this->treasuryAfterChange($payment, (int) $paymentId, $employeeId === null ? null : (int) $employeeId, (int) $this->getBranchId((int) $sale_id));
 
                             if (array_key_exists('treasury_id', $payment)) {
-                                $sales_payments_data['treasury_id'] = $treasuryId;
+                                $salesPaymentsData['treasury_id'] = $treasuryId;
                             }
 
-                            $builder->where(['payment_id' => $payment_id, 'sale_id' => $sale_id]);
-                            $success = $builder->update($sales_payments_data);
+                            $builder->where(['payment_id' => $paymentId, 'sale_id' => $sale_id]);
+                            $success = $builder->update($salesPaymentsData);
                         } else {
                             // Remove existing payment transactions with a payment amount of zero
-                            $accounting?->reversePayment((int) $payment_id, $employee_id === null ? null : (int) $employee_id);
-                            $success = $builder->delete(['payment_id' => $payment_id, 'sale_id' => $sale_id]);
+                            $accounting?->reversePayment((int) $paymentId, $employeeId === null ? null : (int) $employeeId);
+                            $success = $builder->delete(['payment_id' => $paymentId, 'sale_id' => $sale_id]);
                         }
                     }
                 }
 
-                $accounting?->syncPayments((int) $sale_id, isset($employee_id) ? (int) $employee_id : null);
+                $accounting?->syncPayments((int) $sale_id, isset($employeeId) ? (int) $employeeId : null);
             }
         } catch (Throwable $exception) {
             $this->db->transRollback();

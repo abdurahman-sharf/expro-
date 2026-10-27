@@ -449,17 +449,16 @@ class Sale_lib
         return $this->session->get('sale_type') ?? 0;
     }
 
-    /**
-     * @param int $invoice_number
-     * @param bool $keep_custom
-     * @return void
-     */
-    public function set_invoice_number(int $invoice_number, bool $keep_custom = false): void
+    public function set_invoice_number(string $invoice_number, bool $keep_custom = false): void
     {
-        $current_invoice_number = $this->session->get('sales_invoice_number');
+        $currentInvoiceNumber = $this->session->get('sales_invoice_number');
 
-        if (!$keep_custom || empty($current_invoice_number)) {
-            $this->session->set('sales_invoice_number', $invoice_number);
+        if (!$keep_custom || empty($currentInvoiceNumber)) {
+            if ($invoice_number === '') {
+                $this->session->remove('sales_invoice_number');
+            } else {
+                $this->session->set('sales_invoice_number', $invoice_number);
+            }
         }
     }
 

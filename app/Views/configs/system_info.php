@@ -38,12 +38,7 @@ use Config\OSPOS;
             <div class="text-start col-9 col-md-10">
                 Browser:
                 <?php
-                /**
-                 * @param string $userAgent
-                 * @return string
-                 */
-                function getBrowserNameAndVersion(string $userAgent): string
-                {
+                $browserNameAndVersion = static function (string $userAgent): string {
                     $browser = match (true) {
                         strpos($userAgent, 'Opera')   !== false || strpos($userAgent, 'OPR/') !== false => 'Opera',
                         strpos($userAgent, 'Edge')    !== false => 'Edge',
@@ -65,8 +60,8 @@ use Config\OSPOS;
                     };
 
                     return $browser . ($version ? ' ' . $version : '');
-                }
-                echo esc(getBrowserNameAndVersion($_SERVER['HTTP_USER_AGENT']));
+                };
+                echo esc($browserNameAndVersion($_SERVER['HTTP_USER_AGENT']));
                 ?><br>
                 Server Software: <?= esc($_SERVER['SERVER_SOFTWARE']) ?><br>
                 PHP Version: <?= PHP_VERSION ?><br>

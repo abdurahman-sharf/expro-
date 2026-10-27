@@ -45,7 +45,6 @@ return [
     'none_selected'                 => 'Du har inte valt någon kund att radera.',
     'one_or_multiple'               => 'Kunder',
     'quantity'                      => 'Antal',
-    'rewards_package'               => 'Belöningspaket',
     'stats_info'                    => 'Status',
     'successful_adding'             => 'Du har lagt till en kund',
     'successful_deleted'            => 'Du har tagit bort',
@@ -55,4 +54,5 @@ return [
     'taxable'                       => 'Skattetabell',
     'total'                         => 'Totalt spenderat',
     'update'                        => 'Uppdatera kund',
+    'rewards_package'               => 'Belöningspaket',
 ];

@@ -20,7 +20,8 @@ use Config\Database;
  * taken under the lock of the row of its sequence, inside the transaction that saves the document,
  * so two requests never get the same one, and it is never given again, whether or not the
  * document it went to survives. The next number can be raised and never lowered, and never below
- * a number that exists.
+ * a number that was given. A sequence that starts, or changes its prefix, also starts above the
+ * numbers the documents already carry or show; one that is running steps over them as it goes.
  */
 final class DocumentNumbering
 {
@@ -31,7 +32,8 @@ final class DocumentNumbering
     public const MAX_PADDING       = 10;
     public const MAX_NEXT          = 2_000_000_000;
     private const SEARCH_LIMIT     = 1000;
-    private const PREFIX_PATTERN   = '/^[\p{L}\p{N}._\/#-]*$/u';
+    private const CHARACTERS       = '\p{L}\p{N}._\/#-';
+    private const PREFIX_PATTERN   = '/^[' . self::CHARACTERS . ']*$/u';
 
     private BaseConnection $db;
     private AccountingGuard $guard;
@@ -40,6 +42,15 @@ final class DocumentNumbering
     {
         $this->db    = $db ?? Database::connect();
         $this->guard = $guard ?? new AccountingGuard();
+    }
+
+    /**
+     * What a person typed as the number of a document, cut down to the characters a number of
+     * the sequences may have, so a number typed by hand and one given by a sequence look alike.
+     */
+    public static function typed(string $typed): string
+    {
+        return (string) preg_replace('/[^' . self::CHARACTERS . ']/u', '', $typed);
     }
 
     public function sequence(DocumentType $type, ?int $companyId = null): NumberingSequence
@@ -72,7 +83,7 @@ final class DocumentNumbering
                 $sequence->enabled,
                 $sequence->prefix,
                 $sequence->padding,
-                max($sequence->nextNumber, $this->floor($type, $sequence->prefix, $companyId)),
+                $this->lowestNext($sequence, $sequence->prefix, $companyId),
                 $sequence->preventDuplicates,
             );
         }
@@ -87,8 +98,7 @@ final class DocumentNumbering
     public function floor(DocumentType $type, string $prefix, ?int $companyId = null): int
     {
         $companyId ??= CompanyContext::id();
-        $issued = $this->db->table('document_numbers')->selectMax('sequence_number', 'top')->where(['company_id' => $companyId, 'doc_type' => $type->value])->get()->getRow();
-        $floor  = (int) ($issued->top ?? 0) + 1;
+        $floor  = $this->aboveIssued($type, $companyId);
         $column = $type->numberColumn();
 
         if ($column !== null) {
@@ -106,7 +116,7 @@ final class DocumentNumbering
 
     /**
      * Changes the settings of a sequence. The next number may only go up, and only to a number no
-     * document has or shows.
+     * document has or shows, unless the sequence is running with the prefix it has.
      *
      * @param array{enabled?: bool, prefix?: string, padding?: int|string, next_number?: int|string, prevent_duplicates?: bool} $input
      *
@@ -117,7 +127,7 @@ final class DocumentNumbering
         $this->guard->require(self::PERMISSION, $employeeId);
 
         $companyId ??= CompanyContext::id();
-        $prefix  = array_key_exists('prefix', $input) ? $this->validPrefix((string) $input['prefix']) : null;
+        $prefix  = array_key_exists('prefix', $input) ? $this->validPrefix($input['prefix']) : null;
         $padding = array_key_exists('padding', $input) ? $this->validPadding($input['padding']) : null;
         $next    = array_key_exists('next_number', $input) ? $this->validNext($input['next_number']) : null;
 
@@ -142,7 +152,7 @@ final class DocumentNumbering
                 array_key_exists('prevent_duplicates', $input) ? (bool) $input['prevent_duplicates'] : $before->preventDuplicates,
             );
 
-            $minimum = max($before->nextNumber, $this->floor($type, $after->prefix, $companyId));
+            $minimum = $this->lowestNext($before, $after->prefix, $companyId);
             $target  = $next ?? $minimum;
 
             if ($target < $minimum) {
@@ -325,6 +335,20 @@ final class DocumentNumbering
         }
     }
 
+    private function lowestNext(NumberingSequence $current, string $prefix, int $companyId): int
+    {
+        $runningAsItIs = $current->enabled && $current->prefix === $prefix;
+
+        return max($current->nextNumber, $runningAsItIs ? $this->aboveIssued($current->type, $companyId) : $this->floor($current->type, $prefix, $companyId));
+    }
+
+    private function aboveIssued(DocumentType $type, int $companyId): int
+    {
+        $issued = $this->db->table('document_numbers')->selectMax('sequence_number', 'top')->where(['company_id' => $companyId, 'doc_type' => $type->value])->get()->getRow();
+
+        return (int) ($issued->top ?? 0) + 1;
+    }
+
     private function aboveNumbersOf(string $table, string $column, string $prefix): int
     {
         $length = mb_strlen($prefix);
@@ -393,11 +417,11 @@ final class DocumentNumbering
     /**
      * @throws AccountingException
      */
-    private function validPrefix(string $prefix): string
+    private function validPrefix(mixed $prefix): string
     {
-        $prefix = trim($prefix);
+        $prefix = is_string($prefix) ? trim($prefix) : null;
 
-        if (mb_strlen($prefix) > self::MAX_PREFIX_LENGTH || preg_match(self::PREFIX_PATTERN, $prefix) !== 1) {
+        if ($prefix === null || mb_strlen($prefix) > self::MAX_PREFIX_LENGTH || preg_match(self::PREFIX_PATTERN, $prefix) !== 1) {
             throw new AccountingException(AccountingError::NumberingPrefixInvalid, 'The prefix takes letters, digits and . _ / # - only.', ['max' => self::MAX_PREFIX_LENGTH]);
         }
 

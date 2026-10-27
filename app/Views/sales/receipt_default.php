@@ -42,8 +42,8 @@
 
         <div id="sale_id"><?= lang('Sales.id') . esc(": $sale_id") ?></div>
 
-        <?php if (!empty($credit_note_number)) { ?>
-            <div id="credit_note_number"><?= lang('Numbering.type_credit_note') . esc(": $credit_note_number") ?></div>
+        <?php if (!empty($creditNoteNumber)) { ?>
+            <div id="credit_note_number"><?= lang('Numbering.type_credit_note') . esc(": $creditNoteNumber") ?></div>
         <?php } ?>
 
         <?php if (!empty($invoice_number)) { ?>

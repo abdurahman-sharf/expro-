@@ -45,7 +45,6 @@ return [
     'none_selected'                 => 'คุณยังไม่ได้ทำการเลือกลูกค้า',
     'one_or_multiple'               => 'ลูกค้า',
     'quantity'                      => 'ปริมาณ',
-    'rewards_package'               => 'แพคเกจรางวัล',
     'stats_info'                    => 'สถิติ',
     'successful_adding'             => 'คุณได้ทำการเพิ่มลูกค้าเรียบร้อยแล้ว',
     'successful_deleted'            => 'คุณได้ทำการลบข้อมูลเรียบร้อยแล้ว',
@@ -55,4 +54,5 @@ return [
     'taxable'                       => 'ต้องเสียภาษี',
     'total'                         => 'Total',
     'update'                        => 'แก้ไขข้อมูลลูกค้า',
+    'rewards_package'               => 'แพคเกจรางวัล',
 ];

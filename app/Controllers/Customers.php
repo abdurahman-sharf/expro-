@@ -156,20 +156,20 @@ class Customers extends Persons
         }
         $data['person_info'] = $info;
 
-        $data['automatic_account_number'] = $customer_id == NEW_ENTRY ? (new DocumentNumbering())->peek(DocumentType::Customer) : null;
+        $data['automaticAccountNumber'] = $customer_id == NEW_ENTRY ? (new DocumentNumbering())->peek(DocumentType::Customer) : null;
 
         if (empty($info->person_id) || empty($info->date) || empty($info->employee_id)) {
             $data['person_info']->date = date('Y-m-d H:i:s');
             $data['person_info']->employee_id = $this->employee->get_logged_in_employee_info()->person_id;
         }
 
-        $employee_info = $this->employee->get_info($info->employee_id);
-        $data['employee'] = $employee_info->first_name . ' ' . $employee_info->last_name;
+        $employeeInfo = $this->employee->get_info($info->employee_id);
+        $data['employee'] = $employeeInfo->first_name . ' ' . $employeeInfo->last_name;
 
-        $tax_code_info = $this->tax_code->get_info($info->sales_tax_code_id);
+        $taxCodeInfo = $this->tax_code->get_info($info->sales_tax_code_id);
 
-        if ($tax_code_info->tax_code != null) {
-            $data['sales_tax_code_label'] = $tax_code_info->tax_code . ' ' . $tax_code_info->tax_code_name;
+        if ($taxCodeInfo->tax_code != null) {
+            $data['sales_tax_code_label'] = $taxCodeInfo->tax_code . ' ' . $taxCodeInfo->tax_code_name;
         } else {
             $data['sales_tax_code_label'] = '';
         }
@@ -195,8 +195,8 @@ class Customers extends Persons
         // Retrieve the info from Mailchimp only if there is an email address assigned
         if (!empty($info->email)) {
             // Collect Mailchimp customer info
-            if (($mailchimp_info = $this->mailchimp_lib->getMemberInfo($this->_list_id, $info->email)) !== false) {
-                $data['mailchimp_info'] = $mailchimp_info;
+            if (($mailchimpInfo = $this->mailchimp_lib->getMemberInfo($this->_list_id, $info->email)) !== false) {
+                $data['mailchimp_info'] = $mailchimpInfo;
 
                 // Collect customer Mailchimp emails activities (stats)
                 if (($activities = $this->mailchimp_lib->getMemberActivity($this->_list_id, $info->email)) !== false) {
@@ -244,17 +244,17 @@ class Customers extends Persons
      */
     public function postSave(int $customer_id = NEW_ENTRY): ResponseInterface
     {
-        $first_name = $this->request->getPost('first_name');
-        $last_name = $this->request->getPost('last_name');
+        $firstName = $this->request->getPost('first_name');
+        $lastName = $this->request->getPost('last_name');
         $email = strtolower($this->request->getPost('email', FILTER_SANITIZE_EMAIL));
 
         // Format first and last name properly
-        $first_name = $this->nameize($first_name);
-        $last_name = $this->nameize($last_name);
+        $firstName = $this->nameize($firstName);
+        $lastName = $this->nameize($lastName);
 
-        $person_data = [
-            'first_name'   => $first_name,
-            'last_name'    => $last_name,
+        $personData = [
+            'first_name'   => $firstName,
+            'last_name'    => $lastName,
             'gender'       => $this->request->getPost('gender', FILTER_SANITIZE_NUMBER_INT),
             'email'        => $email,
             'phone_number' => $this->request->getPost('phone_number'),
@@ -267,9 +267,9 @@ class Customers extends Persons
             'comments'     => $this->request->getPost('comments')
         ];
 
-        $date_formatter = date_create_from_format($this->config['dateformat'] . ' ' . $this->config['timeformat'], $this->request->getPost('date'));
+        $dateFormatter = date_create_from_format($this->config['dateformat'] . ' ' . $this->config['timeformat'], $this->request->getPost('date'));
 
-        $customer_data = [
+        $customerData = [
             'consent'           => $this->request->getPost('consent') != null,
             'account_number'    => $this->request->getPost('account_number') == '' ? null : $this->request->getPost('account_number'),
             'tax_id'            => $this->request->getPost('tax_id'),
@@ -278,24 +278,24 @@ class Customers extends Persons
             'discount_type'     => $this->request->getPost('discount_type') == null ? PERCENT : $this->request->getPost('discount_type', FILTER_SANITIZE_NUMBER_INT),
             'package_id'        => $this->request->getPost('package_id') == '' ? null : $this->request->getPost('package_id'),
             'taxable'           => $this->request->getPost('taxable') != null,
-            'date'              => $date_formatter->format('Y-m-d H:i:s'),
+            'date'              => $dateFormatter->format('Y-m-d H:i:s'),
             'employee_id'       => $this->request->getPost('employee_id', FILTER_SANITIZE_NUMBER_INT),
             'sales_tax_code_id' => $this->request->getPost('sales_tax_code_id') == '' ? null : $this->request->getPost('sales_tax_code_id', FILTER_SANITIZE_NUMBER_INT)
         ];
 
-        if ($customer_data['account_number'] !== null && (new DocumentNumbering())->sequence(DocumentType::Customer)->preventDuplicates && $this->customer->check_account_number_exists($customer_data['account_number'], (string) $customer_id)) {
+        if ($customerData['account_number'] !== null && $this->customer->refusesAccountNumber($customerData['account_number'], (string) $customer_id)) {
             return $this->response->setJSON(['success' => false, 'message' => lang('Customers.account_number_duplicate'), 'id' => NEW_ENTRY]);
         }
 
-        if ($this->customer->save_customer($person_data, $customer_data, $customer_id)) {
+        if ($this->customer->save_customer($personData, $customerData, $customer_id)) {
             // Save customer to Mailchimp selected list    // TODO: addOrUpdateMember should be refactored. Potentially pass an array or object instead of 6 parameters.
-            $mailchimp_status = $this->request->getPost('mailchimp_status');
+            $mailchimpStatus = $this->request->getPost('mailchimp_status');
             $this->mailchimp_lib->addOrUpdateMember(
                 $this->_list_id,
                 $email,
-                $first_name,
-                $last_name,
-                $mailchimp_status == null ? "" : $mailchimp_status,
+                $firstName,
+                $lastName,
+                $mailchimpStatus == null ? "" : $mailchimpStatus,
                 ['vip' => $this->request->getPost('mailchimp_vip') != null]
             );
 
@@ -303,20 +303,20 @@ class Customers extends Persons
             if ($customer_id == NEW_ENTRY) {
                 return $this->response->setJSON([
                     'success' => true,
-                    'message' => lang('Customers.successful_adding') . ' ' . $first_name . ' ' . $last_name,
-                    'id'      => $customer_data['person_id']
+                    'message' => lang('Customers.successful_adding') . ' ' . $firstName . ' ' . $lastName,
+                    'id'      => $customerData['person_id']
                 ]);
             } else { // Existing customer
                 return $this->response->setJSON([
                     'success' => true,
-                    'message' => lang('Customers.successful_updating') . ' ' . $first_name . ' ' . $last_name,
+                    'message' => lang('Customers.successful_updating') . ' ' . $firstName . ' ' . $lastName,
                     'id'      => $customer_id
                 ]);
             }
         } else { // Failure
             return $this->response->setJSON([
                 'success' => false,
-                'message' => lang('Customers.error_adding_updating') . ' ' . $first_name . ' ' . $last_name,
+                'message' => lang('Customers.error_adding_updating') . ' ' . $firstName . ' ' . $lastName,
                 'id'      => NEW_ENTRY
             ]);
         }
@@ -346,9 +346,9 @@ class Customers extends Persons
      */
     public function postCheckAccountNumber(): ResponseInterface
     {
-        $exists = $this->customer->check_account_number_exists($this->request->getPost('account_number'), $this->request->getPost('person_id', FILTER_SANITIZE_NUMBER_INT));
+        $refused = $this->customer->refusesAccountNumber((string) $this->request->getPost('account_number'), (string) $this->request->getPost('person_id', FILTER_SANITIZE_NUMBER_INT));
 
-        return $this->response->setJSON(!$exists ? 'true' : 'false');
+        return $this->response->setJSON(!$refused ? 'true' : 'false');
     }
 
     /**
@@ -436,7 +436,7 @@ class Customers extends Persons
                             continue;
                         }
                         
-                        $person_data = [
+                        $personData = [
                             'first_name'   => $data[0],
                             'last_name'    => $data[1],
                             'gender'       => $data[2],
@@ -451,7 +451,7 @@ class Customers extends Persons
                             'comments'     => $data[12]
                         ];
 
-                        $customer_data = [
+                        $customerData = [
                             'consent'       => $consent,
                             'company_name'  => $data[13],
                             'discount'      => $data[15],
@@ -460,14 +460,15 @@ class Customers extends Persons
                             'date'          => date('Y-m-d H:i:s'),
                             'employee_id'   => $this->employee->get_logged_in_employee_info()->person_id
                         ];
-                        $account_number = $data[14];
+                        $accountNumber = $data[14];
 
                         // Don't duplicate people with same email
                         $invalidated = $this->customer->check_email_exists($email);
 
-                        if ($account_number != '') {
-                            $customer_data['account_number'] = $account_number;
-                            $invalidated &= $this->customer->check_account_number_exists($account_number);
+                        if ($accountNumber != '') {
+                            $customerData['account_number'] = $accountNumber;
+                            $invalidated &= $this->customer->check_account_number_exists($accountNumber);
+                            $invalidated |= $this->customer->refusesAccountNumber($accountNumber);
                         }
                     } else {
                         $invalidated = true;
@@ -476,9 +477,9 @@ class Customers extends Persons
                     if ($invalidated) {
                         $failCodes[] = $i;
                         log_message('error', "Row $i was not imported: Either email or account number already exist or data was invalid.");
-                    } elseif ($this->customer->save_customer($person_data, $customer_data)) {
+                    } elseif ($this->customer->save_customer($personData, $customerData)) {
                         // Save customer to Mailchimp selected list
-                        $this->mailchimp_lib->addOrUpdateMember($this->_list_id, $person_data['email'], $person_data['first_name'], '', $person_data['last_name']);
+                        $this->mailchimp_lib->addOrUpdateMember($this->_list_id, $personData['email'], $personData['first_name'], '', $personData['last_name']);
                     } else {
                         $failCodes[] = $i;
                     }

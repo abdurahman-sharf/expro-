@@ -434,7 +434,7 @@ class Sales extends Secure_Controller
      */
     public function postSetInvoiceNumber(): ResponseInterface|string
     {
-        $this->sale_lib->set_invoice_number($this->request->getPost('sales_invoice_number', FILTER_SANITIZE_NUMBER_INT));
+        $this->sale_lib->set_invoice_number(DocumentNumbering::typed((string) $this->request->getPost('sales_invoice_number')));
         return $this->response->setJSON(['success' => true]);
     }
 
@@ -1229,7 +1229,7 @@ class Sales extends Secure_Controller
                 return $this->reload($data);
             } else {
                 $data['barcode'] = $this->barcode_lib->generate_receipt_barcode($data['sale_id']);
-                $data['credit_note_number'] = $this->creditNoteNumberOf((int) $data['sale_id_num']);
+                $data['creditNoteNumber'] = $this->creditNoteNumberOf((int) $data['sale_id_num']);
 
                 // Validate receipt template to prevent path traversal
                 $receiptTemplate = $this->config['receipt_template'] ?? '';
@@ -1494,29 +1494,29 @@ class Sales extends Secure_Controller
     private function _load_sale_data($sale_id): array    // TODO: Hungarian notation
     {
         $this->sale_lib->clear_all();
-        $cash_rounding = $this->sale_lib->reset_cash_rounding();
-        $data['cash_rounding'] = $cash_rounding;
+        $cashRounding = $this->sale_lib->reset_cash_rounding();
+        $data['cash_rounding'] = $cashRounding;
 
-        $sale_info = $this->sale->get_info($sale_id)->getRowArray();
+        $saleInfo = $this->sale->get_info($sale_id)->getRowArray();
         $this->sale_lib->copy_entire_sale($sale_id);
         $data = [];
         $data['cart'] = $this->sale_lib->get_cart();
         $data['payments'] = $this->sale_lib->getPayments();
         $data['selected_payment_type'] = $this->sale_lib->get_payment_type();
 
-        $tax_details = $this->tax_lib->get_taxes($data['cart'], $sale_id);
+        $taxDetails = $this->tax_lib->get_taxes($data['cart'], $sale_id);
         $data['taxes'] = $this->sale->get_sales_taxes($sale_id);
         $data['discount'] = $this->sale_lib->get_discount();
         $data['invoice_discount'] = $this->sale_lib->getInvoiceDiscountTotal();
         $data['invoice_discount_entry'] = $this->sale_lib->getInvoiceDiscount();
-        $data['transaction_time'] = to_datetime(strtotime($sale_info['sale_time']));
-        $data['transaction_date'] = to_date(strtotime($sale_info['sale_time']));
+        $data['transaction_time'] = to_datetime(strtotime($saleInfo['sale_time']));
+        $data['transaction_date'] = to_date(strtotime($saleInfo['sale_time']));
         $data['show_stock_locations'] = $this->stock_location->show_locations('sales', true);
 
         $data['include_hsn'] = (bool)$this->config['include_hsn'];
 
         // Returns 'subtotal', 'total', 'cash_total', 'payment_total', 'amount_due', 'cash_amount_due', 'payments_cover_total'
-        $totals = $this->sale_lib->get_totals($tax_details[0]);
+        $totals = $this->sale_lib->get_totals($taxDetails[0]);
         $this->session->set('cash_adjustment_amount', $totals['cash_adjustment_amount']);
         $data['subtotal'] = $totals['subtotal'];
         $data['payments_total'] = $totals['payment_total'];
@@ -1538,18 +1538,18 @@ class Sales extends Secure_Controller
 
         $data['amount_change'] = $data['amount_due'] * -1;
 
-        $employee_info = $this->employee->get_info($this->sale_lib->get_employee());
-        $data['employee'] = $employee_info->first_name . ' ' . mb_substr($employee_info->last_name, 0, 1);
+        $employeeInfo = $this->employee->get_info($this->sale_lib->get_employee());
+        $data['employee'] = $employeeInfo->first_name . ' ' . mb_substr($employeeInfo->last_name, 0, 1);
         $this->_load_customer_data($this->sale_lib->get_customer(), $data);
 
         $data['sale_id_num'] = $sale_id;
         $data['sale_id'] = 'POS ' . $sale_id;
-        $data['comments'] = $sale_info['comment'];
-        $data['invoice_number'] = $sale_info['invoice_number'];
-        $data['quote_number'] = $sale_info['quote_number'];
-        $data['credit_note_number'] = $this->creditNoteNumberOf((int) $sale_id);
+        $data['comments'] = $saleInfo['comment'];
+        $data['invoice_number'] = $saleInfo['invoice_number'];
+        $data['quote_number'] = $saleInfo['quote_number'];
+        $data['creditNoteNumber'] = $this->creditNoteNumberOf((int) $sale_id);
         $data['work_order_number'] = $this->sale_lib->get_work_order_number();
-        $data['sale_status'] = $sale_info['sale_status'];
+        $data['sale_status'] = $saleInfo['sale_status'];
 
         $data['company_info'] = implode("\n", [$this->config['address'], $this->config['phone']]);    // TODO: Duplicated code.
 
@@ -1581,18 +1581,18 @@ class Sales extends Secure_Controller
             $data['customer_required'] = lang('Sales.customer_optional');
         }
 
-        $invoice_type = $this->config['invoice_type'];
-        if (!Sale_lib::isValidInvoiceType($invoice_type)) {
-            $invoice_type = 'invoice';
+        $invoiceType = $this->config['invoice_type'];
+        if (!Sale_lib::isValidInvoiceType($invoiceType)) {
+            $invoiceType = 'invoice';
         }
-        $data['invoice_view'] = $invoice_type;
+        $data['invoice_view'] = $invoiceType;
 
         // Validate receipt template to prevent path traversal
-        $receipt_template = $this->config['receipt_template'] ?? '';
-        if (!Sale_lib::isValidReceiptTemplate($receipt_template)) {
-            $receipt_template = 'receipt_default';
+        $receiptTemplate = $this->config['receipt_template'] ?? '';
+        if (!Sale_lib::isValidReceiptTemplate($receiptTemplate)) {
+            $receiptTemplate = 'receipt_default';
         }
-        $data['receipt_template_view'] = $receipt_template;
+        $data['receipt_template_view'] = $receiptTemplate;
 
         return $data;
     }
@@ -1902,19 +1902,19 @@ class Sales extends Secure_Controller
      */
     private function reload(array $data = []): ResponseInterface|string
     {
-        $sale_id = $this->session->get('sale_id');    // TODO: This variable is never used
+        $saleId = $this->session->get('sale_id');    // TODO: This variable is never used
 
-        if ($sale_id == '') {
-            $sale_id = NEW_ENTRY;
+        if ($saleId == '') {
+            $saleId = NEW_ENTRY;
             $this->session->set('sale_id', NEW_ENTRY);
         }
-        $cash_rounding = $this->sale_lib->reset_cash_rounding();
+        $cashRounding = $this->sale_lib->reset_cash_rounding();
 
         // cash_rounding indicates only that the site is configured for cash rounding
-        $data['cash_rounding'] = $cash_rounding;
+        $data['cash_rounding'] = $cashRounding;
 
         $data['cart'] = $this->sale_lib->get_cart();
-        $customer_info = $this->_load_customer_data($this->sale_lib->get_customer(), $data, true);
+        $customerInfo = $this->_load_customer_data($this->sale_lib->get_customer(), $data, true);
 
         $data['quick_items'] = $this->quickItems();
         $data['modes'] = $this->sale_lib->get_register_mode_options();
@@ -1924,8 +1924,8 @@ class Sales extends Secure_Controller
         $data['stock_locations'] = $this->stock_location->get_allowed_locations('sales', true);
         $data['stock_location'] = $this->sale_lib->get_sale_location();
         $data['tax_exclusive_subtotal'] = $this->sale_lib->get_subtotal(true, true);
-        $tax_details = $this->tax_lib->get_taxes($data['cart']);    // TODO: Duplicated code.
-        $data['taxes'] = $tax_details[0];
+        $taxDetails = $this->tax_lib->get_taxes($data['cart']);    // TODO: Duplicated code.
+        $data['taxes'] = $taxDetails[0];
         $data['discount'] = $this->sale_lib->get_discount();
         $data['invoice_discount'] = $this->sale_lib->getInvoiceDiscountTotal();
         $data['invoice_discount_entry'] = $this->sale_lib->getInvoiceDiscount();
@@ -1939,7 +1939,7 @@ class Sales extends Secure_Controller
         $data['payments'] = $this->sale_lib->getPayments();
 
         // Returns 'subtotal', 'total', 'cash_total', 'payment_total', 'amount_due', 'cash_amount_due', 'payments_cover_total'
-        $totals = $this->sale_lib->get_totals($tax_details[0]);
+        $totals = $this->sale_lib->get_totals($taxDetails[0]);
 
         $data['item_count'] = $totals['item_count'];
         $data['total_units'] = $totals['total_units'];
@@ -1949,8 +1949,8 @@ class Sales extends Secure_Controller
         $data['payments_cover_total'] = $totals['payments_cover_total'];
 
         // cash_mode indicates whether this sale is going to be processed using cash_rounding
-        $cash_mode = $this->session->get('cash_mode');
-        $data['cash_mode'] = $cash_mode;
+        $cashMode = $this->session->get('cash_mode');
+        $data['cash_mode'] = $cashMode;
         $data['prediscount_subtotal'] = $totals['prediscount_subtotal'];    // TODO: Duplicated code.
         $data['cash_total'] = $totals['cash_total'];
         $data['non_cash_total'] = $totals['total'];
@@ -1972,7 +1972,7 @@ class Sales extends Secure_Controller
         $data['comment'] = $this->sale_lib->get_comment();
         $data['email_receipt'] = $this->sale_lib->is_email_receipt();
 
-        if ($customer_info && $this->config['customer_reward_enable']) {
+        if ($customerInfo && $this->config['customer_reward_enable']) {
             $data['payment_options'] = $this->sale->get_payment_options(true, true);
         } else {
             $data['payment_options'] = $this->sale->get_payment_options();
@@ -1985,14 +1985,23 @@ class Sales extends Secure_Controller
         $data['items_module_allowed'] = $this->employee->has_grant('items', $this->employee->get_logged_in_employee_info()->person_id);
         $data['change_price'] = $this->employee->has_grant('sales_change_price', $this->employee->get_logged_in_employee_info()->person_id);
 
-        $temp_invoice_number = $this->sale_lib->get_invoice_number();
-        $invoice_format = $this->config['sales_invoice_format'];
+        $tempInvoiceNumber = $this->sale_lib->get_invoice_number();
+        $invoiceFormat = $this->config['sales_invoice_format'];
+        $invoiceNumberPlaceholder = '';
 
-        if ($temp_invoice_number == null || $temp_invoice_number == '') {
-            $temp_invoice_number = (new DocumentNumbering())->peek(DocumentType::SalesInvoice) ?? $this->token_lib->render($invoice_format, [], false);
+        if ($tempInvoiceNumber == null || $tempInvoiceNumber == '') {
+            $nextInvoiceNumber = (new DocumentNumbering())->peek(DocumentType::SalesInvoice);
+
+            if ($nextInvoiceNumber === null) {
+                $tempInvoiceNumber = $this->token_lib->render($invoiceFormat, [], false);
+            } else {
+                $tempInvoiceNumber = '';
+                $invoiceNumberPlaceholder = $nextInvoiceNumber;
+            }
         }
 
-        $data['invoice_number'] = $temp_invoice_number;
+        $data['invoice_number'] = $tempInvoiceNumber;
+        $data['invoiceNumberPlaceholder'] = $invoiceNumberPlaceholder;
 
         $data['print_after_sale'] = $this->sale_lib->is_print_after_sale();
         $data['price_work_orders'] = $this->sale_lib->is_price_work_orders();
@@ -2121,9 +2130,9 @@ class Sales extends Secure_Controller
             $data['payments'][] = $payment;
         }
 
-        $numbering                 = new DocumentNumbering();
-        $data['payment_numbers']   = $numbering->numbers(DocumentType::CustomerPayment, 'sales_payments', array_map(static fn (object $payment): int => (int) $payment->payment_id, $data['payments']));
-        $data['credit_note_number'] = $numbering->numbers(DocumentType::CreditNote, 'sales', [$saleId])[$saleId] ?? null;
+        $numbering                = new DocumentNumbering();
+        $data['paymentNumbers']   = $numbering->numbers(DocumentType::CustomerPayment, 'sales_payments', array_map(static fn (object $payment): int => (int) $payment->payment_id, $data['payments']));
+        $data['creditNoteNumber'] = $numbering->numbers(DocumentType::CreditNote, 'sales', [$saleId])[$saleId] ?? null;
 
         $data['treasury_options']     = [];
         $data['new_treasury_options'] = [];

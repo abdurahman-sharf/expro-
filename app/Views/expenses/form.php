@@ -7,7 +7,7 @@
  * @var array $employees
  * @var string $controller_name
  * @var array $config
- * @var string|null $expense_number
+ * @var string|null $expenseNumber
  */
 ?>
 
@@ -20,8 +20,8 @@
         <?php if ((int) $expenses_info->expense_id > 0) { ?>
             <p class="form-static span-all">
                 <?= lang('Expenses.info') ?> &mdash; <?= lang('Expenses.expense_id') ?> <span class="ltr"><?= esc($expenses_info->expense_id) ?></span>
-                <?php if (! empty($expense_number)) { ?>
-                    &mdash; <?= lang('Numbering.document_number') ?> <span class="ltr"><?= esc($expense_number) ?></span>
+                <?php if (! empty($expenseNumber)) { ?>
+                    &mdash; <?= lang('Numbering.document_number') ?> <span class="ltr"><?= esc($expenseNumber) ?></span>
                 <?php } ?>
             </p>
         <?php } ?>

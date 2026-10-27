@@ -399,6 +399,28 @@ class ReceivingTest extends CIUnitTestCase
         $this->assertSame(1, (new DocumentNumbering())->sequence(DocumentType::DebitNote)->nextNumber);
     }
 
+    public function testSaveValue_LeavesNoNumberBehindWhenTheBooksRefuseAPurchaseThatWasNumbered(): void
+    {
+        $this->startBuying();
+        $this->switchOn(DocumentType::Purchase, 'PUR-');
+        $this->purchaseOf('100.00');
+        $this->closeThrough(date('Y-m-d'));
+        $numbers = $this->countRows('document_numbers');
+
+        $result = $this->buy([$this->purchaseLine($this->item('0.00'), 0, '1', '50')]);
+
+        $this->assertSame(ACCOUNTING_FAILED, $result);
+        $this->assertNotNull($this->purchases->accountingFailure());
+        $this->assertSame($numbers, $this->countRows('document_numbers'));
+        $this->assertSame(2, (new DocumentNumbering())->sequence(DocumentType::Purchase)->nextNumber);
+
+        $this->accountingDb()->table('accounting_closed_periods')->truncate();
+
+        $second = $this->purchaseOf('50.00');
+
+        $this->assertSame('PUR-002', $this->numberOf(DocumentType::Purchase, 'receivings', $second));
+    }
+
     public function testSaveValue_RefusesThePurchaseWhenNoNumberCanBeGiven(): void
     {
         $this->startBuying();

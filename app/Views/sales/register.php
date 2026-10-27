@@ -530,7 +530,7 @@ $employee        = model(Employee::class);
                                 <label for="sales_invoice_number" class="pos-label"><?= lang("{$sectionName}.invoice_enable") ?></label>
                                 <div class="input-group">
                                     <span class="input-group-text">#</span>
-                                    <?= form_input(['name' => 'sales_invoice_number', 'id' => 'sales_invoice_number', 'class' => 'form-control', 'value' => $invoice_number]) ?>
+                                    <?= form_input(['name' => 'sales_invoice_number', 'id' => 'sales_invoice_number', 'class' => 'form-control', 'value' => $invoice_number, 'placeholder' => $invoiceNumberPlaceholder ?? '']) ?>
                                 </div>
                             </div>
                         <?php endif; ?>
