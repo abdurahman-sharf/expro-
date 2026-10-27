@@ -22,6 +22,7 @@ return [
     'name'                    => '',
     'name_required'           => '',
     'new'                     => '',
+    'nominal_note'            => '',
     'parent'                  => '',
     'path'                    => '',
     'select_hint'             => '',

@@ -33,6 +33,12 @@ $span = $type->showsOpening() ? 8 : ($type->showsMovement() ? 6 : 4);
     <a class="btn btn-outline-secondary btn-sm float-end" href="<?= esc(base_url('accounting_reports/ledger'), 'attr') ?>">
         <span class="bi bi-journal-text" aria-hidden="true">&nbsp;</span><?= lang('Accounting_reports.ledger') ?>
     </a>
+    <a class="btn btn-outline-secondary btn-sm float-end" id="link_balance_sheet" href="<?= esc(base_url('accounting_statements/balance_sheet'), 'attr') ?>">
+        <span class="bi bi-file-earmark-bar-graph" aria-hidden="true">&nbsp;</span><?= lang('Accounting_statements.balance_sheet') ?>
+    </a>
+    <a class="btn btn-outline-secondary btn-sm float-end" id="link_income_statement" href="<?= esc(base_url('accounting_statements/income_statement'), 'attr') ?>">
+        <span class="bi bi-graph-up" aria-hidden="true">&nbsp;</span><?= lang('Accounting_statements.income_statement') ?>
+    </a>
 </div>
 
 <form id="report_filters" class="acc-filters print_hide" method="get" action="<?= esc(base_url('accounting_reports'), 'attr') ?>" role="search" aria-label="<?= esc(lang('Accounting_reports.filters'), 'attr') ?>">
