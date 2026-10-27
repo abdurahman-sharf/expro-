@@ -3,6 +3,7 @@
 namespace Tests\Database;
 
 use App\Database\Migrations\BankAccounts;
+use App\Database\Migrations\ExpensesAccounting;
 use App\Database\Migrations\InterBranchTransfers;
 use App\Database\Migrations\SupplierAdvances;
 use App\Database\Migrations\Treasuries;
@@ -225,8 +226,10 @@ class TreasuriesMigrationTest extends CIUnitTestCase
         $migration = new Treasuries();
         $later     = new SupplierAdvances();
         $scopes    = new TreasuryScopesMigration();
+        $expenses  = new ExpensesAccounting();
 
         try {
+            $expenses->down();
             $scopes->down();
             $later->down();
             $migration->down();
@@ -248,6 +251,7 @@ class TreasuriesMigrationTest extends CIUnitTestCase
             (new BankAccounts())->up();
             $scopes->up();
             (new InterBranchTransfers())->up();
+            $expenses->up();
         }
 
         $this->assertTrue($this->hasTable('treasuries'));
