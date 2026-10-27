@@ -74,13 +74,13 @@
 | G26 | المرتجع يأخذ حصته من أصله لا مما أُدخل في السجل | `app/Libraries/Sale_lib.php` | `tests/Libraries/Sale_libTest.php` | **مكشوف** (فشل 1) |
 | G27 | المجموع الفرعي في السجل يطرح الحصة | `app/Libraries/Sale_lib.php` | `tests/Libraries/Sale_libTest.php` | **مكشوف** (فشل 1) |
 | G28 | إجماليات السلة تطرح الحصة | `app/Libraries/Sale_lib.php` | `tests/Libraries/Sale_libTest.php` | **مكشوف** (فشل 1) |
-| G29 | السلة تنسى خصمًا أُلغي (لا حصة قديمة عالقة) | `app/Libraries/InvoiceDiscountPlan.php` | `tests/Libraries/InvoiceDiscountTest.php` | **مكشوف** (فشل 1) |
+| G29 | السلة تنسى خصمًا أُلغي (لا حصة قديمة عالقة) | `app/Libraries/InvoiceDiscountPlan.php` | `tests/Libraries/InvoiceDiscountPlanTest.php` | **مكشوف** (فشل 1) |
 | G30 | ضريبة السطر تُحسب على ما يتبقى بعد الحصة | `app/Libraries/Tax_lib.php` | `tests/Libraries/Tax_libTest.php` | **مكشوف** (فشل 1) |
 | G31 | الضريبة المضمَّنة في السعر تُحسب بعد الحصة | `app/Libraries/Tax_lib.php` | `tests/Libraries/Tax_libTest.php` | **مكشوف** (فشل 1) |
 | G32 | قائمة المبيعات (`search`) تعدّ الحصة | `app/Models/Sale.php` | `tests/Models/SaleTest.php` | **مكشوف** (فشل 1) |
 | G33 | المبلغ المستحق (`get_info`) يعدّ الحصة | `app/Models/Sale.php` | `tests/Models/SaleTest.php` | **مكشوف** (فشل 1) |
 | G34 | أسطر التقارير (`create_temp_table`) تعدّ الحصة | `app/Models/Sale.php` | `tests/Models/SaleTest.php` | **مكشوف** (فشل 1) |
-| G35 | ملخصات المبيعات (`Summary_report`) تعدّ الحصة | `app/Models/Reports/Summary_report.php` | `tests/Models/SaleTest.php` | **مكشوف** (فشل 1) |
+| G35 | ملخصات المبيعات (`Summary_report`) تعدّ الحصة | `app/Models/Reports/Summary_report.php` | `tests/Models/Reports/Summary_salesTest.php` | **مكشوف** (فشل 1) |
 | G36 | ملخص المدفوعات يعدّ الحصة | `app/Models/Reports/Summary_payments.php` | `tests/Models/Reports/Summary_paymentsTest.php` | **مكشوف** (فشل 1) |
 | G37 | ملخص الضرائب يعدّ الحصة | `app/Models/Reports/Summary_taxes.php` | `tests/Models/Reports/Summary_taxesTest.php` | **مكشوف** (فشل 2) |
 | G38 | المبيعات المفصلة تسرد خصم الفاتورة | `app/Models/Sale.php` | `tests/Models/Reports/Detailed_salesTest.php` | **مكشوف** (فشل 2) |
