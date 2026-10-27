@@ -17,12 +17,6 @@ use Config\Database;
  */
 final class CrossBranchPayments
 {
-    public const COMPANION_SOURCES = [
-        'sale_payment_branch',
-        'purchase_payment_branch',
-        'supplier_payment_branch',
-        'expense_branch',
-    ];
     private const COMPANIONS = [
         SalePostingBuilder::SOURCE_PAYMENT               => 'sale_payment_branch',
         ReceivingPostingBuilder::SOURCE_PAYMENT          => 'purchase_payment_branch',
