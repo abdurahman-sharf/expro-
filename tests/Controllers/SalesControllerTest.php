@@ -2073,7 +2073,7 @@ class SalesControllerTest extends CIUnitTestCase
     public function testPostComplete_RefusesADiscountThatNoLongerFitsTheCartAndSavesNothing(): void
     {
         $this->registerWithTheDiscountGrant();
-        $this->withSession(array_merge($this->session, ['sales_invoice_discount' => ['type' => FIXED, 'value' => '150']]));
+        $this->withSession(array_merge($this->session, ['sales_mode' => 'sale_invoice', 'sales_invoice_discount' => ['type' => FIXED, 'value' => '150']]));
 
         $sales = $this->countSales();
 
@@ -2081,6 +2081,18 @@ class SalesControllerTest extends CIUnitTestCase
 
         $response->assertSee(lang('Sales.invoice_discount_exceeds_total'));
         $this->assertSame($sales, $this->countSales());
+    }
+
+    public function testGetIndex_WarnsThatTheDiscountNoLongerFitsTheCart(): void
+    {
+        $this->registerWithTheDiscountGrant();
+        $this->withSession(array_merge($this->session, ['sales_invoice_discount' => ['type' => FIXED, 'value' => '150']]));
+
+        $this->get('/sales')->assertSee(lang('Sales.invoice_discount_exceeds_total'));
+
+        $this->withSession(array_merge($this->session, ['sales_invoice_discount' => ['type' => FIXED, 'value' => '50']]));
+
+        $this->get('/sales')->assertDontSee(lang('Sales.invoice_discount_exceeds_total'));
     }
 
     public function testPostSuspend_KeepsTheDiscountWithTheSuspendedSale(): void
@@ -2139,6 +2151,35 @@ class SalesControllerTest extends CIUnitTestCase
         $page->assertSee(lang('Sales.invoice_discount'));
         $page->assertSee(to_currency('-20'));
         $page->assertSee(to_currency('793.5'));
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function receiptTemplateProvider(): array
+    {
+        return ['the default receipt' => ['receipt_default'], 'the short receipt' => ['receipt_short'], 'the thermal receipt of 80 mm' => ['receipt_thermal_80'], 'the thermal receipt of 58 mm' => ['receipt_thermal_58']];
+    }
+
+    #[DataProvider('receiptTemplateProvider')]
+    public function testGetReceipt_ShowsTheDiscountOnTheWholeOfTheSaleOnEveryReceiptTemplate(string $template): void
+    {
+        $this->startSelling();
+        $this->setConfigValue('receipt_template', $template);
+
+        $cycle  = $this->discountedReferenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_POS, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        try {
+            $page = $this->get('/sales/receipt/' . $saleId);
+
+            $page->assertStatus(200);
+            $page->assertSee(lang('Sales.invoice_discount') . ' (' . to_decimals('10') . '%)');
+            $page->assertSee(to_currency('-71'));
+        } finally {
+            $this->setConfigValue('receipt_template', 'receipt_default');
+        }
     }
 
     public function testGetInvoice_ShowsASaleWithoutADiscountWithoutItsRow(): void

@@ -931,12 +931,6 @@ class Sales extends Secure_Controller
             return $this->reload(['error' => $branchProblem]);
         }
 
-        $discountProblem = $this->sale_lib->invoiceDiscountProblem();
-
-        if ($discountProblem !== null) {
-            return $this->reload(['error' => lang($discountProblem->languageKey())]);
-        }
-
         $invoiceDiscount = $this->registerInvoiceDiscount();
 
         $data['include_hsn'] = (bool)$this->config['include_hsn'];
@@ -1903,6 +1897,12 @@ class Sales extends Secure_Controller
         $data['invoice_discount'] = $this->sale_lib->getInvoiceDiscountTotal();
         $data['invoice_discount_entry'] = $this->sale_lib->getInvoiceDiscount();
         $data['can_invoice_discount'] = !$this->sale_lib->is_return_mode() && $this->employee->has_grant('sales_invoice_discount', (int) $this->employee->get_logged_in_employee_info()->person_id);
+
+        $discountProblem = $this->sale_lib->invoiceDiscountProblem();
+
+        if ($discountProblem !== null && !isset($data['error'])) {
+            $data['warning'] = lang($discountProblem->languageKey());
+        }
         $data['payments'] = $this->sale_lib->getPayments();
 
         // Returns 'subtotal', 'total', 'cash_total', 'payment_total', 'amount_due', 'cash_amount_due', 'payments_cover_total'

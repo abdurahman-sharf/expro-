@@ -389,6 +389,15 @@ class Sale_libTest extends CIUnitTestCase
         $this->assertSame('20.2500', $this->fourDecimals($this->saleLib->get_item_tax('2', '75', '10', PERCENT, '15')));
     }
 
+    public function testGetSubtotal_TakesTheShareOffOnlyWhenTheDiscountsAreIncluded(): void
+    {
+        $this->saleLib->set_cart($this->referenceCart());
+        $this->saleLib->setInvoiceDiscount(PERCENT, '10');
+
+        $this->assertSame('319.5000', $this->fourDecimals($this->saleLib->get_subtotal(true)));
+        $this->assertSame('370.0000', $this->fourDecimals($this->saleLib->get_subtotal(false)));
+    }
+
     public function testClearAll_ForgetsTheDiscountOnTheWholeOfTheSale(): void
     {
         $this->saleLib->setInvoiceDiscount(FIXED, '20');
