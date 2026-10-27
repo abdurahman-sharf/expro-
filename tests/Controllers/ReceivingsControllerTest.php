@@ -828,6 +828,23 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $this->assertSame('0.000', $this->onHand($itemId, $ungranted));
     }
 
+    public function testPostRequisitionComplete_RefusesASourceTheEmployeeNoLongerHoldsAGrantOn(): void
+    {
+        $buyerId   = $this->buyer();
+        $itemId    = $this->item('0.00');
+        $ungranted = $this->locationOfBranch(1, 'No grant ' . uniqid());
+        $granted   = $this->depotIn(1, $buyerId);
+        $cart      = $this->cart([$this->cartLine($itemId, 1, '4', '0')], 'requisition', null, null, $ungranted);
+        $this->loginAs($buyerId, $cart + ['recv_stock_destination' => $granted]);
+        $before = $this->countRows('receivings');
+
+        $this->post('/receivings/requisitionComplete', $this->completeForm())->assertSee(lang('Receivings.location_not_allowed'));
+
+        $this->assertSame($before, $this->countRows('receivings'));
+        $this->assertSame($cart['recv_cart'], session()->get('recv_cart'));
+        $this->assertSame('0.000', $this->onHand($itemId, $granted));
+    }
+
     public function testPostChangeMode_ForgetsTheReceivingAReturnCameFromWhenTheModeLeavesReturn(): void
     {
         $this->loginAs($this->buyer(), ['recv_mode' => 'return', 'recv_return_origin' => 5]);

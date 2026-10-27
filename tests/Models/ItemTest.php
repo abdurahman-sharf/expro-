@@ -249,6 +249,19 @@ class ItemTest extends CIUnitTestCase
         $this->assertSame('0.000', $this->onHand($itemId, $store));
     }
 
+    public function testHoldsStockOutsideTheEmployeesBranches_AcceptsTheSystemWithNobodyLoggedIn(): void
+    {
+        [$itemId] = $this->twoItemsInTheBooks();
+        $this->stockOfAnotherBranchOutOfReachOfTheEmployee($itemId);
+        $items = model(Item::class);
+
+        $this->assertTrue($items->holdsStockOutsideTheEmployeesBranches([$itemId]));
+
+        session()->remove('person_id');
+
+        $this->assertFalse($items->holdsStockOutsideTheEmployeesBranches([$itemId]));
+    }
+
     public function testDeleteList_RefusesEveryItemWhenOneHasStockInABranchTheEmployeeDoesNotWorkInAndChangesNothing(): void
     {
         [$first, $second] = $this->twoItemsInTheBooks();
