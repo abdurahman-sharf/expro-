@@ -2694,6 +2694,43 @@ class ReceivingPostingTest extends CIUnitTestCase
         $this->assertStockTies();
     }
 
+    public function testUpdate_ReversesAndPostsAgainAPaymentOfAPurchaseWithADiscountAndKeepsTheSupplierTied(): void
+    {
+        $item    = $this->item('0.00');
+        $id      = $this->buy([$this->purchaseLine($item, 0, '10', '100', '15', '10', PERCENT)], -1, null, null, InvoiceDiscount::of(PERCENT, '10'));
+        $payment = $this->payPurchase($id, '500.00');
+        $before  = $this->standingPurchase($id)[0];
+
+        $this->assertTrue($this->changePayment($id, $payment, ['payment_amount' => '300.00']));
+
+        $after = $this->standingPurchase($id)[0];
+
+        $this->assertSame([$before['id'], $before['revision'], $before['lines']], [$after['id'], $after['revision'], $after['lines']], 'The journal of the purchase is not touched by a change of its payments');
+        $this->assertSame('300.00', $this->paymentInTheBooks($payment));
+        $this->assertSame('631.50', bcadd($this->supplierPosition()->purchase($id)->open(), '0', 2));
+        $this->assertSupplierTies();
+        $this->assertStockTies();
+    }
+
+    public function testDeleteValue_TakesBackAReturnOfAPurchaseWithADiscountAndLetsTheNextReturnTakeItsShareAgain(): void
+    {
+        $item   = $this->item('0.00');
+        $origin = $this->buy([$this->purchaseLine($item, 0, '10', '100')], -1, null, null, InvoiceDiscount::of(FIXED, '100'));
+        $first  = $this->buy([$this->purchaseLine($item, 0, '-4', '100')], -1, null, $origin);
+
+        $this->assertSame('540.00', $this->owed(), 'Nine hundred less the 360 of four units');
+        $this->assertTrue($this->purchases->delete_value($first, $this->employeeId));
+        $this->assertSame('900.00', $this->owed());
+
+        $all = $this->buy([$this->purchaseLine($item, 0, '-10', '100')], -1, null, $origin);
+
+        $this->assertGreaterThan(0, $all);
+        $this->assertSame('100.0000', bcadd((string) $this->accountingDb()->table('receivings_items')->where('receiving_id', $all)->get()->getRow()->invoice_discount_share, '0', 4), 'The deleted return no longer holds back any of the discount');
+        $this->assertSame('0.00', $this->owed());
+        $this->assertStockTies();
+        $this->assertSupplierTies();
+    }
+
     public function testCreateTempTable_TakesTheShareOfTheDiscountOnTheWholePurchaseOffTheLinesAndTheReturns(): void
     {
         $item   = $this->item('0.00');
