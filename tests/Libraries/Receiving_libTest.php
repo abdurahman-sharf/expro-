@@ -88,10 +88,10 @@ class Receiving_libTest extends CIUnitTestCase
     public function testGetTotal_TakesThePercentageDiscountOnTheWholePurchaseOffAfterTheLineDiscountsAndBeforeTheTax(): void
     {
         session()->set('recv_cart', self::twoLines());
-        $this->receivingLib->set_invoice_discount(InvoiceDiscount::of(PERCENT, '10'));
+        $this->receivingLib->setInvoiceDiscount(InvoiceDiscount::of(PERCENT, '10'));
 
         $this->assertSame('1000.0000', bcadd($this->receivingLib->get_total(), '0', 4), 'The lines after their own discounts: 900 and 100');
-        $this->assertSame('-100.0000', bcadd($this->receivingLib->get_invoice_discount_amount(), '0', 4));
+        $this->assertSame('-100.0000', bcadd($this->receivingLib->getInvoiceDiscountAmount(), '0', 4));
         $this->assertSame('121.5000', bcadd($this->receivingLib->get_tax_total(), '0', 4), 'Fifteen per cent of the 810 that is left of the first line');
         $this->assertSame('1021.50', bcadd($this->receivingLib->get_total_with_tax(), '0', 2));
     }
@@ -99,9 +99,9 @@ class Receiving_libTest extends CIUnitTestCase
     public function testGetTotal_SharesAnAmountDiscountInProportionToWhatTheLinesCost(): void
     {
         session()->set('recv_cart', self::twoLines());
-        $this->receivingLib->set_invoice_discount(InvoiceDiscount::of(FIXED, '50'));
+        $this->receivingLib->setInvoiceDiscount(InvoiceDiscount::of(FIXED, '50'));
 
-        $this->assertSame('-50.0000', bcadd($this->receivingLib->get_invoice_discount_amount(), '0', 4));
+        $this->assertSame('-50.0000', bcadd($this->receivingLib->getInvoiceDiscountAmount(), '0', 4));
         $this->assertSame('128.2500', bcadd($this->receivingLib->get_tax_total(), '0', 4), 'The first line takes 45 of the 50, and 15% of the 855 is 128.25');
     }
 
@@ -109,12 +109,12 @@ class Receiving_libTest extends CIUnitTestCase
     {
         session()->set('recv_cart', self::twoLines());
 
-        $without = [$this->receivingLib->get_total(), $this->receivingLib->get_tax_total(), $this->receivingLib->get_total_with_tax(), $this->receivingLib->get_invoice_discount_amount()];
+        $without = [$this->receivingLib->get_total(), $this->receivingLib->get_tax_total(), $this->receivingLib->get_total_with_tax(), $this->receivingLib->getInvoiceDiscountAmount()];
 
-        $this->receivingLib->set_invoice_discount(InvoiceDiscount::none());
+        $this->receivingLib->setInvoiceDiscount(InvoiceDiscount::none());
 
-        $this->assertSame($without, [$this->receivingLib->get_total(), $this->receivingLib->get_tax_total(), $this->receivingLib->get_total_with_tax(), $this->receivingLib->get_invoice_discount_amount()]);
-        $this->assertSame('0', $this->receivingLib->get_invoice_discount_amount());
+        $this->assertSame($without, [$this->receivingLib->get_total(), $this->receivingLib->get_tax_total(), $this->receivingLib->get_total_with_tax(), $this->receivingLib->getInvoiceDiscountAmount()]);
+        $this->assertSame('0', $this->receivingLib->getInvoiceDiscountAmount());
     }
 
     public function testGetTotal_UsesTheSharesASavedPurchaseKeptWhateverTheRegisterHolds(): void
@@ -125,9 +125,9 @@ class Receiving_libTest extends CIUnitTestCase
         $items[2]['invoice_discount_share'] = '10.0000';
 
         session()->set('recv_cart', $items);
-        $this->receivingLib->set_invoice_discount(InvoiceDiscount::of(PERCENT, '50'));
+        $this->receivingLib->setInvoiceDiscount(InvoiceDiscount::of(PERCENT, '50'));
 
-        $this->assertSame('-100.0000', bcadd($this->receivingLib->get_invoice_discount_amount(), '0', 4));
+        $this->assertSame('-100.0000', bcadd($this->receivingLib->getInvoiceDiscountAmount(), '0', 4));
         $this->assertSame('121.5000', bcadd($this->receivingLib->get_tax_total(), '0', 4));
     }
 
@@ -136,33 +136,33 @@ class Receiving_libTest extends CIUnitTestCase
         session()->set('recv_cart', [1 => ['quantity' => -4, 'price' => 100, 'discount' => 0, 'discount_type' => PERCENT, 'receiving_quantity' => 1, 'tax_percent' => '15', 'invoice_discount_share' => '40.0000']]);
 
         $this->assertSame('-400.0000', bcadd($this->receivingLib->get_total(), '0', 4));
-        $this->assertSame('40.0000', bcadd($this->receivingLib->get_invoice_discount_amount(), '0', 4), 'Above nothing: it lowers what is given back');
+        $this->assertSame('40.0000', bcadd($this->receivingLib->getInvoiceDiscountAmount(), '0', 4), 'Above nothing: it lowers what is given back');
         $this->assertSame('-54.0000', bcadd($this->receivingLib->get_tax_total(), '0', 4));
         $this->assertSame('-414.00', bcadd($this->receivingLib->get_total_with_tax(), '0', 2));
     }
 
     public function testGetInvoiceDiscount_ReturnsWhatWasSetAndNoneAfterItIsClearedOrTheRegisterIsEmptied(): void
     {
-        $this->assertTrue($this->receivingLib->get_invoice_discount()->isNone());
+        $this->assertTrue($this->receivingLib->getInvoiceDiscount()->isNone());
 
-        $this->receivingLib->set_invoice_discount(InvoiceDiscount::of(FIXED, '12.5'));
+        $this->receivingLib->setInvoiceDiscount(InvoiceDiscount::of(FIXED, '12.5'));
 
-        $this->assertSame([FIXED, '12.50'], [$this->receivingLib->get_invoice_discount()->type, $this->receivingLib->get_invoice_discount()->value]);
+        $this->assertSame([FIXED, '12.50'], [$this->receivingLib->getInvoiceDiscount()->type, $this->receivingLib->getInvoiceDiscount()->value]);
 
-        $this->receivingLib->clear_invoice_discount();
+        $this->receivingLib->clearInvoiceDiscount();
 
-        $this->assertTrue($this->receivingLib->get_invoice_discount()->isNone());
+        $this->assertTrue($this->receivingLib->getInvoiceDiscount()->isNone());
 
-        $this->receivingLib->set_invoice_discount(InvoiceDiscount::of(PERCENT, '5'));
+        $this->receivingLib->setInvoiceDiscount(InvoiceDiscount::of(PERCENT, '5'));
         $this->receivingLib->clear_all();
 
-        $this->assertTrue($this->receivingLib->get_invoice_discount()->isNone());
+        $this->assertTrue($this->receivingLib->getInvoiceDiscount()->isNone());
     }
 
     public function testSetInvoiceDiscount_ClearsWhatWasKeptWhenTheDiscountIsNone(): void
     {
-        $this->receivingLib->set_invoice_discount(InvoiceDiscount::of(PERCENT, '5'));
-        $this->receivingLib->set_invoice_discount(InvoiceDiscount::none());
+        $this->receivingLib->setInvoiceDiscount(InvoiceDiscount::of(PERCENT, '5'));
+        $this->receivingLib->setInvoiceDiscount(InvoiceDiscount::none());
 
         $this->assertNull(session()->get('recv_invoice_discount'));
     }

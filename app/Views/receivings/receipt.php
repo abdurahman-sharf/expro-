@@ -9,8 +9,8 @@
  * @var float $total
  * @var string $tax_total
  * @var string $total_with_tax
- * @var App\Libraries\Accounting\InvoiceDiscount $invoice_discount
- * @var string $invoice_discount_amount
+ * @var App\Libraries\Accounting\InvoiceDiscount $invoiceDiscount
+ * @var string $invoiceDiscountAmount
  * @var string $mode
  * @var string $payment_type
  * @var float $amount_tendered
@@ -92,7 +92,7 @@ echo view('partial/print_receipt', ['print_after_sale', $print_after_sale, 'sele
                 </tr>
             <?php } ?>
         <?php } ?>
-        <?php $hasInvoiceDiscount = bccomp((string) ($invoice_discount_amount ?? '0'), '0', 4) !== 0; ?>
+        <?php $hasInvoiceDiscount = bccomp((string) ($invoiceDiscountAmount ?? '0'), '0', 4) !== 0; ?>
         <?php if (bccomp((string) ($tax_total ?? '0'), '0', 8) > 0 || $hasInvoiceDiscount) { ?>
             <tr>
                 <td colspan="3" style="text-align: right; border-top: 2px solid #000000;"><?= lang('Receivings.sub_total') ?></td>
@@ -103,9 +103,9 @@ echo view('partial/print_receipt', ['print_after_sale', $print_after_sale, 'sele
         <?php } ?>
         <?php if ($hasInvoiceDiscount) { ?>
             <tr id="receipt_invoice_discount">
-                <td colspan="3" style="text-align: right;"><?= lang(bccomp((string) $invoice_discount_amount, '0', 4) > 0 ? 'Receivings.invoice_discount_share' : 'Receivings.invoice_discount_amount') ?><?= isset($invoice_discount) && $invoice_discount->type === PERCENT && ! $invoice_discount->isNone() ? esc(' (' . to_decimals($invoice_discount->value) . '%)') : '' ?></td>
+                <td colspan="3" style="text-align: right;"><?= lang(bccomp((string) $invoiceDiscountAmount, '0', 4) > 0 ? 'Receivings.invoice_discount_share' : 'Receivings.invoice_discount_amount') ?><?= isset($invoiceDiscount) && $invoiceDiscount->type === PERCENT && ! $invoiceDiscount->isNone() ? esc(' (' . to_decimals($invoiceDiscount->value) . '%)') : '' ?></td>
                 <td>
-                    <div class="total-value"><?= to_currency($invoice_discount_amount) ?></div>
+                    <div class="total-value"><?= to_currency($invoiceDiscountAmount) ?></div>
                 </td>
             </tr>
         <?php } ?>

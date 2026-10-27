@@ -18,8 +18,8 @@
  * @var string $credit
  * @var list<object> $applications
  * @var bool $can_debit_note
- * @var App\Libraries\Accounting\InvoiceDiscount $invoice_discount
- * @var string $invoice_discount_share
+ * @var App\Libraries\Accounting\InvoiceDiscount $invoiceDiscount
+ * @var string $invoiceDiscountShare
  */
 ?>
 
@@ -66,10 +66,10 @@
             </div>
         </div>
 
-        <?php if (bccomp($invoice_discount_share, '0', 4) > 0): ?>
+        <?php if (bccomp($invoiceDiscountShare, '0', 4) > 0): ?>
             <div class="row mb-3" id="invoice_discount_info">
                 <span class="col-form-label col-3"><?= lang($receiving_info['receiving_type'] === 'return' ? 'Receivings.invoice_discount_share' : 'Receivings.invoice_discount') ?></span>
-                <span class="col-form-label col-8" dir="ltr" style="text-align: left"><?= esc(to_currency($invoice_discount_share)) ?><?= $invoice_discount->type === PERCENT && ! $invoice_discount->isNone() ? esc(' (' . to_decimals($invoice_discount->value) . '%)') : '' ?></span>
+                <span class="col-form-label col-8" dir="ltr" style="text-align: left"><?= esc(to_currency($invoiceDiscountShare)) ?><?= $invoiceDiscount->type === PERCENT && ! $invoiceDiscount->isNone() ? esc(' (' . to_decimals($invoiceDiscount->value) . '%)') : '' ?></span>
             </div>
         <?php endif; ?>
 
