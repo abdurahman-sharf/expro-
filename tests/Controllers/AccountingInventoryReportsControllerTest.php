@@ -464,7 +464,9 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
 
         $response->assertSee(lang('Accounting_inventory_reports.account_more', [$this->amountOf('30.00')]));
         $response->assertSee(lang('Accounting_inventory_reports.as_of_hint'));
+        $response->assertSee('even one dated after today');
         $this->assertSame($this->amountOf('210.00'), $this->stockAccountsRow($response, 'stock_account'));
+        $this->assertSame($this->amountOf('30.00'), $this->stockAccountsRow($response, 'stock_difference'));
     }
 
     public function testGetIndex_ShowsAScopeWithNoBranchOfTheEmployeeAsNothingToAddUp(): void

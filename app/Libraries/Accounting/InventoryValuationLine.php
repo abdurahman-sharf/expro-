@@ -4,8 +4,9 @@ namespace App\Libraries\Accounting;
 
 /**
  * One item in one stock location as the books value it. The quantity and the value are what the
- * posted movements add up to. The shelves are known only for the stock as it stands now, and the
- * units they hold that no movement accounts for are never given a value here.
+ * posted movements add up to. The shelves are known only for the stock as it stands now and only
+ * for a location whose movements are all in the scope, and the units they hold that no movement
+ * accounts for are never given a value here.
  */
 final readonly class InventoryValuationLine
 {
