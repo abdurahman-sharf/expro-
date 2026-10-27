@@ -1682,6 +1682,15 @@ class JournalServiceTest extends CIUnitTestCase
         $this->assertTrue($this->service->updateDetails($journalId, ['description' => 'Edited'], $employee));
     }
 
+    public function testUpdateDetails_LocksTheJournalBeforeThePeriodLocksAsAReversalDoes(): void
+    {
+        $journalId = $this->automaticJournal();
+        $employee  = $this->detailsEditor();
+
+        $this->assertJournalLockedBeforePeriods($this->queriesDuring(fn () => $this->service->updateDetails($journalId, ['description' => 'Edited'], $employee)));
+        $this->assertJournalLockedBeforePeriods($this->queriesDuring(fn () => $this->service->reverseAutomatic($journalId, '2026-10-22', 'Cancelled', null)));
+    }
+
     public function testUpdateDetails_ChecksTheJournalAgainAfterLockingItAndRefusesOneReversedMeanwhile(): void
     {
         $journalId = $this->automaticJournal();
@@ -1951,8 +1960,9 @@ class JournalServiceTest extends CIUnitTestCase
 
     public function testDeleteDraft_TakesItsFilesOutWithItAndWritesOneAuditEntryForEach(): void
     {
+        $branchId = $this->createBranch('B2');
         $employee = $this->employeeWithGrants(['accounting_journals', AccountingGuard::JOURNALS_ALL, AccountingGuard::JOURNALS_DRAFT]);
-        $draftId  = $this->service->saveDraft($this->journalInput(), $employee);
+        $draftId  = $this->service->saveDraft(['branch_id' => $branchId] + $this->journalInput(), $employee);
         $attach   = new JournalAttachments();
         $first    = $attach->add($draftId, $this->upload($this->pdfContent()), 'first.pdf', $employee);
         $second   = $attach->add($draftId, $this->upload($this->pdfContent()), 'second.pdf', $employee);
@@ -1969,7 +1979,11 @@ class JournalServiceTest extends CIUnitTestCase
 
         $this->assertCount(2, $audit);
         $this->assertTrue(json_decode($audit[0]->details, true)['with_draft']);
-        $this->assertSame(['attachments' => 2], json_decode($this->accountingDb()->table('accounting_audit_log')->where('entity_id', $draftId)->where('action', 'draft_deleted')->get()->getRow()->details, true));
+
+        $deleted = $this->accountingDb()->table('accounting_audit_log')->where('entity_id', $draftId)->where('action', 'draft_deleted')->get()->getRow();
+
+        $this->assertSame(['attachments' => 2], json_decode($deleted->details, true));
+        $this->assertSame([(string) $branchId, (string) $branchId, (string) $branchId], [(string) $audit[0]->branch_id, (string) $audit[1]->branch_id, (string) $deleted->branch_id]);
     }
 
     public function testDeleteDraft_KeepsTheFilesOfADraftItCannotDelete(): void

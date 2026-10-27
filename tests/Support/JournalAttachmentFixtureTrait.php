@@ -2,6 +2,8 @@
 
 namespace Tests\Support;
 
+use CodeIgniter\Database\Query;
+use CodeIgniter\Events\Events;
 use ZipArchive;
 
 trait JournalAttachmentFixtureTrait
@@ -107,6 +109,51 @@ trait JournalAttachmentFixtureTrait
         foreach ($this->accountingDb()->table('accounting_journal_attachments')->select('stored_name')->get()->getResult() as $row) {
             @unlink($directory . '/' . $row->stored_name);
         }
+    }
+
+    /**
+     * The statements the connection ran while the action did, in order.
+     *
+     * @return list<string>
+     */
+    protected function queriesDuring(callable $action): array
+    {
+        $queries = [];
+        $listen  = static function (Query $query) use (&$queries): void {
+            $queries[] = $query->getQuery();
+        };
+
+        Events::on('DBQuery', $listen);
+
+        try {
+            $action();
+        } finally {
+            Events::removeListener('DBQuery', $listen);
+        }
+
+        return $queries;
+    }
+
+    /**
+     * A reversal locks the journal and then reaches the period locks, so anything else that
+     * changes a posted journal must take them in the same order or a closing can make the two
+     * wait for each other.
+     *
+     * @param list<string> $queries
+     */
+    protected function assertJournalLockedBeforePeriods(array $queries): void
+    {
+        $journal = null;
+        $period  = null;
+
+        foreach ($queries as $index => $sql) {
+            $journal ??= preg_match('/accounting_journals WHERE journal_id = \d+ FOR UPDATE/', $sql) === 1 ? $index : null;
+            $period ??= str_contains($sql, 'accounting_period_locks') ? $index : null;
+        }
+
+        $this->assertNotNull($journal, 'The journal was never locked.');
+        $this->assertNotNull($period, 'The period locks were never taken.');
+        $this->assertLessThan($period, $journal, 'The period locks were taken before the journal was locked.');
     }
 
     /**

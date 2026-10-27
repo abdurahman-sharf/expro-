@@ -628,6 +628,22 @@ class JournalAttachmentsTest extends CIUnitTestCase
         $this->assertSame(1, $this->countRows('accounting_journal_attachments'));
     }
 
+    public function testAdd_LocksThePostedJournalBeforeThePeriodLocksAsAReversalDoes(): void
+    {
+        $journalId = $this->automaticJournal();
+        $employee  = $this->editor();
+
+        $this->assertJournalLockedBeforePeriods($this->queriesDuring(fn () => $this->addFile($journalId, $employee)));
+    }
+
+    public function testDelete_LocksThePostedJournalBeforeThePeriodLocksAsAReversalDoes(): void
+    {
+        $employee     = $this->editor();
+        $attachmentId = $this->addFile($this->automaticJournal(), $employee);
+
+        $this->assertJournalLockedBeforePeriods($this->queriesDuring(fn () => $this->attachments->delete($attachmentId, $employee)));
+    }
+
     public function testAdd_RefusesAJournalThatWasPostedWhileTheFileWasBeingSaved(): void
     {
         $draftId  = $this->journals->saveDraft(['date' => '2026-03-15'] + $this->journalInput());
@@ -784,7 +800,8 @@ class JournalAttachmentsTest extends CIUnitTestCase
     public function testDelete_RefusesAFileThatWasRemovedWhileTheRequestWasWaiting(): void
     {
         $employee     = $this->editor();
-        $attachmentId = $this->addFile($this->automaticJournal(), $employee);
+        $journalId    = $this->automaticJournal();
+        $attachmentId = $this->addFile($journalId, $employee);
         $other        = $this->openSecondConnection(false);
 
         $this->afterFirstQuery(
@@ -794,7 +811,7 @@ class JournalAttachmentsTest extends CIUnitTestCase
         );
         $other->close();
 
-        $this->assertSame([], $this->auditOf(1, 'attachment_deleted'));
+        $this->assertSame([], $this->auditOf($journalId, 'attachment_deleted'));
     }
 
     public function testDelete_RemovesTheRowEvenWhenTheFileIsAlreadyGoneFromTheDisk(): void
@@ -915,19 +932,21 @@ class JournalAttachmentsTest extends CIUnitTestCase
 
     public function testPurgeDraft_TakesTheRowsOutWritesOneEntryForEachAndReturnsWhereTheFilesAre(): void
     {
-        $draftId  = $this->journals->saveDraft($this->journalInput());
+        $branchId = $this->createBranch('B2');
+        $draftId  = $this->journals->saveDraft(['branch_id' => $branchId] + $this->journalInput());
         $employee = $this->drafter();
         $first    = $this->addFile($draftId, $employee, 'first.txt');
         $second   = $this->addFile($draftId, $employee, 'second.txt');
         $paths    = [$this->pathOf($first), $this->pathOf($second)];
 
-        $this->assertSame($paths, $this->attachments->purgeDraft($draftId, $employee));
+        $this->assertSame($paths, $this->attachments->purgeDraft($draftId, $employee, $branchId));
 
         $this->assertSame(0, $this->countRows('accounting_journal_attachments'));
 
         $entries = $this->auditOf($draftId, 'attachment_deleted');
 
         $this->assertCount(2, $entries);
+        $this->assertSame([(string) $branchId, (string) $branchId], array_map(static fn (object $entry): string => (string) $entry->branch_id, $entries));
         $this->assertTrue(json_decode($entries[0]->details, true)['with_draft']);
         $this->assertSame('first.txt', json_decode($entries[0]->details, true)['name']);
         $this->assertSame('second.txt', json_decode($entries[1]->details, true)['name']);

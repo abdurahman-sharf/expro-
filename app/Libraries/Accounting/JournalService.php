@@ -132,7 +132,7 @@ final class JournalService
 
         $this->transactional(function () use ($journalId, $employeeId, $attachments, &$files): void {
             $draft = $this->lockDraft($journalId, $employeeId);
-            $files = $attachments->purgeDraft($journalId, $employeeId);
+            $files = $attachments->purgeDraft($journalId, $employeeId, (int) $draft->branch_id);
 
             $this->db->table('accounting_journal_lines')->where('journal_id', $journalId)->delete();
             $this->db->table('accounting_journals')->where('journal_id', $journalId)->delete();
@@ -260,6 +260,8 @@ final class JournalService
      * their cost center, and nothing else: the amounts, the accounts, the date, the number and
      * the source are not in the input and stay as posted. A change in a closed period is refused
      * because the cost center a line belongs to decides which period an analysis counts it in.
+     * The journal is locked before the period locks are taken, the order a reversal takes them,
+     * so a closing that queues between the two cannot make them wait for each other.
      * Each edit is written to the audit log with what the text was and what it became.
      *
      * @param array{description?: string, lines?: array<int|string, array{description?: string, cost_center_id?: int|string}>} $input The lines are keyed by their line id.
@@ -278,9 +280,7 @@ final class JournalService
 
         $details = $this->normalizeDetails($input);
 
-        return $this->transactional(function () use ($journalId, $details, $employeeId, $stored): bool {
-            $this->periods->enforce($stored->journal_date, (int) $stored->branch_id);
-
+        return $this->transactional(function () use ($journalId, $details, $employeeId): bool {
             $table  = $this->db->prefixTable('accounting_journals');
             $locked = LockedRead::row($this->db, "SELECT * FROM {$table} WHERE journal_id = ? FOR UPDATE", [$journalId]);
 
@@ -289,6 +289,7 @@ final class JournalService
             }
 
             $this->assertDetailsEditable($locked);
+            $this->periods->enforce($locked->journal_date, (int) $locked->branch_id);
 
             $lines   = LockedRead::rows($this->db, 'SELECT * FROM ' . $this->db->prefixTable('accounting_journal_lines') . ' WHERE journal_id = ? ORDER BY line_no FOR UPDATE', [$journalId]);
             $changes = $this->detailChanges($locked, $lines, $details);

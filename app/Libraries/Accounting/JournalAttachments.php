@@ -258,7 +258,7 @@ final class JournalAttachments
      *
      * @throws AccountingException
      */
-    public function purgeDraft(int $journalId, ?int $employeeId): array
+    public function purgeDraft(int $journalId, ?int $employeeId, int $branchId): array
     {
         $rows  = $this->db->table('accounting_journal_attachments')->where('journal_id', $journalId)->orderBy('attachment_id', 'ASC')->get()->getResult();
         $paths = [];
@@ -266,7 +266,7 @@ final class JournalAttachments
         foreach ($rows as $row) {
             $this->db->table('accounting_journal_attachments')->where('attachment_id', $row->attachment_id)->delete();
 
-            $this->audit->write('journal', $journalId, 'attachment_deleted', $employeeId, JournalOrigin::User, $this->summary((int) $row->attachment_id, (array) $row) + ['with_draft' => true]);
+            $this->audit->write('journal', $journalId, 'attachment_deleted', $employeeId, JournalOrigin::User, $this->summary((int) $row->attachment_id, (array) $row) + ['with_draft' => true], $branchId);
 
             $paths[] = $this->pathOf($row->stored_name);
         }
@@ -297,17 +297,15 @@ final class JournalAttachments
     }
 
     /**
-     * Takes the period locks of a posted journal, then the journal itself, and checks that it is
-     * still in the state it was read in, so a draft posted a moment ago is not treated as a draft.
+     * Locks the journal and checks that it is still in the state it was read in, so a draft posted
+     * a moment ago is not treated as a draft. A posted journal then takes the period locks, in the
+     * order a reversal takes them, so a closing that queues between the two cannot make them wait
+     * for each other.
      *
      * @throws AccountingException|PostingException
      */
     private function lockJournal(int $journalId, object $read): object
     {
-        if ($read->status === JournalStatus::Posted->value) {
-            $this->periods->enforce($read->journal_date, (int) $read->branch_id);
-        }
-
         $table  = $this->db->prefixTable('accounting_journals');
         $locked = LockedRead::row($this->db, "SELECT * FROM {$table} WHERE journal_id = ? FOR UPDATE", [$journalId]);
 
@@ -317,6 +315,10 @@ final class JournalAttachments
 
         if ($locked->status !== $read->status) {
             throw new AccountingException(AccountingError::WriteFailed, 'The journal changed while the file was being saved.');
+        }
+
+        if ($locked->status === JournalStatus::Posted->value) {
+            $this->periods->enforce($locked->journal_date, (int) $locked->branch_id);
         }
 
         return $locked;
