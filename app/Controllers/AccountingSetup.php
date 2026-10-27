@@ -46,6 +46,7 @@ class AccountingSetup extends AccountingController
             'currency'       => $this->settings->baseCurrency(),
             'start_date'     => (string) $this->settings->startDate(),
             'auto_year'      => $this->settings->autoFiscalYear(),
+            'line_text'      => $this->settings->lineDescriptionRequired(),
             'locked'         => $this->settings->isLocked(),
             'next_number'    => $this->settings->lastManualNumber() + 1,
             'can_manage'     => $this->canManageSettings(),
@@ -64,11 +65,17 @@ class AccountingSetup extends AccountingController
     public function postSaveSettings(): ResponseInterface
     {
         return $this->attempt(function (): array {
-            $this->settings->update([
+            $input = [
                 'base_currency'    => (string) $this->request->getPost('base_currency'),
                 'start_date'       => (string) $this->request->getPost('start_date'),
                 'auto_fiscal_year' => $this->request->getPost('auto_fiscal_year') === '1',
-            ], $this->employeeId());
+            ];
+
+            if ($this->request->getPost('line_description_required') !== null) {
+                $input['line_description_required'] = $this->request->getPost('line_description_required') === '1';
+            }
+
+            $this->settings->update($input, $this->employeeId());
 
             return ['success' => true, 'message' => lang('Accounting_settings.saved'), 'id' => 1];
         });

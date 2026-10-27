@@ -9,6 +9,9 @@
  * @var string $currency
  * @var bool $can_post
  * @var string|null $notice
+ * @var list<array{id: int, name: string, size: string, by: string, at: string, url: string}> $attachments
+ * @var bool $can_attach
+ * @var bool $line_text
  */
 
 $isNew       = $journal === null;
@@ -50,7 +53,7 @@ $rows   = $lines === [] ? [null, null] : $lines;
             <?= $accountInputs('lines[__INDEX__][account_id]', null) ?>
         </td>
         <td data-label="<?= esc(lang('Accounting_journals.line_description'), 'attr') ?>">
-            <input type="text" name="lines[__INDEX__][description]" class="form-control form-control-sm" maxlength="255" aria-label="<?= esc(lang('Accounting_journals.line_description'), 'attr') ?>">
+            <input type="text" name="lines[__INDEX__][description]" class="form-control form-control-sm acc-line-text" maxlength="255"<?= $line_text ? ' aria-required="true"' : '' ?> aria-label="<?= esc(lang('Accounting_journals.line_description'), 'attr') ?>">
         </td>
         <td data-label="<?= esc(lang('Accounting_journals.cost_center'), 'attr') ?>">
             <select name="lines[__INDEX__][cost_center_id]" class="form-select form-select-sm" aria-label="<?= esc(lang('Accounting_journals.cost_center'), 'attr') ?>"><?= $costCenterOptions(null) ?></select>
@@ -133,7 +136,7 @@ $rows   = $lines === [] ? [null, null] : $lines;
             <thead>
                 <tr>
                     <th scope="col"><?= lang('Accounting_journals.account') ?></th>
-                    <th scope="col"><?= lang('Accounting_journals.line_description') ?></th>
+                    <th scope="col"><?= lang('Accounting_journals.line_description') ?><?php if ($line_text): ?> <span class="text-danger" aria-hidden="true">*</span><?php endif; ?></th>
                     <th scope="col"><?= lang('Accounting_journals.cost_center') ?></th>
                     <th scope="col" class="acc-amount"><?= lang('Accounting_journals.debit') ?></th>
                     <th scope="col" class="acc-amount"><?= lang('Accounting_journals.credit') ?></th>
@@ -147,7 +150,7 @@ $rows   = $lines === [] ? [null, null] : $lines;
                             <?= $accountInputs("lines[{$index}][account_id]", $line === null ? null : (int) $line->account_id) ?>
                         </td>
                         <td data-label="<?= esc(lang('Accounting_journals.line_description'), 'attr') ?>">
-                            <input type="text" name="lines[<?= $index ?>][description]" class="form-control form-control-sm" maxlength="255" value="<?= esc($line === null ? '' : (string) $line->description, 'attr') ?>" aria-label="<?= esc(lang('Accounting_journals.line_description'), 'attr') ?>">
+                            <input type="text" name="lines[<?= $index ?>][description]" class="form-control form-control-sm acc-line-text" maxlength="255"<?= $line_text ? ' aria-required="true"' : '' ?> value="<?= esc($line === null ? '' : (string) $line->description, 'attr') ?>" aria-label="<?= esc(lang('Accounting_journals.line_description'), 'attr') ?>">
                         </td>
                         <td data-label="<?= esc(lang('Accounting_journals.cost_center'), 'attr') ?>">
                             <select name="lines[<?= $index ?>][cost_center_id]" class="form-select form-select-sm" aria-label="<?= esc(lang('Accounting_journals.cost_center'), 'attr') ?>"><?= $costCenterOptions($line === null || $line->cost_center_id === null ? null : (int) $line->cost_center_id) ?></select>
@@ -174,7 +177,12 @@ $rows   = $lines === [] ? [null, null] : $lines;
         <div><span class="acc-totals-label"><?= lang('Accounting_journals.total_credit') ?></span> <bdi dir="ltr" id="total_credit">0.00</bdi></div>
         <div id="difference_box" class="acc-difference"><span class="acc-totals-label"><?= lang('Accounting_journals.difference') ?></span> <bdi dir="ltr" id="difference">0.00</bdi> <span id="balance_state"></span></div>
     </div>
+    <?php if ($line_text): ?>
+        <p class="form-text" id="line_text_hint" role="note"><?= lang('Accounting_journals.line_description_required_hint') ?></p>
+    <?php endif; ?>
 </form>
+
+<?= view('accounting_journals/attachments', ['journal_id' => $isNew ? 0 : $journalId, 'attachments' => $attachments, 'can_attach' => $can_attach]) ?>
 
 <script type="text/javascript">
     $(document).ready(function() {
@@ -187,6 +195,7 @@ $rows   = $lines === [] ? [null, null] : $lines;
             'closed' => lang('Accounting_journals.closed_until'),
         ], $jsonFlags) ?>;
         const cutoffs = <?= json_encode($cutoffs, $jsonFlags) ?>;
+        const textRequired = <?= $line_text ? 'true' : 'false' ?>;
         const branchId = <?= (int) $branch_id ?>;
         const SCALE = 10000;
         const picker = accounting_support.accountPicker('accounts_list');
@@ -237,6 +246,7 @@ $rows   = $lines === [] ? [null, null] : $lines;
             let credit = 0;
             let amounts = 0;
             let withoutAccount = 0;
+            let withoutText = 0;
 
             $body.children().each(function() {
                 const rowDebit = units($(this).find('.acc-debit').val());
@@ -246,12 +256,13 @@ $rows   = $lines === [] ? [null, null] : $lines;
                 if (rowDebit > 0 || rowCredit > 0) {
                     amounts++;
                     withoutAccount += $(this).find('input.acc-account').val() === '' ? 1 : 0;
+                    withoutText += textRequired && $.trim($(this).find('.acc-line-text').val()) === '' ? 1 : 0;
                 }
             });
 
             const difference = debit - credit;
             const balanced = difference === 0 && debit > 0 && amounts >= 2;
-            const ready = balanced && withoutAccount === 0;
+            const ready = balanced && withoutAccount === 0 && withoutText === 0;
 
             $('#total_debit').text(format(debit));
             $('#total_credit').text(format(credit));
@@ -291,6 +302,8 @@ $rows   = $lines === [] ? [null, null] : $lines;
             picker.complete($(this), $(this).closest('td').find('.acc-account'));
             refreshTotals();
         });
+
+        $body.on('input', '.acc-line-text', refreshTotals);
 
         $body.on('input', '.acc-debit, .acc-credit', function() {
             const normalized = normalize($(this).val());

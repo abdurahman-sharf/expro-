@@ -185,6 +185,8 @@ $routes->group('accounting_journals', static function (RouteCollection $routes):
     $routes->get('edit/(:num)', 'AccountingJournals::getEdit/$1');
     $routes->get('view/(:num)', 'AccountingJournals::getShow/$1');
     $routes->get('reverse_form/(:num)', 'AccountingJournals::getReverseForm/$1');
+    $routes->get('edit_details/(:num)', 'AccountingJournals::getEditDetails/$1');
+    $routes->get('attachment/(:num)', 'AccountingJournals::getAttachment/$1');
     $routes->get('audit', 'AccountingJournals::getAudit');
     $routes->get('audit/search', 'AccountingJournals::getAuditSearch');
     $routes->get('failures', 'AccountingJournals::getFailures');
@@ -197,4 +199,7 @@ $routes->group('accounting_journals', static function (RouteCollection $routes):
     $routes->post('delete_drafts', 'AccountingJournals::postDeleteDrafts');
     $routes->post('delete_draft/(:num)', 'AccountingJournals::postDeleteDraft/$1');
     $routes->post('reverse/(:num)', 'AccountingJournals::postReverse/$1');
+    $routes->post('save_details/(:num)', 'AccountingJournals::postSaveDetails/$1');
+    $routes->post('attach/(:num)', 'AccountingJournals::postAttach/$1');
+    $routes->post('delete_attachment/(:num)', 'AccountingJournals::postDeleteAttachment/$1');
 });

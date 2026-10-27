@@ -23,6 +23,8 @@ return [
     'holders_none'                             => '',
     'holders_permissions'                      => '',
     'holders_title'                            => '',
+    'line_description_required'                => '',
+    'line_description_required_desc'           => '',
     'locked_note'                              => '',
     'next_number'                              => '',
     'not_ready'                                => '',

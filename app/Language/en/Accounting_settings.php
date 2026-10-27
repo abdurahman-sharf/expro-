@@ -23,6 +23,8 @@ return [
     'holders_none'                             => 'Nobody holds them yet. An administrator can grant them from Employees.',
     'holders_permissions'                      => 'Permissions',
     'holders_title'                            => 'Who holds the sensitive permissions',
+    'line_description_required'                => 'Require a description on every journal line',
+    'line_description_required_desc'           => 'When on, a manual journal cannot be posted while a line has no description. A draft can still be saved without one. Journals the books make by themselves are not affected.',
     'locked_note'                              => 'The currency and the start date are fixed once a journal is posted.',
     'next_number'                              => 'Next manual journal number',
     'not_ready'                                => 'Accounting cannot be turned on yet.',
