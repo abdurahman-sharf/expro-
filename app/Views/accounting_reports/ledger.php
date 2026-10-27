@@ -53,6 +53,9 @@ $side = static fn (string $value, Closure $amount): string => bccomp($value, '0'
     <a class="btn btn-outline-secondary btn-sm float-end" id="link_income_statement" href="<?= esc(base_url('accounting_statements/income_statement'), 'attr') ?>">
         <span class="bi bi-graph-up" aria-hidden="true">&nbsp;</span><?= lang('Accounting_statements.income_statement') ?>
     </a>
+    <a class="btn btn-outline-secondary btn-sm float-end" id="inventory_valuation_link" href="<?= esc(base_url('accounting_reports/inventory_valuation'), 'attr') ?>">
+        <span class="bi bi-boxes" aria-hidden="true">&nbsp;</span><?= lang('Accounting_inventory_reports.title') ?>
+    </a>
 </div>
 
 <form id="ledger_filters" class="acc-filters print_hide" method="get" action="<?= esc(base_url('accounting_reports/ledger'), 'attr') ?>" role="search" aria-label="<?= esc(lang('Accounting_reports.filters'), 'attr') ?>">

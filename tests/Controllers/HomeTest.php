@@ -8,6 +8,7 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use App\Libraries\Organization\BranchGuard;
 use App\Models\Employee;
+use Config\Database;
 use RuntimeException;
 
 /**
@@ -278,6 +279,66 @@ class HomeTest extends CIUnitTestCase
         $everyBranch = $this->createNonAdminEmployee(['grants' => [...$grants, ['permission_id' => BranchGuard::ALL_BRANCHES, 'menu_group' => '--']]]);
 
         $this->assertStringContainsString('reports/summary_expenses_categories', $reportUrls($everyBranch));
+    }
+
+    private function accountingSwitch(): string
+    {
+        $row = Database::connect()->table('app_config')->where('key', 'accounting_enabled')->get()->getRow();
+
+        return $row === null ? '0' : (string) $row->value;
+    }
+
+    private function turnAccounting(string $enabled): void
+    {
+        Database::connect()->table('app_config')->replace(['key' => 'accounting_enabled', 'value' => $enabled]);
+    }
+
+    /**
+     * @param list<string> $permissionIds
+     *
+     * @return list<string>
+     */
+    private function searchIndexUrls(array $permissionIds, string $accounting): array
+    {
+        $before     = $this->accountingSwitch();
+        $employeeId = $this->createNonAdminEmployee([
+            'grants' => array_map(static fn (string $permissionId): array => ['permission_id' => $permissionId, 'menu_group' => 'home'], ['home', 'reports', ...$permissionIds]),
+        ]);
+
+        $this->loginAs($employeeId);
+        $this->turnAccounting($accounting);
+
+        try {
+            $response = $this->get('/home/searchIndex');
+
+            $response->assertStatus(200);
+
+            return array_column(json_decode($response->getJSON(), true), 'url');
+        } finally {
+            $this->turnAccounting($before);
+        }
+    }
+
+    public function testGetSearchIndex_OffersTheInventoryValuationToWhoHoldsTheFinancialReportsModuleWhileAccountingIsOn(): void
+    {
+        $urls = $this->searchIndexUrls(['reports_inventory', 'accounting_reports'], '1');
+
+        $this->assertNotEmpty(array_filter($urls, static fn (string $url): bool => str_ends_with($url, 'accounting_reports/inventory_valuation')));
+    }
+
+    public function testGetSearchIndex_DoesNotOfferTheInventoryValuationWhileAccountingIsOff(): void
+    {
+        $urls = $this->searchIndexUrls(['reports_inventory', 'accounting_reports'], '0');
+
+        $this->assertSame([], array_values(array_filter($urls, static fn (string $url): bool => str_contains($url, 'inventory_valuation'))));
+        $this->assertNotEmpty(array_filter($urls, static fn (string $url): bool => str_ends_with($url, 'reports/inventory_summary')), 'With accounting off the search is as it was');
+    }
+
+    public function testGetSearchIndex_DoesNotOfferTheInventoryValuationToWhoLacksTheFinancialReportsModule(): void
+    {
+        $urls = $this->searchIndexUrls(['reports_inventory', 'accounting_journals'], '1');
+
+        $this->assertSame([], array_values(array_filter($urls, static fn (string $url): bool => str_contains($url, 'inventory_valuation'))));
     }
 
     /**

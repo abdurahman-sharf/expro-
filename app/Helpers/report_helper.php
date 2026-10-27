@@ -1,5 +1,6 @@
 <?php
 
+use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\ReportScope;
 use App\Libraries\Organization\BranchGuard;
 
@@ -54,13 +55,15 @@ function can_show_report(string $permission_id, array $restrict_views = []): boo
 }
 
 /**
- * Reports offered in the reports index, grouped by area and subject.
+ * Reports offered in the reports index and in the quick search, grouped by area and subject. The
+ * reports of the books are offered only while accounting is on, whoever holds their permission.
  *
  * @param list<string> $permissionIds
+ * @param bool|null    $accountingOn  Null reads the setting, and only when a subject of the books is to be offered.
  *
  * @return list<array{label: string, subjects: list<array{icon: string, label: string, links: list<array{path: string, label: string, icon: string}>}>}>
  */
-function reportCatalog(array $permissionIds): array
+function reportCatalog(array $permissionIds, ?bool $accountingOn = null): array
 {
     $types = [
         'graphical' => ['Reports.type_graphical', 'bi-bar-chart-line'],
@@ -115,6 +118,9 @@ function reportCatalog(array $permissionIds): array
                 $link('summary', 'inventory_low', 'Reports.inventory_low'),
                 $link('summary', 'inventory_summary', 'Reports.inventory_summary'),
             ]],
+            ['bi-boxes', 'Accounting_inventory_reports.title', 'accounting_reports', [
+                ['path' => site_url('accounting_reports/inventory_valuation'), 'label' => lang('Accounting_inventory_reports.catalog_link'), 'icon' => 'bi-table'],
+            ]],
             ['bi-box-arrow-in-down', 'Reports.receivings', 'reports_receivings', [
                 $link('detailed', 'detailed_receivings'),
             ]],
@@ -146,9 +152,19 @@ function reportCatalog(array $permissionIds): array
         $allowed = [];
 
         foreach ($subjects as [$icon, $subjectLabel, $permission, $links]) {
-            if (in_array($permission, $permissionIds, true)) {
-                $allowed[] = ['icon' => $icon, 'label' => lang($subjectLabel), 'links' => $links];
+            if (! in_array($permission, $permissionIds, true)) {
+                continue;
             }
+
+            if (str_starts_with($permission, 'accounting_')) {
+                $accountingOn ??= (new AccountingSettings())->isEnabled();
+
+                if (! $accountingOn) {
+                    continue;
+                }
+            }
+
+            $allowed[] = ['icon' => $icon, 'label' => lang($subjectLabel), 'links' => $links];
         }
 
         if ($allowed !== []) {

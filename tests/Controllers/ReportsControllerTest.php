@@ -8,6 +8,7 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use App\Database\Seeds\TestDatabaseBootstrapSeeder;
 use App\Models\Employee;
+use Config\Database;
 use Config\OSPOS;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
@@ -583,5 +584,64 @@ class ReportsControllerTest extends CIUnitTestCase
 
         $this->assertStringContainsString('"invoice_discount":' . json_encode(to_currency('12.5')), $page);
         $this->assertStringContainsString('"invoice_discount":' . json_encode(to_currency('0')), $page);
+    }
+
+    private function accountingSwitch(): string
+    {
+        $row = Database::connect()->table('app_config')->where('key', 'accounting_enabled')->get()->getRow();
+
+        return $row === null ? '0' : (string) $row->value;
+    }
+
+    private function turnAccounting(string $enabled): void
+    {
+        Database::connect()->table('app_config')->replace(['key' => 'accounting_enabled', 'value' => $enabled]);
+    }
+
+    /**
+     * @param list<string> $permissionIds
+     */
+    private function reportsIndexOf(array $permissionIds, string $accounting): string
+    {
+        $before     = $this->accountingSwitch();
+        $employeeId = $this->createNonAdminEmployee([
+            'grants' => array_map(static fn (string $permissionId): array => ['permission_id' => $permissionId, 'menu_group' => 'home'], ['reports', ...$permissionIds]),
+        ]);
+
+        $this->loginAs($employeeId);
+        $this->turnAccounting($accounting);
+
+        try {
+            $response = $this->get('/reports');
+
+            $response->assertStatus(200);
+
+            return $response->getBody();
+        } finally {
+            $this->turnAccounting($before);
+        }
+    }
+
+    public function testGetIndex_OffersTheInventoryValuationToWhoHoldsTheFinancialReportsModuleWhileAccountingIsOn(): void
+    {
+        $body = $this->reportsIndexOf(['reports_inventory', 'accounting_reports'], '1');
+
+        $this->assertStringContainsString('accounting_reports/inventory_valuation', $body);
+        $this->assertStringContainsString('reports/inventory_summary', $body, 'The legacy report stays where it was');
+    }
+
+    public function testGetIndex_DoesNotOfferTheInventoryValuationWhileAccountingIsOff(): void
+    {
+        $body = $this->reportsIndexOf(['reports_inventory', 'accounting_reports'], '0');
+
+        $this->assertStringNotContainsString('inventory_valuation', $body);
+        $this->assertStringContainsString('reports/inventory_summary', $body, 'With accounting off the reports are as they were');
+    }
+
+    public function testGetIndex_DoesNotOfferTheInventoryValuationToWhoLacksTheFinancialReportsModule(): void
+    {
+        $body = $this->reportsIndexOf(['reports_inventory', 'accounting_journals'], '1');
+
+        $this->assertStringNotContainsString('inventory_valuation', $body);
     }
 }

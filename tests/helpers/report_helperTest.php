@@ -144,4 +144,49 @@ final class report_helperTest extends CIUnitTestCase
 
         $this->assertSame(['reports_expenses_categories'], openableReportPermissions(['reports_expenses_categories']));
     }
+
+    /**
+     * @param list<string> $permissionIds
+     *
+     * @return list<string>
+     */
+    private function pathsFor(array $permissionIds, bool $accountingOn = true): array
+    {
+        $paths = [];
+
+        foreach (reportCatalog($permissionIds, $accountingOn) as $group) {
+            foreach ($group['subjects'] as $subject) {
+                foreach ($subject['links'] as $link) {
+                    $paths[] = $link['path'];
+                }
+            }
+        }
+
+        return $paths;
+    }
+
+    public function testReportCatalog_OffersTheInventoryValuationToTheFinancialReportsModuleOnly(): void
+    {
+        $paths = $this->pathsFor(['accounting_reports']);
+
+        $this->assertCount(1, $paths);
+        $this->assertStringEndsWith('accounting_reports/inventory_valuation', $paths[0]);
+
+        foreach ($this->pathsFor(['reports_inventory', 'reports_sales', 'accounting_journals', 'accounting_payables']) as $path) {
+            $this->assertStringNotContainsString('inventory_valuation', $path);
+        }
+    }
+
+    public function testReportCatalog_LeavesOutTheReportsOfTheBooksWhileAccountingIsOff(): void
+    {
+        $this->assertSame([], reportCatalog(['accounting_reports'], false));
+
+        $paths = $this->pathsFor(['accounting_reports', 'reports_inventory'], false);
+
+        $this->assertCount(2, $paths, 'The legacy inventory reports stay');
+
+        foreach ($paths as $path) {
+            $this->assertStringNotContainsString('inventory_valuation', $path);
+        }
+    }
 }
