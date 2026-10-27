@@ -233,7 +233,7 @@ final class ReceivingPosting
 
         if ($paymentIds !== []) {
             $builder->orGroupStart()
-                ->where('source_type', ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT)
+                ->whereIn('source_type', [ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT, ...CrossBranchPayments::companionsOf(ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT)])
                 ->whereIn('source_id', $paymentIds)
                 ->groupEnd();
         }

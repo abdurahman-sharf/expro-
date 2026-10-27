@@ -253,7 +253,7 @@ final class SalePosting
             ->groupStart()->where('source_type', SalePostingBuilder::SOURCE_SALE)->where('source_id', $saleId)->groupEnd();
 
         if ($paymentIds !== []) {
-            $builder->orGroupStart()->where('source_type', SalePostingBuilder::SOURCE_PAYMENT)->whereIn('source_id', $paymentIds)->groupEnd();
+            $builder->orGroupStart()->whereIn('source_type', [SalePostingBuilder::SOURCE_PAYMENT, ...CrossBranchPayments::companionsOf(SalePostingBuilder::SOURCE_PAYMENT)])->whereIn('source_id', $paymentIds)->groupEnd();
         }
 
         return $builder->groupEnd()->orderBy('journal_id', 'ASC')->get()->getResult();

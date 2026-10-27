@@ -228,7 +228,7 @@ final class ExpensePosting
     {
         return $this->db->table('accounting_journals')
             ->select('journal_id, number, journal_date, status, revision, total_debit, reverses_journal_id')
-            ->where('source_type', ExpensePostingBuilder::SOURCE)
+            ->whereIn('source_type', [ExpensePostingBuilder::SOURCE, ...CrossBranchPayments::companionsOf(ExpensePostingBuilder::SOURCE)])
             ->where('source_id', $expenseId)
             ->orderBy('journal_id', 'ASC')
             ->get()

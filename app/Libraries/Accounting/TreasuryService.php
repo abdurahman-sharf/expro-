@@ -386,7 +386,8 @@ final class TreasuryService
      * The branch of a treasury a document of a branch names for a payment, or null when it is the
      * branch of the document. A treasury of another branch is for an employee who works in both
      * branches, as moving money between branches is, and it must be open unless the payment is
-     * already in it. A treasury the employee may not use that way is as good as not there.
+     * already in it. A treasury the employee may not use that way is as good as not there, and so is
+     * every treasury of another branch while the books are off.
      *
      * @throws AccountingException
      */
@@ -404,7 +405,7 @@ final class TreasuryService
             return null;
         }
 
-        if (! $this->branches->canAccess($treasuryBranch, $employeeId) || ! $this->branches->canAccess($branchId, $employeeId)) {
+        if (! (new AccountingSettings($this->db))->isEnabled() || ! $this->branches->canAccess($treasuryBranch, $employeeId) || ! $this->branches->canAccess($branchId, $employeeId)) {
             throw new AccountingException(AccountingError::TreasuryNotFound, "Treasury {$treasuryId} is not one of branch {$branchId}.", ['treasury_id' => $treasuryId]);
         }
 

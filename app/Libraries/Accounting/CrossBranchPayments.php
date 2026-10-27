@@ -130,6 +130,17 @@ final class CrossBranchPayments
         return array_values($pair);
     }
 
+    /**
+     * The source of the journal the treasury's branch gets for the payments of a source, when the
+     * treasury is of another branch than the document.
+     *
+     * @return list<string>
+     */
+    public static function companionsOf(string $source): array
+    {
+        return isset(self::COMPANIONS[$source]) ? [self::COMPANIONS[$source]] : [];
+    }
+
     public function isPaired(object $journal): bool
     {
         return $this->legs->isPaired((int) $journal->journal_id);
@@ -342,8 +353,12 @@ final class CrossBranchPayments
      */
     private function accountsBetweenBranches(): array
     {
-        $receivable = $this->resolver->accountFor(RoutingKey::InterBranchReceivable);
-        $payable    = $this->resolver->accountFor(RoutingKey::InterBranchPayable);
+        try {
+            $receivable = $this->resolver->accountFor(RoutingKey::InterBranchReceivable);
+            $payable    = $this->resolver->accountFor(RoutingKey::InterBranchPayable);
+        } catch (PostingException) {
+            $receivable = $payable = null;
+        }
 
         if ($receivable === null || $payable === null) {
             throw new PostingException(PostingError::InterBranchAccountsMissing, 'A payment into a treasury of another branch needs the two accounts between branches in the routing.');
