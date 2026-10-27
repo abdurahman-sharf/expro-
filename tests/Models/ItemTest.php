@@ -329,6 +329,56 @@ class ItemTest extends CIUnitTestCase
         $this->assertInstanceOf(BranchException::class, $items->accountingFailure());
     }
 
+    public function testDelete_DeletesAnItemWhoseShelfInAnotherBranchIsEmpty(): void
+    {
+        [$itemId] = $this->twoItemsInTheBooks();
+        $store    = $this->stockOfAnotherBranchOutOfReachOfTheEmployee($itemId);
+        $this->accountingDb()->table('item_quantities')->where('item_id', $itemId)->where('location_id', $store)->update(['quantity' => 0]);
+
+        $this->assertTrue(model(Item::class)->delete($itemId));
+
+        $this->assertSame(1, (int) model(Item::class)->get_info($itemId)->deleted);
+        $this->assertSame('0.000', $this->onHand($itemId));
+    }
+
+    public function testDelete_DeletesAnItemWhoseOnlyStockInAnotherBranchSitsInADeletedLocation(): void
+    {
+        [$itemId] = $this->twoItemsInTheBooks();
+        $store    = $this->stockOfAnotherBranchOutOfReachOfTheEmployee($itemId);
+        $this->accountingDb()->table('stock_locations')->where('location_id', $store)->update(['deleted' => 1]);
+
+        $this->assertTrue(model(Item::class)->delete($itemId));
+
+        $this->assertSame(1, (int) model(Item::class)->get_info($itemId)->deleted);
+        $this->assertSame([1], array_map(static fn (object $journal): int => (int) $journal->branch_id, $this->accountingDb()->table('accounting_journals')->where('source_type', 'stock_adjustment')->get()->getResult()));
+    }
+
+    public function testDelete_ForgetsTheRefusalOfAnEarlierDelete(): void
+    {
+        [$first, $second] = $this->twoItemsInTheBooks();
+        $this->stockOfAnotherBranchOutOfReachOfTheEmployee($first);
+        $items = model(Item::class);
+
+        $this->assertFalse($items->delete($first));
+        $this->assertInstanceOf(BranchException::class, $items->accountingFailure());
+
+        $this->assertTrue($items->delete($second));
+        $this->assertNull($items->accountingFailure());
+    }
+
+    public function testDeleteList_ForgetsTheRefusalOfAnEarlierDelete(): void
+    {
+        [$first, $second] = $this->twoItemsInTheBooks();
+        $this->stockOfAnotherBranchOutOfReachOfTheEmployee($first);
+        $items = model(Item::class);
+
+        $this->assertFalse($items->delete_list([$first]));
+        $this->assertInstanceOf(BranchException::class, $items->accountingFailure());
+
+        $this->assertTrue($items->delete_list([$second]));
+        $this->assertNull($items->accountingFailure());
+    }
+
     public function testPostStockRemoved_ReportsAJournalOfABranchTheEmployeeDoesNotWorkInInsteadOfThrowing(): void
     {
         [$itemId] = $this->twoItemsInTheBooks();
