@@ -499,10 +499,10 @@ class InterBranchSettlementsTest extends CIUnitTestCase
         $this->assertNothingOwedBetweenTheBranches();
     }
 
-    public function testSettle_AcceptsADayBeforeASettlementOfAnotherPairOrAnotherCompany(): void
+    public function testSettle_AcceptsADayBeforeASettlementOfAnotherPair(): void
     {
-        $third          = $this->createBranch('B3');
-        $thirdTreasury  = $this->treasuries->create(['name' => 'Third branch drawer', 'kind' => 'cash', 'branch_id' => $third], $this->manager);
+        $third         = $this->createBranch('B3');
+        $thirdTreasury = $this->treasuries->create(['name' => 'Third branch drawer', 'kind' => 'cash', 'branch_id' => $third], $this->manager);
 
         $this->hold($thirdTreasury, '1000.00', 9003, $third);
         $this->transfers->transfer($this->main, $thirdTreasury, '50.00', '2026-10-21', '', $this->manager);
@@ -511,17 +511,22 @@ class InterBranchSettlementsTest extends CIUnitTestCase
 
         $this->assertGreaterThan(0, $this->settlements->settle(1, $third, '2026-12-31', null, null, '', null, $this->settler));
         $this->assertGreaterThan(0, $this->settle($this->other, $this->main, '2026-10-25'), 'The settlement of the first and the third branch is not one of this pair');
+    }
 
+    public function testSettle_AcceptsADayBeforeASettlementOfAnotherCompany(): void
+    {
+        $this->send(true, '100.00', '2026-10-21');
+
+        $id = $this->settle($this->other, $this->main, '2026-10-31');
         $db = $this->accountingDb();
 
         $db->table('companies')->insert(['name' => 'Another company']);
         $company = (int) $db->insertID();
 
         try {
-            $this->send(true, '5.00', '2026-10-26');
-            $db->table('interbranch_settlements')->update(['company_id' => $company]);
+            $db->table('interbranch_settlements')->where('settlement_id', $id)->update(['company_id' => $company]);
 
-            $this->assertGreaterThan(0, $this->settle($this->other, $this->main, '2026-10-26'), 'A settlement of another company is not one of this');
+            $this->assertGreaterThan(0, $this->settle($this->other, $this->main, '2026-10-25'), 'A settlement of another company is not one of this');
         } finally {
             $db->table('interbranch_settlements')->update(['company_id' => 1]);
             $db->table('companies')->where('company_id', $company)->delete();

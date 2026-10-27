@@ -141,14 +141,14 @@ final class InterBranchBalances
         $unattributed = [];
 
         foreach ($this->db->query($this->matrixQuery($receivable, $payable, $all, $asOf, $branchIds))->getResult() as $row) {
-            $branchId   = (int) $row->branch_id;
-            $receivable = bcadd((string) $row->receivable, '0', SaleAmounts::SCALE);
-            $payable    = bcadd((string) $row->payable, '0', SaleAmounts::SCALE);
+            $branchId = (int) $row->branch_id;
+            $owed     = bcadd((string) $row->receivable, '0', SaleAmounts::SCALE);
+            $owing    = bcadd((string) $row->payable, '0', SaleAmounts::SCALE);
 
             if ($row->recorded === null && $row->derived === null) {
                 $unattributed[$branchId] ??= ['receivable' => self::ZERO, 'payable' => self::ZERO];
-                $unattributed[$branchId]['receivable'] = bcadd($unattributed[$branchId]['receivable'], $receivable, SaleAmounts::SCALE);
-                $unattributed[$branchId]['payable']    = bcadd($unattributed[$branchId]['payable'], $payable, SaleAmounts::SCALE);
+                $unattributed[$branchId]['receivable'] = bcadd($unattributed[$branchId]['receivable'], $owed, SaleAmounts::SCALE);
+                $unattributed[$branchId]['payable']    = bcadd($unattributed[$branchId]['payable'], $owing, SaleAmounts::SCALE);
 
                 continue;
             }
@@ -157,8 +157,8 @@ final class InterBranchBalances
             $basis         = $row->recorded === null ? PairBalance::DERIVED : PairBalance::RECORDED;
 
             $pairs[$branchId][$counterpartId] ??= ['receivable' => self::ZERO, 'payable' => self::ZERO, 'bases' => []];
-            $pairs[$branchId][$counterpartId]['receivable']    = bcadd($pairs[$branchId][$counterpartId]['receivable'], $receivable, SaleAmounts::SCALE);
-            $pairs[$branchId][$counterpartId]['payable']       = bcadd($pairs[$branchId][$counterpartId]['payable'], $payable, SaleAmounts::SCALE);
+            $pairs[$branchId][$counterpartId]['receivable']    = bcadd($pairs[$branchId][$counterpartId]['receivable'], $owed, SaleAmounts::SCALE);
+            $pairs[$branchId][$counterpartId]['payable']       = bcadd($pairs[$branchId][$counterpartId]['payable'], $owing, SaleAmounts::SCALE);
             $pairs[$branchId][$counterpartId]['bases'][$basis] = true;
         }
 

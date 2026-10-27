@@ -258,6 +258,33 @@ class InterBranchBalancesTest extends CIUnitTestCase
         $this->assertSame(['1'], array_map(static fn (object $row): string => (string) $row->branch_id, $this->balances->report([1, $this->thirdBranch])->unattributed));
     }
 
+    public function testReport_LeavesUnattributedTheJournalsOfATransferThatNamesNoOtherBranch(): void
+    {
+        $this->send($this->first, $this->second, '100.00');
+        $this->accountingDb()->table('treasury_transfers')->update(['to_branch_id' => null]);
+
+        $report = $this->balances->report();
+
+        $this->assertSame([], $report->rows);
+        $this->assertSame([['1', '100.0000', '0.0000'], [(string) $this->secondBranch, '0.0000', '100.0000']], array_map(static fn (object $row): array => [(string) $row->branch_id, $row->receivable, $row->payable], $report->unattributed), 'The receipt of the other branch is not read as the first branch');
+    }
+
+    public function testReport_LeavesUnattributedTheJournalsOfAStockTransferThatNamesNoOtherBranch(): void
+    {
+        $itemId = $this->item('0.00');
+        $other  = $this->locationOfBranch($this->secondBranch, 'Branch warehouse');
+
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($itemId, 0, '10', '50')]));
+        $this->workInEveryBranch();
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($itemId, 0, '4', '0', '0', '0', PERCENT, $other), $this->purchaseLine($itemId, 1, '-4', '0')], null, null));
+        $this->accountingDb()->table('receivings')->update(['to_branch_id' => null]);
+
+        $report = $this->balances->report();
+
+        $this->assertSame([], $report->rows);
+        $this->assertSame([['1', '200.0000', '0.0000'], [(string) $this->secondBranch, '0.0000', '200.0000']], array_map(static fn (object $row): array => [(string) $row->branch_id, $row->receivable, $row->payable], $report->unattributed));
+    }
+
     public function testReport_SaysAPairDoesNotAgreeWhenOnlyOneBranchHasTheJournal(): void
     {
         $this->recordedPair('60.00', '2026-10-21', false);
