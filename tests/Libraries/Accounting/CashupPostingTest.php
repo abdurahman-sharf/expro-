@@ -501,16 +501,42 @@ class CashupPostingTest extends CIUnitTestCase
         $this->assertStringStartsWith('2026-10-20', $this->row($cashupId)->close_date);
     }
 
-    public function testSaveValue_KeepsTheJournalWhenAnEditNamesNoClosedAmount(): void
+    public function testSaveValue_KeepsTheJournalWhenAnEditNamesNoAmountAtAll(): void
     {
         $this->aDayOfCash();
 
-        $cashupId = $this->saveCashup($this->cashupData('485.50'));
+        $cashupId = $this->saveCashup($this->cashupData('515.50', '100', '30'));
 
         $this->assertSame($cashupId, $this->saveCashup(['description' => 'Checked again'], $cashupId));
         $this->assertSame(1, count($this->journalsOfSource(self::SOURCE, $cashupId)));
         $this->assertSame(1, $this->postedJournals($cashupId));
-        $this->assertSame(['500.0000', '-14.5000', 'Checked again'], [$this->row($cashupId)->expected_amount_cash, $this->row($cashupId)->cash_difference, $this->row($cashupId)->description]);
+        $this->assertSame(['530.0000', '-14.5000', 'Checked again'], [$this->row($cashupId)->expected_amount_cash, $this->row($cashupId)->cash_difference, $this->row($cashupId)->description]);
+    }
+
+    public function testSaveValue_LeavesTheStampedCashAndDifferenceAloneWhenACashUpMovesBeforeTheStartOfTheBooks(): void
+    {
+        $this->setConfigValue('accounting_start_date', '2026-10-01');
+        $this->aDayOfCash();
+
+        $cashupId = $this->saveCashup($this->cashupData('485.50'));
+
+        $this->assertSame($cashupId, $this->saveCashup($this->cashupData('470.00', '100', '0', '2026-09-15 08:00:00', '2026-09-15 18:00:00'), $cashupId));
+        $this->assertSame(0, $this->postedJournals($cashupId));
+        $this->assertSame(['470.00', '500.0000', '-14.5000'], [$this->row($cashupId)->closed_amount_cash, $this->row($cashupId)->expected_amount_cash, $this->row($cashupId)->cash_difference]);
+    }
+
+    public function testSaveValue_LeavesTheStampedCashAndDifferenceAloneWhenACashUpIsMarkedDeleted(): void
+    {
+        $this->aDayOfCash();
+
+        $cashupId = $this->saveCashup($this->cashupData('485.50'));
+        $data     = $this->cashupData('470.00');
+
+        $data['deleted'] = 1;
+
+        $this->assertSame($cashupId, $this->saveCashup($data, $cashupId));
+        $this->assertSame(0, $this->postedJournals($cashupId));
+        $this->assertSame(['470.00', '500.0000', '-14.5000'], [$this->row($cashupId)->closed_amount_cash, $this->row($cashupId)->expected_amount_cash, $this->row($cashupId)->cash_difference]);
     }
 
     public function testSaveValue_NeverStoresWhatTheFormClaimsAboutACashUpTheBooksDoNotFollow(): void

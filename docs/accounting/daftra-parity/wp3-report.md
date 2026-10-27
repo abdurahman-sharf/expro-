@@ -26,7 +26,7 @@
 - **مطابقة `S-25` (مرصودة):** ملف التثبيت `tests/Support/Parity/T-25.json` بثلاث حالات: `expense-200-with-15-percent-tax` **مطابقة تامة** (مدين `541` بـ200، مدين `215002` بـ30، دائن الخزينة 230)، و`expense-journal-owes-nobody` **مطابقة تامة** (لا طرف في أي سطر)، و`amount-entered-includes-the-tax` **يختلف**: في دفترة يُدخل المستخدم 200 وتُضاف الضريبة فيصير 230، وعندنا `amount` هو المدفوع شاملًا الضريبة و`tax_amount` جزؤه (القسم 3، الافتراض 1). ويقرؤه `ExpensePostingBuilderTest` فيبني القيد من الملف نفسه. (ما عدا هذه الحالة: **لا ادعاء مطابقة**، كله افتراض مدوَّن.)
 - **اختبارات جديدة (218 اختبارًا في 12 ملفًا، ملف لكل صنف):** `ExpensePostingBuilderTest` (18) و`ExpensePostingTest` (48: كل مسار حفظ وتعديل وحذف عبر نموذج المصروف الحقيقي، الفترة المقفلة، الفرع، نطاق السحب والإيداع، التراجع الكامل وتسجيل الفشل، التاريخي، المحاسبة المعطَّلة، توازن الميزان بعد كل تغيير) و`CashupPostingBuilderTest` (7) و`CashupPostingTest` (30) و`CashupExpectationTest` (13) و`DocumentJournalsTest` (24) و`ExpenseCategoryAccountsTest` (13) و`ExpensesControllerTest` (23) و`ExpensesCategoriesControllerTest` (9) و`tests/Models/ExpenseTest` (13) و`tests/Models/CashupTest` (12) و`ExpensesAccountingMigrationTest` (8).
 - **اختبارات أُضيفت إلى ملفات قائمة (22):** `CashupControllerTest` (12: الشاشة والنقد المتوقع والرفض بكلمات) و`AccountingSettingsTest` (3) و`AccountServiceTest` (2) و`JournalServiceTest` (2: قفل العكس اليدوي وعكس آلي لمصدر المستند) و`TreasuryServiceTest` (1: خزينة استُعملت في مصروف أو إقفال تُعدّ مستعمَلة) و`TrialBalanceTest` (1: **الميزان متوازن للشركة ولكل فرع بعد المصروفات**) و`AccountingJournalsControllerTest` (1: زر العكس مخفي لقيدي المصروف والإقفال).
-- **تعطيل الحراس:** <!-- MUT-SUMMARY-START -->**قيد القياس: قيس 157 من 216 حارسًا حتى الآن، كُشف منها 154** (الجدول في 2.1 يُملأ دفعةً دفعة).<!-- MUT-SUMMARY-END -->
+- **تعطيل الحراس:** <!-- MUT-SUMMARY-START -->**قيد القياس: قيس 157 من 216 حارسًا حتى الآن، كُشف منها 157** (الجدول في 2.1 يُملأ دفعةً دفعة).<!-- MUT-SUMMARY-END -->
 - **الجولة المنتظمة الأخيرة (الملفات الجديدة والمتغيرة وذات الصلة، كل ملف وحده على `ospos_test_b`):** @@RUNS@@ (المجموعة الكاملة يشغّلها المُدمِج، ولم أشغّلها).
 - **التنسيق:** شُغّل `php-cs-fixer` (إعداد `.php-cs-fixer.no-header.php`) على كل ملفات `app/` الجديدة (11 ملفًا: صفر تغيير) وعلى المكتبات والمتحكمات المعدَّلة، فاقتصر الإصلاح على محاذاة مفتاح الإعداد الجديد في `AccountingSettings` و`AccountingSetup`. أما ملفات `app/Controllers` و`app/Models` و`tabular_helper.php` القديمة التي لمستُ فيها **سطورًا قليلة** فلم أُعد تنسيقها كلها (تغيير يغطي الملف بأكمله ويصعّب على المُدمِج الدمج)، وكل سطر جديد فيها على المعيار. واختبارات الملفات الجديدة على PSR-12 (صفر مخالفة).
 
@@ -183,13 +183,13 @@
 | `H37` | the account owed to other creditors cannot be inactive | مكشوف بعد تقوية الاختبار | 1 |
 | `H40` | a new cash-up that is already deleted is not stamped or posted | مكشوف بعد تقوية الاختبار | 1 |
 | `H41` | a new cash-up closed before accounting starts is not stamped or posted | مكشوف | 2 |
-| `H42` | a cash-up moved before accounting starts is not stamped again | غير مكشوف | 0 |
-| `H43` | a cash-up that is marked deleted is not stamped again | غير مكشوف | 0 |
+| `H42` | a cash-up moved before accounting starts is not stamped again | مكشوف بعد تقوية الاختبار | 1 |
+| `H43` | a cash-up that is marked deleted is not stamped again | مكشوف بعد تقوية الاختبار | 1 |
 | `H44` | the difference is the counted cash less the expected cash | مكشوف | 17 |
 | `H45` | the counted cash of a change defaults to the stored one | مكشوف | 1 |
 | `H46` | the dates of a change default to the stored ones | مكشوف | 1 |
 | `H47` | the opening cash of a change defaults to the stored one | مكشوف | 1 |
-| `H48` | the transferred cash of a change defaults to the stored one | غير مكشوف | 0 |
+| `H48` | the transferred cash of a change defaults to the stored one | مكشوف بعد تقوية الاختبار | 1 |
 | `H49` | posting a cash-up is audited | مكشوف | 2 |
 | `H50` | posting a cash-up again is audited | مكشوف | 1 |
 <!-- MUT-TABLE-END -->
