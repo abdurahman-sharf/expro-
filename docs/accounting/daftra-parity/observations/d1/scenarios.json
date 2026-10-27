@@ -1,0 +1,776 @@
+[
+ {
+  "id": "D1-S3",
+  "title": "Invoice-level PERCENT discount 3.3 % on base 355.55 (two lines VAT 15 %)",
+  "inputs": {
+   "lines": [
+    {
+     "qty": 1,
+     "price": "200.00",
+     "tax": "15%"
+    },
+    {
+     "qty": 1,
+     "price": "155.55",
+     "tax": "15%"
+    }
+   ],
+   "documentDiscount": {
+    "type": "percent",
+    "value": "3.3"
+   },
+   "date": "25/10/2026",
+   "dueAfter": 1
+  },
+  "daftra": {
+   "documents": [
+    {
+     "type": "invoice",
+     "number": "000028",
+     "id": 36,
+     "total": "395.39",
+     "status": "غير مدفوعة",
+     "dueDate": "26/10/2026"
+    }
+   ],
+   "journals": [
+    {
+     "number": "000137",
+     "date": "25/10/2026",
+     "source": "invoice",
+     "lines": [
+      {
+       "code": "12041005",
+       "name": "افتراضي-D1 عميل",
+       "debit": "395.39",
+       "credit": "0"
+      },
+      {
+       "code": "411",
+       "name": "المبيعات",
+       "debit": "0",
+       "credit": "343.8174725"
+      },
+      {
+       "code": "215001",
+       "name": "القيمة المضافة المحصلة",
+       "debit": "0",
+       "credit": "51.5725275"
+      }
+     ]
+    }
+   ],
+   "reports": {},
+   "messages": [
+    "تم حفظ الفاتورة, إضافة جديدة"
+   ]
+  },
+  "exproExpectation": {
+   "discountAmount": "11.73",
+   "shares": [
+    "6.60",
+    "5.13"
+   ],
+   "tax": "51.573",
+   "total": "395.39",
+   "revenue": "343.817",
+   "source": "WP16 InvoiceDiscount::forSale + InvoiceRounding::split run read-only (php/expro_expect.php)"
+  },
+  "classification": "differs (total equal 395.39; Daftra stores the unrounded 3.3 % share per line so tax 51.5725275 and revenue 343.8174725 (7 decimals) against Expro 51.573 / 343.817)",
+  "evidenceIds": [
+   "pw-d1-7",
+   "pw-d1-8",
+   "pw-d1-9",
+   "pw-d1-10"
+  ]
+ },
+ {
+  "id": "D1-S1",
+  "title": "Fixed invoice discount 20 over mixed lines (VAT 15 %, non-taxed) after a line discount",
+  "inputs": {
+   "lines": [
+    {
+     "item": "stock item",
+     "qty": 3,
+     "price": "100.00",
+     "lineDiscount": "10%",
+     "tax": "15%"
+    },
+    {
+     "item": "free text",
+     "qty": 2,
+     "price": "33.33",
+     "tax": "15%"
+    },
+    {
+     "item": "free text",
+     "qty": 1,
+     "price": "55.55",
+     "tax": "none"
+    }
+   ],
+   "documentDiscount": {
+    "type": "fixed",
+    "value": "20"
+   },
+   "date": "20/10/2026",
+   "delivered": true
+  },
+  "daftra": {
+   "documents": [
+    {
+     "type": "invoice",
+     "number": "000029",
+     "id": 37,
+     "total": "420.13",
+     "status": "غير مدفوعة / سٌلم"
+    }
+   ],
+   "journals": [
+    {
+     "number": "000139",
+     "date": "20/10/2026",
+     "source": "invoice",
+     "lines": [
+      {
+       "code": "12041005",
+       "name": "افتراضي-D1 عميل",
+       "debit": "420.13",
+       "credit": "0"
+      },
+      {
+       "code": "411",
+       "name": "المبيعات",
+       "debit": "0",
+       "credit": "372.20610007394"
+      },
+      {
+       "code": "215001",
+       "name": "القيمة المضافة المحصلة",
+       "debit": "0",
+       "credit": "47.92389992606"
+      }
+     ]
+    },
+    {
+     "number": "000140",
+     "date": "20/10/2026",
+     "source": "sales_cost",
+     "lines": [
+      {
+       "code": "511",
+       "name": "تكلفة المبيعات",
+       "debit": "180",
+       "credit": "0"
+      },
+      {
+       "code": "1203001",
+       "name": "Primary Warehouse",
+       "debit": "0",
+       "credit": "180"
+      }
+     ]
+    }
+   ],
+   "reports": {},
+   "messages": [
+    "تم حفظ الفاتورة, إضافة جديدة"
+   ]
+  },
+  "exproExpectation": {
+   "discountAmount": "20.00",
+   "shares": [
+    "13.77",
+    "3.40",
+    "2.83"
+   ],
+   "tax": "47.9235",
+   "total": "420.13",
+   "revenue": "372.2065",
+   "cost": "180.00",
+   "source": "WP16 InvoiceDiscount::forSale + InvoiceRounding::split run read-only (php/expro_expect.php)"
+  },
+  "classification": "differs (total 420.13 and cost 180 equal; stored tax/revenue differ: Daftra 47.92389992606 / 372.20610007394 from an unrounded percent share, Expro 47.9235 / 372.2065 from shares rounded to cents with the remainder on the last line)",
+  "evidenceIds": [
+   "pw-d1-11",
+   "pw-d1-12",
+   "pw-d1-13",
+   "pw-d1-14"
+  ]
+ },
+ {
+  "id": "D1-S5a",
+  "title": "Undelivered invoice (per-document «تأكيد التسليم» unchecked): stock item 2 x 100 VAT 15 %",
+  "inputs": {
+   "lines": [
+    {
+     "item": "stock item",
+     "qty": 2,
+     "price": "100.00",
+     "tax": "15%"
+    }
+   ],
+   "delivered": false,
+   "date": "27/10/2026",
+   "dueAfter": 7
+  },
+  "daftra": {
+   "documents": [
+    {
+     "type": "invoice",
+     "number": "000030",
+     "id": 38,
+     "total": "230.00",
+     "status": "غير مدفوعة / لم يُسلم",
+     "dueDate": "03/11/2026"
+    }
+   ],
+   "journals": [
+    {
+     "number": "000143",
+     "date": "27/10/2026",
+     "source": "invoice",
+     "lines": [
+      {
+       "code": "12041005",
+       "name": "افتراضي-D1 عميل",
+       "debit": "230",
+       "credit": "0"
+      },
+      {
+       "code": "411",
+       "name": "المبيعات",
+       "debit": "0",
+       "credit": "200"
+      },
+      {
+       "code": "215001",
+       "name": "القيمة المضافة المحصلة",
+       "debit": "0",
+       "credit": "30"
+      }
+     ]
+    }
+   ],
+   "reports": {},
+   "messages": [
+    "تم حفظ الفاتورة, إضافة جديدة"
+   ]
+  },
+  "exproExpectation": {
+   "journals": "revenue journal only, no stock movement, no cost journal until delivery is confirmed (S-08 matches)",
+   "source": "T-xx S-08 fixture"
+  },
+  "classification": "matches (S-08)",
+  "evidenceIds": [
+   "pw-d1-15",
+   "pw-d1-16"
+  ]
+ },
+ {
+  "id": "D1-S2",
+  "title": "Credit note on invoice A: 1 of 3 units of the stock line, discount left as the form sets it",
+  "inputs": {
+   "origin": "#000029",
+   "returned": {
+    "item": "stock item",
+    "qty": 1,
+    "ofQty": 3,
+    "unitPrice": "100.00",
+    "lineDiscount": "10%"
+   },
+   "documentDiscount": "form copy of the invoice discount (fixed 20) left unchanged"
+  },
+  "daftra": {
+   "documents": [
+    {
+     "type": "credit_note",
+     "number": "000007",
+     "id": 39,
+     "total": "80.50",
+     "originInvoice": "000029",
+     "invoiceStatusAfter": "مدفوعة جزئياً مرتجع جزئياً, remaining 339.63"
+    }
+   ],
+   "journals": [
+    {
+     "number": "000145",
+     "date": "27/10/2026",
+     "source": "credit_note",
+     "lines": [
+      {
+       "code": "412",
+       "name": "مردودات المبيعات",
+       "debit": "70",
+       "credit": "0"
+      },
+      {
+       "code": "215001",
+       "name": "القيمة المضافة المحصلة",
+       "debit": "10.5",
+       "credit": "0"
+      },
+      {
+       "code": "12041005",
+       "name": "افتراضي-D1 عميل",
+       "debit": "0",
+       "credit": "80.5"
+      }
+     ]
+    },
+    {
+     "number": "000146",
+     "date": "27/10/2026",
+     "source": "sales_cost (credit note)",
+     "lines": [
+      {
+       "code": "1203001",
+       "name": "Primary Warehouse",
+       "debit": "60",
+       "credit": "0"
+      },
+      {
+       "code": "511",
+       "name": "تكلفة المبيعات",
+       "debit": "0",
+       "credit": "60"
+      }
+     ]
+    }
+   ],
+   "reports": {
+    "payment": "#000019 رصيد العميل الائتماني 80.50 مكتمل على الفاتورة 000029"
+   },
+   "messages": [
+    "تم حفظ إشعار دائن, إضافة جديدة"
+   ]
+  },
+  "exproExpectation": {
+   "returnShare": "4.59 (round(13.77 x 1/3))",
+   "net": "85.41",
+   "tax": "12.8115",
+   "total": "98.22",
+   "returnsAccount412": "85.4085",
+   "cost": "60",
+   "note": "Expro returns the proportional share automatically (forReturn); the Daftra form leaves the document discount to the user and the server stores what is posted.",
+   "source": "WP16 InvoiceDiscount::forReturn + InvoiceRounding::split computed by hand from the class (php/expro_expect.php does not run returns)"
+  },
+  "classification": "differs (Daftra returns 80.50 with an unprorated 20 discount; Expro 98.22 with the proportional share 4.59; COGS return 60 equal; credit applied to the origin invoice as a «رصيد العميل» payment equals T-10)",
+  "evidenceIds": [
+   "pw-d1-17",
+   "pw-d1-18",
+   "pw-d1-19",
+   "pw-d1-20"
+  ]
+ },
+ {
+  "id": "D1-S5b",
+  "title": "F-11 credit note on an undelivered invoice (1 of 2 units)",
+  "inputs": {
+   "origin": "#000030 (undelivered)",
+   "returned": {
+    "item": "stock item",
+    "qty": 1,
+    "unitPrice": "100.00",
+    "tax": "15%"
+   }
+  },
+  "daftra": {
+   "documents": [
+    {
+     "type": "credit_note",
+     "number": "000008",
+     "id": 40,
+     "total": "115.00",
+     "originInvoice": "000030",
+     "invoiceStatusAfter": "غير مدفوعة مرتجع جزئياً / لم يُسلم, remaining 230.00"
+    }
+   ],
+   "journals": [
+    {
+     "number": "000147",
+     "date": "27/10/2026",
+     "source": "credit_note",
+     "lines": [
+      {
+       "code": "412",
+       "name": "مردودات المبيعات",
+       "debit": "100",
+       "credit": "0"
+      },
+      {
+       "code": "215001",
+       "name": "القيمة المضافة المحصلة",
+       "debit": "15",
+       "credit": "0"
+      },
+      {
+       "code": "12041005",
+       "name": "افتراضي-D1 عميل",
+       "debit": "0",
+       "credit": "115"
+      }
+     ]
+    },
+    {
+     "number": "000148",
+     "date": "27/10/2026",
+     "source": "sales_cost (credit note)",
+     "lines": [
+      {
+       "code": "1203001",
+       "name": "Primary Warehouse",
+       "debit": "60",
+       "credit": "0"
+      },
+      {
+       "code": "511",
+       "name": "تكلفة المبيعات",
+       "debit": "0",
+       "credit": "60"
+      }
+     ]
+    }
+   ],
+   "reports": {
+    "stock": "item stock 19 after movements +20, -3, +1, +1",
+    "payment": "#000020 رصيد العميل الائتماني 115.00 on invoice 000029"
+   },
+   "messages": [
+    "تم حفظ إشعار دائن, إضافة جديدة"
+   ]
+  },
+  "exproExpectation": {
+   "result": "refused: a credit note on an undelivered invoice is not accepted (E23: confirm delivery first); nothing is posted",
+   "source": "E23 and WP23 invariants"
+  },
+  "classification": "differs (Daftra accepts, posts the revenue return AND a cost return and raises stock for a sale that never left stock)",
+  "evidenceIds": [
+   "pw-d1-21",
+   "pw-d1-22",
+   "pw-d1-23",
+   "pw-d1-24"
+  ]
+ },
+ {
+  "id": "D1-S4",
+  "title": "Due date and overdue rule from payment terms",
+  "inputs": {
+   "invoices": [
+    {
+     "no": "000029",
+     "date": "20/10/2026",
+     "dueAfter": "none",
+     "open": "224.63"
+    },
+    {
+     "no": "000028",
+     "date": "25/10/2026",
+     "dueAfter": "1 then 2 then 30",
+     "open": "395.39"
+    },
+    {
+     "no": "000030",
+     "date": "27/10/2026",
+     "dueAfter": 7,
+     "open": "230.00"
+    }
+   ],
+   "today": "27/10/2026"
+  },
+  "daftra": {
+   "documents": [],
+   "journals": [],
+   "reports": {
+    "overdueTab": "open balance and due date < today; due today is not overdue; no term = due on invoice date (inference)",
+    "dueTab": "every invoice with an open balance",
+    "unpaidTab": "fully unpaid only"
+   },
+   "messages": [
+    "Invoice updated successfully (edit of due_after)"
+   ]
+  },
+  "exproExpectation": {
+   "rule": "WP13 not built: no due date today, aging runs from the invoice date; planned rule: due date = date + terms, overdue when due date < today",
+   "source": "backlog WP13"
+  },
+  "classification": "differs (feature not built in Expro; the observed rule is what WP13 needs: strict less-than today, due date = date + days, no term = invoice date)",
+  "evidenceIds": [
+   "pw-d1-25",
+   "pw-d1-26",
+   "pw-d1-27",
+   "pw-d1-28"
+  ]
+ },
+ {
+  "id": "D1-S6",
+  "title": "F-13 credit note quantity above what the invoice sold (two attempts: 5 and 3 units; sold 3, 1 already returned)",
+  "inputs": {
+   "origin": "#000029",
+   "attempts": [
+    {
+     "quantity": 5,
+     "sold": 3,
+     "alreadyReturned": 1
+    },
+    {
+     "quantity": 3,
+     "sold": 3,
+     "alreadyReturned": 1
+    }
+   ],
+   "documentDiscount": "form copy 20"
+  },
+  "daftra": {
+   "documents": [],
+   "journals": [],
+   "reports": {},
+   "messages": [
+    "لا يمكن حفظ مذكرة الإئتمان برجاء إصلاح الأخطاء بالأسفل",
+    "لقد تخطي البند الكمية المسموح بإرجاعها"
+   ]
+  },
+  "exproExpectation": {
+   "result": "refused by ReturnLimit (PostingError::SaleReturnExceedsOrigin): a return gives back at most what the sale brought minus earlier returns; nothing saved",
+   "source": "app/Libraries/Accounting/ReturnLimit.php",
+   "secondAttempt": "refused too (earlier returns count: 1 + 3 > 3)"
+  },
+  "classification": "matches (both refused, nothing created, the cap counts earlier returns of the same invoice)",
+  "evidenceIds": [
+   "pw-d1-29",
+   "pw-d1-30",
+   "pw-d1-31"
+  ]
+ },
+ {
+  "id": "D1-S7",
+  "title": "F-10 orphan credit note and F-12 order of applying customer credit",
+  "inputs": {
+   "orphanCreditNote": {
+    "client": "افتراضي-D1 عميل",
+    "lines": [
+     {
+      "item": "stock item",
+      "qty": 5,
+      "price": "100.00",
+      "tax": "15%"
+     }
+    ],
+    "total": "575.00"
+   },
+   "openInvoicesBefore": [
+    {
+     "no": "000029",
+     "date": "20/10/2026",
+     "open": "224.63"
+    },
+    {
+     "no": "000028",
+     "date": "25/10/2026",
+     "due": "24/11/2026",
+     "open": "395.39"
+    },
+    {
+     "no": "000030",
+     "date": "27/10/2026",
+     "due": "03/11/2026",
+     "open": "230.00"
+    }
+   ]
+  },
+  "daftra": {
+   "documents": [
+    {
+     "type": "credit_note",
+     "number": "000009",
+     "id": 41,
+     "total": "575.00",
+     "originInvoice": null
+    }
+   ],
+   "journals": [
+    {
+     "number": "000151",
+     "date": "27/10/2026",
+     "source": "credit_note",
+     "lines": [
+      {
+       "code": "412",
+       "name": "مردودات المبيعات",
+       "debit": "500",
+       "credit": "0"
+      },
+      {
+       "code": "215001",
+       "name": "القيمة المضافة المحصلة",
+       "debit": "75",
+       "credit": "0"
+      },
+      {
+       "code": "12041005",
+       "name": "افتراضي-D1 عميل",
+       "debit": "0",
+       "credit": "575"
+      }
+     ]
+    },
+    {
+     "number": "000152",
+     "date": "27/10/2026",
+     "source": "sales_cost (credit note)",
+     "lines": [
+      {
+       "code": "1203001",
+       "name": "Primary Warehouse",
+       "debit": "300",
+       "credit": "0"
+      },
+      {
+       "code": "511",
+       "name": "تكلفة المبيعات",
+       "debit": "0",
+       "credit": "300"
+      }
+     ]
+    }
+   ],
+   "reports": {
+    "payments": [
+     "#000021 رصيد العميل الائتماني 224.63 on 000029",
+     "#000022 رصيد العميل الائتماني 350.37 on 000028"
+    ],
+    "statusesAfter": {
+     "000029": "مدفوعة مرتجع جزئياً",
+     "000028": "مدفوعة جزئياً (open 45.02)",
+     "000030": "غير مدفوعة مرتجع جزئياً (open 230.00)"
+    }
+   },
+   "messages": [
+    "تم حفظ إشعار دائن, إضافة جديدة"
+   ]
+  },
+  "exproExpectation": {
+   "orphan": "refused (E20 return_origin_required, no override built)",
+   "application": "credit goes first to its origin invoice, then to open invoices by [date, id] immediately (CreditSettlement::apply)",
+   "source": "CreditSettlement.php, E20"
+  },
+  "classification": "F-10 differs (Daftra accepts an origin-less credit note and returns the stock at the current average cost 60); F-12 differs on origin-first (Daftra ignores the origin invoice and goes by ascending invoice date) and matches on immediate application and on journal-less payments",
+  "evidenceIds": [
+   "pw-d1-31",
+   "pw-d1-32",
+   "pw-d1-33",
+   "pw-d1-34",
+   "pw-d1-35"
+  ]
+ },
+ {
+  "id": "D1-S8",
+  "title": "Reports after the D1 documents (client balance, aging, ledger, items, profit, trial balance)",
+  "inputs": {
+   "client": "افتراضي-D1 عميل",
+   "asOf": "27/10/2026"
+  },
+  "daftra": {
+   "documents": [],
+   "journals": [],
+   "reports": {
+    "clientBalance": {
+     "before": "0.00",
+     "sales": "1,045.52",
+     "returns": "0.00",
+     "payments": "0.00",
+     "settlements": "-770.50",
+     "balance": "275.02"
+    },
+    "agedLedger7": {
+     "today": "230.00",
+     "d1_7": "45.02",
+     "total": "275.02"
+    },
+    "ledger12041005": {
+     "debit": "1,045.52",
+     "credit": "770.50"
+    },
+    "itemSalesInvoice29": [
+     {
+      "discount": "-43.77",
+      "tax": "38.43",
+      "total": "294.67"
+     },
+     {
+      "discount": "-3.40",
+      "tax": "9.49",
+      "total": "72.75"
+     },
+     {
+      "discount": "-2.83",
+      "tax": "0.00",
+      "total": "52.72"
+     }
+    ],
+    "trialBalanceTotal": "159,647.34"
+   },
+   "messages": []
+  },
+  "exproExpectation": {
+   "balance": "275.02 (triple tie customer balance = aging = account)",
+   "note": "Daftra puts credit notes in «تسويات», not «إجمالي المرتجع»; aging by invoice date",
+   "source": "WP13 and T-10 invariants"
+  },
+  "classification": "matches on the triple tie; differs on the placement of credit notes in the balance-report columns (Expro WP13 plan puts returns in a returns column)",
+  "evidenceIds": [
+   "pw-d1-36",
+   "pw-d1-37",
+   "pw-d1-38",
+   "pw-d1-39",
+   "pw-d1-40",
+   "pw-d1-41",
+   "pw-d1-42"
+  ]
+ },
+ {
+  "id": "D1-S5c",
+  "title": "F-11 follow-up: confirm delivery of the undelivered invoice after its credit note",
+  "inputs": {
+   "invoice": "#000030",
+   "deliveredAfterCreditNote": "#000008"
+  },
+  "daftra": {
+   "documents": [],
+   "journals": [
+    {
+     "number": "000156",
+     "date": "27/10/2026",
+     "source": "sales_cost",
+     "lines": [
+      {
+       "code": "511",
+       "name": "تكلفة المبيعات",
+       "debit": "120",
+       "credit": "0"
+      },
+      {
+       "code": "1203001",
+       "name": "Primary Warehouse",
+       "debit": "0",
+       "credit": "120"
+      }
+     ]
+    }
+   ],
+   "reports": {
+    "stock": "movement #64 -2 -> 22"
+   },
+   "messages": []
+  },
+  "exproExpectation": {
+   "result": "Expro never reaches this state (credit note on an undelivered invoice refused until delivery is confirmed); delivering first then crediting gives cost +120 then -60",
+   "source": "E23"
+  },
+  "classification": "not comparable (state unreachable in Expro); recorded to size what Daftra does when the order is credit note first, delivery later",
+  "evidenceIds": [
+   "pw-d1-43",
+   "pw-d1-44"
+  ]
+ }
+]

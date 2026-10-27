@@ -1,0 +1,266 @@
+[
+ {
+  "id": "pw-d1-1",
+  "statement": "Plan consumption page /owner/owners/account_info before any D1 write: «الفواتير وعروض الاسعار» 35 من 50, «العملاء» 4 من 15, «الفواتير الدورية» 0 من 7, «الخزن النقدية و البنوك» 2 من ∞, «المستودعات» 1 من 2; plan Free.",
+  "evidenceFile": "r01-account-info.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-d1-2",
+  "statement": "The 35 documents counted by the plan equal the lists read at the same time: 27 sales invoices (list «1 - 20 من 27»), 6 credit notes (000001..000006), 1 refund invoice, 1 estimate; so credit notes, refunds and estimates count against «الفواتير وعروض الاسعار» (counts equal; the plan page does not state the rule).",
+  "evidenceFile": "r02-inv-list.txt",
+  "kind": "inference"
+ },
+ {
+  "id": "pw-d1-3",
+  "statement": "The account has exactly one tax, «القيمة المضافة» 15 %, «غير متضمن» (data[Tax][0]); the sales invoice form offers only «بدون ضريبة» and «القيمة المضافة» (and «إعدادات الضرائب» = open the tax settings); no per-line or per-document price-includes-tax option exists in the form. Inclusive tax and other rates therefore need a tax record change (batch C).",
+  "evidenceFile": "st-taxes.json (out/forms) and forms notes pw-forms-29",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-d1-4",
+  "statement": "Orphan credit note 000001 (/owner/invoices/view_creditnote/3, 22/10/2026, client #000003, item عطر عود ×1 @220 + VAT 33 = 253.00, no original invoice) has two journals: #000012 Dr 412 مردودات المبيعات 220, Dr 215001 القيمة المضافة المحصلة 33, Cr 12041003 (client) 253; #000013 «تكلفة مبيعات - إشعار دائن #000001» Dr 1203001 Primary Warehouse 120, Cr 511 تكلفة المبيعات 120. The credit note page offers طباعة / تعديل / قسائم / PDF / أرسل عبر / تحويل إلى مسودة / حذف / تعيين مراكز التكلفة and no payment or refund-to-cash action.",
+  "evidenceFile": "r07-cn3.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-d1-5",
+  "statement": "Saving the client form (individual, name «افتراضي-D1 عميل», no e-mail, billing method «طباعة») redirected to /owner/clients/view/5 with the message «تم حفظ العميل»; the client got number #000005 and its own ledger account «12041005» (حساب الأستاذ: افتراضي-D1 عميل #12041005); the page shows «لا فواتير منشأة بعد».",
+  "evidenceFile": "w01-client-after.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-d1-6",
+  "statement": "Saving a product with «الكمية بالمخزون» 20 and «سعر الشراء» 60 created stock transaction #62 («تعديل يدوي (#62)», Primary Warehouse 20) and the automatic journal #000136 dated 27/10/2026, description «إضافة 20 الوحدات - المنتجات #10 - العملية #62», Dr 1203001 Primary Warehouse 1200, Cr 2213 أطراف دائنة أخرى 1200; the product page then shows total stock 20, «متوسط سعر التكلفة 60.00».",
+  "evidenceFile": "r09-product10.txt, w02-journal136.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-d1-7",
+  "statement": "Invoice B (client افتراضي-D1 عميل, lines 200.00 + 155.55, both VAT 15 %, invoice discount 3.3 % typed in tab الخصم والتسوية, date 25/10/2026, شروط الدفع 1) saved with «حفظ دون طباعة» and redirected to /owner/invoices/view/36 with the message «تم حفظ الفاتورة, إضافة جديدة»; number 000028 (the next-number field value), status «غير مدفوعة», journal link «قيد 000137#».",
+  "evidenceFile": "D1-invB-after-save.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-d1-8",
+  "statement": "Journal #000137 of invoice #000028 (date 25/10/2026 = invoice date, description «فاتورة #000028») stores Dr 12041005 افتراضي-D1 عميل 395.39; Cr 411 المبيعات 343.8174725; Cr 215001 القيمة المضافة المحصلة 51.5725275. There is no discount line and no rounding line; the customer total is rounded to 2 decimals, the tax is kept with 7 decimals (0.15 x 343.81685 exactly) and the revenue is the remainder (395.39 - 51.5725275).",
+  "evidenceFile": "D1-invB-doc.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-d1-9",
+  "statement": "The printed invoice (preview iframe) shows الإجمالي-before-discount المجموع 355.55, الخصم -11.73, القيمة المضافة (15%) 51.57, الإجمالي 395.39, تاريخ الفاتورة 25/10/2026 and «تاريخ الاستحقاق 26/10/2026» (date + شروط الدفع 1 day); the form total shown before saving was identical (الخصم (3.3%) -11.73, VAT 51.57, الإجمالي 395.39).",
+  "evidenceFile": "D1-invB-doc.json, D1-invB-presave.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-d1-10",
+  "statement": "The edit form of the issued invoice (/owner/invoices/edit/36, GET only) stores the document discount as typed (data[Invoice][discount] = 3.3, disabled) and every line field disabled (unit_price, quantity, discount_type, tax1); the fields NOT disabled after issue include data[Invoice][due_after] (1), sales_person_id, store_id and each line store_id.",
+  "evidenceFile": "D1-invB-edit.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-d1-11",
+  "statement": "Invoice A (lines: stock item 3 x 100.00 with line discount 10 % = 270.00, VAT 15 %; free text 2 x 33.33 = 66.66, VAT 15 %; free text 1 x 55.55 = 55.55, no tax; fixed invoice discount 20 typed as «المبلغ»; date and issue date 20/10/2026) saved: number 000029 (view/37), status «غير مدفوعة» and «سٌلم», message «تم حفظ الفاتورة, إضافة جديدة», journal links «قيد 000139#» and «تكلفة مبيعات #000140».",
+  "evidenceFile": "D1-invA-after-save.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-d1-12",
+  "statement": "Revenue journal #000139 (date 20/10/2026 = invoice date): Dr 12041005 افتراضي-D1 عميل 420.13; Cr 411 المبيعات 372.20610007394; Cr 215001 القيمة المضافة المحصلة 47.92389992606. There is ONE 411 line and ONE 215001 line for the three lines, no discount line, no rounding line. The tax equals exactly 0.15 x (336.66 x (1 - 20/392.21)) = 47.92389992606: the fixed discount is converted to the percent 20 / 392.21 (392.21 = sum of the lines after line discounts, taxed or not) kept UNROUNDED, applied to every line, tax computed on the discounted taxed lines only and stored with about 11 decimals; the total 420.13 is rounded to cents and the revenue is the remainder.",
+  "evidenceFile": "D1-invA-doc.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-d1-13",
+  "statement": "Cost journal #000140 «تكلفة مبيعات - فاتورة #000029» dated 20/10/2026 (the invoice date, not the delivery time 27/10/2026): Dr 511 تكلفة المبيعات 180; Cr 1203001 Primary Warehouse 180 (3 units x average cost 60.00). Invoice view shows «سٌلم» and the action «إلغاء التسليم».",
+  "evidenceFile": "D1-invA-doc.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-d1-14",
+  "statement": "Printed invoice A: المجموع 392.21 (after the 10 % line discount: the line shows «10%» and 270.00), الخصم -50.00 (= line discount 30.00 + invoice discount 20.00), القيمة المضافة (15%) 47.92, الإجمالي 420.13; no «تاريخ الاستحقاق» line is printed when no payment term is entered.",
+  "evidenceFile": "D1-invA-doc.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-d1-15",
+  "statement": "Invoice C (stock item 2 x 100.00, VAT 15 %, tab التسليم «تأكيد التسليم» unchecked, date 27/10/2026, شروط الدفع 7) saved: number 000030 (view/38), status «غير مدفوعة» with the delivery badge «لم يُسلم» and the action «تأكيد التسليم»; the document header lists only «قيد 000143#» (no cost journal).",
+  "evidenceFile": "D1-invC-after-save.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-d1-16",
+  "statement": "Journal #000143 of undelivered invoice #000030 (date 27/10/2026): Dr 12041005 230; Cr 411 200; Cr 215001 30. No sales-cost journal exists while the delivery is not confirmed (the delivered invoice A has «تكلفة مبيعات #000140»). Printed «تاريخ الاستحقاق 03/11/2026» (27/10 + 7 days).",
+  "evidenceFile": "D1-invC-doc.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-d1-17",
+  "statement": "The credit note form opened from invoice A (GET /owner/invoices/add_creditnote/37) is prefilled with ALL the invoice lines at the invoiced quantities (3, 2, 1), the same line discounts and the SAME document discount as typed on the invoice (data[Invoice][discount_amount] = 20, mode «المبلغ»), next credit-note number 000007, date 27/10/2026. Changing the quantity of the stock line to 1 and zeroing/removing the other lines does NOT change the document discount: the page keeps «الخصم -30.00» (10.00 line + 20.00 document) and totals 90.00 + VAT 10.50 = 80.50 (the form does not prorate the discount).",
+  "evidenceFile": "x06-cn-edit.png, D1-cn1-presave.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-d1-18",
+  "statement": "Saving that credit note (stock line qty 1 of 3, other lines deleted with the row delete icon, discount 20 left as the form set it) created credit note #000007 (view_creditnote/39) with «فاتورة: #000029» in its header and the message «تم حفظ إشعار دائن, إضافة جديدة»: the server took the posted discount as is (no server-side proportional share): printed المجموع 90.00, الخصم -30.00, القيمة المضافة 10.50, الإجمالي 80.50. The origin invoice id is kept in data[Invoice][subscription_id] = 37 of the credit note edit form.",
+  "evidenceFile": "D1-cn1-doc.json, D1-cn1-edit.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-d1-19",
+  "statement": "Journals of credit note #000007: #000145 (27/10/2026, «إشعار دائن #000007») Dr 412 مردودات المبيعات 70 (= 100 - 10 % line discount 10 - document discount 20), Dr 215001 القيمة المضافة المحصلة 10.5, Cr 12041005 العميل 80.5; and #000146 («تكلفة مبيعات - إشعار دائن #000007») Dr 1203001 Primary Warehouse 60, Cr 511 60 (the item cost 60.00 = the cost at which invoice A took it).",
+  "evidenceFile": "D1-cn1-doc.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-d1-20",
+  "statement": "After credit note #000007 invoice A (#000029) shows «مدفوعة جزئياً مرتجع جزئياً», printed «مدفوعة 元 -80.50» and «المبلغ المستحق 339.63» (420.13 - 80.50), a new tab link «إشعارات دائنة (1)» (#000007 80.50), and a payment #000019 dated 27/10/2026 with method «رصيد العميل الائتماني», amount 80.50, status «مكتمل», treasury «رصيد العميل الائتماني», added automatically (no journal of its own: JIDS of the invoice unchanged 139 and 140).",
+  "evidenceFile": "D1-invA-payments-after-cn1.json, D1-invA-doc-after-cn1.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-d1-21",
+  "statement": "F-11: a credit note (1 of 2 units, 100.00 + VAT 15.00 = 115.00) on the UNDELIVERED invoice #000030 (status «لم يُسلم») was accepted without any warning: credit note #000008 (view_creditnote/40), header «فاتورة: #000030», message «تم حفظ إشعار دائن, إضافة جديدة», journals «قيد 000147#» and «تكلفة مبيعات #000148».",
+  "evidenceFile": "D1-cn2-doc.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-d1-22",
+  "statement": "Journals of credit note #000008 on the undelivered invoice: #000147 Dr 412 مردودات المبيعات 100, Dr 215001 15, Cr 12041005 العميل 115; and #000148 «تكلفة مبيعات - إشعار دائن #000008» Dr 1203001 Primary Warehouse 60, Cr 511 60: a cost return is posted although invoice #000030 never posted a cost journal and never took the unit out of stock.",
+  "evidenceFile": "D1-cn2-doc.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-d1-23",
+  "statement": "Stock card of the D1 item after both credit notes (tab حركة المخزون): #62 manual +20 @60.00 -> 20; #63 invoice #000029 -3 at unit 85.41062 -> 17 (cost 60.00); #65 credit note #000007 +1 at 70.00 -> 18; #66 credit note #000008 +1 at 100.00 -> 19; there is NO movement for the undelivered invoice #000030, so the unit returned by #000008 raises stock to 19 although only 3 were ever sold (stock total shown 19, «إجمالي القطع المباعه» 1).",
+  "evidenceFile": "D1-stock-after-cn2.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-d1-24",
+  "statement": "Invoice #000030 after credit note #000008: status «غير مدفوعة مرتجع جزئياً», «لم يُسلم» still, «إشعارات دائنة (1)», printed مدفوعة 0.00 and المبلغ المستحق 230.00; it has NO payment: the 115.00 of credit note #000008 was applied as payment #000020 «رصيد العميل الائتماني» 115.00 «مكتمل» (27/10/2026) on invoice #000029 (date 20/10, number 000029), i.e. not on its own origin invoice #000030 (date 27/10) and not on invoice #000028 (date 25/10, lowest number 000028, same client, still unpaid).",
+  "evidenceFile": "D1-inv38-payments-after-cn2.json, D1-inv37-payments-after-cn2.json, D1-inv36-payments-after-cn2.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-d1-25",
+  "statement": "Invoice list tabs (GET /owner/invoices/index?payment_status=...): «متأخر» = -3, «مستحقة الدفع» = -2, «غير مدفوعة» = 0, «مسودة» = -1, «مدفوع بالزيادة» = 4; with the D1 client filter (client_id=5) on 27/10/2026: #000029 (date 20/10, no payment term, partly paid by credit, open 224.63) is in «متأخر» and «مستحقة الدفع»; #000028 (date 25/10, شروط الدفع 1 => due 26/10, unpaid) is in «متأخر» and «مستحقة الدفع»; #000030 (date 27/10, شروط الدفع 7 => due 03/11) is in «مستحقة الدفع» only; «غير مدفوعة» lists only the two fully unpaid ones (#000030 and #000028), the partly paid #000029 is not in it.",
+  "evidenceFile": "D1-due-states-0.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-d1-26",
+  "statement": "«مستحقة الدفع» is every invoice with an open balance (all three D1 invoices), while «متأخر» is the open invoices whose due date is before today: after editing شروط الدفع of #000028 from 1 to 2 days (due 27/10/2026 = today) it LEFT «متأخر» and stayed in «مستحقة الدفع» (printed «تاريخ الاستحقاق 27/10/2026»); after editing it to 30 days (due 24/11/2026) it is still outside «متأخر». So an invoice due today is not overdue; overdue means due date strictly before today (observed boundary: due 26/10 overdue on 27/10, due 27/10 not).",
+  "evidenceFile": "D1-due-states-B2.json, D1-due-states-B30.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-d1-27",
+  "statement": "An invoice saved with NO payment term (شروط الدفع empty, stored due_after 0), date 20/10/2026 and an open balance (#000029) appears in «متأخر» on 27/10/2026 and its printed invoice has no «تاريخ الاستحقاق» line; consistent with due date = invoice date when no term is set (the rule is read from the list, the stored due date of such an invoice is not displayed).",
+  "evidenceFile": "D1-due-states-0.json, D1-invA-doc.json",
+  "kind": "inference"
+ },
+ {
+  "id": "pw-d1-28",
+  "statement": "The شروط الدفع (data[Invoice][due_after]) of an ISSUED invoice can still be edited and saved (edit form field not disabled; button «حفظ دون طباعة»): the save returns the English message «Invoice updated successfully», the printed due date changes (25/10 + 2 = 27/10, + 30 = 24/11) and the invoice journal #000137 is unchanged (same three lines and amounts).",
+  "evidenceFile": "D1-invB-doc-due2.json, D1-invB-doc-due30.json, D1-editdue-B-2-after-save.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-d1-29",
+  "statement": "F-13: saving a credit note from invoice #000029 with 5 units of the stock line (sold 3, 1 already returned by credit note #000007) was REFUSED: the page stays on the form (URL add_creditnote?send=silent&draftId=...) with the banner «لا يمكن حفظ مذكرة الإئتمان برجاء إصلاح الأخطاء بالأسفل» and the item error «لقد تخطي البند الكمية المسموح بإرجاعها». The plan counter stayed 40/50, the credit-note list stayed at 8 rows and no journal or stock movement was created.",
+  "evidenceFile": "D1-cn3-save-result.json, D1-cn3-after-save.txt, D1-cn3-after-save.png",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-d1-30",
+  "statement": "The account activity log (/v2/owner/activity_logs) of 27/10/2026 lists exactly the D1 writes in order (client, product, invoices #000028/#000029/#000030, credit notes #000007/#000008 with «received 1 new items of #D1-001 ... in credit note #000008 ... stock balance now become: 19 (Transaction ID: #66)» and «حدث النظام الفاتورة ##000029 إلى : مدفوعة جزئياً ... المبلغ المستحق أصبح : 224.63») and no entry for the refused credit note; batch D2 entries (expenses, D2 products) are interleaved.",
+  "evidenceFile": "r13-activity-resume.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-d1-31",
+  "statement": "F-13b: a credit note from invoice #000029 with 3 units of the stock line (the invoice sold 3, credit note #000007 had returned 1) was REFUSED with the same banner «لا يمكن حفظ مذكرة الإئتمان برجاء إصلاح الأخطاء بالأسفل» and line error «لقد تخطي البند الكمية المسموح بإرجاعها»; the cap is therefore cumulative (earlier returns of the same invoice count), not per document. Nothing was created.",
+  "evidenceFile": "D1-cn4-save-result.json, D1-cn4-after-save.png",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-d1-32",
+  "statement": "F-10: a credit note WITHOUT an original invoice for client افتراضي-D1 عميل (form /owner/invoices/add_creditnote without an invoice id, client chosen, stock item 5 x 100.00 + VAT 15 % = 575.00) is accepted (credit note #000009, view_creditnote/41, header without «فاتورة:», message «تم حفظ إشعار دائن, إضافة جديدة») with journals #000151 (Dr 412 مردودات المبيعات 500, Dr 215001 75, Cr 12041005 575) and #000152 «تكلفة مبيعات - إشعار دائن #000009» (Dr 1203001 Primary Warehouse 300, Cr 511 300 = 5 x the item average cost 60.00); stock card movement #67 +5 at 100.00 -> 24 (cost 60.00). The credit note page has no payment / refund-to-cash action (same buttons as credit note 000001).",
+  "evidenceFile": "D1-cn5-doc.json, D1-stock-after-cn5.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-d1-33",
+  "statement": "F-12 (controlled): open invoices of the D1 client before the credit: #000029 (date 20/10, number 000029, open 224.63), #000028 (date 25/10, number 000028 = lowest, due 24/11 after the edit, open 395.39), #000030 (date 27/10, number 000030, due 03/11, open 230.00); the orphan credit note of 575.00 was applied AT ONCE, with no action by the user, as payments of method «رصيد العميل الائتماني» status «مكتمل»: #000021 224.63 on #000029 (now «مدفوعة مرتجع جزئياً») then #000022 350.37 on #000028 (now «مدفوعة جزئياً», open 45.02); nothing on #000030 (still «غير مدفوعة مرتجع جزئياً», open 230.00). No journal was created by these payments (invoice journals unchanged: #000137 for #000028, #000139/#000140 for #000029).",
+  "evidenceFile": "D1-inv37-payments-after-cn5.json, D1-inv36-payments-after-cn5.json, D1-due-states-after-cn5.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-d1-34",
+  "statement": "Order of application of the customer credit, from the two controlled applications (credit note #000008 of 115.00 -> invoice #000029; orphan credit note #000009 of 575.00 -> #000029 then #000028): ascending invoice DATE (20/10 < 25/10 < 27/10). Refuted: ascending number (#000028 is lower than #000029 yet #000029 came first), ascending creation id (#000028 was created first), earliest due date (#000030 due 03/11 is earlier than #000028 due 24/11 yet #000028 was served first), origin-invoice-first (credit note #000008 belongs to #000030 but went to #000029). Not observed: tie-break between two invoices of the same date.",
+  "evidenceFile": "D1-inv37-payments-after-cn5.json, D1-inv36-payments-after-cn5.json, D1-inv38-payments-after-cn5.json",
+  "kind": "inference"
+ },
+ {
+  "id": "pw-d1-35",
+  "statement": "After the orphan credit note the D1 client has no overdue invoice: #000029 is settled and #000028 (open 45.02) is due 24/11/2026, so «متأخر» (client_id=5) is empty; «مستحقة الدفع» holds #000030 and #000028; «غير مدفوعة» holds #000030 only. The item stock card shows 24 and «إجمالي القطع المباعه -4».",
+  "evidenceFile": "D1-due-states-after-cn5.json, D1-stock-after-cn5.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-d1-36",
+  "statement": "Item-sales report (/owner/reports/products, group by invoice, client D1, 20/10..27/10) shows the stored per-line discount, tax and total of invoice #000029: stock line 3 x 100.00: الخصم -43.77 (= line discount 30.00 + document-discount share 13.77), الضرائب 38.43, الإجمالي 294.67; free line 2 x 33.33: -3.40, 9.49, 72.75; non-taxed line 1 x 55.55: -2.83, 0.00, 52.72. The three displayed line totals add to 420.14 while the document total is 420.13 (each line is rounded for display). Shares 13.77 / 3.40 / 2.83 are the same figures Expro rounds to; Daftra shows them rounded but the journal proves the unrounded percent was used.",
+  "evidenceFile": "rep2-items-sales.tables.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-d1-37",
+  "statement": "Item-sales report for invoice #000028: line 200.00: الخصم -6.60, الضرائب 29.01, الإجمالي 222.41; line 155.55: -5.13, 22.56 (journal total 51.5725275 = 29.01 + 22.5625275), 172.98 (sum 395.39). For the credit notes the report shows #000007: quantity -1, الخصم 30.00 (line 10 + document 20), الضرائب -10.50, الإجمالي -80.50; #000008: -1, 0.00, -15.00, -115.00; #000009: -5, 0.00, -75.00, -575.00.",
+  "evidenceFile": "rep2-items-sales.tables.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-d1-38",
+  "statement": "Profit report (stock_transactions_profit, client D1): invoice #000029 3 units cost 60.00 (180.00) sale 300.00 discount 43.77 profit 76.23; credit note #000007 -1 (cost -60.00, sale -100.00, discount -30.00) profit -10.00; credit note #000008 (on the undelivered invoice) -1, cost -60.00, profit -40.00; credit note #000009 -5, cost -300.00, profit -200.00; client total profit -173.77. The undelivered invoice #000030 has no row (no stock transaction).",
+  "evidenceFile": "rep2-profit-client.tables.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-d1-39",
+  "statement": "Client D1 balance tie on 27/10/2026 after all documents: client page «275.02», client_balance report (20/10..27/10): الرصيد قبل 0.00, إجمالي المبيعات 1,045.52, إجمالي المرتجع 0.00, صافي المبيعات 1,045.52, إجمالي المدفوعات 0.00, تسويات -770.50 (credit notes 80.50 + 115.00 + 575.00 sit in «تسويات», not in «إجمالي المرتجع»), الرصيد 275.02; aged ledger total 275.02; aged debtors total 275.02; ledger of account 12041005 debit 1,045.52 credit 770.50 (= 275.02); statement (كشف حساب) lists 6 rows: invoices #000029 (20/10), #000028 (25/10), #000030 (27/10) and credit notes #000007, #000008, #000009 with running balance ending 275.02 and no row for the credit applications (payments #000019..#000022).",
+  "evidenceFile": "rep1-client-balance.tables.json, rep1-client-aged-ledger.tables.json, rep1-aged-debtors.tables.json, rep1-ledger-386.tables.json, D1-statement.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-d1-40",
+  "statement": "Aging buckets follow the INVOICE DATE, not the due date: in client_aged_ledger (7-day buckets, 27/10/2026) invoice #000030 (date 27/10, due 03/11) is in «اليوم» 230.00 and invoice #000028 (date 25/10, due 24/11 = future) is in «1 - 7 يوم» 45.02; aged_debtors shows «Not Due Yet» 230 and «1 - 30 يوم» 45.02 for the same two invoices (the «Not Due Yet» label holds the invoice dated today). A future due date does not move an invoice out of its date bucket.",
+  "evidenceFile": "rep1-client-aged-ledger.tables.json, rep1-aged-debtors.tables.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-d1-41",
+  "statement": "Net-position report (invoice_net_position, client D1): #000029 total 420.13 paid 420.13 returns -80.50 net 339.63 «مدفوعة مرتجع جزئياً»; #000028 total 395.39 paid 350.37 «مدفوعة جزئياً»; #000030 total 230.00 returns -115.00 net 115.00 «غير مدفوعة مرتجع جزئياً»; credit note #000009 listed as «-575.00 غير مدفوعة» (the origin-less credit note row keeps the status «غير مدفوعة» although it was fully applied); payments #000019 80.50, #000020 115.00, #000021 224.63, #000022 350.37 listed as «عملية الدفع» rows.",
+  "evidenceFile": "rep1-net-position.tables.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-d1-42",
+  "statement": "Trial balance (type trial-balance, to 27/10/2026) stays balanced after the D1 documents: movement debit 159,647.34 = credit 159,647.34 (includes the other batch interleaved: category rows 1 الأصول, 2 الخصوم, 3 رأس المال, 4 الإيرادات, 5 المصروفات).",
+  "evidenceFile": "D1-trialbalance-after-cn5.tables.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-d1-43",
+  "statement": "Confirming delivery of the undelivered invoice #000030 AFTER credit note #000008 existed is a single click on «تأكيد التسليم» on the invoice page (a link to GET /owner/invoices/make_delivered/38, immediate, no dialog): the invoice becomes «سٌلم» (the badge «لم يُسلم» disappears), a new journal #000156 «تكلفة مبيعات - فاتورة #000030» dated 27/10/2026 (the confirmation day) is created: Dr 511 تكلفة المبيعات 120, Cr 1203001 Primary Warehouse 120 (2 units x average cost 60.00, the FULL invoiced quantity although 1 unit was already returned by credit note #000008), and stock movement #64 «فاتورة (#000030) -2 at 100.00» takes stock from 24 to 22.",
+  "evidenceFile": "D1-invC-doc-after-delivery.json, D1-stock-after-delivery.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-d1-44",
+  "statement": "Net effect of the undelivered sequence in Daftra (invoice #000030 of 2 units, credit note #000008 of 1 unit, delivery confirmed last): stock +1 (credit note) -2 (delivery) = -1 and cost journals -60 (credit note) +120 (delivery) = +60 net cost of goods sold for the 1 unit effectively sold: the books are consistent only once the delivery is confirmed; between the credit note and the delivery stock and 511 are overstated/understated by the 1 unit.",
+  "evidenceFile": "D1-invC-doc-after-delivery.json, D1-cn2-doc.json",
+  "kind": "inference"
+ }
+]

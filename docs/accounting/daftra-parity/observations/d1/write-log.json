@@ -1,0 +1,216 @@
+[
+ {
+  "id": "W-d1-1",
+  "time": "2026-10-27T10:58:31.115Z",
+  "what": "Created client «افتراضي-D1 عميل» (type فردي, city الرياض, no e-mail, billing method طباعة)",
+  "url": "POST /owner/clients/add -> 302 /owner/clients/view/5",
+  "entity": "client",
+  "recordId": 5,
+  "number": "000005",
+  "account": "12041005",
+  "tag": "افتراضي-D1",
+  "reversible": "unknown (client deletion not attempted)",
+  "reverted": "n-a",
+  "notes": "Guard recorded the POST (multipart, status 302). cdn.daftra.com static GETs were wrongly blocked by the first guard version for this one request series (fixed afterwards: static GETs from cdn.daftra.com are allowed); the save itself was unaffected."
+ },
+ {
+  "id": "W-d1-2",
+  "time": "2026-10-27T11:01:29.358Z",
+  "what": "Created stock item «افتراضي-D1 سلعة» (SKU D1-001, tracked, sell 100, buy 60, VAT 15 %, initial stock 20)",
+  "url": "POST /owner/products/add/1 -> list",
+  "entity": "product",
+  "recordId": 10,
+  "number": "D1-001",
+  "tag": "افتراضي-D1",
+  "reversible": "product has a delete button; not attempted (it has stock movements)",
+  "reverted": "n-a",
+  "notes": "Initial stock created stock transaction #62 and automatic journal #000136 (Dr 1203001 Primary Warehouse 1200, Cr 2213 أطراف دائنة أخرى 1200). Average cost shown 60.00."
+ },
+ {
+  "id": "W-d1-3",
+  "time": "2026-10-27T11:05:23.604Z",
+  "what": "Invoice B (percent document discount 3.3 % on base 355.55, two lines VAT 15 %, date 25/10/2026, payment term 1 day), client «افتراضي-D1 عميل»",
+  "url": "POST /owner/invoices/add (حفظ دون طباعة) -> https://opes.daftra.com/owner/invoices/view/36#InvoiceBlock",
+  "entity": "invoice",
+  "recordId": 36,
+  "tag": "D1-invB",
+  "reversible": false,
+  "reverted": "n-a",
+  "notes": "Issued sales invoice #000028 (view/36), journal #000137. Permanent, counts in the plan quota. Save redirect message «تم حفظ الفاتورة, إضافة جديدة».",
+  "number": "000028",
+  "invoiceId": 36,
+  "journals": [
+   "000137"
+  ],
+  "total": "395.39"
+ },
+ {
+  "id": "W-d1-4",
+  "time": "2026-10-27T11:08:18.602Z",
+  "what": "Invoice A (fixed document discount 20 over three lines: stock item 3x100 with line discount 10 %, free text 2x33.33 VAT 15 %, free text 1x55.55 non-taxed; date 20/10/2026, no payment term), client «افتراضي-D1 عميل»",
+  "url": "POST /owner/invoices/add (حفظ دون طباعة) -> https://opes.daftra.com/owner/invoices/view/37#InvoiceBlock",
+  "entity": "invoice",
+  "recordId": 37,
+  "tag": "D1-invA",
+  "reversible": false,
+  "reverted": "n-a",
+  "notes": "Issued sales invoice #000029 (view/37), revenue journal #000139 and cost journal #000140. Permanent, counts in the plan quota. Sold 3 units of the D1 stock item (stock 20 -> 17 expected, read later).",
+  "number": "000029",
+  "invoiceId": 37,
+  "journals": [
+   "000139",
+   "000140"
+  ],
+  "total": "420.13"
+ },
+ {
+  "id": "W-d1-5",
+  "time": "2026-10-27T11:11:36.077Z",
+  "what": "Invoice C (F-11: stock item 2x100 VAT 15 %, «تأكيد التسليم» unchecked, date 27/10/2026, payment term 7 days), client «افتراضي-D1 عميل»",
+  "url": "POST /owner/invoices/add (حفظ دون طباعة) -> https://opes.daftra.com/owner/invoices/view/38#InvoiceBlock",
+  "entity": "invoice",
+  "recordId": 38,
+  "tag": "D1-invC",
+  "reversible": false,
+  "reverted": "n-a",
+  "notes": "Issued sales invoice #000030 (view/38), undelivered (لم يُسلم), only the revenue journal #000143. Permanent, counts in the plan quota.",
+  "number": "000030",
+  "invoiceId": 38,
+  "journals": [
+   "000143"
+  ],
+  "total": "230.00"
+ },
+ {
+  "id": "W-d1-6",
+  "time": "2026-10-27T11:14:35.710Z",
+  "what": "Credit note on invoice A (#000029): 1 of 3 units of the stock line, other lines deleted, the form's document discount (fixed 20, copied from the invoice) left as the form sets it",
+  "url": "POST /owner/invoices/add_creditnote/37 (حفظ دون طباعة) -> https://opes.daftra.com/owner/invoices/view_creditnote/39",
+  "entity": "credit_note",
+  "recordId": 39,
+  "tag": "D1-cn1",
+  "reversible": false,
+  "reverted": "n-a",
+  "notes": "Issued credit note #000007 (view_creditnote/39) on invoice #000029; journals #000145 (returns) and #000146 (cost return); auto payment #000019 «رصيد العميل الائتماني» 80.50 on invoice #000029. Permanent, counts in the plan quota.",
+  "number": "000007",
+  "creditNoteId": 39,
+  "journals": [
+   "000145",
+   "000146"
+  ],
+  "total": "80.50"
+ },
+ {
+  "id": "W-d1-7",
+  "time": "2026-10-27T11:17:55.466Z",
+  "what": "Credit note on UNDELIVERED invoice C (#000030): 1 of 2 units of the stock line (F-11)",
+  "url": "POST /owner/invoices/add_creditnote/38 (حفظ دون طباعة) -> https://opes.daftra.com/owner/invoices/view_creditnote/40",
+  "entity": "credit_note",
+  "recordId": 40,
+  "tag": "D1-cn2",
+  "reversible": false,
+  "reverted": "n-a",
+  "notes": "Issued credit note #000008 (view_creditnote/40) on UNDELIVERED invoice #000030: accepted; journals #000147 (returns) and #000148 (cost return, although no cost journal exists for invoice #000030); auto payment #000020 «رصيد العميل الائتماني» 115.00 landed on invoice #000029 (the oldest by date), NOT on #000030. Permanent, counts in the plan quota.",
+  "number": "000008",
+  "creditNoteId": 40,
+  "journals": [
+   "000147",
+   "000148"
+  ],
+  "total": "115.00"
+ },
+ {
+  "id": "W-d1-8",
+  "time": "2026-10-27T11:25:22.986Z",
+  "what": "Edited شروط الدفع (due_after) of invoice id 36 from 1 to 2 days (only that field changed), save «حفظ دون طباعة»",
+  "url": "POST /owner/invoices/partial_edit/36?send=silent (form fields posted: sales_person_id, due_after, item ids and store_ids, store_id) -> 302 /owner/invoices/view/36",
+  "entity": "invoice-edit",
+  "recordId": 36,
+  "tag": "D1-editdue-B-2",
+  "reversible": "yes (edit due_after again)",
+  "reverted": "n-a",
+  "notes": "Own D1 invoice; due_after is one of the fields NOT disabled in the edit form of an issued invoice."
+ },
+ {
+  "id": "W-d1-9",
+  "time": "2026-10-27T11:26:56.856Z",
+  "what": "Edited شروط الدفع (due_after) of invoice id 36 from 2 to 30 days (only that field changed), save «حفظ دون طباعة»",
+  "url": "POST /owner/invoices/partial_edit/36?send=silent (form fields posted: sales_person_id, due_after, item ids and store_ids, store_id) -> 302 /owner/invoices/view/36",
+  "entity": "invoice-edit",
+  "recordId": 36,
+  "tag": "D1-editdue-B-30",
+  "reversible": "yes (edit due_after again)",
+  "reverted": "n-a",
+  "notes": "Own D1 invoice; due_after is one of the fields NOT disabled in the edit form of an issued invoice."
+ },
+ {
+  "id": "W-d1-10",
+  "time": "2026-10-27T11:29:28.627Z",
+  "what": "F-13 attempt: credit note on invoice A (#000029) with 5 units of the stock line (A sold 3, credit note #000007 already returned 1); other lines deleted; document discount left at the form's 20 (NOT created: still on the form)",
+  "url": "POST /owner/invoices/add_creditnote/37 -> https://opes.daftra.com/owner/invoices/add_creditnote?send=silent&draftId=1793100538761",
+  "entity": "credit_note-attempt",
+  "recordId": null,
+  "tag": "D1-cn3",
+  "reversible": "n-a",
+  "reverted": "n-a",
+  "notes": "REFUSED, nothing created: plan page still «الفواتير وعروض الاسعار 40 من 50» after the attempt, credit-notes list still 8 rows, activity log has no new credit-note entry. Page stayed on the form with the banner «لا يمكن حفظ مذكرة الإئتمان برجاء إصلاح الأخطاء بالأسفل» and the line error «لقد تخطي البند الكمية المسموح بإرجاعها»."
+ },
+ {
+  "id": "W-d1-11",
+  "time": "2026-10-27T14:06:15.372Z",
+  "what": "F-13b attempt: credit note on invoice A (#000029) with 3 units of the stock line (A sold 3; 1 already returned by #000007, so 4 in total); other lines deleted; document discount left at the form's 20 (NOT created: still on the form)",
+  "url": "POST /owner/invoices/add_creditnote/37 -> https://opes.daftra.com/owner/invoices/add_creditnote?send=silent&draftId=1793109944376",
+  "entity": "credit_note-attempt",
+  "recordId": null,
+  "tag": "D1-cn4",
+  "reversible": "n-a",
+  "reverted": "n-a",
+  "notes": "REFUSED, nothing created (plan counter stayed 40/50 and the next credit-note number stayed 000009): 3 units on invoice #000029 (sold 3, 1 already returned) -> «لقد تخطي البند الكمية المسموح بإرجاعها». The cap therefore counts the earlier returns of the same invoice."
+ },
+ {
+  "id": "W-d1-12",
+  "time": "2026-10-27T14:07:45.136Z",
+  "what": "Orphan credit note (no original invoice) for client D1: stock item 5 x 100.00 VAT 15 % = 575.00; credit source of the F-12 order test and F-10 (cost of the returned stock)",
+  "url": "POST /owner/invoices/add_creditnote (حفظ دون طباعة) -> https://opes.daftra.com/owner/invoices/view_creditnote/41",
+  "entity": "credit_note",
+  "recordId": 41,
+  "tag": "D1-cn5",
+  "reversible": false,
+  "reverted": "n-a",
+  "notes": "Issued orphan credit note #000009 (view_creditnote/41), no original invoice, stock item 5 x 100 + VAT: journals #000151 (returns) and #000152 (cost return 300). Auto payments #000021 (224.63 on invoice #000029) and #000022 (350.37 on invoice #000028). Permanent, counts in the plan quota (41/50 after it).",
+  "number": "000009",
+  "creditNoteId": 41,
+  "journals": [
+   "000151",
+   "000152"
+  ],
+  "total": "575.00"
+ },
+ {
+  "id": "W-d1-13",
+  "time": "2026-10-27T14:18:38.236Z",
+  "what": "8 side-effect POSTs /api2/set_report_session fired by the report pages themselves while reading aged_debtors, products (item sales) and stock_transactions_profit (the page posts a rendered image of the report and its key to opes.daftra.com's own session store)",
+  "url": "POST https://opes.daftra.com/api2/set_report_session (fetch, 200) x8, guard entries 13-20",
+  "entity": "report-session",
+  "recordId": null,
+  "tag": "D1-reports",
+  "reversible": "n-a (no business record; same host; not a third party)",
+  "reverted": "n-a",
+  "notes": "Not a user action: triggered by opening those report pages. No document, journal, setting or stock record was created (checked: plan counter, lists, journals unchanged by them)."
+ },
+ {
+  "id": "W-d1-14",
+  "time": "2026-10-27T14:19:04.690Z",
+  "what": "Pressed «تأكيد التسليم» on own undelivered invoice #000030 (id 38) after credit note #000008 existed",
+  "url": "click on «تأكيد التسليم» (a.js-invoice-mark-delivered) = GET /owner/invoices/make_delivered/38 (a state-changing GET: the guard, which logs non-GET requests only, saw no POST) -> invoice view",
+  "entity": "invoice-delivery",
+  "recordId": 38,
+  "tag": "D1-deliver-C",
+  "reversible": "yes (button «إلغاء التسليم»)",
+  "reverted": "n-a",
+  "notes": "Invoice #000030 became «سٌلم»; new cost journal #000156 (Dr 511 120, Cr 1203001 120) and stock movement #64 -2 -> 22. No document created (quota unchanged 41/50). Left in this state (reversible by «إلغاء التسليم», not needed).",
+  "journals": [
+   "000156"
+  ]
+ }
+]
