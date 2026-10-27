@@ -47,6 +47,7 @@ trait AccountingFixtureTrait
             'treasury_transfers',
             'accounting_stock_entries',
             'accounting_allocations',
+            'accounting_journal_attachments',
             'accounting_journal_lines',
             'accounting_journals',
             'accounting_posting_failures',
