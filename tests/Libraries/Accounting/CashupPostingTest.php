@@ -16,6 +16,7 @@ use App\Libraries\Organization\BranchException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use Config\OSPOS;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ExpenseAccountingFixtureTrait;
@@ -806,5 +807,68 @@ class CashupPostingTest extends CIUnitTestCase
         $this->assertSame(bcadd((string) $row->debit, '0', 4), bcadd((string) $row->credit, '0', 4));
         $this->assertSame('0.00', $this->assertTreasuryTiesToItsAccount($drawer));
         $this->assertSame('0.00', $this->balanceOf($this->accountId('cash_difference')));
+    }
+
+    public function testDeleteList_RefusesAnEmployeeOutsideTheBranchOfACashUpThatHasNoJournal(): void
+    {
+        $second  = $this->createBranch('B2');
+        $remote  = $this->employeeWithGrants([], [$second]);
+        $limited = $this->employeeWithGrants([], [1]);
+
+        $cashupId = $this->saveCashup($this->cashupData('100.00', '100', '0', '2026-10-20 08:00:00', '2026-10-20 18:00:00', $remote), NEW_ENTRY, $remote);
+
+        $this->assertSame([], $this->journalsOfSource(self::SOURCE, $cashupId));
+        $this->assertSame($second, (int) $this->row($cashupId)->branch_id);
+        $this->assertFalse($this->cashups->delete_list([$cashupId], $limited));
+        $this->assertSame(BranchError::NotAllowed, $this->failure()->error);
+        $this->assertSame(0, $this->accountingDb()->table('cash_up')->where('deleted', 1)->countAllResults());
+        $this->assertTrue($this->cashups->delete_list([$cashupId], $remote));
+        $this->assertSame(1, $this->accountingDb()->table('cash_up')->where('deleted', 1)->countAllResults());
+    }
+
+    public function testDeleteList_StillLetsAnyEmployeeDeleteACashUpTheBooksNeverFollowed(): void
+    {
+        $this->setConfigValue('accounting_enabled', '0');
+        $legacy = $this->saveCashup($this->cashupData('90.00'));
+        $this->setConfigValue('accounting_enabled', '1');
+
+        $limited = $this->employeeWithGrants([], [$this->createBranch('B2')]);
+
+        $this->assertTrue($this->cashups->delete_list([$legacy], $limited));
+        $this->assertSame(1, $this->accountingDb()->table('cash_up')->where('deleted', 1)->countAllResults());
+    }
+
+    public function testSaveValue_CountsTheSalesOfTheWholeDayForEveryCashUpOfTheDayWhileTheFilterIsByDay(): void
+    {
+        $this->sellFor('400.00', 'Cash', '2026-10-20 09:00:00');
+
+        $morning = $this->saveCashup($this->cashupData('500.00', '100', '0', '2026-10-20 08:00:00', '2026-10-20 13:00:00'));
+        $evening = $this->saveCashup($this->cashupData('10.00', '0', '0', '2026-10-20 14:00:00', '2026-10-20 20:00:00'));
+
+        $this->assertSame(0, $this->postedJournals($morning));
+        $this->assertSame(['400.0000', '-390.0000'], [$this->row($evening)->expected_amount_cash, $this->row($evening)->cash_difference]);
+        $this->assertSame(1, $this->postedJournals($evening));
+    }
+
+    public function testSaveValue_CountsOnlyTheSalesOfEachCashUpOfTheDayWhenTheFilterAsksForTimes(): void
+    {
+        $settings = config(OSPOS::class)->settings;
+
+        config(OSPOS::class)->settings['date_or_time_format'] = '1';
+
+        try {
+            $this->sellFor('400.00', 'Cash', '2026-10-20 09:00:00');
+
+            $morning = $this->saveCashup($this->cashupData('500.00', '100', '0', '2026-10-20 08:00:00', '2026-10-20 13:00:00'));
+            $evening = $this->saveCashup($this->cashupData('0.00', '0', '0', '2026-10-20 14:00:00', '2026-10-20 20:00:00'));
+            $counted = $this->saveCashup($this->cashupData('10.00', '0', '0', '2026-10-20 14:00:00', '2026-10-20 20:00:00'));
+
+            $this->assertSame(0, $this->postedJournals($morning));
+            $this->assertNull($this->row($evening)->expected_amount_cash);
+            $this->assertSame(['0.0000', '10.0000'], [$this->row($counted)->expected_amount_cash, $this->row($counted)->cash_difference]);
+            $this->assertSame([$this->accountId('cash') . '=10.00/0.00', $this->accountId('cash_difference') . '=0.00/10.00'], $this->postedLines(self::SOURCE, $counted));
+        } finally {
+            config(OSPOS::class)->settings = $settings;
+        }
     }
 }

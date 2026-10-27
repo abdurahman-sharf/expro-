@@ -92,6 +92,10 @@ final class ExpensePosting
             return ['data' => $data, 'post' => true, 'branch_id' => (int) $stored->branch_id];
         }
 
+        if (! $isNew) {
+            $this->branches->requireBranch((int) $stored->branch_id, $actorId);
+        }
+
         $this->assertCategoryAccount($data, $stored);
 
         [$branchId, $treasuryId] = $this->resolve($data, $stored, $asked, $actorId);
@@ -128,20 +132,27 @@ final class ExpensePosting
     }
 
     /**
-     * Takes back the journal of an expense that is being deleted. An expense that is not in the
-     * books has none, and nothing happens.
+     * Takes back the journal of an expense that is being deleted, after checking that the employee
+     * works in its branch, whether or not it has a journal. An expense the books never followed has
+     * no branch and no journal, and nothing happens.
      *
      * @throws AccountingException|BranchException|PostingException
      */
     public function cancel(int $expenseId, ?int $actorId): JournalChange
     {
+        $expense = $this->document($expenseId);
+
+        if ($expense === null) {
+            return JournalChange::None;
+        }
+
+        $this->branches->requireBranch($expense->branchId, $actorId);
+
         $active = $this->journals->active(ExpensePostingBuilder::SOURCE, $expenseId);
 
         if ($active === null) {
             return JournalChange::None;
         }
-
-        $this->branches->requireBranch((int) $active->branch_id, $actorId);
 
         $change = $this->journals->sync(ExpensePostingBuilder::SOURCE, $expenseId, null, $actorId, 'Expense #' . $expenseId . ' deleted');
 
@@ -293,7 +304,9 @@ final class ExpensePosting
      * decides the branch, and must be active unless the expense already used it. Without one, an
      * expense that has been posted keeps its treasury, and a new one is paid from the treasury its
      * employee works from, when that is open to them, or else from the account of its way of
-     * payment. An expense that is owed, or has no way of payment the books know, uses no treasury.
+     * payment. A form that asks for the default treasury for an expense that has none asks for what
+     * it already has, so it keeps it. An expense that is owed, or has no way of payment the books
+     * know, uses no treasury.
      *
      * @param array<string, mixed> $data
      *
@@ -328,7 +341,9 @@ final class ExpensePosting
             return [(int) $treasury->branch_id, $asked];
         }
 
-        if ($asked === null && $stored !== null && $storedType !== null && $storedType->usesTreasury()) {
+        $keepsTheStored = $asked === null || ($asked === 0 && $storedTreasury === null);
+
+        if ($keepsTheStored && $stored !== null && $storedType !== null && $storedType->usesTreasury()) {
             return [(int) $stored->branch_id, $storedTreasury];
         }
 

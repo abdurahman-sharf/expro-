@@ -1119,4 +1119,113 @@ class ExpensePostingTest extends CIUnitTestCase
         $this->assertNull($this->accountingDb()->table('expenses')->where('expense_id', $expenseId)->get()->getRow()->treasury_id);
         $this->assertSame('0.00', $this->assertTreasuryTiesToItsAccount($treasury));
     }
+
+    public function testSaveValue_RefusesChangingAnExpenseOfABranchTheEmployeeDoesNotWorkInEvenWhenItNamesATreasuryOfItsOwnBranch(): void
+    {
+        $second   = $this->createBranch('B2');
+        $category = $this->category();
+        $remote   = $this->treasury('Remote drawer', $second);
+        $home     = $this->treasury('Home drawer', 1);
+        $data     = $this->expenseData('40.00', '0', 'Cash', $category);
+
+        $data['treasury_id'] = $remote;
+
+        $expenseId = $this->saveExpense($data);
+        $limited   = $this->employeeWithGrants([], [1]);
+
+        $data['amount']      = '900.00';
+        $data['treasury_id'] = $home;
+
+        $this->assertNull($this->saveExpense($data, $expenseId, $limited));
+        $this->assertRefused(BranchError::NotAllowed);
+
+        $row = $this->accountingDb()->table('expenses')->where('expense_id', $expenseId)->get()->getRow();
+
+        $this->assertSame([$second, $remote, '40.00'], [(int) $row->branch_id, (int) $row->treasury_id, $row->amount]);
+        $this->assertSame(1, count($this->journalsOfSource(self::SOURCE, $expenseId)));
+        $this->assertSame(['-40.00', '0.00'], [$this->assertTreasuryTiesToItsAccount($remote), $this->assertTreasuryTiesToItsAccount($home)]);
+    }
+
+    public function testSaveValue_KeepsAnExpenseThatHasNoTreasuryWithoutOneWhenTheFormAsksForTheDefault(): void
+    {
+        $drawer = $this->treasury('Editor drawer');
+        $editor = $this->employeeWithGrants([]);
+
+        (new TreasuryService())->setDefaultFor($editor, $drawer);
+
+        $data      = $this->expenseData('100.00', '0', 'Cash', $this->category());
+        $expenseId = $this->saveExpense($data);
+
+        $this->assertNull($this->accountingDb()->table('expenses')->where('expense_id', $expenseId)->get()->getRow()->treasury_id);
+
+        $data['treasury_id'] = 0;
+        $data['description'] = 'Only the description changed';
+
+        $this->assertSame($expenseId, $this->saveExpense($data, $expenseId, $editor));
+        $this->assertNull($this->accountingDb()->table('expenses')->where('expense_id', $expenseId)->get()->getRow()->treasury_id);
+        $this->assertSame(1, count($this->journalsOfSource(self::SOURCE, $expenseId)));
+        $this->assertSame([$this->accountId('expenses_default') . '=100.00/0.00', $this->accountId('cash') . '=0.00/100.00'], $this->postedLines(self::SOURCE, $expenseId));
+        $this->assertSame('0.00', $this->assertTreasuryTiesToItsAccount($drawer));
+    }
+
+    public function testSaveValue_MovesAnExpenseThatHasNoTreasuryToTheOneTheFormNames(): void
+    {
+        $drawer    = $this->treasury('Named drawer');
+        $data      = $this->expenseData('100.00', '0', 'Cash', $this->category());
+        $expenseId = $this->saveExpense($data);
+
+        $data['treasury_id'] = $drawer;
+
+        $this->assertSame($expenseId, $this->saveExpense($data, $expenseId));
+        $this->assertSame($drawer, (int) $this->accountingDb()->table('expenses')->where('expense_id', $expenseId)->get()->getRow()->treasury_id);
+        $this->assertSame('-100.00', $this->assertTreasuryTiesToItsAccount($drawer));
+    }
+
+    public function testSaveValue_PaysFromTheTreasuryOfTheEmployeeWhenAnExpenseThatWasOwedIsPaidAndTheFormAsksForTheDefault(): void
+    {
+        $drawer = $this->treasury('Payer drawer');
+
+        (new TreasuryService())->setDefaultFor($this->clerkId, $drawer);
+
+        $data      = $this->expenseData('100.00', '0', 'Due', $this->category());
+        $expenseId = $this->saveExpense($data);
+
+        $data['payment_type'] = 'Cash';
+        $data['treasury_id']  = 0;
+
+        $this->assertSame($expenseId, $this->saveExpense($data, $expenseId));
+        $this->assertSame($drawer, (int) $this->accountingDb()->table('expenses')->where('expense_id', $expenseId)->get()->getRow()->treasury_id);
+        $this->assertSame('-100.00', $this->assertTreasuryTiesToItsAccount($drawer));
+    }
+
+    public function testDeleteList_RefusesAnEmployeeOutsideTheBranchOfAnExpenseThatHasNoJournal(): void
+    {
+        $second   = $this->createBranch('B2');
+        $remote   = $this->employeeWithGrants([], [$second]);
+        $limited  = $this->employeeWithGrants([], [1]);
+        $data     = $this->expenseData('0', '0', 'Cash', $this->category());
+
+        $data['treasury_id'] = $this->treasury('Remote drawer', $second);
+
+        $expenseId = $this->saveExpense($data);
+
+        $this->assertSame([], $this->journalsOfSource(self::SOURCE, $expenseId));
+        $this->assertFalse($this->expenses->delete_list([$expenseId], $limited));
+        $this->assertSame(BranchError::NotAllowed, $this->failure()->error);
+        $this->assertSame(0, $this->accountingDb()->table('expenses')->where('deleted', 1)->countAllResults());
+        $this->assertTrue($this->expenses->delete_list([$expenseId], $remote));
+        $this->assertSame(1, $this->accountingDb()->table('expenses')->where('deleted', 1)->countAllResults());
+    }
+
+    public function testDeleteList_StillLetsAnyEmployeeDeleteAnExpenseTheBooksNeverFollowed(): void
+    {
+        $this->setConfigValue('accounting_enabled', '0');
+        $legacy = $this->saveExpense($this->expenseData('100.00'));
+        $this->setConfigValue('accounting_enabled', '1');
+
+        $limited = $this->employeeWithGrants([], [$this->createBranch('B2')]);
+
+        $this->assertTrue($this->expenses->delete_list([$legacy], $limited));
+        $this->assertSame(1, $this->accountingDb()->table('expenses')->where('deleted', 1)->countAllResults());
+    }
 }
