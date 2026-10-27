@@ -724,6 +724,31 @@ class InterBranchSettlementsTest extends CIUnitTestCase
         $this->assertSame('1000.0000', $this->balanceOf($this->main));
     }
 
+    public function testCancel_WaitsForAnotherSettlementOfTheSamePair(): void
+    {
+        $this->send(true, '100.00');
+
+        $id    = $this->settle($this->other, $this->main);
+        $other = Database::connect('tests', false);
+
+        $other->query('SET SESSION innodb_lock_wait_timeout = 1');
+        $this->accountingDb()->query('SET SESSION innodb_lock_wait_timeout = 1');
+        $other->resetTransStatus();
+        $other->transStart();
+        $other->query('SELECT branch_id FROM ' . $other->prefixTable('interbranch_pair_locks') . ' WHERE company_id = 1 AND branch_id = 1 AND counterpart_branch_id = ' . $this->branch . ' FOR UPDATE');
+
+        try {
+            $this->assertWaitsForLock(fn () => $this->settlements->cancel($id, 'Reason', $this->settler));
+        } finally {
+            $other->transRollback();
+            $other->close();
+            $this->releaseOpenTransactions();
+        }
+
+        $this->assertSame('completed', $this->settlements->find($id)->status);
+        $this->assertSame([1, $this->branch], array_keys($this->journalsOf($id)));
+    }
+
     public function testCancel_WritesOneAuditEntryForEachBranch(): void
     {
         $this->send(true, '100.00');

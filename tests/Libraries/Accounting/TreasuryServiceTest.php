@@ -5,6 +5,7 @@ namespace Tests\Libraries\Accounting;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\InterBranchSettlements;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\PaymentType;
@@ -544,6 +545,23 @@ class TreasuryServiceTest extends CIUnitTestCase
 
         $this->assertSame(AccountingError::TreasuryInUse, $this->refusal(fn () => $this->treasuries->delete($id, $manager))->error);
         $this->assertNotNull($this->treasuries->find($id));
+    }
+
+    public function testDelete_RefusesATreasuryASettlementBetweenBranchesMovedMoneyThrough(): void
+    {
+        $branchId = $this->createBranch('B2');
+        $manager  = $this->manager();
+        $main     = $this->treasuries->ensureMain();
+        $drawer   = $this->treasuries->create(['name' => 'Second branch drawer', 'kind' => 'cash', 'branch_id' => $branchId], $manager);
+
+        $this->fund($drawer);
+
+        $settler = $this->employeeWithGrants([AccountingGuard::INTERBRANCH_SETTLE]);
+
+        (new InterBranchSettlements())->settle(1, $branchId, '2026-10-31', $drawer, $main, '', null, $settler);
+
+        $this->assertSame(AccountingError::TreasuryInUse, $this->refusal(fn () => $this->treasuries->delete($drawer, $manager))->error);
+        $this->assertNotNull($this->treasuries->find($drawer));
     }
 
     public function testDelete_RefusesATreasuryAnExpenseOrACashUpNamed(): void
