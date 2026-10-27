@@ -407,6 +407,26 @@ class AccountingReportsControllerTest extends CIUnitTestCase
         $response->assertSee('to=2026-10-31');
     }
 
+    public function testGetIndex_LinksToTheIncomeStatementAndTheBalanceSheet(): void
+    {
+        $this->viewer();
+
+        $response = $this->get('/accounting_reports');
+
+        $response->assertSee('id="link_income_statement" href="' . base_url('accounting_statements/income_statement') . '"');
+        $response->assertSee('id="link_balance_sheet" href="' . base_url('accounting_statements/balance_sheet') . '"');
+    }
+
+    public function testGetLedger_LinksToTheIncomeStatementAndTheBalanceSheet(): void
+    {
+        $this->viewer();
+
+        $response = $this->get('/accounting_reports/ledger');
+
+        $response->assertSee('id="link_income_statement" href="' . base_url('accounting_statements/income_statement') . '"');
+        $response->assertSee('id="link_balance_sheet" href="' . base_url('accounting_statements/balance_sheet') . '"');
+    }
+
     public function testGetLedger_ShowsNothingUntilAnAccountIsChosen(): void
     {
         $this->cashSale('2026-10-05', 1, '100.00');

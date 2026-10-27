@@ -44,6 +44,16 @@ class AccountingChartControllerTest extends CIUnitTestCase
         $response->assertSee('acc-chart');
     }
 
+    public function testGetIndex_SaysTheBalancesOfRevenueAndExpenseAccountsAddUpFromTheStartOfTheBooks(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_chart']));
+
+        $response = $this->get('/accounting_chart');
+
+        $response->assertSee('id="chart_nominal_note"');
+        $response->assertSee(lang('Accounting_chart.nominal_note'));
+    }
+
     public function testGetIndex_HidesTheAddButtonWithoutTheManagePermission(): void
     {
         $this->actAs($this->employeeWithGrants(['accounting_chart']));
