@@ -187,7 +187,7 @@
 | `H41` | a new cash-up closed before accounting starts is not stamped or posted | مكشوف | 2 |
 | `H42` | a cash-up moved before accounting starts is not stamped again | مكشوف بعد تقوية الاختبار | 1 |
 | `H43` | a cash-up that is marked deleted is not stamped again | مكشوف بعد تقوية الاختبار | 1 |
-| `H44` | the difference is the counted cash less the expected cash | مكشوف | 19 |
+| `H44` | the difference is the counted cash less the expected cash | مكشوف | 22 |
 | `H45` | the counted cash of a change defaults to the stored one | مكشوف | 1 |
 | `H46` | the dates of a change default to the stored ones | مكشوف | 1 |
 | `H47` | the opening cash of a change defaults to the stored one | مكشوف | 1 |
@@ -195,8 +195,8 @@
 | `H49` | posting a cash-up is audited | مكشوف | 2 |
 | `H50` | posting a cash-up again is audited | مكشوف | 1 |
 | `H51` | a cash-up the books never followed has nothing to sync | مكشوف | 1 |
-| `H52` | a cash-up without a branch is not a document of the books | مكشوف بعد تقوية الاختبار | 1 |
-| `H53` | deleting a cash-up that is not in the books does nothing | مكشوف | 2 |
+| `H52` | a cash-up without a branch is not a document of the books | مكشوف بعد تقوية الاختبار | 2 |
+| `H53` | deleting a cash-up that is not in the books does nothing | مكشوف | 1 |
 | `H54` | deleting a cash-up is audited (cancel) | مكشوف | 1 |
 | `H55` | only the cash-ups without a branch are unposted | مكشوف | 1 |
 | `H56` | the expected cash is for the default branch of the employee | مكشوف بعد تقوية الاختبار | 1 |
