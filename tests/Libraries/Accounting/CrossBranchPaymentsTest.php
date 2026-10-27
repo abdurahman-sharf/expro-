@@ -194,14 +194,14 @@ class CrossBranchPaymentsTest extends CIUnitTestCase
         $this->assertSame([], CrossBranchPayments::companionsOf('treasury_transfer'));
     }
 
-    public function testDrafts_RefusesAJournalOfASourceThatHasNoJournalForTheTreasuryOfAnotherBranch(): void
+    public function testDrafts_RejectsAJournalOfASourceThatHasNoJournalForTheTreasuryOfAnotherBranch(): void
     {
         $refusal = $this->refusal(fn () => $this->payments->drafts($this->draft(true, '10.00', 5005, 1, 'treasury_transfer'), $this->treasury, $this->branch));
 
         $this->assertSame(PostingError::CrossBranchPaymentInvalid, $refusal->error);
     }
 
-    public function testDrafts_RefusesATreasuryTheDraftMovesMoreThanOnce(): void
+    public function testDrafts_RejectsATreasuryTheDraftMovesMoreThanOnce(): void
     {
         $twice = new JournalDraft(
             date: '2026-10-21',
@@ -227,7 +227,7 @@ class CrossBranchPaymentsTest extends CIUnitTestCase
         $this->assertSame([$elsewhere], $this->payments->drafts($elsewhere, $this->treasury, $this->branch));
     }
 
-    public function testDrafts_RefusesWhenTheRoutingNamesNoAccountsBetweenBranches(): void
+    public function testDrafts_RejectsWhenTheRoutingNamesNoAccountsBetweenBranches(): void
     {
         $this->accountingDb()->table('accounting_routing')->where('routing_key', 'branches.payable')->update(['account_id' => null]);
 
@@ -253,7 +253,7 @@ class CrossBranchPaymentsTest extends CIUnitTestCase
         $this->assertSame(1, $this->accountingDb()->table('accounting_journals')->where('source_id', 5011)->countAllResults());
     }
 
-    public function testPost_NeverWritesTheSamePaymentTwice(): void
+    public function testPost_WritesThePaymentOnlyOnce(): void
     {
         $drafts = $this->payments->drafts($this->draft(true, '100.00', 5012), $this->treasury, $this->branch);
 
@@ -351,7 +351,7 @@ class CrossBranchPaymentsTest extends CIUnitTestCase
         $this->assertSame(0, $this->accountingDb()->table('accounting_journals')->where(['source_id' => 5024, 'status' => 'posted'])->countAllResults());
     }
 
-    public function testSync_RefusesAnEmployeeWhoWorksInOnlyOneOfTheTwoBranchesBeforeWritingAnything(): void
+    public function testSync_RejectsAnEmployeeWhoWorksInOnlyOneOfTheTwoBranchesBeforeWritingAnything(): void
     {
         $drafts = $this->payments->drafts($this->draft(true, '100.00', 5025), $this->treasury, $this->branch);
 
@@ -368,7 +368,7 @@ class CrossBranchPaymentsTest extends CIUnitTestCase
         $this->assertSame(2, $this->accountingDb()->table('accounting_journals')->where('source_id', 5025)->countAllResults());
     }
 
-    public function testSync_NamesTheBranchTheEmployeeDoesNotWorkInWhenItRefuses(): void
+    public function testSync_NamesTheBranchTheEmployeeDoesNotWorkInWhenItRejects(): void
     {
         $refusal = $this->refusal(fn () => $this->payments->sync(null, $this->payments->drafts($this->draft(true, '100.00', 5026), $this->treasury, $this->branch), $this->employeeWithGrants([], [1]), $this->reverser()));
 

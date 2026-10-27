@@ -282,7 +282,7 @@ class InterBranchBalancesTest extends CIUnitTestCase
         $this->assertSame(['receivable' => '100.0000', 'payable' => '0.0000'], $this->balances->between(1, $this->secondBranch, '2026-10-21')['first']);
     }
 
-    public function testAccounts_IncludeTheAccountAJournalWasRecordedOnWhenTheRoutingNamesAnother(): void
+    public function testAccounts_IncludesTheAccountAJournalWasRecordedOnWhenTheRoutingNamesAnother(): void
     {
         $other = $this->customAccount('1204', '12047', 'Receivable recorded once');
 

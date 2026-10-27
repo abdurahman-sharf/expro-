@@ -547,7 +547,7 @@ class TreasuryServiceTest extends CIUnitTestCase
         $this->assertNotNull($this->treasuries->find($id));
     }
 
-    public function testDelete_RefusesATreasuryASettlementBetweenBranchesMovedMoneyThrough(): void
+    public function testDelete_RejectsATreasuryASettlementBetweenBranchesMovedMoneyThrough(): void
     {
         $branchId = $this->createBranch('B2');
         $manager  = $this->manager();
@@ -834,12 +834,12 @@ class TreasuryServiceTest extends CIUnitTestCase
         $this->assertSame($branch, $this->treasuries->otherBranchOf($treasury, 1, null), 'The books');
     }
 
-    public function testOtherBranchOf_RefusesATreasuryThatDoesNotExist(): void
+    public function testOtherBranchOf_RejectsATreasuryThatDoesNotExist(): void
     {
         $this->assertSame(AccountingError::TreasuryNotFound, $this->refusal(fn () => $this->treasuries->otherBranchOf(99999, 1, null))->error);
     }
 
-    public function testOtherBranchOf_RefusesATreasuryOfAnotherBranchToAnEmployeeWhoWorksInOnlyOneOfTheTwoAsIfItWereNotThere(): void
+    public function testOtherBranchOf_RejectsATreasuryOfAnotherBranchToAnEmployeeWhoWorksInOnlyOneOfTheTwoAsIfItWereNotThere(): void
     {
         ['branch' => $branch, 'treasury' => $treasury] = $this->treasuryOfAnotherBranch();
 
@@ -860,7 +860,7 @@ class TreasuryServiceTest extends CIUnitTestCase
         }
     }
 
-    public function testOtherBranchOf_RefusesATreasuryOfAnotherBranchThatIsDeactivatedUnlessThePaymentIsAlreadyInIt(): void
+    public function testOtherBranchOf_RejectsATreasuryOfAnotherBranchThatIsDeactivatedUnlessThePaymentIsAlreadyInIt(): void
     {
         ['treasury' => $treasury] = $this->treasuryOfAnotherBranch();
 
@@ -870,7 +870,7 @@ class TreasuryServiceTest extends CIUnitTestCase
         $this->assertNotNull($this->treasuries->otherBranchOf($treasury, 1, null, true));
     }
 
-    public function testOtherBranchOf_RefusesATreasuryOfAnotherBranchWhileTheBooksAreOff(): void
+    public function testOtherBranchOf_RejectsATreasuryOfAnotherBranchWhileTheBooksAreOff(): void
     {
         ['treasury' => $treasury] = $this->treasuryOfAnotherBranch();
 

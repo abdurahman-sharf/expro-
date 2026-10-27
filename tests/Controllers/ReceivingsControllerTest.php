@@ -1352,7 +1352,7 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $this->assertSame($drawer, (int) $this->accountingDb()->table('receivings_payments')->where('payment_id', $payment)->get()->getRow()->treasury_id);
     }
 
-    public function testPostSave_RefusesATreasuryOfAnotherBranchToABuyerWhoDoesNotWorkInItAndSavesNothingOfTheForm(): void
+    public function testPostSave_RejectsATreasuryOfAnotherBranchToABuyerWhoDoesNotWorkInItAndSavesNothingOfTheForm(): void
     {
         $purchase  = $this->purchaseOf('500.00');
         $elsewhere = $this->treasuryOfBranch('Far drawer', $this->anotherBranch());

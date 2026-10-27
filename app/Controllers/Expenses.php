@@ -215,7 +215,7 @@ class Expenses extends Secure_Controller
             $expense_data['treasury_id'] = (int) $this->request->getPost('treasury_id', FILTER_SANITIZE_NUMBER_INT);
         }
 
-        if ($accountingOn && $this->request->getPost('expense_branch_id') !== null) {
+        if ($this->request->getPost('expense_branch_id') !== null) {
             $expense_data['expense_branch_id'] = (int) $this->request->getPost('expense_branch_id', FILTER_SANITIZE_NUMBER_INT);
         }
 

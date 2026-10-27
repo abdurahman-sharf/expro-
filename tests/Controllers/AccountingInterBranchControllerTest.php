@@ -370,7 +370,7 @@ class AccountingInterBranchControllerTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('interbranch_settlements'));
     }
 
-    public function testPostSettle_RefusesAnEmployeeWithoutThePermissionAndOneWhoWorksInOnlyOneBranch(): void
+    public function testPostSettle_RejectsAnEmployeeWithoutThePermissionAndOneWhoWorksInOnlyOneBranch(): void
     {
         $this->send(true, '100.00');
 

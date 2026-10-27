@@ -287,7 +287,7 @@ class InterBranchSettlementsTest extends CIUnitTestCase
         ));
     }
 
-    public function testSettle_RefusesAnEmployeeWithoutThePermission(): void
+    public function testSettle_RejectsAnEmployeeWithoutThePermission(): void
     {
         $this->send(true, '100.00');
 
@@ -295,7 +295,7 @@ class InterBranchSettlementsTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('interbranch_settlements'));
     }
 
-    public function testSettle_RefusesAnEmployeeWhoWorksInOnlyOneOfTheTwoBranches(): void
+    public function testSettle_RejectsAnEmployeeWhoWorksInOnlyOneOfTheTwoBranches(): void
     {
         $this->send(true, '100.00');
 
@@ -354,7 +354,7 @@ class InterBranchSettlementsTest extends CIUnitTestCase
         $this->assertNothingOwedBetweenTheBranches();
     }
 
-    public function testSettle_RefusesTreasuriesThatAreNotThoseOfTheBranchesTheMoneyMovesBetween(): void
+    public function testSettle_RejectsTreasuriesThatAreNotThoseOfTheBranchesTheMoneyMovesBetween(): void
     {
         $this->send(true, '100.00');
 
@@ -366,7 +366,7 @@ class InterBranchSettlementsTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('interbranch_settlements'));
     }
 
-    public function testSettle_RefusesACashSettlementWithoutBothTreasuries(): void
+    public function testSettle_RejectsACashSettlementWithoutBothTreasuries(): void
     {
         $this->send(true, '100.00');
 
@@ -378,7 +378,7 @@ class InterBranchSettlementsTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('interbranch_settlements'));
     }
 
-    public function testSettle_RefusesATreasuryThatIsDeactivated(): void
+    public function testSettle_RejectsATreasuryThatIsDeactivated(): void
     {
         $this->send(true, '100.00');
 
@@ -390,7 +390,7 @@ class InterBranchSettlementsTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('interbranch_settlements'));
     }
 
-    public function testSettle_RefusesWhenTheTwoBranchesDoNotSayTheSameOfEachOther(): void
+    public function testSettle_RejectsWhenTheTwoBranchesDoNotSayTheSameOfEachOther(): void
     {
         $this->send(true, '100.00');
 
@@ -412,7 +412,7 @@ class InterBranchSettlementsTest extends CIUnitTestCase
         $this->assertSame(0, $this->accountingDb()->table('accounting_journals')->whereIn('source_type', [InterBranchSettlements::SOURCE, InterBranchSettlements::SOURCE_SECOND])->countAllResults());
     }
 
-    public function testSettle_RefusesWhenNothingIsOwedOnThatDay(): void
+    public function testSettle_RejectsWhenNothingIsOwedOnThatDay(): void
     {
         $this->assertSame(AccountingError::SettlementNothingToSettle, $this->refusal(fn () => $this->settle())->error);
 
@@ -437,7 +437,7 @@ class InterBranchSettlementsTest extends CIUnitTestCase
         $this->assertSame('0.0000', (new InterBranchPosition())->difference());
     }
 
-    public function testSettle_RefusesTheSameBranchTwiceAndABranchThatDoesNotExist(): void
+    public function testSettle_RejectsTheSameBranchTwiceAndABranchThatDoesNotExist(): void
     {
         $this->assertSame(AccountingError::SettlementSameBranch, $this->refusal(fn () => $this->settlements->settle(1, 1, '2026-10-31', null, null, '', null, $this->settler))->error);
 
@@ -447,7 +447,7 @@ class InterBranchSettlementsTest extends CIUnitTestCase
         $this->assertSame(BranchError::NotFound, $refusal->error);
     }
 
-    public function testSettle_RefusesADateThatIsNotOne(): void
+    public function testSettle_RejectsADateThatIsNotOne(): void
     {
         $this->assertSame(AccountingError::InvalidDate, $this->refusal(fn () => $this->settle(null, null, '2026-02-30'))->error);
     }
@@ -517,7 +517,7 @@ class InterBranchSettlementsTest extends CIUnitTestCase
         $this->assertNotSame($first, $second);
     }
 
-    public function testSettle_NeverPostsTheSameJournalTwice(): void
+    public function testSettle_PostsEachJournalOnlyOnce(): void
     {
         $this->send(true, '100.00');
         $id = $this->settle($this->other, $this->main);
@@ -585,7 +585,7 @@ class InterBranchSettlementsTest extends CIUnitTestCase
         $this->assertNull($this->settlements->plan(1, $this->branch, '2026-10-01', $this->settler)->kind);
     }
 
-    public function testPlan_RefusesAnEmployeeWhoWorksInOnlyOneOfTheBranches(): void
+    public function testPlan_RejectsAnEmployeeWhoWorksInOnlyOneOfTheBranches(): void
     {
         foreach ([1, $this->branch] as $branchId) {
             $refusal = $this->refusal(fn () => $this->settlements->plan(1, $this->branch, '2026-10-31', $this->employeeWithGrants([], [$branchId])));
@@ -657,7 +657,7 @@ class InterBranchSettlementsTest extends CIUnitTestCase
         $this->assertSame('900.0000', $this->balanceOf($this->main));
     }
 
-    public function testCancel_RefusesAnEmployeeWithoutThePermissionOrWhoWorksInOnlyOneBranchAndReversesNothing(): void
+    public function testCancel_RejectsAnEmployeeWithoutThePermissionOrWhoWorksInOnlyOneBranchAndReversesNothing(): void
     {
         $this->send(true, '100.00');
 
@@ -698,7 +698,7 @@ class InterBranchSettlementsTest extends CIUnitTestCase
         $this->assertSame([1, $this->branch], array_keys($this->journalsOf($id)));
     }
 
-    public function testCancel_RefusesASettlementThatIsGoneAlreadyCancelledOrWithoutAReason(): void
+    public function testCancel_RejectsASettlementThatIsGoneAlreadyCancelledOrWithoutAReason(): void
     {
         $this->send(true, '100.00');
 
@@ -768,7 +768,7 @@ class InterBranchSettlementsTest extends CIUnitTestCase
         $this->assertSame('Reason', json_decode($entries[0]->details, true)['reason']);
     }
 
-    public function testReverse_RefusesToTakeBackOneJournalOfASettlementByHand(): void
+    public function testReverse_RejectsToTakeBackOneJournalOfASettlementByHand(): void
     {
         $this->send(true, '100.00');
 

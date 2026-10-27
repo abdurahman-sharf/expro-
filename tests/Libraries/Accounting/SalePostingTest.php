@@ -2678,7 +2678,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertEveryBranchBalancedAndTheAccountsBetweenBranchesOffset();
     }
 
-    public function testSaveValue_RefusesATreasuryOfAnotherBranchToAnEmployeeWhoWorksInOnlyOneOfTheTwo(): void
+    public function testSaveValue_RejectsATreasuryOfAnotherBranchToAnEmployeeWhoWorksInOnlyOneOfTheTwo(): void
     {
         ['branch' => $branch, 'treasury' => $treasury] = $this->treasuryOfAnotherBranch();
 
@@ -2705,7 +2705,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('sales_payments'));
     }
 
-    public function testSaveValue_RefusesATreasuryOfAnotherBranchThatIsDeactivated(): void
+    public function testSaveValue_RejectsATreasuryOfAnotherBranchThatIsDeactivated(): void
     {
         ['treasury' => $treasury] = $this->treasuryOfAnotherBranch();
 
@@ -2852,7 +2852,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertEveryBranchBalancedAndTheAccountsBetweenBranchesOffset();
     }
 
-    public function testUpdate_RefusesAnEmployeeWhoWorksInOnlyOneOfTheBranchesToChangeAPaymentAcrossThemAndChangesNothing(): void
+    public function testUpdate_RejectsAnEmployeeWhoWorksInOnlyOneOfTheBranchesToChangeAPaymentAcrossThemAndChangesNothing(): void
     {
         ['branch' => $branch, 'treasury' => $treasury] = $this->treasuryOfAnotherBranch();
 
@@ -2950,7 +2950,7 @@ class SalePostingTest extends CIUnitTestCase
         }
     }
 
-    public function testDelete_RefusesAnEmployeeWhoWorksInOnlyOneOfTheBranchesAndReversesNothing(): void
+    public function testDelete_RejectsAnEmployeeWhoWorksInOnlyOneOfTheBranchesAndReversesNothing(): void
     {
         ['treasury' => $treasury] = $this->treasuryOfAnotherBranch();
 
@@ -2978,7 +2978,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame(COMPLETED, (int) $this->accountingDb()->table('sales')->where('sale_id', $saleId)->get()->getRow()->sale_status);
     }
 
-    public function testReverse_RefusesToTakeBackOneJournalOfAPaymentAcrossBranchesByHand(): void
+    public function testReverse_RejectsToTakeBackOneJournalOfAPaymentAcrossBranchesByHand(): void
     {
         ['treasury' => $treasury] = $this->treasuryOfAnotherBranch();
 

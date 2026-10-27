@@ -1223,7 +1223,7 @@ class ExpensePostingTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('accounting_interbranch_legs'));
     }
 
-    public function testSaveValue_RefusesATreasuryOfAnotherBranchToAnEmployeeWhoWorksInOnlyOneOfTheTwo(): void
+    public function testSaveValue_RejectsATreasuryOfAnotherBranchToAnEmployeeWhoWorksInOnlyOneOfTheTwo(): void
     {
         ['branch' => $branch, 'treasury' => $treasury] = $this->treasuryOfAnotherBranch();
 
@@ -1248,7 +1248,7 @@ class ExpensePostingTest extends CIUnitTestCase
         $this->assertNothingWritten();
     }
 
-    public function testSaveValue_RefusesAnExpenseAcrossBranchesPaidFromATreasuryThatIsDeactivated(): void
+    public function testSaveValue_RejectsAnExpenseAcrossBranchesPaidFromATreasuryThatIsDeactivated(): void
     {
         ['treasury' => $treasury] = $this->treasuryOfAnotherBranch();
 
@@ -1318,7 +1318,7 @@ class ExpensePostingTest extends CIUnitTestCase
         $this->assertSame(1, (int) $this->accountingDb()->table('expenses')->where('expense_id', $expenseId)->get()->getRow()->branch_id);
     }
 
-    public function testSaveValue_NeverTakesTheBranchOfTheTreasuryFromTheForm(): void
+    public function testSaveValue_IgnoresTheBranchOfTheTreasuryTheFormClaims(): void
     {
         ['branch' => $branch] = $this->treasuryOfAnotherBranch();
 
@@ -1369,7 +1369,7 @@ class ExpensePostingTest extends CIUnitTestCase
         $this->assertEveryBranchBalancedAndTheAccountsBetweenBranchesOffset();
     }
 
-    public function testSaveValue_RefusesAnEmployeeWhoWorksInOnlyOneOfTheBranchesToChangeAnExpenseAcrossThemAndChangesNothing(): void
+    public function testSaveValue_RejectsAnEmployeeWhoWorksInOnlyOneOfTheBranchesToChangeAnExpenseAcrossThemAndChangesNothing(): void
     {
         ['treasury' => $treasury] = $this->treasuryOfAnotherBranch();
 
@@ -1396,7 +1396,7 @@ class ExpensePostingTest extends CIUnitTestCase
         $this->assertEveryBranchBalancedAndTheAccountsBetweenBranchesOffset();
     }
 
-    public function testDeleteList_RefusesAnEmployeeWhoMayNotDepositIntoTheTreasuryOfTheOtherBranchAndReversesNothing(): void
+    public function testDeleteList_RejectsAnEmployeeWhoMayNotDepositIntoTheTreasuryOfTheOtherBranchAndReversesNothing(): void
     {
         ['treasury' => $treasury] = $this->treasuryOfAnotherBranch();
 
@@ -1409,7 +1409,7 @@ class ExpensePostingTest extends CIUnitTestCase
         $this->assertSame('-100.00', $this->assertTreasuryTiesToItsAccount($treasury));
     }
 
-    public function testReverse_RefusesToTakeBackOneJournalOfAnExpenseAcrossBranchesByHand(): void
+    public function testReverse_RejectsToTakeBackOneJournalOfAnExpenseAcrossBranchesByHand(): void
     {
         ['treasury' => $treasury] = $this->treasuryOfAnotherBranch();
 
