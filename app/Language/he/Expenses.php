@@ -32,6 +32,9 @@ return [
     'info'                       => 'תיאור הוצאות',
     'ip_address'                 => '',
     'is_deleted'                 => 'נמחק',
+    'ledger'                     => '',
+    'ledger_posted'              => '',
+    'ledger_unposted'            => '',
     'name_required'              => 'נדרש שם להוצאה',
     'new'                        => 'הוצאה חדשה',
     'new_supplier'               => '',
@@ -47,5 +50,8 @@ return [
     'supplier_tax_code'          => 'קוד מס',
     'tax_amount'                 => 'מס',
     'tax_amount_number'          => '',
+    'treasury'                   => '',
+    'treasury_default'           => '',
+    'unposted_filter'            => '',
     'update'                     => 'עדכון הוצאות',
 ];

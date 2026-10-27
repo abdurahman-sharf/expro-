@@ -1,10 +1,14 @@
 <?php
 
 return [
-    'category_name_required'            => 'Expense Kategori namn krävs',
+    'account'                           => '',
+    'account_default'                   => '',
+    'account_desc'                      => '',
+    'account_locked'                    => '',
     'add_item'                          => 'Lägg till Kategori',
     'cannot_be_deleted'                 => 'Kunde inte ta bort kategorikostnad',
     'category_id'                       => 'Id',
+    'category_name_required'            => 'Expense Kategori namn krävs',
     'confirm_delete'                    => 'Är du säker på att du vill radera den valda utgiftskategorin?',
     'confirm_restore'                   => 'Är du säker på att du vill återställa den valda utgiftskategorin?',
     'description'                       => 'Kategori Beskrivning',

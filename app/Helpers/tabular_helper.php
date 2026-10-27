@@ -1,5 +1,6 @@
 <?php
 
+use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Models\Attribute;
@@ -773,7 +774,7 @@ function get_expense_category_data_row(object $expense_category): array
 
 function expense_headers(): array
 {
-    return [
+    $headers = [
         ['expense_id'        => lang('Expenses.expense_id')],
         ['date'              => lang('Expenses.date')],
         ['supplier_name'     => lang('Expenses.supplier_name')],
@@ -785,6 +786,12 @@ function expense_headers(): array
         ['description'       => lang('Expenses.description')],
         ['created_by'        => lang('Expenses.employee')]
     ];
+
+    if ((new AccountingSettings())->isEnabled()) {
+        $headers[] = ['ledger_state' => lang('Expenses.ledger')];
+    }
+
+    return $headers;
 }
 
 /**
@@ -808,7 +815,7 @@ function get_expenses_data_row(object $expense, ?string $number = null): array
 {
     $controller = get_controller();
 
-    return [
+    $row = [
         'expense_id'        => $expense->expense_id,
         'expense_number'    => $number ?? '',
         'date'              => to_datetime(strtotime($expense->date)),
@@ -830,6 +837,12 @@ function get_expenses_data_row(object $expense, ?string $number = null): array
             ]
         )
     ];
+
+    if (property_exists($expense, 'ledger_state')) {
+        $row['ledger_state'] = lang((int) $expense->ledger_state === 1 ? 'Expenses.ledger_posted' : 'Expenses.ledger_unposted');
+    }
+
+    return $row;
 }
 
 /**
@@ -898,6 +911,10 @@ function get_cashups_manage_table_headers(): string
 {
     $headers = cashup_headers();
 
+    if ((new AccountingSettings())->isEnabled()) {
+        $headers[] = ['ledger_state' => lang('Cashups.ledger')];
+    }
+
     return transform_headers($headers);
 }
 
@@ -908,7 +925,7 @@ function get_cash_up_data_row(object $cash_up): array
 {
     $controller = get_controller();
 
-    return [
+    $row = [
         'cashup_id'            => $cash_up->cashup_id,
         'open_date'            => to_datetime(strtotime($cash_up->open_date)),
         'open_employee_id'     => $cash_up->open_first_name . ' ' . $cash_up->open_last_name,
@@ -932,6 +949,12 @@ function get_cash_up_data_row(object $cash_up): array
             ]
         )
     ];
+
+    if (property_exists($cash_up, 'ledger_state')) {
+        $row['ledger_state'] = lang((int) $cash_up->ledger_state === 1 ? 'Cashups.ledger_posted' : 'Cashups.ledger_unposted');
+    }
+
+    return $row;
 }
 
 /**

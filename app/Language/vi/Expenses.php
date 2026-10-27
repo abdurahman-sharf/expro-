@@ -32,6 +32,9 @@ return [
     'info'                       => 'Thông tin Chi phí',
     'ip_address'                 => '',
     'is_deleted'                 => 'Đã xoá',
+    'ledger'                     => '',
+    'ledger_posted'              => '',
+    'ledger_unposted'            => '',
     'name_required'              => 'Tên chi phí là bắt buộc',
     'new'                        => 'Chi phí mới',
     'new_supplier'               => '',
@@ -47,5 +50,8 @@ return [
     'supplier_tax_code'          => 'Mã thuế',
     'tax_amount'                 => 'Thuế',
     'tax_amount_number'          => '',
+    'treasury'                   => '',
+    'treasury_default'           => '',
+    'unposted_filter'            => '',
     'update'                     => 'Cập nhật chi phí',
 ];

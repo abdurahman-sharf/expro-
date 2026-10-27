@@ -2,6 +2,12 @@
 
 namespace App\Controllers;
 
+use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\AccountingMessage;
+use App\Libraries\Accounting\AccountingSettings;
+use App\Libraries\Accounting\CashupPosting;
+use App\Libraries\Accounting\PostingException;
+use App\Libraries\Organization\BranchException;
 use App\Models\Cashup;
 use App\Models\Expense;
 use App\Models\Reports\Summary_payments;
@@ -36,6 +42,10 @@ class Cashups extends Secure_Controller
         // filters that will be loaded in the multiselect dropdown
         $data['filters'] = ['is_deleted' => lang('Cashups.is_deleted')];
 
+        if ((new AccountingSettings())->isEnabled()) {
+            $data['filters']['only_unposted'] = lang('Cashups.unposted_filter');
+        }
+
         // Restore filters from URL
         $data = array_merge($data, restoreTableFilters($this->request));
 
@@ -55,6 +65,7 @@ class Cashups extends Secure_Controller
         $filters = [
             'start_date' => $this->request->getGet('start_date', FILTER_SANITIZE_FULL_SPECIAL_CHARS),    // TODO: Is this the best way to filter dates
             'end_date'   => $this->request->getGet('end_date', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
+            'only_unposted' => false,
             'is_deleted' => false
         ];
 
@@ -88,6 +99,7 @@ class Cashups extends Secure_Controller
             $data['employees'][$employee->person_id] = $employee->first_name . ' ' . $employee->last_name;
         }
 
+        $accountingOn  = (new AccountingSettings())->isEnabled();
         $cash_ups_info = $this->cashup->get_info($cashup_id);
 
         foreach (get_object_vars($cash_ups_info) as $property => $value) {
@@ -179,9 +191,27 @@ class Cashups extends Secure_Controller
                 $cash_ups_info->closed_amount_cash -= $row['amount'];
             }
 
+            if ($accountingOn) {
+                $expected = (new CashupPosting())->expectedFor(
+                    (int) $this->employee->get_logged_in_employee_info()->person_id,
+                    (string) $cash_ups_info->open_date,
+                    (string) $cash_ups_info->close_date,
+                    (string) $cash_ups_info->open_amount_cash,
+                    (string) $cash_ups_info->transfer_amount_cash,
+                );
+
+                $cash_ups_info->closed_amount_cash = (float) $expected;
+                $data['expected_cash']             = $expected;
+            }
+
             $cash_ups_info->closed_amount_total = $this->_calculate_total($cash_ups_info->open_amount_cash, $cash_ups_info->transfer_amount_cash, $cash_ups_info->closed_amount_cash, $cash_ups_info->closed_amount_due, $cash_ups_info->closed_amount_card, $cash_ups_info->closed_amount_check);
         }
 
+        if ($accountingOn && ! isset($data['expected_cash']) && isset($cash_ups_info->expected_amount_cash)) {
+            $data['expected_cash'] = (string) $cash_ups_info->expected_amount_cash;
+        }
+
+        $data['accounting_on'] = $accountingOn;
         $data['cash_ups_info'] = $cash_ups_info;
 
         return view("cashups/form", $data);
@@ -237,7 +267,7 @@ class Cashups extends Secure_Controller
             'deleted'              => $this->request->getPost('deleted') != null
         ];
 
-        if ($this->cashup->save_value($cash_up_data, $cashup_id)) {
+        if ($this->cashup->save_value($cash_up_data, $cashup_id, (int) $logged_in_employee->person_id)) {
             // New cashup_id
             if ($cashup_id == NEW_ENTRY) {
                 return $this->response->setJSON(['success' => true, 'message' => lang('Cashups.successful_adding'), 'id' => $cash_up_data['cashup_id']]);
@@ -245,7 +275,7 @@ class Cashups extends Secure_Controller
                 return $this->response->setJSON(['success' => true, 'message' => lang('Cashups.successful_updating'), 'id' => $cashup_id]);
             }
         } else { // Failure
-            return $this->response->setJSON(['success' => false, 'message' => lang('Cashups.error_adding_updating'), 'id' => NEW_ENTRY]);
+            return $this->response->setJSON(['success' => false, 'message' => $this->refusal(lang('Cashups.error_adding_updating')), 'id' => NEW_ENTRY]);
         }
     }
 
@@ -256,11 +286,24 @@ class Cashups extends Secure_Controller
     {
         $cash_ups_to_delete = $this->request->getPost('ids', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
 
-        if ($this->cashup->delete_list($cash_ups_to_delete)) {
+        if ($this->cashup->delete_list($cash_ups_to_delete, (int) $this->employee->get_logged_in_employee_info()->person_id)) {
             return $this->response->setJSON(['success' => true, 'message' => lang('Cashups.successful_deleted') . ' ' . count($cash_ups_to_delete) . ' ' . lang('Cashups.one_or_multiple'), 'ids' => $cash_ups_to_delete]);
         } else {
-            return $this->response->setJSON(['success' => false, 'message' => lang('Cashups.cannot_be_deleted'), 'ids' => $cash_ups_to_delete]);
+            return $this->response->setJSON(['success' => false, 'message' => $this->refusal(lang('Cashups.cannot_be_deleted')), 'ids' => $cash_ups_to_delete]);
         }
+    }
+
+    /**
+     * What the books said about the change that was just refused, in words for the employee, or the
+     * usual message when the books had nothing to say.
+     */
+    private function refusal(string $usual): string
+    {
+        $failure = $this->cashup->accountingFailure();
+
+        return $failure instanceof AccountingException || $failure instanceof BranchException || $failure instanceof PostingException
+            ? AccountingMessage::of($failure)
+            : $usual;
     }
 
     /**

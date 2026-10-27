@@ -173,6 +173,30 @@ class AccountingSetupControllerTest extends CIUnitTestCase
         $this->assertFalse($settings->autoFiscalYear());
     }
 
+    public function testPostSave_SavesWhetherAnExpenseNeedsACategoryAccount(): void
+    {
+        $this->manager();
+
+        $form = ['base_currency' => 'usd', 'start_date' => '2026-01-01', 'auto_fiscal_year' => '1'];
+
+        $this->assertTrue($this->jsonOf($this->post('/accounting_settings/save', $form + ['expense_account_required' => '1']))['success']);
+        $this->assertTrue((new AccountingSettings())->expenseAccountRequired());
+
+        $this->assertTrue($this->jsonOf($this->post('/accounting_settings/save', $form + ['expense_account_required' => '0']))['success']);
+        $this->assertFalse((new AccountingSettings())->expenseAccountRequired());
+    }
+
+    public function testGetIndex_ShowsWhetherAnExpenseNeedsACategoryAccount(): void
+    {
+        $this->manager();
+
+        $this->setConfigValue('accounting_expense_account_required', '1');
+        $this->assertStringContainsString('value="1" checked', $this->get('/accounting_settings')->getBody());
+
+        $this->setConfigValue('accounting_expense_account_required', '0');
+        $this->assertStringNotContainsString('id="expense_account_required" value="1" checked', $this->get('/accounting_settings')->getBody());
+    }
+
     public function testPostSave_ReportsAnInvalidCurrency(): void
     {
         $this->manager();

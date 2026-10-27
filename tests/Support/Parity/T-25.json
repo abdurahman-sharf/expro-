@@ -1,0 +1,85 @@
+{
+  "id": "T-25",
+  "title": "An expense of 200 with 15% tax paid from a treasury: the cost and the tax are debited and the treasury is credited with 230, owing nobody",
+  "recorded": "2026-10-22",
+  "evidence": {
+    "expense_with_tax": {
+      "id": "ev_6a3f8618d1ac86f190d6e973fad0448b052093d7cda0ba092b708cca98506a46",
+      "note": "Expense 000002 of 200 with the tax of 15% added, which makes 230, saved from the main treasury, and its journal 74: the account of the expense chosen automatically, the account of tax paid and the treasury"
+    }
+  },
+  "cases": [
+    {
+      "id": "expense-200-with-15-percent-tax",
+      "kind": "expense_journal",
+      "classification": "exact",
+      "evidence": [
+        "expense_with_tax"
+      ],
+      "inputs": {
+        "cost": "200.00",
+        "tax": "30.00",
+        "paid": "230.00",
+        "account": "automatic",
+        "way": "cash",
+        "treasury": "main"
+      },
+      "reference": {
+        "debits": [
+          {"account": "expenses_default", "amount": "200.00"},
+          {"account": "tax_input", "amount": "30.00"}
+        ],
+        "credits": [
+          {"account": "treasury", "amount": "230.00"}
+        ]
+      },
+      "expected": {
+        "debits": [
+          {"account": "expenses_default", "amount": "200.00"},
+          {"account": "tax_input", "amount": "30.00"}
+        ],
+        "credits": [
+          {"account": "treasury", "amount": "230.00"}
+        ]
+      }
+    },
+    {
+      "id": "expense-journal-owes-nobody",
+      "kind": "expense_journal_parties",
+      "classification": "exact",
+      "evidence": [
+        "expense_with_tax"
+      ],
+      "inputs": {
+        "cost": "200.00",
+        "tax": "30.00"
+      },
+      "reference": {
+        "party_lines": 0
+      },
+      "expected": {
+        "party_lines": 0
+      }
+    },
+    {
+      "id": "amount-entered-includes-the-tax",
+      "kind": "expense_form",
+      "classification": "differs",
+      "evidence": [
+        "expense_with_tax"
+      ],
+      "inputs": {
+        "reference_amount": "200.00",
+        "reference_tax_rate": "15"
+      },
+      "reference": {
+        "entered": "200.00",
+        "total": "230.00"
+      },
+      "expected": {
+        "entered": "230.00",
+        "tax": "30.00"
+      }
+    }
+  ]
+}

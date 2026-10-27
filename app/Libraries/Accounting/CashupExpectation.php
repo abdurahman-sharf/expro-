@@ -1,0 +1,117 @@
+<?php
+
+namespace App\Libraries\Accounting;
+
+use App\Libraries\Organization\BranchGuard;
+use CodeIgniter\Database\BaseBuilder;
+use CodeIgniter\Database\BaseConnection;
+use Config\Database;
+use Config\OSPOS;
+
+/**
+ * The cash a drawer should hold when it is counted: what it was opened with and what was moved
+ * into it, plus the cash payments of the sales of its branch in the time between opening and
+ * closing, less the cash that was paid out for expenses of the branch in the same time. A payment
+ * counts as cash by what its name stands for in the language in use or in English, and a payment
+ * that is not completed is not cash that came in. An expense that belongs to no branch is one of
+ * the default branch.
+ */
+final class CashupExpectation
+{
+    private const SALE_TYPES = [SALE_TYPE_POS, SALE_TYPE_INVOICE, SALE_TYPE_RETURN];
+
+    private BaseConnection $db;
+
+    public function __construct(?BaseConnection $db = null)
+    {
+        $this->db = $db ?? Database::connect();
+    }
+
+    /**
+     * @param numeric-string $openAmount
+     * @param numeric-string $transferAmount
+     *
+     * @return numeric-string
+     */
+    public function expected(int $branchId, string $openDate, string $closeDate, string $openAmount, string $transferAmount): string
+    {
+        $byDay    = empty(config(OSPOS::class)->settings['date_or_time_format']);
+        $default  = (new BranchGuard($this->db))->companyDefaultBranchId();
+        $expected = bcadd(bcadd($openAmount, $transferAmount, SaleAmounts::SCALE), $this->cashSales($branchId, $openDate, $closeDate, $byDay), SaleAmounts::SCALE);
+
+        return bcsub($expected, $this->cashExpenses($branchId, $openDate, $closeDate, $byDay, $branchId === $default), SaleAmounts::SCALE);
+    }
+
+    /**
+     * @return numeric-string
+     */
+    private function cashSales(int $branchId, string $openDate, string $closeDate, bool $byDay): string
+    {
+        $builder = $this->db->table('sales_payments p')
+            ->select('p.payment_type, SUM(p.payment_amount - p.cash_refund) AS amount', false)
+            ->join('sales s', 's.sale_id = p.sale_id')
+            ->where('s.sale_status', COMPLETED)
+            ->whereIn('s.sale_type', self::SALE_TYPES)
+            ->where('s.branch_id', $branchId)
+            ->where('p.payment_status', PaymentStatus::Completed->value)
+            ->groupBy('p.payment_type');
+
+        $this->within($builder, 's.sale_time', $openDate, $closeDate, $byDay);
+
+        return $this->cashTotal($builder->get()->getResult());
+    }
+
+    /**
+     * @return numeric-string
+     */
+    private function cashExpenses(int $branchId, string $openDate, string $closeDate, bool $byDay, bool $isDefault): string
+    {
+        $builder = $this->db->table('expenses e')
+            ->select('e.payment_type, SUM(e.amount) AS amount', false)
+            ->where('e.deleted', 0)
+            ->groupBy('e.payment_type');
+
+        if ($isDefault) {
+            $builder->groupStart()->where('e.branch_id', $branchId)->orWhere('e.branch_id IS NULL', null, false)->groupEnd();
+        } else {
+            $builder->where('e.branch_id', $branchId);
+        }
+
+        $this->within($builder, 'e.date', $openDate, $closeDate, $byDay);
+
+        return $this->cashTotal($builder->get()->getResult());
+    }
+
+    /**
+     * @param list<object> $rows A payment type and what it came to.
+     *
+     * @return numeric-string
+     */
+    private function cashTotal(array $rows): string
+    {
+        $total = '0';
+
+        foreach ($rows as $row) {
+            if (PaymentType::fromLabel((string) $row->payment_type) === PaymentType::Cash) {
+                $total = bcadd($total, (string) $row->amount, SaleAmounts::SCALE);
+            }
+        }
+
+        return bcadd($total, '0', SaleAmounts::SCALE);
+    }
+
+    /**
+     * The days, or the days and times, between opening and closing, as the cash-up screen takes
+     * them.
+     */
+    private function within(BaseBuilder $builder, string $column, string $openDate, string $closeDate, bool $byDay): void
+    {
+        if ($byDay) {
+            $builder->where("DATE({$column}) BETWEEN " . $this->db->escape(substr($openDate, 0, 10)) . ' AND ' . $this->db->escape(substr($closeDate, 0, 10)), null, false);
+
+            return;
+        }
+
+        $builder->where("{$column} BETWEEN " . $this->db->escape($openDate) . ' AND ' . $this->db->escape($closeDate), null, false);
+    }
+}

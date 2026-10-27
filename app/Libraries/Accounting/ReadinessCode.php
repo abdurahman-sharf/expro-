@@ -18,4 +18,6 @@ enum ReadinessCode: string
     case EntityAccountsMissing      = 'entity_accounts_missing';
     case TaxOutputSharedAccount     = 'tax_output_shared_account';
     case SalesBeforeStartDate       = 'sales_before_start_date';
+    case ExpensesUnposted           = 'expenses_unposted';
+    case CashupsUnposted            = 'cashups_unposted';
 }

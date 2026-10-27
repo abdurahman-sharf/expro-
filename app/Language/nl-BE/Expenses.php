@@ -32,6 +32,9 @@ return [
     'info'                       => 'Onkostennota',
     'ip_address'                 => '',
     'is_deleted'                 => 'Verwijderd',
+    'ledger'                     => '',
+    'ledger_posted'              => '',
+    'ledger_unposted'            => '',
     'name_required'              => 'Onkostennota verplicht',
     'new'                        => 'Nieuwe onkost',
     'new_supplier'               => '',
@@ -47,5 +50,8 @@ return [
     'supplier_tax_code'          => 'VAT Code',
     'tax_amount'                 => 'VAT',
     'tax_amount_number'          => '',
+    'treasury'                   => '',
+    'treasury_default'           => '',
+    'unposted_filter'            => '',
     'update'                     => 'Bewaar Onkosten',
 ];

@@ -8,6 +8,7 @@
  * @var string $start_date
  * @var bool $auto_year
  * @var bool $lineDescriptionRequired
+ * @var bool $expense_account_required
  * @var bool $locked
  * @var int $next_number
  * @var bool $can_manage
@@ -140,6 +141,15 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
                         <label class="form-check-label" for="line_description_required"><?= lang('Accounting_settings.line_description_required') ?></label>
                     </div>
                     <p class="form-text"><?= lang('Accounting_settings.line_description_required_desc') ?></p>
+                </div>
+
+                <div class="field span-all">
+                    <div class="form-check form-switch">
+                        <input type="hidden" name="expense_account_required" value="0">
+                        <input type="checkbox" class="form-check-input" role="switch" name="expense_account_required" id="expense_account_required" value="1"<?= $expense_account_required ? ' checked' : '' ?><?= $can_manage ? '' : ' disabled' ?>>
+                        <label class="form-check-label" for="expense_account_required"><?= lang('Accounting_settings.expense_account_required') ?></label>
+                    </div>
+                    <p class="form-text"><?= lang('Accounting_settings.expense_account_required_desc') ?></p>
                 </div>
 
                 <div class="field">

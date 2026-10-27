@@ -32,6 +32,9 @@ return [
     'info'                       => 'Інформація про Витрати',
     'ip_address'                 => '',
     'is_deleted'                 => 'Видалено',
+    'ledger'                     => '',
+    'ledger_posted'              => '',
+    'ledger_unposted'            => '',
     'name_required'              => 'Потрібен опис витрат',
     'new'                        => 'Нові витрати',
     'new_supplier'               => '',
@@ -47,5 +50,8 @@ return [
     'supplier_tax_code'          => 'Податковий код',
     'tax_amount'                 => 'Податок',
     'tax_amount_number'          => '',
+    'treasury'                   => '',
+    'treasury_default'           => '',
+    'unposted_filter'            => '',
     'update'                     => 'Оновити витрати',
 ];

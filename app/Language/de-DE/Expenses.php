@@ -32,6 +32,9 @@ return [
     'info'                       => 'Ausgaben Info',
     'ip_address'                 => '',
     'is_deleted'                 => 'Gelöscht',
+    'ledger'                     => '',
+    'ledger_posted'              => '',
+    'ledger_unposted'            => '',
     'name_required'              => 'Ausgaben Name erforderlich',
     'new'                        => 'Neue Ausgabe',
     'new_supplier'               => '',
@@ -47,5 +50,8 @@ return [
     'supplier_tax_code'          => 'Steuer Art',
     'tax_amount'                 => 'Steuer',
     'tax_amount_number'          => '',
+    'treasury'                   => '',
+    'treasury_default'           => '',
+    'unposted_filter'            => '',
     'update'                     => 'Ausgabe Aktualisieren',
 ];

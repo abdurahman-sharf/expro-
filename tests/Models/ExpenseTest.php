@@ -2,31 +2,36 @@
 
 namespace Tests\Models;
 
+use App\Libraries\Accounting\AccountingError;
+use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\PostingError;
+use App\Libraries\Accounting\PostingException;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
-use App\Models\Expense;
+use App\Libraries\Numbering\NumberingSequence;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
+use Tests\Support\ExpenseAccountingFixtureTrait;
 
+/**
+ * What the expense model shows about the books while accounting is on, and that it shows and writes
+ * nothing of them while accounting is off; and the number the expense is given by the numbering,
+ * with the books off and on.
+ */
 class ExpenseTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
     use EmployeeFixtureTrait;
+    use ExpenseAccountingFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
     protected $refresh     = false;
     protected $namespace   = null;
-
-    private int $categoryId;
-    private int $employeeId;
-
-    /** @var list<int> */
-    private array $expenseIds = [];
 
     public static function setUpBeforeClass(): void
     {
@@ -38,60 +43,88 @@ class ExpenseTest extends CIUnitTestCase
     {
         parent::setUp();
 
-        $this->releaseOpenTransactions();
-        $db = $this->accountingDb();
-        $db->table('expense_categories')->insert(['category_name' => 'Expense test ' . uniqid(), 'category_description' => '', 'deleted' => 0]);
-
-        $this->categoryId = (int) $db->insertID();
-        $this->employeeId = $this->createEmployee();
+        $this->clearNumbering();
+        $this->startExpenses();
     }
 
     protected function tearDown(): void
     {
-        $db = $this->accountingDb();
-        $db->table('document_numbers')->truncate();
-        $db->table('document_sequences')->truncate();
-        $db->table('accounting_audit_log')->where('entity_type', 'document_numbering')->delete();
-
-        if ($this->expenseIds !== []) {
-            $db->table('expenses')->whereIn('expense_id', $this->expenseIds)->delete();
-        }
-
-        $db->table('expense_categories')->where('expense_category_id', $this->categoryId)->delete();
+        $this->stopExpenses();
+        $this->clearNumbering();
 
         parent::tearDown();
+    }
+
+    private function clearNumbering(): void
+    {
+        $db = $this->accountingDb();
+
+        $db->table('document_numbers')->truncate();
+        $db->table('document_sequences')->truncate();
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function expenseData(string $amount = '25.00'): array
+    private function filters(bool $onlyUnposted = false, bool $deleted = false): array
     {
         return [
-            'date'                => date('Y-m-d H:i:s'),
-            'amount'              => $amount,
-            'tax_amount'          => '0.00',
-            'payment_type'        => 'Cash',
-            'expense_category_id' => $this->categoryId,
-            'description'         => 'Expense test',
-            'employee_id'         => $this->employeeId,
-            'deleted'             => 0,
+            'is_deleted'    => $deleted ? 1 : 0,
+            'start_date'    => '2026-01-01',
+            'end_date'      => '2026-12-31',
+            'only_debit'    => false,
+            'only_credit'   => false,
+            'only_cash'     => false,
+            'only_due'      => false,
+            'only_check'    => false,
+            'only_unposted' => $onlyUnposted,
         ];
     }
 
-    private function saveExpense(string $amount = '25.00', int $expenseId = NEW_ENTRY): int
+    /**
+     * @return array<int, object> The rows the list shows, by expense.
+     */
+    private function listed(bool $onlyUnposted = false, bool $deleted = false): array
     {
-        $data = $this->expenseData($amount);
+        $rows = [];
 
-        $this->assertTrue(model(Expense::class)->save_value($data, $expenseId));
-
-        $id = (int) ($data['expense_id'] ?? $expenseId);
-
-        if (! in_array($id, $this->expenseIds, true)) {
-            $this->expenseIds[] = $id;
+        foreach ($this->expenses->search('', $this->filters($onlyUnposted, $deleted), 0, 0, 'expense_id', 'asc')->getResult() as $row) {
+            $rows[(int) $row->expense_id] = $row;
         }
 
-        return $id;
+        return $rows;
+    }
+
+    /**
+     * An expense saved while the books did not follow it, a posted one and one of zero.
+     *
+     * @return array{legacy: int, posted: int, zero: int}
+     */
+    private function oneOfEach(): array
+    {
+        $this->setConfigValue('accounting_enabled', '0');
+        $legacy = $this->saveExpense($this->expenseData('100.00'));
+        $this->setConfigValue('accounting_enabled', '1');
+
+        return ['legacy' => $legacy, 'posted' => $this->saveExpense($this->expenseData('50.00')), 'zero' => $this->saveExpense($this->expenseData('0.00'))];
+    }
+
+    private function storeExpense(string $amount = '25.00', int $expenseId = NEW_ENTRY): int
+    {
+        $stored = $this->saveExpense($this->expenseData($amount), $expenseId);
+
+        $this->assertNotNull($stored);
+
+        return $stored;
+    }
+
+    private function storeExpenseDated(string $date): int
+    {
+        $stored = $this->saveExpense($this->expenseData('10.00', '0', 'Cash', null, $date));
+
+        $this->assertNotNull($stored);
+
+        return $stored;
     }
 
     private function numberOf(int $expenseId): ?string
@@ -99,9 +132,169 @@ class ExpenseTest extends CIUnitTestCase
         return (new DocumentNumbering())->numbers(DocumentType::Expense, 'expenses', [$expenseId])[$expenseId] ?? null;
     }
 
+    private function switchNumberingOn(): NumberingSequence
+    {
+        return (new DocumentNumbering())->configure(DocumentType::Expense, ['enabled' => true, 'prefix' => 'EXP-', 'padding' => 5]);
+    }
+
+    private function nextNumber(): int
+    {
+        return (new DocumentNumbering())->sequence(DocumentType::Expense)->nextNumber;
+    }
+
+    private function useUpTheSequence(): void
+    {
+        $db = $this->accountingDb();
+
+        $this->switchNumberingOn();
+        $db->table('document_sequences')->where('doc_type', 'expense')->update(['next_number' => 4294967294]);
+        $db->table('document_numbers')->insert(['company_id' => 1, 'doc_type' => 'expense', 'source_table' => 'expenses', 'source_id' => 999999999, 'sequence_number' => 4294967294, 'number' => 'EXP-4294967294']);
+    }
+
+    public function testSearch_ShowsWhetherTheBooksHoldEachExpense(): void
+    {
+        $ids  = $this->oneOfEach();
+        $rows = $this->listed();
+
+        $this->assertSame([0, 1, 1], [(int) $rows[$ids['legacy']]->ledger_state, (int) $rows[$ids['posted']]->ledger_state, (int) $rows[$ids['zero']]->ledger_state]);
+    }
+
+    public function testSearch_ListsOnlyTheExpensesStillMissingFromTheBooksWhenAsked(): void
+    {
+        $ids = $this->oneOfEach();
+
+        $this->assertSame([$ids['legacy']], array_keys($this->listed(true)));
+        $this->assertSame(3, count($this->listed(false)));
+    }
+
+    public function testSearch_ShowsADeletedExpenseAsOwingTheBooksNothing(): void
+    {
+        $ids = $this->oneOfEach();
+
+        $this->assertTrue($this->expenses->delete_list([$ids['legacy'], $ids['posted']], $this->clerkId));
+
+        $rows = $this->listed(false, true);
+
+        $this->assertSame([1, 1], [(int) $rows[$ids['legacy']]->ledger_state, (int) $rows[$ids['posted']]->ledger_state]);
+        $this->assertSame([], $this->listed(true, true));
+    }
+
+    public function testSearch_ShowsAnExpenseThatStandsInTheBooksAgainAfterAnEditThatReplacedItsJournal(): void
+    {
+        $ids = $this->oneOfEach();
+
+        $this->saveExpense($this->expenseData('80.00'), $ids['posted']);
+
+        $this->assertSame(1, (int) $this->listed()[$ids['posted']]->ledger_state);
+        $this->assertSame([$ids['legacy']], array_keys($this->listed(true)));
+    }
+
+    public function testSearch_CarriesNoLedgerColumnWhileAccountingIsOff(): void
+    {
+        $this->oneOfEach();
+        $this->setConfigValue('accounting_enabled', '0');
+
+        foreach ($this->listed() as $row) {
+            $this->assertObjectNotHasProperty('ledger_state', $row);
+        }
+    }
+
+    public function testSearch_IgnoresTheFilterOfUnpostedExpensesWhileAccountingIsOff(): void
+    {
+        $this->oneOfEach();
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $this->assertCount(3, $this->listed(true));
+    }
+
+    public function testGetFoundRows_CountsOnlyTheExpensesStillMissingFromTheBooksWhenAsked(): void
+    {
+        $this->oneOfEach();
+
+        $this->assertSame(3, $this->expenses->get_found_rows('', $this->filters()));
+        $this->assertSame(1, $this->expenses->get_found_rows('', $this->filters(true)));
+    }
+
+    public function testGetInfo_TellsTheLedgerStateTheBranchAndTheTreasuryOfTheExpense(): void
+    {
+        $ids      = $this->oneOfEach();
+        $treasury = $this->treasury();
+        $data     = $this->expenseData('70.00');
+
+        $data['treasury_id'] = $treasury;
+
+        $withTreasury = $this->saveExpense($data);
+        $info         = $this->expenses->get_info($withTreasury);
+
+        $this->assertSame([1, $treasury, 1], [(int) $info->ledger_state, (int) $info->treasury_id, (int) $info->branch_id]);
+        $this->assertSame(0, (int) $this->expenses->get_info($ids['legacy'])->ledger_state);
+        $this->assertNull($this->expenses->get_info($ids['legacy'])->branch_id);
+    }
+
+    public function testGetInfo_CarriesNoLedgerStateWhileAccountingIsOff(): void
+    {
+        $ids = $this->oneOfEach();
+
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $this->assertObjectNotHasProperty('ledger_state', $this->expenses->get_info($ids['posted']));
+    }
+
+    public function testSaveValue_ForgetsAnEarlierRefusalOnceTheNextSaveSucceeds(): void
+    {
+        $this->closeThrough('2026-10-31');
+
+        $this->assertNull($this->saveExpense($this->expenseData('10.00')));
+        $this->assertInstanceOf(PostingException::class, $this->expenses->accountingFailure());
+        $this->assertSame(PostingError::PeriodClosed, $this->expenses->accountingFailure()->error);
+
+        $this->assertNotNull($this->saveExpense($this->expenseData('10.00', '0', 'Cash', null, '2026-11-02 10:00:00')));
+        $this->assertNull($this->expenses->accountingFailure());
+    }
+
+    public function testSaveValue_WritesNoAccountingColumnWhileAccountingIsOff(): void
+    {
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $data                = $this->expenseData('40.00');
+        $data['treasury_id'] = $this->treasury();
+        $data['branch_id']   = 1;
+        $expenseId           = $this->saveExpense($data);
+        $row                 = $this->accountingDb()->table('expenses')->where('expense_id', $expenseId)->get()->getRow();
+
+        $this->assertSame([null, null], [$row->branch_id, $row->treasury_id]);
+        $this->assertSame(0, $this->countRows('accounting_journals'));
+    }
+
+    public function testDeleteList_MarksTheExpensesDeletedWithoutTouchingTheBooksWhileAccountingIsOff(): void
+    {
+        $ids = $this->oneOfEach();
+
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $journals = $this->countRows('accounting_journals');
+
+        $this->assertTrue($this->expenses->delete_list([$ids['posted'], $ids['legacy']]));
+        $this->assertSame($journals, $this->countRows('accounting_journals'));
+        $this->assertSame(2, $this->accountingDb()->table('expenses')->where('deleted', 1)->countAllResults());
+    }
+
+    public function testDeleteList_ForgetsAnEarlierRefusalOnceTheNextDeleteSucceeds(): void
+    {
+        $ids = $this->oneOfEach();
+
+        $this->assertFalse($this->expenses->delete_list([$ids['posted']], $this->employeeWithGrants([], [$this->createBranch('B2')])));
+        $this->assertNotNull($this->expenses->accountingFailure());
+
+        $this->assertTrue($this->expenses->delete_list([$ids['posted']], $this->clerkId));
+        $this->assertNull($this->expenses->accountingFailure());
+    }
+
     public function testSaveValue_GivesNoNumberWhileTheSequenceIsOff(): void
     {
-        $expenseId = $this->saveExpense();
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $expenseId = $this->storeExpense();
 
         $this->assertNull($this->numberOf($expenseId));
         $this->assertSame(0, $this->countRows('document_numbers'));
@@ -109,21 +302,21 @@ class ExpenseTest extends CIUnitTestCase
 
     public function testSaveValue_HandsTheIdOfTheNewExpenseBack(): void
     {
-        $data = $this->expenseData();
+        $this->setConfigValue('accounting_enabled', '0');
 
-        $this->assertTrue(model(Expense::class)->save_value($data));
+        $data = $this->expenseData('25.00');
 
-        $this->expenseIds[] = (int) $data['expense_id'];
-
+        $this->assertTrue($this->expenses->save_value($data));
         $this->assertGreaterThan(0, (int) $data['expense_id']);
     }
 
     public function testSaveValue_NumbersANewExpenseWhenTheSequenceIsOn(): void
     {
-        (new DocumentNumbering())->configure(DocumentType::Expense, ['enabled' => true, 'prefix' => 'EXP-', 'padding' => 5]);
+        $this->setConfigValue('accounting_enabled', '0');
+        $this->switchNumberingOn();
 
-        $first  = $this->saveExpense();
-        $second = $this->saveExpense('30.00');
+        $first  = $this->storeExpense();
+        $second = $this->storeExpense('30.00');
 
         $this->assertSame('EXP-00001', $this->numberOf($first));
         $this->assertSame('EXP-00002', $this->numberOf($second));
@@ -131,10 +324,12 @@ class ExpenseTest extends CIUnitTestCase
 
     public function testSaveValue_ContinuesFromTheExpensesThatAlreadyShowTheirId(): void
     {
-        $before = $this->saveExpense();
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $before = $this->storeExpense();
 
         $sequence = (new DocumentNumbering())->configure(DocumentType::Expense, ['enabled' => true]);
-        $after    = $this->saveExpense();
+        $after    = $this->storeExpense();
 
         $this->assertGreaterThan($before, $sequence->nextNumber);
         $this->assertSame((string) $sequence->nextNumber, $this->numberOf($after));
@@ -143,23 +338,27 @@ class ExpenseTest extends CIUnitTestCase
 
     public function testSaveValue_KeepsTheNumberWhenTheExpenseIsEdited(): void
     {
-        (new DocumentNumbering())->configure(DocumentType::Expense, ['enabled' => true, 'prefix' => 'EXP-', 'padding' => 5]);
-        $expenseId = $this->saveExpense();
+        $this->setConfigValue('accounting_enabled', '0');
+        $this->switchNumberingOn();
 
-        $this->saveExpense('99.00', $expenseId);
+        $expenseId = $this->storeExpense();
+
+        $this->storeExpense('99.00', $expenseId);
 
         $this->assertSame('EXP-00001', $this->numberOf($expenseId));
-        $this->assertSame(2, (new DocumentNumbering())->sequence(DocumentType::Expense)->nextNumber);
+        $this->assertSame(2, $this->nextNumber());
     }
 
     public function testSaveValue_KeepsTheNumberOfADeletedExpenseAndNeverGivesItAgain(): void
     {
-        (new DocumentNumbering())->configure(DocumentType::Expense, ['enabled' => true, 'prefix' => 'EXP-', 'padding' => 5]);
-        $first = $this->saveExpense();
+        $this->setConfigValue('accounting_enabled', '0');
+        $this->switchNumberingOn();
 
-        $this->assertTrue(model(Expense::class)->delete_list([$first]));
+        $first = $this->storeExpense();
 
-        $second = $this->saveExpense();
+        $this->assertTrue($this->expenses->delete_list([$first]));
+
+        $second = $this->storeExpense();
 
         $this->assertSame('EXP-00001', $this->numberOf($first));
         $this->assertSame('EXP-00002', $this->numberOf($second));
@@ -167,16 +366,138 @@ class ExpenseTest extends CIUnitTestCase
 
     public function testSaveValue_RefusesTheExpenseAndLeavesNothingWhenNoNumberCanBeGiven(): void
     {
-        $db = $this->accountingDb();
-        (new DocumentNumbering())->configure(DocumentType::Expense, ['enabled' => true, 'prefix' => 'EXP-']);
-        $db->table('document_sequences')->where('doc_type', 'expense')->update(['next_number' => 4294967294]);
-        $db->table('document_numbers')->insert(['company_id' => 1, 'doc_type' => 'expense', 'source_table' => 'expenses', 'source_id' => 999999999, 'sequence_number' => 4294967294, 'number' => 'EXP-4294967294']);
+        $this->setConfigValue('accounting_enabled', '0');
+        $this->useUpTheSequence();
 
         $before = $this->countRows('expenses');
-        $data   = $this->expenseData();
+        $data   = $this->expenseData('25.00');
 
-        $this->assertFalse(model(Expense::class)->save_value($data));
+        $this->assertFalse($this->expenses->save_value($data));
+        $this->assertSame(AccountingError::NumberingExhausted, $this->expenses->accountingFailure()->error);
         $this->assertSame($before, $this->countRows('expenses'));
         $this->assertSame(1, $this->countRows('document_numbers'));
+    }
+
+    public function testSaveValue_NumbersANewExpenseInTheTransactionThatPostsItsJournal(): void
+    {
+        $this->switchNumberingOn();
+
+        $first  = $this->storeExpense();
+        $second = $this->storeExpense('30.00');
+
+        $this->assertSame(['EXP-00001', 'EXP-00002'], [$this->numberOf($first), $this->numberOf($second)]);
+        $this->assertSame(['posted'], array_column($this->journalsOfSource('expense', $first), 'status'));
+        $this->assertSame(['posted'], array_column($this->journalsOfSource('expense', $second), 'status'));
+    }
+
+    public function testSaveValue_NumbersAnExpenseOfZeroThatTheBooksDoNotPost(): void
+    {
+        $this->switchNumberingOn();
+
+        $expenseId = $this->storeExpense('0.00');
+
+        $this->assertSame('EXP-00001', $this->numberOf($expenseId));
+        $this->assertSame(0, $this->countRows('accounting_journals'));
+    }
+
+    public function testSaveValue_ConsumesNoNumberWhenTheBooksRefuseANewExpense(): void
+    {
+        $this->switchNumberingOn();
+        $this->closeThrough('2026-10-31');
+
+        $this->assertNull($this->saveExpense($this->expenseData('10.00')));
+        $this->assertSame(PostingError::PeriodClosed, $this->expenses->accountingFailure()->error);
+        $this->assertSame([0, 0, 0], [$this->countRows('expenses'), $this->countRows('document_numbers'), $this->countRows('accounting_journals')]);
+        $this->assertSame(1, $this->nextNumber());
+
+        $next = $this->storeExpenseDated('2026-11-02 10:00:00');
+
+        $this->assertSame('EXP-00001', $this->numberOf($next));
+        $this->assertSame(2, $this->nextNumber());
+    }
+
+    public function testSaveValue_ConsumesNoNumberWhenTheCategoryNeedsAnAccountItHasNot(): void
+    {
+        $this->switchNumberingOn();
+        $this->setConfigValue('accounting_expense_account_required', '1');
+
+        $this->assertNull($this->saveExpense($this->expenseData('10.00')));
+        $this->assertSame(AccountingError::ExpenseCategoryAccountRequired, $this->expenses->accountingFailure()->error);
+        $this->assertSame([0, 0], [$this->countRows('expenses'), $this->countRows('document_numbers')]);
+        $this->assertSame(1, $this->nextNumber());
+    }
+
+    public function testSaveValue_KeepsTheNumberAndPostsAgainWhenANumberedExpenseIsEdited(): void
+    {
+        $this->switchNumberingOn();
+
+        $expenseId = $this->storeExpense();
+
+        $this->storeExpense('99.00', $expenseId);
+
+        $this->assertSame('EXP-00001', $this->numberOf($expenseId));
+        $this->assertSame(2, $this->nextNumber());
+        $this->assertSame(1, $this->countRows('document_numbers'));
+        $this->assertSame(['reversed', 'posted'], array_column($this->journalsOfSource('expense', $expenseId), 'status'));
+        $this->assertSame('-99.00', $this->balanceOf($this->accountId('cash')));
+    }
+
+    public function testSaveValue_KeepsTheNumberAndTheJournalWhenTheBooksRefuseTheEditOfANumberedExpense(): void
+    {
+        $this->switchNumberingOn();
+
+        $expenseId = $this->storeExpense();
+
+        $this->closeThrough('2026-10-31');
+
+        $this->assertNull($this->saveExpense($this->expenseData('99.00'), $expenseId));
+        $this->assertSame(PostingError::PeriodClosed, $this->expenses->accountingFailure()->error);
+        $this->assertSame('EXP-00001', $this->numberOf($expenseId));
+        $this->assertSame(2, $this->nextNumber());
+        $this->assertSame('25.00', bcadd((string) $this->expenses->get_info($expenseId)->amount, '0', 2));
+        $this->assertSame(['posted'], array_column($this->journalsOfSource('expense', $expenseId), 'status'));
+    }
+
+    public function testSaveValue_RefusesTheExpenseAndLeavesNothingWhenNoNumberCanBeGivenWhileAccountingIsOn(): void
+    {
+        $this->useUpTheSequence();
+
+        $data = $this->expenseData('25.00');
+
+        $this->assertFalse($this->expenses->save_value($data, NEW_ENTRY, $this->clerkId));
+        $this->assertSame([0, 1, 0], [$this->countRows('expenses'), $this->countRows('document_numbers'), $this->countRows('accounting_journals')]);
+        $this->assertInstanceOf(AccountingException::class, $this->expenses->accountingFailure());
+        $this->assertSame(AccountingError::NumberingExhausted, $this->expenses->accountingFailure()->error);
+    }
+
+    public function testDeleteList_KeepsTheNumberOfADeletedExpenseInTheRegisterAndReversesItsJournal(): void
+    {
+        $this->switchNumberingOn();
+
+        $first = $this->storeExpense();
+
+        $this->assertTrue($this->expenses->delete_list([$first], $this->clerkId));
+
+        $second = $this->storeExpense('30.00');
+
+        $this->assertSame('EXP-00001', $this->numberOf($first));
+        $this->assertSame('EXP-00002', $this->numberOf($second));
+        $this->assertArrayHasKey($first, $this->listed(false, true));
+        $this->assertSame('-30.00', $this->balanceOf($this->accountId('cash')));
+    }
+
+    public function testDeleteList_KeepsTheNumberAndTheExpenseWhenTheBooksRefuseTheDeletion(): void
+    {
+        $this->switchNumberingOn();
+
+        $expenseId = $this->storeExpense();
+
+        $this->closeThrough('2026-10-31');
+
+        $this->assertFalse($this->expenses->delete_list([$expenseId], $this->clerkId));
+        $this->assertSame(PostingError::PeriodClosed, $this->expenses->accountingFailure()->error);
+        $this->assertSame('EXP-00001', $this->numberOf($expenseId));
+        $this->assertArrayHasKey($expenseId, $this->listed());
+        $this->assertSame(['posted'], array_column($this->journalsOfSource('expense', $expenseId), 'status'));
     }
 }

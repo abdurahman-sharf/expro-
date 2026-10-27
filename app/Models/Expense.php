@@ -3,12 +3,20 @@
 namespace App\Models;
 
 use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\AccountingSettings;
+use App\Libraries\Accounting\ExpensePosting;
+use App\Libraries\Accounting\ExpensePostingBuilder;
+use App\Libraries\Accounting\JournalStatus;
+use App\Libraries\Accounting\LockedRead;
+use App\Libraries\Accounting\PostingException;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
+use App\Libraries\Organization\BranchException;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Model;
 use Config\OSPOS;
 use stdClass;
+use Throwable;
 
 /**
  * Expense class
@@ -29,8 +37,19 @@ class Expense extends Model
         'deleted',
         'supplier_tax_code',
         'tax_amount',
-        'supplier_id'
+        'supplier_id',
+        'branch_id',
+        'treasury_id'
     ];
+    private ?Throwable $accountingFailure = null;
+
+    /**
+     * Why the last change to an expense was refused by the books, or null when it was not.
+     */
+    public function accountingFailure(): ?Throwable
+    {
+        return $this->accountingFailure;
+    }
 
     /**
      * Determines if a given Expense_id is an Expense
@@ -111,6 +130,7 @@ class Expense extends Model
         if ($count_only == null) $count_only = false;
 
         $config = config(OSPOS::class)->settings;
+        $accountingOn = (new AccountingSettings($this->db))->isEnabled();
         $builder = $this->db->table('expenses AS expenses');
 
         // get_found_rows case
@@ -130,6 +150,10 @@ class Expense extends Model
                 MAX(employees.last_name) AS last_name,
                 MAX(expense_categories.category_name) AS category_name
             ');
+
+            if ($accountingOn) {
+                $builder->select('MAX(' . $this->ledgerState('expenses') . ') AS ledger_state', false);
+            }
         }
 
         $builder->join('people AS employees', 'employees.person_id = expenses.employee_id', 'LEFT');
@@ -177,6 +201,10 @@ class Expense extends Model
             $builder->like('expenses.payment_type', lang('Expenses.check'));
         }
 
+        if ($accountingOn && !empty($filters['only_unposted'])) {
+            $builder->where($this->ledgerState('expenses') . ' = 0', null, false);
+        }
+
         if ($count_only) {    // TODO: replace this with `if ($count_only)`
             return $builder->get()->getRow()->count;
         }
@@ -197,6 +225,7 @@ class Expense extends Model
      */
     public function get_info(int $expense_id): object
     {
+        $accountingOn = (new AccountingSettings($this->db))->isEnabled();
         $builder = $this->db->table('expenses AS expenses');
         $builder->select('
             expenses.expense_id AS expense_id,
@@ -210,6 +239,8 @@ class Expense extends Model
             expenses.description AS description,
             expenses.employee_id AS employee_id,
             expenses.deleted AS deleted,
+            expenses.treasury_id AS treasury_id,
+            expenses.branch_id AS branch_id,
             employees.first_name AS first_name,
             employees.last_name AS last_name,
             expense_categories.expense_category_id AS expense_category_id,
@@ -220,6 +251,10 @@ class Expense extends Model
         $builder->join('expense_categories AS expense_categories', 'expense_categories.expense_category_id = expenses.expense_category_id', 'LEFT');
         $builder->join('suppliers AS suppliers', 'suppliers.person_id = expenses.supplier_id', 'LEFT');
         $builder->where('expense_id', $expense_id);
+
+        if ($accountingOn) {
+            $builder->select($this->ledgerState('expenses') . ' AS ledger_state', false);
+        }
 
         $query = $builder->get();
 
@@ -233,6 +268,17 @@ class Expense extends Model
         $empty_obj->last_name = null;
 
         return $empty_obj;
+    }
+
+    /**
+     * 1 when the books hold all the expense calls for: a journal that stands, or an amount of zero
+     * or a deletion that call for none. 0 when a journal is still missing.
+     */
+    private function ledgerState(string $alias): string
+    {
+        return "(CASE WHEN {$alias}.amount = 0 OR {$alias}.deleted = 1 OR EXISTS (SELECT 1 FROM " . $this->db->prefixTable('accounting_journals') . ' j WHERE j.source_type = '
+            . $this->db->escape(ExpensePostingBuilder::SOURCE) . " AND j.source_id = {$alias}.expense_id AND j.status = "
+            . $this->db->escape(JournalStatus::Posted->value) . ') THEN 1 ELSE 0 END)';
     }
 
     /**
@@ -260,9 +306,74 @@ class Expense extends Model
     }
 
     /**
-     * Inserts or updates an expense
+     * Inserts or updates an expense. With accounting on, an expense the books follow is saved with
+     * its journal in one transaction, and the books refusing it undoes both; accountingFailure()
+     * then says why. The actor is the employee who makes the change, whose branches and treasuries
+     * decide what is allowed, and is the employee of the expense when none is given.
      */
-    public function save_value(array &$expense_data, int $expense_id = NEW_ENTRY): bool
+    public function save_value(array &$expense_data, int $expense_id = NEW_ENTRY, ?int $actorId = null): bool
+    {
+        $this->accountingFailure = null;
+
+        if (! (new AccountingSettings($this->db))->isEnabled()) {
+            unset($expense_data['treasury_id'], $expense_data['branch_id']);
+
+            try {
+                return $this->saveRow($expense_data, $expense_id);
+            } catch (AccountingException $failure) {
+                $this->accountingFailure = $failure;
+
+                return false;
+            }
+        }
+
+        $actorId ??= isset($expense_data['employee_id']) ? (int) $expense_data['employee_id'] : null;
+        $posting = new ExpensePosting($this->db);
+        $branch  = null;
+        $stored  = null;
+
+        $this->db->transStart();
+
+        try {
+            if ($expense_id !== NEW_ENTRY) {
+                $stored = LockedRead::row($this->db, 'SELECT * FROM ' . $this->db->prefixTable('expenses') . ' WHERE expense_id = ? FOR UPDATE', [$expense_id]);
+            }
+
+            $plan         = $posting->plan($expense_data, $stored, $actorId);
+            $branch       = $plan['branch_id'];
+            $expense_data = $plan['data'];
+            $success      = $this->saveRow($expense_data, $expense_id);
+
+            if ($success && $plan['post']) {
+                $posting->sync($stored === null ? (int) $expense_data['expense_id'] : $expense_id, $actorId);
+            }
+        } catch (AccountingException|BranchException|PostingException $failure) {
+            $this->db->transRollback();
+            $this->accountingFailure = $failure;
+
+            if ($failure instanceof PostingException) {
+                $posting->recordFailure($stored === null ? null : $expense_id, $failure, $actorId, $branch);
+            }
+
+            return false;
+        } catch (Throwable $unexpected) {
+            $this->db->transRollback();
+
+            throw $unexpected;
+        }
+
+        $this->db->transComplete();
+
+        return $success && $this->db->transStatus();
+    }
+
+    /**
+     * A new expense that cannot be given its number is not left behind, and the refusal reaches the
+     * caller so that a transaction it holds is rolled back too.
+     *
+     * @throws AccountingException
+     */
+    private function saveRow(array &$expense_data, int $expense_id): bool
     {
         $builder = $this->db->table('expenses');
 
@@ -280,7 +391,7 @@ class Expense extends Model
                     log_message('error', 'Numbering expense ' . $expense_data['expense_id'] . ' failed: ' . $failure->getMessage());
                     $this->db->transRollback();
 
-                    return false;
+                    throw $failure;
                 }
             }
 
@@ -295,9 +406,59 @@ class Expense extends Model
     }
 
     /**
-     * Deletes a list of expense_category
+     * Deletes a list of expenses. With accounting on, the journal of each expense that is in the
+     * books is reversed with it, all in one transaction: either every expense goes or none.
      */
-    public function delete_list(array $expense_ids): bool
+    public function delete_list(array $expense_ids, ?int $actorId = null): bool
+    {
+        $this->accountingFailure = null;
+
+        if (! (new AccountingSettings($this->db))->isEnabled()) {
+            return $this->deleteRows($expense_ids);
+        }
+
+        $posting = new ExpensePosting($this->db);
+        $ids     = array_values(array_unique(array_map('intval', $expense_ids)));
+
+        sort($ids);
+
+        $current = null;
+
+        $this->db->transStart();
+
+        try {
+            foreach ($ids as $expenseId) {
+                $current = $expenseId;
+                $row     = LockedRead::row($this->db, 'SELECT expense_id, branch_id FROM ' . $this->db->prefixTable('expenses') . ' WHERE expense_id = ? FOR UPDATE', [$expenseId]);
+
+                if ($row === null) {
+                    continue;
+                }
+
+                $posting->cancel($expenseId, $actorId);
+                $this->db->table('expenses')->where('expense_id', $expenseId)->update(['deleted' => 1]);
+            }
+        } catch (AccountingException|BranchException|PostingException $failure) {
+            $this->db->transRollback();
+            $this->accountingFailure = $failure;
+
+            if ($failure instanceof PostingException) {
+                $posting->recordFailure($current, $failure, $actorId);
+            }
+
+            return false;
+        } catch (Throwable $unexpected) {
+            $this->db->transRollback();
+
+            throw $unexpected;
+        }
+
+        $this->db->transComplete();
+
+        return $this->db->transStatus();
+    }
+
+    private function deleteRows(array $expense_ids): bool
     {
         $builder = $this->db->table('expenses');
 

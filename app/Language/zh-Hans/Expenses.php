@@ -32,6 +32,9 @@ return [
     'info'                       => 'Expense Info',
     'ip_address'                 => '',
     'is_deleted'                 => 'Deleted',
+    'ledger'                     => '',
+    'ledger_posted'              => '',
+    'ledger_unposted'            => '',
     'name_required'              => '名称是必填的',
     'new'                        => '新支出',
     'new_supplier'               => '',
@@ -47,5 +50,8 @@ return [
     'supplier_tax_code'          => '税代码',
     'tax_amount'                 => '税',
     'tax_amount_number'          => '',
+    'treasury'                   => '',
+    'treasury_default'           => '',
+    'unposted_filter'            => '',
     'update'                     => '更新支出',
 ];

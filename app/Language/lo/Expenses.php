@@ -32,6 +32,9 @@ return [
     'info'                       => 'ຂໍ້ມູນຄ່າໃຊ້ຈ່າຍ',
     'ip_address'                 => '',
     'is_deleted'                 => 'ລຶບ',
+    'ledger'                     => '',
+    'ledger_posted'              => '',
+    'ledger_unposted'            => '',
     'name_required'              => 'ຊື່ຄ່າໃຊ້ຈ່າຍຕ້ອງໃສ່',
     'new'                        => 'ຄ່າໃຊ້ຈ່າຍໃໝ່',
     'new_supplier'               => '',
@@ -47,5 +50,8 @@ return [
     'supplier_tax_code'          => 'ລະຫັດພາສີ',
     'tax_amount'                 => 'ພາສີ',
     'tax_amount_number'          => '',
+    'treasury'                   => '',
+    'treasury_default'           => '',
+    'unposted_filter'            => '',
     'update'                     => 'ແກ້ໄຂຄ່າໃຊ້ຈ່າຍ',
 ];

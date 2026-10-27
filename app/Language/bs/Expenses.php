@@ -32,6 +32,9 @@ return [
     'info'                       => 'Informacije o troškovima',
     'ip_address'                 => '',
     'is_deleted'                 => 'Izbrisano',
+    'ledger'                     => '',
+    'ledger_posted'              => '',
+    'ledger_unposted'            => '',
     'name_required'              => 'Naziv troška je obavezan',
     'new'                        => 'Novi trošak',
     'new_supplier'               => '',
@@ -47,5 +50,8 @@ return [
     'supplier_tax_code'          => 'Poreski broj',
     'tax_amount'                 => 'Porez',
     'tax_amount_number'          => '',
+    'treasury'                   => '',
+    'treasury_default'           => '',
+    'unposted_filter'            => '',
     'update'                     => 'Ažuriraj trošak',
 ];

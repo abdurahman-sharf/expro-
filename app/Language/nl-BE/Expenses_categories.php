@@ -1,10 +1,14 @@
 <?php
 
 return [
-    'category_name_required'            => 'De naam van dit veld is verplicht',
+    'account'                           => '',
+    'account_default'                   => '',
+    'account_desc'                      => '',
+    'account_locked'                    => '',
     'add_item'                          => 'Voeg onkostencategorie toe',
     'cannot_be_deleted'                 => 'Kan de onkostencategorie niet verwijderen',
     'category_id'                       => 'Id',
+    'category_name_required'            => 'De naam van dit veld is verplicht',
     'confirm_delete'                    => 'Bent u zeker dat u de geselecteerde onkostencategorie wil verwijderen?',
     'confirm_restore'                   => 'Bent u zeker dat u de geselecteerde onkostencategorie wil herstellen?',
     'description'                       => 'Categorie Omschrijving',

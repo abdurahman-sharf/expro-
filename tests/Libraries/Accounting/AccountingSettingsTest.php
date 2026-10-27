@@ -557,4 +557,64 @@ class AccountingSettingsTest extends CIUnitTestCase
 
         $this->settings->enable($this->manager([1]));
     }
+
+    public function testExpenseAccountRequired_IsOffUntilTheSettingTurnsItOn(): void
+    {
+        $this->assertFalse($this->settings->expenseAccountRequired());
+
+        $this->settings->update(['expense_account_required' => true], $this->manager());
+
+        $this->assertTrue($this->settings->expenseAccountRequired());
+
+        $this->settings->update(['expense_account_required' => false], $this->manager());
+
+        $this->assertFalse($this->settings->expenseAccountRequired());
+    }
+
+    public function testUpdate_RecordsTheChangeOfTheExpenseAccountSettingAndRequiresThePermission(): void
+    {
+        $this->accountingDb()->table('accounting_audit_log')->truncate();
+
+        $this->settings->update(['expense_account_required' => true], $this->manager());
+
+        $details = json_decode($this->accountingDb()->table('accounting_audit_log')->where('action', 'settings_updated')->get()->getRow()->details, true);
+
+        $this->assertSame(['expense_account_required' => true], $details['after']);
+
+        try {
+            $this->settings->update(['expense_account_required' => false], $this->employeeWithGrants([]));
+            $this->fail('Expected the permission to be required.');
+        } catch (AccountingException $exception) {
+            $this->assertSame(AccountingError::PermissionDenied, $exception->error);
+        }
+
+        $this->assertTrue($this->settings->expenseAccountRequired());
+    }
+
+    public function testNotices_ListTheExpensesAndTheCashUpsThatAreNotInTheBooks(): void
+    {
+        $db         = $this->accountingDb();
+        $employeeId = $this->employeeWithGrants([]);
+
+        $db->table('expense_categories')->insert(['category_name' => 'Notice ' . uniqid(), 'category_description' => '']);
+        $categoryId = (int) $db->insertID();
+
+        $db->table('expenses')->insert(['date' => '2026-01-10 10:00:00', 'amount' => '10.00', 'payment_type' => 'Cash', 'expense_category_id' => $categoryId, 'description' => 'earlier', 'employee_id' => $employeeId]);
+        $db->table('expenses')->insert(['date' => '2026-01-11 10:00:00', 'amount' => '20.00', 'payment_type' => 'Cash', 'expense_category_id' => $categoryId, 'description' => 'earlier', 'employee_id' => $employeeId]);
+        $db->table('cash_up')->insert([
+            'open_date' => '2026-01-10 08:00:00', 'close_date' => '2026-01-10 18:00:00', 'open_amount_cash' => '0', 'transfer_amount_cash' => '0', 'closed_amount_cash' => '5', 'closed_amount_card' => '0',
+            'closed_amount_check' => '0', 'closed_amount_total' => '5', 'description' => 'earlier', 'open_employee_id' => $employeeId, 'close_employee_id' => $employeeId, 'closed_amount_due' => '0',
+        ]);
+
+        try {
+            $notices = array_column(array_map(static fn (ReadinessIssue $issue): array => [$issue->code->value, $issue->subject], $this->settings->notices()), 1, 0);
+
+            $this->assertSame(['expenses_unposted' => '2', 'cashups_unposted' => '1'], array_intersect_key($notices, ['expenses_unposted' => 1, 'cashups_unposted' => 1]));
+            $this->assertSame([], array_intersect($this->codesOf($this->settings->readiness()), ['expenses_unposted', 'cashups_unposted']));
+        } finally {
+            $db->table('expenses')->truncate();
+            $db->table('cash_up')->truncate();
+            $db->table('expense_categories')->where('expense_category_id', $categoryId)->delete();
+        }
+    }
 }

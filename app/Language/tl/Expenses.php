@@ -32,6 +32,9 @@ return [
     'info'                       => 'Expense Info',
     'ip_address'                 => '',
     'is_deleted'                 => 'Deleted',
+    'ledger'                     => '',
+    'ledger_posted'              => '',
+    'ledger_unposted'            => '',
     'name_required'              => 'Expense Name required',
     'new'                        => 'New Expense',
     'new_supplier'               => '',
@@ -47,5 +50,8 @@ return [
     'supplier_tax_code'          => 'Tax Code',
     'tax_amount'                 => 'Tax',
     'tax_amount_number'          => '',
+    'treasury'                   => '',
+    'treasury_default'           => '',
+    'unposted_filter'            => '',
     'update'                     => 'Update Expense',
 ];

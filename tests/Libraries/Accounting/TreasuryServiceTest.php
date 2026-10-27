@@ -546,6 +546,33 @@ class TreasuryServiceTest extends CIUnitTestCase
         $this->assertNotNull($this->treasuries->find($id));
     }
 
+    public function testDelete_RefusesATreasuryAnExpenseOrACashUpNamed(): void
+    {
+        $manager = $this->manager();
+        $db      = $this->accountingDb();
+
+        $db->table('expense_categories')->insert(['category_name' => 'Used ' . uniqid(), 'category_description' => '']);
+        $categoryId = (int) $db->insertID();
+
+        $expenseDrawer = $this->treasuries->create(['name' => 'Expense drawer', 'kind' => 'cash'], $manager);
+        $cashupDrawer  = $this->treasuries->create(['name' => 'Cash-up drawer', 'kind' => 'cash'], $manager);
+
+        $db->table('expenses')->insert(['date' => '2026-10-20 10:00:00', 'amount' => '0.00', 'payment_type' => 'Cash', 'expense_category_id' => $categoryId, 'description' => 'Named a treasury', 'employee_id' => $manager, 'treasury_id' => $expenseDrawer, 'branch_id' => 1]);
+        $db->table('cash_up')->insert([
+            'open_date' => '2026-10-20 08:00:00', 'close_date' => '2026-10-20 18:00:00', 'open_amount_cash' => '0', 'transfer_amount_cash' => '0', 'closed_amount_cash' => '0', 'closed_amount_card' => '0',
+            'closed_amount_check' => '0', 'closed_amount_total' => '0', 'description' => 'Named a treasury', 'open_employee_id' => $manager, 'close_employee_id' => $manager, 'closed_amount_due' => '0', 'treasury_id' => $cashupDrawer, 'branch_id' => 1,
+        ]);
+
+        try {
+            $this->assertSame(AccountingError::TreasuryInUse, $this->refusal(fn () => $this->treasuries->delete($expenseDrawer, $manager))->error);
+            $this->assertSame(AccountingError::TreasuryInUse, $this->refusal(fn () => $this->treasuries->delete($cashupDrawer, $manager))->error);
+        } finally {
+            $db->table('expenses')->truncate();
+            $db->table('cash_up')->truncate();
+            $db->table('expense_categories')->where('expense_category_id', $categoryId)->delete();
+        }
+    }
+
     public function testDelete_RefusesTheMainTreasury(): void
     {
         $main = $this->treasuries->ensureMain();

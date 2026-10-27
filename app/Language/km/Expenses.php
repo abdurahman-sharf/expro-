@@ -32,6 +32,9 @@ return [
     'info'                       => 'ពត៌មានចំណាយ',
     'ip_address'                 => '',
     'is_deleted'                 => 'បានលប់',
+    'ledger'                     => '',
+    'ledger_posted'              => '',
+    'ledger_unposted'            => '',
     'name_required'              => 'តំរូវអោយបំពេញឈ្មោះចំណាយ',
     'new'                        => 'ចំណាយថ្មី',
     'new_supplier'               => '',
@@ -47,5 +50,8 @@ return [
     'supplier_tax_code'          => 'កូដពន្ធ',
     'tax_amount'                 => 'ពន្ធ',
     'tax_amount_number'          => '',
+    'treasury'                   => '',
+    'treasury_default'           => '',
+    'unposted_filter'            => '',
     'update'                     => 'ធ្វើបច្ចុប្បន្នភាពចំណាយ',
 ];

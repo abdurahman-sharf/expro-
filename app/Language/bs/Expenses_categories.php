@@ -1,10 +1,14 @@
 <?php
 
 return [
-    'category_name_required'            => 'Naziv kategorije je obavezan',
+    'account'                           => '',
+    'account_default'                   => '',
+    'account_desc'                      => '',
+    'account_locked'                    => '',
     'add_item'                          => 'Dodaj kategoriju',
     'cannot_be_deleted'                 => 'Nije moguće izbrisati kategoriju',
     'category_id'                       => 'Id',
+    'category_name_required'            => 'Naziv kategorije je obavezan',
     'confirm_delete'                    => 'Da li ste sigurni da želite da izbrišete izabranu kategoriju?',
     'confirm_restore'                   => 'Da li ste sigurni da želite da vratite izabranu kategoriju?',
     'description'                       => 'Opis Kategorije',

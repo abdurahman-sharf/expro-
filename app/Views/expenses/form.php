@@ -2,6 +2,7 @@
 /**
  * @var object $expenses_info
  * @var array $payment_options
+ * @var array<int, string> $treasury_options
  * @var array $expense_categories
  * @var array $employees
  * @var string $controller_name
@@ -121,6 +122,15 @@
                 <?= form_dropdown('payment_type', $payment_options, $expenses_info->payment_type, ['class' => 'form-select', 'id' => 'payment_type']) ?>
             </div>
         </div>
+
+        <?php if (($treasury_options ?? []) !== []): ?>
+            <div class="field">
+                <?= form_label(lang('Expenses.treasury'), 'treasury_id', ['class' => 'form-label']) ?>
+                <div class="field-control">
+                    <?= form_dropdown('treasury_id', $treasury_options, (string) ($expenses_info->treasury_id ?? 0), ['class' => 'form-select', 'id' => 'treasury_id']) ?>
+                </div>
+            </div>
+        <?php endif; ?>
 
         <div class="field">
             <?= form_label(lang('Expenses_categories.name'), 'category', ['class' => 'form-label']) ?>

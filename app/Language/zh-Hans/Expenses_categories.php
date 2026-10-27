@@ -1,10 +1,14 @@
 <?php
 
 return [
-    'category_name_required'            => 'Expense Category name required',
+    'account'                           => '',
+    'account_default'                   => '',
+    'account_desc'                      => '',
+    'account_locked'                    => '',
     'add_item'                          => 'Add Category',
     'cannot_be_deleted'                 => 'Could not delete Category Expense(s)',
     'category_id'                       => 'Id',
+    'category_name_required'            => 'Expense Category name required',
     'confirm_delete'                    => 'Are you sure you want to delete the selected Expense Category?',
     'confirm_restore'                   => '',
     'description'                       => 'Category Description',

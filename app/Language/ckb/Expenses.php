@@ -32,6 +32,9 @@ return [
     'info'                       => 'زانیاری خەرجی',
     'ip_address'                 => '',
     'is_deleted'                 => 'سڕاوەتەوە',
+    'ledger'                     => '',
+    'ledger_posted'              => '',
+    'ledger_unposted'            => '',
     'name_required'              => 'ناوی خەرجی پێویستە',
     'new'                        => 'خەرجی نوێ',
     'new_supplier'               => '',
@@ -47,5 +50,8 @@ return [
     'supplier_tax_code'          => 'کۆدی باج',
     'tax_amount'                 => 'باج',
     'tax_amount_number'          => '',
+    'treasury'                   => '',
+    'treasury_default'           => '',
+    'unposted_filter'            => '',
     'update'                     => 'نوێکردنەوەی خەرجی',
 ];

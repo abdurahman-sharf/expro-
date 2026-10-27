@@ -1,10 +1,14 @@
 <?php
 
 return [
-    'category_name_required'            => 'Jina la Kategoria ya Matumizi linahitajika',
+    'account'                           => '',
+    'account_default'                   => '',
+    'account_desc'                      => '',
+    'account_locked'                    => '',
     'add_item'                          => 'Ongeza Kategoria',
     'cannot_be_deleted'                 => 'Haiwezekani kufuta Kategoria ya Matumizi',
     'category_id'                       => 'Id',
+    'category_name_required'            => 'Jina la Kategoria ya Matumizi linahitajika',
     'confirm_delete'                    => 'Una uhakika unataka kufuta Kategoria ya Matumizi uliyochagua?',
     'confirm_restore'                   => 'Una uhakika unataka kurejesha Kategoria ya Matumizi uliyochagua?',
     'description'                       => 'Maelezo ya Kategoria',

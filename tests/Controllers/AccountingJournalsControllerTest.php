@@ -319,6 +319,25 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         }
     }
 
+    public function testGetView_HidesTheReverseButtonOfTheJournalsOfAnExpenseAndACashUp(): void
+    {
+        $this->accountant();
+
+        foreach (['expense', 'cashup'] as $source) {
+            $journalId = (new PostingService())->post(new JournalDraft(
+                date: '2026-10-21',
+                lines: [new JournalLineDraft($this->accountId('cash'), debit: '10.00'), new JournalLineDraft($this->accountId('sales_revenue'), credit: '10.00')],
+                sourceType: $source,
+                sourceId: random_int(1000, 999999),
+            ))->journalId;
+
+            $page = $this->get('/accounting_journals/view/' . $journalId);
+
+            $page->assertDontSee('accounting_journals/reverse_form/' . $journalId);
+            $page->assertSee(lang('Accounting.source_' . $source));
+        }
+    }
+
     public function testGetView_HidesTheReverseButtonWithoutThePermission(): void
     {
         $this->actAs($this->employeeWithGrants(['accounting_journals', AccountingGuard::JOURNALS_ALL]));
