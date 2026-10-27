@@ -194,6 +194,26 @@ class ExpenseCategoryAccountsTest extends CIUnitTestCase
         }
     }
 
+    public function testAssign_TreatsAValueThatIsNotAWholeNumberAsNoAccount(): void
+    {
+        $account  = $this->customAccount('5', '5960', 'Marketing', false);
+        $category = $this->category('Ads', $account);
+
+        $this->accounts->assign($category, $account . 'abc', $this->router);
+
+        $this->assertNull($this->accountOf($category));
+    }
+
+    public function testAssign_TreatsZeroAsNoAccount(): void
+    {
+        $account  = $this->customAccount('5', '5961', 'Marketing', false);
+        $category = $this->category('Ads', $account);
+
+        $this->accounts->assign($category, '0', $this->router);
+
+        $this->assertNull($this->accountOf($category));
+    }
+
     public function testAssign_DoesNothingForACategoryThatDoesNotExist(): void
     {
         $this->accounts->assign(987654, $this->accountId('expenses_default'), $this->router);

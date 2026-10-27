@@ -14,6 +14,7 @@ use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
+use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -73,6 +74,46 @@ class ExpensePostingTest extends CIUnitTestCase
         $this->assertTrue($failure instanceof AccountingException || $failure instanceof PostingException || $failure instanceof BranchException, 'The books did not refuse the change.');
 
         return $failure;
+    }
+
+    /**
+     * @return list<string> Every statement the database ran while the action ran.
+     */
+    private function queriesOf(callable $action): array
+    {
+        $queries  = [];
+        $listener = static function ($query) use (&$queries): void {
+            $queries[] = (string) $query->getQuery();
+        };
+
+        Events::on('DBQuery', $listener);
+
+        try {
+            $action();
+        } finally {
+            Events::removeListener('DBQuery', $listener);
+        }
+
+        return $queries;
+    }
+
+    private function readsExpenseRow(string $sql): bool
+    {
+        return preg_match('/^SELECT .*FROM\s+`?' . preg_quote($this->accountingDb()->prefixTable('expenses'), '/') . '`?\s+WHERE expense_id = \d+/s', trim($sql)) === 1;
+    }
+
+    /**
+     * @param list<string> $queries
+     */
+    private function firstIndexOf(array $queries, callable $match): int
+    {
+        foreach ($queries as $index => $sql) {
+            if ($match($sql)) {
+                return $index;
+            }
+        }
+
+        return PHP_INT_MAX;
     }
 
     private function assertRefused(AccountingError|PostingError|BranchError $error): void
@@ -891,6 +932,53 @@ class ExpensePostingTest extends CIUnitTestCase
 
         $this->assertSame([$second, null], [(int) $row->branch_id, $row->treasury_id]);
         $this->assertSame([$this->accountId('expenses_default') . '=40.00/0.00', $this->accountId('cash') . '=0.00/40.00'], $this->postedLines(self::SOURCE, $expenseId));
+    }
+
+    public function testSaveValue_JudgesAnExpenseByItsOwnEmployeeWhenNoActorIsGiven(): void
+    {
+        $second  = $this->createBranch('B2');
+        $limited = $this->employeeWithGrants([], [1]);
+        $data    = $this->expenseData('40.00', '0', 'Cash', $this->category(), '2026-10-20 10:00:00', $limited);
+
+        $data['treasury_id'] = $this->treasury('Remote drawer', $second);
+
+        $this->assertFalse($this->expenses->save_value($data, NEW_ENTRY));
+        $this->assertRefused(BranchError::NotAllowed);
+        $this->assertNothingWritten();
+
+        $own = $this->expenseData('40.00', '0', 'Cash', $this->category(), '2026-10-20 10:00:00', $limited);
+
+        $this->assertTrue($this->expenses->save_value($own, NEW_ENTRY));
+        $this->assertSame($limited, (int) $this->journalsOfSource(self::SOURCE, (int) $own['expense_id'])[0]->created_by);
+    }
+
+    public function testSaveValue_ReadsTheStoredExpenseUnderALockBeforeChangingIt(): void
+    {
+        $expenseId = $this->saveExpense($this->expenseData('100.00'));
+        $queries   = $this->queriesOf(fn () => $this->saveExpense($this->expenseData('120.00'), $expenseId));
+        $reads     = array_values(array_filter($queries, fn (string $sql): bool => $this->readsExpenseRow($sql)));
+
+        $this->assertCount(1, $reads);
+        $this->assertStringEndsWith('FOR UPDATE', trim($reads[0]));
+        $this->assertLessThan($this->firstIndexOf($queries, static fn (string $sql): bool => str_starts_with($sql, 'UPDATE') && str_contains($sql, 'expenses')), $this->firstIndexOf($queries, fn (string $sql): bool => $this->readsExpenseRow($sql)));
+    }
+
+    public function testDeleteList_LocksTheExpensesInTheOrderOfTheirNumbers(): void
+    {
+        $first  = $this->saveExpense($this->expenseData('10.00'));
+        $second = $this->saveExpense($this->expenseData('20.00'));
+        $third  = $this->saveExpense($this->expenseData('30.00'));
+
+        $queries = $this->queriesOf(fn () => $this->expenses->delete_list([$third, $first, $second, $first], $this->clerkId));
+        $locked  = [];
+
+        foreach ($queries as $sql) {
+            if ($this->readsExpenseRow($sql) && preg_match('/expense_id = (\d+)/', $sql, $found) === 1) {
+                $locked[] = (int) $found[1];
+            }
+        }
+
+        $this->assertSame([$first, $second, $third], $locked);
     }
 
     public function testSaveValue_StampsNothingOnANewExpenseThatIsAlreadyMarkedDeleted(): void
