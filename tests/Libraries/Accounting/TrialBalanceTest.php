@@ -17,6 +17,7 @@ use App\Libraries\Accounting\TreasuryTransfers;
 use App\Libraries\Accounting\TrialBalance;
 use App\Libraries\Accounting\TrialBalanceReport;
 use App\Libraries\Accounting\TrialBalanceRow;
+use App\Libraries\Accounting\YearEndEntries;
 use App\Models\Expense;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -447,6 +448,64 @@ class TrialBalanceTest extends CIUnitTestCase
 
         $this->assertNotNull($this->row($report, $this->codeOf($cash)));
         $this->assertNotNull($this->row($report, $this->codeOf($sales)));
+    }
+
+    private function closeTheYear(string $date, int $branchId, string $amount): void
+    {
+        (new PostingService())->post(new JournalDraft(
+            date: $date,
+            lines: [new JournalLineDraft($this->accountId('sales_revenue'), debit: $amount), new JournalLineDraft($this->accountId('retained_earnings'), credit: $amount)],
+            sourceType: YearEndEntries::SOURCE_TYPE,
+            sourceId: random_int(1000, 9999),
+            currencyCode: 'SAR',
+            branchId: $branchId,
+        ));
+    }
+
+    public function testTotals_GivesEachAccountWhatItHoldsWithTheAccountsUnderIt(): void
+    {
+        $this->cashSale('2026-10-05', 1, '100.00');
+        $this->cashSale('2026-10-06', $this->second, '40.00');
+
+        $read = $this->report->totals($this->company(), ReportPeriod::of(null, '2026-12-31'));
+        $ids  = array_column(array_map(static fn (object $account): array => [(string) $account->code, (int) $account->account_id], $read['accounts']), 1, 0);
+
+        $this->assertSame('140.0000', $read['totals'][$ids['411']]['credit']);
+        $this->assertSame('140.0000', $read['totals'][$ids['41']]['credit']);
+        $this->assertSame('140.0000', $read['totals'][$ids['4']]['credit']);
+        $this->assertSame('140.0000', $read['totals'][$ids['120101']]['debit']);
+        $this->assertSame('0.0000', $read['totals'][$ids['511']]['debit'], 'An account that held nothing is there with nothing');
+        $this->assertSame(count($read['accounts']), count($read['totals']));
+    }
+
+    public function testTotals_ReadsOnlyTheBranchesAndThePeriodOfTheReport(): void
+    {
+        $this->cashSale('2026-09-30', 1, '1.00');
+        $this->cashSale('2026-10-01', 1, '2.00');
+        $this->cashSale('2026-10-05', $this->second, '4.00');
+        $this->cashSale('2026-11-01', 1, '8.00');
+
+        $sales = fn (ReportScope $scope, ?string $from, string $to): string => $this->report->totals($scope, ReportPeriod::of($from, $to))['totals'][$this->accountId('sales_revenue')]['credit'];
+
+        $this->assertSame('6.0000', $sales($this->company(), '2026-10-01', '2026-10-31'));
+        $this->assertSame('2.0000', $sales(ReportScope::resolve([1], null), '2026-10-01', '2026-10-31'));
+        $this->assertSame('15.0000', $sales($this->company(), null, '2026-12-31'));
+        $this->assertSame('0.0000', $sales(ReportScope::resolve(null, []), null, '2026-12-31'));
+    }
+
+    public function testTotals_LeavesOutTheJournalsThatCloseAYearOnlyWhenAsked(): void
+    {
+        $this->cashSale('2026-10-05', 1, '100.00');
+        $this->closeTheYear('2026-12-31', 1, '100.00');
+
+        $period  = ReportPeriod::of(null, '2026-12-31');
+        $sales   = $this->accountId('sales_revenue');
+        $kept    = $this->report->totals($this->company(), $period);
+        $without = $this->report->totals($this->company(), $period, true);
+
+        $this->assertSame(['100.0000', '100.0000'], [$kept['totals'][$sales]['credit'], $kept['totals'][$sales]['debit']], 'Unless asked, the journal that closes a year is counted');
+        $this->assertSame(['100.0000', '0.0000'], [$without['totals'][$sales]['credit'], $without['totals'][$sales]['debit']]);
+        $this->assertSame('0.0000', $without['totals'][$this->accountId('retained_earnings')]['credit']);
     }
 
     public function testBuild_SaysWhatIsLeftBetweenTheBranchesAsOfTheLastDayOfTheReport(): void
