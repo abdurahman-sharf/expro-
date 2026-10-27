@@ -175,29 +175,29 @@ class Expenses extends Secure_Controller
      * @param int $expense_id
      * @return ResponseInterface
      */
-    public function postSave(int $expense_id = NEW_ENTRY): ResponseInterface
+    public function postSave(int $expenseId = NEW_ENTRY): ResponseInterface
     {
         $config = config(OSPOS::class)->settings;
-        $newdate = $this->request->getPost('date', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+        $newDate = $this->request->getPost('date', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
 
-        $date_formatter = date_create_from_format($config['dateformat'] . ' ' . $config['timeformat'], $newdate);
+        $dateFormatter = date_create_from_format($config['dateformat'] . ' ' . $config['timeformat'], $newDate);
 
-        $current_employee_id = $this->employee->get_logged_in_employee_info()->person_id;
-        $submitted_employee_id = $this->request->getPost('employee_id', FILTER_SANITIZE_NUMBER_INT);
+        $currentEmployeeId = $this->employee->get_logged_in_employee_info()->person_id;
+        $submittedEmployeeId = $this->request->getPost('employee_id', FILTER_SANITIZE_NUMBER_INT);
 
-        if (!$this->employee->has_grant('employees', $current_employee_id)) {
-            if ($expense_id == NEW_ENTRY) {
-                $employee_id = $current_employee_id;
+        if (!$this->employee->has_grant('employees', $currentEmployeeId)) {
+            if ($expenseId == NEW_ENTRY) {
+                $employeeId = $currentEmployeeId;
             } else {
-                $existing_expense = $this->expense->get_info($expense_id);
-                $employee_id = $existing_expense->employee_id;
+                $existingExpense = $this->expense->get_info($expenseId);
+                $employeeId = $existingExpense->employee_id;
             }
         } else {
-            $employee_id = $submitted_employee_id;
+            $employeeId = $submittedEmployeeId;
         }
 
-        $expense_data = [
-            'date'                => $date_formatter->format('Y-m-d H:i:s'),
+        $expenseData = [
+            'date'                => $dateFormatter->format('Y-m-d H:i:s'),
             'supplier_id'         => $this->request->getPost('supplier_id') == '' ? null : $this->request->getPost('supplier_id', FILTER_SANITIZE_NUMBER_INT),
             'supplier_tax_code'   => $this->request->getPost('supplier_tax_code', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
             'amount'              => parse_decimals($this->request->getPost('amount')),
@@ -205,26 +205,26 @@ class Expenses extends Secure_Controller
             'payment_type'        => $this->request->getPost('payment_type', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
             'expense_category_id' => $this->request->getPost('expense_category_id', FILTER_SANITIZE_NUMBER_INT),
             'description'         => $this->request->getPost('description', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
-            'employee_id'         => $employee_id,
+            'employee_id'         => $employeeId,
             'deleted'             => $this->request->getPost('deleted') != null
         ];
 
         $accountingOn = (new AccountingSettings())->isEnabled();
 
         if ($accountingOn && $this->request->getPost('treasury_id') !== null) {
-            $expense_data['treasury_id'] = (int) $this->request->getPost('treasury_id', FILTER_SANITIZE_NUMBER_INT);
+            $expenseData['treasury_id'] = (int) $this->request->getPost('treasury_id', FILTER_SANITIZE_NUMBER_INT);
         }
 
         if ($this->request->getPost('expense_branch_id') !== null) {
-            $expense_data['expense_branch_id'] = (int) $this->request->getPost('expense_branch_id', FILTER_SANITIZE_NUMBER_INT);
+            $expenseData['expense_branch_id'] = (int) $this->request->getPost('expense_branch_id', FILTER_SANITIZE_NUMBER_INT);
         }
 
-        if ($this->expense->save_value($expense_data, $expense_id, (int) $current_employee_id)) {
+        if ($this->expense->save_value($expenseData, $expenseId, (int) $currentEmployeeId)) {
             // New Expense
-            if ($expense_id == NEW_ENTRY) {
-                return $this->response->setJSON(['success' => true, 'message' => lang('Expenses.successful_adding'), 'id' => $expense_data['expense_id']]);
+            if ($expenseId == NEW_ENTRY) {
+                return $this->response->setJSON(['success' => true, 'message' => lang('Expenses.successful_adding'), 'id' => $expenseData['expense_id']]);
             } else { // Existing Expense
-                return $this->response->setJSON(['success' => true, 'message' => lang('Expenses.successful_updating'), 'id' => $expense_id]);
+                return $this->response->setJSON(['success' => true, 'message' => lang('Expenses.successful_updating'), 'id' => $expenseId]);
             }
         } else { // Failure
             return $this->response->setJSON(['success' => false, 'message' => $this->refusal(lang('Expenses.error_adding_updating')), 'id' => NEW_ENTRY]);

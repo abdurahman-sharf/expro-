@@ -312,15 +312,15 @@ class Expense extends Model
      * then says why. The actor is the employee who makes the change, whose branches and treasuries
      * decide what is allowed, and is the employee of the expense when none is given.
      */
-    public function save_value(array &$expense_data, int $expense_id = NEW_ENTRY, ?int $actorId = null): bool
+    public function save_value(array &$expenseData, int $expenseId = NEW_ENTRY, ?int $actorId = null): bool
     {
         $this->accountingFailure = null;
 
         if (! (new AccountingSettings($this->db))->isEnabled()) {
-            unset($expense_data['treasury_id'], $expense_data['branch_id'], $expense_data['expense_branch_id'], $expense_data['treasury_branch_id']);
+            unset($expenseData['treasury_id'], $expenseData['branch_id'], $expenseData['expense_branch_id'], $expenseData['treasury_branch_id']);
 
             try {
-                return $this->saveRow($expense_data, $expense_id);
+                return $this->saveRow($expenseData, $expenseId);
             } catch (AccountingException $failure) {
                 $this->accountingFailure = $failure;
 
@@ -328,7 +328,7 @@ class Expense extends Model
             }
         }
 
-        $actorId ??= isset($expense_data['employee_id']) ? (int) $expense_data['employee_id'] : null;
+        $actorId ??= isset($expenseData['employee_id']) ? (int) $expenseData['employee_id'] : null;
         $posting = new ExpensePosting($this->db);
         $branch  = null;
         $stored  = null;
@@ -336,24 +336,24 @@ class Expense extends Model
         $this->db->transStart();
 
         try {
-            if ($expense_id !== NEW_ENTRY) {
-                $stored = LockedRead::row($this->db, 'SELECT * FROM ' . $this->db->prefixTable('expenses') . ' WHERE expense_id = ? FOR UPDATE', [$expense_id]);
+            if ($expenseId !== NEW_ENTRY) {
+                $stored = LockedRead::row($this->db, 'SELECT * FROM ' . $this->db->prefixTable('expenses') . ' WHERE expense_id = ? FOR UPDATE', [$expenseId]);
             }
 
-            $plan         = $posting->plan($expense_data, $stored, $actorId);
+            $plan         = $posting->plan($expenseData, $stored, $actorId);
             $branch       = $plan['branch_id'];
-            $expense_data = $plan['data'];
-            $success      = $this->saveRow($expense_data, $expense_id);
+            $expenseData = $plan['data'];
+            $success      = $this->saveRow($expenseData, $expenseId);
 
             if ($success && $plan['post']) {
-                $posting->sync($stored === null ? (int) $expense_data['expense_id'] : $expense_id, $actorId);
+                $posting->sync($stored === null ? (int) $expenseData['expense_id'] : $expenseId, $actorId);
             }
         } catch (AccountingException|BranchException|PostingException $failure) {
             $this->db->transRollback();
             $this->accountingFailure = $failure;
 
             if ($failure instanceof PostingException) {
-                $posting->recordFailure($stored === null ? null : $expense_id, $failure, $actorId, $branch);
+                $posting->recordFailure($stored === null ? null : $expenseId, $failure, $actorId, $branch);
             }
 
             return false;
