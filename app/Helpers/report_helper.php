@@ -160,6 +160,26 @@ function reportCatalog(array $permissionIds): array
 }
 
 /**
+ * The report permissions that open a report for the logged-in employee. The expenses reports hold
+ * the figures of the whole company, since expenses carry no branch, so only an employee who works in
+ * every branch is offered them.
+ *
+ * @param list<string> $permissionIds
+ *
+ * @return list<string>
+ */
+function openableReportPermissions(array $permissionIds): array
+{
+    $employeeId = (int) session()->get('person_id');
+
+    if ($employeeId < 1 || (new BranchGuard())->isUnrestricted($employeeId)) {
+        return $permissionIds;
+    }
+
+    return array_values(array_diff($permissionIds, ['reports_expenses_categories']));
+}
+
+/**
  * The branches the logged-in employee reads in the operational reports, for the note that says
  * whose figures a report holds.
  */

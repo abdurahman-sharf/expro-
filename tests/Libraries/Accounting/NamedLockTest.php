@@ -44,7 +44,7 @@ class NamedLockTest extends CIUnitTestCase
         }
     }
 
-    public function testTake_TakesALockNobodyHoldsAndRelease_LetsItGo(): void
+    public function testTake_AcceptsALockNobodyHoldsAndKeepsItUntilItIsReleased(): void
     {
         $lock = new NamedLock(Database::connect(), 0);
 
@@ -68,7 +68,7 @@ class NamedLockTest extends CIUnitTestCase
         }
     }
 
-    public function testTake_RefusesALockTheConnectionHeldBeforeItAskedAndLeavesItToItsHolder(): void
+    public function testTake_RejectsALockTheConnectionHeldBeforeItAskedAndLeavesItToItsHolder(): void
     {
         $db = Database::connect();
         $db->query('SELECT GET_LOCK(?, 0)', [self::NAME]);
@@ -77,7 +77,7 @@ class NamedLockTest extends CIUnitTestCase
         $this->assertFalse($this->anotherConnectionCanTake(self::NAME), 'Somebody else still holds it');
     }
 
-    public function testTake_RefusesALockTheServerKeepsOnAnotherConnectionThanTheOneThatRunsTheWork(): void
+    public function testTake_RejectsALockTheServerKeepsOnAnotherConnectionThanTheOneThatRunsTheWork(): void
     {
         $pooled = new PooledConnection(config('Database')->tests);
         $pooled->sendStatementsMentioning('IS_USED_LOCK', Database::connect('tests', false));

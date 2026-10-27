@@ -119,18 +119,18 @@ class Receivings extends Secure_Controller
      */
     public function postChangeMode(): string
     {
-        $stock_destination = $this->request->getPost('stock_destination', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
-        $stock_source      = $this->request->getPost('stock_source', FILTER_SANITIZE_NUMBER_INT);
+        $stockDestination = $this->request->getPost('stock_destination', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+        $stockSource      = $this->request->getPost('stock_source', FILTER_SANITIZE_NUMBER_INT);
 
-        if ((! $stock_source || $stock_source == $this->receiving_lib->get_stock_source())
-            && (! $stock_destination || $stock_destination == $this->receiving_lib->get_stock_destination())
+        if ((! $stockSource || $stockSource == $this->receiving_lib->get_stock_source())
+            && (! $stockDestination || $stockDestination == $this->receiving_lib->get_stock_destination())
         ) {
             $this->receiving_lib->clear_reference();
             $mode = $this->request->getPost('mode', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
             $this->receiving_lib->set_mode($mode);
-        } elseif ($this->stock_location->is_allowed_location((int) $stock_source, 'receivings', true) && $this->destinationAllowed($stock_destination)) {
-            $this->receiving_lib->set_stock_source($stock_source);
-            $this->receiving_lib->set_stock_destination($stock_destination === null || $stock_destination === '' ? null : (string) (int) $stock_destination);
+        } elseif ($this->stock_location->is_allowed_location((int) $stockSource, 'receivings', true) && $this->destinationAllowed($stockDestination)) {
+            $this->receiving_lib->set_stock_source($stockSource);
+            $this->receiving_lib->set_stock_destination($stockDestination === null || $stockDestination === '' ? null : (string) (int) $stockDestination);
         } else {
             $refused = ['error' => lang('Receivings.location_not_allowed')];
         }

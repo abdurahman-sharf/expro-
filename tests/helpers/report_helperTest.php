@@ -2,18 +2,67 @@
 
 namespace Tests\Helpers;
 
+use App\Libraries\Accounting\ReportScopeKind;
+use CodeIgniter\Database\Config;
 use CodeIgniter\Test\CIUnitTestCase;
+use CodeIgniter\Test\DatabaseTestTrait;
+use Tests\Support\AccountingFixtureTrait;
 
 /**
  * @internal
  */
 final class report_helperTest extends CIUnitTestCase
 {
+    use DatabaseTestTrait;
+    use AccountingFixtureTrait;
+
+    protected $migrate     = true;
+    protected $migrateOnce = true;
+    protected $seedOnce    = true;
+    protected $refresh     = false;
+    protected $namespace   = null;
+
+    private static bool $doneBootstrap = false;
+
     protected function setUp(): void
     {
+        if (self::$doneBootstrap === false) {
+            Config::seeder($this->DBGroup)->call('App\Database\Seeds\TestDatabaseBootstrapSeeder');
+            Config::connect($this->DBGroup)->close();
+
+            self::$doneBootstrap = true;
+        }
+
         parent::setUp();
 
         helper(['url', 'report']);
+    }
+
+    protected function tearDown(): void
+    {
+        session()->remove('person_id');
+
+        parent::tearDown();
+    }
+
+    /**
+     * Logs in an employee of the first branch and a second one, of every branch, or of none, in a
+     * company of three branches.
+     *
+     * @return int The second branch
+     */
+    private function readingAs(string $scope): int
+    {
+        $second = $this->createBranch('H' . substr(md5(uniqid('', true)), 0, 6), 'Helper branch B');
+        $this->createBranch('H' . substr(md5(uniqid('', true)), 0, 6), 'Helper branch C');
+
+        session()->set('person_id', $this->employeeWithGrants([], match ($scope) {
+            'some'  => [1, $second],
+            'none'  => [],
+            default => null,
+        }));
+
+        return $second;
     }
 
     public function testReportCatalog_IncludesOnlyPermittedSubjects(): void
@@ -48,5 +97,51 @@ final class report_helperTest extends CIUnitTestCase
         $this->assertStringEndsWith('reports/summary_sales', $paths[1]);
         $this->assertStringEndsWith('reports/detailed_sales', $paths[2]);
         $this->assertStringEndsWith('reports/detailed_item_sales', $paths[3]);
+    }
+
+    public function testReportScope_SaysItIsPartialForAnEmployeeOfSomeBranchesAndLimitsItToThem(): void
+    {
+        $second = $this->readingAs('some');
+
+        $scope = reportScope();
+
+        $this->assertSame(ReportScopeKind::Partial, $scope->kind);
+        $this->assertSame([1, $second], $scope->ids);
+    }
+
+    public function testReportScope_SaysItIsTheWholeCompanyForAnEmployeeOfEveryBranchAndForTheSystem(): void
+    {
+        $this->readingAs('every');
+
+        $this->assertSame(ReportScopeKind::Company, reportScope()->kind);
+
+        session()->remove('person_id');
+
+        $this->assertSame(ReportScopeKind::Company, reportScope()->kind);
+    }
+
+    public function testReportScope_ReadsNoBranchForAnEmployeeWhoWorksInNone(): void
+    {
+        $this->readingAs('none');
+
+        $this->assertSame([], reportScope()->ids);
+    }
+
+    public function testOpenableReportPermissions_LeavesOutTheExpensesReportsForAnEmployeeOfSomeBranches(): void
+    {
+        $this->readingAs('some');
+
+        $this->assertSame(['reports_sales'], openableReportPermissions(['reports_sales', 'reports_expenses_categories']));
+    }
+
+    public function testOpenableReportPermissions_KeepsEveryReportForAnEmployeeOfEveryBranchAndForTheSystem(): void
+    {
+        $this->readingAs('every');
+
+        $this->assertSame(['reports_sales', 'reports_expenses_categories'], openableReportPermissions(['reports_sales', 'reports_expenses_categories']));
+
+        session()->remove('person_id');
+
+        $this->assertSame(['reports_expenses_categories'], openableReportPermissions(['reports_expenses_categories']));
     }
 }

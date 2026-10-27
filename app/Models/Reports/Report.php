@@ -15,6 +15,8 @@ use CodeIgniter\Model;
  */
 abstract class Report extends Model
 {
+    private bool $readsTheCompany = false;
+
     public function __construct()
     {
         parent::__construct();
@@ -34,7 +36,7 @@ abstract class Report extends Model
     {
         $employeeId = (int) session()->get('person_id');
 
-        if ($employeeId < 1) {
+        if ($employeeId < 1 || $this->readsTheCompany) {
             return null;
         }
 
@@ -44,6 +46,22 @@ abstract class Report extends Model
             return (new BranchGuard())->allowedBranchIds($employeeId);
         } finally {
             $this->db->setAliasedTables($aliases);
+        }
+    }
+
+    /**
+     * Runs a read of the report on the figures of every branch, for a screen whose own records
+     * carry no branch and so cannot be limited to one, such as the cash-up, which is closed for the
+     * whole company together with the expenses it subtracts.
+     */
+    public function readingTheCompany(callable $read): mixed
+    {
+        $this->readsTheCompany = true;
+
+        try {
+            return $read();
+        } finally {
+            $this->readsTheCompany = false;
         }
     }
 

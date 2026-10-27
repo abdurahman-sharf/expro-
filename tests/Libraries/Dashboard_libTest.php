@@ -194,7 +194,7 @@ final class Dashboard_libTest extends CIUnitTestCase
         $this->assertGreaterThanOrEqual(125.5, $total);
     }
 
-    public function testSalesAddsUpOnlyTheBranchesTheEmployeeWorksInAndKeepsWhatIsKeptForOneSetOfBranchesApart(): void
+    public function testSales_AddsUpOnlyTheBranchesTheEmployeeWorksInAndKeepsWhatIsKeptForOneSetOfBranchesApart(): void
     {
         $this->createSale($this->createEmployee());
 
@@ -214,7 +214,7 @@ final class Dashboard_libTest extends CIUnitTestCase
         $this->assertSame($inTheFirst['today']['count'], $inEvery['today']['count']);
     }
 
-    public function testTopItemsRanksOnlyWhatTheBranchesTheEmployeeWorksInSold(): void
+    public function testTopItems_RanksOnlyWhatTheBranchesTheEmployeeWorksInSold(): void
     {
         $this->createSale($this->createEmployee());
 
@@ -227,7 +227,7 @@ final class Dashboard_libTest extends CIUnitTestCase
         $this->assertNotEmpty((new Dashboard_lib())->topItems(100));
     }
 
-    public function testExpensesThisMonthIsNotShownToAnEmployeeWhoDoesNotWorkInEveryBranchBecauseExpensesBelongToNoBranch(): void
+    public function testExpensesThisMonth_HidesTheFigureFromAnEmployeeWhoDoesNotWorkInEveryBranchBecauseExpensesBelongToNoBranch(): void
     {
         $db = Database::connect();
         $db->table('expense_categories')->insert(['category_name' => 'Dashboard ' . uniqid(), 'category_description' => '', 'deleted' => 0]);

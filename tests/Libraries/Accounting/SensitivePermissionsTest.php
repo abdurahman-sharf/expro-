@@ -49,7 +49,7 @@ class SensitivePermissionsTest extends CIUnitTestCase
         return $byId;
     }
 
-    public function testIsSensitive_NamesThePermissionsThatCannotBeUndoneByOrdinaryUsers(): void
+    public function testIsSensitive_NamesTheFourPermissionsThatCannotBeUndoneByOrdinaryUsers(): void
     {
         $sensitive = [
             AccountingGuard::JOURNALS_EDIT,
@@ -124,14 +124,6 @@ class SensitivePermissionsTest extends CIUnitTestCase
         $this->assertArrayNotHasKey($ordinary, $holders);
     }
 
-    public function testHolders_ListsWhoHoldsTheTreasuriesAndPayablesPermissions(): void
-    {
-        $manager = $this->employeeWithGrants([AccountingGuard::TREASURIES_MANAGE, AccountingGuard::PAYABLES_MANAGE]);
-
-        $this->assertSame([AccountingGuard::TREASURIES_MANAGE, AccountingGuard::PAYABLES_MANAGE], $this->service->heldBy($manager));
-        $this->assertSame([AccountingGuard::TREASURIES_MANAGE, AccountingGuard::PAYABLES_MANAGE], $this->holdersById()[$manager]['permissions']);
-    }
-
     public function testHolders_LeavesOutDeletedEmployees(): void
     {
         $gone = $this->employeeWithGrants([AccountingGuard::PERIODS_CLOSE]);
@@ -172,5 +164,24 @@ class SensitivePermissionsTest extends CIUnitTestCase
         $this->service->recordChange(1, $target, [], []);
 
         $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where('entity_type', 'employee_permission')->countAllResults());
+    }
+
+    public function testIsSensitive_NamesTheTreasuriesAndPayablesPermissions(): void
+    {
+        foreach ([AccountingGuard::TREASURIES_MANAGE, AccountingGuard::PAYABLES_MANAGE, AccountingGuard::ROUTING_MANAGE] as $permissionId) {
+            $this->assertTrue(SensitivePermissions::isSensitive($permissionId), $permissionId);
+        }
+
+        foreach (['accounting_treasuries', 'accounting_payables'] as $permissionId) {
+            $this->assertFalse(SensitivePermissions::isSensitive($permissionId), $permissionId);
+        }
+    }
+
+    public function testHeldBy_ListsTheTreasuriesAndPayablesPermissionsAmongWhatAnEmployeeHolds(): void
+    {
+        $manager = $this->employeeWithGrants([AccountingGuard::TREASURIES_MANAGE, AccountingGuard::PAYABLES_MANAGE]);
+
+        $this->assertSame([AccountingGuard::TREASURIES_MANAGE, AccountingGuard::PAYABLES_MANAGE], $this->service->heldBy($manager));
+        $this->assertSame([AccountingGuard::TREASURIES_MANAGE, AccountingGuard::PAYABLES_MANAGE], $this->holdersById()[$manager]['permissions']);
     }
 }

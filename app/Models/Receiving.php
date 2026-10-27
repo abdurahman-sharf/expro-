@@ -1022,7 +1022,7 @@ class Receiving extends Model
         }
 
         if (isset($inputs['branch_ids'])) {
-            $list   = implode(', ', array_map('intval', $inputs['branch_ids']));
+            $list = implode(', ', array_map('intval', $inputs['branch_ids']));
             $where .= $inputs['branch_ids'] === [] ? ' AND 1 = 0' : " AND (receivings.branch_id IN ({$list}) OR receivings.to_branch_id IN ({$list}))";
         }
 

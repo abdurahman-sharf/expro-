@@ -1718,7 +1718,7 @@ class ItemsControllerTest extends CIUnitTestCase
         return ['item' => $itemId, 'store' => $store, 'branch' => $branch, 'limited' => $limited];
     }
 
-    public function testPostSaveInventory_RefusesALocationOfABranchTheEmployeeDoesNotWorkInAndChangesNothing(): void
+    public function testPostSaveInventory_RejectsALocationOfABranchTheEmployeeDoesNotWorkInAndChangesNothing(): void
     {
         ['item' => $itemId, 'store' => $store] = $this->itemWithAStoreInAnotherBranch();
         $log      = count($this->inventoryLog($itemId));
@@ -1733,7 +1733,7 @@ class ItemsControllerTest extends CIUnitTestCase
         $this->assertCount($journals, $this->adjustmentJournals());
     }
 
-    public function testPostSaveInventory_RefusesALocationOfAnotherBranchWhileAccountingIsOff(): void
+    public function testPostSaveInventory_RejectsALocationOfAnotherBranchWhileAccountingIsOff(): void
     {
         ['item' => $itemId, 'store' => $store] = $this->itemWithAStoreInAnotherBranch();
         $this->setConfigValue('accounting_enabled', '0');
@@ -1773,7 +1773,7 @@ class ItemsControllerTest extends CIUnitTestCase
         $this->assertSame([$branch], array_map(static fn (object $journal): int => (int) $journal->branch_id, $this->adjustmentJournals()));
     }
 
-    public function testPostSaveInventory_RefusesALocationInTheBranchOfTheEmployeeThatTheyHoldNoItemsPermissionOn(): void
+    public function testPostSaveInventory_RejectsALocationInTheBranchOfTheEmployeeThatTheyHoldNoItemsPermissionOn(): void
     {
         $itemId = $this->itemInTheBooks();
         $store  = $this->storeIn(1, null);
@@ -1818,20 +1818,77 @@ class ItemsControllerTest extends CIUnitTestCase
     {
         ['item' => $itemId, 'store' => $store, 'limited' => $limited] = $this->itemWithAStoreInAnotherBranch();
 
-        foreach (['view', 'inventory', 'countDetails'] as $screen) {
+        foreach (['view' => 'id="quantity_1"', 'inventory' => '<option value="1"', 'countDetails' => '<option value="1"'] as $screen => $listsTheOwnLocation) {
             $this->loginAsItemsEmployee($limited);
             $body = $this->get('/items/' . $screen . '/' . $itemId)->getBody();
 
             $this->assertStringNotContainsString('quantity_' . $store, $body, $screen);
             $this->assertStringNotContainsString((string) $this->accountingDb()->table('stock_locations')->where('location_id', $store)->get()->getRow()->location_name, $body, $screen);
-            $this->assertStringContainsString('stock', $body, $screen);
+            $this->assertStringContainsString($listsTheOwnLocation, $body, $screen);
         }
 
-        $everyBranch = $this->createItemsEmployee();
-        $this->accountingDb()->table('grants')->insert(['permission_id' => $this->accountingDb()->table('permissions')->where('location_id', $store)->get()->getRow()->permission_id, 'person_id' => $everyBranch, 'menu_group' => 'home']);
-        $this->loginAsItemsEmployee($everyBranch);
+        $this->loginAsItemsEmployee($this->employeeOfEveryBranchWithTheStore($store));
 
         $this->assertStringContainsString('quantity_' . $store, $this->get('/items/view/' . $itemId)->getBody());
+    }
+
+    private function grantTheStore(int $personId, int $store): int
+    {
+        $this->accountingDb()->table('grants')->insert(['permission_id' => $this->accountingDb()->table('permissions')->where('location_id', $store)->get()->getRow()->permission_id, 'person_id' => $personId, 'menu_group' => 'home']);
+
+        return $personId;
+    }
+
+    private function employeeOfEveryBranchWithTheStore(int $store): int
+    {
+        return $this->grantTheStore($this->createItemsEmployee(), $store);
+    }
+
+    public function testGetCountDetails_ListsTheInventoryLogOfTheLocationsOfTheEmployeesBranchesOnly(): void
+    {
+        ['item' => $itemId, 'store' => $store, 'limited' => $limited] = $this->itemWithAStoreInAnotherBranch();
+        $db = $this->accountingDb();
+
+        foreach ([[1, 'Counted on the own shelf'], [$store, 'Found five on the other shelf']] as [$location, $comment]) {
+            $db->table('inventory')->insert(['trans_items' => $itemId, 'trans_user' => $limited, 'trans_location' => $location, 'trans_comment' => $comment, 'trans_inventory' => 5, 'trans_date' => date('Y-m-d H:i:s')]);
+        }
+
+        $body = $this->get('/items/countDetails/' . $itemId)->getBody();
+
+        $this->assertStringContainsString('Counted on the own shelf', $body);
+        $this->assertStringNotContainsString('Found five on the other shelf', $body);
+
+        $this->loginAsItemsEmployee($this->employeeOfEveryBranchWithTheStore($store));
+        $body = $this->get('/items/countDetails/' . $itemId)->getBody();
+
+        $this->assertStringContainsString('Counted on the own shelf', $body);
+        $this->assertStringContainsString('Found five on the other shelf', $body);
+    }
+
+    public function testPostSave_AcceptsANewItemOfAnEmployeeConfinedToABranchAndGivesItAnEmptyShelfInTheOtherBranches(): void
+    {
+        ['store' => $store, 'branch' => $branch] = $this->itemWithAStoreInAnotherBranch();
+        $name     = 'New item ' . uniqid();
+        $journals = count($this->adjustmentJournals());
+
+        $result = json_decode($this->post('/items/save', array_merge($this->baseItemPostData(), ['name' => $name, 'tax_names' => ['VAT'], 'tax_percents' => ['0'], 'quantity_1' => '3', 'cost_price' => '8.00']))->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+
+        $itemId = (int) $result['id'];
+
+        $this->assertSame('3.000', $this->onHand($itemId));
+        $this->assertSame(1, $this->accountingDb()->table('item_quantities')->where('item_id', $itemId)->where('location_id', $store)->countAllResults());
+        $this->assertSame('0.000', $this->onHand($itemId, $store));
+        $this->assertSame(0, $this->accountingDb()->table('inventory')->where('trans_items', $itemId)->where('trans_location', $store)->countAllResults());
+        $this->assertCount($journals + 1, $this->adjustmentJournals());
+
+        $inTheOtherBranch = $this->grantTheStore($this->createItemsEmployee([$branch]), $store);
+        $this->loginAsItemsEmployee($inTheOtherBranch);
+
+        $found = json_decode($this->get('/items/search', ['search' => $name, 'stock_location' => (string) $store, 'limit' => '10', 'offset' => '0', 'order' => 'asc'])->getJSON(), true);
+
+        $this->assertSame(1, $found['total']);
     }
 
     public function testGetSearch_FallsBackToALocationOfTheEmployeesBranchesWhenAnotherIsAsked(): void
@@ -1891,7 +1948,19 @@ class ItemsControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('no_access/items/items_stock', $response->getRedirectUrl());
     }
 
-    public function testPostDelete_RefusesAnItemWithStockInABranchTheEmployeeDoesNotWorkInAndChangesNothing(): void
+    public function testGetSearch_SendsAnEmployeeWhoseBranchesHaveNoLocationTheyMayUseToTheNoAccessPage(): void
+    {
+        ['limited' => $limited] = $this->itemWithAStoreInAnotherBranch();
+        $this->accountingDb()->table('grants')->where('person_id', $limited)->where('permission_id', 'items_stock')->delete();
+        $this->withSession(['person_id' => $limited, 'menu_group' => 'home']);
+
+        $response = $this->get('/items/search', ['search' => '', 'limit' => '10', 'offset' => '0', 'order' => 'asc']);
+
+        $this->assertSame(302, $response->response()->getStatusCode());
+        $this->assertStringContainsString('no_access/items/items_stock', $response->getRedirectUrl());
+    }
+
+    public function testPostDelete_RejectsAnItemWithStockInABranchTheEmployeeDoesNotWorkInAndChangesNothing(): void
     {
         ['item' => $itemId, 'store' => $store] = $this->itemWithAStoreInAnotherBranch();
         $this->assertTrue($this->item_quantity->changeQuantity($itemId, $store, 4.0));
@@ -1909,7 +1978,7 @@ class ItemsControllerTest extends CIUnitTestCase
         $this->assertSame([], $this->adjustmentJournals());
     }
 
-    public function testPostDelete_RefusesAnItemWithStockInABranchTheEmployeeDoesNotWorkInWhileAccountingIsOff(): void
+    public function testPostDelete_RejectsAnItemWithStockInABranchTheEmployeeDoesNotWorkInWhileAccountingIsOff(): void
     {
         ['item' => $itemId, 'store' => $store] = $this->itemWithAStoreInAnotherBranch();
         $this->assertTrue($this->item_quantity->changeQuantity($itemId, $store, 4.0));
@@ -1955,6 +2024,88 @@ class ItemsControllerTest extends CIUnitTestCase
         sort($branches);
 
         $this->assertSame([1, $branch], $branches);
+    }
+
+    /**
+     * The form of an item with its ten units in the first branch, ticked as deleted.
+     *
+     * @param array<string, string> $changes
+     *
+     * @return array<string, mixed>
+     */
+    private function deletedItemForm(array $changes = []): array
+    {
+        return array_merge($this->baseItemPostData(), ['tax_names' => ['VAT'], 'tax_percents' => ['0'], 'quantity_1' => '10', 'cost_price' => '50.00', 'is_deleted' => '1'], $changes);
+    }
+
+    public function testPostSave_RejectsMarkingDeletedAnItemWithStockInABranchTheEmployeeDoesNotWorkInAndChangesNothing(): void
+    {
+        ['item' => $itemId, 'store' => $store] = $this->itemWithAStoreInAnotherBranch();
+        $this->assertTrue($this->item_quantity->changeQuantity($itemId, $store, 4.0));
+        $name = $this->item->get_info($itemId)->name;
+        $log  = count($this->inventoryLog($itemId));
+
+        $result = json_decode($this->post('/items/save/' . $itemId, $this->deletedItemForm(['name' => 'Renamed']))->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString(lang('Branches.error_not_allowed'), $result['message']);
+        $this->assertSame(0, (int) $this->item->get_info($itemId)->deleted);
+        $this->assertSame($name, $this->item->get_info($itemId)->name);
+        $this->assertSame('10.000', $this->onHand($itemId));
+        $this->assertSame('4.000', $this->onHand($itemId, $store));
+        $this->assertSame($log, count($this->inventoryLog($itemId)));
+        $this->assertSame([], $this->adjustmentJournals());
+    }
+
+    public function testPostSave_RejectsMarkingDeletedAnItemWithStockInAnotherBranchWhileAccountingIsOff(): void
+    {
+        ['item' => $itemId, 'store' => $store] = $this->itemWithAStoreInAnotherBranch();
+        $this->assertTrue($this->item_quantity->changeQuantity($itemId, $store, 4.0));
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $result = json_decode($this->post('/items/save/' . $itemId, $this->deletedItemForm())->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(0, (int) $this->item->get_info($itemId)->deleted);
+        $this->assertSame('4.000', $this->onHand($itemId, $store));
+    }
+
+    public function testPostSave_AcceptsMarkingDeletedAnItemWhoseStockIsAllInTheBranchesOfTheEmployee(): void
+    {
+        ['item' => $itemId, 'store' => $store] = $this->itemWithAStoreInAnotherBranch();
+
+        $result = json_decode($this->post('/items/save/' . $itemId, $this->deletedItemForm())->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(1, (int) $this->item->get_info($itemId)->deleted);
+        $this->assertSame('10.000', $this->onHand($itemId));
+        $this->assertSame('0.000', $this->onHand($itemId, $store));
+    }
+
+    public function testPostSave_AcceptsMarkingDeletedAnItemWithStockInAnyBranchForAnEmployeeOfEveryBranch(): void
+    {
+        ['item' => $itemId, 'store' => $store] = $this->itemWithAStoreInAnotherBranch();
+        $this->assertTrue($this->item_quantity->changeQuantity($itemId, $store, 4.0));
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+        $result = json_decode($this->post('/items/save/' . $itemId, $this->deletedItemForm())->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(1, (int) $this->item->get_info($itemId)->deleted);
+        $this->assertSame('4.000', $this->onHand($itemId, $store));
+    }
+
+    public function testPostSave_AcceptsEditingAnItemThatIsAlreadyDeletedWithStockInAnotherBranch(): void
+    {
+        ['item' => $itemId, 'store' => $store] = $this->itemWithAStoreInAnotherBranch();
+        $this->assertTrue($this->item_quantity->changeQuantity($itemId, $store, 4.0));
+        $this->accountingDb()->table('items')->where('item_id', $itemId)->update(['deleted' => 1]);
+
+        $result = json_decode($this->post('/items/save/' . $itemId, $this->deletedItemForm(['name' => 'Renamed while deleted']))->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('Renamed while deleted', $this->item->get_info($itemId)->name);
+        $this->assertSame(1, (int) $this->item->get_info($itemId)->deleted);
     }
 
     /**
@@ -2005,7 +2156,7 @@ class ItemsControllerTest extends CIUnitTestCase
         }
     }
 
-    public function testPostImportCsvFile_RefusesAColumnOfAStoreInABranchTheEmployeeDoesNotWorkInAndSavesNothing(): void
+    public function testPostImportCsvFile_RejectsAColumnOfAStoreInABranchTheEmployeeDoesNotWorkInAndSavesNothing(): void
     {
         ['store' => $store] = $this->itemWithAStoreInAnotherBranch();
         $storeName = $this->accountingDb()->table('stock_locations')->where('location_id', $store)->get()->getRow()->location_name;
@@ -2026,7 +2177,7 @@ class ItemsControllerTest extends CIUnitTestCase
 
     public function testPostImportCsvFile_ImportsTheStoresOfTheBranchesTheEmployeeWorksInAndPostsInThem(): void
     {
-        $this->itemWithAStoreInAnotherBranch();
+        ['store' => $store] = $this->itemWithAStoreInAnotherBranch();
         $columns = $this->importColumnsOfTheEmployee();
         $name    = 'Csv own item ' . uniqid();
 
@@ -2037,6 +2188,7 @@ class ItemsControllerTest extends CIUnitTestCase
         $itemId = (int) $this->accountingDb()->table('items')->where('name', $name)->get()->getRow()->item_id;
 
         $this->assertSame('3.000', $this->onHand($itemId));
+        $this->assertSame(1, $this->accountingDb()->table('item_quantities')->where('item_id', $itemId)->where('location_id', $store)->countAllResults());
 
         $inventoryId = (int) $this->accountingDb()->table('inventory')->where('trans_items', $itemId)->get()->getRow()->trans_id;
         $journal     = $this->accountingDb()->table('accounting_journals')->where('source_type', 'stock_adjustment')->where('source_id', $inventoryId)->get()->getRow();

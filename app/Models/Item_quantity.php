@@ -58,6 +58,23 @@ class Item_quantity extends Model
     }
 
     /**
+     * Gives an item an empty shelf in every stock location it has none in, whichever branch the
+     * location belongs to, because the lists of items read the shelf of the location they show.
+     */
+    public function createMissingRows(int $itemId): bool
+    {
+        $locations = $this->db->table('stock_locations')->select('location_id')->where('deleted', 0)->get()->getResultArray();
+
+        foreach (array_column($locations, 'location_id') as $locationId) {
+            if (! $this->exists($itemId, (int) $locationId) && ! $this->db->table('item_quantities')->insert(['item_id' => $itemId, 'location_id' => (int) $locationId, 'quantity' => 0])) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * @param int $item_id
      * @param int $location_id
      * @return array|Item_quantity|stdClass|null

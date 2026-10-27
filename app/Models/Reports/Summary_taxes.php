@@ -57,8 +57,8 @@ class Summary_taxes extends Summary_report
         $sale_tax_rounded = "ROUND($sale_tax, $decimals)";
         $sale_total = "($sale_subtotal + $sale_tax_rounded)";
 
-        $subquery_builder = $this->db->table('sales_items');
-        $subquery_builder->select(
+        $subqueryBuilder = $this->db->table('sales_items');
+        $subqueryBuilder->select(
             "name AS name, "
             . "CONCAT(IFNULL(ROUND(percent, $decimals), 0), '%') AS percent, "
             . "sales.sale_id AS sale_id, "
@@ -67,30 +67,30 @@ class Summary_taxes extends Summary_report
             . "$sale_total AS total"
         );
 
-        $subquery_builder->join('sales', 'sales_items.sale_id = sales.sale_id', 'inner');
-        $subquery_builder->join(
+        $subqueryBuilder->join('sales', 'sales_items.sale_id = sales.sale_id', 'inner');
+        $subqueryBuilder->join(
             'sales_items_taxes',
             'sales_items.sale_id = sales_items_taxes.sale_id AND sales_items.item_id = sales_items_taxes.item_id AND sales_items.line = sales_items_taxes.line',
             'left outer'
         );
 
-        $subquery_builder->where('sale_status', COMPLETED);
+        $subqueryBuilder->where('sale_status', COMPLETED);
 
         if (empty($this->config['date_or_time_format'])) {
-            $subquery_builder->where(
+            $subqueryBuilder->where(
                 'DATE(' . $db_prefix . 'sales.sale_time) BETWEEN ' . $this->db->escape($inputs['start_date'])
                 . ' AND ' . $this->db->escape($inputs['end_date'])
             );
         } else {
-            $subquery_builder->where(
+            $subqueryBuilder->where(
                 'sales.sale_time BETWEEN ' . $this->db->escape(rawurldecode($inputs['start_date']))
                 . ' AND ' . $this->db->escape(rawurldecode($inputs['end_date']))
             );
         }
 
-        $this->limitToBranches($subquery_builder, 'sales.branch_id');
+        $this->limitToBranches($subqueryBuilder, 'sales.branch_id');
 
-        $builder = $this->db->newQuery()->fromSubquery($subquery_builder, 'temp_taxes');
+        $builder = $this->db->newQuery()->fromSubquery($subqueryBuilder, 'temp_taxes');
         $builder->select(
             "name, percent, COUNT(DISTINCT sale_id) AS count, "
             . "ROUND(SUM(subtotal), $decimals) AS subtotal, "

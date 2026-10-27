@@ -252,7 +252,7 @@ class StockAdjustmentTest extends CIUnitTestCase
         return ['item' => $itemId, 'location' => $location, 'branch' => $branchId];
     }
 
-    public function testPost_RefusesAnEmployeeWhoDoesNotWorkInTheBranchOfTheLocationAndPostsNothing(): void
+    public function testPost_RejectsAnEmployeeWhoDoesNotWorkInTheBranchOfTheLocationAndPostsNothing(): void
     {
         ['item' => $itemId, 'location' => $location] = $this->itemInAnotherBranch();
         $journals = $this->countRows('accounting_journals');
@@ -270,7 +270,7 @@ class StockAdjustmentTest extends CIUnitTestCase
         $this->assertSame([], $this->adjustments(9014));
     }
 
-    public function testPost_RefusesAnEmployeeWithNoBranchAtAll(): void
+    public function testPost_RejectsAnEmployeeWithNoBranchAtAll(): void
     {
         ['item' => $itemId, 'location' => $location] = $this->itemInAnotherBranch();
 

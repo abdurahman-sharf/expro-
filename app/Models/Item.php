@@ -853,11 +853,11 @@ class Item extends Model
     /**
      * Deletes one item
      */
-    public function delete($item_id = null, bool $purge = false): bool|int|string
+    public function delete($itemId = null, bool $purge = false): bool|int|string
     {
         $this->accountingFailure = null;
 
-        if ($this->holdsStockOutsideTheEmployeesBranches([$item_id])) {
+        if ($this->holdsStockOutsideTheEmployeesBranches([$itemId])) {
             return false;
         }
 
@@ -865,16 +865,16 @@ class Item extends Model
 
         // Set to 0 quantities
         $inventory = model(Inventory::class);
-        $removed   = $inventory->resetRows($item_id);
+        $removed   = $inventory->resetRows($itemId);
 
-        $item_quantity = model(Item_quantity::class);
-        $item_quantity->reset_quantity($item_id);
+        $itemQuantity = model(Item_quantity::class);
+        $itemQuantity->reset_quantity($itemId);
 
         $builder = $this->db->table('items');
-        $builder->where('item_id', $item_id);
+        $builder->where('item_id', $itemId);
         $success = $builder->update(['deleted' => 1]);
 
-        $success &= $removed !== false && $this->postStockRemoved($item_id, $removed);
+        $success &= $removed !== false && $this->postStockRemoved($itemId, $removed);
 
         if (! $success) {
             $this->db->transRollback();
@@ -915,7 +915,7 @@ class Item extends Model
      *
      * @param list<int|string> $itemIds
      */
-    private function holdsStockOutsideTheEmployeesBranches(array $itemIds): bool
+    public function holdsStockOutsideTheEmployeesBranches(array $itemIds): bool
     {
         $employeeId = (int) (model(Employee::class)->get_logged_in_employee_info()->person_id ?? 0);
         $allowed    = $employeeId > 0 ? (new BranchGuard($this->db))->allowedBranchIds($employeeId) : null;
@@ -968,11 +968,11 @@ class Item extends Model
     /**
      * Deletes a list of items
      */
-    public function delete_list(array $item_ids): bool
+    public function delete_list(array $itemIds): bool
     {
         $this->accountingFailure = null;
 
-        if ($this->holdsStockOutsideTheEmployeesBranches($item_ids)) {
+        if ($this->holdsStockOutsideTheEmployeesBranches($itemIds)) {
             return false;
         }
 
@@ -983,8 +983,8 @@ class Item extends Model
         $inventory = model(Inventory::class);
         $removed   = [];
 
-        foreach ($item_ids as $item_id) {
-            $rows = $inventory->resetRows((int) $item_id);
+        foreach ($itemIds as $itemId) {
+            $rows = $inventory->resetRows((int) $itemId);
 
             if ($rows === false) {
                 $this->db->transRollback();
@@ -992,14 +992,14 @@ class Item extends Model
                 return false;
             }
 
-            $removed[(int) $item_id] = $rows;
+            $removed[(int) $itemId] = $rows;
         }
 
-        $item_quantity = model(Item_quantity::class);
-        $item_quantity->reset_quantity_list($item_ids);
+        $itemQuantity = model(Item_quantity::class);
+        $itemQuantity->reset_quantity_list($itemIds);
 
         $builder = $this->db->table('items');
-        $builder->whereIn('item_id', $item_ids);
+        $builder->whereIn('item_id', $itemIds);
         $success = $builder->update(['deleted' => 1]);
 
         foreach ($removed as $itemId => $rows) {

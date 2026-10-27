@@ -208,7 +208,7 @@ class ItemTest extends CIUnitTestCase
         return $store;
     }
 
-    public function testDelete_RefusesAnItemWithStockInABranchTheEmployeeDoesNotWorkInAndChangesNothing(): void
+    public function testDelete_RejectsAnItemWithStockInABranchTheEmployeeDoesNotWorkInAndChangesNothing(): void
     {
         [$itemId] = $this->twoItemsInTheBooks();
         $store    = $this->stockOfAnotherBranchOutOfReachOfTheEmployee($itemId);
@@ -223,7 +223,7 @@ class ItemTest extends CIUnitTestCase
         $this->assertSame(0, $this->accountingDb()->table('inventory')->where('trans_items', $itemId)->where('trans_comment', lang('Items.is_deleted'))->countAllResults());
     }
 
-    public function testDelete_RefusesAnItemWithStockInABranchTheEmployeeDoesNotWorkInWhileAccountingIsOff(): void
+    public function testDelete_RejectsAnItemWithStockInABranchTheEmployeeDoesNotWorkInWhileAccountingIsOff(): void
     {
         [$itemId] = $this->twoItemsInTheBooks();
         $store    = $this->stockOfAnotherBranchOutOfReachOfTheEmployee($itemId);
@@ -249,7 +249,20 @@ class ItemTest extends CIUnitTestCase
         $this->assertSame('0.000', $this->onHand($itemId, $store));
     }
 
-    public function testDeleteList_RefusesEveryItemWhenOneHasStockInABranchTheEmployeeDoesNotWorkInAndChangesNothing(): void
+    public function testHoldsStockOutsideTheEmployeesBranches_AcceptsTheSystemWithNobodyLoggedIn(): void
+    {
+        [$itemId] = $this->twoItemsInTheBooks();
+        $this->stockOfAnotherBranchOutOfReachOfTheEmployee($itemId);
+        $items = model(Item::class);
+
+        $this->assertTrue($items->holdsStockOutsideTheEmployeesBranches([$itemId]));
+
+        session()->remove('person_id');
+
+        $this->assertFalse($items->holdsStockOutsideTheEmployeesBranches([$itemId]));
+    }
+
+    public function testDeleteList_RejectsEveryItemWhenOneHasStockInABranchTheEmployeeDoesNotWorkInAndChangesNothing(): void
     {
         [$first, $second] = $this->twoItemsInTheBooks();
         $store            = $this->stockOfAnotherBranchOutOfReachOfTheEmployee($second);
@@ -264,7 +277,7 @@ class ItemTest extends CIUnitTestCase
         $this->assertInstanceOf(BranchException::class, $items->accountingFailure());
     }
 
-    public function testDeleteList_RefusesEveryItemWhenOneHasStockInABranchTheEmployeeDoesNotWorkInWhileAccountingIsOff(): void
+    public function testDeleteList_RejectsEveryItemWhenOneHasStockInABranchTheEmployeeDoesNotWorkInWhileAccountingIsOff(): void
     {
         [$first, $second] = $this->twoItemsInTheBooks();
         $store            = $this->stockOfAnotherBranchOutOfReachOfTheEmployee($second);
@@ -291,7 +304,7 @@ class ItemTest extends CIUnitTestCase
         $this->assertStockTies();
     }
 
-    public function testDelete_RefusesAnItemWithStockToAnEmployeeWhoWorksInNoBranch(): void
+    public function testDelete_RejectsAnItemWithStockToAnEmployeeWhoWorksInNoBranch(): void
     {
         [$itemId] = $this->twoItemsInTheBooks();
         session()->set('person_id', $this->employeeWithGrants([], []));
@@ -316,7 +329,7 @@ class ItemTest extends CIUnitTestCase
         $this->assertStockTies();
     }
 
-    public function testDeleteList_RefusesItemsWithStockToAnEmployeeWhoWorksInNoBranch(): void
+    public function testDeleteList_RejectsItemsWithStockToAnEmployeeWhoWorksInNoBranch(): void
     {
         [$first, $second] = $this->twoItemsInTheBooks();
         session()->set('person_id', $this->employeeWithGrants([], []));

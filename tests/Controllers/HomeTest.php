@@ -257,6 +257,29 @@ class HomeTest extends CIUnitTestCase
         $this->assertSame(['module', 'report', 'setting'], $types);
     }
 
+    public function testGetSearchIndex_ListsTheExpensesReportsOnlyForAnEmployeeOfEveryBranch(): void
+    {
+        $reportUrls = function (int $personId): string {
+            $this->loginAs($personId);
+
+            return implode(' ', array_column(array_filter(json_decode($this->get('/home/searchIndex')->getJSON(), true), static fn (array $entry): bool => $entry['type'] === 'report'), 'url'));
+        };
+
+        $grants   = [['permission_id' => 'home', 'menu_group' => 'home'], ['permission_id' => 'reports', 'menu_group' => 'home'], ['permission_id' => 'reports_expenses_categories', 'menu_group' => 'home'], ['permission_id' => 'reports_sales', 'menu_group' => 'home']];
+        $inBranch = $this->createNonAdminEmployee(['grants' => $grants]);
+
+        Config::connect()->table('employee_branches')->insert(['person_id' => $inBranch, 'branch_id' => 1, 'is_default' => 1]);
+
+        $urls = $reportUrls($inBranch);
+
+        $this->assertStringContainsString('reports/summary_sales', $urls);
+        $this->assertStringNotContainsString('expenses_categories', $urls);
+
+        $everyBranch = $this->createNonAdminEmployee(['grants' => [...$grants, ['permission_id' => BranchGuard::ALL_BRANCHES, 'menu_group' => '--']]]);
+
+        $this->assertStringContainsString('reports/summary_expenses_categories', $reportUrls($everyBranch));
+    }
+
     /**
      * Create a non-admin employee for testing
      *
