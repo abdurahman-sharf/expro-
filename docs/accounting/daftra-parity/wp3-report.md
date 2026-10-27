@@ -235,7 +235,7 @@
 | `H116` | no treasuries are offered while accounting is off | مكشوف | 1 |
 | `H118` | the logged in employee is the actor of a cash-up delete | مكشوف | 1 |
 | `H119` | the screen of a cash-up works out the expected cash with accounting on | مكشوف | 1 |
-| `H120` | the screen of a closed cash-up shows what was expected when it was saved | مكشوف بعد تقوية الاختبار | 1 |
+| `H120` | the screen of a closed cash-up shows what was expected when it was saved | مكشوف بعد تقوية الاختبار | 2 |
 | `H121` | the screen of a category knows whether accounting is on | مكشوف | 1 |
 | `H123` | the setting of the category account is read from the form | مكشوف بعد تقوية الاختبار | 1 |
 | `H130` | the ledger column of the expense list is shown only with accounting on | مكشوف بعد تقوية الاختبار | 1 |
