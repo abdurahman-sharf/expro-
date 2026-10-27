@@ -216,7 +216,7 @@
 | `H85` | the journal of another source does not count as in the books (ledger state) | مكشوف | 5 |
 | `H86` | the ledger state is read only with accounting on (search) | مكشوف | 1 |
 | `H87` | the ledger state is read only with accounting on (get_info) | مكشوف | 1 |
-| `H88` | a deleted expense is marked deleted by the delete | مكشوف | 2 |
+| `H88` | a deleted expense is marked deleted by the delete | مكشوف | 4 |
 | `H90` | a cash-up that is changed is read under a lock | مكشوف بعد تقوية الاختبار | 1 |
 | `H91` | the cash-ups of a delete are locked in order | مكشوف بعد تقوية الاختبار | 1 |
 | `H92` | the employee who closes the cash-up is the actor when none is given | مكشوف بعد تقوية الاختبار | 1 |
