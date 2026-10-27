@@ -382,7 +382,7 @@ class Sales extends Secure_Controller
      */
     public function postSetInvoiceNumber(): ResponseInterface|string
     {
-        $this->sale_lib->set_invoice_number($this->request->getPost('sales_invoice_number', FILTER_SANITIZE_NUMBER_INT));
+        $this->sale_lib->set_invoice_number(DocumentNumbering::typed((string) $this->request->getPost('sales_invoice_number')));
         return $this->response->setJSON(['success' => true]);
     }
 
@@ -1879,12 +1879,21 @@ class Sales extends Secure_Controller
 
         $tempInvoiceNumber = $this->sale_lib->get_invoice_number();
         $invoiceFormat = $this->config['sales_invoice_format'];
+        $invoiceNumberPlaceholder = '';
 
         if ($tempInvoiceNumber == null || $tempInvoiceNumber == '') {
-            $tempInvoiceNumber = (new DocumentNumbering())->peek(DocumentType::SalesInvoice) ?? $this->token_lib->render($invoiceFormat, [], false);
+            $nextInvoiceNumber = (new DocumentNumbering())->peek(DocumentType::SalesInvoice);
+
+            if ($nextInvoiceNumber === null) {
+                $tempInvoiceNumber = $this->token_lib->render($invoiceFormat, [], false);
+            } else {
+                $tempInvoiceNumber = '';
+                $invoiceNumberPlaceholder = $nextInvoiceNumber;
+            }
         }
 
         $data['invoice_number'] = $tempInvoiceNumber;
+        $data['invoiceNumberPlaceholder'] = $invoiceNumberPlaceholder;
 
         $data['print_after_sale'] = $this->sale_lib->is_print_after_sale();
         $data['price_work_orders'] = $this->sale_lib->is_price_work_orders();

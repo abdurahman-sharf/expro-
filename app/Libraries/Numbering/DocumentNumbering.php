@@ -32,7 +32,8 @@ final class DocumentNumbering
     public const MAX_PADDING       = 10;
     public const MAX_NEXT          = 2_000_000_000;
     private const SEARCH_LIMIT     = 1000;
-    private const PREFIX_PATTERN   = '/^[\p{L}\p{N}._\/#-]*$/u';
+    private const CHARACTERS       = '\p{L}\p{N}._\/#-';
+    private const PREFIX_PATTERN   = '/^[' . self::CHARACTERS . ']*$/u';
 
     private BaseConnection $db;
     private AccountingGuard $guard;
@@ -41,6 +42,15 @@ final class DocumentNumbering
     {
         $this->db    = $db ?? Database::connect();
         $this->guard = $guard ?? new AccountingGuard();
+    }
+
+    /**
+     * What a person typed as the number of a document, cut down to the characters a number of
+     * the sequences may have, so a number typed by hand and one given by a sequence look alike.
+     */
+    public static function typed(string $typed): string
+    {
+        return (string) preg_replace('/[^' . self::CHARACTERS . ']/u', '', $typed);
     }
 
     public function sequence(DocumentType $type, ?int $companyId = null): NumberingSequence

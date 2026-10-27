@@ -311,4 +311,28 @@ class CustomerTest extends CIUnitTestCase
         $this->assertFalse($model->check_account_number_exists('DUP-2'));
         $this->assertGreaterThan($first, $second);
     }
+
+    public function testRefusesAccountNumber_RefusesANumberAnotherCustomerHasWhileTheOptionIsOn(): void
+    {
+        $first = $this->saveCustomer('One', 'Customer', extra: ['account_number' => 'ACC-1']);
+        $model = model(Customer::class);
+
+        $this->assertTrue($model->refusesAccountNumber('ACC-1'));
+        $this->assertTrue($model->refusesAccountNumber('ACC-1', '-1'));
+        $this->assertFalse($model->refusesAccountNumber('ACC-1', (string) $first));
+        $this->assertFalse($model->refusesAccountNumber('ACC-2'));
+    }
+
+    public function testRefusesAccountNumber_AcceptsANumberAnotherCustomerHasWhenTheOptionIsOff(): void
+    {
+        $this->saveCustomer('One', 'Customer', extra: ['account_number' => 'ACC-1']);
+        (new DocumentNumbering())->configure(DocumentType::Customer, ['prevent_duplicates' => false]);
+
+        $this->assertFalse(model(Customer::class)->refusesAccountNumber('ACC-1'));
+    }
+
+    public function testRefusesAccountNumber_AcceptsAnEmptyNumber(): void
+    {
+        $this->assertFalse(model(Customer::class)->refusesAccountNumber(''));
+    }
 }

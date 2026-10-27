@@ -2085,7 +2085,7 @@ class SalesControllerTest extends CIUnitTestCase
         $response->assertSee('CN-00001');
     }
 
-    public function testRegister_OffersTheNextNumberOfTheInvoiceSequenceInTheInvoiceField(): void
+    public function testGetIndex_OffersTheNextNumberOfTheInvoiceSequenceAsThePlaceholderOfTheInvoiceField(): void
     {
         $prefix = $this->freshPrefix();
         $this->switchOn(DocumentType::SalesInvoice, $prefix, 4);
@@ -2096,7 +2096,100 @@ class SalesControllerTest extends CIUnitTestCase
         $this->seedCartLine(1, '100.00', $itemId);
         $this->withSession(array_merge($this->session, ['sales_mode' => 'sale_invoice']));
 
-        $this->get('/sales')->assertSee('value="' . $prefix . '0001"');
+        $response = $this->get('/sales');
+
+        $response->assertSee('placeholder="' . $prefix . '0001"');
+        $response->assertDontSee('value="' . $prefix . '0001"');
+    }
+
+    public function testGetIndex_FillsTheInvoiceFieldWithTheFormatOfTheSettingsWhileTheSequenceIsOff(): void
+    {
+        $format = 'LGC' . random_int(100000, 999999);
+        $before = $this->config()['sales_invoice_format'];
+        config(OSPOS::class)->settings['sales_invoice_format'] = $format;
+        $cashierId = $this->createCashierEmployee();
+        $itemId    = $this->createTestItem(HAS_NO_STOCK);
+
+        try {
+            $this->loginAs($cashierId);
+            $this->seedCartLine(1, '100.00', $itemId);
+            $this->withSession(array_merge($this->session, ['sales_mode' => 'sale_invoice']));
+
+            $response = $this->get('/sales');
+        } finally {
+            config(OSPOS::class)->settings['sales_invoice_format'] = $before;
+        }
+
+        $response->assertSee('value="' . $format . '"');
+        $response->assertDontSee('placeholder="' . $format . '"');
+    }
+
+    public function testPostSetInvoiceNumber_KeepsANumberWithLettersAndSeparatorsAsTyped(): void
+    {
+        $this->loginAs($this->createCashierEmployee());
+
+        $this->post('/sales/setInvoiceNumber', ['sales_invoice_number' => '2026/INV-0007'])->assertStatus(200);
+
+        $this->assertSame('2026/INV-0007', Services::session()->get('sales_invoice_number'));
+    }
+
+    public function testPostSetInvoiceNumber_KeepsTheLeadingZerosOfANumberTypedByHand(): void
+    {
+        $this->loginAs($this->createCashierEmployee());
+
+        $this->post('/sales/setInvoiceNumber', ['sales_invoice_number' => '0007'])->assertStatus(200);
+
+        $this->assertSame('0007', Services::session()->get('sales_invoice_number'));
+    }
+
+    public function testPostSetInvoiceNumber_DropsTheCharactersANumberCannotHave(): void
+    {
+        $this->loginAs($this->createCashierEmployee());
+
+        $this->post('/sales/setInvoiceNumber', ['sales_invoice_number' => ' INV 7 <>"\'&; '])->assertStatus(200);
+
+        $this->assertSame('INV7', Services::session()->get('sales_invoice_number'));
+    }
+
+    public function testPostSetInvoiceNumber_ForgetsTheNumberWhenTheFieldIsEmptied(): void
+    {
+        $this->loginAs($this->createCashierEmployee());
+        $this->withSession(array_merge($this->session, ['sales_invoice_number' => 'INV-0001']));
+
+        $response = $this->post('/sales/setInvoiceNumber', ['sales_invoice_number' => '']);
+
+        $response->assertStatus(200);
+        $this->assertNull(Services::session()->get('sales_invoice_number'));
+    }
+
+    public function testPostComplete_GivesTheSequenceNumberToAnInvoiceWhoseFieldWasEmptiedAfterTyping(): void
+    {
+        $prefix = $this->freshPrefix();
+        $this->switchOn(DocumentType::SalesInvoice, $prefix, 4);
+        $this->loginAs($this->createCashierEmployee());
+        $this->withSession(array_merge($this->session, ['sales_invoice_number' => $prefix . '0001']));
+        $this->post('/sales/setInvoiceNumber', ['sales_invoice_number' => ''])->assertStatus(200);
+
+        $response = $this->completeAs('sale_invoice', ['sales_invoice_number' => Services::session()->get('sales_invoice_number')]);
+
+        $response->assertSee($prefix . '0001');
+        $this->assertSame(2, (new DocumentNumbering())->sequence(DocumentType::SalesInvoice)->nextNumber);
+        $this->assertSame(1, Database::connect()->table('document_numbers')->where('doc_type', DocumentType::SalesInvoice->value)->countAllResults());
+    }
+
+    public function testPostComplete_KeepsTheNumberTypedByHandThroughTheRegisterFieldWhileTheSequenceIsOn(): void
+    {
+        $prefix = $this->freshPrefix();
+        $number = 'HAND/' . random_int(100000, 999999);
+        $this->switchOn(DocumentType::SalesInvoice, $prefix, 4);
+        $this->loginAs($this->createCashierEmployee());
+        $this->post('/sales/setInvoiceNumber', ['sales_invoice_number' => $number])->assertStatus(200);
+
+        $response = $this->completeAs('sale_invoice', ['sales_invoice_number' => Services::session()->get('sales_invoice_number')]);
+
+        $response->assertSee($number);
+        $this->assertSame(1, Database::connect()->table('sales')->where('invoice_number', $number)->countAllResults());
+        $this->assertSame(1, (new DocumentNumbering())->sequence(DocumentType::SalesInvoice)->nextNumber);
     }
 
     public function testGetReceipt_ShowsTheCreditNoteNumberOfAReturnAndNothingForAnotherSale(): void

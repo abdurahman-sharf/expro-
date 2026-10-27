@@ -239,4 +239,108 @@ class CustomersControllerTest extends CIUnitTestCase
         $this->assertFalse($taken);
         $this->assertTrue($free);
     }
+
+    public function testPostCheckAccountNumber_AcceptsATakenNumberWhenTheOptionIsOff(): void
+    {
+        $this->switchOn('C', 5, false);
+        $this->save(['account_number' => 'ACC-1']);
+
+        $answer = json_decode($this->post('/customers/checkAccountNumber', ['account_number' => 'ACC-1', 'person_id' => '-1'])->getJSON(), true);
+
+        $this->assertTrue($answer);
+    }
+
+    public function testPostCheckAccountNumber_RefusesATakenNumberAgainWhenTheOptionIsSwitchedOnAgain(): void
+    {
+        $this->switchOn('C', 5, false);
+        $this->save(['account_number' => 'ACC-1']);
+        (new DocumentNumbering())->configure(DocumentType::Customer, ['prevent_duplicates' => true]);
+
+        $answer = json_decode($this->post('/customers/checkAccountNumber', ['account_number' => 'ACC-1', 'person_id' => '-1'])->getJSON(), true);
+
+        $this->assertFalse($answer);
+    }
+
+    /**
+     * @param list<string> $accountNumbers
+     *
+     * @return array{success: bool, message: string}
+     */
+    private function importCustomers(array $accountNumbers): array
+    {
+        $file = tempnam(sys_get_temp_dir(), 'customers_');
+        $rows = [['First Name', 'Last Name', 'Gender', 'Consent', 'Email', 'Phone', 'Address 1', 'Address 2', 'City', 'State', 'Zip', 'Country', 'Comments', 'Company', 'Account Number', 'Discount', 'Discount Type', 'Taxable']];
+
+        foreach ($accountNumbers as $accountNumber) {
+            $rows[] = ['Imported', 'K' . uniqid(), '1', '1', 'csv.' . uniqid() . '@test.com', '', '', '', '', '', '', '', '', '', $accountNumber, '', '', ''];
+        }
+
+        $handle = fopen($file, 'w');
+
+        foreach ($rows as $row) {
+            fputcsv($handle, $row);
+        }
+
+        fclose($handle);
+
+        $_FILES['file_path'] = ['name' => 'customers.csv', 'type' => 'text/csv', 'tmp_name' => $file, 'error' => UPLOAD_ERR_OK, 'size' => filesize($file)];
+
+        try {
+            $result = json_decode($this->post('/customers/importCsvFile')->getJSON(), true);
+        } finally {
+            unset($_FILES['file_path']);
+            unlink($file);
+        }
+
+        foreach ($accountNumbers as $accountNumber) {
+            foreach ($this->accountingDb()->table('customers')->select('person_id')->where('account_number', $accountNumber)->get()->getResult() as $customer) {
+                $this->customerIds[] = (int) $customer->person_id;
+            }
+        }
+
+        return $result;
+    }
+
+    private function customersWithNumber(string $accountNumber): int
+    {
+        return $this->accountingDb()->table('customers')->where('account_number', $accountNumber)->countAllResults();
+    }
+
+    public function testPostImportCsvFile_RejectsARowWhoseAccountNumberAnotherCustomerHasEvenWithANewEmail(): void
+    {
+        $this->save(['account_number' => 'ACC-1']);
+
+        $result = $this->importCustomers(['ACC-1']);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(1, $this->customersWithNumber('ACC-1'));
+    }
+
+    public function testPostImportCsvFile_RejectsTheSecondRowOfTheFileThatRepeatsAnAccountNumber(): void
+    {
+        $result = $this->importCustomers(['ACC-2', 'ACC-2']);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(1, $this->customersWithNumber('ACC-2'));
+    }
+
+    public function testPostImportCsvFile_AcceptsARowWhoseAccountNumberAnotherCustomerHasWhenTheOptionIsOff(): void
+    {
+        $this->switchOn('C', 5, false);
+        $this->save(['account_number' => 'ACC-1']);
+
+        $result = $this->importCustomers(['ACC-1']);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(2, $this->customersWithNumber('ACC-1'));
+    }
+
+    public function testPostImportCsvFile_AcceptsRowsWithDifferentAccountNumbers(): void
+    {
+        $result = $this->importCustomers(['ACC-3', 'ACC-4']);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(1, $this->customersWithNumber('ACC-3'));
+        $this->assertSame(1, $this->customersWithNumber('ACC-4'));
+    }
 }
