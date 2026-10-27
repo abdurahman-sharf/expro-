@@ -110,7 +110,7 @@ final class TrialBalance
             ->groupBy('l.account_id');
 
         if ($leaveOutYearEnd) {
-            YearEndEntries::leaveOut($builder);
+            YearEndEntries::leaveOut($builder, $this->db);
         }
 
         $rows = $builder->get()->getResult();

@@ -9,6 +9,7 @@ use App\Libraries\Accounting\BalanceSheetReport;
 use App\Libraries\Accounting\CustomerLedger;
 use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\IncomeStatement;
+use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\ReportPeriod;
 use App\Libraries\Accounting\ReportScope;
 use App\Libraries\Accounting\StatementDisplay;
@@ -245,6 +246,45 @@ class BalanceSheetTest extends CIUnitTestCase
         $this->assertSame($before->assets->total, $after->assets->total);
         $this->assertEquation($after);
         $this->assertSame('320.0000', $this->sheet('2026-12-30', level: 2)->unclosedResult, 'Before the day of the closing the result is still unclosed');
+    }
+
+    public function testBuild_ReturnsTheResultToTheUnclosedLineWhenTheClosingIsReversedAndKeepsTheTotal(): void
+    {
+        $this->cashSale('2026-10-10', 1, '320.00');
+        $this->postOn('2026-10-11', 1, [[$this->accountId('cash'), '126.00', '0'], [$this->accountId('other_payables'), '0', '126.00']]);
+
+        $before  = $this->sheet('2027-12-31', level: 2);
+        $closing = $this->postYearEnd('2026-12-31', 1, [[$this->accountId('sales_revenue'), '320.00', '0'], [$this->accountId('retained_earnings'), '0', '320.00']]);
+
+        $closed = $this->sheet('2027-12-31', level: 2);
+
+        (new JournalService())->reverse($closing, '2027-01-05', 'Reopen the year');
+
+        $after = $this->sheet('2027-12-31', level: 2);
+
+        $this->assertSame('320.0000', $this->amountOf($closed->equity, '32'));
+        $this->assertSame('320.0000', $after->unclosedResult, 'The year is open again');
+        $this->assertSame('0.0000', $this->amountOf($after->equity, '32'));
+        $this->assertEquals($before, $after);
+        $this->assertEquation($after);
+        $this->assertSame('320.0000', $this->amountOf($this->sheet('2026-12-31', level: 2)->equity, '32'), 'Before the day of the reversal the year is still closed');
+    }
+
+    public function testBuild_KeepsTheTotalsWhenTheReversalOfAClosingIsReversedToo(): void
+    {
+        $this->cashSale('2026-10-10', 1, '320.00');
+
+        $closing  = $this->postYearEnd('2026-12-31', 1, [[$this->accountId('sales_revenue'), '320.00', '0'], [$this->accountId('retained_earnings'), '0', '320.00']]);
+        $closed   = $this->sheet('2027-12-31', level: 2);
+        $reversal = (new JournalService())->reverse($closing, '2027-01-05', 'Reopen the year');
+
+        $this->reverseAReversal($reversal, '2027-01-06');
+
+        $after = $this->sheet('2027-12-31', level: 2);
+
+        $this->assertEquals($closed, $after, 'Closed, reopened and closed again');
+        $this->assertSame('320.0000', $this->amountOf($after->equity, '32'));
+        $this->assertEquation($after);
     }
 
     public function testBuild_AddsTheResultOfTheYearAfterTheOneThatWasClosedToTheUnclosedLine(): void

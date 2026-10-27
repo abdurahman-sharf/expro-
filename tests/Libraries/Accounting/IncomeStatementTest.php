@@ -318,6 +318,66 @@ class IncomeStatementTest extends CIUnitTestCase
         $this->assertSame('-6290.0000', $this->statement('2026-12-31', level: 3)->netIncome, 'Without a first day as well');
     }
 
+    public function testBuild_ReadsAYearTheSameAfterItsClosingIsReversed(): void
+    {
+        $this->abScenario();
+
+        $before  = $this->statement('2027-12-31', '2026-01-01', level: 3);
+        $closing = $this->closeTheYearOfTheScenario();
+
+        (new JournalService())->reverse($closing, '2027-01-05', 'Reopen the year');
+
+        $after = $this->statement('2027-12-31', '2026-01-01', level: 3);
+
+        $this->assertSame('-6290.0000', $after->netIncome);
+        $this->assertEquals($before, $after, 'A closing that was taken back is left out with its reversal');
+        $this->assertSame('1990.0000', $after->revenue->total);
+        $this->assertSame('8280.0000', $after->expenses->total);
+        $this->assertSame('-6290.0000', $this->statement('2027-12-31', level: 3)->netIncome, 'Without a first day as well');
+    }
+
+    public function testBuild_ReadsTheMonthOfAReversedClosingAsOneWithNothingInIt(): void
+    {
+        $this->abScenario();
+
+        $closing = $this->closeTheYearOfTheScenario();
+
+        (new JournalService())->reverse($closing, '2027-01-05', 'Reopen the year');
+
+        $january = $this->statement('2027-01-31', '2027-01-01', level: 3);
+
+        $this->assertSame('0.0000', $january->revenue->total);
+        $this->assertSame('0.0000', $january->expenses->total);
+        $this->assertSame('0.0000', $january->netIncome);
+    }
+
+    public function testBuild_ReadsAYearTheSameWhenItsClosingWasReversedAndReplaced(): void
+    {
+        $this->abScenario();
+
+        $before  = $this->statement('2027-12-31', '2026-01-01', level: 3);
+        $closing = $this->closeTheYearOfTheScenario();
+
+        (new JournalService())->reverse($closing, '2027-01-05', 'Correct the closing');
+        $this->closeTheYearOfTheScenario();
+
+        $this->assertEquals($before, $this->statement('2027-12-31', '2026-01-01', level: 3));
+    }
+
+    public function testBuild_ReadsAYearTheSameWhenTheReversalOfItsClosingIsReversedToo(): void
+    {
+        $this->abScenario();
+
+        $before   = $this->statement('2027-12-31', '2026-01-01', level: 3);
+        $closing  = $this->closeTheYearOfTheScenario();
+        $reversal = (new JournalService())->reverse($closing, '2027-01-05', 'Reopen the year');
+
+        $this->reverseAReversal($reversal, '2027-01-06');
+
+        $this->assertEquals($before, $this->statement('2027-12-31', '2026-01-01', level: 3));
+        $this->assertSame('0.0000', $this->statement('2027-01-31', '2027-01-01')->netIncome);
+    }
+
     public function testBuild_LeavesOutAJournalWhoseTypeIsYearEnd(): void
     {
         $this->abScenario();

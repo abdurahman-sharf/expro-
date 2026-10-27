@@ -43,6 +43,30 @@ trait StatementFixtureTrait
     }
 
     /**
+     * Posts the mirror of a reversal, the way the books are left by something that took a
+     * reversal back, which the application itself does not allow: it is a reversal of a reversal.
+     */
+    protected function reverseAReversal(int $reversalId, string $date): int
+    {
+        $reversal = $this->accountingDb()->table('accounting_journals')->where('journal_id', $reversalId)->get()->getRow();
+        $lines    = array_map(
+            static fn (object $line): JournalLineDraft => new JournalLineDraft((int) $line->account_id, debit: $line->credit, credit: $line->debit),
+            $this->accountingDb()->table('accounting_journal_lines')->where('journal_id', $reversalId)->get()->getResult(),
+        );
+
+        return (new PostingService())->post(new JournalDraft(
+            date: $date,
+            lines: $lines,
+            sourceType: JournalDraft::SOURCE_REVERSAL,
+            sourceId: $reversalId,
+            description: 'Reversal of a reversal',
+            currencyCode: 'SAR',
+            reversesJournalId: $reversalId,
+            branchId: (int) $reversal->branch_id,
+        ))->journalId;
+    }
+
+    /**
      * Sales of 2,210 and returns of 220 (net sales 1,990), a cost of sales of 5,280 and rent of
      * 3,000 (expenses 8,280): a net income of minus 6,290.
      */
