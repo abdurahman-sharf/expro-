@@ -1,11 +1,12 @@
 <?php
 /**
  * @var array{level: int, display: StatementDisplay, entities: bool, branches: list<int>} $filters
- * @var list<int>    $levels
- * @var list<object> $branches
+ * @var list<int>                                                                         $levels
+ * @var list<object>                                                                      $branches
  */
 
 use App\Libraries\Accounting\StatementDisplay;
+
 ?>
 <div class="acc-filter">
     <label class="form-label" for="f_level"><?= lang('Accounting_statements.level') ?></label>

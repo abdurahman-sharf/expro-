@@ -1,13 +1,13 @@
 <?php
 /**
- * @var StatementSection                                    $section
- * @var string                                              $heading
- * @var string                                              $total_label
- * @var string                                              $total_id
- * @var string                                              $total
+ * @var StatementSection                                       $section
+ * @var string                                                 $heading
+ * @var string                                                 $total_label
+ * @var string                                                 $total_id
+ * @var string                                                 $total
  * @var list<array{id: string, label: string, amount: string}> $extra
- * @var Closure                                             $amount
- * @var Closure                                             $ledger_url
+ * @var Closure                                                $amount
+ * @var Closure                                                $ledger_url
  */
 
 use App\Libraries\Accounting\StatementLine;

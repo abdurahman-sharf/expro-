@@ -1,19 +1,20 @@
 <?php
 /**
- * @var IncomeStatementReport                                                                                         $report
- * @var string|null                                                                                                   $error
+ * @var IncomeStatementReport                                                                                       $report
+ * @var string|null                                                                                                 $error
  * @var array{from: string, to: string, level: int, display: StatementDisplay, entities: bool, branches: list<int>} $filters
- * @var list<int>                                                                                                     $levels
- * @var list<object>                                                                                                  $branches
- * @var string|null                                                                                                   $scope_label
- * @var Closure                                                                                                       $amount
- * @var Closure                                                                                                       $date
- * @var Closure                                                                                                       $ledger_url
- * @var string                                                                                                        $other_url
+ * @var list<int>                                                                                                   $levels
+ * @var list<object>                                                                                                $branches
+ * @var string|null                                                                                                 $scope_label
+ * @var Closure                                                                                                     $amount
+ * @var Closure                                                                                                     $date
+ * @var Closure                                                                                                     $ledger_url
+ * @var string                                                                                                      $other_url
  */
 
 use App\Libraries\Accounting\IncomeStatementReport;
 use App\Libraries\Accounting\StatementDisplay;
+
 ?>
 
 <?= view('partial/header') ?>

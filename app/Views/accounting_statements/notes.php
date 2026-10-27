@@ -1,12 +1,13 @@
 <?php
 /**
- * @var ReportScope   $scope
- * @var string|null   $error
- * @var string|null   $scope_label
+ * @var ReportScope $scope
+ * @var string|null $error
+ * @var string|null $scope_label
  */
 
 use App\Libraries\Accounting\ReportScope;
 use App\Libraries\Accounting\ReportScopeKind;
+
 ?>
 <?php if ($error !== null): ?>
     <p class="alert alert-danger" id="report_error" role="alert"><?= esc($error) ?></p>

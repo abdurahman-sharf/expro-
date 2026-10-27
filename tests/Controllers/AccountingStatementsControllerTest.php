@@ -791,6 +791,46 @@ class AccountingStatementsControllerTest extends CIUnitTestCase
     }
 
     // ---------------------------------------------------------------------------------------
+    // Both
+    // ---------------------------------------------------------------------------------------
+
+    public function testGetIncomeStatement_EscapesTheNameOfAnAccount(): void
+    {
+        $this->customAccount('54', '5499', '<script>alert(1)</script>');
+        $this->viewer();
+
+        $response = $this->get('/accounting_statements/income_statement?level=3');
+
+        $response->assertDontSee('<script>alert(1)</script>');
+        $response->assertSee('&lt;script&gt;alert(1)&lt;/script&gt;');
+    }
+
+    public function testGetBalanceSheet_EscapesTheNameOfAnAccount(): void
+    {
+        $this->customAccount('12', '1211', '<img src=x onerror=alert(1)>');
+        $this->viewer();
+
+        $response = $this->get('/accounting_statements/balance_sheet?level=4');
+
+        $response->assertDontSee('<img src=x onerror=alert(1)>');
+        $response->assertSee('&lt;img src=x onerror=alert(1)&gt;');
+    }
+
+    public function testGetIncomeStatement_WritesNothing(): void
+    {
+        $this->abScenario();
+        $this->viewer();
+
+        $tables = ['accounting_journals', 'accounting_journal_lines', 'accounting_audit_log', 'accounting_posting_failures', 'accounting_accounts', 'accounting_sequences'];
+        $before = array_map(fn (string $table): int => $this->countRows($table), $tables);
+
+        $this->get('/accounting_statements/income_statement?level=4&entities=1&display=activity');
+        $this->get('/accounting_statements/balance_sheet?level=4&entities=1&display=hide_zero');
+
+        $this->assertSame($before, array_map(fn (string $table): int => $this->countRows($table), $tables));
+    }
+
+    // ---------------------------------------------------------------------------------------
     // Reaching them
     // ---------------------------------------------------------------------------------------
 
