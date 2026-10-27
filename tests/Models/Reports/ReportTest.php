@@ -7,6 +7,7 @@ use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use RuntimeException;
 use Tests\Support\AccountingFixtureTrait;
 
 /**
@@ -164,5 +165,30 @@ class ReportTest extends CIUnitTestCase
         $this->report()->limitBuilder($builder);
 
         $this->assertStringNotContainsString('branch_id', $builder->getCompiledSelect());
+    }
+
+    public function testReadingTheCompany_ReadsEveryBranchForAnEmployeeOfOneAndLimitsTheReadsThatFollow(): void
+    {
+        session()->set('person_id', $this->employeeWithGrants([], [1]));
+        $report = $this->report();
+
+        $this->assertSame([1], $report->branches());
+        $this->assertNull($report->readingTheCompany(static fn (): ?array => $report->branches()));
+        $this->assertSame([1], $report->branches());
+    }
+
+    public function testReadingTheCompany_LimitsTheReadsThatFollowAReadThatFailed(): void
+    {
+        session()->set('person_id', $this->employeeWithGrants([], [1]));
+        $report = $this->report();
+
+        try {
+            $report->readingTheCompany(static function (): never {
+                throw new RuntimeException('The read failed');
+            });
+        } catch (RuntimeException) {
+        }
+
+        $this->assertSame([1], $report->branches());
     }
 }

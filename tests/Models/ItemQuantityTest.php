@@ -89,4 +89,30 @@ class ItemQuantityTest extends CIUnitTestCase
         $this->assertTrue($result2);
         $this->assertEqualsWithDelta(4.0, $this->getItemQuantity($itemId, self::LOCATION_ID), 0.001);
     }
+
+    public function testCreateMissingRows_GivesAnEmptyShelfInEveryLocationInUseAndLeavesTheOnesThatExist(): void
+    {
+        $db      = Database::connect();
+        $itemId  = $this->createTestItem();
+        $stock   = model(Item_quantity::class);
+        $db->table('stock_locations')->insert(['location_name' => 'Missing rows ' . uniqid(), 'deleted' => 0]);
+        $inUse   = (int) $db->insertID();
+        $db->table('stock_locations')->insert(['location_name' => 'Missing rows gone ' . uniqid(), 'deleted' => 1]);
+        $deleted = (int) $db->insertID();
+
+        try {
+            $this->createItemQuantityRow($itemId, 5);
+
+            $this->assertTrue($stock->createMissingRows($itemId));
+            $this->assertTrue($stock->createMissingRows($itemId));
+
+            $this->assertTrue($stock->exists($itemId, $inUse));
+            $this->assertEqualsWithDelta(0.0, $this->getItemQuantity($itemId, $inUse), 0.001);
+            $this->assertEqualsWithDelta(5.0, $this->getItemQuantity($itemId, self::LOCATION_ID), 0.001);
+            $this->assertFalse($stock->exists($itemId, $deleted));
+        } finally {
+            $db->table('item_quantities')->where('item_id', $itemId)->delete();
+            $db->table('stock_locations')->whereIn('location_id', [$inUse, $deleted])->delete();
+        }
+    }
 }
