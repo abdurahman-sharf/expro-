@@ -75,3 +75,23 @@
 ### 6.5 `docs/ui-redesign/deploy-checklist.md` (بند مقترح)
 
 - [ ] **ضوابط الصلاحيات والفروع والأقفال (WP1):** **بلا ترحيل ولا جدول ولا عمود**، فلا يتغير قيد ولا رصيد ولا مستند. بعد النشر: (1) صلاحيتا `acc_treasuries_manage` و`acc_payables_manage` صارتا حساستين: من يحملهما يبقيهما، ولا يمنحهما أو يسحبهما بعد الآن إلا المدير (راجع من يحملهما في شاشة الإعداد). (2) **موظف مقيَّد بفرع** لا يغيّر مخزون موقع فرع آخر من شاشات الأصناف ولا يحذف صنفًا له مخزون هناك، ويرى في التقارير القديمة ولوحة البداية أرقام فروعه وحدها، **وتقرير المصروفات ولوحة المصروفات للشركة كلها فقط (موظف كل الفروع)**؛ تأكد أن الموظفين الذين تتوقع أن يروا الشركة كلها يعملون في كل الفروع. (3) **شغّل `php spark accounting:check_locks` على كل بيئة**: يجب أن يقول «The connection to the database keeps named locks». إن أخطأ فبيئتك فيها مجمّع/وكيل اتصالات يشارك الاتصالات، وتُرفض تعديلات العملاء والموردين (إغلاق على الفشل) إلى أن تُصحَّح.
+
+## ملحق: نتائج تعطيل الحراس (قياس فعلي بـ mutate_generic.py)
+
+كل سطر حارس عُطِّل وحده وشُغِّلت اختباراته (`DETECTED` تعني أن اختبارًا فشل أو توقف). النتائج كما طُبعت، مقسومة على دفعات من عشرة حراس أو أقل.
+
+### الدفعة 1
+
+```
+DETECTED  P6-1 treasuries permission is sensitive: Tests: 9, Assertions: 47, Failures: 3.; failing: 3
+DETECTED  P6-2 payables permission is sensitive: Tests: 9, Assertions: 48, Failures: 3.; failing: 3
+DETECTED  P6-3 treasuries permission is sensitive (employee form): Tests: 42, Assertions: 187, Failures: 4.; failing: 4
+DETECTED  P6-4 payables permission is sensitive (employee form): Tests: 42, Assertions: 203, Failures: 4.; failing: 4
+DETECTED  P6-5 non-administrator cannot hand out a sensitive grant: Tests: 42, Assertions: 201, Failures: 4.; failing: 4
+DETECTED  P6-6 non-administrator save keeps the sensitive grants held: Tests: 42, Assertions: 210, Failures: 2.; failing: 2
+DETECTED  A2A-1 item locations are limited to the branches of the employee: Tests: 81, Assertions: 545, Errors: 1, Failures: 1.; failing: 2
+DETECTED  A2A-2 quantity change refused in a location outside the branches: Tests: 81, Assertions: 544, Failures: 3.; failing: 3
+DETECTED  A2A-3 item form saves only the quantities of allowed locations: Tests: 81, Assertions: 544, Errors: 1, Failures: 1.; failing: 2
+DETECTED  A2A-4 import header check uses the allowed locations: Tests: 81, Assertions: 541, Failures: 1.; failing: 1
+10 of 10 guards detected
+```
