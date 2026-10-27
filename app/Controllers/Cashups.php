@@ -144,7 +144,7 @@ class Cashups extends Secure_Controller
             }
 
             // Get all the transactions payment summaries
-            $reports_data = $this->summary_payments->getData($inputs);
+            $reports_data = $this->summary_payments->readingTheCompany(fn (): array => $this->summary_payments->getData($inputs));
 
             foreach ($reports_data as $row) {
                 if ($row['trans_group'] == lang('Reports.trans_payments')) {

@@ -9,13 +9,23 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use Config\OSPOS;
+use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
+use Tests\Support\ItemFixtureTrait;
+use Tests\Support\PurchaseAccountingFixtureTrait;
+use Tests\Support\ReportBranchFixtureTrait;
+use Tests\Support\SaleAccountingFixtureTrait;
 
 class CashupControllerTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use FeatureTestTrait;
     use EmployeeFixtureTrait;
+    use AccountingFixtureTrait;
+    use ItemFixtureTrait;
+    use SaleAccountingFixtureTrait;
+    use PurchaseAccountingFixtureTrait;
+    use ReportBranchFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -136,5 +146,46 @@ class CashupControllerTest extends CIUnitTestCase
         $this->assertEquals(155.0, (float) $cashup->closed_amount_total);
         $this->assertEquals($cashierId, (int) $cashup->open_employee_id);
         $this->assertEquals($cashierId, (int) $cashup->close_employee_id);
+    }
+
+    private function closedAmount(string $body, string $field): string
+    {
+        $this->assertSame(1, preg_match('/<input[^>]*id="' . $field . '"[^>]*>/', $body, $input), $field);
+        $this->assertSame(1, preg_match('/value="([^"]*)"/', $input[0], $value), $field);
+
+        return $value[1];
+    }
+
+    public function testGetView_PrefillsTheClosingAmountsFromTheSalesOfEveryBranchForAnEmployeeOfOneBranch(): void
+    {
+        Factories::reset('config');
+        $this->startBuying();
+        $this->businessInTwoBranches();
+
+        try {
+            $db = $this->accountingDb();
+            $db->table('sales')->whereIn('sale_id', [$this->reportSales['a'], $this->reportSales['b']])->update(['sale_time' => date('Y-m-d H:i:s')]);
+            $db->table('cash_up')->insert([
+                'open_date' => date('Y-m-d H:i:s', strtotime('-1 day')), 'close_date' => date('Y-m-d H:i:s', strtotime('-1 day')),
+                'open_amount_cash' => '0', 'transfer_amount_cash' => '0', 'closed_amount_cash' => '0', 'closed_amount_due' => '0',
+                'closed_amount_card' => '0', 'closed_amount_check' => '0', 'closed_amount_total' => '0',
+                'description' => 'branch cash-up', 'open_employee_id' => $this->employeeId, 'close_employee_id' => $this->employeeId, 'deleted' => 0,
+            ]);
+
+            $cashupId = (int) $db->insertID();
+
+            $this->loginAs($this->employeeWithGrants(['cashups'], [1]));
+            $this->dropEveryReportTable();
+
+            $body = $this->get('/cashups/view/' . $cashupId)->getBody();
+
+            $this->assertSame('207.00', $this->closedAmount($body, 'closed_amount_cash'));
+            $this->assertSame('126.00', $this->closedAmount($body, 'closed_amount_card'));
+        } finally {
+            $this->accountingDb()->table('cash_up')->where('description', 'branch cash-up')->delete();
+            $this->forgetTheReportBusiness();
+            $this->stopBuying();
+            $this->removeTheReportItems();
+        }
     }
 }
