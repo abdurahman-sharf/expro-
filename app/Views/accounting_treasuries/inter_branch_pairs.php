@@ -4,11 +4,11 @@
  * @var list<array<string, mixed>> $unattributed
  * @var string|null                $difference
  * @var string|null                $error
- * @var string                     $as_of
- * @var string|null                $scope_label
- * @var bool                       $scope_empty
- * @var bool                       $scope_partial
- * @var bool                       $can_settle
+ * @var string                     $asOf
+ * @var string|null                $scopeLabel
+ * @var bool                       $scopeEmpty
+ * @var bool                       $scopePartial
+ * @var bool                       $canSettle
  */
 ?>
 
@@ -16,15 +16,15 @@
     <p class="alert alert-danger" id="pairs_error" role="alert"><?= esc($error) ?></p>
 <?php endif; ?>
 
-<?php if ($scope_label !== null): ?>
-    <?php if ($scope_partial): ?>
-        <p class="alert alert-warning" id="pairs_scope" role="note"><?= esc($scope_label) ?></p>
+<?php if ($scopeLabel !== null): ?>
+    <?php if ($scopePartial): ?>
+        <p class="alert alert-warning" id="pairs_scope" role="note"><?= esc($scopeLabel) ?></p>
     <?php else: ?>
-        <p class="text-secondary small" id="pairs_scope" role="note"><span class="bi bi-info-circle" aria-hidden="true"></span> <?= esc($scope_label) ?></p>
+        <p class="text-secondary small" id="pairs_scope" role="note"><span class="bi bi-info-circle" aria-hidden="true"></span> <?= esc($scopeLabel) ?></p>
     <?php endif; ?>
 <?php endif; ?>
 
-<?php if ($scope_empty): ?>
+<?php if ($scopeEmpty): ?>
     <p class="alert alert-warning" id="pairs_no_branches"><?= lang('Accounting_reports.no_branches') ?></p>
 <?php endif; ?>
 
@@ -47,7 +47,7 @@
                     <th scope="col"><?= lang('Accounting_treasuries.pair_net') ?></th>
                     <th scope="col"><?= lang('Accounting_treasuries.pair_basis') ?></th>
                     <th scope="col"><?= lang('Accounting_treasuries.pair_agrees') ?></th>
-                    <?php if ($can_settle): ?>
+                    <?php if ($canSettle): ?>
                         <th scope="col"><span class="visually-hidden"><?= lang('Accounting_treasuries.settle') ?></span></th>
                     <?php endif; ?>
                 </tr>
@@ -62,10 +62,10 @@
                         <td><bdi dir="ltr"><?= esc($row['owed']) ?></bdi> <span class="small text-body-secondary"><?= $row['sign'] > 0 ? esc(lang('Accounting_treasuries.pair_net_owed')) : ($row['sign'] < 0 ? esc(lang('Accounting_treasuries.pair_net_owing')) : '') ?></span></td>
                         <td><span class="badge text-bg-secondary"><?= esc(lang('Accounting_treasuries.pair_basis_' . $row['basis'])) ?></span></td>
                         <td><span class="badge <?= $row['agrees'] ? 'text-bg-success' : 'text-bg-danger' ?>"><?= esc(lang($row['agrees'] ? 'Accounting_treasuries.pair_agrees_yes' : 'Accounting_treasuries.pair_agrees_no')) ?></span></td>
-                        <?php if ($can_settle): ?>
+                        <?php if ($canSettle): ?>
                             <td>
-                                <?php if ($row['settle_url'] !== null): ?>
-                                    <button type="button" class="btn btn-outline-primary btn-sm modal-dlg" data-btn-submit="<?= esc(lang('Accounting_treasuries.settle_submit'), 'attr') ?>" data-href="<?= esc($row['settle_url'], 'attr') ?>" title="<?= esc(lang('Accounting_treasuries.settle_title'), 'attr') ?>"><?= lang('Accounting_treasuries.settle') ?></button>
+                                <?php if ($row['settleUrl'] !== null): ?>
+                                    <button type="button" class="btn btn-outline-primary btn-sm modal-dlg" data-btn-submit="<?= esc(lang('Accounting_treasuries.settle_submit'), 'attr') ?>" data-href="<?= esc($row['settleUrl'], 'attr') ?>" title="<?= esc(lang('Accounting_treasuries.settle_title'), 'attr') ?>"><?= lang('Accounting_treasuries.settle') ?></button>
                                 <?php endif; ?>
                             </td>
                         <?php endif; ?>

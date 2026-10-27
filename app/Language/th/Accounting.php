@@ -168,6 +168,7 @@ return [
     'error_settlement_already_cancelled'         => '',
     'error_settlement_not_found'                 => '',
     'error_settlement_nothing_to_settle'         => '',
+    'error_settlement_older_than_settled'        => '',
     'error_settlement_pair_not_agreed'           => '',
     'error_settlement_same_branch'               => '',
     'error_settlement_treasury_required'         => '',

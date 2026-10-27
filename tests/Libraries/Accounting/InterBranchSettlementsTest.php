@@ -440,6 +440,80 @@ class InterBranchSettlementsTest extends CIUnitTestCase
         $this->assertSame(AccountingError::SettlementNothingToSettle, $this->refusal(fn () => $this->settle($this->other, $this->main, '2026-10-26'))->error, 'Settled already');
     }
 
+    public function testSettle_RejectsADayBeforeASettlementThatStandsAndMovesNoCashTwice(): void
+    {
+        $this->send(true, '100.00', '2026-10-21');
+
+        $this->settle($this->other, $this->main, '2026-10-31');
+
+        $journals = $this->countRows('accounting_journals');
+        $refusal  = $this->refusal(fn () => $this->settle($this->other, $this->main, '2026-10-25'));
+
+        $this->assertSame(AccountingError::SettlementOlderThanSettled, $refusal->error);
+        $this->assertSame('2026-10-31', $refusal->context['date']);
+        $this->assertSame(1, $this->countRows('interbranch_settlements'));
+        $this->assertSame($journals, $this->countRows('accounting_journals'));
+        $this->assertSame('1000.0000', $this->balanceOf($this->main));
+        $this->assertSame('1000.0000', $this->balanceOf($this->other));
+        $this->assertNothingOwedBetweenTheBranches();
+    }
+
+    public function testSettle_RejectsADayBeforeASettlementDatedInTheFutureWhicheverBranchIsAsked(): void
+    {
+        $this->send(true, '100.00', '2026-10-21');
+
+        $this->settle($this->other, $this->main, '2026-12-31');
+
+        $refusal = $this->refusal(fn () => $this->settlements->settle($this->branch, 1, '2026-11-02', $this->other, $this->main, '', null, $this->settler));
+
+        $this->assertSame(AccountingError::SettlementOlderThanSettled, $refusal->error);
+        $this->assertSame('2026-12-31', $refusal->context['date']);
+        $this->assertSame(1, $this->countRows('interbranch_settlements'));
+        $this->assertSame('1000.0000', $this->balanceOf($this->other));
+    }
+
+    public function testSettle_RejectsADayBeforeTheLatestOfSeveralSettlementsThatStand(): void
+    {
+        $this->send(true, '100.00', '2026-10-21');
+        $this->settle($this->other, $this->main, '2026-10-25');
+        $this->send(true, '40.00', '2026-10-26');
+        $this->settle($this->other, $this->main, '2026-10-28');
+        $this->send(true, '5.00', '2026-10-20');
+
+        $refusal = $this->refusal(fn () => $this->settle($this->other, $this->main, '2026-10-27'));
+
+        $this->assertSame(AccountingError::SettlementOlderThanSettled, $refusal->error);
+        $this->assertSame('2026-10-28', $refusal->context['date']);
+        $this->assertSame(2, $this->countRows('interbranch_settlements'));
+    }
+
+    public function testSettle_AcceptsTheDayOfASettlementThatStandsAndClearsWhatCameAfterItWasMade(): void
+    {
+        $this->send(true, '100.00', '2026-10-21');
+        $this->settle($this->other, $this->main, '2026-10-25');
+        $this->send(true, '40.00', '2026-10-23');
+
+        $id = $this->settle($this->other, $this->main, '2026-10-25');
+
+        $this->assertSame('40.0000', $this->settlements->find($id)->amount);
+        $this->assertSame(2, $this->countRows('interbranch_settlements'));
+        $this->assertNothingOwedBetweenTheBranches();
+    }
+
+    public function testSettle_AcceptsADayBeforeASettlementThatWasCancelled(): void
+    {
+        $this->send(true, '100.00', '2026-10-21');
+
+        $this->settlements->cancel($this->settle($this->other, $this->main, '2026-10-31'), 'Entered by mistake', $this->settler);
+
+        $id = $this->settle($this->other, $this->main, '2026-10-25');
+
+        $this->assertSame('100.0000', $this->settlements->find($id)->amount);
+        $this->assertNothingOwedBetweenTheBranches();
+        $this->assertSame('1000.0000', $this->balanceOf($this->main));
+        $this->assertSame('1000.0000', $this->balanceOf($this->other));
+    }
+
     public function testSettle_LeavesWhatIsDatedAfterTheDayOfTheSettlement(): void
     {
         $this->send(true, '100.00', '2026-10-21');
@@ -628,6 +702,19 @@ class InterBranchSettlementsTest extends CIUnitTestCase
         $this->assertNull($this->settlements->plan(1, $this->branch, '2026-10-01', $this->settler)->kind);
     }
 
+    public function testPlan_SaysWhenASettlementOfAnotherDayStandsAfterTheDayAndCannotBeSettled(): void
+    {
+        $this->send(true, '100.00', '2026-10-21');
+        $this->settle($this->other, $this->main, '2026-10-31');
+
+        $before = $this->settlements->plan(1, $this->branch, '2026-10-25', $this->settler);
+        $on     = $this->settlements->plan(1, $this->branch, '2026-10-31', $this->settler);
+
+        $this->assertSame(['2026-10-31', SettlementPlan::CASH, '100.0000', true, false], [$before->settledOn, $before->kind, $before->amount, $before->agrees, $before->canBeSettled()]);
+        $this->assertNull($on->settledOn);
+        $this->assertNull($this->settlements->plan(1, $this->branch, '2026-11-01', $this->settler)->settledOn);
+    }
+
     public function testPlan_RejectsAnEmployeeWhoWorksInOnlyOneOfTheBranches(): void
     {
         foreach ([1, $this->branch] as $branchId) {
@@ -666,10 +753,10 @@ class InterBranchSettlementsTest extends CIUnitTestCase
 
     public function testCancel_ReversesTheJournalOfTheLowerBranchFirstWhicheverBranchPaid(): void
     {
-        foreach ([[true, $this->other, $this->main], [false, $this->main, $this->other]] as [$fromFirst, $from, $to]) {
-            $this->send($fromFirst, '10.00');
+        foreach ([[true, $this->other, $this->main, '2026-10-21', '2026-10-31', '2026-11-30'], [false, $this->main, $this->other, '2026-12-01', '2026-12-05', '2026-12-31']] as [$fromFirst, $from, $to, $sentOn, $settledOn, $settledAgainOn]) {
+            $this->send($fromFirst, '10.00', $sentOn);
 
-            $id = $this->settle($from, $to);
+            $id = $this->settle($from, $to, $settledOn);
 
             $this->settlements->cancel($id, 'Reason', $this->settler);
 
@@ -681,7 +768,7 @@ class InterBranchSettlementsTest extends CIUnitTestCase
 
             $this->assertLessThan($reversed[$this->branch], $reversed[1]);
 
-            $this->settlements->settle(1, $this->branch, '2026-11-30', $from, $to, '', null, $this->settler);
+            $this->settlements->settle(1, $this->branch, $settledAgainOn, $from, $to, '', null, $this->settler);
         }
     }
 
@@ -788,10 +875,10 @@ class InterBranchSettlementsTest extends CIUnitTestCase
 
     public function testCancel_TakesThePeriodLockOfTheLowerBranchBeforeTheOtherWhicheverBranchPaid(): void
     {
-        foreach ([[true, $this->other, $this->main], [false, $this->main, $this->other]] as [$fromFirst, $from, $to]) {
-            $this->send($fromFirst, '10.00');
+        foreach ([[true, $this->other, $this->main, '2026-10-21', '2026-10-31', '2026-11-30'], [false, $this->main, $this->other, '2026-12-01', '2026-12-05', '2026-12-31']] as [$fromFirst, $from, $to, $sentOn, $settledOn, $settledAgainOn]) {
+            $this->send($fromFirst, '10.00', $sentOn);
 
-            $id = $this->settle($from, $to);
+            $id = $this->settle($from, $to, $settledOn);
 
             $this->assertSame([1, $this->branch], $this->periodLocksTakenBy(fn () => $this->settlements->cancel($id, 'Reason', $this->settler)));
         }

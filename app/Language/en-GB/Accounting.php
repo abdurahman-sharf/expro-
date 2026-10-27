@@ -168,6 +168,7 @@ return [
     'error_settlement_already_cancelled'         => 'This settlement is already cancelled.',
     'error_settlement_not_found'                 => 'This settlement does not exist.',
     'error_settlement_nothing_to_settle'         => 'Nothing is owed between the two branches on that day.',
+    'error_settlement_older_than_settled'        => 'The two branches were settled on {0}, after this day, and a settlement for this day would clear the same balances again. Settle on or after {0}, or cancel that settlement first.',
     'error_settlement_pair_not_agreed'           => 'The two branches do not say the same of each other, so they cannot be settled. Find the journal that has no counterpart first.',
     'error_settlement_same_branch'               => 'A settlement is between two different branches.',
     'error_settlement_treasury_required'         => 'A cash settlement needs the treasury the money comes out of and the one it goes into.',

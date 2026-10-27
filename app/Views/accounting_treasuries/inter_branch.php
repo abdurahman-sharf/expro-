@@ -1,17 +1,17 @@
 <?php
 /**
- * @var string                     $table_headers
+ * @var string                     $tableHeaders
  * @var list<array<string, mixed>> $rows
  * @var list<array<string, mixed>> $unattributed
  * @var string|null                $difference
  * @var string|null                $error
- * @var string                     $as_of
+ * @var string                     $asOf
  * @var list<object>               $branches
  * @var list<int>                  $selected
- * @var string|null                $scope_label
- * @var bool                       $scope_empty
- * @var bool                       $scope_partial
- * @var bool                       $can_settle
+ * @var string|null                $scopeLabel
+ * @var bool                       $scopeEmpty
+ * @var bool                       $scopePartial
+ * @var bool                       $canSettle
  * @var array                      $config
  */
 $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
@@ -25,7 +25,7 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 
         table_support.init({
             resource: 'accounting_treasuries/inter_branch/settlements',
-            headers: <?= $table_headers ?>,
+            headers: <?= $tableHeaders ?>,
             pageSize: <?= $config['lines_per_page'] ?>,
             uniqueId: 'settlement_id',
             cardTitle: ['settlement_id'],
@@ -49,7 +49,7 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
     <div class="acc-filter-row">
         <div class="acc-filter">
             <label class="form-label" for="f_as_of"><?= lang('Accounting_treasuries.as_of') ?></label>
-            <input type="date" id="f_as_of" name="as_of" class="form-control form-control-sm" value="<?= esc($as_of, 'attr') ?>">
+            <input type="date" id="f_as_of" name="as_of" class="form-control form-control-sm" value="<?= esc($asOf, 'attr') ?>">
         </div>
         <?php if ($branches !== []): ?>
             <fieldset class="acc-filter acc-filter-status" id="f_branches">
@@ -71,7 +71,7 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
     <p class="text-body-secondary" id="inter_branch_note"><?= esc(lang('Accounting_treasuries.inter_branch_note')) ?></p>
 
     <div id="pairs_holder">
-        <?= view('accounting_treasuries/inter_branch_pairs', compact('rows', 'unattributed', 'difference', 'error', 'as_of', 'scope_label', 'scope_empty', 'scope_partial', 'can_settle')) ?>
+        <?= view('accounting_treasuries/inter_branch_pairs', compact('rows', 'unattributed', 'difference', 'error', 'asOf', 'scopeLabel', 'scopeEmpty', 'scopePartial', 'canSettle')) ?>
     </div>
 
     <h2 class="h5 mt-4"><?= lang('Accounting_treasuries.settlements_title') ?></h2>

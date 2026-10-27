@@ -43,7 +43,7 @@ class AccountingInterBranch extends AccountingController
     public function getIndex(): string
     {
         return view('accounting_treasuries/inter_branch', [
-            'table_headers' => transform_headers($this->settlementHeaders(), true, true),
+            'tableHeaders'  => transform_headers($this->settlementHeaders(), true, true),
             ...$this->pairsData(),
         ]);
     }
@@ -92,12 +92,12 @@ class AccountingInterBranch extends AccountingController
 
         return view('accounting_treasuries/settle_form', [
             'plan'            => $plan,
-            'from_treasuries' => $this->choices($plan->payerBranchId, TreasuryScopes::WITHDRAW),
-            'to_treasuries'   => $this->choices($plan->payeeBranchId, TreasuryScopes::DEPOSIT),
-            'request_key'     => bin2hex(random_bytes(16)),
+            'fromTreasuries' => $this->choices($plan->payerBranchId, TreasuryScopes::WITHDRAW),
+            'toTreasuries'     => $this->choices($plan->payeeBranchId, TreasuryScopes::DEPOSIT),
+            'requestKey'      => bin2hex(random_bytes(16)),
             'amount'          => fn (string $value): string => $this->formatAmount($value),
-            'payer_code'      => $plan->payerBranchId === null ? '' : ($plan->payerBranchId === $plan->firstBranchId ? $plan->firstCode : $plan->secondCode),
-            'payee_code'      => $plan->payeeBranchId === null ? '' : ($plan->payeeBranchId === $plan->firstBranchId ? $plan->firstCode : $plan->secondCode),
+            'payerCode'       => $plan->payerBranchId === null ? '' : ($plan->payerBranchId === $plan->firstBranchId ? $plan->firstCode : $plan->secondCode),
+            'payeeCode'       => $plan->payeeBranchId === null ? '' : ($plan->payeeBranchId === $plan->firstBranchId ? $plan->firstCode : $plan->secondCode),
         ]);
     }
 
@@ -181,7 +181,7 @@ class AccountingInterBranch extends AccountingController
                 'sign'        => bccomp($row->owed, '0', 4),
                 'basis'       => $row->basis,
                 'agrees'      => $row->agrees,
-                'settle_url'  => $row->branchId < $row->counterpartId && $canSeeBoth($row) && (bccomp($row->receivable, '0', 4) !== 0 || bccomp($row->payable, '0', 4) !== 0)
+                'settleUrl'   => $row->branchId < $row->counterpartId && $canSeeBoth($row) && (bccomp($row->receivable, '0', 4) !== 0 || bccomp($row->payable, '0', 4) !== 0)
                     ? base_url('accounting_treasuries/inter_branch/settle_form') . '?' . http_build_query(['branch' => $row->branchId, 'other' => $row->counterpartId, 'date' => $asOf])
                     : null,
             ], $report->rows),
@@ -192,13 +192,13 @@ class AccountingInterBranch extends AccountingController
             ], $report->unattributed),
             'difference'    => $report->difference !== null && bccomp($report->difference, '0', 4) !== 0 ? $this->formatAmount($report->difference) : null,
             'error'         => $error,
-            'as_of'         => $asOf,
+            'asOf'          => $asOf,
             'branches'      => $scope->choosable() ? $scope->choices : [],
             'selected'      => $scope->ids,
-            'scope_label'   => $scope->label(),
-            'scope_empty'   => $scope->isEmpty(),
-            'scope_partial' => $scope->kind === ReportScopeKind::Partial,
-            'can_settle'    => $this->can(AccountingGuard::INTERBRANCH_SETTLE),
+            'scopeLabel'    => $scope->label(),
+            'scopeEmpty'    => $scope->isEmpty(),
+            'scopePartial'  => $scope->kind === ReportScopeKind::Partial,
+            'canSettle'     => $this->can(AccountingGuard::INTERBRANCH_SETTLE),
         ];
     }
 

@@ -326,6 +326,36 @@ class AccountingInterBranchControllerTest extends CIUnitTestCase
         $this->get('/accounting_treasuries/inter_branch/settle_form?branch=1&other=' . $this->branch . '&date=2026-10-31')->assertSee('id="settle_not_agreed"');
     }
 
+    public function testGetIndex_OffersTheDayAskedToSettleAndTheFormAndThePostRefuseADayBeforeASettlementThatStands(): void
+    {
+        $this->send(true, '100.00', '2026-10-21');
+        $this->settleDirectly();
+        $this->settler();
+
+        $page = $this->get('/accounting_treasuries/inter_branch?as_of=2026-10-25');
+
+        $this->assertSame(1, preg_match('/data-href="([^"]*settle_form[^"]*)"/', $page->getBody(), $found), 'The pair is owed 100 on that day, so it can be asked to settle');
+
+        $url = html_entity_decode($found[1]);
+
+        $this->assertStringContainsString('date=2026-10-25', $url);
+
+        $form = $this->get(substr($url, strlen(base_url())));
+
+        $form->assertStatus(200);
+        $form->assertSee('id="settle_older"');
+        $form->assertSee(lang('Accounting.error_settlement_older_than_settled', ['2026-10-31']));
+        $this->assertStringNotContainsString('name="from_treasury_id"', $form->getBody());
+
+        $result = $this->jsonOf($this->post('/accounting_treasuries/inter_branch/settle', ['date' => '2026-10-25'] + $this->settlement()));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_settlement_older_than_settled', ['2026-10-31']), $result['message']);
+        $this->assertSame(1, $this->countRows('interbranch_settlements'));
+        $this->assertSame('1000.0000', $this->treasuries->position($this->other)->balance);
+        $this->assertSame('1000.0000', $this->treasuries->position($this->main)->balance);
+    }
+
     public function testGetSettleForm_IsNotFoundToWhoMayNotSettleOrWorksInOnlyOneOfTheBranches(): void
     {
         $this->send(true, '100.00');

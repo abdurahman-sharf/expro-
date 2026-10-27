@@ -104,6 +104,10 @@ final class InterBranchSettlements
 
             $plan = $this->planOf($first, $second, $date);
 
+            if ($plan->settledOn !== null) {
+                throw new AccountingException(AccountingError::SettlementOlderThanSettled, 'The two branches were settled on a later day already, which cleared what this day would clear again.', ['date' => $plan->settledOn]);
+            }
+
             if (! $plan->agrees) {
                 throw new AccountingException(AccountingError::SettlementPairNotAgreed, 'The two branches do not say the same of each other, so they cannot be settled.', ['first' => $plan->firstCode, 'second' => $plan->secondCode]);
             }
@@ -298,7 +302,7 @@ final class InterBranchSettlements
         $between = $this->balances->between($first, $second, $date);
         $one     = $between['first'];
         $two     = $between['second'];
-        $agrees  = bccomp($one['receivable'], $two['payable'], SaleAmounts::SCALE) === 0 && bccomp($one['payable'], $two['receivable'], SaleAmounts::SCALE) === 0;
+        $agrees  = PairBalance::agree($one['receivable'], $one['payable'], $two['receivable'], $two['payable']);
         $net     = bcsub($one['receivable'], $one['payable'], SaleAmounts::SCALE);
         $empty   = bccomp($one['receivable'], '0', SaleAmounts::SCALE) === 0 && bccomp($one['payable'], '0', SaleAmounts::SCALE) === 0 && bccomp($two['receivable'], '0', SaleAmounts::SCALE) === 0 && bccomp($two['payable'], '0', SaleAmounts::SCALE) === 0;
         $cash    = bccomp($net, '0', SaleAmounts::SCALE) !== 0;
@@ -324,7 +328,23 @@ final class InterBranchSettlements
             amount: $cash ? SaleAmounts::absolute($net) : self::ZERO,
             payerBranchId: $payer,
             payeeBranchId: $payer === null ? null : ($payer === $first ? $second : $first),
+            settledOn: $this->settledAfter($first, $second, $date),
         );
+    }
+
+    /**
+     * A settlement counts only what is dated on or before its own day, so one made for an earlier
+     * day than a settlement that stands cannot see it and would clear the same balances twice.
+     */
+    private function settledAfter(int $first, int $second, string $date): ?string
+    {
+        $latest = $this->db->table('interbranch_settlements')
+            ->selectMax('settle_date', 'latest')
+            ->where(['company_id' => CompanyContext::id(), 'branch_id' => $first, 'counterpart_branch_id' => $second, 'status !=' => 'cancelled', 'settle_date >' => $date])
+            ->get()
+            ->getRow();
+
+        return $latest?->latest === null ? null : (string) $latest->latest;
     }
 
     /**

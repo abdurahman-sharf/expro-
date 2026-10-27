@@ -1,12 +1,12 @@
 <?php
 /**
  * @var SettlementPlan $plan
- * @var list<object>   $from_treasuries
- * @var list<object>   $to_treasuries
- * @var string         $request_key
+ * @var list<object>   $fromTreasuries
+ * @var list<object>   $toTreasuries
+ * @var string         $requestKey
  * @var Closure        $amount
- * @var string         $payer_code
- * @var string         $payee_code
+ * @var string         $payerCode
+ * @var string         $payeeCode
  */
 
 use App\Libraries\Accounting\SettlementPlan;
@@ -20,7 +20,7 @@ use App\Libraries\Accounting\SettlementPlan;
     <input type="hidden" name="branch" value="<?= (int) $plan->firstBranchId ?>">
     <input type="hidden" name="other" value="<?= (int) $plan->secondBranchId ?>">
     <input type="hidden" name="date" value="<?= esc($plan->date, 'attr') ?>">
-    <input type="hidden" name="request_key" value="<?= esc($request_key, 'attr') ?>">
+    <input type="hidden" name="request_key" value="<?= esc($requestKey, 'attr') ?>">
 
     <p class="mb-2" id="settle_pair">
         <?= esc(lang('Accounting_treasuries.settle_pair', [$plan->firstCode, $plan->secondCode])) ?>
@@ -49,7 +49,9 @@ use App\Libraries\Accounting\SettlementPlan;
         </tbody>
     </table>
 
-    <?php if (! $plan->agrees): ?>
+    <?php if ($plan->settledOn !== null): ?>
+        <p class="alert alert-danger" id="settle_older" role="alert"><?= esc(lang('Accounting.error_settlement_older_than_settled', [$plan->settledOn])) ?></p>
+    <?php elseif (! $plan->agrees): ?>
         <p class="alert alert-danger" id="settle_not_agreed" role="alert"><?= esc(lang('Accounting_treasuries.settle_not_agreed')) ?></p>
     <?php elseif ($plan->kind === null): ?>
         <p class="alert alert-info" id="settle_nothing" role="note"><?= esc(lang('Accounting_treasuries.settle_nothing')) ?></p>
@@ -59,15 +61,15 @@ use App\Libraries\Accounting\SettlementPlan;
         <?php if ($plan->kind === SettlementPlan::NETTING): ?>
             <p class="alert alert-info" id="settle_netting" role="note"><?= esc(lang('Accounting_treasuries.settle_kind_netting')) ?></p>
         <?php else: ?>
-            <p class="alert alert-info" id="settle_cash" role="note"><?= esc(lang('Accounting_treasuries.settle_kind_cash', [$payer_code, $amount($plan->amount), $payee_code])) ?></p>
+            <p class="alert alert-info" id="settle_cash" role="note"><?= esc(lang('Accounting_treasuries.settle_kind_cash', [$payerCode, $amount($plan->amount), $payeeCode])) ?></p>
 
             <div class="form-grid">
                 <div class="field">
-                    <?= form_label(lang('Accounting_treasuries.settle_from_treasury', [$payer_code]), 'from_treasury_id', ['class' => 'form-label text-danger required']) ?>
+                    <?= form_label(lang('Accounting_treasuries.settle_from_treasury', [$payerCode]), 'from_treasury_id', ['class' => 'form-label text-danger required']) ?>
                     <div class="field-control">
                         <select name="from_treasury_id" id="from_treasury_id" class="form-select form-select-sm">
                             <option value=""></option>
-                            <?php foreach ($from_treasuries as $treasury): ?>
+                            <?php foreach ($fromTreasuries as $treasury): ?>
                                 <option value="<?= (int) $treasury->treasury_id ?>"><?= esc($treasury->name) ?></option>
                             <?php endforeach; ?>
                         </select>
@@ -75,11 +77,11 @@ use App\Libraries\Accounting\SettlementPlan;
                 </div>
 
                 <div class="field">
-                    <?= form_label(lang('Accounting_treasuries.settle_to_treasury', [$payee_code]), 'to_treasury_id', ['class' => 'form-label text-danger required']) ?>
+                    <?= form_label(lang('Accounting_treasuries.settle_to_treasury', [$payeeCode]), 'to_treasury_id', ['class' => 'form-label text-danger required']) ?>
                     <div class="field-control">
                         <select name="to_treasury_id" id="to_treasury_id" class="form-select form-select-sm">
                             <option value=""></option>
-                            <?php foreach ($to_treasuries as $treasury): ?>
+                            <?php foreach ($toTreasuries as $treasury): ?>
                                 <option value="<?= (int) $treasury->treasury_id ?>"><?= esc($treasury->name) ?></option>
                             <?php endforeach; ?>
                         </select>

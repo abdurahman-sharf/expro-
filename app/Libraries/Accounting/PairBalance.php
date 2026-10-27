@@ -31,4 +31,18 @@ final readonly class PairBalance
         public bool $agrees,
     ) {
     }
+
+    /**
+     * The rule of the balances screen and of the settlement: what one branch is owed is what the
+     * other owes it, and what it owes is what the other is owed, each on its own.
+     *
+     * @param numeric-string $receivable
+     * @param numeric-string $payable
+     * @param numeric-string $otherReceivable
+     * @param numeric-string $otherPayable
+     */
+    public static function agree(string $receivable, string $payable, string $otherReceivable, string $otherPayable): bool
+    {
+        return bccomp($receivable, $otherPayable, SaleAmounts::SCALE) === 0 && bccomp($payable, $otherReceivable, SaleAmounts::SCALE) === 0;
+    }
 }

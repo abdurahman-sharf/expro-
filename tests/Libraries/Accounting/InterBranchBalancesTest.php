@@ -6,6 +6,7 @@ use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\InterBranchBalances;
 use App\Libraries\Accounting\InterBranchLegs;
 use App\Libraries\Accounting\InterBranchPosition;
+use App\Libraries\Accounting\InterBranchSettlements;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\PairBalance;
@@ -267,6 +268,24 @@ class InterBranchBalancesTest extends CIUnitTestCase
         $this->assertFalse($rows[$this->secondBranch . '>1']->agrees);
         $this->assertSame('0.0000', $rows[$this->secondBranch . '>1']->owed);
         $this->assertSame('60.0000', $this->balances->report()->difference);
+    }
+
+    public function testReport_SaysAPairDoesNotAgreeWhenTheNetIsTheSameButTheTwoSidesAreNotAndTheSettlementSaysTheSame(): void
+    {
+        $legs = new InterBranchLegs();
+
+        $legs->record($this->journalOn('branches_receivable', '100.00', true, 1, '2026-10-21', 7001), $this->accountId('branches_receivable'), InterBranchLegs::RECEIVABLE, $this->secondBranch, 'interbranch_test', 7001, 1);
+        $legs->record($this->journalOn('branches_payable', '100.00', false, 1, '2026-10-22', 7002), $this->accountId('branches_payable'), InterBranchLegs::PAYABLE, $this->secondBranch, 'interbranch_test', 7002, 1);
+
+        $rows = $this->rows();
+        $plan = (new InterBranchSettlements())->plan(1, $this->secondBranch, '2026-10-31');
+
+        $this->assertSame(['100.0000', '100.0000', '0.0000'], [$rows['1>' . $this->secondBranch]->receivable, $rows['1>' . $this->secondBranch]->payable, $rows['1>' . $this->secondBranch]->owed]);
+        $this->assertSame(['0.0000', '0.0000'], [$rows[$this->secondBranch . '>1']->receivable, $rows[$this->secondBranch . '>1']->payable]);
+        $this->assertFalse($rows['1>' . $this->secondBranch]->agrees);
+        $this->assertFalse($rows[$this->secondBranch . '>1']->agrees);
+        $this->assertFalse($plan->agrees);
+        $this->assertFalse($plan->canBeSettled());
     }
 
     public function testReport_ShowsOnlyThePairsOfTheBranchesTheReaderMaySeeAndNotTheCompanyCheck(): void

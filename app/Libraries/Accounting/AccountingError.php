@@ -164,6 +164,7 @@ enum AccountingError: string
     case SettlementNotFound         = 'settlement_not_found';
     case SettlementAlreadyCancelled = 'settlement_already_cancelled';
     case SettlementNothingToSettle  = 'settlement_nothing_to_settle';
+    case SettlementOlderThanSettled = 'settlement_older_than_settled';
     case SettlementPairNotAgreed    = 'settlement_pair_not_agreed';
     case SettlementSameBranch       = 'settlement_same_branch';
     case SettlementTreasuryRequired = 'settlement_treasury_required';

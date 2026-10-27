@@ -19,6 +19,7 @@ final readonly class SettlementPlan
      * @param numeric-string $secondPayable    What the second branch owes the first.
      * @param numeric-string $amount           The cash that goes from one treasury to the other, nothing for a netting.
      * @param self::*|null   $kind             Null when there is nothing to settle.
+     * @param string|null    $settledOn        The latest day of a standing settlement of the two branches that is after the day of this one, which would clear the same balances again.
      */
     public function __construct(
         public int $firstBranchId,
@@ -35,11 +36,12 @@ final readonly class SettlementPlan
         public string $amount,
         public ?int $payerBranchId,
         public ?int $payeeBranchId,
+        public ?string $settledOn = null,
     ) {
     }
 
     public function canBeSettled(): bool
     {
-        return $this->agrees && $this->kind !== null;
+        return $this->agrees && $this->kind !== null && $this->settledOn === null;
     }
 }

@@ -98,9 +98,9 @@ final class InterBranchBalances
      */
     private function row(int $branchId, int $counterpartId, array $pair, ?array $other, array $codes): PairBalance
     {
-        $owed      = bcsub($pair['receivable'], $pair['payable'], SaleAmounts::SCALE);
-        $otherOwed = $other === null ? self::ZERO : bcsub($other['receivable'], $other['payable'], SaleAmounts::SCALE);
-        $bases     = array_keys($pair['bases']);
+        $owed        = bcsub($pair['receivable'], $pair['payable'], SaleAmounts::SCALE);
+        $otherAmount = $this->amounts($other);
+        $bases       = array_keys($pair['bases']);
 
         return new PairBalance(
             branchId: $branchId,
@@ -111,7 +111,7 @@ final class InterBranchBalances
             payable: $pair['payable'],
             owed: $owed,
             basis: count($bases) === 1 ? $bases[0] : PairBalance::MIXED,
-            agrees: bccomp(bcadd($owed, $otherOwed, SaleAmounts::SCALE), '0', SaleAmounts::SCALE) === 0,
+            agrees: PairBalance::agree($pair['receivable'], $pair['payable'], $otherAmount['receivable'], $otherAmount['payable']),
         );
     }
 
