@@ -16,6 +16,7 @@ use App\Models\Attribute;
 use App\Models\Stock_location;
 use App\Models\Supplier;
 use ReflectionClass;
+use ReflectionMethod;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
@@ -1840,6 +1841,42 @@ class ItemsControllerTest extends CIUnitTestCase
         $this->get('/items/search', ['search' => '', 'stock_location' => (string) $store, 'limit' => '10', 'offset' => '0', 'order' => 'asc'])->assertStatus(200);
 
         $this->assertSame('1', (string) session()->get('item_location'));
+    }
+
+    public function testGetIndex_IgnoresALocationOfAnotherBranchAskedForInTheUrl(): void
+    {
+        ['store' => $store, 'limited' => $limited] = $this->itemWithAStoreInAnotherBranch();
+        $shelf = $this->storeIn(1, $limited, 'shelf');
+        $this->withSession(['person_id' => $limited, 'menu_group' => 'home', 'item_location' => (string) $shelf]);
+
+        $body = $this->get('/items', ['stock_location' => (string) $store])->getBody();
+
+        $this->assertStringContainsString('<option value="' . $shelf . '" selected>', $body);
+        $this->assertStringNotContainsString('value="' . $store . '"', $body);
+    }
+
+    public function testGetIndex_SelectsALocationOfTheEmployeesBranchesAskedForInTheUrl(): void
+    {
+        ['limited' => $limited] = $this->itemWithAStoreInAnotherBranch();
+        $shelf = $this->storeIn(1, $limited, 'shelf');
+        $this->withSession(['person_id' => $limited, 'menu_group' => 'home', 'item_location' => '1']);
+
+        $body = $this->get('/items', ['stock_location' => (string) $shelf])->getBody();
+
+        $this->assertStringContainsString('<option value="' . $shelf . '" selected>', $body);
+    }
+
+    public function testPostAdjustment_ReportsAJournalOfABranchTheEmployeeDoesNotWorkInInsteadOfThrowing(): void
+    {
+        ['item' => $itemId, 'store' => $store, 'limited' => $limited] = $this->itemWithAStoreInAnotherBranch();
+        $this->assertTrue($this->item_quantity->changeQuantity($itemId, $store, 4.0));
+        $controller = (new ReflectionClass(Items::class))->newInstanceWithoutConstructor();
+
+        $posted = (new ReflectionMethod($controller, 'postAdjustment'))->invoke($controller, $itemId, $store, 4, $limited, 1);
+
+        $this->assertFalse($posted);
+        $this->assertStringContainsString(lang('Branches.error_not_allowed'), (new ReflectionMethod($controller, 'adjustmentFailureNote'))->invoke($controller));
+        $this->assertSame([], $this->adjustmentJournals());
     }
 
     public function testGetIndex_SendsAnEmployeeWhoseBranchesHaveNoLocationTheyMayUseToTheNoAccessPage(): void

@@ -9,6 +9,7 @@ use CodeIgniter\Database\Config;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use ReflectionMethod;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
@@ -276,6 +277,69 @@ class ItemTest extends CIUnitTestCase
         $this->assertSame(0, (int) $items->get_info($second)->deleted);
         $this->assertSame('10.000', $this->onHand($first));
         $this->assertSame('4.000', $this->onHand($second, $store));
+    }
+
+    public function testDelete_DeletesAnItemWhoseStockIsAllInTheBranchesOfTheEmployee(): void
+    {
+        [$itemId] = $this->twoItemsInTheBooks();
+        session()->set('person_id', $this->employeeWithGrants([], [1]));
+
+        $this->assertTrue(model(Item::class)->delete($itemId));
+
+        $this->assertSame(1, (int) model(Item::class)->get_info($itemId)->deleted);
+        $this->assertSame('0.000', $this->onHand($itemId));
+        $this->assertStockTies();
+    }
+
+    public function testDelete_RefusesAnItemWithStockToAnEmployeeWhoWorksInNoBranch(): void
+    {
+        [$itemId] = $this->twoItemsInTheBooks();
+        session()->set('person_id', $this->employeeWithGrants([], []));
+        $items = model(Item::class);
+
+        $this->assertFalse($items->delete($itemId));
+
+        $this->assertSame(0, (int) $items->get_info($itemId)->deleted);
+        $this->assertSame('10.000', $this->onHand($itemId));
+        $this->assertInstanceOf(BranchException::class, $items->accountingFailure());
+    }
+
+    public function testDeleteList_DeletesItemsWhoseStockIsAllInTheBranchesOfTheEmployee(): void
+    {
+        [$first, $second] = $this->twoItemsInTheBooks();
+        session()->set('person_id', $this->employeeWithGrants([], [1]));
+
+        $this->assertTrue(model(Item::class)->delete_list([$first, $second]));
+
+        $this->assertSame('0.000', $this->onHand($first));
+        $this->assertSame('0.000', $this->onHand($second));
+        $this->assertStockTies();
+    }
+
+    public function testDeleteList_RefusesItemsWithStockToAnEmployeeWhoWorksInNoBranch(): void
+    {
+        [$first, $second] = $this->twoItemsInTheBooks();
+        session()->set('person_id', $this->employeeWithGrants([], []));
+        $items = model(Item::class);
+
+        $this->assertFalse($items->delete_list([$first, $second]));
+
+        $this->assertSame('10.000', $this->onHand($first));
+        $this->assertSame('10.000', $this->onHand($second));
+        $this->assertInstanceOf(BranchException::class, $items->accountingFailure());
+    }
+
+    public function testPostStockRemoved_ReportsAJournalOfABranchTheEmployeeDoesNotWorkInInsteadOfThrowing(): void
+    {
+        [$itemId] = $this->twoItemsInTheBooks();
+        $store    = $this->stockOfAnotherBranchOutOfReachOfTheEmployee($itemId);
+        $items    = model(Item::class);
+
+        $removed = (new ReflectionMethod(Item::class, 'postStockRemoved'))->invoke($items, $itemId, [['inventory_id' => 1, 'location_id' => $store, 'change' => '-4.000']]);
+
+        $this->assertFalse($removed);
+        $this->assertInstanceOf(BranchException::class, $items->accountingFailure());
+        $this->assertSame([], $this->accountingDb()->table('accounting_journals')->where('source_type', 'stock_adjustment')->get()->getResult());
     }
 
     public function testDeleteList_PostsEveryItemAndTiesToTheLedger(): void
