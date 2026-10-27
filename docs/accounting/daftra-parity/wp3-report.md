@@ -57,7 +57,7 @@
 | `G18` | a category without an account is refused when the setting asks (FIN-04) | مكشوف | 2 |
 | `G19` | an edit of the same category is not blocked by the setting | مكشوف | 1 |
 | `G20` | moving an expense to a category without an account is refused when the setting asks | مكشوف | 1 |
-| `G21` | an edit that names no treasury keeps the treasury of the expense | مكشوف | 1 |
+| `G21` | an edit that names no treasury keeps the treasury of the expense | مكشوف | 2 |
 | `G22` | money that came back is a deposit into the treasury (scope direction) | مكشوف | 2 |
 | `G23` | an expense that is owed uses no treasury | مكشوف | 2 |
 | `G24` | the unposted list leaves out deleted expenses | مكشوف | 1 |
