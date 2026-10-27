@@ -1350,6 +1350,24 @@ class ExpensePostingTest extends CIUnitTestCase
         $this->assertSame($before, $this->countRows('accounting_journals'));
     }
 
+    public function testSaveValue_ChargesAnExpenseThatIsPaidAcrossBranchesToTheBranchOfItsTreasuryWhenTheFormAsksForThat(): void
+    {
+        ['branch' => $branch, 'treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        $expenseId = $this->saveExpense($this->acrossBranches($treasury));
+
+        $this->assertSame($expenseId, $this->saveExpense($this->expenseData('100.00') + ['treasury_id' => $treasury, 'expense_branch_id' => 0], $expenseId));
+
+        $row = $this->accountingDb()->table('expenses')->where('expense_id', $expenseId)->get()->getRow();
+
+        $this->assertSame([$branch, $treasury], [(int) $row->branch_id, (int) $row->treasury_id]);
+        $this->assertNull($row->treasury_branch_id);
+        $this->assertSame(['expense' => ['branch' => $branch, 'lines' => [$this->accountId('expenses_default') . '=100.00/0.00', (new TreasuryService())->accountOf($treasury) . '=0.00/100.00'], 'revision' => 2]], $this->expenseJournals($expenseId));
+        $this->assertSame(['expense', 'expense_branch'], array_keys($this->expenseJournals($expenseId, 'reversed')));
+        $this->assertSame('-100.00', $this->assertTreasuryTiesToItsAccount($treasury));
+        $this->assertEveryBranchBalancedAndTheAccountsBetweenBranchesOffset();
+    }
+
     public function testSaveValue_MovesAnExpenseFromATreasuryOfAnotherBranchToOneOfItsOwnAndBack(): void
     {
         ['branch' => $branch, 'treasury' => $treasury] = $this->treasuryOfAnotherBranch();

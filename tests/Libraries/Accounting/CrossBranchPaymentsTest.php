@@ -199,7 +199,7 @@ class CrossBranchPaymentsTest extends CIUnitTestCase
 
     public function testDrafts_GivesEachKindOfPaymentItsOwnSourceForTheJournalOfTheTreasury(): void
     {
-        foreach (['sale_payment' => 'sale_payment_branch', 'purchase_payment' => 'purchase_payment_branch', 'supplier_payment' => 'supplier_payment_branch', 'expense' => 'expense_branch'] as $source => $companion) {
+        foreach (['sale_payment' => 'sale_payment_branch', 'supplier_payment' => 'supplier_payment_branch', 'expense' => 'expense_branch'] as $source => $companion) {
             $sources = array_map(static fn (JournalDraft $draft): string => $draft->sourceType, $this->payments->drafts($this->draft(true, '10.00', 5004, 1, $source), $this->treasury, $this->branch));
 
             $this->assertSame([$source, $companion], $sources);
@@ -211,9 +211,13 @@ class CrossBranchPaymentsTest extends CIUnitTestCase
 
     public function testDrafts_RejectsAJournalOfASourceThatHasNoJournalForTheTreasuryOfAnotherBranch(): void
     {
-        $refusal = $this->refusal(fn () => $this->payments->drafts($this->draft(true, '10.00', 5005, 1, 'treasury_transfer'), $this->treasury, $this->branch));
+        foreach (['treasury_transfer', 'purchase_payment'] as $source) {
+            $refusal = $this->refusal(fn () => $this->payments->drafts($this->draft(true, '10.00', 5005, 1, $source), $this->treasury, $this->branch));
 
-        $this->assertSame(PostingError::CrossBranchPaymentInvalid, $refusal->error);
+            $this->assertSame(PostingError::CrossBranchPaymentInvalid, $refusal->error, $source);
+        }
+
+        $this->assertSame([], CrossBranchPayments::companionsOf('purchase_payment'), 'The payment taken with a purchase is always of the branch of the purchase');
     }
 
     public function testDrafts_RejectsATreasuryTheDraftMovesMoreThanOnce(): void

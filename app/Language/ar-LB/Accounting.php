@@ -255,7 +255,6 @@ return [
     'source_opening_stock'                       => 'مخزون افتتاحي',
     'source_purchase'                            => 'استلام',
     'source_purchase_payment'                    => 'دفعة استلام',
-    'source_purchase_payment_branch'             => 'دفعة شراء (فرع الخزينة)',
     'source_reversal'                            => 'عكس قيد',
     'source_sale'                                => 'بيع',
     'source_sale_payment'                        => 'دفعة بيع',

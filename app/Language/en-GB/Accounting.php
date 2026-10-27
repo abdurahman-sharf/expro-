@@ -255,7 +255,6 @@ return [
     'source_opening_stock'                       => 'Opening stock',
     'source_purchase'                            => 'Receiving',
     'source_purchase_payment'                    => 'Receiving payment',
-    'source_purchase_payment_branch'             => 'Purchase payment (branch of the treasury)',
     'source_reversal'                            => 'Reversal',
     'source_sale'                                => 'Sale',
     'source_sale_payment'                        => 'Sale payment',

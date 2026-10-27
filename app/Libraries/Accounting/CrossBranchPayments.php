@@ -21,7 +21,6 @@ final class CrossBranchPayments
 
     private const COMPANIONS = [
         SalePostingBuilder::SOURCE_PAYMENT               => 'sale_payment_branch',
-        ReceivingPostingBuilder::SOURCE_PAYMENT          => 'purchase_payment_branch',
         ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT => 'supplier_payment_branch',
         ExpensePostingBuilder::SOURCE                    => 'expense_branch',
     ];

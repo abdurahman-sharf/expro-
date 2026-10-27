@@ -333,7 +333,7 @@ final class ExpensePosting
                 throw new AccountingException(AccountingError::TreasuryInactive, 'An expense cannot be paid from a deactivated treasury.', ['treasury_id' => $asked]);
             }
 
-            $keepsOtherBranch = $stored !== null && $asked === $storedTreasury && $stored->treasury_branch_id !== null;
+            $keepsOtherBranch = $stored !== null && $asked === $storedTreasury && $stored->treasury_branch_id !== null && $askedBranch === null;
             $branchId         = $askedBranch !== null && $askedBranch > 0 ? $askedBranch : ($keepsOtherBranch ? (int) $stored->branch_id : (int) $treasury->branch_id);
 
             return [$branchId, $asked, $this->treasuries->otherBranchOf($asked, $branchId, $actorId, $asked === $storedTreasury)];
