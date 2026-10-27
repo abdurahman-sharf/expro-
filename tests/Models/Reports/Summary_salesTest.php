@@ -10,10 +10,7 @@ use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\ReportSaleFixtureTrait;
 
-/**
- * @internal
- */
-final class Summary_salesTest extends CIUnitTestCase
+class Summary_salesTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use EmployeeFixtureTrait;
@@ -51,7 +48,7 @@ final class Summary_salesTest extends CIUnitTestCase
         parent::tearDown();
     }
 
-    public function testGetSummaryDataAddsUpTheSalesOfADayAfterTheirDiscountsOnTheWholeOfTheSale(): void
+    public function testGetSummaryData_AddsUpTheSalesOfADayAfterTheirDiscountsOnTheWholeOfTheSale(): void
     {
         $itemId = $this->createTestItem(HAS_NO_STOCK);
 
