@@ -85,6 +85,16 @@ class CashupPostingTest extends CIUnitTestCase
     }
 
     /**
+     * @return list<mixed>
+     */
+    private function claimedColumns(int $cashupId): array
+    {
+        $row = $this->row($cashupId);
+
+        return [$row->branch_id, $row->treasury_id, $row->expected_amount_cash, $row->cash_difference];
+    }
+
+    /**
      * A day of sales: 400 of cash, and the drawer opened with 100, so 500 is expected.
      */
     private function aDayOfCash(): void
@@ -442,6 +452,88 @@ class CashupPostingTest extends CIUnitTestCase
         $this->assertNull($this->row($cashupId)->branch_id);
         $this->assertSame(0, $this->countRows('accounting_journals'));
         $this->assertSame([$cashupId], array_map(static fn (object $cashup): int => (int) $cashup->cashup_id, (new CashupPosting())->unposted()));
+    }
+
+    public function testSaveValue_RefusesChangingACashUpOfABranchTheEmployeeDoesNotWorkIn(): void
+    {
+        $second  = $this->createBranch('B2');
+        $remote  = $this->employeeWithGrants([], [$second]);
+        $limited = $this->employeeWithGrants([], [1]);
+
+        $cashupId = $this->saveCashup($this->cashupData('90.00', '100', '0', '2026-10-20 08:00:00', '2026-10-20 18:00:00', $remote), NEW_ENTRY, $remote);
+
+        $this->assertNull($this->saveCashup($this->cashupData('60.00', '100', '0', '2026-10-20 08:00:00', '2026-10-20 18:00:00', $remote), $cashupId, $limited));
+        $this->assertSame(BranchError::NotAllowed, $this->failure()->error);
+        $this->assertSame(['90.00', '-10.0000'], [$this->row($cashupId)->closed_amount_cash, $this->row($cashupId)->cash_difference]);
+        $this->assertSame(1, count($this->journalsOfSource(self::SOURCE, $cashupId)));
+    }
+
+    public function testSaveValue_RefusesMarkingDeletedACashUpOfABranchTheEmployeeDoesNotWorkIn(): void
+    {
+        $second  = $this->createBranch('B2');
+        $remote  = $this->employeeWithGrants([], [$second]);
+        $limited = $this->employeeWithGrants([], [1]);
+        $data    = $this->cashupData('90.00', '100', '0', '2026-10-20 08:00:00', '2026-10-20 18:00:00', $remote);
+
+        $cashupId = $this->saveCashup($data, NEW_ENTRY, $remote);
+
+        $data['deleted'] = 1;
+
+        $this->assertNull($this->saveCashup($data, $cashupId, $limited));
+        $this->assertSame(BranchError::NotAllowed, $this->failure()->error);
+        $this->assertSame(1, $this->postedJournals($cashupId));
+        $this->assertSame('0', (string) $this->row($cashupId)->deleted);
+    }
+
+    public function testSaveValue_RefusesMovingACashUpOfABranchTheEmployeeDoesNotWorkInBeforeTheStartOfTheBooks(): void
+    {
+        $this->setConfigValue('accounting_start_date', '2026-10-01');
+
+        $second  = $this->createBranch('B2');
+        $remote  = $this->employeeWithGrants([], [$second]);
+        $limited = $this->employeeWithGrants([], [1]);
+
+        $cashupId = $this->saveCashup($this->cashupData('90.00', '100', '0', '2026-10-20 08:00:00', '2026-10-20 18:00:00', $remote), NEW_ENTRY, $remote);
+
+        $this->assertNull($this->saveCashup($this->cashupData('90.00', '100', '0', '2026-09-15 08:00:00', '2026-09-15 18:00:00', $remote), $cashupId, $limited));
+        $this->assertSame(BranchError::NotAllowed, $this->failure()->error);
+        $this->assertSame(1, $this->postedJournals($cashupId));
+        $this->assertStringStartsWith('2026-10-20', $this->row($cashupId)->close_date);
+    }
+
+    public function testSaveValue_KeepsTheJournalWhenAnEditNamesNoClosedAmount(): void
+    {
+        $this->aDayOfCash();
+
+        $cashupId = $this->saveCashup($this->cashupData('485.50'));
+
+        $this->assertSame($cashupId, $this->saveCashup(['description' => 'Checked again'], $cashupId));
+        $this->assertSame(1, count($this->journalsOfSource(self::SOURCE, $cashupId)));
+        $this->assertSame(1, $this->postedJournals($cashupId));
+        $this->assertSame(['500.0000', '-14.5000', 'Checked again'], [$this->row($cashupId)->expected_amount_cash, $this->row($cashupId)->cash_difference, $this->row($cashupId)->description]);
+    }
+
+    public function testSaveValue_NeverStoresWhatTheFormClaimsAboutACashUpTheBooksDoNotFollow(): void
+    {
+        $this->aDayOfCash();
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $legacy = $this->saveCashup($this->cashupData('485.50'));
+
+        $this->setConfigValue('accounting_enabled', '1');
+
+        $claims = ['branch_id' => 1, 'treasury_id' => $this->treasury('Claimed drawer'), 'expected_amount_cash' => '480.00', 'cash_difference' => '5.00'];
+
+        $this->assertSame($legacy, $this->saveCashup($this->cashupData('470.00') + $claims, $legacy));
+        $this->assertSame([null, null, null, null], $this->claimedColumns($legacy));
+
+        $this->setConfigValue('accounting_start_date', '2026-10-21');
+
+        $early = $this->saveCashup($this->cashupData('485.50') + $claims);
+
+        $this->assertNotNull($early);
+        $this->assertSame([null, null, null, null], $this->claimedColumns($early));
+        $this->assertSame(0, $this->countRows('accounting_journals'));
     }
 
     public function testUnposted_ListsOnlyTheCashUpsTheBooksNeverFollowed(): void

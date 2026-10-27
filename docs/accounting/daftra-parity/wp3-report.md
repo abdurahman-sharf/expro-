@@ -26,7 +26,7 @@
 - **مطابقة `S-25` (مرصودة):** ملف التثبيت `tests/Support/Parity/T-25.json` بثلاث حالات: `expense-200-with-15-percent-tax` **مطابقة تامة** (مدين `541` بـ200، مدين `215002` بـ30، دائن الخزينة 230)، و`expense-journal-owes-nobody` **مطابقة تامة** (لا طرف في أي سطر)، و`amount-entered-includes-the-tax` **يختلف**: في دفترة يُدخل المستخدم 200 وتُضاف الضريبة فيصير 230، وعندنا `amount` هو المدفوع شاملًا الضريبة و`tax_amount` جزؤه (القسم 3، الافتراض 1). ويقرؤه `ExpensePostingBuilderTest` فيبني القيد من الملف نفسه. (ما عدا هذه الحالة: **لا ادعاء مطابقة**، كله افتراض مدوَّن.)
 - **اختبارات جديدة (218 اختبارًا في 12 ملفًا، ملف لكل صنف):** `ExpensePostingBuilderTest` (18) و`ExpensePostingTest` (48: كل مسار حفظ وتعديل وحذف عبر نموذج المصروف الحقيقي، الفترة المقفلة، الفرع، نطاق السحب والإيداع، التراجع الكامل وتسجيل الفشل، التاريخي، المحاسبة المعطَّلة، توازن الميزان بعد كل تغيير) و`CashupPostingBuilderTest` (7) و`CashupPostingTest` (30) و`CashupExpectationTest` (13) و`DocumentJournalsTest` (24) و`ExpenseCategoryAccountsTest` (13) و`ExpensesControllerTest` (23) و`ExpensesCategoriesControllerTest` (9) و`tests/Models/ExpenseTest` (13) و`tests/Models/CashupTest` (12) و`ExpensesAccountingMigrationTest` (8).
 - **اختبارات أُضيفت إلى ملفات قائمة (22):** `CashupControllerTest` (12: الشاشة والنقد المتوقع والرفض بكلمات) و`AccountingSettingsTest` (3) و`AccountServiceTest` (2) و`JournalServiceTest` (2: قفل العكس اليدوي وعكس آلي لمصدر المستند) و`TreasuryServiceTest` (1: خزينة استُعملت في مصروف أو إقفال تُعدّ مستعمَلة) و`TrialBalanceTest` (1: **الميزان متوازن للشركة ولكل فرع بعد المصروفات**) و`AccountingJournalsControllerTest` (1: زر العكس مخفي لقيدي المصروف والإقفال).
-- **تعطيل الحراس:** <!-- MUT-SUMMARY-START -->**قيد القياس: قيس 50 من 219 حارسًا حتى الآن، كُشف منها 46** (الجدول في 2.1 يُملأ دفعةً دفعة).<!-- MUT-SUMMARY-END -->
+- **تعطيل الحراس:** <!-- MUT-SUMMARY-START -->**قيد القياس: قيس 50 من 219 حارسًا حتى الآن، كُشف منها 50** (الجدول في 2.1 يُملأ دفعةً دفعة).<!-- MUT-SUMMARY-END -->
 - **الجولة المنتظمة الأخيرة (الملفات الجديدة والمتغيرة وذات الصلة، كل ملف وحده على `ospos_test_b`):** @@RUNS@@ (المجموعة الكاملة يشغّلها المُدمِج، ولم أشغّلها).
 - **التنسيق:** شُغّل `php-cs-fixer` (إعداد `.php-cs-fixer.no-header.php`) على كل ملفات `app/` الجديدة (11 ملفًا: صفر تغيير) وعلى المكتبات والمتحكمات المعدَّلة، فاقتصر الإصلاح على محاذاة مفتاح الإعداد الجديد في `AccountingSettings` و`AccountingSetup`. أما ملفات `app/Controllers` و`app/Models` و`tabular_helper.php` القديمة التي لمستُ فيها **سطورًا قليلة** فلم أُعد تنسيقها كلها (تغيير يغطي الملف بأكمله ويصعّب على المُدمِج الدمج)، وكل سطر جديد فيها على المعيار. واختبارات الملفات الجديدة على PSR-12 (صفر مخالفة).
 
@@ -76,14 +76,14 @@
 | `G39` | the tax goes to the routed account of tax paid (FIN-02) | مكشوف | 4 |
 | `G40` | the credit goes to the account of the treasury | مكشوف | 3 |
 | `G41` | money that came back turns the sides around | مكشوف | 1 |
-| `G42` | a cash-up is checked against the branches of the employee (plan, followed) | غير مكشوف | 0 |
-| `G43` | a cash-up is checked against the branches of the employee (plan, deleted or moved out) | غير مكشوف | 0 |
+| `G42` | a cash-up is checked against the branches of the employee (plan, followed) | مكشوف بعد تقوية الاختبار | 1 |
+| `G43` | a cash-up is checked against the branches of the employee (plan, deleted or moved out) | مكشوف بعد تقوية الاختبار | 2 |
 | `G44` | deleting a cash-up is checked against the branches of the employee (cancel) | مكشوف | 1 |
 | `G45` | a cash-up saved before the books followed it never gets a journal (legacy rule) | مكشوف | 1 |
 | `G46` | a cash-up closed before accounting starts is not followed (follows) | مكشوف | 1 |
 | `G47` | a cash-up with nothing counted yet is still open and posts nothing | مكشوف | 1 |
-| `G48` | a change that does not name the counted cash keeps the counted cash of the stored cash-up | غير مكشوف | 0 |
-| `G49` | the expected cash and the difference are never taken from the form | غير مكشوف | 0 |
+| `G48` | a change that does not name the counted cash keeps the counted cash of the stored cash-up | مكشوف بعد تقوية الاختبار | 1 |
+| `G49` | the expected cash and the difference are never taken from the form | مكشوف بعد تقوية الاختبار | 1 |
 | `G50` | a new cash-up is stamped with the treasury of the employee | مكشوف | 4 |
 <!-- MUT-TABLE-END -->
 
