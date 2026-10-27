@@ -220,7 +220,7 @@ class Receivings extends Secure_Controller
     public function postSetInvoiceDiscount(): string
     {
         if ($this->receiving_lib->get_mode() !== 'receive') {
-            return $this->_reload(['error' => lang('Receivings.invoice_discount_receive_only')]);
+            return $this->_reload(['error' => lang('Receivings.invoice_discount_wrong_mode')]);
         }
 
         $raw = trim((string) $this->request->getPost('invoice_discount'));

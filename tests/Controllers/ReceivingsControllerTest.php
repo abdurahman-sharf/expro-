@@ -61,10 +61,11 @@ class ReceivingsControllerTest extends CIUnitTestCase
     /**
      * An employee of the purchase screens, who works in every branch unless some are named.
      *
-     * @param list<int>|null $branchIds
-     * @param list<string>   $extraGrants
+     * @param list<int>|null       $branchIds
+     * @param list<string>         $extraGrants
+     * @param array<string, mixed> $employee    Overrides of the row of the employee, such as the language.
      */
-    private function buyer(?array $branchIds = null, array $extraGrants = ['items', 'accounting_journals']): int
+    private function buyer(?array $branchIds = null, array $extraGrants = ['items', 'accounting_journals'], array $employee = []): int
     {
         $grants = [
             ['permission_id' => 'receivings', 'menu_group' => 'home'],
@@ -80,7 +81,7 @@ class ReceivingsControllerTest extends CIUnitTestCase
             $grants[] = ['permission_id' => BranchGuard::ALL_BRANCHES, 'menu_group' => '--'];
         }
 
-        $personId = $this->createEmployee(first_name: 'Buyer', last_name: 'Test', grants: $grants);
+        $personId = $this->createEmployee(first_name: 'Buyer', last_name: 'Test', grants: $grants, employee: $employee);
 
         foreach ($branchIds ?? [] as $index => $branchId) {
             $this->accountingDb()->table('employee_branches')->insert(['person_id' => $personId, 'branch_id' => $branchId, 'is_default' => $index === 0 ? 1 : 0]);
@@ -1457,7 +1458,7 @@ class ReceivingsControllerTest extends CIUnitTestCase
 
         $response = $this->post('/receivings/setInvoiceDiscount', ['invoice_discount' => '10', 'invoice_discount_type' => '0']);
 
-        $response->assertSee(lang('Receivings.invoice_discount_receive_only'));
+        $response->assertSee(lang('Receivings.invoice_discount_wrong_mode'));
         $this->assertNull(session()->get('recv_invoice_discount'));
     }
 
@@ -1505,6 +1506,30 @@ class ReceivingsControllerTest extends CIUnitTestCase
 
         $this->assertStringContainsString('no_access', $response->getRedirectUrl());
         $this->assertSame($before, $this->countRows('receivings'));
+    }
+
+    public function testPostSetInvoiceDiscount_SaysItsWordsInArabicToABuyerWhoReadsArabic(): void
+    {
+        $itemId = $this->item('0.00');
+        $this->loginAs($this->buyer(null, ['items'], ['language_code' => 'ar-EG', 'language' => 'arabic']), $this->cart([$this->cartLine($itemId, 1, '10', '100', '15')]));
+
+        $response = $this->post('/receivings/setInvoiceDiscount', ['invoice_discount' => '10', 'invoice_discount_type' => '0']);
+
+        $response->assertSee('خصم على إجمالي الفاتورة');
+        $response->assertSee('خصم الفاتورة');
+        $response->assertDontSee('Discount on the whole invoice');
+    }
+
+    public function testGetReceipt_SaysTheDiscountInArabicToABuyerWhoReadsArabic(): void
+    {
+        $itemId   = $this->item('0.00');
+        $purchase = $this->buy([$this->purchaseLine($itemId, 0, '10', '100', '15')], -1, null, null, InvoiceDiscount::of(PERCENT, '10'));
+        $this->loginAs($this->buyer(null, ['items'], ['language_code' => 'ar-EG', 'language' => 'arabic']));
+
+        $receipt = $this->get('/receivings/receipt/' . $purchase);
+
+        $receipt->assertSeeElement('#receipt_invoice_discount');
+        $receipt->assertSee('خصم الفاتورة');
     }
 
     public function testPostCancelReceiving_ForgetsTheDiscount(): void
