@@ -239,10 +239,10 @@
 | `H121` | the screen of a category knows whether accounting is on | مكشوف | 1 |
 | `H123` | the setting of the category account is read from the form | مكشوف بعد تقوية الاختبار | 1 |
 | `H130` | the ledger column of the expense list is shown only with accounting on | مكشوف بعد تقوية الاختبار | 1 |
-| `H131` | the ledger column of the cash-up list is shown only with accounting on | مكشوف بعد تقوية الاختبار | 1 |
+| `H131` | the ledger column of the cash-up list is shown only with accounting on | مكشوف بعد تقوية الاختبار | 2 |
 | `H132` | an expense that is in the books says so | مكشوف | 1 |
 | `H133` | a cash-up that is in the books says so | مكشوف | 1 |
-| `H134` | the treasury of an expense is offered only when there is a choice (view) | مكشوف بعد تقوية الاختبار | 1 |
+| `H134` | the treasury of an expense is offered only when there is a choice (view) | مكشوف بعد تقوية الاختبار | 2 |
 | `H135` | the account of a category is offered only with accounting on (view) | مكشوف بعد تقوية الاختبار | 1 |
 | `H136` | the account of a category is locked for who may not change the routing (view) | مكشوف | 1 |
 | `H137` | the setting of the category account shows its state (view) | مكشوف بعد تقوية الاختبار | 1 |
