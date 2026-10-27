@@ -150,7 +150,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         return $rows;
     }
 
-    public function testGetIndexShowsTheValuationToWhoeverHoldsTheModule(): void
+    public function testGetIndex_ShowsTheValuationToWhoeverHoldsTheModule(): void
     {
         $this->twoBranches();
         $this->viewer();
@@ -172,7 +172,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $response->assertSee('window.print()');
     }
 
-    public function testGetIndexShowsTheValueOfAPurchaseSavedThroughTheApplication(): void
+    public function testGetIndex_ShowsTheValueOfAPurchaseSavedThroughTheApplication(): void
     {
         $item = $this->named('Bought cream');
 
@@ -187,7 +187,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $response->assertDontSee('data-unposted="1"');
     }
 
-    public function testGetIndexRequiresTheModuleGrant(): void
+    public function testGetIndex_RequiresTheModuleGrant(): void
     {
         $this->twoBranches();
         $this->actAs($this->employeeWithGrants(['accounting_payables']));
@@ -195,7 +195,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $this->get(self::SCREEN)->assertRedirect();
     }
 
-    public function testGetIndexRequiresAccountingToBeOn(): void
+    public function testGetIndex_RequiresAccountingToBeOn(): void
     {
         $this->viewer();
         $this->setConfigValue('accounting_enabled', '0');
@@ -205,7 +205,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $this->get(self::SCREEN);
     }
 
-    public function testGetIndexAddsUpTheBranchesAskedFor(): void
+    public function testGetIndex_AddsUpTheBranchesAskedFor(): void
     {
         $this->twoBranches();
         $this->viewer();
@@ -219,7 +219,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $response->assertSee(lang('Accounting_reports.scope_selected', ['V2']));
     }
 
-    public function testGetIndexCutsWhatIsAskedDownToTheBranchesTheEmployeeWorksIn(): void
+    public function testGetIndex_CutsWhatIsAskedDownToTheBranchesTheEmployeeWorksIn(): void
     {
         $this->twoBranches();
         $this->viewer([1]);
@@ -233,7 +233,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $response->assertDontSee($this->amountOf('80.00'));
     }
 
-    public function testGetIndexShowsWhoWorksInSomeBranchesThatTheTotalIsOfThoseAndNotOfTheCompany(): void
+    public function testGetIndex_ShowsWhoWorksInSomeBranchesThatTheTotalIsOfThoseAndNotOfTheCompany(): void
     {
         $this->twoBranches();
         $third = $this->createBranch('V3', 'Third branch');
@@ -256,7 +256,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $other->assertDontSee(lang('Accounting_reports.scope_company'));
     }
 
-    public function testGetIndexShowsNoBranchChoiceAndNoScopeNoteToWhoWorksInOneBranch(): void
+    public function testGetIndex_ShowsNoBranchChoiceAndNoScopeNoteToWhoWorksInOneBranch(): void
     {
         $this->twoBranches();
         $this->viewer([$this->second]);
@@ -269,7 +269,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $response->assertDontSee('Cream');
     }
 
-    public function testGetIndexOffersTheBranchesToWhoReadsMoreThanOne(): void
+    public function testGetIndex_OffersTheBranchesToWhoReadsMoreThanOne(): void
     {
         $this->twoBranches();
         $this->viewer();
@@ -277,7 +277,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $this->get(self::SCREEN)->assertSee('id="f_branches"');
     }
 
-    public function testGetIndexShowsALocationThatDoesNotTieToItsAccountAsDifferent(): void
+    public function testGetIndex_ShowsALocationThatDoesNotTieToItsAccountAsDifferent(): void
     {
         $this->twoBranches();
         $this->manualToStock('30.00');
@@ -292,7 +292,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $response->assertDontSee('id="report_ties"');
     }
 
-    public function testGetIndexSaysThatTheAccountHoldsLessWhenAMovementReachedNoAccount(): void
+    public function testGetIndex_SaysThatTheAccountHoldsLessWhenAMovementReachedNoAccount(): void
     {
         $item = $this->named('Loose cream');
 
@@ -303,7 +303,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $this->get(self::SCREEN)->assertSee(lang('Accounting_inventory_reports.account_less', [$this->amountOf('50.00')]));
     }
 
-    public function testGetIndexFlagsUnitsOnTheShelvesThatNoMovementAccountsForAndDoesNotValueThem(): void
+    public function testGetIndex_FlagsUnitsOnTheShelvesThatNoMovementAccountsForAndDoesNotValueThem(): void
     {
         $item = $this->named('Old stock', '12.00');
 
@@ -322,7 +322,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $this->assertSame($this->amountOf('0.00'), $this->totalShown($response), 'The cost of the item is not the value of units no movement accounts for');
     }
 
-    public function testGetIndexSaysWhenTheBooksHoldMoreUnitsThanTheShelves(): void
+    public function testGetIndex_SaysWhenTheBooksHoldMoreUnitsThanTheShelves(): void
     {
         $item = $this->named('Short cream');
 
@@ -333,7 +333,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $this->get(self::SCREEN)->assertSee(lang('Accounting_inventory_reports.unposted_negative'));
     }
 
-    public function testGetIndexShowsTheStockOfAPastDayWithoutComparingTheShelves(): void
+    public function testGetIndex_ShowsTheStockOfAPastDayWithoutComparingTheShelves(): void
     {
         $item = $this->named('Dated cream');
 
@@ -358,7 +358,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $now->assertDontSee(lang('Accounting_inventory_reports.past_note'));
     }
 
-    public function testGetIndexRejectsADayThatIsNotADateWithAMessageAndShowsTheStockAsItStandsNow(): void
+    public function testGetIndex_RejectsADayThatIsNotADateWithAMessageAndShowsTheStockAsItStandsNow(): void
     {
         $this->twoBranches();
         $this->viewer();
@@ -372,7 +372,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $response->assertSee('value="2026-02-31"');
     }
 
-    public function testGetIndexAcceptsAMalformedQueryAsTheDefaultReport(): void
+    public function testGetIndex_AcceptsAMalformedQueryAsTheDefaultReport(): void
     {
         $this->twoBranches();
         $this->anotherLocation('Idle depot');
@@ -394,7 +394,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         }
     }
 
-    public function testGetIndexShowsNothingToAddUpForABranchThatIsNoRealId(): void
+    public function testGetIndex_ShowsNothingToAddUpForABranchThatIsNoRealId(): void
     {
         $this->twoBranches();
         $this->viewer();
@@ -411,7 +411,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         }
     }
 
-    public function testGetIndexDoesNotLetABranchThatIsNotPlainTextWidenWhatAnEmployeeReads(): void
+    public function testGetIndex_DoesNotLetABranchThatIsNotPlainTextWidenWhatAnEmployeeReads(): void
     {
         $this->twoBranches();
         $this->viewer([1]);
@@ -425,7 +425,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('id="report_no_branches"', $body);
     }
 
-    public function testGetIndexRejectsADayThatIsHugeOrMisspelledWithAMessageAndShowsTheStockAsItStandsNow(): void
+    public function testGetIndex_RejectsADayThatIsHugeOrMisspelledWithAMessageAndShowsTheStockAsItStandsNow(): void
     {
         $this->twoBranches();
         $this->viewer();
@@ -441,7 +441,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         }
     }
 
-    public function testGetIndexAcceptsTheLastDayThereIsAsTheStockAsItStandsNow(): void
+    public function testGetIndex_AcceptsTheLastDayThereIsAsTheStockAsItStandsNow(): void
     {
         $this->twoBranches();
         $this->viewer();
@@ -454,7 +454,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $this->assertSame($this->amountOf('180.00'), $this->totalShown($response));
     }
 
-    public function testGetIndexSaysThatTheStockAsItStandsNowCountsEveryJournalWhateverItsDate(): void
+    public function testGetIndex_SaysThatTheStockAsItStandsNowCountsEveryJournalWhateverItsDate(): void
     {
         $this->twoBranches();
         $this->manualToStock('30.00', 1, self::LOCATION_ID, '2035-06-01');
@@ -467,7 +467,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $this->assertSame($this->amountOf('210.00'), $this->stockAccountsRow($response, 'stock_account'));
     }
 
-    public function testGetIndexShowsAScopeWithNoBranchOfTheEmployeeAsNothingToAddUp(): void
+    public function testGetIndex_ShowsAScopeWithNoBranchOfTheEmployeeAsNothingToAddUp(): void
     {
         $this->twoBranches();
         $this->viewer([1]);
@@ -478,7 +478,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $response->assertDontSee('Perfume');
     }
 
-    public function testGetIndexSaysThatALocationWithNoAccountCannotBeTiedAndLinksNoStatementForIt(): void
+    public function testGetIndex_SaysThatALocationWithNoAccountCannotBeTiedAndLinksNoStatementForIt(): void
     {
         $item  = $this->named('Loose cream');
         $loose = $this->insertStockLocation('Loose shelf');
@@ -499,7 +499,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $response->assertDontSee('accounting_reports/ledger?account=');
     }
 
-    public function testGetIndexShowsWhatTheMainStockAccountHoldsBesideWhatTheMovementsSay(): void
+    public function testGetIndex_ShowsWhatTheMainStockAccountHoldsBesideWhatTheMovementsSay(): void
     {
         $this->twoBranches();
         $this->manualToStock('30.00');
@@ -514,7 +514,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $this->assertSame($this->amountOf('30.00'), $this->stockAccountsRow($response, 'stock_difference'));
     }
 
-    public function testGetIndexShowsNoStockAccountsSectionWhenTheChartHasNoMainStockAccount(): void
+    public function testGetIndex_ShowsNoStockAccountsSectionWhenTheChartHasNoMainStockAccount(): void
     {
         $this->twoBranches();
         $this->accountingDb()->table('accounting_routing')->where('routing_key', RoutingKey::StockLocations->value)->delete();
@@ -546,12 +546,14 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         return ['moved' => $moved, 'own' => $own, 'theirs' => $theirs];
     }
 
-    public function testGetIndexGivesNoStockOfAnotherBranchAwayForALocationThatLeftTheBranchOfTheEmployee(): void
+    public function testGetIndex_GivesNoStockOfAnotherBranchAwayForALocationThatLeftTheBranchOfTheEmployee(): void
     {
-        $this->locationThatChangedBranch();
+        $stock = $this->locationThatChangedBranch();
         $this->viewer([1]);
 
         $response = $this->get(self::SCREEN);
+
+        $this->assertMatchesRegularExpression('#data-item="' . $stock['own'] . '".*?colspan="3">&mdash;</td>#s', $response->getBody(), 'The shelf figures of a line that was not compared are dashes');
 
         $response->assertSee('Moved shelf');
         $response->assertSee('Own cream');
@@ -563,7 +565,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $response->assertSee('data-status="ties"');
     }
 
-    public function testGetIndexDoesNotCallStockOfAnEarlierBranchUnpostedForTheBranchTheLocationNowBelongsTo(): void
+    public function testGetIndex_DoesNotCallStockOfAnEarlierBranchUnpostedForTheBranchTheLocationNowBelongsTo(): void
     {
         $this->locationThatChangedBranch();
         $this->viewer([$this->second]);
@@ -577,7 +579,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $response->assertDontSee('data-unposted="1"');
     }
 
-    public function testGetIndexComparesTheShelvesOfALocationThatLeftItsBranchForWhoReadsEveryBranch(): void
+    public function testGetIndex_ComparesTheShelvesOfALocationThatLeftItsBranchForWhoReadsEveryBranch(): void
     {
         $this->locationThatChangedBranch();
         $this->viewer();
@@ -590,7 +592,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $response->assertSee(lang('Accounting_inventory_reports.unposted_summary', [1]));
     }
 
-    public function testGetIndexShowsLocationsWithNothingInThemWhenAsked(): void
+    public function testGetIndex_ShowsLocationsWithNothingInThemWhenAsked(): void
     {
         $this->anotherLocation('Idle depot');
         $this->viewer();
@@ -600,7 +602,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $this->get(self::SCREEN)->assertSee('id="report_empty"');
     }
 
-    public function testGetIndexEscapesTheNamesOfLocationsAndItems(): void
+    public function testGetIndex_EscapesTheNamesOfLocationsAndItems(): void
     {
         $item  = $this->named('<b>bold</b> cream');
         $depot = $this->anotherLocation('<script>alert(1)</script>');
@@ -617,7 +619,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('&lt;b&gt;bold&lt;/b&gt; cream', $body);
     }
 
-    public function testGetIndexLinksEachLocationToTheStatementOfItsAccount(): void
+    public function testGetIndex_LinksEachLocationToTheStatementOfItsAccount(): void
     {
         $this->twoBranches();
         $this->viewer();
@@ -628,7 +630,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $response->assertSee('accounting_reports/ledger?account=' . $this->stockAccountOf($this->depot));
     }
 
-    public function testGetIndexLinksTheCsvWithTheFiltersAsked(): void
+    public function testGetIndex_LinksTheCsvWithTheFiltersAsked(): void
     {
         $this->twoBranches();
         $this->viewer();
@@ -640,7 +642,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $asked->assertSee('inventory_valuation/csv?as_of=2026-10-05&amp;empty=1&amp;branches%5B0%5D=1');
     }
 
-    public function testGetIndexCarriesAScopeWithNoBranchIntoTheLinksSoTheyDoNotWidenIt(): void
+    public function testGetIndex_CarriesAScopeWithNoBranchIntoTheLinksSoTheyDoNotWidenIt(): void
     {
         $this->twoBranches();
         $this->viewer([1]);
@@ -652,7 +654,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $this->assertCount(2, $this->csvRows($this->get(self::SCREEN . '/csv?branches[0]=0')), 'The header and the total of nothing');
     }
 
-    public function testGetIndexIsReachedFromTheTrialBalanceAndTheLedger(): void
+    public function testGetIndex_IsReachedFromTheTrialBalanceAndTheLedger(): void
     {
         $this->viewer();
 
@@ -660,7 +662,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $this->get('/accounting_reports/ledger')->assertSee('id="inventory_valuation_link"');
     }
 
-    public function testGetCsvGivesTheRowsOfTheReportWithTheTotalOfEveryLocationAndTheCompany(): void
+    public function testGetCsv_GivesTheRowsOfTheReportWithTheTotalOfEveryLocationAndTheCompany(): void
     {
         $first = $this->twoBranches()['first'];
         $this->manualToStock('30.00');
@@ -686,7 +688,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $this->assertSame(['180.0000', '210.0000', '30.0000'], [$rows[5][7], $rows[5][10], $rows[5][11]]);
     }
 
-    public function testGetCsvRequiresTheModuleGrant(): void
+    public function testGetCsv_RequiresTheModuleGrant(): void
     {
         $this->twoBranches();
         $this->actAs($this->employeeWithGrants(['accounting_payables']));
@@ -694,7 +696,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $this->get(self::SCREEN . '/csv')->assertRedirect();
     }
 
-    public function testGetCsvRequiresAccountingToBeOn(): void
+    public function testGetCsv_RequiresAccountingToBeOn(): void
     {
         $this->viewer();
         $this->setConfigValue('accounting_enabled', '0');
@@ -704,7 +706,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $this->get(self::SCREEN . '/csv');
     }
 
-    public function testGetCsvCutsWhatIsAskedDownToTheBranchesTheEmployeeWorksInAndSaysTheTotalIsNotTheCompanys(): void
+    public function testGetCsv_CutsWhatIsAskedDownToTheBranchesTheEmployeeWorksInAndSaysTheTotalIsNotTheCompanys(): void
     {
         $this->twoBranches();
         $this->viewer([1]);
@@ -720,7 +722,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $this->assertSame('100.0000', end($rows)[7]);
     }
 
-    public function testGetCsvCountsTheDayAskedFor(): void
+    public function testGetCsv_CountsTheDayAskedFor(): void
     {
         $item = $this->named('Dated cream');
 
@@ -736,7 +738,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $this->assertSame('50.0000', end($rows)[7]);
     }
 
-    public function testGetCsvShowsATextThatASpreadsheetWouldReadAsAFormulaAsText(): void
+    public function testGetCsv_ShowsATextThatASpreadsheetWouldReadAsAFormulaAsText(): void
     {
         $names = [
             '=HYPERLINK("http://example.test","x")',
@@ -771,7 +773,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $this->assertSame(['-1.000', '-10.0000'], [$negative[5], $negative[7]], 'A number that is negative stays a number');
     }
 
-    public function testGetCsvShowsTheNamesOfLocationsAndBranchesThatAreFormulasAsText(): void
+    public function testGetCsv_ShowsTheNamesOfLocationsAndBranchesThatAreFormulasAsText(): void
     {
         $item   = $this->named('Cream');
         $branch = $this->createBranch('+V9', 'Formula branch');
@@ -792,7 +794,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $this->assertNotContains('=Formula shelf', array_column($rows, 2));
     }
 
-    public function testGetCsvRejectsADayThatIsNotADate(): void
+    public function testGetCsv_RejectsADayThatIsNotADate(): void
     {
         $this->twoBranches();
         $this->viewer();
@@ -806,7 +808,7 @@ final class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         }
     }
 
-    public function testGetCsvAcceptsAMalformedQueryAsTheDefaultFile(): void
+    public function testGetCsv_AcceptsAMalformedQueryAsTheDefaultFile(): void
     {
         $this->twoBranches();
         $this->viewer();
