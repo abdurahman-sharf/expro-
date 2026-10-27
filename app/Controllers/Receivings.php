@@ -887,11 +887,6 @@ class Receivings extends Secure_Controller
     }
 
     /**
-     * What was applied to or taken from a purchase, for the edit form.
-     *
-     * @return list<object>
-     */
-    /**
      * The number of a purchase or of a return to the supplier, with the name of its kind, for the
      * screens that show the document. Nothing when it has none, so it shows what it always showed.
      *
@@ -912,6 +907,11 @@ class Receivings extends Secure_Controller
         return [];
     }
 
+    /**
+     * What was applied to or taken from a purchase, for the edit form.
+     *
+     * @return list<object>
+     */
     private function applicationsOf(int $receivingId, int $supplierId): array
     {
         return array_values(array_filter(
