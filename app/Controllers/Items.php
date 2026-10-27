@@ -1071,7 +1071,7 @@ class Items extends Secure_Controller
         $inventoryId = $this->inventory->insert($inv_data, true);
 
         // Update stock quantity
-        $item_quantity = $this->item_quantity->get_item_quantity($item_id, $locationId);
+        $item_quantity      = $this->item_quantity->get_item_quantity($item_id, $locationId);
         $item_quantity_data = [
             'item_id'     => $item_id,
             'location_id' => $locationId,
