@@ -1383,6 +1383,18 @@ class ExpensePostingTest extends CIUnitTestCase
         $this->assertSame('100.00', $this->accountingDb()->table('expenses')->where('expense_id', $expenseId)->get()->getRow()->amount);
     }
 
+    public function testSaveValue_RejectsAnExpenseChargedToABranchTheEmployeeDoesNotWorkIn(): void
+    {
+        ['branch' => $branch] = $this->treasuryOfAnotherBranch();
+
+        $limited = $this->employeeWithGrants([], [1]);
+        $data    = $this->expenseData('40.00', '0', 'Cash', $this->category(), '2026-10-20 10:00:00', $limited) + ['treasury_id' => $this->treasury('Own drawer'), 'expense_branch_id' => $branch];
+
+        $this->assertNull($this->saveExpense($data, NEW_ENTRY, $limited));
+        $this->assertRefused(AccountingError::TreasuryNotFound);
+        $this->assertNothingWritten();
+    }
+
     public function testDeleteList_TakesBackBothJournalsOfAnExpenseAcrossBranches(): void
     {
         ['treasury' => $treasury] = $this->treasuryOfAnotherBranch();
