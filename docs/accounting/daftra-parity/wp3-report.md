@@ -148,9 +148,9 @@
 | `G109` | the books refusal is said in words (cash-ups) | مكشوف | 4 |
 | `G110` | the account of a category is locked for who may not change the routing | مكشوف | 1 |
 | `G111` | the treasuries offered are the ones the employee may withdraw from | مكشوف | 1 |
-| `G112` | the treasury an expense already uses stays offered | مكشوف | 1 |
+| `G112` | the treasury an expense already uses stays offered | مكشوف | 2 |
 | `G113` | the ledger column is shown only when the list carries it (expenses) | مكشوف | 1 |
-| `G114` | the ledger column is shown only when the list carries it (cash-ups) | مكشوف بعد تقوية الاختبار | 1 |
+| `G114` | the ledger column is shown only when the list carries it (cash-ups) | مكشوف بعد تقوية الاختبار | 2 |
 | `G115` | the migration adds a column only when it is missing | مكشوف | 8 |
 | `G116` | the migration adds an index only when it is missing | مكشوف | 8 |
 | `G117` | the migration adds a key only when it is missing | مكشوف | 8 |
