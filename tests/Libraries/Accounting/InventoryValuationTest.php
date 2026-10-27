@@ -13,6 +13,7 @@ use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\OpeningStock;
+use App\Libraries\Accounting\OpeningStockStatus;
 use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\ReportScope;
 use App\Libraries\Accounting\ReportScopeKind;
@@ -305,6 +306,24 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertSame('30.0000', $report->stockAccountDifference());
     }
 
+    public function testBuild_DoesNotTieWhenTwoLocationsDifferInOppositeWaysThoughTheStockAccountsAddUp(): void
+    {
+        $item  = $this->item('0.00');
+        $depot = $this->anotherLocation('Depot');
+
+        $this->bookStock('2026-10-05', 1, $item, '10', '100.00');
+        $this->bookStock('2026-10-05', 1, $item, '10', '100.00', $depot);
+        $this->manualToStock('30.00');
+        $this->ledger->record('purchase', 889003, JournalEntryType::General, 1, '2026-10-06', 1, [new StockMovement($item, $depot, '1', '30.00')], null);
+
+        $report = $this->build();
+
+        $this->assertSame('30.0000', $this->location($report, self::LOCATION_ID)->difference());
+        $this->assertSame('-30.0000', $this->location($report, $depot)->difference());
+        $this->assertSame('0.0000', $report->stockAccountDifference(), 'The two cancel out in the main stock account');
+        $this->assertFalse($report->ties(), 'But each location is wrong');
+    }
+
     public function testBuild_FlagsAMovementThatReachedNoAccount(): void
     {
         $item = $this->item('0.00');
@@ -435,6 +454,32 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertSame('3.000', $this->lineOf($grown, $second)->unposted());
     }
 
+    public function testBuild_FlagsTheItemsThatThePartialOpeningOfALocationLeftOut(): void
+    {
+        $rice  = $this->item('50.00');
+        $owed  = $this->item('3.00');
+        $short = $this->item('0.00');
+
+        $this->putOnShelf($rice, '10');
+        $this->putOnShelf($owed, '-3');
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($short, 0, '10', '20')]));
+        $this->putOnShelf($short, '7');
+
+        $result = (new OpeningStock())->post([self::LOCATION_ID], null)[0];
+
+        $this->assertSame(OpeningStockStatus::PartiallyPosted, $result->plan->status);
+
+        $report   = $this->build();
+        $location = $this->location($report, self::LOCATION_ID);
+
+        $this->assertTrue($location->ties(), 'What was posted is in the account');
+        $this->assertSame('700.0000', $report->value(), '10 of rice at 50 posted, and 10 bought at 20');
+        $this->assertFalse($this->lineOf($location, $rice)->hasUnpostedUnits());
+        $this->assertSame(['-3.000', '-3.000'], [$this->lineOf($location, $owed)->unposted(), $this->lineOf($location, $short)->unposted()]);
+        $this->assertSame(2, $report->unpostedLines(), 'The two items the opening left out are flagged and not valued');
+        $this->assertSame('0.0000', $this->lineOf($location, $owed)->position->value);
+    }
+
     public function testBuild_ShowsStockThatWentNegativeWithoutAnAverageCost(): void
     {
         $item = $this->item('0.00');
@@ -553,6 +598,11 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertFalse($line->hasUnpostedUnits());
         $this->assertNull($this->lineOf($this->location($report, self::LOCATION_ID), $other), 'Stock that is on the shelves now is not what stood there on a past day');
         $this->assertSame(0, $report->unpostedLines());
+
+        $everything = $this->build(asOf: '2026-10-10', showEmpty: true);
+
+        $this->assertNull($this->lineOf($this->location($everything, self::LOCATION_ID), $other), 'Not even when the empty ones are asked for');
+        $this->assertNotNull($this->lineOf($this->location($everything, self::LOCATION_ID), $item));
     }
 
     public function testBuild_TreatsTodayAndLaterDaysAsTheStockAsItStandsNow(): void
@@ -690,6 +740,24 @@ class InventoryValuationTest extends CIUnitTestCase
         $this->assertNull($this->location($report, $empty), 'Shelves of a location that was deleted are not stock');
         $this->assertSame('20.0000', $this->location($report, $kept)->value, 'What the books hold stays visible');
         $this->assertTrue($this->location($report, $kept)->ties());
+
+        $everything = $this->build(showEmpty: true);
+
+        $this->assertNull($this->location($everything, $empty), 'A location that was deleted is not listed among the empty ones');
+        $this->assertNotNull($this->location($everything, $kept));
+    }
+
+    public function testBuild_ListsAmongTheEmptyLocationsThoseOfTheBranchesOfTheScopeOnly(): void
+    {
+        $depot = $this->locationOfBranch($this->second, 'Idle second depot');
+        $own   = $this->anotherLocation('Idle first depot');
+
+        $first = $this->build(ReportScope::resolve([1], null), showEmpty: true);
+        $other = $this->build(ReportScope::resolve([$this->second], null), showEmpty: true);
+
+        $this->assertContains($own, $this->locationIds($first));
+        $this->assertNotContains($depot, $this->locationIds($first));
+        $this->assertSame([$depot], $this->locationIds($other));
     }
 
     public function testBuild_TakesBackTheStockOfASaleThatWasCancelled(): void

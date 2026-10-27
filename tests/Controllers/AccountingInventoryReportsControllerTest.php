@@ -176,7 +176,7 @@ class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $response->assertDontSee('data-unposted="1"');
     }
 
-    public function testGetIndex_RedirectsAUserWithoutTheModuleGrant(): void
+    public function testGetIndex_RequiresTheModuleGrant(): void
     {
         $this->twoBranches();
         $this->actAs($this->employeeWithGrants(['accounting_payables']));
@@ -184,7 +184,7 @@ class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $this->get(self::SCREEN)->assertRedirect();
     }
 
-    public function testGetIndex_IsNotFoundWhileAccountingIsOff(): void
+    public function testGetIndex_RequiresAccountingToBeOn(): void
     {
         $this->viewer();
         $this->setConfigValue('accounting_enabled', '0');
@@ -347,7 +347,7 @@ class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $now->assertDontSee(lang('Accounting_inventory_reports.past_note'));
     }
 
-    public function testGetIndex_ShowsTheMessageAndTheStockAsItStandsNowForADayThatIsNotADate(): void
+    public function testGetIndex_RejectsADayThatIsNotADateWithAMessageAndShowsTheStockAsItStandsNow(): void
     {
         $this->twoBranches();
         $this->viewer();
@@ -361,7 +361,7 @@ class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $response->assertSee('value="2026-02-31"');
     }
 
-    public function testGetIndex_AnswersAMalformedQueryWithTheDefaultReportInsteadOfAnError(): void
+    public function testGetIndex_AcceptsAMalformedQueryAsTheDefaultReport(): void
     {
         $this->twoBranches();
         $this->viewer();
@@ -436,6 +436,18 @@ class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $asked->assertSee('inventory_valuation/csv?as_of=2026-10-05&amp;empty=1&amp;branches%5B0%5D=1');
     }
 
+    public function testGetIndex_CarriesAScopeWithNoBranchIntoTheLinksSoTheyDoNotWidenIt(): void
+    {
+        $this->twoBranches();
+        $this->viewer([1]);
+
+        $response = $this->get(self::SCREEN . '?branches[]=' . $this->second);
+
+        $response->assertSee('inventory_valuation/csv?branches%5B0%5D=0');
+        $this->get(self::SCREEN . '/csv?branches[0]=0')->assertStatus(200);
+        $this->assertCount(2, $this->csvRows($this->get(self::SCREEN . '/csv?branches[0]=0')), 'The header and the total of nothing');
+    }
+
     public function testGetIndex_IsReachedFromTheTrialBalanceAndTheLedger(): void
     {
         $this->viewer();
@@ -478,7 +490,7 @@ class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $this->get(self::SCREEN . '/csv')->assertRedirect();
     }
 
-    public function testGetCsv_IsNotFoundWhileAccountingIsOff(): void
+    public function testGetCsv_RequiresAccountingToBeOn(): void
     {
         $this->viewer();
         $this->setConfigValue('accounting_enabled', '0');
@@ -544,7 +556,7 @@ class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $this->assertSame(['-1.000', '-10.0000'], [$negative[5], $negative[7]], 'A number that is negative stays a number');
     }
 
-    public function testGetCsv_RefusesADayThatIsNotADate(): void
+    public function testGetCsv_RejectsADayThatIsNotADate(): void
     {
         $this->twoBranches();
         $this->viewer();
@@ -556,7 +568,7 @@ class AccountingInventoryReportsControllerTest extends CIUnitTestCase
         $this->assertSame(lang('Accounting.error_invalid_date'), $response->response()->getBody());
     }
 
-    public function testGetCsv_AnswersAMalformedQueryWithTheDefaultFile(): void
+    public function testGetCsv_AcceptsAMalformedQueryAsTheDefaultFile(): void
     {
         $this->twoBranches();
         $this->viewer();
