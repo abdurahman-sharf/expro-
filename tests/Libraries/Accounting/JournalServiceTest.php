@@ -1789,6 +1789,30 @@ class JournalServiceTest extends CIUnitTestCase
         $this->assertSame([], $this->detailsAudit($journalId));
     }
 
+    public function testUpdateDetails_LeavesTheTreasuryBalancesAndTheCancellationOfATransferAsTheyWere(): void
+    {
+        $treasuries = new TreasuryService();
+        $branch     = $this->createBranch('B2');
+        $from       = $treasuries->create(['name' => 'Sending drawer', 'kind' => 'cash']);
+        $to         = $treasuries->create(['name' => 'Receiving drawer', 'kind' => 'cash', 'branch_id' => $branch]);
+        $transferId = (new TreasuryTransfers())->transfer($from, $to, '25.00', '2026-10-21');
+        $employee   = $this->detailsEditor();
+        $balances   = [$treasuries->position($from)->balance, $treasuries->position($to)->balance];
+        $journals   = $this->accountingDb()->table('accounting_journals')->whereIn('source_type', ['treasury_transfer', 'treasury_transfer_receipt'])->where('source_id', $transferId)->get()->getResult();
+
+        $this->assertCount(2, $journals);
+
+        foreach ($journals as $journal) {
+            $this->assertTrue($this->service->updateDetails((int) $journal->journal_id, ['description' => 'Checked by the accountant'], $employee));
+        }
+
+        $this->assertSame($balances, [$treasuries->position($from)->balance, $treasuries->position($to)->balance]);
+
+        (new TreasuryTransfers())->cancel($transferId, 'The right way');
+
+        $this->assertSame(['0.0000', '0.0000'], [$treasuries->position($from)->balance, $treasuries->position($to)->balance]);
+    }
+
     public function testUpdateDetails_LeavesTheSaleFreeToBeCancelledAndTheBooksTieAfterwards(): void
     {
         $this->startSelling();

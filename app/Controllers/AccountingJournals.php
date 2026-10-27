@@ -319,7 +319,6 @@ class AccountingJournals extends AccountingController
         return $this->response
             ->setHeader('Content-Type', $file['mime'])
             ->setHeader('Content-Disposition', 'attachment; filename="' . $fallback . '"; filename*=UTF-8\'\'' . rawurlencode($file['name']))
-            ->setHeader('X-Content-Type-Options', 'nosniff')
             ->setHeader('Cache-Control', 'private, no-store')
             ->setBody((string) file_get_contents($file['path']));
     }

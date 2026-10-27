@@ -173,7 +173,7 @@ final class JournalAttachments
             ];
 
             return $this->transactional(function () use ($journalId, $stored, $employeeId, $row): int {
-                $locked = $this->lockJournal($journalId, $stored, $employeeId);
+                $locked = $this->lockJournal($journalId, $stored);
 
                 $count = $this->db->table('accounting_journal_attachments')->where('journal_id', $journalId)->countAllResults();
 
@@ -209,7 +209,7 @@ final class JournalAttachments
         $this->requireChange($stored, $employeeId);
 
         $this->transactional(function () use ($attachmentId, $stored, $employeeId): void {
-            $locked = $this->lockJournal((int) $stored->journal_id, $stored, $employeeId);
+            $locked = $this->lockJournal((int) $stored->journal_id, $stored);
             $table  = $this->db->prefixTable('accounting_journal_attachments');
             $row    = LockedRead::row($this->db, "SELECT * FROM {$table} WHERE attachment_id = ? FOR UPDATE", [$attachmentId]);
 
@@ -302,7 +302,7 @@ final class JournalAttachments
      *
      * @throws AccountingException|PostingException
      */
-    private function lockJournal(int $journalId, object $read, ?int $employeeId): object
+    private function lockJournal(int $journalId, object $read): object
     {
         if ($read->status === JournalStatus::Posted->value) {
             $this->periods->enforce($read->journal_date, (int) $read->branch_id);
@@ -318,8 +318,6 @@ final class JournalAttachments
         if ($locked->status !== $read->status) {
             throw new AccountingException(AccountingError::WriteFailed, 'The journal changed while the file was being saved.');
         }
-
-        $this->requireChange($locked, $employeeId);
 
         return $locked;
     }

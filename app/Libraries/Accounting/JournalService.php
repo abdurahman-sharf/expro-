@@ -884,7 +884,7 @@ final class JournalService
         }
 
         foreach (array_values($lines) as $index => $line) {
-            if (trim((string) ($line['description'] ?? '')) === '') {
+            if (($line['description'] ?? '') === '') {
                 throw new AccountingException(AccountingError::LineDescriptionRequired, 'Line ' . ($index + 1) . ' needs a description.', ['line' => $index + 1]);
             }
         }

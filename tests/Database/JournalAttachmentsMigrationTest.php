@@ -95,6 +95,7 @@ class JournalAttachmentsMigrationTest extends CIUnitTestCase
     {
         $journalId = (new JournalService())->saveDraft($this->journalInput());
         $this->accountingDb()->table('accounting_journal_attachments')->insert($this->row($journalId));
+        $this->accountingDb()->table('accounting_journal_lines')->where('journal_id', $journalId)->delete();
 
         try {
             $this->accountingDb()->table('accounting_journals')->where('journal_id', $journalId)->delete();
