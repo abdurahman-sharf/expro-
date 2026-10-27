@@ -168,12 +168,12 @@
 | `H16` | the treasury that is named decides the branch | مكشوف | 11 |
 | `H17` | a new expense is paid from the default treasury of the employee (stampFor) | مكشوف | 4 |
 | `H18` | an edited expense keeps its branch | مكشوف بعد تقوية الاختبار | 2 |
-| `H19` | a treasury of 0 asks for the default treasury | مكشوف بعد تقوية الاختبار | 1 |
+| `H19` | a treasury of 0 asks for the default treasury | مكشوف بعد تقوية الاختبار | 3 |
 | `H20` | posting an expense is audited | مكشوف | 2 |
 | `H21` | posting an expense again is audited | مكشوف | 1 |
 | `H22` | an expense the books never followed has nothing to sync | مكشوف | 1 |
-| `H23` | an expense without a branch is not a document of the books | مكشوف | 1 |
-| `H24` | deleting an expense that is not in the books does nothing | مكشوف | 3 |
+| `H23` | an expense without a branch is not a document of the books | مكشوف | 2 |
+| `H24` | deleting an expense that is not in the books does nothing | مكشوف | 1 |
 | `H25` | deleting an expense is audited (cancel) | مكشوف | 1 |
 | `H26` | a reversed journal does not count as being in the books (unposted) | مكشوف | 2 |
 | `H27` | the journal of another source does not count as being in the books (unposted) | مكشوف | 2 |
