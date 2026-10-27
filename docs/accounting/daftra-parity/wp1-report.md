@@ -222,3 +222,19 @@ DETECTED  G48-7 Summary_customers limits its sales: Tests: 3, Assertions: 31, Fa
 DETECTED  G48-7 Summary_discounts limits its sales: Tests: 3, Assertions: 31, Failures: 2.; failing: 2
 10 of 10 guards detected
 ```
+
+### الدفعة 10
+
+```
+DETECTED  G48-7 Summary_employees limits its sales: Tests: 3, Assertions: 31, Failures: 2.; failing: 2
+DETECTED  G48-7 Summary_items limits its sales: Tests: 3, Assertions: 31, Failures: 2.; failing: 2
+DETECTED  G48-7 Summary_payments limits its sales: Tests: 3, Assertions: 31, Failures: 2.; failing: 2
+DETECTED  G48-7 Summary_suppliers limits its sales: Tests: 3, Assertions: 31, Failures: 2.; failing: 2
+DETECTED  G48-28b the discounts screen lists the locations of the branches: Tests: 25, Assertions: 283, Failures: 1.; failing: 1
+DETECTED  G48-28c the screen of detailed sales lists the locations of the branches: Tests: 25, Assertions: 283, Failures: 1.; failing: 1
+DETECTED  G48-28d the screen of sales by item lists the locations of the branches: Tests: 25, Assertions: 283, Failures: 1.; failing: 1
+DETECTED  G48-36 a single branch is not told whose figures a report holds: Tests: 17, Assertions: 36, Failures: 1.; failing: 1
+DETECTED  G48-37 the label of the whole company: Tests: 17, Assertions: 36, Failures: 1.; failing: 1
+DETECTED  G48-38 the label of the selected branches: Tests: 17, Assertions: 36, Failures: 1.; failing: 1
+10 of 10 guards detected
+```
