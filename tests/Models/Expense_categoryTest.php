@@ -122,6 +122,23 @@ class Expense_categoryTest extends CIUnitTestCase
         $this->assertSame($name, $this->accountingDb()->table('expense_categories')->where('expense_category_id', $category)->get()->getRow()->category_name);
     }
 
+    public function testSaveValue_AssignsNoAccountWhenTheCategoryItselfWasNotSaved(): void
+    {
+        $account   = $this->customAccount('5', '5985', 'Marketing', false);
+        $debugless = $this->openSecondConnection(false);
+        $existing  = $this->category('Taken');
+        $data      = ['category_name' => $this->accountingDb()->table('expense_categories')->where('expense_category_id', $existing)->get()->getRow()->category_name, 'category_description' => '', 'account_id' => $account];
+
+        try {
+            $saved = (new Expense_category($debugless))->save_value($data, NEW_ENTRY, $this->routerId);
+        } finally {
+            $debugless->close();
+        }
+
+        $this->assertFalse($saved);
+        $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where('entity_type', 'expense_category')->countAllResults());
+    }
+
     public function testSaveValue_RefusesTheAccountOfAnEmployeeWhoMayNotChangeTheRouting(): void
     {
         $account = $this->customAccount('5', '5984', 'Marketing', false);

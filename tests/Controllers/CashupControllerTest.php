@@ -377,4 +377,18 @@ class CashupControllerTest extends CIUnitTestCase
         $this->assertNotSame([], $rows);
         $this->assertArrayNotHasKey('ledger_state', $rows[0]);
     }
+
+    public function testGetIndex_OffersTheFilterOfWhatIsNotInTheBooksOnlyWithAccountingOn(): void
+    {
+        $this->accountingCashier();
+
+        Factories::reset();
+        config(OSPOS::class)->update_settings();
+
+        $this->get('/cashups')->assertSee(lang('Cashups.unposted_filter'));
+
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $this->get('/cashups')->assertDontSee(lang('Cashups.unposted_filter'));
+    }
 }

@@ -148,6 +148,15 @@ class CashupTest extends CIUnitTestCase
         $this->assertNull($this->cashups->get_info($ids['legacy'])->cash_difference);
     }
 
+    public function testGetInfo_ShowsADeletedCashUpAsOwingTheBooksNothing(): void
+    {
+        $ids = $this->oneOfEach();
+
+        $this->assertSame(0, (int) $this->cashups->get_info($ids['legacy'])->ledger_state);
+        $this->assertTrue($this->cashups->delete_list([$ids['legacy']], $this->clerkId));
+        $this->assertSame(1, (int) $this->cashups->get_info($ids['legacy'])->ledger_state);
+    }
+
     public function testGetInfo_CarriesNoLedgerStateWhileAccountingIsOff(): void
     {
         $ids = $this->oneOfEach();
