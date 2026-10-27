@@ -156,6 +156,19 @@ class AccountingInterBranchControllerTest extends CIUnitTestCase
         $this->assertSame(1, substr_count($response->getBody(), 'inter_branch/settle_form?branch='), 'One button for a pair, not one for each of its two sides');
     }
 
+    public function testGetIndex_OffersNoButtonToSettleAPairThatIsClear(): void
+    {
+        $this->send(true, '100.00');
+        (new InterBranchSettlements())->settle(1, $this->branch, '2026-10-22', $this->other, $this->main, '', null, $this->employeeWithGrants([AccountingGuard::INTERBRANCH_SETTLE]));
+        $this->settler();
+
+        $response = $this->get('/accounting_treasuries/inter_branch?as_of=2026-10-25');
+
+        $this->assertStringContainsString('id="pair_balances"', $response->getBody());
+        $this->assertStringContainsString('0.00', $response->getBody());
+        $this->assertStringNotContainsString('inter_branch/settle_form?branch=', $response->getBody());
+    }
+
     public function testGetIndex_OffersNoButtonToSettleWhenTheEmployeeWorksInOnlyOneOfTheBranches(): void
     {
         $this->send(true, '100.00');
@@ -418,6 +431,21 @@ class AccountingInterBranchControllerTest extends CIUnitTestCase
 
         $this->actAsWith(['accounting_treasuries']);
         $this->assertSame('', $this->getJsonOf('/accounting_treasuries/inter_branch/settlements/row/' . $id)['edit']);
+    }
+
+    public function testGetSettlementsRow_ShowsNoCancelIconForASettlementThatIsCancelled(): void
+    {
+        $this->send(true, '100.00');
+
+        $id = $this->settleDirectly();
+
+        $this->settler();
+        $this->jsonOf($this->post('/accounting_treasuries/inter_branch/cancel/' . $id, ['reason' => 'Mistake']));
+
+        $row = $this->getJsonOf('/accounting_treasuries/inter_branch/settlements/row/' . $id);
+
+        $this->assertSame('', $row['edit']);
+        $this->assertStringContainsString(lang('Accounting_treasuries.status_cancelled'), $row['status']);
     }
 
     public function testGetSettlementsRow_IsNotFoundToAnEmployeeOfNeitherBranch(): void

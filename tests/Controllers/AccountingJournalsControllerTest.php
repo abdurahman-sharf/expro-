@@ -5,6 +5,7 @@ namespace Tests\Controllers;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AuditLog;
 use App\Libraries\Accounting\CostCenterService;
+use App\Libraries\Accounting\InterBranchLegs;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalAttachments;
 use App\Libraries\Accounting\JournalLineDraft;
@@ -296,6 +297,19 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         $journalId  = (int) $this->accountingDb()->table('accounting_journals')->where(['source_type' => 'treasury_transfer', 'source_id' => $id])->get()->getRow()->journal_id;
 
         $this->accountant();
+
+        $this->get('/accounting_journals/view/' . $journalId)->assertDontSee('accounting_journals/reverse_form/' . $journalId);
+    }
+
+    public function testGetView_HidesTheReverseButtonOfAJournalThatIsOneOfAPairBetweenBranches(): void
+    {
+        $this->accountant();
+
+        $journalId = $this->automaticJournal(sourceId: 4711);
+
+        $this->get('/accounting_journals/view/' . $journalId)->assertSee('accounting_journals/reverse_form/' . $journalId);
+
+        (new InterBranchLegs())->record($journalId, $this->accountId('cash'), InterBranchLegs::RECEIVABLE, 1, 'sale', 4711, 1);
 
         $this->get('/accounting_journals/view/' . $journalId)->assertDontSee('accounting_journals/reverse_form/' . $journalId);
     }

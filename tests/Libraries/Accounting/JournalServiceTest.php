@@ -2271,6 +2271,18 @@ class JournalServiceTest extends CIUnitTestCase
         }
     }
 
+    public function testReverseAutomatic_ReversesNoJournalOfAPairWhenAnotherCannotBeReversed(): void
+    {
+        $branchId = $this->createBranch('B2');
+        $pair     = $this->paymentAcrossBranches(1, $branchId);
+
+        $this->closeThrough('2035-12-31', $branchId);
+
+        $this->assertPostingFailsWith(PostingError::PeriodClosed, fn () => $this->service->reverseAutomatic($pair['document'], date('Y-m-d'), 'Payment removed', null));
+        $this->assertSame(['posted', 'posted'], [$this->journal($pair['document'])->status, $this->journal($pair['treasury'])->status]);
+        $this->assertSame(0, $this->accountingDb()->table('accounting_journals')->whereIn('reverses_journal_id', [$pair['document'], $pair['treasury']])->countAllResults());
+    }
+
     public function testReverse_RejectsOneJournalOfAPairAndLeavesBothStanding(): void
     {
         $branchId = $this->createBranch('B2');

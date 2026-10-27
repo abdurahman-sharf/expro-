@@ -328,7 +328,7 @@ final class ReceivingPosting
         $draft  = $this->builder->supplierPayment($purchase, $payment, $this->nextRevision(ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT, $payment->paymentId), $employeeId);
         $drafts = $draft === null ? [] : $this->crossBranch->drafts($draft, $payment->treasuryId, $payment->treasuryBranchId);
 
-        if (count($drafts) > 1 || ($active !== null && $this->crossBranch->isPaired($active))) {
+        if (count($drafts) > 1) {
             $this->crossBranch->sync($active, $drafts, $employeeId, fn (object $journal): array => $this->reverse($journal, $employeeId, 'Payment #' . $payment->paymentId . ' changed'));
 
             return;

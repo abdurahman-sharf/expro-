@@ -4,6 +4,10 @@ namespace Tests\Database;
 
 use App\Database\Migrations\InterBranchSettlements;
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\JournalDraft;
+use App\Libraries\Accounting\JournalLineDraft;
+use App\Libraries\Accounting\PostingService;
+use App\Libraries\Accounting\TreasuryService;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -89,37 +93,189 @@ class InterBranchSettlementsMigrationTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('interbranch_settlements'));
     }
 
-    public function testUp_ShutsOutTwoSettlementsWithTheSameKeyAndAPairInTheWrongOrder(): void
+    private function rebuilt(): void
     {
-        $db = $this->accountingDb();
+        $migration = new InterBranchSettlements();
 
-        $db->table('interbranch_settlements')->truncate();
+        $migration->down();
+        $migration->up();
+    }
 
-        $row = ['company_id' => 1, 'branch_id' => 1, 'counterpart_branch_id' => $this->createBranch('MG' . random_int(10, 99)), 'kind' => 'netting', 'settle_date' => '2026-10-31', 'request_key' => 'same'];
-
-        $this->assertTrue($db->table('interbranch_settlements')->insert($row));
-
-        $exception = null;
-
+    private function rejects(callable $action): bool
+    {
         try {
-            $db->table('interbranch_settlements')->insert($row);
-        } catch (Throwable $caught) {
-            $exception = $caught;
+            $action();
+        } catch (Throwable) {
+            return true;
         }
 
-        $this->assertNotNull($exception, 'The same key twice');
+        return false;
+    }
 
-        $exception = null;
+    /**
+     * @param array<string, mixed> $changes
+     *
+     * @return array<string, mixed>
+     */
+    private function settlement(int $counterpartId, array $changes = []): array
+    {
+        return $changes + ['company_id' => 1, 'branch_id' => 1, 'counterpart_branch_id' => $counterpartId, 'kind' => 'netting', 'settle_date' => '2026-10-31', 'request_key' => null];
+    }
 
-        try {
-            $db->table('interbranch_settlements')->insert(['branch_id' => (int) $row['counterpart_branch_id'], 'counterpart_branch_id' => 1] + $row + ['request_key' => null]);
-        } catch (Throwable $caught) {
-            $exception = $caught;
-        }
+    private function insertsSettlement(array $row): bool
+    {
+        return ! $this->rejects(fn () => $this->accountingDb()->table('interbranch_settlements')->insert($row));
+    }
 
-        $this->assertNotNull($exception, 'A pair is kept with the lower branch first');
+    /**
+     * A journal with its two lines, and the accounts of the lines.
+     *
+     * @return array{int, int, int} The journal and the accounts of its two lines.
+     */
+    private function journalWithTwoAccounts(): array
+    {
+        $this->reinstallChart();
 
-        $db->table('interbranch_settlements')->truncate();
+        $cash   = $this->accountId('cash');
+        $source = $this->accountId('opening_balance');
+        $id     = (new PostingService())->post(new JournalDraft(
+            date: '2026-10-21',
+            lines: [new JournalLineDraft($cash, debit: '10.00'), new JournalLineDraft($source, credit: '10.00')],
+            sourceType: 'opening',
+            sourceId: random_int(1000, 999999),
+            currencyCode: 'SAR',
+            branchId: 1,
+        ))->journalId;
+
+        return [$id, $cash, $source];
+    }
+
+    /**
+     * @param array<string, mixed> $changes
+     *
+     * @return array<string, mixed>
+     */
+    private function leg(int $journalId, int $accountId, int $counterpartId, array $changes = []): array
+    {
+        return $changes + ['journal_id' => $journalId, 'account_id' => $accountId, 'company_id' => 1, 'side' => 'receivable', 'counterpart_branch_id' => $counterpartId, 'document_type' => 'sale_payment', 'document_id' => 1, 'revision' => 1];
+    }
+
+    private function insertsLeg(array $row): bool
+    {
+        return ! $this->rejects(fn () => $this->accountingDb()->table('accounting_interbranch_legs')->insert($row));
+    }
+
+    public function testUp_ShutsOutTwoSettlementsWithTheSameKeyButNotTwoWithNone(): void
+    {
+        $this->rebuilt();
+
+        $branchId = $this->createBranch('MG' . random_int(10, 99));
+
+        $this->assertTrue($this->insertsSettlement($this->settlement($branchId, ['request_key' => 'same'])));
+        $this->assertFalse($this->insertsSettlement($this->settlement($branchId, ['request_key' => 'same'])), 'The same key twice');
+        $this->assertTrue($this->insertsSettlement($this->settlement($branchId)));
+        $this->assertTrue($this->insertsSettlement($this->settlement($branchId)), 'Settlements that name no key are not one');
+
+        $this->accountingDb()->table('interbranch_settlements')->truncate();
+    }
+
+    public function testUp_ShutsOutAPairThatIsNotInTheOrderOfTheBranchNumbers(): void
+    {
+        $this->rebuilt();
+
+        $branchId = $this->createBranch('MG' . random_int(10, 99));
+
+        $this->assertFalse($this->insertsSettlement($this->settlement(1, ['branch_id' => $branchId])), 'The higher branch first');
+        $this->assertFalse($this->insertsSettlement($this->settlement(1)), 'The same branch twice');
+        $this->assertTrue($this->insertsSettlement($this->settlement($branchId)));
+
+        $this->accountingDb()->table('interbranch_settlements')->truncate();
+    }
+
+    public function testUp_ShutsOutAKindAndAStatusThatAreNotThoseOfASettlement(): void
+    {
+        $this->rebuilt();
+
+        $branchId = $this->createBranch('MG' . random_int(10, 99));
+
+        $this->assertFalse($this->insertsSettlement($this->settlement($branchId, ['kind' => 'barter'])));
+        $this->assertFalse($this->insertsSettlement($this->settlement($branchId, ['status' => 'half'])));
+        $this->assertTrue($this->insertsSettlement($this->settlement($branchId, ['kind' => 'cash', 'status' => 'cancelled'])));
+
+        $this->accountingDb()->table('interbranch_settlements')->truncate();
+    }
+
+    public function testUp_ShutsOutASettlementOfACompanyOrABranchThatIsNotThere(): void
+    {
+        $this->rebuilt();
+
+        $gone  = $this->createBranch('MG' . random_int(10, 99));
+        $there = $this->createBranch('MH' . random_int(10, 99));
+
+        $this->accountingDb()->table('branches')->where('branch_id', $gone)->delete();
+
+        $this->assertFalse($this->insertsSettlement($this->settlement($there, ['company_id' => 999])), 'A company that is not there');
+        $this->assertFalse($this->insertsSettlement($this->settlement($there, ['branch_id' => $gone])), 'A branch that is not there, first');
+        $this->assertFalse($this->insertsSettlement($this->settlement($gone)), 'A branch that is not there, second');
+        $this->assertTrue($this->insertsSettlement($this->settlement($there)));
+
+        $this->accountingDb()->table('interbranch_settlements')->truncate();
+    }
+
+    public function testUp_KeepsTheTreasuriesASettlementMovedMoneyBetween(): void
+    {
+        $this->rebuilt();
+        $this->reinstallChart();
+
+        $branchId   = $this->createBranch('MG' . random_int(10, 99));
+        $treasuries = new TreasuryService();
+        $from       = $treasuries->create(['name' => 'Settlement from ' . uniqid(), 'kind' => 'cash', 'branch_id' => $branchId]);
+        $to         = $treasuries->create(['name' => 'Settlement to ' . uniqid(), 'kind' => 'cash']);
+
+        $this->assertTrue($this->insertsSettlement($this->settlement($branchId, ['kind' => 'cash', 'from_treasury_id' => $from, 'to_treasury_id' => $to])));
+        $this->assertTrue($this->rejects(fn () => $this->accountingDb()->table('treasuries')->where('treasury_id', $from)->delete()), 'The treasury it went out of');
+        $this->assertTrue($this->rejects(fn () => $this->accountingDb()->table('treasuries')->where('treasury_id', $to)->delete()), 'The treasury it went into');
+        $this->assertFalse($this->insertsSettlement($this->settlement($branchId, ['from_treasury_id' => 999999])), 'A treasury that is not there');
+
+        $this->accountingDb()->table('interbranch_settlements')->truncate();
+        $this->clearJournals();
+    }
+
+    public function testUp_ShutsOutARecordOfASideThatIsNeitherReceivableNorPayable(): void
+    {
+        [$journalId, $cash, $source] = $this->journalWithTwoAccounts();
+
+        $this->rebuilt();
+
+        $this->assertFalse($this->insertsLeg($this->leg($journalId, $cash, 1, ['side' => 'both'])));
+        $this->assertTrue($this->insertsLeg($this->leg($journalId, $cash, 1)));
+        $this->assertTrue($this->insertsLeg($this->leg($journalId, $source, 1, ['side' => 'payable'])));
+        $this->assertFalse($this->insertsLeg($this->leg($journalId, $source, 1)), 'One record for each account of a journal');
+
+        $this->clearJournals();
+    }
+
+    public function testUp_KeepsTheJournalsAndAccountsThatHaveARecordAndShutsOutOnesThatAreNotThere(): void
+    {
+        [$journalId, $cash] = $this->journalWithTwoAccounts();
+
+        $this->rebuilt();
+
+        $gone = $this->createBranch('MG' . random_int(10, 99));
+
+        $this->accountingDb()->table('branches')->where('branch_id', $gone)->delete();
+
+        $this->assertFalse($this->insertsLeg($this->leg(999999, $cash, 1)), 'A journal that is not there');
+        $this->assertFalse($this->insertsLeg($this->leg($journalId, 999999, 1)), 'An account that is not there');
+        $this->assertFalse($this->insertsLeg($this->leg($journalId, $cash, $gone)), 'A branch that is not there');
+        $this->assertFalse($this->insertsLeg($this->leg($journalId, $cash, 1, ['company_id' => 999])), 'A company that is not there');
+        $this->assertTrue($this->insertsLeg($this->leg($journalId, $cash, 1)));
+
+        $this->accountingDb()->table('accounting_journal_lines')->where('journal_id', $journalId)->delete();
+
+        $this->assertTrue($this->rejects(fn () => $this->accountingDb()->table('accounting_journals')->where('journal_id', $journalId)->delete()), 'The journal that has a record');
+
+        $this->clearJournals();
     }
 
     public function testDown_RemovesTheTablesAndThePermission(): void

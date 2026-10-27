@@ -206,6 +206,20 @@ class InterBranchBalancesTest extends CIUnitTestCase
         $this->assertSame('160.0000', $row->owed);
     }
 
+    public function testReport_PrefersTheBranchRecordedWithAJournalToTheOneItsDocumentNames(): void
+    {
+        $this->send($this->first, $this->second, '100.00');
+
+        $sender = $this->accountingDb()->table('accounting_journals')->where(['source_type' => TreasuryTransfers::SOURCE, 'branch_id' => 1])->get()->getRow();
+
+        (new InterBranchLegs())->record((int) $sender->journal_id, $this->accountId('branches_receivable'), InterBranchLegs::RECEIVABLE, $this->thirdBranch, TreasuryTransfers::SOURCE, (int) $sender->source_id, 1);
+
+        $rows = $this->rows();
+
+        $this->assertSame(['100.0000', PairBalance::RECORDED], [$rows['1>' . $this->thirdBranch]->owed, $rows['1>' . $this->thirdBranch]->basis]);
+        $this->assertSame('0.0000', $rows['1>' . $this->secondBranch]->receivable, 'The document named the second branch, the record the third');
+    }
+
     public function testReport_StopsAtTheDayAsked(): void
     {
         $this->send($this->first, $this->second, '100.00', '2026-10-21');

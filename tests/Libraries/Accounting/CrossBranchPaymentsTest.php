@@ -5,7 +5,6 @@ namespace Tests\Libraries\Accounting;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\CrossBranchPayments;
-use App\Libraries\Accounting\InterBranchLegs;
 use App\Libraries\Accounting\JournalChange;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
@@ -90,6 +89,22 @@ class CrossBranchPaymentsTest extends CIUnitTestCase
                 ? [new JournalLineDraft($this->account, debit: $amount), new JournalLineDraft($customer, credit: $amount)]
                 : [new JournalLineDraft($customer, debit: $amount), new JournalLineDraft($this->account, credit: $amount)],
             sourceType: $source,
+            sourceId: $paymentId,
+            revision: $revision,
+            description: 'Payment #' . $paymentId,
+            branchId: 1,
+        );
+    }
+
+    /**
+     * The draft of a payment of a sale of the first branch into a treasury.
+     */
+    private function draftInto(int $treasuryId, string $amount, int $paymentId, int $revision = 1): JournalDraft
+    {
+        return new JournalDraft(
+            date: '2026-10-21',
+            lines: [new JournalLineDraft((int) $this->treasuries->accountOf($treasuryId), debit: $amount), new JournalLineDraft($this->customerAccount(), credit: $amount)],
+            sourceType: SalePostingBuilder::SOURCE_PAYMENT,
             sourceId: $paymentId,
             revision: $revision,
             description: 'Payment #' . $paymentId,
@@ -258,6 +273,7 @@ class CrossBranchPaymentsTest extends CIUnitTestCase
 
         $this->assertSame([1, $this->branch], $this->periodLocksTakenBy(fn () => $this->payments->post($this->payments->drafts($this->draft(true, '100.00', 5031), $this->treasury, $this->branch))));
         $this->assertSame([1, $this->branch], $this->periodLocksTakenBy(fn () => $this->payments->post($this->payments->drafts($high, $low, 1))));
+        $this->assertSame([1, $this->branch], $this->periodLocksTakenBy(fn () => $this->payments->post(array_reverse($this->payments->drafts($this->draft(true, '100.00', 5032), $this->treasury, $this->branch)))), 'Whatever the order the drafts are given in');
     }
 
     public function testPost_RecordsNothingForAPaymentOfOneJournal(): void
@@ -416,14 +432,76 @@ class CrossBranchPaymentsTest extends CIUnitTestCase
         $this->assertSame(2, $this->accountingDb()->table('accounting_journals')->where(['source_id' => 5028, 'status' => 'posted'])->countAllResults(), 'Nothing was reversed');
     }
 
-    public function testIsPaired_SeesAJournalThatHasARecordOfTheBranchOnTheOtherSide(): void
+    public function testSync_AsksTheDepositScopeOfTheTreasuryTheReplacementPutsMoneyInto(): void
     {
-        $this->payments->post($this->payments->drafts($this->draft(true, '100.00', 5030), $this->treasury, $this->branch));
-        $this->payments->post([$this->draft(true, '10.00', 5031)]);
+        $employee = $this->employeeWithGrants([]);
+        $other    = $this->treasuries->create(['name' => 'Other branch drawer', 'kind' => 'cash', 'branch_id' => $this->branch]);
 
-        $this->assertTrue($this->payments->isPaired($this->activeOf(5030)));
-        $this->assertFalse($this->payments->isPaired($this->activeOf(5031)));
-        $this->assertTrue((new InterBranchLegs())->isPaired((int) $this->activeOf(5030)->journal_id));
+        $this->payments->sync(null, $this->payments->drafts($this->draft(true, '100.00', 5050), $this->treasury, $this->branch), null, $this->reverser());
+        $this->treasuries->update($other, ['name' => 'Other branch drawer', 'kind' => 'cash', 'deposit_scope' => 'staff', 'deposit_members' => [$this->employeeWithGrants([])]]);
+
+        $moved = $this->payments->drafts($this->draftInto($other, '100.00', 5050, 2), $other, $this->branch);
+
+        $refusal = $this->refusal(fn () => $this->payments->sync($this->activeOf(5050), $moved, $employee, $this->reverser()));
+
+        $this->assertSame(AccountingError::TreasuryDepositDenied, $refusal->error);
+        $this->assertSame(2, $this->accountingDb()->table('accounting_journals')->where(['source_id' => 5050, 'status' => 'posted'])->countAllResults(), 'Nothing was reversed');
+    }
+
+    public function testSync_RejectsAnEmployeeWhoDoesNotWorkInTheBranchOfTheTreasuryTheReplacementMovesTo(): void
+    {
+        $third    = $this->createBranch('B3');
+        $drawer   = $this->treasuries->create(['name' => 'Third branch drawer', 'kind' => 'cash', 'branch_id' => $third]);
+        $employee = $this->employeeWithGrants([], [1, $this->branch]);
+
+        $this->payments->sync(null, $this->payments->drafts($this->draft(true, '100.00', 5051), $this->treasury, $this->branch), null, $this->reverser());
+
+        $refusal = $this->refusal(fn () => $this->payments->sync($this->activeOf(5051), $this->payments->drafts($this->draftInto($drawer, '100.00', 5051, 2), $drawer, $third), $employee, $this->reverser()));
+
+        $this->assertSame(AccountingError::InterBranchBranchesDenied, $refusal->error);
+        $this->assertSame('B3', $refusal->context['name']);
+        $this->assertSame(2, $this->accountingDb()->table('accounting_journals')->where(['source_id' => 5051, 'status' => 'posted'])->countAllResults(), 'Nothing was reversed');
+        $this->assertSame(0, $this->accountingDb()->table('accounting_journals')->where('branch_id', $third)->countAllResults());
+    }
+
+    public function testSync_RejectsAnEmployeeWhoDoesNotWorkInTheBranchOfAJournalThatStandsEvenWhenTheReplacementLeavesIt(): void
+    {
+        $third    = $this->createBranch('B3');
+        $drawer   = $this->treasuries->create(['name' => 'Third branch drawer', 'kind' => 'cash', 'branch_id' => $third]);
+        $employee = $this->employeeWithGrants([], [1, $third]);
+
+        $this->payments->sync(null, $this->payments->drafts($this->draft(true, '100.00', 5052), $this->treasury, $this->branch), null, $this->reverser());
+
+        $refusal = $this->refusal(fn () => $this->payments->sync($this->activeOf(5052), $this->payments->drafts($this->draftInto($drawer, '100.00', 5052, 2), $drawer, $third), $employee, $this->reverser()));
+
+        $this->assertSame(AccountingError::InterBranchBranchesDenied, $refusal->error);
+        $this->assertSame('B2', $refusal->context['name']);
+        $this->assertSame(2, $this->accountingDb()->table('accounting_journals')->where(['source_id' => 5052, 'status' => 'posted'])->countAllResults(), 'Nothing was reversed');
+    }
+
+    public function testSync_ReplacesAPairByOneOfItsJournalsThatHoldsTheSameLines(): void
+    {
+        $drafts = $this->payments->drafts($this->draft(true, '100.00', 5053), $this->treasury, $this->branch);
+
+        $this->payments->sync(null, $drafts, null, $this->reverser());
+
+        $subset = new JournalDraft(date: $drafts[0]->date, lines: $drafts[0]->lines, sourceType: $drafts[0]->sourceType, sourceId: 5053, revision: 2, branchId: $drafts[0]->branchId);
+
+        $this->assertSame(JournalChange::Replaced, $this->payments->sync($this->activeOf(5053), [$subset], null, $this->reverser()));
+        $this->assertSame(1, $this->accountingDb()->table('accounting_journals')->where(['source_id' => 5053, 'status' => 'posted'])->countAllResults());
+    }
+
+    public function testSync_LeavesThePairStandingWhenTheNewJournalsCannotBeWritten(): void
+    {
+        $this->payments->sync(null, $this->payments->drafts($this->draft(true, '100.00', 5054), $this->treasury, $this->branch), null, $this->reverser());
+
+        $this->closeThrough('2026-10-22', $this->branch);
+
+        $refusal = $this->refusal(fn () => $this->payments->sync($this->activeOf(5054), $this->payments->drafts($this->draft(true, '60.00', 5054, 2), $this->treasury, $this->branch), null, $this->reverser()));
+
+        $this->assertSame(PostingError::PeriodClosed, $refusal->error);
+        $this->assertSame(['posted', 'posted'], array_column($this->accountingDb()->table('accounting_journals')->select('status')->where('source_id', 5054)->orderBy('journal_id')->get()->getResultArray(), 'status'), 'Neither journal was reversed and none was written');
+        $this->assertSame(2, $this->accountingDb()->table('accounting_journals')->where('source_id', 5054)->countAllResults());
     }
 
     public function testAssertMayPost_NeedsTheEmployeeToWorkInBothBranchesAndToMoveTheTreasury(): void

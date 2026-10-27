@@ -136,11 +136,6 @@ final class CrossBranchPayments
         return isset(self::COMPANIONS[$source]) ? [self::COMPANIONS[$source]] : [];
     }
 
-    public function isPaired(object $journal): bool
-    {
-        return $this->legs->isPaired((int) $journal->journal_id);
-    }
-
     /**
      * Brings the journals of a payment in line with the drafts: posts them when there is none,
      * leaves them when they hold what the drafts say, and otherwise takes the standing ones back,

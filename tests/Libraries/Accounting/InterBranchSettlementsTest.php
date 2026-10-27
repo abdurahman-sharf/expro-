@@ -22,6 +22,7 @@ use App\Libraries\Organization\BranchException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
@@ -378,6 +379,22 @@ class InterBranchSettlementsTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('interbranch_settlements'));
     }
 
+    public function testSettle_RejectsATreasuryThatHasNoAccountOfItsOwn(): void
+    {
+        $this->send(true, '100.00');
+
+        $this->accountingDb()->table('accounting_accounts')->where(['entity_type' => 'treasury', 'entity_id' => $this->other])->update(['entity_id' => 999999]);
+
+        try {
+            $refusal = $this->refusal(fn () => $this->settle($this->other, $this->main));
+
+            $this->assertSame(PostingError::EntityAccountMissing, $refusal->error);
+            $this->assertSame(0, $this->countRows('interbranch_settlements'));
+        } finally {
+            $this->accountingDb()->table('accounting_accounts')->where(['entity_type' => 'treasury', 'entity_id' => 999999])->update(['entity_id' => $this->other]);
+        }
+    }
+
     public function testSettle_RejectsATreasuryThatIsDeactivated(): void
     {
         $this->send(true, '100.00');
@@ -651,19 +668,33 @@ class InterBranchSettlementsTest extends CIUnitTestCase
         }
     }
 
-    public function testCancel_ReversesOnTheDayItIsDoneWhenThePeriodOfASettlementHasBeenClosedSince(): void
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function branchesThatCanBeClosed(): array
     {
+        return ['the higher branch' => ['higher'], 'the lower branch' => ['lower']];
+    }
+
+    #[DataProvider('branchesThatCanBeClosed')]
+    public function testCancel_ReversesOnTheDayItIsDoneWhenThePeriodOfASettlementHasBeenClosedSince(string $which): void
+    {
+        $closed = $which === 'lower' ? 1 : $this->branch;
+
         $this->send(true, '100.00', '2026-10-20');
 
         $id = $this->settle($this->other, $this->main, '2026-10-21');
 
-        $this->closeThrough('2026-10-22', $this->branch);
+        $this->closeThrough('2026-10-22', $closed);
         $this->settlements->cancel($id, 'Reason', $this->settler);
 
-        $reversals = array_slice($this->accountingDb()->table('accounting_journals')->where('source_type', 'reversal')->orderBy('journal_id', 'ASC')->get()->getResult(), -2);
+        $dates = [];
 
-        $this->assertSame(['2026-10-21', date('Y-m-d')], [$reversals[0]->journal_date, $reversals[1]->journal_date], 'Each on its own day: the branch that is closed on the day it was done');
-        $this->assertSame('900.0000', $this->balanceOf($this->main));
+        foreach (array_slice($this->accountingDb()->table('accounting_journals')->where('source_type', 'reversal')->orderBy('journal_id', 'ASC')->get()->getResult(), -2) as $reversal) {
+            $dates[(int) $reversal->branch_id] = $reversal->journal_date;
+        }
+
+        $this->assertSame([1 => $closed === 1 ? date('Y-m-d') : '2026-10-21', $this->branch => $closed === $this->branch ? date('Y-m-d') : '2026-10-21'], $dates, 'Each on its own day: only the branch that is closed on the day it was done is reversed today');
     }
 
     public function testCancel_RejectsAnEmployeeWithoutThePermissionOrWhoWorksInOnlyOneBranchAndReversesNothing(): void
@@ -814,7 +845,7 @@ class InterBranchSettlementsTest extends CIUnitTestCase
             $this->assertContains($id, array_map(static fn (object $row): int => (int) $row->settlement_id, $this->settlements->search($seen)['rows']));
         }
 
-        $this->assertSame(0, $this->settlements->search([$third])['total']);
+        $this->assertSame(['total' => 0, 'rows' => []], $this->settlements->search([$third]));
         $this->assertSame(['total' => 0, 'rows' => []], $this->settlements->search([]));
         $this->assertSame(['HQ', 'B2'], [$this->settlements->find($id)->branch_code, $this->settlements->find($id)->counterpart_code]);
         $this->assertSame([1, $this->branch], InterBranchSettlements::branchesOf($this->settlements->find($id)));

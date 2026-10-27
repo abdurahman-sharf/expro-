@@ -27,7 +27,6 @@ final class InterBranchSettlements
     public const SOURCE        = 'interbranch_settlement';
     public const SOURCE_SECOND = 'interbranch_settlement_second';
     private const NOTE_MAX     = 500;
-    private const REASON_MAX   = 255;
     private const ZERO         = '0.0000';
 
     private BaseConnection $db;
@@ -177,10 +176,6 @@ final class InterBranchSettlements
         $this->guard->require(AccountingGuard::INTERBRANCH_SETTLE, $employeeId);
 
         $reason = trim($reason);
-
-        if ($reason === '' || mb_strlen($reason) > self::REASON_MAX) {
-            throw new AccountingException(AccountingError::ReasonRequired, 'A reason of 1 to 255 characters is required.');
-        }
 
         $this->transactional(function () use ($settlementId, $reason, $employeeId): void {
             $table      = $this->db->prefixTable('interbranch_settlements');

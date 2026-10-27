@@ -181,7 +181,7 @@ class AccountingInterBranch extends AccountingController
                 'sign'        => bccomp($row->owed, '0', 4),
                 'basis'       => $row->basis,
                 'agrees'      => $row->agrees,
-                'settle_url'  => $this->can(AccountingGuard::INTERBRANCH_SETTLE) && $row->branchId < $row->counterpartId && $canSeeBoth($row) && (bccomp($row->receivable, '0', 4) !== 0 || bccomp($row->payable, '0', 4) !== 0)
+                'settle_url'  => $row->branchId < $row->counterpartId && $canSeeBoth($row) && (bccomp($row->receivable, '0', 4) !== 0 || bccomp($row->payable, '0', 4) !== 0)
                     ? base_url('accounting_treasuries/inter_branch/settle_form') . '?' . http_build_query(['branch' => $row->branchId, 'other' => $row->counterpartId, 'date' => $asOf])
                     : null,
             ], $report->rows),

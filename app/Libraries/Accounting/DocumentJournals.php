@@ -109,13 +109,11 @@ final class DocumentJournals
      */
     public function syncAll(string $sourceType, int $sourceId, array $drafts, ?int $employeeId, string $reason): JournalChange
     {
-        $active = $this->active($sourceType, $sourceId);
-
-        if (count($drafts) < 2 && ($active === null || ! $this->crossBranch->isPaired($active))) {
+        if (count($drafts) < 2) {
             return $this->sync($sourceType, $sourceId, $drafts[0] ?? null, $employeeId, $reason);
         }
 
-        return $this->crossBranch->sync($active, $drafts, $employeeId, function (object $journal) use ($employeeId, $reason): void {
+        return $this->crossBranch->sync($this->active($sourceType, $sourceId), $drafts, $employeeId, function (object $journal) use ($employeeId, $reason): void {
             $this->reverse($journal, $employeeId, $reason);
         });
     }
