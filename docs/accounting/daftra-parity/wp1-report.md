@@ -190,3 +190,19 @@ DETECTED  G48-32 the label tells a partial scope from the company: Tests: 17, As
 DETECTED  G48-33 the dashboard hides expenses from an employee of some branches: Tests: 9, Assertions: 54, Failures: 1.; failing: 1
 10 of 10 guards detected
 ```
+
+### الدفعة 8
+
+```
+DETECTED  G48-34 the dashboard cache is kept by branches: Tests: 9, Assertions: 57, Failures: 2.; failing: 2
+DETECTED  P6-7 the setup screen names who holds the treasuries permission: Tests: 23, Assertions: 119, Errors: 2.; failing: 2
+DETECTED  P6-8 the setup screen names who holds the payables permission: Tests: 23, Assertions: 119, Errors: 2.; failing: 2
+DETECTED  A2A-13 the location of the URL is checked against the allowed locations: Tests: 84, Assertions: 578, Failures: 1.; failing: 1
+DETECTED  A2A-14 a refused journal of the screen is reported, not thrown: Tests: 84, Assertions: 576, Errors: 1.; failing: 1
+DETECTED  A2A-15 the refusal of a delete is explained to the employee: Tests: 84, Assertions: 574, Failures: 1.; failing: 1
+DETECTED  A2A-16 a refused journal of a delete is reported, not thrown: Tests: 26, Assertions: 235, Errors: 1.; failing: 1
+DETECTED  A2A-17 an employee of every branch is not limited when deleting: Tests: 26, Assertions: 208, Errors: 6.; failing: 6
+DETECTED  A2A-18 stock inside the branches of the employee does not block a delete: Tests: 26, Assertions: 230, Failures: 2.; failing: 2
+DETECTED  A2A-19 an employee of no branch cannot delete an item with stock: Tests: 26, Assertions: 230, Errors: 2.; failing: 2
+10 of 10 guards detected
+```
