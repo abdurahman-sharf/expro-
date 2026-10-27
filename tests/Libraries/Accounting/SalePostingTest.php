@@ -2921,6 +2921,35 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertLessThan($reversals[$branch], $reversals[1]);
     }
 
+    public function testDelete_DatesTheReversalOfEachBranchByTheClosedPeriodOfThatBranchAlone(): void
+    {
+        ['branch' => $branch, 'treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        foreach ([$branch, 1] as $closed) {
+            $saleId = $this->saleWithPaymentInto($treasury, '100.00', SALE_TYPE_POS);
+
+            $this->accountingDb()->table('accounting_journals')->whereIn('journal_id', array_column($this->journals($saleId), 'id'))->update(['journal_date' => '2026-03-10']);
+            $this->closeThrough('2026-06-30', $closed);
+
+            $this->assertTrue($this->sales->delete($saleId, false, true, $this->employeeId));
+
+            $dates = [];
+
+            foreach ($this->journals($saleId) as $journal) {
+                if (str_starts_with($journal['source'], 'sale_payment')) {
+                    $reversal = $this->accountingDb()->table('accounting_journals')->where('reverses_journal_id', $journal['id'])->get()->getRow();
+
+                    $dates[(int) $reversal->branch_id] = $reversal->journal_date;
+                }
+            }
+
+            $this->assertSame([1 => $closed === 1 ? date('Y-m-d') : '2026-03-10', $branch => $closed === $branch ? date('Y-m-d') : '2026-03-10'], $dates, 'Only the branch whose period is closed is reversed today (closed: ' . $closed . ')');
+            $this->assertEveryBranchBalancedAndTheAccountsBetweenBranchesOffset();
+
+            $this->accountingDb()->table('accounting_closed_periods')->truncate();
+        }
+    }
+
     public function testDelete_RefusesAnEmployeeWhoWorksInOnlyOneOfTheBranchesAndReversesNothing(): void
     {
         ['treasury' => $treasury] = $this->treasuryOfAnotherBranch();

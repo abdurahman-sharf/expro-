@@ -1318,6 +1318,23 @@ class ExpensePostingTest extends CIUnitTestCase
         $this->assertSame(1, (int) $this->accountingDb()->table('expenses')->where('expense_id', $expenseId)->get()->getRow()->branch_id);
     }
 
+    public function testSaveValue_NeverTakesTheBranchOfTheTreasuryFromTheForm(): void
+    {
+        ['branch' => $branch] = $this->treasuryOfAnotherBranch();
+
+        $own       = $this->treasury('Own drawer');
+        $expenseId = $this->saveExpense($this->expenseData('100.00') + ['treasury_id' => $own, 'expense_branch_id' => 1, 'treasury_branch_id' => $branch]);
+        $row       = $this->accountingDb()->table('expenses')->where('expense_id', $expenseId)->get()->getRow();
+
+        $this->assertSame([1, $own, null], [(int) $row->branch_id, (int) $row->treasury_id, $row->treasury_branch_id]);
+        $this->assertSame(['expense'], array_keys($this->expenseJournals($expenseId)));
+        $this->assertSame(0, $this->countRows('accounting_interbranch_legs'));
+
+        $this->assertSame($expenseId, $this->saveExpense($this->expenseData('120.00') + ['treasury_id' => $own, 'treasury_branch_id' => $branch], $expenseId));
+        $this->assertNull($this->accountingDb()->table('expenses')->where('expense_id', $expenseId)->get()->getRow()->treasury_branch_id);
+        $this->assertSame(['expense'], array_keys($this->expenseJournals($expenseId)));
+    }
+
     public function testSaveValue_KeepsTheBranchOfTheExpenseWhenTheFormNamesTheSameTreasuryAndNoBranch(): void
     {
         ['branch' => $branch, 'treasury' => $treasury] = $this->treasuryOfAnotherBranch();
