@@ -5,6 +5,7 @@ namespace App\Controllers;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\AccountingSettings;
+use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
@@ -99,44 +100,44 @@ class Expenses extends Secure_Controller
     }
 
     /**
-     * @param int $expense_id
+     * @param int $expenseId
      * @return void
      */
-    public function getView(int $expense_id = NEW_ENTRY): string
+    public function getView(int $expenseId = NEW_ENTRY): string
     {
         $data = [];    // TODO: Duplicated code
 
-        $data['expenses_info'] = $this->expense->get_info($expense_id);
-        $expense_id = $data['expenses_info']->expense_id;
+        $data['expenses_info'] = $this->expense->get_info($expenseId);
+        $expenseId = $data['expenses_info']->expense_id;
 
-        $current_employee_id = $this->employee->get_logged_in_employee_info()->person_id;
-        $can_assign_employee = $this->employee->has_grant('employees', $current_employee_id);
+        $currentEmployeeId = $this->employee->get_logged_in_employee_info()->person_id;
+        $canAssignEmployee = $this->employee->has_grant('employees', $currentEmployeeId);
 
         $data['employees'] = [];
-        if ($can_assign_employee) {
+        if ($canAssignEmployee) {
             foreach ($this->employee->get_all()->getResult() as $employee) {
                 $data['employees'][$employee->person_id] = $employee->first_name . ' ' . $employee->last_name;
             }
         } else {
-            $stored_employee_id = $expense_id == NEW_ENTRY ? $current_employee_id : $data['expenses_info']->employee_id;
-            $stored_employee = $this->employee->get_info($stored_employee_id);
-            $data['employees'][$stored_employee_id] = $stored_employee->first_name . ' ' . $stored_employee->last_name;
+            $storedEmployeeId = $expenseId == NEW_ENTRY ? $currentEmployeeId : $data['expenses_info']->employee_id;
+            $storedEmployee = $this->employee->get_info($storedEmployeeId);
+            $data['employees'][$storedEmployeeId] = $storedEmployee->first_name . ' ' . $storedEmployee->last_name;
         }
-        $data['can_assign_employee'] = $can_assign_employee;
+        $data['can_assign_employee'] = $canAssignEmployee;
 
-        $expense_categories = [];
+        $expenseCategories = [];
         foreach ($this->expense_category->get_all(0, 0, true)->getResultArray() as $row) {
-            $expense_categories[$row['expense_category_id']] = $row['category_name'];
+            $expenseCategories[$row['expense_category_id']] = $row['category_name'];
         }
-        $data['expense_categories'] = $expense_categories;
+        $data['expense_categories'] = $expenseCategories;
 
-        if ($expense_id == NEW_ENTRY) {
+        if ($expenseId == NEW_ENTRY) {
             $data['expenses_info']->date = date('Y-m-d H:i:s');
-            $data['expenses_info']->employee_id = $current_employee_id;
+            $data['expenses_info']->employee_id = $currentEmployeeId;
         }
 
         $data['payments'] = [];
-        foreach ($this->expense->get_expense_payment($expense_id)->getResult() as $payment) {
+        foreach ($this->expense->get_expense_payment($expenseId)->getResult() as $payment) {
             foreach (get_object_vars($payment) as $property => $value) {
                 $payment->$property = $value;
             }
@@ -146,7 +147,11 @@ class Expenses extends Secure_Controller
 
         // Don't allow gift card to be a payment option in a sale transaction edit because it's a complex change
         $data['payment_options'] = $this->expense->get_payment_options();
-        $data['treasury_options'] = $this->treasuryOptions((int) ($data['expenses_info']->treasury_id ?? 0));
+
+        $followed = $expenseId == NEW_ENTRY || $data['expenses_info']->branch_id !== null;
+
+        $data['treasury_options']     = $followed ? $this->treasuryOptions((int) ($data['expenses_info']->treasury_id ?? 0)) : [];
+        $data['no_treasury_payments'] = $this->paymentsWithoutTreasury(array_keys($data['payment_options']));
 
         return view("expenses/form", $data);
     }
@@ -164,32 +169,32 @@ class Expenses extends Secure_Controller
     }
 
     /**
-     * @param int $expense_id
+     * @param int $expenseId
      * @return ResponseInterface
      */
-    public function postSave(int $expense_id = NEW_ENTRY): ResponseInterface
+    public function postSave(int $expenseId = NEW_ENTRY): ResponseInterface
     {
         $config = config(OSPOS::class)->settings;
         $newdate = $this->request->getPost('date', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
 
-        $date_formatter = date_create_from_format($config['dateformat'] . ' ' . $config['timeformat'], $newdate);
+        $dateFormatter = date_create_from_format($config['dateformat'] . ' ' . $config['timeformat'], $newdate);
 
-        $current_employee_id = $this->employee->get_logged_in_employee_info()->person_id;
-        $submitted_employee_id = $this->request->getPost('employee_id', FILTER_SANITIZE_NUMBER_INT);
+        $currentEmployeeId = $this->employee->get_logged_in_employee_info()->person_id;
+        $submittedEmployeeId = $this->request->getPost('employee_id', FILTER_SANITIZE_NUMBER_INT);
 
-        if (!$this->employee->has_grant('employees', $current_employee_id)) {
-            if ($expense_id == NEW_ENTRY) {
-                $employee_id = $current_employee_id;
+        if (!$this->employee->has_grant('employees', $currentEmployeeId)) {
+            if ($expenseId == NEW_ENTRY) {
+                $employeeId = $currentEmployeeId;
             } else {
-                $existing_expense = $this->expense->get_info($expense_id);
-                $employee_id = $existing_expense->employee_id;
+                $existingExpense = $this->expense->get_info($expenseId);
+                $employeeId = $existingExpense->employee_id;
             }
         } else {
-            $employee_id = $submitted_employee_id;
+            $employeeId = $submittedEmployeeId;
         }
 
-        $expense_data = [
-            'date'                => $date_formatter->format('Y-m-d H:i:s'),
+        $expenseData = [
+            'date'                => $dateFormatter->format('Y-m-d H:i:s'),
             'supplier_id'         => $this->request->getPost('supplier_id') == '' ? null : $this->request->getPost('supplier_id', FILTER_SANITIZE_NUMBER_INT),
             'supplier_tax_code'   => $this->request->getPost('supplier_tax_code', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
             'amount'              => parse_decimals($this->request->getPost('amount')),
@@ -197,22 +202,22 @@ class Expenses extends Secure_Controller
             'payment_type'        => $this->request->getPost('payment_type', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
             'expense_category_id' => $this->request->getPost('expense_category_id', FILTER_SANITIZE_NUMBER_INT),
             'description'         => $this->request->getPost('description', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
-            'employee_id'         => $employee_id,
+            'employee_id'         => $employeeId,
             'deleted'             => $this->request->getPost('deleted') != null
         ];
 
         $accountingOn = (new AccountingSettings())->isEnabled();
 
         if ($accountingOn && $this->request->getPost('treasury_id') !== null) {
-            $expense_data['treasury_id'] = (int) $this->request->getPost('treasury_id', FILTER_SANITIZE_NUMBER_INT);
+            $expenseData['treasury_id'] = (int) $this->request->getPost('treasury_id', FILTER_SANITIZE_NUMBER_INT);
         }
 
-        if ($this->expense->save_value($expense_data, $expense_id, (int) $current_employee_id)) {
+        if ($this->expense->save_value($expenseData, $expenseId, (int) $currentEmployeeId)) {
             // New Expense
-            if ($expense_id == NEW_ENTRY) {
-                return $this->response->setJSON(['success' => true, 'message' => lang('Expenses.successful_adding'), 'id' => $expense_data['expense_id']]);
+            if ($expenseId == NEW_ENTRY) {
+                return $this->response->setJSON(['success' => true, 'message' => lang('Expenses.successful_adding'), 'id' => $expenseData['expense_id']]);
             } else { // Existing Expense
-                return $this->response->setJSON(['success' => true, 'message' => lang('Expenses.successful_updating'), 'id' => $expense_id]);
+                return $this->response->setJSON(['success' => true, 'message' => lang('Expenses.successful_updating'), 'id' => $expenseId]);
             }
         } else { // Failure
             return $this->response->setJSON(['success' => false, 'message' => $this->refusal(lang('Expenses.error_adding_updating')), 'id' => NEW_ENTRY]);
@@ -224,12 +229,12 @@ class Expenses extends Secure_Controller
      */
     public function postDelete(): ResponseInterface
     {
-        $expenses_to_delete = $this->request->getPost('ids', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+        $expensesToDelete = $this->request->getPost('ids', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
 
-        if ($this->expense->delete_list($expenses_to_delete, (int) $this->employee->get_logged_in_employee_info()->person_id)) {
-            return $this->response->setJSON(['success' => true, 'message' => lang('Expenses.successful_deleted') . ' ' . count($expenses_to_delete) . ' ' . lang('Expenses.one_or_multiple'), 'ids' => $expenses_to_delete]);
+        if ($this->expense->delete_list($expensesToDelete, (int) $this->employee->get_logged_in_employee_info()->person_id)) {
+            return $this->response->setJSON(['success' => true, 'message' => lang('Expenses.successful_deleted') . ' ' . count($expensesToDelete) . ' ' . lang('Expenses.one_or_multiple'), 'ids' => $expensesToDelete]);
         } else {
-            return $this->response->setJSON(['success' => false, 'message' => $this->refusal(lang('Expenses.cannot_be_deleted')), 'ids' => $expenses_to_delete]);
+            return $this->response->setJSON(['success' => false, 'message' => $this->refusal(lang('Expenses.cannot_be_deleted')), 'ids' => $expensesToDelete]);
         }
     }
 
@@ -265,15 +270,28 @@ class Expenses extends Secure_Controller
         $options    = [];
 
         foreach ((new TreasuryScopes())->usable($treasuries->all($branchIds, false), TreasuryScopes::WITHDRAW, $employeeId) as $treasury) {
-            $options[(int) $treasury->treasury_id] = $treasury->name . ' (' . $treasury->branch_code . ')';
+            $options[(int) $treasury->treasury_id] = esc($treasury->name . ' (' . $treasury->branch_code . ')');
         }
 
         $carried = $current > 0 && ! isset($options[$current]) ? $treasuries->find($current) : null;
 
         if ($carried !== null) {
-            $options[$current] = $carried->name . ' (' . $carried->branch_code . ')';
+            $options[$current] = esc($carried->name . ' (' . $carried->branch_code . ')');
         }
 
         return $options === [] ? [] : [0 => lang('Expenses.treasury_default')] + $options;
+    }
+
+    /**
+     * The ways of payment an expense is not paid from a treasury with, which the form uses to hide
+     * the treasury it would ignore.
+     *
+     * @param list<string> $labels
+     *
+     * @return list<string>
+     */
+    private function paymentsWithoutTreasury(array $labels): array
+    {
+        return array_values(array_filter($labels, static fn (string $label): bool => PaymentType::fromLabel($label)?->usesTreasury() !== true));
     }
 }

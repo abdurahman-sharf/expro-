@@ -200,4 +200,36 @@ class ExpensesCategoriesControllerTest extends CIUnitTestCase
         $this->get('/expenses_categories/view/-1')->assertDontSee(lang('Expenses_categories.account_default'));
         $this->assertStringNotContainsString('id="account_id"', $this->get('/expenses_categories/view/-1')->getBody());
     }
+
+    private function accountSelect(string $body): string
+    {
+        $this->assertSame(1, preg_match('#<select name="account_id".*?</select>#s', $body, $matches), 'The form has no account field.');
+
+        return $matches[0];
+    }
+
+    public function testGetView_EscapesTheNamesOfTheAccountsOffered(): void
+    {
+        $this->actAsWith([AccountingGuard::ROUTING_MANAGE]);
+
+        $this->customAccount('5', '5993', '<i>Marketing</i>', false);
+
+        $select = $this->accountSelect($this->get('/expenses_categories/view/-1')->getBody());
+
+        $this->assertStringContainsString('5993 - &lt;i&gt;Marketing&lt;/i&gt;', $select);
+        $this->assertStringNotContainsString('<i>Marketing</i>', $select);
+    }
+
+    public function testGetView_SelectsTheAccountTheCategoryHasAndTheDefaultForOneThatHasNone(): void
+    {
+        $this->actAsWith([AccountingGuard::ROUTING_MANAGE]);
+
+        $account = $this->customAccount('5', '5994', 'Utilities', false);
+        $chosen  = $this->category('Power', $account);
+        $plain   = $this->category('Plain');
+
+        $this->assertStringContainsString('<option value="' . $account . '" selected>', $this->accountSelect($this->get('/expenses_categories/view/' . $chosen)->getBody()));
+        $this->assertStringNotContainsString('<option value="0" selected>', $this->accountSelect($this->get('/expenses_categories/view/' . $chosen)->getBody()));
+        $this->assertStringContainsString('<option value="0" selected>', $this->accountSelect($this->get('/expenses_categories/view/' . $plain)->getBody()));
+    }
 }

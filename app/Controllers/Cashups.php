@@ -83,10 +83,10 @@ class Cashups extends Secure_Controller
     }
 
     /**
-     * @param int $cashup_id
+     * @param int $cashupId
      * @return string
      */
-    public function getView(int $cashup_id = NEW_ENTRY): string
+    public function getView(int $cashupId = NEW_ENTRY): string
     {
         $data = [];
 
@@ -100,77 +100,77 @@ class Cashups extends Secure_Controller
         }
 
         $accountingOn  = (new AccountingSettings())->isEnabled();
-        $cash_ups_info = $this->cashup->get_info($cashup_id);
+        $cashUpsInfo = $this->cashup->get_info($cashupId);
 
-        foreach (get_object_vars($cash_ups_info) as $property => $value) {
-            $cash_ups_info->$property = $value;
+        foreach (get_object_vars($cashUpsInfo) as $property => $value) {
+            $cashUpsInfo->$property = $value;
         }
 
         // Open cashup
-        if ($cash_ups_info->cashup_id == NEW_ENTRY) {
-            $cash_ups_info->open_date = date('Y-m-d H:i:s');
-            $cash_ups_info->close_date = $cash_ups_info->open_date;
-            $cash_ups_info->open_employee_id = $this->employee->get_logged_in_employee_info()->person_id;
-            $cash_ups_info->close_employee_id = $this->employee->get_logged_in_employee_info()->person_id;
+        if ($cashUpsInfo->cashup_id == NEW_ENTRY) {
+            $cashUpsInfo->open_date = date('Y-m-d H:i:s');
+            $cashUpsInfo->close_date = $cashUpsInfo->open_date;
+            $cashUpsInfo->open_employee_id = $this->employee->get_logged_in_employee_info()->person_id;
+            $cashUpsInfo->close_employee_id = $this->employee->get_logged_in_employee_info()->person_id;
         }
         // If all the amounts are null or 0 that means it's a close cashup
         elseif (
-            floatval($cash_ups_info->closed_amount_cash) == 0
-            && floatval($cash_ups_info->closed_amount_due) == 0
-            && floatval($cash_ups_info->closed_amount_card) == 0
-            && floatval($cash_ups_info->closed_amount_check) == 0
+            floatval($cashUpsInfo->closed_amount_cash) == 0
+            && floatval($cashUpsInfo->closed_amount_due) == 0
+            && floatval($cashUpsInfo->closed_amount_card) == 0
+            && floatval($cashUpsInfo->closed_amount_check) == 0
         ) {
             // Set the close date and time to the actual as this is a close session
-            $cash_ups_info->close_date = date('Y-m-d H:i:s');
+            $cashUpsInfo->close_date = date('Y-m-d H:i:s');
 
             // The closed amount starts with the open amount -/+ any trasferred amount
-            $cash_ups_info->closed_amount_cash = $cash_ups_info->open_amount_cash + $cash_ups_info->transfer_amount_cash;
+            $cashUpsInfo->closed_amount_cash = $cashUpsInfo->open_amount_cash + $cashUpsInfo->transfer_amount_cash;
 
             // If it's date mode only and not date & time truncate the open and end date to date only
             if (empty($this->config['date_or_time_format'])) {
-                if ($cash_ups_info->open_date != null) {
-                    $start_date = substr($cash_ups_info->open_date, 0, 10);
+                if ($cashUpsInfo->open_date != null) {
+                    $startDate = substr($cashUpsInfo->open_date, 0, 10);
                 } else {
-                    $start_date = null;
+                    $startDate = null;
                 }
-                if ($cash_ups_info->close_date != null) {
-                    $end_date = substr($cash_ups_info->close_date, 0, 10);
+                if ($cashUpsInfo->close_date != null) {
+                    $endDate = substr($cashUpsInfo->close_date, 0, 10);
                 } else {
-                    $end_date = null;
+                    $endDate = null;
                 }
                 // Search for all the payments given the time range
                 $inputs = [
-                    'start_date'  => $start_date,
-                    'end_date'    => $end_date,
+                    'start_date'  => $startDate,
+                    'end_date'    => $endDate,
                     'sale_type'   => 'complete',
                     'location_id' => 'all'
                 ];
             } else {
                 // Search for all the payments given the time range
                 $inputs = [
-                    'start_date'  => $cash_ups_info->open_date,
-                    'end_date'    => $cash_ups_info->close_date,
+                    'start_date'  => $cashUpsInfo->open_date,
+                    'end_date'    => $cashUpsInfo->close_date,
                     'sale_type'   => 'complete',
                     'location_id' => 'all'
                 ];
             }
 
             // Get all the transactions payment summaries
-            $reports_data = $this->summary_payments->getData($inputs);
+            $reportsData = $this->summary_payments->getData($inputs);
 
-            foreach ($reports_data as $row) {
+            foreach ($reportsData as $row) {
                 if ($row['trans_group'] == lang('Reports.trans_payments')) {
                     if ($row['trans_type'] == lang('Sales.cash')) {
-                        $cash_ups_info->closed_amount_cash += $row['trans_amount'];
+                        $cashUpsInfo->closed_amount_cash += $row['trans_amount'];
                     } elseif ($row['trans_type'] == lang('Sales.due')) {
-                        $cash_ups_info->closed_amount_due += $row['trans_amount'];
+                        $cashUpsInfo->closed_amount_due += $row['trans_amount'];
                     } elseif (
                         $row['trans_type'] == lang('Sales.debit') ||
                         $row['trans_type'] == lang('Sales.credit')
                     ) {
-                        $cash_ups_info->closed_amount_card += $row['trans_amount'];
+                        $cashUpsInfo->closed_amount_card += $row['trans_amount'];
                     } elseif ($row['trans_type'] == lang('Sales.check')) {
-                        $cash_ups_info->closed_amount_check += $row['trans_amount'];
+                        $cashUpsInfo->closed_amount_check += $row['trans_amount'];
                     }
                 }
             }
@@ -188,31 +188,31 @@ class Cashups extends Secure_Controller
             $payments = $this->expense->get_payments_summary('', array_merge($inputs, $filters));
 
             foreach ($payments as $row) {
-                $cash_ups_info->closed_amount_cash -= $row['amount'];
+                $cashUpsInfo->closed_amount_cash -= $row['amount'];
             }
 
             if ($accountingOn) {
                 $expected = (new CashupPosting())->expectedFor(
                     (int) $this->employee->get_logged_in_employee_info()->person_id,
-                    (string) $cash_ups_info->open_date,
-                    (string) $cash_ups_info->close_date,
-                    (string) $cash_ups_info->open_amount_cash,
-                    (string) $cash_ups_info->transfer_amount_cash,
+                    (string) $cashUpsInfo->open_date,
+                    (string) $cashUpsInfo->close_date,
+                    (string) $cashUpsInfo->open_amount_cash,
+                    (string) $cashUpsInfo->transfer_amount_cash,
                 );
 
-                $cash_ups_info->closed_amount_cash = (float) $expected;
+                $cashUpsInfo->closed_amount_cash = (float) $expected;
                 $data['expected_cash']             = $expected;
             }
 
-            $cash_ups_info->closed_amount_total = $this->_calculate_total($cash_ups_info->open_amount_cash, $cash_ups_info->transfer_amount_cash, $cash_ups_info->closed_amount_cash, $cash_ups_info->closed_amount_due, $cash_ups_info->closed_amount_card, $cash_ups_info->closed_amount_check);
+            $cashUpsInfo->closed_amount_total = $this->_calculate_total($cashUpsInfo->open_amount_cash, $cashUpsInfo->transfer_amount_cash, $cashUpsInfo->closed_amount_cash, $cashUpsInfo->closed_amount_due, $cashUpsInfo->closed_amount_card, $cashUpsInfo->closed_amount_check);
         }
 
-        if ($accountingOn && ! isset($data['expected_cash']) && isset($cash_ups_info->expected_amount_cash)) {
-            $data['expected_cash'] = (string) $cash_ups_info->expected_amount_cash;
+        if ($accountingOn && ! isset($data['expected_cash']) && isset($cashUpsInfo->expected_amount_cash)) {
+            $data['expected_cash'] = (string) $cashUpsInfo->expected_amount_cash;
         }
 
         $data['accounting_on'] = $accountingOn;
-        $data['cash_ups_info'] = $cash_ups_info;
+        $data['cash_ups_info'] = $cashUpsInfo;
 
         return view("cashups/form", $data);
     }
@@ -230,49 +230,49 @@ class Cashups extends Secure_Controller
     }
 
     /**
-     * @param int $cashup_id
+     * @param int $cashupId
      * @return ResponseInterface
      */
-    public function postSave(int $cashup_id = NEW_ENTRY): ResponseInterface
+    public function postSave(int $cashupId = NEW_ENTRY): ResponseInterface
     {
-        $open_date = $this->request->getPost('open_date');
-        $open_date_formatter = date_create_from_format($this->config['dateformat'] . ' ' . $this->config['timeformat'], $open_date);
+        $openDate = $this->request->getPost('open_date');
+        $openDateFormatter = date_create_from_format($this->config['dateformat'] . ' ' . $this->config['timeformat'], $openDate);
 
-        $close_date = $this->request->getPost('close_date');
-        $close_date_formatter = date_create_from_format($this->config['dateformat'] . ' ' . $this->config['timeformat'], $close_date);
+        $closeDate = $this->request->getPost('close_date');
+        $closeDateFormatter = date_create_from_format($this->config['dateformat'] . ' ' . $this->config['timeformat'], $closeDate);
 
-        $open_amount_cash     = parse_decimals($this->request->getPost('open_amount_cash'));
-        $transfer_amount_cash = parse_decimals($this->request->getPost('transfer_amount_cash'));
-        $closed_amount_cash   = parse_decimals($this->request->getPost('closed_amount_cash'));
-        $closed_amount_due    = parse_decimals($this->request->getPost('closed_amount_due'));
-        $closed_amount_card   = parse_decimals($this->request->getPost('closed_amount_card'));
-        $closed_amount_check  = parse_decimals($this->request->getPost('closed_amount_check'));
+        $openAmountCash     = parse_decimals($this->request->getPost('open_amount_cash'));
+        $transferAmountCash = parse_decimals($this->request->getPost('transfer_amount_cash'));
+        $closedAmountCash   = parse_decimals($this->request->getPost('closed_amount_cash'));
+        $closedAmountDue    = parse_decimals($this->request->getPost('closed_amount_due'));
+        $closedAmountCard   = parse_decimals($this->request->getPost('closed_amount_card'));
+        $closedAmountCheck  = parse_decimals($this->request->getPost('closed_amount_check'));
 
-        $logged_in_employee = $this->employee->get_logged_in_employee_info();
+        $loggedInEmployee = $this->employee->get_logged_in_employee_info();
 
-        $cash_up_data = [
-            'open_date'            => $open_date_formatter->format('Y-m-d H:i:s'),
-            'close_date'           => $close_date_formatter->format('Y-m-d H:i:s'),
-            'open_amount_cash'     => $open_amount_cash,
-            'transfer_amount_cash' => $transfer_amount_cash,
-            'closed_amount_cash'   => $closed_amount_cash,
-            'closed_amount_due'    => $closed_amount_due,
-            'closed_amount_card'   => $closed_amount_card,
-            'closed_amount_check'  => $closed_amount_check,
-            'closed_amount_total'  => $this->_calculate_total($open_amount_cash, $transfer_amount_cash, $closed_amount_due, $closed_amount_cash, $closed_amount_card, $closed_amount_check),
+        $cashUpData = [
+            'open_date'            => $openDateFormatter->format('Y-m-d H:i:s'),
+            'close_date'           => $closeDateFormatter->format('Y-m-d H:i:s'),
+            'open_amount_cash'     => $openAmountCash,
+            'transfer_amount_cash' => $transferAmountCash,
+            'closed_amount_cash'   => $closedAmountCash,
+            'closed_amount_due'    => $closedAmountDue,
+            'closed_amount_card'   => $closedAmountCard,
+            'closed_amount_check'  => $closedAmountCheck,
+            'closed_amount_total'  => $this->_calculate_total($openAmountCash, $transferAmountCash, $closedAmountDue, $closedAmountCash, $closedAmountCard, $closedAmountCheck),
             'note'                 => $this->request->getPost('note') != null,
             'description'          => $this->request->getPost('description', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
-            'open_employee_id'     => $logged_in_employee->person_id,
-            'close_employee_id'    => $logged_in_employee->person_id,
+            'open_employee_id'     => $loggedInEmployee->person_id,
+            'close_employee_id'    => $loggedInEmployee->person_id,
             'deleted'              => $this->request->getPost('deleted') != null
         ];
 
-        if ($this->cashup->save_value($cash_up_data, $cashup_id, (int) $logged_in_employee->person_id)) {
+        if ($this->cashup->save_value($cashUpData, $cashupId, (int) $loggedInEmployee->person_id)) {
             // New cashup_id
-            if ($cashup_id == NEW_ENTRY) {
-                return $this->response->setJSON(['success' => true, 'message' => lang('Cashups.successful_adding'), 'id' => $cash_up_data['cashup_id']]);
+            if ($cashupId == NEW_ENTRY) {
+                return $this->response->setJSON(['success' => true, 'message' => lang('Cashups.successful_adding'), 'id' => $cashUpData['cashup_id']]);
             } else { // Existing Cashup
-                return $this->response->setJSON(['success' => true, 'message' => lang('Cashups.successful_updating'), 'id' => $cashup_id]);
+                return $this->response->setJSON(['success' => true, 'message' => lang('Cashups.successful_updating'), 'id' => $cashupId]);
             }
         } else { // Failure
             return $this->response->setJSON(['success' => false, 'message' => $this->refusal(lang('Cashups.error_adding_updating')), 'id' => NEW_ENTRY]);
@@ -284,12 +284,12 @@ class Cashups extends Secure_Controller
      */
     public function postDelete(): ResponseInterface
     {
-        $cash_ups_to_delete = $this->request->getPost('ids', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+        $cashUpsToDelete = $this->request->getPost('ids', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
 
-        if ($this->cashup->delete_list($cash_ups_to_delete, (int) $this->employee->get_logged_in_employee_info()->person_id)) {
-            return $this->response->setJSON(['success' => true, 'message' => lang('Cashups.successful_deleted') . ' ' . count($cash_ups_to_delete) . ' ' . lang('Cashups.one_or_multiple'), 'ids' => $cash_ups_to_delete]);
+        if ($this->cashup->delete_list($cashUpsToDelete, (int) $this->employee->get_logged_in_employee_info()->person_id)) {
+            return $this->response->setJSON(['success' => true, 'message' => lang('Cashups.successful_deleted') . ' ' . count($cashUpsToDelete) . ' ' . lang('Cashups.one_or_multiple'), 'ids' => $cashUpsToDelete]);
         } else {
-            return $this->response->setJSON(['success' => false, 'message' => $this->refusal(lang('Cashups.cannot_be_deleted')), 'ids' => $cash_ups_to_delete]);
+            return $this->response->setJSON(['success' => false, 'message' => $this->refusal(lang('Cashups.cannot_be_deleted')), 'ids' => $cashUpsToDelete]);
         }
     }
 

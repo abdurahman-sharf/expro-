@@ -877,7 +877,7 @@ function get_expenses_manage_payments_summary(array $payments, ResultInterface $
 
 function cashup_headers(): array
 {
-    return [
+    $headers = [
         ['cashup_id'            => lang('Cashups.id')],
         ['open_date'            => lang('Cashups.opened_date')],
         ['open_employee_id'     => lang('Cashups.open_employee')],
@@ -892,6 +892,12 @@ function cashup_headers(): array
         ['closed_amount_check'  => lang('Cashups.closed_amount_check')],
         ['closed_amount_total'  => lang('Cashups.closed_amount_total')]
     ];
+
+    if ((new AccountingSettings())->isEnabled()) {
+        $headers[] = ['ledger_state' => lang('Cashups.ledger')];
+    }
+
+    return $headers;
 }
 
 
@@ -900,13 +906,7 @@ function cashup_headers(): array
  */
 function get_cashups_manage_table_headers(): string
 {
-    $headers = cashup_headers();
-
-    if ((new AccountingSettings())->isEnabled()) {
-        $headers[] = ['ledger_state' => lang('Cashups.ledger')];
-    }
-
-    return transform_headers($headers);
+    return transform_headers(cashup_headers());
 }
 
 /**

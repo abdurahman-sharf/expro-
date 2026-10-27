@@ -103,6 +103,9 @@ $actionLabel = static function (string $action): string {
                 <option value="branch"><?= lang('Accounting.entity_branch') ?></option>
                 <option value="employee_scope"><?= lang('Accounting.entity_employee_scope') ?></option>
                 <option value="routing"><?= lang('Accounting.entity_routing') ?></option>
+                <option value="expense"><?= lang('Accounting.entity_expense') ?></option>
+                <option value="cashup"><?= lang('Accounting.entity_cashup') ?></option>
+                <option value="expense_category"><?= lang('Accounting.entity_expense_category') ?></option>
             </select>
         </div>
         <div class="acc-filter">

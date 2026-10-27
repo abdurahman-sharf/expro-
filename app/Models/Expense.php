@@ -309,17 +309,17 @@ class Expense extends Model
      * then says why. The actor is the employee who makes the change, whose branches and treasuries
      * decide what is allowed, and is the employee of the expense when none is given.
      */
-    public function save_value(array &$expense_data, int $expense_id = NEW_ENTRY, ?int $actorId = null): bool
+    public function save_value(array &$expenseData, int $expenseId = NEW_ENTRY, ?int $actorId = null): bool
     {
         $this->accountingFailure = null;
 
         if (! (new AccountingSettings($this->db))->isEnabled()) {
-            unset($expense_data['treasury_id'], $expense_data['branch_id']);
+            unset($expenseData['treasury_id'], $expenseData['branch_id']);
 
-            return $this->saveRow($expense_data, $expense_id);
+            return $this->saveRow($expenseData, $expenseId);
         }
 
-        $actorId ??= isset($expense_data['employee_id']) ? (int) $expense_data['employee_id'] : null;
+        $actorId ??= isset($expenseData['employee_id']) ? (int) $expenseData['employee_id'] : null;
         $posting = new ExpensePosting($this->db);
         $branch  = null;
         $stored  = null;
@@ -327,24 +327,24 @@ class Expense extends Model
         $this->db->transStart();
 
         try {
-            if ($expense_id !== NEW_ENTRY) {
-                $stored = LockedRead::row($this->db, 'SELECT * FROM ' . $this->db->prefixTable('expenses') . ' WHERE expense_id = ? FOR UPDATE', [$expense_id]);
+            if ($expenseId !== NEW_ENTRY) {
+                $stored = LockedRead::row($this->db, 'SELECT * FROM ' . $this->db->prefixTable('expenses') . ' WHERE expense_id = ? FOR UPDATE', [$expenseId]);
             }
 
-            $plan         = $posting->plan($expense_data, $stored, $actorId);
+            $plan         = $posting->plan($expenseData, $stored, $actorId);
             $branch       = $plan['branch_id'];
-            $expense_data = $plan['data'];
-            $success      = $this->saveRow($expense_data, $expense_id);
+            $expenseData = $plan['data'];
+            $success      = $this->saveRow($expenseData, $expenseId);
 
             if ($success && $plan['post']) {
-                $posting->sync($stored === null ? (int) $expense_data['expense_id'] : $expense_id, $actorId);
+                $posting->sync($stored === null ? (int) $expenseData['expense_id'] : $expenseId, $actorId);
             }
         } catch (AccountingException|BranchException|PostingException $failure) {
             $this->db->transRollback();
             $this->accountingFailure = $failure;
 
             if ($failure instanceof PostingException) {
-                $posting->recordFailure($stored === null ? null : $expense_id, $failure, $actorId, $branch);
+                $posting->recordFailure($stored === null ? null : $expenseId, $failure, $actorId, $branch);
             }
 
             return false;
@@ -359,13 +359,13 @@ class Expense extends Model
         return $success && $this->db->transStatus();
     }
 
-    private function saveRow(array &$expense_data, int $expense_id): bool
+    private function saveRow(array &$expenseData, int $expenseId): bool
     {
         $builder = $this->db->table('expenses');
 
-        if ($expense_id == NEW_ENTRY || !$this->exists($expense_id)) {
-            if ($builder->insert($expense_data)) {
-                $expense_data['expense_id'] = $this->db->insertID();
+        if ($expenseId == NEW_ENTRY || !$this->exists($expenseId)) {
+            if ($builder->insert($expenseData)) {
+                $expenseData['expense_id'] = $this->db->insertID();
 
                 return true;
             }
@@ -373,25 +373,25 @@ class Expense extends Model
             return false;
         }
 
-        $builder->where('expense_id', $expense_id);
+        $builder->where('expense_id', $expenseId);
 
-        return $builder->update($expense_data);
+        return $builder->update($expenseData);
     }
 
     /**
      * Deletes a list of expenses. With accounting on, the journal of each expense that is in the
      * books is reversed with it, all in one transaction: either every expense goes or none.
      */
-    public function delete_list(array $expense_ids, ?int $actorId = null): bool
+    public function delete_list(array $expenseIds, ?int $actorId = null): bool
     {
         $this->accountingFailure = null;
 
         if (! (new AccountingSettings($this->db))->isEnabled()) {
-            return $this->deleteRows($expense_ids);
+            return $this->deleteRows($expenseIds);
         }
 
         $posting = new ExpensePosting($this->db);
-        $ids     = array_values(array_unique(array_map('intval', $expense_ids)));
+        $ids     = array_values(array_unique(array_map('intval', $expenseIds)));
 
         sort($ids);
 
@@ -431,12 +431,12 @@ class Expense extends Model
         return $this->db->transStatus();
     }
 
-    private function deleteRows(array $expense_ids): bool
+    private function deleteRows(array $expenseIds): bool
     {
         $builder = $this->db->table('expenses');
 
         $this->db->transStart();
-        $builder->whereIn('expense_id', $expense_ids);
+        $builder->whereIn('expense_id', $expenseIds);
         $success = $builder->update(['deleted' => 1]);
         $this->db->transComplete();
 

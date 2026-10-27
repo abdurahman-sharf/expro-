@@ -916,4 +916,38 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         $this->assertContains($other, $journalIds);
         $this->assertNotContains($first, $journalIds);
     }
+
+    public function testGetAuditSearch_NamesTheActionsAndEntitiesOfExpensesCashUpsAndCategories(): void
+    {
+        $accountant = $this->accountant();
+        $audit      = new AuditLog();
+
+        $audit->write('expense', 7, 'reposted', $accountant, JournalOrigin::User);
+        $audit->write('expense', 7, 'cancelled', $accountant, JournalOrigin::User);
+        $audit->write('cashup', 3, 'cancelled', $accountant, JournalOrigin::User);
+        $audit->write('expense_category', 2, 'account_changed', $accountant, JournalOrigin::User);
+
+        $rows = $this->jsonOf($this->get('/accounting_journals/audit/search?order=asc'))['rows'];
+
+        $this->assertSame(
+            [lang('Accounting.action_reposted'), lang('Accounting.action_cancelled'), lang('Accounting.action_cancelled'), lang('Accounting.action_account_changed')],
+            array_column($rows, 'action'),
+        );
+        $this->assertSame(
+            [lang('Accounting.entity_expense'), lang('Accounting.entity_expense'), lang('Accounting.entity_cashup'), lang('Accounting.entity_expense_category')],
+            array_map(static fn (string $cell): string => trim(explode('<bdi', $cell)[0]), array_column($rows, 'entity')),
+        );
+        $this->assertNotContains('reposted', array_column($rows, 'action'));
+    }
+
+    public function testGetAudit_OffersTheEntityFilterForExpensesCashUpsAndCategories(): void
+    {
+        $this->accountant();
+
+        $body = $this->get('/accounting_journals/audit')->getBody();
+
+        foreach (['expense' => 'entity_expense', 'cashup' => 'entity_cashup', 'expense_category' => 'entity_expense_category'] as $code => $key) {
+            $this->assertStringContainsString('<option value="' . $code . '">' . lang('Accounting.' . $key) . '</option>', $body);
+        }
+    }
 }

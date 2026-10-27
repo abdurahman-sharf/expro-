@@ -265,4 +265,55 @@ class RoutingResolverTest extends CIUnitTestCase
 
         $this->assertSame($allowed, $found, 'A file reads the routing table directly: posting code must call RoutingResolver instead.');
     }
+
+    public function testSystemAccount_ReturnsTheAccountTheChartGaveTheKey(): void
+    {
+        $this->assertSame($this->accountId('other_payables'), $this->resolver->systemAccount('other_payables'));
+    }
+
+    public function testSystemAccount_RefusesAKeyNoAccountHas(): void
+    {
+        $this->assertSystemAccountUnusable('no_such_system_key');
+    }
+
+    public function testSystemAccount_RefusesAnAccountThatIsAGroup(): void
+    {
+        $this->accountingDb()->table('accounting_accounts')->where('system_key', 'other_payables')->update(['is_group' => 1]);
+
+        $this->assertSystemAccountUnusable('other_payables');
+    }
+
+    public function testSystemAccount_RefusesAnAccountThatIsInactive(): void
+    {
+        $this->accountingDb()->table('accounting_accounts')->where('system_key', 'other_payables')->update(['active' => 0]);
+
+        $this->assertSystemAccountUnusable('other_payables');
+    }
+
+    public function testSystemAccount_RefusesAnAccountOfAnotherCompany(): void
+    {
+        $db = $this->accountingDb();
+
+        $db->table('companies')->insert(['company_id' => 2, 'name' => 'Second company']);
+
+        try {
+            $db->table('accounting_accounts')->where('system_key', 'other_payables')->update(['company_id' => 2]);
+
+            $this->assertSystemAccountUnusable('other_payables');
+        } finally {
+            $db->table('accounting_accounts')->where('system_key', 'other_payables')->update(['company_id' => 1]);
+            $db->table('companies')->where('company_id', 2)->delete();
+        }
+    }
+
+    private function assertSystemAccountUnusable(string $systemKey): void
+    {
+        try {
+            $this->resolver->systemAccount($systemKey);
+            $this->fail("{$systemKey} should have been refused.");
+        } catch (PostingException $failure) {
+            $this->assertSame(PostingError::RoutingAccountUnusable, $failure->error);
+            $this->assertSame($systemKey, $failure->context['routing_key']);
+        }
+    }
 }
