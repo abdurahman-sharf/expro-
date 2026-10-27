@@ -1,0 +1,398 @@
+[
+ {
+  "id": "pw-b-1",
+  "statement": "The apps manager (/v2/owner/plugin-manager/2) applies a switch immediately by an AJAX GET to update_plugin_status/<plugin id>/<true|false> (script plugin_manager.js); the «حفظ» button is not required and a guard that only logs non-GET requests does not see the toggle. «دورة الشيكات» is plugin id 69; details modal: «عن طريق ادارة الشيكات يمكنك ادارة الشيكات الوارده \"اوراق القبض\" والشيكات الصادره \"اوراق الدفع\" ... وايضا انشأ القيود اليومية بطريقة اتوماتيكية»; related app: الحسابات العامه & القيود اليومية",
+  "evidenceFile": "ev/b-plugin-manager-recheck.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-2",
+  "statement": "After enabling the app, the sidebar gets «دورة الشيكات» with: الشيكات المدفوعه (/v2/owner/payable_cheques), الشيكات المستلمه (/v2/owner/receivable_cheques), إعدادات دورة الشيكات (/v2/owner/cheque-cycle/settings: only the card «قوالب الطباعة» for cheque print templates, no accounting/account settings), تقارير الشيكات (/owner/reports/list/#cheques). /v2/owner/cheque-cycle itself redirects to the dashboard.",
+  "evidenceFile": "ev/c-settings.txt, ev/c-receivable-list.txt, ev/c-payable-list.txt, ev/c-reports-list.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-3",
+  "statement": "The two cheque reports that returned HTTP 500 before the module was enabled now load: /owner/reports/report/receivable_cheques (filters: الحساب المستلم received_from_account_id, حساب التحصيل collected_account_id, الإصدار من/إلى تاريخ, تاريخ الاستحقاق من/إلى, الحالة, تجميع حسب سنوي) and /owner/reports/report/payable_cheques (filters: الحساب المستلم journal_account_id[], اسم البنك, الإصدار من/إلى, الاستحقاق من/إلى, الحالة, تجميع حسب, رقم دفتر الشيكات).",
+  "evidenceFile": "ev/c-reports-recv.txt, ev/c-reports-pay.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-4",
+  "statement": "Received-cheque form («استلم شيك», /v2/owner/receivable_cheques/create, reached by clicking the list button) is a STANDALONE document with no invoice or client link: القيمة* (number, step 0.0000000001) with a currency select (SAR + 160 codes even though only SAR is used), الوصف, تاريخ الاصدار*, تاريخ الاستحقاق (optional), رقم الشيك* (number), استلم من حساب* (any chart account found by code/name via /owner/journal_accounts/json_find, minimum 1 character), الاسم على الشيك*, حساب التحصيل* (any chart account: treasuries, banks including inactive ones, customers, others), تظهير checkbox + الاسم, المرفق. Submit button «استلام».",
+  "evidenceFile": "ev/c-recv-create.fields.json, ev/c-recv-sel-received_from_account_id.png, ev/c-recv-sel-collected_account_id.png",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-5",
+  "statement": "Paid cheques need a cheque book: «اداره دفاتر الشيكات» (/v2/owner/cheque_books, form fields اسم البنك* (active bank accounts only: only افتراضي-S35 بنك was listed; inactive D2 bank absent), رقم دفتر الشيكات*, الرقم المسلسل الاول*, الرقم المسلسل الاخير*, عمله دفتر الشيكات*, الحالة*, ملاحظات). Issue form «اصدر الشيك»: القيمة*, الوصف, تاريخ الاصدار*, تاريخ الاستحقاق, اسم البنك*, رقم دفتر الشيكات*, رقم الشيك*, الحساب المستلم*, الاسم على الشيك*, المرفق; buttons «اصدار وتسليم» with a dropdown.",
+  "evidenceFile": "ev/c-book-create.fields.json, ev/c-pay-create.fields.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-6",
+  "statement": "Invoice payment form (/owner/invoices/add_payment/<id>) with the cheques app enabled: وسيلة دفع options اختر الطريقة / نقدي / شيك / تحويل بنكي; خزينة (Main Treasury, افتراضي-S35 بنك); حالة الدفع (غير مكتمل, مكتمل, تحت المراجعة, فاشلة, مسودة); تم التحصيل بواسطة; رقم معرف; بيانات الدفع; ملاحظات إيصال الاستلام; المرفقات. No cheque-specific fields appear (to be compared with the module off at the end).",
+  "evidenceFile": "ev/c-inv38-addpayment.fields.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-7",
+  "statement": "Bank account «افتراضي-B بنك» created: treasury #7, ledger account 1202003 (account id 393), currency select offered only SAR (single active currency); page buttons: تعديل, تعطيل, التحويل, اجعله الرئيسي, استيراد كشف حساب البنك, إنشاء سند قبض, إنشاء سند صرف, حذف; tabs التفاصيل, معاملات النظام, كشف حساب البنك, التحويلات, سجل النشاطات.",
+  "evidenceFile": "ev/w-bank-after-save.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-8",
+  "statement": "Receiving cheque R1 (id 1, serial 710001, 100.00 SAR, issued and due 27/10/2026, from account 12041005 افتراضي-D1 عميل, collection account افتراضي-B بنك) saved with the message «تم إضافة الشيك المستلم بنجاح»; status «مستلم»; journal #000179 «Cheque Number #710001 <description>» created by «النظام»: Dr 1211 أوراق القبض 100.00 / Cr 12041005 افتراضي-D1 عميل 100.00 (so notes receivable is code 1211 in Daftra, not 1206).",
+  "evidenceFile": "ev/r1-received-journal-179.json, ev/w-recv-R1-after-save.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-9",
+  "statement": "Receiving cheque R1 credited the client's ledger account, so the client statement shows «Cheque Number #710001 ...  -100.00» (balance due 275.02 -> 175.02) and the open invoices were settled automatically with payments by method «رصيد العميل الائتماني» status مكتمل آلي: #000023 45.02 on invoice #000028 (id 36, became مدفوعة) and #000024 54.98 on invoice #000030 (id 38, became مدفوعة جزئياً مرتجع جزئياً). The cheque form has no invoice field.",
+  "evidenceFile": "ev/r1-received-invoice-payments.json, ev/r1-received-statement.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-10",
+  "statement": "Collecting R1 directly from «مستلم» (form «تحصيل»: القيمة, رقم الشيك, حساب التحصيل, تاريخ التحصيل*, ملاحظات): status «حصل», journal #000180: Dr 1202003 افتراضي-B بنك 100.00 / Cr 1211 أوراق القبض 100.00; bank balance 0 -> 100.00; client balance and invoice states unchanged; buttons تعديل and «تراجع عن التحصيل» (delete button gone).",
+  "evidenceFile": "ev/r1-collected-journal-180.json, ev/r1-collected-trialbalance.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-11",
+  "statement": "«تراجع عن التحصيل» is a GET link (/v2/owner/receivable_cheques/1/receive): status returns to «مستلم», journal #000180 is DELETED (view page no longer exists, journal list lacks it) rather than reversed, bank balance back to 0.00; message «تم استلام الشيك المستلم بنجاح».",
+  "evidenceFile": "ev/w-recv1-undo-collect-after-click.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-12",
+  "statement": "Rejecting R1 from «مستلم» (link /reject opens a form with تاريخ الرفض* and ملاحظات; nothing changes until submitted): status «تم الرفض», new journal #000181 «Cheque Number #710001 <note>»: Dr 12041005 افتراضي-D1 عميل 100.00 / Cr 1211 أوراق القبض 100.00 (the receipt journal #000179 stays), client balance back to 275.02, the automatic payments #000023/#000024 were removed; invoice pages kept the old paid status for at least one minute and showed «مدفوعة جزئياً» (invoice #000028) on a later read (stale, delayed recalculation). Buttons تعديل and «إلغاء الرفض».",
+  "evidenceFile": "ev/r1-rejected-journal-181.json, ev/r1-rejected-recheck-inv36.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-13",
+  "statement": "«إلغاء الرفض» (GET /receive) from «تم الرفض»: status «مستلم», journal #000181 deleted (not reversed), the credit is applied again with NEW automatic payments #000025 (45.02 on #000028) and #000026 (54.98 on #000030); the old #000023/#000024 ids are not reused.",
+  "evidenceFile": "ev/r1-undoreject-invoice-payments.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-14",
+  "statement": "Depositing R1 from «مستلم» (form /receivable_cheques/1/deposit_view: القيمة, رقم الشيك, حساب التحصيل, تاريخ الايداع*, ملاحظات, and under «متقدم» the optional account «شيكات تحت التحصيل»; submit «الدفعة مقدمة»): status «أودع», journal #000182: Dr 1212 مبالغ تحت التحصيل 100.00 / Cr 1211 أوراق القبض 100.00; bank balance unchanged 0.00; client balance unchanged (175.02 while the credit stays applied); buttons تعديل, «تراجع عن الايداع», تحصيل, رفض.",
+  "evidenceFile": "ev/r1-deposited-journal-182.json, ev/w-recv1-deposit-after.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-15",
+  "statement": "Collecting a DEPOSITED cheque uses another link (/receivable_cheques/1/deposit_collect) whose form adds «رسوم الايداع *» (deposit fees, required) and, under «متقدم», «حساب رسوم الايداع» (optional select). With fees 2.50 and no fee account chosen: status «حصل», journal #000183: Dr 1202003 افتراضي-B بنك 97.50, Dr 55 رسوم الايداع 2.50, Cr 1212 مبالغ تحت التحصيل 100.00; bank balance 97.50; the cheque page prints «رسوم الايداع 2.50» and «حساب رسوم الايداع --».",
+  "evidenceFile": "ev/r1-depcollected-journal-183.json, ev/w-recv1-depcollect-after.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-16",
+  "statement": "«تراجع عن التحصيل» on a cheque collected after deposit is a GET link to /receivable_cheques/1/deposit (not /receive): status returns to «أودع» (message «تم ايداع الشيك المستلم»), journal #000183 is DELETED, bank back to 0.00; deposit journal #000182 stays.",
+  "evidenceFile": "ev/w-recv1-undo-depcollect-after-click.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-17",
+  "statement": "Rejecting a DEPOSITED cheque (link /deposit_reject, form تاريخ الرفض*, ملاحظات) posts TWO new journals: #000184 Dr 12041005 افتراضي-D1 عميل 100.00 / Cr 1211 أوراق القبض 100.00, and #000185 Dr 1211 أوراق القبض 100.00 / Cr 1212 مبالغ تحت التحصيل 100.00; the receipt #000179 and deposit #000182 stay (so 1211 and 1212 net to zero); status «تم الرفض»; client balance back to 275.02 and the automatic credit payments on the invoices are removed.",
+  "evidenceFile": "ev/r1-depreject-journal-184.json, ev/_console-journal-reads.md (#000185)",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-18",
+  "statement": "«إلغاء الرفض» after a deposit rejection is a GET link to /receivable_cheques/1/deposit: status returns to «أودع», journals #000184 and #000185 are DELETED (view pages gone), receipt #000179 and deposit #000182 remain.",
+  "evidenceFile": "ev/w-recv1-undo-depreject-after-click.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-19",
+  "statement": "Post-dated cheque R2 (id 2, 50.00, issue 27/10/2026, due 27/11/2026) received: journal #000186 dated 27/10/2026 (the issue date) Dr 1211 50.00 / Cr 12041005 50.00, identical to a cheque due today; the due date posts nothing and triggers nothing automatically. The client credit was applied to the open invoices immediately (client balance 175.02 minus R2).",
+  "evidenceFile": "ev/w-recv-R2-after-save.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-20",
+  "statement": "Editing a cheque in status «مستلم» (/receivable_cheques/2/edit, button حفظ, message «تم تحديث الشيك المستلم بنجاح»): amount 50 -> 60 and due date 27/11 -> 27/12 updated the receipt journal #000186 IN PLACE (same number, lines now 60.00); all fields are editable (amount, currency, dates, serial, accounts, name, endorsement).",
+  "evidenceFile": "ev/w-recv2-edit1-after.txt, ev/_console-journal-reads.md (J186)",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-21",
+  "statement": "Endorsement is a label only: ticking تظهير with the name «افتراضي-B مظهر إليه» shows «تظهير: نعم , <name>» on the cheque page, adds no journal and does not change the available actions (the endorsed cheque was then deposited and collected normally).",
+  "evidenceFile": "ev/w-recv2-edit2-after.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-22",
+  "statement": "Date rules: collecting (direct or after deposit) with a collection date earlier than the due date is refused by server validation «تاريخ التحصيل يجب أن يكو أكبر من أو يساوي تاريخ الاستحقاق» (nothing written); depositing before the due date is accepted (deposit journal #000187 dated the deposit date 27/10/2026); collecting on a FUTURE date equal to the due date (27/12/2026) is accepted and posts journal #000188 dated 27/12/2026 (Dr 1202003 60.00 / Cr 1212 60.00) and the bank balance already shows 60.00 on 27/10/2026.",
+  "evidenceFile": "ev/w-recv2-collect-after.txt, ev/w-recv2-depcollect-before-due-after.txt, ev/_console-journal-reads.md (J187, J188), ev/r2-depcollected-future-trialbalance.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-23",
+  "statement": "After the first status change (deposit or collect) the edit form locks every financial field (amount, currency, issue and due dates, serial, from/collect accounts, name, endorsement, fees) and keeps only description, status date and status note, and attachment editable.",
+  "evidenceFile": "ev/c-recv2-edit.json, ev/_console-edit-locks.md",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-24",
+  "statement": "Deleting a received cheque is possible only in status «مستلم» (the delete button exists only there; modal «هل أنت متأكد من حذف الشيك المستلم ؟» نعم/لا): deleting R2 (id 2) in that status removed its journal #000186 and the invoices' automatic credit payments were recalculated (new payment ids); the list message «لقد تم حذف الشيك المستلم بنجاح».",
+  "evidenceFile": "ev/w-recv2-delete-after.txt, ev/r2-deleted-invoice-payments.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-25",
+  "statement": "The nine cheque journal sources map to journal-list filter labels (entity_type values and Arabic labels read from the filter): receivable_cheque_received=«إستلام شيك», receivable_cheque_deposited=«إيداع شيك», receivable_cheque_collected=«تحصيل شيك مستلم», receivable_cheque_deposit_collected=«تحصيل وديعة شيك», receivable_cheque_reject=«رفض شيك مستلم», receivable_cheque_deposit_rejected=«رفض وديعة شيك», delivered_pay_cheque=«إستلام شيك مدفوع», collected_pay_cheque=«تحصيل شيك مدفوع», rejected_pay_cheque=«رفض شيك مدفوع». User actions that create them (observed journal per action): receive=#179 received, deposit=#182 deposited, collect from مستلم=#180 collected, collect after deposit=#183 deposit_collected (fees), reject from مستلم=#181 reject, reject after deposit=#184+#185 deposit_rejected (inference: source value per journal not filtered one by one), payable deliver=#190 delivered, payable collect=#191 collected, payable reject=#192 rejected.",
+  "evidenceFile": "ev/c-journal-source-filter.json, ev/r1-received-journal-179.json, ev/r1-collected-journal-180.json, ev/r1-rejected-journal-181.json, ev/r1-deposited-journal-182.json, ev/r1-depcollected-journal-183.json, ev/r1-depreject-journal-184.json, ev/_console-journal-reads.md (J185), ev/p-chq1-delivered-journal-190.json, ev/p-chq1-collected-journal-191.json, ev/p-chq1-rejected-journal-192.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-26",
+  "statement": "Cheque book «B-CB1» (id 1) for افتراضي-B بنك, serials 800001..800010, SAR: «عدد الشيكات: 10»; page shows buttons إصدار شيك, تعديل, حذف, تعطيل, tab «الشيكات المدفوعة (0/10)» and «الشيكات المستخدمه: 0 اصدر 0 سلم 0 حصل».",
+  "evidenceFile": "ev/w-book-after-save.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-27",
+  "statement": "Issuing a payable cheque (800001, 200.00, from book B-CB1, bank افتراضي-B بنك, account 2211008 مورد افتراضي-B 1; main button «اصدار وتسليم» (id deliverBtn) or dropdown item «اصدر» (id issueBtn)) with «اصدر»: status «اصدر», NO journal; buttons تسليم, تعديل, حذف, إلغاء. The form has no purchase-invoice link.",
+  "evidenceFile": "ev/w-pay-P-CHQ1-after-save.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-28",
+  "statement": "«تسليم» is an immediate GET (/payable_cheques/1/deliver): status «سٌلم», journal #000190 Dr 2211008 مورد افتراضي-B 1 200.00 / Cr 216 أوراق الدفع 200.00 (notes payable is code 216 in Daftra, 212 in the Expro chart); supplier statement «المدفوع حتى تاريخه -200.00» and balance due 500 -> 300; the open purchase invoice #000030 (500.00) was settled partially by an automatic payment method «رصيد المورد» 200.00 مكتمل آلي, applied only after a delay of 1-2 minutes (first read showed «غير مدفوعة»).",
+  "evidenceFile": "ev/p-chq1-delivered-journal-190.json, ev/p-chq1-delivered-later-pinv-38.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-29",
+  "statement": "Collecting the delivered payable cheque (link /collect, form: القيمة, رقم الشيك, «حساب بنكي» (select shows the SUPPLIER account 397 as the only option, a labelling quirk), تاريخ التحصيل*, ملاحظات): status «حصل», journal #000191: Dr 216 أوراق الدفع 200.00 / Cr 1202003 افتراضي-B بنك 200.00; bank balance 0 -> -200.00 (no overdraft check); supplier balance unchanged (300); «تراجع عن التحصيل» (link /deliver) restores «سٌلم» and deletes #000191.",
+  "evidenceFile": "ev/p-chq1-collected-journal-191.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-30",
+  "statement": "Rejecting the delivered payable cheque (link /reject, form with تاريخ الرفض*, ملاحظات): status «تم الرفض», new journal #000192: Dr 216 أوراق الدفع 200.00 / Cr 2211008 مورد افتراضي-B 1 200.00 (reverses #000190, which stays); supplier statement back to balance 500; the purchase invoice kept its automatic payment for a while (stale) then recalculated; «إلغاء الرفض» (link /deliver) restores «سٌلم» and deletes #000192.",
+  "evidenceFile": "ev/p-chq1-rejected-journal-192.json, ev/p-chq1-undorejected-supplier-statement.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-31",
+  "statement": "«تراجع عن التسليم» (link /issue) restores «اصدر» and deletes journal #000190; «إلغاء» (GET /cancel) on an issued cheque gives status «ملغي» with no journal and buttons تعديل and «تراجع عن الالغاء» (link /issue back to «اصدر»).",
+  "evidenceFile": "ev/w-pay1-undo-deliver-after-click.txt, ev/w-pay1-cancel-after-click.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-32",
+  "statement": "Post-dated payable cheque (P-CHQ2, id 2, 80.00, issue 27/10, due 27/12/2026) with «اصدار وتسليم»: status «سٌلم», journal #000193 dated the issue date 27/10/2026 (Dr 2211008 80 / Cr 216 80); collecting it on 27/10/2026 is refused by «تاريخ التحصيل يجب أن يكون أكبر من أو يساوي تاريخ الإستحقاق الخاص بالشيك» (same rule as received cheques); after «تراجع عن التسليم» the cheque was deleted in status «اصدر» (modal «هل أنت متأكد من حذف الشيك المدفوع ؟») and journal #000193 disappeared with the undo.",
+  "evidenceFile": "ev/w-pay-P-CHQ2-after-save.txt, ev/w-pay2-collect-before-due-after.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-33",
+  "statement": "Cheque reports (UI path: /owner/reports/list/#cheques -> «عرض» -> fill the issue-date range -> «عرض التقرير»; a bare address with show_report=1 shows only the filter form): receivable report columns «رقم الشيك # | الاسم على الشيك | الحساب المستلم | حساب التحصيل | تاريخ الإصدار | تاريخ الاستحقاق | الحالة | المبلغ (SAR)», grouped by year by default («2026»), with «المجموع» and «الإجماليات»; payable report columns «رقم الشيك # | الاسم على الشيك | اسم البنك | الحساب المستلم | تاريخ الإصدار | تاريخ الاستحقاق | الحالة | المبلغ (SAR)», grouped by «رقم دفتر الشيكات» (B-CB1). The reports list cheques in any state (R1 «أودع» 100.00 and P-CHQ1 «اصدر» 200.00 appeared) and both have a «العملة» filter (الجميع إلي (SAR)).",
+  "evidenceFile": "ev/rep1-rep-recv.txt, ev/rep1-rep-pay.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-34",
+  "statement": "Payment method is independent of the treasury (S35-D6 confirmed on the sales payment form): 5.00 on invoice #000030 with method «شيك» into bank افتراضي-B بنك posted journal #000194 Dr 1202003 افتراضي-B بنك / Cr 12041005 (description «مدفوعات العميل #000030 ... رقم معّرف للتحويل #CHQ-B-PM1»), no cheque record was created and account 1211 was not used; method «نقدي» into the same bank posted #000195 Dr B بنك / Cr client; method «تحويل بنكي» into Main Treasury posted #000196 Dr الخزينة الأساسية (120101) / Cr client. The payment lists show the method names شيك, نقدي, تحويل بنكي; deleting each payment (POST invoice_payments/delete/0 after a confirmation) deleted its journal.",
+  "evidenceFile": "ev/w-invpay-PM1-after-save.txt, ev/w-invpay-PM2-after-save.txt, ev/w-invpay-PM3-after-save.txt, ev/pm-after-invoice-payments.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-35",
+  "statement": "There is no global switch to enable a second currency: the invoice form has a link (#EditCurrency, text «SAR») that opens a modal «العملة *» with the base currency and 160 codes (select #InvoiceCurrencyCode, button «تحديث»); selecting USD fires GET /v2/api/convert_currency?from=SAR&to=USD&date=<invoice date> and stores the answer in the hidden field data[Invoice][manual_currency_rate_hidden] (0.26666666666666666 = USD per SAR after my manual rate). The same select exists on cheques, expenses, treasury, supplier/client default currency forms.",
+  "evidenceFile": "ev/c-inv-currency-modal.png, ev/w-finv-F1-presave.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-36",
+  "statement": "Automatic rate source: with an empty rate table the endpoint /v2/api/convert_currency already answers (SAR->USD 0.26704145044097999, USD->SAR 3.7447369999999847, SAR->JPY 42.095117189805357, SAR->KWD 0.082993278299651363, SAR->SAR 1, same value for any date) so rates come from Daftra's own automatic source (server side; I enabled no integration); the manual table «أسعار العملات المحلية» (/owner/local_currency_rates: من العملة, إلى العملة, التاريخ من, السعر) overrides it by date.",
+  "evidenceFile": "ev/convert_currency.log",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-37",
+  "statement": "Manual rate table: the add form shows the banner «قد يؤثر تحديث سعر الصرف اليدوي على سعر الصرف في القيود المالية القديمة.»; the form refills the rate from the automatic source after the currency selects or the date change, so my first row (typed 3.75) was SAVED as 3.744737 (the automatic value) and had to be corrected by an edit; after the edit convert_currency?from=USD&to=SAR answers 3.75 and the reverse direction answers 1/3.75 = 0.26666666666666666 (one row serves both directions). Rows: #1 USD->SAR 3.75 from 01/10/2026, #2 USD->SAR 3.60 from 01/11/2026 (the row with the latest date_from not after the document/payment date applies).",
+  "evidenceFile": "ev/w-rate-USD1-after.txt, ev/w-rate-USD1-fix-after.txt, ev/w-rate-USD2-after.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-38",
+  "statement": "Foreign-currency invoice F1 (invoice #000031, id 42, 27/10/2026, client افتراضي-D1 عميل, USD, rate 3.75; lines 2 x 100.00 + 1 x 33.33 USD, VAT 15%): totals in USD subtotal 233.33, VAT 35.00 (30.00 + 5.00 from 4.9995), total 268.33; the form shows USD amounts with a «$» prefix. Journal #000197 (header «العملة: USD ... سعر الصرف: 3.75»): Dr 12041005 العميل 268.33 USD = 1,006.24 SAR, Cr 215001 القيمة المضافة المحصلة 35.00 = 131.25, Cr 411 المبيعات 233.33 = 874.99 (each line converted separately and rounded to 2 decimals; 874.99 + 131.25 = 1,006.24 balanced); journal view shows both a USD and a SAR debit/credit column; the client page and statement show two balances «175.02 SAR | $268.33 USD».",
+  "evidenceFile": "ev/f1-saved-journal-197.json, ev/f1-saved-statement.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-39",
+  "statement": "The payment form of a USD invoice has NO currency or rate field (amount defaults to the USD total 268.33; method, treasury (all SAR treasuries), status, staff, transaction id, notes); the payment journal takes the rate from the rate table by the PAYMENT DATE: payment #000033 100.00 USD dated 27/10/2026 -> journal #000198 (header «العملة: USD ... سعر الصرف: 3.75»; source link ends with attached[0]:invoice_payment_currency_rate_difference): Dr 1202003 B بنك 100.00 USD = 375.00 SAR / Cr 12041005 100.00 USD = 375.00 SAR; bank balance +375.00 SAR; invoice «مدفوعة جزئياً»; client USD balance 168.33.",
+  "evidenceFile": "ev/fp1-journal-198.json, ev/w-invpay-FP1-after-save.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-40",
+  "statement": "Payment at a different rate: payment #000034 100.00 USD dated 05/11/2026 (rate row 3.60) -> journal #000199 dated 05/11/2026 (rate 3.6): Dr 1202003 B بنك 100 USD = 360.00 SAR / Cr 12041005 100 USD = 360.00 SAR, and a SEPARATE journal #000200 dated 05/11/2026 «فرق سعر صرف العملة مدفوعات العميل #000034 ...» (SAR only): Dr 1209 «تغيير عملة» 15.00 / Cr 12041005 افتراضي-D1 عميل 15.00 (loss: receivable booked at 375, collected 360). The FX difference account is 1209 «تغيير عملة» (listed under الأصول المتداولة), not an income/expense account. The client's SAR balance dropped 175.02 -> 160.02 (the 15.00 correction sits in the SAR column) while the USD balance is 68.33 (statement row «فرق سعر صرف العملة ... 元 -15.00»); bank B balance 735.00 (375 + 360); payments with a future date are accepted.",
+  "evidenceFile": "ev/fp2-journal-199.json, ev/_console-journal-reads.md (J200), ev/fp2-statement.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-41",
+  "statement": "Payment at a HIGHER rate: rate row #3 USD->SAR 3.90 from 10/11/2026; payment #000036 68.33 USD dated 10/11/2026 -> journal #000201 (rate 3.9): Dr 1202003 B بنك 68.33 USD = 266.49 SAR / Cr 12041005 68.33 USD = 266.49 SAR, and #000202 «فرق سعر صرف العملة ...» Dr 12041005 10.25 / Cr 1209 «تغيير عملة» 10.25 (gain: receivable carried 256.24 = 68.33 x 3.75, collected 266.49). The invoice became «مدفوعة» and the USD balance $0.00. Sums over the invoice: debit 1,006.24 = payments 375.00 + 360.00 + 266.49 = 1,001.49 plus net FX 15.00 - 10.25 = 4.75 (net loss to 1209).",
+  "evidenceFile": "ev/fp3-journal-201.json, ev/fp3-journal-202.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-42",
+  "statement": "The client's two balances after the three payments: statement «المبلغ المستحق 元 170.27 $0.00» (SAR column 175.02 - 15.00 + 10.25 because the FX-difference journals are SAR-currency journals); ledger report of account 12041005 with currency=SAR (or -1) shows SAR journals only: debit 1,055.77 / credit 885.50; with currency=USD: 268.33 / 268.33 USD; with no currency parameter it lists each currency separately (SAR 1,055.77/885.50 and USD 268.33/268.33). So the USD bucket is zero in USD while its SAR equivalent still carries a 4.75 residual (1,006.24 - 1,001.49) that is offset by the SAR-bucket FX entries; the combined ledger in SAR (175.02) is right but the per-currency balances shown on the client page hide the split.",
+  "evidenceFile": "ev/ledger-386-cur-SAR.json, ev/ledger-386-cur-USD.json, ev/ledger-386-cur-empty.json, ev/fp3-statement.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-43",
+  "statement": "Trial balance totals move by the SAR amounts of every journal (all currencies converted at the journal rate): before F1 158,637.34 -> 159,243.58 after the USD invoice (+1,006.24) etc.; always debit = credit in SAR (159,993.58 after the second payment, 160,270.31 after the third and its FX journal).",
+  "evidenceFile": "ev/f1-saved-trialbalance.json, ev/fp2-trialbalance.json, ev/fp3-trialbalance.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-44",
+  "statement": "USD purchase invoice P2 (#000031, id 39, 27/10/2026, supplier مورد افتراضي-B 1, one free-text line 200 USD, no tax, not received): the purchase form has the same «تعديل العملة» modal (#PurchaseOrderCurrencyCode); journal #000203 (header «العملة: USD ... سعر الصرف: 3.75»): Dr 511 «تكلفة المبيعات» 200 USD = 750.00 SAR / Cr 2211008 المورد 200 USD = 750.00 SAR; the supplier statement shows «المبلغ المستحق 500.00 SAR 200.00 USD» (separate buckets).",
+  "evidenceFile": "ev/p2-saved-journal-203.json, ev/p2-saved-supplier-statement.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-45",
+  "statement": "Supplier payment at another rate: payment #000038 200 USD dated 05/11/2026 (rate 3.60) on the USD purchase: journal #000204 (rate 3.6): Dr 2211008 المورد 200 USD = 720.00 SAR / Cr 1202003 B بنك 200 USD = 720.00 SAR, and #000205 «فرق سعر صرف العملة دفع للمورد #000038»: Dr 2211008 30.00 SAR / Cr 1209 «تغيير عملة» 30.00 (gain: payable carried 750, paid 720). The same single account 1209 receives both gains and losses (credit for gain, debit for loss on the sales side as seen), the purchase invoice became «مدفوعة», the statement shows «470.00 SAR 0.00 USD» (500 SAR invoice - 30 SAR FX correction booked in the SAR column), bank B 281.49 SAR (1,001.49 - 720.00).",
+  "evidenceFile": "ev/pp1-journal-204.json, ev/pp1-journal-205.json, ev/pp1-supplier-statement.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-46",
+  "statement": "Foreign-currency treasuries cannot be created in this account: the bank-account form has a hidden currency select offering only SAR (even after USD documents exist), the cash-treasury form has no currency field at all; every treasury is single-currency (transfer page script: treasury_currencies = SAR for every treasury) but each treasury keeps per-currency balances in currency_balances (bank B after USD payments: {USD: 68.33, SAR: 281.487}: USD = net USD in/out, SAR = all journals converted).",
+  "evidenceFile": "ev/c-treasury-add.json, ev/c-bank-form-currency-console.json, ev/c-transfer-script.js",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-47",
+  "statement": "Currency transfer form (/owner/treasuries/transfer): visible pickers «العملة» (from, limited to the source treasury's currency, SAR) and «عملة الصرف» (to, 160 codes), rate row «سعر الصرف» appears when the currencies differ and is filled by GET /owner/treasuries/ajax_convert_currency/<from>/<to> which answers only for a stored manual row in that direction (USD->SAR 3.75 yes; SAR->USD, SAR->EUR, SAR->JPY empty: the user must type the rate); the form computes to_after = to_before + amount x rate.",
+  "evidenceFile": "ev/convert_currency.log, ev/w-transfer-X1-before-save.png",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-48",
+  "statement": "Transfer X1 (#6): 37.50 SAR from bank B to cash treasury «افتراضي-B خزينة 2» (account 120104) with to-currency USD and typed rate 0.2666667 -> 10.00 USD; TWO journals: #000206 (SAR leg) Dr 1209 «تغيير عملة» 37.50 / Cr 1202003 B بنك 37.50, and #000207 (USD leg, header USD rate 3.75) Dr 120104 10.00 USD = 37.50 SAR / Cr 1209 10.00 USD = 37.50 SAR. The currency account 1209 is the clearing account between the two legs.",
+  "evidenceFile": "ev/_console-journal-reads.md (J206, J207 original values), ev/w-transfer-X1-after-save.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-49",
+  "statement": "Transfer X2 (#7): 30.00 SAR with typed rate 0.25 (7.50 USD) that does not match the rate table: #000208 SAR leg Dr 1209 30.00 / Cr B بنك 30.00; #000209 USD leg Dr 120104 7.50 USD = 28.13 SAR / Cr 1209 7.50 USD = 28.13 SAR (valued at the table rate 3.75, not at the typed rate), leaving 1.87 SAR net debit in 1209 as an unresolved difference.",
+  "evidenceFile": "ev/_console-journal-reads.md (J208, J209 original values), ev/w-transfer-X2-after-save.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-50",
+  "statement": "Transfer X3 (#8): 17.50 USD from treasury «افتراضي-B خزينة 2» (from-currency USD offered because it holds USD) to bank B in SAR at rate 3.75 -> 65.625 SAR: #000210 (USD leg) Dr 1209 17.50 USD = 65.63 SAR / Cr 120104 17.50 USD = 65.63, #000211 (SAR leg) Dr 1202003 65.63 / Cr 1209 65.63; treasury B2 returns to 0.00. There is no delete button for transfers (D2) so the three transfers stay.",
+  "evidenceFile": "ev/_console-journal-reads.md (J210, J211 original values), ev/w-transfer-X3-after-save.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-51",
+  "statement": "Decimals per currency (purchase forms, journals and statements): USD 2; KWD 3 (total «30.375 د.ك» for 3 x 10.125); JPY 0 (total «￥3,704» for 3 x 1,234.5 = 3,703.5, rounded half up). Journal #000212 (KWD, automatic rate 12.04917 = 1/0.08299): Dr 511 30.375 KWD = 365.993 SAR / Cr 2211008 30.375 = 365.993 (SAR line amounts keep 3 decimals in a KWD journal) while the footer shows 元 365.99; journal #000213 (JPY, rate shown 0.02376): Dr 511 ￥3,704 = 88 / Cr supplier ￥3,704 = 88 (SAR line rounded to 0 decimals in a JPY journal) while the footer shows 元 87.99 (so the footer uses the unrounded rate 0.023756). The supplier statement lists the buckets separately: «470.00 SAR 0.00 USD 30.375 KWD 3,704 JPY».",
+  "evidenceFile": "ev/_console-journal-reads.md (J212, J213), ev/p4-supplier-statement.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-52",
+  "statement": "Trial balance (/owner/reports/journal_transactions?...type=trial-balance&currency=<x>; expand_level=5 shows accounts) with the default currency=-1 has the header «العملة: الجميع (إلى SAR)» and converts every journal at its own rate: totals 162,488.67 debit = credit; account rows in SAR: 12041005 debit 2,062.01 / credit 1,886.99 (= 175.02, the true client balance), 1209 تغيير عملة debit 148.13 / credit 171.50 (net credit 23.37), 2211008 debit 750.00 / credit 1,703.98 (P1 500 + P2 750 + KWD 365.99 + JPY 87.99), 1202003 B بنك 1,067.11 / 787.50. With currency=SAR only SAR-currency journals are included (total 158,425.71) and with currency=USD only USD journals, shown in USD units (total 971.66 USD = 268.33+100+100+68.33+200+200+10+7.5+17.5; the footer wrongly prints the base-currency symbol). SAR-only + USD in SAR (3,608.99) + KWD (365.99) + JPY (87.99) = 162,488.68, i.e. the all-currency view.",
+  "evidenceFile": "ev/tb-level5-all.txt, ev/tb-level5-usd.txt, ev/tb-level5-sar.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-53",
+  "statement": "After the USD invoice and payments the client page and statement show «افتراضي-D1 عميل ... 170.27 元 SAR | $0.00 USD» while the all-currency ledger balance of account 12041005 is 175.02 SAR: the 4.75 SAR net FX difference (15.00 loss - 10.25 gain) is booked as SAR-currency journals against the client account, so the per-currency view understates the SAR bucket by 4.75 and leaves 4.75 SAR-equivalent in the USD bucket although its USD balance is zero.",
+  "evidenceFile": "ev/tb-level5-all.txt, ev/fp3-statement.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-54",
+  "statement": "Bank statement tab (E47-BANKREC / WP29): on a bank account page the tab «كشف حساب البنك» is an iframe (/v2/owner/bank_transactions?iframe=1&bank_id=<id>) whose empty state says «لم يتم إضافة اى سجلات بعد» with two actions: «Import كشف حساب البنك» and «رفع كشوف حساب بالذكاء الاصطناعي» (AI upload: NOT used); the page header has a menu «استيراد كشف حساب البنك» with «استيراد CSV» (/v2/owner/import/bank_transaction?extraData[bank_id]=7) and «رفع بالذكاء الاصطناعي».",
+  "evidenceFile": "ev/c-bank7-statement-tab-shot.png, ev/c-bank7-statement-tab.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-55",
+  "statement": "Import wizard (3 steps: خيارات الاستيراد -> تعيين الحقول -> النتيجه): step 1 takes «ملف CSV / Excel*», «المحددات *» (comma, semicolon, tab) and the checkbox «استيراد اول صف»; «تنزيل المثال» is Daftra's public sample /samples/bank-statement-sample-ar.csv documenting 5 columns التاريخ,الوصف,إيداع,سحب,الرقم المرجعي (dates dd/mm/yyyy, thousands as \"1,000\", zero for the unused side); step 2 maps system fields (التاريخ*, الوصف*, قيمة الايداع*, قيمة السحب*, الرقم المرجعي) to the file columns (only date, description and reference are pre-mapped) and offers «تحديث البيانات الحالية بالبيانات الجديدة» (update by reference) and «تخطى الاخطاء اثناء عملية الاستيراد»; step 3 «شكراً، تم استيراد الملف بنجاح»: 3 imported, 0 updated, 0 failed. My 3-row synthetic file (tagged افتراضي-B, no real data) was imported into bank B only.",
+  "evidenceFile": "ev/bank-statement-sample-ar.csv, ev/c-bank7-import-step2.json, ev/c-bank7-import-step3.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-56",
+  "statement": "Imported rows list (columns التاريخ, الوصف, إيداع, سحب, الحالة; reference shown under the date): status «لم تطابق» with a «مطابقة» button per row, row menu «إلغاء التطابق» and «حذف» (modal «هل أنت متأكد أنك تريد حذف عملية البنك ؟», the modal lives in the parent page; POST /v2/owner/bank_transactions/<id> DELETE). Rows are deletable.",
+  "evidenceFile": "ev/c-bank7-transactions.json, ev/c-bank7-delete-modal.png",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-57",
+  "statement": "Reconciliation screen /v2/owner/banks/7/match/<row>: two panels, «كشف حساب البنك» (statement rows, counter and unmatched total) and «معاملات النظام» (journals of the bank account not yet matched, with checkbox, date, journal number, description, user, amount; deposits for a deposit row, withdrawals for a withdrawal row), bottom bar «إنهاء المطابقة وإغلاق», «إضافة سند قبض <amount>» / «إضافة سند صرف <amount>» (opens /owner/incomes/add?amount=..&bank_transaction_id=..&source=bank_transaction prefilled in an iframe: not saved by me) and «مطابقة <selected sum>». Matching row 3 (360.00) with journal #000199 (360.00) succeeded («تم مطابقة الحركات بنجاح»): the row shows «تمت مطابقتها - قيد #000199 , مدفوعات العميل #000034 ... 360.00»; matching a 2.50 row against a 30.00 journal is refused with «قيمة العملية البنكية يجب أن تكون مساوية لقيمة عمليات النظام» (statement amount must equal the selected system amount); «إلغاء التطابق» (GET /v2/owner/bank_transactions/3/unmatch) returned the row to unmatched. Matching creates no journal and changes no journal (observation only; «إنهاء المطابقة وإغلاق» NOT pressed).",
+  "evidenceFile": "ev/c-bank7-match-1.png, ev/c-bank7-match-3-after.txt, ev/c-bank7-match-2-after.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-58",
+  "statement": "Foreign-currency cheque (the received-cheque form's currency select): R3 40.00 USD issued 28/10/2026 -> journal #000214 (header USD, rate 3.75): Dr 1211 أوراق القبض 40 USD = 150.00 SAR / Cr 12041005 40 USD = 150.00 SAR; collecting it on 05/11/2026 (rate row 3.60) -> #000215 (rate 3.6): Dr 1202003 B بنك 40 USD = 144.00 SAR / Cr 1211 40 USD = 144.00 SAR with NO FX-difference journal (unlike invoice payments), so account 1211 keeps a 6.00 SAR debit residual after the cheque is collected (trial balance 1211: debit 250.00 / credit 244.00). The USD credit is not applied to SAR invoices: the client page shows «$40.00 USD دائن | 170.27 元 SAR».",
+  "evidenceFile": "ev/_console-journal-reads.md (J214), ev/j-215-now.json, ev/tb-after-r3.txt, ev/r3-collected-statement.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-59",
+  "statement": "Bank import, match, unmatch and row deletion created no journal: after them the next journal created (USD cheque R3) took the number #000214, the number right after the last purchase journal #000213.",
+  "evidenceFile": "ev/_console-journal-reads.md (J214 took the next number after the bank import/match/unmatch/delete)",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-60",
+  "statement": "Report currency filters list only the currencies present in the scope: client_balance offers only «الجميع إلي (SAR)» (All); invoice_net_position offers All, «كل على حده» (value Sperated), SAR, USD; purchase_invoice_net_position offers All, Sperated, SAR, USD, KWD, JPY; aged_debtors has no currency filter and prints SAR only.",
+  "evidenceFile": "ev/rep2-net-position.txt, ev/rep2-purchase-net-position.txt, ev/rep2-aged-debtors.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-61",
+  "statement": "Reports in the 'All (to SAR)' mode value each document and each payment at the DOCUMENT's rate, not the payment's: invoice_net_position for the USD invoice #000031 shows total 1,006.24, paid 1,006.24 with payments 375.00 (#000033), 375.00 (#000034, which actually collected 360.00 SAR) and 256.24 (#000036, which collected 266.49 SAR); purchase_invoice_net_position shows the USD purchase #000031 at 750.00 paid 750.00 (payment 720.00 + 30.00 FX), the KWD purchase 365.99 and the JPY purchase 87.99 each unpaid, with a footer «لكل 4 فواتير الشراء · SAR 1,703.98».",
+  "evidenceFile": "ev/rep2-net-position.txt, ev/rep2-purchase-net-position.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-62",
+  "statement": "Cross-currency leakage: the net FX difference booked on the client account in SAR (15.00 credit then 10.25 debit = 4.75 credit in the SAR bucket) was applied automatically as a payment #000037 of 4.75 (method «رصيد العميل الائتماني») to the oldest open SAR invoice #000030, whose paid amount rose from 54.98 to 59.73 (invoice_net_position lists #000028 54.98 and #000037 4.75 on it) and whose remaining due fell by 4.75; aged_debtors shows 170.27 SAR for the client.",
+  "evidenceFile": "ev/rep2-net-position.txt, ev/rep2-aged-debtors.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-63",
+  "statement": "client_balance report (All to SAR, 20/10-28/10/2026, client افتراضي-D1 عميل): total sales 2,051.76 (SAR invoices 1,045.52 + USD invoice at 1,006.24), payments 375.00 (only the payment dated inside the range), adjustments -1,020.50, balance 656.26 for that range.",
+  "evidenceFile": "ev/rep2-client-balance.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-64",
+  "statement": "UNEXPECTED, cheque deletion left orphan journals: deleting a received cheque in status «مستلم» (modal «هل أنت متأكد من حذف الشيك المستلم ؟») removed its receipt journal for R2 (#000186 gone) but NOT for R1 (#000179), R3 (#000214, USD), R4 (#000216, created and deleted seconds apart) and R5 (#000217, deleted after an edit): the journal stayed in the journal list and the trial balance with an empty source link (no «عرض المصدر»), still crediting the client account and debiting 1211, with «حذف قيد» and «تعديل» buttons. The cause was not determined (not edit, not undo, not elapsed time). I deleted the four orphans with «حذف قيد» (confirmation «هل أنت متأكد أنك تريد حذف؟»).",
+  "evidenceFile": "ev/c-journal-179-actions.txt, ev/w-delurl-delete_ORPHANED_receipt_journa-1.txt, ev/_console-journal-reads.md",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-65",
+  "statement": "Stale automatic payments: after cheques R1 and R3 were deleted (and their orphan journals removed) the automatic «رصيد العميل الائتماني» payments #000028 (54.98 on invoice #000030) and #000038 ($40.00 on the USD invoice #000031) stayed on the invoices; their view pages say «اذا اردت ان تقوم بحذف عملية الدفه الالية يجب اولا ان تقوم بالغاء تفعيل دفع الفاتورة تلقائيا» and the delete button does nothing (no POST); adding any new payment to the invoice (1 SAR, 1 USD) triggered the recalculation that removed the stale automatic payment, and deleting that test payment left the invoice with no payments.",
+  "evidenceFile": "ev/w-del-inv-payment-28-auto-after.txt, ev/rc1-added-invoice-payments.json, ev/rc2-deleted-invoice-payments.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-b-66",
+  "statement": "Historic foreign journals are re-rated when manual rates change (the banners on the rate add/edit/delete pages say «قد يؤثر ... على سعر الصرف في القيود المالية القديمة»): after I deleted the three manual rate rows the USD invoice journal #000197 reads «سعر الصرف: 3.74474» with SAR lines 1,004.83 / 131.06 / 873.76 instead of 3.75 / 1,006.24 / 131.25 / 874.99, and the transfer journals #000207, #000209, #000210 read rate 3.9 (28/10: 3.9 x 10.00 = 39.00, 29.25, 68.25) instead of 3.75; the stored rate of a posted journal is therefore NOT frozen.",
+  "evidenceFile": "ev/j-197-now.json (re-rated), ev/f1-saved-journal-197.json (original), ev/j-207-now.json, ev/j-209-now.json, ev/j-210-now.json (re-rated), ev/_console-journal-reads.md (original values)",
+  "kind": "observed"
+ }
+]

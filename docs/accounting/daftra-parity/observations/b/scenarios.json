@@ -1,0 +1,1266 @@
+[
+ {
+  "id": "B-S01",
+  "title": "Enable the cheques app (global switch)",
+  "inputs": {
+   "app": "دورة الشيكات (plugin 69)",
+   "original": "تم التعطيل",
+   "action": "switch on in /v2/owner/plugin-manager/2"
+  },
+  "daftra": {
+   "documents": [],
+   "journals": [],
+   "reports": [
+    "receivable_cheques and payable_cheques reports answer after enabling (HTTP 500 before)"
+   ],
+   "messages": [
+    "switch applies by AJAX GET update_plugin_status/69/true, no save button needed"
+   ]
+  },
+  "exproExpectation": "Expro has no cheque module; accounts 1206/212 are chart rows only (WP26 builds it).",
+  "classification": "not comparable",
+  "evidenceIds": [
+   "pw-b-1",
+   "pw-b-2",
+   "pw-b-3"
+  ]
+ },
+ {
+  "id": "B-S02",
+  "title": "Received cheque lifecycle (state table), client افتراضي-D1 عميل, bank افتراضي-B بنك",
+  "inputs": {
+   "cheque": "R1 serial 710001, 100.00 SAR, issue and due 27/10/2026",
+   "from_account": "12041005",
+   "collect_account": "1202003 (bank)",
+   "deposit fees": 2.5
+  },
+  "daftra": {
+   "documents": [
+    "receivable cheque id 1 (standalone, no invoice field)"
+   ],
+   "journals": [
+    {
+     "number": "000179",
+     "date": "27/10/2026",
+     "source": "receivable_cheque_received",
+     "lines": [
+      {
+       "code": "1211",
+       "name": "أوراق القبض",
+       "debit": 100,
+       "credit": null
+      },
+      {
+       "code": "12041005",
+       "name": "افتراضي-D1 عميل",
+       "debit": null,
+       "credit": 100
+      }
+     ]
+    },
+    {
+     "number": "000180",
+     "date": "27/10/2026",
+     "source": "receivable_cheque_collected (direct collect from مستلم)",
+     "lines": [
+      {
+       "code": "1202003",
+       "name": "افتراضي-B بنك",
+       "debit": 100,
+       "credit": null
+      },
+      {
+       "code": "1211",
+       "name": "أوراق القبض",
+       "debit": null,
+       "credit": 100
+      }
+     ]
+    },
+    {
+     "number": "000181",
+     "date": "27/10/2026",
+     "source": "receivable_cheque_reject (reject from مستلم)",
+     "lines": [
+      {
+       "code": "12041005",
+       "name": "افتراضي-D1 عميل",
+       "debit": 100,
+       "credit": null
+      },
+      {
+       "code": "1211",
+       "name": "أوراق القبض",
+       "debit": null,
+       "credit": 100
+      }
+     ]
+    },
+    {
+     "number": "000182",
+     "date": "27/10/2026",
+     "source": "receivable_cheque_deposited",
+     "lines": [
+      {
+       "code": "1212",
+       "name": "مبالغ تحت التحصيل",
+       "debit": 100,
+       "credit": null
+      },
+      {
+       "code": "1211",
+       "name": "أوراق القبض",
+       "debit": null,
+       "credit": 100
+      }
+     ]
+    },
+    {
+     "number": "000183",
+     "date": "27/10/2026",
+     "source": "receivable_cheque_deposit_collected (fees 2.50)",
+     "lines": [
+      {
+       "code": "1202003",
+       "name": "افتراضي-B بنك",
+       "debit": 97.5,
+       "credit": null
+      },
+      {
+       "code": "55",
+       "name": "رسوم الايداع",
+       "debit": 2.5,
+       "credit": null
+      },
+      {
+       "code": "1212",
+       "name": "مبالغ تحت التحصيل",
+       "debit": null,
+       "credit": 100
+      }
+     ]
+    },
+    {
+     "number": "000184",
+     "date": "27/10/2026",
+     "source": "receivable_cheque_deposit_rejected (1 of 2)",
+     "lines": [
+      {
+       "code": "12041005",
+       "name": "افتراضي-D1 عميل",
+       "debit": 100,
+       "credit": null
+      },
+      {
+       "code": "1211",
+       "name": "أوراق القبض",
+       "debit": null,
+       "credit": 100
+      }
+     ]
+    },
+    {
+     "number": "000185",
+     "date": "27/10/2026",
+     "source": "receivable_cheque_deposit_rejected (2 of 2)",
+     "lines": [
+      {
+       "code": "1211",
+       "name": "أوراق القبض",
+       "debit": 100,
+       "credit": null
+      },
+      {
+       "code": "1212",
+       "name": "مبالغ تحت التحصيل",
+       "debit": null,
+       "credit": 100
+      }
+     ]
+    }
+   ],
+   "stateTable": [
+    {
+     "state": "مستلم",
+     "journals": [
+      "000179"
+     ],
+     "balances": "client 275.02 -> 175.02 (credit applied automatically to open invoices by «رصيد العميل الائتماني» payments), bank 0",
+     "allowedNext": [
+      "حصل (تحصيل مباشر)",
+      "أودع",
+      "تم الرفض",
+      "deleted (حذف, only here)",
+      "edit all fields"
+     ]
+    },
+    {
+     "state": "حصل (direct)",
+     "journals": [
+      "000179",
+      "000180"
+     ],
+     "balances": "bank +100, client unchanged",
+     "allowedNext": [
+      "مستلم (تراجع عن التحصيل: journal 000180 deleted)"
+     ],
+     "locks": "only description/status date/status note/attachment editable"
+    },
+    {
+     "state": "أودع",
+     "journals": [
+      "000179",
+      "000182"
+     ],
+     "balances": "bank 0, 1212 +100",
+     "allowedNext": [
+      "حصل (deposit_collect, fees required)",
+      "تم الرفض (deposit_reject)",
+      "مستلم (تراجع عن الايداع: 000182 deleted)"
+     ]
+    },
+    {
+     "state": "حصل (after deposit)",
+     "journals": [
+      "000179",
+      "000182",
+      "000183"
+     ],
+     "balances": "bank +97.50 (fees 2.50 to account 55)",
+     "allowedNext": [
+      "أودع (تراجع عن التحصيل: 000183 deleted)"
+     ]
+    },
+    {
+     "state": "تم الرفض (from مستلم)",
+     "journals": [
+      "000179",
+      "000181"
+     ],
+     "balances": "client back to 275.02, automatic credit payments removed",
+     "allowedNext": [
+      "مستلم (إلغاء الرفض: 000181 deleted)"
+     ]
+    },
+    {
+     "state": "تم الرفض (from أودع)",
+     "journals": [
+      "000179",
+      "000182",
+      "000184",
+      "000185"
+     ],
+     "balances": "client 275.02, 1211 and 1212 net 0",
+     "allowedNext": [
+      "أودع (إلغاء الرفض: 000184 and 000185 deleted)"
+     ]
+    }
+   ],
+   "reports": [
+    "client statement row «Cheque Number #710001 ...»",
+    "invoice paid status updated with a 1-2 minute delay"
+   ],
+   "messages": [
+    "تم إضافة الشيك المستلم بنجاح",
+    "تم تحصيل الشيك المستلم بنجاح",
+    "تم رفض الشيك المستلم بنجاح",
+    "تم إيداع الشيك بنجاح",
+    "deleting a received cheque in status مستلم left the receipt journal behind (orphan, empty source) in 4 of 5 cases (pw-b-64); stale automatic payments stayed on invoices until another payment event (pw-b-65)"
+   ]
+  },
+  "exproExpectation": "Expected before observing: receipt Dr 1206 / Cr customer; deposit and collect move to bank only on clearing; reject reverses; every change posts or reverses, never edits (WP26 invariant). Daftra uses 1211/1212 (not 1206), deletes the transition journal on every undo, and applies the credit to invoices automatically.",
+  "classification": "differs (account codes 1211/1212 vs 1206; undo = delete journal; cheque not linked to invoice; credit auto-applied)",
+  "evidenceIds": [
+   "pw-b-8",
+   "pw-b-9",
+   "pw-b-10",
+   "pw-b-11",
+   "pw-b-12",
+   "pw-b-13",
+   "pw-b-14",
+   "pw-b-15",
+   "pw-b-16",
+   "pw-b-17",
+   "pw-b-18",
+   "pw-b-24",
+   "pw-b-25",
+   "pw-b-64",
+   "pw-b-65"
+  ]
+ },
+ {
+  "id": "B-S03",
+  "title": "Paid cheque lifecycle (state table), supplier مورد افتراضي-B 1, purchase invoice 500.00",
+  "inputs": {
+   "cheque": "P-CHQ1 serial 800001, 200.00 SAR from book B-CB1 (bank افتراضي-B بنك), account 2211008",
+   "purchase invoice": "#000030 500.00 (journal 000189 Dr 511 / Cr 2211008)"
+  },
+  "daftra": {
+   "documents": [
+    "cheque book B-CB1",
+    "payable cheque id 1"
+   ],
+   "journals": [
+    {
+     "number": "000190",
+     "date": "27/10/2026",
+     "source": "delivered_pay_cheque",
+     "lines": [
+      {
+       "code": "2211008",
+       "name": "مورد افتراضي-B 1",
+       "debit": 200,
+       "credit": null
+      },
+      {
+       "code": "216",
+       "name": "أوراق الدفع",
+       "debit": null,
+       "credit": 200
+      }
+     ]
+    },
+    {
+     "number": "000191",
+     "date": "27/10/2026",
+     "source": "collected_pay_cheque",
+     "lines": [
+      {
+       "code": "216",
+       "name": "أوراق الدفع",
+       "debit": 200,
+       "credit": null
+      },
+      {
+       "code": "1202003",
+       "name": "افتراضي-B بنك",
+       "debit": null,
+       "credit": 200
+      }
+     ]
+    },
+    {
+     "number": "000192",
+     "date": "27/10/2026",
+     "source": "rejected_pay_cheque",
+     "lines": [
+      {
+       "code": "216",
+       "name": "أوراق الدفع",
+       "debit": 200,
+       "credit": null
+      },
+      {
+       "code": "2211008",
+       "name": "مورد افتراضي-B 1",
+       "debit": null,
+       "credit": 200
+      }
+     ]
+    }
+   ],
+   "stateTable": [
+    {
+     "state": "اصدر",
+     "journals": [],
+     "balances": "none",
+     "allowedNext": [
+      "سٌلم",
+      "ملغي",
+      "edit",
+      "delete"
+     ]
+    },
+    {
+     "state": "سٌلم",
+     "journals": [
+      "000190"
+     ],
+     "balances": "supplier 500 -> 300 (credit auto-applied to invoice after 1-2 min by «رصيد المورد»)",
+     "allowedNext": [
+      "حصل",
+      "تم الرفض",
+      "اصدر (تراجع عن التسليم: 000190 deleted)"
+     ]
+    },
+    {
+     "state": "حصل",
+     "journals": [
+      "000190",
+      "000191"
+     ],
+     "balances": "bank -200 (no overdraft check)",
+     "allowedNext": [
+      "سٌلم (تراجع عن التحصيل: 000191 deleted)"
+     ]
+    },
+    {
+     "state": "تم الرفض",
+     "journals": [
+      "000190",
+      "000192"
+     ],
+     "balances": "supplier back to 500",
+     "allowedNext": [
+      "سٌلم (إلغاء الرفض: 000192 deleted)"
+     ]
+    },
+    {
+     "state": "ملغي",
+     "journals": [],
+     "balances": "none",
+     "allowedNext": [
+      "اصدر (تراجع عن الالغاء)"
+     ]
+    }
+   ],
+   "messages": [
+    "الشيك سلم بنجاح",
+    "تم تحصيل الشيك بنجاح",
+    "تم رفض الشيك بنجاح",
+    "تم الغاء الشيك بنجاح",
+    "لقد تم حذف الشيك المدفوع بنجاح"
+   ]
+  },
+  "exproExpectation": "Expected: issue/deliver Dr supplier / Cr 212; collect Dr 212 / Cr bank; reject reverses. Daftra: notes payable is code 216 (212 in Expro chart), issue posts nothing, delivery posts, undo deletes.",
+  "classification": "differs (216 vs 212; undo deletes journals; cheque book required; no invoice link)",
+  "evidenceIds": [
+   "pw-b-26",
+   "pw-b-27",
+   "pw-b-28",
+   "pw-b-29",
+   "pw-b-30",
+   "pw-b-31"
+  ]
+ },
+ {
+  "id": "B-S04",
+  "title": "Post-dated vs due-today cheques",
+  "inputs": {
+   "received": "R2 50->60.00 issue 27/10 due 27/12/2026",
+   "payable": "P-CHQ2 80.00 due 27/12/2026",
+   "collect dates tried": [
+    "27/10/2026 (refused)",
+    "27/12/2026 (accepted)"
+   ]
+  },
+  "daftra": {
+   "documents": [
+    "receivable cheque id 2 (deleted)",
+    "payable cheque id 2 (deleted)"
+   ],
+   "journals": [
+    {
+     "number": "000186",
+     "date": "27/10/2026",
+     "source": "receivable_cheque_received (due date ignored)",
+     "lines": [
+      {
+       "code": "1211",
+       "name": "أوراق القبض",
+       "debit": 60,
+       "credit": null
+      },
+      {
+       "code": "12041005",
+       "name": "افتراضي-D1 عميل",
+       "debit": null,
+       "credit": 60
+      }
+     ]
+    },
+    {
+     "number": "000187",
+     "date": "27/10/2026",
+     "source": "receivable_cheque_deposited before due date accepted",
+     "lines": [
+      {
+       "code": "1212",
+       "name": "مبالغ تحت التحصيل",
+       "debit": 60,
+       "credit": null
+      },
+      {
+       "code": "1211",
+       "name": "أوراق القبض",
+       "debit": null,
+       "credit": 60
+      }
+     ]
+    },
+    {
+     "number": "000188",
+     "date": "27/12/2026",
+     "source": "receivable_cheque_deposit_collected on the due date (future-dated journal)",
+     "lines": [
+      {
+       "code": "1202003",
+       "name": "افتراضي-B بنك",
+       "debit": 60,
+       "credit": null
+      },
+      {
+       "code": "1212",
+       "name": "مبالغ تحت التحصيل",
+       "debit": null,
+       "credit": 60
+      }
+     ]
+    },
+    {
+     "number": "000193",
+     "date": "27/10/2026",
+     "source": "delivered_pay_cheque (post-dated payable)",
+     "lines": [
+      {
+       "code": "2211008",
+       "name": "مورد افتراضي-B 1",
+       "debit": 80,
+       "credit": null
+      },
+      {
+       "code": "216",
+       "name": "أوراق الدفع",
+       "debit": null,
+       "credit": 80
+      }
+     ]
+    }
+   ],
+   "messages": [
+    "تاريخ التحصيل يجب أن يكو أكبر من أو يساوي تاريخ الاستحقاق",
+    "تاريخ التحصيل يجب أن يكون أكبر من أو يساوي تاريخ الإستحقاق الخاص بالشيك"
+   ]
+  },
+  "exproExpectation": "Expected: due date is data only; no automatic posting. Daftra adds a server rule: collection date >= due date; receipt/deliver always at issue date; future-dated collection journal accepted and counted in bank balance immediately.",
+  "classification": "differs (collection-date validation and future-dated journal are Daftra rules)",
+  "evidenceIds": [
+   "pw-b-19",
+   "pw-b-22",
+   "pw-b-32"
+  ]
+ },
+ {
+  "id": "B-S05",
+  "title": "Payment method independent of treasury (S35-D6) and cheque method without cheque record",
+  "inputs": {
+   "invoice": "#000030",
+   "payments": [
+    "5.00 method شيك into bank B",
+    "5.00 method نقدي into bank B",
+    "5.00 method تحويل بنكي into Main Treasury"
+   ]
+  },
+  "daftra": {
+   "documents": [
+    "3 invoice payments (deleted afterwards)"
+   ],
+   "journals": [
+    {
+     "number": "000194",
+     "date": "27/10/2026",
+     "source": "invoice_payment (method cheque)",
+     "lines": [
+      {
+       "code": "1202003",
+       "name": "افتراضي-B بنك",
+       "debit": 5,
+       "credit": null
+      },
+      {
+       "code": "12041005",
+       "name": "افتراضي-D1 عميل",
+       "debit": null,
+       "credit": 5
+      }
+     ]
+    },
+    {
+     "number": "000195",
+     "date": "27/10/2026",
+     "source": "invoice_payment (method cash into bank)",
+     "lines": [
+      {
+       "code": "1202003",
+       "name": "افتراضي-B بنك",
+       "debit": 5,
+       "credit": null
+      },
+      {
+       "code": "12041005",
+       "name": "افتراضي-D1 عميل",
+       "debit": null,
+       "credit": 5
+      }
+     ]
+    },
+    {
+     "number": "000196",
+     "date": "27/10/2026",
+     "source": "invoice_payment (method bank transfer into Main Treasury)",
+     "lines": [
+      {
+       "code": "120101",
+       "name": "الخزينة الأساسية",
+       "debit": 5,
+       "credit": null
+      },
+      {
+       "code": "12041005",
+       "name": "افتراضي-D1 عميل",
+       "debit": null,
+       "credit": 5
+      }
+     ]
+    }
+   ],
+   "messages": []
+  },
+  "exproExpectation": "Expected: method is a tag, treasury decides the debit account (matches Expro D6 expectation); Expro currently ties treasury to payment type in the cart.",
+  "classification": "differs (Expro ties treasury to payment type)",
+  "evidenceIds": [
+   "pw-b-34"
+  ]
+ },
+ {
+  "id": "B-S06",
+  "title": "Foreign-currency sales invoice and payments at different rates (USD)",
+  "inputs": {
+   "manual rates USD->SAR": {
+    "01/10/2026": 3.75,
+    "01/11/2026": 3.6,
+    "10/11/2026": 3.9
+   },
+   "invoice": "#000031 27/10/2026 USD rate 3.75, lines 2x100.00 and 1x33.33, VAT 15%",
+   "payments": [
+    "100 USD on 27/10/2026",
+    "100 USD on 05/11/2026",
+    "68.33 USD on 10/11/2026"
+   ]
+  },
+  "daftra": {
+   "documents": [
+    "invoice #000031 id 42 (permanent)",
+    "payments #000033, #000034, #000036"
+   ],
+   "journals": [
+    {
+     "number": "000197",
+     "date": "27/10/2026",
+     "currency": "USD",
+     "rate": 3.75,
+     "source": "invoice",
+     "lines": [
+      {
+       "code": "12041005",
+       "name": "افتراضي-D1 عميل",
+       "debit": 268.33,
+       "credit": null,
+       "debitBase": 1006.24
+      },
+      {
+       "code": "215001",
+       "name": "القيمة المضافة المحصلة",
+       "debit": null,
+       "credit": 35.0,
+       "creditBase": 131.25
+      },
+      {
+       "code": "411",
+       "name": "المبيعات",
+       "debit": null,
+       "credit": 233.33,
+       "creditBase": 874.99
+      }
+     ]
+    },
+    {
+     "number": "000198",
+     "date": "27/10/2026",
+     "currency": "USD",
+     "rate": 3.75,
+     "source": "invoice_payment",
+     "lines": [
+      {
+       "code": "1202003",
+       "name": "افتراضي-B بنك",
+       "debit": 100,
+       "credit": null,
+       "debitBase": 375.0
+      },
+      {
+       "code": "12041005",
+       "name": "افتراضي-D1 عميل",
+       "debit": null,
+       "credit": 100,
+       "creditBase": 375.0
+      }
+     ]
+    },
+    {
+     "number": "000199",
+     "date": "05/11/2026",
+     "currency": "USD",
+     "rate": 3.6,
+     "source": "invoice_payment",
+     "lines": [
+      {
+       "code": "1202003",
+       "name": "افتراضي-B بنك",
+       "debit": 100,
+       "credit": null,
+       "debitBase": 360.0
+      },
+      {
+       "code": "12041005",
+       "name": "افتراضي-D1 عميل",
+       "debit": null,
+       "credit": 100,
+       "creditBase": 360.0
+      }
+     ]
+    },
+    {
+     "number": "000200",
+     "date": "05/11/2026",
+     "currency": "SAR",
+     "source": "FX difference (loss 15.00)",
+     "lines": [
+      {
+       "code": "1209",
+       "name": "تغيير عملة",
+       "debit": 15.0,
+       "credit": null
+      },
+      {
+       "code": "12041005",
+       "name": "افتراضي-D1 عميل",
+       "debit": null,
+       "credit": 15.0
+      }
+     ]
+    },
+    {
+     "number": "000201",
+     "date": "10/11/2026",
+     "currency": "USD",
+     "rate": 3.9,
+     "source": "invoice_payment",
+     "lines": [
+      {
+       "code": "1202003",
+       "name": "افتراضي-B بنك",
+       "debit": 68.33,
+       "credit": null,
+       "debitBase": 266.49
+      },
+      {
+       "code": "12041005",
+       "name": "افتراضي-D1 عميل",
+       "debit": null,
+       "credit": 68.33,
+       "creditBase": 266.49
+      }
+     ]
+    },
+    {
+     "number": "000202",
+     "date": "10/11/2026",
+     "currency": "SAR",
+     "source": "FX difference (gain 10.25)",
+     "lines": [
+      {
+       "code": "12041005",
+       "name": "افتراضي-D1 عميل",
+       "debit": 10.25,
+       "credit": null
+      },
+      {
+       "code": "1209",
+       "name": "تغيير عملة",
+       "debit": null,
+       "credit": 10.25
+      }
+     ]
+    }
+   ],
+   "reports": [
+    "client page and statement: 170.27 SAR | $0.00 USD while the all-currency ledger of 12041005 is 175.02",
+    "trial balance (all to SAR) debit = credit 162,488.67 at that point",
+    "invoice_net_position values payments at the invoice rate",
+    "AFTER deleting the manual rate rows Daftra re-rated the posted journal #000197 to rate 3.74474 (SAR 1,004.83 / 131.06 / 873.76) and transfer journals #000207/#000209/#000210 to rate 3.9: posted foreign journals are not frozen (pw-b-66)"
+   ],
+   "messages": []
+  },
+  "exproExpectation": "Textbook expectation: receivable at the document rate, payment at its own rate, FX difference to an income/expense account. Expro has no multi-currency documents (WP28).",
+  "classification": "not comparable (Daftra books FX differences in asset-type account 1209 and keeps them in the SAR bucket, leaking a net 4.75 SAR credit onto a SAR invoice)",
+  "evidenceIds": [
+   "pw-b-35",
+   "pw-b-36",
+   "pw-b-37",
+   "pw-b-38",
+   "pw-b-39",
+   "pw-b-40",
+   "pw-b-41",
+   "pw-b-42",
+   "pw-b-43",
+   "pw-b-52",
+   "pw-b-53",
+   "pw-b-62",
+   "pw-b-61",
+   "pw-b-63",
+   "pw-b-66"
+  ]
+ },
+ {
+  "id": "B-S07",
+  "title": "Foreign-currency purchase invoice and supplier payment at another rate",
+  "inputs": {
+   "purchase": "#000031 USD 200 on 27/10/2026 (rate 3.75)",
+   "payment": "200 USD on 05/11/2026 (rate 3.60)"
+  },
+  "daftra": {
+   "documents": [
+    "purchase #000031 id 39 (deleted at cleanup)",
+    "payment #000038"
+   ],
+   "journals": [
+    {
+     "number": "000203",
+     "date": "27/10/2026",
+     "currency": "USD",
+     "rate": 3.75,
+     "source": "purchase_order",
+     "lines": [
+      {
+       "code": "511",
+       "name": "تكلفة المبيعات",
+       "debit": 200,
+       "credit": null,
+       "debitBase": 750.0
+      },
+      {
+       "code": "2211008",
+       "name": "مورد افتراضي-B 1",
+       "debit": null,
+       "credit": 200,
+       "creditBase": 750.0
+      }
+     ]
+    },
+    {
+     "number": "000204",
+     "date": "05/11/2026",
+     "currency": "USD",
+     "rate": 3.6,
+     "source": "purchase_order_payment",
+     "lines": [
+      {
+       "code": "2211008",
+       "name": "مورد افتراضي-B 1",
+       "debit": 200,
+       "credit": null,
+       "debitBase": 720.0
+      },
+      {
+       "code": "1202003",
+       "name": "افتراضي-B بنك",
+       "debit": null,
+       "credit": 200,
+       "creditBase": 720.0
+      }
+     ]
+    },
+    {
+     "number": "000205",
+     "date": "05/11/2026",
+     "currency": "SAR",
+     "source": "FX difference (gain 30.00)",
+     "lines": [
+      {
+       "code": "2211008",
+       "name": "مورد افتراضي-B 1",
+       "debit": 30.0,
+       "credit": null
+      },
+      {
+       "code": "1209",
+       "name": "تغيير عملة",
+       "debit": null,
+       "credit": 30.0
+      }
+     ]
+    }
+   ]
+  },
+  "exproExpectation": "Not supported in Expro today.",
+  "classification": "not comparable",
+  "evidenceIds": [
+   "pw-b-44",
+   "pw-b-45"
+  ]
+ },
+ {
+  "id": "B-S08",
+  "title": "Currency transfer between treasuries (SAR to USD and back)",
+  "inputs": {
+   "X1": "37.50 SAR bank B -> treasury B2, to-currency USD, typed rate 0.2666667",
+   "X2": "30.00 SAR, typed rate 0.25 (inconsistent with table)",
+   "X3": "17.50 USD B2 -> bank B in SAR at 3.75"
+  },
+  "daftra": {
+   "documents": [
+    "transfers #6, #7, #8 (cannot be deleted)"
+   ],
+   "journals": [
+    {
+     "number": "000206",
+     "date": "27/10/2026",
+     "currency": "SAR",
+     "source": "treasury_transfer SAR leg",
+     "lines": [
+      {
+       "code": "1209",
+       "name": "تغيير عملة",
+       "debit": 37.5,
+       "credit": null
+      },
+      {
+       "code": "1202003",
+       "name": "افتراضي-B بنك",
+       "debit": null,
+       "credit": 37.5
+      }
+     ]
+    },
+    {
+     "number": "000207",
+     "date": "27/10/2026",
+     "currency": "USD",
+     "rate": 3.75,
+     "source": "treasury_transfer USD leg",
+     "lines": [
+      {
+       "code": "120104",
+       "name": "افتراضي-B خزينة 2",
+       "debit": 10.0,
+       "credit": null,
+       "debitBase": 37.5
+      },
+      {
+       "code": "1209",
+       "name": "تغيير عملة",
+       "debit": null,
+       "credit": 10.0,
+       "creditBase": 37.5
+      }
+     ]
+    },
+    {
+     "number": "000208",
+     "date": "27/10/2026",
+     "currency": "SAR",
+     "source": "treasury_transfer SAR leg (X2)",
+     "lines": [
+      {
+       "code": "1209",
+       "name": "تغيير عملة",
+       "debit": 30.0,
+       "credit": null
+      },
+      {
+       "code": "1202003",
+       "name": "افتراضي-B بنك",
+       "debit": null,
+       "credit": 30.0
+      }
+     ]
+    },
+    {
+     "number": "000209",
+     "date": "27/10/2026",
+     "currency": "USD",
+     "rate": 3.75,
+     "source": "treasury_transfer USD leg (X2, 7.50 USD valued at table rate 3.75)",
+     "lines": [
+      {
+       "code": "120104",
+       "name": "افتراضي-B خزينة 2",
+       "debit": 7.5,
+       "credit": null,
+       "debitBase": 28.13
+      },
+      {
+       "code": "1209",
+       "name": "تغيير عملة",
+       "debit": null,
+       "credit": 7.5,
+       "creditBase": 28.13
+      }
+     ]
+    },
+    {
+     "number": "000210",
+     "date": "27/10/2026",
+     "currency": "USD",
+     "rate": 3.75,
+     "source": "treasury_transfer USD leg (X3)",
+     "lines": [
+      {
+       "code": "1209",
+       "name": "تغيير عملة",
+       "debit": 17.5,
+       "credit": null,
+       "debitBase": 65.63
+      },
+      {
+       "code": "120104",
+       "name": "افتراضي-B خزينة 2",
+       "debit": null,
+       "credit": 17.5,
+       "creditBase": 65.63
+      }
+     ]
+    },
+    {
+     "number": "000211",
+     "date": "27/10/2026",
+     "currency": "SAR",
+     "source": "treasury_transfer SAR leg (X3)",
+     "lines": [
+      {
+       "code": "1202003",
+       "name": "افتراضي-B بنك",
+       "debit": 65.63,
+       "credit": null
+      },
+      {
+       "code": "1209",
+       "name": "تغيير عملة",
+       "debit": null,
+       "credit": 65.63
+      }
+     ]
+    }
+   ]
+  },
+  "exproExpectation": "Expro treasuries are single-currency without cross-currency transfers.",
+  "classification": "not comparable",
+  "evidenceIds": [
+   "pw-b-46",
+   "pw-b-47",
+   "pw-b-48",
+   "pw-b-49",
+   "pw-b-50"
+  ]
+ },
+ {
+  "id": "B-S09",
+  "title": "Currencies with 0 and 3 decimals (purchase documents)",
+  "inputs": {
+   "KWD": "3 x 10.125 KWD auto rate 12.04917",
+   "JPY": "3 x 1,234.5 JPY auto rate 0.02376 (display)"
+  },
+  "daftra": {
+   "documents": [
+    "purchase #000032 KWD id 40",
+    "purchase #000033 JPY id 41 (deleted at cleanup)"
+   ],
+   "journals": [
+    {
+     "number": "000212",
+     "date": "27/10/2026",
+     "currency": "KWD",
+     "rate": 12.04917,
+     "source": "purchase_order",
+     "lines": [
+      {
+       "code": "511",
+       "name": "تكلفة المبيعات",
+       "debit": 30.375,
+       "credit": null,
+       "debitBase": 365.993
+      },
+      {
+       "code": "2211008",
+       "name": "مورد افتراضي-B 1",
+       "debit": null,
+       "credit": 30.375,
+       "creditBase": 365.993
+      }
+     ],
+     "footerBase": 365.99
+    },
+    {
+     "number": "000213",
+     "date": "27/10/2026",
+     "currency": "JPY",
+     "rate": 0.02376,
+     "source": "purchase_order",
+     "lines": [
+      {
+       "code": "511",
+       "name": "تكلفة المبيعات",
+       "debit": 3704,
+       "credit": null,
+       "debitBase": 88
+      },
+      {
+       "code": "2211008",
+       "name": "مورد افتراضي-B 1",
+       "debit": null,
+       "credit": 3704,
+       "creditBase": 88
+      }
+     ],
+     "footerBase": 87.99
+    }
+   ]
+  },
+  "exproExpectation": "Expro rounds to base decimals only (G-25: only 2 decimals tested).",
+  "classification": "not comparable",
+  "evidenceIds": [
+   "pw-b-51"
+  ]
+ },
+ {
+  "id": "B-S10",
+  "title": "Foreign-currency cheque and its collection at another rate",
+  "inputs": {
+   "cheque": "R3 40.00 USD issue 28/10/2026",
+   "collect": "05/11/2026 (rate 3.60)"
+  },
+  "daftra": {
+   "documents": [
+    "receivable cheque id 3 (deleted at cleanup)"
+   ],
+   "journals": [
+    {
+     "number": "000214",
+     "date": "28/10/2026",
+     "currency": "USD",
+     "rate": 3.75,
+     "source": "receivable_cheque_received",
+     "lines": [
+      {
+       "code": "1211",
+       "name": "أوراق القبض",
+       "debit": 40,
+       "credit": null,
+       "debitBase": 150.0
+      },
+      {
+       "code": "12041005",
+       "name": "افتراضي-D1 عميل",
+       "debit": null,
+       "credit": 40,
+       "creditBase": 150.0
+      }
+     ]
+    },
+    {
+     "number": "000215",
+     "date": "05/11/2026",
+     "currency": "USD",
+     "rate": 3.6,
+     "source": "receivable_cheque_collected",
+     "lines": [
+      {
+       "code": "1202003",
+       "name": "افتراضي-B بنك",
+       "debit": 40,
+       "credit": null,
+       "debitBase": 144.0
+      },
+      {
+       "code": "1211",
+       "name": "أوراق القبض",
+       "debit": null,
+       "credit": 40,
+       "creditBase": 144.0
+      }
+     ]
+    }
+   ],
+   "reports": [
+    "1211 keeps a 6.00 SAR debit residual (no FX journal for cheques)"
+   ]
+  },
+  "exproExpectation": "Not supported in Expro.",
+  "classification": "not comparable",
+  "evidenceIds": [
+   "pw-b-58"
+  ]
+ },
+ {
+  "id": "B-S11",
+  "title": "Bank statement tab: CSV import and reconciliation (WP29/E47-BANKREC)",
+  "inputs": {
+   "file": "3 synthetic rows tagged افتراضي-B: 27/10 100 deposit, 27/10 2.50 withdrawal, 05/11 360 deposit",
+   "columns": [
+    "التاريخ",
+    "الوصف",
+    "إيداع",
+    "سحب",
+    "الرقم المرجعي"
+   ]
+  },
+  "daftra": {
+   "documents": [
+    "3 bank_transaction rows (deleted)"
+   ],
+   "journals": [],
+   "reports": [
+    "rows listed with status «لم تطابق»",
+    "match of 360 row with journal #000199 -> «تمت مطابقتها - قيد #000199»"
+   ],
+   "messages": [
+    "شكراً، تم استيراد الملف بنجاح",
+    "تم مطابقة الحركات بنجاح",
+    "قيمة العملية البنكية يجب أن تكون مساوية لقيمة عمليات النظام"
+   ]
+  },
+  "exproExpectation": "Expro has no statement import or matching; WP29 design: matching never edits a journal; import checksummed and idempotent.",
+  "classification": "not comparable (Daftra matching posts and changes no journal; amounts must be equal; unmatch and delete available)",
+  "evidenceIds": [
+   "pw-b-54",
+   "pw-b-55",
+   "pw-b-56",
+   "pw-b-57",
+   "pw-b-59"
+  ]
+ },
+ {
+  "id": "B-S12",
+  "title": "Cleanup behaviours worth a fixture or a guard: orphan journals, stale automatic payments, re-rating",
+  "inputs": {
+   "cheque deletions in status مستلم": [
+    "R2 (journal removed)",
+    "R1, R3, R4, R5 (journal left as orphan)"
+   ],
+   "automatic credit payments": "#000028 54.98 and #000038 USD 40 stayed after their cheques and journals were gone",
+   "rate rows deleted": 3
+  },
+  "daftra": {
+   "documents": [],
+   "journals": [],
+   "reports": [
+    "orphan journal still in trial balance and client ledger until deleted with «حذف قيد»",
+    "stale automatic payment removed only after a new payment on the same invoice triggered recalculation",
+    "posted foreign journals re-rated after manual rate deletion"
+   ],
+   "messages": [
+    "اذا اردت ان تقوم بحذف عملية الدفه الالية يجب اولا ان تقوم بالغاء تفعيل دفع الفاتورة تلقائيا",
+    "You can't delete الحساب for Account ... because it has transactions (accounts 1211, 1212, 55, 216 created by the cheque module cannot be removed)"
+   ]
+  },
+  "exproExpectation": "Expro design keeps cheque documents, their journals and the rate frozen; deleting a cheque must reverse not orphan; accounts are not created lazily.",
+  "classification": "differs (Daftra defects/quirks to avoid, not to copy)",
+  "evidenceIds": [
+   "pw-b-64",
+   "pw-b-65",
+   "pw-b-66",
+   "pw-b-1"
+  ]
+ }
+]
