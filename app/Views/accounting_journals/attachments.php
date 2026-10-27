@@ -1,8 +1,8 @@
 <?php
 /**
- * @var int $journal_id Zero while the journal is not saved yet.
+ * @var int                                                                                   $journal_id Zero while the journal is not saved yet.
  * @var list<array{id: int, name: string, size: string, by: string, at: string, url: string}> $attachments
- * @var bool $can_attach
+ * @var bool                                                                                  $can_attach
  */
 
 use App\Libraries\Accounting\JournalAttachments;

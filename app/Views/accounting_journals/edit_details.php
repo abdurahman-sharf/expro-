@@ -1,17 +1,16 @@
 <?php
 /**
- * @var object $journal
+ * @var object       $journal
  * @var list<object> $cost_centers
- * @var string $currency
- * @var string $number_label
- * @var string $source_label
- * @var bool $show_branch
- * @var string|null $notice
+ * @var string       $currency
+ * @var string       $number_label
+ * @var string       $source_label
+ * @var bool         $show_branch
+ * @var string|null  $notice
  */
-
-$format    = static fn (?string $value): string => to_currency_no_money($value ?? '0');
-$date      = static fn (?string $value): string => $value === null || strtotime($value) === false ? '' : to_date(strtotime($value));
-$jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
+$format        = static fn (?string $value): string => to_currency_no_money($value ?? '0');
+$date          = static fn (?string $value): string => $value === null || strtotime($value) === false ? '' : to_date(strtotime($value));
+$jsonFlags     = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 $centerOptions = static function (?int $selected, string $currentLabel) use ($cost_centers): string {
     $html  = '<option value="">' . esc(lang('Accounting_journals.no_cost_center')) . '</option>';
     $found = false;
@@ -19,7 +18,7 @@ $centerOptions = static function (?int $selected, string $currentLabel) use ($co
     foreach ($cost_centers as $center) {
         $isSelected = $selected === (int) $center->cost_center_id;
         $found      = $found || $isSelected;
-        $html      .= '<option value="' . (int) $center->cost_center_id . '"' . ($isSelected ? ' selected' : '') . '>' . esc($center->code . ' - ' . $center->name) . '</option>';
+        $html .= '<option value="' . (int) $center->cost_center_id . '"' . ($isSelected ? ' selected' : '') . '>' . esc($center->code . ' - ' . $center->name) . '</option>';
     }
 
     if ($selected !== null && ! $found) {
