@@ -242,7 +242,7 @@ final class InterBranchSettlements
 
     public function find(int $settlementId): ?object
     {
-        return $this->query()->where('s.settlement_id', $settlementId)->get()->getRow();
+        return $this->query()->where('st.settlement_id', $settlementId)->get()->getRow();
     }
 
     /**
@@ -258,16 +258,20 @@ final class InterBranchSettlements
             return ['total' => 0, 'rows' => []];
         }
 
-        $count = $this->db->table('interbranch_settlements s')->where('s.company_id', CompanyContext::id());
+        $count = $this->db->table('interbranch_settlements st')->where('st.company_id', CompanyContext::id());
+
+        if ($branchIds !== null) {
+            $count->groupStart()->whereIn('st.branch_id', $branchIds)->orWhereIn('st.counterpart_branch_id', $branchIds)->groupEnd();
+        }
+
+        $total = $count->countAllResults();
         $rows  = $this->query();
 
         if ($branchIds !== null) {
-            foreach ([$count, $rows] as $builder) {
-                $builder->groupStart()->whereIn('s.branch_id', $branchIds)->orWhereIn('s.counterpart_branch_id', $branchIds)->groupEnd();
-            }
+            $rows->groupStart()->whereIn('st.branch_id', $branchIds)->orWhereIn('st.counterpart_branch_id', $branchIds)->groupEnd();
         }
 
-        return ['total' => $count->countAllResults(), 'rows' => $rows->orderBy('s.settlement_id', 'DESC')->limit($limit, $offset)->get()->getResult()];
+        return ['total' => $total, 'rows' => $rows->orderBy('st.settlement_id', 'DESC')->limit($limit, $offset)->get()->getResult()];
     }
 
     /**
@@ -280,14 +284,14 @@ final class InterBranchSettlements
 
     private function query(): BaseBuilder
     {
-        return $this->db->table('interbranch_settlements s')
-            ->select('s.*, b.code AS branch_code, cb.code AS counterpart_code, pb.code AS payer_code, f.name AS from_name, t.name AS to_name')
-            ->join('branches b', 'b.branch_id = s.branch_id')
-            ->join('branches cb', 'cb.branch_id = s.counterpart_branch_id')
-            ->join('branches pb', 'pb.branch_id = s.payer_branch_id', 'left')
-            ->join('treasuries f', 'f.treasury_id = s.from_treasury_id', 'left')
-            ->join('treasuries t', 't.treasury_id = s.to_treasury_id', 'left')
-            ->where('s.company_id', CompanyContext::id());
+        return $this->db->table('interbranch_settlements st')
+            ->select('st.*, b.code AS branch_code, cb.code AS counterpart_code, pb.code AS payer_code, f.name AS from_name, t.name AS to_name')
+            ->join('branches b', 'b.branch_id = st.branch_id')
+            ->join('branches cb', 'cb.branch_id = st.counterpart_branch_id')
+            ->join('branches pb', 'pb.branch_id = st.payer_branch_id', 'left')
+            ->join('treasuries f', 'f.treasury_id = st.from_treasury_id', 'left')
+            ->join('treasuries t', 't.treasury_id = st.to_treasury_id', 'left')
+            ->where('st.company_id', CompanyContext::id());
     }
 
     /**
@@ -390,6 +394,10 @@ final class InterBranchSettlements
         $owing   = $isFirst ? $plan->firstPayable : $plan->secondPayable;
         $lines   = [];
 
+        if ($plan->kind === SettlementPlan::CASH && $branchId === $plan->payeeBranchId) {
+            $lines[] = new JournalLineDraft((int) $accounts['to'], debit: $plan->amount);
+        }
+
         if (bccomp($owing, '0', SaleAmounts::SCALE) > 0) {
             $lines[] = new JournalLineDraft($payable, debit: $owing);
         }
@@ -398,10 +406,8 @@ final class InterBranchSettlements
             $lines[] = new JournalLineDraft($receivable, credit: $owed);
         }
 
-        if ($plan->kind === SettlementPlan::CASH) {
-            $lines[] = $branchId === $plan->payeeBranchId
-                ? new JournalLineDraft((int) $accounts['to'], debit: $plan->amount)
-                : new JournalLineDraft((int) $accounts['from'], credit: $plan->amount);
+        if ($plan->kind === SettlementPlan::CASH && $branchId === $plan->payerBranchId) {
+            $lines[] = new JournalLineDraft((int) $accounts['from'], credit: $plan->amount);
         }
 
         $codes = $this->codesOf($branchId, $otherId);
