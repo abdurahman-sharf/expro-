@@ -848,6 +848,51 @@ class ExpensePostingTest extends CIUnitTestCase
         $this->assertSame(0, $this->postedJournals($expenseId));
     }
 
+    public function testSaveValue_KeepsTheBranchOfAnExpenseThatIsPaidInCashAgainAfterBeingOwed(): void
+    {
+        $second   = $this->createBranch('B2');
+        $category = $this->category();
+        $data     = $this->expenseData('40.00', '0', 'Cash', $category);
+
+        $data['treasury_id'] = $this->treasury('Remote drawer', $second);
+
+        $expenseId = $this->saveExpense($data);
+
+        unset($data['treasury_id']);
+
+        $data['payment_type'] = 'Due';
+        $this->assertSame($expenseId, $this->saveExpense($data, $expenseId));
+
+        $data['payment_type'] = 'Cash';
+        $this->assertSame($expenseId, $this->saveExpense($data, $expenseId));
+
+        $row = $this->accountingDb()->table('expenses')->where('expense_id', $expenseId)->get()->getRow();
+
+        $this->assertSame([$second, null], [(int) $row->branch_id, $row->treasury_id]);
+        $this->assertSame([$this->accountId('expenses_default') . '=40.00/0.00', $this->accountId('cash') . '=0.00/40.00'], $this->postedLines(self::SOURCE, $expenseId));
+        $this->assertSame($second, (int) $this->journalsOfSource(self::SOURCE, $expenseId)[2]->branch_id);
+    }
+
+    public function testSaveValue_TakesTheTreasuryTheEmployeePaysFromWhenTheFormAsksForTheDefault(): void
+    {
+        $second   = $this->createBranch('B2');
+        $category = $this->category();
+        $data     = $this->expenseData('40.00', '0', 'Cash', $category);
+
+        $data['treasury_id'] = $this->treasury('Remote drawer', $second);
+
+        $expenseId = $this->saveExpense($data);
+
+        $data['treasury_id'] = 0;
+
+        $this->assertSame($expenseId, $this->saveExpense($data, $expenseId));
+
+        $row = $this->accountingDb()->table('expenses')->where('expense_id', $expenseId)->get()->getRow();
+
+        $this->assertSame([$second, null], [(int) $row->branch_id, $row->treasury_id]);
+        $this->assertSame([$this->accountId('expenses_default') . '=40.00/0.00', $this->accountId('cash') . '=0.00/40.00'], $this->postedLines(self::SOURCE, $expenseId));
+    }
+
     public function testSaveValue_StampsNothingOnANewExpenseThatIsAlreadyMarkedDeleted(): void
     {
         $data            = $this->expenseData('100.00');
