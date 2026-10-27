@@ -163,6 +163,15 @@ class CashupExpectationTest extends CIUnitTestCase
         }
     }
 
+    public function testExpected_LeavesOutQuotesAndWorkOrdersThatTookNoCash(): void
+    {
+        $this->sellFor('250.00', 'Cash', '2026-10-20 12:00:00', 1, 'completed', '0', SALE_TYPE_QUOTE);
+        $this->sellFor('90.00', 'Cash', '2026-10-20 12:00:00', 1, 'completed', '0', SALE_TYPE_WORK_ORDER);
+        $this->sellFor('10.00', 'Cash', '2026-10-20 12:00:00', 1, 'completed', '0', SALE_TYPE_INVOICE);
+
+        $this->assertSame('110.0000', $this->expected());
+    }
+
     public function testExpected_LeavesOutSalesThatAreNotCompleted(): void
     {
         $saleId = $this->sellFor('250.00');

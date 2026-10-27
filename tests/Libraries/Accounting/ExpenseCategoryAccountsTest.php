@@ -222,6 +222,24 @@ class ExpenseCategoryAccountsTest extends CIUnitTestCase
         $this->assertSame($sorted, $codes);
     }
 
+    public function testOptions_LeavesOutAnAccountThatIsNotForExpensesEvenWhenItIsFreeAndOpen(): void
+    {
+        $asset   = $this->customAccount('11', '1199', 'Petty drawer');
+        $revenue = $this->customAccount('4', '4990', 'Other income');
+        $listed  = array_map(static fn (object $option): int => (int) $option->account_id, $this->accounts->options());
+
+        $this->assertNotContains($asset, $listed);
+        $this->assertNotContains($revenue, $listed);
+
+        $category = $this->category();
+
+        foreach ([$asset, $revenue] as $account) {
+            $failure = $this->refusal(fn () => $this->accounts->assign($category, $account, $this->router));
+
+            $this->assertSame(AccountingError::ExpenseCategoryAccountInvalid, $failure->error);
+        }
+    }
+
     public function testMayAssign_IsForWhoCanChangeTheRoutingInEveryBranch(): void
     {
         $this->assertTrue($this->accounts->mayAssign($this->router));

@@ -26,7 +26,7 @@
 - **مطابقة `S-25` (مرصودة):** ملف التثبيت `tests/Support/Parity/T-25.json` بثلاث حالات: `expense-200-with-15-percent-tax` **مطابقة تامة** (مدين `541` بـ200، مدين `215002` بـ30، دائن الخزينة 230)، و`expense-journal-owes-nobody` **مطابقة تامة** (لا طرف في أي سطر)، و`amount-entered-includes-the-tax` **يختلف**: في دفترة يُدخل المستخدم 200 وتُضاف الضريبة فيصير 230، وعندنا `amount` هو المدفوع شاملًا الضريبة و`tax_amount` جزؤه (القسم 3، الافتراض 1). ويقرؤه `ExpensePostingBuilderTest` فيبني القيد من الملف نفسه. (ما عدا هذه الحالة: **لا ادعاء مطابقة**، كله افتراض مدوَّن.)
 - **اختبارات جديدة (218 اختبارًا في 12 ملفًا، ملف لكل صنف):** `ExpensePostingBuilderTest` (18) و`ExpensePostingTest` (48: كل مسار حفظ وتعديل وحذف عبر نموذج المصروف الحقيقي، الفترة المقفلة، الفرع، نطاق السحب والإيداع، التراجع الكامل وتسجيل الفشل، التاريخي، المحاسبة المعطَّلة، توازن الميزان بعد كل تغيير) و`CashupPostingBuilderTest` (7) و`CashupPostingTest` (30) و`CashupExpectationTest` (13) و`DocumentJournalsTest` (24) و`ExpenseCategoryAccountsTest` (13) و`ExpensesControllerTest` (23) و`ExpensesCategoriesControllerTest` (9) و`tests/Models/ExpenseTest` (13) و`tests/Models/CashupTest` (12) و`ExpensesAccountingMigrationTest` (8).
 - **اختبارات أُضيفت إلى ملفات قائمة (22):** `CashupControllerTest` (12: الشاشة والنقد المتوقع والرفض بكلمات) و`AccountingSettingsTest` (3) و`AccountServiceTest` (2) و`JournalServiceTest` (2: قفل العكس اليدوي وعكس آلي لمصدر المستند) و`TreasuryServiceTest` (1: خزينة استُعملت في مصروف أو إقفال تُعدّ مستعمَلة) و`TrialBalanceTest` (1: **الميزان متوازن للشركة ولكل فرع بعد المصروفات**) و`AccountingJournalsControllerTest` (1: زر العكس مخفي لقيدي المصروف والإقفال).
-- **تعطيل الحراس:** <!-- MUT-SUMMARY-START -->**قيد القياس: قيس 81 من 219 حارسًا حتى الآن، كُشف منها 78** (الجدول في 2.1 يُملأ دفعةً دفعة).<!-- MUT-SUMMARY-END -->
+- **تعطيل الحراس:** <!-- MUT-SUMMARY-START -->**قيد القياس: قيس 81 من 219 حارسًا حتى الآن، كُشف منها 80** (الجدول في 2.1 يُملأ دفعةً دفعة).<!-- MUT-SUMMARY-END -->
 - **الجولة المنتظمة الأخيرة (الملفات الجديدة والمتغيرة وذات الصلة، كل ملف وحده على `ospos_test_b`):** @@RUNS@@ (المجموعة الكاملة يشغّلها المُدمِج، ولم أشغّلها).
 - **التنسيق:** شُغّل `php-cs-fixer` (إعداد `.php-cs-fixer.no-header.php`) على كل ملفات `app/` الجديدة (11 ملفًا: صفر تغيير) وعلى المكتبات والمتحكمات المعدَّلة، فاقتصر الإصلاح على محاذاة مفتاح الإعداد الجديد في `AccountingSettings` و`AccountingSetup`. أما ملفات `app/Controllers` و`app/Models` و`tabular_helper.php` القديمة التي لمستُ فيها **سطورًا قليلة** فلم أُعد تنسيقها كلها (تغيير يغطي الملف بأكمله ويصعّب على المُدمِج الدمج)، وكل سطر جديد فيها على المعيار. واختبارات الملفات الجديدة على PSR-12 (صفر مخالفة).
 
@@ -105,7 +105,7 @@
 | `G68` | only the expenses of the branch count for another branch | مكشوف | 1 |
 | `G69` | only cash counts | مكشوف | 2 |
 | `G70` | sales outside the time of the cash-up do not count | مكشوف بعد تقوية الاختبار | 1 |
-| `G71` | only the kinds of sale that take cash count | غير مكشوف | 0 |
+| `G71` | only the kinds of sale that take cash count | مكشوف بعد تقوية الاختبار | 1 |
 | `G72` | choosing the account of a category needs the permission to change the routing | مكشوف | 1 |
 | `G73` | choosing the account of a category needs every branch | مكشوف | 1 |
 | `G74` | the account of a category must be one that takes expenses (assertUsable) | مكشوف | 3 |
@@ -114,7 +114,7 @@
 | `G77` | the permission shown to the screen needs every branch too (mayAssign) | مكشوف | 1 |
 | `G78` | accounts that are groups are not offered | مكشوف | 2 |
 | `G79` | inactive accounts are not offered | مكشوف | 1 |
-| `G80` | only expense accounts are offered | غير مكشوف | 0 |
+| `G80` | only expense accounts are offered | مكشوف بعد تقوية الاختبار | 1 |
 | `H68` | the times of the cash-up count when the screen asks for them | غير مكشوف | 0 |
 <!-- MUT-TABLE-END -->
 
