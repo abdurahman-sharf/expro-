@@ -14,7 +14,7 @@ return [
     'accounting_receivables'       => 'Customer Balances',
     'accounting_receivables_desc'  => 'See what each customer owes or holds in credit, by invoice and by age.',
     'accounting_reports'           => 'Financial Reports',
-    'accounting_reports_desc'      => 'Read the trial balance and the statement of any account, for one branch, several or the whole company.',
+    'accounting_reports_desc'      => 'Read the trial balance, the income statement, the balance sheet and the statement of any account, for one branch, several or the whole company.',
     'accounting_routing'           => 'Account Routing',
     'accounting_routing_desc'      => 'Choose the account each part of a sale is posted to.',
     'accounting_settings'          => 'Accounting Settings',

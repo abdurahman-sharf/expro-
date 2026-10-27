@@ -22,6 +22,7 @@ return [
     'name'                    => 'Name',
     'name_required'           => 'The name is required.',
     'new'                     => 'New account',
+    'nominal_note'            => 'The balances of revenue and expense accounts add up from the start of the books, not from the start of the fiscal year, until the closing of the year is decided. The income statement reads them by period.',
     'parent'                  => 'Parent account',
     'path'                    => 'Account path',
     'select_hint'             => 'Pick an account in the tree to see its details and sub-accounts.',

@@ -79,6 +79,8 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
     <p class="acc-scope-note text-secondary small" role="note"><span class="bi bi-info-circle" aria-hidden="true"></span> <?= lang('Accounting.scope_note') ?></p>
 <?php endif; ?>
 
+<p class="text-secondary small mb-3" id="chart_nominal_note"><span class="bi bi-info-circle" aria-hidden="true"></span> <?= lang('Accounting_chart.nominal_note') ?></p>
+
 <div class="acc-chart">
     <button class="btn btn-outline-secondary btn-sm acc-tree-toggle d-lg-none" type="button" data-bs-toggle="collapse" data-bs-target="#chart_tree" aria-expanded="false" aria-controls="chart_tree">
         <span class="bi bi-diagram-3" aria-hidden="true">&nbsp;</span><?= lang('Accounting_chart.tree') ?>

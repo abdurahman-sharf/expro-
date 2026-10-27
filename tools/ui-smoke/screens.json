@@ -1459,6 +1459,26 @@
       "id": "accounting-reports-ledger-group",
       "group": "accounting",
       "path": "/accounting_reports/ledger?account=20"
+    },
+    {
+      "id": "accounting-statements-income-statement",
+      "group": "accounting",
+      "path": "/accounting_statements/income_statement"
+    },
+    {
+      "id": "accounting-statements-income-statement-detail",
+      "group": "accounting",
+      "path": "/accounting_statements/income_statement?level=3&display=activity"
+    },
+    {
+      "id": "accounting-statements-balance-sheet",
+      "group": "accounting",
+      "path": "/accounting_statements/balance_sheet"
+    },
+    {
+      "id": "accounting-statements-balance-sheet-detail",
+      "group": "accounting",
+      "path": "/accounting_statements/balance_sheet?level=5&display=hide_zero&entities=1"
     }
   ]
 }

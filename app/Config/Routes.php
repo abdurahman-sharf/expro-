@@ -93,6 +93,12 @@ $routes->group('accounting_reports', static function (RouteCollection $routes): 
     $routes->get('ledger', 'AccountingReports::getLedger');
 });
 
+$routes->group('accounting_statements', static function (RouteCollection $routes): void {
+    $routes->get('/', 'AccountingStatements::getIncomeStatement');
+    $routes->get('income_statement', 'AccountingStatements::getIncomeStatement');
+    $routes->get('balance_sheet', 'AccountingStatements::getBalanceSheet');
+});
+
 $routes->group('accounting_treasuries', static function (RouteCollection $routes): void {
     $routes->get('/', 'AccountingTreasuries::getIndex');
     $routes->get('search', 'AccountingTreasuries::getSearch');
