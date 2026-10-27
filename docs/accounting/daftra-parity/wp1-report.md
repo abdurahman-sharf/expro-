@@ -174,3 +174,19 @@ DETECTED  G48-22 the expenses report is refused to an employee of some branches 
 DETECTED  G48-23 the expenses report is refused to an employee of some branches (graph): Tests: 20, Assertions: 216, Failures: 1.; failing: 1
 10 of 10 guards detected
 ```
+
+### الدفعة 7
+
+```
+DETECTED  G48-24 the company-wide check looks at the branches of the employee: Tests: 25, Assertions: 285, Failures: 2.; failing: 2
+DETECTED  G48-25 a sale of another branch is not found: Tests: 25, Assertions: 287, Failures: 1.; failing: 1
+DETECTED  G48-26 a receiving of another branch is not found: Tests: 25, Assertions: 287, Failures: 1.; failing: 1
+DETECTED  G48-27 the inventory screen lists the locations of the branches: Tests: 25, Assertions: 283, Failures: 1.; failing: 1
+DETECTED  G48-28 the date screen of the summary reports lists the locations of the branches: Tests: 25, Assertions: 283, Failures: 1.; failing: 1
+DETECTED  G48-29 the screen of receivings by date lists the locations of the branches: Tests: 25, Assertions: 283, Failures: 1.; failing: 1
+DETECTED  G48-30 the report page says whose figures it holds: Tests: 25, Assertions: 278, Failures: 1.; failing: 1
+DETECTED  G48-31 the report scope reads the branches of the employee: Tests: 25, Assertions: 279, Failures: 2.; failing: 2
+DETECTED  G48-32 the label tells a partial scope from the company: Tests: 17, Assertions: 35, Failures: 1.; failing: 1
+DETECTED  G48-33 the dashboard hides expenses from an employee of some branches: Tests: 9, Assertions: 54, Failures: 1.; failing: 1
+10 of 10 guards detected
+```
