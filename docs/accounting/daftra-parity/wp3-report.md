@@ -80,10 +80,10 @@
 | `G41` | money that came back turns the sides around | مكشوف | 1 |
 | `G42` | a cash-up is checked against the branches of the employee (plan, followed) | مكشوف بعد تقوية الاختبار | 2 |
 | `G43` | a cash-up is checked against the branches of the employee (plan, deleted or moved out) | مكشوف بعد تقوية الاختبار | 2 |
-| `G44` | deleting a cash-up is checked against the branches of the employee (cancel) | مكشوف | 1 |
+| `G44` | deleting a cash-up is checked against the branches of the employee (cancel) | مكشوف | 2 |
 | `G45` | a cash-up saved before the books followed it never gets a journal (legacy rule) | مكشوف | 2 |
 | `G46` | a cash-up closed before accounting starts is not followed (follows) | مكشوف | 3 |
-| `G47` | a cash-up with nothing counted yet is still open and posts nothing | مكشوف | 1 |
+| `G47` | a cash-up with nothing counted yet is still open and posts nothing | مكشوف | 2 |
 | `G48` | a change that does not name the counted cash keeps the counted cash of the stored cash-up | مكشوف بعد تقوية الاختبار | 1 |
 | `G49` | the expected cash and the difference are never taken from the form | مكشوف بعد تقوية الاختبار | 1 |
 | `G50` | a new cash-up is stamped with the treasury of the employee | مكشوف | 4 |
