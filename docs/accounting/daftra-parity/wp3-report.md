@@ -222,7 +222,7 @@
 | `H92` | the employee who closes the cash-up is the actor when none is given | مكشوف بعد تقوية الاختبار | 1 |
 | `H94` | the ledger state is read only with accounting on (search) | مكشوف | 1 |
 | `H95` | the ledger state is read only with accounting on (get_info) | مكشوف | 1 |
-| `H96` | a deleted cash-up is marked deleted by the delete | مكشوف | 2 |
+| `H96` | a deleted cash-up is marked deleted by the delete | مكشوف | 4 |
 | `H97` | the ledger state of one cash-up is not unposted once deleted (get_info) | مكشوف بعد تقوية الاختبار | 1 |
 | `H100` | the category is saved with its account in one transaction | مكشوف | 3 |
 | `H101` | the account is assigned only when the category was saved | مكشوف بعد تقوية الاختبار | 1 |
