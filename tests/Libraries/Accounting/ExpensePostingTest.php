@@ -14,7 +14,6 @@ use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
-use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -76,44 +75,9 @@ class ExpensePostingTest extends CIUnitTestCase
         return $failure;
     }
 
-    /**
-     * @return list<string> Every statement the database ran while the action ran.
-     */
-    private function queriesOf(callable $action): array
-    {
-        $queries  = [];
-        $listener = static function ($query) use (&$queries): void {
-            $queries[] = (string) $query->getQuery();
-        };
-
-        Events::on('DBQuery', $listener);
-
-        try {
-            $action();
-        } finally {
-            Events::removeListener('DBQuery', $listener);
-        }
-
-        return $queries;
-    }
-
     private function readsExpenseRow(string $sql): bool
     {
         return preg_match('/^SELECT .*FROM\s+`?' . preg_quote($this->accountingDb()->prefixTable('expenses'), '/') . '`?\s+WHERE expense_id = \d+/s', trim($sql)) === 1;
-    }
-
-    /**
-     * @param list<string> $queries
-     */
-    private function firstIndexOf(array $queries, callable $match): int
-    {
-        foreach ($queries as $index => $sql) {
-            if ($match($sql)) {
-                return $index;
-            }
-        }
-
-        return PHP_INT_MAX;
     }
 
     private function assertRefused(AccountingError|PostingError|BranchError $error): void

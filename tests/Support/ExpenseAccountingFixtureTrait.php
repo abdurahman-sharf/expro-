@@ -7,6 +7,7 @@ use App\Libraries\Accounting\TreasuryService;
 use App\Models\Cashup;
 use App\Models\Expense;
 use App\Models\Expense_category;
+use CodeIgniter\Events\Events;
 
 /**
  * What a test needs to put expenses and cash-ups through the real models with accounting on, and
@@ -275,5 +276,40 @@ trait ExpenseAccountingFixtureTrait
         $this->assertSame($this->balanceOf((int) $treasuries->accountOf($treasuryId)), bcadd($balance, '0', 2));
 
         return bcadd($balance, '0', 2);
+    }
+
+    /**
+     * @return list<string> Every statement the database ran while the action ran.
+     */
+    protected function queriesOf(callable $action): array
+    {
+        $queries  = [];
+        $listener = static function ($query) use (&$queries): void {
+            $queries[] = (string) $query->getQuery();
+        };
+
+        Events::on('DBQuery', $listener);
+
+        try {
+            $action();
+        } finally {
+            Events::removeListener('DBQuery', $listener);
+        }
+
+        return $queries;
+    }
+
+    /**
+     * @param list<string> $queries
+     */
+    protected function firstIndexOf(array $queries, callable $match): int
+    {
+        foreach ($queries as $index => $sql) {
+            if ($match($sql)) {
+                return $index;
+            }
+        }
+
+        return PHP_INT_MAX;
     }
 }

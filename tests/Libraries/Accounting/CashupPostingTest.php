@@ -84,6 +84,11 @@ class CashupPostingTest extends CIUnitTestCase
         return $this->accountingDb()->table('cash_up')->where('cashup_id', $cashupId)->get()->getRow();
     }
 
+    private function readsCashupRow(string $sql): bool
+    {
+        return preg_match('/^SELECT .*FROM\s+`?' . preg_quote($this->accountingDb()->prefixTable('cash_up'), '/') . '`?\s+WHERE cashup_id = \d+/s', trim($sql)) === 1;
+    }
+
     /**
      * @return list<mixed>
      */
@@ -574,6 +579,57 @@ class CashupPostingTest extends CIUnitTestCase
         $this->assertNotNull($cashupId);
         $this->assertSame([null, null, null, null], $this->claimedColumns($cashupId));
         $this->assertSame(0, $this->countRows('accounting_journals'));
+    }
+
+    public function testSaveValue_JudgesACashUpByTheEmployeeWhoClosesItWhenNoActorIsGiven(): void
+    {
+        $second  = $this->createBranch('B2');
+        $limited = $this->employeeWithGrants([], [1]);
+        $remote  = $this->employeeWithGrants([], [$second]);
+
+        $cashupId = $this->saveCashup($this->cashupData('90.00', '100', '0', '2026-10-20 08:00:00', '2026-10-20 18:00:00', $remote), NEW_ENTRY, $remote);
+        $data     = $this->cashupData('60.00', '100', '0', '2026-10-20 08:00:00', '2026-10-20 18:00:00', $limited);
+
+        $this->assertFalse($this->cashups->save_value($data, $cashupId));
+        $this->assertSame(BranchError::NotAllowed, $this->failure()->error);
+
+        $own = $this->cashupData('60.00', '100', '0', '2026-10-20 08:00:00', '2026-10-20 18:00:00', $limited);
+
+        $this->assertTrue($this->cashups->save_value($own, NEW_ENTRY));
+        $this->assertSame($limited, (int) $this->journalsOfSource(self::SOURCE, (int) $own['cashup_id'])[0]->created_by);
+    }
+
+    public function testSaveValue_ReadsTheStoredCashUpUnderALockBeforeChangingIt(): void
+    {
+        $this->aDayOfCash();
+
+        $cashupId = $this->saveCashup($this->cashupData('485.50'));
+        $queries  = $this->queriesOf(fn () => $this->saveCashup($this->cashupData('490.00'), $cashupId));
+        $reads    = array_values(array_filter($queries, fn (string $sql): bool => $this->readsCashupRow($sql)));
+
+        $this->assertCount(1, $reads);
+        $this->assertStringEndsWith('FOR UPDATE', trim($reads[0]));
+        $this->assertLessThan($this->firstIndexOf($queries, static fn (string $sql): bool => str_starts_with($sql, 'UPDATE') && str_contains($sql, 'cash_up')), $this->firstIndexOf($queries, fn (string $sql): bool => $this->readsCashupRow($sql)));
+    }
+
+    public function testDeleteList_LocksTheCashUpsInTheOrderOfTheirNumbers(): void
+    {
+        $this->aDayOfCash();
+
+        $first  = $this->saveCashup($this->cashupData('485.50'));
+        $second = $this->saveCashup($this->cashupData('490.00'));
+        $third  = $this->saveCashup($this->cashupData('495.00'));
+
+        $queries = $this->queriesOf(fn () => $this->cashups->delete_list([$third, $first, $second, $first], $this->clerkId));
+        $locked  = [];
+
+        foreach ($queries as $sql) {
+            if ($this->readsCashupRow($sql) && preg_match('/cashup_id = (\d+)/', $sql, $found) === 1) {
+                $locked[] = (int) $found[1];
+            }
+        }
+
+        $this->assertSame([$first, $second, $third], $locked);
     }
 
     public function testUnposted_ListsOnlyTheCashUpsTheBooksNeverFollowed(): void
