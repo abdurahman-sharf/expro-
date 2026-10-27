@@ -894,7 +894,7 @@ class Sale extends Model
             $this->db->query('SELECT sale_id FROM ' . $this->db->prefixTable('sales') . ' WHERE sale_id = ? FOR UPDATE', [$salesData['return_of_sale_id']]);
         }
 
-        $discountPlan = $this->invoiceDiscountPlan($items, $saleType, $salesData['return_of_sale_id'], $invoiceDiscount, $saleId);
+        $discountPlan = $this->invoiceDiscountPlan($items, $saleType, $salesData['return_of_sale_id'], $invoiceDiscount, $saleId, $saleStatus == COMPLETED);
 
         if ($discountPlan instanceof InvoiceDiscountProblem) {
             $this->db->transRollback();
@@ -1083,12 +1083,13 @@ class Sale extends Model
      * The discount on the whole of a sale as it is saved, from the lines being saved and what was
      * entered, or for a return from the sale it takes its goods back from. It is worked out here, after
      * the sale a return comes from is locked, so that what is saved is what the books of that sale
-     * allow. The figures the taxes of the lines were worked out with must be the ones saved.
+     * allow. The taxes of a completed sale were worked out with the shares its lines carried, and those
+     * must be the ones saved. A sale that is only suspended has no taxes yet.
      *
      * @param array<int|string, array<string, mixed>> $items
      * @param array{type: int, value: string}|null    $invoiceDiscount
      */
-    private function invoiceDiscountPlan(array $items, int $saleType, ?int $returnOfSaleId, ?array $invoiceDiscount, int $saleId): InvoiceDiscountPlan|InvoiceDiscountProblem
+    private function invoiceDiscountPlan(array $items, int $saleType, ?int $returnOfSaleId, ?array $invoiceDiscount, int $saleId, bool $taxed): InvoiceDiscountPlan|InvoiceDiscountProblem
     {
         $decimals = totals_decimals();
 
@@ -1106,7 +1107,7 @@ class Sale extends Model
             return $plan;
         }
 
-        foreach ($items as $key => $row) {
+        foreach ($taxed ? $items : [] as $key => $row) {
             if (array_key_exists('invoice_discount_share', $row) && bccomp((string) $row['invoice_discount_share'], $plan->share($key), InvoiceDiscount::SCALE) !== 0) {
                 return InvoiceDiscountProblem::Changed;
             }
