@@ -154,4 +154,19 @@ class ReturnDiscountSharesTest extends CIUnitTestCase
         $this->assertSame(['50.0000', '25.0000'], $kept);
         $this->assertSame(['37.5000'], (new ReturnDiscountShares())->forReturn($origin, $this->returning([[$item, '-5', '100']])), 'Five of ten units take half of the 75 given for the item');
     }
+
+    public function testForReturn_HoldsTheSharesToWhatIsLeftWhenRoundingEachReturnUpWouldTakeMoreThanTheDiscount(): void
+    {
+        $item   = $this->item('0.00');
+        $origin = $this->buy([$this->purchaseLine($item, 0, '10', '1')], -1, null, null, InvoiceDiscount::of(FIXED, '0.05'));
+        $shares = [];
+
+        foreach (['3', '3', '3', '1'] as $units) {
+            $return   = $this->buy([$this->purchaseLine($item, 0, '-' . $units, '1')], -1, null, $origin);
+            $shares[] = bcadd((string) $this->accountingDb()->table('receivings_items')->where('receiving_id', $return)->get()->getRow()->invoice_discount_share, '0', 4);
+        }
+
+        $this->assertSame(['0.0200', '0.0200', '0.0100', '0.0000'], $shares, 'A third of 0.05 is 0.0167, which rounds up to 0.02 each time; the third return is held to the 0.01 that is left');
+        $this->assertSame('0.05', bcadd(array_reduce($shares, static fn (string $sum, string $share): string => bcadd($sum, $share, 4), '0'), '0', 2));
+    }
 }
