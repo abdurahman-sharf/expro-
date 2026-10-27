@@ -248,7 +248,7 @@ class AccountingInterBranch extends AccountingController
             ['branches'    => lang('Accounting_treasuries.settlement_pair'), 'sortable' => false, 'escape' => false],
             ['kind'        => lang('Accounting_treasuries.settlement_kind'), 'sortable' => false],
             ['amount'      => lang('Accounting_treasuries.settlement_amount'), 'sortable' => false, 'escape' => false],
-            ['treasuries'  => lang('Accounting_treasuries.settlement_treasuries'), 'sortable' => false],
+            ['treasuries'  => lang('Accounting_treasuries.settlement_treasuries'), 'sortable' => false, 'escape' => false],
             ['note'        => lang('Accounting_treasuries.note_label'), 'sortable' => false],
             ['status'      => lang('Accounting_treasuries.status'), 'sortable' => false, 'escape' => false],
         ];
@@ -277,7 +277,7 @@ class AccountingInterBranch extends AccountingController
             'branches'      => $this->amountCell((string) $settlement->branch_code) . ' <span class="bi bi-arrow-left-right" aria-hidden="true"></span> ' . $this->amountCell((string) $settlement->counterpart_code),
             'kind'          => lang('Accounting_treasuries.settlement_kind_' . $settlement->kind),
             'amount'        => $this->amountCell($this->formatAmount((string) $settlement->amount)),
-            'treasuries'    => $settlement->from_name === null ? '' : $settlement->from_name . ' → ' . $settlement->to_name,
+            'treasuries'    => $settlement->from_name === null ? '' : '<bdi>' . esc($settlement->from_name) . '</bdi> <span class="bi bi-arrow-right" aria-hidden="true"></span> <bdi>' . esc($settlement->to_name) . '</bdi>',
             'note'          => $settlement->note,
             'status'        => '<span class="badge ' . ($cancelled ? 'text-bg-secondary' : 'text-bg-success') . '">' . esc(lang('Accounting_treasuries.status_' . $settlement->status)) . '</span>',
             'edit'          => $edit,

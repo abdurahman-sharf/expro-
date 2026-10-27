@@ -574,6 +574,27 @@ class InterBranchSettlementsTest extends CIUnitTestCase
         $this->assertGreaterThan(0, $this->settle($this->other, $this->main, '2026-11-02'));
     }
 
+    public function testSettle_RejectsABranchThatIsDeactivatedAndLeavesNothingBehindUntilItIsActiveAgain(): void
+    {
+        $this->send(true, '100.00');
+
+        $journals = $this->countRows('accounting_journals');
+
+        $this->accountingDb()->table('branches')->where('branch_id', $this->branch)->update(['active' => 0]);
+
+        $refusal = $this->refusal(fn () => $this->settle($this->other, $this->main));
+
+        $this->assertSame(PostingError::BranchInactive, $refusal->error);
+        $this->assertSame(0, $this->countRows('interbranch_settlements'));
+        $this->assertSame($journals, $this->countRows('accounting_journals'), 'The journal of the active branch went with it');
+        $this->assertSame('1100.0000', $this->balanceOf($this->other));
+
+        $this->accountingDb()->table('branches')->where('branch_id', $this->branch)->update(['active' => 1]);
+
+        $this->assertGreaterThan(0, $this->settle($this->other, $this->main));
+        $this->assertNothingOwedBetweenTheBranches();
+    }
+
     public function testSettle_LeavesNothingBehindWhenTheRoutingNamesNoAccountsBetweenBranches(): void
     {
         $this->send(true, '100.00');

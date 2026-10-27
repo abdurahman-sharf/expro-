@@ -501,6 +501,22 @@ class AccountingInterBranchControllerTest extends CIUnitTestCase
         $this->assertSame('', $this->getJsonOf('/accounting_treasuries/inter_branch/settlements/row/' . $id)['edit']);
     }
 
+    public function testGetSettlementsRow_ShowsTheTreasuriesWithAnArrowThatTurnsInArabicAndEscapesTheirNames(): void
+    {
+        $this->send(true, '100.00');
+        $this->treasuries->update($this->other, ['name' => '<i>Second</i> drawer', 'kind' => 'cash'], $this->manager);
+
+        $id = $this->settleDirectly();
+
+        $this->settler();
+
+        $cell = $this->getJsonOf('/accounting_treasuries/inter_branch/settlements/row/' . $id)['treasuries'];
+
+        $this->assertSame('<bdi>&lt;i&gt;Second&lt;/i&gt; drawer</bdi> <span class="bi bi-arrow-right" aria-hidden="true"></span> <bdi>' . esc($this->treasuries->find($this->main)->name) . '</bdi>', $cell);
+        $this->assertStringNotContainsString('→', $cell);
+        $this->assertSame($cell, $this->getJsonOf('/accounting_treasuries/inter_branch/settlements/search')['rows'][0]['treasuries']);
+    }
+
     public function testGetSettlementsRow_ShowsNoCancelIconForASettlementThatIsCancelled(): void
     {
         $this->send(true, '100.00');
