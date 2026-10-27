@@ -365,4 +365,16 @@ class CashupControllerTest extends CIUnitTestCase
 
         $this->assertSame([(string) $legacy], array_column($only['rows'], 'cashup_id'));
     }
+
+    public function testGetSearch_ShowsNoLedgerColumnWhileAccountingIsOff(): void
+    {
+        $this->accountingCashier();
+        $this->saveClosing($this->closingForm('0'));
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $rows = json_decode($this->get('/cashups/search?search=&start_date=2026-10-01&end_date=2026-10-31&limit=25&offset=0&sort=cashup_id&order=asc')->getJSON(), true)['rows'];
+
+        $this->assertNotSame([], $rows);
+        $this->assertArrayNotHasKey('ledger_state', $rows[0]);
+    }
 }
