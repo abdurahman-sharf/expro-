@@ -73,9 +73,11 @@
 
 ### نتائج تعطيل الحراس كما طُبعت
 
+**أُعيد تشغيل المجموعة كلها (77 تعطيلًا) على الشيفرة النهائية** بعد آخر تنظيف للتسمية (`Sale::getInvoiceNumber` بدل `get_invoice_number`، وأسماء اختبارات تبدأ بفعل)، وهذا هو الناتج كما طُبع؛ وحدّثتُ الحارس `G58` ليوافق الاسم الجديد.
+
 ```
 DETECTED  G01: configure needs the settings permission: Tests: 1, Assertions: 3, Failures: 1.; failing: 1
-DETECTED  G02: the sequence row is locked before a number is taken: Tests: 3, Assertions: 9, Failures: 1.; failing: 1
+DETECTED  G02: the sequence row is locked before a number is taken: Tests: 3, Assertions: 10, Failures: 1.; failing: 1
 DETECTED  G03: a document that has a number keeps it and takes no second one: Tests: 1, Assertions: 0, Errors: 1.; failing: 1
 DETECTED  G04: a number already in the register is never given again: Tests: 1, Assertions: 1, Errors: 1.; failing: 1
 DETECTED  G05: a number typed in the column of another document is skipped: Tests: 1, Assertions: 1, Failures: 1.; failing: 1
@@ -85,7 +87,7 @@ DETECTED  G08: the next number stays above every number given: Tests: 1, Asserti
 DETECTED  G09: the next number stays above the numbers the documents carry: Tests: 1, Assertions: 1, Failures: 1.; failing: 1
 DETECTED  G10: the next number stays above the ids that documents still show: Tests: 1, Assertions: 1, Failures: 1.; failing: 1
 DETECTED  G11: a document that has a number no longer counts as showing its id: Tests: 1, Assertions: 2, Failures: 1.; failing: 1
-DETECTED  G12: ids count only for an empty prefix: Tests: 35, Assertions: 80, Failures: 1.; failing: 1
+DETECTED  G12: ids count only for an empty prefix: Tests: 36, Assertions: 83, Failures: 1.; failing: 1
 DETECTED  G13: the next number is never lowered: Tests: 1, Assertions: 1, Failures: 1.; failing: 1
 DETECTED  G14: a prefix is no longer than 16 characters: Tests: 13, Assertions: 25, Failures: 1.; failing: 1
 DETECTED  G15: a prefix takes letters, digits and a few separators only: Tests: 13, Assertions: 23, Failures: 3.; failing: 3
@@ -131,6 +133,7 @@ DETECTED  G54: only a new customer is offered the automatic number: Tests: 1, As
 DETECTED  G55: the invoice format of the settings gives way to the sequence: Tests: 1, Assertions: 3, Failures: 1.; failing: 1
 DETECTED  G56: the quote format of the settings gives way to the sequence: Tests: 1, Assertions: 3, Failures: 1.; failing: 1
 DETECTED  G57: an invoice that has no number yet is not looked up as a duplicate: Tests: 1, Assertions: 2, Errors: 1.; failing: 1
+DETECTED  G70: a quote that has no number yet is not looked up as a duplicate: Tests: 1, Assertions: 2, Errors: 1.; failing: 1
 DETECTED  G58: the invoice shows the number the sequence gave it: Tests: 1, Assertions: 3, Failures: 1.; failing: 1
 DETECTED  G59: the register offers the next number of the invoice sequence: Tests: 1, Assertions: 3, Failures: 1.; failing: 1
 DETECTED  G60: the receipt of a return shows the credit note number: Tests: 1, Assertions: 3, Failures: 1.; failing: 1
@@ -143,7 +146,6 @@ DETECTED  G66: the settings screen saves as the employee who is logged in: Tests
 DETECTED  G67: the duplicate option belongs to the customer sequence only: Tests: 1, Assertions: 1, Failures: 1.; failing: 1
 DETECTED  G68: the numbering is a section of the settings: Tests: 16, Assertions: 20, Failures: 2.; failing: 2
 DETECTED  G69: a message names the lowest next number: Tests: 1, Assertions: 1, Failures: 1.; failing: 1
-DETECTED  G70: a quote that has no number yet is not looked up as a duplicate: Tests: 1, Assertions: 2, Errors: 1.; failing: 1
 DETECTED  M01: a number is unique per company and kind: Tests: 1, Assertions: 1, Failures: 1.; failing: 1
 DETECTED  M02: a document has one number per kind: Tests: 1, Assertions: 2, Failures: 1.; failing: 1
 DETECTED  M03: one sequence per company and kind: Tests: 1, Assertions: 1, Failures: 1.; failing: 1
@@ -178,6 +180,7 @@ DETECTED  M07: the migration is safe to run twice: Tests: 1, Assertions: 0, Erro
 - **لا قوائم جديدة** للدفعات والإشعارات (`G-34`، `G-51`، WP9 وWP10): الرقم يُعرض في النماذج والإيصالات وقائمة المصروفات فقط.
 - **أوامر العمل (`work_order_number`)** لم تدخل (ليست في نطاق الحزمة).
 - **`configure` يستعمل `INSERT IGNORE` ثم `FOR UPDATE`** وهو انضباط `lockSequence` القائم نفسه، فلا حارس مستقل له؛ **ولم أجرّب حفظين متزامنين لإعداد نوع واحد من اتصالين** (جرّبتُ تزامن الحجز لا تزامن التهيئة).
+- **أسماء المتغيرات المحلية القديمة** (`$sale_id` و`$customer_data` و`$data_rows`…) في الدوال القديمة التي أضفتُ فيها أسطرًا **لم تُعَد تسميتها إلى camelCase**: إعادة تسمية دوال طويلة كـ`Sale::save` و`Customers::postSave` تفتح تعارضات دمج مع الحزم الأخرى التي تعدّل الملفات المشتركة نفسها، والتعليمات تشترط تعديلات صغيرة إضافية فيها. **كل اسم جديد** (دالة أو متغير أو صنف) بصيغة PSR، ودالة النموذج الجديدة `getInvoiceNumber` camelCase. يُقترح على المُدمِج تنظيف التسمية في تمريرة لاحقة منفصلة.
 - **الأرقام المُنحت بقاعدة الفروع** تتبع شركة الفرع عند الحفظ؛ نقل مستند من فرع إلى فرع لا يغيّر رقمه.
 
 ## 7. قبل النشر
