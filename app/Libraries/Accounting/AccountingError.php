@@ -42,6 +42,20 @@ enum AccountingError: string
     case LineOnBothSides       = 'line_on_both_sides';
     case LineCostCenterInvalid = 'line_cost_center_invalid';
 
+    case PostedJournalLocked     = 'posted_journal_locked';
+    case JournalNotPosted        = 'journal_not_posted';
+    case JournalLineNotFound     = 'journal_line_not_found';
+    case DescriptionTooLong      = 'description_too_long';
+    case LineDescriptionRequired = 'line_description_required';
+
+    case AttachmentNotFound       = 'attachment_not_found';
+    case AttachmentUnavailable    = 'attachment_unavailable';
+    case AttachmentTypeNotAllowed = 'attachment_type_not_allowed';
+    case AttachmentTooLarge       = 'attachment_too_large';
+    case AttachmentEmpty          = 'attachment_empty';
+    case AttachmentUploadFailed   = 'attachment_upload_failed';
+    case AttachmentLimitReached   = 'attachment_limit_reached';
+
     case FiscalYearNotFound    = 'fiscal_year_not_found';
     case FiscalYearInvalidName = 'fiscal_year_invalid_name';
     case FiscalYearNameTaken   = 'fiscal_year_name_taken';

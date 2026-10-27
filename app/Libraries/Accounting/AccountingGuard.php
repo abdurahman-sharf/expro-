@@ -17,6 +17,7 @@ final class AccountingGuard
     public const JOURNALS_POST       = 'acc_journals_post';
     public const JOURNALS_REVERSE    = 'acc_journals_reverse';
     public const JOURNALS_AUDIT      = 'acc_journals_audit';
+    public const JOURNALS_EDIT       = 'acc_journals_edit_details';
     public const SETTINGS_MANAGE     = 'acc_settings_manage';
     public const PERIODS_MANAGE      = 'acc_periods_manage';
     public const PERIODS_CLOSE       = 'acc_periods_close';
@@ -31,6 +32,7 @@ final class AccountingGuard
      * automatically, and only an administrator grants or removes them.
      */
     public const SENSITIVE = [
+        self::JOURNALS_EDIT,
         self::SETTINGS_MANAGE,
         self::PERIODS_CLOSE,
         self::PERIODS_REOPEN,

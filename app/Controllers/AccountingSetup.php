@@ -14,6 +14,7 @@ use CodeIgniter\HTTP\ResponseInterface;
 class AccountingSetup extends AccountingController
 {
     private const PERMISSION_LABELS = [
+        AccountingGuard::JOURNALS_EDIT   => 'Accounting_journals.journals_edit_details',
         AccountingGuard::SETTINGS_MANAGE => 'Accounting_settings.settings_manage',
         AccountingGuard::PERIODS_CLOSE   => 'Accounting_periods.periods_close',
         AccountingGuard::PERIODS_REOPEN  => 'Accounting_periods.periods_reopen',

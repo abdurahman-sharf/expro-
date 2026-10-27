@@ -25,6 +25,8 @@ final class JournalService
     private const MAX_LINES      = 500;
     private const AMOUNT_PATTERN = '/^\d{1,11}(\.\d{1,4})?$/';
     private const SORTABLE       = ['journal_date', 'number', 'created_at', 'total_debit', 'status'];
+    private const TEXT_MAX       = 2000;
+    private const LINE_TEXT_MAX  = 255;
 
     private BaseConnection $db;
     private AuditLog $audit;
@@ -125,14 +127,20 @@ final class JournalService
     {
         $this->guard->require(AccountingGuard::JOURNALS_DRAFT, $employeeId);
 
-        $this->transactional(function () use ($journalId, $employeeId): void {
+        $attachments = new JournalAttachments($this->db, $this->guard, $this);
+        $files       = [];
+
+        $this->transactional(function () use ($journalId, $employeeId, $attachments, &$files): void {
             $draft = $this->lockDraft($journalId, $employeeId);
+            $files = $attachments->purgeDraft($journalId, $employeeId);
 
             $this->db->table('accounting_journal_lines')->where('journal_id', $journalId)->delete();
             $this->db->table('accounting_journals')->where('journal_id', $journalId)->delete();
 
-            $this->audit->write('journal', $journalId, 'draft_deleted', $employeeId, JournalOrigin::User, [], (int) $draft->branch_id);
+            $this->audit->write('journal', $journalId, 'draft_deleted', $employeeId, JournalOrigin::User, $files === [] ? [] : ['attachments' => count($files)], (int) $draft->branch_id);
         });
+
+        $attachments->removeFiles($files);
     }
 
     /**
@@ -173,6 +181,7 @@ final class JournalService
             ], $stored->lines);
         }
 
+        $this->assertLineDescriptions($lines);
         $this->periods->prepare($date);
 
         $draft = $this->toPostingDraft($date, $description, $lines, $employeeId, $branchId);
@@ -228,11 +237,81 @@ final class JournalService
         $description = trim((string) ($input['description'] ?? ''));
         $lines       = $this->normalizeDraftLines($input['lines'] ?? []);
 
+        $this->assertLineDescriptions($lines);
+
         $draft = $this->toPostingDraft($date, $description, $lines, $employeeId, $branchId);
 
         (new TreasuryScopes($this->db))->assertMayPost($draft->lines, $employeeId);
 
         return $this->posting->post($draft)->journalId;
+    }
+
+    /**
+     * Whether the text of a journal may still be edited: it is posted and the books made it, as
+     * opposed to a manual journal or the reversal of one, which are reversed and never edited.
+     */
+    public function canEditDetails(object $journal): bool
+    {
+        return $this->detailsRefusal($journal) === null;
+    }
+
+    /**
+     * Changes the description of a posted automatic journal, the description of its lines and
+     * their cost center, and nothing else: the amounts, the accounts, the date, the number and
+     * the source are not in the input and stay as posted. A change in a closed period is refused
+     * because the cost center a line belongs to decides which period an analysis counts it in.
+     * Each edit is written to the audit log with what the text was and what it became.
+     *
+     * @param array{description?: string, lines?: array<int|string, array{description?: string, cost_center_id?: int|string}>} $input The lines are keyed by their line id.
+     *
+     * @return bool Whether anything changed. Nothing is written when nothing did.
+     *
+     * @throws AccountingException|PostingException
+     */
+    public function updateDetails(int $journalId, array $input, ?int $employeeId = null): bool
+    {
+        $this->guard->require(AccountingGuard::JOURNALS_EDIT, $employeeId);
+
+        $stored = $this->find($journalId, $employeeId);
+
+        $this->assertDetailsEditable($stored);
+
+        $details = $this->normalizeDetails($input);
+
+        return $this->transactional(function () use ($journalId, $details, $employeeId, $stored): bool {
+            $this->periods->enforce($stored->journal_date, (int) $stored->branch_id);
+
+            $table  = $this->db->prefixTable('accounting_journals');
+            $locked = LockedRead::row($this->db, "SELECT * FROM {$table} WHERE journal_id = ? FOR UPDATE", [$journalId]);
+
+            if ($locked === null) {
+                throw new AccountingException(AccountingError::JournalNotFound, "Journal {$journalId} does not exist.");
+            }
+
+            $this->assertDetailsEditable($locked);
+
+            $lines   = LockedRead::rows($this->db, 'SELECT * FROM ' . $this->db->prefixTable('accounting_journal_lines') . ' WHERE journal_id = ? ORDER BY line_no FOR UPDATE', [$journalId]);
+            $changes = $this->detailChanges($locked, $lines, $details);
+
+            if ($changes['after'] === []) {
+                return false;
+            }
+
+            if (isset($changes['journal'])) {
+                $this->db->table('accounting_journals')->where('journal_id', $journalId)->update($changes['journal']);
+            }
+
+            foreach ($changes['lines'] as $lineId => $columns) {
+                $this->db->table('accounting_journal_lines')->where('journal_id', $journalId)->where('line_id', $lineId)->update($columns);
+            }
+
+            $this->audit->write('journal', $journalId, 'details_edited', $employeeId, JournalOrigin::User, [
+                'before' => $changes['before'],
+                'after'  => $changes['after'],
+            ], (int) $locked->branch_id);
+
+            return true;
+        });
     }
 
     /**
@@ -614,6 +693,201 @@ final class JournalService
         }
 
         return $row;
+    }
+
+    private function detailsRefusal(object $journal): ?AccountingError
+    {
+        if ($journal->status !== JournalStatus::Posted->value) {
+            return AccountingError::JournalNotPosted;
+        }
+
+        if ($journal->source_type === JournalDraft::SOURCE_MANUAL || $journal->reverses_journal_id !== null) {
+            return AccountingError::PostedJournalLocked;
+        }
+
+        return null;
+    }
+
+    /**
+     * @throws AccountingException
+     */
+    private function assertDetailsEditable(object $journal): void
+    {
+        $refusal = $this->detailsRefusal($journal);
+
+        if ($refusal !== null) {
+            throw new AccountingException($refusal, "Journal {$journal->journal_id} cannot have its text edited.");
+        }
+    }
+
+    /**
+     * What the caller asked to change, cleaned: the description of the journal, and for the lines
+     * it names the description and the cost center. Anything else in the input is left out.
+     *
+     * @param array<string, mixed> $input
+     *
+     * @return array{description?: ?string, lines: array<int, array{description?: ?string, cost_center_id?: ?int}>}
+     *
+     * @throws AccountingException
+     */
+    private function normalizeDetails(array $input): array
+    {
+        $details = ['lines' => []];
+
+        if (array_key_exists('description', $input)) {
+            $details['description'] = $this->boundedText((string) $input['description'], self::TEXT_MAX);
+        }
+
+        foreach (is_array($input['lines'] ?? null) ? $input['lines'] : [] as $lineId => $line) {
+            if (! is_array($line)) {
+                continue;
+            }
+
+            if (array_key_exists('description', $line)) {
+                $details['lines'][(int) $lineId]['description'] = $this->boundedText((string) $line['description'], self::LINE_TEXT_MAX);
+            }
+
+            if (array_key_exists('cost_center_id', $line)) {
+                $costCenterId = (int) $line['cost_center_id'];
+
+                $details['lines'][(int) $lineId]['cost_center_id'] = $costCenterId > 0 ? $costCenterId : null;
+            }
+        }
+
+        return $details;
+    }
+
+    /**
+     * @throws AccountingException
+     */
+    private function boundedText(string $text, int $max): ?string
+    {
+        $text = trim($text);
+
+        if (mb_strlen($text) > $max) {
+            throw new AccountingException(AccountingError::DescriptionTooLong, "The text is longer than {$max} characters.", ['max' => $max]);
+        }
+
+        return $text === '' ? null : $text;
+    }
+
+    /**
+     * Compares what is stored, as locked, with what was asked, and returns the columns to write and
+     * what the audit log records. A line is named by its number in the log, as the screen shows it.
+     *
+     * @param list<object>                                                                                         $lines
+     * @param array{description?: ?string, lines: array<int, array{description?: ?string, cost_center_id?: ?int}>} $details
+     *
+     * @return array{journal?: array<string, ?string>, lines: array<int, array<string, mixed>>, before: array<string, mixed>, after: array<string, mixed>}
+     *
+     * @throws AccountingException
+     */
+    private function detailChanges(object $journal, array $lines, array $details): array
+    {
+        $changes = ['lines' => [], 'before' => [], 'after' => []];
+
+        if (array_key_exists('description', $details)) {
+            $before = $journal->description === null || $journal->description === '' ? null : $journal->description;
+
+            if ($details['description'] !== $before) {
+                $changes['journal']               = ['description' => $details['description']];
+                $changes['before']['description'] = $before;
+                $changes['after']['description']  = $details['description'];
+            }
+        }
+
+        $byId = [];
+
+        foreach ($lines as $line) {
+            $byId[(int) $line->line_id] = $line;
+        }
+
+        $wanted = [];
+
+        foreach ($details['lines'] as $lineId => $asked) {
+            if (! isset($byId[$lineId])) {
+                throw new AccountingException(AccountingError::JournalLineNotFound, "Line {$lineId} does not belong to the journal.", ['line' => $lineId]);
+            }
+
+            $line    = $byId[$lineId];
+            $columns = [];
+            $before  = [];
+
+            if (array_key_exists('description', $asked)) {
+                $was = $line->description === null || $line->description === '' ? null : $line->description;
+
+                if ($asked['description'] !== $was) {
+                    $columns['description'] = $asked['description'];
+                    $before['description']  = $was;
+                }
+            }
+
+            if (array_key_exists('cost_center_id', $asked)) {
+                $was = $line->cost_center_id === null ? null : (int) $line->cost_center_id;
+
+                if ($asked['cost_center_id'] !== $was) {
+                    $columns['cost_center_id']    = $asked['cost_center_id'];
+                    $before['cost_center_id']     = $was;
+                    $wanted[(int) $line->line_no] = $asked['cost_center_id'];
+                }
+            }
+
+            if ($columns !== []) {
+                $changes['lines'][$lineId]                        = $columns;
+                $changes['before']['lines'][(int) $line->line_no] = $before;
+                $changes['after']['lines'][(int) $line->line_no]  = $columns;
+            }
+        }
+
+        $this->assertCostCentersActive($wanted);
+
+        return $changes;
+    }
+
+    /**
+     * @param array<int, ?int> $byLineNumber The cost center asked for on each line, by line number.
+     *
+     * @throws AccountingException
+     */
+    private function assertCostCentersActive(array $byLineNumber): void
+    {
+        $ids = array_values(array_unique(array_filter($byLineNumber)));
+
+        if ($ids === []) {
+            return;
+        }
+
+        $active = array_map('intval', array_column(
+            $this->db->table('accounting_cost_centers')->select('cost_center_id')->whereIn('cost_center_id', $ids)->where('active', 1)->get()->getResultArray(),
+            'cost_center_id',
+        ));
+
+        foreach ($byLineNumber as $lineNumber => $costCenterId) {
+            if ($costCenterId !== null && ! in_array($costCenterId, $active, true)) {
+                throw new AccountingException(AccountingError::LineCostCenterInvalid, "Cost center {$costCenterId} is missing or inactive.", ['line' => $lineNumber]);
+            }
+        }
+    }
+
+    /**
+     * When the books ask for it, every line of a journal that is posted says what it is for. A
+     * draft may still be incomplete, and a reversal or an automatic journal does not pass here.
+     *
+     * @param list<array<string, mixed>> $lines
+     *
+     * @throws AccountingException
+     */
+    private function assertLineDescriptions(array $lines): void
+    {
+        if (! (new AccountingSettings($this->db))->lineDescriptionRequired()) {
+            return;
+        }
+
+        foreach (array_values($lines) as $index => $line) {
+            if (trim((string) ($line['description'] ?? '')) === '') {
+                throw new AccountingException(AccountingError::LineDescriptionRequired, 'Line ' . ($index + 1) . ' needs a description.', ['line' => $index + 1]);
+            }
+        }
     }
 
     /**
