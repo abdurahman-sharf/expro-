@@ -10,6 +10,7 @@ use CodeIgniter\Test\FeatureTestTrait;
 use CodeIgniter\Config\Services;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Organization\BranchGuard;
+use PHPUnit\Framework\Attributes\DataProvider;
 use App\Models\Employee;
 use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
@@ -1902,6 +1903,270 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertSame($drawer, (int) $payment->treasury_id);
         $this->assertSame('100.0000', (new TreasuryService())->position($drawer)->balance);
         $this->assertSame('0.00', $this->balance($this->accountId('cash')), 'The main treasury received nothing');
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // The discount on the whole of a sale: who may give it, what the register and the documents show
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * A supervisor of the first branch with a cart of one line of 100 at the register, with or without
+     * the permission to give a discount on the whole of the sale.
+     */
+    protected function registerWithTheDiscountGrant(bool $granted = true): int
+    {
+        $this->startSelling();
+        $item         = $this->item('0', false);
+        $supervisorId = $this->createBranchLimitedSupervisor(1, $granted ? ['sales_invoice_discount'] : []);
+        $this->grantStockLocationIn(1, $supervisorId);
+        $this->loginAs($supervisorId);
+        $this->seedCartLine(1, '100.00', $item);
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_payments' => []]));
+
+        return $supervisorId;
+    }
+
+    protected function carryTheDiscountToTheNextRequest(): void
+    {
+        $this->withSession(array_merge($this->session, ['sales_invoice_discount' => Services::session()->get('sales_invoice_discount'), 'sales_payments' => Services::session()->get('sales_payments')]));
+    }
+
+    public function testPostSetInvoiceDiscount_RefusesAnEmployeeWithoutThePermissionAndSetsNothing(): void
+    {
+        $this->registerWithTheDiscountGrant(false);
+
+        $response = $this->post('/sales/setInvoiceDiscount', ['invoice_discount' => '10', 'invoice_discount_type' => (string) PERCENT]);
+
+        $response->assertSee(lang('Sales.not_authorized'));
+        $this->assertNull(Services::session()->get('sales_invoice_discount'));
+    }
+
+    public function testGetIndex_OffersTheDiscountOnTheWholeOfTheSaleOnlyToAnEmployeeWhoMayGiveIt(): void
+    {
+        $this->registerWithTheDiscountGrant();
+
+        $this->get('/sales')->assertSee('id="invoice_discount_form"');
+
+        $this->registerWithTheDiscountGrant(false);
+
+        $this->get('/sales')->assertDontSee('id="invoice_discount_form"');
+    }
+
+    public function testGetIndex_OffersNoDiscountOnTheWholeOfTheSaleWhileTheRegisterTakesAReturn(): void
+    {
+        $this->registerWithTheDiscountGrant();
+        $this->withSession(array_merge($this->session, ['sales_mode' => 'return']));
+
+        $this->get('/sales')->assertDontSee('id="invoice_discount_form"');
+    }
+
+    public function testPostSetInvoiceDiscount_TakesAPercentageOffTheTotalOfTheRegister(): void
+    {
+        $this->registerWithTheDiscountGrant();
+
+        $response = $this->post('/sales/setInvoiceDiscount', ['invoice_discount' => '10', 'invoice_discount_type' => (string) PERCENT]);
+
+        $response->assertStatus(200);
+        $response->assertSee('id="invoice_discount_total"');
+        $response->assertSee(to_currency('90'));
+        $this->assertSame(['type' => PERCENT, 'value' => '10'], Services::session()->get('sales_invoice_discount'));
+    }
+
+    public function testPostSetInvoiceDiscount_TakesAnAmountOffTheTotalOfTheRegister(): void
+    {
+        $this->registerWithTheDiscountGrant();
+
+        $response = $this->post('/sales/setInvoiceDiscount', ['invoice_discount' => '12,50', 'invoice_discount_type' => (string) FIXED]);
+
+        $response->assertSee(to_currency('87.5'));
+        $this->assertSame(['type' => FIXED, 'value' => '12.5'], Services::session()->get('sales_invoice_discount'));
+    }
+
+    /**
+     * @return array<string, array{string, string, string}>
+     */
+    public static function refusedInvoiceDiscountProvider(): array
+    {
+        return [
+            'more than the cart comes to' => [(string) FIXED, '100.01', 'Sales.invoice_discount_exceeds_total'],
+            'above a hundred percent'     => [(string) PERCENT, '100.5', 'Sales.discount_percent_exceeds_100'],
+            'a negative amount'           => [(string) FIXED, '-5', 'Sales.negative_discount_invalid'],
+            'text instead of a number'    => [(string) FIXED, 'ten', 'Sales.invoice_discount_invalid'],
+            'a kind nobody knows'         => ['7', '5', 'Sales.invoice_discount_invalid'],
+        ];
+    }
+
+    #[DataProvider('refusedInvoiceDiscountProvider')]
+    public function testPostSetInvoiceDiscount_RefusesWhatCannotBeTakenOffAndKeepsTheOneThereWas(string $type, string $value, string $message): void
+    {
+        $this->registerWithTheDiscountGrant();
+        $this->withSession(array_merge($this->session, ['sales_invoice_discount' => ['type' => PERCENT, 'value' => '5']]));
+
+        $response = $this->post('/sales/setInvoiceDiscount', ['invoice_discount' => $value, 'invoice_discount_type' => $type]);
+
+        $response->assertSee(lang($message));
+        $this->assertSame(['type' => PERCENT, 'value' => '5'], Services::session()->get('sales_invoice_discount'));
+    }
+
+    public function testPostSetInvoiceDiscount_TakesTheDiscountOffWhenGivenNothingOrZero(): void
+    {
+        $this->registerWithTheDiscountGrant();
+
+        foreach (['', '0', '0.00'] as $nothing) {
+            $this->withSession(array_merge($this->session, ['sales_invoice_discount' => ['type' => PERCENT, 'value' => '5']]));
+            $this->post('/sales/setInvoiceDiscount', ['invoice_discount' => $nothing, 'invoice_discount_type' => (string) PERCENT]);
+
+            $this->assertNull(Services::session()->get('sales_invoice_discount'), "'{$nothing}'");
+        }
+    }
+
+    public function testPostSetInvoiceDiscount_RefusesWhileTheRegisterTakesAReturn(): void
+    {
+        $this->registerWithTheDiscountGrant();
+        $this->withSession(array_merge($this->session, ['sales_mode' => 'return']));
+
+        $response = $this->post('/sales/setInvoiceDiscount', ['invoice_discount' => '10', 'invoice_discount_type' => (string) PERCENT]);
+
+        $response->assertSee(lang('Sales.invoice_discount_not_on_return'));
+        $this->assertNull(Services::session()->get('sales_invoice_discount'));
+    }
+
+    public function testPostChangeMode_ForgetsTheDiscountWhenTheModeChangesAndKeepsItWhenItDoesNot(): void
+    {
+        $this->registerWithTheDiscountGrant();
+        $this->withSession(array_merge($this->session, ['sales_mode' => 'sale', 'sales_invoice_discount' => ['type' => PERCENT, 'value' => '10']]));
+
+        $this->post('/sales/changeMode', ['mode' => 'sale']);
+
+        $this->assertSame(['type' => PERCENT, 'value' => '10'], Services::session()->get('sales_invoice_discount'));
+
+        $this->post('/sales/changeMode', ['mode' => 'return']);
+
+        $this->assertNull(Services::session()->get('sales_invoice_discount'));
+    }
+
+    public function testPostComplete_SavesTheDiscountWithTheSalePostsItNetAndPrintsItOnTheReceipt(): void
+    {
+        $this->registerWithTheDiscountGrant();
+
+        $this->post('/sales/setInvoiceDiscount', ['invoice_discount' => '10', 'invoice_discount_type' => (string) PERCENT]);
+        $this->carryTheDiscountToTheNextRequest();
+        $this->post('/sales/addPayment', ['payment_type' => 'Cash', 'amount_tendered' => '90.00']);
+        $this->carryTheDiscountToTheNextRequest();
+
+        $sales = $this->countSales();
+
+        $response = $this->post('/sales/complete');
+
+        $this->assertSame($sales + 1, $this->countSales());
+
+        $sale = $this->accountingDb()->table('sales')->orderBy('sale_id', 'DESC')->get()->getRow();
+
+        $this->assertSame('10.0000', $sale->invoice_discount);
+        $this->assertSame((string) PERCENT, (string) $sale->invoice_discount_type);
+        $this->assertSame('10.0000', $this->accountingDb()->table('sales_items')->where('sale_id', $sale->sale_id)->get()->getRow()->invoice_discount_share);
+        $this->assertSame('-90.00', $this->balance($this->accountId('sales_revenue')), 'the revenue is posted net of the discount');
+        $response->assertSee(lang('Sales.invoice_discount') . ' (' . to_decimals('10') . '%)');
+        $this->assertNull(Services::session()->get('sales_invoice_discount'), 'the register forgets the discount of a sale that was made');
+    }
+
+    public function testPostComplete_RefusesADiscountThatNoLongerFitsTheCartAndSavesNothing(): void
+    {
+        $this->registerWithTheDiscountGrant();
+        $this->withSession(array_merge($this->session, ['sales_invoice_discount' => ['type' => FIXED, 'value' => '150']]));
+
+        $sales = $this->countSales();
+
+        $response = $this->post('/sales/complete');
+
+        $response->assertSee(lang('Sales.invoice_discount_exceeds_total'));
+        $this->assertSame($sales, $this->countSales());
+    }
+
+    public function testPostSuspend_KeepsTheDiscountWithTheSuspendedSale(): void
+    {
+        $this->registerWithTheDiscountGrant();
+        $this->withSession(array_merge($this->session, ['sales_invoice_discount' => ['type' => FIXED, 'value' => '12.5']]));
+
+        $this->post('/sales/suspend');
+
+        $sale = $this->accountingDb()->table('sales')->orderBy('sale_id', 'DESC')->get()->getRow();
+
+        $this->assertSame((string) SUSPENDED, (string) $sale->sale_status);
+        $this->assertSame('12.5000', $sale->invoice_discount);
+    }
+
+    public function testPostUnsuspend_GivesTheRegisterBackTheDiscountOfTheSuspendedSale(): void
+    {
+        $supervisorId = $this->registerWithTheDiscountGrant();
+        $item         = $this->item('0', false);
+        $saleId       = $this->save([$this->line($item, 0, '1', '100')], [], [], SALE_TYPE_QUOTE, -1, true, null, SUSPENDED, NEW_ENTRY, ['type' => PERCENT, 'value' => '10']);
+
+        $this->withSession(array_merge($this->session, ['sales_cart' => [], 'sale_id' => NEW_ENTRY]));
+        $this->post('/sales/unsuspend', ['suspended_sale_id' => (string) $saleId]);
+
+        $this->assertSame(['type' => PERCENT, 'value' => '10'], Services::session()->get('sales_invoice_discount'));
+        $this->assertNotNull($supervisorId);
+    }
+
+    public function testGetInvoice_ShowsTheDiscountOnTheWholeOfTheInvoiceBetweenTheSubtotalAndTheTax(): void
+    {
+        $this->startSelling();
+        $cycle     = $this->discountedReferenceInvoice();
+        $invoiceId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $page = $this->get('/sales/invoice/' . $invoiceId);
+
+        $page->assertStatus(200);
+        $page->assertSee('doc-invoice-discount');
+        $page->assertSee(lang('Sales.invoice_discount') . ' (' . to_decimals('10') . '%)');
+        $page->assertSee(to_currency('710'));
+        $page->assertSee(to_currency('-71'));
+        $page->assertSee(to_currency('734.85'));
+    }
+
+    public function testGetReceipt_ShowsTheDiscountOnTheWholeOfTheSaleAsItWasSaved(): void
+    {
+        $this->startSelling();
+        $cycle  = $this->discountedReferenceInvoice(false);
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_POS, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $page = $this->get('/sales/receipt/' . $saleId);
+
+        $page->assertStatus(200);
+        $page->assertSee(lang('Sales.invoice_discount'));
+        $page->assertSee(to_currency('-20'));
+        $page->assertSee(to_currency('793.5'));
+    }
+
+    public function testGetInvoice_ShowsASaleWithoutADiscountWithoutItsRow(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $page = $this->get('/sales/invoice/' . $invoice['saleId']);
+
+        $page->assertStatus(200);
+        $page->assertDontSee('doc-invoice-discount');
+        $page->assertSee(to_currency('816.5'));
+    }
+
+    public function testPostCreditNote_PreparesTheRegisterWithTheShareOfTheDiscountOfTheInvoice(): void
+    {
+        $this->startSelling();
+        $cycle     = $this->discountedReferenceInvoice();
+        $invoiceId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $this->assertTrue($this->jsonOf($this->post('/sales/creditNote/' . $invoiceId))['success']);
+        $this->withSession(array_merge($this->session, array_intersect_key(Services::session()->get(), array_flip(['sales_cart', 'sales_mode', 'sales_return_origin', 'sales_customer', 'sale_id', 'sales_type']))));
+
+        $page = $this->get('/sales');
+
+        $page->assertSee('id="invoice_discount_total"');
+        $page->assertSee(to_currency('71'));
     }
 
     protected function config(): array
