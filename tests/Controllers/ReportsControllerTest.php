@@ -437,7 +437,7 @@ class ReportsControllerTest extends CIUnitTestCase
     {
         $this->openTheBooks();
         $path  = '/reports/summary_categories/' . $this->reportDay . '/' . $this->reportDay . '/sales/all';
-        $third = $this->createBranch('R' . substr(md5(uniqid('', true)), 0, 8), 'Report branch C');
+        $this->createBranch('R' . substr(md5(uniqid('', true)), 0, 8), 'Report branch C');
 
         $this->readerOfTheBranches([1, $this->branchB]);
         $page = $this->pageOf($path);
@@ -450,8 +450,6 @@ class ReportsControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('id="report_scope"', $page);
         $this->assertStringContainsString(lang('Accounting_reports.scope_company'), $page);
         $this->assertStringNotContainsString('alert-warning', $page);
-
-        $this->assertNotSame($third, $this->branchB);
     }
 
     public function testReportPages_SayNothingOfBranchesToSomeoneWhoReadsOneOnly(): void

@@ -1818,13 +1818,13 @@ class ItemsControllerTest extends CIUnitTestCase
     {
         ['item' => $itemId, 'store' => $store, 'limited' => $limited] = $this->itemWithAStoreInAnotherBranch();
 
-        foreach (['view', 'inventory', 'countDetails'] as $screen) {
+        foreach (['view' => 'id="quantity_1"', 'inventory' => '<option value="1"', 'countDetails' => '<option value="1"'] as $screen => $listsTheOwnLocation) {
             $this->loginAsItemsEmployee($limited);
             $body = $this->get('/items/' . $screen . '/' . $itemId)->getBody();
 
             $this->assertStringNotContainsString('quantity_' . $store, $body, $screen);
             $this->assertStringNotContainsString((string) $this->accountingDb()->table('stock_locations')->where('location_id', $store)->get()->getRow()->location_name, $body, $screen);
-            $this->assertStringContainsString('stock', $body, $screen);
+            $this->assertStringContainsString($listsTheOwnLocation, $body, $screen);
         }
 
         $this->loginAsItemsEmployee($this->employeeOfEveryBranchWithTheStore($store));
