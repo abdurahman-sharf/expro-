@@ -1,0 +1,446 @@
+[
+ {
+  "id": "pw-roles-1",
+  "statement": "قائمة الأدوار /owner/roles/index?reset=1 فيها صفان فقط: 1 Manager و2 Staff (النوع «مستخدم»)؛ الأعمدة: «المعرف» و«الدور الوظيفي» و«النوع» و«الإجراءات»؛ العدّاد «1-2 من 2 النتائج المعروضة»؛ زر «دور جديد» (/owner/roles/add).",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/roles-list.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-2",
+  "statement": "إجراءات كل دور في القائمة: «تعديل» (/owner/roles/edit/{id})، «نسخ» (/owner/roles/add/{id})، «الصفحات المحظورة» (/owner/roles/edit_blocked/{id})، «حذف» (/owner/roles/delete/{id})، وإجراء جماعي «للمحدد: حذف» بحوار تأكيد «نعم/لا». العمودان «المعرف» و«الدور الوظيفي» قابلان للفرز.",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/roles-list.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-3",
+  "statement": "دور المالك «Owner» بمعرّف -1 ليس صفًا في قائمة الأدوار، لكنه خيار معطّل في حقل «الدور الوظيفي» عند تعديل المالك، ويظهر «المالك» في فلتر «الدور الوظيفي» لقائمة الموظفين (المالك، المدير، موظف).",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/staff-edit-1.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-4",
+  "statement": "رأس نموذج الدور: data[Role][name] اسم الدور (مطلوب، يُحرَّر في العنوان بقلم)، data[Role][type] اختيار وحيد «مستخدم» (لا خيار ثان)، data[Role][is_super_admin] «مدير (أدمن)»؛ الأخير غير مفعّل في Manager وفي Staff معًا. النموذج POST /owner/roles/edit/{id} وللإضافة POST /owner/roles/add؛ أزرار «إلغاء» و«حفظ» و«حفظ وإضافة جديد».",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/_matrix-parsed.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-5",
+  "statement": "عدد خيارات الصلاحية: 119 في «دور جديد» وفي Staff، و122 في Manager (الزيادة ثلاثة خيارات قديمة مشطوبة)؛ موزعة على 11 لوحة داخل 6 تطبيقات: المبيعات (لوحات المبيعات 39 والمنتجات 8 والفاتورة الإلكترونية السعودية 1)، إدارة علاقات العملاء (العملاء 10)، الموارد البشرية (الموظفين 7)، المخزون و المشتريات (إدارة المخزون 20)، الحسابات العامة (الحسابات العامه & القيود اليومية 13 والمالية 15)، الاعدادات العامة (الإعدادات 6، و9 في Manager).",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/_matrix-parsed.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-6",
+  "statement": "عدّادات «المفعّل/الكل» في شريط التطبيقات: Manager كل التطبيقات 29/122 (المبيعات 18/48، إدارة علاقات العملاء 4/10، الموارد البشرية 0/7، المخزون و المشتريات 0/20، الحسابات العامة 4/28، الاعدادات العامة 3/9)؛ Staff 20/119 (14/48، 3/10، 0/7، 0/20، 3/28، 0/6)؛ دور جديد 0/119.",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/role-edit-1.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-7",
+  "statement": "الدور الجديد: كل الـ119 خيارًا غير مفعّل ونوع الدور «مستخدم» وخيار المدير (أدمن) غير مفعّل.",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/role-add.html",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-8",
+  "statement": "Staff يفعّل 20 خيارًا فقط: 4 إضافة فواتير لكل العملاء، 412 للعملاء الخاصة به، 6 تعديل وحذف فواتيره، 7 عرض فواتيره، 124 فوترة جميع المنتجات، 413 تعديل تاريخ الفاتورة، 67 دفعات لفواتيره، 414 و415 إضافة عرض سعر، 419 و417 عرض وتعديل عروضه، 26 إضافة منتج، 27 و30 عرض وتعديل منتجاته، 1 إضافة عميل، 2 و18 عرض وتعديل عملائه، 61 إضافة مصروف، 63 و64 تعديل وعرض مصروفاته.",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/role-edit-2.html",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-9",
+  "statement": "Manager يفعّل 29 خيارًا = كل ما في Staff + 24 عرض جميع الفواتير + 44 إنشاء تقرير ضرائب + 25 إضافة عمليات دفع لكل الفواتير + 28 عرض كل المنتجات + 3 عرض جميع العملاء + 65 مشاهدة كل المصروفات + 37 و41 و42 القديمة؛ Staff لا يفعّل شيئًا غير مفعّل في Manager.",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/_matrix-parsed.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-10",
+  "statement": "لا Manager ولا Staff يملك أي خيار في الموارد البشرية (0/7) ولا إدارة المخزون والمشتريات (0/20) ولا الحسابات العامة والقيود (0/13) ولا تعديل الإعدادات العامة (34) ولا إعدادات الضرائب (36) ولا عرض معلومات الحساب (1001)؛ أي أن الدورين الجاهزين دورا مبيعات لا إدارة نظام، والمدير الفعلي هو دور Owner.",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/_matrix-parsed.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-11",
+  "statement": "ثلاثة خيارات في لوحة «الإعدادات» تظهر في Manager فقط، مفعّلة ومشطوبة (style=\"text-decoration: line-through\"): 37 «عرض الشروط والأحكام» و41 «إضافة ملفات ووثائق» و42 «تعديل وحذف الملفات والوثائق»؛ لا تظهر في Staff ولا في دور جديد. (تفسير: صلاحيات ملغاة تُعرض فقط لمن يحملها.)",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/role-edit-1.html",
+  "kind": "inference"
+ },
+ {
+  "id": "pw-roles-12",
+  "statement": "لوحة «المبيعات» (39 خيارًا) تتضمن خيارات دقيقة: 119 «تغيير البائع»، 413 «تعديل تاريخ الفاتورة»، 2080 «تغيير تاريخ الدفع»، 35 «تعديل خيارات الدفع»، 124 «فوترة جميع المنتجات»، 44 «إنشاء تقرير ضرائب»، 945/946 «إضافة فواتير كمسودة لكل العملاء/للعملاء الخاصة به»، 947 «إصدار الفواتير المسودة»، 433 «تحويل أمر البيع إلي فاتورة»، 2106 «إدارة معاملات المبيعات المحذوفة»، وأوامر البيع (421-426) والإشعارات المدينة (427-432).",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/_matrix.md",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-13",
+  "statement": "لوحة «الحسابات العامه & القيود اليومية» (13): 117 اضافة اصول جديدة، 2079 إدارة إعدادات الأصول، 126/127 عرض/إدارة مراكز التكلفة، 128/129 إداراة/عرض الفترات المقفلة، 130 إدارة حسابات القيود، 131 عرض جميع القيود، 132 عرض القيود الخاصة به، 133 إضافة/تعديل جميع القيود، 134 إضافة/تعديل/مسح القيود الخاصة به، 420 إضافة/تعديل القيود المسودة، 722 حذف القيود. لا خيار في هذه اللوحة لعرض دليل الحسابات أو التقارير المحاسبية.",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/_matrix.md",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-14",
+  "statement": "لوحة «المالية» (15): المصروفات (61 إضافة، 62/63 تعديل وحذف الكل/الخاصة به، 65/64 مشاهدة الكل/التي أنشأها، 442 مسودة)، 118 تعديل الخزينة الافتراضية، 123 عرض خزائنه الخاصة، سندات القبض (68 إضافة إيراد، 69/70 تعديل وحذف الكل/الخاص به، 72/71 عرض الكل/التي أنشأها، 443 مسودة)، 163 إضافة تصنيف إيرادات/مصروفات. لا صلاحية إيداع ولا سحب ولا تحويل بين الخزائن في أي لوحة من الدور، وأقرب الخيارات 118 و123 (نطاق الإيداع والسحب مكانه نموذج الخزينة نفسه حسب رصد S-35 السابق).",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/_matrix.md",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-15",
+  "statement": "لوحة «العملاء» (10) تضم أيضًا صلاحيات سجل النشاطات: 99 «عرض جميع سجلات الأنشطة» و100 «عرض سجل نشاطه»، و158 «تعديل إعدادات العملاء» و159/160 تقارير العملاء (الكل/الخاصة به).",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/_matrix.md",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-16",
+  "statement": "لوحة «إدارة المخزون» (20) تضم المشتريات والموردين: 74-78 فواتير الشراء، 79-83 الموردين، 148-150 الإذن المخزني، 144/145 عرض/تعديل سعر حركة المخزون، 135 «السماح للبيع بأقل من السعر الأدني للمنتج»، 2107 «إدارة معاملات المشتريات المحذوفة»، 84 «تعديل عدد المنتجات بالمخزون»، 85 «متابعة المخزون»، 111 «نقل المخزون». لوحة «المنتجات» (8) تضم 101-103 مجموعات الأسعار.",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/_matrix.md",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-17",
+  "statement": "33 خيارًا من 119 بنطاق ملكية «الخاص به»؛ المعنى يختلف: في إضافة الفواتير وعروض الأسعار وأوامر البيع والإشعارات المدينة هو «العملاء الخاصة به» (مثل 412 «إضافه فواتير للعملاء الخاصة به»)، وفي العرض والتعديل هو السجلات التي أنشأها المستخدم (مثل 7 «عرض الفواتير الخاصة به»، 64 «مشاهدة المصروفات التي أنشأها»).",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/_matrix.md",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-18",
+  "statement": "خيار «الكل» يستتبع خيار «الخاص به» في بياناته (data-role-children): مثلًا 24 «عرض جميع الفواتير» يستتبع 7؛ 5 «تعديل وحذف كل الفواتير» يستتبع 6 و7 و24 و947؛ 4 «إضافة فواتير لكل العملاء» يستتبع 412 و7 و3 و2 و27 (عبر وحدات العملاء والمنتجات).",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/_matrix-parsed.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-19",
+  "statement": "سلوك الواجهة (نموذج دور جديد غير محفوظ): تفعيل خيار يفعّل تلقائيًا كل ما يستتبعه؛ تفعيل 4 فعّل 2 و3 و7 و27 و412، وتفعيل 165 فعّل 7 و24 و25 و67 و166، وتفعيل 722 فعّل 131 و132 و133 و134 و420، وتفعيل 16 فعّل 273.",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/role-add-behavior2.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-20",
+  "statement": "سلوك الواجهة: إلغاء خيار يُلغي تلقائيًا الخيارات الأعلى التي تستتبعه ولا يُلغي ما دونه؛ بعد تفعيل 5 (5،6،7،24،947) ثم إلغاء 7 لم يبقَ غير 947؛ وبعد تفعيل 165 ثم إلغاء 67 بقي 7 و24 فقط؛ وإلغاء 4 بعد تفعيله أبقى 2 و3 و7 و27 و412 مفعّلة.",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/role-add-behavior2.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-21",
+  "statement": "العنقود 27 «عرض المنتجات الخاصة به» و28 «عرض كل المنتجات» و85 «متابعة المخزون» دائري: تفعيل 28 فعّل 27 و85، وإلغاء 27 ألغى الثلاثة.",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/role-add-behavior2.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-22",
+  "statement": "صندوق اللوحة الرأسي يفعّل كل خيارات اللوحة ويلغيها (المبيعات: 39 خيارًا)، والعدّادات (اللوحة والتطبيق وكل التطبيقات) تتحدث فورًا.",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/role-add-behavior2.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-23",
+  "statement": "اختيار «مدير (أدمن)» في نموذج الدور يفعّل كل الـ119 مربعًا ويعطّلها كلها (119 مفعّلًا و119 معطّلًا، والعدّادات 119/119)؛ إلغاؤه يعيد 0 مفعّل ولا يستعيد ما كان محددًا قبله.",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/role-add-behavior.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-24",
+  "statement": "صفحة «الصفحات المحظورة» /owner/roles/edit_blocked/{id}: حقل نص واحد متعدد الأسطر data[Role][links] (10 أسطر) فارغ في Manager وStaff بلا عنوان ولا نص إرشادي، وزر «أرسل» (Ctrl + Enter)، الطريقة PUT. (تفسير: قائمة صفحات تُحجب عن الدور فوق الصلاحيات؛ التنسيق غير مرصود.)",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/role-blocked-1.html",
+  "kind": "inference"
+ },
+ {
+  "id": "pw-roles-25",
+  "statement": "قائمة الموظفين /v2/owner/entity/staff/list?reset=1 (صفحة React، العنوان «موظف»): موظف واحد (المالك New Beauty #000001، دوره «Owner (مستخدم)»، «نشط»)؛ الأعمدة «الاسم» (باسمه وكوده) و«البريد الإلكتروني» و«الدور الوظيفي» و«آخر تسجيل دخول» و«الحالة»؛ الفرز بـ«الكود» و«الاسم» و«تاريخ الإنشاء»؛ إجراءات الصف «عرض» و«تعديل» و«تغيير كلمة المرور».",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/staff-list-advanced.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-26",
+  "statement": "أزرار قائمة الموظفين: «أضف مستخدم» (/v2/owner/staff/create/user)، تصدير (/v2/owner/export/staff?ids=all)، وقائمة «الاجراءات (المحدد)» فيها «تصدير» و«ارسال بيانات الدخول»، وقائمة التحديد «لا أحد» و«الكل (الصفحة الحالية)» و«الكل (جميع الصفحات)».",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/staff-list-advanced.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-27",
+  "statement": "فلاتر قائمة الموظفين: بحث سريع «ابحث بالاسم، الكود، البريد الإلكتروني، القسم، الفرع، الدولة... إلخ»؛ متقدم: «الرقم التعريفي» (متعدد)، «الحالة» (غير نشط، نشط)، «النوع» (مستخدم، موظف)، «الدور الوظيفي» (المالك، المدير، موظف)، «حالة المواطنة» (مواطن، مقيم)، «الجنسية»، «تاريخ انتهاء الإقامة» (من/إلى)؛ وأزرار «بحث» و«إعادة تعيين». القسم والفرع في نص البحث ليسا حقلين في نموذج الموظف المرصود.",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/staff-list-filter-options.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-28",
+  "statement": "نموذج إضافة مستخدم /v2/owner/staff/create/user (POST /v2/owner/staff، multipart): قسم «معلومات الموظف»: name «الاسم الاول *» مطلوب، last_name «اللقب»، middle_name «الاسم الاوسط»، employee_picture_file «صورة الموظف»، note «ملاحظات»، mobile «رقم الجوال»، home_phone «رقم الهاتف»، building_no «رقم المبنى»، address1 «اسم الشارع»، address2 «الرقم الفرعي»، state «الحي»، city «المدينة»، postal_code «الرمز البريدي»، short_address «العنوان المختصر»، country_code «الدولة *» مطلوب (الافتراضي SA المملكة العربية السعودية)، citizenship_status «حالة المواطنة» (مقيم/مواطن).",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/staff-create.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-29",
+  "statement": "نموذج إضافة مستخدم، قسم «معلومات الحساب»: code «الكود *» مطلوب (مُعبّأ 000002 مع generated_code مخفي 000002)، email_address «البريد الإلكتروني»، active «الحالة *» (نشط=1 الافتراضي، غير نشط=0)، can_access_system «السماح بالدخول إلى النظام» (مفعّل افتراضيًا)، send_credentials «ارسال بيانات الدخول الى بريد الموظف» (غير مفعّل)، role_id «الدور الوظيفي» (اختر الدور الوظيفي: Manager=1، Staff=2)، language_code «Display Language» (العربية=7 الافتراضي، الانجليزية=41)، وحقل type مخفي بقيمة user.",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/staff-create.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-30",
+  "statement": "تبعيات نموذج الموظف (محليًا بلا حفظ): اختيار «مقيم» يُظهر «الجنسية» و«تاريخ انتهاء الإقامة» (يخفيان مع «مواطن» أو الفراغ)؛ إلغاء «السماح بالدخول إلى النظام» يخفي «ارسال بيانات الدخول الى بريد الموظف» و«الدور الوظيفي» و«Display Language»؛ اختيار دور يجعل «البريد الإلكتروني» و«الدور الوظيفي» و«Display Language» مطلوبة.",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/staff-create-behavior.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-31",
+  "statement": "نموذج الموظف لا يحوي حقولًا للفروع ولا المستودعات ولا الخزائن ولا حسابًا افتراضيًا (مثل عهدة الموظف) ولا مهلة جلسة أو IP أو مصادقة ثنائية ولا تاريخ مباشرة ولا قسمًا ولا راتبًا؛ خيارات الدخول الوحيدة: «السماح بالدخول إلى النظام» و«ارسال بيانات الدخول الى بريد الموظف» واللغة والدور والحالة.",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/staff-create.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-32",
+  "statement": "/v2/owner/staff/create/employee يعيد التوجيه (302) إلى لوحة التحكم: إنشاء نوع «موظف» (بلا دخول) غير متاح في الحساب بهذا المسار، رغم وجود خيار «موظف» في فلتر «النوع» وفي حقل «نوع الموظف» (معطّل) بنموذج التعديل.",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/staff-edit-1.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-33",
+  "statement": "تعديل المالك /v2/owner/staff/1/edit (PUT): حقول معطّلة: الاسم الاول، اللقب، رقم الجوال، رقم الهاتف، الدولة، «نوع الموظف» (مستخدم/موظف)، «البريد الإلكتروني *»، «السماح بالدخول إلى النظام»، «الدور الوظيفي *» (القيمة Owner=-1، الخيارات Manager وOwner وStaff)، «Display Language *»؛ المحرَّر: الاسم الاوسط، ملاحظات، العنوان، حالة المواطنة، الكود (000001)؛ ولا يوجد حقلا «الحالة» و«ارسال بيانات الدخول». (تفسير: هوية المالك تُدار من /settings.)",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/staff-edit-1.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-34",
+  "statement": "كود الموظف التالي 000002 في نموذج الإضافة يطابق «الرقم التالي» لنوع الترقيم «الموظفين» (type 49).",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/numbering-all-types.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-35",
+  "statement": "ملف الموظف /v2/owner/staff/1: رأس باسم وكود وجوال وبريد وشارة «نشط»؛ أزرار «تعديل» و«إضافة الملاحظات / المرفقات» و«مستندات الطباعة والبريد الإلكتروني» و«إضافة مستند جديد» (entity_document/create?subEntityKey=staff&subEntityId=1) و«خيارات أكثر» (فيها «تغيير كلمة المرور» فقط)؛ تبويبا «التفاصيل» (معلومات الموظف ومعلومات الحساب) و«سجل النشاطات» (فلاتر «كل الإجراءات» و«كل الفاعلين» والرسالة «لا يوجد نشاطات»).",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/staff-view-1.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-36",
+  "statement": "تبويب «سجل النشاطات» في ملف المالك فارغ («لا يوجد نشاطات») رغم مئات سجلات الدخول والعمليات باسمه في السجل العام. (تفسير: يعرض الأنشطة الواقعة على سجل الموظف لا أنشطته.)",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/staff-view-activity-tab.txt",
+  "kind": "inference"
+ },
+ {
+  "id": "pw-roles-37",
+  "statement": "فتح /v2/owner/staff/1?reset=1 أعاد مرة واحدة HTTP 500 («عذراً! There's an internal error.») ثم فُتحت الصفحة بنجاح (200) في المحاولتين التاليتين.",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/staff-view-1-retry.png",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-38",
+  "statement": "إعدادات الموظفين /v2/owner/staff/settings: أربع بطاقات فقط بلا مفاتيح إعداد: «الحقول المخصصة للموظفين» و«قوالب الطباعة» و«قوالب البريد الإلكتروني» و«النماذج ذات الصلة».",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/staff-settings.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-39",
+  "statement": "قوالب الموظفين: الطباعة (/v2/owner/templates/pdf/list/staff) قوالب نظام «خطاب تقدير» و«خطاب إنذار» و«خطاب توصية» (Reference Letter) وزر «أضف قالب»؛ البريد (/v2/owner/templates/email/list/staff) «خطاب إنذار» و«رسالة ترحيب» (Welcome Aboard) و«خطاب تقدير». «النماذج ذات الصلة» فارغة بفلاتر اسم وحالة وزر «أضف نموذج مخصص».",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/staff-print-templates.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-40",
+  "statement": "منشئ الحقول المخصصة للموظفين (builder/le_custom_data_staff، عنوان «Employee More Information») يعرض لوحة 21 نوع حقل بأسماء إنجليزية: Single Line Field، Multi-Lines Field، URL Field، Email Field، Phone Number، Date، Time، Currency، Number، Toggle، Map Location، File، Image، Multiple Sub-Forms، Separator، Dropdown، Multiple Dropdown، Dynamic Dropdown، Multiple Dynamic Dropdown، Static Content، Formatted Text.",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/staff-custom-fields-create.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-41",
+  "statement": "أثر جانبي: فتح (GET) رابط «الحقول المخصصة للموظفين» /v2/owner/local_entities/custom_data/staff/create?redirect=... أنشأ تلقائيًا نموذجًا مخصصًا اسمه «Employee More Information»؛ سجل النشاطات: «New Beauty قام بإضافة نموذج مخصص Employee More Information 07:57:18» (وقت الفتح)، ومثله «Clients More Information» (07:39:59) و«Journal Entry More Information» (07:40:08) و«Accounting Asset More Information» (07:40:16) من فتحات مماثلة. السجل المنشأ لا يظهر في «النماذج ذات الصلة».",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/activity-logs-first-page.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-42",
+  "statement": "«خزائن الموظفين» /v2/owner/staff_treasuries فارغة («لا يوجد خزائن الموظفين أضيفت حتي الآن») بزر «أضف الخزينة الافتراضية»؛ نموذجها (POST /v2/owner/staff_treasuries، عنوان «معلومات الخزينة»): «موظف *» (name=id) و«الخزينة الافتراضية *» (default_treasury_id: Main Treasury، افتراضي-S35 بنك). (تفسير: مفتاح الصف هو الموظف، فخزينة افتراضية واحدة لكل موظف.)",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/staff-treasuries-create.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-43",
+  "statement": "«المستودعات الأفتراضية للموظفين» /v2/owner/inventory/settings/default_warehouses فارغة بزر «أضف المستودع الافتراضي للموظف»؛ نموذجها (POST): عنوان «معلومات الموظف»، «موظف *» (name=id) و«المستودع الافتراضي للموظف *» (default_store_id: Primary Warehouse).",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/default-warehouses-create.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-44",
+  "statement": "سجل النشاطات (القائمة: التقارير ← «سجل النشاطات للحساب»، العنوان «سجل النشاطات») خط زمني مجمّع بيوم («اليوم»، «الأمس»، ثم أسماء الأيام)؛ يُحمَّل بـ GET /v2/owner/activity_logs?...&sort=DESC&ajax=1، 30 سجلًا للصفحة (p=2...)، وفي الحساب 672 سجلًا في 23 صفحة وقت الرصد؛ فرز Descending/Ascending (sort=ASC).",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/activity-logs-all.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-45",
+  "statement": "كل سجل: أيقونة بحسب فئة الحدث، جملة مولّدة، المنفّذ بصورته واسمه (تلميح عند المرور يعرض عنوان IP)، والوقت HH:MM:SS؛ سجلات الإضافة والتعديل تحمل قائمة حقول (المورد: رقم المورد، الاسم التجاري، البريد، البلد، العملة، الرقم الضريبي، الحالة؛ المنتج: الاسم، سعر البيع، الضريبة الاولى، سعر الشراء، متوسط السعر، النوع، الحالة؛ القيد: كود القيد، وصف المستخدم؛ الفاتورة: Delivery status وتاريخ التسليم).",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/activity-logs-all.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-46",
+  "statement": "فلاتر سجل النشاطات: «كل الإجراءات» (قائمة متعددة بحث، 43 إجراءً، وسيط actions=)، «كل الفاعلين» (قيمتان: 1 = New، -2 = SYSTEM، وسيط actors=)، «تحديد الفترة الزمنية» (date_range_from وdate_range_to بصيغة dd/mm/yyyy)؛ قائمة الفترة: الأسبوع الماضي، الشهر الماضي، الشهر الحالي، السنة السابقة، السنة الحالية، إعادة تعيين، تحديد الفترة الزمنية، يوم محدد، كل التواريخ قبل، كل التواريخ بعد.",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/activity-logs-selects.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-47",
+  "statement": "«الشهر الماضي» في سجل النشاطات يعني نافذة متحركة 27/09/2026 - 27/10/2026 (لا الشهر التقويمي)، و«الشهر الحالي» 01/10/2026 - 27/10/2026.",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/activity-logs-daterange-tests.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-48",
+  "statement": "اختبار الفلاتر: actions=999 («دخول») أعاد سجلات دخول فقط (30 في الصفحة)، actions=1 («إنشاء فاتورة») 27 سجلًا، actors=-2 (SYSTEM) 18 سجلًا.",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/activity-logs-filter-tests.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-49",
+  "statement": "قائمة الإجراءات الـ43 تغطي: إنشاء/تحديث/طباعة/حذف مدفوعات فاتورة بيع، عروض الأسعار وتحويلها، المصروف، العميل، الدخول (999)، فواتير الشراء ومدفوعاتها ومخزونها (استلام/تحديث/إزالة)، مرتجع المشتريات، الإشعار الدائن والمدين، الفاتورة المرتجعة، التعديل اليدوي للمخزون (224)، «Average Price Changed» (1176)، إضافة وتعديل خزينة (2089/2090)، القيد (إضافة/تعديل/تعديل سطر)، المورد والمنتج والنموذج المخصص؛ ولا إجراء لتعديل دور أو صلاحية أو موظف أو إعداد أو ترقيم أو ضريبة أو حذف مستند.",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/activity-logs-selects.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-50",
+  "statement": "تركيب السجلات الـ672: دخول 388، إضافة فاتورة 39، تعديل فاتورة شراء 57، بيع مخزون 33، دفعات فواتير 30، استلام مخزون 25، فواتير شراء مضافة 23، تحديث دفعة 11، منتجات 9، عبارات «أضاف … مورد جديد» 7 و«أضاف … عميل جديد» 4 وسجلات «قام بإضافة المورد» بقوائم الحقول 7، طباعة فاتورة/إيصال 4، حذف دفعات 4، نماذج مخصصة 4، تعديل يدوي للمخزون 2، قيود يومية (إضافة 2، تعديل 1، تعديل سطر 1).",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/activity-logs-all.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-51",
+  "statement": "الفاعل SYSTEM (النظام) سجّل 18 حدثًا آليًا على الدفعات وحالة الفواتير، مثل «حذف النظام الدفع #28 …» و«أضاف النظام عملية دفع جديد #28 …» و«حدث النظام الفاتورة ##000002 إلى : مدفوعة جزئياً …».",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/activity-logs-filter-tests.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-52",
+  "statement": "أحداث المخزون في السجل تحمل متوسط التكلفة بعد كل حركة (استلام، بيع، «أنقص … يدويا»، «تم تغيير متوسط سعر التكلفة للعملية رقم #23 … من 65.714285714286 إلى 65.7»)، ورمز العملة فيها يظهر «元» رغم أن عملة الحساب SAR (وكذلك «-19.66 元» في تنسيق القيم السالبة).",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/activity-logs-all.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-53",
+  "statement": "أحداث القيود في سجل النشاطات 3 فقط (إضافة قيدين وتعديل قيد وسطره) بينما الرقم التالي للقيد التلقائي 000135؛ (تفسير: القيود الآلية لا تُسجَّل في السجل؛ تُسجَّل القيود اليدوية).",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/activity-logs-all.json",
+  "kind": "inference"
+ },
+ {
+  "id": "pw-roles-54",
+  "statement": "الطباعة والتنزيل مسجَّلان في السجل: «طبع الفاتورة رقم #000001»، «قام بطباعة الإيصال رقم #1 الخاص بالفاتورة رقم #000001»، «قام بتنزيل الإيصال رقم #1 …».",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/activity-logs-first-page.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-55",
+  "statement": "الترقيم: القائمة الجانبية «الإعدادات ← إعدادات الترقيم المتسلسل» (عنوان «إعدادات الترقيم التلقائي») /owner/numbering/settings/{type} فيها 26 نوعًا: 0 العميل، 1 فاتورة، 2 عروض الأسعار، 3 فاتورة مرتجعة، 4 إشعار دائن، 5 فاتورة شراء، 6 مرتجع مشتريات، 8 المورد، 9 قيد تلقائي، 86 قيد يدوي، 10 مصروف، 11 سندات القبض، 12 إذن إضافة مخزن، 13 إذن صرف مخزن، 15 إذن تحويل مخزني، 17 ورق الجرد، 18 المنتجات، 27 أصل، 28 مدفوعات الفواتير، 29 دفع مبلغ مرتجع، 30 دفع فاتورة الشراء، 31 مدفوعات مرتجع المشتريات، 34 الاشعارات المدينة للمبيعات، 35 الاشعارات المدينة، 36 اشعار دائن المشتريات، 49 الموظفين.",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/numbering-types.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-56",
+  "statement": "حقول الترقيم لكل نوع (POST /owner/numbering/settings/{type}): «الرقم التالي» data[next_number]، «تنسيق الترقيم» data[mode]، «عدد الأرقام» data[digit_no] (و«عدد الأحرف» data[char_no] مخفي)، «غير مكرر» data[require_unique]، «بادئة» data[add_prefix]؛ وعند تفعيل البادئة: «تخصيص البادئة» data[prefix_format] مع زر «دليل المتغيرات» و«خيارات تغيير البادئة (في حالة كون البادئة بصيغة متغيرة فقط)»؛ وحقل data[branch_id] مخفي بقيمة 0؛ أزرار «تجاهل» و«حفظ».",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/numbering-1-full.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-57",
+  "statement": "«تنسيق الترقيم» 7 خيارات: «الأرقام الرقمية (0، 1، 2، …)» الافتراضي، «الأرقام السداسية العشرية بالحروف الصغيرة (a، b، c، …، f)»، «الأرقام السداسية العشرية بالحروف الكبيرة (A، B، C، …، F)»، «الحروف الصغيرة (a، b، c، …)»، «الحروف الكبيرة (A، B، C، …)»، «الحروف الصغيرة متبوعة بأرقام (a1، b2، …)»، «الحروف الكبيرة متبوعة بأرقام (A1، B2، …)».",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/numbering-mode-dropdown.png",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-58",
+  "statement": "«دليل المتغيرات» للبادئة 11 رمزًا: %d يوم برقمين، %D اختصار اليوم (Mon..Sun)، %j يوم بلا صفر، %y آخر رقمين من السنة، %Y السنة بأربعة أرقام، %n شهر بلا صفر، %N يوم الأسبوع ISO (1 الاثنين..7 الأحد)، %w (0 الأحد..6 السبت)، %W رقم الأسبوع من أول اثنين، %m شهر برقمين، %M اختصار الشهر (Jan..Dec).",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/numbering-variables-table.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-59",
+  "statement": "«خيارات تغيير البادئة» ثلاثة: 0 «التكملة بعد اخر رقم» (متسلسل من آخر رقم مهما تغيرت البادئة: Mon-001، Mon-002 ثم Tue-003، الافتراضي)، 1 «فصل الارقام في كل بادئة» (تسلسل مستقل لكل بادئة)، 2 «اعادة تعيين الرقم للبداية عند التغيير» (يبدأ من 1 عند كل تغيير). تفعيل «بادئة» يعبّئ «INV» تلقائيًا في «تخصيص البادئة» (جُرّب على «فاتورة» محليًا بلا حفظ).",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/numbering-1-prefix-on.html",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-60",
+  "statement": "كل الأنواع الـ26 على التنسيق «الأرقام الرقمية» بلا بادئة وبخيار تغيير البادئة 0 وbranch_id=0؛ «غير مكرر» مفعّل في «المنتجات» (18) فقط؛ عدد الأرقام 6 في الكل إلا 5 في 34 و35 و36.",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/numbering-all-types.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-61",
+  "statement": "الأرقام التالية وقت الرصد: العميل 000005، فاتورة 000028، عروض الأسعار 000002، فاتورة مرتجعة 000002، إشعار دائن 000007، فاتورة شراء 000025، مرتجع مشتريات 000003، المورد 000008، قيد تلقائي 000135، مصروف 000003، سندات القبض 000001، إذن إضافة 000001، إذن صرف 000001، إذن تحويل 000001، ورق الجرد 000001، المنتجات 000010، أصل 000001، مدفوعات الفواتير 000019، دفع مبلغ مرتجع 000001، دفع فاتورة الشراء 000028، مدفوعات مرتجع المشتريات 000003، الاشعارات المدينة للمبيعات 00001، الاشعارات المدينة 00003، اشعار دائن المشتريات 00001، الموظفين 000002.",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/numbering-all-types.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-62",
+  "statement": "«قيد يدوي» (type 86) صفحته مفتاح واحد «ترقيم مستقل للقيود اليدوية» data[separate_manual_journal_numbering] غير مفعّل («تفعيل ترقيم مستقل للقيود اليدوية، مستقل عن القيود التلقائية»)؛ عند تفعيله محليًا تظهر «الرقم التالي» (0) و«تنسيق الترقيم» و«عدد الأرقام» (0) و«غير مكرر» و«بادئة». أي أن القيود اليدوية تشارك تسلسل «قيد تلقائي» ما دام المفتاح معطّلًا.",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/numbering-86.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-63",
+  "statement": "معاينة الترقيم تُحسب بـ POST /owner/settings/numbering_eval_prefix عند كل فتح لصفحة الترقيم (أسقطها حارس القراءة فقط 32 مرة بلا أثر)؛ وشيفرة الصفحة تدعم ?frameModal=1 لعرضها داخل حوار من شاشات المستندات (استنتاج من الشيفرة).",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/_nonget-requests.log",
+  "kind": "inference"
+ },
+ {
+  "id": "pw-roles-64",
+  "statement": "/settings («إعدادات الحساب») نموذج واحد POST /owner/owners/change_settings/{account} بثلاثة أقسام: «بيانات النشاط التجاري» (اسم النشاط التجاري * مطلوب، الشعار JPG/GIF/PNG حتى 5 ميجابايت، جوال، الهاتف، العنوان الوطني: رقم المبنى، اسم الشارع، الرقم الفرعي، الحي، المدينة، الرمز البريدي، العنوان المختصر، البلد *، الرقم الضريبي، نوع المعرف، سجل تجارى/ رقم موحد)، «تهيئة النظام»، «ملف المدير» (الاسم الأول، الاسم الأخير، البريد الإلكتروني معطّل، «تغيير البريد الإلكتروني للمدير»، «تغيير كلمة مرور المدير»).",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/general-settings.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-65",
+  "statement": "في /settings: «البلد» و«العملة الافتراضية» و«جوال» و«البريد الإلكتروني» حقول معطّلة؛ نص «العملة الافتراضية»: «بعد إصدار أي معاملات مالية، لا يمكن تغيير هذه العملة، لكن يمكنك إصدار فواتير بعملات أخرى عند الحاجة، حيث يتم تحويل قيم المعاملات إلى العملة الأساسية في قيود اليومية والتقارير المحاسبية بناءً على أسعار الصرف»، وزر «إدارة أسعار الصرف والعملات» (/owner/local_currency_rates/index).",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/general-settings.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-66",
+  "statement": "خيارات تهيئة النظام: العملة (160 عملة، SAR الحالية)، «تنسيق القيم المحاسبية السالبة» (-19.66 元 أو (19.66 元))، لغة الواجهة (العربية AR أو الانجليزية EN، وتغييرها يغير أسماء الحسابات الافتراضية في دليل الحسابات)، «أول يوم في الأسبوع» (الأحد..السبت، الافتراضي الأحد)، «المنطقة الزمنية» (139، الافتراضي (UTC+03:00) Riyadh)، «طريقة عرض المستندات» (متصفح أو PDF).",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/general-settings-options.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-67",
+  "statement": "«صيغة التاريخ» 22 صيغة: 11 ميلادية (dd/mm/yyyy، dd-mm-yyyy، dd.mm.yyyy، mm/dd/yyyy، mm-dd-yyyy، yyyy/mm/dd، yyyy-mm-dd، dd Month yyyy، Month dd yyyy، dd Mon yyyy، Mon dd yyyy) و11 بتقويم أم القرى الهجري بالصيغ نفسها (مثل 16/05/1448 و«16 جمادى الأول 1448»)، الافتراضي dd/mm/yyyy ميلادي.",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/general-settings-options.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-68",
+  "statement": "«نوع المعرف» (للفاتورة الإلكترونية) 11 خيارًا: CRN السجل التجاري، MOM ترخيص وزارة الشؤون البلدية والقروية والإسكان، MLS ترخيص وزارة الموارد البشرية والتنمية الاجتماعية، SAG ترخيص الهيئة العامة للاستثمار، 700 رقم 700، TIN الرقم المميز، NAT رقم الهوية الوطنية، IQA رقم الإقامة، GCC هوية خليجية، PAS رقم جواز السفر، OTH أخرى.",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/general-settings-options.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-69",
+  "statement": "/settings لا تحوي السنة المالية ولا الحسابات الافتراضية ولا الضريبة ولا سياسة كلمات المرور ولا مهلة الجلسة ولا مصادقة ثنائية ولا النسخ الاحتياطي.",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/general-settings.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-70",
+  "statement": "في /settings اسم الحقل city تحت العنوان «الحي» وstate تحت «المدينة» (معكوس مقارنة بنموذج الموظف: state «الحي» وcity «المدينة»).",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/general-settings.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-71",
+  "statement": "معلومات الحساب: باقة «Free» تنتهي 04/11/2026، عملة SAR، المنطقة الزمنية (UTC+03:00) Riyadh، صيغة d/m/Y؛ «استهلاك الباقة»: الفواتير الدورية 0 من 7، العملاء 4 من 15، الفواتير وعروض الاسعار 35 من 50، الخزن النقدية و البنوك 2 من ∞، المستودعات 1 من 2، «الفروع والمستخدمين طلب إضافي» 0 من 0.",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/account-info.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-72",
+  "statement": "أزرار معلومات الحساب: «تعديل» (/settings)، «تنزيل نسخة احتياطية» (/backup)، «إلغاء هذا الحساب» (/owner/owners/cancel)، «تجديد الباقة» (/renew)، «ترقية الباقة» (/owner/owners/upgrade)، «لوحة الحسابات» (/owner/owners/my_accounts)، «طلب إضافي» (/owner/owners/increase_limit/user_branch_limit)؛ لم يُضغط أي منها.",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/account-info.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-73",
+  "statement": "القائمة الجانبية للمالك: 11 عنصرًا علويًا و60 عنصرًا فرعيًا (المبيعات 9، العملاء 4، المخزون 6، المشتريات 6، المالية 4، الحسابات العامة 6، الموظفين 3، التقارير 7، القوالب 6، الإعدادات 9)؛ «سجل النشاطات للحساب» تحت التقارير، و«إدارة أدوار الموظفين» تحت الموظفين، و«إعدادات الترقيم المتسلسل» و«إعدادات الضرائب» و«طرق الدفع» و«إعدادات الـ SMTP» و«API» و«إدارة التطبيقات» و«شعار وألوان النظام» تحت الإعدادات.",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/sidebar-menu.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-roles-74",
+  "statement": "حد: لا يمكن الدخول بمستخدم آخر، فلا يمكن رصد أثر الصلاحيات على القائمة؛ ربط خيارات الصلاحية بعناصر القائمة (مثل 1001 بـ«معلومات الحساب»، 34 بـ«إعدادات الحساب»، 36 بـ«إعدادات الضرائب»، 99/100 بـ«سجل النشاطات للحساب») استنتاج من تطابق التسميات.",
+  "evidenceFile": "/home/user/daftra-tools/out/roles/sidebar-menu.json",
+  "kind": "inference"
+ }
+]

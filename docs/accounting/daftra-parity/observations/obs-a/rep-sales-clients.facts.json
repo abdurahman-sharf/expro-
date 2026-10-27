@@ -1,0 +1,668 @@
+[
+ {
+  "id": "pw-rep-sales-clients-1",
+  "statement": "كتالوج تقارير المبيعات في `/owner/reports/list/` يضم 35 مدخلًا في 8 مجموعات هي: «تقارير متابعة الفواتير المقسمة»، «تقارير مبيعات المنتجات بالمدة الزمنية»، «تقارير الفواتير حسب المدة الزمنية»، «تقارير المدفوعات المقسمة»، «تقارير المدفوعات بالمدة الزمنية»، «أرباح مبيعات الأصناف»، «تقارير الربح حسب الفترة»، «تقارير مبيعات البنود المقسمة»؛ وتبويب العملاء 8 تقارير: أعمار الديون (الفواتير)، أعمار الديون (حساب الأستاذ)، دليل العملاء، أرصدة العملاء، مبيعات العملاء، مدفوعات العملاء، كشف حساب العملاء، مواعيد العملاء.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/_report_catalog.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-2",
+  "statement": "مجموعة «تقارير متابعة الفواتير المقسمة» تحوي المبيعات حسب العميل ومدخل الفاتورة ومندوب المبيعات (تفاصيل وملخص) وتقرير إرسال الفواتير إلى هيئة الزكاة و`Invoice-Returns Cross-Reference` (اسم إنجليزي في الكتالوج، وعنوان صفحته «مطابقة الفواتير والمرتجعات») وتقرير صافي وضع الفواتير؛ وليست تقارير أقساط.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/_report_catalog.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-3",
+  "statement": "لا يوجد في كتالوج التقارير تقرير للفواتير الدورية ولا للأقساط؛ وصفحة `/owner/invoices/subscriptions` فارغة (رسالة «الفواتير الدورية، اضغط هنا لإنشاء فواتير دورية» وزر «اشتراك جديد» ومرشحات الاسم والعميل والتاريخ ومبلغ الإجمالي ونوع العميل).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/subs-list.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-4",
+  "statement": "التقرير لا يعرض نتائج عند أول فتح: تظهر المرشحات وزر «عرض التقرير» فقط، وبالضغط يُعاد الطلب GET بالمعامل `showResults=1` (عائلات revenue وproducts وpayments) أو `show_report=1` (عائلة `report/`) مع كل المرشحات في العنوان.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/rev-client-details-default.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-5",
+  "statement": "تقرير «تقرير حسب العميل مفصل للفواتير» (`/owner/reports/revenue?report_type=invoice&group_by=client`) أعمدته `رقم | التاريخ | مدخل العملية | حالة الفاتورة الإلكترونية | مدفوعة (SAR) | غير مدفوعة (SAR) | مرتجع (SAR) | الإجمالي (SAR)`، مجمّع تحت اسم العميل بصف «المجموع» لكل عميل وصف «الإجمالي الكلي (SAR)» في الآخر.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/rev-client-det.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-6",
+  "statement": "ملخص العميل «تقرير حسب العميل مختصر للفواتير» أعمدته `العميل | مدفوعة | غير مدفوعة | مرتجع | الإجمالي` وخاتمته «الإجمالي»: 3,253 | 5,989.56 | 86.25 | 9,328.81؛ ولا يظهر فيه العميل الذي لا مستندات له (مؤسسة الأفق).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/rev-client-sum.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-7",
+  "statement": "مرشحات تقارير الإيرادات: الفترة من/إلى، الحالة (قائمة متعددة: الكل، مدفوعة، مدفوعة جزئياً، غير مدفوعة، متأخر، فاتورة مرتجعة، فاتورة مرتجعة مدفوعة، فاتورة مرتجعة غير مدفوعة، إشعار دائن)، العميل، تصنيف العميل، مدخل العملية، حالة الفاتورة الإلكترونية (لم ترسل، صالح، غير صالح)، وخانة «إظهار المبيعات بدون ضريبة».",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/rev-client-details-default.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-8",
+  "statement": "خانة «إظهار المبيعات بدون ضريبة» تضيف عمود «المبيعات بدون ضريبة (SAR)» بين «مرتجع» و«الإجمالي» (إجماليه 8,112 مقابل 9,328.81 بالضريبة).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/rv-not-taxed.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-9",
+  "statement": "شريط أدوات تقارير الإيرادات: زرا «الملخص» و«التفاصيل» وقائمة تجميع (يومياً، أسبوعياً، شهري، سنوي، مدخل العملية، مسئول مبيعات، العميل) ثم «الإعدادات» و«طباعة» و«خيارات التصدير»؛ ولكل عرض تفصيلي ومختصر عنوانه الخاص («المبيعات حسب مدخل الفاتورة (مفصل)» و«مفصل إيرادات حسب مندوب المبيعات» و«تقرير يومي مفصل للفواتير» ...).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/rev-client-sum.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-10",
+  "statement": "زر «الإعدادات» في تقرير الإيرادات يفتح نافذة «الأعمدة المخفية — اختر الأعمدة لإخفائها» بقائمة أعمدة التقرير الثمانية وزر «حفظ الإعدادات» (لم يُضغط).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/rev-client-details-settings.png",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-11",
+  "statement": "ملخص أسبوعي الإيرادات أعمدته `بداية الأسبوع | نهاية الأسبوع | مدفوعة | غير مدفوعة | مرتجع | الإجمالي` والأسبوع من الاثنين إلى الأحد (19/10/2026 إلى 25/10/2026 ثم 26/10/2026 إلى 01/11/2026)؛ والملخص الشهري يكتب اسم الشهر بالإنجليزية («October 2025»).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/rev-weekly-sum.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-12",
+  "statement": "الفترات الافتراضية في روابط الكتالوج: اليومي من 27/09/2026 إلى 27/10/2026، الأسبوعي من 27/07/2026، الشهري من 27/10/2025، السنوي بلا تاريخ؛ وتقرير الزكاة يوم أمس واليوم فقط.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/_all_report_links.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-13",
+  "statement": "الأيام بلا مستندات تظهر صفوفًا بأصفار في الملخص اليومي (31 صفًا للفترة الافتراضية) وكتلة «المجموع 0.00» لكل يوم في التفصيلي.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/rev-daily-sum.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-14",
+  "statement": "منتقي التاريخ فيه اختصارات «الأسبوع الماضي» و«الشهر الأخير» و«من أول الشهر حتى اليوم» و«السنة الماضية» و«من أول السنة حتى اليوم» وأنماط «الفترة من / إلى» و«تاريخ محدد» و«كل التواريخ قبل» و«كل التواريخ بعد».",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/revenue-daterange-open.png",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-15",
+  "statement": "إجمالي تقارير الإيرادات (عميل/مدخل/تفصيلي/سنوي) للفترة: مدفوعة 3,253 | غير مدفوعة 5,989.56 | مرتجع 86.25 | الإجمالي 9,328.81.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/rev-client-det.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-16",
+  "statement": "في صف الفاتورة بتقارير العميل والمدخل: غير مدفوعة = الإجمالي − مدفوعة − مرتجع وقد تكون سالبة: الفاتورة #000018 (172.50) مدفوعها 156.25 ومرتجعها 86.25 فغير مدفوعها −70.00؛ والفاتورة #000009 (253) مدفوعها 92 فغير مدفوعها 161.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/rev-client-det.json",
+  "kind": "inference"
+ },
+ {
+  "id": "pw-rep-sales-clients-17",
+  "statement": "الإشعار الدائن والفاتورة المرتجعة صفّان مستقلان داخل تجميع العميل بتسمية «000004 إشعار دائن» و«000001 فاتورة مرتجعة» ومبلغهما سالب في عمود «غير مدفوعة» وفي «الإجمالي»، وعمود «مرتجع» لهما 0؛ وعمود «مرتجع» في صف الفاتورة يحمل ما رُدّ بفاتورة مرتجعة فقط (86.25 للفاتورة #000018) ولا يحمل ما رُدّ بإشعار دائن (الفاتورة #000013 مرتجعها 0.00 رغم 345 من إشعارين).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/rev-client-det.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-18",
+  "statement": "ملخص مندوب المبيعات يعطي إجمالي غير مدفوعة 6,059.56 ومرتجع 16.25 (مقابل 5,989.56 و86.25 في ملخص المدخل لنفس الفترة) مع بقاء الإجمالي 9,328.81.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/rev-salesperson-sum.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-19",
+  "statement": "بمرشح «مدفوعة» يعطي ملخص المندوب `2,071 | 0.00 | 16.25` بينما تقرير العميل المفصل يعطي `2,071 | −70.00 | 86.25`؛ أي أن ملخص المندوب يقصّ غير المدفوعة السالبة عند الصفر ويخفض المرتجع بالمقدار نفسه (16.25 = 172.50 − 156.25 للفاتورة #000018).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/rvsp-paid.json",
+  "kind": "inference"
+ },
+ {
+  "id": "pw-rep-sales-clients-20",
+  "statement": "ملخصات اليومي والأسبوعي والشهري والسنوي تعطي مدفوعة 3,253 وغير مدفوعة 7,179.81 ومرتجع −1,104.00 والإجمالي 9,328.81، بينما جدول الدائرة في الصفحة نفسها يعرض «مرتجع 0».",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/rev-daily-sum.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-21",
+  "statement": "في ملخصات الفترات يُسجَّل الإشعار الدائن في عمود «مرتجع» بالسالب (مرشح «إشعار دائن» وحده: 0 | 0 | −1,190.25) والفاتورة المرتجعة في «غير مدفوعة» بالسالب (0 | −86.25 | 0)؛ ومجموع أجزاء 22/10 (مدفوعة 1,818 + جزئية 1,000 ...) يساوي الصف الكامل (2,818 | 4,923.81 | −1,104) لأن −1,104 = −1,190.25 + 86.25 (مرتجع الفاتورة #000018).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/rvp-credit_note.json",
+  "kind": "inference"
+ },
+ {
+  "id": "pw-rep-sales-clients-22",
+  "statement": "صافي المبيعات 9,328.81 = مجموع 27 فاتورة 10,605.31 − 6 إشعارات دائنة 1,190.25 − فاتورة مرتجعة واحدة 86.25 (مقارنة قائمة الفواتير وقائمتي الإشعارات والمرتجعة بإجمالي تقرير العميل).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/cn-list.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-23",
+  "statement": "عمود «مدفوعة» في تقارير الإيرادات (3,253) يفوق المقبوضات المسجلة (1,992.75) بـ1,260.25 هو مجموع تسع عمليات دفع ينشئها النظام عند تسوية الإشعارات والرصيد الدائن على الفواتير (#000002 253 و#000007 230 و#000008 23 و#000009 92 و#000010 253 و#000012 70 و#000014 86.25 و#000015 96.75 و#000016 156.25) وتظهر في «صافي وضع الفواتير» ولا تظهر في «مدفوعات العملاء».",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/net-position-default.json",
+  "kind": "inference"
+ },
+ {
+  "id": "pw-rep-sales-clients-24",
+  "statement": "مرشح الحالة «مدفوعة» في تقرير العميل المفصل يشمل الفواتير التي حالتها تبدأ بـ«مدفوعة» ومنها «مدفوعة مرتجع» و«مدفوعة مرتجع جزئياً» (الفواتير 2 و6 و8 و15 و17 و18 بإجمالي 2,087.25).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/rv-st-paid.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-25",
+  "statement": "مرشح الحالة «غير مدفوعة» في تقرير العميل المفصل يشمل #000013 (غير مدفوعة مرتجع جزئياً) و#000016 وسائر غير المدفوعة (إجمالي 6,425.06، 18 فاتورة)، و«مدفوعة جزئياً» تضم الفواتير 1 و9 و27 (2,093).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/rv-st-unpaid.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-26",
+  "statement": "مرشح «متأخر» في تقرير الإيرادات لا يضم الفاتورة #000004 (استحقاقها 21/11/2026) ولا الفاتورة #000027 مع أن لهما رصيدًا غير مسدّد.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/rv-st-overdue.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-27",
+  "statement": "تبويب «متأخر» في قائمة الفواتير (`payment_status=-3`) يضم 20 فاتورة منها #000027 ولا يضم #000004؛ وتبويب «مستحقة الدفع» (`-2`) يضم 21 فاتورة بينها الاثنتان.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/inv-overdue.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-28",
+  "statement": "معاينة الفاتورة #000004 تعرض «تاريخ الاستحقاق 21/11/2026» بينما #000005 و#000027 بلا تاريخ استحقاق.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/invoice-previews-due-date.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-29",
+  "statement": "أرقام المستندات في صفوف تقارير الإيرادات وأعمار الفواتير نصّ بلا رابط، بينما في بقية تقارير المبيعات والعملاء والربح تفتح الصفوف الفاتورة أو الدفعة أو الإشعار أو القيد أو العميل أو الصنف.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/_drilldown_anchors.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-30",
+  "statement": "حين لا توجد نتائج تعود صفحة تقارير الإيرادات بالمرشحات بلا جدول وبلا رسالة، بينما عائلة `report/` تعرض «لا توجد بيانات توافق معطيات البحث» و`products_profit` تعرض «لا توجد نتيجة تطابق هذه الاختيارات».",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/rv-client2-empty.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-31",
+  "statement": "تقارير مبيعات البنود (`/owner/reports/products`) تجميعاتها عشرة: يومياً، أسبوعياً، شهري، سنوي، البند، التصنيف، العميل، الماركة، مدخل العملية، مسئول مبيعات، ولكل منها تفصيل وملخص؛ ومرشحاتها: البند، فاتورة (فاتورة، فاتورة مرتجعة، اشعار مدين، إشعار دائن)، حالة الفاتورة، التصنيف، المخزن، Show Draft Items، الماركة، المورد، العميل، تصنيف العميل، مدخل العملية، الفترة، العملة.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/prod-daily-det.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-32",
+  "statement": "أعمدة تفصيل مبيعات البنود: `المعرف | الاسم | الوصف | كود المنتج | المورد | [التاريخ] | مدخل العملية | فاتورة | العميل | سعر الوحدة | الكمية | الخصم | الضرائب | الإجمالي`؛ والملخص `المورد | <التجميع> | سعر الوحدة | الكمية | الخصم | الضرائب | الإجمالي`.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/prod-product-det.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-33",
+  "statement": "إجمالي مبيعات البنود لكل التجميعات: الكمية 67 | الخصم −145.50 | الضرائب 1,216.80 | الإجمالي 9,328.80.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/prod-product-sum.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-34",
+  "statement": "الإشعار الدائن والفاتورة المرتجعة سطور بكمية −1 وقيمة وضريبة سالبتين («فاتورة مرتجعة #000001» تفتح `view_refund/26`، و«إشعار دائن #000001» يفتح `view_creditnote/...`).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/prod-daily-det.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-35",
+  "statement": "«سعر الوحدة» في ملخص البنود متوسط مرجّح بالكمية الصافية: للكريم (صنف 3) مجموع سعر×كمية 2,817.50 ÷ 42 = 67.08.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/prod-product-sum.json",
+  "kind": "inference"
+ },
+ {
+  "id": "pw-rep-sales-clients-36",
+  "statement": "إجمالي مبيعات البنود يقل 0.01 عن تقارير الفواتير (9,328.80 مقابل 9,328.81)؛ والفاتورة #000004 مجموع سطريها 139.73 + 227.70 = 367.43 بينما إجماليها في قائمة الفواتير 367.42.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/prod-daily-det.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-37",
+  "statement": "مرشح المخزن Primary Warehouse في تقرير البنود يستثني سطر الخدمة (1,725) وسطر الفاتورة #000027 (115) فيصير الإجمالي 7,488.80.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/p-v-store1.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-38",
+  "statement": "التصنيف والماركة الفارغان يظهران «[غير معرف في النظام]»؛ والتفصيلي السنوي بلا تاريخ يبدأ بمجموعة فارغة بهذا الاسم تحتها «لا يوجد حركات».",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/prod-yearly-det.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-39",
+  "statement": "مرشح نوع المستند «إشعار دائن» في تقرير البنود يعطي كمية −7 وإجمالي −1,190.25 (ستة إشعارات)، و«فاتورة مرتجعة» كمية −1 وإجمالي −86.25.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/p-v-credit.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-40",
+  "statement": "عمود «الخصم» في تقرير البنود يشمل حصة السطر من خصم الفاتورة (الفاتورة #000004: −28.50 و−22.00 = −50.50 وهو «الخصم» في معاينتها)، بينما «مبيعات العملاء» يعرض لها «الخصومات» 35.50.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/cs-group-invoice.json",
+  "kind": "inference"
+ },
+ {
+  "id": "pw-rep-sales-clients-41",
+  "statement": "الرسم البياني في تقارير البنود يعرض الكمية (قيمة «الإجمالي» في جدول الرسم 42 للكريم و7 للعطر).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/prod-product-det.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-42",
+  "statement": "تقارير المدفوعات (`/owner/reports/payments`) تجميعاتها: العميل، مدخل العملية، «تم التحصيل بواسطة» (عنوانه «المدفوعات بالموظف (تم دفعها)» وغير مذكور في الكتالوج)، الطريقة، يومياً، أسبوعياً، شهري، سنوي؛ ومعها «الدفعات المقدمة حسب العميل».",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/pay-v-collected-det.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-43",
+  "statement": "أعمدة تفصيل المدفوعات `المعرف | رقم الفاتورة | التاريخ | العميل | منشئ الفاتورة | الطريقة | رقم معرف | الإجمالي (SAR)` (يتبدل أحدها بحسب التجميع)، والملخص `<التجميع> | الإجمالي (SAR)`؛ ومرشحاتها: منشئ الفاتورة، تم التحصيل بواسطة، وسيلة دفع، العميل، تصنيف العميل، الفترة.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/pay-client-det.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-44",
+  "statement": "إجمالي المدفوعات 1,992.75 في كل صيغ التجميع (8 دفعات)، ويقسمه جدول الدائرة: نقدي 1,699.25 وشيك 163.5 وتحويل بنكي 130.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/pay-client-det.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-45",
+  "statement": "إجمالي «إجمالي المدفوعات» في أرصدة العملاء 1,992.75 يساوي إجمالي تقارير المدفوعات؛ وتسويات النظام لا تظهر في المدفوعات بل في عمود «تسويات».",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/cl-balance-det.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-46",
+  "statement": "تقرير «الدفعات المقدمة حسب العميل» أعمدته `رقم الدفعة المقدمة | التاريخ | أنشئ بواسطة | الطريقة | إجمالي المبلغ | الرصيد غير المسوى | اجمالي الضريبة | الضريبة الغير مسواه`، ولم يعرض إلا الإشعار الدائن `000001` الذي بلا فاتورة أصل (−253.00، ضريبة −33.00، غير مسوى 0.00).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/adv-client-det.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-47",
+  "statement": "«مدفوعات العملاء» (`clients_payments`) أعمدته `المعرف | التاريخ | كود العميل | اسم العميل | النوع | رقم المستند | وسيلة دفع | خزينة | المبلغ | الموظف | تم التحصيل بواسطة | أضيفت بواسطة`، وبالتجميع بالخزينة: Main Treasury #1 1,902.75 وافتراضي-S35 بنك #3 30.00 وافتراضي-S35 خزينة #2 60.00 (الإجمالي 1,992.75).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/cp-group-treasury.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-48",
+  "statement": "التجميع بوسيلة الدفع في `clients_payments` يكتب اسم المجموعة برمز إنجليزي (BANK وCASH وCHEQUE) وإجماليها 130.00 و1,699.25 و163.50.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/cp-group-method.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-49",
+  "statement": "مرشحات `clients_payments`: وسيلة الدفع (14 خيارًا: نقدي، شيك، تحويل بنكي، Paypal Standard، Authorize.Net، 2Checkout، Stripe، Square، بطاقة ائتمان، الدفع اليدوي، PayTabs Version 2، بيتابس، Paypal Version 2، Paymob 2)، الخزينة (Main Treasury وخزينتا S35)، التجميع (العميل، خزينة، وسيلة دفع)، الترتيب.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/cl-payments.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-50",
+  "statement": "تقرير الربح من حركات المخزون (`stock_transactions_profit`) أعمدته التفصيلية `المعرف | رقم الفاتورة | [التاريخ] | العميل | موظف | المنتجات | الكمية | سعر شراء الوحدة | سعر الشراء | سعر بيع الوحدة | سعر البيع | الخصم | الربح (SAR)` وملخصه `<التجميع> | إجمالي المشتريات | إجمالي المبيعات | إجمالي الخصومات | إجمالي الأرباح`.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/profit-daily-det.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-51",
+  "statement": "الربح = سعر البيع قبل الضريبة − الخصم − سعر الشراء (كريم ×4 بسعر 75: 300 − 30 − 160 = 110)، وإجمالي الفترة 6,657.50 − 145.50 − 3,354.56 = 3,157.44 (القيمة الداخلية 3,157.443).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/profit-daily-sum.json",
+  "kind": "inference"
+ },
+ {
+  "id": "pw-rep-sales-clients-52",
+  "statement": "تاريخ صف الربح هو تاريخ حركة المخزون لا تاريخ الفاتورة (الفاتورة #000008 بتاريخ 20/10 تظهر في 21/10)، ولا تظهر فيه سلعة الخدمة (الفاتورة #000001)، والفاتورة #000008 بتكلفة 0.00 ربحها 220.00 كاملًا.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/profit-daily-det.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-53",
+  "statement": "التجميع «الموظف» في تقرير ربح الحركات يعيد «لا توجد نتيجة تطابق هذه الاختيارات» رغم أن صفوف التفصيل تعرض الموظف #000001 New Beauty؛ بينما العميل والمنتجات والشهري تعمل.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/profit-staff-sum.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-54",
+  "statement": "تكلفة وحدة الإشعار الدائن #000003 (صنف 5) في تقرير ربح الحركات 65.70 بينما البيع الأصل (الفاتورة #000013) كان بتكلفة 60.00.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/profit-daily-det.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-55",
+  "statement": "تقرير «أرباح مبيعات الأصناف» (`/owner/products/products_profit`) أعمدته `اسم المنتج | المورد | المبيعات (كمية، قيمة) | المردود (كمية، قيمة) | صافي المبيعات (كمية، قيمة) | إجمالي التكلفة | الربح (قيمة، نسبة مئوية، إلى المبيعات، إلى التكلفة)`، وإجماليه: مبيعات 7,622 ومردود 1,110 وصافي 6,512 وتكلفة 3,360.26 وربح 3,151.74.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/pprofit2-product.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-56",
+  "statement": "ربح الأصناف (3,151.74) يقل 5.70 عن ربح الحركات (3,157.44) لنفس الفترة: صافي المبيعات واحد (6,512) والتكلفة 3,360.26 مقابل 3,354.56.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/pprofit2-product.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-57",
+  "statement": "للصنف 5 (منتج متوسط التكلفة): تكلفة 311.70 وربح 188.30 في ربح الحركات مقابل تكلفة 317.40 وربح 182.60 في ربح الأصناف؛ فرق 5.70 يطابق فرق تكلفة مرتجع الوحدة الثانية (65.70 مقابل 60.00)، أي أن ربح الأصناف يكلّف المرتجع بتكلفة البيع الأصل وربح الحركات بمتوسط وقت الإرجاع.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/profit-product-sum.json",
+  "kind": "inference"
+ },
+ {
+  "id": "pw-rep-sales-clients-58",
+  "statement": "الفترة الافتراضية لـ`products_profit` «الشهر الأخير» (01/09/2026 إلى 30/09/2026) فتعود «لا توجد نتيجة تطابق هذه الاختيارات»؛ والمرشحات: الفترة، مجموعة البنود، المنتجات، التصنيف، الماركة، المورد، موظف.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/pprofit-product.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-59",
+  "statement": "«النسبة المئوية» في `products_profit` حصة الصنف من إجمالي الربح (32.57% = 1,026.39 ÷ 3,151.74) و«إلى المبيعات» ربح ÷ صافي المبيعات و«إلى التكلفة» ربح ÷ التكلفة؛ وفي CSV «إلى التكلفة» بإشارة سالبة وخاتمتها 0% بينما الشاشة موجبة.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/exports/products-profit.csv",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-60",
+  "statement": "تقرير صافي وضع الفواتير أعمدته `رقم | النوع | التاريخ | العميل | المبلغ | مدين | الإجمالي | مدفوعة | المرتجعات | الصافى | الحالة | حالة الفاتورة الإلكترونية`، وتحت كل فاتورة صفوف «عملية الدفع» (بمعرّف الدفعة) و«مرتجع» و«إشعار دائن» بالسالب؛ والخاتمة «ألإجمالي · لكل 28 الفواتير · SAR»: 10,352.31 | 0.00 | 10,352.31 | 3,253 | −1,023.50 | 9,328.81.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/net-position-default.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-61",
+  "statement": "«الصافى» في صافي وضع الفواتير = الإجمالي − المرتجعات ولا يطرح المدفوعات (#000027: إجمالي 115.00 ومدفوع 90.00 وصافي 115.00)؛ والـ28 مستندًا = 27 فاتورة + الإشعار الدائن اليتيم بمبلغ −253.00 (10,605.31 − 253.00 = 10,352.31).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/net-position-default.json",
+  "kind": "inference"
+ },
+ {
+  "id": "pw-rep-sales-clients-62",
+  "statement": "خانة «إخفاء الإشعارات الدائنة» (`hide_credit_notes`) تُسقط الإشعار اليتيم: 27 مستندًا ومبلغ 10,605.31 ومرتجعات −1,023.50 وصافي 9,581.81.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/n-hide-cn.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-63",
+  "statement": "مرشحات صافي وضع الفواتير: من/إلى، الحالة (غير مدفوعة، مدفوعة جزئياً، مدفوعة، مرتجع، مرتجع جزئياً، مدفوع بالزيادة)، العميل، تصنيف العميل، مدخل العملية، إخفاء الإشعارات الدائنة، حالة الفاتورة الإلكترونية، الأعمدة المخفية (النوع، التاريخ، العميل، الحالة)، العملة؛ ومرشح «مدفوعة» يعيد 6 فواتير بحالاتها المركّبة و«مرتجع جزئياً» الفاتورتين 13 و18.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/n-status-paid.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-64",
+  "statement": "«مطابقة الفواتير والمرتجعات» أعمدتها `رقم الفاتورة/المرتجع | التاريخ | العميل | النوع | إجمالي الفاتورة | مبلغ المرتجع | صافي المبلغ | حالة الدفع | مسئول مبيعات | حالة الفاتورة الإلكترونية`: صف رأس لكل فاتورة وتحته صف لكل إشعار دائن أو فاتورة مرتجعة؛ الإجماليات 1,339.75 | 1,023.50 | 316.25 (فواتير 13 و15 و17 و18).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/cross-ref-default.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-65",
+  "statement": "مطابقة الفواتير والمرتجعات لا تضم الإشعار الدائن اليتيم، وحالة الدفع فيها أساسية بلا مرتجع (#000018 «مدفوعة»)، ومرشحا حالة «مرتجع» و«مرتجع جزئياً» يعيدان «لا توجد بيانات توافق معطيات البحث»؛ والمرشحات: العميل، من/إلى بتاريخ الفاتورة، حالة الفاتورة، نوع المرتجع (إشعار دائن، فاتورة مرتجعة)، التجميع (العميل أو مسئول مبيعات)، الترتيب.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/x-status-partial-return.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-66",
+  "statement": "تقرير إرسال الفواتير إلى هيئة الزكاة أعمدته `رقم الفاتورة | تاريخ الفاتورة | تاريخ الإصدار | تم الارسال | العميل | نوع العميل | الإجمالي | Paid | غير مدفوعة | الضرائب | حالة الفاتورة الإلكترونية`، والإشعار الدائن صف «000001 (إشعار دائن)» بالسالب؛ وللنطاق 20/10 إلى 27/10: الإجمالي 9,328.81 ومدفوعة 3,253 وغير مدفوعة 6,059.56 وضرائب 1,216.80.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/z-wide.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-67",
+  "statement": "مرشحات تقرير الزكاة: نوع التاريخ (تاريخ الانشاء، الإصدار، الإرسال، الفاتورة)، من/إلى، العميل (متعدد)، حالة الفاتورة الإلكترونية (لم ترسل، غير صالح، صالح)، نوع العميل (فردي، تجاري)، التجميع (حالة الفاتورة الإلكترونية، يومياً، أسبوعياً، شهري، سنوي، العميل)، العملة؛ والفترة الافتراضية 26/10/2026 إلى 27/10/2026.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/zatca-default.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-68",
+  "statement": "في تقرير الزكاة التجميع «العميل» يكتب رقم العميل (1 و3 و4) في رأس المجموعة بدل الاسم، والتجميع «يومياً» يكتب اسم اليوم بالعربية («22/10/2026 الخميس»)؛ ومرشح «تاريخ الإرسال» أو حالة «صالح» تعيد «لا توجد بيانات توافق معطيات البحث».",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/z-group-Client.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-69",
+  "statement": "عمود «نوع العميل» في تقرير الزكاة «غير معروف» لكل الصفوف بينما «دليل العملاء» يعرض «فردي» للعملاء الأربعة.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/z-wide.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-70",
+  "statement": "«أرصدة العملاء» (`client_balance`) أعمدتها `الكود | رقم الحساب | الاسم | الحالة اليدوية | موظف | الرصيد قبل | إجمالي المبيعات | إجمالي المرتجع | صافي المبيعات | إجمالي المدفوعات | تسويات | الرصيد`، وإجماليها: 0.00 | 10,605.31 | 86.25 | 10,519.06 | 1,992.75 | −1,190.25 | 7,336.06؛ ورقم الحساب هو الحساب الفرعي للعميل (12041003).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/cl-balance-det.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-71",
+  "statement": "معادلة أرصدة العملاء: الرصيد = الرصيد قبل + صافي المبيعات − إجمالي المدفوعات + التسويات (سالبة): للعميل 3: 0 + 7,885.56 − 906.50 − 598.00 = 6,381.06؛ وللعميل 4: 908.50 − 86.25 − 592.25 = 230.00؛ وللعميل 1: 1,725 − 1,000 = 725.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/cl-balance-det.json",
+  "kind": "inference"
+ },
+ {
+  "id": "pw-rep-sales-clients-72",
+  "statement": "«الرصيد قبل» رصيد نهاية اليوم السابق للفترة بتاريخ المستند أو الدفعة: للعميل 3 من 23/10 إلى 27/10 = 4,286.06 وهو الرصيد الختامي لتقرير 22/10 إلى 22/10؛ ورصيده قبل 22/10 = 506.00 (فاتورتا 20/10)؛ وفترة قبل أي بيانات أصفار.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/cb-23to27.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-73",
+  "statement": "ملخص أرصدة العملاء (`summary=1`) أعمدته `الكود | الاسم | الرصيد` فقط وخاتمته 7,336.06.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/cl-balance-sum.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-74",
+  "statement": "«إظهار التفاصيل» في أرصدة العملاء يضيف ثلاثة أعمدة «الهاتف | العنوان | التصنيف» (فارغة لهذه البيانات).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/cb-show-details.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-75",
+  "statement": "«إخفاء الرصيد الصفري» في أرصدة العملاء يُسقط العميل ذا الصفر (مؤسسة الأفق) فيبقى ثلاثة عملاء بإجمالي 7,336.06.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/cb-hide-zero.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-76",
+  "statement": "الأعمدة المخفية (`hide_columns[]`) في أرصدة العملاء تُسقط الأعمدة المختارة من الجدول (إخفاء «الرصيد قبل» و«تسويات» يترك 10 أعمدة).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/cb-hide-cols.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-77",
+  "statement": "مرشحات أرصدة العملاء: من/إلى، العميل (متعدد)، تصنيف العميل، إخفاء الرصيد الصفري، إظهار التفاصيل، موظف مسند، «الحالة اليدوية» (Requires Follow-Up وInterested وServed وUnder Review وArchived بالإنجليزية)، `details`، الأعمدة المخفية (12 عمودًا)، العملة.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/cl-balance-det.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-78",
+  "statement": "«أعمار الديون (الفواتير)» (`aged_debtors`) أعمدتها `العميل | اليوم | 1 - 30 يوم | 31 - 60 يوم | 61 - 90 يوم | 91 - 120 يوم | أيام120+ | الإجمالي` (وعنوان الشريحة الأولى في الرسم «Not Due Yet») ومرشحاتها: الفترة، العميل، تصنيف العميل، «مسئول مبيعات»، «إخفاء الرصيد الصفري».",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/cl-aged-debtors.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-79",
+  "statement": "مجموع شرائح أعمار الفواتير لتاريخ T يساوي رصيد العملاء في T: بتاريخ 22/10 الإجمالي 5,241.06 = إجمالي أرصدة العملاء لتقرير 22/10 (اليوم 5,080.06 و1-30 161.00).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/ad-asof-22.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-80",
+  "statement": "الشريحة في أعمار الفواتير تُحسب من تاريخ الفاتورة: الفاتورة #000027 (25.00 متبقيًا) «اليوم» بتاريخ تقرير 26/10 وتنتقل إلى «1 - 30» بتاريخ 27/10.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/ad-asof-26.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-81",
+  "statement": "تاريخ الاستحقاق لا يدخل في شرائح أعمار الفواتير: الفاتورة #000004 (استحقاقها 21/11/2026) تقع بتاريخ 27/10 في «1 - 30» (الشريحة 7,336.06 تضم كل الرصيد، و«اليوم» 0).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/ad-asof-27.json",
+  "kind": "inference"
+ },
+ {
+  "id": "pw-rep-sales-clients-82",
+  "statement": "تاريخ «من» في أعمار الفواتير بلا أثر على الأرصدة: من 23/10 إلى 27/10 يعطي الأرقام نفسها (7,336.06 في «1 - 30») لتاريخ 27/10 وحده.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/ad-from23-to27.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-83",
+  "statement": "شذوذ: بتاريخ تقرير 20/10 أو 21/10 (قبل دفعات التسوية بتاريخ 22/10) تظهر الفاتورتان #8 و#9 بـ161.00 في «اليوم» أو «1 - 30» و345.00 في «120+» (المجموع 506 = رصيد ذلك اليوم).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/ad-asof-20.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-84",
+  "statement": "التقرير بلا تاريخ (حقل «إلى» فارغ) يعطي أرقام تاريخ 26/10 (اليوم 25.00 و1-30 7,311.06) رغم أن ساعة التطبيق 27/10/2026 02:12 بتوقيت الحساب والتوقيت العالمي 26/10 23:12.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/cl-aged-debtors.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-85",
+  "statement": "«أعمار الديون (حساب الأستاذ)» (`client_aged_ledger`) مرشحاتها: «إلى»، `period_days` (30 افتراضيًا)، العميل، تصنيف العميل، العملة؛ وعناوين الشرائح تتبع الفترة (مع 10: «1 - 10 يوم» ... «40+ يوم»؛ مع 1: «1 - 1 يوم» «2 - 2 يوم» ... «4+ يوم»)، وأعمدتها `كود العميل | رقم الحساب | الاسم | اليوم | ... | الإجمالي`.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/cal-p10.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-86",
+  "statement": "أعمار الأستاذ تطبّق الدائن (دفعات وإشعارات) على أقدم مدين أولًا: بفترة يوم واحد ولتاريخ 26/10: «اليوم» 115.00 (فاتورة #000027 كاملة) و«2 - 2» 2,070 (فاتورتا 24/10 كاملتان) و«4 - 4» 4,196.06 = (506 + 5,194.56) − (906.50 + 598.00)، ولا شيء في «4+».",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/cal-asof-26.json",
+  "kind": "inference"
+ },
+ {
+  "id": "pw-rep-sales-clients-87",
+  "statement": "تاريخ التقرير الافتراضي في أعمار الأستاذ 27/10 (115.00 في «1 - 1 يوم» بلا تاريخ)، بينما أعمار الفواتير بلا تاريخ تعتبر 26/10.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/cal-p1.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-88",
+  "statement": "إجمالي أعمار الفواتير وأعمار الأستاذ وأرصدة العملاء وكشف حساب العميل واحد: 7,336.06.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/cl-aged-ledger.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-89",
+  "statement": "«مبيعات العملاء» (`clients_sales`) أعمدته `التاريخ | النوع | الاسم | رقم المستند | مصاريف الشحن | القيمة | الخصومات | الضرائب | الإجمالي`، ومرشح «النوع»: الكل، الفواتير، الفواتير المرتجعة، إشعارات دائنة، الاشعارات المدينة؛ والتجميع: العميل أو فاتورة؛ وإجماليه 8,167.50 | 55.50 | 1,216.80 | 9,328.81.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/cl-sales.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-90",
+  "statement": "نوع «الفواتير» في مبيعات العملاء إجماليه 10,605.31 (القيمة 9,277.50 والضرائب 1,383.30)، والإشعارات الدائنة −1,190.25، والفواتير المرتجعة −86.25، والاشعارات المدينة بلا نتائج.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/cs-invoices.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-91",
+  "statement": "زر «الملخص» في مبيعات العملاء ومدفوعات العملاء (`summary=1`) لا يغيّر الجدول المعروض (نفس الصفوف والأعمدة)، بينما يختصر أرصدة العملاء إلى ثلاثة أعمدة.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/cs-click-summary.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-92",
+  "statement": "«كشف حساب العميل» (`journal_transactions` مع `parent=31&parent_type=client`) أعمدته `رقم | رقم القيد | رقم معّرف للتحويل | التاريخ | موظف | الوصف | العملية (مدين/دائن) | الرصيد (مدين/دائن)` مع صف «الرصيد قبل» وإجمالي لكل عميل؛ وإجماليه: مدين 10,605.31 ودائن 3,269.25 ورصيد 7,336.06 (دائن = 1,992.75 + 1,190.25 + 86.25).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/cl-statement-parent.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-93",
+  "statement": "كشف الحساب من 23/10 للعميل 3 يبدأ بـ«الرصيد قبل» 4,286.06 ثم خمس حركات ورصيد ختامي 6,381.06؛ وأزرار التبديل «الملخص» و«التفاصيل» و«الحساب الفرعي» ومرشح «عرض جميع الحسابات» بثلاثة خيارات.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/st-from23.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-94",
+  "statement": "صفحة «كشف حساب» العميل (`/owner/clients/view_statement/3`) تعرض «مختصر الحساب حتى 27/10/2026»: أرصدة افتتاحية 0.00 | الإجمالي 7,885.56 | المدفوع حتى تاريخه −906.50 | إشعارات دائنة −598.00 | المبلغ المستحق 6,381.06، ثم «حركات الحساب» `التاريخ | العملية | المبلغ | الرصيد`.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/cl-view-statement-3.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-95",
+  "statement": "إعدادات كشف الحساب `/owner/settings/statements`: «Transaction Columns Settings» (فردي / Amount / Payments) و«مقدمة مخصصة» و«تذييل» بحقول HTML ومتغيرات (كود العميل، اسم العميل، الحد الائتماني، فترة السماح ...).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/statement-settings.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-96",
+  "statement": "«دليل العملاء» أعمدته `الكود | الاسم | التصنيف | المنطقة | العنوان | الهاتف | جوال | نوع العميل | تفاصيل العميل الضريبية | جهة حكومية` ومرشحاته: المنطقة (الرياض، جدة)، المدينة، رمز الدولة، تاريخ الإنشاء من/إلى، إظهار التفاصيل.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/cl-directory.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-97",
+  "statement": "«مواعيد العملاء» مرشحاته: الإجراء (Follow-Up Call ... Undo Asset Retirement)، الحالة (تم جدولته، تم، صرف النظر عنه)، المنشئ، الفترة؛ ولا بيانات.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/cl-appointment.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-98",
+  "statement": "كل تقارير هذا الرصد فيها «طباعة» و«تصدير» إلى CSV وExcel وPDF، وتضيف تقارير الرسوم (الإيرادات والبنود والمدفوعات والأرباح وأعمار الفواتير ومبيعات ومدفوعات العملاء والزكاة والمطابقة) خيار «PDF بدون رسم بياني».",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/rev-client-det.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-99",
+  "statement": "CSV تقرير الإيرادات يسرّب وسم HTML `<span dir=\"ltr\">-86.25</span>` في خلايا «غير مدفوعة» السالبة.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/exports/rev-client-det.csv",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-100",
+  "statement": "خيار «تصدير إلى Excel» (الرابط `.xlsx`) يُنزِّل ملفًا قديمًا `.xls` (`application/vnd.ms-excel`، Composite Document).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/exports/rev-client-det.xlsx",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-101",
+  "statement": "CSV أعمار الديون بالفواتير فيه أسطر فارغة في أوله وصف العميل الأول بفواصل زائدة (إزاحة الخلايا) وخاتمة بـ«ر.س»؛ وCSV أرصدة العملاء فيه صفا إجمالي مكرران أحدهما بلا عنوان.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/exports/aged-debtors.csv",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-102",
+  "statement": "PDF تقرير الإيرادات من 3 صفحات A4 أفقية بالرسوم البيانية، وبخيار «بدون رسم بياني» 3 صفحات أيضًا.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/exports/rev-client-det.pdf",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-103",
+  "statement": "PDF كشف حساب العميل صفحة A4 عمودية واحدة فيها اسم الشركة وبيانات العميل ومربع «مختصر الحساب» وجدول «حركات الحساب».",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/exports/client-statement-3.pdf",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-104",
+  "statement": "المبالغ الصحيحة ≥ 1,000 تُكتب بلا كسور في التقارير («1,725» و«2,070» و«1,000») وما دونها بكسرين («506.00»)؛ ورسوم المخططات تكتب أشهرًا إنجليزية («Oct 20, 2026»).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/rev-client-det.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-105",
+  "statement": "مجموع فواتير البيع 27 = 10,605.31 يساوي «إجمالي المبيعات» في أرصدة العملاء ومدين كشف الحساب وإجمالي نوع «الفواتير» في مبيعات العملاء.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/cl-balance-det.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-106",
+  "statement": "رصيد العملاء 7,336.06 = 10,605.31 − 1,992.75 − 1,190.25 − 86.25، ويساوي أرصدة العملاء وأعمار الفواتير وأعمار الأستاذ وكشف الحساب.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/cl-balance-det.json",
+  "kind": "inference"
+ },
+ {
+  "id": "pw-rep-sales-clients-107",
+  "statement": "البيانات الحالية لا فيها فاتورة «مدفوعة بالزيادة» ولا تصنيفات عملاء ولا فروع ولا عملات متعددة ولا مسودات (مرشحات الحالة المتاحة في قائمة الفواتير تتضمنها)، فلم تُختبر هذه الحالات في التقارير.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/inv-list-p1.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-108",
+  "statement": "البيانات الأساس: 27 فاتورة بيع (000001 إلى 000027) أيام 20/10 (2) و22/10 (22) و24/10 (2) و26/10 (1) بمجموع 10,605.31 (3 عملاء لهم حركة: النور 1,725 والرياض 7,885.56 والإشعارات 994.75).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/_invoice_list_rows.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-109",
+  "statement": "البيانات الأساس: 6 إشعارات دائنة (253.00 يتيم بلا فاتورة أصل، 230.00، 115.00، 253.00، 86.25، 253.00) بمجموع 1,190.25.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/cn-list.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-110",
+  "statement": "البيانات الأساس: فاتورة مرتجعة واحدة 000001 بمبلغ 86.25 للعميل «عميل الإشعارات».",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/refund-list.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-sales-clients-111",
+  "statement": "البيانات الأساس: 8 دفعات مسجلة بمجموع 1,992.75 (نقدي 1,699.25 وشيك 163.50 وتحويل بنكي 130.00).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-sales-clients/pay-list.json",
+  "kind": "observed"
+ }
+]

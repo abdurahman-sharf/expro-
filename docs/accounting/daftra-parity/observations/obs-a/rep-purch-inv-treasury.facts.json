@@ -1,0 +1,584 @@
+[
+ {
+  "id": "pw-rep-purch-inv-treasury-1",
+  "statement": "صفحة `/owner/reports/list/` تحوي تسعة روابط تبويب: «تقارير المبيعات» `#invoices`، «تقارير المشتريات» `#purchase_orders`، «تقارير المخزون» `#inventory`، «تقارير الحسابات العامة» `#accounting`، «تقارير الشيكات» `#cheques`، «تقارير المالية» `#finance`، «تقارير العملاء» `#clients`، «Product Tracking Reports» `#product_tracking_reports`، «الذكاء الاصطناعي» `#ai`. اللوحات الموجودة فعلًا في الصفحة سبع: invoices وpurchase_orders وinventory وclients وaccounting وcheques وai.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/r5-reports-list-tabs.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-2",
+  "statement": "لا توجد في قائمة التقارير عائلة تقارير للخزائن والبنوك ولا للموظفين: رابطا «تقارير المالية» `#finance` و«Product Tracking Reports» `#product_tracking_reports` غير ظاهرين (visible=false) وبلا لوحة محتوى في الصفحة (لا عنصر بهذا المعرّف)، وفتح `/owner/reports/list/#finance` يبقي تبويب المبيعات هو النشط. فكشوف الخزائن والبنوك وسجل نشاط الموظفين شاشات خارج قائمة التقارير (عرض الخزينة وسجل النشاطات).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/r6-reports-tabs.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-3",
+  "statement": "تبويب المشتريات `#purchase_orders` له أربع مجموعات: «تقارير متابعة المشتريات المقسمة» (المشتريات حسب المورد، المشتريات حسب مدخل الفاتورة، Purchase Invoice Net Position)، «تقارير الموردين» (دليل الموردين، أرصدة الموردين، أعمار المدين (حساب الأستاذ)، مشتريات الموردين، Purchase Order Payments، كشف حساب الموردين)، «تقرير مشتريات المنتجات» (حسب المنتج، حسب المورد، حسب مدخل الفاتورة)، «تقارير المدفوعات بالمدة الزمنية» (يومية، أسبوعية، شهرية، سنوية). اسمان منهما بالإنجليزية في الكتالوج (Purchase Invoice Net Position وPurchase Order Payments).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/catalog-purchase_orders.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-4",
+  "statement": "تبويب المخزون `#inventory` مجموعة واحدة «المخزون» من تسعة تقارير: ورقة الجرد `/owner/products/stocktaking_sheet`، ملخص عمليات المخزون `/owner/products/store_summary`، الحركة التفصيلية للمخزون `/owner/reports/stock_transactions`، قيمة المخزون `/owner/products/worthsheet`، ملخص رصيد المخازن `/owner/reports/report/warehouse_stock_balance`، «ميزان مراجعة منتجات» `/owner/reports/report/product_average_cost`، «تفاصيل حركات المخزون لكل منتج» `/owner/reports/report/detailed_stock_transactions`، أعمار المخزون `/owner/reports/report/inventory_aging`، معدل دوران المخزون `/owner/reports/report/inventory_turnover`. لا يوجد تقرير يسمى «ميزان المنتجات»: الاسم في القائمة «ميزان مراجعة منتجات» وعنوان صفحته الإنجليزي «Product Average Cost».",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/catalog-inventory.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-5",
+  "statement": "عائلتا المصروفات وسندات القبض موجودتان تحت تبويب الحسابات العامة `#accounting`: لكل منهما «المقسمة» (حسب التصنيف، البائع، مدخل العملية، العميل) و«بالمدة الزمنية» (يومي، أسبوعي، شهري، سنوي) أي ثماني صيغ، ولكل صيغة رابطان التفاصيل والملخص.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/catalog-accounting.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-6",
+  "statement": "تقريرا الشيكات `/owner/reports/report/payable_cheques` و`/owner/reports/report/receivable_cheques` يردّان نص JSON `{\"result\":\"failed\",\"code\":500,\"message\":\"Internal Server Error\"}` بدل صفحة، وكذلك مع `show_report=1` ومع تاريخي من وإلى (ثلاث محاولات للدافع، ومحاولة للمقبوض). لم يُرصد منهما عمود ولا مرشح.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/r4-cheq-payable.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-7",
+  "statement": "تقرير المشتريات القديم `/owner/reports/purchases` يتحكم فيه report_type (supplier أو staff أو period أو purchase_order) وgroup_by (supplier وstaff وdaily وweekly وmonthly وyearly) وdate_from/date_to وinvoice_type[] (الكل، مدفوعة، مدفوعة جزئياً، غير مدفوعة، متأخر، مرتجع) وsupplier_id وstaff_id (وحقله مكتوب بالإنجليزية «Invoiced By») وshow_details («اعرض التفاصيل»)، وفيه ثمانية أزرار عرض: الملخص، التفاصيل، يومياً، أسبوعياً، شهري، سنوي، مدخل العملية، المورد. التصدير CSV وPDF وPDF بدون رسم بياني فقط (بلا Excel).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/pur-by-supplier-summary.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-8",
+  "statement": "ملخص المشتريات بالمورد (27/09 إلى 27/10/2026) أعمدته: المورد | الرقم الضريبي | رقم تعريف التسجيل | مدفوعة | غير مدفوعة | مرتجع | الإجمالي، وصف «الإجمالي»: 14,373.50 | 10.50 | 0.00 | 14,384، لسبعة موردين (S35 115، الأمل 3,864، الخليج 5,000، F1 1,173، F2 368، F3 172.50، F4 3,691.50). فوق الجدول جدول صغير لبيانات الرسم (Param | value) يعرض مدفوعة وغير مدفوعة ومرتجع فقط.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/pur-by-supplier-summary.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-9",
+  "statement": "تفصيل المشتريات بالمورد: رقم | التاريخ | مدخل العملية | مدفوعة | غير مدفوعة | مرتجع | الإجمالي، برأس لكل مورد وصف «المجموع» وصف ختامي «الإجمالي الكلي (SAR)»، ويلي كل مجموعة أربعة صفوف فارغة بأصفار (0|0|0|0) في كل المجموعات السبع. في تفصيل المشتريات بمدخل الفاتورة تُضاف أعمدة المورد والرقم الضريبي وسجل تجارى/ رقم موحد.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/pur-by-supplier-detail.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-10",
+  "statement": "عمود «مرتجع» في تقرير المشتريات صفر دائمًا (0.00) رغم وجود مرتجعين وإشعارين مدينين: مرتجع الشراء يظهر بمبلغ سالب في «مدفوعة» (000001 الأمل −161.00، 000002 F1 −460.00) والإشعار المدين بمبلغ سالب في «غير مدفوعة» (00001 الأمل −115.00، 00002 F2 −230.00). ومرشح الحالة «مرتجع» يعيد المرتجعين فقط (إجمالي −621.00) ولا يعيد الإشعارين.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/pur-filter-refunded.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-11",
+  "statement": "نتائج مرشح الحالة في المشتريات: «مدفوعة جزئياً» ثلاث فواتير (S35 000024 مدفوع 30 وغير مدفوع 85، F2 000021 مدفوع 92 وغير مدفوع 23، F4 000017 مدفوع 40 وغير مدفوع 75) بإجمالي مدفوعة 162 وغير مدفوعة 183؛ «غير مدفوعة» تعيد الإشعارين المدينين (الأمل −115، F2 −230) مع F3 172.50؛ «متأخر» (overdue) يعيد الأمل وF2 وF3 وF4 ولا يعيد فاتورة S35 المدفوعة جزئيًا بتاريخ 26/10 (قاعدة التأخر غير معروفة ولم تُرصد).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/pur-filter-partial.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-12",
+  "statement": "ثلاثة إجماليات مختلفة لنفس الفترة (27/09 إلى 27/10/2026): 14,384 في الملخص بالمورد وكل صيغ «التفاصيل» وتقرير مشتريات المنتجات، و14,729 في الملخصات الزمنية (يومي وأسبوعي وشهري وسنوي: مدفوعة 14,373.50 وغير مدفوعة 355.50)، و15,971 في «المشتريات حسب مدخل الفاتورة (مختصر)» (مدفوعة 15,615.50 وغير مدفوعة 355.50). حسابيًا: الفواتير 15,350 والمرتجعان 621 والإشعاران المدينان 345، فـ 15,350−621−345 = 14,384 و15,350−621 = 14,729 و15,350+621 = 15,971.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/pur-period-monthly-summary.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-13",
+  "statement": "استنتاج من الأرقام: ملخص المدخل يعامل المرتجعين كموجبين (15,350 + 621 = 15,971) والملخصات الزمنية تهمل المبالغ السالبة في «غير مدفوعة» أي الإشعارين المدينين (فتبقى 355.50 = 10.50 + 345). لم يُرصد نص قاعدة الحساب نفسه.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/pur-by-staff-summary.digest.txt",
+  "kind": "inference"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-14",
+  "statement": "الملخصات الزمنية تعرض كل الفترات حتى الفارغة بصفر: اليومي 31 صفًا للمدى 27/09 إلى 27/10 (عنوان العمود «يوم»)، والأسبوعي من 27/07/2026 بأعمدة «بداية الأسبوع | نهاية الأسبوع» والأسبوع يبدأ الاثنين، والشهري «الشهر» بأسماء الأشهر الإنجليزية (October 2026)، والسنوي «السنة» بلا تواريخ افتراضية. المدى الافتراضي في روابط القائمة: يومي شهر، أسبوعي ثلاثة أشهر، شهري سنة، سنوي كل التاريخ.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/pur-period-daily-summary.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-15",
+  "statement": "تسمية الموظف تختلف بين التقارير: «#000001 New Beauty» في تقارير المشتريات والمدفوعات، و«New» (الاسم الأول فقط) في مشتريات المنتجات حسب المدخل وفي المصروفات حسب مدخل العملية؛ وخيارات المرشح «opes (المالك)» (0) و«#000001 New Beauty» (1).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/pur-by-staff-detail.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-16",
+  "statement": "ملف CSV للمشتريات حسب المورد يسمي العمود الأول «العميل» لا «المورد» (الأعمدة: العميل، رقم تعريف التسجيل، الرقم الضريبي، مدفوعة، غير مدفوعة، الإجمالي) وبترتيب أعمدة غير ترتيب الشاشة ولا يحوي عمود المرتجع.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/export-csv-purchases-supplier.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-17",
+  "statement": "تقرير مشتريات المنتجات `/owner/reports/report/product_purchases`: مرشحاته المورد، مدخل العملية، التصنيف، المنتجات، التاريخ من/إلى، تجميع حسب (سنوي، شهري، أسبوعياً، يومياً، المنتجات، مدخل العملية، المورد)، ترتيب حسب (التاريخ تنازلي/تصاعدي، الرقم تنازلي/تصاعدي)، العملة (الجميع إلي SAR، كل على حده، SAR). أعمدة التفصيل: المعرف | الاسم | البند | كود المنتج | التاريخ | النوع | مدخل العملية | المورد | الرقم الضريبي | رقم تعريف التسجيل | سعر الوحدة | إجمالي الضرائب | الكمية | الإجمالي (SAR)؛ وأعمدة الملخص حسب المنتج: المنتجات | الكمية | الإجمالي.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/pp-product-detail.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-18",
+  "statement": "تقرير مشتريات المنتجات يُدخل المرتجع والإشعار المدين سطورًا بكمية وقيمة سالبتين تحت نوعيهما «مرتجع مشتريات# 000001» (−2، −161.00) و«اشعار مدين المشتريات# 00001» (−1، −115.00)، وقيمة السطر تشمل الضريبة (3 × 100 + ضريبة 45 = 345)، وسطر بلا منتج (فاتورة الخليج 000001 بند «مستلزمات مكتبية وتشغيلية») يُجمَّع تحت «UNKNOWN» بكمية 5 ومبلغ 5,000. الإجماليات 118 وحدة و14,384 وتساوي إجمالي تفصيل المشتريات و«الصافى» في Purchase Invoice Net Position.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/pp-supplier-detail.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-19",
+  "statement": "تقرير المدفوعات `/owner/reports/popayments` (تسع صيغ: الملخص، التفاصيل، يومياً، أسبوعياً، شهري، سنوي، مدخل العملية، المورد، الطريقة) مرشحاته «منشئ الفاتورة:» و«وسيلة دفع:» (تحويل بنكي، نقدي، supplier_credit) و«المورد». أعمدة التفصيل: المعرف | رقم الفاتورة | التاريخ | منشئ الفاتورة | الطريقة | رقم معرف | الإجمالي؛ الإجمالي 14,994.50.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/po-by-method-summary.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-20",
+  "statement": "في «المدفوعات حسب طريقة الدفع» تظهر دفعات رصيد المورد (supplier_credit) تحت اسم «[تم حذفه]» بمبلغ 295.00 (تحويل بنكي 1,300 ونقدي 13,399.50 والمجموع 14,994.50)، بينما تظهر في التفصيل وفي قائمة المرشح بالاسم الخام الإنجليزي «supplier_credit» (65 + 69 + 69 + 92 = 295).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/po-by-method-summary.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-21",
+  "statement": "تقرير Purchase Order Payments `/owner/reports/report/paid_purchases`: أعمدته التاريخ | النوع | الاسم | رقم المستند | الصافى | مدفوعة | المتبقي | مرتجع، وإجمالياته 14,384 | 14,994.50 | 10.50 | 0.00؛ المرتجع يظهر «الصافى» −161.00 و«المتبقي» 0.00 والإشعار المدين يظهر «المتبقي» −115.00. مرشحاته المورد (متعدد)، من/إلى، تجميع حسب (المورد، فاتورة)، ترتيب حسب (أربعة)، العملة.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/sup-paid-purchases-run.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-22",
+  "statement": "تقرير مشتريات الموردين `/owner/reports/report/purchases` أعمدته التاريخ | النوع | الاسم | رقم المستند | القيمة | الخصومات | الضرائب | الإجمالي، وإجمالياته 13,250 | −90.00 | 1,224 | 14,384؛ الخصم سالب (−90.00 على فاتورة F4 000014) فالإجمالي = القيمة + الخصومات + الضرائب.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/sup-purchases-run.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-23",
+  "statement": "Purchase Invoice Net Position `/owner/reports/report/purchase_invoice_net_position`: أعمدته رقم | النوع | التاريخ | المورد | المبلغ | دائن | الإجمالي | مدفوعة | المرتجعات | الصافى | الحالة؛ تتتابع تحت كل فاتورة صفوف «عملية الدفع» و«مرتجع» و«اشعار مدين» بأرقامها، وتُنسب قيمة المرتجع والإشعار إلى الفاتورة الأصلية في عمود «المرتجعات». سطر الإجمالي «ألإجمالي · لكل 22 فواتير الشراء · SAR»: 15,350 | 0.00 | 15,350 | 14,994.50 | −966.00 | 14,384. الحالات: 17 مدفوعة و3 مدفوعة جزئياً و2 غير مدفوعة.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/pur-net-position.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-24",
+  "statement": "مرشح الحالة في Purchase Invoice Net Position خيارات: غير مدفوعة (0)، مدفوعة جزئياً (1)، مدفوعة (2)، مرتجع (3)، مدفوع بالزيادة (4)؛ والاختيار 3 و4 يعيدان «لا توجد بيانات توافق معطيات البحث» رغم أن فاتورتين مدفوعتين بأكثر من صافيهما بعد المرتجع (000018: مدفوع 345 وصافي 115، 000015: مدفوع 1,150 وصافي 690) تظهران بحالة «مدفوعة». خيارات أخرى: «اخفاء الاعمدة» (النوع، التاريخ، المورد، الحالة) وhide_debit_notes (لا أثر ظاهر على النتيجة الحالية) ومرشح «موظف».",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/pnp-status-overpaid.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-25",
+  "statement": "دليل الموردين `/owner/reports/report/supplier`: مرشحات المدينة والبلد (نصان) ومشاهدة التفاصيل والعملة؛ أعمدة الكود | الاسم | الرقم الضريبي | رقم تعريف التسجيل | العنوان | الهاتف | جوال؛ سبعة موردين برموز 000001 إلى 000007؛ بلا رصيد.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/sup-directory-run.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-26",
+  "statement": "المرشح النصي المدينة=Riyadh في دليل الموردين يعيد «لا توجد بيانات توافق معطيات البحث» بينما قائمة الموردين (الملف r4-supplier-list) تعرض مدينة «شركة الأمل» بالعربية «الرياض»؛ فالمطابقة نصية على القيمة المخزنة (استنتاج).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/z-sup-directory-city.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-27",
+  "statement": "أرصدة الموردين `/owner/reports/report/supplier_balance` بصيغتين: الملخص (summary=1) ثلاثة أعمدة الكود | الاسم | الرصيد، والتفصيل اثنا عشر عمودًا: الكود | رقم الحساب | الاسم | الرقم الضريبي | رقم تعريف التسجيل | الرصيد قبل | إجمالي المشتريات | إجمالي المرتجع | صافي المشتريات | إجمالي المدفوعات | تسويات | الرصيد. المرشحات: المورد (متعدد)، التاريخ من/إلى، إخفاء الرصيد الصفري، مشاهدة التفاصيل، العملة. الإجماليات: 0.00 | 15,350 | 621.00 | 14,729 | 14,078.50 | −345.00 | 305.50. «رقم الحساب» يعرض حساب المورد الفرعي 2211001 إلى 2211007.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/sup-balance-detail-run.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-28",
+  "statement": "معادلة أرصدة الموردين المرصودة: الرصيد = الرصيد قبل + صافي المشتريات − إجمالي المدفوعات + تسويات (الأمل: 3,979 − 3,914 − 115 = −50؛ الإجمالي 14,729 − 14,078.50 − 345 = 305.50). «إجمالي المشتريات» للفواتير وحدها (الأمل 4,140)، «إجمالي المرتجع» لمرتجع الشراء وحده (161)، والإشعار المدين كامل المبلغ في «تسويات» (−115، −230).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/sup-balance-detail-run.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-29",
+  "statement": "استنتاج حسابي: «إجمالي المدفوعات» في أرصدة الموردين يستبعد دفعات رصيد المورد (supplier_credit) ويطرح استردادات المرتجع النقدية: الأمل 3,914 = 4,140 − 161 − 65، وF2 345 = 575 − 230، والإجمالي 14,078.50 = 14,994.50 (تقرير المدفوعات) − 295 − 621.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/sup-balance-detail-run.digest.txt",
+  "kind": "inference"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-30",
+  "statement": "ربط أرصدة الموردين بالأستاذ: إجمالي «الرصيد» 305.50 = رصيد حساب الموردين 2211 في ميزان المراجعة (دائن 305.50)، ورصيد كل مورد يطابق حسابه الفرعي (الأمل 50.00 مدين، F2 23.00، F3 172.50، F4 75.00، S35 85.00، الخليج وF1 صفر)؛ وإجمالي كشف الموردين: مدين 15,665.50 ودائن 15,971.00 والرصيد 305.50.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/tie-gl-1203.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-31",
+  "statement": "تاريخ تقرير أرصدة الموردين: الأحداث قبل «من» تدخل في «الرصيد قبل» (من 23/10: الأمل −50 وF2 138 والإجمالي 88.00)، والرصيد الختامي لتقرير إلى 22/10 يساوي 88.00 أي رصيد «قبل» التقرير التالي. وبـ «إلى 22/10» مع hide_zero=0 لا يظهر إلا ثلاثة موردين (الخليج والأمل وF2) ويغيب F1 وF3 وF4 وS35 (مستنداتهم مؤرخة بعد 22/10).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/sup-balance-to22oct.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-32",
+  "statement": "خيار «إخفاء الرصيد الصفري» يحذف الموردين الخليج وF1 من أرصدة الموردين فتبقى خمسة صفوف وإجمالي صافي المشتريات 8,556 والرصيد 305.50.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/sup-balance-hidezero.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-33",
+  "statement": "كشف حساب المورد هو تقرير الأستاذ نفسه `/owner/reports/journal_transactions` بـ parent_type=supplier وparent=42 وعنوانه «كشف حساب المورد»: مرشحات الفترة من/إلى، الحساب، «أضيفت بواسطة:»، «عرض جميع الحسابات:»، «اخفاء عمود الموظف»؛ أزرار العرض: الملخص، التفاصيل، الحساب الفرعي. أعمدته رقم | رقم القيد | رقم معّرف للتحويل | التاريخ | موظف | الوصف | العملية (مدين/دائن) | الرصيد (مدين/دائن) ورأس كل مورد «الاسم + رقم الحساب» وأول سطر «الرصيد قبل» ثم «المجموع» ثم «الإجمالي (SAR)».",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/sup-statement-dates.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-34",
+  "statement": "أوصاف سطور كشف المورد: «فاتورة شراء #n» و«دفع للمورد #n <المورد>» و«مرتجع مشتريات #n» (مدين) و«اشعار مدين المشتريات #n» (مدين) و«Supplier Payment Refund #n <المورد>» (دائن، بالإنجليزية). الرصيد الجاري عمودان مدين ودائن لا رقم بإشارة.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/sup-statement-dates.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-35",
+  "statement": "خيار «عرض جميع الحسابات:» له ثلاث قيم: 0 «عرض الحسابات التي لديها معاملات في الفترة المحددة»، 1 «عرض جميع الحسابات» (الافتراضي)، non_zero_balance بنص «عرض الحسابات التي لديها معاملات»؛ والخيار الأخير يعرض F1 برصيد صفري (2,093 مدين و2,093 دائن) فنصّ اسم قيمته لا يطابق عمله. ترتيب الموردين في الكشف لا بالرمز ولا بالاسم (F2 ثم الخليج ثم الأمل ثم F4 ثم F1 ثم F3 ثم S35)، وتحديد الموظف «opes (المالك)» يعيد «لا توجد نتيجة تطابق هذه الاختيارات».",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/x-sup-stmt-nonzero.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-36",
+  "statement": "أعمار المدين (حساب الأستاذ) `/owner/reports/report/supplier_aged_ledger`: مرشحات «التاريخ إلى» و«الفترة (أيام)» (رقم، الافتراضي 30) و«المورد» (واحد) و«مشاهدة التفاصيل» (تضيف الهاتف والعنوان) والعملة؛ أعمدة رقم المورد | رقم الحساب | الاسم | اليوم | 1 - 30 يوم | 31 - 60 يوم | 61 - 90 يوم | 91 - 120 يوم | 120+ يوم | الإجمالي، وصف «المجموع» وصف «الإجماليات».",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/sup-aged-ledger-run.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-37",
+  "statement": "عدد أيام الخانة يتبع «الفترة (أيام)»: فترة 2 تعطي «1 - 2 يوم | 3 - 4 يوم | 5 - 6 يوم | 7 - 8 يوم | 8+ يوم»، وفترة 7 تعطي «1 - 7 | 8 - 14 | 15 - 21 | 22 - 28 | 28+»؛ والعمر = تاريخ «إلى» ناقص تاريخ المستند (فاتورة 24/10 تقع في «اليوم» عند 24/10، وفي «3 - 4» عند 27/10 بفترة 2، وفي «61 - 90» عند 30/12، وفاتورة 26/10 في «1 - 2»؛ الملفات sup-aged-to24oct وsup-aged-future وz-sup-aged-supplier4).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/sup-aged-period2.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-38",
+  "statement": "إجمالي أعمار المدين 355.50 (F2 23.00 وF3 172.50 وF4 75.00 وS35 85.00) لا يساوي إجمالي أرصدة الموردين 305.50 والتقرير لا يعرض الأمل (−50.00 رصيد معكوس) ولا الخليج وF1 (رصيد صفري)؛ وبتاريخ «إلى 22/10» يظهر F2 وحده (138.00: 69.00 «اليوم» و69.00 «1 - 30»).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/sup-aged-ledger-run.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-39",
+  "statement": "ورقة الجرد `/owner/products/stocktaking_sheet`: مرشحات «تجميع حسب» (بلا تقسيم، التصنيف، الماركة)، «ترتيب حسب» (اسم المنتج، كمية المخزون تصاعدياً/تنازلياً)، التصنيف، الماركة، المستودع («كل المصرح بيه»)، «إخفاء الرصيد الصفري»، «العدد الكلي»، «عرض جميع المنتجات»؛ أعمدة الكود | الاسم | التصنيف | العدد بالنظام | الكمية | ملاحظات (عمودا «الكمية» و«ملاحظات» فارغان للعد اليدوي) مع زرّي طباعة وتصدير. تعرض ستة أصناف مخزنية، و«عرض جميع المنتجات» يضيف صنفًا واحدًا هو «جهاز لاب توب تجريبي» (0)، ولا يعرض «خدمة صيانة وتركيب تجريبية» ولا «افتراضي-S35 صنف» (حالتهما «نشط» بلا كمية في قائمة المنتجات).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/inv-stocktaking-sheet-run.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-40",
+  "statement": "ورقة الجرد مع «تجميع حسب: التصنيف» تعيد جدولًا بلا صفوف (ولا أصناف مصنفة في الحساب) بينما التجميع بالماركة (r4-st-groupbrand) يعيد الأصناف الستة نفسها بلا رأس مجموعة؛ وهذا يرجَّح أنه إسقاط للأصناف بلا تصنيف عند التجميع به.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/r4-st-groupcat.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-41",
+  "statement": "خيار «العدد الكلي» في ورقة الجرد يضيف سطر «العدد الكلي 49» أسفل الجدول (مجموع الكميات: −22 + 3 + 16 + 3 + 19 + 30 = 49) ويُحدَّد المستودع في العنوان «ورقة الجرد - Primary Warehouse».",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/r4-st-total.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-42",
+  "statement": "ملخص عمليات المخزون `/owner/products/store_summary`: مرشحات محدد الفترة (تخصيص، الشهر الأخير، السنة الماضية) مع من/إلى، «النوع» (31 نوعًا منها أنواع الإذون المخزنية وأوامر التصنيع)، المستودع، المنتجات، التصنيف. الأعمدة: اسم المنتج | الوارد (فواتير الشراء، الفواتير المرتجعة، التحويل، يدوي، الإجمالي) | المنصرف (فواتير البيع، أوامر البيع، مرتجع مشتريات، التحويل، يدوي، الإجمالي) | إجمالي الحركة؛ بلا صف إجماليات وبلا رصيد افتتاحي. «منتج متوسط التكلفة»: وارد 24 + مرتجعة 3 = 27، منصرف −8 −2 (مرتجع مشتريات) −1 (يدوي) = −11، الصافي 16.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/inv-store-summary-run.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-43",
+  "statement": "استنتاج: الإشعار المدين على المشتريات يُحتسب في عمود «يدوي» من المنصرف (المنتج 5: مرتجع مشتريات −2 ويدوي −1 وهو كمية الإشعار المدين 00001)، والإشعار الدائن للمبيعات يُحتسب في «الفواتير المرتجعة» من الوارد.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/z-store-summary-product5.digest.txt",
+  "kind": "inference"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-44",
+  "statement": "الحركة التفصيلية للمخزون `/owner/reports/stock_transactions`: مرشحات التاريخ من/إلى، المنتجات، المستودع، النوع؛ أعمدة الوقت | النوع | كود المنتج | المنتجات | الوارد | المنصرف | الملاحظات | المستودع بالدقيقة (22/10/2026 10:59)، وأول سطر «الكمية الابتدائية» (وعند تحديد من 24/10 يصير «كمية المخزون قبل 24/10/2026» بقيمة −3)؛ بلا رصيد جارٍ ولا قيمة. 60 حركة في كل التاريخ، منها مرتجع مشتريات وإشعار مدين بأنواع مستقلة.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/inv-stock-transactions-run.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-45",
+  "statement": "تفاصيل حركات المخزون لكل منتج `/owner/reports/report/detailed_stock_transactions` (عنوان إنجليزي): مرشحات التاريخ، «المصدر» (متعدد)، المنتجات، المستودع، التصنيف، العملة. أعمدة العملية | المصدر | المستودع | الكمية | سعر الوحدة | المخزون بعد | متوسط سعر التكلفة | إجمالي قيمة الحركة | السعر الكلي | قيمة المخزون بعد، تحت رأس كل صنف سطر «المخزون قبل»؛ 60 حركة تساوي عدد حركات الحركة التفصيلية؛ وصيغتا الملخص والتفاصيل (summary=1 و0) تعطيان الجدول نفسه (91 صفًا).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/inv-detailed-stock-tx.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-46",
+  "statement": "المتوسط المتحرك في تفاصيل الحركات: المنتج 5 يشتري 10 بـ 50 ثم 10 بـ 70 فيصير المتوسط 60.00 (والحركة الثانية تُقيَّم 600.00 لا 700.00)، ثم 3 بـ 100 فيصير 66.00، والبيع يخرج بالمتوسط الجاري (−1 بـ 66.00)، وإشعار دائن بتكلفة البيع الأصلي 65.70 ثم مرتجع الشراء والإشعار المدين يخرجان بـ 65.70، وبعد شراء 1 بـ 100 يصير المتوسط 67.84375 والقيمة 1,085.50.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/y-detailed-stock-product5.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-47",
+  "statement": "عند المخزون السالب: «سلعة F أ» تبيع 9 وحدات وتصل إلى −2 بمتوسط 71.428571، ثم شراء 5 بـ 80 يجعل المخزون 3 والمتوسط 80.00 و«قيمة المخزون بعد» 240.00 (قيمة = الكمية × المتوسط الجديد لا −142.86 + 400 = 257.14). وصنف «عطر عود» يبدأ ببيع −1 بتكلفة 0.00 قبل أي شراء (متوسط 0.00، قيمة الحركة 0.00).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/inv-detailed-stock-tx.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-48",
+  "statement": "قيمة المخزون التقديرية `/owner/products/worthsheet`: مرشحات المورد، الماركة، ترتيب حسب، التصنيف، المستودع، «Calculate Using» (متوسط سعر الشراء، سعر الشراء)، تاريخ من/إلى، إخفاء الرصيد الصفري؛ أعمدة الكود | الاسم | الكمية | سعر البيع الحالي | متوسط سعر الشراء (أو سعر الشراء) | إجمالي سعر البيع المتوقع | إجمالي سعر الشراء | الربح المتوقع؛ سطر «الإجمالي» للأعمدة الثلاثة الأخيرة فقط: 11,010.00 | 4,634.39 | 6,375.61 بمتوسط الشراء، و11,010.00 | 5,480.00 | 5,530.00 بسعر الشراء (الملف ws-buyprice). الكمية السالبة تُقيَّم سالبة (−22 × 40.00 = −880.00).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/inv-worthsheet-run.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-49",
+  "statement": "ملخص رصيد المخازن `/owner/reports/report/warehouse_stock_balance`: مرشحات المنتجات، «Brand»، التصنيف (بلا عنوان)، المستودع (متعدد)، الحالة (متاح، مخزون منخفض، غير متوفر، غير نشط)، العملة؛ الأعمدة الكود | الاسم | التصنيف | الماركة | الإجمالي، وعند اختيار مستودع يضاف عمود باسمه. بلا صف إجماليات. بلا اختيار مستودع يعرض تسعة أصناف بينها الخدمة والأصفار، وباختيار المستودع ستة أصناف ذات حركة. الحالة (الملفات wb-status1 إلى 4): متاح 5، غير متوفر 1 (الكريم −22)، مخزون منخفض 0، غير نشط 0. مجموع الكميات 49.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/inv-warehouse-balance-run.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-50",
+  "statement": "«ميزان مراجعة منتجات» (عنوان الصفحة Product Average Cost) `/owner/reports/report/product_average_cost`: مرشحات التاريخ من/إلى، المنتجات، المستودع (متعدد)، فئة، العملة؛ رأس من مستويين الكود | باركود | الاسم | قبل | الوارد | المنصرف | الصافى لكل منها الكمية والمبلغ؛ سطر «الإجماليات» (0 | 0 | 129 | 9,520 | 80 | 4,748.47 | 49 | 4,771.53). «قبل» يُحسب قبل تاريخ البداية (الملف pac-from23oct: من 23/10 إجمالي قبل −3 كمية و685.50) والمعادلة 685.50 + 5,300 − 1,213.97 = 4,771.53. الملخص والتفاصيل متطابقان.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/inv-product-avg-cost.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-51",
+  "statement": "تصدير «ميزان مراجعة منتجات»: CSV باسم «Product Average Cost.csv» بعناوين إنجليزية (Code, Barcode, Name, Before, Inward, Outward, Net) والشاشة عربية، وطلب `.xlsx` يعيد `application/vnd.ms-excel` بملف باسم `opes-Product Average Cost-product_average_cost.xls` (5,632 بايت).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/export-csv-pac.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-52",
+  "statement": "أعمار المخزون `/owner/reports/report/inventory_aging` (عنوان إنجليزي Inventory Aging Report): مرشحات «بحث» نصي، المستودع («الكل (مجمع)» أو «الكل (منفصل)» أو مستودع)، «التاريخ»؛ أعمدة ثابتة الكود | الاسم | المستودع (عند الفصل) | العدد المتاح | 0-30 يوم | 31-60 يوم | 61-90 يوم | 90+ يوم | (بالأيام) متوسط العمر، بلا مدخل لطول الخانة. سطر الإجماليات يعرض متوسط العمر فقط: 3.8 = (5+5+3+3+3)÷5 بإهمال الصنف السالب، و67.8 عند 30/12، ومخزون «كريم» السالب أصفار وعمر 0.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/inv-aging-run.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-53",
+  "statement": "العمر في أعمار المخزون يُحسب من تاريخ استلام الكمية الباقية حتى تاريخ التقرير: 5 أيام لما اشتُري 22/10 و3 لما اشتُري 24/10 عند 27/10، و69 و67 عند 30/12 (خانة 61-90)؛ وعند «التاريخ» 22/10 لا يظهر إلا «عطر عود» (3، عمر 0) (الملف ia-to22oct).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/ia-to10nov-future.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-54",
+  "statement": "معدل دوران المخزون `/owner/reports/report/inventory_turnover`: مرشحات المنتجات، المستودع، من/إلى، «تجميع حسب» (المنتجات، التصنيف، الماركة)؛ أعمدة الكود | الاسم | تكلفة المبيعات | بداية متوسط المخزون | نهاية متوسط المخزون | قيمة المخزون | نسبة معدل الدوران | عدد الأيام لبيع المخزون | معدل الدوران بالمرات | الماركة | التصنيف | المستودع. التجميع بالتصنيف أو الماركة يعيد «لا توجد بيانات» لعدم وجودهما.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/inv-turnover-run.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-55",
+  "statement": "صيغ الدوران المستنتجة من الأرقام (منتج 5: 311.70، 0.00، 1,085.50): «قيمة المخزون» = (بداية + نهاية) ÷ 2 = 542.75؛ «نسبة معدل الدوران» = تكلفة المبيعات ÷ قيمة المخزون = 0.5743؛ «عدد الأيام لبيع المخزون» = أيام الفترة ÷ النسبة = 55.72؛ «معدل الدوران بالمرات» = النسبة × أيام الفترة = 18.38؛ وأيام الفترة المستعملة 32 لـ 27/09–27/10 و6 لـ 23–27/10 (الفرق + 2)، فالعمودان الأخيران يبدوان بعنوانين متبادلين.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/inv-turnover-run.digest.txt",
+  "kind": "inference"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-56",
+  "statement": "سطر إجماليات الدوران = مجموع بسيط للنسب والأيام لا نسبة مرجّحة: 9.93 (5.3571 + 4 + 0 + 0.5743) و69.69 (5.97 + 8 + 0 + 55.72)، وسطر «المجموع» لكل صنف يكرر النسبة والأيام.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/inv-turnover-run.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-57",
+  "statement": "قيمة المخزون ثلاث قيم مختلفة اليوم: حساب 1203 (و1203001 Primary Warehouse) في الأستاذ وميزان المراجعة 4,971.53، و«الصافى» في «ميزان مراجعة منتجات» 4,771.53، وإجمالي «قيمة المخزون التقديرية» بمتوسط الشراء 4,634.39 (الفروق 200.00 و137.14). فالتطابق المسجل سابقًا (1203 = 1,720 = التقرير) لم يعد قائمًا على بيانات اليوم.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/tie-gl-1203.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-58",
+  "statement": "تفكيك فرق 200.00 بين الأستاذ و«ميزان مراجعة منتجات»: مدين 1203001 في الأستاذ 9,720.00 مقابل «الوارد» 9,520 في الميزان، ودائنه 4,748.47 يساوي «المنصرف» 4,748.47 تمامًا؛ والفرق 200.00 هو القيد 000082 (22/10/2026، «تكلفة مبيعات - فاتورة #000004»، مدين المخزون 200.00) الذي لا يقابله وارد في تقرير الميزان.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/gl-ledger-1203001.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-59",
+  "statement": "استنتاج: في نهاية 22/10 كان رصيد الأستاذ 1,005.50 مقابل 685.50 في ميزان المنتجات إلى 22/10 (فرق 320.00 = 200.00 + 120.00)، والـ 120.00 فاتورتا شراء F2 (000019 بتاريخ 20/10 و000020 بتاريخ 22/10، 60 لكل منهما إلى المخزون) بينما حركتاهما المخزنيتان بتوقيت 24/10 (أصناف F كلها بصفر في الميزان إلى 22/10)؛ فتاريخ الحركة المخزنية هو وقت إنشائها لا تاريخ الفاتورة.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/pac-to22oct.digest.txt",
+  "kind": "inference"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-60",
+  "statement": "إجمالي «قيمة المخزون بعد» الأخيرة لكل صنف في تفاصيل الحركات (240.00 + 1,618.89 + 2,210 + 360.00 − 880.00 + 1,085.50) = 4,634.39 = إجمالي «قيمة المخزون التقديرية»؛ ويختلف عن «ميزان مراجعة منتجات» (4,771.53) في صنفين: «عطر عود» 360.00 مقابل 480.00 (فرق 120.00) و«F أ» 240.00 مقابل 257.14 (فرق 17.14).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/inv-detailed-stock-tx.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-61",
+  "statement": "تقاطعات الكميات: مجموع «ملخص رصيد المخازن» 49 = صافي الكمية في «ميزان مراجعة منتجات» 49 = «العدد الكلي» في ورقة الجرد 49 (الملف r4-st-total)؛ وعدد الحركات 60 في كل من الحركة التفصيلية وتفاصيل الحركات لكل منتج.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/tie-warehouse.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-62",
+  "statement": "قائمة المنتجات: حالات المرشح متاح، مخزون منخفض، غير متوفر، غير نشط، موقوف؛ «غير متوفر» يعيد «جهاز لاب توب تجريبي» (0) و«كريم ترطيب بشرة 200 مل» (−22) ولا صنف «مخزون منخفض» اليوم (القائمة فارغة في ملخص رصيد المخازن أيضًا). وفي نموذج الصنف حقل «نبهني عند وصول الكمية إلى أقل من» (low_stock_thershold) فارغ في الصنف 3.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/prod-index-lowstock.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-63",
+  "statement": "استنتاج: حالة «مخزون منخفض» تقابل حدّ التنبيه المضبوط لكل صنف («نبهني عند وصول الكمية إلى أقل من») لا حدًّا عامًا؛ لم يُرصد نص القاعدة ولا صنف بحدّ مضبوط.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/x-prod-edit-3.digest.txt",
+  "kind": "inference"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-64",
+  "statement": "قوائم الأسعار `/v2/owner/price_lists` فارغة («لا يوجد قوائم الأسعار أضيفت حتي الآن») وفيها «تحديث جماعى» و«أضف قائمة أسعار»؛ فلا تقرير لأسعار البيع/الشراء خارج قائمة المنتجات (سعر البيع وسعر الشراء لكل صنف) وقيمة المخزون التقديرية (سعر البيع الحالي ومتوسط سعر الشراء).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/price-lists.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-65",
+  "statement": "تقرير المصروفات `/owner/reports/report/expenses`: مرشحات «خزينة»، «البائع» (نص)، التاريخ، التصنيف، «الحساب الفرعي» (متعدد)، «تجميع حسب» (سنوي، شهري، أسبوعياً، يومياً، التصنيف، مدخل العملية، البائع، خزينة)، العملة؛ التفصيل: الكود | التاريخ | خزينة | التصنيف | البائع | الحساب الفرعي | مدخل العملية | ملاحظة | (عمود بلا عنوان) | المبلغ (SAR) | الضرائب | الإجمالي مع الضريبة (SAR)؛ الملخص: <التجميع> | المبلغ | الضرائب | الإجمالي مع الضريبة. الإجماليات 3,200 | 30.00 | 3,230 (إيجار 3,000 وغير مصنف 200 + ضريبة 30).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/exp-category-d.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-66",
+  "statement": "التجميع «المصروفات حسب العميل» (group_by=Client) ليس خيارًا في قائمة «تجميع حسب» (تظهر «سنوي» مختارة) ومع ذلك يعرض عمود «العميل» بصف «غير مصنف»؛ بينما خيار «خزينة» (Treasury) موجود في القائمة وغائب عن كتالوج التقارير.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/exp-client-s.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-67",
+  "statement": "ربط المصروفات: الإجمالي مع الضريبة 3,230 = دفعتا خزينة Main Treasury (3,000 و230)، ويقابلها في ميزان المراجعة إيجار 545 بـ 3,000.00 ومصروفات أخرى 541 بـ 200.00 (مجموع المصروفات الأخرى 54 = 3,200.00) وضريبة 30.00 مسجلة على المصروف الثاني في قائمة المصروفات («القيمة المضافة: 30.00»).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/x-expenses-index.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-68",
+  "statement": "الصيغ الزمنية للمصروفات: الملخص الأسبوعي (بتاريخ بداية الأسبوع 19/10 و26/10) والشهري (بأول الشهر 01/10/2026) يعرضان الفترات الفارغة بأصفار، بينما الملخص اليومي يعرض الأيام ذات الحركة وحدها («22/10/2026 الخميس»)، والتفصيل اليومي يعرض كل يوم بصف أصفار ورأس ومجموع؛ والمدى بلا حركة يعيد «لا توجد بيانات توافق معطيات البحث». (في المشتريات يعرض الملخص اليومي كل الأيام بأصفار.)",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/x-exp-weekly-from19oct-s.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-69",
+  "statement": "سندات القبض: لا سند قبض في الحساب فكل صيغ سندات القبض المرصودة (التصنيف والبائع والمدخل والعميل ويومي وأسبوعي وشهري وسنوي، بتفصيل وملخص) تعيد «لا توجد بيانات توافق معطيات البحث»؛ نموذج المرشح بلا حقل تصنيف (خلاف المصروفات) وفيه خزينة وبائع وحساب فرعي وتجميع (الثمانية نفسها) وعملة. أعمدة سندات القبض لم تُرصد ببيانات.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/inc-form.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-70",
+  "statement": "صفحة قديمة بالعنوان `/owner/expenses/report?group_by=category&is_summary=1&type=expense` (وصلتُ إليها بالعنوان؛ ورابط «التقارير» في قائمة سندات القبض يشير إلى نظيرها `/owner/incomes/report?…type=expense`) تعرض بأرقام مختلفة: [EMPTY] 230 (بالضريبة) وإيجار 3,000 و«فواتير الشراء» 16,854.50 والإجمالي الكلي 20,084.50، فهي تعد فواتير الشراء مصروفًا ولا تطابق التقرير الجديد (3,230). وصفحة سندات القبض القديمة `/owner/incomes/report` مفتاحها type=expense وتصنيفها المعروض «فواتير الشراء».",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/y-expenses-legacy-report.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-71",
+  "statement": "ملف CSV للمصروفات يجمع بسطور تصنيف ومجاميع («إيجار» ثم «المجموع» ثم «غير مصنف») وسطر ختامي «الإجماليات» بلاحقة العملة «3,200 ر.س» و«30.00 ر.س» و«3,230 ر.س»، بينما تعرض الشاشة لاحقة «元».",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/export-csv-expenses.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-72",
+  "statement": "الحركات المالية `/owner/reports/financial_report`: مرشح محدد الفترة (تخصيص، الشهر الأخير، السنة الماضية) مع من/إلى والعملة فقط (بلا خزينة)، أعمدة التاريخ | الوصف | المبلغ | الرصيد بعد، وسطور «رصيد بداية المدة» و«إجمالي الإيراد» و«إجمالي المصروفات» و«رصيد نهاية المدة». من 01/10 إلى 27/10: بداية 0.00، إيراد 2,613.75، مصروفات −17,929.50، نهاية −15,315.75 في 30 سطرًا بوصف مثل «مدفوعات الفواتير #3, وسيلة دفع: Cash, لـفاتورة# 000002»؛ والافتراضي «الشهر الأخير» يعيد أصفارًا.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/fin-movements-1oct.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-73",
+  "statement": "استنتاج حسابي: رصيد نهاية «الحركات المالية» −15,315.75 = مجموع أرصدة الخزائن والبنوك 84,684.25 (84,624.25 + 20.00 + 40.00) − 100,000.00 (إيداع رأس المال بقيد يدوي 000005 بلا مستند دفع)؛ فالتقرير يجمع دفعات الفواتير والمصروفات من كل الخزائن وليس رصيد خزينة.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/tie-gl-1203.digest.txt",
+  "kind": "inference"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-74",
+  "statement": "قائمة الخزائن `/v2/owner/banks/treasury`: أعمدة الاسم | الوصف | القيمة | الحالة | ترتيب؛ مرشحات بعناوين «الاسم» و«النوع» و«النوع» (للحالة) و«عملة»؛ أزرار «أضف حساب بنكي» و«أضف خزينة»؛ الصفوف: «افتراضي-S35 بنك» حساب بنكي 40.00 نشط، «افتراضي-S35 خزينة» 20.00 غير نشط، «Main Treasury» 84,624.25 «الرئيسي». إجراءات الصف: عرض، تعديل، تعطيل أو فعًل، تحويل (غائب للمعطلة)، اجعله الرئيسي (غائب للرئيسية)، حذف.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/tr-list.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-75",
+  "statement": "قيمة كل خزينة في القائمة تساوي رصيد حسابها في ميزان المراجعة: Main Treasury 84,624.25 = 120101، «افتراضي-S35 خزينة» 20.00 = 120102، «افتراضي-S35 بنك» 40.00 = 1202001؛ ومجموع الخزينة 1201 هو 84,644.25 والبنك 1202 هو 40.00.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/tie-gl-1203.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-76",
+  "statement": "شاشة عرض الخزينة `/owner/treasuries/view/{id}`: رأس «حساب الأستاذ: <الاسم> #<الرمز>» برابط إلى كشف الأستاذ، الرصيد بالعملة، أزرار تعديل، تعطيل، التحويل، اجعله الرئيسي، استيراد كشف حساب البنك (للبنك)، إنشاء سند قبض، إنشاء سند صرف، حذف؛ تبويبات «التفاصيل | معاملات النظام | كشف حساب البنك (للبنك فقط) | التحويلات | سجل النشاطات»؛ وتفاصيل الحساب البنكي: الاسم، اسم الحساب البنكي (Riyad Bank)، رقم الحساب البنكي (3500000001)، الوصف، النوع، المبلغ، الحالة، الصلاحيات (إيداع: الكل، سحب: الكل).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/tr-view-3.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-77",
+  "statement": "كشف الخزينة هو تبويب «معاملات النظام» `/v2/owner/banks/{id}/system_transactions`: أعمدة عملية تجارية | إيداع | سحب | الرصيد بعد | ترتيب؛ كل سطر «التاريخ (#رقم القيد) الوصف الموظف»؛ الأحدث أولًا و20 سطرًا للصفحة (28 سطرًا للرئيسية)؛ وتذييل «الرصيد قبل» لكل صفحة (91,163.50 في الأولى و0.00 في الثانية). أول «الرصيد بعد» 84,624.25 يساوي رصيد الخزينة وأستاذها.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/tr1-systx.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-78",
+  "statement": "مرشح التاريخ في كشف الخزينة (من 24/10/2026) يعيد أحد عشر سطرًا وتذييلًا «الرصيد قبل 89,758.75» وهو رصيد آخر سطر قبل ذلك التاريخ؛ والرقم بين القوسين (#000119) هو رقم القيد نفسه في كشف أستاذ حساب الخزينة 333 (سحب 345.00 والرصيد بعده 84,624.25).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/x-tr1-systx-from24.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-79",
+  "statement": "المرشح المتقدم في كشف الخزينة يضيف «amount_from» و«amount_to» (مبلغ من/إلى) وحقل entity_type (قائمة منسدلة بلا خيارات ظاهرة)، وقائمة «ترتيب» فيها «تاريخ الإنشاء» و«تاريخ العملية التجارية» تصاعديًا وتنازليًا؛ ولا زر طباعة أو تصدير في هذا الكشف.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/r1-systx-1-advanced.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-80",
+  "statement": "الرصيد السالب مسموح في الخزينة: في «افتراضي-S35 خزينة» تحويل #2 (25.00) جعل الرصيد −5.00 ثم تحويل #3 (25.00) بوصف «عكس (ب) 25» أعاده إلى 20.00؛ وفي أستاذ الحساب 381 يظهر الرصيد دائنًا 5.00 بعد التحويل #2.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/tr2-systx.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-81",
+  "statement": "تبويب التحويلات `/owner/treasuries/list_transfers/{id}`: أعمدة تاريخ التحويل | من خزينة إلى خزينة | المبلغ، ومرشح التاريخ «تاريخ (من)» و«تاريخ (إلي)»؛ للبنك #3 ثلاثة تحويلات (#3 25.00 من البنك إلى الخزينة، #2 25.00، #1 10.00) وللخزينة الرئيسية لا تحويلات؛ وفي الحساب سُجِّل عكس التحويل #2 تحويلًا جديدًا #3 بوصف «عكس (ب) 25».",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/tr3-transfers.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-82",
+  "statement": "تبويب «كشف حساب البنك» `/v2/owner/bank_transactions?bank_id=3`: حالة فارغة «لم يتم إضافة اى سجلات بعد» مع «Import كشف حساب البنك» و«رفع كشوف حساب بالذكاء الاصطناعي»؛ نموذج الاستيراد `/v2/owner/import/bank_transaction` فيه «ملف CSV / Excel»* و«المحددات»* (فاصلة، فاصلة منقوطة، Tab) و«استيراد اول صف»، وملف المثال أعمدته التاريخ، الوصف، إيداع، سحب، الرقم المرجعي. لم يُرصد مطابقة كشف البنك بالدفاتر لعدم وجود سطور.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/tr3-bank-transactions.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-83",
+  "statement": "تبويب «سجل النشاطات» في الخزينة `/owner/treasuries/timeline/{id}` يسجل إضافة الخزينة وتعديلها فقط («add خزينة with name … status نشط primary لا»، «قام بتعديل خزينة باسم … الحالة غير مفعل أساسي لا»)، وللخزينة الرئيسية «لا يوجد أي نشاط يطابق هذه المعايير»؛ فالتحويلات والدفعات لا تظهر فيه.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/r3-treasury-timeline-2.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-84",
+  "statement": "سجل النشاطات `/v2/owner/activity_logs` (صفحة React تجلب `?sort=DESC&ajax=1`): مرشحات «الإجراءات» (41 خيارًا بأرقام مثل 999 دخول و204 إضافة مخزون مشترى و2089 أضف خزينة، منها تسعة بمفاتيح نصية («added Supplier»…) وأسماء بالإنجليزية: «Print Purchase Order» و«Add Purchased Refund Stock» و«Average Price Changed» و«Delete Supplier Payment Credit»)، و«الفاعلون» (New وSYSTEM)، ومحدد المدى، وترتيب تنازلي/تصاعدي؛ والعناصر مجمعة بعناوين «اليوم» و«الأمس» وأسماء الأيام.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/act-log-probe.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-85",
+  "statement": "سجل النشاطات يعيد 30 عنصرًا كحد أقصى لكل طلب ولا ترقيم صفحات: page وoffset وlast_id تعيد الصفحة الأولى نفسها، ولا يحمّل التمرير شيئًا، وزر «Next» هو سهم شهر منتقي التاريخ؛ وتتغير النافذة بالمدى (من/إلى) أو بالإجراء (مرشح الإجراء 204 أعاد 23 عنصرًا).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/r8-activity-caps.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-86",
+  "statement": "استنتاج: الوصول إلى ما قبل آخر 30 حدثًا يكون بتضييق المدى بالتاريخ فقط (لا ترقيم)، ولا يُعرف إن كان لسجل النشاطات سقف زمني للاحتفاظ.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/r8-activity-caps.json",
+  "kind": "inference"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-87",
+  "statement": "صفحة قديمة بالعنوان `/owner/action_lines/index` («سجل النشاطات للحساب» في قائمة المستخدم) بالمحتوى نفسه لكن باسم الفاعل «المستخدم الحالي»، وفيها قائمتا «كل الإجراءات» (32 إجراء) و«كل المستخدمين» (النظام، New Beauty (#000001))، وتبديل تصاعدي/تنازلي، وأزرار «عرض الجدول الزمني» و«عرض كجدول».",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/r1-action-lines-legacy.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-88",
+  "statement": "نصوص السجل تحمل المبالغ والحالات (مثل «أضاف … عملية دفع جديد #29 (المبلغ: 30.00، الطريقة: Cash والحالة: مكتمل) لفاتورة الشراء #000024، إجمالي فاتورة الشراء :115.00، إجمالي مستحق الدفع أصبح: 85.00»، و«استلم New Beauty (#000001) 1 وحدة جديدة من #000007 … وأصبح المخزون الآن … 19, متوسط السعر: 元 85.20»)، وبعضها نص مختلط عربي إنجليزي («add حساب بنكي with name … status نشط primary لا»)، وسجلات الدخول («سجل الدخول للنظام») تملأ معظم أول صفحة.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/act-log-actions-sample.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-89",
+  "statement": "قائمة الموظفين `/v2/owner/entity/staff/list`: أعمدة الاسم | البريد الإلكتروني | الدور الوظيفي | آخر تسجيل دخول | الحالة، مرشحات الرقم التعريفي والحالة والنوع والدور الوظيفي، وزر «تصدير» `/v2/owner/export/staff?ids=all`؛ موظف واحد هو المالك. ولا يوجد تقرير حضور أو أداء موظفين؛ التقارير التي تفصل بالموظف هي المشتريات والمدفوعات ومشتريات المنتجات والمصروفات وسندات القبض (مدخل العملية) والأستاذ («أضيفت بواسطة:»).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/staff-list.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-90",
+  "statement": "خيارات التصدير: التقارير الجديدة `/owner/reports/report/*` وتقرير الأستاذ والحركات المالية وورقة الجرد وملخص عمليات المخزون وقيمة المخزون كلها «تصدير إلى CSV» و«تصدير إلى Excel» و«تصدير إلى PDF»، ويضاف «تصدير إلى PDF بدون رسم بياني» لتقارير المصروفات وسندات القبض ومشتريات المنتجات ومشتريات الموردين والمدفوعات (Purchase Order Payments)؛ وتقريرا `/owner/reports/purchases` و`/owner/reports/popayments` القديمان CSV وPDF وPDF بدون رسم بياني فقط؛ وزر «طباعة» (الفئة Print) في كل تقرير؛ ولا تصدير ولا طباعة في كشف الخزينة ولا في سجل النشاطات.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/sup-balance-detail-run.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-91",
+  "statement": "فتح قائمة «تصدير» يطلق طلب POST خلفيًا إلى `/owner/reports/save_html/`، وكل صفحة تقرير تطلق POST إلى `/api2/set_report_session`؛ حُجبت هذه الطلبات في جولات الحارس (r1 إلى r8)، ولم تحجب في الجولات الأولى (بلا حارس)، وهي طلبات حالة عرض لا مستندات، وأرقام الأرصدة قبلها وبعدها متطابقة.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/_nonget-requests-r1.log",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-92",
+  "statement": "تفاصيل ملفات التصدير: معظم ملفات CSV بـ UTF-8 وBOM (والملف المالي «الحركات المالية» بلا BOM وبعناوين مقتبسة وتاريخ بصيغة 2026-10-22 00:00:00)؛ ملف Purchase Invoice Net Position يكتب أرقام المستندات بين فاصلتين عُلويتين ('000024')؛ وتفاصيل الحركات لكل منتج تحتفظ بأربعة عشر منزلة (71.428571428571) وبمسافة لاحقة في الكميات؛ وملف كشف المورد وملف الحركات المالية بأسماء ملفات مشوهة (mojibake) في Content-Disposition؛ وتصدير PDF للمشتريات `application/pdf` مضمّن `opes-purchases.pdf` (51,653 بايت).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/export-csv-netpos.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-93",
+  "statement": "قواعد العرض: في معظم التقارير (المشتريات والمدفوعات وميزان مراجعة منتجات والدوران وأرصدة الموردين) تُعرض الأعداد الصحيحة من ألف فأكثر بلا ‎.00‎ (2,300 و5,000 و14,384) وما دونها بـ ‎.00‎ (575.00)، بينما قيمة المخزون التقديرية وكشوف الأستاذ بمنزلتين دائمًا (6,000.00 و100,000.00)؛ وسطور الإجماليات وأسعار قائمة المنتجات تلحق «元» بالرقم (14,373.50 元) وكشوف الأستاذ «元.»؛ وأخطاء إملائية مثل «ألإجمالي» وعناوين إنجليزية (Purchase Invoice Net Position، Inventory Aging Report، Inventory Turnover، Product Average Cost، Detailed Stock Transactions For Each Product، Purchase Order Payments).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/pur-by-supplier-summary.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-94",
+  "statement": "مفاتيح «اعرض التفاصيل»/«مشاهدة التفاصيل» (show_details=1) لا تغير الجدول في تقرير المشتريات بالمورد ولا في أرصدة الموردين ولا في دليل الموردين (الجداول نفسها)، وتضيف في أعمار المدين عمودين «الهاتف | العنوان» فقط؛ وhide_debit_notes=1 في Purchase Invoice Net Position لا يحذف صفوف «اشعار مدين» (الجدول نفسه).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/pur-details-on.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-95",
+  "statement": "أوصاف سطور كشف الخزينة تحمل نوع المستند ورقمه والطرف والمرجع: «دفع للمورد #000021 مورد افتراضي-F2»، «مدفوعات العميل #000005 … فاتورة #000002، رقم معّرف للتحويل #TRF-A3-0002»، «مصروف #000002 …»، «تحويل المالية #3 …»، و«Supplier Payment Refund #000002 مورد افتراضي-F1» (بالإنجليزية).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/tr1-systx.digest.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-96",
+  "statement": "فحص الاستقرار في نهاية الجلسة (07:22 إلى 07:24 يوم 27/10/2026): إجماليات المخزون 4,971.53 وميزان المنتجات 4,771.53 وقيمة المخزون 4,634.39 وأرصدة الموردين 305.50 والأعمار 355.50 وصافي الوضع 14,384 والمدفوعات 14,994.50 والخزائن 84,624.25 و20.00 و40.00 والمصروفات 3,230 والحركات المالية −15,315.75 كلها مطابقة لما رُصد في الجولات الأولى (02:30 إلى 03:05)، فلم يتغير شيء في الحساب أثناء الرصد.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/r4-final-check.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-purch-inv-treasury-97",
+  "statement": "سجل نشاطات الحساب ليوم 27/10/2026 (قراءة 07:41) يضم سبعة عناصر: أربعة «سجل الدخول للنظام» وثلاثة «قام بإضافة نموذج مخصص» (Clients وJournal Entry وAccounting Asset More Information بين 07:39:59 و07:40:16) من مراقب آخر يكتب في منطقة أخرى؛ ولا حدث كتابة منسوب إلى جلسات هذه المنطقة (لم تفتح صفحات النماذج المخصصة)، وتقع الكتابات الثلاث بعد فحص الاستقرار (07:22 إلى 07:24) ولا تمس الأرصدة.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-purch-inv-treasury/r9-activity-today.json",
+  "kind": "observed"
+ }
+]

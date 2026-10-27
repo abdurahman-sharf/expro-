@@ -1,0 +1,512 @@
+[
+ {
+  "id": "pw-rep-accounting-1",
+  "statement": "قائمة التقارير /owner/reports/list/#accounting تعرض تحت «تقارير الحسابات العامة»: تقرير الضرائب (التفاصيل/الملخص)، إقرار ضريبي، قائمة الدخل، الميزانية العمومية، الربح والخسارة (مستحق/نقدي)، الحركات المالية، تقرير التدفقات النقدية (التفاصيل)، الأصول؛ وتحت «تقارير القيود اليومية»: تقرير ميزان مراجعة مجاميع وأرصدة، تقرير حساب مراجعة، تقرير ميزان مراجعة أرصدة، حساب الأستاذ، مراكز التكلفة، تقرير القيود (التفاصيل/الملخص)، دليل الحسابات العامة؛ ثم عائلات المصروفات وسندات القبض (حسب التصنيف والبائع ومدخل العملية والعميل، ويومي/أسبوعي/شهري/سنوي).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/reports-list-accounting-section.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-2",
+  "statement": "الأنواع الثلاثة للميزان كلها على /owner/reports/journal_transactions: type=trial-balance-nets بعنوان الصفحة «تقرير ميزان مراجعة مجاميع وأرصدة» (show_net=1)، وtype=trial-balance بعنوان «تقرير حساب مراجعة» (بلا show_net)، وtype=trial-net بعنوان «تقرير ميزان مراجعة أرصدة» (balance_only=1 وshow_net=1). الثالث الذي لم يُرصد سابقًا هو «تقرير حساب مراجعة».",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/tb-a-trial-balance-nets.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-3",
+  "statement": "«تقرير حساب مراجعة»: الأعمدة بالترتيب: الاسم | الكود | الرصيد قبل (مدين (SAR)، دائن (SAR)) | رصيد الحركات (مدين، دائن) | الرصيد بعد (مدين، دائن)، وصف إجمالي واحد «الإجمالي» (ست خلايا رقمية بلا مجموعة «الأرصدة»). أي أنه ميزان افتتاح وحركة وإقفال بجانبي مدين/دائن لكل مجموعة.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/tb-b-trial-balance.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-4",
+  "statement": "«ميزان مراجعة مجاميع وأرصدة» يضيف إلى أعمدة «حساب مراجعة» مجموعة رابعة «الأرصدة» (مدين، دائن) فيصير ثماني خلايا رقمية؛ و«ميزان مراجعة أرصدة» (tb-c-trial-net.json) يعرض الاسم | الكود | الأرصدة (مدين، دائن) فقط، وحقل التاريخ فيه «إلى» وحده (date_to).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/tb-a-trial-balance-nets.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-5",
+  "statement": "معامل type يغيّر العنوان فقط؛ الأعمدة يحددها show_net وbalance_only: type=trial-balance مع show_net=1 أظهر مجموعة «الأرصدة» وعنوانه بقي «تقرير حساب مراجعة»، وtype=trial-net بلا أعلام أظهر أعمدة قبل/حركات/بعد وعنوانه «تقرير ميزان مراجعة أرصدة» (probe-type-trialnet-noflags.json).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/probe-type-trialbalance-shownet1.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-6",
+  "statement": "مرشحات الميزان (الأسماء والافتراضيات): الفترة من/إلى (DateRange، date_from وdate_to)؛ نوع الحساب (cat «حساب رئيسي» الافتراضي | account «حساب فرعي»)؛ حساب رئيسي (journal_cat_id، قائمة بحث AJAX، الافتراضي «الكل»)؛ الحساب (journal_account_id[] متعددة، AJAX، معطّلة حتى اختيار «حساب فرعي»)؛ أضيفت بواسطة (staff_id: الكل | 0 opes (المالك) | 1 #000001 New Beauty)؛ عرض جميع الحسابات (accounts_display: display_all_accounts الافتراضي «عرض جميع الحسابات» | display_accounts_with_transactions «عرض الحسابات التي لديها معاملات» | hide_zero_accounts «إخفاء الحسابات الصفرية» | hide_zero_balances «إخفاء الأرصدة الصفرية»)؛ المستويات (level: افتراضي | 1..5)؛ الرصيد قبل (before_balance_display_type: groups_only «عرض جميع ألارصدة» | balances_only «عرض صافى الارصدة» المحدد في النموذج). أزرار: إلغاء الفلتر، عرض التقرير، طباعة، خيارات التصدير. لا حقل إلزامي.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/tb-a-trial-balance-nets.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-7",
+  "statement": "تصدير الميزان: قائمة «خيارات التصدير» تعطي «تصدير إلى CSV» و«تصدير إلى Excel» و«تصدير إلى PDF» بالنمط /owner/reports/journal_transactions.{csv|xlsx|pdf}?<نفس المرشحات>، وزر «طباعة»، ونافذة إعدادات PDF (اتجاه الصفحة: عمودي portrait | راسي landscape؛ حجم الخط: رقم 10 إلى 50 افتراضي 14؛ زر «حفظ الإعدادات» لم يُضغط).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/tb-export-dropdown.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-8",
+  "statement": "شجرة الميزان: يبدأ بخمسة جذور (الأصول 1، الخصوم 2، رأس المال وحقوق الملكية 3، الإيرادات 4، المصروفات 5) وزر «+» وروابط «مستوى 1..5» (expand_level=N). عدد صفوف الحسابات (دون صف الإجمالي): expand_level=1 → 5، 2 → 17، 3 → 51، 4 → 72، 5 → 84. أعمق الصفوف حسابات العملاء والموردين (مثل 12041001 و2211001) في المستوى 5؛ ولا مستوى سادسًا في القائمة.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/tb-a-expand-5.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-9",
+  "statement": "أرقام اليوم (من 01/01/2026 إلى 27/10/2026، «مجاميع وأرصدة»): الرصيد قبل 0.00؛ رصيد الحركات مدين = دائن = 153,601.32؛ الرصيد بعد مدين = دائن = 153,601.32؛ الأرصدة مدين = دائن = 108,380.31. صافي الجذور: الأصول 96,991.84 مدين، الخصوم 268.30 دائن، رأس المال 100,000 دائن، الإيرادات 8,112.01 دائن، المصروفات 11,388.47 مدين (96,991.84 + 11,388.47 = 268.30 + 100,000 + 8,112.01 = 108,380.31). المجاميع كانت 122,478 في الرصد السابق، فالأرقام تغيّرت بنمو البيانات لا بتغيير القاعدة.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/tb-a-expand-1.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-10",
+  "statement": "مع date_from=22/10/2026 وبلا معامل before_balance_display_type: «الرصيد قبل» صافٍ لكل صف (الأصول 446.00 مدين، الخصوم 126.00 دائن، الإيرادات 440.00 دائن، المصروفات 120.00 مدين، إجمالي 566.00 = 566.00)، والحركات إجمالي 152,906.32 = 152,906.32، و«الرصيد بعد» إجمالي تراكمي (الأصول 122,999.06 مدين و26,007.22 دائن) لا يساوي قبل + حركات المعروضة (446.00 + 122,433.06 = 122,879.06 ≠ 122,999.06).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/tb-a-date-late-oct.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-11",
+  "statement": "مع before_balance_display_type=groups_only («عرض جميع ألارصدة») يظهر «الرصيد قبل» إجماليًا مدين/دائن (الأصول 566.00/120.00، الخصوم 9.00/135.00، الإيرادات 0.00/440.00، المصروفات 120.00/0.00، إجمالي 695.00 = 695.00) ويتّسق قبل + حركات = بعد تمامًا (الأصول 566.00 + 122,433.06 = 122,999.06 مدين؛ 120.00 + 25,887.22 = 26,007.22 دائن).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/tb-a-groups-only.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-12",
+  "statement": "مع before_balance_display_type=balances_only صريحًا (ما يرسله زر «عرض التقرير» بالاختيار الافتراضي) يصير «الرصيد بعد» = الرصيد قبل الصافي + الحركات لكل صف، فيتغيّر إجمالي «الرصيد بعد» بحسب المستوى المعروض: 153,532.32 عند level=3 و153,541.32 عند level=5 (tb-a-flat-balances_only-5.json)، مقابل 153,601.32 في groups_only عند أي مستوى. وفي صف المخزون 1203 يكون «الرصيد بعد» 9,660.00/4,688.47 بدل 9,720.00/4,748.47 الإجمالي (tb-a-tree-balances_only-inv.json).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/tb-a-flat-balances_only-3.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-13",
+  "statement": "خيار level=N يعرض قائمة مسطحة (بلا «+» وبلا صفوف الآباء) ويغيّر إجمالي «الرصيد قبل» لأن التصفية صافٍ لكل صف معروض: 566.00 عند level=1 و2، 626.00 عند 3، 635.00 عند 4 و5 (tb-a-flat-level-1..5.json)؛ وإجمالي «الرصيد بعد» 153,601.32 عند 1 إلى 3 و153,541.32 عند 4 و5، لنفس البيانات والمرشحات (بلا المعامل).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/tb-a-flat-level-3.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-14",
+  "statement": "أعمدة «الأرصدة» في الميزان هي الرصيد الصافي التراكمي حتى date_to ولا تتأثر بـdate_from: «ميزان أرصدة» بـdate_from=22/10/2026 أعطى الأصول 96,991.84 مدين كما بلا تاريخ بداية، وإجمالي 108,380.31 = 108,380.31.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/tb-c-date-late-oct.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-15",
+  "statement": "الميزان لا يعمل بلا date_to: الرابط بلا أي تاريخ يعرض نموذج المرشحات وحده بلا جدول (حقل الفترة يظهر 27/09/2026 - 27/10/2026 افتراضيًا للعرض فقط). ومع date_to وحده (بلا date_from) يعمل من بدء الدفاتر لكن أعمدة «الأرصدة» تخرج فارغة وإجمالي 0.00 (tb-a-dateto-only.json).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/tb-a-nodate.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-16",
+  "statement": "فترة بلا قيود (01/01/2025 إلى 31/12/2025): كل الصفوف والإجماليات 0.00؛ صفوف المستوى الأول تترك خليتي «الأرصدة» فارغتين بينما صفوف المستوى الثاني فما دون تعرض 0.00.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/tb-a-date-2025.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-17",
+  "statement": "خيارات «عرض جميع الحسابات» عند expand_level=5 وdate_from=22/10: الكل 84 حسابًا، «عرض الحسابات التي لديها معاملات» 40 صفًا، «إخفاء الحسابات الصفرية» 38، «إخفاء الأرصدة الصفرية» 38 (tb-a-disp-hide-zero-accounts.json وtb-a-disp-hide-zero-balances.json). الأولى تُبقي 2211001 و2211003 (مدين = دائن، صافي صفر) والأخريان تحذفانهما؛ ومجموعتا الإخفاء متطابقتان في هذه البيانات فلا يظهر فرق بينهما.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/tb-a-disp-with-tx.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-18",
+  "statement": "اختيار «حساب رئيسي» journal_cat_id=31 (12041 العملاء) يعرض الأبناء فقط بلا صف الأب، وصف الإجمالي يجمع المعروض وحده فلا يتوازن: مدين 10,605.31 ودائن 3,269.25 وأرصدة 7,336.06 مدين؛ ولمعرّف 42 (الموردين، tb-a-cat-42-suppliers.json) مدين 15,665.50 ودائن 15,971 وأرصدة 50.00 مدين/355.50 دائن.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/tb-a-cat-31-customers.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-19",
+  "statement": "اختيار «حساب فرعي» في الواجهة يُبقي report_type=cat ويرسل journal_account_id[]؛ النتيجة قائمة مسطحة للحسابات المختارة بكل الأعمدة (367 → 12041001 مدين 1,725 دائن 1,000 رصيد 725.00 مدين؛ مع 333 الخزينة الأساسية 120101: إجمالي 104,248.75 مدين و18,899.50 دائن). أما report_type=account صراحة فيعطي تقريرًا آخر بعنوان «أرصدة الحاسبات(ملخص)» (خطأ إملائي في العنوان) بأعمدة الحساب | إجمالي مدين (SAR) | إجمالي دائن (SAR) (tb-a-account-367.json).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/tb-a-cat-with-account367-333.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-20",
+  "statement": "مرشح «أضيفت بواسطة» لا أثر له في الميزان: staff_id=0 وstaff_id=1 وstaff_id=999 (غير موجود) أعطت كلها الإجماليات نفسها 153,601.32 (tb-a-staff-0.json وtb-a-staff-1.json). بينما في الأستاذ يعمل (انظر حقيقة الأستاذ).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/tb-a-staff-999.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-21",
+  "statement": "التنقل من الميزان: اسم كل حساب من المستوى الثاني فما دون رابط إلى تقرير الأستاذ /owner/reports/journal_transactions?report_type=transaction&display_all_accounts=1&show_net=1&date_from=..&date_to=..&journal_cat_id=<معرّف المجموعة الداخلي>؛ صفوف المستوى الأول (الأصول، الخصوم..) بلا رابط. معرّفات المجموعات الداخلية من json_find: 31 = 12041 العملاء، 69 = 41 إيرادات المبيعات، 70 = 51 تكلفة المبيعات، 115 = 215 القيمة المضافة المطلوبة؛ ومعرّفات الحسابات الفرعية: 367 = 12041001 شركة النور، 333 = 120101 الخزينة الأساسية.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/drilldown-and-picker-evidence.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-22",
+  "statement": "نموذج الحسابات في دفترة نوعان: «حساب رئيسي» (مجموعة cat تُختار من /owner/journal_cats/json_find) و«حساب فرعي» (حساب يقبل القيد، يُختار من /owner/journal_accounts/json_find)؛ العملاء والموردون والمخزن والخزينة حسابات فرعية تحت مجموعاتها (12041001، 2211001، 1203001، 120101). وتقرير دليل الحسابات (chartrep-all.json) يعرض 84 حسابًا: 39 «حساب رئيسي» و45 «حساب فرعي».",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/drilldown-and-picker-evidence.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-23",
+  "statement": "تنسيق الأرقام: صفوف الجذور تعرض الأعداد الصحيحة بلا كسور («17,212» و«100,000» و«1,110») بينما صفوف المستويات الأدنى بكسرين («17,212.00»)؛ وصف الإجمالي يحمل رمز الريال بعد الرقم (يظهر في innerText كحرف «元» وفي اللقطة رمز الريال السعودي).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/tb-a-expand-1.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-24",
+  "statement": "تقرير «حساب الأستاذ» على /owner/reports/journal_transactions?report_type=transaction&group_by=account..؛ بلا تاريخ لا يعرض جدولًا. مرشحاته: الفترة من/إلى، نوع الحساب (حساب رئيسي/حساب فرعي)، حساب رئيسي (journal_cat_id)، الحساب (journal_account_id[])، أضيفت بواسطة (staff_id)، عرض جميع الحسابات (display_all_accounts)، وخانة «اخفاء عمود الموظف» (hide_staff). مع زر طباعة وتصدير CSV/Excel/PDF وإعدادات PDF كالميزان.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/gl-default.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-25",
+  "statement": "خيار «عرض جميع الحسابات» في الأستاذ قيمه: 0 «عرض الحسابات التي لديها معاملات في الفترة المحددة» | 1 «عرض جميع الحسابات» | non_zero_balance المسمّى «عرض الحسابات التي لديها معاملات». على مجموعة العملاء (31) من 25/10 إلى 27/10/2026: 1 → 4 حسابات، 0 → حساب واحد (12041003)، non_zero_balance → 3 حسابات تشمل 12041001 و12041004 بلا سطور في الفترة لكن برصيد افتتاحي 725.00 و230.00 (gl-cat31-from-25oct-with-tx.json وgl-cat31-from-25oct-nonzero.json). فاسم الخيار الثالث لا يطابق سلوكه (يعمل كـ«الحسابات ذات الرصيد غير الصفري»).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/gl-cat31-from-25oct-all.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-26",
+  "statement": "أعمدة الأستاذ: رقم | رقم القيد | رقم معّرف للتحويل | التاريخ | موظف | الوصف | العملية (مدين، دائن) | الرصيد (مدين، دائن). لكل حساب: صف عنوان «<الاسم> <الكود>»، صف «الرصيد قبل» (مدين، دائن)، السطور بالرصيد الجاري، صف «المجموع» (مجموع مدين، مجموع دائن، رصيد مدين، رصيد دائن)، وفي النهاية «الإجمالي (SAR)». ومع hide_staff=1 يختفي عمود «موظف» (gl-cat31-hide-staff.json).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/gl-all-period-with-tx.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-27",
+  "statement": "ترابط الأستاذ بالميزان: 22 حسابًا بسطور في 01/01/2026–27/10/2026، وحركة كل منها (مدين ودائن) تساوي حركة الحساب نفسه في الميزان عند expand_level=5 بلا استثناء؛ و«الإجمالي (SAR)» مدين = دائن = 153,601.32 وهو إجمالي الميزان وإجمالي تقرير القيود.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/gl-all-period-with-tx.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-28",
+  "statement": "صف «الإجمالي» في الأستاذ: عمودا الرصيد = صافي (إجمالي المدين − إجمالي الدائن) لا مجموع أرصدة الحسابات: للشركة كلها 0.00/0.00 (مع أن أرصدة الحسابات تجمع 108,380.31 لكل جانب)، ولمجموعة العملاء 7,336.06 مدين/0.00 (gl-cat31-all.json).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/gl-all-period-with-tx.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-29",
+  "statement": "ترتيب العرض: كتل الحسابات ليست بترتيب الكود (215001 ثم 12041003 ثم 411 ثم 511 ثم 1203001 ...) وداخل الحساب تُرتَّب السطور بالتاريخ ثم بمعرّف داخلي لا برقم القيد المعروض: في 22/10/2026 يقع القيد 000999 بين 000012 و000019 (عمود «رقم معّرف للتحويل» يعرض أعدادًا صحيحة مثل 65 و68 و38).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/gl-all-period-with-tx.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-30",
+  "statement": "استنتاج: كتل الحسابات في الأستاذ مرتبة بأول حركة للحساب لا بالكود (أول كتلة 215001 وأول سطر فيها 20/10/2026؛ وحسابات بلا حركة تأتي أخيرًا في gl-cat31-all.json).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/gl-all-period-with-tx.json",
+  "kind": "inference"
+ },
+ {
+  "id": "pw-rep-accounting-31",
+  "statement": "استنتاج: عمود «رقم معّرف للتحويل» رقم داخلي لحركة القيد (يختلف عن رقم القيد 000028 → 65)، وترتيب الأسطر يتبعه.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/gl-all-period-with-tx.json",
+  "kind": "inference"
+ },
+ {
+  "id": "pw-rep-accounting-32",
+  "statement": "رقم القيد في الأستاذ رابط إلى /owner/journals/view/<id> (000028 → /owner/journals/view/28)، والوصف نص بلا رابط.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/drilldown-and-picker-evidence.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-33",
+  "statement": "لا ترقيم صفحات في الأستاذ: 426 صفًا في جدول واحد (315 سطر قيد) بلا عناصر ترقيم، على صفحة واحدة.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/gl-all-period-with-tx.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-34",
+  "statement": "الرصيد الافتتاحي في الأستاذ: بـdate_from=25/10/2026 تظهر «الرصيد قبل» 6,356.06 مدين للعميل 12041003، وحركة الفترة 115.00 مدين و90.00 دائن، والرصيد 6,381.06 (6,356.06 + 115.00 − 90.00).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/gl-cat31-from-25oct-all.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-35",
+  "statement": "مرشح «أضيفت بواسطة» يعمل في الأستاذ: staff_id=1 يعيد كل السطور (كل السطور الـ315 في الأستاذ الكامل بموظف «#000001 New Beauty»)، وstaff_id=0 أو 999 لا يعيد شيئًا وتظهر الرسالة «لا توجد نتيجة تطابق هذه الاختيارات / قم بتغيير فلاتر البحث وحاول مجددا» (gl2-staff-0.txt).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/gl2-staff-1.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-36",
+  "statement": "حساب فرعي مفرد في الأستاذ: report_type=transaction مع journal_account_id[]=367 يعطي سطور 12041001 كاملة (سطران، 1,725.00 مدين و1,000.00 دائن، رصيد 725.00)، بينما report_type=account (gl-account-367.json) يعطي ملخص «أرصدة الحاسبات(ملخص)» (أعمدة الحساب | إجمالي مدين | إجمالي دائن) بلا سطور؛ وصفحة الأستاذ فيها زرا «الملخص» و«التفاصيل» (فئة view_level، التفاصيل نشط، href=#؛ ledger-toggles-and-pl-controls.json)",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/gl2-transaction-account367.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-37",
+  "statement": "استنتاج: زر «الملخص» في الأستاذ يبدّل إلى report_type=account (تقرير «أرصدة الحاسبات(ملخص)») وزر «التفاصيل» إلى report_type=transaction؛ لم يُضغط الزر بل قورنت الروابط.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/ledger-toggles-and-pl-controls.json",
+  "kind": "inference"
+ },
+ {
+  "id": "pw-rep-accounting-38",
+  "statement": "قائمة الدخل /owner/reports/accounts/1: المرشحات: التاريخ (date_selector: تخصيص | الشهر الأخير | السنة الماضية)، من وإلى (date_from/date_to)، عرض جميع الحسابات (accounts_display: display_all_accounts | display_accounts_with_transactions | hide_zero_accounts، أي بلا hide_zero_balances)، المستويات (level: افتراضي | 1..5)، زر «عرض التقرير». الترويسة: «قائمة الدخل <تاريخ اليوم>»، «سنة مالية : جميع السنوات»، «مراكز التكلفة : كل مراكز التكلفة». تصدير /owner/reports/accounts/1.{pdf|csv|xlsx} وطباعة وزر «شهري».",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/is-default.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-39",
+  "statement": "أرقام قائمة الدخل الافتراضية (بلا تواريخ = كل السنوات): إيرادات المبيعات 41 = 8,112.01، إيرادات أخرى 42 = 0.00، إجمالي الإيراد 8,112.01؛ تكلفة المبيعات 51 = 8,188.47، 52 = 0.00، 53 = 0.00، مصروفات أخرى 54 = 3,200، إجمالي المصروفات 11,388.47؛ صافي الدخل -3,276.46. تتطابق مع الميزان (411: 9,222.01 دائن − 412: 1,110 مدين = 8,112.01؛ والمصروفات 11,388.47). لا سطر «مجمل الربح»؛ تكلفة المبيعات تحت المصروفات.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/is-default.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-40",
+  "statement": "قائمة الدخل بمستوى 3 (01/10 إلى 27/10/2026) تعرض 411 المبيعات 9,222.01 و412 مردودات المبيعات -1,110 (بالسالب داخل الإيرادات) و511 تكلفة المبيعات 8,188.47 و541 مصروفات أخرى 200.00 و545 إيجار 3,000؛ والمستوى الافتراضي يعرض حسابات الرمزين فقط (41 و42 و51..54).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/is-oct-level3.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-41",
+  "statement": "زر «شهري» في قائمة الدخل يستدعي changeAndRedirect() التي تبدّل /accounts/1 بـ/accounts_profit_accrual في الرابط نفسه (فيصير تقرير الربح والخسارة بالاستحقاق الشهري)، ومخفي في الميزانية /accounts/2.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/fs-changeAndRedirect.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-42",
+  "statement": "الميزانية العمومية /owner/reports/accounts/2: المرشحات نفسها كقائمة الدخل؛ العنوان «الميزانية (المركز المالي) حتى تاريخ <date_to>»؛ الأقسام: الأصول، الخصوم، رأس المال وحقوق الملكية؛ أسطر المجاميع: «مجموع الأصول»، «مجموع الخصوم»، «أرباح / خسائر (غير مرحلة) المجموع»، «مجموع رأس المال وحقوق الملكية»، «مجموع الخصوم وحقوق الملكية». أرقام اليوم: الأصول 96,991.84؛ الخصوم 268.30؛ رأس المال 100,000 + أرباح/خسائر غير مرحلة -3,276.46 = 96,723.54؛ الخصوم وحقوق الملكية 96,991.84 = الأصول.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/bs-default.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-43",
+  "statement": "في الميزانية تُعرض الأرصدة المدينة داخل الخصوم بالسالب بلا إعادة تصنيف: 2211002 شركة الأمل -50.00 داخل الموردين (الإجمالي 305.50)، و215 القيمة المضافة المطلوبة -37.20 (215001 المحصلة 1,216.80 و215002 المدفوعة -1,254)؛ ومجموع الخصوم 268.30 = 305.50 − 37.20.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/bs-level5.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-44",
+  "statement": "رغم العنوان «حتى تاريخ» فـdate_from لا يُهمل: بـdate_from=25/10/2026 وdate_to=27/10/2026 صار مجموع الأصول 85.00 والخصوم 85.00 ورأس المال 0.00 (لأن رأس المال قُيّد 22/10)، أي أن الأرصدة حركة النافذة لا مركز مالي حتى التاريخ. وبـdate_from=01/01/2026 وdate_to=21/10/2026: الأصول 446.00، الخصوم 126.00، أرباح غير مرحلة 320.00، حقوق الملكية 320.00، الخصوم وحقوق الملكية 446.00 (bs-asof-21oct.json) وهي أرصدة 21/10 بحسب الميزان.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/bs-asof-27oct-from-25.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-45",
+  "statement": "نموذج الميزانية يعرض date_from=20/10/2026 وdate_to=27/10/2026 افتراضيًا، لكن فتح الرابط بلا معاملات يعرض كل التاريخ (الأصول 96,991.84)، فالضغط على «عرض التقرير» بتلك القيم الظاهرة قد يعطي نتائج مختلفة إذا سبقت القيود date_from.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/bs-default.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-46",
+  "statement": "مستويات الميزانية: level=1 يعرض الجذور بأسطر «المجموع» فقط (الأصول 96,991.84؛ الخصوم 268.30؛ رأس المال 100,000) (bs-level1.json)؛ المستوى الأقصى في القائمة 5؛ وأعمق الصفوف حسابات العملاء والموردين (12041001، 2211001) بأربع درجات إزاحة تحت عنوان القسم (bs-level5-indent.json: أقصى عدد درجات 4). ادعاء المصفوفة «حتى المستوى السادس» لم يُعاد إنتاجه: أقصى مستوى متاح 5.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/bs-level5.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-47",
+  "statement": "الربح والخسارة بالاستحقاق /owner/reports/accounts_profit_accrual بعنوان «تقرير الربح والخسارة (تقديري)»: المرشحات: الفترة من/إلى، الفترة الزمنية (group_by_date: monthly شهري | quarterly ربع سنوي | annually سنوي)، مستوى التفرع (max_level 1..7 الافتراضي 3). جدولان: ملخص بالأعمدة «إجمالي الربح | إجمالي الإيراد | إجمالي المصروفات» لكل فترة، ومصفوفة حسابات × فترات (تسميات الفترات 2025-10 أو Q4 2025 أو 2025) بعمود «الإجمالي» وأسطر «<مجموعة> المجموع» و«إجمالي الإيراد» و«إجمالي المصروفات» و«إجمالي الربح».",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/pl-accrual-default.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-48",
+  "statement": "الجدول الملخص يعرض كسورًا بثلاث خانات لأكتوبر 2026: إجمالي الربح -3,276.458، الإيراد 8,112.01، المصروفات 11,388.468؛ والمصفوفة تقرّبها بخانتين (-3,276.46 و11,388.47). وتتطابق الأرقام مع قائمة الدخل شهريًا وربع سنويًا (pl-accr-quarterly.json) وسنويًا (pl-accr-annually.json).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/pl-accrual-default.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-49",
+  "statement": "استنتاج: قيود دفترة تحمل ثلاث خانات عشرية على الأقل (تكلفة المبيعات ≈ 8,188.468) والتقريب إلى خانتين يتم عند عرض كل خلية، فقد لا يساوي مجموع الخلايا المقرَّبة الإجمالي المعروض بفرق 0.01.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/pl-accrual-default.json",
+  "kind": "inference"
+ },
+ {
+  "id": "pw-rep-accounting-50",
+  "statement": "max_level=1 يختصر المصفوفة إلى «الإيرادات 8,112.01» و«المصروفات 11,388.47» و«إجمالي الربح -3,276.46»؛ وبمستوى 3 (الافتراضي) و7 تظهر المجموعات: إيرادات أخرى، إيرادات المبيعات، مصروفات أخرى، مصروفات الإهلاك، مصروفات إدارية وعمومية، تكلفة المبيعات (تكلفة المبيعات ضمن المصروفات، بلا مجمل ربح).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/pl-accr-level1.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-51",
+  "statement": "واجهة الربح والخسارة بالاستحقاق: مبدّلا «الاستحقاق (فاتورة)» و«النقدية (المحصلة)»، رسم بياني (خط الربح وأعمدة الإيراد والمصروفات) ببدائل «Period Totals» و«مصروفات الحسابات» و«إيرادات الحسابات» و«No Graph»، وتصدير CSV/Excel/PDF و«Export to PDF Without Graph».",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/pl-accrual-default.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-52",
+  "statement": "الربح والخسارة النقدي /owner/reports/profit بعنوان «تقرير الربح والخسارة (نقدي)»: المرشحات: الفترة (type: monthly شهري | quarterly ربع سنوي | yearly سنوي)، «حساب المبيعات باستخدام» (income_type: payment «تاريخ دفع الفاتورة» | paid «تاريخ إصدار الفاتورة (الفواتير المدفوعة)» | amount «تاريخ إصدار الفاتورة (جميع الفواتير)»)، الفترة من/إلى. الأسطر: «سندات القبض»: المبيعات (الفواتير)، رصيد مدفوعات العميل؛ «إجمالي الإيراد»؛ «المصروفات»: الفواتير المرتجعة، فواتير الشراء، مصروفات اخرى، إيجار؛ «إجمالي المصروفات»؛ «الربح».",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/pl-cash-default.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-53",
+  "statement": "أرقام النقدي لأكتوبر 2026 حسب الأساس: payment: مبيعات 1,992.75، فواتير الشراء 14,373.50، مصروفات اخرى 230.00، إيجار 3,000، إجمالي المصروفات 17,603.50، الربح -15,610.75؛ paid: 3,253 و15,965.50 و230.00 و3,000 و19,195.50 و-15,942.50 (pl-cash-income-paid.json)؛ amount: 10,605.31 ومرتجعة 86.25 و15,965.50 و230.00 و3,000 و19,281.75 و-8,676.44 (pl-cash-income-amount.json). والربع سنوي والسنوي يعيدان نفس الإجماليات (pl-cash-quarterly.json وpl-cash-yearly.json).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/pl-cash-income-payment.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-54",
+  "statement": "الرابط الافتراضي من قائمة التقارير (بلا income_type) يعرض في النموذج «تاريخ دفع الفاتورة» محددًا لكن أرقامه هي أرقام income_type=paid (مبيعات 3,253، شراء 15,965.50، ربح -15,942.50) لا أرقام payment (1,992.75، 14,373.50، -15,610.75).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/pl-cash-default.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-55",
+  "statement": "الربح النقدي مبني على المستندات لا على القيود: المشتريات تُحتسب مصروفًا (فواتير الشراء 15,965.50 لا تكلفة مبيعات)، والربح -15,942.50 أو -8,676.44 بدل -3,276.46 بالاستحقاق؛ ومع أساس amount تساوي المبيعات 10,605.31 إجمالي مدين حسابات العملاء في الميزان (10,605.31) أي شاملة الضريبة.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/pl-cash-income-amount.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-56",
+  "statement": "استنتاج: «مصروفات اخرى 230.00» في النقدي هي المصروف 000002 شاملًا الضريبة (في تقرير المصروفات: المبلغ 200.00 + الضرائب 30.00 = 230.00 «غير مصنف»)، بينما القيد 541 يحمل 200.00 والضريبة 30.00 في 215002؛ والإيجار 3,000 بلا ضريبة يطابق 545.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/exp-category-details.json",
+  "kind": "inference"
+ },
+ {
+  "id": "pw-rep-accounting-57",
+  "statement": "التدفقات النقدية /owner/reports/cash_flow: المرشح الوحيد «الفترة من / إلى»، وأزرار «تخصيص» (إلى /v2/owner/settings/cash_flow_report) وطباعة وتصدير. الترويسة بالإنجليزية «Period Beginning : 27/10/2025» و«Period Ending : 27/10/2026». الأسطر: تدفق النقدية من العمليات (صافي الدخل، مصروفات الإهلاك، زيادة في حسابات العملاء المدينة، زيادة في حسابات الدائنون، زيادة في المخزون، إجمالي التدفق النقدي من العمليات التشغيلية)، التدفق النقدي من الاستثمارات (النقد المستلم من بيع الأصول، النقد المُنفق لشراء الأصول، الإجمالي)، تدفق النقدية من التمويل (زيادة في الأسهم المشتركة، الإجمالي)، «إجمالي التغير في التدفق النقدي».",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/cf-default.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-58",
+  "statement": "أرقام التدفقات (27/10/2025–27/10/2026): صافي الدخل -3,276.46؛ الإهلاك 0.00؛ العملاء -7,336.06؛ الدائنون 305.50؛ المخزون -4,971.53؛ إجمالي العمليات -15,278.55 (يساوي مجموع الأسطر)؛ الاستثمارات 0.00؛ الأسهم 100,000؛ إجمالي التغير 84,721.45. لا أسطر «النقد أول المدة/آخره».",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/cf-default.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-59",
+  "statement": "قيم الأسطر هي تغيّر الفترة المحددة: لـ22–27/10/2026 صافي الدخل -3,596.46 والعملاء -6,830.06 (= 7,336.06 − 506.00) والدائنون 236.50 والمخزون -5,031.53 والأسهم 100,000 والإجمالي 84,778.45؛ ولـ01/01–21/10 صافي الدخل 320.00 (cf-jan-21oct.json) فمجموع الفترتين -3,276.46.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/cf-22-27oct.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-60",
+  "statement": "كشف التدفقات لا يتطابق مع النقدية: إجمالي التغير 84,721.45 مقابل الخزينة 84,644.25 + البنك 40.00 = 84,684.25 في الميزان، والفرق 37.20 = رصيد 215 القيمة المضافة؛ ولـ22–27/10 الإجمالي 84,778.45 والنقدية 84,684.25 (الفرق 94.20 = تحوّل 215 من دائن 57.00 إلى مدين 37.20)؛ ولـ01/01–21/10 الإجمالي -57.00 والنقدية صفر.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/cf-22-27oct.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-61",
+  "statement": "استنتاج: سبب فرق التدفقات عن النقدية أنه لا سطر في الكشف لتغيّر حساب 215 (القيمة المضافة) ولا لأي حساب غير مربوط بأسطره الثمانية، فلا يتطابق الكشف مع النقدية متى تحرك مثل هذا الحساب.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/cf-22-27oct.json",
+  "kind": "inference"
+ },
+ {
+  "id": "pw-rep-accounting-62",
+  "statement": "إعدادات التدفقات /v2/owner/settings/cash_flow_report (قُرئت ولم تُحفظ): ثلاثة أقسام cash_flow_from_operations (5 أسطر) وcash_flow_from_investments (سطران) وcash_flow_from_finance (سطر)؛ لكل سطر عنوان (إلزامي) وحساب (يظهر «مخصص» ومعطّل للأسطر الافتراضية) ونوع احتساب (credit_in_period «التغير في الدائن» | debit_in_period «التغير في المدين») وعرض (إخفاء | اظهار)، وأزرار «حذف» و«إضافة» و«حفظ» و«إلغاء». الافتراضيات: صافي الدخل = التغير في الدائن، مصروف الإهلاك = التغير في المدين، العملاء/الدائنون/المخزون = التغير في الدائن، الأسهم = التغير في الدائن.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/cf-settings-v2.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-63",
+  "statement": "تقرير الضرائب /owner/reports/taxes (details=0 مختصر، details=1 مفصل): المرشحات: الضرائب (tax_id: كل الضرائب | 1 القيمة المضافة)، نوعية الدخل (invoice_type: accrual «تم إصدارها (مستحقة)» | cash «مدفوعة بالكامل» | partially_paid «مدفوعة جزئياً»)، الفترة، العملة (-1 الجميع إلي (SAR) | SAR)، «إظهار البنود غير الخاضعة للضريبة» (show_not_taxed)، وفي المفصل «تجميع حسب» (group_by: item «البند» | invoice «فاتورة»). أزرار: عرض التقرير، «عرض الإقرار الضريبي»، طباعة، تصدير CSV/Excel/PDF، مبدّل الملخص/التفاصيل.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/tax-summary-default.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-64",
+  "statement": "الملخص الافتراضي (27/09–27/10/2026، مستحق): الأعمدة الضريبة | المبلغ الخاضع للضريبة | الضرائب؛ قسم «القيمة المضافة (15%)»: فواتير البيع 9,222.00 / 1,383.30؛ Sales Debit Note 0.00؛ مردودات المبيعات -1,110.00 / -166.50؛ فواتير الشراء -9,000.00 / -1,350.00؛ مردودات المشتريات 840.00 / 126.00؛ Purchases Credit Note 0.00؛ المصروفات -200.00 / -30.00؛ «الإجمالي الكلي (SAR)» -248.00 / -37.20. تسميتا Sales Debit Note وPurchases Credit Note بالإنجليزية.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/tax-summary-default.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-65",
+  "statement": "ربط الضريبة بالدفتر: ضريبة المبيعات 1,383.30 = دائن 215001، ومردودات المبيعات 166.50 = مدين 215001 (الصافي 1,216.80)، وضريبة المشتريات 1,350.00 + المصروفات 30.00 = مدين 1,380.00 في 215002 مطروحًا منه مردودات المشتريات 126.00 = 1,254.00، والإجمالي الكلي -37.20 = رصيد 215. إشارة التقرير: المبيعات موجبة والمشتريات والمصروفات ومردودات المبيعات سالبة ومردودات المشتريات موجبة.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/tax-details-default.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-66",
+  "statement": "قاعدة المبيعات الخاضعة 9,222.00 في تقرير الضرائب بينما حساب المبيعات 411 في الدفتر دائن 9,222.01 (فرق 0.01 في الأساس مع تطابق الضريبة 1,383.30).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/tax-details-default.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-67",
+  "statement": "نوعية الدخل تغيّر جانب المبيعات وحده: cash «مدفوعة بالكامل» تسمّي السطر «الفواتير المدفوعة» 1,815.00 / 272.25 وتجعل مردودات المبيعات 0.00 والإجمالي -6,545.00 / -981.75؛ وpartially_paid «مدفوعة جزئياً» (tax-sum-partial.json) 1,820.00 / 273.00 والإجمالي -6,540.00 / -981.00؛ وجانب المشتريات والمصروفات ومردودات المشتريات ثابت (-9,000.00 و840.00 و-200.00) في الأنواع الثلاثة.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/tax-sum-cash.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-68",
+  "statement": "خانة «إظهار البنود غير الخاضعة للضريبة» تضيف قسمًا «Non Taxed» (فواتير الشراء -5,000.00 والمصروفات -3,000.00 بضريبة 0.00، إجماليه -8,000.00) ويصير «الإجمالي الكلي (SAR)» -8,248.00 / -37.20؛ ويصير سطر القسم الأول «الإجمالي (SAR)».",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/tax-sum-shownottaxed.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-69",
+  "statement": "التقرير المفصل: الأعمدة رقم | الممول | الرقم الضريبي | سجل تجارى/ رقم موحد | التاريخ | البند | الوصف | المبلغ الخاضع للضريبة | الضرائب؛ أقسام فواتير البيع: ثم Sales Debit Note: ثم مردودات المبيعات: ثم فواتير الشراء: ثم مردودات المشتريات: ثم Purchases Credit Note: ثم المصروفات: بأسطر «المجموع» ثم «الإجمالي الكلي (SAR)»؛ رقم الفاتورة رابط /owner/invoices/view/<id>. وبـgroup_by=invoice يختفي عمود البند ويصير الصف فاتورة (الفاتورة 000002 = 710.00 / 106.50) (tax-det-groupby-invoice.json).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/tax-details-default.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-70",
+  "statement": "الإقرار الضريبي /owner/reports/new_taxes: المرشحات كتقرير الضرائب (دون «تجميع حسب» وخانة غير الخاضع)، مع نوعية الدخل «مدفوعة جزئيا (نقدا)». أربعة جداول: «المبيعات» (الضريبة | المبيعات | التعديل | الضريبة المستحقة)، «المشتريات» (الضريبة | المشتريات | التعديل | الضريبة المدفوعة)، «آخرون» (الضريبة | تمت التسوية | المبلغ الخاضع للضريبة | الضرائب)، وسطر «الإجمالي (SAR)». أزرار: «تسوية الإقرار»، عرض تقرير الضرائب، طباعة، تصدير CSV/Excel/PDF.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/taxreturn-default.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-71",
+  "statement": "أرقام الإقرار (27/09–27/10/2026، مستحق): المبيعات 9,222.00 والتعديل -1,110.00 (المردودات) والضريبة المستحقة 1,216.80؛ المشتريات -9,200.00 (فواتير الشراء -9,000 + المصروفات -200) والتعديل -840.00 والضريبة المدفوعة -1,254.00؛ آخرون 0.00؛ الإجمالي -37.20. تتطابق مع 215001 (1,216.80 صافي دائن) و215002 (1,254.00 صافي مدين).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/taxreturn-default.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-72",
+  "statement": "الإقرار لفترة 20–21/10/2026: المبيعات 440.00 والضريبة المستحقة 66.00، المشتريات -60.00 والضريبة المدفوعة -9.00، الإجمالي 57.00 = صافي دائن 215 في الميزان قبل 22/10 (57.00). وفي نوعي cash وpartially_paid تتغير المبيعات (1,815.00 / 272.25 و1,820.00 / 273.00) ويصير التعديل 0.00 ويبقى جانب المشتريات (-9,200 و-840 و-1,254) (taxret-cash.json وtaxret-partial.json)؛ وفترة بلا قيود تعرض عناوين الجداول بلا صفوف والإجمالي 0.00 (taxret-2025.json).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/taxret-20-21oct.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-73",
+  "statement": "زر «تسوية الإقرار» (SettleDeclarationBtn؛ لم يُضغط) يستدعي GET /owner/journals/prepare_tax_settlement بمرشحات التقرير ثم يفتح لوحة وصفها «إنشاء قيود يومية تسوية للفترة الإقرارية المحددة.» ويرسل النموذج إلى /owner/journals/settle_tax_declaration؛ والتحقق بالواجهة يشترط تاريخ التسوية وحساب تسوية لضريبة واحدة على الأقل (الرسالة الإنجليزية «Please select a settlement account for at least one tax.»).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/taxreturn-settle-js.txt",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-74",
+  "statement": "نموذج التسوية (قالب HTML في الصفحة): فترة الإقرار من/إلى (للقراءة فقط)، «تاريخ التسوية *» (data[settlement_date] افتراضيه آخر يوم في الفترة 2026-10-27)، قسم «حسابات التسوية» بحقل «حساب التسوية — القيمة المضافة (15%)» (data[accounts][<tax_id>]، قائمة حسابات قيد)، تنبيه «تمت التسوية لهذه الفترة مسبقاً.» للضريبة المسوّاة، وزرا «إلغاء» و«تأكيد التسوية».",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/taxreturn-settle-form-template.html",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-75",
+  "statement": "الحركات المالية /owner/reports/financial_report: المرشحات: الفترة (date_range_selector: تخصيص | الشهر الأخير الافتراضي | السنة الماضية، وdate_range_from/to)، العملة، «بحث»، «إلغاء الفلتر». الأعمدة التاريخ | الوصف | المبلغ | الرصيد بعد، وأسطر «رصيد بداية المدة» و«إجمالي الإيراد» و«إجمالي المصروفات» و«رصيد نهاية المدة». الافتراضي «الشهر الأخير» (سبتمبر) يعرض أصفارًا؛ وعن 01/10–27/10/2026: إيراد 2,613.75، مصروفات -17,929.50، رصيد نهاية المدة -15,315.75 في 34 صفًا (30 حركة وأربعة أسطر ملخص؛ وسائل الدفع المذكورة: Cash 24 وBank Transfer 3 وCheque 1).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/finmov-oct.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-76",
+  "statement": "استنتاج: رصيد نهاية المدة -15,315.75 = نقدية الخزينة والبنك في الميزان 84,684.25 مطروحًا منها قيد رأس المال اليدوي 100,000 (كشف المدفوعات والمقبوضات لا القيود اليدوية).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/finmov-oct.json",
+  "kind": "inference"
+ },
+ {
+  "id": "pw-rep-accounting-77",
+  "statement": "تقرير «حركات القيود» /owner/reports/report/journal_transactions?summary=0: المرشحات: المصدر (34 خيارًا بما فيها الكل: قيد يدوي، فاتورة، إذن مخزن، عملية مخزون، مدفوعات الفواتير، سندات القبض، تكلفة مبيعات الفواتير، فاتورة مرتجعة، مصروف، حركة مخزون، مرتجع مشتريات، أصل، عملية أصل، إهلاك الأصل، تحويل خزينة، إشعار دائن، شطب الأصول، إعادة تقدير أصل، بيع أصل، مسير الراتب، دورة الشيكات المدفوعة والمستلمة (إستلام/رفض/تحصيل/إيداع)، Product Sales Cost، طلب التصنيع، دفع فاتورة الشراء، فاتورة شراء)، الحساب الفرعي (متعدد)، التاريخ من/إلى، «اظهار طرفي قيد اليومية»، مركز التكلفة (متعدد مع «بدون مراكز تكلفة»)، تجميع حسب (رقم قيد اليومية | يوم | شهر | سنة | الحساب الفرعي)، العملة.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/journals-details-default.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-78",
+  "statement": "نتيجة «حركات القيود» (الأعمدة التاريخ | رقم | الحساب | كود الحساب | الوصف | المصدر | مدين | دائن) مجمّعة بالقيد بأسطر «المجموع» لكل قيد و«الإجماليات» 153,601.32 مدين = دائن (820 صفًا بما فيها العناوين)؛ ويعمل مرشح المصدر (expense → القيدان 000006 و000074 بإجمالي 3,230، jr-details-source-expense.json)، وتجميع الحساب الفرعي والشهر (jr-details-by-account.json وjr-details-by-month.json)، وخانة «اظهار طرفي قيد اليومية» لم تغيّر النتيجة عند التجميع برقم القيد.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/jr-details-by-number.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-79",
+  "statement": "تقرير «القيود اليومية» (الملخص /owner/reports/report/journals?summary=1): الأعمدة التاريخ | رقم | الوصف | المصدر | مدين؛ 126 قيدًا بأرقام 000001 إلى 000134 والقيد اليدوي الرقم 000999 (مرتب أخيرًا برقمه)، بتواريخ 20/10 إلى 26/10/2026، ومجموع مدينها 153,601.32 (= إجماليات الميزان). تصنيف المصدر المعروض: فاتورة 27، فاتورة شراء 22، دفع فاتورة الشراء 20، مدفوعات الفواتير 8، إشعار دائن 6، تحويل خزينة 3، قيد يدوي 2، مصروف 2، مرتجع مشتريات 2، فاتورة مرتجعة 1، وبلا تسمية 33 قيدًا.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/jr-summary-all.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-80",
+  "statement": "تقرير دليل الحسابات /owner/reports/report/chart_of_accounts (عنوان الصفحة «الحسابات الفرعية»): المرشحات: مستوى الحساب (account_level[]: 1 حساب رئيسي | 2 حساب فرعي)، نوع الحساب (الكل | 1 مدين | 0 دائن)، «عرض كل الحسابات باستثناء» (client حسابات العملاء | supplier حسابات الموردين)، ترتيب حسب (الكود تصاعدي | تنازلي)، العملة؛ الأعمدة كود الحساب | اسم الحساب | نوع الحساب (مدين/دائن) | مستوى الحساب (حساب رئيسي/حساب فرعي) | مركز التكلفة؛ 84 حسابًا (48 مدين و36 دائن). مع مستوى 2 ومدين 27 حسابًا (chartrep-level2-debit.json)، وبمستوى 2 مع استثناء العملاء والموردين 28 (chartrep-except-client-supplier.json).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/chartrep-all.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-81",
+  "statement": "تقرير الأصول /owner/reports/report/assets: مرشحات: موظف، تاريخ الشراء من/إلى، تاريخ الإهلاك من/إلى (الافتراضي الشهر الأخير)، الحالة (في الخدمة | غير نشط | مُستهلك | تم البيع | Written Off)، التصنيف (مجمع الإهلاك | حسابات الأصول الثابتة)، تجميع حسب (الكل | الحالة | تاريخ بداية الخدمة | تاريخ الشراء)؛ ولا أصول في الحساب فيعرض «لا توجد بيانات توافق معطيات البحث».",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/assets-run.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-82",
+  "statement": "مراكز التكلفة: لا يوجد أي مركز في الحساب («لم تتم إضافة مراكز تكلفة بعد» في /v2/owner/cost-centers) فتقارير /owner/reports/cost_centers (تجميع حسب: مراكز التكلفة | الحسابات الفرعية | يومياً | أسبوعياً | شهري | سنوي؛ مركز رئيسي وفرعي متعددا الاختيار؛ الحساب؛ الفترة) تعرض «لا توجد نتيجة تطابق هذه الاختيارات»؛ أعمدتها لم تُرصد. وهو التقرير الوحيد بلا قائمة تصدير.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/cc-list-v2.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-83",
+  "statement": "تقارير المصروفات /owner/reports/report/expenses: المرشحات: خزينة، البائع، التاريخ من/إلى، التصنيف، الحساب الفرعي، المورد، تجميع حسب (سنوي | شهري | أسبوعياً | يومياً | التصنيف | مدخل العملية | البائع | خزينة)، العملة (الجميع إلي (SAR) | كل على حده | SAR). الأعمدة (تفصيلي): الكود | التاريخ | خزينة | التصنيف | البائع | الحساب الفرعي | مدخل العملية | ملاحظة | المبلغ (SAR) | الضرائب | الإجمالي مع الضريبة (SAR)؛ إجماليات اليوم: 3,200 / 30.00 / 3,230 (إيجار 3,000 و«غير مصنف» 200.00 + 30.00). وتقارير سندات القبض (incomes) بالمرشحات نفسها بلا بيانات.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/exp-category-details.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-84",
+  "statement": "كل تقارير العائلة فيها زر «طباعة»، وقائمة تصدير CSV وExcel وPDF بالنمط <مسار التقرير>.{csv|xlsx|pdf} (ما عدا مراكز التكلفة بلا تصدير)؛ والربح والخسارة تضيف «Export to PDF Without Graph»/«تصدير إلى PDF بدون رسم بياني»؛ ونافذة إعدادات PDF (الاتجاه وحجم الخط) موجودة في الميزان والأستاذ فقط.",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/export-options.json",
+  "kind": "observed"
+ },
+ {
+  "id": "pw-rep-accounting-85",
+  "statement": "فحص الثبات في نهاية الجلسة: إجماليات الميزان لم تتغير أثناء الرصد (153,601.32 = 153,601.32 للحركات والرصيد بعد، و108,380.31 للأرصدة)، فلم تُضف قيود جديدة للدفتر في تلك المدة. وأرقام المصفوفة السابقة تختلف عن أرقام اليوم: REP-03 كانت إيرادات 1,990 ومصروفات 8,280 واليوم 8,112.01 و11,388.47؛ وREP-07 كانت ضريبة مبيعات 331.50 على 2,210 واليوم 1,383.30 على 9,222.00؛ وREP-01 كان الإجمالي 122,478 واليوم 153,601.32 (كلها متوازنة).",
+  "evidenceFile": "/home/user/daftra-tools/out/rep-accounting/tb-final-check.json",
+  "kind": "observed"
+ }
+]

@@ -1,0 +1,476 @@
+[
+ {
+  "id": "pw-prints-yearend-1",
+  "kind": "observed",
+  "statement": "صفحة الفاتورة /owner/invoices/view/1 تعرض المستند المطبوع داخل iframe (/owner/invoices/preview/1) وشريط أزرارها: تعديل، طباعة (/owner/invoices/view/1/print:1)، PDF (/owner/invoices/preview/1.pdf)، إضافة عملية دفع، قسائم (قائمة: ملصق الطرد، قائمة الاستلام، ملصق الشحن)، مرتجع (إنشاء فاتورة مرتجعة، إنشاء إشعار دائن)، نسخ، تعيين مراكز التكلفة، حذف.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/inv-view-1.json"
+ },
+ {
+  "id": "pw-prints-yearend-2",
+  "kind": "observed",
+  "statement": "مخرج PDF للفاتورة (Invoice-000001.pdf) من wkhtmltopdf 0.12.2: صفحة واحدة A4 (595x842 نقطة)، عنوان الملف «الفاتورة #000001»، ويُحمَّل مرفقًا (attachment).",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/inv1-pdf.pdf.txt"
+ },
+ {
+  "id": "pw-prints-yearend-3",
+  "kind": "observed",
+  "statement": "ترتيب الفاتورة الافتراضية (RTL): كتلة الشركة أعلى اليمين (الاسم «opes» بخط 18px وتحته أسطر العنوان)، وعنوان المستند «فاتورة ضريبية مبسطة» أعلى اليسار ويليه رمز QR بمقاس 66x66، ثم كتلة «فاتورة لـ:» (اسم نشاط العميل، اسم جهة الاتصال، «، المدينة»)، وجدول حقول «رقم الفاتورة» و«تاريخ الفاتورة»، ثم جدول البنود بأعمدة (من اليمين) «البند | سعر الوحدة | الكمية | المجموع»، ثم صفوف المجاميع «المجموع:» و«القيمة المضافة (15%):» و«الإجمالي:» (صف مظلل) و«مدفوعة:» و«المبلغ المستحق:».",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/inv1-preview.html"
+ },
+ {
+  "id": "pw-prints-yearend-4",
+  "kind": "observed",
+  "statement": "الفاتورة المطبوعة الافتراضية لا تعرض رقمًا ضريبيًا ولا سجلًا تجاريًا ولا هاتفًا (رغم أن جوال الشركة «+966 530882752» مدخل في الإعدادات) ولا شعارًا ظاهرًا ولا شروطًا ولا تذييلًا مخصصًا؛ حقلا «الرقم الضريبي» (data[Site][bn1]) و«سجل تجارى/ رقم موحد» فارغان في إعدادات الحساب، وكتلة الشركة المطبوعة اسم النشاط وثلاثة أسطر عنوان فقط.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/settings-general.json"
+ },
+ {
+  "id": "pw-prints-yearend-5",
+  "kind": "observed",
+  "statement": "رمز QR في الفاتورة صورة من /qr/?d64=<base64 مزدوج> وفك ترميزه TLV بخمس وسوم فقط (نمط ZATCA المرحلة الأولى): 1=اسم البائع «opes»، 2=الرقم الضريبي (فارغ، الطول 0)، 3=الطابع الزمني بصيغة ISO بتوقيت UTC «2026-10-22T09:47:29Z»، 4=الإجمالي بالضريبة «1725.00»، 5=مبلغ الضريبة «225» (بلا كسور عشرية بينما الإجمالي بمنزلتين). لا وسوم 6 إلى 9 (التجزئة والتوقيع والمفتاح).",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/inv1-preview.html"
+ },
+ {
+  "id": "pw-prints-yearend-6",
+  "kind": "observed",
+  "statement": "رمز QR في فاتورة أخرى (000027): الوسوم 1=opes، 2=فارغ، 3=2026-10-26T12:09:09Z، 4=«115.00»، 5=«15»؛ وفي الإشعار الدائن 000001: 3=2026-10-22T11:30:33Z، 4=«253.00»، 5=«33». أي أن الوسم 5 يُكتب بلا «.00» والوسم 4 بمنزلتين، والطابع الزمني وقت إنشاء المستند لا تاريخه.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/inv35-view-frame0.html"
+ },
+ {
+  "id": "pw-prints-yearend-7",
+  "kind": "observed",
+  "statement": "رمز QR موجود في الفاتورة وفي الإشعار الدائن وغير موجود في عرض السعر (view_estimate/13) ولا في فاتورة الشراء (preview/1).",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/est13-view-frame0.html"
+ },
+ {
+  "id": "pw-prints-yearend-8",
+  "kind": "observed",
+  "statement": "سطر العلامة «أنشئ بواسطة www.daftra.com free version» مخفي على الشاشة (CSS @media screen display:none) ويظهر عند الطباعة والـPDF في الفاتورة والإشعار الدائن وعرض السعر، ولا يظهر في PDF فاتورة الشراء ولا القيد ولا الكشوف. باقة الحساب «Free» في صفحة معلومات الحساب.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/inv1-preview.html"
+ },
+ {
+  "id": "pw-prints-yearend-9",
+  "kind": "observed",
+  "statement": "رمز العملة في الفاتورة وعرض السعر وفاتورة الشراء حرف خاص بخط مخصص `saudi_riyal_symbol` (فئة sar_symbol، يُخزَّن الحرف «元»)؛ أما PDF القيد والكشوف والإيصالات فتكتب «ر.س»، والإيصال الحراري «SAR 1,000»، وكشف المورد (HTML) «5,000 SAR».",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/jrn3-pdf.pdf.txt"
+ },
+ {
+  "id": "pw-prints-yearend-10",
+  "kind": "observed",
+  "statement": "تنسيق الأرقام في الفاتورة 000001 غير موحد: سعر الوحدة «500.00» وضريبة «225.00» والمستحق «725.00» بمنزلتين بينما مجموع البند «1,500» والمجموع «1,500» والإجمالي «1,725» والمدفوع «-1,000» بلا كسور؛ وفي الفاتورة 000027 كل القيم بمنزلتين. والمدفوع يُطبع بإشارة سالبة («مدفوعة: -1,000»).",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/inv1-preview.html"
+ },
+ {
+  "id": "pw-prints-yearend-11",
+  "kind": "observed",
+  "statement": "CSS الفاتورة: عرض ثابت 700px (invoice-wrap) واتجاه rtl، و`@media print { @page { margin: 0cm } }`، ولا خيار لمقاس الورق في شاشة الفاتورة؛ مخرج PDF A4 فقط.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/inv1-preview.html"
+ },
+ {
+  "id": "pw-prints-yearend-12",
+  "kind": "observed",
+  "statement": "إعداد «طريقة عرض المستندات» (data[Site][invoice_print_method]) في /settings خياره الوحيد «متصفح» ونصه «اختر كيفية عرض المستندات القابلة للطباعة سواء داخل المتصفح مباشرة أو من خلال عارض PDF مدمج».",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/settings-general-options.json"
+ },
+ {
+  "id": "pw-prints-yearend-13",
+  "kind": "observed",
+  "statement": "الفاتورة 000027 لعميل «مؤسسة الرياض للتجارة (عميل افتراضي)» عنوانها كذلك «فاتورة ضريبية مبسطة» (مثل الفاتورة 000001)، وقاعدة اختيار «مبسطة» أو «ضريبية» غير ظاهرة في الحساب.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/inv35-view-frame0.txt"
+ },
+ {
+  "id": "pw-prints-yearend-14",
+  "kind": "inference",
+  "statement": "وجود المتغير {%sa_auto_invoice_title%} في دليل المتغيرات يدل على أن عنوان الفاتورة الآلي (مبسطة/ضريبية) يُحسب تلقائيًا بحسب بيانات العميل، ولم نتحقق من القاعدة.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/email-placeholders-invoice.txt"
+ },
+ {
+  "id": "pw-prints-yearend-15",
+  "kind": "observed",
+  "statement": "الإشعار الدائن: صفحة /owner/invoices/view_creditnote/3 وiframe المعاينة /owner/invoices/preview/3 وPDF /owner/invoices/view_creditnote/3.pdf (Creditnote-000001.pdf)؛ العنوان «إشعار دائن» والتسميات «إلى:» و«رقم إشعار دائن» و«تاريخ إشعار دائن»؛ المجاميع «المجموع / القيمة المضافة (15%) / الإجمالي» بلا صفي «مدفوعة» و«المبلغ المستحق»؛ ومعه رمز QR. أزرار الصفحة: طباعة، تعديل، قسائم، PDF، أرسل عبر، تحويل إلى مسودة، حذف، تعيين مراكز التكلفة، ورابطا القيدين «قيد 000012#» و«تكلفة مبيعات #000013».",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/cn3-view.json"
+ },
+ {
+  "id": "pw-prints-yearend-16",
+  "kind": "observed",
+  "statement": "عرض السعر المطبوع: العنوان «عروض الأسعار»، التسميات «إلى:» و«عرض الأسعار #» و«تاريخ عرض الأسعار»، المجاميع كالفاتورة بلا مدفوع ومستحق، بلا QR؛ وعنوان وصفي PDF (Estimate-000001.pdf) يقول «الفاتورة #000001» أي لا يتبع اسم المستند.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/est13-view-frame0.txt"
+ },
+ {
+  "id": "pw-prints-yearend-17",
+  "kind": "observed",
+  "statement": "فاتورة الشراء المطبوعة (/owner/purchase_invoices/preview/1): العنوان «فاتورة شراء»، «المورد:» وبياناته، حقول «رقم أمر الشراء #» و«التاريخ»، أعمدة «البند | سعر الوحدة | الكمية | المجموع»، مجاميع «الإجمالي:» و«مدفوعة:» و«المبلغ المستحق:» فقط (لا صف ضريبة لأن الفاتورة بلا ضريبة)، بلا QR ولا سطر العلامة؛ PDF باسم purchaseinvoice-000001.pdf.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/pinv1-view-frame0.txt"
+ },
+ {
+  "id": "pw-prints-yearend-18",
+  "kind": "observed",
+  "statement": "أزرار صفحة فاتورة الشراء: طباعة (/owner/purchase_invoices/view/1/print:1)، PDF (/owner/purchase_invoices/view/1.pdf)، «PDF باركود» (/owner/printable_templates/multiple_print/product/purchase_order/1)، قسائم (ملصق الطرد وقائمة الاستلام وملصق الشحن)، وطباعة الدفعة (/owner/purchase_order_payments/print/1/1).",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/pinv1-view.json"
+ },
+ {
+  "id": "pw-prints-yearend-19",
+  "kind": "observed",
+  "statement": "قسائم الفاتورة (/owner/invoices/print/packing_slip|pick_list|shipping_label/1) تنزل PDF بمقاس A4 بعناوين «ملصق الطرد» و«قائمة الاستلام» و«ملصق الشحن»، ورأسها اسم النشاط واسم الموظف وبريده، ورقم الفاتورة، وأعمدة «البند | الوصف | الكمية» وباركود رقمي للفاتورة (2838500000019 للفاتورة 1) في الأسفل؛ ملف ملصق الطرد فيه كتلتا «فاتورة إلى» و«اشحن إلى»، وقائمة الاستلام فيها «المستودع» وعنوانه، وملصق الشحن فيه «من» و«اشحن إلى». (حُذفت ملفات PDF لاحتوائها بريد الحساب).",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/inv-view-1.json"
+ },
+ {
+  "id": "pw-prints-yearend-20",
+  "kind": "observed",
+  "statement": "صفحة دفعة العميل /owner/invoice_payments/view/1: أزرار تعديل، إيصال (/owner/invoice_payments/print/1?box=1)، حذف؛ جدولان «بيانات العميل» (اسم العميل، المدينة، المنطقة، الرمز البريدي، الهاتف، البلد، العملة، الآي بي IP) و«بيانات الدفع» (رقم الفاتورة، وسيلة دفع، المبلغ، رقم معّرف للتحويل، الحالة، التاريخ، أضيفت بواسطة، خزينة)؛ والدفعة تُسجَّل مع عنوان IP المنفِّذ.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/pay1-view.txt"
+ },
+ {
+  "id": "pw-prints-yearend-21",
+  "kind": "observed",
+  "statement": "إيصال قديم ثابت /owner/invoice_payments/print/1/1 (أزرار إغلاق/طباعة/PDF؛ PDF باسم Receipt.pdf A4): العنوان «إيصال» ثم «التاريخ» و«رقم» وكتلة الشركة و«من:» و«المبلغ: 元 1,000» و«دفعت بواسطة:» و«فاتورة: #000001» و«المستلم: New» (الاسم الأول فقط) و«خزينة:» و«التوقيع».",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/pay1-print.txt"
+ },
+ {
+  "id": "pw-prints-yearend-22",
+  "kind": "observed",
+  "statement": "إيصالات القوالب المطبوعة لدفعة العميل: «إيصال مدفوعات» (قالب 29، A4) و«إيصال مدفوعات - حراري» (قالب 33، 8x15 سم وPDF بمقاس 227x425 نقطة) بعنوان «إيصال استلام» وحقول «رقم» و«التاريخ» وكتلة الشركة و«من:» و«المبلغ:» و«بواسطة:» و«فاتورة:» و«المستلم: New Beauty» (الاسم الكامل) و«الخزينة:» و«التــوقــيع»؛ أزرار القالب «طباعة»، «PDF» (/owner/printable_templates/view/1/29/invoice_payment.pdf?autoNumber=000001)، «أرسل بريد» (لم يُضغط).",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/pay1-tpl29-frame0.txt"
+ },
+ {
+  "id": "pw-prints-yearend-23",
+  "kind": "observed",
+  "statement": "قائمة مدفوعات العملاء تعرض لكل دفعة رابطين لقالبي الإيصال («إيصال مدفوعات» و«إيصال مدفوعات - حراري») بالصيغة /owner/printable_templates/view/{paymentId}/{templateId}/invoice_payment، فيُختار القالب لحظة الطباعة.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/list-payments.json"
+ },
+ {
+  "id": "pw-prints-yearend-24",
+  "kind": "observed",
+  "statement": "إيصال دفعة المورد /owner/purchase_order_payments/print/1/1 (PDF A4 «عملية الدفع #1 لفاتورة شراء #000001»): العنوان «إيصال دفع»، «رقم:» و«التاريخ:»، كتلة الشركة، «إلى: سعد الخليجي»، «دفعت بواسطة: نقدي»، «المبلغ: 5,000 ر.س»، «فاتورة الشراء: #000001»، «المستلم: New»، «التوقيع».",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/sup-pay1-print-pdf.pdf.txt"
+ },
+ {
+  "id": "pw-prints-yearend-25",
+  "kind": "observed",
+  "statement": "سند الصرف يُطبع بثلاثة قوالب لكل مصروف: «طباعه سند صرف» (قالب 10، A4، هامش علوي 20) و«طباعه سند صرف - نموذج2» (41، A4) و«طباعه سند صرف - حراري 80mm» (47، 8x15 سم)؛ ومحتوى القالب 10: «سند صرف» و«رقم:» و«اصرفوا الي السيد:» و«مبلغ وقدره: 3,000» و«فقط: ثلاثة آلاف ريال سعودي» (تفقيط) و«بتاريخ:» و«وذلك مقابل:» وصندوقا توقيع «توقيع المستلم» و«أمين الصندوق». وسند القبض بالنمط نفسه (قوالب 9 و37 و49).",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/exp1-tpl10-frame0.txt"
+ },
+ {
+  "id": "pw-prints-yearend-26",
+  "kind": "observed",
+  "statement": "صفحة القيد /owner/journals/view/3: أزرار عرض المصدر، تعديل، طباعة (/owner/journals/view/3.pdf?print=1)، PDF (/owner/journals/view/3.pdf)، نسخ (/owner/journals/add/3)، وقيد عكسي (/owner/journals/add/3?reverse=1)؛ معاينة داخل iframe /owner/journals/preview/3?box=1؛ تبويبات «قيد اليومية / سجل القيد / سجل النشاطات»؛ أسهم السابق/التالي.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/jrn3-view.json"
+ },
+ {
+  "id": "pw-prints-yearend-27",
+  "kind": "observed",
+  "statement": "PDF القيد (journal-000003.pdf، A4، wkhtmltopdf 0.12.2): العنوان «قيد يومية #000003»، «التاريخ: 22/10/2026»، «الوصف: فاتورة #000001»، جدول «الحساب | الوصف | مدين | دائن» (رمز الحساب 12041001 واسمه في خليتين)، صف «الإجمالي» مدين 1,725 = دائن 1,725 بعملة «ر.س»؛ بلا كتلة شركة ولا منشئ ولا ترقيم صفحات ولا تذييل.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/jrn3-pdf.pdf.txt"
+ },
+ {
+  "id": "pw-prints-yearend-28",
+  "kind": "observed",
+  "statement": "زر «طباعة» و«PDF» في القيد يعطيان الملف نفسه (16581 بايت)، والقيد الآلي 000127 بالتخطيط نفسه؛ ولا يوجد اختيار قالب في شاشة القيد رغم وجود سبعة قوالب قيد.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/jrn3-pdf-print.pdf.txt"
+ },
+ {
+  "id": "pw-prints-yearend-29",
+  "kind": "observed",
+  "statement": "صفحة /owner/printable_templates/index فيها 11 بطاقة قوالب: عروض الأسعار والفواتير (/owner/invoice_layouts/index)، فواتير الشراء (/owner/invoice_layouts/index/20)، المصروفات، سندات القبض، مدفوعات العملاء، مدفوعات الموردين، الأذون المخزنية، ورق الجرد، ملصقات المنتجات، العملاء، القيود اليومية (?type=expense|income|invoice_payment|purchase_order_payment|requisition|stocktaking|product|client|journal).",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/ptpl-index.json"
+ },
+ {
+  "id": "pw-prints-yearend-30",
+  "kind": "observed",
+  "statement": "قوالب النظام الجاهزة لكل عائلة: مصروف 3 (10 و41 و47)، قبض 3 (9 و37 و49)، مدفوعات العملاء 2 (29 و33)، مدفوعات الموردين 2 (61 و65)، أذون مخزنية 2 (19 و25 «بدون سعر»)، ملصقات المنتجات 8 (13 «ملصق» نشط و14 و45 و69 و71 و83 و89 و91 «متاح غير مفعل»)، قيود اليومية 7 (16 و22 و51 و55 و94 و96 و98)، ورق الجرد 0 والعملاء 0. كل قالب فيه «تعديل» و«نسخ».",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/ptpl-lists-all.json"
+ },
+ {
+  "id": "pw-prints-yearend-31",
+  "kind": "observed",
+  "statement": "قوالب القيد السبعة: «قالب قيد يومية» (16)، «قالب قيد يومية - بيانات الشركة» (22)، «قالب قيد يومية مع فصل حسابات الضريبة» (51)، «قالب قيد يومية - عرض العملة المحلية» (55)، «قالب قيد بدون مركز تكلفة» (94)، «قالب قيد يومية ب مركز تكلفة» (96)، «قالب قيد بجدول مركز تكلفة» (98)؛ كلها تحت عنوان «نشط» في الشاشة.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/ptpl-type-journal.txt"
+ },
+ {
+  "id": "pw-prints-yearend-32",
+  "kind": "observed",
+  "statement": "مصمم القوالب (/owner/printable_templates/add/{type}?default_template=N&portal=1): الحقول اسم القالب، paper_size (A4 / A3 / A5 / Other)، width و height (الافتراضي 21 × 29.7؛ الحراري 8 × 15؛ الملصقات مثل 3.8 × 1.3 و5 × 2.5)، الهوامش top/left/down/right، المحتوى (محرر WYSIWYG بخط Tahoma 12pt وقائمة «Select placeholder»)، وتذييل الصفحة page_footer، وأزرار «معاينة» و«حفظ» (لم تُضغط).",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/ptpl-designers-summary.json"
+ },
+ {
+  "id": "pw-prints-yearend-33",
+  "kind": "observed",
+  "statement": "عدد المتغيرات المتاحة في قائمة «Select placeholder» بحسب النوع: قيد اليومية 49، مدفوعات العملاء 155، مصروف/قبض 119، مدفوعات الموردين 123، إذن مخزني 106، ملصق المنتج 72؛ وصيغتها {%name%} للمتغيرات وكتل {{#journal_transactions_table}}…{{/…}} للجداول المتكررة وشروط مثل are_all_cost_centers_fully_allocated_to_one_account.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/ptpl-designer-journal16-placeholders.json"
+ },
+ {
+  "id": "pw-prints-yearend-34",
+  "kind": "observed",
+  "statement": "قالب القيد 16: بلا كتلة شركة؛ يضم «قيد#{%journal_id%}» و«التاريخ» و«الوصف» وجدولًا «حساب (رمز واسم) | الوصف | [مركز التكلفة إن وُزِّعت كلها لحساب واحد] | مدين | دائن» وصف «الإجمالي»، ثم {%cost_center_table%}؛ ومتغيرات القيد تشمل Total debit/credit (مع/بدون رمز العملة، وبدون ضرائب) وJournal Transactions Table (مع/بدون ضرائب) وTaxes Transactions Table وCost Center Table وCurrency rate وPage number وSite Logo.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/ptpl-designer-journal16-content.html"
+ },
+ {
+  "id": "pw-prints-yearend-35",
+  "kind": "observed",
+  "statement": "مصمم تصاميم الفواتير /owner/invoice_layouts/add: لا تصاميم محفوظة في الحساب («لم يتم العثور على تصميم للفاتورة أو عروض السعر») وقائمة 36 تصميمًا ابتدائيًا (قالب 1-3 عربي، نموذج فاتورة 1-5، فاتورة ضريبية، فاتورة ضريبية (عربي/English)، فاتورة ضريبية - نموذج2، فاتورة ضريبية مبسطة، مذكرة استلام، فاتورة حرارية، فاتورة حرارية - POS/تجاري 1-3، إيصال المطعم، ونظائرها الإنجليزية) و12 تصميمًا لفواتير الشراء (add_po: قالب 1-3 عربي، فاتورة شراء ضريبية، عربي/English، مذكرة استلام، حرارية، ونظائر إنجليزية).",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/ilay-add.json"
+ },
+ {
+  "id": "pw-prints-yearend-36",
+  "kind": "observed",
+  "statement": "محرر تصميم الفاتورة (add/2010193 «فاتورة ضريبية»): معاينة حية على اليسار وتبويبات «بيانات القالب، مسمى، الشعار، بيانات العمل، بيانات العميل، معلومات الشحن، أعمدة البنود، الحقول الإضافية، المسميات، المقدمة، التذييل، التنسيق، الملاحظات»؛ خيارات القالب: اجعل هذا التصميم هو الأساسي (مستقلة للفاتورة وعرض السعر والإشعار الدائن والفاتورة المرتجعة وإشعار المدين)، لا تظهر علامة العملة في سعر البنود، أظهر دائمًا المدفوع والمستحق، بيانات الشحن، ترتيب سعر الوحدة والكمية (3 خيارات)، أعمدة البنود (خمسة أعمدة مخصصة، نسبة الضريبة، قيمة الضريبة، السعر بدون ضريبة، المجموع مع/بدون ضريبة، عمود الوحدة)، خط Google، ألوان الحدود وخلفية العنوان ونصه؛ وفي القالب متغيرات {%sticky_header%} و{%sticky_footer%} و{%sa_qr_code_image%} و{%business_name%} و{%site_bn1%} («الرقم الضريبي»).",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/ilay-designer-2010193-tax-invoice.json"
+ },
+ {
+  "id": "pw-prints-yearend-37",
+  "kind": "observed",
+  "statement": "دليل المتغيرات /owner/email_templates/placeholder/invoice يضم 242 متغيرًا في أقسام «العميل، فاتورة، مدفوعات الفواتير، بيانات العمل، المورد، فواتير الشراء، موظف، البيئة» منها {%sa_qr_code_image%} و{%sa_qr_code_link%} و{%sa_auto_invoice_title%} و{%invoice_total_spelled%} و{%paid_spelled%} و{%unpaid_spelled%} و{%invoice_barcode%} و{%invoice_payment_table%} و{%invoice_advanced_client_balance%}.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/email-placeholders-invoice.txt"
+ },
+ {
+  "id": "pw-prints-yearend-38",
+  "kind": "observed",
+  "statement": "قوالب البريد /owner/email_templates: ست تبويبات (عروض الأسعار والفواتير، العملاء، المدفوعات، الموظفين، فواتير الشراء، أمر البيع) ورسائل النظام في الأول: الفاتورة الغير المدفوعة، عروض الأسعار، ملاحظات عرض الأسعار، إشعارات الفواتير الدورية (للمالك)، الفاتورة المدفوعة، فاتورة مرتجعة، إشعارات دائنة، الاشعارات المدينة؛ لكلٍّ «تعديل» (/owner/email_templates/edit_system_email/{key}) وزر «قالب جديد».",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/email-templates.json"
+ },
+ {
+  "id": "pw-prints-yearend-39",
+  "kind": "observed",
+  "statement": "«الشروط والأحكام» (/owner/terms): فارغة («لم يتم العثور على الشروط والأحكام»)، زر «ملف أحكام جديد»، وتتيح نصًا مباشرًا أو رفع مستند وعدة ملفات بحسب العميل أو المنتج؛ و«قوالب الفواتير الجاهزة» (/owner/invoices/templates) فارغة بزر «قالب جديد».",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/terms-index.json"
+ },
+ {
+  "id": "pw-prints-yearend-40",
+  "kind": "observed",
+  "statement": "كشف حساب العميل /owner/clients/statement/1: أزرار طباعة (/owner/clients/view_statement/1?print=1) وPDF (/owner/clients/statement/1.pdf) وأضافة رصيد الافتتاحي (/owner/invoice_payments/add_open_balance/1/starting_balance) وترس إلى /owner/settings/statements؛ بلا مرشح تواريخ (الكشف حتى اليوم).",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/client1-statement.json"
+ },
+ {
+  "id": "pw-prints-yearend-41",
+  "kind": "observed",
+  "statement": "تخطيط الكشف: رأس (كتلة الشركة يمينًا و«كشف حساب لـ:» ببيانات العميل يسارًا)، جدول «مختصر الحساب حتى 27/10/2026» بأربعة صفوف «أرصدة افتتاحية 0.00 / الإجمالي 1,725 / المدفوع حتى تاريخه -1,000 / المبلغ المستحق 725.00»، ثم «حركات الحساب» بأعمدة «التاريخ | العملية | المبلغ | الرصيد» وآخر صف «المبلغ المستحق 725.00»؛ الرصيد الجاري 1,725 ثم 725.00 = 1,725 − 1,000 ويساوي الخلاصة.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/client1-statement-frame0.txt"
+ },
+ {
+  "id": "pw-prints-yearend-42",
+  "kind": "observed",
+  "statement": "زر «تصدير إلى PDF» في صفحة العميل يستعمل /owner/clients/transaction_list/1.pdf وهو تخطيط مختلف (قابل للتخصيص): «كشف حساب» + اسم نشاط العميل، «Saudi Arabia» بالإنجليزية، كتلة الشركة، «Date: 27/10/2026»، «حركة الحساب حتى 27/10/2026»، أعمدة «التاريخ | العملية | المبلغ | المبلغ المستحق» (المبلغ يُكتب «SAR ر.س 1,725»)، وصف ختامي «رصيد نهاية المدة» 725.00؛ وفي تخطيط المورد المماثل صف افتتاحي «رصيد بداية المدة» 0.00 غير موجود عند العميل.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/client1-txlist-pdf.pdf.txt"
+ },
+ {
+  "id": "pw-prints-yearend-43",
+  "kind": "observed",
+  "statement": "إعدادات كشف الحساب (/owner/settings/statements و/owner/settings/statements/supplier بالصفحة نفسها): «Transaction Columns Settings» (فردي / Amount / Payments)، مقدمة مخصصة بمحرر WYSIWYG بقيمة افتراضية فيها {%client_business_name%} و{%client_full_address%} و{%client_country%} و{%site_logo%} و{%site_business_name%} و{%full_business_address%} و{%current_date%}، وتذييل مخصص فارغ، وقائمة «الكلمات المستبدلة» (عميل وموظف وشركة، منها الرقم الضريبي وPage Number)، وزر «حفظ الإعدادات» (لم يُضغط)؛ وصفحة المورد تعرض متغيرات العميل نفسها.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/statements-header-html.txt"
+ },
+ {
+  "id": "pw-prints-yearend-44",
+  "kind": "observed",
+  "statement": "كشف المورد /owner/suppliers/statement/1: الأزرار طباعة وPDF وأضافة رصيد الافتتاحي (/owner/purchase_order_payments/add_open_balance/1) وأرسل بريد إلى المورد (/owner/suppliers/send_statement/1، لم يُفتح)؛ التخطيط كالعميل لكن عمود «رقم الحركة» بدل «العملية» والمبالغ بلاحقة «SAR» لا رمز العملة؛ وصفحة المورد فيها «تصدير إلى CSV» (/owner/suppliers/transaction_list/1.csv) و«تصدير إلى PDF».",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/supplier1-statement-frame0.txt"
+ },
+ {
+  "id": "pw-prints-yearend-45",
+  "kind": "observed",
+  "statement": "ملف CSV لحركة المورد: ترويسة من 7 أعمدة \"النوع\",\"رقم\",\"التاريخ\",\"تاريخ الاستحقاق\",\"المبلغ\",\"المبلغ المستحق\",\"الوصف\" وصفوفها 6 حقول فقط (بلا حقل الوصف) وتاريخ الاستحقاق فارغ؛ أي أن الملف غير متسق الأعمدة.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/supplier1-txlist.csv"
+ },
+ {
+  "id": "pw-prints-yearend-46",
+  "kind": "observed",
+  "statement": "PDF كشف المورد المخصص (transaction_list/1.pdf): صف «رصيد بداية المدة» 0.00 ثم فاتورة شراء 5,000 (المستحق 5,000) ثم «عملية الدفع #000001 وسيلة دفع: Cash» -5,000 (المستحق 0.00) وصف ختامي «رصيد نهاية المدة» 0.00؛ وأنشأه wkhtmltopdf 0.12.2 بينما PDF كشف العميل statement/1.pdf من 0.12.6.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/supplier1-txlist-pdf.pdf.txt"
+ },
+ {
+  "id": "pw-prints-yearend-47",
+  "kind": "observed",
+  "statement": "صفحة الخزينة /owner/treasuries/view/1 بلا طباعة ولا كشف: «حساب الأستاذ: Main Treasury #120101» والرصيد 84,624.25 SAR، أزرار تعديل وتعطيل والتحويل وإنشاء سند قبض وإنشاء سند صرف وحذف، تبويبات «التفاصيل / معاملات النظام / التحويلات / سجل النشاطات»، صلاحيتا «إيداع» و«سحب» = «الكل»؛ و«كشف الخزينة» هو تقرير الأستاذ بالحساب (journal_account_id=333) أو تبويب «معاملات النظام».",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/treasury1-view.txt"
+ },
+ {
+  "id": "pw-prints-yearend-48",
+  "kind": "observed",
+  "statement": "تبويب «معاملات النظام» للخزينة (/v2/owner/banks/1/system_transactions): مرشحات «من (التاريخ) / الي (التاريخ)»، أعمدة «عملية تجارية | إيداع | سحب | الرصيد بعد» مع صف «الرصيد قبل 91,163.50» وترقيم «1 - 20 من 28»، وزر «تصدير» (تحديد: لا أحد / الكل الصفحة الحالية / الكل جميع الصفحات).",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/treasury1-system-transactions.txt"
+ },
+ {
+  "id": "pw-prints-yearend-49",
+  "kind": "observed",
+  "statement": "تقرير الأستاذ لحساب الخزينة 120101 (28 حركة): العنوان «حساب الأستاذ» و«من 2026-01-01 إلى 2026-10-27» و«opes» و«الحساب الفرعي: Main Treasury» و«العملة: الجميع (إلى SAR)»؛ أعمدة «رقم | رقم القيد | رقم معّرف للتحويل | التاريخ | موظف | الوصف | العملية (مدين/دائن) | الرصيد (مدين/دائن)»؛ صف «الرصيد قبل 0.00»؛ صف «المجموع»: عملية مدين 102,523.75 ودائن 17,899.50 ورصيد مدين 84,624.25 ودائن 0.00؛ 102,523.75 − 17,899.50 = 84,624.25 = رصيد الخزينة في صفحتها.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/treasury1-ledger-report.png"
+ },
+ {
+  "id": "pw-prints-yearend-50",
+  "kind": "observed",
+  "statement": "تصدير تقرير الأستاذ: قائمة «خيارات التصدير» (تصدير إلى CSV وExcel وPDF بمسار /owner/reports/journal_transactions.{csv|xlsx|pdf}?المرشحات) وترس بجانب PDF يفتح إعدادات «اتجاه الصفحة: عمودي / راسي» (القيمتان portrait وlandscape ونصاهما «عمودي» و«راسي») و«حجم الخط» (14 افتراضيًا) وزر «حفظ الإعدادات» (لم يُضغط)؛ وزر «طباعة» منفصل.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/treasury1-ledger-report.json"
+ },
+ {
+  "id": "pw-prints-yearend-51",
+  "kind": "observed",
+  "statement": "PDF الأستاذ للخزينة (A4، صفحتان، wkhtmltopdf 0.12.6): ترويسة وسطية بالعنوان والفترة واسم النشاط والحساب الفرعي والعملة، وجدول بحدود، وأرقام القيود روابط زرقاء، وتفاصيل الوصف تلتف على أسطر؛ ولم يتحقق تأثير قيمة الاتجاه landscape عبر الرابط.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/rep-treasury-ledger-pdf.pdf.txt"
+ },
+ {
+  "id": "pw-prints-yearend-52",
+  "kind": "observed",
+  "statement": "PDF ميزان المراجعة (type=trial-balance-nets، expand_level=2): صفحة A4 واحدة بعنوان «تقرير ميزان مراجعة مجاميع وأرصدة» و«من 2026-01-01 الى 2026-10-27» و«opes» و«العملة: الجميع (الى SAR)»، أعمدة «الاسم | الكود | الرصيد قبل | رصيد الحركات | الرصيد بعد | الأرصدة» (مدين/دائن لكل مجموعة) وصف «الإجمالي»: رصيد الحركات مدين 153,601.32 = دائن 153,601.32، الرصيد بعد 153,601.32 = 153,601.32، الأرصدة 108,380.31 = 108,380.31، الرصيد قبل 0.00.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/rep-trialbal-pdf.pdf.txt"
+ },
+ {
+  "id": "pw-prints-yearend-53",
+  "kind": "observed",
+  "statement": "PDF قائمة الدخل (/owner/reports/accounts/1.pdf، A4 صفحة واحدة): «قائمة الدخل 27/10/2026» و«سنة مالية : جميع السنوات» و«مراكز التكلفة : كل مراكز التكلفة» و«opes»، أشرطة داكنة للأقسام «الإيرادات / المصروفات / صافي الدخل»، 41 إيرادات المبيعات 8,112.01 + 42 = 0.00 (إجمالي 8,112.01)، 51 تكلفة المبيعات 8,188.47 و52 و53 = 0.00 و54 مصروفات أخرى 3,200 (إجمالي 11,388.47)، صافي الدخل -3,276.46 (8,112.01 − 11,388.47) يُطبع بالإشارة على سطر منفصل في RTL.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/rep-income-pdf.pdf.txt"
+ },
+ {
+  "id": "pw-prints-yearend-54",
+  "kind": "observed",
+  "statement": "صفحة التقرير أرسلت طلب POST تلقائيًا إلى /owner/reports/save_html/ عند التحميل (حُجب بحارس القراءة فقط)، ومحرر تصميم الفاتورة أرسل طلبات POST إلى /owner/invoice_layouts/ajaxstyle و/virtual_invoice_columns/ للمعاينة (حُجبت)، ولم يتغير شيء في الحساب.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/_nonget-requests.log"
+ },
+ {
+  "id": "pw-prints-yearend-55",
+  "kind": "observed",
+  "statement": "حقول بيانات الشركة التي تغذي ترويسة المستندات (/settings): اسم النشاط التجاري*، الشعار (رفع)، جوال، الهاتف، رقم المبنى، اسم الشارع، الرقم الفرعي، الحي، المدينة، الرمز البريدي، العنوان المختصر (عنوان وطني سعودي)، البلد*، الرقم الضريبي، نوع المعرف (12 خيارًا: السجل التجاري، ترخيص وزارة الشؤون البلدية والقروية والإسكان، ترخيص وزارة الموارد البشرية والتنمية الاجتماعية، ترخيص الهيئة العامة للاستثمار، رقم 700، الرقم المميز، رقم الهوية الوطنية، رقم الإقامة، هوية خليجية، رقم جواز السفر، أخرى)، سجل تجارى/ رقم موحد، العملة الافتراضية، تنسيق القيم المحاسبية السالبة، لغة الواجهة، أول يوم في الأسبوع، صيغة التاريخ، المنطقة الزمنية، طريقة عرض المستندات.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/settings-general.json"
+ },
+ {
+  "id": "pw-prints-yearend-56",
+  "kind": "observed",
+  "statement": "تنسيق القيم السالبة في الحساب خياره الوحيد المعروض «-19.66 元» (الإشارة قبل الرقم مع رمز العملة)، وصيغة التاريخ dd/mm/yyyy، ولغة الواجهة العربية (AR)؛ وكل المطبوعات المرصودة عربية RTL مع كلمات إنجليزية متفرقة (Date و«Saudi Arabia» و«Cash» و«New Beauty» و«Refund»).",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/settings-general-options.json"
+ },
+ {
+  "id": "pw-prints-yearend-57",
+  "kind": "observed",
+  "statement": "الفترات المالية /owner/financial_years/index (بمعامل branch_id=1 وبدونه) تُحوِّل إلى /owner/financial_years/add: لا توجد سنة مالية معرَّفة في الحساب؛ نموذج «تفاصيل الفترة المالية» («اضبط نطاق الفترة المالية المستخدمة في المحاسبة وإعداد التقارير.»): الفترة* (خيار وحيد «1 سنة» 12_months)، تاريخ البدء* (افتراضي 01/01/2026)، تاريخ الإنتهاء*، الوصف؛ أزرار «تجاهل» و«حفظ»، ومسار التنقل «إعدادات الحسابات العامة > الفترات المالية > إضافة».",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/fy-index.json"
+ },
+ {
+  "id": "pw-prints-yearend-58",
+  "kind": "observed",
+  "statement": "الفترات المغلقة /owner/closed_periods/index: قائمة فارغة بمرشحات «التاريخ» (تخصيص / الشهر الأخير / السنة الماضية + من/إلى) و«نشط» ([Any Active] / No / Yes) وزر «إضافة»؛ ونموذج الإضافة (/owner/closed_periods/add) حقل تاريخ واحد «إلى» (الافتراضي اليوم 27/10/2026) و«الوصف» وحقل مخفي active=1 وأزرار «إلغاء» و«حفظ»: الإقفال بتاريخ نهاية فقط بلا تاريخ بداية، والحالة نشط/غير نشط.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/cp-add.json"
+ },
+ {
+  "id": "pw-prints-yearend-59",
+  "kind": "observed",
+  "statement": "مركز إعدادات الحسابات العامة (/v2/owner/accounting/settings) فيه بطاقتان للتوقيت: «الفترات المالية» («حدد تاريخ البداية والنهاية لكل فترة محاسبية لضمان دقة التسجيل والتقارير المالية.») و«الفترات المغلقة» («أغلق الفترات المالية النهائية لمنع أي تعديلات أو معاملات جديدة.») مع «توجيه الحسابات» والحقول المخصصة للقيود والأصول والمواقع الفعلية والمخازن؛ ولا بطاقة ولا زر باسم «إقفال السنة».",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/acc-settings-hub.json"
+ },
+ {
+  "id": "pw-prints-yearend-60",
+  "kind": "observed",
+  "statement": "مصفوفة صلاحيات الدور (/owner/roles/add) تحت تطبيق «الحسابات العامه & القيود اليومية» فيها «إداراة الفترات المقفلة» (128) و«عرض الفترات المقفلة» (129) و«إدارة حسابات القيود» وصلاحيات القيود، ولا صلاحية باسم السنة المالية أو إقفالها في هذا الحساب (تطبيق «الفروع» معطل).",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/role-add-permissions.json"
+ },
+ {
+  "id": "pw-prints-yearend-61",
+  "kind": "observed",
+  "statement": "صفحة «إعدادات الحسابات العامة» (/owner/settings/accounting_general) لا تحوي خيارات لنهاية السنة: الرقم التسلسلي التالي للقيد (000135)، ترقيم مستقل للقيود اليدوية، حقول القيد (ضريبة، مركز تكلفة، وسوم)، معامل تحويل العملات، تعيين حساب لكل بند وتوزيع مراكز التكلفة لكل نوع مستند.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/acc-general-settings.json"
+ },
+ {
+  "id": "pw-prints-yearend-62",
+  "kind": "observed",
+  "statement": "دليل الحسابات: الجذر #3 «رأس المال وحقوق الملكية» رصيده 100,000 دائن وتحته حسابان «رأس المال #31» 100,000 دائن و«أرباح وخسائر مرحلة #32» 0 دائن (حسابان مباشران بلا رموز فرعية)، والجذران #4 «الإيرادات» 8,112.01 دائن و#5 «المصروفات» 11,388.47 مدين يعرضان أرصدة تراكمية منذ البدء بلا تصفير سنوي؛ صفحة الحساب 32 عنوانها «أرباح وخسائر مرحلة #32» وتحته «Retained Earnings» والرصيد SAR 0.00 دائن، وتفاصيله «النوع: الرصيد» و«توجيه النظام: Retained Earnings»، وإجراءاته عرض وتعديل واخفاء وتعليق وقيد جديد.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/coa-cat58-equity.txt"
+ },
+ {
+  "id": "pw-prints-yearend-63",
+  "kind": "observed",
+  "statement": "الميزانية العمومية حتى 27/10/2026: قسم حقوق الملكية «31 - رأس المال 100,000» و«32 - أرباح وخسائر مرحلة 0.00» ثم سطر ديناميكي «أرباح / خسائر (غير مرحلة) المجموع: -3,276.46» (= صافي قائمة الدخل) و«مجموع رأس المال وحقوق الملكية 96,723.54»؛ مجموع الخصوم 268.30 + 96,723.54 = «مجموع الخصوم وحقوق الملكية 96,991.84» = «مجموع الأصول 96,991.84». ورأس التقرير «سنة مالية : جميع السنوات» و«مراكز التكلفة : كل مراكز التكلفة»، ونموذج المرشحات لا فيه حقل سنة مالية ولا فرع (التاريخ، عرض جميع الحسابات، المستويات).",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/bs-default-mine.txt"
+ },
+ {
+  "id": "pw-prints-yearend-64",
+  "kind": "observed",
+  "statement": "أسلوب «نتيجة غير مرحَّلة» الديناميكي: الميزانية متوازنة قبل أي إقفال بإضافة سطر «أرباح / خسائر (غير مرحلة)» لحقوق الملكية، وحساب 32 يبقى صفرًا إلى أن يُرحَّل شيء إليه.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/bs-default-mine.txt"
+ },
+ {
+  "id": "pw-prints-yearend-65",
+  "kind": "observed",
+  "statement": "توجيه الحسابات لعائلة «سنة مالية» (/owner/settings/accounts_routing/fiscal_years) فيه بند واحد فقط «توجيه الأرباح المرحلة»: نوع التوجيه «تعيين تلقائي» والحساب الرئيسي «32 - أرباح وخسائر مرحلة»؛ لا بند لحساب وسيط «ملخص الدخل».",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/routing-fiscal-years.json"
+ },
+ {
+  "id": "pw-prints-yearend-66",
+  "kind": "observed",
+  "statement": "مرشح «المصدر» في قائمة القيود (entity_type) يضم 33 نوعًا (قيد يدوي، فاتورة، إذن مخزن، عملية مخزون، مدفوعات الفواتير، سندات القبض، تكلفة مبيعات الفواتير، فاتورة مرتجعة، مصروف، حركة مخزون، مرتجع مشتريات، أصل وعملياته وإهلاكه وشطبه وإعادة تقديره وبيعه، تحويل خزينة، إشعار دائن، مسير الراتب، أنواع الشيكات، Product Sales Cost، طلب التصنيع، دفع فاتورة الشراء، فاتورة شراء) ولا يضم نوعًا لإقفال سنة أو رصيد افتتاحي لسنة تالية.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/list-journals.json"
+ },
+ {
+  "id": "pw-prints-yearend-67",
+  "kind": "observed",
+  "statement": "بحث وصف القيود (افتتاح، افتتاحي، إقفال، اقفال، إغلاق، opening، closing، مرحل، قفل) لم يُرجع غير قيد واحد «قيد رأس المال الافتتاحي - إيداع رأس مال المالك في الخزينة (بيانات تجريبية)» #000005 (مدين الخزينة الأساسية 100,000 / دائن رأس المال)؛ فلا قيد إقفال ولا افتتاح لسنة تالية في الحساب (وكل بياناته في 2026 ولا سنة مالية معرَّفة).",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/journals-search-manual.txt"
+ },
+ {
+  "id": "pw-prints-yearend-68",
+  "kind": "observed",
+  "statement": "الرصيد الافتتاحي للعميل والمورد يُدخل من «أضافة رصيد الافتتاحي» في الكشف: حقول المبلغ والتاريخ (الافتراضي اليوم) والعملة ([افتراضي] + 160 عملة) على نماذج InvoicePayment وPurchaseOrderPayment (مسار add_open_balance)؛ والكشف يعرض «أرصدة افتتاحية 0.00»، والميزانية فيها حساب «214 - أرصدة افتتاحية» 0.00 ضمن الخصوم المتداولة.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/client-open-balance-form.json"
+ },
+ {
+  "id": "pw-prints-yearend-69",
+  "kind": "observed",
+  "statement": "مدير التطبيقات (/v2/owner/plugin-manager/2، «إدارة التطبيقات الخارجية» وزر «حفظ» لم يُضغط) فيه 36 تطبيقًا؛ المفعَّل 7 فقط: المبيعات، الفاتورة الإلكترونية السعودية، إدارة المخزون، المالية، الحسابات العامه & القيود اليومية، العملاء، الموظفين؛ والمعطَّل: نقاط البيع، المبيعات المستهدفة و العمولات، ادارة الاقساط، العروض، التأمينات، نقاط ولاء العملاء، دورة المشتريات، دورة الشيكات، أوامر الشغل، إدارة الإيجارات والوحدات، عقود الإيجارات، إدارة الحجوزات، تتبع الوقت، التصنيع، دورة العمل، الإنشاءات، متابعة العميل، حضور العملاء، العضوية، النقاط و الأرصدة، طلبات، المرتبات، حضور الموظفين، الهيكل التنظيمي، إدارة المهام، مُدد، SMS، المتجر الإلكترونى، الفروع.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/plugin-manager-2.txt"
+ },
+ {
+  "id": "pw-prints-yearend-70",
+  "kind": "observed",
+  "statement": "صفحة معلومات الحساب: الحساب 5088385، العملة الافتراضية SAR، المنطقة الزمنية (UTC+03:00) Riyadh، صيغة التاريخ d/m/Y، باقة «Free» تنتهي 04/11/2026، واستهلاك الباقة: العملاء 4/15، الفواتير وعروض الأسعار 35/50، الخزن النقدية والبنوك 2/∞، المستودعات 1/2، الفروع والمستخدمون 0/0.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/account-info.txt"
+ },
+ {
+  "id": "pw-prints-yearend-71",
+  "kind": "inference",
+  "statement": "[توثيق دفترة المنشور علنًا على docs.daftra.com، لا سلوك مرصود في الحساب] إغلاق السنة المالية: الحسابات العامة > إعدادات الحسابات العامة > بطاقة «الفترات المالية» (السنوات المالية) > ثلاث نقاط بجوار السنة > «إغلاق» > تحديد نهاية السنة الجديدة والوصف > «حفظ».",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/docs-public/doc0.txt"
+ },
+ {
+  "id": "pw-prints-yearend-72",
+  "kind": "inference",
+  "statement": "[توثيق دفترة المنشور علنًا على docs.daftra.com، لا سلوك مرصود في الحساب] يلزم دائمًا فترة مالية واحدة مفتوحة؛ إغلاق الفترة الحالية يستلزم إنشاء التالية (زر «قم بإعداد الفترة التالية») وتبدأ تلقائيًا من نهاية المغلقة، وتُحدَّد نهايتها من قائمة «الفترة» أو «تخصيص»؛ وبعد حفظها تُغلق الفترة السابقة مباشرة وتصير حالتها «مغلق» ويظهر فيها إجمالي الربح أو الخسارة.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/docs-public/doc2.txt"
+ },
+ {
+  "id": "pw-prints-yearend-73",
+  "kind": "inference",
+  "statement": "[توثيق دفترة المنشور علنًا على docs.daftra.com، لا سلوك مرصود في الحساب] قيود الإغلاق تُنشأ آليًا عند الإغلاق وتظهر داخل صفحة الفترة المغلقة في قسم «القيود اليومية» برابط «الرصيد الافتتاحي» و«قيد الإغلاق» و«ترحيل خسائر السنة المالية» (بحسب الحالة)، وفي حساب الأرباح والخسائر تُعكس طبيعة الحسابات (الدائن كمدين والمدين كدائن)؛ وثلاثة قيود لكل فرع.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/docs-public/doc2.txt"
+ },
+ {
+  "id": "pw-prints-yearend-74",
+  "kind": "inference",
+  "statement": "[توثيق دفترة المنشور علنًا على docs.daftra.com، لا سلوك مرصود في الحساب] إعادة فتح سنة مغلقة تتم بإلغاء السنة المالية الحالية (ثلاث نقاط > «إلغاء» > «نعم»)، فتعاد السابقة مفتوحة تلقائيًا؛ مثلًا لإعادة فتح 2023 والمفتوحة 2024 تُلغى 2024؛ ولا يحذف الإجراء معاملات السنة الحالية بل يبقيها دون تعديل؛ وللأقدم يكرَّر الإلغاء بالتسلسل.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/docs-public/doc4.txt"
+ },
+ {
+  "id": "pw-prints-yearend-75",
+  "kind": "inference",
+  "statement": "[توثيق دفترة المنشور علنًا على docs.daftra.com، لا سلوك مرصود في الحساب] الفترات المغلقة ميزة مستقلة تمنع العمليات الجديدة بتاريخ داخل الفترة بلا إنشاء قيود إقفال؛ تُفتح بزر «مفتوح» من قائمة النقاط وتُلغى بـ«إلغاء» (رسالة «تم حذف الفترة المغلقة»)؛ والفترات المغلقة الناتجة عن إغلاق سنة مالية تظهر في القائمة ولا تُلغى ولا تُفتح منها بل من الفترات المالية.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/docs-public/doc2.txt"
+ },
+ {
+  "id": "pw-prints-yearend-76",
+  "kind": "inference",
+  "statement": "[توثيق دفترة المنشور علنًا على docs.daftra.com، لا سلوك مرصود في الحساب] رسالة الحجب عند الإضافة أو التعديل أو الحذف داخل فترة مقفلة: «لا يمكنك إضافة أو تعديل أو مسح حركة في هذا اليوم ####، ضمن فترة مقفلة»، وحلها «افتح الفترة من السنوات المالية».",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/docs-public/doc1.txt"
+ },
+ {
+  "id": "pw-prints-yearend-77",
+  "kind": "inference",
+  "statement": "[توثيق دفترة المنشور علنًا على docs.daftra.com، لا سلوك مرصود في الحساب] إقفال كل الفروع: زر «إغلاق السنة المالية (جميع الفروع)» في قائمة السنوات المالية، ومعالج من ثلاث خطوات (اختيار الفروع بحالة مفتوح/مغلّق، التحقق قبل الإغلاق ببطاقات «الفروع المحددة / ناجحة / فاشلة» وجدول «نتائج التحقق من الفروع» وزرّي «إغلاق السنة المالية» و«إعادة التحقق» مع وضع الفشل «يجب اجتياز جميع الفروع» أو «إغلاق الفروع الناجحة فقط»، ثم إضافة فترة جديدة)؛ يتطلب «صلاحية إغلاق السنة المالية»، وتبدأ السنة وتنتهي بالتاريخ نفسه لكل فروع الشركة، ومنطق كل فرع كما هو (ثلاثة قيود لكل فرع).",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/docs-public/doc3.txt"
+ },
+ {
+  "id": "pw-prints-yearend-78",
+  "kind": "inference",
+  "statement": "[توثيق دفترة المنشور علنًا على docs.daftra.com، لا سلوك مرصود في الحساب] القوائم المالية لسنة مغلقة: لعرض نتيجتها تُحدَّد نهاية 30/12 لأن 31/12 يعطي صافي دخل «صفر» بسبب قيد إقفال الإيرادات والمصروفات في اليوم نفسه؛ والميزانية يُفضَّل لها «كل التواريخ قبل» تاريخ النهاية لتظهر الأرصدة الافتتاحية إن لم تُغلق الفترات؛ ومرشحات القوائم تشمل الفترة الزمنية أو السنة المالية أو الفرع أو مراكز التكلفة.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/docs-public/doc6.txt"
+ },
+ {
+  "id": "pw-prints-yearend-79",
+  "kind": "inference",
+  "statement": "حساب التجربة بلا سنة مالية معرَّفة ولا سنة مغلقة، فلم يُرصد فيه أي إقفال فعلي ولا قيود إقفال ولا مرشح «سنة مالية» في التقارير ولا خيارات إجراءات صف السنة (إغلاق/إلغاء)؛ ما يخص الإقفال وإعادة الفتح مصدره التوثيق العام وحده ويبقى غير مختبر في الحساب.",
+  "evidenceFile": "/home/user/daftra-tools/out/prints-yearend/fy-index.json"
+ }
+]
