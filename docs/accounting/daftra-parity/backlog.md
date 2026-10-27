@@ -2,49 +2,51 @@
 
 > التاريخ: 2026-10-26. **مصدره:** جرد آلي بخمسة محلّلين للقراءة فقط (الخطة والفجوات والمصفوفة والقرارات والتقارير) ثم مُركِّب أعاد التحقق من كل بند بالكود (`grep` و`read`) وأسقط ما هو منفَّذ فعلًا. **الترتيب:** (1) الصحة المحاسبية والمالية، (2) سلامة البيانات وقابلية التدقيق، (3) سلامة سير العمل التجاري، (4) التوافق مع البنية، (5) المطابقة المثبتة مع دفترة، (6) الاستخدام والصيانة والأداء. **الحزم WP1 إلى WP19 لا تحتاج رصدًا في دفترة**؛ WP20 إلى WP29 رصد في دفترة وبناء يعتمد عليه؛ WP30 إلى WP43 ملاءمة بنية ومطابقة؛ WP44 إلى WP50 الأدنى أولوية. **قيود باقية (E47):** لا دمج في `master` ولا نشر ولا تغيير بيانات إنتاج، ولا إعادة تسعير تاريخية ولا إعادة كتابة قيود قائمة في قاعدة إنتاجية دون إذن منفصل، ونفسه `E33` (خصم الفاتورة الكاملة للمشتريات) يُبنى على بيانات التطوير وتجارب دفترة فقط.
 
+> **حالة التنفيذ (2026-10-27):** سُلِّمت **الموجة 1 (WP1 وWP3 وWP8 وWP16 وWP19)** ودُمجت في فرع التطوير بتفويض E47 ([E48 إلى E52](../decisions.md))، **ولا دمج في `master` ولا نشر**. الحالة `done (WPx)` في جدول الحزم وقائمة البنود، وشُطبت اعتماداتها المستوفاة (`~~WPx~~`)، وحُمل ما بقي من تقاريرها إلى حزم لاحقة كبنود جديدة (`G-67` إلى `G-81` وما يليها في القسم 3). **ملاحظتان جديدتان من الموجة:** (أ) المصروفات وإقفالات الصندوق القديمة بلا فرع ولا قيد (قائمة «غير المرحّل» في WP3)، والترحيل بأثر رجعي لها يبقى لدى WP12 (`G-79`)؛ (ب) استيراد CSV في `Items::postImportCsvFile` يضع `set_time_limit(240)` فيجب أن ترفعه أي دالة اختبار تستدعيه (`ITEMS-CSV-TIME-LIMIT`). **وأُخذ `T-25` لقيد مصروف WP3**، فتبدأ ملفات التثبيت الجديدة من `T-26` (صُحِّحت عبارة «T-25 onward» في WP20 وWP21 وWP22 وWP31).
+
 ## 1. الحزم
 
 | الحزمة | الاسم | الحجم | تعتمد على | رصد دفترة | البنود |
 |---|---|:-:|---|---|---|
-| **WP1** | Close control gaps: sensitive grants, branch scope on stock screens and legacy reports, destination-location grant, lock topology guard | M | — | none | P6-SENSITIVE-PERMS, A2A-STOCK-ACCESS, G-48, G41-A5, P5-LOCK-POOLING |
-| **WP2** | Pre-deployment data checks on owner databases (owner-run) plus one read-only readiness command | M | WP1 | none (needs owner database access, not Daftra) | E38-SCAN, E40-BANK-DETAILS, E41-STAMP, OWNER-GRANTS, E26-ACTIVATION |
-| **WP3** | Expenses and cash-up posted to the ledger (categories to accounts, tax split, treasury, branch) | L | WP1 | none for expenses (S-25 observed); revenue vouchers (FIN-03) and recurrence (FIN-06) are separate packages; cash-up has no Daftra counterpart and n… | FIN-05, FIN-02, FIN-04, A4 |
-| **WP4** | Income statement and balance sheet with dynamic unclosed-years equity (policy re-based first) | L | WP3 | none | Y-DEC, REP-03, REP-04, Y8 |
-| **WP5** | Ledger-based tax report (accrual first) | M | WP3 | cash-basis filter and the return form layout (R-02 in WP20); accrual slice needs none | REP-07 |
+| **WP1** — done (merged 2026-10-27) | Close control gaps: sensitive grants, branch scope on stock screens and legacy reports, destination-location grant, lock topology guard | M | — | none | P6-SENSITIVE-PERMS, A2A-STOCK-ACCESS, G-48, G41-A5, P5-LOCK-POOLING |
+| **WP2** | Pre-deployment data checks on owner databases (owner-run) plus one read-only readiness command | M | ~~WP1~~ (done) | none (needs owner database access, not Daftra) | E38-SCAN, E40-BANK-DETAILS, E41-STAMP, OWNER-GRANTS, E26-ACTIVATION |
+| **WP3** — done (merged 2026-10-27) | Expenses and cash-up posted to the ledger (categories to accounts, tax split, treasury, branch) | L | ~~WP1~~ (done) | none for expenses (S-25 observed); revenue vouchers (FIN-03) and recurrence (FIN-06) are separate packages; cash-up has no Daftra counterpart and n… | FIN-05, FIN-02, FIN-04, A4 |
+| **WP4** | Income statement and balance sheet with dynamic unclosed-years equity (policy re-based first) | L | ~~WP3~~ (done) | none | Y-DEC, REP-03, REP-04, Y8 |
+| **WP5** | Ledger-based tax report (accrual first) | M | ~~WP3~~ (done) | cash-basis filter and the return form layout (R-02 in WP20); accrual slice needs none | REP-07 |
 | **WP6** | Year-end closing entry per branch with preview, approval, reversal and guards | XL | WP4 | Y9 (how Daftra closes a year and whether it reopens) as a non-blocking read before the screen; service and ledger work needs none | YE-01, Y5, YE-03 |
-| **WP7** | Inter-branch settlement, pairwise balances and cross-branch payments | L | WP1 | none | G-61, INTERBRANCH-SETTLEMENT, P6-ASSUMPTION-7 |
-| **WP8** | Per-document numbering service | M | — | base sequence none; editing the next number and duplicate manual numbers need S-33 (WP21) | G-08, CUS-02 |
-| **WP9** | Customer documents: payments list, credit notes list, refund invoice, journal order | L | WP8 | none | G-34, SAL-19, G-28, SAL-29 |
-| **WP10** | Supplier documents: payments list, debit notes list, entered payment date, paid-by | M | WP8 | none | G-51 |
-| **WP11** | Opening-data tools: customer opening balance, opening-stock cost correction option, negative-line decision, known limits (dev-only forms) | L | WP1 | CUS-03 customer journal is a provisional assumption until a customer-side equivalent of S-35 T-10/T-11 is observed (WP22); the other items need none | G-57, E26-NEG-LINES, E26-LIMITS, CUS-03 |
-| **WP12** | Retroactive posting (backfill) with preview batches | XL | WP11, WP8 | none (OSPOS-specific, D3) | A6 |
-| **WP13** | Invoice date, due date, payment terms, aging and balance-report columns | L | WP8 | none for dates and supplier aging; the customer bucket layout and by-ledger variant (CUS-09) are inferred from the supplier side and confirmed by R… | G-27, G-31, G-53, CUS-08, CUS-09, G-14 |
-| **WP14** | Draft and quote lifecycle | M | WP8, WP13 | none | SAL-13, SAL-21 |
+| **WP7** | Inter-branch settlement, pairwise balances and cross-branch payments | L | ~~WP1~~ (done) | none | G-61, INTERBRANCH-SETTLEMENT, P6-ASSUMPTION-7 |
+| **WP8** — done (merged 2026-10-27, safe half; rest is WP8-S33) | Per-document numbering service | M | — | base sequence none; editing the next number and duplicate manual numbers need S-33 (WP21) | G-08, CUS-02 |
+| **WP9** | Customer documents: payments list, credit notes list, refund invoice, journal order | L | ~~WP8~~ (service done) | none | G-34, SAL-19, G-28, SAL-29 |
+| **WP10** | Supplier documents: payments list, debit notes list, entered payment date, paid-by | M | ~~WP8~~ (service done) | none | G-51 |
+| **WP11** | Opening-data tools: customer opening balance, opening-stock cost correction option, negative-line decision, known limits (dev-only forms) | L | ~~WP1~~ (done) | CUS-03 customer journal is a provisional assumption until a customer-side equivalent of S-35 T-10/T-11 is observed (WP22); the other items need none | G-57, E26-NEG-LINES, E26-LIMITS, CUS-03 |
+| **WP12** | Retroactive posting (backfill) with preview batches | XL | WP11, ~~WP8~~ (service done) | none (OSPOS-specific, D3) | A6 |
+| **WP13** | Invoice date, due date, payment terms, aging and balance-report columns | L | ~~WP8~~ (service done) | none for dates and supplier aging; the customer bucket layout and by-ledger variant (CUS-09) are inferred from the supplier side and confirmed by R… | G-27, G-31, G-53, CUS-08, CUS-09, G-14 |
+| **WP14** | Draft and quote lifecycle | M | ~~WP8~~ (service done), WP13 | none | SAL-13, SAL-21 |
 | **WP15** | Discount on the whole purchase invoice (E33 / G-59) | M | — | none (T-16 evidence) | G-59 |
-| **WP16** | Invoice-level discount on sales (percent or fixed) | L | — | none | SAL-07 |
-| **WP17** | Purchase flow completion: edit saved receiving lines, item purchase taxes, supplier registry field | M | WP1 | none (the average-cost effect of editing or deleting is the unobserved G-43 assumption, kept as 'average unchanged') | G-37, G-38, PUR-10 |
-| **WP18** | Inventory valuation report from valued movements | M | WP1 | none for valuation; aging and turnover layouts are covered by WP33 | G-45 |
-| **WP19** | Automatic-journal metadata edit and manual-journal parity | M | — | none (S-14 observed); line tax and currency need WP38 and WP28 | ACC-16, ACC-18 |
+| **WP16** — done (merged 2026-10-27) | Invoice-level discount on sales (percent or fixed) | L | — | none | SAL-07 |
+| **WP17** | Purchase flow completion: edit saved receiving lines, item purchase taxes, supplier registry field | M | ~~WP1~~ (done) | none (the average-cost effect of editing or deleting is the unobserved G-43 assumption, kept as 'average unchanged') | G-37, G-38, PUR-10 |
+| **WP18** | Inventory valuation report from valued movements | M | ~~WP1~~ (done) | none for valuation; aging and turnover layouts are covered by WP33 | G-45 |
+| **WP19** — done (merged 2026-10-27) | Automatic-journal metadata edit and manual-journal parity | M | — | none (S-14 observed); line tax and currency need WP38 and WP28 | ACC-16, ACC-18 |
 | **WP20** | Daftra observation batch 1: read-only reports, forms, prints, role matrix, year-end | M | — | This package is the observation: filtered ledger, journal movements, inventory movement, cost centres, cash flow, cash and accrual profit and loss,… | R-02, R-03, R-04, R-05, Y9 |
 | **WP21** | Daftra write-observation batch A: closed periods and messages, settings scenarios, numbering toggle, inclusive tax | L | WP20 | This package is the observation (writes on opes.daftra.com only, each setting reverted afterwards) | E12-PKG-C, E12-PKG-D, ACC-19, SAL-05 |
 | **WP22** | Daftra write-observation batch B: unobserved assumptions of the sales, purchase, stock and treasury flows | L | WP20 | This package is the observation: F-04c settle button, F-08 stock permit, F-09 stocktake, F-10 credit note without invoice, F-11 credit note on unde… | G-49, G-20, G-55, G-35, G-23, G-26, G-43, G-19, G-66, S35-T06, S35-D4, S35-RESIDUE, D1D4-ACCOUNT-NUMBER-RULE, P3-EVIDENCE-GAPS, PUR-08, SAL-37 |
 | **WP23** | Credit flows and return exceptions: advance payments, cash refunds, return override, undelivered credit note | L | WP22, WP9 | F-12 (two open invoices and a covering balance, enable_advance_payment), F-10 (credit note without invoice), F-11 (credit note on undelivered invoi… | G-32, G-21, G-30, P5-CUSTOMER-CASH-REFUND, G-52 |
 | **WP24** | Routing types per-item and main-account-per-entity | L | WP21 | S-28 (item-level journal accounts and product sales account) and S-29 (preview of types 2 and 4) in WP21 | G-02 |
 | **WP25** | Per-tax inclusive option and default invoice tax mode | M | WP21 | S-03 and the tax-mode settings (WP21) | SAL-04, SAL-33 |
-| **WP26** | Cheques, notes receivable and payable, receipt vouchers and revenue, payment method independent of treasury | XL | WP20, WP21, WP22, WP8, WP3 | Enable the cheques module in the trial account and run S-27; read the revenue and receipt-voucher forms (R-03); S-35 D6 (method independent of trea… | G-64, FIN-03, ACC-17, S35-D6 |
-| **WP27** | Stock documents: numbered stock permits, stocktake document, stock requests | L | WP8, WP21, WP22 | F-08, F-09 and S-26 (WP21, WP22) | G-41, G-42, INV-12 |
+| **WP26** | Cheques, notes receivable and payable, receipt vouchers and revenue, payment method independent of treasury | XL | WP20, WP21, WP22, ~~WP8~~ (service done), ~~WP3~~ (done) | Enable the cheques module in the trial account and run S-27; read the revenue and receipt-voucher forms (R-03); S-35 D6 (method independent of trea… | G-64, FIN-03, ACC-17, S35-D6 |
+| **WP27** | Stock documents: numbered stock permits, stocktake document, stock requests | L | ~~WP8~~ (service done), WP21, WP22 | F-08, F-09 and S-26 (WP21, WP22) | G-41, G-42, INV-12 |
 | **WP28** | Multi-currency: document currency and rate, FX difference entries, treasury currency, non-two-decimal currencies | XL | WP21, WP22 | S-30 (currency selector hidden in the invoice form, payments at a different rate) and the treasury currency behaviour (WP21) | G-12, G-25, G-63 |
 | **WP29** | Banking: bank reconciliation and bank directory | L | WP26 | Daftra's reconciliation (if any) and bank search list behaviour were never observed (R-03) | E47-BANKREC, D1D4-BANK-LIST |
-| **WP30** | Roles and own-versus-all record scope | XL | WP1, WP20, WP21 | R-04 role matrix and S-32 restricted-employee behaviour and denial messages (WP20, WP21) | G-09, INV-09 |
+| **WP30** | Roles and own-versus-all record scope | XL | ~~WP1~~ (done), WP20, WP21 | R-04 role matrix and S-32 restricted-employee behaviour and denial messages (WP20, WP21) | G-09, INV-09 |
 | **WP31** | Report parity: Daftra filters and layouts, third trial-balance type, statement print header, cash-basis profit and loss, cash flow | L | WP20, WP4 | R-02 (filtered runs, cash flow, cash and accrual P&L), R-05 (print layouts), the 'review account' trial balance screen | REP-01, P8-TB3, REP-02, P8-PRINT, REP-05, REP-06, CHK-B |
-| **WP32** | Operational report families: sales, items, payments, profit, net position | L | WP20, WP1 | R-02 column and filter reads (WP20) | REP-09, REP-10, REP-11, REP-12, REP-16 |
-| **WP33** | Report families: purchases and suppliers, inventory aging and turnover, expenses and income splits, journal, chart and cost-centre reports, activity log | L | WP20, WP18, WP3, WP13 | R-02 (WP20) | REP-13, REP-14, REP-15, REP-08, REP-17 |
+| **WP32** | Operational report families: sales, items, payments, profit, net position | L | WP20, ~~WP1~~ (done) | R-02 column and filter reads (WP20) | REP-09, REP-10, REP-11, REP-12, REP-16 |
+| **WP33** | Report families: purchases and suppliers, inventory aging and turnover, expenses and income splits, journal, chart and cost-centre reports, activity log | L | WP20, WP18, ~~WP3~~ (done), WP13 | R-02 (WP20) | REP-13, REP-14, REP-15, REP-08, REP-17 |
 | **WP34** | Invoice header charges, sales debit note, journal description template | L | WP20, WP9 | R-03 forms and write observations of adjustment, shipping, debit note journals | SAL-08, SAL-09, SAL-20, SAL-34 |
-| **WP35** | Order-to-cash documents: sales orders, recurring invoices, recurring expenses | L | WP20, WP8, WP3 | R-03 add forms and a controlled S-34 generation read | SAL-22, SAL-23, FIN-06 |
+| **WP35** | Order-to-cash documents: sales orders, recurring invoices, recurring expenses | L | WP20, ~~WP8~~ (service done), ~~WP3~~ (done) | R-03 add forms and a controlled S-34 generation read | SAL-22, SAL-23, FIN-06 |
 | **WP36** | Pricing and credit controls: price lists, minimum price, maximum discount, excluded categories, credit limit, preview and profit tab | L | WP20, WP13 | R-03 and the setting effects (messages, draft and return behaviour) | SAL-24, SAL-25, SAL-26, SAL-27, CUS-04, INV-02, SAL-32 |
 | **WP37** | Product and customer master data | L | WP20 | meaning of 'suspended' versus 'inactive', category and brand screen contents, barcode merge setting (R-03) | INV-01, INV-03, INV-08, INV-16, INV-17, CUS-01, CUS-05 |
-| **WP38** | Cost-centre distribution, journal settings, shipping-company accounts | L | WP20, WP19, WP24 | R-02/R-03 reads of the distribution forms and settings | ACC-20, ACC-21, ACC-05 |
-| **WP39** | Purchase cycle documents: purchase request, quotation request, quotation, purchase order | XL | WP20, WP8 | R-03 forms and statuses | PUR-07 |
+| **WP38** | Cost-centre distribution, journal settings, shipping-company accounts | L | WP20, ~~WP19~~ (done), WP24 | R-02/R-03 reads of the distribution forms and settings | ACC-20, ACC-21, ACC-05 |
+| **WP39** | Purchase cycle documents: purchase request, quotation request, quotation, purchase order | XL | WP20, ~~WP8~~ (service done) | R-03 forms and statuses | PUR-07 |
 | **WP40** | Templates, print outputs and extra fields | L | WP20 | R-05 print outputs and R-03 | SET-06, SAL-31, SAL-35 |
 | **WP41** | Integration settings: payment gateways and methods, secondary language, auto-send rules, files and API keys | XL | WP20 | scope of each setting (R-03) | SET-04, SET-07, SET-08, SET-09 |
 | **WP42** | Multiple units, bundles and batch, serial and expiry tracking | XL | WP20, WP27 | R-03 and write observations of bundle cost, batch picking and unit conversion | INV-04, INV-05, INV-06 |
@@ -55,11 +57,13 @@
 | **WP47** | Fixed assets and depreciation | XL | WP20 | asset form and depreciation journals | FIN-08 |
 | **WP48** | AI agent (proposals as drafts, anomaly detection, accounting_ai permission) | XL | WP30 | none | A9 |
 | **WP49** | Contact list and customer portal (owner scope decision) | L | WP30 | portal behaviour (R-03) | CUS-06, CUS-10 |
-| **WP50** | Umbrella rows (no own work; close when the children close) | S | WP4, WP5, WP6, WP8, WP9, WP10, WP15, WP16, WP17, WP25, WP33, WP34, WP35, WP36, WP40, WP41 | none | G-13, P7, P9, A8, PUR-01 |
+| **WP50** | Umbrella rows (no own work; close when the children close) | S | WP4, WP5, WP6, WP8 (safe half done; WP8-S33 remains), WP9, WP10, WP15, ~~WP16~~ (done), WP17, WP25, WP33, WP34, WP35, WP36, WP40, WP41 | none | G-13, P7, P9, A8, PUR-01 |
 
 ## 2. ثوابت وفحوص كل حزمة
 
 ### WP1: Close control gaps: sensitive grants, branch scope on stock screens and legacy reports, destination-location grant, lock topology guard
+
+**الحالة (2026-10-27): done (WP1)** — merged into the development branch under E47 ([E48](../decisions.md), [report](wp1-report.md)): 165 test methods added in 35 files and 101 guards each disabled alone and detected (101 of 101). No migration. Not merged into master, not deployed. **Carried over:** the expenses report stays company-wide only for restricted employees (`G-81` in WP33, owner decision E48 (a)); the two uncollected legacy report test files and three older assertRedirect-only tests (`REPORT-TESTS-LEGACY`, WP45); the named-lock guard detects and refuses but does not fix connection pooling, so `accounting:check_locks` runs on every environment before and after deploy (deploy checklist).
 
 **لماذا هنا:** Smallest slice, no Daftra access, and it closes real control weaknesses found in code: a non-admin employee editor can grant the permissions that create treasuries and move money; Items/stock-adjustment screens post journals into branches the employee does not work in; legacy reports leak other branches. Every later package adds money-moving screens and reports, so these guards must exist before them.
 
@@ -96,6 +100,8 @@
 - Migration up/down/up tests for 20261029000000, 20261031000000, 20261101000000 unchanged
 
 ### WP3: Expenses and cash-up posted to the ledger (categories to accounts, tax split, treasury, branch)
+
+**الحالة (2026-10-27): done (WP3)** — merged into the development branch under E47 ([E52](../decisions.md), [report](wp3-report.md)): 276 new tests in 13 files plus 29 methods added to 8 existing files, 234 guards each disabled alone and detected (234 of 234; eleven equivalent mutants named in the report are not counted). Migration `20261120000000_ExpensesAccounting` (nullable columns only). Not merged into master, not deployed. **Carried over:** retroactive posting of legacy expenses and cash-ups stays with WP12 (`G-79`, **new finding**: legacy rows have no branch and are listed as unposted); Daftra behaviour not observed for expenses (`G-77`, WP22); card, cheque and credit cash-up and the screen's default-branch expectation (`G-78`, WP26); recurrence, attachments, multi-account expenses, cost centres, currency (`FIN-06` in WP35, `G-80` in WP38, `G-12` in WP28, `REP-15` in WP33); revenue vouchers and the revenue category screen (`FIN-03` in WP26); no two-process race test on one expense or cash-up (`WAVE1-RACE-TESTS`, WP45). The 13 assumptions are owner questions in E52.
 
 **لماذا هنا:** Largest remaining hole in financial correctness: every expense and every cash-up bypasses the ledger, so the trial balance, treasury balances and any profit figure are wrong whenever money leaves a treasury for an expense. Daftra's journal is already observed (S-25: 200 + 15% = 230, Dr 541 200, Dr 215002 30, Cr treasury 230). It is the prerequisite for the income statement.
 
@@ -178,6 +184,8 @@
 - Closed period in one branch, scope denial, concurrent opposite transfers
 
 ### WP8: Per-document numbering service
+
+**الحالة (2026-10-27): done (WP8, safe half)** — merged into the development branch under E47 ([E49](../decisions.md), [report](wp8-report.md)): `DocumentNumberingTest` 72 tests, `DocumentSequencesMigrationTest` 12, 77 guards each disabled alone and detected (77 of 77). Migration `20261210000000_DocumentSequences` (two empty tables; every sequence off by default). Not merged into master, not deployed. **Carried over:** lowering the next number, duplicate manual numbers, prefix variables, annual reset, sequence per branch and the other S-33 questions (`WP8-S33`, observation in WP21, then the build on `DocumentNumbering::configure` and `assign`); the payments, credit-note and debit-note list screens (`G-34` in WP9, `G-51` in WP10); work-order numbers (`WP8-WORK-ORDERS`, WP14); a separate renaming pass (`NAMING-SWEEP`); a simultaneous-configure test (`WAVE1-RACE-TESTS`). Owner questions are in E49.
 
 **لماذا هنا:** Payments, credit notes, debit notes, refunds, receivings and customers have no sequence of their own (payment number is its row id); screens for those documents (WP9, WP10) and the aging work need it. Daftra's numbering style is observed (#000017, #00001); only the editable-next-number toggle needs S-33.
 
@@ -310,6 +318,8 @@
 
 ### WP16: Invoice-level discount on sales (percent or fixed)
 
+**الحالة (2026-10-27): done (WP16)** — merged into the development branch under E47 ([E50](../decisions.md), [report](wp16-report.md)): two new `invoice_discount` cases in `T-04` (fixed 20 on 355 exact; 10% on 355 one halala, accepted by E19 and not counted as a match), 63 guards each disabled alone and detected (63 of 63), two independent reviews answered. Migrations `20261240000000_SalesInvoiceDiscount` and `20261240000001_SalesInvoiceDiscountPermission` (nullable columns, permission granted to nobody). Not merged into master, not deployed; **no browser pass and no full suite were run**. **Carried over:** Daftra observations on allocation across tax rates, the credit note on a discounted invoice, rounding of the discount amount and the quote discount (`G-67`, `G-68`, `G-69` in WP22); the purchase-side discount stays `G-59` (WP15) and a dedicated invoice-discount report is `G-70` (WP32); the aggregate Summary_taxes rounding gap (`WP16-TAX-SUMMARY-ROUNDING`) and the missing browser pass (`WAVE1-BROWSER-PASS`) in WP45. Owner questions are in E50.
+
 **لماذا هنا:** No invoice discount exists on sales although Daftra's behaviour is fully observed (S-05, T-04): applied after line discounts, tax on the discounted base, no discount line, tax stored at three decimals. HISTORICAL-RISK change: issued invoices are locked (E21) and must never be recomputed.
 
 **ثوابت لا تُكسر:**
@@ -355,6 +365,8 @@
 
 ### WP19: Automatic-journal metadata edit and manual-journal parity
 
+**الحالة (2026-10-27): done (WP19)** — merged into the development branch under E47 ([E51](../decisions.md), [report](wp19-report.md)): 175 new test methods, 120 guards each disabled alone and detected (120 of 120: 94, then 26 after the independent review), 13 review findings all confirmed and fixed. Migrations `20261250000000_JournalAttachments` and `20261250000001_JournalDetailsPermission` (permission granted to nobody; `writable/accounting_attachments` must be writable and backed up). Not merged into master, not deployed; **no browser, accessibility or real upload and download pass** (the report's section 3 also says no independent review was run, which contradicts its section 7; section 7 is the later one). **Carried over:** line tax and currency of the manual journal (`G-73`, WP38 and WP28), journal import (`G-74`, WP38), description-only edit in a closed period (`G-71`, WP21), Daftra attachment limits (`G-72`, WP20), required line description default (`G-76`, WP21), preview, virus scan and legacy Office formats (`G-75`, WP45), the missing browser pass (`WAVE1-BROWSER-PASS`, WP45). Owner questions are in E51.
+
 **لماذا هنا:** Daftra lets description, line description and cost centre of an automatic journal be edited (S-14) while amounts, accounts, date and number stay locked (we keep numbers locked, E16); the manual journal lacks attachments and a required line description. Small, observed, no Daftra access needed. Line tax and currency parts wait for ACC-20 and multi-currency.
 
 **ثوابت لا تُكسر:**
@@ -378,7 +390,7 @@
 - Evidence ids and numbers only, no copied Daftra text, code or assets (E11)
 
 **اختبارات الإثبات:**
-- No product code: deliverable is evidence entries, matrix updates and fixtures T-25 onward
+- No product code: deliverable is evidence entries, matrix updates and fixtures T-26 onward (T-25 is the WP3 expense journal)
 - ParityFixtureTest registers every new evidence id; conformance-matrix counts updated
 
 ### WP21: Daftra write-observation batch A: closed periods and messages, settings scenarios, numbering toggle, inclusive tax
@@ -390,7 +402,7 @@
 - No deletion of the account, no ownership or login changes, no real customer notification (E47)
 
 **اختبارات الإثبات:**
-- No product code first: fixtures T-25 onward, then tests for our behaviour (PeriodGuardTest message mapping, inclusive-tax fixture run against Tax_lib::get_included_tax for SAL-05)
+- No product code first: fixtures T-26 onward (T-25 is the WP3 expense journal), then tests for our behaviour (PeriodGuardTest message mapping, inclusive-tax fixture run against Tax_lib::get_included_tax for SAL-05)
 - Classification flips (exact versus differs) only through ParityFixtureTest-backed fixtures
 
 ### WP22: Daftra write-observation batch B: unobserved assumptions of the sales, purchase, stock and treasury flows
@@ -403,7 +415,7 @@
 - Stop conditions and reversibility recorded before each write
 
 **اختبارات الإثبات:**
-- Fixtures T-25 onward and ParityFixtureTest registration; existing T-09/T-10/T-13/T-17 classifications change only with evidence
+- Fixtures T-26 onward (T-25 is the WP3 expense journal) and ParityFixtureTest registration; existing T-09/T-10/T-13/T-17 classifications change only with evidence
 - After G-66 observation: SupplierAdvancesTest journal expectations updated or confirmed
 
 ### WP23: Credit flows and return exceptions: advance payments, cash refunds, return override, undelivered credit note
@@ -535,7 +547,7 @@
 - Parity fixtures record Daftra numbers only (122,478 = 122,478)
 
 **اختبارات الإثبات:**
-- Fixtures T-25 onward for trial balance and ledger on the A/B scenario documents
+- Fixtures T-26 onward (T-25 is the WP3 expense journal) for trial balance and ledger on the A/B scenario documents
 - TrialBalanceTest and AccountLedgerTest ties; print header and export controller tests
 - a8-design.md written before UI code (phase checklist)
 
@@ -781,20 +793,20 @@
 
 | المعرّف | العنوان | الحزمة | الحالة | دفترة | الخطورة |
 |---|---|---|---|:-:|---|
-| P6-SENSITIVE-PERMS | Treasury and payables manager permissions are documented as sensitive but are not in the sensitive list | WP1 | open | لا | medium |
-| A2A-STOCK-ACCESS | Items and stock-adjustment screens ignore the employee's branch scope | WP1 | open | لا | medium |
-| G-48 | Operational reports are not restricted by the employee's branch | WP1 | open | لا | medium |
-| G41-A5 | Transfer destination location is not checked against location grants | WP1 | open | لا | medium |
-| P5-LOCK-POOLING | Customer and supplier locks rely on a named lock held by one database connection | WP1 | open | لا | medium |
+| P6-SENSITIVE-PERMS | Treasury and payables manager permissions are documented as sensitive but are not in the sensitive list | WP1 | done (WP1) | لا | medium |
+| A2A-STOCK-ACCESS | Items and stock-adjustment screens ignore the employee's branch scope | WP1 | done (WP1) | لا | medium |
+| G-48 | Operational reports are not restricted by the employee's branch (the expenses report stays company-wide only: G-81) | WP1 | done (WP1) | لا | medium |
+| G41-A5 | Transfer destination location is not checked against location grants | WP1 | done (WP1) | لا | medium |
+| P5-LOCK-POOLING | Customer and supplier locks rely on a named lock held by one database connection | WP1 | done (WP1) | لا | medium |
 | E38-SCAN | Scan every target database before LegacyFixedPurchaseDiscount runs | WP2 | blocked-needs-owner-credentials | لا | high |
 | E40-BANK-DETAILS | Run accounting:bank_accounts before and after the bank-account migration and complete missing bank details | WP2 | blocked-needs-owner-credentials | لا | medium |
 | E41-STAMP | Dry-run then apply accounting:stamp_payments on each database before E41 is deployed | WP2 | blocked-needs-owner-credentials | لا | medium |
 | OWNER-GRANTS | New accounting modules and sensitive permissions are registered but granted to nobody | WP2 | blocked-needs-owner-credentials | لا | medium |
 | E26-ACTIVATION | Production activation of accounting and opening-stock posting (owner-ordered) | WP2 | blocked-needs-owner-credentials | لا | high |
-| FIN-05 | Expense categories have no account link and there is no revenue category screen | WP3 | partial | لا | medium |
-| FIN-02 | Expenses never reach the ledger | WP3 | partial | لا | high |
-| FIN-04 | Mandatory expense and revenue account settings | WP3 | open | لا | low |
-| A4 | Cash-up (cash register closing) never posts to the ledger | WP3 | open | لا | high |
+| FIN-05 | Expense categories have no account link and there is no revenue category screen (account link done in WP3; revenue screen waits for FIN-03 in WP26) | WP3 | done (WP3) | لا | medium |
+| FIN-02 | Expenses never reach the ledger (posting done in WP3; Daftra extras are G-80, legacy rows are G-79) | WP3 | done (WP3) | لا | high |
+| FIN-04 | Mandatory expense and revenue account settings (expense side done in WP3; revenue side waits for FIN-03 in WP26) | WP3 | done (WP3) | لا | low |
+| A4 | Cash-up (cash register closing) never posts to the ledger (difference-only design done in WP3, owner may veto; follow-ups are G-78 and G-79) | WP3 | done (WP3) | لا | high |
 | Y-DEC | Record decisions Y1-Y9 and re-base year-end-policy.md on the current chart | WP4 | open | لا | low |
 | REP-03 | Income statement over the journals | WP4 | open | لا | medium |
 | REP-04 | Balance sheet with the dynamic result of unclosed years | WP4 | open | لا | medium |
@@ -806,8 +818,8 @@
 | G-61 | Inter-branch: who owes whom between two specific branches (transfers themselves are done) | WP7 | partial | لا | medium |
 | INTERBRANCH-SETTLEMENT | Settlement of inter-branch balances (who pays whom and when) | WP7 | open | لا | high |
 | P6-ASSUMPTION-7 | Payment recorded in one branch into another branch's treasury | WP7 | open | لا | high |
-| G-08 | Per-document numbering with an editable next number | WP8 | partial | نعم | low |
-| CUS-02 | Automatic customer numbering | WP8 | open | لا | low |
+| G-08 | Per-document numbering with an editable next number (safe half done in WP8; the rest is WP8-S33) | WP8 | done (WP8) | نعم | low |
+| CUS-02 | Automatic customer numbering (sequence and server-side duplicate refusal done in WP8; Daftra duplicate behaviour is part of WP8-S33) | WP8 | done (WP8) | لا | low |
 | G-34 | Customer payment and credit-note documents with own numbering, list screens and collected-by | WP9 | partial | لا | low |
 | SAL-19 | Refund invoice as a second return document | WP9 | open | لا | low |
 | G-28 | Journal order of a paid-on-creation sale: invoice, payment, then cost | WP9 | open | لا | low |
@@ -818,6 +830,7 @@
 | E26-LIMITS | Known limits of opening-stock posting | WP11 | partial | لا | medium |
 | CUS-03 | Customer opening balance | WP11 | open | نعم | high |
 | A6 | Retroactive posting (backfill) with dry-run preview, opening balances and approve or cancel | WP12 | open | لا | high |
+| G-79 | Expenses and cash-ups saved before activation carry no branch and no journal (listed as unposted; readiness notices expenses_unposted and cashups_unposted); only retroactive posting can give them a journal (NEW finding of Wave 1, WP3) | WP12 | open | لا | medium |
 | G-27 | Invoice date separate from issue time, with permission to edit it | WP13 | open | لا | medium |
 | G-31 | Customer due date, payment terms, due and overdue states | WP13 | open | لا | low |
 | G-53 | Supplier aging by due date, six buckets and Daftra balance columns | WP13 | open | لا | low |
@@ -826,23 +839,28 @@
 | G-14 | Document and payment statuses: due, overdue, draft, quote lifecycle | WP13 | partial | لا | low |
 | SAL-13 | Draft invoice lifecycle: temporary number, issue link, typed date | WP14 | partial | لا | medium |
 | SAL-21 | Quotations: states and conversion to invoice | WP14 | partial | لا | low |
+| WP8-WORK-ORDERS | Work-order numbers (work_order_number) are not among the nine numbered document types of WP8 | WP14 | open | لا | low |
 | G-59 | Discount on the whole purchase invoice (E33) | WP15 | open | لا | medium |
-| SAL-07 | Invoice-level discount on sales (percent or fixed) and its effect on tax and journal | WP16 | open | لا | high |
+| SAL-07 | Invoice-level discount on sales (percent or fixed) and its effect on tax and journal (done in WP16; matrix row stays 'differs': one-halala case and assumed allocation; Daftra questions are G-67 to G-69) | WP16 | done (WP16) | لا | high |
 | G-37 | Editing the lines of a saved receiving | WP17 | open | لا | medium |
 | G-38 | Item purchase taxes (two purchase taxes per item) | WP17 | open | لا | medium |
 | PUR-10 | Supplier commercial-registry field | WP17 | partial | لا | low |
 | G-45 | Inventory value report from valued movements | WP18 | open | لا | low |
-| ACC-16 | Edit description and cost centre of an automatic journal | WP19 | open | لا | medium |
-| ACC-18 | Manual journal: attachments, required line description, line tax, currency, import | WP19 | partial | لا | medium |
+| ACC-16 | Edit description and cost centre of an automatic journal (done in WP19; the number stays locked, E16) | WP19 | done (WP19) | لا | medium |
+| ACC-18 | Manual journal: attachments, required line description, line tax, currency, import (attachments and required line description done in WP19; line tax and currency are G-73, import is G-74) | WP19 | done (WP19) | لا | medium |
 | R-02 | Daftra read: filtered reports, cash flow, cash and accrual profit and loss, tax return, directories | WP20 | blocked-needs-owner-credentials | نعم | low |
 | R-03 | Daftra read: add forms (sales order, subscription, treasury transfer, debit note, purchase order, price list, edit forms) | WP20 | blocked-needs-owner-credentials | نعم | low |
 | R-04 | Daftra read: permission matrix of the two existing roles (edit without saving) | WP20 | blocked-needs-owner-credentials | نعم | low |
 | R-05 | Daftra read: print and PDF outputs with headers (invoice, receipt, journal, statements) | WP20 | blocked-needs-owner-credentials | نعم | low |
 | Y9 | Daftra read: year-end closing behaviour (closing entry, retained earnings, reopen after close) | WP20 | blocked-needs-owner-credentials | نعم | low |
+| G-72 | Daftra limits, file types and posted-journal attachments are not observed (the 10 files, 5 MB and file types of WP19 are assumptions) | WP20 | open | نعم | low |
 | E12-PKG-C | Daftra package C: closed periods and validation messages (S-15, S-17) | WP21 | blocked-needs-owner-credentials | نعم | low |
 | E12-PKG-D | Daftra package D: settings-changing scenarios (S-03, S-26, S-28, S-29, S-32, S-33, S-16, S-30) | WP21 | blocked-needs-owner-credentials | نعم | low |
 | ACC-19 | Journal numbering toggle: behaviour when independent numbering is off | WP21 | blocked-needs-owner-credentials | نعم | low |
 | SAL-05 | Tax-inclusive price decomposition parity | WP21 | blocked-needs-owner-credentials | نعم | medium |
+| WP8-S33 | Numbering behaviour that needs S-33: lowering the next number, duplicate manual numbers, prefix variables (year, month, branch), annual reset, one sequence per branch, whether invoice, return and credit note share a sequence, numbering a draft or quote at save versus issue, a number for a 'Due' payment, Daftra's default digits per document type; the build then extends DocumentNumbering::configure and assign without changing the table schema except for prefix variables | WP21 | blocked-needs-owner-credentials | نعم | low |
+| G-71 | Description-only edit of an automatic journal inside a closed period is refused today (owner decision E51 (a)); Daftra behaviour in closed periods is not observed | WP21 | open | نعم | low |
+| G-76 | Required line description is off by default here but mandatory in Daftra (owner decision E51 (e); setting versus constant in Daftra not observed) | WP21 | open | نعم | low |
 | G-49 | Settle button on a purchase paid in excess (F-04c) | WP22 | blocked-needs-owner-credentials | نعم | low |
 | G-20 | Customer credit auto-application: oldest-first by date or number not observed | WP22 | partial | نعم | low |
 | G-55 | Supplier credit application order: purchase date versus document number | WP22 | partial | نعم | low |
@@ -850,7 +868,7 @@
 | G-23 | Sale without a customer: confirm Daftra behaviour | WP22 | partial | نعم | low |
 | G-26 | Sales return quantity cap not observed in Daftra | WP22 | partial | نعم | low |
 | G-43 | Average cost after deleting a receiving and after a transfer not observed | WP22 | partial | نعم | low |
-| G-19 | Rounding rule: two exact half-cent cases still differ by one cent | WP22 | partial | نعم | medium |
+| G-19 | Rounding rule: two exact half-cent cases still differ by one cent (WP16 adds a third: the 10% invoice discount of T-04) | WP22 | partial | نعم | medium |
 | G-66 | Standalone supplier payment and supplier opening balance: Daftra journals not yet observed | WP22 | partial | نعم | medium |
 | S35-T06 | S-35 T-06 (b), (c), (d): empty then disable, delete a treasury with movement, delete one without | WP22 | blocked-needs-owner-credentials | نعم | low |
 | S35-D4 | Effect of deposit and withdraw scopes with a second restricted employee | WP22 | blocked-needs-owner-credentials | نعم | medium |
@@ -859,6 +877,10 @@
 | P3-EVIDENCE-GAPS | Incomplete Daftra evidence behind fixtures: S-04, S-08, S-31 amounts, S-21 numbers, journal description text, T-01 purchase eviden | WP22 | partial | نعم | low |
 | PUR-08 | Update product prices from purchase (update_product_prices setting) | WP22 | blocked-needs-owner-credentials | نعم | medium |
 | SAL-37 | Overpayment banner and settle action on a sales invoice | WP22 | partial | نعم | low |
+| G-67 | Distribution of an invoice discount across lines with different tax rates (our proportional rule is an assumption; T-04 has one tax rate) | WP22 | open | نعم | low |
+| G-68 | Credit note on an invoice with an invoice-level discount: does Daftra return the discount proportionally | WP22 | open | نعم | low |
+| G-69 | Rounding of the discount amount itself, and an invoice discount on a quote or work order carried into the invoice | WP22 | open | نعم | low |
+| G-77 | Expense behaviour not observed in Daftra: unpaid expense, edit in place versus reverse and repost, what delete leaves, typed amount before or after tax when the tax is an amount (S-25 observed only the cash case) | WP22 | open | نعم | medium |
 | G-32 | Customer advance payment without an invoice | WP23 | open | نعم | high |
 | G-21 | Return of stock items without an original sale: manager override | WP23 | partial | نعم | medium |
 | G-30 | Credit note on an invoice whose goods were not delivered | WP23 | partial | نعم | medium |
@@ -869,8 +891,9 @@
 | SAL-33 | Default invoice tax mode (match product, none, fixed) and mandatory tax 1 | WP25 | partial | نعم | medium |
 | G-64 | Cheques: documents, statuses, due dates, notes receivable and payable, two cheque reports | WP26 | open | نعم | high |
 | FIN-03 | Revenue and receipt voucher | WP26 | open | نعم | high |
-| ACC-17 | Journal types and sources for the unbuilt documents | WP26 | partial | لا | low |
+| ACC-17 | Journal types and sources for the unbuilt documents (expense and cashup sources done in WP3) | WP26 | partial | لا | low |
 | S35-D6 | Payment method independent of the chosen treasury (Daftra D6) | WP26 | blocked-needs-owner-credentials | نعم | medium |
+| G-78 | Cash-up follow-ups (WP3 A4): card, cheque and credit are counted but not posted, a bank-treasury difference is outside, and the screen shows expected cash for the employee's default branch only; the owner may veto the difference-only design | WP26 | open | لا | low |
 | G-41 | Numbered stock permit document (add, issue, transfer) | WP27 | partial | نعم | medium |
 | G-42 | Stocktake document and its accounts | WP27 | partial | نعم | medium |
 | INV-12 | Stock requests | WP27 | open | نعم | medium |
@@ -893,11 +916,13 @@
 | REP-11 | Payment reports (customer, entry user, method, period) and advance-payments report | WP32 | partial | نعم | low |
 | REP-12 | Profit reports (daily, weekly, yearly) from stock movements | WP32 | partial | نعم | low |
 | REP-16 | Net invoice position and invoice-versus-returns reconciliation reports | WP32 | open | نعم | low |
+| G-70 | A dedicated report or filter for invoice-level discounts (Summary_discounts sums line discounts only) and the line share in prints; the purchase-side discount stays G-59 in WP15 | WP32 | open | لا | low |
 | REP-13 | Purchase and supplier reports (by supplier, user, product, directory, balances, aging, payments) | WP33 | partial | نعم | low |
 | REP-14 | Inventory reports: count sheet, operations summary, movements, warehouse and product balance, aging, turnover | WP33 | partial | نعم | medium |
 | REP-15 | Split expense and income reports (eight variants each) | WP33 | partial | نعم | low |
 | REP-08 | Journal movements, chart-of-accounts and cost-centre reports | WP33 | partial | نعم | low |
 | REP-17 | Account activity log beyond the accounting audit log | WP33 | partial | نعم | low |
+| G-81 | Expenses report is refused to an employee of some branches because an expense had no branch; WP3 stamps new expenses with a branch but legacy rows have none: owner decision whether to open it per branch (E48 (a)) | WP33 | open | لا | low |
 | SAL-08 | Invoice adjustment (label and value) and its routing | WP34 | open | نعم | medium |
 | SAL-09 | Shipping charge and shipping options on the invoice | WP34 | open | نعم | medium |
 | SAL-20 | Sales debit note | WP34 | open | نعم | high |
@@ -922,6 +947,9 @@
 | ACC-20 | Journal settings: tax in journals, cost-centre options, tags, conversion factor | WP38 | open | نعم | low |
 | ACC-21 | Cost centres: distribution by percentage, over-100% and mandatory settings, report | WP38 | partial | نعم | medium |
 | ACC-05 | Automatic sub-accounts for shipping companies | WP38 | partial | نعم | low |
+| G-73 | Line tax and journal currency on the manual journal (split from ACC-18; the currency part belongs to WP28) | WP38 | open | نعم | low |
+| G-74 | Import of manual journals from a file (split from ACC-18) | WP38 | open | نعم | low |
+| G-80 | Expense features Daftra has and we lack: attachments, several accounts in one expense, cost centres (recurrence is FIN-06 in WP35, currency is G-12 in WP28, split reports are REP-15 in WP33) | WP38 | open | نعم | low |
 | PUR-07 | Purchase cycle: purchase request, quotation request, quotation, purchase order | WP39 | open | نعم | low |
 | SET-06 | Template designer for print, invoice, email and terms | WP40 | partial | نعم | low |
 | SAL-31 | Print, send and copy outputs (vouchers, parcel and shipping labels, receiving list, copy invoice) | WP40 | partial | نعم | low |
@@ -946,6 +974,14 @@
 | E32-RETURN-ROUNDING | Return share of an old per-line fixed discount is rounded to two decimals | WP45 | partial | لا | low |
 | E22E32-BROWSER | Browser checks not done for editing a saved document's line discount | WP45 | partial | لا | low |
 | CHK-F | Bring README status and counts up to date after P8 and E43-E47 | WP45 | open | لا | low |
+| G-75 | Journal attachments: no image preview or compression, no virus scan, old Office formats rejected, and the content check may refuse an xlsx or docx from an unusual generator (WP19) | WP45 | open | لا | low |
+| ITEMS-CSV-TIME-LIMIT | Items::postImportCsvFile sets set_time_limit(240) (app/Controllers/Items.php:1182); a test that calls /items/importCsvFile must lift it as ItemsControllerTest::importOneRow does with set_time_limit(0), otherwise the PHPUnit process stops 240 seconds after the first import (NEW finding of Wave 1, WP1); a shared test helper is the safer form | WP45 | open | لا | low |
+| REPORT-TESTS-LEGACY | Summary_discounts_test.php and Summary_taxes_test.php (suffix _test.php) are not collected by PHPUnit and fail if run on their own; three older ReportsControllerTest cases (testNonAdminWithoutReportGrantIsDeniedSummaryCustomers and its two siblings) use assertRedirect alone, which a stale Location header may satisfy if the guard they protect is removed after an earlier redirecting test in the same process (WP1 did not measure that for these three). Sources: WP1 and WP16 | WP45 | open | لا | low |
+| NAMING-SWEEP | Legacy snake_case local variables in functions that WP8 and WP16 edited (Sale::save, Customers::postSave, Tax_lib::get_taxes, apply_destination_tax, Sales::postComplete) were left as they were to avoid merge conflicts: one separate renaming pass | WP45 | open | لا | low |
+| RACEWORKER-DOUBLE-LOADER | tests/Support/RaceWorker.php carries both the class-map block of WP8 and the spl_autoload_register block of WP16 after the merge; WP16's report says WP8's block is enough | WP45 | open | لا | low |
+| WAVE1-RACE-TESTS | No two-process race on one expense or cash-up (WP3: row locks are proven by statement order only) and no two simultaneous numbering configure saves of one type (WP8) | WP45 | open | لا | low |
+| WAVE1-BROWSER-PASS | No browser or accessibility pass for the WP16 invoice-discount form and the WP19 edit-details and attachments screens (WP19 also ran no real upload and download) | WP45 | open | لا | low |
+| WP16-TAX-SUMMARY-ROUNDING | Summary_taxes rounds group totals to currency decimals while the journal keeps line tax unrounded (three decimals or more); the gap across many invoices was not measured (WP16 assumption 10) | WP45 | open | لا | low |
 | SET-10 | E-invoicing (ZATCA phase 2): integration, settings, submission report, government-entity fields | WP46 | open | لا | high |
 | FIN-08 | Fixed assets and depreciation | WP47 | open | نعم | high |
 | A9 | AI agent: proposals as drafts, anomaly detection, summaries, accounting_ai permission | WP48 | open | لا | medium |
@@ -989,3 +1025,5 @@ Items risky for historical data, with the safe dev-only form of each. (1) E33 / 
 ## 6. ملاحظات المُركِّب
 
 Method and verification. Source: five analyst lists merged by meaning; all aliases are kept in the item's aliases field and repeated as '[aliases: ...]' at the start of the summary. 168 backlog items are listed, each exactly once, plus the dropped list; 50 packages. Items I re-verified against code (grep/read): G-28 journal order (SalePosting.php:81-86), G-57 (OpeningStock.php:201,207), G-48 (no 'branch' anywhere in Models/Reports, Controllers/Reports.php, report_helper.php), G-45/INV-15 (StockLedger/StockPosition referenced only inside app/Libraries/Accounting), P1-PICKER (AccountService::all() at AccountingJournals.php:40 and AccountingChart.php:91,203,245,270), expense and cash-up posting absent (no Accounting reference in Expense/Expenses/Cashup/Cashups), due_date/payment_term/purchase_tax/credit_limit/price_list/recurring/sales_order/invoice_discount absent, income statement/balance sheet/cash flow/year_end absent, backfill = schema only, cheques = payment-method label only, per-item and main-per-entity routing refused (RoutingType.php:28-32), customer opening balance blocked (OpeningBalanceService CONTROL_KEYS), no refund path in SupplierAdvances, no journal-metadata edit in JournalService, no description template, no tests using totals_decimals, no sale-level oversell test. Two NEW findings not in any analyst list: P6-SENSITIVE-PERMS (docs call acc_treasuries_manage sensitive but AccountingGuard::SENSITIVE omits it and acc_payables_manage, so Employees.php:180 lets non-admins grant them) and A2A-STOCK-ACCESS (Items screens and StockAdjustment ignore the employee's branch scope; only Sales and Receivings enforce it). Both are in WP1. Conflicts resolved: G-62, G-61, G-41, G-65, G-44 were 'done' in one analyst list and 'partial' in another: the done parts are dropped and the genuine residuals kept under their own ids (G-61 pairwise, P6-ASSUMPTION-7, INTERBRANCH-SETTLEMENT, G-41 permit document, G-09 roles scope, S35-D4). 'A7' is used in the docs both for the vouchers-and-cheques phase (alias of G-64) and for the pairwise inter-branch balance in g61-report.md (alias of G-61); G-45 versus INV-15 disagreed on whether aging and turnover layouts were observed: valuation was (repK, 1,720), aging and turnover layouts are treated as unobserved and left to REP-14; SAL-05 was 'partial' in code but 'blocked' for proof, kept as blocked because only S-03 can settle it; matrix text is stale for ACC-28 (15 acc_* permissions exist), CUS-07, FIN-01, ACC-05, PUR-01 (CHK-F). Ordering: WP1-WP19 need no Daftra access and are executable now (correctness, then integrity and auditability, then commercial-flow soundness); WP20-WP29 are the Daftra observation batches and the Daftra-dependent correctness builds (credentials are absent, E47); WP30-WP43 are architecture-fit and parity work; WP44-WP50 are lowest priority (polish, performance, deferred domains, umbrellas). WP44 and WP45 need no Daftra access and can be scheduled in spare capacity while credentials are missing even though they rank last. Owner-gated items: E33 is still not approved (WP15), the cash-up treatment needs an owner decision (A4), the unreceived-purchase state was declined by E27 (WP43), and any production activation, merge to master, deploy or production data change needs separate permission (E47).
+
+**Wave 1 integration notes (2026-10-27).** WP1, WP3, WP8, WP16 and WP19 were merged into the development branch (E48 to E52); the tables above carry their status, the struck dependencies and the items they left behind. Two NEW findings: (a) expenses and cash-ups saved before activation have no branch and no journal and are listed as unposted by WP3, so their retroactive posting remains with WP12 (G-79); (b) the CSV import in the Items controller sets set_time_limit(240) (Items.php:1182), which any test calling it must lift (ITEMS-CSV-TIME-LIMIT; ItemsControllerTest::importOneRow does so with set_time_limit(0)). Conflicts between the reports resolved while integrating: the matrix ids REP-WP1 and LOCK-WP1 proposed by WP1 became REP-18 and ACC-35; the WP16 proposal for a single decision table with four columns was fitted to the three-column table of decisions.md; the sensitive-permission count is eight after the merge (WP1 said seven, WP19 added the eighth); T-25 now belongs to WP3, so later observation packages start at T-26; WP3 dated its proposed decision 2026-10-26 while the merge is 2026-10-27. Backlog items added by Wave 1: G-67 to G-81 and WP8-S33, WP8-WORK-ORDERS, ITEMS-CSV-TIME-LIMIT, REPORT-TESTS-LEGACY, NAMING-SWEEP, RACEWORKER-DOUBLE-LOADER, WAVE1-RACE-TESTS, WAVE1-BROWSER-PASS, WP16-TAX-SUMMARY-ROUNDING (the 168 stated above predates Wave 1 and the table already held 175 rows before it; it holds 199 now, 24 of them added by Wave 1).
