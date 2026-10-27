@@ -166,7 +166,7 @@ class ReturnDiscountSharesTest extends CIUnitTestCase
             $shares[] = bcadd((string) $this->accountingDb()->table('receivings_items')->where('receiving_id', $return)->get()->getRow()->invoice_discount_share, '0', 4);
         }
 
-        $this->assertSame(['0.0200', '0.0200', '0.0100', '0.0000'], $shares, 'A third of 0.05 is 0.0167, which rounds up to 0.02 each time; the third return is held to the 0.01 that is left');
+        $this->assertSame(['0.0200', '0.0200', '0.0100', '0.0000'], $shares, 'Three of the ten units take 0.015 of the 0.05, which rounds up to 0.02 each time; the third return is held to the 0.01 that is left, and the return of the last unit finds nothing left');
         $this->assertSame('0.05', bcadd(array_reduce($shares, static fn (string $sum, string $share): string => bcadd($sum, $share, 4), '0'), '0', 2));
     }
 }

@@ -3,6 +3,7 @@
 namespace app\Libraries;
 
 use App\Libraries\Accounting\InvoiceDiscount;
+use App\Libraries\Accounting\InvoiceDiscountProblem;
 use App\Libraries\Accounting\InvoiceDiscountShares;
 use App\Libraries\Accounting\ReceivingAmounts;
 use App\Libraries\Accounting\ReceivingLine;
@@ -565,6 +566,31 @@ class Receiving_lib
     }
 
     /**
+     * Why the discount of the register cannot be saved with the lines it holds now, when it cannot: the
+     * lines were lowered or removed after it was applied, or they hold goods going out. The totals of
+     * the register show the discount capped, so this is what tells the buyer that saving will refuse it.
+     */
+    public function invoiceDiscountProblem(): ?InvoiceDiscountProblem
+    {
+        $discount = $this->getInvoiceDiscount();
+        $items    = array_values($this->get_cart());
+
+        if ($discount->isNone() || $items === [] || $this->get_mode() !== 'receive' || $this->keepsStoredShares($items)) {
+            return null;
+        }
+
+        $lines = array_map(static fn (array $item): ReceivingLine => ReceivingLine::ofCart($item), $items);
+
+        if (ReceivingType::ofQuantities(array_map(static fn (ReceivingLine $line): string => $line->quantity, $lines)) !== ReceivingType::Receive) {
+            return InvoiceDiscountProblem::NotGoodsIn;
+        }
+
+        $base = array_reduce($lines, static fn (string $sum, ReceivingLine $line): string => bcadd($sum, ReceivingAmounts::lineNet($line), ReceivingAmounts::SCALE), '0');
+
+        return $discount->fitsOn($base) ? null : InvoiceDiscountProblem::MoreThanTheLines;
+    }
+
+    /**
      * What the cart comes to when part of it is taken off by the discount on the whole purchase, as
      * the purchase will be saved and posted: null when none is, so that a cart without one is added up
      * exactly as it always was. Amounts have the sign of the goods: below nothing when they go back.
@@ -619,7 +645,7 @@ class Receiving_lib
      */
     private function sharesOf(array $items, array $lines, ReceivingType $type): array
     {
-        if (count(array_filter($items, static fn (array $item): bool => array_key_exists('invoice_discount_share', $item))) === count($items)) {
+        if ($this->keepsStoredShares($items)) {
             return array_map(static fn (array $item): string => bcadd((string) $item['invoice_discount_share'], '0', ReceivingAmounts::SCALE), $items);
         }
 
@@ -630,5 +656,15 @@ class Receiving_lib
             $type === ReceivingType::Return && $origin !== null => (new ReturnDiscountShares())->forReturn($origin, $lines),
             default                                              => array_fill(0, count($lines), '0.0000'),
         };
+    }
+
+    /**
+     * Whether every line of the cart is one of a saved purchase, carrying what it took of the discount.
+     *
+     * @param list<array<string, mixed>> $items
+     */
+    private function keepsStoredShares(array $items): bool
+    {
+        return count(array_filter($items, static fn (array $item): bool => array_key_exists('invoice_discount_share', $item))) === count($items);
     }
 }

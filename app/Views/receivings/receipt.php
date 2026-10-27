@@ -93,6 +93,7 @@ echo view('partial/print_receipt', ['print_after_sale', $print_after_sale, 'sele
             <?php } ?>
         <?php } ?>
         <?php $hasInvoiceDiscount = bccomp((string) ($invoiceDiscountAmount ?? '0'), '0', 4) !== 0; ?>
+        <?php $showsTax           = bccomp((string) ($tax_total ?? '0'), '0', 8) > 0 || ($hasInvoiceDiscount && bccomp((string) ($tax_total ?? '0'), '0', 8) !== 0); ?>
         <?php if (bccomp((string) ($tax_total ?? '0'), '0', 8) > 0 || $hasInvoiceDiscount) { ?>
             <tr>
                 <td colspan="3" style="text-align: right; border-top: 2px solid #000000;"><?= lang('Receivings.sub_total') ?></td>
@@ -109,8 +110,8 @@ echo view('partial/print_receipt', ['print_after_sale', $print_after_sale, 'sele
                 </td>
             </tr>
         <?php } ?>
-        <?php if (bccomp((string) ($tax_total ?? '0'), '0', 8) > 0) { ?>
-            <tr>
+        <?php if ($showsTax) { ?>
+            <tr id="receipt_tax">
                 <td colspan="3" style="text-align: right;"><?= lang('Receivings.tax_total') ?></td>
                 <td>
                     <div class="total-value"><?= to_currency($tax_total) ?></div>

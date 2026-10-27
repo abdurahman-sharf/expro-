@@ -223,7 +223,14 @@ class Receivings extends Secure_Controller
             return $this->_reload(['error' => lang('Receivings.invoice_discount_wrong_mode')]);
         }
 
-        $raw = trim((string) $this->request->getPost('invoice_discount'));
+        $posted     = $this->request->getPost('invoice_discount');
+        $postedType = $this->request->getPost('invoice_discount_type', FILTER_SANITIZE_NUMBER_INT);
+
+        if (is_array($posted) || is_array($postedType)) {
+            return $this->_reload(['error' => lang('Receivings.invoice_discount_invalid')]);
+        }
+
+        $raw = trim((string) $posted);
 
         if ($raw === '') {
             $this->receiving_lib->clearInvoiceDiscount();
@@ -231,7 +238,7 @@ class Receivings extends Secure_Controller
             return $this->_reload();
         }
 
-        $type   = (int) $this->request->getPost('invoice_discount_type', FILTER_SANITIZE_NUMBER_INT) === FIXED ? FIXED : PERCENT;
+        $type   = (int) $postedType === FIXED ? FIXED : PERCENT;
         $parsed = parse_decimals($raw);
 
         $discount = $parsed === false || ! is_numeric($parsed) ? null : InvoiceDiscount::of($type, number_format((float) $parsed, InvoiceDiscount::SCALE, '.', ''));
@@ -673,6 +680,12 @@ class Receivings extends Secure_Controller
 
         $data['invoiceDiscount']       = $this->receiving_lib->getInvoiceDiscount();
         $data['invoiceDiscountAmount'] = $this->receiving_lib->getInvoiceDiscountAmount();
+
+        $discountProblem = $this->receiving_lib->invoiceDiscountProblem();
+
+        if ($discountProblem !== null && ! isset($data['error'])) {
+            $data['error'] = lang("Receivings.{$discountProblem->value}");
+        }
 
         $supplier_id = $this->receiving_lib->get_supplier();
 

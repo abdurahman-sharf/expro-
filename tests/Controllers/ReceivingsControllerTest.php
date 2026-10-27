@@ -11,6 +11,8 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use Config\Database;
 use Config\OSPOS;
+use DOMDocument;
+use DOMXPath;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
@@ -1703,5 +1705,145 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $this->assertSame('0.00', $this->owed());
         $this->assertStockTies();
         $this->assertSupplierTies();
+    }
+
+    public function testGetIndex_ShowsTheTaxOfAReturnThatTookAShareSoThatTheRowsAddUp(): void
+    {
+        $itemId   = $this->item('0.00');
+        $purchase = $this->buy([$this->purchaseLine($itemId, 0, '10', '50', '15')], -1, null, null, InvoiceDiscount::of(FIXED, '100'));
+        $this->loginAs($this->buyer());
+
+        $this->assertTrue($this->jsonOf($this->post('/receivings/debitNote/' . $purchase))['success']);
+
+        $this->withSession($_SESSION);
+
+        $register = $this->get('/receivings');
+
+        $register->assertSeeElement('#receiving_tax');
+        $this->assertSame(array_map('to_currency', ['-500', '100', '-60', '-460']), $this->registerAmounts($register->getBody()));
+    }
+
+    public function testGetReceipt_ShowsTheTaxOfAReturnThatTookAShareSoThatTheRowsAddUp(): void
+    {
+        $itemId   = $this->item('0.00');
+        $purchase = $this->buy([$this->purchaseLine($itemId, 0, '10', '100', '15')], -1, null, null, InvoiceDiscount::of(FIXED, '100'));
+        $return   = $this->buy([$this->purchaseLine($itemId, 0, '-4', '100', '15')], -1, null, $purchase);
+        $this->loginAs($this->buyer());
+
+        $receipt = $this->get('/receivings/receipt/' . $return);
+
+        $receipt->assertSeeElement('#receipt_tax');
+        $this->assertSame(array_map('to_currency', ['-400', '40', '-54', '-414']), $this->receiptAmounts($receipt->getBody()));
+    }
+
+    public function testGetReceipt_LeavesOutTheTaxOfAReturnThatTookNoShare(): void
+    {
+        $itemId   = $this->item('0.00');
+        $purchase = $this->buy([$this->purchaseLine($itemId, 0, '10', '100', '15')]);
+        $return   = $this->buy([$this->purchaseLine($itemId, 0, '-4', '100', '15')], -1, null, $purchase);
+        $this->loginAs($this->buyer());
+
+        $receipt = $this->get('/receivings/receipt/' . $return);
+
+        $receipt->assertDontSeeElement('#receipt_tax');
+        $receipt->assertDontSeeElement('#receipt_invoice_discount');
+        $receipt->assertSee(to_currency('-460'));
+    }
+
+    public function testGetIndex_WarnsThatTheDiscountNoLongerFitsAfterALineWasLowered(): void
+    {
+        $itemId = $this->item('0.00');
+        $this->loginAs($this->buyer(), $this->cart([$this->cartLine($itemId, 1, '10', '100')]));
+
+        $this->post('/receivings/setInvoiceDiscount', ['invoice_discount' => '900', 'invoice_discount_type' => '1'])->assertDontSee(lang('Receivings.invoice_discount_invalid'));
+
+        $this->withSession($_SESSION);
+
+        $response = $this->post('/receivings/editItem/1', ['price' => '100', 'quantity' => '5', 'discount' => '0', 'receiving_quantity' => '1', 'tax_percent' => '0', 'description' => 'x', 'discount_type' => '0']);
+
+        $response->assertSee(lang('Receivings.invoice_discount_invalid'));
+    }
+
+    public function testPostDeleteItem_WarnsThatTheDiscountNoLongerFitsWhenTheLinesLeftComeToLess(): void
+    {
+        $itemId = $this->item('0.00');
+        $this->loginAs($this->buyer(), $this->withInvoiceDiscount($this->cart([$this->cartLine($itemId, 1, '10', '100'), $this->cartLine($itemId, 2, '1', '50')]), FIXED, '900.00'));
+
+        $response = $this->get('/receivings/deleteItem/1');
+
+        $response->assertSee(lang('Receivings.invoice_discount_invalid'));
+    }
+
+    public function testGetIndex_WarnsThatAReceivingOfGoodsGoingOutTakesNoDiscount(): void
+    {
+        $itemId = $this->item('0.00');
+        $this->loginAs($this->buyer(), $this->withInvoiceDiscount($this->cart([$this->cartLine($itemId, 1, '-2', '100')]), PERCENT, '10.0000'));
+
+        $this->get('/receivings')->assertSee(lang('Receivings.invoice_discount_wrong_mode'));
+    }
+
+    public function testGetIndex_SaysNothingOfADiscountThatFitsTheLines(): void
+    {
+        $itemId = $this->item('0.00');
+        $this->loginAs($this->buyer(), $this->withInvoiceDiscount($this->cart([$this->cartLine($itemId, 1, '10', '100')]), FIXED, '1000.00'));
+
+        $response = $this->get('/receivings');
+
+        $response->assertDontSee(lang('Receivings.invoice_discount_invalid'));
+        $response->assertDontSee(lang('Receivings.invoice_discount_wrong_mode'));
+    }
+
+    public function testPostSetInvoiceDiscount_RefusesAListInsteadOfANumber(): void
+    {
+        $itemId = $this->item('0.00');
+        $this->loginAs($this->buyer(), $this->withInvoiceDiscount($this->cart([$this->cartLine($itemId, 1, '10', '100')]), PERCENT, '5.0000'));
+
+        $response = $this->post('/receivings/setInvoiceDiscount', ['invoice_discount' => ['5'], 'invoice_discount_type' => '0']);
+
+        $response->assertStatus(200);
+        $response->assertSee(lang('Receivings.invoice_discount_invalid'));
+        $this->assertSame('5.0000', session()->get('recv_invoice_discount')['value']);
+    }
+
+    public function testPostSetInvoiceDiscount_RefusesAListInsteadOfAType(): void
+    {
+        $itemId = $this->item('0.00');
+        $this->loginAs($this->buyer(), $this->withInvoiceDiscount($this->cart([$this->cartLine($itemId, 1, '10', '100')]), PERCENT, '5.0000'));
+
+        $response = $this->post('/receivings/setInvoiceDiscount', ['invoice_discount' => '50', 'invoice_discount_type' => ['1']]);
+
+        $response->assertSee(lang('Receivings.invoice_discount_invalid'));
+        $this->assertSame([PERCENT, '5.0000'], [session()->get('recv_invoice_discount')['type'], session()->get('recv_invoice_discount')['value']]);
+    }
+
+    /**
+     * @return list<string> what the rows of the totals show as their amounts, in the order they are shown
+     */
+    private function amountsOf(string $html, string $cellsQuery): array
+    {
+        $document = new DOMDocument();
+        @$document->loadHTML('<?xml encoding="utf-8"?>' . $html);
+
+        $amounts = [];
+
+        foreach ((new DOMXPath($document))->query($cellsQuery) as $cell) {
+            $text = trim($cell->textContent);
+
+            if (preg_match('/\d/', $text) === 1) {
+                $amounts[] = $text;
+            }
+        }
+
+        return $amounts;
+    }
+
+    private function registerAmounts(string $html): array
+    {
+        return $this->amountsOf($html, "//*[@id='sale_totals']/div/dd");
+    }
+
+    private function receiptAmounts(string $html): array
+    {
+        return $this->amountsOf($html, "//tr[td[@colspan='3' and @style]]/td[last()]");
     }
 }

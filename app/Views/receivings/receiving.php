@@ -281,6 +281,7 @@ $hasCart     = count($cart) > 0;
 
         <?php if ($mode != 'requisition'): ?>
             <?php $hasInvoiceDiscount = bccomp((string) $invoiceDiscountAmount, '0', 4) !== 0; ?>
+            <?php $showsTax           = bccomp((string) $tax_total, '0', 8) > 0 || ($hasInvoiceDiscount && bccomp((string) $tax_total, '0', 8) !== 0); ?>
             <div class="card">
                 <div class="card-body">
                     <dl class="pos-sum" id="sale_totals">
@@ -290,7 +291,7 @@ $hasCart     = count($cart) > 0;
                         <?php if ($hasInvoiceDiscount): ?>
                             <div id="receiving_invoice_discount"><dt><?= lang($mode == 'receive' ? "{$sectionName}.invoice_discount_amount" : "{$sectionName}.invoice_discount_share") ?><?= $invoiceDiscount->type === PERCENT && ! $invoiceDiscount->isNone() ? ' (' . to_decimals($invoiceDiscount->value) . '%)' : '' ?></dt><dd><?= to_currency($invoiceDiscountAmount) ?></dd></div>
                         <?php endif; ?>
-                        <?php if (bccomp((string) $tax_total, '0', 8) > 0): ?>
+                        <?php if ($showsTax): ?>
                             <div id="receiving_tax"><dt><?= lang("{$sectionName}.tax_total") ?></dt><dd><?= to_currency($tax_total) ?></dd></div>
                         <?php endif; ?>
                         <div class="pos-sum-total"><dt><?= lang("{$sectionName}.total_with_tax") ?></dt><dd><?= to_currency($total_with_tax) ?></dd></div>
