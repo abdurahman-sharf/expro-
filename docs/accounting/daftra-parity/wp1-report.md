@@ -238,3 +238,11 @@ DETECTED  G48-37 the label of the whole company: Tests: 17, Assertions: 36, Fail
 DETECTED  G48-38 the label of the selected branches: Tests: 17, Assertions: 36, Failures: 1.; failing: 1
 10 of 10 guards detected
 ```
+
+### الدفعة 11
+
+```
+DETECTED  G48-39 a partial scope is shown as a warning: Tests: 25, Assertions: 279, Failures: 1.; failing: 1
+DETECTED  G48-40 a transfer is seen by the branch that receives it: Tests: 5, Assertions: 71, Failures: 1.; failing: 1
+2 of 2 guards detected
+```
