@@ -27,6 +27,7 @@ use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\ParityFixture;
 use Tests\Support\SaleAccountingFixtureTrait;
+use Tests\Support\WorkerRequestTrait;
 
 /**
  * The cycle of a sale through the books, driven through the real sale model: what is posted when a
@@ -41,6 +42,7 @@ class SalePostingTest extends CIUnitTestCase
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
+    use WorkerRequestTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -1776,34 +1778,44 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame(['0' => null], $this->sharesOf($returnId));
     }
 
-    public function testSaveValue_ReturnsFromTwoRequestsAtTheSameMomentTakeBackNoMoreOfTheDiscountThanTheSaleGave(): void
+    public function testSaveValue_WorksOutTheShareOfAReturnOnlyAfterTheSaleItComesFromIsLocked(): void
     {
         $item    = $this->item('60.00');
-        $invoice = $this->save([$this->line($item, 0, '2', '100', '60.00')], [], [$this->payment(lang('Sales.cash'), '199.99')], SALE_TYPE_POS, -1, true, null, COMPLETED, NEW_ENTRY, ['type' => FIXED, 'value' => '0.01']);
+        $invoice = $this->save([$this->line($item, 0, '2', '100', '60.00')], [], [$this->payment(lang('Sales.cash'), '199.99')], SALE_TYPE_POS, null, true, null, COMPLETED, NEW_ENTRY, ['type' => FIXED, 'value' => '0.01']);
 
         $this->assertGreaterThan(0, $invoice);
 
-        $arguments = [$invoice, $item, '-1', '60.00', '100', $this->customerId, $this->employeeId];
+        $db = $this->accountingDb();
+        $db->transBegin();
+        $db->query('SELECT sale_id FROM ' . $db->prefixTable('sales') . ' WHERE sale_id = ? FOR UPDATE', [$invoice]);
 
-        [$first, $second] = $this->raceTwoProcesses('returnSale', $arguments, $arguments);
+        try {
+            $request = $this->startWorkerRequest('returnSale', (string) $invoice, (string) $item, '-1', '60.00', '100', '0', (string) $this->employeeId, lang('Sales.cash'), '-100.00');
 
-        $returns = $this->accountingDb()->table('sales')->where('return_of_sale_id', $invoice)->get()->getResult();
+            $this->waitUntilARequestWaitsForARowLock();
+
+            $this->assertGreaterThan(0, $this->save([$this->line($item, 0, '-1', '100', '60.00')], [], [$this->payment(lang('Sales.cash'), '-99.99')], SALE_TYPE_RETURN, null, true, $invoice));
+        } finally {
+            $db->transCommit();
+        }
+
+        $finished = $this->finishWorkerRequest($request);
+        $returns  = $db->table('sales')->where('return_of_sale_id', $invoice)->orderBy('sale_id', 'ASC')->get()->getResult();
 
         foreach ($returns as $return) {
             $this->saleIds[] = (int) $return->sale_id;
         }
 
-        $this->assertTrue($first);
-        $this->assertTrue($second);
+        $this->assertSame('1', $finished['output'], $finished['error']);
         $this->assertCount(2, $returns);
 
         $taken = '0';
 
         foreach ($returns as $return) {
-            $taken = bcadd($taken, ltrim((string) array_values($this->sharesOf((int) $return->sale_id))[0], '-'), 4);
+            $taken = bcadd($taken, ltrim((string) (array_values($this->sharesOf((int) $return->sale_id))[0] ?? '0'), '-'), 4);
         }
 
-        $this->assertSame('0.0100', $taken, 'the two returns of the two units take back the one cent the sale gave, not a cent each');
+        $this->assertSame('0.0100', $taken, 'the return that waited found the share the other took and took no more of the discount');
         $this->assertSame('199.99', $this->balance($this->accountId('sales_returns')));
     }
 
