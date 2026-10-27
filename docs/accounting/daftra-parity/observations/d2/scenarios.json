@@ -1,0 +1,1520 @@
+[
+ {
+  "id": "D2-S01",
+  "title": "Expense into a treasury with zero balance (insufficient balance)",
+  "inputs": {
+   "expense": {
+    "amount": 50,
+    "tax": null,
+    "category": "D2 expense category",
+    "subAccount": "آلي",
+    "treasury": "T1 (balance 0.00)",
+    "date": "27/10/2026"
+   }
+  },
+  "daftra": {
+   "documents": [
+    {
+     "type": "expense",
+     "number": "000003",
+     "id": 3,
+     "status": "اصدر"
+    }
+   ],
+   "journals": [
+    {
+     "number": "000138",
+     "date": "27/10/2026",
+     "source": "expense",
+     "lines": [
+      {
+       "code": "546",
+       "name": "افتراضي-D2 تصنيف مصروف",
+       "debit": 50.0,
+       "credit": 0
+      },
+      {
+       "code": "120103",
+       "name": "افتراضي-D2 خزينة 1",
+       "debit": 0,
+       "credit": 50.0
+      }
+     ]
+    }
+   ],
+   "reports": {
+    "treasuryT1After": -50.0
+   },
+   "messages": [
+    "تم حفظ مصروف, إضافة جديدة"
+   ]
+  },
+  "exproExpectation": "E36: a negative treasury balance is accepted; Dr category account (or 541) 50, Cr treasury account 50.",
+  "classification": "matches",
+  "classificationNote": "Accepted without warning in both; Daftra auto-creates an account named after the category (see D2-S04) whereas Expro routes to the category account or 541.",
+  "evidenceIds": [
+   "pw-d2-10"
+  ]
+ },
+ {
+  "id": "D2-S02",
+  "title": "Expense with 15% VAT, category, automatic sub-account (two input paths)",
+  "inputs": {
+   "pathA": {
+    "typedAmount": 200,
+    "tax": "القيمة المضافة (page adds it: amount becomes 230, tax 30)",
+    "treasury": "T1"
+   },
+   "pathB": {
+    "amount": 200,
+    "taxExtractedByPage": 26.09,
+    "treasury": "T1"
+   }
+  },
+  "daftra": {
+   "documents": [
+    {
+     "type": "expense",
+     "number": "000004",
+     "id": 4,
+     "storedAmount": 230,
+     "tax": 30
+    },
+    {
+     "type": "expense",
+     "number": "000006",
+     "id": 6,
+     "storedAmount": 200,
+     "tax": 26.09
+    }
+   ],
+   "journals": [
+    {
+     "number": "000141",
+     "date": "27/10/2026",
+     "source": "expense",
+     "lines": [
+      {
+       "code": "546",
+       "name": "افتراضي-D2 تصنيف مصروف",
+       "debit": 200.0,
+       "credit": 0
+      },
+      {
+       "code": "215002",
+       "name": "القيمة المضافة المدفوعة",
+       "debit": 30.0,
+       "credit": 0
+      },
+      {
+       "code": "120103",
+       "name": "افتراضي-D2 خزينة 1",
+       "debit": 0,
+       "credit": 230.0
+      }
+     ]
+    },
+    {
+     "number": "000144",
+     "date": "27/10/2026",
+     "source": "expense",
+     "lines": [
+      {
+       "code": "546",
+       "name": "افتراضي-D2 تصنيف مصروف",
+       "debit": 173.91,
+       "credit": 0
+      },
+      {
+       "code": "215002",
+       "name": "القيمة المضافة المدفوعة",
+       "debit": 26.09,
+       "credit": 0
+      },
+      {
+       "code": "120103",
+       "name": "افتراضي-D2 خزينة 1",
+       "debit": 0,
+       "credit": 200.0
+      }
+     ]
+    }
+   ],
+   "reports": {
+    "expenseView": "المبلغ 230.00 / القيمة المضافة 30.00 and المبلغ 200.00 / القيمة المضافة 26.09"
+   },
+   "messages": []
+  },
+  "exproExpectation": "T-25: Dr expense 200, Dr 215002 30, Cr treasury 230; Expro amount = amount paid including tax with tax_amount a part of it.",
+  "classification": "matches",
+  "classificationNote": "The server treats the posted amount as the TOTAL including tax and books net = amount - tax. T-25 case amount-entered-includes-the-tax should therefore be re-classified from differs to matches at the stored-amount level; the only difference is the page script that adds tax to a typed amount.",
+  "evidenceIds": [
+   "pw-d2-12",
+   "pw-d2-13",
+   "pw-d2-14"
+  ]
+ },
+ {
+  "id": "D2-S03",
+  "title": "Expense with a chosen sub-account (545 إيجار) instead of automatic",
+  "inputs": {
+   "amount": 230,
+   "tax": 30,
+   "category": "D2 expense category",
+   "subAccount": "545 - إيجار",
+   "treasury": "T1"
+  },
+  "daftra": {
+   "documents": [
+    {
+     "type": "expense",
+     "number": "000005",
+     "id": 5
+    }
+   ],
+   "journals": [
+    {
+     "number": "000142",
+     "date": "27/10/2026",
+     "source": "expense",
+     "lines": [
+      {
+       "code": "545",
+       "name": "إيجار",
+       "debit": 200.0,
+       "credit": 0
+      },
+      {
+       "code": "215002",
+       "name": "القيمة المضافة المدفوعة",
+       "debit": 30.0,
+       "credit": 0
+      },
+      {
+       "code": "120103",
+       "name": "افتراضي-D2 خزينة 1",
+       "debit": 0,
+       "credit": 230.0
+      }
+     ]
+    }
+   ],
+   "reports": {},
+   "messages": []
+  },
+  "exproExpectation": "No per-expense account: account is the category account when set, else 541.",
+  "classification": "differs",
+  "classificationNote": "Daftra lets each expense pick any account (the chosen account overrides the category account); Expro has only the category account.",
+  "evidenceIds": [
+   "pw-d2-15",
+   "pw-d2-18"
+  ]
+ },
+ {
+  "id": "D2-S04",
+  "title": "Expense category: no account field, automatic account per category, mandatory-account settings visible",
+  "inputs": {
+   "categoryForm": "name, description, deactivated",
+   "settingsPage": "/v2/owner/finance_settings/finance_settings/general-settings (read only)"
+  },
+  "daftra": {
+   "documents": [
+    {
+     "type": "expense_category",
+     "id": 2
+    },
+    {
+     "type": "income_category",
+     "id": 3
+    }
+   ],
+   "journals": [],
+   "reports": {
+    "accountsCreated": "546 افتراضي-D2 تصنيف مصروف (id 391), 4204 افتراضي-D2 تصنيف إيراد (id 392), created on first use; they survive deletion of the category and are deleted separately from /owner/journal_accounts/delete/<id>",
+    "settings": "expenses_mandatory and income_mandatory exist as visible options, both unchecked, not toggled"
+   },
+   "messages": []
+  },
+  "exproExpectation": "FIN-04: optional account_id on the category, fallback to routed 541; accounting_expense_account_required setting (off).",
+  "classification": "differs",
+  "classificationNote": "Daftra has no account field on the category; it creates an account named after the category on first use. Expro asks the user to pick an account for the category. The mandatory-account settings exist in Daftra (not toggled here: needs batch C).",
+  "evidenceIds": [
+   "pw-d2-2",
+   "pw-d2-3",
+   "pw-d2-11",
+   "pw-d2-68"
+  ]
+ },
+ {
+  "id": "D2-S05",
+  "title": "Edit of a posted expense: amount, tax, date, treasury",
+  "inputs": {
+   "steps": [
+    "no change",
+    "amount 230->300",
+    "tax typed 45",
+    "date 27/10->26/10/2026",
+    "treasury T1->B (bank)",
+    "treasury B->T1"
+   ]
+  },
+  "daftra": {
+   "documents": [
+    {
+     "type": "expense",
+     "number": "000004",
+     "id": 4
+    }
+   ],
+   "journals": [
+    {
+     "number": "000141",
+     "date": "26/10/2026",
+     "source": "expense",
+     "lines": [
+      {
+       "code": "546",
+       "name": "افتراضي-D2 تصنيف مصروف",
+       "debit": 260.87,
+       "credit": 0
+      },
+      {
+       "code": "215002",
+       "name": "القيمة المضافة المدفوعة",
+       "debit": 39.13,
+       "credit": 0
+      },
+      {
+       "code": "1202002",
+       "name": "افتراضي-D2 بنك",
+       "debit": 0,
+       "credit": 300.0
+      }
+     ]
+    }
+   ],
+   "reports": {
+    "journalLog": "same journal 141 edited in place: each step logs «تعديل» on every line; no reversing journal; the no-change save left the journal untouched",
+    "treasuryB": -300.0,
+    "treasuryT1": "moved out of T1 and back"
+   },
+   "messages": [
+    "tax typed 45 was not kept: stays 39.13 (15% extracted from the amount)"
+   ]
+  },
+  "exproExpectation": "E15: reverse and re-post: a new journal revision for every change that touches the entry; no in-place edit.",
+  "classification": "differs",
+  "classificationNote": "Same ledger effect, different mechanism: Daftra keeps journal number 141 and edits the lines in place (history only in the journal log); Expro reverses and re-posts with a new revision. Also the tax amount cannot be edited independently in Daftra.",
+  "evidenceIds": [
+   "pw-d2-16",
+   "pw-d2-64"
+  ]
+ },
+ {
+  "id": "D2-S06",
+  "title": "Delete of an expense",
+  "inputs": {
+   "expense": "000005 (journal 142)"
+  },
+  "daftra": {
+   "documents": [
+    {
+     "type": "expense",
+     "number": "000005",
+     "state": "deleted (not found afterwards)"
+    }
+   ],
+   "journals": [],
+   "reports": {
+    "journal142": "disappears (journal log shows «حذف» on every line); no reversing journal",
+    "treasuryT1Delta": "+230 (480 -> 250 after the delete)"
+   },
+   "messages": [
+    "confirmation page «هل أنت متأكد من حذف المصروفات التالي ؟ 5» then نعم"
+   ]
+  },
+  "exproExpectation": "Delete reverses the journal (a reversing entry stays in the books).",
+  "classification": "differs",
+  "classificationNote": "Daftra erases the journal entirely; Expro keeps both the original and its reversal.",
+  "evidenceIds": [
+   "pw-d2-65"
+  ]
+ },
+ {
+  "id": "D2-S07",
+  "title": "Draft expense and the «issue» / «convert to draft» actions",
+  "inputs": {
+   "draft": "حفظ كمسودة 80 in T1",
+   "issue": "أصدر مصروف",
+   "toDraft": "تحويل إلى مسودة on issued 000007"
+  },
+  "daftra": {
+   "documents": [
+    {
+     "type": "expense",
+     "id": 8,
+     "before": "Draft-8",
+     "after": "000008"
+    },
+    {
+     "type": "expense",
+     "id": 7,
+     "before": "000007 (journal 149)",
+     "after": "Draft-7"
+    }
+   ],
+   "journals": [
+    {
+     "number": "000150",
+     "date": "27/10/2026",
+     "source": "expense",
+     "lines": [
+      {
+       "code": "546",
+       "name": "افتراضي-D2 تصنيف مصروف",
+       "debit": 80.0,
+       "credit": 0
+      },
+      {
+       "code": "120103",
+       "name": "افتراضي-D2 خزينة 1",
+       "debit": 0,
+       "credit": 80.0
+      }
+     ]
+    }
+   ],
+   "reports": {
+    "draftHasNoJournalAndNoTreasuryEffect": true,
+    "convertToDraft": "journal 149 deleted, T1 +100"
+   },
+   "messages": [
+    "تم إصدار المصروف #Draft-7 رقم المسودة بالرقم التالي …"
+   ]
+  },
+  "exproExpectation": "No draft state for expenses (only a deleted flag).",
+  "classification": "not comparable",
+  "classificationNote": "Expro has no draft expense; Daftra gives draft numbers «Draft-N», assigns the real number at issue and creates the journal then.",
+  "evidenceIds": [
+   "pw-d2-19",
+   "pw-d2-20"
+  ]
+ },
+ {
+  "id": "D2-S08",
+  "title": "Expense linked to a supplier; due / unpaid expense",
+  "inputs": {
+   "supplier": "S3 chosen in the expense form",
+   "amount": 100,
+   "treasury": "T1"
+  },
+  "daftra": {
+   "documents": [
+    {
+     "type": "expense",
+     "number": "000007",
+     "id": 7
+    }
+   ],
+   "journals": [
+    {
+     "number": "000149",
+     "date": "27/10/2026",
+     "source": "expense",
+     "lines": [
+      {
+       "code": "546",
+       "name": "افتراضي-D2 تصنيف مصروف",
+       "debit": 100.0,
+       "credit": 0
+      },
+      {
+       "code": "120103",
+       "name": "افتراضي-D2 خزينة 1",
+       "debit": 0,
+       "credit": 100.0
+      }
+     ]
+    }
+   ],
+   "reports": {
+    "supplierBalance": "supplier account 2211010 is not in the journal (no payable created); the supplier statement itself was not read before S3 was deleted (inference: balance effect nil)",
+    "dueOption": "none: the treasury select has no empty option"
+   },
+   "messages": []
+  },
+  "exproExpectation": "WP3: a due expense has no treasury and credits 2213.",
+  "classification": "differs",
+  "classificationNote": "Daftra offers no due/unpaid expense and a supplier does not create a payable; the WP3 due-expense feature has no Daftra counterpart.",
+  "evidenceIds": [
+   "pw-d2-21"
+  ]
+ },
+ {
+  "id": "D2-S09",
+  "title": "Expense and revenue voucher without category and without sub-account",
+  "inputs": {
+   "expense": 20,
+   "income": 30,
+   "treasury": "T1"
+  },
+  "daftra": {
+   "documents": [
+    {
+     "type": "expense",
+     "number": "000009",
+     "id": 11
+    },
+    {
+     "type": "income",
+     "number": "000003",
+     "id": 12
+    }
+   ],
+   "journals": [
+    {
+     "number": "000172",
+     "date": "27/10/2026",
+     "source": "expense",
+     "lines": [
+      {
+       "code": "541",
+       "name": "مصروفات أخرى",
+       "debit": 20.0,
+       "credit": 0
+      },
+      {
+       "code": "120103",
+       "name": "افتراضي-D2 خزينة 1",
+       "debit": 0,
+       "credit": 20.0
+      }
+     ]
+    },
+    {
+     "number": "000173",
+     "date": "27/10/2026",
+     "source": "income",
+     "lines": [
+      {
+       "code": "120103",
+       "name": "افتراضي-D2 خزينة 1",
+       "debit": 30.0,
+       "credit": 0
+      },
+      {
+       "code": "4201",
+       "name": "إيرادات أخرى",
+       "debit": 0,
+       "credit": 30.0
+      }
+     ]
+    }
+   ],
+   "reports": {},
+   "messages": []
+  },
+  "exproExpectation": "A category without an account falls back to routed 541.",
+  "classification": "matches",
+  "classificationNote": "Expense: matches (541). Revenue has no Expro counterpart (FIN-03).",
+  "evidenceIds": [
+   "pw-d2-55"
+  ]
+ },
+ {
+  "id": "D2-S10",
+  "title": "Multi-account expense (two accounts, one line with VAT)",
+  "inputs": {
+   "lines": [
+    {
+     "account": "545",
+     "amount": 100,
+     "tax": "15%"
+    },
+    {
+     "account": "541",
+     "amount": 50,
+     "tax": null
+    }
+   ],
+   "treasury": "T1"
+  },
+  "daftra": {
+   "documents": [
+    {
+     "type": "expense",
+     "number": "000010",
+     "id": 13,
+     "total": 165
+    }
+   ],
+   "journals": [
+    {
+     "number": "000174",
+     "date": "27/10/2026",
+     "source": "expense",
+     "lines": [
+      {
+       "code": "545",
+       "name": "إيجار",
+       "debit": 100.0,
+       "credit": 0
+      },
+      {
+       "code": "541",
+       "name": "مصروفات أخرى",
+       "debit": 50.0,
+       "credit": 0
+      },
+      {
+       "code": "215002",
+       "name": "القيمة المضافة المدفوعة",
+       "debit": 15.0,
+       "credit": 0
+      },
+      {
+       "code": "120103",
+       "name": "افتراضي-D2 خزينة 1",
+       "debit": 0,
+       "credit": 165.0
+      }
+     ]
+    }
+   ],
+   "reports": {},
+   "messages": []
+  },
+  "exproExpectation": "Single-account expenses only.",
+  "classification": "not comparable",
+  "classificationNote": "Multi-account expenses do not exist in Expro (FIN-02/WP3).",
+  "evidenceIds": [
+   "pw-d2-56"
+  ]
+ },
+ {
+  "id": "D2-S11",
+  "title": "Revenue voucher (سند قبض / إيراد): tax, chosen account, edit, delete, reports",
+  "inputs": {
+   "R1": {
+    "typedAmount": 1000,
+    "tax": "15% (page makes 1150)",
+    "category": "D2 income category",
+    "treasury": "T1"
+   },
+   "R2": {
+    "amount": 100,
+    "subAccount": "4201",
+    "treasury": "T1"
+   },
+   "edit": "R1 1150 -> 1300",
+   "delete": "R2"
+  },
+  "daftra": {
+   "documents": [
+    {
+     "type": "income",
+     "number": "000001",
+     "id": 9,
+     "amount": 1300,
+     "tax": 169.57
+    },
+    {
+     "type": "income",
+     "number": "000002",
+     "id": 10,
+     "state": "deleted"
+    }
+   ],
+   "journals": [
+    {
+     "number": "000153",
+     "date": "27/10/2026",
+     "source": "income",
+     "lines": [
+      {
+       "code": "120103",
+       "name": "افتراضي-D2 خزينة 1",
+       "debit": 1300.0,
+       "credit": 0
+      },
+      {
+       "code": "4204",
+       "name": "افتراضي-D2 تصنيف إيراد",
+       "debit": 0,
+       "credit": 1130.43
+      },
+      {
+       "code": "215001",
+       "name": "القيمة المضافة المحصلة",
+       "debit": 0,
+       "credit": 169.57
+      }
+     ]
+    },
+    {
+     "number": "000154 (deleted)",
+     "date": "27/10/2026",
+     "source": "income",
+     "lines": [
+      {
+       "code": "120103",
+       "name": "افتراضي-D2 خزينة 1",
+       "debit": 100.0,
+       "credit": 0
+      },
+      {
+       "code": "4201",
+       "name": "إيرادات أخرى",
+       "debit": 0,
+       "credit": 100.0
+      }
+     ]
+    }
+   ],
+   "reports": {
+    "incomesReportColumns": "الكود، التاريخ، خزينة، التصنيف، البائع، الحساب الفرعي، مدخل العملية، ملاحظة، المبلغ (SAR)",
+    "profitLoss": "income category account 1,130.43 under إيرادات أخرى",
+    "treasurySystemTransactions": "issued journals only with running balance"
+   },
+   "messages": []
+  },
+  "exproExpectation": "No revenue voucher in Expro (FIN-03 deferred with P6).",
+  "classification": "not comparable",
+  "classificationNote": "Reference behaviour for the future implementation: Dr treasury total, Cr income account (category account auto-created on first use or chosen account) net, Cr 215001 tax; edit in place; delete removes the journal.",
+  "evidenceIds": [
+   "pw-d2-22",
+   "pw-d2-23",
+   "pw-d2-24",
+   "pw-d2-25",
+   "pw-d2-26",
+   "pw-d2-27",
+   "pw-d2-28"
+  ]
+ },
+ {
+  "id": "D2-S12",
+  "title": "Supplier opening balance: journal, statement, aging, edit, delete",
+  "inputs": {
+   "starting_balance": 500,
+   "date": "27/10/2026",
+   "edit": "650 dated 26/10/2026"
+  },
+  "daftra": {
+   "documents": [
+    {
+     "type": "supplier_opening_balance",
+     "record": "purchase_order_payment 30 (#000028), status مكتمل, amount -500.00"
+    }
+   ],
+   "journals": [
+    {
+     "number": "000135",
+     "date": "27/10/2026 (then 26/10/2026)",
+     "source": "purchase_order_payment",
+     "lines": [
+      {
+       "code": "214",
+       "name": "أرصدة افتتاحية",
+       "debit": 500.0,
+       "credit": 0
+      },
+      {
+       "code": "2211008",
+       "name": "مورد افتراضي-D2 1",
+       "debit": 0,
+       "credit": 500.0
+      }
+     ]
+    }
+   ],
+   "reports": {
+    "statement": "أرصدة افتتاحية #30 500.00 then 650.00 on 26/10",
+    "supplierBalanceReport": "الرصيد قبل 650 (dated before the period)",
+    "agedCreditors": "650 in «1 - 30 يوم»",
+    "deleteResult": "journal 135 removed, supplier balance 0, button أضافة رصيد الافتتاحي returns"
+   },
+   "messages": [
+    "Credit Payment Updated Successfully"
+   ]
+  },
+  "exproExpectation": "E35/E37: opening balance «ما علينا» as a purchase without items: Dr 214, Cr supplier.",
+  "classification": "matches",
+  "classificationNote": "Journal lines match (Dr 214 / Cr supplier). Differences: Daftra stores it as a negative payment record #000028 with its own date, it feeds «الرصيد قبل» and the aging by that date, it is edited in place and deleted with its journal.",
+  "evidenceIds": [
+   "pw-d2-6",
+   "pw-d2-7",
+   "pw-d2-8",
+   "pw-d2-9",
+   "pw-d2-33",
+   "pw-d2-34",
+   "pw-d2-35"
+  ]
+ },
+ {
+  "id": "D2-S13",
+  "title": "Supplier standalone payment 700 over an opening balance 500, then a new purchase, then delete the payment",
+  "inputs": {
+   "payment": {
+    "amount": 700,
+    "method": "نقدي",
+    "treasury": "T1",
+    "status": "مكتمل"
+   },
+   "purchase": "P4 3x100 unpaid, received, supplier S1",
+   "delete": "the payment"
+  },
+  "daftra": {
+   "documents": [
+    {
+     "type": "supplier_payment",
+     "number": "000029",
+     "id": 31
+    },
+    {
+     "type": "purchase_invoice",
+     "number": "000025",
+     "id": 28,
+     "afterSave": "مدفوعة جزئياً paid 200 remaining 100 via automatic payment #000030 (وسيلة رصيد المورد)"
+    }
+   ],
+   "journals": [
+    {
+     "number": "000155",
+     "date": "27/10/2026",
+     "source": "purchase_order_payment",
+     "lines": [
+      {
+       "code": "2211008",
+       "name": "مورد افتراضي-D2 1",
+       "debit": 700.0,
+       "credit": 0
+      },
+      {
+       "code": "120103",
+       "name": "افتراضي-D2 خزينة 1",
+       "debit": 0,
+       "credit": 700.0
+      }
+     ]
+    },
+    {
+     "number": "000157",
+     "date": "27/10/2026",
+     "source": "purchase_order",
+     "lines": [
+      {
+       "code": "1203001",
+       "name": "Primary Warehouse",
+       "debit": 300.0,
+       "credit": 0
+      },
+      {
+       "code": "2211008",
+       "name": "مورد افتراضي-D2 1",
+       "debit": 0,
+       "credit": 300.0
+      }
+     ]
+    }
+   ],
+   "reports": {
+    "afterPayment": "supplier balance -200 (مدين 200)",
+    "afterP4": "balance 100",
+    "afterDeletingPayment": "journal 155 deleted, automatic payment #000030 withdrawn, P4 unpaid 300, balance 800, T1 back"
+   },
+   "messages": []
+  },
+  "exproExpectation": "E35/E37: Dr supplier, Cr treasury; the credit is spent at once on the oldest open purchase (E34: immediate); deleting the payment un-spends it (E30).",
+  "classification": "differs",
+  "classificationNote": "Journal and delete behaviour match (E30). Timing differs (G-60): Daftra applies the credit when the new purchase is saved; Expro applies it immediately.",
+  "evidenceIds": [
+   "pw-d2-29",
+   "pw-d2-30",
+   "pw-d2-31",
+   "pw-d2-32"
+  ]
+ },
+ {
+  "id": "D2-S14",
+  "title": "Edit of a saved purchase line: quantity then price (average cost and journal)",
+  "inputs": {
+   "P1": "10x100",
+   "P2": "10x120",
+   "editQty": "10->8",
+   "editPrice": "120->140"
+  },
+  "daftra": {
+   "documents": [
+    {
+     "type": "purchase_invoice",
+     "number": "000026",
+     "id": 29
+    },
+    {
+     "type": "purchase_invoice",
+     "number": "000027",
+     "id": 30
+    }
+   ],
+   "journals": [
+    {
+     "number": "000159",
+     "date": "27/10/2026",
+     "source": "purchase_order",
+     "lines": [
+      {
+       "code": "1203001",
+       "name": "Primary Warehouse",
+       "debit": 960.0,
+       "credit": 0
+      },
+      {
+       "code": "2211009",
+       "name": "مورد افتراضي-D2 2",
+       "debit": 0,
+       "credit": 960.0
+      }
+     ]
+    },
+    {
+     "number": "000159 (after price edit)",
+     "date": "27/10/2026",
+     "source": "purchase_order",
+     "lines": [
+      {
+       "code": "1203001",
+       "name": "Primary Warehouse",
+       "debit": 1120.0,
+       "credit": 0
+      },
+      {
+       "code": "2211009",
+       "name": "مورد افتراضي-D2 2",
+       "debit": 0,
+       "credit": 1120.0
+      }
+     ]
+    }
+   ],
+   "reports": {
+    "averageAfterP1": 100.0,
+    "averageAfterP2": 110.0,
+    "afterQtyEdit": {
+     "stock": 18,
+     "average": 108.888889
+    },
+    "afterPriceEdit": {
+     "stock": 18,
+     "average": 117.777778,
+     "stockValue": 2120
+    }
+   },
+   "messages": []
+  },
+  "exproExpectation": "G-37/E15: saved receiving lines are not edited; corrections are by return or delete.",
+  "classification": "differs",
+  "classificationNote": "Daftra edits the journal in place (same number 159) and recomputes the stock movement and the product average; Expro refuses line edits.",
+  "evidenceIds": [
+   "pw-d2-36",
+   "pw-d2-37",
+   "pw-d2-38",
+   "pw-d2-72"
+  ]
+ },
+ {
+  "id": "D2-S15",
+  "title": "Delete and restore a purchase invoice: effect on the average cost",
+  "inputs": {
+   "delete": "P2 (8 x 140 after edits)",
+   "restore": "from the trash"
+  },
+  "daftra": {
+   "documents": [
+    {
+     "type": "purchase_invoice",
+     "number": "000027",
+     "id": 30
+    }
+   ],
+   "journals": [
+    {
+     "number": "000160 (after restore)",
+     "date": "27/10/2026",
+     "source": "purchase_order",
+     "lines": [
+      {
+       "code": "1203001",
+       "name": "Primary Warehouse",
+       "debit": 1120.0,
+       "credit": 0
+      },
+      {
+       "code": "2211009",
+       "name": "مورد افتراضي-D2 2",
+       "debit": 0,
+       "credit": 1120.0
+      }
+     ]
+    }
+   ],
+   "reports": {
+    "afterDelete": {
+     "stock": 10,
+     "average": 100.0,
+     "journal159": "removed"
+    },
+    "afterRestore": {
+     "stock": 18,
+     "average": 117.777778,
+     "newJournal": "000160",
+     "newStockMovement": "#71 (was #70)"
+    },
+    "trash": "خلال 90 أيام «الحذف النهائي»; Delete Permanently asks for confirmation"
+   },
+   "messages": [
+    "تم حذف فاتورة شراء",
+    "تم استرداد طلب الشراء بنجاح"
+   ]
+  },
+  "exproExpectation": "G-43: deleting a receiving does not change the average cost (the item cost is not recomputed).",
+  "classification": "differs",
+  "classificationNote": "Daftra recomputes the average from the remaining movements (back to 100.00 after deleting the 8x140 purchase); Expro leaves the item cost as it was.",
+  "evidenceIds": [
+   "pw-d2-39",
+   "pw-d2-40",
+   "pw-d2-65"
+  ]
+ },
+ {
+  "id": "D2-S16",
+  "title": "Partial purchase refund (3 of 10) at a higher current average, without and with cash refund",
+  "inputs": {
+   "R1": "3 units at invoice price 100, no cash refund",
+   "R2": "2 units at 100 with refund to T1",
+   "averageAtTime": 117.777778
+  },
+  "daftra": {
+   "documents": [
+    {
+     "type": "purchase_refund",
+     "number": "000003",
+     "id": 31
+    },
+    {
+     "type": "purchase_refund",
+     "number": "000004",
+     "id": 33
+    }
+   ],
+   "journals": [
+    {
+     "number": "000161",
+     "date": "27/10/2026",
+     "source": "purchase_refund",
+     "lines": [
+      {
+       "code": "2211009",
+       "name": "مورد افتراضي-D2 2",
+       "debit": 300.0,
+       "credit": 0
+      },
+      {
+       "code": "511",
+       "name": "تكلفة المبيعات",
+       "debit": 53.33,
+       "credit": 0
+      },
+      {
+       "code": "1203001",
+       "name": "Primary Warehouse",
+       "debit": 0,
+       "credit": 353.33
+      }
+     ]
+    },
+    {
+     "number": "000163",
+     "date": "27/10/2026",
+     "source": "purchase_refund",
+     "lines": [
+      {
+       "code": "2211009",
+       "name": "مورد افتراضي-D2 2",
+       "debit": 200.0,
+       "credit": 0
+      },
+      {
+       "code": "511",
+       "name": "تكلفة المبيعات",
+       "debit": 35.56,
+       "credit": 0
+      },
+      {
+       "code": "1203001",
+       "name": "Primary Warehouse",
+       "debit": 0,
+       "credit": 235.56
+      }
+     ]
+    },
+    {
+     "number": "000164",
+     "date": "27/10/2026",
+     "source": "purchase_order_payment",
+     "lines": [
+      {
+       "code": "120103",
+       "name": "افتراضي-D2 خزينة 1",
+       "debit": 200.0,
+       "credit": 0
+      },
+      {
+       "code": "2211009",
+       "name": "مورد افتراضي-D2 2",
+       "debit": 0,
+       "credit": 200.0
+      }
+     ]
+    }
+   ],
+   "reports": {
+    "average": "117.777778 unchanged (stock 18 -> 15 -> 13)",
+    "supplierStatement": "مرتجع مشتريات #000003 -300"
+   },
+   "messages": []
+  },
+  "exproExpectation": "ReceivingPostingBuilder::giveBack: Dr supplier total, Cr tax input, Cr inventory at the current unit cost, difference to 511; cash refund as a second journal; average unchanged (T-15).",
+  "classification": "matches",
+  "classificationNote": "Identical lines and amounts (53.33 and 35.56 to 511).",
+  "evidenceIds": [
+   "pw-d2-41",
+   "pw-d2-43"
+  ]
+ },
+ {
+  "id": "D2-S17",
+  "title": "Purchase debit note with stock and a unit price above the average",
+  "inputs": {
+   "qty": 2,
+   "price": 130,
+   "received": true,
+   "averageAtTime": 117.777778
+  },
+  "daftra": {
+   "documents": [
+    {
+     "type": "purchase_debit_note",
+     "number": "00003",
+     "id": 32
+    }
+   ],
+   "journals": [
+    {
+     "number": "000162",
+     "date": "27/10/2026",
+     "source": "purchase_debit_note",
+     "lines": [
+      {
+       "code": "2211009",
+       "name": "مورد افتراضي-D2 2",
+       "debit": 260.0,
+       "credit": 0
+      },
+      {
+       "code": "1203001",
+       "name": "Primary Warehouse",
+       "debit": 0,
+       "credit": 235.56
+      },
+      {
+       "code": "511",
+       "name": "تكلفة المبيعات",
+       "debit": 0,
+       "credit": 24.44
+      }
+     ]
+    }
+   ],
+   "reports": {
+    "stock": "15 -> 13",
+    "average": "unchanged 117.777778",
+    "statement": "يظهر بعد الاشعار"
+   },
+   "messages": []
+  },
+  "exproExpectation": "A return without cash refund (credit left with the supplier) uses the same builder: stock at average, difference to 511 (credit when the price exceeds the average).",
+  "classification": "matches",
+  "classificationNote": "Same accounts and amounts as a refund; Daftra splits the document into two kinds (refund with its own cash-refund journal, debit note) whereas Expro has one return document.",
+  "evidenceIds": [
+   "pw-d2-42"
+  ]
+ },
+ {
+  "id": "D2-S18",
+  "title": "Purchase paid in excess: the «تسوية» button with both options",
+  "inputs": {
+   "P3": "100 invoice, payment 150, option 2 (convert to supplier credit)",
+   "P5": "100 invoice, payment 150, option 1 (remove the excess)"
+  },
+  "daftra": {
+   "documents": [
+    {
+     "type": "purchase_invoice",
+     "number": "000028",
+     "id": 34
+    },
+    {
+     "type": "purchase_invoice",
+     "number": "000029",
+     "id": 35
+    }
+   ],
+   "journals": [
+    {
+     "number": "000168 (before)",
+     "date": "27/10/2026",
+     "source": "purchase_order_payment",
+     "lines": [
+      {
+       "code": "2211010",
+       "name": "مورد افتراضي-D2 3",
+       "debit": 150.0,
+       "credit": 0
+      },
+      {
+       "code": "120103",
+       "name": "افتراضي-D2 خزينة 1",
+       "debit": 0,
+       "credit": 150.0
+      }
+     ]
+    },
+    {
+     "number": "000168 (after option 2)",
+     "date": "27/10/2026",
+     "source": "purchase_order_payment",
+     "lines": [
+      {
+       "code": "2211010",
+       "name": "مورد افتراضي-D2 3",
+       "debit": 50.0,
+       "credit": 0
+      },
+      {
+       "code": "120103",
+       "name": "افتراضي-D2 خزينة 1",
+       "debit": 0,
+       "credit": 50.0
+      }
+     ]
+    },
+    {
+     "number": "000169 (new payment #000032)",
+     "date": "27/10/2026",
+     "source": "purchase_order_payment",
+     "lines": [
+      {
+       "code": "2211010",
+       "name": "مورد افتراضي-D2 3",
+       "debit": 100.0,
+       "credit": 0
+      },
+      {
+       "code": "120103",
+       "name": "افتراضي-D2 خزينة 1",
+       "debit": 0,
+       "credit": 100.0
+      }
+     ]
+    },
+    {
+     "number": "000171 (option 1: payment #000034 150 -> 100)",
+     "date": "27/10/2026",
+     "source": "purchase_order_payment",
+     "lines": [
+      {
+       "code": "2211009",
+       "name": "مورد افتراضي-D2 2",
+       "debit": 100.0,
+       "credit": 0
+      },
+      {
+       "code": "120103",
+       "name": "افتراضي-D2 خزينة 1",
+       "debit": 0,
+       "credit": 100.0
+      }
+     ]
+    }
+   ],
+   "reports": {
+    "status": "مدفوع بالزيادة with banner, then مدفوعة",
+    "option2": "payment 31 reduced to 50 (standalone credit), new payment 32 of 100 on the invoice; T1 unchanged",
+    "option1": "payment reduced in place to 100, 50 returns to T1"
+   },
+   "messages": [
+    "إجمالي الفاتورة هو:100.00 , وقد أضفت إجمالي:150.00 مدفوعات لهذه الفاتورة ,50.00 الإضافية عبارة عن دفعة زائدة …",
+    "You must select an option (client alert when no option)"
+   ]
+  },
+  "exproExpectation": "E29: a payment above the purchase leaves the surplus as supplier credit; no settle button; a user would edit or delete the payment.",
+  "classification": "differs",
+  "classificationNote": "Option 2 reaches the same economic state as Expro (surplus kept as credit) but by splitting the payment; option 1 (remove the excess and return cash) has no Expro counterpart. Both options are reversible only by editing or deleting payments.",
+  "evidenceIds": [
+   "pw-d2-50",
+   "pw-d2-51",
+   "pw-d2-52",
+   "pw-d2-53",
+   "pw-d2-54"
+  ]
+ },
+ {
+  "id": "D2-S19",
+  "title": "Treasury deletion and deactivation rules; transfers",
+  "inputs": {
+   "T2": "cash treasury with no movement",
+   "B": "bank account with two transfers and balance 0",
+   "T1": "cash treasury with transfers only and balance 0",
+   "transfers": [
+    "#4 100 T1->B",
+    "#5 100 B->T1",
+    "edit #5 to 60 then back to 100"
+   ]
+  },
+  "daftra": {
+   "documents": [
+    {
+     "type": "treasury_transfer",
+     "number": 4,
+     "id": 4
+    },
+    {
+     "type": "treasury_transfer",
+     "number": 5,
+     "id": 5
+    }
+   ],
+   "journals": [
+    {
+     "number": "000165",
+     "date": "27/10/2026",
+     "source": "treasury_transfer",
+     "lines": [
+      {
+       "code": "1202002",
+       "name": "افتراضي-D2 بنك",
+       "debit": 100.0,
+       "credit": 0
+      },
+      {
+       "code": "120103",
+       "name": "افتراضي-D2 خزينة 1",
+       "debit": 0,
+       "credit": 100.0
+      }
+     ]
+    },
+    {
+     "number": "000166",
+     "date": "27/10/2026",
+     "source": "treasury_transfer",
+     "lines": [
+      {
+       "code": "120103",
+       "name": "افتراضي-D2 خزينة 1",
+       "debit": 100.0,
+       "credit": 0
+      },
+      {
+       "code": "1202002",
+       "name": "افتراضي-D2 بنك",
+       "debit": 0,
+       "credit": 100.0
+      }
+     ]
+    }
+   ],
+   "reports": {
+    "deleteT2": "allowed, account 120104 removed",
+    "deleteB": "refused: «يحتوي هذا البنك على معاملات حالية أو تم تعيينها للموظفين أو تم تعيينها لدفتر الشيكات أو لديها سلفة، يمكنك جعله غير نشط»",
+    "deleteT1": "refused with the same text for «هذه الخزانة»",
+    "deactivate": "allowed at zero balance; the transfer button disappears; تنشيط restores",
+    "transfer": "no delete button; edit keeps journal 166 in place"
+   },
+   "messages": []
+  },
+  "exproExpectation": "P6: a treasury without movement can be deleted, one with movement cannot; deactivation refused when the balance is not zero (D3-a, stricter than Daftra); a transfer is cancelled by a reversing entry.",
+  "classification": "matches",
+  "classificationNote": "Delete rule matches (movement, not balance, blocks deletion). Differences: Daftra cannot delete or cancel a transfer (only edit it in place), Expro cancels by reversal; Daftra allows deactivating a treasury with a balance (observed in S35).",
+  "evidenceIds": [
+   "pw-d2-44",
+   "pw-d2-45",
+   "pw-d2-46",
+   "pw-d2-47",
+   "pw-d2-48",
+   "pw-d2-49",
+   "pw-d2-69"
+  ]
+ },
+ {
+  "id": "D2-S20",
+  "title": "Stock permits (in at price 0, in with price and counter account, out) and the stocktake settlement",
+  "inputs": {
+   "Q1": "in 2 units price 0 no account",
+   "Q2": "in 2 units price 150 account 2213",
+   "Q3": "out 3 units",
+   "stocktake": "A: count 9 vs system 11; B: count 8 vs system 6; then «تسوية» and «التراجع عن التسوية»"
+  },
+  "daftra": {
+   "documents": [
+    {
+     "type": "requisition",
+     "number": "000001/in",
+     "id": 1
+    },
+    {
+     "type": "requisition",
+     "number": "000002/in",
+     "id": 2
+    },
+    {
+     "type": "requisition",
+     "number": "000001/out",
+     "id": 3
+    },
+    {
+     "type": "stocktaking",
+     "number": "000001"
+    }
+   ],
+   "journals": [
+    {
+     "number": "000175",
+     "date": "27/10/2026",
+     "source": "requisition",
+     "lines": [
+      {
+       "code": "1203001",
+       "name": "Primary Warehouse",
+       "debit": 300.0,
+       "credit": 0
+      },
+      {
+       "code": "2213",
+       "name": "أطراف دائنة أخرى",
+       "debit": 0,
+       "credit": 300.0
+      }
+     ]
+    },
+    {
+     "number": "000176",
+     "date": "27/10/2026",
+     "source": "requisition",
+     "lines": [
+      {
+       "code": "12042",
+       "name": "أطراف مدينة أخرى",
+       "debit": 266.67,
+       "credit": 0
+      },
+      {
+       "code": "1203001",
+       "name": "Primary Warehouse",
+       "debit": 0,
+       "credit": 266.67
+      }
+     ]
+    },
+    {
+     "number": "000177",
+     "date": "27/10/2026",
+     "source": "requisition",
+     "lines": [
+      {
+       "code": "1203001",
+       "name": "Primary Warehouse",
+       "debit": 177.78,
+       "credit": 0
+      },
+      {
+       "code": "511",
+       "name": "تكلفة المبيعات",
+       "debit": 0,
+       "credit": 177.78
+      }
+     ]
+    },
+    {
+     "number": "000178",
+     "date": "27/10/2026",
+     "source": "requisition",
+     "lines": [
+      {
+       "code": "511",
+       "name": "تكلفة المبيعات",
+       "debit": 235.56,
+       "credit": 0
+      },
+      {
+       "code": "1203001",
+       "name": "Primary Warehouse",
+       "debit": 0,
+       "credit": 235.56
+      }
+     ]
+    }
+   ],
+   "reports": {
+    "Q1": "no journal; movement #77 price 0.00 lowered the average 100 -> 71.428571 while the ledger value stayed 500",
+    "Q2": "average 88.888889 after (stock 9)",
+    "Q3": "unit price read-only = average 88.89; default account 12042",
+    "stocktakeSettle": "creates two automatic permits (in #000003 / out #000002) with journals 177/178 at the current average; undo removes them and the journals",
+    "deletingPermits": "average recomputed after each delete (88.89, 71.43, 100.00)"
+   },
+   "messages": []
+  },
+  "exproExpectation": "WP27 not implemented: no stock permits and no stocktake document in Expro.",
+  "classification": "not comparable",
+  "classificationNote": "Reference behaviour for WP27: counter account default 2213 for in-permits (12042 for out-permits), price-0 receipts dilute the average without a journal, stocktake settlement posts against 511 at the current average.",
+  "evidenceIds": [
+   "pw-d2-57",
+   "pw-d2-58",
+   "pw-d2-59",
+   "pw-d2-60",
+   "pw-d2-61",
+   "pw-d2-62",
+   "pw-d2-63"
+  ]
+ },
+ {
+  "id": "D2-S21",
+  "title": "Deletion semantics and cleanup (trash, accounts, counters, quota)",
+  "inputs": {
+   "deleted": "expenses, incomes, payments, opening balance, purchases, refunds, debit note, permits, stocktake, categories, products, suppliers, auto accounts"
+  },
+  "daftra": {
+   "documents": [],
+   "journals": [],
+   "reports": {
+    "trash": "purchase invoices, refunds, debit notes go to the trash first (90 days) and block deletion of products they reference until permanently deleted",
+    "hardDelete": "expenses, incomes, payments, permits, stocktake, suppliers",
+    "accounts": "auto-created category accounts remain after the category is deleted",
+    "counters": "next numbers never decrease",
+    "quota": "35/50 -> 41/50 invoices and estimates (D1 only), clients 4 -> 5 (D1 only)"
+   },
+   "messages": []
+  },
+  "exproExpectation": "E15 reversal-based cancellation keeps history; deletion of documents with journals is by reversal.",
+  "classification": "differs",
+  "classificationNote": "Daftra erases journals on delete and keeps only a journal log; trash retention exists for purchase documents.",
+  "evidenceIds": [
+   "pw-d2-65",
+   "pw-d2-66",
+   "pw-d2-67",
+   "pw-d2-68",
+   "pw-d2-70",
+   "pw-d2-71"
+  ]
+ }
+]
