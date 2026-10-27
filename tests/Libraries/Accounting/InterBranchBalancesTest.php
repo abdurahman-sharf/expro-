@@ -12,6 +12,7 @@ use App\Libraries\Accounting\PairBalance;
 use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Accounting\TreasuryTransfers;
+use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -312,6 +313,40 @@ class InterBranchBalancesTest extends CIUnitTestCase
         $this->assertSame(['receivable' => '30.0000', 'payable' => '100.0000'], $between['second']);
         $this->assertSame(['receivable' => '0.0000', 'payable' => '0.0000'], $this->balances->between(1, $this->thirdBranch)['first']);
         $this->assertSame(['receivable' => '100.0000', 'payable' => '0.0000'], $this->balances->between(1, $this->secondBranch, '2026-10-21')['first']);
+    }
+
+    public function testBetween_ReadsOnlyTheJournalsOfTheTwoBranchesAndTheReportReadsAll(): void
+    {
+        $this->send($this->first, $this->second, '100.00');
+        $this->send($this->second, $this->third, '20.00');
+
+        $asked = [];
+        $count = static function ($query) use (&$asked): void {
+            if (str_contains((string) $query->getQuery(), 'GROUP BY j.branch_id')) {
+                $asked[] = (string) $query->getQuery();
+            }
+        };
+
+        Events::on('DBQuery', $count);
+
+        try {
+            $between = $this->balances->between(1, $this->secondBranch);
+
+            $this->assertCount(1, $asked, 'The sums are added up by the database in one query');
+            $this->assertStringContainsString('j.branch_id IN (1,' . $this->secondBranch . ')', $asked[0]);
+
+            $asked = [];
+
+            $this->balances->report();
+
+            $this->assertCount(1, $asked);
+            $this->assertStringNotContainsString('j.branch_id IN', $asked[0]);
+        } finally {
+            Events::removeListener('DBQuery', $count);
+        }
+
+        $this->assertSame(['receivable' => '100.0000', 'payable' => '0.0000'], $between['first']);
+        $this->assertSame(['receivable' => '0.0000', 'payable' => '100.0000'], $between['second'], 'What the second branch sent to the third is not between these two');
     }
 
     /**

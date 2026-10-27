@@ -17,8 +17,7 @@ use Config\Database;
  */
 final class InterBranchBalances
 {
-    private const ZERO  = '0.0000';
-    private const CHUNK = 5000;
+    private const ZERO = '0.0000';
 
     private BaseConnection $db;
     private InterBranchPosition $position;
@@ -118,8 +117,12 @@ final class InterBranchBalances
 
     /**
      * What each branch holds on the accounts between branches against each other branch, and what
-     * it holds against none. The journals are read in runs of a few thousand, so that what is held
-     * in memory is a run and not the whole history of the two accounts.
+     * it holds against none, added up by the database so that what comes back is a row for each
+     * pair and not a row for each journal.
+     *
+     * The other branch of a journal is the one recorded with the journal it belongs to (itself, or
+     * for a reversal the one it takes back) or, when none is recorded, the one the transfer of
+     * money or of stock it belongs to names, which is a derived pair.
      *
      * @param list<int>|null $branchIds Only the journals of these branches, none for every branch.
      *
@@ -128,41 +131,36 @@ final class InterBranchBalances
     private function matrix(?string $asOf, ?array $branchIds = null): array
     {
         [$receivable, $payable] = $this->position->accounts();
-        $pairs                  = [];
-        $unattributed           = [];
-        $after                  = 0;
+        $all                    = array_values(array_unique([...$receivable, ...$payable]));
 
-        do {
-            $ids      = $this->journalIdsOnTheAccounts([...$receivable, ...$payable], $asOf, $branchIds, $after);
-            $journals = $ids === [] ? [] : $this->journalsOnTheAccounts($receivable, $payable, $ids);
-            $after    = $ids === [] ? $after : $ids[array_key_last($ids)];
+        if ($all === []) {
+            return ['pairs' => [], 'unattributed' => []];
+        }
 
-            if ($journals === []) {
-                break;
+        $pairs        = [];
+        $unattributed = [];
+
+        foreach ($this->db->query($this->matrixQuery($receivable, $payable, $all, $asOf, $branchIds))->getResult() as $row) {
+            $branchId   = (int) $row->branch_id;
+            $receivable = bcadd((string) $row->receivable, '0', SaleAmounts::SCALE);
+            $payable    = bcadd((string) $row->payable, '0', SaleAmounts::SCALE);
+
+            if ($row->recorded === null && $row->derived === null) {
+                $unattributed[$branchId] ??= ['receivable' => self::ZERO, 'payable' => self::ZERO];
+                $unattributed[$branchId]['receivable'] = bcadd($unattributed[$branchId]['receivable'], $receivable, SaleAmounts::SCALE);
+                $unattributed[$branchId]['payable']    = bcadd($unattributed[$branchId]['payable'], $payable, SaleAmounts::SCALE);
+
+                continue;
             }
 
-            $counterparts = $this->counterpartsOf($journals);
+            $counterpartId = (int) ($row->recorded ?? $row->derived);
+            $basis         = $row->recorded === null ? PairBalance::DERIVED : PairBalance::RECORDED;
 
-            foreach ($journals as $journal) {
-                $branchId = (int) $journal->branch_id;
-                $found    = $counterparts[$journal->reverses_journal_id === null ? (int) $journal->journal_id : (int) $journal->reverses_journal_id] ?? null;
-
-                if ($found === null) {
-                    $unattributed[$branchId] ??= ['receivable' => self::ZERO, 'payable' => self::ZERO];
-                    $unattributed[$branchId]['receivable'] = bcadd($unattributed[$branchId]['receivable'], (string) $journal->receivable, SaleAmounts::SCALE);
-                    $unattributed[$branchId]['payable']    = bcadd($unattributed[$branchId]['payable'], (string) $journal->payable, SaleAmounts::SCALE);
-
-                    continue;
-                }
-
-                [$counterpartId, $basis] = $found;
-
-                $pairs[$branchId][$counterpartId] ??= ['receivable' => self::ZERO, 'payable' => self::ZERO, 'bases' => []];
-                $pairs[$branchId][$counterpartId]['receivable']    = bcadd($pairs[$branchId][$counterpartId]['receivable'], (string) $journal->receivable, SaleAmounts::SCALE);
-                $pairs[$branchId][$counterpartId]['payable']       = bcadd($pairs[$branchId][$counterpartId]['payable'], (string) $journal->payable, SaleAmounts::SCALE);
-                $pairs[$branchId][$counterpartId]['bases'][$basis] = true;
-            }
-        } while (count($ids) === self::CHUNK);
+            $pairs[$branchId][$counterpartId] ??= ['receivable' => self::ZERO, 'payable' => self::ZERO, 'bases' => []];
+            $pairs[$branchId][$counterpartId]['receivable']    = bcadd($pairs[$branchId][$counterpartId]['receivable'], $receivable, SaleAmounts::SCALE);
+            $pairs[$branchId][$counterpartId]['payable']       = bcadd($pairs[$branchId][$counterpartId]['payable'], $payable, SaleAmounts::SCALE);
+            $pairs[$branchId][$counterpartId]['bases'][$basis] = true;
+        }
 
         foreach ($pairs as $branchId => $others) {
             foreach ($others as $counterpartId => $pair) {
@@ -180,149 +178,52 @@ final class InterBranchBalances
     }
 
     /**
-     * The next run of journals that touch the accounts, by number, after the last one read.
+     * One row for each branch and for each other branch named by the record of the journals or by
+     * the document they belong to, with what the journals put on the account of what is owed to the
+     * branch (debits less credits) and on the account of what the branch owes (credits less debits).
      *
-     * @param list<int>      $accountIds
+     * @param list<int>      $receivable
+     * @param list<int>      $payable
+     * @param list<int>      $all
      * @param list<int>|null $branchIds
-     *
-     * @return list<int>
      */
-    private function journalIdsOnTheAccounts(array $accountIds, ?string $asOf, ?array $branchIds, int $after): array
+    private function matrixQuery(array $receivable, array $payable, array $all, ?string $asOf, ?array $branchIds): string
     {
-        $accounts = implode(',', array_map('intval', array_unique($accountIds)));
-
-        if ($accounts === '') {
-            return [];
-        }
-
-        $builder = $this->db->table('accounting_journals j')
-            ->select('j.journal_id')
-            ->where('j.company_id', CompanyContext::id())
-            ->where('j.journal_id >', $after)
-            ->whereIn('j.status', [JournalStatus::Posted->value, JournalStatus::Reversed->value])
-            ->where('EXISTS (SELECT 1 FROM ' . $this->db->prefixTable('accounting_journal_lines') . " l WHERE l.journal_id = j.journal_id AND l.account_id IN ({$accounts}))", null, false)
-            ->orderBy('j.journal_id', 'ASC')
-            ->limit(self::CHUNK);
+        $in      = static fn (array $ids): string => $ids === [] ? '0' : implode(',', array_map('intval', $ids));
+        $table   = fn (string $name): string => $this->db->prefixTable($name);
+        $quote   = fn (string $value): string => $this->db->escape($value);
+        $sources = fn (string ...$names): string => implode(', ', array_map(fn (string $name): string => $this->db->escape($name), $names));
+        $where   = [
+            'j.company_id = ' . (int) CompanyContext::id(),
+            'j.status IN (' . $quote(JournalStatus::Posted->value) . ', ' . $quote(JournalStatus::Reversed->value) . ')',
+            'l.account_id IN (' . $in($all) . ')',
+        ];
 
         if ($asOf !== null) {
-            $builder->where('j.journal_date <=', $asOf);
+            $where[] = 'j.journal_date <= ' . $quote($asOf);
         }
 
         if ($branchIds !== null) {
-            $builder->whereIn('j.branch_id', $branchIds);
+            $where[] = 'j.branch_id IN (' . $in($branchIds) . ')';
         }
 
-        return array_map(static fn (object $row): int => (int) $row->journal_id, $builder->get()->getResult());
-    }
-
-    /**
-     * What each of the journals given put on the accounts: what it debited of the account of what
-     * is owed to the branch, and what it credited of the account of what the branch owes.
-     *
-     * @param list<int> $receivable
-     * @param list<int> $payable
-     * @param list<int> $journalIds
-     *
-     * @return list<object>
-     */
-    private function journalsOnTheAccounts(array $receivable, array $payable, array $journalIds): array
-    {
-        $all = array_values(array_unique([...$receivable, ...$payable]));
-
-        $in      = static fn (array $ids): string => $ids === [] ? '0' : implode(',', array_map('intval', $ids));
-        $builder = $this->db->table('accounting_journal_lines l')
-            ->select('j.journal_id, j.branch_id, j.source_type, j.source_id, j.reverses_journal_id', false)
-            ->select('COALESCE(SUM(CASE WHEN l.account_id IN (' . $in($receivable) . ') THEN l.debit - l.credit ELSE 0 END), 0) AS receivable', false)
-            ->select('COALESCE(SUM(CASE WHEN l.account_id IN (' . $in($payable) . ') THEN l.credit - l.debit ELSE 0 END), 0) AS payable', false)
-            ->join('accounting_journals j', 'j.journal_id = l.journal_id')
-            ->whereIn('j.journal_id', $journalIds)
-            ->whereIn('l.account_id', $all)
-            ->groupBy('j.journal_id, j.branch_id, j.source_type, j.source_id, j.reverses_journal_id')
-            ->orderBy('j.journal_id', 'ASC');
-
-        return $builder->get()->getResult();
-    }
-
-    /**
-     * The other branch of each journal, by the journal that decides it: the journal itself, or for
-     * a reversal the one it takes back.
-     *
-     * @param list<object> $journals
-     *
-     * @return array<int, array{int, string}> The branch and how it is known, by journal id.
-     */
-    private function counterpartsOf(array $journals): array
-    {
-        $ids = [];
-
-        foreach ($journals as $journal) {
-            $ids[$journal->reverses_journal_id === null ? (int) $journal->journal_id : (int) $journal->reverses_journal_id] = true;
-        }
-
-        $ids   = array_keys($ids);
-        $found = [];
-        $legs  = $this->db->table('accounting_interbranch_legs')->select('journal_id, counterpart_branch_id')->where('company_id', CompanyContext::id())->whereIn('journal_id', $ids)->get()->getResult();
-
-        foreach ($legs as $leg) {
-            $found[(int) $leg->journal_id] = [(int) $leg->counterpart_branch_id, PairBalance::RECORDED];
-        }
-
-        $left = array_values(array_diff($ids, array_keys($found)));
-
-        if ($left === []) {
-            return $found;
-        }
-
-        $documents = $this->db->table('accounting_journals')->select('journal_id, source_type, source_id')->whereIn('journal_id', $left)->get()->getResult();
-        $transfers = [];
-        $stock     = [];
-
-        foreach ($documents as $document) {
-            if (in_array($document->source_type, [TreasuryTransfers::SOURCE, TreasuryTransfers::SOURCE_RECEIPT], true)) {
-                $transfers[(int) $document->source_id] = true;
-            } elseif (in_array($document->source_type, [ReceivingPostingBuilder::SOURCE_STOCK_TRANSFER, ReceivingPostingBuilder::SOURCE_TRANSFER_RECEIPT], true)) {
-                $stock[(int) $document->source_id] = true;
-            }
-        }
-
-        $transferBranches = $transfers === [] ? [] : $this->branchesOf('treasury_transfers', 'transfer_id', array_keys($transfers));
-        $stockBranches    = $stock === [] ? [] : $this->branchesOf('receivings', 'receiving_id', array_keys($stock));
-
-        foreach ($documents as $document) {
-            $branches = match ($document->source_type) {
-                TreasuryTransfers::SOURCE, TreasuryTransfers::SOURCE_RECEIPT => $transferBranches[(int) $document->source_id] ?? null,
-                ReceivingPostingBuilder::SOURCE_STOCK_TRANSFER, ReceivingPostingBuilder::SOURCE_TRANSFER_RECEIPT => $stockBranches[(int) $document->source_id] ?? null,
-                default => null,
-            };
-
-            if ($branches === null || $branches['to'] === null) {
-                continue;
-            }
-
-            $isSending = in_array($document->source_type, [TreasuryTransfers::SOURCE, ReceivingPostingBuilder::SOURCE_STOCK_TRANSFER], true);
-
-            $found[(int) $document->journal_id] = [$isSending ? $branches['to'] : $branches['from'], PairBalance::DERIVED];
-        }
-
-        return $found;
-    }
-
-    /**
-     * The branch a document leaves and the branch it goes to.
-     *
-     * @param list<int> $ids
-     *
-     * @return array<int, array{from: int, to: ?int}>
-     */
-    private function branchesOf(string $table, string $key, array $ids): array
-    {
-        $branches = [];
-
-        foreach ($this->db->table($table)->select($key . ', branch_id, to_branch_id')->whereIn($key, $ids)->get()->getResult() as $row) {
-            $branches[(int) $row->{$key}] = ['from' => (int) $row->branch_id, 'to' => $row->to_branch_id === null ? null : (int) $row->to_branch_id];
-        }
-
-        return $branches;
+        return 'SELECT j.branch_id,'
+            . ' (SELECT MAX(g.counterpart_branch_id) FROM ' . $table('accounting_interbranch_legs') . ' g WHERE g.company_id = j.company_id AND g.journal_id = o.journal_id) AS recorded,'
+            . ' CASE o.source_type'
+            . ' WHEN ' . $quote(TreasuryTransfers::SOURCE) . ' THEN tt.to_branch_id'
+            . ' WHEN ' . $quote(TreasuryTransfers::SOURCE_RECEIPT) . ' THEN IF(tt.to_branch_id IS NULL, NULL, tt.branch_id)'
+            . ' WHEN ' . $quote(ReceivingPostingBuilder::SOURCE_STOCK_TRANSFER) . ' THEN rc.to_branch_id'
+            . ' WHEN ' . $quote(ReceivingPostingBuilder::SOURCE_TRANSFER_RECEIPT) . ' THEN IF(rc.to_branch_id IS NULL, NULL, rc.branch_id)'
+            . ' END AS derived,'
+            . ' SUM(CASE WHEN l.account_id IN (' . $in($receivable) . ') THEN l.debit - l.credit ELSE 0 END) AS receivable,'
+            . ' SUM(CASE WHEN l.account_id IN (' . $in($payable) . ') THEN l.credit - l.debit ELSE 0 END) AS payable'
+            . ' FROM ' . $table('accounting_journal_lines') . ' l'
+            . ' JOIN ' . $table('accounting_journals') . ' j ON j.journal_id = l.journal_id'
+            . ' LEFT JOIN ' . $table('accounting_journals') . ' o ON o.journal_id = COALESCE(j.reverses_journal_id, j.journal_id)'
+            . ' LEFT JOIN ' . $table('treasury_transfers') . ' tt ON o.source_type IN (' . $sources(TreasuryTransfers::SOURCE, TreasuryTransfers::SOURCE_RECEIPT) . ') AND tt.transfer_id = o.source_id'
+            . ' LEFT JOIN ' . $table('receivings') . ' rc ON o.source_type IN (' . $sources(ReceivingPostingBuilder::SOURCE_STOCK_TRANSFER, ReceivingPostingBuilder::SOURCE_TRANSFER_RECEIPT) . ') AND rc.receiving_id = o.source_id'
+            . ' WHERE ' . implode(' AND ', $where)
+            . ' GROUP BY j.branch_id, recorded, derived';
     }
 
     /**
