@@ -142,3 +142,19 @@ DETECTED  G48-6 the table aliases of the query are put back: Tests: 8, Assertion
 DETECTED  G48-7 summary reports limit their sales: Tests: 4, Assertions: 37, Failures: 3.; failing: 3
 10 of 10 guards detected
 ```
+
+### الدفعة 5
+
+```
+DETECTED  G48-9 summary of taxes limits its sales: Tests: 3, Assertions: 31, Failures: 2.; failing: 2
+DETECTED  G48-10 summary of sales taxes limits its sales (summary): Tests: 2, Assertions: 31, Failures: 1.; failing: 1
+DETECTED  G48-11 summary of sales taxes limits its sales (rows): Tests: 2, Assertions: 27, Failures: 1.; failing: 1
+DETECTED  G48-12 expenses report shows nothing to an employee of some branches (rows): Tests: 2, Assertions: 23, Failures: 1.; failing: 1
+DETECTED  G48-13 expenses report shows nothing to an employee of some branches (summary): Tests: 2, Assertions: 26, Failures: 1.; failing: 1
+DETECTED  G48-14 stock of locations of other branches is left out of the inventory summary: Tests: 4, Assertions: 43, Failures: 4.; failing: 4
+DETECTED  G48-15 items running low in other branches are left out: Tests: 3, Assertions: 32, Failures: 2.; failing: 2
+DETECTED  G48-16 Detailed_sales builds its table from the limited inputs: Tests: 4, Assertions: 43, Failures: 4.; failing: 4
+DETECTED  G48-16 Detailed_item_sales builds its table from the limited inputs: Tests: 3, Assertions: 34, Failures: 3.; failing: 3
+DETECTED  G48-16 Specific_customer builds its table from the limited inputs: Tests: 3, Assertions: 41, Failures: 2.; failing: 2
+10 of 10 guards detected
+```
