@@ -915,7 +915,7 @@ class Item extends Model
      *
      * @param list<int|string> $itemIds
      */
-    private function holdsStockOutsideTheEmployeesBranches(array $itemIds): bool
+    public function holdsStockOutsideTheEmployeesBranches(array $itemIds): bool
     {
         $employeeId = (int) (model(Employee::class)->get_logged_in_employee_info()->person_id ?? 0);
         $allowed    = $employeeId > 0 ? (new BranchGuard($this->db))->allowedBranchIds($employeeId) : null;

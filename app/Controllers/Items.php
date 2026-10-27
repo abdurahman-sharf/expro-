@@ -854,6 +854,12 @@ class Items extends Secure_Controller
 
         $employeeId = $this->employee->get_logged_in_employee_info()->person_id;
 
+        if ($itemData['deleted'] && $itemId !== NEW_ENTRY && ! (int) $this->item->get_info($itemId)->deleted && $this->item->holdsStockOutsideTheEmployeesBranches([$itemId])) {
+            $this->adjustmentFailure = $this->item->accountingFailure();
+
+            return $this->response->setJSON(['success' => false, 'message' => lang('Items.error_adding_updating') . ' ' . $itemData['name'] . $this->adjustmentFailureNote(), 'id' => $itemId]);
+        }
+
         // Wrap the entire save sequence in a single transaction for atomicity
         $db = db_connect();
         $db->transBegin();

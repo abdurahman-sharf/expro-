@@ -1958,6 +1958,88 @@ class ItemsControllerTest extends CIUnitTestCase
     }
 
     /**
+     * The form of an item with its ten units in the first branch, ticked as deleted.
+     *
+     * @param array<string, string> $changes
+     *
+     * @return array<string, mixed>
+     */
+    private function deletedItemForm(array $changes = []): array
+    {
+        return array_merge($this->baseItemPostData(), ['tax_names' => ['VAT'], 'tax_percents' => ['0'], 'quantity_1' => '10', 'cost_price' => '50.00', 'is_deleted' => '1'], $changes);
+    }
+
+    public function testPostSave_RejectsMarkingDeletedAnItemWithStockInABranchTheEmployeeDoesNotWorkInAndChangesNothing(): void
+    {
+        ['item' => $itemId, 'store' => $store] = $this->itemWithAStoreInAnotherBranch();
+        $this->assertTrue($this->item_quantity->changeQuantity($itemId, $store, 4.0));
+        $name = $this->item->get_info($itemId)->name;
+        $log  = count($this->inventoryLog($itemId));
+
+        $result = json_decode($this->post('/items/save/' . $itemId, $this->deletedItemForm(['name' => 'Renamed']))->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString(lang('Branches.error_not_allowed'), $result['message']);
+        $this->assertSame(0, (int) $this->item->get_info($itemId)->deleted);
+        $this->assertSame($name, $this->item->get_info($itemId)->name);
+        $this->assertSame('10.000', $this->onHand($itemId));
+        $this->assertSame('4.000', $this->onHand($itemId, $store));
+        $this->assertSame($log, count($this->inventoryLog($itemId)));
+        $this->assertSame([], $this->adjustmentJournals());
+    }
+
+    public function testPostSave_RejectsMarkingDeletedAnItemWithStockInAnotherBranchWhileAccountingIsOff(): void
+    {
+        ['item' => $itemId, 'store' => $store] = $this->itemWithAStoreInAnotherBranch();
+        $this->assertTrue($this->item_quantity->changeQuantity($itemId, $store, 4.0));
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $result = json_decode($this->post('/items/save/' . $itemId, $this->deletedItemForm())->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(0, (int) $this->item->get_info($itemId)->deleted);
+        $this->assertSame('4.000', $this->onHand($itemId, $store));
+    }
+
+    public function testPostSave_AcceptsMarkingDeletedAnItemWhoseStockIsAllInTheBranchesOfTheEmployee(): void
+    {
+        ['item' => $itemId, 'store' => $store] = $this->itemWithAStoreInAnotherBranch();
+
+        $result = json_decode($this->post('/items/save/' . $itemId, $this->deletedItemForm())->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(1, (int) $this->item->get_info($itemId)->deleted);
+        $this->assertSame('10.000', $this->onHand($itemId));
+        $this->assertSame('0.000', $this->onHand($itemId, $store));
+    }
+
+    public function testPostSave_AcceptsMarkingDeletedAnItemWithStockInAnyBranchForAnEmployeeOfEveryBranch(): void
+    {
+        ['item' => $itemId, 'store' => $store] = $this->itemWithAStoreInAnotherBranch();
+        $this->assertTrue($this->item_quantity->changeQuantity($itemId, $store, 4.0));
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+        $result = json_decode($this->post('/items/save/' . $itemId, $this->deletedItemForm())->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(1, (int) $this->item->get_info($itemId)->deleted);
+        $this->assertSame('4.000', $this->onHand($itemId, $store));
+    }
+
+    public function testPostSave_AcceptsEditingAnItemThatIsAlreadyDeletedWithStockInAnotherBranch(): void
+    {
+        ['item' => $itemId, 'store' => $store] = $this->itemWithAStoreInAnotherBranch();
+        $this->assertTrue($this->item_quantity->changeQuantity($itemId, $store, 4.0));
+        $this->accountingDb()->table('items')->where('item_id', $itemId)->update(['deleted' => 1]);
+
+        $result = json_decode($this->post('/items/save/' . $itemId, $this->deletedItemForm(['name' => 'Renamed while deleted']))->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('Renamed while deleted', $this->item->get_info($itemId)->name);
+        $this->assertSame(1, (int) $this->item->get_info($itemId)->deleted);
+    }
+
+    /**
      * The template of the items file as this employee gets it, as the names of its columns.
      *
      * @return list<string>
