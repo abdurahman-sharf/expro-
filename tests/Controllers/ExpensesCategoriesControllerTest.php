@@ -186,5 +186,6 @@ class ExpensesCategoriesControllerTest extends CIUnitTestCase
         $this->setConfigValue('accounting_enabled', '0');
 
         $this->get('/expenses_categories/view/-1')->assertDontSee(lang('Expenses_categories.account_default'));
+        $this->assertStringNotContainsString('id="account_id"', $this->get('/expenses_categories/view/-1')->getBody());
     }
 }

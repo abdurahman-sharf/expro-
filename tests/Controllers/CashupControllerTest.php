@@ -406,4 +406,18 @@ class CashupControllerTest extends CIUnitTestCase
 
         $this->get('/cashups')->assertDontSee(lang('Cashups.unposted_filter'));
     }
+
+    public function testGetIndex_ShowsTheLedgerColumnOnlyWithAccountingOn(): void
+    {
+        $this->accountingCashier();
+
+        Factories::reset();
+        config(OSPOS::class)->update_settings();
+
+        $this->assertStringContainsString('ledger_state', $this->get('/cashups')->getBody());
+
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $this->assertStringNotContainsString('ledger_state', $this->get('/cashups')->getBody());
+    }
 }

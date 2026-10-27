@@ -352,6 +352,18 @@ class ExpensesControllerTest extends CIUnitTestCase
         $this->setConfigValue('accounting_enabled', '0');
 
         $this->get('/expenses/view/-1')->assertDontSee('Open drawer');
+        $this->assertStringNotContainsString('id="treasury_id"', $this->get('/expenses/view/-1')->getBody());
+    }
+
+    public function testGetIndex_ShowsTheLedgerColumnOnlyWithAccountingOn(): void
+    {
+        $this->actAsWith();
+
+        $this->assertStringContainsString('ledger_state', $this->get('/expenses')->getBody());
+
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $this->assertStringNotContainsString('ledger_state', $this->get('/expenses')->getBody());
     }
 
     public function testGetView_OffersTheTreasuryAnExpenseAlreadyUsesEvenWhenItWasLockedLater(): void
