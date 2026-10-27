@@ -555,6 +555,22 @@ class CashupPostingTest extends CIUnitTestCase
         $this->assertNotSame($followed, $legacy);
     }
 
+    public function testUnposted_LeavesOutACashUpTheBooksNeverFollowedOnceItIsDeleted(): void
+    {
+        $this->aDayOfCash();
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $legacy = $this->saveCashup($this->cashupData('485.50'));
+
+        $this->setConfigValue('accounting_enabled', '1');
+
+        $posting = new CashupPosting();
+
+        $this->assertSame(1, $posting->unpostedCount());
+        $this->assertTrue($this->cashups->delete_list([$legacy], $this->clerkId));
+        $this->assertSame([[], 0], [$posting->unposted(), $posting->unpostedCount()]);
+    }
+
     public function testSaveValue_ChangesNothingInTheBooksWhenAccountingIsOff(): void
     {
         $this->aDayOfCash();
@@ -586,6 +602,25 @@ class CashupPostingTest extends CIUnitTestCase
         $actions = array_column($this->accountingDb()->table('accounting_audit_log')->select('action')->where(['entity_type' => 'cashup', 'entity_id' => $cashupId])->orderBy('audit_id')->get()->getResultArray(), 'action');
 
         $this->assertSame(['posted', 'reposted', 'cancelled'], $actions);
+    }
+
+    public function testSaveValue_AuditsTheCancellationOfACashUpMarkedDeletedOrCorrectedToWhatWasExpected(): void
+    {
+        $this->aDayOfCash();
+
+        $deletedId   = $this->saveCashup($this->cashupData('485.50'));
+        $correctedId = $this->saveCashup($this->cashupData('470.00'));
+        $data        = $this->cashupData('485.50');
+
+        $data['deleted'] = 1;
+        $this->saveCashup($data, $deletedId);
+        $this->saveCashup($this->cashupData('500.00'), $correctedId);
+
+        foreach ([$deletedId, $correctedId] as $cashupId) {
+            $actions = array_column($this->accountingDb()->table('accounting_audit_log')->select('action')->where(['entity_type' => 'cashup', 'entity_id' => $cashupId])->orderBy('audit_id')->get()->getResultArray(), 'action');
+
+            $this->assertSame(['posted', 'cancelled'], $actions);
+        }
     }
 
     public function testSync_IsIdempotentAndGivesNoJournalToACashUpTheBooksNeverFollowed(): void

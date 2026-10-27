@@ -10,6 +10,7 @@ use App\Libraries\Accounting\TreasuryService;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use ErrorException;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 
@@ -90,9 +91,17 @@ class CashupPostingBuilderTest extends CIUnitTestCase
         $this->assertNull($this->builder->difference($this->cashup('0.0000'), 1));
     }
 
-    public function testDifference_PostsNothingWhileNothingHasBeenCounted(): void
+    public function testDifference_PostsNothingWhileNothingHasBeenCountedAndDoesNoArithmeticOnIt(): void
     {
-        $this->assertNull($this->builder->difference($this->cashup(null), 1));
+        set_error_handler(static function (int $severity, string $message): never {
+            throw new ErrorException($message, 0, $severity);
+        });
+
+        try {
+            $this->assertNull($this->builder->difference($this->cashup(null), 1));
+        } finally {
+            restore_error_handler();
+        }
     }
 
     public function testDifference_UsesTheAccountCashIsRoutedToWithoutATreasury(): void
