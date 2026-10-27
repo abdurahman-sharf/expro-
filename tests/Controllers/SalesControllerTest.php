@@ -1675,10 +1675,12 @@ class SalesControllerTest extends CIUnitTestCase
 
     /**
      * A supervisor who works in the first branch and in the one given.
+     *
+     * @param list<string> $extraGrants
      */
-    protected function supervisorInBoth(int $branchId): int
+    protected function supervisorInBoth(int $branchId, array $extraGrants = []): int
     {
-        $personId = $this->createBranchLimitedSupervisor(1);
+        $personId = $this->createBranchLimitedSupervisor(1, $extraGrants);
 
         $this->accountingDb()->table('employee_branches')->insert(['person_id' => $personId, 'branch_id' => $branchId, 'is_default' => 0]);
 
@@ -1699,6 +1701,30 @@ class SalesControllerTest extends CIUnitTestCase
         $this->loginAs($this->createBranchLimitedSupervisor(1));
 
         $this->assertStringNotContainsString('Far drawer', $this->get('/sales/edit/' . $invoice['saleId'])->getBody());
+    }
+
+    public function testGetEdit_NamesTheJournalOfAPaymentIntoATreasuryOfAnotherBranch(): void
+    {
+        $invoice = $this->postedInvoice();
+        $branch  = $this->createSecondBranch();
+        $far     = $this->treasuryOfBranch('Far drawer', $branch);
+
+        $this->loginAs($this->supervisorInBoth($branch, ['accounting_journals']));
+        $this->assertTrue($this->jsonOf($this->post('/sales/save/' . $invoice['saleId'], [
+            'date'               => date($this->config()['dateformat'] . ' ' . $this->config()['timeformat']),
+            'customer_id'        => (string) $this->customerId,
+            'employee_id'        => (string) $this->employeeId,
+            'comment'            => 'paid',
+            'number_of_payments' => '0',
+            'payment_type_new'   => 'Cash',
+            'payment_amount_new' => '100.00',
+            'treasury_id_new'    => (string) $far,
+        ]))['success']);
+
+        $body = $this->get('/sales/edit/' . $invoice['saleId'])->getBody();
+
+        $this->assertMatchesRegularExpression('/<li>\s*<a [^>]*>[^<]*<\/a>\s*' . preg_quote(lang('Sales.entry_payment_branch'), '/') . '\s*<\/li>/', $body);
+        $this->assertStringNotContainsString('Sales.entry_', $body, 'Every journal has a name of its own');
     }
 
     public function testGetEdit_EscapesTheNamesOfTheTreasuriesItOffersInTheDropdownsOfTheNewAndTheExistingPayments(): void

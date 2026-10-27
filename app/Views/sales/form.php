@@ -251,7 +251,11 @@
                         <?php foreach ($journals as $journal): ?>
                             <li>
                                 <?= anchor('accounting_journals/view/' . (int) $journal->journal_id, esc((string) $journal->number), ['target' => '_blank', 'dir' => 'ltr']) ?>
-                                <?= lang($journal->source_type === 'sale_payment' ? 'Sales.entry_payment' : 'Sales.entry_' . $journal->entry_type) ?>
+                                <?= lang(match ($journal->source_type) {
+                                    'sale_payment'        => 'Sales.entry_payment',
+                                    'sale_payment_branch' => 'Sales.entry_payment_branch',
+                                    default               => 'Sales.entry_' . $journal->entry_type,
+                                }) ?>
                                 <?php if ($journal->status === 'reversed'): ?>
                                     <span class="badge text-bg-secondary"><?= lang('Sales.entry_reversed') ?></span>
                                 <?php endif; ?>
