@@ -5,7 +5,9 @@ namespace App\Models;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingSettings;
+use App\Libraries\Accounting\AuditLog;
 use App\Libraries\Accounting\CustomerLock;
+use App\Libraries\Accounting\JournalOrigin;
 use App\Libraries\Accounting\PaymentStatus;
 use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\PostingError;
@@ -1072,11 +1074,32 @@ class Sale extends Model
 
                 return ACCOUNTING_FAILED;
             }
+
+            if ($saleType !== SALE_TYPE_RETURN && ! $discountPlan->isEmpty()) {
+                $this->auditInvoiceDiscount($saleId, $employeeId, (int) $salesData['branch_id'], $discountPlan);
+            }
         }
 
         $this->db->transComplete();
 
         return $this->db->transStatus() ? $saleId : -1;
+    }
+
+    /**
+     * Writes in the audit log of the books that a sale was given a discount on the whole of it, by
+     * whom and for how much, in the transaction of the sale. While accounting is off nothing is written.
+     */
+    private function auditInvoiceDiscount(int $saleId, int $employeeId, int $branchId, InvoiceDiscountPlan $plan): void
+    {
+        if (! (new AccountingSettings($this->db))->isEnabled()) {
+            return;
+        }
+
+        (new AuditLog($this->db))->write('sale', $saleId, 'invoice_discount_given', $employeeId, JournalOrigin::User, [
+            'type'   => $plan->type === PERCENT ? 'percent' : 'fixed',
+            'value'  => InvoiceDiscount::normalise((string) $plan->value),
+            'amount' => $plan->amount,
+        ], $branchId);
     }
 
     /**

@@ -84,9 +84,9 @@ final class InvoiceDiscount
         $amount = '0';
 
         foreach (self::returnShares($lines, $origin) as $key => $share) {
-            $share          = bccomp($share, $bases[$key], self::SCALE) > 0 ? $bases[$key] : $share;
-            $shares[$key]   = bccomp($share, '0', self::SCALE) === 0 ? '0.0000' : bcsub('0', $share, self::SCALE);
-            $amount         = bcadd($amount, $share, self::SCALE);
+            $share        = bccomp($share, $bases[$key], self::SCALE) > 0 ? $bases[$key] : $share;
+            $shares[$key] = bccomp($share, '0', self::SCALE) === 0 ? '0.0000' : bcsub('0', $share, self::SCALE);
+            $amount       = bcadd($amount, $share, self::SCALE);
         }
 
         return bccomp($amount, '0', self::SCALE) === 0 ? self::none() : new InvoiceDiscountPlan(FIXED, $amount, $amount, $shares);

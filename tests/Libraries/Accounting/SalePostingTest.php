@@ -1844,6 +1844,63 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame(0, $this->countJournals());
     }
 
+    /**
+     * @return list<object>
+     */
+    private function discountAuditOf(int $saleId): array
+    {
+        return $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'sale', 'entity_id' => $saleId, 'action' => 'invoice_discount_given'])->get()->getResult();
+    }
+
+    public function testSaveValue_WritesInTheAuditLogThatTheSaleWasGivenADiscountByWhomAndForHowMuch(): void
+    {
+        $cycle  = $this->discountedReferenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']);
+        $audit  = $this->discountAuditOf($saleId);
+
+        $this->assertCount(1, $audit);
+        $this->assertSame((string) $this->employeeId, (string) $audit[0]->employee_id);
+        $this->assertSame((string) $this->saleRow($saleId)->branch_id, (string) $audit[0]->branch_id);
+        $this->assertSame(['type' => 'percent', 'value' => '10', 'amount' => '71.0000'], json_decode($audit[0]->details, true));
+    }
+
+    public function testSaveValue_WritesNothingInTheAuditLogForASaleWithoutADiscountAndForAReturn(): void
+    {
+        $cycle     = $this->discountedReferenceInvoice();
+        $plain     = $this->save($cycle['items'], $cycle['taxes']);
+        $invoiceId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']);
+        $returnId  = $this->save([$this->line($cycle['cream'], 0, '-1', '75', '40.00', '10')], [$this->tax($cycle['cream'], 0, '-9.1125')], [], SALE_TYPE_RETURN, -1, true, $invoiceId);
+
+        $this->assertGreaterThan(0, $returnId);
+        $this->assertSame([], $this->discountAuditOf($plain));
+        $this->assertSame([], $this->discountAuditOf($returnId));
+        $this->assertCount(1, $this->discountAuditOf($invoiceId));
+    }
+
+    public function testSaveValue_WritesNothingInTheAuditLogForASaleThatWasRefused(): void
+    {
+        $cycle = $this->discountedReferenceInvoice();
+        $this->closeThrough(date('Y-m-d'));
+
+        $before = $this->accountingDb()->table('accounting_audit_log')->where('action', 'invoice_discount_given')->countAllResults();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']));
+        $this->assertSame($before, $this->accountingDb()->table('accounting_audit_log')->where('action', 'invoice_discount_given')->countAllResults());
+    }
+
+    public function testSaveValue_WritesNothingInTheAuditLogWhileAccountingIsOffOrForASuspendedSale(): void
+    {
+        $cycle     = $this->discountedReferenceInvoice();
+        $suspended = $this->save($cycle['items'], [], [], SALE_TYPE_QUOTE, -1, true, null, SUSPENDED, NEW_ENTRY, $cycle['discount']);
+
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $unposted = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']);
+
+        $this->assertSame([], $this->discountAuditOf($suspended));
+        $this->assertSame([], $this->discountAuditOf($unposted));
+    }
+
     public function testSaveValue_PostsTheJournalsOfADiscountedInvoiceInTheBranchOfTheSale(): void
     {
         $cycle  = $this->discountedReferenceInvoice();

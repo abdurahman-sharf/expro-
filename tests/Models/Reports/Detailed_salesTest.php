@@ -11,20 +11,22 @@ use Config\Database;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 
-class Detailed_salesTest extends CIUnitTestCase
+/**
+ * @internal
+ */
+final class Detailed_salesTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
 
+    private const MONTH = '2003-04-';
+
     protected $migrate     = true;
     protected $migrateOnce = true;
     protected $seedOnce    = true;
     protected $refresh     = false;
-    protected $namespace   = null;
-
-    private const MONTH = '2003-04-';
-
+    protected $namespace;
     private static bool $doneBootstrap = false;
 
     protected function setUp(): void
@@ -99,14 +101,14 @@ class Detailed_salesTest extends CIUnitTestCase
         return ['start_date' => self::MONTH . '05', 'end_date' => self::MONTH . '05', 'sale_type' => 'complete', 'location_id' => 'all', 'definition_ids' => []];
     }
 
-    public function testGetDataColumns_NamesTheDiscountOnTheWholeOfTheSaleBesideTheSubtotal(): void
+    public function testGetDataColumnsNamesTheDiscountOnTheWholeOfTheSaleBesideTheSubtotal(): void
     {
         $columns = array_map(static fn (array $column): string => (string) array_key_first($column), (new Detailed_sales())->getDataColumns()['summary']);
 
         $this->assertSame($columns[array_search('subtotal', $columns, true) - 1], 'invoice_discount');
     }
 
-    public function testGetData_ListsTheDiscountOnTheWholeOfEachSaleAndNothingForASaleWithoutOne(): void
+    public function testGetDataListsTheDiscountOnTheWholeOfEachSaleAndNothingForASaleWithoutOne(): void
     {
         $itemId     = $this->createTestItem(HAS_NO_STOCK);
         $discounted = $this->sale($itemId, '2', '50', ['type' => FIXED, 'value' => '12.5']);
@@ -124,7 +126,7 @@ class Detailed_salesTest extends CIUnitTestCase
         $this->assertSame('30.00', bcadd((string) $rows[$plain]['total'], '0', 2));
     }
 
-    public function testGetDataBySaleId_GivesTheDiscountOnTheWholeOfTheSale(): void
+    public function testGetDataBySaleIdGivesTheDiscountOnTheWholeOfTheSale(): void
     {
         $itemId = $this->createTestItem(HAS_NO_STOCK);
         $saleId = $this->sale($itemId, '2', '50', ['type' => PERCENT, 'value' => '10']);
@@ -138,7 +140,7 @@ class Detailed_salesTest extends CIUnitTestCase
         $this->assertSame('90.00', bcadd((string) $row['total'], '0', 2));
     }
 
-    public function testGetSummaryData_AddsUpTheSalesOfTheDayAfterTheirDiscounts(): void
+    public function testGetSummaryDataAddsUpTheSalesOfTheDayAfterTheirDiscounts(): void
     {
         $itemId = $this->createTestItem(HAS_NO_STOCK);
 

@@ -11,7 +11,10 @@ use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 
-class SaleLoaderTest extends CIUnitTestCase
+/**
+ * @internal
+ */
+final class SaleLoaderTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
@@ -22,7 +25,7 @@ class SaleLoaderTest extends CIUnitTestCase
     protected $migrate     = true;
     protected $migrateOnce = true;
     protected $refresh     = false;
-    protected $namespace   = null;
+    protected $namespace;
 
     public static function setUpBeforeClass(): void
     {
@@ -44,7 +47,7 @@ class SaleLoaderTest extends CIUnitTestCase
         parent::tearDown();
     }
 
-    public function testLoad_ReadsTheShareOfTheDiscountOnTheWholeOfTheSaleThatEachLineWasSavedWith(): void
+    public function testLoadReadsTheShareOfTheDiscountOnTheWholeOfTheSaleThatEachLineWasSavedWith(): void
     {
         $cycle  = $this->discountedReferenceInvoice(false);
         $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']);
@@ -54,7 +57,7 @@ class SaleLoaderTest extends CIUnitTestCase
         $this->assertSame(['7.6056', '12.3944'], array_map(static fn ($line): string => bcadd($line->invoiceDiscountShare, '0', 4), $document->lines));
     }
 
-    public function testLoad_ReadsASaleSavedBeforeTheDiscountExistedAsOneWithoutShares(): void
+    public function testLoadReadsASaleSavedBeforeTheDiscountExistedAsOneWithoutShares(): void
     {
         $cycle  = $this->referenceInvoice();
         $saleId = $this->save($cycle['items'], $cycle['taxes']);
@@ -66,7 +69,7 @@ class SaleLoaderTest extends CIUnitTestCase
         $this->assertSame(['0', '0'], array_map(static fn ($line): string => $line->invoiceDiscountShare, $document->lines));
     }
 
-    public function testLoad_ReadsTheSharesOfAReturnWithTheSignOfItsLines(): void
+    public function testLoadReadsTheSharesOfAReturnWithTheSignOfItsLines(): void
     {
         $cycle     = $this->discountedReferenceInvoice();
         $invoiceId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']);

@@ -9,7 +9,10 @@ use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 
-class SalesInvoiceDiscountPermissionMigrationTest extends CIUnitTestCase
+/**
+ * @internal
+ */
+final class SalesInvoiceDiscountPermissionMigrationTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
@@ -18,7 +21,7 @@ class SalesInvoiceDiscountPermissionMigrationTest extends CIUnitTestCase
     protected $migrate     = true;
     protected $migrateOnce = true;
     protected $refresh     = false;
-    protected $namespace   = null;
+    protected $namespace;
 
     public static function setUpBeforeClass(): void
     {
@@ -38,13 +41,13 @@ class SalesInvoiceDiscountPermissionMigrationTest extends CIUnitTestCase
         return $this->accountingDb()->table('permissions')->where('permission_id', 'sales_invoice_discount')->get()->getRow();
     }
 
-    public function testUp_RegistersThePermissionUnderTheSalesModuleAndGrantsItToNobody(): void
+    public function testUpRegistersThePermissionUnderTheSalesModuleAndGrantsItToNobody(): void
     {
         $this->assertSame('sales', $this->permission()->module_id);
         $this->assertSame(0, $this->accountingDb()->table('grants')->where('permission_id', 'sales_invoice_discount')->countAllResults());
     }
 
-    public function testUp_IsSafeToRunAgainAndKeepsWhatWasGranted(): void
+    public function testUpIsSafeToRunAgainAndKeepsWhatWasGranted(): void
     {
         $employeeId = $this->createEmployee(grants: [['permission_id' => 'sales_invoice_discount', 'menu_group' => 'home']]);
 
@@ -55,7 +58,7 @@ class SalesInvoiceDiscountPermissionMigrationTest extends CIUnitTestCase
         $this->assertSame(1, $this->accountingDb()->table('grants')->where(['permission_id' => 'sales_invoice_discount', 'person_id' => $employeeId])->countAllResults());
     }
 
-    public function testDown_RemovesThePermissionAndWhatWasGrantedOfIt(): void
+    public function testDownRemovesThePermissionAndWhatWasGrantedOfIt(): void
     {
         $this->createEmployee(grants: [['permission_id' => 'sales_invoice_discount', 'menu_group' => 'home']]);
 
