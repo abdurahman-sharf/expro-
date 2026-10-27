@@ -838,6 +838,32 @@ class DocumentNumberingTest extends CIUnitTestCase
         $this->assertSame($journals, $this->countRows('accounting_journals'));
     }
 
+    public function testAssign_GivesTwoDocumentsNumberedByTwoProcessesWhoseTransactionsOverlapTwoDifferentNumbers(): void
+    {
+        $this->startSelling();
+        $this->numbering->configure(DocumentType::SalesInvoice, ['enabled' => true, 'prefix' => 'HOLD-', 'padding' => 3, 'next_number' => 1]);
+
+        $db = $this->accountingDb();
+
+        foreach ([1, 2] as $ignored) {
+            $db->table('sales')->insert(['employee_id' => $this->employeeId, 'comment' => 'race', 'sale_status' => 0, 'sale_type' => 1]);
+            $this->saleIds[] = (int) $db->insertID();
+        }
+
+        [$one, $two] = $this->raceTwoProcesses(
+            'assignNumber',
+            [DocumentType::SalesInvoice->value, 'sales', (string) $this->saleIds[0], '400'],
+            [DocumentType::SalesInvoice->value, 'sales', (string) $this->saleIds[1], '400'],
+        );
+
+        $numbers = array_column($db->table('sales')->select('invoice_number')->whereIn('sale_id', $this->saleIds)->orderBy('invoice_number')->get()->getResultArray(), 'invoice_number');
+
+        $this->assertTrue($one);
+        $this->assertTrue($two);
+        $this->assertSame(['HOLD-001', 'HOLD-002'], $numbers);
+        $this->assertSame(3, $this->numbering->sequence(DocumentType::SalesInvoice)->nextNumber);
+    }
+
     public function testAssign_GivesTwoInvoicesSavedByTwoProcessesAtTheSameTimeTwoDifferentNumbers(): void
     {
         $this->startSelling();

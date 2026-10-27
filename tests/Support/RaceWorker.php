@@ -9,6 +9,10 @@
  * Usage: php RaceWorker.php <method> <arg> [<arg> ...]
  */
 
+use App\Libraries\Numbering\DocumentNumbering;
+use App\Libraries\Numbering\DocumentType;
+use Config\Database;
+
 $root = dirname(__DIR__, 2);
 
 chdir($root);
@@ -127,6 +131,20 @@ $result = match ($method) {
         ]];
 
         return model(App\Models\Receiving::class)->save_value($lines, (int) $args[0], (int) $args[4], 'race', 'REF', 'Due', NEW_ENTRY, isset($args[5]) ? (int) $args[5] : null) > 0;
+    })($args),
+    'assignNumber' => (static function (array $args): bool {
+        $db = Database::connect();
+
+        try {
+            $db->transStart();
+            $number = (new DocumentNumbering($db))->assign(DocumentType::from((string) $args[0]), (string) $args[1], (int) $args[2]);
+            usleep((int) $args[3] * 1000);
+            $db->transComplete();
+
+            return $number !== null && $db->transStatus();
+        } catch (Throwable) {
+            return false;
+        }
     })($args),
     'deletePurchase' => model(App\Models\Receiving::class)->delete_value((int) $args[0], (int) $args[1]),
     'payPurchase' => model(App\Models\Receiving::class)->update((int) $args[0], ['payments' => [
