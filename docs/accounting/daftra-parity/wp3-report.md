@@ -26,7 +26,7 @@
 - **مطابقة `S-25` (مرصودة):** ملف التثبيت `tests/Support/Parity/T-25.json` بثلاث حالات: `expense-200-with-15-percent-tax` **مطابقة تامة** (مدين `541` بـ200، مدين `215002` بـ30، دائن الخزينة 230)، و`expense-journal-owes-nobody` **مطابقة تامة** (لا طرف في أي سطر)، و`amount-entered-includes-the-tax` **يختلف**: في دفترة يُدخل المستخدم 200 وتُضاف الضريبة فيصير 230، وعندنا `amount` هو المدفوع شاملًا الضريبة و`tax_amount` جزؤه (القسم 3، الافتراض 1). ويقرؤه `ExpensePostingBuilderTest` فيبني القيد من الملف نفسه. (ما عدا هذه الحالة: **لا ادعاء مطابقة**، كله افتراض مدوَّن.)
 - **اختبارات جديدة (218 اختبارًا في 12 ملفًا، ملف لكل صنف):** `ExpensePostingBuilderTest` (18) و`ExpensePostingTest` (48: كل مسار حفظ وتعديل وحذف عبر نموذج المصروف الحقيقي، الفترة المقفلة، الفرع، نطاق السحب والإيداع، التراجع الكامل وتسجيل الفشل، التاريخي، المحاسبة المعطَّلة، توازن الميزان بعد كل تغيير) و`CashupPostingBuilderTest` (7) و`CashupPostingTest` (30) و`CashupExpectationTest` (13) و`DocumentJournalsTest` (24) و`ExpenseCategoryAccountsTest` (13) و`ExpensesControllerTest` (23) و`ExpensesCategoriesControllerTest` (9) و`tests/Models/ExpenseTest` (13) و`tests/Models/CashupTest` (12) و`ExpensesAccountingMigrationTest` (8).
 - **اختبارات أُضيفت إلى ملفات قائمة (22):** `CashupControllerTest` (12: الشاشة والنقد المتوقع والرفض بكلمات) و`AccountingSettingsTest` (3) و`AccountServiceTest` (2) و`JournalServiceTest` (2: قفل العكس اليدوي وعكس آلي لمصدر المستند) و`TreasuryServiceTest` (1: خزينة استُعملت في مصروف أو إقفال تُعدّ مستعمَلة) و`TrialBalanceTest` (1: **الميزان متوازن للشركة ولكل فرع بعد المصروفات**) و`AccountingJournalsControllerTest` (1: زر العكس مخفي لقيدي المصروف والإقفال).
-- **تعطيل الحراس:** <!-- MUT-SUMMARY-START -->**قيد القياس: قيس 30 من 219 حارسًا حتى الآن، كُشف منها 30** (الجدول في 2.1 يُملأ دفعةً دفعة).<!-- MUT-SUMMARY-END -->
+- **تعطيل الحراس:** <!-- MUT-SUMMARY-START -->**قيد القياس: قيس 40 من 219 حارسًا حتى الآن، كُشف منها 40** (الجدول في 2.1 يُملأ دفعةً دفعة).<!-- MUT-SUMMARY-END -->
 - **الجولة المنتظمة الأخيرة (الملفات الجديدة والمتغيرة وذات الصلة، كل ملف وحده على `ospos_test_b`):** @@RUNS@@ (المجموعة الكاملة يشغّلها المُدمِج، ولم أشغّلها).
 - **التنسيق:** شُغّل `php-cs-fixer` (إعداد `.php-cs-fixer.no-header.php`) على كل ملفات `app/` الجديدة (11 ملفًا: صفر تغيير) وعلى المكتبات والمتحكمات المعدَّلة، فاقتصر الإصلاح على محاذاة مفتاح الإعداد الجديد في `AccountingSettings` و`AccountingSetup`. أما ملفات `app/Controllers` و`app/Models` و`tabular_helper.php` القديمة التي لمستُ فيها **سطورًا قليلة** فلم أُعد تنسيقها كلها (تغيير يغطي الملف بأكمله ويصعّب على المُدمِج الدمج)، وكل سطر جديد فيها على المعيار. واختبارات الملفات الجديدة على PSR-12 (صفر مخالفة).
 
@@ -65,6 +65,16 @@
 | `G28` | cancelling an expense is audited | مكشوف | 1 |
 | `G29` | a deleted expense is reversed, not posted again (sync) | مكشوف | 2 |
 | `G30` | an expense moved before accounting starts is reversed (sync) | مكشوف | 1 |
+| `G31` | the tax has the sign of the amount | مكشوف | 1 |
+| `G32` | the tax is not more than the amount | مكشوف | 1 |
+| `G33` | a gift card does not pay an expense | مكشوف | 1 |
+| `G34` | reward points do not pay an expense | مكشوف | 1 |
+| `G35` | a way of payment the books do not know is refused | مكشوف | 1 |
+| `G36` | an expense that is due is owed to other creditors | مكشوف | 2 |
+| `G37` | an expense of zero posts nothing | مكشوف | 1 |
+| `G38` | the cost goes to the account of the category (FIN-04) | مكشوف | 1 |
+| `G39` | the tax goes to the routed account of tax paid (FIN-02) | مكشوف | 4 |
+| `G40` | the credit goes to the account of the treasury | مكشوف | 3 |
 <!-- MUT-TABLE-END -->
 
 ## 3. ما افترضتُه (**لم يؤكّدها المالك بعد**)
