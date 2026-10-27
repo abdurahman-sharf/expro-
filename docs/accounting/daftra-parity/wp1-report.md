@@ -110,3 +110,19 @@ DETECTED  A2A-10 a list of items with stock outside the branches cannot be delet
 DETECTED  A2A-10b a list of items with stock outside the branches cannot be deleted (screen): Tests: 6, Assertions: 72, Failures: 1.; failing: 1
 9 of 9 guards detected
 ```
+
+### الدفعة 3
+
+```
+DETECTED  A2A-11 the saved location of the screen is checked against the branches: Tests: 81, Assertions: 551, Failures: 1.; failing: 1
+DETECTED  A2A-12 the journal of a stock adjustment needs the branch of its location: Tests: 15, Assertions: 133, Failures: 2.; failing: 2
+DETECTED  G41-A5-1 the destination of a requisition is checked when the mode changes: Tests: 78, Assertions: 661, Failures: 3.; failing: 3
+DETECTED  G41-A5-2 the destination is checked against the grants and the branches: Tests: 78, Assertions: 661, Failures: 3.; failing: 3
+DETECTED  G41-A5-3 the destination is checked again when the requisition is completed: Tests: 78, Assertions: 661, Failures: 2.; failing: 2
+DETECTED  P5-LOCK-1 a lock the connection held before asking is refused: Tests: 8, Assertions: 16, Failures: 2.; failing: 2
+DETECTED  P5-LOCK-2 a lock taken on another connection is refused: Tests: 8, Assertions: 11, Failures: 4.; failing: 4
+DETECTED  P5-LOCK-3 a refused lock is let go of: Tests: 8, Assertions: 12, Failures: 3.; failing: 3
+DETECTED  P5-LOCK-4 a name taken again is counted: Tests: 8, Assertions: 17, Failures: 1.; failing: 1
+DETECTED  P5-LOCK-5 the probe reports what the lock gave: Tests: 8, Assertions: 18, Failures: 1.; failing: 1
+10 of 10 guards detected
+```
