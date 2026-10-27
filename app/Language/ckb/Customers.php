@@ -45,7 +45,6 @@ return [
     'none_selected'                 => 'هیچ کڕیارتێکت دیاری نەکردووە بۆ سڕینەوە.',
     'one_or_multiple'               => 'کڕیار(ەکان)',
     'quantity'                      => 'بڕ',
-    'rewards_package'               => 'پاکێجی خەڵاتەکان',
     'stats_info'                    => 'ئامار',
     'successful_adding'             => 'بە سەرکەوتوویی کڕیارت زیاد کرد',
     'successful_deleted'            => 'بەسەرکەوتووی سڕیتەوە',
@@ -55,4 +54,5 @@ return [
     'taxable'                       => 'باجی لەسەرە',
     'total'                         => 'کۆی خەرجکراوەکان',
     'update'                        => 'نوێکردنەوەی کڕیار',
+    'rewards_package'               => 'پاکێجی خەڵاتەکان',
 ];

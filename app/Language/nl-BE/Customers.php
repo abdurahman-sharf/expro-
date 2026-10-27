@@ -45,7 +45,6 @@ return [
     'none_selected'                 => 'U hebt geen klanten geselecteerd om te verwijderen.',
     'one_or_multiple'               => 'klant(en) verwijderd',
     'quantity'                      => 'Hoeveelheid',
-    'rewards_package'               => 'Spaarpunten',
     'stats_info'                    => 'Statistieken',
     'successful_adding'             => 'Klant succesvol aangemaakt',
     'successful_deleted'            => 'Er werd(en)',
@@ -55,4 +54,5 @@ return [
     'taxable'                       => 'Belastbaar',
     'total'                         => 'Totaal',
     'update'                        => 'Bewerk Klant',
+    'rewards_package'               => 'Spaarpunten',
 ];

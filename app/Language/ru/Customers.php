@@ -45,7 +45,6 @@ return [
     'none_selected'                 => 'Вы не выбрали клиента(ов) для удаления.',
     'one_or_multiple'               => 'Клиент(ы)',
     'quantity'                      => 'Количество',
-    'rewards_package'               => 'Пакет вознаграждения',
     'stats_info'                    => 'Статистика',
     'successful_adding'             => 'Вы успешно добавили клиента',
     'successful_deleted'            => 'Успешно удалено',
@@ -55,4 +54,5 @@ return [
     'taxable'                       => 'Облагается налогом',
     'total'                         => 'Всего потрачено',
     'update'                        => 'Обновление клиента',
+    'rewards_package'               => 'Пакет вознаграждения',
 ];

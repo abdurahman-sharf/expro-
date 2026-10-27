@@ -45,7 +45,6 @@ return [
     'none_selected'                 => 'Sie haben keine Kunden zum Löschen gewählt.',
     'one_or_multiple'               => 'Kunde(n)',
     'quantity'                      => 'Menge',
-    'rewards_package'               => 'Prämienpaket',
     'stats_info'                    => 'Statistiken',
     'successful_adding'             => 'Kunde erfolgreich hinzugefügt',
     'successful_deleted'            => 'Löschung erfolgreich',
@@ -55,4 +54,5 @@ return [
     'taxable'                       => 'Steuerpflichtig',
     'total'                         => 'Total',
     'update'                        => 'Kunde ändern',
+    'rewards_package'               => 'Prämienpaket',
 ];

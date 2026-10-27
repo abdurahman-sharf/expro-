@@ -45,7 +45,6 @@ return [
     'none_selected'                 => '您还没有选择任何客户进行删除',
     'one_or_multiple'               => '客戶',
     'quantity'                      => '',
-    'rewards_package'               => '',
     'stats_info'                    => '',
     'successful_adding'             => '成功新增客户',
     'successful_deleted'            => '成功刪除',
@@ -55,4 +54,5 @@ return [
     'taxable'                       => '應課稅',
     'total'                         => '总支出',
     'update'                        => '更新客戶',
+    'rewards_package'               => '',
 ];
