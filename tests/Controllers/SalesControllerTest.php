@@ -2085,6 +2085,87 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertSame($sales, $this->countSales());
     }
 
+    /**
+     * @return array<string, array{string, string}>
+     */
+    public static function documentOfARegisterProvider(): array
+    {
+        return [
+            'a sale at the register'  => ['sale', '/sales/complete'],
+            'a quote'                 => ['sale_quote', '/sales/complete'],
+            'a work order'            => ['sale_work_order', '/sales/complete'],
+            'a suspended sale'        => ['sale', '/sales/suspend'],
+        ];
+    }
+
+    #[DataProvider('documentOfARegisterProvider')]
+    public function testPostComplete_RefusesADiscountThatNoLongerFitsTheCartInEveryDocumentAndKeepsTheCart(string $mode, string $uri): void
+    {
+        $this->registerWithTheDiscountGrant();
+        $this->withSession(array_merge($this->session, ['sales_mode' => $mode]));
+        $this->post('/sales/addPayment', ['payment_type' => 'Cash', 'amount_tendered' => '100.00']);
+        $this->withSession(array_merge($this->session, ['sales_invoice_discount' => ['type' => FIXED, 'value' => '150'], 'sales_payments' => Services::session()->get('sales_payments')]));
+
+        $sales = $this->countSales();
+
+        $response = $this->post($uri);
+
+        $response->assertSee(lang('Sales.invoice_discount_exceeds_total'));
+        $this->assertSame($sales, $this->countSales());
+        $this->assertCount(1, Services::session()->get('sales_cart'), 'the cart of the cashier is still there');
+        $this->assertSame(['type' => FIXED, 'value' => '150'], Services::session()->get('sales_invoice_discount'));
+    }
+
+    #[DataProvider('documentOfARegisterProvider')]
+    public function testPostComplete_RefusesAnEmployeeWithoutThePermissionADocumentThatCarriesADiscountAndSavesNothing(string $mode, string $uri): void
+    {
+        $this->registerWithTheDiscountGrant(false);
+        $this->withSession(array_merge($this->session, ['sales_mode' => $mode, 'sales_invoice_discount' => ['type' => PERCENT, 'value' => '10']]));
+
+        $sales = $this->countSales();
+
+        $response = $this->post($uri);
+
+        $response->assertSee(lang('Sales.not_authorized'));
+        $this->assertSame($sales, $this->countSales());
+        $this->assertCount(1, Services::session()->get('sales_cart'));
+    }
+
+    public function testPostComplete_RefusesAnEmployeeWithoutThePermissionTheQuoteAnotherSavedWithADiscountAndLeavesItSuspended(): void
+    {
+        $this->registerWithTheDiscountGrant(false);
+        $item   = $this->item('0', false);
+        $saleId = $this->save([$this->line($item, 0, '1', '100')], [], [], SALE_TYPE_QUOTE, -1, true, null, SUSPENDED, NEW_ENTRY, ['type' => PERCENT, 'value' => '10']);
+
+        $this->withSession(array_merge($this->session, ['sales_cart' => [], 'sale_id' => NEW_ENTRY]));
+        $this->post('/sales/unsuspend', ['suspended_sale_id' => (string) $saleId]);
+        $this->withSession(array_merge($this->session, array_intersect_key(Services::session()->get(), array_flip(['sales_cart', 'sales_mode', 'sale_id', 'sales_customer', 'sales_invoice_discount', 'sales_type', 'sales_payments', 'sales_quote_number']))));
+
+        $this->assertSame(['type' => PERCENT, 'value' => '10'], Services::session()->get('sales_invoice_discount'));
+
+        $response = $this->post('/sales/complete');
+
+        $response->assertSee(lang('Sales.not_authorized'));
+        $this->assertSame((string) SUSPENDED, (string) $this->accountingDb()->table('sales')->where('sale_id', $saleId)->get()->getRow()->sale_status);
+        $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'sale', 'entity_id' => $saleId, 'action' => 'invoice_discount_given'])->countAllResults());
+    }
+
+    public function testPostSetInvoiceDiscount_RefusesAValueThatIsNotAFieldOfText(): void
+    {
+        $this->registerWithTheDiscountGrant();
+
+        $response = $this->post('/sales/setInvoiceDiscount', ['invoice_discount' => ['5'], 'invoice_discount_type' => (string) PERCENT]);
+
+        $response->assertStatus(200);
+        $response->assertSee(lang('Sales.invoice_discount_invalid'));
+        $this->assertNull(Services::session()->get('sales_invoice_discount'));
+
+        $response = $this->post('/sales/setInvoiceDiscount', ['invoice_discount' => '5', 'invoice_discount_type' => ['1']]);
+
+        $response->assertSee(lang('Sales.invoice_discount_invalid'));
+        $this->assertNull(Services::session()->get('sales_invoice_discount'));
+    }
+
     public function testGetIndex_WarnsThatTheDiscountNoLongerFitsTheCart(): void
     {
         $this->registerWithTheDiscountGrant();

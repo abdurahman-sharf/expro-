@@ -388,9 +388,7 @@ class Sales extends Secure_Controller
      */
     public function postSetInvoiceDiscount(): ResponseInterface|string
     {
-        $employeeId = (int) $this->employee->get_logged_in_employee_info()->person_id;
-
-        if (!$this->employee->has_grant('sales_invoice_discount', $employeeId)) {
+        if (!$this->mayGiveInvoiceDiscount()) {
             return $this->reload(['error' => lang('Sales.not_authorized')]);
         }
 
@@ -398,8 +396,10 @@ class Sales extends Secure_Controller
             return $this->reload(['error' => lang(InvoiceDiscountProblem::OnReturn->languageKey())]);
         }
 
-        $type = (int) $this->request->getPost('invoice_discount_type');
-        $value = trim((string) $this->request->getPost('invoice_discount'));
+        $postedType = $this->request->getPost('invoice_discount_type');
+        $postedValue = $this->request->getPost('invoice_discount');
+        $type = is_string($postedType) ? (int) $postedType : -1;
+        $value = is_string($postedValue) ? trim($postedValue) : 'not a number';
         $value = $value === '' ? '0' : str_replace(',', '.', $value);
 
         if (preg_match('/^\d+(\.\d+)?$/', $value) === 1 && bccomp($value, '0', InvoiceDiscount::SCALE) === 0) {
@@ -932,6 +932,10 @@ class Sales extends Secure_Controller
         }
 
         $invoiceDiscount = $this->registerInvoiceDiscount();
+
+        if ($invoiceDiscount !== null && !$this->mayGiveInvoiceDiscount()) {
+            return $this->reload(['error' => lang('Sales.not_authorized')]);
+        }
 
         $data['include_hsn'] = (bool)$this->config['include_hsn'];
         $time = time();
@@ -1798,12 +1802,18 @@ class Sales extends Secure_Controller
         return null;
     }
 
-    /**
-     * What the books said about the sale that was just refused, in words for the cashier.
-     */
     private function invoiceDiscountMessage(): string
     {
         return lang(($this->sale->invoiceDiscountProblem() ?? InvoiceDiscountProblem::UnknownType)->languageKey());
+    }
+
+    /**
+     * A discount on the whole of a sale is given by whoever holds the permission, and whoever saves
+     * or completes a document that carries one gives it, so it is checked wherever one is saved.
+     */
+    private function mayGiveInvoiceDiscount(): bool
+    {
+        return $this->employee->has_grant('sales_invoice_discount', (int) $this->employee->get_logged_in_employee_info()->person_id);
     }
 
     /**
@@ -1817,6 +1827,9 @@ class Sales extends Secure_Controller
         return $this->sale_lib->is_return_mode() ? null : $this->sale_lib->getInvoiceDiscount();
     }
 
+    /**
+     * What the books said about the sale that was just refused, in words for the cashier.
+     */
     private function accountingFailureMessage(): string
     {
         $failure = $this->sale->accountingFailure();
@@ -1896,7 +1909,7 @@ class Sales extends Secure_Controller
         $data['discount'] = $this->sale_lib->get_discount();
         $data['invoice_discount'] = $this->sale_lib->getInvoiceDiscountTotal();
         $data['invoice_discount_entry'] = $this->sale_lib->getInvoiceDiscount();
-        $data['can_invoice_discount'] = !$this->sale_lib->is_return_mode() && $this->employee->has_grant('sales_invoice_discount', (int) $this->employee->get_logged_in_employee_info()->person_id);
+        $data['can_invoice_discount'] = !$this->sale_lib->is_return_mode() && $this->mayGiveInvoiceDiscount();
 
         $discountProblem = $this->sale_lib->invoiceDiscountProblem();
 
@@ -2451,7 +2464,13 @@ class Sales extends Secure_Controller
             return $this->reload($data);
         }
 
-        $saleIdNum = $this->sale->save_value($sale_id, $sale_status, $cart, $customer_id, $employee_id, $comment, $invoice_number, $work_order_number, $quote_number, $sale_type, $payments, $dinner_table, $sales_taxes, $this->sale_lib->is_delivered(), null, $this->registerInvoiceDiscount());
+        $invoiceDiscount = $this->registerInvoiceDiscount();
+
+        if ($invoiceDiscount !== null && !$this->mayGiveInvoiceDiscount()) {
+            return $this->reload(['error' => lang('Sales.not_authorized')]);
+        }
+
+        $saleIdNum = $this->sale->save_value($sale_id, $sale_status, $cart, $customer_id, $employee_id, $comment, $invoice_number, $work_order_number, $quote_number, $sale_type, $payments, $dinner_table, $sales_taxes, $this->sale_lib->is_delivered(), null, $invoiceDiscount);
 
         if ($saleIdNum === INSUFFICIENT_GIFTCARD_BALANCE) {
             $data['error'] = lang('Sales.insufficient_giftcard_balance');
