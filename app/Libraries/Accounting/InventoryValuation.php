@@ -77,7 +77,7 @@ final class InventoryValuation
             );
         }
 
-        usort($built, static fn (InventoryValuationLocation $first, InventoryValuationLocation $second): int => [$first->name, $first->locationId] <=> [$second->name, $second->locationId]);
+        usort($built, static fn (InventoryValuationLocation $first, InventoryValuationLocation $second): int => [mb_strtolower($first->name), $first->locationId] <=> [mb_strtolower($second->name), $second->locationId]);
 
         $stockBalance = $control['code'] === null ? null : array_reduce($control['ids'], static fn (string $sum, int $accountId): string => bcadd($sum, $balances[$accountId] ?? '0', self::SCALE), '0');
 
@@ -294,7 +294,7 @@ final class InventoryValuation
             }
         }
 
-        usort($lines, static fn (InventoryValuationLine $first, InventoryValuationLine $second): int => [$first->position->itemName, $first->position->itemId] <=> [$second->position->itemName, $second->position->itemId]);
+        usort($lines, static fn (InventoryValuationLine $first, InventoryValuationLine $second): int => [mb_strtolower($first->position->itemName), $first->position->itemId] <=> [mb_strtolower($second->position->itemName), $second->position->itemId]);
 
         return $lines;
     }

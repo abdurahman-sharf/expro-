@@ -33,6 +33,9 @@ $span = $type->showsOpening() ? 8 : ($type->showsMovement() ? 6 : 4);
     <a class="btn btn-outline-secondary btn-sm float-end" href="<?= esc(base_url('accounting_reports/ledger'), 'attr') ?>">
         <span class="bi bi-journal-text" aria-hidden="true">&nbsp;</span><?= lang('Accounting_reports.ledger') ?>
     </a>
+    <a class="btn btn-outline-secondary btn-sm float-end" id="inventory_valuation_link" href="<?= esc(base_url('accounting_reports/inventory_valuation'), 'attr') ?>">
+        <span class="bi bi-boxes" aria-hidden="true">&nbsp;</span><?= lang('Accounting_inventory_reports.title') ?>
+    </a>
 </div>
 
 <form id="report_filters" class="acc-filters print_hide" method="get" action="<?= esc(base_url('accounting_reports'), 'attr') ?>" role="search" aria-label="<?= esc(lang('Accounting_reports.filters'), 'attr') ?>">

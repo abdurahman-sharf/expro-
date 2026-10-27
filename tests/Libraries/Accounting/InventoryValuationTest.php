@@ -29,6 +29,7 @@ use Tests\Support\ParityFixture;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 use Tests\Support\ShelfFixtureTrait;
+use Tests\Support\StockBooksFixtureTrait;
 
 /**
  * What the stock is worth by the books, location by location and item by item: that it comes from
@@ -45,6 +46,7 @@ class InventoryValuationTest extends CIUnitTestCase
     use SaleAccountingFixtureTrait;
     use PurchaseAccountingFixtureTrait;
     use ShelfFixtureTrait;
+    use StockBooksFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -54,7 +56,6 @@ class InventoryValuationTest extends CIUnitTestCase
     private InventoryValuation $valuation;
     private StockLedger $ledger;
     private int $second;
-    private int $bookedSource = 880000;
 
     public static function setUpBeforeClass(): void
     {
@@ -120,47 +121,6 @@ class InventoryValuationTest extends CIUnitTestCase
     private function locationIds(InventoryValuationReport $report): array
     {
         return array_map(static fn (InventoryValuationLocation $location): int => $location->locationId, $report->locations);
-    }
-
-    /**
-     * Puts stock in the books as a purchase does: a journal that debits the account of the
-     * location, and the movement that goes with it, on the day and in the branch given.
-     */
-    private function bookStock(string $date, int $branchId, int $itemId, string $quantity, string $value, int $locationId = self::LOCATION_ID): int
-    {
-        $source = ++$this->bookedSource;
-        $debit  = bccomp($value, '0', 4) >= 0;
-        $amount = ltrim($value, '-');
-        $stock  = new JournalLineDraft($this->stockAccountOf($locationId), debit: $debit ? $amount : '0', credit: $debit ? '0' : $amount);
-        $owed   = new JournalLineDraft($this->supplierAccount(), debit: $debit ? '0' : $amount, credit: $debit ? $amount : '0');
-
-        $result = (new PostingService())->post(new JournalDraft(
-            date: $date,
-            lines: [$stock, $owed],
-            sourceType: 'purchase',
-            sourceId: $source,
-            currencyCode: 'SAR',
-            branchId: $branchId,
-        ));
-
-        $this->ledger->record('purchase', $source, JournalEntryType::General, 1, $date, $branchId, [new StockMovement($itemId, $locationId, $quantity, $value)], $result->journalId);
-
-        return $result->journalId;
-    }
-
-    /**
-     * A journal that no movement goes with, which is what a manual entry to the account of a
-     * location is.
-     */
-    private function manualToStock(string $amount, int $branchId = 1, int $locationId = self::LOCATION_ID, string $date = '2026-10-06'): void
-    {
-        (new PostingService())->post(new JournalDraft(
-            date: $date,
-            lines: [new JournalLineDraft($this->stockAccountOf($locationId), debit: $amount), new JournalLineDraft($this->accountId('opening_balance'), credit: $amount)],
-            sourceType: JournalDraft::SOURCE_MANUAL,
-            currencyCode: 'SAR',
-            branchId: $branchId,
-        ));
     }
 
     public function testBuild_ShowsTheQuantityAverageCostAndValueOfEachItemInEachLocation(): void
@@ -790,6 +750,25 @@ class InventoryValuationTest extends CIUnitTestCase
 
         $this->assertSame('Aardvark depot', $report->locations[0]->name);
         $this->assertSame(['Apple', 'Zebra'], array_map(static fn (InventoryValuationLine $line): string => $line->position->itemName, $report->locations[1]->lines));
+    }
+
+    public function testBuild_SortsByNameWhateverTheCaseOfTheLetters(): void
+    {
+        $upper = $this->item('0.00');
+        $lower = $this->item('0.00');
+
+        $this->accountingDb()->table('items')->where('item_id', $upper)->update(['name' => 'Zebra']);
+        $this->accountingDb()->table('items')->where('item_id', $lower)->update(['name' => 'apple']);
+
+        $this->bookStock('2026-10-05', 1, $upper, '1', '10.00');
+        $this->bookStock('2026-10-05', 1, $lower, '1', '10.00');
+        $this->bookStock('2026-10-05', 1, $lower, '1', '10.00', $this->anotherLocation('zulu depot'));
+        $this->bookStock('2026-10-05', 1, $lower, '1', '10.00', $this->anotherLocation('Alpha depot'));
+
+        $report = $this->build();
+
+        $this->assertSame(['Alpha depot', 'stock', 'zulu depot'], array_map(static fn (InventoryValuationLocation $location): string => $location->name, $report->locations));
+        $this->assertSame(['apple', 'Zebra'], array_map(static fn (InventoryValuationLine $line): string => $line->position->itemName, $report->locations[1]->lines));
     }
 
     public function testBuild_NamesTheBranchOfEachLocationAndItsAccount(): void

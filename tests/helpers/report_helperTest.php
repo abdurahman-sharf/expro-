@@ -49,4 +49,36 @@ final class report_helperTest extends CIUnitTestCase
         $this->assertStringEndsWith('reports/detailed_sales', $paths[2]);
         $this->assertStringEndsWith('reports/detailed_item_sales', $paths[3]);
     }
+
+    /**
+     * @param list<string> $permissionIds
+     *
+     * @return list<string>
+     */
+    private function pathsFor(array $permissionIds): array
+    {
+        $paths = [];
+
+        foreach (reportCatalog($permissionIds) as $group) {
+            foreach ($group['subjects'] as $subject) {
+                foreach ($subject['links'] as $link) {
+                    $paths[] = $link['path'];
+                }
+            }
+        }
+
+        return $paths;
+    }
+
+    public function testReportCatalog_OffersTheInventoryValuationToTheFinancialReportsModuleOnly(): void
+    {
+        $paths = $this->pathsFor(['accounting_reports']);
+
+        $this->assertCount(1, $paths);
+        $this->assertStringEndsWith('accounting_reports/inventory_valuation', $paths[0]);
+
+        foreach ($this->pathsFor(['reports_inventory', 'reports_sales', 'accounting_journals', 'accounting_payables']) as $path) {
+            $this->assertStringNotContainsString('inventory_valuation', $path);
+        }
+    }
 }

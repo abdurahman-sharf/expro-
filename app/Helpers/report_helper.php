@@ -112,6 +112,9 @@ function reportCatalog(array $permissionIds): array
                 $link('summary', 'inventory_low', 'Reports.inventory_low'),
                 $link('summary', 'inventory_summary', 'Reports.inventory_summary'),
             ]],
+            ['bi-boxes', 'Accounting_inventory_reports.title', 'accounting_reports', [
+                ['path' => site_url('accounting_reports/inventory_valuation'), 'label' => lang('Accounting_inventory_reports.catalog_link'), 'icon' => 'bi-table'],
+            ]],
             ['bi-box-arrow-in-down', 'Reports.receivings', 'reports_receivings', [
                 $link('detailed', 'detailed_receivings'),
             ]],

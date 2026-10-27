@@ -2,6 +2,7 @@
 
 namespace App\Controllers;
 
+use App\Libraries\Accounting\AccountingSettings;
 use App\Models\Attribute;
 use App\Models\Customer;
 use App\Models\Stock_location;
@@ -115,6 +116,10 @@ class Reports extends Secure_Controller
         $person_id = $this->session->get('person_id');
         $grants = $this->employee->get_employee_grants($this->session->get('person_id'));
         $permissions_ids = array_column($grants, 'permission_id');
+
+        if (! (new AccountingSettings())->isEnabled()) {
+            $permissions_ids = array_values(array_diff($permissions_ids, ['accounting_reports']));
+        }
 
         $data = [
             'person_id'      => $person_id,
