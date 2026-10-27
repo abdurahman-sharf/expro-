@@ -2,6 +2,7 @@
 
 namespace Tests\Controllers;
 
+use App\Libraries\Accounting\InvoiceDiscount;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
@@ -12,6 +13,9 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use Config\Database;
 use Config\OSPOS;
+use DOMDocument;
+use DOMXPath;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
@@ -66,10 +70,11 @@ class ReceivingsControllerTest extends CIUnitTestCase
     /**
      * An employee of the purchase screens, who works in every branch unless some are named.
      *
-     * @param list<int>|null $branchIds
-     * @param list<string>   $extraGrants
+     * @param list<int>|null       $branchIds
+     * @param list<string>         $extraGrants
+     * @param array<string, mixed> $employee    Overrides of the row of the employee, such as the language.
      */
-    private function buyer(?array $branchIds = null, array $extraGrants = ['items', 'accounting_journals']): int
+    private function buyer(?array $branchIds = null, array $extraGrants = ['items', 'accounting_journals'], array $employee = []): int
     {
         $grants = [
             ['permission_id' => 'receivings', 'menu_group' => 'home'],
@@ -85,7 +90,7 @@ class ReceivingsControllerTest extends CIUnitTestCase
             $grants[] = ['permission_id' => BranchGuard::ALL_BRANCHES, 'menu_group' => '--'];
         }
 
-        $personId = $this->createEmployee(first_name: 'Buyer', last_name: 'Test', grants: $grants);
+        $personId = $this->createEmployee(first_name: 'Buyer', last_name: 'Test', grants: $grants, employee: $employee);
 
         foreach ($branchIds ?? [] as $index => $branchId) {
             $this->accountingDb()->table('employee_branches')->insert(['person_id' => $personId, 'branch_id' => $branchId, 'is_default' => $index === 0 ? 1 : 0]);
@@ -1551,5 +1556,679 @@ class ReceivingsControllerTest extends CIUnitTestCase
 
         $response->assertSee(lang('Receivings.payment') . ' #' . $paymentId);
         $response->assertDontSee('id="document_number"');
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // The discount on the whole receiving
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function withInvoiceDiscount(array $session, int $type, string $value): array
+    {
+        return array_merge($session, ['recv_invoice_discount' => ['type' => $type, 'value' => $value]]);
+    }
+
+    public function testPostSetInvoiceDiscount_KeepsAPercentageAndShowsItBetweenTheSubtotalAndTheTax(): void
+    {
+        $itemId = $this->item('0.00');
+        $this->loginAs($this->buyer(), $this->cart([$this->cartLine($itemId, 1, '10', '100', '15')]));
+
+        $response = $this->post('/receivings/setInvoiceDiscount', ['invoice_discount' => '10', 'invoice_discount_type' => '0']);
+
+        $response->assertStatus(200);
+        $response->assertSeeElement('#receiving_invoice_discount');
+        $response->assertSee(lang('Receivings.invoice_discount_amount'));
+        $response->assertSee(to_currency('-100'));
+        $response->assertSee(to_currency('135'));
+        $response->assertSee(to_currency('1035'));
+        $this->assertSame([PERCENT, '10.0000'], [session()->get('recv_invoice_discount')['type'], session()->get('recv_invoice_discount')['value']]);
+    }
+
+    public function testPostSetInvoiceDiscount_KeepsAnAmountAndTakesItOffTheTaxToo(): void
+    {
+        $itemId = $this->item('0.00');
+        $this->loginAs($this->buyer(), $this->cart([$this->cartLine($itemId, 1, '10', '100', '15')]));
+
+        $response = $this->post('/receivings/setInvoiceDiscount', ['invoice_discount' => '200', 'invoice_discount_type' => '1']);
+
+        $response->assertSee(to_currency('-200'));
+        $response->assertSee(to_currency('120'));
+        $response->assertSee(to_currency('920'));
+        $this->assertSame([FIXED, '200.00'], [session()->get('recv_invoice_discount')['type'], session()->get('recv_invoice_discount')['value']]);
+    }
+
+    /**
+     * @return array<string, array{string, string}>
+     */
+    public static function refusedInvoiceDiscounts(): array
+    {
+        return [
+            'text'                           => ['abc', '0'],
+            'a negative percentage'          => ['-5', '0'],
+            'a percentage above the whole'   => ['101', '0'],
+            'an amount above the lines'      => ['1000.01', '1'],
+        ];
+    }
+
+    #[DataProvider('refusedInvoiceDiscounts')]
+    public function testPostSetInvoiceDiscount_RefusesWhatIsNotAValidDiscountAndKeepsTheOneThatWas(string $value, string $type): void
+    {
+        $itemId = $this->item('0.00');
+        $this->loginAs($this->buyer(), $this->withInvoiceDiscount($this->cart([$this->cartLine($itemId, 1, '10', '100')]), PERCENT, '5.0000'));
+
+        $response = $this->post('/receivings/setInvoiceDiscount', ['invoice_discount' => $value, 'invoice_discount_type' => $type]);
+
+        $response->assertSee(lang('Receivings.invoice_discount_invalid'));
+        $this->assertSame('5.0000', session()->get('recv_invoice_discount')['value']);
+    }
+
+    public function testPostSetInvoiceDiscount_RemovesTheDiscountWhenTheValueIsEmpty(): void
+    {
+        $itemId = $this->item('0.00');
+        $this->loginAs($this->buyer(), $this->withInvoiceDiscount($this->cart([$this->cartLine($itemId, 1, '10', '100')]), PERCENT, '5.0000'));
+
+        $this->post('/receivings/setInvoiceDiscount', ['invoice_discount' => '', 'invoice_discount_type' => '0'])->assertStatus(200);
+
+        $this->assertNull(session()->get('recv_invoice_discount'));
+    }
+
+    public function testPostSetInvoiceDiscount_RefusesAnythingButGoodsComingIn(): void
+    {
+        $itemId = $this->item('0.00');
+        $this->loginAs($this->buyer(), $this->cart([$this->cartLine($itemId, 1, '-2', '50')], 'return'));
+
+        $response = $this->post('/receivings/setInvoiceDiscount', ['invoice_discount' => '10', 'invoice_discount_type' => '0']);
+
+        $response->assertSee(lang('Receivings.invoice_discount_wrong_mode'));
+        $this->assertNull(session()->get('recv_invoice_discount'));
+    }
+
+    public function testPostChangeMode_ForgetsTheDiscountWhenTheModeLeavesReceive(): void
+    {
+        $itemId = $this->item('0.00');
+        $this->loginAs($this->buyer(), $this->withInvoiceDiscount($this->cart([$this->cartLine($itemId, 1, '10', '100')]), PERCENT, '5.0000'));
+
+        $this->post('/receivings/changeMode', ['mode' => 'return'])->assertStatus(200);
+
+        $this->assertNull(session()->get('recv_invoice_discount'));
+    }
+
+    public function testGetIndex_OffersTheDiscountOnlyToGoodsComingIn(): void
+    {
+        $itemId = $this->item('0.00');
+
+        $this->loginAs($this->buyer(), $this->cart([$this->cartLine($itemId, 1, '10', '100')]));
+        $this->get('/receivings')->assertSeeElement('#invoice_discount_form');
+
+        $this->loginAs($this->buyer(), $this->cart([$this->cartLine($itemId, 1, '-2', '100')], 'return'));
+        $this->get('/receivings')->assertDontSeeElement('#invoice_discount_form');
+    }
+
+    public function testPostSetInvoiceDiscount_SendsAnEmployeeWithoutTheReceivingsModuleToTheNoAccessPage(): void
+    {
+        $itemId = $this->item('0.00');
+        $person = $this->createEmployee(first_name: 'No', last_name: 'Access', grants: [['permission_id' => 'items', 'menu_group' => 'home']]);
+        $this->loginAs($person, $this->cart([$this->cartLine($itemId, 1, '10', '100')]));
+
+        $response = $this->post('/receivings/setInvoiceDiscount', ['invoice_discount' => '10', 'invoice_discount_type' => '0']);
+
+        $this->assertStringContainsString('no_access', $response->getRedirectUrl());
+        $this->assertNull(session()->get('recv_invoice_discount'));
+    }
+
+    public function testPostComplete_SendsAnEmployeeWithoutTheReceivingsModuleToTheNoAccessPageWhateverTheRegisterHolds(): void
+    {
+        $itemId = $this->item('0.00');
+        $before = $this->countRows('receivings');
+        $person = $this->createEmployee(first_name: 'No', last_name: 'Access', grants: [['permission_id' => 'items', 'menu_group' => 'home']]);
+        $this->loginAs($person, $this->withInvoiceDiscount($this->cart([$this->cartLine($itemId, 1, '10', '100')]), PERCENT, '10.0000'));
+
+        $response = $this->post('/receivings/complete', $this->completeForm());
+
+        $this->assertStringContainsString('no_access', $response->getRedirectUrl());
+        $this->assertSame($before, $this->countRows('receivings'));
+    }
+
+    public function testPostSetInvoiceDiscount_SaysItsWordsInArabicToABuyerWhoReadsArabic(): void
+    {
+        $itemId = $this->item('0.00');
+        $this->loginAs($this->buyer(null, ['items'], ['language_code' => 'ar-EG', 'language' => 'arabic']), $this->cart([$this->cartLine($itemId, 1, '10', '100', '15')]));
+
+        $response = $this->post('/receivings/setInvoiceDiscount', ['invoice_discount' => '10', 'invoice_discount_type' => '0']);
+
+        $response->assertSee('خصم على إجمالي الفاتورة');
+        $response->assertSee('خصم الفاتورة');
+        $response->assertDontSee('Discount on the whole invoice');
+    }
+
+    public function testGetReceipt_SaysTheDiscountInArabicToABuyerWhoReadsArabic(): void
+    {
+        $itemId   = $this->item('0.00');
+        $purchase = $this->buy([$this->purchaseLine($itemId, 0, '10', '100', '15')], -1, null, null, InvoiceDiscount::of(PERCENT, '10'));
+        $this->loginAs($this->buyer(null, ['items'], ['language_code' => 'ar-EG', 'language' => 'arabic']));
+
+        $receipt = $this->get('/receivings/receipt/' . $purchase);
+
+        $receipt->assertSeeElement('#receipt_invoice_discount');
+        $receipt->assertSee('خصم الفاتورة');
+    }
+
+    public function testPostCancelReceiving_ForgetsTheDiscount(): void
+    {
+        $itemId = $this->item('0.00');
+        $this->loginAs($this->buyer(), $this->withInvoiceDiscount($this->cart([$this->cartLine($itemId, 1, '10', '100')]), PERCENT, '5.0000'));
+
+        $this->post('/receivings/cancelReceiving')->assertStatus(200);
+
+        $this->assertNull(session()->get('recv_invoice_discount'));
+    }
+
+    public function testPostComplete_SavesTheDiscountPostsItAndShowsItOnTheReceipt(): void
+    {
+        $itemId = $this->item('0.00');
+        $this->loginAs($this->buyer(), $this->withInvoiceDiscount($this->cart([$this->cartLine($itemId, 1, '10', '100', '15')]), PERCENT, '10.0000'));
+
+        $response = $this->post('/receivings/complete', $this->completeForm());
+
+        $response->assertStatus(200);
+        $response->assertSeeElement('#receipt_invoice_discount');
+        $response->assertSee(to_currency('-100'));
+        $response->assertSee(to_currency('1035'));
+
+        $receivingId = (int) $this->accountingDb()->table('receivings')->selectMax('receiving_id', 'last')->get()->getRow()->last;
+        $this->receivingIds[] = $receivingId;
+
+        $header = $this->receivingRow($receivingId);
+
+        $this->assertSame([PERCENT, '10.0000'], [(int) $header->invoice_discount_type, bcadd((string) $header->invoice_discount, '0', 4)]);
+        $this->assertSame('-1035.00', $this->balance($this->supplierAccount()));
+        $this->assertSame('135.00', $this->balance($this->accountId('tax_input')));
+        $this->assertSame(['quantity' => '10.000', 'value' => '900.00'], $this->stockOf($itemId));
+        $this->assertNull(session()->get('recv_invoice_discount'), 'The register starts again');
+        $this->assertStockTies();
+    }
+
+    public function testPostComplete_SaysWhyADiscountAboveTheReceivingWasRefusedAndKeepsTheCart(): void
+    {
+        $itemId = $this->item('0.00');
+        $before = $this->countRows('receivings');
+        $this->loginAs($this->buyer(), $this->withInvoiceDiscount($this->cart([$this->cartLine($itemId, 1, '10', '100')]), FIXED, '5000.00'));
+
+        $response = $this->post('/receivings/complete', $this->completeForm());
+
+        $response->assertSee(lang('Accounting.posting_purchase_discount_invalid'));
+        $this->assertSame($before, $this->countRows('receivings'));
+        $this->assertNotEmpty(session()->get('recv_cart'));
+        $this->assertSame('0.000', $this->onHand($itemId));
+    }
+
+    public function testPostComplete_RefusesACartOfAnotherBranchWhateverItsDiscount(): void
+    {
+        $branchId = $this->anotherBranch();
+        $buyerId  = $this->buyer([$branchId]);
+        $this->depotIn($branchId, $buyerId);
+        $itemId = $this->item('0.00');
+        $before = $this->countRows('receivings');
+
+        $this->loginAs($buyerId, $this->withInvoiceDiscount($this->cart([$this->cartLine($itemId, 1, '5', '10')], 'receive', -1, null, self::LOCATION_ID), PERCENT, '10.0000'));
+
+        $this->post('/receivings/complete', $this->completeForm())->assertSee(lang('Receivings.branch_not_allowed'));
+
+        $this->assertSame($before, $this->countRows('receivings'));
+    }
+
+    public function testPostComplete_IgnoresTheDiscountOfTheRegisterWhenTheGoodsGoBack(): void
+    {
+        $itemId   = $this->item('0.00');
+        $purchase = $this->buy([$this->purchaseLine($itemId, 0, '10', '50')]);
+        $this->loginAs($this->buyer(), $this->withInvoiceDiscount($this->cart([$this->cartLine($itemId, 1, '-2', '50')], 'return', -1, $purchase), PERCENT, '10.0000'));
+
+        $this->post('/receivings/complete', $this->completeForm())->assertSee('RECV ');
+
+        $return = $this->accountingDb()->table('receivings')->where('return_of_receiving_id', $purchase)->get()->getRow();
+        $this->receivingIds[] = (int) $return->receiving_id;
+
+        $this->assertNull($return->invoice_discount_type);
+        $this->assertSame('400.00', $this->owed());
+    }
+
+    public function testPostComplete_SavesTheDiscountWhileAccountingIsOffAndShowsItOnTheReceipt(): void
+    {
+        $itemId = $this->item('0.00');
+        $this->setConfigValue('accounting_enabled', '0');
+        $this->loginAs($this->buyer(), $this->withInvoiceDiscount($this->cart([$this->cartLine($itemId, 1, '10', '100', '15')]), FIXED, '100.00'));
+
+        $response = $this->post('/receivings/complete', $this->completeForm());
+
+        $response->assertSeeElement('#receipt_invoice_discount');
+        $response->assertSee(to_currency('1035'));
+
+        $receivingId = (int) $this->accountingDb()->table('receivings')->selectMax('receiving_id', 'last')->get()->getRow()->last;
+        $this->receivingIds[] = $receivingId;
+
+        $this->assertSame('100.0000', bcadd((string) $this->accountingDb()->table('receivings_items')->where('receiving_id', $receivingId)->get()->getRow()->invoice_discount_share, '0', 4));
+        $this->assertSame(0, $this->countRows('accounting_journals'));
+    }
+
+    public function testGetReceipt_ShowsTheDiscountThatWasSavedAndNothingForAReceivingWithoutOne(): void
+    {
+        $itemId = $this->item('0.00');
+        $with   = $this->buy([$this->purchaseLine($itemId, 0, '10', '100', '15')], -1, null, null, InvoiceDiscount::of(PERCENT, '10'));
+        $without = $this->buy([$this->purchaseLine($itemId, 0, '10', '100', '15')]);
+        $this->loginAs($this->buyer());
+
+        $receipt = $this->get('/receivings/receipt/' . $with);
+
+        $receipt->assertSeeElement('#receipt_invoice_discount');
+        $receipt->assertSee(to_currency('-100'));
+        $receipt->assertSee(to_currency('135'));
+        $receipt->assertSee(to_currency('1035'));
+
+        $plain = $this->get('/receivings/receipt/' . $without);
+
+        $plain->assertDontSeeElement('#receipt_invoice_discount');
+        $plain->assertSee(to_currency('1150'));
+    }
+
+    public function testGetReceipt_ShowsTheShareAReturnTookOfTheDiscount(): void
+    {
+        $itemId   = $this->item('0.00');
+        $purchase = $this->buy([$this->purchaseLine($itemId, 0, '10', '100', '15')], -1, null, null, InvoiceDiscount::of(FIXED, '100'));
+        $return   = $this->buy([$this->purchaseLine($itemId, 0, '-4', '100', '15')], -1, null, $purchase);
+        $this->loginAs($this->buyer());
+
+        $receipt = $this->get('/receivings/receipt/' . $return);
+
+        $receipt->assertSee(lang('Receivings.invoice_discount_share'));
+        $receipt->assertSee(to_currency('40'));
+        $receipt->assertSee(to_currency('-414'));
+    }
+
+    public function testGetEdit_ShowsTheDiscountOfAReceivingThatHasOneAndNothingForOneThatHasNot(): void
+    {
+        $itemId  = $this->item('0.00');
+        $with    = $this->buy([$this->purchaseLine($itemId, 0, '10', '100')], -1, null, null, InvoiceDiscount::of(PERCENT, '10'));
+        $without = $this->buy([$this->purchaseLine($itemId, 0, '10', '100')]);
+        $this->loginAs($this->buyer());
+
+        $form = $this->get('/receivings/edit/' . $with);
+
+        $form->assertSeeElement('#invoice_discount_info');
+        $form->assertSee(to_currency('100'));
+        $this->get('/receivings/edit/' . $without)->assertDontSeeElement('#invoice_discount_info');
+    }
+
+    public function testPostDebitNote_PreparesAReturnThatShowsAndTakesItsShareOfTheDiscount(): void
+    {
+        $itemId   = $this->item('0.00');
+        $purchase = $this->buy([$this->purchaseLine($itemId, 0, '10', '50', '15')], -1, null, null, InvoiceDiscount::of(FIXED, '100'));
+        $this->loginAs($this->buyer());
+
+        $this->assertTrue($this->jsonOf($this->post('/receivings/debitNote/' . $purchase))['success']);
+
+        $this->withSession($_SESSION);
+
+        $register = $this->get('/receivings');
+
+        $register->assertSee(lang('Receivings.invoice_discount_share'));
+        $register->assertSee(to_currency('100'));
+        $register->assertSee(to_currency('-460'));
+
+        $this->withSession($_SESSION);
+
+        $this->post('/receivings/complete', $this->completeForm())->assertSee('RECV ');
+
+        $return = $this->accountingDb()->table('receivings')->where('return_of_receiving_id', $purchase)->get()->getRow();
+        $this->receivingIds[] = (int) $return->receiving_id;
+
+        $this->assertSame('0.00', $this->owed());
+        $this->assertStockTies();
+        $this->assertSupplierTies();
+    }
+
+    public function testGetIndex_ShowsTheTaxOfAReturnThatTookAShareSoThatTheRowsAddUp(): void
+    {
+        $itemId   = $this->item('0.00');
+        $purchase = $this->buy([$this->purchaseLine($itemId, 0, '10', '50', '15')], -1, null, null, InvoiceDiscount::of(FIXED, '100'));
+        $this->loginAs($this->buyer());
+
+        $this->assertTrue($this->jsonOf($this->post('/receivings/debitNote/' . $purchase))['success']);
+
+        $this->withSession($_SESSION);
+
+        $register = $this->get('/receivings');
+
+        $register->assertSeeElement('#receiving_tax');
+        $this->assertSame(array_map('to_currency', ['-500', '100', '-60', '-460']), $this->registerAmounts($register->getBody()));
+    }
+
+    public function testGetReceipt_ShowsTheTaxOfAReturnThatTookAShareSoThatTheRowsAddUp(): void
+    {
+        $itemId   = $this->item('0.00');
+        $purchase = $this->buy([$this->purchaseLine($itemId, 0, '10', '100', '15')], -1, null, null, InvoiceDiscount::of(FIXED, '100'));
+        $return   = $this->buy([$this->purchaseLine($itemId, 0, '-4', '100', '15')], -1, null, $purchase);
+        $this->loginAs($this->buyer());
+
+        $receipt = $this->get('/receivings/receipt/' . $return);
+
+        $receipt->assertSeeElement('#receipt_tax');
+        $this->assertSame(array_map('to_currency', ['-400', '40', '-54', '-414']), $this->receiptAmounts($receipt->getBody()));
+    }
+
+    public function testGetReceipt_LeavesOutTheTaxOfAReturnThatTookNoShare(): void
+    {
+        $itemId   = $this->item('0.00');
+        $purchase = $this->buy([$this->purchaseLine($itemId, 0, '10', '100', '15')]);
+        $return   = $this->buy([$this->purchaseLine($itemId, 0, '-4', '100', '15')], -1, null, $purchase);
+        $this->loginAs($this->buyer());
+
+        $receipt = $this->get('/receivings/receipt/' . $return);
+
+        $receipt->assertDontSeeElement('#receipt_tax');
+        $receipt->assertDontSeeElement('#receipt_invoice_discount');
+        $receipt->assertSee(to_currency('-460'));
+    }
+
+    public function testGetIndex_WarnsThatTheDiscountNoLongerFitsAfterALineWasLowered(): void
+    {
+        $itemId = $this->item('0.00');
+        $this->loginAs($this->buyer(), $this->cart([$this->cartLine($itemId, 1, '10', '100')]));
+
+        $this->post('/receivings/setInvoiceDiscount', ['invoice_discount' => '900', 'invoice_discount_type' => '1'])->assertDontSee(lang('Receivings.invoice_discount_invalid'));
+
+        $this->withSession($_SESSION);
+
+        $response = $this->post('/receivings/editItem/1', ['price' => '100', 'quantity' => '5', 'discount' => '0', 'receiving_quantity' => '1', 'tax_percent' => '0', 'description' => 'x', 'discount_type' => '0']);
+
+        $response->assertSee(lang('Receivings.invoice_discount_invalid'));
+    }
+
+    public function testPostDeleteItem_WarnsThatTheDiscountNoLongerFitsWhenTheLinesLeftComeToLess(): void
+    {
+        $itemId = $this->item('0.00');
+        $this->loginAs($this->buyer(), $this->withInvoiceDiscount($this->cart([$this->cartLine($itemId, 1, '10', '100'), $this->cartLine($itemId, 2, '1', '50')]), FIXED, '900.00'));
+
+        $response = $this->get('/receivings/deleteItem/1');
+
+        $response->assertSee(lang('Receivings.invoice_discount_invalid'));
+    }
+
+    public function testGetIndex_WarnsThatAReceivingOfGoodsGoingOutTakesNoDiscount(): void
+    {
+        $itemId = $this->item('0.00');
+        $this->loginAs($this->buyer(), $this->withInvoiceDiscount($this->cart([$this->cartLine($itemId, 1, '-2', '100')]), PERCENT, '10.0000'));
+
+        $this->get('/receivings')->assertSee(lang('Receivings.invoice_discount_wrong_mode'));
+    }
+
+    public function testGetIndex_SaysNothingOfADiscountThatFitsTheLines(): void
+    {
+        $itemId = $this->item('0.00');
+        $this->loginAs($this->buyer(), $this->withInvoiceDiscount($this->cart([$this->cartLine($itemId, 1, '10', '100')]), FIXED, '1000.00'));
+
+        $response = $this->get('/receivings');
+
+        $response->assertDontSee(lang('Receivings.invoice_discount_invalid'));
+        $response->assertDontSee(lang('Receivings.invoice_discount_wrong_mode'));
+    }
+
+    public function testPostSetInvoiceDiscount_RefusesAListInsteadOfANumber(): void
+    {
+        $itemId = $this->item('0.00');
+        $this->loginAs($this->buyer(), $this->withInvoiceDiscount($this->cart([$this->cartLine($itemId, 1, '10', '100')]), PERCENT, '5.0000'));
+
+        $response = $this->post('/receivings/setInvoiceDiscount', ['invoice_discount' => ['5'], 'invoice_discount_type' => '0']);
+
+        $response->assertStatus(200);
+        $response->assertSee(lang('Receivings.invoice_discount_invalid'));
+        $this->assertSame('5.0000', session()->get('recv_invoice_discount')['value']);
+    }
+
+    public function testPostSetInvoiceDiscount_RefusesAListInsteadOfAType(): void
+    {
+        $itemId = $this->item('0.00');
+        $this->loginAs($this->buyer(), $this->withInvoiceDiscount($this->cart([$this->cartLine($itemId, 1, '10', '100')]), PERCENT, '5.0000'));
+
+        $response = $this->post('/receivings/setInvoiceDiscount', ['invoice_discount' => '50', 'invoice_discount_type' => ['1']]);
+
+        $response->assertSee(lang('Receivings.invoice_discount_invalid'));
+        $this->assertSame([PERCENT, '5.0000'], [session()->get('recv_invoice_discount')['type'], session()->get('recv_invoice_discount')['value']]);
+    }
+
+    public function testPostSetInvoiceDiscount_LeavesOutTheTaxRowWhenTheLinesCarryNoTax(): void
+    {
+        $itemId = $this->item('0.00');
+        $this->loginAs($this->buyer(), $this->cart([$this->cartLine($itemId, 1, '10', '100')]));
+
+        $response = $this->post('/receivings/setInvoiceDiscount', ['invoice_discount' => '10', 'invoice_discount_type' => '0']);
+
+        $response->assertDontSeeElement('#receiving_tax');
+        $this->assertSame(array_map('to_currency', ['1000', '-100', '900']), $this->registerAmounts($response->getBody()));
+    }
+
+    public function testGetReceipt_LeavesOutTheTaxRowOfAPurchaseWithADiscountAndNoTax(): void
+    {
+        $itemId   = $this->item('0.00');
+        $purchase = $this->buy([$this->purchaseLine($itemId, 0, '10', '100')], -1, null, null, InvoiceDiscount::of(PERCENT, '10'));
+        $this->loginAs($this->buyer());
+
+        $receipt = $this->get('/receivings/receipt/' . $purchase);
+
+        $receipt->assertDontSeeElement('#receipt_tax');
+        $this->assertSame(array_map('to_currency', ['1000', '-100', '900']), $this->receiptAmounts($receipt->getBody()));
+    }
+
+    public function testGetIndex_SaysNothingOfADiscountWhileTheRegisterHoldsNoLines(): void
+    {
+        $this->loginAs($this->buyer(), $this->withInvoiceDiscount(['recv_mode' => 'receive'], FIXED, '50.00'));
+
+        $response = $this->get('/receivings');
+
+        $response->assertDontSee(lang('Receivings.invoice_discount_invalid'));
+        $response->assertDontSee(lang('Receivings.invoice_discount_wrong_mode'));
+    }
+
+    public function testGetIndex_SaysNothingOfGoodsGoingOutWhenThereIsNoDiscount(): void
+    {
+        $itemId = $this->item('0.00');
+        $this->loginAs($this->buyer(), $this->cart([$this->cartLine($itemId, 1, '-2', '100')]));
+
+        $response = $this->get('/receivings');
+
+        $response->assertDontSee(lang('Receivings.invoice_discount_invalid'));
+        $response->assertDontSee(lang('Receivings.invoice_discount_wrong_mode'));
+    }
+
+    public function testGetIndex_SaysNothingOfADiscountKeptWhileTheRegisterIsNotInReceiveMode(): void
+    {
+        $itemId = $this->item('0.00');
+        $this->loginAs($this->buyer(), $this->withInvoiceDiscount($this->cart([$this->cartLine($itemId, 1, '-2', '100')], 'return'), PERCENT, '10.0000'));
+
+        $response = $this->get('/receivings');
+
+        $response->assertDontSee(lang('Receivings.invoice_discount_invalid'));
+        $response->assertDontSee(lang('Receivings.invoice_discount_wrong_mode'));
+    }
+
+    public function testPostChangeMode_KeepsTheDiscountAndSaysSoWhenTheDestinationIsRefused(): void
+    {
+        $buyerId   = $this->buyer();
+        $ungranted = $this->locationOfBranch(1, 'No grant ' . uniqid());
+        $itemId    = $this->item('0.00');
+        $this->loginAs($buyerId, $this->withInvoiceDiscount($this->cart([$this->cartLine($itemId, 1, '10', '100')]), PERCENT, '5.0000'));
+
+        $this->post('/receivings/changeMode', ['mode' => 'receive', 'stock_source' => (string) self::LOCATION_ID, 'stock_destination' => (string) $ungranted])->assertSee(lang('Receivings.location_not_allowed'));
+
+        $this->assertSame(['type' => PERCENT, 'value' => '5.0000'], session()->get('recv_invoice_discount'));
+        $this->assertSame('receive', session()->get('recv_mode'));
+    }
+
+    public function testPostChangeMode_ForgetsTheDiscountAndShowsTheRefusalWhenARequisitionNamesADestinationWithoutAGrant(): void
+    {
+        $buyerId   = $this->buyer();
+        $granted   = $this->depotIn(1, $buyerId);
+        $ungranted = $this->locationOfBranch(1, 'No grant ' . uniqid());
+        $itemId    = $this->item('0.00');
+        $cart      = $this->withInvoiceDiscount($this->cart([$this->cartLine($itemId, 1, '4', '10')], 'requisition', null), PERCENT, '5.0000');
+        $this->loginAs($buyerId, $cart + ['recv_stock_destination' => $granted]);
+
+        $this->post('/receivings/changeMode', ['mode' => 'requisition', 'stock_source' => (string) self::LOCATION_ID, 'stock_destination' => (string) $ungranted])->assertSee(lang('Receivings.location_not_allowed'));
+
+        $this->assertNull(session()->get('recv_invoice_discount'));
+        $this->assertSame((string) $granted, (string) session()->get('recv_stock_destination'));
+    }
+
+    public function testPostComplete_ShowsTheNumberAndTheDiscountOfThePurchaseOnTheReceipt(): void
+    {
+        $this->switchOn(DocumentType::Purchase, 'PUR-');
+        $itemId = $this->item('0.00');
+        $this->loginAs($this->buyer(), $this->withInvoiceDiscount($this->cart([$this->cartLine($itemId, 1, '10', '100', '15')]), PERCENT, '10.0000'));
+
+        $response = $this->post('/receivings/complete', $this->completeForm());
+
+        $response->assertSeeElement('#document_number');
+        $response->assertSee('PUR-001');
+        $response->assertSeeElement('#receipt_invoice_discount');
+        $response->assertSee(to_currency('-100'));
+        $response->assertSee(to_currency('1035'));
+
+        $receivingId          = (int) $this->accountingDb()->table('receivings')->selectMax('receiving_id', 'last')->get()->getRow()->last;
+        $this->receivingIds[] = $receivingId;
+
+        $this->assertSame('PUR-001', (new DocumentNumbering())->numbers(DocumentType::Purchase, 'receivings', [$receivingId])[$receivingId]);
+        $this->assertSame('-1035.00', $this->balance($this->supplierAccount()));
+        $this->assertSame(['quantity' => '10.000', 'value' => '900.00'], $this->stockOf($itemId));
+    }
+
+    public function testPostComplete_ConsumesNoNumberWhenTheDiscountAboveThePurchaseIsRefused(): void
+    {
+        $this->switchOn(DocumentType::Purchase, 'PUR-');
+        $itemId = $this->item('0.00');
+        $before = $this->countRows('receivings');
+        $this->loginAs($this->buyer(), $this->withInvoiceDiscount($this->cart([$this->cartLine($itemId, 1, '10', '100')]), FIXED, '5000.00'));
+
+        $this->post('/receivings/complete', $this->completeForm())->assertSee(lang('Accounting.posting_purchase_discount_invalid'));
+
+        $this->assertSame($before, $this->countRows('receivings'));
+        $this->assertSame(0, $this->countRows('document_numbers'));
+        $this->assertSame(1, (new DocumentNumbering())->sequence(DocumentType::Purchase)->nextNumber);
+        $this->assertNotEmpty(session()->get('recv_cart'));
+
+        $this->withSession($_SESSION);
+        $this->post('/receivings/setInvoiceDiscount', ['invoice_discount' => '10', 'invoice_discount_type' => (string) PERCENT])->assertStatus(200);
+
+        $this->withSession($_SESSION);
+        $this->post('/receivings/complete', $this->completeForm())->assertSee('PUR-001');
+
+        $this->receivingIds[] = (int) $this->accountingDb()->table('receivings')->selectMax('receiving_id', 'last')->get()->getRow()->last;
+    }
+
+    public function testGetReceipt_ShowsTheNumberAndTheDiscountOfAPurchaseTogether(): void
+    {
+        $this->switchOn(DocumentType::Purchase, 'PUR-');
+        $itemId   = $this->item('0.00');
+        $purchase = $this->buy([$this->purchaseLine($itemId, 0, '10', '100', '15')], -1, null, null, InvoiceDiscount::of(PERCENT, '10'));
+        $this->loginAs($this->buyer());
+
+        $receipt = $this->get('/receivings/receipt/' . $purchase);
+
+        $receipt->assertSeeElement('#document_number');
+        $receipt->assertSee('PUR-001');
+        $receipt->assertSeeElement('#receipt_invoice_discount');
+        $receipt->assertSee(to_currency('-100'));
+        $receipt->assertSee(to_currency('1035'));
+    }
+
+    public function testGetReceipt_ShowsTheDebitNoteNumberAndTheShareOfTheDiscountOfAReturn(): void
+    {
+        $this->switchOn(DocumentType::Purchase, 'PUR-');
+        $this->switchOn(DocumentType::DebitNote, 'DN-');
+        $itemId   = $this->item('0.00');
+        $purchase = $this->buy([$this->purchaseLine($itemId, 0, '10', '100', '15')], -1, null, null, InvoiceDiscount::of(FIXED, '100'));
+        $return   = $this->buy([$this->purchaseLine($itemId, 0, '-4', '100', '15')], -1, null, $purchase);
+        $this->loginAs($this->buyer());
+
+        $receipt = $this->get('/receivings/receipt/' . $return);
+
+        $receipt->assertSee('DN-001');
+        $receipt->assertSee(lang('Numbering.type_debit_note'));
+        $receipt->assertDontSee('PUR-001');
+        $receipt->assertSee(lang('Receivings.invoice_discount_share'));
+        $receipt->assertSee(to_currency('40'));
+        $receipt->assertSee(to_currency('-414'));
+    }
+
+    public function testGetEdit_ShowsTheNumberAndTheDiscountOfAPurchaseTogether(): void
+    {
+        $this->switchOn(DocumentType::Purchase, 'PUR-');
+        $itemId   = $this->item('0.00');
+        $purchase = $this->buy([$this->purchaseLine($itemId, 0, '10', '100')], -1, null, null, InvoiceDiscount::of(PERCENT, '10'));
+        $this->loginAs($this->buyer());
+
+        $form = $this->get('/receivings/edit/' . $purchase);
+
+        $form->assertSeeElement('#document_number');
+        $form->assertSee('PUR-001');
+        $form->assertSeeElement('#invoice_discount_info');
+        $form->assertSee(to_currency('100'));
+    }
+
+    public function testPostComplete_ShowsTheDebitNoteNumberAndTheShareOfTheDiscountOnTheReceiptOfTheReturnTheRegisterPrepared(): void
+    {
+        $this->switchOn(DocumentType::Purchase, 'PUR-');
+        $this->switchOn(DocumentType::DebitNote, 'DN-');
+        $itemId   = $this->item('0.00');
+        $purchase = $this->buy([$this->purchaseLine($itemId, 0, '10', '50', '15')], -1, null, null, InvoiceDiscount::of(FIXED, '100'));
+        $this->loginAs($this->buyer());
+
+        $this->assertTrue($this->jsonOf($this->post('/receivings/debitNote/' . $purchase))['success']);
+
+        $this->withSession($_SESSION);
+
+        $receipt = $this->post('/receivings/complete', $this->completeForm());
+
+        $return               = $this->accountingDb()->table('receivings')->where('return_of_receiving_id', $purchase)->get()->getRow();
+        $this->receivingIds[] = (int) $return->receiving_id;
+
+        $receipt->assertSee('DN-001');
+        $receipt->assertSee(lang('Receivings.invoice_discount_share'));
+        $receipt->assertSee(to_currency('100'));
+        $receipt->assertSee(to_currency('-460'));
+        $this->assertSame('0.00', $this->owed());
+        $this->assertStockTies();
+        $this->assertSupplierTies();
+    }
+
+    /**
+     * @return list<string> what the rows of the totals show as their amounts, in the order they are shown
+     */
+    private function amountsOf(string $html, string $cellsQuery): array
+    {
+        $document = new DOMDocument();
+        @$document->loadHTML('<?xml encoding="utf-8"?>' . $html);
+
+        $amounts = [];
+
+        foreach ((new DOMXPath($document))->query($cellsQuery) as $cell) {
+            $text = trim($cell->textContent);
+
+            if (preg_match('/\d/', $text) === 1) {
+                $amounts[] = $text;
+            }
+        }
+
+        return $amounts;
+    }
+
+    private function registerAmounts(string $html): array
+    {
+        return $this->amountsOf($html, "//*[@id='sale_totals']/div/dd");
+    }
+
+    private function receiptAmounts(string $html): array
+    {
+        return $this->amountsOf($html, "//tr[td[@colspan='3' and @style]]/td[last()]");
     }
 }

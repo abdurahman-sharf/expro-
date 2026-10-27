@@ -2,6 +2,7 @@
 
 namespace Tests\Libraries\Accounting;
 
+use App\Libraries\Accounting\InvoiceDiscount;
 use App\Libraries\Accounting\LegacyDiscountBlocked;
 use App\Libraries\Accounting\LegacyDiscountFinding;
 use App\Libraries\Accounting\LegacyDiscountVerdict;
@@ -147,6 +148,15 @@ class LegacyPurchaseDiscountTest extends CIUnitTestCase
     public function testFindings_ReadsAPostedPurchaseThatFitsTheDiscountForEveryUnitAsSavedAfterTheChange(): void
     {
         $this->assertSame(LegacyDiscountVerdict::PerUnitByBooks, $this->verdictOf($this->postedForEveryUnit()));
+    }
+
+    public function testFindings_ReadsAPostedPurchaseWithADiscountOnTheWholePurchaseByWhatItPostedWithTheShareCounted(): void
+    {
+        $id = $this->buy([$this->purchaseLine($this->item('0.00'), 0, '10', '50', '15', '2', FIXED)], -1, null, null, InvoiceDiscount::of(PERCENT, '10'));
+
+        $this->assertGreaterThan(0, $id);
+        $this->assertSame('496.80', $this->postedSupplierAmount($id), 'Ten units at 48 after the line discount, less 10% of that, with the tax');
+        $this->assertSame(LegacyDiscountVerdict::PerUnitByBooks, $this->verdictOf($id));
     }
 
     public function testFindings_ReadsAPostedReturnByWhatItPostedToTheSupplier(): void

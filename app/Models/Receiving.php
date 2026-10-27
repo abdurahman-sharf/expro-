@@ -5,14 +5,18 @@ namespace App\Models;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingSettings;
+use App\Libraries\Accounting\InvoiceDiscount;
+use App\Libraries\Accounting\InvoiceDiscountShares;
 use App\Libraries\Accounting\PaymentStatus;
 use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\ReceivingAmounts;
+use App\Libraries\Accounting\ReceivingLine;
 use App\Libraries\Accounting\ReceivingLoader;
 use App\Libraries\Accounting\ReceivingPosting;
 use App\Libraries\Accounting\ReceivingType;
+use App\Libraries\Accounting\ReturnDiscountShares;
 use App\Libraries\Accounting\ReturnLimit;
 use App\Libraries\Accounting\SupplierLock;
 use App\Libraries\Accounting\TreasuryScopes;
@@ -361,16 +365,18 @@ class Receiving extends Model
      * stock locations, as the signs of its lines say. Everything happens in one transaction,
      * the purchase, its stock, the cost of the items and the journals, and the books refusing it
      * undoes all of it. Returns the id, -1 when it could not be saved, or ACCOUNTING_FAILED when
-     * the books or the rules of a return refused it; accountingFailure() then says why.
+     * the books or the rules of a return or of the discount refused it; accountingFailure() then
+     * says why. The discount on the whole purchase is only taken by goods coming in; a return takes
+     * the share of it that belongs to what it gives back.
      *
      * @throws ReflectionException
      */
-    public function save_value(array $items, int $supplier_id, int $employee_id, string $comment, string $reference, ?string $payment_type, int $receiving_id = NEW_ENTRY, ?int $returnOfReceivingId = null): int    // TODO: $receiving_id gets overwritten before it's evaluated. It doesn't make sense to pass this here.
+    public function save_value(array $items, int $supplier_id, int $employee_id, string $comment, string $reference, ?string $payment_type, int $receiving_id = NEW_ENTRY, ?int $returnOfReceivingId = null, ?InvoiceDiscount $invoiceDiscount = null): int    // TODO: $receiving_id gets overwritten before it's evaluated. It doesn't make sense to pass this here.
     {
         $this->accountingFailure = null;
 
         try {
-            return (new SupplierLock($this->db, $this->supplierLockWait))->run($supplier_id > 0 ? $supplier_id : null, fn (): int => $this->saveValueLocked($items, $supplier_id, $employee_id, $comment, $reference, $payment_type, $receiving_id, $returnOfReceivingId));
+            return (new SupplierLock($this->db, $this->supplierLockWait))->run($supplier_id > 0 ? $supplier_id : null, fn (): int => $this->saveValueLocked($items, $supplier_id, $employee_id, $comment, $reference, $payment_type, $receiving_id, $returnOfReceivingId, $invoiceDiscount ?? InvoiceDiscount::none()));
         } catch (AccountingException $busy) {
             if ($busy->error !== AccountingError::SupplierBusy) {
                 throw $busy;
@@ -385,7 +391,7 @@ class Receiving extends Model
     /**
      * @throws ReflectionException
      */
-    private function saveValueLocked(array $items, int $supplier_id, int $employee_id, string $comment, string $reference, ?string $payment_type, int $receiving_id, ?int $returnOfReceivingId): int
+    private function saveValueLocked(array $items, int $supplier_id, int $employee_id, string $comment, string $reference, ?string $payment_type, int $receiving_id, ?int $returnOfReceivingId, InvoiceDiscount $invoiceDiscount): int
     {
         $attribute    = model(Attribute::class);
         $inventory    = model('Inventory');
@@ -484,6 +490,8 @@ class Receiving extends Model
                 (new ReturnLimit($this->db))->assertPurchaseReturnWithin($receiving_id);
             }
 
+            $this->applyInvoiceDiscount((int) $receiving_id, $type, $receivingsData['return_of_receiving_id'], $invoiceDiscount);
+
             if ($type === ReceivingType::Receive && ($accountingOn || $config['receiving_calculate_average_price'])) {
                 $this->averageTheCost($receiving_id, $item);
             }
@@ -547,6 +555,57 @@ class Receiving extends Model
 
         if ($kind !== null) {
             (new DocumentNumbering($this->db))->assign($kind, 'receivings', $receivingId, $branchId);
+        }
+    }
+
+    /**
+     * Shares the discount on the whole purchase out over the lines that were just stored, and keeps
+     * on each line what it takes, so that every figure that is read afterwards (the cost of the
+     * stock, the average, the tax, what the supplier is owed) comes from the lines alone. A return
+     * takes the share of the purchase it comes from that belongs to the units it gives back. Only
+     * the lines of this purchase are written.
+     *
+     * @throws PostingException
+     */
+    private function applyInvoiceDiscount(int $receivingId, ReceivingType $type, ?int $originId, InvoiceDiscount $discount): void
+    {
+        if ($type !== ReceivingType::Receive && ! $discount->isNone()) {
+            throw new PostingException(PostingError::PurchaseDiscountInvalid, 'Only goods coming in take a discount on the whole purchase.', ['receiving_id' => $receivingId]);
+        }
+
+        if ($type === ReceivingType::Requisition || ($type === ReceivingType::Return && $originId === null)) {
+            return;
+        }
+
+        $lines = (new ReceivingLoader($this->db))->load($receivingId, false)?->lines ?? [];
+
+        if ($type === ReceivingType::Receive) {
+            if ($discount->isNone()) {
+                return;
+            }
+
+            $base = array_reduce($lines, static fn (string $sum, ReceivingLine $line): string => bcadd($sum, ReceivingAmounts::lineNet($line), ReceivingAmounts::SCALE), '0');
+
+            if (! $discount->fitsOn($base)) {
+                throw new PostingException(PostingError::PurchaseDiscountInvalid, 'The discount on the whole purchase is more than the purchase comes to.', ['receiving_id' => $receivingId, 'type' => $discount->type, 'value' => $discount->value]);
+            }
+
+            $shares = InvoiceDiscountShares::forPurchase($lines, $discount);
+        } else {
+            $shares = (new ReturnDiscountShares($this->db))->forReturn((int) $originId, $lines, $receivingId);
+        }
+
+        $given = '0';
+
+        foreach ($lines as $index => $line) {
+            if (bccomp($shares[$index], '0', ReceivingAmounts::SCALE) > 0) {
+                $this->db->table('receivings_items')->where(['receiving_id' => $receivingId, 'item_id' => $line->itemId, 'line' => $line->line])->update(['invoice_discount_share' => $shares[$index]]);
+                $given = bcadd($given, $shares[$index], ReceivingAmounts::SCALE);
+            }
+        }
+
+        if ($type === ReceivingType::Receive && bccomp($given, '0', ReceivingAmounts::SCALE) > 0) {
+            $this->db->table('receivings')->where('receiving_id', $receivingId)->update(['invoice_discount_type' => $discount->type, 'invoice_discount' => $discount->value]);
         }
     }
 
@@ -1029,9 +1088,10 @@ class Receiving extends Model
         $units = '`quantity_purchased` * `' . $db_prefix . 'receivings_items`.`receiving_quantity`';
         $gross = '`item_unit_price` * ' . $units;
         $type  = '`' . $db_prefix . 'receivings_items`.`discount_type`';
-        $net   = 'CASE WHEN ' . $type . ' = ' . PERCENT . ' THEN ' . $gross . ' - ' . $gross . ' * `discount` / 100'
+        $share = 'SIGN(`quantity_purchased`) * COALESCE(`' . $db_prefix . 'receivings_items`.`invoice_discount_share`, 0)';
+        $net   = '(CASE WHEN ' . $type . ' = ' . PERCENT . ' THEN ' . $gross . ' - ' . $gross . ' * `discount` / 100'
             . ' WHEN ' . $type . ' = ' . FIXED_LINE . ' THEN ' . $gross . ' - SIGN(`quantity_purchased`) * `discount`'
-            . ' ELSE ' . $gross . ' - `discount` * ' . $units . ' END';
+            . ' ELSE ' . $gross . ' - `discount` * ' . $units . ' END) - ' . $share;
 
         $builder = $this->db->table('receivings_items');
         $builder->select([

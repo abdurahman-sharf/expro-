@@ -9,6 +9,8 @@
  * @var float $total
  * @var string $tax_total
  * @var string $total_with_tax
+ * @var App\Libraries\Accounting\InvoiceDiscount $invoiceDiscount
+ * @var string $invoiceDiscountAmount
  * @var string $mode
  * @var string $payment_type
  * @var float $amount_tendered
@@ -95,14 +97,26 @@ echo view('partial/print_receipt', ['print_after_sale', $print_after_sale, 'sele
                 </tr>
             <?php } ?>
         <?php } ?>
-        <?php if (bccomp((string) ($tax_total ?? '0'), '0', 8) > 0) { ?>
+        <?php $hasInvoiceDiscount = bccomp((string) ($invoiceDiscountAmount ?? '0'), '0', 4) !== 0; ?>
+        <?php $showsTax           = bccomp((string) ($tax_total ?? '0'), '0', 8) > 0 || ($hasInvoiceDiscount && bccomp((string) ($tax_total ?? '0'), '0', 8) !== 0); ?>
+        <?php if (bccomp((string) ($tax_total ?? '0'), '0', 8) > 0 || $hasInvoiceDiscount) { ?>
             <tr>
                 <td colspan="3" style="text-align: right; border-top: 2px solid #000000;"><?= lang('Receivings.sub_total') ?></td>
                 <td style="border-top: 2px solid #000000;">
                     <div class="total-value"><?= to_currency($total) ?></div>
                 </td>
             </tr>
-            <tr>
+        <?php } ?>
+        <?php if ($hasInvoiceDiscount) { ?>
+            <tr id="receipt_invoice_discount">
+                <td colspan="3" style="text-align: right;"><?= lang(bccomp((string) $invoiceDiscountAmount, '0', 4) > 0 ? 'Receivings.invoice_discount_share' : 'Receivings.invoice_discount_amount') ?><?= isset($invoiceDiscount) && $invoiceDiscount->type === PERCENT && ! $invoiceDiscount->isNone() ? esc(' (' . to_decimals($invoiceDiscount->value) . '%)') : '' ?></td>
+                <td>
+                    <div class="total-value"><?= to_currency($invoiceDiscountAmount) ?></div>
+                </td>
+            </tr>
+        <?php } ?>
+        <?php if ($showsTax) { ?>
+            <tr id="receipt_tax">
                 <td colspan="3" style="text-align: right;"><?= lang('Receivings.tax_total') ?></td>
                 <td>
                     <div class="total-value"><?= to_currency($tax_total) ?></div>

@@ -4,6 +4,9 @@ namespace Tests\Models;
 
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\InvoiceDiscount;
+use App\Libraries\Accounting\PostingError;
+use App\Libraries\Accounting\PostingException;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Models\Receiving;
@@ -478,5 +481,137 @@ class ReceivingTest extends CIUnitTestCase
         $this->payPurchase($purchase, '20.00');
 
         $this->assertSame(0, $this->countRows('document_numbers'));
+    }
+
+    public function testSaveValue_NumbersAPurchaseThatTakesADiscountOnTheWholePurchaseAndPostsItDiscounted(): void
+    {
+        $this->startBuying();
+        $this->switchOn(DocumentType::Purchase, 'PUR-');
+        $item = $this->item('0.00');
+
+        $purchase = $this->buy([$this->purchaseLine($item, 0, '10', '100', '15')], -1, null, null, InvoiceDiscount::of(PERCENT, '10'));
+
+        $this->assertGreaterThan(0, $purchase);
+        $this->assertSame('PUR-001', $this->numberOf(DocumentType::Purchase, 'receivings', $purchase));
+
+        $header = $this->accountingDb()->table('receivings')->where('receiving_id', $purchase)->get()->getRow();
+        $line   = $this->accountingDb()->table('receivings_items')->where('receiving_id', $purchase)->get()->getRow();
+
+        $this->assertSame([PERCENT, '10.0000'], [(int) $header->invoice_discount_type, bcadd((string) $header->invoice_discount, '0', 4)]);
+        $this->assertSame('100.0000', bcadd((string) $line->invoice_discount_share, '0', 4));
+        $this->assertSame('1035.00', $this->owed());
+        $this->assertSame('135.00', $this->balance($this->accountId('tax_input')));
+        $this->assertSame(['quantity' => '10.000', 'value' => '900.00'], $this->stockOf($item));
+        $this->assertCount(1, $this->standingPurchase($purchase));
+        $this->assertStockTies();
+        $this->assertSupplierTies();
+    }
+
+    public function testSaveValue_NumbersAPurchaseAndKeepsItsDiscountWhileAccountingIsOff(): void
+    {
+        $this->startBuying();
+        $this->setConfigValue('accounting_enabled', '0');
+        $this->switchOn(DocumentType::Purchase, 'PUR-');
+        $item = $this->item('0.00');
+
+        $purchase = $this->buy([$this->purchaseLine($item, 0, '10', '100')], -1, null, null, InvoiceDiscount::of(FIXED, '100'));
+
+        $this->assertGreaterThan(0, $purchase);
+        $this->assertSame('PUR-001', $this->numberOf(DocumentType::Purchase, 'receivings', $purchase));
+        $this->assertSame('100.0000', bcadd((string) $this->accountingDb()->table('receivings_items')->where('receiving_id', $purchase)->get()->getRow()->invoice_discount_share, '0', 4));
+        $this->assertSame(0, $this->countRows('accounting_journals'));
+    }
+
+    public function testSaveValue_ConsumesNoNumberWhenTheDiscountOnTheWholePurchaseIsRefused(): void
+    {
+        $this->startBuying();
+        $this->switchOn(DocumentType::Purchase, 'PUR-');
+        $item  = $this->item('0.00');
+        $first = $this->buy([$this->purchaseLine($item, 0, '2', '10')]);
+
+        $receivings = $this->countRows('receivings');
+        $lines      = $this->countRows('receivings_items');
+        $numbers    = $this->countRows('document_numbers');
+
+        $result = $this->buy([$this->purchaseLine($item, 0, '10', '100')], -1, null, null, InvoiceDiscount::of(FIXED, '1000.01'));
+
+        $failure = $this->purchases->accountingFailure();
+
+        $this->assertSame(ACCOUNTING_FAILED, $result);
+        $this->assertInstanceOf(PostingException::class, $failure);
+        $this->assertSame(PostingError::PurchaseDiscountInvalid, $failure->error);
+        $this->assertSame([$receivings, $lines, $numbers], [$this->countRows('receivings'), $this->countRows('receivings_items'), $this->countRows('document_numbers')]);
+        $this->assertSame('2.000', $this->onHand($item));
+        $this->assertSame(2, (new DocumentNumbering())->sequence(DocumentType::Purchase)->nextNumber);
+        $this->assertSame('PUR-001', $this->numberOf(DocumentType::Purchase, 'receivings', $first));
+
+        $second = $this->buy([$this->purchaseLine($item, 0, '1', '10')]);
+
+        $this->assertSame('PUR-002', $this->numberOf(DocumentType::Purchase, 'receivings', $second));
+    }
+
+    public function testSaveValue_StoresNoDiscountWhenNoNumberCanBeGivenToThePurchase(): void
+    {
+        $this->startBuying();
+        $this->switchOn(DocumentType::Purchase, 'PUR-', 0);
+        $db = $this->accountingDb();
+        $db->table('document_sequences')->where('doc_type', 'purchase')->update(['next_number' => 4294967294]);
+        $db->table('document_numbers')->insert(['company_id' => 1, 'doc_type' => 'purchase', 'source_table' => 'receivings', 'source_id' => 999999999, 'sequence_number' => 4294967294, 'number' => 'PUR-4294967294']);
+
+        $receivings = $this->countRows('receivings');
+        $lines      = $this->countRows('receivings_items');
+        $item       = $this->item('0.00');
+
+        $result = $this->buy([$this->purchaseLine($item, 0, '10', '100')], -1, null, null, InvoiceDiscount::of(PERCENT, '10'));
+
+        $this->assertSame(ACCOUNTING_FAILED, $result);
+        $this->assertSame(AccountingError::NumberingExhausted, $this->purchases->accountingFailure()?->error);
+        $this->assertSame([$receivings, $lines], [$this->countRows('receivings'), $this->countRows('receivings_items')]);
+        $this->assertSame(0, $db->table('receivings_items')->where('invoice_discount_share IS NOT NULL')->countAllResults());
+        $this->assertSame('0.000', $this->onHand($item));
+    }
+
+    public function testSaveValue_NumbersAReturnOfADiscountedAndNumberedPurchaseAndTakesItsShare(): void
+    {
+        $this->startBuying();
+        $this->switchOn(DocumentType::Purchase, 'PUR-');
+        $this->switchOn(DocumentType::DebitNote, 'DN-');
+        $item     = $this->item('0.00');
+        $purchase = $this->buy([$this->purchaseLine($item, 0, '10', '100', '15')], -1, null, null, InvoiceDiscount::of(FIXED, '100'));
+
+        $return = $this->buy([$this->purchaseLine($item, 0, '-4', '100', '15')], -1, null, $purchase);
+
+        $this->assertGreaterThan(0, $return);
+        $this->assertSame('PUR-001', $this->numberOf(DocumentType::Purchase, 'receivings', $purchase));
+        $this->assertSame('DN-001', $this->numberOf(DocumentType::DebitNote, 'receivings', $return));
+        $this->assertNull($this->numberOf(DocumentType::Purchase, 'receivings', $return));
+        $this->assertNull($this->numberOf(DocumentType::DebitNote, 'receivings', $purchase));
+
+        $header = $this->accountingDb()->table('receivings')->where('receiving_id', $return)->get()->getRow();
+        $line   = $this->accountingDb()->table('receivings_items')->where('receiving_id', $return)->get()->getRow();
+
+        $this->assertNull($header->invoice_discount_type);
+        $this->assertSame('40.0000', bcadd((string) $line->invoice_discount_share, '0', 4));
+        $this->assertSame('621.00', $this->owed());
+        $this->assertSame(['quantity' => '6.000', 'value' => '540.00'], $this->stockOf($item));
+        $this->assertStockTies();
+        $this->assertSupplierTies();
+    }
+
+    public function testSaveValue_NumbersTheReturnThatTakesWhatIsLeftOfTheDiscountOfANumberedPurchase(): void
+    {
+        $this->startBuying();
+        $this->switchOn(DocumentType::DebitNote, 'DN-');
+        $item     = $this->item('0.00');
+        $purchase = $this->buy([$this->purchaseLine($item, 0, '10', '100', '15')], -1, null, null, InvoiceDiscount::of(FIXED, '100'));
+
+        $first  = $this->buy([$this->purchaseLine($item, 0, '-4', '100', '15')], -1, null, $purchase);
+        $second = $this->buy([$this->purchaseLine($item, 0, '-6', '100', '15')], -1, null, $purchase);
+
+        $this->assertSame('DN-001', $this->numberOf(DocumentType::DebitNote, 'receivings', $first));
+        $this->assertSame('DN-002', $this->numberOf(DocumentType::DebitNote, 'receivings', $second));
+        $this->assertSame('60.0000', bcadd((string) $this->accountingDb()->table('receivings_items')->where('receiving_id', $second)->get()->getRow()->invoice_discount_share, '0', 4));
+        $this->assertSame('0.00', $this->owed());
+        $this->assertSupplierTies();
     }
 }

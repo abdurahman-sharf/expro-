@@ -17,6 +17,8 @@
  * @var array  $config
  * @var string $tax_total
  * @var string $total_with_tax
+ * @var App\Libraries\Accounting\InvoiceDiscount $invoiceDiscount
+ * @var string $invoiceDiscountAmount
  * @var int|null $return_origin
  * @var array{from: string, to: string}|null $between_branches
  */
@@ -258,12 +260,38 @@ $hasCart     = count($cart) > 0;
             </div>
         <?php endif; ?>
 
+        <?php if ($mode == 'receive' && $hasCart): ?>
+            <div class="card">
+                <div class="card-body">
+                    <?= form_open("{$controller_name}/setInvoiceDiscount", ['id' => 'invoice_discount_form', 'class' => 'app-form']) ?>
+                        <label for="invoice_discount" class="pos-label"><?= lang("{$sectionName}.invoice_discount") ?></label>
+                        <div class="input-group">
+                            <?= form_input(['name' => 'invoice_discount', 'id' => 'invoice_discount', 'class' => 'form-control', 'value' => $invoiceDiscount->isNone() ? '' : ($invoiceDiscount->type === FIXED ? to_currency_no_money($invoiceDiscount->value) : to_decimals($invoiceDiscount->value)), 'inputmode' => 'decimal', 'dir' => 'ltr', 'aria-describedby' => 'invoice_discount_help']) ?>
+                            <?= form_dropdown('invoice_discount_type', [PERCENT => '%', FIXED => $config['currency_symbol']], (string) $invoiceDiscount->type, ['id' => 'invoice_discount_type', 'class' => 'form-select', 'aria-label' => lang("{$sectionName}.invoice_discount_type")]) ?>
+                            <button type="submit" class="btn btn-outline-primary" id="invoice_discount_apply"><?= lang("{$sectionName}.invoice_discount_apply") ?></button>
+                        </div>
+                        <?php if (! $invoiceDiscount->isNone()): ?>
+                            <button type="button" class="btn btn-link btn-sm px-0" id="invoice_discount_remove"><?= lang("{$sectionName}.invoice_discount_remove") ?></button>
+                        <?php endif; ?>
+                        <div class="form-text" id="invoice_discount_help"><?= lang("{$sectionName}.invoice_discount_help") ?></div>
+                    <?= form_close() ?>
+                </div>
+            </div>
+        <?php endif; ?>
+
         <?php if ($mode != 'requisition'): ?>
+            <?php $hasInvoiceDiscount = bccomp((string) $invoiceDiscountAmount, '0', 4) !== 0; ?>
+            <?php $showsTax           = bccomp((string) $tax_total, '0', 8) > 0 || ($hasInvoiceDiscount && bccomp((string) $tax_total, '0', 8) !== 0); ?>
             <div class="card">
                 <div class="card-body">
                     <dl class="pos-sum" id="sale_totals">
-                        <?php if (bccomp((string) $tax_total, '0', 8) > 0): ?>
+                        <?php if (bccomp((string) $tax_total, '0', 8) > 0 || $hasInvoiceDiscount): ?>
                             <div><dt><?= lang("{$sectionName}.sub_total") ?></dt><dd><?= to_currency($total) ?></dd></div>
+                        <?php endif; ?>
+                        <?php if ($hasInvoiceDiscount): ?>
+                            <div id="receiving_invoice_discount"><dt><?= lang($mode == 'receive' ? "{$sectionName}.invoice_discount_amount" : "{$sectionName}.invoice_discount_share") ?><?= $invoiceDiscount->type === PERCENT && ! $invoiceDiscount->isNone() ? ' (' . to_decimals($invoiceDiscount->value) . '%)' : '' ?></dt><dd><?= to_currency($invoiceDiscountAmount) ?></dd></div>
+                        <?php endif; ?>
+                        <?php if ($showsTax): ?>
                             <div id="receiving_tax"><dt><?= lang("{$sectionName}.tax_total") ?></dt><dd><?= to_currency($tax_total) ?></dd></div>
                         <?php endif; ?>
                         <div class="pos-sum-total"><dt><?= lang("{$sectionName}.total_with_tax") ?></dt><dd><?= to_currency($total_with_tax) ?></dd></div>
@@ -386,6 +414,11 @@ $hasCart     = count($cart) > 0;
                     $('#return_origin').val('');
                 }
             }, 'json');
+        });
+
+        $('#invoice_discount_remove').click(function() {
+            $('#invoice_discount').val('');
+            $('#invoice_discount_form').submit();
         });
 
         $("#recv_print_after_sale").change(function() {

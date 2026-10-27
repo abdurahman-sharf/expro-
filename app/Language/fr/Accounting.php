@@ -222,6 +222,7 @@ return [
     'posting_payment_type_unknown'               => '',
     'posting_period_closed'                      => '',
     'posting_purchase_across_branches'           => '',
+    'posting_purchase_discount_invalid'          => '',
     'posting_purchase_not_postable'              => '',
     'posting_purchase_return_exceeds_origin'     => '',
     'posting_purchase_return_line_not_on_origin' => '',

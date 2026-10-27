@@ -14,9 +14,9 @@ use PHPUnit\Framework\Attributes\DataProvider;
  */
 class ReceivingAmountsTest extends CIUnitTestCase
 {
-    private static function line(string $quantity, string $price, string $discount = '0', int $discountType = PERCENT, string $tax = '0', string $perPack = '1'): ReceivingLine
+    private static function line(string $quantity, string $price, string $discount = '0', int $discountType = PERCENT, string $tax = '0', string $perPack = '1', string $share = '0'): ReceivingLine
     {
-        return new ReceivingLine(1, 0, $quantity, $perPack, $price, $discount, $discountType, $tax, 1, true, '0');
+        return new ReceivingLine(1, 0, $quantity, $perPack, $price, $discount, $discountType, $tax, 1, true, '0', invoiceDiscount: $share);
     }
 
     /**
@@ -39,6 +39,12 @@ class ReceivingAmountsTest extends CIUnitTestCase
             'fixed discount of a line saved before it was per unit' => [self::line('10', '100', '50', FIXED_LINE, tax: '15'), '1000.0000', '50.0000', '950.0000', '142.5000'],
             'the same line of packs'                                 => [self::line('2', '5', '1', FIXED_LINE, perPack: '12'), '120.0000', '1.0000', '119.0000', '0.0000'],
             'a return of such a line takes the same amount'          => [self::line('-4', '10', '5', FIXED_LINE), '40.0000', '5.0000', '35.0000', '0.0000'],
+            'the share of the discount on the whole purchase comes off after the line discount' => [self::line('10', '100', '10', PERCENT, '15', share: '90'), '1000.0000', '100.0000', '810.0000', '121.5000'],
+            'a share of nothing changes nothing'                     => [self::line('10', '100', '10', PERCENT, '15', share: '0.0000'), '1000.0000', '100.0000', '900.0000', '135.0000'],
+            'a share above what the line costs is held to it'        => [self::line('1', '10', share: '50'), '10.0000', '0.0000', '0.0000', '0.0000'],
+            'a share of the whole line leaves nothing to tax'        => [self::line('2', '50', tax: '15', share: '100'), '100.0000', '0.0000', '0.0000', '0.0000'],
+            'a return takes its share as a positive amount'          => [self::line('-4', '100', '10', PERCENT, '15', share: '36'), '400.0000', '40.0000', '324.0000', '48.6000'],
+            'a share given with a sign counts as an amount'          => [self::line('4', '10', share: '-5'), '40.0000', '0.0000', '35.0000', '0.0000'],
         ];
     }
 
@@ -49,6 +55,38 @@ class ReceivingAmountsTest extends CIUnitTestCase
         $this->assertSame($discount, ReceivingAmounts::discount($line), 'discount');
         $this->assertSame($net, ReceivingAmounts::net($line), 'net');
         $this->assertSame($tax, ReceivingAmounts::tax($line), 'tax');
+    }
+
+    public function testLineNet_StaysBeforeTheShareOfTheDiscountOnTheWholePurchase(): void
+    {
+        $line = self::line('10', '100', '10', PERCENT, '15', share: '90');
+
+        $this->assertSame('900.0000', ReceivingAmounts::lineNet($line));
+        $this->assertSame('90.0000', ReceivingAmounts::invoiceDiscount($line));
+        $this->assertSame('810.0000', ReceivingAmounts::net($line));
+    }
+
+    public function testInvoiceDiscount_IsNothingForALineSavedWithoutOne(): void
+    {
+        $this->assertSame('0.0000', ReceivingAmounts::invoiceDiscount(self::line('10', '100')));
+    }
+
+    public function testTotals_AddTheLinesAfterTheirSharesAndKeepTheTotalToTwoDecimalsWithTheTaxUnrounded(): void
+    {
+        $lines = [
+            self::line('3', '33.33', tax: '15', share: '10'),
+            self::line('2', '20.01', tax: '5', share: '4'),
+        ];
+
+        $this->assertSame(['net' => '126.0100', 'tax' => '15.2995', 'total' => '141.31'], ReceivingAmounts::totals($lines));
+    }
+
+    public function testTotals_AreWhatTheyWereWhenNoLineTakesAShare(): void
+    {
+        $lines = [self::line('10', '100', '10', PERCENT, '15'), self::line('5', '20', '4', FIXED, '15')];
+
+        $this->assertSame(['net' => '980.0000', 'tax' => '147.0000', 'total' => '1127.00'], ReceivingAmounts::totals($lines));
+        $this->assertSame(ReceivingAmounts::totals($lines), ReceivingAmounts::totals(array_map(static fn (ReceivingLine $line): ReceivingLine => self::line($line->quantity, $line->unitPrice, $line->discount, $line->discountType, $line->taxPercent, share: '0'), $lines)));
     }
 
     public function testUnits_AreAlwaysPositive(): void

@@ -315,6 +315,7 @@ final class LegacyPurchaseDiscount
                 locationId: $line->locationId,
                 hasStock: $line->hasStock,
                 itemCost: $line->itemCost,
+                invoiceDiscount: $line->invoiceDiscount,
             ) : $line;
 
             $net = bcadd($net, ReceivingAmounts::net($reading), ReceivingAmounts::SCALE);

@@ -165,15 +165,7 @@ final class ReceivingPostingBuilder
      */
     public function totals(ReceivingDocument $purchase): array
     {
-        $net = '0';
-        $tax = '0';
-
-        foreach ($purchase->lines as $line) {
-            $net = bcadd($net, ReceivingAmounts::net($line), self::SCALE);
-            $tax = bcadd($tax, ReceivingAmounts::tax($line), self::SCALE);
-        }
-
-        return ['net' => $net, 'tax' => $tax, 'total' => SaleAmounts::round(bcadd($net, $tax, self::SCALE), 2)];
+        return ReceivingAmounts::totals($purchase->lines);
     }
 
     /**

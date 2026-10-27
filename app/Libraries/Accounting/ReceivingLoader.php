@@ -101,7 +101,7 @@ final class ReceivingLoader
         $lines = [];
 
         foreach ($this->db->table('receivings_items l')
-            ->select('l.item_id, l.line, l.quantity_purchased, l.receiving_quantity, l.item_unit_price, l.discount, l.discount_type, l.tax_percent, l.item_location, it.stock_type, it.cost_price, sl.branch_id AS location_branch_id')
+            ->select('l.item_id, l.line, l.quantity_purchased, l.receiving_quantity, l.item_unit_price, l.discount, l.discount_type, l.tax_percent, l.invoice_discount_share, l.item_location, it.stock_type, it.cost_price, sl.branch_id AS location_branch_id')
             ->join('items it', 'it.item_id = l.item_id')
             ->join('stock_locations sl', 'sl.location_id = l.item_location', 'left')
             ->where('l.receiving_id', $receivingId)
@@ -121,6 +121,7 @@ final class ReceivingLoader
                 hasStock: (int) $row->stock_type === HAS_STOCK,
                 itemCost: (string) $row->cost_price,
                 branchId: $row->location_branch_id === null ? null : (int) $row->location_branch_id,
+                invoiceDiscount: $row->invoice_discount_share === null ? '0' : (string) $row->invoice_discount_share,
             );
         }
 

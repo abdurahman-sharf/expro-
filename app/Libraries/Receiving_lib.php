@@ -2,6 +2,13 @@
 
 namespace app\Libraries;
 
+use App\Libraries\Accounting\InvoiceDiscount;
+use App\Libraries\Accounting\InvoiceDiscountProblem;
+use App\Libraries\Accounting\InvoiceDiscountShares;
+use App\Libraries\Accounting\ReceivingAmounts;
+use App\Libraries\Accounting\ReceivingLine;
+use App\Libraries\Accounting\ReceivingType;
+use App\Libraries\Accounting\ReturnDiscountShares;
 use App\Models\Attribute;
 use App\Models\Item;
 use App\Models\Item_kit_items;
@@ -111,6 +118,26 @@ class Receiving_lib
     public function set_return_origin(?int $receivingId): void
     {
         $receivingId === null ? $this->session->remove('recv_return_origin') : $this->session->set('recv_return_origin', $receivingId);
+    }
+
+    /**
+     * The discount on the whole purchase that was entered in the register, or none.
+     */
+    public function getInvoiceDiscount(): InvoiceDiscount
+    {
+        $kept = $this->session->get('recv_invoice_discount');
+
+        return is_array($kept) ? (InvoiceDiscount::of((int) ($kept['type'] ?? PERCENT), (string) ($kept['value'] ?? '0')) ?? InvoiceDiscount::none()) : InvoiceDiscount::none();
+    }
+
+    public function setInvoiceDiscount(InvoiceDiscount $discount): void
+    {
+        $discount->isNone() ? $this->clearInvoiceDiscount() : $this->session->set('recv_invoice_discount', ['type' => $discount->type, 'value' => $discount->value]);
+    }
+
+    public function clearInvoiceDiscount(): void
+    {
+        $this->session->remove('recv_invoice_discount');
     }
 
     /**
@@ -419,6 +446,13 @@ class Receiving_lib
 
         foreach ($this->receiving->get_receiving_items($receiving_id)->getResult() as $row) {
             $this->add_item($row->item_id, $row->quantity_purchased, $row->item_location, $row->discount, $row->discount_type, $row->item_unit_price, $row->description, $row->serialnumber, $row->receiving_quantity, $receiving_id, true, (string) $row->tax_percent);
+            $this->addStoredShare((int) $row->item_id, (int) $row->item_location, (string) ($row->invoice_discount_share ?? '0'));
+        }
+
+        $header = $this->receiving->get_info($receiving_id)->getRow();
+
+        if ($header !== null) {
+            $this->setInvoiceDiscount(InvoiceDiscount::stored($header->invoice_discount_type === null ? null : (int) $header->invoice_discount_type, $header->invoice_discount === null ? null : (string) $header->invoice_discount));
         }
 
         $this->set_supplier((int) $this->receiving->get_supplier($receiving_id)->person_id);
@@ -433,6 +467,24 @@ class Receiving_lib
         $this->clear_comment();
         $this->clear_reference();
         $this->set_return_origin(null);
+        $this->clearInvoiceDiscount();
+    }
+
+    /**
+     * Notes on the cart line of a purchase that was saved what its row took of the discount on the
+     * whole purchase, so that its receipt shows what was saved and not what would be worked out now.
+     */
+    private function addStoredShare(int $itemId, int $location, string $share): void
+    {
+        $items = $this->get_cart();
+
+        foreach ($items as $line => $item) {
+            if ((int) $item['item_id'] === $itemId && (int) $item['item_location'] === $location) {
+                $items[$line]['invoice_discount_share'] = bcadd((string) ($item['invoice_discount_share'] ?? '0'), $share, ReceivingAmounts::SCALE);
+            }
+        }
+
+        $this->set_cart($items);
     }
 
     public function get_item_total(float $quantity, float $price, float $discount, ?int $discount_type, float $receiving_quantity): string
@@ -452,10 +504,17 @@ class Receiving_lib
     }
 
     /**
-     * What the lines cost, after their discounts and before their tax.
+     * What the lines cost, after their own discounts and before the discount on the whole purchase
+     * and the tax.
      */
     public function get_total(): string
     {
+        $figures = $this->invoiceFigures();
+
+        if ($figures !== null) {
+            return $figures['before'];
+        }
+
         $total = 0;
 
         foreach ($this->get_cart() as $item) {
@@ -466,10 +525,26 @@ class Receiving_lib
     }
 
     /**
-     * The tax on the lines, each at the rate of its own line.
+     * What the discount on the whole purchase takes off, with the sign that lowers the total: below
+     * nothing for goods that come in, above it for goods that go back. Nothing when there is none.
+     */
+    public function getInvoiceDiscountAmount(): string
+    {
+        return $this->invoiceFigures()['discount'] ?? '0';
+    }
+
+    /**
+     * The tax on the lines, each at the rate of its own line, after its share of the discount on the
+     * whole purchase.
      */
     public function get_tax_total(): string
     {
+        $figures = $this->invoiceFigures();
+
+        if ($figures !== null) {
+            return $figures['tax'];
+        }
+
         $tax = '0';
 
         foreach ($this->get_cart() as $item) {
@@ -481,10 +556,105 @@ class Receiving_lib
     }
 
     /**
-     * What the supplier is owed: the cost and the tax on it.
+     * What the supplier is owed: the cost after the discount on the whole purchase, and the tax on it.
      */
     public function get_total_with_tax(): string
     {
-        return bcadd($this->get_total(), $this->get_tax_total(), 8);
+        $figures = $this->invoiceFigures();
+
+        return $figures !== null ? $figures['total'] : bcadd($this->get_total(), $this->get_tax_total(), 8);
+    }
+
+    /**
+     * Why the discount of the register cannot be saved with the lines it holds now, when it cannot: the
+     * lines were lowered or removed after it was applied, or they hold goods going out. The totals of
+     * the register show the discount capped, so this is what tells the buyer that saving will refuse it.
+     */
+    public function invoiceDiscountProblem(): ?InvoiceDiscountProblem
+    {
+        $discount = $this->getInvoiceDiscount();
+        $items    = array_values($this->get_cart());
+
+        if ($discount->isNone() || $items === [] || $this->get_mode() !== 'receive') {
+            return null;
+        }
+
+        $lines = array_map(static fn (array $item): ReceivingLine => ReceivingLine::ofCart($item), $items);
+
+        if (ReceivingType::ofQuantities(array_map(static fn (ReceivingLine $line): string => $line->quantity, $lines)) !== ReceivingType::Receive) {
+            return InvoiceDiscountProblem::NotGoodsIn;
+        }
+
+        $base = array_reduce($lines, static fn (string $sum, ReceivingLine $line): string => bcadd($sum, ReceivingAmounts::lineNet($line), ReceivingAmounts::SCALE), '0');
+
+        return $discount->fitsOn($base) ? null : InvoiceDiscountProblem::MoreThanTheLines;
+    }
+
+    /**
+     * What the cart comes to when part of it is taken off by the discount on the whole purchase, as
+     * the purchase will be saved and posted: null when none is, so that a cart without one is added up
+     * exactly as it always was. Amounts have the sign of the goods: below nothing when they go back.
+     *
+     * @return array{before: numeric-string, discount: numeric-string, tax: numeric-string, total: numeric-string}|null
+     */
+    private function invoiceFigures(): ?array
+    {
+        $items = array_values($this->get_cart());
+
+        if ($items === []) {
+            return null;
+        }
+
+        $lines  = array_map(static fn (array $item): ReceivingLine => ReceivingLine::ofCart($item), $items);
+        $type   = ReceivingType::ofQuantities(array_map(static fn (ReceivingLine $line): string => $line->quantity, $lines));
+        $shares = $this->sharesOf($items, $lines, $type);
+
+        if (array_filter($shares, static fn (string $share): bool => bccomp($share, '0', ReceivingAmounts::SCALE) > 0) === []) {
+            return null;
+        }
+
+        $shared = [];
+        $before = '0';
+
+        foreach ($items as $index => $item) {
+            $shared[] = ReceivingLine::ofCart($item, $shares[$index]);
+            $before   = bcadd($before, ReceivingAmounts::lineNet($lines[$index]), ReceivingAmounts::SCALE);
+        }
+
+        $totals = ReceivingAmounts::totals($shared);
+        $given  = array_reduce($shared, static fn (string $sum, ReceivingLine $line): string => bcadd($sum, ReceivingAmounts::invoiceDiscount($line), ReceivingAmounts::SCALE), '0');
+        $sign   = $type === ReceivingType::Return ? '-1' : '1';
+
+        return [
+            'before'   => bcmul($before, $sign, ReceivingAmounts::SCALE),
+            'discount' => bcmul($given, bcsub('0', $sign), ReceivingAmounts::SCALE),
+            'tax'      => bcmul($totals['tax'], $sign, ReceivingAmounts::SCALE),
+            'total'    => bcmul($totals['total'], $sign, 2),
+        ];
+    }
+
+    /**
+     * What each line of the cart takes of the discount on the whole purchase: what a saved purchase
+     * kept, or else the discount of the register for goods coming in and the share of the purchase a
+     * return comes from for goods going back.
+     *
+     * @param list<array<string, mixed>> $items
+     * @param list<ReceivingLine>        $lines
+     *
+     * @return list<numeric-string>
+     */
+    private function sharesOf(array $items, array $lines, ReceivingType $type): array
+    {
+        if (count(array_filter($items, static fn (array $item): bool => array_key_exists('invoice_discount_share', $item))) === count($items)) {
+            return array_map(static fn (array $item): string => bcadd((string) $item['invoice_discount_share'], '0', ReceivingAmounts::SCALE), $items);
+        }
+
+        $origin = $this->get_return_origin();
+
+        return match (true) {
+            $type === ReceivingType::Receive                     => InvoiceDiscountShares::forPurchase($lines, $this->getInvoiceDiscount()),
+            $type === ReceivingType::Return && $origin !== null => (new ReturnDiscountShares())->forReturn($origin, $lines),
+            default                                              => array_fill(0, count($lines), '0.0000'),
+        };
     }
 }
