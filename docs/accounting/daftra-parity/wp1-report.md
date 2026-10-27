@@ -280,3 +280,19 @@ DETECTED  G48-39 a partial scope is shown as a warning: Tests: 25, Assertions: 2
 DETECTED  G48-40 a transfer is seen by the branch that receives it: Tests: 5, Assertions: 71, Failures: 1.; failing: 1
 2 of 2 guards detected
 ```
+
+### الدفعة 12
+
+```
+DETECTED  FIX-1a the form of an item cannot mark it deleted when it has stock outside the branches: Tests: 92, Assertions: 671, Failures: 2.; failing: 2
+DETECTED  FIX-1b an item that is already deleted can still be edited: Tests: 92, Assertions: 678, Failures: 1.; failing: 1
+DETECTED  FIX-1c an item that is not marked deleted can still be edited: Tests: 92, Assertions: 679, Failures: 1.; failing: 1
+DETECTED  FIX-2a the count details screen lists the log of the allowed locations only: Tests: 92, Assertions: 676, Failures: 1.; failing: 1
+DETECTED  FIX-2b an empty list of locations matches nothing: Tests: 4, Assertions: 3, Errors: 1.; failing: 1
+DETECTED  FIX-2c the log is limited to the location given: Tests: 4, Assertions: 4, Failures: 1.; failing: 1
+DETECTED  FIX-3a a new item gets an empty shelf in every location when it is saved: Tests: 92, Assertions: 674, Failures: 1.; failing: 1
+DETECTED  FIX-3b a new item of the CSV import gets an empty shelf in every location: Tests: 92, Assertions: 671, Failures: 1.; failing: 1
+DETECTED  FIX-3c the shelves that exist are left as they are: Tests: 4, Assertions: 7, Errors: 1.; failing: 1
+DETECTED  FIX-3d a deleted location gets no shelf: Tests: 4, Assertions: 13, Failures: 1.; failing: 1
+10 of 10 guards detected
+```
