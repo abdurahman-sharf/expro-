@@ -2,10 +2,13 @@
 
 namespace Tests\Libraries;
 
+use App\Libraries\Accounting\InvoiceRounding;
 use App\Libraries\InvoiceDiscount;
+use App\Libraries\InvoiceDiscountPlan;
 use App\Libraries\InvoiceDiscountProblem;
 use CodeIgniter\Test\CIUnitTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\Support\ParityFixture;
 
 class InvoiceDiscountTest extends CIUnitTestCase
 {
@@ -206,6 +209,137 @@ class InvoiceDiscountTest extends CIUnitTestCase
         $origin = [10 => ['sold' => '4', 'share' => '8.0000', 'returned' => '0', 'returnedShare' => '0.0000']];
 
         $this->assertSame([1 => '2.0000', 2 => '4.0000'], InvoiceDiscount::returnShares([1 => [10, '1'], 2 => [10, '2']], $origin));
+    }
+
+    /**
+     * @return array<string, array{array<string, mixed>}>
+     */
+    public static function referenceDiscountProvider(): array
+    {
+        return ParityFixture::cases('T-04', 'invoice_discount');
+    }
+
+    /**
+     * @param array<string, mixed> $case
+     */
+    #[DataProvider('referenceDiscountProvider')]
+    public function testForSale_GivesTheTaxAndTheRevenueTheReferenceSystemPostedForTheInvoice(array $case): void
+    {
+        $rows = [];
+
+        foreach ($case['inputs']['lines'] as $index => $line) {
+            $rows[$index + 1] = ['item_id' => $index + 1, 'quantity' => $line['quantity'], 'price' => $line['price'], 'discount' => $line['discount'], 'discount_type' => $line['discount_type'] === 'fixed' ? FIXED : PERCENT];
+        }
+
+        $discount = $case['inputs']['invoice_discount'];
+        $plan     = InvoiceDiscount::forSale($rows, $discount['type'] === 'fixed' ? FIXED : PERCENT, $discount['value'], 2);
+
+        $this->assertInstanceOf(InvoiceDiscountPlan::class, $plan);
+
+        $bases = InvoiceDiscount::basesOf($rows, 2, false);
+        $tax   = '0';
+
+        foreach ($bases as $key => $base) {
+            $tax = bcadd($tax, bcmul(bcsub($base, $plan->share($key), 4), bcdiv($case['inputs']['tax_rate'], '100', 8), 8), 8);
+        }
+
+        $net   = bcsub(InvoiceDiscount::baseOf($rows, 2), $plan->amount, 4);
+        $split = InvoiceRounding::split($net, $tax);
+        $left  = $case['expected'];
+
+        foreach (['net' => $net, 'tax' => $split['tax'], 'total' => $split['total'], 'revenue' => $split['revenue']] as $name => $actual) {
+            $this->assertSame(0, bccomp($actual, $left[$name], 4), "{$case['id']} {$name}");
+        }
+
+        $this->assertSame($case['classification'] === 'exact' ? '0.00' : '0.01', bcsub($split['total'], $case['reference']['total'], 2), $case['id']);
+    }
+
+    public function testForSale_TakesNothingOffForADiscountOfNothingAndSavesNoShares(): void
+    {
+        $rows = [1 => ['item_id' => 1, 'quantity' => '2', 'price' => '50', 'discount' => '0', 'discount_type' => PERCENT]];
+
+        $plan = InvoiceDiscount::forSale($rows, PERCENT, '0', 2);
+
+        $this->assertInstanceOf(InvoiceDiscountPlan::class, $plan);
+        $this->assertTrue($plan->isEmpty());
+        $this->assertNull($plan->type);
+        $this->assertSame($rows, $plan->applyTo($rows));
+    }
+
+    public function testForSale_RefusesADiscountThatCannotBeTakenOffWhatTheLinesComeTo(): void
+    {
+        $rows = [1 => ['item_id' => 1, 'quantity' => '1', 'price' => '100', 'discount' => '10', 'discount_type' => FIXED]];
+
+        $this->assertSame(InvoiceDiscountProblem::ExceedsTotal, InvoiceDiscount::forSale($rows, FIXED, '90.01', 2));
+        $this->assertInstanceOf(InvoiceDiscountPlan::class, InvoiceDiscount::forSale($rows, FIXED, '90', 2));
+        $this->assertSame(InvoiceDiscountProblem::Negative, InvoiceDiscount::forSale($rows, PERCENT, '-5', 2));
+    }
+
+    public function testForSale_TakesTheDiscountsOfTheLinesOffBeforeItWorksTheDiscountOut(): void
+    {
+        $rows = [
+            1 => ['item_id' => 1, 'quantity' => '2', 'price' => '75', 'discount' => '10', 'discount_type' => PERCENT],
+            2 => ['item_id' => 2, 'quantity' => '1', 'price' => '220', 'discount' => '0', 'discount_type' => PERCENT],
+        ];
+
+        $plan = InvoiceDiscount::forSale($rows, PERCENT, '10', 2);
+
+        $this->assertSame('35.5000', $plan->amount);
+        $this->assertSame([1 => '13.5000', 2 => '22.0000'], $plan->shares);
+    }
+
+    public function testApplyTo_PutsTheShareOnEachRowAndTakesItOffWhenThereIsNone(): void
+    {
+        $rows = [4 => ['item_id' => 1], 7 => ['item_id' => 2, 'invoice_discount_share' => '9.0000']];
+        $plan = new InvoiceDiscountPlan(FIXED, '5', '5.0000', [4 => '2.0000', 7 => '3.0000']);
+
+        $this->assertSame([4 => ['item_id' => 1, 'invoice_discount_share' => '2.0000'], 7 => ['item_id' => 2, 'invoice_discount_share' => '3.0000']], $plan->applyTo($rows));
+        $this->assertSame([4 => ['item_id' => 1], 7 => ['item_id' => 2]], InvoiceDiscount::none()->applyTo($rows));
+    }
+
+    public function testForReturn_TakesBackTheShareOfTheUnitsWithTheSignOfTheReturn(): void
+    {
+        $rows   = [1 => ['item_id' => 10, 'quantity' => '-1', 'price' => '100', 'discount' => '0', 'discount_type' => PERCENT]];
+        $origin = [10 => ['sold' => '4', 'share' => '8.0000', 'returned' => '0', 'returnedShare' => '0.0000']];
+
+        $plan = InvoiceDiscount::forReturn($rows, $origin, 2);
+
+        $this->assertSame(['1' => '-2.0000'], array_combine(array_map('strval', array_keys($plan->shares)), $plan->shares));
+        $this->assertSame('2.0000', $plan->amount);
+        $this->assertSame(FIXED, $plan->type);
+        $this->assertSame('2.0000', $plan->value);
+    }
+
+    public function testForReturn_ComesToNothingWhenTheSaleItComesFromWasGivenNoDiscount(): void
+    {
+        $rows   = [1 => ['item_id' => 10, 'quantity' => '-1', 'price' => '100', 'discount' => '0', 'discount_type' => PERCENT]];
+        $origin = [10 => ['sold' => '4', 'share' => '0.0000', 'returned' => '0', 'returnedShare' => '0.0000']];
+
+        $this->assertTrue(InvoiceDiscount::forReturn($rows, $origin, 2)->isEmpty());
+        $this->assertTrue(InvoiceDiscount::forReturn($rows, [], 2)->isEmpty());
+    }
+
+    public function testForReturn_NeverTakesBackMoreThanTheLineItselfComesToWhenItsPriceWasLowered(): void
+    {
+        $rows   = [1 => ['item_id' => 10, 'quantity' => '-1', 'price' => '1', 'discount' => '0', 'discount_type' => PERCENT]];
+        $origin = [10 => ['sold' => '1', 'share' => '8.0000', 'returned' => '0', 'returnedShare' => '0.0000']];
+
+        $this->assertSame('1.0000', InvoiceDiscount::forReturn($rows, $origin, 2)->amount);
+    }
+
+    public function testNormalise_DropsTheZerosStoredAfterThePoint(): void
+    {
+        $this->assertSame('10', InvoiceDiscount::normalise('10.0000'));
+        $this->assertSame('20.5', InvoiceDiscount::normalise('20.5000'));
+        $this->assertSame('100', InvoiceDiscount::normalise('100'));
+        $this->assertSame('0', InvoiceDiscount::normalise('0.0000'));
+        $this->assertSame('0.05', InvoiceDiscount::normalise('0.0500'));
+    }
+
+    public function testSqlShare_TreatsASaleWithoutADiscountAsCarryingNone(): void
+    {
+        $this->assertSame('IFNULL(sales_items.invoice_discount_share, 0)', InvoiceDiscount::sqlShare('sales_items'));
+        $this->assertSame('IFNULL(`ospos_sales_items`.invoice_discount_share, 0)', InvoiceDiscount::sqlShare('`ospos_sales_items`'));
     }
 
     /**

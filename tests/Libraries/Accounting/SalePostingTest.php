@@ -13,6 +13,7 @@ use App\Libraries\Accounting\RoutingKey;
 use App\Libraries\Accounting\RoutingType;
 use App\Libraries\Accounting\SalePosting;
 use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\InvoiceDiscountProblem;
 use App\Libraries\Organization\BranchGuard;
 use CodeIgniter\Database\Query;
 use CodeIgniter\Events\Events;
@@ -1515,6 +1516,342 @@ class SalePostingTest extends CIUnitTestCase
     }
 
     // ---------------------------------------------------------------------------------------
+    // The discount on the whole of a sale, taken after the discounts of its lines
+    // ---------------------------------------------------------------------------------------
+
+    public function testSaveValue_PostsTheRevenueNetOfAPercentageDiscountOnTheWholeInvoiceAndTheTaxOnWhatIsLeft(): void
+    {
+        $cycle  = $this->discountedReferenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']);
+
+        $this->assertGreaterThan(0, $saleId);
+        $this->assertSame(
+            [$this->customerAccount() . ':734.85:0.00', $this->accountId('sales_revenue') . ':0.00:639.00', $this->accountId('tax_output') . ':0.00:95.85'],
+            $this->standing($saleId, 'revenue')[0]['lines'],
+        );
+        $this->assertSame([$this->accountId('cogs') . ':400.00:0.00', $this->stockAccount() . ':0.00:400.00'], $this->standing($saleId, 'cogs')[0]['lines'], 'the cost of the goods does not depend on what they were sold for');
+        $this->assertSame('734.85', $this->balance($this->customerAccount()));
+    }
+
+    public function testSaveValue_PostsTheRevenueNetOfAFixedDiscountOnTheWholeInvoiceAndTheTaxOnWhatIsLeft(): void
+    {
+        $cycle  = $this->discountedReferenceInvoice(false);
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']);
+
+        $this->assertGreaterThan(0, $saleId);
+        $this->assertSame(
+            [$this->customerAccount() . ':793.50:0.00', $this->accountId('sales_revenue') . ':0.00:690.00', $this->accountId('tax_output') . ':0.00:103.50'],
+            $this->standing($saleId, 'revenue')[0]['lines'],
+        );
+    }
+
+    public function testSaveValue_PostsNoJournalLineOfItsOwnForTheDiscountOnTheWholeInvoice(): void
+    {
+        $cycle  = $this->discountedReferenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']);
+
+        $this->assertCount(3, $this->standing($saleId, 'revenue')[0]['lines']);
+        $this->assertSame('0.00', $this->balance($this->accountId('sales_discount')));
+    }
+
+    public function testSaveValue_KeepsWhatWasEnteredOnTheSaleAndTheShareOfEachLineOnTheLine(): void
+    {
+        $cycle  = $this->discountedReferenceInvoice(false);
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']);
+        $sale   = $this->saleRow($saleId);
+
+        $this->assertSame((string) FIXED, (string) $sale->invoice_discount_type);
+        $this->assertSame('20.0000', $sale->invoice_discount);
+        $this->assertSame(['0' => '7.6056', '1' => '12.3944'], $this->sharesOf($saleId));
+    }
+
+    public function testSaveValue_LeavesTheColumnsOfTheDiscountEmptyOnASaleWithoutOne(): void
+    {
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes']);
+
+        $this->assertNull($this->saleRow($saleId)->invoice_discount_type);
+        $this->assertNull($this->saleRow($saleId)->invoice_discount);
+        $this->assertSame(['0' => null, '1' => null], $this->sharesOf($saleId));
+    }
+
+    public function testSaveValue_SavesNothingOfADiscountOfNothing(): void
+    {
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, ['type' => FIXED, 'value' => '0.00']);
+
+        $this->assertNull($this->saleRow($saleId)->invoice_discount_type);
+        $this->assertSame(['0' => null, '1' => null], $this->sharesOf($saleId));
+        $this->assertSame([$this->customerAccount() . ':816.50:0.00', $this->accountId('sales_revenue') . ':0.00:710.00', $this->accountId('tax_output') . ':0.00:106.50'], $this->standing($saleId, 'revenue')[0]['lines']);
+    }
+
+    public function testSaveValue_SavesTheDiscountAndPostsNothingWhileAccountingIsOff(): void
+    {
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $cycle  = $this->discountedReferenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']);
+
+        $this->assertGreaterThan(0, $saleId);
+        $this->assertSame('10.0000', $this->saleRow($saleId)->invoice_discount);
+        $this->assertSame(['0' => '27.0000', '1' => '44.0000'], $this->sharesOf($saleId));
+        $this->assertSame([], $this->journals($saleId));
+        $this->assertSame(0, $this->countJournals());
+    }
+
+    public function testSaveValue_SavesTheDiscountOfASuspendedSaleAndPostsNothingUntilItIsCompleted(): void
+    {
+        $cycle  = $this->discountedReferenceInvoice();
+        $saleId = $this->save($cycle['items'], [], [], SALE_TYPE_QUOTE, -1, true, null, SUSPENDED, NEW_ENTRY, $cycle['discount']);
+
+        $this->assertSame('10.0000', $this->saleRow($saleId)->invoice_discount);
+        $this->assertSame([], $this->journals($saleId));
+
+        $this->assertSame($saleId, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, $saleId, $cycle['discount']));
+        $this->assertSame([$this->customerAccount() . ':734.85:0.00', $this->accountId('sales_revenue') . ':0.00:639.00', $this->accountId('tax_output') . ':0.00:95.85'], $this->standing($saleId, 'revenue')[0]['lines']);
+    }
+
+    public function testSaveValue_ReplacesTheDiscountOfASuspendedSaleWhenItIsSavedAgainWithAnother(): void
+    {
+        $cycle  = $this->discountedReferenceInvoice();
+        $saleId = $this->save($cycle['items'], [], [], SALE_TYPE_QUOTE, -1, true, null, SUSPENDED, NEW_ENTRY, $cycle['discount']);
+
+        $this->save($cycle['items'], [], [], SALE_TYPE_QUOTE, -1, true, null, SUSPENDED, $saleId, ['type' => FIXED, 'value' => '20']);
+
+        $this->assertSame((string) FIXED, (string) $this->saleRow($saleId)->invoice_discount_type);
+        $this->assertSame(['0' => '7.6056', '1' => '12.3944'], $this->sharesOf($saleId));
+
+        $this->save($cycle['items'], [], [], SALE_TYPE_QUOTE, -1, true, null, SUSPENDED, $saleId);
+
+        $this->assertNull($this->saleRow($saleId)->invoice_discount_type);
+        $this->assertSame(['0' => null, '1' => null], $this->sharesOf($saleId));
+    }
+
+    /**
+     * @return array<string, array{int, string, InvoiceDiscountProblem}>
+     */
+    public static function refusedDiscountProvider(): array
+    {
+        return [
+            'more than the lines come to'    => [FIXED, '710.01', InvoiceDiscountProblem::ExceedsTotal],
+            'a percentage above a hundred'   => [PERCENT, '100.5', InvoiceDiscountProblem::PercentOver100],
+            'a negative amount'              => [FIXED, '-1', InvoiceDiscountProblem::Negative],
+            'text instead of a number'       => [FIXED, 'ten', InvoiceDiscountProblem::NotANumber],
+            'a kind nobody knows'            => [9, '5', InvoiceDiscountProblem::UnknownType],
+        ];
+    }
+
+    #[DataProvider('refusedDiscountProvider')]
+    public function testSaveValue_RefusesADiscountOnTheWholeInvoiceThatCannotBeTakenOffAndLeavesNothingOfTheSale(int $type, string $value, InvoiceDiscountProblem $problem): void
+    {
+        $cycle  = $this->referenceInvoice();
+        $sales  = $this->countSales();
+        $stock  = $this->stock($cycle['cream']);
+
+        $this->assertSame(INVOICE_DISCOUNT_INVALID, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, ['type' => $type, 'value' => $value]));
+        $this->assertSame($problem, $this->sales->invoiceDiscountProblem());
+        $this->assertSame($sales, $this->countSales());
+        $this->assertSame(0, $this->countJournals());
+        $this->assertEqualsWithDelta($stock, $this->stock($cycle['cream']), 0.0001);
+    }
+
+    public function testSaveValue_AcceptsADiscountOfExactlyWhatTheLinesComeTo(): void
+    {
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], [], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, ['type' => FIXED, 'value' => '710']);
+
+        $this->assertGreaterThan(0, $saleId);
+        $this->assertSame(['0' => '270.0000', '1' => '440.0000'], $this->sharesOf($saleId));
+        $this->assertSame([], $this->standing($saleId, 'revenue'), 'a sale that comes to nothing has no invoice journal');
+    }
+
+    public function testSaveValue_RefusesASaleWhoseTaxesWereWorkedOutWithAnotherShareThanTheOneSaved(): void
+    {
+        $cycle = $this->discountedReferenceInvoice();
+        $sales = $this->countSales();
+
+        $cycle['items'][0]['invoice_discount_share'] = '26.0000';
+        $cycle['items'][1]['invoice_discount_share'] = '44.0000';
+
+        $this->assertSame(INVOICE_DISCOUNT_INVALID, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']));
+        $this->assertSame(InvoiceDiscountProblem::Changed, $this->sales->invoiceDiscountProblem());
+        $this->assertSame($sales, $this->countSales());
+    }
+
+    public function testSaveValue_AcceptsASaleWhoseTaxesWereWorkedOutWithTheShareSaved(): void
+    {
+        $cycle = $this->discountedReferenceInvoice();
+
+        $cycle['items'][0]['invoice_discount_share'] = '27.0000';
+        $cycle['items'][1]['invoice_discount_share'] = '44.0000';
+
+        $this->assertGreaterThan(0, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']));
+    }
+
+    public function testSaveValue_RefusesADiscountOnAReturnWhichTakesBackItsShareOfTheSaleItComesFrom(): void
+    {
+        $cycle     = $this->discountedReferenceInvoice();
+        $invoiceId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']);
+        $sales     = $this->countSales();
+
+        $this->assertSame(INVOICE_DISCOUNT_INVALID, $this->save([$this->line($cycle['cream'], 0, '-1', '75', '40.00', '10')], [], [], SALE_TYPE_RETURN, -1, true, $invoiceId, COMPLETED, NEW_ENTRY, ['type' => FIXED, 'value' => '5']));
+        $this->assertSame(InvoiceDiscountProblem::OnReturn, $this->sales->invoiceDiscountProblem());
+        $this->assertSame($sales, $this->countSales());
+    }
+
+    public function testSaveValue_AReturnOfADiscountedInvoiceTakesBackTheShareOfTheDiscountOfItsUnits(): void
+    {
+        $cycle     = $this->discountedReferenceInvoice();
+        $invoiceId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']);
+        $returnId  = $this->save([$this->line($cycle['cream'], 0, '-1', '75', '40.00', '10')], [$this->tax($cycle['cream'], 0, '-9.1125')], [], SALE_TYPE_RETURN, -1, true, $invoiceId);
+
+        $this->assertGreaterThan(0, $returnId);
+        $this->assertSame(['0' => '-6.7500'], $this->sharesOf($returnId));
+        $this->assertSame((string) FIXED, (string) $this->saleRow($returnId)->invoice_discount_type);
+        $this->assertSame('6.7500', $this->saleRow($returnId)->invoice_discount);
+
+        $this->assertSame(
+            [$this->accountId('sales_returns') . ':60.74:0.00', $this->accountId('tax_output') . ':9.11:0.00', $this->customerAccount() . ':0.00:69.86'],
+            $this->standing($returnId, 'revenue')[0]['lines'],
+        );
+        $this->assertSame('664.99', $this->balance($this->customerAccount()));
+    }
+
+    public function testSaveValue_TheReturnsOfADiscountedInvoiceGiveBackExactlyTheDiscountItWasGiven(): void
+    {
+        $cycle     = $this->discountedReferenceInvoice();
+        $invoiceId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']);
+        $given     = '0';
+
+        foreach ([['1', '-9.1125'], ['1', '-9.1125'], ['2', '-18.2250']] as [$units, $tax]) {
+            $returnId = $this->save([$this->line($cycle['cream'], 0, '-' . $units, '75', '40.00', '10')], [$this->tax($cycle['cream'], 0, $tax)], [], SALE_TYPE_RETURN, -1, true, $invoiceId);
+
+            $this->assertGreaterThan(0, $returnId);
+
+            $given = bcadd($given, $this->sharesOf($returnId)['0'], 4);
+        }
+
+        $this->assertSame('-27.0000', $given, 'the three returns of the creams give back the whole of their share, to the last fraction of a cent');
+    }
+
+    public function testSaveValue_RefusesAReturnWhoseTaxesWereWorkedOutWithAnotherShareThanTheOneItTakesBack(): void
+    {
+        $cycle     = $this->discountedReferenceInvoice();
+        $invoiceId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']);
+
+        $stale = $this->line($cycle['cream'], 0, '-1', '75', '40.00', '10');
+        $stale['invoice_discount_share'] = '-6.0000';
+        $sales = $this->countSales();
+
+        $this->assertSame(INVOICE_DISCOUNT_INVALID, $this->save([$stale], [$this->tax($cycle['cream'], 0, '-9.2250')], [], SALE_TYPE_RETURN, -1, true, $invoiceId));
+        $this->assertSame(InvoiceDiscountProblem::Changed, $this->sales->invoiceDiscountProblem());
+        $this->assertSame($sales, $this->countSales());
+
+        $stale['invoice_discount_share'] = '-6.7500';
+
+        $this->assertGreaterThan(0, $this->save([$stale], [$this->tax($cycle['cream'], 0, '-9.1125')], [], SALE_TYPE_RETURN, -1, true, $invoiceId));
+    }
+
+    public function testSaveValue_AReturnOfASaleWithoutADiscountTakesBackNoShare(): void
+    {
+        $cycle     = $this->referenceInvoice();
+        $invoiceId = $this->save($cycle['items'], $cycle['taxes']);
+        $returnId  = $this->save([$this->line($cycle['cream'], 0, '-1', '75', '40.00', '10')], [$this->tax($cycle['cream'], 0, '-10.125')], [], SALE_TYPE_RETURN, -1, true, $invoiceId);
+
+        $this->assertGreaterThan(0, $returnId);
+        $this->assertNull($this->saleRow($returnId)->invoice_discount_type);
+        $this->assertSame(['0' => null], $this->sharesOf($returnId));
+    }
+
+    public function testUpdate_AddingAPaymentToADiscountedInvoiceLeavesItsInvoiceJournalAsItWas(): void
+    {
+        $cycle  = $this->discountedReferenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']);
+        $before = $this->standing($saleId, 'revenue');
+
+        $this->addPayment($saleId, '300.00');
+
+        $this->assertSame($before, $this->standing($saleId, 'revenue'));
+        $this->assertSame('434.85', $this->balance($this->customerAccount()));
+        $this->assertTies();
+    }
+
+    public function testPostCompleted_RunAgainOnADiscountedSaleWritesNothingMore(): void
+    {
+        $cycle    = $this->discountedReferenceInvoice();
+        $saleId   = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']);
+        $journals = $this->countJournals();
+
+        (new SalePosting())->postCompleted($saleId, $this->employeeId);
+
+        $this->assertSame($journals, $this->countJournals());
+    }
+
+    public function testDelete_ReversesTheJournalsOfADiscountedSaleAndLeavesNothingOnTheAccounts(): void
+    {
+        $cycle  = $this->discountedReferenceInvoice();
+        $before = $this->stock($cycle['cream']);
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '300.00')], SALE_TYPE_POS, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']);
+
+        $this->assertTrue($this->sales->delete($saleId, false, true, $this->employeeId));
+
+        $this->assertSame([], $this->standing($saleId));
+        $this->assertEqualsWithDelta($before, $this->stock($cycle['cream']), 0.0001);
+
+        foreach ([$this->customerAccount(), $this->accountId('sales_revenue'), $this->accountId('tax_output'), $this->accountId('cogs'), $this->stockAccount(), $this->accountId('cash')] as $accountId) {
+            $this->assertSame('0.00', $this->balance($accountId), (string) $accountId);
+        }
+    }
+
+    public function testDelete_ARestoredDiscountedSaleCompletedAgainPostsTheSameAmountsInANewRevision(): void
+    {
+        $cycle  = $this->discountedReferenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_POS, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']);
+        $first  = $this->standing($saleId, 'revenue')[0]['lines'];
+
+        $this->sales->delete($saleId, false, true, $this->employeeId);
+        $this->sales->restore_list([$saleId], $this->employeeId);
+
+        $this->assertSame($saleId, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_POS, -1, true, null, COMPLETED, $saleId, $cycle['discount']));
+        $this->assertSame($first, $this->standing($saleId, 'revenue')[0]['lines']);
+        $this->assertSame(2, $this->standing($saleId, 'revenue')[0]['revision']);
+        $this->assertSame('734.85', $this->balance($this->customerAccount()));
+    }
+
+    public function testSaveValue_RefusesADiscountedInvoiceInAClosedPeriodWithoutLeavingAnyOfIt(): void
+    {
+        $cycle = $this->discountedReferenceInvoice();
+        $this->closeThrough(date('Y-m-d'));
+
+        $sales = $this->countSales();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']));
+        $this->assertSame($sales, $this->countSales());
+        $this->assertSame(PostingError::PeriodClosed, $this->failure()->error);
+        $this->assertSame(0, $this->countJournals());
+    }
+
+    public function testSaveValue_PostsTheJournalsOfADiscountedInvoiceInTheBranchOfTheSale(): void
+    {
+        $cycle  = $this->discountedReferenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']);
+
+        $branches = array_unique(array_column($this->accountingDb()->table('accounting_journals')->select('branch_id')->whereIn('journal_id', array_column($this->journals($saleId), 'id'))->get()->getResultArray(), 'branch_id'));
+
+        $this->assertSame([(string) $this->saleRow($saleId)->branch_id], array_values($branches));
+    }
+
+    public function testSaveValue_TheDiscountedInvoiceTiesToTheCustomerAccountAndTheOpenInvoicesOfTheCustomer(): void
+    {
+        $cycle  = $this->discountedReferenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '300.00')], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']);
+
+        $this->assertGreaterThan(0, $saleId);
+        $this->assertTies();
+        $this->assertSame('434.85', bcadd($this->position()->open(), '0', 2));
+    }
+
+    // ---------------------------------------------------------------------------------------
     // Against the reference system: fixtures T-06 to T-09
     // ---------------------------------------------------------------------------------------
 
@@ -1540,6 +1877,24 @@ class SalePostingTest extends CIUnitTestCase
     #[DataProvider('cycleProvider')]
     public function testSaveValue_PostsEveryJournalOfTheReferenceCycleWithTheLinesTheReferenceSystemWrote(array $case): void
     {
+        $this->assertReferenceCycle($case, null);
+    }
+
+    /**
+     * @param array<string, mixed> $case
+     */
+    #[DataProvider('cycleProvider')]
+    public function testSaveValue_PostsEveryJournalOfTheReferenceCycleTheSameWhenTheDiscountOnTheWholeInvoiceIsZero(array $case): void
+    {
+        $this->assertReferenceCycle($case, ['type' => PERCENT, 'value' => '0']);
+    }
+
+    /**
+     * @param array<string, mixed>                 $case
+     * @param array{type: int, value: string}|null $invoiceDiscount
+     */
+    private function assertReferenceCycle(array $case, ?array $invoiceDiscount): void
+    {
         $this->assertSame('exact', $case['classification'], $case['id']);
         $this->assertSame(
             array_column($case['reference']['journals'], 'lines', 'step'),
@@ -1560,7 +1915,7 @@ class SalePostingTest extends CIUnitTestCase
             $taxes[]         = $this->tax($itemId, $line, $row['tax']);
         }
 
-        $invoiceId = $this->save($items, $taxes);
+        $invoiceId = $this->save($items, $taxes, [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, $invoiceDiscount);
 
         $this->accountingDb()->table('items')->where('item_id', $ids[$note['item']])->update(['cost_price' => $note['cost_of_the_item_now']]);
 
@@ -1940,6 +2295,22 @@ class SalePostingTest extends CIUnitTestCase
         }
 
         return $case;
+    }
+
+    /**
+     * The share each line of a sale carries, by line, as it was saved.
+     *
+     * @return array<string, ?string>
+     */
+    private function sharesOf(int $saleId): array
+    {
+        $shares = [];
+
+        foreach ($this->accountingDb()->table('sales_items')->select('line, invoice_discount_share')->where('sale_id', $saleId)->orderBy('line', 'ASC')->get()->getResult() as $row) {
+            $shares[(string) $row->line] = $row->invoice_discount_share;
+        }
+
+        return $shares;
     }
 
     private function stockTaken(int $itemId, float $before): bool

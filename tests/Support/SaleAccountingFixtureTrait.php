@@ -172,16 +172,39 @@ trait SaleAccountingFixtureTrait
     }
 
     /**
+     * The reference invoice with a discount on the whole of it, as the register would save it: the
+     * taxes are of what is left of each line after its share. A tenth of 710 takes 27 off the creams and
+     * 44 off the perfumes, so there is 639 of goods and 95.85 of tax. An amount of 20 takes 7.6056 and
+     * 12.3944 off, so there is 690 of goods and 103.50 of tax.
+     *
+     * @return array{items: list<array<string, mixed>>, taxes: list<array<string, mixed>>, cream: int, perfume: int, discount: array{type: int, value: string}}
+     */
+    protected function discountedReferenceInvoice(bool $percent = true): array
+    {
+        $cycle = $this->referenceInvoice();
+        [$creamTax, $perfumeTax] = $percent ? ['36.45', '59.40'] : ['39.3592', '64.1408'];
+
+        return [
+            'items'    => $cycle['items'],
+            'taxes'    => [$this->tax($cycle['cream'], 0, $creamTax), $this->tax($cycle['perfume'], 1, $perfumeTax)],
+            'cream'    => $cycle['cream'],
+            'perfume'  => $cycle['perfume'],
+            'discount' => $percent ? ['type' => PERCENT, 'value' => '10'] : ['type' => FIXED, 'value' => '20'],
+        ];
+    }
+
+    /**
      * @param list<array<string, mixed>> $items
      * @param list<array<string, mixed>> $taxes
-     * @param list<array<string, mixed>> $payments
+     * @param list<array<string, mixed>>           $payments
+     * @param array{type: int, value: string}|null $invoiceDiscount
      */
-    protected function save(array $items, array $taxes = [], array $payments = [], int $type = SALE_TYPE_INVOICE, ?int $customerId = -1, bool $delivered = true, ?int $origin = null, int $status = COMPLETED, int $saleId = NEW_ENTRY): int
+    protected function save(array $items, array $taxes = [], array $payments = [], int $type = SALE_TYPE_INVOICE, ?int $customerId = -1, bool $delivered = true, ?int $origin = null, int $status = COMPLETED, int $saleId = NEW_ENTRY, ?array $invoiceDiscount = null): int
     {
         $saleStatus = $status;
         $salesTaxes = [[], $taxes];
         $customer   = $customerId === -1 ? $this->customerId : ($customerId ?? NEW_ENTRY);
-        $result     = $this->sales->save_value($saleId, $saleStatus, $items, $customer, $this->employeeId, 'test', null, null, null, $type, $payments, null, $salesTaxes, $delivered, $origin);
+        $result     = $this->sales->save_value($saleId, $saleStatus, $items, $customer, $this->employeeId, 'test', null, null, null, $type, $payments, null, $salesTaxes, $delivered, $origin, $invoiceDiscount);
 
         if ($result > 0) {
             $this->saleIds[] = $result;
