@@ -17,6 +17,8 @@ use Config\Database;
  */
 final class CrossBranchPayments
 {
+    use RunsInTransaction;
+
     private const COMPANIONS = [
         SalePostingBuilder::SOURCE_PAYMENT               => 'sale_payment_branch',
         ReceivingPostingBuilder::SOURCE_PAYMENT          => 'purchase_payment_branch',
@@ -152,6 +154,17 @@ final class CrossBranchPayments
      */
     public function sync(?object $active, array $drafts, ?int $employeeId, callable $reverse): JournalChange
     {
+        return $this->transactional(fn (): JournalChange => $this->syncWithin($active, $drafts, $employeeId, $reverse));
+    }
+
+    /**
+     * @param list<JournalDraft>      $drafts
+     * @param callable(object): mixed $reverse
+     *
+     * @throws AccountingException|PostingException
+     */
+    private function syncWithin(?object $active, array $drafts, ?int $employeeId, callable $reverse): JournalChange
+    {
         if ($active === null) {
             if ($drafts === []) {
                 return JournalChange::None;
@@ -192,6 +205,18 @@ final class CrossBranchPayments
      * @throws PostingException
      */
     public function post(array $drafts): void
+    {
+        $this->transactional(function () use ($drafts): void {
+            $this->postWithin($drafts);
+        });
+    }
+
+    /**
+     * @param list<JournalDraft> $drafts
+     *
+     * @throws PostingException
+     */
+    private function postWithin(array $drafts): void
     {
         usort($drafts, static fn (JournalDraft $a, JournalDraft $b): int => (int) $a->branchId <=> (int) $b->branchId);
 
