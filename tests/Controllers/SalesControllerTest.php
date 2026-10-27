@@ -16,6 +16,7 @@ use App\Models\Employee;
 use CodeIgniter\Test\TestResponse;
 use Config\Database;
 use Config\OSPOS;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
@@ -1931,14 +1932,14 @@ class SalesControllerTest extends CIUnitTestCase
     /**
      * Completes the sale of one cart line in the mode given, as the register does, and returns the response.
      */
-    private function completeAs(string $mode): TestResponse
+    private function completeAs(string $mode, array $session = []): TestResponse
     {
         $cashierId = $this->createCashierEmployee();
         $itemId    = $this->createTestItem(HAS_NO_STOCK);
 
         $this->loginAs($cashierId);
         $this->seedCartLine(1, '100.00', $itemId);
-        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => $mode]));
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => $mode], $session));
 
         return $this->post('/sales/complete');
     }
@@ -1970,6 +1971,74 @@ class SalesControllerTest extends CIUnitTestCase
         $response->assertSee($format);
         $this->assertSame(1, Database::connect()->table('sales')->where('invoice_number', $format)->countAllResults());
         $this->assertSame(0, Database::connect()->table('document_numbers')->countAllResults());
+    }
+
+    /**
+     * @return array<string, array{bool}>
+     */
+    public static function sequenceStateProvider(): array
+    {
+        return ['the sequence is off' => [false], 'the sequence is on' => [true]];
+    }
+
+    #[DataProvider('sequenceStateProvider')]
+    public function testPostComplete_RefusesAnInvoiceNumberTypedByHandThatAnotherInvoiceHas(bool $sequenceOn): void
+    {
+        $number = 'DUP' . random_int(100000, 999999);
+
+        if ($sequenceOn) {
+            $this->switchOn(DocumentType::SalesInvoice, $this->freshPrefix(), 4);
+        }
+
+        $this->completeAs('sale_invoice', ['sales_invoice_number' => $number]);
+        $sales = Database::connect()->table('sales')->countAllResults();
+
+        $response = $this->completeAs('sale_invoice', ['sales_invoice_number' => $number]);
+
+        $response->assertSee(lang('Sales.invoice_number_duplicate', [$number]));
+        $this->assertSame($sales, Database::connect()->table('sales')->countAllResults());
+        $this->assertSame(1, Database::connect()->table('sales')->where('invoice_number', $number)->countAllResults());
+    }
+
+    #[DataProvider('sequenceStateProvider')]
+    public function testPostComplete_RefusesAQuoteNumberTypedByHandThatAnotherQuoteHas(bool $sequenceOn): void
+    {
+        $number = 'QDUP' . random_int(100000, 999999);
+
+        if ($sequenceOn) {
+            $this->switchOn(DocumentType::SalesQuote, $this->freshPrefix(), 4);
+        }
+
+        $this->completeAs('sale_quote', ['sales_quote_number' => $number]);
+        $sales = Database::connect()->table('sales')->countAllResults();
+
+        $response = $this->completeAs('sale_quote', ['sales_quote_number' => $number]);
+
+        $response->assertSee(lang('Sales.quote_number_duplicate'));
+        $this->assertSame($sales, Database::connect()->table('sales')->countAllResults());
+        $this->assertSame(1, Database::connect()->table('sales')->where('quote_number', $number)->countAllResults());
+    }
+
+    public function testPostComplete_LeavesNoNumberBehindWhenTheBooksRefuseTheNumberedSale(): void
+    {
+        $this->startSelling();
+        $item         = $this->item('0', false);
+        $supervisorId = $this->createBranchLimitedSupervisor(1);
+        $this->grantStockLocationIn(1, $supervisorId);
+        $this->switchOn(DocumentType::SalesInvoice, $this->freshPrefix(), 4);
+        $this->closeThrough(date('Y-m-d'));
+        $this->loginAs($supervisorId);
+        $this->seedCartLine(1, '100.00', $item);
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_customer' => $this->customerId, 'sales_mode' => 'sale_invoice', 'sales_payments' => []]));
+
+        $sales = $this->countSales();
+
+        $response = $this->post('/sales/complete');
+
+        $response->assertSee(date('Y-m-d'));
+        $this->assertSame($sales, $this->countSales());
+        $this->assertSame(0, Database::connect()->table('document_numbers')->countAllResults());
+        $this->assertSame(1, (new DocumentNumbering())->sequence(DocumentType::SalesInvoice)->nextNumber);
     }
 
     public function testPostComplete_GivesTheQuoteTheNumberOfItsSequence(): void

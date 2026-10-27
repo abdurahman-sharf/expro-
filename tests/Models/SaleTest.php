@@ -841,6 +841,30 @@ class SaleTest extends CIUnitTestCase
         $this->assertSame(1, $db->table('document_numbers')->countAllResults());
     }
 
+    public function testSaveValue_TakesBackTheInvoiceNumberWhenAPaymentCannotBeNumbered(): void
+    {
+        $db     = Database::connect();
+        $prefix = $this->freshPrefix();
+        $this->switchOn(DocumentType::SalesInvoice, $prefix, 3, 1);
+        $this->switchOn(DocumentType::CustomerPayment, 'PAY-', 0, 1);
+        $db->table('document_sequences')->where('doc_type', 'customer_payment')->update(['next_number' => 4294967294]);
+        $db->table('document_numbers')->insert(['company_id' => 1, 'doc_type' => 'customer_payment', 'source_table' => 'sales_payments', 'source_id' => 999999999, 'sequence_number' => 4294967294, 'number' => 'PAY-4294967294']);
+
+        $sales  = $db->table('sales')->countAllResults();
+        $result = $this->saveSale(SALE_TYPE_INVOICE, [$this->cashPayment()]);
+
+        $this->assertSame(ACCOUNTING_FAILED, $result);
+        $this->assertSame($sales, $db->table('sales')->countAllResults());
+        $this->assertSame(0, $db->table('document_numbers')->where('doc_type', 'sales_invoice')->countAllResults());
+        $this->assertSame(1, (new DocumentNumbering())->sequence(DocumentType::SalesInvoice)->nextNumber);
+
+        (new DocumentNumbering())->configure(DocumentType::CustomerPayment, ['enabled' => false]);
+
+        $invoice = $this->saveSale(SALE_TYPE_INVOICE, [$this->cashPayment()]);
+
+        $this->assertSame($prefix . '001', model(Sale::class)->getInvoiceNumber($invoice));
+    }
+
     public function testUpdate_NumbersAPaymentAddedToACompletedSale(): void
     {
         $this->switchOn(DocumentType::CustomerPayment, 'PAY-', 4, 1);

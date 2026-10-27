@@ -504,6 +504,26 @@ class SupplierAdvancesTest extends CIUnitTestCase
         $this->assertSame(1, (new DocumentNumbering())->sequence(DocumentType::SupplierPayment)->nextNumber);
     }
 
+    public function testPay_LeavesNoNumberBehindWhenTheBooksRefuseAPaymentThatWasNumbered(): void
+    {
+        (new DocumentNumbering())->configure(DocumentType::SupplierPayment, ['enabled' => true, 'prefix' => 'SP-', 'padding' => 3]);
+        $first = $this->advances->pay($this->supplierId, '50.00', '2026-10-20', 'Cash', null, '', '', $this->clerk);
+        $this->closeThrough('2026-10-31');
+
+        $refusal = $this->refusal(fn () => $this->advances->pay($this->supplierId, '60.00', '2026-10-21', 'Cash', null, '', '', $this->clerk));
+
+        $this->assertStringContainsString('2026-10-31', $refusal->getMessage());
+        $this->assertSame(1, $this->countRows('document_numbers'));
+        $this->assertSame(2, (new DocumentNumbering())->sequence(DocumentType::SupplierPayment)->nextNumber);
+        $this->assertSame('SP-001', $this->numberOfAdvance($first));
+
+        $this->accountingDb()->table('accounting_closed_periods')->truncate();
+
+        $second = $this->advances->pay($this->supplierId, '60.00', '2026-10-21', 'Cash', null, '', '', $this->clerk);
+
+        $this->assertSame('SP-002', $this->numberOfAdvance($second));
+    }
+
     public function testPay_RefusesThePaymentAndLeavesNothingWhenNoNumberCanBeGiven(): void
     {
         $db = $this->accountingDb();
