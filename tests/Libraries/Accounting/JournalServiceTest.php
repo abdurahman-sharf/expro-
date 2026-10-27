@@ -1857,6 +1857,13 @@ class JournalServiceTest extends CIUnitTestCase
         $this->assertFailsWith(AccountingError::PostedJournalLocked, fn () => $this->service->updateDetails($manualId, ['description' => 'Edited'], $this->detailsEditor()));
     }
 
+    public function testUpdateDetails_SaysAManualJournalIsLockedBeforeItTalksAboutTheTextBeingTooLong(): void
+    {
+        $manualId = $this->service->postNew($this->journalInput());
+
+        $this->assertFailsWith(AccountingError::PostedJournalLocked, fn () => $this->service->updateDetails($manualId, ['description' => str_repeat('a', 2001)], $this->detailsEditor()));
+    }
+
     public function testUpdateDetails_WaitsForARequestThatHoldsTheJournalAndChangesNothingWhenItCannotHaveIt(): void
     {
         $journalId = $this->automaticJournal();
