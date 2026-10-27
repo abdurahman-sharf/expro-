@@ -111,6 +111,13 @@
             </tr>
         <?php } ?>
 
+        <?php if (bccomp((string) ($invoice_discount ?? '0'), '0') !== 0) { ?>
+            <tr>
+                <td colspan="3" class="total-value"><?= esc(invoiceDiscountLabel($invoice_discount_entry ?? null)) ?>:</td>
+                <td class="total-value"><?= to_currency($invoice_discount * -1) ?></td>
+            </tr>
+        <?php } ?>
+
         <?php if ($config['receipt_show_taxes']) { ?>
             <tr>
                 <td colspan="3" style="text-align: right; border-top: 2px solid #000000;"><?= lang('Sales.sub_total') ?></td>
@@ -128,7 +135,7 @@
 
         <tr></tr>
 
-        <?php $border = (!$config['receipt_show_taxes'] && !($config['receipt_show_total_discount'] && $discount > 0)); ?>
+        <?php $border = (!$config['receipt_show_taxes'] && !($config['receipt_show_total_discount'] && $discount > 0) && bccomp((string) ($invoice_discount ?? '0'), '0') === 0); ?>
         <tr>
             <td colspan="3" style="text-align: right;<?= $border ? ' border-top: 2px solid black;' : '' ?>"><?= lang('Sales.total') ?></td>
             <td style="text-align: right;<?= $border ? ' border-top: 2px solid black;' : '' ?>"><?= to_currency($total) ?></td>

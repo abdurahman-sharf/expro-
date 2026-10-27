@@ -65,6 +65,7 @@ return [
     'inventory_reports'                       => 'Berichte: Lager',
     'inventory_summary'                       => 'Lager (summarisch)',
     'inventory_summary_report'                => 'Bericht: Lager (summarisch)',
+    'invoice_discount'                        => '',
     'item'                                    => 'Artikel',
     'item_count'                              => 'Filter nach Artikelzahl',
     'item_name'                               => 'Artikelname',

@@ -3,6 +3,7 @@
 namespace Tests\Libraries\Accounting;
 
 use App\Libraries\Accounting\EntityAccountService;
+use App\Libraries\InvoiceDiscount;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\PaymentStatus;
@@ -70,9 +71,9 @@ class SalePostingBuilderTest extends CIUnitTestCase
         return new SalePostingBuilder(new RoutingResolver(), 2, $taxIncluded);
     }
 
-    private function line(string $quantity, string $price, string $discount = '0', int $discountType = PERCENT, string $cost = '0', bool $stock = true, string $added = '0', string $included = '0', int $itemId = 1): SaleLine
+    private function line(string $quantity, string $price, string $discount = '0', int $discountType = PERCENT, string $cost = '0', bool $stock = true, string $added = '0', string $included = '0', int $itemId = 1, string $share = '0'): SaleLine
     {
-        return new SaleLine($itemId, $itemId, $quantity, $price, $discount, $discountType, $cost, $this->locationId, $stock, $included, $added);
+        return new SaleLine($itemId, $itemId, $quantity, $price, $discount, $discountType, $cost, $this->locationId, $stock, $included, $added, $share);
     }
 
     /**
@@ -270,6 +271,153 @@ class SalePostingBuilderTest extends CIUnitTestCase
             $this->shape($this->builder->invoice($this->sale($lines), 1)),
             $case['id'],
         );
+    }
+
+    /**
+     * @return array<string, array{array<string, mixed>}>
+     */
+    public static function invoiceDiscountProvider(): array
+    {
+        return ParityFixture::cases('T-04', 'invoice_discount');
+    }
+
+    /**
+     * @param array<string, mixed> $case
+     */
+    #[DataProvider('invoiceDiscountProvider')]
+    public function testInvoice_JournalsTheInvoiceWithADiscountOnTheWholeOfItAsTheReferenceSystemRecordedIt(array $case): void
+    {
+        $rows = [];
+
+        foreach ($case['inputs']['lines'] as $index => $line) {
+            $rows[$index + 1] = ['item_id' => $index + 1, 'quantity' => $line['quantity'], 'price' => $line['price'], 'discount' => $line['discount'], 'discount_type' => PERCENT];
+        }
+
+        $discount = $case['inputs']['invoice_discount'];
+        $plan     = InvoiceDiscount::forSale($rows, $discount['type'] === 'fixed' ? FIXED : PERCENT, $discount['value'], 2);
+        $bases    = InvoiceDiscount::basesOf($rows, 2, false);
+        $lines    = [];
+
+        foreach ($case['inputs']['lines'] as $index => $line) {
+            $key     = $index + 1;
+            $tax     = bcmul(bcsub($bases[$key], $plan->share($key), 4), bcdiv($case['inputs']['tax_rate'], '100', 8), 8);
+            $lines[] = $this->line($line['quantity'], $line['price'], $line['discount'], PERCENT, added: $tax, itemId: $key, share: $plan->share($key));
+        }
+
+        $draft = $this->builder->invoice($this->sale($lines), 1);
+
+        $this->assertSame(
+            [
+                $this->customerAccount() . ':' . bcadd($case['expected']['total'], '0', 4) . ':0.0000',
+                $this->accountId('sales_revenue') . ':0.0000:' . bcadd($case['expected']['revenue'], '0', 4),
+                $this->accountId('tax_output') . ':0.0000:' . bcadd($case['expected']['tax'], '0', 4),
+            ],
+            $this->shape($draft, 4),
+            $case['id'],
+        );
+        $this->assertSame($case['classification'] === 'exact' ? '0.0000' : '0.0100', bcsub($draft->lines[0]->debit, $case['reference']['total'], 4), "{$case['id']}: only the half-halala case may differ from the reference system");
+        $this->assertCount(3, $draft->lines, 'the discount on the whole of the invoice has no line of its own');
+    }
+
+    public function testInvoice_PostsNoLineForTheDiscountOnTheWholeInvoiceEvenWhenTheDiscountAccountIsRouted(): void
+    {
+        $this->setRouting(RoutingKey::SalesDiscount, RoutingType::Auto);
+
+        $draft = $this->builder->invoice($this->sale([$this->line('4', '75', '10', PERCENT, added: '36.45', share: '27')]), 1);
+
+        $this->assertSame(
+            [
+                $this->customerAccount() . ':310.50:0.00',
+                $this->accountId('sales_discount') . ':30.00:0.00',
+                $this->accountId('sales_revenue') . ':0.00:300.00',
+                $this->accountId('tax_output') . ':0.00:40.50',
+            ],
+            $this->shape($this->builder->invoice($this->sale([$this->line('4', '75', '10', PERCENT, added: '40.50')]), 1)),
+            'without the discount on the whole invoice the line discount goes to its account',
+        );
+        $this->assertSame(
+            [
+                $this->customerAccount() . ':279.45:0.00',
+                $this->accountId('sales_discount') . ':30.00:0.00',
+                $this->accountId('sales_revenue') . ':0.00:273.00',
+                $this->accountId('tax_output') . ':0.00:36.45',
+            ],
+            $this->shape($draft),
+            'the discount on the whole invoice only lowers the revenue',
+        );
+    }
+
+    public function testInvoice_MirrorsTheDiscountOnTheWholeInvoiceInAReturn(): void
+    {
+        $origin = $this->sale([$this->line('4', '75', '10', PERCENT, '40', added: '36.45', share: '27')]);
+        $return = $this->sale([$this->line('-1', '75', '10', PERCENT, '40', added: '-9.1125', share: '-6.75')], [], SALE_TYPE_RETURN, -1, true, $origin);
+
+        $this->assertSame(
+            [
+                $this->accountId('sales_returns') . ':60.7475:0.0000',
+                $this->accountId('tax_output') . ':9.1125:0.0000',
+                $this->customerAccount() . ':0.0000:69.8600',
+            ],
+            $this->shape($this->builder->invoice($return, 1), 4),
+        );
+    }
+
+    public function testInvoice_TakesTheDiscountOnTheWholeInvoiceOffTheRevenueWhenTheTaxIsInsideThePrices(): void
+    {
+        $builder = $this->builder(true);
+        $draft   = $builder->invoice($this->sale([$this->line('1', '115', included: '13.50', share: '11.50')]), 1);
+
+        $this->assertSame(
+            [
+                $this->customerAccount() . ':103.50:0.00',
+                $this->accountId('sales_revenue') . ':0.00:90.00',
+                $this->accountId('tax_output') . ':0.00:13.50',
+            ],
+            $this->shape($draft),
+        );
+    }
+
+    public function testInvoice_JournalsTheSameWhenTheShareIsSpelledAsNothingAsWhenThereIsNone(): void
+    {
+        foreach ([['0'], ['0.0000'], ['-0.0000']] as [$share]) {
+            $draft = $this->builder->invoice($this->sale([
+                $this->line('4', '75', '10', PERCENT, '40', added: '40.50', share: $share),
+                $this->line('2', '220', cost: '120', added: '66.00', itemId: 2, share: $share),
+            ]), 1);
+
+            $this->assertSame(
+                [$this->customerAccount() . ':816.50:0.00', $this->accountId('sales_revenue') . ':0.00:710.00', $this->accountId('tax_output') . ':0.00:106.50'],
+                $this->shape($draft),
+            );
+        }
+    }
+
+    /**
+     * @return array<string, array{array<string, mixed>}>
+     */
+    public static function everyReferenceInvoiceProvider(): array
+    {
+        return ParityFixture::cases('T-02', 'journal') + ParityFixture::cases('T-04', 'rounding');
+    }
+
+    /**
+     * @param array<string, mixed> $case
+     */
+    #[DataProvider('everyReferenceInvoiceProvider')]
+    public function testInvoice_JournalsEveryInvoiceOfTheReferenceFixturesTheSameWithAndWithoutAnEmptyDiscountOnTheWholeInvoice(array $case): void
+    {
+        $lines = $case['kind'] === 'journal'
+            ? array_map(fn (array $line): array => [$line['quantity'], $line['price'], $line['discount'], $line['discount_type'] === 'fixed' ? FIXED : PERCENT, $line['tax']], $case['inputs']['lines'])
+            : [['1', $case['inputs']['net'], '0', PERCENT, $case['inputs']['tax']]];
+
+        $without = $with = [];
+
+        foreach ($lines as $index => [$quantity, $price, $discount, $type, $tax]) {
+            $without[] = $this->line($quantity, $price, $discount, $type, added: $tax, itemId: $index + 1);
+            $with[]    = $this->line($quantity, $price, $discount, $type, added: $tax, itemId: $index + 1, share: '0.0000');
+        }
+
+        $this->assertSame($this->shape($this->builder->invoice($this->sale($without), 1), 4), $this->shape($this->builder->invoice($this->sale($with), 1), 4), $case['id']);
     }
 
     public function testInvoice_TakesTheTaxThatWasInsideThePricesOutOfTheRevenue(): void

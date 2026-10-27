@@ -65,6 +65,7 @@ return [
     'inventory_reports'                       => 'Készlet riportok',
     'inventory_summary'                       => 'Készlet összefoglaló',
     'inventory_summary_report'                => 'Készlet összefoglaló riport',
+    'invoice_discount'                        => '',
     'item'                                    => 'Termék',
     'item_count'                              => 'Filter Item Count',
     'item_name'                               => 'Termék neve',

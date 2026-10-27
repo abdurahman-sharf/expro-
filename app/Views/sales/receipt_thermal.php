@@ -84,6 +84,9 @@ foreach ($payments as $payment) {
         <?php if ($showDiscountTotals): ?>
             <div><dt><?= lang('Sales.discount') ?></dt><dd><?= documentIsolate(to_currency($discount * -1)) ?></dd></div>
         <?php endif; ?>
+        <?php if (bccomp((string) ($invoice_discount ?? '0'), '0') !== 0): ?>
+            <div><dt><?= esc(invoiceDiscountLabel($invoice_discount_entry ?? null)) ?></dt><dd><?= documentIsolate(to_currency($invoice_discount * -1)) ?></dd></div>
+        <?php endif; ?>
         <?php if ($config['receipt_show_taxes']): ?>
             <?php foreach ($taxes as $tax): ?>
                 <div><dt><?= documentIsolate((float) $tax['tax_rate'] . '%') ?> <?= esc($tax['tax_group']) ?></dt><dd><?= documentIsolate(to_currency_tax($tax['sale_tax_amount'])) ?></dd></div>

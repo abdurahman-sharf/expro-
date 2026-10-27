@@ -91,6 +91,7 @@ const INSUFFICIENT_GIFTCARD_BALANCE = -2;
 const INSUFFICIENT_REWARD_POINTS    = -3;
 const INSUFFICIENT_STOCK            = -4;
 const ACCOUNTING_FAILED             = -5;
+const INVOICE_DISCOUNT_INVALID      = -6;
 
 /**
  * Attribute Related Constants.

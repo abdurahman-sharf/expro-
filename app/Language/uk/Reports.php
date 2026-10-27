@@ -65,6 +65,7 @@ return [
     'inventory_reports'                       => 'Звіти про інвентаризацію',
     'inventory_summary'                       => 'Підсумок інвентаризації',
     'inventory_summary_report'                => 'Підсумковий звіт про інвентаризацію',
+    'invoice_discount'                        => '',
     'item'                                    => 'Товар',
     'item_count'                              => 'Кількість товарів',
     'item_name'                               => 'Назва товару',

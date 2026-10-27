@@ -65,6 +65,7 @@ return [
     'inventory_reports'                       => 'Ripoti za Hisa',
     'inventory_summary'                       => 'Muhtasari wa Hisa',
     'inventory_summary_report'                => 'Ripoti ya Muhtasari wa Hisa',
+    'invoice_discount'                        => '',
     'item'                                    => 'Bidhaa',
     'item_count'                              => 'Chuja Idadi ya Bidhaa',
     'item_name'                               => 'Jina la Bidhaa',

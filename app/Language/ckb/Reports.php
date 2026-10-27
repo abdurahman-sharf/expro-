@@ -65,6 +65,7 @@ return [
     'inventory_reports'                       => 'ڕاپۆرتی جەرد',
     'inventory_summary'                       => 'پوختەی جەرد',
     'inventory_summary_report'                => 'ڕاپۆرتی پوختەی جەرد',
+    'invoice_discount'                        => '',
     'item'                                    => 'ئایتم',
     'item_count'                              => 'فلتەرکردنی بڕی ئایتم',
     'item_name'                               => 'ناوی ئایتم',

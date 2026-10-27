@@ -65,6 +65,7 @@ return [
     'inventory_reports'                       => 'Izvještaji inventura',
     'inventory_summary'                       => 'Zbrojne inventure',
     'inventory_summary_report'                => 'Izvještaji zbrojnih inventura',
+    'invoice_discount'                        => '',
     'item'                                    => 'Artikl',
     'item_count'                              => 'Filter broja artikala',
     'item_name'                               => 'Naziv artikla',

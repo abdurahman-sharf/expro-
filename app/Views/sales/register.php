@@ -18,6 +18,9 @@
  * @var float|int $item_count
  * @var float|int $total_units
  * @var float     $subtotal
+ * @var string    $invoice_discount
+ * @var array|null $invoice_discount_entry
+ * @var bool      $can_invoice_discount
  * @var array     $taxes
  * @var float     $total
  * @var float     $payments_total
@@ -366,12 +369,29 @@ $employee        = model(Employee::class);
             <div class="card-body">
                 <dl class="pos-sum" id="sale_totals">
                     <div><dt><?= lang("{$sectionName}.quantity_of_items", [$item_count]) ?></dt><dd><?= $total_units ?></dd></div>
-                    <div><dt><?= lang("{$sectionName}.sub_total") ?></dt><dd><?= to_currency($subtotal) ?></dd></div>
+                    <?php if (bccomp($invoice_discount, '0') !== 0): ?>
+                        <div><dt><?= lang("{$sectionName}.sub_total") ?></dt><dd><?= to_currency(bcadd($subtotal, $invoice_discount)) ?></dd></div>
+                        <div id="invoice_discount_total"><dt><?= lang("{$sectionName}.invoice_discount") . (isset($invoice_discount_entry) && $invoice_discount_entry['type'] == PERCENT ? ' (' . esc(to_decimals($invoice_discount_entry['value'])) . '%)' : '') ?></dt><dd><?= to_currency($invoice_discount * -1) ?></dd></div>
+                    <?php else: ?>
+                        <div><dt><?= lang("{$sectionName}.sub_total") ?></dt><dd><?= to_currency($subtotal) ?></dd></div>
+                    <?php endif; ?>
                     <?php foreach ($taxes as $tax): ?>
                         <div><dt><?= (float) $tax['tax_rate'] . '% ' . esc($tax['tax_group']) ?></dt><dd><?= to_currency_tax($tax['sale_tax_amount']) ?></dd></div>
                     <?php endforeach; ?>
                     <div class="pos-sum-total"><dt><?= lang("{$sectionName}.total") ?></dt><dd id="sale_total"><?= to_currency($total) ?></dd></div>
                 </dl>
+
+                <?php if ($hasCart && $can_invoice_discount): ?>
+                    <?= form_open("{$controller_name}/setInvoiceDiscount", ['id' => 'invoice_discount_form', 'class' => 'app-form pos-invoice-discount']) ?>
+                        <label for="invoice_discount" class="pos-label"><?= lang("{$sectionName}.invoice_discount") ?></label>
+                        <div class="input-group input-group-sm">
+                            <?= form_input(['name' => 'invoice_discount', 'id' => 'invoice_discount', 'class' => 'form-control form-control-sm', 'value' => isset($invoice_discount_entry) ? esc($invoice_discount_entry['value']) : '', 'inputmode' => 'decimal', 'autocomplete' => 'off', 'aria-describedby' => 'invoice_discount_help']) ?>
+                            <?= form_dropdown('invoice_discount_type', [PERCENT => lang("{$sectionName}.invoice_discount_type_percent"), FIXED => lang("{$sectionName}.invoice_discount_type_fixed")], $invoice_discount_entry['type'] ?? PERCENT, ['id' => 'invoice_discount_type', 'class' => 'form-select form-select-sm', 'aria-label' => lang("{$sectionName}.invoice_discount"), 'aria-describedby' => 'invoice_discount_help']) ?>
+                            <button type="submit" class="btn btn-outline-secondary btn-sm" id="invoice_discount_apply"><?= lang("{$sectionName}.invoice_discount_apply") ?></button>
+                        </div>
+                        <span class="text-body-secondary small" id="invoice_discount_help"><?= lang("{$sectionName}.invoice_discount_help") ?></span>
+                    <?= form_close() ?>
+                <?php endif; ?>
 
                 <?php if ($hasCart): ?>
                     <dl class="pos-sum pos-sum-payments" id="payment_totals">

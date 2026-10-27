@@ -11,12 +11,13 @@ use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\ReportBranchFixtureTrait;
+use Tests\Support\ReportSaleFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 
 /**
  * The sales summary adds up the sales of the branches the employee works in, and every branch for
- * someone who works in all of them. Summary_report, which the other summaries of sales build on,
- * is covered by it.
+ * someone who works in all of them, after the discount given on the whole of each sale.
+ * Summary_report, which the other summaries of sales build on, is covered by it.
  */
 class Summary_salesTest extends CIUnitTestCase
 {
@@ -27,6 +28,9 @@ class Summary_salesTest extends CIUnitTestCase
     use SaleAccountingFixtureTrait;
     use PurchaseAccountingFixtureTrait;
     use ReportBranchFixtureTrait;
+    use ReportSaleFixtureTrait;
+
+    private const MONTH = '2005-06-';
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -43,17 +47,28 @@ class Summary_salesTest extends CIUnitTestCase
     {
         parent::setUp();
 
-        $this->startBuying();
-        $this->businessInTwoBranches();
+        $this->dropReportTables();
+        $this->removeReportSales(self::MONTH);
     }
 
     protected function tearDown(): void
     {
-        $this->forgetTheReportBusiness();
-        $this->stopBuying();
-        $this->removeTheReportItems();
+        if ($this->buyingStarted) {
+            $this->forgetTheReportBusiness();
+            $this->stopBuying();
+            $this->removeTheReportItems();
+        }
+
+        $this->dropReportTables();
+        $this->removeReportSales(self::MONTH);
 
         parent::tearDown();
+    }
+
+    private function openTheBooks(): void
+    {
+        $this->startBuying();
+        $this->businessInTwoBranches();
     }
 
     private function figures(string $scope): array
@@ -72,6 +87,8 @@ class Summary_salesTest extends CIUnitTestCase
 
     public function testGetData_AddsUpOnlyTheBranchesTheEmployeeWorksIn(): void
     {
+        $this->openTheBooks();
+
         $this->assertSame(['sales' => 2, 'total' => '217.00', 'daily' => '217.00'], $this->figures('a'));
         $this->assertSame(['sales' => 1, 'total' => '126.00', 'daily' => '126.00'], $this->figures('b'));
         $this->assertSame(['sales' => 3, 'total' => '343.00', 'daily' => '343.00'], $this->figures('both'));
@@ -79,18 +96,37 @@ class Summary_salesTest extends CIUnitTestCase
 
     public function testGetData_KeepsEveryBranchForAnEmployeeOfEveryBranchAndForTheSystem(): void
     {
+        $this->openTheBooks();
+
         $this->assertSame(['sales' => 3, 'total' => '343.00', 'daily' => '343.00'], $this->figures('all'));
         $this->assertSame(['sales' => 3, 'total' => '343.00', 'daily' => '343.00'], $this->figures('system'));
     }
 
     public function testGetData_ShowsNothingToAnEmployeeWhoWorksInNoBranch(): void
     {
+        $this->openTheBooks();
+
         $this->assertSame(['sales' => 0, 'total' => '0.00', 'daily' => '0.00'], $this->figures('none'));
     }
 
     public function testGetData_KeepsTheSaleSavedBeforeBranchesExistedInTheDefaultBranch(): void
     {
+        $this->openTheBooks();
+
         $this->assertSame('10.00', bcsub($this->figures('a')['total'], '207.00', 2), 'The first branch holds the old sale');
         $this->assertSame('126.00', $this->figures('b')['total'], 'The second does not');
+    }
+
+    public function testGetSummaryData_AddsUpTheSalesOfADayAfterTheirDiscountsOnTheWholeOfTheSale(): void
+    {
+        $itemId = $this->createTestItem(HAS_NO_STOCK);
+
+        $this->reportSale($itemId, '2', '50', ['type' => PERCENT, 'value' => '10'], self::MONTH . '04');
+        $this->reportSale($itemId, '1', '30', null, self::MONTH . '04');
+
+        $summary = (new Summary_sales())->getSummaryData(['start_date' => self::MONTH . '04', 'end_date' => self::MONTH . '04', 'location_id' => 'all', 'sale_type' => 'complete']);
+
+        $this->assertSame('120.00', bcadd((string) $summary['subtotal'], '0', 2));
+        $this->assertSame('120.00', bcadd((string) $summary['total'], '0', 2));
     }
 }

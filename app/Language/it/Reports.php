@@ -65,6 +65,7 @@ return [
     'inventory_reports'                       => 'Resoconto inventario',
     'inventory_summary'                       => 'Riassunto Inventario',
     'inventory_summary_report'                => 'Resoconto Riassuntivo Inventario',
+    'invoice_discount'                        => '',
     'item'                                    => 'Articolo',
     'item_count'                              => 'Filtra Conteggio Articolo',
     'item_name'                               => 'Nome Articolo',

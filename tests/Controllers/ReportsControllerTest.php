@@ -10,9 +10,11 @@ use App\Database\Seeds\TestDatabaseBootstrapSeeder;
 use App\Models\Employee;
 use Config\OSPOS;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\ReportBranchFixtureTrait;
+use Tests\Support\ReportSaleFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 
 /**
@@ -29,12 +31,16 @@ use Tests\Support\SaleAccountingFixtureTrait;
 class ReportsControllerTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
+    use EmployeeFixtureTrait;
     use FeatureTestTrait;
     use AccountingFixtureTrait;
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
     use PurchaseAccountingFixtureTrait;
     use ReportBranchFixtureTrait;
+    use ReportSaleFixtureTrait;
+
+    private const REPORT_MONTH = '2005-07-';
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -57,6 +63,8 @@ class ReportsControllerTest extends CIUnitTestCase
         parent::setUp();
 
         config(OSPOS::class)->update_settings();
+        $this->dropReportTables();
+        $this->removeReportSales(self::REPORT_MONTH);
     }
 
     protected function tearDown(): void
@@ -66,6 +74,9 @@ class ReportsControllerTest extends CIUnitTestCase
             $this->stopBuying();
             $this->removeTheReportItems();
         }
+
+        $this->dropReportTables();
+        $this->removeReportSales(self::REPORT_MONTH);
 
         parent::tearDown();
     }
@@ -518,5 +529,44 @@ class ReportsControllerTest extends CIUnitTestCase
         $this->expectException(PageNotFoundException::class);
 
         $this->get('/reports/get_detailed_receivings_row/' . $this->reportReceivings['b']);
+    }
+
+    protected function loginAsReportViewer(): void
+    {
+        $this->loginAs($this->employeeWithGrants(['reports', 'reports_sales']));
+    }
+
+    public function testGetDetailedSalesRow_ShowsTheDiscountOnTheWholeOfTheSale(): void
+    {
+        $itemId = $this->createTestItem(HAS_NO_STOCK);
+        $saleId = $this->reportSale($itemId, '2', '50', ['type' => FIXED, 'value' => '12.5'], self::REPORT_MONTH . '06');
+        $this->loginAsReportViewer();
+
+        $response = $this->get('/reports/get_detailed_sales_row/' . $saleId);
+
+        $response->assertStatus(200);
+
+        $row = json_decode($response->getJSON(), true)[$saleId];
+
+        $this->assertSame(to_currency('12.5'), $row['invoice_discount']);
+        $this->assertSame(to_currency('87.5'), $row['subtotal']);
+    }
+
+    public function testDetailedSales_ShowsTheDiscountOnTheWholeOfEachSaleAndNothingForASaleWithoutOne(): void
+    {
+        $itemId = $this->createTestItem(HAS_NO_STOCK);
+
+        $this->reportSale($itemId, '2', '50', ['type' => FIXED, 'value' => '12.5'], self::REPORT_MONTH . '06');
+        $this->reportSale($itemId, '1', '30', null, self::REPORT_MONTH . '06');
+        $this->loginAsReportViewer();
+
+        $response = $this->get('/reports/detailed_sales/' . self::REPORT_MONTH . '06/' . self::REPORT_MONTH . '06/complete');
+
+        $response->assertStatus(200);
+
+        $page = $response->getBody();
+
+        $this->assertStringContainsString('"invoice_discount":' . json_encode(to_currency('12.5')), $page);
+        $this->assertStringContainsString('"invoice_discount":' . json_encode(to_currency('0')), $page);
     }
 }

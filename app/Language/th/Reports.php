@@ -65,6 +65,7 @@ return [
     'inventory_reports'                       => 'รายงานสินค้าคงเหลือ',
     'inventory_summary'                       => 'รายงานสินค้าคงเหลือ',
     'inventory_summary_report'                => 'รายงานสรุปสินค้าคงเหลือ',
+    'invoice_discount'                        => '',
     'item'                                    => 'สินค้า',
     'item_count'                              => 'ตัวกรองรายการตามการนับ',
     'item_name'                               => 'ชื่อสินค้า',

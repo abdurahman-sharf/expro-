@@ -65,6 +65,7 @@ return [
     'inventory_reports'                       => 'Stok Raporları',
     'inventory_summary'                       => 'Stok Özeti',
     'inventory_summary_report'                => 'Stok Özet Raporu',
+    'invoice_discount'                        => '',
     'item'                                    => 'Ürün',
     'item_count'                              => 'Filter Stok Habis/Belum Habis/Minus',
     'item_name'                               => 'Ürün Adı',

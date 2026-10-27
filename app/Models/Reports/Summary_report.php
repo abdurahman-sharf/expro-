@@ -2,6 +2,7 @@
 
 namespace App\Models\Reports;
 
+use App\Libraries\InvoiceDiscount;
 use Config\OSPOS;
 use CodeIgniter\Database\BaseBuilder;
 
@@ -26,7 +27,7 @@ abstract class Summary_report extends Report
 
         $sale_price = 'CASE WHEN sales_items.discount_type = ' . PERCENT
             . " THEN sales_items.quantity_purchased * sales_items.item_unit_price - ROUND(sales_items.quantity_purchased * sales_items.item_unit_price * sales_items.discount / 100, $decimals) "
-            . 'ELSE sales_items.quantity_purchased * (sales_items.item_unit_price - sales_items.discount) END';
+            . 'ELSE sales_items.quantity_purchased * (sales_items.item_unit_price - sales_items.discount) END - ' . InvoiceDiscount::sqlShare('sales_items');
 
         $sale_cost = 'SUM(sales_items.item_cost_price * sales_items.quantity_purchased)';
         $sales_tax = "IFNULL(SUM(sales_items_taxes.tax), 0)";

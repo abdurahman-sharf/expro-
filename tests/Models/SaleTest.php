@@ -4,6 +4,7 @@ namespace Tests\Models;
 
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
+use App\Libraries\InvoiceDiscountProblem;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Models\Sale;
@@ -47,11 +48,15 @@ class SaleTest extends CIUnitTestCase
         }
 
         parent::setUp();
+        $this->removeTheSalesOfTheReportDays();
     }
 
     protected function tearDown(): void
     {
-        $db = \Config\Database::connect();
+        $this->dropReportTables();
+        $this->removeTheSalesOfTheReportDays();
+
+        $db = Database::connect();
         $db->table('document_numbers')->truncate();
         $db->table('document_sequences')->truncate();
         $db->table('accounting_audit_log')->where('entity_type', 'document_numbering')->delete();
@@ -104,6 +109,41 @@ class SaleTest extends CIUnitTestCase
     private function cashPayment(float $amount = 10.00, int $adjustment = 0): array
     {
         return ['payment_type' => lang('Sales.cash'), 'payment_amount' => $amount, 'cash_refund' => 0, 'cash_adjustment' => $adjustment, 'reference_code' => null];
+    }
+
+    /**
+     * The sales the report tests make are dated in a month no other test uses, and are removed so
+     * that the next run finds the days empty.
+     */
+    private function removeTheSalesOfTheReportDays(): void
+    {
+        $db  = Database::connect();
+        $ids = array_column($db->table('sales')->select('sale_id')->like('sale_time', '2001-02-', 'after')->get()->getResultArray(), 'sale_id');
+
+        if ($ids === []) {
+            return;
+        }
+
+        $db->query('SET FOREIGN_KEY_CHECKS = 0');
+
+        foreach (['sales_payments', 'sales_items_taxes', 'sales_items', 'sales_taxes', 'sales'] as $table) {
+            $db->table($table)->whereIn('sale_id', $ids)->delete();
+        }
+
+        $db->query('SET FOREIGN_KEY_CHECKS = 1');
+    }
+
+    /**
+     * The reports build temporary tables that live as long as the connection, and a test that runs
+     * after another on the same connection would find the other's tables in its way.
+     */
+    private function dropReportTables(): void
+    {
+        $db = Database::connect();
+
+        foreach (['sales_items_temp', 'sales_payments_temp', 'sales_items_taxes_temp', 'sales_search_payments_temp', 'sales_report_payments_temp'] as $table) {
+            $db->query('DROP TEMPORARY TABLE IF EXISTS ' . $db->prefixTable($table));
+        }
     }
 
     protected function createGiftcard(float $value): int
@@ -926,5 +966,166 @@ class SaleTest extends CIUnitTestCase
     public function testGetInvoiceNumber_ReturnsNothingForAMissingSale(): void
     {
         $this->assertNull(model(Sale::class)->getInvoiceNumber(999999999));
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function discountedLines(int $itemId, string $quantity, string $price, string $discount = '0', int $discountType = PERCENT): array
+    {
+        $line = $this->buildCartLine($itemId, 1, 1.0)[0];
+
+        return [0 => array_merge($line, ['quantity' => $quantity, 'price' => $price, 'discount' => $discount, 'discount_type' => $discountType])];
+    }
+
+    /**
+     * @param array{type: int, value: string}|null $invoiceDiscount
+     */
+    private function saveSaleWithDiscount(int $itemId, string $quantity, string $price, ?array $invoiceDiscount, array $taxes = [], int $type = SALE_TYPE_POS, string $date = '2001-02-03'): int
+    {
+        $status     = COMPLETED;
+        $items      = $this->discountedLines($itemId, $quantity, $price);
+        $salesTaxes = [[], $taxes];
+        $saleId     = model(Sale::class)->save_value(NEW_ENTRY, $status, $items, NEW_ENTRY, $this->createEmployee(), 'discount', null, null, null, $type, [], null, $salesTaxes, true, null, $invoiceDiscount);
+
+        if ($saleId > 0) {
+            Database::connect()->table('sales')->where('sale_id', $saleId)->update(['sale_time' => $date . ' 10:00:00']);
+        }
+
+        return $saleId;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function theSaleRow(int $saleId): array
+    {
+        return Database::connect()->table('sales')->where('sale_id', $saleId)->get()->getRowArray();
+    }
+
+    public function testSaveValue_SavesTheDiscountOnTheWholeOfTheSaleAndTheShareOfItsLineWhileAccountingIsOff(): void
+    {
+        $itemId = $this->createTestItem(HAS_NO_STOCK);
+        $saleId = $this->saveSaleWithDiscount($itemId, '2', '50', ['type' => PERCENT, 'value' => '10']);
+
+        $this->assertGreaterThan(0, $saleId);
+        $this->assertSame((string) PERCENT, (string) $this->theSaleRow($saleId)['invoice_discount_type']);
+        $this->assertSame('10.0000', $this->theSaleRow($saleId)['invoice_discount']);
+        $this->assertSame('10.0000', Database::connect()->table('sales_items')->where('sale_id', $saleId)->get()->getRow()->invoice_discount_share);
+        $this->assertSame(['type' => PERCENT, 'value' => '10.0000'], model(Sale::class)->getInvoiceDiscount($saleId));
+    }
+
+    public function testSaveValue_SavesNothingOfTheDiscountOnASaleThatHasNone(): void
+    {
+        $itemId = $this->createTestItem(HAS_NO_STOCK);
+        $saleId = $this->saveSaleWithDiscount($itemId, '2', '50', null);
+
+        $this->assertNull($this->theSaleRow($saleId)['invoice_discount_type']);
+        $this->assertNull($this->theSaleRow($saleId)['invoice_discount']);
+        $this->assertNull(Database::connect()->table('sales_items')->where('sale_id', $saleId)->get()->getRow()->invoice_discount_share);
+        $this->assertNull(model(Sale::class)->getInvoiceDiscount($saleId));
+        $this->assertNull(model(Sale::class)->getInvoiceDiscount(999999999));
+    }
+
+    public function testSaveValue_RefusesADiscountThatCannotBeTakenOffAndLeavesNothingOfTheSale(): void
+    {
+        $itemId = $this->createTestItem(HAS_NO_STOCK);
+        $sales  = $this->countSalesRows();
+
+        $this->assertSame(INVOICE_DISCOUNT_INVALID, $this->saveSaleWithDiscount($itemId, '2', '50', ['type' => FIXED, 'value' => '100.01']));
+        $this->assertSame(InvoiceDiscountProblem::ExceedsTotal, model(Sale::class)->invoiceDiscountProblem());
+        $this->assertSame($sales, $this->countSalesRows());
+
+        $this->assertGreaterThan(0, $this->saveSaleWithDiscount($itemId, '2', '50', ['type' => FIXED, 'value' => '100']));
+        $this->assertNull(model(Sale::class)->invoiceDiscountProblem());
+    }
+
+    public function testGetInfo_GivesTheAmountDueAfterTheDiscountOnTheWholeOfTheSale(): void
+    {
+        $this->dropReportTables();
+
+        $itemId = $this->createTestItem(HAS_NO_STOCK);
+        $saleId = $this->saveSaleWithDiscount($itemId, '2', '50', ['type' => PERCENT, 'value' => '10']);
+
+        $this->assertSame('90.00', bcadd((string) model(Sale::class)->get_info($saleId)->getRow()->amount_due, '0', 2));
+    }
+
+    public function testGetInfo_GivesTheAmountDueOfASaleWithoutADiscountAsItAlwaysDid(): void
+    {
+        $this->dropReportTables();
+
+        $itemId = $this->createTestItem(HAS_NO_STOCK);
+        $saleId = $this->saveSaleWithDiscount($itemId, '2', '50', null);
+
+        $this->assertSame('100.00', bcadd((string) model(Sale::class)->get_info($saleId)->getRow()->amount_due, '0', 2));
+    }
+
+    public function testCreateTempTable_GivesTheLinesOfASaleTheirSubtotalTaxAndTotalAfterTheDiscountOnTheWholeOfTheSale(): void
+    {
+        $this->dropReportTables();
+
+        $itemId = $this->createTestItem(HAS_NO_STOCK);
+        $saleId = $this->saveSaleWithDiscount($itemId, '2', '50', ['type' => PERCENT, 'value' => '10'], [['item_id' => $itemId, 'line' => 0, 'name' => 'VAT', 'percent' => '15.0000', 'tax_type' => 1, 'rounding_code' => 0, 'cascade_sequence' => 0, 'item_tax_amount' => '13.50', 'sales_tax_code_id' => null, 'tax_category_id' => null, 'jurisdiction_id' => null]]);
+
+        model(Sale::class)->create_temp_table(['sale_id' => $saleId]);
+
+        $row = Database::connect()->table('sales_items_temp')->where('sale_id', $saleId)->get()->getRow();
+
+        $this->assertSame('90.00', bcadd((string) $row->subtotal, '0', 2));
+        $this->assertSame('13.50', bcadd((string) $row->tax, '0', 2));
+        $this->assertSame('103.50', bcadd((string) $row->total, '0', 2));
+    }
+
+    public function testSearch_ListsTheTotalOfASaleAfterTheDiscountOnTheWholeOfTheSale(): void
+    {
+        $this->dropReportTables();
+
+        $itemId = $this->createTestItem(HAS_NO_STOCK);
+        $saleId = $this->saveSaleWithDiscount($itemId, '2', '50', ['type' => FIXED, 'value' => '12.5'], [], SALE_TYPE_POS, '2001-02-03');
+        $plain  = $this->saveSaleWithDiscount($itemId, '1', '30', null, [], SALE_TYPE_POS, '2001-02-03');
+
+        $filters = ['start_date' => '2001-02-03', 'end_date' => '2001-02-03', 'location_id' => 'all', 'selected_customer' => false, 'only_invoices' => false, 'only_cash' => false, 'only_creditcard' => false, 'only_debit' => false, 'only_due' => false, 'only_check' => false, 'only_bank_transfer' => false, 'only_wallet' => false, 'is_valid_receipt' => true];
+
+        $found = model(Sale::class)->search('POS ' . $saleId, $filters)->getRow();
+        $other = model(Sale::class)->search('POS ' . $plain, $filters)->getRow();
+
+        $this->assertSame('87.50', bcadd((string) $found->total, '0', 2));
+        $this->assertSame('87.50', bcadd((string) $found->subtotal, '0', 2));
+        $this->assertSame('30.00', bcadd((string) $other->total, '0', 2));
+    }
+
+    public function testInvoiceDiscountOrigin_GivesWhatASaleGaveAndWhatItsCompletedReturnsTookBackItemByItem(): void
+    {
+        $saleModel = model(Sale::class);
+        $itemId    = $this->createTestItem(HAS_NO_STOCK);
+        $invoice   = $this->saveSaleWithDiscount($itemId, '4', '50', ['type' => FIXED, 'value' => '20'], [], SALE_TYPE_INVOICE);
+
+        $this->assertSame([$itemId => ['sold' => '4.000', 'share' => '20.0000', 'returned' => '0.000', 'returnedShare' => '0.0000']], $saleModel->invoiceDiscountOrigin($invoice));
+
+        $status = COMPLETED;
+        $items  = $this->discountedLines($itemId, '-1', '50');
+        $taxes  = [[], []];
+        $return = $saleModel->save_value(NEW_ENTRY, $status, $items, NEW_ENTRY, $this->createEmployee(), 'return', null, null, null, SALE_TYPE_RETURN, [], null, $taxes, true, $invoice);
+
+        $this->assertGreaterThan(0, $return);
+        $this->assertSame('-5.0000', Database::connect()->table('sales_items')->where('sale_id', $return)->get()->getRow()->invoice_discount_share);
+        $this->assertSame([$itemId => ['sold' => '4.000', 'share' => '20.0000', 'returned' => '1.000', 'returnedShare' => '5.0000']], $saleModel->invoiceDiscountOrigin($invoice));
+        $this->assertSame([$itemId => ['sold' => '4.000', 'share' => '20.0000', 'returned' => '0.000', 'returnedShare' => '0.0000']], $saleModel->invoiceDiscountOrigin($invoice, $return), 'a return is not counted against itself');
+        $this->assertSame([], $saleModel->invoiceDiscountOrigin(999999999));
+    }
+
+    public function testInvoiceDiscountOrigin_DoesNotCountAReturnThatIsNotCompleted(): void
+    {
+        $saleModel = model(Sale::class);
+        $itemId    = $this->createTestItem(HAS_NO_STOCK);
+        $invoice   = $this->saveSaleWithDiscount($itemId, '4', '50', ['type' => FIXED, 'value' => '20'], [], SALE_TYPE_INVOICE);
+        $status    = COMPLETED;
+        $items     = $this->discountedLines($itemId, '-1', '50');
+        $taxes     = [[], []];
+        $return    = $saleModel->save_value(NEW_ENTRY, $status, $items, NEW_ENTRY, $this->createEmployee(), 'return', null, null, null, SALE_TYPE_RETURN, [], null, $taxes, true, $invoice);
+
+        $saleModel->update_sale_status($return, CANCELED);
+
+        $this->assertSame('0.000', $saleModel->invoiceDiscountOrigin($invoice)[$itemId]['returned']);
     }
 }

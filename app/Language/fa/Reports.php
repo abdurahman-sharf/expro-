@@ -65,6 +65,7 @@ return [
     'inventory_reports'                       => 'گزارش موجودی',
     'inventory_summary'                       => 'خلاصه موجودی',
     'inventory_summary_report'                => 'گزارش خلاصه موجودی',
+    'invoice_discount'                        => '',
     'item'                                    => 'مورد',
     'item_count'                              => 'تعداد موارد فیلتر',
     'item_name'                               => 'نام مورد',

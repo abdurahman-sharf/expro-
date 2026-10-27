@@ -65,6 +65,7 @@ return [
     'inventory_reports'                       => 'Lagerrapporter',
     'inventory_summary'                       => 'Lagersammanfattning',
     'inventory_summary_report'                => 'Rapport över inventering',
+    'invoice_discount'                        => '',
     'item'                                    => 'Artikel',
     'item_count'                              => 'Filtrera artikelantalet',
     'item_name'                               => 'Namn på artikel',

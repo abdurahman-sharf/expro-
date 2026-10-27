@@ -11,10 +11,12 @@ use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\ReportBranchFixtureTrait;
+use Tests\Support\ReportSaleFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 
 /**
- * The tax collected is that of the sales of the branches the employee works in.
+ * The tax collected is that of the sales of the branches the employee works in, and the amounts the
+ * report gives with it are those left after the discount given on the whole of each sale.
  */
 class Summary_taxesTest extends CIUnitTestCase
 {
@@ -25,6 +27,9 @@ class Summary_taxesTest extends CIUnitTestCase
     use SaleAccountingFixtureTrait;
     use PurchaseAccountingFixtureTrait;
     use ReportBranchFixtureTrait;
+    use ReportSaleFixtureTrait;
+
+    private const MONTH = '2005-06-';
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -41,17 +46,28 @@ class Summary_taxesTest extends CIUnitTestCase
     {
         parent::setUp();
 
-        $this->startBuying();
-        $this->businessInTwoBranches();
+        $this->dropReportTables();
+        $this->removeReportSales(self::MONTH);
     }
 
     protected function tearDown(): void
     {
-        $this->forgetTheReportBusiness();
-        $this->stopBuying();
-        $this->removeTheReportItems();
+        if ($this->buyingStarted) {
+            $this->forgetTheReportBusiness();
+            $this->stopBuying();
+            $this->removeTheReportItems();
+        }
+
+        $this->dropReportTables();
+        $this->removeReportSales(self::MONTH);
 
         parent::tearDown();
+    }
+
+    private function openTheBooks(): void
+    {
+        $this->startBuying();
+        $this->businessInTwoBranches();
     }
 
     /**
@@ -77,12 +93,16 @@ class Summary_taxesTest extends CIUnitTestCase
 
     public function testGetData_ShowsOnlyTheTaxesOfTheBranchesTheEmployeeWorksIn(): void
     {
+        $this->openTheBooks();
+
         $this->assertSame(['VAT-A' => '27.00'], $this->taxedBy('a'));
         $this->assertSame(['VAT-B' => '6.00'], $this->taxedBy('b'));
     }
 
     public function testGetData_ShowsEveryBranchToAnEmployeeOfTheTwoAndOfEveryBranchAndToTheSystem(): void
     {
+        $this->openTheBooks();
+
         foreach (['both', 'all', 'system'] as $scope) {
             $this->assertSame(['VAT-A' => '27.00', 'VAT-B' => '6.00'], $this->taxedBy($scope), $scope);
         }
@@ -90,9 +110,49 @@ class Summary_taxesTest extends CIUnitTestCase
 
     public function testGetSummaryData_AddsUpOnlyTheTaxOfTheBranchesTheEmployeeWorksIn(): void
     {
+        $this->openTheBooks();
+
         $this->assertSame('27.00', $this->summedBy('a'));
         $this->assertSame('6.00', $this->summedBy('b'));
         $this->assertSame('33.00', $this->summedBy('all'));
         $this->assertSame('0.00', $this->summedBy('none'));
+    }
+
+    public function testGetData_GivesTheSubtotalTaxAndTotalOfASaleAfterTheDiscountOnTheWholeOfIt(): void
+    {
+        $itemId = $this->createTestItem(HAS_NO_STOCK);
+
+        $this->reportSale($itemId, '2', '50', ['type' => PERCENT, 'value' => '10'], self::MONTH . '07', [$this->reportTax($itemId, '13.50')]);
+
+        $rows = (new Summary_taxes())->getData(['start_date' => self::MONTH . '07', 'end_date' => self::MONTH . '07']);
+
+        $this->assertCount(1, $rows);
+        $this->assertSame('90.00', bcadd((string) $rows[0]['subtotal'], '0', 2));
+        $this->assertSame('13.50', bcadd((string) $rows[0]['tax'], '0', 2));
+        $this->assertSame('103.50', bcadd((string) $rows[0]['total'], '0', 2));
+    }
+
+    public function testGetData_GivesASaleWithoutADiscountWhatItAlwaysGave(): void
+    {
+        $itemId = $this->createTestItem(HAS_NO_STOCK);
+
+        $this->reportSale($itemId, '2', '50', null, self::MONTH . '08', [$this->reportTax($itemId, '15.00')]);
+
+        $rows = (new Summary_taxes())->getData(['start_date' => self::MONTH . '08', 'end_date' => self::MONTH . '08']);
+
+        $this->assertSame('100.00', bcadd((string) $rows[0]['subtotal'], '0', 2));
+        $this->assertSame('115.00', bcadd((string) $rows[0]['total'], '0', 2));
+    }
+
+    public function testGetSummaryData_AddsUpTheTaxesOfTheDay(): void
+    {
+        $itemId = $this->createTestItem(HAS_NO_STOCK);
+
+        $this->reportSale($itemId, '2', '50', ['type' => PERCENT, 'value' => '10'], self::MONTH . '09', [$this->reportTax($itemId, '13.50')]);
+
+        $summary = (new Summary_taxes())->getSummaryData(['start_date' => self::MONTH . '09', 'end_date' => self::MONTH . '09']);
+
+        $this->assertSame('90.00', bcadd((string) $summary['subtotal'], '0', 2));
+        $this->assertSame('103.50', bcadd((string) $summary['total'], '0', 2));
     }
 }

@@ -39,6 +39,20 @@ if ($vendorHome !== $root) {
 
 require $root . '/vendor/codeigniter4/framework/system/Test/bootstrap.php';
 
+// A checkout whose vendor directory is another checkout's gets that checkout's classes from Composer, so
+// the worker puts the application of the checkout it runs in first and races the code under test.
+spl_autoload_register(static function (string $class): void {
+    if (! str_starts_with($class, 'App\\')) {
+        return;
+    }
+
+    $file = APPPATH . str_replace('\\', '/', substr($class, 4)) . '.php';
+
+    if (is_file($file)) {
+        require_once $file;
+    }
+}, true, true);
+
 $method = $argv[1];
 $args   = array_slice($argv, 2);
 

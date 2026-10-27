@@ -2,6 +2,7 @@
 
 namespace App\Models\Reports;
 
+use App\Libraries\InvoiceDiscount;
 use Config\OSPOS;
 
 class Summary_payments extends Summary_report
@@ -139,7 +140,7 @@ class Summary_payments extends Summary_report
 
         $trans_amount = 'SUM(CASE WHEN sales_items.discount_type = ' . PERCENT
             . " THEN sales_items.quantity_purchased * sales_items.item_unit_price - ROUND(sales_items.quantity_purchased * sales_items.item_unit_price * sales_items.discount / 100, $decimals) "
-            . ' ELSE sales_items.quantity_purchased * (sales_items.item_unit_price - sales_items.discount) END) AS trans_amount';
+            . ' ELSE sales_items.quantity_purchased * (sales_items.item_unit_price - sales_items.discount) END - ' . InvoiceDiscount::sqlShare('sales_items') . ') AS trans_amount';
 
         $this->db->query(
             'CREATE TEMPORARY TABLE IF NOT EXISTS ' . $this->db->prefixTable('sumpay_taxes_temp') .

@@ -65,6 +65,7 @@ return [
     'inventory_reports'                       => 'Отчеты о запасах',
     'inventory_summary'                       => 'Сумма запасов',
     'inventory_summary_report'                => 'Отчет о суммах запасов',
+    'invoice_discount'                        => '',
     'item'                                    => 'Товар',
     'item_count'                              => 'Кол-во элементов фильтра',
     'item_name'                               => 'Название товара',

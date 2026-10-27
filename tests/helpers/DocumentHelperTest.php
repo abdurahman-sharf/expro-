@@ -120,4 +120,15 @@ class DocumentHelperTest extends CIUnitTestCase
     {
         $this->assertSame('<span dir="ltr">&lt;b&gt; 10.00</span>', documentIsolate('<b> 10.00'));
     }
+
+    public function testInvoiceDiscountLabel_NamesThePercentageOfADiscountEnteredAsOne(): void
+    {
+        $this->assertSame(lang('Sales.invoice_discount') . ' (' . to_decimals('10') . '%)', invoiceDiscountLabel(['type' => PERCENT, 'value' => '10']));
+    }
+
+    public function testInvoiceDiscountLabel_NamesOnlyTheDiscountEnteredAsAnAmountOrNotEnteredAtAll(): void
+    {
+        $this->assertSame(lang('Sales.invoice_discount'), invoiceDiscountLabel(['type' => FIXED, 'value' => '20']));
+        $this->assertSame(lang('Sales.invoice_discount'), invoiceDiscountLabel(null));
+    }
 }

@@ -65,6 +65,7 @@ return [
     'inventory_reports'                       => '庫存報告',
     'inventory_summary'                       => '庫存摘要',
     'inventory_summary_report'                => '庫存報告摘要',
+    'invoice_discount'                        => '',
     'item'                                    => '產品',
     'item_count'                              => '過濾項目計數',
     'item_name'                               => '產品名稱',
