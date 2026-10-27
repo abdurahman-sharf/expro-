@@ -213,6 +213,22 @@ class DocumentNumberingTest extends CIUnitTestCase
         $this->assertSame(['A15', 'A16'], array_column($this->accountingDb()->table('document_numbers')->select('number')->orderBy('number_id')->get()->getResultArray(), 'number'));
     }
 
+    public function testAssign_RefusesWhenEveryNumberOfTheNextThousandIsAlreadyTaken(): void
+    {
+        $this->numbering->configure(DocumentType::CreditNote, ['enabled' => true, 'prefix' => 'CN-', 'padding' => 5]);
+
+        $rows = [];
+
+        for ($sequenceNumber = 1; $sequenceNumber <= 1001; $sequenceNumber++) {
+            $rows[] = ['company_id' => 1, 'doc_type' => DocumentType::CreditNote->value, 'source_table' => 'sales', 'source_id' => 900000 + $sequenceNumber, 'sequence_number' => $sequenceNumber, 'number' => sprintf('CN-%05d', $sequenceNumber)];
+        }
+
+        $this->accountingDb()->table('document_numbers')->insertBatch($rows);
+
+        $this->assertRefusal(AccountingError::NumberingExhausted, fn () => $this->numbering->assign(DocumentType::CreditNote, 'sales', 1));
+        $this->assertSame(1001, $this->countRows('document_numbers'));
+    }
+
     public function testAssign_NeverGivesANumberAgainWhenTheDocumentIsGone(): void
     {
         $this->numbering->configure(DocumentType::Expense, ['enabled' => true, 'padding' => 2]);

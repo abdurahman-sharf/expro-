@@ -34,7 +34,10 @@ class DocumentSequencesMigrationTest extends CIUnitTestCase
         parent::setUp();
 
         $this->releaseOpenTransactions();
-        $this->clearTables();
+
+        $migration = new DocumentSequences();
+        $migration->down();
+        $migration->up();
     }
 
     protected function tearDown(): void
