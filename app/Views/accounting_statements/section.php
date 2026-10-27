@@ -17,7 +17,7 @@ $extra ??= [];
 ?>
 <tbody id="section_<?= esc($total_id, 'attr') ?>">
     <tr class="table-light">
-        <th scope="colgroup" colspan="3"><?= esc($heading) ?></th>
+        <th scope="rowgroup" colspan="3"><?= esc($heading) ?></th>
     </tr>
     <?php if ($section->lines === [] && $extra === []): ?>
         <tr><td colspan="3" class="text-body-secondary" id="<?= esc($total_id, 'attr') ?>_empty"><?= lang('Accounting_statements.empty') ?></td></tr>

@@ -282,6 +282,23 @@ class StatementFiguresTest extends CIUnitTestCase
         $this->assertNotContains($customer, $ids(StatementDisplay::HideZero), 'It stands at nothing');
     }
 
+    public function testSection_DoesNotListTheGroupOfPartiesThatOffsetEachOtherForTheSakeOfAFoldedParty(): void
+    {
+        $entities = new EntityAccountService();
+        $owes     = $entities->ensure(EntityAccountService::CUSTOMER, $this->insertCustomer(), 'Omar Khaled');
+        $paid     = $entities->ensure(EntityAccountService::CUSTOMER, $this->insertCustomer('Hind', 'Saad'), 'Hind Saad');
+
+        $this->postOn('2026-10-05', 1, [[$owes, '100.00', '0'], [$this->accountId('sales_revenue'), '0', '100.00']]);
+        $this->postOn('2026-10-06', 1, [[$this->accountId('cash'), '100.00', '0'], [$paid, '0', '100.00']]);
+
+        $group = $this->accountIdByCode('12041');
+        $ids   = fn (bool $expand): array => array_map(static fn (StatementLine $line): int => $line->accountId, $this->figures()->section(AccountType::Asset, 5, StatementDisplay::HideZero, $expand)->lines);
+
+        $this->assertNotContains($group, $ids(false), 'The customers offset each other in their group, which stands at nothing');
+        $this->assertContains($group, $ids(true), 'Listing a customer lists the group above it');
+        $this->assertContains($owes, $ids(true));
+    }
+
     public function testSection_ListsAnAccountUnderAFoldedLocationWithoutTheAccountOfTheLocation(): void
     {
         $entity = (new EntityAccountService())->ensure(EntityAccountService::STOCK_LOCATION, $this->insertStockLocation('Depot'), 'Depot');

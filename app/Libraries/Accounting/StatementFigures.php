@@ -185,7 +185,7 @@ final readonly class StatementFigures
         $listed = [];
 
         foreach (array_keys($this->accounts) as $accountId) {
-            if ($this->typeOf($accountId) !== $type || $this->levels[$accountId] > $level || ! $this->qualifies($accountId, $display, $expandEntities)) {
+            if ($this->levels[$accountId] > $level || ! $this->qualifies($accountId, $display, $expandEntities)) {
                 continue;
             }
 
