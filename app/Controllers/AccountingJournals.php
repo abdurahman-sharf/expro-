@@ -319,8 +319,7 @@ class AccountingJournals extends AccountingController
 
         return $this->response->download($file['path'], null)
             ->setContentType($file['mime'], '')
-            ->setHeader('Content-Disposition', 'attachment; filename="' . $fallback . '"; filename*=UTF-8\'\'' . rawurlencode($file['name']))
-            ->noCache();
+            ->setHeader('Content-Disposition', 'attachment; filename="' . $fallback . '"; filename*=UTF-8\'\'' . rawurlencode($file['name']));
     }
 
     public function postReverse(int $journalId): ResponseInterface
