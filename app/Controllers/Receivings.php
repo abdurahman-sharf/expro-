@@ -304,29 +304,29 @@ class Receivings extends Secure_Controller
             $data['suppliers'][$supplier->person_id] = $supplier->first_name . ' ' . $supplier->last_name;
         }
 
-        $receiving_info = $this->receiving->get_info($receiving_id)->getRowArray();
+        $receivingInfo = $this->receiving->get_info($receiving_id)->getRowArray();
 
-        $current_employee_id = $this->employee->get_logged_in_employee_info()->person_id;
-        $can_assign_employee = $this->employee->has_grant('employees', $current_employee_id);
+        $currentEmployeeId = $this->employee->get_logged_in_employee_info()->person_id;
+        $canAssignEmployee = $this->employee->has_grant('employees', $currentEmployeeId);
 
         $data['employees'] = [];
-        if ($can_assign_employee) {
+        if ($canAssignEmployee) {
             foreach ($this->employee->get_all()->getResult() as $employee) {
                 $data['employees'][$employee->person_id] = $employee->first_name . ' ' . $employee->last_name;
             }
         } else {
-            $stored_employee_id                     = $receiving_info['employee_id'];
-            $stored_employee                        = $this->employee->get_info($stored_employee_id);
-            $data['employees'][$stored_employee_id] = $stored_employee->first_name . ' ' . $stored_employee->last_name;
+            $storedEmployeeId                     = $receivingInfo['employee_id'];
+            $storedEmployee                        = $this->employee->get_info($storedEmployeeId);
+            $data['employees'][$storedEmployeeId] = $storedEmployee->first_name . ' ' . $storedEmployee->last_name;
         }
 
-        $data['selected_supplier_name'] = ! empty($receiving_info['supplier_id']) ? $receiving_info['company_name'] : '';
-        $data['selected_supplier_id']   = $receiving_info['supplier_id'];
-        $data['receiving_info']         = $receiving_info;
-        $data['can_assign_employee']    = $can_assign_employee;
+        $data['selected_supplier_name'] = ! empty($receivingInfo['supplier_id']) ? $receivingInfo['company_name'] : '';
+        $data['selected_supplier_id']   = $receivingInfo['supplier_id'];
+        $data['receiving_info']         = $receivingInfo;
+        $data['can_assign_employee']    = $canAssignEmployee;
         $data['locked']                 = false;
         $data['journals']               = [];
-        $data['takes_payments']         = $receiving_info['receiving_type'] === ReceivingType::Receive->value && $receiving_info['supplier_id'] !== null;
+        $data['takes_payments']         = $receivingInfo['receiving_type'] === ReceivingType::Receive->value && $receivingInfo['supplier_id'] !== null;
         $data['payments']               = $data['takes_payments'] ? $this->receiving->get_payments((int) $receiving_id) : [];
         $data['payment_statuses']       = [];
         $data['payable']                = null;
@@ -340,26 +340,26 @@ class Receivings extends Secure_Controller
         $data['new_treasury_options']   = [];
 
         if ((new AccountingSettings())->isEnabled()) {
-            $data['treasury_options']     = $data['takes_payments'] ? $this->treasuryOptions((int) ($receiving_info['branch_id'] ?? 0), $data['payments']) : [];
-            $data['new_treasury_options'] = $data['takes_payments'] ? $this->treasuryOptions((int) ($receiving_info['branch_id'] ?? 0), []) : [];
+            $data['treasury_options']     = $data['takes_payments'] ? $this->treasuryOptions((int) ($receivingInfo['branch_id'] ?? 0), $data['payments']) : [];
+            $data['new_treasury_options'] = $data['takes_payments'] ? $this->treasuryOptions((int) ($receivingInfo['branch_id'] ?? 0), []) : [];
 
             $posting = new ReceivingPosting();
 
             $data['locked']           = $posting->isPosted((int) $receiving_id);
             $data['payment_statuses'] = $this->paymentStatusOptions();
 
-            if ($this->employee->has_grant('accounting_journals', $current_employee_id)) {
+            if ($this->employee->has_grant('accounting_journals', $currentEmployeeId)) {
                 $data['journals'] = $posting->journalsOf((int) $receiving_id);
             }
 
             if ($data['locked'] && $data['takes_payments']) {
-                $position                = (new SupplierLedger())->position((int) $receiving_info['supplier_id']);
+                $position                = (new SupplierLedger())->position((int) $receivingInfo['supplier_id']);
                 $data['payable']         = $position->purchase((int) $receiving_id);
                 $data['credit']          = $position->credit();
-                $data['applications']    = $this->applicationsOf((int) $receiving_id, (int) $receiving_info['supplier_id']);
+                $data['applications']    = $this->applicationsOf((int) $receiving_id, (int) $receivingInfo['supplier_id']);
                 $data['can_debit_note']  = $data['payable'] !== null && ! $this->nothingLeftToReturn((int) $receiving_id);
-            } elseif ($data['locked'] && $receiving_info['receiving_type'] === ReceivingType::Return->value && $receiving_info['supplier_id'] !== null) {
-                $data['applications'] = $this->applicationsOf((int) $receiving_id, (int) $receiving_info['supplier_id']);
+            } elseif ($data['locked'] && $receivingInfo['receiving_type'] === ReceivingType::Return->value && $receivingInfo['supplier_id'] !== null) {
+                $data['applications'] = $this->applicationsOf((int) $receiving_id, (int) $receivingInfo['supplier_id']);
             }
         }
 
@@ -453,27 +453,27 @@ class Receivings extends Secure_Controller
             $data['amount_change']   = to_currency($data['amount_tendered'] - $data['total_with_tax']);
         }
 
-        $employee_id      = $this->employee->get_logged_in_employee_info()->person_id;
-        $employee_info    = $this->employee->get_info($employee_id);
-        $data['employee'] = $employee_info->first_name . ' ' . $employee_info->last_name;
+        $employeeId      = $this->employee->get_logged_in_employee_info()->person_id;
+        $employeeInfo    = $this->employee->get_info($employeeId);
+        $data['employee'] = $employeeInfo->first_name . ' ' . $employeeInfo->last_name;
 
-        $supplier_id = $this->receiving_lib->get_supplier();
-        if ($supplier_id != -1) {
-            $supplier_info            = $this->supplier->get_info($supplier_id);
-            $data['supplier']         = $supplier_info->company_name;    // TODO: duplicated code
-            $data['first_name']       = $supplier_info->first_name;
-            $data['last_name']        = $supplier_info->last_name;
-            $data['supplier_email']   = $supplier_info->email;
-            $data['supplier_address'] = $supplier_info->address_1;
-            if (! empty($supplier_info->zip) || ! empty($supplier_info->city)) {
-                $data['supplier_location'] = $supplier_info->zip . ' ' . $supplier_info->city;
+        $supplierId = $this->receiving_lib->get_supplier();
+        if ($supplierId != -1) {
+            $supplierInfo            = $this->supplier->get_info($supplierId);
+            $data['supplier']         = $supplierInfo->company_name;    // TODO: duplicated code
+            $data['first_name']       = $supplierInfo->first_name;
+            $data['last_name']        = $supplierInfo->last_name;
+            $data['supplier_email']   = $supplierInfo->email;
+            $data['supplier_address'] = $supplierInfo->address_1;
+            if (! empty($supplierInfo->zip) || ! empty($supplierInfo->city)) {
+                $data['supplier_location'] = $supplierInfo->zip . ' ' . $supplierInfo->city;
             } else {
                 $data['supplier_location'] = '';
             }
         }
 
         // SAVE receiving to database
-        $saved = $this->receiving->save_value($data['cart'], $supplier_id, $employee_id, $data['comment'], $data['reference'], $data['payment_type'], $data['stock_location'], $origin);
+        $saved = $this->receiving->save_value($data['cart'], $supplierId, $employeeId, $data['comment'], $data['reference'], $data['payment_type'], $data['stock_location'], $origin);
 
         if ($saved === ACCOUNTING_FAILED) {
             return $this->_reload(['error' => $this->accountingFailureMessage() ?? lang('Receivings.transaction_failed')]);
@@ -557,33 +557,33 @@ class Receivings extends Secure_Controller
             throw PageNotFoundException::forPageNotFound();
         }
 
-        $receiving_info = $this->receiving->get_info($receiving_id)->getRowArray();
+        $receivingInfo = $this->receiving->get_info($receiving_id)->getRowArray();
         $this->receiving_lib->copy_entire_receiving($receiving_id);
         $data['cart']                 = $this->receiving_lib->get_cart();
         $data['total']                = $this->receiving_lib->get_total();
         $data['tax_total']            = $this->receiving_lib->get_tax_total();
         $data['total_with_tax']       = $this->receiving_lib->get_total_with_tax();
         $data['mode']                 = $this->receiving_lib->get_mode();
-        $data['transaction_time']     = to_datetime(strtotime($receiving_info['receiving_time']));
+        $data['transaction_time']     = to_datetime(strtotime($receivingInfo['receiving_time']));
         $data['show_stock_locations'] = $this->stock_location->show_locations('receivings');
-        $data['payment_type']         = $receiving_info['payment_type'];
+        $data['payment_type']         = $receivingInfo['payment_type'];
         $data['reference']            = $this->receiving_lib->get_reference();
         $data['receiving_id']         = 'RECV ' . $receiving_id;
         $data['barcode']              = $this->barcode_lib->generate_receipt_barcode($data['receiving_id']);
         $data += $this->documentNumberOf((int) $receiving_id);
-        $employee_info                = $this->employee->get_info($receiving_info['employee_id']);
-        $data['employee']             = $employee_info->first_name . ' ' . $employee_info->last_name;
+        $employeeInfo                = $this->employee->get_info($receivingInfo['employee_id']);
+        $data['employee']             = $employeeInfo->first_name . ' ' . $employeeInfo->last_name;
 
-        $supplier_id = $this->receiving_lib->get_supplier();    // TODO: Duplicated code
-        if ($supplier_id != -1) {
-            $supplier_info            = $this->supplier->get_info($supplier_id);
-            $data['supplier']         = $supplier_info->company_name;
-            $data['first_name']       = $supplier_info->first_name;
-            $data['last_name']        = $supplier_info->last_name;
-            $data['supplier_email']   = $supplier_info->email;
-            $data['supplier_address'] = $supplier_info->address_1;
-            if (! empty($supplier_info->zip) || ! empty($supplier_info->city)) {
-                $data['supplier_location'] = $supplier_info->zip . ' ' . $supplier_info->city;
+        $supplierId = $this->receiving_lib->get_supplier();    // TODO: Duplicated code
+        if ($supplierId != -1) {
+            $supplierInfo            = $this->supplier->get_info($supplierId);
+            $data['supplier']         = $supplierInfo->company_name;
+            $data['first_name']       = $supplierInfo->first_name;
+            $data['last_name']        = $supplierInfo->last_name;
+            $data['supplier_email']   = $supplierInfo->email;
+            $data['supplier_address'] = $supplierInfo->address_1;
+            if (! empty($supplierInfo->zip) || ! empty($supplierInfo->city)) {
+                $data['supplier_location'] = $supplierInfo->zip . ' ' . $supplierInfo->city;
             } else {
                 $data['supplier_location'] = '';
             }

@@ -239,8 +239,8 @@ class Config extends Secure_Controller
         $data['licenses'] = $this->_licenses();
 
         // General related fields
-        $image_allowed_types = ['jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'png', 'tif', 'tiff'];
-        $data['image_allowed_types'] = array_combine($image_allowed_types, $image_allowed_types);
+        $imageAllowedTypes = ['jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'png', 'tif', 'tiff'];
+        $data['image_allowed_types'] = array_combine($imageAllowedTypes, $imageAllowedTypes);
         $data['selected_image_allowed_types'] = explode(',', $this->config['image_allowed_types']);
 
         // Integrations Related fields

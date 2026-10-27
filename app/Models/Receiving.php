@@ -424,7 +424,7 @@ class Receiving extends Model
             return ACCOUNTING_FAILED;
         }
 
-        $receivings_data = [
+        $receivingsData = [
             'receiving_time'         => date('Y-m-d H:i:s'),
             'supplier_id'            => $supplier->exists($supplier_id) ? $supplier_id : null,
             'employee_id'            => $employee_id,
@@ -448,39 +448,39 @@ class Receiving extends Model
 
             $this->lockItems($items);
 
-            if ($receivings_data['return_of_receiving_id'] !== null) {
-                $this->lockOrigin((int) $receivings_data['return_of_receiving_id']);
+            if ($receivingsData['return_of_receiving_id'] !== null) {
+                $this->lockOrigin((int) $receivingsData['return_of_receiving_id']);
             }
 
             $builder = $this->db->table('receivings');
-            $builder->insert($receivings_data);
+            $builder->insert($receivingsData);
             $receiving_id = $this->db->insertID();
 
             $builder = $this->db->table('receivings_items');
 
-            foreach ($items as $line => $item_data) {
-                $cur_item_info = $item->get_info($item_data['item_id']);
+            foreach ($items as $line => $itemData) {
+                $curItemInfo = $item->get_info($itemData['item_id']);
 
-                $receivings_items_data = [
+                $receivingsItemsData = [
                     'receiving_id'       => $receiving_id,
-                    'item_id'            => $item_data['item_id'],
-                    'line'               => $item_data['line'],
-                    'description'        => $item_data['description'],
-                    'serialnumber'       => $item_data['serialnumber'],
-                    'quantity_purchased' => $item_data['quantity'],
-                    'receiving_quantity' => $item_data['receiving_quantity'],
-                    'discount'           => $item_data['discount'],
-                    'discount_type'      => $item_data['discount_type'],
-                    'item_cost_price'    => $cur_item_info->cost_price,
-                    'item_unit_price'    => $item_data['price'],
-                    'item_location'      => $item_data['item_location'],
-                    'tax_percent'        => $item_data['tax_percent'] ?? 0,
+                    'item_id'            => $itemData['item_id'],
+                    'line'               => $itemData['line'],
+                    'description'        => $itemData['description'],
+                    'serialnumber'       => $itemData['serialnumber'],
+                    'quantity_purchased' => $itemData['quantity'],
+                    'receiving_quantity' => $itemData['receiving_quantity'],
+                    'discount'           => $itemData['discount'],
+                    'discount_type'      => $itemData['discount_type'],
+                    'item_cost_price'    => $curItemInfo->cost_price,
+                    'item_unit_price'    => $itemData['price'],
+                    'item_location'      => $itemData['item_location'],
+                    'tax_percent'        => $itemData['tax_percent'] ?? 0,
                 ];
 
-                $builder->insert($receivings_items_data);
+                $builder->insert($receivingsItemsData);
             }
 
-            if ($type === ReceivingType::Return && $receivings_data['return_of_receiving_id'] !== null) {
+            if ($type === ReceivingType::Return && $receivingsData['return_of_receiving_id'] !== null) {
                 (new ReturnLimit($this->db))->assertPurchaseReturnWithin($receiving_id);
             }
 
@@ -494,22 +494,22 @@ class Receiving extends Model
                 (new ReceivingPosting($this->db))->postCompleted($receiving_id, $employee_id);
             }
 
-            foreach ($items as $line => $item_data) {
-                $items_received = (float) self::unitsOf($item_data);
+            foreach ($items as $line => $itemData) {
+                $itemsReceived = (float) self::unitsOf($itemData);
 
-                $itemQuantity->changeQuantity((int) $item_data['item_id'], (int) $item_data['item_location'], $items_received);
+                $itemQuantity->changeQuantity((int) $itemData['item_id'], (int) $itemData['item_location'], $itemsReceived);
 
-                $inv_data = [
+                $invData = [
                     'trans_date'      => date('Y-m-d H:i:s'),
-                    'trans_items'     => $item_data['item_id'],
+                    'trans_items'     => $itemData['item_id'],
                     'trans_user'      => $employee_id,
-                    'trans_location'  => $item_data['item_location'],
+                    'trans_location'  => $itemData['item_location'],
                     'trans_comment'   => 'RECV ' . $receiving_id,
-                    'trans_inventory' => $items_received,
+                    'trans_inventory' => $itemsReceived,
                 ];
 
-                $inventory->insert($inv_data, false);
-                $attribute->copy_attribute_links($item_data['item_id'], 'receiving_id', $receiving_id);
+                $inventory->insert($invData, false);
+                $attribute->copy_attribute_links($itemData['item_id'], 'receiving_id', $receiving_id);
             }
         } catch (AccountingException|PostingException $failure) {
             $this->db->transRollback();

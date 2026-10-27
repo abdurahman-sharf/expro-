@@ -68,25 +68,25 @@ class Expenses extends Secure_Controller
         ];
 
         // Check if any filter is set in the multiselect dropdown
-        $request_filters = array_fill_keys($this->request->getGet('filters', FILTER_SANITIZE_FULL_SPECIAL_CHARS) ?? [], true);
-        $filters = array_merge($filters, $request_filters);
+        $requestFilters = array_fill_keys($this->request->getGet('filters', FILTER_SANITIZE_FULL_SPECIAL_CHARS) ?? [], true);
+        $filters = array_merge($filters, $requestFilters);
         $expenses = $this->expense->search($search, $filters, $limit, $offset, $sort, $order);
-        $total_rows = $this->expense->get_found_rows($search, $filters);
+        $totalRows = $this->expense->get_found_rows($search, $filters);
         $payments = $this->expense->get_payments_summary($search, $filters);
-        $payment_summary = get_expenses_manage_payments_summary($payments, $expenses);
-        $data_rows = [];
+        $paymentSummary = get_expenses_manage_payments_summary($payments, $expenses);
+        $dataRows = [];
 
         $numbers = (new DocumentNumbering())->numbers(DocumentType::Expense, 'expenses', array_map(static fn (object $expense): int => (int) $expense->expense_id, $expenses->getResult()));
 
         foreach ($expenses->getResult() as $expense) {
-            $data_rows[] = get_expenses_data_row($expense, $numbers[(int) $expense->expense_id] ?? null);
+            $dataRows[] = get_expenses_data_row($expense, $numbers[(int) $expense->expense_id] ?? null);
         }
 
-        if ($total_rows > 0) {
-            $data_rows[] = get_expenses_data_last_row($expenses);
+        if ($totalRows > 0) {
+            $dataRows[] = get_expenses_data_last_row($expenses);
         }
 
-        return $this->response->setJSON(['total' => $total_rows, 'rows' => $data_rows, 'payment_summary' => $payment_summary]);
+        return $this->response->setJSON(['total' => $totalRows, 'rows' => $dataRows, 'payment_summary' => $paymentSummary]);
     }
 
     /**
@@ -100,30 +100,30 @@ class Expenses extends Secure_Controller
         $data['expenses_info'] = $this->expense->get_info($expense_id);
         $expense_id = $data['expenses_info']->expense_id;
 
-        $current_employee_id = $this->employee->get_logged_in_employee_info()->person_id;
-        $can_assign_employee = $this->employee->has_grant('employees', $current_employee_id);
+        $currentEmployeeId = $this->employee->get_logged_in_employee_info()->person_id;
+        $canAssignEmployee = $this->employee->has_grant('employees', $currentEmployeeId);
 
         $data['employees'] = [];
-        if ($can_assign_employee) {
+        if ($canAssignEmployee) {
             foreach ($this->employee->get_all()->getResult() as $employee) {
                 $data['employees'][$employee->person_id] = $employee->first_name . ' ' . $employee->last_name;
             }
         } else {
-            $stored_employee_id = $expense_id == NEW_ENTRY ? $current_employee_id : $data['expenses_info']->employee_id;
-            $stored_employee = $this->employee->get_info($stored_employee_id);
-            $data['employees'][$stored_employee_id] = $stored_employee->first_name . ' ' . $stored_employee->last_name;
+            $storedEmployeeId = $expense_id == NEW_ENTRY ? $currentEmployeeId : $data['expenses_info']->employee_id;
+            $storedEmployee = $this->employee->get_info($storedEmployeeId);
+            $data['employees'][$storedEmployeeId] = $storedEmployee->first_name . ' ' . $storedEmployee->last_name;
         }
-        $data['can_assign_employee'] = $can_assign_employee;
+        $data['can_assign_employee'] = $canAssignEmployee;
 
-        $expense_categories = [];
+        $expenseCategories = [];
         foreach ($this->expense_category->get_all(0, 0, true)->getResultArray() as $row) {
-            $expense_categories[$row['expense_category_id']] = $row['category_name'];
+            $expenseCategories[$row['expense_category_id']] = $row['category_name'];
         }
-        $data['expense_categories'] = $expense_categories;
+        $data['expense_categories'] = $expenseCategories;
 
         if ($expense_id == NEW_ENTRY) {
             $data['expenses_info']->date = date('Y-m-d H:i:s');
-            $data['expenses_info']->employee_id = $current_employee_id;
+            $data['expenses_info']->employee_id = $currentEmployeeId;
         }
 
         $data['expense_number'] = (new DocumentNumbering())->numbers(DocumentType::Expense, 'expenses', [(int) $expense_id])[(int) $expense_id] ?? null;
@@ -149,10 +149,10 @@ class Expenses extends Secure_Controller
      */
     public function getRow(int $row_id): ResponseInterface
     {
-        $expense_info = $this->expense->get_info($row_id);
-        $data_row = get_expenses_data_row($expense_info, (new DocumentNumbering())->numbers(DocumentType::Expense, 'expenses', [$row_id])[$row_id] ?? null);
+        $expenseInfo = $this->expense->get_info($row_id);
+        $dataRow = get_expenses_data_row($expenseInfo, (new DocumentNumbering())->numbers(DocumentType::Expense, 'expenses', [$row_id])[$row_id] ?? null);
 
-        return $this->response->setJSON($data_row);
+        return $this->response->setJSON($dataRow);
     }
 
     /**
