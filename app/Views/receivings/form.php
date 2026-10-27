@@ -18,9 +18,9 @@
  * @var string $credit
  * @var list<object> $applications
  * @var bool $can_debit_note
- * @var array<int, string> $payment_numbers
- * @var string|null $document_label
- * @var string|null $document_number
+ * @var array<int, string> $paymentNumbers
+ * @var string|null $documentLabel
+ * @var string|null $documentNumber
  */
 ?>
 
@@ -39,10 +39,10 @@
             <?= anchor('receivings/receipt/' . $receiving_info['receiving_id'], 'RECV ' . $receiving_info['receiving_id'], ['target' => '_blank', 'class' => 'col-form-label col-8', "style" => "text-align: left"]) ?>
         </div>
 
-        <?php if (! empty($document_number)): ?>
+        <?php if (! empty($documentNumber)): ?>
             <div class="row mb-3">
-                <span class="col-form-label col-3"><?= esc($document_label) ?></span>
-                <div class="col-8 col-form-label" id="document_number"><bdi dir="ltr"><?= esc($document_number) ?></bdi></div>
+                <span class="col-form-label col-3"><?= esc($documentLabel) ?></span>
+                <div class="col-8 col-form-label" id="document_number"><bdi dir="ltr"><?= esc($documentNumber) ?></bdi></div>
             </div>
         <?php endif; ?>
 
@@ -96,7 +96,7 @@
         <?php if ($takes_payments): ?>
             <?php foreach (array_values($payments) as $i => $row): ?>
                 <div class="row mb-3 supplier-payment">
-                    <?= form_label(lang('Receivings.payment') . ' #' . esc($payment_numbers[(int) $row->payment_id] ?? (string) (int) $row->payment_id), 'payment_types_' . $i, ['class' => 'col-form-label col-3']) ?>
+                    <?= form_label(lang('Receivings.payment') . ' #' . esc($paymentNumbers[(int) $row->payment_id] ?? (string) (int) $row->payment_id), 'payment_types_' . $i, ['class' => 'col-form-label col-3']) ?>
                     <div class="col-5">
                         <?= form_hidden('payment_id_' . $i, $row->payment_id) ?>
                         <?= form_dropdown('payment_type_' . $i, $payment_options, $row->payment_type, ['id' => 'payment_types_' . $i, 'class' => 'form-select form-select-sm']) ?>

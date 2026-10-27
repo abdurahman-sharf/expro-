@@ -331,8 +331,11 @@ class CustomerTest extends CIUnitTestCase
         $this->assertFalse(model(Customer::class)->refusesAccountNumber('ACC-1'));
     }
 
-    public function testRefusesAccountNumber_AcceptsAnEmptyNumber(): void
+    public function testRefusesAccountNumber_AcceptsAnEmptyNumberEvenWhenAnotherCustomerHasOne(): void
     {
+        $this->saveCustomer('One', 'Customer', extra: ['account_number' => '']);
+
+        $this->assertSame(1, $this->accountingDb()->table('customers')->where('account_number', '')->countAllResults());
         $this->assertFalse(model(Customer::class)->refusesAccountNumber(''));
     }
 }

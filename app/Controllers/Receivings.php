@@ -334,7 +334,7 @@ class Receivings extends Secure_Controller
         $data['applications']           = [];
         $data['can_debit_note']         = false;
         $data['payment_options']        = $this->supplierPaymentOptions();
-        $data['payment_numbers']        = (new DocumentNumbering())->numbers(DocumentType::SupplierPayment, 'receivings_payments', array_map(static fn (object $payment): int => (int) $payment->payment_id, $data['payments']));
+        $data['paymentNumbers']         = (new DocumentNumbering())->numbers(DocumentType::SupplierPayment, 'receivings_payments', array_map(static fn (object $payment): int => (int) $payment->payment_id, $data['payments']));
         $data += $this->documentNumberOf((int) $receiving_id);
         $data['treasury_options']       = [];
         $data['new_treasury_options']   = [];
@@ -890,7 +890,7 @@ class Receivings extends Secure_Controller
      * The number of a purchase or of a return to the supplier, with the name of its kind, for the
      * screens that show the document. Nothing when it has none, so it shows what it always showed.
      *
-     * @return array{document_label?: string, document_number?: string}
+     * @return array{documentLabel?: string, documentNumber?: string}
      */
     private function documentNumberOf(int $receivingId): array
     {
@@ -900,7 +900,7 @@ class Receivings extends Secure_Controller
             $number = $numbering->numbers($type, 'receivings', [$receivingId])[$receivingId] ?? null;
 
             if ($number !== null) {
-                return ['document_label' => lang($type->labelKey()), 'document_number' => $number];
+                return ['documentLabel' => lang($type->labelKey()), 'documentNumber' => $number];
             }
         }
 

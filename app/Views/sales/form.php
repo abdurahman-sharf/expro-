@@ -24,8 +24,8 @@
  * @var array<string, string> $payment_statuses
  * @var array<int, string> $treasury_options
  * @var array<int, string> $new_treasury_options
- * @var array<int, string> $payment_numbers
- * @var string|null $credit_note_number
+ * @var array<int, string> $paymentNumbers
+ * @var string|null $creditNoteNumber
  */
 ?>
 
@@ -40,10 +40,10 @@
             <?= anchor('sales/receipt/' . $sale_info['sale_id'], 'POS ' . $sale_info['sale_id'], ['target' => '_blank', 'class' => 'col-form-label col-8', "style" => "text-align: left"]) ?>
         </div>
 
-        <?php if (! empty($credit_note_number)): ?>
+        <?php if (! empty($creditNoteNumber)): ?>
             <div class="row mb-3">
                 <?= form_label(lang('Numbering.type_credit_note'), 'credit_note_number', ['class' => 'col-form-label col-3']) ?>
-                <div class="col-8 col-form-label" id="credit_note_number"><bdi dir="ltr"><?= esc($credit_note_number) ?></bdi></div>
+                <div class="col-8 col-form-label" id="credit_note_number"><bdi dir="ltr"><?= esc($creditNoteNumber) ?></bdi></div>
             </div>
         <?php endif; ?>
 
@@ -107,7 +107,7 @@
         foreach ($payments as $row) {
         ?>
             <div class="row mb-3">
-                <?= form_label(lang('Sales.payment') . (isset($payment_numbers[(int) $row->payment_id]) ? ' ' . esc($payment_numbers[(int) $row->payment_id]) : ''), "payment_types_$i", ['class' => 'col-form-label col-3']) ?>
+                <?= form_label(lang('Sales.payment') . (isset($paymentNumbers[(int) $row->payment_id]) ? ' ' . esc($paymentNumbers[(int) $row->payment_id]) : ''), "payment_types_$i", ['class' => 'col-form-label col-3']) ?>
                 <div class="col-4">
                     <?php // No editing of Gift Card payments as it's a complex change ?>
                     <?= form_hidden("payment_id_$i", $row->payment_id) ?>
@@ -156,7 +156,7 @@
 
             <?php if (! empty($accounting_on)): ?>
                 <div class="row mb-3">
-                    <?= form_label(lang('Sales.payment_status') . ' #' . esc($payment_numbers[(int) $row->payment_id] ?? (string) (int) $row->payment_id), "payment_status_$i", ['class' => 'col-form-label col-3']) ?>
+                    <?= form_label(lang('Sales.payment_status') . ' #' . esc($paymentNumbers[(int) $row->payment_id] ?? (string) (int) $row->payment_id), "payment_status_$i", ['class' => 'col-form-label col-3']) ?>
                     <div class="col-8">
                         <?= form_dropdown("payment_status_$i", $payment_statuses, $row->payment_status ?? 'completed', ['id' => "payment_status_$i", 'class' => 'form-select form-select-sm']) ?>
                     </div>
@@ -165,7 +165,7 @@
 
             <?php if ($treasury_options !== [] && ! empty($row->uses_treasury)): ?>
                 <div class="row mb-3">
-                    <?= form_label(lang('Sales.treasury') . ' #' . esc($payment_numbers[(int) $row->payment_id] ?? (string) (int) $row->payment_id), "treasury_id_$i", ['class' => 'col-form-label col-3']) ?>
+                    <?= form_label(lang('Sales.treasury') . ' #' . esc($paymentNumbers[(int) $row->payment_id] ?? (string) (int) $row->payment_id), "treasury_id_$i", ['class' => 'col-form-label col-3']) ?>
                     <div class="col-8">
                         <?= form_dropdown("treasury_id_$i", $treasury_options, (string) ($row->treasury_id ?? 0), ['id' => "treasury_id_$i", 'class' => 'form-select form-select-sm']) ?>
                     </div>

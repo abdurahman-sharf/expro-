@@ -153,6 +153,40 @@ class Sale_libTest extends CIUnitTestCase
         $this->assertTrue($this->saleLib->is_delivered());
     }
 
+    public function testSetInvoiceNumber_HoldsANumberWithLettersAndLeadingZerosAsTyped(): void
+    {
+        $this->assertNull($this->saleLib->get_invoice_number());
+
+        $this->saleLib->set_invoice_number('INV-0007');
+
+        $this->assertSame('INV-0007', $this->saleLib->get_invoice_number());
+
+        $this->saleLib->set_invoice_number('0007');
+
+        $this->assertSame('0007', $this->saleLib->get_invoice_number());
+    }
+
+    public function testSetInvoiceNumber_ForgetsTheNumberWhenItIsEmptied(): void
+    {
+        $this->saleLib->set_invoice_number('INV-0007');
+        $this->saleLib->set_invoice_number('');
+
+        $this->assertNull($this->saleLib->get_invoice_number());
+    }
+
+    public function testSetInvoiceNumber_KeepsTheNumberAlreadyHeldWhenAskedToKeepIt(): void
+    {
+        $this->saleLib->set_invoice_number('INV-0007');
+        $this->saleLib->set_invoice_number('INV-0008', true);
+
+        $this->assertSame('INV-0007', $this->saleLib->get_invoice_number());
+
+        $this->saleLib->clear_invoice_number();
+        $this->saleLib->set_invoice_number('INV-0008', true);
+
+        $this->assertSame('INV-0008', $this->saleLib->get_invoice_number());
+    }
+
     public function testGetReturnOrigin_HoldsTheSaleAReturnComesFromUntilItIsCleared(): void
     {
         $this->assertNull($this->saleLib->get_return_origin());

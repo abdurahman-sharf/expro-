@@ -69,8 +69,8 @@ $summaryRow = static fn (string $label, string $value, string $style = ''): stri
             <tr><td style="padding: 2px 8px; text-align: <?= $start ?>; <?= $font ?> font-size: 13px;"><?= lang('Customers.customer') ?>: <?= esc($customer) ?></td></tr>
         <?php endif; ?>
         <tr><td style="padding: 2px 8px; text-align: <?= $start ?>; <?= $font ?> font-size: 13px;"><?= lang('Sales.id') ?>: <?= documentIsolate((string) $sale_id) ?></td></tr>
-        <?php if (! empty($credit_note_number)): ?>
-            <tr><td style="padding: 2px 8px; text-align: <?= $start ?>; <?= $font ?> font-size: 13px;"><?= lang('Numbering.type_credit_note') ?>: <?= documentIsolate((string) $credit_note_number) ?></td></tr>
+        <?php if (! empty($creditNoteNumber)): ?>
+            <tr><td style="padding: 2px 8px; text-align: <?= $start ?>; <?= $font ?> font-size: 13px;"><?= lang('Numbering.type_credit_note') ?>: <?= documentIsolate((string) $creditNoteNumber) ?></td></tr>
         <?php endif; ?>
         <tr><td style="padding: 2px 8px; text-align: <?= $start ?>; <?= $font ?> font-size: 13px;"><?= lang('Employees.employee') ?>: <?= esc($employee) ?></td></tr>
     </table>

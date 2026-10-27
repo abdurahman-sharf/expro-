@@ -156,7 +156,7 @@ class Customers extends Persons
         }
         $data['person_info'] = $info;
 
-        $data['automatic_account_number'] = $customer_id == NEW_ENTRY ? (new DocumentNumbering())->peek(DocumentType::Customer) : null;
+        $data['automaticAccountNumber'] = $customer_id == NEW_ENTRY ? (new DocumentNumbering())->peek(DocumentType::Customer) : null;
 
         if (empty($info->person_id) || empty($info->date) || empty($info->employee_id)) {
             $data['person_info']->date = date('Y-m-d H:i:s');

@@ -584,6 +584,30 @@ class DocumentNumberingTest extends CIUnitTestCase
         ];
     }
 
+    #[DataProvider('typedNumberProvider')]
+    public function testTyped_KeepsOnlyTheCharactersANumberMayHave(string $typed, string $expected): void
+    {
+        $this->assertSame($expected, DocumentNumbering::typed($typed));
+    }
+
+    /**
+     * @return array<string, array{0: string, 1: string}>
+     */
+    public static function typedNumberProvider(): array
+    {
+        return [
+            'letters and a dash'           => ['INV-0007', 'INV-0007'],
+            'a year and a slash'           => ['2026/INV-0007', '2026/INV-0007'],
+            'leading zeros'                => ['0007', '0007'],
+            'a hash, a dot, an underscore' => ['A#1.2_3', 'A#1.2_3'],
+            'arabic letters and digits'    => ['فاتورة-٠٠٧', 'فاتورة-٠٠٧'],
+            'spaces and quotes'            => [" INV 7'\"& ", 'INV7'],
+            'markup'                       => ['<b>7</b>', 'b7/b'],
+            'nothing that stays'           => [' <>&; ', ''],
+            'empty'                        => ['', ''],
+        ];
+    }
+
     public function testConfigure_AcceptsTheEdgesOfTheSettings(): void
     {
         $sequence = $this->numbering->configure(DocumentType::CreditNote, [

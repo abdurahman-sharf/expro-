@@ -126,7 +126,7 @@ class Expenses extends Secure_Controller
             $data['expenses_info']->employee_id = $currentEmployeeId;
         }
 
-        $data['expense_number'] = (new DocumentNumbering())->numbers(DocumentType::Expense, 'expenses', [(int) $expense_id])[(int) $expense_id] ?? null;
+        $data['expenseNumber'] = (new DocumentNumbering())->numbers(DocumentType::Expense, 'expenses', [(int) $expense_id])[(int) $expense_id] ?? null;
 
         $data['payments'] = [];
         foreach ($this->expense->get_expense_payment($expense_id)->getResult() as $payment) {

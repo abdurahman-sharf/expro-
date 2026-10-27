@@ -7,7 +7,7 @@
  * @var bool $use_destination_based_tax
  * @var string $sales_tax_code_label
  * @var string $employee
- * @var string|null $automatic_account_number
+ * @var string|null $automaticAccountNumber
  * @var array $config
  */
 ?>
@@ -67,8 +67,8 @@
                                 'class' => 'form-control form-control-sm',
                                 'value' => $person_info->account_number
                             ]) ?>
-                            <?php if (! empty($automatic_account_number)) { ?>
-                                <div class="form-text"><?= lang('Customers.account_number_automatic', [esc($automatic_account_number)]) ?></div>
+                            <?php if (! empty($automaticAccountNumber)) { ?>
+                                <div class="form-text"><?= lang('Customers.account_number_automatic', [esc($automaticAccountNumber)]) ?></div>
                             <?php } ?>
                         </div>
 
