@@ -5,6 +5,7 @@ namespace Tests\Libraries\Numbering;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingMessage;
+use App\Libraries\Accounting\StockLedger;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -12,14 +13,22 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\ConcurrentDbRaceTrait;
 use Tests\Support\EmployeeFixtureTrait;
+use Tests\Support\ItemFixtureTrait;
+use Tests\Support\PurchaseAccountingFixtureTrait;
+use Tests\Support\SaleAccountingFixtureTrait;
 use Throwable;
 
 class DocumentNumberingTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
+    use ConcurrentDbRaceTrait;
     use EmployeeFixtureTrait;
+    use ItemFixtureTrait;
+    use SaleAccountingFixtureTrait;
+    use PurchaseAccountingFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -50,6 +59,8 @@ class DocumentNumberingTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->stopBuying();
+        $this->stopSelling();
         $this->releaseOpenTransactions();
         $this->clearNumbering();
         $this->removeExpenses();
@@ -666,6 +677,190 @@ class DocumentNumberingTest extends CIUnitTestCase
         } catch (AccountingException $exception) {
             $this->assertStringContainsString((string) ($last + 1), AccountingMessage::of($exception));
         }
+    }
+
+    /**
+     * What each kind of account holds, as debit minus credit, over everything that was posted.
+     *
+     * @return array<string, string>
+     */
+    private function balancesByRole(): array
+    {
+        $db   = $this->accountingDb();
+        $rows = $db->query(
+            'SELECT COALESCE(a.system_key, a.entity_type, a.code) AS role, SUM(l.debit) - SUM(l.credit) AS balance FROM ' . $db->prefixTable('accounting_journal_lines') . ' l JOIN '
+            . $db->prefixTable('accounting_journals') . ' j ON j.journal_id = l.journal_id JOIN ' . $db->prefixTable('accounting_accounts') . ' a ON a.account_id = l.account_id WHERE j.status IN (?, ?) GROUP BY role',
+            ['posted', 'reversed'],
+        )->getResult();
+
+        $balances = [];
+
+        foreach ($rows as $row) {
+            $balances[(string) $row->role] = bcadd((string) $row->balance, '0', 2);
+        }
+
+        return $balances;
+    }
+
+    /**
+     * @param array<string, string> $before
+     * @param array<string, string> $after
+     *
+     * @return array<string, string>
+     */
+    private function movement(array $before, array $after): array
+    {
+        $movement = [];
+
+        foreach ($after as $role => $balance) {
+            $moved = bcsub($balance, $before[$role] ?? '0.00', 2);
+
+            if ($moved !== '0.00') {
+                $movement[$role] = $moved;
+            }
+        }
+
+        ksort($movement);
+
+        return $movement;
+    }
+
+    /**
+     * Every kind of document, saved through the real models for a customer and a supplier of
+     * their own.
+     *
+     * @return array{invoice: int, payment: int, note: int, purchase: int, debit: int, supplierPayment: int, customer: int}
+     */
+    private function everyKindOfDocument(int $customerId, int $supplierId): array
+    {
+        $invoice  = $this->invoiceOf('500.00', $customerId, [$this->payment(lang('Sales.cash'), '200.00')]);
+        $payment  = $this->addPayment($invoice, '100.00');
+        $note     = $this->creditNoteOf($invoice, '50.00', $customerId);
+        $purchase = $this->purchaseOf('300.00', $supplierId);
+        $debit    = $this->debitNoteOf($purchase, '30.00', $supplierId);
+        $paid     = $this->payPurchase($purchase, '100.00');
+
+        return ['invoice' => $invoice, 'payment' => $payment, 'note' => $note, 'purchase' => $purchase, 'debit' => $debit, 'supplierPayment' => $paid, 'customer' => $customerId];
+    }
+
+    public function testGolden_DefaultSettingsLeaveEveryDocumentWithTheNumberItAlwaysShowed(): void
+    {
+        $this->startBuying();
+        $firstCustomer = $this->anotherCustomer('Golden', 'First');
+        $this->accountingDb()->table('customers')->where('person_id', $firstCustomer)->update(['account_number' => 'GOLD-1']);
+        $quote   = $this->save([$this->line($this->item('0', false), 0, '1', '10')], [], [], SALE_TYPE_QUOTE, $firstCustomer, true, null, SUSPENDED);
+        $typed   = $this->sales->update($quote, ['quote_number' => 'Q-GOLD-1']);
+        $handmade = $this->save([$this->line($this->item('0', false), 0, '1', '10')], [], [], SALE_TYPE_INVOICE, $firstCustomer);
+        $this->sales->update($handmade, ['invoice_number' => 'INV-GOLD-1']);
+        $documents = $this->everyKindOfDocument($firstCustomer, $this->supplierId);
+
+        $this->assertTrue($typed);
+        $this->assertSame(0, $this->countRows('document_numbers'));
+        $this->assertSame(0, $this->countRows('document_sequences'));
+
+        $this->assertSame((string) $documents['payment'], $this->numbering->label(DocumentType::CustomerPayment, 'sales_payments', $documents['payment']));
+        $this->assertSame('POS ' . $documents['note'], $this->numbering->label(DocumentType::CreditNote, 'sales', $documents['note']));
+        $this->assertSame('RECV ' . $documents['purchase'], $this->numbering->label(DocumentType::Purchase, 'receivings', $documents['purchase']));
+        $this->assertSame('RECV ' . $documents['debit'], $this->numbering->label(DocumentType::DebitNote, 'receivings', $documents['debit']));
+        $this->assertSame((string) $documents['supplierPayment'], $this->numbering->label(DocumentType::SupplierPayment, 'receivings_payments', $documents['supplierPayment']));
+
+        $this->assertSame('Q-GOLD-1', $this->saleRow($quote)->quote_number);
+        $this->assertSame('INV-GOLD-1', $this->saleRow($handmade)->invoice_number);
+        $this->assertNull($this->saleRow($documents['invoice'])->invoice_number);
+        $this->assertSame('GOLD-1', $this->accountingDb()->table('customers')->where('person_id', $firstCustomer)->get()->getRow()->account_number);
+
+        foreach ($this->numbering->overview() as $sequence) {
+            $this->assertFalse($sequence->enabled, $sequence->type->value);
+            $this->assertSame('', $sequence->prefix, $sequence->type->value);
+            $this->assertSame(0, $sequence->padding, $sequence->type->value);
+        }
+    }
+
+    public function testGolden_ASequenceThatIsSwitchedOnNumbersNewDocumentsAndNoneThatExist(): void
+    {
+        $this->startBuying();
+        $secondSupplier = $this->anotherSupplier();
+        $before         = $this->everyKindOfDocument($this->customerId, $this->supplierId);
+
+        foreach (DocumentType::cases() as $type) {
+            $this->numbering->configure($type, ['enabled' => true, 'prefix' => strtoupper(substr($type->value, 0, 3)) . '-', 'padding' => 4]);
+        }
+
+        $after = $this->everyKindOfDocument($this->anotherCustomer('Golden', 'Second'), $secondSupplier);
+
+        foreach (['payment' => [DocumentType::CustomerPayment, 'sales_payments'], 'note' => [DocumentType::CreditNote, 'sales'], 'purchase' => [DocumentType::Purchase, 'receivings'], 'debit' => [DocumentType::DebitNote, 'receivings'], 'supplierPayment' => [DocumentType::SupplierPayment, 'receivings_payments']] as $key => [$type, $table]) {
+            $this->assertSame($type->fallback($before[$key]), $this->numbering->label($type, $table, $before[$key]), "{$key} that existed kept what it showed");
+            $this->assertStringStartsWith(strtoupper(substr($type->value, 0, 3)) . '-', $this->numbering->label($type, $table, $after[$key]), "{$key} saved afterwards is numbered");
+        }
+
+        $this->assertNull($this->saleRow($before['invoice'])->invoice_number);
+        $this->assertStringStartsWith('SAL-', (string) $this->saleRow($after['invoice'])->invoice_number);
+    }
+
+    public function testGolden_TheBooksSaySameWhetherOrNotTheDocumentsAreNumbered(): void
+    {
+        $this->startBuying();
+        $secondSupplier = $this->anotherSupplier();
+        $secondCustomer = $this->anotherCustomer('Golden', 'Second');
+
+        $start = $this->balancesByRole();
+        $this->everyKindOfDocument($this->customerId, $this->supplierId);
+        $withoutNumbers = $this->movement($start, $this->balancesByRole());
+
+        foreach (DocumentType::cases() as $type) {
+            $this->numbering->configure($type, ['enabled' => true, 'prefix' => strtoupper(substr($type->value, 0, 3)) . '-', 'padding' => 4]);
+        }
+
+        $start = $this->balancesByRole();
+        $this->everyKindOfDocument($secondCustomer, $secondSupplier);
+        $withNumbers = $this->movement($start, $this->balancesByRole());
+
+        $this->assertNotSame([], $withoutNumbers);
+        $this->assertSame($withoutNumbers, $withNumbers);
+        $this->assertGreaterThan(0, $this->countRows('document_numbers'));
+        $this->assertSame([], (new StockLedger())->mismatchedJournals());
+    }
+
+    public function testGolden_NumberingWorksWhileAccountingIsOffAndLeavesTheBooksEmpty(): void
+    {
+        $this->startBuying();
+        $this->setConfigValue('accounting_enabled', '0');
+        $journals = $this->countRows('accounting_journals');
+
+        foreach (DocumentType::cases() as $type) {
+            $this->numbering->configure($type, ['enabled' => true, 'prefix' => strtoupper(substr($type->value, 0, 3)) . '-', 'padding' => 4]);
+        }
+
+        $documents = $this->everyKindOfDocument($this->customerId, $this->supplierId);
+
+        $this->assertSame('CRE-0001', $this->numbering->label(DocumentType::CreditNote, 'sales', $documents['note']));
+        $this->assertSame('PUR-0001', $this->numbering->label(DocumentType::Purchase, 'receivings', $documents['purchase']));
+        $this->assertSame($journals, $this->countRows('accounting_journals'));
+    }
+
+    public function testAssign_GivesTwoInvoicesSavedByTwoProcessesAtTheSameTimeTwoDifferentNumbers(): void
+    {
+        $this->startSelling();
+        $this->setConfigValue('accounting_enabled', '0');
+        $prefix = 'RACE' . random_int(100000, 999999) . '-';
+        $this->numbering->configure(DocumentType::SalesInvoice, ['enabled' => true, 'prefix' => $prefix, 'padding' => 4, 'next_number' => 1]);
+
+        $service = $this->item('0', false);
+        $other   = $this->anotherCustomer('Race', 'Second');
+
+        [$one, $two] = $this->raceTwoProcesses(
+            'serviceInvoice',
+            [(string) $this->customerId, (string) $service, '10', (string) $this->employeeId],
+            [(string) $other, (string) $service, '10', (string) $this->employeeId],
+        );
+
+        $this->saleIds = array_map('intval', array_column($this->accountingDb()->table('sales')->select('sale_id')->where('comment', 'race')->get()->getResultArray(), 'sale_id'));
+        $numbers       = array_column($this->accountingDb()->table('sales')->select('invoice_number')->like('invoice_number', $prefix, 'after')->orderBy('invoice_number')->get()->getResultArray(), 'invoice_number');
+
+        $this->assertTrue($one);
+        $this->assertTrue($two);
+        $this->assertSame([$prefix . '0001', $prefix . '0002'], $numbers);
+        $this->assertSame(3, $this->numbering->sequence(DocumentType::SalesInvoice)->nextNumber);
     }
 
     private function assertRefusal(AccountingError $error, callable $action): void

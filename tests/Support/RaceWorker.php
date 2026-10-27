@@ -9,9 +9,31 @@
  * Usage: php RaceWorker.php <method> <arg> [<arg> ...]
  */
 
-chdir(dirname(__DIR__, 2));
+$root = dirname(__DIR__, 2);
 
-require __DIR__ . '/../../vendor/codeigniter4/framework/system/Test/bootstrap.php';
+chdir($root);
+
+$loader     = require $root . '/vendor/autoload.php';
+$vendorHome = dirname((string) realpath($root . '/vendor'));
+
+// A git worktree shares the vendor directory of the main checkout, whose class map points App\
+// at the main checkout. The worker must run the code of the checkout it sits in.
+if ($vendorHome !== $root) {
+    $classMap = [];
+
+    foreach ($loader->getClassMap() as $class => $file) {
+        $path = (string) realpath($file);
+
+        if (str_starts_with($path, $vendorHome . '/app/') && is_file($root . substr($path, strlen($vendorHome)))) {
+            $classMap[$class] = $root . substr($path, strlen($vendorHome));
+        }
+    }
+
+    $loader->addClassMap($classMap);
+    $loader->setPsr4('App\\', [$root . '/app']);
+}
+
+require $root . '/vendor/codeigniter4/framework/system/Test/bootstrap.php';
 
 $method = $argv[1];
 $args   = array_slice($argv, 2);
