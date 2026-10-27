@@ -342,6 +342,21 @@ class AccountingInterBranchControllerTest extends CIUnitTestCase
         }
     }
 
+    public function testGetSettleForm_IsNotFoundForTheSameBranchTwiceAnAbsentBranchAndADateThatIsNotOne(): void
+    {
+        $this->send(true, '100.00');
+        $this->settler();
+
+        foreach (['branch=1&other=1&date=2026-10-31', 'branch=1&other=99999&date=2026-10-31', 'branch=1&other=' . $this->branch . '&date=not-a-date'] as $query) {
+            try {
+                $this->get('/accounting_treasuries/inter_branch/settle_form?' . $query);
+                $this->fail('The form was shown for ' . $query);
+            } catch (PageNotFoundException) {
+                $this->addToAssertionCount(1);
+            }
+        }
+    }
+
     public function testPostSettle_SettlesTheBranchesAndAnswersWithTheSettlement(): void
     {
         $this->send(true, '100.00');
