@@ -158,3 +158,19 @@ DETECTED  G48-16 Detailed_item_sales builds its table from the limited inputs: T
 DETECTED  G48-16 Specific_customer builds its table from the limited inputs: Tests: 3, Assertions: 41, Failures: 2.; failing: 2
 10 of 10 guards detected
 ```
+
+### الدفعة 6
+
+```
+DETECTED  G48-16 Specific_discount builds its table from the limited inputs: Tests: 3, Assertions: 31, Failures: 2.; failing: 2
+DETECTED  G48-16 Specific_employee builds its table from the limited inputs: Tests: 3, Assertions: 31, Failures: 2.; failing: 2
+DETECTED  G48-16 Specific_supplier builds its table from the limited inputs: Tests: 3, Assertions: 34, Failures: 2.; failing: 2
+DETECTED  G48-17 Detailed_receivings builds its table from the limited inputs: Tests: 5, Assertions: 61, Failures: 5.; failing: 5
+DETECTED  G48-18 the table of sales keeps only the branches: Tests: 4, Assertions: 43, Failures: 4.; failing: 4
+DETECTED  G48-19 the table of sales refuses everything to an employee of no branch: Tests: 4, Assertions: 56, Failures: 2.; failing: 2
+DETECTED  G48-20 the table of receivings keeps only the branches: Tests: 5, Assertions: 61, Failures: 5.; failing: 5
+DETECTED  G48-21 the table of receivings refuses everything to an employee of no branch: Tests: 5, Assertions: 74, Failures: 2.; failing: 2
+DETECTED  G48-22 the expenses report is refused to an employee of some branches (page): Tests: 20, Assertions: 216, Failures: 1.; failing: 1
+DETECTED  G48-23 the expenses report is refused to an employee of some branches (graph): Tests: 20, Assertions: 216, Failures: 1.; failing: 1
+10 of 10 guards detected
+```
