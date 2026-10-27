@@ -2,6 +2,8 @@
 
 namespace App\Libraries\Accounting;
 
+use App\Libraries\Numbering\DocumentNumbering;
+use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Organization\CompanyContext;
@@ -357,7 +359,13 @@ final class SupplierAdvances
             'created_by'     => $employeeId,
         ]);
 
-        return (int) $this->db->insertID();
+        $advanceId = (int) $this->db->insertID();
+
+        if ($kind === self::PAYMENT) {
+            (new DocumentNumbering($this->db))->assign(DocumentType::SupplierPayment, 'supplier_advances', $advanceId, $branchId);
+        }
+
+        return $advanceId;
     }
 
     /**

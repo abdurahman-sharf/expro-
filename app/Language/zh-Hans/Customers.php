@@ -2,6 +2,7 @@
 
 return [
     'account_number'                => '账号 #',
+    'account_number_automatic'      => '',
     'account_number_duplicate'      => '账号已存在',
     'available_points'              => '可用积分',
     'available_points_value'        => '',
@@ -44,6 +45,7 @@ return [
     'none_selected'                 => '您还没有选择任何客户进行删除',
     'one_or_multiple'               => '客戶',
     'quantity'                      => '',
+    'rewards_package'               => '',
     'stats_info'                    => '',
     'successful_adding'             => '成功新增客户',
     'successful_deleted'            => '成功刪除',
@@ -53,5 +55,4 @@ return [
     'taxable'                       => '應課稅',
     'total'                         => '总支出',
     'update'                        => '更新客戶',
-    'rewards_package'               => '',
 ];

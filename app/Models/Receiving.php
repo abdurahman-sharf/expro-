@@ -17,6 +17,8 @@ use App\Libraries\Accounting\ReturnLimit;
 use App\Libraries\Accounting\SupplierLock;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\Numbering\DocumentNumbering;
+use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use CodeIgniter\Database\ResultInterface;
@@ -239,6 +241,8 @@ class Receiving extends Model
                     'payment_status' => PaymentStatus::fromStored($payment['payment_status'] ?? null)->value,
                     'treasury_id'    => $this->treasuryOfPayment($payment, isset($payment['employee_id']) ? (int) $payment['employee_id'] : null, (int) $purchase->branch_id, bccomp($amount, '0', 2) < 0 ? TreasuryScopes::DEPOSIT : TreasuryScopes::WITHDRAW),
                 ]);
+
+                (new DocumentNumbering($this->db))->assign(DocumentType::SupplierPayment, 'receivings_payments', (int) $this->db->insertID(), (int) $purchase->branch_id);
 
                 continue;
             }
@@ -484,6 +488,8 @@ class Receiving extends Model
                 $this->averageTheCost($receiving_id, $item);
             }
 
+            $this->numberDocument($type, (int) $receiving_id, $branchId);
+
             if ($accountingOn) {
                 (new ReceivingPosting($this->db))->postCompleted($receiving_id, $employee_id);
             }
@@ -523,6 +529,25 @@ class Receiving extends Model
         $this->db->transComplete();
 
         return $this->db->transStatus() ? $receiving_id : -1;
+    }
+
+    /**
+     * A purchase and a return to the supplier (a debit note) have a number of their own, when the
+     * sequence of their kind is on. A transfer between locations is not a document of either kind.
+     *
+     * @throws AccountingException
+     */
+    private function numberDocument(ReceivingType $type, int $receivingId, int $branchId): void
+    {
+        $kind = match ($type) {
+            ReceivingType::Receive => DocumentType::Purchase,
+            ReceivingType::Return  => DocumentType::DebitNote,
+            default                => null,
+        };
+
+        if ($kind !== null) {
+            (new DocumentNumbering($this->db))->assign($kind, 'receivings', $receivingId, $branchId);
+        }
     }
 
     /**

@@ -14,6 +14,8 @@ use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\SalePosting;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\Numbering\DocumentNumbering;
+use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Pdf_lib;
 use App\Libraries\Sale_lib;
@@ -978,15 +980,16 @@ class Sales extends Secure_Controller
 
         if ($this->sale_lib->is_invoice_mode()) {
             $invoiceFormat = $this->config['sales_invoice_format'];
+            $invoiceBySequence = (new DocumentNumbering())->isEnabled(DocumentType::SalesInvoice);
 
             // Generate final invoice number (if using the invoice in sales by receipt mode then the invoice number can be manually entered or altered in some way
-            if (!empty($invoiceFormat) && $invoiceNumber == null) {
+            if (!$invoiceBySequence && !empty($invoiceFormat) && $invoiceNumber == null) {
                 // The user can retain the default encoded format or can manually override it.  It still passes through the rendering step.
                 $invoiceNumber = $this->token_lib->render($invoiceFormat);
             }
 
 
-            if ($saleId == NEW_ENTRY && $this->sale->check_invoice_number_exists($invoiceNumber)) {
+            if ($saleId == NEW_ENTRY && $invoiceNumber !== null && $this->sale->check_invoice_number_exists($invoiceNumber)) {
                 $data['error'] = lang('Sales.invoice_number_duplicate', [$invoiceNumber]);
                 return $this->reload($data);
             } else {
@@ -1020,6 +1023,10 @@ class Sales extends Secure_Controller
                     $data['error_message'] = lang('Sales.transaction_failed');
                     return $this->reload($data);
                 } else {
+                    if ($invoiceBySequence) {
+                        $data['invoice_number'] = $this->sale->get_invoice_number($data['sale_id_num']);
+                    }
+
                     $data['barcode'] = $this->barcode_lib->generate_receipt_barcode($data['sale_id']);
                     $this->sale_lib->clear_all();
                     return view('sales/' . $invoiceView, $data);
@@ -1077,13 +1084,15 @@ class Sales extends Secure_Controller
             $data['sales_quote'] = lang('Sales.quote');
             $data['quote_number_label'] = lang('Sales.quote_number');
 
-            if ($quoteNumber == null) {
+            $quoteBySequence = (new DocumentNumbering())->isEnabled(DocumentType::SalesQuote);
+
+            if ($quoteNumber == null && !$quoteBySequence) {
                 // Generate quote number
                 $quoteFormat = $this->config['sales_quote_format'];
                 $quoteNumber = $this->token_lib->render($quoteFormat);
             }
 
-            if ($saleId == NEW_ENTRY && $this->sale->check_quote_number_exists($quoteNumber)) {
+            if ($saleId == NEW_ENTRY && $quoteNumber !== null && $this->sale->check_quote_number_exists($quoteNumber)) {
                 $data['error'] = lang('Sales.quote_number_duplicate');
                 return $this->reload($data);
             } else {
@@ -1108,6 +1117,10 @@ class Sales extends Secure_Controller
                 }
 
                 $this->sale_lib->set_suspended_id($data['sale_id_num']);
+
+                if ($quoteBySequence) {
+                    $data['quote_number'] = $this->sale->get_quote_number($data['sale_id_num']);
+                }
 
                 $data['cart'] = $this->sale_lib->sortAndFilterCart($data['cart']);
                 $data['barcode'] = null;
@@ -1861,7 +1874,7 @@ class Sales extends Secure_Controller
         $invoice_format = $this->config['sales_invoice_format'];
 
         if ($temp_invoice_number == null || $temp_invoice_number == '') {
-            $temp_invoice_number = $this->token_lib->render($invoice_format, [], false);
+            $temp_invoice_number = (new DocumentNumbering())->peek(DocumentType::SalesInvoice) ?? $this->token_lib->render($invoice_format, [], false);
         }
 
         $data['invoice_number'] = $temp_invoice_number;

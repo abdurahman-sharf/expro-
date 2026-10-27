@@ -202,6 +202,26 @@ final class DocumentNumbering
     }
 
     /**
+     * The number the next document of the kind would get, or null while the sequence is off. It
+     * takes nothing, so a screen can show it before the document is saved.
+     */
+    public function peek(DocumentType $type, ?int $companyId = null): ?string
+    {
+        $companyId ??= CompanyContext::id();
+        $sequence   = $this->sequence($type, $companyId);
+
+        if (! $sequence->enabled) {
+            return null;
+        }
+
+        try {
+            return $this->nextFree($sequence, $companyId, (string) array_key_first($type->sources()))[1];
+        } catch (AccountingException) {
+            return null;
+        }
+    }
+
+    /**
      * @param list<int> $ids
      *
      * @return array<int, string> The numbers of the documents that have one, by id.
@@ -245,17 +265,7 @@ final class DocumentNumbering
             return new DocumentNumber($type, (int) $known->sequence_number, (string) $known->number);
         }
 
-        $sequence  = $this->fromRow($type, $row);
-        $candidate = $sequence->nextNumber;
-        $number    = $sequence->format($candidate);
-
-        for ($attempt = 0; $this->isTaken($type, $companyId, $sourceTable, $number); $attempt++) {
-            if ($attempt >= self::SEARCH_LIMIT || $candidate >= 4_294_967_294) {
-                throw new AccountingException(AccountingError::NumberingExhausted, 'No free number was found after the next one.', ['count' => self::SEARCH_LIMIT]);
-            }
-
-            $number = $sequence->format(++$candidate);
-        }
+        [$candidate, $number] = $this->nextFree($this->fromRow($type, $row), $companyId, $sourceTable);
 
         $this->db->table('document_numbers')->insert([
             'company_id'      => $companyId,
@@ -270,6 +280,29 @@ final class DocumentNumbering
         $this->writeColumn($type, $sourceTable, $idColumn, $sourceId, $number);
 
         return new DocumentNumber($type, $candidate, $number);
+    }
+
+    /**
+     * The first number from the next one on that no document of the kind has.
+     *
+     * @return array{0: int, 1: string}
+     *
+     * @throws AccountingException
+     */
+    private function nextFree(NumberingSequence $sequence, int $companyId, string $sourceTable): array
+    {
+        $candidate = $sequence->nextNumber;
+        $number    = $sequence->format($candidate);
+
+        for ($attempt = 0; $this->isTaken($sequence->type, $companyId, $sourceTable, $number); $attempt++) {
+            if ($attempt >= self::SEARCH_LIMIT || $candidate >= 4_294_967_294) {
+                throw new AccountingException(AccountingError::NumberingExhausted, 'No free number was found after the next one.', ['count' => self::SEARCH_LIMIT]);
+            }
+
+            $number = $sequence->format(++$candidate);
+        }
+
+        return [$candidate, $number];
     }
 
     private function isTaken(DocumentType $type, int $companyId, string $sourceTable, string $number): bool

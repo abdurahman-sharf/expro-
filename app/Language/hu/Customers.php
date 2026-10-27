@@ -2,6 +2,7 @@
 
 return [
     'account_number'                => 'Számla #',
+    'account_number_automatic'      => '',
     'account_number_duplicate'      => 'Ez a számlaszám már szerepel az adatbázisban.',
     'available_points'              => '',
     'available_points_value'        => '',
@@ -44,6 +45,7 @@ return [
     'none_selected'                 => 'Nem választott ki egyetlen vásárlót sem a törléshez',
     'one_or_multiple'               => 'vevő(k)',
     'quantity'                      => '',
+    'rewards_package'               => '',
     'stats_info'                    => '',
     'successful_adding'             => 'Sikeresen hozzáadott egy vevőt',
     'successful_deleted'            => 'Sikeres törlés.',
@@ -53,5 +55,4 @@ return [
     'taxable'                       => 'Adóköteles',
     'total'                         => 'Összesen',
     'update'                        => 'Vevő módosítása',
-    'rewards_package'               => '',
 ];

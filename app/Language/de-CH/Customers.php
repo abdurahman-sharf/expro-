@@ -2,6 +2,7 @@
 
 return [
     'account_number'                => 'Konto-Nr.',
+    'account_number_automatic'      => '',
     'account_number_duplicate'      => 'Diese Konto-Nr. existiert bereits',
     'available_points'              => '',
     'available_points_value'        => '',
@@ -44,6 +45,7 @@ return [
     'none_selected'                 => 'Sie haben keinen Kunde zum Löschen gewählt',
     'one_or_multiple'               => 'Kunde(n)',
     'quantity'                      => '',
+    'rewards_package'               => '',
     'stats_info'                    => '',
     'successful_adding'             => 'Kunde erfolgreich hinzugefügt',
     'successful_deleted'            => 'Löschung erfolgreich',
@@ -53,5 +55,4 @@ return [
     'taxable'                       => 'Steuerpflichtig',
     'total'                         => 'Total',
     'update'                        => 'Kunde ändern',
-    'rewards_package'               => '',
 ];

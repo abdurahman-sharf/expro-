@@ -2,6 +2,7 @@
 
 return [
     'account_number'                => 'கணக்கு #',
+    'account_number_automatic'      => '',
     'account_number_duplicate'      => 'இன்த கணக்கு எண் முன்பே டேய்ட்டாபேய்ஸ்இல்  உள்ளது',
     'available_points'              => 'இருப்பு புள்ளிகள்',
     'available_points_value'        => '',
@@ -44,6 +45,7 @@ return [
     'none_selected'                 => 'நீக்க எந்த வாடிக்கையாளரையும் நீங்கள் தேர்ந்தெடுக்கவில்லை.',
     'one_or_multiple'               => 'வாடிக்கையாளர் (கள்)',
     'quantity'                      => 'அளவு',
+    'rewards_package'               => 'வெகுமதி தொகுப்பு',
     'stats_info'                    => 'புள்ளிவிவரங்கள்',
     'successful_adding'             => 'நீங்கள் வெற்றிகரமாக வாடிக்கையாளரைச் சேர்த்துள்ளீர்கள்',
     'successful_deleted'            => 'நீங்கள் வெற்றிகரமாக நீக்கிவிட்டீர்கள்',
@@ -53,5 +55,4 @@ return [
     'taxable'                       => 'வரி விதிக்கப்படக்கூடியது',
     'total'                         => 'மொத்தம் செலவிடப்பட்டது',
     'update'                        => 'வாடிக்கையாளரைப் புதுப்பிக்கவும்',
-    'rewards_package'               => 'வெகுமதி தொகுப்பு',
 ];

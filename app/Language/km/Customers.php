@@ -2,6 +2,7 @@
 
 return [
     'account_number'                => 'លេខ​គណនី',
+    'account_number_automatic'      => '',
     'account_number_duplicate'      => 'លេខគណនី មានវត្តមាននៅក្នុងមូលដ្ឋានទិន្នន័យរួចទៅហើយ',
     'available_points'              => 'ពិន្ទុដែលប្រើប្រាស់បាន',
     'available_points_value'        => '',
@@ -44,6 +45,7 @@ return [
     'none_selected'                 => 'អ្នកមិនបានជ្រើសរើសអតិថិជនណាមួយដើម្បីលុប',
     'one_or_multiple'               => 'អតិថិជន',
     'quantity'                      => 'ចំនួន',
+    'rewards_package'               => 'កញ្ចប់រង្វាន់',
     'stats_info'                    => 'ស្ថិតិព័ត៌មាន',
     'successful_adding'             => 'អ្នកបានបន្ថែមអតិថិជនដោយជោគជ័យ',
     'successful_deleted'            => 'អ្នកបានលុបដោយជោគជ័យ',
@@ -53,5 +55,4 @@ return [
     'taxable'                       => 'ជាប់ពន្ធ',
     'total'                         => 'ចំណាយសរុប',
     'update'                        => 'ធ្វើបច្ចុប្បន្នភាពអតិថិជន',
-    'rewards_package'               => 'កញ្ចប់រង្វាន់',
 ];

@@ -2,6 +2,7 @@
 
 return [
     'account_number'                => 'Tài khoản #',
+    'account_number_automatic'      => '',
     'account_number_duplicate'      => 'Số tài khoản đã sẵn có trong cơ sở dữ liệu rồi.',
     'available_points'              => 'Các điểm sẵn có',
     'available_points_value'        => '',
@@ -44,6 +45,7 @@ return [
     'none_selected'                 => 'Bạn chưa chọn bất kỳ một khách hàng nào để mà xóa.',
     'one_or_multiple'               => 'khách hàng',
     'quantity'                      => 'Số lượng',
+    'rewards_package'               => 'Gói tiền thưởng',
     'stats_info'                    => 'Thgkê',
     'successful_adding'             => 'Bạn đã thêm khách hàng thành công',
     'successful_deleted'            => 'Bạn đã xóa thành công',
@@ -53,5 +55,4 @@ return [
     'taxable'                       => 'Phải đánh thuế',
     'total'                         => 'Trả tổng cộng',
     'update'                        => 'Cập nhật khách hàng',
-    'rewards_package'               => 'Gói tiền thưởng',
 ];

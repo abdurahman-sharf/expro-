@@ -2,6 +2,7 @@
 
 return [
     'account_number'                => 'Cuenta #',
+    'account_number_automatic'      => '',
     'account_number_duplicate'      => 'Este número de cuenta ya esta en la base de datos.',
     'available_points'              => 'Puntos Disponibles',
     'available_points_value'        => 'Puntos Disponibles',
@@ -44,6 +45,7 @@ return [
     'none_selected'                 => 'No has seleccionado clientes para ser borrados.',
     'one_or_multiple'               => 'Cliente(s)',
     'quantity'                      => 'Cantidad',
+    'rewards_package'               => 'Paquete de recompensas',
     'stats_info'                    => 'Estados',
     'successful_adding'             => 'Has agregado satisfactoriamente el cliente',
     'successful_deleted'            => 'Has borrado satisfactoriamente a',
@@ -53,5 +55,4 @@ return [
     'taxable'                       => 'Gravable',
     'total'                         => 'Total',
     'update'                        => 'Actualizar Cliente',
-    'rewards_package'               => 'Paquete de recompensas',
 ];

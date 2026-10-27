@@ -2,6 +2,7 @@
 
 return [
     'account_number'                => '# Compte',
+    'account_number_automatic'      => '',
     'account_number_duplicate'      => 'Ce numéro de compte existe déjà dans la base de données.',
     'available_points'              => 'Points disponibles',
     'available_points_value'        => '',
@@ -44,6 +45,7 @@ return [
     'none_selected'                 => 'Vous n\'avez sélectionné aucun client à supprimer.',
     'one_or_multiple'               => 'Client(s)',
     'quantity'                      => 'Quantité',
+    'rewards_package'               => 'Récompenses',
     'stats_info'                    => 'Statistiques',
     'successful_adding'             => 'Vous avez ajouté un nouveau client',
     'successful_deleted'            => 'Suppression réussie',
@@ -53,5 +55,4 @@ return [
     'taxable'                       => 'Taxable',
     'total'                         => 'Total dépensé',
     'update'                        => 'Éditer client',
-    'rewards_package'               => 'Récompenses',
 ];

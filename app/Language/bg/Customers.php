@@ -2,6 +2,7 @@
 
 return [
     'account_number'                => 'Сметка #',
+    'account_number_automatic'      => '',
     'account_number_duplicate'      => 'Номерът на сметката вече е в базата данни.',
     'available_points'              => 'Налични точки',
     'available_points_value'        => '',
@@ -44,6 +45,7 @@ return [
     'none_selected'                 => 'Не сте избрали клиент (и), който да изтриете.',
     'one_or_multiple'               => 'Клиент(ти)',
     'quantity'                      => 'Количество',
+    'rewards_package'               => 'Пакетни награди',
     'stats_info'                    => 'Статус',
     'successful_adding'             => 'Успешно добавихте клиент',
     'successful_deleted'            => 'Вие успешно сте изтрили',
@@ -53,5 +55,4 @@ return [
     'taxable'                       => 'Облагаем',
     'total'                         => 'Общо изразходвани средства',
     'update'                        => 'Актуализиране на клиента',
-    'rewards_package'               => 'Пакетни награди',
 ];

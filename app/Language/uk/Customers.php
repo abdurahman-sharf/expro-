@@ -2,6 +2,7 @@
 
 return [
     'account_number'                => 'Номер рахунку',
+    'account_number_automatic'      => '',
     'account_number_duplicate'      => 'Такий номер рахунку вже є в базі данних.',
     'available_points'              => 'Доступні бали',
     'available_points_value'        => '',
@@ -44,6 +45,7 @@ return [
     'none_selected'                 => 'Ви не обрали клієнтів для видалення.',
     'one_or_multiple'               => 'Клієнт(и)',
     'quantity'                      => 'Кількість',
+    'rewards_package'               => 'Пакет нагород',
     'stats_info'                    => 'Статистика',
     'successful_adding'             => 'Ви успішно додали клієнтів',
     'successful_deleted'            => 'Ви успішно видалили клієнтів',
@@ -53,5 +55,4 @@ return [
     'taxable'                       => 'Оподатковуваний',
     'total'                         => 'Загальна витрачена сума',
     'update'                        => 'Онвити клієнта',
-    'rewards_package'               => 'Пакет нагород',
 ];

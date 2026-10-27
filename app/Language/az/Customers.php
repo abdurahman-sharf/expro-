@@ -2,6 +2,7 @@
 
 return [
     'account_number'                => 'Hesab nömrəsi',
+    'account_number_automatic'      => '',
     'account_number_duplicate'      => 'Hesab nömrəsi artıq verilənlər bazasında mövcuddur.',
     'available_points'              => 'Mövcud ballar',
     'available_points_value'        => '',
@@ -44,6 +45,7 @@ return [
     'none_selected'                 => 'Siz silmək üçün müştəri seçməmisiniz.',
     'one_or_multiple'               => 'müştəri (lər)',
     'quantity'                      => 'Miqdarı',
+    'rewards_package'               => 'Mükafatlar Paketi',
     'stats_info'                    => 'Statistikalar',
     'successful_adding'             => 'Siz uğurla müştəri əlavə etdiniz',
     'successful_deleted'            => 'Siz uğurla sildiniz',
@@ -53,5 +55,4 @@ return [
     'taxable'                       => 'Vergi ödəyirlər',
     'total'                         => 'Toplam xərcləndi',
     'update'                        => 'Müştərini yeniləyin',
-    'rewards_package'               => 'Mükafatlar Paketi',
 ];

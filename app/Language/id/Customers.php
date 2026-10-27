@@ -2,6 +2,7 @@
 
 return [
     'account_number'                => 'Akun #',
+    'account_number_automatic'      => '',
     'account_number_duplicate'      => 'Nomor akun ini telah ada di basis data.',
     'available_points'              => 'Poin tersedia',
     'available_points_value'        => '',
@@ -44,6 +45,7 @@ return [
     'none_selected'                 => 'Anda belum memilih pelanggan untuk dihapus.',
     'one_or_multiple'               => 'Pelanggan',
     'quantity'                      => 'Kuantitas',
+    'rewards_package'               => 'Paket Hadiah',
     'stats_info'                    => 'Statistik',
     'successful_adding'             => 'Anda telah berhasil menambah pelanggan',
     'successful_deleted'            => 'Berhasil menghapus Kartu Hadiah',
@@ -53,5 +55,4 @@ return [
     'taxable'                       => 'Dikenakan pajak',
     'total'                         => 'Total',
     'update'                        => 'Ubah Pelanggan',
-    'rewards_package'               => 'Paket Hadiah',
 ];

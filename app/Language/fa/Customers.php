@@ -2,6 +2,7 @@
 
 return [
     'account_number'                => 'حساب #',
+    'account_number_automatic'      => '',
     'account_number_duplicate'      => 'شماره حساب قبلاً در بانک اطلاعاتی موجود است.',
     'available_points'              => 'امتیازهای موجود',
     'available_points_value'        => '',
@@ -44,6 +45,7 @@ return [
     'none_selected'                 => 'شما هیچ مشتری یا مشتری را برای حذف انتخاب نکرده اید.',
     'one_or_multiple'               => 'مشتری (ها)',
     'quantity'                      => 'تعداد',
+    'rewards_package'               => 'بسته پاداش',
     'stats_info'                    => 'آمار',
     'successful_adding'             => 'شما با موفقیت مشتری اضافه کردید',
     'successful_deleted'            => 'شما با موفقیت حذف شده اید',
@@ -53,5 +55,4 @@ return [
     'taxable'                       => 'مشمول مالیات',
     'total'                         => 'جمع هزینه',
     'update'                        => 'به روز رسانی مشتری',
-    'rewards_package'               => 'بسته پاداش',
 ];

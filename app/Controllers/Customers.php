@@ -3,6 +3,8 @@
 namespace App\Controllers;
 
 use App\Libraries\Mailchimp_lib;
+use App\Libraries\Numbering\DocumentNumbering;
+use App\Libraries\Numbering\DocumentType;
 
 use App\Models\Customer;
 use App\Models\Customer_rewards;
@@ -154,6 +156,8 @@ class Customers extends Persons
         }
         $data['person_info'] = $info;
 
+        $data['automatic_account_number'] = $customer_id == NEW_ENTRY ? (new DocumentNumbering())->peek(DocumentType::Customer) : null;
+
         if (empty($info->person_id) || empty($info->date) || empty($info->employee_id)) {
             $data['person_info']->date = date('Y-m-d H:i:s');
             $data['person_info']->employee_id = $this->employee->get_logged_in_employee_info()->person_id;
@@ -278,6 +282,10 @@ class Customers extends Persons
             'employee_id'       => $this->request->getPost('employee_id', FILTER_SANITIZE_NUMBER_INT),
             'sales_tax_code_id' => $this->request->getPost('sales_tax_code_id') == '' ? null : $this->request->getPost('sales_tax_code_id', FILTER_SANITIZE_NUMBER_INT)
         ];
+
+        if ($customer_data['account_number'] !== null && (new DocumentNumbering())->sequence(DocumentType::Customer)->preventDuplicates && $this->customer->check_account_number_exists($customer_data['account_number'], (string) $customer_id)) {
+            return $this->response->setJSON(['success' => false, 'message' => lang('Customers.account_number_duplicate'), 'id' => NEW_ENTRY]);
+        }
 
         if ($this->customer->save_customer($person_data, $customer_data, $customer_id)) {
             // Save customer to Mailchimp selected list    // TODO: addOrUpdateMember should be refactored. Potentially pass an array or object instead of 6 parameters.
