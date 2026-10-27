@@ -20,7 +20,6 @@ use App\Models\Supplier;
 use App\Models\Tax_category;
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\HTTP\DownloadResponse;
-use CodeIgniter\HTTP\Exceptions\RedirectException;
 use CodeIgniter\HTTP\ResponseInterface;
 use CodeIgniter\Images\Handlers\BaseHandler;
 use CodeIgniter\Validation\FormatRules;
@@ -86,10 +85,6 @@ class Items extends Secure_Controller
         $data['table_headers'] = getItemsManageTableHeaders();
 
         $data['stock_locations'] = $this->itemLocations();
-
-        if ($data['stock_locations'] === []) {
-            throw new RedirectException('no_access/items/items_stock');
-        }
 
         // Restore stock_location from URL or session
         $stockLocation          = $this->request->getGet('stock_location', FILTER_SANITIZE_NUMBER_INT);
