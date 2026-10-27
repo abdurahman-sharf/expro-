@@ -1482,6 +1482,31 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $this->get('/receivings')->assertDontSeeElement('#invoice_discount_form');
     }
 
+    public function testPostSetInvoiceDiscount_SendsAnEmployeeWithoutTheReceivingsModuleToTheNoAccessPage(): void
+    {
+        $itemId = $this->item('0.00');
+        $person = $this->createEmployee(first_name: 'No', last_name: 'Access', grants: [['permission_id' => 'items', 'menu_group' => 'home']]);
+        $this->loginAs($person, $this->cart([$this->cartLine($itemId, 1, '10', '100')]));
+
+        $response = $this->post('/receivings/setInvoiceDiscount', ['invoice_discount' => '10', 'invoice_discount_type' => '0']);
+
+        $this->assertStringContainsString('no_access', $response->getRedirectUrl());
+        $this->assertNull(session()->get('recv_invoice_discount'));
+    }
+
+    public function testPostComplete_SendsAnEmployeeWithoutTheReceivingsModuleToTheNoAccessPageWhateverTheRegisterHolds(): void
+    {
+        $itemId = $this->item('0.00');
+        $before = $this->countRows('receivings');
+        $person = $this->createEmployee(first_name: 'No', last_name: 'Access', grants: [['permission_id' => 'items', 'menu_group' => 'home']]);
+        $this->loginAs($person, $this->withInvoiceDiscount($this->cart([$this->cartLine($itemId, 1, '10', '100')]), PERCENT, '10.0000'));
+
+        $response = $this->post('/receivings/complete', $this->completeForm());
+
+        $this->assertStringContainsString('no_access', $response->getRedirectUrl());
+        $this->assertSame($before, $this->countRows('receivings'));
+    }
+
     public function testPostCancelReceiving_ForgetsTheDiscount(): void
     {
         $itemId = $this->item('0.00');

@@ -2760,6 +2760,43 @@ class ReceivingPostingTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('accounting_posting_failures'), 'The books are off, so nothing is written there');
     }
 
+    public function testSaveValue_PostsAPurchaseWithADiscountInTheBranchOfItsLocationAndOnlyTheClosedPeriodOfThatBranchStopsIt(): void
+    {
+        $item   = $this->item('0.00');
+        $branch = $this->createBranch('B3', 'Third branch');
+        $other  = $this->locationOfBranch($branch, 'Branch warehouse');
+
+        $this->closeThrough(date('Y-m-d'), 1);
+
+        $id = $this->buy([$this->purchaseLine($item, 0, '10', '100', '15', '0', PERCENT, $other)], -1, null, null, InvoiceDiscount::of(PERCENT, '10'));
+
+        $this->assertGreaterThan(0, $id, 'The period of the main branch is closed, and this is the other branch');
+        $this->assertSame($branch, $this->purchases->getBranchId($id));
+        $this->assertSame($branch, (int) $this->accountingDb()->table('accounting_journals')->where('source_type', 'purchase')->where('source_id', $id)->get()->getRow()->branch_id);
+        $roles = $this->roles();
+
+        $this->assertSame([$this->stockAccountOf($other) . ':900.0000:0.0000', $roles['tax_input'] . ':135.0000:0.0000', $roles['supplier'] . ':0.0000:1035.0000'], $this->exactLines($this->standingPurchase($id)[0]['id']));
+
+        $this->closeThrough(date('Y-m-d'), $branch);
+
+        $refused = $this->buy([$this->purchaseLine($item, 0, '10', '100', '15', '0', PERCENT, $other)], -1, null, null, InvoiceDiscount::of(PERCENT, '10'));
+
+        $this->assertRefusedWith(PostingError::PeriodClosed, $refused);
+        $this->assertSame(1, $this->countRows('receivings'), 'Nothing of the refused purchase is left, not even what it took of the discount');
+        $this->assertStockTies();
+    }
+
+    public function testSaveValue_RefusesADiscountedPurchaseThatWorksInTwoBranches(): void
+    {
+        $item  = $this->item('0.00');
+        $other = $this->locationOfBranch($this->createBranch('B3', 'Third branch'), 'Branch warehouse');
+
+        $across = $this->buy([$this->purchaseLine($item, 0, '4', '50'), $this->purchaseLine($item, 1, '4', '50', '0', '0', PERCENT, $other)], -1, null, null, InvoiceDiscount::of(PERCENT, '10'));
+
+        $this->assertRefusedWith(PostingError::PurchaseAcrossBranches, $across);
+        $this->assertSame(0, $this->countRows('receivings'));
+    }
+
     public function testSaveValue_RefusesAPurchaseWithADiscountInAClosedPeriodAndLeavesNothingOfIt(): void
     {
         $item = $this->item('5.00');
