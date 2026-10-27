@@ -1999,6 +1999,7 @@ class ItemsControllerTest extends CIUnitTestCase
         try {
             return json_decode($this->post('/items/importCsvFile')->getJSON(), true);
         } finally {
+            set_time_limit(0);
             unset($_FILES['file_path']);
             unlink($file);
         }
