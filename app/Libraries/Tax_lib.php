@@ -182,10 +182,10 @@ class Tax_lib
      */
     public function get_included_tax(string $quantity, string $price, string $discount_percentage, int $discount_type, string $tax_percentage, $tax_decimal, $rounding_code, string $invoiceDiscountShare = '0'): string    // TODO: $tax_decimal and $rounding_code are in the signature but never used in the function.
     {
-        $item_total = $this->sale_lib->get_item_total($quantity, $price, $discount_percentage, $discount_type, true, $invoiceDiscountShare);
-        $tax_fraction = bcdiv(bcadd('100', $tax_percentage), '100');
-        $price_tax_excl = bcdiv($item_total, $tax_fraction);
-        return bcsub($item_total, $price_tax_excl);
+        $itemTotal = $this->sale_lib->get_item_total($quantity, $price, $discount_percentage, $discount_type, true, $invoiceDiscountShare);
+        $taxFraction = bcdiv(bcadd('100', $tax_percentage), '100');
+        $priceTaxExcl = bcdiv($itemTotal, $taxFraction);
+        return bcsub($itemTotal, $priceTaxExcl);
     }
 
     /**

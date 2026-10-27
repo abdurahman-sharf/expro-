@@ -7,12 +7,13 @@ use App\Libraries\Accounting\SaleAmounts;
 /**
  * The discount on the whole of a sale, taken after the discounts of its lines. It is a percentage of
  * what the lines come to or an amount, rounded to the decimals the shop works in, and it is shared
- * out over the lines in proportion to what each comes to, every share rounded to those decimals too
- * so that a line never sells for more decimals than it did without the discount, with what rounding
- * leaves over on the last line that carries any. Every figure that depends on it (the tax of each line, the journal of the
- * invoice, the reports) reads these shares and never works the discount out again, so they cannot
- * disagree. A return takes back the share of what it returns, and the last return of an item takes
- * all that is left of it, so the returns of a sale give back exactly what it was given.
+ * out over the lines in proportion to what each comes to. Every share is rounded to those decimals
+ * too, so that a line never sells for more decimals than it did without the discount, and what
+ * rounding leaves over goes on the last line that carries any. Every figure that depends on it (the
+ * tax of each line, the journal of the invoice, the reports) reads these shares and never works the
+ * discount out again, so they cannot disagree. A return takes back the share of what it returns, and
+ * the last return of an item takes all that is left of it, so the returns of a sale give back
+ * exactly what it was given.
  */
 final class InvoiceDiscount
 {
