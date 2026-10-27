@@ -867,6 +867,7 @@ class EmployeesControllerTest extends CIUnitTestCase
         return [
             [AccountingGuard::TREASURIES_MANAGE, 'accounting_treasuries'],
             [AccountingGuard::PAYABLES_MANAGE, 'accounting_payables'],
+            [AccountingGuard::INTERBRANCH_SETTLE, 'accounting_treasuries'],
         ];
     }
 
@@ -947,6 +948,7 @@ class EmployeesControllerTest extends CIUnitTestCase
             ['permission_id' => 'employees', 'menu_group' => 'office'],
             ['permission_id' => AccountingGuard::TREASURIES_MANAGE, 'menu_group' => '--'],
             ['permission_id' => AccountingGuard::PAYABLES_MANAGE, 'menu_group' => '--'],
+            ['permission_id' => AccountingGuard::INTERBRANCH_SETTLE, 'menu_group' => '--'],
         ]);
         $this->loginAsNonAdmin($editor);
 

@@ -60,6 +60,7 @@ class SensitivePermissionsTest extends CIUnitTestCase
             AccountingGuard::ROUTING_MANAGE,
             AccountingGuard::TREASURIES_MANAGE,
             AccountingGuard::PAYABLES_MANAGE,
+            AccountingGuard::INTERBRANCH_SETTLE,
         ];
 
         foreach ($sensitive as $permissionId) {
@@ -83,6 +84,7 @@ class SensitivePermissionsTest extends CIUnitTestCase
                 AccountingGuard::ROUTING_MANAGE,
                 AccountingGuard::TREASURIES_MANAGE,
                 AccountingGuard::PAYABLES_MANAGE,
+                AccountingGuard::INTERBRANCH_SETTLE,
             ],
             AccountingGuard::SENSITIVE,
         );
