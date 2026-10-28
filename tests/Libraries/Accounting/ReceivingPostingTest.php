@@ -1815,6 +1815,39 @@ class ReceivingPostingTest extends CIUnitTestCase
         $this->assertStockTies();
     }
 
+    public function testUpdateLines_TwoCorrectionsFromTwoRequestsAtTheSameMomentEndWithOneStandingRevisionAndTheStockTied(): void
+    {
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '50')]);
+
+        [$one, $two] = $this->raceTwoProcesses('editPurchaseLines', [$receivingId, $itemId, '8', $this->editor()], [$receivingId, $itemId, '6', $this->editor()]);
+
+        $this->assertTrue($one);
+        $this->assertTrue($two);
+        $this->assertCount(1, $this->standingPurchase($receivingId));
+        $this->assertSame(['reversed', 'reversed', 'posted'], array_column($this->purchaseJournals($receivingId), 'status'));
+        $this->assertSame(bcadd($this->onHand($itemId), '0', 3), $this->stockOf($itemId)['quantity']);
+        $this->assertContains($this->onHand($itemId), ['6.000', '8.000']);
+        $this->assertStockTies();
+        $this->assertSupplierTies();
+    }
+
+    public function testUpdateLines_TwoCorrectionsOfAReceivingWithoutASupplierAtTheSameMomentDoNotTakeTheSameJournalBackTwice(): void
+    {
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '50')], null, lang('Sales.cash'));
+
+        [$one, $two] = $this->raceTwoProcesses('editPurchaseLines', [$receivingId, $itemId, '8', $this->editor()], [$receivingId, $itemId, '6', $this->editor()]);
+
+        $this->assertTrue($one);
+        $this->assertTrue($two);
+        $this->assertCount(1, $this->standingPurchase($receivingId));
+        $this->assertSame(['reversed', 'reversed', 'posted'], array_column($this->purchaseJournals($receivingId), 'status'));
+        $this->assertContains($this->onHand($itemId), ['6.000', '8.000']);
+        $this->assertSame(bcadd($this->onHand($itemId), '0', 3), $this->stockOf($itemId)['quantity']);
+        $this->assertStockTies();
+    }
+
     private function trackRaceReceivings(): void
     {
         foreach ($this->accountingDb()->table('receivings')->select('receiving_id')->where('comment', 'race')->get()->getResult() as $row) {

@@ -168,6 +168,69 @@ class ItemTest extends CIUnitTestCase
         $this->assertSame('9.00', bcadd((string) $items->get_info($itemId)->cost_price, '0', 2));
     }
 
+    /**
+     * @return array{Item, int}
+     */
+    private function itemWithStockAndCost(string $onHand, string $cost): array
+    {
+        $items  = model(Item::class);
+        $itemId = $this->createTestItem();
+        $data   = ['cost_price' => $cost];
+
+        model(Item_quantity::class)->save_value(['item_id' => $itemId, 'location_id' => 1, 'quantity' => $onHand], $itemId, 1);
+        $items->save_value($data, $itemId);
+
+        return [$items, $itemId];
+    }
+
+    public function testCorrectPurchaseCost_TakesTheUnitsOutAtTheirValueAndPutsTheNewOnesInAsTheReferenceSystemDoes(): void
+    {
+        [$items, $itemId] = $this->itemWithStockAndCost('18', '108.888889');
+
+        $this->assertTrue($items->correctPurchaseCost($itemId, '8', '960', '8', '1120'));
+        $this->assertSame('117.777778', (string) $items->get_info($itemId)->cost_price, '1,000 and 1,120 of 18 units: the average the reference system reached after the price edit');
+    }
+
+    public function testCorrectPurchaseCost_GoesBackToTheAverageOfTheStockThatIsLeftWhenAPurchaseIsTakenOut(): void
+    {
+        [$items, $itemId] = $this->itemWithStockAndCost('18', '117.777778');
+
+        $this->assertTrue($items->correctPurchaseCost($itemId, '8', '1120', '0', '0'));
+        $this->assertSame('100.000000', (string) $items->get_info($itemId)->cost_price);
+    }
+
+    public function testCorrectPurchaseCost_WeighsTheStockBelowTheUnitsTakenOutInOneStep(): void
+    {
+        [$items, $itemId] = $this->itemWithStockAndCost('5', '112.5');
+
+        $this->assertTrue($items->correctPurchaseCost($itemId, '10', '1200', '8', '960'));
+        $this->assertSame('107.500000', (string) $items->get_info($itemId)->cost_price, 'Five units of 112.5 less ten of 120 and plus eight of 120 are three units worth 322.5');
+    }
+
+    public function testCorrectPurchaseCost_LeavesTheCostWhenNoStockIsLeftToWeigh(): void
+    {
+        [$items, $itemId] = $this->itemWithStockAndCost('8', '100');
+
+        $this->assertTrue($items->correctPurchaseCost($itemId, '8', '800', '0', '0'));
+        $this->assertSame('100.000000', (string) $items->get_info($itemId)->cost_price);
+    }
+
+    public function testCorrectPurchaseCost_LeavesTheCostWhenTheValueTakenOutIsMoreThanTheStockIsWorth(): void
+    {
+        [$items, $itemId] = $this->itemWithStockAndCost('10', '1');
+
+        $this->assertTrue($items->correctPurchaseCost($itemId, '2', '100', '0', '0'));
+        $this->assertSame('1.000000', (string) $items->get_info($itemId)->cost_price);
+    }
+
+    public function testCorrectPurchaseCost_ChangesNothingWhenWhatIsTakenOutIsPutBackIn(): void
+    {
+        [$items, $itemId] = $this->itemWithStockAndCost('20', '71.428571');
+
+        $this->assertTrue($items->correctPurchaseCost($itemId, '4', '200', '4', '200'));
+        $this->assertSame('71.428571', (string) $items->get_info($itemId)->cost_price);
+    }
+
     public function testDelete_TakesTheStockOffTheBooksAndLogsItForTheLocation(): void
     {
         [$itemId] = $this->twoItemsInTheBooks();
