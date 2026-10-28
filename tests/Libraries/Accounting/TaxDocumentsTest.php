@@ -206,6 +206,15 @@ class TaxDocumentsTest extends CIUnitTestCase
         }
     }
 
+    public function testSales_ReadsOnlyTheSalesNamed(): void
+    {
+        $first  = $this->sell('100.00', '15.00');
+        $second = $this->sell('200.00', '30.00');
+
+        $this->assertSame([$first], array_keys($this->documents()->sales([$first])));
+        $this->assertSame([$second], array_keys($this->documents(2, 1)->sales([$second])));
+    }
+
     public function testSales_ReadsASaleOnceWhenItIsNamedTwiceAndNothingWhenNoneIsNamed(): void
     {
         $saleId = $this->sell('100.00', '15.00');
@@ -276,6 +285,15 @@ class TaxDocumentsTest extends CIUnitTestCase
 
         $this->assertGreaterThan(0, $transfer);
         $this->assertSame([$purchase], array_keys($this->documents()->purchases([$transfer, $purchase, 987654])));
+    }
+
+    public function testPurchases_ReadsOnlyThePurchasesNamed(): void
+    {
+        $first  = $this->buyTaxed('1', '100', '15');
+        $second = $this->buyTaxed('1', '200', '15');
+
+        $this->assertSame([$first], array_keys($this->documents()->purchases([$first])));
+        $this->assertSame([$second], array_keys($this->documents(2, 1)->purchases([$second])));
     }
 
     public function testPurchases_ReadsEveryPurchaseWhateverTheSizeOfTheChunkItReadsThem(): void

@@ -214,7 +214,6 @@ final class TaxReport
         }
 
         $base = bcsub($totalDebit, SaleAmounts::absolute($movement), self::SCALE);
-        $base = bccomp($base, '0', self::SCALE) < 0 ? '0' : $base;
 
         $part['base'] = bcadd($part['base'], self::signed($base, $sign), self::SCALE);
         $part['tax']  = bcadd($part['tax'], $movement, self::SCALE);
@@ -391,7 +390,6 @@ final class TaxReport
         $builder = $this->db->table('expenses e')
             ->select('COUNT(e.expense_id) AS total', false)
             ->where('e.deleted', 0)
-            ->where('e.tax_amount IS NOT NULL', null, false)
             ->where('e.tax_amount !=', 0)
             ->where('e.date <', $before)
             ->groupStart()

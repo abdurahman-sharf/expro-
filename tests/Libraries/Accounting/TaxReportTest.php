@@ -556,6 +556,28 @@ class TaxReportTest extends CIUnitTestCase
         $this->assertSame('15.0000', $this->accountOf($report, '2199')->movement);
         $this->assertSame(['output'], $this->accountOf($report, '2199')->roles);
         $this->assertSame(['input'], $this->accountOf($report, '215002')->roles);
+        $this->assertSame(['215002', '2199'], array_map(static fn (TaxAccountFigures $account): string => $account->code, $report->accounts), 'In the order of the codes');
+    }
+
+    public function testBuild_ReadsOnlyTheRoutingOfItsOwnCompany(): void
+    {
+        $db = $this->accountingDb();
+        $db->table('companies')->insert(['name' => 'Another company']);
+        $company = (int) $db->insertID();
+
+        $db->table('accounting_accounts')->insert(['company_id' => $company, 'code' => '99', 'name' => 'Foreign tax', 'account_type' => 'liability', 'normal_balance' => 'credit', 'is_group' => 0]);
+        $foreign = (int) $db->insertID();
+        $db->table('accounting_routing')->insert(['company_id' => $company, 'routing_key' => RoutingKey::TaxOutput->value, 'routing_type' => 'auto', 'account_id' => $foreign]);
+
+        try {
+            $report = $this->report();
+
+            $this->assertSame(['215001', '215002'], array_map(static fn (TaxAccountFigures $account): string => $account->code, $report->accounts));
+        } finally {
+            $db->table('accounting_routing')->where('company_id', $company)->delete();
+            $db->table('accounting_accounts')->where('company_id', $company)->delete();
+            $db->table('companies')->where('company_id', $company)->delete();
+        }
     }
 
     public function testBuild_TiesOneAccountThatBothKindsOfTaxAreRoutedTo(): void
@@ -685,7 +707,6 @@ class TaxReportTest extends CIUnitTestCase
         $this->saveLegacySale('2026-09-15 10:00:00', '100.00', '15.00');
         $this->saveLegacyPurchase('2026-09-20 10:00:00');
         $this->saveLegacyExpense('2026-09-25 10:00:00', '23.00', '3.00');
-        $this->saveLegacyExpense('2026-09-26 10:00:00', '50.00', '0');
         $this->saveLegacyExpense('2026-10-02 10:00:00', '115.00', '15.00');
 
         $report = $this->report();
@@ -694,7 +715,27 @@ class TaxReportTest extends CIUnitTestCase
         $this->assertSame(3, $report->legacyDocuments, 'A sale, a purchase and an expense with tax, before the day the books began');
         $this->assertTrue($report->reachesBeforeBooks());
         $this->assertSame('0.0000', $report->net(), 'No journal holds them');
-        $this->assertSame(2, $this->report('2026-09-16', '2026-09-30')->legacyDocuments, 'The purchase and the expense with tax of the later days of September');
+        $this->assertSame(2, $this->report('2026-09-16', '2026-09-30')->legacyDocuments, 'The purchase and the expense of the later days of September');
+    }
+
+    public function testBuild_LeavesOutOfTheDocumentsBeforeTheBooksTheOnesThatCarryNoTaxOrAreNotDocumentsOfTax(): void
+    {
+        $this->setConfigValue('accounting_start_date', '2026-10-01');
+        $this->saveLegacySale('2026-09-15 10:00:00', '100.00', '0');
+        $this->saveLegacySale('2026-09-15 10:00:00', '100.00', '15.00', 1, SUSPENDED);
+        $this->saveLegacySale('2026-09-15 10:00:00', '100.00', '15.00', 1, CANCELED);
+        $this->saveLegacySale('2026-09-15 10:00:00', '100.00', '15.00', 1, COMPLETED, SALE_TYPE_QUOTE);
+        $this->saveLegacyPurchase('2026-09-20 10:00:00', '0');
+        $this->saveLegacyPurchase('2026-09-20 10:00:00', '15', 'requisition');
+        $this->saveLegacyExpense('2026-09-25 10:00:00', '50.00', '0');
+        $this->saveLegacyExpense('2026-09-25 10:00:00', '50.00', null);
+        $this->saveLegacyExpense('2026-09-25 10:00:00', '115.00', '15.00', null, 1);
+
+        $this->assertSame(0, $this->report()->legacyDocuments);
+
+        $this->saveLegacySale('2026-09-16 10:00:00', '200.00', '30.00', 1, COMPLETED, SALE_TYPE_RETURN);
+
+        $this->assertSame(1, $this->report()->legacyDocuments, 'A return with tax counts as a document');
     }
 
     public function testBuild_CountsTheDocumentsBeforeTheBooksBeganOnlyInThePeriodAsked(): void
@@ -715,11 +756,13 @@ class TaxReportTest extends CIUnitTestCase
         $this->setConfigValue('accounting_start_date', '2026-10-01');
         $this->saveLegacySale('2026-09-15 10:00:00', '100.00', '15.00', $this->second);
         $this->saveLegacySale('2026-09-16 10:00:00', '100.00', '15.00', 1);
+        $this->saveLegacyPurchase('2026-09-18 10:00:00', '15', 'receive', $this->second);
+        $this->saveLegacyPurchase('2026-09-19 10:00:00', '15', 'receive', 1);
         $this->saveLegacyExpense('2026-09-17 10:00:00', '23.00', '3.00', null);
 
-        $this->assertSame(1, $this->report(scope: $this->scopeOf([$this->second]))->legacyDocuments);
-        $this->assertSame(2, $this->report(scope: $this->scopeOf([1]))->legacyDocuments, 'An expense with no branch belongs to the default branch');
-        $this->assertSame(3, $this->report()->legacyDocuments);
+        $this->assertSame(2, $this->report(scope: $this->scopeOf([$this->second]))->legacyDocuments, 'A sale and a purchase of the second branch');
+        $this->assertSame(3, $this->report(scope: $this->scopeOf([1]))->legacyDocuments, 'A sale and a purchase of the first, and an expense with no branch, which belongs to the default branch');
+        $this->assertSame(5, $this->report()->legacyDocuments);
     }
 
     public function testBuild_CountsNoDocumentBeforeTheBooksWhenThereIsNoStartDate(): void

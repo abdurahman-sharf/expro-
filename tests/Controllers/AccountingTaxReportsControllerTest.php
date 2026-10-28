@@ -491,16 +491,19 @@ final class AccountingTaxReportsControllerTest extends CIUnitTestCase
         $this->get('/accounting_reports/ledger')->assertSee('id="tax_report_link"');
     }
 
-    public function testGetIndex_EscapesTheNamesOfTheAccounts(): void
+    public function testGetIndex_EscapesTheNamesAndTheCodesOfTheAccounts(): void
     {
         $this->observedScenario();
         $this->accountingDb()->table('accounting_accounts')->where('code', '215001')->update(['name' => '<script>alert(1)</script>']);
+        $this->accountingDb()->table('accounting_accounts')->where('code', '215002')->update(['code' => '<b>215002</b>']);
         $this->viewer();
 
         $body = $this->get(self::SCREEN)->getBody();
 
         $this->assertStringNotContainsString('<script>alert(1)</script>', $body);
         $this->assertStringContainsString('&lt;script&gt;alert(1)&lt;/script&gt;', $body);
+        $this->assertStringNotContainsString('<b>215002</b>', $body);
+        $this->assertStringContainsString('&lt;b&gt;215002&lt;/b&gt;', $body);
     }
 
     public function testGetCsv_GivesThePartsTheRatesAndTheTotalsOfTheReport(): void
@@ -534,6 +537,20 @@ final class AccountingTaxReportsControllerTest extends CIUnitTestCase
         $this->assertSame([$total, lang('Accounting_tax_reports.total_output'), '', '', '900.0000', '135.0000'], $rows[count($rows) - 3]);
         $this->assertSame([$total, lang('Accounting_tax_reports.total_input'), '', '', '1200.0000', '180.0000'], $rows[count($rows) - 2]);
         $this->assertSame([$total, lang('Accounting_tax_reports.row_total_company') . ': ' . lang('Accounting_tax_reports.net_refundable'), '', '', '', '-45.0000'], $rows[count($rows) - 1]);
+    }
+
+    public function testGetCsv_AddsARowForTheDocumentsThatTookADiscountOnTheWhole(): void
+    {
+        $cycle = $this->discountedReferenceInvoice();
+
+        $this->assertGreaterThan(0, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']));
+        $this->sell('100.00', '15.00');
+        $this->viewer();
+
+        $rows = $this->csvRows($this->get(self::SCREEN . '/csv'));
+
+        $this->assertContains([lang('Accounting_tax_reports.row_discounted'), lang('Accounting_tax_reports.section_sales'), '', '1', '639.0000', '95.8500'], $rows);
+        $this->assertSame(1, count(array_filter($rows, static fn (array $row): bool => $row[0] === lang('Accounting_tax_reports.row_discounted'))), 'One row, for the part that has such documents');
     }
 
     public function testGetCsv_RefusesAnotherBasisAndAnInvalidPeriodInWords(): void

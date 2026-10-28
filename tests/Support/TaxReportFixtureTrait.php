@@ -139,34 +139,37 @@ trait TaxReportFixtureTrait
         return $journalId;
     }
 
-    protected function saveLegacySale(string $time, string $net, string $tax, int $branchId = 1): int
+    protected function saveLegacySale(string $time, string $net, string $tax, int $branchId = 1, int $status = COMPLETED, int $type = SALE_TYPE_INVOICE): int
     {
         $db      = $this->accountingDb();
         $service = $this->item('0', false);
 
-        $db->table('sales')->insert(['sale_time' => $time, 'employee_id' => $this->employeeId, 'comment' => '', 'sale_status' => COMPLETED, 'sale_type' => SALE_TYPE_INVOICE, 'branch_id' => $branchId]);
+        $db->table('sales')->insert(['sale_time' => $time, 'employee_id' => $this->employeeId, 'comment' => '', 'sale_status' => $status, 'sale_type' => $type, 'branch_id' => $branchId]);
         $saleId = (int) $db->insertID();
 
         $db->table('sales_items')->insert(['sale_id' => $saleId, 'item_id' => $service, 'line' => 0, 'quantity_purchased' => '1', 'item_cost_price' => '0', 'item_unit_price' => $net, 'discount' => '0', 'discount_type' => 0, 'item_location' => 1, 'print_option' => 0]);
-        $db->table('sales_items_taxes')->insert([...$this->tax($service, 0, $tax), 'sale_id' => $saleId]);
+
+        if ($tax !== '0') {
+            $db->table('sales_items_taxes')->insert([...$this->tax($service, 0, $tax), 'sale_id' => $saleId]);
+        }
 
         return $this->saleRowIds[] = $saleId;
     }
 
-    protected function saveLegacyPurchase(string $time): void
+    protected function saveLegacyPurchase(string $time, string $rate = '15', string $type = 'receive', int $branchId = 1): void
     {
         $db   = $this->accountingDb();
         $item = $this->item('0.00');
 
-        $db->table('receivings')->insert(['receiving_time' => $time, 'supplier_id' => $this->supplierId, 'employee_id' => $this->employeeId, 'comment' => '', 'receiving_type' => 'receive', 'branch_id' => 1]);
+        $db->table('receivings')->insert(['receiving_time' => $time, 'supplier_id' => $this->supplierId, 'employee_id' => $this->employeeId, 'comment' => '', 'receiving_type' => $type, 'branch_id' => $branchId]);
         $receivingId = (int) $db->insertID();
 
-        $db->table('receivings_items')->insert(['receiving_id' => $receivingId, 'item_id' => $item, 'line' => 0, 'quantity_purchased' => '1', 'item_cost_price' => '0', 'item_unit_price' => '100', 'discount' => '0', 'discount_type' => 0, 'item_location' => 1, 'receiving_quantity' => '1', 'tax_percent' => '15']);
+        $db->table('receivings_items')->insert(['receiving_id' => $receivingId, 'item_id' => $item, 'line' => 0, 'quantity_purchased' => '1', 'item_cost_price' => '0', 'item_unit_price' => '100', 'discount' => '0', 'discount_type' => 0, 'item_location' => 1, 'receiving_quantity' => '1', 'tax_percent' => $rate]);
 
         $this->receivingIds[] = $receivingId;
     }
 
-    protected function saveLegacyExpense(string $time, string $gross, string $tax, ?int $branchId = null): void
+    protected function saveLegacyExpense(string $time, string $gross, ?string $tax, ?int $branchId = null, int $deleted = 0): void
     {
         $this->accountingDb()->table('expenses')->insert([
             'date'                => $time,
@@ -176,7 +179,7 @@ trait TaxReportFixtureTrait
             'expense_category_id' => $this->category(),
             'description'         => 'Legacy expense',
             'employee_id'         => $this->clerkId,
-            'deleted'             => 0,
+            'deleted'             => $deleted,
             'branch_id'           => $branchId,
         ]);
     }

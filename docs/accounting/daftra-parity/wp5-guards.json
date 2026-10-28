@@ -1,0 +1,1237 @@
+[
+  {
+    "name": "T01 the cash basis is refused when the report is built",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "if ($basis !== TaxBasis::Accrual) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T02 a draft and a preview journal are not in the books",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "->whereIn('j.status', [JournalStatus::Posted->value, JournalStatus::Reversed->value])",
+    "replace": "->whereIn('j.status', [JournalStatus::Posted->value, JournalStatus::Reversed->value, JournalStatus::Draft->value, JournalStatus::Preview->value])",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T03 a journal that was reversed still counts, with its reversal",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "->whereIn('j.status', [JournalStatus::Posted->value, JournalStatus::Reversed->value])",
+    "replace": "->whereIn('j.status', [JournalStatus::Posted->value])",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T04 the branches of the scope only",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "->whereIn('j.branch_id', $scope->ids)",
+    "replace": "->where('1 = 1', null, false)",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T05 the journals of this company only",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "->where('j.company_id', CompanyContext::id())",
+    "replace": "->where('1 = 1', null, false)",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T06 the accounts of tax only",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "->whereIn('l.account_id', $accountIds)",
+    "replace": "->where('1 = 1', null, false)",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T07 the last day of the period counts and the days after do not",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "->where('j.journal_date <=', $period->to)",
+    "replace": "->where('1 = 1', null, false)",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T08 the first day of the period counts and the days before do not",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "$builder->where('j.journal_date >=', $period->from);",
+    "replace": "$builder->where('1 = 1', null, false);",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T09 what is owed is credit minus debit",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "SUM(l.credit - l.debit) AS movement",
+    "replace": "SUM(l.debit - l.credit) AS movement",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T10 a reversal goes with the type of the document it reverses",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "$type      = (string) ($row->origin_type ?? $row->source_type);",
+    "replace": "$type      = (string) $row->source_type;",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T11 a reversal goes with the number of the document it reverses",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "$sourceId  = (int) ($row->origin_id ?? $row->source_id);",
+    "replace": "$sourceId  = (int) $row->source_id;",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T12 an expense is sorted by its source",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "if ($type === ExpensePostingBuilder::SOURCE) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T13 a purchase is sorted through its document",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "if ($type === SalePostingBuilder::SOURCE_SALE || $type === ReceivingPostingBuilder::SOURCE_PURCHASE) {",
+    "replace": "if ($type === SalePostingBuilder::SOURCE_SALE) {",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T14 what is not tax of a document is counted apart",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "$others[$accountId][(int) $row->journal_id] = true;",
+    "replace": "$reported[$accountId] = bcadd($reported[$accountId] ?? '0', $movement, self::SCALE);",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T15 the tax of an expense is in what the report counts",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "$reported[$accountId] = bcadd($reported[$accountId] ?? '0', $movement, self::SCALE);",
+    "replace": "$reported[$accountId] = $reported[$accountId] ?? '0';",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T16 an expense that nets to nothing is not a document",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "static fn (string $net): bool => bccomp($net, '0', self::SCALE) !== 0",
+    "replace": "static fn (string $net): bool => true",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T17 the tax of a document that is gone is not tax of a document",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "if ($document === null) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T18 the tax of a document is in what the report counts",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "$reported[(int) $row->account_id] = bcadd($reported[(int) $row->account_id] ?? '0', (string) $row->movement, self::SCALE);",
+    "replace": "$reported[(int) $row->account_id] = $reported[(int) $row->account_id] ?? '0';",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T19 the base of an expense is its journal less its tax",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "$base = bcsub($totalDebit, SaleAmounts::absolute($movement), self::SCALE);",
+    "replace": "$base = $totalDebit;",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T20 the base of an expense has the sign of its tax",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "$part['base'] = bcadd($part['base'], self::signed($base, $sign), self::SCALE);",
+    "replace": "$part['base'] = bcadd($part['base'], $base, self::SCALE);",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T21 a document that was reversed counts for nothing",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "        if ($sign === 0) {\n            return true;\n        }",
+    "replace": "        if (false) {\n            return true;\n        }",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T22 a document whose lines disagree with its journal is told apart",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "if (bccomp(SaleAmounts::absolute($movement), $document->tax, self::SCALE) !== 0) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T23 the documents that disagree are counted",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "$unmatched += $this->addDocument($parts[$document->section->value], $document, $movement) ? 0 : 1;",
+    "replace": "$this->addDocument($parts[$document->section->value], $document, $movement);",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T24 the base of a document has the sign of its journal",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "$part['base'] = bcadd($part['base'], self::signed($document->base, $sign), self::SCALE);",
+    "replace": "$part['base'] = bcadd($part['base'], $document->base, self::SCALE);",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T25 the base of a rate has the sign of its journal",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "'base'      => bcadd($row['base'], self::signed($figures['base'], $sign), self::SCALE),",
+    "replace": "'base'      => bcadd($row['base'], $figures['base'], self::SCALE),",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T26 the tax of a rate has the sign of its journal",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "'tax'       => bcadd($row['tax'], self::signed($figures['tax'], $sign), self::SCALE),",
+    "replace": "'tax'       => bcadd($row['tax'], $figures['tax'], self::SCALE),",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T27 the documents of a rate are counted",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "'documents' => $row['documents'] + 1,",
+    "replace": "'documents' => $row['documents'],",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T28 the documents with a discount on the whole are told apart",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "if ($document->discounted) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T29 the documents with a discount on the whole are counted",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "'documents' => $part['discounted']['documents'] + 1,",
+    "replace": "'documents' => $part['discounted']['documents'],",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T30 the base of the documents with a discount has the sign of its journal",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "'base'      => bcadd($part['discounted']['base'], self::signed($document->base, $sign), self::SCALE),",
+    "replace": "'base'      => bcadd($part['discounted']['base'], $document->base, self::SCALE),",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T31 the highest rate comes first",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "bccomp($second->rate, $first->rate, self::SCALE)",
+    "replace": "bccomp($first->rate, $second->rate, self::SCALE)",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T32 the accounts are in the order of their codes",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "uasort($accounts, static fn (array $first, array $second): int => strcmp($first['code'], $second['code']));",
+    "replace": "$accounts = $accounts;",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T33 only the routing of this company is read",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "->where('r.company_id', CompanyContext::id())",
+    "replace": "->where('1 = 1', null, false)",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T34 a kind of tax with no routed account is told",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "$routed[$role]                   = true;",
+    "replace": "$routed[$role]                   = false;",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T35 the books have a start date or none",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "$this->settings->startDate(),",
+    "replace": "null,",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T36 no document is before the books when there is no start",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "        if ($start === null) {\n            return 0;\n        }",
+    "replace": "        if (false) {\n            return 0;\n        }",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T37 the documents before the books end the day before they began",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "$until = min($period->to, $last);",
+    "replace": "$until = $period->to;",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T38 a sale before the books counts only when completed",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "->where('s.sale_status', COMPLETED)",
+    "replace": "->where('1 = 1', null, false)",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T39 a sale before the books counts only when it is a sale, an invoice or a return",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "->whereIn('s.sale_type', [SALE_TYPE_POS, SALE_TYPE_INVOICE, SALE_TYPE_RETURN])",
+    "replace": "->where('1 = 1', null, false)",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T40 a sale before the books counts in the branches of the scope",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "->whereIn('s.branch_id', $scope->ids)",
+    "replace": "->where('1 = 1', null, false)",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T41 a sale before the books counts only when it carries tax",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "->join('sales_items_taxes t', 't.sale_id = s.sale_id')",
+    "replace": "->join('sales_items_taxes t', '1 = 1')",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T42 a sale before the books counts from the first day",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "$builder->where('s.sale_time >=', $after);",
+    "replace": "$builder->where('1 = 1', null, false);",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T43 a sale before the books counts to the last day",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "->where('s.sale_time <', $before);",
+    "replace": "->where('1 = 1', null, false);",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T44 a purchase before the books counts only when it brings goods in or sends them back",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "->whereIn('r.receiving_type', [ReceivingType::Receive->value, ReceivingType::Return->value])",
+    "replace": "->where('1 = 1', null, false)",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T45 a purchase before the books counts only when it carries tax",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "->where('i.tax_percent >', 0)",
+    "replace": "->where('1 = 1', null, false)",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T46 a purchase before the books counts in the branches of the scope",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "->whereIn('r.branch_id', $scope->ids)",
+    "replace": "->where('1 = 1', null, false)",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T47 a purchase before the books counts from the first day",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "$builder->where('r.receiving_time >=', $after);",
+    "replace": "$builder->where('1 = 1', null, false);",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T48 a purchase before the books counts to the last day",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "->where('r.receiving_time <', $before);",
+    "replace": "->where('1 = 1', null, false);",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T49 an expense before the books counts only when it was not deleted",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "->where('e.deleted', 0)",
+    "replace": "->where('1 = 1', null, false)",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T50 an expense before the books counts only when it carries tax",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "->where('e.tax_amount !=', 0)",
+    "replace": "->where('1 = 1', null, false)",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T51 an expense before the books counts to the last day",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "->where('e.date <', $before)",
+    "replace": "->where('1 = 1', null, false)",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T52 an expense before the books counts in the branches of the scope",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "->whereIn('e.branch_id', $scope->ids);",
+    "replace": "->where('1 = 1', null, false);",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T53 an expense with no branch belongs to the default branch only",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "if ($default !== null && in_array((int) $default->branch_id, $scope->ids, true)) {",
+    "replace": "if (true) {",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T54 an expense before the books counts from the first day",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "$builder->where('e.date >=', $after);",
+    "replace": "$builder->where('1 = 1', null, false);",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T55 the report is read in one snapshot",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "return $this->transactional(fn (): TaxReportResult => $this->read($scope, $period));",
+    "replace": "return $this->read($scope, $period);",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "R01 the tax collected is the tax of the sales parts only",
+    "file": "app/Libraries/Accounting/TaxReportResult.php",
+    "find": "if ($figures->section->isOutput() === $output) {",
+    "replace": "if (true) {",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportResultTest.php"
+    ]
+  },
+  {
+    "name": "R02 the tax paid is not negative",
+    "file": "app/Libraries/Accounting/TaxReportResult.php",
+    "find": "return bcsub('0', $this->sum(false, 'tax'), 4);",
+    "replace": "return $this->sum(false, 'tax');",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportResultTest.php"
+    ]
+  },
+  {
+    "name": "R03 the base of the tax paid is not negative",
+    "file": "app/Libraries/Accounting/TaxReportResult.php",
+    "find": "return bcsub('0', $this->sum(false, 'base'), 4);",
+    "replace": "return $this->sum(false, 'base');",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportResultTest.php"
+    ]
+  },
+  {
+    "name": "R04 what is payable is the tax collected less the tax paid",
+    "file": "app/Libraries/Accounting/TaxReportResult.php",
+    "find": "return bcsub($this->output(), $this->input(), 4);",
+    "replace": "return bcadd($this->output(), $this->input(), 4);",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportResultTest.php"
+    ]
+  },
+  {
+    "name": "R05 the report does not tie while a kind of tax has no account",
+    "file": "app/Libraries/Accounting/TaxReportResult.php",
+    "find": "return $this->outputRouted && $this->inputRouted;",
+    "replace": "return true;",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportResultTest.php"
+    ]
+  },
+  {
+    "name": "R06 the report does not tie while an account does not",
+    "file": "app/Libraries/Accounting/TaxReportResult.php",
+    "find": "if (! $account->ties()) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportResultTest.php"
+    ]
+  },
+  {
+    "name": "R07 a period reaches before the books only when they have a start",
+    "file": "app/Libraries/Accounting/TaxReportResult.php",
+    "find": "return $this->startDate !== null && ($this->from === null || $this->from < $this->startDate);",
+    "replace": "return $this->from === null || $this->from < $this->startDate;",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportResultTest.php"
+    ]
+  },
+  {
+    "name": "R08 a period that starts on the first day of the books does not reach before them",
+    "file": "app/Libraries/Accounting/TaxReportResult.php",
+    "find": "$this->from < $this->startDate)",
+    "replace": "$this->from <= $this->startDate)",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportResultTest.php"
+    ]
+  },
+  {
+    "name": "R09 a part the report does not have is refused",
+    "file": "app/Libraries/Accounting/TaxReportResult.php",
+    "find": "throw new LogicException('The report has every part.');",
+    "replace": "return $this->sections[0];",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportResultTest.php"
+    ]
+  },
+  {
+    "name": "R10 the base and the tax are summed apart",
+    "file": "app/Libraries/Accounting/TaxReportResult.php",
+    "find": "$sum = bcadd($sum, $measure === 'tax' ? $figures->tax : $figures->base, 4);",
+    "replace": "$sum = bcadd($sum, $figures->tax, 4);",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportResultTest.php"
+    ]
+  },
+  {
+    "name": "A01 what the accounts hold beyond the report is the book less the report",
+    "file": "app/Libraries/Accounting/TaxAccountFigures.php",
+    "find": "return bcsub($this->movement, $this->reported, 4);",
+    "replace": "return bcadd($this->movement, $this->reported, 4);",
+    "tests": [
+      "tests/Libraries/Accounting/TaxAccountFiguresTest.php"
+    ]
+  },
+  {
+    "name": "A02 an account ties only when no journal of another kind reached it",
+    "file": "app/Libraries/Accounting/TaxAccountFigures.php",
+    "find": "return bccomp($this->other(), '0', 4) === 0 && $this->otherJournals === 0;",
+    "replace": "return bccomp($this->other(), '0', 4) === 0;",
+    "tests": [
+      "tests/Libraries/Accounting/TaxAccountFiguresTest.php"
+    ]
+  },
+  {
+    "name": "A03 an account ties only when its balance is the report's",
+    "file": "app/Libraries/Accounting/TaxAccountFigures.php",
+    "find": "return bccomp($this->other(), '0', 4) === 0 && $this->otherJournals === 0;",
+    "replace": "return $this->otherJournals === 0;",
+    "tests": [
+      "tests/Libraries/Accounting/TaxAccountFiguresTest.php"
+    ]
+  },
+  {
+    "name": "B01 a basis that does not exist is refused",
+    "file": "app/Libraries/Accounting/TaxBasis.php",
+    "find": "if ($basis === null) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/TaxBasisTest.php"
+    ]
+  },
+  {
+    "name": "B02 blanks around a basis are ignored",
+    "file": "app/Libraries/Accounting/TaxBasis.php",
+    "find": "$value = trim($value);",
+    "replace": "$value = (string) $value;",
+    "tests": [
+      "tests/Libraries/Accounting/TaxBasisTest.php"
+    ]
+  },
+  {
+    "name": "B03 no basis is the accrual basis",
+    "file": "app/Libraries/Accounting/TaxBasis.php",
+    "find": "$basis = $value === '' ? self::Accrual : self::tryFrom($value);",
+    "replace": "$basis = self::tryFrom($value);",
+    "tests": [
+      "tests/Libraries/Accounting/TaxBasisTest.php"
+    ]
+  },
+  {
+    "name": "D01 only sales, invoices and returns have tax figures",
+    "file": "app/Libraries/Accounting/TaxDocuments.php",
+    "find": "->whereIn('sale_type', [SALE_TYPE_POS, SALE_TYPE_INVOICE, SALE_TYPE_RETURN])",
+    "replace": "->where('1 = 1', null, false)",
+    "tests": [
+      "tests/Libraries/Accounting/TaxDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "D02 only the sales named are read",
+    "file": "app/Libraries/Accounting/TaxDocuments.php",
+    "find": "->select('sale_id, sale_type')->whereIn('sale_id', $saleIds)",
+    "replace": "->select('sale_id, sale_type')->where('1 = 1', null, false)",
+    "tests": [
+      "tests/Libraries/Accounting/TaxDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "D03 only purchases that bring goods in or send them back have tax figures",
+    "file": "app/Libraries/Accounting/TaxDocuments.php",
+    "find": "->whereIn('receiving_type', [ReceivingType::Receive->value, ReceivingType::Return->value])",
+    "replace": "->where('1 = 1', null, false)",
+    "tests": [
+      "tests/Libraries/Accounting/TaxDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "D04 only the purchases named are read",
+    "file": "app/Libraries/Accounting/TaxDocuments.php",
+    "find": "->select('receiving_id, receiving_type')->whereIn('receiving_id', $receivingIds)",
+    "replace": "->select('receiving_id, receiving_type')->where('1 = 1', null, false)",
+    "tests": [
+      "tests/Libraries/Accounting/TaxDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "D05 a sale that is a return is in the returns",
+    "file": "app/Libraries/Accounting/TaxDocuments.php",
+    "find": "(int) $row->sale_type === SALE_TYPE_RETURN ?",
+    "replace": "false ?",
+    "tests": [
+      "tests/Libraries/Accounting/TaxDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "D06 a purchase that sends goods back is in the returns",
+    "file": "app/Libraries/Accounting/TaxDocuments.php",
+    "find": "$row->receiving_type === ReceivingType::Return->value ?",
+    "replace": "false ?",
+    "tests": [
+      "tests/Libraries/Accounting/TaxDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "D07 only the lines that carry tax are counted",
+    "file": "app/Libraries/Accounting/TaxDocuments.php",
+    "find": "        if (bccomp($tax, '0', self::WORK_SCALE) <= 0) {\n            return;\n        }",
+    "replace": "        if (false) {\n            return;\n        }",
+    "tests": [
+      "tests/Libraries/Accounting/TaxDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "D08 the discount of a line comes off the base",
+    "file": "app/Libraries/Accounting/TaxDocuments.php",
+    "find": "SaleAmounts::lineDiscount($line, $this->decimals)",
+    "replace": "'0'",
+    "tests": [
+      "tests/Libraries/Accounting/TaxDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "D09 the share of the discount on the whole comes off the base",
+    "file": "app/Libraries/Accounting/TaxDocuments.php",
+    "find": "), $share, self::WORK_SCALE)",
+    "replace": "), '0', self::WORK_SCALE)",
+    "tests": [
+      "tests/Libraries/Accounting/TaxDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "D10 the tax inside the price comes off the base",
+    "file": "app/Libraries/Accounting/TaxDocuments.php",
+    "find": "$share, self::WORK_SCALE), $included, self::WORK_SCALE);",
+    "replace": "$share, self::WORK_SCALE), '0', self::WORK_SCALE);",
+    "tests": [
+      "tests/Libraries/Accounting/TaxDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "D11 the tax of a return is counted without its sign",
+    "file": "app/Libraries/Accounting/TaxDocuments.php",
+    "find": "$amount = SaleAmounts::absolute((string) $taxRow->item_tax_amount);",
+    "replace": "$amount = (string) $taxRow->item_tax_amount;",
+    "tests": [
+      "tests/Libraries/Accounting/TaxDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "D12 tax inside the price is told from tax added to it",
+    "file": "app/Libraries/Accounting/TaxDocuments.php",
+    "find": "if ((int) $taxRow->tax_type === 0) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/TaxDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "D13 a rate is a number without trailing zeros",
+    "file": "app/Libraries/Accounting/TaxDocuments.php",
+    "find": "$rate = str_contains($percent, '.') ? rtrim(rtrim($percent, '0'), '.') : $percent;",
+    "replace": "$rate = $percent;",
+    "tests": [
+      "tests/Libraries/Accounting/TaxDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "D14 a sale with a share of the discount on the whole is marked",
+    "file": "app/Libraries/Accounting/TaxDocuments.php",
+    "find": "bccomp($line['share'], '0', self::WORK_SCALE) > 0",
+    "replace": "false",
+    "tests": [
+      "tests/Libraries/Accounting/TaxDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "D15 a purchase with a share of the discount on the whole is marked",
+    "file": "app/Libraries/Accounting/TaxDocuments.php",
+    "find": "bccomp(SaleAmounts::absolute($line->invoiceDiscount), '0', self::SCALE) > 0",
+    "replace": "false",
+    "tests": [
+      "tests/Libraries/Accounting/TaxDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "D16 every chunk of sales is read",
+    "file": "app/Libraries/Accounting/TaxDocuments.php",
+    "find": "foreach (array_chunk(array_values(array_unique($saleIds)), $this->chunk) as $chunk) {",
+    "replace": "foreach (array_slice(array_chunk(array_values(array_unique($saleIds)), $this->chunk), 0, 1) as $chunk) {",
+    "tests": [
+      "tests/Libraries/Accounting/TaxDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "D17 every chunk of purchases is read",
+    "file": "app/Libraries/Accounting/TaxDocuments.php",
+    "find": "foreach (array_chunk(array_values(array_unique($receivingIds)), $this->chunk) as $chunk) {",
+    "replace": "foreach (array_slice(array_chunk(array_values(array_unique($receivingIds)), $this->chunk), 0, 1) as $chunk) {",
+    "tests": [
+      "tests/Libraries/Accounting/TaxDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "D18 the decimals of the discount are the ones given",
+    "file": "app/Libraries/Accounting/TaxDocuments.php",
+    "find": "$this->decimals = $decimals ?? totals_decimals();",
+    "replace": "$this->decimals = totals_decimals();",
+    "tests": [
+      "tests/Libraries/Accounting/TaxDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "C01 the screen is under the module of the financial reports",
+    "file": "app/Controllers/AccountingTaxReports.php",
+    "find": "parent::__construct('accounting_reports');",
+    "replace": "parent::__construct('accounting_journals');",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "C02 the screen needs accounting to be on",
+    "file": "app/Controllers/AccountingTaxReports.php",
+    "find": "parent::__construct('accounting_reports');",
+    "replace": "parent::__construct('accounting_reports', false);",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "C03 the screen adds up the branches the employee works in",
+    "file": "app/Controllers/AccountingTaxReports.php",
+    "find": "$scope  = $this->requestedScope();\n        $error  = null;",
+    "replace": "$scope  = ReportScope::resolve(null, null);\n        $error  = null;",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "C04 the file adds up the branches the employee works in",
+    "file": "app/Controllers/AccountingTaxReports.php",
+    "find": "$scope = $this->requestedScope();\n\n        try {\n            $report = $this->taxes->build($scope, $this->period()",
+    "replace": "$scope = ReportScope::resolve(null, null);\n\n        try {\n            $report = $this->taxes->build($scope, $this->period()",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "C05 the screen refuses a basis that is not the accrual basis",
+    "file": "app/Controllers/AccountingTaxReports.php",
+    "find": "$report = $this->taxes->build($scope, $period, TaxBasis::fromRequest($this->query('basis')));",
+    "replace": "$report = $this->taxes->build($scope, $period, TaxBasis::Accrual);",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "C06 the file refuses a basis that is not the accrual basis",
+    "file": "app/Controllers/AccountingTaxReports.php",
+    "find": "$report = $this->taxes->build($scope, $this->period(), TaxBasis::fromRequest($this->query('basis')));",
+    "replace": "$report = $this->taxes->build($scope, $this->period(), TaxBasis::Accrual);",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "C07 the file is refused with a status of refusal",
+    "file": "app/Controllers/AccountingTaxReports.php",
+    "find": "->setStatusCode(ResponseInterface::HTTP_UNPROCESSABLE_ENTITY)",
+    "replace": "->setStatusCode(ResponseInterface::HTTP_OK)",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "C08 a period that is not one falls back to the default period",
+    "file": "app/Controllers/AccountingTaxReports.php",
+    "find": "$period = ReportPeriod::of(null, date('Y-m-d'));",
+    "replace": "throw $refusal;",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "C09 a refusal is shown in words",
+    "file": "app/Controllers/AccountingTaxReports.php",
+    "find": "            $error = $this->messageFor($refusal);\n        }\n\n        return view(",
+    "replace": "            $report = null;\n        }\n\n        return view(",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "C10 the last day is today when none is given",
+    "file": "app/Controllers/AccountingTaxReports.php",
+    "find": "return $to === '' ? date('Y-m-d') : $to;",
+    "replace": "return $to;",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "C11 the link to the statement of an account carries the first day",
+    "file": "app/Controllers/AccountingTaxReports.php",
+    "find": "if ($period->from !== null) {\n            $query['from'] = $period->from;\n        }",
+    "replace": "if (false) {\n            $query['from'] = $period->from;\n        }",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "C12 the link to the statement of an account carries the branches asked",
+    "file": "app/Controllers/AccountingTaxReports.php",
+    "find": "$query['to'] = $period->to;\n\n        $branches = $this->branchesToCarry($scope);",
+    "replace": "$query['to'] = $period->to;\n\n        $branches = null;",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "C13 the link to the file carries the branches asked",
+    "file": "app/Controllers/AccountingTaxReports.php",
+    "find": "        }\n\n        $branches = $this->branchesToCarry($scope);\n\n        if ($branches !== null) {\n            $query['branches'] = $branches;\n        }\n\n        return $query === [] ? ''",
+    "replace": "        }\n\n        $branches = null;\n\n        if ($branches !== null) {\n            $query['branches'] = $branches;\n        }\n\n        return $query === [] ? ''",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "C14 the link to the file carries the days asked",
+    "file": "app/Controllers/AccountingTaxReports.php",
+    "find": "if ($this->query($name) !== '') {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "C15 the file says whether its total is the company's",
+    "file": "app/Controllers/AccountingTaxReports.php",
+    "find": "$report->scope->kind === ReportScopeKind::Company ?",
+    "replace": "$report->scope->kind === ReportScopeKind::Partial ?",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "C16 the file has a row for the documents with a discount on the whole",
+    "file": "app/Controllers/AccountingTaxReports.php",
+    "find": "if ($figures->discountedDocuments > 0) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "C17 the file says whether the net is payable or refundable",
+    "file": "app/Controllers/AccountingTaxReports.php",
+    "find": "lang(bccomp($report->net(), '0', 4) < 0 ? 'Accounting_tax_reports.net_refundable' : 'Accounting_tax_reports.net_payable')",
+    "replace": "lang('Accounting_tax_reports.net_payable')",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "C18 the file has a row for each rate",
+    "file": "app/Controllers/AccountingTaxReports.php",
+    "find": "foreach ($figures->rates as $rate) {",
+    "replace": "foreach ([] as $rate) {",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "C19 the file starts with the mark of its encoding",
+    "file": "app/Controllers/AccountingTaxReports.php",
+    "find": "->setBody(\"\\xEF\\xBB\\xBF\" . $this->csv($report));",
+    "replace": "->setBody($this->csv($report));",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "C20 the file is sent as CSV",
+    "file": "app/Controllers/AccountingTaxReports.php",
+    "find": "->setContentType('text/csv', 'UTF-8')",
+    "replace": "->setContentType('text/plain', 'UTF-8')",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "V01 the cash basis is shown disabled",
+    "file": "app/Views/accounting_reports/tax_report.php",
+    "find": "<option value=\"cash\" disabled>",
+    "replace": "<option value=\"cash\">",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "V02 the basis of partly paid documents is shown disabled",
+    "file": "app/Views/accounting_reports/tax_report.php",
+    "find": "<option value=\"partial\" disabled>",
+    "replace": "<option value=\"partial\">",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "V03 the accrual basis is the one chosen",
+    "file": "app/Views/accounting_reports/tax_report.php",
+    "find": "<option value=\"accrual\" selected>",
+    "replace": "<option value=\"accrual\">",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "V04 the name of an account is escaped",
+    "file": "app/Views/accounting_reports/tax_report.php",
+    "find": "<?= esc($account->name) ?>",
+    "replace": "<?= $account->name ?>",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "V05 the code of an account is escaped",
+    "file": "app/Views/accounting_reports/tax_report.php",
+    "find": "<bdi dir=\"ltr\"><?= esc($account->code) ?></bdi>",
+    "replace": "<bdi dir=\"ltr\"><?= $account->code ?></bdi>",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "V06 who works in some branches is warned that the total is partial",
+    "file": "app/Views/accounting_reports/tax_report.php",
+    "find": "<?php if ($scope_kind === ReportScopeKind::Partial): ?>",
+    "replace": "<?php if (false): ?>",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "V07 a scope of no branch is said",
+    "file": "app/Views/accounting_reports/tax_report.php",
+    "find": "<?php if ($scope->isEmpty()): ?>",
+    "replace": "<?php if (false): ?>",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "V08 the documents before the books are counted on the screen",
+    "file": "app/Views/accounting_reports/tax_report.php",
+    "find": "<?php if ($report->legacyDocuments > 0): ?>",
+    "replace": "<?php if (false): ?>",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "V09 a period that reaches before the books is warned",
+    "file": "app/Views/accounting_reports/tax_report.php",
+    "find": "<?php if ($report->reachesBeforeBooks()): ?>",
+    "replace": "<?php if (false): ?>",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "V10 the day the books began is said",
+    "file": "app/Views/accounting_reports/tax_report.php",
+    "find": "<?php if ($report->startDate !== null): ?>",
+    "replace": "<?php if (false): ?>",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "V11 a missing account of tax collected is said",
+    "file": "app/Views/accounting_reports/tax_report.php",
+    "find": "<?php if (! $report->outputRouted): ?>",
+    "replace": "<?php if (false): ?>",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "V12 a missing account of tax paid is said",
+    "file": "app/Views/accounting_reports/tax_report.php",
+    "find": "<?php if (! $report->inputRouted): ?>",
+    "replace": "<?php if (false): ?>",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "V13 the documents that disagree with their journals are said",
+    "file": "app/Views/accounting_reports/tax_report.php",
+    "find": "<?php if ($report->unmatchedDocuments > 0): ?>",
+    "replace": "<?php if (false): ?>",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "V14 a report that does not tie says so",
+    "file": "app/Views/accounting_reports/tax_report.php",
+    "find": "<?php if ($report->ties()): ?>",
+    "replace": "<?php if (true): ?>",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "V15 an account that does not tie is marked",
+    "file": "app/Views/accounting_reports/tax_report.php",
+    "find": "<?php if ($account->ties()): ?>",
+    "replace": "<?php if (true): ?>",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "V16 the net says whether it is payable or refundable",
+    "file": "app/Views/accounting_reports/tax_report.php",
+    "find": "bccomp($report->net(), '0', 4) < 0",
+    "replace": "false",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ],
+    "all": true
+  },
+  {
+    "name": "V17 the documents with a discount on the whole have their row",
+    "file": "app/Views/accounting_reports/tax_report.php",
+    "find": "<?php if ($figures->discountedDocuments > 0): ?>",
+    "replace": "<?php if (false): ?>",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "V18 the branches are offered only to who reads more than one",
+    "file": "app/Views/accounting_reports/tax_report.php",
+    "find": "<?php if ($branches !== []): ?>",
+    "replace": "<?php if (false): ?>",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ],
+    "all": true
+  },
+  {
+    "name": "V19 the file is offered only with a report",
+    "file": "app/Views/accounting_reports/tax_report.php",
+    "find": "<?php if ($report !== null): ?>\n        <a class=\"btn btn-outline-secondary btn-sm float-end\" id=\"export_csv\"",
+    "replace": "<?php if (true): ?>\n        <a class=\"btn btn-outline-secondary btn-sm float-end\" id=\"export_csv\"",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "V20 the table of the accounts is shown only with accounts",
+    "file": "app/Views/accounting_reports/tax_report.php",
+    "find": "<?php if ($report->accounts !== []): ?>",
+    "replace": "<?php if (true): ?>",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "V21 nothing of the report is drawn without one",
+    "file": "app/Views/accounting_reports/tax_report.php",
+    "find": "<?php if ($report !== null): ?>\n        <p class=\"small text-body-secondary\" id=\"report_basis\">",
+    "replace": "<?php if (true): ?>\n        <p class=\"small text-body-secondary\" id=\"report_basis\">",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "V22 the period is shown only with a report",
+    "file": "app/Views/accounting_reports/tax_report.php",
+    "find": "<?php if ($report !== null): ?>\n        <p class=\"text-body-secondary mb-2\" id=\"report_period\">",
+    "replace": "<?php if (true): ?>\n        <p class=\"text-body-secondary mb-2\" id=\"report_period\">",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "V23 a refusal is shown",
+    "file": "app/Views/accounting_reports/tax_report.php",
+    "find": "<?php if ($error !== null): ?>",
+    "replace": "<?php if (false): ?>",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "V24 whose figures the report holds is said",
+    "file": "app/Views/accounting_reports/tax_report.php",
+    "find": "<?php if ($scope_label !== null): ?>",
+    "replace": "<?php if (false): ?>",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "V25 each rate has its row",
+    "file": "app/Views/accounting_reports/tax_report.php",
+    "find": "<?php foreach ($figures->rates as $rate): ?>",
+    "replace": "<?php foreach ([] as $rate): ?>",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "H01 the tax report is offered to the module of the financial reports",
+    "file": "app/Helpers/report_helper.php",
+    "find": "['bi-journal-check', 'Accounting_tax_reports.title', 'accounting_reports', [",
+    "replace": "['bi-journal-check', 'Accounting_tax_reports.title', 'accounting_journals', [",
+    "tests": [
+      "tests/helpers/report_helperTest.php"
+    ]
+  },
+  {
+    "name": "H02 the route of the screen",
+    "file": "app/Config/Routes.php",
+    "find": "$routes->get('tax', 'AccountingTaxReports::getIndex');",
+    "replace": "",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "H03 the route of the file",
+    "file": "app/Config/Routes.php",
+    "find": "$routes->get('tax/csv', 'AccountingTaxReports::getCsv');",
+    "replace": "",
+    "tests": [
+      "tests/Controllers/AccountingTaxReportsControllerTest.php"
+    ]
+  }
+]
