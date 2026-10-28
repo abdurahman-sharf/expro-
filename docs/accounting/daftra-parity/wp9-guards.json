@@ -561,5 +561,83 @@
    "testGetPayments_TellsSomeoneLimited",
    "tests/Controllers/AccountingReceivablesControllerTest.php"
   ]
+ },
+ {
+  "name": "G54 only a customer that exists is asked about in the totals of returns",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": "array_filter(array_map('intval', $customerIds), static fn (int $id): bool => $id > 0)",
+  "replace": "array_map('intval', $customerIds)",
+  "tests": [
+   "--filter",
+   "testReturnTotals",
+   "tests/Libraries/Accounting/CustomerDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G55 refund invoices are the returns and credit notes the adjustments",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": "IF(s.return_document = ?, 'returns', 'adjustments') AS bucket",
+  "replace": "IF(s.return_document = ?, 'adjustments', 'returns') AS bucket",
+  "tests": [
+   "--filter",
+   "testReturnTotals",
+   "tests/Libraries/Accounting/CustomerDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G56 a return shows the settlement of its own credit and no other",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": "if ($source->type === CreditSource::CREDIT_NOTE && $source->sourceId === $saleId) {",
+  "replace": "if ($source->type === CreditSource::CREDIT_NOTE) {",
+  "tests": [
+   "--filter",
+   "testReturns_",
+   "tests/Libraries/Accounting/CustomerDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G57 the list of payments and the list of returns filter by branch",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": "if ((int) ($filters['branch_id'] ?? 0) > 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testPayments_KeepsToTheBranches|testReturns_FiltersByBranch",
+   "tests/Libraries/Accounting/CustomerDocumentsTest.php"
+  ],
+  "all": true
+ },
+ {
+  "name": "G58 both lists filter by customer",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": "if ((int) ($filters['customer_id'] ?? 0) > 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testPayments_FiltersByCustomer|testReturns_FiltersByDate",
+   "tests/Libraries/Accounting/CustomerDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G59 a status that is none of the five is ignored",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": "if (PaymentStatus::tryFrom($status) !== null) {",
+  "replace": "if ($status !== '') {",
+  "tests": [
+   "--filter",
+   "testPayments_FiltersByTheStatus",
+   "tests/Libraries/Accounting/CustomerDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G60 a way of payment that is none of the known is ignored",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": "if ($type !== null) {\n            $alternatives = [];",
+  "replace": "if (true) {\n            $alternatives = [];",
+  "tests": [
+   "--filter",
+   "testPayments_FiltersByTheWay",
+   "tests/Libraries/Accounting/CustomerDocumentsTest.php"
+  ]
  }
 ]

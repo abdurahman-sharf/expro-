@@ -472,6 +472,22 @@ class CustomerDocumentsTest extends CIUnitTestCase
         $this->assertTies();
     }
 
+    public function testReturns_GivesEachReturnTheSettlementOfItsOwnWhenSeveralShareAnInvoice(): void
+    {
+        $invoice = $this->invoiceOf('100.00', null, [$this->payment(lang('Sales.cash'), '70.00')]);
+        $first   = $this->creditNoteOf($invoice, '50.00');
+        $second  = $this->refundInvoiceOf($invoice, '10.00');
+
+        $rows = [];
+
+        foreach ($this->returns([], 'number', 'asc')['rows'] as $row) {
+            $rows[$row['sale_id']] = $row;
+        }
+
+        $this->assertSame(['30.00', '20.00'], [bcadd($rows[$first]['settled'], '0', 2), bcadd($rows[$first]['open'], '0', 2)]);
+        $this->assertSame(['0.00', '10.00'], [bcadd($rows[$second]['settled'], '0', 2), bcadd($rows[$second]['open'], '0', 2)]);
+    }
+
     public function testReturns_CountsWhatWasPaidBackInCashAsSettled(): void
     {
         $invoice = $this->invoiceOf('100.00', null, [$this->payment(lang('Sales.cash'), '100.00')]);
