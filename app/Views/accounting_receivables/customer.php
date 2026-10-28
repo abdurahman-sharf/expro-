@@ -4,6 +4,7 @@
  * @var CustomerPosition $position
  * @var string           $today
  * @var list<object>     $applications
+ * @var list<int>        $refund_invoices
  * @var Closure          $amount
  * @var Closure          $date
  */
@@ -12,6 +13,10 @@ use App\Libraries\Accounting\CreditSource;
 use App\Libraries\Accounting\CustomerPosition;
 
 $aging = $position->aging($today);
+
+$sourceLabel = static fn (string $type, int $sourceId): string => lang(
+    $type !== CreditSource::CREDIT_NOTE ? 'Accounting_receivables.source_excess' : (in_array($sourceId, $refund_invoices, true) ? 'Numbering.type_refund_invoice' : 'Accounting_receivables.source_credit_note'),
+);
 ?>
 
 <?= view('partial/header') ?>
@@ -117,7 +122,7 @@ $aging = $position->aging($today);
             <tbody>
                 <?php foreach ($position->credits as $source): ?>
                     <tr>
-                        <td><?= esc(lang($source->type === CreditSource::CREDIT_NOTE ? 'Accounting_receivables.source_credit_note' : 'Accounting_receivables.source_excess')) ?> <?= anchor('sales/receipt/' . $source->sourceId, 'POS ' . $source->sourceId, ['target' => '_blank', 'dir' => 'ltr']) ?></td>
+                        <td><?= esc($sourceLabel($source->type, $source->sourceId)) ?> <?= anchor('sales/receipt/' . $source->sourceId, 'POS ' . $source->sourceId, ['target' => '_blank', 'dir' => 'ltr']) ?></td>
                         <td><?= esc($date($source->date)) ?></td>
                         <td><?= $amount($source->amount) ?></td>
                         <td><?= $amount($source->applied) ?></td>
@@ -146,7 +151,7 @@ $aging = $position->aging($today);
             <tbody>
                 <?php foreach ($applications as $application): ?>
                     <tr>
-                        <td><?= esc(lang($application->source_type === CreditSource::CREDIT_NOTE ? 'Accounting_receivables.source_credit_note' : 'Accounting_receivables.source_excess')) ?> <bdi dir="ltr"><?= (int) $application->source_id ?></bdi></td>
+                        <td><?= esc($sourceLabel($application->source_type, (int) $application->source_id)) ?> <bdi dir="ltr"><?= (int) $application->source_id ?></bdi></td>
                         <td><bdi dir="ltr"><?= (int) $application->invoice_sale_id ?></bdi></td>
                         <td><?= $amount($application->amount) ?></td>
                         <td><?= esc($date($application->created_at)) ?></td>

@@ -13,6 +13,7 @@ enum DocumentType: string
     case SalesInvoice    = 'sales_invoice';
     case SalesQuote      = 'sales_quote';
     case CreditNote      = 'credit_note';
+    case RefundInvoice   = 'refund_invoice';
     case CustomerPayment = 'customer_payment';
     case Customer        = 'customer';
     case Purchase        = 'purchase';
@@ -28,7 +29,7 @@ enum DocumentType: string
     public function sources(): array
     {
         return match ($this) {
-            self::SalesInvoice, self::SalesQuote, self::CreditNote => ['sales' => 'sale_id'],
+            self::SalesInvoice, self::SalesQuote, self::CreditNote, self::RefundInvoice => ['sales' => 'sale_id'],
             self::CustomerPayment => ['sales_payments' => 'payment_id'],
             self::Customer        => ['customers' => 'person_id'],
             self::Purchase, self::DebitNote => ['receivings' => 'receiving_id'],
@@ -71,7 +72,7 @@ enum DocumentType: string
     public function fallback(int $id): string
     {
         return match ($this) {
-            self::CreditNote => 'POS ' . $id,
+            self::CreditNote, self::RefundInvoice => 'POS ' . $id,
             self::Purchase, self::DebitNote => 'RECV ' . $id,
             self::CustomerPayment, self::SupplierPayment, self::Expense => (string) $id,
             default => '',

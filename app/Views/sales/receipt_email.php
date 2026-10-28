@@ -72,6 +72,9 @@ $summaryRow = static fn (string $label, string $value, string $style = ''): stri
         <?php if (! empty($creditNoteNumber)): ?>
             <tr><td style="padding: 2px 8px; text-align: <?= $start ?>; <?= $font ?> font-size: 13px;"><?= lang('Numbering.type_credit_note') ?>: <?= documentIsolate((string) $creditNoteNumber) ?></td></tr>
         <?php endif; ?>
+        <?php if (! empty($refundInvoiceNumber)): ?>
+            <tr><td style="padding: 2px 8px; text-align: <?= $start ?>; <?= $font ?> font-size: 13px;"><?= lang('Numbering.type_refund_invoice') ?>: <?= documentIsolate((string) $refundInvoiceNumber) ?></td></tr>
+        <?php endif; ?>
         <tr><td style="padding: 2px 8px; text-align: <?= $start ?>; <?= $font ?> font-size: 13px;"><?= lang('Employees.employee') ?>: <?= esc($employee) ?></td></tr>
     </table>
 

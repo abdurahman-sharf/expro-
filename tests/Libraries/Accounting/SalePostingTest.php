@@ -13,6 +13,7 @@ use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\PairBalance;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingService;
+use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\Accounting\RoutingKey;
 use App\Libraries\Accounting\RoutingType;
 use App\Libraries\Accounting\SalePosting;
@@ -1387,6 +1388,258 @@ class SalePostingTest extends CIUnitTestCase
         );
         $this->assertSame([$this->stockAccount() . ':120.00:0.00', $this->accountId('cogs') . ':0.00:120.00'], $this->standing($returnId, 'cogs')[0]['lines']);
         $this->assertSame((string) $invoice, (string) $this->saleRow($returnId)->return_of_sale_id);
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // The refund invoice: the same return as a credit note, issued as the other document
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * @param array<string, mixed> $case
+     */
+    #[DataProvider('cycleProvider')]
+    public function testSaveValue_PostsARefundInvoiceWithTheLinesOfTheCreditNoteOfTheReferenceCycle(array $case): void
+    {
+        $invoice = $case['inputs']['invoice'];
+        $note    = $case['inputs']['credit_note'];
+        $ids     = [];
+        $items   = [];
+        $taxes   = [];
+
+        foreach ($invoice['items'] as $line => $row) {
+            $itemId            = $this->item($row['cost']);
+            $ids[$row['name']] = $itemId;
+            $items[]           = $this->line($itemId, $line, $row['quantity'], $row['price'], $row['cost'], $row['discount'], $row['discount_type'] === 'percent' ? PERCENT : FIXED);
+            $taxes[]           = $this->tax($itemId, $line, $row['tax']);
+        }
+
+        $invoiceId = $this->save($items, $taxes);
+
+        $this->accountingDb()->table('items')->where('item_id', $ids[$note['item']])->update(['cost_price' => $note['cost_of_the_item_now']]);
+
+        $refundId = $this->save(
+            [$this->line($ids[$note['item']], 0, '-' . $note['quantity'], $note['price'], $note['cost_of_the_item_now'])],
+            [$this->tax($ids[$note['item']], 0, '-' . $note['tax'])],
+            [],
+            SALE_TYPE_RETURN,
+            -1,
+            true,
+            $invoiceId,
+            COMPLETED,
+            NEW_ENTRY,
+            null,
+            ReturnDocument::RefundInvoice,
+        );
+
+        $this->assertGreaterThan(0, $refundId);
+
+        $steps = array_column($case['expected']['journals'], null, 'step');
+
+        foreach (['credit_note' => 'revenue', 'credit_note_cost' => 'cogs'] as $step => $entry) {
+            $posted = $this->standing($refundId, $entry);
+
+            $this->assertCount(1, $posted, $step);
+            $this->assertSame($steps[$step]['entry'], $posted[0]['entry'], $step);
+            $this->assertSame($this->shapeOfRoles($steps[$step]['lines']), $this->sortedLines($posted[0]['lines']), $step);
+        }
+
+        $this->assertSame(ReturnDocument::RefundInvoice->value, $this->saleRow($refundId)->return_document);
+        $this->assertTies();
+    }
+
+    public function testSaveValue_PostsARefundInvoiceWithTheSameJournalsAsACreditNoteOfTheSameLines(): void
+    {
+        $cycle   = $this->referenceInvoice();
+        $invoice = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '300.00')]);
+        $this->accountingDb()->table('items')->where('item_id', $cycle['perfume'])->update(['cost_price' => '130.00']);
+
+        $lines = [$this->line($cycle['perfume'], 0, '-1', '220', '130.00')];
+        $taxes = [$this->tax($cycle['perfume'], 0, '-33.00')];
+        $note  = $this->save($lines, $taxes, [], SALE_TYPE_RETURN, -1, true, $invoice);
+        $stock = $this->stock($cycle['perfume']);
+        $after = $this->save($lines, $taxes, [], SALE_TYPE_RETURN, -1, true, $invoice, COMPLETED, NEW_ENTRY, null, ReturnDocument::RefundInvoice);
+
+        $this->assertGreaterThan(0, $note);
+        $this->assertGreaterThan(0, $after);
+        $this->assertSame(
+            array_map(static fn (array $journal): array => [$journal['source'], $journal['entry'], $journal['revision'], $journal['status'], $journal['lines']], $this->journals($note)),
+            array_map(static fn (array $journal): array => [$journal['source'], $journal['entry'], $journal['revision'], $journal['status'], $journal['lines']], $this->journals($after)),
+        );
+        $this->assertEqualsWithDelta($stock + 1, $this->stock($cycle['perfume']), 0.0001);
+        $this->assertNull($this->saleRow($note)->return_document);
+        $this->assertSame(ReturnDocument::RefundInvoice->value, $this->saleRow($after)->return_document);
+        $this->assertSame((string) $invoice, (string) $this->saleRow($after)->return_of_sale_id);
+    }
+
+    public function testSaveValue_ReturnsTheStockAndReversesTheCostOfARefundInvoiceAtTheOriginalCost(): void
+    {
+        $item    = $this->item('60.00');
+        $invoice = $this->save([$this->line($item, 0, '5', '100', '60.00')], [], [$this->payment(lang('Sales.cash'), '500.00')]);
+        $stock   = $this->stock($item);
+        $this->accountingDb()->table('items')->where('item_id', $item)->update(['cost_price' => '66.00']);
+
+        $refund = $this->save([$this->line($item, 0, '-2', '100', '66.00')], [], [$this->payment(lang('Sales.cash'), '-200.00')], SALE_TYPE_RETURN, -1, true, $invoice, COMPLETED, NEW_ENTRY, null, ReturnDocument::RefundInvoice);
+
+        $this->assertGreaterThan(0, $refund);
+        $this->assertEqualsWithDelta($stock + 2, $this->stock($item), 0.0001);
+        $this->assertSame([$this->stockAccount() . ':120.00:0.00', $this->accountId('cogs') . ':0.00:120.00'], $this->standing($refund, 'cogs')[0]['lines']);
+        $this->assertSame('-180.00', $this->balance($this->stockAccount()));
+        $this->assertSame('180.00', $this->balance($this->accountId('cogs')));
+        $this->assertSame(['revenue', 'general', 'cogs'], array_column($this->journals($refund), 'entry'));
+    }
+
+    public function testSaveValue_SettlesARefundInvoiceIntoItsInvoiceAsACreditNoteIs(): void
+    {
+        $invoice = $this->invoiceOf('100.00');
+        $refund  = $this->refundInvoiceOf($invoice, '40.00');
+
+        $this->assertGreaterThan(0, $refund);
+        $this->assertSame(['credit_note:' . $refund . '->' . $invoice . ':40.00'], $this->applications());
+        $this->assertSame('60.00', bcadd($this->position()->open(), '0', 2));
+        $this->assertSame('0.00', bcadd($this->position()->credit(), '0', 2));
+        $this->assertTies();
+    }
+
+    public function testSaveValue_KeepsTheCreditOfARefundInvoiceWhenTheInvoiceIsPaid(): void
+    {
+        $invoice = $this->invoiceOf('100.00', null, [$this->payment(lang('Sales.cash'), '100.00')]);
+        $refund  = $this->refundInvoiceOf($invoice, '40.00');
+
+        $this->assertGreaterThan(0, $refund);
+        $this->assertSame([], $this->applications());
+        $this->assertSame('40.00', bcadd($this->position()->credit(), '0', 2));
+        $this->assertTies();
+    }
+
+    public function testSaveValue_ARefundInvoiceAndACreditNoteTogetherCannotTakeBackMoreThanWasSold(): void
+    {
+        $item    = $this->item('60.00');
+        $invoice = $this->save([$this->line($item, 0, '2', '100', '60.00')], [], [$this->payment(lang('Sales.cash'), '200.00')]);
+        $note    = $this->save([$this->line($item, 0, '-1', '100', '60.00')], [], [], SALE_TYPE_RETURN, -1, true, $invoice);
+        $sales   = $this->countSales();
+
+        $this->assertGreaterThan(0, $note);
+        $this->assertSame(ACCOUNTING_FAILED, $this->save([$this->line($item, 0, '-2', '100', '60.00')], [], [], SALE_TYPE_RETURN, -1, true, $invoice, COMPLETED, NEW_ENTRY, null, ReturnDocument::RefundInvoice));
+        $this->assertSame(PostingError::SaleReturnExceedsOrigin, $this->failure()->error);
+        $this->assertSame($sales, $this->countSales());
+        $this->assertGreaterThan(0, $this->save([$this->line($item, 0, '-1', '100', '60.00')], [], [], SALE_TYPE_RETURN, -1, true, $invoice, COMPLETED, NEW_ENTRY, null, ReturnDocument::RefundInvoice));
+    }
+
+    public function testSaveValue_RefusesARefundInvoiceOfStockThatNamesNoInvoiceAndLeavesNothingOfIt(): void
+    {
+        $item  = $this->item('60.00');
+        $stock = $this->stock($item);
+        $sales = $this->countSales();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save([$this->line($item, 0, '-1', '100', '60.00')], [], [], SALE_TYPE_RETURN, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::RefundInvoice));
+        $this->assertSame(PostingError::ReturnOriginRequired, $this->failure()->error);
+        $this->assertSame($sales, $this->countSales());
+        $this->assertEqualsWithDelta($stock, $this->stock($item), 0.0001);
+        $this->assertSame(0, $this->countJournals());
+    }
+
+    public function testSaveValue_RefusesARefundInvoiceOfAnInvoiceThatWasNeverDelivered(): void
+    {
+        $item    = $this->item('60.00');
+        $invoice = $this->save([$this->line($item, 0, '5', '100', '60.00')], [], [], SALE_TYPE_INVOICE, -1, false);
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save([$this->line($item, 0, '-1', '100', '60.00')], [], [], SALE_TYPE_RETURN, -1, true, $invoice, COMPLETED, NEW_ENTRY, null, ReturnDocument::RefundInvoice));
+        $this->assertSame(PostingError::ReturnOfUndelivered, $this->failure()->error);
+    }
+
+    public function testSaveValue_RefusesARefundInvoiceInAClosedPeriodWithoutLeavingAnyOfIt(): void
+    {
+        $cycle   = $this->referenceInvoice();
+        $invoice = $this->save($cycle['items'], $cycle['taxes']);
+        $stock   = $this->stock($cycle['perfume']);
+        $this->closeThrough(date('Y-m-d'));
+
+        $sales    = $this->countSales();
+        $journals = $this->countJournals();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save([$this->line($cycle['perfume'], 0, '-1', '220', '120.00')], [$this->tax($cycle['perfume'], 0, '-33.00')], [], SALE_TYPE_RETURN, -1, true, $invoice, COMPLETED, NEW_ENTRY, null, ReturnDocument::RefundInvoice));
+        $this->assertSame(PostingError::PeriodClosed, $this->failure()->error);
+        $this->assertSame($sales, $this->countSales());
+        $this->assertSame($journals, $this->countJournals());
+        $this->assertEqualsWithDelta($stock, $this->stock($cycle['perfume']), 0.0001);
+    }
+
+    public function testDelete_RefusesToCancelARefundInvoiceAsItDoesACreditNote(): void
+    {
+        $invoice = $this->invoiceOf('100.00');
+        $refund  = $this->refundInvoiceOf($invoice, '40.00');
+        $before  = $this->journals($refund);
+
+        $this->assertFalse($this->sales->delete($refund, false, true, $this->employeeId));
+        $this->assertSame(AccountingError::IssuedDocumentLocked, $this->failure()->error);
+        $this->assertSame($before, $this->journals($refund));
+        $this->assertSame(['credit_note:' . $refund . '->' . $invoice . ':40.00'], $this->applications());
+    }
+
+    public function testUpdate_RefusesToMoveARefundInvoiceToAnotherCustomerOrDateAsItDoesACreditNote(): void
+    {
+        $invoice = $this->invoiceOf('100.00');
+        $refund  = $this->refundInvoiceOf($invoice, '40.00');
+        $other   = $this->insertCustomer('Hind', 'Saad');
+        $before  = $this->journals($refund);
+
+        $this->assertFalse($this->sales->update($refund, ['customer_id' => $other, 'comment' => 'x']));
+        $this->assertSame(AccountingError::SaleLocked, $this->failure()->error);
+        $this->assertFalse($this->sales->update($refund, ['sale_time' => date('Y-m-d H:i:s', strtotime('-3 days')), 'comment' => 'x']));
+        $this->assertSame(AccountingError::SaleLocked, $this->failure()->error);
+        $this->assertSame((string) $this->customerId, (string) $this->saleRow($refund)->customer_id);
+        $this->assertSame($before, $this->journals($refund));
+    }
+
+    public function testUpdate_LetsTheNoteOfARefundInvoiceChangeAndKeepsItsDocument(): void
+    {
+        $invoice = $this->invoiceOf('100.00');
+        $refund  = $this->refundInvoiceOf($invoice, '40.00');
+        $sale    = $this->saleRow($refund);
+
+        $this->assertTrue($this->sales->update($refund, ['sale_time' => $sale->sale_time, 'customer_id' => $this->customerId, 'comment' => 'a note']));
+        $this->assertSame('a note', $this->saleRow($refund)->comment);
+        $this->assertSame(ReturnDocument::RefundInvoice->value, $this->saleRow($refund)->return_document);
+    }
+
+    public function testUpdate_ReversesAndPostsAgainTheRefundPaymentOfARefundInvoiceWhoseAmountChanged(): void
+    {
+        $item    = $this->item('60.00');
+        $invoice = $this->save([$this->line($item, 0, '5', '100', '60.00')], [], [$this->payment(lang('Sales.cash'), '500.00')]);
+        $refund  = $this->save([$this->line($item, 0, '-2', '100', '60.00')], [], [$this->payment(lang('Sales.cash'), '-100.00')], SALE_TYPE_RETURN, -1, true, $invoice, COMPLETED, NEW_ENTRY, null, ReturnDocument::RefundInvoice);
+        $row     = $this->accountingDb()->table('sales_payments')->where('sale_id', $refund)->get()->getRow();
+
+        $this->assertTrue($this->sales->update($refund, ['comment' => 'corrected', 'payments' => [
+            ['payment_id' => (int) $row->payment_id, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '-150.00', 'cash_refund' => 0, 'cash_adjustment' => 0, 'employee_id' => $this->employeeId, 'reference_code' => null],
+        ]]));
+
+        $journals = array_values(array_filter($this->journals($refund), static fn (array $journal): bool => $journal['source'] === 'sale_payment'));
+
+        $this->assertSame(['reversed', 'posted'], array_column($journals, 'status'));
+        $this->assertSame([1, 2], array_column($journals, 'revision'));
+        $this->assertSame([$this->customerAccount() . ':150.00:0.00', $this->accountId('cash') . ':0.00:150.00'], $journals[1]['lines']);
+        $this->assertTies();
+    }
+
+    public function testUpdate_AppliesTheCreditOfARefundInvoiceWhenTheInvoicePaymentIsRemovedAndReleasesItWhenPaidAgain(): void
+    {
+        $invoice   = $this->invoiceOf('100.00');
+        $paymentId = $this->addPayment($invoice, '100.00');
+        $refund    = $this->refundInvoiceOf($invoice, '100.00');
+
+        $this->assertSame([], $this->applications());
+        $this->assertSame('100.00', bcadd($this->position()->credit(), '0', 2));
+
+        $this->removePayment($invoice, $paymentId);
+
+        $this->assertSame(['credit_note:' . $refund . '->' . $invoice . ':100.00'], $this->applications());
+        $this->assertTies();
+
+        $this->addPayment($invoice, '100.00');
+
+        $this->assertSame([], $this->applications());
+        $this->assertSame('100.00', bcadd($this->position()->credit(), '0', 2));
+        $this->assertTies();
     }
 
     public function testSaveValue_TheCustomerAccountFollowsTheWholeCycleOfInvoiceReturnAndPayments(): void

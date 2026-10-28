@@ -14,6 +14,7 @@ class DocumentTypeTest extends CIUnitTestCase
         }
 
         $this->assertSame(['sales' => 'sale_id'], DocumentType::CreditNote->sources());
+        $this->assertSame(['sales' => 'sale_id'], DocumentType::RefundInvoice->sources());
         $this->assertSame(['receivings_payments' => 'payment_id', 'supplier_advances' => 'advance_id'], DocumentType::SupplierPayment->sources());
     }
 
@@ -23,6 +24,7 @@ class DocumentTypeTest extends CIUnitTestCase
         $this->assertSame('quote_number', DocumentType::SalesQuote->numberColumn());
         $this->assertSame('account_number', DocumentType::Customer->numberColumn());
         $this->assertNull(DocumentType::CreditNote->numberColumn());
+        $this->assertNull(DocumentType::RefundInvoice->numberColumn());
         $this->assertNull(DocumentType::Expense->numberColumn());
     }
 
@@ -31,12 +33,14 @@ class DocumentTypeTest extends CIUnitTestCase
         $this->assertSame(['expenses' => 'expense_id'], DocumentType::Expense->bareIdSources());
         $this->assertSame(['sales_payments' => 'payment_id'], DocumentType::CustomerPayment->bareIdSources());
         $this->assertSame([], DocumentType::CreditNote->bareIdSources());
+        $this->assertSame([], DocumentType::RefundInvoice->bareIdSources());
         $this->assertSame([], DocumentType::SalesInvoice->bareIdSources());
     }
 
     public function testFallback_GivesWhatTheDocumentShowedBeforeThereWasANumber(): void
     {
         $this->assertSame('POS 7', DocumentType::CreditNote->fallback(7));
+        $this->assertSame('POS 7', DocumentType::RefundInvoice->fallback(7));
         $this->assertSame('RECV 7', DocumentType::Purchase->fallback(7));
         $this->assertSame('RECV 7', DocumentType::DebitNote->fallback(7));
         $this->assertSame('7', DocumentType::Expense->fallback(7));

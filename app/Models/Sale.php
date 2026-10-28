@@ -12,6 +12,7 @@ use App\Libraries\Accounting\PaymentStatus;
 use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\Accounting\ReturnLimit;
 use App\Libraries\Accounting\SalePosting;
 use App\Libraries\Accounting\TreasuryScopes;
@@ -531,6 +532,17 @@ class Sale extends Model
     }
 
     /**
+     * Whether a return was issued as a credit note or as a refund invoice. A return that was saved
+     * before there were two documents, and anything that is not a return, is a credit note.
+     */
+    public function getReturnDocument(int $saleId): ReturnDocument
+    {
+        $row = $this->db->table('sales')->select('return_document')->where('sale_id', $saleId)->get()->getRow();
+
+        return ReturnDocument::fromStored($row?->return_document);
+    }
+
+    /**
      * How much of each item of a sale has been taken back by completed returns, by item id.
      *
      * @return array<int, float>
@@ -834,13 +846,14 @@ class Sale extends Model
         ?array  &$salesTaxes,
         bool    $delivered = true,
         ?int    $returnOfSaleId = null,
-        ?array  $invoiceDiscount = null
+        ?array  $invoiceDiscount = null,
+        ReturnDocument $returnDocument = ReturnDocument::CreditNote
     ): int {    // TODO: this method returns the sale_id but the override is expecting it to return a bool. The signature needs to be reworked.  Generally when there are more than 3 maybe 4 parameters, there's a good chance that an object needs to be passed rather than so many params.
         try {
             return (new CustomerLock($this->db))->run(
                 $customerId,
-                function () use (&$saleStatus, &$items, &$salesTaxes, $saleId, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $delivered, $returnOfSaleId, $invoiceDiscount): int {
-                    return $this->saveValueLocked($saleId, $saleStatus, $items, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $salesTaxes, $delivered, $returnOfSaleId, $invoiceDiscount);
+                function () use (&$saleStatus, &$items, &$salesTaxes, $saleId, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $delivered, $returnOfSaleId, $invoiceDiscount, $returnDocument): int {
+                    return $this->saveValueLocked($saleId, $saleStatus, $items, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $salesTaxes, $delivered, $returnOfSaleId, $invoiceDiscount, $returnDocument);
                 },
             );
         } catch (AccountingException $busy) {
@@ -870,7 +883,8 @@ class Sale extends Model
         ?array  &$salesTaxes,
         bool    $delivered,
         ?int    $returnOfSaleId,
-        ?array  $invoiceDiscount
+        ?array  $invoiceDiscount,
+        ReturnDocument $returnDocument
     ): int {
         $config = config(OSPOS::class)->settings;
         $attribute = model(Attribute::class);
@@ -905,6 +919,7 @@ class Sale extends Model
             'branch_id'         => $this->branchIdOfItems($items),
             'delivered'         => $delivered ? 1 : 0,
             'return_of_sale_id' => $saleType === SALE_TYPE_RETURN ? $returnOfSaleId : null,
+            'return_document'   => $saleType === SALE_TYPE_RETURN ? $returnDocument->storedValue() : null,
         ];
 
         // Run these queries as a transaction, we want to make sure we do all or nothing
@@ -1091,7 +1106,7 @@ class Sale extends Model
         }
 
         try {
-            $this->numberDocuments($saleId, $saleType, $saleStatus == COMPLETED, $invoiceNumber, $quoteNumber, $paymentIds, (int) $salesData['branch_id']);
+            $this->numberDocuments($saleId, $saleType, $saleStatus == COMPLETED, $invoiceNumber, $quoteNumber, $paymentIds, (int) $salesData['branch_id'], $returnDocument);
         } catch (AccountingException $failure) {
             log_message('error', 'Numbering sale ' . $saleId . ' failed: ' . $failure->getMessage());
             $this->db->transRollback();
@@ -1140,7 +1155,7 @@ class Sale extends Model
      *
      * @throws AccountingException
      */
-    private function numberDocuments(int $saleId, int $saleType, bool $completed, ?string $invoiceNumber, ?string $quoteNumber, array $paymentIds, int $branchId): void
+    private function numberDocuments(int $saleId, int $saleType, bool $completed, ?string $invoiceNumber, ?string $quoteNumber, array $paymentIds, int $branchId, ReturnDocument $returnDocument): void
     {
         $numbering = new DocumentNumbering($this->db);
 
@@ -1157,7 +1172,7 @@ class Sale extends Model
         }
 
         if ($saleType === SALE_TYPE_RETURN) {
-            $numbering->assign(DocumentType::CreditNote, 'sales', $saleId, $branchId);
+            $numbering->assign($returnDocument->documentType(), 'sales', $saleId, $branchId);
         }
 
         foreach ($paymentIds as $paymentId) {

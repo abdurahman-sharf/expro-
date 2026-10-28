@@ -11,6 +11,7 @@ use App\Libraries\Accounting\CustomerLedger;
 use App\Libraries\Accounting\PaymentStatus;
 use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\Accounting\SalePosting;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
@@ -307,6 +308,7 @@ class Sales extends Secure_Controller
 
         if ($mode !== $this->sale_lib->get_mode()) {
             $this->sale_lib->clearInvoiceDiscount();
+            $this->sale_lib->clear_return_document();
         }
 
         $this->sale_lib->set_mode($mode);
@@ -1206,7 +1208,7 @@ class Sales extends Secure_Controller
                 $saleType = SALE_TYPE_POS;
             }
 
-            $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, true, $this->sale_lib->get_return_origin(), $invoiceDiscount);
+            $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, true, $this->sale_lib->get_return_origin(), $invoiceDiscount, $this->sale_lib->get_return_document());
 
             $data['sale_id'] = 'POS ' . $data['sale_id_num'];
 
@@ -1229,7 +1231,7 @@ class Sales extends Secure_Controller
                 return $this->reload($data);
             } else {
                 $data['barcode'] = $this->barcode_lib->generate_receipt_barcode($data['sale_id']);
-                $data['creditNoteNumber'] = $this->creditNoteNumberOf((int) $data['sale_id_num']);
+                $data = [...$data, ...$this->returnDocumentNumbersOf((int) $data['sale_id_num'])];
 
                 // Validate receipt template to prevent path traversal
                 $receiptTemplate = $this->config['receipt_template'] ?? '';
@@ -1244,9 +1246,22 @@ class Sales extends Secure_Controller
         }
     }
 
-    private function creditNoteNumberOf(int $saleId): ?string
+    /**
+     * The number a return carries under the name of the document it was issued as. A credit note
+     * shows only the number its sequence gave it; a refund invoice always shows its number, or the
+     * receipt number it goes by while it has none.
+     *
+     * @return array{creditNoteNumber: ?string, refundInvoiceNumber: ?string}
+     */
+    private function returnDocumentNumbersOf(int $saleId): array
     {
-        return (new DocumentNumbering())->numbers(DocumentType::CreditNote, 'sales', [$saleId])[$saleId] ?? null;
+        $document  = $this->sale->getReturnDocument($saleId);
+        $numbering = new DocumentNumbering();
+
+        return [
+            'creditNoteNumber'    => $document === ReturnDocument::CreditNote ? ($numbering->numbers(DocumentType::CreditNote, 'sales', [$saleId])[$saleId] ?? null) : null,
+            'refundInvoiceNumber' => $document === ReturnDocument::RefundInvoice ? $numbering->label(DocumentType::RefundInvoice, 'sales', $saleId) : null,
+        ];
     }
 
     /**
@@ -1547,7 +1562,7 @@ class Sales extends Secure_Controller
         $data['comments'] = $saleInfo['comment'];
         $data['invoice_number'] = $saleInfo['invoice_number'];
         $data['quote_number'] = $saleInfo['quote_number'];
-        $data['creditNoteNumber'] = $this->creditNoteNumberOf((int) $sale_id);
+        $data = [...$data, ...$this->returnDocumentNumbersOf((int) $sale_id)];
         $data['work_order_number'] = $this->sale_lib->get_work_order_number();
         $data['sale_status'] = $saleInfo['sale_status'];
 
@@ -1611,6 +1626,37 @@ class Sales extends Secure_Controller
      */
     public function postCreditNote(int $saleId = NEW_ENTRY): ResponseInterface
     {
+        return $this->prepareReturnOf($saleId, ReturnDocument::CreditNote);
+    }
+
+    /**
+     * Prepares the register for a refund invoice of an issued invoice: the same return as a credit
+     * note, issued as the other document. Used in app/Views/sales/form.php
+     *
+     * @param int $saleId
+     * @return ResponseInterface
+     * @noinspection PhpUnused
+     */
+    public function postRefundInvoice(int $saleId = NEW_ENTRY): ResponseInterface
+    {
+        return $this->prepareReturnOf($saleId, ReturnDocument::RefundInvoice);
+    }
+
+    /**
+     * Changes the document the return in the register is issued as. Used in app/Views/sales/register.php
+     *
+     * @return ResponseInterface|string
+     * @noinspection PhpUnused
+     */
+    public function postSetReturnDocument(): ResponseInterface|string
+    {
+        $this->sale_lib->set_return_document(ReturnDocument::fromStored((string) $this->request->getPost('return_document')));
+
+        return $this->reload();
+    }
+
+    private function prepareReturnOf(int $saleId, ReturnDocument $document): ResponseInterface
+    {
         if ($this->outsideBranchScope($saleId)) {
             return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.branch_not_allowed')]);
         }
@@ -1632,6 +1678,7 @@ class Sales extends Secure_Controller
         $this->sale_lib->clear_all();
         $this->sale_lib->set_mode('return');
         $this->sale_lib->set_sale_type(SALE_TYPE_RETURN);
+        $this->sale_lib->set_return_document($document);
         $this->sale_lib->return_entire_sale('POS ' . $saleId);
 
         return $this->response->setJSON(['success' => true, 'redirect' => site_url('sales')]);
@@ -1989,6 +2036,7 @@ class Sales extends Secure_Controller
         $data['accounting_enabled'] = (new AccountingSettings())->isEnabled();
         $data['delivered'] = $this->sale_lib->is_delivered();
         $data['return_origin'] = $this->sale_lib->get_return_origin();
+        $data['return_document'] = $this->sale_lib->get_return_document()->value;
 
         $data['pos_mode'] = $data['mode'] == 'sale' || $data['mode'] == 'return';
 
@@ -2113,7 +2161,7 @@ class Sales extends Secure_Controller
 
         $numbering                = new DocumentNumbering();
         $data['paymentNumbers']   = $numbering->numbers(DocumentType::CustomerPayment, 'sales_payments', array_map(static fn (object $payment): int => (int) $payment->payment_id, $data['payments']));
-        $data['creditNoteNumber'] = $numbering->numbers(DocumentType::CreditNote, 'sales', [$saleId])[$saleId] ?? null;
+        $data = [...$data, ...$this->returnDocumentNumbersOf($saleId)];
 
         $data['treasury_options']     = [];
         $data['new_treasury_options'] = [];

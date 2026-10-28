@@ -4,6 +4,7 @@ namespace Tests\Models;
 
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\InvoiceDiscountProblem;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
@@ -94,13 +95,13 @@ class SaleTest extends CIUnitTestCase
     /**
      * @param list<array<string, mixed>> $payments
      */
-    private function saveSale(int $type, array $payments, int $status = COMPLETED, int $saleId = NEW_ENTRY, ?string $invoiceNumber = null, ?string $quoteNumber = null, ?int $origin = null, float $quantity = 1): int
+    private function saveSale(int $type, array $payments, int $status = COMPLETED, int $saleId = NEW_ENTRY, ?string $invoiceNumber = null, ?string $quoteNumber = null, ?int $origin = null, float $quantity = 1, ReturnDocument $returnDocument = ReturnDocument::CreditNote): int
     {
         $itemId = $this->createTestItem(HAS_NO_STOCK);
         $items  = $this->buildCartLine($itemId, $quantity, 10.00);
         $taxes  = [[], []];
 
-        return model(Sale::class)->save_value($saleId, $status, $items, NEW_ENTRY, $this->createEmployee(), 'numbering', $invoiceNumber, null, $quoteNumber, $type, $payments, null, $taxes, true, $origin);
+        return model(Sale::class)->save_value($saleId, $status, $items, NEW_ENTRY, $this->createEmployee(), 'numbering', $invoiceNumber, null, $quoteNumber, $type, $payments, null, $taxes, true, $origin, null, $returnDocument);
     }
 
     /**
@@ -785,6 +786,60 @@ class SaleTest extends CIUnitTestCase
 
         $this->assertSame('CN-00001', $this->numberOf(DocumentType::CreditNote, 'sales', $return));
         $this->assertNull($this->numberOf(DocumentType::CreditNote, 'sales', $invoice));
+    }
+
+    public function testSaveValue_NumbersARefundInvoiceFromItsOwnSequenceAndLeavesTheCreditNotesAlone(): void
+    {
+        $this->switchOn(DocumentType::CreditNote, 'CN-', 5, 1);
+        $this->switchOn(DocumentType::RefundInvoice, 'RI-', 5, 1);
+
+        $invoice = $this->saveSale(SALE_TYPE_INVOICE, []);
+        $refund  = $this->saveSale(SALE_TYPE_RETURN, [], COMPLETED, NEW_ENTRY, null, null, $invoice, -1, ReturnDocument::RefundInvoice);
+        $note    = $this->saveSale(SALE_TYPE_RETURN, [], COMPLETED, NEW_ENTRY, null, null, $invoice, -1);
+
+        $this->assertSame('RI-00001', $this->numberOf(DocumentType::RefundInvoice, 'sales', $refund));
+        $this->assertNull($this->numberOf(DocumentType::CreditNote, 'sales', $refund));
+        $this->assertSame('CN-00001', $this->numberOf(DocumentType::CreditNote, 'sales', $note));
+        $this->assertNull($this->numberOf(DocumentType::RefundInvoice, 'sales', $note));
+        $this->assertNull($this->numberOf(DocumentType::RefundInvoice, 'sales', $invoice));
+        $this->assertSame(2, (new DocumentNumbering())->sequence(DocumentType::RefundInvoice)->nextNumber);
+        $this->assertSame(2, (new DocumentNumbering())->sequence(DocumentType::CreditNote)->nextNumber);
+    }
+
+    public function testSaveValue_GivesARefundInvoiceNoNumberWhileItsSequenceIsOffWhateverTheCreditNotesDo(): void
+    {
+        $this->switchOn(DocumentType::CreditNote, 'CN-', 5, 1);
+
+        $invoice = $this->saveSale(SALE_TYPE_INVOICE, []);
+        $refund  = $this->saveSale(SALE_TYPE_RETURN, [], COMPLETED, NEW_ENTRY, null, null, $invoice, -1, ReturnDocument::RefundInvoice);
+
+        $this->assertGreaterThan(0, $refund);
+        $this->assertSame(0, Database::connect()->table('document_numbers')->where('source_id', $refund)->countAllResults());
+        $this->assertSame(1, (new DocumentNumbering())->sequence(DocumentType::CreditNote)->nextNumber);
+    }
+
+    public function testSaveValue_SavesAReturnAsACreditNoteUnlessItIsIssuedAsARefundInvoice(): void
+    {
+        $invoice = $this->saveSale(SALE_TYPE_INVOICE, [], COMPLETED, NEW_ENTRY, null, null, null, 1, ReturnDocument::RefundInvoice);
+        $note    = $this->saveSale(SALE_TYPE_RETURN, [], COMPLETED, NEW_ENTRY, null, null, $invoice, -1);
+        $refund  = $this->saveSale(SALE_TYPE_RETURN, [], COMPLETED, NEW_ENTRY, null, null, $invoice, -1, ReturnDocument::RefundInvoice);
+
+        $this->assertNull($this->theSaleRow($invoice)['return_document']);
+        $this->assertNull($this->theSaleRow($note)['return_document']);
+        $this->assertSame('refund_invoice', $this->theSaleRow($refund)['return_document']);
+    }
+
+    public function testGetReturnDocument_ReadsWhichDocumentAReturnWasIssuedAs(): void
+    {
+        $invoice = $this->saveSale(SALE_TYPE_INVOICE, []);
+        $note    = $this->saveSale(SALE_TYPE_RETURN, [], COMPLETED, NEW_ENTRY, null, null, $invoice, -1);
+        $refund  = $this->saveSale(SALE_TYPE_RETURN, [], COMPLETED, NEW_ENTRY, null, null, $invoice, -1, ReturnDocument::RefundInvoice);
+        $sale    = model(Sale::class);
+
+        $this->assertSame(ReturnDocument::CreditNote, $sale->getReturnDocument($note));
+        $this->assertSame(ReturnDocument::RefundInvoice, $sale->getReturnDocument($refund));
+        $this->assertSame(ReturnDocument::CreditNote, $sale->getReturnDocument($invoice));
+        $this->assertSame(ReturnDocument::CreditNote, $sale->getReturnDocument(999999999));
     }
 
     public function testSaveValue_GivesAnInvoiceTheNextNumberOfItsSequenceWhenNoneIsTyped(): void

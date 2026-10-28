@@ -2,6 +2,7 @@
 
 namespace app\Libraries;
 
+use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\InvoiceDiscount;
 use App\Libraries\InvoiceDiscountPlan;
 use App\Libraries\InvoiceDiscountProblem;
@@ -549,6 +550,25 @@ class Sale_lib
     public function clear_return_origin(): void
     {
         $this->session->remove('sales_return_origin');
+    }
+
+    /**
+     * The document a return in the register is issued as: a credit note unless it was asked to be a
+     * refund invoice.
+     */
+    public function get_return_document(): ReturnDocument
+    {
+        return ReturnDocument::fromStored($this->session->get('sales_return_document'));
+    }
+
+    public function set_return_document(ReturnDocument $document): void
+    {
+        $document === ReturnDocument::CreditNote ? $this->session->remove('sales_return_document') : $this->session->set('sales_return_document', $document->value);
+    }
+
+    public function clear_return_document(): void
+    {
+        $this->session->remove('sales_return_document');
     }
 
     /**
@@ -1598,6 +1618,7 @@ class Sale_lib
         $this->set_dinner_table($this->sale->get_dinner_table($sale_id));
         $this->set_delivered($this->sale->isDelivered($sale_id));
         $this->set_return_origin($this->sale->getReturnOrigin($sale_id));
+        $this->set_return_document($this->sale->getReturnDocument($sale_id));
         $this->session->set('sale_id', $sale_id);
     }
 
@@ -1676,6 +1697,7 @@ class Sale_lib
         $this->clear_invoice_number();
         $this->clear_delivered();
         $this->clear_return_origin();
+        $this->clear_return_document();
         $this->clearInvoiceDiscount();
         $this->clear_quote_number();
         $this->clear_work_order_number();

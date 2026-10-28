@@ -26,6 +26,7 @@
  * @var array<int, string> $new_treasury_options
  * @var array<int, string> $paymentNumbers
  * @var string|null $creditNoteNumber
+ * @var string|null $refundInvoiceNumber
  */
 ?>
 
@@ -44,6 +45,13 @@
             <div class="row mb-3">
                 <?= form_label(lang('Numbering.type_credit_note'), 'credit_note_number', ['class' => 'col-form-label col-3']) ?>
                 <div class="col-8 col-form-label" id="credit_note_number"><bdi dir="ltr"><?= esc($creditNoteNumber) ?></bdi></div>
+            </div>
+        <?php endif; ?>
+
+        <?php if (! empty($refundInvoiceNumber)): ?>
+            <div class="row mb-3">
+                <?= form_label(lang('Numbering.type_refund_invoice'), 'refund_invoice_number', ['class' => 'col-form-label col-3']) ?>
+                <div class="col-8 col-form-label" id="refund_invoice_number"><bdi dir="ltr"><?= esc($refundInvoiceNumber) ?></bdi></div>
             </div>
         <?php endif; ?>
 
@@ -223,6 +231,7 @@
                             <p class="small text-body-secondary mb-0"><?= esc($credit_note_help) ?></p>
                         <?php else: ?>
                             <button type="button" class="btn btn-outline-primary btn-sm" id="create_credit_note"><?= lang('Sales.credit_note_create') ?></button>
+                            <button type="button" class="btn btn-outline-primary btn-sm ms-1" id="create_refund_invoice"><?= lang('Sales.refund_invoice_create') ?></button>
                         <?php endif; ?>
                     <?php endif; ?>
                 </div>
@@ -370,14 +379,16 @@
             $('button#delete').hide();
         <?php endif; ?>
 
-        $('#create_credit_note').click(function() {
-            $.post("<?= esc(site_url("{$controller_name}/creditNote/" . $sale_info['sale_id'])) ?>", function(response) {
-                if (response.success) {
-                    window.location.href = response.redirect;
-                } else {
-                    $.notify({message: response.message}, {type: 'danger'});
-                }
-            }, 'json');
+        $.each({create_credit_note: 'creditNote', create_refund_invoice: 'refundInvoice'}, function(button, action) {
+            $('#' + button).click(function() {
+                $.post("<?= esc(site_url("{$controller_name}/")) ?>" + action + "/<?= (int) $sale_info['sale_id'] ?>", function(response) {
+                    if (response.success) {
+                        window.location.href = response.redirect;
+                    } else {
+                        $.notify({message: response.message}, {type: 'danger'});
+                    }
+                }, 'json');
+            });
         });
 
         $('button#delete').click(function() {

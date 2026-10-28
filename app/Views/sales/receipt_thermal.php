@@ -44,6 +44,9 @@ foreach ($payments as $payment) {
         <?php if (! empty($creditNoteNumber)): ?>
             <div><dt><?= lang('Numbering.type_credit_note') ?></dt><dd><?= documentIsolate((string) $creditNoteNumber) ?></dd></div>
         <?php endif; ?>
+        <?php if (! empty($refundInvoiceNumber)): ?>
+            <div><dt><?= lang('Numbering.type_refund_invoice') ?></dt><dd><?= documentIsolate((string) $refundInvoiceNumber) ?></dd></div>
+        <?php endif; ?>
         <?php if (! empty($invoice_number)): ?>
             <div><dt><?= lang('Sales.invoice_number') ?></dt><dd><?= documentIsolate($invoice_number) ?></dd></div>
         <?php endif; ?>

@@ -26,6 +26,7 @@ return [
     'type_debit_note'         => 'إشعار مدين',
     'type_expense'            => 'مصروف',
     'type_purchase'           => 'فاتورة شراء',
+    'type_refund_invoice'     => 'فاتورة مرتجعة',
     'type_sales_invoice'      => 'فاتورة بيع',
     'type_sales_quote'        => 'عرض سعر',
     'type_supplier_payment'   => 'دفعة مورد',
