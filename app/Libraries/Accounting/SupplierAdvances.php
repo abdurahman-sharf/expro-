@@ -60,7 +60,8 @@ final class SupplierAdvances
 
     /**
      * A payment to the supplier that belongs to no purchase: debits the account of the supplier
-     * and credits the treasury it was paid from, or the account of the way it was paid.
+     * and credits the treasury it was paid from, or the account of the way it was paid. It is
+     * posted on the date entered, which is never after today.
      *
      * @return int The advance.
      *
@@ -71,7 +72,7 @@ final class SupplierAdvances
         $this->guard->require(AccountingGuard::PAYABLES_MANAGE, $employeeId);
 
         $amount = $this->amount($amount);
-        $date   = $this->date($date);
+        $date   = SupplierPaymentDate::entered($date, null, (new AccountingSettings($this->db))->startDate());
         $type   = PaymentType::fromLabel($paymentType);
 
         if ($type === null || $type === PaymentType::Due || $type === PaymentType::Giftcard || $type === PaymentType::Rewards) {

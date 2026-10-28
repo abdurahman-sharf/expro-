@@ -19,6 +19,7 @@ use App\Libraries\Accounting\ReceivingType;
 use App\Libraries\Accounting\ReturnDiscountShares;
 use App\Libraries\Accounting\ReturnLimit;
 use App\Libraries\Accounting\SupplierLock;
+use App\Libraries\Accounting\SupplierPaymentDate;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Numbering\DocumentNumbering;
@@ -204,7 +205,10 @@ class Receiving extends Model
     /**
      * Saves the payments made against a purchase: new ones are added, changed ones updated, and
      * one given an amount of nothing is removed with its journal. Only a purchase of goods
-     * received from a supplier takes payments.
+     * received from a supplier takes payments. A payment has the date it was entered (today when
+     * none is given, and never after today), which is the day it is posted on; the time it was saved
+     * is kept as it was. A payment saved before dates could be entered keeps the day it was saved
+     * until someone gives it another.
      *
      * @param list<array<string, mixed>> $payments
      *
@@ -222,9 +226,10 @@ class Receiving extends Model
             throw new AccountingException(AccountingError::SupplierPaymentNeedsSupplier, 'A payment to a supplier needs the purchase to have a supplier.', ['receiving_id' => $receivingId]);
         }
 
-        $builder = $this->db->table('receivings_payments');
-        $posting = $accountingOn ? new ReceivingPosting($this->db) : null;
-        $last    = null;
+        $builder    = $this->db->table('receivings_payments');
+        $posting    = $accountingOn ? new ReceivingPosting($this->db) : null;
+        $booksStart = $accountingOn ? (new AccountingSettings($this->db))->startDate() : null;
+        $last       = null;
 
         foreach ($payments as $payment) {
             $paymentId = (int) ($payment['payment_id'] ?? NEW_ENTRY);
@@ -236,12 +241,15 @@ class Receiving extends Model
                     continue;
                 }
 
+                $date = SupplierPaymentDate::entered(($payment['payment_date'] ?? '') === '' ? date('Y-m-d') : $payment['payment_date'], null, $booksStart);
+
                 [$treasuryId, $treasuryBranchId] = $this->placeOfPayment($payment, isset($payment['employee_id']) ? (int) $payment['employee_id'] : null, (int) $purchase->branch_id, bccomp($amount, '0', 2) < 0 ? TreasuryScopes::DEPOSIT : TreasuryScopes::WITHDRAW);
 
                 $builder->insert([
                     'receiving_id'       => $receivingId,
                     'payment_type'       => (string) $payment['payment_type'],
                     'payment_amount'     => $amount,
+                    'payment_date'       => $date,
                     'employee_id'        => $payment['employee_id'] ?? null,
                     'reference_code'     => (string) ($payment['reference_code'] ?? ''),
                     'payment_status'     => PaymentStatus::fromStored($payment['payment_status'] ?? null)->value,
@@ -254,7 +262,7 @@ class Receiving extends Model
                 continue;
             }
 
-            $stored = $this->db->table('receivings_payments')->select('receiving_id')->where('payment_id', $paymentId)->get()->getRow();
+            $stored = $this->db->table('receivings_payments')->select('receiving_id, payment_time, payment_date')->where('payment_id', $paymentId)->get()->getRow();
 
             if ($stored === null || (int) $stored->receiving_id !== $receivingId) {
                 throw new AccountingException(AccountingError::SupplierPaymentNotOnInvoice, 'The payment does not belong to this purchase.', ['receiving_id' => $receivingId]);
@@ -268,6 +276,14 @@ class Receiving extends Model
             }
 
             $changes = ['payment_type' => (string) $payment['payment_type'], 'payment_amount' => $amount];
+
+            if (($payment['payment_date'] ?? '') !== '') {
+                $posted = is_string($payment['payment_date']) ? trim($payment['payment_date']) : $payment['payment_date'];
+
+                if ($posted !== SupplierPaymentDate::of($stored->payment_date, (string) $stored->payment_time)) {
+                    $changes['payment_date'] = SupplierPaymentDate::entered($posted, null, $booksStart);
+                }
+            }
 
             if (isset($payment['payment_status']) && PaymentStatus::tryFrom((string) $payment['payment_status']) !== null) {
                 $changes['payment_status'] = $payment['payment_status'];

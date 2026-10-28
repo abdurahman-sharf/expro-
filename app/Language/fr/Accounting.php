@@ -152,6 +152,8 @@ return [
     'error_opening_unbalanced'                   => '',
     'error_parent_inactive'                      => '',
     'error_parent_invalid'                       => '',
+    'error_payment_date_before_books'            => '',
+    'error_payment_date_in_future'               => '',
     'error_permission_denied'                    => '',
     'error_posted_journal_locked'                => '',
     'error_purchase_has_returns'                 => '',

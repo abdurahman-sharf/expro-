@@ -152,6 +152,8 @@ return [
     'error_opening_unbalanced'                   => 'The opening balances are not balanced: debit {0}, credit {1}.',
     'error_parent_inactive'                      => 'The parent account is inactive.',
     'error_parent_invalid'                       => 'The parent must be an existing group account.',
+    'error_payment_date_before_books'            => 'The date {0} is before the day the books start ({1}). A payment is dated on or after it.',
+    'error_payment_date_in_future'               => 'The date {0} is after today. A payment is dated on or before today.',
     'error_permission_denied'                    => 'You do not have permission to do this.',
     'error_posted_journal_locked'                => 'A posted manual journal and a reversal are never edited. Reverse the manual journal instead.',
     'error_purchase_has_returns'                 => 'A receiving that goods have been returned from cannot be deleted. Delete its returns first.',

@@ -13,6 +13,7 @@ use App\Libraries\Accounting\ReceivingLoader;
 use App\Libraries\Accounting\ReceivingPosting;
 use App\Libraries\Accounting\ReceivingType;
 use App\Libraries\Accounting\SupplierLedger;
+use App\Libraries\Accounting\SupplierPaymentDate;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Barcode_lib;
@@ -391,6 +392,13 @@ class Receivings extends Secure_Controller
         $data['can_debit_note']         = false;
         $data['payment_options']        = $this->supplierPaymentOptions();
         $data['paymentNumbers']         = (new DocumentNumbering())->numbers(DocumentType::SupplierPayment, 'receivings_payments', array_map(static fn (object $payment): int => (int) $payment->payment_id, $data['payments']));
+        $data['paymentDates']           = [];
+        $data['today']                  = date('Y-m-d');
+
+        foreach ($data['payments'] as $payment) {
+            $data['paymentDates'][(int) $payment->payment_id] = SupplierPaymentDate::of($payment->payment_date, (string) $payment->payment_time);
+        }
+
         $data += $this->documentNumberOf((int) $receiving_id);
         $data['treasury_options']       = [];
         $data['new_treasury_options']   = [];
@@ -882,6 +890,7 @@ class Receivings extends Secure_Controller
                 'payment_status' => $this->request->getPost("payment_status_{$i}", FILTER_SANITIZE_FULL_SPECIAL_CHARS),
                 'reference_code' => (string) $this->request->getPost("reference_code_{$i}", FILTER_SANITIZE_FULL_SPECIAL_CHARS),
                 'employee_id'    => $employeeId,
+                ...$this->postedDate("payment_date_{$i}"),
                 ...$this->postedTreasury("treasury_id_{$i}"),
             ];
         }
@@ -897,11 +906,26 @@ class Receivings extends Secure_Controller
                 'payment_status' => $this->request->getPost('payment_status_new', FILTER_SANITIZE_FULL_SPECIAL_CHARS) ?: PaymentStatus::Completed->value,
                 'reference_code' => (string) $this->request->getPost('reference_code_new', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
                 'employee_id'    => $employeeId,
+                ...$this->postedDate('payment_date_new'),
                 ...$this->postedTreasury('treasury_id_new'),
             ];
         }
 
         return $payments;
+    }
+
+    /**
+     * The date a payment of the form names, when the form has the field: without it a new payment
+     * is dated today and one that exists keeps its date. Whether it is a date at all is asked by
+     * the model, which gets whatever was sent.
+     *
+     * @return array{payment_date?: mixed}
+     */
+    private function postedDate(string $field): array
+    {
+        $posted = $this->request->getPost($field);
+
+        return $posted === null ? [] : ['payment_date' => is_string($posted) ? trim($posted) : $posted];
     }
 
     /**

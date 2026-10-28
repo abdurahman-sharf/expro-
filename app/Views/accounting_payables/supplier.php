@@ -24,6 +24,12 @@ $aging = $position->aging($today);
     <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('accounting_payables'), 'attr') ?>">
         <span class="bi bi-list-ul" aria-hidden="true">&nbsp;</span><?= lang('Accounting_payables.back') ?>
     </a>
+    <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('accounting_payables/payments?supplier_id=' . $supplier_id), 'attr') ?>">
+        <span class="bi bi-cash-coin" aria-hidden="true">&nbsp;</span><?= lang('Accounting_payables.payments') ?>
+    </a>
+    <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('accounting_payables/debit_notes?supplier_id=' . $supplier_id), 'attr') ?>">
+        <span class="bi bi-file-earmark-minus" aria-hidden="true">&nbsp;</span><?= lang('Accounting_payables.debit_notes') ?>
+    </a>
     <?php if ($can_manage): ?>
         <button class="btn btn-outline-secondary btn-sm modal-dlg" data-btn-submit="<?= lang('Common.submit') ?>" data-href="accounting_payables/opening_form/<?= $supplier_id ?>" title="<?= lang('Accounting_payables.opening_new') ?>">
             <span class="bi bi-flag" aria-hidden="true">&nbsp;</span><?= lang('Accounting_payables.opening_new') ?>

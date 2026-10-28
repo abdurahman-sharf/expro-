@@ -19,6 +19,8 @@
  * @var list<object> $applications
  * @var bool $can_debit_note
  * @var array<int, string> $paymentNumbers
+ * @var array<int, string> $paymentDates
+ * @var string $today
  * @var string|null $documentLabel
  * @var string|null $documentNumber
  * @var App\Libraries\Accounting\InvoiceDiscount $invoiceDiscount
@@ -113,6 +115,10 @@
                     <div class="col-3">
                         <?= form_input(['name' => 'payment_amount_' . $i, 'value' => to_currency_no_money($row->payment_amount), 'id' => 'payment_amount_' . $i, 'class' => 'form-control form-control-sm', 'aria-label' => lang('Receivings.payment_amount'), 'inputmode' => 'decimal', 'dir' => 'ltr']) ?>
                     </div>
+                    <div class="col-5 offset-3 mt-2">
+                        <input type="date" name="payment_date_<?= $i ?>" id="payment_date_<?= $i ?>" class="form-control form-control-sm" dir="ltr" max="<?= esc($today, 'attr') ?>" value="<?= esc($paymentDates[(int) $row->payment_id] ?? $today, 'attr') ?>" aria-label="<?= esc(lang('Receivings.payment_date'), 'attr') ?>">
+                    </div>
+                    <div class="col-4 mt-2 small text-body-secondary payment-saved-at"><?= esc(lang('Receivings.payment_saved_at', [to_datetime(strtotime((string) $row->payment_time))])) ?></div>
                     <?php if ($payment_statuses !== []): ?>
                         <div class="col-5 offset-3 mt-2">
                             <?= form_dropdown('payment_status_' . $i, $payment_statuses, $row->payment_status ?? 'completed', ['id' => 'payment_status_' . $i, 'class' => 'form-select form-select-sm', 'aria-label' => lang('Sales.payment_status')]) ?>
@@ -135,6 +141,9 @@
                 <div class="col-3">
                     <?= form_input(['name' => 'payment_amount_new', 'value' => $payable === null ? '' : to_currency_no_money($payable->open()), 'id' => 'payment_amount_new', 'class' => 'form-control form-control-sm', 'aria-label' => lang('Receivings.payment_amount'), 'inputmode' => 'decimal', 'dir' => 'ltr']) ?>
                 </div>
+                <div class="col-5 offset-3 mt-2">
+                    <input type="date" name="payment_date_new" id="payment_date_new" class="form-control form-control-sm" dir="ltr" max="<?= esc($today, 'attr') ?>" value="<?= esc($today, 'attr') ?>" aria-label="<?= esc(lang('Receivings.payment_date'), 'attr') ?>">
+                </div>
                 <?php if ($payment_statuses !== []): ?>
                     <div class="col-5 offset-3 mt-2">
                         <?= form_dropdown('payment_status_new', $payment_statuses, 'completed', ['id' => 'payment_status_new', 'class' => 'form-select form-select-sm', 'aria-label' => lang('Sales.payment_status')]) ?>
@@ -145,6 +154,7 @@
                         <?= form_dropdown('treasury_id_new', array_map('esc', $new_treasury_options), '0', ['id' => 'treasury_id_new', 'class' => 'form-select form-select-sm', 'aria-label' => lang('Receivings.treasury')]) ?>
                     </div>
                 <?php endif; ?>
+                <p class="small text-body-secondary col-8 offset-3 mb-0 mt-1" id="payment_date_note"><?= lang('Receivings.payment_date_note') ?></p>
                 <?php if ($payment_statuses !== []): ?>
                     <p class="small text-body-secondary col-8 offset-3 mb-0 mt-1"><?= lang('Receivings.payments_note') ?></p>
                 <?php endif; ?>
