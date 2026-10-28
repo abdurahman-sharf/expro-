@@ -22,13 +22,13 @@
   ]
  },
  {
-  "name": "G03 a payment added later is posted after the journals the sale already had (nothing is renumbered)",
+  "name": "G03 a payment whose journal still holds is left alone when another payment is added (nothing is renumbered or rewritten)",
   "file": "app/Libraries/Accounting/SalePosting.php",
-  "find": "        $this->transactional(function () use ($sale, $employeeId): void {\n            $this->builder->assertSettled($sale);\n\n            foreach ($sale->payments as $payment) {\n                $this->postPayment($sale, $payment, $employeeId);\n            }\n\n            $this->settle($sale->customerId, $employeeId);\n        });",
-  "replace": "        $this->transactional(function () use ($sale, $employeeId): void {\n            $this->builder->assertSettled($sale);\n\n            foreach ($sale->payments as $payment) {\n                $this->postPayment($sale, $payment, $employeeId);\n            }\n\n            $this->postCost($sale, $employeeId);\n            $this->settle($sale->customerId, $employeeId);\n        });",
+  "find": "            if ($draft !== null && $this->holds($active, $draft)) {\n                return;\n            }\n\n",
+  "replace": "",
   "tests": [
    "--filter",
-   "testUpdate_PostsAPaymentAddedLater|testSaveValue_PostsTheCostOfAPaidSaleLastWhenItsGoodsAreDeliveredLater",
+   "testUpdate_PostsAPaymentAddedLaterAfterEveryJournal|testUpdate_LeavesTheJournalOfAPaymentWhoseType",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
  },
