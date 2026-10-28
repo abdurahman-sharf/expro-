@@ -22,8 +22,7 @@ final class SupplierPaymentList
     public const PURCHASE = 'purchase';
     public const ADVANCE  = 'advance';
     public const REFUND   = 'refund';
-
-    private const SORTS = [
+    private const SORTS   = [
         'date'          => 'd.doc_date',
         'number'        => 'COALESCE(n.sequence_number, d.source_id)',
         'supplier_name' => 'supplier_name',
@@ -69,18 +68,6 @@ final class SupplierPaymentList
         }
 
         return ['total' => $total, 'rows' => $rows];
-    }
-
-    /**
-     * The branch a payment belongs to, or null when there is no such payment.
-     */
-    public function branchOf(string $kind, int $sourceId): ?int
-    {
-        $row = $kind === self::ADVANCE
-            ? $this->db->table('supplier_advances')->select('branch_id')->where(['advance_id' => $sourceId, 'kind' => SupplierAdvances::PAYMENT])->get()->getRow()
-            : $this->db->table('receivings_payments p')->select('r.branch_id')->join('receivings r', 'r.receiving_id = p.receiving_id')->where('p.payment_id', $sourceId)->get()->getRow();
-
-        return $row === null ? null : (int) $row->branch_id;
     }
 
     /**

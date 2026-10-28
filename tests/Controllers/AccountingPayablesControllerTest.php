@@ -675,8 +675,15 @@ class AccountingPayablesControllerTest extends CIUnitTestCase
     {
         $this->viewer([1]);
 
-        $this->get('/accounting_payables/payments')->assertStatus(200);
-        $this->get('/accounting_payables/debit_notes')->assertStatus(200);
+        $payments = $this->get('/accounting_payables/payments');
+        $notes    = $this->get('/accounting_payables/debit_notes');
+
+        $payments->assertStatus(200);
+        $notes->assertStatus(200);
+        $wayBack = 'href="' . base_url('accounting_payables') . '"><span class="bi bi-list-ul"';
+
+        $this->assertStringNotContainsString($wayBack, $payments->getBody(), 'No way back to a screen that is closed to them');
+        $this->assertStringNotContainsString($wayBack, $notes->getBody());
 
         $this->expectException(PageNotFoundException::class);
 
@@ -906,6 +913,25 @@ class AccountingPayablesControllerTest extends CIUnitTestCase
         $this->assertSame(['purchase:' . $c, 'purchase:' . $b, 'purchase:' . $a], $this->keysOfRows($this->paymentsOf('?sort=1%3BDROP&order=up')), 'What is not a column sorts by date');
     }
 
+    public function testGetPaymentsSearch_NeverReturnsMoreThanTheLargestPageWhateverLimitIsAsked(): void
+    {
+        $purchase = $this->purchaseOf('1000.00');
+        $rows     = [];
+
+        for ($i = 0; $i < 501; ++$i) {
+            $rows[] = ['receiving_id' => $purchase, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '1.00', 'payment_date' => date('Y-m-d'), 'employee_id' => $this->employeeId, 'payment_status' => 'completed'];
+        }
+
+        $this->accountingDb()->table('receivings_payments')->insertBatch($rows);
+        $this->viewer();
+
+        $result = $this->paymentsOf('?limit=100000');
+
+        $this->assertSame(501, $result['total']);
+        $this->assertCount(500, $result['rows']);
+        $this->assertCount(25, $this->paymentsOf('?limit=0')['rows'], 'Without a limit a page is the usual size');
+    }
+
     public function testGetPaymentsSearch_LinksAPaymentOnAPurchaseToItsFormForWhoMayOpenIt(): void
     {
         $purchase = $this->purchaseOf('300.00');
@@ -937,7 +963,8 @@ class AccountingPayablesControllerTest extends CIUnitTestCase
 
         $this->assertStringContainsString('id="f_supplier" value="' . $this->supplierId . '"', $this->get('/accounting_payables/payments?supplier_id=' . $this->supplierId)->getBody());
         $this->assertStringContainsString('id="f_supplier" value=""', $this->get('/accounting_payables/payments?supplier_id=0')->getBody());
-        $this->assertStringContainsString('href="' . base_url('accounting_payables') . '"', $this->get('/accounting_payables/payments')->getBody());
+        $this->assertStringContainsString('href="' . base_url('accounting_payables') . '"><span class="bi bi-list-ul"', $this->get('/accounting_payables/payments')->getBody());
+        $this->assertStringContainsString('href="' . base_url('accounting_payables') . '"><span class="bi bi-list-ul"', $this->get('/accounting_payables/debit_notes')->getBody());
     }
 
     public function testGetSupplier_LinksToThePaymentsAndTheDebitNotesOfTheSupplier(): void

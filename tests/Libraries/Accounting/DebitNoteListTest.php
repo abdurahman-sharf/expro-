@@ -343,10 +343,15 @@ class DebitNoteListTest extends CIUnitTestCase
 
     public function testSearch_TakesALikeCharacterAsTextAndNotAsAPattern(): void
     {
+        $other    = $this->anotherSupplier('Fifty% Trading');
         $purchase = $this->purchaseOf('100.00');
+        $second   = $this->purchaseOf('100.00', $other);
+
         $this->debitNoteOf($purchase, '10.00');
 
-        $this->assertSame(0, count($this->rows(null, ['search' => '%'])));
+        $theirs = $this->debitNoteOf($second, '20.00', $other);
+
+        $this->assertSame([$theirs], $this->idsOf($this->rows(null, ['search' => '%'])), 'Only the name with a percent sign');
         $this->assertSame(0, count($this->rows(null, ['search' => '_'])));
     }
 
@@ -435,18 +440,5 @@ class DebitNoteListTest extends CIUnitTestCase
     public function testStateOf_TellsWhereADebitNoteStandsAgainstWhatTheSupplierIsOwed(string $amount, string $credit, string $applied, string $state): void
     {
         $this->assertSame($state, DebitNoteList::stateOf($amount, $credit, $applied));
-    }
-
-    public function testBranchOf_TellsWhereADebitNoteBelongsAndNothingForWhatIsNotOne(): void
-    {
-        $branch   = $this->createBranch('B2');
-        $location = $this->locationOfBranch($branch);
-        $item     = $this->item('0.00');
-        $other    = $this->buy([$this->purchaseLine($item, 0, '1', '100.00', '0', '0', PERCENT, $location)]);
-        $note     = $this->buy([$this->purchaseLine($item, 0, '-0.2', '100.00', '0', '0', PERCENT, $location)], -1, null, $other);
-
-        $this->assertSame($branch, $this->notes->branchOf($note));
-        $this->assertNull($this->notes->branchOf($other), 'A purchase is not a debit note');
-        $this->assertNull($this->notes->branchOf(999999));
     }
 }

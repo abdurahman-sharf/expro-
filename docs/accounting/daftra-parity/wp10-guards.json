@@ -1,0 +1,712 @@
+[
+ {
+  "name": "G01 a date must be a real day: the round trip of the parse is checked",
+  "file": "app/Libraries/Accounting/SupplierPaymentDate.php",
+  "find": "if ($day === false || $day->format('Y-m-d') !== $text) {",
+  "replace": "if ($day === false) {",
+  "tests": [
+   "tests/Libraries/Accounting/SupplierPaymentDateTest.php"
+  ]
+ },
+ {
+  "name": "G02 a payment is not dated after today",
+  "file": "app/Libraries/Accounting/SupplierPaymentDate.php",
+  "find": "if ($text > ($today ?? date('Y-m-d'))) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/SupplierPaymentDateTest.php"
+  ]
+ },
+ {
+  "name": "G03 a payment is not dated before the day the books start",
+  "file": "app/Libraries/Accounting/SupplierPaymentDate.php",
+  "find": "if ($booksStart !== null && $text < $booksStart) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/SupplierPaymentDateTest.php"
+  ]
+ },
+ {
+  "name": "G04 a payment with no entered date shows and posts on the day it was saved",
+  "file": "app/Libraries/Accounting/SupplierPaymentDate.php",
+  "find": "return $entered !== null && $entered !== '' ? substr($entered, 0, 10) : substr($savedAt, 0, 10);",
+  "replace": "return substr($entered ?? '', 0, 10);",
+  "tests": [
+   "tests/Libraries/Accounting/SupplierPaymentDateTest.php"
+  ]
+ },
+ {
+  "name": "G05 the books start is asked of a payment made against a purchase while the books are on",
+  "file": "app/Models/Receiving.php",
+  "find": "$booksStart = $accountingOn ? (new AccountingSettings($this->db))->startDate() : null;",
+  "replace": "$booksStart = null;",
+  "tests": [
+   "--filter",
+   "BeforeTheDayTheBooksStart",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "G06 the date of a new payment is checked",
+  "file": "app/Models/Receiving.php",
+  "find": "$date = SupplierPaymentDate::entered(($payment['payment_date'] ?? '') === '' ? date('Y-m-d') : $payment['payment_date'], null, $booksStart);",
+  "replace": "$date = ($payment['payment_date'] ?? '') === '' ? date('Y-m-d') : $payment['payment_date'];",
+  "tests": [
+   "--filter",
+   "AfterToday|NotADay|NotText",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "G07 a new payment is dated today when no date is given",
+  "file": "app/Models/Receiving.php",
+  "find": "$date = SupplierPaymentDate::entered(($payment['payment_date'] ?? '') === '' ? date('Y-m-d') : $payment['payment_date'], null, $booksStart);",
+  "replace": "$date = SupplierPaymentDate::entered(($payment['payment_date'] ?? '') === '' ? '2020-01-01' : $payment['payment_date'], null, $booksStart);",
+  "tests": [
+   "--filter",
+   "DatesAPaymentToday",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "G08 the date entered is stored with a new payment",
+  "file": "app/Models/Receiving.php",
+  "find": "                    'payment_date'       => $date,\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "PostsAPaymentOnTheDateEntered",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "G09 the new date of an existing payment is checked",
+  "file": "app/Models/Receiving.php",
+  "find": "$changes['payment_date'] = SupplierPaymentDate::entered($payment['payment_date'], null, $booksStart);",
+  "replace": "$changes['payment_date'] = $payment['payment_date'];",
+  "tests": [
+   "--filter",
+   "MoveTheDate",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "G10 a payment sent back with the date it already shows is not given a date",
+  "file": "app/Models/Receiving.php",
+  "find": "$payment['payment_date'] !== SupplierPaymentDate::of($stored->payment_date, (string) $stored->payment_time)",
+  "replace": "true",
+  "tests": [
+   "--filter",
+   "SavedWithoutADate|DateIsSentAgain",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "G11 a payment sent with no date keeps the one it has",
+  "file": "app/Models/Receiving.php",
+  "find": "if (($payment['payment_date'] ?? '') !== '' && $payment['payment_date'] !==",
+  "replace": "if (true && $payment['payment_date'] !==",
+  "tests": [
+   "--filter",
+   "LegacyPayment|KeepsThePaymentsAsTheyAre|ChangesTheDateOfAPayment",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G12 the payments of a purchase are posted on the date they carry",
+  "file": "app/Libraries/Accounting/ReceivingLoader.php",
+  "find": "date: SupplierPaymentDate::of($row->payment_date === null ? null : (string) $row->payment_date, (string) $row->payment_time),",
+  "replace": "date: substr((string) $row->payment_time, 0, 10),",
+  "tests": [
+   "--filter",
+   "OnTheDateEntered|ChangesTheDateOfAPayment|ClosedPeriod",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "G13 a payment without a purchase is not dated after today and is dated by a real day",
+  "file": "app/Libraries/Accounting/SupplierAdvances.php",
+  "find": "$date   = SupplierPaymentDate::entered($date, null, (new AccountingSettings($this->db))->startDate());",
+  "replace": "$date   = $this->date($date);",
+  "tests": [
+   "--filter",
+   "RefusesADateAfterToday|RefusesADateBeforeTheDay",
+   "tests/Libraries/Accounting/SupplierAdvancesTest.php"
+  ]
+ },
+ {
+  "name": "G14 a payment without a purchase is not dated before the day the books start",
+  "file": "app/Libraries/Accounting/SupplierAdvances.php",
+  "find": "(new AccountingSettings($this->db))->startDate());",
+  "replace": "null);",
+  "tests": [
+   "--filter",
+   "RefusesADateBeforeTheDay",
+   "tests/Libraries/Accounting/SupplierAdvancesTest.php"
+  ]
+ },
+ {
+  "name": "G15 the edit form sends the date of a new payment",
+  "file": "app/Controllers/Receivings.php",
+  "find": "                ...$this->postedDate('payment_date_new'),\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "PostsTheNewPaymentOnTheDateTheFormNamed",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G16 the edit form sends the date of every payment it shows",
+  "file": "app/Controllers/Receivings.php",
+  "find": "                ...$this->postedDate(\"payment_date_{$i}\"),\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "MovesTheDateOfAPayment",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G17 the date of a new payment may not be later than today in the form either",
+  "file": "app/Views/receivings/form.php",
+  "find": "<input type=\"date\" name=\"payment_date_new\" id=\"payment_date_new\" class=\"form-control form-control-sm\" dir=\"ltr\" max=\"<?= esc($today, 'attr') ?>\"",
+  "replace": "<input type=\"date\" name=\"payment_date_new\" id=\"payment_date_new\" class=\"form-control form-control-sm\" dir=\"ltr\"",
+  "tests": [
+   "--filter",
+   "ShowsTheDateOfEveryPayment",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G18 the date of a payment that exists may not be later than today in the form either",
+  "file": "app/Views/receivings/form.php",
+  "find": "dir=\"ltr\" max=\"<?= esc($today, 'attr') ?>\" value=\"<?= esc($paymentDates[(int) $row->payment_id] ?? $today, 'attr') ?>\"",
+  "replace": "dir=\"ltr\" value=\"<?= esc($paymentDates[(int) $row->payment_id] ?? $today, 'attr') ?>\"",
+  "tests": [
+   "--filter",
+   "ShowsTheDateOfEveryPayment",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G19 the form shows the day a payment with no date was saved",
+  "file": "app/Controllers/Receivings.php",
+  "find": "$data['paymentDates'][(int) $payment->payment_id] = SupplierPaymentDate::of($payment->payment_date, (string) $payment->payment_time);",
+  "replace": "$data['paymentDates'][(int) $payment->payment_id] = (string) $payment->payment_date;",
+  "tests": [
+   "--filter",
+   "ShowsADayAPaymentWithNoDate",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G20 the form of a payment without a purchase may not take a later date",
+  "file": "app/Views/accounting_payables/payment_form.php",
+  "find": "dir=\"ltr\" max=\"<?= esc($today, 'attr') ?>\" value=\"<?= esc($today, 'attr') ?>\"",
+  "replace": "dir=\"ltr\" value=\"<?= esc($today, 'attr') ?>\"",
+  "tests": [
+   "--filter",
+   "LimitsTheDateToToday",
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G21 the migration adds the column once and runs again safely",
+  "file": "app/Database/Migrations/20270500000000_SupplierPaymentDate.php",
+  "find": "if (! $this->hasColumn('receivings_payments', 'payment_date')) {\n            $this->db->query(\"ALTER TABLE `{$payments}` ADD COLUMN",
+  "replace": "if (true) {\n            $this->db->query(\"ALTER TABLE `{$payments}` ADD COLUMN",
+  "tests": [
+   "tests/Database/SupplierPaymentDateMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G22 the migration takes the column down once",
+  "file": "app/Database/Migrations/20270500000000_SupplierPaymentDate.php",
+  "find": "if ($this->hasColumn('receivings_payments', 'payment_date')) {\n            $this->db->query(\"ALTER TABLE `{$payments}` DROP COLUMN",
+  "replace": "if (true) {\n            $this->db->query(\"ALTER TABLE `{$payments}` DROP COLUMN",
+  "tests": [
+   "tests/Database/SupplierPaymentDateMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G23 the migration leaves the date of every payment that exists empty",
+  "file": "app/Database/Migrations/20270500000000_SupplierPaymentDate.php",
+  "find": "`payment_date` DATE NULL DEFAULT NULL AFTER",
+  "replace": "`payment_date` DATE NOT NULL DEFAULT '2000-01-01' AFTER",
+  "tests": [
+   "tests/Database/SupplierPaymentDateMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G24 the payments list is cut down to the branches given",
+  "file": "app/Libraries/Accounting/SupplierPaymentList.php",
+  "find": "$ids === [] ? '1 = 0' : 'd.branch_id IN (' . implode(', ', $ids) . ')'",
+  "replace": "'1 = 1'",
+  "tests": [
+   "--filter",
+   "CutsTheRows|CutsTheRowsDown|ReadsNothing",
+   "tests/Libraries/Accounting/SupplierPaymentListTest.php",
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G25 someone who works in no branch reads no payment",
+  "file": "app/Libraries/Accounting/SupplierPaymentList.php",
+  "find": "$ids === [] ? '1 = 0' : 'd.branch_id IN (' . implode(', ', $ids) . ')'",
+  "replace": "$ids === [] ? '1 = 1' : 'd.branch_id IN (' . implode(', ', $ids) . ')'",
+  "tests": [
+   "--filter",
+   "CutsTheRows|ReadsNothing",
+   "tests/Libraries/Accounting/SupplierPaymentListTest.php",
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G26 the payments screen asks the branches the reader works in",
+  "file": "app/Controllers/AccountingPayables.php",
+  "find": "$result = $this->payments->search(\n            $scope->isCompany() ? null : $scope->ids,",
+  "replace": "$result = $this->payments->search(\n            null,",
+  "tests": [
+   "--filter",
+   "GetPaymentsSearch_CutsTheRows|ReadsNothing",
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G27 the debit notes screen asks the branches the reader works in",
+  "file": "app/Controllers/AccountingPayables.php",
+  "find": "$result = $this->debitNotes->search(\n            $scope->isCompany() ? null : $scope->ids,",
+  "replace": "$result = $this->debitNotes->search(\n            null,",
+  "tests": [
+   "--filter",
+   "GetDebitNotesSearch_CutsTheRows",
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G28 the payments list holds payments and not opening balances",
+  "file": "app/Libraries/Accounting/SupplierPaymentList.php",
+  "find": "WHERE a.kind = ? AND a.company_id = ?",
+  "replace": "WHERE a.kind <> ? AND a.company_id = ?",
+  "tests": [
+   "--filter",
+   "ListsThePaymentsOfPurchases|LeavesOutTheOpening|ListsEachPayment",
+   "tests/Libraries/Accounting/SupplierPaymentListTest.php",
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G29 a refund is a payment of less than nothing",
+  "file": "app/Libraries/Accounting/SupplierPaymentList.php",
+  "find": "$where[] = 'd.amount < 0';",
+  "replace": "$where[] = 'd.amount > 0';",
+  "tests": [
+   "--filter",
+   "ShowsMoneyTheSupplierGaveBack",
+   "tests/Libraries/Accounting/SupplierPaymentListTest.php",
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G30 an unknown kind filters nothing",
+  "file": "app/Libraries/Accounting/SupplierPaymentList.php",
+  "find": "if ($kind === self::PURCHASE || $kind === self::ADVANCE) {",
+  "replace": "if ($kind !== '') {",
+  "tests": [
+   "--filter",
+   "LeavesOutAFilter",
+   "tests/Libraries/Accounting/SupplierPaymentListTest.php"
+  ]
+ },
+ {
+  "name": "G31 a search takes a LIKE character as text",
+  "file": "app/Libraries/Accounting/SupplierPaymentList.php",
+  "find": "$like     = '%' . $this->db->escapeLikeString($search) . '%';",
+  "replace": "$like     = '%' . $search . '%';",
+  "tests": [
+   "--filter",
+   "TakesALikeCharacter",
+   "tests/Libraries/Accounting/SupplierPaymentListTest.php"
+  ]
+ },
+ {
+  "name": "G32 a search says which character escapes a LIKE character",
+  "file": "app/Libraries/Accounting/SupplierPaymentList.php",
+  "find": "$escape   = \"ESCAPE '!'\";",
+  "replace": "$escape   = '';",
+  "tests": [
+   "--filter",
+   "TakesALikeCharacter",
+   "tests/Libraries/Accounting/SupplierPaymentListTest.php"
+  ]
+ },
+ {
+  "name": "G33 the payments list sorts by its own columns only",
+  "file": "app/Libraries/Accounting/SupplierPaymentList.php",
+  "find": "$column = self::SORTS[$sort] ?? self::SORTS['date'];",
+  "replace": "$column = $sort;",
+  "tests": [
+   "--filter",
+   "SortsByTheColumns",
+   "tests/Libraries/Accounting/SupplierPaymentListTest.php"
+  ]
+ },
+ {
+  "name": "G34 the payments list sorts in one of two directions only",
+  "file": "app/Libraries/Accounting/SupplierPaymentList.php",
+  "find": "$way    = strtolower($order) === 'asc' ? 'ASC' : 'DESC';",
+  "replace": "$way    = $order;",
+  "tests": [
+   "--filter",
+   "SortsByTheColumns",
+   "tests/Libraries/Accounting/SupplierPaymentListTest.php"
+  ]
+ },
+ {
+  "name": "G35 a page of the payments list is at least one row and never starts before the first",
+  "file": "app/Libraries/Accounting/SupplierPaymentList.php",
+  "find": "' LIMIT ' . max(1, $limit) . ' OFFSET ' . max(0, $offset)",
+  "replace": "' LIMIT ' . $limit . ' OFFSET ' . $offset",
+  "tests": [
+   "--filter",
+   "PagesTheResult",
+   "tests/Libraries/Accounting/SupplierPaymentListTest.php"
+  ]
+ },
+ {
+  "name": "G36 a date filter is a real day",
+  "file": "app/Libraries/Accounting/SupplierPaymentList.php",
+  "find": "|| ! checkdate((int) $parts[2], (int) $parts[3], (int) $parts[1])) {",
+  "replace": ") {",
+  "tests": [
+   "--filter",
+   "LeavesOutAFilter",
+   "tests/Libraries/Accounting/SupplierPaymentListTest.php"
+  ]
+ },
+ {
+  "name": "G37 an id filter takes text or a number only",
+  "file": "app/Libraries/Accounting/SupplierPaymentList.php",
+  "find": "return is_string($value) || is_int($value) ? (int) $value : 0;",
+  "replace": "return (int) $value;",
+  "tests": [
+   "--filter",
+   "LeavesOutAFilter",
+   "tests/Libraries/Accounting/SupplierPaymentListTest.php"
+  ]
+ },
+ {
+  "name": "G38 a text filter takes text only",
+  "file": "app/Libraries/Accounting/SupplierPaymentList.php",
+  "find": "return is_string($value) ? trim($value) : '';",
+  "replace": "return trim((string) $value);",
+  "tests": [
+   "--filter",
+   "LeavesOutAFilter",
+   "tests/Libraries/Accounting/SupplierPaymentListTest.php"
+  ]
+ },
+ {
+  "name": "G39 a payment of a purchase is numbered in the sequence of payments, not of purchases",
+  "file": "app/Libraries/Accounting/SupplierPaymentList.php",
+  "find": "n.doc_type = ? AND n.source_table = CASE d.kind",
+  "replace": "n.doc_type = ? AND n.source_table = CASE 'x'",
+  "tests": [
+   "--filter",
+   "NumbersAPayment",
+   "tests/Libraries/Accounting/SupplierPaymentListTest.php"
+  ]
+ },
+ {
+  "name": "G40 the debit notes list is cut down to the branches given",
+  "file": "app/Libraries/Accounting/DebitNoteList.php",
+  "find": "$ids === [] ? '1 = 0' : 'r.branch_id IN (' . implode(', ', $ids) . ')'",
+  "replace": "'1 = 1'",
+  "tests": [
+   "--filter",
+   "CutsTheRows",
+   "tests/Libraries/Accounting/DebitNoteListTest.php",
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G41 someone who works in no branch reads no debit note",
+  "file": "app/Libraries/Accounting/DebitNoteList.php",
+  "find": "$ids === [] ? '1 = 0' : 'r.branch_id IN (' . implode(', ', $ids) . ')'",
+  "replace": "$ids === [] ? '1 = 1' : 'r.branch_id IN (' . implode(', ', $ids) . ')'",
+  "tests": [
+   "--filter",
+   "CutsTheRows",
+   "tests/Libraries/Accounting/DebitNoteListTest.php",
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G42 the debit notes list holds returns only",
+  "file": "app/Libraries/Accounting/DebitNoteList.php",
+  "find": "$where    = ['r.receiving_type = ?'];",
+  "replace": "$where    = ['r.receiving_type <> ?'];",
+  "tests": [
+   "--filter",
+   "ListsEveryReturn|ListsNothing",
+   "tests/Libraries/Accounting/DebitNoteListTest.php"
+  ]
+ },
+ {
+  "name": "G43 what was released is not counted as applied",
+  "file": "app/Libraries/Accounting/DebitNoteList.php",
+  "find": " AND c.released_at IS NULL)",
+  "replace": ")",
+  "tests": [
+   "--filter",
+   "DoesNotCountWhatWasReleased",
+   "tests/Libraries/Accounting/DebitNoteListTest.php"
+  ]
+ },
+ {
+  "name": "G44 only what a debit note gave is counted as applied against the balance",
+  "file": "app/Libraries/Accounting/DebitNoteList.php",
+  "find": "c.source_type = '\" . CreditSource::DEBIT_NOTE . \"'",
+  "replace": "c.source_type = '\" . CreditSource::INVOICE_EXCESS . \"'",
+  "tests": [
+   "--filter",
+   "ShowsWhatWasApplied|AgreesWithTheCredit",
+   "tests/Libraries/Accounting/DebitNoteListTest.php"
+  ]
+ },
+ {
+  "name": "G45 what the supplier paid back at once is read from the journal of the refund",
+  "file": "app/Libraries/Accounting/DebitNoteList.php",
+  "find": "(SELECT COALESCE(SUM(l.credit - l.debit), 0) FROM '",
+  "replace": "(SELECT COALESCE(SUM(l.debit - l.credit), 0) FROM '",
+  "tests": [
+   "--filter",
+   "ShowsWhatTheSupplierPaidBack|AgreesWithTheCredit",
+   "tests/Libraries/Accounting/DebitNoteListTest.php"
+  ]
+ },
+ {
+  "name": "G46 a debit note worth nothing is not shown as settled",
+  "file": "app/Libraries/Accounting/DebitNoteList.php",
+  "find": "bccomp($amount, '0', SaleAmounts::SCALE) <= 0     => self::NOTHING,",
+  "replace": "bccomp($amount, '0', SaleAmounts::SCALE) < 0     => self::NOTHING,",
+  "tests": [
+   "--filter",
+   "StateOf",
+   "tests/Libraries/Accounting/DebitNoteListTest.php"
+  ]
+ },
+ {
+  "name": "G47 a debit note with nothing left to apply is settled in cash",
+  "file": "app/Libraries/Accounting/DebitNoteList.php",
+  "find": "bccomp($credit, '0', SaleAmounts::SCALE) <= 0     => self::SETTLED_IN_CASH,",
+  "replace": "bccomp($credit, '0', SaleAmounts::SCALE) < 0     => self::SETTLED_IN_CASH,",
+  "tests": [
+   "--filter",
+   "StateOf",
+   "tests/Libraries/Accounting/DebitNoteListTest.php"
+  ]
+ },
+ {
+  "name": "G48 a debit note applied in part is told from one applied in full",
+  "file": "app/Libraries/Accounting/DebitNoteList.php",
+  "find": "bccomp($applied, $credit, SaleAmounts::SCALE) < 0 => self::PARTLY_APPLIED,",
+  "replace": "bccomp($applied, $credit, SaleAmounts::SCALE) < 0 => self::APPLIED,",
+  "tests": [
+   "--filter",
+   "StateOf|ShowsTheCreditHeld",
+   "tests/Libraries/Accounting/DebitNoteListTest.php"
+  ]
+ },
+ {
+  "name": "G49 a search takes a LIKE character as text in the debit notes",
+  "file": "app/Libraries/Accounting/DebitNoteList.php",
+  "find": "$like     = '%' . $this->db->escapeLikeString($search) . '%';",
+  "replace": "$like     = '%' . $search . '%';",
+  "tests": [
+   "--filter",
+   "TakesALikeCharacter",
+   "tests/Libraries/Accounting/DebitNoteListTest.php"
+  ]
+ },
+ {
+  "name": "G50 a search says which character escapes a LIKE character in the debit notes",
+  "file": "app/Libraries/Accounting/DebitNoteList.php",
+  "find": "$escape   = \"ESCAPE '!'\";",
+  "replace": "$escape   = '';",
+  "tests": [
+   "--filter",
+   "TakesALikeCharacter",
+   "tests/Libraries/Accounting/DebitNoteListTest.php"
+  ]
+ },
+ {
+  "name": "G51 the debit notes list sorts by its own columns only",
+  "file": "app/Libraries/Accounting/DebitNoteList.php",
+  "find": "$column = self::SORTS[$sort] ?? self::SORTS['date'];",
+  "replace": "$column = $sort;",
+  "tests": [
+   "--filter",
+   "SortsByDate",
+   "tests/Libraries/Accounting/DebitNoteListTest.php"
+  ]
+ },
+ {
+  "name": "G52 the debit notes list sorts in one of two directions only",
+  "file": "app/Libraries/Accounting/DebitNoteList.php",
+  "find": "$way    = strtolower($order) === 'asc' ? 'ASC' : 'DESC';",
+  "replace": "$way    = $order;",
+  "tests": [
+   "--filter",
+   "SortsByDate",
+   "tests/Libraries/Accounting/DebitNoteListTest.php"
+  ]
+ },
+ {
+  "name": "G53 a date filter is a real day in the debit notes",
+  "file": "app/Libraries/Accounting/DebitNoteList.php",
+  "find": "|| ! checkdate((int) $parts[2], (int) $parts[3], (int) $parts[1])) {",
+  "replace": ") {",
+  "tests": [
+   "--filter",
+   "LeavesOutAFilter",
+   "tests/Libraries/Accounting/DebitNoteListTest.php"
+  ]
+ },
+ {
+  "name": "G54 an id filter takes text or a number only in the debit notes",
+  "file": "app/Libraries/Accounting/DebitNoteList.php",
+  "find": "return is_string($value) || is_int($value) ? (int) $value : 0;",
+  "replace": "return (int) $value;",
+  "tests": [
+   "--filter",
+   "LeavesOutAFilter",
+   "tests/Libraries/Accounting/DebitNoteListTest.php"
+  ]
+ },
+ {
+  "name": "G55 a text filter takes text only in the debit notes",
+  "file": "app/Libraries/Accounting/DebitNoteList.php",
+  "find": "return is_string($value) ? trim($value) : '';",
+  "replace": "return trim((string) $value);",
+  "tests": [
+   "--filter",
+   "LeavesOutAFilter",
+   "tests/Libraries/Accounting/DebitNoteListTest.php"
+  ]
+ },
+ {
+  "name": "G56 a debit note takes the number of the sequence of debit notes",
+  "file": "app/Libraries/Accounting/DebitNoteList.php",
+  "find": "dn.doc_type = ? AND dn.source_table = 'receivings'",
+  "replace": "dn.doc_type = ? AND dn.source_table = 'x'",
+  "tests": [
+   "--filter",
+   "NumbersADebitNote",
+   "tests/Libraries/Accounting/DebitNoteListTest.php"
+  ]
+ },
+ {
+  "name": "G57 the lists sit behind the grant of the payables module",
+  "file": "app/Controllers/AccountingPayables.php",
+  "find": "parent::__construct('accounting_payables');",
+  "replace": "parent::__construct('home');",
+  "tests": [
+   "--filter",
+   "GetPayments_Redirects|GetDebitNotes_IsRefused",
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G58 the page size of the lists is capped",
+  "file": "app/Controllers/AccountingPayables.php",
+  "find": "return max(1, min((int) $this->query('limit') ?: self::DEFAULT_PAGE_SIZE, self::MAX_PAGE_SIZE));",
+  "replace": "return max(1, (int) $this->query('limit') ?: self::DEFAULT_PAGE_SIZE);",
+  "tests": [
+   "--filter",
+   "NeverReturnsMoreThanTheLargestPage",
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G59 a payment on a purchase opens only for who holds the receivings module",
+  "file": "app/Controllers/AccountingPayables.php",
+  "find": "if ($purchase !== null && $this->can('receivings')) {",
+  "replace": "if ($purchase !== null) {",
+  "tests": [
+   "--filter",
+   "LinksAPaymentOnAPurchase",
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G60 the statement is linked only for who sees the balances of every supplier",
+  "file": "app/Controllers/AccountingPayables.php",
+  "find": "elseif ($isAdvance && $this->branchGuard()->isUnrestricted($this->employeeId())) {",
+  "replace": "elseif ($isAdvance) {",
+  "tests": [
+   "--filter",
+   "LinksAPaymentWithoutAPurchase",
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G61 a debit note opens only for who holds the receivings module",
+  "file": "app/Controllers/AccountingPayables.php",
+  "find": "$edit   = $this->can('receivings')",
+  "replace": "$edit   = true",
+  "tests": [
+   "--filter",
+   "LinksADebitNote",
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G62 a payment with no date shows the time it was saved",
+  "file": "app/Controllers/AccountingPayables.php",
+  "find": "(int) $payment->date_entered === 1 ? $this->formatDate((string) $payment->doc_date) : $this->formatDateTime((string) $payment->saved_at),",
+  "replace": "$this->formatDate((string) $payment->doc_date),",
+  "tests": [
+   "--filter",
+   "ShowsTheDayAndTimeAPaymentWithNoDate",
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G63 money the supplier gave back is told from a payment",
+  "file": "app/Controllers/AccountingPayables.php",
+  "find": "$isRefund   = bccomp((string) $payment->amount, '0', 4) < 0;",
+  "replace": "$isRefund   = false;",
+  "tests": [
+   "--filter",
+   "ShowsMoneyTheSupplierGaveBack",
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G64 the way back to the balances is offered to who may open them only",
+  "file": "app/Controllers/AccountingPayables.php",
+  "find": "'sees_balances' => $this->branchGuard()->isUnrestricted($this->employeeId()),",
+  "replace": "'sees_balances' => true,",
+  "tests": [
+   "--filter",
+   "OpensForSomeoneLimited",
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ],
+  "all": true
+ },
+ {
+  "name": "G65 the payments of a branch limited reader are partial: the scope label",
+  "file": "app/Controllers/AccountingPayables.php",
+  "find": "'scope_label'   => $this->scopeLabel($scope),",
+  "replace": "'scope_label'   => null,",
+  "tests": [
+   "--filter",
+   "SaysTheFiguresOfSomeoneWhoWorks",
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ],
+  "all": true
+ }
+]

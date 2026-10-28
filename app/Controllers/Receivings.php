@@ -925,7 +925,7 @@ class Receivings extends Secure_Controller
     {
         $posted = $this->request->getPost($field);
 
-        return $posted === null ? [] : ['payment_date' => is_string($posted) ? trim($posted) : $posted];
+        return $posted === null ? [] : ['payment_date' => $posted];
     }
 
     /**

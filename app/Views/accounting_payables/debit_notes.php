@@ -1,15 +1,13 @@
 <?php
 /**
- * @var string $table_headers
+ * @var string       $table_headers
  * @var list<object> $branches
- * @var list<int> $selected
- * @var string|null $scope_label
- * @var bool $scope_empty
- * @var int $supplier_id
- * @var bool $sees_balances
- * @var array $config
+ * @var list<int>    $selected
+ * @var string|null  $scope_label
+ * @var int          $supplier_id
+ * @var bool         $sees_balances
+ * @var array        $config
  */
-
 $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 ?>
 

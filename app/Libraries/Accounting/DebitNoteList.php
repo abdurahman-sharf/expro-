@@ -23,8 +23,7 @@ final class DebitNoteList
     public const PARTLY_APPLIED  = 'partly';
     public const HELD            = 'held';
     public const NOTHING         = 'nothing';
-
-    private const SORTS = [
+    private const SORTS          = [
         'date'          => 'r.receiving_time',
         'number'        => 'COALESCE(dn.sequence_number, r.receiving_id)',
         'supplier_name' => 'supplier_name',
@@ -68,12 +67,10 @@ final class DebitNoteList
         $rows = [];
 
         foreach ($notes as $note) {
-            $document     = $this->loader->load((int) $note->receiving_id, false);
-            $amount       = $document === null ? '0.00' : ReceivingAmounts::totals($document->lines)['total'];
+            $amount       = ReceivingAmounts::totals($this->loader->load((int) $note->receiving_id, false)?->lines ?? [])['total'];
             $refunded     = bcadd((string) $note->refunded, '0', SaleAmounts::SCALE);
             $applied      = bcadd((string) $note->applied, '0', SaleAmounts::SCALE);
             $credit       = bcsub($amount, $refunded, SaleAmounts::SCALE);
-            $credit       = bccomp($credit, '0', SaleAmounts::SCALE) > 0 ? $credit : '0.0000';
             $note->amount = bcadd($amount, '0', SaleAmounts::SCALE);
 
             $note->numbered = $note->number !== null ? 1 : 0;
@@ -104,22 +101,12 @@ final class DebitNoteList
     public static function stateOf(string $amount, string $credit, string $applied): string
     {
         return match (true) {
-            bccomp($amount, '0', SaleAmounts::SCALE) <= 0 => self::NOTHING,
-            bccomp($credit, '0', SaleAmounts::SCALE) <= 0 => self::SETTLED_IN_CASH,
-            bccomp($applied, '0', SaleAmounts::SCALE) <= 0 => self::HELD,
+            bccomp($amount, '0', SaleAmounts::SCALE) <= 0     => self::NOTHING,
+            bccomp($credit, '0', SaleAmounts::SCALE) <= 0     => self::SETTLED_IN_CASH,
+            bccomp($applied, '0', SaleAmounts::SCALE) <= 0    => self::HELD,
             bccomp($applied, $credit, SaleAmounts::SCALE) < 0 => self::PARTLY_APPLIED,
-            default => self::APPLIED,
+            default                                           => self::APPLIED,
         };
-    }
-
-    /**
-     * The branch a debit note belongs to, or null when there is no such debit note.
-     */
-    public function branchOf(int $receivingId): ?int
-    {
-        $row = $this->db->table('receivings')->select('branch_id')->where(['receiving_id' => $receivingId, 'receiving_type' => ReceivingType::Return->value])->get()->getRow();
-
-        return $row === null ? null : (int) $row->branch_id;
     }
 
     /**

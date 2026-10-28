@@ -84,7 +84,6 @@ class AccountingPayables extends AccountingController
             'branches'      => $this->branchChoices($scope),
             'selected'      => $scope->ids,
             'scope_label'   => $this->scopeLabel($scope),
-            'scope_empty'   => $scope->isEmpty(),
             'ways'          => $this->payments->paymentTypes(),
             'statuses'      => $this->paymentStatuses(),
             'treasuries'    => (new TreasuryService())->all($scope->isCompany() ? null : $scope->ids),
@@ -123,7 +122,6 @@ class AccountingPayables extends AccountingController
             'branches'      => $this->branchChoices($scope),
             'selected'      => $scope->ids,
             'scope_label'   => $this->scopeLabel($scope),
-            'scope_empty'   => $scope->isEmpty(),
             'supplier_id'   => $this->id($this->query('supplier_id')),
             'sees_balances' => $this->branchGuard()->isUnrestricted($this->employeeId()),
         ]);
@@ -396,7 +394,7 @@ class AccountingPayables extends AccountingController
         $branch = $withBranch ? [['branch_code' => lang('Accounting_payables.branch'), 'sortable' => false]] : [];
 
         return [
-            ['number'        => lang('Accounting_payables.payment_number'), 'escape' => false],
+            ['number' => lang('Accounting_payables.payment_number'), 'escape' => false],
             ['date'          => lang('Accounting_payables.date')],
             ['supplier_name' => lang('Accounting_payables.supplier')],
             ['purchase'      => lang('Accounting_payables.purchase'), 'sortable' => false, 'escape' => false],
@@ -421,9 +419,9 @@ class AccountingPayables extends AccountingController
         $purchase   = $payment->receiving_id === null ? null : (int) $payment->receiving_id;
         $isAdvance  = $payment->kind === SupplierPaymentList::ADVANCE;
         $isRefund   = bccomp((string) $payment->amount, '0', 4) < 0;
-        $status     = $isAdvance && $payment->status === 'cancelled' ? 'cancelled' : PaymentStatus::fromStored($payment->status)->value;
-        $statusText = $status === 'cancelled' ? lang('Accounting_payables.status_cancelled') : lang(PaymentStatus::fromStored($status)->languageKey());
-        $number     = $this->amountCell((string) $payment->number);
+        $state      = PaymentStatus::fromStored($payment->status);
+        $cancelled  = $isAdvance && $payment->status === 'cancelled';
+        $statusText = $cancelled ? lang('Accounting_payables.status_cancelled') : lang($state->languageKey());
         $edit       = '';
 
         if ($purchase !== null && $this->can('receivings')) {
@@ -434,7 +432,7 @@ class AccountingPayables extends AccountingController
 
         return [
             'doc_key'       => $payment->kind . ':' . $payment->source_id,
-            'number'        => $number,
+            'number'        => $this->amountCell((string) $payment->number),
             'date'          => (int) $payment->date_entered === 1 ? $this->formatDate((string) $payment->doc_date) : $this->formatDateTime((string) $payment->saved_at),
             'supplier_name' => (string) $payment->supplier_name,
             'purchase'      => $purchase === null ? '' : $this->amountCell($purchases[$purchase] ?? DocumentType::Purchase->fallback($purchase)),
@@ -445,7 +443,7 @@ class AccountingPayables extends AccountingController
             'paid_by'       => (string) $payment->employee_name,
             'branch_code'   => (string) $payment->branch_code,
             'reference'     => (string) $payment->reference_code,
-            'status'        => '<span class="badge ' . ($status === 'completed' ? 'text-bg-success' : 'text-bg-secondary') . '">' . esc($statusText) . '</span>',
+            'status'        => '<span class="badge ' . (! $cancelled && $state === PaymentStatus::Completed ? 'text-bg-success' : 'text-bg-secondary') . '">' . esc($statusText) . '</span>',
             'edit'          => $edit,
         ];
     }
@@ -458,7 +456,7 @@ class AccountingPayables extends AccountingController
         $branch = $withBranch ? [['branch_code' => lang('Accounting_payables.branch'), 'sortable' => false]] : [];
 
         return [
-            ['number'        => lang('Accounting_payables.debit_note_number'), 'escape' => false],
+            ['number' => lang('Accounting_payables.debit_note_number'), 'escape' => false],
             ['date'          => lang('Accounting_payables.date')],
             ['origin'        => lang('Accounting_payables.origin'), 'sortable' => false, 'escape' => false],
             ['supplier_name' => lang('Accounting_payables.supplier')],

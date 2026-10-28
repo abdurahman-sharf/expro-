@@ -432,21 +432,6 @@ class SupplierPaymentListTest extends CIUnitTestCase
         $this->assertCount(2, $this->rows(null, $filters));
     }
 
-    public function testBranchOf_TellsWhereAPaymentBelongsAndNothingForOneThatIsNotThere(): void
-    {
-        $branch   = $this->createBranch('B2');
-        $location = $this->locationOfBranch($branch);
-        $item     = $this->item('0.00');
-        $purchase = $this->buy([$this->purchaseLine($item, 0, '1', '100.00', '0', '0', PERCENT, $location)]);
-        $payment  = $this->payOnDate($purchase, '10.00', $this->daysAgo(1));
-        $advance  = $this->advance('30.00', $this->daysAgo(2));
-
-        $this->assertSame($branch, $this->payments->branchOf(SupplierPaymentList::PURCHASE, $payment));
-        $this->assertSame(1, $this->payments->branchOf(SupplierPaymentList::ADVANCE, $advance));
-        $this->assertNull($this->payments->branchOf(SupplierPaymentList::PURCHASE, 999999));
-        $this->assertNull($this->payments->branchOf(SupplierPaymentList::ADVANCE, 999999));
-    }
-
     public function testPaymentTypesAndPayers_ListWhatTheFiltersOffer(): void
     {
         $buyer    = $this->createEmployee(first_name: 'Huda', last_name: 'Saleh');

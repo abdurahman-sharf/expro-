@@ -1,17 +1,16 @@
 <?php
 /**
- * @var string $table_headers
- * @var list<object> $branches
- * @var list<int> $selected
- * @var string|null $scope_label
- * @var bool $scope_empty
- * @var list<string> $ways
+ * @var string                $table_headers
+ * @var list<object>          $branches
+ * @var list<int>             $selected
+ * @var string|null           $scope_label
+ * @var list<string>          $ways
  * @var array<string, string> $statuses
- * @var list<object> $treasuries
- * @var list<object> $payers
- * @var int $supplier_id
- * @var bool $sees_balances
- * @var array $config
+ * @var list<object>          $treasuries
+ * @var list<object>          $payers
+ * @var int                   $supplier_id
+ * @var bool                  $sees_balances
+ * @var array                 $config
  */
 
 use App\Libraries\Accounting\SupplierPaymentList;

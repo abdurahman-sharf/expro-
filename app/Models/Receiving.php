@@ -277,12 +277,8 @@ class Receiving extends Model
 
             $changes = ['payment_type' => (string) $payment['payment_type'], 'payment_amount' => $amount];
 
-            if (($payment['payment_date'] ?? '') !== '') {
-                $posted = is_string($payment['payment_date']) ? trim($payment['payment_date']) : $payment['payment_date'];
-
-                if ($posted !== SupplierPaymentDate::of($stored->payment_date, (string) $stored->payment_time)) {
-                    $changes['payment_date'] = SupplierPaymentDate::entered($posted, null, $booksStart);
-                }
+            if (($payment['payment_date'] ?? '') !== '' && $payment['payment_date'] !== SupplierPaymentDate::of($stored->payment_date, (string) $stored->payment_time)) {
+                $changes['payment_date'] = SupplierPaymentDate::entered($payment['payment_date'], null, $booksStart);
             }
 
             if (isset($payment['payment_status']) && PaymentStatus::tryFrom((string) $payment['payment_status']) !== null) {
