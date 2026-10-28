@@ -1065,12 +1065,13 @@ class ReceivingsControllerTest extends CIUnitTestCase
      * amount are given, a new one.
      *
      * @param list<array{int, string, string, string}> $existing id, type, amount and status of the payments already there
+     * @param array<string, string>                    $more     fields the form has besides these, such as the dates
      *
      * @return array<string, string>
      */
-    private function paymentFields(array $existing = [], ?string $type = null, string $amount = ''): array
+    private function paymentFields(array $existing = [], ?string $type = null, string $amount = '', array $more = []): array
     {
-        $fields = ['number_of_payments' => (string) count($existing), 'payment_type_new' => $type ?? PAYMENT_TYPE_UNASSIGNED, 'payment_amount_new' => $amount];
+        $fields = ['number_of_payments' => (string) count($existing), 'payment_type_new' => $type ?? PAYMENT_TYPE_UNASSIGNED, 'payment_amount_new' => $amount] + $more;
 
         foreach ($existing as $i => [$id, $paymentType, $paymentAmount, $status]) {
             $fields["payment_id_{$i}"]     = (string) $id;
@@ -1240,6 +1241,182 @@ class ReceivingsControllerTest extends CIUnitTestCase
 
         $this->assertFalse($result['success']);
         $this->assertSame(0, $this->countRows('receivings_payments'));
+    }
+
+    private function daysAgo(int $days): string
+    {
+        return date('Y-m-d', strtotime("-{$days} days"));
+    }
+
+    public function testGetEdit_ShowsTheDateOfEveryPaymentAndTodayForANewOneWithNothingLaterThanToday(): void
+    {
+        $purchase = $this->purchaseOf('500.00');
+        $payment  = $this->payPurchase($purchase, '100.00');
+
+        $this->accountingDb()->table('receivings_payments')->where('payment_id', $payment)->update(['payment_date' => $this->daysAgo(3)]);
+        $this->loginAs($this->buyer());
+
+        $body = $this->get('/receivings/edit/' . $purchase)->getBody();
+
+        $this->assertMatchesRegularExpression('/<input type="date" name="payment_date_0"[^>]*max="' . date('Y-m-d') . '"[^>]*value="' . $this->daysAgo(3) . '"/', $body);
+        $this->assertMatchesRegularExpression('/<input type="date" name="payment_date_new"[^>]*max="' . date('Y-m-d') . '"[^>]*value="' . date('Y-m-d') . '"/', $body);
+        $this->assertStringContainsString('id="payment_date_note"', $body);
+        $this->assertStringContainsString(lang('Receivings.payment_date_note'), $body);
+    }
+
+    public function testGetEdit_ShowsTheTimeThePaymentWasSavedApartFromItsDate(): void
+    {
+        $purchase = $this->purchaseOf('500.00');
+        $payment  = $this->payPurchase($purchase, '100.00');
+
+        $this->accountingDb()->table('receivings_payments')->where('payment_id', $payment)->update(['payment_date' => $this->daysAgo(3), 'payment_time' => $this->daysAgo(1) . ' 09:30:00']);
+        $this->loginAs($this->buyer());
+
+        $body = $this->get('/receivings/edit/' . $purchase)->getBody();
+
+        $this->assertStringContainsString(lang('Receivings.payment_saved_at', [to_datetime(strtotime($this->daysAgo(1) . ' 09:30:00'))]), html_entity_decode($body));
+    }
+
+    public function testGetEdit_ShowsADayAPaymentWithNoDateWasSavedAsItsDate(): void
+    {
+        $purchase = $this->purchaseOf('500.00');
+        $payment  = $this->payPurchase($purchase, '100.00');
+
+        $this->accountingDb()->table('receivings_payments')->where('payment_id', $payment)->update(['payment_date' => null, 'payment_time' => $this->daysAgo(6) . ' 09:30:00']);
+        $this->loginAs($this->buyer());
+
+        $this->assertMatchesRegularExpression('/name="payment_date_0"[^>]*value="' . $this->daysAgo(6) . '"/', $this->get('/receivings/edit/' . $purchase)->getBody());
+    }
+
+    public function testGetEdit_ShowsTheDatesWhileTheBooksAreOff(): void
+    {
+        $purchase = $this->purchaseOf('500.00');
+        $this->payPurchase($purchase, '100.00');
+        $this->setConfigValue('accounting_enabled', '0');
+        $this->loginAs($this->buyer());
+
+        $response = $this->get('/receivings/edit/' . $purchase);
+
+        $response->assertSee('name="payment_date_0"');
+        $response->assertSee('name="payment_date_new"');
+    }
+
+    public function testPostSave_PostsTheNewPaymentOnTheDateTheFormNamed(): void
+    {
+        $purchase = $this->purchaseOf('500.00');
+        $this->loginAs($this->buyer());
+
+        $result = $this->jsonOf($this->post('/receivings/save/' . $purchase, $this->savedWith($purchase, $this->paymentFields([], lang('Sales.cash'), '150.00', ['payment_date_new' => $this->daysAgo(4)]))));
+
+        $this->assertTrue($result['success']);
+
+        $journal = $this->accountingDb()->table('accounting_journals')->where('source_type', 'supplier_payment')->get()->getRow();
+
+        $this->assertSame($this->daysAgo(4), $journal->journal_date);
+        $this->assertSame($this->daysAgo(4), $this->accountingDb()->table('receivings_payments')->where('receiving_id', $purchase)->get()->getRow()->payment_date);
+        $this->assertSame('350.00', $this->owed());
+        $this->assertSupplierTies();
+    }
+
+    public function testPostSave_DatesTheNewPaymentTodayWhenTheFormSendsNoDateOrAnEmptyOne(): void
+    {
+        $purchase = $this->purchaseOf('500.00');
+        $this->loginAs($this->buyer());
+
+        $this->assertTrue($this->jsonOf($this->post('/receivings/save/' . $purchase, $this->savedWith($purchase, $this->paymentFields([], lang('Sales.cash'), '10.00'))))['success']);
+        $this->assertTrue($this->jsonOf($this->post('/receivings/save/' . $purchase, $this->savedWith($purchase, $this->paymentFields([], lang('Sales.cash'), '20.00', ['payment_date_new' => '']))))['success']);
+
+        foreach ($this->accountingDb()->table('receivings_payments')->where('receiving_id', $purchase)->get()->getResult() as $payment) {
+            $this->assertSame(date('Y-m-d'), $payment->payment_date);
+        }
+    }
+
+    public function testPostSave_SaysWhyADateAfterTodayRefusesThePaymentAndSavesNothingOfTheForm(): void
+    {
+        $purchase = $this->purchaseOf('500.00');
+        $this->loginAs($this->buyer());
+
+        $tomorrow = date('Y-m-d', strtotime('+1 day'));
+        $result   = $this->jsonOf($this->post('/receivings/save/' . $purchase, $this->savedWith($purchase, $this->paymentFields([], lang('Sales.cash'), '150.00', ['payment_date_new' => $tomorrow]), 'with a payment')));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_payment_date_in_future', [$tomorrow]), $result['message']);
+        $this->assertSame(0, $this->countRows('receivings_payments'));
+        $this->assertSame('test', $this->receivingRow($purchase)->comment);
+    }
+
+    public function testPostSave_SaysWhyADateThatIsNotADayRefusesThePayment(): void
+    {
+        $purchase = $this->purchaseOf('500.00');
+        $this->loginAs($this->buyer());
+
+        $result = $this->jsonOf($this->post('/receivings/save/' . $purchase, $this->savedWith($purchase, $this->paymentFields([], lang('Sales.cash'), '150.00', ['payment_date_new' => '31/02/2026']))));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_invalid_date'), $result['message']);
+        $this->assertSame(0, $this->countRows('receivings_payments'));
+    }
+
+    public function testPostSave_SaysWhichPeriodIsClosedWhenTheDateOfThePaymentIsInIt(): void
+    {
+        $purchase = $this->purchaseOf('500.00');
+        $this->loginAs($this->buyer());
+        $this->closeThrough($this->daysAgo(10));
+
+        $result = $this->jsonOf($this->post('/receivings/save/' . $purchase, $this->savedWith($purchase, $this->paymentFields([], lang('Sales.cash'), '150.00', ['payment_date_new' => $this->daysAgo(12)]))));
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString($this->daysAgo(12), $result['message']);
+        $this->assertStringContainsString($this->daysAgo(10), $result['message']);
+        $this->assertSame(0, $this->countRows('receivings_payments'));
+
+        $accepted = $this->jsonOf($this->post('/receivings/save/' . $purchase, $this->savedWith($purchase, $this->paymentFields([], lang('Sales.cash'), '150.00', ['payment_date_new' => $this->daysAgo(9)]))));
+
+        $this->assertTrue($accepted['success']);
+    }
+
+    public function testPostSave_MovesTheDateOfAPaymentAndPostsItAgain(): void
+    {
+        $purchase = $this->purchaseOf('500.00');
+        $payment  = $this->payPurchase($purchase, '100.00');
+        $this->loginAs($this->buyer());
+
+        $result = $this->jsonOf($this->post('/receivings/save/' . $purchase, $this->savedWith($purchase, $this->paymentFields([[$payment, lang('Sales.cash'), '100.00', 'completed']], null, '', ['payment_date_0' => $this->daysAgo(5)]))));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(['reversed', 'posted'], array_map(static fn (object $journal): string => $journal->status, $this->accountingDb()->table('accounting_journals')->where(['source_type' => 'supplier_payment', 'source_id' => $payment])->orderBy('revision')->get()->getResult()));
+        $this->assertSame($this->daysAgo(5), $this->accountingDb()->table('receivings_payments')->where('payment_id', $payment)->get()->getRow()->payment_date);
+        $this->assertSame('400.00', $this->owed());
+        $this->assertSupplierTies();
+    }
+
+    public function testPostSave_LeavesAPaymentWithNoDateAloneWhenTheFormSendsBackTheDayItShowed(): void
+    {
+        $purchase = $this->purchaseOf('500.00');
+        $payment  = $this->payPurchase($purchase, '100.00');
+
+        $this->accountingDb()->table('receivings_payments')->where('payment_id', $payment)->update(['payment_date' => null]);
+        $this->loginAs($this->buyer());
+
+        $result = $this->jsonOf($this->post('/receivings/save/' . $purchase, $this->savedWith($purchase, $this->paymentFields([[$payment, lang('Sales.cash'), '100.00', 'completed']], null, '', ['payment_date_0' => date('Y-m-d')]))));
+
+        $this->assertTrue($result['success']);
+        $this->assertNull($this->accountingDb()->table('receivings_payments')->where('payment_id', $payment)->get()->getRow()->payment_date);
+        $this->assertSame(1, $this->accountingDb()->table('accounting_journals')->where(['source_type' => 'supplier_payment', 'source_id' => $payment])->countAllResults());
+    }
+
+    public function testPostSave_KeepsThePaymentsAsTheyAreWhenAFormWithNoDateFieldsIsPosted(): void
+    {
+        $purchase = $this->purchaseOf('500.00');
+        $payment  = $this->payPurchase($purchase, '100.00');
+
+        $this->accountingDb()->table('receivings_payments')->where('payment_id', $payment)->update(['payment_date' => $this->daysAgo(3)]);
+        $this->loginAs($this->buyer());
+
+        $result = $this->jsonOf($this->post('/receivings/save/' . $purchase, $this->savedWith($purchase, $this->paymentFields([[$payment, lang('Sales.cash'), '100.00', 'completed']]))));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame($this->daysAgo(3), $this->accountingDb()->table('receivings_payments')->where('payment_id', $payment)->get()->getRow()->payment_date);
     }
 
     private function treasuryOfBranch(string $name, int $branchId = 1): int

@@ -485,9 +485,9 @@ class AccountingPayables extends AccountingController
 
         return [
             'receiving_id'  => $id,
-            'number'        => $this->amountCell($note->number ?? DocumentType::DebitNote->fallback($id)),
+            'number'        => $this->amountCell((string) $note->number),
             'date'          => $this->formatDate((string) $note->receiving_time),
-            'origin'        => $origin === null ? '' : $this->amountCell($note->origin_number ?? DocumentType::Purchase->fallback($origin)),
+            'origin'        => $origin === null ? '' : $this->amountCell((string) $note->origin_number),
             'supplier_name' => (string) $note->supplier_name,
             'amount'        => $this->amountCell($this->formatAmount($note->amount)),
             'refunded'      => $this->amountCell($this->formatAmount($note->refunded)),

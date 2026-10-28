@@ -76,6 +76,13 @@ final class DebitNoteList
             $credit       = bccomp($credit, '0', SaleAmounts::SCALE) > 0 ? $credit : '0.0000';
             $note->amount = bcadd($amount, '0', SaleAmounts::SCALE);
 
+            $note->numbered = $note->number !== null ? 1 : 0;
+            $note->number ??= DocumentType::DebitNote->fallback((int) $note->receiving_id);
+
+            if ($note->return_of_receiving_id !== null) {
+                $note->origin_number ??= DocumentType::Purchase->fallback((int) $note->return_of_receiving_id);
+            }
+
             $note->refunded = $refunded;
             $note->applied  = $applied;
             $note->held     = bcsub($credit, $applied, SaleAmounts::SCALE);
