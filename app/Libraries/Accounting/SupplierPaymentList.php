@@ -55,13 +55,18 @@ final class SupplierPaymentList
         $paging = ' LIMIT ' . max(1, $limit) . ' OFFSET ' . max(0, $offset);
 
         $rows = $this->db->query(
-            "SELECT d.*, COALESCE(n.number, CAST(d.source_id AS CHAR)) AS number, n.number IS NOT NULL AS numbered, pn.number AS purchase_number,
+            "SELECT d.*, n.number AS number, pn.number AS purchase_number,
                     {$this->supplierName()} AS supplier_name, TRIM(CONCAT(COALESCE(ep.first_name, ''), ' ', COALESCE(ep.last_name, ''))) AS employee_name,
                     t.name AS treasury_name, b.code AS branch_code
              {$from['sql']} {$where}
              ORDER BY {$column} {$way}, d.doc_date DESC, d.kind ASC, d.source_id DESC{$paging}",
             [...$from['bindings'], ...$bindings],
         )->getResult();
+
+        foreach ($rows as $row) {
+            $row->numbered = $row->number !== null ? 1 : 0;
+            $row->number ??= (string) $row->source_id;
+        }
 
         return ['total' => $total, 'rows' => $rows];
     }
@@ -179,8 +184,9 @@ final class SupplierPaymentList
 
         if ($search !== '') {
             $like     = '%' . $this->db->escapeLikeString($search) . '%';
-            $where[]  = "(COALESCE(n.number, CAST(d.source_id AS CHAR)) LIKE ? OR {$this->supplierName()} LIKE ? OR d.reference_code LIKE ? OR pn.number LIKE ? OR CONCAT('RECV ', d.receiving_id) LIKE ?)";
-            $bindings = [...$bindings, $like, $like, $like, $like, $like];
+            $escape   = "ESCAPE '!'";
+            $where[]  = "(n.number LIKE ? {$escape} OR (n.number IS NULL AND CAST(d.source_id AS CHAR) LIKE ? {$escape}) OR {$this->supplierName()} LIKE ? {$escape} OR d.reference_code LIKE ? {$escape} OR pn.number LIKE ? {$escape} OR CONCAT('RECV ', d.receiving_id) LIKE ? {$escape})";
+            $bindings = [...$bindings, $like, $like, $like, $like, $like, $like];
         }
 
         $from = $this->day($filters['date_from'] ?? null);

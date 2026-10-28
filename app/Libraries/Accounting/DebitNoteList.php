@@ -173,8 +173,9 @@ final class DebitNoteList
 
         if ($search !== '') {
             $like     = '%' . $this->db->escapeLikeString($search) . '%';
-            $where[]  = "(COALESCE(dn.number, CONCAT('RECV ', r.receiving_id)) LIKE ? OR COALESCE(pn.number, CONCAT('RECV ', r.return_of_receiving_id)) LIKE ? OR {$this->supplierName()} LIKE ?)";
-            $bindings = [...$bindings, $like, $like, $like];
+            $escape   = "ESCAPE '!'";
+            $where[]  = "(dn.number LIKE ? {$escape} OR (dn.number IS NULL AND CONCAT('RECV ', r.receiving_id) LIKE ? {$escape}) OR pn.number LIKE ? {$escape} OR (pn.number IS NULL AND CONCAT('RECV ', r.return_of_receiving_id) LIKE ? {$escape}) OR {$this->supplierName()} LIKE ? {$escape})";
+            $bindings = [...$bindings, $like, $like, $like, $like, $like];
         }
 
         $from = $this->day($filters['date_from'] ?? null);
