@@ -362,9 +362,9 @@ trait SaleAccountingFixtureTrait
         ]]));
     }
 
-    protected function position(?int $customerId = null): CustomerPosition
+    protected function position(?int $customerId = null, ?string $asOf = null): CustomerPosition
     {
-        return (new CustomerLedger())->position($customerId ?? $this->customerId);
+        return (new CustomerLedger())->position($customerId ?? $this->customerId, $asOf);
     }
 
     /**

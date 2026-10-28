@@ -2,6 +2,7 @@
 
 namespace Tests\Libraries\Accounting;
 
+use App\Libraries\Accounting\AgingBuckets;
 use App\Libraries\Accounting\CustomerLedger;
 use App\Libraries\Accounting\CustomerPosition;
 use App\Libraries\Accounting\JournalDraft;
@@ -12,6 +13,7 @@ use App\Libraries\Accounting\ReturnState;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use DateTimeImmutable;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
@@ -159,7 +161,7 @@ class CustomerLedgerTest extends CIUnitTestCase
 
         $aging = $this->position()->aging(date('Y-m-d'));
 
-        $this->assertSame(['0-30' => '40.0000', '31-60' => '40.0000', '61-90' => '70.0000', '91+' => '191.0000'], $aging);
+        $this->assertSame(['today' => '0.0000', '1-30' => '40.0000', '31-60' => '40.0000', '61-90' => '70.0000', '91-120' => '191.0000', '120+' => '0.0000'], $aging);
         $this->assertSame(CustomerPosition::AGING_BUCKETS, array_keys($aging));
         $this->assertTies();
     }
@@ -170,7 +172,7 @@ class CustomerLedgerTest extends CIUnitTestCase
 
         $this->addPayment($invoice, '100.00');
 
-        $this->assertSame(['0-30' => '0.0000', '31-60' => '0.0000', '61-90' => '0.0000', '91+' => '0.0000'], $this->position()->aging(date('Y-m-d')));
+        $this->assertSame(['today' => '0.0000', '1-30' => '0.0000', '31-60' => '0.0000', '61-90' => '0.0000', '91-120' => '0.0000', '120+' => '0.0000'], $this->position()->aging(date('Y-m-d')));
     }
 
     public function testPosition_ShowsApartWhatAManualJournalPutOnTheAccountOfTheCustomer(): void
@@ -257,12 +259,12 @@ class CustomerLedgerTest extends CIUnitTestCase
 
         $aging = $this->position()->aging(date('Y-m-d'));
 
-        $this->assertSameAsFixture($case['expected'], ['ages_from' => $aging['31-60'] === '100.0000' && $aging['0-30'] === '0.0000' ? 'invoice date' : 'something else'], 'aging');
+        $this->assertSameAsFixture($case['expected'], ['ages_from' => $aging['31-60'] === '100.0000' && $aging['today'] === '0.0000' ? 'invoice date' : 'something else'], 'aging');
     }
 
-    public function testAging_UsesBucketsOfThirtyDaysWhereTheReportsOfTheReferenceSystemStartWithTodayAndOneToSevenDays(): void
+    public function testAging_UsesTheSixBucketsOfTheReportsOfTheReferenceSystem(): void
     {
-        $case = $this->referenceCase('T-31', 'aging', 'aging-buckets-of-the-reports', 'differs');
+        $case = $this->referenceCase('T-31', 'aging', 'aging-buckets-of-the-reports', 'exact');
 
         $this->assertSameAsFixture($case['expected']['aging_buckets'], CustomerPosition::AGING_BUCKETS, 'aging buckets');
     }
@@ -292,16 +294,233 @@ class CustomerLedgerTest extends CIUnitTestCase
         $this->assertTies();
     }
 
-    public function testCustomersWithBalance_ListsTheBalanceAloneWhereTheBalanceReportOfTheReferenceSystemSplitsItInColumns(): void
+    public function testCustomersWithBalance_ListsEachCustomerWithTheAccountAndTheBalanceOfIt(): void
     {
-        $case = $this->referenceCase('T-35', 'customer_reports', 'balance-report-columns', 'differs');
-
         $this->invoiceOf('100.00');
 
         $row = (array) (new CustomerLedger())->customersWithBalance()['rows'][0];
 
-        unset($row['customer_id'], $row['account_id']);
+        $this->assertSame(['customer_id', 'customer_name', 'account_id', 'balance'], array_keys($row));
+        $this->assertSame('100.00', bcadd($row['balance'], '0', 2));
+    }
 
-        $this->assertSameAsFixture($case['expected']['columns'], array_keys($row), 'columns of the balance list');
+    // ---------------------------------------------------------------------------------------
+    // The six buckets, the due date and the position of a customer on a day (WP13)
+    // ---------------------------------------------------------------------------------------
+
+    public function testAging_SpreadsWhatIsOpenOverTheSixBucketsByTheEdgesOfTheirRanges(): void
+    {
+        $amounts = ['0' => '1.00', '1' => '2.00', '30' => '4.00', '31' => '8.00', '60' => '16.00', '61' => '32.00', '90' => '64.00', '91' => '128.00', '120' => '256.00', '121' => '512.00'];
+
+        foreach ($amounts as $age => $total) {
+            $this->invoiceDated($total, $this->daysAgo((int) $age));
+        }
+
+        $aging = $this->position()->aging(date('Y-m-d'));
+
+        $this->assertSame(['today' => '1.0000', '1-30' => '6.0000', '31-60' => '24.0000', '61-90' => '96.0000', '91-120' => '384.0000', '120+' => '512.0000'], $aging);
+        $this->assertSame($this->position()->open(), AgingBuckets::total(array_values($aging)));
+        $this->assertTies();
+    }
+
+    public function testAging_AgesFromTheDayOfTheInvoiceAndIgnoresItsDueDate(): void
+    {
+        $this->invoiceDated('100.00', $this->daysAgo(5), 30);
+
+        $position = $this->position();
+
+        $this->assertSame('100.0000', $position->aging(date('Y-m-d'))['1-30']);
+        $this->assertSame('0.0000', $position->aging(date('Y-m-d'))['today']);
+        $this->assertSame('0.00', bcadd($position->overdue(date('Y-m-d')), '0', 2));
+    }
+
+    public function testAging_AgeIsTheDayOfTheReportLessTheDayOfTheInvoice(): void
+    {
+        $invoice = $this->invoiceOf('115.00');
+
+        $this->addPayment($invoice, '90.00');
+
+        $position = $this->position();
+
+        $this->assertSame('25.0000', $position->aging(date('Y-m-d'))['today']);
+        $this->assertSame('25.0000', $position->aging(date('Y-m-d', strtotime('+1 day')))['1-30']);
+        $this->assertSame('0.0000', $position->aging(date('Y-m-d', strtotime('+1 day')))['today']);
+    }
+
+    public function testAging_LeavesOutAnInvoiceDatedAfterTheDayOfTheReport(): void
+    {
+        $this->invoiceDated('100.00', $this->daysAgo(2));
+        $this->invoiceDated('50.00', $this->daysAgo(0));
+
+        $position = $this->position();
+
+        $this->assertSame('100.0000', $position->aging($this->daysAgo(1))['1-30']);
+        $this->assertSame('0.0000', AgingBuckets::total(array_values($position->aging($this->daysAgo(3)))));
+
+        $later = $position->aging(date('Y-m-d', strtotime('+60 days')));
+
+        $this->assertSame('50.0000', $later['31-60']);
+        $this->assertSame('100.0000', $later['61-90']);
+    }
+
+    public function testPosition_OnADayOfThePastCountsOnlyWhatWasDatedByThenAndTiesToTheBalanceOfThatDay(): void
+    {
+        $first  = $this->invoiceDated('100.00', $this->daysAgo(2));
+        $second = $this->invoiceDated('50.00', $this->daysAgo(2));
+
+        $this->addPayment($first, '100.00');
+
+        $yesterday = $this->position(null, $this->daysAgo(1));
+        $today     = $this->position();
+
+        $this->assertSame('150.00', bcadd($yesterday->open(), '0', 2));
+        $this->assertSame('150.00', bcadd($yesterday->accountBalance, '0', 2));
+        $this->assertTrue($yesterday->agrees());
+        $this->assertSame('150.0000', $yesterday->aging($this->daysAgo(1))['1-30']);
+        $this->assertSame('0.0000', $yesterday->aging($this->daysAgo(1))['120+']);
+
+        $this->assertSame('50.00', bcadd($today->open(), '0', 2));
+        $this->assertSame('50.0000', $today->aging(date('Y-m-d'))['1-30']);
+        $this->assertSame('0.0000', $today->aging(date('Y-m-d'))['120+']);
+        $this->assertNotNull($today->invoice($second));
+        $this->assertSame(date('Y-m-d', strtotime('-1 day')), $yesterday->asOf);
+        $this->assertTies();
+    }
+
+    public function testPosition_OnADayBeforeAnInvoiceLeavesItOutWithItsPaymentAndCredit(): void
+    {
+        $invoice = $this->invoiceDated('100.00', $this->daysAgo(2));
+
+        $this->addPayment($invoice, '30.00');
+        $this->creditNoteOf($invoice, '20.00');
+
+        $before = $this->position(null, $this->daysAgo(3));
+
+        $this->assertSame([], $before->invoices);
+        $this->assertSame([], $before->credits);
+        $this->assertSame('0.00', bcadd($before->accountBalance, '0', 2));
+        $this->assertTrue($before->agrees());
+    }
+
+    public function testPosition_OnADayOfThePastStillCountsASaleThatWasCancelledAfterThatDay(): void
+    {
+        $cycle = $this->referenceInvoice();
+        $sale  = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '200.00')], SALE_TYPE_POS);
+        $past  = $this->daysAgo(3);
+        $db    = $this->accountingDb();
+
+        $db->table('sales')->where('sale_id', $sale)->update(['sale_time' => $past . ' 10:00:00']);
+        $db->table('sales_payments')->where('sale_id', $sale)->update(['payment_time' => $past . ' 10:00:00']);
+        $paymentIds = array_map('intval', array_column($db->table('sales_payments')->select('payment_id')->where('sale_id', $sale)->get()->getResultArray(), 'payment_id'));
+
+        $db->table('accounting_journals')->where(['source_type' => 'sale', 'source_id' => $sale])->update(['journal_date' => $past]);
+        $db->table('accounting_journals')->where('source_type', 'sale_payment')->whereIn('source_id', $paymentIds)->update(['journal_date' => $past]);
+
+        $this->closeThrough($this->daysAgo(2));
+
+        $this->assertTrue($this->sales->delete($sale, false, true, $this->employeeId));
+
+        $thatDay = $this->position(null, $this->daysAgo(1));
+        $now     = $this->position();
+
+        $this->assertNotNull($thatDay->invoice($sale));
+        $this->assertSame('616.50', bcadd($thatDay->open(), '0', 2));
+        $this->assertSame('616.50', bcadd($thatDay->accountBalance, '0', 2));
+        $this->assertTrue($thatDay->agrees());
+        $this->assertNull($now->invoice($sale));
+        $this->assertSame('0.00', bcadd($now->accountBalance, '0', 2));
+    }
+
+    public function testPosition_ReadsAnInvoiceWithNoTypedDayFromTheDayItWasSavedAndDueThatSameDay(): void
+    {
+        $invoice = $this->invoiceOf('100.00');
+
+        $this->accountingDb()->table('sales')->where('sale_id', $invoice)->update(['sale_time' => $this->daysAgo(40) . ' 10:00:00']);
+
+        $position = $this->position();
+        $figures  = $position->invoice($invoice);
+
+        $this->assertNull($this->saleRow($invoice)->invoice_date);
+        $this->assertNull($this->saleRow($invoice)->due_date);
+        $this->assertSame($this->daysAgo(40), $figures->date);
+        $this->assertSame($this->daysAgo(40), $figures->dueDate);
+        $this->assertNull($figures->termsDays);
+        $this->assertSame('100.0000', $position->aging(date('Y-m-d'))['31-60']);
+        $this->assertTrue($figures->isOverdue(date('Y-m-d')));
+        $this->assertSame(40, $figures->daysOverdue(date('Y-m-d')));
+    }
+
+    public function testPosition_PutsTheInvoicesInTheOrderOfTheDaysTheyAreDatedThenTheOrderTheyWereSaved(): void
+    {
+        $recent = $this->invoiceDated('10.00', $this->daysAgo(1));
+        $old    = $this->invoiceDated('20.00', $this->daysAgo(9));
+        $today  = $this->invoiceOf('30.00');
+
+        $this->assertSame([$old, $recent, $today], array_map(static fn ($invoice): int => $invoice->saleId, $this->position()->invoices));
+    }
+
+    public function testIsOverdue_IsTrueOnlyForWhatIsOpenAndFellDueBeforeToday(): void
+    {
+        $dueYesterday = $this->invoiceDated('10.00', $this->daysAgo(3), 2);
+        $dueToday     = $this->invoiceDated('20.00', $this->daysAgo(3), 3);
+        $dueLater     = $this->invoiceDated('30.00', $this->daysAgo(3), 33);
+        $noTerms      = $this->invoiceDated('40.00', $this->daysAgo(1));
+        $dateToday    = $this->invoiceOf('50.00');
+        $paid         = $this->invoiceDated('60.00', $this->daysAgo(9), 1);
+
+        $this->addPayment($paid, '60.00');
+
+        $position = $this->position();
+        $today    = date('Y-m-d');
+
+        $this->assertTrue($position->invoice($dueYesterday)->isOverdue($today));
+        $this->assertFalse($position->invoice($dueToday)->isOverdue($today));
+        $this->assertFalse($position->invoice($dueLater)->isOverdue($today));
+        $this->assertTrue($position->invoice($noTerms)->isOverdue($today));
+        $this->assertFalse($position->invoice($dateToday)->isOverdue($today));
+        $this->assertFalse($position->invoice($paid)->isOverdue($today));
+        $this->assertSame('50.00', bcadd($position->overdue($today), '0', 2));
+        $this->assertSame(1, $position->invoice($dueYesterday)->daysOverdue($today));
+        $this->assertSame(0, $position->invoice($dueToday)->daysOverdue($today));
+        $this->assertTies();
+    }
+
+    public function testIsOverdue_FollowsTheRuleOfTheReferenceSystemForDueDatesOfThreeKinds(): void
+    {
+        $case    = $this->referenceCase('T-31', 'overdue', 'overdue-is-open-and-due-before-today', 'exact');
+        $fixture = DateTimeImmutable::createFromFormat('!d/m/Y', $case['inputs']['today']);
+        $overdue = [];
+        $not     = [];
+
+        foreach ($case['inputs']['due_dates'] as $dueDate) {
+            $offset  = (int) $fixture->diff(DateTimeImmutable::createFromFormat('!d/m/Y', $dueDate))->format('%r%a');
+            $invoice = $this->invoiceDated('10.00', $this->daysAgo(5), 5 + $offset);
+
+            if ($this->position()->invoice($invoice)->isOverdue(date('Y-m-d'))) {
+                $overdue[] = $dueDate;
+            } else {
+                $not[] = $dueDate;
+            }
+        }
+
+        $this->assertSameAsFixture($case['expected'], ['overdue' => $overdue, 'not_overdue' => $not], 'overdue invoices');
+    }
+
+    public function testPosition_TiesCustomerAndAccountForInvoicesOfAnyDayWithTermsPaymentsAndCreditNotes(): void
+    {
+        $old    = $this->invoiceDated('300.00', $this->daysAgo(45), 15);
+        $recent = $this->invoiceDated('120.00', $this->daysAgo(3), 30);
+        $today  = $this->invoiceOf('80.00');
+
+        $this->addPayment($old, '100.00');
+        $this->creditNoteOf($recent, '20.00');
+        $this->addPayment($today, '80.00');
+
+        $position = $this->position();
+
+        $this->assertSame('300.00', bcadd($position->open(), '0', 2));
+        $this->assertSame(['today' => '0.0000', '1-30' => '100.0000', '31-60' => '200.0000', '61-90' => '0.0000', '91-120' => '0.0000', '120+' => '0.0000'], $position->aging(date('Y-m-d')));
+        $this->assertSame('200.00', bcadd($position->overdue(date('Y-m-d')), '0', 2));
+        $this->assertTies();
     }
 }
