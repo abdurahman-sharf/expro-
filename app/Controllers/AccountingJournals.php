@@ -9,6 +9,7 @@ use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\AccountService;
 use App\Libraries\Accounting\AuditLog;
 use App\Libraries\Accounting\CostCenterService;
+use App\Libraries\Accounting\InterBranchLegs;
 use App\Libraries\Accounting\JournalAttachments;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\JournalStatus;
@@ -154,7 +155,7 @@ class AccountingJournals extends AccountingController
             'currency'       => (new AccountingSettings())->baseCurrency(),
             'can_draft'      => $this->can(AccountingGuard::JOURNALS_DRAFT),
             'can_post'       => $this->can(AccountingGuard::JOURNALS_POST),
-            'can_reverse'    => $this->can(AccountingGuard::JOURNALS_REVERSE) && ! in_array($journal->source_type, [...JournalService::TRANSFER_SOURCES, ...JournalService::DOCUMENT_SOURCES], true),
+            'can_reverse'    => $this->can(AccountingGuard::JOURNALS_REVERSE) && ! in_array($journal->source_type, [...JournalService::TRANSFER_SOURCES, ...JournalService::DOCUMENT_SOURCES], true) && ! (new InterBranchLegs())->isPaired($journalId),
             'canEditDetails' => $this->can(AccountingGuard::JOURNALS_EDIT) && $this->journals->canEditDetails($journal),
             'attachments'    => $this->attachmentRows($journalId),
             'canAttach'      => $this->attachments->canChange($journal, $this->employeeId()),

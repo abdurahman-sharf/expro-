@@ -93,6 +93,7 @@ return [
     'entry'                             => 'Entry',
     'entry_cogs'                        => 'Cost of goods',
     'entry_payment'                     => 'Payment',
+    'entry_payment_branch'              => 'Payment (treasury of another branch)',
     'entry_revenue'                     => 'Invoice',
     'entry_reversed'                    => 'Reversed',
     'error_editing_item'                => 'Error editing item',

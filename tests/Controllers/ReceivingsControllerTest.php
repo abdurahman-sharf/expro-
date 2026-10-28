@@ -1310,7 +1310,7 @@ class ReceivingsControllerTest extends CIUnitTestCase
 
         $response = $this->get('/receivings/edit/' . $purchase);
 
-        $this->assertMatchesRegularExpression('/<option value="' . $elsewhere . '"\s+selected>Main of another branch<\/option>/', $response->getBody());
+        $this->assertMatchesRegularExpression('/<option value="' . $elsewhere . '"\s+selected>Main of another branch \([^)]+\)<\/option>/', $response->getBody(), 'It is named with the code of its branch');
     }
 
     public function testGetEdit_KeepsTheRetiredTreasuryAPaymentAlreadyCarriesButNotForANewPayment(): void
@@ -1374,11 +1374,11 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $this->assertSame($drawer, (int) $this->accountingDb()->table('receivings_payments')->where('payment_id', $payment)->get()->getRow()->treasury_id);
     }
 
-    public function testPostSave_RefusesATreasuryOfAnotherBranchAndSavesNothingOfTheForm(): void
+    public function testPostSave_RejectsATreasuryOfAnotherBranchToABuyerWhoDoesNotWorkInItAndSavesNothingOfTheForm(): void
     {
         $purchase  = $this->purchaseOf('500.00');
         $elsewhere = $this->treasuryOfBranch('Far drawer', $this->anotherBranch());
-        $this->loginAs($this->buyer());
+        $this->loginAs($this->buyer([1]));
 
         $result = $this->jsonOf($this->post('/receivings/save/' . $purchase, $this->savedWith($purchase, $this->paymentFields([], 'Cash', '150.00') + ['treasury_id_new' => (string) $elsewhere], 'with a payment')));
 
@@ -1386,6 +1386,59 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('receivings_payments'));
         $this->assertSame('test', $this->receivingRow($purchase)->comment);
         $this->assertSame('500.00', $this->owed());
+    }
+
+    public function testGetEdit_OffersTheTreasuriesOfTheOtherBranchesToABuyerWhoWorksInBothWithTheirCode(): void
+    {
+        $purchase = $this->purchaseOf('500.00');
+        $this->payPurchase($purchase, '100.00', 'Cash');
+        $this->treasuryOfBranch('Second drawer');
+        $branch = $this->anotherBranch();
+        $far    = $this->treasuryOfBranch('Far drawer', $branch);
+
+        $this->loginAs($this->buyer([1, $branch]));
+
+        $this->assertMatchesRegularExpression('/<option value="' . $far . '">Far drawer \([^)]+\)<\/option>/', $this->get('/receivings/edit/' . $purchase)->getBody());
+
+        $this->loginAs($this->buyer([1]));
+
+        $this->assertStringNotContainsString('Far drawer', $this->get('/receivings/edit/' . $purchase)->getBody());
+    }
+
+    public function testGetEdit_EscapesTheNamesOfTheTreasuriesItOffersInTheDropdownsOfTheNewAndTheExistingPayments(): void
+    {
+        $purchase = $this->purchaseOf('500.00');
+        $payment  = $this->payPurchase($purchase, '100.00', 'Cash');
+        $this->treasuryOfBranch('Open <b>drawer</b>');
+        $branch = $this->anotherBranch();
+        $far    = $this->treasuryOfBranch('Far <img src=x onerror=alert(1)>', $branch);
+        $this->accountingDb()->table('receivings_payments')->where('payment_id', $payment)->update(['treasury_id' => $far]);
+
+        $this->loginAs($this->buyer([1, $branch]));
+
+        $body = $this->get('/receivings/edit/' . $purchase)->getBody();
+
+        $this->assertStringNotContainsString('<img src=x', $body);
+        $this->assertStringNotContainsString('<b>drawer</b>', $body);
+        $this->assertSame(2, substr_count($body, 'Far &lt;img src=x onerror=alert(1)&gt; ('), 'The dropdown of the payment and the one of a new payment');
+        $this->assertSame(2, substr_count($body, 'Open &lt;b&gt;drawer&lt;/b&gt;</option>'));
+    }
+
+    public function testPostSave_PaysTheSupplierOutOfATreasuryOfAnotherBranchForABuyerWhoWorksInBoth(): void
+    {
+        $purchase = $this->purchaseOf('500.00');
+        $branch   = $this->anotherBranch();
+        $far      = $this->treasuryOfBranch('Far drawer', $branch);
+        $this->loginAs($this->buyer([1, $branch]));
+
+        $result = $this->jsonOf($this->post('/receivings/save/' . $purchase, $this->savedWith($purchase, $this->paymentFields([], 'Cash', '150.00') + ['treasury_id_new' => (string) $far], 'with a payment')));
+
+        $payment = $this->accountingDb()->table('receivings_payments')->where('receiving_id', $purchase)->get()->getRow();
+
+        $this->assertTrue($result['success']);
+        $this->assertSame([$far, $branch], [(int) $payment->treasury_id, (int) $payment->treasury_branch_id]);
+        $this->assertSame('-150.0000', (new TreasuryService())->position($far)->balance);
+        $this->assertSame('350.00', $this->owed());
     }
 
     public function testPostDebitNote_PreparesTheRegisterForAReturnOfWhatIsLeftToTakeBack(): void

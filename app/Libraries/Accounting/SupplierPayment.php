@@ -11,6 +11,7 @@ final readonly class SupplierPayment
         public string $date,
         public PaymentStatus $status = PaymentStatus::Completed,
         public ?int $treasuryId = null,
+        public ?int $treasuryBranchId = null,
     ) {
     }
 }

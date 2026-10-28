@@ -90,7 +90,7 @@
                 <div class="row mb-3">
                     <?= form_label(lang('Sales.treasury'), 'treasury_id_new', ['class' => 'col-form-label col-3']) ?>
                     <div class="col-8">
-                        <?= form_dropdown('treasury_id_new', $new_treasury_options, '0', ['id' => 'treasury_id_new', 'class' => 'form-select form-select-sm']) ?>
+                        <?= form_dropdown('treasury_id_new', array_map('esc', $new_treasury_options), '0', ['id' => 'treasury_id_new', 'class' => 'form-select form-select-sm']) ?>
                     </div>
                 </div>
             <?php endif; ?>
@@ -167,7 +167,7 @@
                 <div class="row mb-3">
                     <?= form_label(lang('Sales.treasury') . ' #' . esc($paymentNumbers[(int) $row->payment_id] ?? (string) (int) $row->payment_id), "treasury_id_$i", ['class' => 'col-form-label col-3']) ?>
                     <div class="col-8">
-                        <?= form_dropdown("treasury_id_$i", $treasury_options, (string) ($row->treasury_id ?? 0), ['id' => "treasury_id_$i", 'class' => 'form-select form-select-sm']) ?>
+                        <?= form_dropdown("treasury_id_$i", array_map('esc', $treasury_options), (string) ($row->treasury_id ?? 0), ['id' => "treasury_id_$i", 'class' => 'form-select form-select-sm']) ?>
                     </div>
                 </div>
             <?php endif; ?>
@@ -251,7 +251,11 @@
                         <?php foreach ($journals as $journal): ?>
                             <li>
                                 <?= anchor('accounting_journals/view/' . (int) $journal->journal_id, esc((string) $journal->number), ['target' => '_blank', 'dir' => 'ltr']) ?>
-                                <?= lang($journal->source_type === 'sale_payment' ? 'Sales.entry_payment' : 'Sales.entry_' . $journal->entry_type) ?>
+                                <?= lang(match ($journal->source_type) {
+                                    'sale_payment'        => 'Sales.entry_payment',
+                                    'sale_payment_branch' => 'Sales.entry_payment_branch',
+                                    default               => 'Sales.entry_' . $journal->entry_type,
+                                }) ?>
                                 <?php if ($journal->status === 'reversed'): ?>
                                     <span class="badge text-bg-secondary"><?= lang('Sales.entry_reversed') ?></span>
                                 <?php endif; ?>

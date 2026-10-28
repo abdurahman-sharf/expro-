@@ -8,6 +8,9 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountService;
 use App\Libraries\Accounting\CostCenterService;
+use App\Libraries\Accounting\CrossBranchPayments;
+use App\Libraries\Accounting\InterBranchLegs;
+use App\Libraries\Accounting\InterBranchSettlements;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\JournalAttachments;
@@ -726,6 +729,47 @@ class JournalServiceTest extends CIUnitTestCase
 
             $this->assertGreaterThan(0, $this->service->reverseAutomatic($journalId, '2026-10-22', 'Document deleted', null));
             $this->assertSame('reversed', $this->journal($journalId)->status);
+        }
+    }
+
+    public function testReverse_RefusesTheJournalsOfASettlementBetweenBranchesAndLeavesThemToItsCancellation(): void
+    {
+        $reverser = $this->accountant();
+
+        foreach ([InterBranchSettlements::SOURCE, InterBranchSettlements::SOURCE_SECOND] as $source) {
+            $journalId = $this->journalOfAStockTransfer($source);
+
+            $this->assertFailsWith(AccountingError::TransferJournalLocked, fn () => $this->service->reverse($journalId, '2026-10-22', 'By hand', $reverser));
+            $this->assertSame('posted', $this->journal($journalId)->status);
+            $this->assertGreaterThan(0, $this->service->reverseAutomatic($journalId, '2026-10-22', 'Settlement cancelled', null));
+            $this->assertSame('reversed', $this->journal($journalId)->status);
+        }
+    }
+
+    public function testReverse_RefusesAJournalThatHasARecordOfTheOtherBranchWhateverItsSource(): void
+    {
+        $branchId = $this->createBranch('B2');
+        $reverser = $this->accountant();
+
+        foreach (['sale_payment', 'sale_payment_branch', 'supplier_payment', 'supplier_payment_branch', 'expense_branch'] as $source) {
+            $journalId = $this->journalOfAStockTransfer($source);
+
+            (new InterBranchLegs())->record($journalId, $this->accountId('cash'), InterBranchLegs::RECEIVABLE, $branchId, $source, $journalId, 1);
+
+            $this->assertFailsWith(AccountingError::TransferJournalLocked, fn () => $this->service->reverse($journalId, '2026-10-22', 'By hand', $reverser));
+            $this->assertSame('posted', $this->journal($journalId)->status, $source);
+        }
+    }
+
+    public function testReverse_TakesBackAPaymentThatHasNoRecordOfAnotherBranchByHand(): void
+    {
+        $reverser = $this->accountant();
+
+        foreach (['sale_payment', 'supplier_payment'] as $source) {
+            $journalId = $this->journalOfAStockTransfer($source);
+
+            $this->assertGreaterThan(0, $this->service->reverse($journalId, '2026-10-22', 'By hand', $reverser));
+            $this->assertSame('reversed', $this->journal($journalId)->status, $source);
         }
     }
 
@@ -2160,5 +2204,138 @@ class JournalServiceTest extends CIUnitTestCase
         $this->assertNotNull($this->journal($draftId));
         $this->assertSame(1, $this->countRows('accounting_journal_attachments'));
         $this->assertFileExists($path);
+    }
+
+    /**
+     * A payment of a document of one branch into a treasury of another, as the two journals it is
+     * posted as, with the record that makes them a pair.
+     *
+     * @return array{document: int, treasury: int, treasuryId: int} The journal of the document, the journal of the treasury and the treasury.
+     */
+    private function paymentAcrossBranches(int $documentBranch, int $treasuryBranch, string $date = '2026-10-21'): array
+    {
+        $sourceId   = random_int(1000, 999999);
+        $treasuries = new TreasuryService();
+        $treasuryId = $treasuries->create(['name' => 'Pair drawer ' . $sourceId, 'kind' => 'cash', 'branch_id' => $treasuryBranch]);
+        $account    = (int) $treasuries->accountOf($treasuryId);
+
+        (new CrossBranchPayments())->post([
+            new JournalDraft(
+                date: $date,
+                lines: [new JournalLineDraft($this->accountId('branches_receivable'), debit: '100.00'), new JournalLineDraft($this->accountId('sales_revenue'), credit: '100.00')],
+                sourceType: 'sale_payment',
+                sourceId: $sourceId,
+                branchId: $documentBranch,
+            ),
+            new JournalDraft(
+                date: $date,
+                lines: [new JournalLineDraft($account, debit: '100.00'), new JournalLineDraft($this->accountId('branches_payable'), credit: '100.00')],
+                sourceType: 'sale_payment_branch',
+                sourceId: $sourceId,
+                branchId: $treasuryBranch,
+            ),
+        ]);
+
+        $journals = [];
+
+        foreach ($this->accountingDb()->table('accounting_journals')->where('source_id', $sourceId)->get()->getResult() as $journal) {
+            $journals[$journal->source_type] = (int) $journal->journal_id;
+        }
+
+        return ['document' => $journals['sale_payment'], 'treasury' => $journals['sale_payment_branch'], 'treasuryId' => $treasuryId];
+    }
+
+    public function testReverseAutomatic_TakesBackTheOtherJournalOfAPairAndReversesTheLowerBranchFirstWhicheverIsGiven(): void
+    {
+        $branchId = $this->createBranch('B2');
+
+        foreach ([[1, $branchId], [$branchId, 1]] as [$documentBranch, $treasuryBranch]) {
+            $pair  = $this->paymentAcrossBranches($documentBranch, $treasuryBranch);
+            $locks = $this->periodLocksTakenBy(fn () => $this->service->reverseAutomatic($pair['document'], date('Y-m-d'), 'Payment removed', null));
+
+            $this->assertSame([1, $branchId], $locks, 'The period locks are taken in the order of the branch numbers');
+            $this->assertSame(['reversed', 'reversed'], [$this->journal($pair['document'])->status, $this->journal($pair['treasury'])->status]);
+
+            $reversals = [];
+
+            foreach ($this->accountingDb()->table('accounting_journals')->whereIn('reverses_journal_id', [$pair['document'], $pair['treasury']])->get()->getResult() as $reversal) {
+                $reversals[(int) $reversal->branch_id] = (int) $reversal->journal_id;
+            }
+
+            $this->assertLessThan($reversals[$branchId], $reversals[1], 'The journal of the lower branch is reversed first');
+        }
+    }
+
+    public function testReverseAutomatic_RejectsAnEmployeeWhoDoesNotWorkInTheBranchOfTheOtherJournalOfAPairAndReversesNothing(): void
+    {
+        $branchId = $this->createBranch('B2');
+
+        foreach ([[1, $branchId], [$branchId, 1]] as [$documentBranch, $treasuryBranch]) {
+            $pair = $this->paymentAcrossBranches($documentBranch, $treasuryBranch);
+
+            $this->assertFailsWith(AccountingError::InterBranchBranchesDenied, fn () => $this->service->reverseAutomatic($pair['document'], date('Y-m-d'), 'Payment removed', $this->employeeWithGrants([], [$documentBranch])));
+            $this->assertSame(['posted', 'posted'], [$this->journal($pair['document'])->status, $this->journal($pair['treasury'])->status]);
+            $this->assertGreaterThan(0, $this->service->reverseAutomatic($pair['document'], date('Y-m-d'), 'Payment removed', $this->employeeWithGrants([], [1, $branchId])));
+        }
+    }
+
+    public function testReverseAutomatic_AsksTheScopeOfTheTreasuryOfTheOtherJournalBeforeReversingAny(): void
+    {
+        $branchId = $this->createBranch('B2');
+        $pair     = $this->paymentAcrossBranches(1, $branchId);
+
+        $this->accountingDb()->table('treasuries')->where('treasury_id', $pair['treasuryId'])->update(['withdraw_scope' => 'staff']);
+        $this->accountingDb()->table('treasury_scope_members')->insert(['treasury_id' => $pair['treasuryId'], 'direction' => 'withdraw', 'member_id' => $this->employeeWithGrants([])]);
+
+        $this->assertFailsWith(AccountingError::TreasuryWithdrawDenied, fn () => $this->service->reverseAutomatic($pair['document'], date('Y-m-d'), 'Payment removed', $this->employeeWithGrants([], [1, $branchId])));
+        $this->assertSame(['posted', 'posted'], [$this->journal($pair['document'])->status, $this->journal($pair['treasury'])->status]);
+    }
+
+    public function testReverseAutomatic_DatesTheOtherJournalOfAPairByTheClosedPeriodOfItsOwnBranch(): void
+    {
+        $branchId = $this->createBranch('B2');
+
+        foreach ([[1, $branchId, $branchId], [$branchId, 1, 1]] as [$documentBranch, $treasuryBranch, $closed]) {
+            $pair = $this->paymentAcrossBranches($documentBranch, $treasuryBranch, '2026-03-10');
+
+            $this->closeThrough('2026-06-30', $closed);
+
+            $this->service->reverseAutomatic($pair['document'], $closed === $documentBranch ? date('Y-m-d') : '2026-03-10', 'Payment removed', null);
+
+            $dates = [];
+
+            foreach ($this->accountingDb()->table('accounting_journals')->whereIn('reverses_journal_id', [$pair['document'], $pair['treasury']])->get()->getResult() as $reversal) {
+                $dates[(int) $reversal->branch_id] = $reversal->journal_date;
+            }
+
+            $this->assertSame([1 => $closed === 1 ? date('Y-m-d') : '2026-03-10', $branchId => $closed === $branchId ? date('Y-m-d') : '2026-03-10'], $dates, 'Only the journal of the branch whose period is closed is reversed today');
+
+            $this->accountingDb()->table('accounting_closed_periods')->truncate();
+        }
+    }
+
+    public function testReverseAutomatic_ReversesNoJournalOfAPairWhenAnotherCannotBeReversed(): void
+    {
+        $branchId = $this->createBranch('B2');
+        $pair     = $this->paymentAcrossBranches(1, $branchId);
+
+        $this->closeThrough('2035-12-31', $branchId);
+
+        $this->assertPostingFailsWith(PostingError::PeriodClosed, fn () => $this->service->reverseAutomatic($pair['document'], date('Y-m-d'), 'Payment removed', null));
+        $this->assertSame(['posted', 'posted'], [$this->journal($pair['document'])->status, $this->journal($pair['treasury'])->status]);
+        $this->assertSame(0, $this->accountingDb()->table('accounting_journals')->whereIn('reverses_journal_id', [$pair['document'], $pair['treasury']])->countAllResults());
+    }
+
+    public function testReverse_RejectsOneJournalOfAPairAndLeavesBothStanding(): void
+    {
+        $branchId = $this->createBranch('B2');
+        $pair     = $this->paymentAcrossBranches(1, $branchId);
+        $reverser = $this->accountant();
+
+        foreach ([$pair['document'], $pair['treasury']] as $journalId) {
+            $this->assertFailsWith(AccountingError::TransferJournalLocked, fn () => $this->service->reverse($journalId, date('Y-m-d'), 'By hand', $reverser));
+        }
+
+        $this->assertSame(['posted', 'posted'], [$this->journal($pair['document'])->status, $this->journal($pair['treasury'])->status]);
     }
 }

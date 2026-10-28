@@ -31,6 +31,7 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 
 <div id="title_bar" class="print_hide btn-toolbar">
     <a class="btn btn-outline-secondary btn-sm" href="accounting_treasuries"><span class="bi bi-wallet2" aria-hidden="true">&nbsp;</span><?= lang('Accounting_treasuries.treasuries') ?></a>
+    <a class="btn btn-outline-secondary btn-sm" href="accounting_treasuries/inter_branch"><span class="bi bi-diagram-2" aria-hidden="true">&nbsp;</span><?= lang('Accounting_treasuries.inter_branch') ?></a>
     <?php if ($can_manage): ?>
         <button class="btn btn-primary btn-sm modal-dlg" data-btn-submit="<?= lang('Common.submit') ?>" data-href="accounting_treasuries/transfer_form" title="<?= lang('Accounting_treasuries.new_transfer') ?>">
             <span class="bi bi-plus-lg" aria-hidden="true">&nbsp;</span><?= lang('Accounting_treasuries.new_transfer') ?>

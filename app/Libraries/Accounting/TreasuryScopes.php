@@ -157,6 +157,38 @@ final class TreasuryScopes
     }
 
     /**
+     * Replacing the journals of a payment that is posted in two branches by others moves the
+     * difference of all of them, as replacing one journal does.
+     *
+     * @param list<int>          $journalIds
+     * @param list<JournalDraft> $replacements
+     *
+     * @throws AccountingException
+     */
+    public function assertMayReplaceAll(array $journalIds, array $replacements, ?int $employeeId): void
+    {
+        if ($employeeId === null) {
+            return;
+        }
+
+        $delta = [];
+
+        foreach ($journalIds as $journalId) {
+            foreach ($this->netOfJournal($journalId) as $treasuryId => $net) {
+                $delta[$treasuryId] = bcsub($delta[$treasuryId] ?? '0', $net, self::SCALE);
+            }
+        }
+
+        foreach ($replacements as $replacement) {
+            foreach ($this->netOfLines($replacement->lines) as $treasuryId => $net) {
+                $delta[$treasuryId] = bcadd($delta[$treasuryId] ?? '0', $net, self::SCALE);
+            }
+        }
+
+        $this->assertMoves($delta, $employeeId);
+    }
+
+    /**
      * A journal written by hand, or an opening balance, moves money when it debits or credits the
      * account of a treasury just as a payment does: what it debits is a deposit into the treasury
      * and what it credits is a withdrawal from it. Posting a draft is what moves the money, so

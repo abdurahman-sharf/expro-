@@ -120,7 +120,7 @@
                     <?php endif; ?>
                     <?php if ($treasury_options !== []): ?>
                         <div class="col-9 offset-3 mt-2">
-                            <?= form_dropdown('treasury_id_' . $i, $treasury_options, (string) ($row->treasury_id ?? 0), ['id' => 'treasury_id_' . $i, 'class' => 'form-select form-select-sm', 'aria-label' => lang('Receivings.treasury')]) ?>
+                            <?= form_dropdown('treasury_id_' . $i, array_map('esc', $treasury_options), (string) ($row->treasury_id ?? 0), ['id' => 'treasury_id_' . $i, 'class' => 'form-select form-select-sm', 'aria-label' => lang('Receivings.treasury')]) ?>
                         </div>
                     <?php endif; ?>
                 </div>
@@ -142,7 +142,7 @@
                 <?php endif; ?>
                 <?php if ($new_treasury_options !== []): ?>
                     <div class="col-9 offset-3 mt-2">
-                        <?= form_dropdown('treasury_id_new', $new_treasury_options, '0', ['id' => 'treasury_id_new', 'class' => 'form-select form-select-sm', 'aria-label' => lang('Receivings.treasury')]) ?>
+                        <?= form_dropdown('treasury_id_new', array_map('esc', $new_treasury_options), '0', ['id' => 'treasury_id_new', 'class' => 'form-select form-select-sm', 'aria-label' => lang('Receivings.treasury')]) ?>
                     </div>
                 <?php endif; ?>
                 <?php if ($payment_statuses !== []): ?>

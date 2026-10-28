@@ -1595,7 +1595,7 @@ class SalesControllerTest extends CIUnitTestCase
 
         $response = $this->get('/sales/edit/' . $invoice['saleId']);
 
-        $this->assertMatchesRegularExpression('/<option value="' . $elsewhere . '"\s+selected>Main of another branch<\/option>/', $response->getBody());
+        $this->assertMatchesRegularExpression('/<option value="' . $elsewhere . '"\s+selected>Main of another branch \([^)]+\)<\/option>/', $response->getBody(), 'It is named with the code of its branch');
     }
 
     public function testPostSave_PutsTheNewPaymentIntoTheTreasuryTheFormNames(): void
@@ -1673,6 +1673,117 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertSame(lang('Accounting.error_treasury_not_found'), $result['message']);
         $this->assertSame(0, $this->accountingDb()->table('sales_payments')->where('sale_id', $invoice['saleId'])->countAllResults());
         $this->assertSame('0.0000', (new TreasuryService())->position($elsewhere)->balance);
+    }
+
+    /**
+     * A supervisor who works in the first branch and in the one given.
+     *
+     * @param list<string> $extraGrants
+     */
+    protected function supervisorInBoth(int $branchId, array $extraGrants = []): int
+    {
+        $personId = $this->createBranchLimitedSupervisor(1, $extraGrants);
+
+        $this->accountingDb()->table('employee_branches')->insert(['person_id' => $personId, 'branch_id' => $branchId, 'is_default' => 0]);
+
+        return $personId;
+    }
+
+    public function testGetEdit_OffersTheTreasuriesOfTheOtherBranchesToAnEmployeeWhoWorksInBothWithTheirCode(): void
+    {
+        $invoice = $this->postedInvoice();
+        $branch  = $this->createSecondBranch();
+        $this->treasuryOfBranch('Open drawer');
+        $far = $this->treasuryOfBranch('Far drawer', $branch);
+
+        $this->loginAs($this->supervisorInBoth($branch));
+
+        $this->assertMatchesRegularExpression('/<option value="' . $far . '">Far drawer \([^)]+\)<\/option>/', $this->get('/sales/edit/' . $invoice['saleId'])->getBody());
+
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $this->assertStringNotContainsString('Far drawer', $this->get('/sales/edit/' . $invoice['saleId'])->getBody());
+    }
+
+    public function testGetEdit_NamesTheJournalOfAPaymentIntoATreasuryOfAnotherBranch(): void
+    {
+        $invoice = $this->postedInvoice();
+        $branch  = $this->createSecondBranch();
+        $far     = $this->treasuryOfBranch('Far drawer', $branch);
+
+        $this->loginAs($this->supervisorInBoth($branch, ['accounting_journals']));
+        $this->assertTrue($this->jsonOf($this->post('/sales/save/' . $invoice['saleId'], [
+            'date'               => date($this->config()['dateformat'] . ' ' . $this->config()['timeformat']),
+            'customer_id'        => (string) $this->customerId,
+            'employee_id'        => (string) $this->employeeId,
+            'comment'            => 'paid',
+            'number_of_payments' => '0',
+            'payment_type_new'   => 'Cash',
+            'payment_amount_new' => '100.00',
+            'treasury_id_new'    => (string) $far,
+        ]))['success']);
+
+        $body = $this->get('/sales/edit/' . $invoice['saleId'])->getBody();
+
+        $this->assertMatchesRegularExpression('/<li>\s*<a [^>]*>[^<]*<\/a>\s*' . preg_quote(lang('Sales.entry_payment_branch'), '/') . '\s*<\/li>/', $body);
+        $this->assertStringNotContainsString('Sales.entry_', $body, 'Every journal has a name of its own');
+    }
+
+    public function testGetEdit_EscapesTheNamesOfTheTreasuriesItOffersInTheDropdownsOfTheNewAndTheExistingPayments(): void
+    {
+        $invoice = $this->postedInvoice();
+        $branch  = $this->createSecondBranch();
+        $this->treasuryOfBranch('Open <b>drawer</b>');
+        $far       = $this->treasuryOfBranch('Far <img src=x onerror=alert(1)>', $branch);
+        $paymentId = $this->addPayment($invoice['saleId'], '300.00', 'Cash');
+        $this->accountingDb()->table('sales_payments')->where('payment_id', $paymentId)->update(['treasury_id' => $far]);
+
+        $this->loginAs($this->supervisorInBoth($branch));
+
+        $body = $this->get('/sales/edit/' . $invoice['saleId'])->getBody();
+
+        $this->assertStringNotContainsString('<img src=x', $body);
+        $this->assertStringNotContainsString('<b>drawer</b>', $body);
+        $this->assertSame(2, substr_count($body, 'Far &lt;img src=x onerror=alert(1)&gt; ('), 'The dropdown of the payment and the one of a new payment');
+        $this->assertSame(2, substr_count($body, 'Open &lt;b&gt;drawer&lt;/b&gt;</option>'));
+    }
+
+    public function testGetIndex_EscapesTheNamesOfTheTreasuriesItOffersAtTheRegister(): void
+    {
+        $this->registerWithACart();
+        $this->treasuryOfBranch('Register <img src=x onerror=alert(1)>');
+
+        $body = $this->get('/sales')->getBody();
+
+        $this->assertStringNotContainsString('<img src=x', $body);
+        $this->assertStringContainsString('Register &lt;img src=x onerror=alert(1)&gt;</option>', $body);
+    }
+
+    public function testPostSave_PutsTheNewPaymentIntoATreasuryOfAnotherBranchForAnEmployeeWhoWorksInBoth(): void
+    {
+        $invoice = $this->postedInvoice();
+        $branch  = $this->createSecondBranch();
+        $far     = $this->treasuryOfBranch('Far drawer', $branch);
+
+        $this->loginAs($this->supervisorInBoth($branch));
+
+        $result = $this->jsonOf($this->post('/sales/save/' . $invoice['saleId'], [
+            'date'               => date($this->config()['dateformat'] . ' ' . $this->config()['timeformat']),
+            'customer_id'        => (string) $this->customerId,
+            'employee_id'        => (string) $this->employeeId,
+            'comment'            => 'paid',
+            'number_of_payments' => '0',
+            'payment_type_new'   => 'Cash',
+            'payment_amount_new' => '100.00',
+            'treasury_id_new'    => (string) $far,
+        ]));
+
+        $payment = $this->accountingDb()->table('sales_payments')->where('sale_id', $invoice['saleId'])->get()->getRow();
+
+        $this->assertTrue($result['success']);
+        $this->assertSame([$far, $branch], [(int) $payment->treasury_id, (int) $payment->treasury_branch_id]);
+        $this->assertSame('100.0000', (new TreasuryService())->position($far)->balance);
+        $this->assertSame(2, $this->accountingDb()->table('accounting_journals')->whereIn('source_type', ['sale_payment', 'sale_payment_branch'])->where('source_id', (int) $payment->payment_id)->countAllResults());
     }
 
     public function testPostSave_RefusesToChangeTheCustomerOfAPostedSaleAndSaysWhy(): void

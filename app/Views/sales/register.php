@@ -415,7 +415,7 @@ $employee        = model(Employee::class);
                             <?php if ($treasury_options !== []): ?>
                                 <div id="treasury_choice">
                                     <label for="treasury_id" class="pos-label mt-3"><?= lang('Sales.treasury') ?></label>
-                                    <?= form_dropdown('treasury_id', $treasury_options, '0', ['id' => 'treasury_id', 'class' => 'form-select']) ?>
+                                    <?= form_dropdown('treasury_id', array_map('esc', $treasury_options), '0', ['id' => 'treasury_id', 'class' => 'form-select']) ?>
                                 </div>
                             <?php endif; ?>
 
