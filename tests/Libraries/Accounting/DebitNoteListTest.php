@@ -231,6 +231,24 @@ class DebitNoteListTest extends CIUnitTestCase
         $this->assertSupplierTies();
     }
 
+    public function testSearch_DoesNotCountWhatWasReleasedWhenThePurchaseItWasAppliedToWasPaidInCashInstead(): void
+    {
+        $purchase = $this->purchaseOf('100.00', null, lang('Sales.cash'));
+        $this->debitNoteOf($purchase, '40.00');
+        $later = $this->purchaseOf('30.00');
+
+        $this->assertSame('30.00', bcadd($this->rows()[0]->applied, '0', 2));
+
+        $this->payPurchase($later, '30.00');
+
+        $this->assertSame(1, $this->accountingDb()->table('supplier_credit_applications')->where('released_at IS NOT NULL')->countAllResults(), 'The credit was taken back from the purchase and the application kept as released');
+
+        $row = $this->rows()[0];
+
+        $this->assertSame(['0.00', '40.00', DebitNoteList::HELD], [bcadd($row->applied, '0', 2), bcadd($row->held, '0', 2), $row->state]);
+        $this->assertSupplierTies();
+    }
+
     public function testSearch_AgreesWithTheCreditTheLedgerOfTheSupplierHoldsForEveryDebitNote(): void
     {
         $paid  = $this->purchaseOf('100.00', null, lang('Sales.cash'));
@@ -402,6 +420,8 @@ class DebitNoteListTest extends CIUnitTestCase
     {
         return [
             'dates that are not days' => [['date_from' => '2026-13-45', 'date_to' => 'tomorrow']],
+            'a day that does not exist, from' => [['date_from' => '2026-02-30']],
+            'a day that does not exist, to'   => [['date_to' => '2026-02-30']],
             'arrays for text'         => [['search' => ['a']]],
             'arrays for ids'          => [['supplier_id' => [1], 'employee_id' => [1]]],
             'zero and negative ids'   => [['supplier_id' => '0', 'employee_id' => '-4']],

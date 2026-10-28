@@ -412,6 +412,8 @@ class SupplierPaymentListTest extends CIUnitTestCase
     {
         return [
             'dates that are not days' => [['date_from' => '2026-13-45', 'date_to' => 'tomorrow']],
+            'a day that does not exist, from' => [['date_from' => '2026-02-30']],
+            'a day that does not exist, to'   => [['date_to' => '2026-02-30']],
             'arrays for text'         => [['search' => ['a'], 'payment_type' => ['Cash'], 'status' => ['draft'], 'kind' => ['advance']]],
             'arrays for ids'          => [['supplier_id' => [1], 'treasury_id' => [1], 'employee_id' => [1]]],
             'zero and negative ids'   => [['supplier_id' => '0', 'treasury_id' => '-4', 'employee_id' => 'abc']],
