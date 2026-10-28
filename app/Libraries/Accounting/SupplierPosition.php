@@ -2,8 +2,6 @@
 
 namespace App\Libraries\Accounting;
 
-use DateTimeImmutable;
-
 /**
  * Where a supplier stands: the purchases that are still open, the credit held with them that has
  * not been spent, and the balance of their account. The three agree, and what does not (a manual
@@ -12,7 +10,7 @@ use DateTimeImmutable;
  */
 final readonly class SupplierPosition
 {
-    public const AGING_BUCKETS = ['0-30', '31-60', '61-90', '91+'];
+    public const AGING_BUCKETS = AgingBuckets::KEYS;
 
     /**
      * @param list<PurchaseFigures> $purchases
@@ -24,6 +22,7 @@ final readonly class SupplierPosition
         public string $accountBalance,
         public array $purchases,
         public array $credits,
+        public ?string $asOf = null,
     ) {
     }
 
@@ -81,32 +80,41 @@ final readonly class SupplierPosition
     }
 
     /**
-     * What is owed, by the age of the purchase in days at a date.
+     * What is owed, in the six buckets of the age of the purchase in days at a date. The age counts
+     * from the day the purchase is dated, not from the day it falls due, and a purchase dated after
+     * the date is not counted.
      *
      * @return array<string, numeric-string>
      */
     public function aging(string $asOf): array
     {
-        $buckets = array_fill_keys(self::AGING_BUCKETS, '0.0000');
-        $today   = new DateTimeImmutable($asOf);
+        $documents = [];
 
         foreach ($this->purchases as $purchase) {
-            if (bccomp($purchase->open(), '0', SaleAmounts::SCALE) <= 0) {
-                continue;
+            if (bccomp($purchase->open(), '0', SaleAmounts::SCALE) > 0) {
+                $documents[] = [$purchase->date, $purchase->open()];
             }
-
-            $days   = max(0, (int) $today->diff(new DateTimeImmutable($purchase->date))->format('%a'));
-            $bucket = match (true) {
-                $days <= 30 => '0-30',
-                $days <= 60 => '31-60',
-                $days <= 90 => '61-90',
-                default     => '91+',
-            };
-
-            $buckets[$bucket] = bcadd($buckets[$bucket], $purchase->open(), SaleAmounts::SCALE);
         }
 
-        return $buckets;
+        return AgingBuckets::named($documents, $asOf);
+    }
+
+    /**
+     * What is owed on purchases whose due date is before the day.
+     *
+     * @return numeric-string
+     */
+    public function overdue(string $today): string
+    {
+        $late = '0';
+
+        foreach ($this->purchases as $purchase) {
+            if ($purchase->isOverdue($today)) {
+                $late = bcadd($late, $purchase->open(), SaleAmounts::SCALE);
+            }
+        }
+
+        return bcadd($late, '0', SaleAmounts::SCALE);
     }
 
     public function purchase(int $receivingId): ?PurchaseFigures

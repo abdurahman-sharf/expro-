@@ -22,17 +22,21 @@ final class CustomerLedger
         $this->db = $db ?? Database::connect();
     }
 
-    public function position(int $customerId): CustomerPosition
+    /**
+     * Where a customer stands now, or on a day of the past: what the invoices dated by then and the
+     * payments and credit applied by then say, which adds up to the balance of the account on that day.
+     */
+    public function position(int $customerId, ?string $asOf = null): CustomerPosition
     {
         $accountId = (new EntityAccountService($this->db))->accountFor(EntityAccountService::CUSTOMER, $customerId);
 
         if ($accountId === null) {
-            return new CustomerPosition($customerId, null, '0.0000', [], []);
+            return new CustomerPosition($customerId, null, '0.0000', [], [], $asOf);
         }
 
-        $sales    = $this->sales($customerId, $accountId);
-        $paid     = $this->paid($customerId, $accountId);
-        $applied  = $this->applied($customerId);
+        $sales    = $this->sales($customerId, $accountId, $asOf);
+        $paid     = $this->paid($customerId, $accountId, $asOf);
+        $applied  = $this->applied($customerId, $asOf);
         $returned = [];
         $credits  = [];
         $invoices = [];
@@ -49,7 +53,7 @@ final class CustomerLedger
                 $returned[$origin] = bcadd($returned[$origin] ?? '0', bcsub('0', $sale->total, SaleAmounts::SCALE), SaleAmounts::SCALE);
             }
 
-            $credits[(int) $sale->sale_id] = [CreditSource::CREDIT_NOTE, (int) $sale->sale_id, $origin, substr((string) $sale->sale_time, 0, 10), $amount];
+            $credits[(int) $sale->sale_id] = [CreditSource::CREDIT_NOTE, (int) $sale->sale_id, $origin, (string) $sale->doc_date, $amount];
         }
 
         $figures = [];
@@ -62,12 +66,14 @@ final class CustomerLedger
             $saleId           = (int) $sale->sale_id;
             $figures[$saleId] = new InvoiceFigures(
                 $saleId,
-                substr((string) $sale->sale_time, 0, 10),
+                (string) $sale->doc_date,
                 (int) $sale->sale_type,
                 bcadd($sale->total, '0', SaleAmounts::SCALE),
                 $paid[$saleId] ?? '0.0000',
                 $applied['into'][$saleId] ?? '0.0000',
                 $returned[$saleId] ?? '0.0000',
+                $sale->due_date === null ? (string) $sale->doc_date : (string) $sale->due_date,
+                $sale->payment_terms_days === null ? null : (int) $sale->payment_terms_days,
             );
         }
 
@@ -89,7 +95,7 @@ final class CustomerLedger
         usort($sources, static fn (CreditSource $a, CreditSource $b): int => [$a->date, $a->sourceId] <=> [$b->date, $b->sourceId]);
         usort($invoices, static fn (InvoiceFigures $a, InvoiceFigures $b): int => [$a->date, $a->saleId] <=> [$b->date, $b->saleId]);
 
-        return new CustomerPosition($customerId, $accountId, $this->accountBalance($accountId), $invoices, $sources);
+        return new CustomerPosition($customerId, $accountId, $this->accountBalance($accountId, $asOf), $invoices, $sources, $asOf);
     }
 
     /**
@@ -157,21 +163,36 @@ final class CustomerLedger
     }
 
     /**
-     * The sales of a customer that are in the books, with what their invoice journal debited
-     * the account of the customer.
+     * The sales of a customer that are in the books, with what their invoice journal debited the
+     * account of the customer, the day they are dated and their due date. A sale with no date typed
+     * is dated the day it was saved and falls due that same day.
      *
      * @return list<object>
      */
-    private function sales(int $customerId, int $accountId): array
+    private function sales(int $customerId, int $accountId, ?string $asOf): array
     {
+        [$standing, $standingBindings] = StandingJournals::condition($this->db, 'j', $asOf);
+
+        $bindings = [$accountId, SalePostingBuilder::SOURCE_SALE, JournalEntryType::Revenue->value, ...$standingBindings, $customerId];
+        $where    = '';
+
+        if ($asOf === null) {
+            $where      = ' AND s.sale_status = ?';
+            $bindings[] = COMPLETED;
+        } else {
+            $where      = ' AND COALESCE(s.invoice_date, DATE(s.sale_time)) <= ?';
+            $bindings[] = $asOf;
+        }
+
         return $this->db->query(
-            'SELECT s.sale_id, s.sale_type, s.sale_time, s.return_of_sale_id,
+            'SELECT s.sale_id, s.sale_type, s.sale_time, s.return_of_sale_id, s.due_date, s.payment_terms_days,
+                    COALESCE(s.invoice_date, DATE(s.sale_time)) AS doc_date,
                     (SELECT COALESCE(SUM(l.debit - l.credit), 0) FROM ' . $this->db->prefixTable('accounting_journal_lines') . ' l WHERE l.journal_id = j.journal_id AND l.account_id = ?) AS total
              FROM ' . $this->db->prefixTable('sales') . ' s
-             JOIN ' . $this->db->prefixTable('accounting_journals') . ' j ON j.source_type = ? AND j.source_id = s.sale_id AND j.entry_type = ? AND j.status = ?
-             WHERE s.customer_id = ? AND s.sale_status = ? AND s.sale_type IN (' . implode(',', self::SALE_TYPES) . ')
-             ORDER BY s.sale_time ASC, s.sale_id ASC',
-            [$accountId, SalePostingBuilder::SOURCE_SALE, JournalEntryType::Revenue->value, JournalStatus::Posted->value, $customerId, COMPLETED],
+             JOIN ' . $this->db->prefixTable('accounting_journals') . " j ON j.source_type = ? AND j.source_id = s.sale_id AND j.entry_type = ? AND {$standing}
+             WHERE s.customer_id = ? AND s.sale_type IN (" . implode(',', self::SALE_TYPES) . "){$where}
+             ORDER BY doc_date ASC, s.sale_id ASC",
+            $bindings,
         )->getResult();
     }
 
@@ -180,16 +201,18 @@ final class CustomerLedger
      *
      * @return array<int, numeric-string>
      */
-    private function paid(int $customerId, int $accountId): array
+    private function paid(int $customerId, int $accountId, ?string $asOf): array
     {
+        [$standing, $standingBindings] = StandingJournals::condition($this->db, 'j', $asOf);
+
         $rows = $this->db->query(
             'SELECT p.sale_id, SUM(l.credit - l.debit) AS paid
              FROM ' . $this->db->prefixTable('sales_payments') . ' p
              JOIN ' . $this->db->prefixTable('sales') . ' s ON s.sale_id = p.sale_id AND s.customer_id = ?
-             JOIN ' . $this->db->prefixTable('accounting_journals') . ' j ON j.source_type = ? AND j.source_id = p.payment_id AND j.status = ?
-             JOIN ' . $this->db->prefixTable('accounting_journal_lines') . ' l ON l.journal_id = j.journal_id AND l.account_id = ?
+             JOIN ' . $this->db->prefixTable('accounting_journals') . " j ON j.source_type = ? AND j.source_id = p.payment_id AND {$standing}
+             JOIN " . $this->db->prefixTable('accounting_journal_lines') . ' l ON l.journal_id = j.journal_id AND l.account_id = ?
              GROUP BY p.sale_id',
-            [$customerId, SalePostingBuilder::SOURCE_PAYMENT, JournalStatus::Posted->value, $accountId],
+            [$customerId, SalePostingBuilder::SOURCE_PAYMENT, ...$standingBindings, $accountId],
         )->getResult();
 
         $paid = [];
@@ -202,14 +225,21 @@ final class CustomerLedger
     }
 
     /**
+     * What the applications of credit stand for, by invoice and by source. On a day of the past it is
+     * the ones made by then and not yet released by then.
+     *
      * @return array{into: array<int, numeric-string>, from: array<string, numeric-string>}
      */
-    private function applied(int $customerId): array
+    private function applied(int $customerId, ?string $asOf): array
     {
         $into = [];
         $from = [];
 
-        foreach ($this->applications($customerId) as $application) {
+        foreach ($this->applications($customerId, $asOf !== null) as $application) {
+            if ($asOf !== null && (substr((string) $application->created_at, 0, 10) > $asOf || ($application->released_at !== null && substr((string) $application->released_at, 0, 10) <= $asOf))) {
+                continue;
+            }
+
             $invoice = (int) $application->invoice_sale_id;
             $source  = $application->source_type . ':' . $application->source_id;
 
@@ -222,18 +252,26 @@ final class CustomerLedger
 
     /**
      * Debit less credit of the account of the customer over everything posted, reversals
-     * included, which is how every balance in the books is read.
+     * included, which is how every balance in the books is read; up to a day when one is given.
      *
      * @return numeric-string
      */
-    private function accountBalance(int $accountId): string
+    private function accountBalance(int $accountId, ?string $asOf): string
     {
+        $bindings = [JournalStatus::Posted->value, JournalStatus::Reversed->value, $accountId];
+        $until    = '';
+
+        if ($asOf !== null) {
+            $until      = ' AND j.journal_date <= ?';
+            $bindings[] = $asOf;
+        }
+
         $row = $this->db->query(
             'SELECT COALESCE(SUM(l.debit), 0) - COALESCE(SUM(l.credit), 0) AS balance
              FROM ' . $this->db->prefixTable('accounting_journal_lines') . ' l
-             JOIN ' . $this->db->prefixTable('accounting_journals') . ' j ON j.journal_id = l.journal_id
-             WHERE j.status IN (?, ?) AND l.account_id = ?',
-            [JournalStatus::Posted->value, JournalStatus::Reversed->value, $accountId],
+             JOIN ' . $this->db->prefixTable('accounting_journals') . " j ON j.journal_id = l.journal_id
+             WHERE j.status IN (?, ?) AND l.account_id = ?{$until}",
+            $bindings,
         )->getRow();
 
         return bcadd((string) $row->balance, '0', SaleAmounts::SCALE);

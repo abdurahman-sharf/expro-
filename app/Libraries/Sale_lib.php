@@ -532,6 +532,47 @@ class Sale_lib
     }
 
     /**
+     * The day typed on the invoice being made, or null when it is dated the day it is saved.
+     */
+    public function get_invoice_date(): ?string
+    {
+        $date = $this->session->get('sales_invoice_date');
+
+        return $date === null || $date === '' ? null : (string) $date;
+    }
+
+    public function set_invoice_date(?string $date): void
+    {
+        $date === null || $date === '' ? $this->session->remove('sales_invoice_date') : $this->session->set('sales_invoice_date', $date);
+    }
+
+    public function clear_invoice_date(): void
+    {
+        $this->session->remove('sales_invoice_date');
+    }
+
+    /**
+     * The payment terms typed on the invoice being made, as the days they were typed in, or null
+     * when it has none.
+     */
+    public function get_payment_terms(): ?string
+    {
+        $terms = $this->session->get('sales_payment_terms');
+
+        return $terms === null || $terms === '' ? null : (string) $terms;
+    }
+
+    public function set_payment_terms(?string $terms): void
+    {
+        $terms === null || $terms === '' ? $this->session->remove('sales_payment_terms') : $this->session->set('sales_payment_terms', $terms);
+    }
+
+    public function clear_payment_terms(): void
+    {
+        $this->session->remove('sales_payment_terms');
+    }
+
+    /**
      * The sale a return in the register takes its goods back from.
      */
     public function get_return_origin(): ?int
@@ -1598,6 +1639,10 @@ class Sale_lib
         $this->set_dinner_table($this->sale->get_dinner_table($sale_id));
         $this->set_delivered($this->sale->isDelivered($sale_id));
         $this->set_return_origin($this->sale->getReturnOrigin($sale_id));
+
+        $timing = $this->sale->getInvoiceTiming($sale_id);
+        $this->set_invoice_date($timing['invoice_date']);
+        $this->set_payment_terms($timing['payment_terms_days'] === null ? null : (string) $timing['payment_terms_days']);
         $this->session->set('sale_id', $sale_id);
     }
 
@@ -1675,6 +1720,8 @@ class Sale_lib
         $this->clear_email_receipt();
         $this->clear_invoice_number();
         $this->clear_delivered();
+        $this->clear_invoice_date();
+        $this->clear_payment_terms();
         $this->clear_return_origin();
         $this->clearInvoiceDiscount();
         $this->clear_quote_number();

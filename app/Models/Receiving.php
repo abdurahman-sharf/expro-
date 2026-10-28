@@ -5,8 +5,11 @@ namespace App\Models;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingSettings;
+use App\Libraries\Accounting\AuditLog;
 use App\Libraries\Accounting\InvoiceDiscount;
 use App\Libraries\Accounting\InvoiceDiscountShares;
+use App\Libraries\Accounting\InvoiceTiming;
+use App\Libraries\Accounting\JournalOrigin;
 use App\Libraries\Accounting\PaymentStatus;
 use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\PostingError;
@@ -141,10 +144,14 @@ class Receiving extends Model
     {
         $payments     = is_array($receiving_data) && isset($receiving_data['payments']) ? $receiving_data['payments'] : [];
         $accountingOn = (new AccountingSettings($this->db))->isEnabled();
-        $employeeId   = isset($payments[0]['employee_id']) ? (int) $payments[0]['employee_id'] : null;
+        $employeeId   = $this->employeeOfEdit($receiving_data, $payments);
+        $hasDate      = is_array($receiving_data) && array_key_exists('invoice_date', $receiving_data);
+        $typedDate    = is_array($receiving_data) ? ($receiving_data['invoice_date'] ?? null) : null;
+        $hasTerms     = is_array($receiving_data) && array_key_exists('payment_terms_days', $receiving_data);
+        $typedTerms   = is_array($receiving_data) ? ($receiving_data['payment_terms_days'] ?? null) : null;
 
         if (is_array($receiving_data)) {
-            unset($receiving_data['payments']);
+            unset($receiving_data['payments'], $receiving_data['invoice_date'], $receiving_data['payment_terms_days'], $receiving_data['due_date'], $receiving_data['changed_by']);
         }
 
         if ($accountingOn && is_array($receiving_data)) {
@@ -156,6 +163,10 @@ class Receiving extends Model
 
             if (array_key_exists('receiving_time', $receiving_data)) {
                 $changes['date'] = substr((string) $receiving_data['receiving_time'], 0, 10);
+            }
+
+            if ($hasDate) {
+                $changes['invoice_date'] = (string) $typedDate;
             }
 
             try {
@@ -171,6 +182,10 @@ class Receiving extends Model
 
         try {
             $success = true;
+
+            if ($accountingOn && $hasTerms) {
+                $receiving_data = [...(is_array($receiving_data) ? $receiving_data : []), ...$this->paymentTermsChange((int) $receiving_id, $typedTerms, $employeeId)];
+            }
 
             if (is_array($receiving_data) && $receiving_data !== []) {
                 $builder = $this->db->table('receivings');
@@ -199,6 +214,83 @@ class Receiving extends Model
         $this->db->transComplete();
 
         return (bool) $success && $this->db->transStatus();
+    }
+
+    /**
+     * The payment terms of a purchase and the due date they give from the day the purchase is
+     * dated, which are the only part of its timing that can change after it is saved, and change
+     * nothing in its journals. Nothing is returned when the terms are not new or the document is
+     * not a purchase of goods.
+     *
+     * @return array{payment_terms_days?: ?int, due_date?: ?string}
+     *
+     * @throws AccountingException
+     */
+    private function paymentTermsChange(int $receivingId, int|string|null $typed, ?int $employeeId): array
+    {
+        $terms    = InvoiceTiming::terms($typed);
+        $purchase = $this->db->table('receivings')->select('receiving_type, receiving_time, invoice_date, payment_terms_days, branch_id')->where('receiving_id', $receivingId)->get()->getRow();
+
+        if ($purchase === null || $purchase->receiving_type !== ReceivingType::Receive->value) {
+            return [];
+        }
+
+        $before = $purchase->payment_terms_days === null ? null : (int) $purchase->payment_terms_days;
+
+        if ($before === $terms) {
+            return [];
+        }
+
+        $date = $purchase->invoice_date === null ? substr((string) $purchase->receiving_time, 0, 10) : (string) $purchase->invoice_date;
+        $due  = $terms === null ? null : InvoiceTiming::dueDate($date, $terms);
+
+        (new AuditLog($this->db))->write('receiving', $receivingId, 'payment_terms_changed', $employeeId, JournalOrigin::User, ['from' => $before, 'to' => $terms, 'due_date' => $due ?? $date], (int) $purchase->branch_id);
+
+        return ['payment_terms_days' => $terms, 'due_date' => $due];
+    }
+
+    /**
+     * @param array<string, mixed>|null $receivingData
+     * @param list<array<string, mixed>> $payments
+     */
+    private function employeeOfEdit(?array $receivingData, array $payments): ?int
+    {
+        $employeeId = $receivingData['changed_by'] ?? $payments[0]['employee_id'] ?? null;
+
+        return $employeeId === null || $employeeId === '' ? null : (int) $employeeId;
+    }
+
+    /**
+     * What a purchase carries about time besides the moment it was saved: the day typed on it, its
+     * payment terms and the due date they give. Only a purchase of goods in books that are on has
+     * any of it, and the day is typed by an employee who may.
+     *
+     * @return array{invoice_date: ?string, payment_terms_days: ?int, due_date: ?string}
+     *
+     * @throws AccountingException
+     */
+    private function timingOf(ReceivingType $type, ?string $invoiceDate, int|string|null $paymentTerms, int $employeeId): array
+    {
+        $none     = ['invoice_date' => null, 'payment_terms_days' => null, 'due_date' => null];
+        $settings = new AccountingSettings($this->db);
+
+        if (! $settings->isEnabled() || $type !== ReceivingType::Receive) {
+            return $none;
+        }
+
+        $today = date('Y-m-d');
+        $date  = InvoiceTiming::date($invoiceDate, $today, $settings->startDate());
+        $terms = InvoiceTiming::terms($paymentTerms);
+
+        if ($date !== null && ! model(Employee::class)->has_grant('receivings_invoice_date', $employeeId)) {
+            throw new AccountingException(AccountingError::PermissionDenied, 'The employee may not type the date of a purchase.');
+        }
+
+        return [
+            'invoice_date'       => $date,
+            'payment_terms_days' => $terms,
+            'due_date'           => $terms === null ? null : InvoiceTiming::dueDate($date ?? $today, $terms),
+        ];
     }
 
     /**
@@ -399,12 +491,12 @@ class Receiving extends Model
      *
      * @throws ReflectionException
      */
-    public function save_value(array $items, int $supplier_id, int $employee_id, string $comment, string $reference, ?string $payment_type, int $receiving_id = NEW_ENTRY, ?int $returnOfReceivingId = null, ?InvoiceDiscount $invoiceDiscount = null): int    // TODO: $receiving_id gets overwritten before it's evaluated. It doesn't make sense to pass this here.
+    public function save_value(array $items, int $supplier_id, int $employee_id, string $comment, string $reference, ?string $payment_type, int $receiving_id = NEW_ENTRY, ?int $returnOfReceivingId = null, ?InvoiceDiscount $invoiceDiscount = null, ?string $invoiceDate = null, int|string|null $paymentTerms = null): int    // TODO: $receiving_id gets overwritten before it's evaluated. It doesn't make sense to pass this here.
     {
         $this->accountingFailure = null;
 
         try {
-            return (new SupplierLock($this->db, $this->supplierLockWait))->run($supplier_id > 0 ? $supplier_id : null, fn (): int => $this->saveValueLocked($items, $supplier_id, $employee_id, $comment, $reference, $payment_type, $receiving_id, $returnOfReceivingId, $invoiceDiscount ?? InvoiceDiscount::none()));
+            return (new SupplierLock($this->db, $this->supplierLockWait))->run($supplier_id > 0 ? $supplier_id : null, fn (): int => $this->saveValueLocked($items, $supplier_id, $employee_id, $comment, $reference, $payment_type, $receiving_id, $returnOfReceivingId, $invoiceDiscount ?? InvoiceDiscount::none(), $invoiceDate, $paymentTerms));
         } catch (AccountingException $busy) {
             if ($busy->error !== AccountingError::SupplierBusy) {
                 throw $busy;
@@ -419,7 +511,7 @@ class Receiving extends Model
     /**
      * @throws ReflectionException
      */
-    private function saveValueLocked(array $items, int $supplier_id, int $employee_id, string $comment, string $reference, ?string $payment_type, int $receiving_id, ?int $returnOfReceivingId, InvoiceDiscount $invoiceDiscount): int
+    private function saveValueLocked(array $items, int $supplier_id, int $employee_id, string $comment, string $reference, ?string $payment_type, int $receiving_id, ?int $returnOfReceivingId, InvoiceDiscount $invoiceDiscount, ?string $invoiceDate, int|string|null $paymentTerms): int
     {
         $attribute    = model(Attribute::class);
         $inventory    = model('Inventory');
@@ -452,6 +544,7 @@ class Receiving extends Model
 
         try {
             $treasuryId = $this->treasuryOfPayment(['payment_type' => $payment_type], $employee_id === null ? null : (int) $employee_id, $branchId, $type === ReceivingType::Return ? TreasuryScopes::DEPOSIT : TreasuryScopes::WITHDRAW);
+            $timing     = $this->timingOf($type, $invoiceDate, $paymentTerms, $employee_id);
         } catch (AccountingException $refusal) {
             $this->accountingFailure = $refusal;
 
@@ -470,6 +563,7 @@ class Receiving extends Model
             'to_branch_id'           => $between['to'] ?? null,
             'return_of_receiving_id' => $type === ReceivingType::Return ? $returnOfReceivingId : null,
             'treasury_id'            => $treasuryId,
+            ...$timing,
         ];
 
         // Run these queries as a transaction, we want to make sure we do all or nothing
@@ -528,6 +622,10 @@ class Receiving extends Model
 
             if ($accountingOn) {
                 (new ReceivingPosting($this->db))->postCompleted($receiving_id, $employee_id);
+
+                if ($timing['invoice_date'] !== null) {
+                    (new AuditLog($this->db))->write('receiving', (int) $receiving_id, 'invoice_date_typed', $employee_id, JournalOrigin::User, ['date' => $timing['invoice_date'], 'saved_on' => date('Y-m-d')], $branchId);
+                }
             }
 
             foreach ($items as $line => $itemData) {

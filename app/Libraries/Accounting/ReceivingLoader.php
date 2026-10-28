@@ -21,7 +21,7 @@ final class ReceivingLoader
     public function load(int $receivingId, bool $withOrigin = true): ?ReceivingDocument
     {
         $receiving = $this->db->table('receivings')
-            ->select('receiving_id, receiving_time, receiving_type, supplier_id, branch_id, to_branch_id, payment_type, return_of_receiving_id, treasury_id')
+            ->select('receiving_id, receiving_time, invoice_date, receiving_type, supplier_id, branch_id, to_branch_id, payment_type, return_of_receiving_id, treasury_id')
             ->where('receiving_id', $receivingId)
             ->get()
             ->getRow();
@@ -30,11 +30,12 @@ final class ReceivingLoader
             return null;
         }
 
-        $origin = $withOrigin && $receiving->return_of_receiving_id !== null ? $this->load((int) $receiving->return_of_receiving_id, false) : null;
+        $origin  = $withOrigin && $receiving->return_of_receiving_id !== null ? $this->load((int) $receiving->return_of_receiving_id, false) : null;
+        $savedOn = substr((string) $receiving->receiving_time, 0, 10);
 
         return new ReceivingDocument(
             receivingId: (int) $receiving->receiving_id,
-            date: substr((string) $receiving->receiving_time, 0, 10),
+            date: $receiving->invoice_date === null ? $savedOn : (string) $receiving->invoice_date,
             type: ReceivingType::tryFrom((string) $receiving->receiving_type) ?? ReceivingType::Receive,
             supplierId: $receiving->supplier_id === null ? null : (int) $receiving->supplier_id,
             branchId: (int) $receiving->branch_id,
@@ -46,6 +47,7 @@ final class ReceivingLoader
             treasuryId: $receiving->treasury_id === null ? null : (int) $receiving->treasury_id,
             toBranchId: $receiving->to_branch_id === null ? null : (int) $receiving->to_branch_id,
             branchCodes: $this->branchCodes((int) $receiving->branch_id, $receiving->to_branch_id === null ? null : (int) $receiving->to_branch_id),
+            savedOn: $savedOn,
         );
     }
 

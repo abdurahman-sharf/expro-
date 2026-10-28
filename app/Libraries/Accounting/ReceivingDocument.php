@@ -3,8 +3,9 @@
 namespace App\Libraries\Accounting;
 
 /**
- * A saved purchase, with what posting needs to know about it. A return carries the purchase it
- * takes goods back from, because it can only give back what that purchase brought in.
+ * A saved purchase, with what posting needs to know about it. Its date is the day its journals
+ * take: the date typed on the invoice, or else the day it was saved. A return carries the purchase
+ * it takes goods back from, because it can only give back what that purchase brought in.
  */
 final readonly class ReceivingDocument
 {
@@ -29,6 +30,7 @@ final readonly class ReceivingDocument
         public ?int $treasuryId = null,
         public ?int $toBranchId = null,
         public array $branchCodes = [],
+        public ?string $savedOn = null,
     ) {
     }
 }

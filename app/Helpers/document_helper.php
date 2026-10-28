@@ -36,6 +36,10 @@ function documentProfile(string $type, array $sale): array
         [lang('Common.date'), (string) ($sale['transaction_date'] ?? '')],
     ];
 
+    if (! empty($sale['due_date']) && in_array($type, ['invoice', 'tax_invoice'], true)) {
+        $meta[] = [lang('Sales.due_date'), (string) $sale['due_date']];
+    }
+
     if ($showPrices) {
         $meta[] = [lang(in_array($type, ['invoice', 'tax_invoice'], true) ? 'Sales.invoice_total' : 'Sales.total'), to_currency((string) ($sale['total'] ?? 0))];
     }

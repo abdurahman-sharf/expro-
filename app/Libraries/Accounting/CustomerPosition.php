@@ -2,8 +2,6 @@
 
 namespace App\Libraries\Accounting;
 
-use DateTimeImmutable;
-
 /**
  * Where a customer stands: the invoices that are still open, the credit that has not been spent,
  * and the balance of their account. The three agree, and what does not (a manual journal on the
@@ -11,7 +9,7 @@ use DateTimeImmutable;
  */
 final readonly class CustomerPosition
 {
-    public const AGING_BUCKETS = ['0-30', '31-60', '61-90', '91+'];
+    public const AGING_BUCKETS = AgingBuckets::KEYS;
 
     /**
      * @param list<InvoiceFigures> $invoices
@@ -23,6 +21,7 @@ final readonly class CustomerPosition
         public string $accountBalance,
         public array $invoices,
         public array $credits,
+        public ?string $asOf = null,
     ) {
     }
 
@@ -80,32 +79,41 @@ final readonly class CustomerPosition
     }
 
     /**
-     * What is owed, by the age of the invoice in days at a date.
+     * What is owed, in the six buckets of the age of the invoice in days at a date. The age counts
+     * from the day the invoice is dated, not from the day it falls due, and an invoice dated after
+     * the date is not counted.
      *
      * @return array<string, numeric-string>
      */
     public function aging(string $asOf): array
     {
-        $buckets = array_fill_keys(self::AGING_BUCKETS, '0.0000');
-        $today   = new DateTimeImmutable($asOf);
+        $documents = [];
 
         foreach ($this->invoices as $invoice) {
-            if (bccomp($invoice->open(), '0', SaleAmounts::SCALE) <= 0) {
-                continue;
+            if (bccomp($invoice->open(), '0', SaleAmounts::SCALE) > 0) {
+                $documents[] = [$invoice->date, $invoice->open()];
             }
-
-            $days   = max(0, (int) $today->diff(new DateTimeImmutable($invoice->date))->format('%a'));
-            $bucket = match (true) {
-                $days <= 30 => '0-30',
-                $days <= 60 => '31-60',
-                $days <= 90 => '61-90',
-                default     => '91+',
-            };
-
-            $buckets[$bucket] = bcadd($buckets[$bucket], $invoice->open(), SaleAmounts::SCALE);
         }
 
-        return $buckets;
+        return AgingBuckets::named($documents, $asOf);
+    }
+
+    /**
+     * What is owed on invoices whose due date is before the day.
+     *
+     * @return numeric-string
+     */
+    public function overdue(string $today): string
+    {
+        $late = '0';
+
+        foreach ($this->invoices as $invoice) {
+            if ($invoice->isOverdue($today)) {
+                $late = bcadd($late, $invoice->open(), SaleAmounts::SCALE);
+            }
+        }
+
+        return bcadd($late, '0', SaleAmounts::SCALE);
     }
 
     public function invoice(int $saleId): ?InvoiceFigures

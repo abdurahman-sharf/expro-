@@ -7,6 +7,7 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\AuditLog;
 use App\Libraries\Accounting\CustomerLock;
+use App\Libraries\Accounting\InvoiceTiming;
 use App\Libraries\Accounting\JournalOrigin;
 use App\Libraries\Accounting\PaymentStatus;
 use App\Libraries\Accounting\PaymentType;
@@ -511,6 +512,22 @@ class Sale extends Model
     }
 
     /**
+     * The day typed on a sale, its payment terms and its due date, each empty when the sale has none.
+     *
+     * @return array{invoice_date: ?string, payment_terms_days: ?int, due_date: ?string}
+     */
+    public function getInvoiceTiming(int $saleId): array
+    {
+        $row = $this->db->table('sales')->select('invoice_date, payment_terms_days, due_date')->where('sale_id', $saleId)->get()->getRow();
+
+        return [
+            'invoice_date'       => $row === null || $row->invoice_date === null ? null : (string) $row->invoice_date,
+            'payment_terms_days' => $row === null || $row->payment_terms_days === null ? null : (int) $row->payment_terms_days,
+            'due_date'           => $row === null || $row->due_date === null ? null : (string) $row->due_date,
+        ];
+    }
+
+    /**
      * Whether the goods of a sale have left. A sale that does not exist counts as delivered.
      */
     public function isDelivered(int $saleId): bool
@@ -609,6 +626,13 @@ class Sale extends Model
         $updateData = $this->keepNumbersOfTheSequences((int) $saleId, $saleData);
         unset($updateData['payments']);
 
+        $typedDate  = $updateData['invoice_date'] ?? null;
+        $hasDate    = array_key_exists('invoice_date', $updateData);
+        $typedTerms = $updateData['payment_terms_days'] ?? null;
+        $hasTerms   = array_key_exists('payment_terms_days', $updateData);
+
+        unset($updateData['invoice_date'], $updateData['payment_terms_days'], $updateData['due_date'], $updateData['changed_by']);
+
         $this->db->transStart();
 
         try {
@@ -623,12 +647,20 @@ class Sale extends Model
                     $changes['date'] = substr((string) $updateData['sale_time'], 0, 10);
                 }
 
+                if ($hasDate) {
+                    $changes['invoice_date'] = (string) $typedDate;
+                }
+
                 $accounting->assertEditable((int) $saleId, $changes);
+
+                if ($hasTerms) {
+                    $updateData += $this->paymentTermsChange((int) $saleId, $typedTerms, $this->employeeOfEdit($saleData));
+                }
             }
 
             $builder = $this->db->table('sales');
             $builder->where('sale_id', $saleId);
-            $success = $builder->update($updateData);
+            $success = $updateData === [] ? true : $builder->update($updateData);
 
             // Touch payment only if update sale is successful and there is a payments object otherwise the result would be to delete all the payments associated to the sale
             if ($success && !empty($saleData['payments'])) {
@@ -804,6 +836,46 @@ class Sale extends Model
     }
 
     /**
+     * The payment terms of an issued invoice and the due date they give from the day the invoice is
+     * dated, which are the only part of its timing that can change after it is issued, and change
+     * nothing in its journals. Nothing is returned when the terms are not new or the sale is not an
+     * issued invoice.
+     *
+     * @return array{payment_terms_days?: ?int, due_date?: ?string}
+     *
+     * @throws AccountingException
+     */
+    private function paymentTermsChange(int $saleId, int|string|null $typed, ?int $employeeId): array
+    {
+        $terms = InvoiceTiming::terms($typed);
+        $sale  = $this->db->table('sales')->select('sale_type, sale_status, sale_time, invoice_date, payment_terms_days, due_date, branch_id')->where('sale_id', $saleId)->get()->getRow();
+
+        if ($sale === null || (int) $sale->sale_type !== SALE_TYPE_INVOICE || (int) $sale->sale_status !== COMPLETED) {
+            return [];
+        }
+
+        $before = $sale->payment_terms_days === null ? null : (int) $sale->payment_terms_days;
+
+        if ($before === $terms) {
+            return [];
+        }
+
+        $date = $sale->invoice_date === null ? substr((string) $sale->sale_time, 0, 10) : (string) $sale->invoice_date;
+        $due  = $terms === null ? null : InvoiceTiming::dueDate($date, $terms);
+
+        (new AuditLog($this->db))->write('sale', $saleId, 'payment_terms_changed', $employeeId, JournalOrigin::User, ['from' => $before, 'to' => $terms, 'due_date' => $due ?? $date], (int) $sale->branch_id);
+
+        return ['payment_terms_days' => $terms, 'due_date' => $due];
+    }
+
+    private function employeeOfEdit(?array $saleData): ?int
+    {
+        $employeeId = $saleData['changed_by'] ?? $saleData['payments'][0]['employee_id'] ?? null;
+
+        return $employeeId === null || $employeeId === '' ? null : (int) $employeeId;
+    }
+
+    /**
      * The employee who entered the payments of an update, for the record of a failure.
      */
     private function employeeOfPayments(?array $saleData): ?int
@@ -834,13 +906,15 @@ class Sale extends Model
         ?array  &$salesTaxes,
         bool    $delivered = true,
         ?int    $returnOfSaleId = null,
-        ?array  $invoiceDiscount = null
+        ?array  $invoiceDiscount = null,
+        ?string $invoiceDate = null,
+        int|string|null $paymentTerms = null
     ): int {    // TODO: this method returns the sale_id but the override is expecting it to return a bool. The signature needs to be reworked.  Generally when there are more than 3 maybe 4 parameters, there's a good chance that an object needs to be passed rather than so many params.
         try {
             return (new CustomerLock($this->db))->run(
                 $customerId,
-                function () use (&$saleStatus, &$items, &$salesTaxes, $saleId, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $delivered, $returnOfSaleId, $invoiceDiscount): int {
-                    return $this->saveValueLocked($saleId, $saleStatus, $items, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $salesTaxes, $delivered, $returnOfSaleId, $invoiceDiscount);
+                function () use (&$saleStatus, &$items, &$salesTaxes, $saleId, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $delivered, $returnOfSaleId, $invoiceDiscount, $invoiceDate, $paymentTerms): int {
+                    return $this->saveValueLocked($saleId, $saleStatus, $items, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $salesTaxes, $delivered, $returnOfSaleId, $invoiceDiscount, $invoiceDate, $paymentTerms);
                 },
             );
         } catch (AccountingException $busy) {
@@ -870,7 +944,9 @@ class Sale extends Model
         ?array  &$salesTaxes,
         bool    $delivered,
         ?int    $returnOfSaleId,
-        ?array  $invoiceDiscount
+        ?array  $invoiceDiscount,
+        ?string $invoiceDate,
+        int|string|null $paymentTerms
     ): int {
         $config = config(OSPOS::class)->settings;
         $attribute = model(Attribute::class);
@@ -891,6 +967,14 @@ class Sale extends Model
         // Only an invoice can be issued before its goods leave
         $delivered = $delivered || $saleType !== SALE_TYPE_INVOICE;
 
+        try {
+            $timing = $this->timingOf($saleId, $saleType, $saleStatus, $invoiceDate, $paymentTerms, $employeeId);
+        } catch (AccountingException $refusal) {
+            $this->accountingFailure = $refusal;
+
+            return ACCOUNTING_FAILED;
+        }
+
         $salesData = [
             'sale_time'         => date('Y-m-d H:i:s'),
             'customer_id'       => $customer->exists($customerId) ? $customerId : null,
@@ -905,6 +989,7 @@ class Sale extends Model
             'branch_id'         => $this->branchIdOfItems($items),
             'delivered'         => $delivered ? 1 : 0,
             'return_of_sale_id' => $saleType === SALE_TYPE_RETURN ? $returnOfSaleId : null,
+            ...$timing,
         ];
 
         // Run these queries as a transaction, we want to make sure we do all or nothing
@@ -1113,6 +1198,10 @@ class Sale extends Model
             if ($saleType !== SALE_TYPE_RETURN && ! $discountPlan->isEmpty()) {
                 $this->auditInvoiceDiscount($saleId, $employeeId, (int) $salesData['branch_id'], $discountPlan);
             }
+
+            if ($timing['invoice_date'] !== null) {
+                $this->auditInvoiceDate($saleId, $employeeId, (int) $salesData['branch_id'], $timing['invoice_date']);
+            }
         }
 
         $this->db->transComplete();
@@ -1184,6 +1273,60 @@ class Sale extends Model
         }
 
         return $updateData;
+    }
+
+    /**
+     * What an invoice carries about time besides the moment it was saved: the day typed on it, its
+     * payment terms and the due date they give. Only an invoice of a books that are on has any of
+     * it. A day is typed by an employee who may, or is the one a draft was given before; the due
+     * date is worked out when the invoice is issued, from the day it is dated.
+     *
+     * @return array{invoice_date: ?string, payment_terms_days: ?int, due_date: ?string}
+     *
+     * @throws AccountingException
+     */
+    private function timingOf(int $saleId, int $saleType, int $saleStatus, ?string $invoiceDate, int|string|null $paymentTerms, int $employeeId): array
+    {
+        $none     = ['invoice_date' => null, 'payment_terms_days' => null, 'due_date' => null];
+        $settings = new AccountingSettings($this->db);
+
+        if (! $settings->isEnabled() || $saleType !== SALE_TYPE_INVOICE) {
+            return $none;
+        }
+
+        $today = date('Y-m-d');
+        $date  = InvoiceTiming::date($invoiceDate, $today, $settings->startDate());
+        $terms = InvoiceTiming::terms($paymentTerms);
+
+        if ($date !== null && ! $this->mayTypeInvoiceDate($saleId, $employeeId, $date)) {
+            throw new AccountingException(AccountingError::PermissionDenied, 'The employee may not type the date of an invoice.');
+        }
+
+        return [
+            'invoice_date'       => $date,
+            'payment_terms_days' => $terms,
+            'due_date'           => $terms !== null && $saleStatus === COMPLETED ? InvoiceTiming::dueDate($date ?? $today, $terms) : null,
+        ];
+    }
+
+    /**
+     * Whether the employee may put this day on the invoice: they hold the permission, or the day is the
+     * one the draft they are issuing already carries.
+     */
+    private function mayTypeInvoiceDate(int $saleId, int $employeeId, string $date): bool
+    {
+        if (model(Employee::class)->has_grant('sales_invoice_date', $employeeId)) {
+            return true;
+        }
+
+        $stored = $saleId === NEW_ENTRY ? null : $this->db->table('sales')->select('invoice_date')->where('sale_id', $saleId)->get()->getRow();
+
+        return $stored !== null && $stored->invoice_date === $date;
+    }
+
+    private function auditInvoiceDate(int $saleId, int $employeeId, int $branchId, string $date): void
+    {
+        (new AuditLog($this->db))->write('sale', $saleId, 'invoice_date_typed', $employeeId, JournalOrigin::User, ['date' => $date, 'saved_on' => date('Y-m-d')], $branchId);
     }
 
     /**
@@ -1332,7 +1475,7 @@ class Sale extends Model
     {
         $this->accountingFailure = $failure;
 
-        $refusal = $failure instanceof AccountingException && in_array($failure->error, [AccountingError::SaleLocked, AccountingError::IssuedDocumentLocked, AccountingError::TreasuryDepositDenied, AccountingError::TreasuryWithdrawDenied], true);
+        $refusal = $failure instanceof AccountingException && in_array($failure->error, [AccountingError::SaleLocked, AccountingError::IssuedDocumentLocked, AccountingError::TreasuryDepositDenied, AccountingError::TreasuryWithdrawDenied, AccountingError::PaymentTermsInvalid], true);
 
         if (($failure instanceof PostingException || $failure instanceof AccountingException) && ! $refusal) {
             (new SalePosting($this->db))->recordFailure($saleId, $failure, $employeeId, $branchId);

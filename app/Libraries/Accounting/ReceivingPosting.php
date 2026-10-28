@@ -192,24 +192,33 @@ final class ReceivingPosting
 
     /**
      * A purchase that has been posted keeps its supplier and its date, as an invoice that has
-     * been issued does. Only the changes named are compared.
+     * been issued does. The day typed on a purchase is never changed after it was saved, whether
+     * its journal stands or not, because the journal takes that day. Only the changes named are
+     * compared.
      *
-     * @param array{supplier_id?: ?int, date?: string} $changes
+     * @param array{supplier_id?: ?int, date?: string, invoice_date?: string} $changes
      *
      * @throws AccountingException
      */
     public function assertEditable(int $receivingId, array $changes): void
     {
-        if ($changes === [] || ! $this->isPosted($receivingId)) {
+        if ($changes === []) {
+            return;
+        }
+
+        $posted = $this->isPosted($receivingId);
+
+        if (! $posted && ! array_key_exists('invoice_date', $changes)) {
             return;
         }
 
         $purchase = $this->loader->load($receivingId, false);
 
-        $supplierChanged = array_key_exists('supplier_id', $changes) && ($purchase === null || $purchase->supplierId !== $changes['supplier_id']);
-        $dateChanged     = array_key_exists('date', $changes) && ($purchase === null || $purchase->date !== $changes['date']);
+        $supplierChanged = $posted && array_key_exists('supplier_id', $changes) && ($purchase === null || $purchase->supplierId !== $changes['supplier_id']);
+        $dateChanged     = $posted && array_key_exists('date', $changes) && ($purchase === null || $purchase->savedOn !== $changes['date']);
+        $invoiceChanged  = array_key_exists('invoice_date', $changes) && ($purchase === null || $purchase->date !== $changes['invoice_date']);
 
-        if ($supplierChanged || $dateChanged) {
+        if ($supplierChanged || $dateChanged || $invoiceChanged) {
             throw new AccountingException(AccountingError::PurchaseLocked, 'The supplier and the date of a purchase that has been posted cannot change. Correct it with a return.', ['receiving_id' => $receivingId]);
         }
     }

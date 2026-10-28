@@ -3372,4 +3372,411 @@ class SalePostingTest extends CIUnitTestCase
 
         $this->assertSameAsFixture($case['expected']['journals']['payment'], $this->paymentJournalOfCase($case['inputs']), 'payment by bank transfer into the main treasury');
     }
+
+    // ---------------------------------------------------------------------------------------
+    // The date typed on an invoice, its payment terms and its due date (WP13)
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * @return list<array{id: int, source: string, entry: string, revision: int, status: string, date: string, lines: list<string>}>
+     */
+    private function standingDated(int $saleId, string $day): array
+    {
+        $standing = $this->standing($saleId);
+
+        $this->assertNotSame([], $standing);
+
+        return array_values(array_filter($standing, static fn (array $journal): bool => $journal['date'] === $day));
+    }
+
+    public function testSaveValue_DatesTheJournalsOfAnInvoiceByTheDayTypedOnItAndKeepsTheTimeItWasSaved(): void
+    {
+        $this->grantInvoiceDate();
+
+        $cycle  = $this->referenceInvoice();
+        $day    = $this->daysAgo(10);
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, $day);
+        $sale   = $this->saleRow($saleId);
+
+        $this->assertSame($day, $sale->invoice_date);
+        $this->assertSame(date('Y-m-d'), substr((string) $sale->sale_time, 0, 10));
+        $this->assertEqualsCanonicalizing(['revenue', 'cogs'], array_column($this->standingDated($saleId, $day), 'entry'));
+        $this->assertSame($day, $this->position()->invoice($saleId)->date);
+        $this->assertGreaterThan(0, $this->accountingDb()->table('accounting_stock_entries')->where(['source_type' => 'sale', 'source_id' => $saleId, 'entry_date' => $day])->countAllResults());
+        $this->assertTies();
+    }
+
+    public function testSaveValue_DatesAnInvoiceTodayWhenNoDayIsTypedAndStoresNoDay(): void
+    {
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes']);
+        $sale   = $this->saleRow($saleId);
+
+        $this->assertNull($sale->invoice_date);
+        $this->assertNull($sale->payment_terms_days);
+        $this->assertNull($sale->due_date);
+        $this->assertCount(2, $this->standingDated($saleId, date('Y-m-d')));
+        $this->assertSame(date('Y-m-d'), $this->position()->invoice($saleId)->dueDate);
+    }
+
+    public function testSaveValue_RefusesADayTypedByAnEmployeeWhoMayNotTypeItAndSavesNothing(): void
+    {
+        $cycle = $this->referenceInvoice();
+        $sales = $this->countSales();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, $this->daysAgo(3)));
+        $this->assertSame(AccountingError::PermissionDenied, $this->failure()->error);
+        $this->assertSame($sales, $this->countSales());
+        $this->assertSame(0, $this->countJournals());
+    }
+
+    public function testSaveValue_RefusesAnInvoiceDatedInAClosedPeriodAndLeavesNothingOfIt(): void
+    {
+        $this->grantInvoiceDate();
+        $this->closeThrough($this->daysAgo(5));
+
+        $cycle = $this->referenceInvoice();
+        $sales = $this->countSales();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, $this->daysAgo(10)));
+        $this->assertSame(PostingError::PeriodClosed, $this->failure()->error);
+        $this->assertSame($sales, $this->countSales());
+        $this->assertSame(0, $this->countJournals());
+    }
+
+    public function testSaveValue_PostsAnInvoiceDatedTheDayAfterTheClosingAndTheDayOfTheClosingIsRefused(): void
+    {
+        $this->grantInvoiceDate();
+        $this->closeThrough($this->daysAgo(5));
+
+        $cycle  = $this->referenceInvoice();
+        $closed = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, $this->daysAgo(5));
+
+        $this->assertSame(ACCOUNTING_FAILED, $closed);
+        $this->assertSame(PostingError::PeriodClosed, $this->failure()->error);
+
+        $open = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, $this->daysAgo(4));
+
+        $this->assertGreaterThan(0, $open);
+        $this->assertCount(2, $this->standingDated($open, $this->daysAgo(4)));
+    }
+
+    /**
+     * @return array<string, array{string, AccountingError}>
+     */
+    public static function refusedDayProvider(): array
+    {
+        return [
+            'tomorrow'           => [date('Y-m-d', strtotime('+1 day')), AccountingError::InvoiceDateInvalid],
+            'not a date'         => ['yesterday', AccountingError::InvoiceDateInvalid],
+            'a day that is not'  => ['2026-02-30', AccountingError::InvoiceDateInvalid],
+            'before the books'   => ['2019-12-31', AccountingError::InvoiceDateBeforeStart],
+        ];
+    }
+
+    #[DataProvider('refusedDayProvider')]
+    public function testSaveValue_RefusesADayThatIsNotARealDayUpToTodayOrIsBeforeTheBooksStart(string $typed, AccountingError $error): void
+    {
+        $this->grantInvoiceDate();
+
+        $cycle = $this->referenceInvoice();
+        $sales = $this->countSales();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, $typed));
+        $this->assertSame($error, $this->failure()->error);
+        $this->assertSame($sales, $this->countSales());
+        $this->assertSame(0, $this->countRows('accounting_posting_failures'));
+    }
+
+    public function testSaveValue_IssuesADraftWithATypedDayAtThatDayAsTheReferenceSystemDoes(): void
+    {
+        $case  = $this->lifecycleCase('draft-issued-at-its-typed-date');
+        $day   = $this->daysAgo(abs((int) $case['inputs']['invoice_date_offset_days']));
+        $cycle = $this->referenceInvoice();
+
+        $this->grantInvoiceDate();
+
+        $draft = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, NEW_ENTRY, null, $day);
+
+        $this->assertSame($day, $this->saleRow($draft)->invoice_date);
+        $this->assertSame([], $this->journals($draft));
+        $this->assertNull($this->saleRow($draft)->due_date);
+
+        $this->assertSame($draft, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, $draft, null, $day));
+
+        $dates = array_values(array_unique(array_column($this->standing($draft), 'date')));
+
+        $this->assertSameAsFixture($case['expected'], ['journal_date' => $dates === [$day] ? 'the date typed on the draft' : 'another date'], 'date of the journals of the issued draft');
+        $this->assertTies();
+    }
+
+    public function testSaveValue_IssuesADraftWithNoTypedDayOnTheDayItIsIssued(): void
+    {
+        $cycle = $this->referenceInvoice();
+        $draft = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED);
+
+        $this->accountingDb()->table('sales')->where('sale_id', $draft)->update(['sale_time' => $this->daysAgo(6) . ' 10:00:00']);
+
+        $this->assertSame($draft, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, $draft));
+        $this->assertNull($this->saleRow($draft)->invoice_date);
+        $this->assertSame(date('Y-m-d'), substr((string) $this->saleRow($draft)->sale_time, 0, 10));
+        $this->assertCount(2, $this->standingDated($draft, date('Y-m-d')));
+    }
+
+    public function testSaveValue_LetsAnEmployeeWithoutThePermissionIssueADraftAtTheDayItAlreadyCarriesButNotAtAnother(): void
+    {
+        $cycle = $this->referenceInvoice();
+        $day   = $this->daysAgo(4);
+
+        $this->grantInvoiceDate();
+
+        $draft = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, NEW_ENTRY, null, $day);
+        $other = $this->createEmployee();
+        $owner = $this->employeeId;
+
+        $this->employeeId = $other;
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, $draft, null, $this->daysAgo(2)));
+        $this->assertSame(AccountingError::PermissionDenied, $this->failure()->error);
+        $this->assertSame([], $this->journals($draft));
+
+        $this->assertSame($draft, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, $draft, null, $day));
+        $this->assertCount(2, $this->standingDated($draft, $day));
+
+        $this->employeeId = $owner;
+    }
+
+    public function testSaveValue_TakesNoTypedDayForASaleThatIsNotAnInvoice(): void
+    {
+        $this->grantInvoiceDate();
+
+        $pos = $this->save([$this->line($this->item('0', false), 0, '1', '40')], [], [$this->payment(lang('Sales.cash'), '40.00')], SALE_TYPE_POS, -1, true, null, COMPLETED, NEW_ENTRY, null, $this->daysAgo(3), 30);
+
+        $this->assertGreaterThan(0, $pos);
+        $this->assertNull($this->saleRow($pos)->invoice_date);
+        $this->assertNull($this->saleRow($pos)->payment_terms_days);
+        $this->assertSame([date('Y-m-d')], array_values(array_unique(array_column($this->standing($pos), 'date'))));
+    }
+
+    public function testSaveValue_SavesNoTypedDayOrTermsWhileAccountingIsOff(): void
+    {
+        $this->grantInvoiceDate();
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $audit  = $this->countRows('accounting_audit_log');
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, $this->daysAgo(3), 30);
+
+        $this->assertGreaterThan(0, $saleId);
+        $this->assertNull($this->saleRow($saleId)->invoice_date);
+        $this->assertNull($this->saleRow($saleId)->payment_terms_days);
+        $this->assertNull($this->saleRow($saleId)->due_date);
+        $this->assertSame(0, $this->countJournals());
+        $this->assertSame($audit, $this->countRows('accounting_audit_log'));
+    }
+
+    public function testSaveValue_WorksOutTheDueDateFromTheDayOfTheInvoiceAndItsTerms(): void
+    {
+        $saleId = $this->invoiceDated('100.00', $this->daysAgo(5), 30);
+        $sale   = $this->saleRow($saleId);
+
+        $this->assertSame(30, (int) $sale->payment_terms_days);
+        $this->assertSame(date('Y-m-d', strtotime('+25 days')), $sale->due_date);
+        $this->assertSame($sale->due_date, $this->position()->invoice($saleId)->dueDate);
+        $this->assertSame(30, $this->position()->invoice($saleId)->termsDays);
+    }
+
+    public function testSaveValue_WorksOutTheDueDateFromTodayWhenTheInvoiceHasTermsAndNoTypedDay(): void
+    {
+        $this->grantInvoiceDate();
+
+        $saleId = $this->save([$this->line($this->item('0', false), 0, '1', '100')], [], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, null, '7');
+        $sale   = $this->saleRow($saleId);
+
+        $this->assertNull($sale->invoice_date);
+        $this->assertSame(date('Y-m-d', strtotime('+7 days')), $sale->due_date);
+    }
+
+    public function testSaveValue_StoresNoTermsAndNoDueDateForAnInvoiceWithNoTermsOrZeroDays(): void
+    {
+        foreach ([null, '', '0', 0] as $terms) {
+            $saleId = $this->invoiceDated('10.00', $this->daysAgo(2), $terms);
+
+            $this->assertNull($this->saleRow($saleId)->payment_terms_days);
+            $this->assertNull($this->saleRow($saleId)->due_date);
+            $this->assertSame($this->daysAgo(2), $this->position()->invoice($saleId)->dueDate);
+        }
+    }
+
+    public function testSaveValue_RefusesTermsThatAreNotAWholeNumberOfDaysAndSavesNothing(): void
+    {
+        $this->grantInvoiceDate();
+
+        foreach (['-1', '2.5', 'soon', '3651'] as $terms) {
+            $sales = $this->countSales();
+
+            $this->assertSame(ACCOUNTING_FAILED, $this->save([$this->line($this->item('0', false), 0, '1', '10')], [], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, null, $terms), $terms);
+            $this->assertSame(AccountingError::PaymentTermsInvalid, $this->failure()->error);
+            $this->assertSame($sales, $this->countSales());
+        }
+    }
+
+    public function testSaveValue_KeepsTheTermsOfADraftAndWorksOutItsDueDateWhenItIsIssued(): void
+    {
+        $this->grantInvoiceDate();
+
+        $items = [$this->line($this->item('0', false), 0, '1', '100')];
+        $draft = $this->save($items, [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, NEW_ENTRY, null, null, 14);
+
+        $this->assertSame(14, (int) $this->saleRow($draft)->payment_terms_days);
+        $this->assertNull($this->saleRow($draft)->due_date);
+        $this->assertSame(['invoice_date' => null, 'payment_terms_days' => 14, 'due_date' => null], $this->sales->getInvoiceTiming($draft));
+
+        $this->assertSame($draft, $this->save($items, [], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, $draft, null, null, 14));
+        $this->assertSame(date('Y-m-d', strtotime('+14 days')), $this->saleRow($draft)->due_date);
+    }
+
+    public function testSaveValue_WritesInTheAuditLogWhoTypedTheDayOfAnInvoiceAndWhenOnlyForIssuedOnes(): void
+    {
+        $this->grantInvoiceDate();
+
+        $items = [$this->line($this->item('0', false), 0, '1', '100')];
+        $draft = $this->save($items, [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, NEW_ENTRY, null, $this->daysAgo(3));
+
+        $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where('action', 'invoice_date_typed')->countAllResults());
+
+        $this->save($items, [], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, $draft, null, $this->daysAgo(3));
+
+        $entries = $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'sale', 'entity_id' => $draft, 'action' => 'invoice_date_typed'])->get()->getResult();
+
+        $this->assertCount(1, $entries);
+        $this->assertSame($this->employeeId, (int) $entries[0]->employee_id);
+        $this->assertSame(['date' => $this->daysAgo(3), 'saved_on' => date('Y-m-d')], json_decode((string) $entries[0]->details, true));
+    }
+
+    public function testSaveValue_WritesNothingInTheAuditLogForAnInvoiceDatedToday(): void
+    {
+        $cycle = $this->referenceInvoice();
+
+        $this->save($cycle['items'], $cycle['taxes']);
+
+        $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where('action', 'invoice_date_typed')->countAllResults());
+    }
+
+    public function testUpdate_RefusesToChangeTheDayTypedOnAPostedInvoiceAndLeavesItsJournalsAsTheyWere(): void
+    {
+        $saleId = $this->invoiceDated('250.00', $this->daysAgo(8), 10);
+        $before = $this->journals($saleId);
+        $row    = (array) $this->saleRow($saleId);
+
+        $this->assertFalse($this->sales->update($saleId, ['invoice_date' => $this->daysAgo(2), 'comment' => 'x']));
+        $this->assertSame(AccountingError::SaleLocked, $this->failure()->error);
+
+        $this->assertFalse($this->sales->update($saleId, ['invoice_date' => date('Y-m-d'), 'comment' => 'x']));
+        $this->assertSame(AccountingError::SaleLocked, $this->failure()->error);
+
+        $this->assertSame($before, $this->journals($saleId));
+        $this->assertSame($row, (array) $this->saleRow($saleId));
+        $this->assertSame(0, $this->countRows('accounting_posting_failures'));
+    }
+
+    public function testUpdate_AcceptsTheDayTypedOnAPostedInvoiceWhenItIsTheSameDay(): void
+    {
+        $saleId = $this->invoiceDated('250.00', $this->daysAgo(8));
+
+        $this->assertTrue($this->sales->update($saleId, ['invoice_date' => $this->daysAgo(8), 'comment' => 'same day']));
+        $this->assertSame('same day', $this->saleRow($saleId)->comment);
+        $this->assertSame($this->daysAgo(8), $this->saleRow($saleId)->invoice_date);
+    }
+
+    public function testUpdate_RefusesToMoveTheTimeAnInvoiceWasSavedEvenToTheDayItIsDated(): void
+    {
+        $saleId = $this->invoiceDated('250.00', $this->daysAgo(8));
+
+        $this->assertFalse($this->sales->update($saleId, ['sale_time' => $this->daysAgo(8) . ' 09:00:00', 'comment' => 'x']));
+        $this->assertSame(AccountingError::SaleLocked, $this->failure()->error);
+        $this->assertSame(date('Y-m-d'), substr((string) $this->saleRow($saleId)->sale_time, 0, 10));
+    }
+
+    public function testUpdate_ChangesThePaymentTermsOfAnIssuedInvoiceAndNothingInItsJournals(): void
+    {
+        $case   = $this->referenceCase('T-31', 'due_date', 'due-date-is-the-invoice-date-plus-its-payment-terms', 'exact');
+        $saleId = $this->invoiceDated('395.39', $this->daysAgo(2), 1);
+        $before = $this->journals($saleId);
+
+        $this->assertSame($this->daysAgo(1), $this->saleRow($saleId)->due_date);
+
+        foreach ([[2, $this->daysAgo(0)], [30, date('Y-m-d', strtotime('+28 days'))], [null, null]] as [$terms, $due]) {
+            $this->assertTrue($this->sales->update($saleId, ['payment_terms_days' => $terms === null ? '' : (string) $terms, 'comment' => 'terms', 'changed_by' => $this->employeeId]));
+
+            $sale = $this->saleRow($saleId);
+
+            $this->assertSame($terms, $sale->payment_terms_days === null ? null : (int) $sale->payment_terms_days);
+            $this->assertSame($due, $sale->due_date);
+            $this->assertSame($due ?? $this->daysAgo(2), $this->position()->invoice($saleId)->dueDate);
+            $this->assertSame($before, $this->journals($saleId));
+        }
+
+        $this->assertSameAsFixture(['terms_editable_after_issue' => $case['expected']['terms_editable_after_issue'], 'journal_changes_with_the_terms' => $case['expected']['journal_changes_with_the_terms']], ['terms_editable_after_issue' => true, 'journal_changes_with_the_terms' => $before !== $this->journals($saleId)], 'terms of an issued invoice');
+        $this->assertTies();
+    }
+
+    public function testUpdate_WritesInTheAuditLogWhatTheTermsWereAndWhatTheyBecameAndWritesNothingWhenTheyStay(): void
+    {
+        $saleId = $this->invoiceDated('100.00', $this->daysAgo(2), 5);
+
+        $this->assertTrue($this->sales->update($saleId, ['payment_terms_days' => '5', 'comment' => 'same', 'changed_by' => $this->employeeId]));
+        $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where('action', 'payment_terms_changed')->countAllResults());
+
+        $this->assertTrue($this->sales->update($saleId, ['payment_terms_days' => '9', 'comment' => 'longer', 'changed_by' => $this->employeeId]));
+
+        $entries = $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'sale', 'entity_id' => $saleId, 'action' => 'payment_terms_changed'])->get()->getResult();
+
+        $this->assertCount(1, $entries);
+        $this->assertSame($this->employeeId, (int) $entries[0]->employee_id);
+        $this->assertSame(['from' => 5, 'to' => 9, 'due_date' => date('Y-m-d', strtotime('+7 days'))], json_decode((string) $entries[0]->details, true));
+    }
+
+    public function testUpdate_RefusesTermsThatAreNotAWholeNumberOfDaysAndChangesNothing(): void
+    {
+        $saleId = $this->invoiceDated('100.00', $this->daysAgo(2), 5);
+
+        foreach (['-3', '1.5', 'x', '99999'] as $terms) {
+            $this->assertFalse($this->sales->update($saleId, ['payment_terms_days' => $terms, 'comment' => 'bad']), $terms);
+            $this->assertSame(AccountingError::PaymentTermsInvalid, $this->failure()->error);
+        }
+
+        $this->assertSame(5, (int) $this->saleRow($saleId)->payment_terms_days);
+        $this->assertSame('test', $this->saleRow($saleId)->comment);
+        $this->assertSame(0, $this->countRows('accounting_posting_failures'));
+    }
+
+    public function testUpdate_TakesNoTermsForASaleThatIsNotAnIssuedInvoiceOrWhileAccountingIsOff(): void
+    {
+        $pos = $this->save([$this->line($this->item('0', false), 0, '1', '40')], [], [$this->payment(lang('Sales.cash'), '40.00')], SALE_TYPE_POS);
+
+        $this->assertTrue($this->sales->update($pos, ['payment_terms_days' => '30', 'comment' => 'pos']));
+        $this->assertNull($this->saleRow($pos)->payment_terms_days);
+
+        $invoice = $this->invoiceOf('100.00');
+
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $this->assertTrue($this->sales->update($invoice, ['payment_terms_days' => '30', 'comment' => 'off']));
+        $this->assertNull($this->saleRow($invoice)->payment_terms_days);
+        $this->assertNull($this->saleRow($invoice)->due_date);
+    }
+
+    public function testUpdate_ChangesTheTermsOfAnInvoiceInAClosedPeriodBecauseNoJournalMoves(): void
+    {
+        $saleId = $this->invoiceDated('100.00', $this->daysAgo(10), 5);
+
+        $this->closeThrough($this->daysAgo(2));
+
+        $before = $this->journals($saleId);
+
+        $this->assertTrue($this->sales->update($saleId, ['payment_terms_days' => '60', 'comment' => 'late', 'changed_by' => $this->employeeId]));
+        $this->assertSame(60, (int) $this->saleRow($saleId)->payment_terms_days);
+        $this->assertSame($before, $this->journals($saleId));
+    }
 }

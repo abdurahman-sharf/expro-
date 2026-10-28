@@ -26,6 +26,7 @@
  * @var array<int, string> $new_treasury_options
  * @var array<int, string> $paymentNumbers
  * @var string|null $creditNoteNumber
+ * @var array{date: string, terms: int|null, due: string}|null $invoice_timing
  */
 ?>
 
@@ -53,6 +54,30 @@
                 <?= form_input(['name' => 'date', 'id' => 'date', 'value' => to_datetime(strtotime($sale_info['sale_time'])), 'class' => 'datetime form-control form-control-sm']) ?>
             </div>
         </div>
+
+        <?php if ($invoice_timing !== null): ?>
+            <div class="row mb-3">
+                <?= form_label(lang('Sales.invoice_date'), 'invoice_date', ['class' => 'col-form-label col-3']) ?>
+                <div class="col-8">
+                    <?= form_input(['name' => 'invoice_date', 'id' => 'invoice_date', 'value' => to_date(strtotime($invoice_timing['date'])), 'class' => 'form-control form-control-sm', 'readonly' => 'true']) ?>
+                </div>
+            </div>
+            <div class="row mb-3">
+                <?= form_label(lang('Sales.payment_terms'), 'payment_terms_days', ['class' => 'col-form-label col-3']) ?>
+                <div class="col-8">
+                    <div class="input-group input-group-sm">
+                        <?= form_input(['type' => 'number', 'name' => 'payment_terms_days', 'id' => 'payment_terms_days', 'value' => $invoice_timing['terms'] ?? '', 'min' => 0, 'max' => 3650, 'step' => 1, 'class' => 'form-control form-control-sm']) ?>
+                        <span class="input-group-text"><?= lang('Sales.payment_terms_days') ?></span>
+                    </div>
+                </div>
+            </div>
+            <div class="row mb-3">
+                <?= form_label(lang('Sales.due_date'), 'due_date', ['class' => 'col-form-label col-3']) ?>
+                <div class="col-8">
+                    <?= form_input(['name' => 'due_date', 'id' => 'due_date', 'value' => to_date(strtotime($invoice_timing['due'])), 'class' => 'form-control form-control-sm', 'readonly' => 'true']) ?>
+                </div>
+            </div>
+        <?php endif; ?>
 
         <?php if ($config['invoice_enable']) { ?>
             <div class="row mb-3">

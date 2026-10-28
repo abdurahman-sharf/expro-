@@ -6,7 +6,9 @@ namespace App\Libraries\Accounting;
  * A purchase of a supplier as the books hold it: what it came to, what was paid into it, what
  * credit was applied to it and what was taken back by debit notes. Every amount is read from
  * journals that stand, so it cannot disagree with the account of the supplier. An opening
- * balance owed to the supplier is a purchase without lines and is read the same way.
+ * balance owed to the supplier is a purchase without lines and is read the same way. It has the
+ * day it is dated, where its age counts from, and the day it falls due, which is its own day when
+ * it has no payment terms.
  */
 final readonly class PurchaseFigures
 {
@@ -17,8 +19,20 @@ final readonly class PurchaseFigures
         public string $paid,
         public string $applied,
         public string $returned,
+        public string $dueDate,
+        public ?int $termsDays = null,
         public bool $opening = false,
     ) {
+    }
+
+    public function isOverdue(string $today): bool
+    {
+        return InvoiceTiming::isOverdue($this->dueDate, $today, bccomp($this->open(), '0', SaleAmounts::SCALE) > 0);
+    }
+
+    public function daysOverdue(string $today): int
+    {
+        return $this->isOverdue($today) ? AgingBuckets::ageInDays($this->dueDate, $today) : 0;
     }
 
     /**
