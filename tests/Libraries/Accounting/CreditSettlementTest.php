@@ -456,4 +456,23 @@ class CreditSettlementTest extends CIUnitTestCase
             'applied_without_any_action'   => $this->appliedTo($ids) !== [],
         ], 'application');
     }
+
+    // ---------------------------------------------------------------------------------------
+    // What the reference system recorded in the third write batch: fixture T-64
+    // ---------------------------------------------------------------------------------------
+
+    public function testSettle_ReleasesTheCreditPaidIntoAnInvoiceAtOnceWhenItsSourceIsGoneWhereTheReferenceSystemLeavesItStale(): void
+    {
+        $case   = $this->referenceCase('T-64', 'reference_quirk', 'credit-paid-into-an-invoice-is-released-when-its-source-is-gone', 'deliberate_difference');
+        $first  = $this->invoiceOf('70.00');
+        $second = $this->invoiceOf('230.00');
+        $paid   = $this->addPayment($second, '300.00');
+
+        $this->assertSame(['invoice_excess:' . $second . '->' . $first . ':70.00'], $this->applications());
+
+        $this->removePayment($second, $paid);
+
+        $this->assertSameAsFixture($case['expected'], ['credit_stays_on_the_invoice_after_its_source_is_gone' => $this->applications() !== []], 'credit after its source is removed');
+        $this->assertTies();
+    }
 }

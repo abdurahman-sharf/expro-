@@ -1,0 +1,129 @@
+{
+  "id": "T-64",
+  "title": "Quirks of the reference system that this application must not copy: a deleted document that leaves its journal behind, credit payments that stay on an invoice after their source is gone, and foreign journals that are re-rated when a rate changes",
+  "recorded": "2026-10-28",
+  "observation": {
+    "batch": "b",
+    "scenarios": [
+      "B-S12"
+    ]
+  },
+  "evidence": {
+    "orphan_journals": {
+      "id": null,
+      "note": "Deleting a received cheque in its first status removed the receipt journal in one case and left it behind as an orphan with an empty source in four of five; the orphans stayed in the trial balance and the client ledger until deleted by hand",
+      "observation": [
+        "pw-b-64"
+      ]
+    },
+    "stale_credit_payments": {
+      "id": null,
+      "note": "Automatic payments of the client credit stayed on the invoices after the cheques that funded them were deleted, and went away only when another payment on the invoice made it recalculate",
+      "observation": [
+        "pw-b-65",
+        "pw-b-62"
+      ]
+    },
+    "rerated_journals": {
+      "id": null,
+      "note": "After the manual rate rows were deleted the posted journal of the USD invoice and three transfer journals were re-rated to the rate of the automatic source: posted foreign journals are not frozen",
+      "observation": [
+        "pw-b-66"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "deleting-a-document-leaves-no-journal-behind",
+      "kind": "reference_quirk",
+      "classification": "deliberate_difference",
+      "reason": "The reference system left the journal of a deleted cheque in the books in four of five deletions. Deleting a document here reverses every journal it has in the same transaction, so no posted journal stands for a document that is gone and the trial balance returns to what it was.",
+      "evidence": [
+        "orphan_journals"
+      ],
+      "inputs": {
+        "document": "an expense of 230 with 30 of tax, deleted"
+      },
+      "reference": {
+        "journal_left_standing_after_the_delete": true
+      },
+      "expected": {
+        "journal_left_standing_after_the_delete": false
+      }
+    },
+    {
+      "id": "credit-paid-into-an-invoice-is-released-when-its-source-is-gone",
+      "kind": "reference_quirk",
+      "classification": "deliberate_difference",
+      "reason": "The reference system kept automatic credit payments on an invoice after the document that funded them was deleted, until another payment made it recalculate. Here the credit is released in the same transaction that deletes or cancels its source, so what is owed on the invoices always adds up to the account of the customer.",
+      "evidence": [
+        "stale_credit_payments"
+      ],
+      "inputs": {
+        "credit": "the excess of a payment of 300 on an invoice of 230, spent on a second invoice of 70",
+        "then": "the payment is removed"
+      },
+      "reference": {
+        "credit_stays_on_the_invoice_after_its_source_is_gone": true
+      },
+      "expected": {
+        "credit_stays_on_the_invoice_after_its_source_is_gone": false
+      }
+    },
+    {
+      "id": "a-posted-foreign-journal-keeps-its-rate",
+      "kind": "reference_quirk",
+      "classification": "not_implemented",
+      "work_package": "WP28",
+      "reason": "There are no foreign-currency journals of documents yet. When WP28 builds them a posted journal must keep the rate it was posted at, whatever happens to the rate table afterwards.",
+      "evidence": [
+        "rerated_journals"
+      ],
+      "inputs": {
+        "rates": "a manual rate row of 3.75 deleted after a USD invoice was posted at it"
+      },
+      "reference": {
+        "posted_journal_rate_after_the_rate_row_is_deleted": "3.74474",
+        "posted_journal_rate_before": "3.75"
+      },
+      "expected": {
+        "status": "not_implemented",
+        "absent": [
+          {
+            "kind": "column",
+            "table": "sales",
+            "pattern": "currenc"
+          },
+          {
+            "kind": "column",
+            "table": "sales_payments",
+            "pattern": "currenc"
+          },
+          {
+            "kind": "column",
+            "table": "receivings",
+            "pattern": "currenc"
+          },
+          {
+            "kind": "column",
+            "table": "receivings_payments",
+            "pattern": "currenc"
+          },
+          {
+            "kind": "column",
+            "table": "treasuries",
+            "pattern": "currenc"
+          },
+          {
+            "kind": "table",
+            "pattern": "currenc"
+          },
+          {
+            "kind": "table",
+            "pattern": "exchange_rate"
+          }
+        ]
+      }
+    }
+  ]
+}

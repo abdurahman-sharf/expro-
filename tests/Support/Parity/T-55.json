@@ -1,0 +1,136 @@
+{
+  "id": "T-55",
+  "title": "A cheque paid to a supplier: issuing posts nothing, delivering it debits the supplier and credits notes payable, collecting debits notes payable and credits the bank, rejecting gives the supplier back what delivery took; there is no cheque module yet",
+  "recorded": "2026-10-28",
+  "observation": {
+    "batch": "b",
+    "scenarios": [
+      "B-S03"
+    ]
+  },
+  "evidence": {
+    "cheque_book": {
+      "id": null,
+      "note": "A paid cheque needs a cheque book of a bank account with its serial range",
+      "observation": [
+        "pw-b-5",
+        "pw-b-26"
+      ]
+    },
+    "paid_cheque_journals": {
+      "id": null,
+      "note": "Cheque 800001 of 200.00 on a purchase of 500: issue posts nothing, delivery makes journal 000190, collection 000191 and rejection 000192; undoing delivery deletes its journal and a cheque can be cancelled while issued",
+      "observation": [
+        "pw-b-27",
+        "pw-b-28",
+        "pw-b-29",
+        "pw-b-30",
+        "pw-b-31"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "a-paid-cheque-from-issue-to-collection-or-rejection",
+      "kind": "paid_cheque",
+      "classification": "not_implemented",
+      "work_package": "WP26",
+      "reason": "There is no cheque book, no cheque document and no notes payable posting here (WP26). The chart here calls notes payable 212, a group with no posting account, where the reference system uses 216.",
+      "evidence": [
+        "cheque_book",
+        "paid_cheque_journals"
+      ],
+      "inputs": {
+        "cheque": {
+          "serial": "800001",
+          "amount": "200.00",
+          "book": "required",
+          "supplier_owed": "500.00"
+        }
+      },
+      "reference": {
+        "statuses": [
+          "اصدر",
+          "سٌلم",
+          "حصل",
+          "تم الرفض",
+          "ملغي"
+        ],
+        "journal_at_issue": "none",
+        "journals": {
+          "delivered": [
+            {
+              "role": "supplier",
+              "debit": "200",
+              "credit": "0",
+              "code": "2211008",
+              "name": "مورد افتراضي-B 1"
+            },
+            {
+              "role": "notes_payable",
+              "debit": "0",
+              "credit": "200",
+              "code": "216",
+              "name": "أوراق الدفع"
+            }
+          ],
+          "collected": [
+            {
+              "role": "notes_payable",
+              "debit": "200",
+              "credit": "0",
+              "code": "216",
+              "name": "أوراق الدفع"
+            },
+            {
+              "role": "bank",
+              "debit": "0",
+              "credit": "200",
+              "code": "1202003",
+              "name": "افتراضي-B بنك"
+            }
+          ],
+          "rejected": [
+            {
+              "role": "notes_payable",
+              "debit": "200",
+              "credit": "0",
+              "code": "216",
+              "name": "أوراق الدفع"
+            },
+            {
+              "role": "supplier",
+              "debit": "0",
+              "credit": "200",
+              "code": "2211008",
+              "name": "مورد افتراضي-B 1"
+            }
+          ]
+        },
+        "collection_checks_the_balance_of_the_bank": false,
+        "undo_of_a_step": "deletes the journal of the step"
+      },
+      "expected": {
+        "status": "not_implemented",
+        "absent": [
+          {
+            "kind": "table",
+            "pattern": "cheque"
+          },
+          {
+            "kind": "route",
+            "pattern": "cheque"
+          },
+          {
+            "kind": "class",
+            "name": "App\\Controllers\\Cheques"
+          },
+          {
+            "kind": "class",
+            "name": "App\\Models\\Cheque"
+          }
+        ]
+      }
+    }
+  ]
+}

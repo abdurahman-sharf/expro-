@@ -1,0 +1,106 @@
+{
+  "id": "T-63",
+  "title": "The bank statement of a bank account: a three-step import of a file of rows and a screen that matches a row to the journals of the bank account without posting or changing anything; this application has no statement import and no matching",
+  "recorded": "2026-10-28",
+  "observation": {
+    "batch": "b",
+    "scenarios": [
+      "B-S11"
+    ]
+  },
+  "evidence": {
+    "statement_tab": {
+      "id": null,
+      "note": "The bank statement tab with its import wizard (options, field mapping, result), the imported rows with the status not matched and a match button, and the reconciliation screen with the statement rows against the journals of the bank account not yet matched",
+      "observation": [
+        "pw-b-54",
+        "pw-b-55",
+        "pw-b-56",
+        "pw-b-57"
+      ]
+    },
+    "no_journal": {
+      "id": null,
+      "note": "Import, match, unmatch and deleting a row created no journal: the next journal took the number right after the last one",
+      "observation": [
+        "pw-b-59"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "import-a-bank-statement-and-match-its-rows",
+      "kind": "bank_statement",
+      "classification": "not_implemented",
+      "work_package": "WP29",
+      "reason": "There is no statement import, no statement row and no matching (WP29; the design there is that matching never edits a journal and an import is checksummed and idempotent).",
+      "evidence": [
+        "statement_tab",
+        "no_journal"
+      ],
+      "inputs": {
+        "file": {
+          "columns": [
+            "التاريخ",
+            "الوصف",
+            "إيداع",
+            "سحب",
+            "الرقم المرجعي"
+          ],
+          "rows": [
+            {
+              "date": "27/10",
+              "amount": "100.00",
+              "side": "deposit"
+            },
+            {
+              "date": "27/10",
+              "amount": "2.50",
+              "side": "withdrawal"
+            },
+            {
+              "date": "05/11",
+              "amount": "360.00",
+              "side": "deposit"
+            }
+          ]
+        }
+      },
+      "reference": {
+        "row_statuses": [
+          "لم تطابق",
+          "تمت مطابقتها"
+        ],
+        "match_rule": "the amount of the row equals the amount of the journals chosen",
+        "refusal_message": "قيمة العملية البنكية يجب أن تكون مساوية لقيمة عمليات النظام",
+        "import_match_unmatch_and_delete_post_a_journal": false,
+        "unmatch_and_delete_a_row": true
+      },
+      "expected": {
+        "status": "not_implemented",
+        "absent": [
+          {
+            "kind": "table",
+            "pattern": "bank_statement"
+          },
+          {
+            "kind": "table",
+            "pattern": "bank_transaction"
+          },
+          {
+            "kind": "table",
+            "pattern": "reconcil"
+          },
+          {
+            "kind": "route",
+            "pattern": "reconcil"
+          },
+          {
+            "kind": "route",
+            "pattern": "bankstatement"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,139 @@
+{
+  "id": "T-59",
+  "title": "A purchase in US dollars at 3.75 paid at 3.60: the supplier is debited at the rate of the payment and the difference is booked to the exchange difference account; this application has one currency",
+  "recorded": "2026-10-28",
+  "observation": {
+    "batch": "b",
+    "scenarios": [
+      "B-S07"
+    ]
+  },
+  "evidence": {
+    "usd_purchase": {
+      "id": null,
+      "note": "Purchase 000031 of 200 USD at 3.75 (journal 000203, 750.00 SAR) paid 200 USD on 05/11/2026 at 3.60 (journal 000204, 720.00 SAR) and a separate journal 000205 of 30.00 to 1209 as a gain",
+      "observation": [
+        "pw-b-44",
+        "pw-b-45"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "a-purchase-in-a-foreign-currency-paid-at-another-rate",
+      "kind": "foreign_currency_purchase",
+      "classification": "not_implemented",
+      "work_package": "WP28",
+      "reason": "A purchase here has no currency and no rate (WP28).",
+      "evidence": [
+        "usd_purchase"
+      ],
+      "inputs": {
+        "purchase": {
+          "currency": "USD",
+          "amount": "200.00",
+          "rate": "3.75"
+        },
+        "payment": {
+          "amount": "200.00",
+          "date": "05/11/2026",
+          "rate": "3.60"
+        }
+      },
+      "reference": {
+        "journals": {
+          "purchase": [
+            {
+              "role": "cogs",
+              "debit": "200",
+              "credit": "0",
+              "code": "511",
+              "name": "تكلفة المبيعات",
+              "debit_base": "750.00"
+            },
+            {
+              "role": "supplier",
+              "debit": "0",
+              "credit": "200",
+              "code": "2211008",
+              "name": "مورد افتراضي-B 1",
+              "credit_base": "750.00"
+            }
+          ],
+          "payment": [
+            {
+              "role": "supplier",
+              "debit": "200",
+              "credit": "0",
+              "code": "2211008",
+              "name": "مورد افتراضي-B 1",
+              "debit_base": "720.00"
+            },
+            {
+              "role": "bank",
+              "debit": "0",
+              "credit": "200",
+              "code": "1202003",
+              "name": "افتراضي-B بنك",
+              "credit_base": "720.00"
+            }
+          ],
+          "difference_gain": [
+            {
+              "role": "supplier",
+              "debit": "30.00",
+              "credit": "0",
+              "code": "2211008",
+              "name": "مورد افتراضي-B 1"
+            },
+            {
+              "role": "exchange_difference",
+              "debit": "0",
+              "credit": "30.00",
+              "code": "1209",
+              "name": "تغيير عملة"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "status": "not_implemented",
+        "absent": [
+          {
+            "kind": "column",
+            "table": "sales",
+            "pattern": "currenc"
+          },
+          {
+            "kind": "column",
+            "table": "sales_payments",
+            "pattern": "currenc"
+          },
+          {
+            "kind": "column",
+            "table": "receivings",
+            "pattern": "currenc"
+          },
+          {
+            "kind": "column",
+            "table": "receivings_payments",
+            "pattern": "currenc"
+          },
+          {
+            "kind": "column",
+            "table": "treasuries",
+            "pattern": "currenc"
+          },
+          {
+            "kind": "table",
+            "pattern": "currenc"
+          },
+          {
+            "kind": "table",
+            "pattern": "exchange_rate"
+          }
+        ]
+      }
+    }
+  ]
+}

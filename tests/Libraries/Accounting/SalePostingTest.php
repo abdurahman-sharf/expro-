@@ -3323,4 +3323,53 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame(ACCOUNTING_FAILED, $return['sale']);
         $this->assertSame($case['expected']['detail']['error'], $this->failure()->error->value);
     }
+
+    // ---------------------------------------------------------------------------------------
+    // What the reference system recorded in the third write batch: fixture T-57
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * Pays 5.00 of a sale the way the case says into the treasury the case says, and returns the
+     * lines of the journal of that payment.
+     *
+     * @param array<string, mixed> $inputs
+     *
+     * @return list<array{role: string, debit: string, credit: string}>
+     */
+    private function paymentJournalOfCase(array $inputs): array
+    {
+        $this->accountingDb()->table('grants')->insert(['person_id' => $this->employeeId, 'permission_id' => BranchGuard::ALL_BRANCHES, 'menu_group' => 'home']);
+
+        $treasuries = new TreasuryService();
+        $treasury   = $inputs['treasury'] === 'bank' ? $treasuries->create(['name' => 'Fixture bank', 'kind' => 'bank', 'bank_name' => 'Riyad Bank', 'account_number' => '3500000002']) : $treasuries->ensureMain();
+        $way        = ['check' => lang('Sales.check'), 'cash' => lang('Sales.cash'), 'bank_transfer' => lang('Sales.bank_transfer')][$inputs['way']];
+        $item       = $this->item('10.00');
+        $saleId     = $this->save([$this->line($item, 0, '1', '100', '10.00')], [], [$this->payment($way, $inputs['amount']) + ['treasury_id' => $treasury]]);
+        $payment    = array_values(array_filter($this->journals($saleId), static fn (array $journal): bool => $journal['source'] === 'sale_payment'));
+
+        $this->assertCount(1, $payment);
+
+        return $this->roleLines($payment[0]['id'], ['treasury' => (int) $treasuries->accountOf($treasury), 'customer' => $this->customerAccount()]);
+    }
+
+    public function testSaveValue_PostsAChequePaymentIntoTheBankAccountChosenAsTheReferenceSystemDoes(): void
+    {
+        $case = $this->referenceCase('T-57', 'payment_method', 'cheque-method-into-a-bank-account', 'exact');
+
+        $this->assertSameAsFixture($case['expected']['journals']['payment'], $this->paymentJournalOfCase($case['inputs']), 'payment by cheque into a bank account');
+    }
+
+    public function testSaveValue_PostsACashPaymentIntoTheBankAccountChosenAsTheReferenceSystemDoes(): void
+    {
+        $case = $this->referenceCase('T-57', 'payment_method', 'cash-method-into-a-bank-account', 'exact');
+
+        $this->assertSameAsFixture($case['expected']['journals']['payment'], $this->paymentJournalOfCase($case['inputs']), 'payment in cash into a bank account');
+    }
+
+    public function testSaveValue_PostsABankTransferPaymentIntoTheMainTreasuryChosenAsTheReferenceSystemDoes(): void
+    {
+        $case = $this->referenceCase('T-57', 'payment_method', 'bank-transfer-method-into-the-main-treasury', 'exact');
+
+        $this->assertSameAsFixture($case['expected']['journals']['payment'], $this->paymentJournalOfCase($case['inputs']), 'payment by bank transfer into the main treasury');
+    }
 }

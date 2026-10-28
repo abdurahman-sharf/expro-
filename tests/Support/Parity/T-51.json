@@ -1,0 +1,102 @@
+{
+  "id": "T-51",
+  "title": "A purchase of 100 paid 150: the supplier is left holding the extra 50 in both systems; the reference system offers a settle button with two options, this application has no button and the payment is edited",
+  "recorded": "2026-10-27",
+  "observation": {
+    "batch": "d2",
+    "scenarios": [
+      "D2-S18"
+    ]
+  },
+  "evidence": {
+    "overpaid_purchase": {
+      "id": null,
+      "note": "A payment of 150 on a purchase of 100 accepted: journal 000168 debits the supplier 150 and credits the treasury 150; the purchase is shown paid in excess with a banner",
+      "observation": [
+        "pw-d2-50",
+        "pw-d2-51"
+      ]
+    },
+    "settle_options": {
+      "id": null,
+      "note": "The Settle button of an overpaid purchase: option 2 turns the excess into supplier credit (the payment cut to 50 and a new payment of 100 on the invoice), option 1 removes the excess (the payment cut to 100 and 50 back in the treasury)",
+      "observation": [
+        "pw-d2-52",
+        "pw-d2-53",
+        "pw-d2-54"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "the-excess-of-a-payment-is-credit-held-with-the-supplier",
+      "kind": "purchase_overpayment",
+      "classification": "exact",
+      "evidence": [
+        "overpaid_purchase",
+        "settle_options"
+      ],
+      "inputs": {
+        "purchase": "100.00",
+        "payment": "150.00"
+      },
+      "reference": {
+        "supplier_balance": "-50.00",
+        "treasury_balance": "-150.00",
+        "credit_held": "50.00"
+      },
+      "expected": {
+        "supplier_balance": "-50.00",
+        "treasury_balance": "-150.00",
+        "credit_held": "50.00"
+      }
+    },
+    {
+      "id": "removing-the-excess-returns-it-to-the-treasury",
+      "kind": "purchase_overpayment",
+      "classification": "exact",
+      "evidence": [
+        "settle_options"
+      ],
+      "inputs": {
+        "purchase": "100.00",
+        "payment": "150.00",
+        "then": "the payment is cut to 100.00"
+      },
+      "reference": {
+        "supplier_balance": "0.00",
+        "treasury_balance": "-100.00",
+        "purchase_state": "paid"
+      },
+      "expected": {
+        "supplier_balance": "0.00",
+        "treasury_balance": "-100.00",
+        "purchase_state": "paid"
+      }
+    },
+    {
+      "id": "a-button-that-settles-an-overpaid-purchase",
+      "kind": "purchase_overpayment",
+      "classification": "deliberate_difference",
+      "reason": "The owner decided (E29) that a payment above what a purchase needs leaves the surplus as supplier credit and that there is no settle button: whoever wants the money back edits the payment, which reverses its journal and posts it again.",
+      "evidence": [
+        "settle_options"
+      ],
+      "inputs": {
+        "purchase": "100.00",
+        "payment": "150.00"
+      },
+      "reference": {
+        "settle_button": true,
+        "options": [
+          "remove the excess",
+          "turn the excess into supplier credit"
+        ]
+      },
+      "expected": {
+        "settle_button": false,
+        "options": []
+      }
+    }
+  ]
+}

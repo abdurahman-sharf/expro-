@@ -69,7 +69,7 @@ class ParityNotImplementedTest extends CIUnitTestCase
             'table'  => $this->tables($absence['name'] ?? null, $absence['pattern'] ?? null),
             'column' => $this->columns($absence['table'], $absence['name'] ?? null, $absence['pattern'] ?? null),
             'class'  => class_exists($absence['name']) ? [$absence['name']] : [],
-            'route'  => $this->routes($absence['pattern']),
+            'route'  => ParityFixture::routesMatching($absence['pattern']),
         };
     }
 
@@ -82,7 +82,7 @@ class ParityNotImplementedTest extends CIUnitTestCase
         $prefix = $db->getPrefix();
 
         return array_values(array_filter(
-            array_map(static fn (string $table): string => substr($table, strlen($prefix)), $db->listTables()),
+            array_map(static fn (array $row): string => substr((string) array_values($row)[0], strlen($prefix)), $db->query('SHOW TABLES')->getResultArray()),
             static fn (string $table): bool => $table === $name || ($pattern !== null && stripos($table, $pattern) !== false),
         ));
     }
@@ -96,36 +96,5 @@ class ParityNotImplementedTest extends CIUnitTestCase
             Database::connect()->getFieldNames($table),
             static fn (string $column): bool => $column === $name || ($pattern !== null && stripos($column, $pattern) !== false),
         ));
-    }
-
-    /**
-     * What the application would answer to a path with the pattern in it: an explicit route, a
-     * controller or a public method of a controller.
-     *
-     * @return list<string>
-     */
-    private function routes(string $pattern): array
-    {
-        $found = [];
-
-        if (stripos((string) file_get_contents(APPPATH . 'Config/Routes.php'), $pattern) !== false) {
-            $found[] = 'app/Config/Routes.php';
-        }
-
-        foreach (glob(APPPATH . 'Controllers/*.php') ?: [] as $file) {
-            $class = 'App\\Controllers\\' . basename($file, '.php');
-
-            if (stripos($class, $pattern) !== false) {
-                $found[] = $class;
-            }
-
-            foreach (get_class_methods($class) as $method) {
-                if (stripos($method, $pattern) !== false) {
-                    $found[] = "{$class}::{$method}";
-                }
-            }
-        }
-
-        return $found;
     }
 }

@@ -1,0 +1,146 @@
+{
+  "id": "T-47",
+  "title": "Two purchases of the same item, 10 at 100 and 10 at 120, and the correction of the second to 8 at 140: the average cost is 100 then 110 in both systems; the reference system edits the saved line and recomputes the average to 117.777778, this application cannot edit a line and the supported correction (delete and buy again) gives another average",
+  "recorded": "2026-10-27",
+  "observation": {
+    "batch": "d2",
+    "scenarios": [
+      "D2-S14"
+    ]
+  },
+  "evidence": {
+    "two_purchases": {
+      "id": null,
+      "note": "Purchases 000026 of 10 at 100 and 000027 of 10 at 120: journals debit the stock 1,000 and 1,200; the average after the first is 100",
+      "observation": [
+        "pw-d2-36"
+      ]
+    },
+    "line_edits": {
+      "id": null,
+      "note": "The saved line of the second edited from 10 to 8 units (stock 18, average 108.888889, journal 960) and then from 120 to 140 (average 117.777778, stock value 2,120, journal 1,120): the journal and the stock movement edited in place",
+      "observation": [
+        "pw-d2-37",
+        "pw-d2-38",
+        "pw-d2-72"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "average-cost-after-two-purchases",
+      "kind": "purchase_average",
+      "classification": "exact",
+      "evidence": [
+        "two_purchases"
+      ],
+      "inputs": {
+        "purchases": [
+          {
+            "quantity": "10",
+            "price": "100.00"
+          },
+          {
+            "quantity": "10",
+            "price": "120.00"
+          }
+        ]
+      },
+      "reference": {
+        "average_after_the_first": "100.00",
+        "average_after_the_second": "110.00",
+        "stock_after_the_second": "20"
+      },
+      "expected": {
+        "average_after_the_first": "100.00",
+        "average_after_the_second": "110.00",
+        "stock_after_the_second": "20"
+      }
+    },
+    {
+      "id": "editing-a-saved-purchase-line",
+      "kind": "purchase_line_edit",
+      "classification": "not_implemented",
+      "work_package": "WP17",
+      "reason": "A saved purchase line cannot be edited here: what it needs corrected is corrected by a return or by deleting the purchase, and no screen or service edits a line (WP17 builds the edit and, by proposal E56, makes the average follow it). The check looks for the names such a feature would take, so a feature built under other names does not flip it, which is why the next case also pins the average the supported correction gives.",
+      "evidence": [
+        "line_edits"
+      ],
+      "inputs": {
+        "edits": [
+          {
+            "quantity": "10 to 8"
+          },
+          {
+            "price": "120 to 140"
+          }
+        ]
+      },
+      "reference": {
+        "after_the_quantity_edit": {
+          "stock": "18",
+          "average": "108.888889"
+        },
+        "after_the_price_edit": {
+          "stock": "18",
+          "average": "117.777778",
+          "stock_value": "2120.00"
+        },
+        "journal_edited_in_place": true
+      },
+      "expected": {
+        "status": "not_implemented",
+        "absent": [
+          {
+            "kind": "route",
+            "pattern": "editline"
+          },
+          {
+            "kind": "route",
+            "pattern": "updateline"
+          },
+          {
+            "kind": "route",
+            "pattern": "saveline"
+          },
+          {
+            "kind": "class",
+            "name": "App\\Libraries\\Accounting\\ReceivingLineEdit"
+          }
+        ]
+      }
+    },
+    {
+      "id": "correcting-a-purchase-by-deleting-it-and-buying-again",
+      "kind": "purchase_line_edit",
+      "classification": "differs",
+      "reason": "The correction this application supports is to delete the second purchase and buy 8 at 140. Deleting leaves the average the item carried (110), so buying again averages 110 with 140 and gives 123.333333, where the reference system recomputed the average from the movements that were left and reached 117.777778. The value of the stock in the books is 2,120.00 in both, only the cost the item carries differs (proposal E56).",
+      "evidence": [
+        "line_edits"
+      ],
+      "inputs": {
+        "purchases": [
+          {
+            "quantity": "10",
+            "price": "100.00"
+          },
+          {
+            "quantity": "10",
+            "price": "120.00"
+          }
+        ],
+        "correction": "delete the second and buy 8 at 140"
+      },
+      "reference": {
+        "average_after_the_correction": "117.777778",
+        "stock_value": "2120.00",
+        "stock": "18"
+      },
+      "expected": {
+        "average_after_the_correction": "123.333333",
+        "stock_value": "2120.00",
+        "stock": "18"
+      }
+    }
+  ]
+}

@@ -14,6 +14,7 @@ use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
+use Tests\Support\ParityCaseTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 
@@ -27,6 +28,7 @@ class StockAdjustmentTest extends CIUnitTestCase
     use AccountingFixtureTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
+    use ParityCaseTrait;
     use SaleAccountingFixtureTrait;
     use PurchaseAccountingFixtureTrait;
 
@@ -313,5 +315,36 @@ class StockAdjustmentTest extends CIUnitTestCase
         $this->adjustment->post($itemId, $location, '3', null, 9018);
 
         $this->assertSame($branch, (int) $this->adjustments(9018)[0]->branch_id);
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // What the reference system recorded in the second write batch: fixture T-53
+    // ---------------------------------------------------------------------------------------
+
+    public function testPost_SettlesACountDifferenceAtTheCurrentAverageAgainstCostOfSalesAsTheReferenceSystemDoes(): void
+    {
+        $case  = $this->referenceCase('T-53', 'stock_count', 'stocktake-difference-is-posted-against-cost-of-sales-at-the-average', 'exact');
+        $short = $this->item('0.00');
+        $over  = $this->item('0.00');
+
+        foreach ([[$short, '10', '100'], [$short, '8', '140'], [$over, '5', '100'], [$over, '4', '75']] as [$item, $quantity, $price]) {
+            $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($item, 0, $quantity, $price)]));
+        }
+
+        $this->assertSame($case['inputs']['short']['average'], $this->exactCostOf($short));
+        $this->assertSame($case['inputs']['over']['average'], $this->exactCostOf($over));
+
+        $this->change($short, '-' . $case['inputs']['short']['units'], 9201);
+        $this->change($over, $case['inputs']['over']['units'], 9202);
+
+        $roles = ['cogs' => $this->accountId('cogs'), 'inventory' => $this->stockAccount()];
+
+        $this->assertSameAsFixture($case['expected'], [
+            'journals' => [
+                'short' => $this->roleLines((int) $this->adjustments(9201)[0]->journal_id, $roles, 2),
+                'over'  => $this->roleLines((int) $this->adjustments(9202)[0]->journal_id, $roles, 2),
+            ],
+        ], 'journals of the count');
+        $this->assertStockTies();
     }
 }

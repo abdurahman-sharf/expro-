@@ -24,6 +24,7 @@ use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ConcurrentDbRaceTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
+use Tests\Support\ParityCaseTrait;
 use Tests\Support\ParityFixture;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\PurchaseGoldenTrait;
@@ -44,6 +45,7 @@ class ReceivingPostingTest extends CIUnitTestCase
     use ConcurrentDbRaceTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
+    use ParityCaseTrait;
     use SaleAccountingFixtureTrait;
     use PurchaseAccountingFixtureTrait;
     use PurchaseGoldenTrait;
@@ -3217,5 +3219,145 @@ class ReceivingPostingTest extends CIUnitTestCase
 
         $this->assertTrue($this->payPurchaseFrom($receivingId, '100.00', $treasury));
         $this->assertSame(['purchase', 'supplier_payment', 'supplier_payment_branch'], array_column((new ReceivingPosting())->journalsOf($receivingId), 'source_type'));
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // What the reference system recorded in the second write batch: fixtures T-47 to T-50
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * The purchases of a case, of one item and one supplier, in the order they were made.
+     *
+     * @param list<array{quantity: string, price: string}> $purchases
+     *
+     * @return array{item: int, supplier: int, ids: list<int>}
+     */
+    private function purchasesOfCase(array $purchases): array
+    {
+        $item     = $this->item('0.00');
+        $supplier = $this->supplier('Supplier of the case');
+        $ids      = [];
+
+        foreach ($purchases as $purchase) {
+            $ids[] = $this->buy([$this->purchaseLine($item, 0, $purchase['quantity'], $purchase['price'])], $supplier);
+
+            $this->assertGreaterThan(0, end($ids));
+        }
+
+        return ['item' => $item, 'supplier' => $supplier, 'ids' => $ids];
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function purchaseRoles(int $supplier): array
+    {
+        return [
+            'supplier'  => $this->supplierAccount($supplier),
+            'inventory' => $this->stockAccount(),
+            'cogs'      => $this->accountId('cogs'),
+            'treasury'  => $this->accountId('cash'),
+        ];
+    }
+
+    public function testSaveValue_AveragesTheCostOfTwoPurchasesAsTheReferenceSystemDoes(): void
+    {
+        $case = $this->referenceCase('T-47', 'purchase_average', 'average-cost-after-two-purchases', 'exact');
+        $item = $this->item('0.00');
+        $made = [];
+
+        foreach ($case['inputs']['purchases'] as $index => $purchase) {
+            $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($item, 0, $purchase['quantity'], $purchase['price'])]));
+
+            $made[$index] = bcadd($this->exactCostOf($item), '0', 2);
+        }
+
+        $this->assertSameAsFixture($case['expected'], [
+            'average_after_the_first'  => $made[0],
+            'average_after_the_second' => $made[1],
+            'stock_after_the_second'   => bcadd($this->onHand($item), '0', 0),
+        ], 'average after two purchases');
+    }
+
+    public function testDeleteValue_GivesAnotherAverageToTheCorrectionByDeletingAndBuyingAgainThanTheReferenceSystemGetsByEditingTheLine(): void
+    {
+        $case = $this->referenceCase('T-47', 'purchase_line_edit', 'correcting-a-purchase-by-deleting-it-and-buying-again', 'differs');
+        $made = $this->purchasesOfCase($case['inputs']['purchases']);
+
+        $this->assertTrue($this->purchases->delete_value($made['ids'][1], $this->employeeId));
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($made['item'], 0, '8', '140')], $made['supplier']));
+
+        $this->assertSameAsFixture($case['expected'], [
+            'average_after_the_correction' => $this->exactCostOf($made['item']),
+            'stock_value'                  => $this->stockOf($made['item'])['value'],
+            'stock'                        => bcadd($this->onHand($made['item']), '0', 0),
+        ], 'correction by delete and buy again');
+        $this->assertStockTies();
+    }
+
+    public function testDeleteValue_LeavesTheAverageTheItemCarriedWhereTheReferenceSystemRecomputesItFromTheMovementsLeft(): void
+    {
+        $case = $this->referenceCase('T-48', 'purchase_delete', 'deleting-a-purchase-recomputes-the-average', 'differs');
+        $made = $this->purchasesOfCase($case['inputs']['purchases']);
+        $mean = $this->exactCostOf($made['item']);
+
+        $this->assertTrue($this->purchases->delete_value($made['ids'][1], $this->employeeId));
+        $this->assertSameAsFixture($case['expected'], [
+            'average_before_the_delete' => $mean,
+            'average_after_the_delete'  => $this->exactCostOf($made['item']),
+            'stock_after_the_delete'    => bcadd($this->onHand($made['item']), '0', 0),
+        ], 'average around the delete');
+        $this->assertStockTies();
+    }
+
+    /**
+     * The journals of a return of a case, taken from the first purchase of the case: the return
+     * itself and, when it was refunded in cash, the refund.
+     *
+     * @param array<string, mixed> $inputs
+     *
+     * @return array{return: list<array{role: string, debit: string, credit: string}>, refund: list<array{role: string, debit: string, credit: string}>, average: string}
+     */
+    private function returnOfCase(array $inputs): array
+    {
+        $made    = $this->purchasesOfCase($inputs['purchases']);
+        $return  = $inputs['return'];
+        $roles   = $this->purchaseRoles($made['supplier']);
+        $savedAs = $this->buy([$this->purchaseLine($made['item'], 0, '-' . $return['quantity'], $return['price'])], $made['supplier'], $return['refunded_in_cash'] ? lang('Sales.cash') : null, $made['ids'][0]);
+
+        $this->assertGreaterThan(0, $savedAs);
+
+        $refund = $this->standingPurchase($savedAs, 'purchase_payment');
+
+        return [
+            'return'  => $this->roleLines((int) $this->standingPurchase($savedAs)[0]['id'], $roles, 2),
+            'refund'  => $refund === [] ? [] : $this->roleLines((int) $refund[0]['id'], $roles, 2),
+            'average' => $this->exactCostOf($made['item']),
+        ];
+    }
+
+    public function testSaveValue_GivesBackThreeUnitsAtTheAverageAndTheDifferenceToCostOfSalesAsTheReferenceSystemDoes(): void
+    {
+        $case = $this->referenceCase('T-49', 'purchase_return', 'return-of-3-units-without-a-cash-refund', 'exact');
+        $made = $this->returnOfCase($case['inputs']);
+
+        $this->assertSameAsFixture($case['expected'], ['journals' => ['return' => $made['return']], 'average_after' => $made['average']], 'return of 3 units');
+        $this->assertSame([], $made['refund']);
+    }
+
+    public function testSaveValue_WritesTheRefundJournalOfAReturnRefundedInCashAsTheReferenceSystemDoes(): void
+    {
+        $case = $this->referenceCase('T-49', 'purchase_return', 'return-of-2-units-with-a-cash-refund', 'exact');
+        $made = $this->returnOfCase($case['inputs']);
+
+        $this->assertSameAsFixture($case['expected'], ['journals' => ['return' => $made['return'], 'refund' => $made['refund']], 'average_after' => $made['average']], 'return of 2 units refunded in cash');
+    }
+
+    public function testSaveValue_CreditsTheStockAtTheAverageAndThePriceDifferenceToCostOfSalesOnADebitNoteAsTheReferenceSystemDoes(): void
+    {
+        $case = $this->referenceCase('T-50', 'purchase_return', 'debit-note-priced-above-the-average', 'exact');
+        $made = $this->returnOfCase($case['inputs']);
+
+        $this->assertSameAsFixture($case['expected'], ['journals' => ['return' => $made['return']], 'average_after' => $made['average']], 'debit note above the average');
     }
 }

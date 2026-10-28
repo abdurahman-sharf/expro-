@@ -188,4 +188,35 @@ final class ParityFixture
 
         return is_file($path) ? array_column(json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR), 'id') : [];
     }
+
+    /**
+     * What the application would answer to a path with the pattern in it: an explicit route, a
+     * controller, or a public method of a controller.
+     *
+     * @return list<string>
+     */
+    public static function routesMatching(string $pattern): array
+    {
+        $found = [];
+
+        if (stripos((string) file_get_contents(APPPATH . 'Config/Routes.php'), $pattern) !== false) {
+            $found[] = 'app/Config/Routes.php';
+        }
+
+        foreach (glob(APPPATH . 'Controllers/*.php') ?: [] as $file) {
+            $class = 'App\\Controllers\\' . basename($file, '.php');
+
+            if (stripos($class, $pattern) !== false) {
+                $found[] = $class;
+            }
+
+            foreach (get_class_methods($class) as $method) {
+                if (stripos($method, $pattern) !== false) {
+                    $found[] = "{$class}::{$method}";
+                }
+            }
+        }
+
+        return $found;
+    }
 }

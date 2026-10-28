@@ -17,11 +17,13 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\ParityCaseTrait;
 
 class RoutingResolverTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
+    use ParityCaseTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -315,5 +317,13 @@ class RoutingResolverTest extends CIUnitTestCase
             $this->assertSame(PostingError::RoutingAccountUnusable, $failure->error);
             $this->assertSame($systemKey, $failure->context['routing_key']);
         }
+    }
+
+    public function testAccountFor_RoutesTheStockPermitsToTheCounterAccountsOfTheReferenceSystem(): void
+    {
+        $case = $this->referenceCase('T-53', 'stock_permit_accounts', 'counter-accounts-of-the-stock-permits', 'exact');
+        $code = fn (RoutingKey $key): string => (string) $this->accountingDb()->table('accounting_accounts')->where('account_id', $this->resolver->accountFor($key))->get()->getRow()->code;
+
+        $this->assertSameAsFixture($case['expected'], ['accounts' => ['in_permit' => $code(RoutingKey::StockPermitAdd), 'out_permit' => $code(RoutingKey::StockPermitIssue)]], 'counter accounts of the permits');
     }
 }

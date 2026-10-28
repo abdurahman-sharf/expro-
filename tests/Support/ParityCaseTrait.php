@@ -2,6 +2,8 @@
 
 namespace Tests\Support;
 
+use App\Libraries\Accounting\SaleAmounts;
+
 /**
  * What a test needs to run a case of a parity fixture and to compare what the application did with
  * what the fixture expects. A class that uses it also uses AccountingFixtureTrait.
@@ -67,16 +69,21 @@ trait ParityCaseTrait
      * debited and credited, to every decimal the journal keeps.
      *
      * @param array<string, int> $accounts The account of each role.
+     * @param int|null           $decimals Round every amount, half up, to the decimals the reference system showed.
      *
      * @return list<array{role: string, debit: string, credit: string}>
      */
-    protected function roleLines(int $journalId, array $accounts): array
+    protected function roleLines(int $journalId, array $accounts, ?int $decimals = null): array
     {
         $roles = array_flip($accounts);
         $lines = [];
 
         foreach ($this->accountingDb()->table('accounting_journal_lines')->where('journal_id', $journalId)->orderBy('line_no')->get()->getResult() as $line) {
-            $lines[] = ['role' => $roles[(int) $line->account_id] ?? 'account ' . $line->account_id, 'debit' => (string) $line->debit, 'credit' => (string) $line->credit];
+            $lines[] = [
+                'role'   => $roles[(int) $line->account_id] ?? 'account ' . $line->account_id,
+                'debit'  => $decimals === null ? (string) $line->debit : SaleAmounts::round((string) $line->debit, $decimals),
+                'credit' => $decimals === null ? (string) $line->credit : SaleAmounts::round((string) $line->credit, $decimals),
+            ];
         }
 
         return $lines;

@@ -1,0 +1,76 @@
+{
+  "id": "T-36",
+  "title": "An expense of 50 paid from a treasury that holds nothing: accepted without a warning, the cost debited, the treasury credited and left at minus 50",
+  "recorded": "2026-10-27",
+  "observation": {
+    "batch": "d2",
+    "scenarios": [
+      "D2-S01"
+    ]
+  },
+  "evidence": {
+    "expense_000003": {
+      "id": null,
+      "note": "Expense 000003 of 50 without tax, paid from a treasury whose balance was 0.00: saved without a refusal, journal 000138, treasury at -50.00",
+      "observation": [
+        "pw-d2-10",
+        "pw-d2-11"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "expense-into-an-empty-treasury-is-accepted",
+      "kind": "expense_negative_balance",
+      "classification": "exact",
+      "evidence": [
+        "expense_000003"
+      ],
+      "inputs": {
+        "amount": "50.00",
+        "tax": "0.00",
+        "treasury_balance_before": "0.00"
+      },
+      "reference": {
+        "accepted": true,
+        "journals": {
+          "expense": [
+            {
+              "role": "expense",
+              "debit": "50",
+              "credit": "0",
+              "code": "546",
+              "name": "افتراضي-D2 تصنيف مصروف"
+            },
+            {
+              "role": "treasury",
+              "debit": "0",
+              "credit": "50",
+              "code": "120103",
+              "name": "افتراضي-D2 خزينة 1"
+            }
+          ]
+        },
+        "treasury_balance_after": "-50.00"
+      },
+      "expected": {
+        "accepted": true,
+        "journals": {
+          "expense": [
+            {
+              "role": "expense",
+              "debit": "50",
+              "credit": "0"
+            },
+            {
+              "role": "treasury",
+              "debit": "0",
+              "credit": "50"
+            }
+          ]
+        },
+        "treasury_balance_after": "-50.00"
+      }
+    }
+  ]
+}

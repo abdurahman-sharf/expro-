@@ -1,0 +1,56 @@
+{
+  "id": "T-48",
+  "title": "Deleting the last of two purchases (10 at 100 and 8 at 140, average 117.777778): the reference system recomputes the average from the movements left and goes back to 100, this application leaves the average the item carried",
+  "recorded": "2026-10-27",
+  "observation": {
+    "batch": "d2",
+    "scenarios": [
+      "D2-S15"
+    ]
+  },
+  "evidence": {
+    "delete_and_restore": {
+      "id": null,
+      "note": "The second purchase deleted: it goes to the trash, its journal is erased, the stock goes back to 10 and the average goes back to 100.00; restored, it comes back with a new journal number and a new stock movement and the average is 117.777778 again",
+      "observation": [
+        "pw-d2-39",
+        "pw-d2-40",
+        "pw-d2-65"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "deleting-a-purchase-recomputes-the-average",
+      "kind": "purchase_delete",
+      "classification": "differs",
+      "reason": "The reference system recomputes the average cost of the item from the movements that stay when a purchase is deleted. This application gives the stock back and reverses the journal but does not recompute the cost the item carries (G-43), so the next sale is costed at the old average; proposal E56 has WP17 reverse the valued movement so that the average follows.",
+      "evidence": [
+        "delete_and_restore"
+      ],
+      "inputs": {
+        "purchases": [
+          {
+            "quantity": "10",
+            "price": "100.00"
+          },
+          {
+            "quantity": "8",
+            "price": "140.00"
+          }
+        ],
+        "delete": "the second"
+      },
+      "reference": {
+        "average_before_the_delete": "117.777778",
+        "average_after_the_delete": "100.00",
+        "stock_after_the_delete": "10"
+      },
+      "expected": {
+        "average_before_the_delete": "117.777778",
+        "average_after_the_delete": "117.777778",
+        "stock_after_the_delete": "10"
+      }
+    }
+  ]
+}

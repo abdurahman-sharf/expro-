@@ -1,0 +1,101 @@
+{
+  "id": "T-43",
+  "title": "An expense charged to two accounts, one of them with tax: one journal with a line for each account, the tax and the treasury; this application charges an expense to one account only",
+  "recorded": "2026-10-27",
+  "observation": {
+    "batch": "d2",
+    "scenarios": [
+      "D2-S10"
+    ]
+  },
+  "evidence": {
+    "expense_000010": {
+      "id": null,
+      "note": "Expense 000010 with a line of 100 on 545 with 15% tax and a line of 50 on 541: one journal 000174 with two cost lines, one tax line and the treasury credited with 165",
+      "observation": [
+        "pw-d2-56"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "one-expense-charged-to-two-accounts",
+      "kind": "expense_lines",
+      "classification": "not_implemented",
+      "work_package": "WP38",
+      "reason": "An expense here has one amount, one tax and one account (G-80 keeps the several accounts of one expense in WP38). The journal the reference system wrote is recorded so the package has it.",
+      "evidence": [
+        "expense_000010"
+      ],
+      "inputs": {
+        "lines": [
+          {
+            "account": "545",
+            "amount": "100.00",
+            "tax": "15%"
+          },
+          {
+            "account": "541",
+            "amount": "50.00",
+            "tax": null
+          }
+        ]
+      },
+      "reference": {
+        "journals": {
+          "expense": [
+            {
+              "role": "expense",
+              "debit": "100",
+              "credit": "0",
+              "code": "545",
+              "name": "إيجار"
+            },
+            {
+              "role": "expense",
+              "debit": "50",
+              "credit": "0",
+              "code": "541",
+              "name": "مصروفات أخرى"
+            },
+            {
+              "role": "tax_input",
+              "debit": "15",
+              "credit": "0",
+              "code": "215002",
+              "name": "القيمة المضافة المدفوعة"
+            },
+            {
+              "role": "treasury",
+              "debit": "0",
+              "credit": "165",
+              "code": "120103",
+              "name": "افتراضي-D2 خزينة 1"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "status": "not_implemented",
+        "absent": [
+          {
+            "kind": "table",
+            "pattern": "expense_line"
+          },
+          {
+            "kind": "table",
+            "pattern": "expenses_line"
+          },
+          {
+            "kind": "table",
+            "pattern": "expense_item"
+          },
+          {
+            "kind": "table",
+            "pattern": "expenses_item"
+          }
+        ]
+      }
+    }
+  ]
+}

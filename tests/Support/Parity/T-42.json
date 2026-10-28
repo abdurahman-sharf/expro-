@@ -1,0 +1,94 @@
+{
+  "id": "T-42",
+  "title": "A supplier on an expense and an expense that is not paid: the reference system keeps the supplier as a label that never reaches the journal and has no unpaid expense; this application also keeps the supplier out of the journal and can owe an unpaid expense to other creditors",
+  "recorded": "2026-10-27",
+  "observation": {
+    "batch": "d2",
+    "scenarios": [
+      "D2-S08"
+    ]
+  },
+  "evidence": {
+    "expense_000007": {
+      "id": null,
+      "note": "Expense 000007 with a supplier chosen: journal 000149 debits the cost and credits the treasury and the supplier account is not in it; the form has no unpaid option",
+      "observation": [
+        "pw-d2-21"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "the-supplier-of-an-expense-is-only-a-label",
+      "kind": "expense_supplier",
+      "classification": "exact",
+      "evidence": [
+        "expense_000007"
+      ],
+      "inputs": {
+        "amount": "100.00",
+        "supplier": "chosen"
+      },
+      "reference": {
+        "journals": {
+          "expense": [
+            {
+              "role": "expense",
+              "debit": "100",
+              "credit": "0",
+              "code": "546",
+              "name": "افتراضي-D2 تصنيف مصروف"
+            },
+            {
+              "role": "treasury",
+              "debit": "0",
+              "credit": "100",
+              "code": "120103",
+              "name": "افتراضي-D2 خزينة 1"
+            }
+          ]
+        },
+        "supplier_account_in_the_journal": false
+      },
+      "expected": {
+        "journals": {
+          "expense": [
+            {
+              "role": "expense",
+              "debit": "100",
+              "credit": "0"
+            },
+            {
+              "role": "treasury",
+              "debit": "0",
+              "credit": "100"
+            }
+          ]
+        },
+        "supplier_account_in_the_journal": false
+      }
+    },
+    {
+      "id": "an-expense-that-is-not-paid",
+      "kind": "expense_supplier",
+      "classification": "differs",
+      "reason": "The expense form of the reference system has no unpaid or due option (the treasury list has no empty choice). An expense here can be saved as due: it is owed to other creditors until its way of payment is changed (WP3).",
+      "evidence": [
+        "expense_000007"
+      ],
+      "inputs": {
+        "amount": "100.00",
+        "way_of_payment": "due"
+      },
+      "reference": {
+        "can_be_saved_unpaid": false
+      },
+      "expected": {
+        "can_be_saved_unpaid": true,
+        "detail": {
+          "credited": "other_payables"
+        }
+      }
+    }
+  ]
+}

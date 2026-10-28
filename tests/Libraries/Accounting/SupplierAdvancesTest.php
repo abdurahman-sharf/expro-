@@ -7,6 +7,7 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\CreditSource;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\Accounting\ReceivingPostingBuilder;
 use App\Libraries\Accounting\SupplierAdvances;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Numbering\DocumentNumbering;
@@ -19,6 +20,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
+use Tests\Support\ParityCaseTrait;
 use Tests\Support\ParityFixture;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
@@ -35,6 +37,7 @@ class SupplierAdvancesTest extends CIUnitTestCase
     use AccountingFixtureTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
+    use ParityCaseTrait;
     use SaleAccountingFixtureTrait;
     use PurchaseAccountingFixtureTrait;
 
@@ -538,5 +541,142 @@ class SupplierAdvancesTest extends CIUnitTestCase
         $this->assertSame(AccountingError::NumberingExhausted, $refusal->error);
         $this->assertSame($before, $this->countRows('supplier_advances'));
         $this->assertSame(1, $this->countRows('document_numbers'));
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // What the reference system recorded in the second write batch: fixtures T-45 and T-46
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * @return array<string, int>
+     */
+    private function advanceRoles(): array
+    {
+        return [
+            'supplier'        => $this->supplierAccount(),
+            'opening_balance' => $this->accountId('opening_balance'),
+            'inventory'       => $this->stockAccount(),
+            'treasury'        => $this->accountId('cash'),
+        ];
+    }
+
+    private function journalIdOf(string $source, int $sourceId): int
+    {
+        return (int) $this->accountingDb()->table('accounting_journals')->where(['source_type' => $source, 'source_id' => $sourceId, 'status' => 'posted'])->get()->getRow()->journal_id;
+    }
+
+    private function openingOwedToTheSupplier(string $amount, string $date): int
+    {
+        $opening = $this->advances->openingBalance($this->supplierId, SupplierAdvances::WE_OWE, $amount, $date, '', $this->clerk);
+
+        $this->receivingIds[] = $opening;
+
+        return $opening;
+    }
+
+    public function testOpeningBalance_DebitsTheOpeningBalancesAndCreditsTheSupplierAsTheReferenceSystemDoes(): void
+    {
+        $case    = $this->referenceCase('T-45', 'supplier_opening_balance', 'opening-balance-owed-to-a-supplier-journal', 'exact');
+        $opening = $this->openingOwedToTheSupplier($case['inputs']['amount'], '2026-10-27');
+
+        $this->assertSameAsFixture($case['expected']['journals']['opening'], $this->roleLines($this->journalIdOf(ReceivingPostingBuilder::SOURCE_PURCHASE, $opening), $this->advanceRoles()), 'opening balance journal');
+    }
+
+    public function testOpeningBalance_AgesFromItsOwnDateAsTheReferenceSystemDoes(): void
+    {
+        $case = $this->referenceCase('T-45', 'supplier_opening_balance', 'opening-balance-ages-from-its-own-date', 'exact');
+
+        $this->openingOwedToTheSupplier($case['inputs']['amount'], date('Y-m-d', strtotime('-40 days')));
+
+        $aging = $this->supplierPosition()->aging(date('Y-m-d'));
+
+        $this->assertSameAsFixture($case['expected'], [
+            'amount_in_the_aging' => bcadd(array_reduce($aging, static fn (string $sum, string $amount): string => bcadd($sum, $amount, 4), '0'), '0', 2),
+            'ages_from'           => $aging['31-60'] === '650.0000' ? 'its own date' : 'something else',
+        ], 'aging of the opening balance');
+    }
+
+    public function testCancelOpening_ReversesTheJournalAndHasNoEditWhereTheReferenceSystemEditsAndErases(): void
+    {
+        $case    = $this->referenceCase('T-45', 'supplier_opening_balance', 'opening-balance-edit-and-delete', 'deliberate_difference');
+        $opening = $this->openingOwedToTheSupplier($case['inputs']['amount'], '2026-10-27');
+        $edits   = array_filter(get_class_methods(SupplierAdvances::class), static fn (string $method): bool => preg_match('/edit|update|change/i', $method) === 1);
+
+        $this->advances->cancelOpening($opening, 'entered again', $this->clerk);
+
+        $this->assertSameAsFixture($case['expected'], [
+            'edit_in_place'             => $edits !== [],
+            'delete_erases_the_journal' => $this->accountingDb()->table('accounting_journals')->where(['source_type' => ReceivingPostingBuilder::SOURCE_PURCHASE, 'source_id' => $opening])->countAllResults() === 0,
+        ], 'edit and delete of an opening balance');
+        $this->assertSame(['reversed'], array_column($this->accountingDb()->table('accounting_journals')->where(['source_type' => ReceivingPostingBuilder::SOURCE_PURCHASE, 'source_id' => $opening])->get()->getResultArray(), 'status'));
+    }
+
+    /**
+     * An opening balance, a payment above it and a purchase after the payment, as the case says.
+     *
+     * @param array<string, mixed> $inputs
+     *
+     * @return array{opening: int, advance: int, purchase: int}
+     */
+    private function paidOverAnOpeningBalance(array $inputs, bool $withThePurchase): array
+    {
+        $opening = $this->openingOwedToTheSupplier($inputs['opening_balance'], '2026-10-27');
+        $advance = $this->advances->pay($this->supplierId, $inputs['payment'], '2026-10-27', 'Cash', null, '', '', $this->clerk);
+        $buy     = 0;
+
+        if ($withThePurchase) {
+            $buy = $this->buy([$this->purchaseLine($this->item('0.00'), 0, $inputs['purchase']['quantity'] ?? '3', $inputs['purchase']['price'] ?? '100.00')]);
+
+            $this->assertGreaterThan(0, $buy);
+        }
+
+        return ['opening' => $opening, 'advance' => $advance, 'purchase' => $buy];
+    }
+
+    public function testPay_DebitsTheSupplierAndLeavesCreditOverAnOpeningBalanceAsTheReferenceSystemDoes(): void
+    {
+        $case = $this->referenceCase('T-46', 'supplier_payment', 'payment-over-an-opening-balance-leaves-credit', 'exact');
+        $made = $this->paidOverAnOpeningBalance($case['inputs'], false);
+
+        $this->assertSameAsFixture($case['expected'], [
+            'journals'                           => ['payment' => $this->roleLines($this->journalIdOf(SupplierAdvances::SOURCE, $made['advance']), $this->advanceRoles())],
+            'supplier_balance_after_the_payment' => $this->owed(),
+        ], 'payment over an opening balance');
+    }
+
+    public function testPay_SettlesThePurchaseSavedAfterItFromTheCreditAsTheReferenceSystemDoes(): void
+    {
+        $case    = $this->referenceCase('T-46', 'supplier_payment', 'credit-settles-the-purchase-saved-after-it', 'exact');
+        $inputs  = $case['inputs'];
+        $opening = $this->openingOwedToTheSupplier($inputs['opening_balance'], '2026-10-27');
+
+        $this->advances->pay($this->supplierId, $inputs['payment'], '2026-10-27', 'Cash', null, '', '', $this->clerk);
+
+        $before   = $this->countRows('accounting_journals');
+        $purchase = $this->buy([$this->purchaseLine($this->item('0.00'), 0, $inputs['purchase']['quantity'], $inputs['purchase']['price'])]);
+        $figures  = $this->supplierPosition()->purchase($purchase);
+
+        $this->assertGreaterThan(0, $opening);
+        $this->assertSameAsFixture($case['expected'], [
+            'journals'                  => ['purchase' => $this->roleLines((int) $this->standingPurchase($purchase)[0]['id'], $this->advanceRoles())],
+            'settled_by_credit'         => bcadd($figures->applied, '0', 2),
+            'open'                      => bcadd($figures->open(), '0', 2),
+            'supplier_balance'          => $this->owed(),
+            'journals_for_the_credit'   => (string) ($this->countRows('accounting_journals') - $before - 1),
+        ], 'purchase settled from the credit');
+    }
+
+    public function testCancel_TakesBackTheCreditThePaymentGaveAsTheReferenceSystemDoes(): void
+    {
+        $case = $this->referenceCase('T-46', 'supplier_payment', 'deleting-the-payment-takes-back-the-credit-it-gave', 'exact');
+        $made = $this->paidOverAnOpeningBalance($case['inputs'] + ['purchase' => ['quantity' => '3', 'price' => '100.00']], true);
+
+        $this->advances->cancel($made['advance'], 'wrong payment', $this->clerk);
+
+        $this->assertSameAsFixture($case['expected'], [
+            'purchase_open'            => bcadd($this->supplierPosition()->purchase($made['purchase'])->open(), '0', 2),
+            'supplier_balance'         => $this->owed(),
+            'credit_applications_left' => (string) count($this->supplierApplications()),
+        ], 'purchase after the payment is cancelled');
     }
 }

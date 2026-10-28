@@ -14,7 +14,7 @@ class ParityFixtureTest extends CIUnitTestCase
     private const DOCS            = __DIR__ . '/../../docs/accounting';
     private const TESTS           = __DIR__ . '/..';
     private const FIRST_OBSERVED  = 26;
-    private const LAST            = 35;
+    private const LAST            = 64;
     private const ABSENCES        = ['table', 'column', 'class', 'route'];
 
     /**
@@ -264,7 +264,7 @@ class ParityFixtureTest extends CIUnitTestCase
         $backlog = (string) file_get_contents(self::DOCS . '/daftra-parity/backlog.md');
 
         $this->assertMatchesRegularExpression('/^WP\d+$/', $case['work_package'], "{$id} {$case['id']}");
-        $this->assertStringContainsString("**{$case['work_package']}**", $backlog, "{$id} {$case['id']} names a package the backlog does not have");
+        $this->assertTrue(str_contains($backlog, "**{$case['work_package']}**"), "{$id} {$case['id']} names a package the backlog does not have");
         $this->assertNotEmpty($case['expected']['absent'], "{$id} {$case['id']} checks nothing");
 
         foreach ($case['expected']['absent'] as $absence) {
@@ -293,7 +293,7 @@ class ParityFixtureTest extends CIUnitTestCase
 
         foreach (ParityFixture::load($id)['cases'] as $case) {
             if ($case['classification'] !== 'not_implemented') {
-                $this->assertStringContainsString("'{$case['id']}'", $sources, "{$id} {$case['id']} is not asserted by any test");
+                $this->assertTrue(str_contains($sources, "'{$case['id']}'"), "{$id} {$case['id']} is not asserted by any test");
             }
         }
     }
