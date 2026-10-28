@@ -206,6 +206,15 @@ class TaxDocumentsTest extends CIUnitTestCase
         }
     }
 
+    public function testSales_ReadsNothingForSalesThatHaveNoTaxFigures(): void
+    {
+        $service = $this->item('0', false);
+        $quote   = $this->save([$this->line($service, 0, '1', '100.00')], [$this->tax($service, 0, '15.00')], [], SALE_TYPE_QUOTE, -1, true, null, SUSPENDED);
+
+        $this->assertSame([], $this->documents()->sales([$quote]));
+        $this->assertSame([], $this->documents()->sales([987654]));
+    }
+
     public function testSales_ReadsOnlyTheSalesNamed(): void
     {
         $first  = $this->sell('100.00', '15.00');
@@ -285,6 +294,20 @@ class TaxDocumentsTest extends CIUnitTestCase
 
         $this->assertGreaterThan(0, $transfer);
         $this->assertSame([$purchase], array_keys($this->documents()->purchases([$transfer, $purchase, 987654])));
+    }
+
+    public function testPurchases_ReadsNothingForPurchasesThatHaveNoTaxFigures(): void
+    {
+        $item  = $this->item('0.00');
+        $depot = $this->anotherLocation('Second warehouse');
+
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($item, 0, '10', '50', '15')]));
+
+        $transfer = $this->buy([$this->purchaseLine($item, 0, '4', '0', '0', '0', PERCENT, $depot), $this->purchaseLine($item, 1, '-4', '0')], null, null);
+
+        $this->assertGreaterThan(0, $transfer);
+        $this->assertSame([], $this->documents()->purchases([$transfer]));
+        $this->assertSame([], $this->documents()->purchases([987654]));
     }
 
     public function testPurchases_ReadsOnlyThePurchasesNamed(): void

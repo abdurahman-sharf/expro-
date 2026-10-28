@@ -741,14 +741,20 @@ class TaxReportTest extends CIUnitTestCase
     public function testBuild_CountsTheDocumentsBeforeTheBooksBeganOnlyInThePeriodAsked(): void
     {
         $this->setConfigValue('accounting_start_date', '2026-10-01');
-        $this->saveLegacySale('2026-09-15 10:00:00', '100.00', '15.00');
-        $this->saveLegacySale('2026-09-30 23:59:59', '100.00', '15.00');
 
-        $this->assertSame(2, $this->report('2026-09-15', '2026-09-30')->legacyDocuments);
-        $this->assertSame(1, $this->report('2026-09-30', '2026-09-30')->legacyDocuments, 'The last day before the books began');
-        $this->assertSame(1, $this->report('2026-09-15', '2026-09-15')->legacyDocuments, 'The first day');
+        foreach (['2026-09-15 10:00:00', '2026-09-30 23:59:59'] as $time) {
+            $this->saveLegacySale($time, '100.00', '15.00');
+            $this->saveLegacyPurchase($time);
+            $this->saveLegacyExpense($time, '23.00', '3.00');
+        }
+
+        $this->assertSame(6, $this->report('2026-09-15', '2026-09-30')->legacyDocuments);
+        $this->assertSame(3, $this->report('2026-09-30', '2026-09-30')->legacyDocuments, 'The last day before the books began: a sale, a purchase and an expense');
+        $this->assertSame(3, $this->report('2026-09-15', '2026-09-15')->legacyDocuments, 'The first day');
+        $this->assertSame(0, $this->report('2026-09-16', '2026-09-29')->legacyDocuments, 'The days between');
         $this->assertSame(0, $this->report('2026-10-01', '2026-10-31')->legacyDocuments, 'The period begins on the first day of the books');
         $this->assertFalse($this->report('2026-10-01', '2026-10-31')->reachesBeforeBooks());
+        $this->assertSame(6, $this->report(null, '2026-12-31')->legacyDocuments, 'A period with no first day reaches back to the start of time');
     }
 
     public function testBuild_CountsTheDocumentsBeforeTheBooksBeganOfTheBranchesOfTheScope(): void

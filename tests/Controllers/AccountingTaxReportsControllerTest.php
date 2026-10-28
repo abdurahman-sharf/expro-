@@ -231,8 +231,7 @@ final class AccountingTaxReportsControllerTest extends CIUnitTestCase
 
         $partial = $this->get(self::SCREEN);
 
-        $partial->assertSee('id="report_scope"');
-        $partial->assertSee('alert alert-warning');
+        $partial->assertSee('<p class="alert alert-warning" id="report_scope"');
         $partial->assertSee(lang('Accounting_reports.scope_partial', [implode(lang('Accounting_reports.branch_separator'), ['HQ', 'T2'])]));
         $partial->assertDontSee(lang('Accounting_reports.scope_company'));
 

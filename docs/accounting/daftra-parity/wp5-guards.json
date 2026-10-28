@@ -495,6 +495,33 @@
     ]
   },
   {
+    "name": "T56 a scope of no branch is not queried",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "$scope->isEmpty() || $routed['accounts'] === []",
+    "replace": "$routed['accounts'] === []",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T57 tax with no routed account is not queried",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "$scope->isEmpty() || $routed['accounts'] === []",
+    "replace": "$scope->isEmpty()",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "T58 the documents before the books are not counted for a scope of no branch",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "$scope->isEmpty() ? 0 : $this->legacyDocuments($scope, $period),",
+    "replace": "$this->legacyDocuments($scope, $period),",
+    "tests": [
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
     "name": "R01 the tax collected is the tax of the sales parts only",
     "file": "app/Libraries/Accounting/TaxReportResult.php",
     "find": "if ($figures->section->isOutput() === $output) {",
@@ -796,6 +823,24 @@
     "file": "app/Libraries/Accounting/TaxDocuments.php",
     "find": "$this->decimals = $decimals ?? totals_decimals();",
     "replace": "$this->decimals = totals_decimals();",
+    "tests": [
+      "tests/Libraries/Accounting/TaxDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "D19 sales that have no tax figures are not queried",
+    "file": "app/Libraries/Accounting/TaxDocuments.php",
+    "find": "$sections = $this->saleSections($chunk);\n\n            if ($sections === []) {",
+    "replace": "$sections = $this->saleSections($chunk);\n\n            if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/TaxDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "D20 purchases that have no tax figures are not queried",
+    "file": "app/Libraries/Accounting/TaxDocuments.php",
+    "find": "$sections = $this->purchaseSections($chunk);\n\n            if ($sections === []) {",
+    "replace": "$sections = $this->purchaseSections($chunk);\n\n            if (false) {",
     "tests": [
       "tests/Libraries/Accounting/TaxDocumentsTest.php"
     ]
