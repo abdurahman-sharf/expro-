@@ -1,0 +1,209 @@
+[
+ {
+  "name": "P01: the share of the invoice discount of a line is rounded to the cent (T-26, T-27)",
+  "file": "app/Libraries/InvoiceDiscount.php",
+  "needle": "bcadd(SaleAmounts::round(bcdiv(bcmul($amount, $weights[$key], self::WORK), $total, self::WORK), $decimals), '0', self::SCALE);",
+  "replacement": "bcadd(SaleAmounts::round(bcdiv(bcmul($amount, $weights[$key], self::WORK), $total, self::WORK), $decimals + 2), '0', self::SCALE);",
+  "test": "tests/Libraries/Accounting/SalePostingTest.php",
+  "filter": "/(PercentageDiscountOnTheWholeInvoice|FixedDiscountOnTheWholeInvoice|SharesAFixedDiscount|SharesAPercentageDiscount|TheCostOfTheGoodsOfAnInvoiceWithAFixedDiscount)/",
+  "result": "DETECTED"
+ },
+ {
+  "name": "P02: the tax of a line is rounded to the tax decimals of the shop (T-26, T-27, T-29)",
+  "file": "app/Libraries/Tax_lib.php",
+  "needle": "return rounding_mode::round_number($rounding_mode, $tax_amount, $decimals);",
+  "replacement": "return rounding_mode::round_number($rounding_mode, $tax_amount, $decimals + 2);",
+  "test": "tests/Libraries/Accounting/SalePostingTest.php",
+  "filter": "/(PercentageDiscountOnTheWholeInvoice|FixedDiscountOnTheWholeInvoice|ShareOfTheDiscountOfTheReturnedUnit|SharesAFixedDiscount|SharesAPercentageDiscount)/",
+  "result": "DETECTED"
+ },
+ {
+  "name": "P03: a credit note is applied to its own invoice before the oldest one (T-34)",
+  "file": "app/Libraries/Accounting/CreditSettlement.php",
+  "needle": "if ($source->originId !== null && isset($open[$source->originId])) {",
+  "replacement": "if (false) {",
+  "test": "tests/Libraries/Accounting/CreditSettlementTest.php",
+  "filter": "/SendsTheCreditNoteOfAnInvoiceToItsOwnInvoiceFirst/",
+  "result": "DETECTED"
+ },
+ {
+  "name": "P04: credit goes to the open invoices oldest date first (T-34)",
+  "file": "app/Libraries/Accounting/CustomerLedger.php",
+  "needle": "usort($invoices, static fn (InvoiceFigures $a, InvoiceFigures $b): int => [$a->date, $a->saleId] <=> [$b->date, $b->saleId]);",
+  "replacement": "usort($invoices, static fn (InvoiceFigures $a, InvoiceFigures $b): int => [$a->saleId] <=> [$b->saleId]);",
+  "test": "tests/Libraries/Accounting/CreditSettlementTest.php",
+  "filter": "/AppliesACreditNoteWithNoInvoiceToTheOldest/",
+  "result": "DETECTED"
+ },
+ {
+  "name": "P05: a credit note on an undelivered invoice is refused (T-30)",
+  "file": "app/Libraries/Accounting/SalePostingBuilder.php",
+  "needle": "if (! $origin->delivered) {",
+  "replacement": "if (false) {",
+  "test": "tests/Libraries/Accounting/SalePostingTest.php",
+  "filter": "/NeverDeliveredWhereTheReference/",
+  "result": "DETECTED"
+ },
+ {
+  "name": "P06: an undelivered invoice posts no cost journal (T-28)",
+  "file": "app/Libraries/Accounting/SalePostingBuilder.php",
+  "needle": "        if (! $sale->delivered) {\n            return new StockPostingPlan(null, []);\n        }\n",
+  "replacement": "",
+  "test": "tests/Libraries/Accounting/SalePostingTest.php",
+  "filter": "/AnUndeliveredSaleAsTheReference/",
+  "result": "DETECTED"
+ },
+ {
+  "name": "P07: earlier returns of the invoice count against the limit (T-32)",
+  "file": "app/Libraries/Accounting/ReturnLimit.php",
+  "needle": "$earlier  = $this->saleUnits('s.return_of_sale_id = ? AND s.sale_status = ? AND s.sale_type = ? AND s.sale_id <> ?', [$originId, COMPLETED, SALE_TYPE_RETURN, $returnId]);",
+  "replacement": "$earlier  = [];",
+  "test": "tests/Libraries/Accounting/SalePostingTest.php",
+  "filter": "/CountsTheEarlierReturns/",
+  "result": "DETECTED"
+ },
+ {
+  "name": "P08: a return is costed at what the sale was costed (T-29, T-30)",
+  "file": "app/Libraries/Accounting/SalePostingBuilder.php",
+  "needle": "return SaleAmounts::round(bcdiv(bcmul($cost, SaleAmounts::absolute($line->quantity), 8), $quantity, 8), SaleAmounts::SCALE);",
+  "replacement": "return SaleAmounts::round(bcmul('2', SaleAmounts::absolute($line->quantity), 8), SaleAmounts::SCALE);",
+  "test": "tests/Libraries/Accounting/SalePostingTest.php",
+  "filter": "/(ReturnsTheCostOfTheUnitOfADiscounted|LeavesTheSameCostAndStock)/",
+  "result": "DETECTED"
+ },
+ {
+  "name": "P09: the tax of an expense goes to the account of tax paid (T-37)",
+  "file": "app/Libraries/Accounting/ExpensePostingBuilder.php",
+  "needle": "$costs[] = [$this->required(RoutingKey::TaxInput), $tax];",
+  "replacement": "$costs[] = [$this->expenseAccount($expense), $tax];",
+  "test": "tests/Libraries/Accounting/ExpensePostingTest.php",
+  "filter": "/(AmountOf230WithATaxOf30|AmountOf200WithTheTaxTakenOut)/",
+  "result": "DETECTED"
+ },
+ {
+  "name": "P10: deleting an expense reverses its journal (T-40, T-64)",
+  "file": "app/Libraries/Accounting/ExpensePosting.php",
+  "needle": "$change = $this->journals->syncAll(ExpensePostingBuilder::SOURCE, $expenseId, [], $actorId, 'Expense #' . $expenseId . ' deleted');",
+  "replacement": "$change = JournalChange::None;",
+  "test": "tests/Libraries/Accounting/ExpensePostingTest.php",
+  "filter": "/(GivesTheMoneyBackToTheTreasury|KeepsTheJournalOfADeletedExpense|LeavesNoJournalOfADeletedExpense)/",
+  "result": "DETECTED"
+ },
+ {
+  "name": "P11: a return to a supplier takes the stock out at the average of the movements (T-49, T-50)",
+  "file": "app/Libraries/Accounting/ReceivingPostingBuilder.php",
+  "needle": "$this->ledger->unitCost($line->itemId, $line->locationId, $line->itemCost), 8);",
+  "replacement": "'100', 8);",
+  "test": "tests/Libraries/Accounting/ReceivingPostingTest.php",
+  "filter": "/(GivesBackThreeUnits|WritesTheRefundJournalOfAReturn|CreditsTheStockAtTheAverageAndThePriceDifference)/",
+  "result": "DETECTED"
+ },
+ {
+  "name": "P12: the price difference of a debit note goes to cost of sales as a credit (T-50)",
+  "file": "app/Libraries/Accounting/ReceivingPostingBuilder.php",
+  "needle": "$lines[] = new JournalLineDraft($this->required(RoutingKey::CostOfGoodsSold), credit: $difference);",
+  "replacement": "$lines[] = new JournalLineDraft($this->required(RoutingKey::StockLocations, 1), credit: $difference);",
+  "test": "tests/Libraries/Accounting/ReceivingPostingTest.php",
+  "filter": "/(CreditsTheStockAtTheAverageAndThePriceDifference)/",
+  "result": "DETECTED"
+ },
+ {
+  "name": "P13: the average cost weighs what is on hand at the cost it carries (T-47, T-48)",
+  "file": "app/Models/Item.php",
+  "needle": "bcmul($onHand, $oldCost, 8), 8), bcadd($onHand, $unitsReceived, 3), 8);",
+  "replacement": "bcmul($onHand, $unitCost, 8), 8), bcadd($onHand, $unitsReceived, 3), 8);",
+  "test": "tests/Libraries/Accounting/ReceivingPostingTest.php",
+  "filter": "/(AveragesTheCostOfTwoPurchases|GivesAnotherAverageToTheCorrection|LeavesTheAverageTheItemCarried)/",
+  "result": "DETECTED"
+ },
+ {
+  "name": "P14: an opening balance owed to a supplier debits the opening balances (T-45)",
+  "file": "app/Libraries/Accounting/SupplierAdvances.php",
+  "needle": "lines: [new JournalLineDraft($equity, debit: $amount), new JournalLineDraft($supplier, credit: $amount)],",
+  "replacement": "lines: [new JournalLineDraft($equity, credit: $amount), new JournalLineDraft($supplier, debit: $amount)],",
+  "test": "tests/Libraries/Accounting/SupplierAdvancesTest.php",
+  "filter": "/DebitsTheOpeningBalancesAndCreditsTheSupplier/",
+  "result": "DETECTED"
+ },
+ {
+  "name": "P15: a treasury that was used cannot be deleted (T-52)",
+  "file": "app/Libraries/Accounting/TreasuryService.php",
+  "needle": "            if ($this->isUsed($treasuryId)) {\n                throw new AccountingException(AccountingError::TreasuryInUse, 'The treasury has been used.', ['treasury_id' => $treasuryId]);\n            }\n\n",
+  "replacement": "",
+  "test": "tests/Libraries/Accounting/TreasuryServiceTest.php",
+  "filter": "/RefusesATreasuryThatMovedMoney/",
+  "result": "DETECTED"
+ },
+ {
+  "name": "P16: a count difference is posted against cost of sales (T-53)",
+  "file": "app/Libraries/Accounting/StockAdjustment.php",
+  "needle": "$count     = $this->required($gained ? RoutingKey::StockCountIn : RoutingKey::StockCountOut);",
+  "replacement": "$count     = $this->required(RoutingKey::StockPermitAdd);",
+  "test": "tests/Libraries/Accounting/StockAdjustmentTest.php",
+  "filter": "/SettlesACountDifference/",
+  "result": "DETECTED"
+ },
+ {
+  "name": "P17: the stock permits are routed to 2213 and 12042 (T-53)",
+  "file": "app/Libraries/Accounting/RoutingKey.php",
+  "needle": "self::StockPermitAdd        => 'other_payables',",
+  "replacement": "self::StockPermitAdd        => 'other_receivables',",
+  "test": "tests/Libraries/Accounting/RoutingResolverTest.php",
+  "filter": "/RoutesTheStockPermits/",
+  "result": "DETECTED"
+ },
+ {
+  "name": "P18: a customer is aged in buckets of thirty days from the invoice date (T-31)",
+  "file": "app/Libraries/Accounting/CustomerPosition.php",
+  "needle": "public const AGING_BUCKETS = ['0-30', '31-60', '61-90', '91+'];",
+  "replacement": "public const AGING_BUCKETS = ['0-7', '8-30', '31-60', '61+'];",
+  "test": "tests/Libraries/Accounting/CustomerLedgerTest.php",
+  "filter": "/(AgesAnOpenInvoiceFromItsDate|UsesBucketsOfThirtyDays)/",
+  "result": "DETECTED"
+ },
+ {
+  "name": "P19: the chart has the group 1206 for notes receivable (T-54)",
+  "file": "app/Libraries/Accounting/DefaultChart.php",
+  "needle": "            ['1206', 'أوراق القبض', AccountType::Asset, '12', true, null, false],\n",
+  "replacement": "",
+  "test": "tests/Libraries/Accounting/DefaultChartTest.php",
+  "filter": "/HoldsOtherAccountsForCheques/",
+  "result": "DETECTED"
+ },
+ {
+  "name": "P20: the credit paid into an invoice is released when its source is gone (T-64)",
+  "file": "app/Libraries/Accounting/CreditSettlement.php",
+  "needle": "$sourceGone  = ! isset($sources[$application->source_type . ':' . $application->source_id]);",
+  "replacement": "$sourceGone  = false;",
+  "test": "tests/Libraries/Accounting/CreditSettlementTest.php",
+  "filter": "/ReleasesTheCreditPaidIntoAnInvoice/",
+  "result": "DETECTED"
+ },
+ {
+  "name": "P21: a payment goes into the treasury chosen whatever its way of payment (T-57)",
+  "file": "app/Libraries/Accounting/SalePostingBuilder.php",
+  "needle": "$account = $payment->treasuryId !== null && $type->usesTreasury()",
+  "replacement": "$account = $payment->treasuryId !== null && $type === PaymentType::Cash",
+  "test": "tests/Libraries/Accounting/SalePostingTest.php",
+  "filter": "/PaymentInto/",
+  "result": "DETECTED"
+ },
+ {
+  "name": "P22: a route with cheque in its name appears (T-54, T-55, T-56, T-62 flip)",
+  "file": "app/Config/Routes.php",
+  "needle": "$routes->get('/', 'Login::index');",
+  "replacement": "$routes->get('/', 'Login::index');\n$routes->get('cheques', 'Login::index');",
+  "test": "tests/Support/ParityNotImplementedTest.php",
+  "filter": "/testAbsences/",
+  "result": "DETECTED"
+ },
+ {
+  "name": "P23: a case whose sides differ in a flag or a word is read as agreeing (T-30, T-33, T-40 and the other cases of kind differs)",
+  "file": "tests/Support/ParityFixture.php",
+  "needle": "return $reference === $expected;",
+  "replacement": "return true;",
+  "test": "tests/Support/ParityFixtureTest.php",
+  "filter": "/testCases_SayWhatTheirClassificationClaims/",
+  "result": "DETECTED"
+ }
+]
