@@ -8,6 +8,7 @@ use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
+use Tests\Support\ParityCaseTrait;
 use Tests\Support\ParityFixture;
 use Tests\Support\SaleAccountingFixtureTrait;
 
@@ -23,6 +24,7 @@ class CreditSettlementTest extends CIUnitTestCase
     use AccountingFixtureTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
+    use ParityCaseTrait;
     use SaleAccountingFixtureTrait;
 
     protected $migrate     = true;
@@ -372,5 +374,86 @@ class CreditSettlementTest extends CIUnitTestCase
     private function journalsOfApplications(int $invoiceId): int
     {
         return $this->accountingDb()->table('accounting_journals')->like('description', 'credit', 'both')->where('source_id', $invoiceId)->whereNotIn('source_type', ['sale', 'sale_payment'])->countAllResults();
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // What the reference system recorded in the second write batch: fixture T-34
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * The invoices of a case, saved in the order of their names so that the date of each is not the
+     * order it was saved in, and dated as the case says.
+     *
+     * @param list<array<string, string>> $invoices
+     *
+     * @return array<string, int> The invoice ids by name.
+     */
+    private function datedInvoices(array $invoices): array
+    {
+        $ids = [];
+
+        foreach (array_reverse($invoices) as $invoice) {
+            $ids[$invoice['name']] = $this->invoiceOf($invoice['open']);
+            $this->accountingDb()->table('sales')->where('sale_id', $ids[$invoice['name']])->update(['sale_time' => $invoice['date'] . ' 10:00:00']);
+        }
+
+        return $ids;
+    }
+
+    /**
+     * What the credit of the customer was applied to, as the invoices of the case and the amount.
+     *
+     * @param array<string, int> $ids
+     *
+     * @return list<array{invoice: string, amount: string}>
+     */
+    private function appliedTo(array $ids): array
+    {
+        $names   = array_flip($ids);
+        $applied = [];
+
+        foreach ($this->accountingDb()->table('customer_credit_applications')->where('released_at IS NULL', null, false)->orderBy('application_id')->get()->getResult() as $row) {
+            $applied[] = ['invoice' => $names[(int) $row->invoice_sale_id], 'amount' => bcadd((string) $row->amount, '0', 2)];
+        }
+
+        return $applied;
+    }
+
+    public function testSettle_SendsTheCreditNoteOfAnInvoiceToItsOwnInvoiceFirstWhereTheReferenceSystemGoesByTheDateOfTheInvoicesAlone(): void
+    {
+        $case = $this->referenceCase('T-34', 'credit_order', 'credit-note-of-an-invoice-goes-to-the-oldest-invoice-first', 'differs');
+        $ids  = $this->datedInvoices($case['inputs']['invoices']);
+
+        $this->creditNoteOf($ids[$case['inputs']['credit_note']['of']], $case['inputs']['credit_note']['amount']);
+
+        $this->assertSameAsFixture(['applied' => $case['expected']['applied']], ['applied' => $this->appliedTo($ids)], 'credit note of an invoice');
+        $this->assertTies();
+    }
+
+    public function testSettle_AppliesACreditNoteWithNoInvoiceToTheOldestInvoicesFirstAsTheReferenceSystemDoes(): void
+    {
+        $case = $this->referenceCase('T-34', 'credit_order', 'credit-without-an-invoice-goes-to-the-oldest-first', 'exact');
+        $ids  = $this->datedInvoices($case['inputs']['invoices']);
+
+        $service = $this->item('0', false);
+
+        $this->assertGreaterThan(0, $this->save([$this->line($service, 0, '-1', $case['inputs']['credit_note']['amount'])], [], [], SALE_TYPE_RETURN));
+        $this->assertSameAsFixture(['applied' => $case['expected']['applied']], ['applied' => $this->appliedTo($ids)], 'credit note with no invoice');
+        $this->assertTies();
+    }
+
+    public function testSettle_AppliesTheCreditAtOnceAndWritesNoJournalForTheApplicationAsTheReferenceSystemDoes(): void
+    {
+        $case    = $this->referenceCase('T-34', 'credit_application', 'applying-credit-writes-no-journal', 'exact');
+        $ids     = $this->datedInvoices($case['inputs']['invoices']);
+        $service = $this->item('0', false);
+        $before  = $this->countJournals();
+
+        $this->assertGreaterThan(0, $this->save([$this->line($service, 0, '-1', $case['inputs']['credit_note']['amount'])], [], [], SALE_TYPE_RETURN));
+
+        $this->assertSameAsFixture($case['expected'], [
+            'journals_for_the_application' => (string) ($this->countJournals() - $before - 1),
+            'applied_without_any_action'   => $this->appliedTo($ids) !== [],
+        ], 'application');
     }
 }

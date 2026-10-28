@@ -1,0 +1,98 @@
+{
+  "id": "T-28",
+  "title": "An invoice of 2 units at 100 with 15% tax whose delivery is not confirmed: the invoice journal only, no cost journal and no stock taken",
+  "recorded": "2026-10-27",
+  "observation": {
+    "batch": "d1",
+    "scenarios": [
+      "D1-S5a"
+    ]
+  },
+  "evidence": {
+    "invoice_000030": {
+      "id": null,
+      "note": "Invoice 000030 saved with the confirmation of delivery switched off for the document: marked not delivered, one journal 000143 and no cost journal",
+      "observation": [
+        "pw-d1-15",
+        "pw-d1-16"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "undelivered-invoice-journal",
+      "kind": "undelivered_invoice",
+      "classification": "exact",
+      "evidence": [
+        "invoice_000030"
+      ],
+      "inputs": {
+        "lines": [
+          {
+            "item": "stock",
+            "cost": "60.00",
+            "quantity": "2",
+            "price": "100.00",
+            "discount": "0",
+            "tax_percent": "15"
+          }
+        ],
+        "delivered": false
+      },
+      "reference": {
+        "journals": {
+          "invoice": [
+            {
+              "role": "customer",
+              "debit": "230",
+              "credit": "0",
+              "code": "12041005",
+              "name": "افتراضي-D1 عميل"
+            },
+            {
+              "role": "sales_revenue",
+              "debit": "0",
+              "credit": "200",
+              "code": "411",
+              "name": "المبيعات"
+            },
+            {
+              "role": "tax_output",
+              "debit": "0",
+              "credit": "30",
+              "code": "215001",
+              "name": "القيمة المضافة المحصلة"
+            }
+          ],
+          "cost": []
+        },
+        "delivered": false,
+        "stock_taken": "0"
+      },
+      "expected": {
+        "journals": {
+          "invoice": [
+            {
+              "role": "customer",
+              "debit": "230",
+              "credit": "0"
+            },
+            {
+              "role": "sales_revenue",
+              "debit": "0",
+              "credit": "200"
+            },
+            {
+              "role": "tax_output",
+              "debit": "0",
+              "credit": "30"
+            }
+          ],
+          "cost": []
+        },
+        "delivered": false,
+        "stock_taken": "0"
+      }
+    }
+  ]
+}

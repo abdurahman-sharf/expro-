@@ -1,0 +1,83 @@
+{
+  "id": "T-32",
+  "title": "A credit note for more units than the invoice sold is refused and saves nothing, and what earlier credit notes of the invoice took back counts against it",
+  "recorded": "2026-10-27",
+  "observation": {
+    "batch": "d1",
+    "scenarios": [
+      "D1-S6"
+    ]
+  },
+  "evidence": {
+    "attempt_of_5": {
+      "id": null,
+      "note": "A credit note of 5 units from invoice 000029, which sold 3 and had 1 returned: refused with the banner that the credit note cannot be saved and the line error that the item exceeded the quantity it may return; nothing created",
+      "observation": [
+        "pw-d1-29"
+      ]
+    },
+    "attempt_of_3": {
+      "id": null,
+      "note": "A credit note of 3 units from the same invoice: refused the same way, so the cap counts the earlier return of the invoice",
+      "observation": [
+        "pw-d1-31"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "a-return-above-what-the-invoice-sold-is-refused",
+      "kind": "return_limit",
+      "classification": "exact",
+      "evidence": [
+        "attempt_of_5"
+      ],
+      "inputs": {
+        "sold": "3",
+        "returned_before": "1",
+        "attempt": "5"
+      },
+      "reference": {
+        "result": "refused",
+        "saved": "0",
+        "messages": [
+          "لا يمكن حفظ مذكرة الإئتمان برجاء إصلاح الأخطاء بالأسفل",
+          "لقد تخطي البند الكمية المسموح بإرجاعها"
+        ]
+      },
+      "expected": {
+        "result": "refused",
+        "saved": "0",
+        "detail": {
+          "error": "sale_return_exceeds_origin",
+          "most_that_may_still_be_returned": "2.000"
+        }
+      }
+    },
+    {
+      "id": "earlier-returns-count-against-the-limit",
+      "kind": "return_limit",
+      "classification": "exact",
+      "evidence": [
+        "attempt_of_3"
+      ],
+      "inputs": {
+        "sold": "3",
+        "returned_before": "1",
+        "attempt": "3"
+      },
+      "reference": {
+        "result": "refused",
+        "saved": "0"
+      },
+      "expected": {
+        "result": "refused",
+        "saved": "0",
+        "detail": {
+          "error": "sale_return_exceeds_origin",
+          "most_that_may_still_be_returned": "2.000"
+        }
+      }
+    }
+  ]
+}
