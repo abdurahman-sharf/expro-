@@ -232,7 +232,8 @@ class RoutingResolverTest extends CIUnitTestCase
      * Posting code must not read the routing table itself, because it would take the account of a
      * row without looking at its type. The files below are the ones that read it today, each for a
      * reason that is not choosing an account for a journal line: seeding, the screen, the
-     * readiness check, the entity main account, the opening balance exclusions and the chart.
+     * readiness check, the entity main account, the opening balance exclusions, the chart and the
+     * inventory valuation report, which names the main stock account to tie its total to.
      */
     public function testNoPostingCodeReadsTheRoutingTableExceptThroughTheResolver(): void
     {
@@ -242,6 +243,7 @@ class RoutingResolverTest extends CIUnitTestCase
             'Libraries/Accounting/BankAccountPlacement.php',
             'Libraries/Accounting/DefaultChart.php',
             'Libraries/Accounting/EntityAccountService.php',
+            'Libraries/Accounting/InventoryValuation.php',
             'Libraries/Accounting/OpeningBalanceService.php',
             'Libraries/Accounting/RoutingResolver.php',
             'Libraries/Accounting/RoutingService.php',
