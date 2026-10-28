@@ -183,6 +183,7 @@ return [
     'error_supplier_payment_needs_supplier'      => '',
     'error_supplier_payment_not_on_invoice'      => '',
     'error_system_account_locked'                => '',
+    'error_tax_basis_unavailable'                => '',
     'error_too_many_lines'                       => '',
     'error_transfer_already_cancelled'           => '',
     'error_transfer_amount_invalid'              => '',

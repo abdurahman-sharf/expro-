@@ -183,6 +183,7 @@ return [
     'error_supplier_payment_needs_supplier'      => 'A payment to a supplier needs the purchase to have a supplier.',
     'error_supplier_payment_not_on_invoice'      => 'A payment is made against a purchase, not against a return or a transfer, and it must belong to that purchase.',
     'error_system_account_locked'                => 'This is a system account and cannot be changed this way.',
+    'error_tax_basis_unavailable'                => 'Only the accrual basis exists: documents are counted on the day they are issued. The cash basis, which counts them on the day they are paid, is not available yet.',
     'error_too_many_lines'                       => 'The journal has too many lines. The limit is {0}.',
     'error_transfer_already_cancelled'           => 'This transfer is already cancelled.',
     'error_transfer_amount_invalid'              => 'The amount of a transfer must be more than zero.',
