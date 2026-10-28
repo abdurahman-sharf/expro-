@@ -348,9 +348,9 @@ trait PurchaseAccountingFixtureTrait
         ]]);
     }
 
-    protected function supplierPosition(?int $supplierId = null): SupplierPosition
+    protected function supplierPosition(?int $supplierId = null, ?string $asOf = null): SupplierPosition
     {
-        return (new SupplierLedger())->position($supplierId ?? $this->supplierId);
+        return (new SupplierLedger())->position($supplierId ?? $this->supplierId, $asOf);
     }
 
     /**

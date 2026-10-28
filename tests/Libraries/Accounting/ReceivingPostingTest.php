@@ -3360,4 +3360,303 @@ class ReceivingPostingTest extends CIUnitTestCase
 
         $this->assertSameAsFixture($case['expected'], ['journals' => ['return' => $made['return']], 'average_after' => $made['average']], 'debit note above the average');
     }
+
+    // ---------------------------------------------------------------------------------------
+    // The date typed on a purchase, its payment terms and its due date (WP13)
+    // ---------------------------------------------------------------------------------------
+
+    private function purchaseRow(int $receivingId): object
+    {
+        return $this->accountingDb()->table('receivings')->where('receiving_id', $receivingId)->get()->getRow();
+    }
+
+    /**
+     * @return list<string> The days the standing journals of a purchase are dated.
+     */
+    private function standingDays(int $receivingId): array
+    {
+        return array_values(array_unique(array_column($this->standingPurchase($receivingId), 'date')));
+    }
+
+    public function testSaveValue_DatesTheJournalsAndTheStockOfAPurchaseByTheDayTypedOnItAndKeepsTheTimeItWasSaved(): void
+    {
+        $this->grantPurchaseDate();
+
+        $item        = $this->item('0.00');
+        $day         = $this->daysAgo(10);
+        $receivingId = $this->buy([$this->purchaseLine($item, 0, '5', '20')], -1, null, null, null, $day);
+        $purchase    = $this->purchaseRow($receivingId);
+
+        $this->assertSame($day, $purchase->invoice_date);
+        $this->assertSame(date('Y-m-d'), substr((string) $purchase->receiving_time, 0, 10));
+        $this->assertSame([$day], $this->standingDays($receivingId));
+        $this->assertSame($day, $this->supplierPosition()->purchase($receivingId)->date);
+        $this->assertGreaterThan(0, $this->accountingDb()->table('accounting_stock_entries')->where(['source_type' => 'purchase', 'source_id' => $receivingId, 'entry_date' => $day])->countAllResults());
+        $this->assertSupplierTies();
+        $this->assertStockTies();
+    }
+
+    public function testSaveValue_DatesAPurchaseTodayWhenNoDayIsTypedAndStoresNoDay(): void
+    {
+        $receivingId = $this->purchaseOf('100.00');
+        $purchase    = $this->purchaseRow($receivingId);
+
+        $this->assertNull($purchase->invoice_date);
+        $this->assertNull($purchase->payment_terms_days);
+        $this->assertNull($purchase->due_date);
+        $this->assertSame([date('Y-m-d')], $this->standingDays($receivingId));
+        $this->assertSame(date('Y-m-d'), $this->supplierPosition()->purchase($receivingId)->dueDate);
+    }
+
+    public function testSaveValue_RefusesADayTypedByABuyerWhoMayNotTypeItAndSavesNothing(): void
+    {
+        $item      = $this->item('0.00');
+        $purchases = $this->countRows('receivings');
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->buy([$this->purchaseLine($item, 0, '1', '50')], -1, null, null, null, $this->daysAgo(3)));
+        $this->assertSame(AccountingError::PermissionDenied, $this->failure()->error);
+        $this->assertSame($purchases, $this->countRows('receivings'));
+        $this->assertSame(0, $this->countJournals());
+    }
+
+    public function testSaveValue_RefusesAPurchaseDatedInAClosedPeriodAndLeavesNothingOfIt(): void
+    {
+        $this->grantPurchaseDate();
+        $this->closeThrough($this->daysAgo(5));
+
+        $item      = $this->item('0.00');
+        $purchases = $this->countRows('receivings');
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->buy([$this->purchaseLine($item, 0, '1', '50')], -1, null, null, null, $this->daysAgo(10)));
+        $this->assertSame(PostingError::PeriodClosed, $this->failure()->error);
+        $this->assertSame($purchases, $this->countRows('receivings'));
+        $this->assertSame(0, $this->countJournals());
+        $this->assertSame(0, $this->countRows('accounting_stock_entries'));
+
+        $open = $this->buy([$this->purchaseLine($item, 0, '1', '50')], -1, null, null, null, $this->daysAgo(4));
+
+        $this->assertGreaterThan(0, $open);
+        $this->assertSame([$this->daysAgo(4)], $this->standingDays($open));
+    }
+
+    /**
+     * @return array<string, array{string, AccountingError}>
+     */
+    public static function refusedPurchaseDayProvider(): array
+    {
+        return [
+            'tomorrow'          => [date('Y-m-d', strtotime('+1 day')), AccountingError::InvoiceDateInvalid],
+            'not a date'        => ['yesterday', AccountingError::InvoiceDateInvalid],
+            'a day that is not' => ['2026-02-30', AccountingError::InvoiceDateInvalid],
+            'before the books'  => ['2019-12-31', AccountingError::InvoiceDateBeforeStart],
+        ];
+    }
+
+    #[DataProvider('refusedPurchaseDayProvider')]
+    public function testSaveValue_RefusesADayThatIsNotARealDayUpToTodayOrIsBeforeTheBooksStart(string $typed, AccountingError $error): void
+    {
+        $this->grantPurchaseDate();
+
+        $item      = $this->item('0.00');
+        $purchases = $this->countRows('receivings');
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->buy([$this->purchaseLine($item, 0, '1', '50')], -1, null, null, null, $typed));
+        $this->assertSame($error, $this->failure()->error);
+        $this->assertSame($purchases, $this->countRows('receivings'));
+        $this->assertSame(0, $this->countRows('accounting_posting_failures'));
+    }
+
+    public function testSaveValue_TakesNoTypedDayOrTermsForAReturnOrWhileAccountingIsOff(): void
+    {
+        $this->grantPurchaseDate();
+
+        $purchase = $this->purchaseOf('100.00');
+        $line     = $this->accountingDb()->table('receivings_items')->where('receiving_id', $purchase)->get()->getRow();
+        $return   = $this->buy([$this->purchaseLine((int) $line->item_id, 0, '-0.5', (string) $line->item_unit_price)], -1, null, $purchase, null, $this->daysAgo(3), 30);
+
+        $this->assertGreaterThan(0, $return);
+        $this->assertNull($this->purchaseRow($return)->invoice_date);
+        $this->assertNull($this->purchaseRow($return)->payment_terms_days);
+
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $audit = $this->countRows('accounting_audit_log');
+        $off   = $this->buy([$this->purchaseLine($this->item('0.00'), 0, '1', '10')], -1, null, null, null, $this->daysAgo(3), 30);
+
+        $this->assertGreaterThan(0, $off);
+        $this->assertNull($this->purchaseRow($off)->invoice_date);
+        $this->assertNull($this->purchaseRow($off)->payment_terms_days);
+        $this->assertNull($this->purchaseRow($off)->due_date);
+        $this->assertSame($audit, $this->countRows('accounting_audit_log'));
+    }
+
+    public function testSaveValue_WorksOutTheDueDateFromTheDayOfThePurchaseAndItsTerms(): void
+    {
+        $receivingId = $this->purchaseDated('100.00', $this->daysAgo(5), 30);
+        $purchase    = $this->purchaseRow($receivingId);
+
+        $this->assertSame(30, (int) $purchase->payment_terms_days);
+        $this->assertSame(date('Y-m-d', strtotime('+25 days')), $purchase->due_date);
+        $this->assertSame($purchase->due_date, $this->supplierPosition()->purchase($receivingId)->dueDate);
+        $this->assertSame(30, $this->supplierPosition()->purchase($receivingId)->termsDays);
+    }
+
+    public function testSaveValue_WorksOutTheDueDateFromTodayWhenThePurchaseHasTermsAndNoTypedDay(): void
+    {
+        $receivingId = $this->buy([$this->purchaseLine($this->item('0.00'), 0, '1', '100')], -1, null, null, null, null, '7');
+        $purchase    = $this->purchaseRow($receivingId);
+
+        $this->assertNull($purchase->invoice_date);
+        $this->assertSame(date('Y-m-d', strtotime('+7 days')), $purchase->due_date);
+    }
+
+    public function testSaveValue_StoresNoTermsAndNoDueDateForAPurchaseWithNoTermsOrZeroDays(): void
+    {
+        foreach ([null, '', '0', 0] as $terms) {
+            $receivingId = $this->purchaseDated('10.00', $this->daysAgo(2), $terms);
+
+            $this->assertNull($this->purchaseRow($receivingId)->payment_terms_days);
+            $this->assertNull($this->purchaseRow($receivingId)->due_date);
+            $this->assertSame($this->daysAgo(2), $this->supplierPosition()->purchase($receivingId)->dueDate);
+        }
+    }
+
+    public function testSaveValue_RefusesTermsThatAreNotAWholeNumberOfDaysAndSavesNothing(): void
+    {
+        foreach (['-1', '2.5', 'soon', '3651'] as $terms) {
+            $purchases = $this->countRows('receivings');
+
+            $this->assertSame(ACCOUNTING_FAILED, $this->buy([$this->purchaseLine($this->item('0.00'), 0, '1', '10')], -1, null, null, null, null, $terms), $terms);
+            $this->assertSame(AccountingError::PaymentTermsInvalid, $this->failure()->error);
+            $this->assertSame($purchases, $this->countRows('receivings'));
+        }
+    }
+
+    public function testSaveValue_WritesInTheAuditLogWhoTypedTheDayOfAPurchaseAndWhen(): void
+    {
+        $receivingId = $this->purchaseDated('100.00', $this->daysAgo(3));
+        $entries     = $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'receiving', 'entity_id' => $receivingId, 'action' => 'invoice_date_typed'])->get()->getResult();
+
+        $this->assertCount(1, $entries);
+        $this->assertSame($this->employeeId, (int) $entries[0]->employee_id);
+        $this->assertSame(['date' => $this->daysAgo(3), 'saved_on' => date('Y-m-d')], json_decode((string) $entries[0]->details, true));
+
+        $before = $this->accountingDb()->table('accounting_audit_log')->where('action', 'invoice_date_typed')->countAllResults();
+
+        $this->purchaseOf('10.00');
+
+        $this->assertSame($before, $this->accountingDb()->table('accounting_audit_log')->where('action', 'invoice_date_typed')->countAllResults());
+    }
+
+    public function testUpdate_RefusesToChangeTheDayTypedOnAPostedPurchaseAndLeavesItsJournalsAsTheyWere(): void
+    {
+        $receivingId = $this->purchaseDated('250.00', $this->daysAgo(8), 10);
+        $before      = $this->purchaseJournals($receivingId);
+        $row         = (array) $this->purchaseRow($receivingId);
+
+        $this->assertFalse($this->purchases->update($receivingId, ['invoice_date' => $this->daysAgo(2), 'comment' => 'x']));
+        $this->assertSame(AccountingError::PurchaseLocked, $this->failure()->error);
+
+        $this->assertFalse($this->purchases->update($receivingId, ['invoice_date' => date('Y-m-d'), 'comment' => 'x']));
+        $this->assertSame(AccountingError::PurchaseLocked, $this->failure()->error);
+
+        $this->assertSame($before, $this->purchaseJournals($receivingId));
+        $this->assertSame($row, (array) $this->purchaseRow($receivingId));
+    }
+
+    public function testUpdate_AcceptsTheDayTypedOnAPostedPurchaseWhenItIsTheSameDay(): void
+    {
+        $receivingId = $this->purchaseDated('250.00', $this->daysAgo(8));
+
+        $this->assertTrue($this->purchases->update($receivingId, ['invoice_date' => $this->daysAgo(8), 'comment' => 'same day']));
+        $this->assertSame('same day', $this->purchaseRow($receivingId)->comment);
+        $this->assertSame($this->daysAgo(8), $this->purchaseRow($receivingId)->invoice_date);
+    }
+
+    public function testUpdate_RefusesToMoveTheTimeAPurchaseWasSavedEvenToTheDayItIsDated(): void
+    {
+        $receivingId = $this->purchaseDated('250.00', $this->daysAgo(8));
+
+        $this->assertFalse($this->purchases->update($receivingId, ['receiving_time' => $this->daysAgo(8) . ' 09:00:00', 'comment' => 'x']));
+        $this->assertSame(AccountingError::PurchaseLocked, $this->failure()->error);
+        $this->assertSame(date('Y-m-d'), substr((string) $this->purchaseRow($receivingId)->receiving_time, 0, 10));
+    }
+
+    public function testUpdate_ChangesThePaymentTermsOfAPostedPurchaseAndNothingInItsJournals(): void
+    {
+        $receivingId = $this->purchaseDated('395.00', $this->daysAgo(2), 1);
+        $before      = $this->purchaseJournals($receivingId);
+
+        $this->assertSame($this->daysAgo(1), $this->purchaseRow($receivingId)->due_date);
+
+        foreach ([[2, $this->daysAgo(0)], [30, date('Y-m-d', strtotime('+28 days'))], [null, null]] as [$terms, $due]) {
+            $this->assertTrue($this->purchases->update($receivingId, ['payment_terms_days' => $terms === null ? '' : (string) $terms, 'comment' => 'terms', 'changed_by' => $this->employeeId]));
+
+            $purchase = $this->purchaseRow($receivingId);
+
+            $this->assertSame($terms, $purchase->payment_terms_days === null ? null : (int) $purchase->payment_terms_days);
+            $this->assertSame($due, $purchase->due_date);
+            $this->assertSame($due ?? $this->daysAgo(2), $this->supplierPosition()->purchase($receivingId)->dueDate);
+            $this->assertSame($before, $this->purchaseJournals($receivingId));
+        }
+
+        $this->assertSupplierTies();
+    }
+
+    public function testUpdate_WritesInTheAuditLogWhatTheTermsWereAndWhatTheyBecameAndWritesNothingWhenTheyStay(): void
+    {
+        $receivingId = $this->purchaseDated('100.00', $this->daysAgo(2), 5);
+
+        $this->assertTrue($this->purchases->update($receivingId, ['payment_terms_days' => '5', 'comment' => 'same', 'changed_by' => $this->employeeId]));
+        $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where('action', 'payment_terms_changed')->countAllResults());
+
+        $this->assertTrue($this->purchases->update($receivingId, ['payment_terms_days' => '9', 'comment' => 'longer', 'changed_by' => $this->employeeId]));
+
+        $entries = $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'receiving', 'entity_id' => $receivingId, 'action' => 'payment_terms_changed'])->get()->getResult();
+
+        $this->assertCount(1, $entries);
+        $this->assertSame($this->employeeId, (int) $entries[0]->employee_id);
+        $this->assertSame(['from' => 5, 'to' => 9, 'due_date' => date('Y-m-d', strtotime('+7 days'))], json_decode((string) $entries[0]->details, true));
+    }
+
+    public function testUpdate_RefusesTermsThatAreNotAWholeNumberOfDaysAndChangesNothing(): void
+    {
+        $receivingId = $this->purchaseDated('100.00', $this->daysAgo(2), 5);
+
+        foreach (['-3', '1.5', 'x', '99999'] as $terms) {
+            $this->assertFalse($this->purchases->update($receivingId, ['payment_terms_days' => $terms, 'comment' => 'bad']), $terms);
+            $this->assertSame(AccountingError::PaymentTermsInvalid, $this->failure()->error);
+        }
+
+        $this->assertSame(5, (int) $this->purchaseRow($receivingId)->payment_terms_days);
+        $this->assertSame('test', $this->purchaseRow($receivingId)->comment);
+    }
+
+    public function testUpdate_TakesNoTermsForAReturnOrWhileAccountingIsOff(): void
+    {
+        $purchase = $this->purchaseOf('100.00');
+        $return   = $this->debitNoteOf($purchase, '50.00');
+
+        $this->assertTrue($this->purchases->update($return, ['payment_terms_days' => '30', 'comment' => 'return']));
+        $this->assertNull($this->purchaseRow($return)->payment_terms_days);
+
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $this->assertTrue($this->purchases->update($purchase, ['payment_terms_days' => '30', 'comment' => 'off']));
+        $this->assertNull($this->purchaseRow($purchase)->payment_terms_days);
+        $this->assertNull($this->purchaseRow($purchase)->due_date);
+    }
+
+    public function testUpdate_ChangesTheTermsOfAPurchaseInAClosedPeriodBecauseNoJournalMoves(): void
+    {
+        $receivingId = $this->purchaseDated('100.00', $this->daysAgo(10), 5);
+
+        $this->closeThrough($this->daysAgo(2));
+
+        $before = $this->purchaseJournals($receivingId);
+
+        $this->assertTrue($this->purchases->update($receivingId, ['payment_terms_days' => '60', 'comment' => 'late', 'changed_by' => $this->employeeId]));
+        $this->assertSame(60, (int) $this->purchaseRow($receivingId)->payment_terms_days);
+        $this->assertSame($before, $this->purchaseJournals($receivingId));
+    }
 }
