@@ -281,6 +281,135 @@ class SalePostingTest extends CIUnitTestCase
     }
 
     /**
+     * @return array<string, array{array<string, mixed>}>
+     */
+    public static function creationOrderProvider(): array
+    {
+        return ParityFixture::cases('T-06', 'creation_order');
+    }
+
+    /**
+     * @param array<string, mixed> $case
+     */
+    #[DataProvider('creationOrderProvider')]
+    public function testSaveValue_NumbersAPaidSaleInvoiceThenPaymentThenCostAsTheReferenceSystemDoes(array $case): void
+    {
+        $this->assertSame('exact', $case['classification'], $case['id']);
+        $this->assertSame($case['reference']['order'], $case['expected']['order']);
+        $this->assertSame(['invoice', 'payment', 'invoice_cost'], array_keys($case['reference']['numbers']));
+        $this->assertSame(range(23, 25), array_values($case['reference']['numbers']));
+
+        $cycle    = $this->referenceInvoice();
+        $saleId   = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '300.00')]);
+        $journals = $this->journals($saleId);
+        $steps    = ['revenue' => 'invoice', 'general' => 'payment', 'cogs' => 'invoice_cost'];
+
+        $this->assertSame($case['expected']['order'], implode(', ', array_map(static fn (array $journal): string => $steps[$journal['entry']], $journals)));
+        $this->assertSame(array_column($journals, 'id'), $this->sortedIds($journals));
+        $this->assertSame([1, 1, 1], array_column($journals, 'revision'));
+    }
+
+    public function testSaveValue_PostsThePaymentsBetweenTheInvoiceAndTheCostWithTheLinesTheyAlwaysHad(): void
+    {
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [
+            $this->payment(lang('Sales.cash'), '300.00'),
+            $this->payment(lang('Sales.check'), '163.50'),
+            $this->payment(lang('Sales.bank_transfer'), '100.00'),
+        ]);
+
+        $journals = $this->journals($saleId);
+
+        $this->assertSame(['revenue', 'general', 'general', 'general', 'cogs'], array_column($journals, 'entry'));
+        $this->assertSame($this->sortedIds($journals), array_column($journals, 'id'));
+        $this->assertSame(
+            [
+                [$this->customerAccount() . ':816.50:0.00', $this->accountId('sales_revenue') . ':0.00:710.00', $this->accountId('tax_output') . ':0.00:106.50'],
+                [$this->accountId('cash') . ':300.00:0.00', $this->customerAccount() . ':0.00:300.00'],
+                [$this->accountId('cash') . ':163.50:0.00', $this->customerAccount() . ':0.00:163.50'],
+                [$this->accountId('cash') . ':100.00:0.00', $this->customerAccount() . ':0.00:100.00'],
+                [$this->accountId('cogs') . ':400.00:0.00', $this->stockAccount() . ':0.00:400.00'],
+            ],
+            array_column($journals, 'lines'),
+        );
+        $this->assertSame('253.00', $this->balance($this->customerAccount()));
+        $this->assertSame('563.50', $this->balance($this->accountId('cash')));
+        $this->assertTies();
+    }
+
+    public function testSaveValue_PostsASaleWithoutPaymentsAsInvoiceThenCost(): void
+    {
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes']);
+
+        $this->assertSame(['revenue', 'cogs'], array_column($this->journals($saleId), 'entry'));
+    }
+
+    public function testSaveValue_PostsAPaidSaleOfServicesAsInvoiceThenPayment(): void
+    {
+        $saleId = $this->invoiceOf('100.00', null, [$this->payment(lang('Sales.cash'), '100.00')]);
+
+        $this->assertSame(['revenue', 'general'], array_column($this->journals($saleId), 'entry'));
+        $this->assertTies();
+    }
+
+    public function testSaveValue_PostsTheCostOfAPaidSaleLastWhenItsGoodsAreDeliveredLater(): void
+    {
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '300.00')], SALE_TYPE_INVOICE, -1, false);
+
+        $this->assertSame(['revenue', 'general'], array_column($this->journals($saleId), 'entry'));
+        $this->assertSame($saleId, $this->sales->confirm_delivery($saleId, $this->employeeId));
+        $this->assertSame(['revenue', 'general', 'cogs'], array_column($this->journals($saleId), 'entry'));
+    }
+
+    public function testSaveValue_PostsAReturnWithItsRefundBetweenTheReturnAndItsCost(): void
+    {
+        $cycle    = $this->referenceInvoice();
+        $invoice  = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '816.50')]);
+        $returnId = $this->save([$this->line($cycle['perfume'], 0, '-1', '220', '120.00')], [$this->tax($cycle['perfume'], 0, '-33.00')], [$this->payment(lang('Sales.cash'), '-253.00')], SALE_TYPE_RETURN, -1, true, $invoice);
+
+        $this->assertGreaterThan(0, $returnId);
+
+        $journals = $this->journals($returnId);
+
+        $this->assertSame(['revenue', 'general', 'cogs'], array_column($journals, 'entry'));
+        $this->assertSame($this->sortedIds($journals), array_column($journals, 'id'));
+        $this->assertSame([$this->customerAccount() . ':253.00:0.00', $this->accountId('cash') . ':0.00:253.00'], $journals[1]['lines']);
+        $this->assertTies();
+    }
+
+    public function testUpdate_PostsAPaymentAddedLaterAfterEveryJournalTheSaleAlreadyHad(): void
+    {
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '300.00')]);
+        $before = $this->journals($saleId);
+
+        $paymentId = $this->addPayment($saleId, '163.50');
+        $after     = $this->journals($saleId);
+
+        $this->assertGreaterThan(0, $paymentId);
+        $this->assertCount(4, $after);
+        $this->assertSame($before, array_slice($after, 0, 3), 'a journal that was written is never renumbered or rewritten');
+        $this->assertSame(['revenue', 'general', 'cogs', 'general'], array_column($after, 'entry'));
+        $this->assertGreaterThan($before[2]['id'], $after[3]['id']);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $journals
+     *
+     * @return list<int>
+     */
+    private function sortedIds(array $journals): array
+    {
+        $ids = array_column($journals, 'id');
+
+        sort($ids);
+
+        return $ids;
+    }
+
+    /**
      * A treasury the employee who sells works from.
      */
     private function drawerOfTheSeller(): int
@@ -1238,7 +1367,8 @@ class SalePostingTest extends CIUnitTestCase
         $standing = $this->standing($saleId);
 
         $this->assertCount(3, $standing);
-        $this->assertSame([2, 2, 1], array_column($standing, 'revision'));
+        $this->assertSame(['revenue', 'general', 'cogs'], array_column($standing, 'entry'));
+        $this->assertSame([2, 1, 2], array_column($standing, 'revision'));
         $this->assertSame('516.50', $this->balance($this->customerAccount()));
     }
 

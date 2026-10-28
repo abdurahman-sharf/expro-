@@ -66,8 +66,9 @@ final class SalePosting
     }
 
     /**
-     * Posts a sale that has just been completed: its invoice, the cost of its goods if they
-     * were delivered, and a journal for each payment.
+     * Posts a sale that has just been completed: its invoice, a journal for each payment, and the
+     * cost of its goods if they were delivered, in that order as the reference system numbers
+     * them. The order only decides the numbers of journals written from now on.
      *
      * @throws AccountingException|PostingException
      */
@@ -82,12 +83,12 @@ final class SalePosting
         $this->transactional(function () use ($sale, $employeeId): void {
             $this->builder->assertSettled($sale);
             $this->postInvoice($sale, $employeeId);
-            $this->postCost($sale, $employeeId);
 
             foreach ($sale->payments as $payment) {
                 $this->postPayment($sale, $payment, $employeeId);
             }
 
+            $this->postCost($sale, $employeeId);
             $this->settle($sale->customerId, $employeeId);
         });
     }
