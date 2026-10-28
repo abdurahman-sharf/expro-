@@ -3632,6 +3632,213 @@ class ReceivingPostingTest extends CIUnitTestCase
         $this->assertStockTies();
     }
 
+    public function testUpdateLines_ChangesTheCashPaidOfAPurchaseWithoutASupplier(): void
+    {
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '4', '50')], null, lang('Sales.cash'));
+
+        $this->assertGreaterThan(0, $receivingId);
+        $this->assertSame('-200.00', $this->balance($this->accountId('cash')));
+        $this->assertTrue($this->correct($receivingId, $itemId, ['quantity' => '2']));
+        $this->assertSame('-100.00', $this->balance($this->accountId('cash')));
+        $this->assertSame(['reversed', 'posted'], array_column($this->purchaseJournals($receivingId), 'status'));
+        $this->assertStockTies();
+    }
+
+    public function testUpdateLines_RefusesToPayLessOutOfATreasuryTheEditorMayNotDepositInto(): void
+    {
+        $other      = $this->employeeWithGrants([]);
+        $treasuries = new TreasuryService();
+
+        $this->accountingDb()->table('grants')->insert(['person_id' => $this->employeeId, 'permission_id' => BranchGuard::ALL_BRANCHES, 'menu_group' => 'home']);
+
+        $drawer = $treasuries->create(['name' => 'Scoped drawer', 'kind' => 'cash', 'withdraw_scope' => 'staff', 'withdraw_members' => [$this->employeeId], 'deposit_scope' => 'staff', 'deposit_members' => [$other]]);
+
+        $treasuries->setDefaultFor($this->employeeId, $drawer);
+
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '4', '50')], null, lang('Sales.cash'));
+
+        $this->assertGreaterThan(0, $receivingId);
+        $this->assertSame('-200.0000', $treasuries->position($drawer)->balance);
+
+        $before = $this->bookState($receivingId, $itemId);
+
+        $this->assertFalse($this->correct($receivingId, $itemId, ['quantity' => '2']));
+        $this->assertSame(AccountingError::TreasuryDepositDenied, $this->purchases->accountingFailure()->error);
+        $this->assertSame($before, $this->bookState($receivingId, $itemId));
+        $this->assertSame('-200.0000', $treasuries->position($drawer)->balance);
+        $this->assertTrue($this->correct($receivingId, $itemId, ['quantity' => '2'], 0, $other));
+        $this->assertSame('-100.0000', $treasuries->position($drawer)->balance);
+    }
+
+    public function testUpdateLines_ChangesTheStockWithoutTheBooksForAReceivingDatedBeforeTheyStart(): void
+    {
+        $itemId = $this->item('0.00');
+
+        $this->setConfigValue('accounting_start_date', '2035-01-01');
+
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '50')]);
+
+        $this->assertTrue($this->correct($receivingId, $itemId, ['quantity' => '6']));
+        $this->assertSame('6.000', $this->onHand($itemId));
+        $this->assertSame(0, $this->countRows('accounting_journals'));
+        $this->assertSame(0, $this->countRows('accounting_stock_entries'));
+        $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where('action', 'lines_edited')->countAllResults());
+        $this->assertSame('50.0000', $this->itemCostOf($itemId));
+    }
+
+    public function testUpdateLines_ChangesTheStockAndTheAverageWhileTheBooksAreOffWhenTheAverageIsOn(): void
+    {
+        $itemId = $this->item('0.00');
+
+        $this->setConfigValue('accounting_enabled', '0');
+        $this->setConfigValue('receiving_calculate_average_price', '1');
+        config(OSPOS::class)->settings['receiving_calculate_average_price'] = '1';
+
+        $first  = $this->buy([$this->purchaseLine($itemId, 0, '10', '100')]);
+        $second = $this->buy([$this->purchaseLine($itemId, 0, '10', '120')]);
+
+        $this->assertGreaterThan(0, $first);
+        $this->assertSame('110.0000', $this->itemCostOf($itemId));
+        $this->assertTrue($this->correct($second, $itemId, ['quantity' => '8']));
+        $this->assertSame('18.000', $this->onHand($itemId));
+        $this->assertSame('108.888889', $this->exactCostOf($itemId));
+        $this->assertSame(0, $this->countRows('accounting_journals'));
+        $this->assertSame(0, $this->countRows('accounting_stock_entries'));
+        $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where('action', 'lines_edited')->countAllResults());
+
+        config(OSPOS::class)->settings['receiving_calculate_average_price'] = '';
+    }
+
+    public function testUpdateLines_LeavesTheCostAloneWhileTheBooksAreOffAndTheAverageIsOff(): void
+    {
+        $itemId = $this->item('7.00');
+
+        $this->setConfigValue('accounting_enabled', '0');
+        config(OSPOS::class)->settings['receiving_calculate_average_price'] = '';
+
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100')]);
+
+        $this->assertTrue($this->correct($receivingId, $itemId, ['quantity' => '8', 'price' => '90']));
+        $this->assertSame('8.000', $this->onHand($itemId));
+        $this->assertSame('7.0000', $this->itemCostOf($itemId));
+        $this->assertSame('90.00', $this->storedLine($receivingId, $itemId)->item_unit_price);
+    }
+
+    public function testUpdateLines_RefusesToLeaveLessThanNothingWhileTheBooksAreOffToo(): void
+    {
+        $itemId = $this->item('0.00');
+
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100')]);
+
+        $this->accountingDb()->table('item_quantities')->where(['item_id' => $itemId, 'location_id' => self::LOCATION_ID])->update(['quantity' => '3']);
+
+        $this->assertFalse($this->correct($receivingId, $itemId, ['quantity' => '5']));
+        $this->assertSame(AccountingError::PurchaseStockWouldGoNegative, $this->failure()->error);
+        $this->assertSame('3.000', $this->onHand($itemId));
+        $this->assertTrue($this->correct($receivingId, $itemId, ['quantity' => '7']));
+        $this->assertSame('0.000', $this->onHand($itemId));
+    }
+
+    public function testDeleteValue_RefusesAPurchaseWhoseGoodsWereSoldAndChangesNothing(): void
+    {
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100')]);
+
+        $this->assertGreaterThan(0, $this->save([$this->line($itemId, 0, '7', '150', $this->exactCostOf($itemId))]));
+
+        $before = $this->bookState($receivingId, $itemId);
+
+        $this->assertFalse($this->purchases->delete_value($receivingId, $this->employeeId));
+        $this->assertInstanceOf(AccountingException::class, $this->failure());
+        $this->assertSame(AccountingError::PurchaseStockWouldGoNegative, $this->failure()->error);
+        $this->assertSame($before, $this->bookState($receivingId, $itemId));
+        $this->assertSame(1, $this->accountingDb()->table('receivings')->where('receiving_id', $receivingId)->countAllResults());
+        $this->assertStockTies();
+    }
+
+    public function testDeleteValue_DeletesAPurchaseWhoseGoodsAreStillThereBesideSoldGoodsOfAnother(): void
+    {
+        $itemId = $this->item('0.00');
+        $first  = $this->buy([$this->purchaseLine($itemId, 0, '10', '100')]);
+        $second = $this->buy([$this->purchaseLine($itemId, 0, '5', '100')]);
+
+        $this->assertGreaterThan(0, $first);
+        $this->assertGreaterThan(0, $this->save([$this->line($itemId, 0, '5', '150', $this->exactCostOf($itemId))]));
+        $this->assertSame('10.000', $this->onHand($itemId));
+        $this->assertTrue($this->purchases->delete_value($second, $this->employeeId));
+        $this->assertSame('5.000', $this->onHand($itemId));
+        $this->assertStockTies();
+    }
+
+    public function testDeleteValue_GoesBackToTheAverageOfTheStockThatIsLeftAfterASaleAndLeavesTheSaleAsPosted(): void
+    {
+        $itemId = $this->item('0.00');
+
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($itemId, 0, '10', '100')]));
+
+        $sale   = $this->save([$this->line($itemId, 0, '4', '150', $this->exactCostOf($itemId))]);
+        $second = $this->buy([$this->purchaseLine($itemId, 0, '10', '120')]);
+
+        $this->assertSame('112.500000', $this->exactCostOf($itemId));
+
+        $costed = $this->journals($sale);
+
+        $this->assertTrue($this->purchases->delete_value($second, $this->employeeId));
+        $this->assertSame('100.000000', $this->exactCostOf($itemId));
+        $this->assertSame($costed, $this->journals($sale));
+        $this->assertSame('6.000', $this->onHand($itemId));
+        $this->assertStockTies();
+    }
+
+    public function testDeleteValue_KeepsTheCostWhenNoStockIsLeftToWeigh(): void
+    {
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100')]);
+
+        $this->assertTrue($this->purchases->delete_value($receivingId, $this->employeeId));
+        $this->assertSame('100.000000', $this->exactCostOf($itemId));
+        $this->assertSame('0.000', $this->onHand($itemId));
+    }
+
+    public function testDeleteValue_DoesNotWeighTheStockOfADeletionThatLeavesTheShelvesAlone(): void
+    {
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100')]);
+
+        $this->assertGreaterThan(0, $this->save([$this->line($itemId, 0, '7', '150', $this->exactCostOf($itemId))]));
+
+        $costed = $this->exactCostOf($itemId);
+
+        $this->assertTrue($this->purchases->delete_value($receivingId, $this->employeeId, false));
+        $this->assertSame($costed, $this->exactCostOf($itemId));
+        $this->assertSame('3.000', $this->onHand($itemId));
+    }
+
+    public function testDeleteValue_StillDeletesAPurchaseWhoseGoodsWereSoldAndLeavesTheCostWhileTheBooksAreOff(): void
+    {
+        $itemId = $this->item('0.00');
+
+        $this->setConfigValue('accounting_enabled', '0');
+        $this->setConfigValue('receiving_calculate_average_price', '1');
+        config(OSPOS::class)->settings['receiving_calculate_average_price'] = '1';
+
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($itemId, 0, '10', '50')]));
+
+        $second = $this->buy([$this->purchaseLine($itemId, 0, '10', '70')]);
+
+        $this->accountingDb()->table('item_quantities')->where(['item_id' => $itemId, 'location_id' => self::LOCATION_ID])->update(['quantity' => '3']);
+
+        $this->assertTrue($this->purchases->delete_value($second, $this->employeeId));
+        $this->assertSame('60.0000', $this->itemCostOf($itemId), 'The cost is the one OSPOS keeps: a deletion does not weigh it again');
+        $this->assertSame('-7.000', $this->onHand($itemId));
+
+        config(OSPOS::class)->settings['receiving_calculate_average_price'] = '';
+    }
+
     // ---------------------------------------------------------------------------------------
     // What the reference system recorded in the second write batch: fixtures T-47 to T-50
     // ---------------------------------------------------------------------------------------
