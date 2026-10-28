@@ -8,6 +8,7 @@ use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
+use Tests\Support\ParityCaseTrait;
 use Tests\Support\ParityFixture;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
@@ -24,6 +25,7 @@ class SupplierSettlementTest extends CIUnitTestCase
     use AccountingFixtureTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
+    use ParityCaseTrait;
     use SaleAccountingFixtureTrait;
     use PurchaseAccountingFixtureTrait;
 
@@ -436,5 +438,47 @@ class SupplierSettlementTest extends CIUnitTestCase
         }
 
         return $case;
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // What the reference system recorded in the second write batch: fixture T-51
+    // ---------------------------------------------------------------------------------------
+
+    public function testSettle_KeepsTheExcessOfAPaymentAsCreditHeldWithTheSupplierAsTheReferenceSystemDoes(): void
+    {
+        $case     = $this->referenceCase('T-51', 'purchase_overpayment', 'the-excess-of-a-payment-is-credit-held-with-the-supplier', 'exact');
+        $purchase = $this->purchaseOf($case['inputs']['purchase']);
+
+        $this->payPurchase($purchase, $case['inputs']['payment']);
+
+        $this->assertSameAsFixture($case['expected'], [
+            'supplier_balance' => $this->owed(),
+            'treasury_balance' => $this->balance($this->accountId('cash')),
+            'credit_held'      => bcadd($this->supplierPosition()->credit(), '0', 2),
+        ], 'excess of a payment');
+        $this->assertSupplierTies();
+    }
+
+    public function testSettle_ReturnsTheExcessToTheTreasuryWhenThePaymentIsCutAsTheReferenceSystemDoesWithItsFirstOption(): void
+    {
+        $case     = $this->referenceCase('T-51', 'purchase_overpayment', 'removing-the-excess-returns-it-to-the-treasury', 'exact');
+        $purchase = $this->purchaseOf($case['inputs']['purchase']);
+        $payment  = $this->payPurchase($purchase, $case['inputs']['payment']);
+
+        $this->assertTrue($this->changePayment($purchase, $payment, ['payment_amount' => '100.00']));
+        $this->assertSameAsFixture($case['expected'], [
+            'supplier_balance' => $this->owed(),
+            'treasury_balance' => $this->balance($this->accountId('cash')),
+            'purchase_state'   => $this->supplierPosition()->purchase($purchase)->paymentState()->value,
+        ], 'payment cut to the purchase');
+        $this->assertSupplierTies();
+    }
+
+    public function testSettle_HasNoButtonThatSettlesAnOverpaidPurchaseWhereTheReferenceSystemHasOne(): void
+    {
+        $case    = $this->referenceCase('T-51', 'purchase_overpayment', 'a-button-that-settles-an-overpaid-purchase', 'deliberate_difference');
+        $entries = [...ParityFixture::routesMatching('overpaid'), ...ParityFixture::routesMatching('overpay'), ...ParityFixture::routesMatching('excess')];
+
+        $this->assertSameAsFixture($case['expected'], ['settle_button' => $entries !== [], 'options' => $entries], 'settle button');
     }
 }

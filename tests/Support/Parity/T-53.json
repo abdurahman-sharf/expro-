@@ -1,0 +1,231 @@
+{
+  "id": "T-53",
+  "title": "Stock permits and the stocktake: the reference system settles a count against cost of sales at the current average, gives in-permits 2213 and out-permits 12042 as the counter account and has numbered permit documents and a stocktake document; this application posts the first two as the reference system does and has neither document",
+  "recorded": "2026-10-27",
+  "observation": {
+    "batch": "d2",
+    "scenarios": [
+      "D2-S20"
+    ]
+  },
+  "evidence": {
+    "stocktake_settlement": {
+      "id": null,
+      "note": "Settling a stocktake (one product 2 units short at the average 117.777778, another 2 units over at the average 88.888889) makes two automatic permits with journals 000177 (debit stock 177.78, credit 511) and 000178 (debit 511 235.56, credit stock); undoing it removes the permits and the journals",
+      "observation": [
+        "pw-d2-60",
+        "pw-d2-61",
+        "pw-d2-62",
+        "pw-d2-63"
+      ]
+    },
+    "permits": {
+      "id": null,
+      "note": "The permits: an in-permit of 2 units at price 0 with no counter account makes no journal and lowers the average from 100 to 71.428571; an in-permit of 2 at 150 with the counter account 2213 debits the stock 300 and credits 2213; an out-permit of 3 units has the price of the average and debits 12042",
+      "observation": [
+        "pw-d2-57",
+        "pw-d2-58",
+        "pw-d2-59"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "stocktake-difference-is-posted-against-cost-of-sales-at-the-average",
+      "kind": "stock_count",
+      "classification": "exact",
+      "reference_decimals": 2,
+      "evidence": [
+        "stocktake_settlement"
+      ],
+      "inputs": {
+        "short": {
+          "units": "2",
+          "average": "117.777778"
+        },
+        "over": {
+          "units": "2",
+          "average": "88.888889"
+        }
+      },
+      "reference": {
+        "journals": {
+          "short": [
+            {
+              "role": "cogs",
+              "debit": "235.56",
+              "credit": "0",
+              "code": "511",
+              "name": "تكلفة المبيعات"
+            },
+            {
+              "role": "inventory",
+              "debit": "0",
+              "credit": "235.56",
+              "code": "1203001",
+              "name": "Primary Warehouse"
+            }
+          ],
+          "over": [
+            {
+              "role": "inventory",
+              "debit": "177.78",
+              "credit": "0",
+              "code": "1203001",
+              "name": "Primary Warehouse"
+            },
+            {
+              "role": "cogs",
+              "debit": "0",
+              "credit": "177.78",
+              "code": "511",
+              "name": "تكلفة المبيعات"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "journals": {
+          "short": [
+            {
+              "role": "cogs",
+              "debit": "235.56",
+              "credit": "0"
+            },
+            {
+              "role": "inventory",
+              "debit": "0",
+              "credit": "235.56"
+            }
+          ],
+          "over": [
+            {
+              "role": "inventory",
+              "debit": "177.78",
+              "credit": "0"
+            },
+            {
+              "role": "cogs",
+              "debit": "0",
+              "credit": "177.78"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "counter-accounts-of-the-stock-permits",
+      "kind": "stock_permit_accounts",
+      "classification": "exact",
+      "evidence": [
+        "permits"
+      ],
+      "inputs": {
+        "routing": [
+          "stock_permits.add",
+          "stock_permits.issue"
+        ]
+      },
+      "reference": {
+        "accounts": {
+          "in_permit": "2213",
+          "out_permit": "12042"
+        }
+      },
+      "expected": {
+        "accounts": {
+          "in_permit": "2213",
+          "out_permit": "12042"
+        }
+      }
+    },
+    {
+      "id": "numbered-stock-permits-and-the-stocktake-document",
+      "kind": "stock_permit_documents",
+      "classification": "not_implemented",
+      "work_package": "WP27",
+      "reason": "There are no numbered permits and no stocktake document: stock changes are posted as adjustments of the inventory log without a document of their own (WP27 builds the permits and the stocktake). The reference system also lets an in-permit at price 0 lower the average without a journal, which an adjustment here cannot do.",
+      "evidence": [
+        "permits",
+        "stocktake_settlement"
+      ],
+      "inputs": {
+        "permits": [
+          "in at price 0, no counter account",
+          "in at 150 on 2213",
+          "out of 3 units"
+        ],
+        "stocktake": "a count and its settlement"
+      },
+      "reference": {
+        "in_at_price_0": {
+          "journal": "none",
+          "average_after": "71.428571"
+        },
+        "in_at_150": {
+          "journals": {
+            "permit": [
+              {
+                "role": "inventory",
+                "debit": "300",
+                "credit": "0",
+                "code": "1203001",
+                "name": "Primary Warehouse"
+              },
+              {
+                "role": "other_payables",
+                "debit": "0",
+                "credit": "300",
+                "code": "2213",
+                "name": "أطراف دائنة أخرى"
+              }
+            ]
+          }
+        },
+        "out_of_3": {
+          "journals": {
+            "permit": [
+              {
+                "role": "other_receivables",
+                "debit": "266.67",
+                "credit": "0",
+                "code": "12042",
+                "name": "أطراف مدينة أخرى"
+              },
+              {
+                "role": "inventory",
+                "debit": "0",
+                "credit": "266.67",
+                "code": "1203001",
+                "name": "Primary Warehouse"
+              }
+            ]
+          }
+        },
+        "stocktake_settlement_makes_two_permits": true,
+        "undoing_it_removes_them_and_their_journals": true
+      },
+      "expected": {
+        "status": "not_implemented",
+        "absent": [
+          {
+            "kind": "table",
+            "pattern": "permit"
+          },
+          {
+            "kind": "table",
+            "pattern": "stocktak"
+          },
+          {
+            "kind": "route",
+            "pattern": "stocktak"
+          },
+          {
+            "kind": "route",
+            "pattern": "permit"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,153 @@
+{
+  "id": "T-38",
+  "title": "The account an expense is charged to: the reference system lets each expense choose its own account and gives a category an account of its own on first use, and takes an expense with no category to other expenses; this application charges the account of the category, or other expenses, and needs a category",
+  "recorded": "2026-10-27",
+  "observation": {
+    "batch": "d2",
+    "scenarios": [
+      "D2-S03",
+      "D2-S04",
+      "D2-S09"
+    ]
+  },
+  "evidence": {
+    "expense_000005": {
+      "id": null,
+      "note": "Expense 000005 with the sub-account 545 rent chosen: journal 000142 charges 545 and not the account of the category",
+      "observation": [
+        "pw-d2-15",
+        "pw-d2-18"
+      ]
+    },
+    "category_form": {
+      "id": null,
+      "note": "The expense category form has a name, a description and a switch and no account; the account named after the category is made when the category is first used and stays when the category is deleted; the mandatory-account settings exist and were not touched",
+      "observation": [
+        "pw-d2-2",
+        "pw-d2-3",
+        "pw-d2-11",
+        "pw-d2-68"
+      ]
+    },
+    "expense_000009": {
+      "id": null,
+      "note": "An expense of 20 with no category and no sub-account: journal 000172 debits 541 other expenses",
+      "observation": [
+        "pw-d2-55"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "an-account-chosen-on-the-expense",
+      "kind": "expense_account",
+      "classification": "differs",
+      "reason": "The reference system lets one expense name its own account, which wins over the account of its category (545 rent for an expense of a category whose account is 546). An expense here has no account of its own: it is charged to the account of its category, or to other expenses when the category has none.",
+      "evidence": [
+        "expense_000005"
+      ],
+      "inputs": {
+        "amount": "230.00",
+        "tax": "30.00",
+        "account_chosen_on_the_expense": "545 rent"
+      },
+      "reference": {
+        "account_chosen_on_the_expense": true,
+        "cost_account": "545"
+      },
+      "expected": {
+        "account_chosen_on_the_expense": false,
+        "cost_account": "541"
+      }
+    },
+    {
+      "id": "a-category-and-its-account",
+      "kind": "expense_account",
+      "classification": "differs",
+      "reason": "The category form of the reference system has no account: the account named after the category is made by the first expense. The category form here has an optional account chosen by the user and no account is ever made by an expense; an expense of a category without one is charged to other expenses.",
+      "evidence": [
+        "category_form"
+      ],
+      "inputs": {
+        "category": "saved without an account, then one expense"
+      },
+      "reference": {
+        "category_has_an_account_field": false,
+        "account_made_by_the_first_expense": true
+      },
+      "expected": {
+        "category_has_an_account_field": true,
+        "account_made_by_the_first_expense": false
+      }
+    },
+    {
+      "id": "an-expense-without-an-account-goes-to-other-expenses",
+      "kind": "expense_account",
+      "classification": "exact",
+      "evidence": [
+        "expense_000009"
+      ],
+      "inputs": {
+        "amount": "20.00",
+        "category": "none in the reference system, a category without an account here"
+      },
+      "reference": {
+        "journals": {
+          "expense": [
+            {
+              "role": "expense",
+              "debit": "20",
+              "credit": "0",
+              "code": "541",
+              "name": "مصروفات أخرى"
+            },
+            {
+              "role": "treasury",
+              "debit": "0",
+              "credit": "20",
+              "code": "120103",
+              "name": "افتراضي-D2 خزينة 1"
+            }
+          ]
+        },
+        "cost_account": "541"
+      },
+      "expected": {
+        "journals": {
+          "expense": [
+            {
+              "role": "expense",
+              "debit": "20",
+              "credit": "0"
+            },
+            {
+              "role": "treasury",
+              "debit": "0",
+              "credit": "20"
+            }
+          ]
+        },
+        "cost_account": "541"
+      }
+    },
+    {
+      "id": "an-expense-without-a-category",
+      "kind": "expense_account",
+      "classification": "differs",
+      "reason": "The category is optional in the reference system (its setting that makes the account mandatory was left off) and an expense without one is accepted. The expense here needs a category: its form requires one and its row cannot be saved without.",
+      "evidence": [
+        "expense_000009"
+      ],
+      "inputs": {
+        "amount": "20.00",
+        "category": null
+      },
+      "reference": {
+        "accepted": true
+      },
+      "expected": {
+        "accepted": false
+      }
+    }
+  ]
+}

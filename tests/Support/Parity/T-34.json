@@ -1,0 +1,157 @@
+{
+  "id": "T-34",
+  "title": "Where the credit of a customer goes when several invoices are open: the reference system applies it at once to the oldest invoice date first and does not prefer the invoice a credit note came from; this application sends a credit note to its own invoice first",
+  "recorded": "2026-10-27",
+  "observation": {
+    "batch": "d1",
+    "scenarios": [
+      "D1-S7"
+    ]
+  },
+  "evidence": {
+    "credit_order": {
+      "id": null,
+      "note": "Three open invoices dated 20/10, 25/10 and 27/10: the credit note of 115.00 taken from the latest went to the oldest, and the credit note of 575.00 with no invoice went to the oldest then the next, at once, with no journal for either application",
+      "observation": [
+        "pw-d1-33",
+        "pw-d1-34",
+        "pw-d1-24",
+        "pw-d1-20"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "credit-note-of-an-invoice-goes-to-the-oldest-invoice-first",
+      "kind": "credit_order",
+      "classification": "differs",
+      "reason": "The reference system ignores the invoice a credit note came from and walks the open invoices by date, so the 115.00 of the credit note of the latest invoice went to the oldest. The order of this application is the credit note first to its own invoice and then the oldest; the adoption of the observed order is the proposal E55 for WP23.",
+      "evidence": [
+        "credit_order"
+      ],
+      "inputs": {
+        "invoices": [
+          {
+            "name": "oldest",
+            "date": "2026-10-20",
+            "open": "339.63"
+          },
+          {
+            "name": "middle",
+            "date": "2026-10-25",
+            "open": "395.39"
+          },
+          {
+            "name": "latest",
+            "date": "2026-10-27",
+            "open": "230.00"
+          }
+        ],
+        "credit_note": {
+          "amount": "115.00",
+          "of": "latest"
+        }
+      },
+      "reference": {
+        "applied": [
+          {
+            "invoice": "oldest",
+            "amount": "115.00"
+          }
+        ]
+      },
+      "expected": {
+        "applied": [
+          {
+            "invoice": "latest",
+            "amount": "115.00"
+          }
+        ]
+      }
+    },
+    {
+      "id": "credit-without-an-invoice-goes-to-the-oldest-first",
+      "kind": "credit_order",
+      "classification": "exact",
+      "evidence": [
+        "credit_order"
+      ],
+      "inputs": {
+        "invoices": [
+          {
+            "name": "oldest",
+            "date": "2026-10-20",
+            "open": "224.63"
+          },
+          {
+            "name": "middle",
+            "date": "2026-10-25",
+            "open": "395.39"
+          },
+          {
+            "name": "latest",
+            "date": "2026-10-27",
+            "open": "230.00"
+          }
+        ],
+        "credit_note": {
+          "amount": "575.00",
+          "of": null
+        }
+      },
+      "reference": {
+        "applied": [
+          {
+            "invoice": "oldest",
+            "amount": "224.63"
+          },
+          {
+            "invoice": "middle",
+            "amount": "350.37"
+          }
+        ]
+      },
+      "expected": {
+        "applied": [
+          {
+            "invoice": "oldest",
+            "amount": "224.63"
+          },
+          {
+            "invoice": "middle",
+            "amount": "350.37"
+          }
+        ]
+      }
+    },
+    {
+      "id": "applying-credit-writes-no-journal",
+      "kind": "credit_application",
+      "classification": "exact",
+      "evidence": [
+        "credit_order"
+      ],
+      "inputs": {
+        "invoices": [
+          {
+            "name": "only",
+            "date": "2026-10-20",
+            "open": "224.63"
+          }
+        ],
+        "credit_note": {
+          "amount": "100.00",
+          "of": null
+        }
+      },
+      "reference": {
+        "journals_for_the_application": "0",
+        "applied_without_any_action": true
+      },
+      "expected": {
+        "journals_for_the_application": "0",
+        "applied_without_any_action": true
+      }
+    }
+  ]
+}

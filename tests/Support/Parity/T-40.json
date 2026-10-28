@@ -1,0 +1,61 @@
+{
+  "id": "T-40",
+  "title": "Deleting an expense of 230: the money goes back to the treasury in both systems; the reference system erases the journal, this application keeps it and writes its reversal",
+  "recorded": "2026-10-27",
+  "observation": {
+    "batch": "d2",
+    "scenarios": [
+      "D2-S06"
+    ]
+  },
+  "evidence": {
+    "delete_000005": {
+      "id": null,
+      "note": "Expense 000005 deleted after a confirmation page: its journal 000142 disappeared with no reversing journal and the treasury went from 480 to 250 less the 230 it had taken, that is it got the 230 back",
+      "observation": [
+        "pw-d2-65"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "deleting-an-expense-gives-the-money-back",
+      "kind": "expense_delete",
+      "classification": "exact",
+      "evidence": [
+        "delete_000005"
+      ],
+      "inputs": {
+        "amount": "230.00",
+        "tax": "30.00"
+      },
+      "reference": {
+        "treasury_gain_from_the_delete": "230.00"
+      },
+      "expected": {
+        "treasury_gain_from_the_delete": "230.00"
+      }
+    },
+    {
+      "id": "deleting-an-expense-erases-or-reverses-its-journal",
+      "kind": "expense_delete",
+      "classification": "deliberate_difference",
+      "reason": "The reference system erases the journal of a deleted expense and keeps only a log. The owner decided (E15) that deleting a document with a journal reverses it, so the books keep the original and its reversal and the audit trail shows both.",
+      "evidence": [
+        "delete_000005"
+      ],
+      "inputs": {
+        "amount": "230.00",
+        "tax": "30.00"
+      },
+      "reference": {
+        "journal_erased": true,
+        "reversing_journals": "0"
+      },
+      "expected": {
+        "journal_erased": false,
+        "reversing_journals": "1"
+      }
+    }
+  ]
+}

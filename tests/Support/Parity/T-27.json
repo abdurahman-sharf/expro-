@@ -1,0 +1,344 @@
+{
+  "id": "T-27",
+  "title": "A fixed discount of 20 on the whole invoice, over a line that already has 10% off, a taxed line and an untaxed line: the customer owes 420.13 and the goods cost 180 in both systems, the stored tax and sales differ in their decimals",
+  "recorded": "2026-10-27",
+  "observation": {
+    "batch": "d1",
+    "scenarios": [
+      "D1-S1"
+    ]
+  },
+  "evidence": {
+    "invoice_000029": {
+      "id": null,
+      "note": "Invoice 000029: a stock item 3 x 100.00 with 10% off and 15% tax, 2 x 33.33 with 15% tax, 1 x 55.55 untaxed, a fixed discount of 20 on the whole invoice, dated 20/10/2026 and delivered; journal 000139",
+      "observation": [
+        "pw-d1-11",
+        "pw-d1-12"
+      ]
+    },
+    "cost_journal_000140": {
+      "id": null,
+      "note": "The cost journal 000140 of that invoice, dated the day of the invoice: 3 units at the average cost of 60.00",
+      "observation": [
+        "pw-d1-13"
+      ]
+    },
+    "printed_invoice": {
+      "id": null,
+      "note": "The printed invoice 000029: discount 50.00 (30.00 of the line and 20.00 of the invoice), VAT 47.92, total 420.13",
+      "observation": [
+        "pw-d1-14"
+      ]
+    },
+    "items_report": {
+      "id": null,
+      "note": "The report of items sold for invoice 000029: the discount of each line 43.77, 3.40 and 2.83 and its tax 38.43, 9.49 and 0.00",
+      "observation": [
+        "pw-d1-36"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "fixed-discount-20-journal",
+      "kind": "invoice_journal",
+      "classification": "differs",
+      "reason": "The reference system turns the 20 into a percentage of 392.21 without rounding and takes it off every line, so it stores the tax as 47.92389992606 and the sales as 372.20610007394. This application shares the 20 over the lines in amounts rounded to the cent (13.77, 3.40 and 2.83), rounds the tax of each line to the tax decimals and keeps the sales as the rest. The total of 420.13 is the same.",
+      "evidence": [
+        "invoice_000029"
+      ],
+      "inputs": {
+        "lines": [
+          {
+            "item": "stock",
+            "cost": "60.00",
+            "quantity": "3",
+            "price": "100.00",
+            "discount": "10",
+            "tax_percent": "15"
+          },
+          {
+            "item": "service",
+            "quantity": "2",
+            "price": "33.33",
+            "discount": "0",
+            "tax_percent": "15"
+          },
+          {
+            "item": "service",
+            "quantity": "1",
+            "price": "55.55",
+            "discount": "0",
+            "tax_percent": null
+          }
+        ],
+        "invoice_discount": {
+          "type": "fixed",
+          "value": "20"
+        },
+        "tax_decimals": "2"
+      },
+      "reference": {
+        "journals": {
+          "invoice": [
+            {
+              "role": "customer",
+              "debit": "420.13",
+              "credit": "0",
+              "code": "12041005",
+              "name": "افتراضي-D1 عميل"
+            },
+            {
+              "role": "sales_revenue",
+              "debit": "0",
+              "credit": "372.20610007394",
+              "code": "411",
+              "name": "المبيعات"
+            },
+            {
+              "role": "tax_output",
+              "debit": "0",
+              "credit": "47.92389992606",
+              "code": "215001",
+              "name": "القيمة المضافة المحصلة"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "journals": {
+          "invoice": [
+            {
+              "role": "customer",
+              "debit": "420.13",
+              "credit": "0"
+            },
+            {
+              "role": "sales_revenue",
+              "debit": "0",
+              "credit": "372.21"
+            },
+            {
+              "role": "tax_output",
+              "debit": "0",
+              "credit": "47.92"
+            }
+          ]
+        },
+        "detail": {
+          "at_four_tax_decimals": {
+            "invoice": [
+              {
+                "role": "customer",
+                "debit": "420.13",
+                "credit": "0"
+              },
+              {
+                "role": "sales_revenue",
+                "debit": "0",
+                "credit": "372.2065"
+              },
+              {
+                "role": "tax_output",
+                "debit": "0",
+                "credit": "47.9235"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "fixed-discount-20-printed-figures",
+      "kind": "invoice_figures",
+      "classification": "exact",
+      "evidence": [
+        "printed_invoice"
+      ],
+      "inputs": {
+        "lines": [
+          {
+            "item": "stock",
+            "cost": "60.00",
+            "quantity": "3",
+            "price": "100.00",
+            "discount": "10",
+            "tax_percent": "15"
+          },
+          {
+            "item": "service",
+            "quantity": "2",
+            "price": "33.33",
+            "discount": "0",
+            "tax_percent": "15"
+          },
+          {
+            "item": "service",
+            "quantity": "1",
+            "price": "55.55",
+            "discount": "0",
+            "tax_percent": null
+          }
+        ],
+        "invoice_discount": {
+          "type": "fixed",
+          "value": "20"
+        },
+        "tax_decimals": "2"
+      },
+      "reference": {
+        "figures": {
+          "discount": "50.00",
+          "tax": "47.92",
+          "total": "420.13"
+        }
+      },
+      "expected": {
+        "figures": {
+          "discount": "50.00",
+          "tax": "47.92",
+          "total": "420.13"
+        }
+      }
+    },
+    {
+      "id": "fixed-discount-20-line-shares",
+      "kind": "invoice_shares",
+      "classification": "exact",
+      "evidence": [
+        "items_report"
+      ],
+      "inputs": {
+        "lines": [
+          {
+            "item": "stock",
+            "cost": "60.00",
+            "quantity": "3",
+            "price": "100.00",
+            "discount": "10",
+            "tax_percent": "15"
+          },
+          {
+            "item": "service",
+            "quantity": "2",
+            "price": "33.33",
+            "discount": "0",
+            "tax_percent": "15"
+          },
+          {
+            "item": "service",
+            "quantity": "1",
+            "price": "55.55",
+            "discount": "0",
+            "tax_percent": null
+          }
+        ],
+        "invoice_discount": {
+          "type": "fixed",
+          "value": "20"
+        },
+        "tax_decimals": "2"
+      },
+      "reference": {
+        "line_discounts": [
+          "43.77",
+          "3.40",
+          "2.83"
+        ],
+        "line_taxes": [
+          "38.43",
+          "9.49",
+          "0.00"
+        ]
+      },
+      "expected": {
+        "line_discounts": [
+          "43.77",
+          "3.40",
+          "2.83"
+        ],
+        "line_taxes": [
+          "38.43",
+          "9.49",
+          "0.00"
+        ]
+      }
+    },
+    {
+      "id": "fixed-discount-20-cost-journal",
+      "kind": "invoice_cost",
+      "classification": "exact",
+      "evidence": [
+        "cost_journal_000140"
+      ],
+      "inputs": {
+        "lines": [
+          {
+            "item": "stock",
+            "cost": "60.00",
+            "quantity": "3",
+            "price": "100.00",
+            "discount": "10",
+            "tax_percent": "15"
+          },
+          {
+            "item": "service",
+            "quantity": "2",
+            "price": "33.33",
+            "discount": "0",
+            "tax_percent": "15"
+          },
+          {
+            "item": "service",
+            "quantity": "1",
+            "price": "55.55",
+            "discount": "0",
+            "tax_percent": null
+          }
+        ],
+        "invoice_discount": {
+          "type": "fixed",
+          "value": "20"
+        },
+        "tax_decimals": "2"
+      },
+      "reference": {
+        "journals": {
+          "cost": [
+            {
+              "role": "cogs",
+              "debit": "180",
+              "credit": "0",
+              "code": "511",
+              "name": "تكلفة المبيعات"
+            },
+            {
+              "role": "inventory",
+              "debit": "0",
+              "credit": "180",
+              "code": "1203001",
+              "name": "Primary Warehouse"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "journals": {
+          "cost": [
+            {
+              "role": "cogs",
+              "debit": "180",
+              "credit": "0"
+            },
+            {
+              "role": "inventory",
+              "debit": "0",
+              "credit": "180"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

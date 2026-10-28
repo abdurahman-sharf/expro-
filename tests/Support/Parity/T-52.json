@@ -1,0 +1,122 @@
+{
+  "id": "T-52",
+  "title": "Deleting and deactivating treasuries and what a transfer allows: a treasury nothing happened in can be deleted, one that moved money cannot even at a zero balance, an empty one can be deactivated and activated again; a transfer is edited in place in the reference system and only cancelled by a reversal here",
+  "recorded": "2026-10-27",
+  "observation": {
+    "batch": "d2",
+    "scenarios": [
+      "D2-S19"
+    ]
+  },
+  "evidence": {
+    "delete_rules": {
+      "id": null,
+      "note": "A cash treasury with no movement deleted with its account; a bank account with two transfers and a balance of 0.00 refused with a message that it holds current movements and can be made inactive; so is a cash treasury with transfers only",
+      "observation": [
+        "pw-d2-44",
+        "pw-d2-45",
+        "pw-d2-69"
+      ]
+    },
+    "deactivation": {
+      "id": null,
+      "note": "A treasury at a zero balance deactivated and activated again: the transfer button disappears while it is inactive and returns when it is active",
+      "observation": [
+        "pw-d2-46"
+      ]
+    },
+    "transfers": {
+      "id": null,
+      "note": "Transfers of 100 between the treasury and the bank: journal 000165 debits the bank and credits the treasury, 000166 the opposite; the transfer page has no delete button and editing the amount edits the journal in place",
+      "observation": [
+        "pw-d2-47",
+        "pw-d2-48",
+        "pw-d2-49"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "a-treasury-with-no-movement-can-be-deleted",
+      "kind": "treasury_rules",
+      "classification": "exact",
+      "evidence": [
+        "delete_rules"
+      ],
+      "inputs": {
+        "treasury": "cash, no movement"
+      },
+      "reference": {
+        "deleted": true,
+        "its_account_is_gone": true
+      },
+      "expected": {
+        "deleted": true,
+        "its_account_is_gone": true
+      }
+    },
+    {
+      "id": "a-treasury-that-moved-money-cannot-be-deleted-at-a-zero-balance",
+      "kind": "treasury_rules",
+      "classification": "exact",
+      "evidence": [
+        "delete_rules"
+      ],
+      "inputs": {
+        "treasury": "two transfers in opposite directions, balance 0.00"
+      },
+      "reference": {
+        "deleted": false,
+        "balance": "0.00"
+      },
+      "expected": {
+        "deleted": false,
+        "balance": "0.00"
+      }
+    },
+    {
+      "id": "an-empty-treasury-can-be-deactivated-and-activated-again",
+      "kind": "treasury_rules",
+      "classification": "exact",
+      "evidence": [
+        "deactivation"
+      ],
+      "inputs": {
+        "treasury": "balance 0.00, with a movement"
+      },
+      "reference": {
+        "deactivated": true,
+        "can_be_transferred_to_while_inactive": false,
+        "activated_again": true
+      },
+      "expected": {
+        "deactivated": true,
+        "can_be_transferred_to_while_inactive": false,
+        "activated_again": true
+      }
+    },
+    {
+      "id": "a-transfer-is-edited-in-place-or-cancelled-by-a-reversal",
+      "kind": "treasury_rules",
+      "classification": "deliberate_difference",
+      "reason": "The reference system gives a transfer no delete button and edits its amount in the same journal. Here a transfer is never edited: it is cancelled with a reason, which reverses its journal and keeps both, and another transfer is made (E15).",
+      "evidence": [
+        "transfers"
+      ],
+      "inputs": {
+        "transfer": "100.00 from the treasury to the bank",
+        "then": "its amount changed to 60.00"
+      },
+      "reference": {
+        "can_be_deleted": false,
+        "amount_edited_in_place": true,
+        "cancelled_by_a_reversal": false
+      },
+      "expected": {
+        "can_be_deleted": false,
+        "amount_edited_in_place": false,
+        "cancelled_by_a_reversal": true
+      }
+    }
+  ]
+}

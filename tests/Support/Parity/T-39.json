@@ -1,0 +1,113 @@
+{
+  "id": "T-39",
+  "title": "Editing a posted expense (amount 230 to 300, date, treasury to the bank account): both systems end with cost 260.87, tax 39.13 and the bank credited with 300; the reference system edits the journal in place and works the tax out again, this application reverses the journal and posts it again with the tax that was typed",
+  "recorded": "2026-10-27",
+  "observation": {
+    "batch": "d2",
+    "scenarios": [
+      "D2-S05"
+    ]
+  },
+  "evidence": {
+    "edit_steps": {
+      "id": null,
+      "note": "Expense 000004 edited step by step: no change, amount 230 to 300, a tax of 45 typed, date 27/10 to 26/10, treasury to the bank account and back; the same journal 000141 edited in place each time, with no reversing journal and no new number",
+      "observation": [
+        "pw-d2-16",
+        "pw-d2-64"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "edit-of-a-posted-expense-leaves-the-same-balances",
+      "kind": "expense_edit",
+      "classification": "exact",
+      "evidence": [
+        "edit_steps"
+      ],
+      "inputs": {
+        "first_save": {
+          "amount": "230.00",
+          "tax": "30.00",
+          "treasury": "cash"
+        },
+        "edit": {
+          "amount": "300.00",
+          "tax": "39.13",
+          "date": "the day before",
+          "treasury": "bank"
+        }
+      },
+      "reference": {
+        "net_effect": {
+          "expense": "260.87",
+          "tax_input": "39.13",
+          "new_treasury": "-300.00",
+          "old_treasury": "0.00"
+        }
+      },
+      "expected": {
+        "net_effect": {
+          "expense": "260.87",
+          "tax_input": "39.13",
+          "new_treasury": "-300.00",
+          "old_treasury": "0.00"
+        }
+      }
+    },
+    {
+      "id": "edit-of-a-posted-expense-keeps-or-replaces-its-journal",
+      "kind": "expense_edit",
+      "classification": "deliberate_difference",
+      "reason": "The reference system edits the journal of an expense in place and keeps only a log of the lines it changed. The owner decided (E15) that a posted journal is never edited: a change that touches the entry reverses it and posts the next revision.",
+      "evidence": [
+        "edit_steps"
+      ],
+      "inputs": {
+        "first_save": {
+          "amount": "230.00",
+          "tax": "30.00",
+          "treasury": "cash"
+        },
+        "edit": {
+          "amount": "300.00",
+          "tax": "39.13",
+          "date": "the day before",
+          "treasury": "bank"
+        }
+      },
+      "reference": {
+        "journal_edited_in_place": true,
+        "reversing_journals": "0",
+        "journal_revisions": "1"
+      },
+      "expected": {
+        "journal_edited_in_place": false,
+        "reversing_journals": "1",
+        "journal_revisions": "2"
+      }
+    },
+    {
+      "id": "the-tax-typed-on-an-edit-is-kept",
+      "kind": "expense_edit",
+      "classification": "differs",
+      "reason": "The reference system does not keep a tax typed on the edit of an expense: it works the tax out again as 15% of the amount (39.13 of 300), so the 45 that was typed was lost. This application keeps the tax that was typed and the cost is what is left (255.00).",
+      "evidence": [
+        "edit_steps"
+      ],
+      "inputs": {
+        "amount": "300.00",
+        "tax_typed": "45.00"
+      },
+      "reference": {
+        "tax_after_the_edit": "39.13",
+        "cost_after_the_edit": "260.87"
+      },
+      "expected": {
+        "tax_after_the_edit": "45.00",
+        "cost_after_the_edit": "255.00"
+      }
+    }
+  ]
+}

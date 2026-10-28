@@ -29,7 +29,9 @@ use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ConcurrentDbRaceTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
+use Tests\Support\ParityCaseTrait;
 use Tests\Support\ParityFixture;
+use Tests\Support\RegisterFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 use Tests\Support\WorkerRequestTrait;
 
@@ -45,6 +47,8 @@ class SalePostingTest extends CIUnitTestCase
     use ConcurrentDbRaceTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
+    use ParityCaseTrait;
+    use RegisterFixtureTrait;
     use SaleAccountingFixtureTrait;
     use WorkerRequestTrait;
 
@@ -3013,5 +3017,359 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame(ACCOUNTING_FAILED, $saleId);
         $this->assertSame(AccountingError::TreasuryNotFound, $this->sales->accountingFailure()->error);
         $this->assertSame(0, $this->countRows('accounting_journals'));
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // What the reference system recorded in the second write batch: fixtures T-26 to T-30, T-32 and T-33
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * Rings the invoice of a case up on the register and saves it.
+     *
+     * @param array<string, mixed> $inputs
+     *
+     * @return array{sale: int, made: list<array{item: int, quantity: string, price: string, discount: string}>, cart: array<int, array<string, mixed>>, taxes: array<int, mixed>, totals: array<string, mixed>}
+     */
+    private function invoiceOfCase(array $inputs, ?string $taxDecimals = null): array
+    {
+        $made = $this->linesOfCase($inputs['lines']);
+        $ring = $this->ringUp($made, $this->discountOfCase($inputs['invoice_discount'] ?? null), null, $inputs['delivered'] ?? true, ['tax_decimals' => $taxDecimals ?? $inputs['tax_decimals'] ?? '2']);
+
+        $this->assertGreaterThan(0, $ring['sale']);
+
+        return ['made' => $made] + $ring;
+    }
+
+    /**
+     * The share of the discount on the whole invoice and the tax each line of a sale carries.
+     *
+     * @return array{shares: list<string>, taxes: list<string>}
+     */
+    private function sharesAndTaxesOf(int $saleId): array
+    {
+        $taxes  = [];
+        $shares = [];
+
+        foreach ($this->accountingDb()->table('sales_items_taxes')->where('sale_id', $saleId)->get()->getResult() as $row) {
+            $taxes[(int) $row->line] = bcadd((string) $row->item_tax_amount, '0', 2);
+        }
+
+        foreach ($this->accountingDb()->table('sales_items')->where('sale_id', $saleId)->orderBy('line')->get()->getResult() as $row) {
+            $shares[] = bcadd((string) ($row->invoice_discount_share ?? '0'), '0', 2);
+            $taxes[(int) $row->line] ??= '0.00';
+        }
+
+        ksort($taxes);
+
+        return ['shares' => $shares, 'taxes' => array_values($taxes)];
+    }
+
+    /**
+     * The figures the invoice shows when it is printed: what the register worked out for it.
+     *
+     * @param array<string, mixed> $totals
+     *
+     * @return array{subtotal: string, discount: string, tax: string, total: string}
+     */
+    private function printedFigures(array $totals): array
+    {
+        return [
+            'subtotal' => bcadd((string) $totals['prediscount_subtotal'], '0', 2),
+            'discount' => bcadd((string) $totals['total_discount'], (string) $totals['invoice_discount'], 2),
+            'tax'      => bcadd((string) $totals['tax_total'], '0', 2),
+            'total'    => bcadd((string) $totals['total'], '0', 2),
+        ];
+    }
+
+    public function testSaveValue_PostsTheJournalOfAPercentageDiscountOnTheWholeInvoiceWithTheTaxRoundedToTheTaxDecimalsWhereTheReferenceSystemKeepsSeven(): void
+    {
+        $case = $this->referenceCase('T-26', 'invoice_journal', 'percent-discount-3-3-journal', 'differs');
+        $sale = $this->invoiceOfCase($case['inputs']);
+        $four = $this->invoiceOfCase($case['inputs'], '4');
+
+        $this->assertSameAsFixture($case['expected']['journals']['invoice'], $this->roleLinesOfSale($sale['sale'], 'revenue'), 'two tax decimals');
+        $this->assertSameAsFixture($case['expected']['detail']['at_four_tax_decimals']['invoice'], $this->roleLinesOfSale($four['sale'], 'revenue'), 'four tax decimals');
+        $this->assertRolesAgree($case['reference']['journals']['invoice'], $this->roleLinesOfSale($sale['sale'], 'revenue'), ['customer'], 'the customer owes the same in both systems');
+    }
+
+    public function testSaveValue_PrintsTheFiguresOfAPercentageDiscountOnTheWholeInvoiceAsTheReferenceSystemDoes(): void
+    {
+        $case = $this->referenceCase('T-26', 'invoice_figures', 'percent-discount-3-3-printed-figures', 'exact');
+        $sale = $this->invoiceOfCase($case['inputs']);
+
+        $this->assertSameAsFixture($case['expected']['figures'], $this->printedFigures($sale['totals']), 'printed figures');
+    }
+
+    public function testSaveValue_SharesAPercentageDiscountOverTheLinesAsTheReportOfTheReferenceSystemShowsIt(): void
+    {
+        $case = $this->referenceCase('T-26', 'invoice_shares', 'percent-discount-3-3-line-shares', 'exact');
+        $sale = $this->invoiceOfCase($case['inputs']);
+        $line = $this->sharesAndTaxesOf($sale['sale']);
+
+        $this->assertSameAsFixture(['line_shares' => $case['expected']['line_shares'], 'line_taxes' => $case['expected']['line_taxes']], ['line_shares' => $line['shares'], 'line_taxes' => $line['taxes']], 'lines');
+    }
+
+    public function testSaveValue_PostsTheJournalOfAFixedDiscountOnTheWholeInvoiceWithTheSharesRoundedToTheCentWhereTheReferenceSystemKeepsThemWhole(): void
+    {
+        $case = $this->referenceCase('T-27', 'invoice_journal', 'fixed-discount-20-journal', 'differs');
+        $sale = $this->invoiceOfCase($case['inputs']);
+        $four = $this->invoiceOfCase($case['inputs'], '4');
+
+        $this->assertSameAsFixture($case['expected']['journals']['invoice'], $this->roleLinesOfSale($sale['sale'], 'revenue'), 'two tax decimals');
+        $this->assertSameAsFixture($case['expected']['detail']['at_four_tax_decimals']['invoice'], $this->roleLinesOfSale($four['sale'], 'revenue'), 'four tax decimals');
+        $this->assertRolesAgree($case['reference']['journals']['invoice'], $this->roleLinesOfSale($sale['sale'], 'revenue'), ['customer'], 'the customer owes the same in both systems');
+    }
+
+    public function testSaveValue_PrintsTheFiguresOfAFixedDiscountOnTheWholeInvoiceAsTheReferenceSystemDoes(): void
+    {
+        $case = $this->referenceCase('T-27', 'invoice_figures', 'fixed-discount-20-printed-figures', 'exact');
+        $sale = $this->invoiceOfCase($case['inputs']);
+        $shown = $this->printedFigures($sale['totals']);
+
+        $this->assertSameAsFixture($case['expected']['figures'], ['discount' => $shown['discount'], 'tax' => $shown['tax'], 'total' => $shown['total']], 'printed figures');
+    }
+
+    public function testSaveValue_SharesAFixedDiscountOverTheLinesAsTheReportOfTheReferenceSystemShowsIt(): void
+    {
+        $case = $this->referenceCase('T-27', 'invoice_shares', 'fixed-discount-20-line-shares', 'exact');
+        $sale = $this->invoiceOfCase($case['inputs']);
+        $line = $this->sharesAndTaxesOf($sale['sale']);
+        $both = [];
+
+        foreach ($sale['made'] as $index => $made) {
+            $ofTheLine = bcmul(bcmul($made['quantity'], $made['price'], 4), bcdiv($made['discount'], '100', 4), 4);
+            $both[]    = bcadd(bcadd($ofTheLine, $line['shares'][$index], 4), '0', 2);
+        }
+
+        $this->assertSameAsFixture(['line_discounts' => $case['expected']['line_discounts'], 'line_taxes' => $case['expected']['line_taxes']], ['line_discounts' => $both, 'line_taxes' => $line['taxes']], 'lines');
+    }
+
+    public function testSaveValue_PostsTheCostOfTheGoodsOfAnInvoiceWithAFixedDiscountAsTheReferenceSystemDoes(): void
+    {
+        $case = $this->referenceCase('T-27', 'invoice_cost', 'fixed-discount-20-cost-journal', 'exact');
+        $sale = $this->invoiceOfCase($case['inputs']);
+
+        $this->assertSameAsFixture($case['expected']['journals']['cost'], $this->roleLinesOfSale($sale['sale'], 'cogs'), 'cost journal');
+    }
+
+    public function testSaveValue_PostsTheInvoiceOfAnUndeliveredSaleAsTheReferenceSystemDoes(): void
+    {
+        $case   = $this->referenceCase('T-28', 'undelivered_invoice', 'undelivered-invoice-journal', 'exact');
+        $sale   = $this->invoiceOfCase($case['inputs']);
+        $item   = $sale['made'][0]['item'];
+        $actual = [
+            'journals'    => ['invoice' => $this->roleLinesOfSale($sale['sale'], 'revenue'), 'cost' => $this->roleLinesOfSale($sale['sale'], 'cogs')],
+            'delivered'   => (string) $this->saleRow($sale['sale'])->delivered === '1',
+            'stock_taken' => (string) (int) round(0.0 - $this->stock($item)),
+        ];
+
+        $this->assertSameAsFixture($case['expected'], $actual, 'undelivered invoice');
+    }
+
+    /**
+     * An invoice of a case and a credit note taken from it.
+     *
+     * @param array<string, mixed> $inputs
+     *
+     * @return array{invoice: int, return: int, journals: int, tax_decimals: string}
+     */
+    private function invoiceWithACreditNote(array $inputs, ?string $taxDecimals = null): array
+    {
+        $taxDecimals ??= $inputs['tax_decimals'] ?? '2';
+        $invoice       = $this->invoiceOfCase($inputs['invoice'], $taxDecimals);
+        $note          = $inputs['credit_note'];
+        $before        = $this->countJournals();
+        $return        = $this->ringUp([['item' => $invoice['made'][$note['line']]['item'], 'quantity' => $note['quantity'], 'price' => $note['price'], 'discount' => $note['discount']]], null, $invoice['sale'], true, ['tax_decimals' => $taxDecimals]);
+
+        $this->assertGreaterThan(0, $return['sale']);
+
+        return ['invoice' => $invoice['sale'], 'return' => $return['sale'], 'journals' => $this->countJournals() - $before, 'tax_decimals' => $taxDecimals];
+    }
+
+    public function testSaveValue_TakesBackTheShareOfTheDiscountOfTheReturnedUnitWhereTheReferenceSystemLeavesTheWholeDiscountOnTheCreditNote(): void
+    {
+        $case = $this->referenceCase('T-29', 'credit_note_journal', 'partial-return-journal', 'deliberate_difference');
+        $made = $this->invoiceWithACreditNote($case['inputs']);
+        $four = $this->invoiceWithACreditNote($case['inputs'], '4');
+        $row  = $this->accountingDb()->table('sales_items')->where('sale_id', $made['return'])->get()->getRow();
+
+        $this->assertSameAsFixture($case['expected']['journals']['credit_note'], $this->roleLinesOfSale($made['return'], 'revenue'), 'two tax decimals');
+        $this->assertSameAsFixture($case['expected']['detail']['at_four_tax_decimals']['credit_note'], $this->roleLinesOfSale($four['return'], 'revenue'), 'four tax decimals');
+        $this->assertSame($case['expected']['detail']['share_of_the_invoice_discount_taken_back'], bcadd(ltrim((string) $row->invoice_discount_share, '-'), '0', 2));
+    }
+
+    public function testSaveValue_ReturnsTheCostOfTheUnitOfADiscountedInvoiceAsTheReferenceSystemDoes(): void
+    {
+        $case = $this->referenceCase('T-29', 'credit_note_cost', 'partial-return-cost-journal', 'exact');
+        $made = $this->invoiceWithACreditNote($case['inputs']);
+
+        $this->assertSameAsFixture($case['expected']['journals']['cost'], $this->roleLinesOfSale($made['return'], 'cogs'), 'cost journal');
+    }
+
+    public function testSaveValue_PaysTheCreditNoteOfADiscountedInvoiceIntoItsInvoiceWithoutAJournalAsTheReferenceSystemDoes(): void
+    {
+        $case    = $this->referenceCase('T-29', 'credit_note_application', 'partial-return-is-applied-to-its-invoice', 'exact');
+        $made    = $this->invoiceWithACreditNote($case['inputs']);
+        $total   = $this->roleLinesOfSale($made['return'], 'revenue');
+        $credit  = array_values(array_filter($total, static fn (array $line): bool => $line['role'] === 'customer'))[0]['credit'];
+        $figures = $this->position()->invoice($made['invoice']);
+        $actual  = [
+            'applied_to'                   => $this->applications() === ['credit_note:' . $made['return'] . '->' . $made['invoice'] . ':' . bcadd($credit, '0', 2)] ? 'its own invoice' : 'another invoice',
+            'applied_in_full'              => bccomp($figures->applied, $credit, 2) === 0,
+            'journals_for_the_application' => (string) ($made['journals'] - 2),
+            'payment_state'                => $figures->paymentState()->value,
+            'return_state'                 => $figures->returnState()->value,
+        ];
+
+        $this->assertSameAsFixture($case['expected'], $actual, 'application');
+    }
+
+    public function testSaveValue_RefusesACreditNoteOnAnInvoiceThatWasNeverDeliveredWhereTheReferenceSystemAcceptsIt(): void
+    {
+        $case    = $this->referenceCase('T-30', 'undelivered_credit_note', 'credit-note-on-an-undelivered-invoice', 'deliberate_difference');
+        $invoice = $this->invoiceOfCase($case['inputs']['invoice'] + ['tax_decimals' => '2']);
+        $item    = $invoice['made'][0]['item'];
+        $note    = $case['inputs']['credit_note'];
+        $before  = ['journals' => $this->countJournals(), 'stock' => $this->stock($item)];
+        $return  = $this->ringUp([['item' => $item, 'quantity' => $note['quantity'], 'price' => $note['price'], 'discount' => $note['discount']]], null, $invoice['sale']);
+        $actual  = [
+            'accepted'        => $return['sale'] > 0,
+            'journals_posted' => (string) ($this->countJournals() - $before['journals']),
+            'stock_change'    => (string) (int) round($this->stock($item) - $before['stock']),
+        ];
+
+        $this->assertSameAsFixture(['accepted' => $case['expected']['accepted'], 'journals_posted' => $case['expected']['journals_posted'], 'stock_change' => $case['expected']['stock_change']], $actual, 'refusal');
+        $this->assertSame(ACCOUNTING_FAILED, $return['sale']);
+        $this->assertSame($case['expected']['detail']['error'], $this->failure()->error->value);
+    }
+
+    public function testConfirmDelivery_LeavesTheSameCostAndStockAsTheReferenceSystemAfterTheDeliveryAndTheCreditNoteBothHappened(): void
+    {
+        $case    = $this->referenceCase('T-30', 'undelivered_credit_note', 'delivery-and-credit-note-leave-the-same-books', 'exact');
+        $invoice = $this->invoiceOfCase($case['inputs']['invoice'] + ['tax_decimals' => '2']);
+        $item    = $invoice['made'][0]['item'];
+        $note    = $case['inputs']['credit_note'];
+
+        $this->assertSame($invoice['sale'], $this->sales->confirm_delivery($invoice['sale'], $this->employeeId));
+
+        $delivery = array_values(array_filter($this->roleLinesOfSale($invoice['sale'], 'cogs'), static fn (array $line): bool => $line['role'] === 'cogs'))[0]['debit'];
+        $return   = $this->ringUp([['item' => $item, 'quantity' => $note['quantity'], 'price' => $note['price'], 'discount' => $note['discount']]], null, $invoice['sale']);
+
+        $this->assertGreaterThan(0, $return['sale']);
+        $this->assertSameAsFixture($case['expected'], [
+            'delivery_cost'        => bcadd($delivery, '0', 2),
+            'net_cost_after_both'  => $this->balance($this->accountId('cogs')),
+            'net_stock_after_both' => (string) (int) round($this->stock($item)),
+        ], 'books');
+    }
+
+    /**
+     * Sells the units of a case, takes back the ones it says came back before, and asks for one more return.
+     *
+     * @param array<string, mixed> $inputs
+     *
+     * @return array{result: string, saved: string, failure: ?array<string, mixed>}
+     */
+    private function attemptToReturn(array $inputs): array
+    {
+        $item   = $this->taxedItem('60.00', true, '15');
+        $sold   = $this->ringUp([['item' => $item, 'quantity' => $inputs['sold'], 'price' => '100.00']]);
+        $first  = $this->ringUp([['item' => $item, 'quantity' => '-' . $inputs['returned_before'], 'price' => '100.00']], null, $sold['sale']);
+
+        $this->assertGreaterThan(0, $first['sale']);
+
+        $sales   = $this->countSales();
+        $journals = $this->countJournals();
+        $attempt = $this->ringUp([['item' => $item, 'quantity' => '-' . $inputs['attempt'], 'price' => '100.00']], null, $sold['sale']);
+
+        return [
+            'result'  => $attempt['sale'] > 0 ? 'accepted' : 'refused',
+            'saved'   => (string) ($this->countSales() - $sales + $this->countJournals() - $journals),
+            'failure' => $attempt['sale'] > 0 ? null : ['error' => $this->failure()->error->value, 'max' => $this->failure()->context['max'] ?? null],
+        ];
+    }
+
+    public function testSaveValue_RefusesACreditNoteAboveWhatTheInvoiceSoldAndSavesNothingAsTheReferenceSystemDoes(): void
+    {
+        $case = $this->referenceCase('T-32', 'return_limit', 'a-return-above-what-the-invoice-sold-is-refused', 'exact');
+        $made = $this->attemptToReturn($case['inputs']);
+
+        $this->assertSameAsFixture(['result' => $case['expected']['result'], 'saved' => $case['expected']['saved']], ['result' => $made['result'], 'saved' => $made['saved']], 'attempt');
+        $this->assertSame(['error' => $case['expected']['detail']['error'], 'max' => $case['expected']['detail']['most_that_may_still_be_returned']], $made['failure']);
+    }
+
+    public function testSaveValue_CountsTheEarlierReturnsOfTheInvoiceAgainstTheLimitAsTheReferenceSystemDoes(): void
+    {
+        $case = $this->referenceCase('T-32', 'return_limit', 'earlier-returns-count-against-the-limit', 'exact');
+        $made = $this->attemptToReturn($case['inputs']);
+
+        $this->assertSameAsFixture(['result' => $case['expected']['result'], 'saved' => $case['expected']['saved']], ['result' => $made['result'], 'saved' => $made['saved']], 'attempt');
+        $this->assertSame(['error' => $case['expected']['detail']['error'], 'max' => $case['expected']['detail']['most_that_may_still_be_returned']], $made['failure']);
+    }
+
+    public function testSaveValue_RefusesACreditNoteForStockWithNoInvoiceWhereTheReferenceSystemAcceptsIt(): void
+    {
+        $case   = $this->referenceCase('T-33', 'orphan_credit_note', 'credit-note-for-stock-without-an-invoice', 'deliberate_difference');
+        $made   = $this->linesOfCase($case['inputs']['lines']);
+        $before = ['journals' => $this->countJournals(), 'stock' => $this->stock($made[0]['item'])];
+        $return = $this->ringUp($made, null, null, true, ['tax_decimals' => '2'], true);
+        $actual = [
+            'accepted'        => $return['sale'] > 0,
+            'journals_posted' => (string) ($this->countJournals() - $before['journals']),
+            'stock_change'    => (string) (int) round($this->stock($made[0]['item']) - $before['stock']),
+        ];
+
+        $this->assertSameAsFixture(['accepted' => $case['expected']['accepted'], 'journals_posted' => $case['expected']['journals_posted'], 'stock_change' => $case['expected']['stock_change']], $actual, 'refusal');
+        $this->assertSame(ACCOUNTING_FAILED, $return['sale']);
+        $this->assertSame($case['expected']['detail']['error'], $this->failure()->error->value);
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // What the reference system recorded in the third write batch: fixture T-57
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * Pays 5.00 of a sale the way the case says into the treasury the case says, and returns the
+     * lines of the journal of that payment.
+     *
+     * @param array<string, mixed> $inputs
+     *
+     * @return list<array{role: string, debit: string, credit: string}>
+     */
+    private function paymentJournalOfCase(array $inputs): array
+    {
+        $this->accountingDb()->table('grants')->insert(['person_id' => $this->employeeId, 'permission_id' => BranchGuard::ALL_BRANCHES, 'menu_group' => 'home']);
+
+        $treasuries = new TreasuryService();
+        $treasury   = $inputs['treasury'] === 'bank' ? $treasuries->create(['name' => 'Fixture bank', 'kind' => 'bank', 'bank_name' => 'Riyad Bank', 'account_number' => '3500000002']) : $treasuries->ensureMain();
+        $way        = ['check' => lang('Sales.check'), 'cash' => lang('Sales.cash'), 'bank_transfer' => lang('Sales.bank_transfer')][$inputs['way']];
+        $item       = $this->item('10.00');
+        $saleId     = $this->save([$this->line($item, 0, '1', '100', '10.00')], [], [$this->payment($way, $inputs['amount']) + ['treasury_id' => $treasury]]);
+        $payment    = array_values(array_filter($this->journals($saleId), static fn (array $journal): bool => $journal['source'] === 'sale_payment'));
+
+        $this->assertCount(1, $payment);
+
+        return $this->roleLines($payment[0]['id'], ['treasury' => (int) $treasuries->accountOf($treasury), 'customer' => $this->customerAccount()]);
+    }
+
+    public function testSaveValue_PostsAChequePaymentIntoTheBankAccountChosenAsTheReferenceSystemDoes(): void
+    {
+        $case = $this->referenceCase('T-57', 'payment_method', 'cheque-method-into-a-bank-account', 'exact');
+
+        $this->assertSameAsFixture($case['expected']['journals']['payment'], $this->paymentJournalOfCase($case['inputs']), 'payment by cheque into a bank account');
+    }
+
+    public function testSaveValue_PostsACashPaymentIntoTheBankAccountChosenAsTheReferenceSystemDoes(): void
+    {
+        $case = $this->referenceCase('T-57', 'payment_method', 'cash-method-into-a-bank-account', 'exact');
+
+        $this->assertSameAsFixture($case['expected']['journals']['payment'], $this->paymentJournalOfCase($case['inputs']), 'payment in cash into a bank account');
+    }
+
+    public function testSaveValue_PostsABankTransferPaymentIntoTheMainTreasuryChosenAsTheReferenceSystemDoes(): void
+    {
+        $case = $this->referenceCase('T-57', 'payment_method', 'bank-transfer-method-into-the-main-treasury', 'exact');
+
+        $this->assertSameAsFixture($case['expected']['journals']['payment'], $this->paymentJournalOfCase($case['inputs']), 'payment by bank transfer into the main treasury');
     }
 }

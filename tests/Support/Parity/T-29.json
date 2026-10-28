@@ -1,0 +1,301 @@
+{
+  "id": "T-29",
+  "title": "A credit note for 1 of the 3 units of a discounted invoice: the reference system gives back 80.50 because its form copies the whole discount of the invoice, this application gives back the share of the discount that belongs to the unit and so 98.22; the cost returned and the application to the invoice agree",
+  "recorded": "2026-10-27",
+  "observation": {
+    "batch": "d1",
+    "scenarios": [
+      "D1-S2"
+    ]
+  },
+  "evidence": {
+    "credit_note_000007": {
+      "id": null,
+      "note": "Credit note 000007 taken from invoice 000029 for 1 unit at 100.00 with 10% off, the discount of 20 of the invoice left as the form copied it; journals 000145 and 000146",
+      "observation": [
+        "pw-d1-17",
+        "pw-d1-18",
+        "pw-d1-19"
+      ]
+    },
+    "invoice_after": {
+      "id": null,
+      "note": "Invoice 000029 after the credit note: paid partly and returned partly, and the credit of 80.50 applied to it as a payment of the credit balance",
+      "observation": [
+        "pw-d1-20"
+      ]
+    },
+    "items_report": {
+      "id": null,
+      "note": "The report of items sold for the credit note: quantity -1, discount 30.00, tax -10.50, total -80.50",
+      "observation": [
+        "pw-d1-37"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "partial-return-journal",
+      "kind": "credit_note_journal",
+      "classification": "deliberate_difference",
+      "reason": "The credit note form of the reference system keeps the whole discount of the invoice (20) on a return of one unit and the server stores what is posted, so it returns 70.00 of sales and 10.50 of tax. This application takes back only the share of the discount that belongs to the returned unit (4.59 of the 13.77 the line carries), so the unit returns 85.41 of sales and 12.81 of tax at the default tax decimals and a return never gives back more discount than was given.",
+      "evidence": [
+        "credit_note_000007",
+        "items_report"
+      ],
+      "inputs": {
+        "invoice": {
+          "lines": [
+            {
+              "item": "stock",
+              "cost": "60.00",
+              "quantity": "3",
+              "price": "100.00",
+              "discount": "10",
+              "tax_percent": "15"
+            },
+            {
+              "item": "service",
+              "quantity": "2",
+              "price": "33.33",
+              "discount": "0",
+              "tax_percent": "15"
+            },
+            {
+              "item": "service",
+              "quantity": "1",
+              "price": "55.55",
+              "discount": "0",
+              "tax_percent": null
+            }
+          ],
+          "invoice_discount": {
+            "type": "fixed",
+            "value": "20"
+          }
+        },
+        "credit_note": {
+          "line": 0,
+          "quantity": "-1",
+          "price": "100.00",
+          "discount": "10"
+        },
+        "tax_decimals": "2"
+      },
+      "reference": {
+        "journals": {
+          "credit_note": [
+            {
+              "role": "sales_returns",
+              "debit": "70",
+              "credit": "0",
+              "code": "412",
+              "name": "مردودات المبيعات"
+            },
+            {
+              "role": "tax_output",
+              "debit": "10.5",
+              "credit": "0",
+              "code": "215001",
+              "name": "القيمة المضافة المحصلة"
+            },
+            {
+              "role": "customer",
+              "debit": "0",
+              "credit": "80.5",
+              "code": "12041005",
+              "name": "افتراضي-D1 عميل"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "journals": {
+          "credit_note": [
+            {
+              "role": "sales_returns",
+              "debit": "85.41",
+              "credit": "0"
+            },
+            {
+              "role": "tax_output",
+              "debit": "12.81",
+              "credit": "0"
+            },
+            {
+              "role": "customer",
+              "debit": "0",
+              "credit": "98.22"
+            }
+          ]
+        },
+        "detail": {
+          "share_of_the_invoice_discount_taken_back": "4.59",
+          "at_four_tax_decimals": {
+            "credit_note": [
+              {
+                "role": "sales_returns",
+                "debit": "85.4085",
+                "credit": "0"
+              },
+              {
+                "role": "tax_output",
+                "debit": "12.8115",
+                "credit": "0"
+              },
+              {
+                "role": "customer",
+                "debit": "0",
+                "credit": "98.22"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "partial-return-cost-journal",
+      "kind": "credit_note_cost",
+      "classification": "exact",
+      "evidence": [
+        "credit_note_000007"
+      ],
+      "inputs": {
+        "invoice": {
+          "lines": [
+            {
+              "item": "stock",
+              "cost": "60.00",
+              "quantity": "3",
+              "price": "100.00",
+              "discount": "10",
+              "tax_percent": "15"
+            },
+            {
+              "item": "service",
+              "quantity": "2",
+              "price": "33.33",
+              "discount": "0",
+              "tax_percent": "15"
+            },
+            {
+              "item": "service",
+              "quantity": "1",
+              "price": "55.55",
+              "discount": "0",
+              "tax_percent": null
+            }
+          ],
+          "invoice_discount": {
+            "type": "fixed",
+            "value": "20"
+          }
+        },
+        "credit_note": {
+          "line": 0,
+          "quantity": "-1",
+          "price": "100.00",
+          "discount": "10"
+        },
+        "tax_decimals": "2"
+      },
+      "reference": {
+        "journals": {
+          "cost": [
+            {
+              "role": "inventory",
+              "debit": "60",
+              "credit": "0",
+              "code": "1203001",
+              "name": "Primary Warehouse"
+            },
+            {
+              "role": "cogs",
+              "debit": "0",
+              "credit": "60",
+              "code": "511",
+              "name": "تكلفة المبيعات"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "journals": {
+          "cost": [
+            {
+              "role": "inventory",
+              "debit": "60",
+              "credit": "0"
+            },
+            {
+              "role": "cogs",
+              "debit": "0",
+              "credit": "60"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "partial-return-is-applied-to-its-invoice",
+      "kind": "credit_note_application",
+      "classification": "exact",
+      "evidence": [
+        "invoice_after"
+      ],
+      "inputs": {
+        "invoice": {
+          "lines": [
+            {
+              "item": "stock",
+              "cost": "60.00",
+              "quantity": "3",
+              "price": "100.00",
+              "discount": "10",
+              "tax_percent": "15"
+            },
+            {
+              "item": "service",
+              "quantity": "2",
+              "price": "33.33",
+              "discount": "0",
+              "tax_percent": "15"
+            },
+            {
+              "item": "service",
+              "quantity": "1",
+              "price": "55.55",
+              "discount": "0",
+              "tax_percent": null
+            }
+          ],
+          "invoice_discount": {
+            "type": "fixed",
+            "value": "20"
+          }
+        },
+        "credit_note": {
+          "line": 0,
+          "quantity": "-1",
+          "price": "100.00",
+          "discount": "10"
+        },
+        "tax_decimals": "2"
+      },
+      "reference": {
+        "applied_to": "its own invoice",
+        "applied_in_full": true,
+        "journals_for_the_application": "0",
+        "payment_state": "partial",
+        "return_state": "partial"
+      },
+      "expected": {
+        "applied_to": "its own invoice",
+        "applied_in_full": true,
+        "journals_for_the_application": "0",
+        "payment_state": "partial",
+        "return_state": "partial"
+      }
+    }
+  ]
+}

@@ -1,0 +1,177 @@
+{
+  "id": "T-57",
+  "title": "The way a payment is made does not decide the treasury it goes into: a payment by cheque or in cash into a bank account and a payment by bank transfer into the main treasury each debit the treasury that was chosen, and none of them makes a cheque record",
+  "recorded": "2026-10-28",
+  "observation": {
+    "batch": "b",
+    "scenarios": [
+      "B-S05"
+    ]
+  },
+  "evidence": {
+    "payment_form": {
+      "id": null,
+      "note": "The payment form of an invoice with the cheques app on: a way of payment (cash, cheque, bank transfer), the treasury list apart from it, the status of the payment",
+      "observation": [
+        "pw-b-6"
+      ]
+    },
+    "three_payments": {
+      "id": null,
+      "note": "Three payments of 5.00 on one invoice: by cheque into the bank account, in cash into the bank account, by bank transfer into the main treasury; each journal debits the treasury chosen and credits the customer, and no cheque record is made",
+      "observation": [
+        "pw-b-34"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "cheque-method-into-a-bank-account",
+      "kind": "payment_method",
+      "classification": "exact",
+      "evidence": [
+        "payment_form",
+        "three_payments"
+      ],
+      "inputs": {
+        "way": "check",
+        "amount": "5.00",
+        "treasury": "bank"
+      },
+      "reference": {
+        "journals": {
+          "payment": [
+            {
+              "role": "treasury",
+              "debit": "5",
+              "credit": "0",
+              "code": "1202003",
+              "name": "افتراضي-B بنك"
+            },
+            {
+              "role": "customer",
+              "debit": "0",
+              "credit": "5",
+              "code": "12041005",
+              "name": "افتراضي-D1 عميل"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "journals": {
+          "payment": [
+            {
+              "role": "treasury",
+              "debit": "5",
+              "credit": "0"
+            },
+            {
+              "role": "customer",
+              "debit": "0",
+              "credit": "5"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "cash-method-into-a-bank-account",
+      "kind": "payment_method",
+      "classification": "exact",
+      "evidence": [
+        "three_payments"
+      ],
+      "inputs": {
+        "way": "cash",
+        "amount": "5.00",
+        "treasury": "bank"
+      },
+      "reference": {
+        "journals": {
+          "payment": [
+            {
+              "role": "treasury",
+              "debit": "5",
+              "credit": "0",
+              "code": "1202003",
+              "name": "افتراضي-B بنك"
+            },
+            {
+              "role": "customer",
+              "debit": "0",
+              "credit": "5",
+              "code": "12041005",
+              "name": "افتراضي-D1 عميل"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "journals": {
+          "payment": [
+            {
+              "role": "treasury",
+              "debit": "5",
+              "credit": "0"
+            },
+            {
+              "role": "customer",
+              "debit": "0",
+              "credit": "5"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "bank-transfer-method-into-the-main-treasury",
+      "kind": "payment_method",
+      "classification": "exact",
+      "evidence": [
+        "three_payments"
+      ],
+      "inputs": {
+        "way": "bank_transfer",
+        "amount": "5.00",
+        "treasury": "main"
+      },
+      "reference": {
+        "journals": {
+          "payment": [
+            {
+              "role": "treasury",
+              "debit": "5",
+              "credit": "0",
+              "code": "120101",
+              "name": "الخزينة الأساسية"
+            },
+            {
+              "role": "customer",
+              "debit": "0",
+              "credit": "5",
+              "code": "12041005",
+              "name": "افتراضي-D1 عميل"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "journals": {
+          "payment": [
+            {
+              "role": "treasury",
+              "debit": "5",
+              "credit": "0"
+            },
+            {
+              "role": "customer",
+              "debit": "0",
+              "credit": "5"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

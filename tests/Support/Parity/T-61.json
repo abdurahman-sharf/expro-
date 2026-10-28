@@ -1,0 +1,95 @@
+{
+  "id": "T-61",
+  "title": "The decimals of a currency: two for the dollar, three for the dinar, none for the yen, each document rounded half up to the decimals of its own currency; this application rounds to the decimals of its one currency",
+  "recorded": "2026-10-28",
+  "observation": {
+    "batch": "b",
+    "scenarios": [
+      "B-S09"
+    ]
+  },
+  "evidence": {
+    "currency_decimals": {
+      "id": null,
+      "note": "Purchases in KWD (3 x 10.125 = 30.375, journal 000212 at 12.04917 = 365.993 SAR) and in JPY (3 x 1,234.5 = 3,703.5 shown as 3,704, journal 000213 at 0.02376 = 88 SAR); USD has two decimals",
+      "observation": [
+        "pw-b-51"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "each-currency-has-its-own-decimals",
+      "kind": "currency_decimals",
+      "classification": "not_implemented",
+      "work_package": "WP28",
+      "reason": "The decimals of the shop are one setting for every document (G-25 keeps the per-currency decimals in WP28).",
+      "evidence": [
+        "currency_decimals"
+      ],
+      "inputs": {
+        "documents": [
+          {
+            "currency": "KWD",
+            "quantity": "3",
+            "price": "10.125"
+          },
+          {
+            "currency": "JPY",
+            "quantity": "3",
+            "price": "1234.5"
+          }
+        ]
+      },
+      "reference": {
+        "decimals": {
+          "USD": "2",
+          "KWD": "3",
+          "JPY": "0"
+        },
+        "kwd_total": "30.375",
+        "jpy_total": "3704",
+        "kwd_in_sar": "365.993",
+        "jpy_in_sar": "88"
+      },
+      "expected": {
+        "status": "not_implemented",
+        "absent": [
+          {
+            "kind": "column",
+            "table": "sales",
+            "pattern": "currenc"
+          },
+          {
+            "kind": "column",
+            "table": "sales_payments",
+            "pattern": "currenc"
+          },
+          {
+            "kind": "column",
+            "table": "receivings",
+            "pattern": "currenc"
+          },
+          {
+            "kind": "column",
+            "table": "receivings_payments",
+            "pattern": "currenc"
+          },
+          {
+            "kind": "column",
+            "table": "treasuries",
+            "pattern": "currenc"
+          },
+          {
+            "kind": "table",
+            "pattern": "currenc"
+          },
+          {
+            "kind": "table",
+            "pattern": "exchange_rate"
+          }
+        ]
+      }
+    }
+  ]
+}

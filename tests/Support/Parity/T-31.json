@@ -1,0 +1,153 @@
+{
+  "id": "T-31",
+  "title": "When an invoice is due and when it is overdue, and how a customer is aged: the reference system gives each invoice a due date of its date plus its payment terms and ages by the invoice date; this application has no due date yet",
+  "recorded": "2026-10-27",
+  "observation": {
+    "batch": "d1",
+    "scenarios": [
+      "D1-S4"
+    ]
+  },
+  "evidence": {
+    "invoice_list": {
+      "id": null,
+      "note": "The tabs of the invoice list on 27/10/2026: overdue is an open balance with a due date before today, due today is not overdue, an invoice without terms is overdue from its own date, and the terms of an issued invoice can be edited without touching its journal",
+      "observation": [
+        "pw-d1-25",
+        "pw-d1-26",
+        "pw-d1-27",
+        "pw-d1-28"
+      ]
+    },
+    "aging": {
+      "id": null,
+      "note": "The aged reports on 27/10/2026: an invoice dated 25/10 with a due date in November stays in the bucket of its date, 1 to 7 days in the aged ledger and 1 to 30 days in the aged debtors",
+      "observation": [
+        "pw-d1-40"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "due-date-is-the-invoice-date-plus-its-payment-terms",
+      "kind": "due_date",
+      "classification": "not_implemented",
+      "work_package": "WP13",
+      "reason": "An invoice here has a date and no due date or payment terms, so nothing can be due or overdue; WP13 adds the terms and the due date, which the reference system sets to the date plus the days of the terms and, with no terms, to the date itself.",
+      "evidence": [
+        "invoice_list"
+      ],
+      "inputs": {
+        "invoice_date": "25/10/2026",
+        "payment_terms_days": 1
+      },
+      "reference": {
+        "due_date": "26/10/2026",
+        "terms_editable_after_issue": true,
+        "journal_changes_with_the_terms": false
+      },
+      "expected": {
+        "status": "not_implemented",
+        "absent": [
+          {
+            "kind": "column",
+            "table": "sales",
+            "pattern": "due"
+          },
+          {
+            "kind": "column",
+            "table": "sales",
+            "pattern": "terms"
+          }
+        ]
+      }
+    },
+    {
+      "id": "overdue-is-open-and-due-before-today",
+      "kind": "overdue",
+      "classification": "not_implemented",
+      "work_package": "WP13",
+      "reason": "There is no due date to compare with today, no overdue tab in the invoice list and no overdue route; WP13 builds them on the rule the reference system showed, open balance and a due date strictly before today.",
+      "evidence": [
+        "invoice_list"
+      ],
+      "inputs": {
+        "today": "27/10/2026",
+        "due_dates": [
+          "26/10/2026",
+          "27/10/2026",
+          "24/11/2026"
+        ]
+      },
+      "reference": {
+        "overdue": [
+          "26/10/2026"
+        ],
+        "not_overdue": [
+          "27/10/2026",
+          "24/11/2026"
+        ]
+      },
+      "expected": {
+        "status": "not_implemented",
+        "absent": [
+          {
+            "kind": "column",
+            "table": "sales",
+            "pattern": "due"
+          },
+          {
+            "kind": "route",
+            "pattern": "overdue"
+          }
+        ]
+      }
+    },
+    {
+      "id": "aging-runs-from-the-invoice-date",
+      "kind": "aging",
+      "classification": "exact",
+      "evidence": [
+        "aging"
+      ],
+      "inputs": {
+        "invoice": "40 days old, still open"
+      },
+      "reference": {
+        "ages_from": "invoice date"
+      },
+      "expected": {
+        "ages_from": "invoice date"
+      }
+    },
+    {
+      "id": "aging-buckets-of-the-reports",
+      "kind": "aging",
+      "classification": "differs",
+      "reason": "Only the first buckets of the reference reports were read (the aged ledger counts today and then 1 to 7 days, the aged debtors count not due yet and then 1 to 30 days); this application ages in four buckets of 30 days, which WP13 revisits with the by-ledger variant.",
+      "evidence": [
+        "aging"
+      ],
+      "inputs": {
+        "invoices_open": [
+          "230.00 dated today",
+          "45.02 dated two days ago"
+        ]
+      },
+      "reference": {
+        "aging_buckets": [
+          "اليوم",
+          "1 - 7 يوم"
+        ]
+      },
+      "expected": {
+        "aging_buckets": [
+          "0-30",
+          "31-60",
+          "61-90",
+          "91+"
+        ]
+      }
+    }
+  ]
+}

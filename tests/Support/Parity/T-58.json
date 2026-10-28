@@ -1,0 +1,258 @@
+{
+  "id": "T-58",
+  "title": "An invoice in US dollars at a rate of 3.75 and three payments at other rates: every line converted and rounded on its own, the payment taken at the rate of its day, and the difference booked in one account; this application has one currency",
+  "recorded": "2026-10-28",
+  "observation": {
+    "batch": "b",
+    "scenarios": [
+      "B-S06"
+    ]
+  },
+  "evidence": {
+    "currency_choice": {
+      "id": null,
+      "note": "There is no global switch for a second currency: the invoice form has a link that opens a modal with the base currency and 160 codes; rates come from an automatic source or a manual table",
+      "observation": [
+        "pw-b-35",
+        "pw-b-36",
+        "pw-b-37"
+      ]
+    },
+    "usd_invoice": {
+      "id": null,
+      "note": "Invoice 000031 in USD at 3.75 with lines 2 x 100.00 and 1 x 33.33 and 15% VAT: totals in USD 268.33 with VAT 35.00 and in SAR 1,006.24 with VAT 131.25 and sales 874.99; journal 000197",
+      "observation": [
+        "pw-b-38"
+      ]
+    },
+    "payments_at_other_rates": {
+      "id": null,
+      "note": "Payments in USD without a rate field (the rate is the rate row of the payment date): 100 at 3.75 (journal 000198), 100 at 3.60 with a separate journal 000200 of 15.00 booked to 1209 as a loss, and 68.33 at 3.90 with 000202 of 10.25 booked to 1209 as a gain",
+      "observation": [
+        "pw-b-39",
+        "pw-b-40",
+        "pw-b-41"
+      ]
+    },
+    "reports_in_sar": {
+      "id": null,
+      "note": "The client page shows 170.27 SAR and 0 USD while the ledger of the client holds 175.02 in all currencies; the trial balance converts each journal at its own rate; reports value payments at the rate of the document",
+      "observation": [
+        "pw-b-42",
+        "pw-b-43",
+        "pw-b-52",
+        "pw-b-53",
+        "pw-b-60",
+        "pw-b-61",
+        "pw-b-62",
+        "pw-b-63"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "an-invoice-in-a-foreign-currency-and-its-payments-at-other-rates",
+      "kind": "foreign_currency_invoice",
+      "classification": "not_implemented",
+      "work_package": "WP28",
+      "reason": "A document here has no currency and no rate and no treasury has a currency: every amount is in the base currency (WP28 builds the document currency, the rate, the difference entries and the decimals of each currency). The numbers the reference system wrote are recorded for the package, with the quirks it should not copy: one account for gains and losses under current assets, and a difference booked in the SAR bucket that leaks 4.75 onto a SAR invoice.",
+      "evidence": [
+        "currency_choice",
+        "usd_invoice",
+        "payments_at_other_rates",
+        "reports_in_sar"
+      ],
+      "inputs": {
+        "invoice": {
+          "currency": "USD",
+          "rate": "3.75",
+          "lines": [
+            {
+              "quantity": "2",
+              "price": "100.00"
+            },
+            {
+              "quantity": "1",
+              "price": "33.33"
+            }
+          ],
+          "tax": "15%"
+        },
+        "payments": [
+          {
+            "amount": "100",
+            "date": "27/10/2026",
+            "rate": "3.75"
+          },
+          {
+            "amount": "100",
+            "date": "05/11/2026",
+            "rate": "3.60"
+          },
+          {
+            "amount": "68.33",
+            "date": "10/11/2026",
+            "rate": "3.90"
+          }
+        ]
+      },
+      "reference": {
+        "journals": {
+          "invoice": [
+            {
+              "role": "customer",
+              "debit": "268.33",
+              "credit": "0",
+              "code": "12041005",
+              "name": "افتراضي-D1 عميل",
+              "debit_base": "1006.24"
+            },
+            {
+              "role": "tax_output",
+              "debit": "0",
+              "credit": "35.00",
+              "code": "215001",
+              "name": "القيمة المضافة المحصلة",
+              "credit_base": "131.25"
+            },
+            {
+              "role": "sales_revenue",
+              "debit": "0",
+              "credit": "233.33",
+              "code": "411",
+              "name": "المبيعات",
+              "credit_base": "874.99"
+            }
+          ],
+          "payment_1_at_3_75": [
+            {
+              "role": "bank",
+              "debit": "100",
+              "credit": "0",
+              "code": "1202003",
+              "name": "افتراضي-B بنك",
+              "debit_base": "375.00"
+            },
+            {
+              "role": "customer",
+              "debit": "0",
+              "credit": "100",
+              "code": "12041005",
+              "name": "افتراضي-D1 عميل",
+              "credit_base": "375.00"
+            }
+          ],
+          "payment_2_at_3_60": [
+            {
+              "role": "bank",
+              "debit": "100",
+              "credit": "0",
+              "code": "1202003",
+              "name": "افتراضي-B بنك",
+              "debit_base": "360.00"
+            },
+            {
+              "role": "customer",
+              "debit": "0",
+              "credit": "100",
+              "code": "12041005",
+              "name": "افتراضي-D1 عميل",
+              "credit_base": "360.00"
+            }
+          ],
+          "difference_of_payment_2_loss": [
+            {
+              "role": "exchange_difference",
+              "debit": "15.00",
+              "credit": "0",
+              "code": "1209",
+              "name": "تغيير عملة"
+            },
+            {
+              "role": "customer",
+              "debit": "0",
+              "credit": "15.00",
+              "code": "12041005",
+              "name": "افتراضي-D1 عميل"
+            }
+          ],
+          "payment_3_at_3_90": [
+            {
+              "role": "bank",
+              "debit": "68.33",
+              "credit": "0",
+              "code": "1202003",
+              "name": "افتراضي-B بنك",
+              "debit_base": "266.49"
+            },
+            {
+              "role": "customer",
+              "debit": "0",
+              "credit": "68.33",
+              "code": "12041005",
+              "name": "افتراضي-D1 عميل",
+              "credit_base": "266.49"
+            }
+          ],
+          "difference_of_payment_3_gain": [
+            {
+              "role": "customer",
+              "debit": "10.25",
+              "credit": "0",
+              "code": "12041005",
+              "name": "افتراضي-D1 عميل"
+            },
+            {
+              "role": "exchange_difference",
+              "debit": "0",
+              "credit": "10.25",
+              "code": "1209",
+              "name": "تغيير عملة"
+            }
+          ]
+        },
+        "every_line_converted_and_rounded_on_its_own": true,
+        "payment_form_has_a_rate_field": false,
+        "one_account_for_gains_and_losses": "1209"
+      },
+      "expected": {
+        "status": "not_implemented",
+        "absent": [
+          {
+            "kind": "column",
+            "table": "sales",
+            "pattern": "currenc"
+          },
+          {
+            "kind": "column",
+            "table": "sales_payments",
+            "pattern": "currenc"
+          },
+          {
+            "kind": "column",
+            "table": "receivings",
+            "pattern": "currenc"
+          },
+          {
+            "kind": "column",
+            "table": "receivings_payments",
+            "pattern": "currenc"
+          },
+          {
+            "kind": "column",
+            "table": "treasuries",
+            "pattern": "currenc"
+          },
+          {
+            "kind": "table",
+            "pattern": "currenc"
+          },
+          {
+            "kind": "table",
+            "pattern": "exchange_rate"
+          }
+        ]
+      }
+    }
+  ]
+}

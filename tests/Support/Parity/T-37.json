@@ -1,0 +1,172 @@
+{
+  "id": "T-37",
+  "title": "An expense of 200 with 15% tax: the amount sent to the server is the total with the tax in it and the cost is what is left of it; the reference form works the tax out by itself, this application takes the amount of tax that is typed",
+  "recorded": "2026-10-27",
+  "observation": {
+    "batch": "d2",
+    "scenarios": [
+      "D2-S02"
+    ]
+  },
+  "evidence": {
+    "expense_000004": {
+      "id": null,
+      "note": "Expense 000004: 230 sent with a tax of 30; journal 000141: cost 200, tax 30, treasury 230",
+      "observation": [
+        "pw-d2-12",
+        "pw-d2-13"
+      ]
+    },
+    "expense_000006": {
+      "id": null,
+      "note": "Expense 000006: 200 sent with a tax of 26.09 (the tax taken out of the amount); journal 000144: cost 173.91, tax 26.09, treasury 200",
+      "observation": [
+        "pw-d2-14"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "amount-of-230-with-a-tax-of-30",
+      "kind": "expense_tax",
+      "classification": "exact",
+      "evidence": [
+        "expense_000004"
+      ],
+      "inputs": {
+        "amount": "230.00",
+        "tax": "30.00"
+      },
+      "reference": {
+        "journals": {
+          "expense": [
+            {
+              "role": "expense",
+              "debit": "200",
+              "credit": "0",
+              "code": "546",
+              "name": "افتراضي-D2 تصنيف مصروف"
+            },
+            {
+              "role": "tax_input",
+              "debit": "30",
+              "credit": "0",
+              "code": "215002",
+              "name": "القيمة المضافة المدفوعة"
+            },
+            {
+              "role": "treasury",
+              "debit": "0",
+              "credit": "230",
+              "code": "120103",
+              "name": "افتراضي-D2 خزينة 1"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "journals": {
+          "expense": [
+            {
+              "role": "expense",
+              "debit": "200",
+              "credit": "0"
+            },
+            {
+              "role": "tax_input",
+              "debit": "30",
+              "credit": "0"
+            },
+            {
+              "role": "treasury",
+              "debit": "0",
+              "credit": "230"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "amount-of-200-with-a-tax-of-26-09-taken-out-of-it",
+      "kind": "expense_tax",
+      "classification": "exact",
+      "evidence": [
+        "expense_000006"
+      ],
+      "inputs": {
+        "amount": "200.00",
+        "tax": "26.09"
+      },
+      "reference": {
+        "journals": {
+          "expense": [
+            {
+              "role": "expense",
+              "debit": "173.91",
+              "credit": "0",
+              "code": "546",
+              "name": "افتراضي-D2 تصنيف مصروف"
+            },
+            {
+              "role": "tax_input",
+              "debit": "26.09",
+              "credit": "0",
+              "code": "215002",
+              "name": "القيمة المضافة المدفوعة"
+            },
+            {
+              "role": "treasury",
+              "debit": "0",
+              "credit": "200",
+              "code": "120103",
+              "name": "افتراضي-D2 خزينة 1"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "journals": {
+          "expense": [
+            {
+              "role": "expense",
+              "debit": "173.91",
+              "credit": "0"
+            },
+            {
+              "role": "tax_input",
+              "debit": "26.09",
+              "credit": "0"
+            },
+            {
+              "role": "treasury",
+              "debit": "0",
+              "credit": "200"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "the-tax-of-an-amount-is-worked-out-by-the-form",
+      "kind": "expense_tax",
+      "classification": "differs",
+      "reason": "The expense form of the reference system has a tax to choose and works its amount out of the amount (15% added to a typed 200 gives 230 and a tax of 30, or 15% taken out of it gives 26.09). The form of this application has a field for the amount of tax and nothing works it out: an amount of 200 with no tax typed is all cost and no tax line is posted.",
+      "evidence": [
+        "expense_000004",
+        "expense_000006"
+      ],
+      "inputs": {
+        "amount": "200.00",
+        "tax": "none typed"
+      },
+      "reference": {
+        "tax_posted": "26.09",
+        "cost_posted": "173.91"
+      },
+      "expected": {
+        "tax_posted": "0.00",
+        "cost_posted": "200.00"
+      }
+    }
+  ]
+}

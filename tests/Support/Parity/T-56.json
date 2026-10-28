@@ -1,0 +1,155 @@
+{
+  "id": "T-56",
+  "title": "Post-dated cheques: the due date posts nothing and the journals of receipt and delivery carry the issue date; the reference system refuses a collection dated before the due date, accepts a deposit before it and a future-dated collection; there is no cheque module yet",
+  "recorded": "2026-10-28",
+  "observation": {
+    "batch": "b",
+    "scenarios": [
+      "B-S04"
+    ]
+  },
+  "evidence": {
+    "post_dated_received": {
+      "id": null,
+      "note": "A received cheque of 50 later edited to 60 due in two months: its receipt journal 000186 is dated the issue date, identical to a cheque due today, and an edit changes it in place; endorsement is a label that adds no journal",
+      "observation": [
+        "pw-b-19",
+        "pw-b-20",
+        "pw-b-21"
+      ]
+    },
+    "date_rules": {
+      "id": null,
+      "note": "A collection dated before the due date is refused by the server with a message and writes nothing; a deposit before the due date is accepted; a collection on the due date is accepted and its journal 000188 is dated that future day; after the first deposit or collection the financial fields are locked",
+      "observation": [
+        "pw-b-22",
+        "pw-b-23"
+      ]
+    },
+    "post_dated_paid": {
+      "id": null,
+      "note": "A post-dated payable cheque of 80 issued and delivered with its journal 000193 dated the issue date; collecting it before the due date is refused in the same way",
+      "observation": [
+        "pw-b-32"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "the-due-date-of-a-cheque-posts-nothing-and-the-collection-date-is-checked",
+      "kind": "post_dated_cheque",
+      "classification": "not_implemented",
+      "work_package": "WP26",
+      "reason": "There are no cheques here, so there is no due date to check a collection against (WP26). The rules the reference system showed are recorded for it: the receipt and the delivery are dated the issue date whatever the due date, a collection before the due date is refused with the message below, a deposit before it is accepted, and a collection on the due date posts a journal dated that day.",
+      "evidence": [
+        "post_dated_received",
+        "date_rules",
+        "post_dated_paid"
+      ],
+      "inputs": {
+        "cheque": {
+          "amount": "60.00",
+          "issued": "27/10/2026",
+          "due": "27/12/2026"
+        },
+        "collections_tried": [
+          "27/10/2026",
+          "27/12/2026"
+        ]
+      },
+      "reference": {
+        "journals": {
+          "received_dated_the_issue_date": [
+            {
+              "role": "notes_receivable",
+              "debit": "60",
+              "credit": "0",
+              "code": "1211",
+              "name": "أوراق القبض"
+            },
+            {
+              "role": "customer",
+              "debit": "0",
+              "credit": "60",
+              "code": "12041005",
+              "name": "افتراضي-D1 عميل"
+            }
+          ],
+          "deposited_before_the_due_date": [
+            {
+              "role": "under_collection",
+              "debit": "60",
+              "credit": "0",
+              "code": "1212",
+              "name": "مبالغ تحت التحصيل"
+            },
+            {
+              "role": "notes_receivable",
+              "debit": "0",
+              "credit": "60",
+              "code": "1211",
+              "name": "أوراق القبض"
+            }
+          ],
+          "collected_on_the_due_date_dated_27_12_2026": [
+            {
+              "role": "bank",
+              "debit": "60",
+              "credit": "0",
+              "code": "1202003",
+              "name": "افتراضي-B بنك"
+            },
+            {
+              "role": "under_collection",
+              "debit": "0",
+              "credit": "60",
+              "code": "1212",
+              "name": "مبالغ تحت التحصيل"
+            }
+          ],
+          "paid_cheque_delivered_dated_the_issue_date": [
+            {
+              "role": "supplier",
+              "debit": "80",
+              "credit": "0",
+              "code": "2211008",
+              "name": "مورد افتراضي-B 1"
+            },
+            {
+              "role": "notes_payable",
+              "debit": "0",
+              "credit": "80",
+              "code": "216",
+              "name": "أوراق الدفع"
+            }
+          ]
+        },
+        "collection_before_the_due_date": "refused",
+        "refusal_message": "تاريخ التحصيل يجب أن يكون أكبر من أو يساوي تاريخ الاستحقاق",
+        "deposit_before_the_due_date": "accepted",
+        "endorsement": "a label only"
+      },
+      "expected": {
+        "status": "not_implemented",
+        "absent": [
+          {
+            "kind": "table",
+            "pattern": "cheque"
+          },
+          {
+            "kind": "route",
+            "pattern": "cheque"
+          },
+          {
+            "kind": "class",
+            "name": "App\\Controllers\\Cheques"
+          },
+          {
+            "kind": "class",
+            "name": "App\\Models\\Cheque"
+          }
+        ]
+      }
+    }
+  ]
+}
