@@ -93,6 +93,8 @@ $routes->group('accounting_reports', static function (RouteCollection $routes): 
     $routes->get('ledger', 'AccountingReports::getLedger');
     $routes->get('inventory_valuation', 'AccountingInventoryReports::getIndex');
     $routes->get('inventory_valuation/csv', 'AccountingInventoryReports::getCsv');
+    $routes->get('tax', 'AccountingTaxReports::getIndex');
+    $routes->get('tax/csv', 'AccountingTaxReports::getCsv');
 });
 
 $routes->group('accounting_statements', static function (RouteCollection $routes): void {

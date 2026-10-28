@@ -139,6 +139,9 @@ function reportCatalog(array $permissionIds, ?bool $accountingOn = null): array
                 $link('graphical', 'graphical_summary_sales_taxes'),
                 $link('summary', 'summary_sales_taxes'),
             ]],
+            ['bi-journal-check', 'Accounting_tax_reports.title', 'accounting_reports', [
+                ['path' => site_url('accounting_reports/tax'), 'label' => lang('Accounting_tax_reports.catalog_link'), 'icon' => 'bi-table'],
+            ]],
             ['bi-folder2-open', 'Reports.expenses_categories', 'reports_expenses_categories', [
                 $link('graphical', 'graphical_summary_expenses_categories'),
                 $link('summary', 'summary_expenses_categories'),

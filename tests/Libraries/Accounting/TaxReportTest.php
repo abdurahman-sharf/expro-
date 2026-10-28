@@ -5,10 +5,7 @@ namespace Tests\Libraries\Accounting;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\InvoiceDiscount;
-use App\Libraries\Accounting\JournalDraft;
-use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\JournalService;
-use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\ReportPeriod;
 use App\Libraries\Accounting\ReportScope;
 use App\Libraries\Accounting\RoutingKey;
@@ -18,7 +15,6 @@ use App\Libraries\Accounting\TaxReport;
 use App\Libraries\Accounting\TaxReportResult;
 use App\Libraries\Accounting\TaxSection;
 use App\Libraries\Accounting\TrialBalance;
-use App\Models\Expense;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -30,6 +26,7 @@ use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\ReportFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 use Tests\Support\StatementFixtureTrait;
+use Tests\Support\TaxReportFixtureTrait;
 
 /**
  * The tax of a period from the journals in the books: what the sales, the returns, the purchases
@@ -48,6 +45,7 @@ class TaxReportTest extends CIUnitTestCase
     use SaleAccountingFixtureTrait;
     use PurchaseAccountingFixtureTrait;
     use StatementFixtureTrait;
+    use TaxReportFixtureTrait;
 
     private const END = '2035-12-31';
 
@@ -68,25 +66,14 @@ class TaxReportTest extends CIUnitTestCase
     {
         parent::setUp();
 
-        $this->clearExpenseRows();
-        $this->resetBranches();
-        $this->startBooks();
-        $this->workInEveryBranch();
+        $this->startTaxBooks();
 
-        $this->expenses        = model(Expense::class);
-        $this->clerkId         = $this->employeeWithGrants([]);
-        $this->expensesStarted = true;
-        $this->taxes           = new TaxReport();
+        $this->taxes = new TaxReport();
     }
 
     protected function tearDown(): void
     {
-        $this->setConfigValue('accounting_start_date', '2020-01-01');
-        $this->stopExpenses();
-        $this->stopBuying();
-        $this->clearJournals();
-        $this->reinstallChart();
-        $this->resetBranches();
+        $this->stopTaxBooks();
 
         parent::tearDown();
     }
@@ -109,69 +96,6 @@ class TaxReportTest extends CIUnitTestCase
         $figures = $report->section($section);
 
         return ['base' => $figures->base, 'tax' => $figures->tax, 'documents' => $figures->documents];
-    }
-
-    /**
-     * An invoice of a service for the net amount, with the tax on it, left on the customer.
-     */
-    private function sell(string $net, string $tax, ?int $customerId = null, int $locationId = self::LOCATION_ID): int
-    {
-        $service = $this->item('0', false);
-        $saleId  = $this->save([$this->line($service, 0, '1', $net, '0', '0', PERCENT, $locationId)], $tax === '0' ? [] : [$this->tax($service, 0, $tax)], [], SALE_TYPE_INVOICE, $customerId ?? -1);
-
-        $this->assertGreaterThan(0, $saleId, 'The sale of ' . $net . ' was not saved');
-
-        return $saleId;
-    }
-
-    /**
-     * A credit note of a service for the net amount, with the tax of it, taken from an invoice.
-     */
-    private function takeBack(int $invoiceId, string $net, string $tax): int
-    {
-        $service = $this->item('0', false);
-        $returnId = $this->save([$this->line($service, 0, '-1', $net)], [$this->tax($service, 0, '-' . $tax)], [], SALE_TYPE_RETURN, -1, true, $invoiceId);
-
-        $this->assertGreaterThan(0, $returnId, 'The return of ' . $net . ' was not saved');
-
-        return $returnId;
-    }
-
-    /**
-     * A purchase of stock at the price, with tax at the rate, left on the supplier.
-     */
-    private function buyTaxed(string $quantity, string $price, string $rate, ?int $supplierId = null): int
-    {
-        $item        = $this->item('0.00');
-        $receivingId = $this->buy([$this->purchaseLine($item, 0, $quantity, $price, $rate)], $supplierId ?? -1);
-
-        $this->assertGreaterThan(0, $receivingId, 'The purchase was not saved');
-
-        return $receivingId;
-    }
-
-    private function giveBackTaxed(int $receivingId, string $quantity, string $rate): int
-    {
-        $line     = $this->accountingDb()->table('receivings_items')->where('receiving_id', $receivingId)->get()->getRow();
-        $returnId = $this->buy([$this->purchaseLine((int) $line->item_id, 0, '-' . $quantity, (string) $line->item_unit_price, $rate)], -1, null, $receivingId);
-
-        $this->assertGreaterThan(0, $returnId, 'The purchase return was not saved');
-
-        return $returnId;
-    }
-
-    private function spend(string $gross, string $tax, string $date = '2026-10-20 10:00:00'): int
-    {
-        $id = $this->saveExpense($this->expenseData($gross, $tax, 'Cash', null, $date));
-
-        $this->assertNotNull($id, 'The expense of ' . $gross . ' was not saved');
-
-        return $id;
-    }
-
-    private function dayOf(int $saleId): string
-    {
-        return $this->journals($saleId)[0]['date'];
     }
 
     /**
@@ -198,40 +122,6 @@ class TaxReportTest extends CIUnitTestCase
         }
 
         $this->fail('The report has no account ' . $code);
-    }
-
-    /**
-     * The sales and the return the reference system was read on: 2,210 of sales with 331.50 of
-     * tax and 220 of returns with 33.00 of tax, so 298.50 is owed.
-     *
-     * @return array{invoice: int, return: int}
-     */
-    private function observedScenario(): array
-    {
-        $invoice = $this->sell('2210.00', '331.50');
-
-        return ['invoice' => $invoice, 'return' => $this->takeBack($invoice, '220.00', '33.00')];
-    }
-
-    private function postManual(string $account, string $debit, string $credit, string $counter = 'cash', string $status = 'posted'): int
-    {
-        $journalId = (new PostingService())->post(new JournalDraft(
-            date: '2026-10-21',
-            lines: [
-                new JournalLineDraft($this->accountIdByCode($account), debit: $debit, credit: $credit),
-                new JournalLineDraft($this->accountId($counter), debit: $credit, credit: $debit),
-            ],
-            sourceType: 'manual',
-            sourceId: null,
-            employeeId: 1,
-            currencyCode: 'SAR',
-        ))->journalId;
-
-        if ($status !== 'posted') {
-            $this->accountingDb()->table('accounting_journals')->where('journal_id', $journalId)->update(['status' => $status]);
-        }
-
-        return $journalId;
     }
 
     public function testBuild_ReproducesTheFiguresObservedInTheReferenceSystem(): void
@@ -791,45 +681,4 @@ class TaxReportTest extends CIUnitTestCase
         $this->assertFalse($report->reachesBeforeBooks());
     }
 
-    private function saveLegacySale(string $time, string $net, string $tax, int $branchId = 1): int
-    {
-        $db      = $this->accountingDb();
-        $service = $this->item('0', false);
-
-        $db->table('sales')->insert(['sale_time' => $time, 'employee_id' => $this->employeeId, 'comment' => '', 'sale_status' => COMPLETED, 'sale_type' => SALE_TYPE_INVOICE, 'branch_id' => $branchId]);
-        $saleId = (int) $db->insertID();
-
-        $db->table('sales_items')->insert(['sale_id' => $saleId, 'item_id' => $service, 'line' => 0, 'quantity_purchased' => '1', 'item_cost_price' => '0', 'item_unit_price' => $net, 'discount' => '0', 'discount_type' => 0, 'item_location' => 1, 'print_option' => 0]);
-        $db->table('sales_items_taxes')->insert([...$this->tax($service, 0, $tax), 'sale_id' => $saleId]);
-
-        return $this->saleRowIds[] = $saleId;
-    }
-
-    private function saveLegacyPurchase(string $time): void
-    {
-        $db   = $this->accountingDb();
-        $item = $this->item('0.00');
-
-        $db->table('receivings')->insert(['receiving_time' => $time, 'supplier_id' => $this->supplierId, 'employee_id' => $this->employeeId, 'comment' => '', 'receiving_type' => 'receive', 'branch_id' => 1]);
-        $receivingId = (int) $db->insertID();
-
-        $db->table('receivings_items')->insert(['receiving_id' => $receivingId, 'item_id' => $item, 'line' => 0, 'quantity_purchased' => '1', 'item_cost_price' => '0', 'item_unit_price' => '100', 'discount' => '0', 'discount_type' => 0, 'item_location' => 1, 'receiving_quantity' => '1', 'tax_percent' => '15']);
-
-        $this->receivingIds[] = $receivingId;
-    }
-
-    private function saveLegacyExpense(string $time, string $gross, string $tax, ?int $branchId = null): void
-    {
-        $this->accountingDb()->table('expenses')->insert([
-            'date'                => $time,
-            'amount'              => $gross,
-            'tax_amount'          => $tax,
-            'payment_type'        => 'Cash',
-            'expense_category_id' => $this->category(),
-            'description'         => 'Legacy expense',
-            'employee_id'         => $this->clerkId,
-            'deleted'             => 0,
-            'branch_id'           => $branchId,
-        ]);
-    }
 }
