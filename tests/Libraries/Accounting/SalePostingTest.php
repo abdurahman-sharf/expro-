@@ -17,6 +17,7 @@ use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\Accounting\RoutingKey;
 use App\Libraries\Accounting\RoutingType;
 use App\Libraries\Accounting\SalePosting;
+use App\Libraries\Accounting\StockLedger;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\InvoiceDiscountProblem;
 use App\Libraries\Organization\BranchGuard;
@@ -394,6 +395,19 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame($before, array_slice($after, 0, 3), 'a journal that was written is never renumbered or rewritten');
         $this->assertSame(['revenue', 'general', 'cogs', 'general'], array_column($after, 'entry'));
         $this->assertGreaterThan($before[2]['id'], $after[3]['id']);
+    }
+
+    /**
+     * The stock movements a sale wrote, without the ids that tell one sale from another.
+     *
+     * @return list<string>
+     */
+    private function stockEntriesOf(int $saleId): array
+    {
+        return array_map(
+            static fn (array $row): string => implode(':', [$row['entry_type'], $row['item_id'], $row['location_id'], bcadd($row['quantity'], '0', 3), bcadd($row['value'], '0', 4)]),
+            $this->accountingDb()->table('accounting_stock_entries')->select('entry_type, item_id, location_id, quantity, value')->where(['source_type' => 'sale', 'source_id' => $saleId])->orderBy('line_no', 'ASC')->get()->getResultArray(),
+        );
     }
 
     /**
@@ -1466,6 +1480,8 @@ class SalePostingTest extends CIUnitTestCase
             array_map(static fn (array $journal): array => [$journal['source'], $journal['entry'], $journal['revision'], $journal['status'], $journal['lines']], $this->journals($after)),
         );
         $this->assertEqualsWithDelta($stock + 1, $this->stock($cycle['perfume']), 0.0001);
+        $this->assertSame($this->stockEntriesOf($note), $this->stockEntriesOf($after));
+        $this->assertNotSame([], $this->stockEntriesOf($after));
         $this->assertNull($this->saleRow($note)->return_document);
         $this->assertSame(ReturnDocument::RefundInvoice->value, $this->saleRow($after)->return_document);
         $this->assertSame((string) $invoice, (string) $this->saleRow($after)->return_of_sale_id);
@@ -1486,6 +1502,11 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame('-180.00', $this->balance($this->stockAccount()));
         $this->assertSame('180.00', $this->balance($this->accountId('cogs')));
         $this->assertSame(['revenue', 'general', 'cogs'], array_column($this->journals($refund), 'entry'));
+
+        $ledger = new StockLedger();
+
+        $this->assertSame([], $ledger->mismatchedJournals());
+        $this->assertSame(0, bccomp($ledger->reconcile([self::LOCATION_ID])[0]['unattributed'], '0', 4));
     }
 
     public function testSaveValue_SettlesARefundInvoiceIntoItsInvoiceAsACreditNoteIs(): void
