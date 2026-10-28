@@ -2284,4 +2284,350 @@ class ReceivingsControllerTest extends CIUnitTestCase
     {
         return $this->amountsOf($html, "//tr[td[@colspan='3' and @style]]/td[last()]");
     }
+
+    // ---------------------------------------------------------------------------------------
+    // The date typed on a purchase, its payment terms and its due date (WP13)
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * A buyer with a cart of one purchase of ten units at the register, with or without the
+     * permission to type the date of a purchase.
+     *
+     * @param array<string, mixed> $more
+     */
+    private function registerWithTheDateGrant(bool $granted = true, array $more = []): int
+    {
+        $itemId  = $this->item('0.00');
+        $buyerId = $this->buyer(null, $granted ? ['items', 'receivings_invoice_date'] : ['items']);
+
+        $this->loginAs($buyerId, array_merge($this->cart([$this->cartLine($itemId, 1, '10', '100')]), $more));
+
+        return $buyerId;
+    }
+
+    private function carryTheTimingToTheNextRequest(): void
+    {
+        $this->withSession(array_merge($this->session, array_intersect_key(\Config\Services::session()->get(), array_flip(['recv_invoice_date', 'recv_payment_terms', 'recv_cart', 'recv_mode', 'recv_supplier', 'recv_stock_source']))));
+    }
+
+    public function testPostSetInvoiceDate_RefusesABuyerWithoutThePermissionAndSetsNothing(): void
+    {
+        $this->registerWithTheDateGrant(false);
+
+        $response = $this->post('/receivings/setInvoiceDate', ['recv_invoice_date' => $this->daysAgo(3)]);
+
+        $response->assertStatus(403);
+        $this->assertFalse($this->jsonOf($response)['success']);
+        $this->assertNull(\Config\Services::session()->get('recv_invoice_date'));
+    }
+
+    public function testPostSetInvoiceDate_RefusesWhileAccountingIsOffAndSetsNothing(): void
+    {
+        $this->registerWithTheDateGrant();
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $this->post('/receivings/setInvoiceDate', ['recv_invoice_date' => $this->daysAgo(3)])->assertStatus(403);
+        $this->assertNull(\Config\Services::session()->get('recv_invoice_date'));
+    }
+
+    public function testPostSetInvoiceDate_SetsADayUpToTodayAndAnswersTheDueDateOfTheTermsOnTheRegister(): void
+    {
+        $this->registerWithTheDateGrant(true, ['recv_payment_terms' => '10']);
+
+        $answer = $this->jsonOf($this->post('/receivings/setInvoiceDate', ['recv_invoice_date' => $this->daysAgo(3)]));
+
+        $this->assertTrue($answer['success']);
+        $this->assertSame($this->daysAgo(3), \Config\Services::session()->get('recv_invoice_date'));
+        $this->assertSame(to_date(strtotime('+7 days')), $answer['due_date_label']);
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function refusedRegisterDayProvider(): array
+    {
+        return [
+            'tomorrow'         => [date('Y-m-d', strtotime('+1 day'))],
+            'not a date'       => ['soon'],
+            'before the books' => ['2019-12-31'],
+        ];
+    }
+
+    #[DataProvider('refusedRegisterDayProvider')]
+    public function testPostSetInvoiceDate_RefusesADayThatIsNotUpToTodayOrIsBeforeTheBooksAndKeepsWhatWasSet(string $typed): void
+    {
+        $this->registerWithTheDateGrant(true, ['recv_invoice_date' => $this->daysAgo(2)]);
+
+        $answer = $this->jsonOf($this->post('/receivings/setInvoiceDate', ['recv_invoice_date' => $typed]));
+
+        $this->assertFalse($answer['success']);
+        $this->assertNotSame('', $answer['message']);
+        $this->assertSame($this->daysAgo(2), \Config\Services::session()->get('recv_invoice_date'));
+    }
+
+    public function testPostSetInvoiceDate_TakesBackTheDayWhenItIsSentEmpty(): void
+    {
+        $this->registerWithTheDateGrant(true, ['recv_invoice_date' => $this->daysAgo(2)]);
+
+        $this->assertTrue($this->jsonOf($this->post('/receivings/setInvoiceDate', ['recv_invoice_date' => '']))['success']);
+        $this->assertNull(\Config\Services::session()->get('recv_invoice_date'));
+    }
+
+    public function testPostSetPaymentTerms_SetsTheTermsForAnyBuyerAndAnswersTheDueDate(): void
+    {
+        $this->registerWithTheDateGrant(false);
+
+        $answer = $this->jsonOf($this->post('/receivings/setPaymentTerms', ['recv_payment_terms' => '30']));
+
+        $this->assertTrue($answer['success']);
+        $this->assertSame('30', \Config\Services::session()->get('recv_payment_terms'));
+        $this->assertSame(to_date(strtotime('+30 days')), $answer['due_date_label']);
+    }
+
+    public function testPostSetPaymentTerms_RefusesWhatIsNotAWholeNumberOfDaysAndKeepsWhatWasSet(): void
+    {
+        $this->registerWithTheDateGrant(true, ['recv_payment_terms' => '5']);
+
+        foreach (['-1', '2.5', 'soon', '3651'] as $typed) {
+            $answer = $this->jsonOf($this->post('/receivings/setPaymentTerms', ['recv_payment_terms' => $typed]));
+
+            $this->assertFalse($answer['success'], $typed);
+            $this->assertSame('5', \Config\Services::session()->get('recv_payment_terms'), $typed);
+        }
+    }
+
+    public function testPostSetPaymentTerms_TakesBackTheTermsWhenTheyAreSentZeroAndRefusesWhileAccountingIsOff(): void
+    {
+        $this->registerWithTheDateGrant(true, ['recv_payment_terms' => '5']);
+
+        $this->assertTrue($this->jsonOf($this->post('/receivings/setPaymentTerms', ['recv_payment_terms' => '0']))['success']);
+        $this->assertNull(\Config\Services::session()->get('recv_payment_terms'));
+
+        $this->withSession(array_merge($this->session, ['recv_payment_terms' => '5']));
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $this->post('/receivings/setPaymentTerms', ['recv_payment_terms' => '9'])->assertStatus(403);
+        $this->assertSame('5', \Config\Services::session()->get('recv_payment_terms'));
+    }
+
+    public function testGetIndex_OffersTheDateOnlyToABuyerWhoMayTypeItAndTheTermsToEveryoneInTheModeOfAReceiving(): void
+    {
+        $this->registerWithTheDateGrant();
+
+        $page = $this->get('/receivings');
+
+        $page->assertSee('id="recv_invoice_date"');
+        $page->assertSee('id="recv_payment_terms"');
+        $page->assertSee('id="recv_due_date"');
+
+        $this->registerWithTheDateGrant(false);
+
+        $page = $this->get('/receivings');
+
+        $page->assertDontSee('id="recv_invoice_date"');
+        $page->assertSee('id="recv_payment_terms"');
+    }
+
+    public function testGetIndex_OffersNeitherTheDateNorTheTermsOutsideTheModeOfAReceivingOrWhileAccountingIsOff(): void
+    {
+        $this->registerWithTheDateGrant(true, ['recv_mode' => 'return']);
+
+        $this->get('/receivings')->assertDontSee('id="recv_payment_terms"');
+
+        $this->withSession(array_merge($this->session, ['recv_mode' => 'receive']));
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $page = $this->get('/receivings');
+
+        $page->assertDontSee('id="recv_invoice_date"');
+        $page->assertDontSee('id="recv_payment_terms"');
+    }
+
+    public function testPostComplete_DatesThePurchaseByTheDayAndTheTermsOfTheRegisterAndPrintsThemOnTheReceipt(): void
+    {
+        $this->registerWithTheDateGrant();
+
+        $this->post('/receivings/setInvoiceDate', ['recv_invoice_date' => $this->daysAgo(6)]);
+        $this->carryTheTimingToTheNextRequest();
+        $this->post('/receivings/setPaymentTerms', ['recv_payment_terms' => '10']);
+        $this->carryTheTimingToTheNextRequest();
+
+        $purchases = $this->countRows('receivings');
+        $response  = $this->post('/receivings/complete', $this->completeForm());
+
+        $this->assertSame($purchases + 1, $this->countRows('receivings'));
+
+        $receivingId          = (int) $this->accountingDb()->table('receivings')->selectMax('receiving_id', 'last')->get()->getRow()->last;
+        $this->receivingIds[] = $receivingId;
+        $purchase             = $this->receivingRow($receivingId);
+
+        $this->assertSame($this->daysAgo(6), $purchase->invoice_date);
+        $this->assertSame(10, (int) $purchase->payment_terms_days);
+        $this->assertSame(date('Y-m-d', strtotime('+4 days')), $purchase->due_date);
+        $this->assertSame([$this->daysAgo(6)], array_values(array_unique(array_column($this->standingPurchase($receivingId), 'date'))));
+        $response->assertSeeElement('#invoice_date');
+        $response->assertSeeElement('#due_date');
+        $response->assertSee(to_date(strtotime('-6 days')));
+        $response->assertSee(to_date(strtotime('+4 days')));
+        $this->assertNull(\Config\Services::session()->get('recv_invoice_date'), 'the register forgets the day of a purchase that was made');
+        $this->assertNull(\Config\Services::session()->get('recv_payment_terms'));
+    }
+
+    public function testPostComplete_PrintsNeitherTheDayNorTheDueDateOnAPurchaseWithNeither(): void
+    {
+        $this->registerWithTheDateGrant();
+
+        $response = $this->post('/receivings/complete', $this->completeForm());
+
+        $this->receivingIds[] = (int) $this->accountingDb()->table('receivings')->selectMax('receiving_id', 'last')->get()->getRow()->last;
+
+        $response->assertDontSeeElement('#invoice_date');
+        $response->assertDontSeeElement('#due_date');
+    }
+
+    public function testPostComplete_RefusesADayInAClosedPeriodAndSaysWhyAndSavesNothing(): void
+    {
+        $this->registerWithTheDateGrant(true, ['recv_invoice_date' => $this->daysAgo(8)]);
+        $this->closeThrough($this->daysAgo(5));
+
+        $purchases = $this->countRows('receivings');
+
+        $response = $this->post('/receivings/complete', $this->completeForm());
+
+        $response->assertSee($this->daysAgo(8));
+        $this->assertSame($purchases, $this->countRows('receivings'));
+        $this->assertSame(0, $this->countJournals());
+        $this->assertCount(1, \Config\Services::session()->get('recv_cart'), 'the cart of the buyer is still there');
+    }
+
+    public function testPostComplete_RefusesTheDayOfABuyerWhoMayNoLongerTypeItAndSavesNothing(): void
+    {
+        $this->registerWithTheDateGrant(false, ['recv_invoice_date' => $this->daysAgo(3)]);
+
+        $purchases = $this->countRows('receivings');
+
+        $response = $this->post('/receivings/complete', $this->completeForm());
+
+        $response->assertSee(lang('Accounting.error_permission_denied'));
+        $this->assertSame($purchases, $this->countRows('receivings'));
+    }
+
+    public function testPostComplete_TakesNoTypedDayForAReturn(): void
+    {
+        $purchase = $this->purchaseOf('200.00');
+        $line     = $this->accountingDb()->table('receivings_items')->where('receiving_id', $purchase)->get()->getRow();
+
+        $this->loginAs(
+            $this->buyer(null, ['items', 'receivings_invoice_date']),
+            $this->cart([$this->cartLine((int) $line->item_id, 1, '-0.5', (string) $line->item_unit_price)], 'return', -1, $purchase) + ['recv_invoice_date' => $this->daysAgo(3), 'recv_payment_terms' => '9'],
+        );
+
+        $this->post('/receivings/complete', $this->completeForm());
+
+        $return               = $this->receivingRow((int) $this->accountingDb()->table('receivings')->selectMax('receiving_id', 'last')->get()->getRow()->last);
+        $this->receivingIds[] = (int) $return->receiving_id;
+
+        $this->assertSame('return', $return->receiving_type);
+        $this->assertNull($return->invoice_date);
+        $this->assertNull($return->payment_terms_days);
+    }
+
+    public function testGetEdit_ShowsTheDayTheTermsAndTheDueDateOfAPostedPurchase(): void
+    {
+        $purchase = $this->purchaseDated('100.00', $this->daysAgo(6), 10);
+
+        $this->loginAs($this->buyer());
+
+        $page = $this->get('/receivings/edit/' . $purchase);
+
+        $page->assertSee('id="invoice_date"');
+        $page->assertSee(to_date(strtotime('-6 days')));
+        $page->assertSee('id="payment_terms_days"');
+        $page->assertSee('id="due_date"');
+        $page->assertSee(to_date(strtotime('+4 days')));
+    }
+
+    public function testGetEdit_ShowsNoDayTermsOrDueDateOnAReturnOrWhileAccountingIsOff(): void
+    {
+        $purchase = $this->purchaseOf('200.00');
+        $return   = $this->debitNoteOf($purchase, '50.00');
+
+        $this->loginAs($this->buyer());
+
+        $this->get('/receivings/edit/' . $return)->assertDontSee('id="payment_terms_days"');
+
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $page = $this->get('/receivings/edit/' . $purchase);
+
+        $page->assertDontSee('id="payment_terms_days"');
+        $page->assertDontSee('id="due_date"');
+    }
+
+    public function testPostSave_ChangesThePaymentTermsOfAPostedPurchaseAndLeavesItsJournalsAsTheyWere(): void
+    {
+        $purchase = $this->purchaseDated('100.00', $this->daysAgo(6), 1);
+        $before   = $this->purchaseJournals($purchase);
+
+        $this->loginAs($this->buyer());
+
+        $result = $this->jsonOf($this->post('/receivings/save/' . $purchase, $this->savedWith($purchase, $this->paymentFields()) + ['payment_terms_days' => '30']));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(30, (int) $this->receivingRow($purchase)->payment_terms_days);
+        $this->assertSame(date('Y-m-d', strtotime('+24 days')), $this->receivingRow($purchase)->due_date);
+        $this->assertSame($before, $this->purchaseJournals($purchase));
+        $this->assertSame(1, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'receiving', 'entity_id' => $purchase, 'action' => 'payment_terms_changed'])->countAllResults());
+    }
+
+    public function testPostSave_RefusesTermsThatAreNotAWholeNumberOfDaysAndSaysSo(): void
+    {
+        $purchase = $this->purchaseDated('100.00', $this->daysAgo(6), 1);
+
+        $this->loginAs($this->buyer());
+
+        $result = $this->jsonOf($this->post('/receivings/save/' . $purchase, $this->savedWith($purchase, $this->paymentFields()) + ['payment_terms_days' => 'soon']));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_payment_terms_invalid', [(string) 3650]), $result['message']);
+        $this->assertSame(1, (int) $this->receivingRow($purchase)->payment_terms_days);
+    }
+
+    public function testPostSave_KeepsTheTermsOfAPurchaseWhenTheFormSendsNone(): void
+    {
+        $purchase = $this->purchaseDated('100.00', $this->daysAgo(6), 7);
+
+        $this->loginAs($this->buyer());
+
+        $result = $this->jsonOf($this->post('/receivings/save/' . $purchase, $this->savedWith($purchase, $this->paymentFields())));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(7, (int) $this->receivingRow($purchase)->payment_terms_days);
+    }
+
+    public function testGetReceipt_PrintsTheDayAndTheDueDateOnlyWhenThePurchaseHasThem(): void
+    {
+        $withTerms    = $this->purchaseDated('100.00', $this->daysAgo(6), 10);
+        $withoutTerms = $this->purchaseDated('50.00', $this->daysAgo(2));
+        $plain        = $this->purchaseOf('25.00');
+
+        $this->loginAs($this->buyer());
+
+        $page = $this->get('/receivings/receipt/' . $withTerms);
+
+        $page->assertSeeElement('#invoice_date');
+        $page->assertSee(to_date(strtotime('-6 days')));
+        $page->assertSeeElement('#due_date');
+        $page->assertSee(to_date(strtotime('+4 days')));
+
+        $page = $this->get('/receivings/receipt/' . $withoutTerms);
+
+        $page->assertSeeElement('#invoice_date');
+        $page->assertDontSeeElement('#due_date');
+
+        $page = $this->get('/receivings/receipt/' . $plain);
+
+        $page->assertDontSeeElement('#invoice_date');
+        $page->assertDontSeeElement('#due_date');
+    }
 }

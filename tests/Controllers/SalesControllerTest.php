@@ -2813,4 +2813,411 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertTrue($result['success']);
         $this->assertSame($prefix . '0001', Database::connect()->table('sales')->where('sale_id', $saleId)->get()->getRow()->invoice_number);
     }
+
+    // ---------------------------------------------------------------------------------------
+    // The date typed on an invoice, its payment terms and its due date (WP13)
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * A supervisor of the first branch with a cart of one line of 100 at the register in the mode
+     * of an invoice, with or without the permission to type the date of an invoice.
+     */
+    protected function registerWithTheDateGrant(bool $granted = true): int
+    {
+        $this->startSelling();
+        $item         = $this->item('0', false);
+        $supervisorId = $this->createBranchLimitedSupervisor(1, $granted ? ['sales_invoice_date'] : []);
+        $this->grantStockLocationIn(1, $supervisorId);
+        $this->loginAs($supervisorId);
+        $this->seedCartLine(1, '100.00', $item);
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => 'sale_invoice', 'sales_customer' => $this->customerId, 'sales_payments' => []]));
+
+        return $supervisorId;
+    }
+
+    /**
+     * The sale the register saved last, which the test then removes with the others.
+     */
+    protected function lastSale(): object
+    {
+        $sale = $this->accountingDb()->table('sales')->orderBy('sale_id', 'DESC')->get()->getRow();
+
+        $this->saleIds[] = (int) $sale->sale_id;
+
+        return $sale;
+    }
+
+    protected function carryTheTimingToTheNextRequest(): void
+    {
+        $this->withSession(array_merge($this->session, array_intersect_key(Services::session()->get(), array_flip(['sales_invoice_date', 'sales_payment_terms', 'sales_cart', 'sales_mode', 'sale_id', 'sales_customer', 'sales_payments', 'sale_type']))));
+    }
+
+    public function testPostSetInvoiceDate_RefusesAnEmployeeWithoutThePermissionAndSetsNothing(): void
+    {
+        $this->registerWithTheDateGrant(false);
+
+        $response = $this->post('/sales/setInvoiceDate', ['sales_invoice_date' => $this->daysAgo(3)]);
+
+        $response->assertStatus(403);
+        $this->assertFalse($this->jsonOf($response)['success']);
+        $this->assertNull(Services::session()->get('sales_invoice_date'));
+    }
+
+    public function testPostSetInvoiceDate_RefusesWhileAccountingIsOffAndSetsNothing(): void
+    {
+        $this->registerWithTheDateGrant();
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $response = $this->post('/sales/setInvoiceDate', ['sales_invoice_date' => $this->daysAgo(3)]);
+
+        $response->assertStatus(403);
+        $this->assertNull(Services::session()->get('sales_invoice_date'));
+    }
+
+    public function testPostSetInvoiceDate_SetsADayUpToTodayAndAnswersTheDueDateOfTheTermsOnTheRegister(): void
+    {
+        $this->registerWithTheDateGrant();
+        $this->withSession(array_merge($this->session, ['sales_payment_terms' => '10']));
+
+        $answer = $this->jsonOf($this->post('/sales/setInvoiceDate', ['sales_invoice_date' => $this->daysAgo(3)]));
+
+        $this->assertTrue($answer['success']);
+        $this->assertSame($this->daysAgo(3), Services::session()->get('sales_invoice_date'));
+        $this->assertSame(date('Y-m-d', strtotime('+7 days')), $answer['due_date']);
+        $this->assertSame(to_date(strtotime('+7 days')), $answer['due_date_label']);
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function refusedRegisterDayProvider(): array
+    {
+        return [
+            'tomorrow'          => [date('Y-m-d', strtotime('+1 day'))],
+            'not a date'        => ['soon'],
+            'before the books'  => ['2019-12-31'],
+        ];
+    }
+
+    #[DataProvider('refusedRegisterDayProvider')]
+    public function testPostSetInvoiceDate_RefusesADayThatIsNotUpToTodayOrIsBeforeTheBooksAndKeepsWhatWasSet(string $typed): void
+    {
+        $this->registerWithTheDateGrant();
+        $this->withSession(array_merge($this->session, ['sales_invoice_date' => $this->daysAgo(2)]));
+
+        $answer = $this->jsonOf($this->post('/sales/setInvoiceDate', ['sales_invoice_date' => $typed]));
+
+        $this->assertFalse($answer['success']);
+        $this->assertNotSame('', $answer['message']);
+        $this->assertSame($this->daysAgo(2), Services::session()->get('sales_invoice_date'));
+    }
+
+    public function testPostSetInvoiceDate_TakesBackTheDayWhenItIsSentEmpty(): void
+    {
+        $this->registerWithTheDateGrant();
+        $this->withSession(array_merge($this->session, ['sales_invoice_date' => $this->daysAgo(2)]));
+
+        $answer = $this->jsonOf($this->post('/sales/setInvoiceDate', ['sales_invoice_date' => '']));
+
+        $this->assertTrue($answer['success']);
+        $this->assertNull(Services::session()->get('sales_invoice_date'));
+    }
+
+    public function testPostSetPaymentTerms_SetsTheTermsForAnyEmployeeAndAnswersTheDueDate(): void
+    {
+        $this->registerWithTheDateGrant(false);
+
+        $answer = $this->jsonOf($this->post('/sales/setPaymentTerms', ['sales_payment_terms' => '30']));
+
+        $this->assertTrue($answer['success']);
+        $this->assertSame('30', Services::session()->get('sales_payment_terms'));
+        $this->assertSame(date('Y-m-d', strtotime('+30 days')), $answer['due_date']);
+    }
+
+    public function testPostSetPaymentTerms_RefusesWhatIsNotAWholeNumberOfDaysAndKeepsWhatWasSet(): void
+    {
+        $this->registerWithTheDateGrant();
+        $this->withSession(array_merge($this->session, ['sales_payment_terms' => '5']));
+
+        foreach (['-1', '2.5', 'soon', '3651'] as $typed) {
+            $answer = $this->jsonOf($this->post('/sales/setPaymentTerms', ['sales_payment_terms' => $typed]));
+
+            $this->assertFalse($answer['success'], $typed);
+            $this->assertSame('5', Services::session()->get('sales_payment_terms'), $typed);
+        }
+    }
+
+    public function testPostSetPaymentTerms_TakesBackTheTermsWhenTheyAreSentEmptyOrZeroAndRefusesWhileAccountingIsOff(): void
+    {
+        $this->registerWithTheDateGrant();
+        $this->withSession(array_merge($this->session, ['sales_payment_terms' => '5']));
+
+        $this->assertTrue($this->jsonOf($this->post('/sales/setPaymentTerms', ['sales_payment_terms' => '0']))['success']);
+        $this->assertNull(Services::session()->get('sales_payment_terms'));
+
+        $this->withSession(array_merge($this->session, ['sales_payment_terms' => '5']));
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $this->post('/sales/setPaymentTerms', ['sales_payment_terms' => '9'])->assertStatus(403);
+        $this->assertSame('5', Services::session()->get('sales_payment_terms'));
+    }
+
+    public function testGetIndex_OffersTheDateOnlyToAnEmployeeWhoMayTypeItAndTheTermsToEveryoneInTheModeOfAnInvoice(): void
+    {
+        $this->registerWithTheDateGrant();
+
+        $page = $this->get('/sales');
+
+        $page->assertSee('id="sales_invoice_date"');
+        $page->assertSee('id="sales_payment_terms"');
+        $page->assertSee('id="sales_due_date"');
+
+        $this->registerWithTheDateGrant(false);
+
+        $page = $this->get('/sales');
+
+        $page->assertDontSee('id="sales_invoice_date"');
+        $page->assertSee('id="sales_payment_terms"');
+    }
+
+    public function testGetIndex_OffersNeitherTheDateNorTheTermsOutsideTheModeOfAnInvoiceOrWhileAccountingIsOff(): void
+    {
+        $this->registerWithTheDateGrant();
+        $this->withSession(array_merge($this->session, ['sales_mode' => 'sale']));
+
+        $this->get('/sales')->assertDontSee('id="sales_payment_terms"');
+
+        $this->withSession(array_merge($this->session, ['sales_mode' => 'sale_invoice']));
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $page = $this->get('/sales');
+
+        $page->assertDontSee('id="sales_invoice_date"');
+        $page->assertDontSee('id="sales_payment_terms"');
+    }
+
+    public function testPostComplete_DatesTheInvoiceByTheDayAndTheTermsOfTheRegisterAndPrintsTheDueDate(): void
+    {
+        $this->registerWithTheDateGrant();
+
+        $this->post('/sales/setInvoiceDate', ['sales_invoice_date' => $this->daysAgo(6)]);
+        $this->carryTheTimingToTheNextRequest();
+        $this->post('/sales/setPaymentTerms', ['sales_payment_terms' => '10']);
+        $this->carryTheTimingToTheNextRequest();
+
+        $sales = $this->countSales();
+
+        $response = $this->post('/sales/complete');
+
+        $this->assertSame($sales + 1, $this->countSales());
+
+        $sale = $this->lastSale();
+
+        $this->assertSame($this->daysAgo(6), $sale->invoice_date);
+        $this->assertSame(10, (int) $sale->payment_terms_days);
+        $this->assertSame(date('Y-m-d', strtotime('+4 days')), $sale->due_date);
+        $this->assertSame([$this->daysAgo(6)], array_values(array_unique(array_column($this->standing((int) $sale->sale_id), 'date'))));
+        $response->assertSee(lang('Sales.due_date'));
+        $response->assertSee(to_date(strtotime('+4 days')));
+        $response->assertSee(to_date(strtotime('-6 days')));
+        $this->assertNull(Services::session()->get('sales_invoice_date'), 'the register forgets the day of an invoice that was made');
+        $this->assertNull(Services::session()->get('sales_payment_terms'));
+    }
+
+    public function testPostComplete_PrintsNoDueDateOnAnInvoiceWithoutTerms(): void
+    {
+        $this->registerWithTheDateGrant();
+
+        $response = $this->post('/sales/complete');
+
+        $sale = $this->lastSale();
+
+        $this->assertNull($sale->payment_terms_days);
+        $response->assertDontSee(lang('Sales.due_date'));
+    }
+
+    public function testPostComplete_RefusesADayInAClosedPeriodAndSaysWhyAndSavesNothing(): void
+    {
+        $this->registerWithTheDateGrant();
+        $this->closeThrough($this->daysAgo(5));
+        $this->withSession(array_merge($this->session, ['sales_invoice_date' => $this->daysAgo(8)]));
+
+        $sales = $this->countSales();
+
+        $response = $this->post('/sales/complete');
+
+        $response->assertSee($this->daysAgo(8));
+        $this->assertSame($sales, $this->countSales());
+        $this->assertSame(0, $this->countJournals());
+        $this->assertCount(1, Services::session()->get('sales_cart'), 'the cart of the cashier is still there');
+    }
+
+    public function testPostComplete_RefusesTheDayOfAnEmployeeWhoMayNoLongerTypeItAndSavesNothing(): void
+    {
+        $this->registerWithTheDateGrant(false);
+        $this->withSession(array_merge($this->session, ['sales_invoice_date' => $this->daysAgo(3)]));
+
+        $sales = $this->countSales();
+
+        $response = $this->post('/sales/complete');
+
+        $response->assertSee(lang('Accounting.error_permission_denied'));
+        $this->assertSame($sales, $this->countSales());
+    }
+
+    public function testPostSuspend_KeepsTheDayAndTheTermsOfADraftAndTheRegisterBringsThemBackWhenItIsTakenUp(): void
+    {
+        $this->registerWithTheDateGrant();
+        $this->withSession(array_merge($this->session, ['sales_invoice_date' => $this->daysAgo(4), 'sales_payment_terms' => '20', 'sale_type' => SALE_TYPE_INVOICE]));
+
+        $this->post('/sales/suspend');
+
+        $draft = $this->lastSale();
+
+        $this->assertSame((string) SUSPENDED, (string) $draft->sale_status);
+        $this->assertSame($this->daysAgo(4), $draft->invoice_date);
+        $this->assertSame(20, (int) $draft->payment_terms_days);
+        $this->assertNull($draft->due_date);
+        $this->assertSame(0, $this->countJournals());
+
+        $this->withSession(array_merge($this->session, ['sales_cart' => [], 'sale_id' => NEW_ENTRY]));
+        $this->post('/sales/unsuspend', ['suspended_sale_id' => (string) $draft->sale_id]);
+
+        $this->assertSame($this->daysAgo(4), Services::session()->get('sales_invoice_date'));
+        $this->assertSame('20', Services::session()->get('sales_payment_terms'));
+    }
+
+    public function testGetEdit_ShowsTheDayTheTermsAndTheDueDateOfAnIssuedInvoice(): void
+    {
+        $this->registerWithTheDateGrant();
+
+        $saleId = $this->invoiceDated('100.00', $this->daysAgo(6), 10);
+
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $page = $this->get('/sales/edit/' . $saleId);
+
+        $page->assertSee('id="invoice_date"');
+        $page->assertSee(to_date(strtotime('-6 days')));
+        $page->assertSee('id="payment_terms_days"');
+        $page->assertSee('id="due_date"');
+        $page->assertSee(to_date(strtotime('+4 days')));
+    }
+
+    public function testGetEdit_ShowsNoDayTermsOrDueDateOnASaleThatIsNotAnInvoiceOrWhileAccountingIsOff(): void
+    {
+        $this->startSelling();
+
+        $pos = $this->save([$this->line($this->item('0', false), 0, '1', '40')], [], [$this->payment(lang('Sales.cash'), '40.00')], SALE_TYPE_POS);
+
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $this->get('/sales/edit/' . $pos)->assertDontSee('id="payment_terms_days"');
+
+        $invoice = $this->invoiceOf('100.00');
+
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $page = $this->get('/sales/edit/' . $invoice);
+
+        $page->assertDontSee('id="payment_terms_days"');
+        $page->assertDontSee('id="due_date"');
+    }
+
+    public function testPostSave_ChangesThePaymentTermsOfAnIssuedInvoiceAndLeavesItsJournalsAsTheyWere(): void
+    {
+        $this->registerWithTheDateGrant();
+
+        $saleId = $this->invoiceDated('100.00', $this->daysAgo(6), 1);
+        $before = $this->journals($saleId);
+
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $result = $this->jsonOf($this->post('/sales/save/' . $saleId, [
+            'date'               => to_datetime(strtotime((string) $this->saleRow($saleId)->sale_time)),
+            'customer_id'        => (string) $this->customerId,
+            'employee_id'        => (string) $this->employeeId,
+            'comment'            => 'edited',
+            'invoice_number'     => '',
+            'number_of_payments' => '0',
+            'payment_type_new'   => '--',
+            'payment_amount_new' => '0',
+            'payment_terms_days' => '30',
+        ]));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(30, (int) $this->saleRow($saleId)->payment_terms_days);
+        $this->assertSame(date('Y-m-d', strtotime('+24 days')), $this->saleRow($saleId)->due_date);
+        $this->assertSame($before, $this->journals($saleId));
+        $this->assertSame(1, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'sale', 'entity_id' => $saleId, 'action' => 'payment_terms_changed'])->countAllResults());
+    }
+
+    public function testPostSave_RefusesTermsThatAreNotAWholeNumberOfDaysAndSaysSo(): void
+    {
+        $this->registerWithTheDateGrant();
+
+        $saleId = $this->invoiceDated('100.00', $this->daysAgo(6), 1);
+
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $result = $this->jsonOf($this->post('/sales/save/' . $saleId, [
+            'date'               => to_datetime(strtotime((string) $this->saleRow($saleId)->sale_time)),
+            'customer_id'        => (string) $this->customerId,
+            'employee_id'        => (string) $this->employeeId,
+            'comment'            => 'edited',
+            'invoice_number'     => '',
+            'number_of_payments' => '0',
+            'payment_type_new'   => '--',
+            'payment_amount_new' => '0',
+            'payment_terms_days' => 'soon',
+        ]));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_payment_terms_invalid', [(string) 3650]), $result['message']);
+        $this->assertSame(1, (int) $this->saleRow($saleId)->payment_terms_days);
+    }
+
+    public function testPostSave_KeepsTheTermsOfAnInvoiceWhenTheFormSendsNone(): void
+    {
+        $this->registerWithTheDateGrant();
+
+        $saleId = $this->invoiceDated('100.00', $this->daysAgo(6), 7);
+
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $result = $this->jsonOf($this->post('/sales/save/' . $saleId, [
+            'date'               => to_datetime(strtotime((string) $this->saleRow($saleId)->sale_time)),
+            'customer_id'        => (string) $this->customerId,
+            'employee_id'        => (string) $this->employeeId,
+            'comment'            => 'edited',
+            'invoice_number'     => '',
+            'number_of_payments' => '0',
+            'payment_type_new'   => '--',
+            'payment_amount_new' => '0',
+        ]));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(7, (int) $this->saleRow($saleId)->payment_terms_days);
+    }
+
+    public function testGetInvoice_PrintsTheDayOfTheInvoiceAndTheDueDateOnlyWhenItHasTerms(): void
+    {
+        $this->registerWithTheDateGrant();
+
+        $withTerms    = $this->invoiceDated('100.00', $this->daysAgo(6), 10);
+        $withoutTerms = $this->invoiceDated('50.00', $this->daysAgo(2));
+
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $page = $this->get('/sales/invoice/' . $withTerms);
+
+        $page->assertSee(to_date(strtotime('-6 days')));
+        $page->assertSee(lang('Sales.due_date'));
+        $page->assertSee(to_date(strtotime('+4 days')));
+
+        $page = $this->get('/sales/invoice/' . $withoutTerms);
+
+        $page->assertSee(to_date(strtotime('-2 days')));
+        $page->assertDontSee(lang('Sales.due_date'));
+    }
 }

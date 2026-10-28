@@ -217,6 +217,22 @@ class Receiving extends Model
     }
 
     /**
+     * The day typed on a purchase, its payment terms and its due date, each empty when the purchase has none.
+     *
+     * @return array{invoice_date: ?string, payment_terms_days: ?int, due_date: ?string}
+     */
+    public function getInvoiceTiming(int $receivingId): array
+    {
+        $row = $this->db->table('receivings')->select('invoice_date, payment_terms_days, due_date')->where('receiving_id', $receivingId)->get()->getRow();
+
+        return [
+            'invoice_date'       => $row === null || $row->invoice_date === null ? null : (string) $row->invoice_date,
+            'payment_terms_days' => $row === null || $row->payment_terms_days === null ? null : (int) $row->payment_terms_days,
+            'due_date'           => $row === null || $row->due_date === null ? null : (string) $row->due_date,
+        ];
+    }
+
+    /**
      * The payment terms of a purchase and the due date they give from the day the purchase is
      * dated, which are the only part of its timing that can change after it is saved, and change
      * nothing in its journals. Nothing is returned when the terms are not new or the document is

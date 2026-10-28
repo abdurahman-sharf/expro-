@@ -2,10 +2,12 @@
 
 namespace App\Controllers;
 
+use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\InvoiceDiscount;
+use App\Libraries\Accounting\InvoiceTiming;
 use App\Libraries\Accounting\PaymentStatus;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\ReceivingAmounts;
@@ -188,6 +190,70 @@ class Receivings extends Secure_Controller
         $this->receiving_lib->set_reference($this->request->getPost('recv_reference', FILTER_SANITIZE_FULL_SPECIAL_CHARS));
 
         return $this->response->setJSON(['success' => true]);
+    }
+
+    /**
+     * Sets the day typed on the purchase being made, for an employee who may type it, or takes it
+     * back when it is sent empty. Used in app/Views/receivings/receiving.php
+     *
+     * @noinspection PhpUnused
+     */
+    public function postSetInvoiceDate(): ResponseInterface
+    {
+        $settings = new AccountingSettings();
+
+        if (! $settings->isEnabled() || ! $this->mayTypeInvoiceDate()) {
+            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => AccountingMessage::of(new AccountingException(AccountingError::PermissionDenied))]);
+        }
+
+        try {
+            $date = InvoiceTiming::date((string) $this->request->getPost('recv_invoice_date'), date('Y-m-d'), $settings->startDate());
+        } catch (AccountingException $refusal) {
+            return $this->response->setJSON(['success' => false, 'message' => AccountingMessage::of($refusal)]);
+        }
+
+        $this->receiving_lib->set_invoice_date($date);
+
+        return $this->response->setJSON(['success' => true, 'due_date_label' => $this->registerDueDateLabel()]);
+    }
+
+    /**
+     * Sets the payment terms typed on the purchase being made, in days, or takes them back when they
+     * are sent empty. Used in app/Views/receivings/receiving.php
+     *
+     * @noinspection PhpUnused
+     */
+    public function postSetPaymentTerms(): ResponseInterface
+    {
+        if (! (new AccountingSettings())->isEnabled()) {
+            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => AccountingMessage::of(new AccountingException(AccountingError::PermissionDenied))]);
+        }
+
+        try {
+            $terms = InvoiceTiming::terms((string) $this->request->getPost('recv_payment_terms'));
+        } catch (AccountingException $refusal) {
+            return $this->response->setJSON(['success' => false, 'message' => AccountingMessage::of($refusal)]);
+        }
+
+        $this->receiving_lib->set_payment_terms($terms === null ? null : (string) $terms);
+
+        return $this->response->setJSON(['success' => true, 'due_date_label' => $this->registerDueDateLabel()]);
+    }
+
+    /**
+     * The day the purchase being made falls due, from the day it is dated and its payment terms,
+     * written for the screen, or empty when it has no terms.
+     */
+    private function registerDueDateLabel(): string
+    {
+        $terms = InvoiceTiming::terms($this->receiving_lib->get_payment_terms());
+
+        return $terms === null ? '' : to_date(strtotime(InvoiceTiming::dueDate($this->receiving_lib->get_invoice_date() ?? date('Y-m-d'), $terms)));
+    }
+
+    private function mayTypeInvoiceDate(): bool
+    {
+        return $this->employee->has_grant('receivings_invoice_date', (int) $this->employee->get_logged_in_employee_info()->person_id);
     }
 
     /**
@@ -397,6 +463,14 @@ class Receivings extends Secure_Controller
 
         $data['invoiceDiscount']      = InvoiceDiscount::stored($receivingInfo['invoice_discount_type'] === null ? null : (int) $receivingInfo['invoice_discount_type'], $receivingInfo['invoice_discount'] === null ? null : (string) $receivingInfo['invoice_discount']);
         $data['invoiceDiscountShare'] = $this->invoiceDiscountOf((int) $receiving_id);
+        $data['invoice_timing']       = null;
+
+        if ((new AccountingSettings())->isEnabled() && $receivingInfo['receiving_type'] === ReceivingType::Receive->value) {
+            $timing = $this->receiving->getInvoiceTiming((int) $receiving_id);
+            $date   = $timing['invoice_date'] ?? substr((string) $receivingInfo['receiving_time'], 0, 10);
+
+            $data['invoice_timing'] = ['date' => $date, 'terms' => $timing['payment_terms_days'], 'due' => $timing['due_date'] ?? $date];
+        }
 
         if ((new AccountingSettings())->isEnabled()) {
             $data['treasury_options']     = $data['takes_payments'] ? $this->treasuryOptions((int) ($receivingInfo['branch_id'] ?? 0), $data['payments']) : [];
@@ -536,7 +610,7 @@ class Receivings extends Secure_Controller
         }
 
         // SAVE receiving to database
-        $saved = $this->receiving->save_value($data['cart'], $supplierId, $employeeId, $data['comment'], $data['reference'], $data['payment_type'], $data['stock_location'], $origin, $data['mode'] === 'receive' ? $data['invoiceDiscount'] : null);
+        $saved = $this->receiving->save_value($data['cart'], $supplierId, $employeeId, $data['comment'], $data['reference'], $data['payment_type'], $data['stock_location'], $origin, $data['mode'] === 'receive' ? $data['invoiceDiscount'] : null, $data['mode'] === 'receive' ? $this->receiving_lib->get_invoice_date() : null, $data['mode'] === 'receive' ? $this->receiving_lib->get_payment_terms() : null);
 
         if ($saved === ACCOUNTING_FAILED) {
             return $this->_reload(['error' => $this->accountingFailureMessage() ?? lang('Receivings.transaction_failed')]);
@@ -549,6 +623,10 @@ class Receivings extends Secure_Controller
         $data['receiving_id'] = 'RECV ' . $saved;
         $data['barcode']      = $this->barcode_lib->generate_receipt_barcode($data['receiving_id']);
         $data += $this->documentNumberOf((int) $saved);
+
+        $timing               = $this->receiving->getInvoiceTiming((int) $saved);
+        $data['invoice_date'] = $timing['invoice_date'] === null ? null : to_date(strtotime($timing['invoice_date']));
+        $data['due_date']     = $timing['payment_terms_days'] === null || $timing['due_date'] === null ? null : to_date(strtotime($timing['due_date']));
 
         $data['print_after_sale'] = $this->receiving_lib->is_print_after_sale();
 
@@ -633,7 +711,10 @@ class Receivings extends Secure_Controller
         $data['tax_total']            = $this->receiving_lib->get_tax_total();
         $data['total_with_tax']       = $this->receiving_lib->get_total_with_tax();
         $data['mode']                 = $this->receiving_lib->get_mode();
+        $timing                       = $this->receiving->getInvoiceTiming((int) $receiving_id);
         $data['transaction_time']     = to_datetime(strtotime($receivingInfo['receiving_time']));
+        $data['invoice_date']         = $timing['invoice_date'] === null ? null : to_date(strtotime($timing['invoice_date']));
+        $data['due_date']             = $timing['payment_terms_days'] === null || $timing['due_date'] === null ? null : to_date(strtotime($timing['due_date']));
         $data['show_stock_locations'] = $this->stock_location->show_locations('receivings');
         $data['payment_type']         = $receivingInfo['payment_type'];
         $data['reference']            = $this->receiving_lib->get_reference();
@@ -696,6 +777,12 @@ class Receivings extends Secure_Controller
         $data['comment']              = $this->receiving_lib->get_comment();
         $data['reference']            = $this->receiving_lib->get_reference();
         $data['payment_options']      = $this->receiving->get_payment_options();
+        $data['accounting_enabled']   = (new AccountingSettings())->isEnabled();
+        $data['invoice_date']         = $this->receiving_lib->get_invoice_date();
+        $data['payment_terms']        = $this->receiving_lib->get_payment_terms();
+        $data['due_date_label']       = $this->registerDueDateLabel();
+        $data['can_type_invoice_date'] = $this->mayTypeInvoiceDate();
+        $data['today']                = date('Y-m-d');
 
         $data['invoiceDiscount']       = $this->receiving_lib->getInvoiceDiscount();
         $data['invoiceDiscountAmount'] = $this->receiving_lib->getInvoiceDiscountAmount();
@@ -757,7 +844,14 @@ class Receivings extends Secure_Controller
             'employee_id'    => $employee_id,
             'comment'        => $this->request->getPost('comment', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
             'reference'      => $this->request->getPost('reference') != '' ? $this->request->getPost('reference', FILTER_SANITIZE_FULL_SPECIAL_CHARS) : null,
+            'changed_by'     => (int) $current_employee_id,
         ];
+
+        $postedTerms = $this->request->getPost('payment_terms_days');
+
+        if (is_string($postedTerms)) {
+            $receiving_data['payment_terms_days'] = $postedTerms;
+        }
 
         $payments = $this->postedPayments((int) $current_employee_id);
 

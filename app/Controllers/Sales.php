@@ -1164,6 +1164,14 @@ class Sales extends Secure_Controller
                         $data['invoice_number'] = $this->sale->getInvoiceNumber($data['sale_id_num']);
                     }
 
+                    $timing = $this->sale->getInvoiceTiming((int) $data['sale_id_num']);
+
+                    if ($timing['invoice_date'] !== null) {
+                        $data['transaction_date'] = to_date(strtotime($timing['invoice_date']));
+                    }
+
+                    $data['due_date'] = $timing['payment_terms_days'] === null || $timing['due_date'] === null ? null : to_date(strtotime($timing['due_date']));
+
                     $data['barcode'] = $this->barcode_lib->generate_receipt_barcode($data['sale_id']);
                     $this->sale_lib->clear_all();
                     return view('sales/' . $invoiceView, $data);

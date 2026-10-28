@@ -21,6 +21,12 @@
  * @var string $invoiceDiscountAmount
  * @var int|null $return_origin
  * @var array{from: string, to: string}|null $between_branches
+ * @var bool $accounting_enabled
+ * @var string|null $invoice_date
+ * @var string|null $payment_terms
+ * @var string $due_date_label
+ * @var bool $can_type_invoice_date
+ * @var string $today
  */
 $sectionName = ucfirst($controller_name);
 $hasCart     = count($cart) > 0;
@@ -316,6 +322,24 @@ $hasCart     = count($cart) > 0;
                                         <label for="recv_reference" class="pos-label"><?= lang("{$sectionName}.reference") ?></label>
                                         <?= form_input(['name' => 'recv_reference', 'id' => 'recv_reference', 'class' => 'form-control', 'value' => $reference]) ?>
                                     </div>
+
+                                    <?php if ($accounting_enabled): ?>
+                                        <?php if ($can_type_invoice_date): ?>
+                                            <div>
+                                                <label for="recv_invoice_date" class="pos-label"><?= lang("{$sectionName}.invoice_date") ?></label>
+                                                <?= form_input(['type' => 'date', 'name' => 'recv_invoice_date', 'id' => 'recv_invoice_date', 'class' => 'form-control', 'value' => $invoice_date ?? '', 'max' => $today, 'data-previous' => $invoice_date ?? '']) ?>
+                                                <small class="form-text text-body-secondary"><?= lang("{$sectionName}.invoice_date_help") ?></small>
+                                            </div>
+                                        <?php endif; ?>
+                                        <div>
+                                            <label for="recv_payment_terms" class="pos-label"><?= lang("{$sectionName}.payment_terms") ?></label>
+                                            <div class="input-group">
+                                                <?= form_input(['type' => 'number', 'name' => 'recv_payment_terms', 'id' => 'recv_payment_terms', 'class' => 'form-control', 'value' => $payment_terms ?? '', 'min' => 0, 'max' => 3650, 'step' => 1, 'data-previous' => $payment_terms ?? '']) ?>
+                                                <span class="input-group-text"><?= lang("{$sectionName}.payment_terms_days") ?></span>
+                                            </div>
+                                            <small class="form-text text-body-secondary"><?= lang("{$sectionName}.due_date") ?>: <span id="recv_due_date"><?= esc($due_date_label) ?></span></small>
+                                        </div>
+                                    <?php endif; ?>
                                 <?php endif; ?>
 
                                 <div>
@@ -400,6 +424,26 @@ $hasCart     = count($cart) > 0;
                 recv_reference: $('#recv_reference').val()
             });
         });
+
+        const postInvoiceTiming = function(field, route) {
+            field.change(function() {
+                const typed = {};
+                typed[field.attr('name')] = field.val();
+
+                $.post('<?= esc("{$controller_name}") ?>/' + route, typed, function(response) {
+                    if (response.success) {
+                        field.data('previous', field.val());
+                        $('#recv_due_date').text(response.due_date_label || '');
+                    } else {
+                        $.notify({message: response.message}, {type: 'danger'});
+                        field.val(field.data('previous') || '');
+                    }
+                }, 'json');
+            });
+        };
+
+        postInvoiceTiming($('#recv_invoice_date'), 'setInvoiceDate');
+        postInvoiceTiming($('#recv_payment_terms'), 'setPaymentTerms');
 
         $('#return_origin').change(function() {
             $.post('<?= esc("{$controller_name}/setReturnOrigin") ?>', {
