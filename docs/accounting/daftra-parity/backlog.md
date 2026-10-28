@@ -13,7 +13,7 @@
 | **WP1** — done (merged 2026-10-27) | Close control gaps: sensitive grants, branch scope on stock screens and legacy reports, destination-location grant, lock topology guard | M | — | none | P6-SENSITIVE-PERMS, A2A-STOCK-ACCESS, G-48, G41-A5, P5-LOCK-POOLING |
 | **WP2** | Pre-deployment data checks on owner databases (owner-run) plus one read-only readiness command | M | ~~WP1~~ (done) | none (needs owner database access, not Daftra) | E38-SCAN, E40-BANK-DETAILS, E41-STAMP, OWNER-GRANTS, E26-ACTIVATION |
 | **WP3** — done (merged 2026-10-27) | Expenses and cash-up posted to the ledger (categories to accounts, tax split, treasury, branch) | L | ~~WP1~~ (done) | none for expenses (S-25 observed); revenue vouchers (FIN-03) and recurrence (FIN-06) are separate packages; cash-up has no Daftra counterpart and n… | FIN-05, FIN-02, FIN-04, A4 |
-| **WP4** — done (merged 2026-10-28; Y-DEC decisions stay with the owner) | Income statement and balance sheet with dynamic unclosed-years equity (policy re-based first) | L | ~~WP3~~ (done) | none | Y-DEC, REP-03, REP-04, Y8 |
+| **WP4** — done (merged 2026-10-27; Y-DEC decisions stay with the owner) | Income statement and balance sheet with dynamic unclosed-years equity (policy re-based first) | L | ~~WP3~~ (done) | none | Y-DEC, REP-03, REP-04, Y8 |
 | **WP5** | Ledger-based tax report (accrual first) | M | ~~WP3~~ (done) | cash-basis filter and the return form layout (R-02 in WP20); accrual slice needs none | REP-07 |
 | **WP6** | Year-end closing entry per branch with preview, approval, reversal and guards | XL | ~~WP4~~ (done) | Y9 (how Daftra closes a year and whether it reopens) as a non-blocking read before the screen; service and ledger work needs none | YE-01, Y5, YE-03 |
 | **WP7** | Inter-branch settlement, pairwise balances and cross-branch payments | L | ~~WP1~~ (done) | none | G-61, INTERBRANCH-SETTLEMENT, P6-ASSUMPTION-7 |
@@ -24,10 +24,10 @@
 | **WP12** | Retroactive posting (backfill) with preview batches | XL | WP11, ~~WP8~~ (service done) | none (OSPOS-specific, D3) | A6 |
 | **WP13** | Invoice date, due date, payment terms, aging and balance-report columns | L | ~~WP8~~ (service done) | none for dates and supplier aging; the customer bucket layout and by-ledger variant (CUS-09) are inferred from the supplier side and confirmed by R… | G-27, G-31, G-53, CUS-08, CUS-09, G-14 |
 | **WP14** | Draft and quote lifecycle | M | ~~WP8~~ (service done), WP13 | none | SAL-13, SAL-21 |
-| **WP15** — done (merged 2026-10-28) | Discount on the whole purchase invoice (E33 / G-59) | M | — | none (T-16 evidence) | G-59 |
+| **WP15** — done (merged 2026-10-27) | Discount on the whole purchase invoice (E33 / G-59) | M | — | none (T-16 evidence) | G-59 |
 | **WP16** — done (merged 2026-10-27) | Invoice-level discount on sales (percent or fixed) | L | — | none | SAL-07 |
 | **WP17** | Purchase flow completion: edit saved receiving lines, item purchase taxes, supplier registry field | M | ~~WP1~~ (done) | none (the average-cost effect of editing or deleting is the unobserved G-43 assumption, kept as 'average unchanged') | G-37, G-38, PUR-10 |
-| **WP18** — done (merged 2026-10-28) | Inventory valuation report from valued movements | M | ~~WP1~~ (done) | none for valuation; aging and turnover layouts are covered by WP33 | G-45 |
+| **WP18** — done (merged 2026-10-27) | Inventory valuation report from valued movements | M | ~~WP1~~ (done) | none for valuation; aging and turnover layouts are covered by WP33 | G-45 |
 | **WP19** — done (merged 2026-10-27) | Automatic-journal metadata edit and manual-journal parity | M | — | none (S-14 observed); line tax and currency need WP38 and WP28 | ACC-16, ACC-18 |
 | **WP20** | Daftra observation batch 1: read-only reports, forms, prints, role matrix, year-end | M | — | This package is the observation: filtered ledger, journal movements, inventory movement, cost centres, cash flow, cash and accrual profit and loss,… | R-02, R-03, R-04, R-05, Y9 |
 | **WP21** | Daftra write-observation batch A: closed periods and messages, settings scenarios, numbering toggle, inclusive tax | L | WP20 | This package is the observation (writes on opes.daftra.com only, each setting reverted afterwards) | E12-PKG-C, E12-PKG-D, ACC-19, SAL-05 |
