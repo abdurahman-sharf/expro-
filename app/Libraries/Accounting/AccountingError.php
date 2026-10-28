@@ -117,8 +117,13 @@ enum AccountingError: string
     case IssuedDocumentLocked = 'issued_document_locked';
     case CustomerBusy         = 'customer_busy';
 
-    case PurchaseLocked     = 'purchase_locked';
-    case PurchaseHasReturns = 'purchase_has_returns';
+    case PurchaseLocked               = 'purchase_locked';
+    case PurchaseHasReturns           = 'purchase_has_returns';
+    case PurchaseEditEmpty            = 'purchase_edit_empty';
+    case PurchaseEditHasReturns       = 'purchase_edit_has_returns';
+    case PurchaseEditLineInvalid      = 'purchase_edit_line_invalid';
+    case PurchaseEditNotAReceipt      = 'purchase_edit_not_a_receipt';
+    case PurchaseStockWouldGoNegative = 'purchase_stock_would_go_negative';
 
     case SupplierBusy                 = 'supplier_busy';
     case SupplierPaymentNeedsSupplier = 'supplier_payment_needs_supplier';

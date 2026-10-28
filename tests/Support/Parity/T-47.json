@@ -1,6 +1,6 @@
 {
   "id": "T-47",
-  "title": "Two purchases of the same item, 10 at 100 and 10 at 120, and the correction of the second to 8 at 140: the average cost is 100 then 110 in both systems; the reference system edits the saved line and recomputes the average to 117.777778, this application cannot edit a line and the supported correction (delete and buy again) gives another average",
+  "title": "Two purchases of the same item, 10 at 100 and 10 at 120, and the correction of the second to 8 at 140: the average cost is 100 then 110, then 108.888889 after the quantity edit and 117.777778 after the price edit in both systems; the reference system edits the journal in place and this application reverses it and posts a new revision (E62)",
   "recorded": "2026-10-27",
   "observation": {
     "batch": "d2",
@@ -23,6 +23,14 @@
         "pw-d2-37",
         "pw-d2-38",
         "pw-d2-72"
+      ]
+    },
+    "delete_and_restore": {
+      "id": null,
+      "note": "The second purchase deleted: its journal is erased, the stock goes back to 10 and the average goes back to 100.00; restored, it comes back with a new journal number and a new stock movement and the average is 117.777778 again",
+      "observation": [
+        "pw-d2-39",
+        "pw-d2-40"
       ]
     }
   },
@@ -60,13 +68,21 @@
     {
       "id": "editing-a-saved-purchase-line",
       "kind": "purchase_line_edit",
-      "classification": "not_implemented",
-      "work_package": "WP17",
-      "reason": "A saved purchase line cannot be edited here: what it needs corrected is corrected by a return or by deleting the purchase, and no screen or service edits a line (WP17 builds the edit and, by proposal E56, makes the average follow it). The check looks for the names such a feature would take, so a feature built under other names does not flip it, which is why the next case also pins the average the supported correction gives.",
+      "classification": "exact",
       "evidence": [
         "line_edits"
       ],
       "inputs": {
+        "purchases": [
+          {
+            "quantity": "10",
+            "price": "100.00"
+          },
+          {
+            "quantity": "10",
+            "price": "120.00"
+          }
+        ],
         "edits": [
           {
             "quantity": "10 to 8"
@@ -85,38 +101,68 @@
           "stock": "18",
           "average": "117.777778",
           "stock_value": "2120.00"
-        },
-        "journal_edited_in_place": true
+        }
       },
       "expected": {
-        "status": "not_implemented",
-        "absent": [
+        "after_the_quantity_edit": {
+          "stock": "18",
+          "average": "108.888889"
+        },
+        "after_the_price_edit": {
+          "stock": "18",
+          "average": "117.777778",
+          "stock_value": "2120.00"
+        }
+      }
+    },
+    {
+      "id": "journal-of-an-edited-purchase-line",
+      "kind": "purchase_line_edit",
+      "classification": "deliberate_difference",
+      "reason": "The reference system edits the saved line and its journal in place (the same journal number, the stock movement edited) and its journal log keeps no earlier figures. The owner decided (E15, confirmed by E62) that a posted journal is never edited: the correction reverses it and posts the corrected lines as the next revision, so the books keep the original, its reversal and the new journal. The amount that stands and the stock value are the same in both.",
+      "evidence": [
+        "line_edits"
+      ],
+      "inputs": {
+        "purchases": [
           {
-            "kind": "route",
-            "pattern": "editline"
+            "quantity": "10",
+            "price": "100.00"
           },
           {
-            "kind": "route",
-            "pattern": "updateline"
+            "quantity": "10",
+            "price": "120.00"
+          }
+        ],
+        "edits": [
+          {
+            "quantity": "10 to 8"
           },
           {
-            "kind": "route",
-            "pattern": "saveline"
-          },
-          {
-            "kind": "class",
-            "name": "App\\Libraries\\Accounting\\ReceivingLineEdit"
+            "price": "120 to 140"
           }
         ]
+      },
+      "reference": {
+        "journal_edited_in_place": true,
+        "journals_of_the_purchase": "1",
+        "reversals": "0",
+        "standing_amount": "1120.00"
+      },
+      "expected": {
+        "journal_edited_in_place": false,
+        "journals_of_the_purchase": "3",
+        "reversals": "2",
+        "standing_amount": "1120.00"
       }
     },
     {
       "id": "correcting-a-purchase-by-deleting-it-and-buying-again",
       "kind": "purchase_line_edit",
-      "classification": "differs",
-      "reason": "The correction this application supports is to delete the second purchase and buy 8 at 140. Deleting leaves the average the item carried (110), so buying again averages 110 with 140 and gives 123.333333, where the reference system recomputed the average from the movements that were left and reached 117.777778. The value of the stock in the books is 2,120.00 in both, only the cost the item carries differs (proposal E56).",
+      "classification": "exact",
       "evidence": [
-        "line_edits"
+        "line_edits",
+        "delete_and_restore"
       ],
       "inputs": {
         "purchases": [
@@ -137,7 +183,7 @@
         "stock": "18"
       },
       "expected": {
-        "average_after_the_correction": "123.333333",
+        "average_after_the_correction": "117.777778",
         "stock_value": "2120.00",
         "stock": "18"
       }

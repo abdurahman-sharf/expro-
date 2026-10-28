@@ -177,6 +177,50 @@ final class ReceivingPosting
     }
 
     /**
+     * Brings the books in line with the lines of a purchase that has been corrected: the journal that
+     * stands is reversed and its stock movements are taken back at the value they were written at,
+     * and the lines as they now are go in as the next revision, so that what the item is worth, the
+     * account of its stock location and what is owed to the supplier all follow. Nothing posted is
+     * rewritten. The payments made against the purchase are left as they are, and the credit of the
+     * supplier is settled again, and what was corrected is written to the audit log. A purchase the
+     * books do not follow has nothing to bring in line.
+     *
+     * @param array<string, mixed> $details What the audit log keeps of the correction.
+     *
+     * @throws AccountingException|PostingException
+     */
+    public function repost(int $receivingId, ?int $employeeId = null, array $details = []): void
+    {
+        $purchase = $this->loader->load($receivingId, false);
+
+        if (! $this->follows($purchase) || ! $this->isPosted($receivingId)) {
+            return;
+        }
+
+        $this->transactional(function () use ($purchase, $employeeId, $details): void {
+            $source = ReceivingPostingBuilder::issueSourceOf($purchase);
+            $active = $this->activeJournal($source, $purchase->receivingId, JournalEntryType::General);
+
+            $reversalId = null;
+            $date       = $purchase->date;
+
+            if ($active !== null) {
+                $replacement = $this->builder->purchase($purchase, $this->nextRevisionOf($source, $purchase->receivingId), $employeeId)->journal;
+
+                (new TreasuryScopes($this->db))->assertMayReplace((int) $active->journal_id, $replacement, $employeeId);
+
+                [$reversalId, $date] = $this->reverse($active, $employeeId, 'Purchase #' . $purchase->receivingId . ' edited');
+            }
+
+            $this->ledger->reverseSource($source, $purchase->receivingId, JournalEntryType::General, $date, $reversalId);
+            $this->postPurchase($purchase, $employeeId);
+            $this->settle($purchase->supplierId, $employeeId);
+
+            (new AuditLog($this->db))->write('purchase', $purchase->receivingId, 'lines_edited', $employeeId, JournalOrigin::User, $details, $purchase->branchId);
+        });
+    }
+
+    /**
      * Whether the purchase has reached the books: a journal that stands, or stock movements.
      */
     public function isPosted(int $receivingId): bool
@@ -267,7 +311,7 @@ final class ReceivingPosting
     private function postPurchase(ReceivingDocument $purchase, ?int $employeeId): void
     {
         $source   = ReceivingPostingBuilder::issueSourceOf($purchase);
-        $revision = $this->nextRevision($source, $purchase->receivingId);
+        $revision = $this->nextRevisionOf($source, $purchase->receivingId);
 
         if ($purchase->toBranchId !== null) {
             $revision = max($revision, $this->nextRevision(ReceivingPostingBuilder::SOURCE_TRANSFER_RECEIPT, $purchase->receivingId));
@@ -424,6 +468,24 @@ final class ReceivingPosting
             ->limit(1)
             ->get()
             ->getRow();
+    }
+
+    /**
+     * The revision a purchase is posted under next: after the last journal of its source and after
+     * the last stock movements of its source, because goods that cost nothing have movements and no
+     * journal, and a revision of movements is written once.
+     */
+    private function nextRevisionOf(string $sourceType, int $sourceId): int
+    {
+        $row = $this->db->table('accounting_stock_entries')
+            ->selectMax('revision', 'last')
+            ->where('source_type', $sourceType)
+            ->where('source_id', $sourceId)
+            ->where('entry_type', JournalEntryType::General->value)
+            ->get()
+            ->getRow();
+
+        return max($this->nextRevision($sourceType, $sourceId), ((int) ($row->last ?? 0)) + 1);
     }
 
     private function nextRevision(string $sourceType, int $sourceId): int

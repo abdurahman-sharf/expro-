@@ -1579,6 +1579,45 @@ class Item extends Model
     }
 
     /**
+     * Brings the cost an item carries to the weighted average of the stock it has once a purchase
+     * is corrected: the units the purchase had brought in are taken out of the stock at what they
+     * were worth in the average, and the units it brings in now are put in at what they are worth
+     * now. Both are taken in one step, because the stock between them can be less than nothing.
+     * When no stock is left to weigh, or the stock the average was made of cannot be told, the
+     * cost stays as it is. Nothing else moves the cost, and the sales that were costed at the
+     * average of their time stay as they were.
+     *
+     * Must run before the stock of the correction is changed, and while the item is locked.
+     *
+     * @param numeric-string $removedUnits
+     * @param numeric-string $removedValue
+     * @param numeric-string $addedUnits
+     * @param numeric-string $addedValue
+     */
+    public function correctPurchaseCost(int $itemId, string $removedUnits, string $removedValue, string $addedUnits, string $addedValue): bool
+    {
+        $oldCost = (string) $this->get_info($itemId)->cost_price;
+
+        $builder = $this->db->table('item_quantities');
+        $builder->selectSum('quantity');
+        $builder->where('item_id', $itemId);
+        $builder->join('stock_locations', 'stock_locations.location_id=item_quantities.location_id');
+        $builder->where('stock_locations.deleted', 0);
+        $onHand = (string) ($builder->get()->getRow()->quantity ?? '0');
+
+        $left  = bcadd(bcsub($onHand, $removedUnits, 3), $addedUnits, 3);
+        $value = bcadd(bcsub(bcmul($onHand, $oldCost, 8), $removedValue, 8), $addedValue, 8);
+
+        if (bccomp($left, '0', 3) <= 0 || bccomp($value, '0', 8) < 0) {
+            return true;
+        }
+
+        $data = ['cost_price' => SaleAmounts::round(bcdiv($value, $left, 8), 6)];
+
+        return $this->save_value($data, $itemId);
+    }
+
+    /**
      * @param int $item_id
      * @param string $item_number
      * @return void
