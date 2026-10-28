@@ -9,6 +9,8 @@ use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchGuard;
+use CodeIgniter\Database\Query;
+use CodeIgniter\Events\Events;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -280,6 +282,54 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
         $this->assertGreaterThanOrEqual(2, substr_count($body, lang('Accounting_receivables.source_credit_note')));
         $this->assertMatchesRegularExpression('/' . preg_quote(lang('Numbering.type_refund_invoice'), '/') . '\s*<a [^>]*sales\/receipt\/' . $refund . '"/', $body);
         $this->assertMatchesRegularExpression('/' . preg_quote(lang('Accounting_receivables.source_credit_note'), '/') . '\s*<a [^>]*sales\/receipt\/' . $note . '"/', $body);
+    }
+
+    public function testGetCustomer_LinksTheListsOfThePaymentsAndTheCreditNotesOfTheCustomer(): void
+    {
+        $this->invoiceOf('100.00');
+        $this->viewer();
+
+        $response = $this->get('/accounting_receivables/customer/' . $this->customerId);
+
+        $response->assertSee('id="customer_payments_link"');
+        $response->assertSee('accounting_receivables/payments?customer_id=' . $this->customerId);
+        $response->assertSee('accounting_receivables/credit_notes?customer_id=' . $this->customerId);
+    }
+
+    public function testGetPayments_StartsFilteredByTheCustomerNamedInTheLinkAndIgnoresNonsense(): void
+    {
+        $this->viewer();
+
+        $this->assertMatchesRegularExpression('/id="f_customer_id" value="' . $this->customerId . '"/', $this->get('/accounting_receivables/payments?customer_id=' . $this->customerId)->getBody());
+        $this->assertMatchesRegularExpression('/id="f_customer_id" value=""/', $this->get('/accounting_receivables/payments?customer_id=-4')->getBody());
+        $this->assertMatchesRegularExpression('/id="f_customer_id" value=""/', $this->get('/accounting_receivables/payments?customer_id=abc')->getBody());
+    }
+
+    public function testGetPaymentsSearch_NeverAsksForMoreThanTheLargestPage(): void
+    {
+        $this->invoiceOf('100.00', null, [$this->payment(lang('Sales.cash'), '10.00')]);
+        $this->viewer();
+
+        $asked    = [];
+        $listener = static function (Query $query) use (&$asked): void {
+            if (str_contains($query->getQuery(), ' OFFSET ')) {
+                $asked[] = $query->getQuery();
+            }
+        };
+        Events::on('DBQuery', $listener);
+
+        try {
+            $this->paymentsOf('?limit=100000');
+            $this->creditNotesOf('?limit=100000');
+        } finally {
+            Events::removeListener('DBQuery', $listener);
+        }
+
+        $this->assertCount(2, $asked);
+
+        foreach ($asked as $sql) {
+            $this->assertMatchesRegularExpression('/LIMIT 500 OFFSET 0/', $sql);
+        }
     }
 
     public function testGetCustomer_KeepsTheReleasedApplicationsInTheHistory(): void
@@ -650,6 +700,20 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
         $response->assertDontSee('accounting_receivables/credit_notes');
         $response->assertSee('nav-link py-1 active');
         $this->assertDoesNotMatchRegularExpression('/<a class="nav-link py-1" href="[^"]*">/', $response->getBody());
+    }
+
+    public function testGetPayments_OffersAsCollectorsOnlyThePeopleWhoCollectedInTheBranchesOfTheViewer(): void
+    {
+        $branch = $this->createBranch('B2', 'Second branch');
+        $other  = $this->createEmployee('Layla', 'Hamad');
+        $this->addPayment($this->invoiceOf('100.00'), '10.00');
+        $this->addPaymentFrom($this->invoiceInBranch($branch, '100.00'), $other, '20.00');
+        $this->viewer([1]);
+
+        $body = $this->get('/accounting_receivables/payments')->getBody();
+
+        $this->assertStringContainsString('Temp Employee', $body);
+        $this->assertStringNotContainsString('Layla Hamad', $body);
     }
 
     public function testGetPaymentsSearch_ListsNothingForSomeoneWhoseBranchesHoldNoPayment(): void

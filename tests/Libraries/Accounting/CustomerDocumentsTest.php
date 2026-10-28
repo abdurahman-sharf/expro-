@@ -399,6 +399,25 @@ class CustomerDocumentsTest extends CIUnitTestCase
         $this->assertSame('B2', $this->payments([], [$branch])['rows'][0]->branch_code);
     }
 
+    public function testPayments_ClampsThePageToAtLeastOneRowAndAnOffsetOfAtLeastZero(): void
+    {
+        $sale = $this->invoiceOf('100.00');
+        $a    = $this->addPayment($sale, '10.00');
+        $this->addPayment($sale, '20.00');
+
+        $this->assertSame([$a], $this->paymentIds($this->payments([], null, 'number', 'asc', 0, -3)));
+        $this->assertSame([$a], $this->paymentIds($this->payments([], null, 'number', 'asc', -7, 0)));
+    }
+
+    public function testReturns_ClampsThePageToAtLeastOneRowAndAnOffsetOfAtLeastZero(): void
+    {
+        $invoice = $this->invoiceOf('100.00');
+        $first   = $this->creditNoteOf($invoice, '10.00');
+        $this->creditNoteOf($invoice, '20.00');
+
+        $this->assertSame([$first], array_column($this->returns([], 'number', 'asc', 0, -3)['rows'], 'sale_id'));
+    }
+
     public function testCollectors_ListsOnlyThePeopleWhoCollectedInTheBranchesOfTheList(): void
     {
         $branch = $this->createBranch('B2', 'Second branch');

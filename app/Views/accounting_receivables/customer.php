@@ -25,6 +25,12 @@ $sourceLabel = static fn (string $type, int $sourceId): string => lang(
     <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('accounting_receivables'), 'attr') ?>">
         <span class="bi bi-list-ul" aria-hidden="true">&nbsp;</span><?= lang('Accounting_receivables.back') ?>
     </a>
+    <a class="btn btn-outline-secondary btn-sm" id="customer_payments_link" href="<?= esc(base_url('accounting_receivables/payments?customer_id=' . $position->customerId), 'attr') ?>">
+        <span class="bi bi-cash-coin" aria-hidden="true">&nbsp;</span><?= lang('Accounting_receivables.payments_tab') ?>
+    </a>
+    <a class="btn btn-outline-secondary btn-sm" id="customer_credit_notes_link" href="<?= esc(base_url('accounting_receivables/credit_notes?customer_id=' . $position->customerId), 'attr') ?>">
+        <span class="bi bi-receipt" aria-hidden="true">&nbsp;</span><?= lang('Accounting_receivables.credit_notes_tab') ?>
+    </a>
 </div>
 
 <div class="container-fluid py-3" id="receivable_statement">
