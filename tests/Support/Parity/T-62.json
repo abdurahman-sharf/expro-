@@ -1,0 +1,135 @@
+{
+  "id": "T-62",
+  "title": "A cheque in US dollars collected at another rate: the reference system writes no difference journal and leaves 6.00 SAR in notes receivable, a defect not to copy; neither cheques nor foreign currencies exist here",
+  "recorded": "2026-10-28",
+  "observation": {
+    "batch": "b",
+    "scenarios": [
+      "B-S10"
+    ]
+  },
+  "evidence": {
+    "usd_cheque": {
+      "id": null,
+      "note": "Cheque of 40 USD received at 3.75 (journal 000214, 150.00 SAR) and collected at 3.60 (journal 000215, 144.00 SAR): no journal for the difference, so 1211 keeps a debit of 6.00 SAR",
+      "observation": [
+        "pw-b-58"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "a-cheque-in-a-foreign-currency-collected-at-another-rate",
+      "kind": "foreign_currency_cheque",
+      "classification": "not_implemented",
+      "work_package": "WP28",
+      "reason": "Needs the cheque cycle (WP26) and the document currency (WP28). When built, the difference must be booked as it is for invoices and payments; the residual the reference system leaves in notes receivable is a defect the package must not copy.",
+      "evidence": [
+        "usd_cheque"
+      ],
+      "inputs": {
+        "cheque": {
+          "amount": "40.00 USD",
+          "issued_rate": "3.75",
+          "collected_rate": "3.60"
+        }
+      },
+      "reference": {
+        "journals": {
+          "received": [
+            {
+              "role": "notes_receivable",
+              "debit": "40",
+              "credit": "0",
+              "code": "1211",
+              "name": "أوراق القبض",
+              "debit_base": "150.00"
+            },
+            {
+              "role": "customer",
+              "debit": "0",
+              "credit": "40",
+              "code": "12041005",
+              "name": "افتراضي-D1 عميل",
+              "credit_base": "150.00"
+            }
+          ],
+          "collected": [
+            {
+              "role": "bank",
+              "debit": "40",
+              "credit": "0",
+              "code": "1202003",
+              "name": "افتراضي-B بنك",
+              "debit_base": "144.00"
+            },
+            {
+              "role": "notes_receivable",
+              "debit": "0",
+              "credit": "40",
+              "code": "1211",
+              "name": "أوراق القبض",
+              "credit_base": "144.00"
+            }
+          ]
+        },
+        "difference_journal": "none",
+        "residual_left_in_notes_receivable_in_sar": "6.00"
+      },
+      "expected": {
+        "status": "not_implemented",
+        "absent": [
+          {
+            "kind": "table",
+            "pattern": "cheque"
+          },
+          {
+            "kind": "route",
+            "pattern": "cheque"
+          },
+          {
+            "kind": "class",
+            "name": "App\\Controllers\\Cheques"
+          },
+          {
+            "kind": "class",
+            "name": "App\\Models\\Cheque"
+          },
+          {
+            "kind": "column",
+            "table": "sales",
+            "pattern": "currenc"
+          },
+          {
+            "kind": "column",
+            "table": "sales_payments",
+            "pattern": "currenc"
+          },
+          {
+            "kind": "column",
+            "table": "receivings",
+            "pattern": "currenc"
+          },
+          {
+            "kind": "column",
+            "table": "receivings_payments",
+            "pattern": "currenc"
+          },
+          {
+            "kind": "column",
+            "table": "treasuries",
+            "pattern": "currenc"
+          },
+          {
+            "kind": "table",
+            "pattern": "currenc"
+          },
+          {
+            "kind": "table",
+            "pattern": "exchange_rate"
+          }
+        ]
+      }
+    }
+  ]
+}

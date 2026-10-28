@@ -154,6 +154,19 @@ class CashupPostingTest extends CIUnitTestCase
         $this->assertSame(1, $this->countRows('accounting_journals'));
     }
 
+    public function testSaveValue_ExpectsOnlyTheCashThatWentIntoTheDrawerOfItsBranchWhateverBranchTheSaleWasOf(): void
+    {
+        $second = $this->createBranch('B2');
+
+        $this->sellFor('250.00');
+        $this->accountingDb()->table('sales_payments')->where('sale_id', $this->sellFor('150.00'))->update(['treasury_branch_id' => $second]);
+
+        $cashupId = $this->saveCashup($this->cashupData('350.00'));
+
+        $this->assertSame(['350.0000', '0.0000'], [$this->row($cashupId)->expected_amount_cash, $this->row($cashupId)->cash_difference]);
+        $this->assertSame(0, $this->countRows('accounting_journals'));
+    }
+
     public function testSaveValue_ComputesTheExpectedCashOnTheServerAndIgnoresAnythingTheFormClaims(): void
     {
         $this->aDayOfCash();

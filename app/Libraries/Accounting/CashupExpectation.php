@@ -10,11 +10,13 @@ use Config\OSPOS;
 
 /**
  * The cash a drawer should hold when it is counted: what it was opened with and what was moved
- * into it, plus the cash payments of the sales of its branch in the time between opening and
- * closing, less the cash that was paid out for expenses of the branch in the same time. A payment
- * counts as cash by what its name stands for in the language in use or in English, and a payment
- * that is not completed is not cash that came in. An expense that belongs to no branch is one of
- * the default branch.
+ * into it, plus the cash payments that went into the treasuries of its branch in the time between
+ * opening and closing, less the cash that was paid out of them for expenses in the same time. A
+ * payment goes into the branch of the sale unless it carries the branch of another treasury, and
+ * an expense is paid by the branch of its treasury in the same way, so a payment across branches
+ * is counted by the drawer that holds the money. A payment counts as cash by what its name stands
+ * for in the language in use or in English, and a payment that is not completed is not cash that
+ * came in. An expense that belongs to no branch is one of the default branch.
  */
 final class CashupExpectation
 {
@@ -52,7 +54,7 @@ final class CashupExpectation
             ->join('sales s', 's.sale_id = p.sale_id')
             ->where('s.sale_status', COMPLETED)
             ->whereIn('s.sale_type', self::SALE_TYPES)
-            ->where('s.branch_id', $branchId)
+            ->where('COALESCE(p.treasury_branch_id, s.branch_id) = ' . $this->db->escape($branchId), null, false)
             ->where('p.payment_status', PaymentStatus::Completed->value)
             ->groupBy('p.payment_type');
 
@@ -71,10 +73,12 @@ final class CashupExpectation
             ->where('e.deleted', 0)
             ->groupBy('e.payment_type');
 
+        $drawer = 'COALESCE(e.treasury_branch_id, e.branch_id) = ' . $this->db->escape($branchId);
+
         if ($isDefault) {
-            $builder->groupStart()->where('e.branch_id', $branchId)->orWhere('e.branch_id IS NULL', null, false)->groupEnd();
+            $builder->groupStart()->where($drawer, null, false)->orWhere('e.branch_id IS NULL', null, false)->groupEnd();
         } else {
-            $builder->where('e.branch_id', $branchId);
+            $builder->where($drawer, null, false);
         }
 
         $this->within($builder, 'e.date', $openDate, $closeDate, $byDay);

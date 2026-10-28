@@ -12,11 +12,13 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\ParityCaseTrait;
 
 class DefaultChartTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
+    use ParityCaseTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -266,5 +268,24 @@ class DefaultChartTest extends CIUnitTestCase
         $paymentRows = array_filter(PaymentType::cases(), static fn (PaymentType $type): bool => $type->defaultSystemKey() !== null);
 
         return count(RoutingKey::cases()) + count($paymentRows);
+    }
+
+    public function testInstall_HoldsOtherAccountsForChequesThanTheReferenceSystemMakes(): void
+    {
+        $case = $this->referenceCase('T-54', 'cheque_accounts', 'the-chart-has-other-accounts-for-cheques-than-the-reference-system', 'differs');
+
+        $this->reinstallChart();
+
+        $row      = fn (string $code): ?object => $this->accountingDb()->table('accounting_accounts')->where('code', $code)->get()->getRow();
+        $named    = fn (string $name): bool => $this->accountingDb()->table('accounting_accounts')->where('name', $name)->countAllResults() > 0;
+        $accounts = [
+            'notes_receivable' => $row('1206') !== null && $row('1206')->name === 'أوراق القبض' ? '1206' : 'none',
+            'under_collection' => $named('مبالغ تحت التحصيل') ? '1212' : 'none',
+            'deposit_fees'     => $named('رسوم الايداع') ? '55' : 'none',
+            'notes_payable'    => $row('212') !== null && $row('212')->name === 'أوراق الدفع' ? '212' : 'none',
+        ];
+
+        $this->assertSameAsFixture($case['expected']['accounts'], $accounts, 'accounts for cheques');
+        $this->assertSame([$case['expected']['detail']['1206_is_a_group'], $case['expected']['detail']['212_is_a_group'], $case['expected']['detail']['216_is']], [(bool) $row('1206')->is_group, (bool) $row('212')->is_group, $row('216')->name]);
     }
 }

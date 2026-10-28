@@ -453,6 +453,69 @@ class TreasuryScopesTest extends CIUnitTestCase
         $this->assertContains($refusal->error, [AccountingError::TreasuryWithdrawDenied, AccountingError::TreasuryDepositDenied]);
     }
 
+    /**
+     * A draft of a branch that has no treasury of its own on its lines.
+     */
+    private function draftOf(int $debitAccount, int $creditAccount, string $amount): JournalDraft
+    {
+        return new JournalDraft(
+            date: '2026-10-21',
+            lines: [new JournalLineDraft($debitAccount, debit: $amount), new JournalLineDraft($creditAccount, credit: $amount)],
+            sourceType: 'opening',
+            sourceId: random_int(1000, 9999),
+            currencyCode: 'SAR',
+        );
+    }
+
+    public function testAssertMayReplaceAll_AsksTheWithdrawalScopeWhenTheJournalsOfAPairArePutBackByOnesThatPutLessIntoTheTreasury(): void
+    {
+        $named  = $this->employeeWithGrants([]);
+        $other  = $this->employeeWithGrants([]);
+        $drawer = $this->drawer(['withdraw_scope' => 'staff', 'withdraw_members' => [$named]]);
+        $own    = $this->journalBetween($this->accountId('branches_receivable'), $this->accountId('opening_balance'), '100.00');
+        $in     = $this->journalBetween((int) $this->treasuries->accountOf($drawer), $this->accountId('branches_payable'), '100.00');
+        $less   = [$this->draftOf($this->accountId('branches_receivable'), $this->accountId('opening_balance'), '60.00'), $this->draftOf((int) $this->treasuries->accountOf($drawer), $this->accountId('branches_payable'), '60.00')];
+
+        $this->scopes->assertMayReplaceAll([$own, $in], $less, $named);
+        $this->assertSame(AccountingError::TreasuryWithdrawDenied, $this->refusal(fn () => $this->scopes->assertMayReplaceAll([$own, $in], $less, $other))->error);
+    }
+
+    public function testAssertMayReplaceAll_AsksTheDepositScopeWhenTheReplacementsPutMoreIntoTheTreasury(): void
+    {
+        $named  = $this->employeeWithGrants([]);
+        $other  = $this->employeeWithGrants([]);
+        $drawer = $this->drawer(['deposit_scope' => 'staff', 'deposit_members' => [$named]]);
+        $in     = $this->journalBetween((int) $this->treasuries->accountOf($drawer), $this->accountId('branches_payable'), '60.00');
+        $more   = [$this->draftOf((int) $this->treasuries->accountOf($drawer), $this->accountId('branches_payable'), '100.00')];
+
+        $this->scopes->assertMayReplaceAll([$in], $more, $named);
+        $this->assertSame(AccountingError::TreasuryDepositDenied, $this->refusal(fn () => $this->scopes->assertMayReplaceAll([$in], $more, $other))->error);
+    }
+
+    public function testAssertMayReplaceAll_AsksTheWithdrawalScopeWhenNothingTakesThePlaceOfTheJournals(): void
+    {
+        $named  = $this->employeeWithGrants([]);
+        $other  = $this->employeeWithGrants([]);
+        $drawer = $this->drawer(['withdraw_scope' => 'staff', 'withdraw_members' => [$named]]);
+        $in     = $this->journalBetween((int) $this->treasuries->accountOf($drawer), $this->accountId('branches_payable'), '60.00');
+
+        $this->scopes->assertMayReplaceAll([$in], [], $named);
+        $this->assertSame(AccountingError::TreasuryWithdrawDenied, $this->refusal(fn () => $this->scopes->assertMayReplaceAll([$in], [], $other))->error);
+    }
+
+    public function testAssertMayReplaceAll_AsksNothingWhenTheTreasuryHoldsTheSameAfterwardsAndNothingOfTheBooks(): void
+    {
+        $named  = $this->employeeWithGrants([]);
+        $other  = $this->employeeWithGrants([]);
+        $drawer = $this->drawer(['deposit_scope' => 'staff', 'deposit_members' => [$named], 'withdraw_scope' => 'staff', 'withdraw_members' => [$named]]);
+        $in     = $this->journalBetween((int) $this->treasuries->accountOf($drawer), $this->accountId('branches_payable'), '60.00');
+        $same   = [$this->draftOf((int) $this->treasuries->accountOf($drawer), $this->accountId('opening_balance'), '60.00')];
+
+        $this->scopes->assertMayReplaceAll([$in], $same, $other);
+        $this->scopes->assertMayReplaceAll([$in], [], null);
+        $this->addToAssertionCount(1);
+    }
+
     public function testAssertMayReplace_AsksNothingWhenTheTreasuryHoldsTheSameAfterwardsAndNothingOfTheBooks(): void
     {
         $named  = $this->employeeWithGrants([]);

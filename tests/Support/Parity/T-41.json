@@ -1,0 +1,65 @@
+{
+  "id": "T-41",
+  "title": "A draft expense: in the reference system it has a draft number, no journal and no effect on the treasury until it is issued, and issuing it posts the journal; this application has no draft expense",
+  "recorded": "2026-10-27",
+  "observation": {
+    "batch": "d2",
+    "scenarios": [
+      "D2-S07"
+    ]
+  },
+  "evidence": {
+    "draft_expense": {
+      "id": null,
+      "note": "A draft expense saved with Save as draft has a number of the form Draft-N, no journal and no effect on the treasury; Issue gives it the next real number and posts the journal; Convert to draft on an issued expense deletes its journal",
+      "observation": [
+        "pw-d2-19",
+        "pw-d2-20"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "a-draft-expense-has-no-journal-until-it-is-issued",
+      "kind": "expense_draft",
+      "classification": "not_implemented",
+      "work_package": "WP14",
+      "reason": "An expense here is either posted or deleted; there is no draft state. No package owns drafts of expenses: WP14, the draft and quote lifecycle of sales, is the nearest and would have to be widened to cover them.",
+      "evidence": [
+        "draft_expense"
+      ],
+      "inputs": {
+        "amount": "80.00",
+        "saved_as": "draft",
+        "then": "issued"
+      },
+      "reference": {
+        "draft_number": "Draft-N",
+        "journal_while_a_draft": "none",
+        "treasury_effect_while_a_draft": "none",
+        "issue_posts_the_journal": true,
+        "convert_back_to_draft_deletes_the_journal": true
+      },
+      "expected": {
+        "status": "not_implemented",
+        "absent": [
+          {
+            "kind": "column",
+            "table": "expenses",
+            "pattern": "draft"
+          },
+          {
+            "kind": "column",
+            "table": "expenses",
+            "pattern": "status"
+          },
+          {
+            "kind": "column",
+            "table": "expenses",
+            "pattern": "state"
+          }
+        ]
+      }
+    }
+  ]
+}

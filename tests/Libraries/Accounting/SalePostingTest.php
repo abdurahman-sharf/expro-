@@ -4,9 +4,13 @@ namespace Tests\Libraries\Accounting;
 
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\EntityAccountService;
+use App\Libraries\Accounting\InterBranchBalances;
+use App\Libraries\Accounting\InterBranchPosition;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\JournalService;
+use App\Libraries\Accounting\PairBalance;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\RoutingKey;
@@ -25,7 +29,9 @@ use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ConcurrentDbRaceTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
+use Tests\Support\ParityCaseTrait;
 use Tests\Support\ParityFixture;
+use Tests\Support\RegisterFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 use Tests\Support\WorkerRequestTrait;
 
@@ -41,6 +47,8 @@ class SalePostingTest extends CIUnitTestCase
     use ConcurrentDbRaceTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
+    use ParityCaseTrait;
+    use RegisterFixtureTrait;
     use SaleAccountingFixtureTrait;
     use WorkerRequestTrait;
 
@@ -2533,5 +2541,835 @@ class SalePostingTest extends CIUnitTestCase
         sort($lines);
 
         return $lines;
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // A payment into or out of a treasury of another branch
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * A second branch with a treasury of its own, and a seller who works in both branches.
+     *
+     * @param array<string, mixed> $more What else the treasury is created with.
+     *
+     * @return array{branch: int, treasury: int, account: int}
+     */
+    private function treasuryOfAnotherBranch(array $more = []): array
+    {
+        $branch   = $this->createBranch('B2');
+        $treasury = (new TreasuryService())->create(['name' => 'Branch drawer', 'kind' => 'cash', 'branch_id' => $branch] + $more);
+
+        $this->employeeId = $this->employeeWithGrants([], [1, $branch]);
+
+        return ['branch' => $branch, 'treasury' => $treasury, 'account' => (int) (new TreasuryService())->accountOf($treasury)];
+    }
+
+    private function saleWithPaymentInto(int $treasury, string $amount = '100.00', int $type = SALE_TYPE_INVOICE): int
+    {
+        $item = $this->item('10.00');
+
+        return $this->save([$this->line($item, 0, '1', '100', '10.00')], [], [$this->payment(lang('Sales.cash'), $amount) + ['treasury_id' => $treasury]], $type);
+    }
+
+    /**
+     * The journals of the payments of a sale: standing ones by source, with their branch.
+     *
+     * @return array<string, array{branch: int, lines: list<string>, revision: int}>
+     */
+    private function paymentJournals(int $saleId, string $status = 'posted'): array
+    {
+        $found = [];
+
+        foreach ($this->journals($saleId) as $journal) {
+            if ($journal['status'] === $status && str_starts_with($journal['source'], 'sale_payment')) {
+                $found[$journal['source']] = [
+                    'branch'   => (int) $this->accountingDb()->table('accounting_journals')->where('journal_id', $journal['id'])->get()->getRow()->branch_id,
+                    'lines'    => $journal['lines'],
+                    'revision' => $journal['revision'],
+                ];
+            }
+        }
+
+        return $found;
+    }
+
+    private function assertEveryBranchBalancedAndTheAccountsBetweenBranchesOffset(): void
+    {
+        foreach ($this->accountingDb()->table('branches')->get()->getResult() as $branch) {
+            $sums = $this->accountingDb()->table('accounting_journal_lines l')->select('SUM(l.debit) AS debit, SUM(l.credit) AS credit', false)->join('accounting_journals j', 'j.journal_id = l.journal_id')->where('j.branch_id', $branch->branch_id)->get()->getRow();
+
+            $this->assertSame(bcadd((string) $sums->debit, '0', 4), bcadd((string) $sums->credit, '0', 4), 'The trial balance of branch ' . $branch->code . ' balances');
+        }
+
+        $this->assertSame('0.0000', (new InterBranchPosition())->difference());
+    }
+
+    public function testSaveValue_PostsAPaymentIntoATreasuryOfAnotherBranchAsAJournalInEachBranch(): void
+    {
+        ['branch' => $branch, 'treasury' => $treasury, 'account' => $account] = $this->treasuryOfAnotherBranch();
+
+        $saleId = $this->saleWithPaymentInto($treasury);
+
+        $this->assertGreaterThan(0, $saleId);
+        $this->assertSame([
+            'sale_payment'        => ['branch' => 1, 'lines' => [$this->accountId('branches_receivable') . ':100.00:0.00', $this->customerAccount() . ':0.00:100.00'], 'revision' => 1],
+            'sale_payment_branch' => ['branch' => $branch, 'lines' => [$account . ':100.00:0.00', $this->accountId('branches_payable') . ':0.00:100.00'], 'revision' => 1],
+        ], $this->paymentJournals($saleId));
+        $this->assertSame($branch, (int) $this->paymentRow($saleId)->treasury_branch_id);
+        $this->assertSame('100.0000', (new TreasuryService())->position($treasury)->balance, 'The treasury holds what its account says');
+        $this->assertSame('0.00', $this->balance($this->customerAccount()), 'The customer is settled in the branch of the sale');
+        $this->assertEveryBranchBalancedAndTheAccountsBetweenBranchesOffset();
+    }
+
+    public function testSaveValue_SaysWhichBranchOwesWhichAfterAPaymentIntoATreasuryOfAnotherBranch(): void
+    {
+        ['branch' => $branch, 'treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        $this->saleWithPaymentInto($treasury);
+
+        $rows = [];
+
+        foreach ((new InterBranchBalances())->report()->rows as $row) {
+            $rows[$row->branchId . '>' . $row->counterpartId] = $row;
+        }
+
+        $this->assertSame(['100.0000', PairBalance::RECORDED, true], [$rows['1>' . $branch]->owed, $rows['1>' . $branch]->basis, $rows['1>' . $branch]->agrees], 'The branch of the sale is owed what the other holds for it');
+        $this->assertSame('-100.0000', $rows[$branch . '>1']->owed);
+    }
+
+    public function testSaveValue_PostsAPaymentOfAnotherBranchOnlyWhenTheTreasuryIsNotOfTheBranchOfTheSale(): void
+    {
+        $this->treasuryOfAnotherBranch();
+
+        $own    = (new TreasuryService())->create(['name' => 'Own drawer', 'kind' => 'cash']);
+        $saleId = $this->saleWithPaymentInto($own);
+
+        $this->assertNull($this->paymentRow($saleId)->treasury_branch_id);
+        $this->assertSame(['sale_payment'], array_keys($this->paymentJournals($saleId)));
+        $this->assertSame(0, $this->countRows('accounting_interbranch_legs'));
+    }
+
+    public function testUpdate_PostsARefundOutOfATreasuryOfAnotherBranchTheOtherWay(): void
+    {
+        ['branch' => $branch, 'treasury' => $treasury, 'account' => $account] = $this->treasuryOfAnotherBranch();
+
+        $saleId = $this->saleWithPaymentInto($treasury);
+
+        $this->assertTrue($this->sales->update($saleId, ['comment' => 'refund', 'payments' => [
+            ['payment_id' => NEW_ENTRY, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '-30.00', 'cash_refund' => 0, 'cash_adjustment' => 0, 'employee_id' => $this->employeeId, 'reference_code' => null, 'treasury_id' => $treasury],
+        ]]));
+
+        $refundId = (int) $this->accountingDb()->table('sales_payments')->selectMax('payment_id', 'last')->where('sale_id', $saleId)->get()->getRow()->last;
+        $journals = [];
+
+        foreach ($this->accountingDb()->table('accounting_journals')->whereIn('source_type', ['sale_payment', 'sale_payment_branch'])->where(['source_id' => $refundId, 'status' => 'posted'])->get()->getResult() as $journal) {
+            $journals[$journal->source_type] = [
+                (int) $journal->branch_id,
+                array_map(
+                    static fn (object $line): string => $line->account_id . ':' . bcadd((string) $line->debit, '0', 2) . ':' . bcadd((string) $line->credit, '0', 2),
+                    $this->accountingDb()->table('accounting_journal_lines')->select('account_id, debit, credit')->where('journal_id', $journal->journal_id)->orderBy('line_no', 'ASC')->get()->getResult(),
+                ),
+            ];
+        }
+
+        $this->assertSame([
+            'sale_payment'        => [1, [$this->customerAccount() . ':30.00:0.00', $this->accountId('branches_payable') . ':0.00:30.00']],
+            'sale_payment_branch' => [$branch, [$this->accountId('branches_receivable') . ':30.00:0.00', $account . ':0.00:30.00']],
+        ], $journals, 'The branch of the sale now owes the other, which paid the customer back');
+        $this->assertSame('70.0000', (new TreasuryService())->position($treasury)->balance);
+        $this->assertSame('30.00', $this->balance($this->customerAccount()), 'The customer is owed the 30 back as a new debt of the sale');
+        $this->assertEveryBranchBalancedAndTheAccountsBetweenBranchesOffset();
+    }
+
+    public function testSaveValue_RejectsATreasuryOfAnotherBranchToAnEmployeeWhoWorksInOnlyOneOfTheTwo(): void
+    {
+        ['branch' => $branch, 'treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        foreach ([[1], [$branch]] as $works) {
+            $this->employeeId = $this->employeeWithGrants([], $works);
+
+            $before = [$this->countRows('sales'), $this->countRows('accounting_journals')];
+            $result = $this->saleWithPaymentInto($treasury);
+
+            $this->assertSame(ACCOUNTING_FAILED, $result);
+            $this->assertSame(AccountingError::TreasuryNotFound, $this->sales->accountingFailure()->error);
+            $this->assertSame($before, [$this->countRows('sales'), $this->countRows('accounting_journals')], 'Nothing of the sale was kept');
+        }
+
+        $this->assertSame('0.0000', (new TreasuryService())->position($treasury)->balance);
+    }
+
+    public function testSaveValue_AsksTheDepositScopeOfTheTreasuryOfTheOtherBranch(): void
+    {
+        ['treasury' => $treasury] = $this->treasuryOfAnotherBranch(['deposit_scope' => 'staff', 'deposit_members' => [$this->employeeWithGrants([])]]);
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->saleWithPaymentInto($treasury));
+        $this->assertSame(AccountingError::TreasuryDepositDenied, $this->sales->accountingFailure()->error);
+        $this->assertSame(0, $this->countRows('sales_payments'));
+    }
+
+    public function testSaveValue_RejectsATreasuryOfAnotherBranchThatIsDeactivated(): void
+    {
+        ['treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        (new TreasuryService())->deactivate($treasury);
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->saleWithPaymentInto($treasury));
+        $this->assertSame(AccountingError::TreasuryInactive, $this->sales->accountingFailure()->error);
+    }
+
+    public function testSaveValue_LeavesNothingOfTheSaleWhenThePeriodOfEitherBranchIsClosed(): void
+    {
+        ['branch' => $branch, 'treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        foreach ([$branch, 1] as $closed) {
+            $this->closeThrough(date('Y-m-d'), $closed);
+
+            $before = [$this->countRows('sales'), $this->countRows('accounting_journals'), $this->countRows('accounting_interbranch_legs')];
+
+            $this->assertSame(ACCOUNTING_FAILED, $this->saleWithPaymentInto($treasury));
+            $this->assertSame(PostingError::PeriodClosed, $this->sales->accountingFailure()->error);
+            $this->assertSame($before, [$this->countRows('sales'), $this->countRows('accounting_journals'), $this->countRows('accounting_interbranch_legs')]);
+
+            $this->accountingDb()->table('accounting_closed_periods')->truncate();
+        }
+
+        $this->assertSame('0.0000', (new TreasuryService())->position($treasury)->balance);
+    }
+
+    public function testSaveValue_LeavesNothingOfTheSaleWhenTheRoutingNamesNoAccountsBetweenBranches(): void
+    {
+        ['treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'branches.receivable')->update(['account_id' => null]);
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->saleWithPaymentInto($treasury));
+        $this->assertSame(PostingError::InterBranchAccountsMissing, $this->sales->accountingFailure()->error);
+        $this->assertSame(0, $this->countRows('sales_payments'));
+    }
+
+    public function testSaveValue_WritesTheJournalOfTheLowerBranchFirstWhicheverBranchHoldsTheTreasury(): void
+    {
+        ['branch' => $branch, 'treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        $home    = (new TreasuryService())->create(['name' => 'Home drawer', 'kind' => 'cash']);
+        $store   = $this->insertStockLocation('Branch store');
+        $service = $this->item('0', false);
+
+        (new EntityAccountService())->ensure(EntityAccountService::STOCK_LOCATION, $store, 'Branch store');
+        $this->accountingDb()->table('stock_locations')->where('location_id', $store)->update(['branch_id' => $branch]);
+
+        $forward  = $this->saleWithPaymentInto($treasury);
+        $backward = $this->save([$this->line($service, 0, '1', '100', '0', '0', PERCENT, $store)], [], [$this->payment(lang('Sales.cash'), '100.00') + ['treasury_id' => $home]]);
+
+        $this->assertGreaterThan(0, $backward);
+
+        foreach ([$forward => 1, $backward => $branch] as $saleId => $documentBranch) {
+            $ids = [];
+
+            foreach ($this->journals($saleId) as $journal) {
+                if (str_starts_with($journal['source'], 'sale_payment')) {
+                    $ids[(int) $this->accountingDb()->table('accounting_journals')->where('journal_id', $journal['id'])->get()->getRow()->branch_id] = $journal['id'];
+                }
+            }
+
+            $this->assertSame([1, $branch], array_keys($ids), 'The sale of branch ' . $documentBranch);
+            $this->assertLessThan($ids[$branch], $ids[1], 'The journal of the lower branch is written first');
+        }
+
+        $this->assertSame('sale_payment_branch', $this->accountingDb()->table('accounting_journals')->where('source_id', (int) $this->paymentRow($backward)->payment_id)->where('branch_id', 1)->whereIn('source_type', ['sale_payment', 'sale_payment_branch'])->get()->getRow()->source_type);
+        $this->assertEveryBranchBalancedAndTheAccountsBetweenBranchesOffset();
+    }
+
+    public function testUpdate_ReversesBothJournalsAndPostsThePairAgainWhenThePaymentChanges(): void
+    {
+        ['branch' => $branch, 'treasury' => $treasury, 'account' => $account] = $this->treasuryOfAnotherBranch();
+
+        $saleId    = $this->saleWithPaymentInto($treasury);
+        $paymentId = (int) $this->paymentRow($saleId)->payment_id;
+
+        $this->assertTrue($this->sales->update($saleId, ['comment' => 'less', 'payments' => [$this->scopeEditedPayment($paymentId, ['payment_amount' => '60.00', 'treasury_id' => $treasury])]]));
+
+        $this->assertSame([
+            'sale_payment'        => ['branch' => 1, 'lines' => [$this->accountId('branches_receivable') . ':60.00:0.00', $this->customerAccount() . ':0.00:60.00'], 'revision' => 2],
+            'sale_payment_branch' => ['branch' => $branch, 'lines' => [$account . ':60.00:0.00', $this->accountId('branches_payable') . ':0.00:60.00'], 'revision' => 2],
+        ], $this->paymentJournals($saleId));
+        $this->assertSame(['sale_payment', 'sale_payment_branch'], array_keys($this->paymentJournals($saleId, 'reversed')));
+        $this->assertSame('60.0000', (new TreasuryService())->position($treasury)->balance);
+        $this->assertSame('40.00', $this->balance($this->customerAccount()));
+        $this->assertEveryBranchBalancedAndTheAccountsBetweenBranchesOffset();
+    }
+
+    public function testUpdate_LeavesThePairAloneWhenNothingAboutThePaymentChanges(): void
+    {
+        ['treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        $saleId    = $this->saleWithPaymentInto($treasury);
+        $paymentId = (int) $this->paymentRow($saleId)->payment_id;
+        $before    = $this->countRows('accounting_journals');
+
+        $this->assertTrue($this->sales->update($saleId, ['comment' => 'again', 'payments' => [$this->scopeEditedPayment($paymentId, ['treasury_id' => $treasury])]]));
+        $this->assertTrue($this->sales->update($saleId, ['comment' => 'and again', 'payments' => [$this->scopeEditedPayment($paymentId)]]));
+
+        $this->assertSame($before, $this->countRows('accounting_journals'));
+        $this->assertSame([1, 1], array_values(array_map(static fn (array $journal): int => $journal['revision'], $this->paymentJournals($saleId))));
+    }
+
+    public function testUpdate_MovesAPaymentFromATreasuryOfAnotherBranchToOneOfItsOwnAndBack(): void
+    {
+        ['branch' => $branch, 'treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        $own       = (new TreasuryService())->create(['name' => 'Own drawer', 'kind' => 'cash']);
+        $saleId    = $this->saleWithPaymentInto($treasury);
+        $paymentId = (int) $this->paymentRow($saleId)->payment_id;
+
+        $this->assertTrue($this->sales->update($saleId, ['comment' => 'moved', 'payments' => [$this->scopeEditedPayment($paymentId, ['treasury_id' => $own])]]));
+
+        $this->assertSame(['sale_payment'], array_keys($this->paymentJournals($saleId)));
+        $this->assertNull($this->paymentRow($saleId)->treasury_branch_id);
+        $this->assertSame('0.0000', (new TreasuryService())->position($treasury)->balance);
+        $this->assertSame('100.0000', (new TreasuryService())->position($own)->balance);
+
+        $this->assertTrue($this->sales->update($saleId, ['comment' => 'moved back', 'payments' => [$this->scopeEditedPayment($paymentId, ['treasury_id' => $treasury])]]));
+
+        $this->assertSame(['sale_payment', 'sale_payment_branch'], array_keys($this->paymentJournals($saleId)));
+        $this->assertSame($branch, (int) $this->paymentRow($saleId)->treasury_branch_id);
+        $this->assertSame(3, $this->paymentJournals($saleId)['sale_payment']['revision']);
+        $this->assertSame('100.0000', (new TreasuryService())->position($treasury)->balance);
+        $this->assertSame('0.0000', (new TreasuryService())->position($own)->balance);
+        $this->assertEveryBranchBalancedAndTheAccountsBetweenBranchesOffset();
+    }
+
+    public function testUpdate_TakesBothJournalsBackWhenThePaymentIsRemoved(): void
+    {
+        ['treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        $saleId    = $this->saleWithPaymentInto($treasury);
+        $paymentId = (int) $this->paymentRow($saleId)->payment_id;
+
+        $this->assertTrue($this->sales->update($saleId, ['comment' => 'removed', 'payments' => [$this->scopeEditedPayment($paymentId, ['payment_amount' => '0.00'])]]));
+
+        $this->assertSame([], $this->paymentJournals($saleId));
+        $this->assertSame('0.0000', (new TreasuryService())->position($treasury)->balance);
+        $this->assertSame('100.00', $this->balance($this->customerAccount()));
+        $this->assertEveryBranchBalancedAndTheAccountsBetweenBranchesOffset();
+    }
+
+    public function testUpdate_RejectsAnEmployeeWhoWorksInOnlyOneOfTheBranchesToChangeAPaymentAcrossThemAndChangesNothing(): void
+    {
+        ['branch' => $branch, 'treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        $saleId    = $this->saleWithPaymentInto($treasury);
+        $paymentId = (int) $this->paymentRow($saleId)->payment_id;
+
+        $this->employeeId = $this->employeeWithGrants([], [1]);
+
+        $before = $this->countRows('accounting_journals');
+
+        $this->assertFalse($this->sales->update($saleId, ['comment' => 'less', 'payments' => [$this->scopeEditedPayment($paymentId, ['payment_amount' => '60.00', 'treasury_id' => $treasury])]]));
+        $this->assertSame(AccountingError::InterBranchBranchesDenied, $this->sales->accountingFailure()->error);
+        $this->assertSame($before, $this->countRows('accounting_journals'));
+        $this->assertSame('100.00', $this->paymentRow($saleId)->payment_amount);
+        $this->assertSame('100.0000', (new TreasuryService())->position($treasury)->balance);
+    }
+
+    public function testUpdate_AsksTheWithdrawScopeOfTheTreasuryOfTheOtherBranchToTakeAPaymentOutOfIt(): void
+    {
+        ['treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        $saleId    = $this->saleWithPaymentInto($treasury);
+        $paymentId = (int) $this->paymentRow($saleId)->payment_id;
+
+        $this->accountingDb()->table('treasuries')->where('treasury_id', $treasury)->update(['withdraw_scope' => 'staff']);
+        $this->accountingDb()->table('treasury_scope_members')->insert(['treasury_id' => $treasury, 'direction' => 'withdraw', 'member_id' => $this->employeeWithGrants([])]);
+
+        $this->assertFalse($this->sales->update($saleId, ['comment' => 'less', 'payments' => [$this->scopeEditedPayment($paymentId, ['payment_amount' => '60.00', 'treasury_id' => $treasury])]]));
+        $this->assertSame(AccountingError::TreasuryWithdrawDenied, $this->sales->accountingFailure()->error);
+        $this->assertSame('100.0000', (new TreasuryService())->position($treasury)->balance);
+        $this->assertSame(['sale_payment', 'sale_payment_branch'], array_keys($this->paymentJournals($saleId)));
+    }
+
+    public function testDelete_ReversesBothJournalsOfAPaymentIntoATreasuryOfAnotherBranch(): void
+    {
+        ['treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        $saleId = $this->saleWithPaymentInto($treasury, '100.00', SALE_TYPE_POS);
+
+        $this->assertTrue($this->sales->delete($saleId, false, true, $this->employeeId));
+
+        $this->assertSame([], $this->paymentJournals($saleId));
+        $this->assertSame(['sale_payment', 'sale_payment_branch'], array_keys($this->paymentJournals($saleId, 'reversed')));
+        $this->assertSame('0.0000', (new TreasuryService())->position($treasury)->balance);
+        $this->assertEveryBranchBalancedAndTheAccountsBetweenBranchesOffset();
+    }
+
+    public function testDelete_ReversesTheJournalOfTheLowerBranchFirst(): void
+    {
+        ['branch' => $branch, 'treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        $saleId = $this->saleWithPaymentInto($treasury, '100.00', SALE_TYPE_POS);
+
+        $this->assertTrue($this->sales->delete($saleId, false, true, $this->employeeId));
+
+        $reversals = [];
+
+        foreach ($this->journals($saleId) as $journal) {
+            if (str_starts_with($journal['source'], 'sale_payment')) {
+                $reversal = $this->accountingDb()->table('accounting_journals')->where('reverses_journal_id', $journal['id'])->get()->getRow();
+
+                $reversals[(int) $reversal->branch_id] = (int) $reversal->journal_id;
+            }
+        }
+
+        $this->assertLessThan($reversals[$branch], $reversals[1]);
+    }
+
+    public function testDelete_DatesTheReversalOfEachBranchByTheClosedPeriodOfThatBranchAlone(): void
+    {
+        ['branch' => $branch, 'treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        foreach ([$branch, 1] as $closed) {
+            $saleId = $this->saleWithPaymentInto($treasury, '100.00', SALE_TYPE_POS);
+
+            $this->accountingDb()->table('accounting_journals')->whereIn('journal_id', array_column($this->journals($saleId), 'id'))->update(['journal_date' => '2026-03-10']);
+            $this->closeThrough('2026-06-30', $closed);
+
+            $this->assertTrue($this->sales->delete($saleId, false, true, $this->employeeId));
+
+            $dates = [];
+
+            foreach ($this->journals($saleId) as $journal) {
+                if (str_starts_with($journal['source'], 'sale_payment')) {
+                    $reversal = $this->accountingDb()->table('accounting_journals')->where('reverses_journal_id', $journal['id'])->get()->getRow();
+
+                    $dates[(int) $reversal->branch_id] = $reversal->journal_date;
+                }
+            }
+
+            $this->assertSame([1 => $closed === 1 ? date('Y-m-d') : '2026-03-10', $branch => $closed === $branch ? date('Y-m-d') : '2026-03-10'], $dates, 'Only the branch whose period is closed is reversed today (closed: ' . $closed . ')');
+            $this->assertEveryBranchBalancedAndTheAccountsBetweenBranchesOffset();
+
+            $this->accountingDb()->table('accounting_closed_periods')->truncate();
+        }
+    }
+
+    public function testDelete_RejectsAnEmployeeWhoWorksInOnlyOneOfTheBranchesAndReversesNothing(): void
+    {
+        ['treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        $saleId = $this->saleWithPaymentInto($treasury, '100.00', SALE_TYPE_POS);
+
+        $this->employeeId = $this->employeeWithGrants([], [1]);
+
+        $this->assertFalse($this->sales->delete($saleId, false, true, $this->employeeId));
+        $this->assertSame(['sale_payment', 'sale_payment_branch'], array_keys($this->paymentJournals($saleId)));
+        $this->assertSame('100.0000', (new TreasuryService())->position($treasury)->balance);
+    }
+
+    public function testDelete_AsksTheWithdrawScopeOfTheTreasuryOfTheOtherBranchAndReversesNothingWhenItIsClosed(): void
+    {
+        ['treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        $saleId = $this->saleWithPaymentInto($treasury, '100.00', SALE_TYPE_POS);
+
+        $this->accountingDb()->table('treasuries')->where('treasury_id', $treasury)->update(['withdraw_scope' => 'staff']);
+        $this->accountingDb()->table('treasury_scope_members')->insert(['treasury_id' => $treasury, 'direction' => 'withdraw', 'member_id' => $this->employeeWithGrants([])]);
+
+        $this->assertFalse($this->sales->delete($saleId, false, true, $this->employeeId));
+        $this->assertSame(AccountingError::TreasuryWithdrawDenied, $this->sales->accountingFailure()->error);
+        $this->assertSame(['sale_payment', 'sale_payment_branch'], array_keys($this->paymentJournals($saleId)));
+        $this->assertSame(COMPLETED, (int) $this->accountingDb()->table('sales')->where('sale_id', $saleId)->get()->getRow()->sale_status);
+    }
+
+    public function testSyncPayments_KeepsAPaymentThatWasStampedWithATreasuryOfAnotherBranchBeforeThisAsTheOneJournalItHas(): void
+    {
+        ['treasury' => $treasury, 'account' => $account] = $this->treasuryOfAnotherBranch();
+
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'payment.cash')->update(['account_id' => $account]);
+
+        $item   = $this->item('10.00');
+        $saleId = $this->save([$this->line($item, 0, '1', '100', '10.00')], [], [$this->payment(lang('Sales.cash'), '100.00')]);
+
+        $this->accountingDb()->table('sales_payments')->where('sale_id', $saleId)->update(['treasury_id' => $treasury]);
+
+        $paymentId = (int) $this->paymentRow($saleId)->payment_id;
+        $before    = $this->countRows('accounting_journals');
+
+        $this->assertSame(['sale_payment'], array_keys($this->paymentJournals($saleId)), 'Posted as one journal of the branch of the sale, into the treasury of the other');
+        $this->assertTrue($this->sales->update($saleId, ['comment' => 'again', 'payments' => [$this->scopeEditedPayment($paymentId)]]));
+
+        $this->assertSame($before, $this->countRows('accounting_journals'), 'A payment posted before is not posted again in a new form');
+        $this->assertNull($this->paymentRow($saleId)->treasury_branch_id);
+        $this->assertSame(0, $this->countRows('accounting_interbranch_legs'));
+
+        $this->assertTrue($this->sales->update($saleId, ['comment' => 'less', 'payments' => [$this->scopeEditedPayment($paymentId, ['payment_amount' => '60.00'])]]));
+        $this->assertSame(['sale_payment'], array_keys($this->paymentJournals($saleId)), 'Changed, it is posted as it was');
+    }
+
+    public function testSaveValue_TakesATreasuryOfAnotherBranchOnlyWhileTheBooksAreOn(): void
+    {
+        ['treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $saleId = $this->saleWithPaymentInto($treasury);
+
+        $this->assertSame(ACCOUNTING_FAILED, $saleId);
+        $this->assertSame(AccountingError::TreasuryNotFound, $this->sales->accountingFailure()->error);
+        $this->assertSame(0, $this->countRows('accounting_journals'));
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // What the reference system recorded in the second write batch: fixtures T-26 to T-30, T-32 and T-33
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * Rings the invoice of a case up on the register and saves it.
+     *
+     * @param array<string, mixed> $inputs
+     *
+     * @return array{sale: int, made: list<array{item: int, quantity: string, price: string, discount: string}>, cart: array<int, array<string, mixed>>, taxes: array<int, mixed>, totals: array<string, mixed>}
+     */
+    private function invoiceOfCase(array $inputs, ?string $taxDecimals = null): array
+    {
+        $made = $this->linesOfCase($inputs['lines']);
+        $ring = $this->ringUp($made, $this->discountOfCase($inputs['invoice_discount'] ?? null), null, $inputs['delivered'] ?? true, ['tax_decimals' => $taxDecimals ?? $inputs['tax_decimals'] ?? '2']);
+
+        $this->assertGreaterThan(0, $ring['sale']);
+
+        return ['made' => $made] + $ring;
+    }
+
+    /**
+     * The share of the discount on the whole invoice and the tax each line of a sale carries.
+     *
+     * @return array{shares: list<string>, taxes: list<string>}
+     */
+    private function sharesAndTaxesOf(int $saleId): array
+    {
+        $taxes  = [];
+        $shares = [];
+
+        foreach ($this->accountingDb()->table('sales_items_taxes')->where('sale_id', $saleId)->get()->getResult() as $row) {
+            $taxes[(int) $row->line] = bcadd((string) $row->item_tax_amount, '0', 2);
+        }
+
+        foreach ($this->accountingDb()->table('sales_items')->where('sale_id', $saleId)->orderBy('line')->get()->getResult() as $row) {
+            $shares[] = bcadd((string) ($row->invoice_discount_share ?? '0'), '0', 2);
+            $taxes[(int) $row->line] ??= '0.00';
+        }
+
+        ksort($taxes);
+
+        return ['shares' => $shares, 'taxes' => array_values($taxes)];
+    }
+
+    /**
+     * The figures the invoice shows when it is printed: what the register worked out for it.
+     *
+     * @param array<string, mixed> $totals
+     *
+     * @return array{subtotal: string, discount: string, tax: string, total: string}
+     */
+    private function printedFigures(array $totals): array
+    {
+        return [
+            'subtotal' => bcadd((string) $totals['prediscount_subtotal'], '0', 2),
+            'discount' => bcadd((string) $totals['total_discount'], (string) $totals['invoice_discount'], 2),
+            'tax'      => bcadd((string) $totals['tax_total'], '0', 2),
+            'total'    => bcadd((string) $totals['total'], '0', 2),
+        ];
+    }
+
+    public function testSaveValue_PostsTheJournalOfAPercentageDiscountOnTheWholeInvoiceWithTheTaxRoundedToTheTaxDecimalsWhereTheReferenceSystemKeepsSeven(): void
+    {
+        $case = $this->referenceCase('T-26', 'invoice_journal', 'percent-discount-3-3-journal', 'differs');
+        $sale = $this->invoiceOfCase($case['inputs']);
+        $four = $this->invoiceOfCase($case['inputs'], '4');
+
+        $this->assertSameAsFixture($case['expected']['journals']['invoice'], $this->roleLinesOfSale($sale['sale'], 'revenue'), 'two tax decimals');
+        $this->assertSameAsFixture($case['expected']['detail']['at_four_tax_decimals']['invoice'], $this->roleLinesOfSale($four['sale'], 'revenue'), 'four tax decimals');
+        $this->assertRolesAgree($case['reference']['journals']['invoice'], $this->roleLinesOfSale($sale['sale'], 'revenue'), ['customer'], 'the customer owes the same in both systems');
+    }
+
+    public function testSaveValue_PrintsTheFiguresOfAPercentageDiscountOnTheWholeInvoiceAsTheReferenceSystemDoes(): void
+    {
+        $case = $this->referenceCase('T-26', 'invoice_figures', 'percent-discount-3-3-printed-figures', 'exact');
+        $sale = $this->invoiceOfCase($case['inputs']);
+
+        $this->assertSameAsFixture($case['expected']['figures'], $this->printedFigures($sale['totals']), 'printed figures');
+    }
+
+    public function testSaveValue_SharesAPercentageDiscountOverTheLinesAsTheReportOfTheReferenceSystemShowsIt(): void
+    {
+        $case = $this->referenceCase('T-26', 'invoice_shares', 'percent-discount-3-3-line-shares', 'exact');
+        $sale = $this->invoiceOfCase($case['inputs']);
+        $line = $this->sharesAndTaxesOf($sale['sale']);
+
+        $this->assertSameAsFixture(['line_shares' => $case['expected']['line_shares'], 'line_taxes' => $case['expected']['line_taxes']], ['line_shares' => $line['shares'], 'line_taxes' => $line['taxes']], 'lines');
+    }
+
+    public function testSaveValue_PostsTheJournalOfAFixedDiscountOnTheWholeInvoiceWithTheSharesRoundedToTheCentWhereTheReferenceSystemKeepsThemWhole(): void
+    {
+        $case = $this->referenceCase('T-27', 'invoice_journal', 'fixed-discount-20-journal', 'differs');
+        $sale = $this->invoiceOfCase($case['inputs']);
+        $four = $this->invoiceOfCase($case['inputs'], '4');
+
+        $this->assertSameAsFixture($case['expected']['journals']['invoice'], $this->roleLinesOfSale($sale['sale'], 'revenue'), 'two tax decimals');
+        $this->assertSameAsFixture($case['expected']['detail']['at_four_tax_decimals']['invoice'], $this->roleLinesOfSale($four['sale'], 'revenue'), 'four tax decimals');
+        $this->assertRolesAgree($case['reference']['journals']['invoice'], $this->roleLinesOfSale($sale['sale'], 'revenue'), ['customer'], 'the customer owes the same in both systems');
+    }
+
+    public function testSaveValue_PrintsTheFiguresOfAFixedDiscountOnTheWholeInvoiceAsTheReferenceSystemDoes(): void
+    {
+        $case = $this->referenceCase('T-27', 'invoice_figures', 'fixed-discount-20-printed-figures', 'exact');
+        $sale = $this->invoiceOfCase($case['inputs']);
+        $shown = $this->printedFigures($sale['totals']);
+
+        $this->assertSameAsFixture($case['expected']['figures'], ['discount' => $shown['discount'], 'tax' => $shown['tax'], 'total' => $shown['total']], 'printed figures');
+    }
+
+    public function testSaveValue_SharesAFixedDiscountOverTheLinesAsTheReportOfTheReferenceSystemShowsIt(): void
+    {
+        $case = $this->referenceCase('T-27', 'invoice_shares', 'fixed-discount-20-line-shares', 'exact');
+        $sale = $this->invoiceOfCase($case['inputs']);
+        $line = $this->sharesAndTaxesOf($sale['sale']);
+        $both = [];
+
+        foreach ($sale['made'] as $index => $made) {
+            $ofTheLine = bcmul(bcmul($made['quantity'], $made['price'], 4), bcdiv($made['discount'], '100', 4), 4);
+            $both[]    = bcadd(bcadd($ofTheLine, $line['shares'][$index], 4), '0', 2);
+        }
+
+        $this->assertSameAsFixture(['line_discounts' => $case['expected']['line_discounts'], 'line_taxes' => $case['expected']['line_taxes']], ['line_discounts' => $both, 'line_taxes' => $line['taxes']], 'lines');
+    }
+
+    public function testSaveValue_PostsTheCostOfTheGoodsOfAnInvoiceWithAFixedDiscountAsTheReferenceSystemDoes(): void
+    {
+        $case = $this->referenceCase('T-27', 'invoice_cost', 'fixed-discount-20-cost-journal', 'exact');
+        $sale = $this->invoiceOfCase($case['inputs']);
+
+        $this->assertSameAsFixture($case['expected']['journals']['cost'], $this->roleLinesOfSale($sale['sale'], 'cogs'), 'cost journal');
+    }
+
+    public function testSaveValue_PostsTheInvoiceOfAnUndeliveredSaleAsTheReferenceSystemDoes(): void
+    {
+        $case   = $this->referenceCase('T-28', 'undelivered_invoice', 'undelivered-invoice-journal', 'exact');
+        $sale   = $this->invoiceOfCase($case['inputs']);
+        $item   = $sale['made'][0]['item'];
+        $actual = [
+            'journals'    => ['invoice' => $this->roleLinesOfSale($sale['sale'], 'revenue'), 'cost' => $this->roleLinesOfSale($sale['sale'], 'cogs')],
+            'delivered'   => (string) $this->saleRow($sale['sale'])->delivered === '1',
+            'stock_taken' => (string) (int) round(0.0 - $this->stock($item)),
+        ];
+
+        $this->assertSameAsFixture($case['expected'], $actual, 'undelivered invoice');
+    }
+
+    /**
+     * An invoice of a case and a credit note taken from it.
+     *
+     * @param array<string, mixed> $inputs
+     *
+     * @return array{invoice: int, return: int, journals: int, tax_decimals: string}
+     */
+    private function invoiceWithACreditNote(array $inputs, ?string $taxDecimals = null): array
+    {
+        $taxDecimals ??= $inputs['tax_decimals'] ?? '2';
+        $invoice       = $this->invoiceOfCase($inputs['invoice'], $taxDecimals);
+        $note          = $inputs['credit_note'];
+        $before        = $this->countJournals();
+        $return        = $this->ringUp([['item' => $invoice['made'][$note['line']]['item'], 'quantity' => $note['quantity'], 'price' => $note['price'], 'discount' => $note['discount']]], null, $invoice['sale'], true, ['tax_decimals' => $taxDecimals]);
+
+        $this->assertGreaterThan(0, $return['sale']);
+
+        return ['invoice' => $invoice['sale'], 'return' => $return['sale'], 'journals' => $this->countJournals() - $before, 'tax_decimals' => $taxDecimals];
+    }
+
+    public function testSaveValue_TakesBackTheShareOfTheDiscountOfTheReturnedUnitWhereTheReferenceSystemLeavesTheWholeDiscountOnTheCreditNote(): void
+    {
+        $case = $this->referenceCase('T-29', 'credit_note_journal', 'partial-return-journal', 'deliberate_difference');
+        $made = $this->invoiceWithACreditNote($case['inputs']);
+        $four = $this->invoiceWithACreditNote($case['inputs'], '4');
+        $row  = $this->accountingDb()->table('sales_items')->where('sale_id', $made['return'])->get()->getRow();
+
+        $this->assertSameAsFixture($case['expected']['journals']['credit_note'], $this->roleLinesOfSale($made['return'], 'revenue'), 'two tax decimals');
+        $this->assertSameAsFixture($case['expected']['detail']['at_four_tax_decimals']['credit_note'], $this->roleLinesOfSale($four['return'], 'revenue'), 'four tax decimals');
+        $this->assertSame($case['expected']['detail']['share_of_the_invoice_discount_taken_back'], bcadd(ltrim((string) $row->invoice_discount_share, '-'), '0', 2));
+    }
+
+    public function testSaveValue_ReturnsTheCostOfTheUnitOfADiscountedInvoiceAsTheReferenceSystemDoes(): void
+    {
+        $case = $this->referenceCase('T-29', 'credit_note_cost', 'partial-return-cost-journal', 'exact');
+        $made = $this->invoiceWithACreditNote($case['inputs']);
+
+        $this->assertSameAsFixture($case['expected']['journals']['cost'], $this->roleLinesOfSale($made['return'], 'cogs'), 'cost journal');
+    }
+
+    public function testSaveValue_PaysTheCreditNoteOfADiscountedInvoiceIntoItsInvoiceWithoutAJournalAsTheReferenceSystemDoes(): void
+    {
+        $case    = $this->referenceCase('T-29', 'credit_note_application', 'partial-return-is-applied-to-its-invoice', 'exact');
+        $made    = $this->invoiceWithACreditNote($case['inputs']);
+        $total   = $this->roleLinesOfSale($made['return'], 'revenue');
+        $credit  = array_values(array_filter($total, static fn (array $line): bool => $line['role'] === 'customer'))[0]['credit'];
+        $figures = $this->position()->invoice($made['invoice']);
+        $actual  = [
+            'applied_to'                   => $this->applications() === ['credit_note:' . $made['return'] . '->' . $made['invoice'] . ':' . bcadd($credit, '0', 2)] ? 'its own invoice' : 'another invoice',
+            'applied_in_full'              => bccomp($figures->applied, $credit, 2) === 0,
+            'journals_for_the_application' => (string) ($made['journals'] - 2),
+            'payment_state'                => $figures->paymentState()->value,
+            'return_state'                 => $figures->returnState()->value,
+        ];
+
+        $this->assertSameAsFixture($case['expected'], $actual, 'application');
+    }
+
+    public function testSaveValue_RefusesACreditNoteOnAnInvoiceThatWasNeverDeliveredWhereTheReferenceSystemAcceptsIt(): void
+    {
+        $case    = $this->referenceCase('T-30', 'undelivered_credit_note', 'credit-note-on-an-undelivered-invoice', 'deliberate_difference');
+        $invoice = $this->invoiceOfCase($case['inputs']['invoice'] + ['tax_decimals' => '2']);
+        $item    = $invoice['made'][0]['item'];
+        $note    = $case['inputs']['credit_note'];
+        $before  = ['journals' => $this->countJournals(), 'stock' => $this->stock($item)];
+        $return  = $this->ringUp([['item' => $item, 'quantity' => $note['quantity'], 'price' => $note['price'], 'discount' => $note['discount']]], null, $invoice['sale']);
+        $actual  = [
+            'accepted'        => $return['sale'] > 0,
+            'journals_posted' => (string) ($this->countJournals() - $before['journals']),
+            'stock_change'    => (string) (int) round($this->stock($item) - $before['stock']),
+        ];
+
+        $this->assertSameAsFixture(['accepted' => $case['expected']['accepted'], 'journals_posted' => $case['expected']['journals_posted'], 'stock_change' => $case['expected']['stock_change']], $actual, 'refusal');
+        $this->assertSame(ACCOUNTING_FAILED, $return['sale']);
+        $this->assertSame($case['expected']['detail']['error'], $this->failure()->error->value);
+    }
+
+    public function testConfirmDelivery_LeavesTheSameCostAndStockAsTheReferenceSystemAfterTheDeliveryAndTheCreditNoteBothHappened(): void
+    {
+        $case    = $this->referenceCase('T-30', 'undelivered_credit_note', 'delivery-and-credit-note-leave-the-same-books', 'exact');
+        $invoice = $this->invoiceOfCase($case['inputs']['invoice'] + ['tax_decimals' => '2']);
+        $item    = $invoice['made'][0]['item'];
+        $note    = $case['inputs']['credit_note'];
+
+        $this->assertSame($invoice['sale'], $this->sales->confirm_delivery($invoice['sale'], $this->employeeId));
+
+        $delivery = array_values(array_filter($this->roleLinesOfSale($invoice['sale'], 'cogs'), static fn (array $line): bool => $line['role'] === 'cogs'))[0]['debit'];
+        $return   = $this->ringUp([['item' => $item, 'quantity' => $note['quantity'], 'price' => $note['price'], 'discount' => $note['discount']]], null, $invoice['sale']);
+
+        $this->assertGreaterThan(0, $return['sale']);
+        $this->assertSameAsFixture($case['expected'], [
+            'delivery_cost'        => bcadd($delivery, '0', 2),
+            'net_cost_after_both'  => $this->balance($this->accountId('cogs')),
+            'net_stock_after_both' => (string) (int) round($this->stock($item)),
+        ], 'books');
+    }
+
+    /**
+     * Sells the units of a case, takes back the ones it says came back before, and asks for one more return.
+     *
+     * @param array<string, mixed> $inputs
+     *
+     * @return array{result: string, saved: string, failure: ?array<string, mixed>}
+     */
+    private function attemptToReturn(array $inputs): array
+    {
+        $item   = $this->taxedItem('60.00', true, '15');
+        $sold   = $this->ringUp([['item' => $item, 'quantity' => $inputs['sold'], 'price' => '100.00']]);
+        $first  = $this->ringUp([['item' => $item, 'quantity' => '-' . $inputs['returned_before'], 'price' => '100.00']], null, $sold['sale']);
+
+        $this->assertGreaterThan(0, $first['sale']);
+
+        $sales   = $this->countSales();
+        $journals = $this->countJournals();
+        $attempt = $this->ringUp([['item' => $item, 'quantity' => '-' . $inputs['attempt'], 'price' => '100.00']], null, $sold['sale']);
+
+        return [
+            'result'  => $attempt['sale'] > 0 ? 'accepted' : 'refused',
+            'saved'   => (string) ($this->countSales() - $sales + $this->countJournals() - $journals),
+            'failure' => $attempt['sale'] > 0 ? null : ['error' => $this->failure()->error->value, 'max' => $this->failure()->context['max'] ?? null],
+        ];
+    }
+
+    public function testSaveValue_RefusesACreditNoteAboveWhatTheInvoiceSoldAndSavesNothingAsTheReferenceSystemDoes(): void
+    {
+        $case = $this->referenceCase('T-32', 'return_limit', 'a-return-above-what-the-invoice-sold-is-refused', 'exact');
+        $made = $this->attemptToReturn($case['inputs']);
+
+        $this->assertSameAsFixture(['result' => $case['expected']['result'], 'saved' => $case['expected']['saved']], ['result' => $made['result'], 'saved' => $made['saved']], 'attempt');
+        $this->assertSame(['error' => $case['expected']['detail']['error'], 'max' => $case['expected']['detail']['most_that_may_still_be_returned']], $made['failure']);
+    }
+
+    public function testSaveValue_CountsTheEarlierReturnsOfTheInvoiceAgainstTheLimitAsTheReferenceSystemDoes(): void
+    {
+        $case = $this->referenceCase('T-32', 'return_limit', 'earlier-returns-count-against-the-limit', 'exact');
+        $made = $this->attemptToReturn($case['inputs']);
+
+        $this->assertSameAsFixture(['result' => $case['expected']['result'], 'saved' => $case['expected']['saved']], ['result' => $made['result'], 'saved' => $made['saved']], 'attempt');
+        $this->assertSame(['error' => $case['expected']['detail']['error'], 'max' => $case['expected']['detail']['most_that_may_still_be_returned']], $made['failure']);
+    }
+
+    public function testSaveValue_RefusesACreditNoteForStockWithNoInvoiceWhereTheReferenceSystemAcceptsIt(): void
+    {
+        $case   = $this->referenceCase('T-33', 'orphan_credit_note', 'credit-note-for-stock-without-an-invoice', 'deliberate_difference');
+        $made   = $this->linesOfCase($case['inputs']['lines']);
+        $before = ['journals' => $this->countJournals(), 'stock' => $this->stock($made[0]['item'])];
+        $return = $this->ringUp($made, null, null, true, ['tax_decimals' => '2'], true);
+        $actual = [
+            'accepted'        => $return['sale'] > 0,
+            'journals_posted' => (string) ($this->countJournals() - $before['journals']),
+            'stock_change'    => (string) (int) round($this->stock($made[0]['item']) - $before['stock']),
+        ];
+
+        $this->assertSameAsFixture(['accepted' => $case['expected']['accepted'], 'journals_posted' => $case['expected']['journals_posted'], 'stock_change' => $case['expected']['stock_change']], $actual, 'refusal');
+        $this->assertSame(ACCOUNTING_FAILED, $return['sale']);
+        $this->assertSame($case['expected']['detail']['error'], $this->failure()->error->value);
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // What the reference system recorded in the third write batch: fixture T-57
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * Pays 5.00 of a sale the way the case says into the treasury the case says, and returns the
+     * lines of the journal of that payment.
+     *
+     * @param array<string, mixed> $inputs
+     *
+     * @return list<array{role: string, debit: string, credit: string}>
+     */
+    private function paymentJournalOfCase(array $inputs): array
+    {
+        $this->accountingDb()->table('grants')->insert(['person_id' => $this->employeeId, 'permission_id' => BranchGuard::ALL_BRANCHES, 'menu_group' => 'home']);
+
+        $treasuries = new TreasuryService();
+        $treasury   = $inputs['treasury'] === 'bank' ? $treasuries->create(['name' => 'Fixture bank', 'kind' => 'bank', 'bank_name' => 'Riyad Bank', 'account_number' => '3500000002']) : $treasuries->ensureMain();
+        $way        = ['check' => lang('Sales.check'), 'cash' => lang('Sales.cash'), 'bank_transfer' => lang('Sales.bank_transfer')][$inputs['way']];
+        $item       = $this->item('10.00');
+        $saleId     = $this->save([$this->line($item, 0, '1', '100', '10.00')], [], [$this->payment($way, $inputs['amount']) + ['treasury_id' => $treasury]]);
+        $payment    = array_values(array_filter($this->journals($saleId), static fn (array $journal): bool => $journal['source'] === 'sale_payment'));
+
+        $this->assertCount(1, $payment);
+
+        return $this->roleLines($payment[0]['id'], ['treasury' => (int) $treasuries->accountOf($treasury), 'customer' => $this->customerAccount()]);
+    }
+
+    public function testSaveValue_PostsAChequePaymentIntoTheBankAccountChosenAsTheReferenceSystemDoes(): void
+    {
+        $case = $this->referenceCase('T-57', 'payment_method', 'cheque-method-into-a-bank-account', 'exact');
+
+        $this->assertSameAsFixture($case['expected']['journals']['payment'], $this->paymentJournalOfCase($case['inputs']), 'payment by cheque into a bank account');
+    }
+
+    public function testSaveValue_PostsACashPaymentIntoTheBankAccountChosenAsTheReferenceSystemDoes(): void
+    {
+        $case = $this->referenceCase('T-57', 'payment_method', 'cash-method-into-a-bank-account', 'exact');
+
+        $this->assertSameAsFixture($case['expected']['journals']['payment'], $this->paymentJournalOfCase($case['inputs']), 'payment in cash into a bank account');
+    }
+
+    public function testSaveValue_PostsABankTransferPaymentIntoTheMainTreasuryChosenAsTheReferenceSystemDoes(): void
+    {
+        $case = $this->referenceCase('T-57', 'payment_method', 'bank-transfer-method-into-the-main-treasury', 'exact');
+
+        $this->assertSameAsFixture($case['expected']['journals']['payment'], $this->paymentJournalOfCase($case['inputs']), 'payment by bank transfer into the main treasury');
     }
 }

@@ -1,0 +1,123 @@
+{
+  "id": "T-45",
+  "title": "The opening balance owed to a supplier: debit of the opening balances, credit of the supplier, in the aging by its own date; the reference system edits it in place and deletes it with its journal, this application cancels it with a reversal and cannot edit it",
+  "recorded": "2026-10-27",
+  "observation": {
+    "batch": "d2",
+    "scenarios": [
+      "D2-S12"
+    ]
+  },
+  "evidence": {
+    "opening_balance": {
+      "id": null,
+      "note": "An opening balance of 500 for a new supplier: journal 000135 debits 214 and credits the supplier; kept as a payment record of -500",
+      "observation": [
+        "pw-d2-6",
+        "pw-d2-7",
+        "pw-d2-8",
+        "pw-d2-9"
+      ]
+    },
+    "opening_balance_edited": {
+      "id": null,
+      "note": "The opening balance edited to 650 dated the day before: the same journal changed in place; it enters the supplier balance before the period and the aged creditors by its date (650 in 1 to 30 days); deleting it removes the journal",
+      "observation": [
+        "pw-d2-33",
+        "pw-d2-34",
+        "pw-d2-35",
+        "pw-d2-67"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "opening-balance-owed-to-a-supplier-journal",
+      "kind": "supplier_opening_balance",
+      "classification": "exact",
+      "evidence": [
+        "opening_balance"
+      ],
+      "inputs": {
+        "amount": "500.00"
+      },
+      "reference": {
+        "journals": {
+          "opening": [
+            {
+              "role": "opening_balance",
+              "debit": "500",
+              "credit": "0",
+              "code": "214",
+              "name": "أرصدة افتتاحية"
+            },
+            {
+              "role": "supplier",
+              "debit": "0",
+              "credit": "500",
+              "code": "2211008",
+              "name": "مورد افتراضي-D2 1"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "journals": {
+          "opening": [
+            {
+              "role": "opening_balance",
+              "debit": "500",
+              "credit": "0"
+            },
+            {
+              "role": "supplier",
+              "debit": "0",
+              "credit": "500"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "opening-balance-ages-from-its-own-date",
+      "kind": "supplier_opening_balance",
+      "classification": "exact",
+      "evidence": [
+        "opening_balance_edited"
+      ],
+      "inputs": {
+        "amount": "650.00",
+        "date": "the day before the report"
+      },
+      "reference": {
+        "amount_in_the_aging": "650.00",
+        "ages_from": "its own date"
+      },
+      "expected": {
+        "amount_in_the_aging": "650.00",
+        "ages_from": "its own date"
+      }
+    },
+    {
+      "id": "opening-balance-edit-and-delete",
+      "kind": "supplier_opening_balance",
+      "classification": "deliberate_difference",
+      "reason": "The reference system edits the amount and the date of an opening balance in place and deletes it together with its journal. Here an opening balance cannot be edited: it is cancelled, which reverses its journal and keeps both, and a new one is entered (E15).",
+      "evidence": [
+        "opening_balance_edited"
+      ],
+      "inputs": {
+        "amount": "500.00",
+        "then": "changed to 650.00 and dated the day before, then deleted"
+      },
+      "reference": {
+        "edit_in_place": true,
+        "delete_erases_the_journal": true
+      },
+      "expected": {
+        "edit_in_place": false,
+        "delete_erases_the_journal": false
+      }
+    }
+  ]
+}

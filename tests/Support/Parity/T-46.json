@@ -1,0 +1,173 @@
+{
+  "id": "T-46",
+  "title": "A payment of 700 to a supplier who is owed an opening balance of 500, a purchase of 300 saved afterwards and the payment deleted: the supplier holds 200 of credit, the purchase is settled by it down to 100 and deleting the payment takes it back",
+  "recorded": "2026-10-27",
+  "observation": {
+    "batch": "d2",
+    "scenarios": [
+      "D2-S13"
+    ]
+  },
+  "evidence": {
+    "standalone_payment": {
+      "id": null,
+      "note": "A standalone payment of 700 in cash to a supplier owed 500: payment 000029 and journal 000155 debit the supplier and credit the treasury; the supplier balance became -200",
+      "observation": [
+        "pw-d2-29"
+      ]
+    },
+    "purchase_after": {
+      "id": null,
+      "note": "Purchase 000025 of 300 on that supplier saved afterwards: settled 200 at once by a payment of the supplier credit with no journal, so paid 200 and 100 left, journal 000157 debits the stock and credits the supplier; the statement shows the opening balance, the payment of -700 and the purchase, ending at 100",
+      "observation": [
+        "pw-d2-30",
+        "pw-d2-31"
+      ]
+    },
+    "payment_deleted": {
+      "id": null,
+      "note": "The payment of 700 deleted: its journal is erased, the credit payment on the purchase is withdrawn, the purchase is unpaid again and 800 is owed",
+      "observation": [
+        "pw-d2-32"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "payment-over-an-opening-balance-leaves-credit",
+      "kind": "supplier_payment",
+      "classification": "exact",
+      "evidence": [
+        "standalone_payment"
+      ],
+      "inputs": {
+        "opening_balance": "500.00",
+        "payment": "700.00",
+        "way": "cash"
+      },
+      "reference": {
+        "journals": {
+          "payment": [
+            {
+              "role": "supplier",
+              "debit": "700",
+              "credit": "0",
+              "code": "2211008",
+              "name": "مورد افتراضي-D2 1"
+            },
+            {
+              "role": "treasury",
+              "debit": "0",
+              "credit": "700",
+              "code": "120103",
+              "name": "افتراضي-D2 خزينة 1"
+            }
+          ]
+        },
+        "supplier_balance_after_the_payment": "-200.00"
+      },
+      "expected": {
+        "journals": {
+          "payment": [
+            {
+              "role": "supplier",
+              "debit": "700",
+              "credit": "0"
+            },
+            {
+              "role": "treasury",
+              "debit": "0",
+              "credit": "700"
+            }
+          ]
+        },
+        "supplier_balance_after_the_payment": "-200.00"
+      }
+    },
+    {
+      "id": "credit-settles-the-purchase-saved-after-it",
+      "kind": "supplier_payment",
+      "classification": "exact",
+      "evidence": [
+        "purchase_after"
+      ],
+      "inputs": {
+        "opening_balance": "500.00",
+        "payment": "700.00",
+        "purchase": {
+          "quantity": "3",
+          "price": "100.00",
+          "paid": "on credit"
+        }
+      },
+      "reference": {
+        "journals": {
+          "purchase": [
+            {
+              "role": "inventory",
+              "debit": "300",
+              "credit": "0",
+              "code": "1203001",
+              "name": "Primary Warehouse"
+            },
+            {
+              "role": "supplier",
+              "debit": "0",
+              "credit": "300",
+              "code": "2211008",
+              "name": "مورد افتراضي-D2 1"
+            }
+          ]
+        },
+        "settled_by_credit": "200.00",
+        "open": "100.00",
+        "supplier_balance": "100.00",
+        "journals_for_the_credit": "0"
+      },
+      "expected": {
+        "journals": {
+          "purchase": [
+            {
+              "role": "inventory",
+              "debit": "300",
+              "credit": "0"
+            },
+            {
+              "role": "supplier",
+              "debit": "0",
+              "credit": "300"
+            }
+          ]
+        },
+        "settled_by_credit": "200.00",
+        "open": "100.00",
+        "supplier_balance": "100.00",
+        "journals_for_the_credit": "0"
+      }
+    },
+    {
+      "id": "deleting-the-payment-takes-back-the-credit-it-gave",
+      "kind": "supplier_payment",
+      "classification": "exact",
+      "evidence": [
+        "payment_deleted"
+      ],
+      "inputs": {
+        "opening_balance": "500.00",
+        "payment": "700.00",
+        "purchase": "300.00",
+        "then": "the payment is cancelled"
+      },
+      "reference": {
+        "purchase_open": "300.00",
+        "supplier_balance": "800.00",
+        "credit_applications_left": "0"
+      },
+      "expected": {
+        "purchase_open": "300.00",
+        "supplier_balance": "800.00",
+        "credit_applications_left": "0"
+      }
+    }
+  ]
+}

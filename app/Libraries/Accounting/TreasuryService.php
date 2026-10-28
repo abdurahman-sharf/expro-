@@ -360,6 +360,117 @@ final class TreasuryService
     }
 
     /**
+     * The treasuries a payment on a document of a branch can go into or come out of, by id: the
+     * active ones of the branch that the employee may use in the direction, and for an employee who
+     * works in the branch of the document the ones of the other branches they work in, named with the
+     * code of their branch, and any that a payment of the document already carries.
+     *
+     * @param list<int> $carried
+     *
+     * @return array<int, string>
+     */
+    public function choicesFor(int $branchId, string $direction, ?int $employeeId, array $carried = []): array
+    {
+        $branchIds = [$branchId];
+
+        if ((new AccountingSettings($this->db))->isEnabled() && $this->branches->canAccess($branchId, $employeeId)) {
+            $allowed   = $this->branches->allowedBranchIds($employeeId);
+            $branchIds = $allowed === null ? null : array_values(array_unique([$branchId, ...$allowed]));
+        }
+
+        $options = [];
+
+        foreach ($this->all($branchIds) as $treasury) {
+            $id = (int) $treasury->treasury_id;
+
+            if (in_array($id, $carried, true) || ((int) $treasury->active === 1 && $this->scopes->allows($id, $direction, $employeeId))) {
+                $options[$id] = $this->labelOf($treasury, $branchId);
+            }
+        }
+
+        foreach ($carried as $id) {
+            $treasury = $id > 0 && ! isset($options[$id]) ? $this->find($id) : null;
+
+            if ($treasury !== null) {
+                $options[$id] = $this->labelOf($treasury, $branchId);
+            }
+        }
+
+        return $options;
+    }
+
+    private function labelOf(object $treasury, int $branchId): string
+    {
+        return (int) $treasury->branch_id === $branchId ? (string) $treasury->name : $treasury->name . ' (' . $treasury->branch_code . ')';
+    }
+
+    /**
+     * Where a new payment goes, with the branch of the treasury when that is not the branch of the
+     * document: the treasury it names, which may be one of another branch for an employee who works
+     * in both, and open to the employee in the direction, or else what ofPayment() chooses, which is
+     * always of the branch of the document.
+     *
+     * @return array{?int, ?int} The treasury and the branch it belongs to when that is another.
+     *
+     * @throws AccountingException
+     */
+    public function placeOfPayment(?int $named, PaymentType $type, string $direction, ?int $employeeId, int $branchId): array
+    {
+        if ($named !== null && $named > 0) {
+            $other = $this->otherBranchOf($named, $branchId, $employeeId);
+
+            $this->scopes->assertAllows($named, $direction, $employeeId);
+
+            return [$named, $other];
+        }
+
+        return [$this->ofPayment(null, $type, $direction, $employeeId, $branchId), null];
+    }
+
+    /**
+     * The branch of a treasury a document of a branch names for a payment, or null when it is the
+     * branch of the document. A treasury of another branch is for an employee who works in both
+     * branches, as moving money between branches is, and it must be open unless the payment is
+     * already in it. A treasury the employee may not use that way is as good as not there, and so is
+     * every treasury of another branch while the books are off. A payment that is already in it is
+     * known to the employee, and is told that both branches are needed.
+     *
+     * @throws AccountingException
+     */
+    public function otherBranchOf(int $treasuryId, int $branchId, ?int $employeeId, bool $alreadyUsed = false): ?int
+    {
+        $treasury = $this->find($treasuryId);
+
+        if ($treasury === null) {
+            throw new AccountingException(AccountingError::TreasuryNotFound, "Treasury {$treasuryId} does not exist.", ['treasury_id' => $treasuryId]);
+        }
+
+        $treasuryBranch = (int) $treasury->branch_id;
+
+        if ($treasuryBranch === $branchId) {
+            return null;
+        }
+
+        if (! (new AccountingSettings($this->db))->isEnabled()) {
+            throw new AccountingException(AccountingError::TreasuryNotFound, "Treasury {$treasuryId} is not one of branch {$branchId}.", ['treasury_id' => $treasuryId]);
+        }
+
+        foreach ([$treasuryBranch, $branchId] as $needed) {
+            if (! $this->branches->canAccess($needed, $employeeId)) {
+                throw $alreadyUsed
+                    ? new AccountingException(AccountingError::InterBranchBranchesDenied, "The branch {$needed} is outside the employee's scope.", ['branch_id' => $needed, 'name' => (string) ($this->db->table('branches')->select('code')->where('branch_id', $needed)->get()->getRow()->code ?? $needed)])
+                    : new AccountingException(AccountingError::TreasuryNotFound, "Treasury {$treasuryId} is not one of branch {$branchId}.", ['treasury_id' => $treasuryId]);
+            }
+        }
+
+        if (! $alreadyUsed && (int) $treasury->active === 0) {
+            throw new AccountingException(AccountingError::TreasuryInactive, 'A payment cannot go into a deactivated treasury of another branch.', ['treasury_id' => $treasuryId]);
+        }
+
+        return $treasuryBranch;
+    }
+
+    /**
      * Whether an employee may change a payment that was written before: only a change of the
      * treasury it lands on or of its amount is a new deposit or withdrawal. A payment with no
      * treasury lands on the treasury that owns the account its way of payment is routed to, so a

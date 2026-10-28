@@ -580,6 +580,13 @@ class AccountingTreasuriesControllerTest extends CIUnitTestCase
         $this->assertStringNotContainsString(lang('Accounting_treasuries.between_difference', ['0.00']), $page->getBody());
     }
 
+    public function testGetTransfers_LinksToTheBalancesBetweenBranches(): void
+    {
+        $this->manager();
+
+        $this->get('/accounting_treasuries/transfers')->assertSee('accounting_treasuries/inter_branch');
+    }
+
     public function testGetTransfers_WarnsWhenTheAccountsBetweenBranchesDoNotOffset(): void
     {
         $this->manager();

@@ -919,8 +919,9 @@ class Receivings extends Secure_Controller
 
     /**
      * The treasuries a payment of a purchase can be made from, when there is a choice: the active
-     * ones of the branch of the purchase that the employee may withdraw from and any the payments
-     * of the purchase already carry.
+     * ones of the branch of the purchase that the employee may withdraw from, those of the other
+     * branches they work in when they work in the branch of the purchase, and any the payments of
+     * the purchase already carry.
      *
      * @param list<object> $payments
      *
@@ -930,26 +931,7 @@ class Receivings extends Secure_Controller
     {
         $carried    = array_map(static fn (object $payment): int => (int) ($payment->treasury_id ?? 0), $payments);
         $employeeId = (int) $this->employee->get_logged_in_employee_info()->person_id;
-        $scopes     = new TreasuryScopes();
-        $options    = [];
-
-        $treasuries = new TreasuryService();
-
-        foreach ($treasuries->all([$branchId]) as $treasury) {
-            $id = (int) $treasury->treasury_id;
-
-            if (in_array($id, $carried, true) || ((int) $treasury->active === 1 && $scopes->allows($id, TreasuryScopes::WITHDRAW, $employeeId))) {
-                $options[$id] = $treasury->name;
-            }
-        }
-
-        foreach ($carried as $id) {
-            $treasury = $id > 0 && ! isset($options[$id]) ? $treasuries->find($id) : null;
-
-            if ($treasury !== null) {
-                $options[$id] = $treasury->name;
-            }
-        }
+        $options    = (new TreasuryService())->choicesFor($branchId, TreasuryScopes::WITHDRAW, $employeeId, $carried);
 
         return count($options) < 2 ? [] : [0 => lang('Receivings.treasury_default')] + $options;
     }

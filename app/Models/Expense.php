@@ -240,6 +240,7 @@ class Expense extends Model
             expenses.employee_id AS employee_id,
             expenses.deleted AS deleted,
             expenses.treasury_id AS treasury_id,
+            expenses.treasury_branch_id AS treasury_branch_id,
             expenses.branch_id AS branch_id,
             employees.first_name AS first_name,
             employees.last_name AS last_name,
@@ -316,7 +317,7 @@ class Expense extends Model
         $this->accountingFailure = null;
 
         if (! (new AccountingSettings($this->db))->isEnabled()) {
-            unset($expenseData['treasury_id'], $expenseData['branch_id']);
+            unset($expenseData['treasury_id'], $expenseData['branch_id'], $expenseData['expense_branch_id'], $expenseData['treasury_branch_id']);
 
             try {
                 return $this->saveRow($expenseData, $expenseId);
@@ -339,10 +340,10 @@ class Expense extends Model
                 $stored = LockedRead::row($this->db, 'SELECT * FROM ' . $this->db->prefixTable('expenses') . ' WHERE expense_id = ? FOR UPDATE', [$expenseId]);
             }
 
-            $plan         = $posting->plan($expenseData, $stored, $actorId);
-            $branch       = $plan['branch_id'];
+            $plan        = $posting->plan($expenseData, $stored, $actorId);
+            $branch      = $plan['branch_id'];
             $expenseData = $plan['data'];
-            $success      = $this->saveRow($expenseData, $expenseId);
+            $success     = $this->saveRow($expenseData, $expenseId);
 
             if ($success && $plan['post']) {
                 $posting->sync($stored === null ? (int) $expenseData['expense_id'] : $expenseId, $actorId);

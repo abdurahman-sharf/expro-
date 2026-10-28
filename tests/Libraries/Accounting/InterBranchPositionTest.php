@@ -3,6 +3,7 @@
 namespace Tests\Libraries\Accounting;
 
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\InterBranchLegs;
 use App\Libraries\Accounting\InterBranchPosition;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
@@ -258,5 +259,26 @@ class InterBranchPositionTest extends CIUnitTestCase
 
         $this->assertSame('0.0000', $this->position->difference());
         $this->assertSame(['0.0000', '0.0000'], $this->balances()[1]);
+    }
+
+    public function testAccounts_IncludesTheAccountAJournalWasRecordedOnWhenTheRoutingNamesAnother(): void
+    {
+        $other = $this->customAccount('1204', '12047', 'Receivable recorded once');
+
+        (new PostingService())->post(new JournalDraft(
+            date: '2026-10-21',
+            lines: [new JournalLineDraft($other, debit: '10.00'), new JournalLineDraft($this->accountId('opening_balance'), credit: '10.00')],
+            sourceType: 'interbranch_test',
+            sourceId: 1,
+            branchId: 1,
+        ));
+        (new InterBranchLegs())->record((int) $this->accountingDb()->table('accounting_journals')->where('source_type', 'interbranch_test')->get()->getRow()->journal_id, $other, InterBranchLegs::RECEIVABLE, $this->secondBranch, 'interbranch_test', 1, 1);
+
+        [$receivable, $payable] = (new InterBranchPosition())->accounts();
+
+        $this->assertContains($other, $receivable);
+        $this->assertNotContains($other, $payable);
+        $this->assertContains($this->accountId('branches_receivable'), $receivable);
+        $this->assertContains($this->accountId('branches_payable'), $payable);
     }
 }

@@ -21,6 +21,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
+use Tests\Support\ParityCaseTrait;
 use Tests\Support\ParityFixture;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
@@ -36,6 +37,7 @@ class TreasuryTransfersTest extends CIUnitTestCase
     use AccountingFixtureTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
+    use ParityCaseTrait;
     use SaleAccountingFixtureTrait;
     use PurchaseAccountingFixtureTrait;
 
@@ -714,5 +716,27 @@ class TreasuryTransfersTest extends CIUnitTestCase
     public function testMovements_AreEmptyForATreasuryNothingWasPostedTo(): void
     {
         $this->assertSame(['rows' => [], 'crossings' => [], 'lowest' => '0.0000'], $this->treasuries->movements($this->drawer));
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // What the reference system recorded in the second write batch: fixture T-52
+    // ---------------------------------------------------------------------------------------
+
+    public function testCancel_ReversesATransferWhereTheReferenceSystemEditsItInPlaceAndCannotDeleteIt(): void
+    {
+        $case      = $this->referenceCase('T-52', 'treasury_rules', 'a-transfer-is-edited-in-place-or-cancelled-by-a-reversal', 'deliberate_difference');
+        $transfer  = $this->transfers->transfer($this->main, $this->drawer, '100.00', '2026-10-21', '', $this->manager);
+        $methods   = get_class_methods(TreasuryTransfers::class);
+        $original  = $this->accountingDb()->table('accounting_journals')->where(['source_type' => 'treasury_transfer', 'source_id' => $transfer])->get()->getRow();
+
+        $this->transfers->cancel($transfer, 'wrong amount', $this->manager);
+
+        $this->assertSameAsFixture($case['expected'], [
+            'can_be_deleted'          => array_filter($methods, static fn (string $method): bool => preg_match('/delete|remove/i', $method) === 1) !== [],
+            'amount_edited_in_place'  => array_filter($methods, static fn (string $method): bool => preg_match('/edit|update|change/i', $method) === 1) !== [],
+            'cancelled_by_a_reversal' => $this->accountingDb()->table('accounting_journals')->where('reverses_journal_id', $original->journal_id)->countAllResults() === 1,
+        ], 'what a transfer allows');
+        $this->assertSame('reversed', $this->accountingDb()->table('accounting_journals')->where('journal_id', $original->journal_id)->get()->getRow()->status);
+        $this->assertSame('0.0000', $this->balanceOf($this->drawer));
     }
 }

@@ -1,0 +1,189 @@
+{
+  "id": "T-60",
+  "title": "A transfer between treasuries of different currencies: two journals clearing through the exchange difference account, the foreign leg valued at the rate table and not at the typed rate; treasuries here have no currency",
+  "recorded": "2026-10-28",
+  "observation": {
+    "batch": "b",
+    "scenarios": [
+      "B-S08"
+    ]
+  },
+  "evidence": {
+    "treasury_currency": {
+      "id": null,
+      "note": "A treasury in a foreign currency cannot be created in the trial account: the bank form offers only SAR and the cash form has no currency field; the transfer form shows the currency of each side and a rate when they differ",
+      "observation": [
+        "pw-b-46",
+        "pw-b-47"
+      ]
+    },
+    "transfers": {
+      "id": null,
+      "note": "Transfers across currencies: 37.50 SAR into a USD treasury at a typed rate 0.2666667 (journals 000206 and 000207), 30.00 SAR at a typed rate 0.25 that does not match the table (the USD leg valued at 3.75, 28.13 SAR), and 17.50 USD back into SAR (journals 000210 and 000211); transfers cannot be deleted",
+      "observation": [
+        "pw-b-48",
+        "pw-b-49",
+        "pw-b-50"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "a-transfer-between-treasuries-of-two-currencies",
+      "kind": "currency_transfer",
+      "classification": "not_implemented",
+      "work_package": "WP28",
+      "reason": "A treasury here has no currency and a transfer has no rate (WP28). The reference system books each leg in its own journal and clears them through 1209; when the typed rate differs from the table the foreign leg is valued at the table.",
+      "evidence": [
+        "treasury_currency",
+        "transfers"
+      ],
+      "inputs": {
+        "transfers": [
+          {
+            "amount": "37.50",
+            "from": "SAR bank",
+            "to": "USD treasury",
+            "typed_rate": "0.2666667"
+          },
+          {
+            "amount": "30.00",
+            "typed_rate": "0.25"
+          },
+          {
+            "amount": "17.50 USD",
+            "to": "SAR bank",
+            "rate": "3.75"
+          }
+        ]
+      },
+      "reference": {
+        "journals": {
+          "x1_sar_leg": [
+            {
+              "role": "exchange_difference",
+              "debit": "37.50",
+              "credit": "0",
+              "code": "1209",
+              "name": "تغيير عملة"
+            },
+            {
+              "role": "bank",
+              "debit": "0",
+              "credit": "37.50",
+              "code": "1202003",
+              "name": "افتراضي-B بنك"
+            }
+          ],
+          "x1_usd_leg": [
+            {
+              "role": "treasury",
+              "debit": "10.00",
+              "credit": "0",
+              "code": "120104",
+              "name": "افتراضي-B خزينة 2",
+              "debit_base": "37.50"
+            },
+            {
+              "role": "exchange_difference",
+              "debit": "0",
+              "credit": "10.00",
+              "code": "1209",
+              "name": "تغيير عملة",
+              "credit_base": "37.50"
+            }
+          ],
+          "x2_sar_leg": [
+            {
+              "role": "exchange_difference",
+              "debit": "30.00",
+              "credit": "0",
+              "code": "1209",
+              "name": "تغيير عملة"
+            },
+            {
+              "role": "bank",
+              "debit": "0",
+              "credit": "30.00",
+              "code": "1202003",
+              "name": "افتراضي-B بنك"
+            }
+          ],
+          "x2_usd_leg_valued_at_the_table_rate": [
+            {
+              "role": "treasury",
+              "debit": "7.50",
+              "credit": "0",
+              "code": "120104",
+              "name": "افتراضي-B خزينة 2",
+              "debit_base": "28.13"
+            },
+            {
+              "role": "exchange_difference",
+              "debit": "0",
+              "credit": "7.50",
+              "code": "1209",
+              "name": "تغيير عملة",
+              "credit_base": "28.13"
+            }
+          ],
+          "x3_usd_leg": [
+            {
+              "role": "exchange_difference",
+              "debit": "17.50",
+              "credit": "0",
+              "code": "1209",
+              "name": "تغيير عملة",
+              "debit_base": "65.63"
+            },
+            {
+              "role": "treasury",
+              "debit": "0",
+              "credit": "17.50",
+              "code": "120104",
+              "name": "افتراضي-B خزينة 2",
+              "credit_base": "65.63"
+            }
+          ],
+          "x3_sar_leg": [
+            {
+              "role": "bank",
+              "debit": "65.63",
+              "credit": "0",
+              "code": "1202003",
+              "name": "افتراضي-B بنك"
+            },
+            {
+              "role": "exchange_difference",
+              "debit": "0",
+              "credit": "65.63",
+              "code": "1209",
+              "name": "تغيير عملة"
+            }
+          ]
+        },
+        "a_transfer_can_be_deleted": false
+      },
+      "expected": {
+        "status": "not_implemented",
+        "absent": [
+          {
+            "kind": "column",
+            "table": "treasuries",
+            "pattern": "currenc"
+          },
+          {
+            "kind": "column",
+            "table": "treasury_transfers",
+            "pattern": "currenc"
+          },
+          {
+            "kind": "column",
+            "table": "treasury_transfers",
+            "pattern": "rate"
+          }
+        ]
+      }
+    }
+  ]
+}

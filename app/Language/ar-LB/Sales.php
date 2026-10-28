@@ -93,6 +93,7 @@ return [
     'entry'                             => 'ادخال',
     'entry_cogs'                        => 'تكلفة البضاعة',
     'entry_payment'                     => 'دفعة',
+    'entry_payment_branch'              => 'دفعة (خزينة فرع آخر)',
     'entry_revenue'                     => 'الفاتورة',
     'entry_reversed'                    => 'معكوس',
     'error_editing_item'                => 'خطاء فى تعديل المادة',

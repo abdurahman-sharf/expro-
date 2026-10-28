@@ -236,14 +236,17 @@ class Receiving extends Model
                     continue;
                 }
 
+                [$treasuryId, $treasuryBranchId] = $this->placeOfPayment($payment, isset($payment['employee_id']) ? (int) $payment['employee_id'] : null, (int) $purchase->branch_id, bccomp($amount, '0', 2) < 0 ? TreasuryScopes::DEPOSIT : TreasuryScopes::WITHDRAW);
+
                 $builder->insert([
-                    'receiving_id'   => $receivingId,
-                    'payment_type'   => (string) $payment['payment_type'],
-                    'payment_amount' => $amount,
-                    'employee_id'    => $payment['employee_id'] ?? null,
-                    'reference_code' => (string) ($payment['reference_code'] ?? ''),
-                    'payment_status' => PaymentStatus::fromStored($payment['payment_status'] ?? null)->value,
-                    'treasury_id'    => $this->treasuryOfPayment($payment, isset($payment['employee_id']) ? (int) $payment['employee_id'] : null, (int) $purchase->branch_id, bccomp($amount, '0', 2) < 0 ? TreasuryScopes::DEPOSIT : TreasuryScopes::WITHDRAW),
+                    'receiving_id'       => $receivingId,
+                    'payment_type'       => (string) $payment['payment_type'],
+                    'payment_amount'     => $amount,
+                    'employee_id'        => $payment['employee_id'] ?? null,
+                    'reference_code'     => (string) ($payment['reference_code'] ?? ''),
+                    'payment_status'     => PaymentStatus::fromStored($payment['payment_status'] ?? null)->value,
+                    'treasury_id'        => $treasuryId,
+                    'treasury_branch_id' => $treasuryBranchId,
                 ]);
 
                 (new DocumentNumbering($this->db))->assign(DocumentType::SupplierPayment, 'receivings_payments', (int) $this->db->insertID(), (int) $purchase->branch_id);
@@ -270,10 +273,11 @@ class Receiving extends Model
                 $changes['payment_status'] = $payment['payment_status'];
             }
 
-            $treasuryId = $this->treasuryAfterChange($payment, $paymentId, isset($payment['employee_id']) ? (int) $payment['employee_id'] : null, (int) $purchase->branch_id);
+            [$treasuryId, $treasuryBranchId] = $this->treasuryAfterChange($payment, $paymentId, isset($payment['employee_id']) ? (int) $payment['employee_id'] : null, (int) $purchase->branch_id);
 
             if (array_key_exists('treasury_id', $payment)) {
-                $changes['treasury_id'] = $treasuryId;
+                $changes['treasury_id']        = $treasuryId;
+                $changes['treasury_branch_id'] = $treasuryBranchId;
             }
 
             $this->db->table('receivings_payments')->where('payment_id', $paymentId)->update($changes);
@@ -302,22 +306,46 @@ class Receiving extends Model
     }
 
     /**
-     * The treasury an existing payment is moved to, or none for one that goes where its type does.
-     * A change of the treasury, of the way of payment or of the amount asks the scope of the
-     * treasuries involved, whether or not the edit names a treasury.
+     * The treasury a payment made against the purchase afterwards is made from, with the branch it
+     * belongs to when that is not the branch of the purchase, which an employee who works in both
+     * may name.
      *
      * @param array<string, mixed> $payment
+     *
+     * @return array{?int, ?int}
      */
-    private function treasuryAfterChange(array $payment, int $paymentId, ?int $employeeId, int $branchId): ?int
+    private function placeOfPayment(array $payment, ?int $employeeId, int $branchId, string $direction): array
     {
-        $treasuries = new TreasuryService($this->db);
-        $stored     = $this->db->table('receivings_payments')->select('treasury_id, payment_type, payment_amount')->where('payment_id', $paymentId)->get()->getRow();
-        $storedId   = $stored === null || $stored->treasury_id === null ? 0 : (int) $stored->treasury_id;
-        $named      = array_key_exists('treasury_id', $payment);
-        $treasuryId = $named ? (int) $payment['treasury_id'] : $storedId;
+        $type = PaymentType::fromLabel((string) ($payment['payment_type'] ?? ''));
+
+        if ($type === null || ! $type->usesTreasury()) {
+            return [null, null];
+        }
+
+        return (new TreasuryService($this->db))->placeOfPayment((int) ($payment['treasury_id'] ?? 0), $type, $direction, $employeeId, $branchId);
+    }
+
+    /**
+     * The treasury an existing payment is moved to, or none for one that goes where its type does,
+     * with the branch it belongs to when that is not the branch of the purchase. A change of the
+     * treasury, of the way of payment or of the amount asks the scope of the treasuries involved,
+     * whether or not the edit names a treasury.
+     *
+     * @param array<string, mixed> $payment
+     *
+     * @return array{?int, ?int}
+     */
+    private function treasuryAfterChange(array $payment, int $paymentId, ?int $employeeId, int $branchId): array
+    {
+        $treasuries     = new TreasuryService($this->db);
+        $stored         = $this->db->table('receivings_payments')->select('treasury_id, treasury_branch_id, payment_type, payment_amount')->where('payment_id', $paymentId)->get()->getRow();
+        $storedId       = $stored === null || $stored->treasury_id === null ? 0 : (int) $stored->treasury_id;
+        $named          = array_key_exists('treasury_id', $payment);
+        $treasuryId     = $named ? (int) $payment['treasury_id'] : $storedId;
+        $treasuryBranch = $stored === null || $stored->treasury_branch_id === null ? null : (int) $stored->treasury_branch_id;
 
         if ($named && $treasuryId > 0 && $treasuryId !== $storedId) {
-            $treasuries->assertForBranch($treasuryId, $branchId);
+            $treasuryBranch = $treasuries->otherBranchOf($treasuryId, $branchId, $employeeId);
         }
 
         $type = PaymentType::fromLabel((string) ($payment['payment_type'] ?? ''));
@@ -336,7 +364,7 @@ class Receiving extends Model
             );
         }
 
-        return $treasuryId > 0 ? $treasuryId : null;
+        return $treasuryId > 0 ? [$treasuryId, $treasuryBranch] : [null, null];
     }
 
     /**

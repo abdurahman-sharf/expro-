@@ -93,6 +93,7 @@ return [
     'entry'                             => 'ערך',
     'entry_cogs'                        => '',
     'entry_payment'                     => '',
+    'entry_payment_branch'              => '',
     'entry_revenue'                     => '',
     'entry_reversed'                    => '',
     'error_editing_item'                => 'שגיאה בעריכת פריט',

@@ -158,6 +158,8 @@ class Expenses extends Secure_Controller
 
         $data['treasury_options']     = $followed ? $this->treasuryOptions((int) ($data['expenses_info']->treasury_id ?? 0)) : [];
         $data['no_treasury_payments'] = $this->paymentsWithoutTreasury(array_keys($data['payment_options']));
+        $data['branchOptions']        = $data['treasury_options'] === [] ? [] : $this->branchOptions();
+        $data['branchSelected']       = ($data['expenses_info']->treasury_branch_id ?? null) === null ? 0 : (int) $data['expenses_info']->branch_id;
 
         return view("expenses/form", $data);
     }
@@ -181,9 +183,9 @@ class Expenses extends Secure_Controller
     public function postSave(int $expenseId = NEW_ENTRY): ResponseInterface
     {
         $config = config(OSPOS::class)->settings;
-        $newdate = $this->request->getPost('date', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+        $newDate = $this->request->getPost('date', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
 
-        $dateFormatter = date_create_from_format($config['dateformat'] . ' ' . $config['timeformat'], $newdate);
+        $dateFormatter = date_create_from_format($config['dateformat'] . ' ' . $config['timeformat'], $newDate);
 
         $currentEmployeeId = $this->employee->get_logged_in_employee_info()->person_id;
         $submittedEmployeeId = $this->request->getPost('employee_id', FILTER_SANITIZE_NUMBER_INT);
@@ -216,6 +218,10 @@ class Expenses extends Secure_Controller
 
         if ($accountingOn && $this->request->getPost('treasury_id') !== null) {
             $expenseData['treasury_id'] = (int) $this->request->getPost('treasury_id', FILTER_SANITIZE_NUMBER_INT);
+        }
+
+        if ($this->request->getPost('expense_branch_id') !== null) {
+            $expenseData['expense_branch_id'] = (int) $this->request->getPost('expense_branch_id', FILTER_SANITIZE_NUMBER_INT);
         }
 
         if ($this->expense->save_value($expenseData, $expenseId, (int) $currentEmployeeId)) {
@@ -255,6 +261,30 @@ class Expenses extends Secure_Controller
         return $failure instanceof AccountingException || $failure instanceof BranchException || $failure instanceof PostingException
             ? AccountingMessage::of($failure)
             : $usual;
+    }
+
+    /**
+     * The branches an expense can be charged to when it is paid from a treasury of another branch,
+     * for an employee who works in more than one: the first choice leaves it to the branch of the
+     * treasury, as it always was. Nobody else has a choice.
+     *
+     * @return array<int, string>
+     */
+    private function branchOptions(): array
+    {
+        $branches = (new BranchGuard())->selectableBranches((int) $this->employee->get_logged_in_employee_info()->person_id);
+
+        if (count($branches) < 2) {
+            return [];
+        }
+
+        $options = [0 => lang('Expenses.branch_of_treasury')];
+
+        foreach ($branches as $branch) {
+            $options[(int) $branch->branch_id] = esc($branch->code . ' - ' . $branch->name);
+        }
+
+        return $options;
     }
 
     /**

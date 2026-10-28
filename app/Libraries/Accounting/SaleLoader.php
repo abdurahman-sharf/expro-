@@ -103,7 +103,7 @@ final class SaleLoader
         $payments = [];
 
         foreach ($this->db->table('sales_payments')
-            ->select('payment_id, payment_type, payment_amount, cash_refund, cash_adjustment, payment_time, payment_status, treasury_id')
+            ->select('payment_id, payment_type, payment_amount, cash_refund, cash_adjustment, payment_time, payment_status, treasury_id, treasury_branch_id')
             ->where('sale_id', $saleId)
             ->orderBy('payment_id', 'ASC')
             ->get()
@@ -117,6 +117,7 @@ final class SaleLoader
                 date: substr((string) $row->payment_time, 0, 10),
                 status: PaymentStatus::fromStored($row->payment_status),
                 treasuryId: $row->treasury_id === null ? null : (int) $row->treasury_id,
+                treasuryBranchId: $row->treasury_branch_id === null ? null : (int) $row->treasury_branch_id,
             );
         }
 

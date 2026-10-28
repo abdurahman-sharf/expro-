@@ -93,6 +93,7 @@ return [
     'entry'                             => 'การนำเข้า',
     'entry_cogs'                        => '',
     'entry_payment'                     => '',
+    'entry_payment_branch'              => '',
     'entry_revenue'                     => '',
     'entry_reversed'                    => '',
     'error_editing_item'                => 'แก้ไขสินค้าล้มเหลว',

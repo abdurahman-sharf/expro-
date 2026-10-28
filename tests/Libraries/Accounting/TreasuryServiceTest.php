@@ -5,6 +5,7 @@ namespace Tests\Libraries\Accounting;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\InterBranchSettlements;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\PaymentType;
@@ -22,6 +23,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
+use Tests\Support\ParityCaseTrait;
 use Tests\Support\ParityFixture;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
@@ -37,6 +39,7 @@ class TreasuryServiceTest extends CIUnitTestCase
     use AccountingFixtureTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
+    use ParityCaseTrait;
     use SaleAccountingFixtureTrait;
     use PurchaseAccountingFixtureTrait;
 
@@ -546,6 +549,23 @@ class TreasuryServiceTest extends CIUnitTestCase
         $this->assertNotNull($this->treasuries->find($id));
     }
 
+    public function testDelete_RejectsATreasuryASettlementBetweenBranchesMovedMoneyThrough(): void
+    {
+        $branchId = $this->createBranch('B2');
+        $manager  = $this->manager();
+        $main     = $this->treasuries->ensureMain();
+        $drawer   = $this->treasuries->create(['name' => 'Second branch drawer', 'kind' => 'cash', 'branch_id' => $branchId], $manager);
+
+        $this->fund($drawer);
+
+        $settler = $this->employeeWithGrants([AccountingGuard::INTERBRANCH_SETTLE]);
+
+        (new InterBranchSettlements())->settle(1, $branchId, '2026-10-31', $drawer, $main, '', null, $settler);
+
+        $this->assertSame(AccountingError::TreasuryInUse, $this->refusal(fn () => $this->treasuries->delete($drawer, $manager))->error);
+        $this->assertNotNull($this->treasuries->find($drawer));
+    }
+
     public function testDelete_RefusesATreasuryAnExpenseOrACashUpNamed(): void
     {
         $manager = $this->manager();
@@ -782,5 +802,247 @@ class TreasuryServiceTest extends CIUnitTestCase
         $this->assertSame(['Alpha', 'Zeta'], array_slice(array_map(static fn (object $row): string => $row->name, $this->treasuries->all()), 1));
         $this->assertSame(['Alpha'], array_map(static fn (object $row): string => $row->name, $this->treasuries->all([$other])));
         $this->assertSame([], $this->treasuries->all([]));
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // The treasury a payment on a document of one branch names in another
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * A second branch with a treasury of its own.
+     *
+     * @return array{branch: int, treasury: int}
+     */
+    private function treasuryOfAnotherBranch(string $name = 'Branch drawer'): array
+    {
+        $branch = $this->createBranch('B' . random_int(10, 99));
+
+        return ['branch' => $branch, 'treasury' => $this->treasuries->create(['name' => $name, 'kind' => 'cash', 'branch_id' => $branch], $this->manager())];
+    }
+
+    public function testOtherBranchOf_IsNothingForATreasuryOfTheBranchOfTheDocument(): void
+    {
+        $own = $this->treasuries->create(['name' => 'Own drawer', 'kind' => 'cash'], $this->manager());
+
+        $this->assertNull($this->treasuries->otherBranchOf($own, 1, $this->employeeWithGrants([], [1])));
+    }
+
+    public function testOtherBranchOf_NamesTheBranchOfATreasuryOfAnotherForAnEmployeeWhoWorksInBoth(): void
+    {
+        ['branch' => $branch, 'treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        $this->assertSame($branch, $this->treasuries->otherBranchOf($treasury, 1, $this->employeeWithGrants([], [1, $branch])));
+        $this->assertSame($branch, $this->treasuries->otherBranchOf($treasury, 1, $this->employeeWithGrants([])), 'Every branch');
+        $this->assertSame($branch, $this->treasuries->otherBranchOf($treasury, 1, null), 'The books');
+    }
+
+    public function testOtherBranchOf_RejectsATreasuryThatDoesNotExist(): void
+    {
+        $this->assertSame(AccountingError::TreasuryNotFound, $this->refusal(fn () => $this->treasuries->otherBranchOf(99999, 1, null))->error);
+    }
+
+    public function testOtherBranchOf_RejectsATreasuryOfAnotherBranchToAnEmployeeWhoWorksInOnlyOneOfTheTwoAsIfItWereNotThere(): void
+    {
+        ['branch' => $branch, 'treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        foreach ([[1], [$branch]] as $works) {
+            $this->assertSame(AccountingError::TreasuryNotFound, $this->refusal(fn () => $this->treasuries->otherBranchOf($treasury, 1, $this->employeeWithGrants([], $works)))->error);
+        }
+    }
+
+    public function testOtherBranchOf_TellsAnEmployeeWhoMeetsAPaymentThatIsAlreadyInTheTreasuryThatBothBranchesAreNeeded(): void
+    {
+        ['branch' => $branch, 'treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        foreach ([[1], [$branch]] as $works) {
+            $refusal = $this->refusal(fn () => $this->treasuries->otherBranchOf($treasury, 1, $this->employeeWithGrants([], $works), true));
+
+            $this->assertSame(AccountingError::InterBranchBranchesDenied, $refusal->error);
+            $this->assertArrayHasKey('name', $refusal->context);
+        }
+    }
+
+    public function testOtherBranchOf_RejectsATreasuryOfAnotherBranchThatIsDeactivatedUnlessThePaymentIsAlreadyInIt(): void
+    {
+        ['treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        $this->treasuries->deactivate($treasury, $this->manager());
+
+        $this->assertSame(AccountingError::TreasuryInactive, $this->refusal(fn () => $this->treasuries->otherBranchOf($treasury, 1, null))->error);
+        $this->assertNotNull($this->treasuries->otherBranchOf($treasury, 1, null, true));
+    }
+
+    public function testOtherBranchOf_RejectsATreasuryOfAnotherBranchWhileTheBooksAreOff(): void
+    {
+        ['treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $this->assertSame(AccountingError::TreasuryNotFound, $this->refusal(fn () => $this->treasuries->otherBranchOf($treasury, 1, null))->error);
+    }
+
+    public function testPlaceOfPayment_GivesTheTreasuryNamedAndTheBranchItBelongsToWhenThatIsAnother(): void
+    {
+        ['branch' => $branch, 'treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        $own      = $this->treasuries->create(['name' => 'Own drawer', 'kind' => 'cash'], $this->manager());
+        $employee = $this->employeeWithGrants([]);
+
+        $this->assertSame([$treasury, $branch], $this->treasuries->placeOfPayment($treasury, PaymentType::Cash, TreasuryScopes::DEPOSIT, $employee, 1));
+        $this->assertSame([$own, null], $this->treasuries->placeOfPayment($own, PaymentType::Cash, TreasuryScopes::DEPOSIT, $employee, 1));
+    }
+
+    public function testPlaceOfPayment_AsksTheScopeOfTheTreasuryNamedInTheDirectionOfThePayment(): void
+    {
+        ['treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        $this->treasuries->update($treasury, ['name' => 'Branch drawer', 'kind' => 'cash', 'deposit_scope' => 'staff', 'deposit_members' => [$this->employeeWithGrants([])]], $this->manager());
+
+        $employee = $this->employeeWithGrants([]);
+
+        $this->assertSame(AccountingError::TreasuryDepositDenied, $this->refusal(fn () => $this->treasuries->placeOfPayment($treasury, PaymentType::Cash, TreasuryScopes::DEPOSIT, $employee, 1))->error);
+        $this->assertSame($treasury, $this->treasuries->placeOfPayment($treasury, PaymentType::Cash, TreasuryScopes::WITHDRAW, $employee, 1)[0]);
+    }
+
+    public function testPlaceOfPayment_LeavesAPaymentThatNamesNoTreasuryToTheOneItsEmployeeWorksFromOfTheSameBranch(): void
+    {
+        ['treasury' => $far] = $this->treasuryOfAnotherBranch();
+
+        $employee = $this->employeeWithGrants([]);
+        $drawer   = $this->treasuries->create(['name' => 'Seller drawer', 'kind' => 'cash'], $this->manager());
+
+        $this->treasuries->setDefaultFor($employee, $drawer);
+
+        $this->assertSame([$drawer, null], $this->treasuries->placeOfPayment(0, PaymentType::Cash, TreasuryScopes::DEPOSIT, $employee, 1));
+        $this->assertSame([$drawer, null], $this->treasuries->placeOfPayment(null, PaymentType::Cash, TreasuryScopes::DEPOSIT, $employee, 1));
+        $this->assertNotSame($far, $drawer);
+    }
+
+    public function testChoicesFor_OffersTheTreasuriesOfTheBranchAndTheOthersTheEmployeeWorksInWithTheirCode(): void
+    {
+        ['branch' => $branch, 'treasury' => $far] = $this->treasuryOfAnotherBranch('Far drawer');
+
+        $own      = $this->treasuries->create(['name' => 'Own drawer', 'kind' => 'cash'], $this->manager());
+        $employee = $this->employeeWithGrants([], [1, $branch]);
+        $options  = $this->treasuries->choicesFor(1, TreasuryScopes::DEPOSIT, $employee);
+
+        $this->assertSame('Own drawer', $options[$own]);
+        $this->assertSame('Far drawer (' . $this->treasuries->find($far)->branch_code . ')', $options[$far]);
+    }
+
+    public function testChoicesFor_OffersNothingOfAnotherBranchToAnEmployeeWhoDoesNotWorkInBothOrWhileTheBooksAreOff(): void
+    {
+        ['branch' => $branch, 'treasury' => $far] = $this->treasuryOfAnotherBranch('Far drawer');
+
+        $own = $this->treasuries->create(['name' => 'Own drawer', 'kind' => 'cash'], $this->manager());
+
+        $limited = array_keys($this->treasuries->choicesFor(1, TreasuryScopes::DEPOSIT, $this->employeeWithGrants([], [1])));
+
+        $this->assertContains($own, $limited);
+        $this->assertNotContains($far, $limited);
+
+        $elsewhere = array_keys($this->treasuries->choicesFor($branch, TreasuryScopes::DEPOSIT, $this->employeeWithGrants([], [1])));
+
+        $this->assertNotContains($own, $elsewhere, 'The branch of the document is one the employee does not work in');
+
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $off = array_keys($this->treasuries->choicesFor(1, TreasuryScopes::DEPOSIT, $this->employeeWithGrants([])));
+
+        $this->assertContains($own, $off);
+        $this->assertNotContains($far, $off);
+    }
+
+    public function testChoicesFor_OffersOnlyActiveTreasuriesTheEmployeeMayUseInTheDirectionAndTheOnesAPaymentCarries(): void
+    {
+        ['branch' => $branch, 'treasury' => $far] = $this->treasuryOfAnotherBranch('Far drawer');
+
+        $locked   = $this->treasuries->create(['name' => 'Locked drawer', 'kind' => 'cash', 'branch_id' => $branch, 'deposit_scope' => 'staff', 'deposit_members' => [$this->employeeWithGrants([])]], $this->manager());
+        $retired  = $this->treasuries->create(['name' => 'Retired drawer', 'kind' => 'cash', 'branch_id' => $branch], $this->manager());
+        $employee = $this->employeeWithGrants([], [1, $branch]);
+
+        $this->treasuries->deactivate($retired, $this->manager());
+
+        $options = $this->treasuries->choicesFor(1, TreasuryScopes::DEPOSIT, $employee);
+
+        $this->assertArrayHasKey($far, $options);
+        $this->assertArrayNotHasKey($locked, $options);
+        $this->assertArrayNotHasKey($retired, $options);
+
+        $carried = $this->treasuries->choicesFor(1, TreasuryScopes::DEPOSIT, $employee, [$locked, $retired]);
+
+        $this->assertArrayHasKey($locked, $carried);
+        $this->assertArrayHasKey($retired, $carried);
+        $this->assertArrayHasKey($locked, $this->treasuries->choicesFor(1, TreasuryScopes::WITHDRAW, $employee), 'Only deposits are closed');
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // What the reference system recorded in the second write batch: fixture T-52
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * A treasury that took 100 from the main one and gave it back, so it moved money and holds nothing.
+     */
+    private function treasuryThatMovedMoneyAndHoldsNothing(): int
+    {
+        $manager = $this->manager();
+        $id      = $this->treasuries->create(['name' => 'Moved and empty', 'kind' => 'cash'], $manager);
+
+        $this->fund($id, '100.00');
+        (new TreasuryTransfers())->transfer($id, $this->treasuries->ensureMain(), '100.00', '2026-10-21');
+
+        return $id;
+    }
+
+    public function testDelete_RemovesATreasuryWithNoMovementWithItsAccountAsTheReferenceSystemDoes(): void
+    {
+        $case    = $this->referenceCase('T-52', 'treasury_rules', 'a-treasury-with-no-movement-can-be-deleted', 'exact');
+        $manager = $this->manager();
+        $id      = $this->treasuries->create(['name' => 'Never used', 'kind' => 'cash'], $manager);
+        $account = (int) $this->treasuries->accountOf($id);
+
+        $this->treasuries->delete($id, $manager);
+
+        $this->assertSameAsFixture($case['expected'], [
+            'deleted'             => $this->treasuries->find($id) === null,
+            'its_account_is_gone' => (int) $this->accountingDb()->table('accounting_accounts')->where('account_id', $account)->get()->getRow()->active === 0,
+        ], 'treasury with no movement');
+    }
+
+    public function testDelete_RefusesATreasuryThatMovedMoneyEvenAtAZeroBalanceAsTheReferenceSystemDoes(): void
+    {
+        $case = $this->referenceCase('T-52', 'treasury_rules', 'a-treasury-that-moved-money-cannot-be-deleted-at-a-zero-balance', 'exact');
+        $id   = $this->treasuryThatMovedMoneyAndHoldsNothing();
+
+        $refusal = $this->refusal(fn () => $this->treasuries->delete($id, $this->manager()));
+
+        $this->assertSame(AccountingError::TreasuryInUse, $refusal->error);
+        $this->assertSameAsFixture($case['expected'], ['deleted' => $this->treasuries->find($id) === null, 'balance' => bcadd($this->treasuries->position($id)->balance, '0', 2)], 'treasury that moved money');
+    }
+
+    public function testDeactivate_AcceptsAnEmptyTreasuryAndActivateBringsItBackAsTheReferenceSystemDoes(): void
+    {
+        $case    = $this->referenceCase('T-52', 'treasury_rules', 'an-empty-treasury-can-be-deactivated-and-activated-again', 'exact');
+        $id      = $this->treasuryThatMovedMoneyAndHoldsNothing();
+        $manager = $this->manager();
+
+        $this->treasuries->deactivate($id, $manager);
+
+        $deactivated = (int) $this->treasuries->find($id)->active === 0;
+        $transfers   = true;
+
+        try {
+            (new TreasuryTransfers())->transfer($this->treasuries->ensureMain(), $id, '1.00', '2026-10-21');
+        } catch (AccountingException) {
+            $transfers = false;
+        }
+
+        $this->treasuries->activate($id, $manager);
+
+        $this->assertSameAsFixture($case['expected'], [
+            'deactivated'                         => $deactivated,
+            'can_be_transferred_to_while_inactive' => $transfers,
+            'activated_again'                     => (int) $this->treasuries->find($id)->active === 1,
+        ], 'deactivation and activation');
     }
 }

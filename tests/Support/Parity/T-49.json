@@ -1,0 +1,209 @@
+{
+  "id": "T-49",
+  "title": "Returns of goods to a supplier after the average moved to 117.777778: 3 units at the price of 100 give back 300 and the stock at the average, the difference to cost of sales; 2 units at 100 with a cash refund also write the refund journal; the average does not change",
+  "recorded": "2026-10-27",
+  "observation": {
+    "batch": "d2",
+    "scenarios": [
+      "D2-S16"
+    ]
+  },
+  "evidence": {
+    "refund_000003": {
+      "id": null,
+      "note": "Purchase refund 000003 of 3 units at 100 with no cash refund: journal 000161 debits the supplier 300 and 511 53.33 and credits the stock 353.33 (3 x 117.777778); stock 15, average unchanged",
+      "observation": [
+        "pw-d2-41"
+      ]
+    },
+    "refund_000004": {
+      "id": null,
+      "note": "Purchase refund 000004 of 2 units at 100 with the refund paid to the treasury: journal 000163 debits the supplier 200 and 511 35.56 and credits the stock 235.56, and journal 000164 debits the treasury and credits the supplier 200",
+      "observation": [
+        "pw-d2-43"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "return-of-3-units-without-a-cash-refund",
+      "kind": "purchase_return",
+      "classification": "exact",
+      "reference_decimals": 2,
+      "evidence": [
+        "refund_000003"
+      ],
+      "inputs": {
+        "purchases": [
+          {
+            "quantity": "10",
+            "price": "100.00"
+          },
+          {
+            "quantity": "8",
+            "price": "140.00"
+          }
+        ],
+        "return": {
+          "quantity": "3",
+          "price": "100.00",
+          "refunded_in_cash": false
+        }
+      },
+      "reference": {
+        "journals": {
+          "return": [
+            {
+              "role": "supplier",
+              "debit": "300",
+              "credit": "0",
+              "code": "2211009",
+              "name": "مورد افتراضي-D2 2"
+            },
+            {
+              "role": "cogs",
+              "debit": "53.33",
+              "credit": "0",
+              "code": "511",
+              "name": "تكلفة المبيعات"
+            },
+            {
+              "role": "inventory",
+              "debit": "0",
+              "credit": "353.33",
+              "code": "1203001",
+              "name": "Primary Warehouse"
+            }
+          ]
+        },
+        "average_after": "117.777778"
+      },
+      "expected": {
+        "journals": {
+          "return": [
+            {
+              "role": "supplier",
+              "debit": "300",
+              "credit": "0"
+            },
+            {
+              "role": "cogs",
+              "debit": "53.33",
+              "credit": "0"
+            },
+            {
+              "role": "inventory",
+              "debit": "0",
+              "credit": "353.33"
+            }
+          ]
+        },
+        "average_after": "117.777778"
+      }
+    },
+    {
+      "id": "return-of-2-units-with-a-cash-refund",
+      "kind": "purchase_return",
+      "classification": "exact",
+      "reference_decimals": 2,
+      "evidence": [
+        "refund_000004"
+      ],
+      "inputs": {
+        "purchases": [
+          {
+            "quantity": "10",
+            "price": "100.00"
+          },
+          {
+            "quantity": "8",
+            "price": "140.00"
+          }
+        ],
+        "return": {
+          "quantity": "2",
+          "price": "100.00",
+          "refunded_in_cash": true
+        }
+      },
+      "reference": {
+        "journals": {
+          "return": [
+            {
+              "role": "supplier",
+              "debit": "200",
+              "credit": "0",
+              "code": "2211009",
+              "name": "مورد افتراضي-D2 2"
+            },
+            {
+              "role": "cogs",
+              "debit": "35.56",
+              "credit": "0",
+              "code": "511",
+              "name": "تكلفة المبيعات"
+            },
+            {
+              "role": "inventory",
+              "debit": "0",
+              "credit": "235.56",
+              "code": "1203001",
+              "name": "Primary Warehouse"
+            }
+          ],
+          "refund": [
+            {
+              "role": "treasury",
+              "debit": "200",
+              "credit": "0",
+              "code": "120103",
+              "name": "افتراضي-D2 خزينة 1"
+            },
+            {
+              "role": "supplier",
+              "debit": "0",
+              "credit": "200",
+              "code": "2211009",
+              "name": "مورد افتراضي-D2 2"
+            }
+          ]
+        },
+        "average_after": "117.777778"
+      },
+      "expected": {
+        "journals": {
+          "return": [
+            {
+              "role": "supplier",
+              "debit": "200",
+              "credit": "0"
+            },
+            {
+              "role": "cogs",
+              "debit": "35.56",
+              "credit": "0"
+            },
+            {
+              "role": "inventory",
+              "debit": "0",
+              "credit": "235.56"
+            }
+          ],
+          "refund": [
+            {
+              "role": "treasury",
+              "debit": "200",
+              "credit": "0"
+            },
+            {
+              "role": "supplier",
+              "debit": "0",
+              "credit": "200"
+            }
+          ]
+        },
+        "average_after": "117.777778"
+      }
+    }
+  ]
+}

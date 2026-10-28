@@ -1,0 +1,99 @@
+{
+  "id": "T-33",
+  "title": "A credit note for 5 units of stock with no invoice behind it: the reference system accepts it and returns the stock at the current average cost, this application refuses it",
+  "recorded": "2026-10-27",
+  "observation": {
+    "batch": "d1",
+    "scenarios": [
+      "D1-S7"
+    ]
+  },
+  "evidence": {
+    "credit_note_000009": {
+      "id": null,
+      "note": "Credit note 000009 for 5 units at 100.00 with 15% tax and no original invoice, accepted, with the journals 000151 and 000152 that return 300 of cost at the current average of 60 and 5 units to the stock",
+      "observation": [
+        "pw-d1-32",
+        "pw-d1-4"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "credit-note-for-stock-without-an-invoice",
+      "kind": "orphan_credit_note",
+      "classification": "deliberate_difference",
+      "reason": "The owner decided (E20) that a return of stock names the invoice it comes from, so the cost is the cost of that sale; an override with a permission is planned in WP23. Without it the credit note is refused and nothing is posted.",
+      "evidence": [
+        "credit_note_000009"
+      ],
+      "inputs": {
+        "lines": [
+          {
+            "item": "stock",
+            "cost": "60.00",
+            "quantity": "-5",
+            "price": "100.00",
+            "discount": "0",
+            "tax_percent": "15"
+          }
+        ],
+        "invoice": null
+      },
+      "reference": {
+        "accepted": true,
+        "journals_posted": "2",
+        "stock_change": "5",
+        "journals": {
+          "credit_note": [
+            {
+              "role": "sales_returns",
+              "debit": "500",
+              "credit": "0",
+              "code": "412",
+              "name": "مردودات المبيعات"
+            },
+            {
+              "role": "tax_output",
+              "debit": "75",
+              "credit": "0",
+              "code": "215001",
+              "name": "القيمة المضافة المحصلة"
+            },
+            {
+              "role": "customer",
+              "debit": "0",
+              "credit": "575",
+              "code": "12041005",
+              "name": "افتراضي-D1 عميل"
+            }
+          ],
+          "cost": [
+            {
+              "role": "inventory",
+              "debit": "300",
+              "credit": "0",
+              "code": "1203001",
+              "name": "Primary Warehouse"
+            },
+            {
+              "role": "cogs",
+              "debit": "0",
+              "credit": "300",
+              "code": "511",
+              "name": "تكلفة المبيعات"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "accepted": false,
+        "journals_posted": "0",
+        "stock_change": "0",
+        "detail": {
+          "error": "return_origin_required"
+        }
+      }
+    }
+  ]
+}

@@ -30,6 +30,7 @@ final class SalePosting
     private StockLedger $stock;
     private AccountingSettings $settings;
     private PeriodGuard $periods;
+    private CrossBranchPayments $crossBranch;
 
     public function __construct(?BaseConnection $db = null)
     {
@@ -45,6 +46,8 @@ final class SalePosting
             totals_decimals(),
             (bool) (config(OSPOS::class)->settings['tax_included'] ?? false),
         );
+
+        $this->crossBranch = new CrossBranchPayments($this->db);
     }
 
     /**
@@ -250,7 +253,7 @@ final class SalePosting
             ->groupStart()->where('source_type', SalePostingBuilder::SOURCE_SALE)->where('source_id', $saleId)->groupEnd();
 
         if ($paymentIds !== []) {
-            $builder->orGroupStart()->where('source_type', SalePostingBuilder::SOURCE_PAYMENT)->whereIn('source_id', $paymentIds)->groupEnd();
+            $builder->orGroupStart()->whereIn('source_type', [SalePostingBuilder::SOURCE_PAYMENT, ...CrossBranchPayments::companionsOf(SalePostingBuilder::SOURCE_PAYMENT)])->whereIn('source_id', $paymentIds)->groupEnd();
         }
 
         return $builder->groupEnd()->orderBy('journal_id', 'ASC')->get()->getResult();
@@ -315,6 +318,13 @@ final class SalePosting
     {
         $active = $this->activeJournal(SalePostingBuilder::SOURCE_PAYMENT, $payment->paymentId, JournalEntryType::General);
         $draft  = $this->builder->payment($sale, $payment, $this->nextRevision(SalePostingBuilder::SOURCE_PAYMENT, $payment->paymentId, JournalEntryType::General), $employeeId);
+        $drafts = $draft === null ? [] : $this->crossBranch->drafts($draft, $payment->treasuryId, $payment->treasuryBranchId);
+
+        if (count($drafts) > 1) {
+            $this->crossBranch->sync($active, $drafts, $employeeId, fn (object $journal): array => $this->reverse($journal, $employeeId, 'Payment #' . $payment->paymentId . ' changed'));
+
+            return;
+        }
 
         if ($active !== null) {
             if ($draft !== null && $this->holds($active, $draft)) {

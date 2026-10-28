@@ -1,0 +1,141 @@
+{
+  "id": "T-44",
+  "title": "A revenue voucher: money received into a treasury with its tax, charged to the account of an income category made on first use or to the account chosen, edited in place and deleted with its journal; this application has no revenue voucher",
+  "recorded": "2026-10-27",
+  "observation": {
+    "batch": "d2",
+    "scenarios": [
+      "D2-S11",
+      "D2-S09"
+    ]
+  },
+  "evidence": {
+    "income_vouchers": {
+      "id": null,
+      "note": "Revenue vouchers: 1150 with 15% tax in a category (journal 000153 credits the account of the category and the tax), 100 on a chosen account 4201, the first edited from 1150 to 1300 in place, the second deleted with its journal; and one of 30 with no category on other income 4201",
+      "observation": [
+        "pw-d2-22",
+        "pw-d2-23",
+        "pw-d2-24",
+        "pw-d2-25",
+        "pw-d2-26",
+        "pw-d2-27",
+        "pw-d2-28",
+        "pw-d2-55"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "a-revenue-voucher-with-tax-in-a-category",
+      "kind": "revenue_voucher",
+      "classification": "not_implemented",
+      "work_package": "WP26",
+      "reason": "There is no revenue voucher, no income category and no screen for them (FIN-03, WP26). The journals the reference system wrote are recorded so the package has them: the whole amount debits the treasury, the amount without the tax credits the account of the category or the account chosen, and the tax credits the tax collected; an edit changes the same journal and a delete erases it.",
+      "evidence": [
+        "income_vouchers"
+      ],
+      "inputs": {
+        "voucher": {
+          "amount": "1300.00",
+          "tax": "169.57",
+          "category": "income category",
+          "account": "automatic"
+        },
+        "without_a_category": {
+          "amount": "30.00"
+        }
+      },
+      "reference": {
+        "journals": {
+          "voucher_with_tax": [
+            {
+              "role": "treasury",
+              "debit": "1300",
+              "credit": "0",
+              "code": "120103",
+              "name": "افتراضي-D2 خزينة 1"
+            },
+            {
+              "role": "income",
+              "debit": "0",
+              "credit": "1130.43",
+              "code": "4204",
+              "name": "افتراضي-D2 تصنيف إيراد"
+            },
+            {
+              "role": "tax_output",
+              "debit": "0",
+              "credit": "169.57",
+              "code": "215001",
+              "name": "القيمة المضافة المحصلة"
+            }
+          ],
+          "voucher_on_a_chosen_account": [
+            {
+              "role": "treasury",
+              "debit": "100",
+              "credit": "0",
+              "code": "120103",
+              "name": "افتراضي-D2 خزينة 1"
+            },
+            {
+              "role": "income",
+              "debit": "0",
+              "credit": "100",
+              "code": "4201",
+              "name": "إيرادات أخرى"
+            }
+          ],
+          "voucher_without_a_category": [
+            {
+              "role": "treasury",
+              "debit": "30",
+              "credit": "0",
+              "code": "120103",
+              "name": "افتراضي-D2 خزينة 1"
+            },
+            {
+              "role": "income",
+              "debit": "0",
+              "credit": "30",
+              "code": "4201",
+              "name": "إيرادات أخرى"
+            }
+          ]
+        },
+        "edit_changes_the_same_journal": true,
+        "delete_erases_the_journal": true
+      },
+      "expected": {
+        "status": "not_implemented",
+        "absent": [
+          {
+            "kind": "table",
+            "name": "incomes"
+          },
+          {
+            "kind": "table",
+            "name": "income_categories"
+          },
+          {
+            "kind": "table",
+            "pattern": "revenue_voucher"
+          },
+          {
+            "kind": "table",
+            "pattern": "receipt_voucher"
+          },
+          {
+            "kind": "class",
+            "name": "App\\Controllers\\Incomes"
+          },
+          {
+            "kind": "class",
+            "name": "App\\Models\\Income"
+          }
+        ]
+      }
+    }
+  ]
+}

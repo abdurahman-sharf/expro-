@@ -2,6 +2,7 @@
 
 namespace Tests\Controllers;
 
+use App\Controllers\AccountingSetup;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\JournalService;
@@ -9,6 +10,7 @@ use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\RoutingKey;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
+use ReflectionClassConstant;
 use Tests\Support\AccountingControllerFixtureTrait;
 
 class AccountingSetupControllerTest extends CIUnitTestCase
@@ -452,6 +454,45 @@ class AccountingSetupControllerTest extends CIUnitTestCase
             $response->assertSee(lang('Accounting_journals.journals_edit_details'));
             $response->assertSee($this->usernameOf($editor));
             $response->assertDontSee(lang('Accounting_settings.holders_none'));
+        });
+    }
+
+    public function testGetIndex_ListsWhoHoldsThePermissionToSettleBetweenBranchesUnderItsOwnName(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_settings']));
+
+        $this->whileNobodyHoldsSensitivePermissions(function (): void {
+            $accountant = $this->employeeWithGrants([AccountingGuard::INTERBRANCH_SETTLE]);
+
+            $response = $this->get('/accounting_settings');
+
+            $response->assertStatus(200);
+            $response->assertSee('sensitive_holders');
+            $response->assertSee(lang('Accounting_treasuries.interbranch_settle'));
+            $response->assertSee($this->usernameOf($accountant));
+            $response->assertDontSee(lang('Accounting_settings.holders_none'));
+        });
+    }
+
+    public function testGetIndex_ListsEverySensitivePermissionOfTheGuardByName(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_settings']));
+
+        $labels = (new ReflectionClassConstant(AccountingSetup::class, 'PERMISSION_LABELS'))->getValue();
+
+        $this->assertEqualsCanonicalizing(AccountingGuard::SENSITIVE, array_keys($labels));
+
+        $this->whileNobodyHoldsSensitivePermissions(function () use ($labels): void {
+            $holder = $this->employeeWithGrants(AccountingGuard::SENSITIVE);
+
+            $response = $this->get('/accounting_settings');
+
+            $response->assertStatus(200);
+            $response->assertSee($this->usernameOf($holder));
+
+            foreach ($labels as $label) {
+                $response->assertSee(lang($label));
+            }
         });
     }
 

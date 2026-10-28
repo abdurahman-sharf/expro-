@@ -2,6 +2,7 @@
 
 namespace Tests\Libraries\Accounting;
 
+use App\Libraries\Accounting\CustomerLedger;
 use App\Libraries\Accounting\CustomerPosition;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
@@ -15,6 +16,8 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
+use Tests\Support\ParityCaseTrait;
+use Tests\Support\RegisterFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 
 /**
@@ -28,6 +31,8 @@ class CustomerLedgerTest extends CIUnitTestCase
     use AccountingFixtureTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
+    use ParityCaseTrait;
+    use RegisterFixtureTrait;
     use SaleAccountingFixtureTrait;
 
     protected $migrate     = true;
@@ -237,5 +242,66 @@ class CustomerLedgerTest extends CIUnitTestCase
         $third  = $this->invoiceOf('30.00');
 
         $this->assertSame([$first, $second, $third], array_map(static fn ($invoice): int => $invoice->saleId, $this->position()->invoices));
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // What the reference system recorded in the second write batch: fixtures T-31 and T-35
+    // ---------------------------------------------------------------------------------------
+
+    public function testPosition_AgesAnOpenInvoiceFromItsDateAsTheReferenceSystemDoes(): void
+    {
+        $case    = $this->referenceCase('T-31', 'aging', 'aging-runs-from-the-invoice-date', 'exact');
+        $invoice = $this->invoiceOf('100.00');
+
+        $this->accountingDb()->table('sales')->where('sale_id', $invoice)->update(['sale_time' => date('Y-m-d 10:00:00', strtotime('-40 days'))]);
+
+        $aging = $this->position()->aging(date('Y-m-d'));
+
+        $this->assertSameAsFixture($case['expected'], ['ages_from' => $aging['31-60'] === '100.0000' && $aging['0-30'] === '0.0000' ? 'invoice date' : 'something else'], 'aging');
+    }
+
+    public function testAging_UsesBucketsOfThirtyDaysWhereTheReportsOfTheReferenceSystemStartWithTodayAndOneToSevenDays(): void
+    {
+        $case = $this->referenceCase('T-31', 'aging', 'aging-buckets-of-the-reports', 'differs');
+
+        $this->assertSameAsFixture($case['expected']['aging_buckets'], CustomerPosition::AGING_BUCKETS, 'aging buckets');
+    }
+
+    public function testPosition_TiesTheFiguresOfACustomerAfterInvoicesCreditNotesAndCreditAsTheReferenceSystemDoes(): void
+    {
+        $case = $this->referenceCase('T-35', 'customer_reports', 'customer-figures-tie', 'exact');
+
+        $first = $this->taxedItem('60.00', true, '15');
+        $b     = $this->ringUp([['item' => $this->taxedItem('0', false, '15'), 'quantity' => '1', 'price' => '200.00'], ['item' => $this->taxedItem('0', false, '15'), 'quantity' => '1', 'price' => '155.55']], ['type' => PERCENT, 'value' => '3.3']);
+        $a     = $this->ringUp([['item' => $first, 'quantity' => '3', 'price' => '100.00', 'discount' => '10']], ['type' => FIXED, 'value' => '20']);
+        $c     = $this->ringUp([['item' => $first, 'quantity' => '2', 'price' => '100.00']], null, null, false);
+
+        $this->assertGreaterThan(0, $b['sale']);
+        $this->assertGreaterThan(0, $a['sale']);
+        $this->assertGreaterThan(0, $c['sale']);
+        $this->assertGreaterThan(0, $this->ringUp([['item' => $first, 'quantity' => '-1', 'price' => '100.00', 'discount' => '10']], null, $a['sale'])['sale']);
+
+        $position = $this->position();
+        $actual   = [
+            'balance_equals_the_account'              => bcadd($position->accountBalance, '0', 2) === $this->balance((int) $position->accountId),
+            'aging_adds_up_to_what_is_open'           => $position->open() === array_reduce($position->aging(date('Y-m-d')), static fn (string $sum, string $amount): string => bcadd($sum, $amount, 4), '0.0000'),
+            'open_invoices_less_credit_equal_the_balance' => $position->agrees(),
+        ];
+
+        $this->assertSameAsFixture($case['expected'], $actual, 'figures of the customer');
+        $this->assertTies();
+    }
+
+    public function testCustomersWithBalance_ListsTheBalanceAloneWhereTheBalanceReportOfTheReferenceSystemSplitsItInColumns(): void
+    {
+        $case = $this->referenceCase('T-35', 'customer_reports', 'balance-report-columns', 'differs');
+
+        $this->invoiceOf('100.00');
+
+        $row = (array) (new CustomerLedger())->customersWithBalance()['rows'][0];
+
+        unset($row['customer_id'], $row['account_id']);
+
+        $this->assertSameAsFixture($case['expected']['columns'], array_keys($row), 'columns of the balance list');
     }
 }

@@ -124,6 +124,15 @@ $routes->group('accounting_treasuries', static function (RouteCollection $routes
 
     $routes->get('defaults', 'AccountingTreasuries::getDefaults');
     $routes->post('default/(:num)', 'AccountingTreasuries::postDefault/$1');
+
+    $routes->get('inter_branch', 'AccountingInterBranch::getIndex');
+    $routes->get('inter_branch/pairs', 'AccountingInterBranch::getPairs');
+    $routes->get('inter_branch/settlements/search', 'AccountingInterBranch::getSettlementsSearch');
+    $routes->get('inter_branch/settlements/row/(:num)', 'AccountingInterBranch::getSettlementsRow/$1');
+    $routes->get('inter_branch/settle_form', 'AccountingInterBranch::getSettleForm');
+    $routes->post('inter_branch/settle', 'AccountingInterBranch::postSettle');
+    $routes->get('inter_branch/cancel_form/(:num)', 'AccountingInterBranch::getCancelForm/$1');
+    $routes->post('inter_branch/cancel/(:num)', 'AccountingInterBranch::postCancel/$1');
 });
 
 $routes->group('accounting_periods', static function (RouteCollection $routes): void {

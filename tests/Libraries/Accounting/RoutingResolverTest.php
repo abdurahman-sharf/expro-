@@ -17,11 +17,13 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\ParityCaseTrait;
 
 class RoutingResolverTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
+    use ParityCaseTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -232,7 +234,8 @@ class RoutingResolverTest extends CIUnitTestCase
      * Posting code must not read the routing table itself, because it would take the account of a
      * row without looking at its type. The files below are the ones that read it today, each for a
      * reason that is not choosing an account for a journal line: seeding, the screen, the
-     * readiness check, the entity main account, the opening balance exclusions and the chart.
+     * readiness check, the entity main account, the opening balance exclusions, the chart and the
+     * inventory valuation report, which names the main stock account to tie its total to.
      */
     public function testNoPostingCodeReadsTheRoutingTableExceptThroughTheResolver(): void
     {
@@ -242,6 +245,7 @@ class RoutingResolverTest extends CIUnitTestCase
             'Libraries/Accounting/BankAccountPlacement.php',
             'Libraries/Accounting/DefaultChart.php',
             'Libraries/Accounting/EntityAccountService.php',
+            'Libraries/Accounting/InventoryValuation.php',
             'Libraries/Accounting/OpeningBalanceService.php',
             'Libraries/Accounting/RoutingResolver.php',
             'Libraries/Accounting/RoutingService.php',
@@ -315,5 +319,13 @@ class RoutingResolverTest extends CIUnitTestCase
             $this->assertSame(PostingError::RoutingAccountUnusable, $failure->error);
             $this->assertSame($systemKey, $failure->context['routing_key']);
         }
+    }
+
+    public function testAccountFor_RoutesTheStockPermitsToTheCounterAccountsOfTheReferenceSystem(): void
+    {
+        $case = $this->referenceCase('T-53', 'stock_permit_accounts', 'counter-accounts-of-the-stock-permits', 'exact');
+        $code = fn (RoutingKey $key): string => (string) $this->accountingDb()->table('accounting_accounts')->where('account_id', $this->resolver->accountFor($key))->get()->getRow()->code;
+
+        $this->assertSameAsFixture($case['expected'], ['accounts' => ['in_permit' => $code(RoutingKey::StockPermitAdd), 'out_permit' => $code(RoutingKey::StockPermitIssue)]], 'counter accounts of the permits');
     }
 }

@@ -601,12 +601,12 @@ class Sale extends Model
         }
     }
 
-    private function updateLocked($sale_id, $sale_data): bool
+    private function updateLocked($saleId, $saleData): bool
     {
         $this->accountingFailure = null;
 
         $accounting = (new AccountingSettings($this->db))->isEnabled() ? new SalePosting($this->db) : null;
-        $updateData = $this->keepNumbersOfTheSequences((int) $sale_id, $sale_data);
+        $updateData = $this->keepNumbersOfTheSequences((int) $saleId, $saleData);
         unset($updateData['payments']);
 
         $this->db->transStart();
@@ -623,19 +623,19 @@ class Sale extends Model
                     $changes['date'] = substr((string) $updateData['sale_time'], 0, 10);
                 }
 
-                $accounting->assertEditable((int) $sale_id, $changes);
+                $accounting->assertEditable((int) $saleId, $changes);
             }
 
             $builder = $this->db->table('sales');
-            $builder->where('sale_id', $sale_id);
+            $builder->where('sale_id', $saleId);
             $success = $builder->update($updateData);
 
             // Touch payment only if update sale is successful and there is a payments object otherwise the result would be to delete all the payments associated to the sale
-            if ($success && !empty($sale_data['payments'])) {
+            if ($success && !empty($saleData['payments'])) {
                 $builder = $this->db->table('sales_payments');
 
                 // Add new payments
-                foreach ($sale_data['payments'] as $payment) {
+                foreach ($saleData['payments'] as $payment) {
                     $paymentId = $payment['payment_id'];
                     $paymentType = $payment['payment_type'];
                     $paymentAmount = $payment['payment_amount'];
@@ -644,29 +644,32 @@ class Sale extends Model
                     $employeeId = $payment['employee_id'];
 
                     if ($paymentId == NEW_ENTRY && $paymentAmount != 0) {
+                        [$treasuryId, $treasuryBranchId] = $this->treasuryOfPayment($payment, $employeeId === null ? null : (int) $employeeId, (int) $this->getBranchId((int) $saleId));
+
                         // Add a new payment transaction
                         $salesPaymentsData = [
-                            'sale_id'         => $sale_id,
-                            'payment_type'    => $paymentType,
-                            'payment_amount'  => $paymentAmount,
-                            'cash_refund'     => $cashRefund,
-                            'cash_adjustment' => $cashAdjustment,
-                            'employee_id'     => $employeeId,
-                            'reference_code'  => $payment['reference_code'] ?? '',
-                            'payment_status'  => PaymentStatus::fromStored($payment['payment_status'] ?? null)->value,
-                            'treasury_id'     => $this->treasuryOfPayment($payment, $employeeId === null ? null : (int) $employeeId, (int) $this->getBranchId((int) $sale_id)),
+                            'sale_id'            => $saleId,
+                            'payment_type'       => $paymentType,
+                            'payment_amount'     => $paymentAmount,
+                            'cash_refund'        => $cashRefund,
+                            'cash_adjustment'    => $cashAdjustment,
+                            'employee_id'        => $employeeId,
+                            'reference_code'     => $payment['reference_code'] ?? '',
+                            'payment_status'     => PaymentStatus::fromStored($payment['payment_status'] ?? null)->value,
+                            'treasury_id'        => $treasuryId,
+                            'treasury_branch_id' => $treasuryBranchId,
                         ];
                         $success      = $builder->insert($salesPaymentsData);
                         $newPaymentId = (int) $this->db->insertID();
 
-                        if ($success && $this->isPaymentDocument($payment) && $this->getSaleStatus((int) $sale_id) == COMPLETED) {
-                            (new DocumentNumbering($this->db))->assign(DocumentType::CustomerPayment, 'sales_payments', $newPaymentId, (int) $this->getBranchId((int) $sale_id));
+                        if ($success && $this->isPaymentDocument($payment) && $this->getSaleStatus((int) $saleId) == COMPLETED) {
+                            (new DocumentNumbering($this->db))->assign(DocumentType::CustomerPayment, 'sales_payments', $newPaymentId, (int) $this->getBranchId((int) $saleId));
                         }
                     } elseif ($paymentId != NEW_ENTRY) {
                         $stored = $this->db->table('sales_payments')->select('sale_id')->where('payment_id', $paymentId)->get()->getRow();
 
-                        if ($stored === null || (int) $stored->sale_id !== (int) $sale_id) {
-                            throw new AccountingException(AccountingError::SalePaymentNotOnSale, 'The payment does not belong to this sale.', ['sale_id' => (int) $sale_id]);
+                        if ($stored === null || (int) $stored->sale_id !== (int) $saleId) {
+                            throw new AccountingException(AccountingError::SalePaymentNotOnSale, 'The payment does not belong to this sale.', ['sale_id' => (int) $saleId]);
                         }
 
                         if ($paymentAmount != 0) {
@@ -682,27 +685,28 @@ class Sale extends Model
                                 $salesPaymentsData['payment_status'] = $payment['payment_status'];
                             }
 
-                            $treasuryId = $this->treasuryAfterChange($payment, (int) $paymentId, $employeeId === null ? null : (int) $employeeId, (int) $this->getBranchId((int) $sale_id));
+                            [$treasuryId, $treasuryBranchId] = $this->treasuryAfterChange($payment, (int) $paymentId, $employeeId === null ? null : (int) $employeeId, (int) $this->getBranchId((int) $saleId));
 
                             if (array_key_exists('treasury_id', $payment)) {
-                                $salesPaymentsData['treasury_id'] = $treasuryId;
+                                $salesPaymentsData['treasury_id']        = $treasuryId;
+                                $salesPaymentsData['treasury_branch_id'] = $treasuryBranchId;
                             }
 
-                            $builder->where(['payment_id' => $paymentId, 'sale_id' => $sale_id]);
+                            $builder->where(['payment_id' => $paymentId, 'sale_id' => $saleId]);
                             $success = $builder->update($salesPaymentsData);
                         } else {
                             // Remove existing payment transactions with a payment amount of zero
                             $accounting?->reversePayment((int) $paymentId, $employeeId === null ? null : (int) $employeeId);
-                            $success = $builder->delete(['payment_id' => $paymentId, 'sale_id' => $sale_id]);
+                            $success = $builder->delete(['payment_id' => $paymentId, 'sale_id' => $saleId]);
                         }
                     }
                 }
 
-                $accounting?->syncPayments((int) $sale_id, isset($employeeId) ? (int) $employeeId : null);
+                $accounting?->syncPayments((int) $saleId, isset($employeeId) ? (int) $employeeId : null);
             }
         } catch (Throwable $exception) {
             $this->db->transRollback();
-            $this->recordAccountingFailure((int) $sale_id, $this->asAccountingFailure($exception, (int) $sale_id), $this->employeeOfPayments($sale_data), $this->getBranchId((int) $sale_id));
+            $this->recordAccountingFailure((int) $saleId, $this->asAccountingFailure($exception, (int) $saleId), $this->employeeOfPayments($saleData), $this->getBranchId((int) $saleId));
 
             return false;
         }
@@ -718,17 +722,22 @@ class Sale extends Model
      * has no such treasury, goes to the account of its type as it always did. A payment that is
      * refused by the scope of the treasury is refused with the sale.
      *
+     * The treasury may be one of another branch for an employee who works in both, which the second
+     * value then names.
+     *
      * @param array<string, mixed> $payment
+     *
+     * @return array{?int, ?int} The treasury and the branch it belongs to when that is not the branch of the sale.
      */
-    private function treasuryOfPayment(array $payment, ?int $employeeId, int $branchId): ?int
+    private function treasuryOfPayment(array $payment, ?int $employeeId, int $branchId): array
     {
         $type = PaymentType::fromLabel((string) ($payment['payment_type'] ?? ''));
 
         if ($type === null || ! $type->usesTreasury() || ! empty($payment['cash_adjustment'])) {
-            return null;
+            return [null, null];
         }
 
-        return (new TreasuryService($this->db))->ofPayment((int) ($payment['treasury_id'] ?? 0), $type, $this->directionOf($payment), $employeeId, $branchId);
+        return (new TreasuryService($this->db))->placeOfPayment((int) ($payment['treasury_id'] ?? 0), $type, $this->directionOf($payment), $employeeId, $branchId);
     }
 
     /**
@@ -737,17 +746,20 @@ class Sale extends Model
      * treasuries involved, whether or not the edit names a treasury.
      *
      * @param array<string, mixed> $payment
+     *
+     * @return array{?int, ?int} The treasury and the branch it belongs to when that is not the branch of the sale.
      */
-    private function treasuryAfterChange(array $payment, int $paymentId, ?int $employeeId, int $branchId): ?int
+    private function treasuryAfterChange(array $payment, int $paymentId, ?int $employeeId, int $branchId): array
     {
-        $treasuries = new TreasuryService($this->db);
-        $stored     = $this->db->table('sales_payments')->select('treasury_id, payment_type, payment_amount, cash_refund')->where('payment_id', $paymentId)->get()->getRow();
-        $storedId   = $stored === null || $stored->treasury_id === null ? 0 : (int) $stored->treasury_id;
-        $named      = array_key_exists('treasury_id', $payment);
-        $treasuryId = $named ? (int) $payment['treasury_id'] : $storedId;
+        $treasuries     = new TreasuryService($this->db);
+        $stored         = $this->db->table('sales_payments')->select('treasury_id, treasury_branch_id, payment_type, payment_amount, cash_refund')->where('payment_id', $paymentId)->get()->getRow();
+        $storedId       = $stored === null || $stored->treasury_id === null ? 0 : (int) $stored->treasury_id;
+        $named          = array_key_exists('treasury_id', $payment);
+        $treasuryId     = $named ? (int) $payment['treasury_id'] : $storedId;
+        $treasuryBranch = $stored === null || $stored->treasury_branch_id === null ? null : (int) $stored->treasury_branch_id;
 
         if ($named && $treasuryId > 0 && $treasuryId !== $storedId) {
-            $treasuries->assertForBranch($treasuryId, $branchId);
+            $treasuryBranch = $treasuries->otherBranchOf($treasuryId, $branchId, $employeeId);
         }
 
         $type = PaymentType::fromLabel((string) ($payment['payment_type'] ?? ''));
@@ -766,7 +778,7 @@ class Sale extends Model
             );
         }
 
-        return $treasuryId > 0 ? $treasuryId : null;
+        return $treasuryId > 0 ? [$treasuryId, $treasuryBranch] : [null, null];
     }
 
     /**
@@ -954,7 +966,7 @@ class Sale extends Model
             }
 
             try {
-                $treasuryId = $this->treasuryOfPayment($payment, $employeeId === null ? null : (int) $employeeId, (int) $salesData['branch_id']);
+                [$treasuryId, $treasuryBranchId] = $this->treasuryOfPayment($payment, $employeeId === null ? null : (int) $employeeId, (int) $salesData['branch_id']);
             } catch (AccountingException $refusal) {
                 $this->db->transRollback();
                 $this->recordAccountingFailure($saleId, $refusal, $employeeId, (int) $salesData['branch_id']);
@@ -963,14 +975,15 @@ class Sale extends Model
             }
 
             $salesPaymentsData = [
-                'sale_id'         => $saleId,
-                'payment_type'    => $payment['payment_type'],
-                'payment_amount'  => $payment['payment_amount'],
-                'cash_refund'     => $payment['cash_refund'],
-                'cash_adjustment' => $payment['cash_adjustment'],
-                'employee_id'     => $employeeId,
-                'reference_code'  => $payment['reference_code'] ?? '',
-                'treasury_id'     => $treasuryId,
+                'sale_id'            => $saleId,
+                'payment_type'       => $payment['payment_type'],
+                'payment_amount'     => $payment['payment_amount'],
+                'cash_refund'        => $payment['cash_refund'],
+                'cash_adjustment'    => $payment['cash_adjustment'],
+                'employee_id'        => $employeeId,
+                'reference_code'     => $payment['reference_code'] ?? '',
+                'treasury_id'        => $treasuryId,
+                'treasury_branch_id' => $treasuryBranchId,
             ];
 
             $builder = $this->db->table('sales_payments');

@@ -1,0 +1,237 @@
+{
+  "id": "T-26",
+  "title": "A discount of 3.3% on the whole invoice, over two lines of 200.00 and 155.55 with 15% tax: the customer owes 395.39 in both systems, the reference system keeps the share of the discount unrounded and this application rounds the tax of each line",
+  "recorded": "2026-10-27",
+  "observation": {
+    "batch": "d1",
+    "scenarios": [
+      "D1-S3"
+    ]
+  },
+  "evidence": {
+    "invoice_000028": {
+      "id": null,
+      "note": "Invoice 000028: two lines of 200.00 and 155.55 with VAT 15%, a discount of 3.3% typed on the whole invoice, saved; journal 000137 of 25/10/2026",
+      "observation": [
+        "pw-d1-7",
+        "pw-d1-8"
+      ]
+    },
+    "printed_invoice": {
+      "id": null,
+      "note": "The printed invoice 000028 and the form before saving: subtotal 355.55, discount 11.73, VAT 51.57, total 395.39",
+      "observation": [
+        "pw-d1-9",
+        "pw-d1-10"
+      ]
+    },
+    "items_report": {
+      "id": null,
+      "note": "The report of items sold for invoice 000028: the discount of each line 6.60 and 5.13 and its tax 29.01 and 22.56",
+      "observation": [
+        "pw-d1-37"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "percent-discount-3-3-journal",
+      "kind": "invoice_journal",
+      "classification": "differs",
+      "reason": "The reference system stores the share of the discount unrounded on every line, so the tax is 51.5725275 and the sales 343.8174725. The register of this application rounds the tax of each line to the decimals of the tax setting (two by default, four at most) and the sales are the rest, so the total of 395.39 is the same and only the stored decimals differ.",
+      "evidence": [
+        "invoice_000028"
+      ],
+      "inputs": {
+        "lines": [
+          {
+            "item": "service",
+            "quantity": "1",
+            "price": "200.00",
+            "discount": "0",
+            "tax_percent": "15"
+          },
+          {
+            "item": "service",
+            "quantity": "1",
+            "price": "155.55",
+            "discount": "0",
+            "tax_percent": "15"
+          }
+        ],
+        "invoice_discount": {
+          "type": "percent",
+          "value": "3.3"
+        },
+        "tax_decimals": "2"
+      },
+      "reference": {
+        "journals": {
+          "invoice": [
+            {
+              "role": "customer",
+              "debit": "395.39",
+              "credit": "0",
+              "code": "12041005",
+              "name": "افتراضي-D1 عميل"
+            },
+            {
+              "role": "sales_revenue",
+              "debit": "0",
+              "credit": "343.8174725",
+              "code": "411",
+              "name": "المبيعات"
+            },
+            {
+              "role": "tax_output",
+              "debit": "0",
+              "credit": "51.5725275",
+              "code": "215001",
+              "name": "القيمة المضافة المحصلة"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "journals": {
+          "invoice": [
+            {
+              "role": "customer",
+              "debit": "395.39",
+              "credit": "0"
+            },
+            {
+              "role": "sales_revenue",
+              "debit": "0",
+              "credit": "343.82"
+            },
+            {
+              "role": "tax_output",
+              "debit": "0",
+              "credit": "51.57"
+            }
+          ]
+        },
+        "detail": {
+          "at_four_tax_decimals": {
+            "invoice": [
+              {
+                "role": "customer",
+                "debit": "395.39",
+                "credit": "0"
+              },
+              {
+                "role": "sales_revenue",
+                "debit": "0",
+                "credit": "343.817"
+              },
+              {
+                "role": "tax_output",
+                "debit": "0",
+                "credit": "51.573"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "percent-discount-3-3-printed-figures",
+      "kind": "invoice_figures",
+      "classification": "exact",
+      "evidence": [
+        "printed_invoice"
+      ],
+      "inputs": {
+        "lines": [
+          {
+            "item": "service",
+            "quantity": "1",
+            "price": "200.00",
+            "discount": "0",
+            "tax_percent": "15"
+          },
+          {
+            "item": "service",
+            "quantity": "1",
+            "price": "155.55",
+            "discount": "0",
+            "tax_percent": "15"
+          }
+        ],
+        "invoice_discount": {
+          "type": "percent",
+          "value": "3.3"
+        },
+        "tax_decimals": "2"
+      },
+      "reference": {
+        "figures": {
+          "subtotal": "355.55",
+          "discount": "11.73",
+          "tax": "51.57",
+          "total": "395.39"
+        }
+      },
+      "expected": {
+        "figures": {
+          "subtotal": "355.55",
+          "discount": "11.73",
+          "tax": "51.57",
+          "total": "395.39"
+        }
+      }
+    },
+    {
+      "id": "percent-discount-3-3-line-shares",
+      "kind": "invoice_shares",
+      "classification": "exact",
+      "evidence": [
+        "items_report"
+      ],
+      "inputs": {
+        "lines": [
+          {
+            "item": "service",
+            "quantity": "1",
+            "price": "200.00",
+            "discount": "0",
+            "tax_percent": "15"
+          },
+          {
+            "item": "service",
+            "quantity": "1",
+            "price": "155.55",
+            "discount": "0",
+            "tax_percent": "15"
+          }
+        ],
+        "invoice_discount": {
+          "type": "percent",
+          "value": "3.3"
+        },
+        "tax_decimals": "2"
+      },
+      "reference": {
+        "line_shares": [
+          "6.60",
+          "5.13"
+        ],
+        "line_taxes": [
+          "29.01",
+          "22.56"
+        ]
+      },
+      "expected": {
+        "line_shares": [
+          "6.60",
+          "5.13"
+        ],
+        "line_taxes": [
+          "29.01",
+          "22.56"
+        ]
+      }
+    }
+  ]
+}
