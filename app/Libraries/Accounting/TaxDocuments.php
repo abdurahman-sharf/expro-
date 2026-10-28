@@ -13,14 +13,14 @@ use Config\Database;
  */
 final class TaxDocuments
 {
-    private const CHUNK      = 500;
+    public const CHUNK       = 500;
     private const WORK_SCALE = 8;
     private const SCALE      = 4;
 
     private BaseConnection $db;
     private int $decimals;
 
-    public function __construct(?BaseConnection $db = null, ?int $decimals = null)
+    public function __construct(?BaseConnection $db = null, ?int $decimals = null, private readonly int $chunk = self::CHUNK)
     {
         $this->db       = $db ?? Database::connect();
         $this->decimals = $decimals ?? totals_decimals();
@@ -35,7 +35,7 @@ final class TaxDocuments
     {
         $found = [];
 
-        foreach (array_chunk(array_values(array_unique($saleIds)), self::CHUNK) as $chunk) {
+        foreach (array_chunk(array_values(array_unique($saleIds)), $this->chunk) as $chunk) {
             $sections = $this->saleSections($chunk);
 
             if ($sections === []) {
@@ -75,7 +75,7 @@ final class TaxDocuments
     {
         $found = [];
 
-        foreach (array_chunk(array_values(array_unique($receivingIds)), self::CHUNK) as $chunk) {
+        foreach (array_chunk(array_values(array_unique($receivingIds)), $this->chunk) as $chunk) {
             $sections = $this->purchaseSections($chunk);
 
             if ($sections === []) {

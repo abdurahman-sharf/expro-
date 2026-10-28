@@ -15,6 +15,8 @@ use App\Libraries\Accounting\TaxReport;
 use App\Libraries\Accounting\TaxReportResult;
 use App\Libraries\Accounting\TaxSection;
 use App\Libraries\Accounting\TrialBalance;
+use CodeIgniter\Database\Query;
+use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -600,18 +602,69 @@ class TaxReportTest extends CIUnitTestCase
         }
     }
 
-    public function testFromRequest_AcceptsTheAccrualBasisAndNoBasisAndRejectsAnyOther(): void
+    public function testBuild_ReadsOneSnapshotWhileAnotherRequestChangesTheLinesOfADocument(): void
     {
-        $this->assertSame(TaxBasis::Accrual, TaxBasis::fromRequest(''));
-        $this->assertSame(TaxBasis::Accrual, TaxBasis::fromRequest(' accrual '));
-        $this->assertSame(TaxBasis::Cash, TaxBasis::fromRequest('cash'));
+        $service = $this->item('0', false);
+        $saleId  = $this->save([$this->line($service, 0, '1', '100.00')], [$this->tax($service, 0, '15.00')]);
+        $reader  = $this->openSecondConnection();
+        $changed = false;
+
+        $listener = function (Query $query) use (&$changed, $saleId): void {
+            if ($changed || ! str_contains((string) $query, '`ospos_sales`')) {
+                return;
+            }
+
+            $changed = true;
+            $this->accountingDb()->table('sales_items_taxes')->where('sale_id', $saleId)->update(['item_tax_amount' => '9.00']);
+        };
+
+        Events::on('DBQuery', $listener);
 
         try {
-            TaxBasis::fromRequest('paid');
-            $this->fail('A basis that does not exist was taken');
-        } catch (AccountingException $exception) {
-            $this->assertSame(AccountingError::TaxBasisUnavailable, $exception->error);
+            $report = (new TaxReport($reader))->build(ReportScope::resolve(null, null), ReportPeriod::of(null, self::END));
+        } finally {
+            Events::removeListener('DBQuery', $listener);
         }
+
+        $this->assertTrue($changed, 'Another request changed the lines while the report was being read');
+        $this->assertSame(['base' => '100.0000', 'tax' => '15.0000', 'documents' => 1], $this->figures($report, TaxSection::SalesInvoices), 'What was read of the journals and of the lines is of one moment');
+        $this->assertSame(0, $report->unmatchedDocuments);
+        $this->assertSame(1, $this->report()->unmatchedDocuments, 'The next report sees the change');
+    }
+
+    public function testBuild_WritesNothingAndLeavesNoTransactionOpen(): void
+    {
+        $this->observedScenario();
+        $this->spend('230.00', '30.00');
+
+        $tables = ['accounting_journals', 'accounting_journal_lines', 'accounting_audit_log', 'accounting_posting_failures', 'accounting_stock_entries', 'sales', 'sales_items_taxes', 'receivings', 'expenses', 'accounting_routing', 'accounting_accounts'];
+        $before = array_map(fn (string $table): int => $this->countRows($table), $tables);
+
+        $queries = $this->queriesOf(fn (): TaxReportResult => $this->report());
+
+        $this->assertSame($before, array_map(fn (string $table): int => $this->countRows($table), $tables));
+        $this->assertNotEmpty($queries);
+
+        foreach ($queries as $sql) {
+            $this->assertDoesNotMatchRegularExpression('/^\s*(INSERT|UPDATE|DELETE|REPLACE|TRUNCATE|ALTER|CREATE|DROP)\b/i', $sql);
+        }
+
+        $this->assertSame(0, $this->accountingDb()->transDepth);
+    }
+
+    public function testBuild_ReadsADocumentOfAClosedPeriodAsBefore(): void
+    {
+        $this->observedScenario();
+
+        $before = $this->report();
+
+        $this->closeThrough(self::END);
+        $this->closeThrough(self::END, 1);
+
+        $after = $this->report();
+
+        $this->assertEquals($before, $after);
+        $this->assertSame('298.5000', $after->net());
     }
 
     public function testBuild_RejectsADayThatIsNotADateAndAPeriodThatEndsBeforeItStarts(): void

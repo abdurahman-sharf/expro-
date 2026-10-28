@@ -27,9 +27,4 @@ final readonly class TaxSectionFigures
         public string $discountedTax,
     ) {
     }
-
-    public function isEmpty(): bool
-    {
-        return $this->documents === 0 && bccomp($this->tax, '0', 4) === 0;
-    }
 }
