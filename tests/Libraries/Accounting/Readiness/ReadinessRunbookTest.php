@@ -47,10 +47,18 @@ class ReadinessRunbookTest extends CIUnitTestCase
         $steps = ReadinessRunbook::steps([]);
 
         $this->assertContains('php spark accounting:readiness', $steps[1]['commands']);
-        $this->assertContains('php spark accounting:readiness --json > readiness-before.json', $steps[1]['commands']);
+        $this->assertContains('php spark accounting:readiness --json --no-header > readiness-before.json', $steps[1]['commands']);
         $this->assertContains('php spark accounting:readiness', $steps[4]['commands']);
         $this->assertContains('php spark accounting:bank_accounts', $steps[4]['commands']);
         $this->assertContains('php spark accounting:check_locks', $steps[4]['commands']);
+    }
+
+    public function testSteps_KeepsTheSparkBannerOutOfTheSavedJson(): void
+    {
+        $step = ReadinessRunbook::steps([])[1];
+
+        $this->assertStringContainsString('--no-header', implode("\n", array_filter($step['commands'], static fn (string $command): bool => str_contains($command, '--json'))));
+        $this->assertStringContainsString('without it spark prints its own banner', implode("\n", $step['notes']));
     }
 
     public function testSteps_NamesTheCommandsThatDecideWhatTheReportFails(): void

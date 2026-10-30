@@ -33,11 +33,12 @@ final class ReadinessRunbook
                 'title'    => 'Readiness before the migrations',
                 'commands' => [
                     'php spark accounting:readiness',
-                    'php spark accounting:readiness --json > readiness-before.json',
+                    'php spark accounting:readiness --json --no-header > readiness-before.json',
                 ],
                 'notes' => [
                     'Exit code 0 is required to go on. Every FAIL is fixed in the next step, or the owner accepts it in writing.',
                     'The report only reads. Nothing is stamped, moved or decided by it.',
+                    'Ask for --no-header together with --json: without it spark prints its own banner before the JSON and the file is not valid JSON.',
                 ],
             ],
             [

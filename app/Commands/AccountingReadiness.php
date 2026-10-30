@@ -19,7 +19,7 @@ class AccountingReadiness extends BaseCommand
     protected $usage       = 'accounting:readiness [--json] [--limit N] [--apply]';
     protected $description = 'Runs every check of an owner database read-only (historical data, the books, the ties between accounts, the grants, the activation state and the migrations) and ends with the runbook. Exits 0 only when nothing failed and nothing broke, and 1 otherwise.';
     protected $options     = [
-        '--json'  => 'Print the report as JSON and nothing else.',
+        '--json'  => 'Print the report as JSON and nothing else (add spark\'s own --no-header, or its banner comes first).',
         '--limit' => 'How many findings to print for each check (default 20, 0 for all). The JSON always has all of them.',
         '--apply' => 'After the report, run the existing commands that clear what failed, each with its own apply flag (accounting:stamp_payments --apply and accounting:bank_accounts --move), then report again. Nothing else is ever written. Not with --json.',
     ];
