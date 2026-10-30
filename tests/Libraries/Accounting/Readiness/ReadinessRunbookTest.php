@@ -109,4 +109,18 @@ class ReadinessRunbookTest extends CIUnitTestCase
             $this->assertNotSame([], $step['notes']);
         }
     }
+
+    public function testSteps_AgreeCommandForCommandWithTheRunbookDocument(): void
+    {
+        $document = file_get_contents(ROOTPATH . 'docs/accounting/readiness-runbook.md');
+        $section  = substr($document, strpos($document, '## 3.'), strpos($document, '## 4.') - strpos($document, '## 3.'));
+
+        preg_match_all('/```\n(.*?)\n```/s', $section, $blocks);
+
+        $documented = array_values(array_filter(array_map('trim', explode("\n", implode("\n", $blocks[1])))));
+        $built      = array_merge(...array_column(ReadinessRunbook::steps([]), 'commands'));
+
+        $this->assertSame($built, $documented);
+        $this->assertSame(count(ReadinessRunbook::steps([])), substr_count($section, "\n### "));
+    }
 }
