@@ -556,17 +556,17 @@ class Sale_lib
      * The document a return in the register is issued as: a credit note unless it was asked to be a
      * refund invoice.
      */
-    public function get_return_document(): ReturnDocument
+    public function getReturnDocument(): ReturnDocument
     {
         return ReturnDocument::fromStored($this->session->get('sales_return_document'));
     }
 
-    public function set_return_document(ReturnDocument $document): void
+    public function setReturnDocument(ReturnDocument $document): void
     {
         $document === ReturnDocument::CreditNote ? $this->session->remove('sales_return_document') : $this->session->set('sales_return_document', $document->value);
     }
 
-    public function clear_return_document(): void
+    public function clearReturnDocument(): void
     {
         $this->session->remove('sales_return_document');
     }
@@ -1558,11 +1558,7 @@ class Sale_lib
         return $result;
     }
 
-    /**
-     * @param int $sale_id
-     * @return void
-     */
-    public function copy_entire_sale(int $sale_id): void
+    public function copy_entire_sale(int $saleId): void
     {
         $this->empty_cart();
         $this->remove_customer();
@@ -1570,10 +1566,10 @@ class Sale_lib
 
         $storedShares = [];
 
-        foreach ($this->sale->get_sale_items_ordered($sale_id)->getResult() as $row) {
+        foreach ($this->sale->get_sale_items_ordered($saleId)->getResult() as $row) {
             $linesBefore = count($this->session->get('sales_cart') ?? []);
 
-            $this->add_item($row->item_id, $row->item_location, $row->quantity_purchased, $row->discount, $row->discount_type, PRICE_MODE_STANDARD, null, null, $row->item_unit_price, $row->description, $row->serialnumber, $sale_id, true, $row->print_option);
+            $this->add_item($row->item_id, $row->item_location, $row->quantity_purchased, $row->discount, $row->discount_type, PRICE_MODE_STANDARD, null, null, $row->item_unit_price, $row->description, $row->serialnumber, $saleId, true, $row->print_option);
 
             if ($row->invoice_discount_share !== null) {
                 $line = $this->cartLineOf($linesBefore, (int) $row->item_id, (int) $row->item_location);
@@ -1581,23 +1577,23 @@ class Sale_lib
             }
         }
 
-        $this->restoreInvoiceDiscount($sale_id, $storedShares);
+        $this->restoreInvoiceDiscount($saleId, $storedShares);
 
         $this->session->set('cash_mode', CASH_MODE_FALSE);
 
         // Establish cash_mode for this sale by inspecting the payments
         if ($this->session->get('cash_rounding')) {
-            $cash_types_only = true;
-            foreach ($this->sale->get_sale_payments($sale_id)->getResult() as $row) {
+            $cashTypesOnly = true;
+            foreach ($this->sale->get_sale_payments($saleId)->getResult() as $row) {
                 if ($row->payment_type != lang('Sales.cash') && $row->payment_type != lang('Sales.cash_adjustment')) {
-                    $cash_types_only = false;
+                    $cashTypesOnly = false;
                 }
             }
             // TODO: Consider converting to ternary notation.
-            //$cash_types_only
+            //$cashTypesOnly
             // ? $this->session->set('cash_mode', CASH_MODE_TRUE)
             // : $this->session->set('cash_mode', CASH_MODE_FALSE);
-            if ($cash_types_only) {
+            if ($cashTypesOnly) {
                 $this->session->set('cash_mode', CASH_MODE_TRUE);
             } else {
                 $this->session->set('cash_mode', CASH_MODE_FALSE);
@@ -1605,21 +1601,21 @@ class Sale_lib
         }
 
         // Now load payments
-        foreach ($this->sale->get_sale_payments($sale_id)->getResult() as $row) {
+        foreach ($this->sale->get_sale_payments($saleId)->getResult() as $row) {
             $this->addPayment($row->payment_type, $row->payment_amount, $row->reference_code ?? null, $row->cash_adjustment, (int) ($row->treasury_id ?? 0));
         }
 
-        $this->set_customer($this->sale->get_customer($sale_id)->person_id);
-        $this->set_employee($this->sale->get_employee($sale_id)->person_id);
-        $this->set_quote_number($this->sale->get_quote_number($sale_id));
-        $this->set_work_order_number($this->sale->get_work_order_number($sale_id));
-        $this->set_sale_type($this->sale->get_sale_type($sale_id));
-        $this->set_comment($this->sale->get_comment($sale_id));
-        $this->set_dinner_table($this->sale->get_dinner_table($sale_id));
-        $this->set_delivered($this->sale->isDelivered($sale_id));
-        $this->set_return_origin($this->sale->getReturnOrigin($sale_id));
-        $this->set_return_document($this->sale->getReturnDocument($sale_id));
-        $this->session->set('sale_id', $sale_id);
+        $this->set_customer($this->sale->get_customer($saleId)->person_id);
+        $this->set_employee($this->sale->get_employee($saleId)->person_id);
+        $this->set_quote_number($this->sale->get_quote_number($saleId));
+        $this->set_work_order_number($this->sale->get_work_order_number($saleId));
+        $this->set_sale_type($this->sale->get_sale_type($saleId));
+        $this->set_comment($this->sale->get_comment($saleId));
+        $this->set_dinner_table($this->sale->get_dinner_table($saleId));
+        $this->set_delivered($this->sale->isDelivered($saleId));
+        $this->set_return_origin($this->sale->getReturnOrigin($saleId));
+        $this->setReturnDocument($this->sale->getReturnDocument($saleId));
+        $this->session->set('sale_id', $saleId);
     }
 
     /**
@@ -1697,7 +1693,7 @@ class Sale_lib
         $this->clear_invoice_number();
         $this->clear_delivered();
         $this->clear_return_origin();
-        $this->clear_return_document();
+        $this->clearReturnDocument();
         $this->clearInvoiceDiscount();
         $this->clear_quote_number();
         $this->clear_work_order_number();

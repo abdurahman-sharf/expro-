@@ -209,34 +209,34 @@ class Sale_libTest extends CIUnitTestCase
 
     public function testGetReturnDocument_IsACreditNoteUntilARefundInvoiceIsAskedFor(): void
     {
-        $this->assertSame(ReturnDocument::CreditNote, $this->saleLib->get_return_document());
+        $this->assertSame(ReturnDocument::CreditNote, $this->saleLib->getReturnDocument());
 
-        $this->saleLib->set_return_document(ReturnDocument::RefundInvoice);
+        $this->saleLib->setReturnDocument(ReturnDocument::RefundInvoice);
 
-        $this->assertSame(ReturnDocument::RefundInvoice, $this->saleLib->get_return_document());
+        $this->assertSame(ReturnDocument::RefundInvoice, $this->saleLib->getReturnDocument());
         $this->assertSame('refund_invoice', session()->get('sales_return_document'));
 
-        $this->saleLib->set_return_document(ReturnDocument::CreditNote);
+        $this->saleLib->setReturnDocument(ReturnDocument::CreditNote);
 
-        $this->assertSame(ReturnDocument::CreditNote, $this->saleLib->get_return_document());
+        $this->assertSame(ReturnDocument::CreditNote, $this->saleLib->getReturnDocument());
         $this->assertNull(session()->get('sales_return_document'));
 
-        $this->saleLib->set_return_document(ReturnDocument::RefundInvoice);
-        $this->saleLib->clear_return_document();
+        $this->saleLib->setReturnDocument(ReturnDocument::RefundInvoice);
+        $this->saleLib->clearReturnDocument();
 
-        $this->assertSame(ReturnDocument::CreditNote, $this->saleLib->get_return_document());
+        $this->assertSame(ReturnDocument::CreditNote, $this->saleLib->getReturnDocument());
     }
 
     public function testClearAll_ForgetsTheDeliveryTheOriginAndTheDocumentOfTheSaleBeingMade(): void
     {
         $this->saleLib->set_delivered(false);
         $this->saleLib->set_return_origin(42);
-        $this->saleLib->set_return_document(ReturnDocument::RefundInvoice);
+        $this->saleLib->setReturnDocument(ReturnDocument::RefundInvoice);
         $this->saleLib->clear_all();
 
         $this->assertTrue($this->saleLib->is_delivered());
         $this->assertNull($this->saleLib->get_return_origin());
-        $this->assertSame(ReturnDocument::CreditNote, $this->saleLib->get_return_document());
+        $this->assertSame(ReturnDocument::CreditNote, $this->saleLib->getReturnDocument());
     }
 
     public function testCopyEntireSale_TakesOverWhetherTheGoodsLeftWhichSaleAReturnComesFromAndWhichDocumentItIs(): void
@@ -264,7 +264,7 @@ class Sale_libTest extends CIUnitTestCase
 
         $this->assertFalse($saleLib->is_delivered());
         $this->assertSame(42, $saleLib->get_return_origin());
-        $this->assertSame(ReturnDocument::RefundInvoice, $saleLib->get_return_document());
+        $this->assertSame(ReturnDocument::RefundInvoice, $saleLib->getReturnDocument());
     }
 
     public function testReturnEntireSale_NamesTheSaleAsTheOriginAndTakesBackOnlyWhatHasNotComeBack(): void

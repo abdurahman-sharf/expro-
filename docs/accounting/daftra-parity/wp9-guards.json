@@ -104,7 +104,7 @@
  {
   "name": "G11 clearing the register forgets the document of the return",
   "file": "app/Libraries/Sale_lib.php",
-  "find": "        $this->clear_return_origin();\n        $this->clear_return_document();\n",
+  "find": "        $this->clear_return_origin();\n        $this->clearReturnDocument();\n",
   "replace": "        $this->clear_return_origin();\n",
   "tests": [
    "tests/Libraries/Sale_libTest.php"
@@ -113,7 +113,7 @@
  {
   "name": "G12 loading a sale into the register takes over the document it was issued as",
   "file": "app/Libraries/Sale_lib.php",
-  "find": "        $this->set_return_document($this->sale->getReturnDocument($sale_id));\n",
+  "find": "        $this->setReturnDocument($this->sale->getReturnDocument($sale_id));\n",
   "replace": "",
   "tests": [
    "tests/Libraries/Sale_libTest.php"
@@ -122,7 +122,7 @@
  {
   "name": "G13 the document asked for is the one the register keeps",
   "file": "app/Controllers/Sales.php",
-  "find": "        $this->sale_lib->set_return_document($document);\n",
+  "find": "        $this->sale_lib->setReturnDocument($document);\n",
   "replace": "",
   "tests": [
    "--filter",
@@ -177,8 +177,8 @@
  {
   "name": "G18 a document that is not one of the two is a credit note",
   "file": "app/Controllers/Sales.php",
-  "find": "$this->sale_lib->set_return_document(ReturnDocument::fromStored((string) $this->request->getPost('return_document')));",
-  "replace": "$this->sale_lib->set_return_document(ReturnDocument::from((string) $this->request->getPost('return_document')));",
+  "find": "$this->sale_lib->setReturnDocument(ReturnDocument::fromStored((string) $this->request->getPost('return_document')));",
+  "replace": "$this->sale_lib->setReturnDocument(ReturnDocument::from((string) $this->request->getPost('return_document')));",
   "tests": [
    "--filter",
    "testPostSetReturnDocument",
@@ -188,7 +188,7 @@
  {
   "name": "G19 changing the mode of the register forgets the refund invoice",
   "file": "app/Controllers/Sales.php",
-  "find": "            $this->sale_lib->clearInvoiceDiscount();\n            $this->sale_lib->clear_return_document();\n",
+  "find": "            $this->sale_lib->clearInvoiceDiscount();\n            $this->sale_lib->clearReturnDocument();\n",
   "replace": "            $this->sale_lib->clearInvoiceDiscount();\n",
   "tests": [
    "--filter",
@@ -199,7 +199,7 @@
  {
   "name": "G20 the register saves the return as the document it was asked to be",
   "file": "app/Controllers/Sales.php",
-  "find": "$invoiceDiscount, $this->sale_lib->get_return_document());",
+  "find": "$invoiceDiscount, $this->sale_lib->getReturnDocument());",
   "replace": "$invoiceDiscount);",
   "tests": [
    "--filter",

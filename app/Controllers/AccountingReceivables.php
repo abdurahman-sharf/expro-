@@ -8,6 +8,7 @@ use App\Libraries\Accounting\CustomerPosition;
 use App\Libraries\Accounting\PaymentStatus;
 use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\ReturnDocument;
+use App\Libraries\Accounting\SaleAmounts;
 use App\Libraries\Organization\BranchService;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\HTTP\ResponseInterface;
@@ -288,16 +289,16 @@ class AccountingReceivables extends AccountingController
      */
     private function paymentRow(object $payment, bool $seesBranches): array
     {
-        $amount = bcadd((string) $payment->amount, '0', 4);
-        $posted = bcadd((string) $payment->posted, '0', 4);
+        $amount = bcadd((string) $payment->amount, '0', SaleAmounts::SCALE);
+        $posted = bcadd((string) $payment->posted, '0', SaleAmounts::SCALE);
         $number = $payment->document_number !== null ? (string) $payment->document_number : (string) $payment->payment_id;
         $type   = PaymentType::fromLabel((string) $payment->payment_type);
         $status = PaymentStatus::fromStored((string) $payment->payment_status);
 
         $tie = match (true) {
-            bccomp($posted, $amount, 2) === 0 && bccomp($posted, '0', 2) !== 0 => 'booked',
-            bccomp($posted, '0', 2) === 0                                      => 'unbooked',
-            default                                                            => 'differs',
+            bccomp($posted, $amount, SaleAmounts::SCALE) === 0 && bccomp($posted, '0', SaleAmounts::SCALE) !== 0 => 'booked',
+            bccomp($posted, '0', SaleAmounts::SCALE) === 0                                                       => 'unbooked',
+            default                                                                                              => 'differs',
         };
 
         return [

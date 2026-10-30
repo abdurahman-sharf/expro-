@@ -56,6 +56,7 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
     {
         $this->accountingDb()->table('document_numbers')->truncate();
         $this->accountingDb()->table('document_sequences')->truncate();
+        $this->accountingDb()->table('giftcards')->where('giftcard_number', 7774321)->delete();
 
         $this->stopSelling();
 
@@ -900,6 +901,145 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
         $this->assertStringStartsWith('HQ - ', $rows[$first]['branch']);
         $this->assertSame('B2 - Second branch', $rows[$second]['branch']);
         $this->assertSame([$second], array_column($this->creditNotesOf('?branch_id=' . $branch)['rows'], 'sale_id'));
+    }
+
+    public function testGetPaymentsSearch_TiesAnEditedPaymentToItsNewJournalAndNotToTheOneItReversed(): void
+    {
+        $saleId    = $this->invoiceOf('100.00');
+        $paymentId = $this->addPayment($saleId, '40.00');
+
+        $this->assertTrue($this->sales->update($saleId, ['comment' => 'corrected', 'payments' => [
+            ['payment_id' => $paymentId, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '50.00', 'cash_refund' => 0, 'cash_adjustment' => 0, 'employee_id' => $this->employeeId, 'reference_code' => null],
+        ]]));
+        $this->viewer();
+
+        $statuses = array_column($this->accountingDb()->table('accounting_journals')->select('status')->where(['source_type' => 'sale_payment', 'source_id' => $paymentId])->orderBy('journal_id')->get()->getResultArray(), 'status');
+        $result   = $this->paymentsOf();
+        $row      = $result['rows'][0];
+
+        $this->assertSame(['reversed', 'posted'], $statuses);
+        $this->assertSame(1, $result['total']);
+        $this->assertStringContainsString('50.00', $row['amount']);
+        $this->assertStringContainsString('50.00', $row['posted']);
+        $this->assertStringNotContainsString('90.00', $row['posted']);
+        $this->assertStringContainsString(lang('Accounting_receivables.tie_booked'), $row['posted']);
+        $this->assertSame(strip_tags($result['sum_amount']), strip_tags($result['sum_posted']));
+        $this->assertStringNotContainsString('90.00', $result['sum_posted']);
+    }
+
+    public function testGetPaymentsSearch_SaysDiffersWhenTheJournalOfAPaymentIsOffByLessThanACent(): void
+    {
+        $saleId = $this->invoiceOf('100.00');
+        $large  = $this->addPayment($saleId, '40.00');
+        $small  = $this->addPayment($saleId, '0.01');
+        $this->accountingDb()->table('accounting_journals')->where(['source_type' => 'sale_payment', 'source_id' => $large])->update(['total_debit' => '40.0050']);
+        $this->accountingDb()->table('accounting_journals')->where(['source_type' => 'sale_payment', 'source_id' => $small])->update(['total_debit' => '0.0050']);
+        $this->viewer();
+
+        $rows = [];
+
+        foreach ($this->paymentsOf()['rows'] as $row) {
+            $rows[$row['payment_id']] = $row;
+        }
+
+        $this->assertStringContainsString(lang('Accounting_receivables.tie_differs'), $rows[$large]['posted']);
+        $this->assertStringContainsString(lang('Accounting_receivables.tie_differs'), $rows[$small]['posted']);
+    }
+
+    public function testGetPaymentsSearch_EscapesWhatStaffTypedInEveryCellOfTheList(): void
+    {
+        $customer   = ['<img src=x onerror=alert(1)>', 'O\'Hara & "Sons"'];
+        $collector  = ['<script>alert(2)</script>', 'Nur & "Co"'];
+        $drawerName = '<i>Drawer</i> & "Safe"';
+
+        $this->renamePerson($this->customerId, $customer[0], $customer[1]);
+        $this->renamePerson($this->employeeId, $collector[0], $collector[1]);
+
+        $branch = $this->createBranch('<u>B2</u>', 'Second & "Branch"');
+        $this->accountingDb()->table('grants')->insert(['person_id' => $this->employeeId, 'permission_id' => BranchGuard::ALL_BRANCHES, 'menu_group' => 'home']);
+
+        $treasuries = new TreasuryService();
+        $drawer     = $treasuries->create(['name' => $drawerName, 'kind' => 'cash', 'branch_id' => $branch]);
+
+        $treasuries->setDefaultFor($this->employeeId, $drawer);
+
+        $saleId = $this->invoiceInBranch($branch, '100.00');
+        $this->accountingDb()->table('sales')->where('sale_id', $saleId)->update(['invoice_number' => '<b>INV</b>-1']);
+
+        $paymentId = $this->addPayment($saleId, '60.00', lang('Sales.check'));
+        $this->accountingDb()->table('sales_payments')->where('payment_id', $paymentId)->update(['reference_code' => '<b>CHQ</b>']);
+        $this->accountingDb()->table('document_numbers')->insert(['company_id' => 1, 'doc_type' => DocumentType::CustomerPayment->value, 'source_table' => 'sales_payments', 'source_id' => $paymentId, 'sequence_number' => 1, 'number' => '<b>PAY</b>-1']);
+        $this->viewer();
+
+        $row = $this->paymentsOf()['rows'][0];
+
+        $this->assertSame($paymentId, $row['payment_id']);
+        $this->assertEscaped($customer[0] . ' ' . $customer[1], $row['customer_name']);
+        $this->assertEscaped($collector[0] . ' ' . $collector[1], $row['collected_by']);
+        $this->assertEscaped($drawerName, $row['treasury']);
+        $this->assertEscaped('<b>INV</b>-1', $row['sale']);
+        $this->assertEscaped('<b>CHQ</b>', $row['way']);
+        $this->assertEscaped('<b>PAY</b>-1', $row['number']);
+        $this->assertEscaped('<u>B2</u> - Second & "Branch"', $row['branch']);
+    }
+
+    public function testGetPaymentsSearch_NamesTheWayOfPaymentWithItsGiftCardAndItsReferenceAndEscapesWhatItCannotName(): void
+    {
+        $this->accountingDb()->table('giftcards')->insert(['giftcard_number' => 7774321, 'value' => 500, 'deleted' => 0, 'person_id' => null]);
+
+        $sale  = $this->invoiceOf('300.00');
+        $card  = $this->addPayment($sale, '30.00', lang('Sales.giftcard') . ':7774321');
+        $check = $this->addPayment($sale, '20.00', lang('Sales.check'));
+        $odd   = $this->addPayment($sale, '10.00');
+        $this->accountingDb()->table('sales_payments')->where('payment_id', $card)->update(['payment_type' => lang('Sales.giftcard') . ':7774321']);
+        $this->accountingDb()->table('sales_payments')->where('payment_id', $check)->update(['reference_code' => '<b>CHQ</b>']);
+        $this->accountingDb()->table('sales_payments')->where('payment_id', $odd)->update(['payment_type' => '<u>Weird</u>:<i>1</i>']);
+        $this->viewer();
+
+        $ways = [];
+
+        foreach ($this->paymentsOf()['rows'] as $row) {
+            $ways[$row['payment_id']] = $row['way'];
+        }
+
+        $this->assertSame(esc(lang('Sales.giftcard') . ':7774321'), $ways[$card]);
+        $this->assertSame(esc(lang('Sales.check')) . ' <bdi dir="ltr">' . esc('<b>CHQ</b>') . '</bdi>', $ways[$check]);
+        $this->assertSame(esc('<u>Weird</u>:<i>1</i>'), $ways[$odd]);
+    }
+
+    public function testGetCreditNotesSearch_EscapesWhatStaffTypedInEveryCellOfTheList(): void
+    {
+        $customer = ['<img src=x onerror=alert(1)>', 'O\'Hara & "Sons"'];
+
+        $this->renamePerson($this->customerId, $customer[0], $customer[1]);
+
+        $branch  = $this->createBranch('<u>B2</u>', 'Second & "Branch"');
+        $service = $this->item('0', false);
+        $invoice = $this->invoiceInBranch($branch, '100.00');
+        $this->accountingDb()->table('sales')->where('sale_id', $invoice)->update(['invoice_number' => '<b>INV</b>-1']);
+
+        $return = $this->save([$this->line($service, 0, '-1', '20', '0', '0', PERCENT, $this->branchLocation($branch))], [], [], SALE_TYPE_RETURN, -1, true, $invoice);
+        $this->accountingDb()->table('document_numbers')->insert(['company_id' => 1, 'doc_type' => DocumentType::CreditNote->value, 'source_table' => 'sales', 'source_id' => $return, 'sequence_number' => 1, 'number' => '<b>CN</b>-1']);
+        $this->viewer();
+
+        $row = $this->creditNotesOf()['rows'][0];
+
+        $this->assertSame($return, $row['sale_id']);
+        $this->assertEscaped($customer[0] . ' ' . $customer[1], $row['customer_name']);
+        $this->assertEscaped('<b>INV</b>-1', $row['origin']);
+        $this->assertEscaped('<b>CN</b>-1', $row['number']);
+        $this->assertEscaped('<u>B2</u> - Second & "Branch"', $row['branch']);
+    }
+
+    private function assertEscaped(string $typed, string $cell): void
+    {
+        $this->assertStringContainsString(esc($typed), $cell);
+        $this->assertStringNotContainsString($typed, $cell);
+    }
+
+    private function renamePerson(int $personId, string $firstName, string $lastName): void
+    {
+        $this->accountingDb()->table('people')->where('person_id', $personId)->update(['first_name' => $firstName, 'last_name' => $lastName]);
     }
 
     private function addPaymentFrom(int $saleId, int $employeeId, string $amount): int

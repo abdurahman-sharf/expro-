@@ -857,6 +857,77 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertSame($drawer, (int) Services::session()->get('sales_payments')['Cash']['treasury_id']);
     }
 
+    public function testPostSuspend_KeepsTheRefundInvoiceOfASuspendedReturnWhenItIsTakenBack(): void
+    {
+        $employeeId = $this->createReportsSalesEmployee();
+        $itemId     = $this->createTestItem(HAS_NO_STOCK);
+        $this->loginAs($employeeId);
+        $this->seedCartLine(1, '100.00', $itemId);
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => 'return', 'sale_type' => SALE_TYPE_RETURN, 'sales_return_document' => 'refund_invoice']));
+
+        $this->post('/sales/suspend');
+
+        $suspended = Database::connect()->table('sales')->orderBy('sale_id', 'DESC')->get()->getRow();
+
+        $this->assertSame((string) SUSPENDED, (string) $suspended->sale_status);
+        $this->assertSame('refund_invoice', $suspended->return_document);
+        $this->assertNull(Services::session()->get('sales_return_document'));
+
+        $this->loginAs($employeeId);
+        $this->post('/sales/unsuspend', ['suspended_sale_id' => (string) $suspended->sale_id]);
+
+        $this->assertSame('refund_invoice', Services::session()->get('sales_return_document'));
+        $this->assertSame('return', Services::session()->get('sales_mode'));
+    }
+
+    public function testPostSuspend_KeepsASuspendedReturnACreditNoteWhenNoDocumentWasChosen(): void
+    {
+        $employeeId = $this->createReportsSalesEmployee();
+        $itemId     = $this->createTestItem(HAS_NO_STOCK);
+        $this->loginAs($employeeId);
+        $this->seedCartLine(1, '100.00', $itemId);
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => 'return', 'sale_type' => SALE_TYPE_RETURN]));
+
+        $this->post('/sales/suspend');
+
+        $suspended = Database::connect()->table('sales')->orderBy('sale_id', 'DESC')->get()->getRow();
+
+        $this->assertSame((string) SUSPENDED, (string) $suspended->sale_status);
+        $this->assertNull($suspended->return_document);
+
+        $this->loginAs($employeeId);
+        $this->post('/sales/unsuspend', ['suspended_sale_id' => (string) $suspended->sale_id]);
+
+        $this->assertNull(Services::session()->get('sales_return_document'));
+    }
+
+    public function testPostComplete_IssuesAReturnThatWasSuspendedAsARefundInvoiceWithANumberOfItsOwnSequence(): void
+    {
+        $this->switchOn(DocumentType::RefundInvoice, 'RI-', 5);
+        $this->switchOn(DocumentType::CreditNote, 'CN-', 5);
+
+        $employeeId = $this->createReportsSalesEmployee();
+        $itemId     = $this->createTestItem(HAS_NO_STOCK);
+        $this->loginAs($employeeId);
+        $this->seedCartLine(1, '100.00', $itemId);
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => 'return', 'sale_type' => SALE_TYPE_RETURN, 'sales_return_document' => 'refund_invoice']));
+        $this->post('/sales/suspend');
+
+        $suspendedId = (int) Database::connect()->table('sales')->orderBy('sale_id', 'DESC')->get()->getRow()->sale_id;
+
+        $this->loginAs($employeeId);
+        $this->post('/sales/unsuspend', ['suspended_sale_id' => (string) $suspendedId]);
+        $this->withSession(array_merge($this->session, Services::session()->get()));
+
+        $response = $this->post('/sales/complete');
+
+        $response->assertSee('RI-00001');
+        $response->assertDontSee('id="credit_note_number"');
+        $this->assertSame('refund_invoice', Database::connect()->table('sales')->where('sale_id', $suspendedId)->get()->getRow()->return_document);
+        $this->assertSame(2, (new DocumentNumbering())->sequence(DocumentType::RefundInvoice)->nextNumber);
+        $this->assertSame(1, (new DocumentNumbering())->sequence(DocumentType::CreditNote)->nextNumber);
+    }
+
     /**
      * A cashier who also holds the report and delete grants but works only in the given branch.
      */
