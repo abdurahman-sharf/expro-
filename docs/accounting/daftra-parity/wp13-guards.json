@@ -1252,5 +1252,59 @@
   "tests": [
    "tests/Controllers/AccountingPayablesControllerTest.php"
   ]
+ },
+ {
+  "name": "G123 sales register: a draft taken up brings its typed day back",
+  "file": "app/Libraries/Sale_lib.php",
+  "find": "$this->set_invoice_date($timing['invoice_date']);",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Sale_libTest.php"
+  ]
+ },
+ {
+  "name": "G124 sales register: a draft taken up brings its terms back",
+  "file": "app/Libraries/Sale_lib.php",
+  "find": "$this->set_payment_terms($timing['payment_terms_days'] === null ? null : (string) $timing['payment_terms_days']);",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Sale_libTest.php"
+  ]
+ },
+ {
+  "name": "G125 sales register: a finished sale leaves no typed day for the next one",
+  "file": "app/Libraries/Sale_lib.php",
+  "find": "        $this->clear_invoice_date();\n        $this->clear_payment_terms();",
+  "replace": "        $this->clear_payment_terms();",
+  "tests": [
+   "tests/Libraries/Sale_libTest.php"
+  ]
+ },
+ {
+  "name": "G126 sales register: a finished sale leaves no terms for the next one",
+  "file": "app/Libraries/Sale_lib.php",
+  "find": "        $this->clear_invoice_date();\n        $this->clear_payment_terms();",
+  "replace": "        $this->clear_invoice_date();",
+  "tests": [
+   "tests/Libraries/Sale_libTest.php"
+  ]
+ },
+ {
+  "name": "G127 purchases register: a finished purchase leaves no typed day for the next one",
+  "file": "app/Libraries/Receiving_lib.php",
+  "find": "        $this->set_invoice_date(null);\n        $this->set_payment_terms(null);",
+  "replace": "        $this->set_payment_terms(null);",
+  "tests": [
+   "tests/Libraries/Receiving_libTest.php"
+  ]
+ },
+ {
+  "name": "G128 purchases register: a finished purchase leaves no terms for the next one",
+  "file": "app/Libraries/Receiving_lib.php",
+  "find": "        $this->set_invoice_date(null);\n        $this->set_payment_terms(null);",
+  "replace": "        $this->set_invoice_date(null);",
+  "tests": [
+   "tests/Libraries/Receiving_libTest.php"
+  ]
  }
 ]

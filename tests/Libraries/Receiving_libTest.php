@@ -39,6 +39,53 @@ class Receiving_libTest extends CIUnitTestCase
         $this->receivingLib = new Receiving_lib();
     }
 
+    public function testSetInvoiceDate_KeepsTheDayTypedAndTakesItBackWhenSetEmpty(): void
+    {
+        $this->assertNull($this->receivingLib->get_invoice_date());
+
+        $this->receivingLib->set_invoice_date('2026-10-20');
+
+        $this->assertSame('2026-10-20', $this->receivingLib->get_invoice_date());
+
+        $this->receivingLib->set_invoice_date('');
+
+        $this->assertNull($this->receivingLib->get_invoice_date());
+
+        $this->receivingLib->set_invoice_date('2026-10-20');
+        $this->receivingLib->set_invoice_date(null);
+
+        $this->assertNull($this->receivingLib->get_invoice_date());
+    }
+
+    public function testSetPaymentTerms_KeepsTheTermsTypedAndTakesThemBackWhenSetEmpty(): void
+    {
+        $this->assertNull($this->receivingLib->get_payment_terms());
+
+        $this->receivingLib->set_payment_terms('30');
+
+        $this->assertSame('30', $this->receivingLib->get_payment_terms());
+
+        $this->receivingLib->set_payment_terms('');
+
+        $this->assertNull($this->receivingLib->get_payment_terms());
+
+        $this->receivingLib->set_payment_terms('30');
+        $this->receivingLib->set_payment_terms(null);
+
+        $this->assertNull($this->receivingLib->get_payment_terms());
+    }
+
+    public function testClearAll_ForgetsTheDayAndTheTermsSoTheNextPurchaseDoesNotInheritThem(): void
+    {
+        $this->receivingLib->set_invoice_date('2026-10-20');
+        $this->receivingLib->set_payment_terms('30');
+
+        $this->receivingLib->clear_all();
+
+        $this->assertNull($this->receivingLib->get_invoice_date());
+        $this->assertNull($this->receivingLib->get_payment_terms());
+    }
+
     #[DataProvider('lines')]
     public function testGetItemTotal_TakesAFixedDiscountFromEveryUnit(float $quantity, float $price, float $discount, int $discountType, float $perPack, string $total): void
     {
