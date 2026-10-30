@@ -243,6 +243,28 @@ class ItemTest extends CIUnitTestCase
         }
     }
 
+    public function testCorrectPurchaseCost_WeighsTheCostAndTheStockAnotherPurchaseCommittedAfterTheSnapshotWasTaken(): void
+    {
+        [$items, $itemId] = $this->itemWithStockAndCost('20', '100');
+
+        $correcting = $this->openSecondConnection();
+
+        try {
+            $this->startWithSnapshot($correcting);
+
+            model(Item_quantity::class)->save_value(['item_id' => $itemId, 'location_id' => 1, 'quantity' => '30'], $itemId, 1);
+            $committed = ['cost_price' => '133.333333'];
+            $items->save_value($committed, $itemId);
+
+            $this->assertTrue((new Item($correcting))->correctPurchaseCost($itemId, '10', '1000', '8', '800'));
+            $correcting->transComplete();
+        } finally {
+            $correcting->close();
+        }
+
+        $this->assertSame('135.714285', (string) $items->get_info($itemId)->cost_price, 'Thirty units at 133.333333 less ten worth 1,000 plus eight worth 800 are 28 units worth 3,800');
+    }
+
     public function testCorrectPurchaseCost_ChangesNothingWhenWhatIsTakenOutIsPutBackIn(): void
     {
         [$items, $itemId] = $this->itemWithStockAndCost('20', '71.428571');

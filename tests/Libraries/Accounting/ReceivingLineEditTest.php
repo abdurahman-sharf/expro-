@@ -127,7 +127,7 @@ class ReceivingLineEditTest extends CIUnitTestCase
             'discount_type'      => PERCENT,
             'tax_percent'        => '15.000',
             'description'        => 'Damaged',
-            'serialnumber'       => null,
+            'serialnumber'       => '',
         ], $edit->applyTo($this->storedRow()));
     }
 
@@ -175,5 +175,22 @@ class ReceivingLineEditTest extends CIUnitTestCase
         $fields = ReceivingLineEdit::fieldsOf([...$this->storedRow(), 'quantity_purchased' => '10', 'item_unit_price' => '100', 'discount' => '0.5', 'tax_percent' => '15', 'discount_type' => '2', 'serialnumber' => 'SN']);
 
         $this->assertSame(['10.000', '100.00', '0.50', 2, '15.000', 'SN'], [$fields['quantity_purchased'], $fields['item_unit_price'], $fields['discount'], $fields['discount_type'], $fields['tax_percent'], $fields['serialnumber']]);
+    }
+
+    public function testFieldsOf_ReadsATextThatWasNeverEnteredAsAnEmptyOne(): void
+    {
+        $never = ReceivingLineEdit::fieldsOf([...$this->storedRow(), 'description' => null, 'serialnumber' => null]);
+        $empty = ReceivingLineEdit::fieldsOf([...$this->storedRow(), 'description' => '', 'serialnumber' => '']);
+
+        $this->assertSame(['', ''], [$never['description'], $never['serialnumber']]);
+        $this->assertSame($empty, $never);
+    }
+
+    public function testApplyTo_GivesTheStoredLineBackWhenTheFormSendsEmptyTextForTextThatWasNeverEntered(): void
+    {
+        $stored = [...$this->storedRow(), 'description' => null, 'serialnumber' => null];
+        $edit   = ReceivingLineEdit::changing(5, 2, ['description' => '', 'serialnumber' => '']);
+
+        $this->assertSame(ReceivingLineEdit::fieldsOf($stored), $edit->applyTo($stored));
     }
 }

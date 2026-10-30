@@ -242,7 +242,6 @@ class Receiving extends Model
     private function updateLinesLocked(int $receivingId, array $edits, int $employeeId): bool
     {
         $accountingOn = (new AccountingSettings($this->db))->isEnabled();
-        $averaging    = $accountingOn || (bool) config(OSPOS::class)->settings['receiving_calculate_average_price'];
         $loader       = new ReceivingLoader($this->db);
         $branchId     = null;
 
@@ -290,14 +289,10 @@ class Receiving extends Model
 
             $this->assertStockStays($deltas);
 
-            if ($averaging) {
-                $touched = array_merge(array_keys($changed), $removed);
+            if ($this->costCarries($before)) {
+                $moved = $this->movedLines($before, $after);
 
-                $this->correctTheCost(
-                    model(Item::class),
-                    $this->linesOf($before, $touched),
-                    $this->linesOf($after, array_keys($changed)),
-                );
+                $this->correctTheCost(model(Item::class), $this->linesOf($before, $moved), $this->linesOf($after, $moved));
             }
 
             if ($accountingOn) {
@@ -504,6 +499,51 @@ class Receiving extends Model
     private function linesOf(?ReceivingDocument $document, array $keys): array
     {
         return array_values(array_filter($document?->lines ?? [], static fn (ReceivingLine $line): bool => in_array($line->itemId . ':' . $line->line, $keys, true)));
+    }
+
+    /**
+     * Whether the cost the items carry already holds the receiving, because it was averaged when the
+     * receiving was saved: the books do that for every receiving they follow, and the setting for
+     * the others. The cost is not corrected for a receiving that was never in it.
+     */
+    private function costCarries(?ReceivingDocument $purchase): bool
+    {
+        if ((bool) config(OSPOS::class)->settings['receiving_calculate_average_price']) {
+            return true;
+        }
+
+        $posting = new ReceivingPosting($this->db);
+
+        return $purchase !== null && $posting->follows($purchase) && $posting->isPosted($purchase->receivingId);
+    }
+
+    /**
+     * The keys of the lines of a receiving whose units or whose value after discounts are not the
+     * same once it is corrected, those a correction takes out among them. The discount on the whole
+     * receiving is shared out again, so a line nobody touched can move too.
+     *
+     * @return list<string>
+     */
+    private function movedLines(ReceivingDocument $before, ReceivingDocument $after): array
+    {
+        $kept = [];
+
+        foreach ($after->lines as $line) {
+            $kept[$line->itemId . ':' . $line->line] = $line;
+        }
+
+        $moved = [];
+
+        foreach ($before->lines as $line) {
+            $key = $line->itemId . ':' . $line->line;
+            $now = $kept[$key] ?? null;
+
+            if ($now === null || bccomp(ReceivingAmounts::units($now), ReceivingAmounts::units($line), 3) !== 0 || bccomp(ReceivingAmounts::net($now), ReceivingAmounts::net($line), ReceivingAmounts::SCALE) !== 0) {
+                $moved[] = $key;
+            }
+        }
+
+        return $moved;
     }
 
     /**
@@ -1353,7 +1393,7 @@ class Receiving extends Model
 
                 $this->assertStockStays($this->stockDeltas($document, null));
 
-                if ($document?->type === ReceivingType::Receive) {
+                if ($document?->type === ReceivingType::Receive && $this->costCarries($document)) {
                     $this->correctTheCost(model(Item::class), $document->lines, []);
                 }
             } catch (AccountingException $refusal) {

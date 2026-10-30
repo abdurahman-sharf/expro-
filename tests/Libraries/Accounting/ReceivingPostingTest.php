@@ -1816,7 +1816,7 @@ class ReceivingPostingTest extends CIUnitTestCase
         $this->assertStockTies();
     }
 
-    public function testUpdateLines_TwoCorrectionsFromTwoRequestsAtTheSameMomentEndWithOneStandingRevisionAndTheStockTied(): void
+    public function testUpdateLines_EndsTwoCorrectionsFromTwoRequestsAtTheSameMomentWithOneStandingRevisionAndTheStockTied(): void
     {
         $itemId      = $this->item('0.00');
         $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '50')]);
@@ -1833,7 +1833,7 @@ class ReceivingPostingTest extends CIUnitTestCase
         $this->assertSupplierTies();
     }
 
-    public function testUpdateLines_TwoCorrectionsOfAReceivingWithoutASupplierAtTheSameMomentDoNotTakeTheSameJournalBackTwice(): void
+    public function testUpdateLines_DoesNotTakeTheSameJournalBackTwiceWhenTwoRequestsCorrectAReceivingWithoutASupplierAtTheSameMoment(): void
     {
         $itemId      = $this->item('0.00');
         $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '50')], null, lang('Sales.cash'));
@@ -3754,6 +3754,175 @@ class ReceivingPostingTest extends CIUnitTestCase
         $this->assertSame('8.000', $this->onHand($itemId));
         $this->assertSame('100.0000', $this->itemCostOf($itemId), 'An average of the 8 units at 90 would have been 90');
         $this->assertSame('90.00', $this->storedLine($receivingId, $itemId)->item_unit_price);
+    }
+
+    public function testUpdateLines_AveragesTheItemOfALineWhoseShareOfTheDiscountOnTheWholePurchaseMovedWithoutTheLineBeingTouched(): void
+    {
+        $first       = $this->item('0.00');
+        $second      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($first, 0, '10', '100'), $this->purchaseLine($second, 1, '10', '50')], -1, null, null, InvoiceDiscount::of(FIXED, '600'));
+
+        $this->assertSame(['60.000000', '30.000000'], [$this->exactCostOf($first), $this->exactCostOf($second)]);
+        $this->assertTrue($this->correct($receivingId, $first, ['quantity' => '5']));
+        $this->assertSame(['300.0000', '300.0000'], [bcadd((string) $this->storedLine($receivingId, $first)->invoice_discount_share, '0', 4), bcadd((string) $this->storedLine($receivingId, $second, 1)->invoice_discount_share, '0', 4)]);
+        $this->assertSame('40.000000', $this->exactCostOf($first));
+        $this->assertSame('20.000000', $this->exactCostOf($second), 'The ten units of the second item are worth 200 after the discount moved, which is 20 each');
+        $this->assertSame('200.00', $this->stockOf($second)['value']);
+        $this->assertStockTies();
+    }
+
+    public function testUpdateLines_AveragesTheItemOfALineThatTakesTheWholeDiscountOnceTheOtherLineIsTakenOut(): void
+    {
+        $first       = $this->item('0.00');
+        $second      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($first, 0, '10', '100'), $this->purchaseLine($second, 1, '10', '50')], -1, null, null, InvoiceDiscount::of(FIXED, '300'));
+
+        $this->assertSame(['80.000000', '40.000000'], [$this->exactCostOf($first), $this->exactCostOf($second)]);
+        $this->assertTrue($this->purchases->updateLines($receivingId, [ReceivingLineEdit::removing($first, 0)], $this->editor()));
+        $this->assertSame('200.00', $this->stockOf($second)['value']);
+        $this->assertSame('20.000000', $this->exactCostOf($second));
+        $this->assertSame('80.000000', $this->exactCostOf($first), 'Nothing is left of the first item to weigh');
+        $this->assertStockTies();
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function receivingTheAverageNeverHeldProvider(): array
+    {
+        return [
+            'dated before the books start'                     => ['2035-01-01'],
+            'dated after the start but saved before it was on' => ['2020-01-01'],
+        ];
+    }
+
+    #[DataProvider('receivingTheAverageNeverHeldProvider')]
+    public function testUpdateLines_LeavesTheCostAloneForAReceivingTheAverageNeverHeldWhileTheBooksAreOn(string $startDate): void
+    {
+        $itemId = $this->item('50.00');
+
+        $this->setConfigValue('accounting_enabled', '0');
+        config(OSPOS::class)->settings['receiving_calculate_average_price'] = '';
+
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100')]);
+
+        $this->assertSame('50.0000', $this->itemCostOf($itemId), 'Saved before the books and without the average, the receiving never reached the cost');
+
+        $this->setConfigValue('accounting_enabled', '1');
+        $this->setConfigValue('accounting_start_date', $startDate);
+
+        $this->assertTrue($this->correct($receivingId, $itemId, ['quantity' => '8']));
+        $this->assertSame('8.000', $this->onHand($itemId));
+        $this->assertSame('50.0000', $this->itemCostOf($itemId), 'Eight units at 100 taken out of a stock that never held them would have made it 37.5');
+    }
+
+    public function testUpdateLines_LeavesTheCostAloneForAPostedReceivingOnceTheBooksAreTurnedOffAndTheAverageIsOff(): void
+    {
+        $itemId = $this->item('0.00');
+
+        config(OSPOS::class)->settings['receiving_calculate_average_price'] = '';
+
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100')]);
+
+        $this->assertSame('100.0000', $this->itemCostOf($itemId));
+
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $this->assertTrue($this->correct($receivingId, $itemId, ['price' => '90']));
+        $this->assertSame('100.0000', $this->itemCostOf($itemId), 'While the books are off and the average is off the cost is the one the person keeps');
+        $this->setConfigValue('accounting_enabled', '1');
+    }
+
+    public function testUpdateLines_AveragesAReceivingTheBooksDoNotFollowWhenTheAverageSettingIsOn(): void
+    {
+        $itemId = $this->item('50.00');
+
+        $this->setConfigValue('accounting_enabled', '0');
+        $this->setConfigValue('receiving_calculate_average_price', '1');
+        config(OSPOS::class)->settings['receiving_calculate_average_price'] = '1';
+
+        try {
+            $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100')]);
+
+            $this->assertSame('100.0000', $this->itemCostOf($itemId));
+
+            $this->setConfigValue('accounting_enabled', '1');
+            $this->setConfigValue('accounting_start_date', '2035-01-01');
+
+            $this->assertTrue($this->correct($receivingId, $itemId, ['price' => '90']));
+            $this->assertSame('90.0000', $this->itemCostOf($itemId));
+        } finally {
+            config(OSPOS::class)->settings['receiving_calculate_average_price'] = '';
+        }
+    }
+
+    #[DataProvider('receivingTheAverageNeverHeldProvider')]
+    public function testDeleteValue_LeavesTheCostAloneForAReceivingTheAverageNeverHeldWhileTheBooksAreOn(string $startDate): void
+    {
+        $itemId = $this->item('50.00');
+
+        $this->setConfigValue('accounting_enabled', '0');
+        config(OSPOS::class)->settings['receiving_calculate_average_price'] = '';
+
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100')]);
+
+        $this->accountingDb()->table('item_quantities')->where(['item_id' => $itemId, 'location_id' => self::LOCATION_ID])->update(['quantity' => '20']);
+        $this->setConfigValue('accounting_enabled', '1');
+        $this->setConfigValue('accounting_start_date', $startDate);
+
+        $this->assertTrue($this->purchases->delete_value($receivingId, $this->editor()));
+        $this->assertSame('10.000', $this->onHand($itemId));
+        $this->assertSame('50.0000', $this->itemCostOf($itemId), 'Taking 10 units at 100 out of 20 at 50 would have made the cost nothing');
+    }
+
+    public function testUpdateLines_GoesBackToTheAverageOfTheStockThatIsLeftWhenALineIsTakenOut(): void
+    {
+        $bought = $this->item('0.00');
+        $other  = $this->item('0.00');
+
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($bought, 0, '10', '100')]));
+
+        $second = $this->buy([$this->purchaseLine($bought, 0, '10', '120'), $this->purchaseLine($other, 1, '5', '40')]);
+
+        $this->assertSame('110.000000', $this->exactCostOf($bought));
+        $this->assertTrue($this->purchases->updateLines($second, [ReceivingLineEdit::removing($bought, 0)], $this->editor()));
+        $this->assertSame('10.000', $this->onHand($bought));
+        $this->assertSame('100.000000', $this->exactCostOf($bought));
+        $this->assertSame('40.000000', $this->exactCostOf($other));
+        $this->assertStockTies();
+    }
+
+    public function testUpdateLines_AveragesTheItemWhenTheUnitsOfALineThatCostsNothingChange(): void
+    {
+        $itemId = $this->item('0.00');
+
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($itemId, 0, '10', '100')]));
+
+        $free = $this->buy([$this->purchaseLine($itemId, 0, '10', '0')]);
+
+        $this->assertSame('50.000000', $this->exactCostOf($itemId));
+        $this->assertTrue($this->correct($free, $itemId, ['quantity' => '8']));
+        $this->assertSame('18.000', $this->onHand($itemId));
+        $this->assertSame('55.555556', $this->exactCostOf($itemId), 'Ten units worth 1,000 over eighteen units');
+        $this->assertStockTies();
+    }
+
+    public function testUpdateLines_WritesNothingForALineWhoseTextWasNeverEnteredWhenTheFormSendsItEmpty(): void
+    {
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100')]);
+
+        $this->accountingDb()->table('receivings_items')->where('receiving_id', $receivingId)->update(['description' => null, 'serialnumber' => null]);
+
+        $before = $this->bookState($receivingId, $itemId);
+
+        $this->assertTrue($this->correct($receivingId, $itemId, ['description' => '', 'serialnumber' => '']));
+        $this->assertSame($before, $this->bookState($receivingId, $itemId));
+        $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where('action', 'lines_edited')->countAllResults());
+
+        $this->closeThrough(date('Y-m-d'));
+
+        $this->assertTrue($this->correct($receivingId, $itemId, ['description' => '']), 'Nothing changes, so a closed period has nothing to refuse');
     }
 
     /**

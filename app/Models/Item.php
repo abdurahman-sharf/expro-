@@ -1591,7 +1591,9 @@ class Item extends Model
      * cost stays as it is. Nothing else moves the cost, and the sales that were costed at the
      * average of their time stay as they were.
      *
-     * Must run before the stock of the correction is changed, and while the item is locked.
+     * Must run before the stock of the correction is changed, and while the item is locked. The cost
+     * and the stock are read with locking reads, which see what other requests have committed even
+     * when the transaction took its snapshot before it waited for the lock of the item.
      *
      * @param numeric-string $removedUnits
      * @param numeric-string $removedValue
@@ -1600,14 +1602,15 @@ class Item extends Model
      */
     public function correctPurchaseCost(int $itemId, string $removedUnits, string $removedValue, string $addedUnits, string $addedValue): bool
     {
-        $oldCost = (string) $this->get_info($itemId)->cost_price;
+        $stored  = $this->db->query('SELECT cost_price FROM ' . $this->db->prefixTable('items') . ' WHERE item_id = ? FOR UPDATE', [$itemId])->getRow();
+        $oldCost = (string) ($stored->cost_price ?? '0');
 
-        $builder = $this->db->table('item_quantities');
-        $builder->selectSum('quantity');
-        $builder->where('item_id', $itemId);
-        $builder->join('stock_locations', 'stock_locations.location_id=item_quantities.location_id');
-        $builder->where('stock_locations.deleted', 0);
-        $onHand = (string) ($builder->get()->getRow()->quantity ?? '0');
+        $shelves = $this->db->query(
+            'SELECT SUM(quantity) AS quantity FROM ' . $this->db->prefixTable('item_quantities')
+            . ' WHERE item_id = ? AND location_id IN (SELECT location_id FROM ' . $this->db->prefixTable('stock_locations') . ' WHERE deleted = 0) FOR UPDATE',
+            [$itemId],
+        )->getRow();
+        $onHand = (string) ($shelves->quantity ?? '0');
 
         $left  = bcadd(bcsub($onHand, $removedUnits, 3), $addedUnits, 3);
         $value = bcadd(bcsub(bcmul($onHand, $oldCost, 8), $removedValue, 8), $addedValue, 8);

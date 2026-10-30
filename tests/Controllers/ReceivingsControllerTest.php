@@ -2553,6 +2553,82 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $this->assertMatchesRegularExpression('/<input[^>]*id="line_0_tax"[^>]*readonly/', $response->getBody());
     }
 
+    public function testGetEdit_ShowsTheTaxOfALineForEditingToWhoeverMayEditCosts(): void
+    {
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100', '15')]);
+        $this->loginAs($this->buyer());
+
+        $response = $this->get('/receivings/edit/' . $receivingId);
+
+        $response->assertSeeElement('#line_0_tax');
+        $this->assertDoesNotMatchRegularExpression('/<input[^>]*id="line_0_tax"[^>]*readonly/', $response->getBody());
+    }
+
+    public function testGetEdit_OffersTheLinesOnlyForReadingToAnEmployeeWithoutTheGrantOfTheStockLocationOfALine(): void
+    {
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100')]);
+        $employee    = $this->createEmployee(grants: [
+            ['permission_id' => 'receivings', 'menu_group' => 'home'],
+            ['permission_id' => BranchGuard::ALL_BRANCHES, 'menu_group' => '--'],
+        ]);
+
+        $this->depotIn(1, $employee);
+        $this->loginAs($employee);
+
+        $response = $this->get('/receivings/edit/' . $receivingId);
+
+        $response->assertSeeElement('#receivings_lines_form');
+        $response->assertSeeElement('#lines_locked_location');
+        $response->assertDontSeeElement('#save_lines');
+        $response->assertSee(lang('Receivings.location_not_allowed'));
+        $this->assertMatchesRegularExpression('/<fieldset id="receiving_lines" disabled>/', $response->getBody());
+    }
+
+    public function testGetEdit_OffersTheLinesOnlyForReadingWhenTheStockLocationOfALineWasDeleted(): void
+    {
+        $employee   = $this->buyer();
+        $locationId = $this->depotIn(1, $employee);
+        $itemId     = $this->item('0.00');
+
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100', locationId: $locationId)]);
+
+        $this->accountingDb()->table('stock_locations')->where('location_id', $locationId)->update(['deleted' => 1]);
+        $this->loginAs($employee);
+
+        $response = $this->get('/receivings/edit/' . $receivingId);
+
+        $response->assertSeeElement('#lines_locked_location');
+        $response->assertDontSeeElement('#save_lines');
+    }
+
+    public function testGetEdit_OffersTheSaveOfTheLinesToAnEmployeeWhoMayCorrectEveryLocationOfThem(): void
+    {
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100')]);
+        $this->loginAs($this->buyer());
+
+        $response = $this->get('/receivings/edit/' . $receivingId);
+
+        $response->assertSeeElement('#save_lines');
+        $response->assertDontSeeElement('#lines_locked_location');
+        $this->assertDoesNotMatchRegularExpression('/<fieldset id="receiving_lines" disabled>/', $response->getBody());
+    }
+
+    public function testGetEdit_CarriesTheWarningsForLinesAndDetailsThatAreNotSavedYet(): void
+    {
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100')]);
+        $this->loginAs($this->buyer());
+
+        $body = $this->get('/receivings/edit/' . $receivingId)->getBody();
+
+        $this->assertStringContainsString(json_encode(lang('Receivings.lines_unsaved')), $body);
+        $this->assertStringContainsString(json_encode(lang('Receivings.details_unsaved')), $body);
+        $this->assertStringContainsString(json_encode(lang('Receivings.lines_not_updated')), $body);
+    }
+
     public function testPostSaveLines_CorrectsTheQuantityAndPostsRevisionTwo(): void
     {
         $itemId      = $this->item('0.00');

@@ -26,6 +26,7 @@
  * @var bool $lines_editable
  * @var bool $lines_has_returns
  * @var list<array<string, mixed>> $lines
+ * @var bool $lines_allowed
  * @var bool $can_edit_tax
  */
 ?>
@@ -241,8 +242,11 @@
 
 <?php if ($lines_editable && $lines !== []): ?>
     <?= form_open('receivings/saveLines/' . $receiving_info['receiving_id'], ['id' => 'receivings_lines_form', 'class' => 'app-form']) ?>
-        <fieldset id="receiving_lines">
+        <fieldset id="receiving_lines"<?= $lines_allowed ? '' : ' disabled' ?>>
             <legend class="fs-6"><?= lang('Receivings.lines') ?></legend>
+            <?php if (! $lines_allowed): ?>
+                <div class="alert alert-secondary" id="lines_locked_location" role="note"><?= lang('Receivings.location_not_allowed') ?></div>
+            <?php endif; ?>
             <p class="small text-body-secondary mb-2"><?= lang($locked ? 'Receivings.lines_help' : 'Receivings.lines_help_unposted') ?></p>
             <div class="table-responsive">
                 <table class="table table-sm align-middle" id="receiving_lines_table">
@@ -305,7 +309,9 @@
                     </tbody>
                 </table>
             </div>
-            <button type="button" class="btn btn-outline-primary btn-sm" id="save_lines"><?= lang('Receivings.lines_save') ?></button>
+            <?php if ($lines_allowed): ?>
+                <button type="button" class="btn btn-outline-primary btn-sm" id="save_lines"><?= lang('Receivings.lines_save') ?></button>
+            <?php endif; ?>
         </fieldset>
     <?= form_close() ?>
 <?php endif; ?>
@@ -348,9 +354,42 @@
             });
         });
 
+        const mainForm = $('#receivings_edit_form');
+        const linesForm = $('#receivings_lines_form');
+        let detailsChanged = false;
+        let linesChanged = false;
+
+        const warn = function(message) {
+            $('#error_message_box').empty().append($('<li></li>').text(message));
+        };
+
+        mainForm.on('input change', function() {
+            detailsChanged = true;
+        });
+
+        linesForm.on('input change', function() {
+            linesChanged = true;
+        });
+
+        linesForm.on('keydown', 'input:not([type=checkbox])', function(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                event.stopPropagation();
+                $('#save_lines').trigger('click');
+            }
+        });
+
+        linesForm.on('submit', function(event) {
+            event.preventDefault();
+        });
+
         $('#save_lines').on('click', function() {
             const button = $(this);
-            const linesForm = $('#receivings_lines_form');
+
+            if (detailsChanged) {
+                warn(<?= json_encode(lang('Receivings.details_unsaved')) ?>);
+                return;
+            }
 
             button.prop('disabled', true);
             $.post(linesForm.attr('action'), linesForm.serialize(), function(response) {
@@ -360,9 +399,10 @@
                     return;
                 }
                 button.prop('disabled', false);
-                $('#error_message_box').empty().append($('<li></li>').text(response.message));
-            }, 'json').fail(function() {
+                warn(response.message);
+            }, 'json').fail(function(xhr) {
                 button.prop('disabled', false);
+                warn(xhr.responseJSON?.message ?? <?= json_encode(lang('Receivings.lines_not_updated')) ?>);
             });
         });
 
@@ -371,8 +411,16 @@
             table_support.do_delete("<?= esc($controller_name) ?>", <?= $receiving_info['receiving_id'] ?>);
         });
 
-        $('#receivings_edit_form').validate($.extend({
+        mainForm.validate($.extend({
             submitHandler: function(form) {
+                if (linesChanged) {
+                    warn(<?= json_encode(lang('Receivings.lines_unsaved')) ?>);
+                    setTimeout(function() {
+                        $('.modal-footer [data-dialog-button="submit"]').prop('disabled', false);
+                    }, 0);
+                    return;
+                }
+
                 $(form).ajaxSubmit({
                     success: function(response) {
                         dialog_support.hide();

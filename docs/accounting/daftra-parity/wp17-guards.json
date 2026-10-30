@@ -149,7 +149,7 @@
   "replace": "WHERE receiving_id = ?', [$receivingId]);\n            $purchase = $locked === false",
   "tests": [
    "--filter",
-   "testUpdateLines_TwoCorrections",
+   "testUpdateLines_EndsTwoCorrections|testUpdateLines_DoesNotTakeTheSameJournalBackTwice",
    "tests/Libraries/Accounting/ReceivingPostingTest.php"
   ]
  },
@@ -288,8 +288,8 @@
  {
   "name": "GM18 the cost of the items follows a correction that is averaged",
   "file": "app/Models/Receiving.php",
-  "find": "            if ($averaging) {\n                $touched",
-  "replace": "            if (false) {\n                $touched",
+  "find": "            if ($this->costCarries($before)) {\n                $moved",
+  "replace": "            if (false) {\n                $moved",
   "tests": [
    "--filter",
    "testUpdateLines_RecomputesTheAverageOfTheItem",
@@ -297,10 +297,10 @@
   ]
  },
  {
-  "name": "GM19 the average is on whenever the books are on",
+  "name": "GM19 the cost carries every receiving the books follow",
   "file": "app/Models/Receiving.php",
-  "find": "$averaging    = $accountingOn || (bool)",
-  "replace": "$averaging    = (bool)",
+  "find": "return $purchase !== null && $posting->follows($purchase) && $posting->isPosted($purchase->receivingId);",
+  "replace": "return false;",
   "tests": [
    "--filter",
    "testUpdateLines_RecomputesTheAverageOfTheItem",
@@ -308,13 +308,13 @@
   ]
  },
  {
-  "name": "GM20 the average stays off when neither the books nor the setting ask for it",
+  "name": "GM20 the cost is left alone for a receiving neither the books nor the setting averaged",
   "file": "app/Models/Receiving.php",
-  "find": "$averaging    = $accountingOn || (bool) config(OSPOS::class)->settings['receiving_calculate_average_price'];",
-  "replace": "$averaging    = true;",
+  "find": "return $purchase !== null && $posting->follows($purchase) && $posting->isPosted($purchase->receivingId);",
+  "replace": "return true;",
   "tests": [
    "--filter",
-   "testUpdateLines_LeavesTheCostAloneWhileTheBooksAreOff",
+   "testUpdateLines_LeavesTheCostAlone|testDeleteValue_LeavesTheCostAlone|testDeleteValue_StillDeletesAPurchaseWhoseGoodsWereSold",
    "tests/Libraries/Accounting/ReceivingPostingTest.php"
   ]
  },
@@ -398,7 +398,7 @@
  {
   "name": "GD02 deleting a receiving brings the cost back to the average of the stock left",
   "file": "app/Models/Receiving.php",
-  "find": "if ($document?->type === ReceivingType::Receive) {\n                    $this->correctTheCost",
+  "find": "if ($document?->type === ReceivingType::Receive && $this->costCarries($document)) {\n                    $this->correctTheCost",
   "replace": "if (false) {\n                    $this->correctTheCost",
   "tests": [
    "--filter",
@@ -453,8 +453,8 @@
  {
   "name": "GI03 the stock of a deleted location is not weighed",
   "file": "app/Models/Item.php",
-  "find": "        $builder->where('stock_locations.deleted', 0);\n        $onHand = (string) ($builder->get()->getRow()->quantity ?? '0');\n\n        $left",
-  "replace": "        $onHand = (string) ($builder->get()->getRow()->quantity ?? '0');\n\n        $left",
+  "find": "WHERE item_id = ? AND location_id IN (SELECT location_id FROM ' . $this->db->prefixTable('stock_locations') . ' WHERE deleted = 0) FOR UPDATE'",
+  "replace": "WHERE item_id = ? FOR UPDATE'",
   "tests": [
    "--filter",
    "testCorrectPurchaseCost_DoesNotWeigh",
@@ -574,11 +574,11 @@
  {
   "name": "GC02 every stock location of the lines is one the employee has a grant on",
   "file": "app/Controllers/Receivings.php",
-  "find": "if (! $this->stock_location->is_allowed_location((int) $locationId, 'receivings', true)) {\n                return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Receivings.location_not_allowed')]);\n            }\n        }\n\n        $employeeId = (int) $this->employee->get_logged_in_employee_info()->person_id;\n        $edits      =",
-  "replace": "if (false) {\n                return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Receivings.location_not_allowed')]);\n            }\n        }\n\n        $employeeId = (int) $this->employee->get_logged_in_employee_info()->person_id;\n        $edits      =",
+  "find": "if (! $this->stock_location->is_allowed_location((int) $locationId, 'receivings', true)) {\n                return false;",
+  "replace": "if (false) {\n                return false;",
   "tests": [
    "--filter",
-   "testPostSaveLines_RefusesAStockLocationTheEmployeeHasNoGrantOn",
+   "testPostSaveLines_RefusesAStockLocationTheEmployeeHasNoGrantOn|testGetEdit_OffersTheLinesOnlyForReading",
    "tests/Controllers/ReceivingsControllerTest.php"
   ]
  },
@@ -1009,6 +1009,193 @@
    "--filter",
    "testGetView_ShowsThePurchaseTaxesOfAnItemInTheForm",
    "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GM27 the cost of the item is read under the lock, not from the snapshot of the transaction",
+  "file": "app/Models/Item.php",
+  "find": "WHERE item_id = ? FOR UPDATE', [$itemId])->getRow();\n        $oldCost",
+  "replace": "WHERE item_id = ?', [$itemId])->getRow();\n        $oldCost",
+  "tests": [
+   "--filter",
+   "testCorrectPurchaseCost_WeighsTheCostAndTheStockAnotherPurchaseCommitted",
+   "tests/Models/ItemTest.php"
+  ]
+ },
+ {
+  "name": "GM28 the stock of the item is read under the lock, not from the snapshot of the transaction",
+  "file": "app/Models/Item.php",
+  "find": "WHERE deleted = 0) FOR UPDATE',",
+  "replace": "WHERE deleted = 0)',",
+  "tests": [
+   "--filter",
+   "testCorrectPurchaseCost_WeighsTheCostAndTheStockAnotherPurchaseCommitted",
+   "tests/Models/ItemTest.php"
+  ]
+ },
+ {
+  "name": "GM29 the average setting alone makes a receiving the cost carries",
+  "file": "app/Models/Receiving.php",
+  "find": "if ((bool) config(OSPOS::class)->settings['receiving_calculate_average_price']) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testUpdateLines_ChangesTheStockAndTheAverageWhileTheBooksAreOffWhenTheAverageIsOn|testUpdateLines_AveragesAReceivingTheBooksDoNotFollow",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GM30 a receiving saved before the books were on is not one the books carried in the cost",
+  "file": "app/Models/Receiving.php",
+  "find": "&& $posting->isPosted($purchase->receivingId);",
+  "replace": ";",
+  "tests": [
+   "--filter",
+   "testUpdateLines_LeavesTheCostAloneForAReceivingTheAverageNeverHeld|testDeleteValue_LeavesTheCostAloneForAReceivingTheAverageNeverHeld",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GM31 a receiving is carried in the cost only while the books are on and follow it",
+  "file": "app/Models/Receiving.php",
+  "find": "return $purchase !== null && $posting->follows($purchase) && ",
+  "replace": "return $purchase !== null && ",
+  "tests": [
+   "--filter",
+   "testUpdateLines_LeavesTheCostAloneForAPostedReceivingOnceTheBooksAreTurnedOff",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GM32 a line whose value moved with the share of the discount is averaged though nobody touched it",
+  "file": "app/Models/Receiving.php",
+  "find": " || bccomp(ReceivingAmounts::net($now), ReceivingAmounts::net($line), ReceivingAmounts::SCALE) !== 0) {",
+  "replace": ") {",
+  "tests": [
+   "--filter",
+   "testUpdateLines_AveragesTheItemOfALine",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GM33 a line whose units changed at no value is averaged",
+  "file": "app/Models/Receiving.php",
+  "find": "if ($now === null || bccomp(ReceivingAmounts::units($now), ReceivingAmounts::units($line), 3) !== 0 || ",
+  "replace": "if ($now === null || ",
+  "tests": [
+   "--filter",
+   "testUpdateLines_AveragesTheItemWhenTheUnitsOfALineThatCostsNothingChange",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GM34 a line the correction takes out is averaged",
+  "file": "app/Models/Receiving.php",
+  "find": "$moved[] = $key;",
+  "replace": "if ($now !== null) {\n                $moved[] = $key;\n            }",
+  "tests": [
+   "--filter",
+   "testUpdateLines_GoesBackToTheAverageOfTheStockThatIsLeftWhenALineIsTakenOut",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GL10 a text that was never entered is the same as an empty one",
+  "file": "app/Libraries/Accounting/ReceivingLineEdit.php",
+  "find": "'description'        => (string) ($row['description'] ?? ''),",
+  "replace": "'description'        => $row['description'] === null ? null : (string) $row['description'],",
+  "tests": [
+   "--filter",
+   "testFieldsOf_ReadsATextThatWasNeverEntered|testApplyTo_GivesTheStoredLineBackWhenTheFormSends",
+   "tests/Libraries/Accounting/ReceivingLineEditTest.php"
+  ]
+ },
+ {
+  "name": "GL11 an empty description on a line stored without one is no change through the model",
+  "file": "app/Libraries/Accounting/ReceivingLineEdit.php",
+  "find": "'description'        => (string) ($row['description'] ?? ''),",
+  "replace": "'description'        => (string) ($row['description'] ?? 'none'),",
+  "tests": [
+   "--filter",
+   "testUpdateLines_WritesNothingForALineWhoseText",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GC13 the tax of a line is offered for editing to whoever holds the items grant",
+  "file": "app/Controllers/Receivings.php",
+  "find": "$data['can_edit_tax']      = $this->employee->has_grant('items', $currentEmployeeId);",
+  "replace": "$data['can_edit_tax']      = false;",
+  "tests": [
+   "--filter",
+   "testGetEdit_ShowsTheTaxOfALineForEditingToWhoeverMayEditCosts",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GC14 the lines form of a receiving the employee may not correct is disabled and has no save button",
+  "file": "app/Controllers/Receivings.php",
+  "find": "$data['lines_allowed']     = $this->mayCorrectLocationsOf($data['lines']);",
+  "replace": "$data['lines_allowed']     = true;",
+  "tests": [
+   "--filter",
+   "testGetEdit_OffersTheLinesOnlyForReading",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GV01 the fieldset of the lines is disabled when a location may not be corrected",
+  "file": "app/Views/receivings/form.php",
+  "find": "<fieldset id=\"receiving_lines\"<?= $lines_allowed ? '' : ' disabled' ?>>",
+  "replace": "<fieldset id=\"receiving_lines\">",
+  "tests": [
+   "--filter",
+   "testGetEdit_OffersTheLinesOnlyForReading",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GV02 the save button of the lines is offered only when the locations may be corrected",
+  "file": "app/Views/receivings/form.php",
+  "find": "<?php if ($lines_allowed): ?>\n                <button type=\"button\"",
+  "replace": "<?php if (true): ?>\n                <button type=\"button\"",
+  "tests": [
+   "--filter",
+   "testGetEdit_OffersTheLinesOnlyForReading",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GV03 the screen warns of lines that are not saved when the other form is submitted",
+  "file": "app/Views/receivings/form.php",
+  "find": "warn(<?= json_encode(lang('Receivings.lines_unsaved')) ?>);",
+  "replace": "warn('');",
+  "tests": [
+   "--filter",
+   "testGetEdit_CarriesTheWarnings",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GV04 the screen warns of details that are not saved when the lines are saved",
+  "file": "app/Views/receivings/form.php",
+  "find": "warn(<?= json_encode(lang('Receivings.details_unsaved')) ?>);",
+  "replace": "warn('');",
+  "tests": [
+   "--filter",
+   "testGetEdit_CarriesTheWarnings",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GV05 the screen says why a save of the lines failed with a status of refusal",
+  "file": "app/Views/receivings/form.php",
+  "find": "warn(xhr.responseJSON?.message ?? <?= json_encode(lang('Receivings.lines_not_updated')) ?>);",
+  "replace": "warn('');",
+  "tests": [
+   "--filter",
+   "testGetEdit_CarriesTheWarnings",
+   "tests/Controllers/ReceivingsControllerTest.php"
   ]
  }
 ]

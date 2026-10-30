@@ -8,6 +8,7 @@ use CodeIgniter\Database\Config;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
+use PHPUnit\Framework\Attributes\DataProvider;
 use App\Models\Item;
 use App\Models\Item_quantity;
 use App\Models\Inventory;
@@ -369,7 +370,7 @@ class ItemsControllerTest extends CIUnitTestCase
     /**
      * @param array<string, list<string>> $purchase
      */
-    #[\PHPUnit\Framework\Attributes\DataProvider('invalidPurchaseTaxProvider')]
+    #[DataProvider('invalidPurchaseTaxProvider')]
     public function testPostSave_RejectsAPurchaseTaxThatIsNotOneAndSavesNothing(array $purchase): void
     {
         $this->loginAsItemsEmployee($this->createItemsEmployee());

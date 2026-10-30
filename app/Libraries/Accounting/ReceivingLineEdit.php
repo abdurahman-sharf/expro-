@@ -74,7 +74,7 @@ final readonly class ReceivingLineEdit
      *
      * @param array<string, mixed> $stored A row of receivings_items.
      *
-     * @return array{quantity_purchased: string, item_unit_price: string, discount: string, discount_type: int, tax_percent: string, description: ?string, serialnumber: ?string}|null
+     * @return array{quantity_purchased: string, item_unit_price: string, discount: string, discount_type: int, tax_percent: string, description: string, serialnumber: string}|null
      */
     public function applyTo(array $stored): ?array
     {
@@ -96,11 +96,12 @@ final readonly class ReceivingLineEdit
     }
 
     /**
-     * The fields a correction can change, of a stored row, as they are compared.
+     * The fields a correction can change, of a stored row, as they are compared. A text that was never
+     * entered is the same as an empty one, because the form shows both as an empty box.
      *
      * @param array<string, mixed> $row
      *
-     * @return array{quantity_purchased: string, item_unit_price: string, discount: string, discount_type: int, tax_percent: string, description: ?string, serialnumber: ?string}
+     * @return array{quantity_purchased: string, item_unit_price: string, discount: string, discount_type: int, tax_percent: string, description: string, serialnumber: string}
      */
     public static function fieldsOf(array $row): array
     {
@@ -110,8 +111,8 @@ final readonly class ReceivingLineEdit
             'discount'           => bcadd((string) $row['discount'], '0', 2),
             'discount_type'      => (int) $row['discount_type'],
             'tax_percent'        => bcadd((string) $row['tax_percent'], '0', 3),
-            'description'        => $row['description'] === null ? null : (string) $row['description'],
-            'serialnumber'       => $row['serialnumber'] === null ? null : (string) $row['serialnumber'],
+            'description'        => (string) ($row['description'] ?? ''),
+            'serialnumber'       => (string) ($row['serialnumber'] ?? ''),
         ];
     }
 

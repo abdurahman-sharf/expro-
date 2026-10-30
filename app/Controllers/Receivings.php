@@ -403,6 +403,7 @@ class Receivings extends Secure_Controller
         $data['lines_editable']    = $receivingInfo['receiving_type'] === ReceivingType::Receive->value && ! $this->receiving->hasReturns((int) $receiving_id);
         $data['lines_has_returns'] = $receivingInfo['receiving_type'] === ReceivingType::Receive->value && ! $data['lines_editable'];
         $data['lines']             = $data['lines_editable'] ? $this->editableLines((int) $receiving_id) : [];
+        $data['lines_allowed']     = $this->mayCorrectLocationsOf($data['lines']);
         $data['can_edit_tax']      = $this->employee->has_grant('items', $currentEmployeeId);
 
         if ((new AccountingSettings())->isEnabled()) {
@@ -807,12 +808,8 @@ class Receivings extends Secure_Controller
             return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Receivings.branch_not_allowed')]);
         }
 
-        $stored = $this->receiving->get_receiving_items($receivingId)->getResultArray();
-
-        foreach (array_unique(array_column($stored, 'item_location')) as $locationId) {
-            if (! $this->stock_location->is_allowed_location((int) $locationId, 'receivings', true)) {
-                return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Receivings.location_not_allowed')]);
-            }
+        if (! $this->mayCorrectLocationsOf($this->receiving->get_receiving_items($receivingId)->getResultArray())) {
+            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Receivings.location_not_allowed')]);
         }
 
         $employeeId = (int) $this->employee->get_logged_in_employee_info()->person_id;
@@ -827,6 +824,23 @@ class Receivings extends Secure_Controller
         }
 
         return $this->response->setJSON(['success' => false, 'message' => $this->accountingFailureMessage() ?? lang('Receivings.lines_not_updated'), 'id' => $receivingId]);
+    }
+
+    /**
+     * Whether the stock location of every line is one the employee has the receivings grant for, in the
+     * branches the employee works in, and one that is kept.
+     *
+     * @param list<array<string, mixed>> $lines
+     */
+    private function mayCorrectLocationsOf(array $lines): bool
+    {
+        foreach (array_unique(array_column($lines, 'item_location')) as $locationId) {
+            if (! $this->stock_location->is_allowed_location((int) $locationId, 'receivings', true)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
