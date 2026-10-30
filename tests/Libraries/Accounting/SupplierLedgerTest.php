@@ -7,6 +7,7 @@ use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\PaymentState;
 use App\Libraries\Accounting\PostingService;
+use App\Libraries\Accounting\ReceivingPostingBuilder;
 use App\Libraries\Accounting\ReturnState;
 use App\Libraries\Accounting\SupplierLedger;
 use App\Libraries\Accounting\SupplierPosition;
@@ -412,7 +413,37 @@ class SupplierLedgerTest extends CIUnitTestCase
         $this->assertFalse($position->purchase($paid)->isOverdue($today));
         $this->assertSame('50.00', bcadd($position->overdue($today), '0', 2));
         $this->assertSame(1, $position->purchase($dueYesterday)->daysOverdue($today));
+        $this->assertSame(0, $position->purchase($dueToday)->daysOverdue($today));
+        $this->assertSame(0, $position->purchase($dueLater)->daysOverdue($today));
+        $this->assertSame(0, $position->purchase($paid)->daysOverdue($today));
         $this->assertSupplierTies();
+    }
+
+    public function testPosition_CountsAnApplicationOnlyFromTheDayItWasMadeUntilTheDayItWasReleased(): void
+    {
+        $purchase = $this->purchaseDated('100.00', $this->daysAgo(6));
+        $note     = $this->debitNoteOf($purchase, '40.00');
+        $db       = $this->accountingDb();
+
+        $db->table('receivings')->where('receiving_id', $note)->update(['receiving_time' => $this->daysAgo(5) . ' 10:00:00']);
+        $db->table('accounting_journals')->where(['source_type' => ReceivingPostingBuilder::SOURCE_PURCHASE, 'source_id' => $note])->update(['journal_date' => $this->daysAgo(5)]);
+
+        $this->assertSame(1, $db->table('supplier_credit_applications')->where('supplier_id', $this->supplierId)->countAllResults());
+
+        $db->table('supplier_credit_applications')->where('supplier_id', $this->supplierId)->update(['created_at' => $this->daysAgo(3) . ' 09:00:00', 'released_at' => $this->daysAgo(1) . ' 09:00:00']);
+
+        $beforeIt = $this->supplierPosition(null, $this->daysAgo(4));
+        $whileIt  = $this->supplierPosition(null, $this->daysAgo(2));
+        $afterIt  = $this->supplierPosition(null, date('Y-m-d'));
+
+        $this->assertSame(['100.00', '40.00'], [bcadd($beforeIt->open(), '0', 2), bcadd($beforeIt->credit(), '0', 2)]);
+        $this->assertSame(['60.00', '0.00'], [bcadd($whileIt->open(), '0', 2), bcadd($whileIt->credit(), '0', 2)]);
+        $this->assertSame(['100.00', '40.00'], [bcadd($afterIt->open(), '0', 2), bcadd($afterIt->credit(), '0', 2)]);
+
+        foreach ([$beforeIt, $whileIt, $afterIt] as $position) {
+            $this->assertTrue($position->agrees());
+            $this->assertSame('60.00', bcadd($position->accountBalance, '0', 2));
+        }
     }
 
     public function testPosition_TiesSupplierAndAccountForPurchasesOfAnyDayWithTermsPaymentsAndDebitNotes(): void

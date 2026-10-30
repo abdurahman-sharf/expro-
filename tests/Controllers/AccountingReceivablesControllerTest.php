@@ -379,6 +379,7 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
         $response->assertSee('Omar Khaled');
         $response->assertSee(lang('Accounting_receivables.bucket_days', ['3 - 3']));
         $response->assertSee(lang('Accounting_receivables.bucket_days', ['4+']));
+        $response->assertSee('accounting_receivables/customer/' . $this->customerId . '?to=' . date('Y-m-d'));
 
         $totals = substr($body, (int) strpos($body, 'id="aged_totals"'));
 
@@ -387,6 +388,17 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
         }
 
         $this->assertSame('350.0000', bcadd((new CustomerLedger())->position($this->customerId)->accountBalance, '0', 4));
+    }
+
+    public function testGetAgedLedger_EscapesTheNameOfTheCustomer(): void
+    {
+        $this->invoiceOf('100.00', $this->anotherCustomer('<b>Bold</b>', 'Name'));
+        $this->viewer();
+
+        $response = $this->get('/accounting_receivables/aged_ledger');
+
+        $response->assertSee('&lt;b&gt;Bold&lt;/b&gt; Name');
+        $response->assertDontSee('<b>Bold</b>');
     }
 
     public function testGetAgedLedger_ReadsTheDayAndTheLengthOfTheBucketsAsTyped(): void
@@ -489,6 +501,17 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
         }
 
         $response->assertDontSee(lang('Accounting_receivables.col_other'));
+    }
+
+    public function testGetBalances_EscapesTheNameOfTheCustomer(): void
+    {
+        $this->invoiceOf('100.00', $this->anotherCustomer('<b>Bold</b>', 'Name'));
+        $this->viewer();
+
+        $response = $this->get('/accounting_receivables/balances');
+
+        $response->assertSee('&lt;b&gt;Bold&lt;/b&gt; Name');
+        $response->assertDontSee('<b>Bold</b>');
     }
 
     public function testGetBalances_ShowsTheColumnForWhatNoOtherColumnExplainsOnlyWhenThereIsSuchAJournal(): void

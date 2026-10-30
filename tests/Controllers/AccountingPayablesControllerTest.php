@@ -380,6 +380,7 @@ class AccountingPayablesControllerTest extends CIUnitTestCase
         $response->assertSee('Gulf Supplies');
         $response->assertSee(lang('Accounting_payables.bucket_days', ['3 - 3']));
         $response->assertSee(lang('Accounting_payables.bucket_days', ['4+']));
+        $response->assertSee('accounting_payables/supplier/' . $this->supplierId . '?to=' . date('Y-m-d'));
 
         $totals = substr($body, (int) strpos($body, 'id="aged_totals"'));
 
@@ -388,6 +389,17 @@ class AccountingPayablesControllerTest extends CIUnitTestCase
         }
 
         $this->assertSame('350.00', $this->owed());
+    }
+
+    public function testGetAgedLedger_EscapesTheNameOfTheSupplier(): void
+    {
+        $this->purchaseOf('100.00', $this->anotherSupplier('<b>Bold</b> Co'));
+        $this->viewer();
+
+        $response = $this->get('/accounting_payables/aged_ledger');
+
+        $response->assertSee('&lt;b&gt;Bold&lt;/b&gt; Co');
+        $response->assertDontSee('<b>Bold</b>');
     }
 
     public function testGetAgedLedger_ReadsTheDayAndTheLengthOfTheBucketsAsTyped(): void
@@ -477,6 +489,17 @@ class AccountingPayablesControllerTest extends CIUnitTestCase
         }
 
         $response->assertDontSee(lang('Accounting_payables.col_other'));
+    }
+
+    public function testGetBalances_EscapesTheNameOfTheSupplier(): void
+    {
+        $this->purchaseOf('100.00', $this->anotherSupplier('<b>Bold</b> Co'));
+        $this->viewer();
+
+        $response = $this->get('/accounting_payables/balances');
+
+        $response->assertSee('&lt;b&gt;Bold&lt;/b&gt; Co');
+        $response->assertDontSee('<b>Bold</b>');
     }
 
     public function testGetBalances_ShowsTheColumnForWhatNoOtherColumnExplainsOnlyWhenThereIsSuchAJournal(): void

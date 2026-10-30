@@ -9,6 +9,7 @@ use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\PaymentState;
 use App\Libraries\Accounting\PostingService;
+use App\Libraries\Accounting\SalePostingBuilder;
 use App\Libraries\Accounting\ReturnState;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -482,6 +483,8 @@ class CustomerLedgerTest extends CIUnitTestCase
         $this->assertSame('50.00', bcadd($position->overdue($today), '0', 2));
         $this->assertSame(1, $position->invoice($dueYesterday)->daysOverdue($today));
         $this->assertSame(0, $position->invoice($dueToday)->daysOverdue($today));
+        $this->assertSame(0, $position->invoice($dueLater)->daysOverdue($today));
+        $this->assertSame(0, $position->invoice($paid)->daysOverdue($today));
         $this->assertTies();
     }
 
@@ -504,6 +507,33 @@ class CustomerLedgerTest extends CIUnitTestCase
         }
 
         $this->assertSameAsFixture($case['expected'], ['overdue' => $overdue, 'not_overdue' => $not], 'overdue invoices');
+    }
+
+    public function testPosition_CountsAnApplicationOnlyFromTheDayItWasMadeUntilTheDayItWasReleased(): void
+    {
+        $invoice = $this->invoiceDated('100.00', $this->daysAgo(6));
+        $note    = $this->creditNoteOf($invoice, '40.00');
+        $db      = $this->accountingDb();
+
+        $db->table('sales')->where('sale_id', $note)->update(['sale_time' => $this->daysAgo(5) . ' 10:00:00']);
+        $db->table('accounting_journals')->where(['source_type' => SalePostingBuilder::SOURCE_SALE, 'source_id' => $note])->update(['journal_date' => $this->daysAgo(5)]);
+
+        $this->assertSame(1, $db->table('customer_credit_applications')->where('customer_id', $this->customerId)->countAllResults());
+
+        $db->table('customer_credit_applications')->where('customer_id', $this->customerId)->update(['created_at' => $this->daysAgo(3) . ' 09:00:00', 'released_at' => $this->daysAgo(1) . ' 09:00:00']);
+
+        $beforeIt = $this->position(null, $this->daysAgo(4));
+        $whileIt  = $this->position(null, $this->daysAgo(2));
+        $afterIt  = $this->position(null, date('Y-m-d'));
+
+        $this->assertSame(['100.00', '40.00'], [bcadd($beforeIt->open(), '0', 2), bcadd($beforeIt->credit(), '0', 2)]);
+        $this->assertSame(['60.00', '0.00'], [bcadd($whileIt->open(), '0', 2), bcadd($whileIt->credit(), '0', 2)]);
+        $this->assertSame(['100.00', '40.00'], [bcadd($afterIt->open(), '0', 2), bcadd($afterIt->credit(), '0', 2)]);
+
+        foreach ([$beforeIt, $whileIt, $afterIt] as $position) {
+            $this->assertTrue($position->agrees());
+            $this->assertSame('60.00', bcadd($position->accountBalance, '0', 2));
+        }
     }
 
     public function testPosition_TiesCustomerAndAccountForInvoicesOfAnyDayWithTermsPaymentsAndCreditNotes(): void
