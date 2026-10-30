@@ -117,7 +117,16 @@ class SuppliersControllerTest extends CIUnitTestCase
 
     public function testPostSave_CutsARegistryNumberToTheSixtyFourCharactersTheColumnKeeps(): void
     {
-        $supplierId = $this->saveSupplier($this->form(['commercial_registry' => str_repeat('7', 70)]));
+        $db   = $this->accountingDb();
+        $mode = $db->query('SELECT @@SESSION.sql_mode AS mode')->getRow()->mode;
+
+        $db->query("SET SESSION sql_mode = CONCAT(@@SESSION.sql_mode, ',STRICT_ALL_TABLES')");
+
+        try {
+            $supplierId = $this->saveSupplier($this->form(['commercial_registry' => str_repeat('7', 70)]));
+        } finally {
+            $db->query('SET SESSION sql_mode = ?', [$mode]);
+        }
 
         $this->assertSame(str_repeat('7', 64), $this->supplierRow($supplierId)->commercial_registry);
     }

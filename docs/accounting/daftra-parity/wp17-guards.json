@@ -1,0 +1,926 @@
+[
+ {
+  "name": "GL01 a corrected quantity is more than nothing",
+  "file": "app/Libraries/Accounting/ReceivingLineEdit.php",
+  "find": "return $positive && bccomp($number, '0', $decimals) <= 0 ? false : $number;",
+  "replace": "return $number;",
+  "tests": [
+   "--filter",
+   "testChanging_Rejects",
+   "tests/Libraries/Accounting/ReceivingLineEditTest.php"
+  ]
+ },
+ {
+  "name": "GL02 a number is plain digits with a point",
+  "file": "app/Libraries/Accounting/ReceivingLineEdit.php",
+  "find": "if (preg_match('/^\\d{1,11}(\\.\\d{1,9})?$/', $text) !== 1) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testChanging_Rejects",
+   "tests/Libraries/Accounting/ReceivingLineEditTest.php"
+  ]
+ },
+ {
+  "name": "GL03 a number is text, an integer or a float, never a list",
+  "file": "app/Libraries/Accounting/ReceivingLineEdit.php",
+  "find": "if (! is_string($raw) && ! is_int($raw) && ! is_float($raw)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testChanging_Rejects",
+   "tests/Libraries/Accounting/ReceivingLineEditTest.php"
+  ]
+ },
+ {
+  "name": "GL04 the tax of a line is at most a hundred",
+  "file": "app/Libraries/Accounting/ReceivingLineEdit.php",
+  "find": "if ($taxPercent !== null && bccomp($taxPercent, '100', 3) > 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testChanging_Rejects",
+   "tests/Libraries/Accounting/ReceivingLineEditTest.php"
+  ]
+ },
+ {
+  "name": "GL05 a discount type is one the lines know",
+  "file": "app/Libraries/Accounting/ReceivingLineEdit.php",
+  "find": "if ($type === false || ! in_array($type, [PERCENT, FIXED, FIXED_LINE], true)) {",
+  "replace": "if ($type === false) {",
+  "tests": [
+   "--filter",
+   "testChanging_Rejects",
+   "tests/Libraries/Accounting/ReceivingLineEditTest.php"
+  ]
+ },
+ {
+  "name": "GL06 a percentage discount is at most a hundred",
+  "file": "app/Libraries/Accounting/ReceivingLineEdit.php",
+  "find": "if ($line['discount_type'] === PERCENT && bccomp($line['discount'], '100', 2) > 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testApplyTo_RejectsAPercentage",
+   "tests/Libraries/Accounting/ReceivingLineEditTest.php"
+  ]
+ },
+ {
+  "name": "GL07 a description is at most the length the line keeps",
+  "file": "app/Libraries/Accounting/ReceivingLineEdit.php",
+  "find": "mb_strlen($fields[$name]) <= self::DESCRIPTION_LENGTH",
+  "replace": "true",
+  "tests": [
+   "--filter",
+   "testChanging_Rejects",
+   "tests/Libraries/Accounting/ReceivingLineEditTest.php"
+  ]
+ },
+ {
+  "name": "GL08 a description is text",
+  "file": "app/Libraries/Accounting/ReceivingLineEdit.php",
+  "find": "return is_string($fields[$name]) && mb_strlen",
+  "replace": "return mb_strlen",
+  "tests": [
+   "--filter",
+   "testChanging_Rejects",
+   "tests/Libraries/Accounting/ReceivingLineEditTest.php"
+  ]
+ },
+ {
+  "name": "GL09 a field the correction leaves out stays as stored",
+  "file": "app/Libraries/Accounting/ReceivingLineEdit.php",
+  "find": "$line['quantity_purchased'] = $this->quantity ?? $line['quantity_purchased'];",
+  "replace": "$line['quantity_purchased'] = $this->quantity;",
+  "tests": [
+   "--filter",
+   "testApplyTo_KeepsWhatTheCorrectionLeavesOut|testApplyTo_KeepsEveryOtherFieldAsStored",
+   "tests/Libraries/Accounting/ReceivingLineEditTest.php"
+  ]
+ },
+ {
+  "name": "GM01 only a receiving of goods has lines to correct",
+  "file": "app/Models/Receiving.php",
+  "find": "if ($purchase === null || $purchase->receiving_type !== ReceivingType::Receive->value) {\n                throw new AccountingException(AccountingError::PurchaseEditNotAReceipt",
+  "replace": "if ($purchase === null) {\n                throw new AccountingException(AccountingError::PurchaseEditNotAReceipt",
+  "tests": [
+   "--filter",
+   "testUpdateLines_RefusesAReturnAndAReceivingThatDoesNotExist",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GM02 the employee works in the branch of the receiving",
+  "file": "app/Models/Receiving.php",
+  "find": "$branchId = (int) $purchase->branch_id;\n\n            (new BranchGuard($this->db))->requireBranch($branchId, $employeeId);\n",
+  "replace": "$branchId = (int) $purchase->branch_id;\n",
+  "tests": [
+   "--filter",
+   "testUpdateLines_RefusesABranchTheEmployeeDoesNotWorkIn",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GM03 a receiving that has returns is not corrected",
+  "file": "app/Models/Receiving.php",
+  "find": "if ($this->hasReturns($receivingId)) {\n                throw new AccountingException(AccountingError::PurchaseEditHasReturns",
+  "replace": "if (false) {\n                throw new AccountingException(AccountingError::PurchaseEditHasReturns",
+  "tests": [
+   "--filter",
+   "testUpdateLines_RefusesAReceivingThatHasReturns",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GM04 the items of the lines are locked before they are read",
+  "file": "app/Models/Receiving.php",
+  "find": "            $this->lockItems(array_values($stored));\n\n            ['changed'",
+  "replace": "            ['changed'",
+  "tests": [
+   "--filter",
+   "testUpdateLines_LocksTheItemsOfTheLines",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GM05 the receiving row is locked while it is corrected",
+  "file": "app/Models/Receiving.php",
+  "find": "WHERE receiving_id = ? FOR UPDATE', [$receivingId]);\n            $purchase = $locked === false",
+  "replace": "WHERE receiving_id = ?', [$receivingId]);\n            $purchase = $locked === false",
+  "tests": [
+   "--filter",
+   "testUpdateLines_TwoCorrections",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GM06 a correction runs under the lock of the supplier",
+  "file": "app/Models/Receiving.php",
+  "find": "return (new SupplierLock($this->db, $this->supplierLockWait))->run($this->supplierOf($receivingId), fn (): bool => $this->updateLinesLocked($receivingId, $edits, $employeeId));",
+  "replace": "return $this->updateLinesLocked($receivingId, $edits, $employeeId);",
+  "tests": [
+   "--filter",
+   "testUpdateLines_IsRefusedAndChangesNothing",
+   "tests/Libraries/Accounting/SupplierLockTest.php"
+  ]
+ },
+ {
+  "name": "GM07 a line of another receiving is refused",
+  "file": "app/Models/Receiving.php",
+  "find": "if (! isset($stored[$key]) || isset($changed[$key])",
+  "replace": "if (isset($changed[$key])",
+  "tests": [
+   "--filter",
+   "testUpdateLines_RefusesALineThatIsNotOnTheReceiving",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GM08 a line given twice is refused",
+  "file": "app/Models/Receiving.php",
+  "find": "if (! isset($stored[$key]) || isset($changed[$key]) || in_array($key, $removed, true)) {",
+  "replace": "if (! isset($stored[$key])) {",
+  "tests": [
+   "--filter",
+   "testUpdateLines_RefusesALineThatIsNotOnTheReceiving",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GM09 a line that cannot be saved is refused",
+  "file": "app/Models/Receiving.php",
+  "find": "if ($corrected === null) {\n                throw new AccountingException(AccountingError::PurchaseEditLineInvalid, 'The line cannot be saved",
+  "replace": "if (false) {\n                throw new AccountingException(AccountingError::PurchaseEditLineInvalid, 'The line cannot be saved",
+  "tests": [
+   "--filter",
+   "testUpdateLines_RefusesAPercentageOverAHundred",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GM10 a line given its own values is no change",
+  "file": "app/Models/Receiving.php",
+  "find": "if ($corrected !== ReceivingLineEdit::fieldsOf($stored[$key])) {",
+  "replace": "if (true) {",
+  "tests": [
+   "--filter",
+   "testUpdateLines_RunAgainWithTheSameValues",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GM11 a receiving keeps at least one line",
+  "file": "app/Models/Receiving.php",
+  "find": "if (count($removed) === count($stored)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testUpdateLines_RefusesToTakeOutEveryLine",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GM12 a correction that changes nothing writes nothing",
+  "file": "app/Models/Receiving.php",
+  "find": "if ($changed === [] && $removed === []) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testUpdateLines_RunAgainWithTheSameValues",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GM13 the stock never goes below nothing",
+  "file": "app/Models/Receiving.php",
+  "find": "            $this->assertStockStays($deltas);\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testUpdateLines_RefusesWhenTheGoodsWereSold|testUpdateLines_RefusesToLeaveLessThanNothingWhileTheBooksAreOffToo",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GM14 the check of the shelf compares what is left with nothing",
+  "file": "app/Models/Receiving.php",
+  "find": "if (bccomp(bcadd($onHand, $delta['delta'], 3), '0', 3) < 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testUpdateLines_RefusesWhenTheGoodsWereSold",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GM15 goods that keep no stock are not checked against a shelf",
+  "file": "app/Models/Receiving.php",
+  "find": "if (! $delta['hasStock'] || bccomp($delta['delta'], '0', 3) >= 0) {",
+  "replace": "if (bccomp($delta['delta'], '0', 3) >= 0) {",
+  "tests": [
+   "--filter",
+   "testUpdateLines_DoesNotHoldGoodsThatKeepNoStock",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GM16 only a change that takes stock out is checked",
+  "file": "app/Models/Receiving.php",
+  "find": "if (! $delta['hasStock'] || bccomp($delta['delta'], '0', 3) >= 0) {",
+  "replace": "if (! $delta['hasStock']) {",
+  "tests": [
+   "--filter",
+   "testUpdateLines_LocksTheShelfBeforeTaking",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GM17 the shelf row is locked while it is checked",
+  "file": "app/Models/Receiving.php",
+  "find": "item_id = ? AND location_id = ? FOR UPDATE', [$delta['itemId'], $delta['locationId']]);",
+  "replace": "item_id = ? AND location_id = ?', [$delta['itemId'], $delta['locationId']]);",
+  "tests": [
+   "--filter",
+   "testUpdateLines_LocksTheShelfBeforeTaking",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GM18 the cost of the items follows a correction that is averaged",
+  "file": "app/Models/Receiving.php",
+  "find": "            if ($averaging) {\n                $touched",
+  "replace": "            if (false) {\n                $touched",
+  "tests": [
+   "--filter",
+   "testUpdateLines_RecomputesTheAverageOfTheItem",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GM19 the average is on whenever the books are on",
+  "file": "app/Models/Receiving.php",
+  "find": "$averaging    = $accountingOn || (bool)",
+  "replace": "$averaging    = (bool)",
+  "tests": [
+   "--filter",
+   "testUpdateLines_RecomputesTheAverageOfTheItem",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GM20 the average stays off when neither the books nor the setting ask for it",
+  "file": "app/Models/Receiving.php",
+  "find": "$averaging    = $accountingOn || (bool) config(OSPOS::class)->settings['receiving_calculate_average_price'];",
+  "replace": "$averaging    = true;",
+  "tests": [
+   "--filter",
+   "testUpdateLines_LeavesTheCostAloneWhileTheBooksAreOff",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GM21 the books are brought in line with the correction",
+  "file": "app/Models/Receiving.php",
+  "find": "            if ($accountingOn) {\n                (new ReceivingPosting($this->db))->repost(",
+  "replace": "            if (false) {\n                (new ReceivingPosting($this->db))->repost(",
+  "tests": [
+   "--filter",
+   "testUpdateLines_ReversesTheOldJournalAndTheMovements",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GM22 the stock on the shelves changes by the correction",
+  "file": "app/Models/Receiving.php",
+  "find": "            $this->moveStock($deltas, 'Editing receiving ' . $receivingId, $employeeId);\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testUpdateLines_WritesTheCorrectionToTheInventoryRecord|testUpdateLines_ChangesTheStockWithoutTheBooks",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GM23 the discount on the whole receiving is shared again",
+  "file": "app/Models/Receiving.php",
+  "find": "            $this->shareInvoiceDiscountAgain($receivingId, $purchase);\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testUpdateLines_SharesTheDiscountOnTheWholePurchase",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GM24 the old shares of the discount are cleared before the new are taken",
+  "file": "app/Models/Receiving.php",
+  "find": "        $this->db->table('receivings_items')->where('receiving_id', $receivingId)->update(['invoice_discount_share' => null]);\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testUpdateLines_ClearsTheShareOfALine",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GM25 a failed correction is rolled back",
+  "file": "app/Models/Receiving.php",
+  "find": "} catch (AccountingException|PostingException|BranchException $failure) {\n            $this->db->transRollback();\n            $this->accountingFailure = $failure;\n\n            if ($accountingOn && $failure instanceof PostingException) {\n                (new ReceivingPosting($this->db))->recordFailure($receivingId",
+  "replace": "} catch (AccountingException|PostingException|BranchException $failure) {\n            $this->accountingFailure = $failure;\n\n            if ($accountingOn && $failure instanceof PostingException) {\n                (new ReceivingPosting($this->db))->recordFailure($receivingId",
+  "tests": [
+   "--filter",
+   "testUpdateLines_RefusesAReceivingThatHasReturnsAndChangesNothing|testUpdateLines_RefusesAClosedPeriod",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GM26 a refusal of the books is recorded as a posting failure",
+  "file": "app/Models/Receiving.php",
+  "find": "(new ReceivingPosting($this->db))->recordFailure($receivingId, $failure, $employeeId, $branchId);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testUpdateLines_RefusesAClosedPeriod",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GD01 a receiving whose goods were sold is not deleted",
+  "file": "app/Models/Receiving.php",
+  "find": "$this->assertStockStays($this->stockDeltas($document, null));\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testDeleteValue_RefusesAPurchaseWhoseGoodsWereSold",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GD02 deleting a receiving brings the cost back to the average of the stock left",
+  "file": "app/Models/Receiving.php",
+  "find": "if ($document?->type === ReceivingType::Receive) {\n                    $this->correctTheCost",
+  "replace": "if (false) {\n                    $this->correctTheCost",
+  "tests": [
+   "--filter",
+   "testDeleteValue_GoesBackToTheAverage",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GD03 the cost is corrected on a delete only while the books are on",
+  "file": "app/Models/Receiving.php",
+  "find": "if ($accountingOn && $update_inventory) {\n            try {\n                $document",
+  "replace": "if ($update_inventory) {\n            try {\n                $document",
+  "tests": [
+   "--filter",
+   "testDeleteValue_StillDeletesAPurchaseWhoseGoodsWereSold",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GD04 a refusal to delete is rolled back",
+  "file": "app/Models/Receiving.php",
+  "find": "} catch (AccountingException $refusal) {\n                $this->db->transRollback();\n                $this->accountingFailure = $refusal;",
+  "replace": "} catch (AccountingException $refusal) {\n                $this->accountingFailure = $refusal;",
+  "tests": [
+   "--filter",
+   "testDeleteValue_RefusesAPurchaseWhoseGoodsWereSold",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GI01 no average is made when no stock is left to weigh",
+  "file": "app/Models/Item.php",
+  "find": "if (bccomp($left, '0', 3) <= 0 || bccomp($value, '0', 8) < 0) {",
+  "replace": "if (bccomp($value, '0', 8) < 0) {",
+  "tests": [
+   "--filter",
+   "testCorrectPurchaseCost_LeavesTheCostWhenNoStockIsLeft",
+   "tests/Models/ItemTest.php"
+  ]
+ },
+ {
+  "name": "GI02 no average is made from a stock worth less than nothing",
+  "file": "app/Models/Item.php",
+  "find": "if (bccomp($left, '0', 3) <= 0 || bccomp($value, '0', 8) < 0) {",
+  "replace": "if (bccomp($left, '0', 3) <= 0) {",
+  "tests": [
+   "--filter",
+   "testCorrectPurchaseCost_LeavesTheCostWhenTheValueTakenOut",
+   "tests/Models/ItemTest.php"
+  ]
+ },
+ {
+  "name": "GI03 the stock of a deleted location is not weighed",
+  "file": "app/Models/Item.php",
+  "find": "        $builder->where('stock_locations.deleted', 0);\n        $onHand = (string) ($builder->get()->getRow()->quantity ?? '0');\n\n        $left",
+  "replace": "        $onHand = (string) ($builder->get()->getRow()->quantity ?? '0');\n\n        $left",
+  "tests": [
+   "--filter",
+   "testCorrectPurchaseCost_DoesNotWeigh",
+   "tests/Models/ItemTest.php"
+  ]
+ },
+ {
+  "name": "GI04 the cost is kept at the six decimals the column keeps",
+  "file": "app/Models/Item.php",
+  "find": "SaleAmounts::round(bcdiv($value, $left, 8), 6)",
+  "replace": "SaleAmounts::round(bcdiv($value, $left, 8), 2)",
+  "tests": [
+   "--filter",
+   "testCorrectPurchaseCost_TakesTheUnitsOut",
+   "tests/Models/ItemTest.php"
+  ]
+ },
+ {
+  "name": "GP01 a receiving the books do not follow is not reposted",
+  "file": "app/Libraries/Accounting/ReceivingPosting.php",
+  "find": "if (! $this->follows($purchase) || ! $this->isPosted($receivingId)) {\n            return;\n        }\n\n        $this->transactional(function () use ($purchase, $employeeId, $details)",
+  "replace": "$this->transactional(function () use ($purchase, $employeeId, $details)",
+  "tests": [
+   "--filter",
+   "testUpdateLines_ChangesTheStockWithoutTheBooksForAReceivingDatedBeforeTheyStart|testUpdateLines_ChangesTheStockAndTheAverageWhileTheBooksAreOff",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GP02 the treasury of a changed payment is one the editor may deposit into",
+  "file": "app/Libraries/Accounting/ReceivingPosting.php",
+  "find": "(new TreasuryScopes($this->db))->assertMayReplace((int) $active->journal_id, $replacement, $employeeId);\n\n                [$reversalId, $date] = $this->reverse($active, $employeeId, 'Purchase #' . $purchase->receivingId . ' edited');",
+  "replace": "[$reversalId, $date] = $this->reverse($active, $employeeId, 'Purchase #' . $purchase->receivingId . ' edited');",
+  "tests": [
+   "--filter",
+   "testUpdateLines_RefusesToPayLessOutOfATreasury",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GP03 the journal that stands is reversed",
+  "file": "app/Libraries/Accounting/ReceivingPosting.php",
+  "find": "            if ($active !== null) {\n                $replacement = $this->builder->purchase($purchase, $this->nextRevisionOf(",
+  "replace": "            if (false) {\n                $replacement = $this->builder->purchase($purchase, $this->nextRevisionOf(",
+  "tests": [
+   "--filter",
+   "testUpdateLines_ReversesTheOldJournalAndTheMovements",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GP04 the stock movements of the old revision are taken back",
+  "file": "app/Libraries/Accounting/ReceivingPosting.php",
+  "find": "            $this->ledger->reverseSource($source, $purchase->receivingId, JournalEntryType::General, $date, $reversalId);\n            $this->postPurchase($purchase, $employeeId);\n            $this->settle($purchase->supplierId, $employeeId);\n\n            (new AuditLog",
+  "replace": "            $this->postPurchase($purchase, $employeeId);\n            $this->settle($purchase->supplierId, $employeeId);\n\n            (new AuditLog",
+  "tests": [
+   "--filter",
+   "testUpdateLines_ReversesTheOldJournalAndTheMovements|testUpdateLines_TakesALineOutWithItsStock",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GP05 the credit of the supplier is settled again",
+  "file": "app/Libraries/Accounting/ReceivingPosting.php",
+  "find": "            $this->postPurchase($purchase, $employeeId);\n            $this->settle($purchase->supplierId, $employeeId);\n\n            (new AuditLog",
+  "replace": "            $this->postPurchase($purchase, $employeeId);\n\n            (new AuditLog",
+  "tests": [
+   "--filter",
+   "testUpdateLines_SettlesTheCreditOfTheSupplierAgain|testUpdateLines_LeavesThePaymentMadeAtOnce",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GP06 a correction is written to the audit log",
+  "file": "app/Libraries/Accounting/ReceivingPosting.php",
+  "find": "            (new AuditLog($this->db))->write('purchase', $purchase->receivingId, 'lines_edited', $employeeId, JournalOrigin::User, $details, $purchase->branchId);\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testUpdateLines_ReversesTheOldJournalAndTheMovements",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GP07 a revision is numbered after the stock movements too",
+  "file": "app/Libraries/Accounting/ReceivingPosting.php",
+  "find": "return max($this->nextRevision($sourceType, $sourceId), ((int) ($row->last ?? 0)) + 1);",
+  "replace": "return $this->nextRevision($sourceType, $sourceId);",
+  "tests": [
+   "--filter",
+   "testUpdateLines_PostsAZeroValuedReceiving",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GP08 a purchase is posted under the revision after its movements",
+  "file": "app/Libraries/Accounting/ReceivingPosting.php",
+  "find": "$revision = $this->nextRevisionOf($source, $purchase->receivingId);\n\n        if ($purchase->toBranchId",
+  "replace": "$revision = $this->nextRevision($source, $purchase->receivingId);\n\n        if ($purchase->toBranchId",
+  "tests": [
+   "--filter",
+   "testUpdateLines_PostsAZeroValuedReceiving",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "GC01 the branch of the receiving is the employee own",
+  "file": "app/Controllers/Receivings.php",
+  "find": "public function postSaveLines(int $receiving_id = -1): ResponseInterface\n    {\n        if ($this->outsideBranchScope($receiving_id)) {",
+  "replace": "public function postSaveLines(int $receiving_id = -1): ResponseInterface\n    {\n        if (false) {",
+  "tests": [
+   "--filter",
+   "testPostSaveLines_RefusesAReceivingOfABranch",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GC02 every stock location of the lines is one the employee has a grant on",
+  "file": "app/Controllers/Receivings.php",
+  "find": "if (! $this->stock_location->is_allowed_location((int) $locationId, 'receivings', true)) {\n                return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Receivings.location_not_allowed')]);\n            }\n        }\n\n        $employeeId = (int) $this->employee->get_logged_in_employee_info()->person_id;\n        $edits      =",
+  "replace": "if (false) {\n                return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Receivings.location_not_allowed')]);\n            }\n        }\n\n        $employeeId = (int) $this->employee->get_logged_in_employee_info()->person_id;\n        $edits      =",
+  "tests": [
+   "--filter",
+   "testPostSaveLines_RefusesAStockLocationTheEmployeeHasNoGrantOn",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GC03 the tax of a line is taken from whoever may edit costs",
+  "file": "app/Controllers/Receivings.php",
+  "find": "'tax_percent'   => $mayEditTax ? $this->parsedLineNumber($fields, 'tax_percent') : null,",
+  "replace": "'tax_percent'   => $this->parsedLineNumber($fields, 'tax_percent'),",
+  "tests": [
+   "--filter",
+   "testPostSaveLines_TakesTheTaxOfALineOnlyFromWhoeverMayEditCosts",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GC04 a form with a line that is not valid saves nothing",
+  "file": "app/Controllers/Receivings.php",
+  "find": "if ($edits === null) {\n            return $this->response->setJSON(['success' => false, 'message' => AccountingMessage::of(new AccountingException(AccountingError::PurchaseEditLineInvalid))",
+  "replace": "if (false) {\n            return $this->response->setJSON(['success' => false, 'message' => AccountingMessage::of(new AccountingException(AccountingError::PurchaseEditLineInvalid))",
+  "tests": [
+   "--filter",
+   "testPostSaveLines_RefusesALineThatIsNotValid",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GC05 a field that was shown and not touched is no change",
+  "file": "app/Controllers/Receivings.php",
+  "find": "if (! is_string($raw) || trim($raw) === '' || $this->unchangedAs($fields, $name)) {",
+  "replace": "if (! is_string($raw) || trim($raw) === '') {",
+  "tests": [
+   "--filter",
+   "testPostSaveLines_ReadsAFieldThatWasNotTouchedAsUnchanged",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GC06 a line the form marks is taken out",
+  "file": "app/Controllers/Receivings.php",
+  "find": "if (! empty($fields['remove'])) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testPostSaveLines_TakesALineOutWhenTheFormMarksIt",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GC07 a number that is not a number is refused and not read as nothing",
+  "file": "app/Controllers/Receivings.php",
+  "find": "return $parsed === false ? $raw : $parsed;",
+  "replace": "return $parsed === false ? null : $parsed;",
+  "tests": [
+   "--filter",
+   "testPostSaveLines_RefusesALineThatIsNotValid",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GC08 the lines of a receiving that has returns are not offered",
+  "file": "app/Controllers/Receivings.php",
+  "find": "&& ! $this->receiving->hasReturns((int) $receiving_id);\n        $data['lines_has_returns']",
+  "replace": ";\n        $data['lines_has_returns']",
+  "tests": [
+   "--filter",
+   "testGetEdit_DoesNotOfferTheLinesOfAReceivingThatGoodsHaveGoneBackFrom",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GC09 the lines of a return are not offered",
+  "file": "app/Controllers/Receivings.php",
+  "find": "$data['lines_editable']   = $receivingInfo['receiving_type'] === ReceivingType::Receive->value && !",
+  "replace": "$data['lines_editable']   = true && !",
+  "tests": [
+   "--filter",
+   "testGetEdit_DoesNotOfferTheLinesOfAReturn",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GC10 the tax of a line is offered for editing to whoever may edit costs",
+  "file": "app/Controllers/Receivings.php",
+  "find": "$data['can_edit_tax']     = $this->employee->has_grant('items', $currentEmployeeId);",
+  "replace": "$data['can_edit_tax']     = true;",
+  "tests": [
+   "--filter",
+   "testGetEdit_ShowsTheTaxOfALineToWhoeverMayNotEditCosts",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GC11 the tax field is read only for whoever may not edit costs",
+  "file": "app/Views/receivings/form.php",
+  "find": "+ ($can_edit_tax ? [] : ['readonly' => 'readonly'])",
+  "replace": "+ []",
+  "tests": [
+   "--filter",
+   "testGetEdit_ShowsTheTaxOfALineToWhoeverMayNotEditCosts",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GC12 the form offers a correction only when there are lines",
+  "file": "app/Views/receivings/form.php",
+  "find": "<?php if ($lines_editable && $lines !== []): ?>",
+  "replace": "<?php if (false): ?>",
+  "tests": [
+   "--filter",
+   "testGetEdit_OffersTheLinesOfAReceivingToCorrect",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GT01 a purchase tax rate is a number that is not negative",
+  "file": "app/Controllers/Items.php",
+  "find": "'purchase_tax_percents.*' => 'permit_empty|nonNegativeDecimal',",
+  "replace": "'purchase_tax_percents.*' => 'permit_empty',",
+  "tests": [
+   "--filter",
+   "testPostSave_RejectsAPurchaseTaxThatIsNotOne",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GT02 a purchase tax rate is at most a hundred",
+  "file": "app/Controllers/Items.php",
+  "find": "if (trim((string) $raw) !== '' && (float) parse_tax(trim((string) $raw)) > 100) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testPostSave_RejectsAPurchaseTaxThatIsNotOne",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GT03 the name of a purchase tax is plain text",
+  "file": "app/Controllers/Items.php",
+  "find": "'purchase_tax_names.*'    => 'permit_empty|max_length[255]|unicode_alpha_numeric_punct',",
+  "replace": "'purchase_tax_names.*'    => 'permit_empty',",
+  "tests": [
+   "--filter",
+   "testPostSave_RejectsAPurchaseTaxThatIsNotOne",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GT04 an empty rate follows the sales tax and is not a tax of zero",
+  "file": "app/Controllers/Items.php",
+  "find": "$data[\"purchase_tax_{$slot}_percent\"] = $isSet ? $parsed : null;",
+  "replace": "$data[\"purchase_tax_{$slot}_percent\"] = $isSet ? $parsed : 0;",
+  "tests": [
+   "--filter",
+   "testPostSave_SavesAPurchaseTaxOfZero",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GT05 the name of a purchase tax without a rate is dropped",
+  "file": "app/Controllers/Items.php",
+  "find": "$data[\"purchase_tax_{$slot}_name\"]    = $isSet && $name !== '' ? $name : null;",
+  "replace": "$data[\"purchase_tax_{$slot}_name\"]    = $name !== '' ? $name : null;",
+  "tests": [
+   "--filter",
+   "testPostSave_DropsTheNameOfAPurchaseTax",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GT06 a form that does not carry the purchase taxes leaves them alone",
+  "file": "app/Controllers/Items.php",
+  "find": "if (is_array($this->request->getPost('purchase_tax_percents'))) {\n            $itemData += $this->postedPurchaseTaxes();",
+  "replace": "if (true) {\n            $itemData += $this->postedPurchaseTaxes();",
+  "tests": [
+   "--filter",
+   "testPostSave_LeavesThePurchaseTaxesAlone",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GT07 the purchase taxes of the form are checked only when it carries them",
+  "file": "app/Controllers/Items.php",
+  "find": "if (! is_array($percents)) {\n            return null;\n        }\n\n        $error = $this->validateFields(\n            [\n                'purchase_tax_names.*'",
+  "replace": "if (false) {\n            return null;\n        }\n\n        $error = $this->validateFields(\n            [\n                'purchase_tax_names.*'",
+  "tests": [
+   "--filter",
+   "testPostSave_LeavesThePurchaseTaxesAlone",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GX01 an item that sets no purchase tax keeps the sum of its sales taxes",
+  "file": "app/Libraries/Accounting/ItemPurchaseTax.php",
+  "find": "if ($set === []) {\n            return array_reduce(",
+  "replace": "if (false) {\n            return array_reduce(",
+  "tests": [
+   "--filter",
+   "testDefaultPercent_KeepsReadingEverySalesTax",
+   "tests/Libraries/Accounting/ItemPurchaseTaxTest.php"
+  ]
+ },
+ {
+  "name": "GX02 an unset purchase tax follows the sales tax of its number",
+  "file": "app/Libraries/Accounting/ItemPurchaseTax.php",
+  "find": "$sum = bcadd($sum, $percent ?? (string) ($salesTaxes[$index]['percent'] ?? '0'), 3);",
+  "replace": "$sum = bcadd($sum, $percent ?? '0', 3);",
+  "tests": [
+   "--filter",
+   "testDefaultPercent_FollowsTheSalesTaxOfTheSameNumber",
+   "tests/Libraries/Accounting/ItemPurchaseTaxTest.php"
+  ]
+ },
+ {
+  "name": "GX03 an empty column is no purchase tax",
+  "file": "app/Libraries/Accounting/ItemPurchaseTax.php",
+  "find": "$percents[] = $value === null || $value === '' ? null : bcadd((string) $value, '0', 3);",
+  "replace": "$percents[] = $value === null ? null : bcadd((string) $value, '0', 3);",
+  "tests": [
+   "--filter",
+   "testDefaultPercent_FollowsTheSumOfTheSalesTaxesWhileNoPurchaseTaxIsSet",
+   "tests/Libraries/Accounting/ItemPurchaseTaxTest.php"
+  ]
+ },
+ {
+  "name": "GX04 a receiving line takes the purchase tax of its item",
+  "file": "app/Libraries/Receiving_lib.php",
+  "find": "return ItemPurchaseTax::defaultPercent($this->item->get_info($itemId), $this->item_taxes->get_info($itemId));",
+  "replace": "$percent = '0';\n\n        foreach ($this->item_taxes->get_info($itemId) as $tax) {\n            $percent = bcadd($percent, (string) $tax['percent'], 3);\n        }\n\n        return $percent;",
+  "tests": [
+   "--filter",
+   "testPostAdd_PutsThePurchaseTaxOfTheItemOnTheLine",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GS01 the registry number is cut to the length the column keeps",
+  "file": "app/Controllers/Suppliers.php",
+  "find": "mb_substr(trim((string) $this->request->getPost('commercial_registry', FILTER_SANITIZE_FULL_SPECIAL_CHARS)), 0, 64)",
+  "replace": "trim((string) $this->request->getPost('commercial_registry', FILTER_SANITIZE_FULL_SPECIAL_CHARS))",
+  "tests": [
+   "--filter",
+   "testPostSave_CutsARegistryNumber",
+   "tests/Controllers/SuppliersControllerTest.php"
+  ]
+ },
+ {
+  "name": "GS02 the registry number is trimmed",
+  "file": "app/Controllers/Suppliers.php",
+  "find": "mb_substr(trim((string) $this->request->getPost('commercial_registry', FILTER_SANITIZE_FULL_SPECIAL_CHARS)), 0, 64)",
+  "replace": "mb_substr((string) $this->request->getPost('commercial_registry', FILTER_SANITIZE_FULL_SPECIAL_CHARS), 0, 64)",
+  "tests": [
+   "--filter",
+   "testPostSave_KeepsARegistryNumberThatHasLettersAndSeparators",
+   "tests/Controllers/SuppliersControllerTest.php"
+  ]
+ },
+ {
+  "name": "GS03 a form without the registry field leaves the stored number alone",
+  "file": "app/Controllers/Suppliers.php",
+  "find": "if ($this->request->getPost('commercial_registry') !== null) {",
+  "replace": "if (true) {",
+  "tests": [
+   "--filter",
+   "testPostSave_LeavesTheRegistryAlone",
+   "tests/Controllers/SuppliersControllerTest.php"
+  ]
+ },
+ {
+  "name": "GS04 the form of a supplier shows the registry number the supplier has",
+  "file": "app/Views/suppliers/form.php",
+  "find": "'value'     => $person_info->commercial_registry ?? ''",
+  "replace": "'value'     => ''",
+  "tests": [
+   "--filter",
+   "testGetView_ShowsTheRegistryFieldBesideTheTaxNumber",
+   "tests/Controllers/SuppliersControllerTest.php"
+  ]
+ },
+ {
+  "name": "GS05 the receipt shows the registry number of the supplier",
+  "file": "app/Views/receivings/receipt.php",
+  "find": "<?php if (!empty($supplier_commercial_registry)) { ?>",
+  "replace": "<?php if (false) { ?>",
+  "tests": [
+   "--filter",
+   "testGetReceipt_ShowsTheTaxNumberAndTheCommercialRegistry",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GS06 the receipt shows no number for a supplier who has none",
+  "file": "app/Views/receivings/receipt.php",
+  "find": "<?php if (!empty($supplier_tax_id)) { ?>",
+  "replace": "<?php if (isset($supplier_tax_id)) { ?>",
+  "tests": [
+   "--filter",
+   "testGetReceipt_ShowsNeitherNumberForASupplierWhoHasNone",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GS07 the register shows the registry number of the supplier",
+  "file": "app/Views/receivings/receiving.php",
+  "find": "<?php if (! empty($supplier_commercial_registry)): ?>",
+  "replace": "<?php if (false): ?>",
+  "tests": [
+   "--filter",
+   "testGetIndex_ShowsTheNumbersOfTheSupplierOfTheRegister",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GS08 the edit form shows the registry number of the supplier",
+  "file": "app/Views/receivings/form.php",
+  "find": "<?php if (! empty($receiving_info[$column])): ?>",
+  "replace": "<?php if (false): ?>",
+  "tests": [
+   "--filter",
+   "testGetEdit_ShowsTheNumbersOfTheSupplier",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GS09 the tax number of the supplier reaches the documents of a purchase",
+  "file": "app/Controllers/Receivings.php",
+  "find": "'supplier_tax_id'              => (string) ($supplier->tax_id ?? ''),",
+  "replace": "'supplier_tax_id'              => '',",
+  "tests": [
+   "--filter",
+   "testGetReceipt_ShowsTheTaxNumberAndTheCommercialRegistry|testGetIndex_ShowsTheNumbersOfTheSupplierOfTheRegister",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GS10 the registry number of the supplier reaches the documents of a purchase",
+  "file": "app/Controllers/Receivings.php",
+  "find": "'supplier_commercial_registry' => (string) ($supplier->commercial_registry ?? ''),",
+  "replace": "'supplier_commercial_registry' => '',",
+  "tests": [
+   "--filter",
+   "testGetReceipt_ShowsTheTaxNumberAndTheCommercialRegistry|testPostComplete_ShowsTheNumbersOfTheSupplierOnTheReceiptItPrints",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ }
+]

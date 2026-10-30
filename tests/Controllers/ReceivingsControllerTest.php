@@ -2711,6 +2711,26 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $this->assertCount(1, $this->purchaseJournals($receivingId));
     }
 
+    public function testPostSaveLines_RefusesAReceivingOfABranchEvenWhenItsStockLocationHasSinceMovedToTheEmployeesBranch(): void
+    {
+        $itemId     = $this->item('0.00');
+        $branch     = $this->anotherBranch();
+        $employee   = $this->buyer([$branch]);
+        $locationId = $this->depotIn(1, $employee);
+
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100', locationId: $locationId)]);
+
+        $this->accountingDb()->table('stock_locations')->where('location_id', $locationId)->update(['branch_id' => $branch]);
+        $this->loginAs($employee);
+
+        $response = $this->post('/receivings/saveLines/' . $receivingId, $this->lineForm($itemId, ['quantity' => '8']));
+
+        $response->assertStatus(403);
+        $this->assertSame(lang('Receivings.branch_not_allowed'), json_decode((string) $response->getJSON(), true)['message'], 'The branch of the receiving decides, not the branch its stock location has now');
+        $this->assertSame('10.000', $this->storedLine($receivingId, $itemId)->quantity_purchased);
+        $this->assertCount(1, $this->purchaseJournals($receivingId));
+    }
+
     public function testPostSaveLines_RefusesAStockLocationTheEmployeeHasNoGrantOn(): void
     {
         $itemId      = $this->item('0.00');

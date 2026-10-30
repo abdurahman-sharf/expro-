@@ -131,6 +131,23 @@ class ReceivingLineEditTest extends CIUnitTestCase
         ], $edit->applyTo($this->storedRow()));
     }
 
+    public function testApplyTo_KeepsEveryOtherFieldAsStoredWhenOnlyOneIsGiven(): void
+    {
+        $stored = ReceivingLineEdit::fieldsOf($this->storedRow());
+
+        foreach (['quantity' => ['quantity_purchased', '9.000'], 'price' => ['item_unit_price', '90.00'], 'discount' => ['discount', '5.00'], 'tax_percent' => ['tax_percent', '5.000']] as $field => [$column, $value]) {
+            $applied = ReceivingLineEdit::changing(5, 2, [$field => $value])->applyTo($this->storedRow());
+
+            $this->assertSame($value, $applied[$column], $field);
+            $this->assertSame(array_diff_key($stored, [$column => 1]), array_diff_key($applied, [$column => 1]), 'Only ' . $field . ' changes');
+        }
+
+        $applied = ReceivingLineEdit::changing(5, 2, ['discount_type' => (string) FIXED])->applyTo($this->storedRow());
+
+        $this->assertSame(FIXED, $applied['discount_type']);
+        $this->assertSame('10.00', $applied['discount']);
+    }
+
     public function testApplyTo_GivesTheStoredLineBackWhenTheCorrectionRepeatsIt(): void
     {
         $edit = ReceivingLineEdit::changing(5, 2, ['quantity' => '10', 'price' => '100.00', 'discount' => '10', 'discount_type' => PERCENT, 'tax_percent' => '15', 'description' => 'Boxes']);

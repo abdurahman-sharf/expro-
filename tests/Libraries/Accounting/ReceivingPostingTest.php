@@ -16,6 +16,7 @@ use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
+use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -3477,6 +3478,7 @@ class ReceivingPostingTest extends CIUnitTestCase
         $this->assertInstanceOf(PostingException::class, $this->failure());
         $this->assertSame(PostingError::PeriodClosed, $this->failure()->error);
         $this->assertSame($before, $this->bookState($receivingId, $itemId));
+        $this->assertSame(1, $this->accountingDb()->table('accounting_posting_failures')->where('source_type', 'purchase')->where('source_id', $receivingId)->where('error_code', 'period_closed')->countAllResults(), 'The refusal is written down after the rollback');
         $this->assertStockTies();
     }
 
@@ -3741,7 +3743,7 @@ class ReceivingPostingTest extends CIUnitTestCase
 
     public function testUpdateLines_LeavesTheCostAloneWhileTheBooksAreOffAndTheAverageIsOff(): void
     {
-        $itemId = $this->item('7.00');
+        $itemId = $this->item('100.00');
 
         $this->setConfigValue('accounting_enabled', '0');
         config(OSPOS::class)->settings['receiving_calculate_average_price'] = '';
@@ -3750,8 +3752,88 @@ class ReceivingPostingTest extends CIUnitTestCase
 
         $this->assertTrue($this->correct($receivingId, $itemId, ['quantity' => '8', 'price' => '90']));
         $this->assertSame('8.000', $this->onHand($itemId));
-        $this->assertSame('7.0000', $this->itemCostOf($itemId));
+        $this->assertSame('100.0000', $this->itemCostOf($itemId), 'An average of the 8 units at 90 would have been 90');
         $this->assertSame('90.00', $this->storedLine($receivingId, $itemId)->item_unit_price);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function queriesDuring(callable $action): array
+    {
+        $queries  = [];
+        $listener = static function ($query) use (&$queries): void {
+            $queries[] = (string) $query->getQuery();
+        };
+
+        Events::on('DBQuery', $listener);
+
+        try {
+            $action();
+        } finally {
+            Events::removeListener('DBQuery', $listener);
+        }
+
+        return $queries;
+    }
+
+    /**
+     * @param list<string> $queries
+     */
+    private function firstQueryLike(array $queries, string $pattern): ?int
+    {
+        foreach ($queries as $index => $query) {
+            if (preg_match($pattern, $query) === 1) {
+                return $index;
+            }
+        }
+
+        return null;
+    }
+
+    public function testUpdateLines_LocksTheItemsOfTheLinesBeforeItChangesAnything(): void
+    {
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100')]);
+
+        $queries = $this->queriesDuring(fn () => $this->assertTrue($this->correct($receivingId, $itemId, ['quantity' => '8'])));
+        $lock    = $this->firstQueryLike($queries, '/FROM `?\w*items`? WHERE item_id IN \(' . $itemId . '\) ORDER BY item_id FOR UPDATE/');
+        $write   = $this->firstQueryLike($queries, '/^(UPDATE|DELETE FROM|INSERT INTO) `?\w*receivings_items`?/');
+
+        $this->assertNotNull($lock, 'The items of the lines are locked');
+        $this->assertNotNull($write);
+        $this->assertLessThan($write, $lock, 'The lock is taken before the first line is written');
+    }
+
+    public function testUpdateLines_LocksTheShelfBeforeTakingStockOffItAndNotWhenAddingToIt(): void
+    {
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100')]);
+        $shelfLock   = '/FROM `?\w*item_quantities`? WHERE item_id = ' . $itemId . ' AND location_id = ' . self::LOCATION_ID . ' FOR UPDATE/';
+
+        $taking = $this->queriesDuring(fn () => $this->assertTrue($this->correct($receivingId, $itemId, ['quantity' => '8'])));
+        $locked = $this->firstQueryLike($taking, $shelfLock);
+        $moved  = $this->firstQueryLike($taking, '/^(UPDATE|INSERT INTO) `?\w*item_quantities`?/');
+
+        $this->assertNotNull($locked, 'The shelf is locked while it is checked');
+        $this->assertNotNull($moved);
+        $this->assertLessThan($moved, $locked, 'The lock is taken before the stock moves');
+
+        $adding = $this->queriesDuring(fn () => $this->assertTrue($this->correct($receivingId, $itemId, ['quantity' => '12'])));
+
+        $this->assertNull($this->firstQueryLike($adding, $shelfLock), 'Adding stock needs no check of the shelf');
+        $this->assertSame('12.000', $this->onHand($itemId));
+    }
+
+    public function testUpdateLines_DoesNotHoldGoodsThatKeepNoStockToTheShelf(): void
+    {
+        $itemId      = $this->item('0.00', false);
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100')]);
+
+        $this->accountingDb()->table('item_quantities')->where(['item_id' => $itemId, 'location_id' => self::LOCATION_ID])->update(['quantity' => '0']);
+
+        $this->assertTrue($this->correct($receivingId, $itemId, ['quantity' => '8']), 'There is no stock of the item to go below nothing');
+        $this->assertSame('8.000', $this->storedLine($receivingId, $itemId)->quantity_purchased);
     }
 
     public function testUpdateLines_RefusesToLeaveLessThanNothingWhileTheBooksAreOffToo(): void
@@ -3786,6 +3868,19 @@ class ReceivingPostingTest extends CIUnitTestCase
         $this->assertSame($before, $this->bookState($receivingId, $itemId));
         $this->assertSame(1, $this->accountingDb()->table('receivings')->where('receiving_id', $receivingId)->countAllResults());
         $this->assertStockTies();
+        $this->assertNoLockIsHeldOn($itemId);
+    }
+
+    private function assertNoLockIsHeldOn(int $itemId): void
+    {
+        $other = $this->openSecondConnection();
+
+        try {
+            $other->query('SELECT item_id FROM ' . $other->prefixTable('items') . ' WHERE item_id = ? FOR UPDATE', [$itemId]);
+            $this->addToAssertionCount(1);
+        } finally {
+            $other->close();
+        }
     }
 
     public function testDeleteValue_DeletesAPurchaseWhoseGoodsAreStillThereBesideSoldGoodsOfAnother(): void

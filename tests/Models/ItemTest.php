@@ -223,6 +223,26 @@ class ItemTest extends CIUnitTestCase
         $this->assertSame('1.000000', (string) $items->get_info($itemId)->cost_price);
     }
 
+    public function testCorrectPurchaseCost_DoesNotWeighTheStockOfADeletedLocation(): void
+    {
+        [$items, $itemId] = $this->itemWithStockAndCost('10', '100');
+
+        $db = Database::connect();
+        $db->table('stock_locations')->insert(['location_name' => 'Closed depot', 'deleted' => 1, 'branch_id' => 1]);
+
+        $locationId = (int) $db->insertID();
+
+        try {
+            $db->table('item_quantities')->insert(['item_id' => $itemId, 'location_id' => $locationId, 'quantity' => '40']);
+
+            $this->assertTrue($items->correctPurchaseCost($itemId, '10', '1000', '10', '1200'));
+            $this->assertSame('120.000000', (string) $items->get_info($itemId)->cost_price, 'Ten units worth 1,200 remain in the locations that are kept');
+        } finally {
+            $db->table('item_quantities')->where('location_id', $locationId)->delete();
+            $db->table('stock_locations')->where('location_id', $locationId)->delete();
+        }
+    }
+
     public function testCorrectPurchaseCost_ChangesNothingWhenWhatIsTakenOutIsPutBackIn(): void
     {
         [$items, $itemId] = $this->itemWithStockAndCost('20', '71.428571');
