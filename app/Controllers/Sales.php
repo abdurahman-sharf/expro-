@@ -488,13 +488,15 @@ class Sales extends Secure_Controller
             return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);
         }
 
+        $typed = $this->request->getPost('sales_invoice_date');
+
         try {
-            $date = InvoiceTiming::date((string) $this->request->getPost('sales_invoice_date'), date('Y-m-d'), $settings->startDate());
+            $date = InvoiceTiming::date(is_array($typed) ? 'not a day' : (string) $typed, date('Y-m-d'), $settings->startDate());
         } catch (AccountingException $refusal) {
             return $this->response->setJSON(['success' => false, 'message' => AccountingMessage::of($refusal)]);
         }
 
-        $this->sale_lib->set_invoice_date($date);
+        $this->sale_lib->setInvoiceDate($date);
 
         return $this->response->setJSON(['success' => true, 'due_date' => $this->registerDueDate(), 'due_date_label' => $this->registerDueDateLabel()]);
     }
@@ -512,13 +514,15 @@ class Sales extends Secure_Controller
             return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);
         }
 
+        $typed = $this->request->getPost('sales_payment_terms');
+
         try {
-            $terms = InvoiceTiming::terms((string) $this->request->getPost('sales_payment_terms'));
+            $terms = InvoiceTiming::terms(is_array($typed) ? 'not a number' : (string) $typed);
         } catch (AccountingException $refusal) {
             return $this->response->setJSON(['success' => false, 'message' => AccountingMessage::of($refusal)]);
         }
 
-        $this->sale_lib->set_payment_terms($terms === null ? null : (string) $terms);
+        $this->sale_lib->setPaymentTerms($terms === null ? null : (string) $terms);
 
         return $this->response->setJSON(['success' => true, 'due_date' => $this->registerDueDate(), 'due_date_label' => $this->registerDueDateLabel()]);
     }
@@ -529,9 +533,9 @@ class Sales extends Secure_Controller
      */
     private function registerDueDate(): ?string
     {
-        $terms = InvoiceTiming::terms($this->sale_lib->get_payment_terms());
+        $terms = InvoiceTiming::terms($this->sale_lib->getPaymentTerms());
 
-        return $terms === null ? null : InvoiceTiming::dueDate($this->sale_lib->get_invoice_date() ?? date('Y-m-d'), $terms);
+        return $terms === null ? null : InvoiceTiming::dueDate($this->sale_lib->getInvoiceDate() ?? date('Y-m-d'), $terms);
     }
 
     private function registerDueDateLabel(): string
@@ -1138,7 +1142,7 @@ class Sales extends Secure_Controller
                 $invoiceView = $invoiceType;
 
                 // Save the data to the sales table
-                $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, $this->sale_lib->is_delivered(), null, $invoiceDiscount, $this->sale_lib->get_invoice_date(), $this->sale_lib->get_payment_terms());
+                $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, $this->sale_lib->is_delivered(), null, $invoiceDiscount, $this->sale_lib->getInvoiceDate(), $this->sale_lib->getPaymentTerms());
                 $data['sale_id'] = 'POS ' . $data['sale_id_num'];
 
                 // Resort and filter cart lines for printing
@@ -2072,8 +2076,8 @@ class Sales extends Secure_Controller
         $data['price_work_orders'] = $this->sale_lib->is_price_work_orders();
         $data['accounting_enabled'] = (new AccountingSettings())->isEnabled();
         $data['delivered'] = $this->sale_lib->is_delivered();
-        $data['invoice_date'] = $this->sale_lib->get_invoice_date();
-        $data['payment_terms'] = $this->sale_lib->get_payment_terms();
+        $data['invoice_date'] = $this->sale_lib->getInvoiceDate();
+        $data['payment_terms'] = $this->sale_lib->getPaymentTerms();
         $data['due_date'] = $this->registerDueDate();
         $data['can_type_invoice_date'] = $this->mayTypeInvoiceDate();
         $data['today'] = date('Y-m-d');
@@ -2589,7 +2593,7 @@ class Sales extends Secure_Controller
             return $this->reload(['error' => lang('Sales.not_authorized')]);
         }
 
-        $saleIdNum = $this->sale->save_value($sale_id, $sale_status, $cart, $customer_id, $employee_id, $comment, $invoice_number, $work_order_number, $quote_number, $sale_type, $payments, $dinner_table, $sales_taxes, $this->sale_lib->is_delivered(), null, $invoiceDiscount, $this->sale_lib->get_invoice_date(), $this->sale_lib->get_payment_terms());
+        $saleIdNum = $this->sale->save_value($sale_id, $sale_status, $cart, $customer_id, $employee_id, $comment, $invoice_number, $work_order_number, $quote_number, $sale_type, $payments, $dinner_table, $sales_taxes, $this->sale_lib->is_delivered(), null, $invoiceDiscount, $this->sale_lib->getInvoiceDate(), $this->sale_lib->getPaymentTerms());
 
         if ($saleIdNum === INSUFFICIENT_GIFTCARD_BALANCE) {
             $data['error'] = lang('Sales.insufficient_giftcard_balance');

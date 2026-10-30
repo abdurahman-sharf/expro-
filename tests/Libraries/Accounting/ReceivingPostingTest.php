@@ -3375,9 +3375,9 @@ class ReceivingPostingTest extends CIUnitTestCase
     /**
      * @return list<string> The days the standing journals of a purchase are dated.
      */
-    private function standingDays(int $receivingId): array
+    private function standingDays(int $receivingId, string $source = 'purchase'): array
     {
-        return array_values(array_unique(array_column($this->standingPurchase($receivingId), 'date')));
+        return array_values(array_unique(array_column($this->standingPurchase($receivingId, $source), 'date')));
     }
 
     public function testSaveValue_DatesTheJournalsAndTheStockOfAPurchaseByTheDayTypedOnItAndKeepsTheTimeItWasSaved(): void
@@ -3408,6 +3408,26 @@ class ReceivingPostingTest extends CIUnitTestCase
         $this->assertNull($purchase->due_date);
         $this->assertSame([date('Y-m-d')], $this->standingDays($receivingId));
         $this->assertSame(date('Y-m-d'), $this->supplierPosition()->purchase($receivingId)->dueDate);
+    }
+
+    public function testSaveValue_DatesThePaymentMadeAtSaveOnTheDayTheMoneyWentWhateverDayIsTypedOnThePurchase(): void
+    {
+        $this->grantPurchaseDate();
+
+        $item        = $this->item('0.00');
+        $day         = $this->daysAgo(7);
+        $receivingId = $this->buy([$this->purchaseLine($item, 0, '5', '100')], -1, lang('Sales.cash'), null, null, $day);
+
+        $this->assertSame([$day], $this->standingDays($receivingId, 'purchase'));
+        $this->assertSame([date('Y-m-d')], $this->standingDays($receivingId, 'purchase_payment'));
+        $this->assertSame('0.00', $this->balance($this->supplierAccount()));
+        $this->assertSame('-500.00', $this->balance($this->accountId('cash')));
+
+        $before = $this->supplierPosition(null, $this->daysAgo(1));
+
+        $this->assertSame('500.0000', $before->open(), 'The purchase was unpaid until the day the money went');
+        $this->assertTrue($before->agrees());
+        $this->assertSupplierTies();
     }
 
     public function testSaveValue_RefusesADayTypedByABuyerWhoMayNotTypeItAndSavesNothing(): void

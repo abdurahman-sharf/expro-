@@ -2,6 +2,7 @@
 
 namespace Tests\Libraries\Accounting;
 
+use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\BalanceTable;
 use App\Libraries\Accounting\CustomerBalanceReport;
 use App\Libraries\Accounting\JournalDraft;
@@ -253,7 +254,7 @@ class CustomerBalanceReportTest extends CIUnitTestCase
 
     public function testBuild_RefusesAPeriodThatEndsBeforeItStarts(): void
     {
-        $this->expectException(\App\Libraries\Accounting\AccountingException::class);
+        $this->expectException(AccountingException::class);
 
         $this->report(date('Y-m-d'), $this->daysAgo(3));
     }

@@ -262,8 +262,8 @@ class Sale_libTest extends CIUnitTestCase
         $saleLib = new Sale_lib();
         $saleLib->copy_entire_sale(9);
 
-        $this->assertSame('2026-10-20', $saleLib->get_invoice_date());
-        $this->assertSame('30', $saleLib->get_payment_terms());
+        $this->assertSame('2026-10-20', $saleLib->getInvoiceDate());
+        $this->assertSame('30', $saleLib->getPaymentTerms());
     }
 
     public function testCopyEntireSale_TakesOverNoDayAndNoTermsFromASaleThatHasNone(): void
@@ -283,59 +283,59 @@ class Sale_libTest extends CIUnitTestCase
         Factories::injectMock('models', Sale::class, $sale);
 
         $saleLib = new Sale_lib();
-        $saleLib->set_invoice_date('2026-10-01');
-        $saleLib->set_payment_terms('15');
+        $saleLib->setInvoiceDate('2026-10-01');
+        $saleLib->setPaymentTerms('15');
         $saleLib->copy_entire_sale(9);
 
-        $this->assertNull($saleLib->get_invoice_date());
-        $this->assertNull($saleLib->get_payment_terms());
+        $this->assertNull($saleLib->getInvoiceDate());
+        $this->assertNull($saleLib->getPaymentTerms());
     }
 
     public function testSetInvoiceDate_KeepsTheDayTypedAndTakesItBackWhenSetEmpty(): void
     {
-        $this->assertNull($this->saleLib->get_invoice_date());
+        $this->assertNull($this->saleLib->getInvoiceDate());
 
-        $this->saleLib->set_invoice_date('2026-10-20');
+        $this->saleLib->setInvoiceDate('2026-10-20');
 
-        $this->assertSame('2026-10-20', $this->saleLib->get_invoice_date());
+        $this->assertSame('2026-10-20', $this->saleLib->getInvoiceDate());
 
-        $this->saleLib->set_invoice_date('');
+        $this->saleLib->setInvoiceDate('');
 
-        $this->assertNull($this->saleLib->get_invoice_date());
+        $this->assertNull($this->saleLib->getInvoiceDate());
 
-        $this->saleLib->set_invoice_date('2026-10-20');
-        $this->saleLib->set_invoice_date(null);
+        $this->saleLib->setInvoiceDate('2026-10-20');
+        $this->saleLib->setInvoiceDate(null);
 
-        $this->assertNull($this->saleLib->get_invoice_date());
+        $this->assertNull($this->saleLib->getInvoiceDate());
     }
 
     public function testSetPaymentTerms_KeepsTheTermsTypedAndTakesThemBackWhenSetEmpty(): void
     {
-        $this->assertNull($this->saleLib->get_payment_terms());
+        $this->assertNull($this->saleLib->getPaymentTerms());
 
-        $this->saleLib->set_payment_terms('30');
+        $this->saleLib->setPaymentTerms('30');
 
-        $this->assertSame('30', $this->saleLib->get_payment_terms());
+        $this->assertSame('30', $this->saleLib->getPaymentTerms());
 
-        $this->saleLib->set_payment_terms('');
+        $this->saleLib->setPaymentTerms('');
 
-        $this->assertNull($this->saleLib->get_payment_terms());
+        $this->assertNull($this->saleLib->getPaymentTerms());
 
-        $this->saleLib->set_payment_terms('30');
-        $this->saleLib->set_payment_terms(null);
+        $this->saleLib->setPaymentTerms('30');
+        $this->saleLib->setPaymentTerms(null);
 
-        $this->assertNull($this->saleLib->get_payment_terms());
+        $this->assertNull($this->saleLib->getPaymentTerms());
     }
 
     public function testClearAll_ForgetsTheDayAndTheTermsSoTheNextSaleDoesNotInheritThem(): void
     {
-        $this->saleLib->set_invoice_date('2026-10-20');
-        $this->saleLib->set_payment_terms('30');
+        $this->saleLib->setInvoiceDate('2026-10-20');
+        $this->saleLib->setPaymentTerms('30');
 
         $this->saleLib->clear_all();
 
-        $this->assertNull($this->saleLib->get_invoice_date());
-        $this->assertNull($this->saleLib->get_payment_terms());
+        $this->assertNull($this->saleLib->getInvoiceDate());
+        $this->assertNull($this->saleLib->getPaymentTerms());
     }
 
     public function testReturnEntireSale_NamesTheSaleAsTheOriginAndTakesBackOnlyWhatHasNotComeBack(): void

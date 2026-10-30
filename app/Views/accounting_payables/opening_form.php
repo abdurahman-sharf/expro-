@@ -32,7 +32,7 @@
             <div class="field">
                 <?= form_label(lang('Accounting_payables.date'), 'advance_date', ['class' => 'form-label text-danger required']) ?>
                 <div class="field-control">
-                    <input type="date" name="advance_date" id="advance_date" class="form-control form-control-sm ltr-input" dir="ltr" value="<?= esc($today, 'attr') ?>">
+                    <input type="date" name="advance_date" id="advance_date" class="form-control form-control-sm ltr-input" dir="ltr" max="<?= esc($today, 'attr') ?>" value="<?= esc($today, 'attr') ?>">
                 </div>
             </div>
 

@@ -206,13 +206,15 @@ class Receivings extends Secure_Controller
             return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => AccountingMessage::of(new AccountingException(AccountingError::PermissionDenied))]);
         }
 
+        $typed = $this->request->getPost('recv_invoice_date');
+
         try {
-            $date = InvoiceTiming::date((string) $this->request->getPost('recv_invoice_date'), date('Y-m-d'), $settings->startDate());
+            $date = InvoiceTiming::date(is_array($typed) ? 'not a day' : (string) $typed, date('Y-m-d'), $settings->startDate());
         } catch (AccountingException $refusal) {
             return $this->response->setJSON(['success' => false, 'message' => AccountingMessage::of($refusal)]);
         }
 
-        $this->receiving_lib->set_invoice_date($date);
+        $this->receiving_lib->setInvoiceDate($date);
 
         return $this->response->setJSON(['success' => true, 'due_date_label' => $this->registerDueDateLabel()]);
     }
@@ -229,13 +231,15 @@ class Receivings extends Secure_Controller
             return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => AccountingMessage::of(new AccountingException(AccountingError::PermissionDenied))]);
         }
 
+        $typed = $this->request->getPost('recv_payment_terms');
+
         try {
-            $terms = InvoiceTiming::terms((string) $this->request->getPost('recv_payment_terms'));
+            $terms = InvoiceTiming::terms(is_array($typed) ? 'not a number' : (string) $typed);
         } catch (AccountingException $refusal) {
             return $this->response->setJSON(['success' => false, 'message' => AccountingMessage::of($refusal)]);
         }
 
-        $this->receiving_lib->set_payment_terms($terms === null ? null : (string) $terms);
+        $this->receiving_lib->setPaymentTerms($terms === null ? null : (string) $terms);
 
         return $this->response->setJSON(['success' => true, 'due_date_label' => $this->registerDueDateLabel()]);
     }
@@ -246,9 +250,9 @@ class Receivings extends Secure_Controller
      */
     private function registerDueDateLabel(): string
     {
-        $terms = InvoiceTiming::terms($this->receiving_lib->get_payment_terms());
+        $terms = InvoiceTiming::terms($this->receiving_lib->getPaymentTerms());
 
-        return $terms === null ? '' : to_date(strtotime(InvoiceTiming::dueDate($this->receiving_lib->get_invoice_date() ?? date('Y-m-d'), $terms)));
+        return $terms === null ? '' : to_date(strtotime(InvoiceTiming::dueDate($this->receiving_lib->getInvoiceDate() ?? date('Y-m-d'), $terms)));
     }
 
     private function mayTypeInvoiceDate(): bool
@@ -610,7 +614,7 @@ class Receivings extends Secure_Controller
         }
 
         // SAVE receiving to database
-        $saved = $this->receiving->save_value($data['cart'], $supplierId, $employeeId, $data['comment'], $data['reference'], $data['payment_type'], $data['stock_location'], $origin, $data['mode'] === 'receive' ? $data['invoiceDiscount'] : null, $this->receiving_lib->get_invoice_date(), $this->receiving_lib->get_payment_terms());
+        $saved = $this->receiving->save_value($data['cart'], $supplierId, $employeeId, $data['comment'], $data['reference'], $data['payment_type'], $data['stock_location'], $origin, $data['mode'] === 'receive' ? $data['invoiceDiscount'] : null, $this->receiving_lib->getInvoiceDate(), $this->receiving_lib->getPaymentTerms());
 
         if ($saved === ACCOUNTING_FAILED) {
             return $this->_reload(['error' => $this->accountingFailureMessage() ?? lang('Receivings.transaction_failed')]);
@@ -778,8 +782,8 @@ class Receivings extends Secure_Controller
         $data['reference']            = $this->receiving_lib->get_reference();
         $data['payment_options']      = $this->receiving->get_payment_options();
         $data['accounting_enabled']   = (new AccountingSettings())->isEnabled();
-        $data['invoice_date']         = $this->receiving_lib->get_invoice_date();
-        $data['payment_terms']        = $this->receiving_lib->get_payment_terms();
+        $data['invoice_date']         = $this->receiving_lib->getInvoiceDate();
+        $data['payment_terms']        = $this->receiving_lib->getPaymentTerms();
         $data['due_date_label']       = $this->registerDueDateLabel();
         $data['can_type_invoice_date'] = $this->mayTypeInvoiceDate();
         $data['today']                = date('Y-m-d');

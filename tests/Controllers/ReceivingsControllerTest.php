@@ -13,6 +13,7 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use Config\Database;
 use Config\OSPOS;
+use Config\Services;
 use DOMDocument;
 use DOMXPath;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -2307,7 +2308,7 @@ class ReceivingsControllerTest extends CIUnitTestCase
 
     private function carryTheTimingToTheNextRequest(): void
     {
-        $this->withSession(array_merge($this->session, array_intersect_key(\Config\Services::session()->get(), array_flip(['recv_invoice_date', 'recv_payment_terms', 'recv_cart', 'recv_mode', 'recv_supplier', 'recv_stock_source']))));
+        $this->withSession(array_merge($this->session, array_intersect_key(Services::session()->get(), array_flip(['recv_invoice_date', 'recv_payment_terms', 'recv_cart', 'recv_mode', 'recv_supplier', 'recv_stock_source']))));
     }
 
     public function testPostSetInvoiceDate_RefusesABuyerWithoutThePermissionAndSetsNothing(): void
@@ -2318,7 +2319,7 @@ class ReceivingsControllerTest extends CIUnitTestCase
 
         $response->assertStatus(403);
         $this->assertFalse($this->jsonOf($response)['success']);
-        $this->assertNull(\Config\Services::session()->get('recv_invoice_date'));
+        $this->assertNull(Services::session()->get('recv_invoice_date'));
     }
 
     public function testPostSetInvoiceDate_RefusesWhileAccountingIsOffAndSetsNothing(): void
@@ -2327,7 +2328,7 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $this->setConfigValue('accounting_enabled', '0');
 
         $this->post('/receivings/setInvoiceDate', ['recv_invoice_date' => $this->daysAgo(3)])->assertStatus(403);
-        $this->assertNull(\Config\Services::session()->get('recv_invoice_date'));
+        $this->assertNull(Services::session()->get('recv_invoice_date'));
     }
 
     public function testPostSetInvoiceDate_SetsADayUpToTodayAndAnswersTheDueDateOfTheTermsOnTheRegister(): void
@@ -2337,7 +2338,7 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $answer = $this->jsonOf($this->post('/receivings/setInvoiceDate', ['recv_invoice_date' => $this->daysAgo(3)]));
 
         $this->assertTrue($answer['success']);
-        $this->assertSame($this->daysAgo(3), \Config\Services::session()->get('recv_invoice_date'));
+        $this->assertSame($this->daysAgo(3), Services::session()->get('recv_invoice_date'));
         $this->assertSame(to_date(strtotime('+7 days')), $answer['due_date_label']);
     }
 
@@ -2362,7 +2363,18 @@ class ReceivingsControllerTest extends CIUnitTestCase
 
         $this->assertFalse($answer['success']);
         $this->assertNotSame('', $answer['message']);
-        $this->assertSame($this->daysAgo(2), \Config\Services::session()->get('recv_invoice_date'));
+        $this->assertSame($this->daysAgo(2), Services::session()->get('recv_invoice_date'));
+    }
+
+    public function testPostSetInvoiceDate_RefusesAListOfDaysAndKeepsWhatWasSet(): void
+    {
+        $this->registerWithTheDateGrant(true, ['recv_invoice_date' => $this->daysAgo(2)]);
+
+        $answer = $this->jsonOf($this->post('/receivings/setInvoiceDate', ['recv_invoice_date' => [$this->daysAgo(1)]]));
+
+        $this->assertFalse($answer['success']);
+        $this->assertNotSame('', $answer['message']);
+        $this->assertSame($this->daysAgo(2), Services::session()->get('recv_invoice_date'));
     }
 
     public function testPostSetInvoiceDate_TakesBackTheDayWhenItIsSentEmpty(): void
@@ -2370,7 +2382,7 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $this->registerWithTheDateGrant(true, ['recv_invoice_date' => $this->daysAgo(2)]);
 
         $this->assertTrue($this->jsonOf($this->post('/receivings/setInvoiceDate', ['recv_invoice_date' => '']))['success']);
-        $this->assertNull(\Config\Services::session()->get('recv_invoice_date'));
+        $this->assertNull(Services::session()->get('recv_invoice_date'));
     }
 
     public function testPostSetPaymentTerms_SetsTheTermsForAnyBuyerAndAnswersTheDueDate(): void
@@ -2380,7 +2392,7 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $answer = $this->jsonOf($this->post('/receivings/setPaymentTerms', ['recv_payment_terms' => '30']));
 
         $this->assertTrue($answer['success']);
-        $this->assertSame('30', \Config\Services::session()->get('recv_payment_terms'));
+        $this->assertSame('30', Services::session()->get('recv_payment_terms'));
         $this->assertSame(to_date(strtotime('+30 days')), $answer['due_date_label']);
     }
 
@@ -2392,8 +2404,19 @@ class ReceivingsControllerTest extends CIUnitTestCase
             $answer = $this->jsonOf($this->post('/receivings/setPaymentTerms', ['recv_payment_terms' => $typed]));
 
             $this->assertFalse($answer['success'], $typed);
-            $this->assertSame('5', \Config\Services::session()->get('recv_payment_terms'), $typed);
+            $this->assertSame('5', Services::session()->get('recv_payment_terms'), $typed);
         }
+    }
+
+    public function testPostSetPaymentTerms_RefusesAListOfTermsAndKeepsWhatWasSet(): void
+    {
+        $this->registerWithTheDateGrant(true, ['recv_payment_terms' => '5']);
+
+        $answer = $this->jsonOf($this->post('/receivings/setPaymentTerms', ['recv_payment_terms' => ['30']]));
+
+        $this->assertFalse($answer['success']);
+        $this->assertNotSame('', $answer['message']);
+        $this->assertSame('5', Services::session()->get('recv_payment_terms'));
     }
 
     public function testPostSetPaymentTerms_TakesBackTheTermsWhenTheyAreSentZeroAndRefusesWhileAccountingIsOff(): void
@@ -2401,13 +2424,13 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $this->registerWithTheDateGrant(true, ['recv_payment_terms' => '5']);
 
         $this->assertTrue($this->jsonOf($this->post('/receivings/setPaymentTerms', ['recv_payment_terms' => '0']))['success']);
-        $this->assertNull(\Config\Services::session()->get('recv_payment_terms'));
+        $this->assertNull(Services::session()->get('recv_payment_terms'));
 
         $this->withSession(array_merge($this->session, ['recv_payment_terms' => '5']));
         $this->setConfigValue('accounting_enabled', '0');
 
         $this->post('/receivings/setPaymentTerms', ['recv_payment_terms' => '9'])->assertStatus(403);
-        $this->assertSame('5', \Config\Services::session()->get('recv_payment_terms'));
+        $this->assertSame('5', Services::session()->get('recv_payment_terms'));
     }
 
     public function testGetIndex_OffersTheDateOnlyToABuyerWhoMayTypeItAndTheTermsToEveryoneInTheModeOfAReceiving(): void
@@ -2469,8 +2492,8 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $response->assertSeeElement('#due_date');
         $response->assertSee(to_date(strtotime('-6 days')));
         $response->assertSee(to_date(strtotime('+4 days')));
-        $this->assertNull(\Config\Services::session()->get('recv_invoice_date'), 'the register forgets the day of a purchase that was made');
-        $this->assertNull(\Config\Services::session()->get('recv_payment_terms'));
+        $this->assertNull(Services::session()->get('recv_invoice_date'), 'the register forgets the day of a purchase that was made');
+        $this->assertNull(Services::session()->get('recv_payment_terms'));
     }
 
     public function testPostComplete_PrintsNeitherTheDayNorTheDueDateOnAPurchaseWithNeither(): void
@@ -2494,10 +2517,12 @@ class ReceivingsControllerTest extends CIUnitTestCase
 
         $response = $this->post('/receivings/complete', $this->completeForm());
 
-        $response->assertSee($this->daysAgo(8));
+        $company = (string) $this->accountingDb()->table('companies')->select('name')->where('company_id', 1)->get()->getRow()->name;
+
+        $response->assertSee('<div class="alert alert-danger">' . esc(lang('Accounting.posting_period_closed', [$this->daysAgo(8), $this->daysAgo(5), $company])) . '</div>');
         $this->assertSame($purchases, $this->countRows('receivings'));
         $this->assertSame(0, $this->countJournals());
-        $this->assertCount(1, \Config\Services::session()->get('recv_cart'), 'the cart of the buyer is still there');
+        $this->assertCount(1, Services::session()->get('recv_cart'), 'the cart of the buyer is still there');
     }
 
     public function testPostComplete_RefusesTheDayOfABuyerWhoMayNoLongerTypeItAndSavesNothing(): void

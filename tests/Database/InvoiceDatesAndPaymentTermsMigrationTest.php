@@ -60,7 +60,13 @@ class InvoiceDatesAndPaymentTermsMigrationTest extends CIUnitTestCase
             [$this->accountingDb()->prefixTable($table), $column],
         )->getRow();
 
-        return $row === null ? null : ['type' => strtolower((string) $row->type), 'nullable' => (string) $row->nullable, 'default' => in_array($row->dflt, [null, 'NULL'], true) ? null : $row->dflt];
+        if ($row === null) {
+            return null;
+        }
+
+        $type = (string) preg_replace('/^((?:small|medium|big)?int)\(\d+\)/', '$1', strtolower((string) $row->type));
+
+        return ['type' => $type, 'nullable' => (string) $row->nullable, 'default' => in_array($row->dflt, [null, 'NULL'], true) ? null : $row->dflt];
     }
 
     private function hasAllColumns(): bool
@@ -107,7 +113,7 @@ class InvoiceDatesAndPaymentTermsMigrationTest extends CIUnitTestCase
     {
         foreach (['sales', 'receivings'] as $table) {
             $this->assertSame(['type' => 'date', 'nullable' => 'YES', 'default' => null], $this->column($table, 'invoice_date'), $table);
-            $this->assertSame(['type' => 'smallint(5) unsigned', 'nullable' => 'YES', 'default' => null], $this->column($table, 'payment_terms_days'), $table);
+            $this->assertSame(['type' => 'smallint unsigned', 'nullable' => 'YES', 'default' => null], $this->column($table, 'payment_terms_days'), $table);
             $this->assertSame(['type' => 'date', 'nullable' => 'YES', 'default' => null], $this->column($table, 'due_date'), $table);
         }
     }

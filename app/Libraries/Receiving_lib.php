@@ -199,14 +199,14 @@ class Receiving_lib
     /**
      * The day typed on the purchase being made, or null when it is dated the day it is saved.
      */
-    public function get_invoice_date(): ?string
+    public function getInvoiceDate(): ?string
     {
         $date = $this->session->get('recv_invoice_date');
 
         return $date === null || $date === '' ? null : (string) $date;
     }
 
-    public function set_invoice_date(?string $date): void
+    public function setInvoiceDate(?string $date): void
     {
         $date === null || $date === '' ? $this->session->remove('recv_invoice_date') : $this->session->set('recv_invoice_date', $date);
     }
@@ -215,14 +215,14 @@ class Receiving_lib
      * The payment terms typed on the purchase being made, as the days they were typed in, or null
      * when it has none.
      */
-    public function get_payment_terms(): ?string
+    public function getPaymentTerms(): ?string
     {
         $terms = $this->session->get('recv_payment_terms');
 
         return $terms === null || $terms === '' ? null : (string) $terms;
     }
 
-    public function set_payment_terms(?string $terms): void
+    public function setPaymentTerms(?string $terms): void
     {
         $terms === null || $terms === '' ? $this->session->remove('recv_payment_terms') : $this->session->set('recv_payment_terms', $terms);
     }
@@ -497,8 +497,8 @@ class Receiving_lib
         $this->remove_supplier();
         $this->clear_comment();
         $this->clear_reference();
-        $this->set_invoice_date(null);
-        $this->set_payment_terms(null);
+        $this->setInvoiceDate(null);
+        $this->setPaymentTerms(null);
         $this->set_return_origin(null);
         $this->clearInvoiceDiscount();
     }

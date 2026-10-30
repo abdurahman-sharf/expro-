@@ -62,7 +62,8 @@ final class ReceivingPostingBuilder
     /**
      * The journal of the payment of a purchase, or null when there is none: the purchase was
      * left on credit, has no supplier to settle (it was paid in its own journal), or only moves
-     * stock. A return paid back by the supplier mirrors a payment.
+     * stock. A return paid back by the supplier mirrors a payment. The money moves on the day the
+     * purchase was saved, whatever day is typed on the invoice, as the payment of a sale does.
      *
      * @throws PostingException
      */
@@ -90,7 +91,7 @@ final class ReceivingPostingBuilder
             : [new JournalLineDraft($account, debit: $total), new JournalLineDraft($supplier, credit: $total)];
 
         return new JournalDraft(
-            date: $purchase->date,
+            date: $purchase->savedOn ?? $purchase->date,
             lines: $lines,
             sourceType: self::SOURCE_PAYMENT,
             sourceId: $purchase->receivingId,

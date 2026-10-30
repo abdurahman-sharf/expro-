@@ -3636,22 +3636,77 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame(date('Y-m-d', strtotime('+14 days')), $this->saleRow($draft)->due_date);
     }
 
-    public function testSaveValue_WritesInTheAuditLogWhoTypedTheDayOfAnInvoiceAndWhenOnlyForIssuedOnes(): void
+    /**
+     * @return list<object>
+     */
+    private function dateAudit(int $saleId): array
+    {
+        return $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'sale', 'entity_id' => $saleId, 'action' => 'invoice_date_typed'])->orderBy('audit_id', 'ASC')->get()->getResult();
+    }
+
+    public function testSaveValue_WritesInTheAuditLogWhoTypedTheDayOfAnInvoiceAndWhenAtTheSaveThatTypedIt(): void
     {
         $this->grantInvoiceDate();
 
         $items = [$this->line($this->item('0', false), 0, '1', '100')];
         $draft = $this->save($items, [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, NEW_ENTRY, null, $this->daysAgo(3));
+        $typed = $this->dateAudit($draft);
 
-        $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where('action', 'invoice_date_typed')->countAllResults());
+        $this->assertCount(1, $typed, 'The day is on record from the save of the draft');
+        $this->assertSame($this->employeeId, (int) $typed[0]->employee_id);
+        $this->assertSame(['date' => $this->daysAgo(3), 'saved_on' => date('Y-m-d')], json_decode((string) $typed[0]->details, true));
+
+        $this->assertSame($draft, $this->save($items, [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, $draft, null, $this->daysAgo(3)));
+        $this->assertCount(1, $this->dateAudit($draft), 'The same day typed again is not recorded again');
 
         $this->save($items, [], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, $draft, null, $this->daysAgo(3));
 
-        $entries = $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'sale', 'entity_id' => $draft, 'action' => 'invoice_date_typed'])->get()->getResult();
+        $this->assertCount(1, $this->dateAudit($draft), 'Issuing the draft at the day it carries is not typing the day');
+    }
 
-        $this->assertCount(1, $entries);
-        $this->assertSame($this->employeeId, (int) $entries[0]->employee_id);
-        $this->assertSame(['date' => $this->daysAgo(3), 'saved_on' => date('Y-m-d')], json_decode((string) $entries[0]->details, true));
+    public function testSaveValue_WritesInTheAuditLogTheEmployeeWhoTypedTheDayOnADraftAndNotTheOneWhoIssuesIt(): void
+    {
+        $cycle = $this->referenceInvoice();
+        $day   = $this->daysAgo(5);
+        $typer = $this->employeeId;
+
+        $this->grantInvoiceDate();
+
+        $draft  = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, NEW_ENTRY, null, $day);
+        $issuer = $this->createEmployee();
+
+        $this->employeeId = $issuer;
+
+        $this->assertSame($draft, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, $draft, null, $day));
+
+        $this->employeeId = $typer;
+
+        $typed = $this->dateAudit($draft);
+
+        $this->assertCount(1, $typed);
+        $this->assertSame($typer, (int) $typed[0]->employee_id, 'Whoever issues the draft did not type its day');
+        $this->assertCount(2, $this->standingDated($draft, $day));
+    }
+
+    public function testSaveValue_WritesInTheAuditLogTheEmployeeWhoChangesTheDayOfADraftWhenIssuingIt(): void
+    {
+        $cycle = $this->referenceInvoice();
+        $typer = $this->employeeId;
+
+        $this->grantInvoiceDate();
+
+        $draft  = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, NEW_ENTRY, null, $this->daysAgo(5));
+        $issuer = $this->createEmployee();
+
+        $this->accountingDb()->table('grants')->ignore(true)->insert(['permission_id' => 'sales_invoice_date', 'person_id' => $issuer, 'menu_group' => 'home']);
+
+        $this->employeeId = $issuer;
+
+        $this->assertSame($draft, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, $draft, null, $this->daysAgo(2)));
+
+        $this->employeeId = $typer;
+
+        $this->assertSame([$typer, $issuer], array_map(static fn (object $entry): int => (int) $entry->employee_id, $this->dateAudit($draft)));
     }
 
     public function testSaveValue_WritesNothingInTheAuditLogForAnInvoiceDatedToday(): void

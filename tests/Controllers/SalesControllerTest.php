@@ -2912,6 +2912,18 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertSame($this->daysAgo(2), Services::session()->get('sales_invoice_date'));
     }
 
+    public function testPostSetInvoiceDate_RefusesAListOfDaysAndKeepsWhatWasSet(): void
+    {
+        $this->registerWithTheDateGrant();
+        $this->withSession(array_merge($this->session, ['sales_invoice_date' => $this->daysAgo(2)]));
+
+        $answer = $this->jsonOf($this->post('/sales/setInvoiceDate', ['sales_invoice_date' => [$this->daysAgo(1)]]));
+
+        $this->assertFalse($answer['success']);
+        $this->assertNotSame('', $answer['message']);
+        $this->assertSame($this->daysAgo(2), Services::session()->get('sales_invoice_date'));
+    }
+
     public function testPostSetInvoiceDate_TakesBackTheDayWhenItIsSentEmpty(): void
     {
         $this->registerWithTheDateGrant();
@@ -2945,6 +2957,18 @@ class SalesControllerTest extends CIUnitTestCase
             $this->assertFalse($answer['success'], $typed);
             $this->assertSame('5', Services::session()->get('sales_payment_terms'), $typed);
         }
+    }
+
+    public function testPostSetPaymentTerms_RefusesAListOfTermsAndKeepsWhatWasSet(): void
+    {
+        $this->registerWithTheDateGrant();
+        $this->withSession(array_merge($this->session, ['sales_payment_terms' => '5']));
+
+        $answer = $this->jsonOf($this->post('/sales/setPaymentTerms', ['sales_payment_terms' => ['30']]));
+
+        $this->assertFalse($answer['success']);
+        $this->assertNotSame('', $answer['message']);
+        $this->assertSame('5', Services::session()->get('sales_payment_terms'));
     }
 
     public function testPostSetPaymentTerms_TakesBackTheTermsWhenTheyAreSentEmptyOrZeroAndRefusesWhileAccountingIsOff(): void
@@ -3046,7 +3070,9 @@ class SalesControllerTest extends CIUnitTestCase
 
         $response = $this->post('/sales/complete');
 
-        $response->assertSee($this->daysAgo(8));
+        $company = (string) $this->accountingDb()->table('companies')->select('name')->where('company_id', 1)->get()->getRow()->name;
+
+        $response->assertSee('<div class="alert alert-danger">' . esc(lang('Accounting.posting_period_closed', [$this->daysAgo(8), $this->daysAgo(5), $company])) . '</div>');
         $this->assertSame($sales, $this->countSales());
         $this->assertSame(0, $this->countJournals());
         $this->assertCount(1, Services::session()->get('sales_cart'), 'the cart of the cashier is still there');

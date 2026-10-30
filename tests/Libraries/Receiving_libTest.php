@@ -41,49 +41,49 @@ class Receiving_libTest extends CIUnitTestCase
 
     public function testSetInvoiceDate_KeepsTheDayTypedAndTakesItBackWhenSetEmpty(): void
     {
-        $this->assertNull($this->receivingLib->get_invoice_date());
+        $this->assertNull($this->receivingLib->getInvoiceDate());
 
-        $this->receivingLib->set_invoice_date('2026-10-20');
+        $this->receivingLib->setInvoiceDate('2026-10-20');
 
-        $this->assertSame('2026-10-20', $this->receivingLib->get_invoice_date());
+        $this->assertSame('2026-10-20', $this->receivingLib->getInvoiceDate());
 
-        $this->receivingLib->set_invoice_date('');
+        $this->receivingLib->setInvoiceDate('');
 
-        $this->assertNull($this->receivingLib->get_invoice_date());
+        $this->assertNull($this->receivingLib->getInvoiceDate());
 
-        $this->receivingLib->set_invoice_date('2026-10-20');
-        $this->receivingLib->set_invoice_date(null);
+        $this->receivingLib->setInvoiceDate('2026-10-20');
+        $this->receivingLib->setInvoiceDate(null);
 
-        $this->assertNull($this->receivingLib->get_invoice_date());
+        $this->assertNull($this->receivingLib->getInvoiceDate());
     }
 
     public function testSetPaymentTerms_KeepsTheTermsTypedAndTakesThemBackWhenSetEmpty(): void
     {
-        $this->assertNull($this->receivingLib->get_payment_terms());
+        $this->assertNull($this->receivingLib->getPaymentTerms());
 
-        $this->receivingLib->set_payment_terms('30');
+        $this->receivingLib->setPaymentTerms('30');
 
-        $this->assertSame('30', $this->receivingLib->get_payment_terms());
+        $this->assertSame('30', $this->receivingLib->getPaymentTerms());
 
-        $this->receivingLib->set_payment_terms('');
+        $this->receivingLib->setPaymentTerms('');
 
-        $this->assertNull($this->receivingLib->get_payment_terms());
+        $this->assertNull($this->receivingLib->getPaymentTerms());
 
-        $this->receivingLib->set_payment_terms('30');
-        $this->receivingLib->set_payment_terms(null);
+        $this->receivingLib->setPaymentTerms('30');
+        $this->receivingLib->setPaymentTerms(null);
 
-        $this->assertNull($this->receivingLib->get_payment_terms());
+        $this->assertNull($this->receivingLib->getPaymentTerms());
     }
 
     public function testClearAll_ForgetsTheDayAndTheTermsSoTheNextPurchaseDoesNotInheritThem(): void
     {
-        $this->receivingLib->set_invoice_date('2026-10-20');
-        $this->receivingLib->set_payment_terms('30');
+        $this->receivingLib->setInvoiceDate('2026-10-20');
+        $this->receivingLib->setPaymentTerms('30');
 
         $this->receivingLib->clear_all();
 
-        $this->assertNull($this->receivingLib->get_invoice_date());
-        $this->assertNull($this->receivingLib->get_payment_terms());
+        $this->assertNull($this->receivingLib->getInvoiceDate());
+        $this->assertNull($this->receivingLib->getPaymentTerms());
     }
 
     #[DataProvider('lines')]

@@ -975,6 +975,8 @@ class Sale extends Model
             return ACCOUNTING_FAILED;
         }
 
+        $storedDate = $saleId === NEW_ENTRY ? null : $this->storedInvoiceDate($saleId);
+
         $salesData = [
             'sale_time'         => date('Y-m-d H:i:s'),
             'customer_id'       => $customer->exists($customerId) ? $customerId : null,
@@ -1198,10 +1200,10 @@ class Sale extends Model
             if ($saleType !== SALE_TYPE_RETURN && ! $discountPlan->isEmpty()) {
                 $this->auditInvoiceDiscount($saleId, $employeeId, (int) $salesData['branch_id'], $discountPlan);
             }
+        }
 
-            if ($timing['invoice_date'] !== null) {
-                $this->auditInvoiceDate($saleId, $employeeId, (int) $salesData['branch_id'], $timing['invoice_date']);
-            }
+        if ($timing['invoice_date'] !== null && $timing['invoice_date'] !== $storedDate) {
+            $this->auditInvoiceDate($saleId, $employeeId, (int) $salesData['branch_id'], $timing['invoice_date']);
         }
 
         $this->db->transComplete();
@@ -1319,9 +1321,14 @@ class Sale extends Model
             return true;
         }
 
-        $stored = $saleId === NEW_ENTRY ? null : $this->db->table('sales')->select('invoice_date')->where('sale_id', $saleId)->get()->getRow();
+        return $saleId !== NEW_ENTRY && $this->storedInvoiceDate($saleId) === $date;
+    }
 
-        return $stored !== null && $stored->invoice_date === $date;
+    private function storedInvoiceDate(int $saleId): ?string
+    {
+        $row = $this->db->table('sales')->select('invoice_date')->where('sale_id', $saleId)->get()->getRow();
+
+        return $row === null || $row->invoice_date === null ? null : (string) $row->invoice_date;
     }
 
     private function auditInvoiceDate(int $saleId, int $employeeId, int $branchId, string $date): void

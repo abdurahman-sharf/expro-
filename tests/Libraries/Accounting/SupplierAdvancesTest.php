@@ -434,6 +434,29 @@ class SupplierAdvancesTest extends CIUnitTestCase
         $this->assertSame(AccountingError::AdvanceAmountInvalid, $this->refusal(fn () => $this->advances->openingBalance($this->supplierId, SupplierAdvances::WE_OWE, '0', '2026-01-01', '', $this->clerk))->error);
     }
 
+    public function testOpeningBalance_RefusesADayAfterTodayAndAcceptsTodayAndLeavesNothingOfTheRefused(): void
+    {
+        $tomorrow = date('Y-m-d', strtotime('+1 day'));
+
+        foreach ([SupplierAdvances::WE_OWE, SupplierAdvances::THEY_OWE] as $side) {
+            $refusal = $this->refusal(fn () => $this->advances->openingBalance($this->supplierId, $side, '1000.00', $tomorrow, '', $this->clerk));
+
+            $this->assertSame(AccountingError::InvalidDate, $refusal->error, $side);
+            $this->assertStringContainsString($tomorrow, $refusal->getMessage());
+        }
+
+        $this->assertSame(0, $this->countRows('supplier_advances'));
+        $this->assertSame(0, $this->countRows('receivings'));
+        $this->assertSame(0, $this->countJournals());
+
+        $today = $this->advances->openingBalance($this->supplierId, SupplierAdvances::WE_OWE, '1000.00', date('Y-m-d'), '', $this->clerk);
+
+        $this->receivingIds[] = $today;
+
+        $this->assertGreaterThan(0, $today);
+        $this->assertSame('1000.00', $this->owed());
+    }
+
     public function testForSupplier_ListsTheAdvancesNewestFirstWithTheirTreasuries(): void
     {
         $drawer = (new TreasuryService())->create(['name' => 'Listed drawer', 'kind' => 'cash'], $this->clerk);
