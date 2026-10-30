@@ -29,7 +29,7 @@
 - **اختبارات الكود الجديدة (ملفات جديدة):** `AgingBucketsTest` (8 دوال ببياناتها)، `AgedLedgerTest` (14: تطبيق الدائن على أقدم مدين، وأطوال الشرائح وحدّاها، **وكل طول للشريحة يعطي رصيد الحساب نفسه**، ويوم التقرير مع معكوس لاحقًا، والمورد والعميل متفرقان)، `AgedLedgerTableTest` (4)، `PartyReportQueryTest` (12 دالة ببياناتها)، `BalanceTableTest` (5)، `CustomerBalanceReportTest` (12)، `SupplierBalanceReportTest` (13)، `InvoiceTimingTest` (12 ببياناتها).
 - **اختبارات أُضيفت إلى ملفات قائمة (لكل صنف ملفّه):** `SalePostingTest` (27: التاريخ المكتوب والإذن والفترة المقفلة وبدء الدفاتر والمسودة والتدقيق والشروط وتعديلها بلا مساس بالقيد ورفض تغيير التاريخ)، `ReceivingPostingTest` (20 للشراء)، `CustomerLedgerTest` (17) و`SupplierLedgerTest` (12) (الشرائح عند حدودها، والعمر من يوم المستند لا الاستحقاق، ومستند بعد اليوم، وموقف ليوم ماضٍ يطابق حساب ذلك اليوم، والمعكوس لاحقًا، والتطبيقات بين يوم إنشائها ويوم فكّها، والمستند بلا تاريخ مكتوب يبقى تاريخه يوم حفظه واستحقاقه ذلك اليوم **فالأعمار القائمة لا تتحرك**، والربط الثلاثي لأي يوم مع الشروط والمدفوعات والإشعارات)، `Sale_libTest` (5: نقل تاريخ المسودة وشروطها إلى السجل ومسحهما بعد البيع فلا يرثهما البيع التالي) و`Receiving_libTest` (3) و`SalesControllerTest` (21) و`ReceivingsControllerTest` (21) (السجل والتاريخ لمن يحمل الإذن والشروط للجميع والإتمام بالتاريخ والاستحقاق المطبوع، والمسودة، ونموذج التعديل، وتعديل الشروط بلا مساس بالقيد)، **`AccountingReceivablesControllerTest` (24) و`AccountingPayablesControllerTest` (23): العمود المتأخر والشرائح الست واستحقاق اليوم غير متأخر وكشف الطرف بتاريخ الاستحقاق وشارة التأخر وقراءته ليوم ماضٍ ويوم غير صالح وأعمار الأستاذ (الإجماليات وطول الشريحة وما بعد اليوم وحدّ الطول) وتقرير الأرصدة (الأعمدة والفترة والفارغ و«قيود أخرى») والإذن والتهريب وعدم الظهور لمن قُيّد بفرع**.
 - **ترحيلان:** `InvoiceDatesAndPaymentTermsMigrationTest` (7: الأعمدة تقبل الفراغ، وإعادة التشغيل، وإكمال ما توقف في منتصفه، **ومستند قائم يبقى كما كان بلا تاريخ ولا شروط**، والرفض ما دام مستند يحمل تاريخًا) و`InvoiceDatePermissionsMigrationTest` (4: لا منح لأحد).
-- **الملفات التي شُغّلت وكل ما فيها ناجح:** @@RUNS@@
+- **الملفات التي شُغّلت وكل ما فيها ناجح:** **46 ملفًا، 4027 اختبارًا و17049 توكيدًا، كلها ناجحة** (شُغّل كل ملف وحده على قاعدة `ospos_test_wp13`، آخر تشغيل 2026-10-30 بعد آخر تعديل في الفرع): `InvoiceTimingTest` (23)، `AgingBucketsTest` (27)، `AgedLedgerTableTest` (4)، `AgedLedgerTest` (14)، `BalanceTableTest` (5)، `PartyReportQueryTest` (27)، `CustomerBalanceReportTest` (12)، `SupplierBalanceReportTest` (13)، `CustomerLedgerTest` (37)، `SupplierLedgerTest` (32)، `SalePostingTest` (223)، `ReceivingPostingTest` (228)، `Sale_libTest` (42)، `Receiving_libTest` (24)، `InvoiceDatesAndPaymentTermsMigrationTest` (7)، `InvoiceDatePermissionsMigrationTest` (4)، `AccountingReceivablesControllerTest` (40)، `AccountingPayablesControllerTest` (53)، `SalesControllerTest` (187)، `ReceivingsControllerTest` (156)، `SaleLoaderTest` (3)، `ReceivingLoaderTest` (3)، `SalePostingBuilderTest` (66)، `ReceivingPostingBuilderTest` (41)، `CreditSettlementTest` (22)، `SupplierSettlementTest` (22)، `SupplierAdvancesTest` (38)، `CustomerLockTest` (10)، `SupplierLockTest` (17)، `PeriodLocksTest` (8)، `DocumentJournalsTest` (24)، `LegacyPurchaseDiscountTest` (19)، `CrossBranchPaymentsTest` (32)، `SaleTest` (48)، `ReceivingTest` (28)، `DocumentHelperTest` (14)، `NavigationHelperTest` (16)، `ParityFixtureTest` (394)، `ParityNotImplementedTest` (15)، `LanguageFilesTest` (1826)، `SalesReceivablesMigrationTest` (6)، `PurchasesAccountingMigrationTest` (10)، `SalesAccountingMigrationTest` (5)، `AccountingMessageTest` (193)، `AccountingGuardTest` (4)، `PeriodGuardTest` (5).
 - **لم تُشغَّل المجموعة الكاملة** (نحو ساعة، والمعالجات مشتركة مع وكلاء آخرين): يشغّلها المُدمِج بعد الدمج.
 
 ## 3. الحراس
@@ -38,9 +38,149 @@
 
 **معادلة حُذفت من القائمة (لا يتغير بها سلوك، ومعها السبب):** (أ) `ORDER BY doc_date` في استعلام مستندات الطرف في `CustomerLedger` و`SupplierLedger`: يُعاد الترتيب في PHP بـ`usort` بالتاريخ ثم الرقم قبل التسليم؛ (ب) شرط «فاتورة» في `Sales::postSuspend` وشرط وضع «استلام» في `Receivings::postComplete` قبل تمرير التاريخ والشروط: النموذج نفسه يرفض ما ليس فاتورة أو استلامًا (`timingOf`)، **فأُزيل الشرطان المكرَّران من المتحكمين** ويبقى حارس النموذج ولحارسه G61 وG62 وG72 وG73؛ (ج) حذف منح الصلاحيتين في `down()` من ترحيل الصلاحيات: يحذفها `ON DELETE CASCADE` على `grants` عند حذف الصلاحية. **وخمسة حراس لم يكشفها اختبار في التشغيل الأول فقُوّيت لها الاختبارات:** G27 (طول الشريحة يُقصّ عند الحد الأعلى: فاتورة أقدم من 365 يومًا) وG38 (سجل مؤرَّخ بعد اليوم ولو كان قيده أقدم) وG44 (ما عُكس قبل اليوم لا يُحسب بعده) وG59 وG60 (يوم مكتوب على مسودة أو على شراء لا قيد قائمًا له يُرفض تغييره أيضًا).
 
+**النتيجة النهائية (2026-10-30، على الفرع بعد آخر تعديل في الاختبارات):** `{"DETECTED": 137, "UNDETECTED": 0, "INVALID": 0}`: 137 حارسًا كشف كلًّا منها اختبار، ولا حارس بلا كشف ولا تعطيل غير صالح.
+
 أسماء الحراس بالإنجليزية كما في الملف `wp13-guards.json`؛ وكل صف عُطِّل فيه النص المذكور وحده وشُغّلت الملفات المسمّاة (وبعضها بمرشّح لدوال الحزمة).
 
-@@GUARDS@@
+| الحارس | الملف الذي يحرسه | الاختبار الذي يكشفه | النتيجة |
+|---|---|---|---|
+| G01 a typed day must be a real day (no roll-over of february 30th) | `InvoiceTiming.php` | `InvoiceTimingTest` | كُشف |
+| G02 a typed day is not later than today | `InvoiceTiming.php` | `InvoiceTimingTest` | كُشف |
+| G03 a typed day is not before the books start | `InvoiceTiming.php` | `InvoiceTimingTest` | كُشف |
+| G04 terms are digits only | `InvoiceTiming.php` | `InvoiceTimingTest` | كُشف |
+| G05 terms are at most five characters long | `InvoiceTiming.php` | `InvoiceTimingTest` | كُشف |
+| G06 terms stay within the limit | `InvoiceTiming.php` | `InvoiceTimingTest` | كُشف |
+| G07 zero days of terms is no terms | `InvoiceTiming.php` | `InvoiceTimingTest` | كُشف |
+| G08 due today is not overdue (strictly before today) | `InvoiceTiming.php` | `InvoiceTimingTest` | كُشف |
+| G09 only what is owed can be overdue | `InvoiceTiming.php` | `InvoiceTimingTest` | كُشف |
+| G10 no terms means due on the invoice date | `InvoiceTiming.php` | `InvoiceTimingTest` | كُشف |
+| G11 an invoice of the day is in the first bucket | `AgingBuckets.php` | `AgingBucketsTest` | كُشف |
+| G12 everything older than four periods is in the last bucket | `AgingBuckets.php` | `AgingBucketsTest` | كُشف |
+| G13 a bucket ends on its last day (30 is in 1-30, 31 in 31-60) | `AgingBuckets.php` | `AgingBucketsTest` | كُشف |
+| G14 a period of nothing counts as a day | `AgingBuckets.php` | `AgingBucketsTest` | كُشف |
+| G15 a document dated after the day of the report is left out | `AgingBuckets.php` | `AgingBucketsTest` | كُشف |
+| G16 the age of a document of the future is negative | `AgingBuckets.php` | `AgingBucketsTest` | كُشف |
+| G17 the length of the buckets is at most four digits | `PartyReportQuery.php` | `PartyReportQueryTest` | كُشف |
+| G18 the length of the buckets stays between one day and the limit | `PartyReportQuery.php` | `PartyReportQueryTest` | كُشف |
+| G19 an aged ledger takes no start day | `PartyReportQuery.php` | `PartyReportQueryTest` | كُشف |
+| G20 the day of a statement is given only when typed and valid | `PartyReportQuery.php` | `PartyReportQueryTest` | كُشف |
+| G21 what is not a day is refused | `PartyReportQuery.php` | `PartyReportQueryTest` | كُشف |
+| G22 only a 1 shows what has nothing to show | `PartyReportQuery.php` | `PartyReportQueryTest` | كُشف |
+| G23 only text is read from the request | `PartyReportQuery.php` | `PartyReportQueryTest` | كُشف |
+| G24 the total of a bucket adds that bucket of every row | `AgedLedgerTable.php` | `AgedLedgerTableTest` | كُشف |
+| G25 the balance is what is owed less the credit not applied | `AgedLedgerTable.php` | `AgedLedgerTableTest` | كُشف |
+| G26 the credit total adds the credit of every row | `AgedLedgerTable.php` | `AgedLedgerTableTest` | كُشف |
+| G27 the length of the buckets is kept within one day and the limit | `AgedLedger.php` | `AgedLedgerTest` | كُشف |
+| G28 a supplier is owed what the account credits | `AgedLedger.php` | `AgedLedgerTest` | كُشف |
+| G29 journals after the day of the report are not counted | `AgedLedger.php` | `AgedLedgerTest` | كُشف |
+| G30 a journal that was reversed still counts on a day before its reversal | `AgedLedger.php` | `AgedLedgerTest` | كُشف |
+| G31 customers and suppliers are kept apart | `AgedLedger.php` | `AgedLedgerTest` | كُشف |
+| G32 one party can be asked for | `AgedLedger.php` | `AgedLedgerTest` | كُشف |
+| G33 the credit is applied to the oldest debit first | `AgedLedger.php` | `AgedLedgerTest` | كُشف |
+| G34 credit that came in is applied | `AgedLedger.php` | `AgedLedgerTest` | كُشف |
+| G35 credit is applied up to what the debit holds and no more | `AgedLedger.php` | `AgedLedgerTest` | كُشف |
+| G36 a party settled to nothing is left out and one holding credit is kept | `AgedLedger.php` | `AgedLedgerTest` | كُشف |
+| G37 customer: a document is dated by the typed day | `CustomerLedger.php` | `CustomerLedgerTest` | كُشف |
+| G38 customer: a document dated after the day of the position is left out | `CustomerLedger.php` | `CustomerLedgerTest` | كُشف |
+| G39 customer: the due date is the one stored, the document day when none | `CustomerLedger.php` | `CustomerLedgerTest` | كُشف |
+| G40 customer: the balance of a day counts the journals up to that day | `CustomerLedger.php` | `CustomerLedgerTest` | كُشف |
+| G42 customer: an application made after the day is not counted | `CustomerLedger.php` | `CustomerLedgerTest` | كُشف |
+| G43 customer: an application released by the day is not counted | `CustomerLedger.php` | `CustomerLedgerTest` | كُشف |
+| G37 supplier: a document is dated by the typed day | `SupplierLedger.php` | `SupplierLedgerTest` | كُشف |
+| G38 supplier: a document dated after the day of the position is left out | `SupplierLedger.php` | `SupplierLedgerTest` | كُشف |
+| G39 supplier: the due date is the one stored, the document day when none | `SupplierLedger.php` | `SupplierLedgerTest` | كُشف |
+| G40 supplier: the balance of a day counts the journals up to that day | `SupplierLedger.php` | `SupplierLedgerTest` | كُشف |
+| G42 supplier: an application made after the day is not counted | `SupplierLedger.php` | `SupplierLedgerTest` | كُشف |
+| G43 supplier: an application released by the day is not counted | `SupplierLedger.php` | `SupplierLedgerTest` | كُشف |
+| G44 a journal reversed after the day still counts on that day | `StandingJournals.php` | `CustomerLedgerTest`، `SupplierLedgerTest` | كُشف |
+| G45 customer: the overdue amount is what is overdue | `CustomerPosition.php` | `CustomerLedgerTest` | كُشف |
+| G46 supplier: the overdue amount is what is overdue | `SupplierPosition.php` | `SupplierLedgerTest` | كُشف |
+| G47 invoice: only what is open can be overdue | `InvoiceFigures.php` | `CustomerLedgerTest` | كُشف |
+| G48 purchase: only what is open can be overdue | `PurchaseFigures.php` | `SupplierLedgerTest` | كُشف |
+| G49 invoice: days overdue are nothing for what is not overdue | `InvoiceFigures.php` | `CustomerLedgerTest` | كُشف |
+| G50 purchase: days overdue are nothing for what is not overdue | `PurchaseFigures.php` | `SupplierLedgerTest` | كُشف |
+| G53 sale: the journals take the typed day | `SaleLoader.php` | `SalePostingTest` (بمرشّح) | كُشف |
+| G54 purchase: the journals take the typed day | `ReceivingLoader.php` | `ReceivingPostingTest` (بمرشّح) | كُشف |
+| G55 sale: the typed day never changes after the sale is saved | `SalePosting.php` | `SalePostingTest` (بمرشّح) | كُشف |
+| G56 purchase: the typed day never changes after the purchase is saved | `ReceivingPosting.php` | `ReceivingPostingTest` (بمرشّح) | كُشف |
+| G57 sale: the moment it was saved is compared with the day typed on the edit, not the day it is dated | `SalePosting.php` | `SalePostingTest` (بمرشّح) | كُشف |
+| G58 purchase: the moment it was saved is compared with the day typed on the edit, not the day it is dated | `ReceivingPosting.php` | `ReceivingPostingTest` (بمرشّح) | كُشف |
+| G59 sale: the typed day is checked even when the journal is not posted | `SalePosting.php` | `SalePostingTest` (بمرشّح) | كُشف |
+| G60 purchase: the typed day is checked even when the journal is not posted | `ReceivingPosting.php` | `ReceivingPostingTest` (بمرشّح) | كُشف |
+| G61 sale: accounting off stores no typed day or terms | `Sale.php` | `SalePostingTest` (بمرشّح) | كُشف |
+| G62 sale: only an invoice carries a typed day | `Sale.php` | `SalePostingTest` (بمرشّح) | كُشف |
+| G63 sale: only who holds the permission types the day | `Sale.php` | `SalePostingTest` (بمرشّح) | كُشف |
+| G64 sale: a draft is issued at the day it carries by whoever issues it, at no other | `Sale.php` | `SalePostingTest` (بمرشّح) | كُشف |
+| G65 sale: a draft has terms and no due date until it is issued | `Sale.php` | `SalePostingTest` (بمرشّح) | كُشف |
+| G66 sale: the typed day of an issued invoice is audited | `Sale.php` | `SalePostingTest` (بمرشّح) | كُشف |
+| G67 sale: the terms of what is not an issued invoice are not changed | `Sale.php` | `SalePostingTest` (بمرشّح) | كُشف |
+| G68 sale: terms that stay the same write nothing | `Sale.php` | `SalePostingTest` (بمرشّح) | كُشف |
+| G69 sale: a change of terms is audited with what it was and what it became | `Sale.php` | `SalePostingTest` (بمرشّح) | كُشف |
+| G70 sale: the due date and the typed day handed to an edit are not stored | `Sale.php` | `SalePostingTest` (بمرشّح) | كُشف |
+| G71 sale: terms that are not days leave no failure in the posting log | `Sale.php` | `SalePostingTest` (بمرشّح) | كُشف |
+| G72 purchase: accounting off or a return stores no typed day or terms | `Receiving.php` | `ReceivingPostingTest` (بمرشّح) | كُشف |
+| G73 purchase: a return carries no typed day | `Receiving.php` | `ReceivingPostingTest` (بمرشّح) | كُشف |
+| G74 purchase: only who holds the permission types the day | `Receiving.php` | `ReceivingPostingTest` (بمرشّح) | كُشف |
+| G75 purchase: the typed day of a purchase is audited | `Receiving.php` | `ReceivingPostingTest` (بمرشّح) | كُشف |
+| G76 purchase: the terms of what is not a purchase of goods are not changed | `Receiving.php` | `ReceivingPostingTest` (بمرشّح) | كُشف |
+| G77 purchase: terms that stay the same write nothing | `Receiving.php` | `ReceivingPostingTest` (بمرشّح) | كُشف |
+| G78 purchase: a change of terms is audited with what it was and what it became | `Receiving.php` | `ReceivingPostingTest` (بمرشّح) | كُشف |
+| G79 purchase: the due date and the typed day handed to an edit are not stored | `Receiving.php` | `ReceivingPostingTest` (بمرشّح) | كُشف |
+| G80 purchase: terms change only while accounting is on | `Receiving.php` | `ReceivingPostingTest` (بمرشّح) | كُشف |
+| G81 sales register: the day is typed only by who holds the permission | `Sales.php` | `SalesControllerTest` (بمرشّح) | كُشف |
+| G82 sales register: the day is not typed while accounting is off | `Sales.php` | `SalesControllerTest` (بمرشّح) | كُشف |
+| G83 sales register: terms are not typed while accounting is off | `Sales.php` | `SalesControllerTest` (بمرشّح) | كُشف |
+| G84 sales register: the permission to type the day is the one of the invoice date | `Sales.php` | `SalesControllerTest` (بمرشّح) | كُشف |
+| G86 purchases register: the day is typed only by who holds the permission | `Receivings.php` | `ReceivingsControllerTest` (بمرشّح) | كُشف |
+| G87 purchases register: the day is not typed while accounting is off | `Receivings.php` | `ReceivingsControllerTest` (بمرشّح) | كُشف |
+| G88 purchases register: terms are not typed while accounting is off | `Receivings.php` | `ReceivingsControllerTest` (بمرشّح) | كُشف |
+| G89 purchases register: the permission to type the day is the one of the purchase date | `Receivings.php` | `ReceivingsControllerTest` (بمرشّح) | كُشف |
+| G91 customers: the aged ledger speaks for the whole company only | `AccountingReceivables.php` | `AccountingReceivablesControllerTest` | كُشف |
+| G92 customers: the balance report speaks for the whole company only | `AccountingReceivables.php` | `AccountingReceivablesControllerTest` | كُشف |
+| G93 customers: the statement can be read on a day of the past | `AccountingReceivables.php` | `AccountingReceivablesControllerTest` | كُشف |
+| G94 customers: the aged ledger takes the length of the buckets asked for | `AccountingReceivables.php` | `AccountingReceivablesControllerTest` | كُشف |
+| G95 customers: the balance report shows who has nothing to show only when asked | `AccountingReceivables.php` | `AccountingReceivablesControllerTest` | كُشف |
+| G96 customers: the statement of a party links to the day read | `AccountingReceivables.php` | `AccountingReceivablesControllerTest` | كُشف |
+| G91 suppliers: the aged ledger speaks for the whole company only | `AccountingPayables.php` | `AccountingPayablesControllerTest` | كُشف |
+| G92 suppliers: the balance report speaks for the whole company only | `AccountingPayables.php` | `AccountingPayablesControllerTest` | كُشف |
+| G93 suppliers: the statement can be read on a day of the past | `AccountingPayables.php` | `AccountingPayablesControllerTest` | كُشف |
+| G94 suppliers: the aged ledger takes the length of the buckets asked for | `AccountingPayables.php` | `AccountingPayablesControllerTest` | كُشف |
+| G95 suppliers: the balance report shows who has nothing to show only when asked | `AccountingPayables.php` | `AccountingPayablesControllerTest` | كُشف |
+| G96 suppliers: the statement of a party links to the day read | `AccountingPayables.php` | `AccountingPayablesControllerTest` | كُشف |
+| G97 customers: the name in the aged ledger is escaped | `aged_ledger.php` | `AccountingReceivablesControllerTest`، `AccountingPayablesControllerTest` | كُشف |
+| G98 customers: the name in the balance report is escaped | `balances.php` | `AccountingReceivablesControllerTest`، `AccountingPayablesControllerTest` | كُشف |
+| G99 the overdue badge shows only what is overdue (customers) | `customer.php` | `AccountingReceivablesControllerTest` | كُشف |
+| G100 the overdue badge shows only what is overdue (suppliers) | `supplier.php` | `AccountingPayablesControllerTest` | كُشف |
+| G101 customers: the balance before is the account at the end of the day before the period | `CustomerBalanceReport.php` | `CustomerBalanceReportTest` | كُشف |
+| G102 customers: a journal after the last day is not counted | `CustomerBalanceReport.php` | `CustomerBalanceReportTest` | كُشف |
+| G103 customers: a reversal counts as what it reverses | `CustomerBalanceReport.php` | `CustomerBalanceReportTest` | كُشف |
+| G104 customers: the other parties are kept apart | `CustomerBalanceReport.php` | `CustomerBalanceReportTest` | كُشف |
+| G105 customers: payments are shown as what was paid | `CustomerBalanceReport.php` | `CustomerBalanceReportTest` | كُشف |
+| G106 customers: a party with nothing to show is hidden on request | `CustomerBalanceReport.php` | `CustomerBalanceReportTest` | كُشف |
+| G107 customers: what no column explains is kept apart as other | `CustomerBalanceReport.php` | `CustomerBalanceReportTest` | كُشف |
+| G101 suppliers: the balance before is the account at the end of the day before the period | `SupplierBalanceReport.php` | `SupplierBalanceReportTest` | كُشف |
+| G102 suppliers: a journal after the last day is not counted | `SupplierBalanceReport.php` | `SupplierBalanceReportTest` | كُشف |
+| G103 suppliers: a reversal counts as what it reverses | `SupplierBalanceReport.php` | `SupplierBalanceReportTest` | كُشف |
+| G104 suppliers: the other parties are kept apart | `SupplierBalanceReport.php` | `SupplierBalanceReportTest` | كُشف |
+| G105 suppliers: payments are shown as what was paid | `SupplierBalanceReport.php` | `SupplierBalanceReportTest` | كُشف |
+| G106 suppliers: a party with nothing to show is hidden on request | `SupplierBalanceReport.php` | `SupplierBalanceReportTest` | كُشف |
+| G107 suppliers: what no column explains is kept apart as other | `SupplierBalanceReport.php` | `SupplierBalanceReportTest` | كُشف |
+| G108 balance row: the net is what was sold less what came back | `BalanceRow.php` | `BalanceTableTest` | كُشف |
+| G109 balance row: the columns must explain the balance | `BalanceRow.php` | `BalanceTableTest` | كُشف |
+| G110 balance table: the net total is the net of the rows | `BalanceTable.php` | `BalanceTableTest` | كُشف |
+| G111 migration: a column that exists is not added again | `20270600000000_InvoiceDatesAndPaymentTerms.php` | `InvoiceDatesAndPaymentTermsMigrationTest` | كُشف |
+| G112 migration: it cannot be taken back once a document carries a typed day | `20270600000000_InvoiceDatesAndPaymentTerms.php` | `InvoiceDatesAndPaymentTermsMigrationTest` | كُشف |
+| G113 migration: a purchase that carries a typed day also stops it being taken back | `20270600000000_InvoiceDatesAndPaymentTerms.php` | `InvoiceDatesAndPaymentTermsMigrationTest` | كُشف |
+| G114 migration: the columns may be empty | `20270600000000_InvoiceDatesAndPaymentTerms.php` | `InvoiceDatesAndPaymentTermsMigrationTest` | كُشف |
+| G115 permissions migration: a registered permission is not registered again | `20270600000001_InvoiceDatePermissions.php` | `InvoiceDatePermissionsMigrationTest` | كُشف |
+| G117 customers: the aged ledger has its route | `Routes.php` | `AccountingReceivablesControllerTest` | كُشف |
+| G118 suppliers: the balance report has its route | `Routes.php` | `AccountingPayablesControllerTest` | كُشف |
+| G123 sales register: a draft taken up brings its typed day back | `Sale_lib.php` | `Sale_libTest` | كُشف |
+| G124 sales register: a draft taken up brings its terms back | `Sale_lib.php` | `Sale_libTest` | كُشف |
+| G125 sales register: a finished sale leaves no typed day for the next one | `Sale_lib.php` | `Sale_libTest` | كُشف |
+| G126 sales register: a finished sale leaves no terms for the next one | `Sale_lib.php` | `Sale_libTest` | كُشف |
+| G127 purchases register: a finished purchase leaves no typed day for the next one | `Receiving_lib.php` | `Receiving_libTest` | كُشف |
+| G128 purchases register: a finished purchase leaves no terms for the next one | `Receiving_lib.php` | `Receiving_libTest` | كُشف |
 
 ## 4. ما افترضتُه
 
@@ -91,7 +231,7 @@
 
 **decisions.md** (صف جديد، رقمه E-التالي):
 
-> | E-؟؟ | **تاريخ الفاتورة وتاريخ الاستحقاق وشروط الدفع والأعمار بست شرائح وأرصدة الأطراف (WP13: `G-27` و`G-31` و`G-53` و`CUS-08` و`CUS-09` و`G-14`)** (2026-10-30، [التقرير](daftra-parity/wp13-report.md)): **قرار تنفيذي أُخذ تحت E47 على المرصود في D1 وOBS-A، وللمالك حق نقضه.** **(1)** للفاتورة وشراء البضاعة **تاريخ مكتوب** (`invoice_date`) مستقل عن لحظة الحفظ **تأخذه قيودهما ومخزونهما** و**مسودة بتاريخ مكتوب تُصدَر بذلك التاريخ**، يكتبه من يحمل `sales_invoice_date` أو `receivings_invoice_date` (**صلاحيتان بلا منح**)، **ولا يتجاوز اليوم ولا يسبق بدء الدفاتر، والتاريخ في فترة مقفلة مرفوض بالترحيل نفسه**، **ويُقفل بعد الحفظ** (لا عكس وإعادة ترحيل لأن لا تعديل: يخالف دفترة التي تعدّله في موضعه، E62) ويُدوَّن في سجل التدقيق. **(2)** **شروط دفع بالأيام** (`payment_terms_days`) واستحقاق (`due_date`) = التاريخ + الأيام، **وبلا شروط = التاريخ**؛ **تتغير الشروط بعد الإصدار فيتحرك الاستحقاق وحده ولا يُمَسّ قيد**، ويُدوَّن التغيير. **(3)** **متأخر = متبقٍّ واستحقاقه قبل اليوم تمامًا** (استحقاق اليوم ليس متأخرًا؛ D1)، بيوم إعداد التطبيق في كل التقارير. **(4)** **الأعمار بست شرائح** (اليوم و1-30 و31-60 و61-90 و91-120 و120+، بدل أربع) **من تاريخ المستند لا الاستحقاق** (`RSC-AGE-03`) **ولا يُحتسب مستند بعد يوم التقرير**، وكشف الطرف وأعمار الأستاذ يُقرآن **ليوم ماضٍ بمجموع شرائح مطروحًا منه الدائن = رصيد ذلك اليوم** (فرق مقصود عن دفترة التي تُلقي الفرق في «120+»، `RSC-AGE-05`)؛ **وأعمار الأستاذ تطبّق الدائن على أقدم مدين أولًا** بعدد أيام للشريحة (`RSC-AGE-06`). **(5)** **تقرير أرصدة العملاء والموردين** بأعمدة دفترة (قبل ومبيعات (مشتريات) ومرتجع وصافٍ ومدفوعات وتسويات ورصيد)، **الرصيد قبل = رصيد الحساب نهاية اليوم السابق للفترة**، **والإشعار الدائن (المدين) تسوية بالسالب** و**عمود المرتجع صفر حتى يُبنى نوع الفاتورة المرتجعة** (WP9)، **وما لا يفسّره عمود يظهر «قيود أخرى»**، والمجموع = رصيد الحساب. **افتراضات للمراجعة:** القسم 4 من التقرير (14 افتراضًا، أهمها: رفض التاريخ المستقبلي، وكتابة الشروط بلا صلاحية، والأعمار بتاريخ المستند ولو ماضي الاستحقاق، وتكلّم التقارير باسم الشركة). **الأدلة:** @@EVIDENCE@@. ترحيلان `20270600000000` و`20270600000001` إضافيان (أعمدة تقبل الفراغ وصلاحيتان بلا منح) ولا يمسّان صفًّا ولا قيدًا، ولا دمج في `master` ولا نشر | يؤكد E15 وE57 ويحدّد WP14 وWP33 وWP36 |
+> | E-؟؟ | **تاريخ الفاتورة وتاريخ الاستحقاق وشروط الدفع والأعمار بست شرائح وأرصدة الأطراف (WP13: `G-27` و`G-31` و`G-53` و`CUS-08` و`CUS-09` و`G-14`)** (2026-10-30، [التقرير](daftra-parity/wp13-report.md)): **قرار تنفيذي أُخذ تحت E47 على المرصود في D1 وOBS-A، وللمالك حق نقضه.** **(1)** للفاتورة وشراء البضاعة **تاريخ مكتوب** (`invoice_date`) مستقل عن لحظة الحفظ **تأخذه قيودهما ومخزونهما** و**مسودة بتاريخ مكتوب تُصدَر بذلك التاريخ**، يكتبه من يحمل `sales_invoice_date` أو `receivings_invoice_date` (**صلاحيتان بلا منح**)، **ولا يتجاوز اليوم ولا يسبق بدء الدفاتر، والتاريخ في فترة مقفلة مرفوض بالترحيل نفسه**، **ويُقفل بعد الحفظ** (لا عكس وإعادة ترحيل لأن لا تعديل: يخالف دفترة التي تعدّله في موضعه، E62) ويُدوَّن في سجل التدقيق. **(2)** **شروط دفع بالأيام** (`payment_terms_days`) واستحقاق (`due_date`) = التاريخ + الأيام، **وبلا شروط = التاريخ**؛ **تتغير الشروط بعد الإصدار فيتحرك الاستحقاق وحده ولا يُمَسّ قيد**، ويُدوَّن التغيير. **(3)** **متأخر = متبقٍّ واستحقاقه قبل اليوم تمامًا** (استحقاق اليوم ليس متأخرًا؛ D1)، بيوم إعداد التطبيق في كل التقارير. **(4)** **الأعمار بست شرائح** (اليوم و1-30 و31-60 و61-90 و91-120 و120+، بدل أربع) **من تاريخ المستند لا الاستحقاق** (`RSC-AGE-03`) **ولا يُحتسب مستند بعد يوم التقرير**، وكشف الطرف وأعمار الأستاذ يُقرآن **ليوم ماضٍ بمجموع شرائح مطروحًا منه الدائن = رصيد ذلك اليوم** (فرق مقصود عن دفترة التي تُلقي الفرق في «120+»، `RSC-AGE-05`)؛ **وأعمار الأستاذ تطبّق الدائن على أقدم مدين أولًا** بعدد أيام للشريحة (`RSC-AGE-06`). **(5)** **تقرير أرصدة العملاء والموردين** بأعمدة دفترة (قبل ومبيعات (مشتريات) ومرتجع وصافٍ ومدفوعات وتسويات ورصيد)، **الرصيد قبل = رصيد الحساب نهاية اليوم السابق للفترة**، **والإشعار الدائن (المدين) تسوية بالسالب** و**عمود المرتجع صفر حتى يُبنى نوع الفاتورة المرتجعة** (WP9)، **وما لا يفسّره عمود يظهر «قيود أخرى»**، والمجموع = رصيد الحساب. **افتراضات للمراجعة:** القسم 4 من التقرير (14 افتراضًا، أهمها: رفض التاريخ المستقبلي، وكتابة الشروط بلا صلاحية، والأعمار بتاريخ المستند ولو ماضي الاستحقاق، وتكلّم التقارير باسم الشركة). **الأدلة:** اختبارات `InvoiceTimingTest` و`AgingBucketsTest` و`AgedLedgerTest` و`CustomerBalanceReportTest` و`SupplierBalanceReportTest` و`CustomerLedgerTest` و`SupplierLedgerTest` و`SalePostingTest` و`ReceivingPostingTest` و`SalesControllerTest` و`ReceivingsControllerTest` و`AccountingReceivablesControllerTest` و`AccountingPayablesControllerTest` والترحيلان، **والمطابقات `T-07` و`T-31` و`T-35`** (4027 اختبارًا ناجحًا في 46 ملفًا، و137 حارسًا عُطِّل كلٌّ منها وحده فكشفه اختبار: [wp13-guards.json](daftra-parity/wp13-guards.json)). ترحيلان `20270600000000` و`20270600000001` إضافيان (أعمدة تقبل الفراغ وصلاحيتان بلا منح) ولا يمسّان صفًّا ولا قيدًا، ولا دمج في `master` ولا نشر | يؤكد E15 وE57 ويحدّد WP14 وWP33 وWP36 |
 
 **مصفوفة التطابق** (`conformance-matrix.md`):
 
