@@ -93,6 +93,35 @@ class DebitNoteListTest extends CIUnitTestCase
     }
 
     /**
+     * What a row says of a return: what it comes to, what was paid back, applied and held, its state
+     * and whether the account of the supplier holds it.
+     *
+     * @return list<bool|string|null>
+     */
+    private function figuresOf(object $row, int $scale = 2): array
+    {
+        $figure = static fn (?string $value): ?string => $value === null ? null : bcadd($value, '0', $scale);
+
+        return [$figure($row->amount), $figure($row->refunded), $figure($row->applied), $figure($row->held), $row->state, $row->in_account];
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function debitNotesInTheLedger(): array
+    {
+        $found = [];
+
+        foreach ($this->supplierPosition()->credits as $source) {
+            if ($source->type === CreditSource::DEBIT_NOTE) {
+                $found[] = $source->sourceId;
+            }
+        }
+
+        return $found;
+    }
+
+    /**
      * A return that gives back what the worth says of a purchase of one unit and has the supplier
      * pay it back in cash at once.
      */
@@ -214,6 +243,75 @@ class DebitNoteListTest extends CIUnitTestCase
         $this->assertSame(DebitNoteList::APPLIED, $this->rows()[0]->state);
         $this->assertSame([$note], $this->idsOf($this->rows()));
         $this->assertSupplierTies();
+    }
+
+    public function testSearch_ShowsWhatAReturnComesToAndNoCreditWhenItIsDatedBeforeTheBooksStart(): void
+    {
+        $purchase = $this->purchaseOf('100.00', null, lang('Sales.cash'));
+        $inBooks  = $this->debitNoteOf($purchase, '40.00');
+
+        $this->setConfigValue('accounting_start_date', date('Y-m-d', strtotime('+10 days')));
+
+        $outside = $this->debitNoteOf($purchase, '25.00');
+        $byId    = [];
+
+        foreach ($this->rows() as $row) {
+            $byId[(int) $row->receiving_id] = $row;
+        }
+
+        $this->assertCount(2, $byId);
+        $this->assertSame(['25.00', null, null, null, DebitNoteList::NOT_IN_ACCOUNT, false], $this->figuresOf($byId[$outside]));
+        $this->assertSame(['40.0000', '0.0000', '0.0000', '40.0000', DebitNoteList::HELD, true], $this->figuresOf($byId[$inBooks], 4));
+        $this->assertSame([$inBooks], $this->debitNotesInTheLedger(), 'The ledger holds the credit of the returns the list gives credit to, and of no other');
+        $this->assertSupplierTies();
+    }
+
+    public function testSearch_ShowsNoCreditForAReturnSavedWhileAccountingWasOff(): void
+    {
+        $purchase = $this->purchaseOf('100.00', null, lang('Sales.cash'));
+
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $note = $this->debitNoteOf($purchase, '40.00');
+
+        $this->setConfigValue('accounting_enabled', '1');
+
+        $row = $this->rows()[0];
+
+        $this->assertSame($note, (int) $row->receiving_id);
+        $this->assertSame(['40.00', null, null, null, DebitNoteList::NOT_IN_ACCOUNT, false], $this->figuresOf($row));
+        $this->assertSame([], $this->debitNotesInTheLedger());
+        $this->assertSupplierTies();
+    }
+
+    public function testSearch_ShowsNoCreditForAReturnWithNoSupplierEvenThoughItIsInTheBooks(): void
+    {
+        $item     = $this->item('0.00');
+        $purchase = $this->buy([$this->purchaseLine($item, 0, '1', '100.00')], null, lang('Sales.cash'));
+
+        $this->assertGreaterThan(0, $purchase);
+
+        $note = $this->buy([$this->purchaseLine($item, 0, '-0.4', '100.00')], null, lang('Sales.cash'), $purchase);
+
+        $this->assertGreaterThan(0, $note);
+        $this->assertSame(1, $this->accountingDb()->table('accounting_journals')->where(['source_type' => 'purchase', 'source_id' => $note, 'status' => 'posted'])->countAllResults(), 'The return has a journal');
+
+        $row = $this->rows()[0];
+
+        $this->assertSame(['40.00', null, null, null, DebitNoteList::NOT_IN_ACCOUNT, false], $this->figuresOf($row));
+    }
+
+    public function testSearch_ShowsNoCreditForAReturnWhoseJournalWasTakenBack(): void
+    {
+        $purchase = $this->purchaseOf('100.00', null, lang('Sales.cash'));
+        $note     = $this->debitNoteOf($purchase, '40.00');
+
+        $this->assertSame(DebitNoteList::HELD, $this->rows()[0]->state);
+
+        $this->accountingDb()->table('accounting_journals')->where(['source_type' => 'purchase', 'source_id' => $note])->update(['status' => 'reversed']);
+
+        $this->assertSame(['40.00', null, null, null, DebitNoteList::NOT_IN_ACCOUNT, false], $this->figuresOf($this->rows()[0]));
+        $this->assertSame([], $this->debitNotesInTheLedger(), 'The ledger holds no credit for it either');
     }
 
     public function testSearch_DoesNotCountWhatWasReleasedWhenThePurchaseItWasAppliedToWasDeleted(): void

@@ -750,7 +750,7 @@ class AccountingPayablesControllerTest extends CIUnitTestCase
         $this->assertSame($this->formatDay($this->daysAgo(1)), $onAdvance['date']);
         $this->assertSame('', $onAdvance['purchase']);
         $this->assertSame(lang('Accounting_payables.kind_advance'), $onAdvance['kind']);
-        $this->assertStringContainsString('70.00', $onAdvance['amount']);
+        $this->assertSame($this->cell('70.00'), $onAdvance['amount']);
         $this->assertSame('ADV-2', $onAdvance['reference']);
 
         $this->assertStringContainsString('SP-001', $onPurchase['number']);
@@ -758,13 +758,18 @@ class AccountingPayablesControllerTest extends CIUnitTestCase
         $this->assertSame('Gulf Supplies', $onPurchase['supplier_name']);
         $this->assertStringContainsString('PO-0001', $onPurchase['purchase']);
         $this->assertSame(lang('Accounting_payables.kind_purchase'), $onPurchase['kind']);
-        $this->assertStringContainsString('120.00', $onPurchase['amount']);
+        $this->assertSame($this->cell('120.00'), $onPurchase['amount']);
         $this->assertSame($transfer, $onPurchase['way']);
         $this->assertSame('Payment drawer', $onPurchase['treasury']);
         $this->assertSame('Huda Saleh', $onPurchase['paid_by']);
         $this->assertSame('TR-9', $onPurchase['reference']);
         $this->assertStringContainsString($paid, $onPurchase['status']);
         $this->assertSame('HQ', $onPurchase['branch_code']);
+    }
+
+    private function cell(string $amount): string
+    {
+        return '<bdi dir="ltr">' . $amount . '</bdi>';
     }
 
     private function formatDay(string $day): string
@@ -794,7 +799,7 @@ class AccountingPayablesControllerTest extends CIUnitTestCase
         $rows = $this->paymentsOf('?kind=refund')['rows'];
 
         $this->assertSame(['purchase:' . $refund], array_column($rows, 'doc_key'));
-        $this->assertStringContainsString('-80.00', $rows[0]['amount']);
+        $this->assertSame($this->cell('-80.00'), $rows[0]['amount']);
         $this->assertSame(lang('Accounting_payables.kind_refund'), $rows[0]['kind']);
     }
 
@@ -1045,10 +1050,7 @@ class AccountingPayablesControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('DN-001', $row['number']);
         $this->assertStringContainsString('RECV ' . $purchase, $row['origin']);
         $this->assertSame('Gulf Supplies', $row['supplier_name']);
-        $this->assertStringContainsString('40.00', $row['amount']);
-        $this->assertStringContainsString('0.00', $row['refunded']);
-        $this->assertStringContainsString('40.00', $row['applied']);
-        $this->assertStringContainsString('0.00', $row['held']);
+        $this->assertSame([$this->cell('40.00'), $this->cell('0.00'), $this->cell('40.00'), $this->cell('0.00')], [$row['amount'], $row['refunded'], $row['applied'], $row['held']]);
         $this->assertStringContainsString(lang('Accounting_payables.state_applied'), $row['state']);
         $this->assertSame($this->formatDay(date('Y-m-d')), $row['date']);
         $this->assertNotSame('', $row['employee']);
@@ -1064,7 +1066,7 @@ class AccountingPayablesControllerTest extends CIUnitTestCase
         $row = $this->debitNotesOf()['rows'][0];
 
         $this->assertStringContainsString('RECV ' . $note, $row['number']);
-        $this->assertStringContainsString('40.00', $row['held']);
+        $this->assertSame([$this->cell('40.00'), $this->cell('0.00'), $this->cell('0.00'), $this->cell('40.00')], [$row['amount'], $row['refunded'], $row['applied'], $row['held']]);
         $this->assertStringContainsString(lang('Accounting_payables.state_held'), $row['state']);
     }
 
@@ -1137,21 +1139,145 @@ class AccountingPayablesControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('receivings/edit/' . $note, $this->debitNotesOf()['rows'][0]['edit']);
     }
 
-    public function testTheListsLeaveEverySupplierTieAsTheyWere(): void
+    /**
+     * @return array{int, int, string}
+     */
+    private function booksOfTheSupplier(): array
+    {
+        return [$this->countRows('accounting_journals'), $this->countRows('supplier_credit_applications'), $this->owed()];
+    }
+
+    public function testGetPaymentsSearch_ChangesNothingInTheBooksAndLeavesEverySupplierTie(): void
     {
         $purchase = $this->purchaseOf('300.00');
         $this->payOnDate($purchase, '100.00', $this->daysAgo(2));
         $this->debitNoteOf($purchase, '50.00');
         $this->viewer();
 
-        $before = [$this->countRows('accounting_journals'), $this->countRows('supplier_credit_applications'), $this->owed()];
+        $before = $this->booksOfTheSupplier();
 
         $this->paymentsOf();
-        $this->debitNotesOf();
         $this->get('/accounting_payables/payments');
+
+        $this->assertSame($before, $this->booksOfTheSupplier(), 'Reading changes nothing');
+        $this->assertSupplierTies();
+    }
+
+    public function testGetDebitNotesSearch_ChangesNothingInTheBooksAndLeavesEverySupplierTie(): void
+    {
+        $purchase = $this->purchaseOf('300.00');
+        $this->payOnDate($purchase, '100.00', $this->daysAgo(2));
+        $this->debitNoteOf($purchase, '50.00');
+        $this->viewer();
+
+        $before = $this->booksOfTheSupplier();
+
+        $this->debitNotesOf();
         $this->get('/accounting_payables/debit_notes');
 
-        $this->assertSame($before, [$this->countRows('accounting_journals'), $this->countRows('supplier_credit_applications'), $this->owed()], 'Reading changes nothing');
+        $this->assertSame($before, $this->booksOfTheSupplier(), 'Reading changes nothing');
         $this->assertSupplierTies();
+    }
+
+    public function testGetDebitNotesSearch_ShowsWhatAReturnComesToAndLeavesTheCreditCellsBlankWhenTheAccountOfTheSupplierDoesNotHoldIt(): void
+    {
+        $purchase = $this->purchaseOf('100.00', null, lang('Sales.cash'));
+
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $note = $this->debitNoteOf($purchase, '40.00');
+
+        $this->setConfigValue('accounting_enabled', '1');
+        $this->viewer();
+
+        $row = $this->debitNotesOf()['rows'][0];
+
+        $this->assertSame($note, $row['receiving_id']);
+        $this->assertSame([$this->cell('40.00'), '', '', ''], [$row['amount'], $row['refunded'], $row['applied'], $row['held']]);
+        $this->assertStringContainsString(esc(lang('Accounting_payables.state_not_in_account')), $row['state']);
+        $this->assertStringContainsString('text-bg-secondary', $row['state'], 'It is not something to chase');
+        $this->assertStringNotContainsString('text-bg-warning', $row['state']);
+    }
+
+    public function testGetPayments_OffersTheTreasuriesAndThePayersOfTheBranchesTheReaderWorksInOnly(): void
+    {
+        $manager = $this->clerk();
+        $buyer   = $this->createEmployee(first_name: 'Huda', last_name: 'Ownbranch');
+        $other   = $this->createEmployee(first_name: 'Zaid', last_name: 'Otherbranch');
+
+        ['branch' => $branch, 'purchase' => $theirs] = $this->purchaseInAnotherBranch();
+
+        (new TreasuryService())->create(['name' => 'Branch one drawer', 'kind' => 'cash'], $manager);
+        (new TreasuryService())->create(['name' => 'Branch two drawer', 'kind' => 'cash', 'branch_id' => $branch], $manager);
+
+        $own = $this->purchaseOf('100.00');
+
+        $this->payOnDate($own, '10.00', date('Y-m-d'), null, $buyer);
+        $this->payOnDate($theirs, '10.00', date('Y-m-d'), null, $other);
+
+        $this->viewer([1]);
+
+        $limited = $this->get('/accounting_payables/payments')->getBody();
+
+        $this->assertStringContainsString('Branch one drawer', $limited);
+        $this->assertStringContainsString('Huda Ownbranch', $limited);
+        $this->assertStringNotContainsString('Branch two drawer', $limited, 'The treasuries of a branch the reader does not work in are not offered');
+        $this->assertStringNotContainsString('Zaid Otherbranch', $limited, 'Neither are the employees who paid in it');
+
+        $this->viewer();
+
+        $everyone = $this->get('/accounting_payables/payments')->getBody();
+
+        foreach (['Branch one drawer', 'Branch two drawer', 'Huda Ownbranch', 'Zaid Otherbranch'] as $name) {
+            $this->assertStringContainsString($name, $everyone);
+        }
+    }
+
+    public function testGetPayments_NamesTheSupplierTheListIsCutToAndOffersToShowEverySupplier(): void
+    {
+        $this->viewer();
+
+        $without = $this->get('/accounting_payables/payments')->getBody();
+
+        $this->assertStringNotContainsString('id="supplier_filter"', $without);
+
+        $body = $this->get('/accounting_payables/payments?supplier_id=' . $this->supplierId)->getBody();
+
+        $this->assertStringContainsString('id="supplier_filter"', $body);
+        $this->assertStringContainsString(lang('Accounting_payables.supplier_filter', ['Gulf Supplies']), $body);
+        $this->assertStringContainsString('id="supplier_filter_clear"', $body);
+        $this->assertStringContainsString('id="f_supplier" value="' . $this->supplierId . '"', $body);
+        $this->assertStringContainsString(lang('Accounting_payables.supplier_filter', ['#987654']), $this->get('/accounting_payables/payments?supplier_id=987654')->getBody(), 'A supplier that has no account is shown by its number');
+    }
+
+    public function testGetPayments_DoesNotNameTheSupplierToSomeoneLimitedToABranch(): void
+    {
+        $this->viewer([1]);
+
+        $body = $this->get('/accounting_payables/payments?supplier_id=' . $this->supplierId)->getBody();
+
+        $this->assertStringContainsString(lang('Accounting_payables.supplier_filter', ['#' . $this->supplierId]), $body);
+        $this->assertStringNotContainsString('Gulf Supplies', $body);
+    }
+
+    public function testGetDebitNotes_NamesTheSupplierTheListIsCutToAndOffersToShowEverySupplier(): void
+    {
+        $this->viewer();
+
+        $this->assertStringNotContainsString('id="supplier_filter"', $this->get('/accounting_payables/debit_notes')->getBody());
+
+        $body = $this->get('/accounting_payables/debit_notes?supplier_id=' . $this->supplierId)->getBody();
+
+        $this->assertStringContainsString('id="supplier_filter"', $body);
+        $this->assertStringContainsString(lang('Accounting_payables.supplier_filter', ['Gulf Supplies']), $body);
+        $this->assertStringContainsString('id="supplier_filter_clear"', $body);
+        $this->assertStringContainsString('id="f_supplier" value="' . $this->supplierId . '"', $body);
+
+        $this->viewer([1]);
+
+        $limited = $this->get('/accounting_payables/debit_notes?supplier_id=' . $this->supplierId)->getBody();
+
+        $this->assertStringContainsString(lang('Accounting_payables.supplier_filter', ['#' . $this->supplierId]), $limited);
+        $this->assertStringNotContainsString('Gulf Supplies', $limited);
     }
 }
