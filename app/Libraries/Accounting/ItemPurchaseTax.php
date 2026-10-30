@@ -13,12 +13,12 @@ final class ItemPurchaseTax
     public const SLOTS = 2;
 
     /**
-     * @param object|array<string, mixed>                      $item       A row of items.
-     * @param list<array{name?: string, percent: string|float}> $salesTaxes The sales taxes of the item, in the order the form shows them.
+     * @param array<string, mixed>|object                       $item       A row of items.
+     * @param list<array{name?: string, percent: float|string}> $salesTaxes The sales taxes of the item, in the order the form shows them.
      *
      * @return numeric-string
      */
-    public static function defaultPercent(object|array $item, array $salesTaxes): string
+    public static function defaultPercent(array|object $item, array $salesTaxes): string
     {
         $set = array_filter(self::percents($item), static fn (?string $percent): bool => $percent !== null);
 
@@ -38,16 +38,16 @@ final class ItemPurchaseTax
     /**
      * What the item sets for each purchase tax, nothing for one that is not set.
      *
-     * @param object|array<string, mixed> $item
+     * @param array<string, mixed>|object $item
      *
      * @return list<numeric-string|null>
      */
-    public static function percents(object|array $item): array
+    public static function percents(array|object $item): array
     {
         $row      = (array) $item;
         $percents = [];
 
-        for ($slot = 1; $slot <= self::SLOTS; ++$slot) {
+        for ($slot = 1; $slot <= self::SLOTS; $slot++) {
             $value      = $row["purchase_tax_{$slot}_percent"] ?? null;
             $percents[] = $value === null || $value === '' ? null : bcadd((string) $value, '0', 3);
         }

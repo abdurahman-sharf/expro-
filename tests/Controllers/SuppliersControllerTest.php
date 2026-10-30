@@ -42,12 +42,14 @@ class SuppliersControllerTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
-        $db = $this->accountingDb();
+        if ($this->supplierIds !== []) {
+            $db = $this->accountingDb();
 
-        $db->query('SET FOREIGN_KEY_CHECKS = 0');
-        $db->table('suppliers')->whereIn('person_id', $this->supplierIds)->delete();
-        $db->table('people')->whereIn('person_id', $this->supplierIds)->delete();
-        $db->query('SET FOREIGN_KEY_CHECKS = 1');
+            $db->query('SET FOREIGN_KEY_CHECKS = 0');
+            $db->table('suppliers')->whereIn('person_id', $this->supplierIds)->delete();
+            $db->table('people')->whereIn('person_id', $this->supplierIds)->delete();
+            $db->query('SET FOREIGN_KEY_CHECKS = 1');
+        }
 
         $this->supplierIds = [];
 
@@ -64,6 +66,14 @@ class SuppliersControllerTest extends CIUnitTestCase
         return $more + [
             'first_name'   => 'Sara',
             'last_name'    => 'Nasser',
+            'phone_number' => '',
+            'address_1'    => '',
+            'address_2'    => '',
+            'city'         => '',
+            'state'        => '',
+            'zip'          => '',
+            'country'      => '',
+            'comments'     => '',
             'company_name' => 'Registry Supplies ' . uniqid(),
             'agency_name'  => '',
             'category'     => (string) GOODS_SUPPLIER,

@@ -121,9 +121,9 @@ final readonly class ReceivingLineEdit
      *
      * @param array<string, mixed> $fields
      *
-     * @return numeric-string|false|null
+     * @return false|numeric-string|null
      */
-    private static function number(array $fields, string $name, int $decimals, bool $positive = false): string|false|null
+    private static function number(array $fields, string $name, int $decimals, bool $positive = false): false|string|null
     {
         if (! isset($fields[$name]) || $fields[$name] === '') {
             return null;
@@ -151,7 +151,7 @@ final readonly class ReceivingLineEdit
      *
      * @param array<string, mixed> $fields
      */
-    private static function text(array $fields, string $name): string|false|null
+    private static function text(array $fields, string $name): false|string|null
     {
         if (! array_key_exists($name, $fields) || $fields[$name] === null) {
             return null;
