@@ -104,6 +104,18 @@ final class SupplierLedger
     }
 
     /**
+     * What is owed to the suppliers on a day, aged by the account: the payments and debit notes go
+     * to the oldest purchase first and what is left of each purchase is aged by its own day, in buckets
+     * of a period of days. Only the suppliers who are owed something or hold credit are listed.
+     *
+     * @return list<AgedLedgerRow>
+     */
+    public function agedLedger(string $asOf, int $period = AgingBuckets::DEFAULT_PERIOD, ?int $supplierId = null): array
+    {
+        return (new AgedLedger($this->db))->build(EntityAccountService::SUPPLIER, $asOf, $period, $supplierId);
+    }
+
+    /**
      * The applications that stand for a supplier, oldest first, or all of them with the ones
      * that were released.
      *

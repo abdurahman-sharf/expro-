@@ -99,6 +99,18 @@ final class CustomerLedger
     }
 
     /**
+     * What the customers owe on a day, aged by the account: the payments and credit notes go to
+     * the oldest invoice first and what is left of each invoice is aged by its own day, in buckets of
+     * a period of days. Only the customers who owe something or hold credit are listed.
+     *
+     * @return list<AgedLedgerRow>
+     */
+    public function agedLedger(string $asOf, int $period = AgingBuckets::DEFAULT_PERIOD, ?int $customerId = null): array
+    {
+        return (new AgedLedger($this->db))->build(EntityAccountService::CUSTOMER, $asOf, $period, $customerId);
+    }
+
+    /**
      * The applications that stand for a customer, oldest first, or all of them with the ones
      * that were released.
      *
