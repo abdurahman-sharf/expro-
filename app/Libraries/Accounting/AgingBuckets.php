@@ -12,8 +12,8 @@ use DateTimeImmutable;
  */
 final class AgingBuckets
 {
-    public const KEYS = ['today', '1-30', '31-60', '61-90', '91-120', '120+'];
-
+    public const KEYS           = ['today', '1-30', '31-60', '61-90', '91-120', '120+'];
+    public const LANGUAGE_KEYS  = ['today' => 'age_today', '1-30' => 'age_1_30', '31-60' => 'age_31_60', '61-90' => 'age_61_90', '91-120' => 'age_91_120', '120+' => 'age_over_120'];
     public const DEFAULT_PERIOD = 30;
     public const MAX_PERIOD     = 365;
 

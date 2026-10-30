@@ -134,7 +134,7 @@ class AccountingPayablesControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('100.00', $row['balance']);
         $this->assertStringContainsString('100.00', $row['open']);
         $this->assertStringContainsString('0.00', $row['credit']);
-        $this->assertStringContainsString('30.00', $row['age_0_30']);
+        $this->assertStringContainsString('30.00', $row['age_today']);
         $this->assertStringContainsString('70.00', $row['age_31_60']);
         $this->assertStringContainsString(lang('Accounting_payables.agrees_yes'), $row['agrees']);
         $this->assertStringContainsString('accounting_payables/supplier/' . $this->supplierId, $row['edit']);

@@ -72,6 +72,8 @@ $routes->group('accounting_receivables', static function (RouteCollection $route
     $routes->get('search', 'AccountingReceivables::getSearch');
     $routes->get('row/(:num)', 'AccountingReceivables::getRow/$1');
     $routes->get('customer/(:num)', 'AccountingReceivables::getCustomer/$1');
+    $routes->get('aged_ledger', 'AccountingReceivables::getAgedLedger');
+    $routes->get('balances', 'AccountingReceivables::getBalances');
 });
 
 $routes->group('accounting_payables', static function (RouteCollection $routes): void {
@@ -79,6 +81,8 @@ $routes->group('accounting_payables', static function (RouteCollection $routes):
     $routes->get('search', 'AccountingPayables::getSearch');
     $routes->get('row/(:num)', 'AccountingPayables::getRow/$1');
     $routes->get('supplier/(:num)', 'AccountingPayables::getSupplier/$1');
+    $routes->get('aged_ledger', 'AccountingPayables::getAgedLedger');
+    $routes->get('balances', 'AccountingPayables::getBalances');
     $routes->get('payment_form/(:num)', 'AccountingPayables::getPaymentForm/$1');
     $routes->post('payment/(:num)', 'AccountingPayables::postPayment/$1');
     $routes->get('opening_form/(:num)', 'AccountingPayables::getOpeningForm/$1');
