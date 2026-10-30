@@ -80,16 +80,17 @@ class AccountingPayables extends AccountingController
         $scope = $this->requestedScope();
 
         return view('accounting_payables/payments', [
-            'table_headers' => transform_headers($this->paymentHeaders($this->seesBranches()), true, true),
-            'branches'      => $this->branchChoices($scope),
-            'selected'      => $scope->ids,
-            'scope_label'   => $this->scopeLabel($scope),
-            'ways'          => $this->payments->paymentTypes(),
-            'statuses'      => $this->paymentStatuses(),
-            'treasuries'    => (new TreasuryService())->all($scope->isCompany() ? null : $scope->ids),
-            'payers'        => $this->payments->payers($scope->isCompany() ? null : $scope->ids),
-            'supplier_id'   => $this->id($this->query('supplier_id')),
-            'sees_balances' => $this->branchGuard()->isUnrestricted($this->employeeId()),
+            'table_headers'  => transform_headers($this->paymentHeaders($this->seesBranches()), true, true),
+            'branches'       => $this->branchChoices($scope),
+            'selected'       => $scope->ids,
+            'scope_label'    => $this->scopeLabel($scope),
+            'ways'           => $this->payments->paymentTypes(),
+            'statuses'       => $this->paymentStatuses(),
+            'treasuries'     => (new TreasuryService())->all($scope->isCompany() ? null : $scope->ids),
+            'payers'         => $this->payments->payers($scope->isCompany() ? null : $scope->ids),
+            'supplier_id'    => $this->id($this->query('supplier_id')),
+            'supplier_label' => $this->supplierLabel($this->id($this->query('supplier_id'))),
+            'sees_balances'  => $this->branchGuard()->isUnrestricted($this->employeeId()),
         ]);
     }
 
@@ -118,12 +119,13 @@ class AccountingPayables extends AccountingController
         $scope = $this->requestedScope();
 
         return view('accounting_payables/debit_notes', [
-            'table_headers' => transform_headers($this->debitNoteHeaders($this->seesBranches()), true, true),
-            'branches'      => $this->branchChoices($scope),
-            'selected'      => $scope->ids,
-            'scope_label'   => $this->scopeLabel($scope),
-            'supplier_id'   => $this->id($this->query('supplier_id')),
-            'sees_balances' => $this->branchGuard()->isUnrestricted($this->employeeId()),
+            'table_headers'  => transform_headers($this->debitNoteHeaders($this->seesBranches()), true, true),
+            'branches'       => $this->branchChoices($scope),
+            'selected'       => $scope->ids,
+            'scope_label'    => $this->scopeLabel($scope),
+            'supplier_id'    => $this->id($this->query('supplier_id')),
+            'supplier_label' => $this->supplierLabel($this->id($this->query('supplier_id'))),
+            'sees_balances'  => $this->branchGuard()->isUnrestricted($this->employeeId()),
         ]);
     }
 
@@ -488,9 +490,9 @@ class AccountingPayables extends AccountingController
             'origin'        => $origin === null ? '' : $this->amountCell((string) $note->origin_number),
             'supplier_name' => (string) $note->supplier_name,
             'amount'        => $this->amountCell($this->formatAmount($note->amount)),
-            'refunded'      => $this->amountCell($this->formatAmount($note->refunded)),
-            'applied'       => $this->amountCell($this->formatAmount($note->applied)),
-            'held'          => $this->amountCell($this->formatAmount($note->held)),
+            'refunded'      => $note->refunded === null ? '' : $this->amountCell($this->formatAmount($note->refunded)),
+            'applied'       => $note->applied === null ? '' : $this->amountCell($this->formatAmount($note->applied)),
+            'held'          => $note->held === null ? '' : $this->amountCell($this->formatAmount($note->held)),
             'state'         => '<span class="badge ' . ($note->state === DebitNoteList::HELD || $note->state === DebitNoteList::PARTLY_APPLIED ? 'text-bg-warning' : 'text-bg-secondary') . '">' . esc(lang('Accounting_payables.state_' . $note->state)) . '</span>',
             'employee'      => (string) $note->employee_name,
             'branch_code'   => (string) $note->branch_code,
@@ -501,5 +503,12 @@ class AccountingPayables extends AccountingController
     private function supplierName(int $supplierId): string
     {
         return $this->ledger->accountName($supplierId);
+    }
+
+    private function supplierLabel(int $supplierId): string
+    {
+        $name = $supplierId > 0 && $this->branchGuard()->isUnrestricted($this->employeeId()) ? $this->supplierName($supplierId) : '';
+
+        return $name !== '' ? $name : '#' . $supplierId;
     }
 }

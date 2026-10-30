@@ -5,6 +5,7 @@
  * @var list<int>    $selected
  * @var string|null  $scope_label
  * @var int          $supplier_id
+ * @var string       $supplier_label
  * @var bool         $sees_balances
  * @var array        $config
  */
@@ -50,11 +51,18 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
             table_support.refresh();
         });
 
+        const clearSupplier = function() {
+            $('#f_supplier').val('');
+            $('#supplier_filter').remove();
+            table_support.refresh();
+        };
+
         $('#filters_reset').on('click', function() {
             $('#debit_note_filters')[0].reset();
-            $('#f_supplier').val('');
-            table_support.refresh();
+            clearSupplier();
         });
+
+        $('#supplier_filter_clear').on('click', clearSupplier);
     });
 </script>
 
@@ -68,6 +76,13 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 
 <?php if ($scope_label !== null): ?>
     <div class="alert alert-info mx-2" role="note" id="scope_label"><?= esc($scope_label) ?></div>
+<?php endif; ?>
+
+<?php if ($supplier_id > 0): ?>
+    <div class="alert alert-info mx-2 d-flex align-items-center gap-2 print_hide" role="note" id="supplier_filter">
+        <span><?= esc(lang('Accounting_payables.supplier_filter', [$supplier_label])) ?></span>
+        <button type="button" class="btn btn-outline-secondary btn-sm ms-auto" id="supplier_filter_clear"><?= lang('Accounting_payables.supplier_filter_clear') ?></button>
+    </div>
 <?php endif; ?>
 
 <form id="debit_note_filters" class="acc-filters print_hide" role="search" aria-label="<?= esc(lang('Accounting_payables.filters'), 'attr') ?>">

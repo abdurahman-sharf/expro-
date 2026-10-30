@@ -11,7 +11,7 @@
  {
   "name": "G02 a payment is not dated after today",
   "file": "app/Libraries/Accounting/SupplierPaymentDate.php",
-  "find": "if ($text > ($today ?? date('Y-m-d'))) {",
+  "find": "if ($text > $today) {",
   "replace": "if (false) {",
   "tests": [
    "tests/Libraries/Accounting/SupplierPaymentDateTest.php"
@@ -20,7 +20,7 @@
  {
   "name": "G03 a payment is not dated before the day the books start",
   "file": "app/Libraries/Accounting/SupplierPaymentDate.php",
-  "find": "if ($booksStart !== null && $text < $booksStart) {",
+  "find": "if ($booksStart !== null && $booksStart <= $today && $text < $booksStart) {",
   "replace": "if (false) {",
   "tests": [
    "tests/Libraries/Accounting/SupplierPaymentDateTest.php"
@@ -36,14 +36,14 @@
   ]
  },
  {
-  "name": "G05 the books start is asked of a payment made against a purchase while the books are on",
+  "name": "G05 the books start is asked of a payment made against a purchase the books post",
   "file": "app/Models/Receiving.php",
-  "find": "$booksStart = $accountingOn ? (new AccountingSettings($this->db))->startDate() : null;",
+  "find": "$booksStart = $posting?->postsPayments($receivingId) ? (new AccountingSettings($this->db))->startDate() : null;",
   "replace": "$booksStart = null;",
   "tests": [
    "--filter",
    "BeforeTheDayTheBooksStart",
-   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+   "tests/Models/ReceivingTest.php"
   ]
  },
  {
@@ -54,7 +54,7 @@
   "tests": [
    "--filter",
    "AfterToday|NotADay|NotText",
-   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+   "tests/Models/ReceivingTest.php"
   ]
  },
  {
@@ -65,7 +65,7 @@
   "tests": [
    "--filter",
    "DatesAPaymentToday",
-   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+   "tests/Models/ReceivingTest.php"
   ]
  },
  {
@@ -76,7 +76,7 @@
   "tests": [
    "--filter",
    "PostsAPaymentOnTheDateEntered",
-   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+   "tests/Models/ReceivingTest.php"
   ]
  },
  {
@@ -87,7 +87,7 @@
   "tests": [
    "--filter",
    "MoveTheDate",
-   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+   "tests/Models/ReceivingTest.php"
   ]
  },
  {
@@ -98,7 +98,7 @@
   "tests": [
    "--filter",
    "SavedWithoutADate|DateIsSentAgain",
-   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+   "tests/Models/ReceivingTest.php"
   ]
  },
  {
@@ -109,7 +109,7 @@
   "tests": [
    "--filter",
    "LegacyPayment|KeepsThePaymentsAsTheyAre|ChangesTheDateOfAPayment",
-   "tests/Libraries/Accounting/ReceivingPostingTest.php",
+   "tests/Models/ReceivingTest.php",
    "tests/Controllers/ReceivingsControllerTest.php"
   ]
  },
@@ -121,7 +121,7 @@
   "tests": [
    "--filter",
    "OnTheDateEntered|ChangesTheDateOfAPayment|ClosedPeriod",
-   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+   "tests/Models/ReceivingTest.php"
   ]
  },
  {
@@ -708,5 +708,90 @@
    "tests/Controllers/AccountingPayablesControllerTest.php"
   ],
   "all": true
+ },
+ {
+  "name": "G66 a payment of a closed period is not moved to another day",
+  "file": "app/Libraries/Accounting/ReceivingPosting.php",
+  "find": "        if ($active !== null && $draft !== null && $draft->date !== $active->journal_date) {\n            $this->assertOutOfClosedPeriods($active);\n        }\n\n",
+  "replace": "",
+  "tests": [
+   "tests/Models/ReceivingTest.php"
+  ]
+ },
+ {
+  "name": "G67 the closed period is asked only when the day of the payment changes",
+  "file": "app/Libraries/Accounting/ReceivingPosting.php",
+  "find": "if ($active !== null && $draft !== null && $draft->date !== $active->journal_date) {",
+  "replace": "if ($active !== null && $draft !== null) {",
+  "tests": [
+   "tests/Models/ReceivingTest.php"
+  ]
+ },
+ {
+  "name": "G68 the journal in the other branch of a payment is asked about the closed period too",
+  "file": "app/Libraries/Accounting/ReceivingPosting.php",
+  "find": "$standing = [$active, ...(new InterBranchLegs($this->db))->partnersOf((int) $active->journal_id)];",
+  "replace": "$standing = [$active];",
+  "tests": [
+   "tests/Models/ReceivingTest.php"
+  ]
+ },
+ {
+  "name": "G69 the books start is asked only where the payments of the purchase are posted",
+  "file": "app/Models/Receiving.php",
+  "find": "$booksStart = $posting?->postsPayments($receivingId) ? (new AccountingSettings($this->db))->startDate() : null;",
+  "replace": "$booksStart = $accountingOn ? (new AccountingSettings($this->db))->startDate() : null;",
+  "tests": [
+   "tests/Models/ReceivingTest.php"
+  ]
+ },
+ {
+  "name": "G70 the payments of a purchase that has not reached the books are not posted",
+  "file": "app/Libraries/Accounting/ReceivingPosting.php",
+  "find": " && $this->activeJournal(ReceivingPostingBuilder::SOURCE_PURCHASE, $purchase->receivingId, JournalEntryType::General) !== null;",
+  "replace": ";",
+  "tests": [
+   "tests/Models/ReceivingTest.php"
+  ]
+ },
+ {
+  "name": "G71 the payments of a purchase the books do not follow are not posted",
+  "file": "app/Libraries/Accounting/ReceivingPosting.php",
+  "find": "return $this->follows($purchase) && $this->activeJournal(",
+  "replace": "return $this->activeJournal(",
+  "tests": [
+   "tests/Models/ReceivingTest.php"
+  ]
+ },
+ {
+  "name": "G72 the day the books start only holds once it is not after today",
+  "file": "app/Libraries/Accounting/SupplierPaymentDate.php",
+  "find": "if ($booksStart !== null && $booksStart <= $today && $text < $booksStart) {",
+  "replace": "if ($booksStart !== null && $text < $booksStart) {",
+  "tests": [
+   "--filter",
+   "WhileTheBooksStartAfterToday|AsSoonAsItIsToday",
+   "tests/Libraries/Accounting/SupplierPaymentDateTest.php"
+  ]
+ },
+ {
+  "name": "G73 the day the books start holds on the day it is today",
+  "file": "app/Libraries/Accounting/SupplierPaymentDate.php",
+  "find": "$booksStart <= $today &&",
+  "replace": "$booksStart < $today &&",
+  "tests": [
+   "tests/Libraries/Accounting/SupplierPaymentDateTest.php"
+  ]
+ },
+ {
+  "name": "G74 a payment without a purchase may be dated today while the books start in the future",
+  "file": "app/Libraries/Accounting/SupplierPaymentDate.php",
+  "find": "if ($booksStart !== null && $booksStart <= $today && $text < $booksStart) {",
+  "replace": "if ($booksStart !== null && $text < $booksStart) {",
+  "tests": [
+   "--filter",
+   "WhileTheBooksStartInTheFuture",
+   "tests/Libraries/Accounting/SupplierAdvancesTest.php"
+  ]
  }
 ]

@@ -13,7 +13,9 @@ use Config\Database;
  * shown), the purchase it takes goods back from, the supplier, what it comes to, what the supplier
  * paid back at once, and what of the rest was applied against what the supplier is owed. What the
  * return is worth is read from its own lines, the way the books were given it; what was applied is
- * read from the credit applications that still stand. Nothing here changes how a return is valued
+ * read from the credit applications that still stand. A return that never reached the account of
+ * the supplier (dated before the books start, or saved while they were off) holds no credit there,
+ * so it shows what it comes to and none of the rest. Nothing here changes how a return is valued
  * or posted. What is read is cut down to the branches given.
  */
 final class DebitNoteList
@@ -23,6 +25,7 @@ final class DebitNoteList
     public const PARTLY_APPLIED  = 'partly';
     public const HELD            = 'held';
     public const NOTHING         = 'nothing';
+    public const NOT_IN_ACCOUNT  = 'not_in_account';
     private const SORTS          = [
         'date'          => 'r.receiving_time',
         'number'        => 'COALESCE(dn.sequence_number, r.receiving_id)',
@@ -58,7 +61,7 @@ final class DebitNoteList
             "SELECT r.receiving_id, r.receiving_time, r.supplier_id, r.employee_id, r.branch_id, r.return_of_receiving_id, r.payment_type, r.comment,
                     dn.number AS number, pn.number AS origin_number, {$this->supplierName()} AS supplier_name,
                     TRIM(CONCAT(COALESCE(ep.first_name, ''), ' ', COALESCE(ep.last_name, ''))) AS employee_name, b.code AS branch_code,
-                    {$this->applied()} AS applied, {$this->refunded()} AS refunded
+                    {$this->applied()} AS applied, {$this->refunded()} AS refunded, {$this->inAccount()} AS in_account
              {$from['sql']} {$where}
              ORDER BY {$column} {$way}, r.receiving_id DESC{$paging}",
             [...$from['bindings'], ...$bindings],
@@ -67,11 +70,7 @@ final class DebitNoteList
         $rows = [];
 
         foreach ($notes as $note) {
-            $amount       = ReceivingAmounts::totals($this->loader->load((int) $note->receiving_id, false)?->lines ?? [])['total'];
-            $refunded     = bcadd((string) $note->refunded, '0', SaleAmounts::SCALE);
-            $applied      = bcadd((string) $note->applied, '0', SaleAmounts::SCALE);
-            $credit       = bcsub($amount, $refunded, SaleAmounts::SCALE);
-            $note->amount = bcadd($amount, '0', SaleAmounts::SCALE);
+            $note->amount = bcadd(ReceivingAmounts::totals($this->loader->load((int) $note->receiving_id, false)?->lines ?? [])['total'], '0', SaleAmounts::SCALE);
 
             $note->numbered = $note->number !== null ? 1 : 0;
             $note->number ??= DocumentType::DebitNote->fallback((int) $note->receiving_id);
@@ -80,11 +79,23 @@ final class DebitNoteList
                 $note->origin_number ??= DocumentType::Purchase->fallback((int) $note->return_of_receiving_id);
             }
 
-            $note->refunded = $refunded;
-            $note->applied  = $applied;
-            $note->held     = bcsub($credit, $applied, SaleAmounts::SCALE);
-            $note->state    = self::stateOf($note->amount, $credit, $applied);
-            $rows[]         = $note;
+            $note->in_account = (int) $note->in_account === 1;
+
+            if ($note->in_account) {
+                $refunded = bcadd((string) $note->refunded, '0', SaleAmounts::SCALE);
+                $applied  = bcadd((string) $note->applied, '0', SaleAmounts::SCALE);
+                $credit   = bcsub($note->amount, $refunded, SaleAmounts::SCALE);
+
+                $note->refunded = $refunded;
+                $note->applied  = $applied;
+                $note->held     = bcsub($credit, $applied, SaleAmounts::SCALE);
+                $note->state    = self::stateOf($note->amount, $credit, $applied);
+            } else {
+                $note->refunded = $note->applied = $note->held = null;
+                $note->state    = self::NOT_IN_ACCOUNT;
+            }
+
+            $rows[] = $note;
         }
 
         return ['total' => $total, 'rows' => $rows];
@@ -138,6 +149,12 @@ final class DebitNoteList
     private function applied(): string
     {
         return '(SELECT COALESCE(SUM(c.amount), 0) FROM ' . $this->db->prefixTable('supplier_credit_applications') . " c WHERE c.source_type = '" . CreditSource::DEBIT_NOTE . "' AND c.source_id = r.receiving_id AND c.released_at IS NULL)";
+    }
+
+    private function inAccount(): string
+    {
+        return '(sa.account_id IS NOT NULL AND EXISTS (SELECT 1 FROM ' . $this->db->prefixTable('accounting_journals') . " j WHERE j.source_type = '" . ReceivingPostingBuilder::SOURCE_PURCHASE . "' AND j.source_id = r.receiving_id AND j.entry_type = '"
+            . JournalEntryType::General->value . "' AND j.status = '" . JournalStatus::Posted->value . "'))";
     }
 
     private function refunded(): string

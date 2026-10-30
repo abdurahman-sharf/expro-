@@ -965,6 +965,155 @@ class ReceivingTest extends CIUnitTestCase
         $this->assertSame('60.00', $this->owed());
     }
 
+    public function testUpdate_RefusesToMoveAPaymentOutOfAClosedPeriodToAnOpenDayAndLeavesItWhereItWas(): void
+    {
+        $this->startBuying();
+        $purchase = $this->purchaseOf('100.00');
+        $day      = $this->daysAgo(12);
+
+        $this->assertTrue($this->payOn($purchase, '40.00', $day));
+
+        $payment  = (int) $this->lastPaymentOf($purchase)->payment_id;
+        $journal  = $this->paymentJournals($payment)[0]->journal_id;
+        $journals = $this->countRows('accounting_journals');
+        $through  = $this->daysAgo(10);
+
+        $this->closeThrough($through);
+
+        $this->assertFalse($this->changePayment($purchase, $payment, ['payment_date' => $this->daysAgo(5)]));
+        $this->assertSame(PostingError::PeriodClosed, $this->purchases->accountingFailure()->error);
+        $this->assertStringContainsString($through, AccountingMessage::of($this->purchases->accountingFailure()));
+        $this->assertSame($day, $this->lastPaymentOf($purchase)->payment_date);
+        $this->assertSame($journals, $this->countRows('accounting_journals'), 'No reversal and no new journal was written');
+        $this->assertSame([(string) $journal], array_map(static fn (object $row): string => (string) $row->journal_id, $this->paymentJournals($payment)));
+        $this->assertSame('60.00', $this->owed());
+        $this->assertSupplierTies();
+    }
+
+    public function testUpdate_RefusesToMoveAPaymentPostedOnTheLastDayOfAClosedPeriod(): void
+    {
+        $this->startBuying();
+        $purchase = $this->purchaseOf('100.00');
+        $through  = $this->daysAgo(10);
+
+        $this->assertTrue($this->payOn($purchase, '40.00', $through));
+
+        $payment = (int) $this->lastPaymentOf($purchase)->payment_id;
+
+        $this->closeThrough($through);
+
+        $this->assertFalse($this->changePayment($purchase, $payment, ['payment_date' => $this->daysAgo(9)]));
+        $this->assertSame(PostingError::PeriodClosed, $this->purchases->accountingFailure()->error);
+        $this->assertSame($through, $this->lastPaymentOf($purchase)->payment_date);
+    }
+
+    public function testUpdate_MovesAPaymentOfAnOpenPeriodWhileAnEarlierPeriodIsClosed(): void
+    {
+        $this->startBuying();
+        $purchase = $this->purchaseOf('100.00');
+
+        $this->assertTrue($this->payOn($purchase, '40.00', $this->daysAgo(8)));
+
+        $payment = (int) $this->lastPaymentOf($purchase)->payment_id;
+
+        $this->closeThrough($this->daysAgo(10));
+
+        $this->assertTrue($this->changePayment($purchase, $payment, ['payment_date' => $this->daysAgo(3)]));
+        $this->assertSame([$this->daysAgo(8), $this->daysAgo(3)], array_map(static fn (object $journal): string => $journal->journal_date, $this->paymentJournals($payment)), 'It is taken back on its own day and posted again on the new one');
+        $this->assertSame('60.00', $this->owed());
+        $this->assertSupplierTies();
+    }
+
+    public function testUpdate_LeavesAPaymentOfAClosedPeriodAloneWhenNothingOfItChanges(): void
+    {
+        $this->startBuying();
+        $purchase = $this->purchaseOf('100.00');
+
+        $this->assertTrue($this->payOn($purchase, '40.00', $this->daysAgo(12)));
+
+        $payment  = (int) $this->lastPaymentOf($purchase)->payment_id;
+        $journals = $this->countRows('accounting_journals');
+
+        $this->closeThrough($this->daysAgo(10));
+
+        $this->assertTrue($this->changePayment($purchase, $payment, ['payment_date' => $this->daysAgo(12), 'reference_code' => 'same']), 'The form sends the day it shows');
+        $this->assertTrue($this->changePayment($purchase, $payment, []));
+        $this->assertSame($journals, $this->countRows('accounting_journals'));
+        $this->assertCount(1, $this->paymentJournals($payment));
+    }
+
+    public function testUpdate_RefusesToMoveAPaymentWhoseJournalInTheBranchOfItsTreasuryIsInAClosedPeriod(): void
+    {
+        $this->startBuying();
+        ['branch' => $branch, 'treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+
+        $receivingId = $this->purchaseOf('300.00');
+
+        $this->assertTrue($this->payPurchaseFrom($receivingId, '100.00', $treasury, ['payment_date' => $this->daysAgo(12)]));
+
+        $payment  = (int) $this->lastPaymentOf($receivingId)->payment_id;
+        $journals = $this->countRows('accounting_journals');
+
+        $this->closeThrough($this->daysAgo(10), $branch);
+
+        $this->assertFalse($this->changePayment($receivingId, $payment, ['payment_date' => $this->daysAgo(5)]));
+        $this->assertSame(PostingError::PeriodClosed, $this->purchases->accountingFailure()->error);
+        $this->assertSame($this->daysAgo(12), $this->lastPaymentOf($receivingId)->payment_date);
+        $this->assertSame($journals, $this->countRows('accounting_journals'));
+        $this->assertEveryBranchBalancedAndTheAccountsBetweenBranchesOffset();
+    }
+
+    public function testUpdate_AcceptsAPaymentOnAPurchaseSavedBeforeTheBooksStartWhateverItsDate(): void
+    {
+        $this->startBuying();
+
+        $this->setConfigValue('accounting_start_date', date('Y-m-d', strtotime('+20 days')));
+
+        $purchase = $this->buy([$this->purchaseLine($this->item('0.00'), 0, '10', '50')]);
+
+        $this->assertGreaterThan(0, $purchase);
+        $this->assertSame(0, $this->countRows('accounting_journals'));
+
+        $this->assertTrue($this->payOn($purchase, '40.00', null), 'Today, the default of the form, comes before the start');
+        $this->assertTrue($this->payOn($purchase, '10.00', $this->daysAgo(40)));
+
+        $payment = (int) $this->lastPaymentOf($purchase)->payment_id;
+
+        $this->assertTrue($this->changePayment($purchase, $payment, ['payment_date' => $this->daysAgo(100)]));
+        $this->assertSame($this->daysAgo(100), $this->lastPaymentOf($purchase)->payment_date);
+        $this->assertSame(0, $this->countRows('accounting_journals'), 'Nothing of a purchase the books do not hold is posted');
+    }
+
+    public function testUpdate_StoresAPaymentWithoutPostingItWhenTheBooksNowStartAfterThePurchase(): void
+    {
+        $this->startBuying();
+        $purchase = $this->purchaseOf('100.00');
+        $journals = $this->countRows('accounting_journals');
+
+        $this->setConfigValue('accounting_start_date', date('Y-m-d', strtotime('+20 days')));
+
+        $this->assertTrue($this->payOn($purchase, '40.00', $this->daysAgo(50)));
+        $this->assertSame($this->daysAgo(50), $this->lastPaymentOf($purchase)->payment_date);
+        $this->assertSame($journals, $this->countRows('accounting_journals'), 'A purchase dated before the books start is not followed, and neither are its payments');
+    }
+
+    public function testUpdate_AcceptsADateBeforeTheBooksStartOnAPurchaseSavedWhileAccountingWasOff(): void
+    {
+        $this->startBuying();
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $purchase = $this->buy([$this->purchaseLine($this->item('0.00'), 0, '10', '50')]);
+
+        $this->assertGreaterThan(0, $purchase);
+
+        $this->setConfigValue('accounting_enabled', '1');
+        $this->setConfigValue('accounting_start_date', $this->daysAgo(30));
+
+        $this->assertTrue($this->payOn($purchase, '40.00', $this->daysAgo(60)));
+        $this->assertSame($this->daysAgo(60), $this->lastPaymentOf($purchase)->payment_date);
+        $this->assertSame(0, $this->countRows('accounting_journals'));
+    }
+
     public function testUpdate_RefusesToMoveTheDateOfAPaymentAfterTodayAndLeavesItWhereItWas(): void
     {
         $this->startBuying();

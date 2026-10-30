@@ -497,6 +497,17 @@ class SupplierAdvancesTest extends CIUnitTestCase
         $this->assertSame(1, $this->countRows('supplier_advances'));
     }
 
+    public function testPay_AcceptsEveryDayUpToTodayWhileTheBooksStartInTheFuture(): void
+    {
+        $this->setConfigValue('accounting_start_date', date('Y-m-d', strtotime('+20 days')));
+
+        $this->advances->pay($this->supplierId, '75.00', date('Y-m-d'), 'Cash', null, '', '', $this->clerk);
+        $this->advances->pay($this->supplierId, '25.00', $this->daysAgo(5), 'Cash', null, '', '', $this->clerk);
+
+        $this->assertSame(2, $this->countRows('supplier_advances'));
+        $this->assertSame('-100.00', $this->owed());
+    }
+
     public function testPay_RefusesTheLastDayOfAClosedPeriodAndAcceptsTheNextOne(): void
     {
         $this->closeThrough($this->daysAgo(10));
