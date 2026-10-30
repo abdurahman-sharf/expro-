@@ -2589,7 +2589,7 @@ class Sales extends Secure_Controller
             return $this->reload(['error' => lang('Sales.not_authorized')]);
         }
 
-        $saleIdNum = $this->sale->save_value($sale_id, $sale_status, $cart, $customer_id, $employee_id, $comment, $invoice_number, $work_order_number, $quote_number, $sale_type, $payments, $dinner_table, $sales_taxes, $this->sale_lib->is_delivered(), null, $invoiceDiscount, $sale_type == SALE_TYPE_INVOICE ? $this->sale_lib->get_invoice_date() : null, $sale_type == SALE_TYPE_INVOICE ? $this->sale_lib->get_payment_terms() : null);
+        $saleIdNum = $this->sale->save_value($sale_id, $sale_status, $cart, $customer_id, $employee_id, $comment, $invoice_number, $work_order_number, $quote_number, $sale_type, $payments, $dinner_table, $sales_taxes, $this->sale_lib->is_delivered(), null, $invoiceDiscount, $this->sale_lib->get_invoice_date(), $this->sale_lib->get_payment_terms());
 
         if ($saleIdNum === INSUFFICIENT_GIFTCARD_BALANCE) {
             $data['error'] = lang('Sales.insufficient_giftcard_balance');

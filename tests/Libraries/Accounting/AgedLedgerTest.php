@@ -157,16 +157,18 @@ class AgedLedgerTest extends CIUnitTestCase
 
     public function testBuild_KeepsTheLengthOfTheBucketsBetweenOneDayAndTheLimit(): void
     {
-        $this->invoiceDated('100.00', $this->daysAgo(200));
+        $this->invoiceDated('100.00', $this->daysAgo(400));
 
-        $none = $this->rowOf($this->customers(date('Y-m-d'), 0), $this->customerId);
-        $huge = $this->rowOf($this->customers(date('Y-m-d'), 99999), $this->customerId);
-        $one  = $this->rowOf($this->customers(date('Y-m-d'), 1), $this->customerId);
+        $none  = $this->rowOf($this->customers(date('Y-m-d'), 0), $this->customerId);
+        $huge  = $this->rowOf($this->customers(date('Y-m-d'), 99999), $this->customerId);
+        $limit = $this->rowOf($this->customers(date('Y-m-d'), AgingBuckets::MAX_PERIOD), $this->customerId);
+        $one   = $this->rowOf($this->customers(date('Y-m-d'), 1), $this->customerId);
 
         $this->assertSame($one->buckets, $none->buckets);
         $this->assertSame('100.0000', $none->buckets[5]);
-        $this->assertSame('100.0000', $huge->buckets[1]);
-        $this->assertSame('0.0000', $huge->buckets[5]);
+        $this->assertSame($limit->buckets, $huge->buckets);
+        $this->assertSame('100.0000', $huge->buckets[2]);
+        $this->assertSame('0.0000', $huge->buckets[1]);
     }
 
     public function testBuild_CountsOnlyWhatIsDatedByTheDayAndTheBucketsLessTheCreditAreTheBalanceOfThatDay(): void

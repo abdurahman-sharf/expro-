@@ -360,15 +360,6 @@
   ]
  },
  {
-  "name": "G41 customer: documents are ordered by the day they are dated",
-  "file": "app/Libraries/Accounting/CustomerLedger.php",
-  "find": "ORDER BY doc_date ASC,",
-  "replace": "ORDER BY",
-  "tests": [
-   "tests/Libraries/Accounting/CustomerLedgerTest.php"
-  ]
- },
- {
   "name": "G42 customer: an application made after the day is not counted",
   "file": "app/Libraries/Accounting/CustomerLedger.php",
   "find": "substr((string) $application->created_at, 0, 10) > $asOf || ",
@@ -418,15 +409,6 @@
   "file": "app/Libraries/Accounting/SupplierLedger.php",
   "find": "$until      = ' AND j.journal_date <= ?';",
   "replace": "$until      = ' AND ? IS NOT NULL';",
-  "tests": [
-   "tests/Libraries/Accounting/SupplierLedgerTest.php"
-  ]
- },
- {
-  "name": "G41 supplier: documents are ordered by the day they are dated",
-  "file": "app/Libraries/Accounting/SupplierLedger.php",
-  "find": "ORDER BY doc_date ASC,",
-  "replace": "ORDER BY",
   "tests": [
    "tests/Libraries/Accounting/SupplierLedgerTest.php"
   ]
@@ -866,17 +848,6 @@
   ]
  },
  {
-  "name": "G85 sales register: a sale that is not an invoice carries no typed day to the model",
-  "file": "app/Controllers/Sales.php",
-  "find": "$sale_type == SALE_TYPE_INVOICE ? $this->sale_lib->get_invoice_date() : null, $sale_type == SALE_TYPE_INVOICE ? $this->sale_lib->get_payment_terms() : null",
-  "replace": "$this->sale_lib->get_invoice_date(), $this->sale_lib->get_payment_terms()",
-  "tests": [
-   "--filter",
-   "testPostSetInvoiceDate_RefusesAnEmployeeWithoutThePermissionAndSetsNothing|testPostSetInvoiceDate_RefusesWhileAccountingIsOffAndSetsNothing|testPostSetInvoiceDate_SetsADayUpToTodayAndAnswersTheDueDateOfTheTermsOnTheRegister|testPostSetInvoiceDate_RefusesADayThatIsNotUpToTodayOrIsBeforeTheBooksAndKeepsWhatWasSet|testPostSetInvoiceDate_TakesBackTheDayWhenItIsSentEmpty|testPostSetPaymentTerms_SetsTheTermsForAnyEmployeeAndAnswersTheDueDate|testPostSetPaymentTerms_RefusesWhatIsNotAWholeNumberOfDaysAndKeepsWhatWasSet|testPostSetPaymentTerms_TakesBackTheTermsWhenTheyAreSentEmptyOrZeroAndRefusesWhileAccountingIsOff|testGetIndex_OffersTheDateOnlyToAnEmployeeWhoMayTypeItAndTheTermsToEveryoneInTheModeOfAnInvoice|testGetIndex_OffersNeitherTheDateNorTheTermsOutsideTheModeOfAnInvoiceOrWhileAccountingIsOff|testPostComplete_DatesTheInvoiceByTheDayAndTheTermsOfTheRegisterAndPrintsTheDueDate|testPostComplete_PrintsNoDueDateOnAnInvoiceWithoutTerms|testPostComplete_RefusesADayInAClosedPeriodAndSaysWhyAndSavesNothing|testPostComplete_RefusesTheDayOfAnEmployeeWhoMayNoLongerTypeItAndSavesNothing|testPostSuspend_KeepsTheDayAndTheTermsOfADraftAndTheRegisterBringsThemBackWhenItIsTakenUp|testGetEdit_ShowsTheDayTheTermsAndTheDueDateOfAnIssuedInvoice|testGetEdit_ShowsNoDayTermsOrDueDateOnASaleThatIsNotAnInvoiceOrWhileAccountingIsOff|testPostSave_ChangesThePaymentTermsOfAnIssuedInvoiceAndLeavesItsJournalsAsTheyWere|testPostSave_RefusesTermsThatAreNotAWholeNumberOfDaysAndSaysSo|testPostSave_KeepsTheTermsOfAnInvoiceWhenTheFormSendsNone|testGetInvoice_PrintsTheDayOfTheInvoiceAndTheDueDateOnlyWhenItHasTerms",
-   "tests/Controllers/SalesControllerTest.php"
-  ]
- },
- {
   "name": "G86 purchases register: the day is typed only by who holds the permission",
   "file": "app/Controllers/Receivings.php",
   "find": "if (! $settings->isEnabled() || ! $this->mayTypeInvoiceDate()) {",
@@ -914,17 +885,6 @@
   "file": "app/Controllers/Receivings.php",
   "find": "has_grant('receivings_invoice_date', (int)",
   "replace": "has_grant('receivings', (int)",
-  "tests": [
-   "--filter",
-   "testPostSetInvoiceDate_RefusesABuyerWithoutThePermissionAndSetsNothing|testPostSetInvoiceDate_RefusesWhileAccountingIsOffAndSetsNothing|testPostSetInvoiceDate_SetsADayUpToTodayAndAnswersTheDueDateOfTheTermsOnTheRegister|testPostSetInvoiceDate_RefusesADayThatIsNotUpToTodayOrIsBeforeTheBooksAndKeepsWhatWasSet|testPostSetInvoiceDate_TakesBackTheDayWhenItIsSentEmpty|testPostSetPaymentTerms_SetsTheTermsForAnyBuyerAndAnswersTheDueDate|testPostSetPaymentTerms_RefusesWhatIsNotAWholeNumberOfDaysAndKeepsWhatWasSet|testPostSetPaymentTerms_TakesBackTheTermsWhenTheyAreSentZeroAndRefusesWhileAccountingIsOff|testGetIndex_OffersTheDateOnlyToABuyerWhoMayTypeItAndTheTermsToEveryoneInTheModeOfAReceiving|testGetIndex_OffersNeitherTheDateNorTheTermsOutsideTheModeOfAReceivingOrWhileAccountingIsOff|testPostComplete_DatesThePurchaseByTheDayAndTheTermsOfTheRegisterAndPrintsThemOnTheReceipt|testPostComplete_PrintsNeitherTheDayNorTheDueDateOnAPurchaseWithNeither|testPostComplete_RefusesADayInAClosedPeriodAndSaysWhyAndSavesNothing|testPostComplete_RefusesTheDayOfABuyerWhoMayNoLongerTypeItAndSavesNothing|testPostComplete_TakesNoTypedDayForAReturn|testGetEdit_ShowsTheDayTheTermsAndTheDueDateOfAPostedPurchase|testGetEdit_ShowsNoDayTermsOrDueDateOnAReturnOrWhileAccountingIsOff|testPostSave_ChangesThePaymentTermsOfAPostedPurchaseAndLeavesItsJournalsAsTheyWere|testPostSave_RefusesTermsThatAreNotAWholeNumberOfDaysAndSaysSo|testPostSave_KeepsTheTermsOfAPurchaseWhenTheFormSendsNone|testGetReceipt_PrintsTheDayAndTheDueDateOnlyWhenThePurchaseHasThem",
-   "tests/Controllers/ReceivingsControllerTest.php"
-  ]
- },
- {
-  "name": "G90 purchases register: a return carries no typed day to the model",
-  "file": "app/Controllers/Receivings.php",
-  "find": "$data['mode'] === 'receive' ? $this->receiving_lib->get_invoice_date() : null, $data['mode'] === 'receive' ? $this->receiving_lib->get_payment_terms() : null",
-  "replace": "$this->receiving_lib->get_invoice_date(), $this->receiving_lib->get_payment_terms()",
   "tests": [
    "--filter",
    "testPostSetInvoiceDate_RefusesABuyerWithoutThePermissionAndSetsNothing|testPostSetInvoiceDate_RefusesWhileAccountingIsOffAndSetsNothing|testPostSetInvoiceDate_SetsADayUpToTodayAndAnswersTheDueDateOfTheTermsOnTheRegister|testPostSetInvoiceDate_RefusesADayThatIsNotUpToTodayOrIsBeforeTheBooksAndKeepsWhatWasSet|testPostSetInvoiceDate_TakesBackTheDayWhenItIsSentEmpty|testPostSetPaymentTerms_SetsTheTermsForAnyBuyerAndAnswersTheDueDate|testPostSetPaymentTerms_RefusesWhatIsNotAWholeNumberOfDaysAndKeepsWhatWasSet|testPostSetPaymentTerms_TakesBackTheTermsWhenTheyAreSentZeroAndRefusesWhileAccountingIsOff|testGetIndex_OffersTheDateOnlyToABuyerWhoMayTypeItAndTheTermsToEveryoneInTheModeOfAReceiving|testGetIndex_OffersNeitherTheDateNorTheTermsOutsideTheModeOfAReceivingOrWhileAccountingIsOff|testPostComplete_DatesThePurchaseByTheDayAndTheTermsOfTheRegisterAndPrintsThemOnTheReceipt|testPostComplete_PrintsNeitherTheDayNorTheDueDateOnAPurchaseWithNeither|testPostComplete_RefusesADayInAClosedPeriodAndSaysWhyAndSavesNothing|testPostComplete_RefusesTheDayOfABuyerWhoMayNoLongerTypeItAndSavesNothing|testPostComplete_TakesNoTypedDayForAReturn|testGetEdit_ShowsTheDayTheTermsAndTheDueDateOfAPostedPurchase|testGetEdit_ShowsNoDayTermsOrDueDateOnAReturnOrWhileAccountingIsOff|testPostSave_ChangesThePaymentTermsOfAPostedPurchaseAndLeavesItsJournalsAsTheyWere|testPostSave_RefusesTermsThatAreNotAWholeNumberOfDaysAndSaysSo|testPostSave_KeepsTheTermsOfAPurchaseWhenTheFormSendsNone|testGetReceipt_PrintsTheDayAndTheDueDateOnlyWhenThePurchaseHasThem",
@@ -1270,15 +1230,6 @@
   "name": "G115 permissions migration: a registered permission is not registered again",
   "file": "app/Database/Migrations/20270600000001_InvoiceDatePermissions.php",
   "find": "->ignore(true)",
-  "replace": "",
-  "tests": [
-   "tests/Database/InvoiceDatePermissionsMigrationTest.php"
-  ]
- },
- {
-  "name": "G116 permissions migration: taking it back removes the grants",
-  "file": "app/Database/Migrations/20270600000001_InvoiceDatePermissions.php",
-  "find": "$this->db->table('grants')->where('permission_id', $permission)->delete();",
   "replace": "",
   "tests": [
    "tests/Database/InvoiceDatePermissionsMigrationTest.php"

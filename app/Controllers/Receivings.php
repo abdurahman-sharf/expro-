@@ -610,7 +610,7 @@ class Receivings extends Secure_Controller
         }
 
         // SAVE receiving to database
-        $saved = $this->receiving->save_value($data['cart'], $supplierId, $employeeId, $data['comment'], $data['reference'], $data['payment_type'], $data['stock_location'], $origin, $data['mode'] === 'receive' ? $data['invoiceDiscount'] : null, $data['mode'] === 'receive' ? $this->receiving_lib->get_invoice_date() : null, $data['mode'] === 'receive' ? $this->receiving_lib->get_payment_terms() : null);
+        $saved = $this->receiving->save_value($data['cart'], $supplierId, $employeeId, $data['comment'], $data['reference'], $data['payment_type'], $data['stock_location'], $origin, $data['mode'] === 'receive' ? $data['invoiceDiscount'] : null, $this->receiving_lib->get_invoice_date(), $this->receiving_lib->get_payment_terms());
 
         if ($saved === ACCOUNTING_FAILED) {
             return $this->_reload(['error' => $this->accountingFailureMessage() ?? lang('Receivings.transaction_failed')]);

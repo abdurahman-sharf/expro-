@@ -432,6 +432,49 @@ class CustomerLedgerTest extends CIUnitTestCase
         $this->assertSame('0.00', bcadd($now->accountBalance, '0', 2));
     }
 
+    public function testPosition_OnADayAfterASaleWasCancelledLeavesItOutAndBeforeItKeepsIt(): void
+    {
+        $service = $this->item('0', false);
+        $sale    = $this->save([$this->line($service, 0, '1', '100.00')], [], [$this->payment(lang('Sales.cash'), '40.00')], SALE_TYPE_POS);
+        $past    = $this->daysAgo(3);
+        $db      = $this->accountingDb();
+
+        $db->table('sales')->where('sale_id', $sale)->update(['sale_time' => $past . ' 10:00:00']);
+        $db->table('sales_payments')->where('sale_id', $sale)->update(['payment_time' => $past . ' 10:00:00']);
+
+        $paymentIds = array_map('intval', array_column($db->table('sales_payments')->select('payment_id')->where('sale_id', $sale)->get()->getResultArray(), 'payment_id'));
+
+        $db->table('accounting_journals')->where(['source_type' => SalePostingBuilder::SOURCE_SALE, 'source_id' => $sale])->update(['journal_date' => $past]);
+        $db->table('accounting_journals')->where('source_type', SalePostingBuilder::SOURCE_PAYMENT)->whereIn('source_id', $paymentIds)->update(['journal_date' => $past]);
+
+        $this->assertTrue($this->sales->delete($sale, false, true, $this->employeeId));
+
+        $reversals = $db->table('accounting_journals')->where('reverses_journal_id IS NOT NULL')->get()->getResult();
+
+        $this->assertNotSame([], $reversals);
+
+        foreach ($reversals as $reversal) {
+            $this->assertSame($past, $reversal->journal_date, 'A reversal made while the period is open takes the day of what it reverses');
+        }
+
+        $before = $this->position(null, $this->daysAgo(4));
+        $after  = $this->position(null, $this->daysAgo(1));
+
+        $this->assertNull($after->invoice($sale));
+        $this->assertSame('0.00', bcadd($after->accountBalance, '0', 2));
+        $this->assertNull($before->invoice($sale), 'The sale is dated after that day');
+    }
+
+    public function testPosition_LeavesOutADocumentWhoseRecordIsDatedAfterTheDayEvenIfItsJournalIsOlder(): void
+    {
+        $sale = $this->invoiceDated('100.00', $this->daysAgo(3));
+
+        $this->accountingDb()->table('sales')->where('sale_id', $sale)->update(['invoice_date' => $this->daysAgo(1)]);
+
+        $this->assertNull($this->position(null, $this->daysAgo(2))->invoice($sale));
+        $this->assertNotNull($this->position(null, $this->daysAgo(1))->invoice($sale));
+    }
+
     public function testPosition_ReadsAnInvoiceWithNoTypedDayFromTheDayItWasSavedAndDueThatSameDay(): void
     {
         $invoice = $this->invoiceOf('100.00');

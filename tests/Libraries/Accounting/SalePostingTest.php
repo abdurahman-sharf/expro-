@@ -3680,6 +3680,21 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('accounting_posting_failures'));
     }
 
+    public function testUpdate_RefusesToChangeTheDayTypedOnADraftToo(): void
+    {
+        $cycle = $this->referenceInvoice();
+
+        $this->grantInvoiceDate();
+
+        $draft = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, NEW_ENTRY, null, $this->daysAgo(4));
+        $row   = (array) $this->saleRow($draft);
+
+        $this->assertSame([], $this->journals($draft));
+        $this->assertFalse($this->sales->update($draft, ['invoice_date' => $this->daysAgo(1), 'comment' => 'x']));
+        $this->assertSame(AccountingError::SaleLocked, $this->failure()->error);
+        $this->assertSame($row, (array) $this->saleRow($draft));
+    }
+
     public function testUpdate_AcceptsTheDayTypedOnAPostedInvoiceWhenItIsTheSameDay(): void
     {
         $saleId = $this->invoiceDated('250.00', $this->daysAgo(8));

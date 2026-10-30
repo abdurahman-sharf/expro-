@@ -364,6 +364,35 @@ class SupplierLedgerTest extends CIUnitTestCase
         $this->assertTrue($before->agrees());
     }
 
+    public function testPosition_OnADayAfterAPurchaseWasDeletedLeavesItOutAndBeforeItKeepsIt(): void
+    {
+        $purchase = $this->purchaseDated('100.00', $this->daysAgo(3));
+
+        $this->assertTrue($this->purchases->delete_value($purchase, $this->employeeId), (string) $this->purchases->accountingFailure()?->getMessage());
+
+        $reversals = $this->accountingDb()->table('accounting_journals')->where('reverses_journal_id IS NOT NULL')->get()->getResult();
+
+        $this->assertNotSame([], $reversals);
+
+        foreach ($reversals as $reversal) {
+            $this->assertSame($this->daysAgo(3), $reversal->journal_date, 'A reversal made while the period is open takes the day of what it reverses');
+        }
+
+        $this->assertNull($this->supplierPosition(null, $this->daysAgo(1))->purchase($purchase));
+        $this->assertSame('0.00', bcadd($this->supplierPosition(null, $this->daysAgo(1))->accountBalance, '0', 2));
+        $this->assertNull($this->supplierPosition(null, $this->daysAgo(4))->purchase($purchase));
+    }
+
+    public function testPosition_LeavesOutADocumentWhoseRecordIsDatedAfterTheDayEvenIfItsJournalIsOlder(): void
+    {
+        $purchase = $this->purchaseDated('100.00', $this->daysAgo(3));
+
+        $this->accountingDb()->table('receivings')->where('receiving_id', $purchase)->update(['invoice_date' => $this->daysAgo(1)]);
+
+        $this->assertNull($this->supplierPosition(null, $this->daysAgo(2))->purchase($purchase));
+        $this->assertNotNull($this->supplierPosition(null, $this->daysAgo(1))->purchase($purchase));
+    }
+
     public function testPosition_ReadsAPurchaseWithNoTypedDayFromTheDayItWasSavedAndDueThatSameDay(): void
     {
         $purchase = $this->purchaseOf('100.00');

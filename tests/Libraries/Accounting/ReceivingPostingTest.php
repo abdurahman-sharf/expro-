@@ -7,9 +7,11 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\InterBranchPosition;
 use App\Libraries\Accounting\InvoiceDiscount;
+use App\Libraries\Accounting\JournalStatus;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\ReceivingPosting;
+use App\Libraries\Accounting\ReceivingPostingBuilder;
 use App\Libraries\Accounting\StockLedger;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Organization\BranchError;
@@ -3561,6 +3563,23 @@ class ReceivingPostingTest extends CIUnitTestCase
         $this->assertSame(AccountingError::PurchaseLocked, $this->failure()->error);
 
         $this->assertSame($before, $this->purchaseJournals($receivingId));
+        $this->assertSame($row, (array) $this->purchaseRow($receivingId));
+    }
+
+    public function testUpdate_RefusesToChangeTheDayTypedOnAPurchaseWhoseJournalDoesNotStand(): void
+    {
+        $receivingId = $this->purchaseDated('250.00', $this->daysAgo(8));
+        $db          = $this->accountingDb();
+
+        $db->table('accounting_journals')->where('source_id', $receivingId)->whereIn('source_type', [ReceivingPostingBuilder::SOURCE_PURCHASE])->update(['status' => JournalStatus::Reversed->value]);
+        $db->table('accounting_stock_entries')->where('source_id', $receivingId)->where('source_type', ReceivingPostingBuilder::SOURCE_PURCHASE)->delete();
+
+        $this->assertFalse((new ReceivingPosting())->isPosted($receivingId));
+
+        $row = (array) $this->purchaseRow($receivingId);
+
+        $this->assertFalse($this->purchases->update($receivingId, ['invoice_date' => $this->daysAgo(2), 'comment' => 'x']));
+        $this->assertSame(AccountingError::PurchaseLocked, $this->failure()->error);
         $this->assertSame($row, (array) $this->purchaseRow($receivingId));
     }
 
