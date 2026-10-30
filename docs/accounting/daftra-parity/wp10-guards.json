@@ -688,8 +688,8 @@
  {
   "name": "G64 the way back to the balances is offered to who may open them only",
   "file": "app/Controllers/AccountingPayables.php",
-  "find": "'sees_balances' => $this->branchGuard()->isUnrestricted($this->employeeId()),",
-  "replace": "'sees_balances' => true,",
+  "find": "'sees_balances'  => $this->branchGuard()->isUnrestricted($this->employeeId()),",
+  "replace": "'sees_balances'  => true,",
   "tests": [
    "--filter",
    "OpensForSomeoneLimited",
@@ -700,8 +700,8 @@
  {
   "name": "G65 the payments of a branch limited reader are partial: the scope label",
   "file": "app/Controllers/AccountingPayables.php",
-  "find": "'scope_label'   => $this->scopeLabel($scope),",
-  "replace": "'scope_label'   => null,",
+  "find": "'scope_label'    => $this->scopeLabel($scope),",
+  "replace": "'scope_label'    => null,",
   "tests": [
    "--filter",
    "SaysTheFiguresOfSomeoneWhoWorks",
@@ -792,6 +792,193 @@
    "--filter",
    "WhileTheBooksStartInTheFuture",
    "tests/Libraries/Accounting/SupplierAdvancesTest.php"
+  ]
+ },
+ {
+  "name": "G75 the treasuries offered by the payments list are those of the branches the reader works in",
+  "file": "app/Controllers/AccountingPayables.php",
+  "find": "'treasuries'     => (new TreasuryService())->all($scope->isCompany() ? null : $scope->ids),",
+  "replace": "'treasuries'     => (new TreasuryService())->all(null),",
+  "tests": [
+   "--filter",
+   "OffersTheTreasuriesAndThePayersOfTheBranches",
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G76 the employees offered by the payments list are those who paid in the branches the reader works in",
+  "file": "app/Controllers/AccountingPayables.php",
+  "find": "'payers'         => $this->payments->payers($scope->isCompany() ? null : $scope->ids),",
+  "replace": "'payers'         => $this->payments->payers(null),",
+  "tests": [
+   "--filter",
+   "OffersTheTreasuriesAndThePayersOfTheBranches",
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G77 the supplier a list is cut to is named only to who sees the balances of every supplier",
+  "file": "app/Controllers/AccountingPayables.php",
+  "find": "$name = $supplierId > 0 && $this->branchGuard()->isUnrestricted($this->employeeId()) ? $this->supplierName($supplierId) : '';",
+  "replace": "$name = $supplierId > 0 ? $this->supplierName($supplierId) : '';",
+  "tests": [
+   "--filter",
+   "DoesNotNameTheSupplier|NamesTheSupplierTheListIsCutTo",
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G78 a supplier with no account is shown by its number",
+  "file": "app/Controllers/AccountingPayables.php",
+  "find": "return $name !== '' ? $name : '#' . $supplierId;",
+  "replace": "return $name;",
+  "tests": [
+   "--filter",
+   "NamesTheSupplierTheListIsCutTo|DoesNotNameTheSupplier",
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G79 the payments list says which supplier it is cut to",
+  "file": "app/Views/accounting_payables/payments.php",
+  "find": "<?php if ($supplier_id > 0): ?>",
+  "replace": "<?php if (false): ?>",
+  "tests": [
+   "--filter",
+   "GetPayments_NamesTheSupplier|GetPayments_DoesNotNameTheSupplier",
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G80 the debit notes list says which supplier it is cut to",
+  "file": "app/Views/accounting_payables/debit_notes.php",
+  "find": "<?php if ($supplier_id > 0): ?>",
+  "replace": "<?php if (false): ?>",
+  "tests": [
+   "--filter",
+   "GetDebitNotes_NamesTheSupplier",
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G81 the payments list offers to show every supplier",
+  "file": "app/Views/accounting_payables/payments.php",
+  "find": "id=\"supplier_filter_clear\"><?=",
+  "replace": "id=\"supplier_filter_gone\"><?=",
+  "tests": [
+   "--filter",
+   "GetPayments_NamesTheSupplier",
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G82 the debit notes list offers to show every supplier",
+  "file": "app/Views/accounting_payables/debit_notes.php",
+  "find": "id=\"supplier_filter_clear\"><?=",
+  "replace": "id=\"supplier_filter_gone\"><?=",
+  "tests": [
+   "--filter",
+   "GetDebitNotes_NamesTheSupplier",
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G83 a return that never reached the account of the supplier is told from one that did",
+  "file": "app/Libraries/Accounting/DebitNoteList.php",
+  "find": "$note->in_account = (int) $note->in_account === 1;",
+  "replace": "$note->in_account = true;",
+  "tests": [
+   "--filter",
+   "NoCredit",
+   "tests/Libraries/Accounting/DebitNoteListTest.php"
+  ]
+ },
+ {
+  "name": "G84 a return with no supplier holds no credit even when it has a journal",
+  "file": "app/Libraries/Accounting/DebitNoteList.php",
+  "find": "return '(sa.account_id IS NOT NULL AND EXISTS (SELECT 1 FROM '",
+  "replace": "return '(EXISTS (SELECT 1 FROM '",
+  "tests": [
+   "--filter",
+   "NoCredit",
+   "tests/Libraries/Accounting/DebitNoteListTest.php"
+  ]
+ },
+ {
+  "name": "G85 a return with no journal holds no credit",
+  "file": "app/Libraries/Accounting/DebitNoteList.php",
+  "find": "AND EXISTS (SELECT 1 FROM ",
+  "replace": "AND 1 = 1 OR EXISTS (SELECT 1 FROM ",
+  "tests": [
+   "--filter",
+   "NoCredit",
+   "tests/Libraries/Accounting/DebitNoteListTest.php"
+  ]
+ },
+ {
+  "name": "G86 a return whose journal was taken back holds no credit",
+  "file": "app/Libraries/Accounting/DebitNoteList.php",
+  "find": "\"' AND j.status = '\" . JournalStatus::Posted->value . \"'))\";",
+  "replace": "\"'))\";",
+  "tests": [
+   "--filter",
+   "NoCredit",
+   "tests/Libraries/Accounting/DebitNoteListTest.php"
+  ]
+ },
+ {
+  "name": "G87 a return outside the account of the supplier has its own state",
+  "file": "app/Libraries/Accounting/DebitNoteList.php",
+  "find": "$note->state    = self::NOT_IN_ACCOUNT;",
+  "replace": "$note->state    = self::NOTHING;",
+  "tests": [
+   "--filter",
+   "NoCredit",
+   "tests/Libraries/Accounting/DebitNoteListTest.php"
+  ]
+ },
+ {
+  "name": "G88 a return outside the account of the supplier has no figures of credit",
+  "file": "app/Libraries/Accounting/DebitNoteList.php",
+  "find": "$note->refunded = $note->applied = $note->held = null;",
+  "replace": "$note->refunded = $note->applied = $note->held = '0.0000';",
+  "tests": [
+   "--filter",
+   "NoCredit",
+   "tests/Libraries/Accounting/DebitNoteListTest.php"
+  ]
+ },
+ {
+  "name": "G89 the cell of what was paid back is blank for a return outside the account",
+  "file": "app/Controllers/AccountingPayables.php",
+  "find": "$note->refunded === null ? '' : ",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "LeavesTheCreditCellsBlank",
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G90 the cell of what was applied is blank for a return outside the account",
+  "file": "app/Controllers/AccountingPayables.php",
+  "find": "$note->applied === null ? '' : ",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "LeavesTheCreditCellsBlank",
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G91 the cell of what is held is blank for a return outside the account",
+  "file": "app/Controllers/AccountingPayables.php",
+  "find": "$note->held === null ? '' : ",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "LeavesTheCreditCellsBlank",
+   "tests/Controllers/AccountingPayablesControllerTest.php"
   ]
  }
 ]
