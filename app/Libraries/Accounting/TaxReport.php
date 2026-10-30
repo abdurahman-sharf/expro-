@@ -18,7 +18,9 @@ use DateTimeImmutable;
  * What the tax was charged on, and the rate, come from the lines of the document the journal was
  * posted for, the way posting reads them, so a document that was never posted has no part in it.
  * For an expense, which carries no lines, it comes from the journal itself. A document whose lines
- * no longer say what its journal says keeps its tax in the report and leaves its base out. What the
+ * no longer say what its journal says, or that is gone with its lines as a deleted purchase is,
+ * keeps its tax in the report and leaves its base out, so that a period that was read once is read
+ * the same after the document is deleted, and the report still ties to the books. What the
  * accounts of tax hold from anything else, such as a manual journal, an opening balance or a
  * settlement of the tax, is not tax of a document: it is shown beside the report and is no part of
  * what is payable. Only the accrual basis exists. Reading changes nothing, and it is done in one
@@ -99,15 +101,6 @@ final class TaxReport
 
             foreach ($documents as $sourceId => $documentRows) {
                 $document = $loaded[$sourceId] ?? null;
-
-                if ($document === null) {
-                    foreach ($documentRows as $row) {
-                        $others[(int) $row->account_id][(int) $row->journal_id] = true;
-                    }
-
-                    continue;
-                }
-
                 $movement = '0';
 
                 foreach ($documentRows as $row) {
@@ -115,7 +108,11 @@ final class TaxReport
                     $movement                         = bcadd($movement, (string) $row->movement, self::SCALE);
                 }
 
-                $unmatched += $this->addDocument($parts[$document->section->value], $document, $movement) ? 0 : 1;
+                $kept = $document === null
+                    ? $this->addGone($parts, $type, $documentRows, $movement)
+                    : $this->addDocument($parts[$document->section->value], $document, $movement);
+
+                $unmatched += $kept ? 0 : 1;
             }
         }
 
@@ -217,6 +214,41 @@ final class TaxReport
 
         $part['base'] = bcadd($part['base'], self::signed($base, $sign), self::SCALE);
         $part['tax']  = bcadd($part['tax'], $movement, self::SCALE);
+    }
+
+    /**
+     * A purchase deleted in the application is gone from the tables with its lines, but its journal
+     * and the reversal of it stay in the books. They are still the tax of a document: the part comes
+     * from the way the original journal moved the tax, which a reversal moved the other way, and the
+     * base is not known.
+     *
+     * @param array<string, array{base: string, tax: string, documents: int, rates: array<string, array{base: string, tax: string, documents: int}>, discounted: array{documents: int, base: string, tax: string}}> $parts
+     * @param list<object>                                                                                                                                                                                      $rows
+     *
+     * @return bool False when something of the document is left in the period.
+     */
+    private function addGone(array &$parts, string $type, array $rows, string $movement): bool
+    {
+        if (bccomp($movement, '0', self::SCALE) === 0) {
+            return true;
+        }
+
+        $owed = '0';
+
+        foreach ($rows as $row) {
+            $owed = bcadd($owed, $row->origin_type === null ? (string) $row->movement : bcsub('0', (string) $row->movement, self::SCALE), self::SCALE);
+        }
+
+        $adds = bccomp($owed, '0', self::SCALE) >= 0;
+
+        $section = $type === SalePostingBuilder::SOURCE_SALE
+            ? ($adds ? TaxSection::SalesInvoices : TaxSection::SalesReturns)
+            : ($adds ? TaxSection::PurchaseReturns : TaxSection::Purchases);
+
+        $parts[$section->value]['documents']++;
+        $parts[$section->value]['tax'] = bcadd($parts[$section->value]['tax'], $movement, self::SCALE);
+
+        return false;
     }
 
     /**

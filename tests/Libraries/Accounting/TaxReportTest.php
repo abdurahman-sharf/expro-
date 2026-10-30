@@ -523,7 +523,7 @@ class TaxReportTest extends CIUnitTestCase
         $this->assertTrue($report->ties());
     }
 
-    public function testBuild_ShowsATaxOfADocumentThatIsGoneAsNotTheTaxOfADocument(): void
+    public function testBuild_KeepsTheTaxOfASaleThatIsGoneAndLeavesItsBaseOut(): void
     {
         $saleId = $this->sell('100.00', '15.00');
 
@@ -536,10 +536,88 @@ class TaxReportTest extends CIUnitTestCase
         $report  = $this->report();
         $account = $this->accountOf($report, '215001');
 
-        $this->assertSame('0.0000', $report->output());
-        $this->assertSame('15.0000', $account->other());
-        $this->assertSame(1, $account->otherJournals);
-        $this->assertFalse($report->ties());
+        $this->assertSame(['base' => '0.0000', 'tax' => '15.0000', 'documents' => 1], $this->figures($report, TaxSection::SalesInvoices), 'The tax is what the journal holds, and the base is not guessed');
+        $this->assertSame('15.0000', $report->output());
+        $this->assertSame(1, $report->unmatchedDocuments);
+        $this->assertSame('0.0000', $account->other());
+        $this->assertSame(0, $account->otherJournals);
+        $this->assertTrue($report->ties());
+    }
+
+    public function testBuild_NetsAPurchaseDeletedInTheApplicationToNothingAndStillTies(): void
+    {
+        $receivingId = $this->buyTaxed('1', '100', '15');
+
+        $this->assertTrue($this->purchases->delete_value($receivingId, $this->employeeId), (string) $this->purchases->accountingFailure()?->getMessage());
+        $this->assertSame(0, $this->accountingDb()->table('receivings')->where('receiving_id', $receivingId)->countAllResults(), 'The purchase is gone with its lines');
+
+        $report  = $this->report();
+        $account = $this->accountOf($report, '215002');
+
+        $this->assertSame(['base' => '0.0000', 'tax' => '0.0000', 'documents' => 0], $this->figures($report, TaxSection::Purchases));
+        $this->assertSame('0.0000', $report->net());
+        $this->assertSame(0, $report->unmatchedDocuments, 'A document that nets to nothing is not one whose base is left out');
+        $this->assertSame(0, $account->otherJournals, 'The journal of a deleted purchase and its reversal are tax of a document, not other journals');
+        $this->assertTrue($report->ties());
+        $this->assertSame($this->trialMovement('215002', ReportScope::resolve(null, null)), $account->movement);
+    }
+
+    public function testBuild_ReadsAClosedPeriodTheSameWhenItsPurchaseIsDeletedLater(): void
+    {
+        $receivingId = $this->buyTaxed('1', '100', '15');
+        $original    = $this->purchaseJournals($receivingId)[0]['id'];
+
+        $this->accountingDb()->table('accounting_journals')->where('journal_id', $original)->update(['journal_date' => '2026-09-10']);
+
+        $september = $this->report('2026-09-01', '2026-09-30');
+        $this->assertSame(['base' => '-100.0000', 'tax' => '-15.0000', 'documents' => 1], $this->figures($september, TaxSection::Purchases));
+
+        $this->assertTrue($this->purchases->delete_value($receivingId, $this->employeeId), (string) $this->purchases->accountingFailure()?->getMessage());
+
+        $reversal = $this->accountingDb()->table('accounting_journals')->where('reverses_journal_id', $original)->get()->getRow();
+        $this->accountingDb()->table('accounting_journals')->where('journal_id', $reversal->journal_id)->update(['journal_date' => '2026-10-12']);
+
+        $everyone  = ReportScope::resolve(null, null);
+        $afterward = $this->report('2026-09-01', '2026-09-30');
+        $october   = $this->report('2026-10-01', '2026-10-31');
+
+        $this->assertSame(['base' => '0.0000', 'tax' => '-15.0000', 'documents' => 1], $this->figures($afterward, TaxSection::Purchases), 'The tax filed for September is still there, the base is not known');
+        $this->assertSame('-15.0000', $afterward->net());
+        $this->assertSame(1, $afterward->unmatchedDocuments);
+        $this->assertTrue($afterward->ties());
+        $this->assertSame($this->trialMovement('215002', $everyone, '2026-09-01', '2026-09-30'), $this->accountOf($afterward, '215002')->movement);
+
+        $this->assertSame(['base' => '0.0000', 'tax' => '15.0000', 'documents' => 1], $this->figures($october, TaxSection::Purchases), 'The reversal is the purchase taken back, in the part of purchases');
+        $this->assertSame(['base' => '0.0000', 'tax' => '0.0000', 'documents' => 0], $this->figures($october, TaxSection::PurchaseReturns));
+        $this->assertTrue($october->ties());
+        $this->assertSame($this->trialMovement('215002', $everyone, '2026-10-01', '2026-10-31'), $this->accountOf($october, '215002')->movement);
+
+        $this->assertSame('0.0000', $this->report('2026-09-01', '2026-10-31')->net());
+    }
+
+    public function testBuild_KeepsTheTaxOfAPurchaseReturnDeletedLaterInThePartOfReturns(): void
+    {
+        $receivingId = $this->buyTaxed('10', '100', '15');
+        $returnId    = $this->giveBackTaxed($receivingId, '2', '15');
+        $original    = $this->purchaseJournals($returnId)[0]['id'];
+
+        $this->accountingDb()->table('accounting_journals')->where('journal_id', $original)->update(['journal_date' => '2026-09-10']);
+
+        $this->assertTrue($this->purchases->delete_value($returnId, $this->employeeId), (string) $this->purchases->accountingFailure()?->getMessage());
+
+        $reversal = $this->accountingDb()->table('accounting_journals')->where('reverses_journal_id', $original)->get()->getRow();
+        $this->accountingDb()->table('accounting_journals')->where('journal_id', $reversal->journal_id)->update(['journal_date' => '2026-10-12']);
+
+        $september = $this->report('2026-09-10', '2026-09-10');
+        $october   = $this->report('2026-10-12', '2026-10-12');
+
+        $this->assertSame(['base' => '0.0000', 'tax' => '30.0000', 'documents' => 1], $this->figures($september, TaxSection::PurchaseReturns));
+        $this->assertSame(['base' => '0.0000', 'tax' => '-30.0000', 'documents' => 1], $this->figures($october, TaxSection::PurchaseReturns));
+        $this->assertSame(['base' => '0.0000', 'tax' => '0.0000', 'documents' => 0], $this->figures($september, TaxSection::Purchases));
+        $this->assertSame(1, $september->unmatchedDocuments);
+        $this->assertSame(1, $october->unmatchedDocuments);
+        $this->assertTrue($september->ties());
+        $this->assertTrue($october->ties());
     }
 
     public function testBuild_ReadsTheAccountsTheTaxIsRoutedToAndNotAFixedCode(): void
