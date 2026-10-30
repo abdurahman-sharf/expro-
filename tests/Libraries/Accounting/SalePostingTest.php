@@ -306,8 +306,7 @@ class SalePostingTest extends CIUnitTestCase
         $journals = $this->journals($saleId);
         $steps    = ['revenue' => 'invoice', 'general' => 'payment', 'cogs' => 'invoice_cost'];
 
-        $this->assertSame($case['expected']['order'], implode(', ', array_map(static fn (array $journal): string => $steps[$journal['entry']], $journals)));
-        $this->assertSame(array_column($journals, 'id'), $this->sortedIds($journals));
+        $this->assertSame($case['expected']['order'], implode(', ', array_map(static fn (string $entry): string => $steps[$entry], $this->entriesByNumber($saleId))));
         $this->assertSame([1, 1, 1], array_column($journals, 'revision'));
     }
 
@@ -323,7 +322,7 @@ class SalePostingTest extends CIUnitTestCase
         $journals = $this->journals($saleId);
 
         $this->assertSame(['revenue', 'general', 'general', 'general', 'cogs'], array_column($journals, 'entry'));
-        $this->assertSame($this->sortedIds($journals), array_column($journals, 'id'));
+        $this->assertSame(['revenue', 'general', 'general', 'general', 'cogs'], $this->entriesByNumber($saleId));
         $this->assertSame(
             [
                 [$this->customerAccount() . ':816.50:0.00', $this->accountId('sales_revenue') . ':0.00:710.00', $this->accountId('tax_output') . ':0.00:106.50'],
@@ -376,7 +375,7 @@ class SalePostingTest extends CIUnitTestCase
         $journals = $this->journals($returnId);
 
         $this->assertSame(['revenue', 'general', 'cogs'], array_column($journals, 'entry'));
-        $this->assertSame($this->sortedIds($journals), array_column($journals, 'id'));
+        $this->assertSame(['revenue', 'general', 'cogs'], $this->entriesByNumber($returnId));
         $this->assertSame([$this->customerAccount() . ':253.00:0.00', $this->accountId('cash') . ':0.00:253.00'], $journals[1]['lines']);
         $this->assertTies();
     }
@@ -411,17 +410,21 @@ class SalePostingTest extends CIUnitTestCase
     }
 
     /**
-     * @param list<array<string, mixed>> $journals
+     * The kinds of the journals of a sale in the order of their journal numbers, read apart from the
+     * order the list of journals comes in.
      *
-     * @return list<int>
+     * @return list<string>
      */
-    private function sortedIds(array $journals): array
+    private function entriesByNumber(int $saleId): array
     {
-        $ids = array_column($journals, 'id');
+        $rows = $this->accountingDb()->table('accounting_journals')
+            ->select('entry_type')
+            ->whereIn('journal_id', array_column($this->journals($saleId), 'id'))
+            ->orderBy('CAST(number AS UNSIGNED)', 'ASC', false)
+            ->get()
+            ->getResultArray();
 
-        sort($ids);
-
-        return $ids;
+        return array_column($rows, 'entry_type');
     }
 
     /**

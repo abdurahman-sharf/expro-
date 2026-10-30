@@ -1614,6 +1614,61 @@ class SalesControllerTest extends CIUnitTestCase
         $this->get('/sales/receipt/' . $invoice['saleId'])->assertDontSee('id="refund_invoice_number"');
     }
 
+    #[DataProvider('receiptTemplateProvider')]
+    public function testGetReceipt_NamesARefundInvoiceByItsNumberOnEveryReceiptTemplate(string $template): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->switchOn(DocumentType::RefundInvoice, 'RI-', 5);
+        $this->switchOn(DocumentType::CreditNote, 'CN-', 5);
+        $refund = $this->refundInvoiceOf($invoice['saleId'], '10.00');
+        $note   = $this->creditNoteOf($invoice['saleId'], '10.00');
+        $this->setConfigValue('receipt_template', $template);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        try {
+            $page = $this->get('/sales/receipt/' . $refund);
+
+            $page->assertStatus(200);
+            $page->assertSee(lang('Numbering.type_refund_invoice'));
+            $page->assertSee('RI-00001');
+            $page->assertDontSee(lang('Numbering.type_credit_note'));
+            $page->assertDontSee('CN-00001');
+
+            $creditNote = $this->get('/sales/receipt/' . $note);
+
+            $creditNote->assertSee(lang('Numbering.type_credit_note'));
+            $creditNote->assertSee('CN-00001');
+            $creditNote->assertDontSee(lang('Numbering.type_refund_invoice'));
+            $creditNote->assertDontSee('RI-00001');
+        } finally {
+            $this->setConfigValue('receipt_template', 'receipt_default');
+        }
+    }
+
+    public function testLoadSaleData_NamesARefundInvoiceOnTheEmailReceipt(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->switchOn(DocumentType::RefundInvoice, 'RI-', 5);
+        $this->switchOn(DocumentType::CreditNote, 'CN-', 5);
+        $refund = $this->refundInvoiceOf($invoice['saleId'], '10.00');
+        $note   = $this->creditNoteOf($invoice['saleId'], '10.00');
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $this->get('/sales/receipt/' . $refund);
+
+        $controller = new Sales();
+        $controller->initController(service('request'), service('response'), service('logger'));
+
+        $load   = new ReflectionMethod($controller, '_load_sale_data');
+        $email  = view('sales/receipt_email', $load->invoke($controller, $refund) + ['pdf' => false]);
+        $credit = view('sales/receipt_email', $load->invoke($controller, $note) + ['pdf' => false]);
+
+        $this->assertStringContainsString(lang('Numbering.type_refund_invoice') . ': <span dir="ltr">RI-00001</span>', $email);
+        $this->assertStringNotContainsString(lang('Numbering.type_credit_note'), $email);
+        $this->assertStringContainsString(lang('Numbering.type_credit_note') . ': <span dir="ltr">CN-00001</span>', $credit);
+        $this->assertStringNotContainsString(lang('Numbering.type_refund_invoice'), $credit);
+    }
+
     public function testGetEdit_OffersTheRefundInvoiceWhereTheCreditNoteIsOfferedAndShowsItsNumber(): void
     {
         $invoice = $this->postedInvoice();

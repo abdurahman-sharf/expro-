@@ -113,7 +113,7 @@
  {
   "name": "G12 loading a sale into the register takes over the document it was issued as",
   "file": "app/Libraries/Sale_lib.php",
-  "find": "        $this->setReturnDocument($this->sale->getReturnDocument($sale_id));\n",
+  "find": "        $this->setReturnDocument($this->sale->getReturnDocument($saleId));\n",
   "replace": "",
   "tests": [
    "tests/Libraries/Sale_libTest.php"
@@ -637,6 +637,259 @@
   "tests": [
    "--filter",
    "testPayments_FiltersByTheWay",
+   "tests/Libraries/Accounting/CustomerDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G61 a return that is suspended keeps the document it was to be issued as",
+  "file": "app/Controllers/Sales.php",
+  "find": "$this->sale_lib->is_delivered(), null, $invoiceDiscount, $this->sale_lib->getReturnDocument());",
+  "replace": "$this->sale_lib->is_delivered(), null, $invoiceDiscount);",
+  "tests": [
+   "--filter",
+   "testPostSuspend_|testPostComplete_IssuesAReturnThatWasSuspended",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G62 a payment is tied to its journal at the scale of the books, so a difference of less than a cent is shown",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "bccomp($posted, $amount, SaleAmounts::SCALE) === 0 && bccomp($posted, '0', SaleAmounts::SCALE) !== 0 => 'booked',",
+  "replace": "bccomp($posted, $amount, 2) === 0 && bccomp($posted, '0', SaleAmounts::SCALE) !== 0 => 'booked',",
+  "tests": [
+   "--filter",
+   "testGetPaymentsSearch_SaysDiffersWhenTheJournalOfAPaymentIsOffByLessThanACent",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G63 a journal of a fraction of a cent is not taken for no journal at all",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "bccomp($posted, '0', SaleAmounts::SCALE) === 0                                                       => 'unbooked',",
+  "replace": "bccomp($posted, '0', 2) === 0                                                       => 'unbooked',",
+  "tests": [
+   "--filter",
+   "testGetPaymentsSearch_SaysDiffersWhenTheJournalOfAPaymentIsOffByLessThanACent",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G64 what a journal posted is kept at the scale of the books",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "$posted = bcadd((string) $payment->posted, '0', SaleAmounts::SCALE);",
+  "replace": "$posted = bcadd((string) $payment->posted, '0', 2);",
+  "tests": [
+   "--filter",
+   "testGetPaymentsSearch_SaysDiffersWhenTheJournalOfAPaymentIsOffByLessThanACent",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G65 only the journals that stand count for a payment, not the one an edit reversed",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": "AND j.source_id = p.payment_id AND j.status = ?), 0)",
+  "replace": "AND j.source_id = p.payment_id AND ? <> ''), 0)",
+  "tests": [
+   "--filter",
+   "testGetPaymentsSearch_TiesAnEditedPayment",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G66 the number of a payment is escaped in its cell",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "(int) $payment->sale_id, esc($number), [",
+  "replace": "(int) $payment->sale_id, $number, [",
+  "tests": [
+   "--filter",
+   "testGetPaymentsSearch_EscapesWhatStaffTyped",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G67 the name of a customer is escaped when it is linked to its statement",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "anchor('accounting_receivables/customer/' . $customerId, esc($name))",
+  "replace": "anchor('accounting_receivables/customer/' . $customerId, $name)",
+  "tests": [
+   "--filter",
+   "testGetPaymentsSearch_EscapesWhatStaffTyped",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G68 the name of a customer is escaped when it is not linked",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": ": esc($name);",
+  "replace": ": $name;",
+  "tests": [
+   "--filter",
+   "testGetPaymentsSearch_EscapesWhatStaffTyped",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G69 the invoice number of a payment is escaped in its cell",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "esc((string) $payment->invoice_number)",
+  "replace": "(string) $payment->invoice_number",
+  "tests": [
+   "--filter",
+   "testGetPaymentsSearch_EscapesWhatStaffTyped",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G70 the way of a payment is escaped in its cell",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "'way'           => esc($type === null",
+  "replace": "'way'           => ($type === null",
+  "tests": [
+   "--filter",
+   "testGetPaymentsSearch_NamesTheWayOfPayment|testGetPaymentsSearch_EscapesWhatStaffTyped",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G71 the reference of a payment is escaped in its cell",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "esc((string) $payment->reference_code)",
+  "replace": "(string) $payment->reference_code",
+  "tests": [
+   "--filter",
+   "testGetPaymentsSearch_EscapesWhatStaffTyped",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G72 the treasury of a payment is escaped in its cell",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "'treasury'      => esc((string) ($payment->treasury_name ?? '')),",
+  "replace": "'treasury'      => (string) ($payment->treasury_name ?? ''),",
+  "tests": [
+   "--filter",
+   "testGetPaymentsSearch_EscapesWhatStaffTyped",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G73 the employee who collected a payment is escaped in its cell",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "'collected_by'  => esc((string) ($payment->employee_name ?? '')),",
+  "replace": "'collected_by'  => (string) ($payment->employee_name ?? ''),",
+  "tests": [
+   "--filter",
+   "testGetPaymentsSearch_EscapesWhatStaffTyped",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G74 the branch of a payment is escaped in its cell",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "esc($payment->branch_code . ' - ' . $payment->branch_name)",
+  "replace": "$payment->branch_code . ' - ' . $payment->branch_name",
+  "tests": [
+   "--filter",
+   "testGetPaymentsSearch_EscapesWhatStaffTyped",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G75 a payment by gift card keeps the number of the card after the name of the way",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "(str_contains((string) $payment->payment_type, ':') ? ':' . explode(':', (string) $payment->payment_type, 2)[1] : '')",
+  "replace": "''",
+  "tests": [
+   "--filter",
+   "testGetPaymentsSearch_NamesTheWayOfPayment",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G76 a way of payment the books do not know is shown as it was typed",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "$type === null ? (string) $payment->payment_type :",
+  "replace": "$type === null ? '' :",
+  "tests": [
+   "--filter",
+   "testGetPaymentsSearch_NamesTheWayOfPayment",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G77 the reference of a payment is shown next to its way",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "((string) $payment->reference_code === '' ? '' : ' <bdi dir=\"ltr\">'",
+  "replace": "('x' === '' ? '' : ' <bdi dir=\"ltr\">'",
+  "tests": [
+   "--filter",
+   "testGetPaymentsSearch_NamesTheWayOfPayment",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G78 the number of a credit note or a refund invoice is escaped in its cell",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "anchor('sales/receipt/' . $return['sale_id'], esc($number), [",
+  "replace": "anchor('sales/receipt/' . $return['sale_id'], $number, [",
+  "tests": [
+   "--filter",
+   "testGetCreditNotesSearch_EscapesWhatStaffTyped",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G79 the invoice a return comes from is escaped in its cell",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "esc($return['origin_number'] !== '' ? $return['origin_number'] : 'POS ' . $return['origin_id'])",
+  "replace": "($return['origin_number'] !== '' ? $return['origin_number'] : 'POS ' . $return['origin_id'])",
+  "tests": [
+   "--filter",
+   "testGetCreditNotesSearch_EscapesWhatStaffTyped",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G80 the branch of a return is escaped in its cell",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "esc($return['branch_code'] . ' - ' . $return['branch_name'])",
+  "replace": "$return['branch_code'] . ' - ' . $return['branch_name']",
+  "tests": [
+   "--filter",
+   "testGetCreditNotesSearch_EscapesWhatStaffTyped",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G81 the search of returns finds the number of the document",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": "(n.number LIKE ? OR CAST(s.sale_id AS CHAR) = ? OR",
+  "replace": "('' = ? OR CAST(s.sale_id AS CHAR) = ? OR",
+  "tests": [
+   "--filter",
+   "testReturns_FiltersBySearchingTheNumberOfTheDocument",
+   "tests/Libraries/Accounting/CustomerDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G82 the search of returns finds the customer by first name, last name and whole name",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": "cp.first_name LIKE ? OR cp.last_name LIKE ? OR CONCAT(cp.first_name, ' ', cp.last_name) LIKE ? OR o.invoice_number",
+  "replace": "'' = ? OR '' = ? OR '' = ? OR o.invoice_number",
+  "tests": [
+   "--filter",
+   "testReturns_FiltersBySearchingTheNumberOfTheDocument",
+   "tests/Libraries/Accounting/CustomerDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G83 the search of returns finds the customer by the whole of the name",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": "CONCAT(cp.first_name, ' ', cp.last_name) LIKE ? OR o.invoice_number",
+  "replace": "'' = ? OR o.invoice_number",
+  "tests": [
+   "--filter",
+   "testReturns_FiltersBySearchingTheNumberOfTheDocument",
    "tests/Libraries/Accounting/CustomerDocumentsTest.php"
   ]
  }

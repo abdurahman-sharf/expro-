@@ -981,6 +981,13 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
         $this->assertEscaped('<b>CHQ</b>', $row['way']);
         $this->assertEscaped('<b>PAY</b>-1', $row['number']);
         $this->assertEscaped('<u>B2</u> - Second & "Branch"', $row['branch']);
+
+        $this->viewer([$branch]);
+
+        $limited = $this->paymentsOf()['rows'][0];
+
+        $this->assertEscaped($customer[0] . ' ' . $customer[1], $limited['customer_name']);
+        $this->assertStringNotContainsString('accounting_receivables/customer/', $limited['customer_name']);
     }
 
     public function testGetPaymentsSearch_NamesTheWayOfPaymentWithItsGiftCardAndItsReferenceAndEscapesWhatItCannotName(): void

@@ -596,6 +596,29 @@ class CustomerDocumentsTest extends CIUnitTestCase
         $this->assertSame([], $ids($this->returns(['search' => '%'])));
     }
 
+    public function testReturns_FiltersBySearchingTheNumberOfTheDocumentAndTheNameOfTheCustomer(): void
+    {
+        $this->switchOn(DocumentType::CreditNote, 'CN-', 4);
+        $this->switchOn(DocumentType::RefundInvoice, 'RI-', 4);
+
+        $other  = $this->anotherCustomer('Hind', 'Saad');
+        $mine   = $this->invoiceOf('100.00');
+        $hers   = $this->invoiceOf('100.00', $other);
+        $note   = $this->creditNoteOf($mine, '10.00');
+        $refund = $this->refundInvoiceOf($hers, '20.00', $other);
+
+        $ids = static fn (array $result): array => array_column($result['rows'], 'sale_id');
+
+        $this->assertSame([$note], $ids($this->returns(['search' => 'CN-0001'])));
+        $this->assertSame([$refund], $ids($this->returns(['search' => 'RI-0001'])));
+        $this->assertSame([$refund], $ids($this->returns(['search' => 'RI-'])));
+        $this->assertSame([$refund], $ids($this->returns(['search' => 'saad'])));
+        $this->assertSame([$refund], $ids($this->returns(['search' => 'hind'])));
+        $this->assertSame([$refund], $ids($this->returns(['search' => 'Hind Saad'])));
+        $this->assertSame([$note], $ids($this->returns(['search' => 'khaled'])));
+        $this->assertSame([], $ids($this->returns(['search' => 'CN-0002'])));
+    }
+
     public function testReturns_FiltersByBranchAndSortsAndPages(): void
     {
         $branch  = $this->createBranch('B2', 'Second branch');
