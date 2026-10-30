@@ -3292,11 +3292,6 @@ class ReceivingPostingTest extends CIUnitTestCase
         );
     }
 
-    private function storedLine(int $receivingId, int $itemId, int $line = 0): ?object
-    {
-        return $this->accountingDb()->table('receivings_items')->where(['receiving_id' => $receivingId, 'item_id' => $itemId, 'line' => $line])->get()->getRow();
-    }
-
     /**
      * Everything a refused correction must leave as it was.
      *

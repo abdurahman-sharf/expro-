@@ -5,6 +5,7 @@ return [
     'agency_name'           => 'Namn på agentur',
     'cannot_be_deleted'     => 'Kunde inte radera valda leverantör (er). En eller flera har försäljning.',
     'category'              => 'Kategori',
+    'commercial_registry'   => '',
     'company_name'          => 'Företagsnamn',
     'company_name_required' => 'Företagsnamn är ett obligatoriskt fält.',
     'confirm_delete'        => 'Är du säker på att du vill radera den valda Leverantören?',

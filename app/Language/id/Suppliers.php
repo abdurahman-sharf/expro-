@@ -5,6 +5,7 @@ return [
     'agency_name'           => 'Nama',
     'cannot_be_deleted'     => 'Tidak bisa dihapus pemasok yang dipilih, satu atau lebih dari pemasok yang dipilih memiliki penjualan.',
     'category'              => 'Kategori',
+    'commercial_registry'   => '',
     'company_name'          => 'Nama Perusahaan',
     'company_name_required' => 'Nama Perusahaan wajib diisi.',
     'confirm_delete'        => 'Apakah Anda yakin ingin menghapus pemasok yang dipilih?',

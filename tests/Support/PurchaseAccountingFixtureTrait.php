@@ -201,6 +201,11 @@ trait PurchaseAccountingFixtureTrait
         return $rows;
     }
 
+    protected function storedLine(int $receivingId, int $itemId, int $line = 0): ?object
+    {
+        return $this->accountingDb()->table('receivings_items')->where(['receiving_id' => $receivingId, 'item_id' => $itemId, 'line' => $line])->get()->getRow();
+    }
+
     /**
      * @return list<array{id: int, source: string, entry: string, revision: int, status: string, date: string, lines: list<string>}>
      */

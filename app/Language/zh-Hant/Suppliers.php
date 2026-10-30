@@ -5,6 +5,7 @@ return [
     'agency_name'           => ' ',
     'cannot_be_deleted'     => '無法刪除所選擇的供應商，選定的供應商中至少有一家已有銷售紀錄。',
     'category'              => '供應商類別',
+    'commercial_registry'   => '',
     'company_name'          => '公司名稱',
     'company_name_required' => '公司名稱是必填欄位.',
     'confirm_delete'        => '你確定要刪除選定的供應商嗎？',

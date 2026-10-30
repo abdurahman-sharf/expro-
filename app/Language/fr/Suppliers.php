@@ -5,6 +5,7 @@ return [
     'agency_name'           => 'Nom de l\'agence',
     'cannot_be_deleted'     => 'Impossible de supprimer le(s) fournisseur(s) sélectionné(s). Un ou plusieurs ont des ventes.',
     'category'              => 'Catégorie',
+    'commercial_registry'   => '',
     'company_name'          => 'Nom de l\'entreprise',
     'company_name_required' => 'Le nom de l\'entreprise est requis.',
     'confirm_delete'        => 'Êtes-vous certain vouloir supprimer ce(s) fournisseur(s) ?',

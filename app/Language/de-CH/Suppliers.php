@@ -5,6 +5,7 @@ return [
     'agency_name'           => 'Name der Agentur',
     'cannot_be_deleted'     => 'Kann gewählte Lieferanten nicht löschen, einer oder mehrere weisen Verkäufe aus.',
     'category'              => '',
+    'commercial_registry'   => '',
     'company_name'          => 'Firmenname',
     'company_name_required' => 'Firmenname ist erforderlich',
     'confirm_delete'        => 'Wollen Sie die gewählten Lieferanten löschen?',

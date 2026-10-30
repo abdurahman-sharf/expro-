@@ -74,7 +74,11 @@ class Item extends Model
         'qty_per_pack',
         'pack_name',
         'low_sell_item_id',
-        'hsn_code'
+        'hsn_code',
+        'purchase_tax_1_name',
+        'purchase_tax_1_percent',
+        'purchase_tax_2_name',
+        'purchase_tax_2_percent'
     ];
 
     /**

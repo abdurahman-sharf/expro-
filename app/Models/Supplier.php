@@ -18,6 +18,7 @@ class Supplier extends Person
         'company_name',
         'account_number',
         'tax_id',
+        'commercial_registry',
         'deleted',
         'agency_name',
         'category'

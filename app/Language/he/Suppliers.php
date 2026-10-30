@@ -5,6 +5,7 @@ return [
     'agency_name'           => 'שם הסוכנות',
     'cannot_be_deleted'     => 'לא ניתן למחוק את הספקים שנבחרו. לאחד או יותר יש מכירות.',
     'category'              => 'קטגוריה',
+    'commercial_registry'   => '',
     'company_name'          => 'שם חברה',
     'company_name_required' => 'שם חברה הינו שדה חובה.',
     'confirm_delete'        => 'האם אתה בטוח שברצונך למחוק את הספקים שנבחרו?',

@@ -5,6 +5,7 @@ return [
     'agency_name'           => 'Naziv djelatnosti',
     'cannot_be_deleted'     => 'Ne mogu obrisati odabranog dobavljača. Jedan ili više odabranih dobavljača ima prodaju.',
     'category'              => '',
+    'commercial_registry'   => '',
     'company_name'          => 'Naziv tvrtke',
     'company_name_required' => 'Naziv tvrtke je potreban',
     'confirm_delete'        => 'Jeste li ste sigurni da želite obrisati odabranog dobavljača?',
