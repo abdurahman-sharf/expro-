@@ -37,14 +37,14 @@ final class TaxReportResultTest extends CIUnitTestCase
      * @param array<string, array{string, string}> $parts The base and the tax of the parts, by part.
      * @param list<TaxAccountFigures>              $accounts
      */
-    private function reportOf(array $parts, array $accounts = [], ?string $from = null, ?string $start = null, bool $output = true, bool $input = true): TaxReportResult
+    private function reportOf(array $parts, array $accounts = [], ?string $from = null, ?string $start = null, bool $output = true, bool $input = true, int $documents = 1): TaxReportResult
     {
         $sections = [];
 
         foreach (TaxSection::cases() as $section) {
             [$base, $tax] = $parts[$section->value] ?? ['0.0000', '0.0000'];
 
-            $sections[] = new TaxSectionFigures($section, $base, $tax, 1, [], 0, '0.0000', '0.0000');
+            $sections[] = new TaxSectionFigures($section, $base, $tax, $documents, [], 0, '0.0000', '0.0000');
         }
 
         return new TaxReportResult($sections, $accounts, ReportScope::resolve(null, null), $from, '2026-10-31', TaxBasis::Accrual, $start, 0, 0, $output, $input);
@@ -63,12 +63,21 @@ final class TaxReportResultTest extends CIUnitTestCase
         $this->assertSame('1990.0000', $report->outputBase());
     }
 
-    public function testInput_IsTheTaxPaidOnPurchasesAndExpensesLessWhatWentBackAndIsNotNegative(): void
+    public function testInput_IsTheTaxPaidOnPurchasesAndExpensesLessWhatWentBack(): void
     {
         $report = $this->reportOf(['sales' => ['100.0000', '15.0000'], 'purchases' => ['-1000.0000', '-150.0000'], 'purchase_returns' => ['200.0000', '30.0000'], 'expenses' => ['-200.0000', '-30.0000']]);
 
         $this->assertSame('150.0000', $report->input());
         $this->assertSame('1000.0000', $report->inputBase());
+    }
+
+    public function testInput_IsBelowNothingWhenMoreWentBackThanWasPaid(): void
+    {
+        $report = $this->reportOf(['sales' => ['100.0000', '15.0000'], 'purchase_returns' => ['200.0000', '30.0000']]);
+
+        $this->assertSame('-30.0000', $report->input());
+        $this->assertSame('-200.0000', $report->inputBase());
+        $this->assertSame('45.0000', $report->net(), 'What went back to the supplier adds to what is payable');
     }
 
     public function testNet_IsTheTaxCollectedLessTheTaxPaidAndIsTheSumOfTheSignedParts(): void
@@ -123,6 +132,29 @@ final class TaxReportResultTest extends CIUnitTestCase
     {
         $this->assertFalse($this->reportOf([], [], output: false)->ties());
         $this->assertFalse($this->reportOf([], [], input: false)->ties());
+    }
+
+    public function testIsEmpty_IsTrueWhenNoPartHasADocumentAndNoAccountOfTaxMoved(): void
+    {
+        $this->assertTrue($this->reportOf([], [$this->figuresOf('0.0000'), $this->figuresOf('0.0000')], documents: 0)->isEmpty());
+        $this->assertTrue($this->reportOf([], documents: 0)->isEmpty());
+    }
+
+    public function testIsEmpty_IsFalseWhenAPartHasADocument(): void
+    {
+        $this->assertFalse($this->reportOf(['sales' => ['100.0000', '15.0000']], [$this->figuresOf('0.0000')])->isEmpty());
+    }
+
+    public function testIsEmpty_IsFalseWhenAnAccountOfTaxMovedOrHoldsAJournalThatIsNotOfADocument(): void
+    {
+        $this->assertFalse($this->reportOf([], [$this->figuresOf('10.0000')], documents: 0)->isEmpty());
+        $this->assertFalse($this->reportOf([], [new TaxAccountFigures(1, '215001', 'Tax', ['output'], '0.0000', '0.0000', 2)], documents: 0)->isEmpty());
+    }
+
+    public function testIsEmpty_IsFalseWhenAKindOfTaxHasNoAccountToBeRead(): void
+    {
+        $this->assertFalse($this->reportOf([], [], output: false, documents: 0)->isEmpty());
+        $this->assertFalse($this->reportOf([], [], input: false, documents: 0)->isEmpty());
     }
 
     public function testReachesBeforeBooks_IsTrueWhenThePeriodStartsBeforeTheDayTheBooksBeganOrHasNoStart(): void

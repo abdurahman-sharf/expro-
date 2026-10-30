@@ -13,15 +13,23 @@ enum TaxBasis: string
     case Cash    = 'cash';
 
     /**
+     * @param mixed $value What the request holds under the name of the basis: nothing or an empty text
+     *                     is the accrual basis, and anything that is not the name of one is refused,
+     *                     a list as well, which is how a hand-made address names a basis twice.
+     *
      * @throws AccountingException
      */
-    public static function fromRequest(string $value): self
+    public static function fromRequest(mixed $value): self
     {
-        $value = trim($value);
-        $basis = $value === '' ? self::Accrual : self::tryFrom($value);
+        if ($value === null) {
+            return self::Accrual;
+        }
+
+        $text  = is_string($value) ? trim($value) : null;
+        $basis = $text === '' ? self::Accrual : ($text === null ? null : self::tryFrom($text));
 
         if ($basis === null) {
-            throw new AccountingException(AccountingError::TaxBasisUnavailable, 'The basis asked for is not one the tax report knows.', ['basis' => $value]);
+            throw new AccountingException(AccountingError::TaxBasisUnavailable, 'The basis asked for is not one the tax report knows.', ['basis' => $text ?? get_debug_type($value)]);
         }
 
         return $basis;

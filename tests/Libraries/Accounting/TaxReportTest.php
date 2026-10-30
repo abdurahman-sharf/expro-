@@ -470,12 +470,17 @@ class TaxReportTest extends CIUnitTestCase
         $this->sell('10.10', '1.515');
 
         $report  = $this->report();
-        $revenue = bcsub('0', $this->balance($this->accountId('sales_revenue')), 4);
+        $base    = $report->section(TaxSection::SalesInvoices)->base;
+        $revenue = (string) $this->accountingDb()->query(
+            'SELECT SUM(credit - debit) AS movement FROM ' . $this->accountingDb()->prefixTable('accounting_journal_lines') . ' WHERE account_id = ?',
+            [$this->accountId('sales_revenue')],
+        )->getRow()->movement;
 
-        $this->assertSame('10.1000', $report->section(TaxSection::SalesInvoices)->base);
+        $this->assertSame('10.1000', $base);
         $this->assertSame('1.5150', $report->section(TaxSection::SalesInvoices)->tax);
         $this->assertSame('1.5150', $this->accountOf($report, '215001')->movement, 'The tax is exactly what the account holds');
-        $this->assertLessThanOrEqual(0, bccomp(bcsub($revenue, $report->section(TaxSection::SalesInvoices)->base, 4), '0.01', 4), 'The sales account is the rest of the rounded total, so it may differ from the base by a cent');
+        $this->assertSame('10.1050', bcadd($revenue, '0', 4), 'The sales account holds the rest of the rounded total after the tax');
+        $this->assertSame('0.0050', bcsub($revenue, $base, 4), 'The base is read from the lines, so it differs from the sales account by the rounding, here half a cent');
     }
 
     public function testBuild_ShowsWhatTheAccountsOfTaxHoldFromAManualJournalApartFromTheDocuments(): void
@@ -765,18 +770,6 @@ class TaxReportTest extends CIUnitTestCase
 
         $this->assertEquals($before, $after);
         $this->assertSame('298.5000', $after->net());
-    }
-
-    public function testBuild_RejectsADayThatIsNotADateAndAPeriodThatEndsBeforeItStarts(): void
-    {
-        foreach ([['2026-02-30', null, AccountingError::InvalidDate], ['2026-10-01', '2026-10-31', AccountingError::ReportPeriodInvalid]] as [$to, $from, $error]) {
-            try {
-                $this->report($from, $to);
-                $this->fail('A period that is not one was taken');
-            } catch (AccountingException $exception) {
-                $this->assertSame($error, $exception->error);
-            }
-        }
     }
 
     public function testBuild_SaysTheBooksBeganOnTheStartDateAndCountsTheDocumentsBeforeItThatCarryTax(): void

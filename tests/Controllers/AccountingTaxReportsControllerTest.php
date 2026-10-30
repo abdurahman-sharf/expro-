@@ -7,6 +7,8 @@ use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\TestResponse;
+use DOMDocument;
+use DOMXPath;
 use Tests\Support\AccountingControllerFixtureTrait;
 use Tests\Support\ExpenseAccountingFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
@@ -83,6 +85,36 @@ final class AccountingTaxReportsControllerTest extends CIUnitTestCase
         preg_match('#data-total="' . $total . '"[^>]*>.*?data-cell="' . $cell . '"[^>]*><bdi dir="ltr">([^<]*)</bdi>#s', $response->getBody(), $found);
 
         return $found[1] ?? '';
+    }
+
+    private function pageOf(TestResponse $response): DOMXPath
+    {
+        $document = new DOMDocument();
+
+        libxml_use_internal_errors(true);
+        $document->loadHTML('<?xml encoding="UTF-8">' . $response->getBody());
+        libxml_clear_errors();
+
+        return new DOMXPath($document);
+    }
+
+    /**
+     * @param list<list<string>> $rows
+     *
+     * @return list<string> The row that says whether the net is payable or refundable.
+     */
+    private function netRowOf(array $rows): array
+    {
+        $first = array_search(lang('Accounting_tax_reports.row_total'), array_column($rows, 0), true);
+
+        $this->assertNotFalse($first);
+
+        return $rows[$first + 2];
+    }
+
+    private function accountNameOf(string $code): string
+    {
+        return (string) $this->accountingDb()->table('accounting_accounts')->select('name')->where('code', $code)->get()->getRow()->name;
     }
 
     private function accountCell(TestResponse $response, int $accountId, string $cell): string
@@ -302,6 +334,21 @@ final class AccountingTaxReportsControllerTest extends CIUnitTestCase
         }
     }
 
+    public function testGetIndex_RefusesABasisNamedAsAListAndShowsNoFigures(): void
+    {
+        $this->observedScenario();
+        $this->viewer();
+
+        foreach (['basis[]=cash', 'basis[0]=partial', 'basis[]=accrual&basis[]=cash'] as $query) {
+            $response = $this->get(self::SCREEN . '?' . $query);
+
+            $response->assertStatus(200);
+            $response->assertSee('id="report_error"');
+            $response->assertSee(lang('Accounting.error_tax_basis_unavailable'));
+            $response->assertDontSee('id="tax_table"');
+        }
+    }
+
     public function testGetIndex_AcceptsTheAccrualBasisWhenItIsAskedFor(): void
     {
         $this->observedScenario();
@@ -505,6 +552,68 @@ final class AccountingTaxReportsControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('&lt;b&gt;215002&lt;/b&gt;', $body);
     }
 
+    public function testGetIndex_EscapesWhatTheRequestAndTheBranchesPutInThePage(): void
+    {
+        $this->accountingDb()->table('branches')->where('branch_id', $this->second)->update(['code' => 'T<u>2', 'name' => '<i>Annex</i>']);
+        $this->createBranch('T3', 'Third branch');
+        $this->viewer([1, $this->second]);
+
+        $from  = '"><script>alert(1)</script>';
+        $to    = '"><img src=x onerror=alert(2)>';
+        $xpath = $this->pageOf($this->get(self::SCREEN . '?' . http_build_query(['from' => $from, 'to' => $to])));
+
+        $this->assertSame($from, $xpath->query('//input[@id="f_from"]')->item(0)->getAttribute('value'), 'The day that is not one is shown back as it was typed');
+        $this->assertSame($to, $xpath->query('//input[@id="f_to"]')->item(0)->getAttribute('value'));
+        $this->assertSame(0, $xpath->query('//script[contains(., "alert(1)")]')->length, 'A day is never a script');
+        $this->assertSame(0, $xpath->query('//img[@src="x"]')->length, 'A day never closes its attribute');
+
+        $this->assertSame(0, $xpath->query('//fieldset[@id="f_branches"]//u | //fieldset[@id="f_branches"]//i')->length, 'A branch to choose is text');
+        $this->assertStringContainsString('T<u>2 - <i>Annex</i>', $xpath->query('//fieldset[@id="f_branches"]')->item(0)->textContent);
+
+        $this->assertSame(0, $xpath->query('//p[@id="report_scope"]//u')->length, 'The partial scope names its branches as text');
+        $this->assertStringContainsString('HQ, T<u>2', $xpath->query('//p[@id="report_scope"]')->item(0)->textContent);
+    }
+
+    public function testGetIndex_EscapesTheBranchesOfASelectedScope(): void
+    {
+        $this->accountingDb()->table('branches')->where('branch_id', $this->second)->update(['code' => 'T<u>2']);
+        $this->createBranch('T3', 'Third branch');
+        $this->viewer();
+
+        $xpath = $this->pageOf($this->get(self::SCREEN . '?branches[]=1&branches[]=' . $this->second));
+
+        $this->assertSame(0, $xpath->query('//p[@id="report_scope"]//u')->length);
+        $this->assertStringContainsString('HQ, T<u>2', $xpath->query('//p[@id="report_scope"]')->item(0)->textContent);
+    }
+
+    public function testGetIndex_SaysTheBooksHoldNoTaxWhenThePeriodHasNone(): void
+    {
+        $this->viewer();
+
+        $response = $this->get(self::SCREEN);
+
+        $response->assertSee('id="report_empty"');
+        $response->assertSee(lang('Accounting_tax_reports.empty'));
+        $response->assertSee('id="tax_table"');
+    }
+
+    public function testGetIndex_SaysNothingOfAnEmptyPeriodWhenThereIsTaxOrNoBranchOrNoAccount(): void
+    {
+        $this->sell('100.00', '15.00');
+        $this->viewer();
+
+        $this->get(self::SCREEN)->assertDontSee('id="report_empty"');
+
+        $this->get(self::SCREEN . '?to=2000-01-01')->assertSee('id="report_empty"');
+
+        $this->viewer([]);
+        $this->get(self::SCREEN)->assertDontSee('id="report_empty"');
+
+        $this->viewer();
+        $this->accountingDb()->table('accounting_routing')->whereIn('routing_key', [RoutingKey::TaxOutput->value, RoutingKey::TaxInput->value])->delete();
+        $this->get(self::SCREEN . '?to=2000-01-01')->assertDontSee('id="report_empty"');
+    }
+
     public function testGetCsv_GivesThePartsTheRatesAndTheTotalsOfTheReport(): void
     {
         $invoice = $this->sell('1000.00', '150.00');
@@ -532,10 +641,71 @@ final class AccountingTaxReportsControllerTest extends CIUnitTestCase
         $this->assertContains([lang('Accounting_tax_reports.row_part'), $part('expenses'), '', '1', '-200.0000', '-30.0000'], $rows);
 
         $total = lang('Accounting_tax_reports.row_total');
+        $first = array_search($total, array_column($rows, 0), true);
 
-        $this->assertSame([$total, lang('Accounting_tax_reports.total_output'), '', '', '900.0000', '135.0000'], $rows[count($rows) - 3]);
-        $this->assertSame([$total, lang('Accounting_tax_reports.total_input'), '', '', '1200.0000', '180.0000'], $rows[count($rows) - 2]);
-        $this->assertSame([$total, lang('Accounting_tax_reports.row_total_company') . ': ' . lang('Accounting_tax_reports.net_refundable'), '', '', '', '-45.0000'], $rows[count($rows) - 1]);
+        $this->assertNotFalse($first);
+        $this->assertSame([$total, lang('Accounting_tax_reports.total_output'), '', '', '900.0000', '135.0000'], $rows[$first]);
+        $this->assertSame([$total, lang('Accounting_tax_reports.total_input'), '', '', '1200.0000', '180.0000'], $rows[$first + 1]);
+        $this->assertSame([$total, lang('Accounting_tax_reports.row_total_company') . ': ' . lang('Accounting_tax_reports.net_refundable'), '', '', '', '-45.0000'], $rows[$first + 2]);
+    }
+
+    public function testGetCsv_CarriesTheTieOfEachAccountOfTaxAndTheBasisWhenTheBooksAgree(): void
+    {
+        $this->observedScenario();
+        $this->viewer();
+
+        $rows = $this->csvRows($this->get(self::SCREEN . '/csv'));
+
+        $this->assertContains([lang('Accounting_tax_reports.account'), lang('Accounting_tax_reports.col_movement'), lang('Accounting_tax_reports.col_reported'), lang('Accounting_tax_reports.col_other'), lang('Accounting_tax_reports.col_other_count'), lang('Accounting_tax_reports.col_status')], $rows);
+        $this->assertContains(['215001 ' . $this->accountNameOf('215001'), '298.5000', '298.5000', '0.0000', '0', lang('Accounting_tax_reports.agrees')], $rows);
+        $this->assertContains(['215002 ' . $this->accountNameOf('215002'), '0.0000', '0.0000', '0.0000', '0', lang('Accounting_tax_reports.agrees')], $rows);
+        $this->assertContains([lang('Accounting_tax_reports.basis'), lang('Accounting_tax_reports.basis_accrual')], $rows);
+        $this->assertContains([lang('Accounting_tax_reports.csv_legacy'), '0'], $rows);
+        $this->assertContains([lang('Accounting_tax_reports.csv_unmatched'), '0'], $rows);
+    }
+
+    public function testGetCsv_SaysWhatTheNetLeavesOutSoThatAFileTakenToAReturnIsNotClean(): void
+    {
+        $this->setConfigValue('accounting_start_date', '2026-10-01');
+        $this->saveLegacySale('2026-09-15 10:00:00', '100.00', '15.00');
+        $this->saveLegacyPurchase('2026-09-20 10:00:00');
+        $this->observedScenario();
+        $this->postManual('215001', '100.00', '0');
+
+        $service = $this->item('0', false);
+        $saleId  = $this->save([$this->line($service, 0, '1', '100.00')], [$this->tax($service, 0, '15.00')]);
+        $this->accountingDb()->table('sales_items_taxes')->where('sale_id', $saleId)->update(['item_tax_amount' => '9.00']);
+        $this->viewer();
+
+        $rows = $this->csvRows($this->get(self::SCREEN . '/csv'));
+
+        $this->assertContains(['215001 ' . $this->accountNameOf('215001'), '213.5000', '313.5000', '-100.0000', '1', lang('Accounting_tax_reports.differs')], $rows);
+        $this->assertContains([lang('Accounting_tax_reports.csv_start'), '2026-10-01'], $rows);
+        $this->assertContains([lang('Accounting_tax_reports.csv_legacy'), '2'], $rows);
+        $this->assertContains([lang('Accounting_tax_reports.csv_unmatched'), '1'], $rows);
+    }
+
+    public function testGetCsv_SaysWhenNoAccountIsRoutedForTheTax(): void
+    {
+        $this->sell('100.00', '15.00');
+        $this->accountingDb()->table('accounting_routing')->whereIn('routing_key', [RoutingKey::TaxOutput->value, RoutingKey::TaxInput->value])->delete();
+        $this->viewer();
+
+        $rows = $this->csvRows($this->get(self::SCREEN . '/csv'));
+
+        $this->assertContains([lang('Accounting_tax_reports.not_routed_output')], $rows);
+        $this->assertContains([lang('Accounting_tax_reports.not_routed_input')], $rows);
+    }
+
+    public function testGetCsv_LeavesOutTheLinesAboutRoutingWhenBothAccountsAreRouted(): void
+    {
+        $this->sell('100.00', '15.00');
+        $this->viewer();
+
+        $rows = $this->csvRows($this->get(self::SCREEN . '/csv'));
+
+        $this->assertNotContains([lang('Accounting_tax_reports.not_routed_output')], $rows);
+        $this->assertNotContains([lang('Accounting_tax_reports.not_routed_input')], $rows);
     }
 
     public function testGetCsv_AddsARowForTheDocumentsThatTookADiscountOnTheWhole(): void
@@ -568,6 +738,19 @@ final class AccountingTaxReportsControllerTest extends CIUnitTestCase
         $this->assertSame(lang('Accounting.error_report_period_invalid'), $period->response()->getBody());
     }
 
+    public function testGetCsv_RefusesABasisNamedAsAListAndGivesNoFile(): void
+    {
+        $this->observedScenario();
+        $this->viewer();
+
+        foreach (['basis[]=cash', 'basis[0]=partial'] as $query) {
+            $response = $this->get(self::SCREEN . '/csv?' . $query);
+
+            $response->assertStatus(422);
+            $this->assertSame(lang('Accounting.error_tax_basis_unavailable'), $response->response()->getBody());
+        }
+    }
+
     public function testGetCsv_RequiresTheModuleGrant(): void
     {
         $this->observedScenario();
@@ -595,11 +778,11 @@ final class AccountingTaxReportsControllerTest extends CIUnitTestCase
         $this->viewer([1]);
 
         $rows = $this->csvRows($this->get(self::SCREEN . '/csv?branches[]=1&branches[]=' . $this->second));
-        $last = end($rows);
+        $net  = $this->netRowOf($rows);
 
         $this->assertSame(['100.0000', '15.0000'], [$rows[1][4], $rows[1][5]]);
-        $this->assertSame(lang('Accounting_tax_reports.row_total_branches') . ': ' . lang('Accounting_tax_reports.net_payable'), $last[1]);
-        $this->assertSame('15.0000', $last[5]);
+        $this->assertSame(lang('Accounting_tax_reports.row_total_branches') . ': ' . lang('Accounting_tax_reports.net_payable'), $net[1]);
+        $this->assertSame('15.0000', $net[5]);
     }
 
     public function testGetCsv_CarriesAScopeWithNoBranchSoItDoesNotWidenIt(): void
@@ -609,7 +792,7 @@ final class AccountingTaxReportsControllerTest extends CIUnitTestCase
 
         $rows = $this->csvRows($this->get(self::SCREEN . '/csv?branches[0]=0'));
 
-        $this->assertSame('0.0000', end($rows)[5]);
+        $this->assertSame('0.0000', $this->netRowOf($rows)[5]);
         $this->get(self::SCREEN . '?branches[]=99')->assertSee('tax/csv?branches%5B0%5D=0');
     }
 }

@@ -45,23 +45,23 @@ class AccountingTaxReports extends AccountingController
         }
 
         try {
-            $report = $this->taxes->build($scope, $period, TaxBasis::fromRequest($this->query('basis')));
+            $report = $this->taxes->build($scope, $period, TaxBasis::fromRequest($this->request->getGet('basis')));
         } catch (AccountingException $refusal) {
             $error = $this->messageFor($refusal);
         }
 
         return view('accounting_reports/tax_report', [
-            'report'      => $report,
-            'error'       => $error,
-            'filters'     => ['from' => $this->query('from'), 'to' => $this->toDay(), 'branches' => $scope->ids],
-            'branches'    => $this->branchChoices($scope),
-            'scope'       => $scope,
-            'scope_label' => $this->scopeLabel($scope),
-            'scope_kind'  => $scope->kind,
-            'csv_url'     => base_url('accounting_reports/tax/csv') . $this->queryString($scope),
-            'amount'      => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
-            'date'        => fn (string $value): string => $this->formatDate($value),
-            'ledger_url'  => fn (int $accountId): string => $this->ledgerUrl($accountId, $scope, $period),
+            'report'     => $report,
+            'error'      => $error,
+            'filters'    => ['from' => $this->query('from'), 'to' => $this->toDay(), 'branches' => $scope->ids],
+            'branches'   => $this->branchChoices($scope),
+            'scope'      => $scope,
+            'scopeLabel' => $this->scopeLabel($scope),
+            'scopeKind'  => $scope->kind,
+            'csvUrl'     => base_url('accounting_reports/tax/csv') . $this->queryString($scope),
+            'amount'     => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
+            'date'       => fn (string $value): string => $this->formatDate($value),
+            'ledgerUrl'  => fn (int $accountId): string => $this->ledgerUrl($accountId, $scope, $period),
         ]);
     }
 
@@ -70,7 +70,7 @@ class AccountingTaxReports extends AccountingController
         $scope = $this->requestedScope();
 
         try {
-            $report = $this->taxes->build($scope, $this->period(), TaxBasis::fromRequest($this->query('basis')));
+            $report = $this->taxes->build($scope, $this->period(), TaxBasis::fromRequest($this->request->getGet('basis')));
         } catch (AccountingException $refusal) {
             return $this->response->setStatusCode(ResponseInterface::HTTP_UNPROCESSABLE_ENTITY)->setBody($this->messageFor($refusal));
         }
@@ -116,11 +116,58 @@ class AccountingTaxReports extends AccountingController
         $this->csvRow($handle, [$total, lang('Accounting_tax_reports.total_input'), '', '', $report->inputBase(), $report->input()]);
         $this->csvRow($handle, [$total, lang($report->scope->kind === ReportScopeKind::Company ? 'Accounting_tax_reports.row_total_company' : 'Accounting_tax_reports.row_total_branches') . ': ' . lang(bccomp($report->net(), '0', 4) < 0 ? 'Accounting_tax_reports.net_refundable' : 'Accounting_tax_reports.net_payable'), '', '', '', $report->net()]);
 
+        $this->csvChecks($handle, $report);
+
         rewind($handle);
         $text = (string) stream_get_contents($handle);
         fclose($handle);
 
         return $text;
+    }
+
+    /**
+     * What the screen says about the figures above: whether each account of tax ties to the books,
+     * the basis, the day the books began, and the documents the figures leave out or count without
+     * their taxable amount. A file taken to a tax return carries them too.
+     *
+     * @param resource $handle
+     */
+    private function csvChecks($handle, TaxReportResult $report): void
+    {
+        $this->csvRow($handle, []);
+        $this->csvRow($handle, [
+            lang('Accounting_tax_reports.account'),
+            lang('Accounting_tax_reports.col_movement'),
+            lang('Accounting_tax_reports.col_reported'),
+            lang('Accounting_tax_reports.col_other'),
+            lang('Accounting_tax_reports.col_other_count'),
+            lang('Accounting_tax_reports.col_status'),
+        ]);
+
+        foreach ($report->accounts as $account) {
+            $this->csvRow($handle, [
+                $account->code . ' ' . $account->name,
+                $account->movement,
+                $account->reported,
+                $account->other(),
+                (string) $account->otherJournals,
+                lang($account->ties() ? 'Accounting_tax_reports.agrees' : 'Accounting_tax_reports.differs'),
+            ]);
+        }
+
+        $this->csvRow($handle, []);
+        $this->csvRow($handle, [lang('Accounting_tax_reports.basis'), lang('Accounting_tax_reports.basis_' . $report->basis->value)]);
+        $this->csvRow($handle, [lang('Accounting_tax_reports.csv_start'), $report->startDate ?? '']);
+        $this->csvRow($handle, [lang('Accounting_tax_reports.csv_legacy'), (string) $report->legacyDocuments]);
+        $this->csvRow($handle, [lang('Accounting_tax_reports.csv_unmatched'), (string) $report->unmatchedDocuments]);
+
+        if (! $report->outputRouted) {
+            $this->csvRow($handle, [lang('Accounting_tax_reports.not_routed_output')]);
+        }
+
+        if (! $report->inputRouted) {
+            $this->csvRow($handle, [lang('Accounting_tax_reports.not_routed_input')]);
+        }
     }
 
     /**

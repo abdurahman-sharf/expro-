@@ -93,6 +93,27 @@ final readonly class TaxReportResult
         return $this->outputRouted && $this->inputRouted;
     }
 
+    public function isEmpty(): bool
+    {
+        if (! $this->outputRouted || ! $this->inputRouted) {
+            return false;
+        }
+
+        foreach ($this->sections as $figures) {
+            if ($figures->documents > 0) {
+                return false;
+            }
+        }
+
+        foreach ($this->accounts as $account) {
+            if (bccomp($account->movement, '0', 4) !== 0 || $account->otherJournals > 0) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     public function reachesBeforeBooks(): bool
     {
         return $this->startDate !== null && ($this->from === null || $this->from < $this->startDate);

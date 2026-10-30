@@ -5,12 +5,12 @@
  * @var array{from: string, to: string, branches: list<int>} $filters
  * @var list<object>                                         $branches
  * @var ReportScope                                          $scope
- * @var string|null                                          $scope_label
- * @var ReportScopeKind                                      $scope_kind
- * @var string                                               $csv_url
+ * @var string|null                                          $scopeLabel
+ * @var ReportScopeKind                                      $scopeKind
+ * @var string                                               $csvUrl
  * @var Closure                                              $amount
  * @var Closure                                              $date
- * @var Closure                                              $ledger_url
+ * @var Closure                                              $ledgerUrl
  */
 
 use App\Libraries\Accounting\ReportScope;
@@ -27,7 +27,7 @@ $roleLabel = static fn (array $roles): string => implode(' / ', array_map(static
         <span class="bi bi-printer" aria-hidden="true">&nbsp;</span><?= lang('Common.print') ?>
     </button>
     <?php if ($report !== null): ?>
-        <a class="btn btn-outline-secondary btn-sm float-end" id="export_csv" href="<?= esc($csv_url, 'attr') ?>">
+        <a class="btn btn-outline-secondary btn-sm float-end" id="export_csv" href="<?= esc($csvUrl, 'attr') ?>">
             <span class="bi bi-filetype-csv" aria-hidden="true">&nbsp;</span><?= lang('Accounting_tax_reports.csv') ?>
         </a>
     <?php endif; ?>
@@ -88,11 +88,11 @@ $roleLabel = static fn (array $roles): string => implode(' / ', array_map(static
         <p class="alert alert-danger" id="report_error" role="alert"><?= esc($error) ?></p>
     <?php endif; ?>
 
-    <?php if ($scope_label !== null): ?>
-        <?php if ($scope_kind === ReportScopeKind::Partial): ?>
-            <p class="alert alert-warning" id="report_scope" role="note"><?= esc($scope_label) ?></p>
+    <?php if ($scopeLabel !== null): ?>
+        <?php if ($scopeKind === ReportScopeKind::Partial): ?>
+            <p class="alert alert-warning" id="report_scope" role="note"><?= esc($scopeLabel) ?></p>
         <?php else: ?>
-            <p class="acc-scope-note text-secondary small" id="report_scope" role="note"><span class="bi bi-info-circle" aria-hidden="true"></span> <?= esc($scope_label) ?></p>
+            <p class="acc-scope-note text-secondary small" id="report_scope" role="note"><span class="bi bi-info-circle" aria-hidden="true"></span> <?= esc($scopeLabel) ?></p>
         <?php endif; ?>
     <?php endif; ?>
 
@@ -124,6 +124,10 @@ $roleLabel = static fn (array $roles): string => implode(' / ', array_map(static
 
         <?php if ($report->unmatchedDocuments > 0): ?>
             <p class="alert alert-warning" id="report_unmatched" role="note"><?= esc(lang('Accounting_tax_reports.unmatched', [$report->unmatchedDocuments])) ?></p>
+        <?php endif; ?>
+
+        <?php if (! $scope->isEmpty() && $report->isEmpty()): ?>
+            <p class="alert alert-info" id="report_empty" role="note"><?= lang('Accounting_tax_reports.empty') ?></p>
         <?php endif; ?>
 
         <div class="table-responsive mb-3">
@@ -203,7 +207,7 @@ $roleLabel = static fn (array $roles): string => implode(' / ', array_map(static
                             <?php foreach ($report->accounts as $account): ?>
                                 <tr data-account="<?= (int) $account->accountId ?>">
                                     <th scope="row">
-                                        <a href="<?= esc($ledger_url($account->accountId), 'attr') ?>"><bdi dir="ltr"><?= esc($account->code) ?></bdi></a>
+                                        <a href="<?= esc($ledgerUrl($account->accountId), 'attr') ?>"><bdi dir="ltr"><?= esc($account->code) ?></bdi></a>
                                         <?= esc($account->name) ?>
                                         <small class="text-body-secondary">(<?= esc($roleLabel($account->roles)) ?>)</small>
                                     </th>

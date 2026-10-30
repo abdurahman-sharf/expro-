@@ -223,7 +223,7 @@ final class TaxReport
      * base is not known.
      *
      * @param array<string, array{base: string, tax: string, documents: int, rates: array<string, array{base: string, tax: string, documents: int}>, discounted: array{documents: int, base: string, tax: string}}> $parts
-     * @param list<object>                                                                                                                                                                                      $rows
+     * @param list<object>                                                                                                                                                                                          $rows
      *
      * @return bool False when something of the document is left in the period.
      */
