@@ -207,8 +207,9 @@ class Receiving extends Model
      * one given an amount of nothing is removed with its journal. Only a purchase of goods
      * received from a supplier takes payments. A payment has the date it was entered (today when
      * none is given, and never after today), which is the day it is posted on; the time it was saved
-     * is kept as it was. A payment saved before dates could be entered keeps the day it was saved
-     * until someone gives it another.
+     * is kept as it was. Where the payments are posted, the date is not before the day the books start;
+     * a purchase the books do not hold has no such limit. A payment saved before dates could be
+     * entered keeps the day it was saved until someone gives it another.
      *
      * @param list<array<string, mixed>> $payments
      *
@@ -228,7 +229,7 @@ class Receiving extends Model
 
         $builder    = $this->db->table('receivings_payments');
         $posting    = $accountingOn ? new ReceivingPosting($this->db) : null;
-        $booksStart = $accountingOn ? (new AccountingSettings($this->db))->startDate() : null;
+        $booksStart = $posting?->postsPayments($receivingId) ? (new AccountingSettings($this->db))->startDate() : null;
         $last       = null;
 
         foreach ($payments as $payment) {

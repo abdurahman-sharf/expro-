@@ -5,8 +5,9 @@ namespace App\Libraries\Accounting;
 use DateTimeImmutable;
 
 /**
- * The date a person enters for a payment to a supplier: a real day, no later than today and, while
- * the books are on, no earlier than the day they start. A payment records money that has gone out,
+ * The date a person enters for a payment to a supplier: a real day, no later than today and, once
+ * the books have started, no earlier than the day they start (before that day arrives there is
+ * nothing for a date to come before). A payment records money that has gone out,
  * so it is not post-dated; a payment that is due later is a cheque, which has its own cycle. The
  * books then post it on that day, and the closing of the period it falls in is asked by the posting,
  * as for every other journal. A payment saved before there was a date to enter has none, and is
@@ -15,7 +16,7 @@ use DateTimeImmutable;
 final class SupplierPaymentDate
 {
     /**
-     * @param string|null $booksStart The day the books start, when they are on and have one.
+     * @param string|null $booksStart The day the books start, when they are on and have one; it only holds once it is not after today.
      *
      * @throws AccountingException
      */
@@ -28,11 +29,13 @@ final class SupplierPaymentDate
             throw new AccountingException(AccountingError::InvalidDate, 'The date of the payment is not a valid date.');
         }
 
-        if ($text > ($today ?? date('Y-m-d'))) {
+        $today ??= date('Y-m-d');
+
+        if ($text > $today) {
             throw new AccountingException(AccountingError::PaymentDateInFuture, 'A payment cannot be dated after today.', ['date' => $text]);
         }
 
-        if ($booksStart !== null && $text < $booksStart) {
+        if ($booksStart !== null && $booksStart <= $today && $text < $booksStart) {
             throw new AccountingException(AccountingError::PaymentDateBeforeBooks, 'A payment cannot be dated before the day the books start.', ['date' => $text, 'until' => $booksStart]);
         }
 

@@ -92,7 +92,7 @@ final class ReceivingPosting
     {
         $purchase = $this->loader->load($receivingId, false);
 
-        if (! $this->follows($purchase) || $this->activeJournal(ReceivingPostingBuilder::SOURCE_PURCHASE, $receivingId, JournalEntryType::General) === null) {
+        if ($purchase === null || ! $this->holdsPayments($purchase)) {
             return;
         }
 
@@ -103,6 +103,17 @@ final class ReceivingPosting
 
             $this->settle($purchase->supplierId, $employeeId);
         });
+    }
+
+    /**
+     * Whether the payments made against a purchase are posted: the purchase is one the books follow
+     * and it has reached them.
+     */
+    public function postsPayments(int $receivingId): bool
+    {
+        $purchase = $this->loader->load($receivingId, false);
+
+        return $purchase !== null && $this->holdsPayments($purchase);
     }
 
     /**
@@ -254,6 +265,11 @@ final class ReceivingPosting
         (new PostingFailureLog($this->db))->recordUnbuilt(ReceivingPostingBuilder::SOURCE_PURCHASE, $receivingId, 1, JournalEntryType::General, $posting, $employeeId, $branchId);
     }
 
+    private function holdsPayments(ReceivingDocument $purchase): bool
+    {
+        return $this->follows($purchase) && $this->activeJournal(ReceivingPostingBuilder::SOURCE_PURCHASE, $purchase->receivingId, JournalEntryType::General) !== null;
+    }
+
     private function settle(?int $supplierId, ?int $employeeId): void
     {
         if ($supplierId !== null) {
@@ -328,6 +344,10 @@ final class ReceivingPosting
         $draft  = $this->builder->supplierPayment($purchase, $payment, $this->nextRevision(ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT, $payment->paymentId), $employeeId);
         $drafts = $draft === null ? [] : $this->crossBranch->drafts($draft, $payment->treasuryId, $payment->treasuryBranchId);
 
+        if ($active !== null && $draft !== null && $draft->date !== $active->journal_date) {
+            $this->assertOutOfClosedPeriods($active);
+        }
+
         if (count($drafts) > 1) {
             $this->crossBranch->sync($active, $drafts, $employeeId, fn (object $journal): array => $this->reverse($journal, $employeeId, 'Payment #' . $payment->paymentId . ' changed'));
 
@@ -348,6 +368,25 @@ final class ReceivingPosting
 
         if ($draft !== null) {
             $this->posting->post($draft);
+        }
+    }
+
+    /**
+     * A payment moves to another day by taking back the journal that stands and posting it again.
+     * Taking back a journal of a closed period is done on today's date, and the new journal would
+     * then be on an earlier day that is open, so the payment would count twice in between. A payment
+     * of a closed period is therefore left where it is.
+     *
+     * @throws PostingException
+     */
+    private function assertOutOfClosedPeriods(object $active): void
+    {
+        $standing = [$active, ...(new InterBranchLegs($this->db))->partnersOf((int) $active->journal_id)];
+
+        usort($standing, static fn (object $a, object $b): int => (int) $a->branch_id <=> (int) $b->branch_id);
+
+        foreach ($standing as $journal) {
+            $this->periods->enforce((string) $journal->journal_date, (int) $journal->branch_id);
         }
     }
 

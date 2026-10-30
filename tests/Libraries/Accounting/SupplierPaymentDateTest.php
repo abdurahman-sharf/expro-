@@ -9,8 +9,8 @@ use CodeIgniter\Test\CIUnitTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
- * The date entered for a payment to a supplier: a real day, no later than today and, while the books
- * are on, no earlier than the day they start. What a payment saved before dates could be entered
+ * The date entered for a payment to a supplier: a real day, no later than today and, once the books
+ * have started, no earlier than the day they start. What a payment saved before dates could be entered
  * shows is the day it was saved.
  */
 class SupplierPaymentDateTest extends CIUnitTestCase
@@ -56,6 +56,19 @@ class SupplierPaymentDateTest extends CIUnitTestCase
         $this->assertSame(['date' => '2026-09-30', 'until' => '2026-10-01'], $exception->context);
         $this->assertSame('2026-10-01', SupplierPaymentDate::entered('2026-10-01', '2026-10-28', '2026-10-01'));
         $this->assertSame('2026-09-30', SupplierPaymentDate::entered('2026-09-30', '2026-10-28', null), 'Without a start of the books there is nothing to keep to');
+    }
+
+    public function testEntered_AcceptsEveryDayUpToTodayWhileTheBooksStartAfterToday(): void
+    {
+        $this->assertSame('2026-10-28', SupplierPaymentDate::entered('2026-10-28', '2026-10-28', '2026-12-01'), 'Today is the default and must be accepted');
+        $this->assertSame('2026-01-15', SupplierPaymentDate::entered('2026-01-15', '2026-10-28', '2026-12-01'));
+    }
+
+    public function testEntered_HoldsTheDayTheBooksStartAsSoonAsItIsToday(): void
+    {
+        $this->assertSame('2026-10-28', SupplierPaymentDate::entered('2026-10-28', '2026-10-28', '2026-10-28'));
+        $this->assertSame(AccountingError::PaymentDateBeforeBooks, $this->refusal('2026-10-27', '2026-10-28', '2026-10-28')->error);
+        $this->assertSame(AccountingError::PaymentDateBeforeBooks, $this->refusal('2026-10-27', '2026-10-29', '2026-10-28')->error, 'The day after the books started');
     }
 
     public function testEntered_AsksTheFutureBeforeTheStartOfTheBooks(): void
