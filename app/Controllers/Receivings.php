@@ -400,10 +400,10 @@ class Receivings extends Secure_Controller
         $data['invoiceDiscount']      = InvoiceDiscount::stored($receivingInfo['invoice_discount_type'] === null ? null : (int) $receivingInfo['invoice_discount_type'], $receivingInfo['invoice_discount'] === null ? null : (string) $receivingInfo['invoice_discount']);
         $data['invoiceDiscountShare'] = $this->invoiceDiscountOf((int) $receiving_id);
 
-        $data['lines_editable']   = $receivingInfo['receiving_type'] === ReceivingType::Receive->value && ! $this->receiving->hasReturns((int) $receiving_id);
+        $data['lines_editable']    = $receivingInfo['receiving_type'] === ReceivingType::Receive->value && ! $this->receiving->hasReturns((int) $receiving_id);
         $data['lines_has_returns'] = $receivingInfo['receiving_type'] === ReceivingType::Receive->value && ! $data['lines_editable'];
-        $data['lines']            = $data['lines_editable'] ? $this->editableLines((int) $receiving_id) : [];
-        $data['can_edit_tax']     = $this->employee->has_grant('items', $currentEmployeeId);
+        $data['lines']             = $data['lines_editable'] ? $this->editableLines((int) $receiving_id) : [];
+        $data['can_edit_tax']      = $this->employee->has_grant('items', $currentEmployeeId);
 
         if ((new AccountingSettings())->isEnabled()) {
             $data['treasury_options']     = $data['takes_payments'] ? $this->treasuryOptions((int) ($receivingInfo['branch_id'] ?? 0), $data['payments']) : [];
@@ -801,13 +801,13 @@ class Receivings extends Secure_Controller
      * @throws ReflectionException
      * @noinspection PhpUnused
      */
-    public function postSaveLines(int $receiving_id = -1): ResponseInterface
+    public function postSaveLines(int $receivingId = -1): ResponseInterface
     {
-        if ($this->outsideBranchScope($receiving_id)) {
+        if ($this->outsideBranchScope($receivingId)) {
             return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Receivings.branch_not_allowed')]);
         }
 
-        $stored = $this->receiving->get_receiving_items($receiving_id)->getResultArray();
+        $stored = $this->receiving->get_receiving_items($receivingId)->getResultArray();
 
         foreach (array_unique(array_column($stored, 'item_location')) as $locationId) {
             if (! $this->stock_location->is_allowed_location((int) $locationId, 'receivings', true)) {
@@ -819,14 +819,14 @@ class Receivings extends Secure_Controller
         $edits      = $this->postedLineEdits($this->employee->has_grant('items', $employeeId));
 
         if ($edits === null) {
-            return $this->response->setJSON(['success' => false, 'message' => AccountingMessage::of(new AccountingException(AccountingError::PurchaseEditLineInvalid)), 'id' => $receiving_id]);
+            return $this->response->setJSON(['success' => false, 'message' => AccountingMessage::of(new AccountingException(AccountingError::PurchaseEditLineInvalid)), 'id' => $receivingId]);
         }
 
-        if ($this->receiving->updateLines($receiving_id, $edits, $employeeId)) {
-            return $this->response->setJSON(['success' => true, 'message' => lang('Receivings.lines_updated'), 'id' => $receiving_id]);
+        if ($this->receiving->updateLines($receivingId, $edits, $employeeId)) {
+            return $this->response->setJSON(['success' => true, 'message' => lang('Receivings.lines_updated'), 'id' => $receivingId]);
         }
 
-        return $this->response->setJSON(['success' => false, 'message' => $this->accountingFailureMessage() ?? lang('Receivings.lines_not_updated'), 'id' => $receiving_id]);
+        return $this->response->setJSON(['success' => false, 'message' => $this->accountingFailureMessage() ?? lang('Receivings.lines_not_updated'), 'id' => $receivingId]);
     }
 
     /**

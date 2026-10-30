@@ -563,8 +563,8 @@
  {
   "name": "GC01 the branch of the receiving is the employee own",
   "file": "app/Controllers/Receivings.php",
-  "find": "public function postSaveLines(int $receiving_id = -1): ResponseInterface\n    {\n        if ($this->outsideBranchScope($receiving_id)) {",
-  "replace": "public function postSaveLines(int $receiving_id = -1): ResponseInterface\n    {\n        if (false) {",
+  "find": "public function postSaveLines(int $receivingId = -1): ResponseInterface\n    {\n        if ($this->outsideBranchScope($receivingId)) {",
+  "replace": "public function postSaveLines(int $receivingId = -1): ResponseInterface\n    {\n        if (false) {",
   "tests": [
    "--filter",
    "testPostSaveLines_RefusesAReceivingOfABranch",
@@ -651,8 +651,8 @@
  {
   "name": "GC09 the lines of a return are not offered",
   "file": "app/Controllers/Receivings.php",
-  "find": "$data['lines_editable']   = $receivingInfo['receiving_type'] === ReceivingType::Receive->value && !",
-  "replace": "$data['lines_editable']   = true && !",
+  "find": "$data['lines_editable']    = $receivingInfo['receiving_type'] === ReceivingType::Receive->value && !",
+  "replace": "$data['lines_editable']    = true && !",
   "tests": [
    "--filter",
    "testGetEdit_DoesNotOfferTheLinesOfAReturn",
@@ -662,8 +662,8 @@
  {
   "name": "GC10 the tax of a line is offered for editing to whoever may edit costs",
   "file": "app/Controllers/Receivings.php",
-  "find": "$data['can_edit_tax']     = $this->employee->has_grant('items', $currentEmployeeId);",
-  "replace": "$data['can_edit_tax']     = true;",
+  "find": "$data['can_edit_tax']      = $this->employee->has_grant('items', $currentEmployeeId);",
+  "replace": "$data['can_edit_tax']      = true;",
   "tests": [
    "--filter",
    "testGetEdit_ShowsTheTaxOfALineToWhoeverMayNotEditCosts",
@@ -921,6 +921,94 @@
    "--filter",
    "testGetReceipt_ShowsTheTaxNumberAndTheCommercialRegistry|testPostComplete_ShowsTheNumbersOfTheSupplierOnTheReceiptItPrints",
    "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GR01 the migration adds an item column only when it is missing",
+  "file": "app/Database/Migrations/20270700000000_PurchaseTaxesAndSupplierRegistry.php",
+  "find": "            if (! $this->hasColumn('items', $column)) {\n                $this->db->query(\"ALTER TABLE `{$items}` ADD COLUMN",
+  "replace": "            if (true) {\n                $this->db->query(\"ALTER TABLE `{$items}` ADD COLUMN",
+  "tests": [
+   "--filter",
+   "testUp_IsSafeToRunAgain",
+   "tests/Database/PurchaseTaxesAndSupplierRegistryMigrationTest.php"
+  ]
+ },
+ {
+  "name": "GR02 the migration adds the registry column only when it is missing",
+  "file": "app/Database/Migrations/20270700000000_PurchaseTaxesAndSupplierRegistry.php",
+  "find": "if (! $this->hasColumn('suppliers', 'commercial_registry')) {\n            $this->db->query(\"ALTER TABLE `{$suppliers}` ADD COLUMN",
+  "replace": "if (true) {\n            $this->db->query(\"ALTER TABLE `{$suppliers}` ADD COLUMN",
+  "tests": [
+   "--filter",
+   "testUp_IsSafeToRunAgain|testUp_FinishesWhatWasStoppedHalfWay",
+   "tests/Database/PurchaseTaxesAndSupplierRegistryMigrationTest.php"
+  ]
+ },
+ {
+  "name": "GR03 the migration is not taken back while a value would be lost",
+  "file": "app/Database/Migrations/20270700000000_PurchaseTaxesAndSupplierRegistry.php",
+  "find": "if ($this->inUse()) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testDown_Refuses",
+   "tests/Database/PurchaseTaxesAndSupplierRegistryMigrationTest.php"
+  ]
+ },
+ {
+  "name": "GR04 a purchase tax of the second slot counts as a value in use",
+  "file": "app/Database/Migrations/20270700000000_PurchaseTaxesAndSupplierRegistry.php",
+  "find": " OR `purchase_tax_2_percent` IS NOT NULL OR",
+  "replace": " OR",
+  "tests": [
+   "--filter",
+   "testDown_RefusesToLoseThePurchaseTaxOfAnItem",
+   "tests/Database/PurchaseTaxesAndSupplierRegistryMigrationTest.php"
+  ]
+ },
+ {
+  "name": "GR05 the name of a purchase tax counts as a value in use",
+  "file": "app/Database/Migrations/20270700000000_PurchaseTaxesAndSupplierRegistry.php",
+  "find": " OR `purchase_tax_1_name` IS NOT NULL OR `purchase_tax_2_name` IS NOT NULL LIMIT 1",
+  "replace": " LIMIT 1",
+  "tests": [
+   "--filter",
+   "testDown_RefusesToLoseTheNameOfAPurchaseTax",
+   "tests/Database/PurchaseTaxesAndSupplierRegistryMigrationTest.php"
+  ]
+ },
+ {
+  "name": "GR06 a registry number counts as a value in use",
+  "file": "app/Database/Migrations/20270700000000_PurchaseTaxesAndSupplierRegistry.php",
+  "find": "return $this->db->query(\"SELECT 1 FROM `{$suppliers}` WHERE `commercial_registry` <> '' LIMIT 1\")->getRow() !== null;",
+  "replace": "return false;",
+  "tests": [
+   "--filter",
+   "testDown_RefusesToLoseTheRegistryNumber",
+   "tests/Database/PurchaseTaxesAndSupplierRegistryMigrationTest.php"
+  ]
+ },
+ {
+  "name": "GT08 the form of an item shows the name of its purchase tax",
+  "file": "app/Views/items/form.php",
+  "find": "'value' => $item_info->{\"purchase_tax_{$purchaseSlot}_name\"} ?? ''",
+  "replace": "'value' => ''",
+  "tests": [
+   "--filter",
+   "testGetView_ShowsThePurchaseTaxesOfAnItemInTheForm",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GT09 the form of an item shows the rate of its purchase tax",
+  "file": "app/Views/items/form.php",
+  "find": "'value'      => $purchasePercent === null || $purchasePercent === '' ? '' : ((float) $purchasePercent === 0.0 ? '0' : to_tax_decimals($purchasePercent))",
+  "replace": "'value'      => ''",
+  "tests": [
+   "--filter",
+   "testGetView_ShowsThePurchaseTaxesOfAnItemInTheForm",
+   "tests/Controllers/ItemsControllerTest.php"
   ]
  }
 ]
