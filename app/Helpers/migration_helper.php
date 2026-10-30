@@ -84,8 +84,8 @@ function dropForeignKeyConstraints(array $foreignKeys, string $table): void
  * TODO: This function should be moved to a more global location since it may be needed outside of migrations.
  * @return string The prefix before overriding.
  */
-function overridePrefix(string $prefix = ''): string {
-    $db = Database::connect();
+function overridePrefix(string $prefix = '', ?BaseConnection $db = null): string {
+    $db ??= Database::connect();
 
     $originalPrefix = $db->getPrefix();
     $db->setPrefix($prefix);
@@ -136,7 +136,7 @@ function createPrimaryKey(string $table, string $index): void {
 function dropAllForeignKeyConstraints(?string $table = null, ?string $column = null, ?BaseConnection $db = null): array {
     $db ??= Database::connect();
     $prefixedTable = $table !== null ? $db->getPrefix() . $table : null;
-    $prefix = overridePrefix();
+    $prefix = overridePrefix('', $db);
 
     $builder = $db->table('information_schema.KEY_COLUMN_USAGE kcu');
     $builder->distinct();
@@ -175,7 +175,7 @@ function dropAllForeignKeyConstraints(?string $table = null, ?string $column = n
     $builder->orderBy('kcu.ORDINAL_POSITION');
 
     $result = $builder->get();
-    overridePrefix($prefix);
+    overridePrefix($prefix, $db);
 
     if ($result === false) {
         $detail = 'unknown error';
