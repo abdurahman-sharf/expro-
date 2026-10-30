@@ -193,6 +193,20 @@ class AgedLedgerTest extends CIUnitTestCase
         }
     }
 
+    public function testBuild_GivesTheSameTotalAndTheBalanceOfTheAccountForEveryLengthOfTheBuckets(): void
+    {
+        $this->customerCycle();
+        $this->supplierCycle();
+
+        $customer = bcadd((new CustomerLedger())->position($this->customerId)->accountBalance, '0', 4);
+        $supplier = bcadd((new SupplierLedger())->position($this->supplierId)->accountBalance, '0', 4);
+
+        foreach ([1, 2, 7, 10, 30, 90, 365] as $period) {
+            $this->assertSame($customer, $this->rowOf($this->customers(date('Y-m-d'), $period), $this->customerId)->balance(), "customers, buckets of {$period} days");
+            $this->assertSame($supplier, $this->rowOf($this->suppliers(date('Y-m-d'), $period), $this->supplierId)->balance(), "suppliers, buckets of {$period} days");
+        }
+    }
+
     public function testBuild_LeavesOutADayThatPrecedesTheFirstDocument(): void
     {
         $this->customerCycle();
