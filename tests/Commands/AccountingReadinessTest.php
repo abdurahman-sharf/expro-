@@ -300,6 +300,37 @@ class AccountingReadinessTest extends CIUnitTestCase
         $this->assertSame($journals, $this->countRows('accounting_journals'));
     }
 
+    public function testRun_MovesTheBankAccountsOnlyWhenAskedToApplyAndChangesNoJournalLine(): void
+    {
+        $bank   = $this->legacyBank('Old bank', 'Gulf Bank', '123456');
+        $lines  = $this->accountingDb()->table('accounting_journal_lines')->select('journal_id, account_id, debit, credit')->orderBy('line_id', 'ASC')->get()->getResultArray();
+        $parent = static fn (self $test): string => (string) $test->accountingDb()->table('accounting_accounts')->where('account_id', $test->accountingDb()->table('accounting_accounts')->where(['entity_type' => 'treasury', 'entity_id' => $bank])->get()->getRow()->parent_id)->get()->getRow()->code;
+
+        [$exit] = $this->readiness();
+
+        $this->assertSame(1, $exit);
+        $this->assertSame('1201', $parent($this));
+
+        [, $output] = $this->readiness(['apply' => null]);
+
+        $this->assertStringContainsString('--apply: accounting:bank_accounts --move', $output);
+        $this->assertMatchesRegularExpression("/Treasury {$bank}: account 1201\\d+ moved to 1202\\d+\\./", $output);
+        $this->assertMatchesRegularExpression('/PASS\s+E40-BANK-DETAILS: Bank accounts under/', $output);
+        $this->assertSame('1202', $parent($this));
+        $this->assertSame($lines, $this->accountingDb()->table('accounting_journal_lines')->select('journal_id, account_id, debit, credit')->orderBy('line_id', 'ASC')->get()->getResultArray());
+    }
+
+    public function testRun_AppliesEveryCommandThatCanClearAFailureInTheOrderOfTheChecks(): void
+    {
+        $this->legacyBank('Old bank', 'Gulf Bank', '123456');
+        $paymentId = $this->unstampedPayment();
+
+        [, $output] = $this->readiness(['apply' => null]);
+
+        $this->assertLessThan(strpos($output, '--apply: accounting:stamp_payments --apply'), strpos($output, '--apply: accounting:bank_accounts --move'));
+        $this->assertNotNull($this->stampOf($paymentId));
+    }
+
     public function testRun_AppliesNothingWhenNothingFailed(): void
     {
         $before = $this->databaseFingerprint();

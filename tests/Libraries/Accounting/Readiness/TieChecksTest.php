@@ -123,10 +123,11 @@ class TieChecksTest extends CIUnitTestCase
         $this->assertSame(['TIE-CUSTOMERS', 'TIE-SUPPLIERS', 'TIE-TREASURIES', 'TIE-STOCK', 'WP7-PRE-DEPLOY-QUERY', 'TIE-BRANCHES'], array_map(static fn (CheckResult $result): string => $result->ref, $results));
     }
 
-    public function testCustomerTies_PassesForACustomerWhoseAccountMatchesTheirInvoices(): void
+    public function testCustomerTies_PassesForACustomerWhoseAccountMatchesTheirInvoicesAndCountsNoSupplier(): void
     {
         $invoiceId = $this->invoiceOf('100.00');
         $this->addPayment($invoiceId, '30.00');
+        $this->purchaseOf('500.00');
 
         $result = $this->check('customer_ties');
 
@@ -384,6 +385,25 @@ class TieChecksTest extends CIUnitTestCase
         $journalId = (int) $this->accountingDb()->table('accounting_journals')->selectMax('journal_id', 'last')->get()->getRow()->last;
         $second    = $this->createBranch('B2');
         $this->accountingDb()->table('accounting_interbranch_legs')->insert(['journal_id' => $journalId, 'account_id' => $this->accountId('branches_receivable'), 'company_id' => 1, 'side' => 'receivable', 'counterpart_branch_id' => $second, 'document_type' => 'interbranch_settlement', 'document_id' => 1, 'revision' => 1]);
+
+        $this->assertSame(CheckStatus::Pass, $this->check('interbranch_unattributed')->status);
+    }
+
+    public function testInterbranchUnattributed_LeavesTheReversalOfAJournalARecordedLegAccountsFor(): void
+    {
+        $this->byHand($this->accountId('branches_receivable'), '50.00');
+        $journalId = (int) $this->accountingDb()->table('accounting_journals')->selectMax('journal_id', 'last')->get()->getRow()->last;
+        $second    = $this->createBranch('B2');
+        $this->accountingDb()->table('accounting_interbranch_legs')->insert(['journal_id' => $journalId, 'account_id' => $this->accountId('branches_receivable'), 'company_id' => 1, 'side' => 'receivable', 'counterpart_branch_id' => $second, 'document_type' => 'interbranch_settlement', 'document_id' => 1, 'revision' => 1]);
+        $this->accountingDb()->table('accounting_journals')->insert([
+            'company_id' => 1, 'branch_id' => 1, 'series' => 'manual', 'journal_date' => '2026-10-22', 'status' => 'posted', 'source_type' => 'reversal', 'source_id' => $journalId, 'entry_type' => 'general',
+            'revision' => 1, 'origin' => 'user', 'currency_code' => 'SAR', 'total_debit' => '50.0000', 'total_credit' => '50.0000', 'reverses_journal_id' => $journalId, 'posted_at' => date('Y-m-d H:i:s'),
+        ]);
+        $reversalId = (int) $this->accountingDb()->insertID();
+        $this->accountingDb()->table('accounting_journal_lines')->insertBatch([
+            ['journal_id' => $reversalId, 'line_no' => 1, 'account_id' => $this->accountId('branches_receivable'), 'debit' => '0', 'credit' => '50.00'],
+            ['journal_id' => $reversalId, 'line_no' => 2, 'account_id' => $this->accountId('opening_balance'), 'debit' => '50.00', 'credit' => '0'],
+        ]);
 
         $this->assertSame(CheckStatus::Pass, $this->check('interbranch_unattributed')->status);
     }
