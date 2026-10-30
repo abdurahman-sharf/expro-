@@ -369,6 +369,24 @@ class SettingsChecksTest extends CIUnitTestCase
         $this->assertSame(["branch HQ: posted as journal #{$journalId} dated 2020-01-01"], $result->findings);
     }
 
+    public function testOpeningBalances_LeavesTheBranchesOfAnotherCompanyOut(): void
+    {
+        $db = $this->accountingDb();
+        $db->table('companies')->insert(['name' => 'Another company']);
+        $other = (int) $db->insertID();
+        $db->table('branches')->insert(['company_id' => $other, 'code' => 'ZZ', 'name' => 'Foreign branch', 'active' => 1]);
+
+        try {
+            $result = $this->check('opening_balances');
+
+            $this->assertSame(['branch HQ: nothing entered'], $result->findings);
+            $this->assertSame([['branch' => 'HQ', 'state' => 'none']], $result->data['branches']);
+        } finally {
+            $db->table('branches')->where('company_id', $other)->delete();
+            $db->table('companies')->where('company_id', $other)->delete();
+        }
+    }
+
     public function testRun_ChangesNoRow(): void
     {
         $this->employeeWithGrants([AccountingGuard::PERIODS_CLOSE]);

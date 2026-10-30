@@ -96,6 +96,40 @@ class MigrationChecksTest extends CIUnitTestCase
         $this->assertSame(['AccountingModules' => 'additive', 'BranchesFoundation' => 'data', 'CostPrecision' => 'heavy'], $kinds);
     }
 
+    public function testPending_MarksEverySensitiveMigrationWithItsKind(): void
+    {
+        $expected = [
+            '20261021000002' => ['BranchesFoundation', 'data'],
+            '20261022000000' => ['AccountingRouting', 'data'],
+            '20261023000000' => ['SalesAccounting', 'heavy'],
+            '20261024000000' => ['SalesReceivables', 'heavy'],
+            '20261025000000' => ['PurchasesAccounting', 'data'],
+            '20261027000000' => ['CostPrecision', 'heavy'],
+            '20261028000000' => ['Treasuries', 'heavy'],
+            '20261029000000' => ['LegacyFixedPurchaseDiscount', 'data'],
+            '20261029000001' => ['ReceivingCostPrecision', 'heavy'],
+            '20261031000000' => ['BankAccounts', 'data'],
+            '20261102000000' => ['InterBranchTransfers', 'data'],
+            '20261103000000' => ['StockTransfersBetweenBranches', 'heavy'],
+            '20261120000000' => ['ExpensesAccounting', 'heavy'],
+            '20261220000000' => ['PurchaseInvoiceDiscount', 'heavy'],
+            '20261240000000' => ['SalesInvoiceDiscount', 'heavy'],
+            '20270200000001' => ['CrossBranchPayments', 'heavy'],
+        ];
+
+        foreach (array_keys($expected) as $version) {
+            $this->forgetMigration((string) $version);
+        }
+
+        $kinds = [];
+
+        foreach ($this->checks->pending() as $migration) {
+            $kinds[$migration['version']] = [$migration['class'], $migration['kind']];
+        }
+
+        $this->assertSame($expected, $kinds);
+    }
+
     public function testPending_GivesTheNoteOfAMigrationThatNeedsOne(): void
     {
         $this->forgetMigration('20261031000000');

@@ -437,4 +437,20 @@ class AccountingReadinessTest extends CIUnitTestCase
 
         $this->assertDatabaseUnchanged($before);
     }
+
+    public function testRun_SaysTheDatabaseDoesNotEnforceReadingWhenACallerTransactionIsOpen(): void
+    {
+        $db = Database::connect();
+        $db->transStart();
+
+        try {
+            [, $output] = $this->readiness();
+        } finally {
+            $db->transRollback();
+            $db->resetTransStatus();
+        }
+
+        $this->assertStringContainsString('The connection could not open a read-only transaction: the checks only read, but the database does not enforce it.', $output);
+        $this->assertStringNotContainsString('Every check ran inside a read-only transaction', $output);
+    }
 }

@@ -297,6 +297,13 @@ class HistoricalDataChecksTest extends CIUnitTestCase
         $this->assertSame(["treasury {$blank} (Blank bank) lacks the bank name"], $this->check('bank_details')->findings);
     }
 
+    public function testBankDetails_TreatsABlankAccountNumberAsMissing(): void
+    {
+        $blank = $this->legacyBank('Blank number bank', 'Al Rajhi', '');
+
+        $this->assertSame(["treasury {$blank} (Blank number bank) lacks the account number"], $this->check('bank_details')->findings);
+    }
+
     public function testBankDetails_PassesWhenEveryBankAccountHasBoth(): void
     {
         $this->treasuries->create(['name' => 'Complete bank', 'kind' => 'bank', 'bank_name' => 'Gulf Bank', 'account_number' => '987654']);

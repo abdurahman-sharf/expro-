@@ -1,0 +1,1304 @@
+[
+ {
+  "name": "G01 the runner asks the database for a read-only transaction",
+  "file": "app/Libraries/Accounting/Readiness/ReadinessRunner.php",
+  "find": "$this->db->query('SET TRANSACTION READ ONLY') !== false",
+  "replace": "$this->db->query('SELECT 1') !== false",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/ReadinessRunnerTest.php"
+  ]
+ },
+ {
+  "name": "G02 the runner opens a transaction around every check",
+  "file": "app/Libraries/Accounting/Readiness/ReadinessRunner.php",
+  "find": "        $this->db->resetTransStatus();\n        $this->db->transStart();\n\n        return $readOnly;",
+  "replace": "        $this->db->resetTransStatus();\n\n        return $readOnly;",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/ReadinessRunnerTest.php"
+  ]
+ },
+ {
+  "name": "G03 the runner rolls the transaction back and never commits",
+  "file": "app/Libraries/Accounting/Readiness/ReadinessRunner.php",
+  "find": "                $this->db->transRollback();",
+  "replace": "                $this->db->transCommit();",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/ReadinessRunnerTest.php"
+  ]
+ },
+ {
+  "name": "G04 the runner opens its own transaction only when the caller has none",
+  "file": "app/Libraries/Accounting/Readiness/ReadinessRunner.php",
+  "find": "$ownsTransaction = $this->db->transDepth === 0;",
+  "replace": "$ownsTransaction = true;",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/ReadinessRunnerTest.php"
+  ]
+ },
+ {
+  "name": "G05 the runner ends only the transaction it opened",
+  "file": "app/Libraries/Accounting/Readiness/ReadinessRunner.php",
+  "find": "            if ($ownsTransaction) {\n                $this->db->transRollback();",
+  "replace": "            if (true) {\n                $this->db->transRollback();",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/ReadinessRunnerTest.php"
+  ]
+ },
+ {
+  "name": "G06 the runner says it read without a read-only transaction when the database refused one",
+  "file": "app/Libraries/Accounting/Readiness/ReadinessRunner.php",
+  "find": "        } catch (Throwable) {\n            $readOnly = false;",
+  "replace": "        } catch (Throwable) {\n            $readOnly = true;",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/ReadinessRunnerTest.php"
+  ]
+ },
+ {
+  "name": "G07 the runner reports a refused read-only request honestly",
+  "file": "app/Libraries/Accounting/Readiness/ReadinessRunner.php",
+  "find": "$readOnly = $this->db->query('SET TRANSACTION READ ONLY') !== false;",
+  "replace": "$readOnly = true;",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/ReadinessRunnerTest.php"
+  ]
+ },
+ {
+  "name": "G08 the exit code is 0 only when the database is ready",
+  "file": "app/Commands/AccountingReadiness.php",
+  "find": "return $result->ready() ? EXIT_SUCCESS : EXIT_ERROR;",
+  "replace": "return EXIT_SUCCESS;",
+  "tests": [
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G09 --apply is refused while --json is asked",
+  "file": "app/Commands/AccountingReadiness.php",
+  "find": "if ($json && $apply) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G10 nothing is applied unless --apply is asked",
+  "file": "app/Commands/AccountingReadiness.php",
+  "find": "        if ($apply) {\n            $result = $this->apply($runner, $result);",
+  "replace": "        if (true) {\n            $result = $this->apply($runner, $result);",
+  "tests": [
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G11 a limit that is not a number is refused",
+  "file": "app/Commands/AccountingReadiness.php",
+  "find": "if ($limit === null) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G12 the report is made again after --apply",
+  "file": "app/Commands/AccountingReadiness.php",
+  "find": "        return $runner->run();",
+  "replace": "        return $result;",
+  "tests": [
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G13 --apply delegates with the apply flag of the existing command",
+  "file": "app/Commands/AccountingReadiness.php",
+  "find": "$this->call($check->apply['command'], $check->apply['params']);",
+  "replace": "$this->call($check->apply['command'], []);",
+  "tests": [
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G14 --apply says when nothing could be cleared",
+  "file": "app/Commands/AccountingReadiness.php",
+  "find": "        if ($checks === []) {\n            CLI::write('--apply: nothing the existing commands could clear.');",
+  "replace": "        if (false) {\n            CLI::write('--apply: nothing the existing commands could clear.');",
+  "tests": [
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G15 the report says what the connection could not enforce",
+  "file": "app/Commands/AccountingReadiness.php",
+  "find": "CLI::write($result->readOnly ? 'Every check ran inside a read-only transaction: nothing was written.' : 'The connection could not open a read-only transaction: the checks only read, but the database does not enforce it.', $result->readOnly ? null : 'yellow');",
+  "replace": "CLI::write('Every check ran inside a read-only transaction: nothing was written.');",
+  "tests": [
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G16 --limit 0 prints every finding",
+  "file": "app/Commands/AccountingReadiness.php",
+  "find": "$shown = $limit === 0 ? $check->findings : array_slice($check->findings, 0, $limit);",
+  "replace": "$shown = array_slice($check->findings, 0, $limit);",
+  "tests": [
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G17 the command is registered as accounting:readiness",
+  "file": "app/Commands/AccountingReadiness.php",
+  "find": "protected $name        = 'accounting:readiness';",
+  "replace": "protected $name        = 'accounting:readiness_x';",
+  "tests": [
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G18 the JSON ends with the runbook steps",
+  "file": "app/Commands/AccountingReadiness.php",
+  "find": "CLI::write(json_encode([...$result->toArray(), 'runbook' => ReadinessRunbook::steps($result->pendingMigrations)]",
+  "replace": "CLI::write(json_encode([...$result->toArray()]",
+  "tests": [
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G19 the report ends with the runbook",
+  "file": "app/Commands/AccountingReadiness.php",
+  "find": "        $this->printRunbook($result);\n    }",
+  "replace": "    }",
+  "tests": [
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G20 a database is ready only when no check blocks",
+  "file": "app/Libraries/Accounting/Readiness/ReadinessResult.php",
+  "find": "return $this->blocking() === [];",
+  "replace": "return true;",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/ReadinessResultTest.php",
+   "tests/Libraries/Accounting/Readiness/CheckStatusTest.php"
+  ]
+ },
+ {
+  "name": "G21 the phase is pre-migration while a migration is pending",
+  "file": "app/Libraries/Accounting/Readiness/ReadinessResult.php",
+  "find": "return $this->pendingMigrations === [] ? self::POST_MIGRATION : self::PRE_MIGRATION;",
+  "replace": "return $this->pendingMigrations === [] ? self::PRE_MIGRATION : self::POST_MIGRATION;",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/ReadinessResultTest.php",
+   "tests/Libraries/Accounting/Readiness/CheckStatusTest.php"
+  ]
+ },
+ {
+  "name": "G22 only a failed check with a command is applicable",
+  "file": "app/Libraries/Accounting/Readiness/ReadinessResult.php",
+  "find": "if ($check->status === CheckStatus::Fail && $check->apply !== null) {",
+  "replace": "if ($check->apply !== null) {",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/ReadinessResultTest.php",
+   "tests/Libraries/Accounting/Readiness/CheckStatusTest.php"
+  ]
+ },
+ {
+  "name": "G23 one command is applied once, for the first check that failed",
+  "file": "app/Libraries/Accounting/Readiness/ReadinessResult.php",
+  "find": "$checks[$check->apply['command']] ??= $check;",
+  "replace": "$checks[$check->apply['command']] = $check;",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/ReadinessResultTest.php",
+   "tests/Libraries/Accounting/Readiness/CheckStatusTest.php"
+  ]
+ },
+ {
+  "name": "G24 the JSON exit code follows readiness",
+  "file": "app/Libraries/Accounting/Readiness/ReadinessResult.php",
+  "find": "'exit_code'    => $this->ready() ? 0 : 1,",
+  "replace": "'exit_code'    => 0,",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/ReadinessResultTest.php",
+   "tests/Libraries/Accounting/Readiness/CheckStatusTest.php"
+  ]
+ },
+ {
+  "name": "G25 a failed check blocks",
+  "file": "app/Libraries/Accounting/Readiness/CheckStatus.php",
+  "find": "return $this === self::Fail || $this === self::Error;",
+  "replace": "return $this === self::Error;",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/ReadinessResultTest.php",
+   "tests/Libraries/Accounting/Readiness/CheckStatusTest.php"
+  ]
+ },
+ {
+  "name": "G26 a check that broke blocks",
+  "file": "app/Libraries/Accounting/Readiness/CheckStatus.php",
+  "find": "return $this === self::Fail || $this === self::Error;",
+  "replace": "return $this === self::Fail;",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/ReadinessResultTest.php",
+   "tests/Libraries/Accounting/Readiness/CheckStatusTest.php"
+  ]
+ },
+ {
+  "name": "G27 a check named for the group keeps its command to apply",
+  "file": "app/Libraries/Accounting/Readiness/CheckResult.php",
+  "find": "$this->data, $this->apply, $id, $ref, $title",
+  "replace": "$this->data, null, $id, $ref, $title",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/CheckResultTest.php"
+  ]
+ },
+ {
+  "name": "G28 a command without parameters is written without flags",
+  "file": "app/Libraries/Accounting/Readiness/CheckResult.php",
+  "find": "if ($this->apply === null) {\n            return null;\n        }",
+  "replace": "if ($this->apply === null) {\n            return '';\n        }",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/CheckResultTest.php"
+  ]
+ },
+ {
+  "name": "G29 each parameter of the command is written as a flag",
+  "file": "app/Libraries/Accounting/Readiness/CheckResult.php",
+  "find": "static fn (string $flag): string => '--' . $flag",
+  "replace": "static fn (string $flag): string => $flag",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/CheckResultTest.php"
+  ]
+ },
+ {
+  "name": "G30 a check whose schema is missing is skipped and not run",
+  "file": "app/Libraries/Accounting/Readiness/CheckGroup.php",
+  "find": "if ($missing !== []) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/CheckGroupTest.php"
+  ]
+ },
+ {
+  "name": "G31 a check that breaks is reported and does not stop the report",
+  "file": "app/Libraries/Accounting/Readiness/CheckGroup.php",
+  "find": "return CheckResult::error($failure)->named($id, $ref, $title);",
+  "replace": "throw $failure;",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/CheckGroupTest.php"
+  ]
+ },
+ {
+  "name": "G32 a skipped check keeps its name",
+  "file": "app/Libraries/Accounting/Readiness/CheckGroup.php",
+  "find": "'missing' => $missing])->named($id, $ref, $title);",
+  "replace": "'missing' => $missing]);",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/CheckGroupTest.php"
+  ]
+ },
+ {
+  "name": "G33 a column is looked for only in a table that exists",
+  "file": "app/Libraries/Accounting/Readiness/SchemaProbe.php",
+  "find": "return $this->hasTable($table)\n            && $this->db->query(",
+  "replace": "return $this->db->query(",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/SchemaProbeTest.php"
+  ]
+ },
+ {
+  "name": "G34 a needed column is checked, not only its table",
+  "file": "app/Libraries/Accounting/Readiness/SchemaProbe.php",
+  "find": "$column === null ? ! $this->hasTable($table) : ! $this->hasColumn($table, $column)",
+  "replace": "! $this->hasTable($table)",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/SchemaProbeTest.php"
+  ]
+ },
+ {
+  "name": "G35 E38: a database whose migration ran has nothing left to scan",
+  "file": "app/Libraries/Accounting/Readiness/HistoricalDataChecks.php",
+  "find": "if ($appliedAt !== null) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/HistoricalDataChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G36 E38: a line no evidence decides fails the check",
+  "file": "app/Libraries/Accounting/Readiness/HistoricalDataChecks.php",
+  "find": "if ($plan['blocked'] !== []) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/HistoricalDataChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G37 E38: a line settled by a recorded decision is left for review",
+  "file": "app/Libraries/Accounting/Readiness/HistoricalDataChecks.php",
+  "find": "if ($undetermined !== []) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/HistoricalDataChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G38 E38: the lines the books or the date decide are counted too",
+  "file": "app/Libraries/Accounting/Readiness/HistoricalDataChecks.php",
+  "find": "$findings = [...$plan['mark'], ...$plan['keep'], ...$plan['blocked']];",
+  "replace": "$findings = [...$plan['mark'], ...$plan['blocked']];",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/HistoricalDataChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G39 E40: a bank account outside 1202 fails the check",
+  "file": "app/Libraries/Accounting/Readiness/HistoricalDataChecks.php",
+  "find": "        if ($pending === []) {\n            return CheckResult::pass('Every bank account is under",
+  "replace": "        if (true) {\n            return CheckResult::pass('Every bank account is under",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/HistoricalDataChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G40 E40: a bank account without its details fails the check",
+  "file": "app/Libraries/Accounting/Readiness/HistoricalDataChecks.php",
+  "find": "        if ($incomplete === []) {\n            return CheckResult::pass('Every bank account has",
+  "replace": "        if (true) {\n            return CheckResult::pass('Every bank account has",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/HistoricalDataChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G41 E40: a blank bank name counts as missing",
+  "file": "app/Libraries/Accounting/Readiness/HistoricalDataChecks.php",
+  "find": "trim((string) $row->bank_name) === '' ? 'the bank name' : null",
+  "replace": "$row->bank_name === null ? 'the bank name' : null",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/HistoricalDataChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G42 E40: a blank account number counts as missing",
+  "file": "app/Libraries/Accounting/Readiness/HistoricalDataChecks.php",
+  "find": "trim((string) $row->account_number) === '' ? 'the account number' : null",
+  "replace": "$row->account_number === null ? 'the account number' : null",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/HistoricalDataChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G43 E40: before the bank migration the check is skipped and counts the banks",
+  "file": "app/Libraries/Accounting/Readiness/HistoricalDataChecks.php",
+  "find": "if ($this->schema->hasColumn('treasuries', 'bank_name') && $this->schema->hasColumn('treasuries', 'account_number')) {\n            return null;",
+  "replace": "if (true) {\n            return null;",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/HistoricalDataChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G44 E41: a payment that names no treasury fails the check",
+  "file": "app/Libraries/Accounting/Readiness/HistoricalDataChecks.php",
+  "find": "if ($plan['stamp'] !== []) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/HistoricalDataChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G45 E41: a payment that cannot be stamped is left for review",
+  "file": "app/Libraries/Accounting/Readiness/HistoricalDataChecks.php",
+  "find": "if ($skipped !== []) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/HistoricalDataChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G46 E41: the stamping is cleared by its own command with its apply flag",
+  "file": "app/Libraries/Accounting/Readiness/HistoricalDataChecks.php",
+  "find": "['command' => 'accounting:stamp_payments', 'params' => ['apply' => null]]",
+  "replace": "['command' => 'accounting:stamp_payments', 'params' => []]",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/HistoricalDataChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G47 E40: the move is cleared by its own command with its move flag",
+  "file": "app/Libraries/Accounting/Readiness/HistoricalDataChecks.php",
+  "find": "['command' => 'accounting:bank_accounts', 'params' => ['move' => null]]",
+  "replace": "['command' => 'accounting:bank_accounts', 'params' => []]",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/HistoricalDataChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G48 READ-ONLY: the E38 check never applies the migration (a check that writes through another connection changes a row)",
+  "file": "app/Libraries/Accounting/Readiness/HistoricalDataChecks.php",
+  "find": "$scan     = new LegacyPurchaseDiscount($this->db);",
+  "replace": "(new LegacyPurchaseDiscount(\\Config\\Database::connect(null, false)))->apply();\n        $scan     = new LegacyPurchaseDiscount($this->db);",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/HistoricalDataChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G49 READ-ONLY: the E40 check never moves an account (a check that writes through another connection changes a row)",
+  "file": "app/Libraries/Accounting/Readiness/HistoricalDataChecks.php",
+  "find": "$pending = (new BankAccountPlacement($this->db))->pending();",
+  "replace": "(new BankAccountPlacement(\\Config\\Database::connect(null, false)))->move();\n        $pending = (new BankAccountPlacement($this->db))->pending();",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/HistoricalDataChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G50 READ-ONLY: the E41 check never stamps a payment (a check that writes through another connection changes a row)",
+  "file": "app/Libraries/Accounting/Readiness/HistoricalDataChecks.php",
+  "find": "$plan = (new PaymentTreasuryStamping($this->db))->plan();",
+  "replace": "(new PaymentTreasuryStamping(\\Config\\Database::connect(null, false)))->stamp();\n        $plan = (new PaymentTreasuryStamping($this->db))->plan();",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/HistoricalDataChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G51 READ-ONLY: the E41 check never stamps a payment (the check runs the stamping on the shared connection and the database refuses it)",
+  "file": "app/Libraries/Accounting/Readiness/HistoricalDataChecks.php",
+  "find": "$plan = (new PaymentTreasuryStamping($this->db))->plan();",
+  "replace": "(new PaymentTreasuryStamping($this->db))->stamp();\n        $plan = (new PaymentTreasuryStamping($this->db))->plan();",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/HistoricalDataChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G52 an imbalance below the tolerance is not a failure but one above it is",
+  "file": "app/Libraries/Accounting/Readiness/LedgerChecks.php",
+  "find": "private const TOLERANCE = '0.00005';",
+  "replace": "private const TOLERANCE = '1';",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/LedgerChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G53 a journal whose lines differ from each other fails",
+  "file": "app/Libraries/Accounting/Readiness/LedgerChecks.php",
+  "find": "(ABS(line_debit - line_credit) > ' . self::TOLERANCE . ' OR ABS(line_debit - total_debit)",
+  "replace": "(ABS(line_debit - total_debit)",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/LedgerChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G54 a journal whose debit header differs from its lines fails",
+  "file": "app/Libraries/Accounting/Readiness/LedgerChecks.php",
+  "find": "' OR ABS(line_debit - total_debit) > ' . self::TOLERANCE . ",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/LedgerChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G55 a journal whose credit header differs from its lines fails",
+  "file": "app/Libraries/Accounting/Readiness/LedgerChecks.php",
+  "find": "' OR ABS(line_credit - total_credit) > ' . self::TOLERANCE . ')'",
+  "replace": "')'",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/LedgerChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G56 a journal without lines is left to its own check, not counted as unbalanced",
+  "file": "app/Libraries/Accounting/Readiness/LedgerChecks.php",
+  "find": "'line_count > 0 AND (ABS(",
+  "replace": "'(ABS(",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/LedgerChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G57 balanced journals pass",
+  "file": "app/Libraries/Accounting/Readiness/LedgerChecks.php",
+  "find": "        if ($rows === []) {\n            return CheckResult::pass('Every posted journal balances",
+  "replace": "        if (true) {\n            return CheckResult::pass('Every posted journal balances",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/LedgerChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G58 a posted journal without lines fails",
+  "file": "app/Libraries/Accounting/Readiness/LedgerChecks.php",
+  "find": "        if ($rows === []) {\n            return CheckResult::pass('Every posted journal has lines.');",
+  "replace": "        if (true) {\n            return CheckResult::pass('Every posted journal has lines.');",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/LedgerChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G59 a reversed journal is still part of the books",
+  "file": "app/Libraries/Accounting/Readiness/LedgerChecks.php",
+  "find": "return [JournalStatus::Posted->value, JournalStatus::Reversed->value];",
+  "replace": "return [JournalStatus::Posted->value];",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/LedgerChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G60 only the journals of the company are read",
+  "file": "app/Libraries/Accounting/Readiness/LedgerChecks.php",
+  "find": "->where('j.company_id', CompanyContext::id())",
+  "replace": "->where('1 = 1', null, false)",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/LedgerChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ],
+  "all": true
+ },
+ {
+  "name": "G61 only a lock that is active counts",
+  "file": "app/Libraries/Accounting/Readiness/LedgerChecks.php",
+  "find": " AND p.active = 1",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/LedgerChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G62 a lock of one branch holds for that branch only",
+  "file": "app/Libraries/Accounting/Readiness/LedgerChecks.php",
+  "find": "(p.branch_id IS NULL OR p.branch_id = j.branch_id)",
+  "replace": "1 = 1",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/LedgerChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G63 a journal posted before the lock was made is not a violation",
+  "file": "app/Libraries/Accounting/Readiness/LedgerChecks.php",
+  "find": " AND j.posted_at > p.created_at",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/LedgerChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G64 a lock closes the days up to its end date only",
+  "file": "app/Libraries/Accounting/Readiness/LedgerChecks.php",
+  "find": "AND j.journal_date <= p.date_to",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/LedgerChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G65 a journal outside every fiscal year fails",
+  "file": "app/Libraries/Accounting/Readiness/LedgerChecks.php",
+  "find": "f.start_date <= j.journal_date AND f.end_date >= j.journal_date",
+  "replace": "f.start_date <= j.journal_date",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/LedgerChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G66 a journal before every fiscal year fails",
+  "file": "app/Libraries/Accounting/Readiness/LedgerChecks.php",
+  "find": "f.start_date <= j.journal_date AND f.end_date >= j.journal_date",
+  "replace": "f.end_date >= j.journal_date",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/LedgerChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G67 a posted document counts once per source key and entry type",
+  "file": "app/Libraries/Accounting/Readiness/LedgerChecks.php",
+  "find": "->groupBy('source_type, source_id, entry_type')",
+  "replace": "->groupBy('source_type, source_id')",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/LedgerChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G68 a manual journal and a reversal have no source key to repeat",
+  "file": "app/Libraries/Accounting/Readiness/LedgerChecks.php",
+  "find": "->whereNotIn('source_type', [JournalDraft::SOURCE_MANUAL, JournalDraft::SOURCE_REVERSAL])",
+  "replace": "->where('1 = 1', null, false)",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/LedgerChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G69 a journal without a source id has no key to repeat",
+  "file": "app/Libraries/Accounting/Readiness/LedgerChecks.php",
+  "find": "            ->where('source_id IS NOT NULL', null, false)\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/LedgerChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G70 only posted journals count as documents standing in the books",
+  "file": "app/Libraries/Accounting/Readiness/LedgerChecks.php",
+  "find": "->where('status', JournalStatus::Posted->value)",
+  "replace": "->whereIn('status', [JournalStatus::Posted->value, JournalStatus::Reversed->value])",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/LedgerChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G71 a journal reversed twice fails",
+  "file": "app/Libraries/Accounting/Readiness/LedgerChecks.php",
+  "find": "->having('COUNT(*) > 1', null, false)\n            ->orderBy('reverses_journal_id', 'ASC')",
+  "replace": "->having('COUNT(*) > 5', null, false)\n            ->orderBy('reverses_journal_id', 'ASC')",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/LedgerChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G72 a switched-on sequence that would repeat a number fails",
+  "file": "app/Libraries/Accounting/Readiness/LedgerChecks.php",
+  "find": "if ($isBehind && $stored->enabled) {",
+  "replace": "if ($isBehind) {",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/LedgerChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G73 a sequence at the lowest next number is not behind",
+  "file": "app/Libraries/Accounting/Readiness/LedgerChecks.php",
+  "find": "$isBehind = $lowest->nextNumber > $stored->nextNumber;",
+  "replace": "$isBehind = $lowest->nextNumber >= $stored->nextNumber;",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/LedgerChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G74 the manual journal series behind its journals fails",
+  "file": "app/Libraries/Accounting/Readiness/LedgerChecks.php",
+  "find": "$manual = $this->manualJournals();\n\n        if ($manual !== null) {\n            $behind[] = $manual;\n        }",
+  "replace": "$manual = null;",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/LedgerChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G75 a manual journal at the last number is not behind",
+  "file": "app/Libraries/Accounting/Readiness/LedgerChecks.php",
+  "find": "return $top > $last ? ",
+  "replace": "return $top >= $last ? ",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/LedgerChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G76 a customer whose account differs from invoices and credit fails",
+  "file": "app/Libraries/Accounting/Readiness/TieChecks.php",
+  "find": "            $position = $ledger->position($customerId);\n            $aged     = $this->agedTotal($position->aging(date('Y-m-d')));\n\n            if ($position->agrees() && ",
+  "replace": "            $position = $ledger->position($customerId);\n            $aged     = $this->agedTotal($position->aging(date('Y-m-d')));\n\n            if (",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/TieChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G77 a drift of the aging of a customer from what is open is caught (the aging code is mutated, the check must fail)",
+  "file": "app/Libraries/Accounting/CustomerPosition.php",
+  "find": "$buckets[$bucket] = bcadd($buckets[$bucket], $invoice->open(), SaleAmounts::SCALE);",
+  "replace": "$buckets[$bucket] = $invoice->open();",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/TieChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G78 a supplier whose account differs from purchases and credit fails",
+  "file": "app/Libraries/Accounting/Readiness/TieChecks.php",
+  "find": "            $position = $ledger->position($supplierId);\n            $aged     = $this->agedTotal($position->aging(date('Y-m-d')));\n\n            if ($position->agrees() && ",
+  "replace": "            $position = $ledger->position($supplierId);\n            $aged     = $this->agedTotal($position->aging(date('Y-m-d')));\n\n            if (",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/TieChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G79 a drift of the aging of a supplier from what is open is caught (the aging code is mutated, the check must fail)",
+  "file": "app/Libraries/Accounting/SupplierPosition.php",
+  "find": "$buckets[$bucket] = bcadd($buckets[$bucket], $purchase->open(), SaleAmounts::SCALE);",
+  "replace": "$buckets[$bucket] = $purchase->open();",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/TieChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G80 only the accounts of customers or of suppliers are read for each check",
+  "file": "app/Libraries/Accounting/Readiness/TieChecks.php",
+  "find": "->where('a.entity_type', $kind)",
+  "replace": "->where('1 = 1', null, false)",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/TieChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G81 only accounts with movements are checked",
+  "file": "app/Libraries/Accounting/Readiness/TieChecks.php",
+  "find": "->join('accounting_journal_lines l', 'l.account_id = a.account_id')",
+  "replace": "->join('accounting_journal_lines l', 'l.account_id = a.account_id', 'left')",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/TieChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G82 a treasury without an account fails",
+  "file": "app/Libraries/Accounting/Readiness/TieChecks.php",
+  "find": "if ($position->accountId === null) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/TieChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G83 a treasury whose account holds a manual amount fails",
+  "file": "app/Libraries/Accounting/Readiness/TieChecks.php",
+  "find": "} elseif (! $position->agrees()) {",
+  "replace": "} elseif (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/TieChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G84 a stock location whose account differs from its movements fails",
+  "file": "app/Libraries/Accounting/Readiness/TieChecks.php",
+  "find": "if (bccomp($row['unattributed'], '0', StockLedger::VALUE_SCALE) !== 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/TieChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G85 a journal that differs from its stock movements fails",
+  "file": "app/Libraries/Accounting/Readiness/TieChecks.php",
+  "find": "foreach ($ledger->mismatchedJournals() as $row) {",
+  "replace": "foreach ([] as $row) {",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/TieChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G86 every stock location is reconciled",
+  "file": "app/Libraries/Accounting/Readiness/TieChecks.php",
+  "find": "$ledger->reconcile(array_keys($names))",
+  "replace": "$ledger->reconcile([])",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/TieChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G87 a journal from a transfer receipt is not unattributed",
+  "file": "app/Libraries/Accounting/Readiness/TieChecks.php",
+  "find": "TreasuryTransfers::SOURCE_RECEIPT, ",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/TieChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G88 a journal from a stock transfer is not unattributed",
+  "file": "app/Libraries/Accounting/Readiness/TieChecks.php",
+  "find": "ReceivingPostingBuilder::SOURCE_STOCK_TRANSFER, ",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/TieChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G89 a journal that no transfer accounts for is listed",
+  "file": "app/Libraries/Accounting/Readiness/TieChecks.php",
+  "find": "->whereNotIn('j.source_type', $transfers);",
+  "replace": ";",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/TieChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G90 only the two accounts between branches are read",
+  "file": "app/Libraries/Accounting/Readiness/TieChecks.php",
+  "find": "->whereIn('a.system_key', ['branches_receivable', 'branches_payable'])",
+  "replace": "->whereIn('a.system_key', ['branches_receivable'])",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/TieChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G91 a reversal of a transfer journal is attributed to the transfer",
+  "file": "app/Libraries/Accounting/Readiness/TieChecks.php",
+  "find": "COALESCE(j.reverses_journal_id, j.journal_id)",
+  "replace": "j.journal_id",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/TieChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G92 a branches difference across the company fails",
+  "file": "app/Libraries/Accounting/Readiness/TieChecks.php",
+  "find": "if (bccomp($difference, '0', SaleAmounts::SCALE) !== 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/TieChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G93 a pair of branches that disagrees fails",
+  "file": "app/Libraries/Accounting/Readiness/TieChecks.php",
+  "find": "if (! $pair->agrees) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/TieChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G94 nobody holding a sensitive permission passes",
+  "file": "app/Libraries/Accounting/Readiness/SettingsChecks.php",
+  "find": "if ($holders === []) {",
+  "replace": "if (true) {",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/SettingsChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G95 a sensitive permission not registered yet is said so",
+  "file": "app/Libraries/Accounting/Readiness/SettingsChecks.php",
+  "find": "(in_array($permissionId, $known, true) ? '' : ' [not registered yet]')",
+  "replace": "''",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/SettingsChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G96 every sensitive permission is listed with its holders",
+  "file": "app/Libraries/Accounting/Readiness/SettingsChecks.php",
+  "find": "foreach (AccountingGuard::SENSITIVE as $permissionId) {",
+  "replace": "foreach (array_slice(AccountingGuard::SENSITIVE, 0, 1) as $permissionId) {",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/SettingsChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G97 a holder of every branch is told apart from one of some branches",
+  "file": "app/Libraries/Accounting/Readiness/SettingsChecks.php",
+  "find": "$holder['all_branches'] ? 'every branch' : ",
+  "replace": "false ? 'every branch' : ",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/SettingsChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G98 disabled accounting is left for review and stays disabled",
+  "file": "app/Libraries/Accounting/Readiness/SettingsChecks.php",
+  "find": "if (! $enabled) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/SettingsChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G99 enabled accounting with incomplete settings fails",
+  "file": "app/Libraries/Accounting/Readiness/SettingsChecks.php",
+  "find": "        if ($issues !== []) {\n            return CheckResult::fail('Accounting is enabled while",
+  "replace": "        if (false) {\n            return CheckResult::fail('Accounting is enabled while",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/SettingsChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G100 the activation needs are not read before the schema is there",
+  "file": "app/Libraries/Accounting/Readiness/SettingsChecks.php",
+  "find": "if ($this->schema->missing(self::ACTIVATION_NEEDS) !== []) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/SettingsChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G101 opening stock already posted or with nothing to post is not waiting",
+  "file": "app/Libraries/Accounting/Readiness/SettingsChecks.php",
+  "find": "if (in_array($plan->status, [OpeningStockStatus::NothingToPost, OpeningStockStatus::AlreadyPosted], true)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/SettingsChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G102 a stock location with opening stock waiting is left for review",
+  "file": "app/Libraries/Accounting/Readiness/SettingsChecks.php",
+  "find": "        if ($waiting === 0) {\n            return CheckResult::pass('No stock location",
+  "replace": "        if (true) {\n            return CheckResult::pass('No stock location",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/SettingsChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G103 opening balances left as a draft are left for review",
+  "file": "app/Libraries/Accounting/Readiness/SettingsChecks.php",
+  "find": "if ($drafts > 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/SettingsChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G104 a posted opening balance is told apart from a draft",
+  "file": "app/Libraries/Accounting/Readiness/SettingsChecks.php",
+  "find": "if ($state['posted'] !== null) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/SettingsChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G105 only the branches of the company are read",
+  "file": "app/Libraries/Accounting/Readiness/SettingsChecks.php",
+  "find": "->where('company_id', CompanyContext::id())",
+  "replace": "->where('1 = 1', null, false)",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/SettingsChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G106 a migration that rewrites data is marked DATA (BranchesFoundation)",
+  "file": "app/Libraries/Accounting/Readiness/MigrationChecks.php",
+  "find": "'BranchesFoundation'            => [self::DATA,",
+  "replace": "'BranchesFoundation'            => [self::ADDITIVE,",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/MigrationChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G107 a migration that rewrites data is marked DATA (AccountingRouting)",
+  "file": "app/Libraries/Accounting/Readiness/MigrationChecks.php",
+  "find": "'AccountingRouting'             => [self::DATA,",
+  "replace": "'AccountingRouting'             => [self::ADDITIVE,",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/MigrationChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G108 a migration that rewrites data is marked DATA (PurchasesAccounting)",
+  "file": "app/Libraries/Accounting/Readiness/MigrationChecks.php",
+  "find": "'PurchasesAccounting'           => [self::DATA,",
+  "replace": "'PurchasesAccounting'           => [self::ADDITIVE,",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/MigrationChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G109 a migration that rewrites data is marked DATA (LegacyFixedPurchaseDiscount)",
+  "file": "app/Libraries/Accounting/Readiness/MigrationChecks.php",
+  "find": "'LegacyFixedPurchaseDiscount'   => [self::DATA,",
+  "replace": "'LegacyFixedPurchaseDiscount'   => [self::ADDITIVE,",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/MigrationChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G110 a migration that rewrites data is marked DATA (BankAccounts)",
+  "file": "app/Libraries/Accounting/Readiness/MigrationChecks.php",
+  "find": "'BankAccounts'                  => [self::DATA,",
+  "replace": "'BankAccounts'                  => [self::ADDITIVE,",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/MigrationChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G111 a migration that rewrites data is marked DATA (InterBranchTransfers)",
+  "file": "app/Libraries/Accounting/Readiness/MigrationChecks.php",
+  "find": "'InterBranchTransfers'          => [self::DATA,",
+  "replace": "'InterBranchTransfers'          => [self::ADDITIVE,",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/MigrationChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G112 a migration that alters a large table is marked HEAVY (SalesAccounting)",
+  "file": "app/Libraries/Accounting/Readiness/MigrationChecks.php",
+  "find": "'SalesAccounting'               => [self::HEAVY,",
+  "replace": "'SalesAccounting'               => [self::ADDITIVE,",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/MigrationChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G113 a migration that alters a large table is marked HEAVY (SalesReceivables)",
+  "file": "app/Libraries/Accounting/Readiness/MigrationChecks.php",
+  "find": "'SalesReceivables'              => [self::HEAVY,",
+  "replace": "'SalesReceivables'              => [self::ADDITIVE,",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/MigrationChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G114 a migration that alters a large table is marked HEAVY (CostPrecision)",
+  "file": "app/Libraries/Accounting/Readiness/MigrationChecks.php",
+  "find": "'CostPrecision'                 => [self::HEAVY,",
+  "replace": "'CostPrecision'                 => [self::ADDITIVE,",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/MigrationChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G115 a migration that alters a large table is marked HEAVY (ReceivingCostPrecision)",
+  "file": "app/Libraries/Accounting/Readiness/MigrationChecks.php",
+  "find": "'ReceivingCostPrecision'        => [self::HEAVY,",
+  "replace": "'ReceivingCostPrecision'        => [self::ADDITIVE,",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/MigrationChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G116 a migration that alters a large table is marked HEAVY (Treasuries)",
+  "file": "app/Libraries/Accounting/Readiness/MigrationChecks.php",
+  "find": "'Treasuries'                    => [self::HEAVY,",
+  "replace": "'Treasuries'                    => [self::ADDITIVE,",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/MigrationChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G117 a migration that alters a large table is marked HEAVY (StockTransfersBetweenBranches)",
+  "file": "app/Libraries/Accounting/Readiness/MigrationChecks.php",
+  "find": "'StockTransfersBetweenBranches' => [self::HEAVY,",
+  "replace": "'StockTransfersBetweenBranches' => [self::ADDITIVE,",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/MigrationChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G118 a migration that alters a large table is marked HEAVY (ExpensesAccounting)",
+  "file": "app/Libraries/Accounting/Readiness/MigrationChecks.php",
+  "find": "'ExpensesAccounting'            => [self::HEAVY,",
+  "replace": "'ExpensesAccounting'            => [self::ADDITIVE,",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/MigrationChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G119 a migration that alters a large table is marked HEAVY (PurchaseInvoiceDiscount)",
+  "file": "app/Libraries/Accounting/Readiness/MigrationChecks.php",
+  "find": "'PurchaseInvoiceDiscount'       => [self::HEAVY,",
+  "replace": "'PurchaseInvoiceDiscount'       => [self::ADDITIVE,",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/MigrationChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G120 a migration that alters a large table is marked HEAVY (SalesInvoiceDiscount)",
+  "file": "app/Libraries/Accounting/Readiness/MigrationChecks.php",
+  "find": "'SalesInvoiceDiscount'          => [self::HEAVY,",
+  "replace": "'SalesInvoiceDiscount'          => [self::ADDITIVE,",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/MigrationChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G121 a migration that alters a large table is marked HEAVY (CrossBranchPayments)",
+  "file": "app/Libraries/Accounting/Readiness/MigrationChecks.php",
+  "find": "'CrossBranchPayments'           => [self::HEAVY,",
+  "replace": "'CrossBranchPayments'           => [self::ADDITIVE,",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/MigrationChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G122 an applied migration is not pending",
+  "file": "app/Libraries/Accounting/Readiness/MigrationChecks.php",
+  "find": "if (isset($done[(string) $version])) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/MigrationChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G123 the migrations are listed in the order they run",
+  "file": "app/Libraries/Accounting/Readiness/MigrationChecks.php",
+  "find": "        ksort($files);\n",
+  "replace": "        krsort($files);\n",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/MigrationChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G124 a migration recorded as applied with no file here is reported",
+  "file": "app/Libraries/Accounting/Readiness/MigrationChecks.php",
+  "find": "$unknown = array_values(array_diff(array_column($this->history(), 'version'), array_map('strval', array_keys($files))));",
+  "replace": "$unknown = [];",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/MigrationChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G125 a database with an unknown migration is not clean",
+  "file": "app/Libraries/Accounting/Readiness/MigrationChecks.php",
+  "find": "if ($pending === [] && $unknown === []) {",
+  "replace": "if ($pending === []) {",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/MigrationChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G126 the history table is never created when it is missing",
+  "file": "app/Libraries/Accounting/Readiness/MigrationChecks.php",
+  "find": "        if (! $this->schema->hasTable('migrations')) {\n            return [];\n        }\n\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/MigrationChecksTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G127 the runbook starts with a backup that can be restored",
+  "file": "app/Libraries/Accounting/Readiness/ReadinessRunbook.php",
+  "find": "'mysqldump --single-transaction --routines --triggers -u USER -p DATABASE > backup-before-release.sql',",
+  "replace": "'echo skip backup',",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/ReadinessRunbookTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G128 the readiness is checked before the migrations and kept as JSON",
+  "file": "app/Libraries/Accounting/Readiness/ReadinessRunbook.php",
+  "find": "'php spark accounting:readiness --json > readiness-before.json',",
+  "replace": "'php spark accounting:readiness --json',",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/ReadinessRunbookTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G129 accounting is turned on only when the owner orders it",
+  "file": "app/Libraries/Accounting/Readiness/ReadinessRunbook.php",
+  "find": "'title'    => 'Turn accounting on only when the owner orders it (E26)',",
+  "replace": "'title'    => 'Turn accounting on',",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/ReadinessRunbookTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G130 the rollback is the restore of the backup",
+  "file": "app/Libraries/Accounting/Readiness/ReadinessRunbook.php",
+  "find": "'mysql -u USER -p DATABASE < backup-before-release.sql',",
+  "replace": "'php spark migrate:rollback',",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/ReadinessRunbookTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G131 the migrations run in dependency order, not one at a time by hand",
+  "file": "app/Libraries/Accounting/Readiness/ReadinessRunbook.php",
+  "find": "'commands' => ['php spark migrate -n App'],",
+  "replace": "'commands' => ['php spark migrate'],",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/ReadinessRunbookTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G132 the document of the runbook names the migration command of the runbook",
+  "file": "docs/accounting/readiness-runbook.md",
+  "find": "```\nphp spark migrate -n App\n```",
+  "replace": "```\nphp spark migrate\n```",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/ReadinessRunbookTest.php"
+  ]
+ },
+ {
+  "name": "G133 the document of the runbook keeps the backup before the migrations",
+  "file": "docs/accounting/readiness-runbook.md",
+  "find": "```\nmysqldump --single-transaction --routines --triggers -u USER -p DATABASE > backup-before-release.sql\n```",
+  "replace": "```\ntrue\n```",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/ReadinessRunbookTest.php"
+  ]
+ }
+]

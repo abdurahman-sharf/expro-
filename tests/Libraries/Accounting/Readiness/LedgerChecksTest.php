@@ -153,6 +153,26 @@ class LedgerChecksTest extends CIUnitTestCase
         $this->assertStringContainsString('header says debit 120.0000 and credit 100.0000', $result->findings[0]);
     }
 
+    public function testJournalsUnbalanced_FailsAJournalWhoseHeaderTotalsAgreeWithItsUnbalancedLines(): void
+    {
+        $journalId = $this->journal(['total_debit' => '100.0000', 'total_credit' => '90.0000'], [['100.00', '0'], ['0', '90.00']]);
+
+        $result = $this->check('journals_unbalanced');
+
+        $this->assertSame(CheckStatus::Fail, $result->status);
+        $this->assertSame(["journal #{$journalId} (no number, manual ) dated 2026-10-21: lines debit 100.0000 and credit 90.0000"], $result->findings);
+    }
+
+    public function testJournalsUnbalanced_FailsAnImbalanceOfOneTenThousandth(): void
+    {
+        $journalId = $this->journal(['total_debit' => '100.0000', 'total_credit' => '99.9999'], [['100.0000', '0'], ['0', '99.9999']]);
+
+        $result = $this->check('journals_unbalanced');
+
+        $this->assertSame(CheckStatus::Fail, $result->status);
+        $this->assertStringContainsString("journal #{$journalId}", $result->findings[0]);
+    }
+
     public function testJournalsUnbalanced_FailsWhenTheHeaderCreditDiffersFromTheLines(): void
     {
         $this->journal(['total_credit' => '80.0000']);
@@ -329,6 +349,16 @@ class LedgerChecksTest extends CIUnitTestCase
         $this->assertSame(0, $result->data['closed']);
     }
 
+    public function testPeriodLocks_FailsForAJournalDatedBeforeEveryFiscalYear(): void
+    {
+        $journalId = $this->journal(['journal_date' => '2010-03-01', 'number' => '000006']);
+
+        $result = $this->check('period_locks');
+
+        $this->assertSame(CheckStatus::Fail, $result->status);
+        $this->assertSame(["journal #{$journalId} (000006) dated 2010-03-01 in branch 1 is outside every fiscal year"], $result->findings);
+    }
+
     public function testPeriodLocks_LeavesADraftOutsideEveryFiscalYearAlone(): void
     {
         $this->journal(['journal_date' => '2040-03-01', 'status' => 'draft']);
@@ -383,6 +413,14 @@ class LedgerChecksTest extends CIUnitTestCase
         $two = $this->journal(['number' => '000002']);
         $this->journal(['source_type' => 'reversal', 'source_id' => $one, 'reverses_journal_id' => $one, 'status' => 'posted']);
         $this->journal(['source_type' => 'reversal', 'source_id' => $two, 'reverses_journal_id' => $two, 'status' => 'posted']);
+
+        $this->assertSame(CheckStatus::Pass, $this->check('source_keys')->status);
+    }
+
+    public function testSourceKeys_PassesForJournalsWithoutASourceId(): void
+    {
+        $this->journal(['source_type' => 'opening', 'source_id' => null, 'revision' => 1]);
+        $this->journal(['source_type' => 'opening', 'source_id' => null, 'revision' => 2]);
 
         $this->assertSame(CheckStatus::Pass, $this->check('source_keys')->status);
     }

@@ -11,6 +11,7 @@ use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\Readiness\CheckResult;
 use App\Libraries\Accounting\Readiness\CheckStatus;
 use App\Libraries\Accounting\Readiness\TieChecks;
+use App\Libraries\Accounting\ReceivingPostingBuilder;
 use App\Libraries\Accounting\StockLedger;
 use App\Libraries\Accounting\StockMovement;
 use App\Libraries\Accounting\TreasuryService;
@@ -89,7 +90,7 @@ class TieChecksTest extends CIUnitTestCase
         $this->fail("No check {$id}.");
     }
 
-    private function byHand(int $accountId, string $amount, bool $debit = true): void
+    private function byHand(int $accountId, string $amount, bool $debit = true, string $sourceType = 'manual'): void
     {
         $this->accountingDb()->table('accounting_journals')->insert([
             'company_id'    => 1,
@@ -97,7 +98,7 @@ class TieChecksTest extends CIUnitTestCase
             'series'        => 'manual',
             'journal_date'  => '2026-10-21',
             'status'        => 'posted',
-            'source_type'   => 'manual',
+            'source_type'   => $sourceType,
             'entry_type'    => 'general',
             'revision'      => 1,
             'origin'        => 'user',
@@ -172,6 +173,17 @@ class TieChecksTest extends CIUnitTestCase
         $this->assertSame(2, $result->data['checked']);
     }
 
+    public function testCustomerTies_PassesForACustomerWithSeveralOpenInvoicesInOneAgingBucket(): void
+    {
+        $this->invoiceOf('100.00');
+        $this->invoiceOf('70.00');
+
+        $result = $this->check('customer_ties');
+
+        $this->assertSame(CheckStatus::Pass, $result->status);
+        $this->assertSame(1, $result->data['checked']);
+    }
+
     public function testSupplierTies_PassesForASupplierWhoseAccountMatchesTheirPurchases(): void
     {
         $this->purchaseOf('500.00');
@@ -192,6 +204,17 @@ class TieChecksTest extends CIUnitTestCase
         $this->assertSame(CheckStatus::Fail, $result->status);
         $this->assertStringContainsString("supplier #{$this->supplierId}", $result->findings[0]);
         $this->assertStringContainsString('the account holds 540.0000, purchases less credit say 500.0000, unexplained 40.0000', $result->findings[0]);
+    }
+
+    public function testSupplierTies_PassesForASupplierWithSeveralOpenPurchasesInOneAgingBucket(): void
+    {
+        $this->purchaseOf('500.00');
+        $this->purchaseOf('300.00');
+
+        $result = $this->check('supplier_ties');
+
+        $this->assertSame(CheckStatus::Pass, $result->status);
+        $this->assertSame(1, $result->data['checked']);
     }
 
     public function testTreasuryTies_PassesForTreasuriesWhoseBalanceIsWhatDocumentsPutOnThem(): void
@@ -377,6 +400,15 @@ class TieChecksTest extends CIUnitTestCase
         $this->byHand($this->accountId('cash'), '10.00');
 
         $this->assertSame(CheckStatus::Pass, $this->check('interbranch_unattributed')->status);
+    }
+
+    public function testInterbranchUnattributed_LeavesEveryTransferJournalWhetherOrNotALegWasRecorded(): void
+    {
+        foreach ([TreasuryTransfers::SOURCE, TreasuryTransfers::SOURCE_RECEIPT, ReceivingPostingBuilder::SOURCE_STOCK_TRANSFER, ReceivingPostingBuilder::SOURCE_TRANSFER_RECEIPT] as $source) {
+            $this->byHand($this->accountId('branches_receivable'), '50.00', true, $source);
+
+            $this->assertSame(CheckStatus::Pass, $this->check('interbranch_unattributed')->status, $source);
+        }
     }
 
     public function testInterbranchUnattributed_LeavesAJournalARecordedLegAccountsFor(): void
