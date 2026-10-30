@@ -82,18 +82,16 @@ class ReadinessResultTest extends CIUnitTestCase
         $this->assertSame(['pass' => 2, 'fail' => 1, 'review' => 1, 'skipped' => 0, 'error' => 0], $result->counts());
     }
 
-    public function testApplicable_ListsTheCommandOfAFailedCheckOnce(): void
+    public function testApplicable_ListsTheFirstFailedCheckOfEachCommandOnce(): void
     {
         $stamp = ['command' => 'accounting:stamp_payments', 'params' => ['apply' => null]];
         $move  = ['command' => 'accounting:bank_accounts', 'params' => ['move' => null]];
 
-        $result = $this->readiness([
-            $this->named(CheckResult::fail('a', [], [], $stamp), 'one'),
-            $this->named(CheckResult::fail('b', [], [], $stamp), 'two'),
-            $this->named(CheckResult::fail('c', [], [], $move), 'three'),
-        ]);
+        $first  = $this->named(CheckResult::fail('a', [], [], $stamp), 'one');
+        $second = $this->named(CheckResult::fail('b', [], [], $stamp), 'two');
+        $third  = $this->named(CheckResult::fail('c', [], [], $move), 'three');
 
-        $this->assertSame([$stamp, $move], $result->applicable());
+        $this->assertSame([$first, $third], $this->readiness([$first, $second, $third])->applicable());
     }
 
     public function testApplicable_LeavesOutACheckThatDidNotFailAndAFailureNoCommandClears(): void

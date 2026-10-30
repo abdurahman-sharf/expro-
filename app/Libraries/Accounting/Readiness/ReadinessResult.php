@@ -58,21 +58,21 @@ final readonly class ReadinessResult
     }
 
     /**
-     * What the existing commands could clear, from the checks that failed with something to apply.
+     * The failed checks an existing command could clear, one for each command.
      *
-     * @return list<array{command: string, params: array<string, null>}>
+     * @return list<CheckResult>
      */
     public function applicable(): array
     {
-        $commands = [];
+        $checks = [];
 
         foreach ($this->checks as $check) {
             if ($check->status === CheckStatus::Fail && $check->apply !== null) {
-                $commands[$check->apply['command']] = $check->apply;
+                $checks[$check->apply['command']] ??= $check;
             }
         }
 
-        return array_values($commands);
+        return array_values($checks);
     }
 
     /**

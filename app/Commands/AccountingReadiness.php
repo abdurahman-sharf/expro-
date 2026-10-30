@@ -60,17 +60,17 @@ class AccountingReadiness extends BaseCommand
 
     private function apply(ReadinessRunner $runner, ReadinessResult $result): ReadinessResult
     {
-        $commands = $result->applicable();
+        $checks = $result->applicable();
 
-        if ($commands === []) {
+        if ($checks === []) {
             CLI::write('--apply: nothing the existing commands could clear.');
 
             return $result;
         }
 
-        foreach ($commands as $command) {
-            CLI::write('--apply: ' . trim($command['command'] . ' ' . implode(' ', array_map(static fn (string $flag): string => '--' . $flag, array_keys($command['params'])))), 'yellow');
-            $this->call($command['command'], $command['params']);
+        foreach ($checks as $check) {
+            CLI::write('--apply: ' . $check->applyCommand(), 'yellow');
+            $this->call($check->apply['command'], $check->apply['params']);
         }
 
         CLI::newLine();
