@@ -1,14 +1,14 @@
 <?php
 /**
- * @var string          $group
- * @var string          $base
- * @var string          $party
- * @var Closure         $statement_url
- * @var AgedLedgerTable $table
+ * @var string           $group
+ * @var string           $base
+ * @var string           $party
+ * @var Closure          $statement_url
+ * @var AgedLedgerTable  $table
  * @var PartyReportQuery $query
- * @var string|null     $error
- * @var Closure         $amount
- * @var Closure         $date
+ * @var string|null      $error
+ * @var Closure          $amount
+ * @var Closure          $date
  */
 
 use App\Libraries\Accounting\AgedLedgerTable;

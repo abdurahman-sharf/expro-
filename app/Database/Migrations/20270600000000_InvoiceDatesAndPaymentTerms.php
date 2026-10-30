@@ -15,8 +15,7 @@ use RuntimeException;
  */
 class InvoiceDatesAndPaymentTerms extends Migration
 {
-    private const TABLES = ['sales', 'receivings'];
-
+    private const TABLES  = ['sales', 'receivings'];
     private const COLUMNS = [
         'invoice_date'       => 'DATE NULL DEFAULT NULL',
         'payment_terms_days' => 'SMALLINT UNSIGNED NULL DEFAULT NULL',
