@@ -4,6 +4,9 @@ namespace App\Models;
 
 use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Organization\BranchGuard;
+use App\Libraries\Roles\DefaultLocations;
+use App\Libraries\Roles\RoleGrants;
+use App\Libraries\Roles\RoleService;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Model;
@@ -70,8 +73,7 @@ class Stock_location extends Model
         $branchIds = $this->employeeBranchIds($byBranch);
         $builder = $this->db->table('stock_locations');
         $builder->join('permissions AS permissions', 'permissions.location_id = stock_locations.location_id');
-        $builder->join('grants AS grants', 'grants.permission_id = permissions.permission_id');
-        $builder->where('person_id', $this->session->get('person_id'));
+        $this->limitToHeld($builder);
         $builder->like('permissions.permission_id', $module_id, 'after');
         $builder->where('deleted', 0);
         $this->limitToBranches($builder, $branchIds);
@@ -124,8 +126,7 @@ class Stock_location extends Model
         $branchIds = $this->employeeBranchIds($byBranch);
         $builder = $this->db->table('stock_locations');
         $builder->join('permissions AS permissions', 'permissions.location_id = stock_locations.location_id');
-        $builder->join('grants AS grants', 'grants.permission_id = permissions.permission_id');
-        $builder->where('person_id', $this->session->get('person_id'));
+        $this->limitToHeld($builder);
         $builder->like('permissions.permission_id', $module_id, 'after');
         $builder->where('stock_locations.location_id', $location_id);
         $builder->where('deleted', 0);
@@ -140,11 +141,16 @@ class Stock_location extends Model
      */
     public function get_default_location_id(string $module_id = 'items', bool $byBranch = false): int
     {
+        $own = in_array($module_id, ['sales', 'receivings'], true) ? (new DefaultLocations($this->db))->of((int) $this->session->get('person_id')) : null;
+
+        if ($own !== null && $this->is_allowed_location($own, $module_id, $byBranch)) {
+            return $own;
+        }
+
         $branchIds = $this->employeeBranchIds($byBranch);
         $builder = $this->db->table('stock_locations');
         $builder->join('permissions AS permissions', 'permissions.location_id = stock_locations.location_id');
-        $builder->join('grants AS grants', 'grants.permission_id = permissions.permission_id');
-        $builder->where('person_id', $this->session->get('person_id'));
+        $this->limitToHeld($builder);
         $builder->like('permissions.permission_id', $module_id, 'after');
         $builder->where('deleted', 0);
         $this->limitToBranches($builder, $branchIds);
@@ -165,6 +171,27 @@ class Stock_location extends Model
     private function employeeBranchIds(bool $byBranch): ?array
     {
         return $byBranch ? (new BranchGuard($this->db))->allowedBranchIds((int) $this->session->get('person_id')) : null;
+    }
+
+    /**
+     * Keeps the permissions of locations that the employee holds, through their own grants or
+     * through their roles.
+     */
+    private function limitToHeld(BaseBuilder $builder): void
+    {
+        $personId = (int) $this->session->get('person_id');
+
+        $builder->join('grants AS grants', 'grants.permission_id = permissions.permission_id AND grants.person_id = ' . $personId, 'left');
+        $builder->groupStart();
+        $builder->where('grants.person_id', $personId);
+
+        $heldThroughRoles = (new RoleGrants($this->db))->idsFor($personId);
+
+        if ($heldThroughRoles !== []) {
+            $builder->orWhereIn('permissions.permission_id', $heldThroughRoles);
+        }
+
+        $builder->groupEnd();
     }
 
     /**
@@ -303,6 +330,8 @@ class Stock_location extends Model
 
             $builder->insert($grants_data);
         }
+
+        (new RoleService($this->db))->carryLocationPermission($module, $permission_id);
     }
 
     /**

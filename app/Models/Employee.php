@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Libraries\Organization\EmployeeBranchService;
+use App\Libraries\Roles\RoleGrants;
+use App\Libraries\Roles\RoleService;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Session\Session;
 use stdClass;
@@ -16,6 +18,7 @@ use stdClass;
 class Employee extends Person
 {
     public Session $session;
+    private ?RoleGrants $roleGrants = null;
     protected $table = 'Employees';
     protected $primaryKey = 'person_id';
     protected $useAutoIncrement = false;
@@ -209,6 +212,8 @@ class Employee extends Person
                 $builder = $this->db->table('employees');
                 $builder->where('person_id', $employee_id);
                 $success = $builder->update(['deleted' => 1]);
+
+                (new RoleService($this->db, $this))->releaseEmployees([$employee_id], (int) $this->session->get('person_id') ?: null);
             }
         }
 
@@ -241,6 +246,8 @@ class Employee extends Person
                 $builder = $this->db->table('employees');
                 $builder->whereIn('person_id', $person_ids);
                 $success = $builder->update(['deleted' => 1]);
+
+                (new RoleService($this->db, $this))->releaseEmployees($person_ids, (int) $this->session->get('person_id') ?: null);
             }
         }
 
@@ -444,14 +451,24 @@ class Employee extends Person
     }
 
     /**
-     * Determines whether the employee has access to at least one submodule
+     * Determines whether the employee has access to at least one submodule, through their own
+     * grants or through their roles
      */
     public function has_module_grant(string $permission_id, int $person_id): bool
     {
         $builder = $this->db->table('grants');
         $builder->like('permission_id', $permission_id, 'after');
         $builder->where('person_id', $person_id);
-        $result_count = $builder->get()->getNumRows();
+
+        $held = array_column($builder->get()->getResultArray(), 'permission_id');
+
+        foreach ($this->roleGrants()->idsFor($person_id) as $roleGranted) {
+            if (stripos($roleGranted, $permission_id) === 0) {
+                $held[] = $roleGranted;
+            }
+        }
+
+        $result_count = count(array_unique($held));
 
         if ($result_count != 1) {
             return ($result_count != 0);
@@ -472,15 +489,31 @@ class Employee extends Person
     }
 
     /**
-     * Determines whether the employee specified employee has access the specific module.
+     * Determines whether the employee specified employee has access the specific module. The
+     * permissions of the employee are their own grants and those of their roles, which is read here
+     * and nowhere else, so every permission check of the application sees both. With $directOnly
+     * only the grants of the employee themselves count.
      */
-    public function has_grant(?string $permission_id, ?int $person_id): bool
+    public function has_grant(?string $permission_id, ?int $person_id, bool $directOnly = false): bool
     {
         // If no module_id is null, allow access
         if ($permission_id == null) {
             return true;
         }
         if ($person_id == null) {
+            return false;
+        }
+
+        return $this->hasDirectGrant($permission_id, $person_id) || (! $directOnly && $this->roleGrants()->has($person_id, $permission_id));
+    }
+
+    /**
+     * Whether the grants of the employee themselves hold the permission, whatever their roles give.
+     * What the employee form shows and saves, and who counts as an administrator, rests on this.
+     */
+    public function hasDirectGrant(?string $permission_id, ?int $person_id): bool
+    {
+        if ($permission_id == null || $person_id == null) {
             return false;
         }
 
@@ -511,9 +544,26 @@ class Employee extends Person
     }
 
     /**
-     * Gets employee permission grants
+     * Gets employee permission grants: their own and, after them, the ones their roles give
      */
     public function get_employee_grants(int $person_id): array
+    {
+        $grants = $this->getDirectGrants($person_id);
+        $direct = array_column($grants, 'permission_id');
+
+        foreach ($this->roleGrants()->idsFor($person_id) as $permissionId) {
+            if (! in_array($permissionId, $direct, true)) {
+                $grants[] = ['permission_id' => $permissionId, 'person_id' => $person_id, 'menu_group' => '--'];
+            }
+        }
+
+        return $grants;
+    }
+
+    /**
+     * Gets the grants of the employee themselves, without those of their roles
+     */
+    public function getDirectGrants(int $person_id): array
     {
         $builder = $this->db->table('grants');
         $builder->where('person_id', $person_id);
@@ -564,7 +614,8 @@ class Employee extends Person
 
     /**
      * Checks if the employee has admin privileges (all module permissions).
-     * The first employee (person_id = 1) is considered admin by default.
+     * The first employee (person_id = 1) is considered admin by default. Only the grants of the
+     * employee count: a role never makes anyone an administrator.
      */
     public function isAdmin(int $person_id): bool
     {
@@ -573,12 +624,17 @@ class Employee extends Person
         }
 
         foreach (ADMIN_MODULES as $module) {
-            if (!$this->has_grant($module, $person_id)) {
+            if (!$this->has_grant($module, $person_id, true)) {
                 return false;
             }
         }
 
         return true;
+    }
+
+    private function roleGrants(): RoleGrants
+    {
+        return $this->roleGrants ??= new RoleGrants($this->db);
     }
 
     /**

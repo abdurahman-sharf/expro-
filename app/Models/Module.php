@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Libraries\Accounting\AccountingSettings;
+use App\Libraries\Roles\RoleGrants;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Model;
 
@@ -96,8 +97,17 @@ class Module extends Model
     {
         $builder = $this->db->table('modules');
         $builder->join('permissions', 'permissions.permission_id = modules.module_id');
-        $builder->join('grants', 'permissions.permission_id = grants.permission_id');
-        $builder->where('person_id', $personId);
+        $builder->join('grants', 'permissions.permission_id = grants.permission_id AND grants.person_id = ' . (int) $personId, 'left');
+        $builder->groupStart();
+        $builder->where('grants.person_id', $personId);
+
+        $heldThroughRoles = (new RoleGrants($this->db))->idsFor($personId);
+
+        if ($heldThroughRoles !== []) {
+            $builder->orWhereIn('modules.module_id', $heldThroughRoles);
+        }
+
+        $builder->groupEnd();
         $builder->where('sort !=', 0);
         $builder->where('modules.module_id !=', 'office');
 
