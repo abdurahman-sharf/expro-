@@ -171,6 +171,11 @@ final class CustomerOpening
             ->getResult();
     }
 
+    public function find(int $openingId): ?object
+    {
+        return $this->db->table('customer_openings')->where(['company_id' => CompanyContext::id(), 'opening_id' => $openingId])->get()->getRow();
+    }
+
     /**
      * The branch an opening balance belongs to, or null when there is no such one.
      */

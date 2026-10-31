@@ -78,6 +78,12 @@ $routes->group('accounting_receivables', static function (RouteCollection $route
     $routes->get('credit_notes/search', 'AccountingReceivables::getCreditNotesSearch');
     $routes->get('aged_ledger', 'AccountingReceivables::getAgedLedger');
     $routes->get('balances', 'AccountingReceivables::getBalances');
+    $routes->get('opening_form/(:num)', 'AccountingReceivables::getOpeningForm/$1');
+    $routes->post('opening/(:num)', 'AccountingReceivables::postOpening/$1');
+    $routes->get('opening_edit_form/(:num)', 'AccountingReceivables::getOpeningEditForm/$1');
+    $routes->post('opening_edit/(:num)', 'AccountingReceivables::postOpeningEdit/$1');
+    $routes->get('opening_cancel_form/(:num)', 'AccountingReceivables::getOpeningCancelForm/$1');
+    $routes->post('opening_cancel/(:num)', 'AccountingReceivables::postOpeningCancel/$1');
 });
 
 $routes->group('accounting_payables', static function (RouteCollection $routes): void {

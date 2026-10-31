@@ -2,10 +2,13 @@
 
 namespace App\Controllers;
 
+use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\AgedLedgerTable;
 use App\Libraries\Accounting\CustomerBalanceReport;
 use App\Libraries\Accounting\CustomerDocuments;
 use App\Libraries\Accounting\CustomerLedger;
+use App\Libraries\Accounting\CustomerOpening;
 use App\Libraries\Accounting\CustomerPosition;
 use App\Libraries\Accounting\PartyReportQuery;
 use App\Libraries\Accounting\PaymentStatus;
@@ -28,6 +31,7 @@ class AccountingReceivables extends AccountingController
     private CustomerLedger $ledger;
     private CustomerDocuments $documents;
     private CustomerBalanceReport $balances;
+    private CustomerOpening $openings;
 
     public function __construct()
     {
@@ -36,6 +40,7 @@ class AccountingReceivables extends AccountingController
         $this->ledger    = new CustomerLedger();
         $this->balances  = new CustomerBalanceReport();
         $this->documents = new CustomerDocuments();
+        $this->openings  = new CustomerOpening(null, null, $this->branchGuard());
     }
 
     public function getIndex(): string
@@ -101,9 +106,101 @@ class AccountingReceivables extends AccountingController
             'to'              => $query->to,
             'applications'    => $this->ledger->applications($customerId, true),
             'refund_invoices' => $this->documents->refundInvoiceIds($customerId),
+            'customer_id'     => $customerId,
+            'openings'        => $this->openings->history($customerId),
+            'can_open'        => $this->can(AccountingGuard::OPENING_MANAGE) && (new AccountingSettings())->customerOpeningEnabled() && $this->openings->standingFor($customerId) === null,
+            'can_change'      => $this->can(AccountingGuard::OPENING_MANAGE),
+            'can_revise'      => (new AccountingSettings())->customerOpeningEnabled(),
             'amount'          => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
             'date'            => fn (string $value): string => $this->formatDate($value),
         ]);
+    }
+
+    public function getOpeningForm(int $customerId): string
+    {
+        $this->requireOpeningManage($customerId);
+
+        if ($this->openings->standingFor($customerId) !== null) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        return view('accounting_receivables/opening_form', [
+            'action'        => 'accounting_receivables/opening/' . $customerId,
+            'customer_name' => $this->customerName($customerId),
+            'opening'       => null,
+            'today'         => date('Y-m-d'),
+        ]);
+    }
+
+    public function postOpening(int $customerId): ResponseInterface
+    {
+        $this->requireCompanyScope();
+
+        return $this->attempt(function () use ($customerId): array {
+            $id = $this->openings->create(
+                $customerId,
+                (string) $this->request->getPost('side'),
+                trim((string) $this->request->getPost('amount')),
+                trim((string) $this->request->getPost('opening_date')),
+                (string) $this->request->getPost('note'),
+                $this->employeeId(),
+            );
+
+            return ['success' => true, 'message' => lang('Accounting_receivables.opening_done'), 'id' => $id];
+        });
+    }
+
+    public function getOpeningEditForm(int $openingId): string
+    {
+        $opening = $this->standingOpening($openingId);
+
+        if (! (new AccountingSettings())->customerOpeningEnabled()) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        return view('accounting_receivables/opening_form', [
+            'action'        => 'accounting_receivables/opening_edit/' . $openingId,
+            'customer_name' => $this->customerName((int) $opening->customer_id),
+            'opening'       => $opening,
+            'today'         => date('Y-m-d'),
+        ]);
+    }
+
+    public function postOpeningEdit(int $openingId): ResponseInterface
+    {
+        $this->requireCompanyScope();
+
+        return $this->attempt(function () use ($openingId): array {
+            $id = $this->openings->revise(
+                $openingId,
+                (string) $this->request->getPost('side'),
+                trim((string) $this->request->getPost('amount')),
+                trim((string) $this->request->getPost('opening_date')),
+                (string) $this->request->getPost('note'),
+                (string) $this->request->getPost('reason'),
+                $this->employeeId(),
+            );
+
+            return ['success' => true, 'message' => lang('Accounting_receivables.opening_revised'), 'id' => $id];
+        });
+    }
+
+    public function getOpeningCancelForm(int $openingId): string
+    {
+        $this->standingOpening($openingId);
+
+        return view('accounting_receivables/opening_cancel_form', ['opening_id' => $openingId]);
+    }
+
+    public function postOpeningCancel(int $openingId): ResponseInterface
+    {
+        $this->requireCompanyScope();
+
+        return $this->attempt(function () use ($openingId): array {
+            $this->openings->cancel($openingId, (string) $this->request->getPost('reason'), $this->employeeId());
+
+            return ['success' => true, 'message' => lang('Accounting_receivables.opening_cancelled'), 'id' => $openingId];
+        });
     }
 
     public function getPayments(): string
@@ -233,6 +330,28 @@ class AccountingReceivables extends AccountingController
             'amount'        => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
             'date'          => fn (string $value): string => $this->formatDate($value),
         ]);
+    }
+
+    private function requireOpeningManage(int $customerId): void
+    {
+        $this->requireCompanyScope();
+
+        if (! $this->can(AccountingGuard::OPENING_MANAGE) || ! (new AccountingSettings())->customerOpeningEnabled() || $this->ledger->position($customerId)->accountId === null) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+    }
+
+    private function standingOpening(int $openingId): object
+    {
+        $this->requireCompanyScope();
+
+        $opening = $this->can(AccountingGuard::OPENING_MANAGE) ? $this->openings->find($openingId) : null;
+
+        if ($opening === null || $opening->status !== 'posted') {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        return $opening;
     }
 
     private function requireCompanyScope(): void

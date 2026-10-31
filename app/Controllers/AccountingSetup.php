@@ -51,6 +51,7 @@ class AccountingSetup extends AccountingController
             'auto_year'                => $this->settings->autoFiscalYear(),
             'expense_account_required' => $this->settings->expenseAccountRequired(),
             'lineDescriptionRequired'  => $this->settings->lineDescriptionRequired(),
+            'customer_opening'         => $this->settings->customerOpeningEnabled(),
             'locked'                   => $this->settings->isLocked(),
             'next_number'              => $this->settings->lastManualNumber() + 1,
             'can_manage'               => $this->canManageSettings(),
@@ -78,6 +79,10 @@ class AccountingSetup extends AccountingController
 
             if ($this->request->getPost('line_description_required') !== null) {
                 $input['line_description_required'] = $this->request->getPost('line_description_required') === '1';
+            }
+
+            if ($this->request->getPost('customer_opening') !== null) {
+                $input['customer_opening'] = $this->request->getPost('customer_opening') === '1';
             }
 
             $this->settings->update($input, $this->employeeId());

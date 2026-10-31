@@ -7,6 +7,8 @@ return [
     'confirm_disable'                          => 'Turn accounting off? The accounting screens will be hidden. Nothing is deleted.',
     'confirm_enable'                           => 'Turn accounting on?',
     'create_year'                              => 'Create the fiscal year',
+    'customer_opening'                         => 'Opening balances of customers',
+    'customer_opening_desc'                    => 'Lets a customer be given what they owed us, or held with us, before the books began, as a document that is reversed and posted again when it changes. Off until you turn it on.',
     'disable'                                  => 'Turn off',
     'disabled_desc'                            => 'Accounting is off. The system works as it did before and no journal is created.',
     'disabled_now'                             => 'Accounting was turned off.',

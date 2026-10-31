@@ -16,6 +16,7 @@ use App\Libraries\Accounting\StockLedger;
 use App\Libraries\Accounting\StockMovement;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Accounting\TreasuryTransfers;
+use App\Libraries\Accounting\CustomerOpening;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -135,6 +136,41 @@ class TieChecksTest extends CIUnitTestCase
         $this->assertSame(CheckStatus::Pass, $result->status);
         $this->assertSame(1, $result->data['checked']);
         $this->assertSame(0, $result->data['differences']);
+    }
+
+    public function testCustomerTies_PassesForACustomerWithAnOpeningBalanceThatCreditWasSpentOn(): void
+    {
+        $this->setConfigValue('accounting_customer_opening', '1');
+
+        try {
+            (new CustomerOpening())->create($this->customerId, CustomerOpening::OWES_US, '500.00', date('Y-m-d', strtotime('-40 days')), '', null);
+        } finally {
+            $this->setConfigValue('accounting_customer_opening', '0');
+        }
+
+        $this->invoiceOf('100.00', null, [$this->payment(lang('Sales.cash'), '300.00')]);
+
+        $result = $this->check('customer_ties');
+
+        $this->assertSame(CheckStatus::Pass, $result->status);
+        $this->assertSame(0, $result->data['differences']);
+    }
+
+    public function testCustomerTies_IsSkippedWhileTheTableOfOpeningBalancesIsMissing(): void
+    {
+        $db = $this->accountingDb();
+        $db->query('SET FOREIGN_KEY_CHECKS = 0');
+        $db->query('RENAME TABLE ospos_customer_openings TO ospos_customer_openings_hold');
+
+        try {
+            $result = $this->check('customer_ties');
+        } finally {
+            $db->query('RENAME TABLE ospos_customer_openings_hold TO ospos_customer_openings');
+            $db->query('SET FOREIGN_KEY_CHECKS = 1');
+        }
+
+        $this->assertSame(CheckStatus::Skipped, $result->status);
+        $this->assertContains('customer_openings', $result->data['missing']);
     }
 
     public function testCustomerTies_PassesWithNoCustomerMovement(): void

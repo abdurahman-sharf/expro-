@@ -7,6 +7,8 @@ return [
     'confirm_disable'                          => '',
     'confirm_enable'                           => '',
     'create_year'                              => '',
+    'customer_opening'                         => '',
+    'customer_opening_desc'                    => '',
     'disable'                                  => '',
     'disabled_desc'                            => '',
     'disabled_now'                             => '',

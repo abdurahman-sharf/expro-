@@ -236,7 +236,7 @@
                                 <li>
                                     <?= lang($application->source_type === 'credit_note' ? 'Sales.credit_from_note' : 'Sales.credit_from_excess') ?>
                                     <bdi dir="ltr">#<?= (int) $application->source_id ?></bdi>
-                                    &rarr; <bdi dir="ltr">#<?= (int) $application->invoice_sale_id ?></bdi>
+                                    &rarr; <?= $application->invoice_sale_id === null ? esc(lang('Accounting_receivables.source_opening')) . ' ' : '' ?><bdi dir="ltr">#<?= (int) ($application->invoice_sale_id ?? $application->opening_id) ?></bdi>
                                     <bdi dir="ltr"><?= to_currency($application->amount) ?></bdi>
                                 </li>
                             <?php endforeach; ?>
