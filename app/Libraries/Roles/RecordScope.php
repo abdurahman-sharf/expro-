@@ -122,6 +122,6 @@ final class RecordScope
 
     private function tablesExist(): bool
     {
-        return $this->available ??= $this->db->tableExists('employee_record_scopes') && $this->db->tableExists('employee_roles') && $this->db->tableExists('roles');
+        return $this->available ??= RoleTables::exist($this->db, 'employee_record_scopes', 'employee_roles', 'roles');
     }
 }

@@ -305,7 +305,7 @@ final class RoleService
     {
         $ids = array_values(array_unique(array_map('intval', $personIds)));
 
-        if ($ids === [] || ! $this->db->tableExists('employee_roles') || ! $this->db->tableExists('employee_record_scopes')) {
+        if ($ids === [] || ! RoleTables::exist($this->db, 'employee_roles', 'employee_record_scopes')) {
             return;
         }
 
@@ -331,7 +331,7 @@ final class RoleService
      */
     public function carryLocationPermission(string $moduleId, string $permissionId): void
     {
-        if (! $this->db->tableExists('role_permissions')) {
+        if (! RoleTables::exist($this->db, 'role_permissions')) {
             return;
         }
 

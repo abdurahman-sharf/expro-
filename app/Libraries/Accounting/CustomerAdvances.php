@@ -7,6 +7,7 @@ use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Organization\CompanyContext;
+use App\Libraries\Roles\RecordScope;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
@@ -117,9 +118,9 @@ final class CustomerAdvances
         $this->guard->require(AccountingGuard::RECEIVABLES_MANAGE, $employeeId);
 
         $reason = $this->cash->reason($reason);
-        $row    = $this->db->table('customer_advances')->select('customer_id')->where(['company_id' => CompanyContext::id(), 'advance_id' => $advanceId])->get()->getRow();
+        $row    = $this->db->table('customer_advances')->select('customer_id, created_by')->where(['company_id' => CompanyContext::id(), 'advance_id' => $advanceId])->get()->getRow();
 
-        if ($row === null) {
+        if ($row === null || ! (new RecordScope($this->db))->allows($employeeId, $row->created_by)) {
             throw new AccountingException(AccountingError::AdvanceNotFound, "Advance {$advanceId} does not exist.", ['advance_id' => $advanceId]);
         }
 
@@ -204,11 +205,11 @@ final class CustomerAdvances
     /**
      * The branch an advance belongs to, or null when there is no such one.
      */
-    public function branchOf(int $advanceId): ?int
+    public function branchOf(int $advanceId, ?int $viewerId = null): ?int
     {
-        $row = $this->db->table('customer_advances')->select('branch_id')->where(['company_id' => CompanyContext::id(), 'advance_id' => $advanceId])->get()->getRow();
+        $row = $this->db->table('customer_advances')->select('branch_id, created_by')->where(['company_id' => CompanyContext::id(), 'advance_id' => $advanceId])->get()->getRow();
 
-        return $row === null ? null : (int) $row->branch_id;
+        return $row === null || ! (new RecordScope($this->db))->allows($viewerId ?? RecordScope::sessionEmployee(), $row->created_by) ? null : (int) $row->branch_id;
     }
 
     private function byRequestKey(string $key): ?object

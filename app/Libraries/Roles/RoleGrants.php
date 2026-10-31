@@ -99,6 +99,6 @@ final class RoleGrants
 
     private function tablesExist(): bool
     {
-        return $this->available ??= $this->db->tableExists('employee_roles') && $this->db->tableExists('role_permissions') && $this->db->tableExists('roles');
+        return $this->available ??= RoleTables::exist($this->db, 'employee_roles', 'role_permissions', 'roles');
     }
 }

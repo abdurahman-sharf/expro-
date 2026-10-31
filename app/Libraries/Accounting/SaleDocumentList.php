@@ -3,6 +3,7 @@
 namespace App\Libraries\Accounting;
 
 use App\Libraries\InvoiceDiscount;
+use App\Libraries\Roles\RecordScope;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
@@ -25,12 +26,13 @@ final class SaleDocumentList
 
     /**
      * @param list<int>|null $branchIds The branches the reader works in, null for every branch.
+     * @param int|null       $viewerId  The reader, whose own documents are all that is listed when they see their own records only.
      *
      * @return list<object> Newest first, each with its label, customer, employee, branch and subtotal.
      */
-    public function drafts(?array $branchIds): array
+    public function drafts(?array $branchIds, ?int $viewerId = null): array
     {
-        $rows = $this->read('s.sale_type = ' . SALE_TYPE_INVOICE, $branchIds);
+        $rows = $this->read('s.sale_type = ' . SALE_TYPE_INVOICE, $branchIds, $viewerId);
 
         foreach ($rows as $row) {
             $row->label = $row->invoice_number !== null && $row->invoice_number !== '' ? (string) $row->invoice_number : DraftInvoice::label((int) $row->sale_id);
@@ -44,7 +46,7 @@ final class SaleDocumentList
      *
      * @return list<object> Newest first, each with its label, state, customer, employee, branch, subtotal and the invoice made from it.
      */
-    public function quotes(?array $branchIds, ?QuoteStatus $only = null): array
+    public function quotes(?array $branchIds, ?QuoteStatus $only = null, ?int $viewerId = null): array
     {
         $condition = 's.sale_type = ' . SALE_TYPE_QUOTE;
 
@@ -52,7 +54,7 @@ final class SaleDocumentList
             $condition .= $only === QuoteStatus::Open ? ' AND (s.quote_status IS NULL OR s.quote_status = ' . QuoteStatus::Open->value . ')' : ' AND s.quote_status = ' . $only->value;
         }
 
-        $rows = $this->read($condition, $branchIds);
+        $rows = $this->read($condition, $branchIds, $viewerId);
 
         foreach ($rows as $row) {
             $status      = QuoteStatus::fromStored($row->quote_status);
@@ -70,7 +72,7 @@ final class SaleDocumentList
      *
      * @return list<object>
      */
-    private function read(string $condition, ?array $branchIds): array
+    private function read(string $condition, ?array $branchIds, ?int $viewerId): array
     {
         if ($branchIds === []) {
             return [];
@@ -86,6 +88,8 @@ final class SaleDocumentList
             . " THEN i.quantity_purchased * i.item_unit_price - ROUND(i.quantity_purchased * i.item_unit_price * i.discount / 100, {$decimals})"
             . " ELSE i.quantity_purchased * (i.item_unit_price - i.discount) END - {$share}";
         $scope = $branchIds === null ? '' : ' AND s.branch_id IN (' . implode(', ', array_map('intval', $branchIds)) . ')';
+        $mine  = (new RecordScope($this->db))->limit($viewerId);
+        $scope .= $mine === null ? '' : ' AND s.employee_id = ' . $mine;
 
         return $this->db->query(
             "SELECT s.sale_id, s.sale_time, s.customer_id, s.branch_id, s.invoice_number, s.quote_number, s.quote_status, b.code AS branch_code,

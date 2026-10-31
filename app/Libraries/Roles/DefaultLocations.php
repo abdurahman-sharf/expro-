@@ -31,7 +31,7 @@ final class DefaultLocations
 
     public function of(int $personId): ?int
     {
-        if ($personId < 1 || ! $this->db->tableExists('employee_default_locations')) {
+        if ($personId < 1 || ! RoleTables::exist($this->db, 'employee_default_locations')) {
             return null;
         }
 

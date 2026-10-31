@@ -31,6 +31,7 @@ use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
+use App\Libraries\Roles\RecordScope;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Model;
@@ -65,6 +66,8 @@ class Sale extends Model
 
     private ?InvoiceDiscountProblem $invoiceDiscountProblem = null;
 
+    private ?RecordScope $recordScope = null;
+
     public function __construct()
     {
         parent::__construct();
@@ -88,9 +91,32 @@ class Sale extends Model
     }
 
     /**
+     * The sales an employee who sees their own records only may not open, change or cancel are the
+     * ones another employee made, and the ones that do not exist, which they cannot tell apart.
+     */
+    public function outsideRecordScope(int $saleId, ?int $viewerId = null): bool
+    {
+        $viewer = $viewerId ?? RecordScope::sessionEmployee();
+        $scope  = $this->recordScope ??= new RecordScope($this->db);
+
+        if (! $scope->ownOnly($viewer)) {
+            return false;
+        }
+
+        $row = $this->db->table('sales')->select('employee_id')->where('sale_id', $saleId)->get()->getRow();
+
+        return ! $scope->allows($viewer, $row?->employee_id);
+    }
+
+    private function viewerCut(?int $viewerId): ?int
+    {
+        return ($this->recordScope ??= new RecordScope($this->db))->limit($viewerId ?? RecordScope::sessionEmployee());
+    }
+
+    /**
      * Get sale info
      */
-    public function get_info(int $sale_id): ResultInterface
+    public function get_info(int $sale_id, ?int $viewerId = null): ResultInterface
     {
         $config = config(OSPOS::class)->settings;
         $this->create_temp_table(['sale_id' => $sale_id]);
@@ -148,6 +174,12 @@ class Sale extends Model
 
         $builder->where('sales.sale_id', $sale_id);
 
+        $cut = $this->viewerCut($viewerId);
+
+        if ($cut !== null) {
+            $builder->where('sales.employee_id', $cut);
+        }
+
         $builder->groupBy('sales.sale_id, payments.reference_code');
         $builder->orderBy('sales.sale_time', 'asc');
 
@@ -157,15 +189,15 @@ class Sale extends Model
     /**
      * Get number of rows for the takings (sales/manage) view
      */
-    public function get_found_rows(?string $search, array $filters): int
+    public function get_found_rows(?string $search, array $filters, ?int $viewerId = null): int
     {
-        return $this->search($search, $filters, 0, 0, 'sales.sale_time', 'desc', true);
+        return $this->search($search, $filters, 0, 0, 'sales.sale_time', 'desc', true, $viewerId);
     }
 
     /**
      * Get the sales data for the takings (sales/manage) view
      */
-    public function search(?string $search, array $filters, ?int $rows = 0, ?int $limit_from = 0, ?string $sort = 'sales.sale_time', ?string $order = 'desc', ?bool $count_only = false)
+    public function search(?string $search, array $filters, ?int $rows = 0, ?int $limit_from = 0, ?string $sort = 'sales.sale_time', ?string $order = 'desc', ?bool $count_only = false, ?int $viewerId = null)
     {
         // Set default values
         if ($rows == null) $rows = 0;
@@ -183,6 +215,12 @@ class Sale extends Model
         $where .= empty($config['date_or_time_format'])
             ? 'DATE(' . $db_prefix . 'sales.sale_time) BETWEEN ' . $this->db->escape($filters['start_date']) . ' AND ' . $this->db->escape($filters['end_date'])
             : 'sales.sale_time BETWEEN ' . $this->db->escape(rawurldecode($filters['start_date'])) . ' AND ' . $this->db->escape(rawurldecode($filters['end_date']));
+
+        $cut = $this->viewerCut($viewerId);
+
+        if ($cut !== null) {
+            $where .= ' AND sales.employee_id = ' . $cut;
+        }
 
         $this->create_temp_table_sales_payments_data($where);
 
@@ -263,12 +301,19 @@ class Sale extends Model
     /**
      * Get the payment summary for the takings (sales/manage) view
      */
-    public function getPaymentsSummary(?string $search, array $filters): array
+    public function getPaymentsSummary(?string $search, array $filters, ?int $viewerId = null): array
     {
         $config = config(OSPOS::class)->settings;
 
         // Get payment summary
         $builder = $this->db->table('sales AS sales');
+
+        $cut = $this->viewerCut($viewerId);
+
+        if ($cut !== null) {
+            $builder->where('sales.employee_id', $cut);
+        }
+
         $builder->select('payment_type, COUNT(payment_amount) AS count, SUM(payment_amount - cash_refund) AS payment_amount');
         $builder->join('sales_payments', 'sales_payments.sale_id = sales.sale_id');
         $builder->join('people AS customer_p', 'sales.customer_id = customer_p.person_id', 'LEFT');
@@ -624,6 +669,10 @@ class Sale extends Model
      */
     public function update($sale_id = null, $sale_data = null): bool
     {
+        if ($this->outsideRecordScope((int) $sale_id, $this->employeeOfEdit($sale_data))) {
+            return false;
+        }
+
         try {
             return (new CustomerLock($this->db))->run($this->customerOf((int) $sale_id), fn (): bool => $this->updateLocked($sale_id, $sale_data));
         } catch (AccountingException $busy) {
@@ -934,6 +983,10 @@ class Sale extends Model
         ?string $draftFingerprint = null,
         ?string $returnOverrideReason = null,
     ): int {    // TODO: this method returns the sale_id but the override is expecting it to return a bool. The signature needs to be reworked.  Generally when there are more than 3 maybe 4 parameters, there's a good chance that an object needs to be passed rather than so many params.
+        if ($saleId !== NEW_ENTRY && $this->outsideRecordScope($saleId, $employeeId)) {
+            return NEW_ENTRY;
+        }
+
         try {
             return (new CustomerLock($this->db))->run(
                 $customerId,
@@ -1350,7 +1403,7 @@ class Sale extends Model
         $this->accountingFailure      = null;
         $this->invoiceDiscountProblem = null;
 
-        $issue = (new DraftInvoice($this->db))->forIssue($saleId);
+        $issue = $this->outsideRecordScope($saleId, $employeeId) ? null : (new DraftInvoice($this->db))->forIssue($saleId);
 
         if ($issue === null) {
             $this->accountingFailure = new AccountingException(AccountingError::DraftNotFound, 'The sale is not a draft invoice.', ['sale_id' => $saleId]);
@@ -1402,8 +1455,12 @@ class Sale extends Model
      * The header of a draft invoice or a quote as its page shows it: who it is for, who made it, where,
      * and the numbers it carries.
      */
-    public function getDocumentHeader(int $saleId): ?object
+    public function getDocumentHeader(int $saleId, ?int $viewerId = null): ?object
     {
+        if ($this->outsideRecordScope($saleId, $viewerId)) {
+            return null;
+        }
+
         return $this->db->table('sales s')
             ->select("s.sale_id, s.sale_time, s.comment, s.customer_id, s.sale_type, s.invoice_number, s.quote_number, s.invoice_date, s.payment_terms_days, s.delivered, s.branch_id, b.code AS branch_code, TRIM(CONCAT(cp.first_name, ' ', cp.last_name)) AS customer_name, TRIM(CONCAT(ep.first_name, ' ', ep.last_name)) AS employee_name", false)
             ->join('branches b', 'b.branch_id = s.branch_id')
@@ -1828,6 +1885,14 @@ class Sale extends Model
         $failure = null;
 
         foreach ($sale_ids as $sale_id) {
+            if ($this->outsideRecordScope((int) $sale_id, $employee_id)) {
+                $this->accountingFailure = null;
+
+                return false;
+            }
+        }
+
+        foreach ($sale_ids as $sale_id) {
             $result &= $this->delete($sale_id, false, $update_inventory, $employee_id);
             $failure ??= $this->accountingFailure;
         }
@@ -1840,8 +1905,14 @@ class Sale extends Model
     /**
      * Restores list of sales
      */
-    public function restore_list(array $sale_ids, int $employee_id, bool $update_inventory = true): bool    // TODO: $employee_id and $update_inventory are never used in the function.
+    public function restore_list(array $sale_ids, int $employee_id, bool $update_inventory = true): bool    // TODO: $update_inventory is never used in the function.
     {
+        foreach ($sale_ids as $sale_id) {
+            if ($this->outsideRecordScope((int) $sale_id, $employee_id)) {
+                return false;
+            }
+        }
+
         foreach ($sale_ids as $sale_id) {
             $this->update_sale_status($sale_id, SUSPENDED);
         }
@@ -1857,6 +1928,12 @@ class Sale extends Model
      */
     public function delete($sale_id = null, bool $purge = false, bool $update_inventory = true, $employee_id = null): bool
     {
+        if ($this->outsideRecordScope((int) $sale_id, $employee_id === null ? null : (int) $employee_id)) {
+            $this->accountingFailure = null;
+
+            return false;
+        }
+
         try {
             return (new CustomerLock($this->db))->run($this->customerOf((int) $sale_id), fn (): bool => $this->deleteLocked($sale_id, $update_inventory, $employee_id));
         } catch (AccountingException $busy) {
@@ -1955,6 +2032,10 @@ class Sale extends Model
     public function confirm_delivery(int $saleId, ?int $employeeId = null): int
     {
         $this->accountingFailure = null;
+
+        if ($this->outsideRecordScope($saleId, $employeeId)) {
+            return NEW_ENTRY;
+        }
 
         $this->db->transStart();
 
@@ -2368,16 +2449,19 @@ class Sale extends Model
     /**
      * Retrieves all sales that are in a suspended state
      */
-    public function get_all_suspended(?int $customer_id = null): array
+    public function get_all_suspended(?int $customer_id = null, ?int $viewerId = null): array
     {
+        $cut     = $this->viewerCut($viewerId);
+        $mineOnly = $cut === null ? '' : ' AND employee_id = ' . $cut;
+
         $documentId = "case when sale_type = '" . SALE_TYPE_QUOTE . "' THEN IF(quote_status = " . QuoteStatus::Draft->value . " AND (quote_number IS NULL OR quote_number = ''), CONCAT('" . DraftInvoice::PREFIX . "', sale_id), quote_number) WHEN sale_type = '" . SALE_TYPE_WORK_ORDER . "' THEN work_order_number else sale_id end as doc_id";
 
         if ($customer_id == NEW_ENTRY) {
             $query = $this->db->query("SELECT sale_id, {$documentId}, sale_id as suspended_sale_id, sale_status, sale_time, dinner_table_id, customer_id, employee_id, comment, branch_id FROM "
-                . $this->db->prefixTable('sales') . ' where sale_status = ' . SUSPENDED);
+                . $this->db->prefixTable('sales') . ' where sale_status = ' . SUSPENDED . $mineOnly);
         } else {
             $query = $this->db->query("SELECT sale_id, {$documentId}, sale_status, sale_time, dinner_table_id, customer_id, employee_id, comment, branch_id FROM "
-                . $this->db->prefixTable('sales') . ' where sale_status = ' . SUSPENDED . ' AND customer_id = ' . $customer_id);
+                . $this->db->prefixTable('sales') . ' where sale_status = ' . SUSPENDED . ' AND customer_id = ' . $customer_id . $mineOnly);
         }
 
         return $query ? $query->getResultArray() : [];
@@ -2513,6 +2597,10 @@ class Sale extends Model
     {
         $this->accountingFailure = null;
 
+        if ($this->outsideRecordScope($sale_id, null)) {
+            return false;
+        }
+
         try {
             (new QuoteLifecycle($this->db))->assertUnlocked($sale_id);
         } catch (AccountingException $refusal) {
@@ -2544,6 +2632,10 @@ class Sale extends Model
      */
     public function clear_suspended_sale_detail(int $sale_id): bool
     {
+        if ($this->outsideRecordScope($sale_id, null)) {
+            return false;
+        }
+
         $this->db->transStart();
         $config = config(OSPOS::class)->settings;
 
@@ -2573,10 +2665,17 @@ class Sale extends Model
     /**
      * Gets suspended sale info
      */
-    public function get_suspended_sale_info(int $sale_id): ResultInterface
+    public function get_suspended_sale_info(int $sale_id, ?int $viewerId = null): ResultInterface
     {
         $builder = $this->db->table('sales');
         $builder->where('sale_id', $sale_id);
+
+        $cut = $this->viewerCut($viewerId);
+
+        if ($cut !== null) {
+            $builder->where('sales.employee_id', $cut);
+        }
+
         $builder->join('people', 'people.person_id = sales.customer_id', 'LEFT');
         $builder->where('sale_status', SUSPENDED);
 

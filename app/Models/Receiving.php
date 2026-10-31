@@ -31,6 +31,7 @@ use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
+use App\Libraries\Roles\RecordScope;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Model;
 use Config\OSPOS;
@@ -57,6 +58,7 @@ class Receiving extends Model
     ];
     private ?Throwable $accountingFailure = null;
     private int $supplierLockWait         = 15;
+    private ?RecordScope $recordScope     = null;
 
     /**
      * How long a change to a purchase waits for another change to the same supplier to finish
@@ -77,20 +79,55 @@ class Receiving extends Model
         return $this->accountingFailure;
     }
 
-    public function get_info(int $receiving_id): ResultInterface
+    /**
+     * The purchases an employee who sees their own records only may not open, change or delete are
+     * the ones another employee made, and the ones that do not exist, which they cannot tell apart.
+     */
+    public function outsideRecordScope(int $receivingId, ?int $viewerId = null): bool
+    {
+        $viewer = $viewerId ?? RecordScope::sessionEmployee();
+        $scope  = $this->recordScope ??= new RecordScope($this->db);
+
+        if (! $scope->ownOnly($viewer)) {
+            return false;
+        }
+
+        $row = $this->db->table('receivings')->select('employee_id')->where('receiving_id', $receivingId)->get()->getRow();
+
+        return ! $scope->allows($viewer, $row?->employee_id);
+    }
+
+    private function viewerCut(?int $viewerId): ?int
+    {
+        return ($this->recordScope ??= new RecordScope($this->db))->limit($viewerId ?? RecordScope::sessionEmployee());
+    }
+
+    public function get_info(int $receiving_id, ?int $viewerId = null): ResultInterface
     {
         $builder = $this->db->table('receivings');
         $builder->join('people', 'people.person_id = receivings.supplier_id', 'LEFT');
         $builder->join('suppliers', 'suppliers.person_id = receivings.supplier_id', 'LEFT');
         $builder->where('receiving_id', $receiving_id);
 
+        $cut = $this->viewerCut($viewerId);
+
+        if ($cut !== null) {
+            $builder->where('receivings.employee_id', $cut);
+        }
+
         return $builder->get();
     }
 
-    public function get_receiving_by_reference(string $reference): ResultInterface
+    public function get_receiving_by_reference(string $reference, ?int $viewerId = null): ResultInterface
     {
         $builder = $this->db->table('receivings');
         $builder->where('reference', $reference);
+
+        $cut = $this->viewerCut($viewerId);
+
+        if ($cut !== null) {
+            $builder->where('receivings.employee_id', $cut);
+        }
 
         return $builder->get();
     }
@@ -102,7 +139,7 @@ class Receiving extends Model
             $pieces = explode(' ', $receipt_receiving_id);
 
             if (count($pieces) === 2 && preg_match('/(RECV|KIT)/', $pieces[0])) {
-                return $this->exists($pieces[1]);
+                return $this->exists($pieces[1]) && ! $this->outsideRecordScope((int) $pieces[1]);
             }
 
             return $this->get_receiving_by_reference($receipt_receiving_id)->getNumRows() > 0;
@@ -129,6 +166,10 @@ class Receiving extends Model
     public function update($receivingId = null, $receivingData = null): bool
     {
         $this->accountingFailure = null;
+
+        if ($this->outsideRecordScope((int) $receivingId, $this->employeeOfEdit(is_array($receivingData) ? $receivingData : null, is_array($receivingData) && isset($receivingData['payments']) ? $receivingData['payments'] : []))) {
+            return false;
+        }
 
         try {
             return (new SupplierLock($this->db, $this->supplierLockWait))->run($this->supplierOf((int) $receivingId), fn (): bool => $this->updateLocked($receivingId, $receivingData));
@@ -331,6 +372,10 @@ class Receiving extends Model
     public function updateLines(int $receivingId, array $edits, int $employeeId): bool
     {
         $this->accountingFailure = null;
+
+        if ($this->outsideRecordScope($receivingId, $employeeId)) {
+            return false;
+        }
 
         try {
             return (new SupplierLock($this->db, $this->supplierLockWait))->run($this->supplierOf($receivingId), fn (): bool => $this->updateLinesLocked($receivingId, $edits, $employeeId));
@@ -901,6 +946,10 @@ class Receiving extends Model
     {
         $this->accountingFailure = null;
 
+        if ($returnOfReceivingId !== null && $this->outsideRecordScope($returnOfReceivingId, $employeeId)) {
+            return -1;    // TODO: Replace -1 with a constant
+        }
+
         try {
             return (new SupplierLock($this->db, $this->supplierLockWait))->run($supplierId > 0 ? $supplierId : null, fn (): int => $this->saveValueLocked($items, $supplierId, $employeeId, $comment, $reference, $paymentType, $receivingId, $returnOfReceivingId, $invoiceDiscount ?? InvoiceDiscount::none(), $invoiceDate, $paymentTerms));
         } catch (AccountingException $busy) {
@@ -1383,6 +1432,12 @@ class Receiving extends Model
     {
         $this->accountingFailure = null;
 
+        foreach ($receiving_ids as $receiving_id) {
+            if ($this->outsideRecordScope((int) $receiving_id, $employee_id)) {
+                return false;
+            }
+        }
+
         $suppliers = [];
 
         foreach ($receiving_ids as $receiving_id) {
@@ -1460,6 +1515,10 @@ class Receiving extends Model
     public function delete_value(int $receiving_id, int $employee_id, bool $update_inventory = true): bool
     {
         $this->accountingFailure = null;
+
+        if ($this->outsideRecordScope($receiving_id, $employee_id)) {
+            return false;
+        }
 
         try {
             return (new SupplierLock($this->db, $this->supplierLockWait))->run($this->supplierOf($receiving_id), fn (): bool => $this->deleteValueLocked($receiving_id, $employee_id, $update_inventory));

@@ -6,6 +6,7 @@ use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
+use App\Libraries\Roles\RecordScope;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
@@ -47,7 +48,7 @@ final class QuoteLifecycle
     public function change(int $saleId, QuoteStatus $to, ?int $employeeId): QuoteStatus
     {
         return $this->transactional(function () use ($saleId, $to, $employeeId): QuoteStatus {
-            $quote = $this->lock($saleId);
+            $quote = $this->lock($saleId, $employeeId);
 
             (new BranchGuard($this->db))->requireBranch((int) $quote->branch_id, $employeeId);
 
@@ -99,7 +100,7 @@ final class QuoteLifecycle
     public function markConverted(int $quoteId, int $invoiceSaleId, ?int $employeeId): void
     {
         $this->transactional(function () use ($quoteId, $invoiceSaleId, $employeeId): void {
-            $quote = $this->lock($quoteId);
+            $quote = $this->lock($quoteId, $employeeId);
 
             (new BranchGuard($this->db))->requireBranch((int) $quote->branch_id, $employeeId);
 
@@ -148,11 +149,11 @@ final class QuoteLifecycle
     /**
      * @throws AccountingException
      */
-    private function lock(int $saleId): object
+    private function lock(int $saleId, ?int $employeeId): object
     {
-        $quote = LockedRead::row($this->db, 'SELECT sale_id, sale_status, sale_type, quote_status, quote_number, branch_id FROM ' . $this->db->prefixTable('sales') . ' WHERE sale_id = ? FOR UPDATE', [$saleId]);
+        $quote = LockedRead::row($this->db, 'SELECT sale_id, sale_status, sale_type, quote_status, quote_number, branch_id, employee_id FROM ' . $this->db->prefixTable('sales') . ' WHERE sale_id = ? FOR UPDATE', [$saleId]);
 
-        if ($quote === null || ! $this->isLive($quote)) {
+        if ($quote === null || ! $this->isLive($quote) || ! (new RecordScope($this->db))->allows($employeeId, $quote->employee_id)) {
             throw new AccountingException(AccountingError::QuoteNotFound, 'The sale is not a quote.', ['sale_id' => $saleId]);
         }
 

@@ -4,6 +4,7 @@ namespace App\Libraries\Accounting;
 
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\CompanyContext;
+use App\Libraries\Roles\RecordScope;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
@@ -47,9 +48,9 @@ final class DebitNoteList
      *
      * @return array{total: int, rows: list<object>}
      */
-    public function search(?array $branchIds, array $filters = [], string $sort = 'date', string $order = 'desc', int $limit = 25, int $offset = 0): array
+    public function search(?array $branchIds, array $filters = [], string $sort = 'date', string $order = 'desc', int $limit = 25, int $offset = 0, ?int $viewerId = null): array
     {
-        [$where, $bindings] = $this->conditions($branchIds, $filters);
+        [$where, $bindings] = $this->conditions($branchIds, $filters, $viewerId);
 
         $from  = $this->from();
         $total = (int) $this->db->query("SELECT COUNT(*) AS found {$from['sql']} {$where}", [...$from['bindings'], ...$bindings])->getRow()->found;
@@ -170,10 +171,16 @@ final class DebitNoteList
      *
      * @return array{string, list<int|string>}
      */
-    private function conditions(?array $branchIds, array $filters): array
+    private function conditions(?array $branchIds, array $filters, ?int $viewerId): array
     {
         $where    = ['r.receiving_type = ?'];
         $bindings = [ReceivingType::Return->value];
+        $mine     = (new RecordScope($this->db))->limit($viewerId ?? RecordScope::sessionEmployee());
+
+        if ($mine !== null) {
+            $where[]    = 'r.employee_id = ?';
+            $bindings[] = $mine;
+        }
 
         if ($branchIds !== null) {
             $ids     = array_values(array_unique(array_map('intval', $branchIds)));

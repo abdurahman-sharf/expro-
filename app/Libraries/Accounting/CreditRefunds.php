@@ -5,6 +5,7 @@ namespace App\Libraries\Accounting;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Organization\CompanyContext;
+use App\Libraries\Roles\RecordScope;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
@@ -141,9 +142,9 @@ final class CreditRefunds
 
         $reason = $this->cash->reason($reason);
         $column = $this->party . '_id';
-        $row    = $this->db->table($this->table())->select($column)->where(['company_id' => CompanyContext::id(), 'refund_id' => $refundId])->get()->getRow();
+        $row    = $this->db->table($this->table())->select($column . ', created_by')->where(['company_id' => CompanyContext::id(), 'refund_id' => $refundId])->get()->getRow();
 
-        if ($row === null) {
+        if ($row === null || ! (new RecordScope($this->db))->allows($employeeId, $row->created_by)) {
             throw new AccountingException(AccountingError::RefundNotFound, "Refund {$refundId} does not exist.", ['refund_id' => $refundId]);
         }
 
@@ -207,11 +208,11 @@ final class CreditRefunds
     /**
      * The branch a refund belongs to, or null when there is no such one.
      */
-    public function branchOf(int $refundId): ?int
+    public function branchOf(int $refundId, ?int $viewerId = null): ?int
     {
-        $row = $this->db->table($this->table())->select('branch_id')->where(['company_id' => CompanyContext::id(), 'refund_id' => $refundId])->get()->getRow();
+        $row = $this->db->table($this->table())->select('branch_id, created_by')->where(['company_id' => CompanyContext::id(), 'refund_id' => $refundId])->get()->getRow();
 
-        return $row === null ? null : (int) $row->branch_id;
+        return $row === null || ! (new RecordScope($this->db))->allows($viewerId ?? RecordScope::sessionEmployee(), $row->created_by) ? null : (int) $row->branch_id;
     }
 
     private function customers(): bool
