@@ -1081,6 +1081,36 @@ class AccountingReportsControllerTest extends CIUnitTestCase
         $this->assertNotNull($this->csvRowStartingWith($rows, lang('Accounting_reports.balanced')));
     }
 
+    public function testGetIndex_ReadsAClosedPeriodAsAnyOtherOnEveryScreenAndFileOfTheStatements(): void
+    {
+        $this->cashSale('2026-10-05', 1, '100.00');
+        $this->closeThrough('2026-10-31');
+        $this->viewer();
+
+        $cash = $this->accountId('cash');
+        $till = $this->accountIdByCodeOf('1201');
+        $days = 'from=2026-10-01&to=2026-10-31';
+
+        foreach ([
+            "/accounting_reports?type=review_totals&{$days}",
+            "/accounting_reports?type=review_totals&level=2&display=hide_zero&{$days}",
+            "/accounting_reports/csv?type=review_totals&{$days}",
+            "/accounting_reports/ledger?account={$cash}&{$days}",
+            "/accounting_reports/ledger?layout=accounts&account={$till}&{$days}",
+            "/accounting_reports/ledger/csv?account={$cash}&{$days}",
+            "/accounting_reports/ledger/csv?layout=accounts&account={$till}&{$days}",
+        ] as $address) {
+            $response = $this->get($address);
+
+            $response->assertStatus(200);
+            $response->assertDontSee('id="report_error"');
+        }
+
+        [$rows] = $this->splitFooter($this->csvRows($this->get("/accounting_reports/ledger/csv?layout=accounts&account={$till}&{$days}")));
+
+        $this->assertSame('100.0000', end($rows)[8]);
+    }
+
     public function testGetCsv_KeepsTheFiltersTheScreenWasAskedWith(): void
     {
         $this->reviewBooks();

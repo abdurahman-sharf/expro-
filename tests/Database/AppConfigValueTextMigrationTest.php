@@ -37,14 +37,38 @@ class AppConfigValueTextMigrationTest extends CIUnitTestCase
 
     private function type(): string
     {
-        return strtolower((string) $this->accountingDb()->query(
-            'SELECT DATA_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+        return strtolower((string) $this->column()->DATA_TYPE);
+    }
+
+    private function column(): object
+    {
+        return $this->accountingDb()->query(
+            'SELECT DATA_TYPE, CHARACTER_SET_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
             [$this->accountingDb()->prefixTable('app_config'), 'value'],
-        )->getRow()->DATA_TYPE);
+        )->getRow();
+    }
+
+    private function narrowToWhatItWasBeforeTheMigration(): void
+    {
+        $this->accountingDb()->query('ALTER TABLE `' . $this->accountingDb()->prefixTable('app_config') . '` MODIFY COLUMN `value` VARCHAR(500) NOT NULL');
+
+        $this->assertSame('varchar', $this->type(), 'The state before the migration');
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function settings(): array
+    {
+        return $this->accountingDb()->table('app_config')->orderBy('key', 'ASC')->get()->getResultArray();
     }
 
     public function testUp_MakesTheValueOfASettingTextSoAListFitsInIt(): void
     {
+        $this->narrowToWhatItWasBeforeTheMigration();
+
+        (new AppConfigValueText())->up();
+
         $this->assertSame('text', $this->type());
 
         $list = str_repeat('x', 3000);
@@ -56,26 +80,43 @@ class AppConfigValueTextMigrationTest extends CIUnitTestCase
 
     public function testUp_IsSafeToRunAgain(): void
     {
+        $this->narrowToWhatItWasBeforeTheMigration();
+
         (new AppConfigValueText())->up();
         (new AppConfigValueText())->up();
 
         $this->assertSame('text', $this->type());
     }
 
-    public function testUp_LeavesTheSettingsThatWereThereAsTheyWere(): void
+    public function testUp_LeavesTheSettingsThatWereThereAsTheyWereAndTheCharacterSetOfTheColumn(): void
     {
-        $db = $this->accountingDb();
+        $this->narrowToWhatItWasBeforeTheMigration();
 
-        $before = $db->table('app_config')->orderBy('key', 'ASC')->get()->getResultArray();
+        $before  = $this->settings();
+        $charset = $this->column()->CHARACTER_SET_NAME;
 
         (new AppConfigValueText())->up();
 
-        $this->assertSame($before, $db->table('app_config')->orderBy('key', 'ASC')->get()->getResultArray());
+        $this->assertSame($before, $this->settings());
         $this->assertNotSame([], $before);
+        $this->assertSame($charset, $this->column()->CHARACTER_SET_NAME, 'The words of a setting keep the character set they were kept in');
+    }
+
+    public function testUp_LeavesAColumnThatIsAlreadyTextAsItIs(): void
+    {
+        (new AppConfigValueText())->up();
+
+        $before = $this->settings();
+
+        (new AppConfigValueText())->up();
+
+        $this->assertSame('text', $this->type());
+        $this->assertSame($before, $this->settings());
     }
 
     public function testDown_KeepsTheColumnAsItIsSoNoLongValueIsCut(): void
     {
+        (new AppConfigValueText())->up();
         (new AppConfigValueText())->down();
 
         $this->assertSame('text', $this->type());

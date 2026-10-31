@@ -1,25 +1,25 @@
 <?php
 /**
- * @var AccountLedgerReport|null                                                           $report
- * @var AccountLedgerBlocksReport|null                                                     $blocks
- * @var string|null                                                                        $error
- * @var list<object>                                                                       $accounts
- * @var list<object>                                                                       $employees
- * @var array{employee: ?int, hide_employee: bool, layout: string, display: LedgerDisplay} $options
- * @var string                                                                             $csv_url
- * @var int|null                                                                           $account_id
- * @var array{from: string, to: string, branches: list<int>}                               $filters
- * @var list<object>                                                                       $branches
- * @var string|null                                                                        $scope_label
- * @var ReportScopeKind                                                                    $scope_kind
- * @var int                                                                                $page
- * @var int                                                                                $pages
- * @var bool                                                                               $journals_url
- * @var Closure                                                                            $amount
- * @var Closure                                                                            $date
- * @var Closure                                                                            $source
- * @var Closure                                                                            $number
- * @var Closure                                                                            $page_url
+ * @var AccountLedgerReport|null                                                          $report
+ * @var AccountLedgerBlocksReport|null                                                    $blocks
+ * @var string|null                                                                       $error
+ * @var list<object>                                                                      $accounts
+ * @var list<object>                                                                      $employees
+ * @var array{employee: ?int, hideEmployee: bool, layout: string, display: LedgerDisplay} $options
+ * @var string                                                                            $csvUrl
+ * @var int|null                                                                          $accountId
+ * @var array{from: string, to: string, branches: list<int>}                              $filters
+ * @var list<object>                                                                      $branches
+ * @var string|null                                                                       $scopeLabel
+ * @var ReportScopeKind                                                                   $scopeKind
+ * @var int                                                                               $page
+ * @var int                                                                               $pages
+ * @var bool                                                                              $journalsUrl
+ * @var Closure                                                                           $amount
+ * @var Closure                                                                           $date
+ * @var Closure                                                                           $source
+ * @var Closure                                                                           $number
+ * @var Closure                                                                           $pageUrl
  */
 
 use App\Libraries\Accounting\AccountLedgerBlocksReport;
@@ -33,23 +33,23 @@ $kind = static function (array $row) use ($source): string {
     return $row['reverses_journal_id'] === null ? $label : $label . ' (' . lang('Accounting.source_reversal') . ')';
 };
 
-$journal = static function (array $row) use ($journals_url, $number): string {
+$journal = static function (array $row) use ($journalsUrl, $number): string {
     $text = esc($number($row['series'], $row['number']));
 
-    return $journals_url
+    return $journalsUrl
         ? '<a href="' . esc(base_url('accounting_journals/view/' . (int) $row['journal_id']), 'attr') . '">' . $text . '</a>'
         : $text;
 };
 
 $side         = static fn (string $value, Closure $amount): string => bccomp($value, '0', 4) === 0 ? '' : $amount($value);
-$showEmployee = ! $options['hide_employee'];
+$showEmployee = ! $options['hideEmployee'];
 ?>
 
 <?= view('partial/header') ?>
 
 <div id="title_bar" class="print_hide btn-toolbar">
-    <?php if ($account_id !== null): ?>
-        <a class="btn btn-outline-secondary btn-sm float-end" id="ledger_csv" href="<?= esc($csv_url, 'attr') ?>">
+    <?php if ($accountId !== null): ?>
+        <a class="btn btn-outline-secondary btn-sm float-end" id="ledger_csv" href="<?= esc($csvUrl, 'attr') ?>">
             <span class="bi bi-filetype-csv" aria-hidden="true">&nbsp;</span><?= lang('Accounting_reports.csv') ?>
         </a>
     <?php endif; ?>
@@ -86,7 +86,7 @@ $showEmployee = ! $options['hide_employee'];
             <select id="f_account" name="account" class="form-select form-select-sm">
                 <option value=""><?= lang('Accounting_reports.ledger_pick') ?></option>
                 <?php foreach ($accounts as $account): ?>
-                    <option value="<?= (int) $account->account_id ?>"<?= $account_id === $account->account_id ? ' selected' : '' ?>><?= esc($account->code . ' - ' . $account->name) ?></option>
+                    <option value="<?= (int) $account->account_id ?>"<?= $accountId === $account->account_id ? ' selected' : '' ?>><?= esc($account->code . ' - ' . $account->name) ?></option>
                 <?php endforeach; ?>
             </select>
         </div>
@@ -124,7 +124,7 @@ $showEmployee = ! $options['hide_employee'];
         </div>
         <fieldset class="acc-filter acc-filter-status">
             <legend class="form-label"><?= lang('Accounting_reports.show') ?></legend>
-            <label class="choice"><input type="checkbox" class="form-check-input" id="f_hide_employee" name="hide_employee" value="1"<?= $options['hide_employee'] ? ' checked' : '' ?>> <?= lang('Accounting_reports.ledger_hide_employee') ?></label>
+            <label class="choice"><input type="checkbox" class="form-check-input" id="f_hide_employee" name="hide_employee" value="1"<?= $options['hideEmployee'] ? ' checked' : '' ?>> <?= lang('Accounting_reports.ledger_hide_employee') ?></label>
         </fieldset>
         <?php if ($branches !== []): ?>
             <fieldset class="acc-filter acc-filter-status" id="f_branches">
@@ -150,11 +150,11 @@ $showEmployee = ! $options['hide_employee'];
     <?php endif; ?>
 
     <?php if ($report === null && $blocks === null): ?>
-        <?php if ($account_id === null): ?>
+        <?php if ($accountId === null): ?>
             <p class="text-body-secondary" id="ledger_none_selected"><?= lang('Accounting_reports.ledger_none_selected') ?></p>
         <?php endif; ?>
     <?php elseif ($blocks !== null): ?>
-        <?= view('accounting_reports/ledger_blocks', ['blocks' => $blocks, 'options' => $options, 'scope_label' => $scope_label, 'scope_kind' => $scope_kind, 'amount' => $amount, 'date' => $date, 'source' => $source, 'number' => $number, 'journals_url' => $journals_url, 'show_employee' => $showEmployee, 'branches' => $branches]) ?>
+        <?= view('accounting_reports/ledger_blocks', ['blocks' => $blocks, 'options' => $options, 'scopeLabel' => $scopeLabel, 'scopeKind' => $scopeKind, 'amount' => $amount, 'date' => $date, 'source' => $source, 'number' => $number, 'journalsUrl' => $journalsUrl, 'showEmployee' => $showEmployee, 'branches' => $branches]) ?>
     <?php else: ?>
         <h1 class="h4"><?= lang('Accounting_reports.ledger') ?>: <bdi dir="ltr"><?= esc($report->code) ?></bdi> <?= esc($report->name) ?></h1>
 
@@ -164,11 +164,11 @@ $showEmployee = ! $options['hide_employee'];
                 : lang('Accounting_reports.period_between', [$date($report->period->from), $date($report->period->to)]) ?>
         </p>
 
-        <?php if ($scope_label !== null): ?>
-            <?php if ($scope_kind === ReportScopeKind::Partial): ?>
-                <p class="alert alert-warning" id="report_scope" role="note"><?= esc($scope_label) ?></p>
+        <?php if ($scopeLabel !== null): ?>
+            <?php if ($scopeKind === ReportScopeKind::Partial): ?>
+                <p class="alert alert-warning" id="report_scope" role="note"><?= esc($scopeLabel) ?></p>
             <?php else: ?>
-                <p class="acc-scope-note text-secondary small" id="report_scope" role="note"><span class="bi bi-info-circle" aria-hidden="true"></span> <?= esc($scope_label) ?></p>
+                <p class="acc-scope-note text-secondary small" id="report_scope" role="note"><span class="bi bi-info-circle" aria-hidden="true"></span> <?= esc($scopeLabel) ?></p>
             <?php endif; ?>
         <?php endif; ?>
 
@@ -248,11 +248,11 @@ $showEmployee = ! $options['hide_employee'];
             <?php if ($pages > 1): ?>
                 <nav class="print_hide" aria-label="<?= esc(lang('Accounting_reports.paging'), 'attr') ?>" id="ledger_paging">
                     <?php if ($page > 1): ?>
-                        <a class="btn btn-outline-secondary btn-sm" rel="prev" href="<?= esc($page_url($page - 1), 'attr') ?>"><?= lang('Accounting_reports.previous') ?></a>
+                        <a class="btn btn-outline-secondary btn-sm" rel="prev" href="<?= esc($pageUrl($page - 1), 'attr') ?>"><?= lang('Accounting_reports.previous') ?></a>
                     <?php endif; ?>
                     <span class="mx-2 small text-body-secondary"><?= lang('Accounting_reports.page_of', [$page, $pages]) ?></span>
                     <?php if ($page < $pages): ?>
-                        <a class="btn btn-outline-secondary btn-sm" rel="next" href="<?= esc($page_url($page + 1), 'attr') ?>"><?= lang('Accounting_reports.next') ?></a>
+                        <a class="btn btn-outline-secondary btn-sm" rel="next" href="<?= esc($pageUrl($page + 1), 'attr') ?>"><?= lang('Accounting_reports.next') ?></a>
                     <?php endif; ?>
                 </nav>
             <?php endif; ?>

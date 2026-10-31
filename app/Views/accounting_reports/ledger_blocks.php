@@ -1,10 +1,10 @@
 <?php
 /**
  * @var AccountLedgerBlocksReport $blocks
- * @var string|null               $scope_label
- * @var ReportScopeKind           $scope_kind
- * @var bool                      $journals_url
- * @var bool                      $show_employee
+ * @var string|null               $scopeLabel
+ * @var ReportScopeKind           $scopeKind
+ * @var bool                      $journalsUrl
+ * @var bool                      $showEmployee
  * @var list<object>              $branches
  * @var Closure                   $amount
  * @var Closure                   $date
@@ -17,10 +17,10 @@ use App\Libraries\Accounting\ReportScopeKind;
 
 $side = static fn (string $value, Closure $amount): string => bccomp($value, '0', 4) === 0 ? '' : $amount($value);
 
-$journal = static function (array $row) use ($journals_url, $number): string {
+$journal = static function (array $row) use ($journalsUrl, $number): string {
     $text = esc($number($row['series'], $row['number']));
 
-    return $journals_url
+    return $journalsUrl
         ? '<a href="' . esc(base_url('accounting_journals/view/' . (int) $row['journal_id']), 'attr') . '">' . $text . '</a>'
         : $text;
 };
@@ -39,11 +39,11 @@ $kind = static function (array $row) use ($source): string {
         : lang('Accounting_reports.period_between', [$date($blocks->period->from), $date($blocks->period->to)]) ?>
 </p>
 
-<?php if ($scope_label !== null): ?>
-    <?php if ($scope_kind === ReportScopeKind::Partial): ?>
-        <p class="alert alert-warning" id="report_scope" role="note"><?= esc($scope_label) ?></p>
+<?php if ($scopeLabel !== null): ?>
+    <?php if ($scopeKind === ReportScopeKind::Partial): ?>
+        <p class="alert alert-warning" id="report_scope" role="note"><?= esc($scopeLabel) ?></p>
     <?php else: ?>
-        <p class="acc-scope-note text-secondary small" id="report_scope" role="note"><span class="bi bi-info-circle" aria-hidden="true"></span> <?= esc($scope_label) ?></p>
+        <p class="acc-scope-note text-secondary small" id="report_scope" role="note"><span class="bi bi-info-circle" aria-hidden="true"></span> <?= esc($scopeLabel) ?></p>
     <?php endif; ?>
 <?php endif; ?>
 
@@ -69,7 +69,7 @@ $kind = static function (array $row) use ($source): string {
                         <th scope="col"><?= lang('Accounting_reports.ledger_date') ?></th>
                         <th scope="col"><?= lang('Accounting_reports.ledger_journal') ?></th>
                         <th scope="col"><?= lang('Accounting_reports.ledger_source') ?></th>
-                        <?php if ($show_employee): ?>
+                        <?php if ($showEmployee): ?>
                             <th scope="col"><?= lang('Accounting_reports.ledger_employee') ?></th>
                         <?php endif; ?>
                         <th scope="col"><?= lang('Accounting_reports.ledger_description') ?></th>
@@ -83,7 +83,7 @@ $kind = static function (array $row) use ($source): string {
                 </thead>
                 <tbody>
                     <tr class="fw-bold" data-row="opening">
-                        <td colspan="<?= 3 + ($show_employee ? 1 : 0) + 1 + ($branches !== [] ? 1 : 0) ?>"><?= lang('Accounting_reports.ledger_opening') ?></td>
+                        <td colspan="<?= 3 + ($showEmployee ? 1 : 0) + 1 + ($branches !== [] ? 1 : 0) ?>"><?= lang('Accounting_reports.ledger_opening') ?></td>
                         <td></td>
                         <td></td>
                         <td class="text-end"><?= $amount($block->opening) ?></td>
@@ -93,7 +93,7 @@ $kind = static function (array $row) use ($source): string {
                             <td><?= esc($date($row['date'])) ?></td>
                             <td><?= $journal($row) ?></td>
                             <td><?= esc($kind($row)) ?></td>
-                            <?php if ($show_employee): ?>
+                            <?php if ($showEmployee): ?>
                                 <td><?= esc($row['employee']) ?></td>
                             <?php endif; ?>
                             <td><?= esc($row['description']) ?></td>
@@ -108,7 +108,7 @@ $kind = static function (array $row) use ($source): string {
                 </tbody>
                 <tfoot>
                     <tr class="fw-bold" data-row="total">
-                        <th scope="row" colspan="<?= 3 + ($show_employee ? 1 : 0) + 1 + ($branches !== [] ? 1 : 0) ?>"><?= lang('Accounting_reports.totals') ?></th>
+                        <th scope="row" colspan="<?= 3 + ($showEmployee ? 1 : 0) + 1 + ($branches !== [] ? 1 : 0) ?>"><?= lang('Accounting_reports.totals') ?></th>
                         <td class="text-end" data-cell="debit"><?= $amount($block->debit) ?></td>
                         <td class="text-end" data-cell="credit"><?= $amount($block->credit) ?></td>
                         <td class="text-end" data-cell="closing"><?= $amount($block->closing) ?></td>

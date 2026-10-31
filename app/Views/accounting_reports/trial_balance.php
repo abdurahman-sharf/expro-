@@ -3,20 +3,20 @@
  * @var TrialBalanceReport                                   $report
  * @var TrialBalanceType                                     $type
  * @var string|null                                          $error
- * @var bool                                                 $from_ignored
+ * @var bool                                                 $fromIgnored
  * @var array{from: string, to: string, branches: list<int>} $filters
  * @var TrialBalanceFilter                                   $filter
  * @var list<int>                                            $levels
- * @var list<object>                                         $account_choices
+ * @var list<object>                                         $accountChoices
  * @var bool                                                 $expand
- * @var bool                                                 $show_empty
- * @var string                                               $csv_url
+ * @var bool                                                 $showEmpty
+ * @var string                                               $csvUrl
  * @var list<object>                                         $branches
- * @var string|null                                          $scope_label
- * @var ReportScopeKind                                      $scope_kind
+ * @var string|null                                          $scopeLabel
+ * @var ReportScopeKind                                      $scopeKind
  * @var Closure                                              $amount
  * @var Closure                                              $date
- * @var Closure                                              $ledger_url
+ * @var Closure                                              $ledgerUrl
  */
 
 use App\Libraries\Accounting\ReportScopeKind;
@@ -34,7 +34,7 @@ $gross = $type->isGross();
 <?= view('partial/header') ?>
 
 <div id="title_bar" class="print_hide btn-toolbar">
-    <a class="btn btn-outline-secondary btn-sm float-end" id="trial_balance_csv" href="<?= esc($csv_url, 'attr') ?>">
+    <a class="btn btn-outline-secondary btn-sm float-end" id="trial_balance_csv" href="<?= esc($csvUrl, 'attr') ?>">
         <span class="bi bi-filetype-csv" aria-hidden="true">&nbsp;</span><?= lang('Accounting_reports.csv') ?>
     </a>
     <button type="button" class="btn btn-outline-secondary btn-sm float-end" onclick="window.print()">
@@ -102,7 +102,7 @@ $gross = $type->isGross();
             <label class="form-label" for="f_account"><?= lang('Accounting_reports.filter_account') ?></label>
             <select id="f_account" name="account" class="form-select form-select-sm">
                 <option value=""><?= lang('Accounting_reports.filter_account_all') ?></option>
-                <?php foreach ($account_choices as $choice): ?>
+                <?php foreach ($accountChoices as $choice): ?>
                     <?php if ($choice->is_group): ?>
                         <option value="<?= (int) $choice->account_id ?>"<?= $filter->accountId === $choice->account_id ? ' selected' : '' ?>><?= esc($choice->code . ' - ' . $choice->name) ?></option>
                     <?php endif; ?>
@@ -112,7 +112,7 @@ $gross = $type->isGross();
         <div class="acc-filter">
             <label class="form-label" for="f_accounts"><?= lang('Accounting_reports.filter_accounts') ?></label>
             <select id="f_accounts" name="accounts[]" class="form-select form-select-sm" multiple size="4" aria-describedby="f_accounts_hint">
-                <?php foreach ($account_choices as $choice): ?>
+                <?php foreach ($accountChoices as $choice): ?>
                     <option value="<?= (int) $choice->account_id ?>"<?= in_array($choice->account_id, $filter->accountIds, true) ? ' selected' : '' ?>><?= esc($choice->code . ' - ' . $choice->name) ?></option>
                 <?php endforeach; ?>
             </select>
@@ -121,7 +121,7 @@ $gross = $type->isGross();
         <fieldset class="acc-filter acc-filter-status">
             <legend class="form-label"><?= lang('Accounting_reports.show') ?></legend>
             <label class="choice"><input type="checkbox" class="form-check-input" id="f_entities" name="entities" value="1"<?= $expand ? ' checked' : '' ?>> <?= lang('Accounting_reports.show_entities') ?></label>
-            <label class="choice"><input type="checkbox" class="form-check-input" id="f_empty" name="empty" value="1"<?= $show_empty ? ' checked' : '' ?>> <?= lang('Accounting_reports.show_empty') ?></label>
+            <label class="choice"><input type="checkbox" class="form-check-input" id="f_empty" name="empty" value="1"<?= $showEmpty ? ' checked' : '' ?>> <?= lang('Accounting_reports.show_empty') ?></label>
         </fieldset>
         <?php if ($branches !== []): ?>
             <fieldset class="acc-filter acc-filter-status" id="f_branches">
@@ -154,15 +154,15 @@ $gross = $type->isGross();
         <p class="alert alert-danger" id="report_error" role="alert"><?= esc($error) ?></p>
     <?php endif; ?>
 
-    <?php if ($scope_label !== null): ?>
-        <?php if ($scope_kind === ReportScopeKind::Partial): ?>
-            <p class="alert alert-warning" id="report_scope" role="note"><?= esc($scope_label) ?></p>
+    <?php if ($scopeLabel !== null): ?>
+        <?php if ($scopeKind === ReportScopeKind::Partial): ?>
+            <p class="alert alert-warning" id="report_scope" role="note"><?= esc($scopeLabel) ?></p>
         <?php else: ?>
-            <p class="acc-scope-note text-secondary small" id="report_scope" role="note"><span class="bi bi-info-circle" aria-hidden="true"></span> <?= esc($scope_label) ?></p>
+            <p class="acc-scope-note text-secondary small" id="report_scope" role="note"><span class="bi bi-info-circle" aria-hidden="true"></span> <?= esc($scopeLabel) ?></p>
         <?php endif; ?>
     <?php endif; ?>
 
-    <?php if ($from_ignored): ?>
+    <?php if ($fromIgnored): ?>
         <p class="small text-body-secondary" id="report_from_ignored" role="note"><?= lang('Accounting_reports.from_ignored') ?></p>
     <?php endif; ?>
 
@@ -207,7 +207,7 @@ $gross = $type->isGross();
                     ?>
                     <tr<?= $row->isGroup ? ' class="fw-bold"' : '' ?> data-account="<?= esc($row->code, 'attr') ?>">
                         <td><bdi dir="ltr"><?= esc($row->code) ?></bdi></td>
-                        <td><span class="acc-depth acc-depth-<?= min(6, max(0, $row->depth)) ?>"><a href="<?= esc($ledger_url($row->accountId), 'attr') ?>"><?= esc($row->name) ?></a></span></td>
+                        <td><span class="acc-depth acc-depth-<?= min(6, max(0, $row->depth)) ?>"><a href="<?= esc($ledgerUrl($row->accountId), 'attr') ?>"><?= esc($row->name) ?></a></span></td>
                         <?php if ($type->showsOpening()): ?>
                             <td class="text-end"><?= $side($openingDebit, $amount) ?></td>
                             <td class="text-end"><?= $side($openingCredit, $amount) ?></td>

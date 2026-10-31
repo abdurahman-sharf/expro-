@@ -948,6 +948,26 @@ class TrialBalanceTest extends CIUnitTestCase
         $this->assertSame([1 => 2, 2 => 4, 3 => 7, 4 => 9, 5 => 10], $sizes, 'The rows listed grow with the depth: the roots, then their groups, down to the account of the customer');
     }
 
+    public function testBuild_ReadsAClosedPeriodAsAnyOtherWithTheFiltersToo(): void
+    {
+        $this->cashSale('2026-10-05', 1, '100.00');
+        $this->closeThrough('2026-10-31');
+
+        $plain = $this->build('2026-10-31', '2026-10-01');
+
+        $this->assertSame(['100.0000', '100.0000'], [$plain->totals['gross_closing_debit'], $plain->totals['gross_closing_credit']]);
+        $this->assertTrue($plain->balances());
+
+        foreach ([new TrialBalanceFilter(level: 2), new TrialBalanceFilter(display: StatementDisplay::WithActivity)] as $filter) {
+            $this->assertSame($plain->totals, $this->build('2026-10-31', '2026-10-01', filter: $filter)->totals);
+        }
+
+        $limited = $this->build('2026-10-31', '2026-10-01', filter: new TrialBalanceFilter(accountId: $this->accountIdByCode('12')));
+
+        $this->assertSame('100.0000', $limited->totals['gross_closing_debit']);
+        $this->assertTrue($limited->limitedToAccounts);
+    }
+
     public function testBuild_ListsTheChartDownToTheDepthAskedAndDrawsEachRowUnderItsParent(): void
     {
         $this->cashSale('2026-10-05', 1, '100.00');

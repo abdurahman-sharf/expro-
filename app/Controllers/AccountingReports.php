@@ -67,23 +67,23 @@ class AccountingReports extends AccountingController
         $linkedFrom = $type->showsOpening() ? $this->query('from') : '';
 
         return view('accounting_reports/trial_balance', [
-            'report'          => $this->trialBalance->build($scope, $period, $expand, $empty, $filter),
-            'type'            => $type,
-            'error'           => $error,
-            'from_ignored'    => $error === null && $this->query('from') !== '' && ! $type->showsOpening(),
-            'filters'         => $this->filterValues($scope),
-            'filter'          => $filter,
-            'levels'          => range(1, 5),
-            'account_choices' => $this->trialBalance->choices(),
-            'expand'          => $expand,
-            'show_empty'      => $empty,
-            'branches'        => $this->branchChoices($scope),
-            'scope_label'     => $this->scopeLabel($scope),
-            'scope_kind'      => $scope->kind,
-            'csv_url'         => base_url('accounting_reports/csv') . $this->trialBalanceQuery($scope),
-            'amount'          => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
-            'date'            => fn (string $value): string => $this->formatDate($value),
-            'ledger_url'      => fn (int $accountId): string => $this->ledgerUrl($accountId, $scope, $linkedFrom, $this->query('to')),
+            'report'         => $this->trialBalance->build($scope, $period, $expand, $empty, $filter),
+            'type'           => $type,
+            'error'          => $error,
+            'fromIgnored'    => $error === null && $this->query('from') !== '' && ! $type->showsOpening(),
+            'filters'        => $this->filterValues($scope),
+            'filter'         => $filter,
+            'levels'         => range(1, 5),
+            'accountChoices' => $this->trialBalance->choices(),
+            'expand'         => $expand,
+            'showEmpty'      => $empty,
+            'branches'       => $this->branchChoices($scope),
+            'scopeLabel'     => $this->scopeLabel($scope),
+            'scopeKind'      => $scope->kind,
+            'csvUrl'         => base_url('accounting_reports/csv') . $this->trialBalanceQuery($scope),
+            'amount'         => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
+            'date'           => fn (string $value): string => $this->formatDate($value),
+            'ledgerUrl'      => fn (int $accountId): string => $this->ledgerUrl($accountId, $scope, $linkedFrom, $this->query('to')),
         ]);
     }
 
@@ -157,7 +157,7 @@ class AccountingReports extends AccountingController
             $period = $this->period();
 
             if ($options['layout'] === self::LAYOUT_ACCOUNT) {
-                $text = $this->blocksCsv($this->blocks($scope, $accountId, $period, $options), $options['hide_employee']);
+                $text = $this->blocksCsv($this->blocks($scope, $accountId, $period, $options), $options['hideEmployee']);
                 $name = 'account_ledger_blocks_';
             } else {
                 $report = $this->ledger->build($scope, $accountId, $period, self::CSV_MAX_LINES, 0, $options['employee']);
@@ -166,7 +166,7 @@ class AccountingReports extends AccountingController
                     throw new AccountingException(AccountingError::LedgerTooLarge, 'The statement is too large for a file.', ['max' => self::CSV_MAX_LINES]);
                 }
 
-                $text = $this->ledgerCsv($report, $options['hide_employee']);
+                $text = $this->ledgerCsv($report, $options['hideEmployee']);
                 $name = 'account_ledger_';
             }
         } catch (AccountingException $refusal) {
@@ -217,7 +217,7 @@ class AccountingReports extends AccountingController
     }
 
     /**
-     * @param array{employee: ?int, hide_employee: bool, layout: string, display: LedgerDisplay} $options
+     * @param array{employee: ?int, hideEmployee: bool, layout: string, display: LedgerDisplay} $options
      *
      * @throws AccountingException
      */
@@ -244,22 +244,22 @@ class AccountingReports extends AccountingController
      * drawn, one list or a block for each account, and which accounts have a block. An employee
      * that is empty or not a number is nobody in particular, which is everyone.
      *
-     * @return array{employee: ?int, hide_employee: bool, layout: string, display: LedgerDisplay}
+     * @return array{employee: ?int, hideEmployee: bool, layout: string, display: LedgerDisplay}
      */
     private function ledgerOptions(): array
     {
         $employee = $this->query('employee');
 
         return [
-            'employee'      => ctype_digit($employee) && (int) $employee > 0 ? (int) $employee : null,
-            'hide_employee' => $this->flag('hide_employee'),
-            'layout'        => $this->query('layout') === self::LAYOUT_ACCOUNT ? self::LAYOUT_ACCOUNT : self::LAYOUT_MERGED,
-            'display'       => LedgerDisplay::fromRequest($this->request->getGet('display')),
+            'employee'     => ctype_digit($employee) && (int) $employee > 0 ? (int) $employee : null,
+            'hideEmployee' => $this->flag('hide_employee'),
+            'layout'       => $this->query('layout') === self::LAYOUT_ACCOUNT ? self::LAYOUT_ACCOUNT : self::LAYOUT_MERGED,
+            'display'      => LedgerDisplay::fromRequest($this->request->getGet('display')),
         ];
     }
 
     /**
-     * @param array{employee: ?int, hide_employee: bool, layout: string, display: LedgerDisplay} $options
+     * @param array{employee: ?int, hideEmployee: bool, layout: string, display: LedgerDisplay} $options
      *
      * @return array<string, mixed>
      */
@@ -268,26 +268,26 @@ class AccountingReports extends AccountingController
         $accountId = $report?->accountId ?? $blocks?->accountId ?? $chosen;
 
         return [
-            'report'       => $report,
-            'blocks'       => $blocks,
-            'error'        => $error,
-            'accounts'     => $this->ledger->pickable($accountId),
-            'account_id'   => $accountId,
-            'employees'    => $this->ledger->employees($scope),
-            'options'      => $options,
-            'filters'      => $this->filterValues($scope),
-            'branches'     => $this->branchChoices($scope),
-            'scope_label'  => $this->scopeLabel($scope),
-            'scope_kind'   => $scope->kind,
-            'page'         => $page,
-            'pages'        => $report === null ? 1 : $this->pagesOf($report),
-            'journals_url' => $this->can('accounting_journals'),
-            'csv_url'      => base_url('accounting_reports/ledger/csv') . $this->ledgerQuery($accountId ?? 0, $scope, $period, $options),
-            'amount'       => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
-            'date'         => fn (string $value): string => $this->formatDate($value),
-            'source'       => fn (string $type): string => $this->label('source', $type),
-            'number'       => fn (?string $series, ?string $number): string => $this->displayNumber($series, $number),
-            'page_url'     => fn (int $target): string => $this->ledgerUrl($accountId ?? 0, $scope, $period->from ?? '', $period->to, $target, $options),
+            'report'      => $report,
+            'blocks'      => $blocks,
+            'error'       => $error,
+            'accounts'    => $this->ledger->pickable($accountId),
+            'accountId'   => $accountId,
+            'employees'   => $this->ledger->employees($scope),
+            'options'     => $options,
+            'filters'     => $this->filterValues($scope),
+            'branches'    => $this->branchChoices($scope),
+            'scopeLabel'  => $this->scopeLabel($scope),
+            'scopeKind'   => $scope->kind,
+            'page'        => $page,
+            'pages'       => $report === null ? 1 : $this->pagesOf($report),
+            'journalsUrl' => $this->can('accounting_journals'),
+            'csvUrl'      => base_url('accounting_reports/ledger/csv') . $this->ledgerQuery($accountId ?? 0, $scope, $period, $options),
+            'amount'      => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
+            'date'        => fn (string $value): string => $this->formatDate($value),
+            'source'      => fn (string $type): string => $this->label('source', $type),
+            'number'      => fn (?string $series, ?string $number): string => $this->displayNumber($series, $number),
+            'pageUrl'     => fn (int $target): string => $this->ledgerUrl($accountId ?? 0, $scope, $period->from ?? '', $period->to, $target, $options),
         ];
     }
 
@@ -315,7 +315,7 @@ class AccountingReports extends AccountingController
     }
 
     /**
-     * @param array{employee: ?int, hide_employee: bool, layout: string, display: LedgerDisplay}|null $options
+     * @param array{employee: ?int, hideEmployee: bool, layout: string, display: LedgerDisplay}|null $options
      */
     private function ledgerUrl(int $accountId, ReportScope $scope, string $from, string $to, int $page = 1, ?array $options = null): string
     {
@@ -343,7 +343,7 @@ class AccountingReports extends AccountingController
     }
 
     /**
-     * @param array{employee: ?int, hide_employee: bool, layout: string, display: LedgerDisplay} $options
+     * @param array{employee: ?int, hideEmployee: bool, layout: string, display: LedgerDisplay} $options
      *
      * @return array<string, int|string>
      */
@@ -355,7 +355,7 @@ class AccountingReports extends AccountingController
             $query['employee'] = $options['employee'];
         }
 
-        if ($options['hide_employee']) {
+        if ($options['hideEmployee']) {
             $query['hide_employee'] = 1;
         }
 
@@ -368,7 +368,7 @@ class AccountingReports extends AccountingController
     }
 
     /**
-     * @param array{employee: ?int, hide_employee: bool, layout: string, display: LedgerDisplay} $options
+     * @param array{employee: ?int, hideEmployee: bool, layout: string, display: LedgerDisplay} $options
      */
     private function ledgerQuery(int $accountId, ReportScope $scope, ReportPeriod $period, array $options): string
     {
