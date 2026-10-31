@@ -86,6 +86,10 @@ final class CustomerLedger
             }
         }
 
+        foreach (ChequeCredits::ofCustomer($this->db, $customerId, $accountId, $asOf) as $cheque) {
+            $credits['cheque:' . $cheque->cheque_id] = [CreditSource::CHEQUE, (int) $cheque->cheque_id, null, (string) $cheque->issue_date, bcadd((string) $cheque->amount, '0', SaleAmounts::SCALE)];
+        }
+
         $sources = [];
 
         foreach ($credits as $key => [$type, $sourceId, $origin, $date, $amount]) {

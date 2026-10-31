@@ -27,6 +27,8 @@ final class JournalService
     public const DOCUMENT_SOURCES = [
         ExpensePostingBuilder::SOURCE,
         CashupPostingBuilder::SOURCE,
+        RevenuePostingBuilder::SOURCE,
+        ...ChequeSources::ALL,
     ];
     private const MAX_LINES      = 500;
     private const AMOUNT_PATTERN = '/^\d{1,11}(\.\d{1,4})?$/';

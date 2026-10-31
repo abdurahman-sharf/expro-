@@ -1,6 +1,8 @@
 <?php
 
 return [
+    'cheques_desc'                  => '',
+    'cheques_title'                 => '',
     'choose'                        => '',
     'choose_main'                   => '',
     'column_account'                => '',
@@ -18,6 +20,10 @@ return [
     'item_branches_payable'         => '',
     'item_branches_receivable'      => '',
     'item_cash_difference'          => '',
+    'item_cheques_collection'       => '',
+    'item_cheques_fees'             => '',
+    'item_cheques_payable'          => '',
+    'item_cheques_receivable'       => '',
     'item_fiscal_retained_earnings' => '',
     'item_giftcards_liability'      => '',
     'item_inventory_locations'      => '',

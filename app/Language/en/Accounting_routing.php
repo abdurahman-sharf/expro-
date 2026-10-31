@@ -1,6 +1,8 @@
 <?php
 
 return [
+    'cheques_desc'                  => 'The accounts a cheque is held in while it is received, deposited or delivered, and the deposit fees.',
+    'cheques_title'                 => 'Cheques',
     'choose'                        => 'Choose an account',
     'choose_main'                   => 'Choose the main account',
     'column_account'                => 'Account',
@@ -18,6 +20,10 @@ return [
     'item_branches_payable'         => 'Due to other branches',
     'item_branches_receivable'      => 'Due from other branches',
     'item_cash_difference'          => 'Cash rounding and till differences',
+    'item_cheques_collection'       => 'Funds under collection (cheques deposited)',
+    'item_cheques_fees'             => 'Cheque deposit fees',
+    'item_cheques_payable'          => 'Notes payable (cheques delivered)',
+    'item_cheques_receivable'       => 'Notes receivable (cheques received)',
     'item_fiscal_retained_earnings' => 'Retained earnings',
     'item_giftcards_liability'      => 'Gift card liability',
     'item_inventory_locations'      => 'Stock locations (main account)',

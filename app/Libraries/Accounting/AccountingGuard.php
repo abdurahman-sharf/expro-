@@ -27,6 +27,7 @@ final class AccountingGuard
     public const TREASURIES_MANAGE   = 'acc_treasuries_manage';
     public const PAYABLES_MANAGE     = 'acc_payables_manage';
     public const INTERBRANCH_SETTLE  = 'acc_interbranch_settle';
+    public const CHEQUES_MANAGE      = 'acc_cheques_manage';
 
     /**
      * Permissions that change what ordinary users cannot undo. Nothing grants them

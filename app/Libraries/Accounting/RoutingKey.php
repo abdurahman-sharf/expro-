@@ -5,7 +5,7 @@ namespace App\Libraries\Accounting;
 /**
  * Every account a posting can need, named by the part of the business it belongs to. The
  * first nineteen keys are the rows of the six routing families of the reference system. The
- * last ten are accounts this application needs on top of them.
+ * others are accounts this application needs on top of them.
  */
 enum RoutingKey: string
 {
@@ -39,8 +39,13 @@ enum RoutingKey: string
     case Banks                 = 'treasuries.banks';
     case InterBranchReceivable = 'branches.receivable';
     case InterBranchPayable    = 'branches.payable';
+    case NotesReceivable        = 'cheques.receivable';
+    case ChequesUnderCollection = 'cheques.collection';
+    case ChequeDepositFees      = 'cheques.fees';
+    case NotesPayable           = 'cheques.payable';
+    case RevenuesDefault        = 'revenues.default';
 
-    public const GROUPS = ['sales', 'purchases', 'inventory', 'treasuries', 'stock_permits', 'fiscal', 'other'];
+    public const GROUPS = ['sales', 'purchases', 'inventory', 'treasuries', 'cheques', 'stock_permits', 'fiscal', 'other'];
 
     public function group(): string
     {
@@ -49,6 +54,7 @@ enum RoutingKey: string
             self::Suppliers, self::Purchases, self::PurchaseReturns, self::PurchaseDiscount, self::PurchaseAdjustment => 'purchases',
             self::StockLocations => 'inventory',
             self::Treasuries, self::Banks, self::InterBranchReceivable, self::InterBranchPayable => 'treasuries',
+            self::NotesReceivable, self::ChequesUnderCollection, self::ChequeDepositFees, self::NotesPayable => 'cheques',
             self::StockPermitAdd, self::StockPermitIssue, self::StockCountOut, self::StockCountIn => 'stock_permits',
             self::RetainedEarnings => 'fiscal',
             default                => 'other',
@@ -65,7 +71,7 @@ enum RoutingKey: string
     {
         return array_values(array_filter(
             self::cases(),
-            static fn (self $key): bool => ! in_array($key, [self::CashDefault, self::TaxInput, self::ExpensesDefault, self::OpeningBalance], true),
+            static fn (self $key): bool => ! in_array($key, [self::CashDefault, self::TaxInput, self::ExpensesDefault, self::RevenuesDefault, self::OpeningBalance], true),
         ));
     }
 
@@ -162,11 +168,11 @@ enum RoutingKey: string
     public function allowedAccountTypes(): array
     {
         return match ($this) {
-            self::Customers, self::StockLocations, self::Treasuries, self::Banks, self::StockPermitIssue, self::CashDefault, self::CounterCustomers, self::InterBranchReceivable => [AccountType::Asset],
-            self::Suppliers, self::StockPermitAdd, self::TaxOutput, self::GiftcardLiability, self::InterBranchPayable => [AccountType::Liability],
+            self::Customers, self::StockLocations, self::Treasuries, self::Banks, self::StockPermitIssue, self::CashDefault, self::CounterCustomers, self::InterBranchReceivable, self::NotesReceivable, self::ChequesUnderCollection => [AccountType::Asset],
+            self::Suppliers, self::StockPermitAdd, self::TaxOutput, self::GiftcardLiability, self::InterBranchPayable, self::NotesPayable => [AccountType::Liability],
             self::SalesRevenue, self::SalesReturns, self::ProductSales => [AccountType::Revenue],
             self::SalesDiscount, self::SalesAdjustment, self::PurchaseDiscount, self::PurchaseAdjustment => [AccountType::Revenue, AccountType::Expense],
-            self::CostOfGoodsSold, self::StockCountOut, self::StockCountIn => [AccountType::Expense],
+            self::CostOfGoodsSold, self::StockCountOut, self::StockCountIn, self::ChequeDepositFees => [AccountType::Expense],
             self::Purchases, self::PurchaseReturns => [AccountType::Asset, AccountType::Expense],
             self::CashDifference   => [AccountType::Asset, AccountType::Revenue, AccountType::Expense],
             self::RetainedEarnings => [AccountType::Equity],
@@ -223,6 +229,11 @@ enum RoutingKey: string
             self::CounterCustomers      => 'counter_customers',
             self::InterBranchReceivable => 'branches_receivable',
             self::InterBranchPayable    => 'branches_payable',
+            self::NotesReceivable        => 'notes_receivable',
+            self::ChequesUnderCollection => 'cheques_under_collection',
+            self::ChequeDepositFees      => 'cheque_deposit_fees',
+            self::NotesPayable           => 'notes_payable',
+            self::RevenuesDefault        => 'revenues_default',
         };
     }
 }

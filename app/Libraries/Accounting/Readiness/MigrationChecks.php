@@ -34,6 +34,7 @@ final class MigrationChecks extends CheckGroup
         'SupplierPaymentDate'              => [self::HEAVY, 'adds receivings_payments.payment_date'],
         'InvoiceDatesAndPaymentTerms'      => [self::HEAVY, 'adds the invoice date, the payment terms and the due date to sales and receivings'],
         'PurchaseTaxesAndSupplierRegistry' => [self::HEAVY, 'adds the purchase tax columns to items and suppliers.commercial_registry'],
+        'ChequesAndRevenues'               => [self::DATA, 'opens the leaf accounts of notes receivable, notes payable, funds under collection and deposit fees in an existing chart and points four routing rows at them'],
     ];
 
     public function run(): array

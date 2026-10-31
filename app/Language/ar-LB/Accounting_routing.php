@@ -1,6 +1,8 @@
 <?php
 
 return [
+    'cheques_desc'                  => 'الحسابات التي يُحتجز فيها الشيك وهو مستلم أو مودَع أو مسلَّم، ورسوم الإيداع.',
+    'cheques_title'                 => 'الشيكات',
     'choose'                        => 'اختر حسابًا',
     'choose_main'                   => 'اختر الحساب الرئيسي',
     'column_account'                => 'الحساب',
@@ -18,6 +20,10 @@ return [
     'item_branches_payable'         => 'ذمم بين الفروع (دائنة)',
     'item_branches_receivable'      => 'ذمم بين الفروع (مدينة)',
     'item_cash_difference'          => 'فروقات التقريب والصندوق',
+    'item_cheques_collection'       => 'مبالغ تحت التحصيل (الشيكات المودَعة)',
+    'item_cheques_fees'             => 'رسوم إيداع الشيكات',
+    'item_cheques_payable'          => 'أوراق الدفع (الشيكات المسلَّمة)',
+    'item_cheques_receivable'       => 'أوراق القبض (الشيكات المستلمة)',
     'item_fiscal_retained_earnings' => 'الأرباح المرحلة',
     'item_giftcards_liability'      => 'التزام بطاقات الهدايا',
     'item_inventory_locations'      => 'مواقع المخزون (الحساب الرئيسي)',

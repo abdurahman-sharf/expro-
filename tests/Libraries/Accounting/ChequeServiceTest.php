@@ -1,0 +1,1050 @@
+<?php
+
+namespace Tests\Libraries\Accounting;
+
+use App\Libraries\Accounting\AccountingError;
+use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\ChequeBooks;
+use App\Libraries\Accounting\ChequeDirection;
+use App\Libraries\Accounting\ChequeService;
+use App\Libraries\Accounting\ChequeSources;
+use App\Libraries\Accounting\ChequeTransition;
+use App\Libraries\Accounting\CreditSource;
+use App\Libraries\Accounting\PostingError;
+use App\Libraries\Accounting\PostingException;
+use App\Libraries\Accounting\TreasuryScopes;
+use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\Numbering\DocumentNumbering;
+use App\Libraries\Numbering\DocumentType;
+use App\Libraries\Organization\BranchException;
+use CodeIgniter\Test\CIUnitTestCase;
+use CodeIgniter\Test\DatabaseTestTrait;
+use Config\Database;
+use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\EmployeeFixtureTrait;
+use Tests\Support\ItemFixtureTrait;
+use Tests\Support\ParityCaseTrait;
+use Tests\Support\PurchaseAccountingFixtureTrait;
+use Tests\Support\SaleAccountingFixtureTrait;
+
+/**
+ * The cheque cycle: a cheque received from a customer or paid to a supplier moves from status to
+ * status, each change posting a journal of its own and being taken back by reversing it, and what
+ * the party holds in cheques is credit that follows the status.
+ */
+class ChequeServiceTest extends CIUnitTestCase
+{
+    use DatabaseTestTrait;
+    use AccountingFixtureTrait;
+    use EmployeeFixtureTrait;
+    use ItemFixtureTrait;
+    use ParityCaseTrait;
+    use SaleAccountingFixtureTrait;
+    use PurchaseAccountingFixtureTrait;
+
+    protected $migrate     = true;
+    protected $migrateOnce = true;
+    protected $refresh     = false;
+    protected $namespace   = null;
+
+    private ChequeService $cheques;
+    private int $clerk;
+    private int $bank;
+    private int $book;
+    private string $today;
+
+    public static function setUpBeforeClass(): void
+    {
+        $seeder = Database::seeder('tests');
+        $seeder->call('TestDatabaseBootstrapSeeder');
+    }
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->startBuying();
+
+        $this->cheques = new ChequeService();
+        $this->clerk   = $this->employeeWithGrants([AccountingGuard::CHEQUES_MANAGE, AccountingGuard::TREASURIES_MANAGE]);
+        $this->bank    = $this->bankAccount();
+        $this->book    = (new ChequeBooks())->create(['treasury_id' => $this->bank, 'name' => 'Book 1', 'first_serial' => '800001', 'last_serial' => '800050'], $this->clerk);
+        $this->today   = date('Y-m-d');
+    }
+
+    protected function tearDown(): void
+    {
+        $this->releaseOpenTransactions();
+        $this->stopBuying();
+
+        $db = $this->accountingDb();
+        $db->table('document_numbers')->truncate();
+        $db->table('document_sequences')->truncate();
+
+        parent::tearDown();
+    }
+
+    private function bankAccount(string $name = 'Bank'): int
+    {
+        return (new TreasuryService())->create(['name' => $name . ' ' . uniqid(), 'kind' => 'bank', 'bank_name' => 'Gulf Bank', 'account_number' => strtoupper(uniqid('AC')), 'branch_id' => 0], $this->clerk);
+    }
+
+    /**
+     * @param array<string, mixed> $changes
+     *
+     * @return array<string, mixed>
+     */
+    private function input(array $changes = []): array
+    {
+        return [...[
+            'party_id'      => $this->customerId,
+            'treasury_id'   => $this->bank,
+            'cheque_number' => '710001',
+            'amount'        => '100.00',
+            'issue_date'    => $this->today,
+            'due_date'      => $this->today,
+            'drawer_name'   => 'Omar Khaled',
+            'description'   => 'Invoice payment',
+        ], ...$changes];
+    }
+
+    /**
+     * @param array<string, mixed> $changes
+     *
+     * @return array<string, mixed>
+     */
+    private function paidInput(array $changes = []): array
+    {
+        return [...[
+            'party_id'      => $this->supplierId,
+            'book_id'       => $this->book,
+            'cheque_number' => '800001',
+            'amount'        => '200.00',
+            'issue_date'    => $this->today,
+            'due_date'      => $this->today,
+        ], ...$changes];
+    }
+
+    private function received(array $changes = []): int
+    {
+        return $this->cheques->receive($this->input($changes), $this->clerk);
+    }
+
+    private function paid(array $changes = [], ?string $deliverOn = null): int
+    {
+        return $this->cheques->issue($this->paidInput($changes), $this->clerk, $deliverOn);
+    }
+
+    private function bankLedgerAccount(): int
+    {
+        return (int) (new TreasuryService())->accountOf($this->bank);
+    }
+
+    private function refusal(callable $action): AccountingException|PostingException|BranchException
+    {
+        try {
+            $action();
+        } catch (AccountingException|PostingException|BranchException $exception) {
+            return $exception;
+        }
+
+        $this->fail('The change was not refused.');
+    }
+
+    /**
+     * @return list<string> The lines of the journals of a source of the cheque that stand, as "account=debit/credit", journal by journal.
+     */
+    private function standingLines(string $source, int $chequeId): array
+    {
+        $lines = [];
+
+        $journals = $this->accountingDb()->table('accounting_journals')->where(['source_type' => $source, 'source_id' => $chequeId, 'status' => 'posted'])->orderBy('revision')->get()->getResult();
+
+        foreach ($journals as $journal) {
+            $lines[] = implode(' ', array_map(
+                static fn (object $line): string => $line->account_id . '=' . bcadd($line->debit, '0', 2) . '/' . bcadd($line->credit, '0', 2),
+                $this->accountingDb()->table('accounting_journal_lines')->where('journal_id', $journal->journal_id)->orderBy('line_no')->get()->getResult(),
+            ));
+        }
+
+        return $lines;
+    }
+
+    private function statusOf(int $chequeId): string
+    {
+        return (string) $this->accountingDb()->table('cheques')->where('cheque_id', $chequeId)->get()->getRow()->status;
+    }
+
+    private function countJournalsOf(string $source, int $chequeId, ?string $status = null): int
+    {
+        $where = ['source_type' => $source, 'source_id' => $chequeId];
+
+        if ($status !== null) {
+            $where['status'] = $status;
+        }
+
+        return $this->accountingDb()->table('accounting_journals')->where($where)->countAllResults();
+    }
+
+    private function futureDate(int $days): string
+    {
+        return date('Y-m-d', strtotime("+{$days} days"));
+    }
+
+    public function testReceive_PostsNotesReceivableAgainstTheCustomerOnTheIssueDate(): void
+    {
+        $issued   = date('Y-m-d', strtotime('-3 days'));
+        $chequeId = $this->received(['issue_date' => $issued, 'due_date' => $this->futureDate(60)]);
+
+        $this->assertSame([$this->accountId('notes_receivable') . '=100.00/0.00 ' . $this->customerAccount() . '=0.00/100.00'], $this->standingLines(ChequeSources::RECEIVED, $chequeId));
+
+        $journal = $this->accountingDb()->table('accounting_journals')->where(['source_type' => ChequeSources::RECEIVED, 'source_id' => $chequeId])->get()->getRow();
+
+        $this->assertSame($issued, $journal->journal_date);
+        $this->assertSame('received', $this->statusOf($chequeId));
+        $this->assertSame('-100.00', $this->balance($this->customerAccount()));
+        $this->assertSame('100.00', $this->balance($this->accountId('notes_receivable')));
+    }
+
+    public function testReceive_TakesTheBranchOfTheBankAndWritesTheFirstEvent(): void
+    {
+        $branch = $this->createBranch();
+        $bank   = (new TreasuryService())->create(['name' => 'Branch bank ' . uniqid(), 'kind' => 'bank', 'bank_name' => 'Gulf Bank', 'account_number' => strtoupper(uniqid('AC')), 'branch_id' => $branch], $this->clerk);
+
+        $chequeId = $this->received(['treasury_id' => $bank]);
+        $row      = $this->cheques->find($chequeId);
+
+        $this->assertSame($branch, (int) $row->branch_id);
+        $this->assertSame($branch, (int) $this->accountingDb()->table('accounting_journals')->where(['source_type' => ChequeSources::RECEIVED, 'source_id' => $chequeId])->get()->getRow()->branch_id);
+
+        $events = $this->cheques->events($chequeId);
+
+        $this->assertSame(['receive'], array_column($events, 'transition'));
+        $this->assertNull($events[0]->from_status);
+        $this->assertSame('received', $events[0]->to_status);
+    }
+
+    public function testReceive_SettlesTheOpenInvoicesLikeAPaymentAndKeepsTheLedgerTied(): void
+    {
+        $invoice = $this->invoiceOf('100.00');
+
+        $this->assertSame('100.0000', $this->position()->open());
+
+        $chequeId = $this->received();
+
+        $this->assertSame(['cheque:' . $chequeId . '->' . $invoice . ':100.00'], $this->applications());
+        $this->assertSame('0.0000', $this->position()->open());
+        $this->assertSame('0.0000', $this->position()->credit());
+        $this->assertTies();
+    }
+
+    public function testReceive_HoldsWhatTheInvoicesDoNotTakeAsCredit(): void
+    {
+        $this->invoiceOf('100.00');
+
+        $chequeId = $this->received(['amount' => '150.00']);
+
+        $credits = $this->position()->credits;
+
+        $this->assertSame([CreditSource::CHEQUE, $chequeId, '150.0000', '50.0000'], [$credits[0]->type, $credits[0]->sourceId, $credits[0]->amount, $credits[0]->available()]);
+        $this->assertTies();
+    }
+
+    public function testReceive_RejectsAnAmountThatIsNotMoreThanZero(): void
+    {
+        foreach (['0', '0.00', '-5', 'abc', '', '1.00001'] as $amount) {
+            $this->assertSame(AccountingError::ChequeAmountInvalid, $this->refusal(fn () => $this->received(['amount' => $amount]))->error, "amount {$amount}");
+        }
+
+        $this->assertSame(0, $this->countRows('cheques'));
+    }
+
+    public function testReceive_RejectsADueDateBeforeTheIssueDate(): void
+    {
+        $this->assertSame(AccountingError::ChequeDateInvalid, $this->refusal(fn () => $this->received(['issue_date' => $this->today, 'due_date' => date('Y-m-d', strtotime('-1 day'))]))->error);
+    }
+
+    public function testReceive_RejectsAnIssueDateAfterToday(): void
+    {
+        $this->assertSame(AccountingError::ChequeDateInvalid, $this->refusal(fn () => $this->received(['issue_date' => $this->futureDate(1), 'due_date' => $this->futureDate(1)]))->error);
+    }
+
+    public function testReceive_RejectsADateThatIsNotADate(): void
+    {
+        $this->assertSame(AccountingError::InvalidDate, $this->refusal(fn () => $this->received(['issue_date' => '2026-02-30']))->error);
+    }
+
+    public function testReceive_RequiresTheNumberOfTheCheque(): void
+    {
+        $this->assertSame(AccountingError::ChequeNumberRequired, $this->refusal(fn () => $this->received(['cheque_number' => '  ']))->error);
+        $this->assertSame(AccountingError::ChequeNumberRequired, $this->refusal(fn () => $this->received(['cheque_number' => str_repeat('9', 65)]))->error);
+    }
+
+    public function testReceive_RejectsACustomerThatDoesNotExist(): void
+    {
+        $this->assertSame(AccountingError::ChequePartyMissing, $this->refusal(fn () => $this->received(['party_id' => 999999]))->error);
+    }
+
+    public function testReceive_RejectsATreasuryThatIsDeactivatedOrMissing(): void
+    {
+        (new TreasuryService())->deactivate($this->bank, $this->clerk);
+
+        $this->assertSame(AccountingError::TreasuryInactive, $this->refusal(fn () => $this->received())->error);
+        $this->assertSame(AccountingError::TreasuryNotFound, $this->refusal(fn () => $this->received(['treasury_id' => 999999]))->error);
+    }
+
+    public function testReceive_RequiresThePermissionToChangeCheques(): void
+    {
+        $nobody = $this->employeeWithGrants([]);
+
+        $this->assertSame(AccountingError::PermissionDenied, $this->refusal(fn () => $this->cheques->receive($this->input(), $nobody))->error);
+        $this->assertSame(0, $this->countRows('cheques'));
+    }
+
+    public function testReceive_RequiresTheBranchOfTheBank(): void
+    {
+        $other  = $this->createBranch();
+        $worker = $this->employeeWithGrants([AccountingGuard::CHEQUES_MANAGE], [$other]);
+
+        $this->assertInstanceOf(BranchException::class, $this->refusal(fn () => $this->cheques->receive($this->input(), $worker)));
+        $this->assertSame(0, $this->countRows('cheques'));
+    }
+
+    public function testReceive_AssignsANumberFromTheSequenceOfReceivedCheques(): void
+    {
+        $manager = $this->employeeWithGrants(['config']);
+
+        (new DocumentNumbering())->configure(DocumentType::ReceivedCheque, ['enabled' => true, 'prefix' => 'RC-', 'padding' => 4], $manager);
+
+        $first  = $this->received();
+        $second = $this->received(['cheque_number' => '710002']);
+
+        $this->assertSame([$first => 'RC-0001', $second => 'RC-0002'], (new DocumentNumbering())->numbers(DocumentType::ReceivedCheque, 'cheques', [$first, $second]));
+    }
+
+    public function testReceive_WritesNothingWhenThePeriodIsClosed(): void
+    {
+        $this->closeThrough($this->today);
+
+        $failure = $this->refusal(fn () => $this->received());
+
+        $this->assertInstanceOf(PostingException::class, $failure);
+        $this->assertSame(PostingError::PeriodClosed, $failure->error);
+        $this->assertSame(0, $this->countRows('cheques'));
+        $this->assertSame(0, $this->countRows('cheque_events'));
+        $this->assertSame(1, $this->accountingDb()->table('accounting_posting_failures')->where('source_type', ChequeSources::RECEIVED)->countAllResults());
+    }
+
+    public function testDeposit_MovesTheChequeFromNotesReceivableToFundsUnderCollection(): void
+    {
+        $chequeId = $this->received();
+
+        $this->cheques->deposit($chequeId, $this->today, $this->clerk);
+
+        $this->assertSame([$this->accountId('cheques_under_collection') . '=100.00/0.00 ' . $this->accountId('notes_receivable') . '=0.00/100.00'], $this->standingLines(ChequeSources::DEPOSITED, $chequeId));
+        $this->assertSame('deposited', $this->statusOf($chequeId));
+        $this->assertSame('0.00', $this->balance($this->accountId('notes_receivable')));
+        $this->assertSame('100.00', $this->balance($this->accountId('cheques_under_collection')));
+        $this->assertSame('0.00', $this->balance($this->bankLedgerAccount()));
+    }
+
+    public function testDeposit_IsAcceptedBeforeTheDueDate(): void
+    {
+        $chequeId = $this->received(['due_date' => $this->futureDate(60)]);
+
+        $this->cheques->deposit($chequeId, $this->today, $this->clerk);
+
+        $this->assertSame('deposited', $this->statusOf($chequeId));
+    }
+
+    public function testDeposit_RejectsAChequeThatIsNotReceivedAnyMore(): void
+    {
+        $chequeId = $this->received();
+
+        $this->cheques->deposit($chequeId, $this->today, $this->clerk);
+
+        $this->assertSame(AccountingError::ChequeStatusInvalid, $this->refusal(fn () => $this->cheques->deposit($chequeId, $this->today, $this->clerk))->error);
+        $this->assertSame(1, $this->countJournalsOf(ChequeSources::DEPOSITED, $chequeId));
+    }
+
+    public function testDeposit_RejectsADateBeforeTheChequeWasIssuedOrAfterToday(): void
+    {
+        $chequeId = $this->received(['issue_date' => date('Y-m-d', strtotime('-5 days')), 'due_date' => date('Y-m-d', strtotime('-5 days'))]);
+
+        $this->assertSame(AccountingError::ChequeDateInvalid, $this->refusal(fn () => $this->cheques->deposit($chequeId, date('Y-m-d', strtotime('-6 days')), $this->clerk))->error);
+        $this->assertSame(AccountingError::ChequeDateInvalid, $this->refusal(fn () => $this->cheques->deposit($chequeId, $this->futureDate(1), $this->clerk))->error);
+        $this->assertSame('received', $this->statusOf($chequeId));
+    }
+
+    public function testCollect_DirectlyDebitsTheBankAndCreditsNotesReceivable(): void
+    {
+        $chequeId = $this->received();
+
+        $this->cheques->collect($chequeId, $this->today, null, $this->clerk);
+
+        $this->assertSame([$this->bankLedgerAccount() . '=100.00/0.00 ' . $this->accountId('notes_receivable') . '=0.00/100.00'], $this->standingLines(ChequeSources::COLLECTED, $chequeId));
+        $this->assertSame('collected', $this->statusOf($chequeId));
+        $this->assertSame('100.00', $this->balance($this->bankLedgerAccount()));
+        $this->assertSame('0.00', $this->balance($this->accountId('notes_receivable')));
+        $this->assertSame('100.00', $this->assertTreasuryTies());
+    }
+
+    private function assertTreasuryTies(): string
+    {
+        $treasuries = new TreasuryService();
+        $balance    = bcadd($treasuries->position($this->bank)->balance, '0', 2);
+
+        $this->assertSame($this->balance((int) $treasuries->accountOf($this->bank)), $balance);
+
+        return $balance;
+    }
+
+    public function testCollect_RefusesADateBeforeTheDueDate(): void
+    {
+        $chequeId = $this->received(['due_date' => $this->futureDate(60)]);
+
+        $failure = $this->refusal(fn () => $this->cheques->collect($chequeId, $this->today, null, $this->clerk));
+
+        $this->assertSame(AccountingError::ChequeCollectBeforeDue, $failure->error);
+        $this->assertSame('received', $this->statusOf($chequeId));
+        $this->assertSame(0, $this->countJournalsOf(ChequeSources::COLLECTED, $chequeId));
+    }
+
+    public function testCollect_AcceptsTheDueDateThatIsStillToCome(): void
+    {
+        $due      = $this->futureDate(60);
+        $chequeId = $this->received(['due_date' => $due]);
+
+        $this->cheques->collect($chequeId, $due, null, $this->clerk);
+
+        $journal = $this->accountingDb()->table('accounting_journals')->where(['source_type' => ChequeSources::COLLECTED, 'source_id' => $chequeId])->get()->getRow();
+
+        $this->assertSame($due, $journal->journal_date);
+        $this->assertSame('collected', $this->statusOf($chequeId));
+    }
+
+    public function testCollect_RefusesAMonthThatEndsBeforeTheDueDateAfterADeposit(): void
+    {
+        $chequeId = $this->received(['due_date' => $this->futureDate(30)]);
+
+        $this->cheques->deposit($chequeId, $this->today, $this->clerk);
+
+        $this->assertSame(AccountingError::ChequeCollectBeforeDue, $this->refusal(fn () => $this->cheques->collect($chequeId, $this->futureDate(10), '0', $this->clerk))->error);
+        $this->assertSame('deposited', $this->statusOf($chequeId));
+    }
+
+    public function testCollect_AfterADepositNeedsTheFeesAndPostsThemToTheFeesAccount(): void
+    {
+        $chequeId = $this->received();
+
+        $this->cheques->deposit($chequeId, $this->today, $this->clerk);
+
+        $this->assertSame(AccountingError::ChequeFeesRequired, $this->refusal(fn () => $this->cheques->collect($chequeId, $this->today, null, $this->clerk))->error);
+        $this->assertSame('deposited', $this->statusOf($chequeId));
+
+        $this->cheques->collect($chequeId, $this->today, '2.50', $this->clerk);
+
+        $this->assertSame([$this->bankLedgerAccount() . '=97.50/0.00 ' . $this->accountId('cheque_deposit_fees') . '=2.50/0.00 ' . $this->accountId('cheques_under_collection') . '=0.00/100.00'], $this->standingLines(ChequeSources::DEPOSIT_COLLECTED, $chequeId));
+        $this->assertSame('collected', $this->statusOf($chequeId));
+        $this->assertSame('97.50', $this->assertTreasuryTies());
+        $this->assertSame('0.00', $this->balance($this->accountId('cheques_under_collection')));
+        $this->assertSame('2.50', $this->balance($this->accountId('cheque_deposit_fees')));
+    }
+
+    public function testCollect_AfterADepositAcceptsNoFeesAtAll(): void
+    {
+        $chequeId = $this->received();
+
+        $this->cheques->deposit($chequeId, $this->today, $this->clerk);
+        $this->cheques->collect($chequeId, $this->today, '0', $this->clerk);
+
+        $this->assertSame([$this->bankLedgerAccount() . '=100.00/0.00 ' . $this->accountId('cheques_under_collection') . '=0.00/100.00'], $this->standingLines(ChequeSources::DEPOSIT_COLLECTED, $chequeId));
+    }
+
+    public function testCollect_RejectsFeesThatAreNegativeOrMoreThanTheCheque(): void
+    {
+        $chequeId = $this->received();
+
+        $this->cheques->deposit($chequeId, $this->today, $this->clerk);
+
+        foreach (['-1', '100.01', 'abc'] as $fees) {
+            $this->assertSame(AccountingError::ChequeFeesInvalid, $this->refusal(fn () => $this->cheques->collect($chequeId, $this->today, $fees, $this->clerk))->error, "fees {$fees}");
+        }
+
+        $this->assertSame('deposited', $this->statusOf($chequeId));
+    }
+
+    public function testCollect_RejectsFeesOnAChequeThatWasNotDeposited(): void
+    {
+        $chequeId = $this->received();
+
+        $this->assertSame(AccountingError::ChequeFeesInvalid, $this->refusal(fn () => $this->cheques->collect($chequeId, $this->today, '1.00', $this->clerk))->error);
+        $this->assertSame('received', $this->statusOf($chequeId));
+    }
+
+    public function testCollect_RefusesAnEmployeeWhoMayNotDepositIntoTheBank(): void
+    {
+        $chequeId = $this->received();
+        $clerk    = $this->employeeWithGrants([AccountingGuard::CHEQUES_MANAGE]);
+
+        $other = $this->employeeWithGrants([]);
+
+        (new TreasuryScopes())->apply($this->bank, (new TreasuryScopes())->validated(['deposit_scope' => TreasuryScopes::STAFF, 'deposit_members' => [$other]]), null);
+
+        $failure = $this->refusal(fn () => $this->cheques->collect($chequeId, $this->today, null, $clerk));
+
+        $this->assertSame(AccountingError::TreasuryDepositDenied, $failure->error);
+        $this->assertSame('received', $this->statusOf($chequeId));
+        $this->assertSame(0, $this->countJournalsOf(ChequeSources::COLLECTED, $chequeId));
+    }
+
+    public function testReject_WhileReceivedGivesTheCustomerBackAndTheInvoicesToo(): void
+    {
+        $invoice  = $this->invoiceOf('100.00');
+        $chequeId = $this->received();
+
+        $this->assertSame('0.0000', $this->position()->open());
+
+        $this->cheques->reject($chequeId, $this->today, $this->clerk, 'Bounced');
+
+        $this->assertSame([$this->customerAccount() . '=100.00/0.00 ' . $this->accountId('notes_receivable') . '=0.00/100.00'], $this->standingLines(ChequeSources::REJECTED, $chequeId));
+        $this->assertSame('rejected', $this->statusOf($chequeId));
+        $this->assertSame('100.00', $this->balance($this->customerAccount()));
+        $this->assertSame('0.00', $this->balance($this->accountId('notes_receivable')));
+        $this->assertSame([], $this->applications());
+        $this->assertSame('100.0000', $this->position()->open());
+        $this->assertSame($invoice, $this->position()->invoices[0]->saleId);
+        $this->assertTies();
+    }
+
+    public function testReject_AfterADepositPostsTwoJournalsThatClearBothAccountsOfTheCheque(): void
+    {
+        $chequeId = $this->received();
+
+        $this->cheques->deposit($chequeId, $this->today, $this->clerk);
+        $this->cheques->reject($chequeId, $this->today, $this->clerk);
+
+        $this->assertSame([
+            $this->customerAccount() . '=100.00/0.00 ' . $this->accountId('notes_receivable') . '=0.00/100.00',
+            $this->accountId('notes_receivable') . '=100.00/0.00 ' . $this->accountId('cheques_under_collection') . '=0.00/100.00',
+        ], $this->standingLines(ChequeSources::DEPOSIT_REJECTED, $chequeId));
+        $this->assertSame('rejected', $this->statusOf($chequeId));
+        $this->assertSame('0.00', $this->balance($this->customerAccount()));
+        $this->assertSame('0.00', $this->balance($this->accountId('cheques_under_collection')));
+        $this->assertSame('0.00', $this->balance($this->accountId('notes_receivable')));
+    }
+
+    public function testUndo_ReversesTheJournalOfTheLastChangeInsteadOfDeletingIt(): void
+    {
+        $chequeId = $this->received();
+
+        $this->cheques->collect($chequeId, $this->today, null, $this->clerk);
+        $this->cheques->undo($chequeId, $this->clerk);
+
+        $this->assertSame('received', $this->statusOf($chequeId));
+        $this->assertSame('0.00', $this->balance($this->bankLedgerAccount()));
+        $this->assertSame('100.00', $this->balance($this->accountId('notes_receivable')));
+        $this->assertSame(1, $this->countJournalsOf(ChequeSources::COLLECTED, $chequeId, 'reversed'));
+        $this->assertSame(1, $this->accountingDb()->table('accounting_journals')->where('source_type', 'reversal')->countAllResults());
+        $this->assertSame([], $this->standingLines(ChequeSources::COLLECTED, $chequeId));
+
+        $events = $this->cheques->events($chequeId);
+
+        $this->assertNotNull($events[1]->undone_at);
+        $this->assertNull($events[0]->undone_at);
+    }
+
+    public function testUndo_OfACollectionAfterADepositGoesBackToDeposited(): void
+    {
+        $chequeId = $this->received();
+
+        $this->cheques->deposit($chequeId, $this->today, $this->clerk);
+        $this->cheques->collect($chequeId, $this->today, '2.50', $this->clerk);
+        $this->cheques->undo($chequeId, $this->clerk);
+
+        $this->assertSame('deposited', $this->statusOf($chequeId));
+        $this->assertSame('0.00', $this->balance($this->bankLedgerAccount()));
+        $this->assertSame('0.00', $this->balance($this->accountId('cheque_deposit_fees')));
+        $this->assertSame('100.00', $this->balance($this->accountId('cheques_under_collection')));
+        $this->assertSame('0.0000', $this->accountingDb()->table('cheques')->where('cheque_id', $chequeId)->get()->getRow()->deposit_fees);
+    }
+
+    public function testUndo_OfARejectionAfterADepositReversesBothJournals(): void
+    {
+        $chequeId = $this->received();
+
+        $this->cheques->deposit($chequeId, $this->today, $this->clerk);
+        $this->cheques->reject($chequeId, $this->today, $this->clerk);
+        $this->cheques->undo($chequeId, $this->clerk);
+
+        $this->assertSame('deposited', $this->statusOf($chequeId));
+        $this->assertSame(2, $this->countJournalsOf(ChequeSources::DEPOSIT_REJECTED, $chequeId, 'reversed'));
+        $this->assertSame('-100.00', $this->balance($this->customerAccount()));
+        $this->assertSame('100.00', $this->balance($this->accountId('cheques_under_collection')));
+    }
+
+    public function testUndo_OfARejectionPutsTheInvoicesBackOnTheCheque(): void
+    {
+        $invoice  = $this->invoiceOf('100.00');
+        $chequeId = $this->received();
+
+        $this->cheques->reject($chequeId, $this->today, $this->clerk);
+        $this->cheques->undo($chequeId, $this->clerk);
+
+        $this->assertSame(['cheque:' . $chequeId . '->' . $invoice . ':100.00'], $this->applications());
+        $this->assertTies();
+    }
+
+    public function testUndo_RejectsTheEntryOfTheChequeItself(): void
+    {
+        $chequeId = $this->received();
+
+        $this->assertSame(AccountingError::ChequeNothingToUndo, $this->refusal(fn () => $this->cheques->undo($chequeId, $this->clerk))->error);
+        $this->assertSame('received', $this->statusOf($chequeId));
+    }
+
+    public function testUndo_LetsTheSameChangeBePostedAgainAsTheNextRevision(): void
+    {
+        $chequeId = $this->received();
+
+        $this->cheques->deposit($chequeId, $this->today, $this->clerk);
+        $this->cheques->undo($chequeId, $this->clerk);
+        $this->cheques->deposit($chequeId, $this->today, $this->clerk);
+
+        $this->assertSame(['1:reversed', '2:posted'], array_map(
+            static fn (object $journal): string => $journal->revision . ':' . $journal->status,
+            $this->accountingDb()->table('accounting_journals')->where(['source_type' => ChequeSources::DEPOSITED, 'source_id' => $chequeId])->orderBy('revision')->get()->getResult(),
+        ));
+        $this->assertSame('deposited', $this->statusOf($chequeId));
+    }
+
+    public function testUndo_TakesBackAJournalOfAClosedPeriodOnTodayInstead(): void
+    {
+        $day      = date('Y-m-d', strtotime('-20 days'));
+        $chequeId = $this->received(['issue_date' => $day, 'due_date' => $day]);
+
+        $this->cheques->collect($chequeId, $day, null, $this->clerk);
+        $this->closeThrough(date('Y-m-d', strtotime('-10 days')));
+        $this->cheques->undo($chequeId, $this->clerk);
+
+        $reversal = $this->accountingDb()->table('accounting_journals')->where('source_type', 'reversal')->get()->getRow();
+
+        $this->assertSame($this->today, $reversal->journal_date);
+        $this->assertSame('received', $this->statusOf($chequeId));
+        $this->assertSame('0.00', $this->balance($this->bankLedgerAccount()));
+    }
+
+    public function testDeposit_RefusesAClosedPeriodAndLeavesTheChequeReceived(): void
+    {
+        $chequeId = $this->received();
+
+        $this->closeThrough($this->today);
+
+        $failure = $this->refusal(fn () => $this->cheques->deposit($chequeId, $this->today, $this->clerk));
+
+        $this->assertInstanceOf(PostingException::class, $failure);
+        $this->assertSame(PostingError::PeriodClosed, $failure->error);
+        $this->assertSame('received', $this->statusOf($chequeId));
+        $this->assertSame(1, $this->countRows('cheque_events'));
+    }
+
+    public function testDeposit_RequiresTheBranchOfTheCheque(): void
+    {
+        $chequeId = $this->received();
+        $other    = $this->createBranch();
+        $worker   = $this->employeeWithGrants([AccountingGuard::CHEQUES_MANAGE], [$other]);
+
+        $this->assertInstanceOf(BranchException::class, $this->refusal(fn () => $this->cheques->deposit($chequeId, $this->today, $worker)));
+        $this->assertSame('received', $this->statusOf($chequeId));
+    }
+
+    public function testDeposit_RequiresThePermissionToChangeCheques(): void
+    {
+        $chequeId = $this->received();
+        $nobody   = $this->employeeWithGrants([]);
+
+        $this->assertSame(AccountingError::PermissionDenied, $this->refusal(fn () => $this->cheques->deposit($chequeId, $this->today, $nobody))->error);
+        $this->assertSame('received', $this->statusOf($chequeId));
+    }
+
+    public function testUpdate_ChangesTheAmountByReversingTheReceiptAndPostingAgain(): void
+    {
+        $this->invoiceOf('100.00');
+
+        $chequeId = $this->received();
+
+        $this->cheques->update($chequeId, $this->input(['amount' => '60.00']), $this->clerk);
+
+        $this->assertSame([$this->accountId('notes_receivable') . '=60.00/0.00 ' . $this->customerAccount() . '=0.00/60.00'], $this->standingLines(ChequeSources::RECEIVED, $chequeId));
+        $this->assertSame(['1:reversed', '2:posted'], array_map(
+            static fn (object $journal): string => $journal->revision . ':' . $journal->status,
+            $this->accountingDb()->table('accounting_journals')->where(['source_type' => ChequeSources::RECEIVED, 'source_id' => $chequeId])->orderBy('revision')->get()->getResult(),
+        ));
+        $this->assertSame('40.00', $this->balance($this->customerAccount()));
+        $this->assertSame('40.0000', $this->position()->open());
+        $this->assertTies();
+    }
+
+    public function testUpdate_ChangesTheBankAndTheBranchOfAChequeThatIsStillReceived(): void
+    {
+        $branch = $this->createBranch();
+        $bank   = (new TreasuryService())->create(['name' => 'Branch bank ' . uniqid(), 'kind' => 'bank', 'bank_name' => 'Gulf Bank', 'account_number' => strtoupper(uniqid('AC')), 'branch_id' => $branch], $this->clerk);
+
+        $chequeId = $this->received();
+
+        $this->cheques->update($chequeId, $this->input(['treasury_id' => $bank]), $this->clerk);
+
+        $this->assertSame([$bank, $branch], [(int) $this->cheques->find($chequeId)->treasury_id, (int) $this->cheques->find($chequeId)->branch_id]);
+        $this->assertSame($branch, (int) $this->accountingDb()->table('accounting_journals')->where(['source_type' => ChequeSources::RECEIVED, 'source_id' => $chequeId, 'status' => 'posted'])->get()->getRow()->branch_id);
+    }
+
+    public function testUpdate_ChangesNothingInTheBooksWhenOnlyTheTextChanges(): void
+    {
+        $chequeId = $this->received();
+
+        $this->cheques->update($chequeId, $this->input(['description' => 'Another text', 'endorsed_to' => 'Supplier X']), $this->clerk);
+
+        $this->assertSame(1, $this->countJournalsOf(ChequeSources::RECEIVED, $chequeId));
+        $this->assertSame(['Another text', 'Supplier X'], [$this->cheques->find($chequeId)->description, $this->cheques->find($chequeId)->endorsed_to]);
+    }
+
+    public function testUpdate_LocksTheFinancialFieldsAfterTheFirstChangeButNotTheText(): void
+    {
+        $chequeId = $this->received();
+
+        $this->cheques->deposit($chequeId, $this->today, $this->clerk);
+
+        foreach (['amount' => '90.00', 'cheque_number' => '710009', 'due_date' => $this->futureDate(5), 'issue_date' => date('Y-m-d', strtotime('-1 day'))] as $field => $value) {
+            $this->assertSame(AccountingError::ChequeLocked, $this->refusal(fn () => $this->cheques->update($chequeId, $this->input([$field => $value]), $this->clerk))->error, $field);
+        }
+
+        $this->cheques->update($chequeId, $this->input(['description' => 'After the deposit', 'endorsed_to' => 'Someone']), $this->clerk);
+
+        $this->assertSame('After the deposit', $this->cheques->find($chequeId)->description);
+        $this->assertSame(1, $this->countJournalsOf(ChequeSources::RECEIVED, $chequeId));
+    }
+
+    public function testUpdate_RejectsAChangeOfTheCustomerEvenInTheFirstStatus(): void
+    {
+        $chequeId = $this->received();
+
+        $this->assertSame(AccountingError::ChequeLocked, $this->refusal(fn () => $this->cheques->update($chequeId, $this->input(['party_id' => $this->anotherCustomer()]), $this->clerk))->error);
+        $this->assertSame($this->customerId, (int) $this->cheques->find($chequeId)->party_id);
+    }
+
+    public function testDelete_ReversesTheReceiptSoNoJournalIsLeftOrphaned(): void
+    {
+        $this->invoiceOf('100.00');
+
+        $chequeId = $this->received();
+
+        $this->cheques->delete($chequeId, $this->clerk);
+
+        $this->assertSame('100.00', $this->balance($this->customerAccount()));
+        $this->assertSame('0.00', $this->balance($this->accountId('notes_receivable')));
+        $this->assertSame(1, $this->countJournalsOf(ChequeSources::RECEIVED, $chequeId, 'reversed'));
+        $this->assertSame(0, $this->countJournalsOf(ChequeSources::RECEIVED, $chequeId, 'posted'));
+        $this->assertSame('1', (string) $this->accountingDb()->table('cheques')->where('cheque_id', $chequeId)->get()->getRow()->deleted);
+        $this->assertSame([], $this->applications());
+        $this->assertSame('100.0000', $this->position()->open());
+        $this->assertTies();
+        $this->assertSame(AccountingError::ChequeNotFound, $this->refusal(fn () => $this->cheques->deposit($chequeId, $this->today, $this->clerk))->error);
+    }
+
+    public function testDelete_RejectsAChequeThatHasMovedOn(): void
+    {
+        $chequeId = $this->received();
+
+        $this->cheques->deposit($chequeId, $this->today, $this->clerk);
+
+        $this->assertSame(AccountingError::ChequeDeleteLocked, $this->refusal(fn () => $this->cheques->delete($chequeId, $this->clerk))->error);
+        $this->assertSame(0, $this->countJournalsOf(ChequeSources::RECEIVED, $chequeId, 'reversed'));
+    }
+
+    public function testDelete_AfterUndoingTheLastChangeIsAllowed(): void
+    {
+        $chequeId = $this->received();
+
+        $this->cheques->deposit($chequeId, $this->today, $this->clerk);
+        $this->cheques->undo($chequeId, $this->clerk);
+        $this->cheques->delete($chequeId, $this->clerk);
+
+        $this->assertSame('0.00', $this->balance($this->accountId('notes_receivable')));
+        $this->assertSame('0.00', $this->balance($this->accountId('cheques_under_collection')));
+    }
+
+    public function testIssue_PostsNothing(): void
+    {
+        $journals = $this->countRows('accounting_journals');
+        $chequeId = $this->paid();
+
+        $this->assertSame($journals, $this->countRows('accounting_journals'));
+        $this->assertSame('issued', $this->statusOf($chequeId));
+        $this->assertSame($this->book, (int) $this->cheques->find($chequeId)->book_id);
+        $this->assertSame($this->bank, (int) $this->cheques->find($chequeId)->treasury_id);
+    }
+
+    public function testIssue_RequiresABookOfAnActiveBankWithTheNumberInItsRange(): void
+    {
+        $this->assertSame(AccountingError::ChequeBookRequired, $this->refusal(fn () => $this->paid(['book_id' => 0]))->error);
+        $this->assertSame(AccountingError::ChequeBookNotFound, $this->refusal(fn () => $this->paid(['book_id' => 99999]))->error);
+        $this->assertSame(AccountingError::ChequeNumberOutOfBook, $this->refusal(fn () => $this->paid(['cheque_number' => '800051']))->error);
+        $this->assertSame(AccountingError::ChequeNumberOutOfBook, $this->refusal(fn () => $this->paid(['cheque_number' => '799999']))->error);
+        $this->assertSame(AccountingError::ChequeNumberOutOfBook, $this->refusal(fn () => $this->paid(['cheque_number' => 'ABC']))->error);
+
+        (new ChequeBooks())->update($this->book, ['active' => false], $this->clerk);
+
+        $this->assertSame(AccountingError::ChequeBookInactive, $this->refusal(fn () => $this->paid())->error);
+        $this->assertSame(0, $this->countRows('cheques'));
+    }
+
+    public function testIssue_RejectsANumberAnotherChequeOfTheBookAlreadyHas(): void
+    {
+        $this->paid();
+
+        $this->assertSame(AccountingError::ChequeNumberTaken, $this->refusal(fn () => $this->paid())->error);
+        $this->assertSame(1, $this->countRows('cheques'));
+    }
+
+    public function testIssue_AllowsTheNumberOfADeletedCheque(): void
+    {
+        $first = $this->paid();
+
+        $this->cheques->delete($first, $this->clerk);
+
+        $second = $this->paid();
+
+        $this->assertGreaterThan($first, $second);
+    }
+
+    public function testIssue_RejectsASupplierThatDoesNotExistAndAPartyOfTheOtherKind(): void
+    {
+        $this->assertSame(AccountingError::ChequePartyMissing, $this->refusal(fn () => $this->paid(['party_id' => 999999]))->error);
+        $this->assertSame(AccountingError::ChequePartyMissing, $this->refusal(fn () => $this->paid(['party_id' => $this->customerId]))->error);
+    }
+
+    public function testIssue_RequiresThePermissionAndTheBranchOfTheBank(): void
+    {
+        $nobody = $this->employeeWithGrants([]);
+        $other  = $this->createBranch();
+        $worker = $this->employeeWithGrants([AccountingGuard::CHEQUES_MANAGE], [$other]);
+
+        $this->assertSame(AccountingError::PermissionDenied, $this->refusal(fn () => $this->cheques->issue($this->paidInput(), $nobody))->error);
+        $this->assertInstanceOf(BranchException::class, $this->refusal(fn () => $this->cheques->issue($this->paidInput(), $worker)));
+        $this->assertSame(0, $this->countRows('cheques'));
+    }
+
+    public function testDeliver_DebitsTheSupplierAndCreditsNotesPayable(): void
+    {
+        $purchase = $this->purchaseOf('500.00');
+        $chequeId = $this->paid();
+
+        $this->cheques->deliver($chequeId, $this->today, $this->clerk);
+
+        $this->assertSame([$this->supplierAccount() . '=200.00/0.00 ' . $this->accountId('notes_payable') . '=0.00/200.00'], $this->standingLines(ChequeSources::DELIVERED, $chequeId));
+        $this->assertSame('delivered', $this->statusOf($chequeId));
+        $this->assertSame('-300.00', $this->balance($this->supplierAccount()));
+        $this->assertSame('-200.00', $this->balance($this->accountId('notes_payable')));
+        $this->assertSame(['cheque:' . $chequeId . '->' . $purchase . ':200.00'], $this->supplierApplications());
+        $this->assertSupplierTies();
+    }
+
+    public function testIssue_WithADeliveryDayDeliversInTheSameTransaction(): void
+    {
+        $chequeId = $this->paid([], $this->today);
+
+        $this->assertSame('delivered', $this->statusOf($chequeId));
+        $this->assertSame(['issue', 'deliver'], array_column($this->cheques->events($chequeId), 'transition'));
+        $this->assertSame(1, $this->countJournalsOf(ChequeSources::DELIVERED, $chequeId, 'posted'));
+    }
+
+    public function testIssue_WithADeliveryDayWritesNothingWhenThePeriodIsClosed(): void
+    {
+        $this->closeThrough($this->today);
+
+        $failure = $this->refusal(fn () => $this->paid([], $this->today));
+
+        $this->assertSame(PostingError::PeriodClosed, $failure->error);
+        $this->assertSame(0, $this->countRows('cheques'));
+    }
+
+    public function testCollect_OfAPaidChequeDebitsNotesPayableAndCreditsTheBankWithoutLookingAtItsBalance(): void
+    {
+        $chequeId = $this->paid([], $this->today);
+
+        $this->cheques->collect($chequeId, $this->today, null, $this->clerk);
+
+        $this->assertSame([$this->accountId('notes_payable') . '=200.00/0.00 ' . $this->bankLedgerAccount() . '=0.00/200.00'], $this->standingLines(ChequeSources::PAID_COLLECTED, $chequeId));
+        $this->assertSame('collected', $this->statusOf($chequeId));
+        $this->assertSame('-200.00', $this->assertTreasuryTies());
+        $this->assertSame('0.00', $this->balance($this->accountId('notes_payable')));
+    }
+
+    public function testCollect_OfAPaidChequeRefusesADateBeforeTheDueDate(): void
+    {
+        $chequeId = $this->paid(['due_date' => $this->futureDate(30)], $this->today);
+
+        $this->assertSame(AccountingError::ChequeCollectBeforeDue, $this->refusal(fn () => $this->cheques->collect($chequeId, $this->today, null, $this->clerk))->error);
+        $this->assertSame('delivered', $this->statusOf($chequeId));
+    }
+
+    public function testCollect_OfAPaidChequeRefusesAnEmployeeWhoMayNotWithdrawFromTheBank(): void
+    {
+        $chequeId = $this->paid([], $this->today);
+        $clerk    = $this->employeeWithGrants([AccountingGuard::CHEQUES_MANAGE]);
+        $other    = $this->employeeWithGrants([]);
+
+        (new TreasuryScopes())->apply($this->bank, (new TreasuryScopes())->validated(['withdraw_scope' => TreasuryScopes::STAFF, 'withdraw_members' => [$other]]), null);
+
+        $this->assertSame(AccountingError::TreasuryWithdrawDenied, $this->refusal(fn () => $this->cheques->collect($chequeId, $this->today, null, $clerk))->error);
+        $this->assertSame('delivered', $this->statusOf($chequeId));
+    }
+
+    public function testReject_OfAPaidChequeGivesTheSupplierBackWhatDeliveryTook(): void
+    {
+        $this->purchaseOf('500.00');
+
+        $chequeId = $this->paid([], $this->today);
+
+        $this->cheques->reject($chequeId, $this->today, $this->clerk);
+
+        $this->assertSame([$this->accountId('notes_payable') . '=200.00/0.00 ' . $this->supplierAccount() . '=0.00/200.00'], $this->standingLines(ChequeSources::PAID_REJECTED, $chequeId));
+        $this->assertSame('rejected', $this->statusOf($chequeId));
+        $this->assertSame('-500.00', $this->balance($this->supplierAccount()));
+        $this->assertSame([], $this->supplierApplications());
+        $this->assertSupplierTies();
+    }
+
+    public function testUndo_OfADeliveryReversesItsJournalAndTheCreditGoesBack(): void
+    {
+        $this->purchaseOf('500.00');
+
+        $chequeId = $this->paid([], $this->today);
+
+        $this->cheques->undo($chequeId, $this->clerk);
+
+        $this->assertSame('issued', $this->statusOf($chequeId));
+        $this->assertSame('-500.00', $this->balance($this->supplierAccount()));
+        $this->assertSame(1, $this->countJournalsOf(ChequeSources::DELIVERED, $chequeId, 'reversed'));
+        $this->assertSame([], $this->supplierApplications());
+        $this->assertSupplierTies();
+    }
+
+    public function testCancel_IsOnlyForAnIssuedChequeAndPostsNothing(): void
+    {
+        $chequeId = $this->paid();
+        $journals = $this->countRows('accounting_journals');
+
+        $this->cheques->cancel($chequeId, $this->clerk);
+
+        $this->assertSame('cancelled', $this->statusOf($chequeId));
+        $this->assertSame($journals, $this->countRows('accounting_journals'));
+
+        $this->cheques->undo($chequeId, $this->clerk);
+
+        $this->assertSame('issued', $this->statusOf($chequeId));
+
+        $this->cheques->deliver($chequeId, $this->today, $this->clerk);
+
+        $this->assertSame(AccountingError::ChequeStatusInvalid, $this->refusal(fn () => $this->cheques->cancel($chequeId, $this->clerk))->error);
+    }
+
+    public function testDelete_OfAPaidChequeIsAllowedOnlyWhileIssued(): void
+    {
+        $chequeId = $this->paid([], $this->today);
+
+        $this->assertSame(AccountingError::ChequeDeleteLocked, $this->refusal(fn () => $this->cheques->delete($chequeId, $this->clerk))->error);
+
+        $this->cheques->undo($chequeId, $this->clerk);
+        $this->cheques->delete($chequeId, $this->clerk);
+
+        $this->assertSame('0.00', $this->balance($this->accountId('notes_payable')));
+        $this->assertSame('0.00', $this->balance($this->supplierAccount()));
+    }
+
+    public function testUpdate_OfAnIssuedChequeChangesTheBookAndTheNumberWithoutPosting(): void
+    {
+        $second   = (new ChequeBooks())->create(['treasury_id' => $this->bankAccount('Second bank'), 'name' => 'Book 2', 'first_serial' => '900001', 'last_serial' => '900010'], $this->clerk);
+        $chequeId = $this->paid();
+        $journals = $this->countRows('accounting_journals');
+
+        $this->cheques->update($chequeId, $this->paidInput(['book_id' => $second, 'cheque_number' => '900005', 'amount' => '250.00']), $this->clerk);
+
+        $row = $this->cheques->find($chequeId);
+
+        $this->assertSame([$second, '900005', '250.0000'], [(int) $row->book_id, $row->cheque_number, $row->amount]);
+        $this->assertSame($journals, $this->countRows('accounting_journals'));
+        $this->assertSame(AccountingError::ChequeNumberOutOfBook, $this->refusal(fn () => $this->cheques->update($chequeId, $this->paidInput(['book_id' => $second, 'cheque_number' => '800001']), $this->clerk))->error);
+    }
+
+    public function testUpdate_OfADeliveredPaidChequeLocksItsAmount(): void
+    {
+        $chequeId = $this->paid([], $this->today);
+
+        $this->assertSame(AccountingError::ChequeLocked, $this->refusal(fn () => $this->cheques->update($chequeId, $this->paidInput(['amount' => '210.00']), $this->clerk))->error);
+    }
+
+    public function testTransitions_MapEveryStatusChangeToItsOwnJournalSource(): void
+    {
+        $map = [];
+
+        foreach (ChequeTransition::cases() as $transition) {
+            if ($transition->source() !== null) {
+                $map[$transition->value] = $transition->source();
+            }
+        }
+
+        $this->assertSame([
+            'receive'  => 'cheque_in_received',
+            'deposit'  => 'cheque_in_deposited',
+            'collect'  => 'cheque_in_collected',
+            'dcollect' => 'cheque_in_dep_collected',
+            'reject'   => 'cheque_in_rejected',
+            'dreject'  => 'cheque_in_dep_rejected',
+            'deliver'  => 'cheque_out_delivered',
+            'pcollect' => 'cheque_out_collected',
+            'preject'  => 'cheque_out_rejected',
+        ], $map);
+        $this->assertCount(9, array_unique(ChequeSources::ALL));
+        $this->assertEqualsCanonicalizing(ChequeSources::ALL, array_values($map));
+        $this->assertSame(['cheque_in_received', 'cheque_in_deposited', 'cheque_in_collected', 'cheque_in_dep_collected', 'cheque_in_rejected', 'cheque_in_dep_rejected'], ChequeTransition::sourcesOf(ChequeDirection::Received));
+        $this->assertSame(['cheque_out_delivered', 'cheque_out_collected', 'cheque_out_rejected'], ChequeTransition::sourcesOf(ChequeDirection::Paid));
+    }
+
+    public function testChequeJournals_NeverLeaveAnOrphanAndEveryOneBalances(): void
+    {
+        $this->invoiceOf('300.00');
+        $this->purchaseOf('300.00');
+
+        $received = $this->received(['amount' => '120.00']);
+        $paid     = $this->paid(['amount' => '80.00'], $this->today);
+
+        $this->cheques->deposit($received, $this->today, $this->clerk);
+        $this->cheques->collect($received, $this->today, '1.25', $this->clerk);
+        $this->cheques->collect($paid, $this->today, null, $this->clerk);
+        $this->cheques->undo($received, $this->clerk);
+        $this->cheques->reject($received, $this->today, $this->clerk);
+
+        foreach ($this->accountingDb()->table('accounting_journals')->get()->getResult() as $journal) {
+            $this->assertSame(bcadd($journal->total_debit, '0', 4), bcadd($journal->total_credit, '0', 4), 'journal ' . $journal->journal_id);
+        }
+
+        $this->assertTies();
+        $this->assertSupplierTies();
+        $this->assertSame('0.00', $this->balance($this->accountId('notes_receivable')));
+        $this->assertSame('0.00', $this->balance($this->accountId('cheques_under_collection')));
+        $this->assertSame('0.00', $this->balance($this->accountId('notes_payable')));
+        $this->assertSame('-80.00', $this->assertTreasuryTies());
+    }
+
+    public function testFind_ReadsTheNamesTheScreensShow(): void
+    {
+        $chequeId = $this->received();
+        $row      = $this->cheques->find($chequeId);
+
+        $this->assertSame(['Omar Khaled', 'HQ'], [$row->party_name, $row->branch_code]);
+        $this->assertNull($this->cheques->find(99999));
+        $this->assertSame(['deposit', 'collect', 'reject', 'edit', 'delete'], $this->cheques->actionsOf($row));
+    }
+}
