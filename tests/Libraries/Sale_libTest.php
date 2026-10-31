@@ -2,6 +2,7 @@
 
 namespace Tests\Libraries;
 
+use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\InvoiceDiscountProblem;
 use App\Libraries\Sale_lib;
 use App\Libraries\Tax_lib;
@@ -206,17 +207,39 @@ class Sale_libTest extends CIUnitTestCase
         $this->assertNull($this->saleLib->get_return_origin());
     }
 
-    public function testClearAll_ForgetsTheDeliveryAndTheOriginOfTheSaleBeingMade(): void
+    public function testGetReturnDocument_IsACreditNoteUntilARefundInvoiceIsAskedFor(): void
+    {
+        $this->assertSame(ReturnDocument::CreditNote, $this->saleLib->getReturnDocument());
+
+        $this->saleLib->setReturnDocument(ReturnDocument::RefundInvoice);
+
+        $this->assertSame(ReturnDocument::RefundInvoice, $this->saleLib->getReturnDocument());
+        $this->assertSame('refund_invoice', session()->get('sales_return_document'));
+
+        $this->saleLib->setReturnDocument(ReturnDocument::CreditNote);
+
+        $this->assertSame(ReturnDocument::CreditNote, $this->saleLib->getReturnDocument());
+        $this->assertNull(session()->get('sales_return_document'));
+
+        $this->saleLib->setReturnDocument(ReturnDocument::RefundInvoice);
+        $this->saleLib->clearReturnDocument();
+
+        $this->assertSame(ReturnDocument::CreditNote, $this->saleLib->getReturnDocument());
+    }
+
+    public function testClearAll_ForgetsTheDeliveryTheOriginAndTheDocumentOfTheSaleBeingMade(): void
     {
         $this->saleLib->set_delivered(false);
         $this->saleLib->set_return_origin(42);
+        $this->saleLib->setReturnDocument(ReturnDocument::RefundInvoice);
         $this->saleLib->clear_all();
 
         $this->assertTrue($this->saleLib->is_delivered());
         $this->assertNull($this->saleLib->get_return_origin());
+        $this->assertSame(ReturnDocument::CreditNote, $this->saleLib->getReturnDocument());
     }
 
-    public function testCopyEntireSale_TakesOverWhetherTheGoodsLeftAndWhichSaleAReturnComesFrom(): void
+    public function testCopyEntireSale_TakesOverWhetherTheGoodsLeftWhichSaleAReturnComesFromAndWhichDocumentItIs(): void
     {
         $empty = $this->createStub(ResultInterface::class);
         $empty->method('getResult')->willReturn([]);
@@ -233,6 +256,7 @@ class Sale_libTest extends CIUnitTestCase
         $sale->method('get_dinner_table')->willReturn(null);
         $sale->method('isDelivered')->willReturn(false);
         $sale->method('getReturnOrigin')->willReturn(42);
+        $sale->method('getReturnDocument')->willReturn(ReturnDocument::RefundInvoice);
         Factories::injectMock('models', Sale::class, $sale);
 
         $saleLib = new Sale_lib();
@@ -240,6 +264,7 @@ class Sale_libTest extends CIUnitTestCase
 
         $this->assertFalse($saleLib->is_delivered());
         $this->assertSame(42, $saleLib->get_return_origin());
+        $this->assertSame(ReturnDocument::RefundInvoice, $saleLib->getReturnDocument());
     }
 
     public function testReturnEntireSale_NamesTheSaleAsTheOriginAndTakesBackOnlyWhatHasNotComeBack(): void
@@ -462,6 +487,7 @@ class Sale_libTest extends CIUnitTestCase
         $sale->method('get_comment')->willReturn('');
         $sale->method('isDelivered')->willReturn(true);
         $sale->method('getInvoiceDiscount')->willReturn($discount);
+        $sale->method('getReturnDocument')->willReturn(ReturnDocument::CreditNote);
         $sale->method('getSaleStatus')->willReturn($status);
         Factories::injectMock('models', Sale::class, $sale);
 

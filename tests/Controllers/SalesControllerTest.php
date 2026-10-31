@@ -857,6 +857,77 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertSame($drawer, (int) Services::session()->get('sales_payments')['Cash']['treasury_id']);
     }
 
+    public function testPostSuspend_KeepsTheRefundInvoiceOfASuspendedReturnWhenItIsTakenBack(): void
+    {
+        $employeeId = $this->createReportsSalesEmployee();
+        $itemId     = $this->createTestItem(HAS_NO_STOCK);
+        $this->loginAs($employeeId);
+        $this->seedCartLine(1, '100.00', $itemId);
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => 'return', 'sale_type' => SALE_TYPE_RETURN, 'sales_return_document' => 'refund_invoice']));
+
+        $this->post('/sales/suspend');
+
+        $suspended = Database::connect()->table('sales')->orderBy('sale_id', 'DESC')->get()->getRow();
+
+        $this->assertSame((string) SUSPENDED, (string) $suspended->sale_status);
+        $this->assertSame('refund_invoice', $suspended->return_document);
+        $this->assertNull(Services::session()->get('sales_return_document'));
+
+        $this->loginAs($employeeId);
+        $this->post('/sales/unsuspend', ['suspended_sale_id' => (string) $suspended->sale_id]);
+
+        $this->assertSame('refund_invoice', Services::session()->get('sales_return_document'));
+        $this->assertSame('return', Services::session()->get('sales_mode'));
+    }
+
+    public function testPostSuspend_KeepsASuspendedReturnACreditNoteWhenNoDocumentWasChosen(): void
+    {
+        $employeeId = $this->createReportsSalesEmployee();
+        $itemId     = $this->createTestItem(HAS_NO_STOCK);
+        $this->loginAs($employeeId);
+        $this->seedCartLine(1, '100.00', $itemId);
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => 'return', 'sale_type' => SALE_TYPE_RETURN]));
+
+        $this->post('/sales/suspend');
+
+        $suspended = Database::connect()->table('sales')->orderBy('sale_id', 'DESC')->get()->getRow();
+
+        $this->assertSame((string) SUSPENDED, (string) $suspended->sale_status);
+        $this->assertNull($suspended->return_document);
+
+        $this->loginAs($employeeId);
+        $this->post('/sales/unsuspend', ['suspended_sale_id' => (string) $suspended->sale_id]);
+
+        $this->assertNull(Services::session()->get('sales_return_document'));
+    }
+
+    public function testPostComplete_IssuesAReturnThatWasSuspendedAsARefundInvoiceWithANumberOfItsOwnSequence(): void
+    {
+        $this->switchOn(DocumentType::RefundInvoice, 'RI-', 5);
+        $this->switchOn(DocumentType::CreditNote, 'CN-', 5);
+
+        $employeeId = $this->createReportsSalesEmployee();
+        $itemId     = $this->createTestItem(HAS_NO_STOCK);
+        $this->loginAs($employeeId);
+        $this->seedCartLine(1, '100.00', $itemId);
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => 'return', 'sale_type' => SALE_TYPE_RETURN, 'sales_return_document' => 'refund_invoice']));
+        $this->post('/sales/suspend');
+
+        $suspendedId = (int) Database::connect()->table('sales')->orderBy('sale_id', 'DESC')->get()->getRow()->sale_id;
+
+        $this->loginAs($employeeId);
+        $this->post('/sales/unsuspend', ['suspended_sale_id' => (string) $suspendedId]);
+        $this->withSession(array_merge($this->session, Services::session()->get()));
+
+        $response = $this->post('/sales/complete');
+
+        $response->assertSee('RI-00001');
+        $response->assertDontSee('id="credit_note_number"');
+        $this->assertSame('refund_invoice', Database::connect()->table('sales')->where('sale_id', $suspendedId)->get()->getRow()->return_document);
+        $this->assertSame(2, (new DocumentNumbering())->sequence(DocumentType::RefundInvoice)->nextNumber);
+        $this->assertSame(1, (new DocumentNumbering())->sequence(DocumentType::CreditNote)->nextNumber);
+    }
+
     /**
      * A cashier who also holds the report and delete grants but works only in the given branch.
      */
@@ -1361,6 +1432,273 @@ class SalesControllerTest extends CIUnitTestCase
 
         $this->assertFalse($result['success']);
         $this->assertSame(lang('Sales.return_origin_undelivered'), $result['message']);
+    }
+
+    public function testPostRefundInvoice_PreparesTheRegisterForARefundInvoiceOfTheInvoice(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $result = $this->jsonOf($this->post('/sales/refundInvoice/' . $invoice['saleId']));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('refund_invoice', Services::session()->get('sales_return_document'));
+        $this->assertSame('return', Services::session()->get('sales_mode'));
+        $this->assertSame((string) $invoice['saleId'], (string) Services::session()->get('sales_return_origin'));
+        $this->assertSame((string) $this->customerId, (string) Services::session()->get('sales_customer'));
+    }
+
+    public function testPostCreditNote_LeavesTheReturnToBeIssuedAsACreditNoteEvenAfterARefundInvoiceWasAsked(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $this->assertTrue($this->jsonOf($this->post('/sales/refundInvoice/' . $invoice['saleId']))['success']);
+        $this->assertTrue($this->jsonOf($this->post('/sales/creditNote/' . $invoice['saleId']))['success']);
+
+        $this->assertNull(Services::session()->get('sales_return_document'));
+    }
+
+    public function testPostRefundInvoice_TakesOnlyWhatHasNotComeBackYetOfTheInvoice(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->save([$this->line($invoice['perfume'], 0, '-1', '220', '120.00')], [$this->tax($invoice['perfume'], 0, '-33.00')], [], SALE_TYPE_RETURN, -1, true, $invoice['saleId']);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $this->assertTrue($this->jsonOf($this->post('/sales/refundInvoice/' . $invoice['saleId']))['success']);
+
+        $quantities = [];
+
+        foreach (Services::session()->get('sales_cart') as $line) {
+            $quantities[(int) $line['item_id']] = rtrim(rtrim((string) $line['quantity'], '0'), '.');
+        }
+
+        $this->assertSame([$invoice['cream'] => '-4', $invoice['perfume'] => '-1'], $quantities);
+    }
+
+    public function testPostRefundInvoice_RefusesAnInvoiceOfABranchTheEmployeeDoesNotWorkIn(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor($this->createSecondBranch()));
+
+        $this->post('/sales/refundInvoice/' . $invoice['saleId'])->assertStatus(403);
+        $this->assertNull(Services::session()->get('sales_return_document'));
+    }
+
+    public function testPostRefundInvoice_RefusesWhatIsNotAnInvoiceAndAnInvoiceWhoseGoodsDidNotLeave(): void
+    {
+        $sale = $this->postedInvoice(true, SALE_TYPE_POS);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $result = $this->jsonOf($this->post('/sales/refundInvoice/' . $sale['saleId']));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Sales.credit_note_invoice_only'), $result['message']);
+
+        $undelivered = $this->save([$this->line($this->item('20.00'), 0, '1', '50', '20.00')], [], [], SALE_TYPE_INVOICE, -1, false);
+        $result      = $this->jsonOf($this->post('/sales/refundInvoice/' . $undelivered));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Sales.return_origin_undelivered'), $result['message']);
+        $this->assertNull(Services::session()->get('sales_return_document'));
+    }
+
+    public function testPostRefundInvoice_SaysWhenEverythingOnTheInvoiceHasComeBack(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->save([$this->line($invoice['cream'], 0, '-4', '75', '40.00', '10'), $this->line($invoice['perfume'], 1, '-2', '220', '120.00')], [$this->tax($invoice['cream'], 0, '-40.50'), $this->tax($invoice['perfume'], 1, '-66.00')], [], SALE_TYPE_RETURN, -1, true, $invoice['saleId']);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $result = $this->jsonOf($this->post('/sales/refundInvoice/' . $invoice['saleId']));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Sales.credit_note_nothing_left'), $result['message']);
+    }
+
+    public function testPostSetReturnDocument_ChangesTheDocumentTheReturnIsIssuedAs(): void
+    {
+        $this->loginAs($this->createCashierEmployee());
+        $this->withSession(array_merge($this->session, ['sales_mode' => 'return']));
+
+        $this->post('/sales/setReturnDocument', ['return_document' => 'refund_invoice']);
+
+        $this->assertSame('refund_invoice', Services::session()->get('sales_return_document'));
+
+        $this->post('/sales/setReturnDocument', ['return_document' => 'credit_note']);
+
+        $this->assertNull(Services::session()->get('sales_return_document'));
+
+        $this->post('/sales/setReturnDocument', ['return_document' => 'refund_invoice']);
+        $this->post('/sales/setReturnDocument', ['return_document' => 'something else']);
+
+        $this->assertNull(Services::session()->get('sales_return_document'));
+    }
+
+    public function testPostChangeMode_ForgetsTheRefundInvoiceWhenTheModeChangesAndKeepsItWhenItDoesNot(): void
+    {
+        $this->loginAs($this->createCashierEmployee());
+        $this->withSession(array_merge($this->session, ['sales_mode' => 'return', 'sales_return_document' => 'refund_invoice']));
+
+        $this->post('/sales/changeMode', ['mode' => 'return']);
+
+        $this->assertSame('refund_invoice', Services::session()->get('sales_return_document'));
+
+        $this->post('/sales/changeMode', ['mode' => 'sale']);
+
+        $this->assertNull(Services::session()->get('sales_return_document'));
+    }
+
+    public function testGetIndex_OffersTheChoiceOfTheReturnDocumentInReturnModeOnly(): void
+    {
+        $this->loginAs($this->createCashierEmployee());
+        $this->withSession(array_merge($this->session, ['sales_mode' => 'return', 'sales_return_document' => 'refund_invoice']));
+
+        $response = $this->get('/sales');
+
+        $response->assertSee('id="return_document"');
+        $this->assertMatchesRegularExpression('/<option value="refund_invoice"\s+selected[^>]*>' . preg_quote(lang('Numbering.type_refund_invoice'), '/') . '<\/option>/', $response->getBody());
+
+        $this->withSession(array_merge($this->session, ['sales_mode' => 'sale']));
+
+        $this->get('/sales')->assertDontSee('id="return_document"');
+    }
+
+    public function testPostComplete_SavesTheReturnAsARefundInvoiceAndShowsItsNumberOnTheReceipt(): void
+    {
+        $this->switchOn(DocumentType::RefundInvoice, 'RI-', 5);
+        $this->switchOn(DocumentType::CreditNote, 'CN-', 5);
+
+        $response = $this->completeAs('return', ['sales_return_document' => 'refund_invoice']);
+
+        $response->assertSee('id="refund_invoice_number"');
+        $response->assertSee('RI-00001');
+        $response->assertDontSee('id="credit_note_number"');
+        $this->assertSame('refund_invoice', Database::connect()->table('sales')->orderBy('sale_id', 'DESC')->get()->getRow()->return_document);
+        $this->assertSame(2, (new DocumentNumbering())->sequence(DocumentType::RefundInvoice)->nextNumber);
+        $this->assertSame(1, (new DocumentNumbering())->sequence(DocumentType::CreditNote)->nextNumber);
+    }
+
+    public function testPostComplete_ShowsARefundInvoiceByItsReceiptNumberWhileItsSequenceIsOff(): void
+    {
+        $response = $this->completeAs('return', ['sales_return_document' => 'refund_invoice']);
+
+        $saleId = (int) Database::connect()->table('sales')->orderBy('sale_id', 'DESC')->get()->getRow()->sale_id;
+
+        $response->assertSee('id="refund_invoice_number"');
+        $response->assertSee(lang('Numbering.type_refund_invoice') . ': POS ' . $saleId);
+        $this->assertSame(0, Database::connect()->table('document_numbers')->where('source_id', $saleId)->countAllResults());
+    }
+
+    public function testPostComplete_SavesAReturnAsACreditNoteWhenNoDocumentWasChosen(): void
+    {
+        $this->switchOn(DocumentType::RefundInvoice, 'RI-', 5);
+
+        $response = $this->completeAs('return');
+
+        $response->assertDontSee('id="refund_invoice_number"');
+        $this->assertNull(Database::connect()->table('sales')->orderBy('sale_id', 'DESC')->get()->getRow()->return_document);
+        $this->assertSame(1, (new DocumentNumbering())->sequence(DocumentType::RefundInvoice)->nextNumber);
+    }
+
+    public function testGetReceipt_ShowsTheNumberOfARefundInvoiceAndNotOnACreditNote(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->switchOn(DocumentType::RefundInvoice, 'RI-', 5);
+        $refund = $this->refundInvoiceOf($invoice['saleId'], '10.00');
+        $note   = $this->creditNoteOf($invoice['saleId'], '10.00');
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $this->get('/sales/receipt/' . $refund)->assertSee('RI-00001');
+        $this->get('/sales/receipt/' . $refund)->assertDontSee('id="credit_note_number"');
+        $this->get('/sales/receipt/' . $note)->assertDontSee('id="refund_invoice_number"');
+        $this->get('/sales/receipt/' . $invoice['saleId'])->assertDontSee('id="refund_invoice_number"');
+    }
+
+    #[DataProvider('receiptTemplateProvider')]
+    public function testGetReceipt_NamesARefundInvoiceByItsNumberOnEveryReceiptTemplate(string $template): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->switchOn(DocumentType::RefundInvoice, 'RI-', 5);
+        $this->switchOn(DocumentType::CreditNote, 'CN-', 5);
+        $refund = $this->refundInvoiceOf($invoice['saleId'], '10.00');
+        $note   = $this->creditNoteOf($invoice['saleId'], '10.00');
+        $this->setConfigValue('receipt_template', $template);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        try {
+            $page = $this->get('/sales/receipt/' . $refund);
+
+            $page->assertStatus(200);
+            $page->assertSee(lang('Numbering.type_refund_invoice'));
+            $page->assertSee('RI-00001');
+            $page->assertDontSee(lang('Numbering.type_credit_note'));
+            $page->assertDontSee('CN-00001');
+
+            $creditNote = $this->get('/sales/receipt/' . $note);
+
+            $creditNote->assertSee(lang('Numbering.type_credit_note'));
+            $creditNote->assertSee('CN-00001');
+            $creditNote->assertDontSee(lang('Numbering.type_refund_invoice'));
+            $creditNote->assertDontSee('RI-00001');
+        } finally {
+            $this->setConfigValue('receipt_template', 'receipt_default');
+        }
+    }
+
+    public function testLoadSaleData_NamesARefundInvoiceOnTheEmailReceipt(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->switchOn(DocumentType::RefundInvoice, 'RI-', 5);
+        $this->switchOn(DocumentType::CreditNote, 'CN-', 5);
+        $refund = $this->refundInvoiceOf($invoice['saleId'], '10.00');
+        $note   = $this->creditNoteOf($invoice['saleId'], '10.00');
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $this->get('/sales/receipt/' . $refund);
+
+        $controller = new Sales();
+        $controller->initController(service('request'), service('response'), service('logger'));
+
+        $load   = new ReflectionMethod($controller, '_load_sale_data');
+        $email  = view('sales/receipt_email', $load->invoke($controller, $refund) + ['pdf' => false]);
+        $credit = view('sales/receipt_email', $load->invoke($controller, $note) + ['pdf' => false]);
+
+        $this->assertStringContainsString(lang('Numbering.type_refund_invoice') . ': <span dir="ltr">RI-00001</span>', $email);
+        $this->assertStringNotContainsString(lang('Numbering.type_credit_note'), $email);
+        $this->assertStringContainsString(lang('Numbering.type_credit_note') . ': <span dir="ltr">CN-00001</span>', $credit);
+        $this->assertStringNotContainsString(lang('Numbering.type_refund_invoice'), $credit);
+    }
+
+    public function testGetEdit_OffersTheRefundInvoiceWhereTheCreditNoteIsOfferedAndShowsItsNumber(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->switchOn(DocumentType::RefundInvoice, 'RI-', 5);
+        $refund = $this->refundInvoiceOf($invoice['saleId'], '10.00');
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $response = $this->get('/sales/edit/' . $invoice['saleId']);
+
+        $response->assertSee('id="create_refund_invoice"');
+        $response->assertSee(lang('Sales.refund_invoice_create'));
+
+        $edit = $this->get('/sales/edit/' . $refund);
+
+        $edit->assertSee('id="refund_invoice_number"');
+        $edit->assertSee('RI-00001');
+        $edit->assertDontSee('id="credit_note_number"');
+        $edit->assertDontSee('id="create_refund_invoice"');
+    }
+
+    public function testGetEdit_OffersNoRefundInvoiceForAPointOfSaleSaleOrAnUndeliveredInvoice(): void
+    {
+        $sale = $this->postedInvoice(true, SALE_TYPE_POS);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $this->get('/sales/edit/' . $sale['saleId'])->assertDontSee('id="create_refund_invoice"');
+
+        $undelivered = $this->save([$this->line($this->item('20.00'), 0, '1', '50', '20.00')], [], [], SALE_TYPE_INVOICE, -1, false);
+
+        $this->get('/sales/edit/' . $undelivered)->assertDontSee('id="create_refund_invoice"');
     }
 
     public function testPostSave_KeepsAPaymentBeyondTheInvoiceWholeAsCreditOfTheCustomer(): void

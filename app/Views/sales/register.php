@@ -38,6 +38,7 @@
  * @var bool      $accounting_enabled
  * @var bool      $delivered
  * @var int|null  $return_origin
+ * @var string    $return_document
  * @var bool      $email_receipt
  * @var bool      $price_work_orders
  * @var string    $invoice_number
@@ -120,6 +121,17 @@ $employee        = model(Employee::class);
                 <?php endif; ?>
             </div>
         <?= form_close() ?>
+
+        <?php if ($mode == 'return'): ?>
+            <?= form_open("{$controller_name}/setReturnDocument", ['id' => 'return_document_form', 'class' => 'app-form card']) ?>
+                <div class="card-body pos-bar">
+                    <div class="pos-field">
+                        <label for="return_document" class="pos-label"><?= lang("{$sectionName}.return_document") ?></label>
+                        <?= form_dropdown('return_document', ['credit_note' => lang('Numbering.type_credit_note'), 'refund_invoice' => lang('Numbering.type_refund_invoice')], $return_document ?? 'credit_note', ['id' => 'return_document', 'onchange' => "$('#return_document_form').submit();", 'class' => 'form-select form-select-sm']) ?>
+                    </div>
+                </div>
+            <?= form_close() ?>
+        <?php endif; ?>
 
         <?php if ($mode == 'return' && $accounting_enabled): ?>
             <?= form_open("{$controller_name}/setReturnOrigin", ['id' => 'return_origin_form', 'class' => 'app-form card']) ?>

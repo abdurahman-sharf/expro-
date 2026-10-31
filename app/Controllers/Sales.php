@@ -11,6 +11,7 @@ use App\Libraries\Accounting\CustomerLedger;
 use App\Libraries\Accounting\PaymentStatus;
 use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\Accounting\SalePosting;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
@@ -307,6 +308,7 @@ class Sales extends Secure_Controller
 
         if ($mode !== $this->sale_lib->get_mode()) {
             $this->sale_lib->clearInvoiceDiscount();
+            $this->sale_lib->clearReturnDocument();
         }
 
         $this->sale_lib->set_mode($mode);
@@ -1206,7 +1208,7 @@ class Sales extends Secure_Controller
                 $saleType = SALE_TYPE_POS;
             }
 
-            $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, true, $this->sale_lib->get_return_origin(), $invoiceDiscount);
+            $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, true, $this->sale_lib->get_return_origin(), $invoiceDiscount, $this->sale_lib->getReturnDocument());
 
             $data['sale_id'] = 'POS ' . $data['sale_id_num'];
 
@@ -1229,7 +1231,7 @@ class Sales extends Secure_Controller
                 return $this->reload($data);
             } else {
                 $data['barcode'] = $this->barcode_lib->generate_receipt_barcode($data['sale_id']);
-                $data['creditNoteNumber'] = $this->creditNoteNumberOf((int) $data['sale_id_num']);
+                $data = [...$data, ...$this->returnDocumentNumbersOf((int) $data['sale_id_num'])];
 
                 // Validate receipt template to prevent path traversal
                 $receiptTemplate = $this->config['receipt_template'] ?? '';
@@ -1244,9 +1246,22 @@ class Sales extends Secure_Controller
         }
     }
 
-    private function creditNoteNumberOf(int $saleId): ?string
+    /**
+     * The number a return carries under the name of the document it was issued as. A credit note
+     * shows only the number its sequence gave it; a refund invoice always shows its number, or the
+     * receipt number it goes by while it has none.
+     *
+     * @return array{creditNoteNumber: ?string, refundInvoiceNumber: ?string}
+     */
+    private function returnDocumentNumbersOf(int $saleId): array
     {
-        return (new DocumentNumbering())->numbers(DocumentType::CreditNote, 'sales', [$saleId])[$saleId] ?? null;
+        $document  = $this->sale->getReturnDocument($saleId);
+        $numbering = new DocumentNumbering();
+
+        return [
+            'creditNoteNumber'    => $document === ReturnDocument::CreditNote ? ($numbering->numbers(DocumentType::CreditNote, 'sales', [$saleId])[$saleId] ?? null) : null,
+            'refundInvoiceNumber' => $document === ReturnDocument::RefundInvoice ? $numbering->label(DocumentType::RefundInvoice, 'sales', $saleId) : null,
+        ];
     }
 
     /**
@@ -1487,25 +1502,21 @@ class Sales extends Secure_Controller
         return $customer_info;
     }
 
-    /**
-     * @param $sale_id
-     * @return array
-     */
-    private function _load_sale_data($sale_id): array    // TODO: Hungarian notation
+    private function _load_sale_data($saleId): array    // TODO: Hungarian notation
     {
         $this->sale_lib->clear_all();
         $cashRounding = $this->sale_lib->reset_cash_rounding();
         $data['cash_rounding'] = $cashRounding;
 
-        $saleInfo = $this->sale->get_info($sale_id)->getRowArray();
-        $this->sale_lib->copy_entire_sale($sale_id);
+        $saleInfo = $this->sale->get_info($saleId)->getRowArray();
+        $this->sale_lib->copy_entire_sale($saleId);
         $data = [];
         $data['cart'] = $this->sale_lib->get_cart();
         $data['payments'] = $this->sale_lib->getPayments();
         $data['selected_payment_type'] = $this->sale_lib->get_payment_type();
 
-        $taxDetails = $this->tax_lib->get_taxes($data['cart'], $sale_id);
-        $data['taxes'] = $this->sale->get_sales_taxes($sale_id);
+        $taxDetails = $this->tax_lib->get_taxes($data['cart'], $saleId);
+        $data['taxes'] = $this->sale->get_sales_taxes($saleId);
         $data['discount'] = $this->sale_lib->get_discount();
         $data['invoice_discount'] = $this->sale_lib->getInvoiceDiscountTotal();
         $data['invoice_discount_entry'] = $this->sale_lib->getInvoiceDiscount();
@@ -1542,12 +1553,12 @@ class Sales extends Secure_Controller
         $data['employee'] = $employeeInfo->first_name . ' ' . mb_substr($employeeInfo->last_name, 0, 1);
         $this->_load_customer_data($this->sale_lib->get_customer(), $data);
 
-        $data['sale_id_num'] = $sale_id;
-        $data['sale_id'] = 'POS ' . $sale_id;
+        $data['sale_id_num'] = $saleId;
+        $data['sale_id'] = 'POS ' . $saleId;
         $data['comments'] = $saleInfo['comment'];
         $data['invoice_number'] = $saleInfo['invoice_number'];
         $data['quote_number'] = $saleInfo['quote_number'];
-        $data['creditNoteNumber'] = $this->creditNoteNumberOf((int) $sale_id);
+        $data = [...$data, ...$this->returnDocumentNumbersOf((int) $saleId)];
         $data['work_order_number'] = $this->sale_lib->get_work_order_number();
         $data['sale_status'] = $saleInfo['sale_status'];
 
@@ -1611,6 +1622,34 @@ class Sales extends Secure_Controller
      */
     public function postCreditNote(int $saleId = NEW_ENTRY): ResponseInterface
     {
+        return $this->prepareReturnOf($saleId, ReturnDocument::CreditNote);
+    }
+
+    /**
+     * Prepares the register for a refund invoice of an issued invoice: the same return as a credit
+     * note, issued as the other document. Used in app/Views/sales/form.php
+     *
+     * @noinspection PhpUnused
+     */
+    public function postRefundInvoice(int $saleId = NEW_ENTRY): ResponseInterface
+    {
+        return $this->prepareReturnOf($saleId, ReturnDocument::RefundInvoice);
+    }
+
+    /**
+     * Changes the document the return in the register is issued as. Used in app/Views/sales/register.php
+     *
+     * @noinspection PhpUnused
+     */
+    public function postSetReturnDocument(): ResponseInterface|string
+    {
+        $this->sale_lib->setReturnDocument(ReturnDocument::fromStored((string) $this->request->getPost('return_document')));
+
+        return $this->reload();
+    }
+
+    private function prepareReturnOf(int $saleId, ReturnDocument $document): ResponseInterface
+    {
         if ($this->outsideBranchScope($saleId)) {
             return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.branch_not_allowed')]);
         }
@@ -1632,6 +1671,7 @@ class Sales extends Secure_Controller
         $this->sale_lib->clear_all();
         $this->sale_lib->set_mode('return');
         $this->sale_lib->set_sale_type(SALE_TYPE_RETURN);
+        $this->sale_lib->setReturnDocument($document);
         $this->sale_lib->return_entire_sale('POS ' . $saleId);
 
         return $this->response->setJSON(['success' => true, 'redirect' => site_url('sales')]);
@@ -1989,6 +2029,7 @@ class Sales extends Secure_Controller
         $data['accounting_enabled'] = (new AccountingSettings())->isEnabled();
         $data['delivered'] = $this->sale_lib->is_delivered();
         $data['return_origin'] = $this->sale_lib->get_return_origin();
+        $data['return_document'] = $this->sale_lib->getReturnDocument()->value;
 
         $data['pos_mode'] = $data['mode'] == 'sale' || $data['mode'] == 'return';
 
@@ -2113,7 +2154,7 @@ class Sales extends Secure_Controller
 
         $numbering                = new DocumentNumbering();
         $data['paymentNumbers']   = $numbering->numbers(DocumentType::CustomerPayment, 'sales_payments', array_map(static fn (object $payment): int => (int) $payment->payment_id, $data['payments']));
-        $data['creditNoteNumber'] = $numbering->numbers(DocumentType::CreditNote, 'sales', [$saleId])[$saleId] ?? null;
+        $data = [...$data, ...$this->returnDocumentNumbersOf($saleId)];
 
         $data['treasury_options']     = [];
         $data['new_treasury_options'] = [];
@@ -2449,26 +2490,26 @@ class Sales extends Secure_Controller
      */
     public function postSuspend(): ResponseInterface|string
     {
-        $sale_id = $this->sale_lib->get_sale_id();
-        $dinner_table = $this->sale_lib->get_dinner_table();
+        $saleId = $this->sale_lib->get_sale_id();
+        $dinnerTable = $this->sale_lib->get_dinner_table();
         $cart = $this->sale_lib->get_cart();
         $payments = $this->sale_lib->getPayments();
-        $employee_id = $this->employee->get_logged_in_employee_info()->person_id;
-        $customer_id = $this->sale_lib->get_customer();
-        $invoice_number = $this->sale_lib->get_invoice_number();
-        $work_order_number = $this->sale_lib->get_work_order_number();
-        $quote_number = $this->sale_lib->get_quote_number();
-        $sale_type = $this->sale_lib->getSaleType();
+        $employeeId = $this->employee->get_logged_in_employee_info()->person_id;
+        $customerId = $this->sale_lib->get_customer();
+        $invoiceNumber = $this->sale_lib->get_invoice_number();
+        $workOrderNumber = $this->sale_lib->get_work_order_number();
+        $quoteNumber = $this->sale_lib->get_quote_number();
+        $saleType = $this->sale_lib->getSaleType();
 
-        if ($sale_type == '') {
-            $sale_type = SALE_TYPE_POS;
+        if ($saleType == '') {
+            $saleType = SALE_TYPE_POS;
         }
 
         $comment = $this->sale_lib->get_comment();
-        $sale_status = SUSPENDED;
+        $saleStatus = SUSPENDED;
 
         $data = [];
-        $sales_taxes = [[], []];
+        $salesTaxes = [[], []];
 
         $branchProblem = $this->cartBranchProblem($cart);
 
@@ -2484,7 +2525,7 @@ class Sales extends Secure_Controller
             return $this->reload(['error' => lang('Sales.not_authorized')]);
         }
 
-        $saleIdNum = $this->sale->save_value($sale_id, $sale_status, $cart, $customer_id, $employee_id, $comment, $invoice_number, $work_order_number, $quote_number, $sale_type, $payments, $dinner_table, $sales_taxes, $this->sale_lib->is_delivered(), null, $invoiceDiscount);
+        $saleIdNum = $this->sale->save_value($saleId, $saleStatus, $cart, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTable, $salesTaxes, $this->sale_lib->is_delivered(), null, $invoiceDiscount, $this->sale_lib->getReturnDocument());
 
         if ($saleIdNum === INSUFFICIENT_GIFTCARD_BALANCE) {
             $data['error'] = lang('Sales.insufficient_giftcard_balance');

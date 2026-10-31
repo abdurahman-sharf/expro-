@@ -8,6 +8,7 @@ use App\Libraries\Accounting\CustomerLedger;
 use App\Libraries\Accounting\CustomerPosition;
 use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\Accounting\SalePosting;
 use App\Models\Sale;
 
@@ -199,12 +200,12 @@ trait SaleAccountingFixtureTrait
      * @param list<array<string, mixed>>           $payments
      * @param array{type: int, value: string}|null $invoiceDiscount
      */
-    protected function save(array $items, array $taxes = [], array $payments = [], int $type = SALE_TYPE_INVOICE, ?int $customerId = -1, bool $delivered = true, ?int $origin = null, int $status = COMPLETED, int $saleId = NEW_ENTRY, ?array $invoiceDiscount = null): int
+    protected function save(array $items, array $taxes = [], array $payments = [], int $type = SALE_TYPE_INVOICE, ?int $customerId = -1, bool $delivered = true, ?int $origin = null, int $status = COMPLETED, int $saleId = NEW_ENTRY, ?array $invoiceDiscount = null, ReturnDocument $returnDocument = ReturnDocument::CreditNote): int
     {
         $saleStatus = $status;
         $salesTaxes = [[], $taxes];
         $customer   = $customerId === -1 ? $this->customerId : ($customerId ?? NEW_ENTRY);
-        $result     = $this->sales->save_value($saleId, $saleStatus, $items, $customer, $this->employeeId, 'test', null, null, null, $type, $payments, null, $salesTaxes, $delivered, $origin, $invoiceDiscount);
+        $result     = $this->sales->save_value($saleId, $saleStatus, $items, $customer, $this->employeeId, 'test', null, null, null, $type, $payments, null, $salesTaxes, $delivered, $origin, $invoiceDiscount, $returnDocument);
 
         if ($result > 0) {
             $this->saleIds[] = $result;
@@ -303,6 +304,32 @@ trait SaleAccountingFixtureTrait
     }
 
     /**
+     * A stock location, with its account, that belongs to the branch given.
+     */
+    protected function branchLocation(int $branchId, string $name = 'Branch store'): int
+    {
+        $location = $this->insertStockLocation($name);
+
+        (new EntityAccountService())->ensure(EntityAccountService::STOCK_LOCATION, $location, $name);
+        $this->accountingDb()->table('stock_locations')->where('location_id', $location)->update(['branch_id' => $branchId]);
+
+        return $location;
+    }
+
+    /**
+     * An invoice of a service that comes to exactly the amount, sold from a stock location of the
+     * branch given, which makes it a sale of that branch.
+     *
+     * @param list<array<string, mixed>> $payments
+     */
+    protected function invoiceInBranch(int $branchId, string $total, array $payments = [], ?int $customerId = null): int
+    {
+        $service = $this->item('0', false);
+
+        return $this->save([$this->line($service, 0, '1', $total, '0', '0', PERCENT, $this->branchLocation($branchId))], [], $payments, SALE_TYPE_INVOICE, $customerId ?? -1);
+    }
+
+    /**
      * A credit note of a service for the amount, taken from an invoice.
      */
     protected function creditNoteOf(int $invoiceId, string $total, ?int $customerId = null): int
@@ -310,6 +337,17 @@ trait SaleAccountingFixtureTrait
         $service = $this->item('0', false);
 
         return $this->save([$this->line($service, 0, '-1', $total)], [], [], SALE_TYPE_RETURN, $customerId ?? -1, true, $invoiceId);
+    }
+
+    /**
+     * A refund invoice of a service for the amount, taken from an invoice: the same return as a
+     * credit note, issued as the other document.
+     */
+    protected function refundInvoiceOf(int $invoiceId, string $total, ?int $customerId = null): int
+    {
+        $service = $this->item('0', false);
+
+        return $this->save([$this->line($service, 0, '-1', $total)], [], [], SALE_TYPE_RETURN, $customerId ?? -1, true, $invoiceId, COMPLETED, NEW_ENTRY, null, ReturnDocument::RefundInvoice);
     }
 
     /**

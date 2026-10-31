@@ -46,6 +46,10 @@
             <div id="credit_note_number"><?= lang('Numbering.type_credit_note') . esc(": $creditNoteNumber") ?></div>
         <?php } ?>
 
+        <?php if (!empty($refundInvoiceNumber)) { ?>
+            <div id="refund_invoice_number"><?= lang('Numbering.type_refund_invoice') . esc(": $refundInvoiceNumber") ?></div>
+        <?php } ?>
+
         <?php if (!empty($invoice_number)) { ?>
             <div id="invoice_number"><?= lang('Sales.invoice_number') . esc(": $invoice_number") ?></div>
         <?php } ?>

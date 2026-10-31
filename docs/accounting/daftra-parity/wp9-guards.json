@@ -1,0 +1,896 @@
+[
+ {
+  "name": "G01 a paid sale posts its cost after its payments, not before them",
+  "file": "app/Libraries/Accounting/SalePosting.php",
+  "find": "            $this->postInvoice($sale, $employeeId);\n\n            foreach ($sale->payments as $payment) {\n                $this->postPayment($sale, $payment, $employeeId);\n            }\n\n            $this->postCost($sale, $employeeId);\n            $this->settle($sale->customerId, $employeeId);",
+  "replace": "            $this->postInvoice($sale, $employeeId);\n            $this->postCost($sale, $employeeId);\n\n            foreach ($sale->payments as $payment) {\n                $this->postPayment($sale, $payment, $employeeId);\n            }\n\n            $this->settle($sale->customerId, $employeeId);",
+  "tests": [
+   "--filter",
+   "testSaveValue_NumbersAPaid|testSaveValue_PostsThePayments|testDelete_ARestoredSale|testSaveValue_PostsAReturnWithItsRefund|testSaveValue_PostsTheCostOfAPaidSale",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G02 a paid sale posts its payments after its invoice, not before it",
+  "file": "app/Libraries/Accounting/SalePosting.php",
+  "find": "            $this->postInvoice($sale, $employeeId);\n\n            foreach ($sale->payments as $payment) {\n                $this->postPayment($sale, $payment, $employeeId);\n            }\n\n            $this->postCost($sale, $employeeId);\n            $this->settle($sale->customerId, $employeeId);",
+  "replace": "            foreach ($sale->payments as $payment) {\n                $this->postPayment($sale, $payment, $employeeId);\n            }\n\n            $this->postInvoice($sale, $employeeId);\n            $this->postCost($sale, $employeeId);\n            $this->settle($sale->customerId, $employeeId);",
+  "tests": [
+   "--filter",
+   "testSaveValue_NumbersAPaid|testSaveValue_PostsThePayments|testDelete_ARestoredSale|testSaveValue_PostsAPaidSaleOfServices",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G03 a payment whose journal still holds is left alone when another payment is added (nothing is renumbered or rewritten)",
+  "file": "app/Libraries/Accounting/SalePosting.php",
+  "find": "            if ($draft !== null && $this->holds($active, $draft)) {\n                return;\n            }\n\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testUpdate_PostsAPaymentAddedLaterAfterEveryJournal|testUpdate_LeavesTheJournalOfAPaymentWhoseType",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G04 only a return keeps the document it was issued as",
+  "file": "app/Models/Sale.php",
+  "find": "'return_document'   => $saleType === SALE_TYPE_RETURN ? $returnDocument->storedValue() : null,",
+  "replace": "'return_document'   => $returnDocument->storedValue(),",
+  "tests": [
+   "--filter",
+   "testSaveValue_SavesAReturnAsACreditNoteUnless",
+   "tests/Models/SaleTest.php"
+  ]
+ },
+ {
+  "name": "G05 a refund invoice takes its number from the sequence of refund invoices",
+  "file": "app/Models/Sale.php",
+  "find": "$numbering->assign($returnDocument->documentType(), 'sales', $saleId, $branchId);",
+  "replace": "$numbering->assign(DocumentType::CreditNote, 'sales', $saleId, $branchId);",
+  "tests": [
+   "--filter",
+   "testSaveValue_NumbersARefundInvoiceFromItsOwnSequence|testSaveValue_GivesARefundInvoiceNoNumber",
+   "tests/Models/SaleTest.php"
+  ]
+ },
+ {
+  "name": "G06 a return that names no document is a credit note when it is read back",
+  "file": "app/Models/Sale.php",
+  "find": "return ReturnDocument::fromStored($row?->return_document);",
+  "replace": "return ReturnDocument::RefundInvoice;",
+  "tests": [
+   "--filter",
+   "testGetReturnDocument",
+   "tests/Models/SaleTest.php"
+  ]
+ },
+ {
+  "name": "G07 an unknown or empty stored document is read as a credit note",
+  "file": "app/Libraries/Accounting/ReturnDocument.php",
+  "find": "return self::tryFrom((string) $stored) ?? self::CreditNote;",
+  "replace": "return self::from((string) $stored);",
+  "tests": [
+   "tests/Libraries/Accounting/ReturnDocumentTest.php"
+  ]
+ },
+ {
+  "name": "G08 a credit note is stored as the empty column",
+  "file": "app/Libraries/Accounting/ReturnDocument.php",
+  "find": "return $this === self::CreditNote ? null : $this->value;",
+  "replace": "return $this->value;",
+  "tests": [
+   "tests/Libraries/Accounting/ReturnDocumentTest.php"
+  ]
+ },
+ {
+  "name": "G09 each document has the sequence of its own",
+  "file": "app/Libraries/Accounting/ReturnDocument.php",
+  "find": "            self::RefundInvoice => DocumentType::RefundInvoice,",
+  "replace": "            self::RefundInvoice => DocumentType::CreditNote,",
+  "tests": [
+   "tests/Libraries/Accounting/ReturnDocumentTest.php"
+  ]
+ },
+ {
+  "name": "G10 asking for a credit note leaves nothing of a refund invoice in the register",
+  "file": "app/Libraries/Sale_lib.php",
+  "find": "$document === ReturnDocument::CreditNote ? $this->session->remove('sales_return_document') : $this->session->set('sales_return_document', $document->value);",
+  "replace": "$this->session->set('sales_return_document', $document->value);",
+  "tests": [
+   "tests/Libraries/Sale_libTest.php"
+  ]
+ },
+ {
+  "name": "G11 clearing the register forgets the document of the return",
+  "file": "app/Libraries/Sale_lib.php",
+  "find": "        $this->clear_return_origin();\n        $this->clearReturnDocument();\n",
+  "replace": "        $this->clear_return_origin();\n",
+  "tests": [
+   "tests/Libraries/Sale_libTest.php"
+  ]
+ },
+ {
+  "name": "G12 loading a sale into the register takes over the document it was issued as",
+  "file": "app/Libraries/Sale_lib.php",
+  "find": "        $this->setReturnDocument($this->sale->getReturnDocument($saleId));\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Sale_libTest.php"
+  ]
+ },
+ {
+  "name": "G13 the document asked for is the one the register keeps",
+  "file": "app/Controllers/Sales.php",
+  "find": "        $this->sale_lib->setReturnDocument($document);\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testPostRefundInvoice_Prepares|testPostCreditNote_Leaves",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G14 a return of an invoice of another branch is refused for credit notes and refund invoices",
+  "file": "app/Controllers/Sales.php",
+  "find": "    private function prepareReturnOf(int $saleId, ReturnDocument $document): ResponseInterface\n    {\n        if ($this->outsideBranchScope($saleId)) {",
+  "replace": "    private function prepareReturnOf(int $saleId, ReturnDocument $document): ResponseInterface\n    {\n        if (false) {",
+  "tests": [
+   "--filter",
+   "testPostRefundInvoice_RefusesAnInvoiceOfABranch|testPostCreditNote_RefusesAnInvoiceOfABranch",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G15 a return must come from a completed and delivered sale",
+  "file": "app/Controllers/Sales.php",
+  "find": "        $problem = $this->returnOriginProblem($saleId);\n\n        if ($problem === null && (int) $this->sale->getSummary($saleId)->sale_type !== SALE_TYPE_INVOICE) {",
+  "replace": "        $problem = null;\n\n        if ($problem === null && (int) $this->sale->getSummary($saleId)->sale_type !== SALE_TYPE_INVOICE) {",
+  "tests": [
+   "--filter",
+   "testPostRefundInvoice_Refuses|testPostCreditNote_Refuses",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G16 only an invoice can be returned as a credit note or a refund invoice",
+  "file": "app/Controllers/Sales.php",
+  "find": "        if ($problem === null && (int) $this->sale->getSummary($saleId)->sale_type !== SALE_TYPE_INVOICE) {",
+  "replace": "        if (false) {",
+  "tests": [
+   "--filter",
+   "testPostRefundInvoice_Refuses|testPostCreditNote_Refuses",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G17 nothing is prepared when everything has come back",
+  "file": "app/Controllers/Sales.php",
+  "find": "        if ($problem === null && $this->nothingLeftToReturn($saleId)) {",
+  "replace": "        if (false) {",
+  "tests": [
+   "--filter",
+   "testPostRefundInvoice_SaysWhen|testPostCreditNote_SaysWhen",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G18 a document that is not one of the two is a credit note",
+  "file": "app/Controllers/Sales.php",
+  "find": "$this->sale_lib->setReturnDocument(ReturnDocument::fromStored((string) $this->request->getPost('return_document')));",
+  "replace": "$this->sale_lib->setReturnDocument(ReturnDocument::from((string) $this->request->getPost('return_document')));",
+  "tests": [
+   "--filter",
+   "testPostSetReturnDocument",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G19 changing the mode of the register forgets the refund invoice",
+  "file": "app/Controllers/Sales.php",
+  "find": "            $this->sale_lib->clearInvoiceDiscount();\n            $this->sale_lib->clearReturnDocument();\n",
+  "replace": "            $this->sale_lib->clearInvoiceDiscount();\n",
+  "tests": [
+   "--filter",
+   "testPostChangeMode_ForgetsTheRefundInvoice",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G20 the register saves the return as the document it was asked to be",
+  "file": "app/Controllers/Sales.php",
+  "find": "$invoiceDiscount, $this->sale_lib->getReturnDocument());",
+  "replace": "$invoiceDiscount);",
+  "tests": [
+   "--filter",
+   "testPostComplete_SavesTheReturnAsARefundInvoice|testPostComplete_ShowsARefundInvoiceByItsReceiptNumber",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G21 only a refund invoice shows the line of a refund invoice on its receipt",
+  "file": "app/Controllers/Sales.php",
+  "find": "'refundInvoiceNumber' => $document === ReturnDocument::RefundInvoice ? $numbering->label(DocumentType::RefundInvoice, 'sales', $saleId) : null,",
+  "replace": "'refundInvoiceNumber' => $numbering->label(DocumentType::RefundInvoice, 'sales', $saleId),",
+  "tests": [
+   "--filter",
+   "testGetReceipt_ShowsTheNumberOfARefundInvoice|testPostComplete_SavesAReturnAsACreditNote|testGetEdit_OffersTheRefundInvoice",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G22 refund invoices are stored in the table of sales and no other",
+  "file": "app/Libraries/Numbering/DocumentType.php",
+  "find": "            self::SalesInvoice, self::SalesQuote, self::CreditNote, self::RefundInvoice => ['sales' => 'sale_id'],",
+  "replace": "            self::SalesInvoice, self::SalesQuote, self::CreditNote => ['sales' => 'sale_id'],\n            self::RefundInvoice => ['sales_payments' => 'payment_id'],",
+  "tests": [
+   "tests/Libraries/Numbering/DocumentTypeTest.php",
+   "tests/Libraries/Numbering/DocumentNumberingTest.php"
+  ]
+ },
+ {
+  "name": "G23 a refund invoice without a number goes by its receipt number",
+  "file": "app/Libraries/Numbering/DocumentType.php",
+  "find": "            self::CreditNote, self::RefundInvoice => 'POS ' . $id,",
+  "replace": "            self::CreditNote => 'POS ' . $id,",
+  "tests": [
+   "tests/Libraries/Numbering/DocumentTypeTest.php"
+  ]
+ },
+ {
+  "name": "G24 the column takes no value but the refund invoice",
+  "file": "app/Database/Migrations/20270400000000_RefundInvoice.php",
+  "find": " CHECK (`return_document` IS NULL OR `return_document` = 'refund_invoice')",
+  "replace": "",
+  "tests": [
+   "tests/Database/RefundInvoiceMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G25 the migration runs twice without failing",
+  "file": "app/Database/Migrations/20270400000000_RefundInvoice.php",
+  "find": "        if (! $this->hasColumn('sales', 'return_document')) {",
+  "replace": "        if (true) {",
+  "tests": [
+   "tests/Database/RefundInvoiceMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G26 the migration goes down twice without failing",
+  "file": "app/Database/Migrations/20270400000000_RefundInvoice.php",
+  "find": "        if ($this->hasColumn('sales', 'return_document')) {",
+  "replace": "        if (true) {",
+  "tests": [
+   "tests/Database/RefundInvoiceMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G27 the rounding of cash is not a payment document",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": "$where    = ['s.sale_status = ?', 'p.cash_adjustment = 0'];",
+  "replace": "$where    = ['s.sale_status = ?', '1 = 1'];",
+  "tests": [
+   "--filter",
+   "testPayments_LeavesOut",
+   "tests/Libraries/Accounting/CustomerDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G28 only the payments of completed sales are listed",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": "$where    = ['s.sale_status = ?', 'p.cash_adjustment = 0'];",
+  "replace": "$where    = ['1 = 1', 'p.cash_adjustment = 0'];",
+  "tests": [
+   "--filter",
+   "testPayments_LeavesOut",
+   "tests/Libraries/Accounting/CustomerDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G29 a credit sale is not a payment document",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": "        if ($dues !== []) {",
+  "replace": "        if (false) {",
+  "tests": [
+   "--filter",
+   "testPayments_LeavesOut",
+   "tests/Libraries/Accounting/CustomerDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G30 the list keeps to the branches of whoever reads it",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": "        if ($branchIds !== null) {\n            if ($branchIds === []) {",
+  "replace": "        if (false) {\n            if ($branchIds === []) {",
+  "tests": [
+   "--filter",
+   "testPayments_KeepsToTheBranches",
+   "tests/Libraries/Accounting/CustomerDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G31 whoever works in no branch sees no payment",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": "            if ($branchIds === []) {\n                $where[] = '1 = 0';",
+  "replace": "            if (false) {\n                $where[] = '1 = 0';",
+  "tests": [
+   "--filter",
+   "testPayments_KeepsToTheBranches",
+   "tests/Libraries/Accounting/CustomerDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G32 the collectors offered are those of the branches of the reader",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": "        $scope    = $branchIds === null ? '' : ' AND s.branch_id IN (' . implode(',', array_map('intval', $branchIds)) . ')';",
+  "replace": "        $scope    = '';",
+  "tests": [
+   "--filter",
+   "testCollectors_ListsOnly",
+   "tests/Libraries/Accounting/CustomerDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G33 whoever works in no branch is offered no collector",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": "        if ($branchIds === []) {\n            return [];\n        }\n\n        $scope",
+  "replace": "        $scope",
+  "tests": [
+   "--filter",
+   "testCollectors_ListsOnly",
+   "tests/Libraries/Accounting/CustomerDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G34 only a date is taken as a date",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": "return is_string($value) && preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $value) === 1 && strtotime($value) !== false;",
+  "replace": "return is_string($value) && $value !== '';",
+  "tests": [
+   "--filter",
+   "testPayments_FiltersByTheDates|testReturns_FiltersByDate",
+   "tests/Libraries/Accounting/CustomerDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G35 the text of a search is not a pattern",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": "        return str_replace(['\\\\', '%', '_'], ['\\\\\\\\', '\\\\%', '\\\\_'], $text);",
+  "replace": "        return $text;",
+  "tests": [
+   "--filter",
+   "testPayments_FiltersByCustomer|testPayments_FiltersBySearching|testReturns_FiltersByDate",
+   "tests/Libraries/Accounting/CustomerDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G36 a list sorts only by the columns it names",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": "$column = self::PAYMENT_SORTS[$sort] ?? 'p.payment_time';",
+  "replace": "$column = $sort;",
+  "tests": [
+   "--filter",
+   "testPayments_SortsBy",
+   "tests/Libraries/Accounting/CustomerDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G37 a list sorts only up or down",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": "$way    = strtolower($order) === 'asc' ? 'ASC' : 'DESC';",
+  "replace": "$way    = $order;",
+  "tests": [
+   "--filter",
+   "testPayments_SortsBy",
+   "tests/Libraries/Accounting/CustomerDocumentsTest.php"
+  ],
+  "all": true
+ },
+ {
+  "name": "G38 a page has at least one row",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": " LIMIT \" . max(1, $limit) . ' OFFSET ' . max(0, $offset),\n            [SalePostingBuilder::SOURCE_PAYMENT",
+  "replace": " LIMIT \" . $limit . ' OFFSET ' . max(0, $offset),\n            [SalePostingBuilder::SOURCE_PAYMENT",
+  "tests": [
+   "--filter",
+   "testPayments_ClampsThePage",
+   "tests/Libraries/Accounting/CustomerDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G39 a page starts at the first row at the earliest",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": " LIMIT \" . max(1, $limit) . ' OFFSET ' . max(0, $offset),\n            [SalePostingBuilder::SOURCE_PAYMENT",
+  "replace": " LIMIT \" . max(1, $limit) . ' OFFSET ' . $offset,\n            [SalePostingBuilder::SOURCE_PAYMENT",
+  "tests": [
+   "--filter",
+   "testPayments_ClampsThePage",
+   "tests/Libraries/Accounting/CustomerDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G40 only completed returns are listed",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": "$where    = ['s.sale_type = ?', 's.sale_status = ?'];",
+  "replace": "$where    = ['s.sale_type = ?', '1 = 1'];",
+  "tests": [
+   "--filter",
+   "testReturns_LeavesOut",
+   "tests/Libraries/Accounting/CustomerDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G41 a credit note is a return with no refund invoice mark",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": "        } elseif ($document === ReturnDocument::CreditNote) {\n            $where[] = 's.return_document IS NULL';",
+  "replace": "        } elseif ($document === ReturnDocument::CreditNote) {\n            $where[] = '1 = 1';",
+  "tests": [
+   "--filter",
+   "testReturns_FiltersBy",
+   "tests/Libraries/Accounting/CustomerDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G42 a return the books do not hold has no settlement to show",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": "$inBooks    = (int) $row->in_books > 0 && $customerId !== null;",
+  "replace": "$inBooks    = true;",
+  "tests": [
+   "--filter",
+   "testReturns_ListsAReturnTheBooksDoNotHold|testReturns_ShowsAReturnWithoutACustomer",
+   "tests/Libraries/Accounting/CustomerDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G43 the refund invoices of a customer are those of that customer",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": "->where(['customer_id' => $customerId, 'sale_type' => SALE_TYPE_RETURN, 'return_document' => ReturnDocument::RefundInvoice->value])",
+  "replace": "->where(['sale_type' => SALE_TYPE_RETURN, 'return_document' => ReturnDocument::RefundInvoice->value])",
+  "tests": [
+   "--filter",
+   "testRefundInvoiceIds",
+   "tests/Libraries/Accounting/CustomerDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G44 a page of returns has at least one row",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": " LIMIT \" . max(1, $limit) . ' OFFSET ' . max(0, $offset),\n            [\n                SalePostingBuilder::SOURCE_SALE",
+  "replace": " LIMIT \" . $limit . ' OFFSET ' . max(0, $offset),\n            [\n                SalePostingBuilder::SOURCE_SALE",
+  "tests": [
+   "--filter",
+   "testReturns_ClampsThePage",
+   "tests/Libraries/Accounting/CustomerDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G45 the lists are of the module of the customers balances",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "        parent::__construct('accounting_receivables');",
+  "replace": "        parent::__construct('accounting_chart');",
+  "tests": [
+   "--filter",
+   "testGetPayments_Redirects|testGetCreditNotes_Redirects|testGetPayments_ShowsTheList",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G46 the list of credit notes needs the whole company, since the credit crosses branches",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "    public function getCreditNotes(): string\n    {\n        $this->requireCompanyScope();\n",
+  "replace": "    public function getCreditNotes(): string\n    {\n",
+  "tests": [
+   "--filter",
+   "testGetCreditNotes_IsNotFoundForSomeoneLimited",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G47 the search of credit notes needs the whole company too",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "    public function getCreditNotesSearch(): ResponseInterface\n    {\n        $this->requireCompanyScope();\n",
+  "replace": "    public function getCreditNotesSearch(): ResponseInterface\n    {\n",
+  "tests": [
+   "--filter",
+   "testGetCreditNotesSearch_IsNotFoundForSomeoneLimited",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G48 the search of payments gives a branch-limited reader the payments of their branches only",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "            $offset,\n            $this->branchIds(),\n        );",
+  "replace": "            $offset,\n            null,\n        );",
+  "tests": [
+   "--filter",
+   "testGetPaymentsSearch_ShowsSomeoneLimited|testGetPaymentsSearch_ListsNothingForSomeone",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G49 the collectors offered are those of the branches of the reader (screen)",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "'collectors'    => $this->documents->collectors($this->branchIds()),",
+  "replace": "'collectors'    => $this->documents->collectors(null),",
+  "tests": [
+   "--filter",
+   "testGetPayments_OffersAsCollectors",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G50 a branch-limited reader cannot open the statement of a customer from the list",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "        return $this->branchGuard()->isUnrestricted($this->employeeId())\n            ? anchor(",
+  "replace": "        return true\n            ? anchor(",
+  "tests": [
+   "--filter",
+   "testGetPaymentsSearch_LinksNoCustomerStatement",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G51 a branch-limited reader is told the list is partial",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "'limited'       => $this->scopeNoticeNeeded(),",
+  "replace": "'limited'       => false,",
+  "tests": [
+   "--filter",
+   "testGetPayments_TellsSomeoneLimited",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G52 the page size of a list is bounded",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "    private const MAX_PAGE_SIZE = 500;",
+  "replace": "    private const MAX_PAGE_SIZE = 5000;",
+  "tests": [
+   "--filter",
+   "testGetPaymentsSearch_NeverAsksForMoreThanTheLargestPage",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G53 a branch-limited reader is offered no tab they cannot open",
+  "file": "app/Views/accounting_receivables/tabs.php",
+  "find": "<?php if ($company_scope || $key === 'payments'): ?>",
+  "replace": "<?php if (true): ?>",
+  "tests": [
+   "--filter",
+   "testGetPayments_TellsSomeoneLimited",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G54 only a customer that exists is asked about in the totals of returns",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": "array_filter(array_map('intval', $customerIds), static fn (int $id): bool => $id > 0)",
+  "replace": "array_map('intval', $customerIds)",
+  "tests": [
+   "--filter",
+   "testReturnTotals",
+   "tests/Libraries/Accounting/CustomerDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G55 refund invoices are the returns and credit notes the adjustments",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": "IF(s.return_document = ?, 'returns', 'adjustments') AS bucket",
+  "replace": "IF(s.return_document = ?, 'adjustments', 'returns') AS bucket",
+  "tests": [
+   "--filter",
+   "testReturnTotals",
+   "tests/Libraries/Accounting/CustomerDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G56 a return shows the settlement of its own credit and no other",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": "if ($source->type === CreditSource::CREDIT_NOTE && $source->sourceId === $saleId) {",
+  "replace": "if ($source->type === CreditSource::CREDIT_NOTE) {",
+  "tests": [
+   "--filter",
+   "testReturns_",
+   "tests/Libraries/Accounting/CustomerDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G57 the list of payments and the list of returns filter by branch",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": "if ((int) ($filters['branch_id'] ?? 0) > 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testPayments_KeepsToTheBranches|testReturns_FiltersByBranch",
+   "tests/Libraries/Accounting/CustomerDocumentsTest.php"
+  ],
+  "all": true
+ },
+ {
+  "name": "G58 both lists filter by customer",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": "if ((int) ($filters['customer_id'] ?? 0) > 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testPayments_FiltersByCustomer|testReturns_FiltersByDate",
+   "tests/Libraries/Accounting/CustomerDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G59 a status that is none of the five is ignored",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": "if (PaymentStatus::tryFrom($status) !== null) {",
+  "replace": "if ($status !== '') {",
+  "tests": [
+   "--filter",
+   "testPayments_FiltersByTheStatus",
+   "tests/Libraries/Accounting/CustomerDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G60 a way of payment that is none of the known is ignored",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": "if ($type !== null) {\n            $alternatives = [];",
+  "replace": "if (true) {\n            $alternatives = [];",
+  "tests": [
+   "--filter",
+   "testPayments_FiltersByTheWay",
+   "tests/Libraries/Accounting/CustomerDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G61 a return that is suspended keeps the document it was to be issued as",
+  "file": "app/Controllers/Sales.php",
+  "find": "$this->sale_lib->is_delivered(), null, $invoiceDiscount, $this->sale_lib->getReturnDocument());",
+  "replace": "$this->sale_lib->is_delivered(), null, $invoiceDiscount);",
+  "tests": [
+   "--filter",
+   "testPostSuspend_|testPostComplete_IssuesAReturnThatWasSuspended",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G62 a payment is tied to its journal at the scale of the books, so a difference of less than a cent is shown",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "bccomp($posted, $amount, SaleAmounts::SCALE) === 0 && bccomp($posted, '0', SaleAmounts::SCALE) !== 0 => 'booked',",
+  "replace": "bccomp($posted, $amount, 2) === 0 && bccomp($posted, '0', SaleAmounts::SCALE) !== 0 => 'booked',",
+  "tests": [
+   "--filter",
+   "testGetPaymentsSearch_SaysDiffersWhenTheJournalOfAPaymentIsOffByLessThanACent",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G63 a journal of a fraction of a cent is not taken for no journal at all",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "bccomp($posted, '0', SaleAmounts::SCALE) === 0                                                       => 'unbooked',",
+  "replace": "bccomp($posted, '0', 2) === 0                                                       => 'unbooked',",
+  "tests": [
+   "--filter",
+   "testGetPaymentsSearch_SaysDiffersWhenTheJournalOfAPaymentIsOffByLessThanACent",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G64 what a journal posted is kept at the scale of the books",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "$posted = bcadd((string) $payment->posted, '0', SaleAmounts::SCALE);",
+  "replace": "$posted = bcadd((string) $payment->posted, '0', 2);",
+  "tests": [
+   "--filter",
+   "testGetPaymentsSearch_SaysDiffersWhenTheJournalOfAPaymentIsOffByLessThanACent",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G65 only the journals that stand count for a payment, not the one an edit reversed",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": "AND j.source_id = p.payment_id AND j.status = ?), 0)",
+  "replace": "AND j.source_id = p.payment_id AND ? <> ''), 0)",
+  "tests": [
+   "--filter",
+   "testGetPaymentsSearch_TiesAnEditedPayment",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G66 the number of a payment is escaped in its cell",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "(int) $payment->sale_id, esc($number), [",
+  "replace": "(int) $payment->sale_id, $number, [",
+  "tests": [
+   "--filter",
+   "testGetPaymentsSearch_EscapesWhatStaffTyped",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G67 the name of a customer is escaped when it is linked to its statement",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "anchor('accounting_receivables/customer/' . $customerId, esc($name))",
+  "replace": "anchor('accounting_receivables/customer/' . $customerId, $name)",
+  "tests": [
+   "--filter",
+   "testGetPaymentsSearch_EscapesWhatStaffTyped",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G68 the name of a customer is escaped when it is not linked",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": ": esc($name);",
+  "replace": ": $name;",
+  "tests": [
+   "--filter",
+   "testGetPaymentsSearch_EscapesWhatStaffTyped",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G69 the invoice number of a payment is escaped in its cell",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "esc((string) $payment->invoice_number)",
+  "replace": "(string) $payment->invoice_number",
+  "tests": [
+   "--filter",
+   "testGetPaymentsSearch_EscapesWhatStaffTyped",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G70 the way of a payment is escaped in its cell",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "'way'           => esc($type === null",
+  "replace": "'way'           => ($type === null",
+  "tests": [
+   "--filter",
+   "testGetPaymentsSearch_NamesTheWayOfPayment|testGetPaymentsSearch_EscapesWhatStaffTyped",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G71 the reference of a payment is escaped in its cell",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "esc((string) $payment->reference_code)",
+  "replace": "(string) $payment->reference_code",
+  "tests": [
+   "--filter",
+   "testGetPaymentsSearch_EscapesWhatStaffTyped",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G72 the treasury of a payment is escaped in its cell",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "'treasury'      => esc((string) ($payment->treasury_name ?? '')),",
+  "replace": "'treasury'      => (string) ($payment->treasury_name ?? ''),",
+  "tests": [
+   "--filter",
+   "testGetPaymentsSearch_EscapesWhatStaffTyped",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G73 the employee who collected a payment is escaped in its cell",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "'collected_by'  => esc((string) ($payment->employee_name ?? '')),",
+  "replace": "'collected_by'  => (string) ($payment->employee_name ?? ''),",
+  "tests": [
+   "--filter",
+   "testGetPaymentsSearch_EscapesWhatStaffTyped",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G74 the branch of a payment is escaped in its cell",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "esc($payment->branch_code . ' - ' . $payment->branch_name)",
+  "replace": "$payment->branch_code . ' - ' . $payment->branch_name",
+  "tests": [
+   "--filter",
+   "testGetPaymentsSearch_EscapesWhatStaffTyped",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G75 a payment by gift card keeps the number of the card after the name of the way",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "(str_contains((string) $payment->payment_type, ':') ? ':' . explode(':', (string) $payment->payment_type, 2)[1] : '')",
+  "replace": "''",
+  "tests": [
+   "--filter",
+   "testGetPaymentsSearch_NamesTheWayOfPayment",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G76 a way of payment the books do not know is shown as it was typed",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "$type === null ? (string) $payment->payment_type :",
+  "replace": "$type === null ? '' :",
+  "tests": [
+   "--filter",
+   "testGetPaymentsSearch_NamesTheWayOfPayment",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G77 the reference of a payment is shown next to its way",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "((string) $payment->reference_code === '' ? '' : ' <bdi dir=\"ltr\">'",
+  "replace": "('x' === '' ? '' : ' <bdi dir=\"ltr\">'",
+  "tests": [
+   "--filter",
+   "testGetPaymentsSearch_NamesTheWayOfPayment",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G78 the number of a credit note or a refund invoice is escaped in its cell",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "anchor('sales/receipt/' . $return['sale_id'], esc($number), [",
+  "replace": "anchor('sales/receipt/' . $return['sale_id'], $number, [",
+  "tests": [
+   "--filter",
+   "testGetCreditNotesSearch_EscapesWhatStaffTyped",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G79 the invoice a return comes from is escaped in its cell",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "esc($return['origin_number'] !== '' ? $return['origin_number'] : 'POS ' . $return['origin_id'])",
+  "replace": "($return['origin_number'] !== '' ? $return['origin_number'] : 'POS ' . $return['origin_id'])",
+  "tests": [
+   "--filter",
+   "testGetCreditNotesSearch_EscapesWhatStaffTyped",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G80 the branch of a return is escaped in its cell",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "esc($return['branch_code'] . ' - ' . $return['branch_name'])",
+  "replace": "$return['branch_code'] . ' - ' . $return['branch_name']",
+  "tests": [
+   "--filter",
+   "testGetCreditNotesSearch_EscapesWhatStaffTyped",
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G81 the search of returns finds the number of the document",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": "(n.number LIKE ? OR CAST(s.sale_id AS CHAR) = ? OR",
+  "replace": "('' = ? OR CAST(s.sale_id AS CHAR) = ? OR",
+  "tests": [
+   "--filter",
+   "testReturns_FiltersBySearchingTheNumberOfTheDocument",
+   "tests/Libraries/Accounting/CustomerDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G82 the search of returns finds the customer by first name, last name and whole name",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": "cp.first_name LIKE ? OR cp.last_name LIKE ? OR CONCAT(cp.first_name, ' ', cp.last_name) LIKE ? OR o.invoice_number",
+  "replace": "'' = ? OR '' = ? OR '' = ? OR o.invoice_number",
+  "tests": [
+   "--filter",
+   "testReturns_FiltersBySearchingTheNumberOfTheDocument",
+   "tests/Libraries/Accounting/CustomerDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G83 the search of returns finds the customer by the whole of the name",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": "CONCAT(cp.first_name, ' ', cp.last_name) LIKE ? OR o.invoice_number",
+  "replace": "'' = ? OR o.invoice_number",
+  "tests": [
+   "--filter",
+   "testReturns_FiltersBySearchingTheNumberOfTheDocument",
+   "tests/Libraries/Accounting/CustomerDocumentsTest.php"
+  ]
+ }
+]
