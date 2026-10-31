@@ -123,6 +123,8 @@ enum AccountingError: string
     case SupplierBusy                 = 'supplier_busy';
     case SupplierPaymentNeedsSupplier = 'supplier_payment_needs_supplier';
     case SupplierPaymentNotOnInvoice  = 'supplier_payment_not_on_invoice';
+    case PaymentDateBeforeBooks       = 'payment_date_before_books';
+    case PaymentDateInFuture          = 'payment_date_in_future';
 
     case AdvanceNotFound         = 'advance_not_found';
     case AdvanceAmountInvalid    = 'advance_amount_invalid';

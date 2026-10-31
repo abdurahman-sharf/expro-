@@ -75,7 +75,7 @@ final class ReceivingLoader
         $payments = [];
 
         foreach ($this->db->table('receivings_payments')
-            ->select('payment_id, payment_type, payment_amount, payment_time, payment_status, treasury_id, treasury_branch_id')
+            ->select('payment_id, payment_type, payment_amount, payment_time, payment_date, payment_status, treasury_id, treasury_branch_id')
             ->where('receiving_id', $receivingId)
             ->orderBy('payment_id', 'ASC')
             ->get()
@@ -84,7 +84,7 @@ final class ReceivingLoader
                 paymentId: (int) $row->payment_id,
                 type: (string) $row->payment_type,
                 amount: (string) $row->payment_amount,
-                date: substr((string) $row->payment_time, 0, 10),
+                date: SupplierPaymentDate::of($row->payment_date === null ? null : (string) $row->payment_date, (string) $row->payment_time),
                 status: PaymentStatus::fromStored($row->payment_status),
                 treasuryId: $row->treasury_id === null ? null : (int) $row->treasury_id,
                 treasuryBranchId: $row->treasury_branch_id === null ? null : (int) $row->treasury_branch_id,

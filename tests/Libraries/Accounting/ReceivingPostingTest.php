@@ -2151,6 +2151,24 @@ class ReceivingPostingTest extends CIUnitTestCase
     }
 
     // ---------------------------------------------------------------------------------------
+    // The payment made at once, whatever the dates of the payments made afterwards
+    // ---------------------------------------------------------------------------------------
+
+    public function testPostCompleted_PostsThePaymentMadeAtOnceOnTheDayOfThePurchaseWhateverTheDatesOfLaterPayments(): void
+    {
+        $purchase = $this->purchaseOf('100.00', null, lang('Sales.cash'));
+
+        $this->assertTrue($this->purchases->update($purchase, ['payments' => [
+            ['payment_id' => NEW_ENTRY, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '10.00', 'employee_id' => $this->employeeId, 'payment_status' => 'completed', 'reference_code' => '', 'payment_date' => date('Y-m-d', strtotime('-5 days'))],
+        ]]));
+
+        $immediate = $this->accountingDb()->table('accounting_journals')->where(['source_type' => 'purchase_payment', 'source_id' => $purchase])->get()->getRow();
+
+        $this->assertSame(date('Y-m-d'), $immediate->journal_date);
+        $this->assertSame(1, (int) $immediate->revision);
+    }
+
+    // ---------------------------------------------------------------------------------------
     // What the reference system recorded in observation package F: fixtures T-14 to T-16 and T-18
     // ---------------------------------------------------------------------------------------
 

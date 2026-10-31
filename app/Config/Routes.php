@@ -83,6 +83,10 @@ $routes->group('accounting_payables', static function (RouteCollection $routes):
     $routes->get('search', 'AccountingPayables::getSearch');
     $routes->get('row/(:num)', 'AccountingPayables::getRow/$1');
     $routes->get('supplier/(:num)', 'AccountingPayables::getSupplier/$1');
+    $routes->get('payments', 'AccountingPayables::getPayments');
+    $routes->get('payments/search', 'AccountingPayables::getPaymentsSearch');
+    $routes->get('debit_notes', 'AccountingPayables::getDebitNotes');
+    $routes->get('debit_notes/search', 'AccountingPayables::getDebitNotesSearch');
     $routes->get('payment_form/(:num)', 'AccountingPayables::getPaymentForm/$1');
     $routes->post('payment/(:num)', 'AccountingPayables::postPayment/$1');
     $routes->get('opening_form/(:num)', 'AccountingPayables::getOpeningForm/$1');
