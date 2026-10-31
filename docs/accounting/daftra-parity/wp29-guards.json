@@ -1,0 +1,2160 @@
+[
+  {
+    "name": "A01 bankAccount asks for the permission to reconcile",
+    "file": "app/Libraries/Accounting/Bank/BankAccess.php",
+    "find": "        $this->requirePermission($employeeId);\n\n        $treasury = $this->treasuries->find($treasuryId);",
+    "replace": "        $treasury = $this->treasuries->find($treasuryId);",
+    "tests": [
+      "--filter",
+      "testBankAccount_RequiresThePermission|testOperations_AreRefusedToSomeoneWithoutThePermission",
+      "tests/Libraries/Accounting/Bank/BankAccessTest.php"
+    ]
+  },
+  {
+    "name": "A02 the permission check names the permission",
+    "file": "app/Libraries/Accounting/Bank/BankAccess.php",
+    "find": "        $this->guard->require(AccountingGuard::BANK_RECONCILE, $employeeId);",
+    "replace": "        // removed",
+    "tests": [
+      "--filter",
+      "testBankAccount_RequiresThePermission|testOperations_AreRefusedToSomeoneWithoutThePermission",
+      "tests/Libraries/Accounting/Bank/BankAccessTest.php"
+    ]
+  },
+  {
+    "name": "A03 a cash treasury is not a bank account",
+    "file": "app/Libraries/Accounting/Bank/BankAccess.php",
+    "find": "        if ($treasury->kind !== TreasuryService::BANK) {\n            return false;\n        }\n\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testBankAccount_SaysTheSame|testCanSee_IsFalseForACashTreasury|testBankAccounts_ListsOnly",
+      "tests/Libraries/Accounting/Bank/BankAccessTest.php"
+    ]
+  },
+  {
+    "name": "A04 the branch of the account must be one the employee works in",
+    "file": "app/Libraries/Accounting/Bank/BankAccess.php",
+    "find": "        return $this->branches->canAccess((int) $treasury->branch_id, $employeeId)\n            && (",
+    "replace": "        return (",
+    "tests": [
+      "--filter",
+      "testBankAccount_RejectsABankAccountOfABranch|testOperations_AreRefusedAsAccountNotFoundToSomeoneOutsideTheBranch",
+      "tests/Libraries/Accounting/Bank/BankAccessTest.php"
+    ]
+  },
+  {
+    "name": "A05 the deposit scope of the treasury is asked",
+    "file": "app/Libraries/Accounting/Bank/BankAccess.php",
+    "find": "$this->scopes->allows((int) $treasury->treasury_id, TreasuryScopes::DEPOSIT, $employeeId) || ",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testBankAccount_FollowsTheDepositAndWithdrawScope|testBankAccount_FollowsAScopeOfBranches",
+      "tests/Libraries/Accounting/Bank/BankAccessTest.php"
+    ]
+  },
+  {
+    "name": "A06 the withdrawal scope of the treasury is asked",
+    "file": "app/Libraries/Accounting/Bank/BankAccess.php",
+    "find": " || $this->scopes->allows((int) $treasury->treasury_id, TreasuryScopes::WITHDRAW, $employeeId))",
+    "replace": ")",
+    "tests": [
+      "--filter",
+      "testBankAccount_FollowsTheDepositAndWithdrawScope",
+      "tests/Libraries/Accounting/Bank/BankAccessTest.php"
+    ]
+  },
+  {
+    "name": "A07 the list of accounts asks for the permission",
+    "file": "app/Libraries/Accounting/Bank/BankAccess.php",
+    "find": "        if (! $this->guard->has(AccountingGuard::BANK_RECONCILE, $employeeId)) {\n            return [];\n        }\n\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testBankAccounts_ListsOnly",
+      "tests/Libraries/Accounting/Bank/BankAccessTest.php"
+    ]
+  },
+  {
+    "name": "A08 a change of one account locks its treasury row",
+    "file": "app/Libraries/Accounting/Bank/BankAccess.php",
+    "find": "        if ($lock) {",
+    "replace": "        if (false) {",
+    "tests": [
+      "--filter",
+      "WaitsForARequestThatHoldsTheBankAccount",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "S01 import looks at the account before the file",
+    "file": "app/Libraries/Accounting/Bank/BankStatements.php",
+    "find": "        $this->access->bankAccount($treasuryId, $employeeId);\n\n        $parsed = ",
+    "replace": "        $parsed = ",
+    "tests": [
+      "--filter",
+      "testOperations_LookAtTheAccountBefore",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "S02 import refuses a file with rows that are not valid",
+    "file": "app/Libraries/Accounting/Bank/BankStatements.php",
+    "find": "        if (! $parsed->isValid()) {",
+    "replace": "        if (false) {",
+    "tests": [
+      "--filter",
+      "testImport_RejectsAFileWithRowsThatAreNotValid",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "S03 import refuses a file without rows",
+    "file": "app/Libraries/Accounting/Bank/BankStatements.php",
+    "find": "        if ($parsed->rows === []) {",
+    "replace": "        if (false) {",
+    "tests": [
+      "--filter",
+      "testImport_SkipsTheFirstRowOnlyWhenAsked|testImport_RejectsAFileOverTheSizeLimit",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "S04 import locks the treasury row",
+    "file": "app/Libraries/Accounting/Bank/BankStatements.php",
+    "find": "$treasury = $this->access->bankAccount($treasuryId, $employeeId, true);\n\n            $sameFile",
+    "replace": "$treasury = $this->access->bankAccount($treasuryId, $employeeId, false);\n\n            $sameFile",
+    "tests": [
+      "--filter",
+      "testImport_WaitsForARequestThatHoldsTheBankAccount",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "S05 the same file by checksum creates nothing",
+    "file": "app/Libraries/Accounting/Bank/BankStatements.php",
+    "find": "            if ($sameFile > 0) {",
+    "replace": "            if (false) {",
+    "tests": [
+      "--filter",
+      "testImport_CreatesNothingTheSecondTime|testImport_GivesTheSameChecksum",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "S06 a line known already is not put in again",
+    "file": "app/Libraries/Accounting/Bank/BankStatements.php",
+    "find": "static fn (StatementRow $row): bool => ! isset($known[$row->dedupeKey])",
+    "replace": "static fn (StatementRow $row): bool => true",
+    "tests": [
+      "--filter",
+      "testImport_PutsInOnlyTheNewLines|testImport_CreatesNothingWhenEveryLine|testImport_KeepsTwoIdentical",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "S07 a file of known lines creates nothing",
+    "file": "app/Libraries/Accounting/Bank/BankStatements.php",
+    "find": "            if ($fresh === []) {",
+    "replace": "            if (false) {",
+    "tests": [
+      "--filter",
+      "testImport_CreatesNothingWhenEveryLine|testImport_RefusesNewLinesDatedInsideAClosed",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "S08 a new line inside a closed reconciliation is refused",
+    "file": "app/Libraries/Accounting/Bank/BankStatements.php",
+    "find": "            if ($closedThrough !== null && $from <= $closedThrough) {",
+    "replace": "            if (false) {",
+    "tests": [
+      "--filter",
+      "testImport_RefusesNewLinesDatedInsideAClosed",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "S09 the day of the closing is inside it",
+    "file": "app/Libraries/Accounting/Bank/BankStatements.php",
+    "find": "$from <= $closedThrough) {\n                throw new AccountingException(AccountingError::BankStatementClosedRange, \"The reconciliation is closed up to {$closedThrough}.\", ['date' => $closedThrough]);\n            }\n\n            $branchId",
+    "replace": "$from < $closedThrough) {\n                throw new AccountingException(AccountingError::BankStatementClosedRange, \"The reconciliation is closed up to {$closedThrough}.\", ['date' => $closedThrough]);\n            }\n\n            $branchId",
+    "tests": [
+      "--filter",
+      "testImport_RefusesALineDatedOnTheDay",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "S10 an import is written to the audit log",
+    "file": "app/Libraries/Accounting/Bank/BankStatements.php",
+    "find": "'bank_statement_imported'",
+    "replace": "'bank_statement_imported_not_logged'",
+    "tests": [
+      "--filter",
+      "testImport_StoresTheLinesOfAFile",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "S11 delete asks for the permission",
+    "file": "app/Libraries/Accounting/Bank/BankStatements.php",
+    "find": "        $this->access->requirePermission($employeeId);\n\n        $statement = $this->find($statementId, $employeeId);",
+    "replace": "        $statement = $this->find($statementId, $employeeId);",
+    "tests": [
+      "--filter",
+      "testOperations_AreRefusedToSomeoneWithoutThePermission",
+      "tests/Libraries/Accounting/Bank/BankAccessTest.php"
+    ]
+  },
+  {
+    "name": "S12 a statement of an account out of scope is not found",
+    "file": "app/Libraries/Accounting/Bank/BankStatements.php",
+    "find": "return $treasury !== null && $this->access->canSee($treasury, $employeeId) ? $statement : null;",
+    "replace": "return $statement;",
+    "tests": [
+      "--filter",
+      "testOperations_AreRefusedAsAccountNotFoundToSomeoneOutsideTheBranch|testOperations_AreRefusedAsAccountNotFoundToSomeoneOutsideTheScope",
+      "tests/Libraries/Accounting/Bank/BankAccessTest.php"
+    ]
+  },
+  {
+    "name": "S13 a statement with matched lines is not deleted",
+    "file": "app/Libraries/Accounting/Bank/BankStatements.php",
+    "find": "            if ($matched > 0) {",
+    "replace": "            if (false) {",
+    "tests": [
+      "--filter",
+      "testDeleteStatement_RejectsAStatementWithMatchedLines",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "S14 a statement inside a closed reconciliation is not deleted",
+    "file": "app/Libraries/Accounting/Bank/BankStatements.php",
+    "find": "            if ($closedThrough !== null && (string) $current->date_from <= $closedThrough) {",
+    "replace": "            if (false) {",
+    "tests": [
+      "--filter",
+      "testDeleteStatement_RejectsAStatementDatedInsideAClosed",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "S15 delete locks the treasury row",
+    "file": "app/Libraries/Accounting/Bank/BankStatements.php",
+    "find": "            $this->access->bankAccount($treasuryId, $employeeId, true);\n\n            $current",
+    "replace": "            $this->access->bankAccount($treasuryId, $employeeId, false);\n\n            $current",
+    "tests": [
+      "--filter",
+      "testDeleteStatement_WaitsForARequestThatHoldsTheBankAccount",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "S16 a deletion is written to the audit log",
+    "file": "app/Libraries/Accounting/Bank/BankStatements.php",
+    "find": "'bank_statement_deleted'",
+    "replace": "'bank_statement_deleted_not_logged'",
+    "tests": [
+      "--filter",
+      "testDeleteStatement_TakesOutAnUnmatched",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "S17 the list of statements looks at the account",
+    "file": "app/Libraries/Accounting/Bank/BankStatements.php",
+    "find": "        $this->access->bankAccount($treasuryId, $employeeId);\n\n        return $this->db->table('bank_statements s')",
+    "replace": "        return $this->db->table('bank_statements s')",
+    "tests": [
+      "--filter",
+      "testOperations_AreRefusedToSomeoneWithoutThePermission",
+      "tests/Libraries/Accounting/Bank/BankAccessTest.php"
+    ]
+  },
+  {
+    "name": "S18 the list of lines looks at the account",
+    "file": "app/Libraries/Accounting/Bank/BankStatements.php",
+    "find": "        $this->access->bankAccount($treasuryId, $employeeId);\n\n        $builder = $this->db->table('bank_statement_lines l')",
+    "replace": "        $builder = $this->db->table('bank_statement_lines l')",
+    "tests": [
+      "--filter",
+      "testOperations_AreRefusedToSomeoneWithoutThePermission",
+      "tests/Libraries/Accounting/Bank/BankAccessTest.php"
+    ]
+  },
+  {
+    "name": "S19 the lines of the matched state only",
+    "file": "app/Libraries/Accounting/Bank/BankStatements.php",
+    "find": "        if ($state === 'matched') {",
+    "replace": "        if (false) {",
+    "tests": [
+      "--filter",
+      "testLines_FiltersByState",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "S20 the lines of the unmatched state only",
+    "file": "app/Libraries/Accounting/Bank/BankStatements.php",
+    "find": "        } elseif ($state === 'unmatched') {",
+    "replace": "        } elseif (false) {",
+    "tests": [
+      "--filter",
+      "testLines_FiltersByState",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "S21 the lines between two dates",
+    "file": "app/Libraries/Accounting/Bank/BankStatements.php",
+    "find": "                $builder->where(\"l.line_date {$operator}\", $date);",
+    "replace": "                // removed",
+    "tests": [
+      "--filter",
+      "testLines_FiltersByState",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "S22 a page of lines is limited",
+    "file": "app/Libraries/Accounting/Bank/BankStatements.php",
+    "find": "->limit(max(1, min($limit, 500)), max(0, $offset))",
+    "replace": "->limit(1000, 0)",
+    "tests": [
+      "--filter",
+      "testLines_FiltersByState",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "M01 match looks at the account before what it was given",
+    "file": "app/Libraries/Accounting/Bank/BankMatches.php",
+    "find": "        $this->access->bankAccount($treasuryId, $employeeId);\n\n        $journalLineIds = array_values(",
+    "replace": "        $journalLineIds = array_values(",
+    "tests": [
+      "--filter",
+      "testOperations_LookAtTheAccountBefore",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "M02 a match needs a line of the books",
+    "file": "app/Libraries/Accounting/Bank/BankMatches.php",
+    "find": "        if ($journalLineIds === []) {",
+    "replace": "        if (false) {",
+    "tests": [
+      "--filter",
+      "testMatch_RejectsLinesThatAreNotOnTheAccount",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "M03 a match takes at most fifty lines",
+    "file": "app/Libraries/Accounting/Bank/BankMatches.php",
+    "find": "        if (count($journalLineIds) > self::MAX_LINES) {",
+    "replace": "        if (false) {",
+    "tests": [
+      "--filter",
+      "testMatch_TakesAtMostFiftyLines",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "M04 fifty lines are not too many",
+    "file": "app/Libraries/Accounting/Bank/BankMatches.php",
+    "find": "        if (count($journalLineIds) > self::MAX_LINES) {",
+    "replace": "        if (count($journalLineIds) >= self::MAX_LINES) {",
+    "tests": [
+      "--filter",
+      "testMatch_TakesFiftyLinesThatAddUp",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "M05 a line repeated is taken once",
+    "file": "app/Libraries/Accounting/Bank/BankMatches.php",
+    "find": "array_values(array_unique(array_filter(",
+    "replace": "array_values((array_filter(",
+    "tests": [
+      "--filter",
+      "testMatch_TakesAtMostFiftyLinesAndTakesALineRepeatedOnce",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "M06 an id that is not positive is left out",
+    "file": "app/Libraries/Accounting/Bank/BankMatches.php",
+    "find": "array_filter(array_map('intval', $journalLineIds), static fn (int $id): bool => $id > 0)",
+    "replace": "array_filter(array_map('intval', $journalLineIds), static fn (int $id): bool => true)",
+    "tests": [
+      "--filter",
+      "testMatch_LeavesOutAnyIdThatIsNotAPositive",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "M07 match locks the treasury row",
+    "file": "app/Libraries/Accounting/Bank/BankMatches.php",
+    "find": "$treasury  = $this->access->bankAccount($treasuryId, $employeeId, true);",
+    "replace": "$treasury  = $this->access->bankAccount($treasuryId, $employeeId, false);",
+    "tests": [
+      "--filter",
+      "testMatch_WaitsForARequestThatHoldsTheBankAccount",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "M08 a statement line of another account is not found",
+    "file": "app/Libraries/Accounting/Bank/BankMatches.php",
+    "find": "            if ($line === null) {",
+    "replace": "            if (false) {",
+    "tests": [
+      "--filter",
+      "testMatch_RejectsLinesThatAreNotOnTheAccount|testOperations_AreRefusedForAnIdOfAnotherBankAccount",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "M09 a statement line is matched once",
+    "file": "app/Libraries/Accounting/Bank/BankMatches.php",
+    "find": "            if ($this->db->table('bank_matches')->where('statement_line_id', $statementLineId)->countAllResults() > 0) {",
+    "replace": "            if (false) {",
+    "tests": [
+      "--filter",
+      "testMatch_RejectsAStatementLineThatIsMatchedAlready",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "M10 the lines must be lines of this account",
+    "file": "app/Libraries/Accounting/Bank/BankMatches.php",
+    "find": "            if (count($rows) !== count($journalLineIds)) {",
+    "replace": "            if (false) {",
+    "tests": [
+      "--filter",
+      "testMatch_RejectsLinesThatAreNotOnTheAccount",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "M11 a line of the books is matched once",
+    "file": "app/Libraries/Accounting/Bank/BankMatches.php",
+    "find": "                if ($row->match_id !== null) {",
+    "replace": "                if (false) {",
+    "tests": [
+      "--filter",
+      "testMatch_RejectsALineOfTheBooksThatIsMatchedAlready",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "M12 a deposit is matched with debits and a withdrawal with credits",
+    "file": "app/Libraries/Accounting/Bank/BankMatches.php",
+    "find": "                if (bccomp((string) $row->amount, '0', self::SCALE) !== bccomp((string) $line->amount, '0', self::SCALE)) {",
+    "replace": "                if (false) {",
+    "tests": [
+      "--filter",
+      "testMatch_RejectsADirection",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "M13 the lines add up to the statement line",
+    "file": "app/Libraries/Accounting/Bank/BankMatches.php",
+    "find": "            if (bccomp($total, (string) $line->amount, self::SCALE) !== 0) {",
+    "replace": "            if (false) {",
+    "tests": [
+      "--filter",
+      "testMatch_RejectsLinesThatDoNotAddUp",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "M14 a match inside a closed reconciliation is refused",
+    "file": "app/Libraries/Accounting/Bank/BankMatches.php",
+    "find": "            if ($closedThrough !== null && (string) $line->line_date <= $closedThrough && $last <= $closedThrough) {",
+    "replace": "            if (false) {",
+    "tests": [
+      "--filter",
+      "testMatch_RefusesAMatchThatWouldChangeAClosed",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "M15 the day of the closing is inside it on the side of the bank",
+    "file": "app/Libraries/Accounting/Bank/BankMatches.php",
+    "find": "(string) $line->line_date <= $closedThrough && $last <= $closedThrough",
+    "replace": "(string) $line->line_date < $closedThrough && $last <= $closedThrough",
+    "tests": [
+      "--filter",
+      "testMatch_RefusesALineOfTheBooksAndALineOfTheBankDatedOnTheDay",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "M16 the day of the closing is inside it on the side of the books",
+    "file": "app/Libraries/Accounting/Bank/BankMatches.php",
+    "find": "(string) $line->line_date <= $closedThrough && $last <= $closedThrough",
+    "replace": "(string) $line->line_date <= $closedThrough && $last < $closedThrough",
+    "tests": [
+      "--filter",
+      "testMatch_RefusesALineOfTheBooksAndALineOfTheBankDatedOnTheDay",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "M17 a match reaching beyond the closed dates is accepted",
+    "file": "app/Libraries/Accounting/Bank/BankMatches.php",
+    "find": "(string) $line->line_date <= $closedThrough && $last <= $closedThrough",
+    "replace": "(string) $line->line_date <= $closedThrough || $last <= $closedThrough",
+    "tests": [
+      "--filter",
+      "testClose_RefusesAMatchThatFallsInsideTheClosedDatesButAcceptsOne|testMatch_AcceptsAStatementLineInsideTheClosedDates",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "M18 a match is written to the audit log",
+    "file": "app/Libraries/Accounting/Bank/BankMatches.php",
+    "find": "'bank_matched'",
+    "replace": "'bank_matched_not_logged'",
+    "tests": [
+      "--filter",
+      "testMatch_WritesAnAuditEntry",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "M19 a way of matching that is not known is manual",
+    "file": "app/Libraries/Accounting/Bank/BankMatches.php",
+    "find": "                'amount'            => $line->amount,\n                'method'            => $method === self::SUGGESTED ? self::SUGGESTED : self::MANUAL,\n                'matched_by'",
+    "replace": "                'amount'            => $line->amount,\n                'method'            => $method,\n                'matched_by'",
+    "tests": [
+      "--filter",
+      "testMatch_KeepsAnAcceptedSuggestionAsSuggested",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "M20 the match takes the branch of the account",
+    "file": "app/Libraries/Accounting/Bank/BankMatches.php",
+    "find": "'branch_id'         => (int) $treasury->branch_id,\n                'treasury_id'       => $treasuryId,\n                'statement_line_id'",
+    "replace": "'branch_id'         => 1,\n                'treasury_id'       => $treasuryId,\n                'statement_line_id'",
+    "tests": [
+      "--filter",
+      "testMatch_WritesTheBranchOfTheBankAccount",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "M21 unmatch looks at the account",
+    "file": "app/Libraries/Accounting/Bank/BankMatches.php",
+    "find": "    public function unmatch(int $treasuryId, int $matchId, ?int $employeeId = null): void\n    {\n        $this->access->bankAccount($treasuryId, $employeeId);\n\n",
+    "replace": "    public function unmatch(int $treasuryId, int $matchId, ?int $employeeId = null): void\n    {\n",
+    "tests": [
+      "--filter",
+      "testOperations_AreRefusedToSomeoneWithoutThePermission",
+      "tests/Libraries/Accounting/Bank/BankAccessTest.php"
+    ]
+  },
+  {
+    "name": "M22 unmatch locks the treasury row",
+    "file": "app/Libraries/Accounting/Bank/BankMatches.php",
+    "find": "            $treasury = $this->access->bankAccount($treasuryId, $employeeId, true);\n            $match    =",
+    "replace": "            $treasury = $this->access->bankAccount($treasuryId, $employeeId, false);\n            $match    =",
+    "tests": [
+      "--filter",
+      "testUnmatch_WaitsForARequestThatHoldsTheBankAccount",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "M23 a match of another account is not found",
+    "file": "app/Libraries/Accounting/Bank/BankMatches.php",
+    "find": "            if ($match === null) {",
+    "replace": "            if (false) {",
+    "tests": [
+      "--filter",
+      "testUnmatch_RejectsAnUnknownMatch",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "M24 a match held by a closed reconciliation is not taken back",
+    "file": "app/Libraries/Accounting/Bank/BankMatches.php",
+    "find": "            if ($match->reconciliation_id !== null) {",
+    "replace": "            if (false) {",
+    "tests": [
+      "--filter",
+      "testUnmatch_RejectsAMatchThatAClosed",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "M25 an unmatch is written to the audit log",
+    "file": "app/Libraries/Accounting/Bank/BankMatches.php",
+    "find": "'bank_unmatched'",
+    "replace": "'bank_unmatched_not_logged'",
+    "tests": [
+      "--filter",
+      "testUnmatch_ReleasesBothSides",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "M26 the list of matches looks at the account",
+    "file": "app/Libraries/Accounting/Bank/BankMatches.php",
+    "find": "    public function matches(int $treasuryId, ?int $employeeId, int $limit = 200): array\n    {\n        $this->access->bankAccount($treasuryId, $employeeId);\n",
+    "replace": "    public function matches(int $treasuryId, ?int $employeeId, int $limit = 200): array\n    {\n",
+    "tests": [
+      "--filter",
+      "testOperations_AreRefusedToSomeoneWithoutThePermission",
+      "tests/Libraries/Accounting/Bank/BankAccessTest.php"
+    ]
+  },
+  {
+    "name": "G01 suggestions look at the account",
+    "file": "app/Libraries/Accounting/Bank/BankSuggestions.php",
+    "find": "    public function forAccount(int $treasuryId, ?int $employeeId, ?int $windowDays = null, int $limit = 200): array\n    {\n        $this->access->bankAccount($treasuryId, $employeeId);\n",
+    "replace": "    public function forAccount(int $treasuryId, ?int $employeeId, ?int $windowDays = null, int $limit = 200): array\n    {\n",
+    "tests": [
+      "--filter",
+      "testOperations_AreRefusedToSomeoneWithoutThePermission",
+      "tests/Libraries/Accounting/Bank/BankAccessTest.php"
+    ]
+  },
+  {
+    "name": "G02 a statement line that is matched is not suggested for",
+    "file": "app/Libraries/Accounting/Bank/BankSuggestions.php",
+    "find": "            ->where('m.match_id IS NULL', null, false)\n            ->orderBy('l.line_date', 'ASC')",
+    "replace": "            ->orderBy('l.line_date', 'ASC')",
+    "tests": [
+      "--filter",
+      "testSuggestions_OffersTheLinesOfTheSameAmount",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "G03 the window looks back",
+    "file": "app/Libraries/Accounting/Bank/BankSuggestions.php",
+    "find": "$date->modify(\"-{$window} days\")",
+    "replace": "$date->modify('-3650 days')",
+    "tests": [
+      "--filter",
+      "testSuggestions_OffersTheLinesOfTheSameAmount|testSuggestions_FollowTheWindow",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "G04 the window looks forward",
+    "file": "app/Libraries/Accounting/Bank/BankSuggestions.php",
+    "find": "$date->modify(\"+{$window} days\")",
+    "replace": "$date->modify('+3650 days')",
+    "tests": [
+      "--filter",
+      "testSuggestions_OffersTheLinesOfTheSameAmount|testSuggestions_FollowTheWindow",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "G05 a statement line without a candidate is left out",
+    "file": "app/Libraries/Accounting/Bank/BankSuggestions.php",
+    "find": "            if ($candidates === []) {\n                continue;\n            }",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testSuggestions_OffersTheLinesOfTheSameAmount|testSuggestions_CallsALine",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "G06 a reference too short to mean anything is no hint",
+    "file": "app/Libraries/Accounting/Bank/BankSuggestions.php",
+    "find": "if (mb_strlen($reference) >= self::MIN_HINT && str_contains($text, $reference)) {",
+    "replace": "if (str_contains($text, $reference)) {",
+    "tests": [
+      "--filter",
+      "testSuggestions_OffersTheLinesOfTheSameAmount",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "G07 the candidates are put in the order of their hints",
+    "file": "app/Libraries/Accounting/Bank/BankSuggestions.php",
+    "find": "usort($candidates, static fn (object $first, object $second): int => [$second->rank, $first->days, $first->line_id] <=> [$first->rank, $second->days, $second->line_id]);",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testSuggestions_OffersTheLinesOfTheSameAmount",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "G08 the lines to match look at the account",
+    "file": "app/Libraries/Accounting/Bank/BankSuggestions.php",
+    "find": "    public function forLine(int $treasuryId, int $statementLineId, ?int $employeeId, ?int $windowDays = null, int $limit = 300): array\n    {\n        $this->access->bankAccount($treasuryId, $employeeId);\n",
+    "replace": "    public function forLine(int $treasuryId, int $statementLineId, ?int $employeeId, ?int $windowDays = null, int $limit = 300): array\n    {\n",
+    "tests": [
+      "--filter",
+      "testOperations_AreRefusedToSomeoneWithoutThePermission",
+      "tests/Libraries/Accounting/Bank/BankAccessTest.php"
+    ]
+  },
+  {
+    "name": "G09 a statement line of another account is not found for the match screen",
+    "file": "app/Libraries/Accounting/Bank/BankSuggestions.php",
+    "find": "$line = $this->db->table('bank_statement_lines')->where(['company_id' => CompanyContext::id(), 'treasury_id' => $treasuryId, 'line_id' => $statementLineId])",
+    "replace": "$line = $this->db->table('bank_statement_lines')->where(['company_id' => CompanyContext::id(), 'line_id' => $statementLineId])",
+    "tests": [
+      "--filter",
+      "testOperations_AreRefusedForAnIdOfAnotherBankAccount",
+      "tests/Libraries/Accounting/Bank/BankAccessTest.php"
+    ]
+  },
+  {
+    "name": "G10 the lines to match are of the direction of the statement line",
+    "file": "app/Libraries/Accounting/Bank/BankSuggestions.php",
+    "find": "bccomp((string) $line->amount, '0', 4) > 0, $limit)",
+    "replace": "true, $limit)",
+    "tests": [
+      "--filter",
+      "testGetMatch_ListsTheOpenLines",
+      "tests/Controllers/AccountingBankReconciliationControllerTest.php"
+    ]
+  },
+  {
+    "name": "K01 a journal and its reversal that cancel are left out",
+    "file": "app/Libraries/Accounting/Bank/BankBook.php",
+    "find": "                  AND NOT \" . $this->cancelledPair();",
+    "replace": "                  AND 1 = 1\";",
+    "tests": [
+      "--filter",
+      "testReport_LeavesOutAJournalThatWasReversed|testReport_ShowsAReversalThatDatesAfter|testReport_TiesTheBookBalance",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "K02 a match is made only when the statement line is dated by the date",
+    "file": "app/Libraries/Accounting/Bank/BankBook.php",
+    "find": "(sl.line_date <= :asof: AND mx.last_date <= :asof:) AS effective",
+    "replace": "(mx.last_date <= :asof:) AS effective",
+    "tests": [
+      "--filter",
+      "testReport_CountsAMatchAsMadeOnly",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "K03 a match is made only when the books are dated by the date",
+    "file": "app/Libraries/Accounting/Bank/BankBook.php",
+    "find": "(sl.line_date <= :asof: AND mx.last_date <= :asof:) AS effective",
+    "replace": "(sl.line_date <= :asof:) AS effective",
+    "tests": [
+      "--filter",
+      "testReport_ShowsAStatementLineAsNotYetInTheBooks",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "K04 open statement lines count a match that is not yet made as open",
+    "file": "app/Libraries/Accounting/Bank/BankBook.php",
+    "find": "AND (eff.match_id IS NULL OR eff.effective = 0)\";\n    }",
+    "replace": "AND eff.match_id IS NULL\";\n    }",
+    "tests": [
+      "--filter",
+      "testReport_ShowsAStatementLineAsNotYetInTheBooks",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "K05 open lines of the books count a match that is not yet made as open",
+    "file": "app/Libraries/Accounting/Bank/BankBook.php",
+    "find": "                  AND (eff.match_id IS NULL OR eff.effective = 0)\n                  AND NOT",
+    "replace": "                  AND eff.match_id IS NULL\n                  AND NOT",
+    "tests": [
+      "--filter",
+      "testReport_CountsAMatchAsMadeOnly",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "K06 without a statement line nothing is outstanding",
+    "file": "app/Libraries/Accounting/Bank/BankBook.php",
+    "find": "            if ($coverageStart === null) {\n                $sql .= ' AND 1 = 0';",
+    "replace": "            if (false) {\n                $sql .= ' AND 1 = 0';",
+    "tests": [
+      "--filter",
+      "testReport_CarriesEveryLineOfTheBooksWhileNoStatementLineIsImported",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "K07 the first statement day is outstanding",
+    "file": "app/Libraries/Accounting/Bank/BankBook.php",
+    "find": "$sql .= ' AND j.journal_date >= :start:';",
+    "replace": "$sql .= ' AND j.journal_date > :start:';",
+    "tests": [
+      "--filter",
+      "testReport_TakesALineOfTheBooksDatedOnTheFirstStatementDay",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "K08 the day before the first statement day is carried",
+    "file": "app/Libraries/Accounting/Bank/BankBook.php",
+    "find": "$sql .= ' AND j.journal_date < :start:';",
+    "replace": "$sql .= ' AND j.journal_date <= :start:';",
+    "tests": [
+      "--filter",
+      "testReport_TakesALineOfTheBooksDatedOnTheFirstStatementDay",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "K09 a candidate is not a line a match holds",
+    "file": "app/Libraries/Accounting/Bank/BankBook.php",
+    "find": "                WHERE ml.journal_line_id IS NULL AND l.account_id = :account: AND j.status IN (:posted:, :reversed:)\n                  AND (l.debit - l.credit) = :amount:",
+    "replace": "                WHERE l.account_id = :account: AND j.status IN (:posted:, :reversed:)\n                  AND (l.debit - l.credit) = :amount:",
+    "tests": [
+      "--filter",
+      "testSuggestions_OffersTheLinesOfTheSameAmount",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "K10 a candidate is of the amount and direction of the statement line",
+    "file": "app/Libraries/Accounting/Bank/BankBook.php",
+    "find": "AND (l.debit - l.credit) = :amount:",
+    "replace": "AND ABS(l.debit - l.credit) = ABS(:amount:)",
+    "tests": [
+      "--filter",
+      "testSuggestions_OffersTheLinesOfTheSameAmount",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "K11 the lines to choose from are of the direction asked",
+    "file": "app/Libraries/Accounting/Bank/BankBook.php",
+    "find": "($deposit ? 'l.debit > l.credit' : 'l.credit > l.debit')",
+    "replace": "'1 = 1'",
+    "tests": [
+      "--filter",
+      "testGetMatch_ListsTheOpenLines",
+      "tests/Controllers/AccountingBankReconciliationControllerTest.php"
+    ]
+  },
+  {
+    "name": "K12 the lines to choose from are not lines a match holds",
+    "file": "app/Libraries/Accounting/Bank/BankBook.php",
+    "find": "                WHERE ml.journal_line_id IS NULL AND l.account_id = :account: AND j.status IN (:posted:, :reversed:)\n                  AND \"",
+    "replace": "                WHERE l.account_id = :account: AND j.status IN (:posted:, :reversed:)\n                  AND \"",
+    "tests": [
+      "--filter",
+      "testGetMatch_ListsTheOpenLines|testGetSuggestions",
+      "tests/Controllers/AccountingBankReconciliationControllerTest.php"
+    ]
+  },
+  {
+    "name": "R01 the report looks at the account",
+    "file": "app/Libraries/Accounting/Bank/ReconciliationReport.php",
+    "find": "        $treasury  = $this->access->bankAccount($treasuryId, $employeeId);\n        $accountId",
+    "replace": "        $treasury  = $this->access->treasuries()->find($treasuryId);\n        $accountId",
+    "tests": [
+      "--filter",
+      "testOperations_AreRefusedToSomeoneWithoutThePermission",
+      "tests/Libraries/Accounting/Bank/BankAccessTest.php"
+    ]
+  },
+  {
+    "name": "R02 the date of the report is a date",
+    "file": "app/Libraries/Accounting/Bank/ReconciliationReport.php",
+    "find": "        if ($date === false || $date->format('Y-m-d') !== $asOf) {",
+    "replace": "        if (false) {",
+    "tests": [
+      "--filter",
+      "testReport_RejectsADateThatIsNotADate",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "R03 the balance of the statement is a number",
+    "file": "app/Libraries/Accounting/Bank/ReconciliationReport.php",
+    "find": "        if (preg_match('/^-?\\d{1,11}([.,]\\d{1,4})?$/', $clean) !== 1) {",
+    "replace": "        if (false) {",
+    "tests": [
+      "--filter",
+      "testReport_RejectsADateThatIsNotADate",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "R04 the books side adds the statement lines not in the books",
+    "file": "app/Libraries/Accounting/Bank/ReconciliationReport.php",
+    "find": "bcadd($book, $unmatched['total'], self::SCALE)",
+    "replace": "$book",
+    "tests": [
+      "--filter",
+      "testReport_ListsWhatIsOutstanding",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "R05 the bank side adds the lines of the books not on the statement",
+    "file": "app/Libraries/Accounting/Bank/ReconciliationReport.php",
+    "find": "bcadd($statementBalance, $outstanding['total'], self::SCALE)",
+    "replace": "$statementBalance",
+    "tests": [
+      "--filter",
+      "testReport_ListsWhatIsOutstanding",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "R06 the difference is the bank side less the books side",
+    "file": "app/Libraries/Accounting/Bank/ReconciliationReport.php",
+    "find": "bcsub($adjustedBank, $adjustedBook, self::SCALE)",
+    "replace": "bcsub($adjustedBook, $adjustedBank, self::SCALE)",
+    "tests": [
+      "--filter",
+      "testReport_ShowsTheDifferenceOfAWrongStatementBalance",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "R07 a comma is a decimal point",
+    "file": "app/Libraries/Accounting/Bank/ReconciliationReport.php",
+    "find": "bcadd(str_replace(',', '.', $clean), '0', self::SCALE)",
+    "replace": "bcadd($clean, '0', self::SCALE)",
+    "tests": [
+      "--filter",
+      "testReport_TakesACommaForTheDecimalPoint",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "C01 close looks at the account before what it was given",
+    "file": "app/Libraries/Accounting/Bank/BankReconciliations.php",
+    "find": "        $this->access->bankAccount($treasuryId, $employeeId);\n\n        $balance = ReconciliationReport::amount($statementBalance);",
+    "replace": "        $balance = ReconciliationReport::amount($statementBalance);",
+    "tests": [
+      "--filter",
+      "testOperations_LookAtTheAccountBefore",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "C02 close locks the treasury row",
+    "file": "app/Libraries/Accounting/Bank/BankReconciliations.php",
+    "find": "            $treasury = $this->access->bankAccount($treasuryId, $employeeId, true);\n\n            $date",
+    "replace": "            $treasury = $this->access->bankAccount($treasuryId, $employeeId, false);\n\n            $date",
+    "tests": [
+      "--filter",
+      "testClose_WaitsForARequestThatHoldsTheBankAccount",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "C03 the date of a closing is a date",
+    "file": "app/Libraries/Accounting/Bank/BankReconciliations.php",
+    "find": "            if ($date === false || $date->format('Y-m-d') !== $through) {",
+    "replace": "            if (false) {",
+    "tests": [
+      "--filter",
+      "testClose_RejectsADateThatIsNotAfter",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "C04 a closing is not in the future",
+    "file": "app/Libraries/Accounting/Bank/BankReconciliations.php",
+    "find": "if ($through > date('Y-m-d') || ($previous",
+    "replace": "if (($previous",
+    "tests": [
+      "--filter",
+      "testClose_RejectsADateThatIsNotAfter",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "C05 a closing is after the one before it",
+    "file": "app/Libraries/Accounting/Bank/BankReconciliations.php",
+    "find": "($previous !== null && $through <= $previous) ||",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testClose_RejectsADateThatIsNotAfter",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "C06 a closing needs a statement line",
+    "file": "app/Libraries/Accounting/Bank/BankReconciliations.php",
+    "find": "|| $start === null || $through < $start)",
+    "replace": "|| $through < $start)",
+    "tests": [
+      "--filter",
+      "testClose_RejectsADateThatIsNotAfter",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "C07 a closing is not before the first statement line",
+    "file": "app/Libraries/Accounting/Bank/BankReconciliations.php",
+    "find": "|| $start === null || $through < $start)",
+    "replace": "|| $start === null)",
+    "tests": [
+      "--filter",
+      "testClose_RejectsADateThatIsNotAfter",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "C08 a closing needs no difference",
+    "file": "app/Libraries/Accounting/Bank/BankReconciliations.php",
+    "find": "            if (! $figures->reconciled()) {",
+    "replace": "            if (false) {",
+    "tests": [
+      "--filter",
+      "testClose_RejectsAStatementBalanceThatLeavesADifference",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "C09 a closing holds the matches made by its date",
+    "file": "app/Libraries/Accounting/Bank/BankReconciliations.php",
+    "find": "->update(['reconciliation_id' => $reconciliationId]);\n            }",
+    "replace": "->update(['reconciliation_id' => null]);\n            }",
+    "tests": [
+      "--filter",
+      "testClose_HoldsTheMatchesMadeByTheDate|testUnmatch_RejectsAMatchThatAClosed",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "C10 a closing is written to the audit log",
+    "file": "app/Libraries/Accounting/Bank/BankReconciliations.php",
+    "find": "'bank_reconciliation_closed'",
+    "replace": "'bank_reconciliation_closed_not_logged'",
+    "tests": [
+      "--filter",
+      "testClose_HoldsTheMatchesMadeByTheDate",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "C11 reopen asks for the permission",
+    "file": "app/Libraries/Accounting/Bank/BankReconciliations.php",
+    "find": "        $this->access->requirePermission($employeeId);\n\n        $row = $this->find($reconciliationId, $employeeId);",
+    "replace": "        $row = $this->find($reconciliationId, $employeeId);",
+    "tests": [
+      "--filter",
+      "testOperations_AreRefusedToSomeoneWithoutThePermission",
+      "tests/Libraries/Accounting/Bank/BankAccessTest.php"
+    ]
+  },
+  {
+    "name": "C12 a closing of an account out of scope is not found",
+    "file": "app/Libraries/Accounting/Bank/BankReconciliations.php",
+    "find": "return $treasury !== null && $this->access->canSee($treasury, $employeeId) ? $row : null;",
+    "replace": "return $row;",
+    "tests": [
+      "--filter",
+      "testOperations_AreRefusedAsAccountNotFoundToSomeoneOutsideTheBranch",
+      "tests/Libraries/Accounting/Bank/BankAccessTest.php"
+    ]
+  },
+  {
+    "name": "C13 reopen needs a reason",
+    "file": "app/Libraries/Accounting/Bank/BankReconciliations.php",
+    "find": "        if ($reason === '') {",
+    "replace": "        if (false) {",
+    "tests": [
+      "--filter",
+      "testReopen_RejectsAnEarlierClosingThanTheLatest",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "C14 reopen locks the treasury row",
+    "file": "app/Libraries/Accounting/Bank/BankReconciliations.php",
+    "find": "            $treasury   = $this->access->bankAccount($treasuryId, $employeeId, true);",
+    "replace": "            $treasury   = $this->access->bankAccount($treasuryId, $employeeId, false);",
+    "tests": [
+      "--filter",
+      "testReopen_WaitsForARequestThatHoldsTheBankAccount",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "C15 a reopened closing is not reopened again",
+    "file": "app/Libraries/Accounting/Bank/BankReconciliations.php",
+    "find": "            if ($current === null || $current->status !== 'closed') {",
+    "replace": "            if ($current === null) {",
+    "tests": [
+      "--filter",
+      "testReopen_RejectsAnEarlierClosingThanTheLatest",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "C16 only the latest closing is reopened",
+    "file": "app/Libraries/Accounting/Bank/BankReconciliations.php",
+    "find": "            if ($this->lock->through($treasuryId) !== (string) $current->closed_through) {",
+    "replace": "            if (false) {",
+    "tests": [
+      "--filter",
+      "testReopen_RejectsAnEarlierClosingThanTheLatest",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "C17 reopen releases the matches",
+    "file": "app/Libraries/Accounting/Bank/BankReconciliations.php",
+    "find": "$this->db->table('bank_matches')->where('reconciliation_id', $reconciliationId)->update(['reconciliation_id' => null]);",
+    "replace": "$this->db->table('bank_matches')->where('reconciliation_id', $reconciliationId)->update(['reconciliation_id' => $reconciliationId]);",
+    "tests": [
+      "--filter",
+      "testReopen_ReleasesTheMatches|testUnmatch_RejectsAMatchThatAClosed",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "C18 a reopening is written to the audit log",
+    "file": "app/Libraries/Accounting/Bank/BankReconciliations.php",
+    "find": "'bank_reconciliation_reopened'",
+    "replace": "'bank_reconciliation_reopened_not_logged'",
+    "tests": [
+      "--filter",
+      "testReopen_ReleasesTheMatches",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "C19 a closing whose books changed is flagged",
+    "file": "app/Libraries/Accounting/Bank/BankReconciliations.php",
+    "find": "bccomp($this->book->balance($accountId, (string) $row->closed_through), (string) $row->book_balance, self::SCALE) !== 0",
+    "replace": "false",
+    "tests": [
+      "--filter",
+      "testClosings_FlagsAClosingWhoseBooksHaveChanged",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "C20 only a closed closing is flagged",
+    "file": "app/Libraries/Accounting/Bank/BankReconciliations.php",
+    "find": "$row->drifted = $row->status === 'closed' && ",
+    "replace": "$row->drifted = ",
+    "tests": [
+      "--filter",
+      "testClosings_ListsTheLatestFirstAndFlagsOnlyAClosedOne",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "C21 a reopened closing is the reopened one in the list",
+    "file": "app/Libraries/Accounting/Bank/BankReconciliations.php",
+    "find": "->orderBy('r.closed_through', 'DESC')\n            ->orderBy('r.reconciliation_id', 'DESC')",
+    "replace": "->orderBy('r.reconciliation_id', 'ASC')",
+    "tests": [
+      "--filter",
+      "testClosings_ListsTheLatestFirstAndFlagsOnlyAClosedOne",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "C22 the list of closings looks at the account",
+    "file": "app/Libraries/Accounting/Bank/BankReconciliations.php",
+    "find": "        $this->access->bankAccount($treasuryId, $employeeId);\n\n        $accountId = $this->access->treasuries()->accountOf($treasuryId) ?? 0;\n        $rows      =",
+    "replace": "        $accountId = $this->access->treasuries()->accountOf($treasuryId) ?? 0;\n        $rows      =",
+    "tests": [
+      "--filter",
+      "testOperations_AreRefusedToSomeoneWithoutThePermission",
+      "tests/Libraries/Accounting/Bank/BankAccessTest.php"
+    ]
+  },
+  {
+    "name": "L01 a reopened closing no longer locks",
+    "file": "app/Libraries/Accounting/Bank/ReconciliationLock.php",
+    "find": "'status' => 'closed'",
+    "replace": "'status' => 'reopened'",
+    "tests": [
+      "--filter",
+      "testReopen_ReleasesTheMatches|testImport_RefusesNewLinesDatedInsideAClosed",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "W01 the window setting asks for the permission",
+    "file": "app/Libraries/Accounting/Bank/BankMatchSettings.php",
+    "find": "        $this->guard->require(AccountingGuard::BANK_RECONCILE, $employeeId);\n\n        if ((",
+    "replace": "        if ((",
+    "tests": [
+      "--filter",
+      "testSetWindowDays_RequiresThePermission",
+      "tests/Libraries/Accounting/Bank/BankMatchSettingsTest.php"
+    ]
+  },
+  {
+    "name": "W02 the window is a whole number",
+    "file": "app/Libraries/Accounting/Bank/BankMatchSettings.php",
+    "find": "(! is_int($days) && ! (is_string($days) && ctype_digit(trim($days)))) || ",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testSetWindowDays_RejectsAWindow",
+      "tests/Libraries/Accounting/Bank/BankMatchSettingsTest.php"
+    ]
+  },
+  {
+    "name": "W03 the window is not over the limit",
+    "file": "app/Libraries/Accounting/Bank/BankMatchSettings.php",
+    "find": "|| (int) $days > self::MAX) {",
+    "replace": ") {",
+    "tests": [
+      "--filter",
+      "testSetWindowDays_RejectsAWindow",
+      "tests/Libraries/Accounting/Bank/BankMatchSettingsTest.php"
+    ]
+  },
+  {
+    "name": "W04 the window is not under the limit",
+    "file": "app/Libraries/Accounting/Bank/BankMatchSettings.php",
+    "find": "(int) $days < self::MIN ||",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testSetWindowDays_RejectsAWindow",
+      "tests/Libraries/Accounting/Bank/BankMatchSettingsTest.php"
+    ]
+  },
+  {
+    "name": "W05 a window that did not change is not written",
+    "file": "app/Libraries/Accounting/Bank/BankMatchSettings.php",
+    "find": "            if ($before === $days) {\n                return;\n            }\n\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testSetWindowDays_WritesNothingWhenTheWindowIsTheSame",
+      "tests/Libraries/Accounting/Bank/BankMatchSettingsTest.php"
+    ]
+  },
+  {
+    "name": "W06 a change of the window is written to the audit log",
+    "file": "app/Libraries/Accounting/Bank/BankMatchSettings.php",
+    "find": "'bank_match_window_changed'",
+    "replace": "'bank_match_window_changed_not_logged'",
+    "tests": [
+      "--filter",
+      "testSetWindowDays_KeepsTheWindow",
+      "tests/Libraries/Accounting/Bank/BankMatchSettingsTest.php"
+    ]
+  },
+  {
+    "name": "W07 a stored window that is not a window is the default",
+    "file": "app/Libraries/Accounting/Bank/BankMatchSettings.php",
+    "find": "return ctype_digit($value) && (int) $value >= self::MIN && (int) $value <= self::MAX ? (int) $value : self::DEFAULT;",
+    "replace": "return (int) $value;",
+    "tests": [
+      "--filter",
+      "testWindowDays_FallsBackToTheDefault",
+      "tests/Libraries/Accounting/Bank/BankMatchSettingsTest.php"
+    ]
+  },
+  {
+    "name": "P01 the separator and the order of the date are known ones",
+    "file": "app/Libraries/Accounting/Bank/StatementMapping.php",
+    "find": "if (! isset(self::DELIMITERS[$delimiter]) || ! in_array($dateOrder, self::DATE_ORDERS, true)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "testConstruct_RejectsAnUnknownSeparator",
+      "tests/Libraries/Accounting/Bank/StatementMappingTest.php"
+    ]
+  },
+  {
+    "name": "P02 a column is in range",
+    "file": "app/Libraries/Accounting/Bank/StatementMapping.php",
+    "find": "            if ($column < 1 || $column > self::MAX_COLUMN) {",
+    "replace": "            if (false) {",
+    "tests": [
+      "--filter",
+      "testConstruct_RejectsAnUnknownSeparator",
+      "tests/Libraries/Accounting/Bank/StatementMappingTest.php"
+    ]
+  },
+  {
+    "name": "P03 no two fields share a column",
+    "file": "app/Libraries/Accounting/Bank/StatementMapping.php",
+    "find": "        if (count($columns) !== count(array_unique($columns))) {",
+    "replace": "        if (false) {",
+    "tests": [
+      "--filter",
+      "testConstruct_RejectsTwoFieldsInTheSameColumn",
+      "tests/Libraries/Accounting/Bank/StatementMappingTest.php"
+    ]
+  },
+  {
+    "name": "P04 a required column is given",
+    "file": "app/Libraries/Accounting/Bank/StatementMapping.php",
+    "find": "            if ($required) {\n                throw",
+    "replace": "            if (false) {\n                throw",
+    "tests": [
+      "--filter",
+      "testFromInput_RejectsAMissingRequiredColumn",
+      "tests/Libraries/Accounting/Bank/StatementMappingTest.php"
+    ]
+  },
+  {
+    "name": "P05 a column is a number",
+    "file": "app/Libraries/Accounting/Bank/StatementMapping.php",
+    "find": "        if (! is_int($value) && ! (is_string($value) && ctype_digit($value))) {",
+    "replace": "        if (false) {",
+    "tests": [
+      "--filter",
+      "testFromInput_RejectsAMissingRequiredColumn",
+      "tests/Libraries/Accounting/Bank/StatementMappingTest.php"
+    ]
+  },
+  {
+    "name": "Q01 a file over the size limit is refused",
+    "file": "app/Libraries/Accounting/Bank/StatementParser.php",
+    "find": "        if (strlen($content) > $this->maxBytes) {",
+    "replace": "        if (false) {",
+    "tests": [
+      "--filter",
+      "testParse_TakesAFileOfExactlyTheSizeLimit|testParse_TakesTheSizeLimitItIsGiven",
+      "tests/Libraries/Accounting/Bank/StatementParserTest.php"
+    ]
+  },
+  {
+    "name": "Q02 a file of exactly the size limit is taken",
+    "file": "app/Libraries/Accounting/Bank/StatementParser.php",
+    "find": "        if (strlen($content) > $this->maxBytes) {",
+    "replace": "        if (strlen($content) >= $this->maxBytes) {",
+    "tests": [
+      "--filter",
+      "testParse_TakesAFileOfExactlyTheSizeLimit|testParse_TakesTheSizeLimitItIsGiven",
+      "tests/Libraries/Accounting/Bank/StatementParserTest.php"
+    ]
+  },
+  {
+    "name": "Q03 an empty file is refused",
+    "file": "app/Libraries/Accounting/Bank/StatementParser.php",
+    "find": "        if (trim($text) === '') {",
+    "replace": "        if (false) {",
+    "tests": [
+      "--filter",
+      "testParse_RejectsAFileThatIsNotUtf8TextOrIsBinaryOrEmpty",
+      "tests/Libraries/Accounting/Bank/StatementParserTest.php"
+    ]
+  },
+  {
+    "name": "Q04 a file that is not UTF-8 is refused",
+    "file": "app/Libraries/Accounting/Bank/StatementParser.php",
+    "find": "|| ! mb_check_encoding($content, 'UTF-8')) {",
+    "replace": ") {",
+    "tests": [
+      "--filter",
+      "testParse_RejectsAFileThatIsNotUtf8TextOrIsBinaryOrEmpty",
+      "tests/Libraries/Accounting/Bank/StatementParserTest.php"
+    ]
+  },
+  {
+    "name": "Q05 a binary file is refused",
+    "file": "app/Libraries/Accounting/Bank/StatementParser.php",
+    "find": "if (str_contains($content, \"\\0\") ||",
+    "replace": "if (",
+    "tests": [
+      "--filter",
+      "testParse_RejectsAFileThatIsNotUtf8TextOrIsBinaryOrEmpty",
+      "tests/Libraries/Accounting/Bank/StatementParserTest.php"
+    ]
+  },
+  {
+    "name": "Q06 a file over the row limit is refused",
+    "file": "app/Libraries/Accounting/Bank/StatementParser.php",
+    "find": "            if (count($records) >= $this->maxRows) {",
+    "replace": "            if (false) {",
+    "tests": [
+      "--filter",
+      "testParse_RejectsAFileOverTheRowLimit|testParse_DoesNotCountTheHeading",
+      "tests/Libraries/Accounting/Bank/StatementParserTest.php"
+    ]
+  },
+  {
+    "name": "Q07 a file of exactly the row limit is taken",
+    "file": "app/Libraries/Accounting/Bank/StatementParser.php",
+    "find": "            if (count($records) >= $this->maxRows) {",
+    "replace": "            if (count($records) > $this->maxRows) {",
+    "tests": [
+      "--filter",
+      "testParse_RejectsAFileOverTheRowLimitAndTakesOneAtTheLimit",
+      "tests/Libraries/Accounting/Bank/StatementParserTest.php"
+    ]
+  },
+  {
+    "name": "Q08 the heading is skipped when asked",
+    "file": "app/Libraries/Accounting/Bank/StatementParser.php",
+    "find": "            if ($number === 1 && $mapping->skipFirstRow) {",
+    "replace": "            if (false) {",
+    "tests": [
+      "--filter",
+      "testParse_SkipsTheFirstRowOnlyWhenTheMappingSaysSo",
+      "tests/Libraries/Accounting/Bank/StatementParserTest.php"
+    ]
+  },
+  {
+    "name": "Q09 the byte order mark is taken off",
+    "file": "app/Libraries/Accounting/Bank/StatementParser.php",
+    "find": "return str_starts_with($content, \"\\xEF\\xBB\\xBF\") ? substr($content, 3) : $content;",
+    "replace": "return $content;",
+    "tests": [
+      "--filter",
+      "testParse_TakesAByteOrderMark|testParse_GivesTheSameChecksum",
+      "tests/Libraries/Accounting/Bank/StatementParserTest.php"
+    ]
+  },
+  {
+    "name": "Q10 line ends are made alike before the checksum",
+    "file": "app/Libraries/Accounting/Bank/StatementParser.php",
+    "find": "return rtrim((string) preg_replace('/\\R/u', \"\\n\", $content));\n    }\n\n    private static function withoutByteOrderMark",
+    "replace": "return rtrim($content);\n    }\n\n    private static function withoutByteOrderMark",
+    "tests": [
+      "--filter",
+      "testParse_GivesTheSameChecksum|testParse_TakesAByteOrderMark",
+      "tests/Libraries/Accounting/Bank/StatementParserTest.php"
+    ]
+  },
+  {
+    "name": "Q11 only the first errors are reported",
+    "file": "app/Libraries/Accounting/Bank/StatementParser.php",
+    "find": "            if (count($errors) < self::MAX_REPORTED_ERRORS) {",
+    "replace": "            if (true) {",
+    "tests": [
+      "--filter",
+      "testParse_NamesEveryRowThatIsNotValid",
+      "tests/Libraries/Accounting/Bank/StatementParserTest.php"
+    ]
+  },
+  {
+    "name": "Q12 a row with too few columns is refused",
+    "file": "app/Libraries/Accounting/Bank/StatementParser.php",
+    "find": "        if (count($cells) < $mapping->widestRequired()) {",
+    "replace": "        if (false) {",
+    "tests": [
+      "--filter",
+      "testParse_RejectsARowWithTooFewColumns",
+      "tests/Libraries/Accounting/Bank/StatementParserTest.php"
+    ]
+  },
+  {
+    "name": "Q13 a missing date is named",
+    "file": "app/Libraries/Accounting/Bank/StatementParser.php",
+    "find": "        if ($dateText === '') {",
+    "replace": "        if (false) {",
+    "tests": [
+      "--filter",
+      "testParse_RejectsAMissingDate",
+      "tests/Libraries/Accounting/Bank/StatementParserTest.php"
+    ]
+  },
+  {
+    "name": "Q14 a date that is not valid is named",
+    "file": "app/Libraries/Accounting/Bank/StatementParser.php",
+    "find": "        if ($date === null) {",
+    "replace": "        if (false) {",
+    "tests": [
+      "--filter",
+      "testParse_RejectsADateThatIsNotValid",
+      "tests/Libraries/Accounting/Bank/StatementParserTest.php"
+    ]
+  },
+  {
+    "name": "Q15 a date that does not exist is refused",
+    "file": "app/Libraries/Accounting/Bank/StatementParser.php",
+    "find": "|| ! checkdate($month, $day, $year)) {",
+    "replace": ") {",
+    "tests": [
+      "--filter",
+      "testParse_RejectsADateThatIsNotValid",
+      "tests/Libraries/Accounting/Bank/StatementParserTest.php"
+    ]
+  },
+  {
+    "name": "Q16 a year out of range is refused",
+    "file": "app/Libraries/Accounting/Bank/StatementParser.php",
+    "find": "if ($year < self::FIRST_YEAR || $year > self::LAST_YEAR || ",
+    "replace": "if (",
+    "tests": [
+      "--filter",
+      "testParse_RejectsADateThatIsNotValid",
+      "tests/Libraries/Accounting/Bank/StatementParserTest.php"
+    ]
+  },
+  {
+    "name": "Q17 a time after the date is taken off",
+    "file": "app/Libraries/Accounting/Bank/StatementParser.php",
+    "find": "$text = (string) preg_replace('/[\\sT]+\\d{1,2}:\\d{2}(:\\d{2}(\\.\\d+)?)?\\s*(Z|[+-]\\d{2}:?\\d{2})?$/i', '', $text);",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testParse_ReadsTheDatesOfTheFormats",
+      "tests/Libraries/Accounting/Bank/StatementParserTest.php"
+    ]
+  },
+  {
+    "name": "Q18 a deposit and a withdrawal together are refused",
+    "file": "app/Libraries/Accounting/Bank/StatementParser.php",
+    "find": "        if ($hasIn && $hasOut) {",
+    "replace": "        if (false) {",
+    "tests": [
+      "--filter",
+      "testParse_RejectsARowThatHasBothAmounts",
+      "tests/Libraries/Accounting/Bank/StatementParserTest.php"
+    ]
+  },
+  {
+    "name": "Q19 neither a deposit nor a withdrawal is refused",
+    "file": "app/Libraries/Accounting/Bank/StatementParser.php",
+    "find": "        if (! $hasIn && ! $hasOut) {",
+    "replace": "        if (false) {",
+    "tests": [
+      "--filter",
+      "testParse_RejectsARowThatHasBothAmounts",
+      "tests/Libraries/Accounting/Bank/StatementParserTest.php"
+    ]
+  },
+  {
+    "name": "Q20 a negative amount is refused",
+    "file": "app/Libraries/Accounting/Bank/StatementParser.php",
+    "find": "        if (preg_match('/^[-−]|^\\(.*\\)$/u', $clean) === 1) {",
+    "replace": "        if (false) {",
+    "tests": [
+      "--filter",
+      "testParse_RejectsAnAmountThatIsNotValid",
+      "tests/Libraries/Accounting/Bank/StatementParserTest.php"
+    ]
+  },
+  {
+    "name": "Q21 an amount with too many decimals is refused",
+    "file": "app/Libraries/Accounting/Bank/StatementParser.php",
+    "find": "        if (strlen($fraction) > self::SCALE) {",
+    "replace": "        if (false) {",
+    "tests": [
+      "--filter",
+      "testParse_RejectsAnAmountThatIsNotValid",
+      "tests/Libraries/Accounting/Bank/StatementParserTest.php"
+    ]
+  },
+  {
+    "name": "Q22 an amount that is too large is refused",
+    "file": "app/Libraries/Accounting/Bank/StatementParser.php",
+    "find": "        if (strlen(ltrim($whole, '0')) > strlen((string) self::LARGEST_INTEGER) || (int) $whole > self::LARGEST_INTEGER) {",
+    "replace": "        if (false) {",
+    "tests": [
+      "--filter",
+      "testParse_RejectsAnAmountThatIsNotValid",
+      "tests/Libraries/Accounting/Bank/StatementParserTest.php"
+    ]
+  },
+  {
+    "name": "Q23 an amount that is not a number is refused",
+    "file": "app/Libraries/Accounting/Bank/StatementParser.php",
+    "find": "        if ($plain === null) {",
+    "replace": "        if (false) {",
+    "tests": [
+      "--filter",
+      "testParse_RejectsAnAmountThatIsNotValid",
+      "tests/Libraries/Accounting/Bank/StatementParserTest.php"
+    ]
+  },
+  {
+    "name": "Q24 thousands with both separators are grouped by three",
+    "file": "app/Libraries/Accounting/Bank/StatementParser.php",
+    "find": "if (preg_match('/^\\d{1,3}(' . preg_quote($thousand, '/') . '\\d{3})+' . preg_quote($decimal, '/') . '\\d*$/', $text) !== 1) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "testParse_RejectsAnAmountThatIsNotValid",
+      "tests/Libraries/Accounting/Bank/StatementParserTest.php"
+    ]
+  },
+  {
+    "name": "Q25 a description that is too long is refused",
+    "file": "app/Libraries/Accounting/Bank/StatementParser.php",
+    "find": "if (mb_strlen($description) > self::DESCRIPTION_MAX || ",
+    "replace": "if (",
+    "tests": [
+      "--filter",
+      "testParse_RejectsAMissingDateAndATextThatIsTooLong",
+      "tests/Libraries/Accounting/Bank/StatementParserTest.php"
+    ]
+  },
+  {
+    "name": "Q26 a reference that is too long is refused",
+    "file": "app/Libraries/Accounting/Bank/StatementParser.php",
+    "find": "|| mb_strlen($reference) > self::REFERENCE_MAX) {",
+    "replace": ") {",
+    "tests": [
+      "--filter",
+      "testParse_RejectsAMissingDateAndATextThatIsTooLong",
+      "tests/Libraries/Accounting/Bank/StatementParserTest.php"
+    ]
+  },
+  {
+    "name": "Q27 the repeats of a line in one file are numbered",
+    "file": "app/Libraries/Accounting/Bank/StatementParser.php",
+    "find": "hash('sha256', $result->dedupeKey . '|' . $occurrence)",
+    "replace": "hash('sha256', $result->dedupeKey)",
+    "tests": [
+      "--filter",
+      "testParse_NumbersTheRepeatsOfALine",
+      "tests/Libraries/Accounting/Bank/StatementParserTest.php"
+    ]
+  },
+  {
+    "name": "Q28 the text of a line is made alike before it is hashed",
+    "file": "app/Libraries/Accounting/Bank/StatementParser.php",
+    "find": "return BankText::normalised($text);",
+    "replace": "return $text;",
+    "tests": [
+      "--filter",
+      "testParse_GivesALineTheSameKey",
+      "tests/Libraries/Accounting/Bank/StatementParserTest.php"
+    ]
+  },
+  {
+    "name": "D01 the marks of Arabic are taken off",
+    "file": "app/Libraries/Accounting/Bank/BankText.php",
+    "find": "$text = (string) preg_replace('/[\\x{064B}-\\x{065F}\\x{0670}\\x{0640}]/u', '', $text);",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testSearch_IgnoresCaseSpaces",
+      "tests/Libraries/Accounting/Bank/BankDirectoryTest.php"
+    ]
+  },
+  {
+    "name": "D02 the forms of Arabic letters are made one",
+    "file": "app/Libraries/Accounting/Bank/BankText.php",
+    "find": "$text = strtr($text, ['أ' => 'ا', 'إ' => 'ا', 'آ' => 'ا', 'ة' => 'ه', 'ى' => 'ي']);",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testSearch_IgnoresCaseSpaces",
+      "tests/Libraries/Accounting/Bank/BankDirectoryTest.php"
+    ]
+  },
+  {
+    "name": "D03 the search is not case sensitive",
+    "file": "app/Libraries/Accounting/Bank/BankText.php",
+    "find": "$text = mb_strtolower(trim($text));",
+    "replace": "$text = trim($text);",
+    "tests": [
+      "--filter",
+      "testSearch_IgnoresCaseSpaces|testCodeOfName_Finds",
+      "tests/Libraries/Accounting/Bank/BankDirectoryTest.php"
+    ]
+  },
+  {
+    "name": "D04 a search needs every word",
+    "file": "app/Libraries/Accounting/Bank/BankDirectory.php",
+    "find": "            foreach ($words as $word) {\n                if (! str_contains($haystack, $word)) {\n                    continue 2;\n                }\n            }",
+    "replace": "            foreach ($words as $word) {\n                if (str_contains($haystack, $word)) {\n                    break;\n                }\n            }",
+    "tests": [
+      "--filter",
+      "testSearch_NeedsEveryWord",
+      "tests/Libraries/Accounting/Bank/BankDirectoryTest.php"
+    ]
+  },
+  {
+    "name": "D05 a search looks in the other names of a bank",
+    "file": "app/Libraries/Accounting/Bank/BankDirectory.php",
+    "find": "' ' . $bank['keywords']",
+    "replace": "''",
+    "tests": [
+      "--filter",
+      "testSearch_FindsABankByItsEnglishName",
+      "tests/Libraries/Accounting/Bank/BankDirectoryTest.php"
+    ]
+  },
+  {
+    "name": "D06 the banks are put in the order of the countries",
+    "file": "app/Libraries/Accounting/Bank/BankDirectory.php",
+    "find": "usort($found, static fn (array $first, array $second): int => [$orders[$first['country']], $first['en']] <=> [$orders[$second['country']], $second['en']]);",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testSearch_ListsEveryBank",
+      "tests/Libraries/Accounting/Bank/BankDirectoryTest.php"
+    ]
+  },
+  {
+    "name": "D07 an Arabic locale gets the Arabic name",
+    "file": "app/Libraries/Accounting/Bank/BankDirectory.php",
+    "find": "return str_starts_with(strtolower($locale), 'ar') ? $bank['ar'] : $bank['en'];",
+    "replace": "return $bank['en'];",
+    "tests": [
+      "--filter",
+      "testNameOf_GivesTheNameInTheLanguage",
+      "tests/Libraries/Accounting/Bank/BankDirectoryTest.php"
+    ]
+  },
+  {
+    "name": "D08 the name kept for a bank of the directory is the English one",
+    "file": "app/Libraries/Accounting/Bank/BankDirectory.php",
+    "find": "return self::BANKS[$code]['en'] ?? null;",
+    "replace": "return self::BANKS[$code]['ar'] ?? null;",
+    "tests": [
+      "tests/Libraries/Accounting/Bank/BankDirectoryTest.php",
+      "tests/Libraries/Accounting/TreasuryServiceTest.php"
+    ]
+  },
+  {
+    "name": "D09 a name written by hand is found by either language",
+    "file": "app/Libraries/Accounting/Bank/BankDirectory.php",
+    "find": "|| BankText::normalised($bank['ar']) === $wanted) {",
+    "replace": ") {",
+    "tests": [
+      "--filter",
+      "testCodeOfName_Finds",
+      "tests/Libraries/Accounting/Bank/BankDirectoryTest.php"
+    ]
+  },
+  {
+    "name": "T01 a bank code that is not in the directory is refused",
+    "file": "app/Libraries/Accounting/TreasuryService.php",
+    "find": "            if ($bankName === null) {\n                throw new AccountingException(AccountingError::BankDirectoryCodeInvalid",
+    "replace": "            if (false) {\n                throw new AccountingException(AccountingError::BankDirectoryCodeInvalid",
+    "tests": [
+      "--filter",
+      "testCreate_RejectsABankCodeThatIsNotInTheDirectory",
+      "tests/Libraries/Accounting/TreasuryServiceTest.php"
+    ]
+  },
+  {
+    "name": "T02 a bank of the directory is kept by the name of the directory",
+    "file": "app/Libraries/Accounting/TreasuryService.php",
+    "find": "$bankName = BankDirectory::storedNameOf($code);",
+    "replace": "$bankName = is_string($input['bank_name'] ?? null) ? trim($input['bank_name']) : '';",
+    "tests": [
+      "--filter",
+      "testCreate_KeepsTheCodeAndTheEnglishName|testCreate_TakesTheNameOfTheDirectory",
+      "tests/Libraries/Accounting/TreasuryServiceTest.php"
+    ]
+  },
+  {
+    "name": "T03 a bank outside the directory has no code",
+    "file": "app/Libraries/Accounting/TreasuryService.php",
+    "find": "            $code     = null;\n            $bankName",
+    "replace": "            $bankName",
+    "tests": [
+      "--filter",
+      "testCreate_KeepsABankOutsideTheDirectory",
+      "tests/Libraries/Accounting/TreasuryServiceTest.php"
+    ]
+  },
+  {
+    "name": "T04 a cash treasury has no bank code",
+    "file": "app/Libraries/Accounting/TreasuryService.php",
+    "find": "return ['bank_name' => null, 'bank_code' => null, 'account_number' => null];",
+    "replace": "return ['bank_name' => null, 'bank_code' => is_string($input['bank_code'] ?? null) ? $input['bank_code'] : null, 'account_number' => null];",
+    "tests": [
+      "--filter",
+      "testCreate_LeavesACashTreasuryWithoutABankCode|testUpdate_DropsTheBankCode",
+      "tests/Libraries/Accounting/TreasuryServiceTest.php"
+    ]
+  },
+  {
+    "name": "T05 the bank code is kept on a new account",
+    "file": "app/Libraries/Accounting/TreasuryService.php",
+    "find": "                'bank_code'      => $bank['bank_code'],\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testCreate_KeepsTheCodeAndTheEnglishName",
+      "tests/Libraries/Accounting/TreasuryServiceTest.php"
+    ]
+  },
+  {
+    "name": "T06 the line of the books of a movement is named",
+    "file": "app/Libraries/Accounting/TreasuryService.php",
+    "find": "SELECT l.line_id, j.journal_id",
+    "replace": "SELECT 0 AS line_id, j.journal_id",
+    "tests": [
+      "--filter",
+      "testMovements_NamesTheLineOfTheBooks",
+      "tests/Libraries/Accounting/TreasuryServiceTest.php"
+    ]
+  },
+  {
+    "name": "X01 the screens need the permission to reconcile",
+    "file": "app/Controllers/AccountingBankReconciliation.php",
+    "find": "        if (! $this->can(AccountingGuard::BANK_RECONCILE)) {\n            throw PageNotFoundException::forPageNotFound();\n        }",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testGetIndex_IsNotFoundToWhoHoldsTheModuleButNotThePermission|testPosts_AreNotFoundToWhoLacksThePermission",
+      "tests/Controllers/AccountingBankReconciliationControllerTest.php"
+    ]
+  },
+  {
+    "name": "X02 a bank account out of scope is a page that is not there",
+    "file": "app/Controllers/AccountingBankReconciliation.php",
+    "find": "            return $this->bank->bankAccount($treasuryId, $this->employeeId());",
+    "replace": "            return $this->treasuries->find($treasuryId) ?? throw PageNotFoundException::forPageNotFound();",
+    "tests": [
+      "--filter",
+      "testGet_IsNotFoundForACashTreasury|testPostImport_IsNotFoundForABankAccountOutOfScope",
+      "tests/Controllers/AccountingBankReconciliationControllerTest.php"
+    ]
+  },
+  {
+    "name": "X03 an uploaded file over the size limit is refused before it is read",
+    "file": "app/Controllers/AccountingBankReconciliation.php",
+    "find": "            if ($file->getSize() > StatementParser::MAX_BYTES) {",
+    "replace": "            if (false) {",
+    "tests": [
+      "--filter",
+      "testPostImport_RefusesAnUploadedFileOverTheSizeLimit",
+      "tests/Controllers/AccountingBankReconciliationControllerTest.php"
+    ]
+  },
+  {
+    "name": "X04 an upload that failed is not read",
+    "file": "app/Controllers/AccountingBankReconciliation.php",
+    "find": "if ($file !== null && $file->getError() === UPLOAD_ERR_OK && $file->getSize() > 0) {",
+    "replace": "if ($file !== null) {",
+    "tests": [
+      "--filter",
+      "testPostImport_RefusesNothingToImport",
+      "tests/Controllers/AccountingBankReconciliationControllerTest.php"
+    ]
+  },
+  {
+    "name": "X05 without a file the pasted text is the statement",
+    "file": "app/Controllers/AccountingBankReconciliation.php",
+    "find": "        if (trim($text) === '') {\n            throw new AccountingException(AccountingError::BankStatementEmpty, 'There is no file and no text.');",
+    "replace": "        if (false) {\n            throw new AccountingException(AccountingError::BankStatementEmpty, 'There is no file and no text.');",
+    "tests": [
+      "--filter",
+      "testPostImport_RefusesNothingToImport",
+      "tests/Controllers/AccountingBankReconciliationControllerTest.php"
+    ]
+  },
+  {
+    "name": "X06 a date typed in the address is a date",
+    "file": "app/Controllers/AccountingBankReconciliation.php",
+    "find": "return preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $value) === 1 ? $value : null;",
+    "replace": "return $value === '' ? null : $value;",
+    "tests": [
+      "--filter",
+      "testGetReport_TakesTheDateOfToday",
+      "tests/Controllers/AccountingBankReconciliationControllerTest.php"
+    ]
+  },
+  {
+    "name": "X07 the rows that are not valid are named in the answer",
+    "file": "app/Controllers/AccountingBankReconciliation.php",
+    "find": "'errors'  => array_map(fn (StatementRowError $error): string => $this->rowError($error), $rejected->errors),",
+    "replace": "'errors'  => [],",
+    "tests": [
+      "--filter",
+      "testPostImport_NamesTheRowsThatAreNotValid",
+      "tests/Controllers/AccountingBankReconciliationControllerTest.php"
+    ]
+  },
+  {
+    "name": "X08 a closing offers the way of matching of a suggestion",
+    "file": "app/Controllers/AccountingBankReconciliation.php",
+    "find": "$this->request->getPost('method') === BankMatches::SUGGESTED ? BankMatches::SUGGESTED : BankMatches::MANUAL,",
+    "replace": "BankMatches::MANUAL,",
+    "tests": [
+      "--filter",
+      "testPostMatch_RecordsAnAcceptedSuggestionAsSuggested",
+      "tests/Controllers/AccountingBankReconciliationControllerTest.php"
+    ]
+  },
+  {
+    "name": "X09 a report with a balance that is not a number still shows the figures",
+    "file": "app/Controllers/AccountingBankReconciliation.php",
+    "find": "            $figures = $this->bank->report($treasuryId, $asOf, null, $this->employeeId());\n        }",
+    "replace": "            throw $exception;\n        }",
+    "tests": [
+      "--filter",
+      "testGetReport_ShowsTheRefusalOfABalanceThatIsNotANumber",
+      "tests/Controllers/AccountingBankReconciliationControllerTest.php"
+    ]
+  },
+  {
+    "name": "Y01 the treasury statement flags matched lines only to who may reconcile",
+    "file": "app/Controllers/AccountingTreasuries.php",
+    "find": "$treasury->kind === TreasuryService::BANK && $this->can(AccountingGuard::BANK_RECONCILE) ?",
+    "replace": "$treasury->kind === TreasuryService::BANK ?",
+    "tests": [
+      "--filter",
+      "testGetStatement_DoesNotShowTheMatchFlag|testGetStatement_FlagsTheLinesMatched",
+      "tests/Controllers/AccountingBankReconciliationControllerTest.php",
+      "tests/Controllers/AccountingTreasuriesControllerTest.php"
+    ]
+  },
+  {
+    "name": "Y02 the bank code is posted with the form",
+    "file": "app/Controllers/AccountingTreasuries.php",
+    "find": "                'bank_code'      => (string) $this->request->getPost('bank_code'),\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testPostSave_KeepsTheBankPickedFromTheDirectory",
+      "tests/Controllers/AccountingTreasuriesControllerTest.php"
+    ]
+  },
+  {
+    "name": "Y03 the bank of the directory is shown in the language in use",
+    "file": "app/Controllers/AccountingTreasuries.php",
+    "find": "BankDirectory::nameOf($code, service('language')->getLocale())",
+    "replace": "BankDirectory::storedNameOf($code)",
+    "tests": [
+      "--filter",
+      "testGetSearch_ShowsTheNameOfTheDirectoryBank",
+      "tests/Controllers/AccountingTreasuriesControllerTest.php"
+    ]
+  },
+  {
+    "name": "Y04 the form preselects the bank of a hand written name that is in the directory",
+    "file": "app/Controllers/AccountingTreasuries.php",
+    "find": "(BankDirectory::codeOfName((string) $treasury->bank_name) ?? '')",
+    "replace": "''",
+    "tests": [
+      "--filter",
+      "testGetView_PreselectsTheDirectoryBankOfAnAccountOpenedByHand",
+      "tests/Controllers/AccountingTreasuriesControllerTest.php"
+    ]
+  },
+  {
+    "name": "Y05 the form preselects the bank of the account",
+    "file": "app/Controllers/AccountingTreasuries.php",
+    "find": "(string) (($treasury->bank_code ?? '') !== '' ? $treasury->bank_code :",
+    "replace": "(string) (false ? $treasury->bank_code :",
+    "tests": [
+      "--filter",
+      "testGetView_OffersTheBankDirectory",
+      "tests/Controllers/AccountingTreasuriesControllerTest.php"
+    ]
+  },
+  {
+    "name": "Y06 the link to the reconciliation is for who may reconcile",
+    "file": "app/Views/accounting_treasuries/manage.php",
+    "find": "    <?php if ($can_reconcile): ?>",
+    "replace": "    <?php if (true): ?>",
+    "tests": [
+      "--filter",
+      "testGetIndex_OffersTheLinkToTheBankReconciliationOnlyToWhoMayReconcile",
+      "tests/Controllers/AccountingTreasuriesControllerTest.php"
+    ]
+  },
+  {
+    "name": "Y07 the name of a bank outside the directory stays visible",
+    "file": "app/Views/accounting_treasuries/form.php",
+    "find": "<?= $isBank && $selected_bank === '' || ! $isBank ? '' : ' hidden' ?>",
+    "replace": "<?= ' hidden' ?>",
+    "tests": [
+      "--filter",
+      "testGetView_ShowsTheNameOfABankOutsideTheDirectory",
+      "tests/Controllers/AccountingTreasuriesControllerTest.php"
+    ]
+  },
+  {
+    "name": "V01 a match a closed reconciliation holds has no unmatch button on the lines",
+    "file": "app/Views/accounting_bank/lines.php",
+    "find": "<?php elseif ($row->reconciliation_id === null): ?>",
+    "replace": "<?php elseif (true): ?>",
+    "tests": [
+      "--filter",
+      "testGetLines_OffersNoUnmatchOnAMatchAClosedReconciliationHolds",
+      "tests/Controllers/AccountingBankReconciliationControllerTest.php"
+    ]
+  },
+  {
+    "name": "V02 a match a closed reconciliation holds has no unmatch button on the matches",
+    "file": "app/Views/accounting_bank/matches.php",
+    "find": "                                <?php if ($match->reconciliation_id === null): ?>\n                                    <button",
+    "replace": "                                <?php if (true): ?>\n                                    <button",
+    "tests": [
+      "--filter",
+      "testGetMatches_ShowsTheJournalLinesOfEachMatchAndMarksTheOnes",
+      "tests/Controllers/AccountingBankReconciliationControllerTest.php"
+    ]
+  },
+  {
+    "name": "V03 the close button is shown only when nothing is left to explain",
+    "file": "app/Views/accounting_bank/report.php",
+    "find": "    <?php if ($figures->reconciled()): ?>\n        <form id=\"bank_close_form\"",
+    "replace": "    <?php if (true): ?>\n        <form id=\"bank_close_form\"",
+    "tests": [
+      "--filter",
+      "testGetReport_ShowsTheDifferenceAndNoCloseButton|testGetReport_AsksForTheBalance",
+      "tests/Controllers/AccountingBankReconciliationControllerTest.php"
+    ]
+  },
+  {
+    "name": "V04 the reopen button is on the latest closing only",
+    "file": "app/Views/accounting_bank/account.php",
+    "find": "<?php if ($latest !== null && (int) $closing->reconciliation_id === $latest): ?>",
+    "replace": "<?php if (true): ?>",
+    "tests": [
+      "--filter",
+      "testGetAccount_OffersTheReopenButtonOnlyOnTheLatestClosing",
+      "tests/Controllers/AccountingBankReconciliationControllerTest.php"
+    ]
+  },
+  {
+    "name": "V05 a bank account without its details is flagged on the list",
+    "file": "app/Views/accounting_bank/index.php",
+    "find": "<?php if ($account['lacks_details']): ?>",
+    "replace": "<?php if (false): ?>",
+    "tests": [
+      "--filter",
+      "testGetIndex_FlagsABankAccountThatLacksItsDetails",
+      "tests/Controllers/AccountingBankReconciliationControllerTest.php"
+    ]
+  },
+  {
+    "name": "V06 a bank account without its details is flagged on its page",
+    "file": "app/Views/accounting_bank/account.php",
+    "find": "<?php if ($lacks_details): ?>",
+    "replace": "<?php if (false): ?>",
+    "tests": [
+      "--filter",
+      "testGetIndex_FlagsABankAccountThatLacksItsDetails",
+      "tests/Controllers/AccountingBankReconciliationControllerTest.php"
+    ]
+  },
+  {
+    "name": "V07 a line the books carry that is matched is flagged on the treasury statement",
+    "file": "app/Views/accounting_treasuries/statement.php",
+    "find": "    return isset($matched[(int) $row['line_id']])",
+    "replace": "    return false",
+    "tests": [
+      "--filter",
+      "testPostMatch_MatchesTheLinesAndTheTreasuryStatementFlags|testGetStatement_FlagsTheLinesMatched",
+      "tests/Controllers/AccountingBankReconciliationControllerTest.php",
+      "tests/Controllers/AccountingTreasuriesControllerTest.php"
+    ]
+  },
+  {
+    "name": "Z01 the permission to reconcile is not sensitive",
+    "file": "app/Libraries/Accounting/AccountingGuard.php",
+    "find": "        self::YEAR_END_CLOSE,\n    ];",
+    "replace": "        self::YEAR_END_CLOSE,\n        self::BANK_RECONCILE,\n    ];",
+    "tests": [
+      "--filter",
+      "testBankReconcile_IsNotASensitivePermission|testGetView_ListsTheBankReconcilePermission",
+      "tests/Libraries/Accounting/Bank/BankAccessTest.php",
+      "tests/Controllers/EmployeesControllerTest.php"
+    ]
+  },
+  {
+    "name": "N01 a statement line is matched once",
+    "file": "app/Database/Migrations/20271700000000_BankReconciliation.php",
+    "find": "UNIQUE KEY `{$matches}_line` (`statement_line_id`),",
+    "replace": "KEY `{$matches}_line` (`statement_line_id`),",
+    "tests": [
+      "--filter",
+      "testTables_RefuseAStatementLineMatchedTwice",
+      "tests/Database/BankReconciliationMigrationTest.php"
+    ]
+  },
+  {
+    "name": "N02 a journal line is in one match",
+    "file": "app/Database/Migrations/20271700000000_BankReconciliation.php",
+    "find": "UNIQUE KEY `{$matchLines}_journal_line` (`journal_line_id`),",
+    "replace": "KEY `{$matchLines}_journal_line` (`journal_line_id`),",
+    "tests": [
+      "--filter",
+      "testTables_RefuseAStatementLineMatchedTwice",
+      "tests/Database/BankReconciliationMigrationTest.php"
+    ]
+  },
+  {
+    "name": "N03 a file is imported once into an account",
+    "file": "app/Database/Migrations/20271700000000_BankReconciliation.php",
+    "find": "UNIQUE KEY `{$statements}_checksum` (`treasury_id`, `checksum`),",
+    "replace": "KEY `{$statements}_checksum` (`treasury_id`, `checksum`),",
+    "tests": [
+      "--filter",
+      "testTables_RefuseTheSameFileTwice",
+      "tests/Database/BankReconciliationMigrationTest.php"
+    ]
+  },
+  {
+    "name": "N04 a line is kept once in an account",
+    "file": "app/Database/Migrations/20271700000000_BankReconciliation.php",
+    "find": "UNIQUE KEY `{$lines}_dedupe` (`treasury_id`, `dedupe_key`),",
+    "replace": "KEY `{$lines}_dedupe` (`treasury_id`, `dedupe_key`),",
+    "tests": [
+      "--filter",
+      "testTables_RefuseTheSameFileTwice",
+      "tests/Database/BankReconciliationMigrationTest.php"
+    ]
+  },
+  {
+    "name": "N05 a journal line a match points at is not deleted",
+    "file": "app/Database/Migrations/20271700000000_BankReconciliation.php",
+    "find": "CONSTRAINT `{$matchLines}_fk_journal_line` FOREIGN KEY (`journal_line_id`) REFERENCES `{$journalLines}` (`line_id`) ON DELETE RESTRICT",
+    "replace": "CONSTRAINT `{$matchLines}_fk_journal_line` FOREIGN KEY (`journal_line_id`) REFERENCES `{$journalLines}` (`line_id`) ON DELETE CASCADE",
+    "tests": [
+      "--filter",
+      "testTables_RefuseADeleteOfAJournalLine",
+      "tests/Database/BankReconciliationMigrationTest.php"
+    ]
+  },
+  {
+    "name": "N06 a statement line has an amount",
+    "file": "app/Database/Migrations/20271700000000_BankReconciliation.php",
+    "find": "CONSTRAINT `{$lines}_amount` CHECK (`amount` <> 0)",
+    "replace": "CONSTRAINT `{$lines}_amount` CHECK (1 = 1)",
+    "tests": [
+      "--filter",
+      "testTables_RefuseAZeroAmount",
+      "tests/Database/BankReconciliationMigrationTest.php"
+    ]
+  },
+  {
+    "name": "N07 a closing has a known status",
+    "file": "app/Database/Migrations/20271700000000_BankReconciliation.php",
+    "find": "CONSTRAINT `{$reconciliations}_status` CHECK (`status` IN ('closed', 'reopened'))",
+    "replace": "CONSTRAINT `{$reconciliations}_status` CHECK (1 = 1)",
+    "tests": [
+      "--filter",
+      "testTables_RefuseAZeroAmount",
+      "tests/Database/BankReconciliationMigrationTest.php"
+    ]
+  },
+  {
+    "name": "N08 a statement has a known separator",
+    "file": "app/Database/Migrations/20271700000000_BankReconciliation.php",
+    "find": "CONSTRAINT `{$statements}_delimiter` CHECK (`delimiter_name` IN ('comma', 'semicolon', 'tab')),",
+    "replace": "CONSTRAINT `{$statements}_delimiter` CHECK (1 = 1),",
+    "tests": [
+      "--filter",
+      "testTables_RefuseAZeroAmount",
+      "tests/Database/BankReconciliationMigrationTest.php"
+    ]
+  },
+  {
+    "name": "N09 the permission is registered under the treasuries and granted to nobody",
+    "file": "app/Database/Migrations/20271700000000_BankReconciliation.php",
+    "find": "private const PERMISSION    = ['permission_id' => 'acc_bank_reconcile', 'module_id' => 'accounting_treasuries'];",
+    "replace": "private const PERMISSION    = ['permission_id' => 'acc_bank_reconcile', 'module_id' => 'accounting'];",
+    "tests": [
+      "--filter",
+      "testUp_CreatesTheTablesTheBankCode",
+      "tests/Database/BankReconciliationMigrationTest.php"
+    ]
+  }
+]
