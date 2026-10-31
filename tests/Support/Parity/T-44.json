@@ -1,6 +1,6 @@
 {
   "id": "T-44",
-  "title": "A revenue voucher: money received into a treasury with its tax, charged to the account of an income category made on first use or to the account chosen, edited in place and deleted with its journal; this application has no revenue voucher",
+  "title": "A revenue voucher (receipt voucher): money received into a treasury with its tax, credited to the account of a revenue category or to the account chosen, edited by reversing and posting again and deleted by reversing its journal",
   "recorded": "2026-10-27",
   "observation": {
     "batch": "d2",
@@ -29,9 +29,8 @@
     {
       "id": "a-revenue-voucher-with-tax-in-a-category",
       "kind": "revenue_voucher",
-      "classification": "not_implemented",
-      "work_package": "WP26",
-      "reason": "There is no revenue voucher, no income category and no screen for them (FIN-03, WP26). The journals the reference system wrote are recorded so the package has them: the whole amount debits the treasury, the amount without the tax credits the account of the category or the account chosen, and the tax credits the tax collected; an edit changes the same journal and a delete erases it.",
+      "classification": "differs",
+      "reason": "The receipt voucher is built (WP26): the whole amount debits the treasury, the amount without the tax credits the account chosen on the voucher, or else the account of its category, or else the account of other revenue, and the tax credits the tax collected, with the same lines the reference system wrote. An edit and a delete differ on purpose: this application reverses the journal and posts the next revision where the reference system changes the journal in place or erases it (E62).",
       "evidence": [
         "income_vouchers"
       ],
@@ -108,33 +107,51 @@
         "delete_erases_the_journal": true
       },
       "expected": {
-        "status": "not_implemented",
-        "absent": [
-          {
-            "kind": "table",
-            "name": "incomes"
-          },
-          {
-            "kind": "table",
-            "name": "income_categories"
-          },
-          {
-            "kind": "table",
-            "pattern": "revenue_voucher"
-          },
-          {
-            "kind": "table",
-            "pattern": "receipt_voucher"
-          },
-          {
-            "kind": "class",
-            "name": "App\\Controllers\\Incomes"
-          },
-          {
-            "kind": "class",
-            "name": "App\\Models\\Income"
-          }
-        ]
+        "journals": {
+          "voucher_with_tax": [
+            {
+              "role": "treasury",
+              "debit": "1300",
+              "credit": "0"
+            },
+            {
+              "role": "income",
+              "debit": "0",
+              "credit": "1130.43"
+            },
+            {
+              "role": "tax_output",
+              "debit": "0",
+              "credit": "169.57"
+            }
+          ],
+          "voucher_on_a_chosen_account": [
+            {
+              "role": "treasury",
+              "debit": "100",
+              "credit": "0"
+            },
+            {
+              "role": "income",
+              "debit": "0",
+              "credit": "100"
+            }
+          ],
+          "voucher_without_a_category": [
+            {
+              "role": "treasury",
+              "debit": "30",
+              "credit": "0"
+            },
+            {
+              "role": "income",
+              "debit": "0",
+              "credit": "30"
+            }
+          ]
+        },
+        "edit_changes_the_same_journal": false,
+        "delete_erases_the_journal": false
       }
     }
   ]

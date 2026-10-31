@@ -8,6 +8,7 @@ use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\AccountService;
 use App\Libraries\Accounting\AuditLog;
+use App\Libraries\Accounting\ChequeSources;
 use App\Libraries\Accounting\CostCenterService;
 use App\Libraries\Accounting\InterBranchLegs;
 use App\Libraries\Accounting\JournalAttachments;
@@ -17,6 +18,7 @@ use App\Libraries\Accounting\JournalStatus;
 use App\Libraries\Accounting\PeriodGuard;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\PostingFailureReader;
+use App\Libraries\Accounting\RevenuePostingBuilder;
 use App\Libraries\Accounting\YearEndEntries;
 use App\Libraries\Organization\BranchContext;
 use App\Libraries\Organization\BranchException;
@@ -55,6 +57,7 @@ class AccountingJournals extends AccountingController
             'branches'       => $seesBranches ? (new BranchService())->all($this->employeeId()) : [],
             'current_branch' => $this->branchContext()->current($this->employeeId()),
             'creators'       => $this->can(AccountingGuard::JOURNALS_ALL) ? (new AuditLog())->employees($this->branchIds()) : [],
+            'sources'        => array_map(fn (string $source): array => ['code' => $source, 'label' => $this->label('source', $source)], [RevenuePostingBuilder::SOURCE, ...ChequeSources::ALL]),
             'can_draft'      => $this->can(AccountingGuard::JOURNALS_DRAFT),
             'can_post'       => $this->can(AccountingGuard::JOURNALS_POST),
             'can_audit'      => $this->can(AccountingGuard::JOURNALS_AUDIT),

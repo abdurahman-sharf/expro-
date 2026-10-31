@@ -211,12 +211,12 @@ class DefaultChartTest extends CIUnitTestCase
         $this->assertSame($parentCode, $db->table('accounting_accounts')->where('account_id', $account->parent_id)->get()->getRow()->code, $code);
     }
 
-    public function testInstall_AddsOnlyTheGiftCardTheCounterCustomersAndTheTwoBranchAccountsToTheReferenceChart(): void
+    public function testInstall_AddsOnlyTheGiftCardTheCounterCustomersTheTwoBranchAccountsAndTheChequesAccountsToTheReferenceChart(): void
     {
         $codes    = array_column($this->accountingDb()->table('accounting_accounts')->select('code')->get()->getResultArray(), 'code');
         $observed = array_merge(['1', '2', '3', '4', '5'], array_column(self::observedChartProvider(), 0));
 
-        $this->assertEqualsCanonicalizing([...$observed, '216', '12043', '12044', '2214'], $codes);
+        $this->assertEqualsCanonicalizing([...$observed, '216', '12043', '12044', '2214', '120601', '120602', '212001', '546'], $codes);
     }
 
     public function testInstall_PutsInputTaxAmongTheLiabilitiesBesideOutputTax(): void
@@ -270,22 +270,43 @@ class DefaultChartTest extends CIUnitTestCase
         return count(RoutingKey::cases()) + count($paymentRows);
     }
 
-    public function testInstall_HoldsOtherAccountsForChequesThanTheReferenceSystemMakes(): void
+    public function testInstall_HoldsLeafAccountsForChequesUnderTheGroupsOfNotesNotTheCodesOfTheReferenceSystem(): void
     {
         $case = $this->referenceCase('T-54', 'cheque_accounts', 'the-chart-has-other-accounts-for-cheques-than-the-reference-system', 'differs');
 
         $this->reinstallChart();
 
         $row      = fn (string $code): ?object => $this->accountingDb()->table('accounting_accounts')->where('code', $code)->get()->getRow();
-        $named    = fn (string $name): bool => $this->accountingDb()->table('accounting_accounts')->where('name', $name)->countAllResults() > 0;
+        $codeOf   = fn (string $systemKey): string => (string) ($this->accountingDb()->table('accounting_accounts')->where('system_key', $systemKey)->get()->getRow()?->code ?? 'none');
         $accounts = [
-            'notes_receivable' => $row('1206') !== null && $row('1206')->name === 'أوراق القبض' ? '1206' : 'none',
-            'under_collection' => $named('مبالغ تحت التحصيل') ? '1212' : 'none',
-            'deposit_fees'     => $named('رسوم الايداع') ? '55' : 'none',
-            'notes_payable'    => $row('212') !== null && $row('212')->name === 'أوراق الدفع' ? '212' : 'none',
+            'notes_receivable' => $codeOf('notes_receivable'),
+            'under_collection' => $codeOf('cheques_under_collection'),
+            'deposit_fees'     => $codeOf('cheque_deposit_fees'),
+            'notes_payable'    => $codeOf('notes_payable'),
         ];
 
         $this->assertSameAsFixture($case['expected']['accounts'], $accounts, 'accounts for cheques');
         $this->assertSame([$case['expected']['detail']['1206_is_a_group'], $case['expected']['detail']['212_is_a_group'], $case['expected']['detail']['216_is']], [(bool) $row('1206')->is_group, (bool) $row('212')->is_group, $row('216')->name]);
+    }
+
+    public function testInstall_PutsTheLeafAccountsOfTheChequesUnderTheirGroupsAndRoutesThemAndTheDefaultRevenue(): void
+    {
+        $db       = $this->accountingDb();
+        $expected = [
+            'notes_receivable'         => ['120601', '1206', 'asset', 'debit', 'cheques.receivable'],
+            'cheques_under_collection' => ['120602', '1206', 'asset', 'debit', 'cheques.collection'],
+            'notes_payable'            => ['212001', '212', 'liability', 'credit', 'cheques.payable'],
+            'cheque_deposit_fees'      => ['546', '54', 'expense', 'debit', 'cheques.fees'],
+            'revenues_default'         => ['4201', '42', 'revenue', 'credit', 'revenues.default'],
+        ];
+
+        foreach ($expected as $systemKey => [$code, $parentCode, $type, $normal, $routingKey]) {
+            $account = $db->table('accounting_accounts')->where('system_key', $systemKey)->get()->getRow();
+
+            $this->assertNotNull($account, $systemKey);
+            $this->assertSame([$code, $type, $normal, '0', '1'], [$account->code, $account->account_type, $account->normal_balance, (string) $account->is_group, (string) $account->is_system], $systemKey);
+            $this->assertSame($parentCode, $db->table('accounting_accounts')->where('account_id', $account->parent_id)->get()->getRow()->code, $systemKey);
+            $this->assertSame((int) $account->account_id, (int) $db->table('accounting_routing')->where('routing_key', $routingKey)->get()->getRow()->account_id, $routingKey);
+        }
     }
 }

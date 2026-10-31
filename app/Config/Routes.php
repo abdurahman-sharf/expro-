@@ -113,6 +113,53 @@ $routes->group('accounting_payables', static function (RouteCollection $routes):
     $routes->post('refund/(:num)', 'AccountingPayables::postRefund/$1');
 });
 
+$routes->group('accounting_cheques', static function (RouteCollection $routes): void {
+    $routes->get('/', 'AccountingCheques::getIndex');
+    $routes->get('search', 'AccountingCheques::getSearch');
+    $routes->get('row/(:num)', 'AccountingCheques::getRow/$1');
+    $routes->get('view/(:num)', 'AccountingCheques::getDetail/$1');
+    $routes->get('parties/(:segment)', 'AccountingCheques::getParties/$1');
+    $routes->get('form/(:segment)', 'AccountingCheques::getForm/$1');
+    $routes->get('form/(:segment)/(:num)', 'AccountingCheques::getForm/$1/$2');
+    $routes->post('save/(:segment)', 'AccountingCheques::postSaveCheque/$1');
+    $routes->post('save/(:segment)/(:num)', 'AccountingCheques::postSaveCheque/$1/$2');
+    $routes->get('action_form/(:segment)/(:num)', 'AccountingCheques::getActionForm/$1/$2');
+    $routes->post('act/(:segment)/(:num)', 'AccountingCheques::postAct/$1/$2');
+    $routes->post('cancel/(:num)', 'AccountingCheques::postCancel/$1');
+    $routes->post('undo/(:num)', 'AccountingCheques::postUndo/$1');
+    $routes->post('delete/(:num)', 'AccountingCheques::postDeleteCheque/$1');
+    $routes->get('books', 'AccountingCheques::getBooks');
+    $routes->get('book_form', 'AccountingCheques::getBookForm');
+    $routes->get('book_form/(:num)', 'AccountingCheques::getBookForm/$1');
+    $routes->post('save_book', 'AccountingCheques::postSaveBook');
+    $routes->post('save_book/(:num)', 'AccountingCheques::postSaveBook/$1');
+    $routes->post('book_active/(:num)/(:num)', 'AccountingCheques::postBookActive/$1/$2');
+    $routes->post('delete_book/(:num)', 'AccountingCheques::postDeleteBook/$1');
+    $routes->get('report/(:segment)', 'AccountingCheques::getReport/$1');
+});
+
+$routes->group('receipt_vouchers', static function (RouteCollection $routes): void {
+    $routes->get('/', 'Receipt_vouchers::getIndex');
+    $routes->get('search', 'Receipt_vouchers::getSearch');
+    $routes->get('row/(:num)', 'Receipt_vouchers::getRow/$1');
+    $routes->get('view', 'Receipt_vouchers::getView');
+    $routes->get('view/(:num)', 'Receipt_vouchers::getView/$1');
+    $routes->post('save', 'Receipt_vouchers::postSave');
+    $routes->post('save/(:num)', 'Receipt_vouchers::postSave/$1');
+    $routes->post('delete', 'Receipt_vouchers::postDelete');
+});
+
+$routes->group('revenue_categories', static function (RouteCollection $routes): void {
+    $routes->get('/', 'Revenue_categories::getIndex');
+    $routes->get('search', 'Revenue_categories::getSearch');
+    $routes->get('row/(:num)', 'Revenue_categories::getRow/$1');
+    $routes->get('view', 'Revenue_categories::getView');
+    $routes->get('view/(:num)', 'Revenue_categories::getView/$1');
+    $routes->post('save', 'Revenue_categories::postSave');
+    $routes->post('save/(:num)', 'Revenue_categories::postSave/$1');
+    $routes->post('delete', 'Revenue_categories::postDelete');
+});
+
 $routes->group('accounting_reports', static function (RouteCollection $routes): void {
     $routes->get('/', 'AccountingReports::getIndex');
     $routes->get('trial_balance', 'AccountingReports::getIndex');

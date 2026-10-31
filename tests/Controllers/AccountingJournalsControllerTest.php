@@ -4,6 +4,7 @@ namespace Tests\Controllers;
 
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AuditLog;
+use App\Libraries\Accounting\ChequeSources;
 use App\Libraries\Accounting\CostCenterService;
 use App\Libraries\Accounting\InterBranchLegs;
 use App\Libraries\Accounting\JournalDraft;
@@ -12,6 +13,7 @@ use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\JournalOrigin;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\PostingService;
+use App\Libraries\Accounting\RevenuePostingBuilder;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Accounting\TreasuryTransfers;
 use App\Libraries\Accounting\YearEndClosing;
@@ -90,6 +92,20 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         $response->assertSee('id="journal_filters"');
         $response->assertDontSee('accounting_journals/new');
         $response->assertDontSee('accounting_journals/audit');
+    }
+
+    public function testGetIndex_OffersEverySourceOfTheChequeCycleAndTheReceiptVoucherInTheSourceFilter(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_journals']));
+
+        $body = $this->get('/accounting_journals')->getBody();
+
+        foreach ([...ChequeSources::ALL, RevenuePostingBuilder::SOURCE] as $source) {
+            $this->assertStringContainsString('<option value="' . $source . '">' . esc(lang('Accounting.source_' . $source)) . '</option>', $body, $source);
+        }
+
+        $this->assertStringContainsString('<option value="manual">', $body);
+        $this->assertStringContainsString('<option value="reversal">', $body);
     }
 
     public function testGetIndex_OffersTheNewJournalAndAuditLinksWithThePermissions(): void
@@ -1837,6 +1853,17 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
 
         foreach (['expense' => 'entity_expense', 'cashup' => 'entity_cashup', 'expense_category' => 'entity_expense_category'] as $code => $key) {
             $this->assertStringContainsString('<option value="' . $code . '">' . lang('Accounting.' . $key) . '</option>', $body);
+        }
+    }
+
+    public function testGetAudit_OffersTheEntityFilterForChequesChequeBooksVouchersAndVoucherCategories(): void
+    {
+        $this->accountant();
+
+        $body = $this->get('/accounting_journals/audit')->getBody();
+
+        foreach (['cheque' => 'entity_cheque', 'cheque_book' => 'entity_cheque_book', 'revenue' => 'entity_revenue', 'revenue_category' => 'entity_revenue_category'] as $code => $key) {
+            $this->assertSame(1, substr_count($body, '<option value="' . $code . '">' . lang('Accounting.' . $key) . '</option>'), $code);
         }
     }
 }

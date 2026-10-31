@@ -89,10 +89,11 @@ final class DefaultChart
     }
 
     /**
-     * The chart of the reference system as observed in a fresh account, plus two accounts
-     * only this application needs: unused gift cards (216) and the customers of sales made
-     * without naming one (12043). Rows are [code, name, type,
-     * parent code, is group, system key, contra account].
+     * The chart of the reference system as observed in a fresh account, plus the accounts only
+     * this application needs: unused gift cards (216), the customers of sales made without naming
+     * one (12043), and the leaf accounts of the cheque cycle under the two groups of notes (120601,
+     * 120602 and 212001) and the deposit fees (546). Rows are [code, name, type, parent code,
+     * is group, system key, contra account].
      *
      * @return list<array{string, string, AccountType, ?string, bool, ?string, bool}>
      */
@@ -131,6 +132,8 @@ final class DefaultChart
             ['12044', 'ذمم بين الفروع (مدينة)', AccountType::Asset, '1204', false, 'branches_receivable', false],
             ['1205', 'عهد الموظفين', AccountType::Asset, '12', true, null, false],
             ['1206', 'أوراق القبض', AccountType::Asset, '12', true, null, false],
+            ['120601', 'أوراق القبض', AccountType::Asset, '1206', false, 'notes_receivable', false],
+            ['120602', 'مبالغ تحت التحصيل', AccountType::Asset, '1206', false, 'cheques_under_collection', false],
             ['1208', 'عجز & زيادة الصندوق', AccountType::Asset, '12', false, 'cash_difference', false],
             ['1209', 'تغيير عملة', AccountType::Asset, '12', false, null, false],
             ['1210', 'المشتريات', AccountType::Asset, '12', false, 'purchases', false],
@@ -142,6 +145,7 @@ final class DefaultChart
             ['2213', 'أطراف دائنة أخرى', AccountType::Liability, '211', false, 'other_payables', false],
             ['2214', 'ذمم بين الفروع (دائنة)', AccountType::Liability, '211', false, 'branches_payable', false],
             ['212', 'أوراق الدفع', AccountType::Liability, '21', true, null, false],
+            ['212001', 'أوراق الدفع', AccountType::Liability, '212', false, 'notes_payable', false],
             ['214', 'أرصدة افتتاحية', AccountType::Liability, '21', false, 'opening_balance', false],
             ['215', 'القيمة المضافة المطلوبة', AccountType::Liability, '21', true, null, false],
             ['215001', 'القيمة المضافة المحصلة', AccountType::Liability, '215', false, 'tax_output', false],
@@ -156,7 +160,7 @@ final class DefaultChart
             ['411', 'المبيعات', AccountType::Revenue, '41', false, 'sales_revenue', false],
             ['412', 'مردودات المبيعات', AccountType::Revenue, '41', false, 'sales_returns', true],
             ['42', 'إيرادات أخرى', AccountType::Revenue, '4', true, null, false],
-            ['4201', 'إيرادات أخرى', AccountType::Revenue, '42', false, null, false],
+            ['4201', 'إيرادات أخرى', AccountType::Revenue, '42', false, 'revenues_default', false],
             ['4202', 'أرباح وخسائر رأسمالية', AccountType::Revenue, '42', false, null, false],
             ['4203', 'خصم مكتسب', AccountType::Revenue, '42', false, 'purchase_discount', false],
 
@@ -178,6 +182,7 @@ final class DefaultChart
             ['543', 'عجز وزيادة المخزون', AccountType::Expense, '54', false, null, false],
             ['544', 'إعادة تقييم', AccountType::Expense, '54', false, null, false],
             ['545', 'إيجار', AccountType::Expense, '54', false, null, false],
+            ['546', 'رسوم الإيداع', AccountType::Expense, '54', false, 'cheque_deposit_fees', false],
         ];
     }
 }

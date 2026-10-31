@@ -7,6 +7,7 @@ use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountService;
+use App\Libraries\Accounting\ChequeSources;
 use App\Libraries\Accounting\CostCenterService;
 use App\Libraries\Accounting\CrossBranchPayments;
 use App\Libraries\Accounting\CustomerOpening;
@@ -21,6 +22,7 @@ use App\Libraries\Accounting\PeriodLocks;
 use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\ReportPeriod;
 use App\Libraries\Accounting\ReportScope;
+use App\Libraries\Accounting\RevenuePostingBuilder;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Accounting\TreasuryTransfers;
 use App\Libraries\Accounting\TrialBalance;
@@ -2394,5 +2396,66 @@ class JournalServiceTest extends CIUnitTestCase
         }
 
         $this->assertSame(['posted', 'posted'], [$this->journal($pair['document'])->status, $this->journal($pair['treasury'])->status]);
+    }
+
+    /**
+     * @return list<string> The nine sources of the cheque cycle and the one of the receipt voucher.
+     */
+    private function chequeAndVoucherSources(): array
+    {
+        return [...ChequeSources::ALL, RevenuePostingBuilder::SOURCE];
+    }
+
+    public function testReverse_RejectsTheJournalsOfEveryChequeStatusChangeAndOfAReceiptVoucherAndLeavesThemToTheirDocuments(): void
+    {
+        $reverser = $this->accountant();
+
+        foreach ($this->chequeAndVoucherSources() as $source) {
+            $journalId = $this->journalOfAStockTransfer($source);
+
+            $this->assertFailsWith(AccountingError::DocumentJournalLocked, fn () => $this->service->reverse($journalId, '2026-10-22', 'By hand', $reverser));
+            $this->assertSame('posted', $this->journal($journalId)->status, $source);
+        }
+    }
+
+    public function testReverseAutomatic_TakesBackTheJournalsOfEveryChequeStatusChangeAndOfAReceiptVoucher(): void
+    {
+        foreach ($this->chequeAndVoucherSources() as $source) {
+            $journalId = $this->journalOfAStockTransfer($source);
+
+            $this->assertGreaterThan(0, $this->service->reverseAutomatic($journalId, '2026-10-22', 'Document changed', null), $source);
+            $this->assertSame('reversed', $this->journal($journalId)->status, $source);
+        }
+    }
+
+    public function testSearch_FiltersByEachSourceOfTheChequeCycleAndTheReceiptVoucher(): void
+    {
+        $journals = [];
+
+        foreach ($this->chequeAndVoucherSources() as $source) {
+            $journals[$source] = $this->journalOfAStockTransfer($source);
+        }
+
+        $ids = static fn (array $result): array => array_map(static fn (object $row): int => (int) $row->journal_id, $result['rows']);
+
+        foreach ($journals as $source => $journalId) {
+            $this->assertSame([$journalId], $ids($this->service->search(['source_type' => $source])), $source);
+        }
+
+        $this->assertSame(10, $this->service->search([])['total']);
+    }
+
+    public function testSources_NamesEveryChequeSourceAndTheReceiptVoucherInEnglishAndArabic(): void
+    {
+        $english = include APPPATH . 'Language/en/Accounting.php';
+        $arabic  = include APPPATH . 'Language/ar-EG/Accounting.php';
+
+        foreach ($this->chequeAndVoucherSources() as $source) {
+            $this->assertNotSame('', $english['source_' . $source] ?? '', "en lacks the label of {$source}");
+            $this->assertNotSame('', $arabic['source_' . $source] ?? '', "ar-EG lacks the label of {$source}");
+            $this->assertNotSame($english['source_' . $source], $arabic['source_' . $source], $source);
+        }
+
+        $this->assertCount(10, array_unique(array_map(static fn (string $source): string => $english['source_' . $source], $this->chequeAndVoucherSources())));
     }
 }

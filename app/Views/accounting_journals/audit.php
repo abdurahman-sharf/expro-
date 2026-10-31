@@ -111,6 +111,10 @@ $actionLabel = static function (string $action): string {
                 <option value="customer_advance"><?= lang('Accounting.entity_customer_advance') ?></option>
                 <option value="customer_refund"><?= lang('Accounting.entity_customer_refund') ?></option>
                 <option value="supplier_refund"><?= lang('Accounting.entity_supplier_refund') ?></option>
+                <option value="cheque"><?= lang('Accounting.entity_cheque') ?></option>
+                <option value="cheque_book"><?= lang('Accounting.entity_cheque_book') ?></option>
+                <option value="revenue"><?= lang('Accounting.entity_revenue') ?></option>
+                <option value="revenue_category"><?= lang('Accounting.entity_revenue_category') ?></option>
             </select>
         </div>
         <div class="acc-filter">

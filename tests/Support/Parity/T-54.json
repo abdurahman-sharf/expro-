@@ -1,6 +1,6 @@
 {
   "id": "T-54",
-  "title": "A received cheque from receipt to collection or rejection: the journals the reference system writes at every status (notes receivable, funds under collection, deposit fees, the bank), and the accounts the chart here has for them; there is no cheque module yet",
+  "title": "A received cheque from receipt to collection or rejection: the journals the reference system writes at every status (notes receivable, funds under collection, deposit fees, the bank), built here with the same lines in the leaf accounts the chart has for them",
   "recorded": "2026-10-28",
   "observation": {
     "batch": "b",
@@ -57,9 +57,8 @@
     {
       "id": "a-received-cheque-from-receipt-to-collection-or-rejection",
       "kind": "received_cheque",
-      "classification": "not_implemented",
-      "work_package": "WP26",
-      "reason": "There is no cheque document, no status and no cheque screen here: a payment by cheque is a payment type that goes straight into a treasury (WP26 builds the cheque cycle). The reference system undoes a step by deleting its journal where this application reverses (the WP26 invariant), and the account codes of the reference system (1211, 1212, 55) are not the ones of the chart here, which the next case records.",
+      "classification": "differs",
+      "reason": "The cheque cycle is built (WP26): every status change posts the journals the reference system wrote, with the same lines and amounts, held in leaf accounts under notes receivable (1206), which the next case records. Taking a step back differs on purpose: the reference system deletes the journal of the step where this application reverses it and keeps both (decision E64 and E67), and a received cheque is a customer entered on the cheque where the reference system takes any account.",
       "evidence": [
         "cheques_module",
         "received_cheque_form",
@@ -208,32 +207,107 @@
         "credit_applied_to_open_invoices_automatically": true
       },
       "expected": {
-        "status": "not_implemented",
-        "absent": [
-          {
-            "kind": "table",
-            "pattern": "cheque"
-          },
-          {
-            "kind": "route",
-            "pattern": "cheque"
-          },
-          {
-            "kind": "class",
-            "name": "App\\Controllers\\Cheques"
-          },
-          {
-            "kind": "class",
-            "name": "App\\Models\\Cheque"
-          }
-        ]
+        "journals": {
+          "received": [
+            {
+              "role": "notes_receivable",
+              "debit": "100",
+              "credit": "0"
+            },
+            {
+              "role": "customer",
+              "debit": "0",
+              "credit": "100"
+            }
+          ],
+          "collected_directly": [
+            {
+              "role": "bank",
+              "debit": "100",
+              "credit": "0"
+            },
+            {
+              "role": "notes_receivable",
+              "debit": "0",
+              "credit": "100"
+            }
+          ],
+          "rejected_when_received": [
+            {
+              "role": "customer",
+              "debit": "100",
+              "credit": "0"
+            },
+            {
+              "role": "notes_receivable",
+              "debit": "0",
+              "credit": "100"
+            }
+          ],
+          "deposited": [
+            {
+              "role": "under_collection",
+              "debit": "100",
+              "credit": "0"
+            },
+            {
+              "role": "notes_receivable",
+              "debit": "0",
+              "credit": "100"
+            }
+          ],
+          "collected_after_deposit": [
+            {
+              "role": "bank",
+              "debit": "97.5",
+              "credit": "0"
+            },
+            {
+              "role": "deposit_fees",
+              "debit": "2.5",
+              "credit": "0"
+            },
+            {
+              "role": "under_collection",
+              "debit": "0",
+              "credit": "100"
+            }
+          ],
+          "rejected_after_deposit_first": [
+            {
+              "role": "customer",
+              "debit": "100",
+              "credit": "0"
+            },
+            {
+              "role": "notes_receivable",
+              "debit": "0",
+              "credit": "100"
+            }
+          ],
+          "rejected_after_deposit_second": [
+            {
+              "role": "notes_receivable",
+              "debit": "100",
+              "credit": "0"
+            },
+            {
+              "role": "under_collection",
+              "debit": "0",
+              "credit": "100"
+            }
+          ]
+        },
+        "undo_of_a_step": "reverses the journal of the step",
+        "deleted_only_while": "received",
+        "credit_applied_to_open_invoices_automatically": true
       }
     },
     {
       "id": "the-chart-has-other-accounts-for-cheques-than-the-reference-system",
       "kind": "cheque_accounts",
       "classification": "differs",
-      "reason": "The reference system keeps received cheques in 1211, cheques in the bank in 1212 and deposit fees in 55, all made by the cheque module. The chart here has the group 1206 for notes receivable and no account for cheques under collection or for deposit fees, and its code 216 is the unused gift cards, not the notes payable of the reference system (that is 212 here). WP26 maps them; this records what the chart holds today.",
+      "reason": "The reference system keeps received cheques in 1211, cheques in the bank in 1212 and deposit fees in 55, all made by the cheque module, and notes payable in 216. The chart here keeps them in leaf accounts it installs (WP26): 120601 under the group 1206 for notes receivable, 120602 under the same group for funds under collection, 546 under other expenses for the deposit fees and 212001 under the group 212 for notes payable, each routed through a row the owner can change. The groups 1206 and 212 stay groups with no posting, and 216 stays the unused gift cards.",
       "evidence": [
         "received_cheque_journals"
       ],
@@ -250,10 +324,10 @@
       },
       "expected": {
         "accounts": {
-          "notes_receivable": "1206",
-          "under_collection": "none",
-          "deposit_fees": "none",
-          "notes_payable": "212"
+          "notes_receivable": "120601",
+          "under_collection": "120602",
+          "deposit_fees": "546",
+          "notes_payable": "212001"
         },
         "detail": {
           "1206_is_a_group": true,

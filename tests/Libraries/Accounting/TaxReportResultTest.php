@@ -63,6 +63,16 @@ final class TaxReportResultTest extends CIUnitTestCase
         $this->assertSame('1990.0000', $report->outputBase());
     }
 
+    public function testOutput_AddsTheTaxOfReceiptVouchersToTheTaxOfSalesAndTakesThemIntoWhatIsPayable(): void
+    {
+        $report = $this->reportOf(['sales' => ['100.0000', '15.0000'], 'revenues' => ['40.0000', '6.0000'], 'expenses' => ['-20.0000', '-3.0000']]);
+
+        $this->assertSame('21.0000', $report->output());
+        $this->assertSame('140.0000', $report->outputBase());
+        $this->assertSame('3.0000', $report->input());
+        $this->assertSame('18.0000', $report->net());
+    }
+
     public function testInput_IsTheTaxPaidOnPurchasesAndExpensesLessWhatWentBack(): void
     {
         $report = $this->reportOf(['sales' => ['100.0000', '15.0000'], 'purchases' => ['-1000.0000', '-150.0000'], 'purchase_returns' => ['200.0000', '30.0000'], 'expenses' => ['-200.0000', '-30.0000']]);

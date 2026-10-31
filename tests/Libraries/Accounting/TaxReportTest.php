@@ -8,6 +8,7 @@ use App\Libraries\Accounting\InvoiceDiscount;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\ReportPeriod;
 use App\Libraries\Accounting\ReportScope;
+use App\Libraries\Accounting\RevenueVouchers;
 use App\Libraries\Accounting\RoutingKey;
 use App\Libraries\Accounting\TaxAccountFigures;
 use App\Libraries\Accounting\TaxBasis;
@@ -113,6 +114,11 @@ class TaxReportTest extends CIUnitTestCase
         }
 
         return '0.0000';
+    }
+
+    private function receive(string $amount, string $tax, string $date = '2026-10-20', ?int $revenueId = null): int
+    {
+        return (new RevenueVouchers())->save(['date' => $date, 'amount' => $amount, 'tax_amount' => $tax, 'payment_type' => 'Cash', 'description' => 'Stand rent'], $revenueId, $this->clerkId);
     }
 
     private function accountOf(TaxReportResult $report, string $code): TaxAccountFigures
@@ -237,6 +243,66 @@ class TaxReportTest extends CIUnitTestCase
 
         $this->assertSame(['base' => '-100.0000', 'tax' => '-15.0000', 'documents' => 2], $this->figures($report, TaxSection::Expenses));
         $this->assertSame('-15.0000', $this->accountOf($report, '215002')->movement);
+    }
+
+    public function testBuild_ShowsAReceiptVoucherWithTaxAsOutputTaxAndTakesTheLastVersionOfAnEditedOne(): void
+    {
+        $id = $this->receive('115.00', '15.00');
+
+        $report = $this->report();
+
+        $this->assertSame(['base' => '100.0000', 'tax' => '15.0000', 'documents' => 1], $this->figures($report, TaxSection::Revenues));
+        $this->assertSame('15.0000', $report->output());
+        $this->assertSame('100.0000', $report->outputBase());
+        $this->assertSame('15.0000', $report->net());
+        $this->assertSame(0, $this->accountOf($report, '215001')->otherJournals, 'A voucher is tax of a document, not another journal');
+
+        $this->receive('230.00', '30.00', '2026-10-20', $id);
+
+        $report = $this->report();
+
+        $this->assertSame(['base' => '200.0000', 'tax' => '30.0000', 'documents' => 1], $this->figures($report, TaxSection::Revenues));
+        $this->assertSame('30.0000', $this->accountOf($report, '215001')->movement, 'The journal of the old version was reversed with a reversal');
+        $this->assertTrue($report->ties());
+    }
+
+    public function testBuild_LeavesOutAReceiptVoucherWithNoTaxAndOneThatWasDeleted(): void
+    {
+        $this->receive('100.00', '0');
+        $deleted = $this->receive('115.00', '15.00');
+
+        (new RevenueVouchers())->delete([$deleted], $this->clerkId);
+
+        $report = $this->report();
+
+        $this->assertSame(['base' => '0.0000', 'tax' => '0.0000', 'documents' => 0], $this->figures($report, TaxSection::Revenues));
+        $this->assertSame('0.0000', $report->net());
+        $this->assertTrue($report->ties());
+    }
+
+    public function testBuild_AddsTheTaxOfReceiptVouchersToTheTaxOfSalesInWhatIsPayable(): void
+    {
+        $this->sell('100.00', '15.00');
+        $this->receive('115.00', '15.00');
+        $this->spend('230.00', '30.00');
+
+        $report = $this->report();
+
+        $this->assertSame('30.0000', $report->output());
+        $this->assertSame('30.0000', $report->input());
+        $this->assertSame('0.0000', $report->net());
+        $this->assertSame('15.0000', $report->section(TaxSection::Revenues)->tax);
+        $this->assertTrue($report->ties());
+    }
+
+    public function testBuild_CountsAReceiptVoucherOfAnotherBranchOnlyInTheScopeThatHoldsIt(): void
+    {
+        $treasury = $this->treasury('Branch drawer', $this->second);
+
+        (new RevenueVouchers())->save(['date' => '2026-10-20', 'amount' => '115.00', 'tax_amount' => '15.00', 'payment_type' => 'Cash', 'treasury_id' => $treasury, 'description' => 'Second branch'], null, $this->clerkId);
+
+        $this->assertSame('0.0000', $this->report(null, self::END, $this->scopeOf([1]))->output());
+        $this->assertSame('15.0000', $this->report(null, self::END, $this->scopeOf([$this->second]))->output());
     }
 
     public function testBuild_NetsASaleThatWasCancelledToNothing(): void

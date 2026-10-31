@@ -9,6 +9,7 @@ use App\Libraries\Accounting\CashupPostingBuilder;
 use App\Libraries\Accounting\JournalChange;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\Accounting\RevenueVouchers;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Organization\BranchError;
@@ -151,6 +152,18 @@ class CashupPostingTest extends CIUnitTestCase
 
         $this->assertSame('440.0000', $this->row($cashupId)->expected_amount_cash);
         $this->assertSame([], $this->journalsOfSource(self::SOURCE, $cashupId));
+        $this->assertSame(1, $this->countRows('accounting_journals'));
+    }
+
+    public function testSaveValue_AddsTheCashReceiptVouchersToWhatIsExpected(): void
+    {
+        $this->aDayOfCash();
+        (new RevenueVouchers())->save(['date' => '2026-10-20', 'amount' => '60.00', 'tax_amount' => '0', 'payment_type' => 'Cash', 'description' => 'Rent of the stand'], null, $this->clerkId);
+
+        $cashupId = $this->saveCashup($this->cashupData('560.00'));
+
+        $this->assertSame(['560.0000', '0.0000'], [$this->row($cashupId)->expected_amount_cash, $this->row($cashupId)->cash_difference]);
+        $this->assertSame([], $this->journalsOfSource(self::SOURCE, $cashupId), 'The counted cash holds the voucher, so no difference is booked');
         $this->assertSame(1, $this->countRows('accounting_journals'));
     }
 

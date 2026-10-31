@@ -1850,4 +1850,34 @@ class ExpensePostingTest extends CIUnitTestCase
         $this->assertSame('0.00', $this->balanceOf($this->accountId('tax_input')));
         $this->assertSame(bcadd((string) $sums->debit, '0', 2), bcadd((string) $sums->credit, '0', 2));
     }
+
+    public function testSaveValue_PaysAnExpenseOfAnyWayFromTheTreasuryNamedWhateverItsKindAndWritesNoChequeRecord(): void
+    {
+        foreach (['cash', 'check', 'bank_transfer', 'debit', 'credit'] as $way) {
+            $bank = (new TreasuryService())->create(['name' => 'Bank ' . $way . uniqid(), 'kind' => 'bank', 'bank_name' => 'Gulf Bank', 'account_number' => strtoupper(uniqid('AC'))]);
+            $data = $this->expenseData('115.00', '15.00', lang('Sales.' . $way));
+
+            $data['treasury_id'] = $bank;
+
+            $expenseId = $this->saveExpense($data);
+
+            $this->assertSame((int) (new TreasuryService())->accountOf($bank) . '=0.00/115.00', $this->postedLines(self::SOURCE, $expenseId)[2], $way);
+            $this->assertSame('-115.00', $this->assertTreasuryTiesToItsAccount($bank), $way);
+        }
+
+        $this->assertSame(0, $this->countRows('cheques'));
+    }
+
+    public function testSaveValue_PaysACheckExpenseThatNamesNoTreasuryFromTheAccountRoutedForChecks(): void
+    {
+        $held = $this->customAccount('12', '1230', 'Checks held');
+
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'payment.check')->update(['account_id' => $held]);
+
+        $expenseId = $this->saveExpense($this->expenseData('40.00', '0', lang('Sales.check')));
+
+        $this->assertNull($this->accountingDb()->table('expenses')->where('expense_id', $expenseId)->get()->getRow()->treasury_id);
+        $this->assertSame('-40.00', $this->balanceOf($held));
+        $this->assertSame(0, $this->countRows('cheques'));
+    }
 }

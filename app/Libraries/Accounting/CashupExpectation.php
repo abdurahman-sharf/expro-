@@ -16,7 +16,8 @@ use Config\OSPOS;
  * an expense is paid by the branch of its treasury in the same way, so a payment across branches
  * is counted by the drawer that holds the money. A payment counts as cash by what its name stands
  * for in the language in use or in English, and a payment that is not completed is not cash that
- * came in. An expense that belongs to no branch is one of the default branch.
+ * came in. An expense that belongs to no branch is one of the default branch. A receipt voucher
+ * received in cash is cash that came in, counted for the days it is dated, as it carries no time.
  */
 final class CashupExpectation
 {
@@ -40,6 +41,7 @@ final class CashupExpectation
         $byDay    = empty(config(OSPOS::class)->settings['date_or_time_format']);
         $default  = (new BranchGuard($this->db))->companyDefaultBranchId();
         $expected = bcadd(bcadd($openAmount, $transferAmount, SaleAmounts::SCALE), $this->cashSales($branchId, $openDate, $closeDate, $byDay), SaleAmounts::SCALE);
+        $expected = bcadd($expected, $this->cashVouchers($branchId, $openDate, $closeDate), SaleAmounts::SCALE);
 
         return bcsub($expected, $this->cashExpenses($branchId, $openDate, $closeDate, $byDay, $branchId === $default), SaleAmounts::SCALE);
     }
@@ -59,6 +61,22 @@ final class CashupExpectation
             ->groupBy('p.payment_type');
 
         $this->within($builder, 's.sale_time', $openDate, $closeDate, $byDay);
+
+        return $this->cashTotal($builder->get()->getResult());
+    }
+
+    /**
+     * @return numeric-string
+     */
+    private function cashVouchers(int $branchId, string $openDate, string $closeDate): string
+    {
+        $builder = $this->db->table('revenues r')
+            ->select('r.payment_type, SUM(r.amount) AS amount', false)
+            ->where('r.deleted', 0)
+            ->where('COALESCE(r.treasury_branch_id, r.branch_id) = ' . $this->db->escape($branchId), null, false)
+            ->groupBy('r.payment_type');
+
+        $this->within($builder, 'r.date', $openDate, $closeDate, true);
 
         return $this->cashTotal($builder->get()->getResult());
     }

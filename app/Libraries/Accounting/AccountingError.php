@@ -224,4 +224,34 @@ enum AccountingError: string
     case YearEndClosedOut             = 'year_end_closed_out';
     case YearEndJournalLocked         = 'year_end_journal_locked';
     case YearEndRetainedEarningsUnset = 'year_end_retained_earnings_unset';
+
+    case ChequeNotFound         = 'cheque_not_found';
+    case ChequeStatusInvalid    = 'cheque_status_invalid';
+    case ChequeLocked           = 'cheque_locked';
+    case ChequeDeleteLocked     = 'cheque_delete_locked';
+    case ChequeAmountInvalid    = 'cheque_amount_invalid';
+    case ChequeDateInvalid      = 'cheque_date_invalid';
+    case ChequeCollectBeforeDue = 'cheque_collect_before_due';
+    case ChequeFeesRequired     = 'cheque_fees_required';
+    case ChequeFeesInvalid      = 'cheque_fees_invalid';
+    case ChequeNumberRequired   = 'cheque_number_required';
+    case ChequeNumberTaken      = 'cheque_number_taken';
+    case ChequePartyMissing     = 'cheque_party_missing';
+    case ChequeTreasuryInvalid  = 'cheque_treasury_invalid';
+    case ChequeBookRequired     = 'cheque_book_required';
+    case ChequeBookNotFound     = 'cheque_book_not_found';
+    case ChequeBookInactive     = 'cheque_book_inactive';
+    case ChequeBookInvalid      = 'cheque_book_invalid';
+    case ChequeBookInUse        = 'cheque_book_in_use';
+    case ChequeNumberOutOfBook  = 'cheque_number_out_of_book';
+    case ChequeNothingToUndo    = 'cheque_nothing_to_undo';
+
+    case RevenueNotFound            = 'revenue_not_found';
+    case RevenueAmountInvalid       = 'revenue_amount_invalid';
+    case RevenuePaymentInvalid      = 'revenue_payment_invalid';
+    case RevenueAccountInvalid      = 'revenue_account_invalid';
+    case RevenueAccountRequired     = 'revenue_account_required';
+    case RevenueCategoryNotFound    = 'revenue_category_not_found';
+    case RevenueCategoryNameInvalid = 'revenue_category_name_invalid';
+    case RevenueCategoryNameTaken   = 'revenue_category_name_taken';
 }

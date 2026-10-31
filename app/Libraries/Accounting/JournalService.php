@@ -28,6 +28,8 @@ final class JournalService
         ExpensePostingBuilder::SOURCE,
         CashupPostingBuilder::SOURCE,
         CustomerOpening::SOURCE,
+        RevenuePostingBuilder::SOURCE,
+        ...ChequeSources::ALL,
     ];
     public const CREDIT_SOURCES = [
         SupplierAdvances::SOURCE,

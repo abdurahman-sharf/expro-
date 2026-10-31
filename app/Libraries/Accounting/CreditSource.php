@@ -6,9 +6,10 @@ namespace App\Libraries\Accounting;
  * Credit a customer or a supplier holds that no journal of their own spends: a credit note or a
  * debit note (what it came to less what was paid back), what a payment came to beyond its
  * invoice, a payment that belongs to no invoice or to no purchase, what a customer held with us
- * before the books began, or the advance of a customer. Applying it to an invoice writes no journal,
- * because the account of the customer or of the supplier already carries it. Paying it back in cash
- * writes a journal of its own and takes it out of what is available, as applying it to an invoice does.
+ * before the books began, the advance of a customer, or a cheque received from a customer or delivered
+ * to a supplier. Applying it to an invoice writes no journal, because the account of the customer or of
+ * the supplier already carries it. Paying it back in cash writes a journal of its own and takes it out
+ * of what is available, as applying it to an invoice does.
  */
 final readonly class CreditSource
 {
@@ -18,6 +19,7 @@ final readonly class CreditSource
     public const ADVANCE          = 'supplier_advance';
     public const CUSTOMER_ADVANCE = 'customer_advance';
     public const OPENING          = 'opening_credit';
+    public const CHEQUE           = 'cheque';
 
     public function __construct(
         public string $type,

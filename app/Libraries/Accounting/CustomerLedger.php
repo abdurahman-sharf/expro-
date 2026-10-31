@@ -101,6 +101,10 @@ final class CustomerLedger
             $credits['advance:' . $advance->advance_id] = [CreditSource::CUSTOMER_ADVANCE, (int) $advance->advance_id, null, (string) $advance->advance_date, bcadd((string) $advance->amount, '0', SaleAmounts::SCALE)];
         }
 
+        foreach (ChequeCredits::ofCustomer($this->db, $customerId, $accountId, $asOf) as $cheque) {
+            $credits['cheque:' . $cheque->cheque_id] = [CreditSource::CHEQUE, (int) $cheque->cheque_id, null, (string) $cheque->issue_date, bcadd((string) $cheque->amount, '0', SaleAmounts::SCALE)];
+        }
+
         $refunded = $this->refunded($customerId, $asOf);
         $sources  = [];
 

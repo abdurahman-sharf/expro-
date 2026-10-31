@@ -17,6 +17,7 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\ChequeFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
@@ -31,6 +32,7 @@ class AccountingPayablesControllerTest extends CIUnitTestCase
     use DatabaseTestTrait;
     use FeatureTestTrait;
     use AccountingFixtureTrait;
+    use ChequeFixtureTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
@@ -248,6 +250,28 @@ class AccountingPayablesControllerTest extends CIUnitTestCase
         $response->assertSee(lang('Accounting_payables.agrees_yes'));
         $response->assertSee(lang('Sales.invoice_paid'));
         $response->assertSee(lang('Sales.invoice_returned_full'));
+    }
+
+    public function testGetSupplier_ShowsAChequeAsCreditOfItsOwnKindWithALinkToTheCheque(): void
+    {
+        $this->startCheques();
+
+        (new DocumentNumbering())->configure(DocumentType::PaidCheque, ['enabled' => true, 'prefix' => 'PC-', 'padding' => 4], $this->employeeWithGrants(['config']));
+
+        $purchase = $this->purchaseOf('70.00');
+        $cheque   = $this->issueCheque('100.00', date('Y-m-d'), date('Y-m-d'));
+
+        $this->viewer();
+
+        $body = $this->get('/accounting_payables/supplier/' . $this->supplierId)->getBody();
+
+        $this->assertStringContainsString(lang('Accounting_cheques.credit_source'), $body);
+        $this->assertStringContainsString('accounting_cheques/view/' . $cheque, $body);
+        $this->assertStringContainsString('>PC-0001</a>', $body, 'The credit is named by the number of the cheque');
+        $this->assertStringContainsString('<bdi dir="ltr">PC-0001</bdi>', $body, 'And so is what it settled');
+        $this->assertStringNotContainsString('CHQ ' . $cheque, $body);
+        $this->assertStringContainsString('RECV ' . $purchase, $body);
+        $this->assertStringNotContainsString('receivings/receipt/' . $cheque . '"', $body);
     }
 
     public function testGetSupplier_KeepsTheReleasedApplicationsInTheHistory(): void

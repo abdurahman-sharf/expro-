@@ -593,6 +593,31 @@ class TreasuryServiceTest extends CIUnitTestCase
         }
     }
 
+    public function testDelete_RejectsATreasuryAChequeABookOfChequesOrAReceiptVoucherNamed(): void
+    {
+        $manager = $this->manager();
+        $db      = $this->accountingDb();
+
+        $collected = $this->treasuries->create(['name' => 'Cheque bank', 'kind' => 'bank', 'bank_name' => 'Gulf Bank', 'account_number' => '5500000011'], $manager);
+        $booked    = $this->treasuries->create(['name' => 'Book bank', 'kind' => 'bank', 'bank_name' => 'Gulf Bank', 'account_number' => '5500000012'], $manager);
+        $voucher   = $this->treasuries->create(['name' => 'Voucher drawer', 'kind' => 'cash'], $manager);
+        $customer  = $this->insertCustomer();
+
+        $db->table('cheque_books')->insert(['company_id' => 1, 'branch_id' => 1, 'treasury_id' => $booked, 'name' => 'Named a treasury', 'first_serial' => 1, 'last_serial' => 9]);
+        $db->table('cheques')->insert(['company_id' => 1, 'branch_id' => 1, 'direction' => 'received', 'status' => 'received', 'party_id' => $customer, 'treasury_id' => $collected, 'cheque_number' => '1', 'amount' => '1.00', 'issue_date' => '2026-10-20', 'due_date' => '2026-10-20']);
+        $db->table('revenues')->insert(['company_id' => 1, 'branch_id' => 1, 'date' => '2026-10-20', 'amount' => '1.00', 'payment_type' => 'Cash', 'treasury_id' => $voucher]);
+
+        try {
+            foreach ([$collected, $booked, $voucher] as $treasury) {
+                $this->assertSame(AccountingError::TreasuryInUse, $this->refusal(fn () => $this->treasuries->delete($treasury, $manager))->error, 'treasury ' . $treasury);
+            }
+        } finally {
+            $db->table('revenues')->emptyTable();
+            $db->table('cheques')->emptyTable();
+            $db->table('cheque_books')->emptyTable();
+        }
+    }
+
     public function testDelete_RefusesTheMainTreasury(): void
     {
         $main = $this->treasuries->ensureMain();

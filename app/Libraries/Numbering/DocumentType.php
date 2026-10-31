@@ -20,6 +20,9 @@ enum DocumentType: string
     case DebitNote       = 'debit_note';
     case SupplierPayment = 'supplier_payment';
     case Expense         = 'expense';
+    case ReceivedCheque  = 'received_cheque';
+    case PaidCheque      = 'paid_cheque';
+    case Revenue         = 'revenue';
 
     /**
      * The tables a document of this kind may be stored in, with the column of its id.
@@ -35,6 +38,8 @@ enum DocumentType: string
             self::Purchase, self::DebitNote => ['receivings' => 'receiving_id'],
             self::SupplierPayment => ['receivings_payments' => 'payment_id', 'supplier_advances' => 'advance_id'],
             self::Expense         => ['expenses' => 'expense_id'],
+            self::ReceivedCheque, self::PaidCheque => ['cheques' => 'cheque_id'],
+            self::Revenue => ['revenues' => 'revenue_id'],
         };
     }
 
@@ -61,7 +66,7 @@ enum DocumentType: string
     public function bareIdSources(): array
     {
         return match ($this) {
-            self::CustomerPayment, self::SupplierPayment, self::Expense => $this->sources(),
+            self::CustomerPayment, self::SupplierPayment, self::Expense, self::Revenue => $this->sources(),
             default => [],
         };
     }
@@ -74,8 +79,10 @@ enum DocumentType: string
         return match ($this) {
             self::CreditNote, self::RefundInvoice => 'POS ' . $id,
             self::Purchase, self::DebitNote => 'RECV ' . $id,
-            self::CustomerPayment, self::SupplierPayment, self::Expense => (string) $id,
-            default => '',
+            self::CustomerPayment, self::SupplierPayment, self::Expense, self::Revenue => (string) $id,
+            self::ReceivedCheque => 'CHQ-IN ' . $id,
+            self::PaidCheque     => 'CHQ-OUT ' . $id,
+            default              => '',
         };
     }
 

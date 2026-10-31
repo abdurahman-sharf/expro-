@@ -10,23 +10,25 @@ use CodeIgniter\Test\CIUnitTestCase;
  */
 final class TaxSectionTest extends CIUnitTestCase
 {
-    public function testCases_AreInTheOrderTheReferenceSystemListsThem(): void
+    public function testCases_AreInTheOrderTheReferenceSystemListsThemWithReceiptVouchersLast(): void
     {
-        $this->assertSame(['sales', 'sales_returns', 'purchases', 'purchase_returns', 'expenses'], array_map(static fn (TaxSection $section): string => $section->value, TaxSection::cases()));
+        $this->assertSame(['sales', 'sales_returns', 'purchases', 'purchase_returns', 'expenses', 'revenues'], array_map(static fn (TaxSection $section): string => $section->value, TaxSection::cases()));
     }
 
-    public function testIsOutput_IsTrueForSalesAndTheirReturnsAndForNothingElse(): void
+    public function testIsOutput_IsTrueForSalesTheirReturnsAndReceiptVouchersAndForNothingElse(): void
     {
         $this->assertTrue(TaxSection::SalesInvoices->isOutput());
         $this->assertTrue(TaxSection::SalesReturns->isOutput());
+        $this->assertTrue(TaxSection::Revenues->isOutput());
         $this->assertFalse(TaxSection::Purchases->isOutput());
         $this->assertFalse(TaxSection::PurchaseReturns->isOutput());
         $this->assertFalse(TaxSection::Expenses->isOutput());
     }
 
-    public function testHasLines_IsFalseForExpensesAloneBecauseTheyCarryNoLines(): void
+    public function testHasLines_IsFalseForExpensesAndReceiptVouchersBecauseTheyCarryNoLines(): void
     {
         $this->assertFalse(TaxSection::Expenses->hasLines());
+        $this->assertFalse(TaxSection::Revenues->hasLines());
 
         foreach ([TaxSection::SalesInvoices, TaxSection::SalesReturns, TaxSection::Purchases, TaxSection::PurchaseReturns] as $section) {
             $this->assertTrue($section->hasLines());

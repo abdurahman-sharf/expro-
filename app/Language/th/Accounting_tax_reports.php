@@ -52,6 +52,7 @@ return [
     'section_expenses'         => '',
     'section_purchase_returns' => '',
     'section_purchases'        => '',
+    'section_revenues'         => '',
     'section_sales'            => '',
     'section_sales_returns'    => '',
     'start_note'               => '',

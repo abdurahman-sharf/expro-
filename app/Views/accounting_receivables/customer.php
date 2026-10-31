@@ -23,11 +23,16 @@
 use App\Libraries\Accounting\AgingBuckets;
 use App\Libraries\Accounting\CreditSource;
 use App\Libraries\Accounting\CustomerPosition;
+use App\Libraries\Numbering\DocumentNumbering;
+use App\Libraries\Numbering\DocumentType;
 
 $aging = $position->aging($today);
 
+$chequeNumber = static fn (int $chequeId): string => (new DocumentNumbering())->label(DocumentType::ReceivedCheque, 'cheques', $chequeId);
+
 $sourceLabel = static fn (string $type, int $sourceId): string => lang(match (true) {
     $type === CreditSource::CUSTOMER_ADVANCE    => 'Accounting_receivables.source_advance',
+    $type === CreditSource::CHEQUE              => 'Accounting_cheques.credit_source',
     $type === CreditSource::OPENING             => 'Accounting_receivables.source_opening',
     $type !== CreditSource::CREDIT_NOTE         => 'Accounting_receivables.source_excess',
     in_array($sourceId, $refund_invoices, true) => 'Numbering.type_refund_invoice',
@@ -44,6 +49,7 @@ foreach ($advances as $advance) {
 $sourceLink = static fn (string $type, int $sourceId): string => match ($type) {
     CreditSource::CUSTOMER_ADVANCE => '<bdi dir="ltr">' . esc($advanceNumbers[$sourceId] ?? '#' . $sourceId) . '</bdi>',
     CreditSource::OPENING          => '<bdi dir="ltr">#' . $sourceId . '</bdi>',
+    CreditSource::CHEQUE           => anchor('accounting_cheques/view/' . $sourceId, esc($chequeNumber($sourceId)), ['target' => '_blank', 'dir' => 'ltr']),
     default                        => anchor('sales/receipt/' . $sourceId, 'POS ' . $sourceId, ['target' => '_blank', 'dir' => 'ltr']),
 };
 ?>
@@ -368,7 +374,7 @@ $sourceLink = static fn (string $type, int $sourceId): string => match ($type) {
             <tbody>
                 <?php foreach ($applications as $application): ?>
                     <tr>
-                        <td><?= esc($sourceLabel($application->source_type, (int) $application->source_id)) ?> <bdi dir="ltr"><?= (int) $application->source_id ?></bdi></td>
+                        <td><?= esc($sourceLabel($application->source_type, (int) $application->source_id)) ?> <bdi dir="ltr"><?= $application->source_type === CreditSource::CHEQUE ? esc($chequeNumber((int) $application->source_id)) : (int) $application->source_id ?></bdi></td>
                         <td>
                             <?php if ($application->invoice_sale_id === null): ?>
                                 <?= esc(lang('Accounting_receivables.source_opening')) ?> <bdi dir="ltr">#<?= (int) $application->opening_id ?></bdi>
