@@ -5,7 +5,7 @@ namespace App\Libraries\Accounting;
 /**
  * What the account of a customer or of a supplier did over a period, split the way the reference
  * system splits it: the balance before the period, what was sold or bought, what came back as a
- * return invoice, what was paid, what credit and debit notes settled, and the balance at the end.
+ * return invoice (negative, as the account moves), what was paid, what credit and debit notes settled, and the balance at the end.
  * Whatever the account holds that none of those explains (a manual journal) is kept apart as
  * other, so the columns always add up to the balance.
  */
@@ -30,7 +30,7 @@ final readonly class BalanceRow
      */
     public function net(): string
     {
-        return bcsub($this->sales, $this->returns, SaleAmounts::SCALE);
+        return bcadd($this->sales, $this->returns, SaleAmounts::SCALE);
     }
 
     /**

@@ -101,7 +101,7 @@ php spark migrate -n App
 
 - ترتيب التشغيل هو ترتيب أرقام الإصدارات، وكل خطوة تعتمد على ما قبلها. يطبع الأمر الترحيلات المنتظرة **فعلًا** في قاعدتك بوسمها.
 - **DATA** تعيد كتابة صفوف قائمة أو تصنّفها أو تضيف إلى الدليل: `BranchesFoundation` و`AccountingRouting` و`PurchasesAccounting` و`LegacyFixedPurchaseDiscount` و`BankAccounts` و`InterBranchTransfers`.
-- **HEAVY** تعدّل جدولًا كبيرًا فتُشغَّل في ساعة هادئة: `SalesAccounting` و`SalesReceivables` و`CostPrecision` و`ReceivingCostPrecision` و`Treasuries` و`StockTransfersBetweenBranches` و`ExpensesAccounting` و`PurchaseInvoiceDiscount` و`SalesInvoiceDiscount` و`CrossBranchPayments`.
+- **HEAVY** تعدّل جدولًا كبيرًا فتُشغَّل في ساعة هادئة: `SalesAccounting` و`SalesReceivables` و`CostPrecision` و`ReceivingCostPrecision` و`Treasuries` و`StockTransfersBetweenBranches` و`ExpensesAccounting` و`PurchaseInvoiceDiscount` و`SalesInvoiceDiscount` و`CrossBranchPayments` و`RefundInvoice` و`SupplierPaymentDate` و`InvoiceDatesAndPaymentTerms` و`PurchaseTaxesAndSupplierRegistry`.
 - أول دخول بعد النشر ينفّذ الترحيلات نفسها تلقائيًا: شغّلها هنا **عمدًا** قبل أن يدخل أحد.
 - توقّف عند أول فشل واستعد النسخة؛ لا تعدّل جدول `migrations` بيدك.
 

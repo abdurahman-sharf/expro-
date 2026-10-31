@@ -1606,7 +1606,7 @@ class Sales extends Secure_Controller
         $data['discount'] = $this->sale_lib->get_discount();
         $data['invoice_discount'] = $this->sale_lib->getInvoiceDiscountTotal();
         $data['invoice_discount_entry'] = $this->sale_lib->getInvoiceDiscount();
-        $timing = $this->sale->getInvoiceTiming((int) $sale_id);
+        $timing = $this->sale->getInvoiceTiming((int) $saleId);
         $data['transaction_time'] = to_datetime(strtotime($saleInfo['sale_time']));
         $data['transaction_date'] = to_date(strtotime($timing['invoice_date'] ?? $saleInfo['sale_time']));
         $data['due_date'] = $timing['payment_terms_days'] === null || $timing['due_date'] === null ? null : to_date(strtotime($timing['due_date']));

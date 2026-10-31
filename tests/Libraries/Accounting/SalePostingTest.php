@@ -3802,7 +3802,7 @@ class SalePostingTest extends CIUnitTestCase
 
         $cycle  = $this->referenceInvoice();
         $day    = $this->daysAgo(10);
-        $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, $day);
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $day);
         $sale   = $this->saleRow($saleId);
 
         $this->assertSame($day, $sale->invoice_date);
@@ -3831,7 +3831,7 @@ class SalePostingTest extends CIUnitTestCase
         $cycle = $this->referenceInvoice();
         $sales = $this->countSales();
 
-        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, $this->daysAgo(3)));
+        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $this->daysAgo(3)));
         $this->assertSame(AccountingError::PermissionDenied, $this->failure()->error);
         $this->assertSame($sales, $this->countSales());
         $this->assertSame(0, $this->countJournals());
@@ -3845,7 +3845,7 @@ class SalePostingTest extends CIUnitTestCase
         $cycle = $this->referenceInvoice();
         $sales = $this->countSales();
 
-        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, $this->daysAgo(10)));
+        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $this->daysAgo(10)));
         $this->assertSame(PostingError::PeriodClosed, $this->failure()->error);
         $this->assertSame($sales, $this->countSales());
         $this->assertSame(0, $this->countJournals());
@@ -3857,12 +3857,12 @@ class SalePostingTest extends CIUnitTestCase
         $this->closeThrough($this->daysAgo(5));
 
         $cycle  = $this->referenceInvoice();
-        $closed = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, $this->daysAgo(5));
+        $closed = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $this->daysAgo(5));
 
         $this->assertSame(ACCOUNTING_FAILED, $closed);
         $this->assertSame(PostingError::PeriodClosed, $this->failure()->error);
 
-        $open = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, $this->daysAgo(4));
+        $open = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $this->daysAgo(4));
 
         $this->assertGreaterThan(0, $open);
         $this->assertCount(2, $this->standingDated($open, $this->daysAgo(4)));
@@ -3889,7 +3889,7 @@ class SalePostingTest extends CIUnitTestCase
         $cycle = $this->referenceInvoice();
         $sales = $this->countSales();
 
-        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, $typed));
+        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $typed));
         $this->assertSame($error, $this->failure()->error);
         $this->assertSame($sales, $this->countSales());
         $this->assertSame(0, $this->countRows('accounting_posting_failures'));
@@ -3903,13 +3903,13 @@ class SalePostingTest extends CIUnitTestCase
 
         $this->grantInvoiceDate();
 
-        $draft = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, NEW_ENTRY, null, $day);
+        $draft = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, NEW_ENTRY, null, invoiceDate: $day);
 
         $this->assertSame($day, $this->saleRow($draft)->invoice_date);
         $this->assertSame([], $this->journals($draft));
         $this->assertNull($this->saleRow($draft)->due_date);
 
-        $this->assertSame($draft, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, $draft, null, $day));
+        $this->assertSame($draft, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, $draft, null, invoiceDate: $day));
 
         $dates = array_values(array_unique(array_column($this->standing($draft), 'date')));
 
@@ -3937,17 +3937,17 @@ class SalePostingTest extends CIUnitTestCase
 
         $this->grantInvoiceDate();
 
-        $draft = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, NEW_ENTRY, null, $day);
+        $draft = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, NEW_ENTRY, null, invoiceDate: $day);
         $other = $this->createEmployee();
         $owner = $this->employeeId;
 
         $this->employeeId = $other;
 
-        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, $draft, null, $this->daysAgo(2)));
+        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, $draft, null, invoiceDate: $this->daysAgo(2)));
         $this->assertSame(AccountingError::PermissionDenied, $this->failure()->error);
         $this->assertSame([], $this->journals($draft));
 
-        $this->assertSame($draft, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, $draft, null, $day));
+        $this->assertSame($draft, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, $draft, null, invoiceDate: $day));
         $this->assertCount(2, $this->standingDated($draft, $day));
 
         $this->employeeId = $owner;
@@ -3957,7 +3957,7 @@ class SalePostingTest extends CIUnitTestCase
     {
         $this->grantInvoiceDate();
 
-        $pos = $this->save([$this->line($this->item('0', false), 0, '1', '40')], [], [$this->payment(lang('Sales.cash'), '40.00')], SALE_TYPE_POS, -1, true, null, COMPLETED, NEW_ENTRY, null, $this->daysAgo(3), 30);
+        $pos = $this->save([$this->line($this->item('0', false), 0, '1', '40')], [], [$this->payment(lang('Sales.cash'), '40.00')], SALE_TYPE_POS, -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $this->daysAgo(3), paymentTerms: 30);
 
         $this->assertGreaterThan(0, $pos);
         $this->assertNull($this->saleRow($pos)->invoice_date);
@@ -3972,7 +3972,7 @@ class SalePostingTest extends CIUnitTestCase
 
         $audit  = $this->countRows('accounting_audit_log');
         $cycle  = $this->referenceInvoice();
-        $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, $this->daysAgo(3), 30);
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $this->daysAgo(3), paymentTerms: 30);
 
         $this->assertGreaterThan(0, $saleId);
         $this->assertNull($this->saleRow($saleId)->invoice_date);
@@ -3997,7 +3997,7 @@ class SalePostingTest extends CIUnitTestCase
     {
         $this->grantInvoiceDate();
 
-        $saleId = $this->save([$this->line($this->item('0', false), 0, '1', '100')], [], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, null, '7');
+        $saleId = $this->save([$this->line($this->item('0', false), 0, '1', '100')], [], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, paymentTerms: '7');
         $sale   = $this->saleRow($saleId);
 
         $this->assertNull($sale->invoice_date);
@@ -4022,7 +4022,7 @@ class SalePostingTest extends CIUnitTestCase
         foreach (['-1', '2.5', 'soon', '3651'] as $terms) {
             $sales = $this->countSales();
 
-            $this->assertSame(ACCOUNTING_FAILED, $this->save([$this->line($this->item('0', false), 0, '1', '10')], [], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, null, $terms), $terms);
+            $this->assertSame(ACCOUNTING_FAILED, $this->save([$this->line($this->item('0', false), 0, '1', '10')], [], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, paymentTerms: $terms), $terms);
             $this->assertSame(AccountingError::PaymentTermsInvalid, $this->failure()->error);
             $this->assertSame($sales, $this->countSales());
         }
@@ -4033,13 +4033,13 @@ class SalePostingTest extends CIUnitTestCase
         $this->grantInvoiceDate();
 
         $items = [$this->line($this->item('0', false), 0, '1', '100')];
-        $draft = $this->save($items, [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, NEW_ENTRY, null, null, 14);
+        $draft = $this->save($items, [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, NEW_ENTRY, null, paymentTerms: 14);
 
         $this->assertSame(14, (int) $this->saleRow($draft)->payment_terms_days);
         $this->assertNull($this->saleRow($draft)->due_date);
         $this->assertSame(['invoice_date' => null, 'payment_terms_days' => 14, 'due_date' => null], $this->sales->getInvoiceTiming($draft));
 
-        $this->assertSame($draft, $this->save($items, [], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, $draft, null, null, 14));
+        $this->assertSame($draft, $this->save($items, [], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, $draft, null, paymentTerms: 14));
         $this->assertSame(date('Y-m-d', strtotime('+14 days')), $this->saleRow($draft)->due_date);
     }
 
@@ -4056,17 +4056,17 @@ class SalePostingTest extends CIUnitTestCase
         $this->grantInvoiceDate();
 
         $items = [$this->line($this->item('0', false), 0, '1', '100')];
-        $draft = $this->save($items, [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, NEW_ENTRY, null, $this->daysAgo(3));
+        $draft = $this->save($items, [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, NEW_ENTRY, null, invoiceDate: $this->daysAgo(3));
         $typed = $this->dateAudit($draft);
 
         $this->assertCount(1, $typed, 'The day is on record from the save of the draft');
         $this->assertSame($this->employeeId, (int) $typed[0]->employee_id);
         $this->assertSame(['date' => $this->daysAgo(3), 'saved_on' => date('Y-m-d')], json_decode((string) $typed[0]->details, true));
 
-        $this->assertSame($draft, $this->save($items, [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, $draft, null, $this->daysAgo(3)));
+        $this->assertSame($draft, $this->save($items, [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, $draft, null, invoiceDate: $this->daysAgo(3)));
         $this->assertCount(1, $this->dateAudit($draft), 'The same day typed again is not recorded again');
 
-        $this->save($items, [], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, $draft, null, $this->daysAgo(3));
+        $this->save($items, [], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, $draft, null, invoiceDate: $this->daysAgo(3));
 
         $this->assertCount(1, $this->dateAudit($draft), 'Issuing the draft at the day it carries is not typing the day');
     }
@@ -4079,12 +4079,12 @@ class SalePostingTest extends CIUnitTestCase
 
         $this->grantInvoiceDate();
 
-        $draft  = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, NEW_ENTRY, null, $day);
+        $draft  = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, NEW_ENTRY, null, invoiceDate: $day);
         $issuer = $this->createEmployee();
 
         $this->employeeId = $issuer;
 
-        $this->assertSame($draft, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, $draft, null, $day));
+        $this->assertSame($draft, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, $draft, null, invoiceDate: $day));
 
         $this->employeeId = $typer;
 
@@ -4102,14 +4102,14 @@ class SalePostingTest extends CIUnitTestCase
 
         $this->grantInvoiceDate();
 
-        $draft  = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, NEW_ENTRY, null, $this->daysAgo(5));
+        $draft  = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, NEW_ENTRY, null, invoiceDate: $this->daysAgo(5));
         $issuer = $this->createEmployee();
 
         $this->accountingDb()->table('grants')->ignore(true)->insert(['permission_id' => 'sales_invoice_date', 'person_id' => $issuer, 'menu_group' => 'home']);
 
         $this->employeeId = $issuer;
 
-        $this->assertSame($draft, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, $draft, null, $this->daysAgo(2)));
+        $this->assertSame($draft, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, $draft, null, invoiceDate: $this->daysAgo(2)));
 
         $this->employeeId = $typer;
 
@@ -4148,7 +4148,7 @@ class SalePostingTest extends CIUnitTestCase
 
         $this->grantInvoiceDate();
 
-        $draft = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, NEW_ENTRY, null, $this->daysAgo(4));
+        $draft = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, NEW_ENTRY, null, invoiceDate: $this->daysAgo(4));
         $row   = (array) $this->saleRow($draft);
 
         $this->assertSame([], $this->journals($draft));

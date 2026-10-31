@@ -282,6 +282,7 @@ class Sale_libTest extends CIUnitTestCase
         $sale->method('get_comment')->willReturn('');
         $sale->method('isDelivered')->willReturn(true);
         $sale->method('getInvoiceTiming')->willReturn(['invoice_date' => '2026-10-20', 'payment_terms_days' => 30, 'due_date' => '2026-11-19']);
+        $sale->method('getReturnDocument')->willReturn(ReturnDocument::CreditNote);
         Factories::injectMock('models', Sale::class, $sale);
 
         $saleLib = new Sale_lib();
@@ -305,6 +306,7 @@ class Sale_libTest extends CIUnitTestCase
         $sale->method('get_comment')->willReturn('');
         $sale->method('isDelivered')->willReturn(true);
         $sale->method('getInvoiceTiming')->willReturn(['invoice_date' => null, 'payment_terms_days' => null, 'due_date' => null]);
+        $sale->method('getReturnDocument')->willReturn(ReturnDocument::CreditNote);
         Factories::injectMock('models', Sale::class, $sale);
 
         $saleLib = new Sale_lib();

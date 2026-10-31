@@ -5,6 +5,7 @@ namespace Tests\Libraries\Accounting\Readiness;
 use App\Libraries\Accounting\Readiness\CheckResult;
 use App\Libraries\Accounting\Readiness\CheckStatus;
 use App\Libraries\Accounting\Readiness\LedgerChecks;
+use App\Libraries\Numbering\DocumentType;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -468,7 +469,7 @@ class LedgerChecksTest extends CIUnitTestCase
         $result = $this->check('numbering');
 
         $this->assertSame(CheckStatus::Pass, $result->status);
-        $this->assertCount(9, $result->data['sequences']);
+        $this->assertCount(count(DocumentType::cases()), $result->data['sequences']);
         $this->assertFalse($result->data['manual_journals_behind']);
     }
 
@@ -491,7 +492,9 @@ class LedgerChecksTest extends CIUnitTestCase
 
         $this->assertSame(CheckStatus::Fail, $result->status);
         $this->assertSame(['expense is switched on and would give EXP-0003 next, but numbers up to 10 are already given'], $result->findings);
-        $this->assertTrue($result->data['sequences'][8]['behind']);
+        $expense = array_values(array_filter($result->data['sequences'], static fn (array $row): bool => $row['type'] === DocumentType::Expense->value));
+
+        $this->assertTrue($expense[0]['behind']);
     }
 
     public function testNumbering_PassesForASwitchedOnSequenceThatIsAheadOfTheNumbersGiven(): void

@@ -95,6 +95,21 @@ class CustomerBalanceReportTest extends CIUnitTestCase
         $this->assertTies();
     }
 
+    public function testBuild_PutsARefundInvoiceUnderReturnsAndACreditNoteUnderSettlements(): void
+    {
+        $invoice = $this->invoiceOf('500.00');
+
+        $this->refundInvoiceOf($invoice, '120.00');
+        $this->creditNoteOf($invoice, '30.00');
+
+        $table = $this->report(date('Y-m-d'));
+        $row   = $this->rowOf($table, $this->customerId);
+
+        $this->assertSame(['before' => '0.0000', 'sales' => '500.0000', 'returns' => '-120.0000', 'net_sales' => '380.0000', 'payments' => '0.0000', 'settlements' => '-30.0000', 'other' => '0.0000', 'balance' => '350.0000'], $row);
+        $this->assertSame($this->balance($this->customerAccount()), bcadd($row['balance'], '0', 2));
+        $this->assertTies();
+    }
+
     public function testBuild_HasTheColumnsTheReferenceSystemHasAsTheFixtureRecordsThem(): void
     {
         $case = $this->referenceCase('T-35', 'customer_reports', 'balance-report-columns', 'exact');

@@ -12,8 +12,8 @@ use Config\Database;
  * what it reverses. The balance before is the account at the end of the day before the period, and
  * the balance is the account at the end of the last day, so each equals what the ledger says.
  *
- * The returns column is where return invoices will go. Until the sale has such a kind, every
- * return is a credit note and sits under settlements, as the reference system shows a credit note.
+ * A return issued as a refund invoice goes under returns; a return issued as a credit note sits
+ * under settlements, as the reference system shows a credit note.
  */
 final class CustomerBalanceReport
 {
@@ -46,7 +46,8 @@ final class CustomerBalanceReport
              FROM (
                  SELECT a.entity_id AS party_id, a.name AS party_name, a.account_id, j.journal_date AS day, l.debit - l.credit AS amount,
                         CASE
-                            WHEN IF(j.reverses_journal_id IS NULL, j.source_type, o.source_type) = ? AND s.sale_type = ? THEN 'settlements'
+                            WHEN IF(j.reverses_journal_id IS NULL, j.source_type, o.source_type) = ? AND s.sale_type = ? AND s.return_document IS NULL THEN 'settlements'
+                            WHEN IF(j.reverses_journal_id IS NULL, j.source_type, o.source_type) = ? AND s.sale_type = ? THEN 'returns'
                             WHEN IF(j.reverses_journal_id IS NULL, j.source_type, o.source_type) = ? THEN 'sales'
                             WHEN IF(j.reverses_journal_id IS NULL, j.source_type, o.source_type) = ? THEN 'payments'
                             ELSE 'other'
@@ -62,7 +63,7 @@ final class CustomerBalanceReport
              ORDER BY t.party_name ASC, t.party_id ASC",
             [
                 $from, $from, $from, $from, $from, $from,
-                SalePostingBuilder::SOURCE_SALE, SALE_TYPE_RETURN, SalePostingBuilder::SOURCE_SALE, SalePostingBuilder::SOURCE_PAYMENT,
+                SalePostingBuilder::SOURCE_SALE, SALE_TYPE_RETURN, SalePostingBuilder::SOURCE_SALE, SALE_TYPE_RETURN, SalePostingBuilder::SOURCE_SALE, SalePostingBuilder::SOURCE_PAYMENT,
                 JournalStatus::Posted->value, JournalStatus::Reversed->value, $period->to,
                 SalePostingBuilder::SOURCE_SALE,
                 EntityAccountService::CUSTOMER,
