@@ -34,6 +34,7 @@ final class MigrationChecks extends CheckGroup
         'SupplierPaymentDate'              => [self::HEAVY, 'adds receivings_payments.payment_date'],
         'InvoiceDatesAndPaymentTerms'      => [self::HEAVY, 'adds the invoice date, the payment terms and the due date to sales and receivings'],
         'PurchaseTaxesAndSupplierRegistry' => [self::HEAVY, 'adds the purchase tax columns to items and suppliers.commercial_registry'],
+        'QuoteLifecycle'                   => [self::HEAVY, 'adds sales.quote_status and sales.source_quote_id; down() refuses once a quote carries a state'],
     ];
 
     public function run(): array

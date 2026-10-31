@@ -8,11 +8,15 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\CustomerLedger;
+use App\Libraries\Accounting\DraftInvoice;
 use App\Libraries\Accounting\InvoiceTiming;
 use App\Libraries\Accounting\PaymentStatus;
 use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\Accounting\QuoteLifecycle;
+use App\Libraries\Accounting\QuoteStatus;
 use App\Libraries\Accounting\ReturnDocument;
+use App\Libraries\Accounting\SaleDocumentList;
 use App\Libraries\Accounting\SalePosting;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
@@ -20,6 +24,7 @@ use App\Libraries\InvoiceDiscount;
 use App\Libraries\InvoiceDiscountProblem;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
+use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Pdf_lib;
 use App\Libraries\Sale_lib;
@@ -310,6 +315,7 @@ class Sales extends Secure_Controller
         if ($mode !== $this->sale_lib->get_mode()) {
             $this->sale_lib->clearInvoiceDiscount();
             $this->sale_lib->clearReturnDocument();
+            $this->sale_lib->clearQuoteSource();
         }
 
         $this->sale_lib->set_mode($mode);
@@ -1144,7 +1150,7 @@ class Sales extends Secure_Controller
                 $invoiceView = $invoiceType;
 
                 // Save the data to the sales table
-                $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, $this->sale_lib->is_delivered(), null, $invoiceDiscount, invoiceDate: $this->sale_lib->getInvoiceDate(), paymentTerms: $this->sale_lib->getPaymentTerms());
+                $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, $this->sale_lib->is_delivered(), null, $invoiceDiscount, invoiceDate: $this->sale_lib->getInvoiceDate(), paymentTerms: $this->sale_lib->getPaymentTerms(), quoteSourceId: $this->sale_lib->getQuoteSource());
                 $data['sale_id'] = 'POS ' . $data['sale_id_num'];
 
                 // Resort and filter cart lines for printing
@@ -1963,7 +1969,7 @@ class Sales extends Secure_Controller
     {
         $failure = $this->sale->accountingFailure();
 
-        return $failure instanceof AccountingException || $failure instanceof PostingException
+        return $failure instanceof AccountingException || $failure instanceof PostingException || $failure instanceof BranchException
             ? AccountingMessage::of($failure)
             : lang('Sales.transaction_failed');
     }
@@ -2634,7 +2640,7 @@ class Sales extends Secure_Controller
             return $this->reload(['error' => lang('Sales.not_authorized')]);
         }
 
-        $saleIdNum = $this->sale->save_value($saleId, $saleStatus, $cart, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTable, $salesTaxes, $this->sale_lib->is_delivered(), null, $invoiceDiscount, $this->sale_lib->getReturnDocument(), $this->sale_lib->getInvoiceDate(), $this->sale_lib->getPaymentTerms());
+        $saleIdNum = $this->sale->save_value($saleId, $saleStatus, $cart, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTable, $salesTaxes, $this->sale_lib->is_delivered(), null, $invoiceDiscount, $this->sale_lib->getReturnDocument(), $this->sale_lib->getInvoiceDate(), $this->sale_lib->getPaymentTerms(), $saleType === SALE_TYPE_QUOTE ? QuoteStatus::Draft : null, $saleType === SALE_TYPE_INVOICE ? $this->sale_lib->getQuoteSource() : null);
 
         if ($saleIdNum === INSUFFICIENT_GIFTCARD_BALANCE) {
             $data['error'] = lang('Sales.insufficient_giftcard_balance');
@@ -2684,6 +2690,14 @@ class Sales extends Secure_Controller
         }
 
         $saleId = $this->request->getPost('suspended_sale_id', FILTER_SANITIZE_NUMBER_INT);
+
+        if ($saleId > 0 && $this->outsideBranchScope((int) $saleId)) {
+            return $this->reload(['error' => lang('Sales.branch_not_allowed')]);
+        }
+
+        if ($saleId > 0 && (new QuoteLifecycle())->statusOf((int) $saleId)?->isLocked() === true) {
+            return $this->reload(['error' => lang('Accounting.error_quote_locked')]);
+        }
 
         if ($saleId > 0 && $this->sale->getSaleStatus($saleId) == SUSPENDED) {
             $this->sale_lib->clear_all();

@@ -81,13 +81,14 @@ class Tax_lib
     }
 
     /**
-     * Compute taxes for all items in the cart
+     * Compute taxes for all items in the cart. The customer and the mode are the register's unless
+     * the lines belong to a document that is not in the register, which names its own.
      */
-    public function get_taxes(array &$cart, int $sale_id = -1): array    // TODO: Replace -1 with constant.
+    public function get_taxes(array &$cart, int $sale_id = -1, ?int $customerId = null, ?string $registerMode = null): array    // TODO: Replace -1 with constant.
     {
-        $register_mode = $this->sale_lib->get_mode();
+        $register_mode = $registerMode ?? $this->sale_lib->get_mode();
         $tax_decimals = tax_decimals();
-        $customer_id = $this->sale_lib->get_customer();
+        $customer_id = $customerId ?? $this->sale_lib->get_customer();
         $customer_info = $this->customer->get_info($customer_id);
         $taxes = [];
         $item_taxes = [];

@@ -7,12 +7,15 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\AuditLog;
 use App\Libraries\Accounting\CustomerLock;
+use App\Libraries\Accounting\DraftInvoice;
 use App\Libraries\Accounting\InvoiceTiming;
 use App\Libraries\Accounting\JournalOrigin;
 use App\Libraries\Accounting\PaymentStatus;
 use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\Accounting\QuoteLifecycle;
+use App\Libraries\Accounting\QuoteStatus;
 use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\Accounting\ReturnLimit;
 use App\Libraries\Accounting\SalePosting;
@@ -23,6 +26,8 @@ use App\Libraries\InvoiceDiscountPlan;
 use App\Libraries\InvoiceDiscountProblem;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
+use App\Libraries\Accounting\LockedRead;
+use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\ResultInterface;
@@ -921,13 +926,15 @@ class Sale extends Model
         ?array  $invoiceDiscount = null,
         ReturnDocument $returnDocument = ReturnDocument::CreditNote,
         ?string $invoiceDate = null,
-        int|string|null $paymentTerms = null
+        int|string|null $paymentTerms = null,
+        ?QuoteStatus $quoteStatus = null,
+        ?int $quoteSourceId = null
     ): int {    // TODO: this method returns the sale_id but the override is expecting it to return a bool. The signature needs to be reworked.  Generally when there are more than 3 maybe 4 parameters, there's a good chance that an object needs to be passed rather than so many params.
         try {
             return (new CustomerLock($this->db))->run(
                 $customerId,
-                function () use (&$saleStatus, &$items, &$salesTaxes, $saleId, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $delivered, $returnOfSaleId, $invoiceDiscount, $returnDocument, $invoiceDate, $paymentTerms): int {
-                    return $this->saveValueLocked($saleId, $saleStatus, $items, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $salesTaxes, $delivered, $returnOfSaleId, $invoiceDiscount, $returnDocument, $invoiceDate, $paymentTerms);
+                function () use (&$saleStatus, &$items, &$salesTaxes, $saleId, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $delivered, $returnOfSaleId, $invoiceDiscount, $returnDocument, $invoiceDate, $paymentTerms, $quoteStatus, $quoteSourceId): int {
+                    return $this->saveValueLocked($saleId, $saleStatus, $items, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $salesTaxes, $delivered, $returnOfSaleId, $invoiceDiscount, $returnDocument, $invoiceDate, $paymentTerms, $quoteStatus, $quoteSourceId);
                 },
             );
         } catch (AccountingException $busy) {
@@ -960,7 +967,9 @@ class Sale extends Model
         ?array  $invoiceDiscount,
         ReturnDocument $returnDocument,
         ?string $invoiceDate,
-        int|string|null $paymentTerms
+        int|string|null $paymentTerms,
+        ?QuoteStatus $quoteStatus,
+        ?int $quoteSourceId
     ): int {
         $config = config(OSPOS::class)->settings;
         $attribute = model(Attribute::class);
@@ -1011,6 +1020,27 @@ class Sale extends Model
 
         // Run these queries as a transaction, we want to make sure we do all or nothing
         $this->db->transStart();
+
+        try {
+            $stored = $saleId === NEW_ENTRY ? null : $this->lockStoredSale($saleId, $saleStatus == COMPLETED);
+        } catch (AccountingException $refusal) {
+            $this->db->transRollback();
+            $this->accountingFailure = $refusal;
+
+            return ACCOUNTING_FAILED;
+        }
+
+        if ($saleType === SALE_TYPE_QUOTE) {
+            $storedStatus = $stored !== null && (int) $stored->sale_type === SALE_TYPE_QUOTE ? QuoteStatus::fromStored($stored->quote_status) : null;
+
+            $salesData['quote_status'] = QuoteStatus::afterSave($storedStatus, $quoteStatus ?? QuoteStatus::Open)->value;
+        } else {
+            $salesData['quote_status'] = null;
+        }
+
+        if ($quoteSourceId !== null) {
+            $salesData['source_quote_id'] = $quoteSourceId;
+        }
 
         if ($salesData['return_of_sale_id'] !== null) {
             // The sale a return comes from is locked while the return is saved, so that two returns of it never run side by side
@@ -1193,7 +1223,7 @@ class Sale extends Model
         }
 
         try {
-            $this->numberDocuments($saleId, $saleType, $saleStatus == COMPLETED, $invoiceNumber, $quoteNumber, $paymentIds, (int) $salesData['branch_id'], $returnDocument);
+            $this->numberDocuments($saleId, $saleType, $saleStatus == COMPLETED, $invoiceNumber, $quoteNumber, $paymentIds, (int) $salesData['branch_id'], $returnDocument, $salesData['quote_status'] === QuoteStatus::Draft->value);
         } catch (AccountingException $failure) {
             log_message('error', 'Numbering sale ' . $saleId . ' failed: ' . $failure->getMessage());
             $this->db->transRollback();
@@ -1215,6 +1245,23 @@ class Sale extends Model
             if ($saleType !== SALE_TYPE_RETURN && ! $discountPlan->isEmpty()) {
                 $this->auditInvoiceDiscount($saleId, $employeeId, (int) $salesData['branch_id'], $discountPlan);
             }
+
+            if ($saleType === SALE_TYPE_INVOICE && $stored !== null && (int) $stored->sale_status === SUSPENDED) {
+                $this->auditDraftIssued($saleId, $employeeId, (int) $salesData['branch_id'], $timing['invoice_date']);
+            }
+
+            $quoteOfInvoice = $quoteSourceId ?? ($stored === null || $stored->source_quote_id === null ? null : (int) $stored->source_quote_id);
+
+            if ($saleType === SALE_TYPE_INVOICE && $quoteOfInvoice !== null) {
+                try {
+                    (new QuoteLifecycle($this->db))->markConverted($quoteOfInvoice, $saleId, $employeeId);
+                } catch (AccountingException|BranchException $refusal) {
+                    $this->db->transRollback();
+                    $this->accountingFailure = $refusal;
+
+                    return ACCOUNTING_FAILED;
+                }
+            }
         }
 
         if ($timing['invoice_date'] !== null && $timing['invoice_date'] !== $storedDate) {
@@ -1224,6 +1271,101 @@ class Sale extends Model
         $this->db->transComplete();
 
         return $this->db->transStatus() ? $saleId : -1;
+    }
+
+    /**
+     * Locks the row of a sale that is saved again and refuses what must not be: a quote that was
+     * converted into an invoice is the record of it and is not saved again, and a sale is completed
+     * only while it is still waiting to be, so the same draft is never issued twice.
+     *
+     * @throws AccountingException
+     */
+    private function lockStoredSale(int $saleId, bool $completing): ?object
+    {
+        $stored = LockedRead::row($this->db, 'SELECT sale_status, sale_type, quote_status, source_quote_id FROM ' . $this->db->prefixTable('sales') . ' WHERE sale_id = ? FOR UPDATE', [$saleId]);
+
+        if ($stored === null) {
+            return null;
+        }
+
+        if ((int) $stored->sale_type === SALE_TYPE_QUOTE && (int) $stored->sale_status === SUSPENDED && QuoteStatus::fromStored($stored->quote_status)->isLocked()) {
+            throw new AccountingException(AccountingError::QuoteLocked, 'A quote that became an invoice cannot be changed.', ['sale_id' => $saleId]);
+        }
+
+        if ($completing && (int) $stored->sale_status !== SUSPENDED) {
+            throw new AccountingException(AccountingError::DraftNotFound, 'The sale is not waiting to be completed.', ['sale_id' => $saleId]);
+        }
+
+        return $stored;
+    }
+
+    /**
+     * Issues a draft invoice: it is saved as the completed invoice its lines make now, takes the next
+     * number of the invoice sequence and the day typed on it (the one it was saved with unless another
+     * is given by an employee who may type it), and posts the invoice and the cost of the goods as any
+     * invoice is. Returns the sale id, ACCOUNTING_FAILED when the books or the draft refuse (the
+     * reason is in accountingFailure()), INSUFFICIENT_STOCK, INVOICE_DISCOUNT_INVALID, or NEW_ENTRY.
+     */
+    public function issueDraft(int $saleId, int $employeeId, ?string $invoiceNumber = null, ?string $invoiceDate = null, int|string|null $paymentTerms = null): int
+    {
+        $this->accountingFailure      = null;
+        $this->invoiceDiscountProblem = null;
+
+        $issue = (new DraftInvoice($this->db))->forIssue($saleId);
+
+        if ($issue === null) {
+            $this->accountingFailure = new AccountingException(AccountingError::DraftNotFound, 'The sale is not a draft invoice.', ['sale_id' => $saleId]);
+
+            return ACCOUNTING_FAILED;
+        }
+
+        if ($issue->paidWithStoredValue) {
+            $this->accountingFailure = new AccountingException(AccountingError::DraftStoredValuePaid, 'A draft paid with a gift card or reward points is completed at the register.', ['sale_id' => $saleId]);
+
+            return ACCOUNTING_FAILED;
+        }
+
+        if ($issue->problem !== null) {
+            $this->invoiceDiscountProblem = $issue->problem;
+
+            return INVOICE_DISCOUNT_INVALID;
+        }
+
+        $saleStatus = COMPLETED;
+        $items      = $issue->items;
+        $taxes      = $issue->taxes;
+
+        return $this->save_value(
+            $saleId,
+            $saleStatus,
+            $items,
+            $issue->customerId ?? NEW_ENTRY,
+            $employeeId,
+            $issue->comment,
+            $invoiceNumber ?? $issue->invoiceNumber,
+            null,
+            null,
+            SALE_TYPE_INVOICE,
+            $issue->payments,
+            $issue->dinnerTableId,
+            $taxes,
+            $issue->delivered,
+            null,
+            $issue->invoiceDiscount,
+            ReturnDocument::CreditNote,
+            $invoiceDate ?? $issue->invoiceDate,
+            $paymentTerms ?? $issue->paymentTermsDays,
+        );
+    }
+
+    /**
+     * The quote an invoice (or a draft of one) was made from, or null.
+     */
+    public function getSourceQuote(int $saleId): ?int
+    {
+        $row = $this->db->table('sales')->select('source_quote_id')->where('sale_id', $saleId)->get()->getRow();
+
+        return $row === null || $row->source_quote_id === null ? null : (int) $row->source_quote_id;
     }
 
     /**
@@ -1239,18 +1381,19 @@ class Sale extends Model
 
     /**
      * Gives the documents of a sale the numbers of their sequences, for the sequences that are on:
-     * a quote when it is saved, and an invoice, a credit note and each payment when the sale is
-     * completed. A number typed by hand is kept as it is.
+     * a quote when it is saved as anything but a draft, and an invoice, a credit note and each payment
+     * when the sale is completed. A draft keeps its temporary number until it is issued. A number typed
+     * by hand is kept as it is.
      *
      * @param list<int> $paymentIds
      *
      * @throws AccountingException
      */
-    private function numberDocuments(int $saleId, int $saleType, bool $completed, ?string $invoiceNumber, ?string $quoteNumber, array $paymentIds, int $branchId, ReturnDocument $returnDocument): void
+    private function numberDocuments(int $saleId, int $saleType, bool $completed, ?string $invoiceNumber, ?string $quoteNumber, array $paymentIds, int $branchId, ReturnDocument $returnDocument, bool $quoteIsDraft): void
     {
         $numbering = new DocumentNumbering($this->db);
 
-        if ($saleType === SALE_TYPE_QUOTE && ($quoteNumber ?? '') === '') {
+        if ($saleType === SALE_TYPE_QUOTE && ! $quoteIsDraft && ($quoteNumber ?? '') === '') {
             $numbering->assign(DocumentType::SalesQuote, 'sales', $saleId, $branchId);
         }
 
@@ -1349,6 +1492,23 @@ class Sale extends Model
     private function auditInvoiceDate(int $saleId, int $employeeId, int $branchId, string $date): void
     {
         (new AuditLog($this->db))->write('sale', $saleId, 'invoice_date_typed', $employeeId, JournalOrigin::User, ['date' => $date, 'saved_on' => date('Y-m-d')], $branchId);
+    }
+
+    /**
+     * Writes in the audit log of the books that a draft was issued as an invoice, with the number it was
+     * given and the day it is dated, in the transaction that issues it. While accounting is off nothing
+     * is written.
+     */
+    private function auditDraftIssued(int $saleId, int $employeeId, int $branchId, ?string $invoiceDate): void
+    {
+        if (! (new AccountingSettings($this->db))->isEnabled()) {
+            return;
+        }
+
+        (new AuditLog($this->db))->write('sale', $saleId, 'draft_issued', $employeeId, JournalOrigin::User, [
+            'number' => $this->getInvoiceNumber($saleId),
+            'date'   => $invoiceDate ?? date('Y-m-d'),
+        ], $branchId);
     }
 
     /**
@@ -1639,6 +1799,15 @@ class Sale extends Model
         $locked = $this->db->query('SELECT sale_status, delivered FROM ' . $this->db->prefixTable('sales') . ' WHERE sale_id = ? FOR UPDATE', [$sale_id]);
         $sale = $locked === false ? null : $locked->getRow();
         $sale_status = $sale === null ? null : (int) $sale->sale_status;
+
+        try {
+            (new QuoteLifecycle($this->db))->assertUnlocked((int) $sale_id);
+        } catch (AccountingException $refusal) {
+            $this->db->transRollback();
+            $this->accountingFailure = $refusal;
+
+            return false;
+        }
 
         if ($update_inventory && $sale_status === COMPLETED && (int) $sale->delivered === 1) {
             // Defect, not all item deletions will be undone?
@@ -2246,6 +2415,16 @@ class Sale extends Model
      */
     public function delete_suspended_sale(int $sale_id): bool
     {
+        $this->accountingFailure = null;
+
+        try {
+            (new QuoteLifecycle($this->db))->assertUnlocked($sale_id);
+        } catch (AccountingException $refusal) {
+            $this->accountingFailure = $refusal;
+
+            return false;
+        }
+
         // Run these queries as a transaction, we want to make sure we do all or nothing
         $this->db->transStart();
         $config = config(OSPOS::class)->settings;
