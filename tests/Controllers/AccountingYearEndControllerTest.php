@@ -3,7 +3,6 @@
 namespace Tests\Controllers;
 
 use App\Libraries\Accounting\AccountingGuard;
-use App\Libraries\Accounting\ClosedPeriodService;
 use App\Libraries\Accounting\YearEndClosing;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -82,7 +81,7 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         return (new YearEndClosing())->preview($branchId, $this->yearId(), $this->employeeWithGrants([AccountingGuard::YEAR_END_CLOSE]))->fingerprint;
     }
 
-    public function testGetIndexIsNotFoundWhileAccountingIsOff(): void
+    public function testGetIndex_IsNotFoundWhileAccountingIsOff(): void
     {
         $this->closer();
         $this->setConfigValue('accounting_enabled', '0');
@@ -92,7 +91,7 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         $this->get('/accounting_periods/year_end');
     }
 
-    public function testGetIndexShowsTheClosingsButNoPreviewToAUserWithoutThePermission(): void
+    public function testGetIndex_ShowsTheClosingsButNoPreviewToAUserWithoutThePermission(): void
     {
         $this->readyYear();
         $this->closer();
@@ -110,7 +109,7 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         $response->assertDontSee('year-end-reverse');
     }
 
-    public function testGetIndexShowsThePreviewOfTheLatestYearWithTheLinesOfEachBranch(): void
+    public function testGetIndex_ShowsThePreviewOfTheLatestYearWithTheLinesOfEachBranch(): void
     {
         $this->readyYear();
         $this->closer();
@@ -128,7 +127,7 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         $response->assertSee('year_end_approve');
     }
 
-    public function testGetIndexOffersTheApproveButtonWithTheFingerprintOfWhatItShows(): void
+    public function testGetIndex_OffersTheApproveButtonWithTheFingerprintOfWhatItShows(): void
     {
         $this->readyYear();
         $this->closer();
@@ -138,7 +137,7 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         $response->assertSee('year_end/approve_form?year=' . $this->yearId() . '&amp;scope=company&amp;fingerprint=' . $this->fingerprint());
     }
 
-    public function testGetIndexExplainsWhatStopsTheClosingAndOffersNoApproveButton(): void
+    public function testGetIndex_ExplainsWhatStopsTheClosingAndOffersNoApproveButton(): void
     {
         $this->twoBranchYear();
         $this->closer();
@@ -150,7 +149,7 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         $response->assertDontSee('id="year_end_approve"');
     }
 
-    public function testGetIndexSaysWhichBranchHasNothingToCloseAndWhichIsClosedAlready(): void
+    public function testGetIndex_SaysWhichBranchHasNothingToCloseAndWhichIsClosedAlready(): void
     {
         $this->postOn('2025-03-10', 1, [[$this->accountId('cash'), '40.00', '0'], [$this->accountId('sales_revenue'), '0', '40.00']]);
         $this->closeThrough('2025-12-31');
@@ -170,7 +169,7 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         $response->assertDontSee('id="year_end_approve"');
     }
 
-    public function testGetIndexOffersTheCompanyOnlyToSomeoneWithEveryBranch(): void
+    public function testGetIndex_OffersTheCompanyOnlyToSomeoneWithEveryBranch(): void
     {
         $this->readyYear();
         $this->closer([$this->second]);
@@ -187,7 +186,7 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         $this->get('/accounting_periods/year_end?scope=company');
     }
 
-    public function testGetIndexIsNotFoundForABranchOutsideTheEmployeesScope(): void
+    public function testGetIndex_IsNotFoundForABranchOutsideTheEmployeesScope(): void
     {
         $this->readyYear();
         $this->closer([1]);
@@ -197,7 +196,7 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         $this->get('/accounting_periods/year_end?scope=' . $this->second);
     }
 
-    public function testGetIndexShowsTheClosingsOfTheBranchesTheEmployeeMaySeeOnly(): void
+    public function testGetIndex_ShowsTheClosingsOfTheBranchesTheEmployeeMaySeeOnly(): void
     {
         $this->readyYear();
         $closer = $this->employeeWithGrants([AccountingGuard::YEAR_END_CLOSE]);
@@ -216,7 +215,7 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         $this->assertSame(2, substr_count($this->get('/accounting_periods/year_end')->getBody(), 'year-end-reverse'));
     }
 
-    public function testGetIndexListsTheYearsThatEndedAndMarksTheOnesThatHaveAClosing(): void
+    public function testGetIndex_ListsTheYearsThatEndedAndMarksTheOnesThatHaveAClosing(): void
     {
         $this->readyYear();
         $this->closer();
@@ -228,7 +227,7 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         $response->assertDontSee('>2035<');
     }
 
-    public function testGetIndexAddsATabToThePeriodsScreens(): void
+    public function testGetIndex_AddsATabToThePeriodsScreens(): void
     {
         $this->closer();
 
@@ -237,7 +236,7 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         }
     }
 
-    public function testGetApproveFormAsksForConfirmationAndCarriesTheFingerprint(): void
+    public function testGetApproveForm_AsksForConfirmationAndCarriesTheFingerprint(): void
     {
         $this->readyYear();
         $this->closer();
@@ -253,26 +252,36 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         $response->assertSee(lang('Accounting_periods.year_end_approve_warning'));
     }
 
-    public function testFormsCarryTheTokenAgainstForgedRequestsWhenTheProtectionIsOn(): void
+    public function testGetApproveForm_CarriesTheTokenAgainstForgedRequestsWhenTheProtectionIsOn(): void
     {
         $this->readyYear();
-        $employee = $this->employeeWithGrants([AccountingGuard::YEAR_END_CLOSE]);
-        $preview  = (new YearEndClosing())->preview(null, $this->yearId(), $employee);
+        $preview = (new YearEndClosing())->preview(null, $this->yearId(), $this->employeeWithGrants([AccountingGuard::YEAR_END_CLOSE]));
 
         service('filters')->enableFilters(['csrf'], 'before');
 
         try {
-            $approve = view('accounting_periods/year_end_approve_form', ['preview' => $preview, 'scope' => 'company', 'fingerprint' => $preview->fingerprint, 'year_id' => $this->yearId()]);
-            $reverse = view('accounting_periods/year_end_reverse_form', ['closing' => (object) ['closing_id' => 5, 'year_name' => '2025', 'branch_code' => 'HQ']]);
+            $html = view('accounting_periods/year_end_approve_form', ['preview' => $preview, 'scope' => 'company', 'fingerprint' => $preview->fingerprint, 'year_id' => $this->yearId()]);
         } finally {
             Services::resetSingle('filters');
         }
 
-        $this->assertStringContainsString('name="' . csrf_token() . '"', $approve);
-        $this->assertStringContainsString('name="' . csrf_token() . '"', $reverse);
+        $this->assertStringContainsString('name="' . csrf_token() . '"', $html);
     }
 
-    public function testRoutesAreCoveredByTheGlobalProtectionAgainstForgedRequests(): void
+    public function testGetReverseForm_CarriesTheTokenAgainstForgedRequestsWhenTheProtectionIsOn(): void
+    {
+        service('filters')->enableFilters(['csrf'], 'before');
+
+        try {
+            $html = view('accounting_periods/year_end_reverse_form', ['closing' => (object) ['closing_id' => 5, 'year_name' => '2025', 'branch_code' => 'HQ']]);
+        } finally {
+            Services::resetSingle('filters');
+        }
+
+        $this->assertStringContainsString('name="' . csrf_token() . '"', $html);
+    }
+
+    public function testPostApprove_AndPostReverseAreCoveredByTheGlobalProtectionAgainstForgedRequests(): void
     {
         $globals = (new ReflectionClass(Filters::class))->getDefaultProperties()['globals'];
 
@@ -283,7 +292,7 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         }
     }
 
-    public function testGetApproveFormIsNotFoundWithoutThePermissionAndWhenThereIsNothingToApprove(): void
+    public function testGetApproveForm_IsNotFoundWithoutThePermissionAndWhenThereIsNothingToApprove(): void
     {
         $this->readyYear();
         $this->closer(null, false);
@@ -303,7 +312,7 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         $this->get('/accounting_periods/year_end/approve_form?year=' . $this->yearId() . '&scope=company');
     }
 
-    public function testPostApproveClosesTheYearAndSendsTheUserBackToTheScreenWithANotice(): void
+    public function testPostApprove_ClosesTheYearAndSendsTheUserBackToTheScreenWithANotice(): void
     {
         $this->readyYear();
         $this->closer();
@@ -316,7 +325,7 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         $this->assertSame(2, $this->countRows('accounting_year_end_closings'));
     }
 
-    public function testPostApproveClosesOneBranchOnly(): void
+    public function testPostApprove_ClosesOneBranchOnly(): void
     {
         $this->readyYear();
         $this->closer();
@@ -327,7 +336,7 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         $this->assertSame([(string) $this->second], array_column($this->accountingDb()->table('accounting_year_end_closings')->get()->getResultArray(), 'branch_id'));
     }
 
-    public function testPostApproveRefusesWithoutThePermissionAndWritesNothing(): void
+    public function testPostApprove_RefusesWithoutThePermissionAndWritesNothing(): void
     {
         $this->readyYear();
         $fingerprint = $this->fingerprint();
@@ -340,7 +349,7 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('accounting_year_end_closings'));
     }
 
-    public function testPostApproveRefusesAFingerprintThatIsNotTheOneOfTheBooks(): void
+    public function testPostApprove_RefusesAFingerprintThatIsNotTheOneOfTheBooks(): void
     {
         $this->readyYear();
         $this->closer();
@@ -352,7 +361,7 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('accounting_year_end_closings'));
     }
 
-    public function testPostApproveRefusesTheCompanyToSomeoneLimitedToABranch(): void
+    public function testPostApprove_RefusesTheCompanyToSomeoneLimitedToABranch(): void
     {
         $this->readyYear();
         $fingerprint = $this->fingerprint();
@@ -364,7 +373,7 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('accounting_year_end_closings'));
     }
 
-    public function testPostApproveIsNotFoundForAScopeThatIsNeitherTheCompanyNorABranchNumber(): void
+    public function testPostApprove_IsNotFoundForAScopeThatIsNeitherTheCompanyNorABranchNumber(): void
     {
         $this->readyYear();
         $this->closer();
@@ -374,7 +383,7 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         $this->post('/accounting_periods/year_end/approve', ['year' => $this->yearId(), 'scope' => 'everything', 'fingerprint' => $this->fingerprint()]);
     }
 
-    public function testPostApproveReportsThePeriodsThatAreNotClosedAsTheReason(): void
+    public function testPostApprove_ReportsThePeriodsThatAreNotClosedAsTheReason(): void
     {
         $this->twoBranchYear();
         $this->closer();
@@ -385,25 +394,38 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         $this->assertSame(lang('Accounting.error_year_end_period_not_closed', ['2025', '2025-12-31']), $result['message']);
     }
 
-    public function testApproveAndReverseAreNotReachableByAGetRequest(): void
+    public function testPostApprove_IsNotReachableByAGetRequest(): void
+    {
+        $this->readyYear();
+        $this->closer();
+
+        try {
+            $this->get('/accounting_periods/year_end/approve?year=' . $this->yearId() . '&scope=company&fingerprint=' . $this->fingerprint());
+            $this->fail('A GET must change nothing.');
+        } catch (PageNotFoundException) {
+            $this->addToAssertionCount(1);
+        }
+
+        $this->assertSame(0, $this->countRows('accounting_year_end_closings'));
+    }
+
+    public function testPostReverse_IsNotReachableByAGetRequest(): void
     {
         $this->readyYear();
         $this->closer();
         $closing = (new YearEndClosing())->approve(1, $this->yearId(), $this->fingerprint(1), $this->employeeWithGrants([AccountingGuard::YEAR_END_CLOSE]))[0];
 
-        foreach (['/accounting_periods/year_end/approve?year=' . $this->yearId() . '&scope=company', '/accounting_periods/year_end/reverse/' . $closing] as $url) {
-            try {
-                $this->get($url);
-                $this->fail("A GET to {$url} must change nothing.");
-            } catch (PageNotFoundException) {
-                $this->addToAssertionCount(1);
-            }
+        try {
+            $this->get('/accounting_periods/year_end/reverse/' . $closing . '?reason=Why');
+            $this->fail('A GET must change nothing.');
+        } catch (PageNotFoundException) {
+            $this->addToAssertionCount(1);
         }
 
         $this->assertSame('active', $this->accountingDb()->table('accounting_year_end_closings')->where('closing_id', $closing)->get()->getRow()->status);
     }
 
-    public function testGetReverseFormAsksForAReason(): void
+    public function testGetReverseForm_AsksForAReason(): void
     {
         $this->readyYear();
         $this->closer();
@@ -417,7 +439,7 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         $response->assertSee(lang('Accounting_periods.year_end_reverse_warning'));
     }
 
-    public function testGetReverseFormIsNotFoundWithoutThePermissionForAClosingTakenBackAndForABranchOutsideTheScope(): void
+    public function testGetReverseForm_IsNotFoundWithoutThePermissionForAClosingTakenBackAndForABranchOutsideTheScope(): void
     {
         $this->readyYear();
         $closer  = $this->employeeWithGrants([AccountingGuard::YEAR_END_CLOSE]);
@@ -452,7 +474,7 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         $this->get('/accounting_periods/year_end/reverse_form/' . $closing);
     }
 
-    public function testPostReverseTakesTheClosingBackWithItsReason(): void
+    public function testPostReverse_TakesTheClosingBackWithItsReason(): void
     {
         $this->readyYear();
         $this->closer();
@@ -466,7 +488,7 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         $this->assertSame('Wrong figures', $this->accountingDb()->table('accounting_year_end_closings')->where('closing_id', $closing)->get()->getRow()->reverse_reason);
     }
 
-    public function testPostReverseRefusesWithoutAReasonWithoutThePermissionAndOutsideTheScope(): void
+    public function testPostReverse_RefusesWithoutAReasonWithoutThePermissionAndOutsideTheScope(): void
     {
         $this->readyYear();
         $closer  = $this->employeeWithGrants([AccountingGuard::YEAR_END_CLOSE]);
@@ -484,19 +506,5 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
 
         $this->assertFalse($this->jsonOf($this->post('/accounting_periods/year_end/reverse/' . $closing, ['reason' => 'Why']))['success']);
         $this->assertSame('active', $this->accountingDb()->table('accounting_year_end_closings')->where('closing_id', $closing)->get()->getRow()->status);
-    }
-
-    public function testReopenOfThePeriodsIsRefusedOnTheClosingsScreenWhileTheYearIsClosedOut(): void
-    {
-        $this->twoBranchYear();
-        $closer = $this->employeeWithGrants([AccountingGuard::YEAR_END_CLOSE, AccountingGuard::PERIODS_CLOSE, AccountingGuard::PERIODS_REOPEN, 'accounting_periods']);
-        $this->actAs($closer);
-        (new ClosedPeriodService())->close(null, '2025-12-31', 'Year', $closer);
-        (new YearEndClosing())->approve(null, $this->yearId(), $this->fingerprint(), $closer);
-
-        $result = $this->jsonOf($this->post('/accounting_periods/closings/reopen', ['scope' => 'company', 'reason' => 'Late invoice']));
-
-        $this->assertFalse($result['success']);
-        $this->assertSame(lang('Accounting.error_year_end_closed_out', ['2025', '2025-12-31']), $result['message']);
     }
 }

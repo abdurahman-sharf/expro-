@@ -197,6 +197,19 @@ $result = match ($method) {
 
         exit(0);
     })($args),
+    'reverseOpeningBalanceOutcome' => (static function (array $args): never {
+        try {
+            (new App\Libraries\Accounting\OpeningBalanceService())->reverse((int) $args[0], (string) $args[1], 'race', (int) $args[2]);
+
+            echo 'reversed';
+        } catch (App\Libraries\Accounting\AccountingException $exception) {
+            echo $exception->error->value;
+        } catch (Throwable $exception) {
+            echo get_class($exception) . ' ' . $exception->getMessage();
+        }
+
+        exit(0);
+    })($args),
     'editPurchaseLines' => model(App\Models\Receiving::class)->updateLines((int) $args[0], [App\Libraries\Accounting\ReceivingLineEdit::changing((int) $args[1], 0, ['quantity' => (string) $args[2]])], (int) $args[3]),
     'deletePurchase' => model(App\Models\Receiving::class)->delete_value((int) $args[0], (int) $args[1]),
     'payPurchase' => model(App\Models\Receiving::class)->update((int) $args[0], ['payments' => [

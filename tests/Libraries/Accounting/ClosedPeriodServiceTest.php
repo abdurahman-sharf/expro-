@@ -422,6 +422,19 @@ class ClosedPeriodServiceTest extends CIUnitTestCase
         $this->assertSame('2023-12-31', $this->service->cutoff(1));
     }
 
+    public function testReopen_OfABranchClosingIsAcceptedWhenAnEarlierClosingOfTheBranchStillCoversTheClosedOutYear(): void
+    {
+        $employee = $this->closer();
+        $this->closeOutYear('2023', 1, '2023-05-10');
+        $this->service->close(1, '2023-12-31', 'Branch', $employee);
+        $this->service->close(1, '2024-03-31', 'Branch quarter', $employee);
+        $this->accountingDb()->table('accounting_closed_periods')->where('branch_id IS NULL', null, false)->update(['active' => 0]);
+
+        $this->service->reopen(1, 'Branch fix', $employee);
+
+        $this->assertSame('2023-12-31', $this->service->cutoff(1));
+    }
+
     public function testReopen_OfABranchClosingIsAcceptedWhenTheYearOfAnotherBranchIsClosedOut(): void
     {
         $second   = $this->createBranch('B2');

@@ -1135,6 +1135,13 @@ class PostingServiceTest extends CIUnitTestCase
         $this->assertSame(PostingError::PeriodClosed, $this->postingRefusal(fn () => $this->service->post($this->yearEndDraft(type: JournalEntryType::General, source: 'sale', sourceId: 7004)))->error);
     }
 
+    public function testPostYearEnd_TakesThePeriodLocksOfTheBranchAsPostingDoes(): void
+    {
+        $taken = $this->periodLocksTakenBy(fn () => $this->service->postYearEnd($this->yearEndDraft()));
+
+        $this->assertSame([1], array_values(array_unique($taken)));
+    }
+
     public function testPostYearEnd_IsCalledByNothingButTheClosingOfAYear(): void
     {
         $callers = [];

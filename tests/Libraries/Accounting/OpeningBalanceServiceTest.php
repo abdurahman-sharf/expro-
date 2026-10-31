@@ -20,11 +20,13 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\ConcurrentDbRaceTrait;
 
 class OpeningBalanceServiceTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
+    use ConcurrentDbRaceTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -372,6 +374,35 @@ class OpeningBalanceServiceTest extends CIUnitTestCase
 
         $this->assertGreaterThan(0, $this->service->reverse(1, '2027-01-02', 'Wrong counts', $employee));
         $this->assertSame('reversed', $this->accountingDb()->table('accounting_journals')->where('journal_id', $original)->get()->getRow()->status);
+    }
+
+    public function testReverse_WaitsForAClosingOfTheYearThatIsBeingWrittenAndIsRefusedOnceItIsThere(): void
+    {
+        $employee = $this->manager();
+        $original = $this->service->post(1, $this->balancedLines('100.00'), false, $employee);
+        (new JournalService())->postNew(['date' => '2026-06-10'] + $this->journalInput());
+        $this->closeThrough('2026-12-31');
+
+        $closer  = $this->employeeWithGrants([AccountingGuard::YEAR_END_CLOSE]);
+        $year    = (int) $this->accountingDb()->table('accounting_fiscal_years')->where('name', '2026')->get()->getRow()->fiscal_year_id;
+        $preview = (new YearEndClosing())->preview(1, $year, $closer);
+        $first   = $this->openSecondConnection(false);
+        $first->resetTransStatus();
+        $first->transStart();
+
+        try {
+            (new YearEndClosing($first))->approve(1, $year, $preview->fingerprint, $closer);
+
+            $worker  = $this->startRaceWorker('reverseOpeningBalanceOutcome', ['1', '2027-01-02', (string) $employee]);
+            $waiting = $this->raceWorkerIsRunning($worker);
+        } finally {
+            $first->transComplete();
+            $first->close();
+        }
+
+        $this->assertTrue($waiting, 'The reversal waits for the closing that holds the branch');
+        $this->assertSame('year_end_closed_out', $this->finishRaceWorker($worker), 'And finds the year closed out when it gets the branch');
+        $this->assertSame('posted', $this->accountingDb()->table('accounting_journals')->where('journal_id', $original)->get()->getRow()->status);
     }
 
     public function testReverse_AcceptsTheOpeningOfABranchWhoseYearIsNotClosedOutWhenAnotherBranchClosedItsOwn(): void

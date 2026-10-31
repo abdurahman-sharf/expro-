@@ -97,12 +97,12 @@ final class YearEndClosingsMigrationTest extends CIUnitTestCase
         return ! $this->rejects(fn () => $this->accountingDb()->table('accounting_year_end_closings')->insert($row));
     }
 
-    public function testUpCreatesTheTableOfClosings(): void
+    public function testUp_CreatesTheTableOfClosings(): void
     {
         $this->assertTrue($this->hasTable());
     }
 
-    public function testUpRegistersThePermissionToCloseTheYearUnderThePeriodsScreenAndGrantsItToNobody(): void
+    public function testUp_RegistersThePermissionToCloseTheYearUnderThePeriodsScreenAndGrantsItToNobody(): void
     {
         $permission = $this->permission();
 
@@ -111,7 +111,7 @@ final class YearEndClosingsMigrationTest extends CIUnitTestCase
         $this->assertSame(0, $this->accountingDb()->table('grants')->where('permission_id', AccountingGuard::YEAR_END_CLOSE)->countAllResults());
     }
 
-    public function testUpIsSafeToRunAgain(): void
+    public function testUp_IsSafeToRunAgain(): void
     {
         (new YearEndClosings())->up();
         (new YearEndClosings())->up();
@@ -120,7 +120,7 @@ final class YearEndClosingsMigrationTest extends CIUnitTestCase
         $this->assertSame(1, $this->accountingDb()->table('permissions')->where('permission_id', AccountingGuard::YEAR_END_CLOSE)->countAllResults());
     }
 
-    public function testUpTouchesNoJournalAndNoClosedPeriod(): void
+    public function testUp_TouchesNoJournalAndNoClosedPeriod(): void
     {
         (new JournalService())->postNew(['date' => '2025-05-10'] + $this->journalInput());
         $this->closeThrough('2025-12-31');
@@ -134,7 +134,7 @@ final class YearEndClosingsMigrationTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('accounting_year_end_closings'));
     }
 
-    public function testDownRemovesTheTableThePermissionAndItsGrants(): void
+    public function testDown_RemovesTheTableThePermissionAndItsGrants(): void
     {
         $employee = $this->employeeWithGrants([AccountingGuard::YEAR_END_CLOSE]);
 
@@ -145,13 +145,13 @@ final class YearEndClosingsMigrationTest extends CIUnitTestCase
         $this->assertSame(0, $this->accountingDb()->table('grants')->where('person_id', $employee)->where('permission_id', AccountingGuard::YEAR_END_CLOSE)->countAllResults());
     }
 
-    public function testTableAllowsOneActiveClosingForABranchAndAYear(): void
+    public function testTable_AllowsOneActiveClosingForABranchAndAYear(): void
     {
         $this->assertTrue($this->inserts($this->closing()));
         $this->assertFalse($this->inserts($this->closing(['revision' => 2])), 'A second active closing of the same branch and year is refused by the key');
     }
 
-    public function testTableAllowsAnyNumberOfClosingsThatWereTakenBack(): void
+    public function testTable_AllowsAnyNumberOfClosingsThatWereTakenBack(): void
     {
         $reversed = ['status' => 'reversed', 'active_key' => null];
 
@@ -161,7 +161,7 @@ final class YearEndClosingsMigrationTest extends CIUnitTestCase
         $this->assertFalse($this->inserts($this->closing(['revision' => 4])));
     }
 
-    public function testTableKeepsTheClosingsOfOtherBranchesAndYearsApart(): void
+    public function testTable_KeepsTheClosingsOfOtherBranchesAndYearsApart(): void
     {
         $second = $this->createBranch('YE2');
         $other  = (int) $this->accountingDb()->table('accounting_fiscal_years')->where('name', '2024')->get()->getRow()->fiscal_year_id;
@@ -171,7 +171,7 @@ final class YearEndClosingsMigrationTest extends CIUnitTestCase
         $this->assertTrue($this->inserts($this->closing(['fiscal_year_id' => $other])));
     }
 
-    public function testTableRefusesTwoClosingsWithTheSameRevision(): void
+    public function testTable_RefusesTwoClosingsWithTheSameRevision(): void
     {
         $reversed = ['status' => 'reversed', 'active_key' => null];
 
@@ -179,21 +179,21 @@ final class YearEndClosingsMigrationTest extends CIUnitTestCase
         $this->assertFalse($this->inserts($this->closing($reversed)));
     }
 
-    public function testTableRefusesAnActiveClosingWithoutItsKeyAndAReversedOneWithIt(): void
+    public function testTable_RefusesAnActiveClosingWithoutItsKeyAndAReversedOneWithIt(): void
     {
         $this->assertFalse($this->inserts($this->closing(['active_key' => null])));
         $this->assertFalse($this->inserts($this->closing(['status' => 'reversed', 'active_key' => 1])));
         $this->assertFalse($this->inserts($this->closing(['status' => 'open'])));
     }
 
-    public function testTableRefusesABranchAYearOrAnAccountThatDoNotExist(): void
+    public function testTable_RefusesABranchAYearOrAnAccountThatDoNotExist(): void
     {
         $this->assertFalse($this->inserts($this->closing(['branch_id' => 9999])));
         $this->assertFalse($this->inserts($this->closing(['fiscal_year_id' => 9999])));
         $this->assertFalse($this->inserts($this->closing(['retained_account_id' => 999999])));
     }
 
-    public function testTableRefusesToLoseTheYearOrTheBranchOfAClosing(): void
+    public function testTable_RefusesToLoseTheYearOrTheBranchOfAClosing(): void
     {
         $this->assertTrue($this->inserts($this->closing()));
 

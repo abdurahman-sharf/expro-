@@ -10,11 +10,14 @@ use App\Libraries\Accounting\BalanceSheet;
 use App\Libraries\Accounting\BalanceSheetReport;
 use App\Libraries\Accounting\ClosedPeriodService;
 use App\Libraries\Accounting\IncomeStatement;
+use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalEntryType;
+use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\JournalStatus;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\ReportPeriod;
 use App\Libraries\Accounting\ReportScope;
 use App\Libraries\Accounting\TrialBalance;
@@ -108,6 +111,22 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->postOn('2025-05-10', 1, [[$this->accountId('expenses_default'), '150.00', '0'], [$cash, '0', '150.00']]);
         $this->postOn('2025-03-12', $this->second, [[$cash, '300.00', '0'], [$this->accountId('sales_revenue'), '0', '300.00']]);
         $this->postOn('2025-06-12', $this->second, [[$this->accountId('expenses_default'), '500.00', '0'], [$cash, '0', '500.00']]);
+    }
+
+    /**
+     * @param list<array{int, string, string}> $lines
+     */
+    private function postYearEnd(string $date, int $branchId, array $lines): int
+    {
+        return (new PostingService())->postYearEnd(new JournalDraft(
+            date: $date,
+            lines: array_map(static fn (array $line): JournalLineDraft => new JournalLineDraft($line[0], debit: $line[1], credit: $line[2]), $lines),
+            sourceType: YearEndEntries::SOURCE_TYPE,
+            sourceId: 900001,
+            currencyCode: 'SAR',
+            branchId: $branchId,
+            entryType: JournalEntryType::YearEnd,
+        ))->journalId;
     }
 
     private function closePeriods(string $date = '2025-12-31'): void
@@ -259,7 +278,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         return array_column($this->accountingDb()->table('accounting_audit_log')->where('entity_type', $entityType)->orderBy('audit_id')->get()->getResultArray(), 'action');
     }
 
-    public function testPreviewListsTheRevenueAndExpenseAccountsOfEachBranchWithWhatClosesThem(): void
+    public function testPreview_ListsTheRevenueAndExpenseAccountsOfEachBranchWithWhatClosesThem(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -293,7 +312,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame(64, strlen($preview->fingerprint));
     }
 
-    public function testPreviewWritesNothing(): void
+    public function testPreview_WritesNothing(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -305,7 +324,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame($counts, $this->counts());
     }
 
-    public function testPreviewRequiresThePermissionToCloseTheYear(): void
+    public function testPreview_RequiresThePermissionToCloseTheYear(): void
     {
         $this->twoBranchYear();
 
@@ -315,7 +334,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertRefused(AccountingError::PermissionDenied, fn () => $this->service->preview(1, $this->yearId(), $nobody));
     }
 
-    public function testPreviewRejectsABranchTheEmployeeDoesNotWorkIn(): void
+    public function testPreview_RejectsABranchTheEmployeeDoesNotWorkIn(): void
     {
         $this->twoBranchYear();
         $limited = $this->closer([1]);
@@ -330,7 +349,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         }
     }
 
-    public function testPreviewRejectsACompanyRunForAnEmployeeLimitedToSomeBranches(): void
+    public function testPreview_RejectsACompanyRunForAnEmployeeLimitedToSomeBranches(): void
     {
         $this->twoBranchYear();
         $limited = $this->closer([1]);
@@ -343,7 +362,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         }
     }
 
-    public function testPreviewRejectsABranchThatDoesNotExistAndAYearThatDoesNotExist(): void
+    public function testPreview_RejectsABranchThatDoesNotExistAndAYearThatDoesNotExist(): void
     {
         try {
             $this->service->preview(999, $this->yearId(), $this->employee);
@@ -355,7 +374,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertRefused(AccountingError::YearEndYearNotFound, fn () => $this->service->preview(null, 99999, $this->employee));
     }
 
-    public function testPreviewNamesThePeriodsOfTheCompanyThatAreNotClosedThroughTheEndOfTheYear(): void
+    public function testPreview_NamesThePeriodsOfTheCompanyThatAreNotClosedThroughTheEndOfTheYear(): void
     {
         $this->twoBranchYear();
 
@@ -374,7 +393,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame([], $this->service->preview(null, $this->yearId(), $this->employee)->blockers);
     }
 
-    public function testPreviewIgnoresTheClosingOfOneBranchWhenTheCompanyHasNotClosed(): void
+    public function testPreview_IgnoresTheClosingOfOneBranchWhenTheCompanyHasNotClosed(): void
     {
         $this->twoBranchYear();
         $this->closeThrough('2025-12-31', 1);
@@ -382,7 +401,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame(AccountingError::YearEndPeriodNotClosed, $this->service->preview(1, $this->yearId(), $this->employee)->blockers[0]->error);
     }
 
-    public function testPreviewCountsTheDraftsOfTheYearInTheBranchesOfTheRun(): void
+    public function testPreview_CountsTheDraftsOfTheYearInTheBranchesOfTheRun(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -401,7 +420,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame(1, $this->service->preview($this->second, $this->yearId(), $this->employee)->draftCount);
     }
 
-    public function testPreviewMarksABranchThatMovedNothingAsHavingNothingToClose(): void
+    public function testPreview_MarksABranchThatMovedNothingAsHavingNothingToClose(): void
     {
         $this->postOn('2025-03-10', 1, [[$this->accountId('cash'), '40.00', '0'], [$this->accountId('sales_revenue'), '0', '40.00']]);
         $this->closePeriods();
@@ -414,7 +433,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertTrue($preview->canApprove());
     }
 
-    public function testPreviewLeavesOutAnAccountWhoseDebitsAndCreditsCancel(): void
+    public function testPreview_LeavesOutAnAccountWhoseDebitsAndCreditsCancel(): void
     {
         $sales = $this->accountId('sales_revenue');
         $cash  = $this->accountId('cash');
@@ -429,7 +448,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame([], $preview->branches[0]->lines);
     }
 
-    public function testPreviewReadsTheMovementOfTheYearAndNotWhatTheAccountsCarriedFromEarlierYears(): void
+    public function testPreview_ReadsTheMovementOfTheYearAndNotWhatTheAccountsCarriedFromEarlierYears(): void
     {
         $sales = $this->accountId('sales_revenue');
         $cash  = $this->accountId('cash');
@@ -445,7 +464,77 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame('500.0000', $year2024->result);
     }
 
-    public function testPreviewReadsAReversedJournalWithItsReversalSoItLeavesNothingToClose(): void
+    public function testPreview_IgnoresTheLinesOfADraftWhichOnlyBlocksTheClosing(): void
+    {
+        $this->twoBranchYear();
+        $this->closePeriods();
+        (new JournalService())->saveDraft(['date' => '2025-07-01', 'branch_id' => 1] + $this->journalInput('70.00'), null);
+
+        $preview = $this->service->preview(1, $this->yearId(), $this->employee);
+
+        $this->assertSame('1000.0000', $preview->branches[0]->revenue, 'The 70 of the draft is not in the books');
+        $this->assertSame(1, $preview->draftCount);
+    }
+
+    public function testPreview_DoesNotCountAJournalThatClosesTheYearAsMovementOfTheYear(): void
+    {
+        $this->twoBranchYear();
+        $this->postYearEnd('2025-12-31', 1, [[$this->accountId('sales_revenue'), '1000.00', '0'], [$this->accountId('retained_earnings'), '0', '1000.00']]);
+        $this->closePeriods();
+
+        $preview = $this->service->preview(1, $this->yearId(), $this->employee);
+
+        $this->assertSame('1000.0000', $preview->branches[0]->revenue, 'A closing written by other means is not a sale');
+        $this->assertSame('250.0000', $preview->branches[0]->result);
+    }
+
+    public function testApprove_SeesAClosingThatCommittedAfterTheSnapshotOfTheCaller(): void
+    {
+        $this->twoBranchYear();
+        $this->closePeriods();
+        $preview = $this->service->preview(1, $this->yearId(), $this->employee);
+        $other   = $this->openSecondConnection();
+        $this->startWithSnapshot($other);
+
+        $this->service->approve(1, $this->yearId(), $preview->fingerprint, $this->employee);
+
+        try {
+            (new YearEndClosing($other))->approve(1, $this->yearId(), $preview->fingerprint, $this->employee);
+            $this->fail('The year was closed after the snapshot of the second request.');
+        } catch (AccountingException $exception) {
+            $this->assertSame(AccountingError::YearEndAlreadyClosed, $exception->error);
+        } finally {
+            $other->transRollback();
+            $other->close();
+        }
+
+        $this->assertSame(1, $this->accountingDb()->table('accounting_journals')->where('source_type', 'year_end')->countAllResults());
+    }
+
+    public function testApprove_SeesThePeriodsThatWereReopenedAfterTheSnapshotOfTheCaller(): void
+    {
+        $this->twoBranchYear();
+        $this->closePeriods();
+        $preview = $this->service->preview(1, $this->yearId(), $this->employee);
+        $other   = $this->openSecondConnection();
+        $this->startWithSnapshot($other);
+
+        $this->accountingDb()->table('accounting_closed_periods')->update(['active' => 0]);
+
+        try {
+            (new YearEndClosing($other))->approve(1, $this->yearId(), $preview->fingerprint, $this->employee);
+            $this->fail('The periods were reopened after the snapshot of the second request.');
+        } catch (AccountingException $exception) {
+            $this->assertSame(AccountingError::YearEndPeriodNotClosed, $exception->error);
+        } finally {
+            $other->transRollback();
+            $other->close();
+        }
+
+        $this->assertSame(0, $this->countRows('accounting_year_end_closings'));
+    }
+
+    public function testPreview_ReadsAReversedJournalWithItsReversalSoItLeavesNothingToClose(): void
     {
         $sale = $this->cashSale('2025-03-10', 1, '90.00');
         $this->reverseOn($sale, '2025-03-20');
@@ -454,7 +543,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame(YearEndBranchStatus::NoActivity, $this->service->preview(1, $this->yearId(), $this->employee)->branches[0]->status);
     }
 
-    public function testPreviewReportsTheRetainedEarningsAccountOfTheRoutingAsMissingWhenItIsGone(): void
+    public function testPreview_ReportsTheRetainedEarningsAccountOfTheRoutingAsMissingWhenItIsGone(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -467,7 +556,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame(AccountingError::YearEndRetainedEarningsUnset, $preview->blockers[0]->error);
     }
 
-    public function testPreviewReportsAnAccountOfTheRoutingThatIsNotEquityAsMissing(): void
+    public function testPreview_ReportsAnAccountOfTheRoutingThatIsNotEquityAsMissing(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -476,7 +565,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame(AccountingError::YearEndRetainedEarningsUnset, $this->service->preview(null, $this->yearId(), $this->employee)->blockers[0]->error);
     }
 
-    public function testPreviewTakesTheRetainedEarningsAccountFromTheRouting(): void
+    public function testPreview_TakesTheRetainedEarningsAccountFromTheRouting(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -495,7 +584,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame('0.0000', $this->balance($this->accountId('retained_earnings')));
     }
 
-    public function testPreviewMarksABranchWhoseYearIsAlreadyClosed(): void
+    public function testPreview_MarksABranchWhoseYearIsAlreadyClosed(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -510,7 +599,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertCount(1, $preview->ready());
     }
 
-    public function testApproveWritesOneJournalForTheBranchThatMovesTheProfitToRetainedEarnings(): void
+    public function testApprove_WritesOneJournalForTheBranchThatMovesTheProfitToRetainedEarnings(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -548,7 +637,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame(1, (int) $closing->active_key);
     }
 
-    public function testApproveLeavesTheBalancesOfTheRevenueAndExpenseAccountsAtNothingAndRetainedEarningsHoldingTheResult(): void
+    public function testApprove_LeavesTheBalancesOfTheRevenueAndExpenseAccountsAtNothingAndRetainedEarningsHoldingTheResult(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -563,7 +652,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame('-300.0000', $this->balance($this->accountId('sales_revenue'), $this->second), 'The other branch is untouched');
     }
 
-    public function testApprovePostsALossAsADebitToRetainedEarnings(): void
+    public function testApprove_PostsALossAsADebitToRetainedEarnings(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -579,7 +668,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame('-200.0000', $this->closingOf($this->second)->result_amount);
     }
 
-    public function testApproveClosesABalanceThatIsOppositeToTheNatureOfItsAccountByItsOwnSign(): void
+    public function testApprove_ClosesABalanceThatIsOppositeToTheNatureOfItsAccountByItsOwnSign(): void
     {
         $returns = $this->accountId('sales_returns');
         $sales   = $this->accountId('sales_revenue');
@@ -605,7 +694,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         }
     }
 
-    public function testApproveWritesNoRetainedEarningsLineWhenTheResultIsZero(): void
+    public function testApprove_WritesNoRetainedEarningsLineWhenTheResultIsZero(): void
     {
         $cash = $this->accountId('cash');
 
@@ -622,7 +711,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame('0.0000', $this->closingOf(1)->result_amount);
     }
 
-    public function testApproveClosesAnAccountAndABranchThatWereDeactivatedSince(): void
+    public function testApprove_ClosesAnAccountAndABranchThatWereDeactivatedSince(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -636,7 +725,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame('0.0000', $this->balance($this->accountId('sales_revenue')));
     }
 
-    public function testApproveMovesNoProfitBetweenBranches(): void
+    public function testApprove_MovesNoProfitBetweenBranches(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -653,7 +742,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         }
     }
 
-    public function testApproveWritesTheJournalsOfAllTheBranchesOfACompanyRunAndSkipsTheOneWithNothingToClose(): void
+    public function testApprove_WritesTheJournalsOfAllTheBranchesOfACompanyRunAndSkipsTheOneWithNothingToClose(): void
     {
         $this->postOn('2025-03-10', 1, [[$this->accountId('cash'), '40.00', '0'], [$this->accountId('sales_revenue'), '0', '40.00']]);
         $this->closePeriods();
@@ -666,7 +755,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame(1, $this->countRows('accounting_year_end_closings'));
     }
 
-    public function testApproveRefusesWhenNoBranchOfTheRunHasAnythingToClose(): void
+    public function testApprove_RefusesWhenNoBranchOfTheRunHasAnythingToClose(): void
     {
         $this->closePeriods();
         $preview = $this->service->preview(null, $this->yearId(), $this->employee);
@@ -676,7 +765,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame($counts, $this->counts());
     }
 
-    public function testApproveWritesInsideTheClosedPeriodAndRecordsTheExceptionInTheAuditLog(): void
+    public function testApprove_WritesInsideTheClosedPeriodAndRecordsTheExceptionInTheAuditLog(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -698,7 +787,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame(1, $this->accountingDb()->table('accounting_audit_log')->where('entity_type', 'journal')->where('entity_id', (int) $closing->journal_id)->where('action', 'posted')->countAllResults());
     }
 
-    public function testApproveLeavesTheClosedPeriodsAsTheyWere(): void
+    public function testApprove_LeavesTheClosedPeriodsAsTheyWere(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -710,7 +799,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame('2025-12-31', (new ClosedPeriodService())->cutoff(null));
     }
 
-    public function testApproveDoesNotLetAnythingElseIntoTheClosedPeriod(): void
+    public function testApprove_DoesNotLetAnythingElseIntoTheClosedPeriod(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -731,7 +820,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         }
     }
 
-    public function testApproveRequiresThePermissionToCloseTheYear(): void
+    public function testApprove_RequiresThePermissionToCloseTheYear(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -744,7 +833,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame($counts, $this->counts());
     }
 
-    public function testApproveRejectsAnEmployeeLimitedToOneBranchRunningForTheCompanyOrAnotherBranch(): void
+    public function testApprove_RejectsAnEmployeeLimitedToOneBranchRunningForTheCompanyOrAnotherBranch(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -764,7 +853,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame($counts, $this->counts());
     }
 
-    public function testApproveLetsAnEmployeeLimitedToABranchCloseThatBranchAndNoOther(): void
+    public function testApprove_LetsAnEmployeeLimitedToABranchCloseThatBranchAndNoOther(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -776,7 +865,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertNull($this->closingOf(1));
     }
 
-    public function testApproveRefusesWithoutTheClosingOfThePeriodsOfTheCompany(): void
+    public function testApprove_RefusesWithoutTheClosingOfThePeriodsOfTheCompany(): void
     {
         $this->twoBranchYear();
         $preview = $this->service->preview(null, $this->yearId(), $this->employee);
@@ -791,7 +880,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame($counts, $this->counts());
     }
 
-    public function testApproveRefusesWhileTheYearHoldsADraftAndAcceptsOnceItIsGone(): void
+    public function testApprove_RefusesWhileTheYearHoldsADraftAndAcceptsOnceItIsGone(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -808,7 +897,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertCount(1, $this->close(1));
     }
 
-    public function testApproveRefusesAPreviewThatIsNotTheOneTheBooksGiveNow(): void
+    public function testApprove_RefusesAPreviewThatIsNotTheOneTheBooksGiveNow(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -823,7 +912,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame($counts, $this->counts());
     }
 
-    public function testApproveRefusesAPreviewOfTheBooksBeforeAnEntryChangedThem(): void
+    public function testApprove_RefusesAPreviewOfTheBooksBeforeAnEntryChangedThem(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -836,7 +925,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertNull($this->closingOf(1));
     }
 
-    public function testApproveRefusesToCloseABranchTwiceAndWritesNothingTheSecondTime(): void
+    public function testApprove_RefusesToCloseABranchTwiceAndWritesNothingTheSecondTime(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -849,7 +938,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame(1, $this->accountingDb()->table('accounting_journals')->where('source_type', 'year_end')->countAllResults());
     }
 
-    public function testApproveClosesOnlyTheBranchesThatAreNotClosedYetWhenTheCompanyRunsAfterOneBranch(): void
+    public function testApprove_ClosesOnlyTheBranchesThatAreNotClosedYetWhenTheCompanyRunsAfterOneBranch(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -862,7 +951,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame((string) $this->second, (string) $this->journal((int) $this->closingOf($this->second)->journal_id)->branch_id);
     }
 
-    public function testApproveWritesNoJournalOfABranchWhenAnotherBranchOfTheRunCannotBePosted(): void
+    public function testApprove_WritesNoJournalOfABranchWhenAnotherBranchOfTheRunCannotBePosted(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -875,7 +964,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame($counts, $this->counts(), 'Neither branch got a journal');
     }
 
-    public function testApproveRollsBackTheBranchesAlreadyWrittenWhenALaterOneFails(): void
+    public function testApprove_RollsBackTheBranchesAlreadyWrittenWhenALaterOneFails(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -892,7 +981,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         }
     }
 
-    public function testApproveTakesTheLocksOfTheBranchesInTheOrderOfTheirNumbers(): void
+    public function testApprove_TakesTheLocksOfTheBranchesInTheOrderOfTheirNumbers(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -904,7 +993,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame([1, $this->second], array_values(array_unique($taken)));
     }
 
-    public function testApproveTakesOnlyTheLockOfTheBranchOfABranchRun(): void
+    public function testApprove_TakesOnlyTheLockOfTheBranchOfABranchRun(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -915,7 +1004,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame([$this->second], array_values(array_unique($taken)));
     }
 
-    public function testApproveWaitsForARequestThatHoldsTheBranchAndWritesNothingWhenItCannotHaveIt(): void
+    public function testApprove_WaitsForARequestThatHoldsTheBranchAndWritesNothingWhenItCannotHaveIt(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -938,7 +1027,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame($counts, $this->counts());
     }
 
-    public function testApproveClosesTheYearAgainAfterTheClosingWasReversedAsASecondRevision(): void
+    public function testApprove_ClosesTheYearAgainAfterTheClosingWasReversedAsASecondRevision(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -956,7 +1045,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame('-250.0000', $this->balance($this->accountId('retained_earnings'), 1, '2025-12-31'));
     }
 
-    public function testReverseMirrorsTheClosingOnItsDayAndRestoresTheBooksExactly(): void
+    public function testReverse_MirrorsTheClosingOnItsDayAndRestoresTheBooksExactly(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -991,7 +1080,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame((string) $this->closingOf(1, '2025', 'reversed')->journal_id, (string) $mirror->reverses_journal_id);
     }
 
-    public function testReverseMarksTheClosingAndItsJournalReversedAndKeepsTheRow(): void
+    public function testReverse_MarksTheClosingAndItsJournalReversedAndKeepsTheRow(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -1014,7 +1103,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertNull($this->closingOf(1));
     }
 
-    public function testReverseWritesTheMirrorOfEveryLineAndRecordsItInTheAuditLog(): void
+    public function testReverse_WritesTheMirrorOfEveryLineAndRecordsItInTheAuditLog(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -1037,7 +1126,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame($reversal, json_decode($entry->details, true)['reversal_id']);
     }
 
-    public function testReverseRequiresThePermissionAReasonAndTheBranchOfTheClosing(): void
+    public function testReverse_RequiresThePermissionAReasonAndTheBranchOfTheClosing(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -1062,7 +1151,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertNotNull($this->closingOf(1));
     }
 
-    public function testReverseAcceptsAReasonOfTwoHundredAndFiftyFiveCharacters(): void
+    public function testReverse_AcceptsAReasonOfTwoHundredAndFiftyFiveCharacters(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -1073,7 +1162,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame(255, mb_strlen($this->journal($reversal)->description));
     }
 
-    public function testReverseRefusesAClosingThatWasTakenBackAlready(): void
+    public function testReverse_RefusesAClosingThatWasTakenBackAlready(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -1086,7 +1175,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame(1, $this->accountingDb()->table('accounting_journals')->where('source_type', 'reversal')->where('entry_type', 'year_end')->countAllResults());
     }
 
-    public function testReverseTakesTheLockOfTheBranchOfTheClosing(): void
+    public function testReverse_TakesTheLockOfTheBranchOfTheClosing(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -1097,7 +1186,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame([$this->second], $taken);
     }
 
-    public function testClosingsListsTheClosingsOfTheBranchesTheEmployeeMaySee(): void
+    public function testClosings_ListsTheClosingsOfTheBranchesTheEmployeeMaySee(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -1116,7 +1205,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertCount(2, $this->service->closings($this->employee, $this->yearId('2025')));
     }
 
-    public function testYearsListsTheYearsThatHaveEndedWithWhetherTheCompanyClosedThroughThem(): void
+    public function testYears_ListsTheYearsThatHaveEndedWithWhetherTheCompanyClosedThroughThem(): void
     {
         $this->closePeriods('2024-12-31');
 
@@ -1133,7 +1222,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame('2025', (string) array_key_first($years), 'The latest year comes first');
     }
 
-    public function testAcceptanceTheBalanceSheetBalancesBeforeAndAfterTheClosingForOneBranchAndForSeveral(): void
+    public function testAcceptance_TheBalanceSheetBalancesBeforeAndAfterTheClosingForOneBranchAndForSeveral(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -1161,7 +1250,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame('250.0000', $this->sheet('2025-12-31', $scopes['first'])->equity->total, 'It moved to account 32');
     }
 
-    public function testAcceptanceTheBalanceSheetBalancesAfterTheClosingWhenTheYearAfterHasItsOwnResult(): void
+    public function testAcceptance_TheBalanceSheetBalancesAfterTheClosingWhenTheYearAfterHasItsOwnResult(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -1175,7 +1264,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame('50.0000', $sheet->equity->total);
     }
 
-    public function testAcceptanceTheIncomeStatementOfTheYearReadsTheSameBeforeAndAfterTheClosing(): void
+    public function testAcceptance_TheIncomeStatementOfTheYearReadsTheSameBeforeAndAfterTheClosing(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -1187,14 +1276,14 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->close();
 
         foreach ($scopes as $index => $scope) {
-            $this->assertSame($before[$index], $statement($scope));
+            $this->assertEquals($before[$index], $statement($scope));
         }
 
         $this->assertSame('50.0000', $statement($scopes[0])->netIncome);
         $this->assertSame('250.0000', $statement($scopes[1])->netIncome);
     }
 
-    public function testAcceptanceTheIncomeStatementOfTwoYearsLeavesOutTheClosingOfTheFirst(): void
+    public function testAcceptance_TheIncomeStatementOfTwoYearsLeavesOutTheClosingOfTheFirst(): void
     {
         $this->twoBranchYear();
         $this->cashSale('2026-03-10', 1, '70.00');
@@ -1205,12 +1294,12 @@ final class YearEndClosingTest extends CIUnitTestCase
 
         $this->close();
 
-        $this->assertSame($before, [$statement('2025-01-01', '2025-12-31'), $statement('2026-01-01', '2026-12-31')]);
+        $this->assertEquals($before, [$statement('2025-01-01', '2025-12-31'), $statement('2026-01-01', '2026-12-31')]);
         $this->assertSame('70.0000', $statement('2026-01-01', '2026-12-31')->netIncome, 'The closing of 2025 does not appear as a result of 2026 or as revenue of 2025');
         $this->assertSame('1300.0000', $statement('2025-01-01', '2025-12-31')->revenue->total);
     }
 
-    public function testAcceptanceTheTrialBalanceShowsTheAccountsOfTheYearBeforeTheClosingByDefaultAndAtNothingAfterIt(): void
+    public function testAcceptance_TheTrialBalanceShowsTheAccountsOfTheYearBeforeTheClosingByDefaultAndAtNothingAfterIt(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -1235,7 +1324,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         }
     }
 
-    public function testAcceptanceAClosedYearReadsTheSameBeforeAndAfterWhenItsClosingIsReversed(): void
+    public function testAcceptance_AClosedYearReadsTheSameBeforeAndAfterWhenItsClosingIsReversed(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -1250,10 +1339,10 @@ final class YearEndClosingTest extends CIUnitTestCase
         }
 
         $this->assertSame($trial, $this->trial(TrialBalanceClosing::Before, null, '2026-12-31'));
-        $this->assertSame($sheet, $this->sheet('2026-12-31'));
+        $this->assertEquals($sheet, $this->sheet('2026-12-31'));
     }
 
-    public function testAcceptanceALimitedScopeEmployeeCannotRunACompanyCloseOrReadTheResultsOfOtherBranches(): void
+    public function testAcceptance_ALimitedScopeEmployeeCannotRunACompanyCloseOrReadTheResultsOfOtherBranches(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -1276,7 +1365,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertCount(1, $this->service->closings($this->employee));
     }
 
-    public function testAcceptanceTwoRunsAtTheSameMomentWriteOneClosingForEachBranch(): void
+    public function testAcceptance_TwoRunsAtTheSameMomentWriteOneClosingForEachBranch(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -1297,7 +1386,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame('0.0000', $this->balance($this->accountId('sales_revenue')));
     }
 
-    public function testAcceptanceTwoRunsOfOneBranchAtTheSameMomentWriteOneClosing(): void
+    public function testAcceptance_TwoRunsOfOneBranchAtTheSameMomentWriteOneClosing(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -1313,7 +1402,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame('-250.0000', $this->balance($this->accountId('retained_earnings')));
     }
 
-    public function testApproveMakesARequestThatArrivesWhileAnotherIsClosingWaitAndThenRefusesItAsAlreadyClosed(): void
+    public function testApprove_MakesARequestThatArrivesWhileAnotherIsClosingWaitAndThenRefusesItAsAlreadyClosed(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
@@ -1337,7 +1426,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame(1, $this->accountingDb()->table('accounting_journals')->where('source_type', 'year_end')->countAllResults());
     }
 
-    public function testApproveRefusesARunWhenTheCompanyReopenedItsPeriodsMeanwhile(): void
+    public function testApprove_RefusesARunWhenTheCompanyReopenedItsPeriodsMeanwhile(): void
     {
         $this->twoBranchYear();
         (new ClosedPeriodService())->close(null, '2025-12-31', 'Year', $this->employeeWithGrants([AccountingGuard::PERIODS_CLOSE]));
@@ -1349,7 +1438,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('accounting_year_end_closings'));
     }
 
-    public function testApproveTheJournalIsKnownToEveryReportByItsTypeAndByNoOtherMark(): void
+    public function testApprove_TheJournalIsKnownToEveryReportByItsTypeAndByNoOtherMark(): void
     {
         $this->twoBranchYear();
         $this->closePeriods();
