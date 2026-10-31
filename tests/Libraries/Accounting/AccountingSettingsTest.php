@@ -41,7 +41,9 @@ class AccountingSettingsTest extends CIUnitTestCase
         parent::setUp();
 
         $db = $this->accountingDb();
+        $db->disableForeignKeyChecks();
         $db->table('accounting_fiscal_years')->truncate();
+        $db->enableForeignKeyChecks();
         $db->table('accounting_accounts')->where('active', 0)->update(['active' => 1]);
         $db->table('accounting_audit_log')->truncate();
 

@@ -36,6 +36,7 @@ final class MigrationChecks extends CheckGroup
         'PurchaseTaxesAndSupplierRegistry' => [self::HEAVY, 'adds the purchase tax columns to items and suppliers.commercial_registry'],
         'CustomerOpenings'                 => [self::HEAVY, 'adds customer_credit_applications.opening_id and lets invoice_sale_id be empty, which rebuilds that table; creates customer_openings'],
         'QuoteLifecycle'                   => [self::HEAVY, 'adds sales.quote_status and sales.source_quote_id; down() refuses once a quote carries a state'],
+        'AppConfigValueText'               => [self::HEAVY, 'widens app_config.value from varchar(500) to TEXT: a core table of the application, small, and down() does not narrow the column'],
         'ChequesAndRevenues'               => [self::DATA, 'opens the leaf accounts of notes receivable, notes payable, funds under collection and deposit fees in an existing chart and points four routing rows at them'],
     ];
 

@@ -85,7 +85,7 @@ class SaleLoaderTest extends CIUnitTestCase
         $this->grantReturnOverride();
 
         $item = $this->item('66.00');
-        $let  = $this->save([$this->line($item, 0, '-1', '100', '66.00')], [], [], SALE_TYPE_RETURN, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, null, null, 'lost the receipt');
+        $let  = $this->save([$this->line($item, 0, '-1', '100', '66.00')], [], [], SALE_TYPE_RETURN, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, returnOverrideReason: 'lost the receipt');
         $plain = $this->save([$this->line($this->item('0', false), 0, '-1', '100')], [], [], SALE_TYPE_RETURN);
         $refund = $this->save([$this->line($this->item('0', false), 0, '-1', '100')], [], [], SALE_TYPE_RETURN, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::RefundInvoice);
 

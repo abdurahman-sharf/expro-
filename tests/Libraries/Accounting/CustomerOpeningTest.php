@@ -287,8 +287,9 @@ class CustomerOpeningTest extends CIUnitTestCase
 
         $position = $this->position();
 
-        $this->assertSame('500.00', bcadd($position->invoice(-$openingId)->open(), '0', 2));
-        $this->assertSame('0.00', bcadd($position->invoice($invoice)->open(), '0', 2));
+        $this->assertSame('400.00', bcadd($position->invoice(-$openingId)->open(), '0', 2), 'The credit note is spent on the oldest item, the opening balance, and not on the invoice it came from (E57)');
+        $this->assertSame('100.00', bcadd($position->invoice($invoice)->open(), '0', 2));
+        $this->assertSame('500.00', bcadd($position->accountBalance, '0', 2));
         $this->assertTies();
     }
 

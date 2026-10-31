@@ -625,9 +625,9 @@ class CustomerLedgerTest extends CIUnitTestCase
         $this->assertSame('550.00', bcadd($position->open(), '0', 2));
         $this->assertSame('550.00', bcadd($position->accountBalance, '0', 2));
         $this->assertSame('550.00', $this->balance($this->customerAccount()));
-        $this->assertSame('500.00', bcadd($position->invoice(-$opening)->open(), '0', 2));
-        $this->assertSame('50.00', bcadd($position->invoice($invoice)->open(), '0', 2));
-        $this->assertSame(['0.0000', '50.0000', '500.0000', '0.0000', '0.0000', '0.0000'], array_values($position->aging(date('Y-m-d'))));
+        $this->assertSame('480.00', bcadd($position->invoice(-$opening)->open(), '0', 2), 'The credit note goes to the oldest item, the opening balance, and not to the invoice it came from (E57)');
+        $this->assertSame('70.00', bcadd($position->invoice($invoice)->open(), '0', 2));
+        $this->assertSame(['0.0000', '70.0000', '480.0000', '0.0000', '0.0000', '0.0000'], array_values($position->aging(date('Y-m-d'))));
         $this->assertTies();
     }
 

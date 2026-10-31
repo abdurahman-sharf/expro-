@@ -1874,7 +1874,7 @@ class SalePostingTest extends CIUnitTestCase
         $item  = $this->item('66.00');
         $stock = $this->stock($item);
 
-        $returnId = $this->save([$this->line($item, 0, '-2', '100', '66.00')], [], [$this->payment(lang('Sales.cash'), '-200.00')], SALE_TYPE_RETURN, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, null, null, 'lost the receipt');
+        $returnId = $this->save([$this->line($item, 0, '-2', '100', '66.00')], [], [$this->payment(lang('Sales.cash'), '-200.00')], SALE_TYPE_RETURN, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, returnOverrideReason: 'lost the receipt');
 
         $this->assertGreaterThan(0, $returnId);
         $this->assertEqualsWithDelta($stock + 2, $this->stock($item), 0.0001);
@@ -1888,7 +1888,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->grantReturnOverride();
 
         $item     = $this->item('66.00');
-        $returnId = $this->save([$this->line($item, 0, '-2', '100', '66.00')], [], [], SALE_TYPE_RETURN, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, null, null, 'lost the receipt');
+        $returnId = $this->save([$this->line($item, 0, '-2', '100', '66.00')], [], [], SALE_TYPE_RETURN, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, returnOverrideReason: 'lost the receipt');
 
         $row = $this->accountingDb()->table('sale_return_overrides')->where('sale_id', $returnId)->get()->getRow();
 
@@ -1913,7 +1913,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->save([$this->line($item, 0, '5', '100', '60.00')], [], [$this->payment(lang('Sales.cash'), '500.00')]);
         $this->accountingDb()->table('items')->where('item_id', $item)->update(['cost_price' => '80.00']);
 
-        $returnId = $this->save([$this->line($item, 0, '-1', '100', '80.00')], [], [], SALE_TYPE_RETURN, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, null, null, 'not from us');
+        $returnId = $this->save([$this->line($item, 0, '-1', '100', '80.00')], [], [], SALE_TYPE_RETURN, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, returnOverrideReason: 'not from us');
 
         $this->assertSame([$this->stockAccount() . ':80.00:0.00', $this->accountId('cogs') . ':0.00:80.00'], $this->standing($returnId, 'cogs')[0]['lines']);
     }
@@ -1925,7 +1925,7 @@ class SalePostingTest extends CIUnitTestCase
         $sales    = $this->countSales();
         $journals = $this->countJournals();
 
-        $this->assertSame(ACCOUNTING_FAILED, $this->save([$this->line($item, 0, '-2', '100', '66.00')], [], [], SALE_TYPE_RETURN, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, null, null, 'lost the receipt'));
+        $this->assertSame(ACCOUNTING_FAILED, $this->save([$this->line($item, 0, '-2', '100', '66.00')], [], [], SALE_TYPE_RETURN, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, returnOverrideReason: 'lost the receipt'));
         $this->assertSame(AccountingError::PermissionDenied, $this->failure()->error);
         $this->assertSame($sales, $this->countSales());
         $this->assertSame($journals, $this->countJournals());
@@ -1941,11 +1941,11 @@ class SalePostingTest extends CIUnitTestCase
         $item = $this->item('66.00');
 
         foreach (['', '   ', str_repeat('x', 256)] as $reason) {
-            $this->assertSame(ACCOUNTING_FAILED, $this->save([$this->line($item, 0, '-1', '100', '66.00')], [], [], SALE_TYPE_RETURN, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, null, null, $reason));
+            $this->assertSame(ACCOUNTING_FAILED, $this->save([$this->line($item, 0, '-1', '100', '66.00')], [], [], SALE_TYPE_RETURN, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, returnOverrideReason: $reason));
             $this->assertSame(AccountingError::ReasonRequired, $this->failure()->error);
         }
 
-        $this->assertGreaterThan(0, $this->save([$this->line($item, 0, '-1', '100', '66.00')], [], [], SALE_TYPE_RETURN, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, null, null, str_repeat('x', 255)));
+        $this->assertGreaterThan(0, $this->save([$this->line($item, 0, '-1', '100', '66.00')], [], [], SALE_TYPE_RETURN, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, returnOverrideReason: str_repeat('x', 255)));
         $this->assertSame(1, $this->countRows('sale_return_overrides'));
     }
 
@@ -1967,10 +1967,10 @@ class SalePostingTest extends CIUnitTestCase
         $item    = $this->item('60.00');
         $invoice = $this->save([$this->line($item, 0, '2', '100', '60.00')], [], [$this->payment(lang('Sales.cash'), '200.00')]);
 
-        $this->assertSame(ACCOUNTING_FAILED, $this->save([$this->line($item, 0, '-3', '100', '60.00')], [], [], SALE_TYPE_RETURN, -1, true, $invoice, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, null, null, 'too many'));
+        $this->assertSame(ACCOUNTING_FAILED, $this->save([$this->line($item, 0, '-3', '100', '60.00')], [], [], SALE_TYPE_RETURN, -1, true, $invoice, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, returnOverrideReason: 'too many'));
         $this->assertSame(PostingError::SaleReturnExceedsOrigin, $this->failure()->error);
 
-        $returnId = $this->save([$this->line($item, 0, '-2', '100', '99.00')], [], [], SALE_TYPE_RETURN, -1, true, $invoice, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, null, null, 'two back');
+        $returnId = $this->save([$this->line($item, 0, '-2', '100', '99.00')], [], [], SALE_TYPE_RETURN, -1, true, $invoice, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, returnOverrideReason: 'two back');
 
         $this->assertGreaterThan(0, $returnId);
         $this->assertSame(0, $this->countRows('sale_return_overrides'));
@@ -1982,7 +1982,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->grantReturnOverride();
 
         $service  = $this->item('0', false);
-        $returnId = $this->save([$this->line($service, 0, '-1', '100')], [], [$this->payment(lang('Sales.cash'), '-100.00')], SALE_TYPE_RETURN, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, null, null, 'not needed');
+        $returnId = $this->save([$this->line($service, 0, '-1', '100')], [], [$this->payment(lang('Sales.cash'), '-100.00')], SALE_TYPE_RETURN, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, returnOverrideReason: 'not needed');
 
         $this->assertGreaterThan(0, $returnId);
         $this->assertSame(0, $this->countRows('sale_return_overrides'));
@@ -2008,7 +2008,7 @@ class SalePostingTest extends CIUnitTestCase
         $item  = $this->item('66.00');
         $stock = $this->stock($item);
 
-        $returnId = $this->save([$this->line($item, 0, '-2', '100', '66.00')], [], [], SALE_TYPE_RETURN, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, null, null, 'ignored while accounting is off');
+        $returnId = $this->save([$this->line($item, 0, '-2', '100', '66.00')], [], [], SALE_TYPE_RETURN, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, returnOverrideReason: 'ignored while accounting is off');
 
         $this->assertGreaterThan(0, $returnId);
         $this->assertEqualsWithDelta($stock + 2, $this->stock($item), 0.0001);
@@ -2025,7 +2025,7 @@ class SalePostingTest extends CIUnitTestCase
         $stock  = $this->stock($item);
         $sales  = $this->countSales();
 
-        $this->assertSame(ACCOUNTING_FAILED, $this->save([$this->line($item, 0, '-2', '100', '66.00')], [], [], SALE_TYPE_RETURN, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, null, null, 'lost the receipt'));
+        $this->assertSame(ACCOUNTING_FAILED, $this->save([$this->line($item, 0, '-2', '100', '66.00')], [], [], SALE_TYPE_RETURN, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, returnOverrideReason: 'lost the receipt'));
         $this->assertSame(PostingError::PeriodClosed, $this->failure()->error);
         $this->assertSame($sales, $this->countSales());
         $this->assertSame(0, $this->countRows('sale_return_overrides'));
@@ -2042,7 +2042,7 @@ class SalePostingTest extends CIUnitTestCase
         $item     = $this->item('66.00');
 
         try {
-            $returnId = $this->save([$this->line($item, 0, '-1', '100', '66.00', '0', PERCENT, $location)], [], [], SALE_TYPE_RETURN, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, null, null, 'branch return');
+            $returnId = $this->save([$this->line($item, 0, '-1', '100', '66.00', '0', PERCENT, $location)], [], [], SALE_TYPE_RETURN, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, returnOverrideReason: 'branch return');
 
             $this->assertSame($branch, (int) $this->accountingDb()->table('sale_return_overrides')->where('sale_id', $returnId)->get()->getRow()->branch_id);
             $this->assertSame($branch, (int) $this->accountingDb()->table('accounting_audit_log')->where(['action' => 'return_override', 'entity_id' => $returnId])->get()->getRow()->branch_id);
