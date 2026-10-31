@@ -31,16 +31,13 @@ abstract class Summary_report extends Report
 
         $sale_cost = 'SUM(sales_items.item_cost_price * sales_items.quantity_purchased)';
         $sales_tax = "IFNULL(SUM(sales_items_taxes.tax), 0)";
+        $internal_tax = "IFNULL(SUM(sales_items_taxes.internal_tax), 0)";
+        $added_tax = "IFNULL(SUM(sales_items_taxes.sales_tax), 0)";
 
         $cash_adjustment = 'IFNULL(SUM(payments.sale_cash_adjustment), 0)';
 
-        if ($config['tax_included']) {
-            $sale_total = "ROUND(SUM($sale_price), $decimals) + $cash_adjustment";
-            $sale_subtotal = "$sale_total - $sales_tax";
-        } else {
-            $sale_subtotal = "ROUND(SUM($sale_price), $decimals) + $cash_adjustment";
-            $sale_total = "ROUND(SUM($sale_price), $decimals) + $sales_tax + $cash_adjustment";
-        }
+        $sale_subtotal = "ROUND(SUM($sale_price), $decimals) - $internal_tax + $cash_adjustment";
+        $sale_total = "ROUND(SUM($sale_price), $decimals) + $added_tax + $cash_adjustment";
 
         // Create a temporary table to contain all the sum of taxes per sale item
         $this->db->query(

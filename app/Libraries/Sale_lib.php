@@ -51,6 +51,7 @@ class Sale_lib
     private Stock_location $stock_location;
     private Session $session;
     private array $config;
+    private ?Tax_lib $taxLib = null;
 
     /** @var array<string, InvoiceDiscountPlan|InvoiceDiscountProblem> */
     private array $invoiceDiscountPlans = [];
@@ -1915,13 +1916,12 @@ class Sale_lib
      */
     public function get_item_total_tax_exclusive(int $item_id, string $quantity, string $price, string $discount, int $discount_type, bool $include_discount = false, string $invoiceDiscountShare = '0'): string
     {
-        $taxInfo = $this->item_taxes->get_info($item_id);
         $itemTotal = $this->get_item_total($quantity, $price, $discount, $discount_type, $include_discount, $invoiceDiscountShare);
 
-        // Only additive tax here
-        foreach ($taxInfo as $tax) {
-            $taxPercentage = $tax['percent'];
-            $itemTotal = bcsub($itemTotal, $this->get_item_tax($quantity, $price, $discount, $discount_type, $taxPercentage, $invoiceDiscountShare));
+        foreach ($this->taxLib()->taxesOfItem($item_id, $quantity, $price, $discount, $discount_type, $invoiceDiscountShare) as $tax) {
+            if ($tax['type'] === Tax_lib::TAX_TYPE_INCLUDED) {
+                $itemTotal = bcsub($itemTotal, $tax['amount']);
+            }
         }
 
         return $itemTotal;
@@ -2024,11 +2024,11 @@ class Sale_lib
      * @param string $tax_percentage
      * @return string
      */
-    public function get_item_tax(string $quantity, string $price, string $discount, int $discount_type, string $tax_percentage, string $invoiceDiscountShare = '0'): string
+    public function get_item_tax(string $quantity, string $price, string $discount, int $discount_type, string $tax_percentage, string $invoiceDiscountShare = '0', ?bool $included = null): string
     {
         $itemTotal = $this->get_item_total($quantity, $price, $discount, $discount_type, true, $invoiceDiscountShare);
 
-        if ($this->config['tax_included']) {
+        if ($included ?? $this->config['tax_included']) {
             $taxFraction = bcdiv(bcadd('100', $tax_percentage), '100');
             $priceTaxExcl = bcdiv($itemTotal, $taxFraction);
 
@@ -2051,7 +2051,7 @@ class Sale_lib
         foreach ($this->get_cart() as $item) {
             $invoiceDiscountShare = $include_discount ? ($item['invoice_discount_share'] ?? '0') : '0';
 
-            if ($exclude_tax && $this->config['tax_included']) {
+            if ($exclude_tax) {
                 $subtotal = bcadd($subtotal, $this->get_item_total_tax_exclusive($item['item_id'], $item['quantity'], $item['price'], $item['discount'], $item['discount_type'], $include_discount, $invoiceDiscountShare));
             } else {
                 $subtotal = bcadd($subtotal, $this->get_item_total($item['quantity'], $item['price'], $item['discount'], $item['discount_type'], $include_discount, $invoiceDiscountShare));
@@ -2072,11 +2072,10 @@ class Sale_lib
 
         $cash_mode = $this->session->get('cash_mode');
 
-        if (!$this->config['tax_included']) {
-            $cart = $this->get_cart();
-            $tax_lib = new Tax_lib();
+        $cart = $this->get_cart();
 
-            foreach ($tax_lib->get_taxes($cart)[0] as $tax) {
+        foreach ($this->taxLib()->get_taxes($cart)[0] as $tax) {
+            if ((string) $tax['tax_type'] === Tax_lib::TAX_TYPE_EXCLUDED) {
                 $total = bcadd($total, $tax['sale_tax_amount']);
             }
         }
@@ -2095,6 +2094,11 @@ class Sale_lib
     public function get_empty_tables(?int $current_dinner_table_id): array
     {
         return $this->dinner_table->get_empty_tables($current_dinner_table_id);
+    }
+
+    private function taxLib(): Tax_lib
+    {
+        return $this->taxLib ??= new Tax_lib();
     }
 
     /**

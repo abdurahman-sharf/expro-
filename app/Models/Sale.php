@@ -21,6 +21,7 @@ use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\Accounting\ReturnLimit;
 use App\Libraries\Accounting\ReturnOverride;
 use App\Libraries\Accounting\SalePosting;
+use App\Libraries\Accounting\SalesTaxSettings;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Accounting\UndeliveredReturns;
@@ -80,6 +81,32 @@ class Sale extends Model
     }
 
     /**
+     * Whether the settings ask for a tax on every line and a line of this sale has none. Only a sale
+     * that is completed as a sale or an invoice is held to it, for a customer who is charged tax; a
+     * return takes back what its sale charged.
+     *
+     * @param array<int|string, array<string, mixed>> $items
+     */
+    private function taxOneRefusal(int $saleType, string $saleStatus, int $customerId, array $items, ?array $salesTaxes): ?AccountingException
+    {
+        if ($saleStatus != COMPLETED || !in_array($saleType, [SALE_TYPE_POS, SALE_TYPE_INVOICE], true) || config(OSPOS::class)->settings['use_destination_based_tax']) {
+            return null;
+        }
+
+        if (!(new SalesTaxSettings($this->db))->requireTaxOne()) {
+            return null;
+        }
+
+        if ($customerId != NEW_ENTRY && !model(Customer::class)->get_info($customerId)->taxable) {
+            return null;
+        }
+
+        $line = SalesTaxSettings::lineWithoutTax($items, $salesTaxes[1] ?? []);
+
+        return $line === null ? null : new AccountingException(AccountingError::TaxOneRequired, "Line {$line} of the sale has no tax.", ['line' => $line]);
+    }
+
+    /**
      * Why the last change to a sale was refused by the books, or null when it was not.
      */
     public function accountingFailure(): ?Throwable
@@ -92,7 +119,6 @@ class Sale extends Model
      */
     public function get_info(int $sale_id): ResultInterface
     {
-        $config = config(OSPOS::class)->settings;
         $this->create_temp_table(['sale_id' => $sale_id]);
 
         $decimals = totals_decimals();
@@ -102,9 +128,7 @@ class Sale extends Model
             . " THEN sales_items.quantity_purchased * sales_items.item_unit_price - ROUND(sales_items.quantity_purchased * sales_items.item_unit_price * sales_items.discount / 100, $decimals) "
             . 'ELSE sales_items.quantity_purchased * (sales_items.item_unit_price - sales_items.discount) END - ' . InvoiceDiscount::sqlShare('sales_items');
 
-        $sale_total = $config['tax_included']
-            ? "ROUND(SUM($sale_price), $decimals) + $cash_adjustment"
-            : "ROUND(SUM($sale_price), $decimals) + $sales_tax + $cash_adjustment";
+        $sale_total = "ROUND(SUM($sale_price), $decimals) + $sales_tax + $cash_adjustment";
 
         $sql = 'sales.sale_id AS sale_id,
                 MAX(DATE(sales.sale_time)) AS sale_date,
@@ -993,6 +1017,14 @@ class Sale extends Model
         $this->accountingFailure = null;
         $this->invoiceDiscountProblem = null;
 
+        $taxRefusal = $this->taxOneRefusal($saleType, $saleStatus, $customerId, $items, $salesTaxes);
+
+        if ($taxRefusal !== null) {
+            $this->accountingFailure = $taxRefusal;
+
+            return ACCOUNTING_FAILED;
+        }
+
         // Only an invoice can be issued before its goods leave
         $delivered = $delivered || $saleType !== SALE_TYPE_INVOICE;
 
@@ -1783,7 +1815,8 @@ class Sale extends Model
                 'item_tax_amount'   => $tax_item['item_tax_amount'],
                 'sales_tax_code_id' => $tax_item['sales_tax_code_id'],
                 'tax_category_id'   => $tax_item['tax_category_id'],
-                'jurisdiction_id'   => $tax_item['jurisdiction_id']
+                'jurisdiction_id'   => $tax_item['jurisdiction_id'],
+                'liability_account_id' => $tax_item['liability_account_id'] ?? null,
             ];
 
             $builder->insert($sales_items_taxes);
@@ -1810,7 +1843,8 @@ class Sale extends Model
     public function get_sales_item_taxes(int $sale_id, int $item_id): array
     {
         $builder = $this->db->table('sales_items_taxes');
-        $builder->select('item_id, name, percent');
+        $builder->distinct();
+        $builder->select('item_id, name, percent, tax_type, liability_account_id');
         $builder->where('sale_id', $sale_id);
         $builder->where('item_id', $item_id);
 
@@ -2248,13 +2282,8 @@ class Sale extends Model
         $internal_tax = 'IFNULL(SUM(sales_items_taxes.internal_tax), 0)';
         $cash_adjustment = 'IFNULL(SUM(payments.sale_cash_adjustment), 0)';
 
-        if ($config['tax_included']) {
-            $sale_total = "ROUND(SUM($sale_price), $decimals) + $cash_adjustment";
-            $sale_subtotal = "$sale_total - $internal_tax";
-        } else {
-            $sale_subtotal = "ROUND(SUM($sale_price), $decimals) - $internal_tax + $cash_adjustment";
-            $sale_total = "ROUND(SUM($sale_price), $decimals) + $sales_tax + $cash_adjustment";
-        }
+        $sale_subtotal = "ROUND(SUM($sale_price), $decimals) - $internal_tax + $cash_adjustment";
+        $sale_total = "ROUND(SUM($sale_price), $decimals) + $sales_tax + $cash_adjustment";
 
         // Create a temporary table to contain all the sum of taxes per sale item
         $sql = 'CREATE TEMPORARY TABLE IF NOT EXISTS ' . $this->db->prefixTable('sales_items_taxes_temp') .

@@ -16,6 +16,7 @@ use App\Models\Stock_location;
 use App\Models\Tax;
 use App\Models\Tax_category;
 use App\Models\Tax_code;
+use App\Models\Tax_definition;
 use App\Models\Tax_jurisdiction;
 use CodeIgniter\Config\Factories;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -69,15 +70,28 @@ class Tax_libTest extends CIUnitTestCase
         $this->assertSame('exact', $case['classification']);
     }
 
-    private function taxLib(bool $taxIncluded, bool $destinationBased = false): Tax_lib
+    /**
+     * @param array<string, array{included: bool|null, account: int|null}> $definitions     By the name in lower case.
+     * @param list<array<string, mixed>>                                     $itemTaxes       What the items carry.
+     * @param array<int, list<array<string, mixed>>>                         $storedTaxes     What a saved sale carries, by item.
+     */
+    private function taxLib(bool $taxIncluded, bool $destinationBased = false, array $definitions = [], array $itemTaxes = [['name' => 'VAT', 'percent' => '15']], array $storedTaxes = [], int $taxDecimals = 3): Tax_lib
     {
         $ospos           = new OSPOS();
-        $ospos->settings = ['cash_rounding_code' => '', 'cash_decimals' => 2, 'currency_decimals' => 2, 'tax_decimals' => 3, 'quantity_decimals' => 2, 'tax_included' => $taxIncluded ? '1' : '0', 'use_destination_based_tax' => $destinationBased ? '1' : '0', 'default_tax_code' => 3, 'default_tax_category' => 1];
+        $ospos->settings = ['cash_rounding_code' => '', 'cash_decimals' => 2, 'currency_decimals' => 2, 'tax_decimals' => $taxDecimals, 'quantity_decimals' => 2, 'tax_included' => $taxIncluded ? '1' : '0', 'use_destination_based_tax' => $destinationBased ? '1' : '0', 'default_tax_code' => 3, 'default_tax_category' => 1];
         Factories::injectMock('config', OSPOS::class, $ospos);
 
-        foreach ([Attribute::class, Dinner_table::class, Item::class, Item_kit_items::class, Item_quantity::class, Sale::class, Stock_location::class, Tax::class, Tax_category::class, Tax_code::class, Tax_jurisdiction::class] as $model) {
+        foreach ([Attribute::class, Dinner_table::class, Item::class, Item_kit_items::class, Item_quantity::class, Stock_location::class, Tax::class, Tax_category::class, Tax_code::class, Tax_jurisdiction::class] as $model) {
             Factories::injectMock('models', $model, $this->getMockBuilder($model)->disableOriginalConstructor()->getMock());
         }
+
+        $sale = $this->createStub(Sale::class);
+        $sale->method('get_sales_item_taxes')->willReturnCallback(static fn (int $saleId, int $itemId): array => $storedTaxes[$itemId] ?? []);
+        Factories::injectMock('models', Sale::class, $sale);
+
+        $list = $this->createStub(Tax_definition::class);
+        $list->method('forNames')->willReturnCallback(static fn (array $names): array => array_intersect_key($definitions, array_flip(array_map(Tax_definition::key(...), $names))));
+        Factories::injectMock('models', Tax_definition::class, $list);
 
         $customer = $this->createStub(Customer::class);
         $customer->method('get_info')->willReturnCallback(static fn ($customerId): object => (object) ['taxable' => (int) $customerId === 5 ? 0 : 1, 'city' => '', 'state' => '', 'sales_tax_code_id' => (int) $customerId === 8 ? 7 : 0]);
@@ -96,9 +110,9 @@ class Tax_libTest extends CIUnitTestCase
         ]]);
         Factories::injectMock('models', Tax::class, $tax);
 
-        $itemTaxes = $this->createStub(Item_taxes::class);
-        $itemTaxes->method('get_info')->willReturn([['name' => 'VAT', 'percent' => '15']]);
-        Factories::injectMock('models', Item_taxes::class, $itemTaxes);
+        $item = $this->createStub(Item_taxes::class);
+        $item->method('get_info')->willReturn($itemTaxes);
+        Factories::injectMock('models', Item_taxes::class, $item);
 
         session()->destroy();
 
@@ -230,5 +244,209 @@ class Tax_libTest extends CIUnitTestCase
 
         $this->assertSame('13.5000', bcadd($taxLib->get_included_tax('1', '115', '0', PERCENT, '15', 3, Rounding_mode::HALF_UP, '11.5'), '0', 4));
         $this->assertSame('15.0000', bcadd($taxLib->get_included_tax('1', '115', '0', PERCENT, '15', 3, Rounding_mode::HALF_UP), '0', 4));
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function lineOf(string $price): array
+    {
+        return [1 => ['item_id' => 3, 'line' => 1, 'quantity' => '1', 'price' => $price, 'discount' => '0', 'discount_type' => PERCENT, 'tax_category_id' => null]];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     *
+     * @return list<string>
+     */
+    private function amounts(array $rows): array
+    {
+        return array_map(static fn (array $row): string => bcadd((string) $row['item_tax_amount'], '0', 4), $rows);
+    }
+
+    public function testGetTaxes_ChargesAnIncludedAndAnAddedTaxOnTheSameNet(): void
+    {
+        $cart  = $this->lineOf('100');
+        $taxes = $this->taxLib(false, false, ['vat' => ['included' => true, 'account' => null], 'service' => ['included' => false, 'account' => null]], [['name' => 'VAT', 'percent' => '15'], ['name' => 'Service', 'percent' => '5']], [], 4)->get_taxes($cart);
+
+        $this->assertSame(['13.0435', '4.3478'], $this->amounts($taxes[1]));
+        $this->assertSame([Tax_lib::TAX_TYPE_INCLUDED, Tax_lib::TAX_TYPE_EXCLUDED], array_column($taxes[1], 'tax_type'));
+        $this->assertSame('104.3478', bcadd('100', $this->amounts($taxes[1])[1], 4), 'the price and the tax that is added come to the line total of the page script');
+        $this->assertSame('86.9565', bcsub('100', $this->amounts($taxes[1])[0], 4), 'the net is the price less the tax inside it');
+    }
+
+    public function testGetTaxes_ChargesTheAddedTaxOfAMixedLineOnTheNetAndNotOnThePrice(): void
+    {
+        $cart  = $this->lineOf('100');
+        $taxes = $this->taxLib(false, false, ['vat' => ['included' => true, 'account' => null]], [['name' => 'VAT', 'percent' => '15'], ['name' => 'Service', 'percent' => '5']], [], 4)->get_taxes($cart);
+        $group = array_values($taxes[0]);
+
+        $this->assertSame('100.0000', bcadd((string) $group[0]['sale_tax_basis'], '0', 4), 'the tax inside the price keeps the price as its basis');
+        $this->assertSame('86.9565', bcadd((string) $group[1]['sale_tax_basis'], '0', 4), 'the tax that is added is charged on what is left of the price');
+        $this->assertSame(Tax_lib::TAX_TYPE_EXCLUDED, (string) $group[1]['tax_type']);
+    }
+
+    public function testGetTaxes_TakesSeveralIncludedTaxesOutOfThePriceTogether(): void
+    {
+        $cart  = $this->lineOf('115');
+        $taxes = $this->taxLib(true, false, [], [['name' => 'VAT', 'percent' => '10'], ['name' => 'Levy', 'percent' => '5']], [], 4)->get_taxes($cart);
+
+        $this->assertSame(['10.0000', '5.0000'], $this->amounts($taxes[1]), 'each is charged on the net of 100, not on the price');
+        $this->assertSame([Tax_lib::TAX_TYPE_INCLUDED, Tax_lib::TAX_TYPE_INCLUDED], array_column($taxes[1], 'tax_type'));
+    }
+
+    public function testGetTaxes_FindsTheTaxOfAnIncludedTenPercentOnALineOfOneHundred(): void
+    {
+        $cart  = $this->lineOf('100');
+        $taxes = $this->taxLib(false, false, ['inclusive' => ['included' => true, 'account' => null]], [['name' => 'Inclusive', 'percent' => '10']], [], 4)->get_taxes($cart);
+
+        $this->assertSame('9.09', bcadd($this->amounts($taxes[1])[0], '0', 2), 'T-03 of batch C: the tax is 9.09');
+        $this->assertSame('90.91', number_format(round(100 - (float) $this->amounts($taxes[1])[0], 2), 2, '.', ''), 'and what is left of the price is 90.91');
+    }
+
+    public function testGetTaxes_FollowsTheDefaultModeForATaxTheListDoesNotHold(): void
+    {
+        foreach ([[true, Tax_lib::TAX_TYPE_INCLUDED], [false, Tax_lib::TAX_TYPE_EXCLUDED]] as [$default, $type]) {
+            $cart  = $this->lineOf('100');
+            $taxes = $this->taxLib($default)->get_taxes($cart);
+
+            $this->assertSame($type, (string) $taxes[1][0]['tax_type'], $default ? 'included by default' : 'added by default');
+        }
+    }
+
+    public function testGetTaxes_FollowsTheDefaultModeForATaxTheListHoldsWithoutAMode(): void
+    {
+        $cart  = $this->lineOf('100');
+        $taxes = $this->taxLib(true, false, ['vat' => ['included' => null, 'account' => 41]])->get_taxes($cart);
+
+        $this->assertSame(Tax_lib::TAX_TYPE_INCLUDED, (string) $taxes[1][0]['tax_type']);
+        $this->assertSame(41, $taxes[1][0]['liability_account_id'], 'and the account of the tax is still the one the list gives it');
+    }
+
+    public function testGetTaxes_PrefersTheModeOfTheTaxToTheDefaultMode(): void
+    {
+        foreach ([[true, false, Tax_lib::TAX_TYPE_EXCLUDED], [false, true, Tax_lib::TAX_TYPE_INCLUDED]] as [$default, $own, $type]) {
+            $cart  = $this->lineOf('100');
+            $taxes = $this->taxLib($default, false, ['vat' => ['included' => $own, 'account' => null]])->get_taxes($cart);
+
+            $this->assertSame($type, (string) $taxes[1][0]['tax_type']);
+        }
+    }
+
+    public function testGetTaxes_MatchesTheNameOfTheTaxInTheListWhateverItsCase(): void
+    {
+        $cart  = $this->lineOf('100');
+        $taxes = $this->taxLib(false, false, ['vat' => ['included' => true, 'account' => null]], [['name' => ' vat ', 'percent' => '15']])->get_taxes($cart);
+
+        $this->assertSame(Tax_lib::TAX_TYPE_INCLUDED, (string) $taxes[1][0]['tax_type']);
+    }
+
+    public function testGetTaxes_GivesANewSaleTheAccountOfEachTaxAndNoneToATaxWithoutOne(): void
+    {
+        $cart  = $this->lineOf('100');
+        $taxes = $this->taxLib(false, false, ['vat' => ['included' => null, 'account' => 41]], [['name' => 'VAT', 'percent' => '15'], ['name' => 'Service', 'percent' => '5']])->get_taxes($cart);
+
+        $this->assertSame([41, null], array_column($taxes[1], 'liability_account_id'));
+    }
+
+    public function testGetTaxes_ReadsTheModeAndTheAccountOfASavedSaleFromWhatItWasSavedWith(): void
+    {
+        $stored = [3 => [['item_id' => 3, 'name' => 'VAT', 'percent' => '15', 'tax_type' => '1', 'liability_account_id' => 77]]];
+        $cart   = $this->lineOf('100');
+        $taxes  = $this->taxLib(true, false, ['vat' => ['included' => true, 'account' => 41]], [['name' => 'VAT', 'percent' => '15']], $stored)->get_taxes($cart, 12);
+
+        $this->assertSame([Tax_lib::TAX_TYPE_EXCLUDED], array_column($taxes[1], 'tax_type'), 'the list and the default of today do not change a saved sale');
+        $this->assertSame([77], array_column($taxes[1], 'liability_account_id'));
+        $this->assertSame(['15.0000'], $this->amounts($taxes[1]));
+    }
+
+    public function testGetTaxes_TakesAReturnsTaxesFromTheSaleItTakesGoodsBackFrom(): void
+    {
+        $stored = [3 => [['item_id' => 3, 'name' => 'VAT', 'percent' => '20', 'tax_type' => '0', 'liability_account_id' => 77]]];
+        $taxLib = $this->taxLib(false, false, ['vat' => ['included' => false, 'account' => 41]], [['name' => 'VAT', 'percent' => '15']], $stored);
+
+        session()->set('sales_mode', 'return');
+        session()->set('sales_return_origin', 12);
+
+        $cart  = [1 => ['item_id' => 3, 'line' => 1, 'quantity' => '-1', 'price' => '120', 'discount' => '0', 'discount_type' => PERCENT, 'tax_category_id' => null]];
+        $taxes = $taxLib->get_taxes($cart);
+
+        $this->assertSame(['-20.0000'], $this->amounts($taxes[1]), 'a tax of 20% inside the price, as the sale charged it');
+        $this->assertSame([Tax_lib::TAX_TYPE_INCLUDED], array_column($taxes[1], 'tax_type'));
+        $this->assertSame([77], array_column($taxes[1], 'liability_account_id'));
+    }
+
+    public function testGetTaxes_ChargesAReturnWithNoSaleToTakeBackFromWhatTheItemsCarry(): void
+    {
+        $taxLib = $this->taxLib(false);
+
+        session()->set('sales_mode', 'return');
+
+        $cart  = [1 => ['item_id' => 3, 'line' => 1, 'quantity' => '-1', 'price' => '100', 'discount' => '0', 'discount_type' => PERCENT, 'tax_category_id' => null]];
+        $taxes = $taxLib->get_taxes($cart);
+
+        $this->assertSame(['-15.0000'], $this->amounts($taxes[1]));
+    }
+
+    public function testGetTaxes_ChargesNoTaxOnAReturnOfASaleThatCarriedNone(): void
+    {
+        $taxLib = $this->taxLib(false, false, [], [['name' => 'VAT', 'percent' => '15']], []);
+
+        session()->set('sales_mode', 'return');
+        session()->set('sales_return_origin', 12);
+
+        $cart  = [1 => ['item_id' => 3, 'line' => 1, 'quantity' => '-1', 'price' => '100', 'discount' => '0', 'discount_type' => PERCENT, 'tax_category_id' => null]];
+        $taxes = $taxLib->get_taxes($cart);
+
+        $this->assertSame([[], []], $taxes);
+    }
+
+    public function testGetTaxes_KeepsTheTwoModesOfOneTaxInGroupsOfTheirOwn(): void
+    {
+        $stored = [
+            3 => [['item_id' => 3, 'name' => 'VAT', 'percent' => '15', 'tax_type' => '0', 'liability_account_id' => null]],
+            4 => [['item_id' => 4, 'name' => 'VAT', 'percent' => '15', 'tax_type' => '1', 'liability_account_id' => null]],
+        ];
+        $cart = [
+            1 => ['item_id' => 3, 'line' => 1, 'quantity' => '1', 'price' => '115', 'discount' => '0', 'discount_type' => PERCENT, 'tax_category_id' => null],
+            2 => ['item_id' => 4, 'line' => 2, 'quantity' => '1', 'price' => '100', 'discount' => '0', 'discount_type' => PERCENT, 'tax_category_id' => null],
+        ];
+
+        $taxes = $this->taxLib(false, false, [], [], $stored)->get_taxes($cart, 12);
+
+        $this->assertCount(2, $taxes[0]);
+        $this->assertSame([Tax_lib::TAX_TYPE_INCLUDED, Tax_lib::TAX_TYPE_EXCLUDED], array_values(array_map(static fn (array $group): string => (string) $group['tax_type'], $taxes[0])));
+        $this->assertSame(['15.00', '15.00'], array_values(array_map(static fn (array $group): string => number_format((float) $group['sale_tax_amount'], 2, '.', ''), $taxes[0])));
+    }
+
+    public function testRoundTaxes_RoundsATaxInsideThePriceToTaxDecimalsAndAnAddedOneToTheCurrency(): void
+    {
+        $taxLib = $this->taxLib(false);
+        $taxes  = [
+            'a' => ['tax_type' => Tax_lib::TAX_TYPE_INCLUDED, 'sale_tax_amount' => '1.23456', 'rounding_code' => Rounding_mode::HALF_UP, 'print_sequence' => 1],
+            'b' => ['tax_type' => Tax_lib::TAX_TYPE_EXCLUDED, 'sale_tax_amount' => '1.23456', 'rounding_code' => Rounding_mode::HALF_UP, 'print_sequence' => 2],
+        ];
+
+        $taxLib->round_taxes($taxes);
+
+        $this->assertSame([1.235, 1.23], [$taxes['a']['sale_tax_amount'], $taxes['b']['sale_tax_amount']]);
+    }
+
+    public function testRoundTaxes_KeepsTheRoundingOfTheShopForTaxesByDestination(): void
+    {
+        $taxLib = $this->taxLib(true, true);
+        $taxes  = ['a' => ['tax_type' => Tax_lib::TAX_TYPE_EXCLUDED, 'sale_tax_amount' => '1.23456', 'rounding_code' => Rounding_mode::HALF_UP, 'print_sequence' => 1]];
+
+        $taxLib->round_taxes($taxes);
+
+        $this->assertSame(1.235, $taxes['a']['sale_tax_amount'], 'a shop that taxes by destination rounds as its included setting says');
+    }
+
+    public function testTaxesOfItem_GivesTheTaxesOfTheItemWithTheirModes(): void
+    {
+        $taxes = $this->taxLib(false, false, ['vat' => ['included' => true, 'account' => null]], [['name' => 'VAT', 'percent' => '15'], ['name' => 'Service', 'percent' => '5']], [], 4)->taxesOfItem(3, '1', '100', '0', PERCENT);
+
+        $this->assertSame(['13.0435', '4.3478'], array_map(static fn (array $tax): string => bcadd($tax['amount'], '0', 4), $taxes));
+        $this->assertSame([Tax_lib::TAX_TYPE_INCLUDED, Tax_lib::TAX_TYPE_EXCLUDED], array_column($taxes, 'type'));
     }
 }

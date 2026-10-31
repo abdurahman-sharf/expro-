@@ -49,11 +49,7 @@ class Summary_taxes extends Summary_report
 
         $sale_tax = "IFNULL(" . $db_prefix . "sales_items_taxes.item_tax_amount, 0)";
 
-        if ($this->config['tax_included']) {
-            $sale_subtotal = "ROUND($sale_amount - $sale_tax, $decimals)";
-        } else {
-            $sale_subtotal = "ROUND($sale_amount, $decimals)";
-        }
+        $sale_subtotal = "(CASE WHEN " . $db_prefix . "sales_items_taxes.tax_type = 0 THEN ROUND($sale_amount - $sale_tax, $decimals) ELSE ROUND($sale_amount, $decimals) END)";
         $sale_tax_rounded = "ROUND($sale_tax, $decimals)";
         $sale_total = "($sale_subtotal + $sale_tax_rounded)";
 

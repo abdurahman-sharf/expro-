@@ -160,6 +160,17 @@ $routes->group('revenue_categories', static function (RouteCollection $routes): 
     $routes->post('delete', 'Revenue_categories::postDelete');
 });
 
+$routes->group('tax_definitions', static function (RouteCollection $routes): void {
+    $routes->get('/', 'Tax_definitions::getIndex');
+    $routes->get('search', 'Tax_definitions::getSearch');
+    $routes->get('row/(:num)', 'Tax_definitions::getRow/$1');
+    $routes->get('view', 'Tax_definitions::getView');
+    $routes->get('view/(:num)', 'Tax_definitions::getView/$1');
+    $routes->post('save', 'Tax_definitions::postSave');
+    $routes->post('save/(:num)', 'Tax_definitions::postSave/$1');
+    $routes->post('delete', 'Tax_definitions::postDelete');
+});
+
 $routes->group('accounting_reports', static function (RouteCollection $routes): void {
     $routes->get('/', 'AccountingReports::getIndex');
     $routes->get('trial_balance', 'AccountingReports::getIndex');

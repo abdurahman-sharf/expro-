@@ -168,9 +168,43 @@ final class TaxReport
             $routed[$role]                   = true;
         }
 
+        foreach ($this->ownAccounts() as $own) {
+            $ownId = (int) $own->account_id;
+
+            $accounts[$ownId] ??= ['code' => (string) $own->code, 'name' => (string) $own->name, 'roles' => []];
+
+            if (! in_array('output', $accounts[$ownId]['roles'], true)) {
+                $accounts[$ownId]['roles'][] = 'output';
+            }
+        }
+
         uasort($accounts, static fn (array $first, array $second): int => strcmp($first['code'], $second['code']));
 
         return ['accounts' => $accounts, 'output' => $routed['output'], 'input' => $routed['input']];
+    }
+
+    /**
+     * The accounts of liability that taxes were given, which hold tax collected as the routed account
+     * does: those the tax list names now, and those the tax rows of a sale were saved with, which a
+     * tax that has since changed its account or left the list still has in the books.
+     *
+     * @return list<object>
+     */
+    private function ownAccounts(): array
+    {
+        $ids = [];
+
+        foreach (['tax_definitions', 'sales_items_taxes'] as $table) {
+            foreach ($this->db->table($table)->select('liability_account_id')->distinct()->where('liability_account_id IS NOT NULL', null, false)->get()->getResult() as $row) {
+                $ids[(int) $row->liability_account_id] = true;
+            }
+        }
+
+        if ($ids === []) {
+            return [];
+        }
+
+        return $this->db->table('accounting_accounts')->select('account_id, code, name')->whereIn('account_id', array_keys($ids))->get()->getResult();
     }
 
     /**

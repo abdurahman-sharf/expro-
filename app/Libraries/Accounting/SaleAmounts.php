@@ -48,6 +48,27 @@ final class SaleAmounts
     }
 
     /**
+     * The tax of the sale that went to liability accounts of its own, by account and in account order,
+     * which is the part of its tax the routed account of tax collected does not take.
+     *
+     * @return array<int, numeric-string>
+     */
+    public static function accountTaxes(SaleDocument $sale): array
+    {
+        $accounts = [];
+
+        foreach ($sale->lines as $line) {
+            foreach ($line->accountTaxes as $accountId => $amount) {
+                $accounts[$accountId] = bcadd($accounts[$accountId] ?? '0', $amount, self::SCALE);
+            }
+        }
+
+        ksort($accounts);
+
+        return array_filter($accounts, static fn (string $amount): bool => bccomp($amount, '0', self::SCALE) !== 0);
+    }
+
+    /**
      * What the line sells for before its discount.
      *
      * @return numeric-string

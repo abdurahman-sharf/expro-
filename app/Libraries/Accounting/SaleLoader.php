@@ -57,17 +57,25 @@ final class SaleLoader
      */
     private function lines(int $saleId): array
     {
-        $taxes = [];
+        $taxes    = [];
+        $accounts = [];
 
         $rows = $this->db->table('sales_items_taxes')
-            ->select('item_id, line, tax_type, SUM(item_tax_amount) AS amount', false)
+            ->select('item_id, line, tax_type, liability_account_id, SUM(item_tax_amount) AS amount', false)
             ->where('sale_id', $saleId)
-            ->groupBy('item_id, line, tax_type')
+            ->groupBy('item_id, line, tax_type, liability_account_id')
             ->get()
             ->getResult();
 
         foreach ($rows as $row) {
-            $taxes[$row->item_id . ':' . $row->line][(int) $row->tax_type] = (string) $row->amount;
+            $key  = $row->item_id . ':' . $row->line;
+            $type = (int) $row->tax_type;
+
+            $taxes[$key][$type] = bcadd($taxes[$key][$type] ?? '0', (string) $row->amount, 4);
+
+            if ($row->liability_account_id !== null) {
+                $accounts[$key][(int) $row->liability_account_id] = bcadd($accounts[$key][(int) $row->liability_account_id] ?? '0', SaleAmounts::absolute((string) $row->amount), 4);
+            }
         }
 
         $lines = [];
@@ -94,6 +102,7 @@ final class SaleLoader
                 includedTax: $lineTaxes[0] ?? '0',
                 addedTax: $lineTaxes[1] ?? '0',
                 invoiceDiscountShare: (string) ($row->invoice_discount_share ?? '0'),
+                accountTaxes: $accounts[$row->item_id . ':' . $row->line] ?? [],
             );
         }
 

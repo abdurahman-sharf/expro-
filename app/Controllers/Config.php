@@ -4,6 +4,7 @@ namespace App\Controllers;
 
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingMessage;
+use App\Libraries\Accounting\SalesTaxSettings;
 use App\Libraries\Barcode_lib;
 use App\Libraries\Mailchimp_lib;
 use App\Libraries\Numbering\DocumentNumbering;
@@ -838,7 +839,6 @@ class Config extends Secure_Controller
             'default_tax_1_name'        => $this->request->getPost('default_tax_1_name'),
             'default_tax_2_rate'        => $default_tax_2_rate,
             'default_tax_2_name'        => $this->request->getPost('default_tax_2_name'),
-            'tax_included'              => $this->request->getPost('tax_included') != null,
             'use_destination_based_tax' => $this->request->getPost('use_destination_based_tax') != null,
             'default_tax_code'          => $this->request->getPost('default_tax_code'),
             'default_tax_category'      => $this->request->getPost('default_tax_category'),
@@ -847,6 +847,13 @@ class Config extends Secure_Controller
         ];
 
         $success = $this->appconfig->batch_save($batch_save_data);
+
+        if ($success) {
+            (new SalesTaxSettings())->update([
+                SalesTaxSettings::INCLUDED_KEY => $this->request->getPost('tax_included') != null,
+                SalesTaxSettings::TAX_ONE_KEY  => $this->request->getPost('require_tax_1') != null,
+            ], (int) $this->global_view_data['user_info']->person_id);
+        }
 
         $message = lang('Config.saved_' . ($success ? '' : 'un') . 'successfully');
 

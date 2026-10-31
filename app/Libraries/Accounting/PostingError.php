@@ -35,6 +35,7 @@ enum PostingError: string
     case RoutingRowCancelled           = 'routing_row_cancelled';
     case SaleNotPostable               = 'sale_not_postable';
     case DiscountNeedsAdditiveTax      = 'discount_needs_additive_tax';
+    case TaxAccountsExceedTax          = 'tax_accounts_exceed_tax';
     case PurchaseNotPostable           = 'purchase_not_postable';
     case PurchaseAcrossBranches        = 'purchase_across_branches';
     case TransferBranchesInvalid       = 'transfer_branches_invalid';

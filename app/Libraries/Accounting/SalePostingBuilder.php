@@ -21,7 +21,6 @@ final class SalePostingBuilder
     public function __construct(
         private readonly RoutingResolver $resolver,
         private readonly int $decimals = 2,
-        private readonly bool $taxIncluded = false,
     ) {
     }
 
@@ -44,17 +43,12 @@ final class SalePostingBuilder
 
         $receivable = $this->receivableAccount($sale);
         $revenue    = $this->required($sale->isReturn() ? RoutingKey::SalesReturns : RoutingKey::SalesRevenue);
-        $discount   = $this->discountLine($amounts['discount']);
-        $taxAccount = bccomp($split['tax'], '0', SaleAmounts::SCALE) > 0 ? $this->required(RoutingKey::TaxOutput) : null;
+        $discount   = $this->discountLine($sale, $amounts['discount']);
 
         $goods = $discount === null ? $split['revenue'] : bcadd($split['revenue'], $amounts['discount'], SaleAmounts::SCALE);
 
         $customerSide = [$receivable, $split['total']];
-        $incomeSide   = [[$revenue, $goods]];
-
-        if ($taxAccount !== null) {
-            $incomeSide[] = [$taxAccount, $split['tax']];
-        }
+        $incomeSide   = [[$revenue, $goods], ...$this->taxLines($sale, $split['tax'])];
 
         $lines = $sale->isReturn()
             ? $this->mirror($customerSide, $incomeSide, $discount, $amounts['discount'])
@@ -358,11 +352,40 @@ final class SalePostingBuilder
     }
 
     /**
+     * The credit lines of the tax: what taxes with a liability account of their own took goes to
+     * that account, and the rest to the account of tax collected, so that the lines add up to the tax
+     * of the sale. A sale whose taxes have no account of their own has the one line it always had.
+     *
+     * @param numeric-string $tax
+     *
+     * @return list<array{int, string}>
+     *
+     * @throws PostingException
+     */
+    private function taxLines(SaleDocument $sale, string $tax): array
+    {
+        $own       = SaleAmounts::accountTaxes($sale);
+        $remainder = bcsub($tax, array_reduce($own, static fn (string $sum, string $amount): string => bcadd($sum, $amount, SaleAmounts::SCALE), '0'), SaleAmounts::SCALE);
+
+        if (bccomp($remainder, '0', SaleAmounts::SCALE) < 0) {
+            throw new PostingException(PostingError::TaxAccountsExceedTax, 'The tax rows of the sale that carry an account add up to more than the tax of the sale.', ['saleId' => $sale->saleId]);
+        }
+
+        $lines = bccomp($remainder, '0', SaleAmounts::SCALE) > 0 ? [[$this->required(RoutingKey::TaxOutput), $remainder]] : [];
+
+        foreach ($own as $accountId => $amount) {
+            $lines[] = [$accountId, $amount];
+        }
+
+        return $lines;
+    }
+
+    /**
      * The account the discount is posted to, or null when discounts only lower the revenue.
      *
      * @throws PostingException
      */
-    private function discountLine(string $discount): ?int
+    private function discountLine(SaleDocument $sale, string $discount): ?int
     {
         $account = $this->resolver->accountFor(RoutingKey::SalesDiscount);
 
@@ -370,8 +393,10 @@ final class SalePostingBuilder
             return null;
         }
 
-        if ($this->taxIncluded) {
-            throw new PostingException(PostingError::DiscountNeedsAdditiveTax, 'A discount account needs prices that do not include the tax.');
+        foreach ($sale->lines as $line) {
+            if (bccomp($line->includedTax, '0', SaleAmounts::SCALE) !== 0) {
+                throw new PostingException(PostingError::DiscountNeedsAdditiveTax, 'A discount account needs prices that do not include the tax.');
+            }
         }
 
         return $account;

@@ -4,7 +4,6 @@ namespace App\Libraries\Accounting;
 
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
-use Config\OSPOS;
 
 /**
  * Posts what happens to a sale: it is completed, its goods are delivered, a payment is added
@@ -44,7 +43,6 @@ final class SalePosting
         $this->builder  = new SalePostingBuilder(
             new RoutingResolver($this->db),
             totals_decimals(),
-            (bool) (config(OSPOS::class)->settings['tax_included'] ?? false),
         );
 
         $this->crossBranch = new CrossBranchPayments($this->db);

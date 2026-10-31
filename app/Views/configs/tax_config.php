@@ -36,6 +36,28 @@
                         'value'   => 'tax_included',
                         'checked' => $config['tax_included'] == 1
                     ]) ?>
+                    <span class="form-text"><?= lang('Config.tax_included_desc') ?></span>
+                </div>
+            </div>
+
+            <div class="row mb-3">
+                <?= form_label(lang('Config.require_tax_1'), 'require_tax_1', ['class' => 'col-form-label col-3 col-md-2']) ?>
+                <div class="col-9">
+                    <?= form_checkbox([
+                        'name'    => 'require_tax_1',
+                        'id'      => 'require_tax_1',
+                        'value'   => 'require_tax_1',
+                        'checked' => ($config['require_tax_1'] ?? '0') == 1
+                    ]) ?>
+                    <span class="form-text"><?= lang('Config.require_tax_1_desc') ?></span>
+                </div>
+            </div>
+
+            <div class="row mb-3">
+                <?= form_label(lang('Config.tax_list'), 'tax_list', ['class' => 'col-form-label col-3 col-md-2']) ?>
+                <div class="col-9">
+                    <a id="tax_list" class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('tax_definitions'), 'attr') ?>"><?= lang('Config.tax_list') ?></a>
+                    <span class="form-text"><?= lang('Config.tax_list_desc') ?></span>
                 </div>
             </div>
 
