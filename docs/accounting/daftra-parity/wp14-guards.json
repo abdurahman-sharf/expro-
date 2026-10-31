@@ -1333,7 +1333,7 @@
   "name": "G139 the lists are limited by the query",
   "file": "app/Libraries/Accounting/SaleDocumentList.php",
   "find": "LIMIT \" . self::LIMIT,",
-  "replace": "LIMIT 100000,",
+  "replace": "LIMIT 100000\",",
   "tests": [
    "tests/Libraries/Accounting/SaleDocumentListTest.php"
   ]

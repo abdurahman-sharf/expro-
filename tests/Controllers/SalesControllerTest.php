@@ -4029,7 +4029,7 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('&lt;b&gt;INV-9&lt;/b&gt;', $body);
     }
 
-    public function testGetDocuments_EscapesTheNumberTheCustomerTheEmployeeAndTheBranchOfEveryQuote(): void
+    public function testGetDocuments_EscapesTheNumberTheCustomerTheEmployeeAndTheBranchOfEveryDraftAndQuote(): void
     {
         $this->supervisorForDocuments();
 
@@ -4037,8 +4037,10 @@ class SalesControllerTest extends CIUnitTestCase
         $both   = $this->employeeWithGrants(['sales', 'sales_stock', 'reports_sales'], [1, $second]);
         $db     = Database::connect();
         $quote  = $this->save($this->taxedLines(), [], [], SALE_TYPE_QUOTE, $this->anotherCustomer('<b>Quoted', 'Customer'), true, null, SUSPENDED);
+        $draft  = $this->draftInvoice($this->taxedLines());
 
         $db->table('sales')->where('sale_id', $quote)->update(['quote_number' => '<q>Q-2']);
+        $db->table('sales')->where('sale_id', $draft)->update(['invoice_number' => '<d>D-2']);
         $db->table('people')->where('person_id', $this->employeeId)->update(['first_name' => '<i>Seller']);
         $db->table('branches')->where('branch_id', 1)->update(['code' => '<s>B1']);
 
@@ -4046,7 +4048,7 @@ class SalesControllerTest extends CIUnitTestCase
 
         $body = $this->get('/sales/documents')->getBody();
 
-        foreach (['<q>Q-2', '<b>Quoted', '<i>Seller', '<s>B1'] as $markup) {
+        foreach (['<q>Q-2', '<d>D-2', '<b>Quoted', '<i>Seller', '<s>B1'] as $markup) {
             $this->assertStringNotContainsString($markup, $body, $markup);
             $this->assertStringContainsString(esc($markup), $body, $markup);
         }

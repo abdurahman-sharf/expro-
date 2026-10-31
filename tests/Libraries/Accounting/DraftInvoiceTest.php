@@ -6,6 +6,8 @@ use App\Libraries\Accounting\DraftInvoice;
 use App\Libraries\InvoiceDiscountProblem;
 use App\Libraries\Tax_lib;
 use App\Models\Enums\Rounding_mode;
+use CodeIgniter\Database\Query;
+use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -219,6 +221,39 @@ class DraftInvoiceTest extends CIUnitTestCase
 
             $previous = $now;
         }
+    }
+
+    public function testForIssue_TakesTheFingerprintBeforeItReadsTheDraftSoAChangeWhileItReadsIsNotCoveredByIt(): void
+    {
+        $cycle   = $this->taxedReference();
+        $draft   = $this->draftInvoice($cycle['items']);
+        $changed = false;
+
+        $listen = function (Query $query) use (&$changed, $draft): void {
+            if ($changed || ! str_contains($query->getQuery(), 'sales_payments')) {
+                return;
+            }
+
+            $changed = true;
+
+            $db     = $this->accountingDb();
+            $result = $db->resultID;
+
+            $db->table('sales')->where('sale_id', $draft)->update(['comment' => 'saved again while the draft was read']);
+
+            $db->resultID = $result;
+        };
+
+        Events::on('DBQuery', $listen);
+
+        try {
+            $issue = $this->drafts->forIssue($draft);
+        } finally {
+            Events::removeListener('DBQuery', $listen);
+        }
+
+        $this->assertTrue($changed, 'the draft was saved again while it was read');
+        $this->assertNotSame($this->drafts->fingerprint($draft), $issue->fingerprint, 'what was read is refused when it is issued, never accepted with a fingerprint taken after the change');
     }
 
     public function testForIssue_TaxesNothingWhenTheCustomerIsNotTaxable(): void
