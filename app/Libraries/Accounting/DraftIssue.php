@@ -33,6 +33,7 @@ final readonly class DraftIssue
         public bool $paidWithStoredValue,
         public ?InvoiceDiscountProblem $problem,
         public ?SaleDocument $document,
+        public string $fingerprint,
     ) {
     }
 }

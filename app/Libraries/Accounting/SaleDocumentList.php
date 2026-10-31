@@ -14,7 +14,7 @@ use Config\Database;
  */
 final class SaleDocumentList
 {
-    private const LIMIT = 200;
+    public const LIMIT = 200;
 
     private BaseConnection $db;
 

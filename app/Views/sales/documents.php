@@ -9,6 +9,7 @@
  */
 
 use App\Libraries\Accounting\QuoteStatus;
+use App\Libraries\Accounting\SaleDocumentList;
 
 $badges = [
     QuoteStatus::Draft->value     => 'text-bg-secondary',
@@ -50,7 +51,7 @@ $badges = [
                             <th scope="col" class="document-branch"><?= lang('Sales.document_branch') ?></th>
                         <?php endif; ?>
                         <th scope="col"><?= lang('Sales.sub_total') ?></th>
-                        <th scope="col"></th>
+                        <th scope="col"><span class="visually-hidden"><?= lang('Sales.document_actions') ?></span></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -64,12 +65,15 @@ $badges = [
                                 <td class="document-branch"><?= esc((string) $draft->branch_code) ?></td>
                             <?php endif; ?>
                             <td><bdi dir="ltr"><?= to_currency($draft->subtotal) ?></bdi></td>
-                            <td><a class="btn btn-outline-primary btn-sm" href="<?= esc(site_url('sales/document/' . (int) $draft->sale_id), 'attr') ?>"><?= lang('Sales.document_open') ?></a></td>
+                            <td><a class="btn btn-outline-primary btn-sm" href="<?= esc(site_url('sales/document/' . (int) $draft->sale_id), 'attr') ?>" aria-label="<?= esc(lang('Sales.document_open') . ' ' . $draft->label, 'attr') ?>"><?= lang('Sales.document_open') ?></a></td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
             </table>
         </div>
+        <?php if (count($drafts) >= SaleDocumentList::LIMIT): ?>
+            <p class="small text-body-secondary" id="drafts_limited"><?= lang('Sales.documents_drafts_limited', [SaleDocumentList::LIMIT]) ?></p>
+        <?php endif; ?>
     <?php endif; ?>
 
     <h2 class="h5 mt-4"><?= lang('Sales.documents_quotes') ?></h2>
@@ -103,7 +107,7 @@ $badges = [
                             <th scope="col" class="document-branch"><?= lang('Sales.document_branch') ?></th>
                         <?php endif; ?>
                         <th scope="col"><?= lang('Sales.sub_total') ?></th>
-                        <th scope="col"></th>
+                        <th scope="col"><span class="visually-hidden"><?= lang('Sales.document_actions') ?></span></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -118,12 +122,15 @@ $badges = [
                                 <td class="document-branch"><?= esc((string) $quote->branch_code) ?></td>
                             <?php endif; ?>
                             <td><bdi dir="ltr"><?= to_currency($quote->subtotal) ?></bdi></td>
-                            <td><a class="btn btn-outline-primary btn-sm" href="<?= esc(site_url('sales/document/' . (int) $quote->sale_id), 'attr') ?>"><?= lang('Sales.document_open') ?></a></td>
+                            <td><a class="btn btn-outline-primary btn-sm" href="<?= esc(site_url('sales/document/' . (int) $quote->sale_id), 'attr') ?>" aria-label="<?= esc(lang('Sales.document_open') . ' ' . $quote->label, 'attr') ?>"><?= lang('Sales.document_open') ?></a></td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
             </table>
         </div>
+        <?php if (count($quotes) >= SaleDocumentList::LIMIT): ?>
+            <p class="small text-body-secondary" id="quotes_limited"><?= lang('Sales.documents_quotes_limited', [SaleDocumentList::LIMIT]) ?></p>
+        <?php endif; ?>
     <?php endif; ?>
 </div>
 

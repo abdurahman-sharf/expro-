@@ -739,6 +739,10 @@ class Sales extends Secure_Controller
 
         $personId = (int) $this->session->get('person_id');
 
+        if ((new DraftInvoice())->carriesInvoiceDiscount($saleId) && !$this->mayGiveInvoiceDiscount()) {
+            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized'), 'id' => $saleId]);
+        }
+
         $date  = $this->request->getPost('invoice_date');
         $terms = $this->request->getPost('payment_terms');
         $date  = is_array($date) ? 'not a day' : trim((string) $date);

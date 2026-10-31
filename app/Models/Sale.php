@@ -928,13 +928,14 @@ class Sale extends Model
         ?string $invoiceDate = null,
         int|string|null $paymentTerms = null,
         ?QuoteStatus $quoteStatus = null,
-        ?int $quoteSourceId = null
+        ?int $quoteSourceId = null,
+        ?string $draftFingerprint = null
     ): int {    // TODO: this method returns the sale_id but the override is expecting it to return a bool. The signature needs to be reworked.  Generally when there are more than 3 maybe 4 parameters, there's a good chance that an object needs to be passed rather than so many params.
         try {
             return (new CustomerLock($this->db))->run(
                 $customerId,
-                function () use (&$saleStatus, &$items, &$salesTaxes, $saleId, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $delivered, $returnOfSaleId, $invoiceDiscount, $returnDocument, $invoiceDate, $paymentTerms, $quoteStatus, $quoteSourceId): int {
-                    return $this->saveValueLocked($saleId, $saleStatus, $items, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $salesTaxes, $delivered, $returnOfSaleId, $invoiceDiscount, $returnDocument, $invoiceDate, $paymentTerms, $quoteStatus, $quoteSourceId);
+                function () use (&$saleStatus, &$items, &$salesTaxes, $saleId, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $delivered, $returnOfSaleId, $invoiceDiscount, $returnDocument, $invoiceDate, $paymentTerms, $quoteStatus, $quoteSourceId, $draftFingerprint): int {
+                    return $this->saveValueLocked($saleId, $saleStatus, $items, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $salesTaxes, $delivered, $returnOfSaleId, $invoiceDiscount, $returnDocument, $invoiceDate, $paymentTerms, $quoteStatus, $quoteSourceId, $draftFingerprint);
                 },
             );
         } catch (AccountingException $busy) {
@@ -969,7 +970,8 @@ class Sale extends Model
         ?string $invoiceDate,
         int|string|null $paymentTerms,
         ?QuoteStatus $quoteStatus,
-        ?int $quoteSourceId
+        ?int $quoteSourceId,
+        ?string $draftFingerprint
     ): int {
         $config = config(OSPOS::class)->settings;
         $attribute = model(Attribute::class);
@@ -1022,7 +1024,7 @@ class Sale extends Model
         $this->db->transStart();
 
         try {
-            $stored = $saleId === NEW_ENTRY ? null : $this->lockStoredSale($saleId, $saleStatus == COMPLETED);
+            $stored = $saleId === NEW_ENTRY ? null : $this->lockStoredSale($saleId, $draftFingerprint);
         } catch (AccountingException $refusal) {
             $this->db->transRollback();
             $this->accountingFailure = $refusal;
@@ -1030,10 +1032,17 @@ class Sale extends Model
             return ACCOUNTING_FAILED;
         }
 
+        $quoteStatusChange = null;
+
         if ($saleType === SALE_TYPE_QUOTE) {
             $storedStatus = $stored !== null && (int) $stored->sale_type === SALE_TYPE_QUOTE ? QuoteStatus::fromStored($stored->quote_status) : null;
+            $savedStatus  = QuoteStatus::afterSave($storedStatus, $quoteStatus ?? QuoteStatus::Open);
 
-            $salesData['quote_status'] = QuoteStatus::afterSave($storedStatus, $quoteStatus ?? QuoteStatus::Open)->value;
+            $salesData['quote_status'] = $savedStatus->value;
+
+            if ($storedStatus !== null && $storedStatus !== $savedStatus) {
+                $quoteStatusChange = [$storedStatus, $savedStatus];
+            }
         } else {
             $salesData['quote_status'] = null;
         }
@@ -1232,6 +1241,12 @@ class Sale extends Model
             return ACCOUNTING_FAILED;
         }
 
+        if ($quoteStatusChange !== null) {
+            [$statusBefore, $statusAfter] = $quoteStatusChange;
+
+            (new QuoteLifecycle($this->db))->recordChange($saleId, $statusBefore, $statusAfter, $employeeId, (int) $salesData['branch_id'], $statusBefore === QuoteStatus::Draft ? $this->get_quote_number($saleId) : null);
+        }
+
         if ($saleStatus == COMPLETED) {
             $failure = $this->postToAccounting($saleId, $employeeId);
 
@@ -1246,7 +1261,7 @@ class Sale extends Model
                 $this->auditInvoiceDiscount($saleId, $employeeId, (int) $salesData['branch_id'], $discountPlan);
             }
 
-            if ($saleType === SALE_TYPE_INVOICE && $stored !== null && (int) $stored->sale_status === SUSPENDED) {
+            if ($saleType === SALE_TYPE_INVOICE && $stored !== null && (int) $stored->sale_type === SALE_TYPE_INVOICE && (int) $stored->sale_status === SUSPENDED) {
                 $this->auditDraftIssued($saleId, $employeeId, (int) $salesData['branch_id'], $timing['invoice_date']);
             }
 
@@ -1275,12 +1290,14 @@ class Sale extends Model
 
     /**
      * Locks the row of a sale that is saved again and refuses what must not be: a quote that was
-     * converted into an invoice is the record of it and is not saved again, and a sale is completed
-     * only while it is still waiting to be, so the same draft is never issued twice.
+     * converted into an invoice is the record of it and is not saved again, a sale is saved again
+     * only while it is still suspended (one that was issued or cancelled meanwhile, from another
+     * screen, is never taken back to waiting or issued twice), and a draft that is issued is the
+     * one that was read: when it was changed in between, nothing is issued.
      *
      * @throws AccountingException
      */
-    private function lockStoredSale(int $saleId, bool $completing): ?object
+    private function lockStoredSale(int $saleId, ?string $draftFingerprint): ?object
     {
         $stored = LockedRead::row($this->db, 'SELECT sale_status, sale_type, quote_status, source_quote_id FROM ' . $this->db->prefixTable('sales') . ' WHERE sale_id = ? FOR UPDATE', [$saleId]);
 
@@ -1292,8 +1309,12 @@ class Sale extends Model
             throw new AccountingException(AccountingError::QuoteLocked, 'A quote that became an invoice cannot be changed.', ['sale_id' => $saleId]);
         }
 
-        if ($completing && (int) $stored->sale_status !== SUSPENDED) {
+        if ((int) $stored->sale_status !== SUSPENDED) {
             throw new AccountingException(AccountingError::DraftNotFound, 'The sale is not waiting to be completed.', ['sale_id' => $saleId]);
+        }
+
+        if ($draftFingerprint !== null && (new DraftInvoice($this->db))->fingerprint($saleId) !== $draftFingerprint) {
+            throw new AccountingException(AccountingError::DraftChanged, 'The draft changed while it was being issued.', ['sale_id' => $saleId]);
         }
 
         return $stored;
@@ -1355,6 +1376,7 @@ class Sale extends Model
             ReturnDocument::CreditNote,
             $invoiceDate ?? $issue->invoiceDate,
             $paymentTerms ?? $issue->paymentTermsDays,
+            draftFingerprint: $issue->fingerprint,
         );
     }
 
@@ -2292,11 +2314,13 @@ class Sale extends Model
      */
     public function get_all_suspended(?int $customer_id = null): array
     {
+        $documentId = "case when sale_type = '" . SALE_TYPE_QUOTE . "' THEN IF(quote_status = " . QuoteStatus::Draft->value . " AND (quote_number IS NULL OR quote_number = ''), CONCAT('" . DraftInvoice::PREFIX . "', sale_id), quote_number) WHEN sale_type = '" . SALE_TYPE_WORK_ORDER . "' THEN work_order_number else sale_id end as doc_id";
+
         if ($customer_id == NEW_ENTRY) {
-            $query = $this->db->query("SELECT sale_id, case when sale_type = '" . SALE_TYPE_QUOTE . "' THEN IF(quote_status = " . QuoteStatus::Draft->value . " AND (quote_number IS NULL OR quote_number = ''), CONCAT('" . DraftInvoice::PREFIX . "', sale_id), quote_number) WHEN sale_type = '" . SALE_TYPE_WORK_ORDER . "' THEN work_order_number else sale_id end as doc_id, sale_id as suspended_sale_id, sale_status, sale_time, dinner_table_id, customer_id, employee_id, comment, branch_id FROM "
+            $query = $this->db->query("SELECT sale_id, {$documentId}, sale_id as suspended_sale_id, sale_status, sale_time, dinner_table_id, customer_id, employee_id, comment, branch_id FROM "
                 . $this->db->prefixTable('sales') . ' where sale_status = ' . SUSPENDED);
         } else {
-            $query = $this->db->query("SELECT sale_id, case when sale_type = '" . SALE_TYPE_QUOTE . "' THEN IF(quote_status = " . QuoteStatus::Draft->value . " AND (quote_number IS NULL OR quote_number = ''), CONCAT('" . DraftInvoice::PREFIX . "', sale_id), quote_number) WHEN sale_type = '" . SALE_TYPE_WORK_ORDER . "' THEN work_order_number else sale_id end as doc_id, sale_status, sale_time, dinner_table_id, customer_id, employee_id, comment, branch_id FROM "
+            $query = $this->db->query("SELECT sale_id, {$documentId}, sale_status, sale_time, dinner_table_id, customer_id, employee_id, comment, branch_id FROM "
                 . $this->db->prefixTable('sales') . ' where sale_status = ' . SUSPENDED . ' AND customer_id = ' . $customer_id);
         }
 

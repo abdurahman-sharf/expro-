@@ -45,6 +45,13 @@ final class DraftInvoice
             ->getRow();
     }
 
+    public function carriesInvoiceDiscount(int $saleId): bool
+    {
+        $draft = $this->find($saleId);
+
+        return $draft !== null && $draft->invoice_discount_type !== null && $draft->invoice_discount !== null;
+    }
+
     public function isDraft(int $saleId): bool
     {
         return $this->find($saleId) !== null;
@@ -55,9 +62,40 @@ final class DraftInvoice
      */
     public function forIssue(int $saleId): ?DraftIssue
     {
-        $draft = $this->find($saleId);
+        $fingerprint = $this->fingerprint($saleId);
+        $draft       = $this->find($saleId);
 
-        return $draft === null ? null : $this->build($draft);
+        return $draft === null ? null : $this->build($draft, $fingerprint);
+    }
+
+    /**
+     * What the draft holds, as one value that changes when anything an issue would carry changes:
+     * its header, its lines and its payments. It is taken before the draft is read, so that what is
+     * issued is refused when the draft moved on after it, never the other way round.
+     */
+    public function fingerprint(int $saleId): string
+    {
+        $header = $this->db->table('sales')
+            ->select('customer_id, comment, branch_id, delivered, dinner_table_id, invoice_discount_type, invoice_discount, invoice_date, payment_terms_days, invoice_number')
+            ->where('sale_id', $saleId)
+            ->get()
+            ->getRowArray();
+
+        $lines = $this->db->table('sales_items')
+            ->select('item_id, line, description, serialnumber, quantity_purchased, discount, discount_type, item_unit_price, item_location, print_option')
+            ->where('sale_id', $saleId)
+            ->orderBy('line', 'ASC')
+            ->get()
+            ->getResultArray();
+
+        $payments = $this->db->table('sales_payments')
+            ->select('payment_type, payment_amount, cash_refund, cash_adjustment, reference_code, treasury_id')
+            ->where('sale_id', $saleId)
+            ->orderBy('payment_id', 'ASC')
+            ->get()
+            ->getResultArray();
+
+        return sha1(json_encode([$header, $lines, $payments], JSON_THROW_ON_ERROR));
     }
 
     /**
@@ -66,6 +104,8 @@ final class DraftInvoice
      */
     public function preview(int $saleId): ?DraftIssue
     {
+        $fingerprint = $this->fingerprint($saleId);
+
         $row = $this->db->table('sales')
             ->select('sale_id, sale_time, customer_id, employee_id, comment, invoice_number, branch_id, delivered, dinner_table_id, invoice_discount_type, invoice_discount, invoice_date, payment_terms_days, source_quote_id')
             ->where('sale_status', SUSPENDED)
@@ -74,10 +114,10 @@ final class DraftInvoice
             ->get()
             ->getRow();
 
-        return $row === null ? null : $this->build($row);
+        return $row === null ? null : $this->build($row, $fingerprint);
     }
 
-    private function build(object $draft): DraftIssue
+    private function build(object $draft, string $fingerprint): DraftIssue
     {
         $saleId     = (int) $draft->sale_id;
         $items      = $this->lines($saleId);
@@ -117,6 +157,7 @@ final class DraftInvoice
             paidWithStoredValue: $paidWithStoredValue,
             problem: $problem,
             document: $this->document($draft, $items, $taxes),
+            fingerprint: $fingerprint,
         );
     }
 

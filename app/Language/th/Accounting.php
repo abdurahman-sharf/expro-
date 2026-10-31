@@ -101,6 +101,7 @@ return [
     'error_description_too_long'                 => '',
     'error_details_changed'                      => '',
     'error_document_journal_locked'              => '',
+    'error_draft_changed'                        => '',
     'error_draft_not_found'                      => '',
     'error_draft_stored_value_paid'              => '',
     'error_entity_kind_unknown'                  => '',

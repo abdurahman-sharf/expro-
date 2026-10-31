@@ -117,6 +117,7 @@ enum AccountingError: string
     case IssuedDocumentLocked = 'issued_document_locked';
     case CustomerBusy         = 'customer_busy';
 
+    case DraftChanged          = 'draft_changed';
     case DraftNotFound         = 'draft_not_found';
     case DraftStoredValuePaid  = 'draft_stored_value_paid';
     case QuoteLocked           = 'quote_locked';

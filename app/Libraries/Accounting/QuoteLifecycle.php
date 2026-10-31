@@ -61,21 +61,33 @@ final class QuoteLifecycle
                 throw new AccountingException(AccountingError::QuoteStatusNotAllowed, 'A quote cannot move from ' . $from->name . ' to ' . $to->name . '.', ['from' => lang($from->languageKey()), 'to' => lang($to->languageKey())]);
             }
 
-            $details = ['from' => $from->name, 'to' => $to->name];
+            $number = null;
 
             if ($from === QuoteStatus::Draft && ($quote->quote_number ?? '') === '') {
-                $number = (new DocumentNumbering($this->db))->assign(DocumentType::SalesQuote, 'sales', $saleId, (int) $quote->branch_id);
-
-                if ($number !== null) {
-                    $details['number'] = $number->number;
-                }
+                $number = (new DocumentNumbering($this->db))->assign(DocumentType::SalesQuote, 'sales', $saleId, (int) $quote->branch_id)?->number;
             }
 
             $this->db->table('sales')->where('sale_id', $saleId)->update(['quote_status' => $to->value]);
-            $this->audit($saleId, 'quote_status_changed', $employeeId, (int) $quote->branch_id, $details);
+            $this->recordChange($saleId, $from, $to, $employeeId, (int) $quote->branch_id, $number);
 
             return $to;
         });
+    }
+
+    /**
+     * Writes in the audit log that a quote moved from one state to another, with the number it was
+     * given when a draft was opened. The register, which opens a draft when it saves it as a quote,
+     * writes it through here too, so that every move of a quote is on record.
+     */
+    public function recordChange(int $saleId, QuoteStatus $from, QuoteStatus $to, ?int $employeeId, int $branchId, ?string $number = null): void
+    {
+        $details = ['from' => $from->name, 'to' => $to->name];
+
+        if ($number !== null && $number !== '') {
+            $details['number'] = $number;
+        }
+
+        $this->audit($saleId, 'quote_status_changed', $employeeId, $branchId, $details);
     }
 
     /**

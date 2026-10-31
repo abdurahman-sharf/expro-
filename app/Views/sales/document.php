@@ -64,7 +64,7 @@ $locked  = $quote_status?->isLocked() === true;
         <?php if ($invoice_id !== null): ?>
             <dt class="col-sm-3"><?= lang('Sales.invoice') ?></dt>
             <dd class="col-sm-9" id="converted_invoice">
-                <a href="<?= esc(site_url('sales/invoice/' . $invoice_id), 'attr') ?>"><?= lang('Sales.quote_converted_to', [(string) ($invoice_number ?? '#' . $invoice_id)]) ?></a>
+                <a href="<?= esc(site_url('sales/invoice/' . $invoice_id), 'attr') ?>"><?= lang('Sales.quote_converted_to', [esc((string) ($invoice_number ?? '#' . $invoice_id))]) ?></a>
             </dd>
         <?php endif; ?>
     </dl>
@@ -173,15 +173,33 @@ $locked  = $quote_status?->isLocked() === true;
 
 <script type="text/javascript">
     $(document).ready(function() {
-        const answer = function(response) {
-            if (response.success) {
-                if (response.redirect) {
-                    window.location.href = response.redirect;
+        const buttons = $('#document_actions button');
+        const failure = <?= json_encode(lang('Sales.document_request_failed'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+
+        const refused = function(message) {
+            $.notify({message: message}, {type: 'danger'});
+            buttons.prop('disabled', false);
+        };
+
+        const post = function(url, data, succeeded) {
+            buttons.prop('disabled', true);
+
+            $.post(url, data, function(response) {
+                if (response.success) {
+                    succeeded(response);
                 } else {
-                    window.location.reload();
+                    refused(response.message);
                 }
+            }, 'json').fail(function(request) {
+                refused(request.responseJSON && request.responseJSON.message ? request.responseJSON.message : failure);
+            });
+        };
+
+        const answer = function(response) {
+            if (response.redirect) {
+                window.location.href = response.redirect;
             } else {
-                $.notify({message: response.message}, {type: 'danger'});
+                window.location.reload();
             }
         };
 
@@ -190,7 +208,7 @@ $locked  = $quote_status?->isLocked() === true;
                 return;
             }
 
-            $.post($(form).attr('action'), $(form).serialize(), answer, 'json');
+            post($(form).attr('action'), $(form).serialize(), answer);
         };
 
         $('#issue_form').on('submit', function(event) {
@@ -210,13 +228,9 @@ $locked  = $quote_status?->isLocked() === true;
 
         $('#delete_button').on('click', function() {
             if (window.confirm($(this).data('confirm'))) {
-                $.post(<?= json_encode(site_url('sales/delete/' . $saleId), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>, {}, function(response) {
-                    if (response.success) {
-                        window.location.href = <?= json_encode(site_url('sales/documents'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
-                    } else {
-                        $.notify({message: response.message}, {type: 'danger'});
-                    }
-                }, 'json');
+                post(<?= json_encode(site_url('sales/delete/' . $saleId), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>, {}, function() {
+                    window.location.href = <?= json_encode(site_url('sales/documents'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+                });
             }
         });
     });
