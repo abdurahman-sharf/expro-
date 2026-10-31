@@ -15,6 +15,8 @@ use App\Libraries\Accounting\NormalBalance;
 use App\Libraries\Accounting\ReportPeriod;
 use App\Libraries\Accounting\ReportScope;
 use App\Libraries\Accounting\TrialBalance;
+use CodeIgniter\Database\Query;
+use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -540,6 +542,79 @@ class AccountLedgerTest extends CIUnitTestCase
         $rows = $this->blocks('1201')->blocks[0]->rows;
 
         $this->assertSame([$earlier, $later, $same], array_column($rows, 'journal_id'));
+    }
+
+    public function testBuildBlocks_ReadsItsFiguresAndItsLinesInOneSnapshotWhileTheBooksMove(): void
+    {
+        $this->cashSale('2026-10-05', 1, '100.00');
+
+        $report = $this->readWhileTheBooksMove(fn (): AccountLedgerBlocksReport => $this->blocks('1201'));
+
+        $this->assertSame(['100.0000', '100.0000'], [$report->blocks[0]->closing, $report->blocks[0]->rows[0]['balance']], 'The lines add up to the figures of the block they are drawn in');
+    }
+
+    public function testBuild_ReadsItsFiguresAndItsLinesInOneSnapshotWhileTheBooksMove(): void
+    {
+        $this->cashSale('2026-10-05', 1, '100.00');
+
+        $report = $this->readWhileTheBooksMove(fn (): AccountLedgerReport => $this->statement('cash'));
+
+        $this->assertSame(['100.0000', '100.0000'], [$report->closing, $report->rows[0]['balance']], 'The last line closes at the closing balance');
+    }
+
+    /**
+     * Reads while another connection changes an amount of the cash account right after the first
+     * figures of the statement were read.
+     *
+     * @template T
+     *
+     * @param callable(): T $read
+     *
+     * @return T
+     */
+    private function readWhileTheBooksMove(callable $read): mixed
+    {
+        $other = $this->openSecondConnection();
+        $moved = false;
+        $lines = $other->prefixTable('accounting_journal_lines');
+        $cash  = $this->accountId('cash');
+
+        $listener = static function (Query $query) use (&$moved, $other, $lines, $cash): void {
+            if (! $moved && str_contains($query->getQuery(), 'AS found')) {
+                $moved = true;
+                $other->query("UPDATE {$lines} SET debit = debit + 7 WHERE account_id = {$cash} LIMIT 1");
+            }
+        };
+
+        Events::on('DBQuery', $listener);
+
+        try {
+            $report = $read();
+        } finally {
+            Events::removeListener('DBQuery', $listener);
+            $other->close();
+        }
+
+        $this->assertTrue($moved, 'The books moved between the figures and the lines');
+
+        return $report;
+    }
+
+    public function testBuild_ReadsAClosedPeriodAsAnyOtherInEveryLayoutAndForAnEmployee(): void
+    {
+        $second = $this->customAccount('1201', '120102', 'Second till');
+        $worker = $this->employee('Ahmad');
+
+        $this->cashSale('2026-10-05', 1, '100.00', $worker);
+        $this->postOn('2026-10-06', 1, [[$second, '40.00', '0'], [$this->accountId('sales_revenue'), '0', '40.00']], employeeId: $worker);
+        $this->closeThrough('2026-10-31');
+
+        $this->assertSame('100.0000', $this->statement('cash', '2026-10-31', '2026-10-01')->closing);
+        $this->assertSame('100.0000', $this->ledger->build(ReportScope::resolve(null, null), $this->accountId('cash'), ReportPeriod::of('2026-10-01', '2026-10-31'), employeeId: $worker)->closing);
+
+        foreach (LedgerDisplay::cases() as $display) {
+            $this->assertSame('140.0000', $this->blocks('1201', '2026-10-31', '2026-10-01', $display, employeeId: $worker)->net(), $display->value);
+        }
     }
 
     public function testEmployees_ListsOnlyThoseWhoAddedJournalsInTheBranchesOfTheScope(): void

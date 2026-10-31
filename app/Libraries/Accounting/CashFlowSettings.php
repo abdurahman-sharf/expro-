@@ -173,20 +173,15 @@ final class CashFlowSettings
 
     /**
      * The setting as it stands now, read with its row locked until the transaction ends, so that two
-     * saves follow one another and the second starts from what the first left. The row is made when
-     * there is none, with no lines, which is how a setting never saved reads.
+     * saves follow one another and the second starts from what the first left.
      *
      * @throws AccountingException
      */
     private function lockedText(): string
     {
-        $table = $this->db->prefixTable('app_config');
+        $row = LockedRead::row($this->db, 'SELECT `value` FROM ' . $this->db->prefixTable('app_config') . ' WHERE `key` = ? FOR UPDATE', [self::KEY]);
 
-        if ($this->db->query("INSERT INTO {$table} (`key`, `value`) VALUES (?, '') ON DUPLICATE KEY UPDATE `value` = `value`", [self::KEY]) === false) {
-            throw new AccountingException(AccountingError::WriteFailed, 'The setting could not be locked.');
-        }
-
-        return (string) (LockedRead::row($this->db, "SELECT `value` FROM {$table} WHERE `key` = ? FOR UPDATE", [self::KEY])->value ?? '');
+        return (string) ($row->value ?? '');
     }
 
     /**

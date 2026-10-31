@@ -272,6 +272,20 @@ final class CashProfitAndLossTest extends CIUnitTestCase
         $this->assertTrue($report->ties());
     }
 
+    public function testBuild_SaysItDoesNotTieWhenAJournalWasChangedOutsideTheBooks(): void
+    {
+        $this->postOn('2026-10-05', 1, [[$this->accountId('cash'), '100.00', '0'], [$this->accountIdByCode('4201'), '0', '100.00']]);
+
+        $this->assertTrue($this->cash('2026-10-01', '2026-10-31')->ties());
+
+        $this->accountingDb()->query('UPDATE ' . $this->accountingDb()->prefixTable('accounting_journal_lines') . ' SET debit = debit + 5 WHERE account_id = ' . $this->accountId('cash') . ' LIMIT 1');
+
+        $report = $this->cash('2026-10-01', '2026-10-31');
+
+        $this->assertFalse($report->ties(), 'A journal that does not balance leaves the profit and the money apart');
+        $this->assertSame(['100.0000', '105.0000'], [$report->profit, $report->cashChange]);
+    }
+
     public function testBuild_HasZerosAndTheSameLinesForABookWithNoMoney(): void
     {
         $report = $this->cash();

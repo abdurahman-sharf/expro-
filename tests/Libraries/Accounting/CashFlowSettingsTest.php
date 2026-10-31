@@ -435,6 +435,16 @@ final class CashFlowSettingsTest extends CIUnitTestCase
         $this->assertSame(2, $this->savesWritten());
     }
 
+    public function testSave_SavesTheLinesOfACompanyThatNeverSavedThemAndHasNoRowForThem(): void
+    {
+        $this->accountingDb()->table('app_config')->where('key', CashFlowSettings::KEY)->delete();
+
+        $this->settings->save(['lines' => [['key' => 'inventory', 'title' => 'Stock']]], $this->manager, $this->settings->version());
+
+        $this->assertSame('Stock', $this->line('inventory')->title);
+        $this->assertSame(1, $this->savesWritten());
+    }
+
     public function testVersion_ChangesWhenTheLinesAreSaved(): void
     {
         $first = $this->settings->version();
@@ -474,7 +484,7 @@ final class CashFlowSettingsTest extends CIUnitTestCase
 
         $other->resetTransStatus();
         $other->transStart();
-        $other->query("INSERT INTO {$table} (`key`, `value`) VALUES (?, '') ON DUPLICATE KEY UPDATE `value` = `value`", [CashFlowSettings::KEY]);
+        $other->query("SELECT `value` FROM {$table} WHERE `key` = ? FOR UPDATE", [CashFlowSettings::KEY]);
         $this->accountingDb()->query('SET SESSION innodb_lock_wait_timeout = 1');
 
         try {

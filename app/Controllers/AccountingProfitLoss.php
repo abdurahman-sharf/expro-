@@ -121,6 +121,7 @@ class AccountingProfitLoss extends AccountingController
         $this->csvRow($handle, [lang('Accounting_profit_loss.basis'), lang('Accounting_profit_loss.basis_accrual')]);
         $this->csvRow($handle, [lang('Accounting_profit_loss.csv_range'), $report->from . ' - ' . $report->to]);
         $this->csvRow($handle, [lang('Accounting_reports.csv_branches'), implode(' ', $report->scope->codes)]);
+        $this->csvNote($handle, $this->scopeLabel($report->scope));
         $this->csvRow($handle, []);
         $this->csvRow($handle, [lang('Accounting_profit_loss.summary'), ...$columns, lang('Accounting_profit_loss.total')]);
         $this->csvRow($handle, [lang('Accounting_profit_loss.total_profit'), ...$report->profit, $report->totalProfit]);
@@ -149,6 +150,7 @@ class AccountingProfitLoss extends AccountingController
         $this->csvRow($handle, [lang('Accounting_profit_loss.basis'), lang('Accounting_profit_loss.basis_cash')]);
         $this->csvRow($handle, [lang('Accounting_profit_loss.csv_range'), ($report->from ?? '') . ' - ' . $report->to]);
         $this->csvRow($handle, [lang('Accounting_reports.csv_branches'), implode(' ', $report->scope->codes)]);
+        $this->csvNote($handle, $this->scopeLabel($report->scope));
         $this->csvRow($handle, []);
         $this->csvRow($handle, [lang('Accounting_profit_loss.account'), lang('Accounting_profit_loss.total')]);
         $this->csvRow($handle, [lang('Accounting_profit_loss.revenue')]);

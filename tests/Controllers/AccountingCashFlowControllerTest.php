@@ -362,6 +362,44 @@ final class AccountingCashFlowControllerTest extends CIUnitTestCase
         $this->assertSame((string) $this->accountingDb()->table('branches')->where('branch_id', 1)->get()->getRow()->code, $this->rowStartingWith($rows, lang('Accounting_reports.csv_branches'))[1]);
     }
 
+    public function testGetCsv_SaysTheTotalIsNotTheCompanysToSomeoneWhoReadsSomeOfTheBranches(): void
+    {
+        $this->books();
+        $this->viewer([1, $this->second]);
+
+        $first = (string) $this->accountingDb()->table('branches')->where('branch_id', 1)->get()->getRow()->code;
+        $rows  = $this->csvRows($this->get(self::SCREEN . '/csv?from=2026-10-01&to=2026-10-31'));
+
+        $this->assertNotNull($this->rowStartingWith($rows, lang('Accounting_reports.scope_partial', [implode(lang('Accounting_reports.branch_separator'), [$first, 'T2'])])));
+
+        $this->viewer();
+
+        $this->assertNotNull($this->rowStartingWith($this->csvRows($this->get(self::SCREEN . '/csv?from=2026-10-01&to=2026-10-31')), lang('Accounting_reports.scope_company')));
+    }
+
+    public function testGetIndex_SaysThatTheChangeAndWhatTheTreasuriesHeldDoNotAddUpAndSaysSoInTheFile(): void
+    {
+        $this->books();
+        $this->viewer();
+
+        $address = self::SCREEN . '?from=2026-10-01&to=2026-10-31';
+
+        $this->get($address)->assertSee('id="report_ties"');
+
+        $this->accountingDb()->query('UPDATE ' . $this->accountingDb()->prefixTable('accounting_journal_lines') . ' SET debit = debit + 5 WHERE account_id = ' . $this->accountId('cash') . ' LIMIT 1');
+
+        $screen = $this->get($address);
+
+        $screen->assertSee('id="report_differs"');
+        $screen->assertSee(lang('Accounting_cash_flow.differs'));
+        $screen->assertDontSee('id="report_ties"');
+
+        $rows = $this->csvRows($this->get(self::SCREEN . '/csv?from=2026-10-01&to=2026-10-31'));
+
+        $this->assertNotNull($this->rowStartingWith($rows, lang('Accounting_cash_flow.differs')));
+        $this->assertNull($this->rowStartingWith($rows, lang('Accounting_cash_flow.ties')));
+    }
+
     public function testGetCsv_RefusesAPeriodThatEndsBeforeItStartsInWords(): void
     {
         $this->viewer();

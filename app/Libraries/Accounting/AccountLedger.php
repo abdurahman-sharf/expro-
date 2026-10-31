@@ -13,10 +13,13 @@ use Config\Database;
  * read with all of them, which is the statement of a customer's control account or of a whole
  * branch of the chart, in one list or account by account. The journals read are those in the
  * books, a reversed journal with its reversal. Limited to an employee, every figure of the
- * statement, the opening balance included, is that of the lines the employee added.
+ * statement, the opening balance included, is that of the lines the employee added. Each statement is
+ * read in one snapshot, so that its lines add up to its totals when the books move while it is read.
  */
 final class AccountLedger
 {
+    use RunsInTransaction;
+
     public const MAX_BLOCK_ITEMS = 2000;
     private const SCALE          = 4;
 
@@ -31,6 +34,11 @@ final class AccountLedger
      * @throws AccountingException
      */
     public function build(ReportScope $scope, int $accountId, ReportPeriod $period, int $limit = 100, int $offset = 0, ?int $employeeId = null): AccountLedgerReport
+    {
+        return $this->transactional(fn (): AccountLedgerReport => $this->readStatement($scope, $accountId, $period, $limit, $offset, $employeeId));
+    }
+
+    private function readStatement(ReportScope $scope, int $accountId, ReportPeriod $period, int $limit, int $offset, ?int $employeeId): AccountLedgerReport
     {
         $account = $this->account($accountId);
         $normal  = NormalBalance::from((string) $account->normal_balance);
@@ -79,6 +87,14 @@ final class AccountLedger
      * @throws AccountingException When there are more blocks and lines than the screen can hold.
      */
     public function buildBlocks(ReportScope $scope, int $accountId, ReportPeriod $period, LedgerDisplay $display = LedgerDisplay::Activity, ?int $employeeId = null): AccountLedgerBlocksReport
+    {
+        return $this->transactional(fn (): AccountLedgerBlocksReport => $this->readBlocks($scope, $accountId, $period, $display, $employeeId));
+    }
+
+    /**
+     * @throws AccountingException
+     */
+    private function readBlocks(ReportScope $scope, int $accountId, ReportPeriod $period, LedgerDisplay $display, ?int $employeeId): AccountLedgerBlocksReport
     {
         $account = $this->account($accountId);
         $ids     = $this->withDescendants($accountId);

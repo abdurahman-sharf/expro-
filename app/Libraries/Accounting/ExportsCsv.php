@@ -22,6 +22,16 @@ trait ExportsCsv
     /**
      * @param resource $handle
      */
+    private function csvNote($handle, ?string $note): void
+    {
+        if ($note !== null) {
+            $this->csvRow($handle, [$note]);
+        }
+    }
+
+    /**
+     * @param resource $handle
+     */
     private function csvText($handle): string
     {
         rewind($handle);

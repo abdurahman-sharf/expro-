@@ -866,6 +866,22 @@ class AccountingReportsControllerTest extends CIUnitTestCase
         return null;
     }
 
+    /**
+     * @param list<list<string>> $rows
+     *
+     * @return array{0: list<list<string>>, 1: list<list<string>>} The statement of a ledger file and what follows the empty line below it.
+     */
+    private function splitFooter(array $rows): array
+    {
+        foreach ($rows as $index => $row) {
+            if (array_filter($row, static fn (?string $cell): bool => $cell !== '') === []) {
+                return [array_slice($rows, 0, $index), array_slice($rows, $index + 1)];
+            }
+        }
+
+        return [$rows, []];
+    }
+
     private function bookedBy(string $first, string $last): int
     {
         return $this->createEmployee(first_name: $first, last_name: $last);
@@ -1262,7 +1278,7 @@ class AccountingReportsControllerTest extends CIUnitTestCase
         $response->assertStatus(200);
         $this->assertStringContainsString('filename="account_ledger_' . $this->accountId('cash') . '_2026-10-01_2026-10-31.csv"', $response->response()->getHeaderLine('Content-Disposition'));
 
-        $rows = $this->csvRows($response);
+        [$rows, $footer] = $this->splitFooter($this->csvRows($response));
 
         $this->assertCount(9, $rows[0]);
         $this->assertSame([lang('Accounting_reports.ledger_opening'), '60.0000'], [$rows[1][5], $rows[1][8]]);
@@ -1270,6 +1286,7 @@ class AccountingReportsControllerTest extends CIUnitTestCase
         $this->assertSame(['Basma Ledger', '100.0000', '0.0000', '160.0000'], [$rows[2][4], $rows[2][6], $rows[2][7], $rows[2][8]]);
         $this->assertSame(['100.0000', '0.0000', '160.0000'], array_slice(end($rows), 6, 3));
         $this->assertCount(9, end($rows), 'Every line of the file has as many cells as the header');
+        $this->assertSame(array_fill(0, count($footer), 9), array_map('count', $footer), 'And so does every line that says what the file covers');
     }
 
     public function testGetLedgerCsv_LeavesOutTheEmployeeColumnWhenHiddenAndKeepsTheEmployeeFilter(): void
@@ -1282,11 +1299,12 @@ class AccountingReportsControllerTest extends CIUnitTestCase
 
         $response = $this->get('/accounting_reports/ledger/csv?account=' . $this->accountId('cash') . '&hide_employee=1&employee=' . $first);
 
-        $rows = $this->csvRows($response);
+        [$rows, $footer] = $this->splitFooter($this->csvRows($response));
 
         $this->assertCount(8, $rows[0]);
         $this->assertNotContains(lang('Accounting_reports.ledger_employee'), $rows[0]);
         $this->assertCount(4, $rows, 'The header, the opening, one line and the total');
+        $this->assertSame(array_fill(0, count($footer), 8), array_map('count', $footer));
         $this->assertSame(['100.0000', '0.0000', '100.0000'], array_slice($rows[2], 5, 3));
     }
 
@@ -1298,7 +1316,7 @@ class AccountingReportsControllerTest extends CIUnitTestCase
         $this->postOn('2026-10-06', 1, [[$till, '40.00', '0'], [$this->accountId('sales_revenue'), '0', '40.00']]);
         $this->viewer();
 
-        $rows = $this->csvRows($this->get('/accounting_reports/ledger/csv?layout=accounts&account=' . $this->accountIdByCodeOf('1201') . '&to=2026-10-31'));
+        [$rows] = $this->splitFooter($this->csvRows($this->get('/accounting_reports/ledger/csv?layout=accounts&account=' . $this->accountIdByCodeOf('1201') . '&to=2026-10-31')));
 
         $this->assertContains('Second till 120102', array_column($rows, 5));
         $last = end($rows);
@@ -1313,7 +1331,7 @@ class AccountingReportsControllerTest extends CIUnitTestCase
         $this->cashSale('2026-10-06', $this->third, '4000.00');
         $this->viewer([1]);
 
-        $rows = $this->csvRows($this->get('/accounting_reports/ledger/csv?account=' . $this->accountId('cash') . '&branches[]=1&branches[]=' . $this->third));
+        [$rows] = $this->splitFooter($this->csvRows($this->get('/accounting_reports/ledger/csv?account=' . $this->accountId('cash') . '&branches[]=1&branches[]=' . $this->third)));
 
         $this->assertSame('100.0000', end($rows)[8], 'The branch that is not theirs is not in the file');
     }
@@ -1370,6 +1388,43 @@ class AccountingReportsControllerTest extends CIUnitTestCase
         $this->assertSame(lang('Accounting.error_ledger_too_large', [20_000]), $response->response()->getBody());
     }
 
+    public function testGetLedgerCsv_SaysThePeriodTheBranchesAndThatTheTotalIsNotTheCompanysToSomeoneWhoReadsSomeOfThem(): void
+    {
+        $second = $this->customAccount('1201', '120102', 'Second till');
+
+        $this->cashSale('2026-10-05', 1, '100.00');
+        $this->postOn('2026-10-06', $this->third, [[$second, '40.00', '0'], [$this->accountId('sales_revenue'), '0', '40.00']]);
+        $this->viewer([1, $this->second]);
+
+        $partial = lang('Accounting_reports.scope_partial', [$this->codes($this->branchCode(1), 'T2')]);
+
+        foreach (['/accounting_reports/ledger/csv?account=' . $this->accountId('cash') . '&from=2026-10-01&to=2026-10-31', '/accounting_reports/ledger/csv?layout=accounts&account=' . $this->accountIdByCodeOf('1201') . '&from=2026-10-01&to=2026-10-31'] as $address) {
+            [, $footer] = $this->splitFooter($this->csvRows($this->get($address)));
+
+            $this->assertSame(
+                [lang('Accounting_reports.csv_period') . ': ' . lang('Accounting_reports.period_between', ['2026-10-01', '2026-10-31']), lang('Accounting_reports.csv_branches') . ': ' . $this->branchCode(1) . ' T2', $partial],
+                array_column($footer, 5),
+                $address,
+            );
+        }
+    }
+
+    public function testGetLedgerCsv_SaysTheWholeCompanyToSomeoneWhoReadsEveryBranchAndNothingToSomeoneWhoReadsOne(): void
+    {
+        $this->cashSale('2026-10-05', 1, '100.00');
+        $this->viewer();
+
+        [, $everyBranch] = $this->splitFooter($this->csvRows($this->get('/accounting_reports/ledger/csv?account=' . $this->accountId('cash') . '&to=2026-10-31')));
+
+        $this->assertSame([lang('Accounting_reports.csv_period') . ': ' . lang('Accounting_reports.period_to', ['2026-10-31']), lang('Accounting_reports.csv_branches') . ': ' . implode(' ', array_column($this->accountingDb()->table('branches')->orderBy('branch_id')->get()->getResultArray(), 'code')), lang('Accounting_reports.scope_company')], array_column($everyBranch, 5));
+
+        $this->viewer([1]);
+
+        [, $oneBranch] = $this->splitFooter($this->csvRows($this->get('/accounting_reports/ledger/csv?account=' . $this->accountId('cash') . '&to=2026-10-31')));
+
+        $this->assertSame([lang('Accounting_reports.csv_period') . ': ' . lang('Accounting_reports.period_to', ['2026-10-31']), lang('Accounting_reports.csv_branches') . ': ' . $this->branchCode(1)], array_column($oneBranch, 5));
+    }
+
     public function testGetCsv_ShowsAnAccountNameThatStartsLikeAFormulaAsText(): void
     {
         $account = $this->customAccount('1201', '120102', '=HYPERLINK("http://example.test")');
@@ -1384,6 +1439,18 @@ class AccountingReportsControllerTest extends CIUnitTestCase
         $this->assertSame('100.0000', $row[2]);
     }
 
+    public function testGetLedgerCsv_ShowsTheNameOfABlockThatStartsLikeAFormulaAsText(): void
+    {
+        $account = $this->customAccount('1201', '120102', '=HYPERLINK("http://example.test")');
+
+        $this->postOn('2026-10-05', 1, [[$account, '100.00', '0'], [$this->accountId('sales_revenue'), '0', '100.00']]);
+        $this->viewer();
+
+        [$rows] = $this->splitFooter($this->csvRows($this->get('/accounting_reports/ledger/csv?layout=accounts&account=' . $this->accountIdByCodeOf('1201') . '&to=2026-10-31')));
+
+        $this->assertContains('\'=HYPERLINK("http://example.test") 120102', array_column($rows, 5), 'A spreadsheet would run it as a formula otherwise');
+    }
+
     public function testGetLedgerCsv_ShowsADescriptionAndAnEmployeeThatStartLikeAFormulaAsTextAndKeepsNegativeNumbersAsNumbers(): void
     {
         $employee = $this->bookedBy('=cmd', 'Ledger');
@@ -1392,13 +1459,13 @@ class AccountingReportsControllerTest extends CIUnitTestCase
         $this->postOn('2026-10-06', 1, [[$this->accountId('cogs'), '130.00', '0'], [$this->accountId('cash'), '0', '130.00']]);
         $this->viewer();
 
-        $rows = $this->csvRows($this->get('/accounting_reports/ledger/csv?account=' . $this->accountId('cash') . '&to=2026-10-31'));
+        [$rows] = $this->splitFooter($this->csvRows($this->get('/accounting_reports/ledger/csv?account=' . $this->accountId('cash') . '&to=2026-10-31')));
 
         $this->assertSame(['\'=cmd Ledger', '\'+1+1'], [$rows[2][4], $rows[2][5]]);
         $this->assertSame('-30.0000', $rows[3][8], 'A balance below zero is a number and not a text');
         $this->assertSame('-30.0000', end($rows)[8]);
 
-        $blocks = $this->csvRows($this->get('/accounting_reports/ledger/csv?layout=accounts&account=' . $this->accountIdByCodeOf('1201') . '&to=2026-10-31'));
+        [$blocks] = $this->splitFooter($this->csvRows($this->get('/accounting_reports/ledger/csv?layout=accounts&account=' . $this->accountIdByCodeOf('1201') . '&to=2026-10-31')));
 
         $this->assertSame('-30.0000', end($blocks)[8], 'The net of a block statement below zero stays a number');
     }

@@ -465,6 +465,53 @@ final class AccountingProfitLossControllerTest extends CIUnitTestCase
         }
     }
 
+    public function testGetCsv_SaysTheTotalIsNotTheCompanysToSomeoneWhoReadsSomeOfTheBranchesInBothBases(): void
+    {
+        $this->createBranch('T3', 'Third branch');
+        $this->cashSale('2026-10-05', 1, '100.00');
+        $this->viewer([1, $this->second]);
+
+        $first = (string) $this->accountingDb()->table('branches')->where('branch_id', 1)->get()->getRow()->code;
+
+        foreach (['', 'basis=cash&'] as $basis) {
+            $rows = $this->csvRows($this->get(self::SCREEN . '/csv?' . $basis . 'from=2026-10-01&to=2026-10-31'));
+
+            $this->assertNotNull($this->rowStartingWith($rows, lang('Accounting_reports.scope_partial', [implode(lang('Accounting_reports.branch_separator'), [$first, 'T2'])])), "Basis '{$basis}'");
+            $this->assertNull($this->rowStartingWith($rows, lang('Accounting_reports.scope_company')));
+        }
+
+        $this->viewer();
+
+        foreach (['', 'basis=cash&'] as $basis) {
+            $rows = $this->csvRows($this->get(self::SCREEN . '/csv?' . $basis . 'from=2026-10-01&to=2026-10-31'));
+
+            $this->assertNotNull($this->rowStartingWith($rows, lang('Accounting_reports.scope_company')), "Basis '{$basis}'");
+        }
+    }
+
+    public function testGetIndex_SaysThatTheCashProfitAndTheOtherMovementsDoNotAddUpToWhatTheTreasuriesGainedAndSaysSoInTheFile(): void
+    {
+        $this->postOn('2026-10-03', 1, [[$this->accountId('cash'), '100.00', '0'], [$this->accountIdByCode('4201'), '0', '100.00']]);
+        $this->viewer();
+
+        $address = self::SCREEN . '?basis=cash&from=2026-10-01&to=2026-10-31';
+
+        $this->get($address)->assertSee('id="report_ties"');
+
+        $this->accountingDb()->query('UPDATE ' . $this->accountingDb()->prefixTable('accounting_journal_lines') . ' SET debit = debit + 5 WHERE account_id = ' . $this->accountId('cash') . ' LIMIT 1');
+
+        $screen = $this->get($address);
+
+        $screen->assertSee('id="report_differs"');
+        $screen->assertSee(lang('Accounting_profit_loss.differs'));
+        $screen->assertDontSee('id="report_ties"');
+
+        $rows = $this->csvRows($this->get(self::SCREEN . '/csv?basis=cash&from=2026-10-01&to=2026-10-31'));
+
+        $this->assertNotNull($this->rowStartingWith($rows, lang('Accounting_profit_loss.differs')));
+        $this->assertNull($this->rowStartingWith($rows, lang('Accounting_profit_loss.ties')));
+    }
+
     public function testGetCsv_RedirectsAUserWithoutTheModuleGrantAndIsNotFoundWhileAccountingIsOff(): void
     {
         $this->actAs($this->employeeWithGrants(['accounting_payables']));

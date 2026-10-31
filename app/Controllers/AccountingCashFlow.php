@@ -132,6 +132,7 @@ class AccountingCashFlow extends AccountingController
         $this->csvRow($handle, [lang('Accounting_cash_flow.period_beginning'), $report->from]);
         $this->csvRow($handle, [lang('Accounting_cash_flow.period_ending'), $report->to]);
         $this->csvRow($handle, [lang('Accounting_reports.csv_branches'), implode(' ', $report->scope->codes)]);
+        $this->csvNote($handle, $this->scopeLabel($report->scope));
         $this->csvRow($handle, []);
         $this->csvRow($handle, [lang('Accounting_cash_flow.line'), lang('Accounting_cash_flow.amount')]);
 

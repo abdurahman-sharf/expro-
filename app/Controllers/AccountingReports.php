@@ -462,14 +462,9 @@ class AccountingReports extends AccountingController
             $this->csvRow($handle, [lang('Accounting_reports.review_note')]);
         }
 
-        $this->csvRow($handle, [lang('Accounting_reports.csv_period'), $report->from === null ? lang('Accounting_reports.period_to', [$report->to]) : lang('Accounting_reports.period_between', [$report->from, $report->to])]);
+        $this->csvRow($handle, [lang('Accounting_reports.csv_period'), $this->periodText($report->from, $report->to)]);
         $this->csvRow($handle, [lang('Accounting_reports.csv_branches'), implode(' ', $report->scope->codes)]);
-
-        $label = $this->scopeLabel($scope);
-
-        if ($label !== null) {
-            $this->csvRow($handle, [$label]);
-        }
+        $this->csvNote($handle, $this->scopeLabel($scope));
 
         if ($report->limitedToAccounts) {
             $this->csvRow($handle, [lang('Accounting_reports.filtered_run')]);
@@ -512,6 +507,7 @@ class AccountingReports extends AccountingController
         }
 
         $this->csvRow($handle, $this->ledgerSummary(lang('Accounting_reports.totals'), $report->debit, $report->credit, $report->closing, $hideEmployee));
+        $this->ledgerFooter($handle, $report->scope, $report->period, $hideEmployee);
 
         return $this->csvText($handle);
     }
@@ -534,8 +530,33 @@ class AccountingReports extends AccountingController
         }
 
         $this->csvRow($handle, $this->ledgerSummary(lang('Accounting_reports.ledger_grand_total'), $report->debit, $report->credit, $report->net(), $hideEmployee));
+        $this->ledgerFooter($handle, $report->scope, $report->period, $hideEmployee);
 
         return $this->csvText($handle);
+    }
+
+    /**
+     * What the file covers, below the statement, in the column of the description: the period, the
+     * branches, and for someone who reads some of the branches whose figures these are.
+     *
+     * @param resource $handle
+     */
+    private function ledgerFooter($handle, ReportScope $scope, ReportPeriod $period, bool $hideEmployee): void
+    {
+        $this->csvRow($handle, $this->ledgerSummary('', '', '', '', $hideEmployee));
+        $this->csvRow($handle, $this->ledgerSummary(lang('Accounting_reports.csv_period') . ': ' . $this->periodText($period->from, $period->to), '', '', '', $hideEmployee));
+        $this->csvRow($handle, $this->ledgerSummary(lang('Accounting_reports.csv_branches') . ': ' . implode(' ', $scope->codes), '', '', '', $hideEmployee));
+
+        $label = $this->scopeLabel($scope);
+
+        if ($label !== null) {
+            $this->csvRow($handle, $this->ledgerSummary($label, '', '', '', $hideEmployee));
+        }
+    }
+
+    private function periodText(?string $from, string $to): string
+    {
+        return $from === null ? lang('Accounting_reports.period_to', [$to]) : lang('Accounting_reports.period_between', [$from, $to]);
     }
 
     /**
