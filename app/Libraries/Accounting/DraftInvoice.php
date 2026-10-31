@@ -145,9 +145,9 @@ final class DraftInvoice
         }
 
         return [
-            'gross'           => $gross,
-            'discount'        => $discount,
-            'invoiceDiscount' => $share,
+            'gross'           => bcadd($gross, '0', SaleAmounts::SCALE),
+            'discount'        => bcadd($discount, '0', SaleAmounts::SCALE),
+            'invoiceDiscount' => bcadd($share, '0', SaleAmounts::SCALE),
             'tax'             => bcadd($added, $included, SaleAmounts::SCALE),
             'total'           => bcadd(bcsub(bcsub($gross, $discount, SaleAmounts::SCALE), $share, SaleAmounts::SCALE), $added, SaleAmounts::SCALE),
         ];
