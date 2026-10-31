@@ -14,6 +14,7 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\ParityCaseTrait;
 use Tests\Support\ReportFixtureTrait;
 use Tests\Support\StatementFixtureTrait;
 
@@ -26,6 +27,7 @@ final class CashFlowTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
+    use ParityCaseTrait;
     use ReportFixtureTrait;
     use StatementFixtureTrait;
 
@@ -345,5 +347,87 @@ final class CashFlowTest extends CIUnitTestCase
         $manager = $this->employeeWithGrants([AccountingGuard::SETTINGS_MANAGE]);
 
         (new CashFlowSettings())->save(['lines' => [['key' => '', 'title' => $title, 'accounts' => $accountIds, 'formula' => $formula, 'section' => $section]]], $manager);
+    }
+
+    /**
+     * Posts the changes of the accounts a cash flow reads as one journal, with the treasury taking
+     * what is left: each amount is what the accounts of its kind were credited less what they were
+     * debited.
+     *
+     * @param array<string, string> $netCredit
+     */
+    private function postNetCredits(array $netCredit, string $date, int $branch = 1): void
+    {
+        $accounts = [
+            'receivables' => $this->customer,
+            'payables'    => $this->supplier,
+            'inventory'   => $this->stock,
+            'shares'      => $this->accountIdByCode('31'),
+            'vat'         => $this->accountId('tax_output'),
+        ];
+        $lines = [];
+        $total = '0';
+
+        foreach ($netCredit as $kind => $amount) {
+            $account = $kind === 'net_income' ? $this->accountIdByCode(bccomp($amount, '0', 2) >= 0 ? '4201' : '545') : $accounts[$kind];
+
+            $lines[] = [$account, bccomp($amount, '0', 2) < 0 ? bcsub('0', $amount, 2) : '0', bccomp($amount, '0', 2) >= 0 ? $amount : '0'];
+            $total   = bcadd($total, $amount, 2);
+        }
+
+        if (bccomp($total, '0', 2) !== 0) {
+            $lines[] = [$this->accountId('cash'), bccomp($total, '0', 2) > 0 ? $total : '0', bccomp($total, '0', 2) < 0 ? bcsub('0', $total, 2) : '0'];
+        }
+
+        $this->postOn($date, $branch, $lines);
+    }
+
+    public function testBuild_ReproducesTheLinesTheReferenceSystemShowedFromTheChangesOfTheirAccounts(): void
+    {
+        $case = $this->referenceCase('T-67', 'cash_flow', 'each-line-is-the-change-of-its-accounts', 'exact');
+
+        $this->postNetCredits($case['inputs']['net_credit'], '2026-10-15');
+
+        $report = $this->flow('2025-10-27', '2026-10-27');
+
+        $this->assertSameAsFixture($case['expected'], ['lines' => $this->lines($report), 'operating_total' => $report->totals['operating']], 'T-67 each line is the change of its accounts');
+    }
+
+    public function testBuild_EndsAtTheChangeOfTheTreasuriesWhereTheReferenceSystemEndsApartFromThem(): void
+    {
+        $case = $this->referenceCase('T-67', 'cash_flow', 'the-total-change-is-the-change-of-the-treasuries', 'deliberate_difference');
+
+        $this->postNetCredits($this->referenceCase('T-67', 'cash_flow', 'each-line-is-the-change-of-its-accounts', 'exact')['inputs']['net_credit'], '2026-10-15');
+
+        $report = $this->flow('2025-10-27', '2026-10-27');
+
+        $this->assertSameAsFixture($case['expected'], ['total_change' => $report->totalChange, 'treasuries_and_banks' => $report->cashClosing, 'other_changes' => $report->other], 'T-67 the total change is the change of the treasuries');
+        $this->assertTrue($report->ties());
+    }
+
+    public function testBuild_ReproducesTheLinesTheReferenceSystemShowedForTwoAdjacentPeriodsAndTheirSum(): void
+    {
+        $case = $this->referenceCase('T-67', 'cash_flow', 'the-lines-add-up-across-adjacent-periods', 'exact');
+
+        foreach ($case['inputs']['periods'] as $period) {
+            $this->postNetCredits($period['net_credit'], $period['to']);
+        }
+
+        [$firstPeriod, $secondPeriod] = $case['inputs']['periods'];
+
+        $first  = $this->flow($firstPeriod['from'], $firstPeriod['to']);
+        $second = $this->flow($secondPeriod['from'], $secondPeriod['to']);
+        $whole  = $this->flow($firstPeriod['from'], $secondPeriod['to']);
+        $keep   = static fn (array $lines, array $keys): array => array_intersect_key($lines, array_flip($keys));
+
+        $this->assertSameAsFixture($case['expected'], [
+            'first'  => $keep($this->lines($first), ['net_income', 'account_receivable', 'account_payable', 'inventory']) + ['operating_total' => $first->totals['operating']],
+            'second' => $keep($this->lines($second), ['net_income', 'account_receivable', 'account_payable', 'inventory', 'common_shares']),
+            'whole'  => $keep($this->lines($whole), ['net_income', 'account_receivable', 'account_payable', 'inventory']),
+        ], 'T-67 the lines add up across adjacent periods');
+
+        foreach ($this->lines($whole) as $key => $amount) {
+            $this->assertSame($amount, bcadd($this->lines($first)[$key], $this->lines($second)[$key], 4), "Line {$key}");
+        }
     }
 }

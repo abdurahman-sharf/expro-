@@ -19,6 +19,7 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\ParityCaseTrait;
 use Tests\Support\ReportFixtureTrait;
 
 /**
@@ -29,6 +30,7 @@ class AccountLedgerTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
+    use ParityCaseTrait;
     use ReportFixtureTrait;
 
     protected $migrate     = true;
@@ -558,5 +560,87 @@ class AccountLedgerTest extends CIUnitTestCase
     private function codeOfAccount(int $accountId): string
     {
         return (string) $this->accountingDb()->table('accounting_accounts')->select('code')->where('account_id', $accountId)->get()->getRow()->code;
+    }
+
+    private function customerAccount(string $first = 'Omar', string $last = 'Khaled'): int
+    {
+        return (new EntityAccountService())->ensure(EntityAccountService::CUSTOMER, $this->insertCustomer($first, $last), $first . ' ' . $last);
+    }
+
+    public function testBuild_ReproducesTheBalanceBeforeTheFirstDayAndThePeriodTheReferenceSystemShowed(): void
+    {
+        $case     = $this->referenceCase('T-66', 'account_statement', 'the-statement-starts-from-the-balance-before-the-first-day', 'exact');
+        $customer = $this->customerAccount();
+
+        $this->postOn('2026-10-24', 1, [[$customer, $case['inputs']['before']['debit'], '0'], [$this->accountId('sales_revenue'), '0', $case['inputs']['before']['debit']]]);
+        $this->postOn('2026-10-26', 1, [[$customer, $case['inputs']['within']['debit'], '0'], [$this->accountId('sales_revenue'), '0', $case['inputs']['within']['debit']]]);
+        $this->postOn('2026-10-26', 1, [[$this->accountId('sales_returns'), $case['inputs']['within']['credit'], '0'], [$customer, '0', $case['inputs']['within']['credit']]]);
+
+        $report = $this->ledger->build(ReportScope::resolve(null, null), $customer, ReportPeriod::of($case['inputs']['first_day'], $case['inputs']['last_day']));
+
+        $this->assertSameAsFixture($case['expected'], ['opening' => $report->opening, 'debit' => $report->debit, 'credit' => $report->credit, 'closing' => $report->closing], 'T-66 the statement starts from the balance before the first day');
+    }
+
+    public function testBuildBlocks_ReproducesTheGrandTotalOfAGroupStatementAsTheNetOfDebitLessCredit(): void
+    {
+        $case = $this->referenceCase('T-66', 'account_statement', 'the-grand-total-of-a-group-statement-is-the-net', 'exact');
+        $one  = $this->customerAccount();
+        $two  = $this->customerAccount('Layla', 'Hamad');
+
+        $this->postOn('2026-10-26', 1, [[$one, '5000.00', '0'], [$this->accountId('sales_revenue'), '0', '5000.00']]);
+        $this->postOn('2026-10-26', 1, [[$two, '2842.06', '0'], [$this->accountId('sales_revenue'), '0', '2842.06']]);
+        $this->postOn('2026-10-27', 1, [[$this->accountId('sales_returns'), $case['inputs']['within']['credit'], '0'], [$one, '0', $case['inputs']['within']['credit']]]);
+
+        $report = $this->blocks('12041', '2026-10-31');
+        $net    = $report->net();
+
+        $this->assertSame('7842.0600', $report->debit);
+        $this->assertSameAsFixture($case['expected'], ['net_debit' => bccomp($net, '0', 4) > 0 ? $net : '0', 'net_credit' => bccomp($net, '0', 4) < 0 ? bcsub('0', $net, 4) : '0'], 'T-66 the grand total of a group statement is the net');
+    }
+
+    public function testBuildBlocks_ListsFewerCustomersThanTheReferenceSystemUnderTheChoiceOfAllAccounts(): void
+    {
+        $case      = $this->referenceCase('T-66', 'account_statement', 'the-choices-of-accounts-of-a-group-statement', 'differs');
+        $moved     = $this->customerAccount('Ahmad', 'Ali');
+        $openedOne = $this->customerAccount('Basma', 'Said');
+        $openedTwo = $this->customerAccount('Hind', 'Saad');
+
+        $this->customerAccount('Omar', 'Nothing');
+        $this->postOn('2026-10-20', 1, [[$openedOne, '725.00', '0'], [$this->accountId('sales_revenue'), '0', '725.00']]);
+        $this->postOn('2026-10-21', 1, [[$openedTwo, '230.00', '0'], [$this->accountId('sales_revenue'), '0', '230.00']]);
+        $this->postOn('2026-10-26', 1, [[$moved, '115.00', '0'], [$this->accountId('sales_revenue'), '0', '115.00']]);
+
+        $counts = static fn (AccountLedgerBlocksReport $report): int => count($report->blocks);
+
+        $this->assertSameAsFixture($case['expected'], [
+            'all'      => $counts($this->blocks('12041', $case['inputs']['last_day'], $case['inputs']['first_day'], LedgerDisplay::All)),
+            'activity' => $counts($this->blocks('12041', $case['inputs']['last_day'], $case['inputs']['first_day'], LedgerDisplay::Activity)),
+            'balance'  => $counts($this->blocks('12041', $case['inputs']['last_day'], $case['inputs']['first_day'], LedgerDisplay::NonZeroBalance)),
+        ], 'T-66 the choices of accounts of a group statement');
+    }
+
+    public function testBuild_ReadsAnEmployeeOfZeroAsEveryoneWhereTheReferenceSystemReadsItAsNobody(): void
+    {
+        $case  = $this->referenceCase('T-66', 'account_statement', 'an-employee-of-zero-is-everyone', 'deliberate_difference');
+        $first = $this->employee('Ahmad');
+
+        $this->cashSale('2026-10-05', 1, '100.00', $first);
+        $this->cashSale('2026-10-06', 1, '25.00', $this->employee('Basma'));
+
+        $everyone = $this->statement('cash')->totalRows;
+        $none     = $this->ledger->build(ReportScope::resolve(null, null), $this->accountId('cash'), ReportPeriod::of(null, '2026-12-31'), employeeId: 987654)->totalRows;
+
+        $this->assertSame(2, $everyone);
+        $this->assertSameAsFixture($case['expected'], ['lines_with_employee_0' => $everyone === 2 ? 'all' : (string) $everyone, 'lines_with_employee_999' => (string) $none], 'T-66 an employee of zero is everyone');
+    }
+
+    public function testBuildBlocks_ReproducesTheTotalsOfTheStoredAmountsTheReferenceSystemShowedWhereItsLinesDoNotAddUp(): void
+    {
+        $this->postOn('2026-10-05', 1, [[$this->accountId('cash'), '691.6500', '0'], [$this->accountId('sales_revenue'), '0', '691.6500']]);
+        $this->postOn('2026-10-06', 1, [[$this->accountId('cash'), '691.6500', '0'], [$this->accountId('sales_revenue'), '0', '691.6500']]);
+
+        $report = $this->blocks('1201');
+
+        $this->assertSame('1383.3000', $report->debit, 'The total of the statement is the sum of the stored amounts, which the lines shown at two decimals need not add up to');
     }
 }

@@ -27,6 +27,7 @@ use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
+use Tests\Support\ParityCaseTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\ReportFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
@@ -41,6 +42,7 @@ class TrialBalanceTest extends CIUnitTestCase
     use AccountingFixtureTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
+    use ParityCaseTrait;
     use ReportFixtureTrait;
     use SaleAccountingFixtureTrait;
     use PurchaseAccountingFixtureTrait;
@@ -1097,5 +1099,95 @@ class TrialBalanceTest extends CIUnitTestCase
         $this->assertContains('120101', $codes);
         $this->assertNotContains($this->codeOf($entity), $codes, 'There can be a thousand customers, so none is offered');
         $this->assertTrue($group->is_group);
+    }
+
+    /**
+     * @param array<string, array{debit: string, credit: string}> $sides The sides of each root, the revenue debit being a return of sales.
+     */
+    private function postRootSides(array $sides, string $date): void
+    {
+        $accounts = ['asset' => $this->accountId('cash'), 'liability' => $this->accountId('other_payables'), 'equity' => $this->accountIdByCode('31'), 'revenue' => $this->accountId('sales_revenue'), 'expense' => $this->accountId('cogs')];
+        $lines    = [];
+
+        foreach ($sides as $root => $amounts) {
+            foreach (['debit', 'credit'] as $side) {
+                if (bccomp($amounts[$side], '0', 2) !== 0) {
+                    $lines[] = [$root === 'revenue' && $side === 'debit' ? $this->accountId('sales_returns') : $accounts[$root], $side === 'debit' ? $amounts[$side] : '0', $side === 'credit' ? $amounts[$side] : '0'];
+                }
+            }
+        }
+
+        $this->postOn($date, 1, $lines);
+    }
+
+    /**
+     * @param array<string, mixed> $inputs
+     */
+    private function postObservedRoots(array $inputs): void
+    {
+        $this->postRootSides($inputs['before'], '2026-10-21');
+        $this->postRootSides($inputs['movement'], '2026-10-24');
+    }
+
+    public function testBuild_ReproducesTheGrossSidesBeforeInAndAfterOfTheRootsTheReferenceSystemShowed(): void
+    {
+        $case = $this->referenceCase('T-65', 'trial_balance', 'gross-sides-before-movement-and-after-of-the-roots', 'exact');
+
+        $this->postObservedRoots($case['inputs']);
+
+        $report = $this->build('2026-10-27', '2026-10-22');
+        $actual = ['roots' => [], 'totals' => []];
+
+        foreach (['asset' => '1', 'liability' => '2', 'equity' => '3', 'revenue' => '4', 'expense' => '5'] as $root => $code) {
+            $row = $this->row($report, $code);
+
+            $actual['roots'][$root] = [
+                'before'   => [$row->openingDebit, $row->openingCredit],
+                'movement' => [$row->debit, $row->credit],
+                'after'    => [$row->grossClosingDebit(), $row->grossClosingCredit()],
+            ];
+        }
+
+        $actual['totals'] = [
+            'before'   => [$report->totals['gross_opening_debit'], $report->totals['gross_opening_credit']],
+            'movement' => [$report->totals['debit'], $report->totals['credit']],
+            'after'    => [$report->totals['gross_closing_debit'], $report->totals['gross_closing_credit']],
+        ];
+
+        $this->assertSameAsFixture($case['expected'], $actual, 'T-65 gross-sides-before-movement-and-after-of-the-roots');
+        $this->assertTrue($report->balances());
+    }
+
+    public function testBuild_ReproducesTheBalancesOfTheRootsWhateverTheFirstDay(): void
+    {
+        $case = $this->referenceCase('T-65', 'trial_balance', 'balances-of-the-roots-do-not-depend-on-the-first-day', 'exact');
+
+        $this->postObservedRoots($this->referenceCase('T-65', 'trial_balance', 'gross-sides-before-movement-and-after-of-the-roots', 'exact')['inputs']);
+
+        foreach ($case['inputs']['first_days'] as $firstDay) {
+            $report = $this->build('2026-10-27', $firstDay);
+            $actual = ['closing' => [], 'totals' => [$report->totals['closing_debit'], $report->totals['closing_credit']]];
+
+            foreach (['asset' => '1', 'liability' => '2', 'equity' => '3', 'revenue' => '4', 'expense' => '5'] as $root => $code) {
+                $actual['closing'][$root] = TrialBalanceRow::sides($this->row($report, $code)->closing());
+            }
+
+            $this->assertSameAsFixture($case['expected'], $actual, 'T-65 balances of the roots from ' . ($firstDay ?? 'the start of the books'));
+        }
+    }
+
+    public function testBuild_DoesNotMoveTheTotalWithTheDepthShownWhereTheReferenceSystemDoes(): void
+    {
+        $case = $this->referenceCase('T-65', 'trial_balance', 'the-total-does-not-move-with-the-depth-shown', 'deliberate_difference');
+
+        $this->postObservedRoots($this->referenceCase('T-65', 'trial_balance', 'gross-sides-before-movement-and-after-of-the-roots', 'exact')['inputs']);
+
+        $actual = ['total_after_debit' => []];
+
+        foreach ($case['inputs']['levels'] as $level) {
+            $actual['total_after_debit'][$level] = $this->build('2026-10-27', $case['inputs']['first_day'], filter: new TrialBalanceFilter(level: (int) $level))->totals['gross_closing_debit'];
+        }
+
+        $this->assertSameAsFixture($case['expected'], $actual, 'T-65 the total does not move with the depth shown');
     }
 }

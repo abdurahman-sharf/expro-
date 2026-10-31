@@ -7,6 +7,7 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\ProfitBasis;
 use CodeIgniter\Test\CIUnitTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\Support\ParityCaseTrait;
 
 /**
  * The basis a profit and loss statement is asked for in: accrual by default, cash under either of its
@@ -14,6 +15,8 @@ use PHPUnit\Framework\Attributes\DataProvider;
  */
 final class ProfitBasisTest extends CIUnitTestCase
 {
+    use ParityCaseTrait;
+
     public function testFromRequest_ReadsNothingOrAnEmptyTextAsTheAccrualBasis(): void
     {
         $this->assertSame(ProfitBasis::Accrual, ProfitBasis::fromRequest(null));
@@ -50,6 +53,20 @@ final class ProfitBasisTest extends CIUnitTestCase
             $this->fail('A basis that does not exist was accepted.');
         } catch (AccountingException $refusal) {
             $this->assertSame(AccountingError::ProfitBasisUnavailable, $refusal->error);
+        }
+    }
+
+    public function testFromRequest_RefusesTheTwoBasesOfTheInvoiceDateByNameWhereTheReferenceSystemComputesThem(): void
+    {
+        $case = $this->referenceCase('T-68', 'cash_profit', 'the-bases-of-the-invoice-date-are-refused-by-name', 'differs');
+
+        foreach ($case['inputs']['bases'] as $basis) {
+            try {
+                ProfitBasis::fromRequest($basis);
+                $this->fail("The basis {$basis} was accepted.");
+            } catch (AccountingException $refusal) {
+                $this->assertSameAsFixture($case['expected'], ['status' => 'refused', 'error' => $refusal->error->value], "T-68 the basis {$basis} is refused by name");
+            }
         }
     }
 }

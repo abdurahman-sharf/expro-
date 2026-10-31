@@ -1,0 +1,151 @@
+{
+  "id": "T-66",
+  "title": "The statement of an account: the balance before the first day, the grand total of a group as a net, the accounts a group statement lists, and the employee filter",
+  "recorded": "2026-10-27",
+  "observation": {
+    "batch": "obs-a",
+    "scenarios": [
+      "rep-accounting"
+    ]
+  },
+  "evidence": {
+    "opening_balance": {
+      "id": null,
+      "note": "From the 25th of October the customer 12041003 stands at 6,356.06 debit before the period, the period debits 115.00 and credits 90.00, and the balance after is 6,381.06",
+      "observation": [
+        "pw-rep-accounting-34"
+      ]
+    },
+    "grand_total": {
+      "id": null,
+      "note": "The total line of a group statement carries in the two balance columns the net of debit less credit, not the sum of the balances: 7,336.06 debit and nothing on credit for the customers, 0.00 for the whole company",
+      "observation": [
+        "pw-rep-accounting-28"
+      ]
+    },
+    "display_choices": {
+      "id": null,
+      "note": "For the customers group from the 25th to the 27th of October: all accounts gives 4, the accounts with transactions in the period 1, and the choice named accounts with transactions but behaving as a balance that is not nil 3, two of them with an opening of 725.00 and 230.00 and no line in the period",
+      "observation": [
+        "pw-rep-accounting-25"
+      ]
+    },
+    "employee_filter": {
+      "id": null,
+      "note": "Added by works in the statement: employee 1 returns every line, employee 0 and employee 999 return nothing with the message that nothing matches the choices",
+      "observation": [
+        "pw-rep-accounting-35"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "the-statement-starts-from-the-balance-before-the-first-day",
+      "kind": "account_statement",
+      "classification": "exact",
+      "evidence": [
+        "opening_balance"
+      ],
+      "inputs": {
+        "first_day": "2026-10-25",
+        "last_day": "2026-10-27",
+        "account": "a customer",
+        "before": {
+          "debit": "6356.06",
+          "credit": "0.00"
+        },
+        "within": {
+          "debit": "115.00",
+          "credit": "90.00"
+        }
+      },
+      "reference": {
+        "opening": "6356.06",
+        "debit": "115.00",
+        "credit": "90.00",
+        "closing": "6381.06"
+      },
+      "expected": {
+        "opening": "6356.06",
+        "debit": "115.00",
+        "credit": "90.00",
+        "closing": "6381.06"
+      }
+    },
+    {
+      "id": "the-grand-total-of-a-group-statement-is-the-net",
+      "kind": "account_statement",
+      "classification": "exact",
+      "evidence": [
+        "grand_total"
+      ],
+      "inputs": {
+        "group": "the customers",
+        "within": {
+          "debit": "7842.06",
+          "credit": "506.00"
+        }
+      },
+      "reference": {
+        "net_debit": "7336.06",
+        "net_credit": "0.00"
+      },
+      "expected": {
+        "net_debit": "7336.06",
+        "net_credit": "0.00"
+      }
+    },
+    {
+      "id": "the-choices-of-accounts-of-a-group-statement",
+      "kind": "account_statement",
+      "classification": "differs",
+      "reason": "The reference system lists the account of every customer under its choice of all accounts, so it names customers that hold nothing here. A statement here never names a party that holds nothing in the branches it adds up, so the customer with no opening balance and no line is left out of that choice.",
+      "evidence": [
+        "display_choices"
+      ],
+      "inputs": {
+        "first_day": "2026-10-25",
+        "last_day": "2026-10-27",
+        "customers": {
+          "with_a_line": "1",
+          "with_an_opening_and_no_line": "2",
+          "with_nothing": "1"
+        }
+      },
+      "reference": {
+        "all": 4,
+        "activity": 1,
+        "balance": 3
+      },
+      "expected": {
+        "all": 3,
+        "activity": 1,
+        "balance": 3
+      }
+    },
+    {
+      "id": "an-employee-of-zero-is-everyone",
+      "kind": "account_statement",
+      "classification": "deliberate_difference",
+      "reason": "The reference system answers an employee of 0 with nothing. Here an empty or zero employee means no filter at all, so the filter can be cleared by choosing nobody; an employee who is not one, or who added no line, gives the empty statement with the message that nothing matches.",
+      "evidence": [
+        "employee_filter"
+      ],
+      "inputs": {
+        "employee": [
+          "0",
+          "999"
+        ],
+        "statement": "every line of the account, added by one employee"
+      },
+      "reference": {
+        "lines_with_employee_0": "0",
+        "lines_with_employee_999": "0"
+      },
+      "expected": {
+        "lines_with_employee_0": "all",
+        "lines_with_employee_999": "0"
+      }
+    }
+  ]
+}

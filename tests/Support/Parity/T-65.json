@@ -1,0 +1,369 @@
+{
+  "id": "T-65",
+  "title": "The trial balance read with a first day: gross sides before, in and after the period, the balances that do not depend on the first day, and the totals that do not depend on the depth shown",
+  "recorded": "2026-10-27",
+  "observation": {
+    "batch": "obs-a",
+    "scenarios": [
+      "rep-accounting"
+    ]
+  },
+  "evidence": {
+    "roots_before_and_after": {
+      "id": null,
+      "note": "With the first day at the 22nd of October and the before shown as gross sides, the roots read before 695.00 on each side, movements 152,906.32 on each side and after 153,601.32 on each side; the after of the assets is the before plus the movement on each side",
+      "observation": [
+        "pw-rep-accounting-9",
+        "pw-rep-accounting-11"
+      ]
+    },
+    "balances_of_the_roots": {
+      "id": null,
+      "note": "The balances columns are the net of the journals up to the last day and do not change with the first day: assets 96,991.84 debit, liabilities 268.30 credit, capital 100,000 credit, revenue 8,112.01 credit, expenses 11,388.47 debit, 108,380.31 on each side",
+      "observation": [
+        "pw-rep-accounting-9",
+        "pw-rep-accounting-14"
+      ]
+    },
+    "totals_by_level": {
+      "id": null,
+      "note": "In the layouts that take the total from the rows shown the total after moves with the level: 153,532.32 at level 3 and 153,541.32 at level 5, against 153,601.32 in the layout that carries both sides",
+      "observation": [
+        "pw-rep-accounting-12",
+        "pw-rep-accounting-13"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "gross-sides-before-movement-and-after-of-the-roots",
+      "kind": "trial_balance",
+      "classification": "exact",
+      "evidence": [
+        "roots_before_and_after"
+      ],
+      "inputs": {
+        "first_day": "2026-10-22",
+        "last_day": "2026-10-27",
+        "before": {
+          "asset": {
+            "debit": "566.00",
+            "credit": "120.00"
+          },
+          "liability": {
+            "debit": "9.00",
+            "credit": "135.00"
+          },
+          "revenue": {
+            "debit": "0.00",
+            "credit": "440.00"
+          },
+          "expense": {
+            "debit": "120.00",
+            "credit": "0.00"
+          }
+        },
+        "movement": {
+          "asset": {
+            "debit": "122433.06",
+            "credit": "25887.22"
+          },
+          "liability": {
+            "debit": "17203.00",
+            "credit": "17345.30"
+          },
+          "equity": {
+            "debit": "0.00",
+            "credit": "100000.00"
+          },
+          "revenue": {
+            "debit": "1110.00",
+            "credit": "8782.01"
+          },
+          "expense": {
+            "debit": "12160.26",
+            "credit": "891.79"
+          }
+        }
+      },
+      "reference": {
+        "roots": {
+          "asset": {
+            "before": [
+              "566.00",
+              "120.00"
+            ],
+            "movement": [
+              "122433.06",
+              "25887.22"
+            ],
+            "after": [
+              "122999.06",
+              "26007.22"
+            ]
+          },
+          "liability": {
+            "before": [
+              "9.00",
+              "135.00"
+            ],
+            "movement": [
+              "17203.00",
+              "17345.30"
+            ],
+            "after": [
+              "17212.00",
+              "17480.30"
+            ]
+          },
+          "equity": {
+            "before": [
+              "0.00",
+              "0.00"
+            ],
+            "movement": [
+              "0.00",
+              "100000.00"
+            ],
+            "after": [
+              "0.00",
+              "100000.00"
+            ]
+          },
+          "revenue": {
+            "before": [
+              "0.00",
+              "440.00"
+            ],
+            "movement": [
+              "1110.00",
+              "8782.01"
+            ],
+            "after": [
+              "1110.00",
+              "9222.01"
+            ]
+          },
+          "expense": {
+            "before": [
+              "120.00",
+              "0.00"
+            ],
+            "movement": [
+              "12160.26",
+              "891.79"
+            ],
+            "after": [
+              "12280.26",
+              "891.79"
+            ]
+          }
+        },
+        "totals": {
+          "before": [
+            "695.00",
+            "695.00"
+          ],
+          "movement": [
+            "152906.32",
+            "152906.32"
+          ],
+          "after": [
+            "153601.32",
+            "153601.32"
+          ]
+        }
+      },
+      "expected": {
+        "roots": {
+          "asset": {
+            "before": [
+              "566.00",
+              "120.00"
+            ],
+            "movement": [
+              "122433.06",
+              "25887.22"
+            ],
+            "after": [
+              "122999.06",
+              "26007.22"
+            ]
+          },
+          "liability": {
+            "before": [
+              "9.00",
+              "135.00"
+            ],
+            "movement": [
+              "17203.00",
+              "17345.30"
+            ],
+            "after": [
+              "17212.00",
+              "17480.30"
+            ]
+          },
+          "equity": {
+            "before": [
+              "0.00",
+              "0.00"
+            ],
+            "movement": [
+              "0.00",
+              "100000.00"
+            ],
+            "after": [
+              "0.00",
+              "100000.00"
+            ]
+          },
+          "revenue": {
+            "before": [
+              "0.00",
+              "440.00"
+            ],
+            "movement": [
+              "1110.00",
+              "8782.01"
+            ],
+            "after": [
+              "1110.00",
+              "9222.01"
+            ]
+          },
+          "expense": {
+            "before": [
+              "120.00",
+              "0.00"
+            ],
+            "movement": [
+              "12160.26",
+              "891.79"
+            ],
+            "after": [
+              "12280.26",
+              "891.79"
+            ]
+          }
+        },
+        "totals": {
+          "before": [
+            "695.00",
+            "695.00"
+          ],
+          "movement": [
+            "152906.32",
+            "152906.32"
+          ],
+          "after": [
+            "153601.32",
+            "153601.32"
+          ]
+        }
+      }
+    },
+    {
+      "id": "balances-of-the-roots-do-not-depend-on-the-first-day",
+      "kind": "trial_balance",
+      "classification": "exact",
+      "evidence": [
+        "balances_of_the_roots"
+      ],
+      "inputs": {
+        "first_days": [
+          null,
+          "2026-10-22"
+        ],
+        "last_day": "2026-10-27",
+        "same_journals_as": "gross-sides-before-movement-and-after-of-the-roots"
+      },
+      "reference": {
+        "closing": {
+          "asset": [
+            "96991.84",
+            "0.00"
+          ],
+          "liability": [
+            "0.00",
+            "268.30"
+          ],
+          "equity": [
+            "0.00",
+            "100000.00"
+          ],
+          "revenue": [
+            "0.00",
+            "8112.01"
+          ],
+          "expense": [
+            "11388.47",
+            "0.00"
+          ]
+        },
+        "totals": [
+          "108380.31",
+          "108380.31"
+        ]
+      },
+      "expected": {
+        "closing": {
+          "asset": [
+            "96991.84",
+            "0.00"
+          ],
+          "liability": [
+            "0.00",
+            "268.30"
+          ],
+          "equity": [
+            "0.00",
+            "100000.00"
+          ],
+          "revenue": [
+            "0.00",
+            "8112.01"
+          ],
+          "expense": [
+            "11388.47",
+            "0.00"
+          ]
+        },
+        "totals": [
+          "108380.31",
+          "108380.31"
+        ]
+      }
+    },
+    {
+      "id": "the-total-does-not-move-with-the-depth-shown",
+      "kind": "trial_balance",
+      "classification": "deliberate_difference",
+      "reason": "The reference system adds up the rows that are shown, so its total after moves with the level in two of its three layouts. Here the total is that of the accounts at the top of the chart whatever is shown, so the depth changes what is listed and never what is added up.",
+      "evidence": [
+        "totals_by_level"
+      ],
+      "inputs": {
+        "first_day": "2026-10-22",
+        "last_day": "2026-10-27",
+        "levels": [
+          "3",
+          "5"
+        ],
+        "same_journals_as": "gross-sides-before-movement-and-after-of-the-roots"
+      },
+      "reference": {
+        "total_after_debit": {
+          "3": "153532.32",
+          "5": "153541.32"
+        }
+      },
+      "expected": {
+        "total_after_debit": {
+          "3": "153601.32",
+          "5": "153601.32"
+        }
+      }
+    }
+  ]
+}

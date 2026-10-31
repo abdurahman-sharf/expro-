@@ -14,6 +14,7 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\ParityCaseTrait;
 use Tests\Support\ReportFixtureTrait;
 use Tests\Support\StatementFixtureTrait;
 
@@ -26,6 +27,7 @@ final class CashProfitAndLossTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
+    use ParityCaseTrait;
     use ReportFixtureTrait;
     use StatementFixtureTrait;
 
@@ -254,6 +256,32 @@ final class CashProfitAndLossTest extends CIUnitTestCase
         $this->assertSame(['customers' => '0.0000'], $this->amounts($report->revenueLines));
         $this->assertSame(['suppliers' => '0.0000', 'tax_input' => '0.0000'], $this->amounts($report->expenseLines));
         $this->assertSame([], $report->otherLines);
+        $this->assertTrue($report->ties());
+    }
+
+    public function testBuild_ReproducesTheSalesOnThePaymentBasisAsWhatTheCustomersPaid(): void
+    {
+        $case = $this->referenceCase('T-68', 'cash_profit', 'sales-on-the-payment-basis-are-what-the-customers-paid', 'exact');
+
+        foreach ($case['inputs']['customer_payments'] as $index => $amount) {
+            $this->postOn('2026-10-' . sprintf('%02d', $index + 1), 1, [[$this->accountId('cash'), $amount, '0'], [$this->customer, '0', $amount]]);
+        }
+
+        $report = $this->cash('2026-10-01', '2026-10-31');
+
+        $this->assertSameAsFixture($case['expected'], ['sales' => $this->amounts($report->revenueLines)['customers']], 'T-68 sales on the payment basis are what the customers paid');
+    }
+
+    public function testBuild_CountsThePurchasesAsThePaymentsToSuppliersNetOfWhatTheyPaidBackWhereTheReferenceSystemFigureIsNotExplained(): void
+    {
+        $case = $this->referenceCase('T-68', 'cash_profit', 'purchases-on-the-payment-basis-are-the-payments-to-suppliers-net-of-returns', 'differs');
+
+        $this->postOn('2026-10-05', 1, [[$this->supplier, $case['inputs']['supplier_payments'], '0'], [$this->accountId('cash'), '0', $case['inputs']['supplier_payments']]]);
+        $this->postOn('2026-10-06', 1, [[$this->accountId('cash'), $case['inputs']['returns_received'], '0'], [$this->supplier, '0', $case['inputs']['returns_received']]]);
+
+        $report = $this->cash('2026-10-01', '2026-10-31');
+
+        $this->assertSameAsFixture($case['expected'], ['purchases' => $this->amounts($report->expenseLines)['suppliers']], 'T-68 purchases on the payment basis');
         $this->assertTrue($report->ties());
     }
 }
