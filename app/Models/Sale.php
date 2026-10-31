@@ -1359,6 +1359,22 @@ class Sale extends Model
     }
 
     /**
+     * The header of a draft invoice or a quote as its page shows it: who it is for, who made it, where,
+     * and the numbers it carries.
+     */
+    public function getDocumentHeader(int $saleId): ?object
+    {
+        return $this->db->table('sales s')
+            ->select("s.sale_id, s.sale_time, s.comment, s.customer_id, s.sale_type, s.invoice_number, s.quote_number, s.invoice_date, s.payment_terms_days, s.delivered, s.branch_id, b.code AS branch_code, TRIM(CONCAT(cp.first_name, ' ', cp.last_name)) AS customer_name, TRIM(CONCAT(ep.first_name, ' ', ep.last_name)) AS employee_name", false)
+            ->join('branches b', 'b.branch_id = s.branch_id')
+            ->join('people cp', 'cp.person_id = s.customer_id', 'left')
+            ->join('people ep', 'ep.person_id = s.employee_id', 'left')
+            ->where('s.sale_id', $saleId)
+            ->get()
+            ->getRow();
+    }
+
+    /**
      * The quote an invoice (or a draft of one) was made from, or null.
      */
     public function getSourceQuote(int $saleId): ?int
@@ -2277,10 +2293,10 @@ class Sale extends Model
     public function get_all_suspended(?int $customer_id = null): array
     {
         if ($customer_id == NEW_ENTRY) {
-            $query = $this->db->query("SELECT sale_id, case when sale_type = '" . SALE_TYPE_QUOTE . "' THEN quote_number WHEN sale_type = '" . SALE_TYPE_WORK_ORDER . "' THEN work_order_number else sale_id end as doc_id, sale_id as suspended_sale_id, sale_status, sale_time, dinner_table_id, customer_id, employee_id, comment FROM "
+            $query = $this->db->query("SELECT sale_id, case when sale_type = '" . SALE_TYPE_QUOTE . "' THEN quote_number WHEN sale_type = '" . SALE_TYPE_WORK_ORDER . "' THEN work_order_number else sale_id end as doc_id, sale_id as suspended_sale_id, sale_status, sale_time, dinner_table_id, customer_id, employee_id, comment, branch_id FROM "
                 . $this->db->prefixTable('sales') . ' where sale_status = ' . SUSPENDED);
         } else {
-            $query = $this->db->query("SELECT sale_id, case when sale_type = '" . SALE_TYPE_QUOTE . "' THEN quote_number WHEN sale_type = '" . SALE_TYPE_WORK_ORDER . "' THEN work_order_number else sale_id end as doc_id, sale_status, sale_time, dinner_table_id, customer_id, employee_id, comment FROM "
+            $query = $this->db->query("SELECT sale_id, case when sale_type = '" . SALE_TYPE_QUOTE . "' THEN quote_number WHEN sale_type = '" . SALE_TYPE_WORK_ORDER . "' THEN work_order_number else sale_id end as doc_id, sale_status, sale_time, dinner_table_id, customer_id, employee_id, comment, branch_id FROM "
                 . $this->db->prefixTable('sales') . ' where sale_status = ' . SUSPENDED . ' AND customer_id = ' . $customer_id);
         }
 

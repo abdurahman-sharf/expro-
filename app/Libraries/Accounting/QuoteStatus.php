@@ -41,7 +41,7 @@ enum QuoteStatus: int
 
     public function languageKey(): string
     {
-        return 'Sales.quote_status_' . $this->name;
+        return 'Sales.quote_status_' . strtolower($this->name);
     }
 
     /**

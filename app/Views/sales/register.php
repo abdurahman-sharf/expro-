@@ -119,6 +119,11 @@ $employee        = model(Employee::class);
 
                 <?php if ($employee->has_grant('reports_sales', session('person_id'))): ?>
                     <?= anchor(
+                        "{$controller_name}/documents",
+                        '<span class="bi bi-file-earmark-text" aria-hidden="true"></span> ' . lang("{$sectionName}.documents_title"),
+                        ['class' => 'btn btn-outline-secondary btn-sm', 'id' => 'sales_documents_button', 'title' => lang("{$sectionName}.documents_title")],
+                    ) ?>
+                    <?= anchor(
                         "{$controller_name}/manage",
                         '<span class="bi bi-card-list" aria-hidden="true"></span> ' . lang("{$sectionName}.takings"),
                         ['class' => 'btn btn-outline-secondary btn-sm', 'id' => 'sales_takings_button', 'title' => lang("{$sectionName}.takings")],
