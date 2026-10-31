@@ -1,0 +1,697 @@
+[
+  {
+    "name": "W01 the gross sides before the period are summed side by side and not netted",
+    "file": "app/Libraries/Accounting/TrialBalance.php",
+    "find": "                . 'SUM(' . ($from === null ? '0' : sprintf($before, 'l.debit')) . ') AS opening_debit, '",
+    "replace": "                . 'SUM(' . ($from === null ? '0' : sprintf($before, '0')) . ') AS opening_debit, '",
+    "tests": [
+      "tests/Libraries/Accounting/TrialBalanceTest.php"
+    ]
+  },
+  {
+    "name": "W02 the total of the chart is that of the accounts at the top and never of every row",
+    "file": "app/Libraries/Accounting/TrialBalance.php",
+    "find": "$isTop = $limitedToAccounts ? isset($shown[$accountId]) && $this->depthOf($accounts, $shown, $accountId) === 0 : $this->parentOf($accounts, $accountId) === null;",
+    "replace": "$isTop = true;",
+    "tests": [
+      "tests/Libraries/Accounting/TrialBalanceTest.php"
+    ]
+  },
+  {
+    "name": "W03 a filtered run is marked as one so it is not called unbalanced",
+    "file": "app/Libraries/Accounting/TrialBalance.php",
+    "find": "            $filter->isLimitedToAccounts(),\n        );\n    }\n\n    /**\n     * The accounts a run can be limited",
+    "replace": "            false,\n        );\n    }\n\n    /**\n     * The accounts a run can be limited",
+    "tests": [
+      "tests/Libraries/Accounting/TrialBalanceTest.php"
+    ]
+  },
+  {
+    "name": "W04 the account of a party is listed only when it holds something in the branches of the report",
+    "file": "app/Libraries/Accounting/TrialBalance.php",
+    "find": "                if (($expandEntities || $subtree !== null || $named !== null) && isset($touched[$accountId])) {",
+    "replace": "                if (($expandEntities || $subtree !== null || $named !== null)) {",
+    "tests": [
+      "tests/Libraries/Accounting/TrialBalanceTest.php"
+    ]
+  },
+  {
+    "name": "W05 the depth cuts the list",
+    "file": "app/Libraries/Accounting/TrialBalance.php",
+    "find": "$shown  = array_filter($shown, static fn (int $accountId): bool => $levels[$accountId] <= $filter->level, ARRAY_FILTER_USE_KEY);",
+    "replace": "$shown  = $shown;",
+    "tests": [
+      "tests/Libraries/Accounting/TrialBalanceTest.php"
+    ]
+  },
+  {
+    "name": "W06 accounts named are listed alone",
+    "file": "app/Libraries/Accounting/TrialBalance.php",
+    "find": "            if ($named !== null && ! isset($named[$accountId])) {\n                continue;\n            }",
+    "replace": "            if (false) {\n                continue;\n            }",
+    "tests": [
+      "tests/Libraries/Accounting/TrialBalanceTest.php"
+    ]
+  },
+  {
+    "name": "W07 a main account lists only what is under it",
+    "file": "app/Libraries/Accounting/TrialBalance.php",
+    "find": "            if ($subtree !== null && ! isset($subtree[$accountId])) {\n                continue;\n            }",
+    "replace": "            if (false) {\n                continue;\n            }",
+    "tests": [
+      "tests/Libraries/Accounting/TrialBalanceTest.php"
+    ]
+  },
+  {
+    "name": "W08 accounts with transactions keeps an account with movement and nothing standing",
+    "file": "app/Libraries/Accounting/TrialBalance.php",
+    "find": "            $holds = $display === StatementDisplay::WithActivity\n                ? bccomp($row['debit'], '0', self::SCALE) !== 0 || bccomp($row['credit'], '0', self::SCALE) !== 0",
+    "replace": "            $holds = $display === StatementDisplay::WithActivity\n                ? bccomp(bcsub($row['debit'], $row['credit'], self::SCALE), '0', self::SCALE) !== 0",
+    "tests": [
+      "tests/Libraries/Accounting/TrialBalanceTest.php"
+    ]
+  },
+  {
+    "name": "W09 the groups above a listed account are kept with it",
+    "file": "app/Libraries/Accounting/TrialBalance.php",
+    "find": "                if (isset($listed[$current])) {\n                    $kept[$current] = true;\n                }",
+    "replace": "                if ($current === $accountId && isset($listed[$current])) {\n                    $kept[$current] = true;\n                }",
+    "tests": [
+      "tests/Libraries/Accounting/TrialBalanceTest.php"
+    ]
+  },
+  {
+    "name": "W10 the gross after is the before plus the movement on each side",
+    "file": "app/Libraries/Accounting/TrialBalance.php",
+    "find": "            $grand['gross_closing_debit']  = bcadd($grand['gross_closing_debit'], bcadd($row['opening_debit'], $row['debit'], self::SCALE), self::SCALE);",
+    "replace": "            $grand['gross_closing_debit']  = bcadd($grand['gross_closing_debit'], $row['debit'], self::SCALE);",
+    "tests": [
+      "tests/Libraries/Accounting/TrialBalanceTest.php"
+    ]
+  },
+  {
+    "name": "W11 the depth is cut at the fifth level",
+    "file": "app/Libraries/Accounting/TrialBalanceFilter.php",
+    "find": "min(StatementFigures::MAX_LEVEL, (int) $level)",
+    "replace": "(int) $level",
+    "tests": [
+      "tests/Libraries/Accounting/TrialBalanceFilterTest.php"
+    ]
+  },
+  {
+    "name": "W12 no more accounts than the limit are kept",
+    "file": "app/Libraries/Accounting/TrialBalanceFilter.php",
+    "find": "array_slice(array_values($ids), 0, self::MAX_ACCOUNTS)",
+    "replace": "array_values($ids)",
+    "tests": [
+      "tests/Libraries/Accounting/TrialBalanceFilterTest.php"
+    ]
+  },
+  {
+    "name": "W13 a level that is not a whole number from one up is read as none",
+    "file": "app/Libraries/Accounting/TrialBalanceFilter.php",
+    "find": "ctype_digit($level) && (int) $level >= 1",
+    "replace": "ctype_digit($level)",
+    "tests": [
+      "tests/Libraries/Accounting/TrialBalanceFilterTest.php"
+    ]
+  },
+  {
+    "name": "W14 an account asked for is a positive number",
+    "file": "app/Libraries/Accounting/TrialBalanceFilter.php",
+    "find": "ctype_digit($accountId) && (int) $accountId > 0",
+    "replace": "ctype_digit($accountId)",
+    "tests": [
+      "tests/Libraries/Accounting/TrialBalanceFilterTest.php"
+    ]
+  },
+  {
+    "name": "W15 the statement is limited to the employee asked for",
+    "file": "app/Libraries/Accounting/AccountLedger.php",
+    "find": "        if ($employeeId !== null) {\n            $builder->where('j.created_by', $employeeId);\n        }",
+    "replace": "        if (false) {\n            $builder->where('j.created_by', $employeeId);\n        }",
+    "tests": [
+      "tests/Libraries/Accounting/AccountLedgerTest.php"
+    ]
+  },
+  {
+    "name": "W16 the opening balance of a statement is of the employee asked for too",
+    "file": "app/Libraries/Accounting/AccountLedger.php",
+    "find": "        $row = $this->base($scope, $ids, $period, $employeeId, false)\n            ->select('COALESCE(SUM(l.debit - l.credit), 0) AS net', false)",
+    "replace": "        $row = $this->base($scope, $ids, $period, null, false)\n            ->select('COALESCE(SUM(l.debit - l.credit), 0) AS net', false)",
+    "tests": [
+      "tests/Libraries/Accounting/AccountLedgerTest.php"
+    ]
+  },
+  {
+    "name": "W17 a statement drawn account by account has a limit",
+    "file": "app/Libraries/Accounting/AccountLedger.php",
+    "find": "        if ($items > $this->maxBlockItems) {",
+    "replace": "        if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/AccountLedgerTest.php"
+    ]
+  },
+  {
+    "name": "W18 the choice of accounts with lines lists those that moved",
+    "file": "app/Libraries/Accounting/AccountLedger.php",
+    "find": "                LedgerDisplay::Activity       => $moved,",
+    "replace": "                LedgerDisplay::Activity       => true,",
+    "tests": [
+      "tests/Libraries/Accounting/AccountLedgerTest.php"
+    ]
+  },
+  {
+    "name": "W19 the choice of accounts that stand at something keeps an account that stood at something",
+    "file": "app/Libraries/Accounting/AccountLedger.php",
+    "find": "                LedgerDisplay::NonZeroBalance => $standing,",
+    "replace": "                LedgerDisplay::NonZeroBalance => $moved,",
+    "tests": [
+      "tests/Libraries/Accounting/AccountLedgerTest.php"
+    ]
+  },
+  {
+    "name": "W20 the choice of every account never names a party that holds nothing",
+    "file": "app/Libraries/Accounting/AccountLedger.php",
+    "find": "((int) $account->is_group === 0 && $account->entity_type === null)",
+    "replace": "((int) $account->is_group === 0)",
+    "tests": [
+      "tests/Libraries/Accounting/AccountLedgerTest.php"
+    ]
+  },
+  {
+    "name": "W21 the lines of a block are in the order of date, journal and line",
+    "file": "app/Libraries/Accounting/AccountLedger.php",
+    "find": "            ->orderBy('a.code', 'ASC')\n            ->orderBy('j.journal_date', 'ASC')\n            ->orderBy('j.journal_id', 'ASC')\n            ->orderBy('l.line_no', 'ASC')",
+    "replace": "            ->orderBy('a.code', 'ASC')\n            ->orderBy('j.journal_id', 'DESC')",
+    "tests": [
+      "tests/Libraries/Accounting/AccountLedgerTest.php"
+    ]
+  },
+  {
+    "name": "W22 the employees named are those of the branches of the report",
+    "file": "app/Libraries/Accounting/AccountLedger.php",
+    "find": "            ->whereIn('j.branch_id', $scope->ids)\n            ->groupBy('j.created_by')",
+    "replace": "            ->groupBy('j.created_by')",
+    "tests": [
+      "tests/Libraries/Accounting/AccountLedgerTest.php"
+    ]
+  },
+  {
+    "name": "W23 the statement reads the branches of the scope only",
+    "file": "app/Libraries/Accounting/AccountLedger.php",
+    "find": "            ->whereIn('j.status', [JournalStatus::Posted->value, JournalStatus::Reversed->value])\n            ->whereIn('j.branch_id', $scope->ids);\n\n        if ($employeeId !== null) {",
+    "replace": "            ->whereIn('j.status', [JournalStatus::Posted->value, JournalStatus::Reversed->value]);\n\n        if ($employeeId !== null) {",
+    "tests": [
+      "tests/Libraries/Accounting/AccountLedgerTest.php"
+    ]
+  },
+  {
+    "name": "W24 a range of more columns than the report draws is refused",
+    "file": "app/Libraries/Accounting/ProfitAndLoss.php",
+    "find": "            if (count($periods) >= self::MAX_PERIODS) {",
+    "replace": "            if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/ProfitAndLossTest.php"
+    ]
+  },
+  {
+    "name": "W25 the first column starts on the first day of the range",
+    "file": "app/Libraries/Accounting/ProfitAndLoss.php",
+    "find": "max($start->format('Y-m-d'), $from)",
+    "replace": "$start->format('Y-m-d')",
+    "tests": [
+      "tests/Libraries/Accounting/ProfitAndLossTest.php"
+    ]
+  },
+  {
+    "name": "W26 the last column ends on the last day of the range",
+    "file": "app/Libraries/Accounting/ProfitAndLoss.php",
+    "find": "min($end->format('Y-m-d'), $to)",
+    "replace": "$end->format('Y-m-d')",
+    "tests": [
+      "tests/Libraries/Accounting/ProfitAndLossTest.php"
+    ]
+  },
+  {
+    "name": "W27 the journals that close a year are left out of every column",
+    "file": "app/Libraries/Accounting/ProfitAndLoss.php",
+    "find": "leaveOutYearEnd: true",
+    "replace": "leaveOutYearEnd: false",
+    "tests": [
+      "tests/Libraries/Accounting/ProfitAndLossTest.php"
+    ],
+    "all": true
+  },
+  {
+    "name": "W28 without a first day the range starts on the first of January",
+    "file": "app/Libraries/Accounting/ProfitAndLoss.php",
+    "find": "$period->from ?? substr($period->to, 0, 4) . '-01-01'",
+    "replace": "$period->from ?? substr($period->to, 0, 4) . '-02-01'",
+    "tests": [
+      "tests/Libraries/Accounting/ProfitAndLossTest.php"
+    ]
+  },
+  {
+    "name": "W29 the level read when none is asked is the third",
+    "file": "app/Libraries/Accounting/ProfitAndLoss.php",
+    "find": "public const DEFAULT_LEVEL = 3;",
+    "replace": "public const DEFAULT_LEVEL = 2;",
+    "tests": [
+      "tests/Libraries/Accounting/ProfitAndLossTest.php"
+    ]
+  },
+  {
+    "name": "W30 a basis that is not built is refused by name",
+    "file": "app/Libraries/Accounting/ProfitBasis.php",
+    "find": "        if ($basis === null) {\n            throw",
+    "replace": "        if (false) {\n            throw",
+    "tests": [
+      "tests/Libraries/Accounting/ProfitBasisTest.php"
+    ]
+  },
+  {
+    "name": "W31 the payment date is another name of the cash basis",
+    "file": "app/Libraries/Accounting/ProfitBasis.php",
+    "find": "(self::tryFrom($text) ?? self::ALIASES[$text] ?? null)",
+    "replace": "(self::tryFrom($text) ?? null)",
+    "tests": [
+      "tests/Libraries/Accounting/ProfitBasisTest.php"
+    ]
+  },
+  {
+    "name": "W32 a basis named twice is refused and not read as the first",
+    "file": "app/Libraries/Accounting/ProfitBasis.php",
+    "find": "$text  = is_string($value) ? trim($value) : null;",
+    "replace": "$text  = is_array($value) ? trim((string) ($value[0] ?? '')) : (is_string($value) ? trim($value) : null);",
+    "tests": [
+      "tests/Libraries/Accounting/ProfitBasisTest.php"
+    ]
+  },
+  {
+    "name": "W33 only the journals that touch a treasury or a bank count",
+    "file": "app/Libraries/Accounting/CashProfitAndLoss.php",
+    "find": "            ->whereIn('j.journal_id', static fn (BaseBuilder $touching): BaseBuilder => $touching->select('t.journal_id')->from('accounting_journal_lines t')->whereIn('t.account_id', $cash))",
+    "replace": "            ->where('1 = 1', null, false)",
+    "tests": [
+      "tests/Libraries/Accounting/CashProfitAndLossTest.php"
+    ]
+  },
+  {
+    "name": "W34 the lines of the treasuries and banks are not classified as what came in against them",
+    "file": "app/Libraries/Accounting/CashProfitAndLoss.php",
+    "find": "            ->whereNotIn('l.account_id', $cash)\n            ->whereIn('j.journal_id'",
+    "replace": "            ->where('1 = 1', null, false)\n            ->whereIn('j.journal_id'",
+    "tests": [
+      "tests/Libraries/Accounting/CashProfitAndLossTest.php"
+    ]
+  },
+  {
+    "name": "W35 the branches of the scope only",
+    "file": "app/Libraries/Accounting/CashProfitAndLoss.php",
+    "find": "            ->whereIn('j.branch_id', $scope->ids)",
+    "replace": "            ->where('1 = 1', null, false)",
+    "tests": [
+      "tests/Libraries/Accounting/CashProfitAndLossTest.php"
+    ]
+  },
+  {
+    "name": "W36 a journal that was reversed counts with its reversal",
+    "file": "app/Libraries/Accounting/CashProfitAndLoss.php",
+    "find": "            ->whereIn('j.status', [JournalStatus::Posted->value, JournalStatus::Reversed->value])",
+    "replace": "            ->whereIn('j.status', [JournalStatus::Posted->value])",
+    "tests": [
+      "tests/Libraries/Accounting/CashProfitAndLossTest.php"
+    ]
+  },
+  {
+    "name": "W37 the journals that close a year are left out",
+    "file": "app/Libraries/Accounting/CashProfitAndLoss.php",
+    "find": "        return YearEndEntries::leaveOut($builder, $this->db);",
+    "replace": "        return $builder;",
+    "tests": [
+      "tests/Libraries/Accounting/CashProfitAndLossTest.php"
+    ]
+  },
+  {
+    "name": "W38 the tax paid on purchases is a line of its own and not an expense account",
+    "file": "app/Libraries/Accounting/CashProfitAndLoss.php",
+    "find": "            } elseif (isset($taxInput[$accountId])) {",
+    "replace": "            } elseif (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/CashProfitAndLossTest.php"
+    ]
+  },
+  {
+    "name": "W39 a counter customer is a customer",
+    "file": "app/Libraries/Accounting/CashProfitAndLoss.php",
+    "find": "idsOfKeys('receivables', 'counter_customers')",
+    "replace": "idsOfKeys('receivables')",
+    "tests": [
+      "tests/Libraries/Accounting/CashProfitAndLossTest.php"
+    ]
+  },
+  {
+    "name": "W40 what is neither revenue nor expense is listed as other movements and not in the profit",
+    "file": "app/Libraries/Accounting/CashProfitAndLoss.php",
+    "find": "            } elseif (bccomp($net, '0', 4) !== 0) {\n                $others[] = $this->line($account, $net);",
+    "replace": "            } else {\n                $revenue[] = $this->line($account, $net);",
+    "tests": [
+      "tests/Libraries/Accounting/CashProfitAndLossTest.php"
+    ]
+  },
+  {
+    "name": "W41 the net income takes from every revenue and expense account",
+    "file": "app/Libraries/Accounting/CashFlow.php",
+    "find": "                if (in_array($account->account_type, [AccountType::Revenue->value, AccountType::Expense->value], true)) {",
+    "replace": "                if (in_array($account->account_type, [AccountType::Revenue->value], true)) {",
+    "tests": [
+      "tests/Libraries/Accounting/CashFlowTest.php"
+    ]
+  },
+  {
+    "name": "W42 a hidden line is not drawn and not counted",
+    "file": "app/Libraries/Accounting/CashFlow.php",
+    "find": "            if (! $line->visible) {\n                continue;\n            }",
+    "replace": "            if (false) {\n                continue;\n            }",
+    "tests": [
+      "tests/Libraries/Accounting/CashFlowTest.php"
+    ]
+  },
+  {
+    "name": "W43 what no line takes from is set out under other changes",
+    "file": "app/Libraries/Accounting/CashFlow.php",
+    "find": "$left = bcsub(bcsub($moved['credit'], $moved['debit'], 4), $taken[$accountId] ?? '0', 4);",
+    "replace": "$left = '0';",
+    "tests": [
+      "tests/Libraries/Accounting/CashFlowTest.php"
+    ]
+  },
+  {
+    "name": "W44 the accounts of treasuries and banks are not read as changes",
+    "file": "app/Libraries/Accounting/CashFlow.php",
+    "find": "        if ($cash !== []) {\n            $builder->whereNotIn('l.account_id', $cash);\n        }",
+    "replace": "        if (false) {\n            $builder->whereNotIn('l.account_id', $cash);\n        }",
+    "tests": [
+      "tests/Libraries/Accounting/CashFlowTest.php"
+    ]
+  },
+  {
+    "name": "W45 the journals that close a year are left out",
+    "file": "app/Libraries/Accounting/CashFlow.php",
+    "find": "        return YearEndEntries::leaveOut($builder, $this->db);",
+    "replace": "        return $builder;",
+    "tests": [
+      "tests/Libraries/Accounting/CashFlowTest.php"
+    ]
+  },
+  {
+    "name": "W46 the branches of the scope only",
+    "file": "app/Libraries/Accounting/CashFlow.php",
+    "find": "            ->whereIn('j.branch_id', $scope->ids);\n\n        return YearEndEntries",
+    "replace": "            ->where('1 = 1', null, false);\n\n        return YearEndEntries",
+    "tests": [
+      "tests/Libraries/Accounting/CashFlowTest.php"
+    ]
+  },
+  {
+    "name": "W47 without a first day the range starts on the first of January",
+    "file": "app/Libraries/Accounting/CashFlow.php",
+    "find": "$period->from ?? substr($period->to, 0, 4) . '-01-01'",
+    "replace": "$period->from ?? substr($period->to, 0, 4) . '-02-01'",
+    "tests": [
+      "tests/Libraries/Accounting/CashFlowTest.php"
+    ]
+  },
+  {
+    "name": "W48 the money held at the start is what was there before the first day",
+    "file": "app/Libraries/Accounting/CashFlow.php",
+    "find": "->where($before ? 'j.journal_date <' : 'j.journal_date <=', $day)",
+    "replace": "->where('j.journal_date <=', $day)",
+    "tests": [
+      "tests/Libraries/Accounting/CashFlowTest.php"
+    ]
+  },
+  {
+    "name": "W49 a line never takes from a treasury or a bank",
+    "file": "app/Libraries/Accounting/CashFlow.php",
+    "find": "return array_diff_key($this->chart->subtreeOf($roots), $this->chart->cashAccounts());",
+    "replace": "return $this->chart->subtreeOf($roots);",
+    "tests": [
+      "tests/Libraries/Accounting/CashFlowTest.php"
+    ]
+  },
+  {
+    "name": "W50 saving needs the permission to manage the settings",
+    "file": "app/Libraries/Accounting/CashFlowSettings.php",
+    "find": "$this->guard->require(AccountingGuard::SETTINGS_MANAGE, $employeeId);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Accounting/CashFlowSettingsTest.php"
+    ]
+  },
+  {
+    "name": "W51 saving needs every branch",
+    "file": "app/Libraries/Accounting/CashFlowSettings.php",
+    "find": "$this->branches->requireCompanyScope($employeeId);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Accounting/CashFlowSettingsTest.php"
+    ]
+  },
+  {
+    "name": "W52 a change is written to the audit log",
+    "file": "app/Libraries/Accounting/CashFlowSettings.php",
+    "find": "        $this->audit->write('settings', null, 'cash_flow_lines_updated'",
+    "replace": "        // $this->audit->write('settings', null, 'cash_flow_lines_updated'",
+    "tests": [
+      "tests/Libraries/Accounting/CashFlowSettingsTest.php"
+    ]
+  },
+  {
+    "name": "W53 a save that changes nothing writes nothing",
+    "file": "app/Libraries/Accounting/CashFlowSettings.php",
+    "find": "        if ($this->arrays($before) === $this->arrays($after)) {\n            return;\n        }",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Accounting/CashFlowSettingsTest.php"
+    ]
+  },
+  {
+    "name": "W54 a line that is not in the report is refused",
+    "file": "app/Libraries/Accounting/CashFlowSettings.php",
+    "find": "            } elseif (! isset($next[$key])) {",
+    "replace": "            } elseif (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/CashFlowSettingsTest.php"
+    ]
+  },
+  {
+    "name": "W55 a title is short",
+    "file": "app/Libraries/Accounting/CashFlowSettings.php",
+    "find": "mb_strlen($title) > self::TITLE_MAX || ($line->custom && $title === '')",
+    "replace": "($line->custom && $title === '')",
+    "tests": [
+      "tests/Libraries/Accounting/CashFlowSettingsTest.php"
+    ]
+  },
+  {
+    "name": "W56 a line that was added has a title",
+    "file": "app/Libraries/Accounting/CashFlowSettings.php",
+    "find": "mb_strlen($title) > self::TITLE_MAX || ($line->custom && $title === '')",
+    "replace": "mb_strlen($title) > self::TITLE_MAX",
+    "tests": [
+      "tests/Libraries/Accounting/CashFlowSettingsTest.php"
+    ]
+  },
+  {
+    "name": "W57 a formula is one the report knows",
+    "file": "app/Libraries/Accounting/CashFlowSettings.php",
+    "find": "if ($formula === null || ($line->key === CashFlowDefaults::NET_INCOME && $formula !== CashFlowFormula::CreditInPeriod)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/CashFlowSettingsTest.php"
+    ]
+  },
+  {
+    "name": "W58 the net income has one formula",
+    "file": "app/Libraries/Accounting/CashFlowSettings.php",
+    "find": "if ($formula === null || ($line->key === CashFlowDefaults::NET_INCOME && $formula !== CashFlowFormula::CreditInPeriod)) {",
+    "replace": "if ($formula === null) {",
+    "tests": [
+      "tests/Libraries/Accounting/CashFlowSettingsTest.php"
+    ]
+  },
+  {
+    "name": "W59 a part is one the report draws",
+    "file": "app/Libraries/Accounting/CashFlowSettings.php",
+    "find": "            if ($section === null) {",
+    "replace": "            if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/CashFlowSettingsTest.php"
+    ]
+  },
+  {
+    "name": "W60 a line cannot take from a treasury or a bank or from an account that is not in the chart",
+    "file": "app/Libraries/Accounting/CashFlowSettings.php",
+    "find": "|| ! isset($accounts[(int) $candidate]) || isset($cash[(int) $candidate])) {",
+    "replace": "|| false) {",
+    "tests": [
+      "tests/Libraries/Accounting/CashFlowSettingsTest.php"
+    ]
+  },
+  {
+    "name": "W61 a line cannot take from an account together with an account above it",
+    "file": "app/Libraries/Accounting/CashFlowSettings.php",
+    "find": "                if (isset($ids[$parent])) {",
+    "replace": "                if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/CashFlowSettingsTest.php"
+    ]
+  },
+  {
+    "name": "W62 a line that was added has an account",
+    "file": "app/Libraries/Accounting/CashFlowSettings.php",
+    "find": "        if ($line->custom && $accountIds === []) {",
+    "replace": "        if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/CashFlowSettingsTest.php"
+    ]
+  },
+  {
+    "name": "W63 the lines that are added are limited",
+    "file": "app/Libraries/Accounting/CashFlowSettings.php",
+    "find": "        if ($addedCustoms > self::MAX_CUSTOM_LINES) {",
+    "replace": "        if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/CashFlowSettingsTest.php"
+    ]
+  },
+  {
+    "name": "W64 a line the report starts with is hidden and never deleted",
+    "file": "app/Libraries/Accounting/CashFlowSettings.php",
+    "find": "                if (! $line->custom) {\n                    throw",
+    "replace": "                if (false) {\n                    throw",
+    "tests": [
+      "tests/Libraries/Accounting/CashFlowSettingsTest.php"
+    ]
+  },
+  {
+    "name": "W65 the net income takes from every account and has none of its own",
+    "file": "app/Libraries/Accounting/CashFlowSettings.php",
+    "find": "            if ($line->key === CashFlowDefaults::NET_INCOME && $accountIds !== []) {",
+    "replace": "            if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/CashFlowSettingsTest.php"
+    ]
+  },
+  {
+    "name": "W66 the lines are a list of sets of values",
+    "file": "app/Libraries/Accounting/CashFlowSettings.php",
+    "find": "            if (! is_array($row)) {",
+    "replace": "            if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/CashFlowSettingsTest.php"
+    ]
+  },
+  {
+    "name": "W67 a file of a statement needs an account",
+    "file": "app/Controllers/AccountingReports.php",
+    "find": "        if ($accountId < 1) {\n            throw PageNotFoundException::forPageNotFound();\n        }",
+    "replace": "        if (false) {\n            throw PageNotFoundException::forPageNotFound();\n        }",
+    "tests": [
+      "tests/Controllers/AccountingReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W68 a refusal is a refusal of the file",
+    "file": "app/Controllers/AccountingReports.php",
+    "find": "setStatusCode(ResponseInterface::HTTP_UNPROCESSABLE_ENTITY)",
+    "replace": "setStatusCode(ResponseInterface::HTTP_OK)",
+    "tests": [
+      "tests/Controllers/AccountingReportsControllerTest.php"
+    ],
+    "all": true
+  },
+  {
+    "name": "W69 a statement too large for a file is refused",
+    "file": "app/Controllers/AccountingReports.php",
+    "find": "                if ($report->totalRows > self::CSV_MAX_LINES) {",
+    "replace": "                if (false) {",
+    "tests": [
+      "tests/Controllers/AccountingReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W70 an employee that is not a number is nobody in particular",
+    "file": "app/Controllers/AccountingReports.php",
+    "find": "'employee'      => ctype_digit($employee) && (int) $employee > 0 ? (int) $employee : null,",
+    "replace": "'employee'      => (int) $employee,",
+    "tests": [
+      "tests/Controllers/AccountingReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W71 what the screen was asked is carried into its file",
+    "file": "app/Controllers/AccountingReports.php",
+    "find": "        $accounts = $this->trialBalanceFilter()->accountIds;\n\n        if ($accounts !== []) {\n            $query['accounts'] = $accounts;\n        }",
+    "replace": "",
+    "tests": [
+      "tests/Controllers/AccountingReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W72 the employee column can be hidden",
+    "file": "app/Controllers/AccountingReports.php",
+    "find": "'hide_employee' => $this->flag('hide_employee'),",
+    "replace": "'hide_employee' => false,",
+    "tests": [
+      "tests/Controllers/AccountingReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W73 a basis asked for is the basis read",
+    "file": "app/Controllers/AccountingProfitLoss.php",
+    "find": "            $basis  = ProfitBasis::fromRequest($this->request->getGet('basis'));\n            $report = $this->read($basis, $scope, $period);\n        } catch (AccountingException $refusal) {\n            $error = $this->messageFor($refusal);",
+    "replace": "            $basis  = ProfitBasis::Accrual;\n            $report = $this->read($basis, $scope, $period);\n        } catch (AccountingException $refusal) {\n            $error = $this->messageFor($refusal);",
+    "tests": [
+      "tests/Controllers/AccountingProfitLossControllerTest.php"
+    ]
+  },
+  {
+    "name": "W74 a file of a basis that is refused is a refusal",
+    "file": "app/Controllers/AccountingProfitLoss.php",
+    "find": "setStatusCode(ResponseInterface::HTTP_UNPROCESSABLE_ENTITY)",
+    "replace": "setStatusCode(ResponseInterface::HTTP_OK)",
+    "tests": [
+      "tests/Controllers/AccountingProfitLossControllerTest.php"
+    ]
+  },
+  {
+    "name": "W75 the cash flow is saved as the employee who asked",
+    "file": "app/Controllers/AccountingCashFlow.php",
+    "find": "$this->settings->save(['lines' => is_array($lines) ? array_values($lines) : []], $this->employeeId());",
+    "replace": "$this->settings->save(['lines' => is_array($lines) ? array_values($lines) : []], null);",
+    "tests": [
+      "tests/Controllers/AccountingCashFlowControllerTest.php"
+    ]
+  },
+  {
+    "name": "W76 the setup is offered to save only to who may manage it in every branch",
+    "file": "app/Controllers/AccountingCashFlow.php",
+    "find": "'canManage'  => $this->canManage(AccountingGuard::SETTINGS_MANAGE),",
+    "replace": "'canManage'  => true,",
+    "tests": [
+      "tests/Controllers/AccountingCashFlowControllerTest.php"
+    ]
+  },
+  {
+    "name": "W77 a file of the cash flow with a refused range is a refusal",
+    "file": "app/Controllers/AccountingCashFlow.php",
+    "find": "setStatusCode(ResponseInterface::HTTP_UNPROCESSABLE_ENTITY)",
+    "replace": "setStatusCode(ResponseInterface::HTTP_OK)",
+    "tests": [
+      "tests/Controllers/AccountingCashFlowControllerTest.php"
+    ]
+  }
+]

@@ -1352,4 +1352,21 @@ class AccountingReportsControllerTest extends CIUnitTestCase
 
         $this->get('/accounting_reports/ledger/csv?account=' . $this->accountId('cash'))->assertRedirect();
     }
+
+    public function testGetLedgerCsv_RefusesAMergedStatementOfMoreLinesThanAFileHoldsInWords(): void
+    {
+        $lines = [[$this->accountId('sales_revenue'), '0', '200.01']];
+
+        for ($index = 0; $index < 20_001; $index++) {
+            $lines[] = [$this->accountId('cash'), '0.01', '0'];
+        }
+
+        $this->postOn('2026-10-05', 1, $lines);
+        $this->viewer();
+
+        $response = $this->get('/accounting_reports/ledger/csv?account=' . $this->accountId('cash'));
+
+        $response->assertStatus(422);
+        $this->assertSame(lang('Accounting.error_ledger_too_large', [20_000]), $response->response()->getBody());
+    }
 }
