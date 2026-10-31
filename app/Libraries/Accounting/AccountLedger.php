@@ -18,8 +18,7 @@ use Config\Database;
 final class AccountLedger
 {
     public const MAX_BLOCK_ITEMS = 2000;
-
-    private const SCALE = 4;
+    private const SCALE          = 4;
 
     private BaseConnection $db;
 
@@ -418,7 +417,7 @@ final class AccountLedger
      * end of it. Listing every account adds the accounts that are not groups, but never an account
      * of a party that holds nothing here, which would name the parties of other branches.
      *
-     * @param list<int>                                                                          $ids
+     * @param list<int>                                                                     $ids
      * @param array<int, array{opening: string, debit: string, credit: string, found: int}> $figures
      *
      * @return list<object>

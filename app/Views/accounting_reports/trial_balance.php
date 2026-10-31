@@ -5,8 +5,12 @@
  * @var string|null                                          $error
  * @var bool                                                 $from_ignored
  * @var array{from: string, to: string, branches: list<int>} $filters
+ * @var TrialBalanceFilter                                    $filter
+ * @var list<int>                                            $levels
+ * @var list<object>                                         $account_choices
  * @var bool                                                 $expand
  * @var bool                                                 $show_empty
+ * @var string                                               $csv_url
  * @var list<object>                                         $branches
  * @var string|null                                          $scope_label
  * @var ReportScopeKind                                      $scope_kind
@@ -16,17 +20,23 @@
  */
 
 use App\Libraries\Accounting\ReportScopeKind;
+use App\Libraries\Accounting\StatementDisplay;
+use App\Libraries\Accounting\TrialBalanceFilter;
 use App\Libraries\Accounting\TrialBalanceReport;
 use App\Libraries\Accounting\TrialBalanceRow;
 use App\Libraries\Accounting\TrialBalanceType;
 
 $side = static fn (string $value, Closure $amount): string => bccomp($value, '0', 4) === 0 ? '' : $amount($value);
 $span = $type->showsOpening() ? 8 : ($type->showsMovement() ? 6 : 4);
+$gross = $type->isGross();
 ?>
 
 <?= view('partial/header') ?>
 
 <div id="title_bar" class="print_hide btn-toolbar">
+    <a class="btn btn-outline-secondary btn-sm float-end" id="trial_balance_csv" href="<?= esc($csv_url, 'attr') ?>">
+        <span class="bi bi-filetype-csv" aria-hidden="true">&nbsp;</span><?= lang('Accounting_reports.csv') ?>
+    </a>
     <button type="button" class="btn btn-outline-secondary btn-sm float-end" onclick="window.print()">
         <span class="bi bi-printer" aria-hidden="true">&nbsp;</span><?= lang('Common.print') ?>
     </button>
@@ -64,6 +74,43 @@ $span = $type->showsOpening() ? 8 : ($type->showsMovement() ? 6 : 4);
         <div class="acc-filter">
             <label class="form-label" for="f_to"><?= lang('Accounting_reports.to') ?></label>
             <input type="date" id="f_to" name="to" class="form-control form-control-sm" value="<?= esc($filters['to'], 'attr') ?>">
+        </div>
+        <div class="acc-filter">
+            <label class="form-label" for="f_level"><?= lang('Accounting_statements.level') ?></label>
+            <select id="f_level" name="level" class="form-select form-select-sm">
+                <option value=""<?= $filter->level === null ? ' selected' : '' ?>><?= lang('Accounting_reports.filter_account_all') ?></option>
+                <?php foreach ($levels as $level): ?>
+                    <option value="<?= (int) $level ?>"<?= $filter->level === $level ? ' selected' : '' ?>><?= lang('Accounting_statements.level_n', [$level]) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <div class="acc-filter">
+            <label class="form-label" for="f_display"><?= lang('Accounting_statements.display') ?></label>
+            <select id="f_display" name="display" class="form-select form-select-sm">
+                <?php foreach (StatementDisplay::cases() as $option): ?>
+                    <option value="<?= esc($option->value, 'attr') ?>"<?= $option === $filter->display ? ' selected' : '' ?>><?= lang('Accounting_statements.display_' . $option->value) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <div class="acc-filter">
+            <label class="form-label" for="f_account"><?= lang('Accounting_reports.filter_account') ?></label>
+            <select id="f_account" name="account" class="form-select form-select-sm">
+                <option value=""><?= lang('Accounting_reports.filter_account_all') ?></option>
+                <?php foreach ($account_choices as $choice): ?>
+                    <?php if ($choice->is_group): ?>
+                        <option value="<?= (int) $choice->account_id ?>"<?= $filter->accountId === $choice->account_id ? ' selected' : '' ?>><?= esc($choice->code . ' - ' . $choice->name) ?></option>
+                    <?php endif; ?>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <div class="acc-filter">
+            <label class="form-label" for="f_accounts"><?= lang('Accounting_reports.filter_accounts') ?></label>
+            <select id="f_accounts" name="accounts[]" class="form-select form-select-sm" multiple size="4" aria-describedby="f_accounts_hint">
+                <?php foreach ($account_choices as $choice): ?>
+                    <option value="<?= (int) $choice->account_id ?>"<?= in_array($choice->account_id, $filter->accountIds, true) ? ' selected' : '' ?>><?= esc($choice->code . ' - ' . $choice->name) ?></option>
+                <?php endforeach; ?>
+            </select>
+            <span class="small text-body-secondary" id="f_accounts_hint"><?= lang('Accounting_reports.filter_accounts_hint') ?></span>
         </div>
         <fieldset class="acc-filter acc-filter-status">
             <legend class="form-label"><?= lang('Accounting_reports.show') ?></legend>
@@ -132,15 +179,15 @@ $span = $type->showsOpening() ? 8 : ($type->showsMovement() ? 6 : 4);
                     <th scope="col"><?= lang('Accounting_reports.code') ?></th>
                     <th scope="col"><?= lang('Accounting_reports.account') ?></th>
                     <?php if ($type->showsOpening()): ?>
-                        <th scope="col" class="text-end"><?= lang('Accounting_reports.opening_debit') ?></th>
-                        <th scope="col" class="text-end"><?= lang('Accounting_reports.opening_credit') ?></th>
+                        <th scope="col" class="text-end"><?= lang($gross ? 'Accounting_reports.before_debit' : 'Accounting_reports.opening_debit') ?></th>
+                        <th scope="col" class="text-end"><?= lang($gross ? 'Accounting_reports.before_credit' : 'Accounting_reports.opening_credit') ?></th>
                     <?php endif; ?>
                     <?php if ($type->showsMovement()): ?>
                         <th scope="col" class="text-end"><?= lang('Accounting_reports.period_debit') ?></th>
                         <th scope="col" class="text-end"><?= lang('Accounting_reports.period_credit') ?></th>
                     <?php endif; ?>
-                    <th scope="col" class="text-end"><?= lang('Accounting_reports.closing_debit') ?></th>
-                    <th scope="col" class="text-end"><?= lang('Accounting_reports.closing_credit') ?></th>
+                    <th scope="col" class="text-end"><?= lang($gross ? 'Accounting_reports.after_debit' : 'Accounting_reports.closing_debit') ?></th>
+                    <th scope="col" class="text-end"><?= lang($gross ? 'Accounting_reports.after_credit' : 'Accounting_reports.closing_credit') ?></th>
                 </tr>
             </thead>
             <tbody>
@@ -149,8 +196,8 @@ $span = $type->showsOpening() ? 8 : ($type->showsMovement() ? 6 : 4);
                 <?php endif; ?>
                 <?php foreach ($report->rows as $row): ?>
                     <?php
-                    [$openingDebit, $openingCredit] = TrialBalanceRow::sides($row->opening);
-                    [$closingDebit, $closingCredit] = TrialBalanceRow::sides($row->closing());
+                    [$openingDebit, $openingCredit] = $gross ? [$row->openingDebit, $row->openingCredit] : TrialBalanceRow::sides($row->opening);
+                    [$closingDebit, $closingCredit] = $gross ? [$row->grossClosingDebit(), $row->grossClosingCredit()] : TrialBalanceRow::sides($row->closing());
                     ?>
                     <tr<?= $row->isGroup ? ' class="fw-bold"' : '' ?> data-account="<?= esc($row->code, 'attr') ?>">
                         <td><bdi dir="ltr"><?= esc($row->code) ?></bdi></td>
@@ -172,15 +219,15 @@ $span = $type->showsOpening() ? 8 : ($type->showsMovement() ? 6 : 4);
                 <tr class="fw-bold" id="trial_balance_totals">
                     <th scope="row" colspan="2"><?= lang('Accounting_reports.totals') ?></th>
                     <?php if ($type->showsOpening()): ?>
-                        <td class="text-end"><?= $amount($report->totals['opening_debit']) ?></td>
-                        <td class="text-end"><?= $amount($report->totals['opening_credit']) ?></td>
+                        <td class="text-end"><?= $amount($report->totals[$gross ? 'gross_opening_debit' : 'opening_debit']) ?></td>
+                        <td class="text-end"><?= $amount($report->totals[$gross ? 'gross_opening_credit' : 'opening_credit']) ?></td>
                     <?php endif; ?>
                     <?php if ($type->showsMovement()): ?>
                         <td class="text-end"><?= $amount($report->totals['debit']) ?></td>
                         <td class="text-end"><?= $amount($report->totals['credit']) ?></td>
                     <?php endif; ?>
-                    <td class="text-end"><?= $amount($report->totals['closing_debit']) ?></td>
-                    <td class="text-end"><?= $amount($report->totals['closing_credit']) ?></td>
+                    <td class="text-end"><?= $amount($report->totals[$gross ? 'gross_closing_debit' : 'closing_debit']) ?></td>
+                    <td class="text-end"><?= $amount($report->totals[$gross ? 'gross_closing_credit' : 'closing_credit']) ?></td>
                 </tr>
             </tfoot>
         </table>
@@ -188,7 +235,13 @@ $span = $type->showsOpening() ? 8 : ($type->showsMovement() ? 6 : 4);
 
     <p class="small text-body-secondary" id="report_nominal_note"><?= lang('Accounting_reports.nominal_note') ?></p>
 
-    <?php if ($report->balances()): ?>
+    <?php if ($type === TrialBalanceType::ReviewTotals): ?>
+        <p class="small text-body-secondary" id="report_review_note"><?= lang('Accounting_reports.review_note') ?></p>
+    <?php endif; ?>
+
+    <?php if ($report->limitedToAccounts): ?>
+        <p class="alert alert-info" id="report_filtered_run" role="note"><?= lang('Accounting_reports.filtered_run') ?></p>
+    <?php elseif ($report->balances()): ?>
         <p class="text-success" id="report_balanced"><span class="bi bi-check-circle" aria-hidden="true">&nbsp;</span><?= lang('Accounting_reports.balanced') ?></p>
     <?php else: ?>
         <p class="alert alert-danger" id="report_unbalanced" role="alert"><?= lang('Accounting_reports.unbalanced') ?></p>
