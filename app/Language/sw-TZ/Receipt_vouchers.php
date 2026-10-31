@@ -31,5 +31,6 @@ return [
     'tax_amount'            => '',
     'treasury'              => '',
     'treasury_default'      => '',
+    'treasury_none'         => '',
     'update'                => '',
 ];

@@ -1,6 +1,6 @@
 <?php
 /**
- * @var string       $table_headers
+ * @var string       $tableHeaders
  * @var list<object> $categories
  * @var array        $config
  */
@@ -15,7 +15,7 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 
         table_support.init({
             resource: 'receipt_vouchers',
-            headers: <?= $table_headers ?>,
+            headers: <?= $tableHeaders ?>,
             pageSize: <?= $config['lines_per_page'] ?>,
             uniqueId: 'revenue_id',
             cardTitle: ['description'],

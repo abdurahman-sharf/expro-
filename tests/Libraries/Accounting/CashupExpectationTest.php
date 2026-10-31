@@ -72,6 +72,20 @@ class CashupExpectationTest extends CIUnitTestCase
         ]);
     }
 
+    private function insertVoucher(string $amount, string $payment = 'Cash', int $branchId = 1, int $deleted = 0, string $date = '2026-10-20', ?int $treasuryBranchId = null): void
+    {
+        $this->accountingDb()->table('revenues')->insert([
+            'date'               => $date,
+            'amount'             => $amount,
+            'payment_type'       => $payment,
+            'description'        => 'Voucher',
+            'employee_id'        => $this->clerkId,
+            'deleted'            => $deleted,
+            'branch_id'          => $branchId,
+            'treasury_branch_id' => $treasuryBranchId,
+        ]);
+    }
+
     public function testExpected_IsTheOpeningCashAndWhatWasMovedInWhenNothingHappened(): void
     {
         $this->assertSame('130.0000', $this->expected(1, '100', '30'));
@@ -268,5 +282,71 @@ class CashupExpectationTest extends CIUnitTestCase
         $this->insertExpense('45.00');
 
         $this->assertSame('355.0000', $this->expected(1, '100', '0'));
+    }
+
+    public function testExpected_CountsTheCashReceiptVouchersOfTheBranch(): void
+    {
+        $this->insertVoucher('50.00');
+        $this->insertVoucher('12.50');
+
+        $this->assertSame('162.5000', $this->expected());
+    }
+
+    public function testExpected_LeavesOutVouchersThatAreNotCashDeletedOfAnotherBranchOrOfOtherDays(): void
+    {
+        $second = $this->createBranch('B2');
+
+        $this->insertVoucher('30.00', 'Debit Card');
+        $this->insertVoucher('30.00', 'Cash', 1, 1);
+        $this->insertVoucher('30.00', 'Cash', $second);
+        $this->insertVoucher('30.00', 'Cash', 1, 0, '2026-10-19');
+        $this->insertVoucher('30.00', 'Cash', 1, 0, '2026-10-21');
+
+        $this->assertSame('100.0000', $this->expected());
+        $this->assertSame('130.0000', $this->expected($second), 'The cash voucher of the second branch is its own');
+    }
+
+    public function testExpected_CountsAVoucherInTheDrawerOfTheTreasuryThatHoldsTheCash(): void
+    {
+        $second = $this->createBranch('B2');
+
+        $this->insertVoucher('30.00', 'Cash', 1, 0, '2026-10-20', $second);
+
+        $this->assertSame('100.0000', $this->expected(1), 'The drawer of the first branch holds nothing of it');
+        $this->assertSame('130.0000', $this->expected($second));
+    }
+
+    public function testExpected_CountsEveryDayOfAVoucherFromOpeningToClosing(): void
+    {
+        $this->insertVoucher('10.00', 'Cash', 1, 0, '2026-10-18');
+        $this->insertVoucher('20.00', 'Cash', 1, 0, '2026-10-19');
+        $this->insertVoucher('40.00', 'Cash', 1, 0, '2026-10-21');
+        $this->insertVoucher('80.00', 'Cash', 1, 0, '2026-10-22');
+
+        $this->assertSame('160.0000', $this->expectation->expected(1, '2026-10-19 08:00:00', '2026-10-21 18:00:00', '100', '0'));
+    }
+
+    public function testExpected_CountsAVoucherOfTheDayOfTheCashUpWhenTheSettingsAskForTimes(): void
+    {
+        $settings = config(OSPOS::class)->settings;
+
+        config(OSPOS::class)->settings['date_or_time_format'] = '1';
+
+        try {
+            $this->insertVoucher('25.00', 'Cash', 1, 0, '2026-10-20');
+
+            $this->assertSame('125.0000', $this->expected());
+        } finally {
+            config(OSPOS::class)->settings = $settings;
+        }
+    }
+
+    public function testExpected_CombinesSalesExpensesAndVouchers(): void
+    {
+        $this->sellFor('300.00');
+        $this->insertExpense('45.00');
+        $this->insertVoucher('20.00');
+
+        $this->assertSame('375.0000', $this->expected(1, '100', '0'));
     }
 }

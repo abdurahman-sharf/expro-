@@ -5,12 +5,12 @@
  * @var string                    $number
  * @var list<object>              $events
  * @var list<object>              $journals
- * @var bool                      $journal_links
- * @var bool                      $can_manage
+ * @var bool                      $journalLinks
+ * @var bool                      $canManage
  * @var list<string>              $actions
  * @var callable(string): string  $amount
  * @var callable(?string): string $date
- * @var callable(string): string  $source_label
+ * @var callable(string): string  $sourceLabel
  */
 
 use App\Libraries\Accounting\ChequeStatus;
@@ -22,7 +22,7 @@ $id = (int) $cheque->cheque_id;
 
 <div id="title_bar" class="print_hide btn-toolbar">
     <a class="btn btn-outline-secondary btn-sm me-auto" href="<?= esc(base_url('accounting_cheques?direction=' . $direction), 'attr') ?>"><span class="bi bi-arrow-left" aria-hidden="true">&nbsp;</span><?= lang('Accounting_cheques.back') ?></a>
-    <?php if ($can_manage): ?>
+    <?php if ($canManage): ?>
         <?php foreach (['deposit', 'collect', 'reject', 'deliver'] as $action): ?>
             <?php if (in_array($action, $actions, true)): ?>
                 <button class="btn btn-outline-primary btn-sm modal-dlg" data-btn-submit="<?= lang('Common.submit') ?>" data-href="<?= esc(base_url("accounting_cheques/action_form/{$action}/{$id}"), 'attr') ?>" title="<?= esc(lang('Accounting_cheques.action_' . $action), 'attr') ?>"><?= lang('Accounting_cheques.action_' . $action) ?></button>
@@ -43,9 +43,17 @@ $id = (int) $cheque->cheque_id;
                 return;
             }
 
-            $.post('accounting_cheques/' + $(this).data('acc-action') + '/<?= $id ?>', {}, function(response) {
+            const action = $(this).data('acc-action');
+
+            $.post('accounting_cheques/' + action + '/<?= $id ?>', {}, function(response) {
                 toast_support.show(response.message, response.success ? 'success' : 'danger');
-                if (response.success) {
+                if (!response.success) {
+                    return;
+                }
+
+                if (action === 'delete') {
+                    window.location.href = '<?= esc(base_url('accounting_cheques?direction=' . $direction), 'js') ?>';
+                } else {
                     window.location.reload();
                 }
             }, 'json');
@@ -122,9 +130,9 @@ $id = (int) $cheque->cheque_id;
             <tbody>
             <?php foreach ($journals as $journal): ?>
                 <tr>
-                    <td><?= $journal_links ? anchor('accounting_journals/view/' . (int) $journal->journal_id, 'A-' . esc((string) $journal->number), ['dir' => 'ltr']) : '<bdi dir="ltr">A-' . esc((string) $journal->number) . '</bdi>' ?></td>
+                    <td><?= $journalLinks ? anchor('accounting_journals/view/' . (int) $journal->journal_id, 'A-' . esc((string) $journal->number), ['dir' => 'ltr']) : '<bdi dir="ltr">A-' . esc((string) $journal->number) . '</bdi>' ?></td>
                     <td><?= esc($date($journal->journal_date)) ?></td>
-                    <td><?= esc($source_label($journal->source_type)) ?> (<?= (int) $journal->revision ?>)</td>
+                    <td><?= esc($sourceLabel($journal->source_type)) ?> (<?= (int) $journal->revision ?>)</td>
                     <td><?= $amount((string) $journal->total_debit) ?></td>
                     <td><?= esc(lang('Accounting.state_' . $journal->status)) ?></td>
                 </tr>

@@ -30,6 +30,7 @@ return [
     'branch'              => '',
     'change'              => '',
     'cheque_number'       => '',
+    'cheques_manage'      => '',
     'collection_bank'     => '',
     'confirm_book_delete' => '',
     'confirm_book_off'    => '',

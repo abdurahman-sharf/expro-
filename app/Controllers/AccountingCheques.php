@@ -25,7 +25,7 @@ class AccountingCheques extends AccountingController
 {
     private const MAX_PAGE_SIZE = 500;
     private const ACTIONS       = ['deposit', 'collect', 'reject', 'deliver'];
-    private const PARTY_LIMIT   = 2000;
+    private const PARTY_LIMIT   = 20;
 
     private ChequeService $cheques;
     private ChequeBooks $books;
@@ -46,10 +46,10 @@ class AccountingCheques extends AccountingController
 
         return view('accounting_cheques/manage', [
             'direction'     => $direction->value,
-            'table_headers' => transform_headers($this->headers($direction), true, true),
+            'tableHeaders' => transform_headers($this->headers($direction), true, true),
             'statuses'      => $this->statusOptions($direction),
-            'can_manage'    => $this->can(AccountingGuard::CHEQUES_MANAGE),
-            'scope_notice'  => $this->scopeNoticeNeeded(),
+            'canManage'    => $this->can(AccountingGuard::CHEQUES_MANAGE),
+            'scopeNotice'  => $this->scopeNoticeNeeded(),
         ]);
     }
 
@@ -89,12 +89,12 @@ class AccountingCheques extends AccountingController
             'number'        => $this->numberOf($cheque),
             'events'        => $this->cheques->events($chequeId),
             'journals'      => $this->cheques->journalsOf($chequeId),
-            'journal_links' => $this->can('accounting_journals'),
-            'can_manage'    => $this->can(AccountingGuard::CHEQUES_MANAGE),
+            'journalLinks' => $this->can('accounting_journals'),
+            'canManage'    => $this->can(AccountingGuard::CHEQUES_MANAGE),
             'actions'       => $this->cheques->actionsOf($cheque),
             'amount'        => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
             'date'          => fn (?string $value): string => $this->formatDate($value),
-            'source_label'  => fn (string $source): string => $this->label('source', $source),
+            'sourceLabel'  => fn (string $source): string => $this->label('source', $source),
         ]);
     }
 
@@ -112,12 +112,20 @@ class AccountingCheques extends AccountingController
         return view('accounting_cheques/form', [
             'cheque'     => $cheque,
             'direction'  => $kind->value,
-            'parties'    => $this->parties($kind),
-            'treasuries' => $kind === ChequeDirection::Received ? (new TreasuryService(null, null, $this->branchGuard()))->all($this->branchIds(), false) : [],
-            'books'      => $kind === ChequeDirection::Paid ? $this->books->all($this->branchIds(), true) : [],
+            'treasuries' => $kind === ChequeDirection::Received ? $this->banksFor($cheque) : [],
+            'books'      => $kind === ChequeDirection::Paid ? $this->booksFor($cheque) : [],
             'today'      => date('Y-m-d'),
             'locked'     => $cheque !== null && ! ChequeStatus::from($cheque->status)->isFirst(),
         ]);
+    }
+
+    public function getParties(string $direction): ResponseInterface
+    {
+        $this->requireManage();
+
+        $parties = $this->list->parties($this->direction($direction), self::PARTY_LIMIT, trim((string) $this->request->getGet('term')));
+
+        return $this->response->setJSON(array_map(static fn (object $party): array => ['value' => (int) $party->person_id, 'label' => $party->name], $parties));
     }
 
     public function postSaveCheque(string $direction, int $chequeId = NEW_ENTRY): ResponseInterface
@@ -167,7 +175,7 @@ class AccountingCheques extends AccountingController
             'cheque'    => $cheque,
             'action'    => $action,
             'today'     => date('Y-m-d'),
-            'asks_fees' => $action === 'collect' && $cheque->status === ChequeStatus::Deposited->value,
+            'asksFees' => $action === 'collect' && $cheque->status === ChequeStatus::Deposited->value,
             'number'    => $this->numberOf($cheque),
         ]);
     }
@@ -228,7 +236,7 @@ class AccountingCheques extends AccountingController
     {
         return view('accounting_cheques/books', [
             'books'      => $this->books->all($this->branchIds()),
-            'can_manage' => $this->can(AccountingGuard::CHEQUES_MANAGE),
+            'canManage' => $this->can(AccountingGuard::CHEQUES_MANAGE),
         ]);
     }
 
@@ -374,11 +382,30 @@ class AccountingCheques extends AccountingController
     }
 
     /**
-     * @return list<object> The customers, or the suppliers, a cheque can be entered for, by name.
+     * The active banks of the branches the person may see and, for a cheque already entered, the bank it
+     * has even when that bank is out of use since, so that saving the cheque again keeps it.
+     *
+     * @return list<object>
      */
-    private function parties(ChequeDirection $direction): array
+    private function banksFor(?object $cheque): array
     {
-        return $this->list->parties($direction, self::PARTY_LIMIT);
+        return array_values(array_filter(
+            (new TreasuryService(null, null, $this->branchGuard()))->all($this->branchIds()),
+            static fn (object $treasury): bool => (int) $treasury->active === 1 || ($cheque !== null && (int) $treasury->treasury_id === (int) $cheque->treasury_id),
+        ));
+    }
+
+    /**
+     * The books in use and, for a cheque already written, its own book even when it is out of use since.
+     *
+     * @return list<object>
+     */
+    private function booksFor(?object $cheque): array
+    {
+        return array_values(array_filter(
+            $this->books->all($this->branchIds()),
+            static fn (object $book): bool => (int) $book->active === 1 || ($cheque !== null && (int) $book->book_id === (int) $cheque->book_id),
+        ));
     }
 
     private function numberOf(object $cheque): string
@@ -415,8 +442,10 @@ class AccountingCheques extends AccountingController
      */
     private function row(object $cheque): array
     {
-        $id   = (int) $cheque->cheque_id;
-        $link = anchor("accounting_cheques/view/{$id}", '<bdi dir="ltr">' . esc($this->numberOf($cheque)) . '</bdi>');
+        $id      = (int) $cheque->cheque_id;
+        $deleted = (int) $cheque->deleted === 1;
+        $number  = '<bdi dir="ltr">' . esc($this->numberOf($cheque)) . '</bdi>';
+        $link    = $deleted ? $number : anchor("accounting_cheques/view/{$id}", $number);
 
         return [
             'cheque_id'     => $id,
@@ -428,7 +457,7 @@ class AccountingCheques extends AccountingController
             'amount'        => $this->amountCell($this->formatAmount((string) $cheque->amount)),
             'status'        => '<span class="badge text-bg-secondary">' . esc(lang(ChequeStatus::from($cheque->status)->labelKey())) . '</span>',
             'branch_code'   => $cheque->branch_code,
-            'edit'          => $this->actions($cheque),
+            'edit'          => $deleted ? '' : $this->actions($cheque),
         ];
     }
 

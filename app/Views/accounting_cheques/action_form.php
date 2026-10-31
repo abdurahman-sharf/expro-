@@ -3,16 +3,18 @@
  * @var object $cheque
  * @var string $action
  * @var string $today
- * @var bool   $asks_fees
+ * @var bool   $asksFees
  * @var string $number
  */
+
+use App\Libraries\Accounting\AmountText;
 ?>
 
 <div id="required_fields_message"><?= lang('Common.fields_required_message') ?></div>
 <ul id="error_message_box" class="error_message_box"></ul>
 
 <?= form_open('accounting_cheques/act/' . $action . '/' . (int) $cheque->cheque_id, ['id' => 'cheque_action_form', 'class' => 'app-form']) ?>
-    <p class="mb-2"><?= esc(lang('Accounting_cheques.action_' . $action)) ?>: <bdi dir="ltr"><?= esc($number) ?></bdi> · <bdi dir="ltr"><?= esc($cheque->cheque_number) ?></bdi> · <bdi dir="ltr"><?= esc(bcadd((string) $cheque->amount, '0', 2)) ?></bdi></p>
+    <p class="mb-2"><?= esc(lang('Accounting_cheques.action_' . $action)) ?>: <bdi dir="ltr"><?= esc($number) ?></bdi> · <bdi dir="ltr"><?= esc($cheque->cheque_number) ?></bdi> · <bdi dir="ltr"><?= esc(AmountText::forField((string) $cheque->amount)) ?></bdi></p>
     <fieldset>
         <div class="form-grid">
             <div class="field">
@@ -22,7 +24,7 @@
                 </div>
             </div>
 
-            <?php if ($asks_fees): ?>
+            <?php if ($asksFees): ?>
                 <div class="field">
                     <?= form_label(lang('Accounting_cheques.deposit_fees'), 'fees', ['class' => 'form-label text-danger required']) ?>
                     <div class="field-control">
@@ -58,11 +60,11 @@
             errorLabelContainer: '#error_message_box',
 
             rules: {
-                date: 'required'<?= $asks_fees ? ",\n                fees: 'required'" : '' ?>
+                date: 'required'<?= $asksFees ? ",\n                fees: 'required'" : '' ?>
             },
 
             messages: {
-                date: "<?= esc(lang('Accounting_cheques.date_required'), 'js') ?>"<?= $asks_fees ? ',
+                date: "<?= esc(lang('Accounting_cheques.date_required'), 'js') ?>"<?= $asksFees ? ',
                 fees: "' . esc(lang('Accounting_cheques.fees_required'), 'js') . '"' : '' ?>
             }
         }, form_support.error));

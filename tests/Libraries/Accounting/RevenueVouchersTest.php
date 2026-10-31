@@ -650,4 +650,92 @@ class RevenueVouchersTest extends CIUnitTestCase
         $this->assertSame([$third], $page(2, 2));
         $this->assertSame([$second], $page(1, 1));
     }
+
+    public function testSave_KeepsTheTreasuryOfAChangedVoucherWhenTheDefaultOptionIsPosted(): void
+    {
+        $second = $this->treasury('Second drawer');
+        $id     = $this->save(['treasury_id' => $second]);
+
+        (new TreasuryService())->setDefaultFor($this->clerkId, $this->treasuryId);
+
+        $this->save(['treasury_id' => 0, 'description' => 'Only the text changes'], $id);
+
+        $this->assertSame($second, (int) $this->vouchers->find($id)->treasury_id);
+        $this->assertSame([0, 1], [$this->journalCount('reversed'), $this->journalCount('posted')]);
+        $this->assertSame('100.00', $this->assertTreasuryTiesToItsAccount($second));
+    }
+
+    public function testSave_KeepsAVoucherWithoutATreasuryWhenTheDefaultOptionIsPosted(): void
+    {
+        $input = $this->input();
+
+        unset($input['treasury_id']);
+
+        $id = $this->vouchers->save($input, null, $this->clerkId);
+
+        (new TreasuryService())->setDefaultFor($this->clerkId, $this->treasuryId);
+
+        $this->save(['treasury_id' => 0, 'description' => 'Only the text changes'], $id);
+
+        $this->assertNull($this->vouchers->find($id)->treasury_id);
+        $this->assertSame([0, 1], [$this->journalCount('reversed'), $this->journalCount('posted')]);
+    }
+
+    public function testSave_KeepsATreasuryThatWasDeactivatedWhenTheVoucherIsSavedWithIt(): void
+    {
+        $second = $this->treasury('Second drawer');
+        $id     = $this->save(['treasury_id' => $second]);
+
+        $this->accountingDb()->table('treasuries')->where('treasury_id', $second)->update(['active' => 0]);
+
+        $this->save(['treasury_id' => $second, 'description' => 'Only the text changes'], $id);
+
+        $this->assertSame($second, (int) $this->vouchers->find($id)->treasury_id);
+        $this->assertSame([0, 1], [$this->journalCount('reversed'), $this->journalCount('posted')]);
+        $this->assertSame(AccountingError::TreasuryInactive, $this->refusal(fn () => $this->save(['treasury_id' => $second], null))->error, 'A new voucher is not received into it');
+    }
+
+    public function testSave_KeepsTheEmployeeWhoEnteredAVoucherWhenAnotherOneChangesIt(): void
+    {
+        $other = $this->employeeWithGrants([]);
+        $id    = $this->save();
+
+        $this->save(['description' => 'Fixed by someone else'], $id, $other);
+
+        $this->assertSame($this->clerkId, (int) $this->vouchers->find($id)->employee_id);
+        $this->assertSame('Fixed by someone else', $this->vouchers->find($id)->description);
+    }
+
+    public function testSave_KeepsACategoryThatWasDeletedAndAnAccountThatWasPutOutOfUseOnTheVoucherThatHasThem(): void
+    {
+        $account  = $this->customAccount('42', '4210', 'Rent income');
+        $category = $this->revenueCategory('Rent', $this->customAccount('42', '4211', 'Category income'));
+        $id       = $this->save(['category_id' => $category, 'account_id' => $account]);
+
+        $this->categories->delete([$category], null);
+        $this->accountingDb()->table('accounting_accounts')->where('account_id', $account)->update(['active' => 0]);
+
+        $this->save(['category_id' => $category, 'account_id' => $account, 'description' => 'Only the text changes'], $id);
+
+        $row = $this->vouchers->find($id);
+
+        $this->assertSame([$category, $account], [(int) $row->revenue_category_id, (int) $row->account_id]);
+        $this->assertSame([0, 1], [$this->journalCount('reversed'), $this->journalCount('posted')], 'The journal was not touched');
+        $this->assertSame([$this->treasuryAccount() . '=100.00/0.00', $account . '=0.00/100.00'], $this->standing($id));
+    }
+
+    public function testSave_RejectsADeletedCategoryAndAnAccountOutOfUseThatTheVoucherDoesNotHave(): void
+    {
+        $account  = $this->customAccount('42', '4210', 'Rent income');
+        $category = $this->revenueCategory('Rent');
+        $id       = $this->save();
+
+        $this->categories->delete([$category], null);
+        $this->accountingDb()->table('accounting_accounts')->where('account_id', $account)->update(['active' => 0]);
+
+        $this->assertSame(AccountingError::RevenueCategoryNotFound, $this->refusal(fn () => $this->save(['category_id' => $category], $id))->error);
+        $this->assertSame(AccountingError::RevenueAccountInvalid, $this->refusal(fn () => $this->save(['account_id' => $account], $id))->error);
+        $this->assertNull($this->vouchers->find($id)->revenue_category_id);
+        $this->assertNull($this->vouchers->find($id)->account_id);
+    }
 }

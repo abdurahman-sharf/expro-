@@ -24,7 +24,7 @@ class Revenue_categories extends AccountingController
 
     public function getIndex(): string
     {
-        return view('revenue_categories/manage', ['table_headers' => transform_headers($this->headers(), false, true)]);
+        return view('revenue_categories/manage', ['tableHeaders' => transform_headers($this->headers(), false, true)]);
     }
 
     public function getSearch(): ResponseInterface
@@ -50,8 +50,8 @@ class Revenue_categories extends AccountingController
 
         return view('revenue_categories/form', [
             'category'           => $categoryId === NEW_ENTRY ? null : $this->category($categoryId),
-            'account_options'    => $accounts,
-            'can_assign_account' => $this->categories->mayAssign($this->employeeId()),
+            'accountOptions'    => $accounts,
+            'canAssignAccount' => $this->categories->mayAssign($this->employeeId()),
         ]);
     }
 

@@ -43,7 +43,7 @@ final readonly class TaxReportResult
     }
 
     /**
-     * @return numeric-string The tax of sales, less that of the sales taken back.
+     * @return numeric-string The tax of sales and of receipt vouchers, less that of the sales taken back.
      */
     public function output(): string
     {
@@ -67,7 +67,7 @@ final readonly class TaxReportResult
     }
 
     /**
-     * @return numeric-string The part of sales that carries tax, less that of the sales taken back.
+     * @return numeric-string The part of sales and of receipt vouchers that carries tax, less that of the sales taken back.
      */
     public function outputBase(): string
     {

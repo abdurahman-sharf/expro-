@@ -1,6 +1,6 @@
 <?php
 /**
- * @var string $table_headers
+ * @var string $tableHeaders
  * @var array  $config
  */
 ?>
@@ -13,7 +13,7 @@
 
         table_support.init({
             resource: 'revenue_categories',
-            headers: <?= $table_headers ?>,
+            headers: <?= $tableHeaders ?>,
             pageSize: <?= $config['lines_per_page'] ?>,
             uniqueId: 'revenue_category_id',
             cardTitle: ['category_name']

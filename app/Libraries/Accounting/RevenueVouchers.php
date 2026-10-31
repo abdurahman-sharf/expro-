@@ -64,16 +64,17 @@ final class RevenueVouchers
                 $this->branches->requireBranch((int) $stored->branch_id, $employeeId);
             }
 
+            $this->assertReferences($data, $stored);
             $this->assertAccountChosen($data, $stored);
 
             [$branchId, $treasuryId] = $this->place($input, $stored, (string) $data['payment_type'], $employeeId);
 
             $this->branches->requireBranch($branchId, $employeeId);
 
-            $row = [...$data, 'branch_id' => $branchId, 'treasury_id' => $treasuryId, 'treasury_branch_id' => null, 'employee_id' => $employeeId];
+            $row = [...$data, 'branch_id' => $branchId, 'treasury_id' => $treasuryId, 'treasury_branch_id' => null];
 
             if ($stored === null) {
-                $this->db->table('revenues')->insert([...$row, 'company_id' => CompanyContext::id()]);
+                $this->db->table('revenues')->insert([...$row, 'company_id' => CompanyContext::id(), 'employee_id' => $employeeId]);
 
                 $revenueId = (int) $this->db->insertID();
 
@@ -277,8 +278,12 @@ final class RevenueVouchers
             throw new AccountingException(AccountingError::RevenuePaymentInvalid, "The payment type {$paymentType} is not one a receipt voucher is received with.", ['payment_type' => $paymentType]);
         }
 
-        $asked  = array_key_exists('treasury_id', $input) ? (int) $input['treasury_id'] : null;
-        $stored = $stored === null ? null : (object) ['branch_id' => (int) $stored->branch_id, 'treasury_id' => $stored->treasury_id === null ? null : (int) $stored->treasury_id];
+        $asked    = array_key_exists('treasury_id', $input) ? (int) $input['treasury_id'] : null;
+        $storedId = $stored === null || $stored->treasury_id === null ? null : (int) $stored->treasury_id;
+
+        if ($stored !== null && ($asked === null || $asked === 0 || $asked === $storedId)) {
+            return [(int) $stored->branch_id, $storedId];
+        }
 
         if ($asked !== null && $asked > 0) {
             $treasury = $this->treasuries->find($asked);
@@ -294,11 +299,7 @@ final class RevenueVouchers
             return [(int) $treasury->branch_id, $asked];
         }
 
-        if ($stored !== null && $asked === null) {
-            return [$stored->branch_id, $stored->treasury_id];
-        }
-
-        $branchId = $stored?->branch_id ?? $this->branches->defaultBranchId($employeeId);
+        $branchId = $this->branches->defaultBranchId($employeeId);
 
         return [$branchId, $this->treasuries->stampFor($employeeId, $branchId, TreasuryScopes::DEPOSIT)];
     }
@@ -333,14 +334,6 @@ final class RevenueVouchers
         $categoryId = (int) ($input['category_id'] ?? 0);
         $accountId  = (int) ($input['account_id'] ?? 0);
 
-        if ($categoryId > 0 && $this->db->table('revenue_categories')->where(['revenue_category_id' => $categoryId, 'deleted' => 0])->countAllResults() === 0) {
-            throw new AccountingException(AccountingError::RevenueCategoryNotFound, "Revenue category {$categoryId} does not exist.", ['category_id' => $categoryId]);
-        }
-
-        if ($accountId > 0) {
-            $this->assertRevenueAccount($accountId);
-        }
-
         return [
             'date'                => $date->format('Y-m-d'),
             'amount'              => bcadd($amount, '0', SaleAmounts::SCALE),
@@ -350,6 +343,30 @@ final class RevenueVouchers
             'account_id'          => $accountId > 0 ? $accountId : null,
             'description'         => mb_substr(trim((string) ($input['description'] ?? '')), 0, self::NOTE_MAX),
         ];
+    }
+
+    /**
+     * The category and the account of a voucher are ones that can be chosen, unless the voucher
+     * already has them: a category that was deleted or an account that was put out of use since stays
+     * on the voucher that carries it, and saving the voucher again does not move it.
+     *
+     * @param array<string, mixed> $data
+     *
+     * @throws AccountingException
+     */
+    private function assertReferences(array $data, ?object $stored): void
+    {
+        $categoryId = $data['revenue_category_id'];
+        $accountId  = $data['account_id'];
+
+        if ($categoryId !== null && ($stored === null || (int) $stored->revenue_category_id !== $categoryId)
+            && $this->db->table('revenue_categories')->where(['revenue_category_id' => $categoryId, 'deleted' => 0])->countAllResults() === 0) {
+            throw new AccountingException(AccountingError::RevenueCategoryNotFound, "Revenue category {$categoryId} does not exist.", ['category_id' => $categoryId]);
+        }
+
+        if ($accountId !== null && ($stored === null || (int) $stored->account_id !== $accountId)) {
+            $this->assertRevenueAccount($accountId);
+        }
     }
 
     /**

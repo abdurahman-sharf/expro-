@@ -5,9 +5,11 @@
  * @var list<object>          $categories
  * @var list<object>          $accounts
  * @var list<object>          $treasuries
- * @var array<string, string> $payment_options
+ * @var array<string, string> $paymentOptions
  * @var string                $today
  */
+use App\Libraries\Accounting\AmountText;
+
 $isNew = $voucher === null;
 ?>
 
@@ -34,7 +36,7 @@ $isNew = $voucher === null;
             <div class="field">
                 <?= form_label(lang('Receipt_vouchers.amount'), 'amount', ['class' => 'form-label text-danger required']) ?>
                 <div class="field-control">
-                    <input type="text" name="amount" id="amount" class="form-control form-control-sm ltr-input" dir="ltr" inputmode="decimal" autocomplete="off" value="<?= $isNew ? '' : esc(bcadd((string) $voucher->amount, '0', 2), 'attr') ?>">
+                    <input type="text" name="amount" id="amount" class="form-control form-control-sm ltr-input" dir="ltr" inputmode="decimal" autocomplete="off" value="<?= $isNew ? '' : esc(AmountText::forField((string) $voucher->amount), 'attr') ?>">
                     <p class="form-text"><?= lang('Receipt_vouchers.amount_note') ?></p>
                 </div>
             </div>
@@ -42,7 +44,7 @@ $isNew = $voucher === null;
             <div class="field">
                 <?= form_label(lang('Receipt_vouchers.tax_amount'), 'tax_amount', ['class' => 'form-label']) ?>
                 <div class="field-control">
-                    <input type="text" name="tax_amount" id="tax_amount" class="form-control form-control-sm ltr-input" dir="ltr" inputmode="decimal" autocomplete="off" value="<?= $isNew ? '0.00' : esc(bcadd((string) $voucher->tax_amount, '0', 2), 'attr') ?>">
+                    <input type="text" name="tax_amount" id="tax_amount" class="form-control form-control-sm ltr-input" dir="ltr" inputmode="decimal" autocomplete="off" value="<?= $isNew ? '0.00' : esc(AmountText::forField((string) $voucher->tax_amount), 'attr') ?>">
                 </div>
             </div>
 
@@ -50,7 +52,7 @@ $isNew = $voucher === null;
                 <?= form_label(lang('Receipt_vouchers.payment_type'), 'payment_type', ['class' => 'form-label text-danger required']) ?>
                 <div class="field-control">
                     <select name="payment_type" id="payment_type" class="form-select form-select-sm">
-                        <?php foreach ($payment_options as $label): ?>
+                        <?php foreach ($paymentOptions as $label): ?>
                             <option value="<?= esc($label, 'attr') ?>"<?= ! $isNew && $voucher->payment_type === $label ? ' selected' : '' ?>><?= esc($label) ?></option>
                         <?php endforeach; ?>
                     </select>
@@ -62,7 +64,11 @@ $isNew = $voucher === null;
                 <?= form_label(lang('Receipt_vouchers.treasury'), 'treasury_id', ['class' => 'form-label']) ?>
                 <div class="field-control">
                     <select name="treasury_id" id="treasury_id" class="form-select form-select-sm">
-                        <option value="0"><?= lang('Receipt_vouchers.treasury_default') ?></option>
+                        <?php if ($isNew): ?>
+                            <option value="0"><?= lang('Receipt_vouchers.treasury_default') ?></option>
+                        <?php elseif ($voucher->treasury_id === null): ?>
+                            <option value="0" selected><?= lang('Receipt_vouchers.treasury_none') ?></option>
+                        <?php endif; ?>
                         <?php foreach ($treasuries as $treasury): ?>
                             <option value="<?= (int) $treasury->treasury_id ?>"<?= ! $isNew && (int) $voucher->treasury_id === (int) $treasury->treasury_id ? ' selected' : '' ?>><?= esc($treasury->name . ' (' . $treasury->branch_code . ')') ?></option>
                         <?php endforeach; ?>

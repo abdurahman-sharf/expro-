@@ -219,6 +219,20 @@ class ChequeServiceTest extends CIUnitTestCase
         return $queries;
     }
 
+    /**
+     * @param list<string> $queries
+     */
+    private function firstIndexOf(array $queries, callable $match): int
+    {
+        foreach ($queries as $index => $sql) {
+            if ($match($sql)) {
+                return $index;
+            }
+        }
+
+        return -1;
+    }
+
     private function futureDate(int $days): string
     {
         return date('Y-m-d', strtotime("+{$days} days"));
@@ -889,6 +903,87 @@ class ChequeServiceTest extends CIUnitTestCase
 
         $this->assertSame(AccountingError::ChequeNumberTaken, $this->refusal(fn () => $this->paid())->error);
         $this->assertSame(1, $this->countRows('cheques'));
+    }
+
+    public function testIssue_RejectsANumberThatIsTheSameSerialWrittenWithLeadingZeros(): void
+    {
+        $this->paid(['cheque_number' => '800001']);
+
+        foreach (['0800001', '000800001'] as $number) {
+            $this->assertSame(AccountingError::ChequeNumberTaken, $this->refusal(fn () => $this->paid(['cheque_number' => $number, 'party_id' => $this->supplierId]))->error, $number);
+        }
+
+        $this->assertSame(1, $this->countRows('cheques'));
+    }
+
+    public function testIssue_AcceptsTheSerialAfterTheOneAnotherChequeHas(): void
+    {
+        $this->paid(['cheque_number' => '800001']);
+
+        $second = $this->paid(['cheque_number' => '0800002']);
+
+        $this->assertSame('0800002', $this->cheques->find($second)->cheque_number, 'The number is kept as it was written');
+    }
+
+    public function testIssue_LocksTheBookBeforeItLooksForTheSerialAndWritesTheCheque(): void
+    {
+        $queries = $this->queriesOf(fn () => $this->paid());
+
+        $lock  = $this->firstIndexOf($queries, static fn (string $sql): bool => str_contains($sql, 'FOR UPDATE') && str_contains($sql, 'ospos_cheque_books'));
+        $check = $this->firstIndexOf($queries, static fn (string $sql): bool => str_contains($sql, 'CAST(cheque_number AS UNSIGNED)'));
+        $write = $this->firstIndexOf($queries, static fn (string $sql): bool => stripos($sql, 'INSERT INTO') !== false && str_contains($sql, 'ospos_cheques'));
+
+        $this->assertGreaterThanOrEqual(0, $lock, 'The book is locked');
+        $this->assertGreaterThan($lock, $check, 'The serial is looked for under the lock');
+        $this->assertGreaterThan($check, $write);
+    }
+
+    public function testUpdate_RejectsTheSameSerialWrittenWithLeadingZerosAndAcceptsTheOwnNumberRewritten(): void
+    {
+        $this->paid(['cheque_number' => '800002']);
+
+        $chequeId = $this->paid();
+
+        $this->assertSame(AccountingError::ChequeNumberTaken, $this->refusal(fn () => $this->cheques->update($chequeId, $this->paidInput(['cheque_number' => '0800002']), $this->clerk))->error);
+
+        $this->cheques->update($chequeId, $this->paidInput(['cheque_number' => '0800001']), $this->clerk);
+
+        $this->assertSame('0800001', $this->cheques->find($chequeId)->cheque_number);
+    }
+
+    public function testCollect_RejectsABankThatWasDeactivatedWhileTheChequeWasOnTheWay(): void
+    {
+        $other    = $this->bankAccount('Closing bank');
+        $chequeId = $this->received(['treasury_id' => $other]);
+
+        (new TreasuryService())->deactivate($other, $this->clerk);
+
+        $this->assertSame(AccountingError::TreasuryInactive, $this->refusal(fn () => $this->cheques->collect($chequeId, $this->today, null, $this->clerk))->error);
+        $this->assertSame('received', $this->statusOf($chequeId));
+        $this->assertSame(0, $this->countJournalsOf(ChequeSources::COLLECTED, $chequeId));
+
+        $this->cheques->deposit($chequeId, $this->today, $this->clerk);
+
+        $this->assertSame(AccountingError::TreasuryInactive, $this->refusal(fn () => $this->cheques->collect($chequeId, $this->today, '0', $this->clerk))->error);
+        $this->assertSame('deposited', $this->statusOf($chequeId));
+
+        $this->cheques->reject($chequeId, $this->today, $this->clerk);
+
+        $this->assertSame('rejected', $this->statusOf($chequeId), 'A rejection posts nothing to the bank');
+    }
+
+    public function testCollect_OfAPaidChequeRejectsABankThatWasDeactivated(): void
+    {
+        $other = $this->bankAccount('Closing bank');
+        $book  = (new ChequeBooks())->create(['treasury_id' => $other, 'name' => 'Closing book', 'first_serial' => '900001', 'last_serial' => '900010'], $this->clerk);
+
+        $chequeId = $this->cheques->issue($this->paidInput(['book_id' => $book, 'cheque_number' => '900001']), $this->clerk, $this->today);
+
+        (new TreasuryService())->deactivate($other, $this->clerk);
+
+        $this->assertSame(AccountingError::TreasuryInactive, $this->refusal(fn () => $this->cheques->collect($chequeId, $this->today, null, $this->clerk))->error);
+        $this->assertSame('delivered', $this->statusOf($chequeId));
+        $this->assertSame(0, $this->countJournalsOf(ChequeSources::PAID_COLLECTED, $chequeId));
     }
 
     public function testIssue_AllowsTheNumberOfADeletedCheque(): void

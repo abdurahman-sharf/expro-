@@ -13,11 +13,11 @@ use DateTimeImmutable;
  * to the accounts of tax, a journal that was reversed with its reversal, so that a document that
  * was taken back counts for nothing and the report can be set beside the trial balance of the same
  * branches and days. Each journal is sorted into the part of the report its document belongs to:
- * a sale, a return of a sale, a purchase, a purchase taken back or an expense.
+ * a sale, a return of a sale, a purchase, a purchase taken back, an expense or a receipt voucher.
  *
  * What the tax was charged on, and the rate, come from the lines of the document the journal was
  * posted for, the way posting reads them, so a document that was never posted has no part in it.
- * For an expense, which carries no lines, it comes from the journal itself. A document whose lines
+ * For an expense and a receipt voucher, which carry no lines, it comes from the journal itself. A document whose lines
  * no longer say what its journal says, or that is gone with its lines as a deleted purchase is,
  * keeps its tax in the report and leaves its base out, so that a period that was read once is read
  * the same after the document is deleted, and the report still ties to the books. What the
@@ -65,7 +65,7 @@ final class TaxReport
         $reported  = [];
         $others    = [];
         $pending   = [];
-        $expenses  = [];
+        $lineless  = [];
         $unmatched = 0;
 
         foreach ($rows as $row) {
@@ -76,11 +76,13 @@ final class TaxReport
 
             $ledger[$accountId] = bcadd($ledger[$accountId] ?? '0', $movement, self::SCALE);
 
-            if ($type === ExpensePostingBuilder::SOURCE) {
-                $reported[$accountId] = bcadd($reported[$accountId] ?? '0', $movement, self::SCALE);
-                $expenses[$sourceId]  = bcadd($expenses[$sourceId] ?? '0', $movement, self::SCALE);
+            if ($type === ExpensePostingBuilder::SOURCE || $type === RevenuePostingBuilder::SOURCE) {
+                $section = $type === ExpensePostingBuilder::SOURCE ? TaxSection::Expenses : TaxSection::Revenues;
 
-                $this->addExpense($parts[TaxSection::Expenses->value], $movement, (string) $row->total_debit);
+                $reported[$accountId]                      = bcadd($reported[$accountId] ?? '0', $movement, self::SCALE);
+                $lineless[$section->value][$sourceId]      = bcadd($lineless[$section->value][$sourceId] ?? '0', $movement, self::SCALE);
+
+                $this->addWithoutLines($parts[$section->value], $movement, (string) $row->total_debit);
 
                 continue;
             }
@@ -94,7 +96,9 @@ final class TaxReport
             $others[$accountId][(int) $row->journal_id] = true;
         }
 
-        $parts[TaxSection::Expenses->value]['documents'] = count(array_filter($expenses, static fn (string $net): bool => bccomp($net, '0', self::SCALE) !== 0));
+        foreach ($lineless as $section => $documents) {
+            $parts[$section]['documents'] = count(array_filter($documents, static fn (string $net): bool => bccomp($net, '0', self::SCALE) !== 0));
+        }
 
         foreach ($pending as $type => $documents) {
             $loaded = $type === SalePostingBuilder::SOURCE_SALE ? $this->documents->sales(array_keys($documents)) : $this->documents->purchases(array_keys($documents));
@@ -198,11 +202,12 @@ final class TaxReport
     }
 
     /**
-     * An expense has no lines, so what the tax was charged on is the journal less the tax in it.
+     * An expense and a receipt voucher have no lines, so what the tax was charged on is the journal
+     * less the tax in it.
      *
      * @param array{base: string, tax: string, documents: int, rates: array<string, array{base: string, tax: string, documents: int}>, discounted: array{documents: int, base: string, tax: string}} $part
      */
-    private function addExpense(array &$part, string $movement, string $totalDebit): void
+    private function addWithoutLines(array &$part, string $movement, string $totalDebit): void
     {
         $sign = bccomp($movement, '0', self::SCALE);
 

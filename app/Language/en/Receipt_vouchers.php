@@ -31,5 +31,6 @@ return [
     'tax_amount'            => 'Tax in the amount',
     'treasury'              => 'Treasury',
     'treasury_default'      => 'The treasury I work from',
+    'treasury_none'         => 'No treasury: the account of its way of payment',
     'update'                => 'Edit the receipt voucher',
 ];

@@ -276,6 +276,8 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
     {
         $this->startCheques();
 
+        (new DocumentNumbering())->configure(DocumentType::ReceivedCheque, ['enabled' => true, 'prefix' => 'RC-', 'padding' => 4], $this->employeeWithGrants(['config']));
+
         $invoice = $this->invoiceOf('60.00');
         $cheque  = $this->receiveCheque('100.00', date('Y-m-d'));
 
@@ -285,7 +287,9 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
 
         $this->assertStringContainsString(lang('Accounting_cheques.credit_source'), $body);
         $this->assertStringContainsString('accounting_cheques/view/' . $cheque, $body);
-        $this->assertStringContainsString('CHQ ' . $cheque, $body);
+        $this->assertStringContainsString('>RC-0001</a>', $body, 'The credit is named by the number of the cheque');
+        $this->assertStringContainsString('<bdi dir="ltr">RC-0001</bdi>', $body, 'And so is what it settled');
+        $this->assertStringNotContainsString('CHQ ' . $cheque, $body);
         $this->assertStringNotContainsString('sales/receipt/' . $cheque . '"', $body);
         $this->assertStringContainsString('POS ' . $invoice, $body);
         $this->assertStringContainsString(lang('Accounting_receivables.agrees_yes'), $body);

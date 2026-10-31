@@ -30,6 +30,7 @@ return [
     'branch'              => 'Branch',
     'change'              => 'Change',
     'cheque_number'       => 'Cheque number',
+    'cheques_manage'      => 'Enter, change, deposit, collect, reject and delete cheques, and manage the cheque books',
     'collection_bank'     => 'Collected into',
     'confirm_book_delete' => 'Delete this book?',
     'confirm_book_off'    => 'Put this book out of use?',

@@ -34,7 +34,7 @@ class Receipt_vouchers extends AccountingController
     public function getIndex(): string
     {
         return view('receipt_vouchers/manage', [
-            'table_headers' => transform_headers($this->headers(), false, true),
+            'tableHeaders' => transform_headers($this->headers(), false, true),
             'categories'    => $this->categories->all(),
         ]);
     }
@@ -71,15 +71,23 @@ class Receipt_vouchers extends AccountingController
         $numbering  = new DocumentNumbering();
         $treasuries = new TreasuryService(null, null, $this->branchGuard());
         $usable     = (new TreasuryScopes(null, $this->branchGuard()))->usable($treasuries->all($this->branchIds(), false), TreasuryScopes::DEPOSIT, $this->employeeId());
+        $categories = $this->categories->all();
+        $accounts   = $this->categories->accountOptions();
+
+        if ($voucher !== null) {
+            $usable     = $this->keeping($usable, 'treasury_id', $voucher->treasury_id, ['name' => $voucher->treasury_name, 'branch_code' => $voucher->branch_code]);
+            $categories = $this->keeping($categories, 'revenue_category_id', $voucher->revenue_category_id, ['category_name' => $voucher->category_name]);
+            $accounts   = $this->keeping($accounts, 'account_id', $voucher->account_id, ['code' => $voucher->account_code, 'name' => $voucher->account_name]);
+        }
 
         return view('receipt_vouchers/form', [
-            'voucher'         => $voucher,
-            'number'          => $voucher === null ? $numbering->peek(DocumentType::Revenue) : $numbering->label(DocumentType::Revenue, 'revenues', $revenueId),
-            'categories'      => $this->categories->all(),
-            'accounts'        => $this->categories->accountOptions(),
-            'treasuries'      => $usable,
-            'payment_options' => $this->paymentOptions(),
-            'today'           => date('Y-m-d'),
+            'voucher'        => $voucher,
+            'number'         => $voucher === null ? $numbering->peek(DocumentType::Revenue) : $numbering->label(DocumentType::Revenue, 'revenues', $revenueId),
+            'categories'     => $categories,
+            'accounts'       => $accounts,
+            'treasuries'     => $usable,
+            'paymentOptions' => $this->paymentOptions(),
+            'today'          => date('Y-m-d'),
         ]);
     }
 
@@ -137,6 +145,33 @@ class Receipt_vouchers extends AccountingController
         }
 
         return $voucher;
+    }
+
+    /**
+     * The options of a list with the one a voucher already has added when it is not among them, because
+     * it was put out of use or deleted since: the voucher keeps it, and a form that did not offer it would
+     * post another one and move the voucher.
+     *
+     * @param list<object>         $options
+     * @param array<string, mixed> $labels  What the form prints for the option.
+     *
+     * @return list<object>
+     */
+    private function keeping(array $options, string $key, mixed $currentId, array $labels): array
+    {
+        $id = (int) $currentId;
+
+        if ($id === 0) {
+            return $options;
+        }
+
+        foreach ($options as $option) {
+            if ((int) $option->{$key} === $id) {
+                return $options;
+            }
+        }
+
+        return [...$options, (object) [$key => $id, ...$labels]];
     }
 
     /**

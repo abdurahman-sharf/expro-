@@ -30,6 +30,7 @@ return [
     'branch'              => 'الفرع',
     'change'              => 'الإجراء',
     'cheque_number'       => 'رقم الشيك',
+    'cheques_manage'      => 'تسجيل الشيكات وتعديلها وإيداعها وتحصيلها ورفضها وحذفها، وإدارة دفاتر الشيكات',
     'collection_bank'     => 'يُحصَّل في',
     'confirm_book_delete' => 'حذف هذا الدفتر؟',
     'confirm_book_off'    => 'إيقاف استعمال هذا الدفتر؟',

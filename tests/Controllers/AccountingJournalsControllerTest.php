@@ -1728,4 +1728,15 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
             $this->assertStringContainsString('<option value="' . $code . '">' . lang('Accounting.' . $key) . '</option>', $body);
         }
     }
+
+    public function testGetAudit_OffersTheEntityFilterForChequesChequeBooksVouchersAndVoucherCategories(): void
+    {
+        $this->accountant();
+
+        $body = $this->get('/accounting_journals/audit')->getBody();
+
+        foreach (['cheque' => 'entity_cheque', 'cheque_book' => 'entity_cheque_book', 'revenue' => 'entity_revenue', 'revenue_category' => 'entity_revenue_category'] as $code => $key) {
+            $this->assertStringContainsString('<option value="' . $code . '">' . lang('Accounting.' . $key) . '</option>', $body);
+        }
+    }
 }

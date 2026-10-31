@@ -11,7 +11,8 @@ use Config\Database;
 /**
  * The cheque books of the bank accounts, each with the range of serial numbers its cheques may
  * have. A cheque paid to a supplier is written out of an active book. A book is in the branch of its
- * bank account, and one that has written cheques is never deleted: it is put out of use.
+ * bank account, and one that has written cheques is never deleted: it is put out of use. The ranges
+ * of the books of one bank account never overlap, as a serial number is used once by a bank.
  */
 final class ChequeBooks
 {
@@ -54,6 +55,8 @@ final class ChequeBooks
         $this->branches->requireBranch((int) $treasury->branch_id, $employeeId);
 
         return $this->transactional(function () use ($treasury, $name, $first, $last, $employeeId): int {
+            $this->assertRangeFree((int) $treasury->treasury_id, $first, $last);
+
             $this->db->table('cheque_books')->insert([
                 'company_id'   => CompanyContext::id(),
                 'branch_id'    => (int) $treasury->branch_id,
@@ -102,6 +105,10 @@ final class ChequeBooks
         }
 
         $this->transactional(function () use ($bookId, $name, $first, $last, $active, $employeeId, $book): void {
+            if (bccomp($first, (string) $book->first_serial, 0) !== 0 || bccomp($last, (string) $book->last_serial, 0) !== 0) {
+                $this->assertRangeFree((int) $book->treasury_id, $first, $last, $bookId);
+            }
+
             $this->db->table('cheque_books')->where('book_id', $bookId)->update(['name' => $name, 'first_serial' => $first, 'last_serial' => $last, 'active' => $active]);
             $this->audit->write(self::ENTITY, $bookId, 'updated', $employeeId, JournalOrigin::User, ['active' => $active, 'first' => $first, 'last' => $last], (int) $book->branch_id);
         });
@@ -199,6 +206,23 @@ final class ChequeBooks
         }
 
         return $name;
+    }
+
+    /**
+     * @throws AccountingException
+     */
+    private function assertRangeFree(int $treasuryId, string $first, string $last, int $exceptBookId = 0): void
+    {
+        $overlapping = $this->db->table('cheque_books')
+            ->where(['company_id' => CompanyContext::id(), 'treasury_id' => $treasuryId])
+            ->where('book_id !=', $exceptBookId)
+            ->where('CAST(first_serial AS UNSIGNED) <= CAST(' . $this->db->escape($last) . ' AS UNSIGNED)', null, false)
+            ->where('CAST(last_serial AS UNSIGNED) >= CAST(' . $this->db->escape($first) . ' AS UNSIGNED)', null, false)
+            ->countAllResults();
+
+        if ($overlapping > 0) {
+            throw new AccountingException(AccountingError::ChequeBookInvalid, 'The range of the book overlaps another book of the same bank account.', ['treasury_id' => $treasuryId]);
+        }
     }
 
     /**

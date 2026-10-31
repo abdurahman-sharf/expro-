@@ -96,7 +96,7 @@ return [
     'error_cheque_amount_invalid'                => 'The amount of a cheque must be more than zero.',
     'error_cheque_book_in_use'                   => 'A book that cheques were written out of is put out of use, not deleted.',
     'error_cheque_book_inactive'                 => 'A cheque is not written out of a book that is not in use.',
-    'error_cheque_book_invalid'                  => 'A book has a first and a last serial number, the first not after the last, and a cheque written out of it cannot fall outside them.',
+    'error_cheque_book_invalid'                  => 'A book has a first and a last serial number, the first not after the last, and a cheque written out of it cannot fall outside them. The serial numbers of two books of one bank account do not overlap.',
     'error_cheque_book_not_found'                => 'This cheque book does not exist.',
     'error_cheque_book_required'                 => 'A cheque paid to a supplier is written out of a cheque book.',
     'error_cheque_collect_before_due'            => 'The collection date must be on or after the due date of the cheque, {1}.',

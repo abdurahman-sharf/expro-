@@ -90,20 +90,29 @@ final class ChequeList
     }
 
     /**
-     * The customers, or the suppliers, a cheque can be entered for, by name.
+     * The customers, or the suppliers, a cheque can be entered for, by name, only those whose name has
+     * the text typed in it when some is given. The text is not a pattern: % and _ stand for themselves.
      *
      * @return list<object>
      */
-    public function parties(ChequeDirection $direction, int $limit): array
+    public function parties(ChequeDirection $direction, int $limit, string $term = ''): array
     {
-        return $this->db->table(($direction === ChequeDirection::Received ? 'customers' : 'suppliers') . ' x')
+        $builder = $this->db->table(($direction === ChequeDirection::Received ? 'customers' : 'suppliers') . ' x')
             ->select("x.person_id, COALESCE(NULLIF(x.company_name, ''), TRIM(CONCAT(p.first_name, ' ', p.last_name))) AS name", false)
             ->join('people p', 'p.person_id = x.person_id')
             ->where('x.deleted', 0)
             ->orderBy('name', 'ASC')
-            ->limit($limit)
-            ->get()
-            ->getResult();
+            ->limit($limit);
+
+        $term = trim($term);
+
+        if ($term !== '') {
+            $like = $this->db->escape('%' . $this->db->escapeLikeString($term) . '%');
+
+            $builder->where("(x.company_name LIKE {$like} ESCAPE '!' OR CONCAT(p.first_name, ' ', p.last_name) LIKE {$like} ESCAPE '!')", null, false);
+        }
+
+        return $builder->get()->getResult();
     }
 
     /**

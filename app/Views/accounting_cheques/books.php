@@ -1,7 +1,7 @@
 <?php
 /**
  * @var list<object> $books
- * @var bool         $can_manage
+ * @var bool         $canManage
  */
 ?>
 
@@ -26,7 +26,7 @@
 
 <div id="title_bar" class="print_hide btn-toolbar">
     <a class="btn btn-outline-secondary btn-sm me-auto" href="<?= esc(base_url('accounting_cheques?direction=paid'), 'attr') ?>"><span class="bi bi-arrow-left" aria-hidden="true">&nbsp;</span><?= lang('Accounting_cheques.back') ?></a>
-    <?php if ($can_manage): ?>
+    <?php if ($canManage): ?>
         <button class="btn btn-primary btn-sm modal-dlg" data-btn-submit="<?= lang('Common.submit') ?>" data-href="<?= esc(base_url('accounting_cheques/book_form'), 'attr') ?>" title="<?= esc(lang('Accounting_cheques.new_book'), 'attr') ?>">
             <span class="bi bi-plus-lg" aria-hidden="true">&nbsp;</span><?= lang('Accounting_cheques.new_book') ?>
         </button>
@@ -55,7 +55,7 @@
                 <td><?= (int) $book->written ?></td>
                 <td><?= lang((int) $book->active === 1 ? 'Accounting_cheques.book_in_use' : 'Accounting_cheques.book_out_of_use') ?></td>
                 <td>
-                    <?php if ($can_manage): ?>
+                    <?php if ($canManage): ?>
                         <a class="modal-dlg" data-btn-submit="<?= lang('Common.submit') ?>" href="<?= esc(base_url("accounting_cheques/book_form/{$bookId}"), 'attr') ?>" title="<?= esc(lang('Accounting_cheques.edit_book'), 'attr') ?>"><span class="bi bi-pencil-square" aria-hidden="true"></span></a>
                         <button type="button" class="btn btn-link p-0 book-action" data-url="<?= esc(base_url('accounting_cheques/book_active/' . $bookId . '/' . ((int) $book->active === 1 ? 0 : 1)), 'attr') ?>" data-confirm="<?= esc(lang((int) $book->active === 1 ? 'Accounting_cheques.confirm_book_off' : 'Accounting_cheques.confirm_book_on'), 'attr') ?>" title="<?= esc(lang((int) $book->active === 1 ? 'Accounting_cheques.confirm_book_off' : 'Accounting_cheques.confirm_book_on'), 'attr') ?>"><span class="bi <?= (int) $book->active === 1 ? 'bi-slash-circle' : 'bi-check-circle' ?>" aria-hidden="true"></span></button>
                         <?php if ((int) $book->written === 0): ?>

@@ -1,8 +1,8 @@
 <?php
 /**
  * @var object|null        $category
- * @var array<int, string> $account_options
- * @var bool               $can_assign_account
+ * @var array<int, string> $accountOptions
+ * @var bool               $canAssignAccount
  */
 $isNew = $category === null;
 ?>
@@ -29,8 +29,8 @@ $isNew = $category === null;
         <div class="field">
             <?= form_label(lang('Revenue_categories.account'), 'account_id', ['class' => 'form-label']) ?>
             <div class="field-control">
-                <?= form_dropdown('account_id', $account_options, (string) ($isNew ? 0 : (int) $category->account_id), ['class' => 'form-select form-select-sm', 'id' => 'account_id'] + ($can_assign_account ? [] : ['disabled' => 'disabled'])) ?>
-                <p class="form-text mb-0"><?= lang($can_assign_account ? 'Revenue_categories.account_desc' : 'Revenue_categories.account_locked') ?></p>
+                <?= form_dropdown('account_id', $accountOptions, (string) ($isNew ? 0 : (int) $category->account_id), ['class' => 'form-select form-select-sm', 'id' => 'account_id'] + ($canAssignAccount ? [] : ['disabled' => 'disabled'])) ?>
+                <p class="form-text mb-0"><?= lang($canAssignAccount ? 'Revenue_categories.account_desc' : 'Revenue_categories.account_locked') ?></p>
             </div>
         </div>
     </fieldset>

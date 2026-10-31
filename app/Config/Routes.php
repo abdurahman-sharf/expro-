@@ -104,6 +104,7 @@ $routes->group('accounting_cheques', static function (RouteCollection $routes): 
     $routes->get('search', 'AccountingCheques::getSearch');
     $routes->get('row/(:num)', 'AccountingCheques::getRow/$1');
     $routes->get('view/(:num)', 'AccountingCheques::getDetail/$1');
+    $routes->get('parties/(:segment)', 'AccountingCheques::getParties/$1');
     $routes->get('form/(:segment)', 'AccountingCheques::getForm/$1');
     $routes->get('form/(:segment)/(:num)', 'AccountingCheques::getForm/$1/$2');
     $routes->post('save/(:segment)', 'AccountingCheques::postSaveCheque/$1');

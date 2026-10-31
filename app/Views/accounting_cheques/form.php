@@ -2,12 +2,13 @@
 /**
  * @var object|null  $cheque
  * @var string       $direction
- * @var list<object> $parties
  * @var list<object> $treasuries
  * @var list<object> $books
  * @var string       $today
  * @var bool         $locked
  */
+use App\Libraries\Accounting\AmountText;
+
 $isNew      = $cheque === null;
 $isReceived = $direction === 'received';
 $value      = static fn (string $field, string $default = ''): string => $isNew ? $default : esc((string) ($cheque->{$field} ?? $default), 'attr');
@@ -23,16 +24,14 @@ $value      = static fn (string $field, string $default = ''): string => $isNew 
     <fieldset id="cheque_fields">
         <div class="form-grid">
             <div class="field">
-                <?= form_label(lang($isReceived ? 'Accounting_cheques.customer' : 'Accounting_cheques.supplier'), 'party_id', ['class' => 'form-label text-danger required']) ?>
+                <?= form_label(lang($isReceived ? 'Accounting_cheques.customer' : 'Accounting_cheques.supplier'), 'party_name', ['class' => 'form-label text-danger required']) ?>
                 <div class="field-control">
-                    <select name="party_id" id="party_id" class="form-select form-select-sm"<?= $isNew ? '' : ' disabled' ?>>
-                        <option value=""></option>
-                        <?php foreach ($parties as $party): ?>
-                            <option value="<?= (int) $party->person_id ?>"<?= ! $isNew && (int) $cheque->party_id === (int) $party->person_id ? ' selected' : '' ?>><?= esc($party->name) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                    <?php if (! $isNew): ?>
-                        <input type="hidden" name="party_id" value="<?= (int) $cheque->party_id ?>">
+                    <?php if ($isNew): ?>
+                        <input type="text" id="party_name" class="form-control form-control-sm" autocomplete="off" value="">
+                        <input type="hidden" name="party_id" id="party_id" value="">
+                    <?php else: ?>
+                        <span class="form-control-plaintext" id="party_name"><?= esc($cheque->party_name) ?></span>
+                        <input type="hidden" name="party_id" id="party_id" value="<?= (int) $cheque->party_id ?>">
                     <?php endif; ?>
                 </div>
             </div>
@@ -79,7 +78,7 @@ $value      = static fn (string $field, string $default = ''): string => $isNew 
             <div class="field">
                 <?= form_label(lang('Accounting_cheques.amount'), 'amount', ['class' => 'form-label text-danger required']) ?>
                 <div class="field-control">
-                    <input type="text" name="amount" id="amount" class="form-control form-control-sm ltr-input" dir="ltr" inputmode="decimal" autocomplete="off" value="<?= $isNew ? '' : esc(bcadd((string) $cheque->amount, '0', 2), 'attr') ?>"<?= $locked ? ' readonly' : '' ?>>
+                    <input type="text" name="amount" id="amount" class="form-control form-control-sm ltr-input" dir="ltr" inputmode="decimal" autocomplete="off" value="<?= $isNew ? '' : esc(AmountText::forField((string) $cheque->amount), 'attr') ?>"<?= $locked ? ' readonly' : '' ?>>
                 </div>
             </div>
 
@@ -132,6 +131,32 @@ $value      = static fn (string $field, string $default = ''): string => $isNew 
 
 <script type="text/javascript">
     $(document).ready(function() {
+        <?php if ($isNew): ?>
+        $('#party_name').autocomplete({
+            source: 'accounting_cheques/parties/<?= esc($direction, 'js') ?>',
+            minChars: 0,
+            delay: 100,
+            appendTo: '.modal-content',
+            select: function(event, ui) {
+                $('#party_id').val(ui.item.value);
+                $('#party_name').val(ui.item.label);
+
+                return false;
+            },
+            focus: function(event, ui) {
+                $('#party_name').val(ui.item.label);
+
+                return false;
+            }
+        }).on('input', function() {
+            $('#party_id').val('');
+        }).on('change', function() {
+            if ($('#party_id').val() === '') {
+                $(this).val('');
+            }
+        });
+
+        <?php endif; ?>
         $('#cheque_form').validate($.extend({
             submitHandler: function(form) {
                 $(form).ajaxSubmit({
@@ -146,7 +171,7 @@ $value      = static fn (string $field, string $default = ''): string => $isNew 
             errorLabelContainer: '#error_message_box',
 
             rules: {
-                party_id: 'required',
+                <?= $isNew ? 'party_name' : 'party_id' ?>: 'required',
                 <?= $isReceived ? 'treasury_id' : 'book_id' ?>: 'required',
                 cheque_number: 'required',
                 amount: 'required',
@@ -154,7 +179,7 @@ $value      = static fn (string $field, string $default = ''): string => $isNew 
             },
 
             messages: {
-                party_id: "<?= esc(lang('Accounting_cheques.party_required'), 'js') ?>",
+                <?= $isNew ? 'party_name' : 'party_id' ?>: "<?= esc(lang('Accounting_cheques.party_required'), 'js') ?>",
                 <?= $isReceived ? 'treasury_id' : 'book_id' ?>: "<?= esc(lang($isReceived ? 'Accounting_cheques.bank_required' : 'Accounting_cheques.book_required'), 'js') ?>",
                 cheque_number: "<?= esc(lang('Accounting_cheques.number_required'), 'js') ?>",
                 amount: "<?= esc(lang('Accounting_cheques.amount_required'), 'js') ?>",

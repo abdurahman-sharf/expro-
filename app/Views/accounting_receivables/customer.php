@@ -14,10 +14,13 @@
 use App\Libraries\Accounting\AgingBuckets;
 use App\Libraries\Accounting\CreditSource;
 use App\Libraries\Accounting\CustomerPosition;
+use App\Libraries\Numbering\DocumentNumbering;
+use App\Libraries\Numbering\DocumentType;
 
 $aging = $position->aging($today);
 
-$sourceLabel = static fn (string $type, int $sourceId): string => lang(
+$chequeNumber = static fn (int $chequeId): string => (new DocumentNumbering())->label(DocumentType::ReceivedCheque, 'cheques', $chequeId);
+$sourceLabel  = static fn (string $type, int $sourceId): string => lang(
     $type === CreditSource::CHEQUE ? 'Accounting_cheques.credit_source' : ($type !== CreditSource::CREDIT_NOTE ? 'Accounting_receivables.source_excess' : (in_array($sourceId, $refund_invoices, true) ? 'Numbering.type_refund_invoice' : 'Accounting_receivables.source_credit_note')),
 );
 ?>
@@ -150,7 +153,7 @@ $sourceLabel = static fn (string $type, int $sourceId): string => lang(
             <tbody>
                 <?php foreach ($position->credits as $source): ?>
                     <tr>
-                        <td><?= esc($sourceLabel($source->type, $source->sourceId)) ?> <?= $source->type === CreditSource::CHEQUE ? anchor('accounting_cheques/view/' . $source->sourceId, 'CHQ ' . $source->sourceId, ['target' => '_blank', 'dir' => 'ltr']) : anchor('sales/receipt/' . $source->sourceId, 'POS ' . $source->sourceId, ['target' => '_blank', 'dir' => 'ltr']) ?></td>
+                        <td><?= esc($sourceLabel($source->type, $source->sourceId)) ?> <?= $source->type === CreditSource::CHEQUE ? anchor('accounting_cheques/view/' . $source->sourceId, esc($chequeNumber($source->sourceId)), ['target' => '_blank', 'dir' => 'ltr']) : anchor('sales/receipt/' . $source->sourceId, 'POS ' . $source->sourceId, ['target' => '_blank', 'dir' => 'ltr']) ?></td>
                         <td><?= esc($date($source->date)) ?></td>
                         <td><?= $amount($source->amount) ?></td>
                         <td><?= $amount($source->applied) ?></td>
@@ -179,7 +182,7 @@ $sourceLabel = static fn (string $type, int $sourceId): string => lang(
             <tbody>
                 <?php foreach ($applications as $application): ?>
                     <tr>
-                        <td><?= esc($sourceLabel($application->source_type, (int) $application->source_id)) ?> <bdi dir="ltr"><?= (int) $application->source_id ?></bdi></td>
+                        <td><?= esc($sourceLabel($application->source_type, (int) $application->source_id)) ?> <bdi dir="ltr"><?= $application->source_type === CreditSource::CHEQUE ? esc($chequeNumber((int) $application->source_id)) : (int) $application->source_id ?></bdi></td>
                         <td><bdi dir="ltr"><?= (int) $application->invoice_sale_id ?></bdi></td>
                         <td><?= $amount($application->amount) ?></td>
                         <td><?= esc($date($application->created_at)) ?></td>

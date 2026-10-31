@@ -143,6 +143,55 @@ class ChequeBooksTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('cheque_books'));
     }
 
+    public function testCreate_RejectsARangeThatOverlapsAnotherBookOfTheSameBankAccount(): void
+    {
+        $this->books->create($this->input(), $this->clerk);
+
+        foreach ([['100', '199'], ['150', '250'], ['50', '100'], ['0120', '130'], ['1', '1000']] as [$first, $last]) {
+            $this->assertSame(AccountingError::ChequeBookInvalid, $this->refusal(fn () => $this->books->create($this->input(['name' => 'Book 2', 'first_serial' => $first, 'last_serial' => $last]), $this->clerk))->error, $first . '-' . $last);
+        }
+
+        $this->assertSame(1, $this->countRows('cheque_books'));
+    }
+
+    public function testCreate_AcceptsAnAdjacentRangeAndTheSameRangeOfAnotherBankAccount(): void
+    {
+        $this->books->create($this->input(), $this->clerk);
+        $this->books->create($this->input(['name' => 'Book 2', 'first_serial' => '200', 'last_serial' => '299']), $this->clerk);
+        $this->books->create($this->input(['name' => 'Book 0', 'first_serial' => '1', 'last_serial' => '99']), $this->clerk);
+        $this->books->create($this->input(['treasury_id' => $this->bankAccount(), 'name' => 'Other bank']), $this->clerk);
+
+        $this->assertSame(4, $this->countRows('cheque_books'));
+    }
+
+    public function testUpdate_RejectsAMovedRangeThatOverlapsAnotherBookAndAcceptsOneThatDoesNot(): void
+    {
+        $this->books->create($this->input(), $this->clerk);
+
+        $second = $this->books->create($this->input(['name' => 'Book 2', 'first_serial' => '200', 'last_serial' => '299']), $this->clerk);
+
+        $this->assertSame(AccountingError::ChequeBookInvalid, $this->refusal(fn () => $this->books->update($second, ['first_serial' => '150'], $this->clerk))->error);
+        $this->assertSame('200', (string) $this->books->find($second)->first_serial);
+
+        $this->books->update($second, ['last_serial' => '350'], $this->clerk);
+
+        $this->assertSame('350', (string) $this->books->find($second)->last_serial, 'A book does not overlap itself');
+    }
+
+    public function testUpdate_PutsABookOutOfUseWhoseRangeAlreadyOverlapsAnother(): void
+    {
+        $this->books->create($this->input(), $this->clerk);
+
+        $this->accountingDb()->table('cheque_books')->insert(['company_id' => 1, 'branch_id' => 1, 'treasury_id' => $this->bank, 'name' => 'Old overlap', 'first_serial' => '150', 'last_serial' => '250', 'created_by' => $this->clerk]);
+
+        $overlap = (int) $this->accountingDb()->insertID();
+
+        $this->books->update($overlap, ['name' => 'Old overlap, retired', 'active' => false], $this->clerk);
+
+        $this->assertSame(['Old overlap, retired', '0'], [$this->books->find($overlap)->name, (string) $this->books->find($overlap)->active]);
+        $this->assertSame(AccountingError::ChequeBookInvalid, $this->refusal(fn () => $this->books->update($overlap, ['first_serial' => '160'], $this->clerk))->error);
+    }
+
     public function testUpdate_RenamesTheBookAndPutsItOutOfUse(): void
     {
         $id = $this->books->create($this->input(), $this->clerk);
@@ -186,9 +235,9 @@ class ChequeBooksTest extends CIUnitTestCase
     public function testDelete_RemovesABookThatWroteNothingAndRefusesOneThatDid(): void
     {
         $empty = $this->books->create($this->input(), $this->clerk);
-        $used  = $this->books->create($this->input(['name' => 'Used']), $this->clerk);
+        $used  = $this->books->create($this->input(['name' => 'Used', 'first_serial' => '200', 'last_serial' => '299']), $this->clerk);
 
-        (new ChequeService())->issue(['party_id' => $this->supplierId, 'book_id' => $used, 'cheque_number' => '100', 'amount' => '10.00', 'issue_date' => date('Y-m-d'), 'due_date' => date('Y-m-d')], $this->clerk);
+        (new ChequeService())->issue(['party_id' => $this->supplierId, 'book_id' => $used, 'cheque_number' => '200', 'amount' => '10.00', 'issue_date' => date('Y-m-d'), 'due_date' => date('Y-m-d')], $this->clerk);
 
         $this->books->delete($empty, $this->clerk);
 

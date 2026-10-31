@@ -5,6 +5,7 @@ namespace Tests\Controllers;
 use App\Libraries\Accounting\RevenueCategories;
 use App\Libraries\Accounting\RevenuePostingBuilder;
 use App\Libraries\Accounting\RevenueVouchers;
+use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use CodeIgniter\Exceptions\PageNotFoundException;
@@ -92,6 +93,13 @@ class Receipt_vouchersControllerTest extends CIUnitTestCase
     private function postJson(string $url, array $data = []): array
     {
         return json_decode($this->post($url, $data)->getJSON(), true);
+    }
+
+    private function treasurySelect(string $body): string
+    {
+        $this->assertSame(1, preg_match('/<select name="treasury_id".*?<\/select>/s', $body, $match), 'The form has a treasury select');
+
+        return $match[0];
     }
 
     public function testGetIndex_ShowsTheListToWhoeverHoldsTheModule(): void
@@ -242,8 +250,11 @@ class Receipt_vouchersControllerTest extends CIUnitTestCase
 
         $closed = $this->postJson('/receipt_vouchers/save', ['date' => $this->today, 'amount' => '10.00', 'payment_type' => 'Cash', 'treasury_id' => $this->treasuryId]);
 
+        $company = (string) $this->accountingDb()->table('companies')->select('name')->where('company_id', 1)->get()->getRow()->name;
+
         $this->assertFalse($closed['success']);
-        $this->assertNotSame('', $closed['message']);
+        $this->assertSame(lang('Accounting.posting_period_closed', [$this->today, $this->today, $company]), $closed['message']);
+        $this->assertStringContainsString($company, $closed['message'], 'The refusal is the closed period one, in words, and not a missing translation');
         $this->assertSame(0, $this->countRows('revenues'));
     }
 
@@ -349,5 +360,89 @@ class Receipt_vouchersControllerTest extends CIUnitTestCase
 
         $this->assertTrue($changed['success']);
         $this->assertSame($second, (int) (new RevenueVouchers())->find($id)->treasury_id);
+    }
+
+    public function testPostSave_KeepsTheTreasuryWhenTheFormPostsTheDefaultOptionOfAVoucherThatHasOneOrNone(): void
+    {
+        $this->actAsWith(['receipt_vouchers']);
+
+        $second = $this->treasury('Second drawer');
+        $named  = $this->voucher(['treasury_id' => $second]);
+        $bare   = (new RevenueVouchers())->save(['date' => $this->today, 'amount' => '100.00', 'payment_type' => 'Cash', 'description' => 'No treasury'], null, $this->clerkId);
+
+        (new TreasuryService())->setDefaultFor($this->clerkId, $this->treasuryId);
+
+        foreach ([$named, $bare] as $id) {
+            $changed = $this->postJson('/receipt_vouchers/save/' . $id, ['date' => $this->today, 'amount' => '100.00', 'tax_amount' => '0', 'payment_type' => 'Cash', 'treasury_id' => '0', 'description' => 'Fixed text']);
+
+            $this->assertTrue($changed['success']);
+        }
+
+        $this->assertSame($second, (int) (new RevenueVouchers())->find($named)->treasury_id);
+        $this->assertNull((new RevenueVouchers())->find($bare)->treasury_id);
+    }
+
+    public function testGetView_OffersTheTreasuryTheCategoryAndTheAccountAVoucherHasWhenTheyCannotBeChosenAnyMore(): void
+    {
+        $this->actAsWith(['receipt_vouchers']);
+
+        $account  = $this->customAccount('42', '4210', 'Rent income');
+        $category = (new RevenueCategories())->save(['category_name' => 'Old rent', 'account_id' => null], null, null);
+        $second   = $this->treasury('Restricted drawer');
+        $id       = $this->voucher(['treasury_id' => $second, 'category_id' => $category, 'account_id' => $account]);
+
+        (new RevenueCategories())->delete([$category], null);
+        $this->accountingDb()->table('accounting_accounts')->where('account_id', $account)->update(['active' => 0]);
+        $this->restrictTreasury($second, 'deposit', [$this->employeeWithGrants([])]);
+
+        $body = $this->get('/receipt_vouchers/view/' . $id)->getBody();
+
+        foreach ([$second, $category, $account] as $kept) {
+            $this->assertStringContainsString('<option value="' . $kept . '" selected>', $body, 'Option ' . $kept);
+        }
+
+        $this->assertStringNotContainsString('<option value="0"', $this->treasurySelect($body));
+
+        $changed = $this->postJson('/receipt_vouchers/save/' . $id, ['date' => $this->today, 'amount' => '100.00', 'tax_amount' => '0', 'payment_type' => 'Cash', 'treasury_id' => $second, 'category_id' => $category, 'account_id' => $account, 'description' => 'Only the text']);
+        $row     = (new RevenueVouchers())->find($id);
+
+        $this->assertTrue($changed['success']);
+        $this->assertSame([$second, $category, $account], [(int) $row->treasury_id, (int) $row->revenue_category_id, (int) $row->account_id]);
+        $this->assertSame(1, $this->accountingDb()->table('accounting_journals')->where(['source_type' => RevenuePostingBuilder::SOURCE, 'source_id' => $id])->countAllResults(), 'The journal was not reversed and posted again');
+    }
+
+    public function testGetView_OffersTheDefaultOptionOnlyToAVoucherWithoutATreasury(): void
+    {
+        $this->actAsWith(['receipt_vouchers']);
+
+        $named = $this->voucher();
+        $bare  = (new RevenueVouchers())->save(['date' => $this->today, 'amount' => '100.00', 'payment_type' => 'Cash', 'description' => 'No treasury'], null, $this->clerkId);
+
+        $this->assertStringContainsString('<option value="0">' . lang('Receipt_vouchers.treasury_default') . '</option>', $this->treasurySelect($this->get('/receipt_vouchers/view')->getBody()));
+        $this->assertStringNotContainsString('<option value="0"', $this->treasurySelect($this->get('/receipt_vouchers/view/' . $named)->getBody()));
+        $this->assertStringContainsString('<option value="0" selected>' . lang('Receipt_vouchers.treasury_none') . '</option>', $this->treasurySelect($this->get('/receipt_vouchers/view/' . $bare)->getBody()));
+    }
+
+    public function testGetView_ShowsTheAmountAndTheTaxWithEveryDecimalTheyHave(): void
+    {
+        $this->actAsWith(['receipt_vouchers']);
+
+        $precise = $this->voucher(['amount' => '100.125', 'tax_amount' => '5.125']);
+        $plain   = $this->voucher(['amount' => '100.00', 'tax_amount' => '15']);
+
+        $body = $this->get('/receipt_vouchers/view/' . $precise)->getBody();
+
+        $this->assertStringContainsString('name="amount" id="amount" class="form-control form-control-sm ltr-input" dir="ltr" inputmode="decimal" autocomplete="off" value="100.125"', $body);
+        $this->assertStringContainsString('id="tax_amount" class="form-control form-control-sm ltr-input" dir="ltr" inputmode="decimal" autocomplete="off" value="5.125"', $body);
+
+        $body = $this->get('/receipt_vouchers/view/' . $plain)->getBody();
+
+        $this->assertStringContainsString('autocomplete="off" value="100.00"', $body);
+        $this->assertStringContainsString('autocomplete="off" value="15.00"', $body);
+
+        $saved = $this->postJson('/receipt_vouchers/save/' . $precise, ['date' => $this->today, 'amount' => '100.125', 'tax_amount' => '5.125', 'payment_type' => 'Cash', 'treasury_id' => $this->treasuryId, 'description' => 'Only the text']);
+
+        $this->assertTrue($saved['success']);
+        $this->assertSame(['100.1250', '5.1250'], [(new RevenueVouchers())->find($precise)->amount, (new RevenueVouchers())->find($precise)->tax_amount]);
     }
 }

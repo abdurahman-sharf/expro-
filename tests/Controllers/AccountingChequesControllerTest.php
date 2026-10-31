@@ -337,8 +337,11 @@ class AccountingChequesControllerTest extends CIUnitTestCase
 
         $closed = $this->postJson('/accounting_cheques/save/received', ['party_id' => $this->customerId, 'treasury_id' => $this->bank, 'cheque_number' => '710001', 'amount' => '10.00', 'issue_date' => $this->today]);
 
+        $company = (string) $this->accountingDb()->table('companies')->select('name')->where('company_id', 1)->get()->getRow()->name;
+
         $this->assertFalse($closed['success']);
-        $this->assertNotSame('', $closed['message']);
+        $this->assertSame(lang('Accounting.posting_period_closed', [$this->today, $this->today, $company]), $closed['message']);
+        $this->assertStringContainsString($company, $closed['message'], 'The refusal is the closed period one, in words, and not a missing translation');
         $this->assertSame(0, $this->countRows('cheques'));
     }
 
@@ -702,5 +705,126 @@ class AccountingChequesControllerTest extends CIUnitTestCase
         $book = (new ChequeBooks())->find($this->book);
 
         $this->assertSame(['Book 1', '1'], [$book->name, (string) $book->active]);
+    }
+
+    public function testGetForm_OffersTheBankOfAReceivedChequeAndTheBookOfAPaidOneWhenTheyWentOutOfUse(): void
+    {
+        $this->manager();
+
+        $other    = (new TreasuryService())->create(['name' => 'Closing bank ' . uniqid(), 'kind' => 'bank', 'bank_name' => 'Gulf Bank', 'account_number' => strtoupper(uniqid('AC')), 'branch_id' => 0], $this->clerk);
+        $received = $this->received(['treasury_id' => $other]);
+        $paid     = $this->paid();
+
+        (new TreasuryService())->deactivate($other, $this->clerk);
+        (new ChequeBooks())->update($this->book, ['active' => false], $this->clerk);
+
+        $this->assertStringContainsString('<option value="' . $other . '" selected>', $this->get('/accounting_cheques/form/received/' . $received)->getBody());
+        $this->assertStringContainsString('<option value="' . $this->book . '" selected>', $this->get('/accounting_cheques/form/paid/' . $paid)->getBody());
+        $this->assertStringNotContainsString('<option value="' . $other . '"', $this->get('/accounting_cheques/form/received')->getBody(), 'A new cheque is not offered a bank that is out of use');
+        $this->assertStringNotContainsString('<option value="' . $this->book . '"', $this->get('/accounting_cheques/form/paid')->getBody());
+
+        $kept = $this->postJson('/accounting_cheques/save/received/' . $received, ['party_id' => $this->customerId, 'treasury_id' => $other, 'cheque_number' => '710001', 'amount' => '100.00', 'issue_date' => $this->today, 'due_date' => $this->today, 'description' => 'Only the text']);
+
+        $this->assertTrue($kept['success']);
+
+        $kept = $this->postJson('/accounting_cheques/save/paid/' . $paid, ['party_id' => $this->supplierId, 'book_id' => $this->book, 'cheque_number' => '800001', 'amount' => '200.00', 'issue_date' => $this->today, 'due_date' => $this->today, 'description' => 'Only the text']);
+
+        $this->assertTrue($kept['success']);
+        $this->assertSame([$other, $this->book], [(int) $this->cheques->find($received)->treasury_id, (int) $this->cheques->find($paid)->book_id]);
+    }
+
+    public function testGetForm_ShowsTheAmountOfAChequeWithEveryDecimalItHasSoThatSavingItAgainKeepsIt(): void
+    {
+        $this->manager();
+
+        $chequeId = $this->received(['amount' => '100.125']);
+
+        $this->assertStringContainsString('autocomplete="off" value="100.125"', $this->get('/accounting_cheques/form/received/' . $chequeId)->getBody());
+
+        $this->cheques->deposit($chequeId, $this->today, $this->clerk);
+
+        $edited = $this->postJson('/accounting_cheques/save/received/' . $chequeId, ['party_id' => $this->customerId, 'treasury_id' => $this->bank, 'cheque_number' => '710001', 'amount' => '100.125', 'issue_date' => $this->today, 'due_date' => $this->today, 'drawer_name' => 'Only the drawer']);
+
+        $this->assertTrue($edited['success']);
+        $this->assertSame(['100.1250', 'Only the drawer'], [$this->cheques->find($chequeId)->amount, $this->cheques->find($chequeId)->drawer_name]);
+        $this->assertStringContainsString('<bdi dir="ltr">100.125</bdi>', $this->get('/accounting_cheques/action_form/collect/' . $chequeId)->getBody());
+    }
+
+    public function testGetForm_LetsANewChequeSearchItsPartyAndNamesThePartyOfOneThatExists(): void
+    {
+        $this->manager();
+
+        $new = $this->get('/accounting_cheques/form/received')->getBody();
+
+        $this->assertStringContainsString('id="party_name"', $new);
+        $this->assertStringContainsString('<input type="hidden" name="party_id" id="party_id" value="">', $new);
+        $this->assertStringContainsString("source: 'accounting_cheques/parties/received'", $new);
+        $this->assertStringNotContainsString('<select name="party_id"', $new);
+
+        $chequeId = $this->received();
+        $existing = $this->get('/accounting_cheques/form/received/' . $chequeId)->getBody();
+
+        $this->assertStringContainsString('Omar Khaled', $existing);
+        $this->assertStringContainsString('<input type="hidden" name="party_id" id="party_id" value="' . $this->customerId . '">', $existing);
+        $this->assertStringNotContainsString('jQuery UI', $existing);
+        $this->assertStringNotContainsString("source: 'accounting_cheques/parties/", $existing);
+    }
+
+    public function testGetParties_SuggestsTheCustomersOrTheSuppliersWhoseNameHasTheTextAndNoOtherKind(): void
+    {
+        $this->manager();
+
+        $suggest = fn (string $direction, string $term): array => json_decode($this->get('/accounting_cheques/parties/' . $direction . '?term=' . rawurlencode($term))->getJSON(), true);
+
+        $this->assertSame([['value' => $this->customerId, 'label' => 'Omar Khaled']], $suggest('received', 'omar'));
+        $this->assertSame([['value' => $this->customerId, 'label' => 'Omar Khaled']], $suggest('received', 'r Kha'));
+        $this->assertSame([], $suggest('received', 'gulf'), 'A supplier is not offered for a cheque received');
+        $this->assertSame([['value' => $this->supplierId, 'label' => 'Gulf Supplies']], $suggest('paid', 'gulf'));
+        $this->assertSame([], $suggest('paid', 'omar'));
+        $this->assertSame([], $suggest('received', '%'), 'The text is not a pattern');
+        $this->assertSame([], $suggest('received', '_mar'));
+        $this->assertNotSame([], $suggest('received', ''), 'Nothing typed yet offers the first names');
+    }
+
+    public function testGetParties_IsNotFoundWithoutThePermissionToChangeCheques(): void
+    {
+        $this->actAsWith(['accounting_cheques']);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_cheques/parties/received?term=omar');
+    }
+
+    public function testGetDetail_GoesBackToTheListAfterTheChequeIsDeletedAndReloadsAfterAnyOtherAction(): void
+    {
+        $this->manager();
+
+        $body = $this->get('/accounting_cheques/view/' . $this->received())->getBody();
+
+        $this->assertStringContainsString("if (action === 'delete') {", $body);
+        $this->assertStringContainsString("window.location.href = '" . esc(base_url('accounting_cheques?direction=received'), 'js') . "';", $body);
+        $this->assertStringContainsString('window.location.reload();', $body);
+    }
+
+    public function testGetSearch_ShowsADeletedChequeWithoutALinkOrActionsThatWouldBeNotFound(): void
+    {
+        $this->manager();
+
+        $chequeId = $this->received();
+
+        $this->cheques->delete($chequeId, $this->clerk);
+
+        $rows = json_decode($this->get('/accounting_cheques/search?direction=received&deleted=1')->getJSON(), true)['rows'];
+
+        $this->assertSame([$chequeId], array_map(static fn (array $row): int => (int) $row['cheque_id'], $rows));
+        $this->assertStringNotContainsString('accounting_cheques/view/', $rows[0]['cheque_number']);
+        $this->assertStringContainsString('710001', $rows[0]['cheque_number']);
+        $this->assertSame('', $rows[0]['edit']);
+
+        $live = $this->received(['cheque_number' => '710002']);
+        $row  = json_decode($this->get('/accounting_cheques/row/' . $live)->getJSON(), true);
+
+        $this->assertStringContainsString('accounting_cheques/view/' . $live, $row['cheque_number']);
+        $this->assertStringContainsString('action_form/deposit', $row['edit']);
     }
 }

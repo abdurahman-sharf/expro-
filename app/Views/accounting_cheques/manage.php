@@ -1,10 +1,10 @@
 <?php
 /**
  * @var string               $direction
- * @var string               $table_headers
+ * @var string               $tableHeaders
  * @var array<string,string> $statuses
- * @var bool                 $can_manage
- * @var bool                 $scope_notice
+ * @var bool                 $canManage
+ * @var bool                 $scopeNotice
  * @var array                $config
  */
 $messages = [
@@ -35,7 +35,7 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 
         table_support.init({
             resource: 'accounting_cheques',
-            headers: <?= $table_headers ?>,
+            headers: <?= $tableHeaders ?>,
             pageSize: <?= $config['lines_per_page'] ?>,
             uniqueId: 'cheque_id',
             cardTitle: ['cheque_number'],
@@ -80,7 +80,7 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
     <?php if ($direction === 'paid'): ?>
         <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('accounting_cheques/books'), 'attr') ?>"><span class="bi bi-journal-bookmark" aria-hidden="true">&nbsp;</span><?= lang('Accounting_cheques.books') ?></a>
     <?php endif; ?>
-    <?php if ($can_manage): ?>
+    <?php if ($canManage): ?>
         <button class="btn btn-primary btn-sm modal-dlg" data-btn-submit="<?= lang('Common.submit') ?>" data-href="<?= esc(base_url('accounting_cheques/form/' . $direction), 'attr') ?>" title="<?= esc(lang('Accounting_cheques.new_' . $direction), 'attr') ?>">
             <span class="bi bi-plus-lg" aria-hidden="true">&nbsp;</span><?= lang('Accounting_cheques.new_' . $direction) ?>
         </button>
@@ -115,7 +115,7 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
     </div>
 </form>
 
-<?php if ($scope_notice): ?>
+<?php if ($scopeNotice): ?>
     <p class="text-body-secondary small mx-2"><?= lang('Accounting_cheques.scope_notice') ?></p>
 <?php endif; ?>
 

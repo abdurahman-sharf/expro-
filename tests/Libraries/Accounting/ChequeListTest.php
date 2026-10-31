@@ -371,4 +371,23 @@ class ChequeListTest extends CIUnitTestCase
         $this->assertContains('Gulf Supplies', array_column($this->list->parties(ChequeDirection::Paid, 2000), 'name'));
         $this->assertNotContains('Aya Zaki', array_column($this->list->parties(ChequeDirection::Paid, 2000), 'name'));
     }
+
+    public function testParties_KeepsOnlyTheNamesThatHaveTheTextTypedAndTakesItAsTextNotAsAPattern(): void
+    {
+        $this->anotherCustomer('Aya', 'Zaki');
+        $this->anotherCustomer('Aaron', 'Zed');
+
+        $names = static fn (array $parties): array => array_column($parties, 'name');
+
+        $this->assertSame(['Aya Zaki'], $names($this->list->parties(ChequeDirection::Received, 20, 'aya')));
+        $this->assertSame(['Aya Zaki'], $names($this->list->parties(ChequeDirection::Received, 20, 'a Za')));
+        $this->assertSame(['Aaron Zed', 'Aya Zaki'], array_values(array_intersect($names($this->list->parties(ChequeDirection::Received, 20, 'a')), ['Aya Zaki', 'Aaron Zed'])));
+        $this->assertSame([], $this->list->parties(ChequeDirection::Received, 20, '%'));
+        $this->assertSame([], $this->list->parties(ChequeDirection::Received, 20, 'A_a'));
+        $this->assertSame([], $this->list->parties(ChequeDirection::Received, 20, "' OR 1=1 -- "));
+        $this->assertSame(['Gulf Supplies'], $names($this->list->parties(ChequeDirection::Paid, 20, 'sup')));
+        $this->assertSame([], $this->list->parties(ChequeDirection::Paid, 20, 'Zaki'));
+        $this->assertCount(1, $this->list->parties(ChequeDirection::Received, 1, 'a'), 'The limit still holds');
+        $this->assertSame($names($this->list->parties(ChequeDirection::Received, 20)), $names($this->list->parties(ChequeDirection::Received, 20, '  ')));
+    }
 }

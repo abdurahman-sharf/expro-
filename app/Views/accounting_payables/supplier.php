@@ -17,8 +17,11 @@
 use App\Libraries\Accounting\AgingBuckets;
 use App\Libraries\Accounting\CreditSource;
 use App\Libraries\Accounting\SupplierPosition;
+use App\Libraries\Numbering\DocumentNumbering;
+use App\Libraries\Numbering\DocumentType;
 
-$aging = $position->aging($today);
+$aging        = $position->aging($today);
+$chequeNumber = static fn (int $chequeId): string => (new DocumentNumbering())->label(DocumentType::PaidCheque, 'cheques', $chequeId);
 ?>
 
 <?= view('partial/header') ?>
@@ -174,7 +177,7 @@ $aging = $position->aging($today);
                             <?php if ($source->type === CreditSource::ADVANCE): ?>
                                 <?= esc(lang(($advance_kinds[$source->sourceId] ?? 'payment') === 'opening' ? 'Accounting_payables.source_advance_opening' : 'Accounting_payables.source_advance')) ?> <bdi dir="ltr">#<?= $source->sourceId ?></bdi>
                             <?php elseif ($source->type === CreditSource::CHEQUE): ?>
-                                <?= esc(lang('Accounting_cheques.credit_source')) ?> <?= anchor('accounting_cheques/view/' . $source->sourceId, 'CHQ ' . $source->sourceId, ['target' => '_blank', 'dir' => 'ltr']) ?>
+                                <?= esc(lang('Accounting_cheques.credit_source')) ?> <?= anchor('accounting_cheques/view/' . $source->sourceId, esc($chequeNumber($source->sourceId)), ['target' => '_blank', 'dir' => 'ltr']) ?>
                             <?php else: ?>
                                 <?= esc(lang($source->type === CreditSource::DEBIT_NOTE ? 'Accounting_payables.source_debit_note' : 'Accounting_payables.source_excess')) ?> <?= anchor('receivings/receipt/' . $source->sourceId, 'RECV ' . $source->sourceId, ['target' => '_blank', 'dir' => 'ltr']) ?>
                             <?php endif; ?>
@@ -257,7 +260,7 @@ $aging = $position->aging($today);
                             CreditSource::ADVANCE    => 'Accounting_payables.source_advance',
                             CreditSource::CHEQUE     => 'Accounting_cheques.credit_source',
                             default                  => 'Accounting_payables.source_excess',
-                        })) ?> <bdi dir="ltr"><?= (int) $application->source_id ?></bdi></td>
+                        })) ?> <bdi dir="ltr"><?= $application->source_type === CreditSource::CHEQUE ? esc($chequeNumber((int) $application->source_id)) : (int) $application->source_id ?></bdi></td>
                         <td><bdi dir="ltr"><?= (int) $application->invoice_receiving_id ?></bdi></td>
                         <td><?= $amount($application->amount) ?></td>
                         <td><?= esc($date($application->created_at)) ?></td>
