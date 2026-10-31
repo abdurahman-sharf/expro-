@@ -248,6 +248,7 @@ return [
     'return_origin_invalid'             => '',
     'return_origin_set'                 => '',
     'return_origin_undelivered'         => '',
+    'return_override'                   => '',
     'rewards'                           => 'Наградни точки',
     'rewards_balance'                   => 'Reward Points Баланс',
     'rewards_package'                   => 'Награди',

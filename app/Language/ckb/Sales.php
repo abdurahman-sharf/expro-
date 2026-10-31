@@ -248,6 +248,7 @@ return [
     'return_origin_invalid'             => '',
     'return_origin_set'                 => '',
     'return_origin_undelivered'         => '',
+    'return_override'                   => '',
     'rewards'                           => 'خاڵەکانی پاداشت',
     'rewards_balance'                   => 'باڵانسی خاڵەکانی پاداشت',
     'rewards_package'                   => 'پاداشتەکان',

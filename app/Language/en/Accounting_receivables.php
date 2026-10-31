@@ -88,6 +88,8 @@ return [
     'payments_tab'        => 'Payments',
     'payments_total'      => 'Total of the payments listed',
     'posted'              => 'In the books',
+    'receivables_manage'  => 'Receive payments from customers with no invoice (advance payments) and cancel them',
+    'receivables_refund'  => 'Pay customers back their credit in cash and cancel those refunds',
     'released_at'         => 'Released on',
     'reset'               => 'Reset',
     'returned'            => 'Returned',

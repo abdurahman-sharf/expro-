@@ -248,6 +248,7 @@ return [
     'return_origin_invalid'             => '',
     'return_origin_set'                 => '',
     'return_origin_undelivered'         => '',
+    'return_override'                   => '',
     'rewards'                           => 'Πόντοι Ανταμοιβής',
     'rewards_balance'                   => 'Υπόλοιπο Πόντων Ανταμοιβής',
     'rewards_package'                   => 'Ανταμοιβές',

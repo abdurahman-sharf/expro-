@@ -89,7 +89,7 @@ final class CreditSettlement
         $position = $this->ledger->position($customerId);
 
         foreach ($position->credits as $source) {
-            $over = bcsub($source->applied, $source->amount, SaleAmounts::SCALE);
+            $over = bcsub(bcadd($source->applied, $source->refunded, SaleAmounts::SCALE), $source->amount, SaleAmounts::SCALE);
 
             if (bccomp($over, '0', SaleAmounts::SCALE) <= 0) {
                 continue;
@@ -108,6 +108,36 @@ final class CreditSettlement
                 if (bccomp($over, '0', SaleAmounts::SCALE) <= 0) {
                     break;
                 }
+            }
+        }
+
+        $this->assertRefundsHold($customerId);
+    }
+
+    /**
+     * What was paid back in cash cannot be spent again: a credit that a refund took from must still
+     * be there and still be as large as the refund, or the change that would shrink it is refused and
+     * the refund is cancelled first.
+     *
+     * @throws AccountingException
+     */
+    private function assertRefundsHold(int $customerId): void
+    {
+        $refunded = $this->ledger->refundedSources($customerId);
+
+        if ($refunded === []) {
+            return;
+        }
+
+        $sources = [];
+
+        foreach ($this->ledger->position($customerId)->credits as $source) {
+            $sources[$source->type . ':' . $source->sourceId] = $source;
+        }
+
+        foreach ($refunded as $key => $amount) {
+            if (! isset($sources[$key]) || bccomp($sources[$key]->amount, $amount, SaleAmounts::SCALE) < 0) {
+                throw new AccountingException(AccountingError::CreditRefunded, 'The credit of this document was paid back in cash, so it cannot change until the refund is cancelled.', ['customer_id' => $customerId]);
             }
         }
     }

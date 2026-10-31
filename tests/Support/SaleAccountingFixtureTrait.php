@@ -78,7 +78,9 @@ trait SaleAccountingFixtureTrait
         $db = $this->accountingDb();
         $db->query('SET FOREIGN_KEY_CHECKS = 0');
 
-        $db->table('customer_credit_applications')->truncate();
+        foreach (['customer_credit_applications', 'customer_advances', 'customer_credit_refund_sources', 'customer_credit_refunds', 'supplier_credit_refund_sources', 'supplier_credit_refunds', 'sale_return_overrides'] as $table) {
+            $db->table($table)->truncate();
+        }
 
         foreach ($this->saleIds as $saleId) {
             foreach (['sales_payments', 'sales_items_taxes', 'sales_items', 'sales_taxes'] as $table) {

@@ -248,6 +248,7 @@ return [
     'return_origin_invalid'             => '',
     'return_origin_set'                 => '',
     'return_origin_undelivered'         => '',
+    'return_override'                   => '',
     'rewards'                           => 'Điểm thưởng',
     'rewards_balance'                   => 'Số Điểm thưởng còn lại',
     'rewards_package'                   => 'Điểm thưởng',

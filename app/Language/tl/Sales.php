@@ -248,6 +248,7 @@ return [
     'return_origin_invalid'             => '',
     'return_origin_set'                 => '',
     'return_origin_undelivered'         => '',
+    'return_override'                   => '',
     'rewards'                           => 'Reward Points',
     'rewards_balance'                   => 'Reward Points Balance',
     'rewards_package'                   => 'Rewards',

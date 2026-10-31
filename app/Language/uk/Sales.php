@@ -248,6 +248,7 @@ return [
     'return_origin_invalid'             => '',
     'return_origin_set'                 => '',
     'return_origin_undelivered'         => '',
+    'return_override'                   => '',
     'rewards'                           => 'Бонусні бали',
     'rewards_balance'                   => 'Баланс бонусних балів',
     'rewards_package'                   => 'Винагороди',

@@ -248,6 +248,7 @@ return [
     'return_origin_invalid'             => '',
     'return_origin_set'                 => '',
     'return_origin_undelivered'         => '',
+    'return_override'                   => '',
     'rewards'                           => 'Nagradni bodovi',
     'rewards_balance'                   => 'Bilans nagradnih bodova',
     'rewards_package'                   => 'Nagrade',

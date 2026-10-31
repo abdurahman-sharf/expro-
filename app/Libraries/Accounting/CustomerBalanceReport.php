@@ -49,7 +49,7 @@ final class CustomerBalanceReport
                             WHEN IF(j.reverses_journal_id IS NULL, j.source_type, o.source_type) = ? AND s.sale_type = ? AND s.return_document IS NULL THEN 'settlements'
                             WHEN IF(j.reverses_journal_id IS NULL, j.source_type, o.source_type) = ? AND s.sale_type = ? THEN 'returns'
                             WHEN IF(j.reverses_journal_id IS NULL, j.source_type, o.source_type) = ? THEN 'sales'
-                            WHEN IF(j.reverses_journal_id IS NULL, j.source_type, o.source_type) = ? THEN 'payments'
+                            WHEN IF(j.reverses_journal_id IS NULL, j.source_type, o.source_type) IN (?, ?, ?) THEN 'payments'
                             ELSE 'other'
                         END AS kind
                  FROM {$accounts} a
@@ -63,7 +63,7 @@ final class CustomerBalanceReport
              ORDER BY t.party_name ASC, t.party_id ASC",
             [
                 $from, $from, $from, $from, $from, $from,
-                SalePostingBuilder::SOURCE_SALE, SALE_TYPE_RETURN, SalePostingBuilder::SOURCE_SALE, SALE_TYPE_RETURN, SalePostingBuilder::SOURCE_SALE, SalePostingBuilder::SOURCE_PAYMENT,
+                SalePostingBuilder::SOURCE_SALE, SALE_TYPE_RETURN, SalePostingBuilder::SOURCE_SALE, SALE_TYPE_RETURN, SalePostingBuilder::SOURCE_SALE, SalePostingBuilder::SOURCE_PAYMENT, CustomerAdvances::SOURCE, CreditRefunds::CUSTOMER_SOURCE,
                 JournalStatus::Posted->value, JournalStatus::Reversed->value, $period->to,
                 SalePostingBuilder::SOURCE_SALE,
                 EntityAccountService::CUSTOMER,

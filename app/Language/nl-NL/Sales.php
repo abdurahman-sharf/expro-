@@ -248,6 +248,7 @@ return [
     'return_origin_invalid'             => '',
     'return_origin_set'                 => '',
     'return_origin_undelivered'         => '',
+    'return_override'                   => '',
     'rewards'                           => 'Beloningspunten',
     'rewards_balance'                   => 'Beloningspunten balans',
     'rewards_package'                   => 'Beloningen',

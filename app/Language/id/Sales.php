@@ -248,6 +248,7 @@ return [
     'return_origin_invalid'             => '',
     'return_origin_set'                 => '',
     'return_origin_undelivered'         => '',
+    'return_override'                   => '',
     'rewards'                           => 'Poin Penghargaan',
     'rewards_balance'                   => 'Jumlah Poin Penghargaan',
     'rewards_package'                   => 'Hadiah',

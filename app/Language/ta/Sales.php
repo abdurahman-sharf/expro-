@@ -248,6 +248,7 @@ return [
     'return_origin_invalid'             => '',
     'return_origin_set'                 => '',
     'return_origin_undelivered'         => '',
+    'return_override'                   => '',
     'rewards'                           => 'வெகுமதி புள்ளிகள்',
     'rewards_balance'                   => 'வெகுமதி புள்ளிகள் இருப்பு',
     'rewards_package'                   => 'வெகுமதிகள்',

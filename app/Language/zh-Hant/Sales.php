@@ -248,6 +248,7 @@ return [
     'return_origin_invalid'             => '',
     'return_origin_set'                 => '',
     'return_origin_undelivered'         => '',
+    'return_override'                   => '',
     'rewards'                           => '積分',
     'rewards_balance'                   => '積分總數',
     'rewards_package'                   => '獎賞',

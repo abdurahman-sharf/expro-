@@ -143,6 +143,15 @@ enum AccountingError: string
     case AdvancePaymentUnknown   = 'advance_payment_unknown';
     case OpeningNotFound         = 'opening_not_found';
 
+    case AdvanceCustomerMissing = 'advance_customer_missing';
+    case CreditJournalLocked    = 'credit_journal_locked';
+    case CreditPaymentUnknown   = 'credit_payment_unknown';
+    case CreditRefunded         = 'credit_refunded';
+    case RefundNotFound         = 'refund_not_found';
+    case RefundAlreadyCancelled = 'refund_already_cancelled';
+    case RefundExceedsCredit    = 'refund_exceeds_credit';
+    case RefundPartyMissing     = 'refund_party_missing';
+
     case TreasuryNotFound             = 'treasury_not_found';
     case TreasuryInvalidName          = 'treasury_invalid_name';
     case TreasuryInvalidKind          = 'treasury_invalid_kind';

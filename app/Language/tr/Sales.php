@@ -248,6 +248,7 @@ return [
     'return_origin_invalid'             => '',
     'return_origin_set'                 => '',
     'return_origin_undelivered'         => '',
+    'return_override'                   => '',
     'rewards'                           => 'Ödül Puanları',
     'rewards_balance'                   => 'Ödül Puanı Bakiyesi',
     'rewards_package'                   => 'Ödüller',

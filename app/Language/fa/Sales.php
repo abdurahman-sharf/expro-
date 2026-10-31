@@ -248,6 +248,7 @@ return [
     'return_origin_invalid'             => '',
     'return_origin_set'                 => '',
     'return_origin_undelivered'         => '',
+    'return_override'                   => '',
     'rewards'                           => 'امتیاز پاداش',
     'rewards_balance'                   => 'تعادل امتیاز پاداش',
     'rewards_package'                   => 'پاداش',

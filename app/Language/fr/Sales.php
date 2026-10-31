@@ -248,6 +248,7 @@ return [
     'return_origin_invalid'             => '',
     'return_origin_set'                 => '',
     'return_origin_undelivered'         => '',
+    'return_override'                   => '',
     'rewards'                           => 'Points de fidélité',
     'rewards_balance'                   => 'Compte de points de fidélité',
     'rewards_package'                   => 'Récompenses',

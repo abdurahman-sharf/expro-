@@ -248,6 +248,7 @@ return [
     'return_origin_invalid'             => 'لا يكون المرتجع إلا من بيع مكتمل.',
     'return_origin_set'                 => 'تثبيت',
     'return_origin_undelivered'         => 'لم تُسلَّم بضاعة ذلك البيع، فلا شيء منها يعود.',
+    'return_override'                   => 'السماح بمرتجع مخزني بلا فاتورة أصل',
     'rewards'                           => 'نقاط المكافئة',
     'rewards_balance'                   => 'رصيد نقاط المكافئة',
     'rewards_package'                   => 'فئة المكافئة',

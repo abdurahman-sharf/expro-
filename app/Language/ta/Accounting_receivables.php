@@ -88,6 +88,8 @@ return [
     'payments_tab'        => '',
     'payments_total'      => '',
     'posted'              => '',
+    'receivables_manage'  => '',
+    'receivables_refund'  => '',
     'released_at'         => '',
     'reset'               => '',
     'returned'            => '',

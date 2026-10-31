@@ -26,6 +26,10 @@ final class AccountingGuard
     public const ROUTING_MANAGE      = 'acc_routing_manage';
     public const TREASURIES_MANAGE   = 'acc_treasuries_manage';
     public const PAYABLES_MANAGE     = 'acc_payables_manage';
+    public const PAYABLES_REFUND     = 'acc_payables_refund';
+    public const RECEIVABLES_MANAGE  = 'acc_receivables_manage';
+    public const RECEIVABLES_REFUND  = 'acc_receivables_refund';
+    public const RETURN_OVERRIDE     = 'sales_return_override';
     public const INTERBRANCH_SETTLE  = 'acc_interbranch_settle';
 
     /**
@@ -41,6 +45,10 @@ final class AccountingGuard
         self::ROUTING_MANAGE,
         self::TREASURIES_MANAGE,
         self::PAYABLES_MANAGE,
+        self::PAYABLES_REFUND,
+        self::RECEIVABLES_MANAGE,
+        self::RECEIVABLES_REFUND,
+        self::RETURN_OVERRIDE,
         self::INTERBRANCH_SETTLE,
     ];
 

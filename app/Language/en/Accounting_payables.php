@@ -97,6 +97,7 @@ return [
     'paid' => 'Paid',
     'paid_by' => 'Paid by (employee)',
     'payables_manage' => 'Enter payments to suppliers without a purchase and opening balances of suppliers, and cancel them',
+    'payables_refund' => 'Receive the credit held with suppliers back in cash and cancel those refunds',
     'payment_done' => 'The payment was entered.',
     'payment_kind' => 'Type',
     'payment_new' => 'Payment without a purchase',

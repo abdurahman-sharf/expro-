@@ -22,6 +22,10 @@ class AccountingSetup extends AccountingController
         AccountingGuard::ROUTING_MANAGE     => 'Accounting_routing.routing_manage',
         AccountingGuard::TREASURIES_MANAGE  => 'Accounting_treasuries.treasuries_manage',
         AccountingGuard::PAYABLES_MANAGE    => 'Accounting_payables.payables_manage',
+        AccountingGuard::PAYABLES_REFUND    => 'Accounting_payables.payables_refund',
+        AccountingGuard::RECEIVABLES_MANAGE => 'Accounting_receivables.receivables_manage',
+        AccountingGuard::RECEIVABLES_REFUND => 'Accounting_receivables.receivables_refund',
+        AccountingGuard::RETURN_OVERRIDE    => 'Sales.return_override',
         AccountingGuard::INTERBRANCH_SETTLE => 'Accounting_treasuries.interbranch_settle',
     ];
 

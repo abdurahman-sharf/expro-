@@ -97,6 +97,7 @@ return [
     'paid' => '',
     'paid_by' => '',
     'payables_manage' => '',
+    'payables_refund' => '',
     'payment_done' => '',
     'payment_kind' => '',
     'payment_new' => '',

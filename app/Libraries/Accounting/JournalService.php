@@ -28,6 +28,12 @@ final class JournalService
         ExpensePostingBuilder::SOURCE,
         CashupPostingBuilder::SOURCE,
     ];
+    public const CREDIT_SOURCES = [
+        SupplierAdvances::SOURCE,
+        CustomerAdvances::SOURCE,
+        CreditRefunds::CUSTOMER_SOURCE,
+        CreditRefunds::SUPPLIER_SOURCE,
+    ];
     private const MAX_LINES      = 500;
     private const AMOUNT_PATTERN = '/^\d{1,11}(\.\d{1,4})?$/';
     private const SORTABLE       = ['journal_date', 'number', 'created_at', 'total_debit', 'status'];
@@ -402,7 +408,7 @@ final class JournalService
             ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT,
             ...self::TRANSFER_SOURCES,
             ...self::DOCUMENT_SOURCES,
-            SupplierAdvances::SOURCE,
+            ...self::CREDIT_SOURCES,
         ])->countAllResults() > 0;
 
         if (! $isAutomatic) {
@@ -495,6 +501,10 @@ final class JournalService
 
                 if (in_array($original->source_type, self::DOCUMENT_SOURCES, true)) {
                     throw new AccountingException(AccountingError::DocumentJournalLocked, 'The journal of an expense or a cash-up is taken back by deleting it or changing it.', ['journal_id' => $journalId]);
+                }
+
+                if (in_array($original->source_type, self::CREDIT_SOURCES, true)) {
+                    throw new AccountingException(AccountingError::CreditJournalLocked, 'The journal of an advance payment or a cash refund is taken back by cancelling the document.', ['journal_id' => $journalId]);
                 }
             }
 

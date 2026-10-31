@@ -34,8 +34,8 @@ final class TieChecks extends CheckGroup
         $ledger = ['accounting_accounts.entity_type', 'accounting_journals', 'accounting_journal_lines'];
 
         return [
-            $this->check('customer_ties', 'TIE-CUSTOMERS', 'Customer balances against invoices, credit and aging', [...$ledger, 'customer_credit_applications', 'sales.return_of_sale_id'], fn (): CheckResult => $this->customers()),
-            $this->check('supplier_ties', 'TIE-SUPPLIERS', 'Supplier balances against purchases, credit and aging', [...$ledger, 'supplier_credit_applications', 'supplier_advances', 'receivings_payments', 'receivings.receiving_type'], fn (): CheckResult => $this->suppliers()),
+            $this->check('customer_ties', 'TIE-CUSTOMERS', 'Customer balances against invoices, credit and aging', [...$ledger, 'customer_credit_applications', 'customer_advances', 'customer_credit_refunds', 'customer_credit_refund_sources', 'sales.return_of_sale_id'], fn (): CheckResult => $this->customers()),
+            $this->check('supplier_ties', 'TIE-SUPPLIERS', 'Supplier balances against purchases, credit and aging', [...$ledger, 'supplier_credit_applications', 'supplier_advances', 'supplier_credit_refunds', 'supplier_credit_refund_sources', 'receivings_payments', 'receivings.receiving_type'], fn (): CheckResult => $this->suppliers()),
             $this->check('treasury_ties', 'TIE-TREASURIES', 'Treasury balances against their accounts', [...$ledger, 'treasuries'], fn (): CheckResult => $this->treasuries()),
             $this->check('stock_ties', 'TIE-STOCK', 'Stock locations against their valued movements', [...$ledger, 'accounting_stock_entries', 'stock_locations', 'item_quantities'], fn (): CheckResult => $this->stock()),
             $this->check('interbranch_unattributed', 'WP7-PRE-DEPLOY-QUERY', 'Journals on the accounts between branches that no transfer accounts for', ['accounting_journals', 'accounting_journal_lines', 'accounting_accounts.system_key'], fn (): CheckResult => $this->unattributed()),

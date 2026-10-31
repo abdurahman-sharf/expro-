@@ -248,6 +248,7 @@ return [
     'return_origin_invalid'             => '',
     'return_origin_set'                 => '',
     'return_origin_undelivered'         => '',
+    'return_override'                   => '',
     'rewards'                           => 'Puntos',
     'rewards_balance'                   => 'Balance de puntos',
     'rewards_package'                   => 'Paquete de recompensas',

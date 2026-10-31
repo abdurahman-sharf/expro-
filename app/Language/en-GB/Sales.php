@@ -248,6 +248,7 @@ return [
     'return_origin_invalid'             => 'A return can only be taken from a completed sale.',
     'return_origin_set'                 => 'Set',
     'return_origin_undelivered'         => 'The goods of that sale were not delivered, so nothing of it can come back.',
+    'return_override'                   => 'Let a return of stock through with no invoice to take it back from',
     'rewards'                           => 'Reward Points',
     'rewards_balance'                   => 'Reward Points Balance',
     'rewards_package'                   => 'Rewards',

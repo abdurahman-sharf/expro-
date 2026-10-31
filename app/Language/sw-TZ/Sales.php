@@ -248,6 +248,7 @@ return [
     'return_origin_invalid'             => '',
     'return_origin_set'                 => '',
     'return_origin_undelivered'         => '',
+    'return_override'                   => '',
     'rewards'                           => 'Pointi za Zawadi',
     'rewards_balance'                   => 'Salio la Pointi za Zawadi',
     'rewards_package'                   => 'Zawadi',
