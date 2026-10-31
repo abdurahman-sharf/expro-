@@ -172,6 +172,9 @@ enum AccountingError: string
 
     case ProfitBasisUnavailable = 'profit_basis_unavailable';
 
+    case CashFlowLineInvalid    = 'cash_flow_line_invalid';
+    case CashFlowAccountInvalid = 'cash_flow_account_invalid';
+
     case TaxBasisUnavailable = 'tax_basis_unavailable';
 
     case ExpenseCategoryAccountRequired = 'expense_category_account_required';

@@ -16,11 +16,12 @@ trait ReportFixtureTrait
     private int $reportSourceId = 500000;
 
     /**
-     * Posts a balanced journal of the lines given as [account id, debit, credit].
+     * Posts a balanced journal of the lines given as [account id, debit, credit], added by the
+     * employee when one is given.
      *
      * @param list<array{int, string, string}> $lines
      */
-    protected function postOn(string $date, int $branchId, array $lines, string $description = 'Report test'): int
+    protected function postOn(string $date, int $branchId, array $lines, string $description = 'Report test', ?int $employeeId = null): int
     {
         $draftLines = array_map(
             static fn (array $line): JournalLineDraft => new JournalLineDraft($line[0], debit: $line[1], credit: $line[2]),
@@ -35,15 +36,16 @@ trait ReportFixtureTrait
             description: $description,
             currencyCode: 'SAR',
             branchId: $branchId,
+            employeeId: $employeeId,
         ))->journalId;
     }
 
     /**
      * A sale of the amount on the day, in cash: the cash account against the sales.
      */
-    protected function cashSale(string $date, int $branchId, string $amount): int
+    protected function cashSale(string $date, int $branchId, string $amount, ?int $employeeId = null): int
     {
-        return $this->postOn($date, $branchId, [[$this->accountId('cash'), $amount, '0'], [$this->accountId('sales_revenue'), '0', $amount]]);
+        return $this->postOn($date, $branchId, [[$this->accountId('cash'), $amount, '0'], [$this->accountId('sales_revenue'), '0', $amount]], employeeId: $employeeId);
     }
 
     protected function reverseOn(int $journalId, string $date): int

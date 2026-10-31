@@ -23,7 +23,7 @@ final class AccountLedger
 
     private BaseConnection $db;
 
-    public function __construct(?BaseConnection $db = null)
+    public function __construct(?BaseConnection $db = null, private readonly int $maxBlockItems = self::MAX_BLOCK_ITEMS)
     {
         $this->db = $db ?? Database::connect();
     }
@@ -92,8 +92,8 @@ final class AccountLedger
             $items += (int) ($figures[(int) $listedAccount->account_id]['found'] ?? 0);
         }
 
-        if ($items > self::MAX_BLOCK_ITEMS) {
-            throw new AccountingException(AccountingError::LedgerTooLarge, 'The statement is too large to draw account by account.', ['max' => self::MAX_BLOCK_ITEMS]);
+        if ($items > $this->maxBlockItems) {
+            throw new AccountingException(AccountingError::LedgerTooLarge, 'The statement is too large to draw account by account.', ['max' => $this->maxBlockItems]);
         }
 
         $rowsByAccount = [];
@@ -413,9 +413,10 @@ final class AccountLedger
 
     /**
      * The accounts that have a block, in the order of their codes. An account with a line in the
-     * period always has one. Listing every account adds the accounts that are not groups, but never
-     * an account of a party that holds nothing here, which would name the parties of other
-     * branches.
+     * period always has one, except under the choice of accounts that stand at something, which
+     * keeps an account that stood at something when the period opened or stands at something at the
+     * end of it. Listing every account adds the accounts that are not groups, but never an account
+     * of a party that holds nothing here, which would name the parties of other branches.
      *
      * @param list<int>                                                                          $ids
      * @param array<int, array{opening: string, debit: string, credit: string, found: int}> $figures
@@ -437,13 +438,12 @@ final class AccountLedger
         foreach ($accounts as $account) {
             $own      = $figures[(int) $account->account_id] ?? null;
             $moved    = $own !== null && $own['found'] > 0;
-            $standing = $own !== null && bccomp($own['opening'], '0', self::SCALE) !== 0;
-            $holds    = $moved || $standing;
+            $standing = $own !== null && (bccomp($own['opening'], '0', self::SCALE) !== 0 || bccomp(bcadd($own['opening'], bcsub($own['debit'], $own['credit'], self::SCALE), self::SCALE), '0', self::SCALE) !== 0);
 
             $keep = match ($display) {
                 LedgerDisplay::Activity       => $moved,
-                LedgerDisplay::NonZeroBalance => $holds,
-                LedgerDisplay::All            => $holds || ((int) $account->is_group === 0 && $account->entity_type === null),
+                LedgerDisplay::NonZeroBalance => $standing,
+                LedgerDisplay::All            => $moved || $standing || ((int) $account->is_group === 0 && $account->entity_type === null),
             };
 
             if ($keep) {
