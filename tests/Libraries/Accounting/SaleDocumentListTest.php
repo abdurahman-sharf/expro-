@@ -74,6 +74,36 @@ class SaleDocumentListTest extends CIUnitTestCase
             : $this->quote(null, $lines);
     }
 
+    public function testDrafts_ListsAtMostTheNewestTwoHundredSoThatTheOldestOneIsLeftOut(): void
+    {
+        $ids = $this->suspendedRows(SaleDocumentList::LIMIT + 1, SALE_TYPE_INVOICE);
+
+        $listed = $this->ids($this->list->drafts(null));
+
+        $this->assertCount(200, $listed);
+        $this->assertSame(max($ids), $listed[0]);
+        $this->assertSame($ids[1], $listed[199]);
+        $this->assertNotContains($ids[0], $listed);
+    }
+
+    public function testDrafts_ListsEveryDraftWhileThereAreNoMoreThanTheLimit(): void
+    {
+        $ids = $this->suspendedRows(SaleDocumentList::LIMIT, SALE_TYPE_INVOICE);
+
+        $this->assertEqualsCanonicalizing($ids, $this->ids($this->list->drafts(null)));
+    }
+
+    public function testQuotes_ListsAtMostTheNewestTwoHundredSoThatTheOldestOneIsLeftOut(): void
+    {
+        $ids = $this->suspendedRows(SaleDocumentList::LIMIT + 1, SALE_TYPE_QUOTE);
+
+        $listed = $this->ids($this->list->quotes(null));
+
+        $this->assertCount(200, $listed);
+        $this->assertNotContains($ids[0], $listed);
+        $this->assertContains($ids[1], $listed);
+    }
+
     public function testDrafts_ListsTheSuspendedInvoicesNewestFirstAndNothingElse(): void
     {
         $cycle     = $this->referenceInvoice();

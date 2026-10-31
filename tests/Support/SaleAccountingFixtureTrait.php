@@ -341,6 +341,40 @@ trait SaleAccountingFixtureTrait
     }
 
     /**
+     * Suspended rows of one kind put straight into the table, for what needs many of them at once.
+     *
+     * @return list<int> Their ids, oldest first.
+     */
+    protected function suspendedRows(int $count, int $type, int $branchId = 1): array
+    {
+        $db     = $this->accountingDb();
+        $marker = 'rows-' . uniqid();
+        $rows   = [];
+
+        for ($i = 0; $i < $count; $i++) {
+            $rows[] = [
+                'sale_time'    => date('Y-m-d H:i:s'),
+                'customer_id'  => null,
+                'employee_id'  => $this->employeeId,
+                'comment'      => $marker,
+                'sale_status'  => SUSPENDED,
+                'sale_type'    => $type,
+                'branch_id'    => $branchId,
+                'delivered'    => 1,
+                'quote_status' => $type === SALE_TYPE_QUOTE ? QuoteStatus::Open->value : null,
+            ];
+        }
+
+        $db->table('sales')->insertBatch($rows);
+
+        $ids = array_map('intval', array_column($db->table('sales')->select('sale_id')->where('comment', $marker)->orderBy('sale_id', 'ASC')->get()->getResultArray(), 'sale_id'));
+
+        $this->saleIds = [...$this->saleIds, ...$ids];
+
+        return $ids;
+    }
+
+    /**
      * A quote of the reference lines in the state given, or open when none is.
      */
     protected function quote(?QuoteStatus $status = null, ?array $items = null, ?int $customerId = null): int

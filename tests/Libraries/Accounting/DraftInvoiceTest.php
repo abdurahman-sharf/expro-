@@ -4,9 +4,12 @@ namespace Tests\Libraries\Accounting;
 
 use App\Libraries\Accounting\DraftInvoice;
 use App\Libraries\InvoiceDiscountProblem;
+use App\Libraries\Tax_lib;
+use App\Models\Enums\Rounding_mode;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use Config\OSPOS;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
@@ -138,6 +141,84 @@ class DraftInvoiceTest extends CIUnitTestCase
 
         $this->assertSame(['40.50', '66.00'], $taxes);
         $this->assertSame(['1', '1'], array_map(static fn (array $tax): string => (string) $tax['tax_type'], $issue->taxes[1]));
+    }
+
+    public function testForIssue_TaxesAsAnInvoiceWithTheTaxCodeOfTheCustomerWhenTaxesAreByDestination(): void
+    {
+        $db    = $this->accountingDb();
+        $cycle = $this->referenceInvoice();
+
+        $db->table('tax_categories')->insert(['tax_category' => 'Goods ' . uniqid(), 'tax_group_sequence' => 1]);
+        $categoryId = (int) $db->insertID();
+        $db->table('tax_jurisdictions')->insert(['jurisdiction_name' => 'Zone', 'tax_group' => 'ZG' . random_int(100000, 999999), 'tax_type' => Tax_lib::TAX_TYPE_EXCLUDED, 'tax_group_sequence' => 1, 'cascade_sequence' => 0]);
+        $jurisdictionId = (int) $db->insertID();
+        $codes          = [];
+
+        foreach (['10' => 'Customer', '20' => 'Default'] as $rate => $name) {
+            $db->table('tax_codes')->insert(['tax_code' => $name . random_int(1000, 9999), 'tax_code_name' => $name, 'city' => '', 'state' => '']);
+            $codes[$rate] = (int) $db->insertID();
+            $db->table('tax_rates')->insert(['rate_tax_code_id' => $codes[$rate], 'rate_tax_category_id' => $categoryId, 'rate_jurisdiction_id' => $jurisdictionId, 'tax_rate' => $rate, 'tax_rounding_code' => Rounding_mode::HALF_UP]);
+        }
+
+        $db->table('customers')->where('person_id', $this->customerId)->update(['sales_tax_code_id' => $codes['10']]);
+
+        $draft  = $this->draftInvoice($cycle['items']);
+        $config = config(OSPOS::class);
+        $before = $config->settings;
+
+        $config->settings = [...$before, 'use_destination_based_tax' => '1', 'default_tax_code' => $codes['20'], 'default_tax_category' => $categoryId];
+
+        try {
+            $issue = $this->drafts->forIssue($draft);
+        } finally {
+            $config->settings = $before;
+            $db->table('customers')->where('person_id', $this->customerId)->update(['sales_tax_code_id' => null]);
+            $db->table('tax_rates')->whereIn('rate_tax_code_id', array_values($codes))->delete();
+            $db->table('tax_codes')->whereIn('tax_code_id', array_values($codes))->delete();
+            $db->table('tax_jurisdictions')->where('jurisdiction_id', $jurisdictionId)->delete();
+            $db->table('tax_categories')->where('tax_category_id', $categoryId)->delete();
+        }
+
+        $this->assertSame(['27.00', '44.00'], array_map(static fn (array $tax): string => bcadd((string) $tax['item_tax_amount'], '0', 2), $issue->taxes[1]), 'the customer code of an invoice, 10%, and not the default code of a sale, 20%');
+    }
+
+    public function testFingerprint_ChangesWithTheHeaderTheLinesAndThePaymentsButNotWithASaveThatChangesNothing(): void
+    {
+        $db    = $this->accountingDb();
+        $cycle = $this->taxedReference();
+        $draft = $this->draftInvoice($cycle['items']);
+        $read  = $this->drafts->fingerprint($draft);
+
+        $this->assertSame($read, $this->drafts->forIssue($draft)->fingerprint);
+
+        $this->save($cycle['items'], [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, $draft);
+        $this->assertSame($read, $this->drafts->fingerprint($draft), 'the same draft saved again');
+
+        $seller  = $this->employeeId;
+        $changes = [
+            'its comment'     => static fn () => $db->table('sales')->where('sale_id', $draft)->update(['comment' => 'changed']),
+            'its customer'    => static fn () => $db->table('sales')->where('sale_id', $draft)->update(['customer_id' => null]),
+            'its discount'    => static fn () => $db->table('sales')->where('sale_id', $draft)->update(['invoice_discount_type' => PERCENT, 'invoice_discount' => '5']),
+            'its day'         => static fn () => $db->table('sales')->where('sale_id', $draft)->update(['invoice_date' => '2020-01-02']),
+            'its terms'       => static fn () => $db->table('sales')->where('sale_id', $draft)->update(['payment_terms_days' => 9]),
+            'its delivery'    => static fn () => $db->table('sales')->where('sale_id', $draft)->update(['delivered' => 0]),
+            'a quantity'      => static fn () => $db->table('sales_items')->where(['sale_id' => $draft, 'line' => 0])->update(['quantity_purchased' => '7']),
+            'a price'         => static fn () => $db->table('sales_items')->where(['sale_id' => $draft, 'line' => 0])->update(['item_unit_price' => '1.5']),
+            'a line removed'  => static fn () => $db->table('sales_items')->where(['sale_id' => $draft, 'line' => 1])->delete(),
+            'a payment added' => static fn () => $db->table('sales_payments')->insert(['sale_id' => $draft, 'payment_type' => 'Cash', 'payment_amount' => '10', 'cash_refund' => '0', 'cash_adjustment' => 0, 'employee_id' => $seller, 'reference_code' => '', 'treasury_id' => null, 'treasury_branch_id' => null]),
+        ];
+
+        $previous = $read;
+
+        foreach ($changes as $name => $change) {
+            $change();
+
+            $now = $this->drafts->fingerprint($draft);
+
+            $this->assertNotSame($previous, $now, "after {$name}");
+
+            $previous = $now;
+        }
     }
 
     public function testForIssue_TaxesNothingWhenTheCustomerIsNotTaxable(): void

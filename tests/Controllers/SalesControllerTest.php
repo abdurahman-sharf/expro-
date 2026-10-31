@@ -12,6 +12,7 @@ use CodeIgniter\Test\FeatureTestTrait;
 use CodeIgniter\Config\Services;
 use App\Libraries\Accounting\InvoiceTiming;
 use App\Libraries\Accounting\QuoteStatus;
+use App\Libraries\Accounting\SaleDocumentList;
 use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Numbering\DocumentNumbering;
@@ -3966,6 +3967,139 @@ class SalesControllerTest extends CIUnitTestCase
         $page->assertSee('&lt;img src=x onerror=alert(1)&gt;');
     }
 
+    public function testGetDocument_EscapesTheNameAndTheDescriptionOfEveryLineAndEveryNameAndNumberOnTheHeader(): void
+    {
+        $supervisor = $this->supervisorForDocuments();
+        $db         = Database::connect();
+        $item       = $this->item('0', false);
+        $lines      = [$this->line($item, 0, '1', '100')];
+
+        $lines[0]['description'] = '<u>described</u>';
+
+        $draft = $this->save($lines, [], [], SALE_TYPE_INVOICE, $this->anotherCustomer('<b>Customer', 'Name'), true, null, SUSPENDED);
+        $quote = $this->save($lines, [], [], SALE_TYPE_QUOTE, -1, true, null, SUSPENDED);
+
+        $db->table('items')->where('item_id', $item)->update(['name' => '<img src=x onerror=alert(2)>']);
+        $db->table('people')->where('person_id', $this->employeeId)->update(['first_name' => '<i>Employee']);
+        $db->table('branches')->where('branch_id', 1)->update(['code' => '<s>B1']);
+        $db->table('sales')->where('sale_id', $quote)->update(['quote_number' => '<q>Q-1']);
+
+        foreach ([$draft, $quote] as $saleId) {
+            $body = $this->get('/sales/document/' . $saleId)->getBody();
+
+            foreach (['<img src=x onerror=alert(2)>', '<u>described</u>', '<i>Employee', '<s>B1'] as $markup) {
+                $this->assertStringNotContainsString($markup, $body, "{$markup} on the page of {$saleId}");
+                $this->assertStringContainsString(esc($markup), $body, "{$markup} escaped on the page of {$saleId}");
+            }
+        }
+
+        $this->assertStringNotContainsString('<b>Customer', $this->get('/sales/document/' . $draft)->getBody());
+        $this->assertStringNotContainsString('<q>Q-1', $this->get('/sales/document/' . $quote)->getBody());
+        $this->assertStringContainsString(esc('<q>Q-1'), $this->get('/sales/document/' . $quote)->getBody());
+        $this->assertGreaterThan(0, $supervisor);
+    }
+
+    public function testGetDocument_EscapesTheNumberOfTheInvoiceAQuoteWasConvertedInto(): void
+    {
+        $this->supervisorForDocuments();
+        $this->allowEmployeeEverywhere();
+
+        $items   = $this->taxedLines();
+        $quote   = $this->quote(null, $items);
+        $invoice = $this->save($items, [], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, null, null, null, $quote);
+
+        Database::connect()->table('sales')->where('sale_id', $invoice)->update(['invoice_number' => '<b>INV-9</b>']);
+
+        $body = $this->get('/sales/document/' . $quote)->getBody();
+
+        $this->assertStringNotContainsString('<b>INV-9</b>', $body);
+        $this->assertStringContainsString('&lt;b&gt;INV-9&lt;/b&gt;', $body);
+    }
+
+    public function testGetDocuments_EscapesTheNumberTheCustomerTheEmployeeAndTheBranchOfEveryQuote(): void
+    {
+        $this->supervisorForDocuments();
+
+        $second = $this->createSecondBranch();
+        $both   = $this->employeeWithGrants(['sales', 'sales_stock', 'reports_sales'], [1, $second]);
+        $db     = Database::connect();
+        $quote  = $this->save($this->taxedLines(), [], [], SALE_TYPE_QUOTE, $this->anotherCustomer('<b>Quoted', 'Customer'), true, null, SUSPENDED);
+
+        $db->table('sales')->where('sale_id', $quote)->update(['quote_number' => '<q>Q-2']);
+        $db->table('people')->where('person_id', $this->employeeId)->update(['first_name' => '<i>Seller']);
+        $db->table('branches')->where('branch_id', 1)->update(['code' => '<s>B1']);
+
+        $this->loginAs($both);
+
+        $body = $this->get('/sales/documents')->getBody();
+
+        foreach (['<q>Q-2', '<b>Quoted', '<i>Seller', '<s>B1'] as $markup) {
+            $this->assertStringNotContainsString($markup, $body, $markup);
+            $this->assertStringContainsString(esc($markup), $body, $markup);
+        }
+    }
+
+    public function testGetDocuments_SaysThatOnlyTheNewestAreListedWhenAListIsCutAtTheLimit(): void
+    {
+        $this->supervisorForDocuments();
+
+        $this->suspendedRows(SaleDocumentList::LIMIT, SALE_TYPE_INVOICE);
+
+        $page = $this->get('/sales/documents');
+
+        $page->assertSee('id="drafts_limited"');
+        $page->assertDontSee('id="quotes_limited"');
+        $this->assertStringContainsString(lang('Sales.documents_drafts_limited', [SaleDocumentList::LIMIT]), $page->getBody());
+
+        $this->suspendedRows(SaleDocumentList::LIMIT, SALE_TYPE_QUOTE);
+
+        $this->get('/sales/documents')->assertSee('id="quotes_limited"');
+    }
+
+    public function testGetDocuments_SaysNothingAboutALimitWhileEveryDocumentIsListed(): void
+    {
+        $this->supervisorForDocuments();
+
+        $this->suspendedRows(SaleDocumentList::LIMIT - 1, SALE_TYPE_INVOICE);
+        $this->suspendedRows(SaleDocumentList::LIMIT - 1, SALE_TYPE_QUOTE);
+
+        $page = $this->get('/sales/documents');
+
+        $page->assertDontSee('id="drafts_limited"');
+        $page->assertDontSee('id="quotes_limited"');
+    }
+
+    public function testGetDocuments_NamesTheActionColumnAndGivesEveryOpenLinkTheNumberOfItsDocument(): void
+    {
+        $this->supervisorForDocuments();
+
+        $items = $this->taxedLines();
+        $draft = $this->draftInvoice($items);
+        $quote = $this->quote(null, $items);
+
+        Database::connect()->table('sales')->where('sale_id', $quote)->update(['quote_number' => 'Q26-0007']);
+
+        $body = $this->get('/sales/documents')->getBody();
+
+        $this->assertSame(2, substr_count($body, '<span class="visually-hidden">' . lang('Sales.document_actions') . '</span>'));
+        $this->assertStringNotContainsString('<th scope="col"></th>', $body);
+        $this->assertStringContainsString('aria-label="' . lang('Sales.document_open') . ' draft-' . $draft . '"', $body);
+        $this->assertStringContainsString('aria-label="' . lang('Sales.document_open') . ' Q26-0007"', $body);
+    }
+
+    public function testGetDocument_AnswersARequestThatFailedAndLocksTheButtonsWhileOneRuns(): void
+    {
+        $this->supervisorForDocuments();
+
+        $body = $this->get('/sales/document/' . $this->draftInvoice($this->taxedLines()))->getBody();
+
+        $this->assertStringContainsString('.fail(function(request)', $body, 'a refusal with a status other than 200 is answered');
+        $this->assertStringContainsString('request.responseJSON.message', $body, 'the words of the refusal are shown');
+        $this->assertStringContainsString(json_encode(lang('Sales.document_request_failed'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT), $body);
+        $this->assertStringContainsString("buttons.prop('disabled', true)", $body, 'a second click is not sent while the first runs');
+        $this->assertStringContainsString("buttons.prop('disabled', false)", $body, 'and the buttons come back when the request is answered');
+    }
+
     public function testGetDocument_OffersNoConversionWhileInvoicesAreSwitchedOff(): void
     {
         $this->supervisorForDocuments();
@@ -4280,6 +4414,53 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertTrue($answer['success']);
         $this->assertSame(COMPLETED, $this->saleStatusOf($draft));
         $this->assertSame(0, $this->countJournals());
+    }
+
+    public function testPostIssue_RejectsAnEmployeeWithoutTheInvoiceDiscountGrantWhenTheDraftCarriesOne(): void
+    {
+        $this->supervisorForDocuments();
+
+        $draft   = $this->save($this->taxedLines(), [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, NEW_ENTRY, ['type' => PERCENT, 'value' => '40']);
+        $cashier = $this->employeeWithGrants(['sales', 'sales_stock', 'reports_sales']);
+
+        $this->grantStockLocationIn(1, $cashier);
+        $this->loginAs($cashier);
+
+        $response = $this->post('/sales/issue/' . $draft);
+        $answer   = $this->jsonOf($response);
+
+        $response->assertStatus(403);
+        $this->assertFalse($answer['success']);
+        $this->assertSame(lang('Sales.not_authorized'), $answer['message']);
+        $this->assertSame(SUSPENDED, $this->saleStatusOf($draft));
+        $this->assertSame(0, $this->countJournals());
+        $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where(['entity_id' => $draft, 'action' => 'invoice_discount_given'])->countAllResults());
+    }
+
+    public function testPostIssue_IssuesADraftWithADiscountForAnEmployeeWhoMayGiveItAndNamesHimAsTheOneWhoGaveIt(): void
+    {
+        $supervisor = $this->supervisorForDocuments(['sales_invoice_discount']);
+
+        $draft  = $this->save($this->taxedLines(), [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, NEW_ENTRY, ['type' => PERCENT, 'value' => '40']);
+        $answer = $this->jsonOf($this->post('/sales/issue/' . $draft));
+
+        $this->assertTrue($answer['success']);
+        $this->assertSame(COMPLETED, $this->saleStatusOf($draft));
+
+        $given = $this->accountingDb()->table('accounting_audit_log')->where(['entity_id' => $draft, 'action' => 'invoice_discount_given'])->get()->getResult();
+
+        $this->assertCount(1, $given);
+        $this->assertSame($supervisor, (int) $given[0]->employee_id);
+    }
+
+    public function testPostIssue_IssuesADraftWithNoDiscountForAnEmployeeWithoutTheInvoiceDiscountGrant(): void
+    {
+        $this->supervisorForDocuments();
+
+        $draft = $this->draftInvoice($this->taxedLines());
+
+        $this->assertTrue($this->jsonOf($this->post('/sales/issue/' . $draft))['success']);
+        $this->assertSame(COMPLETED, $this->saleStatusOf($draft));
     }
 
     public function testPostIssue_SaysWhyTheBooksRefusedAndKeepsTheDraft(): void
@@ -4858,6 +5039,38 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertSame($sales, $this->countSales());
         $this->assertSame(0, $this->countJournals());
         $this->assertSame((string) QuoteStatus::Open->value, $this->statusOfTheQuote($far));
+    }
+
+    public function testGetSuspended_ListsWhatTheCustomerOfTheRegisterHasWaitingInTheBranchesOfTheEmployeeAndNamesADraftQuoteByItsTemporaryNumber(): void
+    {
+        $personId = $this->supervisorForDocuments();
+        $customer = $this->anotherCustomer('Mona', 'Zaki');
+        $stranger = $this->anotherCustomer('Omar', 'Ali');
+        $second   = $this->createSecondBranch();
+        $items    = $this->taxedLines();
+        $far      = [$this->line($this->item('0', false), 0, '1', '100', '0', '0', PERCENT, $this->branchLocation($second))];
+
+        $near       = $this->save($items, [], [], SALE_TYPE_INVOICE, $customer, true, null, SUSPENDED);
+        $draftQuote = $this->save($items, [], [], SALE_TYPE_QUOTE, $customer, true, null, SUSPENDED, NEW_ENTRY, null, ReturnDocument::CreditNote, null, null, QuoteStatus::Draft);
+        $elsewhere  = $this->save($far, [], [], SALE_TYPE_INVOICE, $customer, true, null, SUSPENDED);
+        $notTheirs  = $this->save($items, [], [], SALE_TYPE_INVOICE, $stranger, true, null, SUSPENDED);
+
+        $this->withSession(['person_id' => $personId, 'menu_group' => 'home', 'sales_customer' => $customer]);
+
+        $page = $this->get('/sales/suspended');
+
+        $page->assertSee('name="suspended_sale_id" value="' . $near . '"');
+        $page->assertSee('name="suspended_sale_id" value="' . $draftQuote . '"');
+        $page->assertSee('draft-' . $draftQuote);
+        $page->assertDontSee('name="suspended_sale_id" value="' . $elsewhere . '"');
+        $page->assertDontSee('name="suspended_sale_id" value="' . $notTheirs . '"');
+
+        $rows = array_column($this->sales->get_all_suspended($customer), null, 'sale_id');
+
+        $this->assertSame([$near, $draftQuote, $elsewhere], array_map('intval', array_keys($rows)));
+        $this->assertSame('1', (string) $rows[$near]['branch_id']);
+        $this->assertSame((string) $second, (string) $rows[$elsewhere]['branch_id']);
+        $this->assertSame('draft-' . $draftQuote, $rows[$draftQuote]['doc_id']);
     }
 
     public function testGetSuspended_NamesADraftQuoteByItsTemporaryNumberAndLeavesTheOtherDocumentsAsTheyWere(): void
