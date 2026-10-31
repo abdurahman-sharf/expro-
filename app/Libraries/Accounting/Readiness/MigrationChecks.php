@@ -30,6 +30,7 @@ final class MigrationChecks extends CheckGroup
         'PurchaseInvoiceDiscount'       => [self::HEAVY, 'adds nullable columns to receivings and receivings_items; down() refuses once a purchase carries the discount'],
         'SalesInvoiceDiscount'          => [self::HEAVY, 'adds nullable columns to sales and sales_items'],
         'CrossBranchPayments'           => [self::HEAVY, 'adds treasury_branch_id to sales_payments, receivings_payments and expenses'],
+        'CustomerOpenings'              => [self::HEAVY, 'adds customer_credit_applications.opening_id and lets invoice_sale_id be empty, which rebuilds that table; creates customer_openings'],
     ];
 
     public function run(): array

@@ -90,7 +90,7 @@
     ]
   },
   {
-    "name": "G57-11 repost enforces the period of the opening before anything else is judged",
+    "name": "G57-11 repost enforces the period of the opening before it judges that nothing would change",
     "file": "app/Libraries/Accounting/OpeningStock.php",
     "find": "(new PeriodGuard($this->db))->enforce((string) $plan->date, $plan->branchId);",
     "replace": "",
@@ -925,6 +925,15 @@
     "replace": "",
     "tests": [
       "tests/Database/CustomerOpeningsMigrationTest.php"
+    ]
+  },
+  {
+    "name": "MC-01 the readiness check prints the migration of opening balances of customers as heavy",
+    "file": "app/Libraries/Accounting/Readiness/MigrationChecks.php",
+    "find": "        'CustomerOpenings'              => [self::HEAVY, 'adds customer_credit_applications.opening_id and lets invoice_sale_id be empty, which rebuilds that table; creates customer_openings'],\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Accounting/Readiness/MigrationChecksTest.php"
     ]
   }
 ]

@@ -222,7 +222,7 @@ class CustomerOpeningTest extends CIUnitTestCase
         $this->assertTies();
     }
 
-    public function testPosition_OnADayBeforeTheOpeningLeavesItOutAndOnItsDayCountsIt(): void
+    public function testCreate_CountsTheOpeningOnlyFromItsDayInThePositionOfADayOfThePast(): void
     {
         $this->owe('1000.00', $this->daysAgo(10));
 
@@ -839,7 +839,7 @@ class CustomerOpeningTest extends CIUnitTestCase
         $this->assertCount(2, array_unique($keys));
     }
 
-    public function testSettle_RunAgainChangesNothingAboutWhatWasSpentOnTheOpening(): void
+    public function testCreate_LeavesWhatWasSpentOnTheOpeningAloneWhenTheSettlementRunsAgain(): void
     {
         $first = $this->owe('1000.00', $this->daysAgo(60));
         $this->invoiceDated('100.00', $this->daysAgo(2), null, null, [$this->payment(lang('Sales.cash'), '300.00')]);
@@ -886,7 +886,7 @@ class CustomerOpeningTest extends CIUnitTestCase
         $this->assertContains($name, $taken);
     }
 
-    public function testRevise_AndCancel_TakeTheLockOfTheCustomer(): void
+    public function testReviseAndCancel_TakeTheLockOfTheCustomer(): void
     {
         $first = $this->owe();
         $name  = (new CustomerLock())->nameOf($this->customerId);
@@ -921,7 +921,7 @@ class CustomerOpeningTest extends CIUnitTestCase
         ]);
     }
 
-    public function testSchema_TheTableRefusesASecondStandingRevisionOfOneCustomerButNotAReversedOne(): void
+    public function testSchema_RefusesASecondStandingRevisionOfOneCustomerButNotAReversedOne(): void
     {
         $this->rawOpening($this->customerId, 1, 'reversed');
         $this->rawOpening($this->customerId, 2, 'reversed');
@@ -932,7 +932,7 @@ class CustomerOpeningTest extends CIUnitTestCase
         $this->rawOpening($this->customerId, 4, 'posted');
     }
 
-    public function testSchema_TheTableRefusesTwoRowsWithTheNumberOfOneRevision(): void
+    public function testSchema_RefusesTwoRowsWithTheNumberOfOneRevision(): void
     {
         $this->rawOpening($this->customerId, 1, 'reversed');
 
@@ -941,7 +941,7 @@ class CustomerOpeningTest extends CIUnitTestCase
         $this->rawOpening($this->customerId, 1, 'reversed');
     }
 
-    public function testSchema_AnApplicationOfCreditIsSpentOnAnInvoiceOrOnAnOpeningBalanceAndNeverOnBothOrNeither(): void
+    public function testSchema_RefusesAnApplicationOfCreditWithBothTargetsOrWithNone(): void
     {
         $invoice = $this->invoiceOf('100.00');
         $this->rawOpening($this->customerId, 1, 'posted');

@@ -156,6 +156,16 @@ class MigrationChecksTest extends CIUnitTestCase
         $this->assertSame([], $unclassified, 'These migrations alter a table and would be printed as ADDITIVE: classify each in MigrationChecks::SENSITIVE (HEAVY when it alters a table that holds business rows), or list it here when it alters only tables the release creates.');
     }
 
+    public function testPending_ClassifiesTheMigrationOfOpeningBalancesOfCustomersAsHeavyWithItsNote(): void
+    {
+        $this->forgetMigration('20271000000000');
+
+        $pending = $this->checks->pending();
+
+        $this->assertSame(['20271000000000', 'CustomerOpenings', MigrationChecks::HEAVY], [$pending[0]['version'], $pending[0]['class'], $pending[0]['kind']]);
+        $this->assertStringContainsString('customer_credit_applications', $pending[0]['note']);
+    }
+
     public function testPending_GivesTheNoteOfAMigrationThatNeedsOne(): void
     {
         $this->forgetMigration('20261031000000');
