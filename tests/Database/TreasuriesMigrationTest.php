@@ -4,6 +4,7 @@ namespace Tests\Database;
 
 use App\Database\Migrations\BankAccounts;
 use App\Database\Migrations\CreditFlows;
+use App\Database\Migrations\BankReconciliation;
 use App\Database\Migrations\ChequesAndRevenues;
 use App\Database\Migrations\ExpensesAccounting;
 use App\Database\Migrations\InterBranchSettlements;
@@ -233,8 +234,10 @@ class TreasuriesMigrationTest extends CIUnitTestCase
         $between   = new InterBranchSettlements();
         $credit    = new CreditFlows();
         $cheques   = new ChequesAndRevenues();
+        $bank      = new BankReconciliation();
 
         try {
+            $bank->down();
             $cheques->down();
             $credit->down();
             $between->down();
@@ -264,6 +267,7 @@ class TreasuriesMigrationTest extends CIUnitTestCase
             $between->up();
             $credit->up();
             $cheques->up();
+            $bank->up();
         }
 
         $this->assertTrue($this->hasTable('treasuries'));

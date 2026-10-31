@@ -1,13 +1,13 @@
 <?php
 /**
- * @var object|null                                            $treasury
- * @var list<object>                                           $branches
- * @var array<string, string>                                  $kinds
- * @var array<string, array{mode: string, members: list<int>}> $scopes
- * @var list<object>                                           $staff
- * @var list<object>                                           $scope_branches
+ * @var object|null                                                        $treasury
+ * @var list<object>                                                       $branches
+ * @var array<string, string>                                              $kinds
+ * @var array<string, array{mode: string, members: list<int>}>             $scopes
+ * @var list<object>                                                       $staff
+ * @var list<object>                                                       $scope_branches
  * @var list<array{code: string, country: string, en: string, ar: string}> $directory
- * @var string                                                 $selected_bank
+ * @var string                                                             $selected_bank
  */
 
 use App\Libraries\Accounting\Bank\BankText;

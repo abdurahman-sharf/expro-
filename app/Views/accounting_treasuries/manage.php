@@ -1,12 +1,11 @@
 <?php
 /**
  * @var string $table_headers
- * @var bool $can_manage
- * @var bool $can_reconcile
- * @var bool $scope_notice
- * @var array $config
+ * @var bool   $can_manage
+ * @var bool   $can_reconcile
+ * @var bool   $scope_notice
+ * @var array  $config
  */
-
 $messages = [
     'activate'   => lang('Accounting_treasuries.confirm_activate'),
     'deactivate' => lang('Accounting_treasuries.confirm_deactivate'),

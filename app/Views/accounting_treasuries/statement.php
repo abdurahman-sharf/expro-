@@ -1,17 +1,16 @@
 <?php
 /**
- * @var object       $treasury
- * @var string       $balance
+ * @var object                     $treasury
+ * @var string                     $balance
  * @var list<array<string, mixed>> $rows
- * @var int          $total_rows
+ * @var int                        $total_rows
  * @var list<array<string, mixed>> $crossings
- * @var string       $lowest
- * @var bool         $journal_links
- * @var Closure      $amount
- * @var array<int, int> $matched
- * @var Closure      $date
+ * @var string                     $lowest
+ * @var bool                       $journal_links
+ * @var Closure                    $amount
+ * @var array<int, int>            $matched
+ * @var Closure                    $date
  */
-
 $negative = bccomp($balance, '0', 4) < 0;
 
 $source = static function (array $row): string {
