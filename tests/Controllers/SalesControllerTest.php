@@ -4073,8 +4073,11 @@ class SalesControllerTest extends CIUnitTestCase
     {
         $this->supervisorForDocuments();
 
-        $this->suspendedRows(SaleDocumentList::LIMIT - 1, SALE_TYPE_INVOICE);
-        $this->suspendedRows(SaleDocumentList::LIMIT - 1, SALE_TYPE_QUOTE);
+        foreach ([SALE_TYPE_INVOICE, SALE_TYPE_QUOTE] as $type) {
+            $waiting = Database::connect()->table('sales')->where(['sale_status' => SUSPENDED, 'sale_type' => $type])->countAllResults();
+
+            $this->suspendedRows(SaleDocumentList::LIMIT - 1 - $waiting, $type);
+        }
 
         $page = $this->get('/sales/documents');
 

@@ -182,7 +182,7 @@
  {
   "name": "G21 every change of state is written in the audit log",
   "file": "app/Libraries/Accounting/QuoteLifecycle.php",
-  "find": "$this->audit($saleId, 'quote_status_changed', $employeeId, (int) $quote->branch_id, $details);",
+  "find": "        $this->audit($saleId, 'quote_status_changed', $employeeId, $branchId, $details);",
   "replace": "",
   "tests": [
    "tests/Libraries/Accounting/QuoteLifecycleTest.php"
@@ -524,9 +524,9 @@
   ]
  },
  {
-  "name": "G56 a sale that is not waiting is not completed again",
+  "name": "G56 a sale that is not suspended is not saved again, whatever it is saved as",
   "file": "app/Models/Sale.php",
-  "find": "if ($completing && (int) $stored->sale_status !== SUSPENDED) {",
+  "find": "if ((int) $stored->sale_status !== SUSPENDED) {",
   "replace": "if (false) {",
   "tests": [
    "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Rejects|Keeps|PostsNothingAndMoves|Leaves|PostsNothingForASuspended|WritesTheMove|WritesNoMove|WritesNoDraftIssued)|testDelete_RejectsToCancelAConverted|testDeleteSuspendedSale_",
@@ -536,8 +536,8 @@
  {
   "name": "G57 the state of a quote that is saved again follows the rules of the states",
   "file": "app/Models/Sale.php",
-  "find": "$salesData['quote_status'] = QuoteStatus::afterSave($storedStatus, $quoteStatus ?? QuoteStatus::Open)->value;",
-  "replace": "$salesData['quote_status'] = ($quoteStatus ?? QuoteStatus::Open)->value;",
+  "find": "$savedStatus  = QuoteStatus::afterSave($storedStatus, $quoteStatus ?? QuoteStatus::Open);",
+  "replace": "$savedStatus  = $quoteStatus ?? QuoteStatus::Open;",
   "tests": [
    "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Rejects|Keeps|PostsNothingAndMoves|Leaves|PostsNothingForASuspended|WritesTheMove|WritesNoMove|WritesNoDraftIssued)|testDelete_RejectsToCancelAConverted|testDeleteSuspendedSale_",
    "tests/Libraries/Accounting/SalePostingTest.php"
@@ -615,10 +615,10 @@
   ]
  },
  {
-  "name": "G65 only an invoice that was suspended is a draft that is issued",
+  "name": "G65 only a draft invoice that is issued is written as one, not a quote or a sale of the point of sale",
   "file": "app/Models/Sale.php",
-  "find": "if ($saleType === SALE_TYPE_INVOICE && $stored !== null && (int) $stored->sale_status === SUSPENDED) {",
-  "replace": "if ($stored !== null && (int) $stored->sale_status === SUSPENDED) {",
+  "find": "if ($saleType === SALE_TYPE_INVOICE && $stored !== null && (int) $stored->sale_type === SALE_TYPE_INVOICE && (int) $stored->sale_status === SUSPENDED) {",
+  "replace": "if ($saleType === SALE_TYPE_INVOICE && $stored !== null && (int) $stored->sale_status === SUSPENDED) {",
   "tests": [
    "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Rejects|Keeps|PostsNothingAndMoves|Leaves|PostsNothingForASuspended|WritesTheMove|WritesNoMove|WritesNoDraftIssued)|testDelete_RejectsToCancelAConverted|testDeleteSuspendedSale_",
    "tests/Libraries/Accounting/SalePostingTest.php"
@@ -1107,5 +1107,514 @@
    "tests/Controllers/SalesControllerTest.php"
   ],
   "all": true
+ },
+ {
+  "name": "G116 a sale that is issued is never suspended again by a register that still holds it",
+  "file": "app/Models/Sale.php",
+  "find": "if ((int) $stored->sale_status !== SUSPENDED) {",
+  "replace": "if ((int) $stored->sale_status === CANCELED) {",
+  "tests": [
+   "--filter=testSaveValue_RejectsSuspending|testSaveValue_RejectsCompleting|testIssueDraft_RejectsADraftThatWasSaved|testSaveValue_RejectsIssuingADraft|testIssueDraft_RejectsWhatIsNotADraftInvoice|testIssueDraft_IssuesADraftOnlyOnce",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G117 a sale that was cancelled is never suspended again by a register that still holds it",
+  "file": "app/Models/Sale.php",
+  "find": "if ((int) $stored->sale_status !== SUSPENDED) {",
+  "replace": "if ((int) $stored->sale_status === COMPLETED) {",
+  "tests": [
+   "--filter=testSaveValue_RejectsSuspending|testSaveValue_RejectsCompleting|testIssueDraft_RejectsADraftThatWasSaved|testSaveValue_RejectsIssuingADraft|testIssueDraft_RejectsWhatIsNotADraftInvoice|testIssueDraft_IssuesADraftOnlyOnce",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G118 a draft that changed after it was read is not issued",
+  "file": "app/Models/Sale.php",
+  "find": "if ($draftFingerprint !== null && (new DraftInvoice($this->db))->fingerprint($saleId) !== $draftFingerprint) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter=testSaveValue_RejectsSuspending|testSaveValue_RejectsCompleting|testIssueDraft_RejectsADraftThatWasSaved|testSaveValue_RejectsIssuingADraft|testIssueDraft_RejectsWhatIsNotADraftInvoice|testIssueDraft_IssuesADraftOnlyOnce",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G119 the issue asks that the draft is the one it read",
+  "file": "app/Models/Sale.php",
+  "find": "            draftFingerprint: $issue->fingerprint,\n",
+  "replace": "",
+  "tests": [
+   "--filter=testSaveValue_RejectsSuspending|testSaveValue_RejectsCompleting|testIssueDraft_RejectsADraftThatWasSaved|testSaveValue_RejectsIssuingADraft|testIssueDraft_RejectsWhatIsNotADraftInvoice|testIssueDraft_IssuesADraftOnlyOnce",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G120 every move of a quote saved at the register is written in the audit log",
+  "file": "app/Models/Sale.php",
+  "find": "(new QuoteLifecycle($this->db))->recordChange($saleId, $statusBefore, $statusAfter, $employeeId, (int) $salesData['branch_id'], $statusBefore === QuoteStatus::Draft ? $this->get_quote_number($saleId) : null);",
+  "replace": "",
+  "tests": [
+   "--filter=testSaveValue_WritesTheMove|testSaveValue_WritesNoMove|testSaveValue_WritesNoDraftIssued|testIssueDraft_WritesTheNumber|testIssueDraft_DatesTheInvoice|testSaveValue_SavesAQuoteAsADraft|testIssueDraft_IssuesADraftOnlyOnce",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G121 a quote saved again in the state it has moves nowhere",
+  "file": "app/Models/Sale.php",
+  "find": "if ($storedStatus !== null && $storedStatus !== $savedStatus) {",
+  "replace": "if ($storedStatus !== null) {",
+  "tests": [
+   "--filter=testSaveValue_WritesTheMove|testSaveValue_WritesNoMove|testSaveValue_WritesNoDraftIssued|testIssueDraft_WritesTheNumber|testIssueDraft_DatesTheInvoice|testSaveValue_SavesAQuoteAsADraft|testIssueDraft_IssuesADraftOnlyOnce",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G122 a quote that is new moves from nowhere",
+  "file": "app/Models/Sale.php",
+  "find": "if ($storedStatus !== null && $storedStatus !== $savedStatus) {",
+  "replace": "if ($storedStatus !== $savedStatus) {",
+  "tests": [
+   "--filter=testSaveValue_WritesTheMove|testSaveValue_WritesNoMove|testSaveValue_WritesNoDraftIssued|testIssueDraft_WritesTheNumber|testIssueDraft_DatesTheInvoice|testSaveValue_SavesAQuoteAsADraft|testIssueDraft_IssuesADraftOnlyOnce",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G123 the number a draft quote took is written with its move",
+  "file": "app/Models/Sale.php",
+  "find": "$statusBefore === QuoteStatus::Draft ? $this->get_quote_number($saleId) : null);",
+  "replace": "null);",
+  "tests": [
+   "--filter=testSaveValue_WritesTheMove|testSaveValue_WritesNoMove|testSaveValue_WritesNoDraftIssued|testIssueDraft_WritesTheNumber|testIssueDraft_DatesTheInvoice|testSaveValue_SavesAQuoteAsADraft|testIssueDraft_IssuesADraftOnlyOnce",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G124 the list of suspended sales of a customer carries the branch of each",
+  "file": "app/Models/Sale.php",
+  "find": "{$documentId}, sale_status, sale_time, dinner_table_id, customer_id, employee_id, comment, branch_id FROM",
+  "replace": "{$documentId}, sale_status, sale_time, dinner_table_id, customer_id, employee_id, comment FROM",
+  "tests": [
+   "--filter=testGetSuspended_",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G125 the list of suspended sales of a customer names a draft quote by its temporary number",
+  "file": "app/Models/Sale.php",
+  "find": "SELECT sale_id, {$documentId}, sale_status, sale_time",
+  "replace": "SELECT sale_id, sale_id as doc_id, sale_status, sale_time",
+  "tests": [
+   "--filter=testGetSuspended_",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G126 the list of suspended sales of a customer is the customer's only",
+  "file": "app/Models/Sale.php",
+  "find": " . ' AND customer_id = ' . $customer_id);",
+  "replace": ");",
+  "tests": [
+   "--filter=testGetSuspended_",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G127 a draft with a discount on the whole of it is issued by an employee who may give one",
+  "file": "app/Controllers/Sales.php",
+  "find": "if ((new DraftInvoice())->carriesInvoiceDiscount($saleId) && !$this->mayGiveInvoiceDiscount()) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter=testPostIssue_",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G128 a draft that carries no discount is issued by any employee who may issue",
+  "file": "app/Libraries/Accounting/DraftInvoice.php",
+  "find": "return $draft !== null && $draft->invoice_discount_type !== null && $draft->invoice_discount !== null;",
+  "replace": "return $draft !== null;",
+  "tests": [
+   "--filter=testPostIssue_",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G129 a draft that carries a discount is known as one",
+  "file": "app/Libraries/Accounting/DraftInvoice.php",
+  "find": "return $draft !== null && $draft->invoice_discount_type !== null && $draft->invoice_discount !== null;",
+  "replace": "return false;",
+  "tests": [
+   "--filter=testPostIssue_",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G130 the fingerprint covers the payments of the draft",
+  "file": "app/Libraries/Accounting/DraftInvoice.php",
+  "find": "[$header, $lines, $payments]",
+  "replace": "[$header, $lines]",
+  "tests": [
+   "tests/Libraries/Accounting/DraftInvoiceTest.php"
+  ]
+ },
+ {
+  "name": "G131 the fingerprint covers the lines of the draft",
+  "file": "app/Libraries/Accounting/DraftInvoice.php",
+  "find": "[$header, $lines, $payments]",
+  "replace": "[$header, $payments]",
+  "tests": [
+   "tests/Libraries/Accounting/DraftInvoiceTest.php"
+  ]
+ },
+ {
+  "name": "G132 the fingerprint covers the header of the draft",
+  "file": "app/Libraries/Accounting/DraftInvoice.php",
+  "find": "[$header, $lines, $payments]",
+  "replace": "[$lines, $payments]",
+  "tests": [
+   "tests/Libraries/Accounting/DraftInvoiceTest.php"
+  ]
+ },
+ {
+  "name": "G133 the fingerprint is taken before the draft is read",
+  "file": "app/Libraries/Accounting/DraftInvoice.php",
+  "find": "            fingerprint: $fingerprint,\n",
+  "replace": "            fingerprint: $this->fingerprint($saleId),\n",
+  "tests": [
+   "tests/Libraries/Accounting/DraftInvoiceTest.php"
+  ]
+ },
+ {
+  "name": "G134 a draft is taxed as an invoice and not in the mode of the register of whoever issues it",
+  "file": "app/Libraries/Accounting/DraftInvoice.php",
+  "find": "get_taxes($items, NEW_ENTRY, $customerId ?? NEW_ENTRY, 'sale_invoice')",
+  "replace": "get_taxes($items, NEW_ENTRY, $customerId ?? NEW_ENTRY, 'sale')",
+  "tests": [
+   "tests/Libraries/Accounting/DraftInvoiceTest.php"
+  ]
+ },
+ {
+  "name": "G135 the mode a document names is the one it is taxed in",
+  "file": "app/Libraries/Tax_lib.php",
+  "find": "$register_mode = $registerMode ?? $this->sale_lib->get_mode();",
+  "replace": "$register_mode = $this->sale_lib->get_mode();",
+  "tests": [
+   "tests/Libraries/Tax_libTest.php"
+  ]
+ },
+ {
+  "name": "G136 the customer a document names is the one it is taxed for",
+  "file": "app/Libraries/Tax_lib.php",
+  "find": "$customer_id = $customerId ?? $this->sale_lib->get_customer();",
+  "replace": "$customer_id = $this->sale_lib->get_customer();",
+  "tests": [
+   "tests/Libraries/Tax_libTest.php"
+  ]
+ },
+ {
+  "name": "G137 the mode a document names is the one it is taxed in (draft)",
+  "file": "app/Libraries/Tax_lib.php",
+  "find": "$register_mode = $registerMode ?? $this->sale_lib->get_mode();",
+  "replace": "$register_mode = $this->sale_lib->get_mode();",
+  "tests": [
+   "tests/Libraries/Accounting/DraftInvoiceTest.php"
+  ]
+ },
+ {
+  "name": "G138 the lists are cut at two hundred",
+  "file": "app/Libraries/Accounting/SaleDocumentList.php",
+  "find": "public const LIMIT = 200;",
+  "replace": "public const LIMIT = 300;",
+  "tests": [
+   "tests/Libraries/Accounting/SaleDocumentListTest.php"
+  ]
+ },
+ {
+  "name": "G139 the lists are limited by the query",
+  "file": "app/Libraries/Accounting/SaleDocumentList.php",
+  "find": "LIMIT \" . self::LIMIT,",
+  "replace": "LIMIT 100000,",
+  "tests": [
+   "tests/Libraries/Accounting/SaleDocumentListTest.php"
+  ]
+ },
+ {
+  "name": "G140 the list of drafts says when it is cut",
+  "file": "app/Views/sales/documents.php",
+  "find": "count($drafts) >= SaleDocumentList::LIMIT",
+  "replace": "false",
+  "tests": [
+   "--filter=testGetDocuments_SaysThat|testGetDocuments_SaysNothing",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G141 the list of quotes says when it is cut",
+  "file": "app/Views/sales/documents.php",
+  "find": "count($quotes) >= SaleDocumentList::LIMIT",
+  "replace": "false",
+  "tests": [
+   "--filter=testGetDocuments_SaysThat|testGetDocuments_SaysNothing",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G142 the lists say nothing before they are cut",
+  "file": "app/Views/sales/documents.php",
+  "find": "count($drafts) >= SaleDocumentList::LIMIT",
+  "replace": "count($drafts) >= 0",
+  "tests": [
+   "--filter=testGetDocuments_SaysThat|testGetDocuments_SaysNothing",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G143 the action column of the lists has a name",
+  "file": "app/Views/sales/documents.php",
+  "find": "<th scope=\"col\"><span class=\"visually-hidden\"><?= lang('Sales.document_actions') ?></span></th>",
+  "replace": "<th scope=\"col\"></th>",
+  "tests": [
+   "--filter=testGetDocuments_NamesTheActionColumn",
+   "tests/Controllers/SalesControllerTest.php"
+  ],
+  "all": true
+ },
+ {
+  "name": "G144 every link of the list of drafts names its document",
+  "file": "app/Views/sales/documents.php",
+  "find": " aria-label=\"<?= esc(lang('Sales.document_open') . ' ' . $draft->label, 'attr') ?>\"",
+  "replace": "",
+  "tests": [
+   "--filter=testGetDocuments_NamesTheActionColumn",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G145 every link of the list of quotes names its document",
+  "file": "app/Views/sales/documents.php",
+  "find": " aria-label=\"<?= esc(lang('Sales.document_open') . ' ' . $quote->label, 'attr') ?>\"",
+  "replace": "",
+  "tests": [
+   "--filter=testGetDocuments_NamesTheActionColumn",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G146 the number of a quote in the list is escaped",
+  "file": "app/Views/sales/documents.php",
+  "find": "<td><bdi dir=\"ltr\"><?= esc($quote->label) ?></bdi></td>",
+  "replace": "<td><bdi dir=\"ltr\"><?= $quote->label ?></bdi></td>",
+  "tests": [
+   "--filter=testGetDocument_Escapes|testGetDocuments_Escapes",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G147 the customer of a quote in the list is escaped",
+  "file": "app/Views/sales/documents.php",
+  "find": "<td><?= esc((string) $quote->customer_name) ?></td>",
+  "replace": "<td><?= (string) $quote->customer_name ?></td>",
+  "tests": [
+   "--filter=testGetDocument_Escapes|testGetDocuments_Escapes",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G148 the employee of a quote in the list is escaped",
+  "file": "app/Views/sales/documents.php",
+  "find": "<td><?= esc((string) $quote->employee_name) ?></td>",
+  "replace": "<td><?= (string) $quote->employee_name ?></td>",
+  "tests": [
+   "--filter=testGetDocument_Escapes|testGetDocuments_Escapes",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G149 the branch of a quote in the list is escaped",
+  "file": "app/Views/sales/documents.php",
+  "find": "<td class=\"document-branch\"><?= esc((string) $quote->branch_code) ?></td>",
+  "replace": "<td class=\"document-branch\"><?= (string) $quote->branch_code ?></td>",
+  "tests": [
+   "--filter=testGetDocument_Escapes|testGetDocuments_Escapes",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G150 the number of a draft in the list is escaped",
+  "file": "app/Views/sales/documents.php",
+  "find": "<td><bdi dir=\"ltr\"><?= esc($draft->label) ?></bdi></td>",
+  "replace": "<td><bdi dir=\"ltr\"><?= $draft->label ?></bdi></td>",
+  "tests": [
+   "--filter=testGetDocument_Escapes|testGetDocuments_Escapes",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G151 the employee of a draft in the list is escaped",
+  "file": "app/Views/sales/documents.php",
+  "find": "<td><?= esc((string) $draft->employee_name) ?></td>",
+  "replace": "<td><?= (string) $draft->employee_name ?></td>",
+  "tests": [
+   "--filter=testGetDocument_Escapes|testGetDocuments_Escapes",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G152 the branch of a draft in the list is escaped",
+  "file": "app/Views/sales/documents.php",
+  "find": "<td class=\"document-branch\"><?= esc((string) $draft->branch_code) ?></td>",
+  "replace": "<td class=\"document-branch\"><?= (string) $draft->branch_code ?></td>",
+  "tests": [
+   "--filter=testGetDocument_Escapes|testGetDocuments_Escapes",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G153 the name of a line of a document is escaped",
+  "file": "app/Views/sales/document.php",
+  "find": "<td><?= esc((string) $line->name) ?>",
+  "replace": "<td><?= (string) $line->name ?>",
+  "tests": [
+   "--filter=testGetDocument_Escapes|testGetDocuments_Escapes",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G154 the description of a line of a document is escaped",
+  "file": "app/Views/sales/document.php",
+  "find": "esc((string) $line->description) . '</small>'",
+  "replace": "(string) $line->description . '</small>'",
+  "tests": [
+   "--filter=testGetDocument_Escapes|testGetDocuments_Escapes",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G155 the customer of a document is escaped",
+  "file": "app/Views/sales/document.php",
+  "find": "<dd class=\"col-sm-9\"><?= esc((string) $header->customer_name) ?></dd>",
+  "replace": "<dd class=\"col-sm-9\"><?= (string) $header->customer_name ?></dd>",
+  "tests": [
+   "--filter=testGetDocument_Escapes|testGetDocuments_Escapes",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G156 the employee of a document is escaped",
+  "file": "app/Views/sales/document.php",
+  "find": "<dd class=\"col-sm-9\"><?= esc((string) $header->employee_name) ?></dd>",
+  "replace": "<dd class=\"col-sm-9\"><?= (string) $header->employee_name ?></dd>",
+  "tests": [
+   "--filter=testGetDocument_Escapes|testGetDocuments_Escapes",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G157 the branch of a document is escaped",
+  "file": "app/Views/sales/document.php",
+  "find": "<dd class=\"col-sm-9\"><?= esc((string) $header->branch_code) ?></dd>",
+  "replace": "<dd class=\"col-sm-9\"><?= (string) $header->branch_code ?></dd>",
+  "tests": [
+   "--filter=testGetDocument_Escapes|testGetDocuments_Escapes",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G158 the number of a document is escaped",
+  "file": "app/Views/sales/document.php",
+  "find": "<bdi dir=\"ltr\" id=\"document_number\"><?= esc($number) ?></bdi>",
+  "replace": "<bdi dir=\"ltr\" id=\"document_number\"><?= $number ?></bdi>",
+  "tests": [
+   "--filter=testGetDocument_Escapes|testGetDocuments_Escapes",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G159 the number of the invoice made from a quote is escaped",
+  "file": "app/Views/sales/document.php",
+  "find": "[esc((string) ($invoice_number ?? '#' . $invoice_id))]",
+  "replace": "[(string) ($invoice_number ?? '#' . $invoice_id)]",
+  "tests": [
+   "--filter=testGetDocument_Escapes|testGetDocuments_Escapes",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G160 a request of the page of a document that fails is answered",
+  "file": "app/Views/sales/document.php",
+  "find": "            }, 'json').fail(function(request) {\n                refused(request.responseJSON && request.responseJSON.message ? request.responseJSON.message : failure);\n            });",
+  "replace": "            }, 'json');",
+  "tests": [
+   "--filter=testGetDocument_AnswersARequest",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G161 the buttons of the page of a document are locked while a request runs",
+  "file": "app/Views/sales/document.php",
+  "find": "            buttons.prop('disabled', true);\n",
+  "replace": "",
+  "tests": [
+   "--filter=testGetDocument_AnswersARequest",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G162 the buttons of the page of a document come back when a request is answered",
+  "file": "app/Views/sales/document.php",
+  "find": "            buttons.prop('disabled', false);\n",
+  "replace": "",
+  "tests": [
+   "--filter=testGetDocument_AnswersARequest",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G163 the token filter spares no route of the sales",
+  "file": "app/Config/Filters.php",
+  "find": "'csrf' => ['except' => 'login|migrate'],",
+  "replace": "'csrf' => ['except' => 'login|migrate|sales/.*'],",
+  "tests": [
+   "tests/Config/FiltersTest.php"
+  ]
+ },
+ {
+  "name": "G164 the token filter is on",
+  "file": "app/Config/Filters.php",
+  "find": "            'csrf' => ['except' => 'login|migrate'],\n",
+  "replace": "",
+  "tests": [
+   "tests/Config/FiltersTest.php"
+  ]
+ },
+ {
+  "name": "G165 the issue is a post and never a get",
+  "file": "app/Controllers/Sales.php",
+  "find": "public function postIssue(int $saleId = NEW_ENTRY): ResponseInterface",
+  "replace": "public function getIssue(int $saleId = NEW_ENTRY): ResponseInterface",
+  "tests": [
+   "--filter=testPostIssue_IsNotReached|testPostIssue_IsTheOnlyWay",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G166 the change of status is a post and never a get",
+  "file": "app/Controllers/Sales.php",
+  "find": "public function postQuoteStatus(int $saleId = NEW_ENTRY): ResponseInterface",
+  "replace": "public function getQuoteStatus(int $saleId = NEW_ENTRY): ResponseInterface",
+  "tests": [
+   "--filter=testPostQuoteStatus_IsNotReached|testPostIssue_IsTheOnlyWay",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G167 the conversion is a post and never a get",
+  "file": "app/Controllers/Sales.php",
+  "find": "public function postConvertQuote(int $saleId = NEW_ENTRY): ResponseInterface",
+  "replace": "public function getConvertQuote(int $saleId = NEW_ENTRY): ResponseInterface",
+  "tests": [
+   "--filter=testPostConvertQuote_IsNotReached|testPostIssue_IsTheOnlyWay",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
  }
 ]
