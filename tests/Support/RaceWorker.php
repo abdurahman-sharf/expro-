@@ -160,6 +160,43 @@ $result = match ($method) {
             return false;
         }
     })($args),
+    'yearEndClose' => (static function (array $args): bool {
+        try {
+            $service  = new App\Libraries\Accounting\YearEndClosing();
+            $branchId = $args[2] === 'company' ? null : (int) $args[2];
+            $preview  = $service->preview($branchId, (int) $args[1], (int) $args[0]);
+
+            $service->approve($branchId, (int) $args[1], $preview->fingerprint, (int) $args[0]);
+
+            return true;
+        } catch (Throwable) {
+            return false;
+        }
+    })($args),
+    'yearEndCloseOutcome' => (static function (array $args): never {
+        $service  = new App\Libraries\Accounting\YearEndClosing();
+        $branchId = $args[2] === 'company' ? null : (int) $args[2];
+
+        try {
+            $preview = $service->preview($branchId, (int) $args[1], (int) $args[0]);
+        } catch (Throwable $exception) {
+            echo 'preview ' . $exception->getMessage();
+
+            exit(0);
+        }
+
+        try {
+            $service->approve($branchId, (int) $args[1], $preview->fingerprint, (int) $args[0]);
+
+            echo 'closed';
+        } catch (App\Libraries\Accounting\AccountingException $exception) {
+            echo $exception->error->value;
+        } catch (Throwable $exception) {
+            echo get_class($exception) . ' ' . $exception->getMessage();
+        }
+
+        exit(0);
+    })($args),
     'editPurchaseLines' => model(App\Models\Receiving::class)->updateLines((int) $args[0], [App\Libraries\Accounting\ReceivingLineEdit::changing((int) $args[1], 0, ['quantity' => (string) $args[2]])], (int) $args[3]),
     'deletePurchase' => model(App\Models\Receiving::class)->delete_value((int) $args[0], (int) $args[1]),
     'payPurchase' => model(App\Models\Receiving::class)->update((int) $args[0], ['payments' => [

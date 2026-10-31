@@ -50,6 +50,7 @@ trait AccountingFixtureTrait
             'interbranch_pair_locks',
             'accounting_interbranch_legs',
             'accounting_stock_entries',
+            'accounting_year_end_closings',
             'accounting_allocations',
             'accounting_journal_attachments',
             'accounting_journal_lines',
