@@ -141,7 +141,7 @@ class AccountingPayablesControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('100.00', $row['balance']);
         $this->assertStringContainsString('100.00', $row['open']);
         $this->assertStringContainsString('0.00', $row['credit']);
-        $this->assertStringContainsString('30.00', $row['age_0_30']);
+        $this->assertStringContainsString('30.00', $row['age_today']);
         $this->assertStringContainsString('70.00', $row['age_31_60']);
         $this->assertStringContainsString(lang('Accounting_payables.agrees_yes'), $row['agrees']);
         $this->assertStringContainsString('accounting_payables/supplier/' . $this->supplierId, $row['edit']);
@@ -282,6 +282,320 @@ class AccountingPayablesControllerTest extends CIUnitTestCase
         $this->expectException(PageNotFoundException::class);
 
         $this->get('/accounting_payables/supplier/' . $this->supplierId);
+    }
+
+    public function testGetSearch_ShowsWhatIsOverdueAndTheSixBucketsOfTheAging(): void
+    {
+        $this->purchaseDated('1.00', $this->daysAgo(0));
+        $this->purchaseDated('2.00', $this->daysAgo(10), 30);
+        $this->purchaseDated('4.00', $this->daysAgo(45), 10);
+        $this->purchaseDated('8.00', $this->daysAgo(75));
+        $this->purchaseDated('16.00', $this->daysAgo(100), 5);
+        $this->purchaseDated('32.00', $this->daysAgo(130));
+        $this->viewer();
+
+        $row = $this->rowsOf()['rows'][0];
+
+        $this->assertStringContainsString('1.00', $row['age_today']);
+        $this->assertStringContainsString('2.00', $row['age_1_30']);
+        $this->assertStringContainsString('4.00', $row['age_31_60']);
+        $this->assertStringContainsString('8.00', $row['age_61_90']);
+        $this->assertStringContainsString('16.00', $row['age_91_120']);
+        $this->assertStringContainsString('32.00', $row['age_over_120']);
+        $this->assertStringContainsString('60.00', $row['overdue']);
+        $this->assertStringContainsString('63.00', $row['balance']);
+    }
+
+    public function testGetSearch_DoesNotCountAPurchaseDueTodayAsOverdue(): void
+    {
+        $this->purchaseDated('40.00', $this->daysAgo(10), 10);
+        $this->viewer();
+
+        $row = $this->rowsOf()['rows'][0];
+
+        $this->assertStringNotContainsString('40.00', $row['overdue']);
+        $this->assertStringContainsString('40.00', $row['age_1_30']);
+    }
+
+    public function testGetIndex_OffersTheAgedLedgerAndTheBalanceReport(): void
+    {
+        $this->viewer();
+
+        $response = $this->get('/accounting_payables');
+
+        $response->assertSee(base_url('accounting_payables/aged_ledger'));
+        $response->assertSee(base_url('accounting_payables/balances'));
+    }
+
+    public function testGetSupplier_ShowsTheDueDateAndMarksThePurchaseThatIsOverdue(): void
+    {
+        $late = $this->purchaseDated('40.00', $this->daysAgo(10), 4);
+        $this->purchaseDated('25.00', $this->daysAgo(2), 30);
+        $this->viewer();
+
+        $response = $this->get('/accounting_payables/supplier/' . $this->supplierId);
+
+        $response->assertSee('RECV ' . $late);
+        $response->assertSee(lang('Accounting_payables.due_date'));
+        $response->assertSee(to_date(strtotime($this->daysAgo(6))));
+        $response->assertSee(to_date(strtotime('+28 days')));
+        $response->assertSee('id="statement_overdue"');
+        $this->assertSame(1, substr_count($response->getBody(), lang('Accounting_payables.overdue_days', [6])));
+        $this->assertSame(1, substr_count($response->getBody(), 'text-bg-danger'));
+    }
+
+    public function testGetSupplier_ReadsThePositionOfADayOfThePast(): void
+    {
+        $first  = $this->purchaseDated('100.00', $this->daysAgo(3));
+        $second = $this->purchaseDated('30.00', $this->daysAgo(1));
+        $this->viewer();
+
+        $response = $this->get('/accounting_payables/supplier/' . $this->supplierId . '?to=' . $this->daysAgo(2));
+
+        $response->assertStatus(200);
+        $response->assertSee('RECV ' . $first);
+        $response->assertDontSee('RECV ' . $second);
+        $response->assertDontSee(to_currency_no_money('130.00'));
+    }
+
+    public function testGetSupplier_SaysWhyADayThatIsNotADayWasNotUsedAndReadsToday(): void
+    {
+        $this->purchaseDated('100.00', $this->daysAgo(3));
+        $this->viewer();
+
+        $response = $this->get('/accounting_payables/supplier/' . $this->supplierId . '?to=2026-02-30');
+
+        $response->assertStatus(200);
+        $response->assertSee('id="report_error"');
+        $response->assertSee(to_currency_no_money('100.00'));
+    }
+
+    public function testGetAgedLedger_AppliesThePaymentToTheOldestPurchaseAndTotalsEveryBucket(): void
+    {
+        $this->purchaseDated('100.00', $this->daysAgo(5));
+        $this->purchaseDated('200.00', $this->daysAgo(3));
+        $this->purchaseDated('50.00', $this->daysAgo(0));
+        $paid = $this->purchaseDated('120.00', $this->daysAgo(1));
+        $this->payPurchase($paid, '120.00');
+        $this->viewer();
+
+        $response = $this->get('/accounting_payables/aged_ledger?period=1');
+        $body     = $response->getBody();
+
+        $response->assertStatus(200);
+        $response->assertSee('id="aged_ledger_table"');
+        $response->assertSee('Gulf Supplies');
+        $response->assertSee(lang('Accounting_payables.bucket_days', ['3 - 3']));
+        $response->assertSee(lang('Accounting_payables.bucket_days', ['4+']));
+        $response->assertSee('accounting_payables/supplier/' . $this->supplierId . '?to=' . date('Y-m-d'));
+
+        $totals = substr($body, (int) strpos($body, 'id="aged_totals"'));
+
+        foreach (['50.00', '120.00', '180.00', '350.00'] as $figure) {
+            $this->assertStringContainsString(to_currency_no_money($figure), $totals);
+        }
+
+        $this->assertSame('350.00', $this->owed());
+    }
+
+    public function testGetAgedLedger_EscapesTheNameOfTheSupplier(): void
+    {
+        $this->purchaseOf('100.00', $this->anotherSupplier('<b>Bold</b> Co'));
+        $this->viewer();
+
+        $response = $this->get('/accounting_payables/aged_ledger');
+
+        $response->assertSee('&lt;b&gt;Bold&lt;/b&gt; Co');
+        $response->assertDontSee('<b>Bold</b>');
+    }
+
+    public function testGetAgedLedger_ReadsTheDayAndTheLengthOfTheBucketsAsTyped(): void
+    {
+        $this->purchaseDated('100.00', $this->daysAgo(25));
+        $this->viewer();
+
+        $response = $this->get('/accounting_payables/aged_ledger?period=10&to=' . $this->daysAgo(10));
+
+        $response->assertSee(lang('Accounting_payables.bucket_days', ['11 - 20']));
+        $response->assertSee(lang('Accounting_payables.bucket_days', ['40+']));
+        $response->assertSee(lang('Accounting_payables.aged_as_of', [to_date(strtotime($this->daysAgo(10)))]));
+        $response->assertSee(to_currency_no_money('100.00'));
+    }
+
+    public function testGetAgedLedger_LeavesOutWhatIsDatedAfterTheDay(): void
+    {
+        $this->purchaseDated('100.00', $this->daysAgo(2));
+        $this->viewer();
+
+        $response = $this->get('/accounting_payables/aged_ledger?to=' . $this->daysAgo(5));
+
+        $response->assertSee(lang('Accounting_payables.aged_empty'));
+        $response->assertDontSee('id="aged_totals"');
+    }
+
+    public function testGetAgedLedger_SaysWhyADayThatIsNotADayWasNotUsed(): void
+    {
+        $this->purchaseDated('100.00', $this->daysAgo(2));
+        $this->viewer();
+
+        $response = $this->get('/accounting_payables/aged_ledger?to=tomorrow');
+
+        $response->assertStatus(200);
+        $response->assertSee('id="report_error"');
+        $response->assertSee(to_currency_no_money('100.00'));
+    }
+
+    public function testGetAgedLedger_RedirectsAUserWithoutTheModuleGrant(): void
+    {
+        $this->withSession(['person_id' => $this->employeeWithGrants(['accounting_chart']), 'menu_group' => 'home']);
+
+        $this->get('/accounting_payables/aged_ledger')->assertRedirect();
+    }
+
+    public function testGetAgedLedger_IsNotFoundWhileAccountingIsOff(): void
+    {
+        $this->viewer();
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_payables/aged_ledger');
+    }
+
+    public function testGetAgedLedger_IsNotFoundForSomeoneLimitedToABranch(): void
+    {
+        $this->viewer([1]);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_payables/aged_ledger');
+    }
+
+    public function testGetBalances_ShowsTheColumnsOfTheReferenceSystemAndTheyReconcile(): void
+    {
+        $first  = $this->purchaseOf('1000.00');
+        $second = $this->purchaseOf('1500.00');
+
+        $this->payPurchase($first, '1000.00');
+        $this->payPurchase($second, '500.00');
+        $this->debitNoteOf($second, '300.00');
+        $this->viewer();
+
+        $response = $this->get('/accounting_payables/balances');
+
+        $response->assertStatus(200);
+        $response->assertSee('id="balances_table"');
+        $response->assertSee('id="balances_totals"');
+
+        foreach (['col_before', 'col_sales', 'col_returns', 'col_net', 'col_payments', 'col_settlements', 'balance'] as $column) {
+            $response->assertSee(lang('Accounting_payables.' . $column));
+        }
+
+        foreach (['2500.00', '1500.00', '-300.00', '700.00'] as $figure) {
+            $response->assertSee(to_currency_no_money($figure));
+        }
+
+        $response->assertDontSee(lang('Accounting_payables.col_other'));
+    }
+
+    public function testGetBalances_EscapesTheNameOfTheSupplier(): void
+    {
+        $this->purchaseOf('100.00', $this->anotherSupplier('<b>Bold</b> Co'));
+        $this->viewer();
+
+        $response = $this->get('/accounting_payables/balances');
+
+        $response->assertSee('&lt;b&gt;Bold&lt;/b&gt; Co');
+        $response->assertDontSee('<b>Bold</b>');
+    }
+
+    public function testGetBalances_ShowsTheColumnForWhatNoOtherColumnExplainsOnlyWhenThereIsSuchAJournal(): void
+    {
+        $this->purchaseOf('100.00');
+
+        (new PostingService())->post(new JournalDraft(
+            date: date('Y-m-d'),
+            lines: [new JournalLineDraft($this->accountId('cash'), debit: '25.00'), new JournalLineDraft($this->supplierAccount(), credit: '25.00')],
+            sourceType: JournalDraft::SOURCE_MANUAL,
+            employeeId: $this->employeeId,
+            currencyCode: 'SAR',
+        ));
+        $this->viewer();
+
+        $response = $this->get('/accounting_payables/balances');
+
+        $response->assertSee(lang('Accounting_payables.col_other'));
+        $response->assertSee(to_currency_no_money('125.00'));
+    }
+
+    public function testGetBalances_CarriesWhatPrecedesTheStartIntoTheBalanceBefore(): void
+    {
+        $this->purchaseDated('100.00', $this->daysAgo(5));
+        $this->purchaseDated('30.00', $this->daysAgo(1));
+        $this->viewer();
+
+        $response = $this->get('/accounting_payables/balances?from=' . $this->daysAgo(2) . '&to=' . date('Y-m-d'));
+
+        $response->assertSee(lang('Accounting_payables.balances_period', [to_date(strtotime($this->daysAgo(2))), to_date(time())]));
+        $response->assertSee(to_currency_no_money('100.00'));
+        $response->assertSee(to_currency_no_money('130.00'));
+    }
+
+    public function testGetBalances_RefusesAPeriodThatEndsBeforeItStartsAndReadsToday(): void
+    {
+        $this->purchaseOf('100.00');
+        $this->viewer();
+
+        $response = $this->get('/accounting_payables/balances?from=' . date('Y-m-d', strtotime('+3 days')) . '&to=' . $this->daysAgo(3));
+
+        $response->assertStatus(200);
+        $response->assertSee('id="report_error"');
+        $response->assertSee(to_currency_no_money('100.00'));
+    }
+
+    public function testGetBalances_HidesASupplierWithNoMovementAndNoBalanceUnlessAskedToShowIt(): void
+    {
+        $settled = $this->anotherSupplier('Najd Trading');
+        $paid    = $this->purchaseOf('40.00', $settled);
+
+        $this->payPurchase($paid, '40.00');
+        $this->purchaseOf('100.00');
+        $this->viewer();
+
+        $tomorrow = date('Y-m-d', strtotime('+1 day'));
+        $query    = '?from=' . $tomorrow . '&to=' . $tomorrow;
+
+        $hidden = $this->get('/accounting_payables/balances' . $query);
+
+        $hidden->assertSee('Gulf Supplies');
+        $hidden->assertDontSee('Najd Trading');
+        $this->get('/accounting_payables/balances' . $query . '&empty=1')->assertSee('Najd Trading');
+    }
+
+    public function testGetBalances_RedirectsAUserWithoutTheModuleGrant(): void
+    {
+        $this->withSession(['person_id' => $this->employeeWithGrants(['accounting_chart']), 'menu_group' => 'home']);
+
+        $this->get('/accounting_payables/balances')->assertRedirect();
+    }
+
+    public function testGetBalances_IsNotFoundWhileAccountingIsOff(): void
+    {
+        $this->viewer();
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_payables/balances');
+    }
+
+    public function testGetBalances_IsNotFoundForSomeoneLimitedToABranch(): void
+    {
+        $this->viewer([1]);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_payables/balances');
     }
 
     public function testGetRow_GivesTheRowOfOneSupplier(): void

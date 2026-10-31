@@ -200,12 +200,12 @@ trait SaleAccountingFixtureTrait
      * @param list<array<string, mixed>>           $payments
      * @param array{type: int, value: string}|null $invoiceDiscount
      */
-    protected function save(array $items, array $taxes = [], array $payments = [], int $type = SALE_TYPE_INVOICE, ?int $customerId = -1, bool $delivered = true, ?int $origin = null, int $status = COMPLETED, int $saleId = NEW_ENTRY, ?array $invoiceDiscount = null, ReturnDocument $returnDocument = ReturnDocument::CreditNote): int
+    protected function save(array $items, array $taxes = [], array $payments = [], int $type = SALE_TYPE_INVOICE, ?int $customerId = -1, bool $delivered = true, ?int $origin = null, int $status = COMPLETED, int $saleId = NEW_ENTRY, ?array $invoiceDiscount = null, ReturnDocument $returnDocument = ReturnDocument::CreditNote, ?string $invoiceDate = null, int|string|null $paymentTerms = null): int
     {
         $saleStatus = $status;
         $salesTaxes = [[], $taxes];
         $customer   = $customerId === -1 ? $this->customerId : ($customerId ?? NEW_ENTRY);
-        $result     = $this->sales->save_value($saleId, $saleStatus, $items, $customer, $this->employeeId, 'test', null, null, null, $type, $payments, null, $salesTaxes, $delivered, $origin, $invoiceDiscount, $returnDocument);
+        $result     = $this->sales->save_value($saleId, $saleStatus, $items, $customer, $this->employeeId, 'test', null, null, null, $type, $payments, null, $salesTaxes, $delivered, $origin, $invoiceDiscount, $returnDocument, $invoiceDate, $paymentTerms);
 
         if ($result > 0) {
             $this->saleIds[] = $result;
@@ -330,6 +330,37 @@ trait SaleAccountingFixtureTrait
     }
 
     /**
+     * Lets the seller of the test type the date of an invoice.
+     */
+    protected function grantInvoiceDate(): void
+    {
+        $this->accountingDb()->table('grants')->ignore(true)->insert(['permission_id' => 'sales_invoice_date', 'person_id' => $this->employeeId, 'menu_group' => 'home']);
+    }
+
+    /**
+     * An invoice of a service dated on a day typed on it, with payment terms when it has them. The
+     * seller is given the permission to type the date first.
+     *
+     * @param list<array<string, mixed>> $payments
+     */
+    protected function invoiceDated(string $total, string $date, int|string|null $terms = null, ?int $customerId = null, array $payments = []): int
+    {
+        $this->grantInvoiceDate();
+
+        $service = $this->item('0', false);
+
+        return $this->save([$this->line($service, 0, '1', $total)], [], $payments, SALE_TYPE_INVOICE, $customerId ?? -1, true, null, COMPLETED, NEW_ENTRY, null, $date, $terms);
+    }
+
+    /**
+     * The day a number of days ago.
+     */
+    protected function daysAgo(int $days): string
+    {
+        return date('Y-m-d', strtotime("-{$days} days"));
+    }
+
+    /**
      * A credit note of a service for the amount, taken from an invoice.
      */
     protected function creditNoteOf(int $invoiceId, string $total, ?int $customerId = null): int
@@ -369,9 +400,9 @@ trait SaleAccountingFixtureTrait
         ]]));
     }
 
-    protected function position(?int $customerId = null): CustomerPosition
+    protected function position(?int $customerId = null, ?string $asOf = null): CustomerPosition
     {
-        return (new CustomerLedger())->position($customerId ?? $this->customerId);
+        return (new CustomerLedger())->position($customerId ?? $this->customerId, $asOf);
     }
 
     /**

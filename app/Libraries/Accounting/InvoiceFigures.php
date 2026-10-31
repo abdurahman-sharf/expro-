@@ -5,7 +5,9 @@ namespace App\Libraries\Accounting;
 /**
  * An invoice of a customer as the books hold it: what it came to, what was paid into it, what
  * credit was applied to it and what was taken back by credit notes. Every amount is read from
- * journals that stand, so it cannot disagree with the account of the customer.
+ * journals that stand, so it cannot disagree with the account of the customer. It has the day it
+ * is dated, which is where its age counts from, and the day it falls due, which is its own day
+ * when it has no payment terms.
  */
 final readonly class InvoiceFigures
 {
@@ -17,7 +19,19 @@ final readonly class InvoiceFigures
         public string $paid,
         public string $applied,
         public string $returned,
+        public string $dueDate,
+        public ?int $termsDays = null,
     ) {
+    }
+
+    public function isOverdue(string $today): bool
+    {
+        return InvoiceTiming::isOverdue($this->dueDate, $today, bccomp($this->open(), '0', SaleAmounts::SCALE) > 0);
+    }
+
+    public function daysOverdue(string $today): int
+    {
+        return $this->isOverdue($today) ? AgingBuckets::ageInDays($this->dueDate, $today) : 0;
     }
 
     /**

@@ -3,6 +3,8 @@
  * @var string           $supplier_name
  * @var SupplierPosition $position
  * @var string           $today
+ * @var string           $to
+ * @var string|null      $error
  * @var list<object>     $applications
  * @var int              $supplier_id
  * @var list<object>     $advances
@@ -12,6 +14,7 @@
  * @var Closure          $date
  */
 
+use App\Libraries\Accounting\AgingBuckets;
 use App\Libraries\Accounting\CreditSource;
 use App\Libraries\Accounting\SupplierPosition;
 
@@ -58,7 +61,21 @@ $aging = $position->aging($today);
                 <span class="badge text-bg-warning"><?= lang('Accounting_payables.agrees_no', [to_currency_no_money($position->unclassified())]) ?></span>
             <?php endif; ?>
         </dd>
+        <dt class="col-sm-3"><?= lang('Accounting_payables.overdue') ?></dt>
+        <dd class="col-sm-9" id="statement_overdue"><?= $amount($position->overdue($today)) ?></dd>
     </dl>
+
+    <form id="statement_day" class="print_hide mb-3 d-flex flex-wrap align-items-end gap-2" method="get" role="search">
+        <div>
+            <label class="form-label" for="f_to"><?= lang('Accounting_payables.aged_to') ?></label>
+            <input type="date" id="f_to" name="to" class="form-control form-control-sm" value="<?= esc($to, 'attr') ?>">
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm"><span class="bi bi-search" aria-hidden="true">&nbsp;</span><?= lang('Accounting_reports.apply') ?></button>
+    </form>
+
+    <?php if ($error !== null): ?>
+        <p class="alert alert-danger" id="report_error" role="alert"><?= esc($error) ?></p>
+    <?php endif; ?>
 
     <h2 class="h5"><?= lang('Accounting_payables.aging') ?></h2>
     <div class="table-responsive mb-4">
@@ -66,7 +83,7 @@ $aging = $position->aging($today);
             <thead>
                 <tr>
                     <?php foreach ($aging as $bucket => $unused): ?>
-                        <th scope="col"><?= lang('Accounting_payables.age_' . ($bucket === '91+' ? '91_plus' : str_replace('-', '_', $bucket))) ?></th>
+                        <th scope="col"><?= lang('Accounting_payables.' . AgingBuckets::LANGUAGE_KEYS[$bucket]) ?></th>
                     <?php endforeach; ?>
                 </tr>
             </thead>
@@ -87,6 +104,7 @@ $aging = $position->aging($today);
                 <tr>
                     <th scope="col"><?= lang('Accounting_payables.purchase') ?></th>
                     <th scope="col"><?= lang('Accounting_payables.date') ?></th>
+                    <th scope="col"><?= lang('Accounting_payables.due_date') ?></th>
                     <th scope="col"><?= lang('Accounting_payables.total') ?></th>
                     <th scope="col"><?= lang('Accounting_payables.paid') ?></th>
                     <th scope="col"><?= lang('Accounting_payables.credit_applied') ?></th>
@@ -113,6 +131,7 @@ $aging = $position->aging($today);
                             <?php endif; ?>
                         </td>
                         <td><?= esc($date($purchase->date)) ?></td>
+                        <td><?= esc($date($purchase->dueDate)) ?></td>
                         <td><?= $amount($purchase->total) ?></td>
                         <td><?= $amount($purchase->paid) ?></td>
                         <td><?= $amount($purchase->applied) ?></td>
@@ -120,6 +139,9 @@ $aging = $position->aging($today);
                         <td><?= $amount($purchase->open()) ?></td>
                         <td>
                             <?= esc(lang($purchase->paymentState()->languageKey())) ?>
+                            <?php if ($purchase->isOverdue($today)): ?>
+                                <span class="badge text-bg-danger"><?= esc(lang('Accounting_payables.overdue_days', [$purchase->daysOverdue($today)])) ?></span>
+                            <?php endif; ?>
                             <?php if ($purchase->returnState()->languageKey() !== null): ?>
                                 <?= esc(lang($purchase->returnState()->languageKey())) ?>
                             <?php endif; ?>
@@ -127,7 +149,7 @@ $aging = $position->aging($today);
                     </tr>
                 <?php endforeach; ?>
                 <?php if ($position->purchases === []): ?>
-                    <tr><td colspan="8"><?= lang('Accounting_payables.no_purchases') ?></td></tr>
+                    <tr><td colspan="9"><?= lang('Accounting_payables.no_purchases') ?></td></tr>
                 <?php endif; ?>
             </tbody>
         </table>

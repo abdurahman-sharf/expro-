@@ -3,7 +3,8 @@
 namespace App\Libraries\Accounting;
 
 /**
- * A saved sale, with what posting needs to know about it. A return carries the sale it was
+ * A saved sale, with what posting needs to know about it. Its date is the day its journals take:
+ * the date typed on the invoice, or else the day it was saved. A return carries the sale it was
  * taken back from, because the cost of a returned item is the cost it was sold at.
  */
 final readonly class SaleDocument
@@ -24,6 +25,7 @@ final readonly class SaleDocument
         public array $lines,
         public array $payments,
         public ?self $origin = null,
+        public ?string $savedOn = null,
     ) {
     }
 

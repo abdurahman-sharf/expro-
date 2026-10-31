@@ -153,7 +153,7 @@ trait PurchaseAccountingFixtureTrait
      *
      * @param list<array<string, mixed>> $lines
      */
-    protected function buy(array $lines, ?int $supplierId = -1, ?string $paymentType = null, ?int $origin = null, ?InvoiceDiscount $discount = null): int
+    protected function buy(array $lines, ?int $supplierId = -1, ?string $paymentType = null, ?int $origin = null, ?InvoiceDiscount $discount = null, ?string $invoiceDate = null, int|string|null $paymentTerms = null): int
     {
         $result = $this->purchases->save_value(
             $lines,
@@ -165,6 +165,8 @@ trait PurchaseAccountingFixtureTrait
             NEW_ENTRY,
             $origin,
             $discount,
+            $invoiceDate,
+            $paymentTerms,
         );
 
         if ($result > 0) {
@@ -281,6 +283,30 @@ trait PurchaseAccountingFixtureTrait
     }
 
     /**
+     * Lets the buyer of the test type the date of a purchase.
+     */
+    protected function grantPurchaseDate(): void
+    {
+        $this->accountingDb()->table('grants')->ignore(true)->insert(['permission_id' => 'receivings_invoice_date', 'person_id' => $this->employeeId, 'menu_group' => 'home']);
+    }
+
+    /**
+     * A purchase of one unit dated on a day typed on it, with payment terms when it has them, left
+     * on credit. The buyer is given the permission to type the date first.
+     */
+    protected function purchaseDated(string $total, string $date, int|string|null $terms = null, ?int $supplierId = null): int
+    {
+        $this->grantPurchaseDate();
+
+        $item        = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($item, 0, '1', $total)], $supplierId ?? -1, null, null, null, $date, $terms);
+
+        $this->assertGreaterThan(0, $receivingId, 'The purchase of ' . $total . ' dated ' . $date . ' was not saved');
+
+        return $receivingId;
+    }
+
+    /**
      * A return that takes back the worth given of what a purchase brought in, which is a debit
      * note. The purchase must be of one unit, so the worth is a part of a unit.
      */
@@ -322,9 +348,9 @@ trait PurchaseAccountingFixtureTrait
         ]]);
     }
 
-    protected function supplierPosition(?int $supplierId = null): SupplierPosition
+    protected function supplierPosition(?int $supplierId = null, ?string $asOf = null): SupplierPosition
     {
-        return (new SupplierLedger())->position($supplierId ?? $this->supplierId);
+        return (new SupplierLedger())->position($supplierId ?? $this->supplierId, $asOf);
     }
 
     /**

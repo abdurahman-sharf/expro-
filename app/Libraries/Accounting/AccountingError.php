@@ -117,6 +117,10 @@ enum AccountingError: string
     case IssuedDocumentLocked = 'issued_document_locked';
     case CustomerBusy         = 'customer_busy';
 
+    case InvoiceDateInvalid     = 'invoice_date_invalid';
+    case InvoiceDateBeforeStart = 'invoice_date_before_start';
+    case PaymentTermsInvalid    = 'payment_terms_invalid';
+
     case PurchaseLocked     = 'purchase_locked';
     case PurchaseHasReturns = 'purchase_has_returns';
 

@@ -217,25 +217,33 @@ final class SalePosting
 
     /**
      * A sale that has been posted keeps its customer and its date, as an invoice that has been
-     * issued does. What it needs corrected is corrected by a return. Only the changes named
-     * are compared.
+     * issued does. What it needs corrected is corrected by a return. The day typed on an invoice is
+     * never changed after it was saved, whether its journal stands or not, because the journal takes
+     * that day. Only the changes named are compared.
      *
-     * @param array{customer_id?: ?int, date?: string} $changes
+     * @param array{customer_id?: ?int, date?: string, invoice_date?: string} $changes
      *
      * @throws AccountingException
      */
     public function assertEditable(int $saleId, array $changes): void
     {
-        if ($changes === [] || ! $this->isPosted($saleId)) {
+        if ($changes === []) {
+            return;
+        }
+
+        $posted = $this->isPosted($saleId);
+
+        if (! $posted && ! array_key_exists('invoice_date', $changes)) {
             return;
         }
 
         $sale = $this->loader->load($saleId, false);
 
-        $customerChanged = array_key_exists('customer_id', $changes) && ($sale === null || $sale->customerId !== $changes['customer_id']);
-        $dateChanged     = array_key_exists('date', $changes) && ($sale === null || $sale->date !== $changes['date']);
+        $customerChanged = $posted && array_key_exists('customer_id', $changes) && ($sale === null || $sale->customerId !== $changes['customer_id']);
+        $dateChanged     = $posted && array_key_exists('date', $changes) && ($sale === null || $sale->savedOn !== $changes['date']);
+        $invoiceChanged  = array_key_exists('invoice_date', $changes) && ($sale === null || $sale->date !== $changes['invoice_date']);
 
-        if ($customerChanged || $dateChanged) {
+        if ($customerChanged || $dateChanged || $invoiceChanged) {
             throw new AccountingException(AccountingError::SaleLocked, 'The customer and the date of a sale that has been posted cannot change. Correct it with a return.', ['sale_id' => $saleId]);
         }
     }

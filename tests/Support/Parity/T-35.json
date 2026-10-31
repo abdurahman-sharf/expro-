@@ -1,6 +1,6 @@
 {
   "id": "T-35",
-  "title": "What the reports of one customer say after invoices, credit notes and credit: the figure on the customer page, the aging and the account of the customer in the ledger are one figure, and the balance report splits it in columns that this application does not have",
+  "title": "What the reports of one customer say after invoices, credit notes and credit: the figure on the customer page, the aging and the account of the customer in the ledger are one figure, and the balance report splits it in columns (the balance before, sales, returns, net sales, payments, settlements) that WP13 builds here",
   "recorded": "2026-10-27",
   "observation": {
     "batch": "d1",
@@ -44,8 +44,7 @@
     {
       "id": "balance-report-columns",
       "kind": "customer_reports",
-      "classification": "differs",
-      "reason": "The balance report of the reference system splits the balance in the balance before, sales, returns, net sales, payments, adjustments (where the credit notes sit) and the balance. This application lists a customer with one balance; WP13 adds the columns.",
+      "classification": "exact",
       "evidence": [
         "balance_tie"
       ],
@@ -54,6 +53,15 @@
       },
       "reference": {
         "columns": [
+          "before",
+          "sales",
+          "returns",
+          "net_sales",
+          "payments",
+          "settlements",
+          "balance"
+        ],
+        "labels": [
           "الرصيد قبل",
           "إجمالي المبيعات",
           "إجمالي المرتجع",
@@ -65,7 +73,12 @@
       },
       "expected": {
         "columns": [
-          "customer_name",
+          "before",
+          "sales",
+          "returns",
+          "net_sales",
+          "payments",
+          "settlements",
           "balance"
         ]
       }

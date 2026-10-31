@@ -31,6 +31,12 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
     <p class="mb-0 me-auto text-body-secondary"><?= lang('Accounting_payables.note') ?></p>
     <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('accounting_payables/payments'), 'attr') ?>"><span class="bi bi-cash-coin" aria-hidden="true">&nbsp;</span><?= lang('Accounting_payables.payments') ?></a>
     <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('accounting_payables/debit_notes'), 'attr') ?>"><span class="bi bi-file-earmark-minus" aria-hidden="true">&nbsp;</span><?= lang('Accounting_payables.debit_notes') ?></a>
+    <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('accounting_payables/balances'), 'attr') ?>">
+        <span class="bi bi-table" aria-hidden="true">&nbsp;</span><?= lang('Accounting_payables.balances_title') ?>
+    </a>
+    <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('accounting_payables/aged_ledger'), 'attr') ?>">
+        <span class="bi bi-hourglass-split" aria-hidden="true">&nbsp;</span><?= lang('Accounting_payables.aged_title') ?>
+    </a>
 </div>
 
 <div id="table_holder">

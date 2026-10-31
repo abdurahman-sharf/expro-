@@ -19,6 +19,8 @@
  * @var array $config
  * @var string|null $documentLabel
  * @var string|null $documentNumber
+ * @var string|null $invoice_date
+ * @var string|null $due_date
  */
 ?>
 
@@ -65,6 +67,12 @@ echo view('partial/print_receipt', ['print_after_sale', $print_after_sale, 'sele
         <?php } ?>
         <?php if (!empty($reference)) { ?>
             <div id="reference"><?= lang('Receivings.reference') . esc(": $reference") ?></div>
+        <?php } ?>
+        <?php if (!empty($invoice_date)) { ?>
+            <div id="invoice_date"><?= lang('Receivings.invoice_date') . esc(": $invoice_date") ?></div>
+        <?php } ?>
+        <?php if (!empty($due_date)) { ?>
+            <div id="due_date"><?= lang('Receivings.due_date') . esc(": $due_date") ?></div>
         <?php } ?>
         <div id="employee"><?= lang('Employees.employee') . esc(": $employee") ?></div>
     </div>

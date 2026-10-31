@@ -25,6 +25,7 @@
  * @var string|null $documentNumber
  * @var App\Libraries\Accounting\InvoiceDiscount $invoiceDiscount
  * @var string $invoiceDiscountShare
+ * @var array{date: string, terms: int|null, due: string}|null $invoice_timing
  */
 ?>
 
@@ -62,6 +63,30 @@
                 ]) ?>
             </div>
         </div>
+
+        <?php if ($invoice_timing !== null): ?>
+            <div class="row mb-3">
+                <?= form_label(lang('Receivings.invoice_date'), 'invoice_date', ['class' => 'col-form-label col-3']) ?>
+                <div class="col-8">
+                    <?= form_input(['name' => 'invoice_date', 'id' => 'invoice_date', 'value' => to_date(strtotime($invoice_timing['date'])), 'class' => 'form-control form-control-sm', 'readonly' => 'readonly']) ?>
+                </div>
+            </div>
+            <div class="row mb-3">
+                <?= form_label(lang('Receivings.payment_terms'), 'payment_terms_days', ['class' => 'col-form-label col-3']) ?>
+                <div class="col-8">
+                    <div class="input-group input-group-sm">
+                        <?= form_input(['type' => 'number', 'name' => 'payment_terms_days', 'id' => 'payment_terms_days', 'value' => $invoice_timing['terms'] ?? '', 'min' => 0, 'max' => 3650, 'step' => 1, 'class' => 'form-control form-control-sm']) ?>
+                        <span class="input-group-text"><?= lang('Receivings.payment_terms_days') ?></span>
+                    </div>
+                </div>
+            </div>
+            <div class="row mb-3">
+                <?= form_label(lang('Receivings.due_date'), 'due_date', ['class' => 'col-form-label col-3']) ?>
+                <div class="col-8">
+                    <?= form_input(['name' => 'due_date', 'id' => 'due_date', 'value' => to_date(strtotime($invoice_timing['due'])), 'class' => 'form-control form-control-sm', 'readonly' => 'readonly']) ?>
+                </div>
+            </div>
+        <?php endif; ?>
 
         <div class="row mb-3">
             <?= form_label(lang('Receivings.supplier'), 'supplier_name', ['class' => 'col-form-label col-3']) ?>

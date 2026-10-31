@@ -5,8 +5,11 @@ namespace App\Models;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingSettings;
+use App\Libraries\Accounting\AuditLog;
 use App\Libraries\Accounting\InvoiceDiscount;
 use App\Libraries\Accounting\InvoiceDiscountShares;
+use App\Libraries\Accounting\InvoiceTiming;
+use App\Libraries\Accounting\JournalOrigin;
 use App\Libraries\Accounting\PaymentStatus;
 use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\PostingError;
@@ -121,12 +124,12 @@ class Receiving extends Model
      * changed, and the credit of the supplier is settled, all in the transaction of the update
      * and under the lock of the supplier.
      */
-    public function update($receiving_id = null, $receiving_data = null): bool
+    public function update($receivingId = null, $receivingData = null): bool
     {
         $this->accountingFailure = null;
 
         try {
-            return (new SupplierLock($this->db, $this->supplierLockWait))->run($this->supplierOf((int) $receiving_id), fn (): bool => $this->updateLocked($receiving_id, $receiving_data));
+            return (new SupplierLock($this->db, $this->supplierLockWait))->run($this->supplierOf((int) $receivingId), fn (): bool => $this->updateLocked($receivingId, $receivingData));
         } catch (AccountingException $busy) {
             if ($busy->error !== AccountingError::SupplierBusy) {
                 throw $busy;
@@ -138,29 +141,37 @@ class Receiving extends Model
         }
     }
 
-    private function updateLocked($receiving_id, $receiving_data): bool
+    private function updateLocked($receivingId, $receivingData): bool
     {
-        $payments     = is_array($receiving_data) && isset($receiving_data['payments']) ? $receiving_data['payments'] : [];
+        $payments     = is_array($receivingData) && isset($receivingData['payments']) ? $receivingData['payments'] : [];
         $accountingOn = (new AccountingSettings($this->db))->isEnabled();
-        $employeeId   = isset($payments[0]['employee_id']) ? (int) $payments[0]['employee_id'] : null;
+        $employeeId   = $this->employeeOfEdit($receivingData, $payments);
+        $hasDate      = is_array($receivingData) && array_key_exists('invoice_date', $receivingData);
+        $typedDate    = is_array($receivingData) ? ($receivingData['invoice_date'] ?? null) : null;
+        $hasTerms     = is_array($receivingData) && array_key_exists('payment_terms_days', $receivingData);
+        $typedTerms   = is_array($receivingData) ? ($receivingData['payment_terms_days'] ?? null) : null;
 
-        if (is_array($receiving_data)) {
-            unset($receiving_data['payments']);
+        if (is_array($receivingData)) {
+            unset($receivingData['payments'], $receivingData['invoice_date'], $receivingData['payment_terms_days'], $receivingData['due_date'], $receivingData['changed_by']);
         }
 
-        if ($accountingOn && is_array($receiving_data)) {
+        if ($accountingOn && is_array($receivingData)) {
             $changes = [];
 
-            if (array_key_exists('supplier_id', $receiving_data)) {
-                $changes['supplier_id'] = $receiving_data['supplier_id'] === null || $receiving_data['supplier_id'] === '' ? null : (int) $receiving_data['supplier_id'];
+            if (array_key_exists('supplier_id', $receivingData)) {
+                $changes['supplier_id'] = $receivingData['supplier_id'] === null || $receivingData['supplier_id'] === '' ? null : (int) $receivingData['supplier_id'];
             }
 
-            if (array_key_exists('receiving_time', $receiving_data)) {
-                $changes['date'] = substr((string) $receiving_data['receiving_time'], 0, 10);
+            if (array_key_exists('receiving_time', $receivingData)) {
+                $changes['date'] = substr((string) $receivingData['receiving_time'], 0, 10);
+            }
+
+            if ($hasDate) {
+                $changes['invoice_date'] = (string) $typedDate;
             }
 
             try {
-                (new ReceivingPosting($this->db))->assertEditable((int) $receiving_id, $changes);
+                (new ReceivingPosting($this->db))->assertEditable((int) $receivingId, $changes);
             } catch (AccountingException $refusal) {
                 $this->accountingFailure = $refusal;
 
@@ -173,21 +184,25 @@ class Receiving extends Model
         try {
             $success = true;
 
-            if (is_array($receiving_data) && $receiving_data !== []) {
+            if ($accountingOn && $hasTerms) {
+                $receivingData = [...(is_array($receivingData) ? $receivingData : []), ...$this->paymentTermsChange((int) $receivingId, $typedTerms, $employeeId)];
+            }
+
+            if (is_array($receivingData) && $receivingData !== []) {
                 $builder = $this->db->table('receivings');
-                $builder->where('receiving_id', $receiving_id);
-                $success = $builder->update($receiving_data);
+                $builder->where('receiving_id', $receivingId);
+                $success = $builder->update($receivingData);
             }
 
             if ($success && $payments !== []) {
-                $this->savePayments((int) $receiving_id, $payments, $accountingOn);
+                $this->savePayments((int) $receivingId, $payments, $accountingOn);
             }
         } catch (AccountingException|PostingException $failure) {
             $this->db->transRollback();
             $this->accountingFailure = $failure;
 
             if ($accountingOn && $failure instanceof PostingException) {
-                (new ReceivingPosting($this->db))->recordFailure((int) $receiving_id, $failure, $employeeId, $this->getBranchId((int) $receiving_id));
+                (new ReceivingPosting($this->db))->recordFailure((int) $receivingId, $failure, $employeeId, $this->getBranchId((int) $receivingId));
             }
 
             return false;
@@ -200,6 +215,99 @@ class Receiving extends Model
         $this->db->transComplete();
 
         return (bool) $success && $this->db->transStatus();
+    }
+
+    /**
+     * The day typed on a purchase, its payment terms and its due date, each empty when the purchase has none.
+     *
+     * @return array{invoice_date: ?string, payment_terms_days: ?int, due_date: ?string}
+     */
+    public function getInvoiceTiming(int $receivingId): array
+    {
+        $row = $this->db->table('receivings')->select('invoice_date, payment_terms_days, due_date')->where('receiving_id', $receivingId)->get()->getRow();
+
+        return [
+            'invoice_date'       => $row === null || $row->invoice_date === null ? null : (string) $row->invoice_date,
+            'payment_terms_days' => $row === null || $row->payment_terms_days === null ? null : (int) $row->payment_terms_days,
+            'due_date'           => $row === null || $row->due_date === null ? null : (string) $row->due_date,
+        ];
+    }
+
+    /**
+     * The payment terms of a purchase and the due date they give from the day the purchase is
+     * dated, which are the only part of its timing that can change after it is saved, and change
+     * nothing in its journals. Nothing is returned when the terms are not new or the document is
+     * not a purchase of goods.
+     *
+     * @return array{payment_terms_days?: ?int, due_date?: ?string}
+     *
+     * @throws AccountingException
+     */
+    private function paymentTermsChange(int $receivingId, int|string|null $typed, ?int $employeeId): array
+    {
+        $terms    = InvoiceTiming::terms($typed);
+        $purchase = $this->db->table('receivings')->select('receiving_type, receiving_time, invoice_date, payment_terms_days, branch_id')->where('receiving_id', $receivingId)->get()->getRow();
+
+        if ($purchase === null || $purchase->receiving_type !== ReceivingType::Receive->value) {
+            return [];
+        }
+
+        $before = $purchase->payment_terms_days === null ? null : (int) $purchase->payment_terms_days;
+
+        if ($before === $terms) {
+            return [];
+        }
+
+        $date = $purchase->invoice_date === null ? substr((string) $purchase->receiving_time, 0, 10) : (string) $purchase->invoice_date;
+        $due  = $terms === null ? null : InvoiceTiming::dueDate($date, $terms);
+
+        (new AuditLog($this->db))->write('receiving', $receivingId, 'payment_terms_changed', $employeeId, JournalOrigin::User, ['from' => $before, 'to' => $terms, 'due_date' => $due ?? $date], (int) $purchase->branch_id);
+
+        return ['payment_terms_days' => $terms, 'due_date' => $due];
+    }
+
+    /**
+     * @param array<string, mixed>|null $receivingData
+     * @param list<array<string, mixed>> $payments
+     */
+    private function employeeOfEdit(?array $receivingData, array $payments): ?int
+    {
+        $employeeId = $receivingData['changed_by'] ?? $payments[0]['employee_id'] ?? null;
+
+        return $employeeId === null || $employeeId === '' ? null : (int) $employeeId;
+    }
+
+    /**
+     * What a purchase carries about time besides the moment it was saved: the day typed on it, its
+     * payment terms and the due date they give. Only a purchase of goods in books that are on has
+     * any of it, and the day is typed by an employee who may.
+     *
+     * @return array{invoice_date: ?string, payment_terms_days: ?int, due_date: ?string}
+     *
+     * @throws AccountingException
+     */
+    private function timingOf(ReceivingType $type, ?string $invoiceDate, int|string|null $paymentTerms, int $employeeId): array
+    {
+        $none     = ['invoice_date' => null, 'payment_terms_days' => null, 'due_date' => null];
+        $settings = new AccountingSettings($this->db);
+
+        if (! $settings->isEnabled() || $type !== ReceivingType::Receive) {
+            return $none;
+        }
+
+        $today = date('Y-m-d');
+        $date  = InvoiceTiming::date($invoiceDate, $today, $settings->startDate());
+        $terms = InvoiceTiming::terms($paymentTerms);
+
+        if ($date !== null && ! model(Employee::class)->has_grant('receivings_invoice_date', $employeeId)) {
+            throw new AccountingException(AccountingError::PermissionDenied, 'The employee may not type the date of a purchase.');
+        }
+
+        return [
+            'invoice_date'       => $date,
+            'payment_terms_days' => $terms,
+            'due_date'           => $terms === null ? null : InvoiceTiming::dueDate($date ?? $today, $terms),
+        ];
     }
 
     /**
@@ -412,12 +520,12 @@ class Receiving extends Model
      *
      * @throws ReflectionException
      */
-    public function save_value(array $items, int $supplier_id, int $employee_id, string $comment, string $reference, ?string $payment_type, int $receiving_id = NEW_ENTRY, ?int $returnOfReceivingId = null, ?InvoiceDiscount $invoiceDiscount = null): int    // TODO: $receiving_id gets overwritten before it's evaluated. It doesn't make sense to pass this here.
+    public function save_value(array $items, int $supplierId, int $employeeId, string $comment, string $reference, ?string $paymentType, int $receivingId = NEW_ENTRY, ?int $returnOfReceivingId = null, ?InvoiceDiscount $invoiceDiscount = null, ?string $invoiceDate = null, int|string|null $paymentTerms = null): int    // TODO: $receivingId gets overwritten before it's evaluated. It doesn't make sense to pass this here.
     {
         $this->accountingFailure = null;
 
         try {
-            return (new SupplierLock($this->db, $this->supplierLockWait))->run($supplier_id > 0 ? $supplier_id : null, fn (): int => $this->saveValueLocked($items, $supplier_id, $employee_id, $comment, $reference, $payment_type, $receiving_id, $returnOfReceivingId, $invoiceDiscount ?? InvoiceDiscount::none()));
+            return (new SupplierLock($this->db, $this->supplierLockWait))->run($supplierId > 0 ? $supplierId : null, fn (): int => $this->saveValueLocked($items, $supplierId, $employeeId, $comment, $reference, $paymentType, $receivingId, $returnOfReceivingId, $invoiceDiscount ?? InvoiceDiscount::none(), $invoiceDate, $paymentTerms));
         } catch (AccountingException $busy) {
             if ($busy->error !== AccountingError::SupplierBusy) {
                 throw $busy;
@@ -432,7 +540,7 @@ class Receiving extends Model
     /**
      * @throws ReflectionException
      */
-    private function saveValueLocked(array $items, int $supplier_id, int $employee_id, string $comment, string $reference, ?string $payment_type, int $receiving_id, ?int $returnOfReceivingId, InvoiceDiscount $invoiceDiscount): int
+    private function saveValueLocked(array $items, int $supplierId, int $employeeId, string $comment, string $reference, ?string $paymentType, int $receivingId, ?int $returnOfReceivingId, InvoiceDiscount $invoiceDiscount, ?string $invoiceDate, int|string|null $paymentTerms): int
     {
         $attribute    = model(Attribute::class);
         $inventory    = model('Inventory');
@@ -455,7 +563,7 @@ class Receiving extends Model
 
         if ($between !== null) {
             try {
-                $this->requireBranches($between, $employee_id);
+                $this->requireBranches($between, $employeeId);
             } catch (BranchException $refusal) {
                 $this->accountingFailure = $refusal;
 
@@ -464,7 +572,8 @@ class Receiving extends Model
         }
 
         try {
-            $treasuryId = $this->treasuryOfPayment(['payment_type' => $payment_type], $employee_id === null ? null : (int) $employee_id, $branchId, $type === ReceivingType::Return ? TreasuryScopes::DEPOSIT : TreasuryScopes::WITHDRAW);
+            $treasuryId = $this->treasuryOfPayment(['payment_type' => $paymentType], $employeeId === null ? null : (int) $employeeId, $branchId, $type === ReceivingType::Return ? TreasuryScopes::DEPOSIT : TreasuryScopes::WITHDRAW);
+            $timing     = $this->timingOf($type, $invoiceDate, $paymentTerms, $employeeId);
         } catch (AccountingException $refusal) {
             $this->accountingFailure = $refusal;
 
@@ -473,9 +582,9 @@ class Receiving extends Model
 
         $receivingsData = [
             'receiving_time'         => date('Y-m-d H:i:s'),
-            'supplier_id'            => $supplier->exists($supplier_id) ? $supplier_id : null,
-            'employee_id'            => $employee_id,
-            'payment_type'           => $payment_type,
+            'supplier_id'            => $supplier->exists($supplierId) ? $supplierId : null,
+            'employee_id'            => $employeeId,
+            'payment_type'           => $paymentType,
             'comment'                => $comment,
             'reference'              => $reference,
             'receiving_type'         => $type->value,
@@ -483,6 +592,7 @@ class Receiving extends Model
             'to_branch_id'           => $between['to'] ?? null,
             'return_of_receiving_id' => $type === ReceivingType::Return ? $returnOfReceivingId : null,
             'treasury_id'            => $treasuryId,
+            ...$timing,
         ];
 
         // Run these queries as a transaction, we want to make sure we do all or nothing
@@ -501,7 +611,7 @@ class Receiving extends Model
 
             $builder = $this->db->table('receivings');
             $builder->insert($receivingsData);
-            $receiving_id = $this->db->insertID();
+            $receivingId = $this->db->insertID();
 
             $builder = $this->db->table('receivings_items');
 
@@ -509,7 +619,7 @@ class Receiving extends Model
                 $curItemInfo = $item->get_info($itemData['item_id']);
 
                 $receivingsItemsData = [
-                    'receiving_id'       => $receiving_id,
+                    'receiving_id'       => $receivingId,
                     'item_id'            => $itemData['item_id'],
                     'line'               => $itemData['line'],
                     'description'        => $itemData['description'],
@@ -528,19 +638,23 @@ class Receiving extends Model
             }
 
             if ($type === ReceivingType::Return && $receivingsData['return_of_receiving_id'] !== null) {
-                (new ReturnLimit($this->db))->assertPurchaseReturnWithin($receiving_id);
+                (new ReturnLimit($this->db))->assertPurchaseReturnWithin($receivingId);
             }
 
-            $this->applyInvoiceDiscount((int) $receiving_id, $type, $receivingsData['return_of_receiving_id'], $invoiceDiscount);
+            $this->applyInvoiceDiscount((int) $receivingId, $type, $receivingsData['return_of_receiving_id'], $invoiceDiscount);
 
             if ($type === ReceivingType::Receive && ($accountingOn || $config['receiving_calculate_average_price'])) {
-                $this->averageTheCost($receiving_id, $item);
+                $this->averageTheCost($receivingId, $item);
             }
 
-            $this->numberDocument($type, (int) $receiving_id, $branchId);
+            $this->numberDocument($type, (int) $receivingId, $branchId);
 
             if ($accountingOn) {
-                (new ReceivingPosting($this->db))->postCompleted($receiving_id, $employee_id);
+                (new ReceivingPosting($this->db))->postCompleted($receivingId, $employeeId);
+
+                if ($timing['invoice_date'] !== null) {
+                    (new AuditLog($this->db))->write('receiving', (int) $receivingId, 'invoice_date_typed', $employeeId, JournalOrigin::User, ['date' => $timing['invoice_date'], 'saved_on' => date('Y-m-d')], $branchId);
+                }
             }
 
             foreach ($items as $line => $itemData) {
@@ -551,21 +665,21 @@ class Receiving extends Model
                 $invData = [
                     'trans_date'      => date('Y-m-d H:i:s'),
                     'trans_items'     => $itemData['item_id'],
-                    'trans_user'      => $employee_id,
+                    'trans_user'      => $employeeId,
                     'trans_location'  => $itemData['item_location'],
-                    'trans_comment'   => 'RECV ' . $receiving_id,
+                    'trans_comment'   => 'RECV ' . $receivingId,
                     'trans_inventory' => $itemsReceived,
                 ];
 
                 $inventory->insert($invData, false);
-                $attribute->copy_attribute_links($itemData['item_id'], 'receiving_id', $receiving_id);
+                $attribute->copy_attribute_links($itemData['item_id'], 'receiving_id', $receivingId);
             }
         } catch (AccountingException|PostingException $failure) {
             $this->db->transRollback();
             $this->accountingFailure = $failure;
 
             if ($accountingOn && $failure instanceof PostingException) {
-                (new ReceivingPosting($this->db))->recordFailure($receiving_id > 0 ? (int) $receiving_id : null, $failure, $employee_id, $branchId);
+                (new ReceivingPosting($this->db))->recordFailure($receivingId > 0 ? (int) $receivingId : null, $failure, $employeeId, $branchId);
             }
 
             return ACCOUNTING_FAILED;
@@ -577,7 +691,7 @@ class Receiving extends Model
 
         $this->db->transComplete();
 
-        return $this->db->transStatus() ? $receiving_id : -1;
+        return $this->db->transStatus() ? $receivingId : -1;
     }
 
     /**

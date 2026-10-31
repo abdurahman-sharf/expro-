@@ -145,6 +145,27 @@
    }
   },
   {
+   "id": "draft-issued-at-its-typed-date",
+   "kind": "lifecycle",
+   "classification": "exact",
+   "scope": "date",
+   "evidence": [
+    "draft_issued",
+    "delivery_after_purchase"
+   ],
+   "inputs": {
+    "invoice_date_offset_days": -2,
+    "saved_as": "draft",
+    "then": "issued"
+   },
+   "reference": {
+    "journal_date": "the date typed on the draft"
+   },
+   "expected": {
+    "journal_date": "the date typed on the draft"
+   }
+  },
+  {
    "id": "delivery-before-the-first-purchase",
    "kind": "lifecycle",
    "classification": "exact",

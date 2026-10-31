@@ -1,6 +1,6 @@
 {
   "id": "T-31",
-  "title": "When an invoice is due and when it is overdue, and how a customer is aged: the reference system gives each invoice a due date of its date plus its payment terms and ages by the invoice date; this application has no due date yet",
+  "title": "When an invoice is due and when it is overdue, and how a customer is aged: the reference system gives each invoice a due date of its date plus its payment terms and ages by the invoice date in six buckets; WP13 builds the same here",
   "recorded": "2026-10-27",
   "observation": {
     "batch": "d1",
@@ -31,9 +31,7 @@
     {
       "id": "due-date-is-the-invoice-date-plus-its-payment-terms",
       "kind": "due_date",
-      "classification": "not_implemented",
-      "work_package": "WP13",
-      "reason": "An invoice here has a date and no due date or payment terms, so nothing can be due or overdue; WP13 adds the terms and the due date, which the reference system sets to the date plus the days of the terms and, with no terms, to the date itself.",
+      "classification": "exact",
       "evidence": [
         "invoice_list"
       ],
@@ -47,27 +45,15 @@
         "journal_changes_with_the_terms": false
       },
       "expected": {
-        "status": "not_implemented",
-        "absent": [
-          {
-            "kind": "column",
-            "table": "sales",
-            "pattern": "due"
-          },
-          {
-            "kind": "column",
-            "table": "sales",
-            "pattern": "terms"
-          }
-        ]
+        "due_date": "26/10/2026",
+        "terms_editable_after_issue": true,
+        "journal_changes_with_the_terms": false
       }
     },
     {
       "id": "overdue-is-open-and-due-before-today",
       "kind": "overdue",
-      "classification": "not_implemented",
-      "work_package": "WP13",
-      "reason": "There is no due date to compare with today, no overdue tab in the invoice list and no overdue route; WP13 builds them on the rule the reference system showed, open balance and a due date strictly before today.",
+      "classification": "exact",
       "evidence": [
         "invoice_list"
       ],
@@ -89,17 +75,12 @@
         ]
       },
       "expected": {
-        "status": "not_implemented",
-        "absent": [
-          {
-            "kind": "column",
-            "table": "sales",
-            "pattern": "due"
-          },
-          {
-            "kind": "route",
-            "pattern": "overdue"
-          }
+        "overdue": [
+          "26/10/2026"
+        ],
+        "not_overdue": [
+          "27/10/2026",
+          "24/11/2026"
         ]
       }
     },
@@ -123,8 +104,7 @@
     {
       "id": "aging-buckets-of-the-reports",
       "kind": "aging",
-      "classification": "differs",
-      "reason": "Only the first buckets of the reference reports were read (the aged ledger counts today and then 1 to 7 days, the aged debtors count not due yet and then 1 to 30 days); this application ages in four buckets of 30 days, which WP13 revisits with the by-ledger variant.",
+      "classification": "exact",
       "evidence": [
         "aging"
       ],
@@ -136,17 +116,24 @@
       },
       "reference": {
         "aging_buckets": [
-          "اليوم",
-          "1 - 7 يوم"
+          "today",
+          "1-30",
+          "31-60",
+          "61-90",
+          "91-120",
+          "120+"
         ]
       },
       "expected": {
         "aging_buckets": [
-          "0-30",
+          "today",
+          "1-30",
           "31-60",
           "61-90",
-          "91+"
-        ]
+          "91-120",
+          "120+"
+        ],
+        "note": "The first two buckets of the aged debtors report were read on 27/10/2026 (not due yet, 1 to 30 days); the headings of the other four come from the read-only observation of that report, and the edges 30/31, 60/61, 90/91 and 120/121 are inferred from the headings, not tried."
       }
     }
   ]

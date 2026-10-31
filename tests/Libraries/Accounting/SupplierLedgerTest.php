@@ -2,10 +2,12 @@
 
 namespace Tests\Libraries\Accounting;
 
+use App\Libraries\Accounting\AgingBuckets;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\PaymentState;
 use App\Libraries\Accounting\PostingService;
+use App\Libraries\Accounting\ReceivingPostingBuilder;
 use App\Libraries\Accounting\ReturnState;
 use App\Libraries\Accounting\SupplierLedger;
 use App\Libraries\Accounting\SupplierPosition;
@@ -177,7 +179,7 @@ class SupplierLedgerTest extends CIUnitTestCase
 
         $aging = $this->supplierPosition()->aging(date('Y-m-d'));
 
-        $this->assertSame(['0-30' => '40.0000', '31-60' => '40.0000', '61-90' => '70.0000', '91+' => '191.0000'], $aging);
+        $this->assertSame(['today' => '0.0000', '1-30' => '40.0000', '31-60' => '40.0000', '61-90' => '70.0000', '91-120' => '191.0000', '120+' => '0.0000'], $aging);
         $this->assertSame(SupplierPosition::AGING_BUCKETS, array_keys($aging));
         $this->assertSupplierTies();
     }
@@ -188,7 +190,7 @@ class SupplierLedgerTest extends CIUnitTestCase
 
         $this->payPurchase($purchase, '100.00');
 
-        $this->assertSame(['0-30' => '0.0000', '31-60' => '0.0000', '61-90' => '0.0000', '91+' => '0.0000'], $this->supplierPosition()->aging(date('Y-m-d')));
+        $this->assertSame(['today' => '0.0000', '1-30' => '0.0000', '31-60' => '0.0000', '61-90' => '0.0000', '91-120' => '0.0000', '120+' => '0.0000'], $this->supplierPosition()->aging(date('Y-m-d')));
     }
 
     public function testPosition_ShowsApartWhatAManualJournalPutOnTheAccountOfTheSupplier(): void
@@ -280,5 +282,214 @@ class SupplierLedgerTest extends CIUnitTestCase
         $this->assertSame([], $ledger->suppliersWithBalance('Quiet')['rows']);
         $this->assertSame(['Gulf Supplies', 'Najd Trading'], array_map(static fn ($row): string => $row->supplier_name, $ledger->suppliersWithBalance('', 'supplier_name', 'asc')['rows']));
         $this->assertSame(1, count($ledger->suppliersWithBalance('', 'balance', 'desc', 1, 1)['rows']));
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // The six buckets, the due date and the position of a supplier on a day (WP13)
+    // ---------------------------------------------------------------------------------------
+
+    public function testAging_SpreadsWhatIsOpenOverTheSixBucketsByTheEdgesOfTheirRanges(): void
+    {
+        $amounts = ['0' => '1.00', '1' => '2.00', '30' => '4.00', '31' => '8.00', '60' => '16.00', '61' => '32.00', '90' => '64.00', '91' => '128.00', '120' => '256.00', '121' => '512.00'];
+
+        foreach ($amounts as $age => $total) {
+            $this->purchaseDated($total, $this->daysAgo((int) $age));
+        }
+
+        $aging = $this->supplierPosition()->aging(date('Y-m-d'));
+
+        $this->assertSame(['today' => '1.0000', '1-30' => '6.0000', '31-60' => '24.0000', '61-90' => '96.0000', '91-120' => '384.0000', '120+' => '512.0000'], $aging);
+        $this->assertSame($this->supplierPosition()->open(), AgingBuckets::total(array_values($aging)));
+        $this->assertSupplierTies();
+    }
+
+    public function testAging_AgesFromTheDayOfThePurchaseAndIgnoresItsDueDate(): void
+    {
+        $this->purchaseDated('100.00', $this->daysAgo(5), 30);
+
+        $position = $this->supplierPosition();
+
+        $this->assertSame('100.0000', $position->aging(date('Y-m-d'))['1-30']);
+        $this->assertSame('0.0000', $position->aging(date('Y-m-d'))['today']);
+        $this->assertSame('0.00', bcadd($position->overdue(date('Y-m-d')), '0', 2));
+    }
+
+    public function testAging_LeavesOutAPurchaseDatedAfterTheDayOfTheReport(): void
+    {
+        $this->purchaseDated('100.00', $this->daysAgo(2));
+        $this->purchaseDated('50.00', $this->daysAgo(0));
+
+        $position = $this->supplierPosition();
+
+        $this->assertSame('100.0000', $position->aging($this->daysAgo(1))['1-30']);
+        $this->assertSame('0.0000', AgingBuckets::total(array_values($position->aging($this->daysAgo(3)))));
+
+        $later = $position->aging(date('Y-m-d', strtotime('+60 days')));
+
+        $this->assertSame('50.0000', $later['31-60']);
+        $this->assertSame('100.0000', $later['61-90']);
+    }
+
+    public function testPosition_OnADayOfThePastCountsOnlyWhatWasDatedByThenAndTiesToTheBalanceOfThatDay(): void
+    {
+        $first = $this->purchaseDated('100.00', $this->daysAgo(2));
+
+        $this->purchaseDated('50.00', $this->daysAgo(2));
+        $this->payPurchase($first, '100.00');
+
+        $yesterday = $this->supplierPosition(null, $this->daysAgo(1));
+        $today     = $this->supplierPosition();
+
+        $this->assertSame('150.00', bcadd($yesterday->open(), '0', 2));
+        $this->assertSame('150.00', bcadd($yesterday->accountBalance, '0', 2));
+        $this->assertTrue($yesterday->agrees());
+        $this->assertSame('150.0000', $yesterday->aging($this->daysAgo(1))['1-30']);
+        $this->assertSame('50.00', bcadd($today->open(), '0', 2));
+        $this->assertSame($this->daysAgo(1), $yesterday->asOf);
+        $this->assertSupplierTies();
+    }
+
+    public function testPosition_OnADayBeforeAPurchaseLeavesItOutWithItsPaymentAndDebitNote(): void
+    {
+        $purchase = $this->purchaseDated('100.00', $this->daysAgo(2));
+
+        $this->payPurchase($purchase, '30.00');
+        $this->debitNoteOf($purchase, '20.00');
+
+        $before = $this->supplierPosition(null, $this->daysAgo(3));
+
+        $this->assertSame([], $before->purchases);
+        $this->assertSame([], $before->credits);
+        $this->assertSame('0.00', bcadd($before->accountBalance, '0', 2));
+        $this->assertTrue($before->agrees());
+    }
+
+    public function testPosition_OnADayAfterAPurchaseWasDeletedLeavesItOutAndBeforeItKeepsIt(): void
+    {
+        $purchase = $this->purchaseDated('100.00', $this->daysAgo(3));
+
+        $this->assertTrue($this->purchases->delete_value($purchase, $this->employeeId), (string) $this->purchases->accountingFailure()?->getMessage());
+
+        $reversals = $this->accountingDb()->table('accounting_journals')->where('reverses_journal_id IS NOT NULL')->get()->getResult();
+
+        $this->assertNotSame([], $reversals);
+
+        foreach ($reversals as $reversal) {
+            $this->assertSame($this->daysAgo(3), $reversal->journal_date, 'A reversal made while the period is open takes the day of what it reverses');
+        }
+
+        $this->assertNull($this->supplierPosition(null, $this->daysAgo(1))->purchase($purchase));
+        $this->assertSame('0.00', bcadd($this->supplierPosition(null, $this->daysAgo(1))->accountBalance, '0', 2));
+        $this->assertNull($this->supplierPosition(null, $this->daysAgo(4))->purchase($purchase));
+    }
+
+    public function testPosition_LeavesOutADocumentWhoseRecordIsDatedAfterTheDayEvenIfItsJournalIsOlder(): void
+    {
+        $purchase = $this->purchaseDated('100.00', $this->daysAgo(3));
+
+        $this->accountingDb()->table('receivings')->where('receiving_id', $purchase)->update(['invoice_date' => $this->daysAgo(1)]);
+
+        $this->assertNull($this->supplierPosition(null, $this->daysAgo(2))->purchase($purchase));
+        $this->assertNotNull($this->supplierPosition(null, $this->daysAgo(1))->purchase($purchase));
+    }
+
+    public function testPosition_ReadsAPurchaseWithNoTypedDayFromTheDayItWasSavedAndDueThatSameDay(): void
+    {
+        $purchase = $this->purchaseOf('100.00');
+
+        $this->accountingDb()->table('receivings')->where('receiving_id', $purchase)->update(['receiving_time' => $this->daysAgo(40) . ' 10:00:00']);
+
+        $position = $this->supplierPosition();
+        $figures  = $position->purchase($purchase);
+
+        $this->assertNull($this->accountingDb()->table('receivings')->where('receiving_id', $purchase)->get()->getRow()->invoice_date);
+        $this->assertSame($this->daysAgo(40), $figures->date);
+        $this->assertSame($this->daysAgo(40), $figures->dueDate);
+        $this->assertNull($figures->termsDays);
+        $this->assertSame('100.0000', $position->aging(date('Y-m-d'))['31-60']);
+        $this->assertTrue($figures->isOverdue(date('Y-m-d')));
+        $this->assertSame(40, $figures->daysOverdue(date('Y-m-d')));
+    }
+
+    public function testPosition_PutsThePurchasesInTheOrderOfTheDaysTheyAreDatedThenTheOrderTheyWereMade(): void
+    {
+        $recent = $this->purchaseDated('10.00', $this->daysAgo(1));
+        $old    = $this->purchaseDated('20.00', $this->daysAgo(9));
+        $today  = $this->purchaseOf('30.00');
+
+        $this->assertSame([$old, $recent, $today], array_map(static fn ($purchase): int => $purchase->receivingId, $this->supplierPosition()->purchases));
+    }
+
+    public function testIsOverdue_IsTrueOnlyForWhatIsOpenAndFellDueBeforeToday(): void
+    {
+        $dueYesterday = $this->purchaseDated('10.00', $this->daysAgo(3), 2);
+        $dueToday     = $this->purchaseDated('20.00', $this->daysAgo(3), 3);
+        $dueLater     = $this->purchaseDated('30.00', $this->daysAgo(3), 33);
+        $noTerms      = $this->purchaseDated('40.00', $this->daysAgo(1));
+        $dateToday    = $this->purchaseOf('50.00');
+        $paid         = $this->purchaseDated('60.00', $this->daysAgo(9), 1);
+
+        $this->payPurchase($paid, '60.00');
+
+        $position = $this->supplierPosition();
+        $today    = date('Y-m-d');
+
+        $this->assertTrue($position->purchase($dueYesterday)->isOverdue($today));
+        $this->assertFalse($position->purchase($dueToday)->isOverdue($today));
+        $this->assertFalse($position->purchase($dueLater)->isOverdue($today));
+        $this->assertTrue($position->purchase($noTerms)->isOverdue($today));
+        $this->assertFalse($position->purchase($dateToday)->isOverdue($today));
+        $this->assertFalse($position->purchase($paid)->isOverdue($today));
+        $this->assertSame('50.00', bcadd($position->overdue($today), '0', 2));
+        $this->assertSame(1, $position->purchase($dueYesterday)->daysOverdue($today));
+        $this->assertSame(0, $position->purchase($dueToday)->daysOverdue($today));
+        $this->assertSame(0, $position->purchase($dueLater)->daysOverdue($today));
+        $this->assertSame(0, $position->purchase($paid)->daysOverdue($today));
+        $this->assertSupplierTies();
+    }
+
+    public function testPosition_CountsAnApplicationOnlyFromTheDayItWasMadeUntilTheDayItWasReleased(): void
+    {
+        $purchase = $this->purchaseDated('100.00', $this->daysAgo(6));
+        $note     = $this->debitNoteOf($purchase, '40.00');
+        $db       = $this->accountingDb();
+
+        $db->table('receivings')->where('receiving_id', $note)->update(['receiving_time' => $this->daysAgo(5) . ' 10:00:00']);
+        $db->table('accounting_journals')->where(['source_type' => ReceivingPostingBuilder::SOURCE_PURCHASE, 'source_id' => $note])->update(['journal_date' => $this->daysAgo(5)]);
+
+        $this->assertSame(1, $db->table('supplier_credit_applications')->where('supplier_id', $this->supplierId)->countAllResults());
+
+        $db->table('supplier_credit_applications')->where('supplier_id', $this->supplierId)->update(['created_at' => $this->daysAgo(3) . ' 09:00:00', 'released_at' => $this->daysAgo(1) . ' 09:00:00']);
+
+        $beforeIt = $this->supplierPosition(null, $this->daysAgo(4));
+        $whileIt  = $this->supplierPosition(null, $this->daysAgo(2));
+        $afterIt  = $this->supplierPosition(null, date('Y-m-d'));
+
+        $this->assertSame(['100.00', '40.00'], [bcadd($beforeIt->open(), '0', 2), bcadd($beforeIt->credit(), '0', 2)]);
+        $this->assertSame(['60.00', '0.00'], [bcadd($whileIt->open(), '0', 2), bcadd($whileIt->credit(), '0', 2)]);
+        $this->assertSame(['100.00', '40.00'], [bcadd($afterIt->open(), '0', 2), bcadd($afterIt->credit(), '0', 2)]);
+
+        foreach ([$beforeIt, $whileIt, $afterIt] as $position) {
+            $this->assertTrue($position->agrees());
+            $this->assertSame('60.00', bcadd($position->accountBalance, '0', 2));
+        }
+    }
+
+    public function testPosition_TiesSupplierAndAccountForPurchasesOfAnyDayWithTermsPaymentsAndDebitNotes(): void
+    {
+        $old    = $this->purchaseDated('300.00', $this->daysAgo(45), 15);
+        $recent = $this->purchaseDated('120.00', $this->daysAgo(3), 30);
+        $today  = $this->purchaseOf('80.00');
+
+        $this->payPurchase($old, '100.00');
+        $this->debitNoteOf($recent, '30.00');
+        $this->payPurchase($today, '80.00');
+
+        $position = $this->supplierPosition();
+
+        $this->assertSame('290.00', bcadd($position->open(), '0', 2));
+        $this->assertSame(['today' => '0.0000', '1-30' => '90.0000', '31-60' => '200.0000', '61-90' => '0.0000', '91-120' => '0.0000', '120+' => '0.0000'], $position->aging(date('Y-m-d')));
+        $this->assertSame('200.00', bcadd($position->overdue(date('Y-m-d')), '0', 2));
+        $this->assertSupplierTies();
     }
 }

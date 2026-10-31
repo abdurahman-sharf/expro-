@@ -2,9 +2,12 @@
 
 namespace App\Controllers;
 
+use App\Libraries\Accounting\AgedLedgerTable;
+use App\Libraries\Accounting\CustomerBalanceReport;
 use App\Libraries\Accounting\CustomerDocuments;
 use App\Libraries\Accounting\CustomerLedger;
 use App\Libraries\Accounting\CustomerPosition;
+use App\Libraries\Accounting\PartyReportQuery;
 use App\Libraries\Accounting\PaymentStatus;
 use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\ReturnDocument;
@@ -24,12 +27,14 @@ class AccountingReceivables extends AccountingController
 
     private CustomerLedger $ledger;
     private CustomerDocuments $documents;
+    private CustomerBalanceReport $balances;
 
     public function __construct()
     {
         parent::__construct('accounting_receivables');
 
         $this->ledger    = new CustomerLedger();
+        $this->balances  = new CustomerBalanceReport();
         $this->documents = new CustomerDocuments();
     }
 
@@ -81,7 +86,8 @@ class AccountingReceivables extends AccountingController
     {
         $this->requireCompanyScope();
 
-        $position = $this->ledger->position($customerId);
+        $query    = PartyReportQuery::forAging($this->request->getGet(), date('Y-m-d'));
+        $position = $this->ledger->position($customerId, $query->asOf);
 
         if ($position->accountId === null) {
             throw PageNotFoundException::forPageNotFound();
@@ -90,7 +96,9 @@ class AccountingReceivables extends AccountingController
         return view('accounting_receivables/customer', [
             'customer_name'   => $this->customerName($customerId),
             'position'        => $position,
-            'today'           => date('Y-m-d'),
+            'today'           => $query->day(),
+            'error'           => $query->refusal === null ? null : $this->messageFor($query->refusal),
+            'to'              => $query->to,
             'applications'    => $this->ledger->applications($customerId, true),
             'refund_invoices' => $this->documents->refundInvoiceIds($customerId),
             'amount'          => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
@@ -189,6 +197,44 @@ class AccountingReceivables extends AccountingController
         ]);
     }
 
+    public function getAgedLedger(): string
+    {
+        $this->requireCompanyScope();
+
+        $query = PartyReportQuery::forAging($this->request->getGet(), date('Y-m-d'));
+
+        return view('accounting_parties/aged_ledger', [
+            'group'         => 'Accounting_receivables',
+            'base'          => 'accounting_receivables',
+            'party'         => 'customer',
+            'statement_url' => static fn (int $partyId): string => base_url('accounting_receivables/customer/' . $partyId . '?to=' . $query->day()),
+            'table'         => new AgedLedgerTable($query->day(), $query->days, $this->ledger->agedLedger($query->day(), $query->days)),
+            'query'         => $query,
+            'error'         => $query->refusal === null ? null : $this->messageFor($query->refusal),
+            'amount'        => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
+            'date'          => fn (string $value): string => $this->formatDate($value),
+        ]);
+    }
+
+    public function getBalances(): string
+    {
+        $this->requireCompanyScope();
+
+        $query = PartyReportQuery::forBalances($this->request->getGet(), date('Y-m-d'));
+
+        return view('accounting_parties/balances', [
+            'group'         => 'Accounting_receivables',
+            'base'          => 'accounting_receivables',
+            'party'         => 'customer',
+            'statement_url' => static fn (int $partyId): string => base_url('accounting_receivables/customer/' . $partyId),
+            'table'         => $this->balances->build($query->period, ! $query->showEmpty),
+            'query'         => $query,
+            'error'         => $query->refusal === null ? null : $this->messageFor($query->refusal),
+            'amount'        => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
+            'date'          => fn (string $value): string => $this->formatDate($value),
+        ]);
+    }
+
     private function requireCompanyScope(): void
     {
         if (! $this->branchGuard()->isUnrestricted($this->employeeId())) {
@@ -203,16 +249,19 @@ class AccountingReceivables extends AccountingController
     {
         return [
             ['customer_name' => lang('Accounting_receivables.customer')],
-            ['balance'     => lang('Accounting_receivables.balance'), 'escape' => false],
-            ['open'        => lang('Accounting_receivables.open'), 'sortable' => false, 'escape' => false],
-            ['credit'      => lang('Accounting_receivables.credit'), 'sortable' => false, 'escape' => false],
-            ['returns'     => lang('Accounting_receivables.returns'), 'sortable' => false, 'escape' => false],
-            ['adjustments' => lang('Accounting_receivables.adjustments'), 'sortable' => false, 'escape' => false],
-            ['age_0_30'    => lang('Accounting_receivables.age_0_30'), 'sortable' => false, 'escape' => false],
-            ['age_31_60'   => lang('Accounting_receivables.age_31_60'), 'sortable' => false, 'escape' => false],
-            ['age_61_90'   => lang('Accounting_receivables.age_61_90'), 'sortable' => false, 'escape' => false],
-            ['age_91_plus' => lang('Accounting_receivables.age_91_plus'), 'sortable' => false, 'escape' => false],
-            ['agrees'      => lang('Accounting_receivables.agrees'), 'sortable' => false, 'escape' => false],
+            ['balance'      => lang('Accounting_receivables.balance'), 'escape' => false],
+            ['open'         => lang('Accounting_receivables.open'), 'sortable' => false, 'escape' => false],
+            ['credit'       => lang('Accounting_receivables.credit'), 'sortable' => false, 'escape' => false],
+            ['returns'      => lang('Accounting_receivables.returns'), 'sortable' => false, 'escape' => false],
+            ['adjustments'  => lang('Accounting_receivables.adjustments'), 'sortable' => false, 'escape' => false],
+            ['overdue'      => lang('Accounting_receivables.overdue'), 'sortable' => false, 'escape' => false],
+            ['age_today'    => lang('Accounting_receivables.age_today'), 'sortable' => false, 'escape' => false],
+            ['age_1_30'     => lang('Accounting_receivables.age_1_30'), 'sortable' => false, 'escape' => false],
+            ['age_31_60'    => lang('Accounting_receivables.age_31_60'), 'sortable' => false, 'escape' => false],
+            ['age_61_90'    => lang('Accounting_receivables.age_61_90'), 'sortable' => false, 'escape' => false],
+            ['age_91_120'   => lang('Accounting_receivables.age_91_120'), 'sortable' => false, 'escape' => false],
+            ['age_over_120' => lang('Accounting_receivables.age_over_120'), 'sortable' => false, 'escape' => false],
+            ['agrees'       => lang('Accounting_receivables.agrees'), 'sortable' => false, 'escape' => false],
         ];
     }
 
@@ -358,7 +407,8 @@ class AccountingReceivables extends AccountingController
      */
     private function row(CustomerPosition $position, string $name, array $returns): array
     {
-        $aging = $position->aging(date('Y-m-d'));
+        $today = date('Y-m-d');
+        $aging = $position->aging($today);
 
         return [
             'customer_id'   => $position->customerId,
@@ -368,10 +418,13 @@ class AccountingReceivables extends AccountingController
             'credit'        => $this->amountCell($this->formatAmount($position->credit())),
             'returns'       => $this->amountCell($this->formatAmount($returns['returns'])),
             'adjustments'   => $this->amountCell($this->formatAmount($returns['adjustments'])),
-            'age_0_30'      => $this->amountCell($this->formatAmount($aging['0-30'])),
+            'overdue'       => $this->amountCell($this->formatAmount($position->overdue($today))),
+            'age_today'     => $this->amountCell($this->formatAmount($aging['today'])),
+            'age_1_30'      => $this->amountCell($this->formatAmount($aging['1-30'])),
             'age_31_60'     => $this->amountCell($this->formatAmount($aging['31-60'])),
             'age_61_90'     => $this->amountCell($this->formatAmount($aging['61-90'])),
-            'age_91_plus'   => $this->amountCell($this->formatAmount($aging['91+'])),
+            'age_91_120'    => $this->amountCell($this->formatAmount($aging['91-120'])),
+            'age_over_120'  => $this->amountCell($this->formatAmount($aging['120+'])),
             'agrees'        => $position->agrees()
                 ? '<span class="badge text-bg-success">' . esc(lang('Accounting_receivables.agrees_yes')) . '</span>'
                 : '<span class="badge text-bg-warning">' . esc(lang('Accounting_receivables.agrees_no', [$this->formatAmount($position->unclassified())])) . '</span>',
