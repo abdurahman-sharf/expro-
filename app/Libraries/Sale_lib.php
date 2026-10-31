@@ -1918,6 +1918,10 @@ class Sale_lib
     {
         $itemTotal = $this->get_item_total($quantity, $price, $discount, $discount_type, $include_discount, $invoiceDiscountShare);
 
+        if ($this->config['use_destination_based_tax'] ?? false) {
+            return $itemTotal;
+        }
+
         foreach ($this->taxLib()->taxesOfItem($item_id, $quantity, $price, $discount, $discount_type, $invoiceDiscountShare) as $tax) {
             if ($tax['type'] === Tax_lib::TAX_TYPE_INCLUDED) {
                 $itemTotal = bcsub($itemTotal, $tax['amount']);

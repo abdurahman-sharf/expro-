@@ -1409,6 +1409,57 @@ class SaleTest extends CIUnitTestCase
         }
     }
 
+    public function testSaveValue_AsksNoTaxOfAReturnWhateverTheSetting(): void
+    {
+        $invoice = $this->saveSale(SALE_TYPE_INVOICE, [$this->cashPayment()]);
+
+        $this->setRequireTax(true);
+
+        try {
+            $return = $this->saveSale(SALE_TYPE_RETURN, [], COMPLETED, NEW_ENTRY, null, null, $invoice, -1);
+
+            $this->assertGreaterThan(0, $return);
+        } finally {
+            $this->setRequireTax(false);
+        }
+    }
+
+    public function testSaveValue_AsksNoTaxOfAShopThatTaxesByDestination(): void
+    {
+        model(Appconfig::class)->save(['use_destination_based_tax' => '1']);
+        $this->setRequireTax(true);
+
+        try {
+            [$saleId] = $this->saveTaxed([]);
+
+            $this->assertGreaterThan(0, $saleId);
+        } finally {
+            $this->setRequireTax(false);
+            model(Appconfig::class)->save(['use_destination_based_tax' => '0']);
+        }
+    }
+
+    public function testCreateTempTable_SplitsASaleIntoTheSubtotalWithoutTheTaxInsideThePriceAndTheTotalWithTheTaxAddedToItWhateverTheDefaultModeIs(): void
+    {
+        foreach (['0', '1'] as $default) {
+            model(Appconfig::class)->save(['tax_included' => $default]);
+
+            try {
+                [$saleId] = $this->saveTaxed([['VAT', '15', 0, '13.0435'], ['Service', '5', 1, '4.35']]);
+
+                $this->dropReportTables();
+                model(Sale::class)->create_temp_table(['sale_id' => $saleId]);
+
+                $row = Database::connect()->table('sales_items_temp')->where('sale_id', $saleId)->get()->getRow();
+
+                $this->assertSame(['86.96', '17.39', '104.35'], [bcadd((string) $row->subtotal, '0', 2), bcadd((string) $row->tax, '0', 2), bcadd((string) $row->total, '0', 2)], 'default ' . $default);
+            } finally {
+                model(Appconfig::class)->save(['tax_included' => '0']);
+                $this->dropReportTables();
+            }
+        }
+    }
+
     public function testGetInfo_ComesToThePriceAndOnlyTheTaxesAddedToItWhateverTheDefaultModeIs(): void
     {
         foreach (['0', '1'] as $default) {
@@ -1429,7 +1480,11 @@ class SaleTest extends CIUnitTestCase
     {
         [$saleId, $items] = $this->saveTaxed([['VAT', '15', 0, '13.0435'], ['Service', '5', 1, '4.35']]);
 
-        Database::connect()->table('sales_items_taxes')->where(['sale_id' => $saleId, 'name' => 'VAT'])->update(['liability_account_id' => null]);
+        $db = Database::connect();
+
+        $db->query('SET FOREIGN_KEY_CHECKS = 0');
+        $db->table('sales_items_taxes')->insert(['sale_id' => $saleId, 'item_id' => $items[0]['item_id'], 'line' => 1, 'name' => 'VAT', 'percent' => '15.0000', 'tax_type' => 0, 'item_tax_amount' => '13.0435']);
+        $db->query('SET FOREIGN_KEY_CHECKS = 1');
 
         $rows = model(Sale::class)->get_sales_item_taxes($saleId, (int) $items[0]['item_id']);
 

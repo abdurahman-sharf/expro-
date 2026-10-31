@@ -1014,6 +1014,34 @@ class SalePostingBuilderTest extends CIUnitTestCase
         );
     }
 
+    public function testInvoice_PostsTheTaxOfSeveralAccountsInTheOrderOfTheAccounts(): void
+    {
+        $first  = $this->customAccount('215', '215003', 'Tax on services');
+        $second = $this->customAccount('215', '215004', 'Tax on food');
+        $draft  = $this->builder->invoice($this->sale([$this->line('1', '200', added: '30.00', accounts: [$second => '10.00', $first => '20.00'])]), 1);
+
+        $this->assertSame(
+            [
+                $this->customerAccount() . ':230.0000:0.0000',
+                $this->accountId('sales_revenue') . ':0.0000:200.0000',
+                $first . ':0.0000:20.0000',
+                $second . ':0.0000:10.0000',
+            ],
+            $this->shape($draft, 4),
+        );
+    }
+
+    public function testInvoice_PostsNoLineForATaxOfNothingThatHasAnAccountOfItsOwn(): void
+    {
+        $account = $this->customAccount('215', '215003', 'Tax on services');
+        $draft   = $this->builder->invoice($this->sale([$this->line('1', '100', added: '15.00', accounts: [$account => '0.0000'])]), 1);
+
+        $this->assertSame(
+            [$this->customerAccount() . ':115.0000:0.0000', $this->accountId('sales_revenue') . ':0.0000:100.0000', $this->accountId('tax_output') . ':0.0000:15.0000'],
+            $this->shape($draft, 4),
+        );
+    }
+
     public function testInvoice_MirrorsTheTaxAccountsOfTheSaleInAReturn(): void
     {
         $account = $this->customAccount('215', '215003', 'Tax on services');

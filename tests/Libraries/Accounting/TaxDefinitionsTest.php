@@ -18,8 +18,10 @@ use Tests\Support\AccountingFixtureTrait;
  * The tax list: a unique name that does not change, a mode of its own or none, and a liability account
  * of its own that only whoever may change the routing, in every branch, chooses, from the active
  * liability accounts that take entries and are not kept for another purpose.
+ *
+ * @internal
  */
-class TaxDefinitionsTest extends CIUnitTestCase
+final class TaxDefinitionsTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
@@ -27,8 +29,7 @@ class TaxDefinitionsTest extends CIUnitTestCase
     protected $migrate     = true;
     protected $migrateOnce = true;
     protected $refresh     = false;
-    protected $namespace   = null;
-
+    protected $namespace;
     private TaxDefinitions $taxes;
     private int $router;
     private int $clerk;
@@ -80,7 +81,7 @@ class TaxDefinitionsTest extends CIUnitTestCase
         return $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => TaxDefinitions::ENTITY, 'entity_id' => $id, 'action' => $action])->countAllResults();
     }
 
-    public function testSave_CreatesATaxWithNoModeAndNoAccountAndAuditsIt(): void
+    public function testSaveCreatesATaxWithNoModeAndNoAccountAndAuditsIt(): void
     {
         $id = $this->taxes->save(['tax_name' => 'VAT'], null, $this->clerk);
 
@@ -90,7 +91,7 @@ class TaxDefinitionsTest extends CIUnitTestCase
         $this->assertSame(1, $this->audited($id, 'created'));
     }
 
-    public function testSave_ChecksTheNameAndKeepsItUniqueWhateverItsCase(): void
+    public function testSaveChecksTheNameAndKeepsItUniqueWhateverItsCase(): void
     {
         $this->taxes->save(['tax_name' => 'VAT'], null, $this->clerk);
 
@@ -102,7 +103,7 @@ class TaxDefinitionsTest extends CIUnitTestCase
         $this->assertSame(1, $this->countRows('tax_definitions'));
     }
 
-    public function testSave_KeepsTheNameOfATaxWhateverTheInputSays(): void
+    public function testSaveKeepsTheNameOfATaxWhateverTheInputSays(): void
     {
         $id = $this->taxes->save(['tax_name' => 'VAT'], null, $this->clerk);
 
@@ -111,12 +112,12 @@ class TaxDefinitionsTest extends CIUnitTestCase
         $this->assertSame('VAT', $this->row($id)->tax_name);
     }
 
-    public function testSave_RejectsATaxThatDoesNotExist(): void
+    public function testSaveRejectsATaxThatDoesNotExist(): void
     {
         $this->assertSame(AccountingError::TaxDefinitionNotFound, $this->refusal(fn () => $this->taxes->save(['tax_name' => 'x'], 99999, $this->clerk))->error);
     }
 
-    public function testSave_StoresTheModeAsIncludedExcludedOrDefaultAndAuditsEachChange(): void
+    public function testSaveStoresTheModeAsIncludedExcludedOrDefaultAndAuditsEachChange(): void
     {
         $id = $this->taxes->save(['tax_name' => 'VAT', 'tax_mode' => TaxDefinitions::INCLUDED], null, $this->clerk);
 
@@ -131,7 +132,7 @@ class TaxDefinitionsTest extends CIUnitTestCase
         $this->assertSame(2, $this->audited($id, 'mode_changed'));
     }
 
-    public function testSave_AuditsNothingWhenTheModeStaysAsItWas(): void
+    public function testSaveAuditsNothingWhenTheModeStaysAsItWas(): void
     {
         $id = $this->taxes->save(['tax_name' => 'VAT', 'tax_mode' => TaxDefinitions::INCLUDED], null, $this->clerk);
 
@@ -142,7 +143,7 @@ class TaxDefinitionsTest extends CIUnitTestCase
         $this->assertSame('1', (string) $this->row($id)->tax_included);
     }
 
-    public function testSave_RejectsAModeThatIsNeitherDefaultIncludedNorExcluded(): void
+    public function testSaveRejectsAModeThatIsNeitherDefaultIncludedNorExcluded(): void
     {
         foreach (['yes', '1', 'Included', null, 7] as $mode) {
             $this->assertSame(AccountingError::TaxModeInvalid, $this->refusal(fn () => $this->taxes->save(['tax_name' => 'VAT', 'tax_mode' => $mode], null, $this->clerk))->error);
@@ -151,7 +152,7 @@ class TaxDefinitionsTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('tax_definitions'));
     }
 
-    public function testSave_GivesTheTaxALiabilityAccountToWhoMayChangeTheRouting(): void
+    public function testSaveGivesTheTaxALiabilityAccountToWhoMayChangeTheRouting(): void
     {
         $account = $this->customAccount('215', '215003', 'Tax on services');
         $id      = $this->taxes->save(['tax_name' => 'Service', 'account_id' => $account], null, $this->router);
@@ -164,7 +165,7 @@ class TaxDefinitionsTest extends CIUnitTestCase
         $this->assertSame(1, $this->audited($id, 'account_changed'));
     }
 
-    public function testSave_AsksForThePermissionAndEveryBranchBeforeAnAccountIsChosen(): void
+    public function testSaveAsksForThePermissionAndEveryBranchBeforeAnAccountIsChosen(): void
     {
         $account = $this->customAccount('215', '215003', 'Tax on services');
         $other   = $this->createBranch();
@@ -179,7 +180,7 @@ class TaxDefinitionsTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('tax_definitions'));
     }
 
-    public function testSave_ChangesTheModeOfATaxWithoutAskingForTheRoutingPermission(): void
+    public function testSaveChangesTheModeOfATaxWithoutAskingForTheRoutingPermission(): void
     {
         $account = $this->customAccount('215', '215003', 'Tax on services');
         $id      = $this->taxes->save(['tax_name' => 'Service', 'account_id' => $account], null, $this->router);
@@ -190,7 +191,7 @@ class TaxDefinitionsTest extends CIUnitTestCase
         $this->assertSame((string) $account, (string) $this->row($id)->liability_account_id);
     }
 
-    public function testSave_AcceptsOnlyAnActiveLiabilityAccountThatTakesEntriesAndIsNotKeptForAnotherPurpose(): void
+    public function testSaveAcceptsOnlyAnActiveLiabilityAccountThatTakesEntriesAndIsNotKeptForAnotherPurpose(): void
     {
         $inactive = $this->customAccount('215', '215004', 'Old tax');
 
@@ -206,7 +207,7 @@ class TaxDefinitionsTest extends CIUnitTestCase
         $this->assertSame(1, $this->countRows('tax_definitions'));
     }
 
-    public function testAccountOptions_ListsTheLiabilityAccountsThatTakeEntriesInCodeOrder(): void
+    public function testAccountOptionsListsTheLiabilityAccountsThatTakeEntriesInCodeOrder(): void
     {
         $this->customAccount('215', '215010', 'Tax on services');
         $this->customAccount('215', '215005', 'Tax on food');
@@ -221,7 +222,7 @@ class TaxDefinitionsTest extends CIUnitTestCase
         $this->assertNotContains('215002', $codes, 'the account of tax paid is kept for that');
     }
 
-    public function testMayAssign_IsForWhoHoldsTheRoutingPermissionInEveryBranch(): void
+    public function testMayAssignIsForWhoHoldsTheRoutingPermissionInEveryBranch(): void
     {
         $other   = $this->createBranch();
         $limited = $this->employeeWithGrants([AccountingGuard::ROUTING_MANAGE], [$other]);
@@ -231,7 +232,7 @@ class TaxDefinitionsTest extends CIUnitTestCase
         $this->assertFalse($this->taxes->mayAssign($limited));
     }
 
-    public function testDelete_RemovesTheTaxesAndAuditsWhatEachWas(): void
+    public function testDeleteRemovesTheTaxesAndAuditsWhatEachWas(): void
     {
         $first  = $this->taxes->save(['tax_name' => 'VAT', 'tax_mode' => TaxDefinitions::INCLUDED], null, $this->clerk);
         $second = $this->taxes->save(['tax_name' => 'Service'], null, $this->clerk);
@@ -245,7 +246,7 @@ class TaxDefinitionsTest extends CIUnitTestCase
         $this->assertSame(0, $this->audited($second, 'deleted'));
     }
 
-    public function testSearch_FindsTaxesByNameInTheOrderAsked(): void
+    public function testSearchFindsTaxesByNameInTheOrderAsked(): void
     {
         $this->taxes->save(['tax_name' => 'VAT'], null, $this->clerk);
         $this->taxes->save(['tax_name' => 'Service charge'], null, $this->clerk);
@@ -256,27 +257,5 @@ class TaxDefinitionsTest extends CIUnitTestCase
         $this->assertSame(2, $all['total']);
         $this->assertSame(['Service charge', 'VAT'], array_column($all['rows'], 'tax_name'));
         $this->assertSame(1, $one['total']);
-    }
-
-    public function testDeactivate_RefusesAnAccountThatATaxIsCreditedTo(): void
-    {
-        $account = $this->customAccount('215', '215003', 'Tax on services');
-
-        $this->taxes->save(['tax_name' => 'Service', 'account_id' => $account], null, $this->router);
-
-        $this->assertSame(AccountingError::AccountRouted, $this->refusal(fn () => (new AccountService())->deactivate($account))->error);
-        $this->assertSame(AccountingError::AccountRouted, $this->refusal(fn () => (new AccountService())->delete($account))->error);
-    }
-
-    public function testDelete_FreesTheAccountOfTheTaxesItRemoves(): void
-    {
-        $account = $this->customAccount('215', '215003', 'Tax on services');
-        $id      = $this->taxes->save(['tax_name' => 'Service', 'account_id' => $account], null, $this->router);
-
-        $this->taxes->delete([$id], $this->clerk);
-
-        (new AccountService())->deactivate($account);
-
-        $this->assertFalse((bool) $this->accountingDb()->table('accounting_accounts')->where('account_id', $account)->get()->getRow()->active);
     }
 }

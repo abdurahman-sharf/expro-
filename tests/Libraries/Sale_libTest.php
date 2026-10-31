@@ -785,10 +785,10 @@ class Sale_libTest extends CIUnitTestCase
      *
      * @param array<string, array{included: bool|null, account: int|null}> $definitions
      */
-    private function registerWithTaxes(bool $defaultIncluded = false, array $definitions = ['vat' => ['included' => true, 'account' => null], 'service' => ['included' => false, 'account' => null]]): Sale_lib
+    private function registerWithTaxes(bool $defaultIncluded = false, array $definitions = ['vat' => ['included' => true, 'account' => null], 'service' => ['included' => false, 'account' => null]], bool $byDestination = false): Sale_lib
     {
         $ospos           = new OSPOS();
-        $ospos->settings = ['cash_rounding_code' => '', 'cash_decimals' => 2, 'currency_decimals' => 2, 'tax_decimals' => 2, 'quantity_decimals' => 2, 'tax_included' => $defaultIncluded ? '1' : '0', 'use_destination_based_tax' => '0'];
+        $ospos->settings = ['cash_rounding_code' => '', 'cash_decimals' => 2, 'currency_decimals' => 2, 'tax_decimals' => 2, 'quantity_decimals' => 2, 'tax_included' => $defaultIncluded ? '1' : '0', 'use_destination_based_tax' => $byDestination ? '1' : '0'];
         Factories::injectMock('config', OSPOS::class, $ospos);
 
         $customer = $this->createStub(Customer::class);
@@ -841,6 +841,13 @@ class Sale_libTest extends CIUnitTestCase
     public function testGetSubtotal_LeavesTheLineAloneWhenNoTaxIsInsideThePrice(): void
     {
         $this->assertSame('100.0000', $this->fourDecimals($this->registerWithTaxes(false, [])->get_subtotal(true, true)));
+    }
+
+    public function testGetSubtotal_LeavesTheLineAloneWhenTheShopTaxesByDestination(): void
+    {
+        $saleLib = $this->registerWithTaxes(false, ['vat' => ['included' => true, 'account' => null]], true);
+
+        $this->assertSame('100.0000', $this->fourDecimals($saleLib->get_subtotal(true, true)), 'the taxes by destination are not those of the item');
     }
 
     public function testGetItemTotalTaxExclusive_TakesTheTaxInsideThePriceOutOfTheItemAndLeavesTheOneAddedToIt(): void

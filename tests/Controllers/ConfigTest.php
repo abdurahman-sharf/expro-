@@ -2,6 +2,7 @@
 
 namespace Tests\Controllers;
 
+use App\Libraries\Accounting\SalesTaxSettings;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -35,6 +36,9 @@ class ConfigTest extends CIUnitTestCase
         $db->table('document_numbers')->truncate();
         $db->table('document_sequences')->truncate();
         $db->table('accounting_audit_log')->where('entity_type', 'document_numbering')->delete();
+        $db->table('accounting_audit_log')->where('action', 'sales_tax_settings_updated')->delete();
+        (new SalesTaxSettings())->update([SalesTaxSettings::INCLUDED_KEY => false, SalesTaxSettings::TAX_ONE_KEY => false]);
+        $db->table('accounting_audit_log')->where('action', 'sales_tax_settings_updated')->delete();
 
         parent::tearDown();
     }
@@ -354,6 +358,68 @@ class ConfigTest extends CIUnitTestCase
         $response->assertStatus(200);
         $result = json_decode($response->getJSON(), true);
         $this->assertTrue($result['success']);
+    }
+
+    public function testSaveTax_SavesTheDefaultInvoiceTaxModeAndTheRequirementOfATaxAndAuditsTheChange(): void
+    {
+        $this->resetSession();
+
+        $result = json_decode($this->post('/config/saveTax', $this->baseTaxPayload(['tax_included' => 'tax_included', 'require_tax_1' => 'require_tax_1']))->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertTrue((new SalesTaxSettings())->defaultIncluded());
+        $this->assertTrue((new SalesTaxSettings())->requireTaxOne());
+
+        $entry   = Database::connect()->table('accounting_audit_log')->where('action', 'sales_tax_settings_updated')->get()->getRow();
+        $details = json_decode((string) $entry->details, true);
+
+        $this->assertSame(1, (int) $entry->employee_id);
+        $this->assertSame([SalesTaxSettings::INCLUDED_KEY => false, SalesTaxSettings::TAX_ONE_KEY => false], $details['before']);
+        $this->assertSame([SalesTaxSettings::INCLUDED_KEY => true, SalesTaxSettings::TAX_ONE_KEY => true], $details['after']);
+    }
+
+    public function testSaveTax_TurnsTheTwoSettingsOffWhenTheirBoxesAreLeftOutAndAuditsThat(): void
+    {
+        $this->resetSession();
+
+        $this->post('/config/saveTax', $this->baseTaxPayload(['tax_included' => 'tax_included', 'require_tax_1' => 'require_tax_1']));
+        $this->post('/config/saveTax', $this->baseTaxPayload());
+
+        $this->assertFalse((new SalesTaxSettings())->defaultIncluded());
+        $this->assertFalse((new SalesTaxSettings())->requireTaxOne());
+        $this->assertSame(2, Database::connect()->table('accounting_audit_log')->where('action', 'sales_tax_settings_updated')->countAllResults());
+    }
+
+    public function testSaveTax_AuditsNothingWhenTheTwoSettingsStayAsTheyWere(): void
+    {
+        $this->resetSession();
+
+        $this->post('/config/saveTax', $this->baseTaxPayload());
+        $this->post('/config/saveTax', $this->baseTaxPayload(['default_tax_1_rate' => '7.00']));
+
+        $this->assertSame(0, Database::connect()->table('accounting_audit_log')->where('action', 'sales_tax_settings_updated')->countAllResults());
+    }
+
+    public function testSaveTax_ChangesNeitherSettingWhenTheRateIsRefused(): void
+    {
+        $this->resetSession();
+
+        $this->post('/config/saveTax', $this->baseTaxPayload(['default_tax_1_rate' => '-1.00', 'tax_included' => 'tax_included', 'require_tax_1' => 'require_tax_1']));
+
+        $this->assertFalse((new SalesTaxSettings())->defaultIncluded());
+        $this->assertFalse((new SalesTaxSettings())->requireTaxOne());
+    }
+
+    public function testGetIndex_OffersTheTwoTaxSettingsAndALinkToTheTaxList(): void
+    {
+        $this->resetSession();
+
+        $view = $this->get('/config');
+
+        $view->assertStatus(200);
+        $view->assertSee('name="require_tax_1"', 'html');
+        $view->assertSee(lang('Config.tax_included_desc'));
+        $view->assertSee('tax_definitions');
     }
 
     /**

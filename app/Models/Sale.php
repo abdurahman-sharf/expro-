@@ -89,7 +89,7 @@ class Sale extends Model
      */
     private function taxOneRefusal(int $saleType, string $saleStatus, int $customerId, array $items, ?array $salesTaxes): ?AccountingException
     {
-        if ($saleStatus != COMPLETED || !in_array($saleType, [SALE_TYPE_POS, SALE_TYPE_INVOICE], true) || config(OSPOS::class)->settings['use_destination_based_tax']) {
+        if ($saleStatus != COMPLETED || !in_array($saleType, [SALE_TYPE_POS, SALE_TYPE_INVOICE], true) || (config(OSPOS::class)->settings['use_destination_based_tax'] ?? false)) {
             return null;
         }
 

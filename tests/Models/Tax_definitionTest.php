@@ -12,8 +12,10 @@ use Tests\Support\AccountingFixtureTrait;
 
 /**
  * What the tax list says about the taxes of an item, asked by name.
+ *
+ * @internal
  */
-class Tax_definitionTest extends CIUnitTestCase
+final class Tax_definitionTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
@@ -21,7 +23,7 @@ class Tax_definitionTest extends CIUnitTestCase
     protected $migrate     = true;
     protected $migrateOnce = true;
     protected $refresh     = false;
-    protected $namespace   = null;
+    protected $namespace;
 
     public static function setUpBeforeClass(): void
     {
@@ -45,7 +47,7 @@ class Tax_definitionTest extends CIUnitTestCase
         parent::tearDown();
     }
 
-    public function testForNames_AnswersWhatTheListSaysAboutEachNameAndLeavesOutTheOthers(): void
+    public function testForNamesAnswersWhatTheListSaysAboutEachNameAndLeavesOutTheOthers(): void
     {
         $taxes   = new TaxDefinitions();
         $router  = $this->employeeWithGrants([AccountingGuard::ROUTING_MANAGE]);
@@ -67,13 +69,13 @@ class Tax_definitionTest extends CIUnitTestCase
         );
     }
 
-    public function testForNames_AsksNothingOfTheDatabaseWhenThereAreNoNames(): void
+    public function testForNamesAsksNothingOfTheDatabaseWhenThereAreNoNames(): void
     {
         $this->assertSame([], (new Tax_definition())->forNames([]));
         $this->assertSame([], (new Tax_definition())->forNames(['', '  ']));
     }
 
-    public function testKey_IgnoresTheCaseAndTheSpacesAroundAName(): void
+    public function testKeyIgnoresTheCaseAndTheSpacesAroundAName(): void
     {
         $this->assertSame(Tax_definition::key('VAT'), Tax_definition::key('  vat '));
         $this->assertNotSame(Tax_definition::key('VAT'), Tax_definition::key('VAT 2'));

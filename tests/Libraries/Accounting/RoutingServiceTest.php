@@ -614,6 +614,25 @@ class RoutingServiceTest extends CIUnitTestCase
         $this->assertSame('2', $notices[0]->subject);
     }
 
+    public function testNotices_LeaveOutTheTaxesThatHaveAnAccountOfTheirOwn(): void
+    {
+        $saleId  = $this->newSale();
+        $itemId  = (int) $this->accountingDb()->table('sales_items')->where('sale_id', $saleId)->get()->getRow()->item_id;
+        $account = $this->customAccount('215', '215003', 'Tax on services');
+
+        $this->accountingDb()->table('sales_items_taxes')->insert(['sale_id' => $saleId, 'item_id' => $itemId, 'line' => 1, 'name' => 'VAT', 'percent' => '15.0000']);
+        $this->accountingDb()->table('sales_items_taxes')->insert(['sale_id' => $saleId, 'item_id' => $itemId, 'line' => 1, 'name' => 'Service', 'percent' => '5.0000', 'liability_account_id' => $account]);
+
+        $this->assertSame([], array_column($this->service->notices(null), 'code'), 'one tax is left for the routed account, which is not several');
+
+        $this->accountingDb()->table('sales_items_taxes')->insert(['sale_id' => $saleId, 'item_id' => $itemId, 'line' => 1, 'name' => 'Levy', 'percent' => '2.0000']);
+
+        $notices = $this->service->notices(null);
+
+        $this->assertSame([ReadinessCode::TaxOutputSharedAccount], array_column($notices, 'code'));
+        $this->assertSame('2', $notices[0]->subject, 'the two taxes that go to the routed account');
+    }
+
     public function testNotices_AreNoneWhenNothingWorthMentioningHappened(): void
     {
         $this->assertSame([], array_map(static fn (ReadinessIssue $issue): string => $issue->code->value, $this->service->notices(null)));
