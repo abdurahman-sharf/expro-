@@ -713,8 +713,8 @@
  {
   "name": "G80 the register offers the override only to a holder of the permission",
   "file": "app/Controllers/Sales.php",
-  "find": "        $data['can_override_return'] = $this->mayOverrideReturn();",
-  "replace": "        $data['can_override_return'] = true;",
+  "find": "        $data['can_override_return']   = $this->mayOverrideReturn();",
+  "replace": "        $data['can_override_return']   = true;",
   "tests": [
    "tests/Controllers/SalesControllerTest.php"
   ]

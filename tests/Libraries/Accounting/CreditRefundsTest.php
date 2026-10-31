@@ -741,7 +741,7 @@ class CreditRefundsTest extends CIUnitTestCase
         $limited = $this->employeeWithGrants([AccountingGuard::PAYABLES_REFUND], [$other]);
         $drawer  = (new TreasuryService())->create(['name' => 'Branch one drawer', 'kind' => 'cash', 'branch_id' => 1], $this->supplierTreasurer());
 
-        $this->refusal(fn () => $this->supplierRefund('50.00', $limited, $drawer));
+        $this->assertOutsideTheBranch(fn () => $this->supplierRefund('50.00', $limited, $drawer));
 
         $this->assertSame(0, $this->countRows('supplier_credit_refunds'));
     }
