@@ -4,6 +4,7 @@ namespace Tests\Libraries\Accounting\Bank;
 
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountLedger;
 use App\Libraries\Accounting\Bank\BankMatches;
 use App\Libraries\Accounting\Bank\BankSuggestions;
@@ -15,6 +16,8 @@ use App\Libraries\Accounting\Bank\StatementRowError;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\ReportPeriod;
 use App\Libraries\Accounting\ReportScope;
+use App\Models\Employee;
+use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -887,5 +890,210 @@ class BankReconciliationTest extends CIUnitTestCase
     public function testDeleteStatement_RejectsAnUnknownStatement(): void
     {
         $this->assertSame(AccountingError::BankStatementNotFound, $this->refusal(fn () => $this->bank->deleteStatement(987654, $this->bankClerk))->error);
+    }
+
+    private function holdTheBank(int $treasuryId): BaseConnection
+    {
+        $other = $this->openSecondConnection(false);
+        $other->resetTransStatus();
+        $other->transStart();
+        $other->query('SELECT treasury_id FROM ' . $other->prefixTable('treasuries') . ' WHERE treasury_id = ? FOR UPDATE', [$treasuryId]);
+
+        return $other;
+    }
+
+    private function whileTheBankIsHeld(callable $action): void
+    {
+        $other = $this->holdTheBank($this->bankId);
+        $this->accountingDb()->query('SET SESSION innodb_lock_wait_timeout = 1');
+
+        try {
+            $this->assertWaitsForLock($action);
+        } finally {
+            $other->transRollback();
+            $other->close();
+            $this->accountingDb()->query('SET SESSION innodb_lock_wait_timeout = 50');
+        }
+    }
+
+    public function testImport_WaitsForARequestThatHoldsTheBankAccountAndStoresNothingWhenItCannotHaveIt(): void
+    {
+        $this->whileTheBankIsHeld(fn () => $this->importStatement($this->statementText([['2026-03-01', 'Deposit', '10.00', '', 'A']])));
+
+        $this->assertSame(0, $this->lineCount());
+        $this->assertSame(0, $this->accountingDb()->table('bank_statements')->countAllResults());
+    }
+
+    public function testMatch_WaitsForARequestThatHoldsTheBankAccountAndMatchesNothingWhenItCannotHaveIt(): void
+    {
+        $line = $this->bookLine('100.00', '2026-03-10');
+        $this->importStatement($this->statementText([['2026-03-10', 'Deposit A', '100.00', '', 'A']]));
+
+        $this->whileTheBankIsHeld(fn () => $this->bank->match($this->bankId, $this->statementLineId('Deposit A'), [$line], $this->bankClerk));
+
+        $this->assertSame(0, $this->accountingDb()->table('bank_matches')->countAllResults());
+    }
+
+    public function testUnmatch_WaitsForARequestThatHoldsTheBankAccountAndTakesNothingBackWhenItCannotHaveIt(): void
+    {
+        [, , $matchId] = $this->matchedDeposit();
+
+        $this->whileTheBankIsHeld(fn () => $this->bank->unmatch($this->bankId, $matchId, $this->bankClerk));
+
+        $this->assertSame(1, $this->accountingDb()->table('bank_matches')->countAllResults());
+    }
+
+    public function testClose_WaitsForARequestThatHoldsTheBankAccountAndClosesNothingWhenItCannotHaveIt(): void
+    {
+        $this->reconciliationScenario();
+
+        $this->whileTheBankIsHeld(fn () => $this->bank->close($this->bankId, '2026-03-31', '1150.00', $this->bankClerk));
+
+        $this->assertSame(0, $this->accountingDb()->table('bank_reconciliations')->countAllResults());
+    }
+
+    public function testReopen_WaitsForARequestThatHoldsTheBankAccountAndReopensNothingWhenItCannotHaveIt(): void
+    {
+        $this->reconciliationScenario();
+        $closing = $this->bank->close($this->bankId, '2026-03-31', '1150.00', $this->bankClerk);
+
+        $this->whileTheBankIsHeld(fn () => $this->bank->reopen($closing, 'Because', $this->bankClerk));
+
+        $this->assertSame('closed', $this->accountingDb()->table('bank_reconciliations')->get()->getRow()->status);
+    }
+
+    public function testDeleteStatement_WaitsForARequestThatHoldsTheBankAccountAndDeletesNothingWhenItCannotHaveIt(): void
+    {
+        $result = $this->importStatement($this->statementText([['2026-03-01', 'Deposit', '10.00', '', 'A']]));
+
+        $this->whileTheBankIsHeld(fn () => $this->bank->deleteStatement((int) $result->statementId, $this->bankClerk));
+
+        $this->assertSame(1, $this->lineCount());
+    }
+
+    public function testOperations_LookAtTheAccountBeforeTheyLookAtWhatTheyWereGiven(): void
+    {
+        $second   = $this->createBranch('B2', 'Second branch');
+        $outsider = $this->employeeWithGrants([AccountingGuard::BANK_RECONCILE], [$second]);
+        $nobody   = $this->employeeWithGrants([]);
+
+        foreach ([[$outsider, AccountingError::BankAccountNotFound, AccountingError::BankReconciliationNotFound], [$nobody, AccountingError::PermissionDenied, AccountingError::PermissionDenied]] as [$employee, $account, $closing]) {
+            $this->assertSame($account, $this->refusal(fn () => $this->bank->import($this->bankId, 'x.csv', "PK\x03\x04\0", StatementMapping::standard(), $employee))->error);
+            $this->assertSame($account, $this->refusal(fn () => $this->bank->match($this->bankId, 1, [], $employee))->error);
+            $this->assertSame($account, $this->refusal(fn () => $this->bank->close($this->bankId, 'not a date', 'not a balance', $employee))->error);
+            $this->assertSame($closing, $this->refusal(fn () => $this->bank->reopen(987654, '', $employee))->error);
+            $this->assertSame($account, $this->refusal(fn () => $this->bank->report($this->bankId, 'not a date', null, $employee))->error);
+        }
+    }
+
+    public function testMatch_TakesAtMostFiftyLinesAndTakesALineRepeatedOnce(): void
+    {
+        $line = $this->bookLine('100.00', '2026-03-10');
+        $this->importStatement($this->statementText([['2026-03-10', 'Deposit A', '100.00', '', 'A']]));
+        $statementLine = $this->statementLineId('Deposit A');
+
+        $tooMany = $this->refusal(fn () => $this->bank->match($this->bankId, $statementLine, range($line, $line + BankMatches::MAX_LINES), $this->bankClerk));
+
+        $this->assertSame(AccountingError::BankJournalLineInvalid, $tooMany->error);
+        $this->assertSame(BankMatches::MAX_LINES, $tooMany->context['max']);
+
+        $matchId = $this->bank->match($this->bankId, $statementLine, [$line, $line, (string) $line], $this->bankClerk);
+
+        $this->assertSame(1, $this->accountingDb()->table('bank_match_lines')->where('match_id', $matchId)->countAllResults());
+    }
+
+    public function testMatch_TakesFiftyLinesThatAddUp(): void
+    {
+        $lines = [];
+
+        for ($number = 1; $number <= BankMatches::MAX_LINES; $number++) {
+            $lines[] = $this->bookLine('1.00', '2026-03-10', 'Small ' . $number);
+        }
+
+        $this->importStatement($this->statementText([['2026-03-10', 'Fifty deposits', '50.00', '', 'A']]));
+
+        $matchId = $this->bank->match($this->bankId, $this->statementLineId('Fifty deposits'), $lines, $this->bankClerk);
+
+        $this->assertSame(BankMatches::MAX_LINES, $this->accountingDb()->table('bank_match_lines')->where('match_id', $matchId)->countAllResults());
+    }
+
+    public function testMatch_KeepsAnAcceptedSuggestionAsSuggestedAndAnyOtherMethodAsManual(): void
+    {
+        $first  = $this->bookLine('100.00', '2026-03-10');
+        $second = $this->bookLine('200.00', '2026-03-10');
+        $this->importStatement($this->statementText([['2026-03-10', 'Deposit A', '100.00', '', 'A'], ['2026-03-10', 'Deposit B', '200.00', '', 'B']]));
+
+        $suggested = $this->bank->match($this->bankId, $this->statementLineId('Deposit A'), [$first], $this->bankClerk, BankMatches::SUGGESTED);
+        $other     = $this->bank->match($this->bankId, $this->statementLineId('Deposit B'), [$second], $this->bankClerk, 'something else');
+
+        $this->assertSame(['suggested', 'manual'], [$this->accountingDb()->table('bank_matches')->where('match_id', $suggested)->get()->getRow()->method, $this->accountingDb()->table('bank_matches')->where('match_id', $other)->get()->getRow()->method]);
+    }
+
+    public function testMatch_WritesTheBranchOfTheBankAccountOnTheMatchAndOnTheAuditEntry(): void
+    {
+        $second = $this->createBranch('B2', 'Second branch');
+        $bank   = $this->openBank('Second branch bank', $second);
+        $line   = $this->bookLine('100.00', '2026-03-10', 'Deposit', $bank);
+        $this->importStatement($this->statementText([['2026-03-10', 'Deposit A', '100.00', '', 'A']]), $bank);
+
+        $matchId = $this->bank->match($bank, $this->statementLineId('Deposit A', $bank), [$line], $this->bankClerk);
+
+        $this->assertSame($second, (int) $this->accountingDb()->table('bank_matches')->where('match_id', $matchId)->get()->getRow()->branch_id);
+        $this->assertSame($second, (int) $this->accountingDb()->table('accounting_audit_log')->where(['action' => 'bank_matched', 'entity_id' => $matchId])->get()->getRow()->branch_id);
+        $this->assertSame($second, (int) $this->accountingDb()->table('bank_statements')->get()->getRow()->branch_id);
+    }
+
+    public function testLines_FiltersByStateAndDatesNewestLastAndPages(): void
+    {
+        $line = $this->bookLine('1.00', '2026-03-01');
+        $this->importStatement($this->statementText([['2026-03-03', 'Third', '3.00', '', 'C'], ['2026-03-01', 'First', '1.00', '', 'A'], ['2026-03-02', 'Second', '2.00', '', 'B']]));
+        $this->bank->match($this->bankId, $this->statementLineId('First'), [$line], $this->bankClerk);
+
+        $all       = $this->bank->lines($this->bankId, $this->bankClerk);
+        $matched   = $this->bank->lines($this->bankId, $this->bankClerk, 'matched');
+        $unmatched = $this->bank->lines($this->bankId, $this->bankClerk, 'unmatched');
+        $window    = $this->bank->lines($this->bankId, $this->bankClerk, 'all', '2026-03-02', '2026-03-02');
+        $page      = $this->bank->lines($this->bankId, $this->bankClerk, 'all', null, null, 1, 1);
+
+        $this->assertSame(['First', 'Second', 'Third'], array_column($all['rows'], 'description'));
+        $this->assertSame(3, $all['total']);
+        $this->assertSame(['First'], array_column($matched['rows'], 'description'));
+        $this->assertSame(['Second', 'Third'], array_column($unmatched['rows'], 'description'));
+        $this->assertSame(['Second'], array_column($window['rows'], 'description'));
+        $this->assertSame([3, ['Second']], [$page['total'], array_column($page['rows'], 'description')]);
+        $this->assertSame(3, $this->bank->lines($this->bankId, $this->bankClerk, 'all', 'garbage', 'garbage')['total']);
+    }
+
+    public function testStatements_ListsTheStatementsOfTheAccountNewestFirstWithWhoImportedThem(): void
+    {
+        $this->importStatement($this->statementText([['2026-03-01', 'One', '1.00', '', 'A']]), name: 'first.csv');
+        $this->importStatement($this->statementText([['2026-03-02', 'Two', '2.00', '', 'B']]), name: 'second.csv');
+        $other = $this->openBank();
+        $this->importStatement($this->statementText([['2026-03-03', 'Three', '3.00', '', 'C']]), $other, 'other.csv');
+
+        $statements = $this->bank->statements($this->bankId, $this->bankClerk);
+
+        $this->assertSame(['second.csv', 'first.csv'], array_column($statements, 'file_name'));
+        $clerk = model(Employee::class)->get_info($this->bankClerk);
+
+        $this->assertSame([trim($clerk->first_name . ' ' . $clerk->last_name)], array_unique(array_column($statements, 'imported_by_name')));
+    }
+
+    public function testClosings_ListsTheLatestFirstAndFlagsOnlyAClosedOneThatDrifted(): void
+    {
+        $this->reconciliationScenario();
+        $first = $this->bank->close($this->bankId, '2026-03-31', '1150.00', $this->bankClerk);
+        $this->importStatement($this->statementText([['2026-04-10', 'April line', '10.00', '', 'AP']]), name: 'april.csv');
+        $this->bookLine('10.00', '2026-04-10', 'April book');
+        $this->bank->match($this->bankId, $this->statementLineId('April line'), [(int) $this->accountingDb()->table('accounting_journal_lines')->where('debit', '10.0000')->get()->getRow()->line_id], $this->bankClerk);
+        $second = $this->bank->close($this->bankId, '2026-04-30', '1160.00', $this->bankClerk);
+        $this->bank->reopen($second, 'April again', $this->bankClerk);
+        $this->bookLine('3.00', '2026-04-15', 'Late April');
+
+        $closings = $this->bank->closings($this->bankId, $this->bankClerk);
+
+        $this->assertSame([$second, $first], array_map(static fn (object $row): int => (int) $row->reconciliation_id, $closings));
+        $this->assertSame(['reopened', 'closed'], array_column($closings, 'status'));
+        $this->assertSame([false, false], array_map(static fn (object $row): bool => $row->drifted, $closings));
     }
 }
