@@ -365,13 +365,7 @@ class AccountingBankReconciliation extends AccountingController
             return [$file->getClientName(), (string) file_get_contents($file->getTempName())];
         }
 
-        $text = (string) $this->request->getPost('statement_text');
-
-        if (trim($text) === '') {
-            throw new AccountingException(AccountingError::BankStatementEmpty, 'There is no file and no text.');
-        }
-
-        return ['pasted.csv', $text];
+        return ['pasted.csv', (string) $this->request->getPost('statement_text')];
     }
 
     private function importMessage(ImportResult $result): string

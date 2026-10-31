@@ -882,10 +882,29 @@ class AccountingTreasuriesControllerTest extends CIUnitTestCase
         $manager = $this->manager();
         $this->treasuries->create(['name' => 'Rajhi', 'kind' => 'bank', 'bank_code' => 'SA_RAJHI', 'account_number' => '1234567890'], $manager);
 
-        $row = $this->rowsOf()['rows'][1];
+        $english = $this->rowsOf()['rows'][1];
 
-        $this->assertStringContainsString(BankDirectory::nameOf('SA_RAJHI', service('language')->getLocale()), $row['name']);
-        $this->assertStringContainsString('1234567890', $row['name']);
+        $this->accountingDb()->table('employees')->where('person_id', $manager)->update(['language_code' => 'ar-EG', 'language' => 'arabic-egypt']);
+
+        $arabic = $this->rowsOf()['rows'][1];
+
+        $this->assertStringContainsString('Al Rajhi Bank', $english['name']);
+        $this->assertStringContainsString('1234567890', $english['name']);
+        $this->assertStringContainsString('مصرف الراجحي', $arabic['name']);
+        $this->assertStringNotContainsString('Al Rajhi Bank', $arabic['name']);
+    }
+
+    public function testGetView_PreselectsTheBankOfTheCodeEvenWhenTheNameKeptWithItWasChanged(): void
+    {
+        $manager = $this->manager();
+        $bank    = $this->treasuries->create(['name' => 'Rajhi', 'kind' => 'bank', 'bank_code' => 'SA_RAJHI', 'account_number' => '1234567890'], $manager);
+
+        $this->accountingDb()->table('treasuries')->where('treasury_id', $bank)->update(['bank_name' => 'Old spelling of the name']);
+
+        $body = $this->get('/accounting_treasuries/view/' . $bank)->getBody();
+
+        $this->assertMatchesRegularExpression('/<option value="SA_RAJHI"[^>]* selected>/', $body);
+        $this->assertMatchesRegularExpression('/class="field bank-field bank-name-field" hidden/', $body);
     }
 
     public function testGetIndex_OffersTheLinkToTheBankReconciliationOnlyToWhoMayReconcile(): void

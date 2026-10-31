@@ -204,8 +204,8 @@
     "replace": "        $statement = $this->find($statementId, $employeeId);",
     "tests": [
       "--filter",
-      "testOperations_AreRefusedToSomeoneWithoutThePermission",
-      "tests/Libraries/Accounting/Bank/BankAccessTest.php"
+      "testOperations_LookAtTheAccountBefore",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
     ]
   },
   {
@@ -550,17 +550,6 @@
     ]
   },
   {
-    "name": "M21 unmatch looks at the account",
-    "file": "app/Libraries/Accounting/Bank/BankMatches.php",
-    "find": "    public function unmatch(int $treasuryId, int $matchId, ?int $employeeId = null): void\n    {\n        $this->access->bankAccount($treasuryId, $employeeId);\n\n",
-    "replace": "    public function unmatch(int $treasuryId, int $matchId, ?int $employeeId = null): void\n    {\n",
-    "tests": [
-      "--filter",
-      "testOperations_AreRefusedToSomeoneWithoutThePermission",
-      "tests/Libraries/Accounting/Bank/BankAccessTest.php"
-    ]
-  },
-  {
     "name": "M22 unmatch locks the treasury row",
     "file": "app/Libraries/Accounting/Bank/BankMatches.php",
     "find": "            $treasury = $this->access->bankAccount($treasuryId, $employeeId, true);\n            $match    =",
@@ -677,7 +666,7 @@
     "replace": "if (str_contains($text, $reference)) {",
     "tests": [
       "--filter",
-      "testSuggestions_OffersTheLinesOfTheSameAmount",
+      "testSuggestions_OffersTheLinesOfTheSameAmount|testSuggestions_CallsALine",
       "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
     ]
   },
@@ -721,8 +710,8 @@
     "replace": "true, $limit)",
     "tests": [
       "--filter",
-      "testGetMatch_ListsTheOpenLines",
-      "tests/Controllers/AccountingBankReconciliationControllerTest.php"
+      "testLinesToMatch_",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
     ]
   },
   {
@@ -783,8 +772,8 @@
   {
     "name": "K06 without a statement line nothing is outstanding",
     "file": "app/Libraries/Accounting/Bank/BankBook.php",
-    "find": "            if ($coverageStart === null) {\n                $sql .= ' AND 1 = 0';",
-    "replace": "            if (false) {\n                $sql .= ' AND 1 = 0';",
+    "find": "$binds['start'] = $coverageStart ?? '9999-12-31';",
+    "replace": "$binds['start'] = $coverageStart ?? '0000-01-01';",
     "tests": [
       "--filter",
       "testReport_CarriesEveryLineOfTheBooksWhileNoStatementLineIsImported",
@@ -842,8 +831,8 @@
     "replace": "'1 = 1'",
     "tests": [
       "--filter",
-      "testGetMatch_ListsTheOpenLines",
-      "tests/Controllers/AccountingBankReconciliationControllerTest.php"
+      "testLinesToMatch_",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
     ]
   },
   {
@@ -853,8 +842,8 @@
     "replace": "                WHERE l.account_id = :account: AND j.status IN (:posted:, :reversed:)\n                  AND \"",
     "tests": [
       "--filter",
-      "testGetMatch_ListsTheOpenLines|testGetSuggestions",
-      "tests/Controllers/AccountingBankReconciliationControllerTest.php"
+      "testLinesToMatch_",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
     ]
   },
   {
@@ -1062,8 +1051,8 @@
     "replace": "return $row;",
     "tests": [
       "--filter",
-      "testOperations_AreRefusedAsAccountNotFoundToSomeoneOutsideTheBranch",
-      "tests/Libraries/Accounting/Bank/BankAccessTest.php"
+      "testReopen_IsNotFoundForAClosingOfABankAccountOutOfScope",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
     ]
   },
   {
@@ -1831,18 +1820,7 @@
     "replace": "if ($file !== null) {",
     "tests": [
       "--filter",
-      "testPostImport_RefusesNothingToImport",
-      "tests/Controllers/AccountingBankReconciliationControllerTest.php"
-    ]
-  },
-  {
-    "name": "X05 without a file the pasted text is the statement",
-    "file": "app/Controllers/AccountingBankReconciliation.php",
-    "find": "        if (trim($text) === '') {\n            throw new AccountingException(AccountingError::BankStatementEmpty, 'There is no file and no text.');",
-    "replace": "        if (false) {\n            throw new AccountingException(AccountingError::BankStatementEmpty, 'There is no file and no text.');",
-    "tests": [
-      "--filter",
-      "testPostImport_RefusesNothingToImport",
+      "testPostImport_RefusesNothingToImport|testPostImport_DoesNotReadAFileWhoseUploadFailed",
       "tests/Controllers/AccountingBankReconciliationControllerTest.php"
     ]
   },
@@ -1853,7 +1831,7 @@
     "replace": "return $value === '' ? null : $value;",
     "tests": [
       "--filter",
-      "testGetReport_TakesTheDateOfToday",
+      "testGetReport_TakesTheDateOfToday|testGetLines_IgnoresADateThatIsNotADate",
       "tests/Controllers/AccountingBankReconciliationControllerTest.php"
     ]
   },
@@ -1925,6 +1903,17 @@
     ]
   },
   {
+    "name": "Y03b the bank of the directory is shown in the language in use on the reconciliation screens",
+    "file": "app/Controllers/AccountingBankReconciliation.php",
+    "find": "BankDirectory::nameOf($code, service('language')->getLocale())",
+    "replace": "BankDirectory::storedNameOf($code)",
+    "tests": [
+      "--filter",
+      "testGetIndex_NamesTheBankOfTheDirectoryInArabic",
+      "tests/Controllers/AccountingBankReconciliationControllerTest.php"
+    ]
+  },
+  {
     "name": "Y04 the form preselects the bank of a hand written name that is in the directory",
     "file": "app/Controllers/AccountingTreasuries.php",
     "find": "(BankDirectory::codeOfName((string) $treasury->bank_name) ?? '')",
@@ -1942,7 +1931,7 @@
     "replace": "(string) (false ? $treasury->bank_code :",
     "tests": [
       "--filter",
-      "testGetView_OffersTheBankDirectory",
+      "testGetView_PreselectsTheBankOfTheCodeEvenWhen",
       "tests/Controllers/AccountingTreasuriesControllerTest.php"
     ]
   },

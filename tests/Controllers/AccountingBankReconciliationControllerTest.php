@@ -129,6 +129,16 @@ class AccountingBankReconciliationControllerTest extends CIUnitTestCase
         $response->assertDontSee('bank_accounts_empty');
     }
 
+    public function testGetIndex_NamesTheBankOfTheDirectoryInArabicToAnArabicUser(): void
+    {
+        $this->accountingDb()->table('employees')->where('person_id', $this->actAsReconciler())->update(['language_code' => 'ar-EG', 'language' => 'arabic-egypt']);
+
+        $response = $this->get(self::BASE);
+
+        $response->assertSee('بنك الرياض');
+        $response->assertDontSee('Riyad Bank');
+    }
+
     public function testGetIndex_SaysThereIsNothingToReconcileWhenNoBankAccountIsInScope(): void
     {
         $second = $this->createBranch('B2', 'Second branch');
@@ -513,6 +523,26 @@ class AccountingBankReconciliationControllerTest extends CIUnitTestCase
         $this->assertSame(0, $this->accountingDb()->table('bank_statements')->countAllResults());
     }
 
+    public function testPostImport_DoesNotReadAFileWhoseUploadFailed(): void
+    {
+        $this->actAsReconciler();
+        $file = tempnam(sys_get_temp_dir(), 'stmt');
+
+        file_put_contents($file, $this->statementText([['2026-03-01', 'Half uploaded', '25.50', '', 'U1']]));
+        service('superglobals')->setFilesArray(['statement_file' => ['name' => 'partial.csv', 'type' => 'text/csv', 'tmp_name' => $file, 'error' => UPLOAD_ERR_PARTIAL, 'size' => filesize($file)]]);
+
+        try {
+            $result = $this->json($this->accountUrl('/import'), ['date_column' => '1', 'description_column' => '2', 'deposit_column' => '3', 'withdrawal_column' => '4']);
+        } finally {
+            service('superglobals')->setFilesArray([]);
+            unlink($file);
+        }
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_bank_statement_empty'), $result['message']);
+        $this->assertSame(0, $this->accountingDb()->table('bank_statements')->countAllResults());
+    }
+
     public function testPostImport_RefusesAnUploadedFileThatIsNotUtf8Text(): void
     {
         $this->actAsReconciler();
@@ -728,11 +758,26 @@ class AccountingBankReconciliationControllerTest extends CIUnitTestCase
         $response->assertSee('975.00');
     }
 
-    public function testGetReport_TakesTheDateOfTodayWhenNoneIsGiven(): void
+    public function testGetReport_TakesTheDateOfTodayWhenNoneOrANonDateIsGiven(): void
     {
         $this->actAsReconciler();
 
         $this->get($this->accountUrl('/report'))->assertSee('value="' . date('Y-m-d') . '"');
+        $this->get($this->accountUrl('/report?as_of=tomorrow'))->assertSee('value="' . date('Y-m-d') . '"');
+        $this->get($this->accountUrl('/report?as_of=2026-3-1'))->assertSee('value="' . date('Y-m-d') . '"');
+        $this->get($this->accountUrl('/report?as_of=2026-03-01'))->assertSee('value="2026-03-01"');
+    }
+
+    public function testGetLines_IgnoresADateThatIsNotADate(): void
+    {
+        $this->importStatement($this->statementText([['2026-03-03', 'Third', '3.00', '', 'C'], ['2026-03-01', 'First', '1.00', '', 'A']]));
+        $this->actAsReconciler();
+
+        $response = $this->get($this->accountUrl('/lines?from=last-week&to=next-week'));
+
+        $response->assertSee('Third');
+        $response->assertSee('First');
+        $response->assertSee('value=""');
     }
 
     public function testPostMatch_MatchesTheLinesAndTheTreasuryStatementFlagsTheJournalLine(): void

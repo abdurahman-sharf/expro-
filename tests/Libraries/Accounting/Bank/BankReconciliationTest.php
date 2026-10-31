@@ -666,20 +666,20 @@ class BankReconciliationTest extends CIUnitTestCase
 
     public function testSuggestions_OffersTheLinesOfTheSameAmountAndDirectionInsideTheWindowAndNoOthers(): void
     {
-        $near      = $this->bookLine('200.00', '2026-03-08', 'Invoice INV-77 payment');
-        $later     = $this->bookLine('200.00', '2026-03-12', 'Other customer');
+        $other     = $this->bookLine('200.00', '2026-03-08', 'Other customer');
+        $near      = $this->bookLine('200.00', '2026-03-12', 'Invoice INV-77 payment');
         $this->bookLine('200.00', '2026-03-30', 'Too far');
         $this->bookLine('201.00', '2026-03-10', 'Other amount');
         $this->bookLine('-200.00', '2026-03-10', 'Other direction');
         $matched = $this->bookLine('200.00', '2026-03-10', 'Matched elsewhere');
-        $this->importStatement($this->statementText([['2026-03-10', 'Wire from Alpha', '200.00', '', 'INV-77'], ['2026-03-09', 'Another wire', '200.00', '', 'ZZZ']]));
+        $this->importStatement($this->statementText([['2026-03-10', 'Wire from Alpha', '200.00', '', 'INV-77'], ['2026-03-09', 'Another wire', '200.00', '', 'ZZZ'], ['2026-03-09', 'Nothing like it', '999.00', '', 'NOPE']]));
         $this->bank->match($this->bankId, $this->statementLineId('Another wire'), [$matched], $this->bankClerk);
 
         $suggestions = $this->bank->suggestions($this->bankId, $this->bankClerk);
 
         $this->assertCount(1, $suggestions);
         $this->assertSame('Wire from Alpha', $suggestions[0]['line']->description);
-        $this->assertSame([$near, $later], array_map(static fn (object $candidate): int => (int) $candidate->line_id, $suggestions[0]['candidates']));
+        $this->assertSame([$near, $other], array_map(static fn (object $candidate): int => (int) $candidate->line_id, $suggestions[0]['candidates']));
         $this->assertSame([BankSuggestions::REFERENCE, 'none'], array_map(static fn (object $candidate): string => $candidate->hint, $suggestions[0]['candidates']));
         $this->assertSame(BankSuggestions::REFERENCE, $suggestions[0]['confidence']);
     }
@@ -747,8 +747,8 @@ class BankReconciliationTest extends CIUnitTestCase
         $this->reconciliationScenario();
         $this->bank->close($this->bankId, '2026-03-31', '1150.00', $this->bankClerk);
 
-        foreach (['2026-03-31', '2026-03-15', '2099-01-01', '2026-02-30'] as $date) {
-            $this->assertContains($this->refusal(fn () => $this->bank->close($this->bankId, $date, '1150.00', $this->bankClerk))->error, [AccountingError::BankReconciliationDateInvalid, AccountingError::InvalidDate], $date);
+        foreach (['2026-03-31' => AccountingError::BankReconciliationDateInvalid, '2026-03-15' => AccountingError::BankReconciliationDateInvalid, '2099-01-01' => AccountingError::BankReconciliationDateInvalid, '2026-02-30' => AccountingError::InvalidDate, 'soon' => AccountingError::InvalidDate] as $date => $error) {
+            $this->assertSame($error, $this->refusal(fn () => $this->bank->close($this->bankId, (string) $date, '1150.00', $this->bankClerk))->error, (string) $date);
         }
 
         $second = $this->openBank();
@@ -897,7 +897,7 @@ class BankReconciliationTest extends CIUnitTestCase
         $other = $this->openSecondConnection(false);
         $other->resetTransStatus();
         $other->transStart();
-        $other->query('SELECT treasury_id FROM ' . $other->prefixTable('treasuries') . ' WHERE treasury_id = ? FOR UPDATE', [$treasuryId]);
+        $other->query('SELECT treasury_id FROM ' . $other->prefixTable('treasuries') . ' WHERE treasury_id = ? LOCK IN SHARE MODE', [$treasuryId]);
 
         return $other;
     }
@@ -982,6 +982,7 @@ class BankReconciliationTest extends CIUnitTestCase
             $this->assertSame($account, $this->refusal(fn () => $this->bank->match($this->bankId, 1, [], $employee))->error);
             $this->assertSame($account, $this->refusal(fn () => $this->bank->close($this->bankId, 'not a date', 'not a balance', $employee))->error);
             $this->assertSame($closing, $this->refusal(fn () => $this->bank->reopen(987654, '', $employee))->error);
+            $this->assertSame($account === AccountingError::PermissionDenied ? AccountingError::PermissionDenied : AccountingError::BankStatementNotFound, $this->refusal(fn () => $this->bank->deleteStatement(987654, $employee))->error);
             $this->assertSame($account, $this->refusal(fn () => $this->bank->report($this->bankId, 'not a date', null, $employee))->error);
         }
     }
@@ -1177,5 +1178,37 @@ class BankReconciliationTest extends CIUnitTestCase
         $matchId = $this->bank->match($this->bankId, $this->statementLineId('Deposit A'), [0, -3, $line, 'x'], $this->bankClerk);
 
         $this->assertSame([$line], array_map('intval', array_column($this->accountingDb()->table('bank_match_lines')->where('match_id', $matchId)->get()->getResultArray(), 'journal_line_id')));
+    }
+
+    public function testReopen_IsNotFoundForAClosingOfABankAccountOutOfScopeAndLeavesItClosed(): void
+    {
+        $second = $this->createBranch('B2', 'Second branch');
+        $bank   = $this->openBank('Second branch bank', $second);
+        $this->importStatement($this->statementText([['2026-03-10', 'Line', '5.00', '', 'A']]), $bank);
+        $closing  = $this->bank->close($bank, '2026-03-31', '5.00', $this->bankClerk);
+        $outsider = $this->employeeWithGrants([AccountingGuard::BANK_RECONCILE], [1]);
+
+        $refusal = $this->refusal(fn () => $this->bank->reopen($closing, 'Because', $outsider));
+
+        $this->assertSame(AccountingError::BankReconciliationNotFound, $refusal->error);
+        $this->assertSame('closed', $this->accountingDb()->table('bank_reconciliations')->where('reconciliation_id', $closing)->get()->getRow()->status);
+        $this->assertSame(AccountingError::BankAccountNotFound, $this->refusal(fn () => $this->bank->close($bank, '2026-04-30', '5.00', $outsider))->error);
+    }
+
+    public function testLinesToMatch_ListsTheDebitsForADepositAndTheCreditsForAWithdrawalAndLeavesOutWhatAMatchHolds(): void
+    {
+        $debit   = $this->bookLine('50.00', '2026-03-10', 'Debit');
+        $credit  = $this->bookLine('-50.00', '2026-03-10', 'Credit');
+        $matched = $this->bookLine('50.00', '2026-03-10', 'Debit matched');
+        $this->importStatement($this->statementText([['2026-03-10', 'Deposit line', '50.00', '', 'D'], ['2026-03-10', 'Withdrawal line', '', '50.00', 'W'], ['2026-03-11', 'Held deposit', '50.00', '', 'H']]));
+        $this->bank->match($this->bankId, $this->statementLineId('Held deposit'), [$matched], $this->bankClerk);
+
+        $deposit    = $this->bank->linesToMatch($this->bankId, $this->statementLineId('Deposit line'), $this->bankClerk);
+        $withdrawal = $this->bank->linesToMatch($this->bankId, $this->statementLineId('Withdrawal line'), $this->bankClerk);
+
+        $this->assertSame([$debit], array_map(static fn (object $line): int => (int) $line->line_id, $deposit['lines']));
+        $this->assertSame([$credit], array_map(static fn (object $line): int => (int) $line->line_id, $withdrawal['lines']));
+        $this->assertTrue($deposit['lines'][0]->exact);
+        $this->assertTrue($deposit['lines'][0]->near);
     }
 }

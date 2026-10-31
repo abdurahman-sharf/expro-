@@ -148,8 +148,6 @@ final class BankMatches
      */
     public function unmatch(int $treasuryId, int $matchId, ?int $employeeId = null): void
     {
-        $this->access->bankAccount($treasuryId, $employeeId);
-
         $this->transactional(function () use ($treasuryId, $matchId, $employeeId): void {
             $treasury = $this->access->bankAccount($treasuryId, $employeeId, true);
             $match    = $this->db->table('bank_matches')->where(['company_id' => CompanyContext::id(), 'treasury_id' => $treasuryId, 'match_id' => $matchId])->get()->getRow();

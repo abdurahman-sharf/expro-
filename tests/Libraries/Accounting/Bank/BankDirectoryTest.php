@@ -42,6 +42,16 @@ class BankDirectoryTest extends CIUnitTestCase
         $countries = array_values(array_unique(array_column($all, 'country')));
 
         $this->assertSame(BankDirectory::COUNTRIES, $countries);
+
+        foreach (BankDirectory::COUNTRIES as $country) {
+            $names = array_column(array_filter($all, static fn (array $bank): bool => $bank['country'] === $country), 'en');
+
+            $sorted = $names;
+
+            sort($sorted);
+
+            $this->assertSame($sorted, $names, $country);
+        }
     }
 
     public function testSearch_NamesTheMainSaudiBanksAndTheBankOfTheObservedExample(): void
@@ -66,8 +76,10 @@ class BankDirectoryTest extends CIUnitTestCase
     public function testSearch_IgnoresCaseSpacesAndTheMarksAndFormsOfArabicLetters(): void
     {
         $this->assertSame(BankDirectory::search('RIYAD  bank'), BankDirectory::search('riyad bank'));
-        $this->assertContains('SA_ALINMA', $this->codes(BankDirectory::search('الانماء')));
-        $this->assertContains('SA_ALINMA', $this->codes(BankDirectory::search('الإنماء')));
+        $this->assertContains('AE_FAB', $this->codes(BankDirectory::search('ابوظبي الاول')));
+        $this->assertContains('AE_FAB', $this->codes(BankDirectory::search('أبوظبي الأول')));
+        $this->assertContains('SA_ANB', $this->codes(BankDirectory::search('البنك العربى الوطنى')));
+        $this->assertContains('AE_RAKBANK', $this->codes(BankDirectory::search('راس الخيمه')));
         $this->assertContains('SA_RIYAD', $this->codes(BankDirectory::search('بَنك الرياض')));
         $this->assertContains('SA_RAJHI', $this->codes(BankDirectory::search('مصرف')));
     }

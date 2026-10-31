@@ -241,12 +241,8 @@ final class BankBook
         $binds = $this->binds($accountId, $asOf) + ['treasury' => $treasuryId];
 
         if ($part === 'outstanding') {
-            if ($coverageStart === null) {
-                $sql .= ' AND 1 = 0';
-            } else {
-                $binds['start'] = $coverageStart;
-                $sql .= ' AND j.journal_date >= :start:';
-            }
+            $binds['start'] = $coverageStart ?? '9999-12-31';
+            $sql .= ' AND j.journal_date >= :start:';
         } elseif ($part === 'carried' && $coverageStart !== null) {
             $binds['start'] = $coverageStart;
             $sql .= ' AND j.journal_date < :start:';
