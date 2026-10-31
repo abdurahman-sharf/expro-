@@ -833,6 +833,8 @@ class SupplierAdvancesTest extends CIUnitTestCase
         $opening = $this->advances->openingBalance($this->supplierId, SupplierAdvances::WE_OWE, '200.00', '2026-01-01', 'before the books', $this->clerk);
         $second  = $this->employeeWithGrants([AccountingGuard::PAYABLES_MANAGE]);
 
+        $this->receivingIds[] = $opening;
+
         (new RoleService())->setRecordScope($second, 'own', null);
 
         $this->assertSame(AccountingError::OpeningNotFound, $this->refusal(fn () => $this->advances->cancelOpening($opening, 'by a stranger', $second))->error);

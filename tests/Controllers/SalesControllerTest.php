@@ -32,6 +32,7 @@ use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\RoleFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 use Tests\Support\SaleFixtureTrait;
+use App\Libraries\Roles\DefaultLocations;
 
 /**
  * Regression tests for the Sales per-endpoint access-control bypass.
@@ -5579,5 +5580,38 @@ class SalesControllerTest extends CIUnitTestCase
 
         $response->assertStatus(403);
         $this->assertSame(lang('Sales.not_authorized'), $this->jsonOf($response)['message']);
+    }
+
+    public function testGetIndex_StartsTheRegisterInTheDefaultStockLocationOfTheEmployee(): void
+    {
+        $personId = $this->createCashierEmployee();
+        $first    = $this->grantStockLocationIn(1, $personId);
+        $second   = $this->grantStockLocationIn(1, $personId);
+
+        (new DefaultLocations())->set($personId, $second, null);
+
+        $this->loginAs($personId);
+        $this->get('/sales')->assertStatus(200);
+
+        $this->assertSame($second, (int) Services::session()->get('sales_location'));
+        $this->assertNotSame($first, (int) Services::session()->get('sales_location'));
+    }
+
+    public function testGetIndex_StartsTheRegisterWhereItAlwaysStartedWhenTheEmployeeHasNoDefaultOrMayNotUseIt(): void
+    {
+        $personId = $this->createCashierEmployee();
+        $granted  = $this->grantStockLocationIn(1, $personId);
+
+        Database::connect()->table('stock_locations')->insert(['location_name' => 'no grant ' . uniqid(), 'deleted' => 0, 'branch_id' => 1]);
+
+        $other = (int) Database::connect()->insertID();
+
+        (new DefaultLocations())->set($personId, $other, null);
+
+        $this->loginAs($personId);
+        $this->get('/sales')->assertStatus(200);
+
+        $this->assertNotSame($other, (int) Services::session()->get('sales_location'), 'A location the employee holds no permission for is never preselected');
+        $this->assertGreaterThan(0, $granted);
     }
 }

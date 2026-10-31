@@ -23,6 +23,7 @@ use Tests\Support\ItemFixtureTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\RoleFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
+use App\Libraries\Roles\DefaultLocations;
 
 /**
  * The purchase screens: what the register keeps in the cart, who may work in which branch, and
@@ -3580,5 +3581,20 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $response = $this->post('/receivings/setReturnOrigin', ['recv_return_origin' => (string) $theirs]);
 
         $this->assertSame(lang('Roles.record_unavailable'), $this->jsonOf($response)['message']);
+    }
+
+    public function testGetIndex_StartsTheReceivingScreenInTheDefaultStockLocationOfTheEmployee(): void
+    {
+        $buyer  = $this->buyer();
+        $first  = $this->depotIn(1, $buyer);
+        $second = $this->depotIn(1, $buyer);
+
+        (new DefaultLocations())->set($buyer, $second, null);
+
+        $this->loginAs($buyer);
+        $this->get('/receivings')->assertStatus(200);
+
+        $this->assertSame($second, (int) Services::session()->get('recv_stock_source'));
+        $this->assertNotSame($first, (int) Services::session()->get('recv_stock_source'));
     }
 }
