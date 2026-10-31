@@ -322,8 +322,10 @@ final class ChequeService
     public function find(int $chequeId): ?object
     {
         return $this->db->table('cheques c')
-            ->select("c.*, TRIM(CONCAT(p.first_name, ' ', p.last_name)) AS party_name, t.name AS treasury_name, b.code AS branch_code, k.name AS book_name", false)
+            ->select('c.*, ' . ChequeList::PARTY_NAME . ' AS party_name, t.name AS treasury_name, b.code AS branch_code, k.name AS book_name', false)
             ->join('people p', 'p.person_id = c.party_id')
+            ->join('customers cu', 'cu.person_id = c.party_id', 'left')
+            ->join('suppliers s', 's.person_id = c.party_id', 'left')
             ->join('treasuries t', 't.treasury_id = c.treasury_id')
             ->join('branches b', 'b.branch_id = c.branch_id')
             ->join('cheque_books k', 'k.book_id = c.book_id', 'left')

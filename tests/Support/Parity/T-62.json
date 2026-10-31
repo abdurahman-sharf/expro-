@@ -23,7 +23,7 @@
       "kind": "foreign_currency_cheque",
       "classification": "not_implemented",
       "work_package": "WP28",
-      "reason": "Needs the cheque cycle (WP26) and the document currency (WP28). When built, the difference must be booked as it is for invoices and payments; the residual the reference system leaves in notes receivable is a defect the package must not copy.",
+      "reason": "Needs the document currency (WP28); the cheque cycle itself is built (WP26) in the base currency only. When the currency is built, the difference must be booked as it is for invoices and payments; the residual the reference system leaves in notes receivable is a defect the package must not copy.",
       "evidence": [
         "usd_cheque"
       ],
@@ -79,22 +79,6 @@
       "expected": {
         "status": "not_implemented",
         "absent": [
-          {
-            "kind": "table",
-            "pattern": "cheque"
-          },
-          {
-            "kind": "route",
-            "pattern": "cheque"
-          },
-          {
-            "kind": "class",
-            "name": "App\\Controllers\\Cheques"
-          },
-          {
-            "kind": "class",
-            "name": "App\\Models\\Cheque"
-          },
           {
             "kind": "column",
             "table": "sales",

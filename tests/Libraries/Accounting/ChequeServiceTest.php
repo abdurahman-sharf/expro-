@@ -1047,4 +1047,143 @@ class ChequeServiceTest extends CIUnitTestCase
         $this->assertNull($this->cheques->find(99999));
         $this->assertSame(['deposit', 'collect', 'reject', 'edit', 'delete'], $this->cheques->actionsOf($row));
     }
+
+    /**
+     * @return array<string, int>
+     */
+    private function roles(): array
+    {
+        return [
+            'notes_receivable' => $this->accountId('notes_receivable'),
+            'under_collection' => $this->accountId('cheques_under_collection'),
+            'deposit_fees'     => $this->accountId('cheque_deposit_fees'),
+            'notes_payable'    => $this->accountId('notes_payable'),
+            'customer'         => $this->customerAccount(),
+            'supplier'         => $this->supplierAccount(),
+            'bank'             => $this->bankLedgerAccount(),
+        ];
+    }
+
+    /**
+     * @return list<array{role: string, debit: string, credit: string}> The lines of the journals of a source of the cheque that stand, journal by journal in the order they were posted, flattened by journal.
+     */
+    private function journalLines(string $source, int $chequeId, int $index = 0): array
+    {
+        $journals = $this->accountingDb()->table('accounting_journals')->where(['source_type' => $source, 'source_id' => $chequeId, 'status' => 'posted'])->orderBy('revision')->get()->getResult();
+
+        $this->assertArrayHasKey($index, $journals, "No journal {$index} stands for {$source}");
+
+        return $this->roleLines((int) $journals[$index]->journal_id, $this->roles());
+    }
+
+    public function testChequeJournals_SayWhatTheReferenceSystemWroteForAReceivedChequeAndUndoReversesWhereItDeletes(): void
+    {
+        $case = $this->referenceCase('T-54', 'received_cheque', 'a-received-cheque-from-receipt-to-collection-or-rejection', 'differs');
+
+        $direct   = $this->received(['cheque_number' => '710001']);
+        $bounced  = $this->received(['cheque_number' => '710002']);
+        $deposits = $this->received(['cheque_number' => '710003']);
+        $failed   = $this->received(['cheque_number' => '710004']);
+
+        $this->cheques->collect($direct, $this->today, null, $this->clerk);
+        $this->cheques->reject($bounced, $this->today, $this->clerk);
+        $this->cheques->deposit($deposits, $this->today, $this->clerk);
+        $this->cheques->collect($deposits, $this->today, '2.50', $this->clerk);
+        $this->cheques->deposit($failed, $this->today, $this->clerk);
+        $this->cheques->reject($failed, $this->today, $this->clerk);
+
+        $actual = [
+            'received'                     => $this->journalLines(ChequeSources::RECEIVED, $direct),
+            'collected_directly'           => $this->journalLines(ChequeSources::COLLECTED, $direct),
+            'rejected_when_received'       => $this->journalLines(ChequeSources::REJECTED, $bounced),
+            'deposited'                    => $this->journalLines(ChequeSources::DEPOSITED, $deposits),
+            'collected_after_deposit'      => $this->journalLines(ChequeSources::DEPOSIT_COLLECTED, $deposits),
+            'rejected_after_deposit_first' => $this->journalLines(ChequeSources::DEPOSIT_REJECTED, $failed, 0),
+            'rejected_after_deposit_second' => $this->journalLines(ChequeSources::DEPOSIT_REJECTED, $failed, 1),
+        ];
+
+        $this->assertSameAsFixture($case['expected']['journals'], $actual, 'the journals of a received cheque');
+
+        $this->cheques->undo($direct, $this->clerk);
+
+        $reversed = $this->accountingDb()->table('accounting_journals')->where(['source_type' => ChequeSources::COLLECTED, 'source_id' => $direct])->get()->getRow();
+
+        $this->assertSame('reversed', $reversed->status);
+        $this->assertSame($case['expected']['deleted_only_while'], 'received');
+        $this->assertSame(AccountingError::ChequeDeleteLocked, $this->refusal(fn () => $this->cheques->delete($deposits, $this->clerk))->error);
+        $this->assertSame('reverses the journal of the step', $case['expected']['undo_of_a_step']);
+    }
+
+    public function testChequeJournals_SayWhatTheReferenceSystemWroteForAPaidCheque(): void
+    {
+        $case = $this->referenceCase('T-55', 'paid_cheque', 'a-paid-cheque-from-issue-to-collection-or-rejection', 'differs');
+
+        $journals = $this->countRows('accounting_journals');
+        $collects = $this->paid(['cheque_number' => '800001']);
+
+        $this->assertSame($journals, $this->countRows('accounting_journals'), 'issuing posts nothing');
+        $this->assertSame($case['expected']['journal_at_issue'], 'none');
+
+        $this->cheques->deliver($collects, $this->today, $this->clerk);
+        $this->cheques->collect($collects, $this->today, null, $this->clerk);
+
+        $rejected = $this->paid(['cheque_number' => '800002'], $this->today);
+
+        $this->cheques->reject($rejected, $this->today, $this->clerk);
+
+        $actual = [
+            'delivered' => $this->journalLines(ChequeSources::DELIVERED, $collects),
+            'collected' => $this->journalLines(ChequeSources::PAID_COLLECTED, $collects),
+            'rejected'  => $this->journalLines(ChequeSources::PAID_REJECTED, $rejected),
+        ];
+
+        $this->assertSameAsFixture($case['expected']['journals'], $actual, 'the journals of a paid cheque');
+        $this->assertSame($case['expected']['collection_checks_the_balance_of_the_bank'], bccomp($this->balance($this->bankLedgerAccount()), '0', 2) >= 0, 'the bank went below zero without a refusal');
+    }
+
+    public function testChequeJournals_KeepTheDueDateOutOfThePostingsAndCheckTheCollectionDate(): void
+    {
+        $case = $this->referenceCase('T-56', 'post_dated_cheque', 'the-due-date-of-a-cheque-posts-nothing-and-the-collection-date-is-checked', 'exact');
+
+        $due      = $this->futureDate(60);
+        $chequeId = $this->received(['amount' => '60.00', 'due_date' => $due]);
+        $received = $this->journalLines(ChequeSources::RECEIVED, $chequeId);
+
+        $this->assertSame($this->today, $this->accountingDb()->table('accounting_journals')->where(['source_type' => ChequeSources::RECEIVED, 'source_id' => $chequeId])->get()->getRow()->journal_date);
+
+        $this->cheques->update($chequeId, $this->input(['amount' => '60.00', 'due_date' => $due, 'endorsed_to' => 'Another party']), $this->clerk);
+
+        $this->assertSame(1, $this->countJournalsOf(ChequeSources::RECEIVED, $chequeId), 'an endorsement is a label that adds no journal');
+
+        $this->cheques->deposit($chequeId, $this->today, $this->clerk);
+
+        $accepted  = $this->statusOf($chequeId) === 'deposited';
+        $deposited = $this->journalLines(ChequeSources::DEPOSITED, $chequeId);
+        $refused   = $this->refusal(fn () => $this->cheques->collect($chequeId, $this->today, '0', $this->clerk))->error === AccountingError::ChequeCollectBeforeDue;
+
+        $this->cheques->collect($chequeId, $due, '0', $this->clerk);
+
+        $collected = $this->journalLines(ChequeSources::DEPOSIT_COLLECTED, $chequeId);
+
+        $this->assertSame($due, $this->accountingDb()->table('accounting_journals')->where(['source_type' => ChequeSources::DEPOSIT_COLLECTED, 'source_id' => $chequeId])->get()->getRow()->journal_date);
+
+        $this->invoiceOf('80.00');
+
+        $paid = $this->paid(['amount' => '80.00', 'cheque_number' => '800009', 'due_date' => $due], $this->today);
+
+        $actual = [
+            'journals' => [
+                'received_dated_the_issue_date'                      => $received,
+                'deposited_before_the_due_date'                      => $deposited,
+                'collected_on_the_due_date_dated_27_12_2026'         => $collected,
+                'paid_cheque_delivered_dated_the_issue_date'         => $this->journalLines(ChequeSources::DELIVERED, $paid),
+            ],
+            'collection_before_the_due_date' => $refused ? 'refused' : 'accepted',
+            'deposit_before_the_due_date'    => $accepted ? 'accepted' : 'refused',
+            'endorsement'                    => 'a label only',
+        ];
+
+        $this->assertSameAsFixture($case['expected'], $actual, 'the due date of a cheque');
+        $this->assertSame($this->today, $this->accountingDb()->table('accounting_journals')->where(['source_type' => ChequeSources::DELIVERED, 'source_id' => $paid])->get()->getRow()->journal_date);
+    }
 }

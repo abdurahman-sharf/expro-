@@ -1,6 +1,6 @@
 {
   "id": "T-56",
-  "title": "Post-dated cheques: the due date posts nothing and the journals of receipt and delivery carry the issue date; the reference system refuses a collection dated before the due date, accepts a deposit before it and a future-dated collection; there is no cheque module yet",
+  "title": "Post-dated cheques: the due date posts nothing and the journals of receipt and delivery carry the issue date; a collection dated before the due date is refused, a deposit before it is accepted and a future-dated collection posts on that day",
   "recorded": "2026-10-28",
   "observation": {
     "batch": "b",
@@ -38,9 +38,8 @@
     {
       "id": "the-due-date-of-a-cheque-posts-nothing-and-the-collection-date-is-checked",
       "kind": "post_dated_cheque",
-      "classification": "not_implemented",
-      "work_package": "WP26",
-      "reason": "There are no cheques here, so there is no due date to check a collection against (WP26). The rules the reference system showed are recorded for it: the receipt and the delivery are dated the issue date whatever the due date, a collection before the due date is refused with the message below, a deposit before it is accepted, and a collection on the due date posts a journal dated that day.",
+      "classification": "exact",
+      "reason": "The due date of a cheque posts nothing and the collection date is checked, as observed: the receipt and the delivery are dated the issue date, a deposit before the due date is accepted, a collection before it is refused, and a collection on the due date posts a journal dated that day.",
       "evidence": [
         "post_dated_received",
         "date_rules",
@@ -130,25 +129,59 @@
         "endorsement": "a label only"
       },
       "expected": {
-        "status": "not_implemented",
-        "absent": [
-          {
-            "kind": "table",
-            "pattern": "cheque"
-          },
-          {
-            "kind": "route",
-            "pattern": "cheque"
-          },
-          {
-            "kind": "class",
-            "name": "App\\Controllers\\Cheques"
-          },
-          {
-            "kind": "class",
-            "name": "App\\Models\\Cheque"
-          }
-        ]
+        "journals": {
+          "received_dated_the_issue_date": [
+            {
+              "role": "notes_receivable",
+              "debit": "60",
+              "credit": "0"
+            },
+            {
+              "role": "customer",
+              "debit": "0",
+              "credit": "60"
+            }
+          ],
+          "deposited_before_the_due_date": [
+            {
+              "role": "under_collection",
+              "debit": "60",
+              "credit": "0"
+            },
+            {
+              "role": "notes_receivable",
+              "debit": "0",
+              "credit": "60"
+            }
+          ],
+          "collected_on_the_due_date_dated_27_12_2026": [
+            {
+              "role": "bank",
+              "debit": "60",
+              "credit": "0"
+            },
+            {
+              "role": "under_collection",
+              "debit": "0",
+              "credit": "60"
+            }
+          ],
+          "paid_cheque_delivered_dated_the_issue_date": [
+            {
+              "role": "supplier",
+              "debit": "80",
+              "credit": "0"
+            },
+            {
+              "role": "notes_payable",
+              "debit": "0",
+              "credit": "80"
+            }
+          ]
+        },
+        "collection_before_the_due_date": "refused",
+        "deposit_before_the_due_date": "accepted",
+        "endorsement": "a label only"
       }
     }
   ]

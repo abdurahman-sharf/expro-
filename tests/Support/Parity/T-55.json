@@ -1,6 +1,6 @@
 {
   "id": "T-55",
-  "title": "A cheque paid to a supplier: issuing posts nothing, delivering it debits the supplier and credits notes payable, collecting debits notes payable and credits the bank, rejecting gives the supplier back what delivery took; there is no cheque module yet",
+  "title": "A cheque paid to a supplier: issuing posts nothing, delivering it debits the supplier and credits notes payable, collecting debits notes payable and credits the bank, rejecting gives the supplier back what delivery took, built here with the same lines",
   "recorded": "2026-10-28",
   "observation": {
     "batch": "b",
@@ -33,9 +33,8 @@
     {
       "id": "a-paid-cheque-from-issue-to-collection-or-rejection",
       "kind": "paid_cheque",
-      "classification": "not_implemented",
-      "work_package": "WP26",
-      "reason": "There is no cheque book, no cheque document and no notes payable posting here (WP26). The chart here calls notes payable 212, a group with no posting account, where the reference system uses 216.",
+      "classification": "differs",
+      "reason": "The paid cheque cycle is built (WP26): issuing posts nothing, delivering debits the supplier and credits notes payable, collecting debits notes payable and credits the bank with no look at its balance, rejecting gives the supplier back what delivery took, all as the reference system did and through the leaf account 212001 where the reference system uses 216. Taking a step back differs on purpose: this application reverses the journal of the step where the reference system deletes it (E64 and E67).",
       "evidence": [
         "cheque_book",
         "paid_cheque_journals"
@@ -111,25 +110,47 @@
         "undo_of_a_step": "deletes the journal of the step"
       },
       "expected": {
-        "status": "not_implemented",
-        "absent": [
-          {
-            "kind": "table",
-            "pattern": "cheque"
-          },
-          {
-            "kind": "route",
-            "pattern": "cheque"
-          },
-          {
-            "kind": "class",
-            "name": "App\\Controllers\\Cheques"
-          },
-          {
-            "kind": "class",
-            "name": "App\\Models\\Cheque"
-          }
-        ]
+        "journal_at_issue": "none",
+        "journals": {
+          "delivered": [
+            {
+              "role": "supplier",
+              "debit": "200",
+              "credit": "0"
+            },
+            {
+              "role": "notes_payable",
+              "debit": "0",
+              "credit": "200"
+            }
+          ],
+          "collected": [
+            {
+              "role": "notes_payable",
+              "debit": "200",
+              "credit": "0"
+            },
+            {
+              "role": "bank",
+              "debit": "0",
+              "credit": "200"
+            }
+          ],
+          "rejected": [
+            {
+              "role": "notes_payable",
+              "debit": "200",
+              "credit": "0"
+            },
+            {
+              "role": "supplier",
+              "debit": "0",
+              "credit": "200"
+            }
+          ]
+        },
+        "collection_checks_the_balance_of_the_bank": false,
+        "undo_of_a_step": "reverses the journal of the step"
       }
     }
   ]

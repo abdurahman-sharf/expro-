@@ -5,6 +5,7 @@
  * @var list<object> $branches
  * @var int|null $current_branch
  * @var list<object> $creators
+ * @var list<array{code: string, label: string}> $sources
  * @var bool $can_draft
  * @var bool $can_post
  * @var bool $can_audit
@@ -171,6 +172,9 @@ $empty     = '<p class="mb-2">' . esc(lang('Accounting_journals.empty')) . '</p>
                 <option value=""><?= lang('Accounting_journals.all_sources') ?></option>
                 <option value="manual"><?= lang('Accounting.source_manual') ?></option>
                 <option value="reversal"><?= lang('Accounting.source_reversal') ?></option>
+                <?php foreach ($sources as $source): ?>
+                    <option value="<?= esc($source['code'], 'attr') ?>"><?= esc($source['label']) ?></option>
+                <?php endforeach; ?>
             </select>
         </div>
         <div class="acc-filter acc-filter-actions">

@@ -181,7 +181,7 @@ class ChequesAndRevenues extends Migration
                 `account_id` INT UNSIGNED NULL DEFAULT NULL,
                 `deleted` TINYINT(1) NOT NULL DEFAULT 0,
                 PRIMARY KEY (`revenue_category_id`),
-                UNIQUE KEY `{$categories}_name` (`category_name`),
+                KEY `{$categories}_name` (`category_name`),
                 KEY `{$categories}_account` (`account_id`),
                 CONSTRAINT `{$categories}_fk_account` FOREIGN KEY (`account_id`) REFERENCES `{$accounts}` (`account_id`) ON DELETE RESTRICT
             ) {$options}",
