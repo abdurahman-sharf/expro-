@@ -25,8 +25,7 @@ final class CustomerAdvances
 {
     use RunsInTransaction;
 
-    public const SOURCE = 'customer_advance';
-
+    public const SOURCE     = 'customer_advance';
     private const NOTE_MAX  = 500;
     private const REFERENCE = 64;
 

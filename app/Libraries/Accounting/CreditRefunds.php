@@ -25,9 +25,8 @@ final class CreditRefunds
     public const SUPPLIER        = 'supplier';
     public const CUSTOMER_SOURCE = 'customer_refund';
     public const SUPPLIER_SOURCE = 'supplier_refund';
-
-    private const NOTE_MAX  = 500;
-    private const REFERENCE = 64;
+    private const NOTE_MAX       = 500;
+    private const REFERENCE      = 64;
 
     private BaseConnection $db;
     private AccountingGuard $guard;
@@ -268,17 +267,17 @@ final class CreditRefunds
     private function insert(int $partyId, int $branchId, string $amount, string $date, string $paymentType, ?int $treasuryId, string $reference, string $note, ?string $requestKey, ?int $employeeId): int
     {
         $this->db->table($this->table())->insert([
-            'company_id'              => CompanyContext::id(),
-            'branch_id'               => $branchId,
-            $this->party . '_id'      => $partyId,
-            'amount'                  => $amount,
-            'refund_date'             => $date,
-            'payment_type'            => $paymentType,
-            'treasury_id'             => $treasuryId,
-            'reference_code'          => mb_substr(trim($reference), 0, self::REFERENCE),
-            'note'                    => mb_substr(trim($note), 0, self::NOTE_MAX),
-            'request_key'             => $requestKey,
-            'created_by'              => $employeeId,
+            'company_id'         => CompanyContext::id(),
+            'branch_id'          => $branchId,
+            $this->party . '_id' => $partyId,
+            'amount'             => $amount,
+            'refund_date'        => $date,
+            'payment_type'       => $paymentType,
+            'treasury_id'        => $treasuryId,
+            'reference_code'     => mb_substr(trim($reference), 0, self::REFERENCE),
+            'note'               => mb_substr(trim($note), 0, self::NOTE_MAX),
+            'request_key'        => $requestKey,
+            'created_by'         => $employeeId,
         ]);
 
         return (int) $this->db->insertID();

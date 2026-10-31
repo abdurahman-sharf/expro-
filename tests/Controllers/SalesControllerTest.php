@@ -1320,7 +1320,7 @@ class SalesControllerTest extends CIUnitTestCase
         $response->assertDontSee("$('button#delete').hide()");
     }
 
-    public function testGetEdit_SaysToConfirmTheDeliveryBeforeACreditNoteWhenTheGoodsDidNotLeave(): void
+    public function testGetEdit_SaysThatACreditNoteOnAnInvoiceWhoseGoodsDidNotLeaveMovesNoStockAndPostsNoCost(): void
     {
         $invoice = $this->postedInvoice(false);
         $this->loginAs($this->createBranchLimitedSupervisor(1));
@@ -1328,8 +1328,8 @@ class SalesControllerTest extends CIUnitTestCase
         $response = $this->get('/sales/edit/' . $invoice['saleId']);
 
         $response->assertSee('id="issued_lock"');
-        $response->assertSee(lang('Sales.credit_note_after_delivery'));
-        $response->assertDontSee('id="create_credit_note"');
+        $response->assertSee(lang('Sales.credit_note_undelivered_help'));
+        $response->assertDontSee(lang('Sales.credit_note_after_delivery'));
     }
 
     public function testGetEdit_OffersTheNewPaymentRowOnAnInvoicePaidInFull(): void
@@ -1423,15 +1423,15 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertSame(lang('Sales.credit_note_invoice_only'), $result['message']);
     }
 
-    public function testPostCreditNote_RefusesAnInvoiceWhoseGoodsDidNotLeave(): void
+    public function testPostCreditNote_AcceptsAnInvoiceWhoseGoodsDidNotLeave(): void
     {
         $invoice = $this->postedInvoice(false);
         $this->loginAs($this->createBranchLimitedSupervisor(1));
 
         $result = $this->jsonOf($this->post('/sales/creditNote/' . $invoice['saleId']));
 
-        $this->assertFalse($result['success']);
-        $this->assertSame(lang('Sales.return_origin_undelivered'), $result['message']);
+        $this->assertTrue($result['success']);
+        $this->assertSame($invoice['saleId'], Services::session()->get('sales_return_origin'));
     }
 
     public function testPostRefundInvoice_PreparesTheRegisterForARefundInvoiceOfTheInvoice(): void
@@ -2188,12 +2188,11 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertNull(Services::session()->get('sales_return_origin'));
     }
 
-    public function testPostSetReturnOrigin_RefusesASaleThatIsNotCompleteOrWasNotDelivered(): void
+    public function testPostSetReturnOrigin_RefusesASaleThatIsNotComplete(): void
     {
         $this->startSelling();
         $item      = $this->item('20.00');
         $draft     = $this->save([$this->line($item, 0, '1', '50', '20.00')], [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED);
-        $undelivered = $this->save([$this->line($item, 0, '1', '50', '20.00')], [], [], SALE_TYPE_INVOICE, -1, false);
         $supervisorId = $this->createBranchLimitedSupervisor(1);
         $this->grantStockLocationIn(1, $supervisorId);
         $this->loginAs($supervisorId);
@@ -2201,9 +2200,170 @@ class SalesControllerTest extends CIUnitTestCase
 
         $this->post('/sales/setReturnOrigin', ['return_origin' => (string) $draft])->assertSee(lang('Sales.return_origin_invalid'));
         $this->post('/sales/setReturnOrigin', ['return_origin' => '999999'])->assertSee(lang('Sales.return_origin_invalid'));
+
+        $this->assertNull(Services::session()->get('sales_return_origin'));
+    }
+
+    public function testPostSetReturnOrigin_AcceptsASaleWhoseGoodsDidNotLeaveForACreditNoteAndRefusesItForARefundInvoice(): void
+    {
+        $this->startSelling();
+        $item         = $this->item('20.00');
+        $undelivered  = $this->save([$this->line($item, 0, '1', '50', '20.00')], [], [], SALE_TYPE_INVOICE, -1, false);
+        $supervisorId = $this->createBranchLimitedSupervisor(1);
+        $this->grantStockLocationIn(1, $supervisorId);
+        $this->loginAs($supervisorId);
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => 'return', 'sales_return_document' => 'refund_invoice']));
+
         $this->post('/sales/setReturnOrigin', ['return_origin' => (string) $undelivered])->assertSee(lang('Sales.return_origin_undelivered'));
 
         $this->assertNull(Services::session()->get('sales_return_origin'));
+
+        $this->withSession(array_merge($this->session, ['sales_return_document' => 'credit_note']));
+        $this->post('/sales/setReturnOrigin', ['return_origin' => (string) $undelivered])->assertStatus(200);
+
+        $this->assertSame($undelivered, Services::session()->get('sales_return_origin'));
+    }
+
+    /**
+     * A holder of the permission at the register with a return of one stock item and no sale named.
+     */
+    private function registerWithAStockReturn(array $extraGrants, array $session = []): int
+    {
+        $this->startSelling();
+        $item         = $this->item('66.00');
+        $supervisorId = $this->createBranchLimitedSupervisor(1, $extraGrants);
+        $this->grantStockLocationIn(1, $supervisorId);
+        $this->loginAs($supervisorId);
+        $this->seedCartLine(1, '100.00', $item);
+
+        $cart                 = $this->session['sales_cart'];
+        $cart[1]['quantity']  = '-1';
+        $cart[1]['total']     = '-100.00';
+        $cart[1]['discounted_total'] = '-100.00';
+        $cart[1]['cost_price'] = '66.00';
+
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => 'return', 'sale_type' => SALE_TYPE_RETURN, 'sales_customer' => $this->customerId, 'sales_cart' => $cart, 'sales_payments' => []], $session));
+
+        $this->post('/sales/addPayment', ['payment_type' => lang('Sales.cash'), 'amount_tendered' => '-100']);
+        $this->withSession(array_merge($this->session, ['sales_payments' => Services::session()->get('sales_payments')]));
+
+        return $item;
+    }
+
+    public function testPostSetReturnOverride_KeepsTheReasonOfAManagerWhoHoldsThePermission(): void
+    {
+        $this->registerWithAStockReturn(['sales_return_override']);
+
+        $this->post('/sales/setReturnOverride', ['return_override_reason' => 'lost the receipt'])->assertStatus(200);
+
+        $this->assertSame('lost the receipt', Services::session()->get('sales_return_override'));
+
+        $this->post('/sales/setReturnOverride', ['return_override_reason' => ''])->assertStatus(200);
+
+        $this->assertNull(Services::session()->get('sales_return_override'));
+    }
+
+    public function testPostSetReturnOverride_RefusesAnEmployeeWithoutThePermissionAndKeepsNothing(): void
+    {
+        $this->registerWithAStockReturn([]);
+
+        $this->post('/sales/setReturnOverride', ['return_override_reason' => 'lost the receipt'])->assertSee(lang('Sales.not_authorized'));
+
+        $this->assertNull(Services::session()->get('sales_return_override'));
+    }
+
+    public function testPostSetReturnOverride_RefusesAReturnThatNamesItsSaleAndAReasonThatIsTooLong(): void
+    {
+        $this->registerWithAStockReturn(['sales_return_override'], ['sales_return_origin' => 5]);
+
+        $this->post('/sales/setReturnOverride', ['return_override_reason' => 'lost the receipt'])->assertSee(lang('Sales.return_override_has_origin'));
+
+        $this->withSession(array_merge($this->session, ['sales_return_origin' => null]));
+        Services::session()->remove('sales_return_origin');
+
+        $this->post('/sales/setReturnOverride', ['return_override_reason' => str_repeat('x', 256)])->assertSee(lang('Accounting.error_reason_required'));
+
+        $this->assertNull(Services::session()->get('sales_return_override'));
+    }
+
+    public function testPostSetReturnOrigin_TakesTheOverrideOutOfTheRegisterBecauseTheReturnNowNamesItsSale(): void
+    {
+        $invoice = $this->postedInvoice();
+
+        $supervisorId = $this->createBranchLimitedSupervisor(1, ['sales_return_override']);
+        $this->grantStockLocationIn(1, $supervisorId);
+        $this->loginAs($supervisorId);
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => 'return', 'sales_return_override' => 'lost the receipt']));
+
+        $this->post('/sales/setReturnOrigin', ['return_origin' => (string) $invoice['saleId']])->assertStatus(200);
+
+        $this->assertNull(Services::session()->get('sales_return_override'));
+        $this->assertSame($invoice['saleId'], Services::session()->get('sales_return_origin'));
+    }
+
+    public function testGetIndex_OffersTheOverrideOnlyToAHolderOfThePermissionAndOnlyWhileNoSaleIsNamed(): void
+    {
+        $this->registerWithAStockReturn(['sales_return_override']);
+
+        $this->get('/sales')->assertSee('id="return_override_form"');
+
+        $this->withSession(array_merge($this->session, ['sales_return_override' => 'lost the receipt']));
+
+        $this->get('/sales')->assertSee('id="return_override_active"');
+
+        $this->withSession(array_merge($this->session, ['sales_return_origin' => 5]));
+
+        $this->get('/sales')->assertDontSee('id="return_override_form"');
+    }
+
+    public function testGetIndex_OffersNoOverrideToAnEmployeeWithoutThePermission(): void
+    {
+        $this->registerWithAStockReturn([]);
+
+        $this->get('/sales')->assertDontSee('id="return_override_form"');
+    }
+
+    public function testPostComplete_LetsAReturnOfStockWithNoSaleThroughWhenTheManagerGaveAReason(): void
+    {
+        $item = $this->registerWithAStockReturn(['sales_return_override'], ['sales_return_override' => 'lost the receipt']);
+
+        $stock = $this->stock($item);
+        $sales = $this->countSales();
+
+        $this->post('/sales/complete')->assertStatus(200);
+        $this->saleIds[] = (int) $this->accountingDb()->table('sales')->selectMax('sale_id', 'last')->get()->getRow()->last;
+
+        $this->assertSame($sales + 1, $this->countSales());
+        $this->assertEqualsWithDelta($stock + 1, $this->stock($item), 0.0001);
+        $this->assertSame(1, $this->countRows('sale_return_overrides'));
+        $this->assertSame('lost the receipt', $this->accountingDb()->table('sale_return_overrides')->get()->getRow()->reason);
+    }
+
+    public function testPostComplete_RefusesAReturnOfStockWithNoSaleForAnEmployeeWithoutThePermissionEvenWithAReasonInTheSession(): void
+    {
+        $item = $this->registerWithAStockReturn([], ['sales_return_override' => 'lost the receipt']);
+
+        $stock = $this->stock($item);
+        $sales = $this->countSales();
+
+        $this->post('/sales/complete')->assertSee(lang('Accounting.error_permission_denied'));
+
+        $this->assertSame($sales, $this->countSales());
+        $this->assertSame(0, $this->countRows('sale_return_overrides'));
+        $this->assertEqualsWithDelta($stock, $this->stock($item), 0.0001);
+    }
+
+    public function testPostComplete_KeepsRefusingAReturnOfStockWithNoSaleAndNoOverride(): void
+    {
+        $item = $this->registerWithAStockReturn(['sales_return_override']);
+
+        $stock = $this->stock($item);
+        $sales = $this->countSales();
+
+        $this->post('/sales/complete')->assertSee(lang('Accounting.posting_return_origin_required'));
+
+        $this->assertSame($sales, $this->countSales());
+        $this->assertEqualsWithDelta($stock, $this->stock($item), 0.0001);
     }
 
     public function testPostSetReturnOrigin_NamesTheSaleAndSelectsItsCustomer(): void

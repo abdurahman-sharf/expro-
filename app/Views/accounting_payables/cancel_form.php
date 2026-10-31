@@ -9,7 +9,7 @@
 <ul id="error_message_box" class="error_message_box"></ul>
 
 <?= form_open('accounting_payables/cancel/' . esc($what, 'url') . '/' . $id, ['id' => 'supplier_cancel_form', 'class' => 'app-form']) ?>
-    <p class="small text-body-secondary"><?= lang('Accounting_payables.cancel_note') ?></p>
+    <p class="small text-body-secondary"><?= lang($what === 'supplier_refund' ? 'Accounting_payables.cancel_note_refund' : 'Accounting_payables.cancel_note') ?></p>
 
     <div class="field">
         <?= form_label(lang('Accounting_payables.cancel_reason'), 'reason', ['class' => 'form-label text-danger required']) ?>

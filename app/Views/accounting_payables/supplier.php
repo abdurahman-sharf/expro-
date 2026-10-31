@@ -9,7 +9,9 @@
  * @var int              $supplier_id
  * @var list<object>     $advances
  * @var array<int,string> $advance_kinds
+ * @var list<object>     $refunds
  * @var bool             $can_manage
+ * @var bool             $can_refund
  * @var Closure          $amount
  * @var Closure          $date
  */
@@ -33,6 +35,11 @@ $aging = $position->aging($today);
     <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('accounting_payables/debit_notes?supplier_id=' . $supplier_id), 'attr') ?>">
         <span class="bi bi-file-earmark-minus" aria-hidden="true">&nbsp;</span><?= lang('Accounting_payables.debit_notes') ?>
     </a>
+    <?php if ($can_refund): ?>
+        <button class="btn btn-outline-secondary btn-sm modal-dlg" id="supplier_refund_button" data-btn-submit="<?= lang('Common.submit') ?>" data-href="accounting_payables/refund_form/<?= $supplier_id ?>" title="<?= lang('Accounting_payables.refund_new') ?>">
+            <span class="bi bi-arrow-return-left" aria-hidden="true">&nbsp;</span><?= lang('Accounting_payables.refund_new') ?>
+        </button>
+    <?php endif; ?>
     <?php if ($can_manage): ?>
         <button class="btn btn-outline-secondary btn-sm modal-dlg" data-btn-submit="<?= lang('Common.submit') ?>" data-href="accounting_payables/opening_form/<?= $supplier_id ?>" title="<?= lang('Accounting_payables.opening_new') ?>">
             <span class="bi bi-flag" aria-hidden="true">&nbsp;</span><?= lang('Accounting_payables.opening_new') ?>
@@ -164,6 +171,7 @@ $aging = $position->aging($today);
                     <th scope="col"><?= lang('Accounting_payables.date') ?></th>
                     <th scope="col"><?= lang('Accounting_payables.total') ?></th>
                     <th scope="col"><?= lang('Accounting_payables.credit_applied') ?></th>
+                    <th scope="col"><?= lang('Accounting_payables.refunded') ?></th>
                     <th scope="col"><?= lang('Accounting_payables.available') ?></th>
                 </tr>
             </thead>
@@ -180,11 +188,12 @@ $aging = $position->aging($today);
                         <td><?= esc($date($source->date)) ?></td>
                         <td><?= $amount($source->amount) ?></td>
                         <td><?= $amount($source->applied) ?></td>
+                        <td><?= $amount($source->refunded) ?></td>
                         <td><?= $amount($source->available()) ?></td>
                     </tr>
                 <?php endforeach; ?>
                 <?php if ($position->credits === []): ?>
-                    <tr><td colspan="5"><?= lang('Accounting_payables.no_credits') ?></td></tr>
+                    <tr><td colspan="6"><?= lang('Accounting_payables.no_credits') ?></td></tr>
                 <?php endif; ?>
             </tbody>
         </table>
@@ -230,6 +239,49 @@ $aging = $position->aging($today);
                 <?php endforeach; ?>
                 <?php if ($advances === []): ?>
                     <tr><td colspan="9"><?= lang('Accounting_payables.no_advances') ?></td></tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
+
+    <h2 class="h5"><?= lang('Accounting_payables.refunds') ?></h2>
+    <div class="table-responsive mb-4">
+        <table class="table table-sm" id="payable_refunds">
+            <thead>
+                <tr>
+                    <th scope="col"><?= lang('Accounting_payables.advance_number') ?></th>
+                    <th scope="col"><?= lang('Accounting_payables.date') ?></th>
+                    <th scope="col"><?= lang('Accounting_payables.amount') ?></th>
+                    <th scope="col"><?= lang('Accounting_payables.treasury') ?></th>
+                    <th scope="col"><?= lang('Accounting_payables.reference') ?></th>
+                    <th scope="col"><?= lang('Accounting_payables.note_label') ?></th>
+                    <th scope="col"><?= lang('Accounting_payables.status') ?></th>
+                    <th scope="col"></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($refunds as $refund): ?>
+                    <tr>
+                        <td><bdi dir="ltr">#<?= (int) $refund->refund_id ?></bdi></td>
+                        <td><?= esc($date((string) $refund->refund_date)) ?></td>
+                        <td><?= $amount((string) $refund->amount) ?></td>
+                        <td><?= esc((string) ($refund->treasury_name ?? '')) ?></td>
+                        <td><?= esc((string) $refund->reference_code) ?></td>
+                        <td><?= esc((string) $refund->note) ?></td>
+                        <td><span class="badge <?= $refund->status === 'cancelled' ? 'text-bg-secondary' : 'text-bg-success' ?>"><?= esc(lang('Accounting_payables.status_' . $refund->status)) ?></span></td>
+                        <td>
+                            <?php if ($can_refund && $refund->status === 'completed'): ?>
+                                <?= anchor(
+                                    'accounting_payables/cancel_form/supplier_refund/' . (int) $refund->refund_id,
+                                    '<span class="bi bi-x-circle" aria-hidden="true"></span>',
+                                    ['class' => 'modal-dlg', 'data-btn-submit' => lang('Common.submit'), 'title' => lang('Accounting_payables.cancel'), 'aria-label' => lang('Accounting_payables.cancel')],
+                                ) ?>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+                <?php if ($refunds === []): ?>
+                    <tr><td colspan="8"><?= lang('Accounting_payables.no_refunds') ?></td></tr>
                 <?php endif; ?>
             </tbody>
         </table>

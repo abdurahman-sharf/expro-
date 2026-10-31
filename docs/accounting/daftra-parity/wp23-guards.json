@@ -1,0 +1,785 @@
+[
+ {
+  "name": "G01 a credit note has no priority for the invoice it came from (origin-first branch is gone)",
+  "file": "app/Libraries/Accounting/CreditSettlement.php",
+  "find": "            $available = $source->available();\n\n            foreach (array_keys($open) as $invoiceId) {",
+  "replace": "            $available = $source->available();\n\n            if ($source->originId !== null && isset($open[$source->originId])) {\n                $available = $this->give($customerId, $source, $source->originId, $available, $open, $employeeId);\n            }\n\n            foreach (array_keys($open) as $invoiceId) {",
+  "tests": [
+   "tests/Libraries/Accounting/CreditSettlementTest.php"
+  ]
+ },
+ {
+  "name": "G02 credit goes to the invoice dated earliest first, not the one saved first",
+  "file": "app/Libraries/Accounting/CustomerLedger.php",
+  "find": "usort($invoices, static fn (InvoiceFigures $a, InvoiceFigures $b): int => [$a->date, $a->saleId] <=> [$b->date, $b->saleId]);",
+  "replace": "usort($invoices, static fn (InvoiceFigures $a, InvoiceFigures $b): int => $a->saleId <=> $b->saleId);",
+  "tests": [
+   "tests/Libraries/Accounting/CreditSettlementTest.php"
+  ]
+ },
+ {
+  "name": "G03 among invoices of one date the one created first takes the credit",
+  "file": "app/Libraries/Accounting/CustomerLedger.php",
+  "find": "usort($invoices, static fn (InvoiceFigures $a, InvoiceFigures $b): int => [$a->date, $a->saleId] <=> [$b->date, $b->saleId]);",
+  "replace": "usort($invoices, static fn (InvoiceFigures $a, InvoiceFigures $b): int => [$a->date, $b->saleId] <=> [$b->date, $a->saleId]);",
+  "tests": [
+   "tests/Libraries/Accounting/CreditSettlementTest.php"
+  ]
+ },
+ {
+  "name": "G04 the oldest credit is spent first (sources by date)",
+  "file": "app/Libraries/Accounting/CustomerLedger.php",
+  "find": "usort($sources, static fn (CreditSource $a, CreditSource $b): int => [$a->date, $a->sourceId] <=> [$b->date, $b->sourceId]);",
+  "replace": "usort($sources, static fn (CreditSource $a, CreditSource $b): int => [$b->date, $b->sourceId] <=> [$a->date, $a->sourceId]);",
+  "tests": [
+   "tests/Libraries/Accounting/CreditSettlementTest.php"
+  ]
+ },
+ {
+  "name": "G05 credit paid back in cash is not available to spend",
+  "file": "app/Libraries/Accounting/CreditSource.php",
+  "find": "$left = bcsub(bcsub($this->amount, $this->applied, SaleAmounts::SCALE), $this->refunded, SaleAmounts::SCALE);",
+  "replace": "$left = bcsub($this->amount, $this->applied, SaleAmounts::SCALE);",
+  "tests": [
+   "tests/Libraries/Accounting/CreditRefundsTest.php"
+  ]
+ },
+ {
+  "name": "G06 a credit that a refund took from cannot disappear (customer)",
+  "file": "app/Libraries/Accounting/CreditSettlement.php",
+  "find": "if (! isset($sources[$key]) || bccomp($sources[$key]->amount, $amount, SaleAmounts::SCALE) < 0) {",
+  "replace": "if (isset($sources[$key]) && bccomp($sources[$key]->amount, $amount, SaleAmounts::SCALE) < 0) {",
+  "tests": [
+   "tests/Libraries/Accounting/CreditRefundsTest.php"
+  ]
+ },
+ {
+  "name": "G07 a credit that a refund took from cannot shrink below the refund (customer)",
+  "file": "app/Libraries/Accounting/CreditSettlement.php",
+  "find": "if (! isset($sources[$key]) || bccomp($sources[$key]->amount, $amount, SaleAmounts::SCALE) < 0) {",
+  "replace": "if (! isset($sources[$key])) {",
+  "tests": [
+   "tests/Libraries/Accounting/CreditRefundsTest.php"
+  ]
+ },
+ {
+  "name": "G08 settlement checks the refunds after it released what it released (customer)",
+  "file": "app/Libraries/Accounting/CreditSettlement.php",
+  "find": "        $this->assertRefundsHold($customerId);\n    }\n\n    /**",
+  "replace": "    }\n\n    /**",
+  "tests": [
+   "tests/Libraries/Accounting/CreditRefundsTest.php"
+  ]
+ },
+ {
+  "name": "G09 a credit that a refund took from cannot disappear (supplier)",
+  "file": "app/Libraries/Accounting/SupplierSettlement.php",
+  "find": "if (! isset($sources[$key]) || bccomp($sources[$key]->amount, $amount, SaleAmounts::SCALE) < 0) {",
+  "replace": "if (isset($sources[$key]) && bccomp($sources[$key]->amount, $amount, SaleAmounts::SCALE) < 0) {",
+  "tests": [
+   "tests/Libraries/Accounting/SupplierSettlementTest.php"
+  ]
+ },
+ {
+  "name": "G10 a credit that a refund took from cannot shrink below the refund (supplier)",
+  "file": "app/Libraries/Accounting/SupplierSettlement.php",
+  "find": "if (! isset($sources[$key]) || bccomp($sources[$key]->amount, $amount, SaleAmounts::SCALE) < 0) {",
+  "replace": "if (! isset($sources[$key])) {",
+  "tests": [
+   "tests/Libraries/Accounting/SupplierSettlementTest.php"
+  ]
+ },
+ {
+  "name": "G11 an application that no longer fits a credit that was refunded is cut first (customer)",
+  "file": "app/Libraries/Accounting/CreditSettlement.php",
+  "find": "$over = bcsub(bcadd($source->applied, $source->refunded, SaleAmounts::SCALE), $source->amount, SaleAmounts::SCALE);",
+  "replace": "$over = bcsub($source->applied, $source->amount, SaleAmounts::SCALE);",
+  "tests": [
+   "tests/Libraries/Accounting/CreditRefundsTest.php"
+  ]
+ },
+ {
+  "name": "G12 an amount of nothing is refused",
+  "file": "app/Libraries/Accounting/CashMovement.php",
+  "find": "|| bccomp($value, '0', SaleAmounts::SCALE) <= 0) {",
+  "replace": "|| bccomp($value, '0', SaleAmounts::SCALE) < 0) {",
+  "tests": [
+   "tests/Libraries/Accounting/CreditRefundsTest.php"
+  ]
+ },
+ {
+  "name": "G13 an amount with more than four decimals is refused",
+  "file": "app/Libraries/Accounting/CashMovement.php",
+  "find": "'/^\\d{1,11}(\\.\\d{1,4})?$/'",
+  "replace": "'/^\\d{1,11}(\\.\\d{1,12})?$/'",
+  "tests": [
+   "tests/Libraries/Accounting/CreditRefundsTest.php"
+  ]
+ },
+ {
+  "name": "G14 credit sales, gift cards and reward points cannot be paid back or received",
+  "file": "app/Libraries/Accounting/CashMovement.php",
+  "find": "|| $type === PaymentType::Giftcard || $type === PaymentType::Rewards",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/CreditRefundsTest.php"
+  ]
+ },
+ {
+  "name": "G15 the treasury named must let the employee make the movement (scope of the treasury)",
+  "file": "app/Libraries/Accounting/CashMovement.php",
+  "find": "$scopes->assertAllows((int) $treasury->treasury_id, $direction, $employeeId);",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/CreditRefundsTest.php"
+  ]
+ },
+ {
+  "name": "G16 a way of payment routed to a treasury is governed by that treasury's scope",
+  "file": "app/Libraries/Accounting/CashMovement.php",
+  "find": "$scopes->assertRoutedAllows($type, $direction, $employeeId);",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/CreditRefundsTest.php"
+  ]
+ },
+ {
+  "name": "G17 the employee must work in the branch of the treasury",
+  "file": "app/Libraries/Accounting/CashMovement.php",
+  "find": "        $this->branches->requireBranch($branchId, $employeeId);\n\n        $resolver",
+  "replace": "        $resolver",
+  "tests": [
+   "tests/Libraries/Accounting/CreditRefundsTest.php"
+  ]
+ },
+ {
+  "name": "G18 taking a journal back needs the opposite movement of the treasury",
+  "file": "app/Libraries/Accounting/CashMovement.php",
+  "find": "(new TreasuryScopes($this->db, $this->branches))->assertMayReverse((int) $journal->journal_id, $employeeId);",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/CreditRefundsTest.php"
+  ]
+ },
+ {
+  "name": "G19 a closed period moves the reversal to today instead of rewriting it",
+  "file": "app/Libraries/Accounting/CashMovement.php",
+  "find": "$date   = $cutoff !== null && $journal->journal_date <= $cutoff['date'] ? date('Y-m-d') : $journal->journal_date;",
+  "replace": "$date   = $journal->journal_date;",
+  "tests": [
+   "tests/Libraries/Accounting/CreditRefundsTest.php"
+  ]
+ },
+ {
+  "name": "G20 a deactivated treasury cannot be used",
+  "file": "app/Libraries/Accounting/CashMovement.php",
+  "find": "if ((int) $treasury->active === 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/CustomerAdvancesTest.php"
+  ]
+ },
+ {
+  "name": "G21 a reason of one to 255 characters is required",
+  "file": "app/Libraries/Accounting/CashMovement.php",
+  "find": "if ($reason === '' || mb_strlen($reason) > self::REASON_MAX) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/CreditRefundsTest.php"
+  ]
+ },
+ {
+  "name": "G22 a refund needs its own permission",
+  "file": "app/Libraries/Accounting/CreditRefunds.php",
+  "find": "        $this->guard->require($this->permission(), $employeeId);\n\n        $amount     = $this->cash->amount($amount);",
+  "replace": "        $amount     = $this->cash->amount($amount);",
+  "tests": [
+   "tests/Libraries/Accounting/CreditRefundsTest.php"
+  ]
+ },
+ {
+  "name": "G23 cancelling a refund needs its permission",
+  "file": "app/Libraries/Accounting/CreditRefunds.php",
+  "find": "        $this->guard->require($this->permission(), $employeeId);\n\n        $reason = $this->cash->reason($reason);",
+  "replace": "        $reason = $this->cash->reason($reason);",
+  "tests": [
+   "tests/Libraries/Accounting/CreditRefundsTest.php"
+  ]
+ },
+ {
+  "name": "G24 the permission of a refund is the one of its party (customers)",
+  "file": "app/Libraries/Accounting/CreditRefunds.php",
+  "find": "return $this->customers() ? AccountingGuard::RECEIVABLES_REFUND : AccountingGuard::PAYABLES_REFUND;",
+  "replace": "return AccountingGuard::PAYABLES_REFUND;",
+  "tests": [
+   "tests/Libraries/Accounting/CreditRefundsTest.php"
+  ]
+ },
+ {
+  "name": "G25 paying a customer takes money out (withdraw scope), being paid by a supplier puts it in (deposit)",
+  "file": "app/Libraries/Accounting/CreditRefunds.php",
+  "find": "$this->customers() ? TreasuryScopes::WITHDRAW : TreasuryScopes::DEPOSIT",
+  "replace": "TreasuryScopes::DEPOSIT",
+  "tests": [
+   "tests/Libraries/Accounting/CreditRefundsTest.php"
+  ]
+ },
+ {
+  "name": "G26 a refund is limited to the credit that is free on its date",
+  "file": "app/Libraries/Accounting/CreditRefunds.php",
+  "find": "if (bccomp($amount, $free, SaleAmounts::SCALE) > 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/CreditRefundsTest.php"
+  ]
+ },
+ {
+  "name": "G27 a refund of a past date takes only credit that existed then",
+  "file": "app/Libraries/Accounting/CreditRefunds.php",
+  "find": "static fn (CreditSource $source): bool => $source->date <= $date",
+  "replace": "static fn (CreditSource $source): bool => true",
+  "tests": [
+   "tests/Libraries/Accounting/CreditRefundsTest.php"
+  ]
+ },
+ {
+  "name": "G28 a form sent twice with the same key saves one refund",
+  "file": "app/Libraries/Accounting/CreditRefunds.php",
+  "find": "            if ($earlier !== null) {\n                if ((int) $earlier->{$this->party . '_id'}",
+  "replace": "            if (false) {\n                if ((int) $earlier->{$this->party . '_id'}",
+  "tests": [
+   "tests/Libraries/Accounting/CreditRefundsTest.php"
+  ]
+ },
+ {
+  "name": "G29 a key used for another amount or another party is refused",
+  "file": "app/Libraries/Accounting/CreditRefunds.php",
+  "find": "if ((int) $earlier->{$this->party . '_id'} !== $partyId || bccomp((string) $earlier->amount, $amount, SaleAmounts::SCALE) !== 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/CreditRefundsTest.php"
+  ]
+ },
+ {
+  "name": "G30 a refund cancelled twice is refused",
+  "file": "app/Libraries/Accounting/CreditRefunds.php",
+  "find": "if ($refund->status === 'cancelled') {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/CreditRefundsTest.php"
+  ]
+ },
+ {
+  "name": "G31 the party of a refund must exist",
+  "file": "app/Libraries/Accounting/CreditRefunds.php",
+  "find": "        $this->assertParty($partyId);\n\n        $place",
+  "replace": "        $place",
+  "tests": [
+   "tests/Libraries/Accounting/CreditRefundsTest.php"
+  ]
+ },
+ {
+  "name": "G32 the employee must work in the branch of the refund when cancelling it",
+  "file": "app/Libraries/Accounting/CreditRefunds.php",
+  "find": "            $this->branches->requireBranch($branchId, $employeeId);\n\n            if ($refund->status",
+  "replace": "            if ($refund->status",
+  "tests": [
+   "tests/Libraries/Accounting/CreditRefundsTest.php"
+  ]
+ },
+ {
+  "name": "G33 the customer refund debits the customer and credits the treasury",
+  "file": "app/Libraries/Accounting/CreditRefunds.php",
+  "find": "? [new JournalLineDraft($account, debit: $amount), new JournalLineDraft($place['account'], credit: $amount)]",
+  "replace": "? [new JournalLineDraft($account, credit: $amount), new JournalLineDraft($place['account'], debit: $amount)]",
+  "tests": [
+   "tests/Libraries/Accounting/CreditRefundsTest.php"
+  ]
+ },
+ {
+  "name": "G34 the credits a refund took from are written down",
+  "file": "app/Libraries/Accounting/CreditRefunds.php",
+  "find": "            $this->takeFrom($refundId, $credits, $amount);\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/CreditRefundsTest.php"
+  ]
+ },
+ {
+  "name": "G35 a refund writes its audit entry",
+  "file": "app/Libraries/Accounting/CreditRefunds.php",
+  "find": "            $this->audit->write($this->party . '_refund', $refundId, 'created',",
+  "replace": "            $this->audit->write($this->party . '_refund_x', $refundId, 'created',",
+  "tests": [
+   "tests/Libraries/Accounting/CreditRefundsTest.php"
+  ]
+ },
+ {
+  "name": "G36 cancelling a refund settles the credit it gives back",
+  "file": "app/Libraries/Accounting/CreditRefunds.php",
+  "find": "            $this->settle($partyId, $employeeId);\n            $this->audit->write($this->party . '_refund', $refundId, 'cancelled'",
+  "replace": "            $this->audit->write($this->party . '_refund', $refundId, 'cancelled'",
+  "tests": [
+   "tests/Libraries/Accounting/CreditRefundsTest.php"
+  ]
+ },
+ {
+  "name": "G37 a supplier refund counts as payment in the supplier balance report",
+  "file": "app/Libraries/Accounting/SupplierBalanceReport.php",
+  "find": "SupplierAdvances::SOURCE, CreditRefunds::SUPPLIER_SOURCE,",
+  "replace": "SupplierAdvances::SOURCE, SupplierAdvances::SOURCE,",
+  "tests": [
+   "tests/Libraries/Accounting/SupplierBalanceReportTest.php"
+  ]
+ },
+ {
+  "name": "G38 an advance needs the permission to manage receivables",
+  "file": "app/Libraries/Accounting/CustomerAdvances.php",
+  "find": "        $this->guard->require(AccountingGuard::RECEIVABLES_MANAGE, $employeeId);\n\n        $amount     = $this->cash->amount($amount);",
+  "replace": "        $amount     = $this->cash->amount($amount);",
+  "tests": [
+   "tests/Libraries/Accounting/CustomerAdvancesTest.php"
+  ]
+ },
+ {
+  "name": "G39 cancelling an advance needs the permission",
+  "file": "app/Libraries/Accounting/CustomerAdvances.php",
+  "find": "        $this->guard->require(AccountingGuard::RECEIVABLES_MANAGE, $employeeId);\n\n        $reason = $this->cash->reason($reason);",
+  "replace": "        $reason = $this->cash->reason($reason);",
+  "tests": [
+   "tests/Libraries/Accounting/CustomerAdvancesTest.php"
+  ]
+ },
+ {
+  "name": "G40 receiving money is a deposit into the treasury",
+  "file": "app/Libraries/Accounting/CustomerAdvances.php",
+  "find": "$this->cash->place($type, $treasuryId, TreasuryScopes::DEPOSIT, $employeeId)",
+  "replace": "$this->cash->place($type, $treasuryId, TreasuryScopes::WITHDRAW, $employeeId)",
+  "tests": [
+   "tests/Libraries/Accounting/CustomerAdvancesTest.php"
+  ]
+ },
+ {
+  "name": "G41 the date of an advance is a real day, not after today and not before the books",
+  "file": "app/Libraries/Accounting/CustomerAdvances.php",
+  "find": "$date       = SupplierPaymentDate::entered($date, null, (new AccountingSettings($this->db))->startDate());",
+  "replace": "$date       = $date;",
+  "tests": [
+   "tests/Libraries/Accounting/CustomerAdvancesTest.php"
+  ]
+ },
+ {
+  "name": "G42 the customer of an advance must exist",
+  "file": "app/Libraries/Accounting/CustomerAdvances.php",
+  "find": "        $this->assertCustomer($customerId);\n\n        $place",
+  "replace": "        $place",
+  "tests": [
+   "tests/Libraries/Accounting/CustomerAdvancesTest.php"
+  ]
+ },
+ {
+  "name": "G43 a form sent twice with the same key saves one advance",
+  "file": "app/Libraries/Accounting/CustomerAdvances.php",
+  "find": "            if ($earlier !== null) {\n                if ((int) $earlier->customer_id",
+  "replace": "            if (false) {\n                if ((int) $earlier->customer_id",
+  "tests": [
+   "tests/Libraries/Accounting/CustomerAdvancesTest.php"
+  ]
+ },
+ {
+  "name": "G44 a key used for another amount or another customer is refused",
+  "file": "app/Libraries/Accounting/CustomerAdvances.php",
+  "find": "if ((int) $earlier->customer_id !== $customerId || bccomp((string) $earlier->amount, $amount, SaleAmounts::SCALE) !== 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/CustomerAdvancesTest.php"
+  ]
+ },
+ {
+  "name": "G45 an advance is spent on the open invoices at once",
+  "file": "app/Libraries/Accounting/CustomerAdvances.php",
+  "find": "            $this->settlement->settle($customerId, $employeeId);\n            $this->audit->write('customer_advance', $advanceId, 'created'",
+  "replace": "            $this->audit->write('customer_advance', $advanceId, 'created'",
+  "tests": [
+   "tests/Libraries/Accounting/CustomerAdvancesTest.php"
+  ]
+ },
+ {
+  "name": "G46 cancelling an advance releases what it spent on invoices",
+  "file": "app/Libraries/Accounting/CustomerAdvances.php",
+  "find": "            $this->settlement->settle($customerId, $employeeId);\n            $this->audit->write('customer_advance', $advanceId, 'cancelled'",
+  "replace": "            $this->audit->write('customer_advance', $advanceId, 'cancelled'",
+  "tests": [
+   "tests/Libraries/Accounting/CustomerAdvancesTest.php"
+  ]
+ },
+ {
+  "name": "G47 an advance cancelled twice is refused",
+  "file": "app/Libraries/Accounting/CustomerAdvances.php",
+  "find": "if ($advance->status === 'cancelled') {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/CustomerAdvancesTest.php"
+  ]
+ },
+ {
+  "name": "G48 the employee must work in the branch of the advance when cancelling it",
+  "file": "app/Libraries/Accounting/CustomerAdvances.php",
+  "find": "            $this->branches->requireBranch($branchId, $employeeId);\n\n            if ($advance->status",
+  "replace": "            if ($advance->status",
+  "tests": [
+   "tests/Libraries/Accounting/CustomerAdvancesTest.php"
+  ]
+ },
+ {
+  "name": "G49 an advance takes the number of the sequence of customer payments",
+  "file": "app/Libraries/Accounting/CustomerAdvances.php",
+  "find": "        (new DocumentNumbering($this->db))->assign(DocumentType::CustomerPayment, 'customer_advances', $advanceId, $branchId);\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/CustomerAdvancesTest.php"
+  ]
+ },
+ {
+  "name": "G50 an advance writes its audit entry",
+  "file": "app/Libraries/Accounting/CustomerAdvances.php",
+  "find": "$this->audit->write('customer_advance', $advanceId, 'created',",
+  "replace": "$this->audit->write('customer_advance_x', $advanceId, 'created',",
+  "tests": [
+   "tests/Libraries/Accounting/CustomerAdvancesTest.php"
+  ]
+ },
+ {
+  "name": "G51 the advance debits the treasury and credits the customer",
+  "file": "app/Libraries/Accounting/CustomerAdvances.php",
+  "find": "lines: [new JournalLineDraft($place['account'], debit: $amount), new JournalLineDraft($this->customerAccount($customerId), credit: $amount)],",
+  "replace": "lines: [new JournalLineDraft($place['account'], credit: $amount), new JournalLineDraft($this->customerAccount($customerId), debit: $amount)],",
+  "tests": [
+   "tests/Libraries/Accounting/CustomerAdvancesTest.php"
+  ]
+ },
+ {
+  "name": "G52 a customer advance counts as payment in the customer balance report",
+  "file": "app/Libraries/Accounting/CustomerBalanceReport.php",
+  "find": "SalePostingBuilder::SOURCE_PAYMENT, CustomerAdvances::SOURCE, CreditRefunds::CUSTOMER_SOURCE,",
+  "replace": "SalePostingBuilder::SOURCE_PAYMENT, SalePostingBuilder::SOURCE_PAYMENT, SalePostingBuilder::SOURCE_PAYMENT,",
+  "tests": [
+   "tests/Libraries/Accounting/CustomerBalanceReportTest.php"
+  ]
+ },
+ {
+  "name": "G53 the journal of an advance or a refund cannot be reversed by hand",
+  "file": "app/Libraries/Accounting/JournalService.php",
+  "find": "                if (in_array($original->source_type, self::CREDIT_SOURCES, true)) {",
+  "replace": "                if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/JournalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G54 cancelling an advance or a refund may reverse its journal",
+  "file": "app/Libraries/Accounting/JournalService.php",
+  "find": "            ...self::CREDIT_SOURCES,\n        ])->countAllResults() > 0;",
+  "replace": "        ])->countAllResults() > 0;",
+  "tests": [
+   "tests/Libraries/Accounting/JournalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G55 letting a return through needs the permission",
+  "file": "app/Libraries/Accounting/ReturnOverride.php",
+  "find": "        $this->guard->require(AccountingGuard::RETURN_OVERRIDE, $employeeId);\n\n        $reason",
+  "replace": "        $reason",
+  "tests": [
+   "tests/Libraries/Accounting/ReturnOverrideTest.php"
+  ]
+ },
+ {
+  "name": "G56 the reason of an override is at most 255 characters",
+  "file": "app/Libraries/Accounting/ReturnOverride.php",
+  "find": "|| mb_strlen($reason) > self::REASON_MAX",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/ReturnOverrideTest.php"
+  ]
+ },
+ {
+  "name": "G57 the reason of an override cannot be empty",
+  "file": "app/Libraries/Accounting/ReturnOverride.php",
+  "find": "if ($reason === '' ||",
+  "replace": "if (false ||",
+  "tests": [
+   "tests/Libraries/Accounting/ReturnOverrideTest.php"
+  ]
+ },
+ {
+  "name": "G58 an override is recorded once",
+  "file": "app/Libraries/Accounting/ReturnOverride.php",
+  "find": "        if ($this->exists($saleId)) {\n            return;\n        }\n\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/ReturnOverrideTest.php"
+  ]
+ },
+ {
+  "name": "G59 an override writes its audit entry",
+  "file": "app/Libraries/Accounting/ReturnOverride.php",
+  "find": "        $this->audit->write('sale', $saleId, self::AUDIT_ACTION,",
+  "replace": "        $this->audit->write('sale', $saleId, self::AUDIT_ACTION . '_x',",
+  "tests": [
+   "tests/Libraries/Accounting/ReturnOverrideTest.php"
+  ]
+ },
+ {
+  "name": "G60 the journals of an overridden return carry the mark",
+  "file": "app/Libraries/Accounting/SalePostingBuilder.php",
+  "find": "ReturnOverride::describe(($sale->isReturn() ? 'Return #' : 'Sale #') . $sale->saleId, $sale->returnOverride)",
+  "replace": "($sale->isReturn() ? 'Return #' : 'Sale #') . $sale->saleId",
+  "tests": [
+   "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "G61 a return with no sale is refused unless a manager let it through",
+  "file": "app/Libraries/Accounting/SalePostingBuilder.php",
+  "find": "if ($origin === null && $return->returnOverride) {",
+  "replace": "if ($origin === null) {",
+  "tests": [
+   "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "G62 a return let through is costed at the cost its lines carry",
+  "file": "app/Libraries/Accounting/SalePostingBuilder.php",
+  "find": "            return SaleAmounts::cost($line->quantity, $line->costPrice);\n        }\n\n        if ($origin === null) {",
+  "replace": "            return '0.0000';\n        }\n\n        if ($origin === null) {",
+  "tests": [
+   "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "G63 a credit note on a sale that never left posts no cost and moves no stock",
+  "file": "app/Libraries/Accounting/SalePostingBuilder.php",
+  "find": "return $sale->isReturn() && ! $sale->refundInvoice && $sale->origin !== null && ! $sale->origin->delivered;",
+  "replace": "return false;",
+  "tests": [
+   "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "G64 a refund invoice of a sale that never left is still refused",
+  "file": "app/Libraries/Accounting/SalePostingBuilder.php",
+  "find": "return $sale->isReturn() && ! $sale->refundInvoice && $sale->origin !== null && ! $sale->origin->delivered;",
+  "replace": "return $sale->isReturn() && $sale->origin !== null && ! $sale->origin->delivered;",
+  "tests": [
+   "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "G65 the delivery costs only the units that were not returned before it",
+  "file": "app/Libraries/Accounting/SalePostingBuilder.php",
+  "find": "            if (! $sale->isReturn()) {\n                [$units, $back] = UndeliveredReturns::remaining($line->itemId, $line->quantity, $back);",
+  "replace": "            if (false) {\n                [$units, $back] = UndeliveredReturns::remaining($line->itemId, $line->quantity, $back);",
+  "tests": [
+   "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "G66 the units that came back are shared over the lines of an item in order",
+  "file": "app/Libraries/Accounting/UndeliveredReturns.php",
+  "find": "$taken         = bccomp($back[$itemId], $units, 3) < 0 ? $back[$itemId] : $units;",
+  "replace": "$taken         = $back[$itemId];",
+  "tests": [
+   "tests/Libraries/Accounting/UndeliveredReturnsTest.php"
+  ]
+ },
+ {
+  "name": "G67 only completed returns of the sale count as returned before the delivery",
+  "file": "app/Libraries/Accounting/UndeliveredReturns.php",
+  "find": "WHERE s.return_of_sale_id = ? AND s.sale_status = ? AND s.sale_type = ?",
+  "replace": "WHERE s.return_of_sale_id = ? AND s.sale_status >= 0 AND s.sale_type = ?",
+  "tests": [
+   "tests/Libraries/Accounting/UndeliveredReturnsTest.php"
+  ]
+ },
+ {
+  "name": "G68 the delivery posts the units that stayed sold",
+  "file": "app/Libraries/Accounting/SalePosting.php",
+  "find": "        $sale = $sale->withReturnedUnits((new UndeliveredReturns($this->db))->unitsOf($saleId));\n\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G69 an override is asked only for a return that names no sale",
+  "file": "app/Libraries/Accounting/../../Models/Sale.php",
+  "find": "$originId !== null || ! (new AccountingSettings($this->db))->isEnabled()) {",
+  "replace": "! (new AccountingSettings($this->db))->isEnabled()) {",
+  "tests": [
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G70 the permission is asked of an employee who gives an override reason",
+  "file": "app/Libraries/Accounting/../../Models/Sale.php",
+  "find": "return (new ReturnOverride($this->db))->reasonFor($employeeId, $reason);",
+  "replace": "return $reason;",
+  "tests": [
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G71 a credit note on a sale that never left moves no stock",
+  "file": "app/Libraries/Accounting/../../Models/Sale.php",
+  "find": "&& $delivered && ! $goodsNeverLeft) {",
+  "replace": "&& $delivered) {",
+  "tests": [
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G72 the override is recorded in the transaction of the return",
+  "file": "app/Libraries/Accounting/../../Models/Sale.php",
+  "find": "            (new ReturnOverride($this->db))->record($saleId, (int) $salesData['branch_id'], $employeeId, $overrideReason);\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G73 the delivery takes out of the stock only what was not returned",
+  "file": "app/Libraries/Accounting/../../Models/Sale.php",
+  "find": "            [$units, $back] = UndeliveredReturns::remaining((int) $line['item_id'], (string) $line['quantity_purchased'], $back);\n\n            if (bccomp($units, '0', 3) === 0) {\n                continue;\n            }\n",
+  "replace": "            $units = (string) $line['quantity_purchased'];\n",
+  "tests": [
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G74 only a holder of the permission can ask for an override at the register",
+  "file": "app/Controllers/Sales.php",
+  "find": "        if (! $this->mayOverrideReturn()) {\n            return $this->reload(['error' => lang('Sales.not_authorized')]);\n        }\n",
+  "replace": "",
+  "tests": [
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G75 a return that names its sale takes no override",
+  "file": "app/Controllers/Sales.php",
+  "find": "        if ($this->sale_lib->get_return_origin() !== null) {\n            return $this->reload(['error' => lang('Sales.return_override_has_origin')]);\n        }\n",
+  "replace": "",
+  "tests": [
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G76 a reason of more than 255 characters is refused at the register",
+  "file": "app/Controllers/Sales.php",
+  "find": "        if (mb_strlen($reason) > 255) {",
+  "replace": "        if (false) {",
+  "tests": [
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G77 naming a sale takes the override out of the register",
+  "file": "app/Controllers/Sales.php",
+  "find": "        $this->sale_lib->set_return_origin($saleId);\n        $this->sale_lib->clearReturnOverride();",
+  "replace": "        $this->sale_lib->set_return_origin($saleId);",
+  "tests": [
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G78 a sale whose goods did not leave is refused only as the origin of a refund invoice",
+  "file": "app/Controllers/Sales.php",
+  "find": "if ((int) $origin->delivered !== 1 && $document === ReturnDocument::RefundInvoice) {",
+  "replace": "if ((int) $origin->delivered !== 1) {",
+  "tests": [
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G79 the register passes the reason of the override to the sale",
+  "file": "app/Controllers/Sales.php",
+  "find": ", returnOverrideReason: $this->sale_lib->getReturnOverride());",
+  "replace": ");",
+  "tests": [
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G80 the register offers the override only to a holder of the permission",
+  "file": "app/Controllers/Sales.php",
+  "find": "        $data['can_override_return'] = $this->mayOverrideReturn();",
+  "replace": "        $data['can_override_return'] = true;",
+  "tests": [
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G81 advances need the permission to manage receivables (form)",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "        if (! $this->can($permission) || $this->ledger->position($customerId)->accountId === null) {",
+  "replace": "        if ($this->ledger->position($customerId)->accountId === null) {",
+  "tests": [
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G82 only whole-company scope may take an advance (receivables)",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "        $this->requireCompanyScope();\n\n        return $this->attempt(function () use ($customerId): array {\n            $treasuryId = (int) $this->request->getPost('treasury_id');\n\n            $id = $this->advances->receive(",
+  "replace": "        return $this->attempt(function () use ($customerId): array {\n            $treasuryId = (int) $this->request->getPost('treasury_id');\n\n            $id = $this->advances->receive(",
+  "tests": [
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G83 the cancel form of a refund asks for the refund permission",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "$permission = $what === CustomerAdvances::SOURCE ? AccountingGuard::RECEIVABLES_MANAGE : AccountingGuard::RECEIVABLES_REFUND;",
+  "replace": "$permission = AccountingGuard::RECEIVABLES_MANAGE;",
+  "tests": [
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G84 the treasuries offered for a refund are those the employee may withdraw from",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "'treasuries'      => $this->treasuryChoices(TreasuryScopes::WITHDRAW),",
+  "replace": "'treasuries'      => $this->treasuryChoices(TreasuryScopes::DEPOSIT),",
+  "tests": [
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G85 the cancel form of a refund from a supplier asks for the refund permission",
+  "file": "app/Controllers/AccountingPayables.php",
+  "find": "$this->can($refund ? AccountingGuard::PAYABLES_REFUND : AccountingGuard::PAYABLES_MANAGE)",
+  "replace": "$this->can(AccountingGuard::PAYABLES_MANAGE)",
+  "tests": [
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G86 the refund form from a supplier asks for the refund permission",
+  "file": "app/Controllers/AccountingPayables.php",
+  "find": "$this->requireManage($supplierId, AccountingGuard::PAYABLES_REFUND);",
+  "replace": "$this->requireManage($supplierId);",
+  "tests": [
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G87 the treasuries offered for a refund from a supplier are those the employee may deposit into",
+  "file": "app/Controllers/AccountingPayables.php",
+  "find": "(new TreasuryService())->all($this->branchIds(), false), TreasuryScopes::DEPOSIT, $this->employeeId()) as $treasury) {\n            $treasuries[(int) $treasury->treasury_id] = $treasury->name . ' (' . $treasury->branch_code . ')';\n        }\n\n        return view('accounting_payables/refund_form'",
+  "replace": "(new TreasuryService())->all($this->branchIds(), false), TreasuryScopes::WITHDRAW, $this->employeeId()) as $treasury) {\n            $treasuries[(int) $treasury->treasury_id] = $treasury->name . ' (' . $treasury->branch_code . ')';\n        }\n\n        return view('accounting_payables/refund_form'",
+  "tests": [
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ]
+ }
+]

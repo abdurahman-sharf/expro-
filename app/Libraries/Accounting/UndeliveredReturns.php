@@ -48,8 +48,8 @@ final class UndeliveredReturns
      * What a line of the sale still has to deliver after what came back is taken off it, and what is
      * left of the returned units for the lines that follow.
      *
-     * @param numeric-string                                $quantity
-     * @param array<int, numeric-string>                    $back
+     * @param numeric-string             $quantity
+     * @param array<int, numeric-string> $back
      *
      * @return array{0: numeric-string, 1: array<int, numeric-string>}
      */
@@ -61,8 +61,8 @@ final class UndeliveredReturns
             return [bcadd($units, '0', 3), $back];
         }
 
-        $taken          = bccomp($back[$itemId], $units, 3) < 0 ? $back[$itemId] : $units;
-        $back[$itemId]  = bcsub($back[$itemId], $taken, 3);
+        $taken         = bccomp($back[$itemId], $units, 3) < 0 ? $back[$itemId] : $units;
+        $back[$itemId] = bcsub($back[$itemId], $taken, 3);
 
         return [bcsub($units, $taken, 3), $back];
     }

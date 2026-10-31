@@ -679,6 +679,22 @@ class SupplierSettlementTest extends CIUnitTestCase
         $this->assertSupplierTies();
     }
 
+    public function testRefund_ForbidsCuttingThePaymentBelowWhatWasPaidBackAndAllowsCuttingItAboveIt(): void
+    {
+        $purchase = $this->purchaseOf('230.00');
+        $payment  = $this->payPurchase($purchase, '300.00');
+
+        $this->supplierRefund('50.00');
+
+        $this->assertFalse($this->changePayment($purchase, $payment, ['payment_amount' => '270.00']));
+        $this->assertSame(AccountingError::CreditRefunded, $this->purchases->accountingFailure()->error);
+        $this->assertSame('300.0000', bcadd($this->accountingDb()->table('receivings_payments')->where('payment_id', $payment)->get()->getRow()->payment_amount, '0', 4));
+
+        $this->assertTrue($this->changePayment($purchase, $payment, ['payment_amount' => '290.00']));
+        $this->assertSame('10.00', bcadd($this->supplierPosition()->credit(), '0', 2));
+        $this->assertSupplierTies();
+    }
+
     public function testRefund_AllowsCuttingThePaymentOnceTheRefundIsCancelled(): void
     {
         $purchase = $this->purchaseOf('230.00');

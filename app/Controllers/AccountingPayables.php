@@ -3,6 +3,7 @@
 namespace App\Controllers;
 
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\CreditRefunds;
 use App\Libraries\Accounting\DebitNoteList;
 use App\Libraries\Accounting\PaymentStatus;
 use App\Libraries\Accounting\ScopedReportRequest;
@@ -37,6 +38,7 @@ class AccountingPayables extends AccountingController
     private SupplierLedger $ledger;
     private SupplierBalanceReport $balances;
     private SupplierAdvances $advances;
+    private CreditRefunds $refunds;
     private SupplierPaymentList $payments;
     private DebitNoteList $debitNotes;
 
@@ -47,6 +49,7 @@ class AccountingPayables extends AccountingController
         $this->ledger     = new SupplierLedger();
         $this->balances   = new SupplierBalanceReport();
         $this->advances   = new SupplierAdvances(null, null, $this->branchGuard());
+        $this->refunds    = new CreditRefunds(CreditRefunds::SUPPLIER, null, null, $this->branchGuard());
         $this->payments   = new SupplierPaymentList();
         $this->debitNotes = new DebitNoteList();
     }
@@ -188,7 +191,9 @@ class AccountingPayables extends AccountingController
             'applications'  => $this->ledger->applications($supplierId, true),
             'advances'      => $advances,
             'advance_kinds' => array_column($advances, 'kind', 'advance_id'),
+            'refunds'       => $this->refunds->forParty($supplierId),
             'can_manage'    => $this->can(AccountingGuard::PAYABLES_MANAGE),
+            'can_refund'    => $this->can(AccountingGuard::PAYABLES_REFUND),
             'amount'        => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
             'date'          => fn (string $value): string => $this->formatDate($value),
         ]);
@@ -312,7 +317,11 @@ class AccountingPayables extends AccountingController
     {
         $this->requireCompanyScope();
 
-        if (! $this->can(AccountingGuard::PAYABLES_MANAGE) || ! in_array($what, [SupplierAdvances::SOURCE, SupplierAdvances::OPENING_TYPE], true) || $this->advances->branchOf($what, $id) === null) {
+        $refund = $what === CreditRefunds::SUPPLIER_SOURCE;
+
+        if (! $this->can($refund ? AccountingGuard::PAYABLES_REFUND : AccountingGuard::PAYABLES_MANAGE)
+            || ! in_array($what, [SupplierAdvances::SOURCE, SupplierAdvances::OPENING_TYPE, CreditRefunds::SUPPLIER_SOURCE], true)
+            || ($refund ? $this->refunds->branchOf($id) : $this->advances->branchOf($what, $id)) === null) {
             throw PageNotFoundException::forPageNotFound();
         }
 
@@ -327,20 +336,69 @@ class AccountingPayables extends AccountingController
             $reason = (string) $this->request->getPost('reason');
 
             match ($what) {
-                SupplierAdvances::SOURCE       => $this->advances->cancel($id, $reason, $this->employeeId()),
-                SupplierAdvances::OPENING_TYPE => $this->advances->cancelOpening($id, $reason, $this->employeeId()),
-                default                        => throw PageNotFoundException::forPageNotFound(),
+                SupplierAdvances::SOURCE        => $this->advances->cancel($id, $reason, $this->employeeId()),
+                SupplierAdvances::OPENING_TYPE  => $this->advances->cancelOpening($id, $reason, $this->employeeId()),
+                CreditRefunds::SUPPLIER_SOURCE => $this->refunds->cancel($id, $reason, $this->employeeId()),
+                default                         => throw PageNotFoundException::forPageNotFound(),
             };
 
             return ['success' => true, 'message' => lang('Accounting_payables.cancelled_done'), 'id' => $id];
         });
     }
 
-    private function requireManage(int $supplierId): void
+    public function getRefundForm(int $supplierId): string
+    {
+        $this->requireManage($supplierId, AccountingGuard::PAYABLES_REFUND);
+
+        $options = model(Receiving::class)->get_payment_options();
+
+        unset($options[lang('Sales.due')]);
+
+        $treasuries = [0 => lang('Accounting_payables.treasury_default')];
+
+        foreach ((new TreasuryScopes())->usable((new TreasuryService())->all($this->branchIds(), false), TreasuryScopes::DEPOSIT, $this->employeeId()) as $treasury) {
+            $treasuries[(int) $treasury->treasury_id] = $treasury->name . ' (' . $treasury->branch_code . ')';
+        }
+
+        return view('accounting_payables/refund_form', [
+            'supplier_id'     => $supplierId,
+            'supplier_name'   => $this->supplierName($supplierId),
+            'payment_options' => $options,
+            'treasuries'      => count($treasuries) > 2 ? $treasuries : [],
+            'today'           => date('Y-m-d'),
+            'free'            => $this->amountCell($this->formatAmount($this->refunds->available($supplierId))),
+            'request_key'     => bin2hex(random_bytes(16)),
+        ]);
+    }
+
+    public function postRefund(int $supplierId): ResponseInterface
     {
         $this->requireCompanyScope();
 
-        if (! $this->can(AccountingGuard::PAYABLES_MANAGE) || $this->ledger->position($supplierId)->accountId === null) {
+        return $this->attempt(function () use ($supplierId): array {
+            $treasuryId = (int) $this->request->getPost('treasury_id');
+
+            $id = $this->refunds->refund(
+                $supplierId,
+                trim((string) $this->request->getPost('amount')),
+                trim((string) $this->request->getPost('refund_date')),
+                trim((string) $this->request->getPost('payment_type')),
+                $treasuryId > 0 ? $treasuryId : null,
+                (string) $this->request->getPost('reference_code'),
+                (string) $this->request->getPost('note'),
+                $this->employeeId(),
+                (string) $this->request->getPost('request_key'),
+            );
+
+            return ['success' => true, 'message' => lang('Accounting_payables.refund_done'), 'id' => $id];
+        });
+    }
+
+    private function requireManage(int $supplierId, string $permission = AccountingGuard::PAYABLES_MANAGE): void
+    {
+        $this->requireCompanyScope();
+
+        if (! $this->can($permission) || $this->ledger->position($supplierId)->accountId === null) {
             throw PageNotFoundException::forPageNotFound();
         }
     }

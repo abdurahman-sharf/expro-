@@ -544,6 +544,26 @@ class CreditRefundsTest extends CIUnitTestCase
         $this->assertTies();
     }
 
+    public function testRefund_ForbidsCuttingThePaymentBelowWhatWasPaidBackAndAllowsCuttingItAboveIt(): void
+    {
+        $invoice = $this->invoiceOf('230.00');
+        $paid    = $this->addPayment($invoice, '300.00');
+
+        $this->refund('50.00');
+
+        $cut = fn (string $amount): bool => $this->sales->update($invoice, ['comment' => 'cut', 'payments' => [
+            ['payment_id' => $paid, 'payment_type' => lang('Sales.cash'), 'payment_amount' => $amount, 'cash_refund' => 0, 'cash_adjustment' => 0, 'employee_id' => $this->employeeId, 'reference_code' => null],
+        ]]);
+
+        $this->assertFalse($cut('270.00'));
+        $this->assertSame(AccountingError::CreditRefunded, $this->failure()->error);
+        $this->assertSame('300.0000', bcadd($this->accountingDb()->table('sales_payments')->where('payment_id', $paid)->get()->getRow()->payment_amount, '0', 4));
+
+        $this->assertTrue($cut('290.00'));
+        $this->assertSame('10.00', $this->free());
+        $this->assertTies();
+    }
+
     public function testRefund_AllowsDeletingThePaymentOnceTheRefundIsCancelled(): void
     {
         $invoice  = $this->invoiceOf('230.00');

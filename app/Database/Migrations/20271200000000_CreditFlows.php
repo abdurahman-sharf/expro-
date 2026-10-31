@@ -15,8 +15,7 @@ use CodeIgniter\Database\Migration;
 class CreditFlows extends Migration
 {
     private const TABLE_OPTIONS = 'ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci';
-
-    private const PERMISSIONS = [
+    private const PERMISSIONS   = [
         'acc_receivables_manage' => 'accounting_receivables',
         'acc_receivables_refund' => 'accounting_receivables',
         'acc_payables_refund'    => 'accounting_payables',
