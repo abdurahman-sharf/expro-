@@ -16,6 +16,7 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\ChequeFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
@@ -30,6 +31,7 @@ class AccountingPayablesControllerTest extends CIUnitTestCase
     use DatabaseTestTrait;
     use FeatureTestTrait;
     use AccountingFixtureTrait;
+    use ChequeFixtureTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
@@ -51,6 +53,7 @@ class AccountingPayablesControllerTest extends CIUnitTestCase
         parent::setUp();
 
         $this->startBuying();
+        $this->startCheques();
     }
 
     protected function tearDown(): void
@@ -247,6 +250,21 @@ class AccountingPayablesControllerTest extends CIUnitTestCase
         $response->assertSee(lang('Accounting_payables.agrees_yes'));
         $response->assertSee(lang('Sales.invoice_paid'));
         $response->assertSee(lang('Sales.invoice_returned_full'));
+    }
+
+    public function testGetSupplier_ShowsAChequeAsCreditOfItsOwnKindWithALinkToTheCheque(): void
+    {
+        $purchase = $this->purchaseOf('70.00');
+        $cheque   = $this->issueCheque('100.00', date('Y-m-d'), date('Y-m-d'));
+
+        $this->viewer();
+
+        $body = $this->get('/accounting_payables/supplier/' . $this->supplierId)->getBody();
+
+        $this->assertStringContainsString(lang('Accounting_cheques.credit_source'), $body);
+        $this->assertStringContainsString('accounting_cheques/view/' . $cheque, $body);
+        $this->assertStringContainsString('RECV ' . $purchase, $body);
+        $this->assertStringNotContainsString('receivings/receipt/' . $cheque . '"', $body);
     }
 
     public function testGetSupplier_KeepsTheReleasedApplicationsInTheHistory(): void

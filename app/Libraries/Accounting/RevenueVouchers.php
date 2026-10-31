@@ -185,7 +185,7 @@ final class RevenueVouchers
                 ->groupEnd();
         }
 
-        $total   = (clone $builder)->countAllResults();
+        $total   = $builder->countAllResults(false);
         $columns = ['revenue_id' => 'r.revenue_id', 'date' => 'r.date', 'amount' => 'r.amount', 'category_name' => 'c.category_name', 'treasury_name' => 't.name'];
         $rows    = $builder
             ->select("r.*, c.category_name, t.name AS treasury_name, b.code AS branch_code, n.number AS document_number, TRIM(CONCAT(p.first_name, ' ', p.last_name)) AS employee_name", false)

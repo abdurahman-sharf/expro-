@@ -18,7 +18,7 @@ use App\Libraries\Accounting\CustomerPosition;
 $aging = $position->aging($today);
 
 $sourceLabel = static fn (string $type, int $sourceId): string => lang(
-    $type !== CreditSource::CREDIT_NOTE ? 'Accounting_receivables.source_excess' : (in_array($sourceId, $refund_invoices, true) ? 'Numbering.type_refund_invoice' : 'Accounting_receivables.source_credit_note'),
+    $type === CreditSource::CHEQUE ? 'Accounting_cheques.credit_source' : ($type !== CreditSource::CREDIT_NOTE ? 'Accounting_receivables.source_excess' : (in_array($sourceId, $refund_invoices, true) ? 'Numbering.type_refund_invoice' : 'Accounting_receivables.source_credit_note')),
 );
 ?>
 
@@ -150,7 +150,7 @@ $sourceLabel = static fn (string $type, int $sourceId): string => lang(
             <tbody>
                 <?php foreach ($position->credits as $source): ?>
                     <tr>
-                        <td><?= esc($sourceLabel($source->type, $source->sourceId)) ?> <?= anchor('sales/receipt/' . $source->sourceId, 'POS ' . $source->sourceId, ['target' => '_blank', 'dir' => 'ltr']) ?></td>
+                        <td><?= esc($sourceLabel($source->type, $source->sourceId)) ?> <?= $source->type === CreditSource::CHEQUE ? anchor('accounting_cheques/view/' . $source->sourceId, 'CHQ ' . $source->sourceId, ['target' => '_blank', 'dir' => 'ltr']) : anchor('sales/receipt/' . $source->sourceId, 'POS ' . $source->sourceId, ['target' => '_blank', 'dir' => 'ltr']) ?></td>
                         <td><?= esc($date($source->date)) ?></td>
                         <td><?= $amount($source->amount) ?></td>
                         <td><?= $amount($source->applied) ?></td>

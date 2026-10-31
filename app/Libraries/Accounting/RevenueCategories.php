@@ -136,7 +136,7 @@ final class RevenueCategories
             $builder->groupStart()->like('c.category_name', trim($term))->orLike('c.category_description', trim($term))->groupEnd();
         }
 
-        $total   = (clone $builder)->countAllResults();
+        $total   = $builder->countAllResults(false);
         $columns = ['revenue_category_id' => 'c.revenue_category_id', 'category_name' => 'c.category_name', 'category_description' => 'c.category_description', 'account' => 'a.code'];
         $rows    = $builder
             ->select('c.*, a.code AS account_code, a.name AS account_name')

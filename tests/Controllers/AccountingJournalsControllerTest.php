@@ -4,6 +4,7 @@ namespace Tests\Controllers;
 
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AuditLog;
+use App\Libraries\Accounting\ChequeSources;
 use App\Libraries\Accounting\CostCenterService;
 use App\Libraries\Accounting\InterBranchLegs;
 use App\Libraries\Accounting\JournalDraft;
@@ -12,6 +13,7 @@ use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\JournalOrigin;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\PostingService;
+use App\Libraries\Accounting\RevenuePostingBuilder;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Accounting\TreasuryTransfers;
 use CodeIgniter\Exceptions\PageNotFoundException;
@@ -89,6 +91,20 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         $response->assertSee('id="journal_filters"');
         $response->assertDontSee('accounting_journals/new');
         $response->assertDontSee('accounting_journals/audit');
+    }
+
+    public function testGetIndex_OffersEverySourceOfTheChequeCycleAndTheReceiptVoucherInTheSourceFilter(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_journals']));
+
+        $body = $this->get('/accounting_journals')->getBody();
+
+        foreach ([...ChequeSources::ALL, RevenuePostingBuilder::SOURCE] as $source) {
+            $this->assertStringContainsString('<option value="' . $source . '">' . esc(lang('Accounting.source_' . $source)) . '</option>', $body, $source);
+        }
+
+        $this->assertStringContainsString('<option value="manual">', $body);
+        $this->assertStringContainsString('<option value="reversal">', $body);
     }
 
     public function testGetIndex_OffersTheNewJournalAndAuditLinksWithThePermissions(): void

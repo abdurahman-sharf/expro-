@@ -37,6 +37,7 @@ return [
     'confirm_cancel' => 'Cancel this cheque?',
     'confirm_delete' => 'Delete this cheque? Its journal is reversed.',
     'confirm_undo' => 'Take back the last change of this cheque? Its journal is reversed.',
+    'credit_source' => 'Cheque',
     'customer' => 'Customer',
     'date_from' => 'Issued from',
     'date_required' => 'The date is required.',

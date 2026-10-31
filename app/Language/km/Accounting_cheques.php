@@ -37,6 +37,7 @@ return [
     'confirm_cancel' => '',
     'confirm_delete' => '',
     'confirm_undo' => '',
+    'credit_source' => '',
     'customer' => '',
     'date_from' => '',
     'date_required' => '',

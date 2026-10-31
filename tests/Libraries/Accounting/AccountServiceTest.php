@@ -340,6 +340,22 @@ class AccountServiceTest extends CIUnitTestCase
         }
     }
 
+    public function testDeactivateAndDelete_RejectTheAccountOfARevenueCategory(): void
+    {
+        $accountId = $this->customAccount('42', '4290', 'Consulting', false);
+        $db        = $this->accountingDb();
+
+        $db->table('revenue_categories')->insert(['category_name' => 'Consulting ' . uniqid(), 'category_description' => '', 'account_id' => $accountId]);
+
+        try {
+            $this->assertFailsWith(AccountingError::AccountRouted, fn () => $this->service->deactivate($accountId));
+            $this->assertFailsWith(AccountingError::AccountRouted, fn () => $this->service->delete($accountId));
+            $this->assertSame('1', (string) $this->account($accountId)->active);
+        } finally {
+            $db->table('revenue_categories')->truncate();
+        }
+    }
+
     private function categoryOf(int $accountId): int
     {
         $this->accountingDb()->table('expense_categories')->insert(['category_name' => 'Marketing ' . uniqid(), 'category_description' => '', 'account_id' => $accountId]);

@@ -37,6 +37,7 @@ return [
     'confirm_cancel' => 'إلغاء هذا الشيك؟',
     'confirm_delete' => 'حذف هذا الشيك؟ سيُعكس قيده.',
     'confirm_undo' => 'التراجع عن آخر إجراء على هذا الشيك؟ سيُعكس قيده.',
+    'credit_source' => 'شيك',
     'customer' => 'العميل',
     'date_from' => 'الإصدار من',
     'date_required' => 'التاريخ مطلوب.',

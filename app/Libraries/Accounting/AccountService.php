@@ -244,7 +244,8 @@ final class AccountService
     public function isRouted(int $accountId): bool
     {
         return $this->db->table('accounting_routing')->where('account_id', $accountId)->countAllResults() > 0
-            || $this->db->table('expense_categories')->where('account_id', $accountId)->countAllResults() > 0;
+            || $this->db->table('expense_categories')->where('account_id', $accountId)->countAllResults() > 0
+            || $this->db->table('revenue_categories')->where('account_id', $accountId)->countAllResults() > 0;
     }
 
     /**

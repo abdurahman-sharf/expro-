@@ -173,6 +173,8 @@ $aging = $position->aging($today);
                         <td>
                             <?php if ($source->type === CreditSource::ADVANCE): ?>
                                 <?= esc(lang(($advance_kinds[$source->sourceId] ?? 'payment') === 'opening' ? 'Accounting_payables.source_advance_opening' : 'Accounting_payables.source_advance')) ?> <bdi dir="ltr">#<?= $source->sourceId ?></bdi>
+                            <?php elseif ($source->type === CreditSource::CHEQUE): ?>
+                                <?= esc(lang('Accounting_cheques.credit_source')) ?> <?= anchor('accounting_cheques/view/' . $source->sourceId, 'CHQ ' . $source->sourceId, ['target' => '_blank', 'dir' => 'ltr']) ?>
                             <?php else: ?>
                                 <?= esc(lang($source->type === CreditSource::DEBIT_NOTE ? 'Accounting_payables.source_debit_note' : 'Accounting_payables.source_excess')) ?> <?= anchor('receivings/receipt/' . $source->sourceId, 'RECV ' . $source->sourceId, ['target' => '_blank', 'dir' => 'ltr']) ?>
                             <?php endif; ?>
@@ -253,6 +255,7 @@ $aging = $position->aging($today);
                         <td><?= esc(lang(match ($application->source_type) {
                             CreditSource::DEBIT_NOTE => 'Accounting_payables.source_debit_note',
                             CreditSource::ADVANCE    => 'Accounting_payables.source_advance',
+                            CreditSource::CHEQUE     => 'Accounting_cheques.credit_source',
                             default                  => 'Accounting_payables.source_excess',
                         })) ?> <bdi dir="ltr"><?= (int) $application->source_id ?></bdi></td>
                         <td><bdi dir="ltr"><?= (int) $application->invoice_receiving_id ?></bdi></td>

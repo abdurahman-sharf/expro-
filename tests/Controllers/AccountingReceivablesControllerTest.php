@@ -19,6 +19,7 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\ChequeFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
@@ -32,6 +33,7 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
     use DatabaseTestTrait;
     use FeatureTestTrait;
     use AccountingFixtureTrait;
+    use ChequeFixtureTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
@@ -52,6 +54,7 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
         parent::setUp();
 
         $this->startSelling();
+        $this->startCheques();
     }
 
     protected function tearDown(): void
@@ -268,6 +271,23 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
         $response->assertSee(lang('Accounting_receivables.agrees_yes'));
         $response->assertSee(lang('Sales.invoice_paid'));
         $response->assertSee(lang('Sales.invoice_returned_full'));
+    }
+
+    public function testGetCustomer_ShowsAChequeAsCreditOfItsOwnKindWithALinkToTheChequeAndWhatItSettled(): void
+    {
+        $invoice = $this->invoiceOf('60.00');
+        $cheque  = $this->receiveCheque('100.00', date('Y-m-d'));
+
+        $this->viewer();
+
+        $body = $this->get('/accounting_receivables/customer/' . $this->customerId)->getBody();
+
+        $this->assertStringContainsString(lang('Accounting_cheques.credit_source'), $body);
+        $this->assertStringContainsString('accounting_cheques/view/' . $cheque, $body);
+        $this->assertStringContainsString('CHQ ' . $cheque, $body);
+        $this->assertStringNotContainsString('sales/receipt/' . $cheque . '"', $body);
+        $this->assertStringContainsString('POS ' . $invoice, $body);
+        $this->assertStringContainsString(lang('Accounting_receivables.agrees_yes'), $body);
     }
 
     public function testGetCustomer_NamesARefundInvoiceByItsDocumentAmongTheCreditAndTheHistory(): void

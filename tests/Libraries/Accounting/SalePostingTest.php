@@ -4256,4 +4256,77 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame(60, (int) $this->saleRow($saleId)->payment_terms_days);
         $this->assertSame($before, $this->journals($saleId));
     }
+
+    /**
+     * @return array<string, array{string, string}>
+     */
+    public static function waysOfPaymentAndKindsOfTreasury(): array
+    {
+        $sets = [];
+
+        foreach (['cash', 'debit', 'credit', 'check', 'bank_transfer', 'wallet'] as $way) {
+            foreach (['cash', 'bank'] as $kind) {
+                $sets["{$way} into a {$kind} treasury"] = [$way, $kind];
+            }
+        }
+
+        return $sets;
+    }
+
+    #[DataProvider('waysOfPaymentAndKindsOfTreasury')]
+    public function testSaveValue_PostsAPaymentOfAnyWayToTheTreasuryNamedWhateverItsKindAndWritesNoChequeRecord(string $way, string $kind): void
+    {
+        $this->accountingDb()->table('grants')->insert(['person_id' => $this->employeeId, 'permission_id' => BranchGuard::ALL_BRANCHES, 'menu_group' => 'home']);
+
+        $treasuries = new TreasuryService();
+        $treasury   = $treasuries->create($kind === 'bank'
+            ? ['name' => 'Independent bank', 'kind' => 'bank', 'bank_name' => 'Gulf Bank', 'account_number' => '5500000001']
+            : ['name' => 'Independent drawer', 'kind' => 'cash']);
+        $saleId     = $this->save([$this->line($this->item('10.00'), 0, '1', '100', '10.00')], [], [$this->payment(lang('Sales.' . $way), '100.00') + ['treasury_id' => $treasury]]);
+        $payment    = array_values(array_filter($this->journals($saleId), static fn (array $journal): bool => $journal['source'] === 'sale_payment'))[0];
+
+        $this->assertSame([(int) $treasuries->accountOf($treasury) . ':100.00:0.00', $this->customerAccount() . ':0.00:100.00'], $payment['lines']);
+        $this->assertSame($treasury, (int) $this->paymentRow($saleId)->treasury_id);
+        $this->assertSame(lang('Sales.' . $way), $this->paymentRow($saleId)->payment_type);
+        $this->assertSame(0, $this->countRows('cheques'), 'Only the cheque screens write a cheque');
+        $this->assertSame('0.00', $this->balance($this->accountId('notes_receivable')));
+    }
+
+    public function testSaveValue_PostsACheckPaymentThatNamesNoTreasuryToTheAccountRoutedForChecks(): void
+    {
+        $held = $this->customAccount('12', '1230', 'Checks held');
+
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'payment.check')->update(['account_id' => $held]);
+
+        $saleId = $this->save([$this->line($this->item('10.00'), 0, '1', '100', '10.00')], [], [$this->payment(lang('Sales.check'), '100.00')]);
+
+        $this->assertNull($this->paymentRow($saleId)->treasury_id);
+        $this->assertSame('100.00', $this->balance($held));
+        $this->assertSame('0.00', $this->balance($this->accountId('cash')));
+        $this->assertSame('0.00', $this->balance($this->accountId('notes_receivable')));
+        $this->assertSame(0, $this->countRows('cheques'));
+    }
+
+    public function testUpdate_KeepsAnEarlierPaymentOnItsTreasuryWhenALaterOneNamesAnotherAndTheJournalOfTheEarlierOneStays(): void
+    {
+        $this->accountingDb()->table('grants')->insert(['person_id' => $this->employeeId, 'permission_id' => BranchGuard::ALL_BRANCHES, 'menu_group' => 'home']);
+
+        $treasuries = new TreasuryService();
+        $drawer     = $treasuries->create(['name' => 'First drawer', 'kind' => 'cash']);
+        $bank       = $treasuries->create(['name' => 'Later bank', 'kind' => 'bank', 'bank_name' => 'Gulf Bank', 'account_number' => '5500000002']);
+        $saleId     = $this->save([$this->line($this->item('10.00'), 0, '1', '100', '10.00')], [], [$this->payment(lang('Sales.cash'), '60.00') + ['treasury_id' => $drawer]]);
+        $first      = $this->paymentRow($saleId);
+        $journal    = (int) $this->accountingDb()->table('accounting_journals')->where(['source_type' => 'sale_payment', 'source_id' => $first->payment_id, 'status' => 'posted'])->get()->getRow()->journal_id;
+
+        $this->assertTrue($this->sales->update($saleId, ['comment' => 'a check later', 'payments' => [
+            ['payment_id' => NEW_ENTRY, 'payment_type' => lang('Sales.check'), 'payment_amount' => '20.00', 'cash_refund' => 0, 'cash_adjustment' => 0, 'employee_id' => $this->employeeId, 'reference_code' => null, 'treasury_id' => $bank],
+        ]]));
+
+        $rows = $this->accountingDb()->table('sales_payments')->where('sale_id', $saleId)->orderBy('payment_id')->get()->getResult();
+
+        $this->assertSame([$drawer, $bank], array_map(static fn (object $payment): int => (int) $payment->treasury_id, $rows));
+        $this->assertSame('posted', $this->accountingDb()->table('accounting_journals')->where('journal_id', $journal)->get()->getRow()->status);
+        $this->assertSame('60.0000', $treasuries->position($drawer)->balance);
+        $this->assertSame('20.0000', $treasuries->position($bank)->balance);
+    }
 }

@@ -17,6 +17,7 @@ use Config\Database;
 use DateTimeImmutable;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\ChequeFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\ParityCaseTrait;
@@ -32,6 +33,7 @@ class CustomerLedgerTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
+    use ChequeFixtureTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
     use ParityCaseTrait;
@@ -54,6 +56,7 @@ class CustomerLedgerTest extends CIUnitTestCase
         parent::setUp();
 
         $this->startSelling();
+        $this->startCheques();
     }
 
     protected function tearDown(): void
@@ -594,6 +597,48 @@ class CustomerLedgerTest extends CIUnitTestCase
         $this->assertSame('300.00', bcadd($position->open(), '0', 2));
         $this->assertSame(['today' => '0.0000', '1-30' => '100.0000', '31-60' => '200.0000', '61-90' => '0.0000', '91-120' => '0.0000', '120+' => '0.0000'], $position->aging(date('Y-m-d')));
         $this->assertSame('200.00', bcadd($position->overdue(date('Y-m-d')), '0', 2));
+        $this->assertTies();
+    }
+
+    public function testPosition_HoldsAChequeAsCreditFromTheDayItWasIssuedUntilTheDayItBounced(): void
+    {
+        $invoice = $this->invoiceOf('100.00');
+        $cheque  = $this->receiveCheque('100.00', date('Y-m-d', strtotime('-3 days')));
+
+        $this->chequeService->reject($cheque, date('Y-m-d', strtotime('-1 day')), $this->chequeClerk);
+
+        $ledger = new CustomerLedger();
+
+        $this->assertSame('0.0000', $ledger->position($this->customerId, date('Y-m-d', strtotime('-2 days')))->credit(), 'It settled the invoice by then');
+        $this->assertTrue($ledger->position($this->customerId, date('Y-m-d', strtotime('-2 days')))->agrees());
+        $this->assertSame('100.0000', $ledger->position($this->customerId)->open());
+        $this->assertSame('0.0000', $ledger->position($this->customerId)->credit());
+        $this->assertTrue($ledger->position($this->customerId)->agrees());
+        $this->assertSame($invoice, $ledger->position($this->customerId)->invoices[0]->saleId);
+    }
+
+    public function testPosition_ListsTheChequeAsACreditSourceOfItsOwnKindThatIsGoneOnceItBounces(): void
+    {
+        $cheque = $this->receiveCheque('80.00', date('Y-m-d'));
+
+        $credits = (new CustomerLedger())->position($this->customerId)->credits;
+
+        $this->assertSame(['cheque', $cheque, '80.0000'], [$credits[0]->type, $credits[0]->sourceId, $credits[0]->available()]);
+
+        $this->chequeService->reject($cheque, date('Y-m-d'), $this->chequeClerk);
+
+        $this->assertSame([], (new CustomerLedger())->position($this->customerId)->credits);
+    }
+
+    public function testPosition_KeepsTheChequeOfOneCustomerOutOfTheLedgerOfAnother(): void
+    {
+        $other = $this->anotherCustomer();
+
+        $this->receiveCheque('80.00', date('Y-m-d'), null, $other);
+
+        $this->assertSame([], (new CustomerLedger())->position($this->customerId)->credits);
+        $this->assertSame('80.0000', (new CustomerLedger())->position($other)->credit());
+        $this->assertTies($other);
         $this->assertTies();
     }
 }

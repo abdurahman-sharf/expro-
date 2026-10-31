@@ -14,6 +14,7 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\ChequeFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
@@ -28,6 +29,7 @@ class AgedLedgerTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
+    use ChequeFixtureTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
@@ -49,6 +51,7 @@ class AgedLedgerTest extends CIUnitTestCase
         parent::setUp();
 
         $this->startBuying();
+        $this->startCheques();
     }
 
     protected function tearDown(): void
@@ -335,5 +338,53 @@ class AgedLedgerTest extends CIUnitTestCase
         $this->assertCount(1, $suppliers);
         $this->assertSame('100.0000', $customers[0]->total());
         $this->assertSame('70.0000', $suppliers[0]->total());
+    }
+
+    public function testBuild_AgesAReceivedChequeAsCreditAndABouncedOneAsADebitOfTheDayItBounced(): void
+    {
+        $this->invoiceDated('100.00', $this->daysAgo(5));
+
+        $cheque = $this->receiveCheque('100.00', $this->daysAgo(2));
+
+        $settled = $this->customers(date('Y-m-d'), 1);
+
+        $this->assertSame([], $settled, 'The cheque settles the invoice, so the customer owes nothing');
+
+        $this->chequeService->reject($cheque, date('Y-m-d'), $this->chequeClerk);
+
+        $row = $this->rowOf($this->customers(date('Y-m-d'), 1), $this->customerId);
+
+        $this->assertSame(['100.0000', '0.0000', '0.0000', '0.0000', '0.0000', '0.0000'], $row->buckets);
+        $this->assertSame('0.0000', $row->credit);
+        $this->assertSame('100.0000', $row->balance());
+        $this->assertSame([], $this->customers($this->daysAgo(1), 1), 'The day before it bounced the books still held the cheque as paid');
+    }
+
+    public function testBuild_AgesAChequeDeliveredToASupplierAsDebitAndABouncedOneAsWhatIsOwedAgainFromThatDay(): void
+    {
+        $this->purchaseDated('200.00', $this->daysAgo(5));
+
+        $cheque = $this->issueCheque('200.00', $this->daysAgo(2), $this->daysAgo(2));
+
+        $this->assertSame([], $this->suppliers(date('Y-m-d'), 1));
+
+        $this->chequeService->reject($cheque, date('Y-m-d'), $this->chequeClerk);
+
+        $row = $this->rowOf($this->suppliers(date('Y-m-d'), 1), $this->supplierId);
+
+        $this->assertSame(['200.0000', '0.0000', '0.0000', '0.0000', '0.0000', '0.0000'], $row->buckets);
+        $this->assertSame('200.0000', $row->balance());
+        $this->assertSame([], $this->suppliers($this->daysAgo(1), 1));
+    }
+
+    public function testBuild_ListsACustomerWhoHoldsAChequeBiggerThanTheirInvoicesAsCredit(): void
+    {
+        $this->invoiceDated('60.00', $this->daysAgo(3));
+        $this->receiveCheque('100.00', $this->daysAgo(1));
+
+        $row = $this->rowOf($this->customers(date('Y-m-d'), 1), $this->customerId);
+
+        $this->assertSame('40.0000', $row->credit);
+        $this->assertSame('-40.0000', $row->balance());
     }
 }

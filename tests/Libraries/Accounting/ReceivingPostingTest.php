@@ -4673,4 +4673,37 @@ class ReceivingPostingTest extends CIUnitTestCase
         $this->assertSame(60, (int) $this->purchaseRow($receivingId)->payment_terms_days);
         $this->assertSame($before, $this->purchaseJournals($receivingId));
     }
+
+    public function testPostCompleted_PaysAPurchaseByCheckFromTheBankTheBuyerWorksFromAndWritesNoChequeRecord(): void
+    {
+        $this->accountingDb()->table('grants')->insert(['person_id' => $this->employeeId, 'permission_id' => BranchGuard::ALL_BRANCHES, 'menu_group' => 'home']);
+
+        $treasuries = new TreasuryService();
+        $bank       = $treasuries->create(['name' => 'Buyer bank', 'kind' => 'bank', 'bank_name' => 'Gulf Bank', 'account_number' => '5500000003']);
+
+        $treasuries->setDefaultFor($this->employeeId, $bank);
+
+        $itemId = $this->item('0.00');
+        $id     = $this->buy([$this->purchaseLine($itemId, 0, '2', '50')], -1, lang('Sales.check'));
+        $paid   = array_values(array_filter($this->purchaseJournals($id), static fn (array $journal): bool => $journal['source'] === 'purchase_payment'))[0];
+
+        $this->assertSame($bank, (int) $this->accountingDb()->table('receivings')->where('receiving_id', $id)->get()->getRow()->treasury_id);
+        $this->assertSame([$this->supplierAccount() . ':100.00:0.00', $treasuries->accountOf($bank) . ':0.00:100.00'], $paid['lines']);
+        $this->assertSame(0, $this->countRows('cheques'));
+        $this->assertSame('0.00', $this->balance($this->accountId('notes_payable')));
+    }
+
+    public function testPostCompleted_PaysAPurchaseByCheckFromTheAccountRoutedForChecksWhenTheBuyerHasNoTreasury(): void
+    {
+        $held = $this->customAccount('12', '1230', 'Checks held');
+
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'payment.check')->update(['account_id' => $held]);
+
+        $itemId = $this->item('0.00');
+        $id     = $this->buy([$this->purchaseLine($itemId, 0, '2', '50')], -1, lang('Sales.check'));
+
+        $this->assertNull($this->accountingDb()->table('receivings')->where('receiving_id', $id)->get()->getRow()->treasury_id);
+        $this->assertSame('-100.00', $this->balance($held));
+        $this->assertSame(0, $this->countRows('cheques'));
+    }
 }

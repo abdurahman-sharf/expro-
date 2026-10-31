@@ -39,7 +39,7 @@ final class ChequeList
         }
 
         $builder = $this->base($direction, $branchIds, $filters);
-        $total   = (clone $builder)->countAllResults();
+        $total   = $builder->countAllResults(false);
         $rows    = $builder
             ->select('c.*, ' . self::PARTY_NAME . ' AS party_name, t.name AS treasury_name, b.code AS branch_code, k.name AS book_name, n.number AS document_number', false)
             ->orderBy(self::SORTABLE[$sort] ?? 'c.cheque_id', strtolower($order) === 'asc' ? 'ASC' : 'DESC')
