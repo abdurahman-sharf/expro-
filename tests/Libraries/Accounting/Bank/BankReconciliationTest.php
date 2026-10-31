@@ -1096,4 +1096,86 @@ class BankReconciliationTest extends CIUnitTestCase
         $this->assertSame(['reopened', 'closed'], array_column($closings, 'status'));
         $this->assertSame([false, false], array_map(static fn (object $row): bool => $row->drifted, $closings));
     }
+
+    public function testImport_RefusesALineDatedOnTheDayTheReconciliationIsClosedUpTo(): void
+    {
+        $this->importStatement($this->statementText([['2026-03-01', 'Opening deposit', '100.00', '', 'A']]));
+        $this->bank->close($this->bankId, '2026-03-31', '100.00', $this->bankClerk);
+
+        $refusal = $this->refusal(fn () => $this->importStatement($this->statementText([['2026-03-31', 'On the day', '5.00', '', 'L']]), name: 'edge.csv'));
+
+        $this->assertSame(AccountingError::BankStatementClosedRange, $refusal->error);
+        $this->assertTrue($this->importStatement($this->statementText([['2026-04-01', 'The day after', '5.00', '', 'M']]), name: 'next.csv')->created());
+    }
+
+    public function testMatch_RefusesALineOfTheBooksAndALineOfTheBankDatedOnTheDayTheReconciliationIsClosedUpTo(): void
+    {
+        $this->importStatement($this->statementText([['2026-03-01', 'Opening deposit', '100.00', '', 'A'], ['2026-03-31', 'Last day', '40.00', '', 'B']]));
+        $this->bank->close($this->bankId, '2026-03-31', '140.00', $this->bankClerk);
+        $line = $this->bookLine('40.00', '2026-03-31', 'Last day book');
+
+        $refusal = $this->refusal(fn () => $this->bank->match($this->bankId, $this->statementLineId('Last day'), [$line], $this->bankClerk));
+
+        $this->assertSame(AccountingError::BankMatchClosedRange, $refusal->error);
+    }
+
+    public function testMatch_AcceptsAStatementLineInsideTheClosedDatesWhenTheLineOfTheBooksIsDatedAfterThem(): void
+    {
+        $this->importStatement($this->statementText([['2026-03-01', 'Opening deposit', '100.00', '', 'A'], ['2026-03-20', 'Fee', '', '5.00', 'B']]));
+        $this->bank->close($this->bankId, '2026-03-31', '95.00', $this->bankClerk);
+        $late = $this->bookLine('-5.00', '2026-04-02', 'Fee booked late');
+
+        $matchId = $this->bank->match($this->bankId, $this->statementLineId('Fee'), [$late], $this->bankClerk);
+
+        $this->assertNull($this->accountingDb()->table('bank_matches')->where('match_id', $matchId)->get()->getRow()->reconciliation_id);
+    }
+
+    public function testReport_CarriesEveryLineOfTheBooksWhileNoStatementLineIsImported(): void
+    {
+        $this->bookLine('100.00', '2026-03-10', 'Deposit');
+        $this->bookLine('-30.00', '2026-03-12', 'Payment');
+
+        $report = $this->bank->report($this->bankId, '2026-03-31', '70.00', $this->bankClerk);
+
+        $this->assertNull($report->coverageStart);
+        $this->assertSame([0, 2, '70.0000'], [$report->outstandingBook['count'], $report->carriedBook['count'], $report->carriedBook['total']]);
+        $this->assertSame('0.0000', $report->difference);
+    }
+
+    public function testReport_TakesALineOfTheBooksDatedOnTheFirstStatementDayAsOutstandingAndOneTheDayBeforeAsCarried(): void
+    {
+        $this->bookLine('10.00', '2026-03-01', 'The day before');
+        $this->bookLine('20.00', '2026-03-02', 'The first day');
+        $this->importStatement($this->statementText([['2026-03-02', 'First line', '5.00', '', 'A']]));
+
+        $report = $this->bank->report($this->bankId, '2026-03-31', null, $this->bankClerk);
+
+        $this->assertSame(['The first day'], array_column($report->bookLines, 'description'));
+        $this->assertSame(['The day before'], array_column($report->carriedLines, 'description'));
+    }
+
+    public function testReport_ShowsAStatementLineAsNotYetInTheBooksUntilTheDateOfTheLineOfTheBooksItIsMatchedWith(): void
+    {
+        $this->importStatement($this->statementText([['2026-03-05', 'Fee', '', '5.00', 'F']]));
+        $late = $this->bookLine('-5.00', '2026-04-02', 'Fee booked late');
+        $this->bank->match($this->bankId, $this->statementLineId('Fee'), [$late], $this->bankClerk);
+
+        $march = $this->bank->report($this->bankId, '2026-03-31', null, $this->bankClerk);
+        $april = $this->bank->report($this->bankId, '2026-04-30', null, $this->bankClerk);
+
+        $this->assertSame(['Fee'], array_column($march->statementLines, 'description'));
+        $this->assertSame('-5.0000', $march->unmatchedStatement['total']);
+        $this->assertSame([], $april->statementLines);
+        $this->assertSame(1, $april->matchesMade);
+    }
+
+    public function testMatch_LeavesOutAnyIdThatIsNotAPositiveWholeNumber(): void
+    {
+        $line = $this->bookLine('100.00', '2026-03-10');
+        $this->importStatement($this->statementText([['2026-03-10', 'Deposit A', '100.00', '', 'A']]));
+
+        $matchId = $this->bank->match($this->bankId, $this->statementLineId('Deposit A'), [0, -3, $line, 'x'], $this->bankClerk);
+
+        $this->assertSame([$line], array_map('intval', array_column($this->accountingDb()->table('bank_match_lines')->where('match_id', $matchId)->get()->getResultArray(), 'journal_line_id')));
+    }
 }
