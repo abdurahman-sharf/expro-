@@ -2,6 +2,8 @@
 
 namespace Tests\Libraries\Accounting;
 
+use App\Libraries\Accounting\AccountingError;
+use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\CreditRefunds;
 use App\Libraries\Accounting\CreditSource;
@@ -671,6 +673,99 @@ class CreditSettlementTest extends CIUnitTestCase
         $this->removePayment($second, $paid);
 
         $this->assertSameAsFixture($case['expected'], ['credit_stays_on_the_invoice_after_its_source_is_gone' => $this->applications() !== []], 'credit after its source is removed');
+        $this->assertTies();
+    }
+
+    private function refundOfTheCredit(string $amount): int
+    {
+        return (new CreditRefunds(CreditRefunds::CUSTOMER))->refund($this->customerId, $amount, date('Y-m-d'), 'Cash', null, '', '', $this->advanceTaker());
+    }
+
+    private function cancelRefund(int $refundId, string $reason): void
+    {
+        (new CreditRefunds(CreditRefunds::CUSTOMER))->cancel($refundId, $reason, $this->advanceTaker());
+    }
+
+    private function freeCredit(): string
+    {
+        return bcadd($this->position()->credit(), '0', 2);
+    }
+
+    public function testSettle_ForbidsDeletingThePaymentWhoseExcessWasPaidBackAndChangesNothing(): void
+    {
+        $invoice = $this->invoiceOf('230.00');
+        $paid    = $this->addPayment($invoice, '300.00');
+
+        $this->refundOfTheCredit('70.00');
+
+        $journals = $this->countJournals();
+        $before   = $this->accountingDb()->table('sales_payments')->where('payment_id', $paid)->get()->getRow();
+
+        $this->assertFalse($this->sales->update($invoice, ['comment' => 'removed', 'payments' => [
+            ['payment_id' => $paid, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '0', 'cash_refund' => 0, 'cash_adjustment' => 0, 'employee_id' => $this->employeeId, 'reference_code' => null],
+        ]]));
+
+        $failure = $this->failure();
+
+        $this->assertInstanceOf(AccountingException::class, $failure);
+        $this->assertSame(AccountingError::CreditRefunded, $failure->error);
+        $this->assertSame($journals, $this->countJournals());
+        $this->assertEquals($before, $this->accountingDb()->table('sales_payments')->where('payment_id', $paid)->get()->getRow());
+        $this->assertSame('0.00', $this->freeCredit());
+        $this->assertTies();
+    }
+
+    public function testSettle_ForbidsCuttingThePaymentBelowWhatWasPaidBackAndAllowsCuttingItAboveIt(): void
+    {
+        $invoice = $this->invoiceOf('230.00');
+        $paid    = $this->addPayment($invoice, '300.00');
+
+        $this->refundOfTheCredit('50.00');
+
+        $cut = fn (string $amount): bool => $this->sales->update($invoice, ['comment' => 'cut', 'payments' => [
+            ['payment_id' => $paid, 'payment_type' => lang('Sales.cash'), 'payment_amount' => $amount, 'cash_refund' => 0, 'cash_adjustment' => 0, 'employee_id' => $this->employeeId, 'reference_code' => null],
+        ]]);
+
+        $this->assertFalse($cut('270.00'));
+        $this->assertSame(AccountingError::CreditRefunded, $this->failure()->error);
+        $this->assertSame('300.0000', bcadd($this->accountingDb()->table('sales_payments')->where('payment_id', $paid)->get()->getRow()->payment_amount, '0', 4));
+
+        $this->assertTrue($cut('290.00'));
+        $this->assertSame('10.00', $this->freeCredit());
+        $this->assertTies();
+    }
+
+    public function testSettle_CutsWhatWasSpentOnAnInvoiceWhenTheCreditShrinksToWhatWasPaidBack(): void
+    {
+        $source = $this->invoiceOf('100.00');
+        $paid   = $this->addPayment($source, '150.00');
+        $waits  = $this->invoiceOf('30.00');
+
+        $this->assertSame(['invoice_excess:' . $source . '->' . $waits . ':30.00'], $this->applications());
+
+        $this->refundOfTheCredit('20.00');
+
+        $this->assertTrue($this->sales->update($source, ['comment' => 'cut', 'payments' => [
+            ['payment_id' => $paid, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '120.00', 'cash_refund' => 0, 'cash_adjustment' => 0, 'employee_id' => $this->employeeId, 'reference_code' => null],
+        ]]));
+
+        $this->assertSame([], $this->applications());
+        $this->assertSame('30.00', bcadd($this->position()->invoice($waits)->open(), '0', 2));
+        $this->assertSame('0.00', $this->freeCredit());
+        $this->assertTies();
+    }
+
+    public function testSettle_AllowsDeletingThePaymentOnceTheRefundIsCancelled(): void
+    {
+        $invoice  = $this->invoiceOf('230.00');
+        $paid     = $this->addPayment($invoice, '300.00');
+        $refundId = $this->refundOfTheCredit('70.00');
+
+        $this->cancelRefund($refundId, 'paid twice');
+        $this->removePayment($invoice, $paid);
+
+        $this->assertSame('230.00', bcadd($this->position()->invoice($invoice)->open(), '0', 2));
+        $this->assertSame('0.00', $this->freeCredit());
         $this->assertTies();
     }
 }

@@ -5,12 +5,14 @@ namespace Tests\Libraries\Accounting;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\CreditRefunds;
 use App\Libraries\Accounting\CreditSource;
 use App\Libraries\Accounting\CustomerAdvances;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
+use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -81,6 +83,14 @@ class CustomerAdvancesTest extends CIUnitTestCase
         }
 
         $this->fail('The change was not refused.');
+    }
+
+    private function assertOutsideTheBranch(callable $action): void
+    {
+        $refusal = $this->refusal($action);
+
+        $this->assertInstanceOf(BranchException::class, $refusal);
+        $this->assertSame(BranchError::NotAllowed, $refusal->error);
     }
 
     /**
@@ -369,7 +379,7 @@ class CustomerAdvancesTest extends CIUnitTestCase
         $limited = $this->employeeWithGrants([AccountingGuard::RECEIVABLES_MANAGE], [$other]);
         $drawer  = (new TreasuryService())->create(['name' => 'Branch one drawer', 'kind' => 'cash', 'branch_id' => 1], $this->clerk);
 
-        $this->refusal(fn () => $this->receive('10', null, $drawer, $limited));
+        $this->assertOutsideTheBranch(fn () => $this->receive('10', null, $drawer, $limited));
 
         $this->assertSame(0, $this->countRows('customer_advances'));
     }
@@ -384,7 +394,7 @@ class CustomerAdvancesTest extends CIUnitTestCase
         $other   = $this->createBranch('B2');
         $limited = $this->employeeWithGrants([AccountingGuard::RECEIVABLES_MANAGE], [$other]);
 
-        $this->refusal(fn () => $this->advances->cancel($advanceId, 'other branch', $limited));
+        $this->assertOutsideTheBranch(fn () => $this->advances->cancel($advanceId, 'other branch', $limited));
 
         $this->assertSame('completed', $this->accountingDb()->table('customer_advances')->where('advance_id', $advanceId)->get()->getRow()->status);
     }
@@ -685,5 +695,59 @@ class CustomerAdvancesTest extends CIUnitTestCase
         $this->assertSame([], $this->applications($other));
         $this->assertTies();
         $this->assertTies($other);
+    }
+
+    private function refundOfTheCredit(string $amount): int
+    {
+        return (new CreditRefunds(CreditRefunds::CUSTOMER))->refund($this->customerId, $amount, date('Y-m-d'), 'Cash', null, '', '', $this->refunder());
+    }
+
+    private function cancelRefund(int $refundId, string $reason): void
+    {
+        (new CreditRefunds(CreditRefunds::CUSTOMER))->cancel($refundId, $reason, $this->refunder());
+    }
+
+    private function refunder(): int
+    {
+        return $this->employeeWithGrants([AccountingGuard::RECEIVABLES_MANAGE, AccountingGuard::RECEIVABLES_REFUND]);
+    }
+
+    private function freeCredit(): string
+    {
+        return bcadd($this->position()->credit(), '0', 2);
+    }
+
+    public function testCancel_RefusesTheAdvanceWhoseCreditWasPaidBackUntilTheRefundIsCancelled(): void
+    {
+        $advanceId = $this->receive('100.00');
+        $refundId  = $this->refundOfTheCredit('60.00');
+
+        $refusal = $this->refusal(fn () => $this->advances->cancel($advanceId, 'taken by mistake', $this->clerk));
+
+        $this->assertSame(AccountingError::CreditRefunded, $refusal->error);
+        $this->assertSame('completed', $this->accountingDb()->table('customer_advances')->where('advance_id', $advanceId)->get()->getRow()->status);
+        $this->assertSame('40.00', $this->freeCredit());
+
+        $this->cancelRefund($refundId, 'paid twice');
+        $this->advances->cancel($advanceId, 'taken by mistake', $this->clerk);
+
+        $this->assertSame('0.00', $this->freeCredit());
+        $this->assertSame('0.00', $this->balance($this->customerAccount()));
+        $this->assertTies();
+    }
+
+    public function testCancel_LeavesTheRestOfAnAdvanceToBeCancelledWhenOnlyPartOfItWasPaidBack(): void
+    {
+        $first  = $this->receive('100.00', $this->daysAgo(3));
+        $second = $this->receive('50.00', $this->daysAgo(1));
+
+        $this->refundOfTheCredit('80.00');
+
+        $this->assertSame(AccountingError::CreditRefunded, $this->refusal(fn () => $this->advances->cancel($first, 'mistake', $this->clerk))->error);
+
+        $this->advances->cancel($second, 'mistake', $this->clerk);
+
+        $this->assertSame('20.00', $this->freeCredit());
+        $this->assertTies();
     }
 }

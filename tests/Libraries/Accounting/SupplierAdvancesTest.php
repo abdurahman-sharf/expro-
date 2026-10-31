@@ -5,6 +5,7 @@ namespace Tests\Libraries\Accounting;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\CreditRefunds;
 use App\Libraries\Accounting\CreditSource;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\ReceivingPostingBuilder;
@@ -794,5 +795,22 @@ class SupplierAdvancesTest extends CIUnitTestCase
             'supplier_balance'         => $this->owed(),
             'credit_applications_left' => (string) count($this->supplierApplications()),
         ], 'purchase after the payment is cancelled');
+    }
+
+    public function testCancel_RefusesTheAdvanceWhoseCreditWasPaidBackUntilTheRefundIsCancelled(): void
+    {
+        $refunds  = new CreditRefunds(CreditRefunds::SUPPLIER);
+        $refunder = $this->employeeWithGrants([AccountingGuard::PAYABLES_REFUND, AccountingGuard::PAYABLES_MANAGE]);
+        $advanceId = $this->advances->pay($this->supplierId, '100.00', date('Y-m-d'), 'Cash', null, '', '', $refunder);
+        $refundId  = $refunds->refund($this->supplierId, '60.00', date('Y-m-d'), 'Cash', null, '', '', $refunder);
+
+        $this->assertSame(AccountingError::CreditRefunded, $this->refusal(fn () => $this->advances->cancel($advanceId, 'taken by mistake', $refunder))->error);
+        $this->assertSame('completed', $this->accountingDb()->table('supplier_advances')->where('advance_id', $advanceId)->get()->getRow()->status);
+
+        $refunds->cancel($refundId, 'paid twice', $refunder);
+        $this->advances->cancel($advanceId, 'taken by mistake', $refunder);
+
+        $this->assertSame('0.00', bcadd($this->supplierPosition()->credit(), '0', 2));
+        $this->assertSupplierTies();
     }
 }

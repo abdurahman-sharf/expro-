@@ -9,20 +9,24 @@ use App\Libraries\Accounting\CreditRefunds;
 use App\Libraries\Accounting\CreditSource;
 use App\Libraries\Accounting\CustomerAdvances;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\Accounting\SupplierAdvances;
 use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\CreditRefundFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
+use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 
 /**
- * Paying a customer back the credit they hold: a journal that debits their account and credits the
- * treasury, taken from named credits so that what is left to spend is what the account still
- * holds, and a credit that was paid back cannot shrink until the refund is cancelled.
+ * Paying a customer back the credit they hold and being paid back the credit held with a supplier: a
+ * journal that goes through a treasury, taken from named credits so that what is left to spend is what
+ * the account still holds, and a refund that is cancelled rather than deleted.
  */
 class CreditRefundsTest extends CIUnitTestCase
 {
@@ -31,6 +35,8 @@ class CreditRefundsTest extends CIUnitTestCase
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
+    use PurchaseAccountingFixtureTrait;
+    use CreditRefundFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -51,7 +57,7 @@ class CreditRefundsTest extends CIUnitTestCase
     {
         parent::setUp();
 
-        $this->startSelling();
+        $this->startBuying();
 
         $this->refunds  = new CreditRefunds(CreditRefunds::CUSTOMER);
         $this->advances = new CustomerAdvances();
@@ -60,7 +66,7 @@ class CreditRefundsTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
-        $this->stopSelling();
+        $this->stopBuying();
 
         parent::tearDown();
     }
@@ -74,6 +80,14 @@ class CreditRefundsTest extends CIUnitTestCase
         }
 
         $this->fail('The change was not refused.');
+    }
+
+    private function assertOutsideTheBranch(callable $action): void
+    {
+        $refusal = $this->refusal($action);
+
+        $this->assertInstanceOf(BranchException::class, $refusal);
+        $this->assertSame(BranchError::NotAllowed, $refusal->error);
     }
 
     /**
@@ -237,7 +251,7 @@ class CreditRefundsTest extends CIUnitTestCase
         $limited = $this->employeeWithGrants([AccountingGuard::RECEIVABLES_REFUND], [$other]);
         $drawer  = (new TreasuryService())->create(['name' => 'Branch one drawer', 'kind' => 'cash', 'branch_id' => 1], $this->clerk);
 
-        $this->refusal(fn () => $this->refund('50.00', null, $drawer, $limited));
+        $this->assertOutsideTheBranch(fn () => $this->refund('50.00', null, $drawer, $limited));
 
         $this->assertSame(0, $this->countRows('customer_credit_refunds'));
         $this->assertSame('200.00', $this->free());
@@ -553,7 +567,7 @@ class CreditRefundsTest extends CIUnitTestCase
         $other   = $this->createBranch('B2');
         $limited = $this->employeeWithGrants([AccountingGuard::RECEIVABLES_REFUND], [$other]);
 
-        $this->refusal(fn () => $this->refunds->cancel($refundId, 'other branch', $limited));
+        $this->assertOutsideTheBranch(fn () => $this->refunds->cancel($refundId, 'other branch', $limited));
 
         $this->assertSame('completed', $this->accountingDb()->table('customer_credit_refunds')->where('refund_id', $refundId)->get()->getRow()->status);
     }
@@ -580,117 +594,28 @@ class CreditRefundsTest extends CIUnitTestCase
         $this->assertSame(1, $this->countRows('customer_credit_refunds'));
     }
 
-    public function testRefund_ForbidsDeletingThePaymentWhoseExcessWasPaidBackAndChangesNothing(): void
+    public function testRefund_RefusesAKeyThatWasUsedForAnotherCustomerEvenForTheSameAmount(): void
     {
-        $invoice = $this->invoiceOf('230.00');
-        $paid    = $this->addPayment($invoice, '300.00');
+        $other = $this->anotherCustomer();
 
-        $this->refund('70.00');
+        $this->advance();
+        $this->advances->receive($other, '200.00', date('Y-m-d'), 'Cash', null, '', '', $this->clerk);
 
-        $journals = $this->countJournals();
-        $before   = $this->accountingDb()->table('sales_payments')->where('payment_id', $paid)->get()->getRow();
+        $first = $this->refund('50.00', null, null, null, 'refund-form-3');
 
-        $this->assertFalse($this->sales->update($invoice, ['comment' => 'removed', 'payments' => [
-            ['payment_id' => $paid, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '0', 'cash_refund' => 0, 'cash_adjustment' => 0, 'employee_id' => $this->employeeId, 'reference_code' => null],
-        ]]));
+        $refusal = $this->refusal(fn () => $this->refund('50.00', null, null, null, 'refund-form-3', $other));
 
-        $failure = $this->failure();
-
-        $this->assertInstanceOf(AccountingException::class, $failure);
-        $this->assertSame(AccountingError::CreditRefunded, $failure->error);
-        $this->assertSame($journals, $this->countJournals());
-        $this->assertEquals($before, $this->accountingDb()->table('sales_payments')->where('payment_id', $paid)->get()->getRow());
-        $this->assertSame('0.00', $this->free());
-        $this->assertTies();
+        $this->assertSame(AccountingError::WriteFailed, $refusal->error);
+        $this->assertSame($first, $refusal->context['refund_id']);
+        $this->assertSame(1, $this->countRows('customer_credit_refunds'));
+        $this->assertSame('200.00', bcadd($this->position($other)->credit(), '0', 2));
     }
 
-    public function testRefund_ForbidsCuttingThePaymentBelowWhatWasPaidBackAndAllowsCuttingItAboveIt(): void
-    {
-        $invoice = $this->invoiceOf('230.00');
-        $paid    = $this->addPayment($invoice, '300.00');
 
-        $this->refund('50.00');
 
-        $cut = fn (string $amount): bool => $this->sales->update($invoice, ['comment' => 'cut', 'payments' => [
-            ['payment_id' => $paid, 'payment_type' => lang('Sales.cash'), 'payment_amount' => $amount, 'cash_refund' => 0, 'cash_adjustment' => 0, 'employee_id' => $this->employeeId, 'reference_code' => null],
-        ]]);
 
-        $this->assertFalse($cut('270.00'));
-        $this->assertSame(AccountingError::CreditRefunded, $this->failure()->error);
-        $this->assertSame('300.0000', bcadd($this->accountingDb()->table('sales_payments')->where('payment_id', $paid)->get()->getRow()->payment_amount, '0', 4));
 
-        $this->assertTrue($cut('290.00'));
-        $this->assertSame('10.00', $this->free());
-        $this->assertTies();
-    }
 
-    public function testRefund_CutsWhatWasSpentOnAnInvoiceWhenTheCreditShrinksToWhatWasPaidBack(): void
-    {
-        $source = $this->invoiceOf('100.00');
-        $paid   = $this->addPayment($source, '150.00');
-        $waits  = $this->invoiceOf('30.00');
-
-        $this->assertSame(['invoice_excess:' . $source . '->' . $waits . ':30.00'], $this->applications());
-
-        $this->refund('20.00');
-
-        $this->assertTrue($this->sales->update($source, ['comment' => 'cut', 'payments' => [
-            ['payment_id' => $paid, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '120.00', 'cash_refund' => 0, 'cash_adjustment' => 0, 'employee_id' => $this->employeeId, 'reference_code' => null],
-        ]]));
-
-        $this->assertSame([], $this->applications());
-        $this->assertSame('30.00', bcadd($this->position()->invoice($waits)->open(), '0', 2));
-        $this->assertSame('0.00', $this->free());
-        $this->assertTies();
-    }
-
-    public function testRefund_AllowsDeletingThePaymentOnceTheRefundIsCancelled(): void
-    {
-        $invoice  = $this->invoiceOf('230.00');
-        $paid     = $this->addPayment($invoice, '300.00');
-        $refundId = $this->refund('70.00');
-
-        $this->refunds->cancel($refundId, 'paid twice', $this->clerk);
-        $this->removePayment($invoice, $paid);
-
-        $this->assertSame('230.00', bcadd($this->position()->invoice($invoice)->open(), '0', 2));
-        $this->assertSame('0.00', $this->free());
-        $this->assertTies();
-    }
-
-    public function testRefund_ForbidsCancellingTheAdvanceWhoseCreditWasPaidBackUntilTheRefundIsCancelled(): void
-    {
-        $advanceId = $this->advance('100.00');
-        $refundId  = $this->refund('60.00');
-
-        $refusal = $this->refusal(fn () => $this->advances->cancel($advanceId, 'taken by mistake', $this->clerk));
-
-        $this->assertSame(AccountingError::CreditRefunded, $refusal->error);
-        $this->assertSame('completed', $this->accountingDb()->table('customer_advances')->where('advance_id', $advanceId)->get()->getRow()->status);
-        $this->assertSame('40.00', $this->free());
-
-        $this->refunds->cancel($refundId, 'paid twice', $this->clerk);
-        $this->advances->cancel($advanceId, 'taken by mistake', $this->clerk);
-
-        $this->assertSame('0.00', $this->free());
-        $this->assertSame('0.00', $this->balance($this->customerAccount()));
-        $this->assertTies();
-    }
-
-    public function testRefund_LeavesTheRestOfAnAdvanceToBeCancelledWhenOnlyPartOfItWasPaidBack(): void
-    {
-        $first  = $this->advance('100.00', $this->daysAgo(3));
-        $second = $this->advance('50.00', $this->daysAgo(1));
-
-        $this->refund('80.00');
-
-        $this->assertSame(AccountingError::CreditRefunded, $this->refusal(fn () => $this->advances->cancel($first, 'mistake', $this->clerk))->error);
-
-        $this->advances->cancel($second, 'mistake', $this->clerk);
-
-        $this->assertSame('20.00', $this->free());
-        $this->assertTies();
-    }
 
     public function testForParty_ListsTheRefundsNewestFirstWithTheirTreasuriesAndTheirCredits(): void
     {
@@ -728,5 +653,262 @@ class CreditRefundsTest extends CIUnitTestCase
 
         $this->assertSame(AccountingError::RefundExceedsCredit, $this->refusal(fn () => $this->refund('10.00', null, null, null, null, $other))->error);
         $this->assertSame('100.00', $this->free());
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Being paid back the credit held with a supplier
+    // ---------------------------------------------------------------------------------------
+
+    public function testRefund_DebitsTheTreasuryAndCreditsTheSupplierWhenTheyPayTheCreditBack(): void
+    {
+        $this->advanceToSupplier('300.00');
+
+        $refundId = $this->supplierRefund('100.00');
+        $journal  = $this->accountingDb()->table('accounting_journals')->where(['source_type' => CreditRefunds::SUPPLIER_SOURCE, 'source_id' => $refundId, 'status' => 'posted'])->get()->getRow();
+        $lines    = array_map(
+            static fn (object $line): string => $line->account_id . '=' . bcadd($line->debit, '0', 2) . '/' . bcadd($line->credit, '0', 2),
+            $this->accountingDb()->table('accounting_journal_lines')->where('journal_id', $journal->journal_id)->orderBy('line_no')->get()->getResult(),
+        );
+
+        $this->assertSame([$this->accountId('cash') . '=100.00/0.00', $this->supplierAccount() . '=0.00/100.00'], $lines);
+        $this->assertSame('200.00', bcadd($this->supplierPosition()->credit(), '0', 2));
+        $this->assertSame('-200.00', $this->owed());
+        $this->assertSupplierTies();
+    }
+
+    public function testRefund_TiesTheTreasuryItCameThroughToItsPositionForASupplier(): void
+    {
+        $treasuries = new TreasuryService();
+        $drawer     = $treasuries->create(['name' => 'Supplier receipts', 'kind' => 'cash'], $this->supplierTreasurer());
+
+        $this->advanceToSupplier('300.00', null, $drawer);
+        $this->supplierRefund('120.00', null, $drawer);
+
+        $this->assertSame('-180.0000', $treasuries->position($drawer)->balance);
+        $this->assertSame($this->balance($treasuries->accountOf($drawer)), bcadd($treasuries->position($drawer)->balance, '0', 2));
+        $this->assertSupplierTies();
+    }
+
+    public function testRefund_RequiresThePayablesRefundPermissionAndNotTheOneOfCustomers(): void
+    {
+        $this->advanceToSupplier('300.00');
+
+        $customerSide = $this->employeeWithGrants([AccountingGuard::RECEIVABLES_REFUND, AccountingGuard::PAYABLES_MANAGE]);
+
+        $this->assertSame(AccountingError::PermissionDenied, $this->refusal(fn () => $this->supplierRefund('10.00', $customerSide))->error);
+        $this->assertSame(0, $this->countRows('supplier_credit_refunds'));
+        $this->assertSame('300.00', bcadd($this->supplierPosition()->credit(), '0', 2));
+    }
+
+    public function testRefund_RefusesATreasuryTheEmployeeMayNotDepositIntoAndAcceptsOneTheyMay(): void
+    {
+        $treasurer  = $this->supplierTreasurer();
+        $treasuries = new TreasuryService();
+        $other      = $this->employeeWithGrants([]);
+        $locked     = $treasuries->create(['name' => 'Locked drawer', 'kind' => 'cash', 'deposit_scope' => 'staff', 'deposit_members' => [$other]], $treasurer);
+        $own        = $treasuries->create(['name' => 'Own drawer', 'kind' => 'cash', 'deposit_scope' => 'staff', 'deposit_members' => [$treasurer]], $treasurer);
+
+        $this->advanceToSupplier('300.00');
+
+        $refusal = $this->refusal(fn () => $this->supplierRefund('50.00', $treasurer, $locked));
+
+        $this->assertSame(AccountingError::TreasuryDepositDenied, $refusal->error);
+        $this->assertSame(0, $this->countRows('supplier_credit_refunds'));
+
+        $this->supplierRefund('50.00', $treasurer, $own);
+
+        $this->assertSame('50.0000', $treasuries->position($own)->balance);
+    }
+
+    public function testRefund_DoesNotLetTheWithdrawScopeStandInForTheDepositScope(): void
+    {
+        $treasurer  = $this->supplierTreasurer();
+        $treasuries = new TreasuryService();
+        $other      = $this->employeeWithGrants([]);
+        $drawer     = $treasuries->create(['name' => 'Pay-out only', 'kind' => 'cash', 'withdraw_scope' => 'staff', 'withdraw_members' => [$other]], $treasurer);
+
+        $this->advanceToSupplier('300.00');
+        $this->supplierRefund('50.00', $treasurer, $drawer);
+
+        $this->assertSame('50.0000', $treasuries->position($drawer)->balance);
+    }
+
+    public function testRefund_RefusesABranchTheEmployeeDoesNotWorkInForASupplier(): void
+    {
+        $this->advanceToSupplier('300.00');
+
+        $other   = $this->createBranch('B2');
+        $limited = $this->employeeWithGrants([AccountingGuard::PAYABLES_REFUND], [$other]);
+        $drawer  = (new TreasuryService())->create(['name' => 'Branch one drawer', 'kind' => 'cash', 'branch_id' => 1], $this->supplierTreasurer());
+
+        $this->refusal(fn () => $this->supplierRefund('50.00', $limited, $drawer));
+
+        $this->assertSame(0, $this->countRows('supplier_credit_refunds'));
+    }
+
+    public function testRefund_IsRefusedInAClosedPeriodAndSavesNothingForASupplier(): void
+    {
+        $this->advanceToSupplier('300.00');
+        $this->closeThrough(date('Y-m-d'));
+
+        $exception = $this->refusal(fn () => $this->supplierRefund('50.00'));
+
+        $this->assertStringContainsString(date('Y-m-d'), $exception->getMessage());
+        $this->assertSame(0, $this->countRows('supplier_credit_refunds'));
+        $this->assertSame(0, $this->countRows('supplier_credit_refund_sources'));
+        $this->assertSame('300.00', bcadd($this->supplierPosition()->credit(), '0', 2));
+    }
+
+    public function testRefund_RefusesMoreThanTheCreditThatIsFreeBecauseWhatWasSpentOnAPurchaseIsNotFree(): void
+    {
+        $this->advanceToSupplier('100.00');
+        $this->purchaseOf('60.00');
+
+        $this->assertSame('40.00', bcadd($this->supplierPosition()->credit(), '0', 2));
+
+        $refusal = $this->refusal(fn () => $this->supplierRefund('40.01'));
+
+        $this->assertSame(AccountingError::RefundExceedsCredit, $refusal->error);
+        $this->assertSame('40.00', $refusal->context['max']);
+
+        $this->supplierRefund('40.00');
+
+        $this->assertSame('0.00', bcadd($this->supplierPosition()->credit(), '0', 2));
+        $this->assertSupplierTies();
+    }
+
+    public function testRefund_TakesTheCreditOfTheOldestSupplierSourcesFirst(): void
+    {
+        $purchase = $this->purchaseOf('100.00', null, lang('Sales.cash'));
+        $note     = $this->debitNoteOf($purchase, '40.00');
+        $advance  = (new SupplierAdvances())->pay($this->supplierId, '100.00', $this->daysAgo(3), 'Cash', null, '', '', $this->supplierTreasurer());
+
+        $this->accountingDb()->table('receivings')->where('receiving_id', $note)->update(['receiving_time' => $this->daysAgo(1) . ' 10:00:00']);
+        $this->accountingDb()->table('accounting_journals')->where(['source_type' => 'purchase', 'source_id' => $note])->update(['journal_date' => $this->daysAgo(1)]);
+
+        $refundId = $this->supplierRefund('120.00');
+        $by       = [];
+
+        foreach ($this->accountingDb()->table('supplier_credit_refund_sources')->where('refund_id', $refundId)->get()->getResult() as $row) {
+            $by[$row->source_type . ':' . $row->source_id] = bcadd($row->amount, '0', 2);
+        }
+
+        $this->assertEquals(['supplier_advance:' . $advance => '100.00', 'debit_note:' . $note => '20.00'], $by);
+        $this->assertSupplierTies();
+    }
+
+    public function testCancel_ReversesTheJournalGivesTheCreditBackAndSpendsItOnThePurchaseThatWaited(): void
+    {
+        $treasurer = $this->supplierTreasurer();
+
+        $this->advanceToSupplier('100.00');
+
+        $refundId = $this->supplierRefund('100.00', $treasurer);
+        $purchase = $this->purchaseOf('80.00');
+
+        $this->assertSame('80.00', bcadd($this->supplierPosition()->purchase($purchase)->open(), '0', 2));
+
+        $this->refundsFromSuppliers()->cancel($refundId, 'paid twice', $treasurer);
+
+        $this->assertSame('0.00', bcadd($this->supplierPosition()->purchase($purchase)->open(), '0', 2));
+        $this->assertSame('20.00', bcadd($this->supplierPosition()->credit(), '0', 2));
+        $this->assertSame('cancelled', $this->accountingDb()->table('supplier_credit_refunds')->where('refund_id', $refundId)->get()->getRow()->status);
+        $this->assertSupplierTies();
+    }
+
+    public function testCancel_RefusesAnEmployeeWhoMayNotWithdrawFromTheTreasuryTheRefundWentInto(): void
+    {
+        $treasurer  = $this->supplierTreasurer();
+        $treasuries = new TreasuryService();
+        $other      = $this->employeeWithGrants([]);
+        $drawer     = $treasuries->create(['name' => 'Supplier receipts', 'kind' => 'cash', 'withdraw_scope' => 'staff', 'withdraw_members' => [$treasurer]], $treasurer);
+
+        $this->advanceToSupplier('300.00');
+
+        $refundId = $this->supplierRefund('50.00', $treasurer, $drawer);
+
+        $treasuries->update($drawer, ['name' => 'Supplier receipts', 'kind' => 'cash', 'withdraw_scope' => 'staff', 'withdraw_members' => [$other]], $treasurer);
+
+        $this->assertSame(AccountingError::TreasuryWithdrawDenied, $this->refusal(fn () => $this->refundsFromSuppliers()->cancel($refundId, 'paid twice', $treasurer))->error);
+        $this->assertSame('completed', $this->accountingDb()->table('supplier_credit_refunds')->where('refund_id', $refundId)->get()->getRow()->status);
+    }
+
+    public function testRefund_SavesOneRefundWhenTheFormIsSentTwiceAndWritesItsAuditEntries(): void
+    {
+        $treasurer = $this->supplierTreasurer();
+
+        $this->advanceToSupplier('300.00');
+
+        $first  = $this->supplierRefund('50.00', $treasurer, null, null, 'supplier-form-1');
+        $second = $this->supplierRefund('50.00', $treasurer, null, null, 'supplier-form-1');
+
+        $this->assertSame($first, $second);
+        $this->assertSame(1, $this->countRows('supplier_credit_refunds'));
+        $this->assertSame(1, $this->accountingDb()->table('accounting_journals')->where('source_type', CreditRefunds::SUPPLIER_SOURCE)->countAllResults());
+
+        $this->refundsFromSuppliers()->cancel($first, 'paid twice', $treasurer);
+
+        $entries = $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'supplier_refund', 'entity_id' => $first])->orderBy('audit_id')->get()->getResult();
+
+        $this->assertSame(['created', 'cancelled'], array_column($entries, 'action'));
+        $this->assertSame((string) $treasurer, (string) $entries[0]->employee_id);
+    }
+
+    public function testRefund_NeverTakesTheCreditOfAnotherSupplier(): void
+    {
+        $other = $this->anotherSupplier();
+
+        $this->advanceToSupplier('100.00');
+
+        $this->assertSame(AccountingError::RefundExceedsCredit, $this->refusal(fn () => $this->refundsFromSuppliers()->refund($other, '10.00', date('Y-m-d'), 'Cash', null, '', '', $this->supplierTreasurer()))->error);
+        $this->assertSame(AccountingError::RefundPartyMissing, $this->refusal(fn () => $this->refundsFromSuppliers()->refund(99999999, '10.00', date('Y-m-d'), 'Cash', null, '', '', $this->supplierTreasurer()))->error);
+    }
+
+    public function testRefund_RefusesTheExcessOfAPurchaseOnDaysBeforeThePaymentThatOverpaidIt(): void
+    {
+        $purchase = $this->purchaseDated('100.00', $this->daysAgo(10));
+
+        $this->payPurchase($purchase, '150.00');
+
+        $refusal = $this->refusal(fn () => $this->supplierRefund('50.00', null, null, $this->daysAgo(5)));
+
+        $this->assertSame(AccountingError::RefundExceedsCredit, $refusal->error);
+        $this->assertSame('0.00', $refusal->context['max']);
+        $this->assertSame(0, $this->countRows('supplier_credit_refunds'));
+
+        $this->supplierRefund('50.00');
+
+        foreach ([$this->daysAgo(10), $this->daysAgo(5), $this->daysAgo(1), date('Y-m-d')] as $day) {
+            $this->assertTrue($this->supplierPosition(null, $day)->agrees(), $day);
+        }
+    }
+
+    public function testRefund_RefusesAKeyThatWasUsedForAnotherSupplierEvenForTheSameAmount(): void
+    {
+        $other     = $this->anotherSupplier();
+        $treasurer = $this->supplierTreasurer();
+
+        $this->advanceToSupplier('200.00', $treasurer);
+        (new SupplierAdvances())->pay($other, '200.00', date('Y-m-d'), 'Cash', null, '', '', $treasurer);
+
+        $first = $this->supplierRefund('50.00', $treasurer, null, null, 'supplier-form-3');
+
+        $refusal = $this->refusal(fn () => $this->supplierRefund('50.00', $treasurer, null, null, 'supplier-form-3', $other));
+
+        $this->assertSame(AccountingError::WriteFailed, $refusal->error);
+        $this->assertSame($first, $refusal->context['refund_id']);
+        $this->assertSame(1, $this->countRows('supplier_credit_refunds'));
+        $this->assertSame('200.00', bcadd($this->supplierPosition($other)->credit(), '0', 2));
+    }
+
+    public function testRefund_RefusesAKeyThatWasUsedForAnotherAmountForASupplier(): void
+    {
+        $treasurer = $this->supplierTreasurer();
+
+        $this->advanceToSupplier('200.00', $treasurer);
+        $this->supplierRefund('50.00', $treasurer, null, null, 'supplier-form-4');
+
+        $this->assertSame(AccountingError::WriteFailed, $this->refusal(fn () => $this->supplierRefund('60.00', $treasurer, null, null, 'supplier-form-4'))->error);
+        $this->assertSame(1, $this->countRows('supplier_credit_refunds'));
     }
 }
