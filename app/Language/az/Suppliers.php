@@ -5,6 +5,7 @@ return [
     'agency_name'           => 'Agentliyin Adı',
     'cannot_be_deleted'     => 'Seçilmiş Təchizatçı (lar) silinə bilmədi. Bir və ya birdən çox satışlar var.',
     'category'              => 'Bölmə',
+    'commercial_registry'   => '',
     'company_name'          => 'Firma Adı',
     'company_name_required' => 'Şirkətin Adı - yazılması vacib sahə.',
     'confirm_delete'        => 'Siz əminsiniz ki seçilmiş təchizatçı (lar) ı silmək istəyirsiniz?',

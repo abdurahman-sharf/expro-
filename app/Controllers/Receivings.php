@@ -2,17 +2,21 @@
 
 namespace App\Controllers;
 
+use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\InvoiceDiscount;
+use App\Libraries\Accounting\InvoiceTiming;
 use App\Libraries\Accounting\PaymentStatus;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\ReceivingAmounts;
+use App\Libraries\Accounting\ReceivingLineEdit;
 use App\Libraries\Accounting\ReceivingLoader;
 use App\Libraries\Accounting\ReceivingPosting;
 use App\Libraries\Accounting\ReceivingType;
 use App\Libraries\Accounting\SupplierLedger;
+use App\Libraries\Accounting\SupplierPaymentDate;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Barcode_lib;
@@ -188,6 +192,74 @@ class Receivings extends Secure_Controller
         $this->receiving_lib->set_reference($this->request->getPost('recv_reference', FILTER_SANITIZE_FULL_SPECIAL_CHARS));
 
         return $this->response->setJSON(['success' => true]);
+    }
+
+    /**
+     * Sets the day typed on the purchase being made, for an employee who may type it, or takes it
+     * back when it is sent empty. Used in app/Views/receivings/receiving.php
+     *
+     * @noinspection PhpUnused
+     */
+    public function postSetInvoiceDate(): ResponseInterface
+    {
+        $settings = new AccountingSettings();
+
+        if (! $settings->isEnabled() || ! $this->mayTypeInvoiceDate()) {
+            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => AccountingMessage::of(new AccountingException(AccountingError::PermissionDenied))]);
+        }
+
+        $typed = $this->request->getPost('recv_invoice_date');
+
+        try {
+            $date = InvoiceTiming::date(is_array($typed) ? 'not a day' : (string) $typed, date('Y-m-d'), $settings->startDate());
+        } catch (AccountingException $refusal) {
+            return $this->response->setJSON(['success' => false, 'message' => AccountingMessage::of($refusal)]);
+        }
+
+        $this->receiving_lib->setInvoiceDate($date);
+
+        return $this->response->setJSON(['success' => true, 'due_date_label' => $this->registerDueDateLabel()]);
+    }
+
+    /**
+     * Sets the payment terms typed on the purchase being made, in days, or takes them back when they
+     * are sent empty. Used in app/Views/receivings/receiving.php
+     *
+     * @noinspection PhpUnused
+     */
+    public function postSetPaymentTerms(): ResponseInterface
+    {
+        if (! (new AccountingSettings())->isEnabled()) {
+            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => AccountingMessage::of(new AccountingException(AccountingError::PermissionDenied))]);
+        }
+
+        $typed = $this->request->getPost('recv_payment_terms');
+
+        try {
+            $terms = InvoiceTiming::terms(is_array($typed) ? 'not a number' : (string) $typed);
+        } catch (AccountingException $refusal) {
+            return $this->response->setJSON(['success' => false, 'message' => AccountingMessage::of($refusal)]);
+        }
+
+        $this->receiving_lib->setPaymentTerms($terms === null ? null : (string) $terms);
+
+        return $this->response->setJSON(['success' => true, 'due_date_label' => $this->registerDueDateLabel()]);
+    }
+
+    /**
+     * The day the purchase being made falls due, from the day it is dated and its payment terms,
+     * written for the screen, or empty when it has no terms.
+     */
+    private function registerDueDateLabel(): string
+    {
+        $terms = InvoiceTiming::terms($this->receiving_lib->getPaymentTerms());
+
+        return $terms === null ? '' : to_date(strtotime(InvoiceTiming::dueDate($this->receiving_lib->getInvoiceDate() ?? date('Y-m-d'), $terms)));
+    }
+
+    private function mayTypeInvoiceDate(): bool
+    {
+        return $this->employee->has_grant('receivings_invoice_date', (int) $this->employee->get_logged_in_employee_info()->person_id);
     }
 
     /**
@@ -391,12 +463,33 @@ class Receivings extends Secure_Controller
         $data['can_debit_note']         = false;
         $data['payment_options']        = $this->supplierPaymentOptions();
         $data['paymentNumbers']         = (new DocumentNumbering())->numbers(DocumentType::SupplierPayment, 'receivings_payments', array_map(static fn (object $payment): int => (int) $payment->payment_id, $data['payments']));
+        $data['paymentDates']           = [];
+        $data['today']                  = date('Y-m-d');
+
+        foreach ($data['payments'] as $payment) {
+            $data['paymentDates'][(int) $payment->payment_id] = SupplierPaymentDate::of($payment->payment_date, (string) $payment->payment_time);
+        }
+
         $data += $this->documentNumberOf((int) $receiving_id);
         $data['treasury_options']       = [];
         $data['new_treasury_options']   = [];
 
         $data['invoiceDiscount']      = InvoiceDiscount::stored($receivingInfo['invoice_discount_type'] === null ? null : (int) $receivingInfo['invoice_discount_type'], $receivingInfo['invoice_discount'] === null ? null : (string) $receivingInfo['invoice_discount']);
         $data['invoiceDiscountShare'] = $this->invoiceDiscountOf((int) $receiving_id);
+        $data['invoice_timing']       = null;
+
+        if ((new AccountingSettings())->isEnabled() && $receivingInfo['receiving_type'] === ReceivingType::Receive->value) {
+            $timing = $this->receiving->getInvoiceTiming((int) $receiving_id);
+            $date   = $timing['invoice_date'] ?? substr((string) $receivingInfo['receiving_time'], 0, 10);
+
+            $data['invoice_timing'] = ['date' => $date, 'terms' => $timing['payment_terms_days'], 'due' => $timing['due_date'] ?? $date];
+        }
+
+        $data['lines_editable']    = $receivingInfo['receiving_type'] === ReceivingType::Receive->value && ! $this->receiving->hasReturns((int) $receiving_id);
+        $data['lines_has_returns'] = $receivingInfo['receiving_type'] === ReceivingType::Receive->value && ! $data['lines_editable'];
+        $data['lines']             = $data['lines_editable'] ? $this->editableLines((int) $receiving_id) : [];
+        $data['lines_allowed']     = $this->mayCorrectLocationsOf($data['lines']);
+        $data['can_edit_tax']      = $this->employee->has_grant('items', $currentEmployeeId);
 
         if ((new AccountingSettings())->isEnabled()) {
             $data['treasury_options']     = $data['takes_payments'] ? $this->treasuryOptions((int) ($receivingInfo['branch_id'] ?? 0), $data['payments']) : [];
@@ -528,6 +621,7 @@ class Receivings extends Secure_Controller
             $data['last_name']        = $supplierInfo->last_name;
             $data['supplier_email']   = $supplierInfo->email;
             $data['supplier_address'] = $supplierInfo->address_1;
+            $data += $this->supplierNumbersOf($supplierInfo);
             if (! empty($supplierInfo->zip) || ! empty($supplierInfo->city)) {
                 $data['supplier_location'] = $supplierInfo->zip . ' ' . $supplierInfo->city;
             } else {
@@ -536,7 +630,7 @@ class Receivings extends Secure_Controller
         }
 
         // SAVE receiving to database
-        $saved = $this->receiving->save_value($data['cart'], $supplierId, $employeeId, $data['comment'], $data['reference'], $data['payment_type'], $data['stock_location'], $origin, $data['mode'] === 'receive' ? $data['invoiceDiscount'] : null);
+        $saved = $this->receiving->save_value($data['cart'], $supplierId, $employeeId, $data['comment'], $data['reference'], $data['payment_type'], $data['stock_location'], $origin, $data['mode'] === 'receive' ? $data['invoiceDiscount'] : null, $this->receiving_lib->getInvoiceDate(), $this->receiving_lib->getPaymentTerms());
 
         if ($saved === ACCOUNTING_FAILED) {
             return $this->_reload(['error' => $this->accountingFailureMessage() ?? lang('Receivings.transaction_failed')]);
@@ -549,6 +643,10 @@ class Receivings extends Secure_Controller
         $data['receiving_id'] = 'RECV ' . $saved;
         $data['barcode']      = $this->barcode_lib->generate_receipt_barcode($data['receiving_id']);
         $data += $this->documentNumberOf((int) $saved);
+
+        $timing               = $this->receiving->getInvoiceTiming((int) $saved);
+        $data['invoice_date'] = $timing['invoice_date'] === null ? null : to_date(strtotime($timing['invoice_date']));
+        $data['due_date']     = $timing['payment_terms_days'] === null || $timing['due_date'] === null ? null : to_date(strtotime($timing['due_date']));
 
         $data['print_after_sale'] = $this->receiving_lib->is_print_after_sale();
 
@@ -633,7 +731,10 @@ class Receivings extends Secure_Controller
         $data['tax_total']            = $this->receiving_lib->get_tax_total();
         $data['total_with_tax']       = $this->receiving_lib->get_total_with_tax();
         $data['mode']                 = $this->receiving_lib->get_mode();
+        $timing                       = $this->receiving->getInvoiceTiming((int) $receiving_id);
         $data['transaction_time']     = to_datetime(strtotime($receivingInfo['receiving_time']));
+        $data['invoice_date']         = $timing['invoice_date'] === null ? null : to_date(strtotime($timing['invoice_date']));
+        $data['due_date']             = $timing['payment_terms_days'] === null || $timing['due_date'] === null ? null : to_date(strtotime($timing['due_date']));
         $data['show_stock_locations'] = $this->stock_location->show_locations('receivings');
         $data['payment_type']         = $receivingInfo['payment_type'];
         $data['reference']            = $this->receiving_lib->get_reference();
@@ -655,6 +756,7 @@ class Receivings extends Secure_Controller
             $data['last_name']        = $supplierInfo->last_name;
             $data['supplier_email']   = $supplierInfo->email;
             $data['supplier_address'] = $supplierInfo->address_1;
+            $data += $this->supplierNumbersOf($supplierInfo);
             if (! empty($supplierInfo->zip) || ! empty($supplierInfo->city)) {
                 $data['supplier_location'] = $supplierInfo->zip . ' ' . $supplierInfo->city;
             } else {
@@ -696,6 +798,12 @@ class Receivings extends Secure_Controller
         $data['comment']              = $this->receiving_lib->get_comment();
         $data['reference']            = $this->receiving_lib->get_reference();
         $data['payment_options']      = $this->receiving->get_payment_options();
+        $data['accounting_enabled']   = (new AccountingSettings())->isEnabled();
+        $data['invoice_date']         = $this->receiving_lib->getInvoiceDate();
+        $data['payment_terms']        = $this->receiving_lib->getPaymentTerms();
+        $data['due_date_label']       = $this->registerDueDateLabel();
+        $data['can_type_invoice_date'] = $this->mayTypeInvoiceDate();
+        $data['today']                = date('Y-m-d');
 
         $data['invoiceDiscount']       = $this->receiving_lib->getInvoiceDiscount();
         $data['invoiceDiscountAmount'] = $this->receiving_lib->getInvoiceDiscountAmount();
@@ -715,6 +823,7 @@ class Receivings extends Secure_Controller
             $data['last_name']        = $supplier_info->last_name;
             $data['supplier_email']   = $supplier_info->email;
             $data['supplier_address'] = $supplier_info->address_1;
+            $data += $this->supplierNumbersOf($supplier_info);
             if (! empty($supplier_info->zip) || ! empty($supplier_info->city)) {
                 $data['supplier_location'] = $supplier_info->zip . ' ' . $supplier_info->city;
             } else {
@@ -757,7 +866,14 @@ class Receivings extends Secure_Controller
             'employee_id'    => $employee_id,
             'comment'        => $this->request->getPost('comment', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
             'reference'      => $this->request->getPost('reference') != '' ? $this->request->getPost('reference', FILTER_SANITIZE_FULL_SPECIAL_CHARS) : null,
+            'changed_by'     => (int) $current_employee_id,
         ];
+
+        $postedTerms = $this->request->getPost('payment_terms_days');
+
+        if (is_string($postedTerms)) {
+            $receiving_data['payment_terms_days'] = $postedTerms;
+        }
 
         $payments = $this->postedPayments((int) $current_employee_id);
 
@@ -780,6 +896,130 @@ class Receivings extends Secure_Controller
             'message' => $this->accountingFailureMessage() ?? lang('Receivings.unsuccessfully_updated'),
             'id'      => $receiving_id,
         ]);
+    }
+
+    /**
+     * Corrects the lines of a saved receiving: the quantity, the price, the discount, the tax and the
+     * text of each line, or takes a line out. The branch of the receiving and the stock location of every
+     * line must be the employee's own, and the tax of a line is only taken from whoever may edit costs, as
+     * it is in the register. Used in app/Views/receivings/form.php
+     *
+     * @throws ReflectionException
+     * @noinspection PhpUnused
+     */
+    public function postSaveLines(int $receivingId = -1): ResponseInterface
+    {
+        if ($this->outsideBranchScope($receivingId)) {
+            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Receivings.branch_not_allowed')]);
+        }
+
+        if (! $this->mayCorrectLocationsOf($this->receiving->get_receiving_items($receivingId)->getResultArray())) {
+            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Receivings.location_not_allowed')]);
+        }
+
+        $employeeId = (int) $this->employee->get_logged_in_employee_info()->person_id;
+        $edits      = $this->postedLineEdits($this->employee->has_grant('items', $employeeId));
+
+        if ($edits === null) {
+            return $this->response->setJSON(['success' => false, 'message' => AccountingMessage::of(new AccountingException(AccountingError::PurchaseEditLineInvalid)), 'id' => $receivingId]);
+        }
+
+        if ($this->receiving->updateLines($receivingId, $edits, $employeeId)) {
+            return $this->response->setJSON(['success' => true, 'message' => lang('Receivings.lines_updated'), 'id' => $receivingId]);
+        }
+
+        return $this->response->setJSON(['success' => false, 'message' => $this->accountingFailureMessage() ?? lang('Receivings.lines_not_updated'), 'id' => $receivingId]);
+    }
+
+    /**
+     * Whether the stock location of every line is one the employee has the receivings grant for, in the
+     * branches the employee works in, and one that is kept.
+     *
+     * @param list<array<string, mixed>> $lines
+     */
+    private function mayCorrectLocationsOf(array $lines): bool
+    {
+        foreach (array_unique(array_column($lines, 'item_location')) as $locationId) {
+            if (! $this->stock_location->is_allowed_location((int) $locationId, 'receivings', true)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * What the lines of the form ask for, or null when one of them is not a line that can be saved.
+     *
+     * @return list<ReceivingLineEdit>|null
+     */
+    private function postedLineEdits(bool $mayEditTax): ?array
+    {
+        $posted = $this->request->getPost('lines');
+        $edits  = [];
+
+        foreach (is_array($posted) ? $posted : [] as $fields) {
+            if (! is_array($fields) || ! isset($fields['item_id'], $fields['line'])) {
+                return null;
+            }
+
+            $itemId = (int) $fields['item_id'];
+            $line   = (int) $fields['line'];
+
+            if (! empty($fields['remove'])) {
+                $edits[] = ReceivingLineEdit::removing($itemId, $line);
+
+                continue;
+            }
+
+            $edit = ReceivingLineEdit::changing($itemId, $line, [
+                'quantity'      => $this->parsedLineNumber($fields, 'quantity', true),
+                'price'         => $this->parsedLineNumber($fields, 'price'),
+                'discount'      => $this->parsedLineNumber($fields, 'discount'),
+                'discount_type' => $this->unchangedAs($fields, 'discount_type') ? null : ($fields['discount_type'] ?? null),
+                'tax_percent'   => $mayEditTax ? $this->parsedLineNumber($fields, 'tax_percent') : null,
+                'description'   => isset($fields['description']) && is_string($fields['description']) ? $fields['description'] : null,
+                'serialnumber'  => isset($fields['serialnumber']) && is_string($fields['serialnumber']) ? $fields['serialnumber'] : null,
+            ]);
+
+            if ($edit === null) {
+                return null;
+            }
+
+            $edits[] = $edit;
+        }
+
+        return $edits;
+    }
+
+    /**
+     * Whether a field of a line of the form is as it was shown. The form shows numbers to the decimals of the
+     * screen, which can be fewer than the line keeps, so a field that was not touched is not read back as a change.
+     *
+     * @param array<string, mixed> $fields
+     */
+    private function unchangedAs(array $fields, string $name): bool
+    {
+        return isset($fields[$name], $fields[$name . '_was']) && $fields[$name] === $fields[$name . '_was'];
+    }
+
+    /**
+     * A number of a line of the form as the locale of the screen writes it, nothing when it is as it was shown.
+     * What is not a number is kept as it was written, so that the line is refused instead of being read as nothing.
+     *
+     * @param array<string, mixed> $fields
+     */
+    private function parsedLineNumber(array $fields, string $name, bool $quantity = false): mixed
+    {
+        $raw = $fields[$name] ?? null;
+
+        if (! is_string($raw) || trim($raw) === '' || $this->unchangedAs($fields, $name)) {
+            return null;
+        }
+
+        $parsed = $quantity ? parse_quantity(trim($raw)) : ($name === 'tax_percent' ? parse_tax(trim($raw)) : parse_decimals(trim($raw)));
+
+        return $parsed === false ? $raw : $parsed;
     }
 
     /**
@@ -829,6 +1069,27 @@ class Receivings extends Secure_Controller
         $this->receiving_lib->return_remaining_of_receiving($receivingId);
 
         return $this->response->setJSON(['success' => true, 'redirect' => site_url('receivings')]);
+    }
+
+    /**
+     * The lines of a saved receiving as the edit form shows them, each with the name of its item and of its
+     * stock location.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function editableLines(int $receivingId): array
+    {
+        $lines = [];
+
+        foreach ($this->receiving->get_receiving_items($receivingId)->getResultArray() as $row) {
+            $row['name']          = $this->item->get_info((int) $row['item_id'])->name;
+            $row['location_name'] = $this->stock_location->get_location_name((int) $row['item_location']);
+            $lines[]              = $row;
+        }
+
+        usort($lines, static fn (array $a, array $b): int => (int) $a['line'] <=> (int) $b['line']);
+
+        return $lines;
     }
 
     /**
@@ -882,6 +1143,7 @@ class Receivings extends Secure_Controller
                 'payment_status' => $this->request->getPost("payment_status_{$i}", FILTER_SANITIZE_FULL_SPECIAL_CHARS),
                 'reference_code' => (string) $this->request->getPost("reference_code_{$i}", FILTER_SANITIZE_FULL_SPECIAL_CHARS),
                 'employee_id'    => $employeeId,
+                ...$this->postedDate("payment_date_{$i}"),
                 ...$this->postedTreasury("treasury_id_{$i}"),
             ];
         }
@@ -897,11 +1159,26 @@ class Receivings extends Secure_Controller
                 'payment_status' => $this->request->getPost('payment_status_new', FILTER_SANITIZE_FULL_SPECIAL_CHARS) ?: PaymentStatus::Completed->value,
                 'reference_code' => (string) $this->request->getPost('reference_code_new', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
                 'employee_id'    => $employeeId,
+                ...$this->postedDate('payment_date_new'),
                 ...$this->postedTreasury('treasury_id_new'),
             ];
         }
 
         return $payments;
+    }
+
+    /**
+     * The date a payment of the form names, when the form has the field: without it a new payment
+     * is dated today and one that exists keeps its date. Whether it is a date at all is asked by
+     * the model, which gets whatever was sent.
+     *
+     * @return array{payment_date?: mixed}
+     */
+    private function postedDate(string $field): array
+    {
+        $posted = $this->request->getPost($field);
+
+        return $posted === null ? [] : ['payment_date' => $posted];
     }
 
     /**
@@ -997,6 +1274,19 @@ class Receivings extends Secure_Controller
             (new SupplierLedger())->applications($supplierId),
             static fn (object $application): bool => (int) $application->invoice_receiving_id === $receivingId || ($application->source_type === 'debit_note' && (int) $application->source_id === $receivingId),
         ));
+    }
+
+    /**
+     * The tax number and the commercial registry number of a supplier, for the screens and the documents of a purchase.
+     *
+     * @return array{supplier_tax_id: string, supplier_commercial_registry: string}
+     */
+    private function supplierNumbersOf(object $supplier): array
+    {
+        return [
+            'supplier_tax_id'              => (string) ($supplier->tax_id ?? ''),
+            'supplier_commercial_registry' => (string) ($supplier->commercial_registry ?? ''),
+        ];
     }
 
     private function accountingFailureMessage(): ?string

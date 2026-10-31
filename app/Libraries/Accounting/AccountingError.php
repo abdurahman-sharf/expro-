@@ -117,12 +117,23 @@ enum AccountingError: string
     case IssuedDocumentLocked = 'issued_document_locked';
     case CustomerBusy         = 'customer_busy';
 
-    case PurchaseLocked     = 'purchase_locked';
-    case PurchaseHasReturns = 'purchase_has_returns';
+    case InvoiceDateInvalid     = 'invoice_date_invalid';
+    case InvoiceDateBeforeStart = 'invoice_date_before_start';
+    case PaymentTermsInvalid    = 'payment_terms_invalid';
+
+    case PurchaseLocked               = 'purchase_locked';
+    case PurchaseHasReturns           = 'purchase_has_returns';
+    case PurchaseEditEmpty            = 'purchase_edit_empty';
+    case PurchaseEditHasReturns       = 'purchase_edit_has_returns';
+    case PurchaseEditLineInvalid      = 'purchase_edit_line_invalid';
+    case PurchaseEditNotAReceipt      = 'purchase_edit_not_a_receipt';
+    case PurchaseStockWouldGoNegative = 'purchase_stock_would_go_negative';
 
     case SupplierBusy                 = 'supplier_busy';
     case SupplierPaymentNeedsSupplier = 'supplier_payment_needs_supplier';
     case SupplierPaymentNotOnInvoice  = 'supplier_payment_not_on_invoice';
+    case PaymentDateBeforeBooks       = 'payment_date_before_books';
+    case PaymentDateInFuture          = 'payment_date_in_future';
 
     case AdvanceNotFound         = 'advance_not_found';
     case AdvanceAmountInvalid    = 'advance_amount_invalid';
@@ -156,6 +167,8 @@ enum AccountingError: string
 
     case ReportPeriodInvalid  = 'report_period_invalid';
     case ReportAccountMissing = 'report_account_missing';
+
+    case TaxBasisUnavailable = 'tax_basis_unavailable';
 
     case ExpenseCategoryAccountRequired = 'expense_category_account_required';
     case ExpenseCategoryAccountInvalid  = 'expense_category_account_invalid';

@@ -92,7 +92,7 @@ final class ReceivingPosting
     {
         $purchase = $this->loader->load($receivingId, false);
 
-        if (! $this->follows($purchase) || $this->activeJournal(ReceivingPostingBuilder::SOURCE_PURCHASE, $receivingId, JournalEntryType::General) === null) {
+        if ($purchase === null || ! $this->holdsPayments($purchase)) {
             return;
         }
 
@@ -103,6 +103,17 @@ final class ReceivingPosting
 
             $this->settle($purchase->supplierId, $employeeId);
         });
+    }
+
+    /**
+     * Whether the payments made against a purchase are posted: the purchase is one the books follow
+     * and it has reached them.
+     */
+    public function postsPayments(int $receivingId): bool
+    {
+        $purchase = $this->loader->load($receivingId, false);
+
+        return $purchase !== null && $this->holdsPayments($purchase);
     }
 
     /**
@@ -177,6 +188,50 @@ final class ReceivingPosting
     }
 
     /**
+     * Brings the books in line with the lines of a purchase that has been corrected: the journal that
+     * stands is reversed and its stock movements are taken back at the value they were written at,
+     * and the lines as they now are go in as the next revision, so that what the item is worth, the
+     * account of its stock location and what is owed to the supplier all follow. Nothing posted is
+     * rewritten. The payments made against the purchase are left as they are, and the credit of the
+     * supplier is settled again, and what was corrected is written to the audit log. A purchase the
+     * books do not follow has nothing to bring in line.
+     *
+     * @param array<string, mixed> $details What the audit log keeps of the correction.
+     *
+     * @throws AccountingException|PostingException
+     */
+    public function repost(int $receivingId, ?int $employeeId = null, array $details = []): void
+    {
+        $purchase = $this->loader->load($receivingId, false);
+
+        if (! $this->follows($purchase) || ! $this->isPosted($receivingId)) {
+            return;
+        }
+
+        $this->transactional(function () use ($purchase, $employeeId, $details): void {
+            $source = ReceivingPostingBuilder::issueSourceOf($purchase);
+            $active = $this->activeJournal($source, $purchase->receivingId, JournalEntryType::General);
+
+            $reversalId = null;
+            $date       = $purchase->date;
+
+            if ($active !== null) {
+                $replacement = $this->builder->purchase($purchase, $this->nextRevisionOf($source, $purchase->receivingId), $employeeId)->journal;
+
+                (new TreasuryScopes($this->db))->assertMayReplace((int) $active->journal_id, $replacement, $employeeId);
+
+                [$reversalId, $date] = $this->reverse($active, $employeeId, 'Purchase #' . $purchase->receivingId . ' edited');
+            }
+
+            $this->ledger->reverseSource($source, $purchase->receivingId, JournalEntryType::General, $date, $reversalId);
+            $this->postPurchase($purchase, $employeeId);
+            $this->settle($purchase->supplierId, $employeeId);
+
+            (new AuditLog($this->db))->write('purchase', $purchase->receivingId, 'lines_edited', $employeeId, JournalOrigin::User, $details, $purchase->branchId);
+        });
+    }
+
+    /**
      * Whether the purchase has reached the books: a journal that stands, or stock movements.
      */
     public function isPosted(int $receivingId): bool
@@ -192,24 +247,33 @@ final class ReceivingPosting
 
     /**
      * A purchase that has been posted keeps its supplier and its date, as an invoice that has
-     * been issued does. Only the changes named are compared.
+     * been issued does. The day typed on a purchase is never changed after it was saved, whether
+     * its journal stands or not, because the journal takes that day. Only the changes named are
+     * compared.
      *
-     * @param array{supplier_id?: ?int, date?: string} $changes
+     * @param array{supplier_id?: ?int, date?: string, invoice_date?: string} $changes
      *
      * @throws AccountingException
      */
     public function assertEditable(int $receivingId, array $changes): void
     {
-        if ($changes === [] || ! $this->isPosted($receivingId)) {
+        if ($changes === []) {
+            return;
+        }
+
+        $posted = $this->isPosted($receivingId);
+
+        if (! $posted && ! array_key_exists('invoice_date', $changes)) {
             return;
         }
 
         $purchase = $this->loader->load($receivingId, false);
 
-        $supplierChanged = array_key_exists('supplier_id', $changes) && ($purchase === null || $purchase->supplierId !== $changes['supplier_id']);
-        $dateChanged     = array_key_exists('date', $changes) && ($purchase === null || $purchase->date !== $changes['date']);
+        $supplierChanged = $posted && array_key_exists('supplier_id', $changes) && ($purchase === null || $purchase->supplierId !== $changes['supplier_id']);
+        $dateChanged     = $posted && array_key_exists('date', $changes) && ($purchase === null || $purchase->savedOn !== $changes['date']);
+        $invoiceChanged  = array_key_exists('invoice_date', $changes) && ($purchase === null || $purchase->date !== $changes['invoice_date']);
 
-        if ($supplierChanged || $dateChanged) {
+        if ($supplierChanged || $dateChanged || $invoiceChanged) {
             throw new AccountingException(AccountingError::PurchaseLocked, 'The supplier and the date of a purchase that has been posted cannot change. Correct it with a return.', ['receiving_id' => $receivingId]);
         }
     }
@@ -254,6 +318,11 @@ final class ReceivingPosting
         (new PostingFailureLog($this->db))->recordUnbuilt(ReceivingPostingBuilder::SOURCE_PURCHASE, $receivingId, 1, JournalEntryType::General, $posting, $employeeId, $branchId);
     }
 
+    private function holdsPayments(ReceivingDocument $purchase): bool
+    {
+        return $this->follows($purchase) && $this->activeJournal(ReceivingPostingBuilder::SOURCE_PURCHASE, $purchase->receivingId, JournalEntryType::General) !== null;
+    }
+
     private function settle(?int $supplierId, ?int $employeeId): void
     {
         if ($supplierId !== null) {
@@ -267,7 +336,7 @@ final class ReceivingPosting
     private function postPurchase(ReceivingDocument $purchase, ?int $employeeId): void
     {
         $source   = ReceivingPostingBuilder::issueSourceOf($purchase);
-        $revision = $this->nextRevision($source, $purchase->receivingId);
+        $revision = $this->nextRevisionOf($source, $purchase->receivingId);
 
         if ($purchase->toBranchId !== null) {
             $revision = max($revision, $this->nextRevision(ReceivingPostingBuilder::SOURCE_TRANSFER_RECEIPT, $purchase->receivingId));
@@ -328,6 +397,10 @@ final class ReceivingPosting
         $draft  = $this->builder->supplierPayment($purchase, $payment, $this->nextRevision(ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT, $payment->paymentId), $employeeId);
         $drafts = $draft === null ? [] : $this->crossBranch->drafts($draft, $payment->treasuryId, $payment->treasuryBranchId);
 
+        if ($active !== null && $draft !== null && $draft->date !== $active->journal_date) {
+            $this->assertOutOfClosedPeriods($active);
+        }
+
         if (count($drafts) > 1) {
             $this->crossBranch->sync($active, $drafts, $employeeId, fn (object $journal): array => $this->reverse($journal, $employeeId, 'Payment #' . $payment->paymentId . ' changed'));
 
@@ -348,6 +421,25 @@ final class ReceivingPosting
 
         if ($draft !== null) {
             $this->posting->post($draft);
+        }
+    }
+
+    /**
+     * A payment moves to another day by taking back the journal that stands and posting it again.
+     * Taking back a journal of a closed period is done on today's date, and the new journal would
+     * then be on an earlier day that is open, so the payment would count twice in between. A payment
+     * of a closed period is therefore left where it is.
+     *
+     * @throws PostingException
+     */
+    private function assertOutOfClosedPeriods(object $active): void
+    {
+        $standing = [$active, ...(new InterBranchLegs($this->db))->partnersOf((int) $active->journal_id)];
+
+        usort($standing, static fn (object $a, object $b): int => (int) $a->branch_id <=> (int) $b->branch_id);
+
+        foreach ($standing as $journal) {
+            $this->periods->enforce((string) $journal->journal_date, (int) $journal->branch_id);
         }
     }
 
@@ -424,6 +516,24 @@ final class ReceivingPosting
             ->limit(1)
             ->get()
             ->getRow();
+    }
+
+    /**
+     * The revision a purchase is posted under next: after the last journal of its source and after
+     * the last stock movements of its source, because goods that cost nothing have movements and no
+     * journal, and a revision of movements is written once.
+     */
+    private function nextRevisionOf(string $sourceType, int $sourceId): int
+    {
+        $row = $this->db->table('accounting_stock_entries')
+            ->selectMax('revision', 'last')
+            ->where('source_type', $sourceType)
+            ->where('source_id', $sourceId)
+            ->where('entry_type', JournalEntryType::General->value)
+            ->get()
+            ->getRow();
+
+        return max($this->nextRevision($sourceType, $sourceId), ((int) ($row->last ?? 0)) + 1);
     }
 
     private function nextRevision(string $sourceType, int $sourceId): int

@@ -5,6 +5,7 @@ return [
     'agency_name'           => 'Nome Agenzia',
     'cannot_be_deleted'     => 'Eliminazione del/i Fornitore/i non possibile. Uno o più hanno delle vendite.',
     'category'              => 'Categoria',
+    'commercial_registry'   => '',
     'company_name'          => 'Nome della ditta',
     'company_name_required' => 'Nome della ditta è un campo obbligatorio.',
     'confirm_delete'        => 'Sei sicuro di voler eliminare il/i Fornitore/i selezionati?',

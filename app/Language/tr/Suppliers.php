@@ -5,6 +5,7 @@ return [
     'agency_name'           => 'Ajans Adı',
     'cannot_be_deleted'     => 'Sağlayıcı silinemedi, bazı sağlayıcıların satışı var.',
     'category'              => 'Kategori',
+    'commercial_registry'   => '',
     'company_name'          => 'Şirket Adı',
     'company_name_required' => 'Şirket Adı zorunlu alandır.',
     'confirm_delete'        => 'Seçili sağlayıcıları silmek istiyor musunuz?',

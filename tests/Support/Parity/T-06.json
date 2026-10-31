@@ -26,6 +26,10 @@
   "journals_a3_cycle_third": {
    "id": "ev_ae83bb33a62401fa3c9af6107f0ceded2432d5e0370f6ff509c2afd1271ebde1",
    "note": "Third reading of the journals of that cycle"
+  },
+  "paid_on_creation": {
+   "id": "ev_1c986d0dbf01ec5b4cfbcceba76d07ba1ea099d1f7e089aad2404f428f37299d",
+   "note": "An invoice saved as already paid: its three journals were numbered 23, 24 and 25, the invoice, then the payment, then the cost of its goods. The amounts of that scenario were not all kept, so only the order is compared"
   }
  },
  "cases": [
@@ -339,6 +343,31 @@
      }
     ],
     "customer_balance": "0.00"
+   }
+  },
+  {
+   "id": "paid-on-creation-order",
+   "kind": "creation_order",
+   "classification": "exact",
+   "scope": "structure",
+   "evidence": [
+    "paid_on_creation"
+   ],
+   "inputs": {
+    "saved_as": "already paid",
+    "delivered": true,
+    "payments": 1
+   },
+   "reference": {
+    "numbers": {
+     "invoice": 23,
+     "payment": 24,
+     "invoice_cost": 25
+    },
+    "order": "invoice, payment, invoice_cost"
+   },
+   "expected": {
+    "order": "invoice, payment, invoice_cost"
    }
   }
  ]

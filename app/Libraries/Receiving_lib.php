@@ -5,6 +5,7 @@ namespace app\Libraries;
 use App\Libraries\Accounting\InvoiceDiscount;
 use App\Libraries\Accounting\InvoiceDiscountProblem;
 use App\Libraries\Accounting\InvoiceDiscountShares;
+use App\Libraries\Accounting\ItemPurchaseTax;
 use App\Libraries\Accounting\ReceivingAmounts;
 use App\Libraries\Accounting\ReceivingLine;
 use App\Libraries\Accounting\ReceivingType;
@@ -141,18 +142,12 @@ class Receiving_lib
     }
 
     /**
-     * What the tax of an item is by default: the sum of the rates the item carries, or nothing
-     * for goods that are not taxed.
+     * What the tax of an item is by default: the sum of its purchase taxes, each of which follows the
+     * sales tax of the same number while it is not set, or nothing for goods that are not taxed.
      */
     public function default_tax_percent(int $itemId): string
     {
-        $percent = '0';
-
-        foreach ($this->item_taxes->get_info($itemId) as $tax) {
-            $percent = bcadd($percent, (string) $tax['percent'], 3);
-        }
-
-        return $percent;
+        return ItemPurchaseTax::defaultPercent($this->item->get_info($itemId), $this->item_taxes->get_info($itemId));
     }
 
     public function get_stock_source(): int
@@ -194,6 +189,37 @@ class Receiving_lib
     public function clear_reference(): void    // TODO: This function verb is inconsistent from the others.  Consider refactoring to remove_reference()
     {
         $this->session->remove('recv_reference');
+    }
+
+    /**
+     * The day typed on the purchase being made, or null when it is dated the day it is saved.
+     */
+    public function getInvoiceDate(): ?string
+    {
+        $date = $this->session->get('recv_invoice_date');
+
+        return $date === null || $date === '' ? null : (string) $date;
+    }
+
+    public function setInvoiceDate(?string $date): void
+    {
+        $date === null || $date === '' ? $this->session->remove('recv_invoice_date') : $this->session->set('recv_invoice_date', $date);
+    }
+
+    /**
+     * The payment terms typed on the purchase being made, as the days they were typed in, or null
+     * when it has none.
+     */
+    public function getPaymentTerms(): ?string
+    {
+        $terms = $this->session->get('recv_payment_terms');
+
+        return $terms === null || $terms === '' ? null : (string) $terms;
+    }
+
+    public function setPaymentTerms(?string $terms): void
+    {
+        $terms === null || $terms === '' ? $this->session->remove('recv_payment_terms') : $this->session->set('recv_payment_terms', $terms);
     }
 
     public function is_print_after_sale(): bool
@@ -466,6 +492,8 @@ class Receiving_lib
         $this->remove_supplier();
         $this->clear_comment();
         $this->clear_reference();
+        $this->setInvoiceDate(null);
+        $this->setPaymentTerms(null);
         $this->set_return_origin(null);
         $this->clearInvoiceDiscount();
     }

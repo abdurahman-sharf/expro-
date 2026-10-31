@@ -74,7 +74,11 @@ class Item extends Model
         'qty_per_pack',
         'pack_name',
         'low_sell_item_id',
-        'hsn_code'
+        'hsn_code',
+        'purchase_tax_1_name',
+        'purchase_tax_1_percent',
+        'purchase_tax_2_name',
+        'purchase_tax_2_percent'
     ];
 
     /**
@@ -1574,6 +1578,48 @@ class Item extends Model
             : bcdiv(bcadd(bcmul($unitsReceived, $unitCost, 8), bcmul($onHand, $oldCost, 8), 8), bcadd($onHand, $unitsReceived, 3), 8);
 
         $data = ['cost_price' => SaleAmounts::round($average, 6)];
+
+        return $this->save_value($data, $itemId);
+    }
+
+    /**
+     * Brings the cost an item carries to the weighted average of the stock it has once a purchase
+     * is corrected: the units the purchase had brought in are taken out of the stock at what they
+     * were worth in the average, and the units it brings in now are put in at what they are worth
+     * now. Both are taken in one step, because the stock between them can be less than nothing.
+     * When no stock is left to weigh, or the stock the average was made of cannot be told, the
+     * cost stays as it is. Nothing else moves the cost, and the sales that were costed at the
+     * average of their time stay as they were.
+     *
+     * Must run before the stock of the correction is changed, and while the item is locked. The cost
+     * and the stock are read with locking reads, which see what other requests have committed even
+     * when the transaction took its snapshot before it waited for the lock of the item.
+     *
+     * @param numeric-string $removedUnits
+     * @param numeric-string $removedValue
+     * @param numeric-string $addedUnits
+     * @param numeric-string $addedValue
+     */
+    public function correctPurchaseCost(int $itemId, string $removedUnits, string $removedValue, string $addedUnits, string $addedValue): bool
+    {
+        $stored  = $this->db->query('SELECT cost_price FROM ' . $this->db->prefixTable('items') . ' WHERE item_id = ? FOR UPDATE', [$itemId])->getRow();
+        $oldCost = (string) ($stored->cost_price ?? '0');
+
+        $shelves = $this->db->query(
+            'SELECT SUM(quantity) AS quantity FROM ' . $this->db->prefixTable('item_quantities')
+            . ' WHERE item_id = ? AND location_id IN (SELECT location_id FROM ' . $this->db->prefixTable('stock_locations') . ' WHERE deleted = 0) FOR UPDATE',
+            [$itemId],
+        )->getRow();
+        $onHand = (string) ($shelves->quantity ?? '0');
+
+        $left  = bcadd(bcsub($onHand, $removedUnits, 3), $addedUnits, 3);
+        $value = bcadd(bcsub(bcmul($onHand, $oldCost, 8), $removedValue, 8), $addedValue, 8);
+
+        if (bccomp($left, '0', 3) <= 0 || bccomp($value, '0', 8) < 0) {
+            return true;
+        }
+
+        $data = ['cost_price' => SaleAmounts::round(bcdiv($value, $left, 8), 6)];
 
         return $this->save_value($data, $itemId);
     }

@@ -3,15 +3,23 @@
  * @var string           $customer_name
  * @var CustomerPosition $position
  * @var string           $today
+ * @var string           $to
+ * @var string|null      $error
  * @var list<object>     $applications
+ * @var list<int>        $refund_invoices
  * @var Closure          $amount
  * @var Closure          $date
  */
 
+use App\Libraries\Accounting\AgingBuckets;
 use App\Libraries\Accounting\CreditSource;
 use App\Libraries\Accounting\CustomerPosition;
 
 $aging = $position->aging($today);
+
+$sourceLabel = static fn (string $type, int $sourceId): string => lang(
+    $type !== CreditSource::CREDIT_NOTE ? 'Accounting_receivables.source_excess' : (in_array($sourceId, $refund_invoices, true) ? 'Numbering.type_refund_invoice' : 'Accounting_receivables.source_credit_note'),
+);
 ?>
 
 <?= view('partial/header') ?>
@@ -19,6 +27,12 @@ $aging = $position->aging($today);
 <div id="title_bar" class="print_hide btn-toolbar">
     <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('accounting_receivables'), 'attr') ?>">
         <span class="bi bi-list-ul" aria-hidden="true">&nbsp;</span><?= lang('Accounting_receivables.back') ?>
+    </a>
+    <a class="btn btn-outline-secondary btn-sm" id="customer_payments_link" href="<?= esc(base_url('accounting_receivables/payments?customer_id=' . $position->customerId), 'attr') ?>">
+        <span class="bi bi-cash-coin" aria-hidden="true">&nbsp;</span><?= lang('Accounting_receivables.payments_tab') ?>
+    </a>
+    <a class="btn btn-outline-secondary btn-sm" id="customer_credit_notes_link" href="<?= esc(base_url('accounting_receivables/credit_notes?customer_id=' . $position->customerId), 'attr') ?>">
+        <span class="bi bi-receipt" aria-hidden="true">&nbsp;</span><?= lang('Accounting_receivables.credit_notes_tab') ?>
     </a>
 </div>
 
@@ -40,7 +54,21 @@ $aging = $position->aging($today);
                 <span class="badge text-bg-warning"><?= lang('Accounting_receivables.agrees_no', [to_currency_no_money($position->unclassified())]) ?></span>
             <?php endif; ?>
         </dd>
+        <dt class="col-sm-3"><?= lang('Accounting_receivables.overdue') ?></dt>
+        <dd class="col-sm-9" id="statement_overdue"><?= $amount($position->overdue($today)) ?></dd>
     </dl>
+
+    <form id="statement_day" class="print_hide mb-3 d-flex flex-wrap align-items-end gap-2" method="get" role="search">
+        <div>
+            <label class="form-label" for="f_to"><?= lang('Accounting_receivables.aged_to') ?></label>
+            <input type="date" id="f_to" name="to" class="form-control form-control-sm" value="<?= esc($to, 'attr') ?>">
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm"><span class="bi bi-search" aria-hidden="true">&nbsp;</span><?= lang('Accounting_reports.apply') ?></button>
+    </form>
+
+    <?php if ($error !== null): ?>
+        <p class="alert alert-danger" id="report_error" role="alert"><?= esc($error) ?></p>
+    <?php endif; ?>
 
     <h2 class="h5"><?= lang('Accounting_receivables.aging') ?></h2>
     <div class="table-responsive mb-4">
@@ -48,7 +76,7 @@ $aging = $position->aging($today);
             <thead>
                 <tr>
                     <?php foreach ($aging as $bucket => $unused): ?>
-                        <th scope="col"><?= lang('Accounting_receivables.age_' . ($bucket === '91+' ? '91_plus' : str_replace('-', '_', $bucket))) ?></th>
+                        <th scope="col"><?= lang('Accounting_receivables.' . AgingBuckets::LANGUAGE_KEYS[$bucket]) ?></th>
                     <?php endforeach; ?>
                 </tr>
             </thead>
@@ -69,6 +97,7 @@ $aging = $position->aging($today);
                 <tr>
                     <th scope="col"><?= lang('Accounting_receivables.invoice') ?></th>
                     <th scope="col"><?= lang('Accounting_receivables.date') ?></th>
+                    <th scope="col"><?= lang('Accounting_receivables.due_date') ?></th>
                     <th scope="col"><?= lang('Accounting_receivables.total') ?></th>
                     <th scope="col"><?= lang('Accounting_receivables.paid') ?></th>
                     <th scope="col"><?= lang('Accounting_receivables.credit_applied') ?></th>
@@ -82,6 +111,7 @@ $aging = $position->aging($today);
                     <tr>
                         <td><?= anchor('sales/receipt/' . $invoice->saleId, 'POS ' . $invoice->saleId, ['target' => '_blank', 'dir' => 'ltr']) ?></td>
                         <td><?= esc($date($invoice->date)) ?></td>
+                        <td><?= esc($date($invoice->dueDate)) ?></td>
                         <td><?= $amount($invoice->total) ?></td>
                         <td><?= $amount($invoice->paid) ?></td>
                         <td><?= $amount($invoice->applied) ?></td>
@@ -89,6 +119,9 @@ $aging = $position->aging($today);
                         <td><?= $amount($invoice->open()) ?></td>
                         <td>
                             <?= esc(lang($invoice->paymentState()->languageKey())) ?>
+                            <?php if ($invoice->isOverdue($today)): ?>
+                                <span class="badge text-bg-danger"><?= esc(lang('Accounting_receivables.overdue_days', [$invoice->daysOverdue($today)])) ?></span>
+                            <?php endif; ?>
                             <?php if ($invoice->returnState()->languageKey() !== null): ?>
                                 <?= esc(lang($invoice->returnState()->languageKey())) ?>
                             <?php endif; ?>
@@ -96,7 +129,7 @@ $aging = $position->aging($today);
                     </tr>
                 <?php endforeach; ?>
                 <?php if ($position->invoices === []): ?>
-                    <tr><td colspan="8"><?= lang('Accounting_receivables.no_invoices') ?></td></tr>
+                    <tr><td colspan="9"><?= lang('Accounting_receivables.no_invoices') ?></td></tr>
                 <?php endif; ?>
             </tbody>
         </table>
@@ -117,7 +150,7 @@ $aging = $position->aging($today);
             <tbody>
                 <?php foreach ($position->credits as $source): ?>
                     <tr>
-                        <td><?= esc(lang($source->type === CreditSource::CREDIT_NOTE ? 'Accounting_receivables.source_credit_note' : 'Accounting_receivables.source_excess')) ?> <?= anchor('sales/receipt/' . $source->sourceId, 'POS ' . $source->sourceId, ['target' => '_blank', 'dir' => 'ltr']) ?></td>
+                        <td><?= esc($sourceLabel($source->type, $source->sourceId)) ?> <?= anchor('sales/receipt/' . $source->sourceId, 'POS ' . $source->sourceId, ['target' => '_blank', 'dir' => 'ltr']) ?></td>
                         <td><?= esc($date($source->date)) ?></td>
                         <td><?= $amount($source->amount) ?></td>
                         <td><?= $amount($source->applied) ?></td>
@@ -146,7 +179,7 @@ $aging = $position->aging($today);
             <tbody>
                 <?php foreach ($applications as $application): ?>
                     <tr>
-                        <td><?= esc(lang($application->source_type === CreditSource::CREDIT_NOTE ? 'Accounting_receivables.source_credit_note' : 'Accounting_receivables.source_excess')) ?> <bdi dir="ltr"><?= (int) $application->source_id ?></bdi></td>
+                        <td><?= esc($sourceLabel($application->source_type, (int) $application->source_id)) ?> <bdi dir="ltr"><?= (int) $application->source_id ?></bdi></td>
                         <td><bdi dir="ltr"><?= (int) $application->invoice_sale_id ?></bdi></td>
                         <td><?= $amount($application->amount) ?></td>
                         <td><?= esc($date($application->created_at)) ?></td>

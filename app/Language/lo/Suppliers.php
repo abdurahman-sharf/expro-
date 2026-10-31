@@ -5,6 +5,7 @@ return [
     'agency_name'           => 'ຊື່ Agency',
     'cannot_be_deleted'     => 'ບໍ່ສາມາດລຶບຜູ້ສະໜອງທີ່ເລືອກໄດ້. 1 ຫຼື ຫຼາຍກວ່ານັ້ນມີການຊື້-ຂາຍຢູ່.',
     'category'              => '',
+    'commercial_registry'   => '',
     'company_name'          => 'ຊື່ບໍລິສັດ',
     'company_name_required' => 'ຊື່ບໍລິສັດຈຳເປັນຕ້ອງໃສ່.',
     'confirm_delete'        => 'ທ່ານຕ້ອງການລຶບຜູ້ສະໜອງທີ່ທ່ານເລືອກແທ້ບໍ່ ?',

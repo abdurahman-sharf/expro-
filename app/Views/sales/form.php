@@ -26,6 +26,8 @@
  * @var array<int, string> $new_treasury_options
  * @var array<int, string> $paymentNumbers
  * @var string|null $creditNoteNumber
+ * @var string|null $refundInvoiceNumber
+ * @var array{date: string, terms: int|null, due: string}|null $invoice_timing
  */
 ?>
 
@@ -47,12 +49,43 @@
             </div>
         <?php endif; ?>
 
+        <?php if (! empty($refundInvoiceNumber)): ?>
+            <div class="row mb-3">
+                <?= form_label(lang('Numbering.type_refund_invoice'), 'refund_invoice_number', ['class' => 'col-form-label col-3']) ?>
+                <div class="col-8 col-form-label" id="refund_invoice_number"><bdi dir="ltr"><?= esc($refundInvoiceNumber) ?></bdi></div>
+            </div>
+        <?php endif; ?>
+
         <div class="row mb-3">
             <?= form_label(lang('Sales.date'), 'date', ['class' => 'col-form-label col-3']) ?>
             <div class="col-8">
                 <?= form_input(['name' => 'date', 'id' => 'date', 'value' => to_datetime(strtotime($sale_info['sale_time'])), 'class' => 'datetime form-control form-control-sm']) ?>
             </div>
         </div>
+
+        <?php if ($invoice_timing !== null): ?>
+            <div class="row mb-3">
+                <?= form_label(lang('Sales.invoice_date'), 'invoice_date', ['class' => 'col-form-label col-3']) ?>
+                <div class="col-8">
+                    <?= form_input(['name' => 'invoice_date', 'id' => 'invoice_date', 'value' => to_date(strtotime($invoice_timing['date'])), 'class' => 'form-control form-control-sm', 'readonly' => 'true']) ?>
+                </div>
+            </div>
+            <div class="row mb-3">
+                <?= form_label(lang('Sales.payment_terms'), 'payment_terms_days', ['class' => 'col-form-label col-3']) ?>
+                <div class="col-8">
+                    <div class="input-group input-group-sm">
+                        <?= form_input(['type' => 'number', 'name' => 'payment_terms_days', 'id' => 'payment_terms_days', 'value' => $invoice_timing['terms'] ?? '', 'min' => 0, 'max' => 3650, 'step' => 1, 'class' => 'form-control form-control-sm']) ?>
+                        <span class="input-group-text"><?= lang('Sales.payment_terms_days') ?></span>
+                    </div>
+                </div>
+            </div>
+            <div class="row mb-3">
+                <?= form_label(lang('Sales.due_date'), 'due_date', ['class' => 'col-form-label col-3']) ?>
+                <div class="col-8">
+                    <?= form_input(['name' => 'due_date', 'id' => 'due_date', 'value' => to_date(strtotime($invoice_timing['due'])), 'class' => 'form-control form-control-sm', 'readonly' => 'true']) ?>
+                </div>
+            </div>
+        <?php endif; ?>
 
         <?php if ($config['invoice_enable']) { ?>
             <div class="row mb-3">
@@ -223,6 +256,7 @@
                             <p class="small text-body-secondary mb-0"><?= esc($credit_note_help) ?></p>
                         <?php else: ?>
                             <button type="button" class="btn btn-outline-primary btn-sm" id="create_credit_note"><?= lang('Sales.credit_note_create') ?></button>
+                            <button type="button" class="btn btn-outline-primary btn-sm ms-1" id="create_refund_invoice"><?= lang('Sales.refund_invoice_create') ?></button>
                         <?php endif; ?>
                     <?php endif; ?>
                 </div>
@@ -370,14 +404,16 @@
             $('button#delete').hide();
         <?php endif; ?>
 
-        $('#create_credit_note').click(function() {
-            $.post("<?= esc(site_url("{$controller_name}/creditNote/" . $sale_info['sale_id'])) ?>", function(response) {
-                if (response.success) {
-                    window.location.href = response.redirect;
-                } else {
-                    $.notify({message: response.message}, {type: 'danger'});
-                }
-            }, 'json');
+        $.each({create_credit_note: 'creditNote', create_refund_invoice: 'refundInvoice'}, function(button, action) {
+            $('#' + button).click(function() {
+                $.post("<?= esc(site_url("{$controller_name}/")) ?>" + action + "/<?= (int) $sale_info['sale_id'] ?>", function(response) {
+                    if (response.success) {
+                        window.location.href = response.redirect;
+                    } else {
+                        $.notify({message: response.message}, {type: 'danger'});
+                    }
+                }, 'json');
+            });
         });
 
         $('button#delete').click(function() {

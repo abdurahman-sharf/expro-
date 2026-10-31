@@ -428,10 +428,126 @@ class SupplierAdvancesTest extends CIUnitTestCase
         $this->assertSame('0.00', $this->owed());
     }
 
+    private function daysAgo(int $days): string
+    {
+        return date('Y-m-d', strtotime("-{$days} days"));
+    }
+
+    public function testPay_PostsOnTheDateEnteredAndKeepsTheTimeItWasSavedSeparately(): void
+    {
+        $date      = $this->daysAgo(5);
+        $advanceId = $this->advances->pay($this->supplierId, '75.00', $date, 'Cash', null, '', '', $this->clerk);
+
+        $row     = $this->accountingDb()->table('supplier_advances')->where('advance_id', $advanceId)->get()->getRow();
+        $journal = $this->accountingDb()->table('accounting_journals')->where(['source_type' => SupplierAdvances::SOURCE, 'source_id' => $advanceId])->get()->getRow();
+
+        $this->assertSame($date, $row->advance_date);
+        $this->assertSame($date, $journal->journal_date);
+        $this->assertSame(date('Y-m-d'), substr((string) $row->created_at, 0, 10));
+        $this->assertSame('-75.00', $this->owed());
+        $this->assertSupplierTies();
+    }
+
+    public function testPay_AcceptsADateOfToday(): void
+    {
+        $advanceId = $this->advances->pay($this->supplierId, '75.00', date('Y-m-d'), 'Cash', null, '', '', $this->clerk);
+
+        $this->assertSame(date('Y-m-d'), $this->accountingDb()->table('supplier_advances')->where('advance_id', $advanceId)->get()->getRow()->advance_date);
+    }
+
+    public function testPay_RefusesADateAfterTodayAndSavesNothing(): void
+    {
+        $tomorrow  = date('Y-m-d', strtotime('+1 day'));
+        $exception = $this->refusal(fn () => $this->advances->pay($this->supplierId, '75.00', $tomorrow, 'Cash', null, '', '', $this->clerk));
+
+        $this->assertSame(AccountingError::PaymentDateInFuture, $exception->error);
+        $this->assertSame(0, $this->countRows('supplier_advances'));
+        $this->assertSame(0, $this->countRows('accounting_journals'));
+        $this->assertSame('0.00', $this->owed());
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function notADateProvider(): array
+    {
+        return ['a day that does not exist' => ['2026-02-30'], 'words' => ['yesterday'], 'another order' => ['20/10/2026'], 'nothing' => ['']];
+    }
+
+    #[DataProvider('notADateProvider')]
+    public function testPay_RefusesADateThatIsNotADay(string $date): void
+    {
+        $this->assertSame(AccountingError::InvalidDate, $this->refusal(fn () => $this->advances->pay($this->supplierId, '75.00', $date, 'Cash', null, '', '', $this->clerk))->error);
+        $this->assertSame(0, $this->countRows('supplier_advances'));
+    }
+
+    public function testPay_RefusesADateBeforeTheDayTheBooksStartAndAcceptsThatDay(): void
+    {
+        $start = $this->daysAgo(30);
+
+        $this->setConfigValue('accounting_start_date', $start);
+
+        $exception = $this->refusal(fn () => $this->advances->pay($this->supplierId, '75.00', $this->daysAgo(31), 'Cash', null, '', '', $this->clerk));
+
+        $this->assertSame(AccountingError::PaymentDateBeforeBooks, $exception->error);
+        $this->assertSame(0, $this->countRows('supplier_advances'));
+
+        $this->advances->pay($this->supplierId, '75.00', $start, 'Cash', null, '', '', $this->clerk);
+
+        $this->assertSame(1, $this->countRows('supplier_advances'));
+    }
+
+    public function testPay_AcceptsEveryDayUpToTodayWhileTheBooksStartInTheFuture(): void
+    {
+        $this->setConfigValue('accounting_start_date', date('Y-m-d', strtotime('+20 days')));
+
+        $this->advances->pay($this->supplierId, '75.00', date('Y-m-d'), 'Cash', null, '', '', $this->clerk);
+        $this->advances->pay($this->supplierId, '25.00', $this->daysAgo(5), 'Cash', null, '', '', $this->clerk);
+
+        $this->assertSame(2, $this->countRows('supplier_advances'));
+        $this->assertSame('-100.00', $this->owed());
+    }
+
+    public function testPay_RefusesTheLastDayOfAClosedPeriodAndAcceptsTheNextOne(): void
+    {
+        $this->closeThrough($this->daysAgo(10));
+
+        $this->refusal(fn () => $this->advances->pay($this->supplierId, '75.00', $this->daysAgo(10), 'Cash', null, '', '', $this->clerk));
+
+        $this->assertSame(0, $this->countRows('supplier_advances'));
+
+        $advanceId = $this->advances->pay($this->supplierId, '75.00', $this->daysAgo(9), 'Cash', null, '', '', $this->clerk);
+
+        $this->assertSame($this->daysAgo(9), $this->accountingDb()->table('accounting_journals')->where(['source_type' => SupplierAdvances::SOURCE, 'source_id' => $advanceId])->get()->getRow()->journal_date);
+    }
+
     public function testOpeningBalance_RefusesASideThatIsNeitherAndAnAmountOfNothing(): void
     {
         $this->assertSame(AccountingError::AdvanceKindInvalid, $this->refusal(fn () => $this->advances->openingBalance($this->supplierId, 'both', '10', '2026-01-01', '', $this->clerk))->error);
         $this->assertSame(AccountingError::AdvanceAmountInvalid, $this->refusal(fn () => $this->advances->openingBalance($this->supplierId, SupplierAdvances::WE_OWE, '0', '2026-01-01', '', $this->clerk))->error);
+    }
+
+    public function testOpeningBalance_RefusesADayAfterTodayAndAcceptsTodayAndLeavesNothingOfTheRefused(): void
+    {
+        $tomorrow = date('Y-m-d', strtotime('+1 day'));
+
+        foreach ([SupplierAdvances::WE_OWE, SupplierAdvances::THEY_OWE] as $side) {
+            $refusal = $this->refusal(fn () => $this->advances->openingBalance($this->supplierId, $side, '1000.00', $tomorrow, '', $this->clerk));
+
+            $this->assertSame(AccountingError::InvalidDate, $refusal->error, $side);
+            $this->assertStringContainsString($tomorrow, $refusal->getMessage());
+        }
+
+        $this->assertSame(0, $this->countRows('supplier_advances'));
+        $this->assertSame(0, $this->countRows('receivings'));
+        $this->assertSame(0, $this->countJournals());
+
+        $today = $this->advances->openingBalance($this->supplierId, SupplierAdvances::WE_OWE, '1000.00', date('Y-m-d'), '', $this->clerk);
+
+        $this->receivingIds[] = $today;
+
+        $this->assertGreaterThan(0, $today);
+        $this->assertSame('1000.00', $this->owed());
     }
 
     public function testForSupplier_ListsTheAdvancesNewestFirstWithTheirTreasuries(): void

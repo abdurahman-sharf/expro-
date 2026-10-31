@@ -5,6 +5,7 @@ return [
     'agency_name'           => '',
     'cannot_be_deleted'     => '',
     'category'              => 'Kategoria',
+    'commercial_registry'   => '',
     'company_name'          => '',
     'company_name_required' => '',
     'confirm_delete'        => '',

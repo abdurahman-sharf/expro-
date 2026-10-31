@@ -26,6 +26,7 @@ return [
     'type_debit_note'         => 'Debit note',
     'type_expense'            => 'Expense',
     'type_purchase'           => 'Purchase',
+    'type_refund_invoice'     => 'Refund invoice',
     'type_sales_invoice'      => 'Sales invoice',
     'type_sales_quote'        => 'Quote',
     'type_supplier_payment'   => 'Supplier payment',

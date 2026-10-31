@@ -37,7 +37,13 @@
  * @var bool      $print_after_sale
  * @var bool      $accounting_enabled
  * @var bool      $delivered
+ * @var string|null $invoice_date
+ * @var string|null $payment_terms
+ * @var string|null $due_date
+ * @var bool      $can_type_invoice_date
+ * @var string    $today
  * @var int|null  $return_origin
+ * @var string    $return_document
  * @var bool      $email_receipt
  * @var bool      $price_work_orders
  * @var string    $invoice_number
@@ -120,6 +126,17 @@ $employee        = model(Employee::class);
                 <?php endif; ?>
             </div>
         <?= form_close() ?>
+
+        <?php if ($mode == 'return'): ?>
+            <?= form_open("{$controller_name}/setReturnDocument", ['id' => 'return_document_form', 'class' => 'app-form card']) ?>
+                <div class="card-body pos-bar">
+                    <div class="pos-field">
+                        <label for="return_document" class="pos-label"><?= lang("{$sectionName}.return_document") ?></label>
+                        <?= form_dropdown('return_document', ['credit_note' => lang('Numbering.type_credit_note'), 'refund_invoice' => lang('Numbering.type_refund_invoice')], $return_document ?? 'credit_note', ['id' => 'return_document', 'onchange' => "$('#return_document_form').submit();", 'class' => 'form-select form-select-sm']) ?>
+                    </div>
+                </div>
+            <?= form_close() ?>
+        <?php endif; ?>
 
         <?php if ($mode == 'return' && $accounting_enabled): ?>
             <?= form_open("{$controller_name}/setReturnOrigin", ['id' => 'return_origin_form', 'class' => 'app-form card']) ?>
@@ -525,6 +542,24 @@ $employee        = model(Employee::class);
                             </label>
                         <?php endif; ?>
 
+                        <?php if ($mode == 'sale_invoice' && $accounting_enabled): ?>
+                            <?php if ($can_type_invoice_date): ?>
+                                <div>
+                                    <label for="sales_invoice_date" class="pos-label"><?= lang("{$sectionName}.invoice_date") ?></label>
+                                    <?= form_input(['type' => 'date', 'name' => 'sales_invoice_date', 'id' => 'sales_invoice_date', 'class' => 'form-control', 'value' => $invoice_date ?? '', 'max' => $today, 'data-previous' => $invoice_date ?? '']) ?>
+                                    <small class="form-text text-body-secondary"><?= lang("{$sectionName}.invoice_date_help") ?></small>
+                                </div>
+                            <?php endif; ?>
+                            <div>
+                                <label for="sales_payment_terms" class="pos-label"><?= lang("{$sectionName}.payment_terms") ?></label>
+                                <div class="input-group">
+                                    <?= form_input(['type' => 'number', 'name' => 'sales_payment_terms', 'id' => 'sales_payment_terms', 'class' => 'form-control', 'value' => $payment_terms ?? '', 'min' => 0, 'max' => 3650, 'step' => 1, 'data-previous' => $payment_terms ?? '']) ?>
+                                    <span class="input-group-text"><?= lang("{$sectionName}.payment_terms_days") ?></span>
+                                </div>
+                                <small class="form-text text-body-secondary"><?= lang("{$sectionName}.due_date") ?>: <span id="sales_due_date"><?= $due_date === null ? '' : esc(to_date(strtotime($due_date))) ?></span></small>
+                            </div>
+                        <?php endif; ?>
+
                         <?php if (($mode == 'sale_invoice') && $config['invoice_enable']): ?>
                             <div>
                                 <label for="sales_invoice_number" class="pos-label"><?= lang("{$sectionName}.invoice_enable") ?></label>
@@ -677,6 +712,26 @@ $employee        = model(Employee::class);
                 sales_print_after_sale: $(this).is(':checked')
             });
         });
+
+        const postInvoiceTiming = function(field, route) {
+            field.change(function() {
+                const typed = {};
+                typed[field.attr('name')] = field.val();
+
+                $.post("<?= esc(site_url($controller_name)) ?>/" + route, typed, function(response) {
+                    if (response.success) {
+                        field.data('previous', field.val());
+                        $('#sales_due_date').text(response.due_date_label || '');
+                    } else {
+                        $.notify({message: response.message}, {type: 'danger'});
+                        field.val(field.data('previous') || '');
+                    }
+                }, 'json');
+            });
+        };
+
+        postInvoiceTiming($('#sales_invoice_date'), 'setInvoiceDate');
+        postInvoiceTiming($('#sales_payment_terms'), 'setPaymentTerms');
 
         $('#sales_delivered').change(function() {
             $.post("<?= esc(site_url("{$controller_name}/setDelivered")) ?>", {

@@ -1,0 +1,1420 @@
+[
+ {
+  "name": "G01 a typed day must be a real day (no roll-over of february 30th)",
+  "file": "app/Libraries/Accounting/InvoiceTiming.php",
+  "find": " || $parsed->format('Y-m-d') !== $typed",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/InvoiceTimingTest.php"
+  ]
+ },
+ {
+  "name": "G02 a typed day is not later than today",
+  "file": "app/Libraries/Accounting/InvoiceTiming.php",
+  "find": " || $typed > $today",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/InvoiceTimingTest.php"
+  ]
+ },
+ {
+  "name": "G03 a typed day is not before the books start",
+  "file": "app/Libraries/Accounting/InvoiceTiming.php",
+  "find": "if ($booksStart !== null && $typed < $booksStart) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/InvoiceTimingTest.php"
+  ]
+ },
+ {
+  "name": "G04 terms are digits only",
+  "file": "app/Libraries/Accounting/InvoiceTiming.php",
+  "find": "! ctype_digit($text) || ",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/InvoiceTimingTest.php"
+  ]
+ },
+ {
+  "name": "G05 terms are at most five characters long",
+  "file": "app/Libraries/Accounting/InvoiceTiming.php",
+  "find": " || strlen($text) > 5",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/InvoiceTimingTest.php"
+  ]
+ },
+ {
+  "name": "G06 terms stay within the limit",
+  "file": "app/Libraries/Accounting/InvoiceTiming.php",
+  "find": " || (int) $text > self::MAX_TERMS_DAYS",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/InvoiceTimingTest.php"
+  ]
+ },
+ {
+  "name": "G07 zero days of terms is no terms",
+  "file": "app/Libraries/Accounting/InvoiceTiming.php",
+  "find": "return (int) $text === 0 ? null : (int) $text;",
+  "replace": "return (int) $text;",
+  "tests": [
+   "tests/Libraries/Accounting/InvoiceTimingTest.php"
+  ]
+ },
+ {
+  "name": "G08 due today is not overdue (strictly before today)",
+  "file": "app/Libraries/Accounting/InvoiceTiming.php",
+  "find": "return $owing && $dueDate < $today;",
+  "replace": "return $owing && $dueDate <= $today;",
+  "tests": [
+   "tests/Libraries/Accounting/InvoiceTimingTest.php"
+  ]
+ },
+ {
+  "name": "G09 only what is owed can be overdue",
+  "file": "app/Libraries/Accounting/InvoiceTiming.php",
+  "find": "return $owing && $dueDate < $today;",
+  "replace": "return $dueDate < $today;",
+  "tests": [
+   "tests/Libraries/Accounting/InvoiceTimingTest.php"
+  ]
+ },
+ {
+  "name": "G10 no terms means due on the invoice date",
+  "file": "app/Libraries/Accounting/InvoiceTiming.php",
+  "find": "return $terms === null ? $invoiceDate : (new DateTimeImmutable($invoiceDate))->modify(\"+{$terms} days\")->format('Y-m-d');",
+  "replace": "return (new DateTimeImmutable($invoiceDate))->modify(\"+{$terms} days\")->format('Y-m-d');",
+  "tests": [
+   "tests/Libraries/Accounting/InvoiceTimingTest.php"
+  ]
+ },
+ {
+  "name": "G11 an invoice of the day is in the first bucket",
+  "file": "app/Libraries/Accounting/AgingBuckets.php",
+  "find": "return $age <= 0 ? 0 :",
+  "replace": "return $age < 0 ? 0 :",
+  "tests": [
+   "tests/Libraries/Accounting/AgingBucketsTest.php"
+  ]
+ },
+ {
+  "name": "G12 everything older than four periods is in the last bucket",
+  "file": "app/Libraries/Accounting/AgingBuckets.php",
+  "find": "min(5, intdiv($age - 1, max(1, $period)) + 1)",
+  "replace": "intdiv($age - 1, max(1, $period)) + 1",
+  "tests": [
+   "tests/Libraries/Accounting/AgingBucketsTest.php"
+  ]
+ },
+ {
+  "name": "G13 a bucket ends on its last day (30 is in 1-30, 31 in 31-60)",
+  "file": "app/Libraries/Accounting/AgingBuckets.php",
+  "find": "intdiv($age - 1, max(1, $period))",
+  "replace": "intdiv($age, max(1, $period))",
+  "tests": [
+   "tests/Libraries/Accounting/AgingBucketsTest.php"
+  ]
+ },
+ {
+  "name": "G14 a period of nothing counts as a day",
+  "file": "app/Libraries/Accounting/AgingBuckets.php",
+  "find": "max(1, $period)) + 1",
+  "replace": "$period) + 1",
+  "tests": [
+   "tests/Libraries/Accounting/AgingBucketsTest.php"
+  ]
+ },
+ {
+  "name": "G15 a document dated after the day of the report is left out",
+  "file": "app/Libraries/Accounting/AgingBuckets.php",
+  "find": "            if ($age < 0) {\n                continue;\n            }\n\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/AgingBucketsTest.php"
+  ]
+ },
+ {
+  "name": "G16 the age of a document of the future is negative",
+  "file": "app/Libraries/Accounting/AgingBuckets.php",
+  "find": "->format('%r%a')",
+  "replace": "->format('%a')",
+  "tests": [
+   "tests/Libraries/Accounting/AgingBucketsTest.php"
+  ]
+ },
+ {
+  "name": "G17 the length of the buckets is at most four digits",
+  "file": "app/Libraries/Accounting/PartyReportQuery.php",
+  "find": " && strlen($text('period')) <= 4",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/PartyReportQueryTest.php"
+  ]
+ },
+ {
+  "name": "G18 the length of the buckets stays between one day and the limit",
+  "file": "app/Libraries/Accounting/PartyReportQuery.php",
+  "find": "max(1, min($days, AgingBuckets::MAX_PERIOD))",
+  "replace": "$days",
+  "tests": [
+   "tests/Libraries/Accounting/PartyReportQueryTest.php"
+  ]
+ },
+ {
+  "name": "G19 an aged ledger takes no start day",
+  "file": "app/Libraries/Accounting/PartyReportQuery.php",
+  "find": "$from    = $withFrom ? $text('from') : '';",
+  "replace": "$from    = $text('from');",
+  "tests": [
+   "tests/Libraries/Accounting/PartyReportQueryTest.php"
+  ]
+ },
+ {
+  "name": "G20 the day of a statement is given only when typed and valid",
+  "file": "app/Libraries/Accounting/PartyReportQuery.php",
+  "find": "$asOf = $refusal === null && $text('to') !== '' ? $period->to : null;",
+  "replace": "$asOf = $period->to;",
+  "tests": [
+   "tests/Libraries/Accounting/PartyReportQueryTest.php"
+  ]
+ },
+ {
+  "name": "G21 what is not a day is refused",
+  "file": "app/Libraries/Accounting/PartyReportQuery.php",
+  "find": "$refusal = $exception;\n            $period  = ReportPeriod::of(null, $today);",
+  "replace": "$refusal = null;\n            $period  = ReportPeriod::of(null, $today);",
+  "tests": [
+   "tests/Libraries/Accounting/PartyReportQueryTest.php"
+  ]
+ },
+ {
+  "name": "G22 only a 1 shows what has nothing to show",
+  "file": "app/Libraries/Accounting/PartyReportQuery.php",
+  "find": "$text('empty') === '1'",
+  "replace": "$text('empty') !== ''",
+  "tests": [
+   "tests/Libraries/Accounting/PartyReportQueryTest.php"
+  ]
+ },
+ {
+  "name": "G23 only text is read from the request",
+  "file": "app/Libraries/Accounting/PartyReportQuery.php",
+  "find": "isset($get[$name]) && is_string($get[$name]) ? trim($get[$name]) : ''",
+  "replace": "isset($get[$name]) ? trim((string) $get[$name]) : ''",
+  "tests": [
+   "tests/Libraries/Accounting/PartyReportQueryTest.php"
+  ]
+ },
+ {
+  "name": "G24 the total of a bucket adds that bucket of every row",
+  "file": "app/Libraries/Accounting/AgedLedgerTable.php",
+  "find": "$row->buckets[$index]",
+  "replace": "$row->buckets[0]",
+  "tests": [
+   "tests/Libraries/Accounting/AgedLedgerTableTest.php"
+  ]
+ },
+ {
+  "name": "G25 the balance is what is owed less the credit not applied",
+  "file": "app/Libraries/Accounting/AgedLedgerTable.php",
+  "find": "return bcsub($this->total(), $this->credit(), SaleAmounts::SCALE);",
+  "replace": "return bcadd($this->total(), $this->credit(), SaleAmounts::SCALE);",
+  "tests": [
+   "tests/Libraries/Accounting/AgedLedgerTableTest.php"
+  ]
+ },
+ {
+  "name": "G26 the credit total adds the credit of every row",
+  "file": "app/Libraries/Accounting/AgedLedgerTable.php",
+  "find": "$total = bcadd($total, $row->credit, SaleAmounts::SCALE);",
+  "replace": "$total = bcadd($total, $row->total(), SaleAmounts::SCALE);",
+  "tests": [
+   "tests/Libraries/Accounting/AgedLedgerTableTest.php"
+  ]
+ },
+ {
+  "name": "G27 the length of the buckets is kept within one day and the limit",
+  "file": "app/Libraries/Accounting/AgedLedger.php",
+  "find": "$period   = max(1, min($period, AgingBuckets::MAX_PERIOD));",
+  "replace": "$period   = $period;",
+  "tests": [
+   "tests/Libraries/Accounting/AgedLedgerTest.php"
+  ]
+ },
+ {
+  "name": "G28 a supplier is owed what the account credits",
+  "file": "app/Libraries/Accounting/AgedLedger.php",
+  "find": "$owed     = $kind === EntityAccountService::CUSTOMER ? 'l.debit' : 'l.credit';",
+  "replace": "$owed     = 'l.debit';",
+  "tests": [
+   "tests/Libraries/Accounting/AgedLedgerTest.php"
+  ]
+ },
+ {
+  "name": "G29 journals after the day of the report are not counted",
+  "file": "app/Libraries/Accounting/AgedLedger.php",
+  "find": "AND j.journal_date <= ?",
+  "replace": "AND ? IS NOT NULL",
+  "tests": [
+   "tests/Libraries/Accounting/AgedLedgerTest.php"
+  ]
+ },
+ {
+  "name": "G30 a journal that was reversed still counts on a day before its reversal",
+  "file": "app/Libraries/Accounting/AgedLedger.php",
+  "find": "JournalStatus::Reversed->value, $asOf, $kind]",
+  "replace": "JournalStatus::Posted->value, $asOf, $kind]",
+  "tests": [
+   "tests/Libraries/Accounting/AgedLedgerTest.php"
+  ]
+ },
+ {
+  "name": "G31 customers and suppliers are kept apart",
+  "file": "app/Libraries/Accounting/AgedLedger.php",
+  "find": "WHERE a.entity_type = ?{$only}",
+  "replace": "WHERE ? IS NOT NULL{$only}",
+  "tests": [
+   "tests/Libraries/Accounting/AgedLedgerTest.php"
+  ]
+ },
+ {
+  "name": "G32 one party can be asked for",
+  "file": "app/Libraries/Accounting/AgedLedger.php",
+  "find": "$only       = ' AND a.entity_id = ?';",
+  "replace": "$only       = ' AND ? IS NOT NULL';",
+  "tests": [
+   "tests/Libraries/Accounting/AgedLedgerTest.php"
+  ]
+ },
+ {
+  "name": "G33 the credit is applied to the oldest debit first",
+  "file": "app/Libraries/Accounting/AgedLedger.php",
+  "find": "j.journal_date ASC, j.journal_id ASC, l.line_no ASC",
+  "replace": "j.journal_date DESC, j.journal_id DESC, l.line_no ASC",
+  "tests": [
+   "tests/Libraries/Accounting/AgedLedgerTest.php"
+  ]
+ },
+ {
+  "name": "G34 credit that came in is applied",
+  "file": "app/Libraries/Accounting/AgedLedger.php",
+  "find": "$credit = bcadd($credit, (string) $entry->settled, SaleAmounts::SCALE);",
+  "replace": "$credit = bcadd($credit, '0', SaleAmounts::SCALE);",
+  "tests": [
+   "tests/Libraries/Accounting/AgedLedgerTest.php"
+  ]
+ },
+ {
+  "name": "G35 credit is applied up to what the debit holds and no more",
+  "file": "app/Libraries/Accounting/AgedLedger.php",
+  "find": "$applied = bccomp($credit, $amount, SaleAmounts::SCALE) < 0 ? $credit : $amount;",
+  "replace": "$applied = $amount;",
+  "tests": [
+   "tests/Libraries/Accounting/AgedLedgerTest.php"
+  ]
+ },
+ {
+  "name": "G36 a party settled to nothing is left out and one holding credit is kept",
+  "file": "app/Libraries/Accounting/AgedLedger.php",
+  "find": "if (bccomp($row->total(), '0', SaleAmounts::SCALE) > 0 || bccomp($row->credit, '0', SaleAmounts::SCALE) > 0) {",
+  "replace": "if (true) {",
+  "tests": [
+   "tests/Libraries/Accounting/AgedLedgerTest.php"
+  ]
+ },
+ {
+  "name": "G37 customer: a document is dated by the typed day",
+  "file": "app/Libraries/Accounting/CustomerLedger.php",
+  "find": "COALESCE(s.invoice_date, DATE(s.sale_time)) AS doc_date",
+  "replace": "DATE(s.sale_time) AS doc_date",
+  "tests": [
+   "tests/Libraries/Accounting/CustomerLedgerTest.php"
+  ]
+ },
+ {
+  "name": "G38 customer: a document dated after the day of the position is left out",
+  "file": "app/Libraries/Accounting/CustomerLedger.php",
+  "find": "' AND COALESCE(s.invoice_date, DATE(s.sale_time)) <= ?'",
+  "replace": "' AND ? IS NOT NULL'",
+  "tests": [
+   "tests/Libraries/Accounting/CustomerLedgerTest.php"
+  ]
+ },
+ {
+  "name": "G39 customer: the due date is the one stored, the document day when none",
+  "file": "app/Libraries/Accounting/CustomerLedger.php",
+  "find": "$sale->due_date === null ? (string) $sale->doc_date : (string) $sale->due_date,",
+  "replace": "(string) $sale->doc_date,",
+  "tests": [
+   "tests/Libraries/Accounting/CustomerLedgerTest.php"
+  ]
+ },
+ {
+  "name": "G40 customer: the balance of a day counts the journals up to that day",
+  "file": "app/Libraries/Accounting/CustomerLedger.php",
+  "find": "$until      = ' AND j.journal_date <= ?';",
+  "replace": "$until      = ' AND ? IS NOT NULL';",
+  "tests": [
+   "tests/Libraries/Accounting/CustomerLedgerTest.php"
+  ]
+ },
+ {
+  "name": "G42 customer: an application made after the day is not counted",
+  "file": "app/Libraries/Accounting/CustomerLedger.php",
+  "find": "substr((string) $application->created_at, 0, 10) > $asOf || ",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/CustomerLedgerTest.php"
+  ]
+ },
+ {
+  "name": "G43 customer: an application released by the day is not counted",
+  "file": "app/Libraries/Accounting/CustomerLedger.php",
+  "find": " || ($application->released_at !== null && substr((string) $application->released_at, 0, 10) <= $asOf)",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/CustomerLedgerTest.php"
+  ]
+ },
+ {
+  "name": "G37 supplier: a document is dated by the typed day",
+  "file": "app/Libraries/Accounting/SupplierLedger.php",
+  "find": "COALESCE(r.invoice_date, DATE(r.receiving_time)) AS doc_date",
+  "replace": "DATE(r.receiving_time) AS doc_date",
+  "tests": [
+   "tests/Libraries/Accounting/SupplierLedgerTest.php"
+  ]
+ },
+ {
+  "name": "G38 supplier: a document dated after the day of the position is left out",
+  "file": "app/Libraries/Accounting/SupplierLedger.php",
+  "find": "' AND COALESCE(r.invoice_date, DATE(r.receiving_time)) <= ?'",
+  "replace": "' AND ? IS NOT NULL'",
+  "tests": [
+   "tests/Libraries/Accounting/SupplierLedgerTest.php"
+  ]
+ },
+ {
+  "name": "G39 supplier: the due date is the one stored, the document day when none",
+  "file": "app/Libraries/Accounting/SupplierLedger.php",
+  "find": "$purchase->due_date === null ? (string) $purchase->doc_date : (string) $purchase->due_date,",
+  "replace": "(string) $purchase->doc_date,",
+  "tests": [
+   "tests/Libraries/Accounting/SupplierLedgerTest.php"
+  ]
+ },
+ {
+  "name": "G40 supplier: the balance of a day counts the journals up to that day",
+  "file": "app/Libraries/Accounting/SupplierLedger.php",
+  "find": "$until      = ' AND j.journal_date <= ?';",
+  "replace": "$until      = ' AND ? IS NOT NULL';",
+  "tests": [
+   "tests/Libraries/Accounting/SupplierLedgerTest.php"
+  ]
+ },
+ {
+  "name": "G42 supplier: an application made after the day is not counted",
+  "file": "app/Libraries/Accounting/SupplierLedger.php",
+  "find": "substr((string) $application->created_at, 0, 10) > $asOf || ",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/SupplierLedgerTest.php"
+  ]
+ },
+ {
+  "name": "G43 supplier: an application released by the day is not counted",
+  "file": "app/Libraries/Accounting/SupplierLedger.php",
+  "find": " || ($application->released_at !== null && substr((string) $application->released_at, 0, 10) <= $asOf)",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/SupplierLedgerTest.php"
+  ]
+ },
+ {
+  "name": "G44 a journal reversed after the day still counts on that day",
+  "file": "app/Libraries/Accounting/StandingJournals.php",
+  "find": "AND later.journal_date > ?",
+  "replace": "AND ? IS NOT NULL",
+  "tests": [
+   "tests/Libraries/Accounting/CustomerLedgerTest.php",
+   "tests/Libraries/Accounting/SupplierLedgerTest.php"
+  ]
+ },
+ {
+  "name": "G45 customer: the overdue amount is what is overdue",
+  "file": "app/Libraries/Accounting/CustomerPosition.php",
+  "find": "if ($invoice->isOverdue($today)) {",
+  "replace": "if (true) {",
+  "tests": [
+   "tests/Libraries/Accounting/CustomerLedgerTest.php"
+  ]
+ },
+ {
+  "name": "G46 supplier: the overdue amount is what is overdue",
+  "file": "app/Libraries/Accounting/SupplierPosition.php",
+  "find": "if ($purchase->isOverdue($today)) {",
+  "replace": "if (true) {",
+  "tests": [
+   "tests/Libraries/Accounting/SupplierLedgerTest.php"
+  ]
+ },
+ {
+  "name": "G47 invoice: only what is open can be overdue",
+  "file": "app/Libraries/Accounting/InvoiceFigures.php",
+  "find": "return InvoiceTiming::isOverdue($this->dueDate, $today, bccomp($this->open(), '0', SaleAmounts::SCALE) > 0);",
+  "replace": "return InvoiceTiming::isOverdue($this->dueDate, $today, true);",
+  "tests": [
+   "tests/Libraries/Accounting/CustomerLedgerTest.php"
+  ]
+ },
+ {
+  "name": "G48 purchase: only what is open can be overdue",
+  "file": "app/Libraries/Accounting/PurchaseFigures.php",
+  "find": "return InvoiceTiming::isOverdue($this->dueDate, $today, bccomp($this->open(), '0', SaleAmounts::SCALE) > 0);",
+  "replace": "return InvoiceTiming::isOverdue($this->dueDate, $today, true);",
+  "tests": [
+   "tests/Libraries/Accounting/SupplierLedgerTest.php"
+  ]
+ },
+ {
+  "name": "G49 invoice: days overdue are nothing for what is not overdue",
+  "file": "app/Libraries/Accounting/InvoiceFigures.php",
+  "find": "return $this->isOverdue($today) ? AgingBuckets::ageInDays($this->dueDate, $today) : 0;",
+  "replace": "return AgingBuckets::ageInDays($this->dueDate, $today);",
+  "tests": [
+   "tests/Libraries/Accounting/CustomerLedgerTest.php"
+  ]
+ },
+ {
+  "name": "G50 purchase: days overdue are nothing for what is not overdue",
+  "file": "app/Libraries/Accounting/PurchaseFigures.php",
+  "find": "return $this->isOverdue($today) ? AgingBuckets::ageInDays($this->dueDate, $today) : 0;",
+  "replace": "return AgingBuckets::ageInDays($this->dueDate, $today);",
+  "tests": [
+   "tests/Libraries/Accounting/SupplierLedgerTest.php"
+  ]
+ },
+ {
+  "name": "G53 sale: the journals take the typed day",
+  "file": "app/Libraries/Accounting/SaleLoader.php",
+  "find": "date: $sale->invoice_date === null ? $savedOn : (string) $sale->invoice_date,",
+  "replace": "date: $savedOn,",
+  "tests": [
+   "--filter",
+   "testSaveValue_DatesTheJournalsOfAnInvoiceByTheDayTypedOnItAndKeepsTheTimeItWasSaved|testSaveValue_DatesAnInvoiceTodayWhenNoDayIsTypedAndStoresNoDay|testSaveValue_RefusesADayTypedByAnEmployeeWhoMayNotTypeItAndSavesNothing|testSaveValue_RefusesAnInvoiceDatedInAClosedPeriodAndLeavesNothingOfIt|testSaveValue_PostsAnInvoiceDatedTheDayAfterTheClosingAndTheDayOfTheClosingIsRefused|testSaveValue_RefusesADayThatIsNotARealDayUpToTodayOrIsBeforeTheBooksStart|testSaveValue_IssuesADraftWithATypedDayAtThatDayAsTheReferenceSystemDoes|testSaveValue_IssuesADraftWithNoTypedDayOnTheDayItIsIssued|testSaveValue_LetsAnEmployeeWithoutThePermissionIssueADraftAtTheDayItAlreadyCarriesButNotAtAnother|testSaveValue_TakesNoTypedDayForASaleThatIsNotAnInvoice|testSaveValue_SavesNoTypedDayOrTermsWhileAccountingIsOff|testSaveValue_WorksOutTheDueDateFromTheDayOfTheInvoiceAndItsTerms|testSaveValue_WorksOutTheDueDateFromTodayWhenTheInvoiceHasTermsAndNoTypedDay|testSaveValue_StoresNoTermsAndNoDueDateForAnInvoiceWithNoTermsOrZeroDays|testSaveValue_RefusesTermsThatAreNotAWholeNumberOfDaysAndSavesNothing|testSaveValue_KeepsTheTermsOfADraftAndWorksOutItsDueDateWhenItIsIssued|testSaveValue_WritesInTheAuditLogWhoTypedTheDayOfAnInvoiceAndWhenAtTheSaveThatTypedIt|testSaveValue_WritesNothingInTheAuditLogForAnInvoiceDatedToday|testUpdate_RefusesToChangeTheDayTypedOnAPostedInvoiceAndLeavesItsJournalsAsTheyWere|testUpdate_RefusesToChangeTheDayTypedOnADraftToo|testUpdate_AcceptsTheDayTypedOnAPostedInvoiceWhenItIsTheSameDay|testUpdate_RefusesToMoveTheTimeAnInvoiceWasSavedEvenToTheDayItIsDated|testUpdate_ChangesThePaymentTermsOfAnIssuedInvoiceAndNothingInItsJournals|testUpdate_WritesInTheAuditLogWhatTheTermsWereAndWhatTheyBecameAndWritesNothingWhenTheyStay|testUpdate_RefusesTermsThatAreNotAWholeNumberOfDaysAndChangesNothing|testUpdate_TakesNoTermsForASaleThatIsNotAnIssuedInvoiceOrWhileAccountingIsOff|testUpdate_ChangesTheTermsOfAnInvoiceInAClosedPeriodBecauseNoJournalMoves",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G54 purchase: the journals take the typed day",
+  "file": "app/Libraries/Accounting/ReceivingLoader.php",
+  "find": "date: $receiving->invoice_date === null ? $savedOn : (string) $receiving->invoice_date,",
+  "replace": "date: $savedOn,",
+  "tests": [
+   "--filter",
+   "testSaveValue_DatesTheJournalsAndTheStockOfAPurchaseByTheDayTypedOnItAndKeepsTheTimeItWasSaved|testSaveValue_DatesAPurchaseTodayWhenNoDayIsTypedAndStoresNoDay|testSaveValue_RefusesADayTypedByABuyerWhoMayNotTypeItAndSavesNothing|testSaveValue_RefusesAPurchaseDatedInAClosedPeriodAndLeavesNothingOfIt|testSaveValue_RefusesADayThatIsNotARealDayUpToTodayOrIsBeforeTheBooksStart|testSaveValue_TakesNoTypedDayOrTermsForAReturnOrWhileAccountingIsOff|testSaveValue_WorksOutTheDueDateFromTheDayOfThePurchaseAndItsTerms|testSaveValue_WorksOutTheDueDateFromTodayWhenThePurchaseHasTermsAndNoTypedDay|testSaveValue_StoresNoTermsAndNoDueDateForAPurchaseWithNoTermsOrZeroDays|testSaveValue_RefusesTermsThatAreNotAWholeNumberOfDaysAndSavesNothing|testSaveValue_WritesInTheAuditLogWhoTypedTheDayOfAPurchaseAndWhen|testUpdate_RefusesToChangeTheDayTypedOnAPostedPurchaseAndLeavesItsJournalsAsTheyWere|testUpdate_RefusesToChangeTheDayTypedOnAPurchaseWhoseJournalDoesNotStand|testUpdate_AcceptsTheDayTypedOnAPostedPurchaseWhenItIsTheSameDay|testUpdate_RefusesToMoveTheTimeAPurchaseWasSavedEvenToTheDayItIsDated|testUpdate_ChangesThePaymentTermsOfAPostedPurchaseAndNothingInItsJournals|testUpdate_WritesInTheAuditLogWhatTheTermsWereAndWhatTheyBecameAndWritesNothingWhenTheyStay|testUpdate_RefusesTermsThatAreNotAWholeNumberOfDaysAndChangesNothing|testUpdate_TakesNoTermsForAReturnOrWhileAccountingIsOff|testUpdate_ChangesTheTermsOfAPurchaseInAClosedPeriodBecauseNoJournalMoves",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "G55 sale: the typed day never changes after the sale is saved",
+  "file": "app/Libraries/Accounting/SalePosting.php",
+  "find": "$invoiceChanged  = array_key_exists('invoice_date', $changes) && ($sale === null || $sale->date !== $changes['invoice_date']);",
+  "replace": "$invoiceChanged  = false;",
+  "tests": [
+   "--filter",
+   "testSaveValue_DatesTheJournalsOfAnInvoiceByTheDayTypedOnItAndKeepsTheTimeItWasSaved|testSaveValue_DatesAnInvoiceTodayWhenNoDayIsTypedAndStoresNoDay|testSaveValue_RefusesADayTypedByAnEmployeeWhoMayNotTypeItAndSavesNothing|testSaveValue_RefusesAnInvoiceDatedInAClosedPeriodAndLeavesNothingOfIt|testSaveValue_PostsAnInvoiceDatedTheDayAfterTheClosingAndTheDayOfTheClosingIsRefused|testSaveValue_RefusesADayThatIsNotARealDayUpToTodayOrIsBeforeTheBooksStart|testSaveValue_IssuesADraftWithATypedDayAtThatDayAsTheReferenceSystemDoes|testSaveValue_IssuesADraftWithNoTypedDayOnTheDayItIsIssued|testSaveValue_LetsAnEmployeeWithoutThePermissionIssueADraftAtTheDayItAlreadyCarriesButNotAtAnother|testSaveValue_TakesNoTypedDayForASaleThatIsNotAnInvoice|testSaveValue_SavesNoTypedDayOrTermsWhileAccountingIsOff|testSaveValue_WorksOutTheDueDateFromTheDayOfTheInvoiceAndItsTerms|testSaveValue_WorksOutTheDueDateFromTodayWhenTheInvoiceHasTermsAndNoTypedDay|testSaveValue_StoresNoTermsAndNoDueDateForAnInvoiceWithNoTermsOrZeroDays|testSaveValue_RefusesTermsThatAreNotAWholeNumberOfDaysAndSavesNothing|testSaveValue_KeepsTheTermsOfADraftAndWorksOutItsDueDateWhenItIsIssued|testSaveValue_WritesInTheAuditLogWhoTypedTheDayOfAnInvoiceAndWhenAtTheSaveThatTypedIt|testSaveValue_WritesNothingInTheAuditLogForAnInvoiceDatedToday|testUpdate_RefusesToChangeTheDayTypedOnAPostedInvoiceAndLeavesItsJournalsAsTheyWere|testUpdate_RefusesToChangeTheDayTypedOnADraftToo|testUpdate_AcceptsTheDayTypedOnAPostedInvoiceWhenItIsTheSameDay|testUpdate_RefusesToMoveTheTimeAnInvoiceWasSavedEvenToTheDayItIsDated|testUpdate_ChangesThePaymentTermsOfAnIssuedInvoiceAndNothingInItsJournals|testUpdate_WritesInTheAuditLogWhatTheTermsWereAndWhatTheyBecameAndWritesNothingWhenTheyStay|testUpdate_RefusesTermsThatAreNotAWholeNumberOfDaysAndChangesNothing|testUpdate_TakesNoTermsForASaleThatIsNotAnIssuedInvoiceOrWhileAccountingIsOff|testUpdate_ChangesTheTermsOfAnInvoiceInAClosedPeriodBecauseNoJournalMoves",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G56 purchase: the typed day never changes after the purchase is saved",
+  "file": "app/Libraries/Accounting/ReceivingPosting.php",
+  "find": "$invoiceChanged  = array_key_exists('invoice_date', $changes) && ($purchase === null || $purchase->date !== $changes['invoice_date']);",
+  "replace": "$invoiceChanged  = false;",
+  "tests": [
+   "--filter",
+   "testSaveValue_DatesTheJournalsAndTheStockOfAPurchaseByTheDayTypedOnItAndKeepsTheTimeItWasSaved|testSaveValue_DatesAPurchaseTodayWhenNoDayIsTypedAndStoresNoDay|testSaveValue_RefusesADayTypedByABuyerWhoMayNotTypeItAndSavesNothing|testSaveValue_RefusesAPurchaseDatedInAClosedPeriodAndLeavesNothingOfIt|testSaveValue_RefusesADayThatIsNotARealDayUpToTodayOrIsBeforeTheBooksStart|testSaveValue_TakesNoTypedDayOrTermsForAReturnOrWhileAccountingIsOff|testSaveValue_WorksOutTheDueDateFromTheDayOfThePurchaseAndItsTerms|testSaveValue_WorksOutTheDueDateFromTodayWhenThePurchaseHasTermsAndNoTypedDay|testSaveValue_StoresNoTermsAndNoDueDateForAPurchaseWithNoTermsOrZeroDays|testSaveValue_RefusesTermsThatAreNotAWholeNumberOfDaysAndSavesNothing|testSaveValue_WritesInTheAuditLogWhoTypedTheDayOfAPurchaseAndWhen|testUpdate_RefusesToChangeTheDayTypedOnAPostedPurchaseAndLeavesItsJournalsAsTheyWere|testUpdate_RefusesToChangeTheDayTypedOnAPurchaseWhoseJournalDoesNotStand|testUpdate_AcceptsTheDayTypedOnAPostedPurchaseWhenItIsTheSameDay|testUpdate_RefusesToMoveTheTimeAPurchaseWasSavedEvenToTheDayItIsDated|testUpdate_ChangesThePaymentTermsOfAPostedPurchaseAndNothingInItsJournals|testUpdate_WritesInTheAuditLogWhatTheTermsWereAndWhatTheyBecameAndWritesNothingWhenTheyStay|testUpdate_RefusesTermsThatAreNotAWholeNumberOfDaysAndChangesNothing|testUpdate_TakesNoTermsForAReturnOrWhileAccountingIsOff|testUpdate_ChangesTheTermsOfAPurchaseInAClosedPeriodBecauseNoJournalMoves",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "G57 sale: the moment it was saved is compared with the day typed on the edit, not the day it is dated",
+  "file": "app/Libraries/Accounting/SalePosting.php",
+  "find": "$sale->savedOn !== $changes['date']",
+  "replace": "$sale->date !== $changes['date']",
+  "tests": [
+   "--filter",
+   "testSaveValue_DatesTheJournalsOfAnInvoiceByTheDayTypedOnItAndKeepsTheTimeItWasSaved|testSaveValue_DatesAnInvoiceTodayWhenNoDayIsTypedAndStoresNoDay|testSaveValue_RefusesADayTypedByAnEmployeeWhoMayNotTypeItAndSavesNothing|testSaveValue_RefusesAnInvoiceDatedInAClosedPeriodAndLeavesNothingOfIt|testSaveValue_PostsAnInvoiceDatedTheDayAfterTheClosingAndTheDayOfTheClosingIsRefused|testSaveValue_RefusesADayThatIsNotARealDayUpToTodayOrIsBeforeTheBooksStart|testSaveValue_IssuesADraftWithATypedDayAtThatDayAsTheReferenceSystemDoes|testSaveValue_IssuesADraftWithNoTypedDayOnTheDayItIsIssued|testSaveValue_LetsAnEmployeeWithoutThePermissionIssueADraftAtTheDayItAlreadyCarriesButNotAtAnother|testSaveValue_TakesNoTypedDayForASaleThatIsNotAnInvoice|testSaveValue_SavesNoTypedDayOrTermsWhileAccountingIsOff|testSaveValue_WorksOutTheDueDateFromTheDayOfTheInvoiceAndItsTerms|testSaveValue_WorksOutTheDueDateFromTodayWhenTheInvoiceHasTermsAndNoTypedDay|testSaveValue_StoresNoTermsAndNoDueDateForAnInvoiceWithNoTermsOrZeroDays|testSaveValue_RefusesTermsThatAreNotAWholeNumberOfDaysAndSavesNothing|testSaveValue_KeepsTheTermsOfADraftAndWorksOutItsDueDateWhenItIsIssued|testSaveValue_WritesInTheAuditLogWhoTypedTheDayOfAnInvoiceAndWhenAtTheSaveThatTypedIt|testSaveValue_WritesNothingInTheAuditLogForAnInvoiceDatedToday|testUpdate_RefusesToChangeTheDayTypedOnAPostedInvoiceAndLeavesItsJournalsAsTheyWere|testUpdate_RefusesToChangeTheDayTypedOnADraftToo|testUpdate_AcceptsTheDayTypedOnAPostedInvoiceWhenItIsTheSameDay|testUpdate_RefusesToMoveTheTimeAnInvoiceWasSavedEvenToTheDayItIsDated|testUpdate_ChangesThePaymentTermsOfAnIssuedInvoiceAndNothingInItsJournals|testUpdate_WritesInTheAuditLogWhatTheTermsWereAndWhatTheyBecameAndWritesNothingWhenTheyStay|testUpdate_RefusesTermsThatAreNotAWholeNumberOfDaysAndChangesNothing|testUpdate_TakesNoTermsForASaleThatIsNotAnIssuedInvoiceOrWhileAccountingIsOff|testUpdate_ChangesTheTermsOfAnInvoiceInAClosedPeriodBecauseNoJournalMoves",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G58 purchase: the moment it was saved is compared with the day typed on the edit, not the day it is dated",
+  "file": "app/Libraries/Accounting/ReceivingPosting.php",
+  "find": "$purchase->savedOn !== $changes['date']",
+  "replace": "$purchase->date !== $changes['date']",
+  "tests": [
+   "--filter",
+   "testSaveValue_DatesTheJournalsAndTheStockOfAPurchaseByTheDayTypedOnItAndKeepsTheTimeItWasSaved|testSaveValue_DatesAPurchaseTodayWhenNoDayIsTypedAndStoresNoDay|testSaveValue_RefusesADayTypedByABuyerWhoMayNotTypeItAndSavesNothing|testSaveValue_RefusesAPurchaseDatedInAClosedPeriodAndLeavesNothingOfIt|testSaveValue_RefusesADayThatIsNotARealDayUpToTodayOrIsBeforeTheBooksStart|testSaveValue_TakesNoTypedDayOrTermsForAReturnOrWhileAccountingIsOff|testSaveValue_WorksOutTheDueDateFromTheDayOfThePurchaseAndItsTerms|testSaveValue_WorksOutTheDueDateFromTodayWhenThePurchaseHasTermsAndNoTypedDay|testSaveValue_StoresNoTermsAndNoDueDateForAPurchaseWithNoTermsOrZeroDays|testSaveValue_RefusesTermsThatAreNotAWholeNumberOfDaysAndSavesNothing|testSaveValue_WritesInTheAuditLogWhoTypedTheDayOfAPurchaseAndWhen|testUpdate_RefusesToChangeTheDayTypedOnAPostedPurchaseAndLeavesItsJournalsAsTheyWere|testUpdate_RefusesToChangeTheDayTypedOnAPurchaseWhoseJournalDoesNotStand|testUpdate_AcceptsTheDayTypedOnAPostedPurchaseWhenItIsTheSameDay|testUpdate_RefusesToMoveTheTimeAPurchaseWasSavedEvenToTheDayItIsDated|testUpdate_ChangesThePaymentTermsOfAPostedPurchaseAndNothingInItsJournals|testUpdate_WritesInTheAuditLogWhatTheTermsWereAndWhatTheyBecameAndWritesNothingWhenTheyStay|testUpdate_RefusesTermsThatAreNotAWholeNumberOfDaysAndChangesNothing|testUpdate_TakesNoTermsForAReturnOrWhileAccountingIsOff|testUpdate_ChangesTheTermsOfAPurchaseInAClosedPeriodBecauseNoJournalMoves",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "G59 sale: the typed day is checked even when the journal is not posted",
+  "file": "app/Libraries/Accounting/SalePosting.php",
+  "find": "if (! $posted && ! array_key_exists('invoice_date', $changes)) {",
+  "replace": "if (! $posted) {",
+  "tests": [
+   "--filter",
+   "testSaveValue_DatesTheJournalsOfAnInvoiceByTheDayTypedOnItAndKeepsTheTimeItWasSaved|testSaveValue_DatesAnInvoiceTodayWhenNoDayIsTypedAndStoresNoDay|testSaveValue_RefusesADayTypedByAnEmployeeWhoMayNotTypeItAndSavesNothing|testSaveValue_RefusesAnInvoiceDatedInAClosedPeriodAndLeavesNothingOfIt|testSaveValue_PostsAnInvoiceDatedTheDayAfterTheClosingAndTheDayOfTheClosingIsRefused|testSaveValue_RefusesADayThatIsNotARealDayUpToTodayOrIsBeforeTheBooksStart|testSaveValue_IssuesADraftWithATypedDayAtThatDayAsTheReferenceSystemDoes|testSaveValue_IssuesADraftWithNoTypedDayOnTheDayItIsIssued|testSaveValue_LetsAnEmployeeWithoutThePermissionIssueADraftAtTheDayItAlreadyCarriesButNotAtAnother|testSaveValue_TakesNoTypedDayForASaleThatIsNotAnInvoice|testSaveValue_SavesNoTypedDayOrTermsWhileAccountingIsOff|testSaveValue_WorksOutTheDueDateFromTheDayOfTheInvoiceAndItsTerms|testSaveValue_WorksOutTheDueDateFromTodayWhenTheInvoiceHasTermsAndNoTypedDay|testSaveValue_StoresNoTermsAndNoDueDateForAnInvoiceWithNoTermsOrZeroDays|testSaveValue_RefusesTermsThatAreNotAWholeNumberOfDaysAndSavesNothing|testSaveValue_KeepsTheTermsOfADraftAndWorksOutItsDueDateWhenItIsIssued|testSaveValue_WritesInTheAuditLogWhoTypedTheDayOfAnInvoiceAndWhenAtTheSaveThatTypedIt|testSaveValue_WritesNothingInTheAuditLogForAnInvoiceDatedToday|testUpdate_RefusesToChangeTheDayTypedOnAPostedInvoiceAndLeavesItsJournalsAsTheyWere|testUpdate_RefusesToChangeTheDayTypedOnADraftToo|testUpdate_AcceptsTheDayTypedOnAPostedInvoiceWhenItIsTheSameDay|testUpdate_RefusesToMoveTheTimeAnInvoiceWasSavedEvenToTheDayItIsDated|testUpdate_ChangesThePaymentTermsOfAnIssuedInvoiceAndNothingInItsJournals|testUpdate_WritesInTheAuditLogWhatTheTermsWereAndWhatTheyBecameAndWritesNothingWhenTheyStay|testUpdate_RefusesTermsThatAreNotAWholeNumberOfDaysAndChangesNothing|testUpdate_TakesNoTermsForASaleThatIsNotAnIssuedInvoiceOrWhileAccountingIsOff|testUpdate_ChangesTheTermsOfAnInvoiceInAClosedPeriodBecauseNoJournalMoves",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G60 purchase: the typed day is checked even when the journal is not posted",
+  "file": "app/Libraries/Accounting/ReceivingPosting.php",
+  "find": "if (! $posted && ! array_key_exists('invoice_date', $changes)) {",
+  "replace": "if (! $posted) {",
+  "tests": [
+   "--filter",
+   "testSaveValue_DatesTheJournalsAndTheStockOfAPurchaseByTheDayTypedOnItAndKeepsTheTimeItWasSaved|testSaveValue_DatesAPurchaseTodayWhenNoDayIsTypedAndStoresNoDay|testSaveValue_RefusesADayTypedByABuyerWhoMayNotTypeItAndSavesNothing|testSaveValue_RefusesAPurchaseDatedInAClosedPeriodAndLeavesNothingOfIt|testSaveValue_RefusesADayThatIsNotARealDayUpToTodayOrIsBeforeTheBooksStart|testSaveValue_TakesNoTypedDayOrTermsForAReturnOrWhileAccountingIsOff|testSaveValue_WorksOutTheDueDateFromTheDayOfThePurchaseAndItsTerms|testSaveValue_WorksOutTheDueDateFromTodayWhenThePurchaseHasTermsAndNoTypedDay|testSaveValue_StoresNoTermsAndNoDueDateForAPurchaseWithNoTermsOrZeroDays|testSaveValue_RefusesTermsThatAreNotAWholeNumberOfDaysAndSavesNothing|testSaveValue_WritesInTheAuditLogWhoTypedTheDayOfAPurchaseAndWhen|testUpdate_RefusesToChangeTheDayTypedOnAPostedPurchaseAndLeavesItsJournalsAsTheyWere|testUpdate_RefusesToChangeTheDayTypedOnAPurchaseWhoseJournalDoesNotStand|testUpdate_AcceptsTheDayTypedOnAPostedPurchaseWhenItIsTheSameDay|testUpdate_RefusesToMoveTheTimeAPurchaseWasSavedEvenToTheDayItIsDated|testUpdate_ChangesThePaymentTermsOfAPostedPurchaseAndNothingInItsJournals|testUpdate_WritesInTheAuditLogWhatTheTermsWereAndWhatTheyBecameAndWritesNothingWhenTheyStay|testUpdate_RefusesTermsThatAreNotAWholeNumberOfDaysAndChangesNothing|testUpdate_TakesNoTermsForAReturnOrWhileAccountingIsOff|testUpdate_ChangesTheTermsOfAPurchaseInAClosedPeriodBecauseNoJournalMoves",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "G61 sale: accounting off stores no typed day or terms",
+  "file": "app/Models/Sale.php",
+  "find": "if (! $settings->isEnabled() || $saleType !== SALE_TYPE_INVOICE) {",
+  "replace": "if ($saleType !== SALE_TYPE_INVOICE) {",
+  "tests": [
+   "--filter",
+   "testSaveValue_DatesTheJournalsOfAnInvoiceByTheDayTypedOnItAndKeepsTheTimeItWasSaved|testSaveValue_DatesAnInvoiceTodayWhenNoDayIsTypedAndStoresNoDay|testSaveValue_RefusesADayTypedByAnEmployeeWhoMayNotTypeItAndSavesNothing|testSaveValue_RefusesAnInvoiceDatedInAClosedPeriodAndLeavesNothingOfIt|testSaveValue_PostsAnInvoiceDatedTheDayAfterTheClosingAndTheDayOfTheClosingIsRefused|testSaveValue_RefusesADayThatIsNotARealDayUpToTodayOrIsBeforeTheBooksStart|testSaveValue_IssuesADraftWithATypedDayAtThatDayAsTheReferenceSystemDoes|testSaveValue_IssuesADraftWithNoTypedDayOnTheDayItIsIssued|testSaveValue_LetsAnEmployeeWithoutThePermissionIssueADraftAtTheDayItAlreadyCarriesButNotAtAnother|testSaveValue_TakesNoTypedDayForASaleThatIsNotAnInvoice|testSaveValue_SavesNoTypedDayOrTermsWhileAccountingIsOff|testSaveValue_WorksOutTheDueDateFromTheDayOfTheInvoiceAndItsTerms|testSaveValue_WorksOutTheDueDateFromTodayWhenTheInvoiceHasTermsAndNoTypedDay|testSaveValue_StoresNoTermsAndNoDueDateForAnInvoiceWithNoTermsOrZeroDays|testSaveValue_RefusesTermsThatAreNotAWholeNumberOfDaysAndSavesNothing|testSaveValue_KeepsTheTermsOfADraftAndWorksOutItsDueDateWhenItIsIssued|testSaveValue_WritesInTheAuditLogWhoTypedTheDayOfAnInvoiceAndWhenAtTheSaveThatTypedIt|testSaveValue_WritesNothingInTheAuditLogForAnInvoiceDatedToday|testUpdate_RefusesToChangeTheDayTypedOnAPostedInvoiceAndLeavesItsJournalsAsTheyWere|testUpdate_RefusesToChangeTheDayTypedOnADraftToo|testUpdate_AcceptsTheDayTypedOnAPostedInvoiceWhenItIsTheSameDay|testUpdate_RefusesToMoveTheTimeAnInvoiceWasSavedEvenToTheDayItIsDated|testUpdate_ChangesThePaymentTermsOfAnIssuedInvoiceAndNothingInItsJournals|testUpdate_WritesInTheAuditLogWhatTheTermsWereAndWhatTheyBecameAndWritesNothingWhenTheyStay|testUpdate_RefusesTermsThatAreNotAWholeNumberOfDaysAndChangesNothing|testUpdate_TakesNoTermsForASaleThatIsNotAnIssuedInvoiceOrWhileAccountingIsOff|testUpdate_ChangesTheTermsOfAnInvoiceInAClosedPeriodBecauseNoJournalMoves",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G62 sale: only an invoice carries a typed day",
+  "file": "app/Models/Sale.php",
+  "find": "if (! $settings->isEnabled() || $saleType !== SALE_TYPE_INVOICE) {",
+  "replace": "if (! $settings->isEnabled()) {",
+  "tests": [
+   "--filter",
+   "testSaveValue_DatesTheJournalsOfAnInvoiceByTheDayTypedOnItAndKeepsTheTimeItWasSaved|testSaveValue_DatesAnInvoiceTodayWhenNoDayIsTypedAndStoresNoDay|testSaveValue_RefusesADayTypedByAnEmployeeWhoMayNotTypeItAndSavesNothing|testSaveValue_RefusesAnInvoiceDatedInAClosedPeriodAndLeavesNothingOfIt|testSaveValue_PostsAnInvoiceDatedTheDayAfterTheClosingAndTheDayOfTheClosingIsRefused|testSaveValue_RefusesADayThatIsNotARealDayUpToTodayOrIsBeforeTheBooksStart|testSaveValue_IssuesADraftWithATypedDayAtThatDayAsTheReferenceSystemDoes|testSaveValue_IssuesADraftWithNoTypedDayOnTheDayItIsIssued|testSaveValue_LetsAnEmployeeWithoutThePermissionIssueADraftAtTheDayItAlreadyCarriesButNotAtAnother|testSaveValue_TakesNoTypedDayForASaleThatIsNotAnInvoice|testSaveValue_SavesNoTypedDayOrTermsWhileAccountingIsOff|testSaveValue_WorksOutTheDueDateFromTheDayOfTheInvoiceAndItsTerms|testSaveValue_WorksOutTheDueDateFromTodayWhenTheInvoiceHasTermsAndNoTypedDay|testSaveValue_StoresNoTermsAndNoDueDateForAnInvoiceWithNoTermsOrZeroDays|testSaveValue_RefusesTermsThatAreNotAWholeNumberOfDaysAndSavesNothing|testSaveValue_KeepsTheTermsOfADraftAndWorksOutItsDueDateWhenItIsIssued|testSaveValue_WritesInTheAuditLogWhoTypedTheDayOfAnInvoiceAndWhenAtTheSaveThatTypedIt|testSaveValue_WritesNothingInTheAuditLogForAnInvoiceDatedToday|testUpdate_RefusesToChangeTheDayTypedOnAPostedInvoiceAndLeavesItsJournalsAsTheyWere|testUpdate_RefusesToChangeTheDayTypedOnADraftToo|testUpdate_AcceptsTheDayTypedOnAPostedInvoiceWhenItIsTheSameDay|testUpdate_RefusesToMoveTheTimeAnInvoiceWasSavedEvenToTheDayItIsDated|testUpdate_ChangesThePaymentTermsOfAnIssuedInvoiceAndNothingInItsJournals|testUpdate_WritesInTheAuditLogWhatTheTermsWereAndWhatTheyBecameAndWritesNothingWhenTheyStay|testUpdate_RefusesTermsThatAreNotAWholeNumberOfDaysAndChangesNothing|testUpdate_TakesNoTermsForASaleThatIsNotAnIssuedInvoiceOrWhileAccountingIsOff|testUpdate_ChangesTheTermsOfAnInvoiceInAClosedPeriodBecauseNoJournalMoves",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G63 sale: only who holds the permission types the day",
+  "file": "app/Models/Sale.php",
+  "find": "if ($date !== null && ! $this->mayTypeInvoiceDate($saleId, $employeeId, $date)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testSaveValue_DatesTheJournalsOfAnInvoiceByTheDayTypedOnItAndKeepsTheTimeItWasSaved|testSaveValue_DatesAnInvoiceTodayWhenNoDayIsTypedAndStoresNoDay|testSaveValue_RefusesADayTypedByAnEmployeeWhoMayNotTypeItAndSavesNothing|testSaveValue_RefusesAnInvoiceDatedInAClosedPeriodAndLeavesNothingOfIt|testSaveValue_PostsAnInvoiceDatedTheDayAfterTheClosingAndTheDayOfTheClosingIsRefused|testSaveValue_RefusesADayThatIsNotARealDayUpToTodayOrIsBeforeTheBooksStart|testSaveValue_IssuesADraftWithATypedDayAtThatDayAsTheReferenceSystemDoes|testSaveValue_IssuesADraftWithNoTypedDayOnTheDayItIsIssued|testSaveValue_LetsAnEmployeeWithoutThePermissionIssueADraftAtTheDayItAlreadyCarriesButNotAtAnother|testSaveValue_TakesNoTypedDayForASaleThatIsNotAnInvoice|testSaveValue_SavesNoTypedDayOrTermsWhileAccountingIsOff|testSaveValue_WorksOutTheDueDateFromTheDayOfTheInvoiceAndItsTerms|testSaveValue_WorksOutTheDueDateFromTodayWhenTheInvoiceHasTermsAndNoTypedDay|testSaveValue_StoresNoTermsAndNoDueDateForAnInvoiceWithNoTermsOrZeroDays|testSaveValue_RefusesTermsThatAreNotAWholeNumberOfDaysAndSavesNothing|testSaveValue_KeepsTheTermsOfADraftAndWorksOutItsDueDateWhenItIsIssued|testSaveValue_WritesInTheAuditLogWhoTypedTheDayOfAnInvoiceAndWhenAtTheSaveThatTypedIt|testSaveValue_WritesNothingInTheAuditLogForAnInvoiceDatedToday|testUpdate_RefusesToChangeTheDayTypedOnAPostedInvoiceAndLeavesItsJournalsAsTheyWere|testUpdate_RefusesToChangeTheDayTypedOnADraftToo|testUpdate_AcceptsTheDayTypedOnAPostedInvoiceWhenItIsTheSameDay|testUpdate_RefusesToMoveTheTimeAnInvoiceWasSavedEvenToTheDayItIsDated|testUpdate_ChangesThePaymentTermsOfAnIssuedInvoiceAndNothingInItsJournals|testUpdate_WritesInTheAuditLogWhatTheTermsWereAndWhatTheyBecameAndWritesNothingWhenTheyStay|testUpdate_RefusesTermsThatAreNotAWholeNumberOfDaysAndChangesNothing|testUpdate_TakesNoTermsForASaleThatIsNotAnIssuedInvoiceOrWhileAccountingIsOff|testUpdate_ChangesTheTermsOfAnInvoiceInAClosedPeriodBecauseNoJournalMoves",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G64 sale: a draft is issued at the day it carries by whoever issues it, at no other",
+  "file": "app/Models/Sale.php",
+  "find": "return $saleId !== NEW_ENTRY && $this->storedInvoiceDate($saleId) === $date;",
+  "replace": "return true;",
+  "tests": [
+   "--filter",
+   "testSaveValue_DatesTheJournalsOfAnInvoiceByTheDayTypedOnItAndKeepsTheTimeItWasSaved|testSaveValue_DatesAnInvoiceTodayWhenNoDayIsTypedAndStoresNoDay|testSaveValue_RefusesADayTypedByAnEmployeeWhoMayNotTypeItAndSavesNothing|testSaveValue_RefusesAnInvoiceDatedInAClosedPeriodAndLeavesNothingOfIt|testSaveValue_PostsAnInvoiceDatedTheDayAfterTheClosingAndTheDayOfTheClosingIsRefused|testSaveValue_RefusesADayThatIsNotARealDayUpToTodayOrIsBeforeTheBooksStart|testSaveValue_IssuesADraftWithATypedDayAtThatDayAsTheReferenceSystemDoes|testSaveValue_IssuesADraftWithNoTypedDayOnTheDayItIsIssued|testSaveValue_LetsAnEmployeeWithoutThePermissionIssueADraftAtTheDayItAlreadyCarriesButNotAtAnother|testSaveValue_TakesNoTypedDayForASaleThatIsNotAnInvoice|testSaveValue_SavesNoTypedDayOrTermsWhileAccountingIsOff|testSaveValue_WorksOutTheDueDateFromTheDayOfTheInvoiceAndItsTerms|testSaveValue_WorksOutTheDueDateFromTodayWhenTheInvoiceHasTermsAndNoTypedDay|testSaveValue_StoresNoTermsAndNoDueDateForAnInvoiceWithNoTermsOrZeroDays|testSaveValue_RefusesTermsThatAreNotAWholeNumberOfDaysAndSavesNothing|testSaveValue_KeepsTheTermsOfADraftAndWorksOutItsDueDateWhenItIsIssued|testSaveValue_WritesInTheAuditLogWhoTypedTheDayOfAnInvoiceAndWhenAtTheSaveThatTypedIt|testSaveValue_WritesNothingInTheAuditLogForAnInvoiceDatedToday|testUpdate_RefusesToChangeTheDayTypedOnAPostedInvoiceAndLeavesItsJournalsAsTheyWere|testUpdate_RefusesToChangeTheDayTypedOnADraftToo|testUpdate_AcceptsTheDayTypedOnAPostedInvoiceWhenItIsTheSameDay|testUpdate_RefusesToMoveTheTimeAnInvoiceWasSavedEvenToTheDayItIsDated|testUpdate_ChangesThePaymentTermsOfAnIssuedInvoiceAndNothingInItsJournals|testUpdate_WritesInTheAuditLogWhatTheTermsWereAndWhatTheyBecameAndWritesNothingWhenTheyStay|testUpdate_RefusesTermsThatAreNotAWholeNumberOfDaysAndChangesNothing|testUpdate_TakesNoTermsForASaleThatIsNotAnIssuedInvoiceOrWhileAccountingIsOff|testUpdate_ChangesTheTermsOfAnInvoiceInAClosedPeriodBecauseNoJournalMoves",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G65 sale: a draft has terms and no due date until it is issued",
+  "file": "app/Models/Sale.php",
+  "find": "'due_date'           => $terms !== null && $saleStatus === COMPLETED ? InvoiceTiming::dueDate($date ?? $today, $terms) : null,",
+  "replace": "'due_date'           => $terms !== null ? InvoiceTiming::dueDate($date ?? $today, $terms) : null,",
+  "tests": [
+   "--filter",
+   "testSaveValue_DatesTheJournalsOfAnInvoiceByTheDayTypedOnItAndKeepsTheTimeItWasSaved|testSaveValue_DatesAnInvoiceTodayWhenNoDayIsTypedAndStoresNoDay|testSaveValue_RefusesADayTypedByAnEmployeeWhoMayNotTypeItAndSavesNothing|testSaveValue_RefusesAnInvoiceDatedInAClosedPeriodAndLeavesNothingOfIt|testSaveValue_PostsAnInvoiceDatedTheDayAfterTheClosingAndTheDayOfTheClosingIsRefused|testSaveValue_RefusesADayThatIsNotARealDayUpToTodayOrIsBeforeTheBooksStart|testSaveValue_IssuesADraftWithATypedDayAtThatDayAsTheReferenceSystemDoes|testSaveValue_IssuesADraftWithNoTypedDayOnTheDayItIsIssued|testSaveValue_LetsAnEmployeeWithoutThePermissionIssueADraftAtTheDayItAlreadyCarriesButNotAtAnother|testSaveValue_TakesNoTypedDayForASaleThatIsNotAnInvoice|testSaveValue_SavesNoTypedDayOrTermsWhileAccountingIsOff|testSaveValue_WorksOutTheDueDateFromTheDayOfTheInvoiceAndItsTerms|testSaveValue_WorksOutTheDueDateFromTodayWhenTheInvoiceHasTermsAndNoTypedDay|testSaveValue_StoresNoTermsAndNoDueDateForAnInvoiceWithNoTermsOrZeroDays|testSaveValue_RefusesTermsThatAreNotAWholeNumberOfDaysAndSavesNothing|testSaveValue_KeepsTheTermsOfADraftAndWorksOutItsDueDateWhenItIsIssued|testSaveValue_WritesInTheAuditLogWhoTypedTheDayOfAnInvoiceAndWhenAtTheSaveThatTypedIt|testSaveValue_WritesNothingInTheAuditLogForAnInvoiceDatedToday|testUpdate_RefusesToChangeTheDayTypedOnAPostedInvoiceAndLeavesItsJournalsAsTheyWere|testUpdate_RefusesToChangeTheDayTypedOnADraftToo|testUpdate_AcceptsTheDayTypedOnAPostedInvoiceWhenItIsTheSameDay|testUpdate_RefusesToMoveTheTimeAnInvoiceWasSavedEvenToTheDayItIsDated|testUpdate_ChangesThePaymentTermsOfAnIssuedInvoiceAndNothingInItsJournals|testUpdate_WritesInTheAuditLogWhatTheTermsWereAndWhatTheyBecameAndWritesNothingWhenTheyStay|testUpdate_RefusesTermsThatAreNotAWholeNumberOfDaysAndChangesNothing|testUpdate_TakesNoTermsForASaleThatIsNotAnIssuedInvoiceOrWhileAccountingIsOff|testUpdate_ChangesTheTermsOfAnInvoiceInAClosedPeriodBecauseNoJournalMoves",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G66 sale: the typed day of an invoice is audited when it is typed",
+  "file": "app/Models/Sale.php",
+  "find": "if ($timing['invoice_date'] !== null && $timing['invoice_date'] !== $storedDate) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testSaveValue_DatesTheJournalsOfAnInvoiceByTheDayTypedOnItAndKeepsTheTimeItWasSaved|testSaveValue_DatesAnInvoiceTodayWhenNoDayIsTypedAndStoresNoDay|testSaveValue_RefusesADayTypedByAnEmployeeWhoMayNotTypeItAndSavesNothing|testSaveValue_RefusesAnInvoiceDatedInAClosedPeriodAndLeavesNothingOfIt|testSaveValue_PostsAnInvoiceDatedTheDayAfterTheClosingAndTheDayOfTheClosingIsRefused|testSaveValue_RefusesADayThatIsNotARealDayUpToTodayOrIsBeforeTheBooksStart|testSaveValue_IssuesADraftWithATypedDayAtThatDayAsTheReferenceSystemDoes|testSaveValue_IssuesADraftWithNoTypedDayOnTheDayItIsIssued|testSaveValue_LetsAnEmployeeWithoutThePermissionIssueADraftAtTheDayItAlreadyCarriesButNotAtAnother|testSaveValue_TakesNoTypedDayForASaleThatIsNotAnInvoice|testSaveValue_SavesNoTypedDayOrTermsWhileAccountingIsOff|testSaveValue_WorksOutTheDueDateFromTheDayOfTheInvoiceAndItsTerms|testSaveValue_WorksOutTheDueDateFromTodayWhenTheInvoiceHasTermsAndNoTypedDay|testSaveValue_StoresNoTermsAndNoDueDateForAnInvoiceWithNoTermsOrZeroDays|testSaveValue_RefusesTermsThatAreNotAWholeNumberOfDaysAndSavesNothing|testSaveValue_KeepsTheTermsOfADraftAndWorksOutItsDueDateWhenItIsIssued|testSaveValue_WritesInTheAuditLogWhoTypedTheDayOfAnInvoiceAndWhenAtTheSaveThatTypedIt|testSaveValue_WritesNothingInTheAuditLogForAnInvoiceDatedToday|testUpdate_RefusesToChangeTheDayTypedOnAPostedInvoiceAndLeavesItsJournalsAsTheyWere|testUpdate_RefusesToChangeTheDayTypedOnADraftToo|testUpdate_AcceptsTheDayTypedOnAPostedInvoiceWhenItIsTheSameDay|testUpdate_RefusesToMoveTheTimeAnInvoiceWasSavedEvenToTheDayItIsDated|testUpdate_ChangesThePaymentTermsOfAnIssuedInvoiceAndNothingInItsJournals|testUpdate_WritesInTheAuditLogWhatTheTermsWereAndWhatTheyBecameAndWritesNothingWhenTheyStay|testUpdate_RefusesTermsThatAreNotAWholeNumberOfDaysAndChangesNothing|testUpdate_TakesNoTermsForASaleThatIsNotAnIssuedInvoiceOrWhileAccountingIsOff|testUpdate_ChangesTheTermsOfAnInvoiceInAClosedPeriodBecauseNoJournalMoves",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G67 sale: the terms of what is not an issued invoice are not changed",
+  "file": "app/Models/Sale.php",
+  "find": "$sale === null || (int) $sale->sale_type !== SALE_TYPE_INVOICE || (int) $sale->sale_status !== COMPLETED",
+  "replace": "$sale === null",
+  "tests": [
+   "--filter",
+   "testSaveValue_DatesTheJournalsOfAnInvoiceByTheDayTypedOnItAndKeepsTheTimeItWasSaved|testSaveValue_DatesAnInvoiceTodayWhenNoDayIsTypedAndStoresNoDay|testSaveValue_RefusesADayTypedByAnEmployeeWhoMayNotTypeItAndSavesNothing|testSaveValue_RefusesAnInvoiceDatedInAClosedPeriodAndLeavesNothingOfIt|testSaveValue_PostsAnInvoiceDatedTheDayAfterTheClosingAndTheDayOfTheClosingIsRefused|testSaveValue_RefusesADayThatIsNotARealDayUpToTodayOrIsBeforeTheBooksStart|testSaveValue_IssuesADraftWithATypedDayAtThatDayAsTheReferenceSystemDoes|testSaveValue_IssuesADraftWithNoTypedDayOnTheDayItIsIssued|testSaveValue_LetsAnEmployeeWithoutThePermissionIssueADraftAtTheDayItAlreadyCarriesButNotAtAnother|testSaveValue_TakesNoTypedDayForASaleThatIsNotAnInvoice|testSaveValue_SavesNoTypedDayOrTermsWhileAccountingIsOff|testSaveValue_WorksOutTheDueDateFromTheDayOfTheInvoiceAndItsTerms|testSaveValue_WorksOutTheDueDateFromTodayWhenTheInvoiceHasTermsAndNoTypedDay|testSaveValue_StoresNoTermsAndNoDueDateForAnInvoiceWithNoTermsOrZeroDays|testSaveValue_RefusesTermsThatAreNotAWholeNumberOfDaysAndSavesNothing|testSaveValue_KeepsTheTermsOfADraftAndWorksOutItsDueDateWhenItIsIssued|testSaveValue_WritesInTheAuditLogWhoTypedTheDayOfAnInvoiceAndWhenAtTheSaveThatTypedIt|testSaveValue_WritesNothingInTheAuditLogForAnInvoiceDatedToday|testUpdate_RefusesToChangeTheDayTypedOnAPostedInvoiceAndLeavesItsJournalsAsTheyWere|testUpdate_RefusesToChangeTheDayTypedOnADraftToo|testUpdate_AcceptsTheDayTypedOnAPostedInvoiceWhenItIsTheSameDay|testUpdate_RefusesToMoveTheTimeAnInvoiceWasSavedEvenToTheDayItIsDated|testUpdate_ChangesThePaymentTermsOfAnIssuedInvoiceAndNothingInItsJournals|testUpdate_WritesInTheAuditLogWhatTheTermsWereAndWhatTheyBecameAndWritesNothingWhenTheyStay|testUpdate_RefusesTermsThatAreNotAWholeNumberOfDaysAndChangesNothing|testUpdate_TakesNoTermsForASaleThatIsNotAnIssuedInvoiceOrWhileAccountingIsOff|testUpdate_ChangesTheTermsOfAnInvoiceInAClosedPeriodBecauseNoJournalMoves",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G68 sale: terms that stay the same write nothing",
+  "file": "app/Models/Sale.php",
+  "find": "if ($before === $terms) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testSaveValue_DatesTheJournalsOfAnInvoiceByTheDayTypedOnItAndKeepsTheTimeItWasSaved|testSaveValue_DatesAnInvoiceTodayWhenNoDayIsTypedAndStoresNoDay|testSaveValue_RefusesADayTypedByAnEmployeeWhoMayNotTypeItAndSavesNothing|testSaveValue_RefusesAnInvoiceDatedInAClosedPeriodAndLeavesNothingOfIt|testSaveValue_PostsAnInvoiceDatedTheDayAfterTheClosingAndTheDayOfTheClosingIsRefused|testSaveValue_RefusesADayThatIsNotARealDayUpToTodayOrIsBeforeTheBooksStart|testSaveValue_IssuesADraftWithATypedDayAtThatDayAsTheReferenceSystemDoes|testSaveValue_IssuesADraftWithNoTypedDayOnTheDayItIsIssued|testSaveValue_LetsAnEmployeeWithoutThePermissionIssueADraftAtTheDayItAlreadyCarriesButNotAtAnother|testSaveValue_TakesNoTypedDayForASaleThatIsNotAnInvoice|testSaveValue_SavesNoTypedDayOrTermsWhileAccountingIsOff|testSaveValue_WorksOutTheDueDateFromTheDayOfTheInvoiceAndItsTerms|testSaveValue_WorksOutTheDueDateFromTodayWhenTheInvoiceHasTermsAndNoTypedDay|testSaveValue_StoresNoTermsAndNoDueDateForAnInvoiceWithNoTermsOrZeroDays|testSaveValue_RefusesTermsThatAreNotAWholeNumberOfDaysAndSavesNothing|testSaveValue_KeepsTheTermsOfADraftAndWorksOutItsDueDateWhenItIsIssued|testSaveValue_WritesInTheAuditLogWhoTypedTheDayOfAnInvoiceAndWhenAtTheSaveThatTypedIt|testSaveValue_WritesNothingInTheAuditLogForAnInvoiceDatedToday|testUpdate_RefusesToChangeTheDayTypedOnAPostedInvoiceAndLeavesItsJournalsAsTheyWere|testUpdate_RefusesToChangeTheDayTypedOnADraftToo|testUpdate_AcceptsTheDayTypedOnAPostedInvoiceWhenItIsTheSameDay|testUpdate_RefusesToMoveTheTimeAnInvoiceWasSavedEvenToTheDayItIsDated|testUpdate_ChangesThePaymentTermsOfAnIssuedInvoiceAndNothingInItsJournals|testUpdate_WritesInTheAuditLogWhatTheTermsWereAndWhatTheyBecameAndWritesNothingWhenTheyStay|testUpdate_RefusesTermsThatAreNotAWholeNumberOfDaysAndChangesNothing|testUpdate_TakesNoTermsForASaleThatIsNotAnIssuedInvoiceOrWhileAccountingIsOff|testUpdate_ChangesTheTermsOfAnInvoiceInAClosedPeriodBecauseNoJournalMoves",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G69 sale: a change of terms is audited with what it was and what it became",
+  "file": "app/Models/Sale.php",
+  "find": "(new AuditLog($this->db))->write('sale', $saleId, 'payment_terms_changed', $employeeId, JournalOrigin::User, ['from' => $before, 'to' => $terms, 'due_date' => $due ?? $date], (int) $sale->branch_id);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testSaveValue_DatesTheJournalsOfAnInvoiceByTheDayTypedOnItAndKeepsTheTimeItWasSaved|testSaveValue_DatesAnInvoiceTodayWhenNoDayIsTypedAndStoresNoDay|testSaveValue_RefusesADayTypedByAnEmployeeWhoMayNotTypeItAndSavesNothing|testSaveValue_RefusesAnInvoiceDatedInAClosedPeriodAndLeavesNothingOfIt|testSaveValue_PostsAnInvoiceDatedTheDayAfterTheClosingAndTheDayOfTheClosingIsRefused|testSaveValue_RefusesADayThatIsNotARealDayUpToTodayOrIsBeforeTheBooksStart|testSaveValue_IssuesADraftWithATypedDayAtThatDayAsTheReferenceSystemDoes|testSaveValue_IssuesADraftWithNoTypedDayOnTheDayItIsIssued|testSaveValue_LetsAnEmployeeWithoutThePermissionIssueADraftAtTheDayItAlreadyCarriesButNotAtAnother|testSaveValue_TakesNoTypedDayForASaleThatIsNotAnInvoice|testSaveValue_SavesNoTypedDayOrTermsWhileAccountingIsOff|testSaveValue_WorksOutTheDueDateFromTheDayOfTheInvoiceAndItsTerms|testSaveValue_WorksOutTheDueDateFromTodayWhenTheInvoiceHasTermsAndNoTypedDay|testSaveValue_StoresNoTermsAndNoDueDateForAnInvoiceWithNoTermsOrZeroDays|testSaveValue_RefusesTermsThatAreNotAWholeNumberOfDaysAndSavesNothing|testSaveValue_KeepsTheTermsOfADraftAndWorksOutItsDueDateWhenItIsIssued|testSaveValue_WritesInTheAuditLogWhoTypedTheDayOfAnInvoiceAndWhenAtTheSaveThatTypedIt|testSaveValue_WritesNothingInTheAuditLogForAnInvoiceDatedToday|testUpdate_RefusesToChangeTheDayTypedOnAPostedInvoiceAndLeavesItsJournalsAsTheyWere|testUpdate_RefusesToChangeTheDayTypedOnADraftToo|testUpdate_AcceptsTheDayTypedOnAPostedInvoiceWhenItIsTheSameDay|testUpdate_RefusesToMoveTheTimeAnInvoiceWasSavedEvenToTheDayItIsDated|testUpdate_ChangesThePaymentTermsOfAnIssuedInvoiceAndNothingInItsJournals|testUpdate_WritesInTheAuditLogWhatTheTermsWereAndWhatTheyBecameAndWritesNothingWhenTheyStay|testUpdate_RefusesTermsThatAreNotAWholeNumberOfDaysAndChangesNothing|testUpdate_TakesNoTermsForASaleThatIsNotAnIssuedInvoiceOrWhileAccountingIsOff|testUpdate_ChangesTheTermsOfAnInvoiceInAClosedPeriodBecauseNoJournalMoves",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G70 sale: the due date and the typed day handed to an edit are not stored",
+  "file": "app/Models/Sale.php",
+  "find": "unset($updateData['invoice_date'], $updateData['payment_terms_days'], $updateData['due_date'], $updateData['changed_by']);",
+  "replace": "unset($updateData['changed_by']);",
+  "tests": [
+   "--filter",
+   "testSaveValue_DatesTheJournalsOfAnInvoiceByTheDayTypedOnItAndKeepsTheTimeItWasSaved|testSaveValue_DatesAnInvoiceTodayWhenNoDayIsTypedAndStoresNoDay|testSaveValue_RefusesADayTypedByAnEmployeeWhoMayNotTypeItAndSavesNothing|testSaveValue_RefusesAnInvoiceDatedInAClosedPeriodAndLeavesNothingOfIt|testSaveValue_PostsAnInvoiceDatedTheDayAfterTheClosingAndTheDayOfTheClosingIsRefused|testSaveValue_RefusesADayThatIsNotARealDayUpToTodayOrIsBeforeTheBooksStart|testSaveValue_IssuesADraftWithATypedDayAtThatDayAsTheReferenceSystemDoes|testSaveValue_IssuesADraftWithNoTypedDayOnTheDayItIsIssued|testSaveValue_LetsAnEmployeeWithoutThePermissionIssueADraftAtTheDayItAlreadyCarriesButNotAtAnother|testSaveValue_TakesNoTypedDayForASaleThatIsNotAnInvoice|testSaveValue_SavesNoTypedDayOrTermsWhileAccountingIsOff|testSaveValue_WorksOutTheDueDateFromTheDayOfTheInvoiceAndItsTerms|testSaveValue_WorksOutTheDueDateFromTodayWhenTheInvoiceHasTermsAndNoTypedDay|testSaveValue_StoresNoTermsAndNoDueDateForAnInvoiceWithNoTermsOrZeroDays|testSaveValue_RefusesTermsThatAreNotAWholeNumberOfDaysAndSavesNothing|testSaveValue_KeepsTheTermsOfADraftAndWorksOutItsDueDateWhenItIsIssued|testSaveValue_WritesInTheAuditLogWhoTypedTheDayOfAnInvoiceAndWhenAtTheSaveThatTypedIt|testSaveValue_WritesNothingInTheAuditLogForAnInvoiceDatedToday|testUpdate_RefusesToChangeTheDayTypedOnAPostedInvoiceAndLeavesItsJournalsAsTheyWere|testUpdate_RefusesToChangeTheDayTypedOnADraftToo|testUpdate_AcceptsTheDayTypedOnAPostedInvoiceWhenItIsTheSameDay|testUpdate_RefusesToMoveTheTimeAnInvoiceWasSavedEvenToTheDayItIsDated|testUpdate_ChangesThePaymentTermsOfAnIssuedInvoiceAndNothingInItsJournals|testUpdate_WritesInTheAuditLogWhatTheTermsWereAndWhatTheyBecameAndWritesNothingWhenTheyStay|testUpdate_RefusesTermsThatAreNotAWholeNumberOfDaysAndChangesNothing|testUpdate_TakesNoTermsForASaleThatIsNotAnIssuedInvoiceOrWhileAccountingIsOff|testUpdate_ChangesTheTermsOfAnInvoiceInAClosedPeriodBecauseNoJournalMoves",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G71 sale: terms that are not days leave no failure in the posting log",
+  "file": "app/Models/Sale.php",
+  "find": ", AccountingError::TreasuryWithdrawDenied, AccountingError::PaymentTermsInvalid], true)",
+  "replace": ", AccountingError::TreasuryWithdrawDenied], true)",
+  "tests": [
+   "--filter",
+   "testSaveValue_DatesTheJournalsOfAnInvoiceByTheDayTypedOnItAndKeepsTheTimeItWasSaved|testSaveValue_DatesAnInvoiceTodayWhenNoDayIsTypedAndStoresNoDay|testSaveValue_RefusesADayTypedByAnEmployeeWhoMayNotTypeItAndSavesNothing|testSaveValue_RefusesAnInvoiceDatedInAClosedPeriodAndLeavesNothingOfIt|testSaveValue_PostsAnInvoiceDatedTheDayAfterTheClosingAndTheDayOfTheClosingIsRefused|testSaveValue_RefusesADayThatIsNotARealDayUpToTodayOrIsBeforeTheBooksStart|testSaveValue_IssuesADraftWithATypedDayAtThatDayAsTheReferenceSystemDoes|testSaveValue_IssuesADraftWithNoTypedDayOnTheDayItIsIssued|testSaveValue_LetsAnEmployeeWithoutThePermissionIssueADraftAtTheDayItAlreadyCarriesButNotAtAnother|testSaveValue_TakesNoTypedDayForASaleThatIsNotAnInvoice|testSaveValue_SavesNoTypedDayOrTermsWhileAccountingIsOff|testSaveValue_WorksOutTheDueDateFromTheDayOfTheInvoiceAndItsTerms|testSaveValue_WorksOutTheDueDateFromTodayWhenTheInvoiceHasTermsAndNoTypedDay|testSaveValue_StoresNoTermsAndNoDueDateForAnInvoiceWithNoTermsOrZeroDays|testSaveValue_RefusesTermsThatAreNotAWholeNumberOfDaysAndSavesNothing|testSaveValue_KeepsTheTermsOfADraftAndWorksOutItsDueDateWhenItIsIssued|testSaveValue_WritesInTheAuditLogWhoTypedTheDayOfAnInvoiceAndWhenAtTheSaveThatTypedIt|testSaveValue_WritesNothingInTheAuditLogForAnInvoiceDatedToday|testUpdate_RefusesToChangeTheDayTypedOnAPostedInvoiceAndLeavesItsJournalsAsTheyWere|testUpdate_RefusesToChangeTheDayTypedOnADraftToo|testUpdate_AcceptsTheDayTypedOnAPostedInvoiceWhenItIsTheSameDay|testUpdate_RefusesToMoveTheTimeAnInvoiceWasSavedEvenToTheDayItIsDated|testUpdate_ChangesThePaymentTermsOfAnIssuedInvoiceAndNothingInItsJournals|testUpdate_WritesInTheAuditLogWhatTheTermsWereAndWhatTheyBecameAndWritesNothingWhenTheyStay|testUpdate_RefusesTermsThatAreNotAWholeNumberOfDaysAndChangesNothing|testUpdate_TakesNoTermsForASaleThatIsNotAnIssuedInvoiceOrWhileAccountingIsOff|testUpdate_ChangesTheTermsOfAnInvoiceInAClosedPeriodBecauseNoJournalMoves",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G72 purchase: accounting off or a return stores no typed day or terms",
+  "file": "app/Models/Receiving.php",
+  "find": "if (! $settings->isEnabled() || $type !== ReceivingType::Receive) {",
+  "replace": "if ($type !== ReceivingType::Receive) {",
+  "tests": [
+   "--filter",
+   "testSaveValue_DatesTheJournalsAndTheStockOfAPurchaseByTheDayTypedOnItAndKeepsTheTimeItWasSaved|testSaveValue_DatesAPurchaseTodayWhenNoDayIsTypedAndStoresNoDay|testSaveValue_RefusesADayTypedByABuyerWhoMayNotTypeItAndSavesNothing|testSaveValue_RefusesAPurchaseDatedInAClosedPeriodAndLeavesNothingOfIt|testSaveValue_RefusesADayThatIsNotARealDayUpToTodayOrIsBeforeTheBooksStart|testSaveValue_TakesNoTypedDayOrTermsForAReturnOrWhileAccountingIsOff|testSaveValue_WorksOutTheDueDateFromTheDayOfThePurchaseAndItsTerms|testSaveValue_WorksOutTheDueDateFromTodayWhenThePurchaseHasTermsAndNoTypedDay|testSaveValue_StoresNoTermsAndNoDueDateForAPurchaseWithNoTermsOrZeroDays|testSaveValue_RefusesTermsThatAreNotAWholeNumberOfDaysAndSavesNothing|testSaveValue_WritesInTheAuditLogWhoTypedTheDayOfAPurchaseAndWhen|testUpdate_RefusesToChangeTheDayTypedOnAPostedPurchaseAndLeavesItsJournalsAsTheyWere|testUpdate_RefusesToChangeTheDayTypedOnAPurchaseWhoseJournalDoesNotStand|testUpdate_AcceptsTheDayTypedOnAPostedPurchaseWhenItIsTheSameDay|testUpdate_RefusesToMoveTheTimeAPurchaseWasSavedEvenToTheDayItIsDated|testUpdate_ChangesThePaymentTermsOfAPostedPurchaseAndNothingInItsJournals|testUpdate_WritesInTheAuditLogWhatTheTermsWereAndWhatTheyBecameAndWritesNothingWhenTheyStay|testUpdate_RefusesTermsThatAreNotAWholeNumberOfDaysAndChangesNothing|testUpdate_TakesNoTermsForAReturnOrWhileAccountingIsOff|testUpdate_ChangesTheTermsOfAPurchaseInAClosedPeriodBecauseNoJournalMoves",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "G73 purchase: a return carries no typed day",
+  "file": "app/Models/Receiving.php",
+  "find": "if (! $settings->isEnabled() || $type !== ReceivingType::Receive) {",
+  "replace": "if (! $settings->isEnabled()) {",
+  "tests": [
+   "--filter",
+   "testSaveValue_DatesTheJournalsAndTheStockOfAPurchaseByTheDayTypedOnItAndKeepsTheTimeItWasSaved|testSaveValue_DatesAPurchaseTodayWhenNoDayIsTypedAndStoresNoDay|testSaveValue_RefusesADayTypedByABuyerWhoMayNotTypeItAndSavesNothing|testSaveValue_RefusesAPurchaseDatedInAClosedPeriodAndLeavesNothingOfIt|testSaveValue_RefusesADayThatIsNotARealDayUpToTodayOrIsBeforeTheBooksStart|testSaveValue_TakesNoTypedDayOrTermsForAReturnOrWhileAccountingIsOff|testSaveValue_WorksOutTheDueDateFromTheDayOfThePurchaseAndItsTerms|testSaveValue_WorksOutTheDueDateFromTodayWhenThePurchaseHasTermsAndNoTypedDay|testSaveValue_StoresNoTermsAndNoDueDateForAPurchaseWithNoTermsOrZeroDays|testSaveValue_RefusesTermsThatAreNotAWholeNumberOfDaysAndSavesNothing|testSaveValue_WritesInTheAuditLogWhoTypedTheDayOfAPurchaseAndWhen|testUpdate_RefusesToChangeTheDayTypedOnAPostedPurchaseAndLeavesItsJournalsAsTheyWere|testUpdate_RefusesToChangeTheDayTypedOnAPurchaseWhoseJournalDoesNotStand|testUpdate_AcceptsTheDayTypedOnAPostedPurchaseWhenItIsTheSameDay|testUpdate_RefusesToMoveTheTimeAPurchaseWasSavedEvenToTheDayItIsDated|testUpdate_ChangesThePaymentTermsOfAPostedPurchaseAndNothingInItsJournals|testUpdate_WritesInTheAuditLogWhatTheTermsWereAndWhatTheyBecameAndWritesNothingWhenTheyStay|testUpdate_RefusesTermsThatAreNotAWholeNumberOfDaysAndChangesNothing|testUpdate_TakesNoTermsForAReturnOrWhileAccountingIsOff|testUpdate_ChangesTheTermsOfAPurchaseInAClosedPeriodBecauseNoJournalMoves",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "G74 purchase: only who holds the permission types the day",
+  "file": "app/Models/Receiving.php",
+  "find": "if ($date !== null && ! model(Employee::class)->has_grant('receivings_invoice_date', $employeeId)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testSaveValue_DatesTheJournalsAndTheStockOfAPurchaseByTheDayTypedOnItAndKeepsTheTimeItWasSaved|testSaveValue_DatesAPurchaseTodayWhenNoDayIsTypedAndStoresNoDay|testSaveValue_RefusesADayTypedByABuyerWhoMayNotTypeItAndSavesNothing|testSaveValue_RefusesAPurchaseDatedInAClosedPeriodAndLeavesNothingOfIt|testSaveValue_RefusesADayThatIsNotARealDayUpToTodayOrIsBeforeTheBooksStart|testSaveValue_TakesNoTypedDayOrTermsForAReturnOrWhileAccountingIsOff|testSaveValue_WorksOutTheDueDateFromTheDayOfThePurchaseAndItsTerms|testSaveValue_WorksOutTheDueDateFromTodayWhenThePurchaseHasTermsAndNoTypedDay|testSaveValue_StoresNoTermsAndNoDueDateForAPurchaseWithNoTermsOrZeroDays|testSaveValue_RefusesTermsThatAreNotAWholeNumberOfDaysAndSavesNothing|testSaveValue_WritesInTheAuditLogWhoTypedTheDayOfAPurchaseAndWhen|testUpdate_RefusesToChangeTheDayTypedOnAPostedPurchaseAndLeavesItsJournalsAsTheyWere|testUpdate_RefusesToChangeTheDayTypedOnAPurchaseWhoseJournalDoesNotStand|testUpdate_AcceptsTheDayTypedOnAPostedPurchaseWhenItIsTheSameDay|testUpdate_RefusesToMoveTheTimeAPurchaseWasSavedEvenToTheDayItIsDated|testUpdate_ChangesThePaymentTermsOfAPostedPurchaseAndNothingInItsJournals|testUpdate_WritesInTheAuditLogWhatTheTermsWereAndWhatTheyBecameAndWritesNothingWhenTheyStay|testUpdate_RefusesTermsThatAreNotAWholeNumberOfDaysAndChangesNothing|testUpdate_TakesNoTermsForAReturnOrWhileAccountingIsOff|testUpdate_ChangesTheTermsOfAPurchaseInAClosedPeriodBecauseNoJournalMoves",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "G75 purchase: the typed day of a purchase is audited",
+  "file": "app/Models/Receiving.php",
+  "find": "if ($timing['invoice_date'] !== null) {\n                    (new AuditLog",
+  "replace": "if (false) {\n                    (new AuditLog",
+  "tests": [
+   "--filter",
+   "testSaveValue_DatesTheJournalsAndTheStockOfAPurchaseByTheDayTypedOnItAndKeepsTheTimeItWasSaved|testSaveValue_DatesAPurchaseTodayWhenNoDayIsTypedAndStoresNoDay|testSaveValue_RefusesADayTypedByABuyerWhoMayNotTypeItAndSavesNothing|testSaveValue_RefusesAPurchaseDatedInAClosedPeriodAndLeavesNothingOfIt|testSaveValue_RefusesADayThatIsNotARealDayUpToTodayOrIsBeforeTheBooksStart|testSaveValue_TakesNoTypedDayOrTermsForAReturnOrWhileAccountingIsOff|testSaveValue_WorksOutTheDueDateFromTheDayOfThePurchaseAndItsTerms|testSaveValue_WorksOutTheDueDateFromTodayWhenThePurchaseHasTermsAndNoTypedDay|testSaveValue_StoresNoTermsAndNoDueDateForAPurchaseWithNoTermsOrZeroDays|testSaveValue_RefusesTermsThatAreNotAWholeNumberOfDaysAndSavesNothing|testSaveValue_WritesInTheAuditLogWhoTypedTheDayOfAPurchaseAndWhen|testUpdate_RefusesToChangeTheDayTypedOnAPostedPurchaseAndLeavesItsJournalsAsTheyWere|testUpdate_RefusesToChangeTheDayTypedOnAPurchaseWhoseJournalDoesNotStand|testUpdate_AcceptsTheDayTypedOnAPostedPurchaseWhenItIsTheSameDay|testUpdate_RefusesToMoveTheTimeAPurchaseWasSavedEvenToTheDayItIsDated|testUpdate_ChangesThePaymentTermsOfAPostedPurchaseAndNothingInItsJournals|testUpdate_WritesInTheAuditLogWhatTheTermsWereAndWhatTheyBecameAndWritesNothingWhenTheyStay|testUpdate_RefusesTermsThatAreNotAWholeNumberOfDaysAndChangesNothing|testUpdate_TakesNoTermsForAReturnOrWhileAccountingIsOff|testUpdate_ChangesTheTermsOfAPurchaseInAClosedPeriodBecauseNoJournalMoves",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "G76 purchase: the terms of what is not a purchase of goods are not changed",
+  "file": "app/Models/Receiving.php",
+  "find": "if ($purchase === null || $purchase->receiving_type !== ReceivingType::Receive->value) {\n            return [];\n        }\n\n        $before",
+  "replace": "if ($purchase === null) {\n            return [];\n        }\n\n        $before",
+  "tests": [
+   "--filter",
+   "testSaveValue_DatesTheJournalsAndTheStockOfAPurchaseByTheDayTypedOnItAndKeepsTheTimeItWasSaved|testSaveValue_DatesAPurchaseTodayWhenNoDayIsTypedAndStoresNoDay|testSaveValue_RefusesADayTypedByABuyerWhoMayNotTypeItAndSavesNothing|testSaveValue_RefusesAPurchaseDatedInAClosedPeriodAndLeavesNothingOfIt|testSaveValue_RefusesADayThatIsNotARealDayUpToTodayOrIsBeforeTheBooksStart|testSaveValue_TakesNoTypedDayOrTermsForAReturnOrWhileAccountingIsOff|testSaveValue_WorksOutTheDueDateFromTheDayOfThePurchaseAndItsTerms|testSaveValue_WorksOutTheDueDateFromTodayWhenThePurchaseHasTermsAndNoTypedDay|testSaveValue_StoresNoTermsAndNoDueDateForAPurchaseWithNoTermsOrZeroDays|testSaveValue_RefusesTermsThatAreNotAWholeNumberOfDaysAndSavesNothing|testSaveValue_WritesInTheAuditLogWhoTypedTheDayOfAPurchaseAndWhen|testUpdate_RefusesToChangeTheDayTypedOnAPostedPurchaseAndLeavesItsJournalsAsTheyWere|testUpdate_RefusesToChangeTheDayTypedOnAPurchaseWhoseJournalDoesNotStand|testUpdate_AcceptsTheDayTypedOnAPostedPurchaseWhenItIsTheSameDay|testUpdate_RefusesToMoveTheTimeAPurchaseWasSavedEvenToTheDayItIsDated|testUpdate_ChangesThePaymentTermsOfAPostedPurchaseAndNothingInItsJournals|testUpdate_WritesInTheAuditLogWhatTheTermsWereAndWhatTheyBecameAndWritesNothingWhenTheyStay|testUpdate_RefusesTermsThatAreNotAWholeNumberOfDaysAndChangesNothing|testUpdate_TakesNoTermsForAReturnOrWhileAccountingIsOff|testUpdate_ChangesTheTermsOfAPurchaseInAClosedPeriodBecauseNoJournalMoves",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "G77 purchase: terms that stay the same write nothing",
+  "file": "app/Models/Receiving.php",
+  "find": "if ($before === $terms) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testSaveValue_DatesTheJournalsAndTheStockOfAPurchaseByTheDayTypedOnItAndKeepsTheTimeItWasSaved|testSaveValue_DatesAPurchaseTodayWhenNoDayIsTypedAndStoresNoDay|testSaveValue_RefusesADayTypedByABuyerWhoMayNotTypeItAndSavesNothing|testSaveValue_RefusesAPurchaseDatedInAClosedPeriodAndLeavesNothingOfIt|testSaveValue_RefusesADayThatIsNotARealDayUpToTodayOrIsBeforeTheBooksStart|testSaveValue_TakesNoTypedDayOrTermsForAReturnOrWhileAccountingIsOff|testSaveValue_WorksOutTheDueDateFromTheDayOfThePurchaseAndItsTerms|testSaveValue_WorksOutTheDueDateFromTodayWhenThePurchaseHasTermsAndNoTypedDay|testSaveValue_StoresNoTermsAndNoDueDateForAPurchaseWithNoTermsOrZeroDays|testSaveValue_RefusesTermsThatAreNotAWholeNumberOfDaysAndSavesNothing|testSaveValue_WritesInTheAuditLogWhoTypedTheDayOfAPurchaseAndWhen|testUpdate_RefusesToChangeTheDayTypedOnAPostedPurchaseAndLeavesItsJournalsAsTheyWere|testUpdate_RefusesToChangeTheDayTypedOnAPurchaseWhoseJournalDoesNotStand|testUpdate_AcceptsTheDayTypedOnAPostedPurchaseWhenItIsTheSameDay|testUpdate_RefusesToMoveTheTimeAPurchaseWasSavedEvenToTheDayItIsDated|testUpdate_ChangesThePaymentTermsOfAPostedPurchaseAndNothingInItsJournals|testUpdate_WritesInTheAuditLogWhatTheTermsWereAndWhatTheyBecameAndWritesNothingWhenTheyStay|testUpdate_RefusesTermsThatAreNotAWholeNumberOfDaysAndChangesNothing|testUpdate_TakesNoTermsForAReturnOrWhileAccountingIsOff|testUpdate_ChangesTheTermsOfAPurchaseInAClosedPeriodBecauseNoJournalMoves",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "G78 purchase: a change of terms is audited with what it was and what it became",
+  "file": "app/Models/Receiving.php",
+  "find": "(new AuditLog($this->db))->write('receiving', $receivingId, 'payment_terms_changed', $employeeId, JournalOrigin::User, ['from' => $before, 'to' => $terms, 'due_date' => $due ?? $date], (int) $purchase->branch_id);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testSaveValue_DatesTheJournalsAndTheStockOfAPurchaseByTheDayTypedOnItAndKeepsTheTimeItWasSaved|testSaveValue_DatesAPurchaseTodayWhenNoDayIsTypedAndStoresNoDay|testSaveValue_RefusesADayTypedByABuyerWhoMayNotTypeItAndSavesNothing|testSaveValue_RefusesAPurchaseDatedInAClosedPeriodAndLeavesNothingOfIt|testSaveValue_RefusesADayThatIsNotARealDayUpToTodayOrIsBeforeTheBooksStart|testSaveValue_TakesNoTypedDayOrTermsForAReturnOrWhileAccountingIsOff|testSaveValue_WorksOutTheDueDateFromTheDayOfThePurchaseAndItsTerms|testSaveValue_WorksOutTheDueDateFromTodayWhenThePurchaseHasTermsAndNoTypedDay|testSaveValue_StoresNoTermsAndNoDueDateForAPurchaseWithNoTermsOrZeroDays|testSaveValue_RefusesTermsThatAreNotAWholeNumberOfDaysAndSavesNothing|testSaveValue_WritesInTheAuditLogWhoTypedTheDayOfAPurchaseAndWhen|testUpdate_RefusesToChangeTheDayTypedOnAPostedPurchaseAndLeavesItsJournalsAsTheyWere|testUpdate_RefusesToChangeTheDayTypedOnAPurchaseWhoseJournalDoesNotStand|testUpdate_AcceptsTheDayTypedOnAPostedPurchaseWhenItIsTheSameDay|testUpdate_RefusesToMoveTheTimeAPurchaseWasSavedEvenToTheDayItIsDated|testUpdate_ChangesThePaymentTermsOfAPostedPurchaseAndNothingInItsJournals|testUpdate_WritesInTheAuditLogWhatTheTermsWereAndWhatTheyBecameAndWritesNothingWhenTheyStay|testUpdate_RefusesTermsThatAreNotAWholeNumberOfDaysAndChangesNothing|testUpdate_TakesNoTermsForAReturnOrWhileAccountingIsOff|testUpdate_ChangesTheTermsOfAPurchaseInAClosedPeriodBecauseNoJournalMoves",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "G79 purchase: the due date and the typed day handed to an edit are not stored",
+  "file": "app/Models/Receiving.php",
+  "find": "unset($receivingData['payments'], $receivingData['invoice_date'], $receivingData['payment_terms_days'], $receivingData['due_date'], $receivingData['changed_by']);",
+  "replace": "unset($receivingData['payments'], $receivingData['changed_by']);",
+  "tests": [
+   "--filter",
+   "testSaveValue_DatesTheJournalsAndTheStockOfAPurchaseByTheDayTypedOnItAndKeepsTheTimeItWasSaved|testSaveValue_DatesAPurchaseTodayWhenNoDayIsTypedAndStoresNoDay|testSaveValue_RefusesADayTypedByABuyerWhoMayNotTypeItAndSavesNothing|testSaveValue_RefusesAPurchaseDatedInAClosedPeriodAndLeavesNothingOfIt|testSaveValue_RefusesADayThatIsNotARealDayUpToTodayOrIsBeforeTheBooksStart|testSaveValue_TakesNoTypedDayOrTermsForAReturnOrWhileAccountingIsOff|testSaveValue_WorksOutTheDueDateFromTheDayOfThePurchaseAndItsTerms|testSaveValue_WorksOutTheDueDateFromTodayWhenThePurchaseHasTermsAndNoTypedDay|testSaveValue_StoresNoTermsAndNoDueDateForAPurchaseWithNoTermsOrZeroDays|testSaveValue_RefusesTermsThatAreNotAWholeNumberOfDaysAndSavesNothing|testSaveValue_WritesInTheAuditLogWhoTypedTheDayOfAPurchaseAndWhen|testUpdate_RefusesToChangeTheDayTypedOnAPostedPurchaseAndLeavesItsJournalsAsTheyWere|testUpdate_RefusesToChangeTheDayTypedOnAPurchaseWhoseJournalDoesNotStand|testUpdate_AcceptsTheDayTypedOnAPostedPurchaseWhenItIsTheSameDay|testUpdate_RefusesToMoveTheTimeAPurchaseWasSavedEvenToTheDayItIsDated|testUpdate_ChangesThePaymentTermsOfAPostedPurchaseAndNothingInItsJournals|testUpdate_WritesInTheAuditLogWhatTheTermsWereAndWhatTheyBecameAndWritesNothingWhenTheyStay|testUpdate_RefusesTermsThatAreNotAWholeNumberOfDaysAndChangesNothing|testUpdate_TakesNoTermsForAReturnOrWhileAccountingIsOff|testUpdate_ChangesTheTermsOfAPurchaseInAClosedPeriodBecauseNoJournalMoves",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "G80 purchase: terms change only while accounting is on",
+  "file": "app/Models/Receiving.php",
+  "find": "if ($accountingOn && $hasTerms) {",
+  "replace": "if ($hasTerms) {",
+  "tests": [
+   "--filter",
+   "testSaveValue_DatesTheJournalsAndTheStockOfAPurchaseByTheDayTypedOnItAndKeepsTheTimeItWasSaved|testSaveValue_DatesAPurchaseTodayWhenNoDayIsTypedAndStoresNoDay|testSaveValue_RefusesADayTypedByABuyerWhoMayNotTypeItAndSavesNothing|testSaveValue_RefusesAPurchaseDatedInAClosedPeriodAndLeavesNothingOfIt|testSaveValue_RefusesADayThatIsNotARealDayUpToTodayOrIsBeforeTheBooksStart|testSaveValue_TakesNoTypedDayOrTermsForAReturnOrWhileAccountingIsOff|testSaveValue_WorksOutTheDueDateFromTheDayOfThePurchaseAndItsTerms|testSaveValue_WorksOutTheDueDateFromTodayWhenThePurchaseHasTermsAndNoTypedDay|testSaveValue_StoresNoTermsAndNoDueDateForAPurchaseWithNoTermsOrZeroDays|testSaveValue_RefusesTermsThatAreNotAWholeNumberOfDaysAndSavesNothing|testSaveValue_WritesInTheAuditLogWhoTypedTheDayOfAPurchaseAndWhen|testUpdate_RefusesToChangeTheDayTypedOnAPostedPurchaseAndLeavesItsJournalsAsTheyWere|testUpdate_RefusesToChangeTheDayTypedOnAPurchaseWhoseJournalDoesNotStand|testUpdate_AcceptsTheDayTypedOnAPostedPurchaseWhenItIsTheSameDay|testUpdate_RefusesToMoveTheTimeAPurchaseWasSavedEvenToTheDayItIsDated|testUpdate_ChangesThePaymentTermsOfAPostedPurchaseAndNothingInItsJournals|testUpdate_WritesInTheAuditLogWhatTheTermsWereAndWhatTheyBecameAndWritesNothingWhenTheyStay|testUpdate_RefusesTermsThatAreNotAWholeNumberOfDaysAndChangesNothing|testUpdate_TakesNoTermsForAReturnOrWhileAccountingIsOff|testUpdate_ChangesTheTermsOfAPurchaseInAClosedPeriodBecauseNoJournalMoves",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "G81 sales register: the day is typed only by who holds the permission",
+  "file": "app/Controllers/Sales.php",
+  "find": "if (!$settings->isEnabled() || !$this->mayTypeInvoiceDate()) {",
+  "replace": "if (!$settings->isEnabled()) {",
+  "tests": [
+   "--filter",
+   "testPostSetInvoiceDate_RefusesAnEmployeeWithoutThePermissionAndSetsNothing|testPostSetInvoiceDate_RefusesWhileAccountingIsOffAndSetsNothing|testPostSetInvoiceDate_SetsADayUpToTodayAndAnswersTheDueDateOfTheTermsOnTheRegister|testPostSetInvoiceDate_RefusesADayThatIsNotUpToTodayOrIsBeforeTheBooksAndKeepsWhatWasSet|testPostSetInvoiceDate_TakesBackTheDayWhenItIsSentEmpty|testPostSetPaymentTerms_SetsTheTermsForAnyEmployeeAndAnswersTheDueDate|testPostSetPaymentTerms_RefusesWhatIsNotAWholeNumberOfDaysAndKeepsWhatWasSet|testPostSetPaymentTerms_TakesBackTheTermsWhenTheyAreSentEmptyOrZeroAndRefusesWhileAccountingIsOff|testGetIndex_OffersTheDateOnlyToAnEmployeeWhoMayTypeItAndTheTermsToEveryoneInTheModeOfAnInvoice|testGetIndex_OffersNeitherTheDateNorTheTermsOutsideTheModeOfAnInvoiceOrWhileAccountingIsOff|testPostComplete_DatesTheInvoiceByTheDayAndTheTermsOfTheRegisterAndPrintsTheDueDate|testPostComplete_PrintsNoDueDateOnAnInvoiceWithoutTerms|testPostComplete_RefusesADayInAClosedPeriodAndSaysWhyAndSavesNothing|testPostComplete_RefusesTheDayOfAnEmployeeWhoMayNoLongerTypeItAndSavesNothing|testPostSuspend_KeepsTheDayAndTheTermsOfADraftAndTheRegisterBringsThemBackWhenItIsTakenUp|testGetEdit_ShowsTheDayTheTermsAndTheDueDateOfAnIssuedInvoice|testGetEdit_ShowsNoDayTermsOrDueDateOnASaleThatIsNotAnInvoiceOrWhileAccountingIsOff|testPostSave_ChangesThePaymentTermsOfAnIssuedInvoiceAndLeavesItsJournalsAsTheyWere|testPostSave_RefusesTermsThatAreNotAWholeNumberOfDaysAndSaysSo|testPostSave_KeepsTheTermsOfAnInvoiceWhenTheFormSendsNone|testGetInvoice_PrintsTheDayOfTheInvoiceAndTheDueDateOnlyWhenItHasTerms",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G82 sales register: the day is not typed while accounting is off",
+  "file": "app/Controllers/Sales.php",
+  "find": "if (!$settings->isEnabled() || !$this->mayTypeInvoiceDate()) {",
+  "replace": "if (!$this->mayTypeInvoiceDate()) {",
+  "tests": [
+   "--filter",
+   "testPostSetInvoiceDate_RefusesAnEmployeeWithoutThePermissionAndSetsNothing|testPostSetInvoiceDate_RefusesWhileAccountingIsOffAndSetsNothing|testPostSetInvoiceDate_SetsADayUpToTodayAndAnswersTheDueDateOfTheTermsOnTheRegister|testPostSetInvoiceDate_RefusesADayThatIsNotUpToTodayOrIsBeforeTheBooksAndKeepsWhatWasSet|testPostSetInvoiceDate_TakesBackTheDayWhenItIsSentEmpty|testPostSetPaymentTerms_SetsTheTermsForAnyEmployeeAndAnswersTheDueDate|testPostSetPaymentTerms_RefusesWhatIsNotAWholeNumberOfDaysAndKeepsWhatWasSet|testPostSetPaymentTerms_TakesBackTheTermsWhenTheyAreSentEmptyOrZeroAndRefusesWhileAccountingIsOff|testGetIndex_OffersTheDateOnlyToAnEmployeeWhoMayTypeItAndTheTermsToEveryoneInTheModeOfAnInvoice|testGetIndex_OffersNeitherTheDateNorTheTermsOutsideTheModeOfAnInvoiceOrWhileAccountingIsOff|testPostComplete_DatesTheInvoiceByTheDayAndTheTermsOfTheRegisterAndPrintsTheDueDate|testPostComplete_PrintsNoDueDateOnAnInvoiceWithoutTerms|testPostComplete_RefusesADayInAClosedPeriodAndSaysWhyAndSavesNothing|testPostComplete_RefusesTheDayOfAnEmployeeWhoMayNoLongerTypeItAndSavesNothing|testPostSuspend_KeepsTheDayAndTheTermsOfADraftAndTheRegisterBringsThemBackWhenItIsTakenUp|testGetEdit_ShowsTheDayTheTermsAndTheDueDateOfAnIssuedInvoice|testGetEdit_ShowsNoDayTermsOrDueDateOnASaleThatIsNotAnInvoiceOrWhileAccountingIsOff|testPostSave_ChangesThePaymentTermsOfAnIssuedInvoiceAndLeavesItsJournalsAsTheyWere|testPostSave_RefusesTermsThatAreNotAWholeNumberOfDaysAndSaysSo|testPostSave_KeepsTheTermsOfAnInvoiceWhenTheFormSendsNone|testGetInvoice_PrintsTheDayOfTheInvoiceAndTheDueDateOnlyWhenItHasTerms",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G83 sales register: terms are not typed while accounting is off",
+  "file": "app/Controllers/Sales.php",
+  "find": "        if (!(new AccountingSettings())->isEnabled()) {\n            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);\n        }\n\n        $typed = $this->request->getPost('sales_payment_terms');\n\n        try {\n            $terms",
+  "replace": "        $typed = $this->request->getPost('sales_payment_terms');\n\n        try {\n            $terms",
+  "tests": [
+   "--filter",
+   "testPostSetInvoiceDate_RefusesAnEmployeeWithoutThePermissionAndSetsNothing|testPostSetInvoiceDate_RefusesWhileAccountingIsOffAndSetsNothing|testPostSetInvoiceDate_SetsADayUpToTodayAndAnswersTheDueDateOfTheTermsOnTheRegister|testPostSetInvoiceDate_RefusesADayThatIsNotUpToTodayOrIsBeforeTheBooksAndKeepsWhatWasSet|testPostSetInvoiceDate_TakesBackTheDayWhenItIsSentEmpty|testPostSetPaymentTerms_SetsTheTermsForAnyEmployeeAndAnswersTheDueDate|testPostSetPaymentTerms_RefusesWhatIsNotAWholeNumberOfDaysAndKeepsWhatWasSet|testPostSetPaymentTerms_TakesBackTheTermsWhenTheyAreSentEmptyOrZeroAndRefusesWhileAccountingIsOff|testGetIndex_OffersTheDateOnlyToAnEmployeeWhoMayTypeItAndTheTermsToEveryoneInTheModeOfAnInvoice|testGetIndex_OffersNeitherTheDateNorTheTermsOutsideTheModeOfAnInvoiceOrWhileAccountingIsOff|testPostComplete_DatesTheInvoiceByTheDayAndTheTermsOfTheRegisterAndPrintsTheDueDate|testPostComplete_PrintsNoDueDateOnAnInvoiceWithoutTerms|testPostComplete_RefusesADayInAClosedPeriodAndSaysWhyAndSavesNothing|testPostComplete_RefusesTheDayOfAnEmployeeWhoMayNoLongerTypeItAndSavesNothing|testPostSuspend_KeepsTheDayAndTheTermsOfADraftAndTheRegisterBringsThemBackWhenItIsTakenUp|testGetEdit_ShowsTheDayTheTermsAndTheDueDateOfAnIssuedInvoice|testGetEdit_ShowsNoDayTermsOrDueDateOnASaleThatIsNotAnInvoiceOrWhileAccountingIsOff|testPostSave_ChangesThePaymentTermsOfAnIssuedInvoiceAndLeavesItsJournalsAsTheyWere|testPostSave_RefusesTermsThatAreNotAWholeNumberOfDaysAndSaysSo|testPostSave_KeepsTheTermsOfAnInvoiceWhenTheFormSendsNone|testGetInvoice_PrintsTheDayOfTheInvoiceAndTheDueDateOnlyWhenItHasTerms",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G84 sales register: the permission to type the day is the one of the invoice date",
+  "file": "app/Controllers/Sales.php",
+  "find": "has_grant('sales_invoice_date', (int)",
+  "replace": "has_grant('sales', (int)",
+  "tests": [
+   "--filter",
+   "testPostSetInvoiceDate_RefusesAnEmployeeWithoutThePermissionAndSetsNothing|testPostSetInvoiceDate_RefusesWhileAccountingIsOffAndSetsNothing|testPostSetInvoiceDate_SetsADayUpToTodayAndAnswersTheDueDateOfTheTermsOnTheRegister|testPostSetInvoiceDate_RefusesADayThatIsNotUpToTodayOrIsBeforeTheBooksAndKeepsWhatWasSet|testPostSetInvoiceDate_TakesBackTheDayWhenItIsSentEmpty|testPostSetPaymentTerms_SetsTheTermsForAnyEmployeeAndAnswersTheDueDate|testPostSetPaymentTerms_RefusesWhatIsNotAWholeNumberOfDaysAndKeepsWhatWasSet|testPostSetPaymentTerms_TakesBackTheTermsWhenTheyAreSentEmptyOrZeroAndRefusesWhileAccountingIsOff|testGetIndex_OffersTheDateOnlyToAnEmployeeWhoMayTypeItAndTheTermsToEveryoneInTheModeOfAnInvoice|testGetIndex_OffersNeitherTheDateNorTheTermsOutsideTheModeOfAnInvoiceOrWhileAccountingIsOff|testPostComplete_DatesTheInvoiceByTheDayAndTheTermsOfTheRegisterAndPrintsTheDueDate|testPostComplete_PrintsNoDueDateOnAnInvoiceWithoutTerms|testPostComplete_RefusesADayInAClosedPeriodAndSaysWhyAndSavesNothing|testPostComplete_RefusesTheDayOfAnEmployeeWhoMayNoLongerTypeItAndSavesNothing|testPostSuspend_KeepsTheDayAndTheTermsOfADraftAndTheRegisterBringsThemBackWhenItIsTakenUp|testGetEdit_ShowsTheDayTheTermsAndTheDueDateOfAnIssuedInvoice|testGetEdit_ShowsNoDayTermsOrDueDateOnASaleThatIsNotAnInvoiceOrWhileAccountingIsOff|testPostSave_ChangesThePaymentTermsOfAnIssuedInvoiceAndLeavesItsJournalsAsTheyWere|testPostSave_RefusesTermsThatAreNotAWholeNumberOfDaysAndSaysSo|testPostSave_KeepsTheTermsOfAnInvoiceWhenTheFormSendsNone|testGetInvoice_PrintsTheDayOfTheInvoiceAndTheDueDateOnlyWhenItHasTerms",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G86 purchases register: the day is typed only by who holds the permission",
+  "file": "app/Controllers/Receivings.php",
+  "find": "if (! $settings->isEnabled() || ! $this->mayTypeInvoiceDate()) {",
+  "replace": "if (! $settings->isEnabled()) {",
+  "tests": [
+   "--filter",
+   "testPostSetInvoiceDate_RefusesABuyerWithoutThePermissionAndSetsNothing|testPostSetInvoiceDate_RefusesWhileAccountingIsOffAndSetsNothing|testPostSetInvoiceDate_SetsADayUpToTodayAndAnswersTheDueDateOfTheTermsOnTheRegister|testPostSetInvoiceDate_RefusesADayThatIsNotUpToTodayOrIsBeforeTheBooksAndKeepsWhatWasSet|testPostSetInvoiceDate_TakesBackTheDayWhenItIsSentEmpty|testPostSetPaymentTerms_SetsTheTermsForAnyBuyerAndAnswersTheDueDate|testPostSetPaymentTerms_RefusesWhatIsNotAWholeNumberOfDaysAndKeepsWhatWasSet|testPostSetPaymentTerms_TakesBackTheTermsWhenTheyAreSentZeroAndRefusesWhileAccountingIsOff|testGetIndex_OffersTheDateOnlyToABuyerWhoMayTypeItAndTheTermsToEveryoneInTheModeOfAReceiving|testGetIndex_OffersNeitherTheDateNorTheTermsOutsideTheModeOfAReceivingOrWhileAccountingIsOff|testPostComplete_DatesThePurchaseByTheDayAndTheTermsOfTheRegisterAndPrintsThemOnTheReceipt|testPostComplete_PrintsNeitherTheDayNorTheDueDateOnAPurchaseWithNeither|testPostComplete_RefusesADayInAClosedPeriodAndSaysWhyAndSavesNothing|testPostComplete_RefusesTheDayOfABuyerWhoMayNoLongerTypeItAndSavesNothing|testPostComplete_TakesNoTypedDayForAReturn|testGetEdit_ShowsTheDayTheTermsAndTheDueDateOfAPostedPurchase|testGetEdit_ShowsNoDayTermsOrDueDateOnAReturnOrWhileAccountingIsOff|testPostSave_ChangesThePaymentTermsOfAPostedPurchaseAndLeavesItsJournalsAsTheyWere|testPostSave_RefusesTermsThatAreNotAWholeNumberOfDaysAndSaysSo|testPostSave_KeepsTheTermsOfAPurchaseWhenTheFormSendsNone|testGetReceipt_PrintsTheDayAndTheDueDateOnlyWhenThePurchaseHasThem",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G87 purchases register: the day is not typed while accounting is off",
+  "file": "app/Controllers/Receivings.php",
+  "find": "if (! $settings->isEnabled() || ! $this->mayTypeInvoiceDate()) {",
+  "replace": "if (! $this->mayTypeInvoiceDate()) {",
+  "tests": [
+   "--filter",
+   "testPostSetInvoiceDate_RefusesABuyerWithoutThePermissionAndSetsNothing|testPostSetInvoiceDate_RefusesWhileAccountingIsOffAndSetsNothing|testPostSetInvoiceDate_SetsADayUpToTodayAndAnswersTheDueDateOfTheTermsOnTheRegister|testPostSetInvoiceDate_RefusesADayThatIsNotUpToTodayOrIsBeforeTheBooksAndKeepsWhatWasSet|testPostSetInvoiceDate_TakesBackTheDayWhenItIsSentEmpty|testPostSetPaymentTerms_SetsTheTermsForAnyBuyerAndAnswersTheDueDate|testPostSetPaymentTerms_RefusesWhatIsNotAWholeNumberOfDaysAndKeepsWhatWasSet|testPostSetPaymentTerms_TakesBackTheTermsWhenTheyAreSentZeroAndRefusesWhileAccountingIsOff|testGetIndex_OffersTheDateOnlyToABuyerWhoMayTypeItAndTheTermsToEveryoneInTheModeOfAReceiving|testGetIndex_OffersNeitherTheDateNorTheTermsOutsideTheModeOfAReceivingOrWhileAccountingIsOff|testPostComplete_DatesThePurchaseByTheDayAndTheTermsOfTheRegisterAndPrintsThemOnTheReceipt|testPostComplete_PrintsNeitherTheDayNorTheDueDateOnAPurchaseWithNeither|testPostComplete_RefusesADayInAClosedPeriodAndSaysWhyAndSavesNothing|testPostComplete_RefusesTheDayOfABuyerWhoMayNoLongerTypeItAndSavesNothing|testPostComplete_TakesNoTypedDayForAReturn|testGetEdit_ShowsTheDayTheTermsAndTheDueDateOfAPostedPurchase|testGetEdit_ShowsNoDayTermsOrDueDateOnAReturnOrWhileAccountingIsOff|testPostSave_ChangesThePaymentTermsOfAPostedPurchaseAndLeavesItsJournalsAsTheyWere|testPostSave_RefusesTermsThatAreNotAWholeNumberOfDaysAndSaysSo|testPostSave_KeepsTheTermsOfAPurchaseWhenTheFormSendsNone|testGetReceipt_PrintsTheDayAndTheDueDateOnlyWhenThePurchaseHasThem",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G88 purchases register: terms are not typed while accounting is off",
+  "file": "app/Controllers/Receivings.php",
+  "find": "        if (! (new AccountingSettings())->isEnabled()) {\n            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => AccountingMessage::of(new AccountingException(AccountingError::PermissionDenied))]);\n        }\n\n        $typed = $this->request->getPost('recv_payment_terms');\n\n        try {\n            $terms",
+  "replace": "        $typed = $this->request->getPost('recv_payment_terms');\n\n        try {\n            $terms",
+  "tests": [
+   "--filter",
+   "testPostSetInvoiceDate_RefusesABuyerWithoutThePermissionAndSetsNothing|testPostSetInvoiceDate_RefusesWhileAccountingIsOffAndSetsNothing|testPostSetInvoiceDate_SetsADayUpToTodayAndAnswersTheDueDateOfTheTermsOnTheRegister|testPostSetInvoiceDate_RefusesADayThatIsNotUpToTodayOrIsBeforeTheBooksAndKeepsWhatWasSet|testPostSetInvoiceDate_TakesBackTheDayWhenItIsSentEmpty|testPostSetPaymentTerms_SetsTheTermsForAnyBuyerAndAnswersTheDueDate|testPostSetPaymentTerms_RefusesWhatIsNotAWholeNumberOfDaysAndKeepsWhatWasSet|testPostSetPaymentTerms_TakesBackTheTermsWhenTheyAreSentZeroAndRefusesWhileAccountingIsOff|testGetIndex_OffersTheDateOnlyToABuyerWhoMayTypeItAndTheTermsToEveryoneInTheModeOfAReceiving|testGetIndex_OffersNeitherTheDateNorTheTermsOutsideTheModeOfAReceivingOrWhileAccountingIsOff|testPostComplete_DatesThePurchaseByTheDayAndTheTermsOfTheRegisterAndPrintsThemOnTheReceipt|testPostComplete_PrintsNeitherTheDayNorTheDueDateOnAPurchaseWithNeither|testPostComplete_RefusesADayInAClosedPeriodAndSaysWhyAndSavesNothing|testPostComplete_RefusesTheDayOfABuyerWhoMayNoLongerTypeItAndSavesNothing|testPostComplete_TakesNoTypedDayForAReturn|testGetEdit_ShowsTheDayTheTermsAndTheDueDateOfAPostedPurchase|testGetEdit_ShowsNoDayTermsOrDueDateOnAReturnOrWhileAccountingIsOff|testPostSave_ChangesThePaymentTermsOfAPostedPurchaseAndLeavesItsJournalsAsTheyWere|testPostSave_RefusesTermsThatAreNotAWholeNumberOfDaysAndSaysSo|testPostSave_KeepsTheTermsOfAPurchaseWhenTheFormSendsNone|testGetReceipt_PrintsTheDayAndTheDueDateOnlyWhenThePurchaseHasThem",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G89 purchases register: the permission to type the day is the one of the purchase date",
+  "file": "app/Controllers/Receivings.php",
+  "find": "has_grant('receivings_invoice_date', (int)",
+  "replace": "has_grant('receivings', (int)",
+  "tests": [
+   "--filter",
+   "testPostSetInvoiceDate_RefusesABuyerWithoutThePermissionAndSetsNothing|testPostSetInvoiceDate_RefusesWhileAccountingIsOffAndSetsNothing|testPostSetInvoiceDate_SetsADayUpToTodayAndAnswersTheDueDateOfTheTermsOnTheRegister|testPostSetInvoiceDate_RefusesADayThatIsNotUpToTodayOrIsBeforeTheBooksAndKeepsWhatWasSet|testPostSetInvoiceDate_TakesBackTheDayWhenItIsSentEmpty|testPostSetPaymentTerms_SetsTheTermsForAnyBuyerAndAnswersTheDueDate|testPostSetPaymentTerms_RefusesWhatIsNotAWholeNumberOfDaysAndKeepsWhatWasSet|testPostSetPaymentTerms_TakesBackTheTermsWhenTheyAreSentZeroAndRefusesWhileAccountingIsOff|testGetIndex_OffersTheDateOnlyToABuyerWhoMayTypeItAndTheTermsToEveryoneInTheModeOfAReceiving|testGetIndex_OffersNeitherTheDateNorTheTermsOutsideTheModeOfAReceivingOrWhileAccountingIsOff|testPostComplete_DatesThePurchaseByTheDayAndTheTermsOfTheRegisterAndPrintsThemOnTheReceipt|testPostComplete_PrintsNeitherTheDayNorTheDueDateOnAPurchaseWithNeither|testPostComplete_RefusesADayInAClosedPeriodAndSaysWhyAndSavesNothing|testPostComplete_RefusesTheDayOfABuyerWhoMayNoLongerTypeItAndSavesNothing|testPostComplete_TakesNoTypedDayForAReturn|testGetEdit_ShowsTheDayTheTermsAndTheDueDateOfAPostedPurchase|testGetEdit_ShowsNoDayTermsOrDueDateOnAReturnOrWhileAccountingIsOff|testPostSave_ChangesThePaymentTermsOfAPostedPurchaseAndLeavesItsJournalsAsTheyWere|testPostSave_RefusesTermsThatAreNotAWholeNumberOfDaysAndSaysSo|testPostSave_KeepsTheTermsOfAPurchaseWhenTheFormSendsNone|testGetReceipt_PrintsTheDayAndTheDueDateOnlyWhenThePurchaseHasThem",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G91 customers: the aged ledger speaks for the whole company only",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "public function getAgedLedger(): string\n    {\n        $this->requireCompanyScope();\n\n",
+  "replace": "public function getAgedLedger(): string\n    {\n",
+  "tests": [
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G92 customers: the balance report speaks for the whole company only",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "public function getBalances(): string\n    {\n        $this->requireCompanyScope();\n\n",
+  "replace": "public function getBalances(): string\n    {\n",
+  "tests": [
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G93 customers: the statement can be read on a day of the past",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "$this->ledger->position($customerId, $query->asOf)",
+  "replace": "$this->ledger->position($customerId)",
+  "tests": [
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G94 customers: the aged ledger takes the length of the buckets asked for",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "$this->ledger->agedLedger($query->day(), $query->days)",
+  "replace": "$this->ledger->agedLedger($query->day())",
+  "tests": [
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G95 customers: the balance report shows who has nothing to show only when asked",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "$this->balances->build($query->period, ! $query->showEmpty)",
+  "replace": "$this->balances->build($query->period, true)",
+  "tests": [
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G96 customers: the statement of a party links to the day read",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "'?to=' . $query->day()",
+  "replace": "''",
+  "tests": [
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G91 suppliers: the aged ledger speaks for the whole company only",
+  "file": "app/Controllers/AccountingPayables.php",
+  "find": "public function getAgedLedger(): string\n    {\n        $this->requireCompanyScope();\n\n",
+  "replace": "public function getAgedLedger(): string\n    {\n",
+  "tests": [
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G92 suppliers: the balance report speaks for the whole company only",
+  "file": "app/Controllers/AccountingPayables.php",
+  "find": "public function getBalances(): string\n    {\n        $this->requireCompanyScope();\n\n",
+  "replace": "public function getBalances(): string\n    {\n",
+  "tests": [
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G93 suppliers: the statement can be read on a day of the past",
+  "file": "app/Controllers/AccountingPayables.php",
+  "find": "$this->ledger->position($supplierId, $query->asOf)",
+  "replace": "$this->ledger->position($supplierId)",
+  "tests": [
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G94 suppliers: the aged ledger takes the length of the buckets asked for",
+  "file": "app/Controllers/AccountingPayables.php",
+  "find": "$this->ledger->agedLedger($query->day(), $query->days)",
+  "replace": "$this->ledger->agedLedger($query->day())",
+  "tests": [
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G95 suppliers: the balance report shows who has nothing to show only when asked",
+  "file": "app/Controllers/AccountingPayables.php",
+  "find": "$this->balances->build($query->period, ! $query->showEmpty)",
+  "replace": "$this->balances->build($query->period, true)",
+  "tests": [
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G96 suppliers: the statement of a party links to the day read",
+  "file": "app/Controllers/AccountingPayables.php",
+  "find": "'?to=' . $query->day()",
+  "replace": "''",
+  "tests": [
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G97 customers: the name in the aged ledger is escaped",
+  "file": "app/Views/accounting_parties/aged_ledger.php",
+  "find": "<?= esc($row->name) ?>",
+  "replace": "<?= $row->name ?>",
+  "tests": [
+   "tests/Controllers/AccountingReceivablesControllerTest.php",
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G98 customers: the name in the balance report is escaped",
+  "file": "app/Views/accounting_parties/balances.php",
+  "find": "<?= esc($row->name) ?>",
+  "replace": "<?= $row->name ?>",
+  "tests": [
+   "tests/Controllers/AccountingReceivablesControllerTest.php",
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G99 the overdue badge shows only what is overdue (customers)",
+  "file": "app/Views/accounting_receivables/customer.php",
+  "find": "<?php if ($invoice->isOverdue($today)): ?>",
+  "replace": "<?php if (true): ?>",
+  "tests": [
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G100 the overdue badge shows only what is overdue (suppliers)",
+  "file": "app/Views/accounting_payables/supplier.php",
+  "find": "<?php if ($purchase->isOverdue($today)): ?>",
+  "replace": "<?php if (true): ?>",
+  "tests": [
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G101 customers: the balance before is the account at the end of the day before the period",
+  "file": "app/Libraries/Accounting/CustomerBalanceReport.php",
+  "find": "SUM(CASE WHEN t.day < ? THEN t.amount END)",
+  "replace": "SUM(CASE WHEN t.day <= ? THEN t.amount END)",
+  "tests": [
+   "tests/Libraries/Accounting/CustomerBalanceReportTest.php"
+  ]
+ },
+ {
+  "name": "G102 customers: a journal after the last day is not counted",
+  "file": "app/Libraries/Accounting/CustomerBalanceReport.php",
+  "find": "j.journal_date <= ?",
+  "replace": "? IS NOT NULL",
+  "tests": [
+   "tests/Libraries/Accounting/CustomerBalanceReportTest.php"
+  ]
+ },
+ {
+  "name": "G103 customers: a reversal counts as what it reverses",
+  "file": "app/Libraries/Accounting/CustomerBalanceReport.php",
+  "find": "LEFT JOIN {$journals} o ON o.journal_id = j.reverses_journal_id",
+  "replace": "LEFT JOIN {$journals} o ON o.journal_id = j.journal_id AND 1 = 0",
+  "tests": [
+   "tests/Libraries/Accounting/CustomerBalanceReportTest.php"
+  ]
+ },
+ {
+  "name": "G104 customers: the other parties are kept apart",
+  "file": "app/Libraries/Accounting/CustomerBalanceReport.php",
+  "find": "WHERE a.entity_type = ?",
+  "replace": "WHERE ? IS NOT NULL",
+  "tests": [
+   "tests/Libraries/Accounting/CustomerBalanceReportTest.php"
+  ]
+ },
+ {
+  "name": "G105 customers: payments are shown as what was paid",
+  "file": "app/Libraries/Accounting/CustomerBalanceReport.php",
+  "find": "t.kind = 'payments' THEN 0 - t.amount END",
+  "replace": "t.kind = 'payments' THEN t.amount END",
+  "tests": [
+   "tests/Libraries/Accounting/CustomerBalanceReportTest.php"
+  ]
+ },
+ {
+  "name": "G106 customers: a party with nothing to show is hidden on request",
+  "file": "app/Libraries/Accounting/CustomerBalanceReport.php",
+  "find": "if (! $hideEmpty || ! $line->isEmpty()) {",
+  "replace": "if (true) {",
+  "tests": [
+   "tests/Libraries/Accounting/CustomerBalanceReportTest.php"
+  ]
+ },
+ {
+  "name": "G107 customers: what no column explains is kept apart as other",
+  "file": "app/Libraries/Accounting/CustomerBalanceReport.php",
+  "find": "ELSE 'other'",
+  "replace": "ELSE 'sales'",
+  "tests": [
+   "tests/Libraries/Accounting/CustomerBalanceReportTest.php"
+  ]
+ },
+ {
+  "name": "G101 suppliers: the balance before is the account at the end of the day before the period",
+  "file": "app/Libraries/Accounting/SupplierBalanceReport.php",
+  "find": "SUM(CASE WHEN t.day < ? THEN t.amount END)",
+  "replace": "SUM(CASE WHEN t.day <= ? THEN t.amount END)",
+  "tests": [
+   "tests/Libraries/Accounting/SupplierBalanceReportTest.php"
+  ]
+ },
+ {
+  "name": "G102 suppliers: a journal after the last day is not counted",
+  "file": "app/Libraries/Accounting/SupplierBalanceReport.php",
+  "find": "j.journal_date <= ?",
+  "replace": "? IS NOT NULL",
+  "tests": [
+   "tests/Libraries/Accounting/SupplierBalanceReportTest.php"
+  ]
+ },
+ {
+  "name": "G103 suppliers: a reversal counts as what it reverses",
+  "file": "app/Libraries/Accounting/SupplierBalanceReport.php",
+  "find": "LEFT JOIN {$journals} o ON o.journal_id = j.reverses_journal_id",
+  "replace": "LEFT JOIN {$journals} o ON o.journal_id = j.journal_id AND 1 = 0",
+  "tests": [
+   "tests/Libraries/Accounting/SupplierBalanceReportTest.php"
+  ]
+ },
+ {
+  "name": "G104 suppliers: the other parties are kept apart",
+  "file": "app/Libraries/Accounting/SupplierBalanceReport.php",
+  "find": "WHERE a.entity_type = ?",
+  "replace": "WHERE ? IS NOT NULL",
+  "tests": [
+   "tests/Libraries/Accounting/SupplierBalanceReportTest.php"
+  ]
+ },
+ {
+  "name": "G105 suppliers: payments are shown as what was paid",
+  "file": "app/Libraries/Accounting/SupplierBalanceReport.php",
+  "find": "t.kind = 'payments' THEN 0 - t.amount END",
+  "replace": "t.kind = 'payments' THEN t.amount END",
+  "tests": [
+   "tests/Libraries/Accounting/SupplierBalanceReportTest.php"
+  ]
+ },
+ {
+  "name": "G106 suppliers: a party with nothing to show is hidden on request",
+  "file": "app/Libraries/Accounting/SupplierBalanceReport.php",
+  "find": "if (! $hideEmpty || ! $line->isEmpty()) {",
+  "replace": "if (true) {",
+  "tests": [
+   "tests/Libraries/Accounting/SupplierBalanceReportTest.php"
+  ]
+ },
+ {
+  "name": "G107 suppliers: what no column explains is kept apart as other",
+  "file": "app/Libraries/Accounting/SupplierBalanceReport.php",
+  "find": "ELSE 'other'",
+  "replace": "ELSE 'sales'",
+  "tests": [
+   "tests/Libraries/Accounting/SupplierBalanceReportTest.php"
+  ]
+ },
+ {
+  "name": "G108 balance row: the net is what was sold less what came back",
+  "file": "app/Libraries/Accounting/BalanceRow.php",
+  "find": "return bcsub($this->sales, $this->returns, SaleAmounts::SCALE);",
+  "replace": "return bcadd($this->sales, $this->returns, SaleAmounts::SCALE);",
+  "tests": [
+   "tests/Libraries/Accounting/BalanceTableTest.php"
+  ]
+ },
+ {
+  "name": "G109 balance row: the columns must explain the balance",
+  "file": "app/Libraries/Accounting/BalanceRow.php",
+  "find": "return bccomp($sum, $this->balance, SaleAmounts::SCALE) === 0;",
+  "replace": "return true;",
+  "tests": [
+   "tests/Libraries/Accounting/BalanceTableTest.php"
+  ]
+ },
+ {
+  "name": "G110 balance table: the net total is the net of the rows",
+  "file": "app/Libraries/Accounting/BalanceTable.php",
+  "find": "$column === 'net_sales' ? $row->net() : (string) $row->{$column}",
+  "replace": "(string) $row->{$column}",
+  "tests": [
+   "tests/Libraries/Accounting/BalanceTableTest.php"
+  ]
+ },
+ {
+  "name": "G111 migration: a column that exists is not added again",
+  "file": "app/Database/Migrations/20270600000000_InvoiceDatesAndPaymentTerms.php",
+  "find": "                if (! $this->hasColumn($table, $column)) {\n                    $this->db->query(\"ALTER TABLE `{$prefixed}` ADD COLUMN",
+  "replace": "                if (true) {\n                    $this->db->query(\"ALTER TABLE `{$prefixed}` ADD COLUMN",
+  "tests": [
+   "tests/Database/InvoiceDatesAndPaymentTermsMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G112 migration: it cannot be taken back once a document carries a typed day",
+  "file": "app/Database/Migrations/20270600000000_InvoiceDatesAndPaymentTerms.php",
+  "find": "if ($this->inUse()) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Database/InvoiceDatesAndPaymentTermsMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G113 migration: a purchase that carries a typed day also stops it being taken back",
+  "file": "app/Database/Migrations/20270600000000_InvoiceDatesAndPaymentTerms.php",
+  "find": "foreach (self::TABLES as $table) {\n            if ($this->hasColumn($table, 'invoice_date')",
+  "replace": "foreach (['sales'] as $table) {\n            if ($this->hasColumn($table, 'invoice_date')",
+  "tests": [
+   "tests/Database/InvoiceDatesAndPaymentTermsMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G114 migration: the columns may be empty",
+  "file": "app/Database/Migrations/20270600000000_InvoiceDatesAndPaymentTerms.php",
+  "find": "'invoice_date'       => 'DATE NULL DEFAULT NULL',",
+  "replace": "'invoice_date'       => 'DATE NOT NULL DEFAULT 0',",
+  "tests": [
+   "tests/Database/InvoiceDatesAndPaymentTermsMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G115 permissions migration: a registered permission is not registered again",
+  "file": "app/Database/Migrations/20270600000001_InvoiceDatePermissions.php",
+  "find": "->ignore(true)",
+  "replace": "",
+  "tests": [
+   "tests/Database/InvoiceDatePermissionsMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G117 customers: the aged ledger has its route",
+  "file": "app/Config/Routes.php",
+  "find": "$routes->get('aged_ledger', 'AccountingReceivables::getAgedLedger');",
+  "replace": "",
+  "tests": [
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G118 suppliers: the balance report has its route",
+  "file": "app/Config/Routes.php",
+  "find": "$routes->get('balances', 'AccountingPayables::getBalances');",
+  "replace": "",
+  "tests": [
+   "tests/Controllers/AccountingPayablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G123 sales register: a draft taken up brings its typed day back",
+  "file": "app/Libraries/Sale_lib.php",
+  "find": "$this->setInvoiceDate($timing['invoice_date']);",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Sale_libTest.php"
+  ]
+ },
+ {
+  "name": "G124 sales register: a draft taken up brings its terms back",
+  "file": "app/Libraries/Sale_lib.php",
+  "find": "$this->setPaymentTerms($timing['payment_terms_days'] === null ? null : (string) $timing['payment_terms_days']);",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Sale_libTest.php"
+  ]
+ },
+ {
+  "name": "G125 sales register: a finished sale leaves no typed day for the next one",
+  "file": "app/Libraries/Sale_lib.php",
+  "find": "        $this->clearInvoiceDate();\n        $this->clearPaymentTerms();",
+  "replace": "        $this->clearPaymentTerms();",
+  "tests": [
+   "tests/Libraries/Sale_libTest.php"
+  ]
+ },
+ {
+  "name": "G126 sales register: a finished sale leaves no terms for the next one",
+  "file": "app/Libraries/Sale_lib.php",
+  "find": "        $this->clearInvoiceDate();\n        $this->clearPaymentTerms();",
+  "replace": "        $this->clearInvoiceDate();",
+  "tests": [
+   "tests/Libraries/Sale_libTest.php"
+  ]
+ },
+ {
+  "name": "G127 purchases register: a finished purchase leaves no typed day for the next one",
+  "file": "app/Libraries/Receiving_lib.php",
+  "find": "        $this->setInvoiceDate(null);\n        $this->setPaymentTerms(null);",
+  "replace": "        $this->setPaymentTerms(null);",
+  "tests": [
+   "tests/Libraries/Receiving_libTest.php"
+  ]
+ },
+ {
+  "name": "G128 purchases register: a finished purchase leaves no terms for the next one",
+  "file": "app/Libraries/Receiving_lib.php",
+  "find": "        $this->setInvoiceDate(null);\n        $this->setPaymentTerms(null);",
+  "replace": "        $this->setInvoiceDate(null);",
+  "tests": [
+   "tests/Libraries/Receiving_libTest.php"
+  ]
+ },
+ {
+  "name": "G129 purchase: the payment made at save is dated the day the money went, not the day typed on the invoice",
+  "file": "app/Libraries/Accounting/ReceivingPostingBuilder.php",
+  "find": "date: $purchase->savedOn ?? $purchase->date,",
+  "replace": "date: $purchase->date,",
+  "tests": [
+   "--filter",
+   "testSaveValue_DatesThePaymentMadeAtSaveOnTheDayTheMoneyWentWhateverDayIsTypedOnThePurchase",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "G130 supplier: an opening balance is not dated after today",
+  "file": "app/Libraries/Accounting/SupplierAdvances.php",
+  "find": "if ($date > date('Y-m-d')) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testOpeningBalance_RefusesADayAfterTodayAndAcceptsTodayAndLeavesNothingOfTheRefused",
+   "tests/Libraries/Accounting/SupplierAdvancesTest.php"
+  ]
+ },
+ {
+  "name": "G131 sale: the day typed on a draft is audited when the draft is saved",
+  "file": "app/Models/Sale.php",
+  "find": "if ($timing['invoice_date'] !== null && $timing['invoice_date'] !== $storedDate) {",
+  "replace": "if ($saleStatus == COMPLETED && $timing['invoice_date'] !== null && $timing['invoice_date'] !== $storedDate) {",
+  "tests": [
+   "--filter",
+   "testSaveValue_WritesInTheAuditLogWhoTypedTheDayOfAnInvoiceAndWhenAtTheSaveThatTypedIt|testSaveValue_WritesInTheAuditLogTheEmployeeWhoTypedTheDayOnADraftAndNotTheOneWhoIssuesIt|testSaveValue_WritesInTheAuditLogTheEmployeeWhoChangesTheDayOfADraftWhenIssuingIt",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G132 sale: issuing a draft at the day it carries is not typing the day again",
+  "file": "app/Models/Sale.php",
+  "find": " && $timing['invoice_date'] !== $storedDate) {",
+  "replace": ") {",
+  "tests": [
+   "--filter",
+   "testSaveValue_WritesInTheAuditLogWhoTypedTheDayOfAnInvoiceAndWhenAtTheSaveThatTypedIt|testSaveValue_WritesInTheAuditLogTheEmployeeWhoTypedTheDayOnADraftAndNotTheOneWhoIssuesIt|testSaveValue_WritesInTheAuditLogTheEmployeeWhoChangesTheDayOfADraftWhenIssuingIt",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G133 sale: the day typed on a draft is compared with the day the draft already carries",
+  "file": "app/Models/Sale.php",
+  "find": "$storedDate = $saleId === NEW_ENTRY ? null : $this->storedInvoiceDate($saleId);",
+  "replace": "$storedDate = null;",
+  "tests": [
+   "--filter",
+   "testSaveValue_WritesInTheAuditLogWhoTypedTheDayOfAnInvoiceAndWhenAtTheSaveThatTypedIt|testSaveValue_WritesInTheAuditLogTheEmployeeWhoTypedTheDayOnADraftAndNotTheOneWhoIssuesIt|testSaveValue_WritesInTheAuditLogTheEmployeeWhoChangesTheDayOfADraftWhenIssuingIt",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G134 sale: a day changed at issue is audited for the employee who changed it",
+  "file": "app/Models/Sale.php",
+  "find": "$storedDate = $saleId === NEW_ENTRY ? null : $this->storedInvoiceDate($saleId);",
+  "replace": "$storedDate = $saleId === NEW_ENTRY ? null : $timing['invoice_date'];",
+  "tests": [
+   "--filter",
+   "testSaveValue_WritesInTheAuditLogWhoTypedTheDayOfAnInvoiceAndWhenAtTheSaveThatTypedIt|testSaveValue_WritesInTheAuditLogTheEmployeeWhoTypedTheDayOnADraftAndNotTheOneWhoIssuesIt|testSaveValue_WritesInTheAuditLogTheEmployeeWhoChangesTheDayOfADraftWhenIssuingIt",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G135 sales register: a list sent as the day is refused",
+  "file": "app/Controllers/Sales.php",
+  "find": "is_array($typed) ? 'not a day' : (string) $typed",
+  "replace": "(string) $typed",
+  "tests": [
+   "--filter",
+   "testPostSetInvoiceDate_RefusesAListOfDaysAndKeepsWhatWasSet",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G136 sales register: a list sent as the terms is refused",
+  "file": "app/Controllers/Sales.php",
+  "find": "is_array($typed) ? 'not a number' : (string) $typed",
+  "replace": "(string) $typed",
+  "tests": [
+   "--filter",
+   "testPostSetPaymentTerms_RefusesAListOfTermsAndKeepsWhatWasSet",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G137 purchases register: a list sent as the day is refused",
+  "file": "app/Controllers/Receivings.php",
+  "find": "is_array($typed) ? 'not a day' : (string) $typed",
+  "replace": "(string) $typed",
+  "tests": [
+   "--filter",
+   "testPostSetInvoiceDate_RefusesAListOfDaysAndKeepsWhatWasSet",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G138 purchases register: a list sent as the terms is refused",
+  "file": "app/Controllers/Receivings.php",
+  "find": "is_array($typed) ? 'not a number' : (string) $typed",
+  "replace": "(string) $typed",
+  "tests": [
+   "--filter",
+   "testPostSetPaymentTerms_RefusesAListOfTermsAndKeepsWhatWasSet",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ }
+]

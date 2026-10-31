@@ -5,6 +5,7 @@ return [
     'agency_name'           => 'Nombre de la Agencia',
     'cannot_be_deleted'     => 'No se pudo borrar los proveedores seleccionados. Uno o más de los seleccionados tiene ventas.',
     'category'              => 'Categoria',
+    'commercial_registry'   => '',
     'company_name'          => 'Nombre de la Compañía',
     'company_name_required' => 'Nombre de la Compañía es requerido.',
     'confirm_delete'        => '¿Seguro(a) de querer borrar los proveedores seleccionados?',

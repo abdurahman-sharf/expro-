@@ -98,6 +98,35 @@ class DocumentNumberingTest extends CIUnitTestCase
         $this->assertSame(3, $this->numbering->sequence(DocumentType::CreditNote)->nextNumber);
     }
 
+    public function testAssign_KeepsTheSequenceOfRefundInvoicesApartFromTheOneOfCreditNotes(): void
+    {
+        $this->numbering->configure(DocumentType::CreditNote, ['enabled' => true, 'prefix' => 'CN-', 'padding' => 3]);
+        $this->numbering->configure(DocumentType::RefundInvoice, ['enabled' => true, 'prefix' => 'RI-', 'padding' => 3]);
+
+        $this->assertSame('CN-001', $this->numbering->assign(DocumentType::CreditNote, 'sales', 11)?->number);
+        $this->assertSame('RI-001', $this->numbering->assign(DocumentType::RefundInvoice, 'sales', 12)?->number);
+        $this->assertSame('RI-002', $this->numbering->assign(DocumentType::RefundInvoice, 'sales', 13)?->number);
+        $this->assertSame('CN-002', $this->numbering->assign(DocumentType::CreditNote, 'sales', 14)?->number);
+        $this->assertSame(3, $this->numbering->sequence(DocumentType::RefundInvoice)->nextNumber);
+        $this->assertSame(3, $this->numbering->sequence(DocumentType::CreditNote)->nextNumber);
+    }
+
+    public function testAssign_GivesNothingToARefundInvoiceWhileItsSequenceIsOffEvenWhenCreditNotesAreNumbered(): void
+    {
+        $this->numbering->configure(DocumentType::CreditNote, ['enabled' => true]);
+
+        $this->assertNull($this->numbering->assign(DocumentType::RefundInvoice, 'sales', 11));
+        $this->assertSame(0, $this->countRows('document_numbers'));
+    }
+
+    public function testAssign_RejectsATableThatDoesNotHoldRefundInvoices(): void
+    {
+        $this->numbering->configure(DocumentType::RefundInvoice, ['enabled' => true]);
+
+        $this->assertRefusal(AccountingError::NumberingSourceInvalid, fn () => $this->numbering->assign(DocumentType::RefundInvoice, 'sales_payments', 11));
+        $this->assertSame(0, $this->countRows('document_numbers'));
+    }
+
     public function testAssign_GivesTheBareNumberWithoutDigitsOrPrefix(): void
     {
         $this->numbering->configure(DocumentType::CreditNote, ['enabled' => true]);
@@ -747,6 +776,7 @@ class DocumentNumberingTest extends CIUnitTestCase
     public function testLabel_FallsBackToWhatTheDocumentShowedBeforeThereWasANumber(): void
     {
         $this->assertSame('POS 41', $this->numbering->label(DocumentType::CreditNote, 'sales', 41));
+        $this->assertSame('POS 41', $this->numbering->label(DocumentType::RefundInvoice, 'sales', 41));
         $this->assertSame('RECV 41', $this->numbering->label(DocumentType::Purchase, 'receivings', 41));
         $this->assertSame('RECV 41', $this->numbering->label(DocumentType::DebitNote, 'receivings', 41));
         $this->assertSame('41', $this->numbering->label(DocumentType::CustomerPayment, 'sales_payments', 41));

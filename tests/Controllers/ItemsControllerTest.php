@@ -8,6 +8,7 @@ use CodeIgniter\Database\Config;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
+use PHPUnit\Framework\Attributes\DataProvider;
 use App\Models\Item;
 use App\Models\Item_quantity;
 use App\Models\Inventory;
@@ -291,6 +292,172 @@ class ItemsControllerTest extends CIUnitTestCase
         $response->assertStatus(200);
         $result = json_decode($response->getJSON(), true);
         $this->assertTrue($result['success']);
+    }
+
+    private function itemRow(int $itemId): object
+    {
+        return $this->accountingDb()->table('items')->where('item_id', $itemId)->get()->getRow();
+    }
+
+    public function testPostSave_SavesThePurchaseTaxesOfAnItem(): void
+    {
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+        $postData = $this->baseItemPostData();
+        $postData['tax_names']             = ['VAT'];
+        $postData['purchase_tax_names']    = ['Import duty', 'Levy'];
+        $postData['purchase_tax_percents'] = ['5', '2.5'];
+
+        $result = json_decode($this->post('/items/save', $postData)->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+
+        $row = $this->itemRow((int) $result['id']);
+
+        $this->assertSame(['Import duty', '5.000', 'Levy', '2.500'], [$row->purchase_tax_1_name, $row->purchase_tax_1_percent, $row->purchase_tax_2_name, $row->purchase_tax_2_percent]);
+    }
+
+    public function testPostSave_SavesAPurchaseTaxOfZeroAsNoTaxAndAnEmptyOneAsFollowingTheSalesTax(): void
+    {
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+        $postData = $this->baseItemPostData();
+        $postData['tax_names']             = ['VAT'];
+        $postData['purchase_tax_names']    = ['', 'Exempt'];
+        $postData['purchase_tax_percents'] = ['', '0'];
+
+        $result = json_decode($this->post('/items/save', $postData)->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+
+        $row = $this->itemRow((int) $result['id']);
+
+        $this->assertNull($row->purchase_tax_1_percent);
+        $this->assertNull($row->purchase_tax_1_name);
+        $this->assertSame('0.000', $row->purchase_tax_2_percent);
+        $this->assertSame('Exempt', $row->purchase_tax_2_name);
+    }
+
+    public function testPostSave_DropsTheNameOfAPurchaseTaxWhoseRateIsEmpty(): void
+    {
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+        $postData = $this->baseItemPostData();
+        $postData['tax_names']             = ['VAT'];
+        $postData['purchase_tax_names']    = ['Orphan name', ''];
+        $postData['purchase_tax_percents'] = ['', ''];
+
+        $result = json_decode($this->post('/items/save', $postData)->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertNull($this->itemRow((int) $result['id'])->purchase_tax_1_name);
+    }
+
+    /**
+     * @return array<string, array{array<string, list<string>>}>
+     */
+    public static function invalidPurchaseTaxProvider(): array
+    {
+        return [
+            'a rate above a hundred'        => [['purchase_tax_names' => ['Import'], 'purchase_tax_percents' => ['100.5']]],
+            'a negative rate'               => [['purchase_tax_names' => ['Import'], 'purchase_tax_percents' => ['-1']]],
+            'a rate that is no number'      => [['purchase_tax_names' => ['Import'], 'purchase_tax_percents' => ['five']]],
+            'the second rate above a hundred' => [['purchase_tax_names' => ['Import', 'Levy'], 'purchase_tax_percents' => ['5', '101']]],
+            'a name with markup'            => [['purchase_tax_names' => ['<svg onload=alert(1)>'], 'purchase_tax_percents' => ['5']]],
+        ];
+    }
+
+    /**
+     * @param array<string, list<string>> $purchase
+     */
+    #[DataProvider('invalidPurchaseTaxProvider')]
+    public function testPostSave_RejectsAPurchaseTaxThatIsNotOneAndSavesNothing(array $purchase): void
+    {
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+        $before = $this->accountingDb()->table('items')->countAllResults();
+
+        $postData              = $this->baseItemPostData() + $purchase;
+        $postData['tax_names'] = ['VAT'];
+
+        $result = json_decode($this->post('/items/save', $postData)->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame($before, $this->accountingDb()->table('items')->countAllResults());
+    }
+
+    public function testPostSave_AcceptsAPurchaseTaxOfExactlyAHundred(): void
+    {
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+        $postData = $this->baseItemPostData();
+        $postData['tax_names']             = ['VAT'];
+        $postData['purchase_tax_names']    = ['Full'];
+        $postData['purchase_tax_percents'] = ['100'];
+
+        $this->assertTrue(json_decode($this->post('/items/save', $postData)->getJSON(), true)['success']);
+    }
+
+    public function testPostSave_LeavesThePurchaseTaxesAloneWhenTheFormDoesNotCarryThem(): void
+    {
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+        $itemId = $this->createTestItem();
+
+        $this->accountingDb()->table('items')->where('item_id', $itemId)->update(['purchase_tax_1_name' => 'Import', 'purchase_tax_1_percent' => '5.000']);
+
+        $postData              = $this->baseItemPostData();
+        $postData['tax_names'] = ['VAT'];
+
+        $this->assertTrue(json_decode($this->post('/items/save/' . $itemId, $postData)->getJSON(), true)['success']);
+
+        $row = $this->itemRow($itemId);
+
+        $this->assertSame(['Import', '5.000'], [$row->purchase_tax_1_name, $row->purchase_tax_1_percent]);
+    }
+
+    public function testPostSave_TakesThePurchaseTaxesBackToTheSalesTaxesWhenTheirRatesAreEmptied(): void
+    {
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+        $itemId = $this->createTestItem();
+
+        $this->accountingDb()->table('items')->where('item_id', $itemId)->update(['purchase_tax_1_name' => 'Import', 'purchase_tax_1_percent' => '5.000']);
+
+        $postData = $this->baseItemPostData();
+        $postData['tax_names']             = ['VAT'];
+        $postData['purchase_tax_names']    = ['Import', ''];
+        $postData['purchase_tax_percents'] = ['', ''];
+
+        $this->assertTrue(json_decode($this->post('/items/save/' . $itemId, $postData)->getJSON(), true)['success']);
+        $this->assertNull($this->itemRow($itemId)->purchase_tax_1_percent);
+    }
+
+    public function testGetView_ShowsThePurchaseTaxesOfAnItemInTheForm(): void
+    {
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+        $itemId = $this->createTestItem();
+
+        $this->accountingDb()->table('items')->where('item_id', $itemId)->update(['purchase_tax_1_name' => 'Import duty', 'purchase_tax_1_percent' => '5.000', 'purchase_tax_2_percent' => '0.000']);
+
+        $response = $this->get('/items/view/' . $itemId);
+
+        $response->assertSeeElement('#purchase_tax_percent_1');
+        $response->assertSeeElement('#purchase_tax_hint');
+        $response->assertSeeInField('purchase_tax_names[]', 'Import duty');
+        $this->assertMatchesRegularExpression('/value="5(\.0+)?" id="purchase_tax_percent_1"/', $response->getBody());
+        $this->assertMatchesRegularExpression('/value="0" id="purchase_tax_percent_2"/', $response->getBody());
+    }
+
+    public function testGetView_ShowsEmptyPurchaseTaxesForAnItemThatSetsNone(): void
+    {
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+        $response = $this->get('/items/view/' . $this->createTestItem());
+
+        $this->assertMatchesRegularExpression('/value="" id="purchase_tax_percent_1"/', $response->getBody());
+        $this->assertMatchesRegularExpression('/value="" id="purchase_tax_percent_2"/', $response->getBody());
     }
 
     /**

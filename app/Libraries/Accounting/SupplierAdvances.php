@@ -60,7 +60,8 @@ final class SupplierAdvances
 
     /**
      * A payment to the supplier that belongs to no purchase: debits the account of the supplier
-     * and credits the treasury it was paid from, or the account of the way it was paid.
+     * and credits the treasury it was paid from, or the account of the way it was paid. It is
+     * posted on the date entered, which is never after today.
      *
      * @return int The advance.
      *
@@ -71,7 +72,7 @@ final class SupplierAdvances
         $this->guard->require(AccountingGuard::PAYABLES_MANAGE, $employeeId);
 
         $amount = $this->amount($amount);
-        $date   = $this->date($date);
+        $date   = SupplierPaymentDate::entered($date, null, (new AccountingSettings($this->db))->startDate());
         $type   = PaymentType::fromLabel($paymentType);
 
         if ($type === null || $type === PaymentType::Due || $type === PaymentType::Giftcard || $type === PaymentType::Rewards) {
@@ -113,7 +114,8 @@ final class SupplierAdvances
      * What the supplier owed us or we owed them before the books started. What we owe is a
      * purchase without lines (the id returned is the purchase); what they owe us is a credit held
      * with them (the id returned is the advance). Both are against the account of opening
-     * balances.
+     * balances, and are dated up to today: what is owed on a day to come would be in the balance
+     * of the supplier and in none of the buckets of their aging.
      *
      * @param self::THEY_OWE|self::WE_OWE $side
      *
@@ -131,6 +133,10 @@ final class SupplierAdvances
 
         $amount = $this->amount($amount);
         $date   = $this->date($date);
+
+        if ($date > date('Y-m-d')) {
+            throw new AccountingException(AccountingError::InvalidDate, "An opening balance is dated up to today, not {$date}.", ['date' => $date]);
+        }
 
         $this->assertSupplier($supplierId);
 

@@ -5,6 +5,7 @@ return [
     'agency_name'           => 'Agency Name',
     'cannot_be_deleted'     => 'Could not delete the selected Supplier(s). One or more have Sales.',
     'category'              => 'Category',
+    'commercial_registry'   => 'Commercial registry',
     'company_name'          => 'Company Name',
     'company_name_required' => 'Company Name is a required field.',
     'confirm_delete'        => 'Are you sure you want to delete the selected Supplier(s)?',

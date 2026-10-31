@@ -5,6 +5,7 @@ return [
     'agency_name'           => 'ชื่อตัวแทน',
     'cannot_be_deleted'     => 'ลบผู้ผลิตที่ถูกเลือกไม่ได้, ผู้ผลิตบางรายยังคงมีการขายสินค้า',
     'category'              => 'ประเภท',
+    'commercial_registry'   => '',
     'company_name'          => 'ชื่อบริษัท',
     'company_name_required' => 'ชื่อบริษัทต้องกรอก',
     'confirm_delete'        => 'แน่ใจหรือไม่ที่จะลบชื่อผู้ผลิตที่เลือกไว้?',

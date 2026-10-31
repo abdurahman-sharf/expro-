@@ -2,6 +2,7 @@
 
 namespace Tests\Libraries;
 
+use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\InvoiceDiscountProblem;
 use App\Libraries\Sale_lib;
 use App\Libraries\Tax_lib;
@@ -206,17 +207,39 @@ class Sale_libTest extends CIUnitTestCase
         $this->assertNull($this->saleLib->get_return_origin());
     }
 
-    public function testClearAll_ForgetsTheDeliveryAndTheOriginOfTheSaleBeingMade(): void
+    public function testGetReturnDocument_IsACreditNoteUntilARefundInvoiceIsAskedFor(): void
+    {
+        $this->assertSame(ReturnDocument::CreditNote, $this->saleLib->getReturnDocument());
+
+        $this->saleLib->setReturnDocument(ReturnDocument::RefundInvoice);
+
+        $this->assertSame(ReturnDocument::RefundInvoice, $this->saleLib->getReturnDocument());
+        $this->assertSame('refund_invoice', session()->get('sales_return_document'));
+
+        $this->saleLib->setReturnDocument(ReturnDocument::CreditNote);
+
+        $this->assertSame(ReturnDocument::CreditNote, $this->saleLib->getReturnDocument());
+        $this->assertNull(session()->get('sales_return_document'));
+
+        $this->saleLib->setReturnDocument(ReturnDocument::RefundInvoice);
+        $this->saleLib->clearReturnDocument();
+
+        $this->assertSame(ReturnDocument::CreditNote, $this->saleLib->getReturnDocument());
+    }
+
+    public function testClearAll_ForgetsTheDeliveryTheOriginAndTheDocumentOfTheSaleBeingMade(): void
     {
         $this->saleLib->set_delivered(false);
         $this->saleLib->set_return_origin(42);
+        $this->saleLib->setReturnDocument(ReturnDocument::RefundInvoice);
         $this->saleLib->clear_all();
 
         $this->assertTrue($this->saleLib->is_delivered());
         $this->assertNull($this->saleLib->get_return_origin());
+        $this->assertSame(ReturnDocument::CreditNote, $this->saleLib->getReturnDocument());
     }
 
-    public function testCopyEntireSale_TakesOverWhetherTheGoodsLeftAndWhichSaleAReturnComesFrom(): void
+    public function testCopyEntireSale_TakesOverWhetherTheGoodsLeftWhichSaleAReturnComesFromAndWhichDocumentItIs(): void
     {
         $empty = $this->createStub(ResultInterface::class);
         $empty->method('getResult')->willReturn([]);
@@ -233,6 +256,8 @@ class Sale_libTest extends CIUnitTestCase
         $sale->method('get_dinner_table')->willReturn(null);
         $sale->method('isDelivered')->willReturn(false);
         $sale->method('getReturnOrigin')->willReturn(42);
+        $sale->method('getReturnDocument')->willReturn(ReturnDocument::RefundInvoice);
+        $sale->method('getInvoiceTiming')->willReturn(['invoice_date' => null, 'payment_terms_days' => null, 'due_date' => null]);
         Factories::injectMock('models', Sale::class, $sale);
 
         $saleLib = new Sale_lib();
@@ -240,6 +265,104 @@ class Sale_libTest extends CIUnitTestCase
 
         $this->assertFalse($saleLib->is_delivered());
         $this->assertSame(42, $saleLib->get_return_origin());
+        $this->assertSame(ReturnDocument::RefundInvoice, $saleLib->getReturnDocument());
+    }
+
+    public function testCopyEntireSale_TakesOverTheDayAndTheTermsTypedOnTheSale(): void
+    {
+        $empty = $this->createStub(ResultInterface::class);
+        $empty->method('getResult')->willReturn([]);
+
+        $sale = $this->createStub(Sale::class);
+        $sale->method('get_sale_items_ordered')->willReturn($empty);
+        $sale->method('get_sale_payments')->willReturn($empty);
+        $sale->method('get_customer')->willReturn((object) ['person_id' => 3]);
+        $sale->method('get_employee')->willReturn((object) ['person_id' => 1]);
+        $sale->method('get_sale_type')->willReturn(SALE_TYPE_INVOICE);
+        $sale->method('get_comment')->willReturn('');
+        $sale->method('isDelivered')->willReturn(true);
+        $sale->method('getInvoiceTiming')->willReturn(['invoice_date' => '2026-10-20', 'payment_terms_days' => 30, 'due_date' => '2026-11-19']);
+        $sale->method('getReturnDocument')->willReturn(ReturnDocument::CreditNote);
+        Factories::injectMock('models', Sale::class, $sale);
+
+        $saleLib = new Sale_lib();
+        $saleLib->copy_entire_sale(9);
+
+        $this->assertSame('2026-10-20', $saleLib->getInvoiceDate());
+        $this->assertSame('30', $saleLib->getPaymentTerms());
+    }
+
+    public function testCopyEntireSale_TakesOverNoDayAndNoTermsFromASaleThatHasNone(): void
+    {
+        $empty = $this->createStub(ResultInterface::class);
+        $empty->method('getResult')->willReturn([]);
+
+        $sale = $this->createStub(Sale::class);
+        $sale->method('get_sale_items_ordered')->willReturn($empty);
+        $sale->method('get_sale_payments')->willReturn($empty);
+        $sale->method('get_customer')->willReturn((object) ['person_id' => 3]);
+        $sale->method('get_employee')->willReturn((object) ['person_id' => 1]);
+        $sale->method('get_sale_type')->willReturn(SALE_TYPE_INVOICE);
+        $sale->method('get_comment')->willReturn('');
+        $sale->method('isDelivered')->willReturn(true);
+        $sale->method('getInvoiceTiming')->willReturn(['invoice_date' => null, 'payment_terms_days' => null, 'due_date' => null]);
+        $sale->method('getReturnDocument')->willReturn(ReturnDocument::CreditNote);
+        Factories::injectMock('models', Sale::class, $sale);
+
+        $saleLib = new Sale_lib();
+        $saleLib->setInvoiceDate('2026-10-01');
+        $saleLib->setPaymentTerms('15');
+        $saleLib->copy_entire_sale(9);
+
+        $this->assertNull($saleLib->getInvoiceDate());
+        $this->assertNull($saleLib->getPaymentTerms());
+    }
+
+    public function testSetInvoiceDate_KeepsTheDayTypedAndTakesItBackWhenSetEmpty(): void
+    {
+        $this->assertNull($this->saleLib->getInvoiceDate());
+
+        $this->saleLib->setInvoiceDate('2026-10-20');
+
+        $this->assertSame('2026-10-20', $this->saleLib->getInvoiceDate());
+
+        $this->saleLib->setInvoiceDate('');
+
+        $this->assertNull($this->saleLib->getInvoiceDate());
+
+        $this->saleLib->setInvoiceDate('2026-10-20');
+        $this->saleLib->setInvoiceDate(null);
+
+        $this->assertNull($this->saleLib->getInvoiceDate());
+    }
+
+    public function testSetPaymentTerms_KeepsTheTermsTypedAndTakesThemBackWhenSetEmpty(): void
+    {
+        $this->assertNull($this->saleLib->getPaymentTerms());
+
+        $this->saleLib->setPaymentTerms('30');
+
+        $this->assertSame('30', $this->saleLib->getPaymentTerms());
+
+        $this->saleLib->setPaymentTerms('');
+
+        $this->assertNull($this->saleLib->getPaymentTerms());
+
+        $this->saleLib->setPaymentTerms('30');
+        $this->saleLib->setPaymentTerms(null);
+
+        $this->assertNull($this->saleLib->getPaymentTerms());
+    }
+
+    public function testClearAll_ForgetsTheDayAndTheTermsSoTheNextSaleDoesNotInheritThem(): void
+    {
+        $this->saleLib->setInvoiceDate('2026-10-20');
+        $this->saleLib->setPaymentTerms('30');
+
+        $this->saleLib->clear_all();
+
+        $this->assertNull($this->saleLib->getInvoiceDate());
+        $this->assertNull($this->saleLib->getPaymentTerms());
     }
 
     public function testReturnEntireSale_NamesTheSaleAsTheOriginAndTakesBackOnlyWhatHasNotComeBack(): void
@@ -462,6 +585,8 @@ class Sale_libTest extends CIUnitTestCase
         $sale->method('get_comment')->willReturn('');
         $sale->method('isDelivered')->willReturn(true);
         $sale->method('getInvoiceDiscount')->willReturn($discount);
+        $sale->method('getReturnDocument')->willReturn(ReturnDocument::CreditNote);
+        $sale->method('getInvoiceTiming')->willReturn(['invoice_date' => null, 'payment_terms_days' => null, 'due_date' => null]);
         $sale->method('getSaleStatus')->willReturn($status);
         Factories::injectMock('models', Sale::class, $sale);
 

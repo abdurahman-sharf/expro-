@@ -19,6 +19,10 @@
  * @var array $config
  * @var string|null $documentLabel
  * @var string|null $documentNumber
+ * @var string|null $invoice_date
+ * @var string|null $due_date
+ * @var string|null $supplier_tax_id
+ * @var string|null $supplier_commercial_registry
  */
 ?>
 
@@ -58,6 +62,12 @@ echo view('partial/print_receipt', ['print_after_sale', $print_after_sale, 'sele
     <div id="receipt_general_info">
         <?php if (isset($supplier)) { ?>
             <div id="customer"><?= lang('Suppliers.supplier') . esc(": $supplier") ?></div>
+            <?php if (!empty($supplier_tax_id)) { ?>
+                <div id="supplier_tax_id"><?= lang('Receivings.supplier_tax_id') . esc(": $supplier_tax_id") ?></div>
+            <?php } ?>
+            <?php if (!empty($supplier_commercial_registry)) { ?>
+                <div id="supplier_commercial_registry"><?= lang('Receivings.supplier_commercial_registry') . esc(": $supplier_commercial_registry") ?></div>
+            <?php } ?>
         <?php } ?>
         <div id="sale_id"><?= lang('Receivings.id') . ": $receiving_id" ?></div>
         <?php if (!empty($documentNumber)) { ?>
@@ -65,6 +75,12 @@ echo view('partial/print_receipt', ['print_after_sale', $print_after_sale, 'sele
         <?php } ?>
         <?php if (!empty($reference)) { ?>
             <div id="reference"><?= lang('Receivings.reference') . esc(": $reference") ?></div>
+        <?php } ?>
+        <?php if (!empty($invoice_date)) { ?>
+            <div id="invoice_date"><?= lang('Receivings.invoice_date') . esc(": $invoice_date") ?></div>
+        <?php } ?>
+        <?php if (!empty($due_date)) { ?>
+            <div id="due_date"><?= lang('Receivings.due_date') . esc(": $due_date") ?></div>
         <?php } ?>
         <div id="employee"><?= lang('Employees.employee') . esc(": $employee") ?></div>
     </div>

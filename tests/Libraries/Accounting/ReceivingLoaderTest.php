@@ -96,6 +96,25 @@ class ReceivingLoaderTest extends CIUnitTestCase
         $this->assertSame([$branch, 1], array_map(static fn ($line): ?int => $line->branchId, $document->lines));
     }
 
+    public function testLoad_DatesAPaymentOnTheDateEnteredAndOtherwiseOnTheDayItWasSaved(): void
+    {
+        $purchase = $this->purchaseOf('100.00');
+        $entered  = date('Y-m-d', strtotime('-5 days'));
+        $saved    = date('Y-m-d', strtotime('-9 days'));
+
+        $this->assertTrue($this->purchases->update($purchase, ['payments' => [
+            ['payment_id' => NEW_ENTRY, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '40.00', 'employee_id' => $this->employeeId, 'payment_status' => 'completed', 'reference_code' => '', 'payment_date' => $entered],
+        ]]));
+
+        $payment = (int) $this->accountingDb()->table('receivings_payments')->where('receiving_id', $purchase)->get()->getRow()->payment_id;
+
+        $this->assertSame($entered, (new ReceivingLoader())->load($purchase)->payments[0]->date);
+
+        $this->accountingDb()->table('receivings_payments')->where('payment_id', $payment)->update(['payment_date' => null, 'payment_time' => $saved . ' 09:30:00']);
+
+        $this->assertSame($saved, (new ReceivingLoader())->load($purchase)->payments[0]->date, 'A payment saved before dates could be entered keeps the day it was saved');
+    }
+
     public function testLoad_IsNullForAPurchaseThatDoesNotExist(): void
     {
         $this->assertNull((new ReceivingLoader())->load(987654));

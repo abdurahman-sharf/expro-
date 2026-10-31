@@ -63,6 +63,18 @@
                         'value' => $person_info->tax_id
                     ]) ?>
                 </div>
+
+                <div class="field">
+                    <?= form_label(lang('Suppliers.commercial_registry'), 'commercial_registry', ['class' => 'form-label']) ?>
+                    <?= form_input([
+                        'name'      => 'commercial_registry',
+                        'id'        => 'commercial_registry',
+                        'class'     => 'form-control form-control-sm',
+                        'maxlength' => 64,
+                        'dir'       => 'ltr',
+                        'value'     => $person_info->commercial_registry ?? ''
+                    ]) ?>
+                </div>
             </div>
         </div>
 

@@ -5,6 +5,7 @@ return [
     'agency_name'           => 'Nome da Agência',
     'cannot_be_deleted'     => 'Não foi possível excluir fornecedores selecionados, um ou mais dos fornecedores selecionados tem vendas.',
     'category'              => 'Categoria',
+    'commercial_registry'   => '',
     'company_name'          => 'Empresa',
     'company_name_required' => 'Nome da Empresa é um campo obrigatório.',
     'confirm_delete'        => 'Tem certeza de que deseja excluir os fornecedores selecionados?',

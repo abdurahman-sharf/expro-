@@ -72,6 +72,12 @@ $routes->group('accounting_receivables', static function (RouteCollection $route
     $routes->get('search', 'AccountingReceivables::getSearch');
     $routes->get('row/(:num)', 'AccountingReceivables::getRow/$1');
     $routes->get('customer/(:num)', 'AccountingReceivables::getCustomer/$1');
+    $routes->get('payments', 'AccountingReceivables::getPayments');
+    $routes->get('payments/search', 'AccountingReceivables::getPaymentsSearch');
+    $routes->get('credit_notes', 'AccountingReceivables::getCreditNotes');
+    $routes->get('credit_notes/search', 'AccountingReceivables::getCreditNotesSearch');
+    $routes->get('aged_ledger', 'AccountingReceivables::getAgedLedger');
+    $routes->get('balances', 'AccountingReceivables::getBalances');
 });
 
 $routes->group('accounting_payables', static function (RouteCollection $routes): void {
@@ -79,6 +85,12 @@ $routes->group('accounting_payables', static function (RouteCollection $routes):
     $routes->get('search', 'AccountingPayables::getSearch');
     $routes->get('row/(:num)', 'AccountingPayables::getRow/$1');
     $routes->get('supplier/(:num)', 'AccountingPayables::getSupplier/$1');
+    $routes->get('payments', 'AccountingPayables::getPayments');
+    $routes->get('payments/search', 'AccountingPayables::getPaymentsSearch');
+    $routes->get('debit_notes', 'AccountingPayables::getDebitNotes');
+    $routes->get('debit_notes/search', 'AccountingPayables::getDebitNotesSearch');
+    $routes->get('aged_ledger', 'AccountingPayables::getAgedLedger');
+    $routes->get('balances', 'AccountingPayables::getBalances');
     $routes->get('payment_form/(:num)', 'AccountingPayables::getPaymentForm/$1');
     $routes->post('payment/(:num)', 'AccountingPayables::postPayment/$1');
     $routes->get('opening_form/(:num)', 'AccountingPayables::getOpeningForm/$1');
@@ -93,6 +105,8 @@ $routes->group('accounting_reports', static function (RouteCollection $routes): 
     $routes->get('ledger', 'AccountingReports::getLedger');
     $routes->get('inventory_valuation', 'AccountingInventoryReports::getIndex');
     $routes->get('inventory_valuation/csv', 'AccountingInventoryReports::getCsv');
+    $routes->get('tax', 'AccountingTaxReports::getIndex');
+    $routes->get('tax/csv', 'AccountingTaxReports::getCsv');
 });
 
 $routes->group('accounting_statements', static function (RouteCollection $routes): void {

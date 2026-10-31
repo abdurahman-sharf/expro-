@@ -19,10 +19,18 @@
  * @var list<object> $applications
  * @var bool $can_debit_note
  * @var array<int, string> $paymentNumbers
+ * @var array<int, string> $paymentDates
+ * @var string $today
  * @var string|null $documentLabel
  * @var string|null $documentNumber
  * @var App\Libraries\Accounting\InvoiceDiscount $invoiceDiscount
  * @var string $invoiceDiscountShare
+ * @var array{date: string, terms: int|null, due: string}|null $invoice_timing
+ * @var bool $lines_editable
+ * @var bool $lines_has_returns
+ * @var list<array<string, mixed>> $lines
+ * @var bool $lines_allowed
+ * @var bool $can_edit_tax
  */
 ?>
 
@@ -61,6 +69,30 @@
             </div>
         </div>
 
+        <?php if ($invoice_timing !== null): ?>
+            <div class="row mb-3">
+                <?= form_label(lang('Receivings.invoice_date'), 'invoice_date', ['class' => 'col-form-label col-3']) ?>
+                <div class="col-8">
+                    <?= form_input(['name' => 'invoice_date', 'id' => 'invoice_date', 'value' => to_date(strtotime($invoice_timing['date'])), 'class' => 'form-control form-control-sm', 'readonly' => 'readonly']) ?>
+                </div>
+            </div>
+            <div class="row mb-3">
+                <?= form_label(lang('Receivings.payment_terms'), 'payment_terms_days', ['class' => 'col-form-label col-3']) ?>
+                <div class="col-8">
+                    <div class="input-group input-group-sm">
+                        <?= form_input(['type' => 'number', 'name' => 'payment_terms_days', 'id' => 'payment_terms_days', 'value' => $invoice_timing['terms'] ?? '', 'min' => 0, 'max' => 3650, 'step' => 1, 'class' => 'form-control form-control-sm']) ?>
+                        <span class="input-group-text"><?= lang('Receivings.payment_terms_days') ?></span>
+                    </div>
+                </div>
+            </div>
+            <div class="row mb-3">
+                <?= form_label(lang('Receivings.due_date'), 'due_date', ['class' => 'col-form-label col-3']) ?>
+                <div class="col-8">
+                    <?= form_input(['name' => 'due_date', 'id' => 'due_date', 'value' => to_date(strtotime($invoice_timing['due'])), 'class' => 'form-control form-control-sm', 'readonly' => 'readonly']) ?>
+                </div>
+            </div>
+        <?php endif; ?>
+
         <div class="row mb-3">
             <?= form_label(lang('Receivings.supplier'), 'supplier_name', ['class' => 'col-form-label col-3']) ?>
             <div class="col-8">
@@ -68,6 +100,15 @@
                 <?= form_hidden('supplier_id', $selected_supplier_id ?? '') ?>
             </div>
         </div>
+
+        <?php foreach (['tax_id' => 'supplier_tax_id', 'commercial_registry' => 'supplier_commercial_registry'] as $column => $label): ?>
+            <?php if (! empty($receiving_info[$column])): ?>
+                <div class="row mb-3" id="<?= esc($label) ?>">
+                    <span class="col-form-label col-3"><?= lang('Receivings.' . $label) ?></span>
+                    <div class="col-8 col-form-label"><bdi dir="ltr"><?= esc($receiving_info[$column]) ?></bdi></div>
+                </div>
+            <?php endif; ?>
+        <?php endforeach; ?>
 
         <div class="row mb-3">
             <?= form_label(lang('Receivings.reference'), 'reference', ['class' => 'col-form-label col-3']) ?>
@@ -113,6 +154,10 @@
                     <div class="col-3">
                         <?= form_input(['name' => 'payment_amount_' . $i, 'value' => to_currency_no_money($row->payment_amount), 'id' => 'payment_amount_' . $i, 'class' => 'form-control form-control-sm', 'aria-label' => lang('Receivings.payment_amount'), 'inputmode' => 'decimal', 'dir' => 'ltr']) ?>
                     </div>
+                    <div class="col-5 offset-3 mt-2">
+                        <input type="date" name="payment_date_<?= $i ?>" id="payment_date_<?= $i ?>" class="form-control form-control-sm" dir="ltr" max="<?= esc($today, 'attr') ?>" value="<?= esc($paymentDates[(int) $row->payment_id] ?? $today, 'attr') ?>" aria-label="<?= esc(lang('Receivings.payment_date'), 'attr') ?>">
+                    </div>
+                    <div class="col-4 mt-2 small text-body-secondary payment-saved-at"><?= esc(lang('Receivings.payment_saved_at', [to_datetime(strtotime((string) $row->payment_time))])) ?></div>
                     <?php if ($payment_statuses !== []): ?>
                         <div class="col-5 offset-3 mt-2">
                             <?= form_dropdown('payment_status_' . $i, $payment_statuses, $row->payment_status ?? 'completed', ['id' => 'payment_status_' . $i, 'class' => 'form-select form-select-sm', 'aria-label' => lang('Sales.payment_status')]) ?>
@@ -135,6 +180,9 @@
                 <div class="col-3">
                     <?= form_input(['name' => 'payment_amount_new', 'value' => $payable === null ? '' : to_currency_no_money($payable->open()), 'id' => 'payment_amount_new', 'class' => 'form-control form-control-sm', 'aria-label' => lang('Receivings.payment_amount'), 'inputmode' => 'decimal', 'dir' => 'ltr']) ?>
                 </div>
+                <div class="col-5 offset-3 mt-2">
+                    <input type="date" name="payment_date_new" id="payment_date_new" class="form-control form-control-sm" dir="ltr" max="<?= esc($today, 'attr') ?>" value="<?= esc($today, 'attr') ?>" aria-label="<?= esc(lang('Receivings.payment_date'), 'attr') ?>">
+                </div>
                 <?php if ($payment_statuses !== []): ?>
                     <div class="col-5 offset-3 mt-2">
                         <?= form_dropdown('payment_status_new', $payment_statuses, 'completed', ['id' => 'payment_status_new', 'class' => 'form-select form-select-sm', 'aria-label' => lang('Sales.payment_status')]) ?>
@@ -145,6 +193,7 @@
                         <?= form_dropdown('treasury_id_new', array_map('esc', $new_treasury_options), '0', ['id' => 'treasury_id_new', 'class' => 'form-select form-select-sm', 'aria-label' => lang('Receivings.treasury')]) ?>
                     </div>
                 <?php endif; ?>
+                <p class="small text-body-secondary col-8 offset-3 mb-0 mt-1" id="payment_date_note"><?= lang('Receivings.payment_date_note') ?></p>
                 <?php if ($payment_statuses !== []): ?>
                     <p class="small text-body-secondary col-8 offset-3 mb-0 mt-1"><?= lang('Receivings.payments_note') ?></p>
                 <?php endif; ?>
@@ -222,6 +271,86 @@
     </fieldset>
 <?= form_close() ?>
 
+<?php if ($lines_has_returns): ?>
+    <div class="alert alert-secondary" id="lines_locked_returns" role="note"><?= lang('Receivings.lines_locked_returns') ?></div>
+<?php endif; ?>
+
+<?php if ($lines_editable && $lines !== []): ?>
+    <?= form_open('receivings/saveLines/' . $receiving_info['receiving_id'], ['id' => 'receivings_lines_form', 'class' => 'app-form']) ?>
+        <fieldset id="receiving_lines"<?= $lines_allowed ? '' : ' disabled' ?>>
+            <legend class="fs-6"><?= lang('Receivings.lines') ?></legend>
+            <?php if (! $lines_allowed): ?>
+                <div class="alert alert-secondary" id="lines_locked_location" role="note"><?= lang('Receivings.location_not_allowed') ?></div>
+            <?php endif; ?>
+            <p class="small text-body-secondary mb-2"><?= lang($locked ? 'Receivings.lines_help' : 'Receivings.lines_help_unposted') ?></p>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle" id="receiving_lines_table">
+                    <thead>
+                        <tr>
+                            <th scope="col"><?= lang('Receivings.item_name') ?></th>
+                            <th scope="col"><?= lang('Receivings.quantity') ?></th>
+                            <th scope="col"><?= lang('Common.price') ?></th>
+                            <th scope="col"><?= lang('Receivings.discount') ?></th>
+                            <th scope="col"><?= lang('Receivings.tax') ?></th>
+                            <th scope="col"><?= lang('Common.remove') ?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach (array_values($lines) as $i => $line): ?>
+                            <?php
+                            $typeOptions = [PERCENT => '%', FIXED => $config['currency_symbol']];
+                            if ((int) $line['discount_type'] === FIXED_LINE) {
+                                $typeOptions[FIXED_LINE] = lang('Receivings.lines_discount_fixed_line');
+                            }
+                            $shown = [
+                                'quantity'      => to_decimals((string) $line['quantity_purchased'], 'quantity_decimals'),
+                                'price'         => to_decimals((string) $line['item_unit_price']),
+                                'discount'      => to_decimals((string) $line['discount']),
+                                'discount_type' => (string) (int) $line['discount_type'],
+                                'tax_percent'   => to_decimals((string) $line['tax_percent'], 'tax_decimals'),
+                            ];
+                            ?>
+                            <tr class="receiving-line">
+                                <td>
+                                    <?= form_hidden("lines[{$i}][item_id]", (string) $line['item_id']) ?>
+                                    <?= form_hidden("lines[{$i}][line]", (string) $line['line']) ?>
+                                    <div><?= esc($line['name']) ?></div>
+                                    <div class="small text-body-secondary"><?= esc($line['location_name']) ?></div>
+                                    <?= form_input(['name' => "lines[{$i}][description]", 'value' => (string) $line['description'], 'maxlength' => 30, 'class' => 'form-control form-control-sm mt-1', 'aria-label' => lang('Sales.description_abbrv')]) ?>
+                                </td>
+                                <?php foreach (['quantity', 'price'] as $field): ?>
+                                    <td>
+                                        <?= form_hidden("lines[{$i}][{$field}_was]", $shown[$field]) ?>
+                                        <?= form_input(['name' => "lines[{$i}][{$field}]", 'id' => "line_{$i}_{$field}", 'value' => $shown[$field], 'class' => 'form-control form-control-sm', 'inputmode' => 'decimal', 'dir' => 'ltr', 'aria-label' => lang($field === 'quantity' ? 'Receivings.quantity' : 'Common.price')]) ?>
+                                    </td>
+                                <?php endforeach; ?>
+                                <td>
+                                    <div class="input-group input-group-sm">
+                                        <?= form_hidden("lines[{$i}][discount_was]", $shown['discount']) ?>
+                                        <?= form_hidden("lines[{$i}][discount_type_was]", $shown['discount_type']) ?>
+                                        <?= form_input(['name' => "lines[{$i}][discount]", 'id' => "line_{$i}_discount", 'value' => $shown['discount'], 'class' => 'form-control', 'inputmode' => 'decimal', 'dir' => 'ltr', 'aria-label' => lang('Receivings.discount')]) ?>
+                                        <?= form_dropdown("lines[{$i}][discount_type]", $typeOptions, $shown['discount_type'], ['class' => 'form-select', 'aria-label' => lang('Receivings.discount')]) ?>
+                                    </div>
+                                </td>
+                                <td>
+                                    <?= form_hidden("lines[{$i}][tax_percent_was]", $shown['tax_percent']) ?>
+                                    <?= form_input(['name' => "lines[{$i}][tax_percent]", 'id' => "line_{$i}_tax", 'value' => $shown['tax_percent'], 'class' => 'form-control form-control-sm', 'inputmode' => 'decimal', 'dir' => 'ltr', 'aria-label' => lang('Receivings.tax')] + ($can_edit_tax ? [] : ['readonly' => 'readonly'])) ?>
+                                </td>
+                                <td class="text-center">
+                                    <?= form_checkbox(['name' => "lines[{$i}][remove]", 'value' => '1', 'checked' => false, 'class' => 'form-check-input', 'aria-label' => lang('Common.remove')]) ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            <?php if ($lines_allowed): ?>
+                <button type="button" class="btn btn-outline-primary btn-sm" id="save_lines"><?= lang('Receivings.lines_save') ?></button>
+            <?php endif; ?>
+        </fieldset>
+    <?= form_close() ?>
+<?php endif; ?>
+
 <script type="text/javascript">
     $(document).ready(function() {
         <?= view('partial/datepicker_locale') ?>
@@ -260,13 +389,73 @@
             });
         });
 
+        const mainForm = $('#receivings_edit_form');
+        const linesForm = $('#receivings_lines_form');
+        let detailsChanged = false;
+        let linesChanged = false;
+
+        const warn = function(message) {
+            $('#error_message_box').empty().append($('<li></li>').text(message));
+        };
+
+        mainForm.on('input change', function() {
+            detailsChanged = true;
+        });
+
+        linesForm.on('input change', function() {
+            linesChanged = true;
+        });
+
+        linesForm.on('keydown', 'input:not([type=checkbox])', function(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                event.stopPropagation();
+                $('#save_lines').trigger('click');
+            }
+        });
+
+        linesForm.on('submit', function(event) {
+            event.preventDefault();
+        });
+
+        $('#save_lines').on('click', function() {
+            const button = $(this);
+
+            if (detailsChanged) {
+                warn(<?= json_encode(lang('Receivings.details_unsaved')) ?>);
+                return;
+            }
+
+            button.prop('disabled', true);
+            $.post(linesForm.attr('action'), linesForm.serialize(), function(response) {
+                if (response.success) {
+                    dialog_support.hide();
+                    table_support.handle_submit("<?= esc($controller_name) ?>", response);
+                    return;
+                }
+                button.prop('disabled', false);
+                warn(response.message);
+            }, 'json').fail(function(xhr) {
+                button.prop('disabled', false);
+                warn(xhr.responseJSON?.message ?? <?= json_encode(lang('Receivings.lines_not_updated')) ?>);
+            });
+        });
+
         $('button#delete').click(function() {
             dialog_support.hide();
             table_support.do_delete("<?= esc($controller_name) ?>", <?= $receiving_info['receiving_id'] ?>);
         });
 
-        $('#receivings_edit_form').validate($.extend({
+        mainForm.validate($.extend({
             submitHandler: function(form) {
+                if (linesChanged) {
+                    warn(<?= json_encode(lang('Receivings.lines_unsaved')) ?>);
+                    setTimeout(function() {
+                        $('.modal-footer [data-dialog-button="submit"]').prop('disabled', false);
+                    }, 0);
+                    return;
+                }
+
                 $(form).ajaxSubmit({
                     success: function(response) {
                         dialog_support.hide();

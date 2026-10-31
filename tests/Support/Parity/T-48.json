@@ -1,6 +1,6 @@
 {
   "id": "T-48",
-  "title": "Deleting the last of two purchases (10 at 100 and 8 at 140, average 117.777778): the reference system recomputes the average from the movements left and goes back to 100, this application leaves the average the item carried",
+  "title": "Deleting the last of two purchases (10 at 100 and 8 at 140, average 117.777778): the reference system recomputes the average from the movements left and goes back to 100, and so does this application, which reverses the valued movement of the purchase at its recorded value (E58)",
   "recorded": "2026-10-27",
   "observation": {
     "batch": "d2",
@@ -23,8 +23,7 @@
     {
       "id": "deleting-a-purchase-recomputes-the-average",
       "kind": "purchase_delete",
-      "classification": "differs",
-      "reason": "The reference system recomputes the average cost of the item from the movements that stay when a purchase is deleted. This application gives the stock back and reverses the journal but does not recompute the cost the item carries (G-43), so the next sale is costed at the old average; proposal E56 has WP17 reverse the valued movement so that the average follows.",
+      "classification": "exact",
       "evidence": [
         "delete_and_restore"
       ],
@@ -48,7 +47,7 @@
       },
       "expected": {
         "average_before_the_delete": "117.777778",
-        "average_after_the_delete": "117.777778",
+        "average_after_the_delete": "100.00",
         "stock_after_the_delete": "10"
       }
     }

@@ -8,6 +8,7 @@ use App\Libraries\Accounting\CustomerLedger;
 use App\Libraries\Accounting\CustomerPosition;
 use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\Accounting\SalePosting;
 use App\Models\Sale;
 
@@ -199,12 +200,12 @@ trait SaleAccountingFixtureTrait
      * @param list<array<string, mixed>>           $payments
      * @param array{type: int, value: string}|null $invoiceDiscount
      */
-    protected function save(array $items, array $taxes = [], array $payments = [], int $type = SALE_TYPE_INVOICE, ?int $customerId = -1, bool $delivered = true, ?int $origin = null, int $status = COMPLETED, int $saleId = NEW_ENTRY, ?array $invoiceDiscount = null): int
+    protected function save(array $items, array $taxes = [], array $payments = [], int $type = SALE_TYPE_INVOICE, ?int $customerId = -1, bool $delivered = true, ?int $origin = null, int $status = COMPLETED, int $saleId = NEW_ENTRY, ?array $invoiceDiscount = null, ReturnDocument $returnDocument = ReturnDocument::CreditNote, ?string $invoiceDate = null, int|string|null $paymentTerms = null): int
     {
         $saleStatus = $status;
         $salesTaxes = [[], $taxes];
         $customer   = $customerId === -1 ? $this->customerId : ($customerId ?? NEW_ENTRY);
-        $result     = $this->sales->save_value($saleId, $saleStatus, $items, $customer, $this->employeeId, 'test', null, null, null, $type, $payments, null, $salesTaxes, $delivered, $origin, $invoiceDiscount);
+        $result     = $this->sales->save_value($saleId, $saleStatus, $items, $customer, $this->employeeId, 'test', null, null, null, $type, $payments, null, $salesTaxes, $delivered, $origin, $invoiceDiscount, $returnDocument, $invoiceDate, $paymentTerms);
 
         if ($result > 0) {
             $this->saleIds[] = $result;
@@ -303,6 +304,63 @@ trait SaleAccountingFixtureTrait
     }
 
     /**
+     * A stock location, with its account, that belongs to the branch given.
+     */
+    protected function branchLocation(int $branchId, string $name = 'Branch store'): int
+    {
+        $location = $this->insertStockLocation($name);
+
+        (new EntityAccountService())->ensure(EntityAccountService::STOCK_LOCATION, $location, $name);
+        $this->accountingDb()->table('stock_locations')->where('location_id', $location)->update(['branch_id' => $branchId]);
+
+        return $location;
+    }
+
+    /**
+     * An invoice of a service that comes to exactly the amount, sold from a stock location of the
+     * branch given, which makes it a sale of that branch.
+     *
+     * @param list<array<string, mixed>> $payments
+     */
+    protected function invoiceInBranch(int $branchId, string $total, array $payments = [], ?int $customerId = null): int
+    {
+        $service = $this->item('0', false);
+
+        return $this->save([$this->line($service, 0, '1', $total, '0', '0', PERCENT, $this->branchLocation($branchId))], [], $payments, SALE_TYPE_INVOICE, $customerId ?? -1);
+    }
+
+    /**
+     * Lets the seller of the test type the date of an invoice.
+     */
+    protected function grantInvoiceDate(): void
+    {
+        $this->accountingDb()->table('grants')->ignore(true)->insert(['permission_id' => 'sales_invoice_date', 'person_id' => $this->employeeId, 'menu_group' => 'home']);
+    }
+
+    /**
+     * An invoice of a service dated on a day typed on it, with payment terms when it has them. The
+     * seller is given the permission to type the date first.
+     *
+     * @param list<array<string, mixed>> $payments
+     */
+    protected function invoiceDated(string $total, string $date, int|string|null $terms = null, ?int $customerId = null, array $payments = []): int
+    {
+        $this->grantInvoiceDate();
+
+        $service = $this->item('0', false);
+
+        return $this->save([$this->line($service, 0, '1', $total)], [], $payments, SALE_TYPE_INVOICE, $customerId ?? -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $date, paymentTerms: $terms);
+    }
+
+    /**
+     * The day a number of days ago.
+     */
+    protected function daysAgo(int $days): string
+    {
+        return date('Y-m-d', strtotime("-{$days} days"));
+    }
+
+    /**
      * A credit note of a service for the amount, taken from an invoice.
      */
     protected function creditNoteOf(int $invoiceId, string $total, ?int $customerId = null): int
@@ -310,6 +368,17 @@ trait SaleAccountingFixtureTrait
         $service = $this->item('0', false);
 
         return $this->save([$this->line($service, 0, '-1', $total)], [], [], SALE_TYPE_RETURN, $customerId ?? -1, true, $invoiceId);
+    }
+
+    /**
+     * A refund invoice of a service for the amount, taken from an invoice: the same return as a
+     * credit note, issued as the other document.
+     */
+    protected function refundInvoiceOf(int $invoiceId, string $total, ?int $customerId = null): int
+    {
+        $service = $this->item('0', false);
+
+        return $this->save([$this->line($service, 0, '-1', $total)], [], [], SALE_TYPE_RETURN, $customerId ?? -1, true, $invoiceId, COMPLETED, NEW_ENTRY, null, ReturnDocument::RefundInvoice);
     }
 
     /**
@@ -331,9 +400,9 @@ trait SaleAccountingFixtureTrait
         ]]));
     }
 
-    protected function position(?int $customerId = null): CustomerPosition
+    protected function position(?int $customerId = null, ?string $asOf = null): CustomerPosition
     {
-        return (new CustomerLedger())->position($customerId ?? $this->customerId);
+        return (new CustomerLedger())->position($customerId ?? $this->customerId, $asOf);
     }
 
     /**

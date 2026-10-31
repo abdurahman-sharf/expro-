@@ -13,9 +13,11 @@ use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\PairBalance;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingService;
+use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\Accounting\RoutingKey;
 use App\Libraries\Accounting\RoutingType;
 use App\Libraries\Accounting\SalePosting;
+use App\Libraries\Accounting\StockLedger;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\InvoiceDiscountProblem;
 use App\Libraries\Organization\BranchGuard;
@@ -278,6 +280,151 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame(['general', 'general', 'general'], array_column($payments, 'entry'));
         $this->assertSame('253.00', $this->balance($this->customerAccount()));
         $this->assertSame('563.50', $this->balance($this->accountId('cash')));
+    }
+
+    /**
+     * @return array<string, array{array<string, mixed>}>
+     */
+    public static function creationOrderProvider(): array
+    {
+        return ParityFixture::cases('T-06', 'creation_order');
+    }
+
+    /**
+     * @param array<string, mixed> $case
+     */
+    #[DataProvider('creationOrderProvider')]
+    public function testSaveValue_NumbersAPaidSaleInvoiceThenPaymentThenCostAsTheReferenceSystemDoes(array $case): void
+    {
+        $this->assertSame('exact', $case['classification'], $case['id']);
+        $this->assertSame($case['reference']['order'], $case['expected']['order']);
+        $this->assertSame(['invoice', 'payment', 'invoice_cost'], array_keys($case['reference']['numbers']));
+        $this->assertSame(range(23, 25), array_values($case['reference']['numbers']));
+
+        $cycle    = $this->referenceInvoice();
+        $saleId   = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '300.00')]);
+        $journals = $this->journals($saleId);
+        $steps    = ['revenue' => 'invoice', 'general' => 'payment', 'cogs' => 'invoice_cost'];
+
+        $this->assertSame($case['expected']['order'], implode(', ', array_map(static fn (string $entry): string => $steps[$entry], $this->entriesByNumber($saleId))));
+        $this->assertSame([1, 1, 1], array_column($journals, 'revision'));
+    }
+
+    public function testSaveValue_PostsThePaymentsBetweenTheInvoiceAndTheCostWithTheLinesTheyAlwaysHad(): void
+    {
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [
+            $this->payment(lang('Sales.cash'), '300.00'),
+            $this->payment(lang('Sales.check'), '163.50'),
+            $this->payment(lang('Sales.bank_transfer'), '100.00'),
+        ]);
+
+        $journals = $this->journals($saleId);
+
+        $this->assertSame(['revenue', 'general', 'general', 'general', 'cogs'], array_column($journals, 'entry'));
+        $this->assertSame(['revenue', 'general', 'general', 'general', 'cogs'], $this->entriesByNumber($saleId));
+        $this->assertSame(
+            [
+                [$this->customerAccount() . ':816.50:0.00', $this->accountId('sales_revenue') . ':0.00:710.00', $this->accountId('tax_output') . ':0.00:106.50'],
+                [$this->accountId('cash') . ':300.00:0.00', $this->customerAccount() . ':0.00:300.00'],
+                [$this->accountId('cash') . ':163.50:0.00', $this->customerAccount() . ':0.00:163.50'],
+                [$this->accountId('cash') . ':100.00:0.00', $this->customerAccount() . ':0.00:100.00'],
+                [$this->accountId('cogs') . ':400.00:0.00', $this->stockAccount() . ':0.00:400.00'],
+            ],
+            array_column($journals, 'lines'),
+        );
+        $this->assertSame('253.00', $this->balance($this->customerAccount()));
+        $this->assertSame('563.50', $this->balance($this->accountId('cash')));
+        $this->assertTies();
+    }
+
+    public function testSaveValue_PostsASaleWithoutPaymentsAsInvoiceThenCost(): void
+    {
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes']);
+
+        $this->assertSame(['revenue', 'cogs'], array_column($this->journals($saleId), 'entry'));
+    }
+
+    public function testSaveValue_PostsAPaidSaleOfServicesAsInvoiceThenPayment(): void
+    {
+        $saleId = $this->invoiceOf('100.00', null, [$this->payment(lang('Sales.cash'), '100.00')]);
+
+        $this->assertSame(['revenue', 'general'], array_column($this->journals($saleId), 'entry'));
+        $this->assertTies();
+    }
+
+    public function testSaveValue_PostsTheCostOfAPaidSaleLastWhenItsGoodsAreDeliveredLater(): void
+    {
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '300.00')], SALE_TYPE_INVOICE, -1, false);
+
+        $this->assertSame(['revenue', 'general'], array_column($this->journals($saleId), 'entry'));
+        $this->assertSame($saleId, $this->sales->confirm_delivery($saleId, $this->employeeId));
+        $this->assertSame(['revenue', 'general', 'cogs'], array_column($this->journals($saleId), 'entry'));
+    }
+
+    public function testSaveValue_PostsAReturnWithItsRefundBetweenTheReturnAndItsCost(): void
+    {
+        $cycle    = $this->referenceInvoice();
+        $invoice  = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '816.50')]);
+        $returnId = $this->save([$this->line($cycle['perfume'], 0, '-1', '220', '120.00')], [$this->tax($cycle['perfume'], 0, '-33.00')], [$this->payment(lang('Sales.cash'), '-253.00')], SALE_TYPE_RETURN, -1, true, $invoice);
+
+        $this->assertGreaterThan(0, $returnId);
+
+        $journals = $this->journals($returnId);
+
+        $this->assertSame(['revenue', 'general', 'cogs'], array_column($journals, 'entry'));
+        $this->assertSame(['revenue', 'general', 'cogs'], $this->entriesByNumber($returnId));
+        $this->assertSame([$this->customerAccount() . ':253.00:0.00', $this->accountId('cash') . ':0.00:253.00'], $journals[1]['lines']);
+        $this->assertTies();
+    }
+
+    public function testUpdate_PostsAPaymentAddedLaterAfterEveryJournalTheSaleAlreadyHad(): void
+    {
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '300.00')]);
+        $before = $this->journals($saleId);
+
+        $paymentId = $this->addPayment($saleId, '163.50');
+        $after     = $this->journals($saleId);
+
+        $this->assertGreaterThan(0, $paymentId);
+        $this->assertCount(4, $after);
+        $this->assertSame($before, array_slice($after, 0, 3), 'a journal that was written is never renumbered or rewritten');
+        $this->assertSame(['revenue', 'general', 'cogs', 'general'], array_column($after, 'entry'));
+        $this->assertGreaterThan($before[2]['id'], $after[3]['id']);
+    }
+
+    /**
+     * The stock movements a sale wrote, without the ids that tell one sale from another.
+     *
+     * @return list<string>
+     */
+    private function stockEntriesOf(int $saleId): array
+    {
+        return array_map(
+            static fn (array $row): string => implode(':', [$row['entry_type'], $row['item_id'], $row['location_id'], bcadd($row['quantity'], '0', 3), bcadd($row['value'], '0', 4)]),
+            $this->accountingDb()->table('accounting_stock_entries')->select('entry_type, item_id, location_id, quantity, value')->where(['source_type' => 'sale', 'source_id' => $saleId])->orderBy('line_no', 'ASC')->get()->getResultArray(),
+        );
+    }
+
+    /**
+     * The kinds of the journals of a sale in the order of their journal numbers, read apart from the
+     * order the list of journals comes in.
+     *
+     * @return list<string>
+     */
+    private function entriesByNumber(int $saleId): array
+    {
+        $rows = $this->accountingDb()->table('accounting_journals')
+            ->select('entry_type')
+            ->whereIn('journal_id', array_column($this->journals($saleId), 'id'))
+            ->orderBy('CAST(number AS UNSIGNED)', 'ASC', false)
+            ->get()
+            ->getResultArray();
+
+        return array_column($rows, 'entry_type');
     }
 
     /**
@@ -1238,7 +1385,8 @@ class SalePostingTest extends CIUnitTestCase
         $standing = $this->standing($saleId);
 
         $this->assertCount(3, $standing);
-        $this->assertSame([2, 2, 1], array_column($standing, 'revision'));
+        $this->assertSame(['revenue', 'general', 'cogs'], array_column($standing, 'entry'));
+        $this->assertSame([2, 1, 2], array_column($standing, 'revision'));
         $this->assertSame('516.50', $this->balance($this->customerAccount()));
     }
 
@@ -1257,6 +1405,265 @@ class SalePostingTest extends CIUnitTestCase
         );
         $this->assertSame([$this->stockAccount() . ':120.00:0.00', $this->accountId('cogs') . ':0.00:120.00'], $this->standing($returnId, 'cogs')[0]['lines']);
         $this->assertSame((string) $invoice, (string) $this->saleRow($returnId)->return_of_sale_id);
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // The refund invoice: the same return as a credit note, issued as the other document
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * @param array<string, mixed> $case
+     */
+    #[DataProvider('cycleProvider')]
+    public function testSaveValue_PostsARefundInvoiceWithTheLinesOfTheCreditNoteOfTheReferenceCycle(array $case): void
+    {
+        $invoice = $case['inputs']['invoice'];
+        $note    = $case['inputs']['credit_note'];
+        $ids     = [];
+        $items   = [];
+        $taxes   = [];
+
+        foreach ($invoice['items'] as $line => $row) {
+            $itemId            = $this->item($row['cost']);
+            $ids[$row['name']] = $itemId;
+            $items[]           = $this->line($itemId, $line, $row['quantity'], $row['price'], $row['cost'], $row['discount'], $row['discount_type'] === 'percent' ? PERCENT : FIXED);
+            $taxes[]           = $this->tax($itemId, $line, $row['tax']);
+        }
+
+        $invoiceId = $this->save($items, $taxes);
+
+        $this->accountingDb()->table('items')->where('item_id', $ids[$note['item']])->update(['cost_price' => $note['cost_of_the_item_now']]);
+
+        $refundId = $this->save(
+            [$this->line($ids[$note['item']], 0, '-' . $note['quantity'], $note['price'], $note['cost_of_the_item_now'])],
+            [$this->tax($ids[$note['item']], 0, '-' . $note['tax'])],
+            [],
+            SALE_TYPE_RETURN,
+            -1,
+            true,
+            $invoiceId,
+            COMPLETED,
+            NEW_ENTRY,
+            null,
+            ReturnDocument::RefundInvoice,
+        );
+
+        $this->assertGreaterThan(0, $refundId);
+
+        $steps = array_column($case['expected']['journals'], null, 'step');
+
+        foreach (['credit_note' => 'revenue', 'credit_note_cost' => 'cogs'] as $step => $entry) {
+            $posted = $this->standing($refundId, $entry);
+
+            $this->assertCount(1, $posted, $step);
+            $this->assertSame($steps[$step]['entry'], $posted[0]['entry'], $step);
+            $this->assertSame($this->shapeOfRoles($steps[$step]['lines']), $this->sortedLines($posted[0]['lines']), $step);
+        }
+
+        $this->assertSame(ReturnDocument::RefundInvoice->value, $this->saleRow($refundId)->return_document);
+        $this->assertTies();
+    }
+
+    public function testSaveValue_PostsARefundInvoiceWithTheSameJournalsAsACreditNoteOfTheSameLines(): void
+    {
+        $cycle   = $this->referenceInvoice();
+        $invoice = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '300.00')]);
+        $this->accountingDb()->table('items')->where('item_id', $cycle['perfume'])->update(['cost_price' => '130.00']);
+
+        $lines = [$this->line($cycle['perfume'], 0, '-1', '220', '130.00')];
+        $taxes = [$this->tax($cycle['perfume'], 0, '-33.00')];
+        $note  = $this->save($lines, $taxes, [], SALE_TYPE_RETURN, -1, true, $invoice);
+        $stock = $this->stock($cycle['perfume']);
+        $after = $this->save($lines, $taxes, [], SALE_TYPE_RETURN, -1, true, $invoice, COMPLETED, NEW_ENTRY, null, ReturnDocument::RefundInvoice);
+
+        $this->assertGreaterThan(0, $note);
+        $this->assertGreaterThan(0, $after);
+        $this->assertSame(
+            array_map(static fn (array $journal): array => [$journal['source'], $journal['entry'], $journal['revision'], $journal['status'], $journal['lines']], $this->journals($note)),
+            array_map(static fn (array $journal): array => [$journal['source'], $journal['entry'], $journal['revision'], $journal['status'], $journal['lines']], $this->journals($after)),
+        );
+        $this->assertEqualsWithDelta($stock + 1, $this->stock($cycle['perfume']), 0.0001);
+        $this->assertSame($this->stockEntriesOf($note), $this->stockEntriesOf($after));
+        $this->assertNotSame([], $this->stockEntriesOf($after));
+        $this->assertNull($this->saleRow($note)->return_document);
+        $this->assertSame(ReturnDocument::RefundInvoice->value, $this->saleRow($after)->return_document);
+        $this->assertSame((string) $invoice, (string) $this->saleRow($after)->return_of_sale_id);
+    }
+
+    public function testSaveValue_ReturnsTheStockAndReversesTheCostOfARefundInvoiceAtTheOriginalCost(): void
+    {
+        $item    = $this->item('60.00');
+        $invoice = $this->save([$this->line($item, 0, '5', '100', '60.00')], [], [$this->payment(lang('Sales.cash'), '500.00')]);
+        $stock   = $this->stock($item);
+        $this->accountingDb()->table('items')->where('item_id', $item)->update(['cost_price' => '66.00']);
+
+        $refund = $this->save([$this->line($item, 0, '-2', '100', '66.00')], [], [$this->payment(lang('Sales.cash'), '-200.00')], SALE_TYPE_RETURN, -1, true, $invoice, COMPLETED, NEW_ENTRY, null, ReturnDocument::RefundInvoice);
+
+        $this->assertGreaterThan(0, $refund);
+        $this->assertEqualsWithDelta($stock + 2, $this->stock($item), 0.0001);
+        $this->assertSame([$this->stockAccount() . ':120.00:0.00', $this->accountId('cogs') . ':0.00:120.00'], $this->standing($refund, 'cogs')[0]['lines']);
+        $this->assertSame('-180.00', $this->balance($this->stockAccount()));
+        $this->assertSame('180.00', $this->balance($this->accountId('cogs')));
+        $this->assertSame(['revenue', 'general', 'cogs'], array_column($this->journals($refund), 'entry'));
+
+        $ledger = new StockLedger();
+
+        $this->assertSame([], $ledger->mismatchedJournals());
+        $this->assertSame(0, bccomp($ledger->reconcile([self::LOCATION_ID])[0]['unattributed'], '0', 4));
+    }
+
+    public function testSaveValue_SettlesARefundInvoiceIntoItsInvoiceAsACreditNoteIs(): void
+    {
+        $invoice = $this->invoiceOf('100.00');
+        $refund  = $this->refundInvoiceOf($invoice, '40.00');
+
+        $this->assertGreaterThan(0, $refund);
+        $this->assertSame(['credit_note:' . $refund . '->' . $invoice . ':40.00'], $this->applications());
+        $this->assertSame('60.00', bcadd($this->position()->open(), '0', 2));
+        $this->assertSame('0.00', bcadd($this->position()->credit(), '0', 2));
+        $this->assertTies();
+    }
+
+    public function testSaveValue_KeepsTheCreditOfARefundInvoiceWhenTheInvoiceIsPaid(): void
+    {
+        $invoice = $this->invoiceOf('100.00', null, [$this->payment(lang('Sales.cash'), '100.00')]);
+        $refund  = $this->refundInvoiceOf($invoice, '40.00');
+
+        $this->assertGreaterThan(0, $refund);
+        $this->assertSame([], $this->applications());
+        $this->assertSame('40.00', bcadd($this->position()->credit(), '0', 2));
+        $this->assertTies();
+    }
+
+    public function testSaveValue_ARefundInvoiceAndACreditNoteTogetherCannotTakeBackMoreThanWasSold(): void
+    {
+        $item    = $this->item('60.00');
+        $invoice = $this->save([$this->line($item, 0, '2', '100', '60.00')], [], [$this->payment(lang('Sales.cash'), '200.00')]);
+        $note    = $this->save([$this->line($item, 0, '-1', '100', '60.00')], [], [], SALE_TYPE_RETURN, -1, true, $invoice);
+        $sales   = $this->countSales();
+
+        $this->assertGreaterThan(0, $note);
+        $this->assertSame(ACCOUNTING_FAILED, $this->save([$this->line($item, 0, '-2', '100', '60.00')], [], [], SALE_TYPE_RETURN, -1, true, $invoice, COMPLETED, NEW_ENTRY, null, ReturnDocument::RefundInvoice));
+        $this->assertSame(PostingError::SaleReturnExceedsOrigin, $this->failure()->error);
+        $this->assertSame($sales, $this->countSales());
+        $this->assertGreaterThan(0, $this->save([$this->line($item, 0, '-1', '100', '60.00')], [], [], SALE_TYPE_RETURN, -1, true, $invoice, COMPLETED, NEW_ENTRY, null, ReturnDocument::RefundInvoice));
+    }
+
+    public function testSaveValue_RefusesARefundInvoiceOfStockThatNamesNoInvoiceAndLeavesNothingOfIt(): void
+    {
+        $item  = $this->item('60.00');
+        $stock = $this->stock($item);
+        $sales = $this->countSales();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save([$this->line($item, 0, '-1', '100', '60.00')], [], [], SALE_TYPE_RETURN, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::RefundInvoice));
+        $this->assertSame(PostingError::ReturnOriginRequired, $this->failure()->error);
+        $this->assertSame($sales, $this->countSales());
+        $this->assertEqualsWithDelta($stock, $this->stock($item), 0.0001);
+        $this->assertSame(0, $this->countJournals());
+    }
+
+    public function testSaveValue_RefusesARefundInvoiceOfAnInvoiceThatWasNeverDelivered(): void
+    {
+        $item    = $this->item('60.00');
+        $invoice = $this->save([$this->line($item, 0, '5', '100', '60.00')], [], [], SALE_TYPE_INVOICE, -1, false);
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save([$this->line($item, 0, '-1', '100', '60.00')], [], [], SALE_TYPE_RETURN, -1, true, $invoice, COMPLETED, NEW_ENTRY, null, ReturnDocument::RefundInvoice));
+        $this->assertSame(PostingError::ReturnOfUndelivered, $this->failure()->error);
+    }
+
+    public function testSaveValue_RefusesARefundInvoiceInAClosedPeriodWithoutLeavingAnyOfIt(): void
+    {
+        $cycle   = $this->referenceInvoice();
+        $invoice = $this->save($cycle['items'], $cycle['taxes']);
+        $stock   = $this->stock($cycle['perfume']);
+        $this->closeThrough(date('Y-m-d'));
+
+        $sales    = $this->countSales();
+        $journals = $this->countJournals();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save([$this->line($cycle['perfume'], 0, '-1', '220', '120.00')], [$this->tax($cycle['perfume'], 0, '-33.00')], [], SALE_TYPE_RETURN, -1, true, $invoice, COMPLETED, NEW_ENTRY, null, ReturnDocument::RefundInvoice));
+        $this->assertSame(PostingError::PeriodClosed, $this->failure()->error);
+        $this->assertSame($sales, $this->countSales());
+        $this->assertSame($journals, $this->countJournals());
+        $this->assertEqualsWithDelta($stock, $this->stock($cycle['perfume']), 0.0001);
+    }
+
+    public function testDelete_RefusesToCancelARefundInvoiceAsItDoesACreditNote(): void
+    {
+        $invoice = $this->invoiceOf('100.00');
+        $refund  = $this->refundInvoiceOf($invoice, '40.00');
+        $before  = $this->journals($refund);
+
+        $this->assertFalse($this->sales->delete($refund, false, true, $this->employeeId));
+        $this->assertSame(AccountingError::IssuedDocumentLocked, $this->failure()->error);
+        $this->assertSame($before, $this->journals($refund));
+        $this->assertSame(['credit_note:' . $refund . '->' . $invoice . ':40.00'], $this->applications());
+    }
+
+    public function testUpdate_RefusesToMoveARefundInvoiceToAnotherCustomerOrDateAsItDoesACreditNote(): void
+    {
+        $invoice = $this->invoiceOf('100.00');
+        $refund  = $this->refundInvoiceOf($invoice, '40.00');
+        $other   = $this->insertCustomer('Hind', 'Saad');
+        $before  = $this->journals($refund);
+
+        $this->assertFalse($this->sales->update($refund, ['customer_id' => $other, 'comment' => 'x']));
+        $this->assertSame(AccountingError::SaleLocked, $this->failure()->error);
+        $this->assertFalse($this->sales->update($refund, ['sale_time' => date('Y-m-d H:i:s', strtotime('-3 days')), 'comment' => 'x']));
+        $this->assertSame(AccountingError::SaleLocked, $this->failure()->error);
+        $this->assertSame((string) $this->customerId, (string) $this->saleRow($refund)->customer_id);
+        $this->assertSame($before, $this->journals($refund));
+    }
+
+    public function testUpdate_LetsTheNoteOfARefundInvoiceChangeAndKeepsItsDocument(): void
+    {
+        $invoice = $this->invoiceOf('100.00');
+        $refund  = $this->refundInvoiceOf($invoice, '40.00');
+        $sale    = $this->saleRow($refund);
+
+        $this->assertTrue($this->sales->update($refund, ['sale_time' => $sale->sale_time, 'customer_id' => $this->customerId, 'comment' => 'a note']));
+        $this->assertSame('a note', $this->saleRow($refund)->comment);
+        $this->assertSame(ReturnDocument::RefundInvoice->value, $this->saleRow($refund)->return_document);
+    }
+
+    public function testUpdate_ReversesAndPostsAgainTheRefundPaymentOfARefundInvoiceWhoseAmountChanged(): void
+    {
+        $item    = $this->item('60.00');
+        $invoice = $this->save([$this->line($item, 0, '5', '100', '60.00')], [], [$this->payment(lang('Sales.cash'), '500.00')]);
+        $refund  = $this->save([$this->line($item, 0, '-2', '100', '60.00')], [], [$this->payment(lang('Sales.cash'), '-100.00')], SALE_TYPE_RETURN, -1, true, $invoice, COMPLETED, NEW_ENTRY, null, ReturnDocument::RefundInvoice);
+        $row     = $this->accountingDb()->table('sales_payments')->where('sale_id', $refund)->get()->getRow();
+
+        $this->assertTrue($this->sales->update($refund, ['comment' => 'corrected', 'payments' => [
+            ['payment_id' => (int) $row->payment_id, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '-150.00', 'cash_refund' => 0, 'cash_adjustment' => 0, 'employee_id' => $this->employeeId, 'reference_code' => null],
+        ]]));
+
+        $journals = array_values(array_filter($this->journals($refund), static fn (array $journal): bool => $journal['source'] === 'sale_payment'));
+
+        $this->assertSame(['reversed', 'posted'], array_column($journals, 'status'));
+        $this->assertSame([1, 2], array_column($journals, 'revision'));
+        $this->assertSame([$this->customerAccount() . ':150.00:0.00', $this->accountId('cash') . ':0.00:150.00'], $journals[1]['lines']);
+        $this->assertTies();
+    }
+
+    public function testUpdate_AppliesTheCreditOfARefundInvoiceWhenTheInvoicePaymentIsRemovedAndReleasesItWhenPaidAgain(): void
+    {
+        $invoice   = $this->invoiceOf('100.00');
+        $paymentId = $this->addPayment($invoice, '100.00');
+        $refund    = $this->refundInvoiceOf($invoice, '100.00');
+
+        $this->assertSame([], $this->applications());
+        $this->assertSame('100.00', bcadd($this->position()->credit(), '0', 2));
+
+        $this->removePayment($invoice, $paymentId);
+
+        $this->assertSame(['credit_note:' . $refund . '->' . $invoice . ':100.00'], $this->applications());
+        $this->assertTies();
+
+        $this->addPayment($invoice, '100.00');
+
+        $this->assertSame([], $this->applications());
+        $this->assertSame('100.00', bcadd($this->position()->credit(), '0', 2));
+        $this->assertTies();
     }
 
     public function testSaveValue_TheCustomerAccountFollowsTheWholeCycleOfInvoiceReturnAndPayments(): void
@@ -3371,5 +3778,482 @@ class SalePostingTest extends CIUnitTestCase
         $case = $this->referenceCase('T-57', 'payment_method', 'bank-transfer-method-into-the-main-treasury', 'exact');
 
         $this->assertSameAsFixture($case['expected']['journals']['payment'], $this->paymentJournalOfCase($case['inputs']), 'payment by bank transfer into the main treasury');
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // The date typed on an invoice, its payment terms and its due date (WP13)
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * @return list<array{id: int, source: string, entry: string, revision: int, status: string, date: string, lines: list<string>}>
+     */
+    private function standingDated(int $saleId, string $day): array
+    {
+        $standing = $this->standing($saleId);
+
+        $this->assertNotSame([], $standing);
+
+        return array_values(array_filter($standing, static fn (array $journal): bool => $journal['date'] === $day));
+    }
+
+    public function testSaveValue_DatesTheJournalsOfAnInvoiceByTheDayTypedOnItAndKeepsTheTimeItWasSaved(): void
+    {
+        $this->grantInvoiceDate();
+
+        $cycle  = $this->referenceInvoice();
+        $day    = $this->daysAgo(10);
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $day);
+        $sale   = $this->saleRow($saleId);
+
+        $this->assertSame($day, $sale->invoice_date);
+        $this->assertSame(date('Y-m-d'), substr((string) $sale->sale_time, 0, 10));
+        $this->assertEqualsCanonicalizing(['revenue', 'cogs'], array_column($this->standingDated($saleId, $day), 'entry'));
+        $this->assertSame($day, $this->position()->invoice($saleId)->date);
+        $this->assertGreaterThan(0, $this->accountingDb()->table('accounting_stock_entries')->where(['source_type' => 'sale', 'source_id' => $saleId, 'entry_date' => $day])->countAllResults());
+        $this->assertTies();
+    }
+
+    public function testSaveValue_DatesAnInvoiceTodayWhenNoDayIsTypedAndStoresNoDay(): void
+    {
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes']);
+        $sale   = $this->saleRow($saleId);
+
+        $this->assertNull($sale->invoice_date);
+        $this->assertNull($sale->payment_terms_days);
+        $this->assertNull($sale->due_date);
+        $this->assertCount(2, $this->standingDated($saleId, date('Y-m-d')));
+        $this->assertSame(date('Y-m-d'), $this->position()->invoice($saleId)->dueDate);
+    }
+
+    public function testSaveValue_RefusesADayTypedByAnEmployeeWhoMayNotTypeItAndSavesNothing(): void
+    {
+        $cycle = $this->referenceInvoice();
+        $sales = $this->countSales();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $this->daysAgo(3)));
+        $this->assertSame(AccountingError::PermissionDenied, $this->failure()->error);
+        $this->assertSame($sales, $this->countSales());
+        $this->assertSame(0, $this->countJournals());
+    }
+
+    public function testSaveValue_RefusesAnInvoiceDatedInAClosedPeriodAndLeavesNothingOfIt(): void
+    {
+        $this->grantInvoiceDate();
+        $this->closeThrough($this->daysAgo(5));
+
+        $cycle = $this->referenceInvoice();
+        $sales = $this->countSales();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $this->daysAgo(10)));
+        $this->assertSame(PostingError::PeriodClosed, $this->failure()->error);
+        $this->assertSame($sales, $this->countSales());
+        $this->assertSame(0, $this->countJournals());
+    }
+
+    public function testSaveValue_PostsAnInvoiceDatedTheDayAfterTheClosingAndTheDayOfTheClosingIsRefused(): void
+    {
+        $this->grantInvoiceDate();
+        $this->closeThrough($this->daysAgo(5));
+
+        $cycle  = $this->referenceInvoice();
+        $closed = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $this->daysAgo(5));
+
+        $this->assertSame(ACCOUNTING_FAILED, $closed);
+        $this->assertSame(PostingError::PeriodClosed, $this->failure()->error);
+
+        $open = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $this->daysAgo(4));
+
+        $this->assertGreaterThan(0, $open);
+        $this->assertCount(2, $this->standingDated($open, $this->daysAgo(4)));
+    }
+
+    /**
+     * @return array<string, array{string, AccountingError}>
+     */
+    public static function refusedDayProvider(): array
+    {
+        return [
+            'tomorrow'           => [date('Y-m-d', strtotime('+1 day')), AccountingError::InvoiceDateInvalid],
+            'not a date'         => ['yesterday', AccountingError::InvoiceDateInvalid],
+            'a day that is not'  => ['2026-02-30', AccountingError::InvoiceDateInvalid],
+            'before the books'   => ['2019-12-31', AccountingError::InvoiceDateBeforeStart],
+        ];
+    }
+
+    #[DataProvider('refusedDayProvider')]
+    public function testSaveValue_RefusesADayThatIsNotARealDayUpToTodayOrIsBeforeTheBooksStart(string $typed, AccountingError $error): void
+    {
+        $this->grantInvoiceDate();
+
+        $cycle = $this->referenceInvoice();
+        $sales = $this->countSales();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $typed));
+        $this->assertSame($error, $this->failure()->error);
+        $this->assertSame($sales, $this->countSales());
+        $this->assertSame(0, $this->countRows('accounting_posting_failures'));
+    }
+
+    public function testSaveValue_IssuesADraftWithATypedDayAtThatDayAsTheReferenceSystemDoes(): void
+    {
+        $case  = $this->lifecycleCase('draft-issued-at-its-typed-date');
+        $day   = $this->daysAgo(abs((int) $case['inputs']['invoice_date_offset_days']));
+        $cycle = $this->referenceInvoice();
+
+        $this->grantInvoiceDate();
+
+        $draft = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, NEW_ENTRY, null, invoiceDate: $day);
+
+        $this->assertSame($day, $this->saleRow($draft)->invoice_date);
+        $this->assertSame([], $this->journals($draft));
+        $this->assertNull($this->saleRow($draft)->due_date);
+
+        $this->assertSame($draft, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, $draft, null, invoiceDate: $day));
+
+        $dates = array_values(array_unique(array_column($this->standing($draft), 'date')));
+
+        $this->assertSameAsFixture($case['expected'], ['journal_date' => $dates === [$day] ? 'the date typed on the draft' : 'another date'], 'date of the journals of the issued draft');
+        $this->assertTies();
+    }
+
+    public function testSaveValue_IssuesADraftWithNoTypedDayOnTheDayItIsIssued(): void
+    {
+        $cycle = $this->referenceInvoice();
+        $draft = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED);
+
+        $this->accountingDb()->table('sales')->where('sale_id', $draft)->update(['sale_time' => $this->daysAgo(6) . ' 10:00:00']);
+
+        $this->assertSame($draft, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, $draft));
+        $this->assertNull($this->saleRow($draft)->invoice_date);
+        $this->assertSame(date('Y-m-d'), substr((string) $this->saleRow($draft)->sale_time, 0, 10));
+        $this->assertCount(2, $this->standingDated($draft, date('Y-m-d')));
+    }
+
+    public function testSaveValue_LetsAnEmployeeWithoutThePermissionIssueADraftAtTheDayItAlreadyCarriesButNotAtAnother(): void
+    {
+        $cycle = $this->referenceInvoice();
+        $day   = $this->daysAgo(4);
+
+        $this->grantInvoiceDate();
+
+        $draft = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, NEW_ENTRY, null, invoiceDate: $day);
+        $other = $this->createEmployee();
+        $owner = $this->employeeId;
+
+        $this->employeeId = $other;
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, $draft, null, invoiceDate: $this->daysAgo(2)));
+        $this->assertSame(AccountingError::PermissionDenied, $this->failure()->error);
+        $this->assertSame([], $this->journals($draft));
+
+        $this->assertSame($draft, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, $draft, null, invoiceDate: $day));
+        $this->assertCount(2, $this->standingDated($draft, $day));
+
+        $this->employeeId = $owner;
+    }
+
+    public function testSaveValue_TakesNoTypedDayForASaleThatIsNotAnInvoice(): void
+    {
+        $this->grantInvoiceDate();
+
+        $pos = $this->save([$this->line($this->item('0', false), 0, '1', '40')], [], [$this->payment(lang('Sales.cash'), '40.00')], SALE_TYPE_POS, -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $this->daysAgo(3), paymentTerms: 30);
+
+        $this->assertGreaterThan(0, $pos);
+        $this->assertNull($this->saleRow($pos)->invoice_date);
+        $this->assertNull($this->saleRow($pos)->payment_terms_days);
+        $this->assertSame([date('Y-m-d')], array_values(array_unique(array_column($this->standing($pos), 'date'))));
+    }
+
+    public function testSaveValue_SavesNoTypedDayOrTermsWhileAccountingIsOff(): void
+    {
+        $this->grantInvoiceDate();
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $audit  = $this->countRows('accounting_audit_log');
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $this->daysAgo(3), paymentTerms: 30);
+
+        $this->assertGreaterThan(0, $saleId);
+        $this->assertNull($this->saleRow($saleId)->invoice_date);
+        $this->assertNull($this->saleRow($saleId)->payment_terms_days);
+        $this->assertNull($this->saleRow($saleId)->due_date);
+        $this->assertSame(0, $this->countJournals());
+        $this->assertSame($audit, $this->countRows('accounting_audit_log'));
+    }
+
+    public function testSaveValue_WorksOutTheDueDateFromTheDayOfTheInvoiceAndItsTerms(): void
+    {
+        $saleId = $this->invoiceDated('100.00', $this->daysAgo(5), 30);
+        $sale   = $this->saleRow($saleId);
+
+        $this->assertSame(30, (int) $sale->payment_terms_days);
+        $this->assertSame(date('Y-m-d', strtotime('+25 days')), $sale->due_date);
+        $this->assertSame($sale->due_date, $this->position()->invoice($saleId)->dueDate);
+        $this->assertSame(30, $this->position()->invoice($saleId)->termsDays);
+    }
+
+    public function testSaveValue_WorksOutTheDueDateFromTodayWhenTheInvoiceHasTermsAndNoTypedDay(): void
+    {
+        $this->grantInvoiceDate();
+
+        $saleId = $this->save([$this->line($this->item('0', false), 0, '1', '100')], [], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, paymentTerms: '7');
+        $sale   = $this->saleRow($saleId);
+
+        $this->assertNull($sale->invoice_date);
+        $this->assertSame(date('Y-m-d', strtotime('+7 days')), $sale->due_date);
+    }
+
+    public function testSaveValue_StoresNoTermsAndNoDueDateForAnInvoiceWithNoTermsOrZeroDays(): void
+    {
+        foreach ([null, '', '0', 0] as $terms) {
+            $saleId = $this->invoiceDated('10.00', $this->daysAgo(2), $terms);
+
+            $this->assertNull($this->saleRow($saleId)->payment_terms_days);
+            $this->assertNull($this->saleRow($saleId)->due_date);
+            $this->assertSame($this->daysAgo(2), $this->position()->invoice($saleId)->dueDate);
+        }
+    }
+
+    public function testSaveValue_RefusesTermsThatAreNotAWholeNumberOfDaysAndSavesNothing(): void
+    {
+        $this->grantInvoiceDate();
+
+        foreach (['-1', '2.5', 'soon', '3651'] as $terms) {
+            $sales = $this->countSales();
+
+            $this->assertSame(ACCOUNTING_FAILED, $this->save([$this->line($this->item('0', false), 0, '1', '10')], [], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, paymentTerms: $terms), $terms);
+            $this->assertSame(AccountingError::PaymentTermsInvalid, $this->failure()->error);
+            $this->assertSame($sales, $this->countSales());
+        }
+    }
+
+    public function testSaveValue_KeepsTheTermsOfADraftAndWorksOutItsDueDateWhenItIsIssued(): void
+    {
+        $this->grantInvoiceDate();
+
+        $items = [$this->line($this->item('0', false), 0, '1', '100')];
+        $draft = $this->save($items, [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, NEW_ENTRY, null, paymentTerms: 14);
+
+        $this->assertSame(14, (int) $this->saleRow($draft)->payment_terms_days);
+        $this->assertNull($this->saleRow($draft)->due_date);
+        $this->assertSame(['invoice_date' => null, 'payment_terms_days' => 14, 'due_date' => null], $this->sales->getInvoiceTiming($draft));
+
+        $this->assertSame($draft, $this->save($items, [], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, $draft, null, paymentTerms: 14));
+        $this->assertSame(date('Y-m-d', strtotime('+14 days')), $this->saleRow($draft)->due_date);
+    }
+
+    /**
+     * @return list<object>
+     */
+    private function dateAudit(int $saleId): array
+    {
+        return $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'sale', 'entity_id' => $saleId, 'action' => 'invoice_date_typed'])->orderBy('audit_id', 'ASC')->get()->getResult();
+    }
+
+    public function testSaveValue_WritesInTheAuditLogWhoTypedTheDayOfAnInvoiceAndWhenAtTheSaveThatTypedIt(): void
+    {
+        $this->grantInvoiceDate();
+
+        $items = [$this->line($this->item('0', false), 0, '1', '100')];
+        $draft = $this->save($items, [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, NEW_ENTRY, null, invoiceDate: $this->daysAgo(3));
+        $typed = $this->dateAudit($draft);
+
+        $this->assertCount(1, $typed, 'The day is on record from the save of the draft');
+        $this->assertSame($this->employeeId, (int) $typed[0]->employee_id);
+        $this->assertSame(['date' => $this->daysAgo(3), 'saved_on' => date('Y-m-d')], json_decode((string) $typed[0]->details, true));
+
+        $this->assertSame($draft, $this->save($items, [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, $draft, null, invoiceDate: $this->daysAgo(3)));
+        $this->assertCount(1, $this->dateAudit($draft), 'The same day typed again is not recorded again');
+
+        $this->save($items, [], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, $draft, null, invoiceDate: $this->daysAgo(3));
+
+        $this->assertCount(1, $this->dateAudit($draft), 'Issuing the draft at the day it carries is not typing the day');
+    }
+
+    public function testSaveValue_WritesInTheAuditLogTheEmployeeWhoTypedTheDayOnADraftAndNotTheOneWhoIssuesIt(): void
+    {
+        $cycle = $this->referenceInvoice();
+        $day   = $this->daysAgo(5);
+        $typer = $this->employeeId;
+
+        $this->grantInvoiceDate();
+
+        $draft  = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, NEW_ENTRY, null, invoiceDate: $day);
+        $issuer = $this->createEmployee();
+
+        $this->employeeId = $issuer;
+
+        $this->assertSame($draft, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, $draft, null, invoiceDate: $day));
+
+        $this->employeeId = $typer;
+
+        $typed = $this->dateAudit($draft);
+
+        $this->assertCount(1, $typed);
+        $this->assertSame($typer, (int) $typed[0]->employee_id, 'Whoever issues the draft did not type its day');
+        $this->assertCount(2, $this->standingDated($draft, $day));
+    }
+
+    public function testSaveValue_WritesInTheAuditLogTheEmployeeWhoChangesTheDayOfADraftWhenIssuingIt(): void
+    {
+        $cycle = $this->referenceInvoice();
+        $typer = $this->employeeId;
+
+        $this->grantInvoiceDate();
+
+        $draft  = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, NEW_ENTRY, null, invoiceDate: $this->daysAgo(5));
+        $issuer = $this->createEmployee();
+
+        $this->accountingDb()->table('grants')->ignore(true)->insert(['permission_id' => 'sales_invoice_date', 'person_id' => $issuer, 'menu_group' => 'home']);
+
+        $this->employeeId = $issuer;
+
+        $this->assertSame($draft, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, $draft, null, invoiceDate: $this->daysAgo(2)));
+
+        $this->employeeId = $typer;
+
+        $this->assertSame([$typer, $issuer], array_map(static fn (object $entry): int => (int) $entry->employee_id, $this->dateAudit($draft)));
+    }
+
+    public function testSaveValue_WritesNothingInTheAuditLogForAnInvoiceDatedToday(): void
+    {
+        $cycle = $this->referenceInvoice();
+
+        $this->save($cycle['items'], $cycle['taxes']);
+
+        $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where('action', 'invoice_date_typed')->countAllResults());
+    }
+
+    public function testUpdate_RefusesToChangeTheDayTypedOnAPostedInvoiceAndLeavesItsJournalsAsTheyWere(): void
+    {
+        $saleId = $this->invoiceDated('250.00', $this->daysAgo(8), 10);
+        $before = $this->journals($saleId);
+        $row    = (array) $this->saleRow($saleId);
+
+        $this->assertFalse($this->sales->update($saleId, ['invoice_date' => $this->daysAgo(2), 'comment' => 'x']));
+        $this->assertSame(AccountingError::SaleLocked, $this->failure()->error);
+
+        $this->assertFalse($this->sales->update($saleId, ['invoice_date' => date('Y-m-d'), 'comment' => 'x']));
+        $this->assertSame(AccountingError::SaleLocked, $this->failure()->error);
+
+        $this->assertSame($before, $this->journals($saleId));
+        $this->assertSame($row, (array) $this->saleRow($saleId));
+        $this->assertSame(0, $this->countRows('accounting_posting_failures'));
+    }
+
+    public function testUpdate_RefusesToChangeTheDayTypedOnADraftToo(): void
+    {
+        $cycle = $this->referenceInvoice();
+
+        $this->grantInvoiceDate();
+
+        $draft = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, NEW_ENTRY, null, invoiceDate: $this->daysAgo(4));
+        $row   = (array) $this->saleRow($draft);
+
+        $this->assertSame([], $this->journals($draft));
+        $this->assertFalse($this->sales->update($draft, ['invoice_date' => $this->daysAgo(1), 'comment' => 'x']));
+        $this->assertSame(AccountingError::SaleLocked, $this->failure()->error);
+        $this->assertSame($row, (array) $this->saleRow($draft));
+    }
+
+    public function testUpdate_AcceptsTheDayTypedOnAPostedInvoiceWhenItIsTheSameDay(): void
+    {
+        $saleId = $this->invoiceDated('250.00', $this->daysAgo(8));
+
+        $this->assertTrue($this->sales->update($saleId, ['invoice_date' => $this->daysAgo(8), 'comment' => 'same day']));
+        $this->assertSame('same day', $this->saleRow($saleId)->comment);
+        $this->assertSame($this->daysAgo(8), $this->saleRow($saleId)->invoice_date);
+    }
+
+    public function testUpdate_RefusesToMoveTheTimeAnInvoiceWasSavedEvenToTheDayItIsDated(): void
+    {
+        $saleId = $this->invoiceDated('250.00', $this->daysAgo(8));
+
+        $this->assertFalse($this->sales->update($saleId, ['sale_time' => $this->daysAgo(8) . ' 09:00:00', 'comment' => 'x']));
+        $this->assertSame(AccountingError::SaleLocked, $this->failure()->error);
+        $this->assertSame(date('Y-m-d'), substr((string) $this->saleRow($saleId)->sale_time, 0, 10));
+    }
+
+    public function testUpdate_ChangesThePaymentTermsOfAnIssuedInvoiceAndNothingInItsJournals(): void
+    {
+        $case   = $this->referenceCase('T-31', 'due_date', 'due-date-is-the-invoice-date-plus-its-payment-terms', 'exact');
+        $saleId = $this->invoiceDated('395.39', $this->daysAgo(2), 1);
+        $before = $this->journals($saleId);
+
+        $this->assertSame($this->daysAgo(1), $this->saleRow($saleId)->due_date);
+
+        foreach ([[2, $this->daysAgo(0)], [30, date('Y-m-d', strtotime('+28 days'))], [null, null]] as [$terms, $due]) {
+            $this->assertTrue($this->sales->update($saleId, ['payment_terms_days' => $terms === null ? '' : (string) $terms, 'comment' => 'terms', 'changed_by' => $this->employeeId]));
+
+            $sale = $this->saleRow($saleId);
+
+            $this->assertSame($terms, $sale->payment_terms_days === null ? null : (int) $sale->payment_terms_days);
+            $this->assertSame($due, $sale->due_date);
+            $this->assertSame($due ?? $this->daysAgo(2), $this->position()->invoice($saleId)->dueDate);
+            $this->assertSame($before, $this->journals($saleId));
+        }
+
+        $this->assertSameAsFixture(['terms_editable_after_issue' => $case['expected']['terms_editable_after_issue'], 'journal_changes_with_the_terms' => $case['expected']['journal_changes_with_the_terms']], ['terms_editable_after_issue' => true, 'journal_changes_with_the_terms' => $before !== $this->journals($saleId)], 'terms of an issued invoice');
+        $this->assertTies();
+    }
+
+    public function testUpdate_WritesInTheAuditLogWhatTheTermsWereAndWhatTheyBecameAndWritesNothingWhenTheyStay(): void
+    {
+        $saleId = $this->invoiceDated('100.00', $this->daysAgo(2), 5);
+
+        $this->assertTrue($this->sales->update($saleId, ['payment_terms_days' => '5', 'comment' => 'same', 'changed_by' => $this->employeeId]));
+        $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where('action', 'payment_terms_changed')->countAllResults());
+
+        $this->assertTrue($this->sales->update($saleId, ['payment_terms_days' => '9', 'comment' => 'longer', 'changed_by' => $this->employeeId]));
+
+        $entries = $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'sale', 'entity_id' => $saleId, 'action' => 'payment_terms_changed'])->get()->getResult();
+
+        $this->assertCount(1, $entries);
+        $this->assertSame($this->employeeId, (int) $entries[0]->employee_id);
+        $this->assertSame(['from' => 5, 'to' => 9, 'due_date' => date('Y-m-d', strtotime('+7 days'))], json_decode((string) $entries[0]->details, true));
+    }
+
+    public function testUpdate_RefusesTermsThatAreNotAWholeNumberOfDaysAndChangesNothing(): void
+    {
+        $saleId = $this->invoiceDated('100.00', $this->daysAgo(2), 5);
+
+        foreach (['-3', '1.5', 'x', '99999'] as $terms) {
+            $this->assertFalse($this->sales->update($saleId, ['payment_terms_days' => $terms, 'comment' => 'bad']), $terms);
+            $this->assertSame(AccountingError::PaymentTermsInvalid, $this->failure()->error);
+        }
+
+        $this->assertSame(5, (int) $this->saleRow($saleId)->payment_terms_days);
+        $this->assertSame('test', $this->saleRow($saleId)->comment);
+        $this->assertSame(0, $this->countRows('accounting_posting_failures'));
+    }
+
+    public function testUpdate_TakesNoTermsForASaleThatIsNotAnIssuedInvoiceOrWhileAccountingIsOff(): void
+    {
+        $pos = $this->save([$this->line($this->item('0', false), 0, '1', '40')], [], [$this->payment(lang('Sales.cash'), '40.00')], SALE_TYPE_POS);
+
+        $this->assertTrue($this->sales->update($pos, ['payment_terms_days' => '30', 'comment' => 'pos']));
+        $this->assertNull($this->saleRow($pos)->payment_terms_days);
+
+        $invoice = $this->invoiceOf('100.00');
+
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $this->assertTrue($this->sales->update($invoice, ['payment_terms_days' => '30', 'comment' => 'off']));
+        $this->assertNull($this->saleRow($invoice)->payment_terms_days);
+        $this->assertNull($this->saleRow($invoice)->due_date);
+    }
+
+    public function testUpdate_ChangesTheTermsOfAnInvoiceInAClosedPeriodBecauseNoJournalMoves(): void
+    {
+        $saleId = $this->invoiceDated('100.00', $this->daysAgo(10), 5);
+
+        $this->closeThrough($this->daysAgo(2));
+
+        $before = $this->journals($saleId);
+
+        $this->assertTrue($this->sales->update($saleId, ['payment_terms_days' => '60', 'comment' => 'late', 'changed_by' => $this->employeeId]));
+        $this->assertSame(60, (int) $this->saleRow($saleId)->payment_terms_days);
+        $this->assertSame($before, $this->journals($saleId));
     }
 }

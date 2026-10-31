@@ -21,7 +21,7 @@ final class SaleLoader
     public function load(int $saleId, bool $withOrigin = true): ?SaleDocument
     {
         $sale = $this->db->table('sales')
-            ->select('sale_id, sale_time, customer_id, sale_status, sale_type, branch_id, delivered, return_of_sale_id')
+            ->select('sale_id, sale_time, invoice_date, customer_id, sale_status, sale_type, branch_id, delivered, return_of_sale_id')
             ->where('sale_id', $saleId)
             ->get()
             ->getRow();
@@ -32,9 +32,11 @@ final class SaleLoader
 
         $origin = $withOrigin && $sale->return_of_sale_id !== null ? $this->load((int) $sale->return_of_sale_id, false) : null;
 
+        $savedOn = substr((string) $sale->sale_time, 0, 10);
+
         return new SaleDocument(
             saleId: (int) $sale->sale_id,
-            date: substr((string) $sale->sale_time, 0, 10),
+            date: $sale->invoice_date === null ? $savedOn : (string) $sale->invoice_date,
             saleType: (int) $sale->sale_type,
             status: (int) $sale->sale_status,
             customerId: $sale->customer_id === null ? null : (int) $sale->customer_id,
@@ -44,6 +46,7 @@ final class SaleLoader
             lines: $this->lines($saleId),
             payments: $this->payments($saleId),
             origin: $origin,
+            savedOn: $savedOn,
         );
     }
 

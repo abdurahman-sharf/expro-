@@ -4,6 +4,7 @@ namespace Tests\Libraries\Accounting;
 
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\ReceivingLineEdit;
 use App\Libraries\Accounting\SupplierLock;
 use App\Libraries\Accounting\LockOutcome;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -256,6 +257,26 @@ class SupplierLockTest extends CIUnitTestCase
         $this->assertFalse($paid);
         $this->assertSame(AccountingError::SupplierBusy, $this->purchases->accountingFailure()->error);
         $this->assertSame(0, $this->accountingDb()->table('receivings_payments')->where('receiving_id', $purchase)->countAllResults());
+        $this->assertSame('100.00', $this->owed());
+    }
+
+    public function testUpdateLines_IsRefusedAndChangesNothingWhenAnotherChangeToTheSupplierDoesNotFinish(): void
+    {
+        $purchase = $this->purchaseOf('100.00');
+        $line     = $this->accountingDb()->table('receivings_items')->where('receiving_id', $purchase)->get()->getRow();
+        $edit     = ReceivingLineEdit::changing((int) $line->item_id, (int) $line->line, ['quantity' => '1']);
+        $before   = bcadd((string) $line->quantity_purchased, '0', 3);
+        $link     = $this->holdTheSupplier();
+
+        try {
+            $corrected = $this->purchases->setSupplierLockWait(0)->updateLines($purchase, [$edit], $this->employeeId);
+        } finally {
+            mysqli_close($link);
+        }
+
+        $this->assertFalse($corrected);
+        $this->assertSame(AccountingError::SupplierBusy, $this->purchases->accountingFailure()->error);
+        $this->assertSame($before, bcadd((string) $this->accountingDb()->table('receivings_items')->where('receiving_id', $purchase)->get()->getRow()->quantity_purchased, '0', 3));
         $this->assertSame('100.00', $this->owed());
     }
 

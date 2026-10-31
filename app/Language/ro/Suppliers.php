@@ -5,6 +5,7 @@ return [
     'agency_name'           => 'Nume Agenție',
     'cannot_be_deleted'     => 'Nu pot șterge Funrizorul/Furnizorii selectat/selectați. Unul sau mai mulți au Vânzări.',
     'category'              => 'Categorie',
+    'commercial_registry'   => '',
     'company_name'          => 'Nume Companie',
     'company_name_required' => 'Este obligatoriu câmpul Nume Companie.',
     'confirm_delete'        => '',
