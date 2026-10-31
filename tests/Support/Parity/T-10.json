@@ -1,6 +1,6 @@
 {
   "id": "T-10",
-  "title": "What a customer owes after payments, credit notes and credit: an overpayment, a credit note paid into its invoice, a credit note larger than the invoice, a new invoice settled from credit, and a payment deleted after its excess was spent",
+  "title": "What a customer owes after payments, credit notes and credit: an overpayment, a credit note paid into its invoice, a credit note larger than the invoice, a new invoice settled from credit, and a payment deleted after its excess was spent, and where the credit goes when invoices of one date are open (the invoice created first) and what an advance payment is posted to",
   "recorded": "2026-10-23",
   "evidence": {
     "overpayment": {
@@ -26,6 +26,14 @@
     "credits_pay_invoice": {
       "id": "ev_f596249fb3cc1dec6938f2e0956569997579f808b41f2e23afd301fed74eaad0",
       "note": "An invoice paid by a credit note of 253 and two excesses of 70 and 86.25 as payments of the credit balance"
+    },
+    "credit_tie_break": {
+      "id": null,
+      "note": "Batch C, from the observer's report with no evidence file kept: two open invoices dated the same day, the one created first having the higher number; two credits of 100 and 30 both went to the one created first, not to the lower number and not to the smaller amount"
+    },
+    "advance_payment": {
+      "id": null,
+      "note": "Batch C, from the observer's report with no evidence file kept: an advance payment of 115 posted one journal against a per-customer advance-payments liability and left the account of the customer untouched; applying it to an invoice is a manual distribution that rewrites the journal of the invoice in place"
     }
   },
   "cases": [
@@ -166,6 +174,80 @@
         "second_invoice": "unpaid",
         "first_invoice": "open again",
         "why": "the credit it spent is gone, and the open invoices must add up to the account of the customer"
+      }
+    },
+    {
+      "id": "credit-goes-to-the-invoice-created-first-when-the-dates-tie",
+      "kind": "receivable",
+      "classification": "exact",
+      "evidence": [
+        "credit_tie_break"
+      ],
+      "inputs": {
+        "invoices": [
+          {
+            "name": "created_first",
+            "number": "000033",
+            "open": "200.00"
+          },
+          {
+            "name": "created_second",
+            "number": "000032",
+            "open": "200.00"
+          }
+        ],
+        "credits": [
+          "100.00",
+          "30.00"
+        ],
+        "scope": "the invoice each credit goes to; the amounts of the invoices are ours"
+      },
+      "reference": {
+        "applied": [
+          {
+            "invoice": "created_first",
+            "amount": "100.00"
+          },
+          {
+            "invoice": "created_first",
+            "amount": "30.00"
+          }
+        ]
+      },
+      "expected": {
+        "applied": [
+          {
+            "invoice": "created_first",
+            "amount": "100.00"
+          },
+          {
+            "invoice": "created_first",
+            "amount": "30.00"
+          }
+        ]
+      }
+    },
+    {
+      "id": "advance-payment-is-credit-on-the-account-of-the-customer",
+      "kind": "receivable",
+      "classification": "deliberate_difference",
+      "reason": "The reference system posts an advance payment to a per-customer advance-payments liability, leaves the account of the customer untouched and applies it to an invoice only by a manual distribution that rewrites the journal of the invoice in place. This application keeps the credit on the account of the customer, applies it by the order of E57 at once and never rewrites a posted journal: it keeps the triple tie of the customer (balance, aging and account) and the reverse-and-repost rule (E15, E62). The choice is an assumption the owner can veto (E74).",
+      "evidence": [
+        "advance_payment"
+      ],
+      "inputs": {
+        "advance": "115.00",
+        "scope": "what the journal of the advance touches and how the credit is applied; the amount is ours"
+      },
+      "reference": {
+        "customer_account_touched": false,
+        "advance_liability_credited": true,
+        "applied_to_open_invoices_at_once": false
+      },
+      "expected": {
+        "customer_account_touched": true,
+        "advance_liability_credited": false,
+        "applied_to_open_invoices_at_once": true
       }
     }
   ]

@@ -2,6 +2,7 @@
 
 namespace Tests\Libraries\Accounting;
 
+use App\Libraries\Accounting\CustomerLedger;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -185,10 +186,34 @@ class CreditSettlementTest extends CIUnitTestCase
         $this->assertTies();
     }
 
-    public function testSettle_PaysACreditNoteIntoItsOwnInvoiceBeforeAnyOther(): void
+    public function testSettle_SendsACreditNoteToTheOldestOpenInvoiceAndNotToItsOwn(): void
     {
         $other = $this->invoiceOf('100.00');
         $own   = $this->invoiceOf('300.00');
+        $note  = $this->creditNoteOf($own, '150.00');
+
+        $this->assertSame(['credit_note:' . $note . '->' . $other . ':100.00', 'credit_note:' . $note . '->' . $own . ':50.00'], $this->applications());
+        $this->assertSame('0.00', bcadd($this->position()->invoice($other)->open(), '0', 2));
+        $this->assertSame('250.00', bcadd($this->position()->invoice($own)->open(), '0', 2));
+        $this->assertTies();
+    }
+
+    public function testSettle_SendsAWholeCreditNoteToTheOldestOpenInvoiceBeforeItsOwn(): void
+    {
+        $oldest = $this->invoiceOf('200.00');
+        $own    = $this->invoiceOf('100.00');
+        $note   = $this->creditNoteOf($own, '150.00');
+
+        $this->assertSame(['credit_note:' . $note . '->' . $oldest . ':150.00'], $this->applications());
+        $this->assertSame('50.00', bcadd($this->position()->invoice($oldest)->open(), '0', 2));
+        $this->assertSame('100.00', bcadd($this->position()->invoice($own)->open(), '0', 2));
+        $this->assertTies();
+    }
+
+    public function testSettle_SendsACreditNoteToItsOwnInvoiceWhenThatInvoiceIsTheOldestByDate(): void
+    {
+        $own   = $this->invoiceDated('300.00', $this->daysAgo(10));
+        $other = $this->invoiceDated('100.00', $this->daysAgo(3));
         $note  = $this->creditNoteOf($own, '150.00');
 
         $this->assertSame(['credit_note:' . $note . '->' . $own . ':150.00'], $this->applications());
@@ -196,14 +221,72 @@ class CreditSettlementTest extends CIUnitTestCase
         $this->assertTies();
     }
 
-    public function testSettle_SendsTheRestOfACreditNoteToTheOldestOpenInvoice(): void
+    public function testSettle_SendsACreditNoteToAnOlderInvoiceByDateEvenWhenItIsCreatedAfterItsOrigin(): void
     {
-        $oldest = $this->invoiceOf('200.00');
-        $own    = $this->invoiceOf('100.00');
-        $note   = $this->creditNoteOf($own, '150.00');
+        $own   = $this->invoiceDated('300.00', $this->daysAgo(3));
+        $older = $this->invoiceDated('100.00', $this->daysAgo(10));
+        $note  = $this->creditNoteOf($own, '120.00');
 
-        $this->assertSame(['credit_note:' . $note . '->' . $own . ':100.00', 'credit_note:' . $note . '->' . $oldest . ':50.00'], $this->applications());
-        $this->assertSame('150.00', bcadd($this->position()->invoice($oldest)->open(), '0', 2));
+        $this->assertGreaterThan($own, $older);
+        $this->assertSame(['credit_note:' . $note . '->' . $older . ':100.00', 'credit_note:' . $note . '->' . $own . ':20.00'], $this->applications());
+        $this->assertTies();
+    }
+
+    public function testSettle_FollowsTheDateTypedOnTheInvoiceAndNotTheOrderTheyWereSavedIn(): void
+    {
+        $savedFirst  = $this->invoiceDated('100.00', $this->daysAgo(2));
+        $savedSecond = $this->invoiceDated('100.00', $this->daysAgo(20));
+        $payer       = $this->invoiceOf('10.00');
+
+        $this->addPayment($payer, '60.00');
+
+        $this->assertSame(['invoice_excess:' . $payer . '->' . $savedSecond . ':50.00'], $this->applications());
+        $this->assertSame('100.00', bcadd($this->position()->invoice($savedFirst)->open(), '0', 2));
+        $this->assertTies();
+    }
+
+    public function testSettle_BreaksATieOfDatesByTheOrderTheInvoicesWereCreatedInAsTheReferenceSystemDoes(): void
+    {
+        $case    = $this->receivable('credit-goes-to-the-invoice-created-first-when-the-dates-tie', 'exact');
+        $first   = $this->invoiceOf($case['inputs']['invoices'][0]['open']);
+        $second  = $this->invoiceOf($case['inputs']['invoices'][1]['open']);
+        $day     = $this->daysAgo(5);
+        $service = $this->item('0', false);
+
+        $this->accountingDb()->table('sales')->whereIn('sale_id', [$first, $second])->update(['sale_time' => $day . ' 10:00:00']);
+        $this->accountingDb()->table('sales')->where('sale_id', $first)->update(['invoice_number' => $case['inputs']['invoices'][0]['number']]);
+        $this->accountingDb()->table('sales')->where('sale_id', $second)->update(['invoice_number' => $case['inputs']['invoices'][1]['number']]);
+
+        $names = [$first => 'created_first', $second => 'created_second'];
+
+        foreach ($case['inputs']['credits'] as $credit) {
+            $this->assertGreaterThan(0, $this->save([$this->line($service, 0, '-1', $credit)], [], [], SALE_TYPE_RETURN));
+        }
+
+        $applied = array_map(
+            static fn (object $row): array => ['invoice' => $names[(int) $row->invoice_sale_id], 'amount' => bcadd((string) $row->amount, '0', 2)],
+            (new CustomerLedger())->applications($this->customerId),
+        );
+
+        $this->assertLessThan((int) $second, (int) $first);
+        $this->assertSame([], ParityFixture::differences($case['reference'], ['applied' => $applied]));
+        $this->assertSame([], ParityFixture::differences(['applied' => $applied], $case['reference']));
+        $this->assertTies();
+    }
+
+    public function testSettle_BreaksATieOfDatesByCreationAndNotByInvoiceNumberOrAmount(): void
+    {
+        $large   = $this->invoiceOf('500.00');
+        $small   = $this->invoiceOf('40.00');
+        $service = $this->item('0', false);
+
+        $this->accountingDb()->table('sales')->whereIn('sale_id', [$large, $small])->update(['sale_time' => $this->daysAgo(5) . ' 10:00:00']);
+        $this->accountingDb()->table('sales')->where('sale_id', $large)->update(['invoice_number' => '000099']);
+        $this->accountingDb()->table('sales')->where('sale_id', $small)->update(['invoice_number' => '000001']);
+
+        $this->assertGreaterThan(0, $this->save([$this->line($service, 0, '-1', '60.00')], [], [], SALE_TYPE_RETURN));
+        $this->assertSame('440.00', bcadd($this->position()->invoice($large)->open(), '0', 2));
+        $this->assertSame('40.00', bcadd($this->position()->invoice($small)->open(), '0', 2));
         $this->assertTies();
     }
 
@@ -419,9 +502,9 @@ class CreditSettlementTest extends CIUnitTestCase
         return $applied;
     }
 
-    public function testSettle_SendsTheCreditNoteOfAnInvoiceToItsOwnInvoiceFirstWhereTheReferenceSystemGoesByTheDateOfTheInvoicesAlone(): void
+    public function testSettle_SendsTheCreditNoteOfAnInvoiceToTheOldestInvoiceAsTheReferenceSystemDoes(): void
     {
-        $case = $this->referenceCase('T-34', 'credit_order', 'credit-note-of-an-invoice-goes-to-the-oldest-invoice-first', 'differs');
+        $case = $this->referenceCase('T-34', 'credit_order', 'credit-note-of-an-invoice-goes-to-the-oldest-invoice-first', 'exact');
         $ids  = $this->datedInvoices($case['inputs']['invoices']);
 
         $this->creditNoteOf($ids[$case['inputs']['credit_note']['of']], $case['inputs']['credit_note']['amount']);

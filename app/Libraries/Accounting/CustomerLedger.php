@@ -92,6 +92,9 @@ final class CustomerLedger
             $sources[] = new CreditSource($type, $sourceId, $origin, $date, $amount, $applied['from'][$type . ':' . $sourceId] ?? '0.0000');
         }
 
+        // Credit is applied in this order: by the day an invoice is dated and, among invoices of one day,
+        // by the order they were created in. The id is that order: it is given when the row is created,
+        // while sale_time is rewritten by every later save of the same row.
         usort($sources, static fn (CreditSource $a, CreditSource $b): int => [$a->date, $a->sourceId] <=> [$b->date, $b->sourceId]);
         usort($invoices, static fn (InvoiceFigures $a, InvoiceFigures $b): int => [$a->date, $a->saleId] <=> [$b->date, $b->saleId]);
 

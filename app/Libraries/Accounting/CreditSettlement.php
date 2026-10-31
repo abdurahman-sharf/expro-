@@ -10,9 +10,10 @@ use Config\Database;
  * a customer owes (an invoice, a payment, a credit note, a cancellation) and does two things:
  * it releases what no longer holds (credit applied to an invoice that is gone, or taken from a
  * credit that is gone or has shrunk, or applied beyond what the invoice still owed), and it
- * applies the credit that is free to the invoices that are open, the oldest first. A credit note
- * goes to the invoice it came from first. No journal is written, because the account of the
- * customer already carries the credit.
+ * applies the credit that is free to the invoices that are open, the one dated earliest first, and
+ * among invoices of one date the one created first. The invoice a credit note came from has no
+ * priority: the reference system walks the open invoices by date alone. No journal is written,
+ * because the account of the customer already carries the credit.
  *
  * The caller holds the lock of the customer (CustomerLock) and is inside a transaction, so the
  * ledger it reads is the ledger as the last change left it.
@@ -130,10 +131,6 @@ final class CreditSettlement
 
         foreach ($sources as $source) {
             $available = $source->available();
-
-            if ($source->originId !== null && isset($open[$source->originId])) {
-                $available = $this->give($customerId, $source, $source->originId, $available, $open, $employeeId);
-            }
 
             foreach (array_keys($open) as $invoiceId) {
                 if (bccomp($available, '0', SaleAmounts::SCALE) <= 0) {

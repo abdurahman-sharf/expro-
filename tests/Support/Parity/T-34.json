@@ -1,6 +1,6 @@
 {
   "id": "T-34",
-  "title": "Where the credit of a customer goes when several invoices are open: the reference system applies it at once to the oldest invoice date first and does not prefer the invoice a credit note came from; this application sends a credit note to its own invoice first",
+  "title": "Where the credit of a customer goes when several invoices are open: the reference system applies it at once to the oldest invoice date first and does not prefer the invoice a credit note came from, and this application does the same since E57; the application itself writes no journal",
   "recorded": "2026-10-27",
   "observation": {
     "batch": "d1",
@@ -24,8 +24,7 @@
     {
       "id": "credit-note-of-an-invoice-goes-to-the-oldest-invoice-first",
       "kind": "credit_order",
-      "classification": "differs",
-      "reason": "The reference system ignores the invoice a credit note came from and walks the open invoices by date, so the 115.00 of the credit note of the latest invoice went to the oldest. The order of this application is the credit note first to its own invoice and then the oldest; the adoption of the observed order is the proposal E55 for WP23.",
+      "classification": "exact",
       "evidence": [
         "credit_order"
       ],
@@ -63,7 +62,7 @@
       "expected": {
         "applied": [
           {
-            "invoice": "latest",
+            "invoice": "oldest",
             "amount": "115.00"
           }
         ]
