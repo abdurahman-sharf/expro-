@@ -1,6 +1,7 @@
 <?php
 /**
  * @var list<CashFlowLineConfig> $lines
+ * @var string                   $version
  * @var list<object>             $accounts
  * @var list<CashFlowFormula>    $formulas
  * @var list<CashFlowSection>    $sections
@@ -51,6 +52,7 @@ $index    = 0;
     <p class="text-body-secondary"><?= lang('Accounting_cash_flow.settings_intro', [$maxCustom]) ?></p>
 
     <form id="cash_flow_settings_form" method="post" action="<?= esc(base_url('accounting_statements/cash_flow/settings/save'), 'attr') ?>">
+        <input type="hidden" name="version" value="<?= esc($version, 'attr') ?>">
         <div class="table-responsive mb-3">
             <table class="table table-sm align-middle" id="cash_flow_lines">
                 <thead>
@@ -73,7 +75,7 @@ $index    = 0;
                             </td>
                             <td>
                                 <?php if ($line->custom): ?>
-                                    <select class="form-select form-select-sm" name="<?= $name ?>[section]"<?= $disabled ?>>
+                                    <select class="form-select form-select-sm" name="<?= $name ?>[section]" aria-label="<?= esc(lang('Accounting_cash_flow.settings_section'), 'attr') ?>"<?= $disabled ?>>
                                         <?php foreach ($sections as $section): ?>
                                             <option value="<?= esc($section->value, 'attr') ?>"<?= $section === $line->section ? ' selected' : '' ?>><?= lang('Accounting_cash_flow.section_' . $section->value) ?></option>
                                         <?php endforeach; ?>
@@ -86,6 +88,7 @@ $index    = 0;
                                 <?php if ($line->key === 'net_income'): ?>
                                     <span class="text-body-secondary"><?= lang('Accounting_cash_flow.settings_net_income_accounts') ?></span>
                                 <?php else: ?>
+                                    <input type="hidden" name="<?= $name ?>[accounts][]" value="">
                                     <select class="form-select form-select-sm" multiple size="3" name="<?= $name ?>[accounts][]" aria-label="<?= esc(lang('Accounting_cash_flow.settings_accounts'), 'attr') ?>"<?= $disabled ?>>
                                         <?php foreach ($accounts as $account): ?>
                                             <option value="<?= (int) $account->account_id ?>"<?= in_array($account->account_id, $line->accountIds, true) ? ' selected' : '' ?>><?= esc($account->code . ' - ' . $account->name) ?></option>
@@ -127,13 +130,14 @@ $index    = 0;
                             <input type="text" class="form-control form-control-sm" name="<?= $name ?>[title]" maxlength="<?= (int) $titleMax ?>" placeholder="<?= esc(lang('Accounting_cash_flow.settings_new_line'), 'attr') ?>" aria-label="<?= esc(lang('Accounting_cash_flow.settings_new_line'), 'attr') ?>"<?= $disabled ?>>
                         </td>
                         <td>
-                            <select class="form-select form-select-sm" name="<?= $name ?>[section]"<?= $disabled ?>>
+                            <select class="form-select form-select-sm" name="<?= $name ?>[section]" aria-label="<?= esc(lang('Accounting_cash_flow.settings_section'), 'attr') ?>"<?= $disabled ?>>
                                 <?php foreach ($sections as $section): ?>
                                     <option value="<?= esc($section->value, 'attr') ?>"><?= lang('Accounting_cash_flow.section_' . $section->value) ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </td>
                         <td>
+                            <input type="hidden" name="<?= $name ?>[accounts][]" value="">
                             <select class="form-select form-select-sm" multiple size="3" name="<?= $name ?>[accounts][]" aria-label="<?= esc(lang('Accounting_cash_flow.settings_accounts'), 'attr') ?>"<?= $disabled ?>>
                                 <?php foreach ($accounts as $account): ?>
                                     <option value="<?= (int) $account->account_id ?>"><?= esc($account->code . ' - ' . $account->name) ?></option>

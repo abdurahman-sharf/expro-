@@ -17,14 +17,19 @@ use Throwable;
  * removing it. A line cannot take from an account of a treasury or a bank, which it would count
  * twice, nor from an account together with an account under it. Saving needs the permission to manage
  * the settings and every branch, because the setting is the company's, and every change is written to
- * the audit log with what it was and what it became. A setting that cannot be read is read as the
- * lines the report starts with.
+ * the audit log with what it was and what it became, in the same transaction as the setting, so that
+ * neither is kept without the other. The setting is locked while it is read and rewritten, and a page
+ * that was opened before someone else saved is refused rather than allowed to put the old lines back.
+ * A setting that cannot be read is read as the lines the report starts with.
  */
 final class CashFlowSettings
 {
+    use RunsInTransaction;
+
     public const KEY              = 'accounting_cash_flow_lines';
     public const MAX_CUSTOM_LINES = 20;
     public const TITLE_MAX        = 80;
+    public const MAX_BYTES        = 30000;
 
     private BaseConnection $db;
     private Appconfig $config;
@@ -33,7 +38,7 @@ final class CashFlowSettings
     private ?AccountingGuard $guard;
     private ?BranchGuard $branches;
 
-    public function __construct(?BaseConnection $db = null, ?AccountingGuard $guard = null, ?BranchGuard $branches = null)
+    public function __construct(?BaseConnection $db = null, ?AccountingGuard $guard = null, ?BranchGuard $branches = null, private readonly int $maxBytes = self::MAX_BYTES)
     {
         $this->db       = $db ?? Database::connect();
         $this->config   = model(Appconfig::class);
@@ -48,7 +53,24 @@ final class CashFlowSettings
      */
     public function lines(): array
     {
-        $stored = $this->stored();
+        return $this->linesOf($this->config->get_value(self::KEY));
+    }
+
+    /**
+     * What the lines were when they were read, to be sent back with a save so that a page opened before
+     * someone else saved cannot put the old lines back.
+     */
+    public function version(): string
+    {
+        return sha1($this->config->get_value(self::KEY));
+    }
+
+    /**
+     * @return list<CashFlowLineConfig>
+     */
+    private function linesOf(string $text): array
+    {
+        $stored = $this->stored($text);
         $lines  = [];
 
         foreach (CashFlowDefaults::lines() as $default) {
@@ -106,11 +128,12 @@ final class CashFlowSettings
     }
 
     /**
-     * @param array{lines?: mixed} $input Each line as {key, title, formula, visible, accounts, section, remove}: a key that is empty adds a line, a line that is not named is left as it is.
+     * @param array{lines?: mixed} $input   Each line as {key, title, formula, visible, accounts, section, remove}: a key that is empty adds a line, a line that is not named is left as it is.
+     * @param string|null          $version What {@see version()} said when the lines were shown, null to save without comparing.
      *
      * @throws AccountingException|BranchException
      */
-    public function save(array $input, ?int $employeeId = null): void
+    public function save(array $input, ?int $employeeId = null, ?string $version = null): void
     {
         $this->guard ??= new AccountingGuard();
         $this->branches ??= new BranchGuard($this->db);
@@ -118,8 +141,65 @@ final class CashFlowSettings
         $this->guard->require(AccountingGuard::SETTINGS_MANAGE, $employeeId);
         $this->branches->requireCompanyScope($employeeId);
 
-        $before = $this->lines();
-        $next   = [];
+        $this->transactional(function () use ($input, $employeeId, $version): void {
+            $text = $this->lockedText();
+
+            if ($version !== null && ! hash_equals(sha1($text), $version)) {
+                throw new AccountingException(AccountingError::CashFlowLinesChanged, 'The lines changed since they were shown.');
+            }
+
+            $before = $this->linesOf($text);
+            $after  = $this->applied($before, $input);
+
+            if ($this->arrays($before) === $this->arrays($after)) {
+                return;
+            }
+
+            $json = json_encode(['lines' => $this->arrays($after)], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+
+            if (strlen($json) > $this->maxBytes) {
+                throw new AccountingException(AccountingError::CashFlowSetupTooLarge, 'The setup is too large to be kept.', ['max' => $this->maxBytes]);
+            }
+
+            $this->config->save([self::KEY => $json]);
+
+            if ($this->config->get_value(self::KEY) !== $json) {
+                throw new AccountingException(AccountingError::WriteFailed, 'The lines were not kept as they were written.');
+            }
+
+            $this->audit->write('settings', null, 'cash_flow_lines_updated', $employeeId, JournalOrigin::User, ['before' => $this->arrays($before), 'after' => $this->arrays($after)]);
+        });
+    }
+
+    /**
+     * The setting as it stands now, read with its row locked until the transaction ends, so that two
+     * saves follow one another and the second starts from what the first left. The row is made when
+     * there is none, with no lines, which is how a setting never saved reads.
+     *
+     * @throws AccountingException
+     */
+    private function lockedText(): string
+    {
+        $table = $this->db->prefixTable('app_config');
+
+        if ($this->db->query("INSERT INTO {$table} (`key`, `value`) VALUES (?, '') ON DUPLICATE KEY UPDATE `value` = `value`", [self::KEY]) === false) {
+            throw new AccountingException(AccountingError::WriteFailed, 'The setting could not be locked.');
+        }
+
+        return (string) (LockedRead::row($this->db, "SELECT `value` FROM {$table} WHERE `key` = ? FOR UPDATE", [self::KEY])->value ?? '');
+    }
+
+    /**
+     * @param list<CashFlowLineConfig> $before
+     * @param array{lines?: mixed}     $input
+     *
+     * @return list<CashFlowLineConfig>
+     *
+     * @throws AccountingException
+     */
+    private function applied(array $before, array $input): array
+    {
+        $next = [];
 
         foreach ($before as $line) {
             $next[$line->key] = $line;
@@ -142,10 +222,11 @@ final class CashFlowSettings
                 throw new AccountingException(AccountingError::CashFlowLineInvalid, 'A line is not a set of values.', ['name' => '', 'max' => self::MAX_CUSTOM_LINES]);
             }
 
+            $row = $this->withoutEmptyAccounts($row);
             $key = is_string($row['key'] ?? '') ? trim((string) ($row['key'] ?? '')) : '';
 
             if (in_array($key, ['', 'new'], true)) {
-                if (trim((string) ($row['title'] ?? '')) === '' && ($row['accounts'] ?? []) === []) {
+                if ($this->postedTitle($row, '') === '' && ($row['accounts'] ?? []) === []) {
                     continue;
                 }
 
@@ -175,14 +256,40 @@ final class CashFlowSettings
             throw new AccountingException(AccountingError::CashFlowLineInvalid, 'There are more added lines than the report takes.', ['name' => '', 'max' => self::MAX_CUSTOM_LINES]);
         }
 
-        $after = $this->ordered(array_values($next));
+        return $this->ordered(array_values($next));
+    }
 
-        if ($this->arrays($before) === $this->arrays($after)) {
-            return;
+    /**
+     * A browser sends nothing for a list of choices with none chosen, so the form sends an empty
+     * choice with every list, and the empty choice is no account.
+     *
+     * @param array<string, mixed> $row
+     *
+     * @return array<string, mixed>
+     */
+    private function withoutEmptyAccounts(array $row): array
+    {
+        if (isset($row['accounts']) && is_array($row['accounts'])) {
+            $row['accounts'] = array_values(array_filter($row['accounts'], static fn (mixed $account): bool => $account !== ''));
         }
 
-        $this->config->save([self::KEY => (string) json_encode(['lines' => $this->arrays($after)], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)]);
-        $this->audit->write('settings', null, 'cash_flow_lines_updated', $employeeId, JournalOrigin::User, ['before' => $this->arrays($before), 'after' => $this->arrays($after)]);
+        return $row;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     *
+     * @throws AccountingException
+     */
+    private function postedTitle(array $row, string $key): string
+    {
+        $title = $row['title'] ?? '';
+
+        if (! is_string($title) || ! mb_check_encoding($title, 'UTF-8')) {
+            throw new AccountingException(AccountingError::CashFlowLineInvalid, 'The title is not text.', ['name' => $key, 'max' => self::MAX_CUSTOM_LINES]);
+        }
+
+        return trim($title);
     }
 
     /**
@@ -192,7 +299,7 @@ final class CashFlowSettings
      */
     private function merged(CashFlowLineConfig $line, array $row): CashFlowLineConfig
     {
-        $title = array_key_exists('title', $row) ? trim((string) $row['title']) : $line->title;
+        $title = array_key_exists('title', $row) ? $this->postedTitle($row, $line->key) : $line->title;
         $shown = $title === '' ? $line->key : $title;
 
         if (mb_strlen($title) > self::TITLE_MAX || ($line->custom && $title === '')) {
@@ -305,10 +412,8 @@ final class CashFlowSettings
     /**
      * @return array<string, array<string, mixed>>
      */
-    private function stored(): array
+    private function stored(string $text): array
     {
-        $text = $this->config->get_value(self::KEY);
-
         if ($text === '') {
             return [];
         }

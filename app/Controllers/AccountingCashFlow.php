@@ -89,6 +89,7 @@ class AccountingCashFlow extends AccountingController
 
         return view('accounting_statements/cash_flow_settings', [
             'lines'      => $lines,
+            'version'    => $this->settings->version(),
             'accounts'   => $this->settings->accountChoices(),
             'formulas'   => CashFlowFormula::cases(),
             'sections'   => CashFlowSection::cases(),
@@ -101,10 +102,11 @@ class AccountingCashFlow extends AccountingController
 
     public function postSettingsSave(): ResponseInterface
     {
-        $lines = $this->request->getPost('lines');
+        $lines   = $this->request->getPost('lines');
+        $version = $this->request->getPost('version');
 
         try {
-            $this->settings->save(['lines' => is_array($lines) ? array_values($lines) : []], $this->employeeId());
+            $this->settings->save(['lines' => is_array($lines) ? array_values($lines) : []], $this->employeeId(), is_string($version) ? $version : '');
 
             return $this->response->setJSON(['success' => true, 'message' => lang('Accounting_cash_flow.settings_saved'), 'id' => 1]);
         } catch (AccountingException|BranchException $exception) {

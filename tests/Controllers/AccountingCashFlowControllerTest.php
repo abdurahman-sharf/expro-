@@ -440,11 +440,60 @@ final class AccountingCashFlowControllerTest extends CIUnitTestCase
      *
      * @return array<string, mixed>
      */
-    private function postSetup(array $lines, ?int $as = null): array
+    private function postSetup(array $lines, ?int $as = null, ?string $version = null): array
     {
         $this->actAs($as ?? $this->employeeWithGrants(['accounting_reports', AccountingGuard::SETTINGS_MANAGE]));
 
-        return $this->jsonOf($this->post(self::SETTINGS . '/save', ['lines' => $lines]));
+        return $this->jsonOf($this->post(self::SETTINGS . '/save', ['lines' => $lines, 'version' => $version ?? (new CashFlowSettings())->version()]));
+    }
+
+    /**
+     * What a browser sends when the form is submitted: the fields that are not disabled, a checkbox
+     * only when it is checked, a list of choices with its chosen options and nothing when none is
+     * chosen, a list of one choice with the one it shows.
+     *
+     * @return list<array{string, string}>
+     */
+    private function submittedAsABrowserDoes(TestResponse $response): array
+    {
+        $page   = $this->pageOf($response);
+        $pairs  = [];
+        $fields = $page->query('//form[@id="cash_flow_settings_form"]//input[@name][not(@disabled)] | //form[@id="cash_flow_settings_form"]//select[@name][not(@disabled)]');
+
+        foreach ($fields as $field) {
+            $name = $field->getAttribute('name');
+
+            if ($field->nodeName === 'select') {
+                $chosen = $page->query('.//option[@selected]', $field);
+                $chosen = $chosen->length === 0 && ! $field->hasAttribute('multiple') ? $page->query('.//option[1]', $field) : $chosen;
+
+                foreach ($chosen as $option) {
+                    $pairs[] = [$name, $option->getAttribute('value')];
+                }
+
+                continue;
+            }
+
+            if ($field->getAttribute('type') === 'checkbox' && ! $field->hasAttribute('checked')) {
+                continue;
+            }
+
+            $pairs[] = [$name, $field->getAttribute('value')];
+        }
+
+        return $pairs;
+    }
+
+    /**
+     * @param list<array{string, string}> $pairs
+     *
+     * @return array<string, mixed>
+     */
+    private function postedAsABrowserDoes(array $pairs): array
+    {
+        parse_str(implode('&', array_map(static fn (array $pair): string => rawurlencode($pair[0]) . '=' . rawurlencode($pair[1]), $pairs)), $data);
+
+        return $this->jsonOf($this->post(self::SETTINGS . '/save', $data));
     }
 
     public function testPostSettingsSave_SavesTheLinesAndWritesWhatChangedToTheAuditLog(): void
@@ -523,7 +572,7 @@ final class AccountingCashFlowControllerTest extends CIUnitTestCase
     {
         $this->actAs($this->employeeWithGrants(['accounting_reports', AccountingGuard::SETTINGS_MANAGE]));
 
-        $result = $this->jsonOf($this->post(self::SETTINGS . '/save', ['lines' => 'not a list']));
+        $result = $this->jsonOf($this->post(self::SETTINGS . '/save', ['lines' => 'not a list', 'version' => (new CashFlowSettings())->version()]));
 
         $this->assertTrue($result['success']);
         $this->assertCount(8, (new CashFlowSettings())->lines());
@@ -536,5 +585,86 @@ final class AccountingCashFlowControllerTest extends CIUnitTestCase
         $this->post(self::SETTINGS . '/save', ['lines' => [['key' => 'inventory', 'title' => 'Warehouse stock']]])->assertRedirect();
 
         $this->assertSame('', array_column((new CashFlowSettings())->lines(), null, 'key')['inventory']->title);
+    }
+
+    public function testGetSettings_SendsTheVersionOfTheLinesAndTheEmptyChoiceOfAccountsWithEveryList(): void
+    {
+        $this->postOne(['key' => '', 'title' => 'Loans received', 'accounts' => [(string) $this->customAccount('2', '2999', 'Loans')], 'section' => 'financing']);
+        $this->viewer(null, [AccountingGuard::SETTINGS_MANAGE]);
+
+        $page = $this->pageOf($this->get(self::SETTINGS));
+
+        $this->assertSame((new CashFlowSettings())->version(), $page->query('//form[@id="cash_flow_settings_form"]/input[@name="version"]')->item(0)->getAttribute('value'));
+        $this->assertSame(9, $page->query('//select[@multiple]')->length, 'The seven lines that take accounts, the line that was added and the new line');
+        $this->assertSame(9, $page->query('//input[@type="hidden"][@value=""][contains(@name, "[accounts][]")]')->length, 'Every list of accounts comes with the empty choice');
+        $this->assertSame(0, $page->query('//select[contains(@name, "[section]")][not(@aria-label)]')->length, 'Every part has a name for a screen reader');
+        $this->assertSame(2, $page->query('//select[contains(@name, "[section]")]')->length);
+    }
+
+    public function testPostSettingsSave_PutsALineBackOnItsOwnAccountsWhenTheFormIsSubmittedWithNoAccountChosen(): void
+    {
+        $this->postOne(['key' => 'inventory', 'accounts' => [(string) $this->stock]]);
+        $this->viewer(null, [AccountingGuard::SETTINGS_MANAGE]);
+
+        $pairs = array_values(array_filter($this->submittedAsABrowserDoes($this->get(self::SETTINGS)), fn (array $pair): bool => ! ($pair[1] === (string) $this->stock && str_ends_with($pair[0], '[accounts][]'))));
+
+        $this->assertSame([['lines[4][accounts][]', '']], array_values(array_filter($pairs, static fn (array $pair): bool => $pair[0] === 'lines[4][accounts][]')), 'With none chosen the browser sends only the empty choice');
+
+        $result = $this->postedAsABrowserDoes($pairs);
+
+        $this->assertTrue($result['success'], $result['message']);
+        $this->assertSame([], array_column((new CashFlowSettings())->lines(), null, 'key')['inventory']->accountIds, 'The line is back on the accounts it starts with');
+        $this->assertSame(2, $this->accountingDb()->table('accounting_audit_log')->where('action', 'cash_flow_lines_updated')->countAllResults());
+    }
+
+    public function testPostSettingsSave_KeepsTheLinesAsTheyAreWhenTheFormIsSubmittedAsItWasShown(): void
+    {
+        $this->postOne(['key' => 'inventory', 'title' => 'Warehouse stock', 'accounts' => [(string) $this->stock]]);
+        $this->viewer(null, [AccountingGuard::SETTINGS_MANAGE]);
+
+        $result = $this->postedAsABrowserDoes($this->submittedAsABrowserDoes($this->get(self::SETTINGS)));
+
+        $this->assertTrue($result['success'], $result['message']);
+
+        $line = array_column((new CashFlowSettings())->lines(), null, 'key')['inventory'];
+
+        $this->assertSame(['Warehouse stock', [$this->stock]], [$line->title, $line->accountIds]);
+        $this->assertCount(8, (new CashFlowSettings())->lines(), 'The blank row for a new line adds none');
+        $this->assertSame(1, $this->accountingDb()->table('accounting_audit_log')->where('action', 'cash_flow_lines_updated')->countAllResults(), 'A form that changes nothing writes nothing down');
+    }
+
+    public function testPostSettingsSave_RefusesAFormOpenedBeforeAnotherSaveInWordsAndKeepsTheOtherSave(): void
+    {
+        $this->viewer(null, [AccountingGuard::SETTINGS_MANAGE]);
+
+        $stale = $this->submittedAsABrowserDoes($this->get(self::SETTINGS));
+
+        $this->postOne(['key' => 'inventory', 'title' => 'Warehouse stock']);
+        $this->viewer(null, [AccountingGuard::SETTINGS_MANAGE]);
+
+        $result = $this->postedAsABrowserDoes($stale);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_cash_flow_lines_changed'), $result['message']);
+        $this->assertSame('Warehouse stock', array_column((new CashFlowSettings())->lines(), null, 'key')['inventory']->title, 'The form that was out of date does not put the old title back');
+    }
+
+    public function testPostSettingsSave_RefusesARequestThatSendsNoVersionOfTheLines(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_reports', AccountingGuard::SETTINGS_MANAGE]));
+
+        $result = $this->jsonOf($this->post(self::SETTINGS . '/save', ['lines' => [['key' => 'inventory', 'title' => 'Warehouse stock']]]));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_cash_flow_lines_changed'), $result['message']);
+        $this->assertSame('', array_column((new CashFlowSettings())->lines(), null, 'key')['inventory']->title);
+    }
+
+    public function testPostSettingsSave_RefusesATitleThatIsNotTextInWordsAndNotWithAServerError(): void
+    {
+        $result = $this->postSetup([['key' => 'inventory', 'title' => ['x']]]);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_cash_flow_line_invalid', [CashFlowSettings::MAX_CUSTOM_LINES, 'inventory']), $result['message']);
     }
 }
