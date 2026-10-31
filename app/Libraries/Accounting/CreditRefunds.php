@@ -62,7 +62,7 @@ final class CreditRefunds
 
     /**
      * Pays the credit back: the amount may not be more than the credit that is free on the date of the
-     * refund, so a refund dated in the past takes only credit that existed then. Whoever pays a
+     * refund, so a refund dated in the past takes only credit the books held then. Whoever pays a
      * customer takes money out of a treasury and needs its withdrawal scope; whoever is paid by a
      * supplier puts money in and needs its deposit scope. A form that carries a key and is sent twice
      * saves one refund and answers the second time with the first.
@@ -95,8 +95,8 @@ final class CreditRefunds
                 return (int) $earlier->refund_id;
             }
 
-            $credits = array_values(array_filter($this->position($partyId)->credits, static fn (CreditSource $source): bool => $source->date <= $date));
-            $free    = array_reduce($credits, static fn (string $sum, CreditSource $source): string => bcadd($sum, $source->available(), SaleAmounts::SCALE), '0.0000');
+            $credits = $this->freeOn($partyId, $date);
+            $free    = array_reduce($credits, static fn (string $sum, array $credit): string => bcadd($sum, $credit[1], SaleAmounts::SCALE), '0.0000');
 
             if (bccomp($amount, $free, SaleAmounts::SCALE) > 0) {
                 throw new AccountingException(AccountingError::RefundExceedsCredit, 'A refund cannot be more than the credit that is free on its date.', ['max' => bcadd($free, '0', 2)]);
@@ -234,9 +234,9 @@ final class CreditRefunds
         return $this->party . '_credit_refund_sources';
     }
 
-    private function position(int $partyId): CustomerPosition|SupplierPosition
+    private function position(int $partyId, ?string $asOf = null): CustomerPosition|SupplierPosition
     {
-        return $this->customers() ? (new CustomerLedger($this->db))->position($partyId) : (new SupplierLedger($this->db))->position($partyId);
+        return $this->customers() ? (new CustomerLedger($this->db))->position($partyId, $asOf) : (new SupplierLedger($this->db))->position($partyId, $asOf);
     }
 
     private function settle(int $partyId, ?int $employeeId): void
@@ -284,25 +284,55 @@ final class CreditRefunds
     }
 
     /**
+     * The credits a refund of a day may take from, the oldest first, each with what of it is free. A
+     * credit counts only if the books of that day already held it, because the excess of a payment
+     * exists from the day of the payment and not from the day of its invoice, and it counts for no more
+     * than it held then or than is free now, so that the tie of the account holds on that day and on
+     * every day after it.
+     *
+     * @return list<array{0: CreditSource, 1: numeric-string}>
+     */
+    private function freeOn(int $partyId, string $date): array
+    {
+        $then = [];
+
+        foreach ($this->position($partyId, $date)->credits as $source) {
+            $then[$source->type . ':' . $source->sourceId] = $source->available();
+        }
+
+        $credits = [];
+
+        foreach ($this->position($partyId)->credits as $source) {
+            $before = $then[$source->type . ':' . $source->sourceId] ?? null;
+
+            if ($before === null) {
+                continue;
+            }
+
+            $free = bccomp($before, $source->available(), SaleAmounts::SCALE) < 0 ? $before : $source->available();
+
+            if (bccomp($free, '0', SaleAmounts::SCALE) > 0) {
+                $credits[] = [$source, $free];
+            }
+        }
+
+        return $credits;
+    }
+
+    /**
      * Takes the amount from the credits that are free, the oldest first, and writes down how much of
      * each it took.
      *
-     * @param list<CreditSource> $credits
-     * @param numeric-string     $amount
+     * @param list<array{0: CreditSource, 1: numeric-string}> $credits
+     * @param numeric-string                                  $amount
      */
     private function takeFrom(int $refundId, array $credits, string $amount): void
     {
         $left = $amount;
 
-        foreach ($credits as $source) {
+        foreach ($credits as [$source, $free]) {
             if (bccomp($left, '0', SaleAmounts::SCALE) <= 0) {
                 break;
-            }
-
-            $free = $source->available();
-
-            if (bccomp($free, '0', SaleAmounts::SCALE) <= 0) {
-                continue;
             }
 
             $take = bccomp($left, $free, SaleAmounts::SCALE) < 0 ? $left : $free;

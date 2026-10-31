@@ -368,6 +368,65 @@ class CreditRefundsTest extends CIUnitTestCase
         $this->assertSame('50.00', $this->free());
     }
 
+    public function testRefund_RefusesTheExcessOfAnInvoiceOnDaysBeforeThePaymentThatOverpaidIt(): void
+    {
+        $invoice = $this->invoiceDated('100.00', $this->daysAgo(10));
+
+        $this->addPayment($invoice, '150.00');
+
+        $refusal = $this->refusal(fn () => $this->refund('50.00', $this->daysAgo(5)));
+
+        $this->assertSame(AccountingError::RefundExceedsCredit, $refusal->error);
+        $this->assertSame('0.00', $refusal->context['max']);
+        $this->assertSame(0, $this->countRows('customer_credit_refunds'));
+
+        $this->refund('50.00', date('Y-m-d'));
+
+        foreach ([$this->daysAgo(10), $this->daysAgo(5), $this->daysAgo(1), date('Y-m-d')] as $day) {
+            $this->assertTrue($this->position(null, $day)->agrees(), $day);
+        }
+    }
+
+    public function testRefund_TakesOfAnExcessOnlyWhatThePaymentsBeforeItsDateHadOverpaid(): void
+    {
+        $invoice = $this->invoiceDated('100.00', $this->daysAgo(10));
+        $first   = $this->addPayment($invoice, '120.00');
+
+        $this->accountingDb()->table('sales_payments')->where('payment_id', $first)->update(['payment_time' => $this->daysAgo(8) . ' 10:00:00']);
+        $this->accountingDb()->table('accounting_journals')->where(['source_type' => 'sale_payment', 'source_id' => $first])->update(['journal_date' => $this->daysAgo(8)]);
+        $this->addPayment($invoice, '30.00');
+
+        $this->assertSame('50.00', $this->free());
+
+        $refusal = $this->refusal(fn () => $this->refund('20.01', $this->daysAgo(5)));
+
+        $this->assertSame(AccountingError::RefundExceedsCredit, $refusal->error);
+        $this->assertSame('20.00', $refusal->context['max']);
+
+        $this->refund('20.00', $this->daysAgo(5));
+
+        foreach ([$this->daysAgo(10), $this->daysAgo(8), $this->daysAgo(5), $this->daysAgo(1), date('Y-m-d')] as $day) {
+            $this->assertTrue($this->position(null, $day)->agrees(), $day);
+        }
+
+        $this->assertSame('30.00', $this->free());
+    }
+
+    public function testRefund_TakesOfAnAdvanceOnlyWhatIsFreeNowEvenOnADayBeforeItWasSpent(): void
+    {
+        $this->advance('100.00', $this->daysAgo(10));
+
+        $invoice = $this->invoiceDated('60.00', $this->daysAgo(8));
+
+        $this->assertSame(['customer_advance:' . $this->accountingDb()->table('customer_advances')->get()->getRow()->advance_id . '->' . $invoice . ':60.00'], $this->applications());
+        $this->assertSame('40.00', $this->free());
+
+        $refusal = $this->refusal(fn () => $this->refund('50.00', $this->daysAgo(5)));
+
+        $this->assertSame(AccountingError::RefundExceedsCredit, $refusal->error);
+        $this->assertSame('40.00', $refusal->context['max']);
+    }
+
     public function testRefund_KeepsTheTieOfTheCustomerOnEveryDayInThePast(): void
     {
         $this->advance('100.00', $this->daysAgo(6));
