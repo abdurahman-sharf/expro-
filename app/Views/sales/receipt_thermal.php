@@ -95,6 +95,9 @@ foreach ($payments as $payment) {
                 <div><dt><?= documentIsolate((float) $tax['tax_rate'] . '%') ?> <?= esc($tax['tax_group']) ?></dt><dd><?= documentIsolate(to_currency_tax($tax['sale_tax_amount'])) ?></dd></div>
             <?php endforeach; ?>
         <?php endif; ?>
+        <?php foreach (headerChargeRows($header_charges ?? []) as [$chargeLabel, $chargeAmount]): ?>
+            <div><dt><?= esc($chargeLabel) ?></dt><dd><?= documentIsolate(to_currency($chargeAmount)) ?></dd></div>
+        <?php endforeach; ?>
         <div class="rt-grand"><dt><?= lang('Sales.total') ?></dt><dd><?= documentIsolate(to_currency($total)) ?></dd></div>
         <?php foreach ($payments as $payment): ?>
             <div><dt><?= esc(explode(':', $payment['payment_type'])[0]) ?></dt><dd><?= documentIsolate(to_currency($payment['payment_amount'] * -1)) ?></dd></div>

@@ -20,10 +20,14 @@ use App\Libraries\Accounting\QuoteStatus;
 use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\Accounting\ReturnLimit;
 use App\Libraries\Accounting\ReturnOverride;
+use App\Libraries\Accounting\SaleAmounts;
+use App\Libraries\Accounting\SaleLoader;
 use App\Libraries\Accounting\SalePosting;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Accounting\UndeliveredReturns;
+use App\Libraries\HeaderCharges;
+use App\Libraries\HeaderChargesProblem;
 use App\Libraries\InvoiceDiscount;
 use App\Libraries\InvoiceDiscountPlan;
 use App\Libraries\InvoiceDiscountProblem;
@@ -31,6 +35,7 @@ use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
+use App\Libraries\ShippingTaxOption;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Model;
@@ -933,12 +938,13 @@ class Sale extends Model
         ?int $quoteSourceId = null,
         ?string $draftFingerprint = null,
         ?string $returnOverrideReason = null,
+        ?HeaderCharges $headerCharges = null,
     ): int {    // TODO: this method returns the sale_id but the override is expecting it to return a bool. The signature needs to be reworked.  Generally when there are more than 3 maybe 4 parameters, there's a good chance that an object needs to be passed rather than so many params.
         try {
             return (new CustomerLock($this->db))->run(
                 $customerId,
-                function () use (&$saleStatus, &$items, &$salesTaxes, $saleId, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $delivered, $returnOfSaleId, $invoiceDiscount, $returnDocument, $invoiceDate, $paymentTerms, $quoteStatus, $quoteSourceId, $draftFingerprint, $returnOverrideReason): int {
-                    return $this->saveValueLocked($saleId, $saleStatus, $items, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $salesTaxes, $delivered, $returnOfSaleId, $invoiceDiscount, $returnDocument, $invoiceDate, $paymentTerms, $quoteStatus, $quoteSourceId, $draftFingerprint, $returnOverrideReason);
+                function () use (&$saleStatus, &$items, &$salesTaxes, $saleId, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $delivered, $returnOfSaleId, $invoiceDiscount, $returnDocument, $invoiceDate, $paymentTerms, $quoteStatus, $quoteSourceId, $draftFingerprint, $returnOverrideReason, $headerCharges): int {
+                    return $this->saveValueLocked($saleId, $saleStatus, $items, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $salesTaxes, $delivered, $returnOfSaleId, $invoiceDiscount, $returnDocument, $invoiceDate, $paymentTerms, $quoteStatus, $quoteSourceId, $draftFingerprint, $returnOverrideReason, $headerCharges);
                 },
             );
         } catch (AccountingException $busy) {
@@ -976,6 +982,7 @@ class Sale extends Model
         ?int $quoteSourceId,
         ?string $draftFingerprint,
         ?string $returnOverrideReason,
+        ?HeaderCharges $headerCharges,
     ): int {
         $config = config(OSPOS::class)->settings;
         $attribute = model(Attribute::class);
@@ -1029,6 +1036,13 @@ class Sale extends Model
             'delivered'         => $delivered ? 1 : 0,
             'return_of_sale_id' => $saleType === SALE_TYPE_RETURN ? $returnOfSaleId : null,
             'return_document'   => $saleType === SALE_TYPE_RETURN ? $returnDocument->storedValue() : null,
+            'adjustment_label'     => null,
+            'adjustment_amount'    => null,
+            'shipping_amount'      => null,
+            'shipping_options'     => null,
+            'shipping_tax_option'  => null,
+            'shipping_tax_percent' => null,
+            'shipping_tax_amount'  => null,
             ...$timing,
         ];
 
@@ -1220,6 +1234,15 @@ class Sale extends Model
             $this->save_sales_items_taxes($saleId, $salesTaxes[1]);
         }
 
+        $chargesRefusal = $this->storeHeaderCharges($saleId, $saleType, $headerCharges, (bool) $config['tax_included']);
+
+        if ($chargesRefusal !== null) {
+            $this->db->transRollback();
+            $this->accountingFailure = $chargesRefusal;
+
+            return ACCOUNTING_FAILED;
+        }
+
         if ($config['dinner_table_enable']) {
             $dinnerTable = model(Dinner_table::class);
             if ($saleStatus == COMPLETED) {    // TODO: === ?
@@ -1278,6 +1301,8 @@ class Sale extends Model
             if ($saleType !== SALE_TYPE_RETURN && ! $discountPlan->isEmpty()) {
                 $this->auditInvoiceDiscount($saleId, $employeeId, (int) $salesData['branch_id'], $discountPlan);
             }
+
+            $this->auditHeaderCharges($saleId, $employeeId, (int) $salesData['branch_id']);
 
             if ($saleType === SALE_TYPE_INVOICE && $stored !== null && (int) $stored->sale_type === SALE_TYPE_INVOICE && (int) $stored->sale_status === SUSPENDED) {
                 $this->auditDraftIssued($saleId, $employeeId, (int) $salesData['branch_id'], $timing['invoice_date']);
@@ -1395,6 +1420,7 @@ class Sale extends Model
             $invoiceDate ?? $issue->invoiceDate,
             $paymentTerms ?? $issue->paymentTermsDays,
             draftFingerprint: $issue->fingerprint,
+            headerCharges: $issue->headerCharges,
         );
     }
 
@@ -1607,6 +1633,122 @@ class Sale extends Model
             'type'   => $plan->type === PERCENT ? 'percent' : 'fixed',
             'value'  => InvoiceDiscount::normalise((string) $plan->value),
             'amount' => $plan->amount,
+        ], $branchId);
+    }
+
+    /**
+     * What the header of a saved sale carries, as the register takes it back: the amounts that were
+     * stored, with the tax option and rate they were worked out with.
+     */
+    public function getHeaderCharges(int $saleId): HeaderCharges
+    {
+        $row = $this->db->table('sales')
+            ->select('adjustment_label, adjustment_amount, shipping_amount, shipping_options, shipping_tax_option, shipping_tax_percent')
+            ->where('sale_id', $saleId)
+            ->get()
+            ->getRow();
+
+        if ($row === null) {
+            return HeaderCharges::none();
+        }
+
+        return new HeaderCharges(
+            (string) ($row->adjustment_label ?? ''),
+            (string) ($row->adjustment_amount ?? '0'),
+            (string) ($row->shipping_amount ?? '0'),
+            ShippingTaxOption::fromStored($row->shipping_tax_option),
+            (string) ($row->shipping_tax_percent ?? '0'),
+            $row->shipping_options === null ? null : (int) $row->shipping_options,
+        );
+    }
+
+    /**
+     * Saves the adjustment and the shipping typed on the header of the sale, worked out against the lines
+     * that were just saved: only on the documents that may carry them (an invoice, a quote, a credit
+     * note), only where the setting for each is on, with a tax on the shipping only at the rate and in the
+     * mode the company works in, and never so that the document comes to less than nothing. What is
+     * stored is what counts: the adjustment is nothing when the lines came to nothing.
+     */
+    private function storeHeaderCharges(int $saleId, int $saleType, ?HeaderCharges $charges, bool $taxIncluded): ?AccountingException
+    {
+        if ($charges === null || $charges->isEmpty()) {
+            return null;
+        }
+
+        $settings = new AccountingSettings($this->db);
+
+        if (! in_array($saleType, [SALE_TYPE_INVOICE, SALE_TYPE_QUOTE, SALE_TYPE_RETURN], true)) {
+            return new AccountingException(AccountingError::HeaderChargesNotAllowed, 'Only an invoice, a quote or a credit note can carry an adjustment or shipping.', ['sale_id' => $saleId]);
+        }
+
+        if (($charges->hasAdjustment() && ! $settings->salesAdjustmentEnabled()) || ($charges->hasShipping() && ! $settings->salesShippingEnabled())) {
+            return new AccountingException(AccountingError::HeaderChargesOff, 'The adjustment or the shipping is not turned on.', ['sale_id' => $saleId]);
+        }
+
+        $sale = (new SaleLoader($this->db))->load($saleId, false);
+
+        if ($sale === null) {
+            return null;
+        }
+
+        $amounts = SaleAmounts::totals($sale, totals_decimals());
+        $running = bcadd($amounts['net'], $amounts['tax'], SaleAmounts::SCALE);
+        $problem = $charges->problem($running);
+
+        if ($problem === null && $charges->shippingTaxOption !== ShippingTaxOption::None && ! $this->shippingTaxFollowsTheSettings($charges, $settings, $taxIncluded)) {
+            $problem = HeaderChargesProblem::TaxPercentInvalid;
+        }
+
+        if ($problem !== null) {
+            return new AccountingException($problem === HeaderChargesProblem::ExceedsTotal ? AccountingError::AdjustmentExceedsTotal : AccountingError::HeaderChargesInvalid, 'The adjustment or the shipping cannot be accepted: ' . $problem->value . '.', ['sale_id' => $saleId, 'problem' => $problem->value]);
+        }
+
+        $resolved = $charges->resolve($running);
+        $zero     = fn (string $amount): ?string => bccomp($amount, '0', SaleAmounts::SCALE) === 0 ? null : $amount;
+        $taxed    = bccomp($resolved->shipping, '0', SaleAmounts::SCALE) !== 0 && $charges->shippingTaxOption !== ShippingTaxOption::None;
+
+        $this->db->table('sales')->where('sale_id', $saleId)->update([
+            'adjustment_label'     => $zero($resolved->adjustment) === null || $resolved->adjustmentLabel === '' ? null : $resolved->adjustmentLabel,
+            'adjustment_amount'    => $zero($resolved->adjustment),
+            'shipping_amount'      => $zero($resolved->shipping),
+            'shipping_options'     => $resolved->shippingOptions,
+            'shipping_tax_option'  => $taxed ? $charges->shippingTaxOption->value : null,
+            'shipping_tax_percent' => $taxed ? $charges->shippingTaxPercent : null,
+            'shipping_tax_amount'  => $taxed ? $resolved->shippingTax : null,
+        ]);
+
+        return null;
+    }
+
+    private function shippingTaxFollowsTheSettings(HeaderCharges $charges, AccountingSettings $settings, bool $taxIncluded): bool
+    {
+        $mode = $taxIncluded ? ShippingTaxOption::Included : ShippingTaxOption::Added;
+
+        return bccomp($settings->shippingTaxPercent(), '0', 4) > 0
+            && bccomp($charges->shippingTaxPercent, $settings->shippingTaxPercent(), 4) === 0
+            && $charges->shippingTaxOption === $mode;
+    }
+
+    /**
+     * Writes who gave an adjustment or a shipping charge on a completed sale, and how much, in the
+     * transaction of the sale. While accounting is off nothing is written.
+     */
+    private function auditHeaderCharges(int $saleId, int $employeeId, int $branchId): void
+    {
+        if (! (new AccountingSettings($this->db))->isEnabled()) {
+            return;
+        }
+
+        $row = $this->db->table('sales')->select('adjustment_amount, shipping_amount, shipping_tax_amount')->where('sale_id', $saleId)->get()->getRow();
+
+        if ($row === null || ($row->adjustment_amount === null && $row->shipping_amount === null)) {
+            return;
+        }
+
+        (new AuditLog($this->db))->write('sale', $saleId, 'header_charges_given', $employeeId, JournalOrigin::User, [
+            'adjustment'   => (string) ($row->adjustment_amount ?? '0'),
+            'shipping'     => (string) ($row->shipping_amount ?? '0'),
+            'shipping_tax' => (string) ($row->shipping_tax_amount ?? '0'),
         ], $branchId);
     }
 

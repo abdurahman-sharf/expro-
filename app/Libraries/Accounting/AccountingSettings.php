@@ -20,6 +20,12 @@ final class AccountingSettings
     private const EXPENSE_ACCOUNT_KEY  = 'accounting_expense_account_required';
     private const REVENUE_ACCOUNT_KEY  = 'accounting_revenue_account_required';
     private const CUSTOMER_OPENING_KEY = 'accounting_customer_opening';
+    private const SALES_ADJUSTMENT_KEY = 'accounting_sales_adjustment';
+    private const SALES_SHIPPING_KEY   = 'accounting_sales_shipping';
+    private const SHIPPING_TAX_KEY     = 'accounting_shipping_tax_percent';
+    private const DEBIT_NOTE_KEY       = 'accounting_debit_note';
+    private const SALES_TEMPLATE_KEY   = 'accounting_journal_description_sales';
+    private const BUYING_TEMPLATE_KEY  = 'accounting_journal_description_purchases';
 
     private BaseConnection $db;
     private Appconfig $config;
@@ -85,6 +91,56 @@ final class AccountingSettings
     }
 
     /**
+     * Whether an invoice, a quote or a credit note may carry an adjustment (a label and a signed amount).
+     * It is off until it is turned on, as nothing of it exists where nobody asked for it.
+     */
+    public function salesAdjustmentEnabled(): bool
+    {
+        return $this->config->get_value(self::SALES_ADJUSTMENT_KEY, '0') === '1';
+    }
+
+    /**
+     * Whether an invoice, a quote or a credit note may carry a shipping charge. It is off until it is turned on.
+     */
+    public function salesShippingEnabled(): bool
+    {
+        return $this->config->get_value(self::SALES_SHIPPING_KEY, '0') === '1';
+    }
+
+    /**
+     * The tax rate that applies to a shipping charge when the document asks for it, in percent. Zero means
+     * the shipping carries no tax.
+     *
+     * @return numeric-string
+     */
+    public function shippingTaxPercent(): string
+    {
+        $value = $this->config->get_value(self::SHIPPING_TAX_KEY, '0');
+
+        return preg_match('/^\d{1,3}(\.\d{1,4})?$/', $value) === 1 && bccomp($value, '100', 4) <= 0 ? $value : '0';
+    }
+
+    /**
+     * Whether the sales debit note is available: a document that raises what a customer owes without an
+     * invoice. It is off until it is turned on, as the reference system keeps it.
+     */
+    public function debitNoteEnabled(): bool
+    {
+        return $this->config->get_value(self::DEBIT_NOTE_KEY, '0') === '1';
+    }
+
+    /**
+     * The template the automatic journals of sales or of purchases are described with, or an empty text
+     * for the descriptions the application writes.
+     */
+    public function journalDescriptionTemplate(string $scope): string
+    {
+        $value = $this->config->get_value($scope === JournalDescriptionTemplate::PURCHASES ? self::BUYING_TEMPLATE_KEY : self::SALES_TEMPLATE_KEY, '');
+
+        return JournalDescriptionTemplate::isValid($value) ? trim($value) : '';
+    }
+
+    /**
      * Whether a receipt voucher must be credited to an account chosen on it or to a category that
      * has one, instead of falling back to the account of other revenue the routing names.
      */
@@ -112,7 +168,7 @@ final class AccountingSettings
     }
 
     /**
-     * @param array{base_currency?: string, start_date?: string, auto_fiscal_year?: bool, line_description_required?: bool, expense_account_required?: bool, revenue_account_required?: bool, customer_opening?: bool} $input
+     * @param array{base_currency?: string, start_date?: string, auto_fiscal_year?: bool, line_description_required?: bool, expense_account_required?: bool, revenue_account_required?: bool, customer_opening?: bool, sales_adjustment?: bool, sales_shipping?: bool, shipping_tax_percent?: string, debit_note?: bool, journal_description_sales?: string, journal_description_purchases?: string} $input
      *
      * @throws AccountingException|BranchException
      */
@@ -120,7 +176,7 @@ final class AccountingSettings
     {
         $this->requireManage($employeeId);
 
-        $before  = ['base_currency' => $this->baseCurrency(), 'start_date' => $this->startDate(), 'auto_fiscal_year' => $this->autoFiscalYear(), 'line_description_required' => $this->lineDescriptionRequired(), 'expense_account_required' => $this->expenseAccountRequired(), 'revenue_account_required' => $this->revenueAccountRequired(), 'customer_opening' => $this->customerOpeningEnabled()];
+        $before  = ['base_currency' => $this->baseCurrency(), 'start_date' => $this->startDate(), 'auto_fiscal_year' => $this->autoFiscalYear(), 'line_description_required' => $this->lineDescriptionRequired(), 'expense_account_required' => $this->expenseAccountRequired(), 'revenue_account_required' => $this->revenueAccountRequired(), 'customer_opening' => $this->customerOpeningEnabled(), 'sales_adjustment' => $this->salesAdjustmentEnabled(), 'sales_shipping' => $this->salesShippingEnabled(), 'shipping_tax_percent' => $this->shippingTaxPercent(), 'debit_note' => $this->debitNoteEnabled(), 'journal_description_sales' => $this->journalDescriptionTemplate(JournalDescriptionTemplate::SALES), 'journal_description_purchases' => $this->journalDescriptionTemplate(JournalDescriptionTemplate::PURCHASES)];
         $after   = $before;
         $changes = [];
 
@@ -165,6 +221,34 @@ final class AccountingSettings
             $after['customer_opening'] = (bool) $input['customer_opening'];
         }
 
+        foreach (['sales_adjustment', 'sales_shipping', 'debit_note'] as $flag) {
+            if (array_key_exists($flag, $input)) {
+                $after[$flag] = (bool) $input[$flag];
+            }
+        }
+
+        if (array_key_exists('shipping_tax_percent', $input)) {
+            $percent = trim((string) $input['shipping_tax_percent']);
+
+            if (preg_match('/^\d{1,3}(\.\d{1,4})?$/', $percent) !== 1 || bccomp($percent, '100', 4) > 0) {
+                throw new AccountingException(AccountingError::ShippingTaxPercentInvalid, 'The tax on shipping must be a percentage from 0 to 100.');
+            }
+
+            $after['shipping_tax_percent'] = $percent;
+        }
+
+        foreach (['journal_description_sales', 'journal_description_purchases'] as $templateKey) {
+            if (array_key_exists($templateKey, $input)) {
+                $template = trim((string) $input[$templateKey]);
+
+                if (! JournalDescriptionTemplate::isValid($template)) {
+                    throw new AccountingException(AccountingError::JournalTemplateInvalid, 'The description template may only hold the placeholders {number}, {party}, {type} and {date}, no markup, and up to 200 characters.', ['max' => JournalDescriptionTemplate::MAX]);
+                }
+
+                $after[$templateKey] = $template;
+            }
+        }
+
         foreach ($after as $key => $value) {
             if ($value !== $before[$key]) {
                 $changes[$key] = $value;
@@ -194,6 +278,12 @@ final class AccountingSettings
                 'expense_account_required'  => self::EXPENSE_ACCOUNT_KEY,
                 'revenue_account_required'  => self::REVENUE_ACCOUNT_KEY,
                 'customer_opening'          => self::CUSTOMER_OPENING_KEY,
+                'sales_adjustment'          => self::SALES_ADJUSTMENT_KEY,
+                'sales_shipping'            => self::SALES_SHIPPING_KEY,
+                'shipping_tax_percent'      => self::SHIPPING_TAX_KEY,
+                'debit_note'                => self::DEBIT_NOTE_KEY,
+                'journal_description_sales'     => self::SALES_TEMPLATE_KEY,
+                'journal_description_purchases' => self::BUYING_TEMPLATE_KEY,
             }] = is_bool($value) ? ($value ? '1' : '0') : $value;
         }
 

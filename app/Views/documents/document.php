@@ -139,6 +139,12 @@ $notes = array_filter([
                                 <td class="<?= $alignEnd ?>"><?= documentIsolate(to_currency_tax($tax['sale_tax_amount'])) ?></td>
                             </tr>
                         <?php endforeach; ?>
+                        <?php foreach (headerChargeRows($sale['header_charges'] ?? []) as [$chargeLabel, $chargeAmount]): ?>
+                            <tr class="doc-header-charge">
+                                <td class="<?= $alignStart ?>"><?= esc($chargeLabel) ?></td>
+                                <td class="<?= $alignEnd ?>"><?= documentIsolate(to_currency($chargeAmount)) ?></td>
+                            </tr>
+                        <?php endforeach; ?>
                         <tr class="doc-grand">
                             <td class="<?= $alignStart ?>"><?= lang('Sales.total') ?></td>
                             <td class="<?= $alignEnd ?>"><?= documentIsolate(to_currency($sale['total'])) ?></td>

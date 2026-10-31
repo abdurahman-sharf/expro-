@@ -263,4 +263,21 @@ enum AccountingError: string
     case RevenueCategoryNotFound    = 'revenue_category_not_found';
     case RevenueCategoryNameInvalid = 'revenue_category_name_invalid';
     case RevenueCategoryNameTaken   = 'revenue_category_name_taken';
+
+    case HeaderChargesOff        = 'header_charges_off';
+    case HeaderChargesInvalid    = 'header_charges_invalid';
+    case HeaderChargesNotAllowed = 'header_charges_not_allowed';
+    case AdjustmentExceedsTotal  = 'adjustment_exceeds_total';
+
+    case DebitNoteOff              = 'debit_note_off';
+    case DebitNoteNotFound         = 'debit_note_not_found';
+    case DebitNoteReversed         = 'debit_note_reversed';
+    case DebitNoteAmountInvalid    = 'debit_note_amount_invalid';
+    case DebitNoteTaxInvalid       = 'debit_note_tax_invalid';
+    case DebitNoteCustomerMissing  = 'debit_note_customer_missing';
+    case DebitNoteAccountInvalid   = 'debit_note_account_invalid';
+    case DebitNoteNoteTooLong      = 'debit_note_note_too_long';
+    case DebitNoteCreditSpent      = 'debit_note_credit_spent';
+    case JournalTemplateInvalid    = 'journal_template_invalid';
+    case ShippingTaxPercentInvalid = 'shipping_tax_percent_invalid';
 }

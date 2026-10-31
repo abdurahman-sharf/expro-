@@ -124,7 +124,7 @@ class RoutingServiceTest extends CIUnitTestCase
         $keys = array_map(static fn (RoutingItem $item): string => $item->key, $this->service->items());
 
         $this->assertSame([
-            'sales.customers', 'sales.revenue', 'sales.returns', 'sales.discount', 'sales.product', 'sales.adjustment', 'sales.cogs',
+            'sales.customers', 'sales.revenue', 'sales.returns', 'sales.discount', 'sales.product', 'sales.adjustment', 'sales.shipping', 'sales.cogs',
             'purchases.suppliers', 'purchases.purchases', 'purchases.returns', 'purchases.discount', 'purchases.adjustment',
             'inventory.locations', 'treasuries.accounts', 'treasuries.banks', 'branches.receivable', 'branches.payable',
             'cheques.receivable', 'cheques.collection', 'cheques.fees', 'cheques.payable',

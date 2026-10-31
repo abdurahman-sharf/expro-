@@ -2,8 +2,10 @@
 
 namespace App\Libraries\Accounting;
 
+use App\Libraries\HeaderCharges;
 use App\Libraries\InvoiceDiscount;
 use App\Libraries\InvoiceDiscountProblem;
+use App\Libraries\ShippingTaxOption;
 use App\Libraries\Tax_lib;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
@@ -39,7 +41,7 @@ final class DraftInvoice
     public function find(int $saleId): ?object
     {
         return $this->db->table('sales')
-            ->select('sale_id, sale_time, customer_id, employee_id, comment, invoice_number, branch_id, delivered, dinner_table_id, invoice_discount_type, invoice_discount, invoice_date, payment_terms_days, source_quote_id')
+            ->select('sale_id, sale_time, customer_id, employee_id, comment, invoice_number, branch_id, delivered, dinner_table_id, invoice_discount_type, invoice_discount, invoice_date, payment_terms_days, source_quote_id, adjustment_label, adjustment_amount, shipping_amount, shipping_options, shipping_tax_option, shipping_tax_percent')
             ->where(['sale_id' => $saleId, 'sale_status' => SUSPENDED, 'sale_type' => SALE_TYPE_INVOICE])
             ->get()
             ->getRow();
@@ -76,7 +78,7 @@ final class DraftInvoice
     public function fingerprint(int $saleId): string
     {
         $header = $this->db->table('sales')
-            ->select('customer_id, comment, branch_id, delivered, dinner_table_id, invoice_discount_type, invoice_discount, invoice_date, payment_terms_days, invoice_number')
+            ->select('customer_id, comment, branch_id, delivered, dinner_table_id, invoice_discount_type, invoice_discount, invoice_date, payment_terms_days, invoice_number, adjustment_label, adjustment_amount, shipping_amount, shipping_options, shipping_tax_option, shipping_tax_percent')
             ->where('sale_id', $saleId)
             ->get()
             ->getRowArray();
@@ -107,7 +109,7 @@ final class DraftInvoice
         $fingerprint = $this->fingerprint($saleId);
 
         $row = $this->db->table('sales')
-            ->select('sale_id, sale_time, customer_id, employee_id, comment, invoice_number, branch_id, delivered, dinner_table_id, invoice_discount_type, invoice_discount, invoice_date, payment_terms_days, source_quote_id')
+            ->select('sale_id, sale_time, customer_id, employee_id, comment, invoice_number, branch_id, delivered, dinner_table_id, invoice_discount_type, invoice_discount, invoice_date, payment_terms_days, source_quote_id, adjustment_label, adjustment_amount, shipping_amount, shipping_options, shipping_tax_option, shipping_tax_percent')
             ->where('sale_status', SUSPENDED)
             ->where('sale_id', $saleId)
             ->whereIn('sale_type', [SALE_TYPE_INVOICE, SALE_TYPE_QUOTE])
@@ -158,6 +160,19 @@ final class DraftInvoice
             problem: $problem,
             document: $this->document($draft, $items, $taxes),
             fingerprint: $fingerprint,
+            headerCharges: $this->headerCharges($draft),
+        );
+    }
+
+    private function headerCharges(object $draft): HeaderCharges
+    {
+        return new HeaderCharges(
+            (string) ($draft->adjustment_label ?? ''),
+            (string) ($draft->adjustment_amount ?? '0'),
+            (string) ($draft->shipping_amount ?? '0'),
+            ShippingTaxOption::fromStored($draft->shipping_tax_option),
+            (string) ($draft->shipping_tax_percent ?? '0'),
+            $draft->shipping_options === null ? null : (int) $draft->shipping_options,
         );
     }
 
@@ -166,7 +181,7 @@ final class DraftInvoice
      * the discount on the whole of it take off, the tax it would carry now, and the total. The tax is
      * the one worked out at this moment, so it can still change before the draft is issued.
      *
-     * @return array{gross: string, discount: string, invoiceDiscount: string, tax: string, total: string}
+     * @return array{gross: string, discount: string, invoiceDiscount: string, tax: string, total: string, shipping: string, shippingTax: string, adjustment: string, adjustmentLabel: string}
      */
     public function figures(DraftIssue $issue): array
     {
@@ -185,12 +200,19 @@ final class DraftInvoice
             $included = bcadd($included, SaleAmounts::absolute($line->includedTax), SaleAmounts::SCALE);
         }
 
+        $running = bcadd(bcsub(bcsub($gross, $discount, SaleAmounts::SCALE), $share, SaleAmounts::SCALE), $added, SaleAmounts::SCALE);
+        $charges = $issue->headerCharges->resolve($running);
+
         return [
             'gross'           => bcadd($gross, '0', SaleAmounts::SCALE),
             'discount'        => bcadd($discount, '0', SaleAmounts::SCALE),
             'invoiceDiscount' => bcadd($share, '0', SaleAmounts::SCALE),
             'tax'             => bcadd($added, $included, SaleAmounts::SCALE),
-            'total'           => bcadd(bcsub(bcsub($gross, $discount, SaleAmounts::SCALE), $share, SaleAmounts::SCALE), $added, SaleAmounts::SCALE),
+            'total'           => bcadd($running, $charges->addedToTotal(), SaleAmounts::SCALE),
+            'shipping'        => $charges->shipping,
+            'shippingTax'     => $charges->shippingTax,
+            'adjustment'      => $charges->adjustment,
+            'adjustmentLabel' => $charges->adjustmentLabel,
         ];
     }
 

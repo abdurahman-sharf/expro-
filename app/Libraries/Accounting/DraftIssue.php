@@ -2,12 +2,13 @@
 
 namespace App\Libraries\Accounting;
 
+use App\Libraries\HeaderCharges;
 use App\Libraries\InvoiceDiscountProblem;
 
 /**
  * What it takes to save a draft invoice as an issued one, worked out from what the draft holds: its
  * lines as the register would carry them, the taxes they come to now, its payments and the discount
- * on the whole of it.
+ * on the whole of it and the charges of its header.
  */
 final readonly class DraftIssue
 {
@@ -34,6 +35,7 @@ final readonly class DraftIssue
         public ?InvoiceDiscountProblem $problem,
         public ?SaleDocument $document,
         public string $fingerprint,
+        public HeaderCharges $headerCharges = new HeaderCharges(),
     ) {
     }
 }

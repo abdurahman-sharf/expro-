@@ -97,6 +97,34 @@ function invoiceDiscountLabel(?array $entry): string
 }
 
 /**
+ * The rows the charges of the header add to a document, as a label and an amount: the shipping, the tax
+ * on it when that tax is on top of the amount, and the adjustment under the label it was typed with.
+ *
+ * @param array<string, mixed> $charges
+ *
+ * @return list<array{string, string}>
+ */
+function headerChargeRows(array $charges): array
+{
+    $rows = [];
+
+    if (bccomp((string) ($charges['shipping'] ?? '0'), '0', 4) !== 0) {
+        $rows[] = [lang('Sales.shipping'), (string) $charges['shipping']];
+
+        if (empty($charges['shipping_tax_included']) && bccomp((string) ($charges['shipping_tax'] ?? '0'), '0', 4) !== 0) {
+            $rows[] = [lang('Sales.shipping_tax'), (string) $charges['shipping_tax']];
+        }
+    }
+
+    if (bccomp((string) ($charges['adjustment'] ?? '0'), '0', 4) !== 0) {
+        $label  = trim((string) ($charges['adjustment_label'] ?? ''));
+        $rows[] = [$label === '' ? lang('Sales.adjustment') : $label, (string) $charges['adjustment']];
+    }
+
+    return $rows;
+}
+
+/**
  * Keeps amounts and numbers in left-to-right order inside right-to-left text.
  */
 function documentIsolate(string $text): string

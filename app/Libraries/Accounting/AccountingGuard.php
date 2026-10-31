@@ -33,6 +33,7 @@ final class AccountingGuard
     public const INTERBRANCH_SETTLE  = 'acc_interbranch_settle';
     public const YEAR_END_CLOSE      = 'acc_year_end_close';
     public const CHEQUES_MANAGE      = 'acc_cheques_manage';
+    public const DEBIT_NOTES_MANAGE  = 'acc_debit_notes_manage';
 
     /**
      * Permissions that change what ordinary users cannot undo. Nothing grants them

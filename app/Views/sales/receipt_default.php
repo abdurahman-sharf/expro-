@@ -122,6 +122,13 @@
             </tr>
         <?php } ?>
 
+        <?php foreach (headerChargeRows($header_charges ?? []) as [$chargeLabel, $chargeAmount]) { ?>
+            <tr>
+                <td colspan="3" class="total-value"><?= esc($chargeLabel) ?>:</td>
+                <td class="total-value"><?= to_currency($chargeAmount) ?></td>
+            </tr>
+        <?php } ?>
+
         <?php if ($config['receipt_show_taxes']) { ?>
             <tr>
                 <td colspan="3" style="text-align: right; border-top: 2px solid #000000;"><?= lang('Sales.sub_total') ?></td>
