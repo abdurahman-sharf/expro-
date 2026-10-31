@@ -340,7 +340,10 @@ class CustomerAdvancesTest extends CIUnitTestCase
 
         $this->advances->cancel($advanceId, 'twice', $this->clerk);
 
-        $this->assertSame(AccountingError::AdvanceAlreadyCancelled, $this->refusal(fn () => $this->advances->cancel($advanceId, 'twice', $this->clerk))->error);
+        $second = $this->refusal(fn () => $this->advances->cancel($advanceId, 'twice', $this->clerk));
+
+        $this->assertSame(AccountingError::AdvanceAlreadyCancelled, $second->error);
+        $this->assertSame(['advance_id' => $advanceId], $second->context);
         $this->assertSame(AccountingError::AdvanceNotFound, $this->refusal(fn () => $this->advances->cancel(999999, 'twice', $this->clerk))->error);
         $this->assertSame(2, $this->countRows('accounting_journals'));
     }
@@ -423,7 +426,7 @@ class CustomerAdvancesTest extends CIUnitTestCase
 
     public function testReceive_RefusesWhatCannotBeReceived(): void
     {
-        foreach (['0', '0.00', '-5', 'ten', '', '1e3', '12345678901234'] as $amount) {
+        foreach (['0', '0.00', '-5', 'ten', '', '1e3', '12345678901234', '1.23456'] as $amount) {
             $this->assertSame(AccountingError::AdvanceAmountInvalid, $this->refusal(fn () => $this->receive($amount))->error, "amount {$amount}");
         }
 

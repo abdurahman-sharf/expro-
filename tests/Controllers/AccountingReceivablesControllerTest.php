@@ -1693,6 +1693,39 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
         $this->get('/accounting_receivables/cancel_form/purchase/' . $advanceId);
     }
 
+    public function testGetCancelForm_OpensARefundForWhoHoldsOnlyThePermissionToRefundAndNotForWhoMayOnlyTakeAdvances(): void
+    {
+        $teller = $this->teller();
+
+        $this->advanceOf('100.00', $teller);
+
+        $refundId = (new CreditRefunds(CreditRefunds::CUSTOMER))->refund($this->customerId, '10.00', date('Y-m-d'), 'Cash', null, '', '', $teller);
+
+        $this->teller([AccountingGuard::RECEIVABLES_REFUND]);
+
+        $this->get('/accounting_receivables/cancel_form/customer_refund/' . $refundId)->assertSee('name="reason"');
+
+        $this->teller([AccountingGuard::RECEIVABLES_MANAGE]);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_receivables/cancel_form/customer_refund/' . $refundId);
+    }
+
+    public function testGetRefundForm_OffersOnlyTheTreasuriesTheTellerMayWithdrawFrom(): void
+    {
+        $teller = $this->teller();
+        $other  = $this->employeeWithGrants([]);
+
+        (new TreasuryService())->create(['name' => 'Open drawer', 'kind' => 'cash'], $teller);
+        (new TreasuryService())->create(['name' => 'Locked drawer', 'kind' => 'cash', 'withdraw_scope' => 'staff', 'withdraw_members' => [$other]], $teller);
+
+        $response = $this->get('/accounting_receivables/refund_form/' . $this->customerId);
+
+        $response->assertSee('Open drawer');
+        $response->assertDontSee('Locked drawer');
+    }
+
     public function testGetCustomer_ListsTheAdvancesAndRefundsAndOffersTheButtonsOnlyToWhoMayUseThem(): void
     {
         $teller = $this->teller();

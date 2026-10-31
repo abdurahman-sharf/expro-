@@ -317,7 +317,7 @@ class CreditRefundsTest extends CIUnitTestCase
     {
         $this->advance();
 
-        foreach (['0', '-5', 'ten', '', '1e3'] as $amount) {
+        foreach (['0', '-5', 'ten', '', '1e3', '1.23456'] as $amount) {
             $this->assertSame(AccountingError::AdvanceAmountInvalid, $this->refusal(fn () => $this->refund($amount))->error, "amount {$amount}");
         }
 
@@ -486,6 +486,7 @@ class CreditRefundsTest extends CIUnitTestCase
 
         foreach (['', '   ', str_repeat('x', 256)] as $reason) {
             $this->assertSame(AccountingError::ReasonRequired, $this->refusal(fn () => $this->refunds->cancel($refundId, $reason, $this->clerk))->error);
+            $this->assertSame(AccountingError::ReasonRequired, $this->refusal(fn () => $this->refunds->cancel(999999, $reason, $this->clerk))->error);
         }
 
         $this->assertSame(AccountingError::PermissionDenied, $this->refusal(fn () => $this->refunds->cancel($refundId, 'no right', $outsider))->error);
@@ -561,6 +562,26 @@ class CreditRefundsTest extends CIUnitTestCase
 
         $this->assertTrue($cut('290.00'));
         $this->assertSame('10.00', $this->free());
+        $this->assertTies();
+    }
+
+    public function testRefund_CutsWhatWasSpentOnAnInvoiceWhenTheCreditShrinksToWhatWasPaidBack(): void
+    {
+        $source = $this->invoiceOf('100.00');
+        $paid   = $this->addPayment($source, '150.00');
+        $waits  = $this->invoiceOf('30.00');
+
+        $this->assertSame(['invoice_excess:' . $source . '->' . $waits . ':30.00'], $this->applications());
+
+        $this->refund('20.00');
+
+        $this->assertTrue($this->sales->update($source, ['comment' => 'cut', 'payments' => [
+            ['payment_id' => $paid, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '120.00', 'cash_refund' => 0, 'cash_adjustment' => 0, 'employee_id' => $this->employeeId, 'reference_code' => null],
+        ]]));
+
+        $this->assertSame([], $this->applications());
+        $this->assertSame('30.00', bcadd($this->position()->invoice($waits)->open(), '0', 2));
+        $this->assertSame('0.00', $this->free());
         $this->assertTies();
     }
 
