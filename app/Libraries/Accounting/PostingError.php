@@ -49,4 +49,5 @@ enum PostingError: string
     case ExpenseTaxInvalid             = 'expense_tax_invalid';
     case CrossBranchPaymentInvalid     = 'cross_branch_payment_invalid';
     case RevenueTaxInvalid             = 'revenue_tax_invalid';
+    case PreviewMissing                = 'preview_missing';
 }

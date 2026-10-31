@@ -20,6 +20,7 @@ final class AccountingSettings
     private const EXPENSE_ACCOUNT_KEY  = 'accounting_expense_account_required';
     private const REVENUE_ACCOUNT_KEY  = 'accounting_revenue_account_required';
     private const CUSTOMER_OPENING_KEY = 'accounting_customer_opening';
+    private const BACKFILL_KEY         = 'accounting_backfill_enabled';
 
     private BaseConnection $db;
     private Appconfig $config;
@@ -85,6 +86,16 @@ final class AccountingSettings
     }
 
     /**
+     * Whether a batch of the retroactive posting may be approved. It is off until it is turned on, so that
+     * nothing of the past enters the books on a database where nobody ordered it; a batch is previewed
+     * either way, because a preview changes no balance.
+     */
+    public function backfillEnabled(): bool
+    {
+        return $this->config->get_value(self::BACKFILL_KEY, '0') === '1';
+    }
+
+    /**
      * Whether a receipt voucher must be credited to an account chosen on it or to a category that
      * has one, instead of falling back to the account of other revenue the routing names.
      */
@@ -112,7 +123,7 @@ final class AccountingSettings
     }
 
     /**
-     * @param array{base_currency?: string, start_date?: string, auto_fiscal_year?: bool, line_description_required?: bool, expense_account_required?: bool, revenue_account_required?: bool, customer_opening?: bool} $input
+     * @param array{base_currency?: string, start_date?: string, auto_fiscal_year?: bool, line_description_required?: bool, expense_account_required?: bool, revenue_account_required?: bool, customer_opening?: bool, backfill_enabled?: bool} $input
      *
      * @throws AccountingException|BranchException
      */
@@ -120,7 +131,7 @@ final class AccountingSettings
     {
         $this->requireManage($employeeId);
 
-        $before  = ['base_currency' => $this->baseCurrency(), 'start_date' => $this->startDate(), 'auto_fiscal_year' => $this->autoFiscalYear(), 'line_description_required' => $this->lineDescriptionRequired(), 'expense_account_required' => $this->expenseAccountRequired(), 'revenue_account_required' => $this->revenueAccountRequired(), 'customer_opening' => $this->customerOpeningEnabled()];
+        $before  = ['base_currency' => $this->baseCurrency(), 'start_date' => $this->startDate(), 'auto_fiscal_year' => $this->autoFiscalYear(), 'line_description_required' => $this->lineDescriptionRequired(), 'expense_account_required' => $this->expenseAccountRequired(), 'revenue_account_required' => $this->revenueAccountRequired(), 'customer_opening' => $this->customerOpeningEnabled(), 'backfill_enabled' => $this->backfillEnabled()];
         $after   = $before;
         $changes = [];
 
@@ -165,6 +176,10 @@ final class AccountingSettings
             $after['customer_opening'] = (bool) $input['customer_opening'];
         }
 
+        if (array_key_exists('backfill_enabled', $input)) {
+            $after['backfill_enabled'] = (bool) $input['backfill_enabled'];
+        }
+
         foreach ($after as $key => $value) {
             if ($value !== $before[$key]) {
                 $changes[$key] = $value;
@@ -194,6 +209,7 @@ final class AccountingSettings
                 'expense_account_required'  => self::EXPENSE_ACCOUNT_KEY,
                 'revenue_account_required'  => self::REVENUE_ACCOUNT_KEY,
                 'customer_opening'          => self::CUSTOMER_OPENING_KEY,
+                'backfill_enabled'          => self::BACKFILL_KEY,
             }] = is_bool($value) ? ($value ? '1' : '0') : $value;
         }
 

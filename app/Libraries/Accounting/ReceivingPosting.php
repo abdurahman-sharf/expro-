@@ -287,6 +287,7 @@ final class ReceivingPosting
     {
         $builder = $this->db->table('accounting_journals')
             ->select('journal_id, number, journal_date, status, source_type, source_id, entry_type, revision, total_debit')
+            ->where('status !=', JournalStatus::Preview->value)
             ->groupStart()
             ->groupStart()
             ->whereIn('source_type', [ReceivingPostingBuilder::SOURCE_PURCHASE, ReceivingPostingBuilder::SOURCE_PAYMENT, ReceivingPostingBuilder::SOURCE_STOCK_TRANSFER, ReceivingPostingBuilder::SOURCE_TRANSFER_RECEIPT])
