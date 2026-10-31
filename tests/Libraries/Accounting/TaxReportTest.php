@@ -920,4 +920,100 @@ class TaxReportTest extends CIUnitTestCase
         $this->assertFalse($report->reachesBeforeBooks());
     }
 
+
+    public function testBuild_ReadsTheAccountOfATaxThatHasOneOfItsOwnNextToTheRoutedAccountAndTiesBoth(): void
+    {
+        $account = $this->customAccount('215', '215003', 'Tax on services');
+        $item    = $this->item('0', false);
+
+        $this->save([$this->line($item, 0, '1', '100')], [$this->taxRow($item, 0, 'VAT', '15.0000', 1, '15.00'), $this->taxRow($item, 0, 'Service', '5.0000', 1, '5.00', $account)], [], SALE_TYPE_INVOICE);
+
+        $report = $this->report();
+
+        $this->assertSame('20.0000', $report->output());
+        $this->assertSame('15.0000', $this->accountOf($report, '215001')->movement);
+        $this->assertSame('5.0000', $this->accountOf($report, '215003')->movement);
+        $this->assertSame(['output'], $this->accountOf($report, '215003')->roles);
+        $this->assertSame(['215001', '215002', '215003'], array_map(static fn (TaxAccountFigures $figures): string => $figures->code, $report->accounts));
+        $this->assertTrue($report->ties());
+        $this->assertSame('5.0000', $this->trialMovement('215003', ReportScope::resolve(null, null)));
+    }
+
+    public function testBuild_CountsTheTaxInsideThePriceAgainstTheNetOfTheLineAndTiesWithTheAccountOfItsOwn(): void
+    {
+        $account = $this->customAccount('215', '215003', 'Tax on services');
+        $item    = $this->item('0', false);
+
+        $this->save([$this->line($item, 0, '1', '115')], [$this->taxRow($item, 0, 'VAT', '15.0000', 0, '15.00', $account)], [], SALE_TYPE_INVOICE);
+
+        $report = $this->report();
+
+        $this->assertSame(['base' => '100.0000', 'tax' => '15.0000', 'documents' => 1], $this->figures($report, TaxSection::SalesInvoices));
+        $this->assertSame('15.0000', $this->accountOf($report, '215003')->reported);
+        $this->assertTrue($report->ties());
+        $this->assertSame(0, $report->unmatchedDocuments);
+    }
+
+    public function testBuild_NetsAnInvoiceAndItsCreditNoteToNothingOnTheAccountOfItsOwn(): void
+    {
+        $account = $this->customAccount('215', '215003', 'Tax on services');
+        $item    = $this->item('0', false);
+        $invoice = $this->save([$this->line($item, 0, '1', '115')], [$this->taxRow($item, 0, 'VAT', '15.0000', 0, '15.00', $account)], [], SALE_TYPE_INVOICE);
+
+        $this->save([$this->line($item, 0, '-1', '115')], [$this->taxRow($item, 0, 'VAT', '15.0000', 0, '-15.00', $account)], [], SALE_TYPE_RETURN, -1, true, $invoice);
+
+        $report = $this->report();
+
+        $this->assertSame('0.0000', $report->output());
+        $this->assertSame('0.0000', $this->accountOf($report, '215003')->movement);
+        $this->assertSame('15.0000', $report->section(TaxSection::SalesInvoices)->tax);
+        $this->assertSame('-15.0000', $report->section(TaxSection::SalesReturns)->tax);
+        $this->assertTrue($report->ties());
+    }
+
+    public function testBuild_KeepsTheAccountASaleWasSavedWithInTheReportAfterTheTaxLeftTheList(): void
+    {
+        $account = $this->customAccount('215', '215003', 'Tax on services');
+        $item    = $this->item('0', false);
+
+        $this->save([$this->line($item, 0, '1', '100')], [$this->taxRow($item, 0, 'Gone', '15.0000', 1, '15.00', $account)], [], SALE_TYPE_INVOICE);
+
+        $report = $this->report();
+
+        $this->assertSame('15.0000', $this->accountOf($report, '215003')->movement);
+        $this->assertTrue($report->ties());
+        $this->assertSame(0, $this->countRows('tax_definitions'));
+    }
+
+    public function testBuild_ReadsTheAccountOfATaxOnTheListBeforeAnyDocumentUsesIt(): void
+    {
+        $account = $this->customAccount('215', '215003', 'Tax on services');
+
+        $this->accountingDb()->table('tax_definitions')->insert(['tax_name' => 'Service', 'tax_included' => null, 'liability_account_id' => $account]);
+
+        try {
+            $report = $this->report();
+
+            $this->assertSame('0.0000', $this->accountOf($report, '215003')->movement);
+            $this->assertTrue($report->ties());
+        } finally {
+            $this->accountingDb()->table('tax_definitions')->truncate();
+        }
+    }
+
+    public function testBuild_ShowsWhatIsPostedByHandToTheAccountOfATaxApartFromTheDocuments(): void
+    {
+        $account = $this->customAccount('215', '215003', 'Tax on services');
+        $item    = $this->item('0', false);
+
+        $this->save([$this->line($item, 0, '1', '100')], [$this->taxRow($item, 0, 'Service', '5.0000', 1, '5.00', $account)], [], SALE_TYPE_INVOICE);
+        $this->postManual('215003', '0.00', '2.00');
+
+        $figures = $this->accountOf($this->report(), '215003');
+
+        $this->assertSame('7.0000', $figures->movement);
+        $this->assertSame('5.0000', $figures->reported);
+        $this->assertSame('2.0000', $figures->other());
+        $this->assertFalse($figures->ties());
+    }
 }

@@ -8,6 +8,7 @@ use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\InvoiceDiscountProblem;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
+use App\Models\Appconfig;
 use App\Models\Sale;
 use CodeIgniter\Database\Config;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -1282,5 +1283,160 @@ class SaleTest extends CIUnitTestCase
         $saleModel->update_sale_status($return, CANCELED);
 
         $this->assertSame('0.000', $saleModel->invoiceDiscountOrigin($invoice)[$itemId]['returned']);
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // A tax of each mode on a line, and the setting that asks for a tax on every line (WP25)
+    // ---------------------------------------------------------------------------------------
+
+    private function setRequireTax(bool $on): void
+    {
+        model(Appconfig::class)->save(['require_tax_1' => $on ? '1' : '0']);
+    }
+
+    /**
+     * @param list<array{0: string, 1: string, 2: int, 3: string}> $rows The name, the percent, the mode (0 inside the price, 1 added) and the amount of each tax.
+     *
+     * @return array{int, list<array<string, mixed>>}
+     */
+    private function saveTaxed(array $rows, int $status = COMPLETED, int $type = SALE_TYPE_POS, int $customerId = NEW_ENTRY, string $price = '100'): array
+    {
+        $itemId = $this->createTestItem(HAS_NO_STOCK);
+        $items  = $this->buildCartLine($itemId, 1, (float) $price);
+        $taxes  = [[], array_map(static fn (array $row): array => [
+            'item_id'           => $itemId,
+            'line'              => 0,
+            'name'              => $row[0],
+            'percent'           => $row[1],
+            'tax_type'          => $row[2],
+            'rounding_code'     => 0,
+            'cascade_sequence'  => 0,
+            'item_tax_amount'   => $row[3],
+            'sales_tax_code_id' => null,
+            'tax_category_id'   => null,
+            'jurisdiction_id'   => null,
+        ], $rows)];
+
+        $saleId = model(Sale::class)->save_value(NEW_ENTRY, $status, $items, $customerId, $this->createEmployee(), 'tax', null, null, null, $type, [$this->cashPayment((float) $price)], null, $taxes, true);
+
+        return [$saleId, $items];
+    }
+
+    public function testSaveValue_RefusesALineWithNoTaxWhenTheSettingAsksForOneAndSavesNothing(): void
+    {
+        $this->setRequireTax(true);
+
+        try {
+            $sales = Database::connect()->table('sales')->countAllResults();
+
+            [$saleId] = $this->saveTaxed([]);
+
+            $this->assertSame(ACCOUNTING_FAILED, $saleId);
+            $this->assertSame($sales, Database::connect()->table('sales')->countAllResults());
+
+            $failure = model(Sale::class)->accountingFailure();
+
+            $this->assertInstanceOf(AccountingException::class, $failure);
+            $this->assertSame(AccountingError::TaxOneRequired, $failure->error);
+            $this->assertSame(0, $failure->context['line']);
+        } finally {
+            $this->setRequireTax(false);
+        }
+    }
+
+    public function testSaveValue_AcceptsALineWithATaxOfNothingWhenTheSettingAsksForOne(): void
+    {
+        $this->setRequireTax(true);
+
+        try {
+            [$saleId] = $this->saveTaxed([['No tax', '0', 1, '0']]);
+
+            $this->assertGreaterThan(0, $saleId);
+        } finally {
+            $this->setRequireTax(false);
+        }
+    }
+
+    public function testSaveValue_AcceptsALineWithNoTaxWhenTheSettingIsOff(): void
+    {
+        [$saleId] = $this->saveTaxed([]);
+
+        $this->assertGreaterThan(0, $saleId);
+    }
+
+    public function testSaveValue_AsksASuspendedSaleForNoTaxWhateverTheSetting(): void
+    {
+        $this->setRequireTax(true);
+
+        try {
+            [$saleId] = $this->saveTaxed([], SUSPENDED);
+
+            $this->assertGreaterThan(0, $saleId);
+        } finally {
+            $this->setRequireTax(false);
+        }
+    }
+
+    public function testSaveValue_AsksNoTaxOfACustomerWhoIsNotCharged(): void
+    {
+        $db = Database::connect();
+
+        $db->table('people')->insert(['first_name' => 'Exempt', 'last_name' => 'Customer', 'phone_number' => '', 'email' => 'exempt-' . uniqid() . '@test.com', 'address_1' => '', 'address_2' => '', 'city' => '', 'state' => '', 'zip' => '', 'country' => '', 'comments' => '']);
+        $personId = (int) $db->insertID();
+        $db->table('customers')->insert(['person_id' => $personId, 'employee_id' => 1, 'taxable' => 0]);
+
+        $this->setRequireTax(true);
+
+        try {
+            [$saleId] = $this->saveTaxed([], COMPLETED, SALE_TYPE_POS, $personId);
+
+            $this->assertGreaterThan(0, $saleId);
+        } finally {
+            $this->setRequireTax(false);
+        }
+    }
+
+    public function testSaveValue_AsksAnInvoiceForATaxAsASaleIsAsked(): void
+    {
+        $this->setRequireTax(true);
+
+        try {
+            [$saleId] = $this->saveTaxed([], COMPLETED, SALE_TYPE_INVOICE);
+
+            $this->assertSame(ACCOUNTING_FAILED, $saleId);
+        } finally {
+            $this->setRequireTax(false);
+        }
+    }
+
+    public function testGetInfo_ComesToThePriceAndOnlyTheTaxesAddedToItWhateverTheDefaultModeIs(): void
+    {
+        foreach (['0', '1'] as $default) {
+            model(Appconfig::class)->save(['tax_included' => $default]);
+
+            try {
+                [$saleId] = $this->saveTaxed([['VAT', '15', 0, '13.0435'], ['Service', '5', 1, '4.35']]);
+
+                $this->assertSame('104.35', bcadd((string) model(Sale::class)->get_info($saleId)->getRow()->amount_due, '0', 2), 'default ' . $default);
+            } finally {
+                model(Appconfig::class)->save(['tax_included' => '0']);
+                $this->dropReportTables();
+            }
+        }
+    }
+
+    public function testGetSalesItemTaxes_GivesTheModeAndTheAccountEachRowWasSavedWithAndEachTaxOnce(): void
+    {
+        [$saleId, $items] = $this->saveTaxed([['VAT', '15', 0, '13.0435'], ['Service', '5', 1, '4.35']]);
+
+        Database::connect()->table('sales_items_taxes')->where(['sale_id' => $saleId, 'name' => 'VAT'])->update(['liability_account_id' => null]);
+
+        $rows = model(Sale::class)->get_sales_item_taxes($saleId, (int) $items[0]['item_id']);
+
+        usort($rows, static fn (array $first, array $second): int => strcmp($first['name'], $second['name']));
+
+        $this->assertSame(['Service', 'VAT'], array_column($rows, 'name'));
+        $this->assertSame(['1', '0'], array_map('strval', array_column($rows, 'tax_type')));
+        $this->assertSame([null, null], array_column($rows, 'liability_account_id'));
     }
 }

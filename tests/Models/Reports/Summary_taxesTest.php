@@ -2,6 +2,7 @@
 
 namespace Tests\Models\Reports;
 
+use App\Models\Appconfig;
 use App\Models\Reports\Summary_taxes;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -154,5 +155,26 @@ class Summary_taxesTest extends CIUnitTestCase
 
         $this->assertSame('90.00', bcadd((string) $summary['subtotal'], '0', 2));
         $this->assertSame('103.50', bcadd((string) $summary['total'], '0', 2));
+    }
+
+    public function testGetData_GivesEachTaxOfAMixedLineInItsOwnModeWhateverTheDefaultModeIs(): void
+    {
+        foreach (['0', '1'] as $default) {
+            model(Appconfig::class)->save(['tax_included' => $default]);
+            $this->removeReportSales(self::MONTH);
+            $this->dropReportTables();
+
+            $itemId = $this->createTestItem(HAS_NO_STOCK);
+
+            $this->reportSale($itemId, '1', '100', null, self::MONTH . '09', [$this->reportTax($itemId, '13.0435', 0, 'Inside'), $this->reportTax($itemId, '4.35', 1, 'Added', '5.0000')]);
+
+            $rows = (new Summary_taxes())->getData(['start_date' => self::MONTH . '09', 'end_date' => self::MONTH . '09']);
+            $by   = array_column($rows, null, 'name');
+
+            $this->assertSame(['86.96', '13.04', '100.00'], [bcadd((string) $by['Inside']['subtotal'], '0', 2), bcadd((string) $by['Inside']['tax'], '0', 2), bcadd((string) $by['Inside']['total'], '0', 2)], 'the tax inside the price, default ' . $default);
+            $this->assertSame(['100.00', '4.35', '104.35'], [bcadd((string) $by['Added']['subtotal'], '0', 2), bcadd((string) $by['Added']['tax'], '0', 2), bcadd((string) $by['Added']['total'], '0', 2)], 'the tax added to the price, default ' . $default);
+        }
+
+        model(Appconfig::class)->save(['tax_included' => '0']);
     }
 }

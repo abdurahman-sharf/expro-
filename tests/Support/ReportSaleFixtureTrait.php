@@ -32,9 +32,9 @@ trait ReportSaleFixtureTrait
     /**
      * @return array<string, mixed>
      */
-    protected function reportTax(int $itemId, string $amount): array
+    protected function reportTax(int $itemId, string $amount, int $type = 1, string $name = 'VAT', string $percent = '15.0000'): array
     {
-        return ['item_id' => $itemId, 'line' => 0, 'name' => 'VAT', 'percent' => '15.0000', 'tax_type' => 1, 'rounding_code' => 0, 'cascade_sequence' => 0, 'item_tax_amount' => $amount, 'sales_tax_code_id' => null, 'tax_category_id' => null, 'jurisdiction_id' => null];
+        return ['item_id' => $itemId, 'line' => 0, 'name' => $name, 'percent' => $percent, 'tax_type' => $type, 'rounding_code' => 0, 'cascade_sequence' => 0, 'item_tax_amount' => $amount, 'sales_tax_code_id' => null, 'tax_category_id' => null, 'jurisdiction_id' => null];
     }
 
     protected function removeReportSales(string $month): void
