@@ -987,4 +987,164 @@ class PostingServiceTest extends CIUnitTestCase
 
         $this->assertSame(0, $this->accountingDb()->table('accounting_journals')->countAllResults());
     }
+
+    private function yearEndDraft(string $date = '2026-03-10', int $branchId = 1, JournalEntryType $type = JournalEntryType::YearEnd, string $source = 'year_end', ?int $reverses = null, int $sourceId = 7001): JournalDraft
+    {
+        return new JournalDraft(
+            date: $date,
+            lines: [new JournalLineDraft($this->accountId('sales_revenue'), debit: '100.00'), new JournalLineDraft($this->accountId('retained_earnings'), credit: '100.00')],
+            sourceType: $source,
+            sourceId: $sourceId,
+            employeeId: 1,
+            currencyCode: 'SAR',
+            reversesJournalId: $reverses,
+            branchId: $branchId,
+            entryType: $type,
+        );
+    }
+
+    private function postingRefusal(callable $action): PostingException
+    {
+        try {
+            $action();
+        } catch (PostingException $exception) {
+            return $exception;
+        }
+
+        $this->fail('Expected the posting to be refused.');
+    }
+
+    public function testPost_RejectsAJournalOfTypeYearEnd(): void
+    {
+        $failure = $this->postingRefusal(fn () => $this->service->post($this->yearEndDraft()));
+
+        $this->assertSame(PostingError::InvalidSource, $failure->error);
+        $this->assertSame(0, $this->accountingDb()->table('accounting_journals')->countAllResults());
+    }
+
+    public function testPost_RejectsAJournalWhoseSourceIsYearEndWhateverItsType(): void
+    {
+        $failure = $this->postingRefusal(fn () => $this->service->post($this->yearEndDraft(type: JournalEntryType::General)));
+
+        $this->assertSame(PostingError::InvalidSource, $failure->error);
+        $this->assertSame(0, $this->accountingDb()->table('accounting_journals')->countAllResults());
+    }
+
+    public function testPostYearEnd_WritesTheClosingInsideAClosedPeriodThatRefusesEveryOtherJournal(): void
+    {
+        $this->closeThrough('2026-03-31');
+
+        $this->assertSame(PostingError::PeriodClosed, $this->postingRefusal(fn () => $this->service->post($this->yearEndDraft(type: JournalEntryType::General, source: 'sale', sourceId: 7002)))->error);
+
+        $result  = $this->service->postYearEnd($this->yearEndDraft());
+        $journal = $this->accountingDb()->table('accounting_journals')->where('journal_id', $result->journalId)->get()->getRow();
+
+        $this->assertTrue($result->created);
+        $this->assertSame('posted', $journal->status);
+        $this->assertSame('year_end', $journal->entry_type);
+        $this->assertSame('year_end', $journal->source_type);
+        $this->assertSame('2026-03-10', $journal->journal_date);
+    }
+
+    public function testPostYearEnd_WritesTheClosingOnceForTheSameSource(): void
+    {
+        $first  = $this->service->postYearEnd($this->yearEndDraft());
+        $second = $this->service->postYearEnd($this->yearEndDraft());
+
+        $this->assertTrue($first->created);
+        $this->assertFalse($second->created);
+        $this->assertSame($first->journalId, $second->journalId);
+    }
+
+    public function testPostYearEnd_StillRequiresTheDateToBeInAFiscalYear(): void
+    {
+        $failure = $this->postingRefusal(fn () => $this->service->postYearEnd($this->yearEndDraft('2099-01-01')));
+
+        $this->assertSame(PostingError::OutsideFiscalYear, $failure->error);
+        $this->assertSame(0, $this->accountingDb()->table('accounting_journals')->countAllResults());
+    }
+
+    public function testPostYearEnd_AcceptsAnAccountAndABranchThatWereDeactivatedSince(): void
+    {
+        $branch  = $this->createBranch('YB', 'Closed branch', false);
+        $revenue = $this->accountId('sales_revenue');
+
+        $this->assertSame(PostingError::BranchInactive, $this->postingRefusal(fn () => $this->service->post($this->yearEndDraft(branchId: $branch, type: JournalEntryType::General, source: 'sale')))->error);
+
+        $this->accountingDb()->table('accounting_accounts')->where('account_id', $revenue)->update(['active' => 0]);
+
+        $this->assertSame(PostingError::AccountNotPostable, $this->postingRefusal(fn () => $this->service->post($this->yearEndDraft(type: JournalEntryType::General, source: 'sale')))->error);
+        $this->assertTrue($this->service->postYearEnd($this->yearEndDraft(branchId: $branch))->created);
+    }
+
+    public function testPostYearEnd_StillRejectsAnAccountThatIsAGroup(): void
+    {
+        $this->accountingDb()->table('accounting_accounts')->where('account_id', $this->accountId('sales_revenue'))->update(['is_group' => 1]);
+
+        try {
+            $this->assertSame(PostingError::AccountNotPostable, $this->postingRefusal(fn () => $this->service->postYearEnd($this->yearEndDraft()))->error);
+        } finally {
+            $this->accountingDb()->table('accounting_accounts')->where('account_id', $this->accountId('sales_revenue'))->update(['is_group' => 0]);
+        }
+    }
+
+    public function testPostYearEnd_RejectsADraftThatIsNeitherAClosingNorTheReversalOfOne(): void
+    {
+        foreach ([
+            $this->yearEndDraft(type: JournalEntryType::General),
+            $this->yearEndDraft(source: 'sale'),
+            $this->yearEndDraft(source: 'reversal'),
+            $this->yearEndDraft(reverses: 1),
+            $this->yearEndDraft(source: 'reversal', type: JournalEntryType::General, reverses: 1),
+        ] as $draft) {
+            $this->assertSame(PostingError::InvalidSource, $this->postingRefusal(fn () => $this->service->postYearEnd($draft))->error, $draft->sourceType . ' ' . $draft->entryType->value);
+        }
+
+        $this->assertSame(0, $this->accountingDb()->table('accounting_journals')->countAllResults());
+    }
+
+    public function testPostYearEnd_AcceptsTheReversalOfAClosing(): void
+    {
+        $closing  = $this->service->postYearEnd($this->yearEndDraft())->journalId;
+        $reversal = $this->service->postYearEnd(new JournalDraft(
+            date: '2026-03-10',
+            lines: [new JournalLineDraft($this->accountId('sales_revenue'), credit: '100.00'), new JournalLineDraft($this->accountId('retained_earnings'), debit: '100.00')],
+            sourceType: JournalDraft::SOURCE_REVERSAL,
+            sourceId: $closing,
+            employeeId: 1,
+            currencyCode: 'SAR',
+            reversesJournalId: $closing,
+            branchId: 1,
+            entryType: JournalEntryType::YearEnd,
+        ));
+
+        $this->assertTrue($reversal->created);
+        $this->assertSame((string) $closing, (string) $this->accountingDb()->table('accounting_journals')->where('journal_id', $reversal->journalId)->get()->getRow()->reverses_journal_id);
+    }
+
+    public function testPostYearEnd_StopsRelaxingTheRulesWhenItReturnsOrFails(): void
+    {
+        $this->closeThrough('2026-03-31');
+
+        $this->assertSame(PostingError::OutsideFiscalYear, $this->postingRefusal(fn () => $this->service->postYearEnd($this->yearEndDraft('2099-01-01')))->error);
+        $this->assertSame(PostingError::InvalidSource, $this->postingRefusal(fn () => $this->service->post($this->yearEndDraft()))->error, 'A failed closing leaves the service as it was');
+
+        $this->service->postYearEnd($this->yearEndDraft());
+
+        $this->assertSame(PostingError::InvalidSource, $this->postingRefusal(fn () => $this->service->post($this->yearEndDraft(sourceId: 7003)))->error);
+        $this->assertSame(PostingError::PeriodClosed, $this->postingRefusal(fn () => $this->service->post($this->yearEndDraft(type: JournalEntryType::General, source: 'sale', sourceId: 7004)))->error);
+    }
+
+    public function testPostYearEnd_IsCalledByNothingButTheClosingOfAYear(): void
+    {
+        $callers = [];
+
+        foreach (new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator(APPPATH, \FilesystemIterator::SKIP_DOTS)) as $file) {
+            if ($file->getExtension() === 'php' && str_contains((string) file_get_contents($file->getPathname()), '->postYearEnd(')) {
+                $callers[] = substr($file->getPathname(), strlen(APPPATH));
+            }
+        }
+
+        $this->assertSame(['Libraries/Accounting/YearEndClosing.php'], $callers);
+    }
 }

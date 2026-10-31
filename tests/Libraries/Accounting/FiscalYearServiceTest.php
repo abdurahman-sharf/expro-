@@ -7,6 +7,7 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\FiscalYearService;
 use App\Libraries\Accounting\JournalService;
+use App\Libraries\Accounting\YearEndClosing;
 use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
 use CodeIgniter\Database\BaseConnection;
@@ -242,6 +243,30 @@ class FiscalYearServiceTest extends CIUnitTestCase
         $this->closeThrough('2026-06-30');
 
         $this->assertFailsWith(AccountingError::FiscalYearClosed, fn () => $this->service->update($id, ['name' => '2026', 'start_date' => '2026-07-01', 'end_date' => '2026-12-31']));
+    }
+
+    public function testUpdate_RejectsMovingTheDatesOfAYearThatIsClosedOutAndAcceptsItAfterTheClosingIsTakenBack(): void
+    {
+        $id = $this->year('2026', '2026-01-01', '2026-12-31');
+        (new JournalService())->postNew(['date' => '2026-06-10'] + $this->journalInput());
+        $this->closeThrough('2026-12-31');
+
+        $closer  = $this->employeeWithGrants([AccountingGuard::YEAR_END_CLOSE]);
+        $run     = new YearEndClosing();
+        $preview = $run->preview(null, $id, $closer);
+        $closing = $run->approve(null, $id, $preview->fingerprint, $closer)[0];
+
+        $this->assertFailsWith(AccountingError::YearEndClosedOut, fn () => $this->service->update($id, ['name' => '2026', 'start_date' => '2026-01-01', 'end_date' => '2027-01-31']));
+        $this->assertSame('2026-12-31', $this->service->find($id)->end_date);
+
+        $this->service->update($id, ['name' => 'FY26', 'start_date' => '2026-01-01', 'end_date' => '2026-12-31', 'description' => 'Closed out']);
+
+        $this->assertSame('FY26', $this->service->find($id)->name, 'The name of a closed-out year may change');
+
+        $run->reverse($closing, 'Back', $closer);
+        $this->service->update($id, ['name' => 'FY26', 'start_date' => '2026-01-01', 'end_date' => '2027-01-31']);
+
+        $this->assertSame('2027-01-31', $this->service->find($id)->end_date);
     }
 
     public function testUpdate_RejectsTwoYearsOverlappingAfterTheChange(): void

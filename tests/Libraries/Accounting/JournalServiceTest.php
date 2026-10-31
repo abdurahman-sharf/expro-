@@ -23,6 +23,7 @@ use App\Libraries\Accounting\ReportScope;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Accounting\TreasuryTransfers;
 use App\Libraries\Accounting\TrialBalance;
+use App\Libraries\Accounting\YearEndClosing;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Organization\BranchError;
@@ -517,6 +518,39 @@ class JournalServiceTest extends CIUnitTestCase
         $this->assertFailsWith(AccountingError::NotPosted, fn () => $this->service->reverse($draft, '2026-10-22', 'Draft'));
         $this->assertFailsWith(AccountingError::AlreadyReversed, fn () => $this->service->reverse($original, '2026-10-23', 'Twice'));
         $this->assertSame(1, $this->accountingDb()->table('accounting_journals')->where('source_type', 'reversal')->countAllResults());
+    }
+
+    public function testReverse_RejectsTheJournalThatClosesAYearAndLeavesItToTheYearEndScreen(): void
+    {
+        $this->service->postNew(['date' => '2025-05-10'] + $this->journalInput('100.00'));
+        $this->closeThrough('2025-12-31');
+
+        $closer  = $this->employeeWithGrants([AccountingGuard::YEAR_END_CLOSE]);
+        $run     = new YearEndClosing();
+        $year    = (int) $this->accountingDb()->table('accounting_fiscal_years')->where('name', '2025')->get()->getRow()->fiscal_year_id;
+        $preview = $run->preview(null, $year, $closer);
+        $closing = (int) $this->accountingDb()->table('accounting_year_end_closings')->where('closing_id', $run->approve(null, $year, $preview->fingerprint, $closer)[0])->get()->getRow()->journal_id;
+        $counts  = $this->accountingDb()->table('accounting_journals')->countAllResults();
+
+        $this->assertFailsWith(AccountingError::YearEndJournalLocked, fn () => $this->service->reverse($closing, '2026-10-30', 'By hand'));
+        $this->assertSame($counts, $this->accountingDb()->table('accounting_journals')->countAllResults());
+        $this->assertSame('posted', $this->journal($closing)->status);
+    }
+
+    public function testReverse_RejectsAJournalWhoseSourceIsYearEndWhateverItsType(): void
+    {
+        $journal = $this->service->postNew($this->journalInput());
+        $this->accountingDb()->table('accounting_journals')->where('journal_id', $journal)->update(['source_type' => 'year_end', 'source_id' => $journal]);
+
+        $this->assertFailsWith(AccountingError::YearEndJournalLocked, fn () => $this->service->reverse($journal, '2026-10-30', 'By hand'));
+    }
+
+    public function testReverse_RejectsAJournalWhoseTypeIsYearEndWhateverItsSource(): void
+    {
+        $journal = $this->service->postNew($this->journalInput());
+        $this->accountingDb()->table('accounting_journals')->where('journal_id', $journal)->update(['entry_type' => 'year_end']);
+
+        $this->assertFailsWith(AccountingError::YearEndJournalLocked, fn () => $this->service->reverse($journal, '2026-10-30', 'By hand'));
     }
 
     public function testReverse_RejectsReversingAReversal(): void

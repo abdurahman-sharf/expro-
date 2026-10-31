@@ -16,6 +16,7 @@ use App\Libraries\Accounting\StockLedger;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Accounting\TreasuryTransfers;
 use App\Libraries\Accounting\TrialBalance;
+use App\Libraries\Accounting\TrialBalanceClosing;
 use App\Libraries\Accounting\TrialBalanceReport;
 use App\Libraries\Accounting\TrialBalanceRow;
 use App\Libraries\Accounting\YearEndEntries;
@@ -508,6 +509,91 @@ class TrialBalanceTest extends CIUnitTestCase
         $this->assertSame(['100.0000', '100.0000'], [$kept['totals'][$sales]['credit'], $kept['totals'][$sales]['debit']], 'Unless asked, the journal that closes a year is counted');
         $this->assertSame(['100.0000', '0.0000'], [$without['totals'][$sales]['credit'], $without['totals'][$sales]['debit']]);
         $this->assertSame('0.0000', $without['totals'][$this->accountId('retained_earnings')]['credit']);
+    }
+
+    private function buildWithClosing(TrialBalanceClosing $closing, string $to = '2026-12-31', ?ReportScope $scope = null): TrialBalanceReport
+    {
+        return $this->report->build($scope ?? $this->company(), ReportPeriod::of(null, $to), false, false, $closing);
+    }
+
+    public function testBuild_LeavesOutTheJournalsThatCloseAYearUnlessAskedForTheTrialBalanceAfterTheClosing(): void
+    {
+        $this->cashSale('2026-10-05', 1, '100.00');
+        $this->closeTheYear('2026-12-31', 1, '100.00');
+
+        $default = $this->build();
+        $before  = $this->buildWithClosing(TrialBalanceClosing::Before);
+
+        $this->assertEquals($default, $before, 'Without the option the trial balance is the one before the closing entry');
+        $this->assertSame('100.0000', $this->row($default, '411')->credit);
+        $this->assertSame('0.0000', $this->row($default, '411')->debit);
+        $this->assertNull($this->row($default, '32'), 'Retained earnings hold nothing before the closing');
+        $this->assertSame(TrialBalanceClosing::Before, $default->closing);
+        $this->assertTrue($default->balances());
+    }
+
+    public function testBuild_CountsTheJournalsThatCloseAYearInTheTrialBalanceAfterTheClosing(): void
+    {
+        $this->cashSale('2026-10-05', 1, '100.00');
+        $this->closeTheYear('2026-12-31', 1, '100.00');
+
+        $after = $this->buildWithClosing(TrialBalanceClosing::After);
+
+        $this->assertSame(TrialBalanceClosing::After, $after->closing);
+        $this->assertSame('100.0000', $this->row($after, '411')->debit, 'The closing debits the revenue it closes');
+        $this->assertSame('100.0000', $this->row($after, '411')->credit);
+        $this->assertSame('100.0000', $this->row($after, '32')->credit, 'And moves it to retained earnings');
+        $this->assertTrue($after->balances());
+    }
+
+    public function testBuild_ReadsTheDaysBeforeTheClosingTheSameWhicheverOptionIsAsked(): void
+    {
+        $this->cashSale('2026-10-05', 1, '100.00');
+        $this->closeTheYear('2026-12-31', 1, '100.00');
+
+        $this->assertEquals($this->buildWithClosing(TrialBalanceClosing::Before, '2026-12-30')->rows, $this->buildWithClosing(TrialBalanceClosing::After, '2026-12-30')->rows, 'A day before the closing is not changed by counting it');
+        $this->assertSame('100.0000', $this->row($this->buildWithClosing(TrialBalanceClosing::After, '2026-12-30'), '411')->credit);
+        $this->assertNull($this->row($this->buildWithClosing(TrialBalanceClosing::After, '2026-12-30'), '32'));
+    }
+
+    public function testBuild_ReadsTheClosingOfOneBranchOnlyInThatBranchAndForTheCompanyAsTheirSum(): void
+    {
+        $this->cashSale('2026-10-05', 1, '100.00');
+        $this->cashSale('2026-10-06', $this->second, '40.00');
+        $this->closeTheYear('2026-12-31', 1, '100.00');
+
+        $first  = $this->buildWithClosing(TrialBalanceClosing::After, '2026-12-31', ReportScope::resolve([1], null));
+        $second = $this->buildWithClosing(TrialBalanceClosing::After, '2026-12-31', ReportScope::resolve([$this->second], null));
+        $both   = $this->buildWithClosing(TrialBalanceClosing::After);
+
+        $this->assertSame('100.0000', $this->row($first, '32')->credit);
+        $this->assertNull($this->row($second, '32'));
+        $this->assertSame('40.0000', $this->row($second, '411')->credit);
+        $this->assertSame('100.0000', $this->row($both, '32')->credit);
+        $this->assertSame('140.0000', $this->row($both, '411')->credit);
+    }
+
+    public function testBuild_LeavesOutTheReversalOfAClosingWithItInTheTrialBalanceBeforeTheClosing(): void
+    {
+        $this->cashSale('2026-10-05', 1, '100.00');
+        $this->closeTheYear('2026-12-31', 1, '100.00');
+        $closing = (int) $this->accountingDb()->table('accounting_journals')->where('entry_type', 'year_end')->get()->getRow()->journal_id;
+
+        (new PostingService())->postYearEnd(new JournalDraft(
+            date: '2026-12-31',
+            lines: [new JournalLineDraft($this->accountId('sales_revenue'), credit: '100.00'), new JournalLineDraft($this->accountId('retained_earnings'), debit: '100.00')],
+            sourceType: JournalDraft::SOURCE_REVERSAL,
+            sourceId: $closing,
+            currencyCode: 'SAR',
+            reversesJournalId: $closing,
+            branchId: 1,
+            entryType: JournalEntryType::YearEnd,
+        ));
+
+        $this->assertEquals($this->build('2026-12-31'), $this->buildWithClosing(TrialBalanceClosing::Before), 'The closing and its reversal are both left out');
+        $this->assertSame('200.0000', $this->row($this->buildWithClosing(TrialBalanceClosing::After), '411')->credit, 'And both counted after it');
+        $this->assertSame('100.0000', $this->row($this->buildWithClosing(TrialBalanceClosing::After), '32')->credit);
+        $this->assertSame('100.0000', $this->row($this->buildWithClosing(TrialBalanceClosing::After), '32')->debit);
     }
 
     public function testBuild_SaysWhatIsLeftBetweenTheBranchesAsOfTheLastDayOfTheReport(): void
