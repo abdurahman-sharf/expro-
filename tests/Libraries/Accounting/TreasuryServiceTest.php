@@ -1070,4 +1070,97 @@ class TreasuryServiceTest extends CIUnitTestCase
             'activated_again'                     => (int) $this->treasuries->find($id)->active === 1,
         ], 'deactivation and activation');
     }
+
+    public function testCreate_KeepsTheCodeAndTheEnglishNameOfABankPickedFromTheDirectory(): void
+    {
+        $id       = $this->treasuries->create(['name' => 'Main account', 'kind' => 'bank', 'bank_code' => 'SA_RAJHI', 'account_number' => 'SA0380000000608010167519'], $this->manager());
+        $treasury = $this->treasuries->find($id);
+
+        $this->assertSame(['SA_RAJHI', 'Al Rajhi Bank'], [$treasury->bank_code, $treasury->bank_name]);
+        $this->assertFalse(TreasuryService::lacksBankDetails($treasury));
+    }
+
+    public function testCreate_TakesTheNameOfTheDirectoryOverANameTypedBesideTheCode(): void
+    {
+        $id = $this->treasuries->create(['name' => 'Main account', 'kind' => 'bank', 'bank_code' => 'SA_RIYAD', 'bank_name' => 'typed by hand', 'account_number' => '1234567890'], $this->manager());
+
+        $this->assertSame('Riyad Bank', $this->treasuries->find($id)->bank_name);
+    }
+
+    public function testCreate_RejectsABankCodeThatIsNotInTheDirectoryAndKeepsNothing(): void
+    {
+        $refusal = $this->refusal(fn () => $this->treasuries->create(['name' => 'Main account', 'kind' => 'bank', 'bank_code' => 'XX_NOPE', 'bank_name' => 'Gulf Bank', 'account_number' => '1234567890'], $this->manager()));
+
+        $this->assertSame(AccountingError::BankDirectoryCodeInvalid, $refusal->error);
+        $this->assertSame('XX_NOPE', $refusal->context['code']);
+        $this->assertSame(0, $this->countRows('treasuries'));
+    }
+
+    public function testCreate_KeepsABankOutsideTheDirectoryByTheNameTypedAndWithoutACode(): void
+    {
+        $id       = $this->treasuries->create(['name' => 'Local', 'kind' => 'bank', 'bank_code' => '', 'bank_name' => 'Village Savings Bank', 'account_number' => '1234567890'], $this->manager());
+        $treasury = $this->treasuries->find($id);
+
+        $this->assertSame(['Village Savings Bank', null], [$treasury->bank_name, $treasury->bank_code]);
+    }
+
+    public function testCreate_LeavesACashTreasuryWithoutABankCode(): void
+    {
+        $id = $this->treasuries->create(['name' => 'Drawer', 'kind' => 'cash', 'bank_code' => 'SA_RAJHI'], $this->manager());
+
+        $this->assertNull($this->treasuries->find($id)->bank_code);
+    }
+
+    public function testCreate_RefusesTheSameAccountOfTheSameDirectoryBankTwiceAndOfAHandWrittenNameOfIt(): void
+    {
+        $manager = $this->manager();
+        $this->treasuries->create(['name' => 'First', 'kind' => 'bank', 'bank_code' => 'SA_RAJHI', 'account_number' => '1234567890'], $manager);
+
+        $same = $this->refusal(fn () => $this->treasuries->create(['name' => 'Second', 'kind' => 'bank', 'bank_code' => 'SA_RAJHI', 'account_number' => '1234 567890'], $manager));
+        $typed = $this->refusal(fn () => $this->treasuries->create(['name' => 'Third', 'kind' => 'bank', 'bank_name' => 'Al Rajhi Bank', 'account_number' => '1234567890'], $manager));
+
+        $this->assertSame([AccountingError::TreasuryBankAccountTaken, AccountingError::TreasuryBankAccountTaken], [$same->error, $typed->error]);
+    }
+
+    public function testUpdate_MovesABankAccountFromAHandWrittenNameToTheDirectoryAndAuditsWhatItWas(): void
+    {
+        $manager = $this->manager();
+        $id      = $this->treasuries->create(['name' => 'Old bank', 'kind' => 'bank', 'bank_name' => 'Riyad Bank', 'account_number' => '1234567890'], $manager);
+
+        $this->assertNull($this->treasuries->find($id)->bank_code);
+
+        $this->treasuries->update($id, ['name' => 'Old bank', 'kind' => 'bank', 'bank_code' => 'SA_RIYAD', 'account_number' => '1234567890'], $manager);
+
+        $this->assertSame('SA_RIYAD', $this->treasuries->find($id)->bank_code);
+
+        $audit   = $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'treasury', 'entity_id' => $id, 'action' => 'updated'])->get()->getRow();
+        $details = json_decode($audit->details, true);
+
+        $this->assertNull($details['before']['bank_code']);
+        $this->assertSame('SA_RIYAD', $details['after']['bank_code']);
+    }
+
+    public function testUpdate_DropsTheBankCodeWhenTheAccountBecomesACashTreasury(): void
+    {
+        $manager = $this->manager();
+        $id      = $this->treasuries->create(['name' => 'Switching', 'kind' => 'bank', 'bank_code' => 'SA_RIYAD', 'account_number' => '1234567890'], $manager);
+
+        $this->treasuries->update($id, ['name' => 'Switching', 'kind' => 'cash', 'bank_code' => 'SA_RIYAD'], $manager);
+
+        $this->assertNull($this->treasuries->find($id)->bank_code);
+        $this->assertNull($this->treasuries->find($id)->bank_name);
+    }
+
+    public function testMovements_NamesTheLineOfTheBooksOfEachMovement(): void
+    {
+        $manager = $this->manager();
+        $id      = $this->treasuries->create(['name' => 'Bank', 'kind' => 'bank', 'bank_code' => 'SA_RIYAD', 'account_number' => '1234567890'], $manager);
+
+        $this->fund($id, '40.00');
+
+        $lines = array_column($this->treasuries->movements($id)['rows'], 'line_id');
+
+        $this->assertCount(1, $lines);
+        $this->assertSame((int) $this->treasuries->accountOf($id), (int) $this->accountingDb()->table('accounting_journal_lines')->where('line_id', $lines[0])->get()->getRow()->account_id);
+    }
 }
