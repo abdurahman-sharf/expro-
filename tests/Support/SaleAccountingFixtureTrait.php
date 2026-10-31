@@ -150,6 +150,17 @@ trait SaleAccountingFixtureTrait
     }
 
     /**
+     * A tax row of any mode: 0 is a tax inside the price, 1 one added to it. A tax with an account of
+     * its own carries it, as the register stamps it.
+     *
+     * @return array<string, mixed>
+     */
+    protected function taxRow(int $itemId, int $line, string $name, string $percent, int $type, string $amount, ?int $accountId = null): array
+    {
+        return [...$this->tax($itemId, $line, $amount), 'name' => $name, 'percent' => $percent, 'tax_type' => $type, 'liability_account_id' => $accountId];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     protected function payment(string $type, string $amount, string $refund = '0', int $adjustment = 0): array

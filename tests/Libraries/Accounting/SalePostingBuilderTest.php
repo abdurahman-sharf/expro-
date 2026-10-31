@@ -67,14 +67,17 @@ class SalePostingBuilderTest extends CIUnitTestCase
         parent::tearDown();
     }
 
-    private function builder(bool $taxIncluded = false): SalePostingBuilder
+    private function builder(): SalePostingBuilder
     {
-        return new SalePostingBuilder(new RoutingResolver(), 2, $taxIncluded);
+        return new SalePostingBuilder(new RoutingResolver(), 2);
     }
 
-    private function line(string $quantity, string $price, string $discount = '0', int $discountType = PERCENT, string $cost = '0', bool $stock = true, string $added = '0', string $included = '0', int $itemId = 1, string $share = '0'): SaleLine
+    /**
+     * @param array<int, string> $accounts
+     */
+    private function line(string $quantity, string $price, string $discount = '0', int $discountType = PERCENT, string $cost = '0', bool $stock = true, string $added = '0', string $included = '0', int $itemId = 1, string $share = '0', array $accounts = []): SaleLine
     {
-        return new SaleLine($itemId, $itemId, $quantity, $price, $discount, $discountType, $cost, $this->locationId, $stock, $included, $added, $share);
+        return new SaleLine($itemId, $itemId, $quantity, $price, $discount, $discountType, $cost, $this->locationId, $stock, $included, $added, $share, $accounts);
     }
 
     /**
@@ -367,7 +370,7 @@ class SalePostingBuilderTest extends CIUnitTestCase
 
     public function testInvoice_TakesTheDiscountOnTheWholeInvoiceOffTheRevenueWhenTheTaxIsInsideThePrices(): void
     {
-        $builder = $this->builder(true);
+        $builder = $this->builder;
         $draft   = $builder->invoice($this->sale([$this->line('1', '115', included: '13.50', share: '11.50')]), 1);
 
         $this->assertSame(
@@ -425,7 +428,7 @@ class SalePostingBuilderTest extends CIUnitTestCase
 
     public function testInvoice_TakesTheTaxThatWasInsideThePricesOutOfTheRevenue(): void
     {
-        $builder = $this->builder(true);
+        $builder = $this->builder;
         $draft   = $builder->invoice($this->sale([$this->line('1', '115', included: '15.00')]), 1);
 
         $this->assertSame(
@@ -483,7 +486,7 @@ class SalePostingBuilderTest extends CIUnitTestCase
     {
         $this->setRouting(RoutingKey::SalesDiscount, RoutingType::Auto);
 
-        $failure = $this->failureOf(fn () => $this->builder(true)->invoice($this->sale([$this->line('4', '75', '10', PERCENT, included: '39.13')]), 1));
+        $failure = $this->failureOf(fn () => $this->builder()->invoice($this->sale([$this->line('4', '75', '10', PERCENT, included: '39.13')]), 1));
 
         $this->assertSame(PostingError::DiscountNeedsAdditiveTax, $failure->error);
     }
@@ -908,5 +911,145 @@ class SalePostingBuilderTest extends CIUnitTestCase
         $failure = $this->failureOf(fn () => $this->builder->assertSettled($return('-40.00')));
 
         $this->assertSame(PostingError::CreditNeedsCustomer, $failure->error);
+    }
+
+    public function testInvoice_PostsALineWithATaxInsideThePriceAndOneAddedToItAsTheNetAndTheWholeTax(): void
+    {
+        $draft = $this->builder->invoice($this->sale([$this->line('1', '100', included: '13.0435', added: '4.3478')]), 1);
+
+        $this->assertSame(
+            [
+                $this->customerAccount() . ':104.3500:0.0000',
+                $this->accountId('sales_revenue') . ':0.0000:86.9587',
+                $this->accountId('tax_output') . ':0.0000:17.3913',
+            ],
+            $this->shape($draft, 4),
+            'the total is rounded to the cent and the revenue is what is left of it after the tax (E14)',
+        );
+    }
+
+    public function testInvoice_PostsTheTaxOfATaxWithAnAccountOfItsOwnToThatAccountAndTheRestToTheRoutedOne(): void
+    {
+        $account = $this->customAccount('215', '215003', 'Tax on services');
+        $draft   = $this->builder->invoice($this->sale([$this->line('1', '100', included: '13.0435', added: '4.3478', accounts: [$account => '13.0435'])]), 1);
+
+        $this->assertSame(
+            [
+                $this->customerAccount() . ':104.3500:0.0000',
+                $this->accountId('sales_revenue') . ':0.0000:86.9587',
+                $this->accountId('tax_output') . ':0.0000:4.3478',
+                $account . ':0.0000:13.0435',
+            ],
+            $this->shape($draft, 4),
+        );
+    }
+
+    public function testInvoice_PostsTheSameJournalAsBeforeWhenNoTaxHasAnAccountOfItsOwn(): void
+    {
+        $with    = $this->builder->invoice($this->sale([$this->line('4', '75', '10', PERCENT, added: '40.50'), $this->line('2', '220', added: '66.00', itemId: 2)]), 1);
+        $without = $this->builder->invoice($this->sale([$this->line('4', '75', '10', PERCENT, added: '40.50', accounts: []), $this->line('2', '220', added: '66.00', itemId: 2, accounts: [])]), 1);
+
+        $this->assertSame($this->shape($with, 4), $this->shape($without, 4));
+        $this->assertSame(
+            [
+                $this->customerAccount() . ':816.5000:0.0000',
+                $this->accountId('sales_revenue') . ':0.0000:710.0000',
+                $this->accountId('tax_output') . ':0.0000:106.5000',
+            ],
+            $this->shape($with, 4),
+        );
+    }
+
+    public function testInvoice_PostsNoLineToTheRoutedAccountWhenEveryTaxHasAnAccountOfItsOwn(): void
+    {
+        $account = $this->customAccount('215', '215003', 'Tax on services');
+
+        $draft = $this->builder->invoice($this->sale([$this->line('1', '115', included: '15.00', accounts: [$account => '15.00'])]), 1);
+
+        $this->assertSame(
+            [
+                $this->customerAccount() . ':115.0000:0.0000',
+                $this->accountId('sales_revenue') . ':0.0000:100.0000',
+                $account . ':0.0000:15.0000',
+            ],
+            $this->shape($draft, 4),
+        );
+    }
+
+    public function testInvoice_RefusesTheTaxThatTheRoutedAccountMustTakeWhenItsRoutingRowIsSavedWithATypePostingDoesNotApply(): void
+    {
+        $account = $this->customAccount('215', '215003', 'Tax on services');
+        $this->setRouting(RoutingKey::TaxOutput, RoutingType::Cancelled);
+
+        $failure = $this->failureOf(fn () => $this->builder->invoice($this->sale([$this->line('1', '100', included: '13.0435', added: '4.3478', accounts: [$account => '13.0435'])]), 1));
+
+        $this->assertSame(PostingError::RoutingTypeUnsupported, $failure->error);
+        $this->assertSame('tax.output', $failure->context['routing_key']);
+    }
+
+    public function testInvoice_RefusesTaxRowsWithAccountsThatAddUpToMoreThanTheTaxOfTheSale(): void
+    {
+        $account = $this->customAccount('215', '215003', 'Tax on services');
+
+        $failure = $this->failureOf(fn () => $this->builder->invoice($this->sale([$this->line('1', '100', added: '15.00', accounts: [$account => '16.00'])]), 1));
+
+        $this->assertSame(PostingError::TaxAccountsExceedTax, $failure->error);
+    }
+
+    public function testInvoice_SumsTheTaxOfEveryLineThatWentToTheSameAccount(): void
+    {
+        $account = $this->customAccount('215', '215003', 'Tax on services');
+        $draft   = $this->builder->invoice($this->sale([
+            $this->line('1', '100', added: '15.00', accounts: [$account => '15.00']),
+            $this->line('1', '200', added: '30.00', itemId: 2, accounts: [$account => '30.00']),
+        ]), 1);
+
+        $this->assertSame(
+            [
+                $this->customerAccount() . ':345.0000:0.0000',
+                $this->accountId('sales_revenue') . ':0.0000:300.0000',
+                $account . ':0.0000:45.0000',
+            ],
+            $this->shape($draft, 4),
+        );
+    }
+
+    public function testInvoice_MirrorsTheTaxAccountsOfTheSaleInAReturn(): void
+    {
+        $account = $this->customAccount('215', '215003', 'Tax on services');
+        $origin  = $this->sale([$this->line('1', '100', included: '13.0435', added: '4.3478', accounts: [$account => '13.0435'])]);
+        $return  = $this->sale([$this->line('-1', '100', included: '-13.0435', added: '-4.3478', accounts: [$account => '13.0435'])], type: SALE_TYPE_RETURN, origin: $origin);
+
+        $this->assertSame(
+            [
+                $this->accountId('sales_returns') . ':86.9587:0.0000',
+                $this->accountId('tax_output') . ':4.3478:0.0000',
+                $account . ':13.0435:0.0000',
+                $this->customerAccount() . ':0.0000:104.3500',
+            ],
+            $this->shape($this->builder->invoice($return, 1), 4),
+            'a credit note takes back exactly what the invoice posted, to the accounts it posted it to',
+        );
+    }
+
+    public function testInvoice_AcceptsADiscountAccountWhenOnlyAddedTaxesAreOnTheSale(): void
+    {
+        $this->setRouting(RoutingKey::SalesDiscount, RoutingType::Auto);
+
+        $draft = $this->builder->invoice($this->sale([$this->line('4', '75', '10', PERCENT, added: '40.50')]), 1);
+
+        $this->assertNotNull($draft);
+    }
+
+    public function testInvoice_RefusesADiscountAccountWhenOneTaxOnTheSaleIsInsideThePrice(): void
+    {
+        $this->setRouting(RoutingKey::SalesDiscount, RoutingType::Auto);
+
+        $failure = $this->failureOf(fn () => $this->builder->invoice($this->sale([
+            $this->line('4', '75', '10', PERCENT, added: '10.00'),
+            $this->line('1', '115', included: '15.00', itemId: 2),
+        ]), 1));
+
+        $this->assertSame(PostingError::DiscountNeedsAdditiveTax, $failure->error);
     }
 }

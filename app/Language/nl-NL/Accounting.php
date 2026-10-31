@@ -368,6 +368,7 @@ return [
     'posting_sale_not_postable'                  => '',
     'posting_sale_return_exceeds_origin'         => '',
     'posting_supplier_required'                  => '',
+    'posting_tax_accounts_exceed_tax'            => '',
     'posting_too_few_lines'                      => '',
     'posting_transfer_branches_invalid'          => '',
     'posting_unbalanced'                         => '',

@@ -108,4 +108,42 @@ class SaleLoaderTest extends CIUnitTestCase
         $this->assertFalse((new SaleLoader())->load($return)->returnOverride);
         $this->assertFalse((new SaleLoader())->load($invoice)->returnOverride);
     }
+
+    public function testLoad_ReadsTheTaxInsideThePriceTheTaxAddedToItAndTheTaxOfEachAccountOfALine(): void
+    {
+        $account = $this->customAccount('215', '215003', 'Tax on services');
+        $item    = $this->item('0', false);
+        $saleId  = $this->save(
+            [$this->line($item, 0, '1', '100')],
+            [$this->taxRow($item, 0, 'VAT', '15.0000', 0, '13.0435', $account), $this->taxRow($item, 0, 'Service', '5.0000', 1, '4.3478')],
+        );
+
+        $line = (new SaleLoader())->load($saleId)->lines[0];
+
+        $this->assertSame(['13.0435', '4.3478'], [bcadd($line->includedTax, '0', 4), bcadd($line->addedTax, '0', 4)]);
+        $this->assertSame([$account => '13.0435'], $line->accountTaxes);
+    }
+
+    public function testLoad_ReadsTheTaxOfAccountsAsAmountsThatAreNotNegativeInAReturn(): void
+    {
+        $account = $this->customAccount('215', '215003', 'Tax on services');
+        $item    = $this->item('0', false);
+        $invoice = $this->save([$this->line($item, 0, '1', '100')], [$this->taxRow($item, 0, 'VAT', '15.0000', 1, '15.00', $account)]);
+        $return  = $this->save([$this->line($item, 0, '-1', '100')], [$this->taxRow($item, 0, 'VAT', '15.0000', 1, '-15.00', $account)], [], SALE_TYPE_RETURN, -1, true, $invoice);
+
+        $line = (new SaleLoader())->load($return)->lines[0];
+
+        $this->assertSame([$account => '15.0000'], $line->accountTaxes);
+        $this->assertSame('-15.0000', bcadd($line->addedTax, '0', 4));
+    }
+
+    public function testLoad_ReadsASaleWhoseTaxesHaveNoAccountOfTheirOwnAsOneWithNone(): void
+    {
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes']);
+
+        $document = (new SaleLoader())->load($saleId);
+
+        $this->assertSame([[], []], array_map(static fn ($line): array => $line->accountTaxes, $document->lines));
+    }
 }

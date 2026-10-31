@@ -368,6 +368,7 @@ return [
     'posting_sale_not_postable'                  => 'A quantity on line {0} does not fit this kind of sale.',
     'posting_sale_return_exceeds_origin'         => 'A return cannot give back more than the sale brought. What is left to return: {0}.',
     'posting_supplier_required'                  => 'A receiving that is not paid at once needs a supplier to owe it.',
+    'posting_tax_accounts_exceed_tax'            => 'The tax rows of this sale that carry an account of their own add up to more than its tax.',
     'posting_too_few_lines'                      => 'A journal needs at least two lines.',
     'posting_transfer_branches_invalid'          => 'The stock of a transfer between branches must leave the locations of one branch, go into those of the other, and put in every item it takes out.',
     'posting_unbalanced'                         => 'The journal is not balanced: debit {0}, credit {1}.',
