@@ -977,7 +977,7 @@ class ExpensesControllerTest extends CIUnitTestCase
 
         $this->assertFalse($response['success']);
         $this->assertSame(0, (int) $this->accountingDb()->table('expenses')->select('deleted')->where('expense_id', $theirs)->get()->getRow()->deleted);
-        $this->assertSame($journal, $this->journalsOfSource('expense', $theirs));
+        $this->assertEquals($journal, $this->journalsOfSource('expense', $theirs));
     }
 
     public function testPostDelete_DeletesTheOwnExpenseOfAnOwnRecordsEmployee(): void

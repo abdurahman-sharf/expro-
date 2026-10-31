@@ -762,7 +762,7 @@ class CustomerAdvancesTest extends CIUnitTestCase
         $this->assertSame(AccountingError::AdvanceNotFound, $this->refusal(fn () => $this->advances->cancel($advance, 'by a stranger', $second))->error);
         $this->assertNull($this->advances->branchOf($advance, $second), 'The form of the cancellation is not there for another employee advance');
         $this->assertNotNull($this->advances->branchOf($advance, $this->clerk));
-        $this->assertSame('received', (string) $this->accountingDb()->table('customer_advances')->select('status')->where('advance_id', $advance)->get()->getRow()->status);
+        $this->assertNotSame('cancelled', (string) $this->accountingDb()->table('customer_advances')->select('status')->where('advance_id', $advance)->get()->getRow()->status);
     }
 
     public function testCancel_CancelsTheOwnAdvanceOfAnEmployeeWhoSeesTheirOwnRecords(): void

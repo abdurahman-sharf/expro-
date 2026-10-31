@@ -1385,7 +1385,7 @@ class ReceivingTest extends CIUnitTestCase
 
         $this->assertFalse($this->purchases->updateLines($theirs, [$edit], $own));
         $this->assertEquals($line->quantity_purchased, $this->accountingDb()->table('receivings_items')->where('receiving_id', $theirs)->get()->getRow()->quantity_purchased);
-        $this->assertTrue($this->purchases->updateLines($theirs, [$edit], $this->createEmployee()));
+        $this->assertTrue($this->purchases->updateLines($theirs, [$edit], $this->employeeWithGrants([])));
     }
 
     public function testDeleteValue_RefusesAnotherEmployeesPurchaseAndKeepsItsJournalsAndStock(): void

@@ -78,7 +78,7 @@ final class RolesControllerTest extends CIUnitTestCase
         return $this->roleDb()->table('roles')->where('name', $name)->get()->getRow();
     }
 
-    public function testGetIndexSendsAnEmployeeWithoutTheRolesModuleToTheNoAccessPage(): void
+    public function testGetIndex_SendsAnEmployeeWithoutTheRolesModuleToTheNoAccessPage(): void
     {
         $this->loginAs($this->createEmployee());
 
@@ -88,16 +88,24 @@ final class RolesControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('no_access', $response->getRedirectUrl());
     }
 
-    public function testGetIndexOffersTheNewRoleButtonOnlyToAManagerOfRoles(): void
+    public function testGetIndex_OffersTheNewRoleButtonOnlyToAManagerOfRoles(): void
     {
         $this->manager();
-        $this->get('/roles')->assertStatus(200)->assertSee('data-href="roles/view"');
+
+        $page = $this->get('/roles');
+
+        $page->assertStatus(200);
+        $page->assertSee('data-href="roles/view"');
 
         $this->reader();
-        $this->get('/roles')->assertStatus(200)->assertDontSee('data-href="roles/view"');
+
+        $page = $this->get('/roles');
+
+        $page->assertStatus(200);
+        $page->assertDontSee('data-href="roles/view"');
     }
 
-    public function testGetSearchListsTheRolesWithTheirPermissionsAndEmployeesAndFiltersByName(): void
+    public function testGetSearch_ListsTheRolesWithTheirPermissionsAndEmployeesAndFiltersByName(): void
     {
         $name = 'Searchable ' . uniqid();
         $role = $this->createRole(['sales', 'items'], 'own', true, $name, 'Counts things');
@@ -117,7 +125,7 @@ final class RolesControllerTest extends CIUnitTestCase
         $this->assertSame(0, $this->jsonOf($this->get('/roles/search?search=nomatch' . uniqid()))['total']);
     }
 
-    public function testGetSearchShowsNoEditOrDeleteActionToAnEmployeeWhoMayNotManageRoles(): void
+    public function testGetSearch_ShowsNoEditOrDeleteActionToAnEmployeeWhoMayNotManageRoles(): void
     {
         $name = 'Plain ' . uniqid();
 
@@ -136,7 +144,7 @@ final class RolesControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('role-action', $rows[0]['edit']);
     }
 
-    public function testGetRowReturnsTheRowOfARoleAndIsNotFoundForOneThatDoesNotExist(): void
+    public function testGetRow_ReturnsTheRowOfARoleAndIsNotFoundForOneThatDoesNotExist(): void
     {
         $role = $this->createRole(['sales']);
 
@@ -149,7 +157,7 @@ final class RolesControllerTest extends CIUnitTestCase
         $this->get('/roles/row/999999');
     }
 
-    public function testGetViewStartsANewRoleWithNothingChosenAndTheSensitivePermissionsLocked(): void
+    public function testGetView_StartsANewRoleWithNothingChosenAndTheSensitivePermissionsLocked(): void
     {
         $this->manager();
 
@@ -165,7 +173,7 @@ final class RolesControllerTest extends CIUnitTestCase
         $this->assertStringContainsString(lang('Module.sales'), $html);
     }
 
-    public function testGetViewShowsWhatTheRoleHoldsAndItsScope(): void
+    public function testGetView_ShowsWhatTheRoleHoldsAndItsScope(): void
     {
         $role = $this->createRole(['sales', 'items'], 'own', true, 'Held ' . uniqid());
 
@@ -179,7 +187,7 @@ final class RolesControllerTest extends CIUnitTestCase
         $this->assertMatchesRegularExpression('/id="record_scope_own"[^>]*checked/', $html);
     }
 
-    public function testGetViewKeepsAPermissionTheManagerDoesNotHoldInTheFormSoSavingDoesNotDropIt(): void
+    public function testGetView_KeepsAPermissionTheManagerDoesNotHoldInTheFormSoSavingDoesNotDropIt(): void
     {
         $role = $this->createRole(['sales', 'items'], 'all', true, 'Partly ' . uniqid());
 
@@ -192,7 +200,7 @@ final class RolesControllerTest extends CIUnitTestCase
         $this->assertMatchesRegularExpression('/id="perm_sales"[^>]*name="permissions\[\]"/', $html);
     }
 
-    public function testGetViewIsNotFoundForAnEmployeeWhoMayNotManageRolesAndForARoleThatDoesNotExist(): void
+    public function testGetView_IsNotFoundForAnEmployeeWhoMayNotManageRolesAndForARoleThatDoesNotExist(): void
     {
         $role = $this->createRole();
 
@@ -214,7 +222,7 @@ final class RolesControllerTest extends CIUnitTestCase
         $this->get('/roles/view/999999');
     }
 
-    public function testPostSaveCreatesARoleAndAuditsIt(): void
+    public function testPostSave_CreatesARoleAndAuditsIt(): void
     {
         $manager = $this->manager();
         $name    = 'Created ' . uniqid();
@@ -234,7 +242,7 @@ final class RolesControllerTest extends CIUnitTestCase
         $this->assertSame((string) $manager, (string) $entry->employee_id);
     }
 
-    public function testPostSaveUpdatesARoleAndStoresTheSubmittedSetAsSent(): void
+    public function testPostSave_UpdatesARoleAndStoresTheSubmittedSetAsSent(): void
     {
         $role = $this->createRole(['sales', 'items'], 'all', true, 'Before ' . uniqid());
         $this->manager();
@@ -246,7 +254,7 @@ final class RolesControllerTest extends CIUnitTestCase
         $this->assertSame('0', (string) (new RoleService())->find($role)->active);
     }
 
-    public function testPostSaveRefusesASensitivePermissionAndNamesIt(): void
+    public function testPostSave_RefusesASensitivePermissionAndNamesIt(): void
     {
         $this->manager();
 
@@ -257,7 +265,7 @@ final class RolesControllerTest extends CIUnitTestCase
         $this->assertStringContainsString(AccountingGuard::PERIODS_CLOSE, $result['message']);
     }
 
-    public function testPostSaveRefusesTheBranchScopeEvenWhenItIsPosted(): void
+    public function testPostSave_RefusesTheBranchScopeEvenWhenItIsPosted(): void
     {
         $this->manager();
 
@@ -267,7 +275,7 @@ final class RolesControllerTest extends CIUnitTestCase
         $this->assertSame(lang('Roles.error_branch_permission', ['org_all_branches']), $result['message']);
     }
 
-    public function testPostSaveRefusesAnEmptyNameADuplicateNameAndAScopeThatIsNotKnown(): void
+    public function testPostSave_RefusesAnEmptyNameADuplicateNameAndAScopeThatIsNotKnown(): void
     {
         $this->manager();
 
@@ -280,7 +288,7 @@ final class RolesControllerTest extends CIUnitTestCase
         $this->assertSame(lang('Roles.error_invalid_scope'), $this->jsonOf($this->post('/roles/save', ['name' => 'Scoped ' . uniqid(), 'record_scope' => 'branch']))['message']);
     }
 
-    public function testPostSaveRefusesAnEmployeeWhoMayNotManageRolesAndChangesNothing(): void
+    public function testPostSave_RefusesAnEmployeeWhoMayNotManageRolesAndChangesNothing(): void
     {
         $role = $this->createRole(['sales'], 'all', true, 'Untouched ' . uniqid());
 
@@ -295,7 +303,7 @@ final class RolesControllerTest extends CIUnitTestCase
         $this->assertSame(['sales'], (new RoleService())->permissionsOf($role));
     }
 
-    public function testPostSaveRefusesAPermissionTheManagerDoesNotHold(): void
+    public function testPostSave_RefusesAPermissionTheManagerDoesNotHold(): void
     {
         $this->manager(['sales']);
 
@@ -305,7 +313,7 @@ final class RolesControllerTest extends CIUnitTestCase
         $this->assertSame(lang('Roles.error_cannot_grant', ['items']), $result['message']);
     }
 
-    public function testPostDeleteRoleDeletesARoleNobodyHoldsAndRefusesOneEmployeesHold(): void
+    public function testPostDeleteRole_DeletesARoleNobodyHoldsAndRefusesOneEmployeesHold(): void
     {
         $free = $this->createRole(['sales'], 'all', true, 'Free ' . uniqid());
         $held = $this->createRole(['sales'], 'all', true, 'Held ' . uniqid());
@@ -323,7 +331,7 @@ final class RolesControllerTest extends CIUnitTestCase
         $this->assertNotNull((new RoleService())->find($held));
     }
 
-    public function testPostDeleteRoleRefusesAnEmployeeWhoMayNotManageRoles(): void
+    public function testPostDeleteRole_RefusesAnEmployeeWhoMayNotManageRoles(): void
     {
         $role = $this->createRole();
 
@@ -335,7 +343,7 @@ final class RolesControllerTest extends CIUnitTestCase
         $this->assertNotNull((new RoleService())->find($role));
     }
 
-    public function testRolesScreensAreNotReachableWithAGrantThatOnlyARoleGives(): void
+    public function testRolesScreens_AreNotReachableWithAGrantThatOnlyARoleGives(): void
     {
         $role     = $this->createRole(['roles', 'sales']);
         $employee = $this->employeeWithRoles([$role]);
@@ -347,5 +355,19 @@ final class RolesControllerTest extends CIUnitTestCase
         $result = $this->jsonOf($this->post('/roles/save', ['name' => 'By role ' . uniqid()]));
 
         $this->assertFalse($result['success'], 'The permission to manage roles is never given through a role');
+    }
+
+    public function testGetSearch_OffersNoDeleteActionForARoleThatEmployeesHold(): void
+    {
+        $held = 'Held ' . uniqid();
+        $role = $this->createRole(['sales'], 'all', true, $held);
+
+        $this->employeeWithRoles([$role]);
+        $this->manager();
+
+        $rows = $this->jsonOf($this->get('/roles/search?search=' . rawurlencode($held)))['rows'];
+
+        $this->assertStringContainsString('roles/view/', $rows[0]['edit']);
+        $this->assertStringNotContainsString('role-action', $rows[0]['edit']);
     }
 }

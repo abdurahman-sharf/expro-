@@ -830,7 +830,7 @@ class SupplierAdvancesTest extends CIUnitTestCase
 
     public function testCancelOpening_RefusesAnotherEmployeesOpeningBalanceAsOneThatDoesNotExistForAnEmployeeWhoSeesTheirOwnRecords(): void
     {
-        $opening = $this->advances->openingBalance($this->supplierId, 'owed', '200.00', '2020-01-01', 'before the books', $this->clerk);
+        $opening = $this->advances->openingBalance($this->supplierId, SupplierAdvances::WE_OWE, '200.00', '2026-01-01', 'before the books', $this->clerk);
         $second  = $this->employeeWithGrants([AccountingGuard::PAYABLES_MANAGE]);
 
         (new RoleService())->setRecordScope($second, 'own', null);

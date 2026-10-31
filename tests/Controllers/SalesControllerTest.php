@@ -5401,7 +5401,7 @@ class SalesControllerTest extends CIUnitTestCase
 
         $this->loginAs($own);
 
-        $ids = array_column(array_filter($this->jsonOf($this->get('/sales/search' . $range))['rows'], static fn (array $row): bool => isset($row['sale_id'])), 'sale_id');
+        $ids = array_column(array_filter($this->jsonOf($this->get('/sales/search' . $range))['rows'], static fn (array $row): bool => isset($row['sale_id']) && $row['sale_id'] !== '-'), 'sale_id');
 
         $this->assertSame([(string) $mine], array_map('strval', $ids));
 
@@ -5423,7 +5423,8 @@ class SalesControllerTest extends CIUnitTestCase
         $foreign = $this->get('/sales/row/' . $theirs);
         $missing = $this->get('/sales/row/999999');
 
-        $foreign->assertStatus(403);
+        $foreign->assertStatus(404);
+        $missing->assertStatus(404);
         $this->assertSame($this->jsonOf($missing), $this->jsonOf($foreign), 'The refusal says nothing of whether the sale exists');
         $this->get('/sales/row/' . $this->createSale($own))->assertStatus(200);
     }

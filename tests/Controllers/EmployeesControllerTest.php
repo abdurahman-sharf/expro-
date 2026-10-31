@@ -1015,9 +1015,16 @@ class EmployeesControllerTest extends CIUnitTestCase
 
         $html = $this->get('/employees/view/' . $employee)->getBody();
 
-        $this->assertMatchesRegularExpression('/id="grant_employees"[^>]*checked/', $html, 'A direct grant stays ticked');
-        $this->assertDoesNotMatchRegularExpression('/id="grant_items"[^>]*checked/', $html, 'A grant that a role gives is not copied into the form');
+        $this->assertStringContainsString('checked', $this->checkboxTag($html, 'grant_employees'), 'A direct grant stays ticked');
+        $this->assertStringNotContainsString('checked', $this->checkboxTag($html, 'grant_items'), 'A grant that a role gives is not copied into the form');
         $this->assertStringContainsString(esc(lang('Roles.via_role', [(new RoleService())->find($role)->name])), $html);
+    }
+
+    private function checkboxTag(string $html, string $id): string
+    {
+        $this->assertSame(1, preg_match('/<input[^>]*id="' . preg_quote($id, '/') . '"[^>]*>/', $html, $found), "The form has no input {$id}");
+
+        return $found[0];
     }
 
     public function testPostSave_DoesNotCopyWhatARoleGivesIntoTheDirectGrantsOfTheEmployee(): void
@@ -1174,5 +1181,22 @@ class EmployeesControllerTest extends CIUnitTestCase
 
         $this->assertTrue(json_decode($this->post('/employees/delete', ['ids' => [(string) $target]])->getJSON(), true)['success']);
         $this->assertSame([], (new RoleService())->roleIdsOf($target));
+    }
+
+    public function testPostSave_AcceptsTheSameDirectGrantsWhileGrantsMayNotBeChangedForAnEmployeeWhoHoldsARole(): void
+    {
+        $role     = $this->createRole(['items', 'customers'], 'all', true, 'Stockists ' . uniqid());
+        $employee = $this->employeeWithRoles([$role], ['employees']);
+
+        $this->loginAsAdmin();
+        putenv('DISALLOW_GRANT_CHANGE=true');
+
+        try {
+            $result = json_decode($this->post('/employees/save/' . $employee, $this->formFor('frozenrole' . uniqid(), ['grant_employees' => 'employees']))->getJSON(), true);
+        } finally {
+            putenv('DISALLOW_GRANT_CHANGE=false');
+        }
+
+        $this->assertTrue($result['success'], 'What a role gives is not a change of the grants of the employee');
     }
 }

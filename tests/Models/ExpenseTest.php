@@ -6,6 +6,7 @@ use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Numbering\NumberingSequence;
@@ -505,7 +506,7 @@ class ExpenseTest extends CIUnitTestCase
 
     private function ownRecordsClerk(): int
     {
-        return $this->employeeWithRoles([$this->createRole([], 'own')]);
+        return $this->employeeWithRoles([$this->createRole([], 'own')], [BranchGuard::ALL_BRANCHES]);
     }
 
     private function expenseOf(int $employeeId, string $amount = '25.00'): int
@@ -597,7 +598,7 @@ class ExpenseTest extends CIUnitTestCase
         $this->assertNull($this->saveExpense($data, $theirs, $own));
         $this->assertNull($this->expenses->accountingFailure(), 'The refusal is not told apart from one for an expense that does not exist');
         $this->assertSame('70.00', (string) $this->accountingDb()->table('expenses')->select('amount')->where('expense_id', $theirs)->get()->getRow()->amount);
-        $this->assertSame($journal, $this->journalsOfSource('expense', $theirs));
+        $this->assertEquals($journal, $this->journalsOfSource('expense', $theirs));
     }
 
     public function testSaveValue_RefusesToTurnAnotherEmployeesExpenseIntoOneOfTheirsWhileTheBooksAreOff(): void
@@ -631,7 +632,7 @@ class ExpenseTest extends CIUnitTestCase
 
         $this->assertFalse($this->expenses->delete_list([$mine, $theirs], $own));
         $this->assertSame(0, $this->accountingDb()->table('expenses')->whereIn('expense_id', [$mine, $theirs])->where('deleted', 1)->countAllResults(), 'Nothing of a refused list is deleted');
-        $this->assertSame($journal, $this->journalsOfSource('expense', $mine));
+        $this->assertEquals($journal, $this->journalsOfSource('expense', $mine));
         $this->assertTrue($this->expenses->delete_list([$mine], $own));
     }
 

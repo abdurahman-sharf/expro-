@@ -24,19 +24,19 @@ final class RoleTablesTest extends CIUnitTestCase
         Database::seeder('tests')->call('TestDatabaseBootstrapSeeder');
     }
 
-    public function testExistIsTrueWhenEveryTableNamedExists(): void
+    public function testExist_IsTrueWhenEveryTableNamedExists(): void
     {
         $this->assertTrue(RoleTables::exist(Database::connect(), 'roles'));
         $this->assertTrue(RoleTables::exist(Database::connect(), 'roles', 'role_permissions', 'employee_roles', 'employee_record_scopes', 'employee_default_locations'));
     }
 
-    public function testExistIsFalseWhenOneTableNamedDoesNotExist(): void
+    public function testExist_IsFalseWhenOneTableNamedDoesNotExist(): void
     {
         $this->assertFalse(RoleTables::exist(Database::connect(), 'roles', 'no_such_table'));
         $this->assertFalse(RoleTables::exist(Database::connect(), 'no_such_table'));
     }
 
-    public function testExistAsksTheServerAndNotTheListOfTablesTheConnectionRemembers(): void
+    public function testExist_AsksTheServerAndNotTheListOfTablesTheConnectionRemembers(): void
     {
         $db = Database::connect();
 

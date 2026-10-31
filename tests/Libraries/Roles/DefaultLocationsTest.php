@@ -61,14 +61,14 @@ final class DefaultLocationsTest extends CIUnitTestCase
         return $this->createEmployee(grants: [['permission_id' => 'employees', 'menu_group' => 'home']]);
     }
 
-    public function testOfIsNullForAnEmployeeWhoWasGivenNoLocation(): void
+    public function testOf_IsNullForAnEmployeeWhoWasGivenNoLocation(): void
     {
         $this->assertNull($this->defaults->of($this->createEmployee()));
         $this->assertNull($this->defaults->of(0));
         $this->assertNull($this->defaults->of(999999));
     }
 
-    public function testSetStoresTheLocationOfAnEmployeeAndAuditsTheChange(): void
+    public function testSet_StoresTheLocationOfAnEmployeeAndAuditsTheChange(): void
     {
         $employee = $this->createEmployee();
         $location = $this->location();
@@ -79,7 +79,7 @@ final class DefaultLocationsTest extends CIUnitTestCase
         $this->assertSame(1, $this->roleDb()->table('accounting_audit_log')->where(['entity_type' => 'employee', 'entity_id' => $employee, 'action' => 'default_location_set'])->countAllResults());
     }
 
-    public function testSetReplacesThePreviousDefaultOfTheSameEmployee(): void
+    public function testSet_ReplacesThePreviousDefaultOfTheSameEmployee(): void
     {
         $employee = $this->createEmployee();
         $first    = $this->location('First');
@@ -92,7 +92,7 @@ final class DefaultLocationsTest extends CIUnitTestCase
         $this->assertSame(1, $this->roleDb()->table('employee_default_locations')->where('person_id', $employee)->countAllResults(), 'An employee has one default at most');
     }
 
-    public function testSetRemovesTheDefaultWhenNoLocationIsGiven(): void
+    public function testSet_RemovesTheDefaultWhenNoLocationIsGiven(): void
     {
         $employee = $this->createEmployee();
 
@@ -102,7 +102,7 @@ final class DefaultLocationsTest extends CIUnitTestCase
         $this->assertNull($this->defaults->of($employee));
     }
 
-    public function testSetWritesNoEntryWhenTheLocationStaysTheSame(): void
+    public function testSet_WritesNoEntryWhenTheLocationStaysTheSame(): void
     {
         $employee = $this->createEmployee();
         $location = $this->location();
@@ -113,7 +113,7 @@ final class DefaultLocationsTest extends CIUnitTestCase
         $this->assertSame(1, $this->roleDb()->table('accounting_audit_log')->where(['entity_type' => 'employee', 'entity_id' => $employee, 'action' => 'default_location_set'])->countAllResults());
     }
 
-    public function testSetRejectsALocationThatDoesNotExistOrWasDeleted(): void
+    public function testSet_RejectsALocationThatDoesNotExistOrWasDeleted(): void
     {
         $employee = $this->createEmployee();
         $deleted  = $this->location('Gone');
@@ -125,7 +125,7 @@ final class DefaultLocationsTest extends CIUnitTestCase
         $this->assertNull($this->defaults->of($employee));
     }
 
-    public function testSetRejectsAnEmployeeThatDoesNotExistOrWasDeleted(): void
+    public function testSet_RejectsAnEmployeeThatDoesNotExistOrWasDeleted(): void
     {
         $deleted = $this->createEmployee();
 
@@ -135,7 +135,7 @@ final class DefaultLocationsTest extends CIUnitTestCase
         $this->assertSame(RoleError::EmployeeNotFound, $this->refusal(fn () => $this->defaults->set($deleted, $this->location(), null))->error);
     }
 
-    public function testSetRequiresThePermissionToChangeEmployees(): void
+    public function testSet_RequiresThePermissionToChangeEmployees(): void
     {
         $employee = $this->createEmployee();
         $plain    = $this->createEmployee();
@@ -144,7 +144,7 @@ final class DefaultLocationsTest extends CIUnitTestCase
         $this->assertNull($this->defaults->of($employee));
     }
 
-    public function testOfIgnoresALocationThatWasDeletedAfterwards(): void
+    public function testOf_IgnoresALocationThatWasDeletedAfterwards(): void
     {
         $employee = $this->createEmployee();
         $location = $this->location();

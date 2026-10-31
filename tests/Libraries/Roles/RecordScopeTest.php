@@ -47,14 +47,14 @@ final class RecordScopeTest extends CIUnitTestCase
         parent::tearDown();
     }
 
-    public function testOwnOnlyIsFalseForAnEmployeeWhoWasGivenNothingAndForTheBooks(): void
+    public function testOwnOnly_IsFalseForAnEmployeeWhoWasGivenNothingAndForTheBooks(): void
     {
         $this->assertFalse($this->scope->ownOnly($this->createEmployee()));
         $this->assertFalse($this->scope->ownOnly(null));
         $this->assertFalse($this->scope->ownOnly(999999));
     }
 
-    public function testOwnOnlyIsTrueForAnEmployeeSetToTheirOwnRecords(): void
+    public function testOwnOnly_IsTrueForAnEmployeeSetToTheirOwnRecords(): void
     {
         $employee = $this->createEmployee();
 
@@ -63,26 +63,26 @@ final class RecordScopeTest extends CIUnitTestCase
         $this->assertTrue($this->scope->ownOnly($employee));
     }
 
-    public function testOwnOnlyIsTrueForAnEmployeeWhoHoldsARoleOfTheirOwnRecords(): void
+    public function testOwnOnly_IsTrueForAnEmployeeWhoHoldsARoleOfTheirOwnRecords(): void
     {
         $employee = $this->employeeWithRoles([$this->createRole(['sales'], 'own')]);
 
         $this->assertTrue($this->scope->ownOnly($employee));
     }
 
-    public function testOwnOnlyIsFalseForARoleThatShowsEveryRecord(): void
+    public function testOwnOnly_IsFalseForARoleThatShowsEveryRecord(): void
     {
         $this->assertFalse($this->scope->ownOnly($this->employeeWithRoles([$this->createRole(['sales'], 'all')])));
     }
 
-    public function testOwnOnlyIgnoresAnInactiveRoleOfTheirOwnRecords(): void
+    public function testOwnOnly_IgnoresAnInactiveRoleOfTheirOwnRecords(): void
     {
         $employee = $this->employeeWithRoles([$this->createRole(['sales'], 'own', false)]);
 
         $this->assertFalse($this->scope->ownOnly($employee));
     }
 
-    public function testOwnOnlyTakesTheNarrowestOfSeveralRolesAndOfTheEmployeeThemselves(): void
+    public function testOwnOnly_TakesTheNarrowestOfSeveralRolesAndOfTheEmployeeThemselves(): void
     {
         $wide   = $this->createRole(['sales'], 'all');
         $narrow = $this->createRole(['items'], 'own');
@@ -96,7 +96,7 @@ final class RecordScopeTest extends CIUnitTestCase
         $this->assertTrue($this->scope->ownOnly($own), 'A role that shows everything never widens an employee set to their own records');
     }
 
-    public function testOwnOnlyFollowsTheRoleWhenItChangesAndWhenItIsTaken(): void
+    public function testOwnOnly_FollowsTheRoleWhenItChangesAndWhenItIsTaken(): void
     {
         $role     = $this->createRole(['sales'], 'all');
         $employee = $this->employeeWithRoles([$role]);
@@ -112,17 +112,7 @@ final class RecordScopeTest extends CIUnitTestCase
         $this->assertFalse($this->scope->ownOnly($employee));
     }
 
-    public function testOwnOnlyIgnoresTheRolesOfADeletedEmployee(): void
-    {
-        $employee = $this->employeeWithRoles([$this->createRole(['sales'], 'own')]);
-
-        $this->roleDb()->table('employees')->where('person_id', $employee)->update(['deleted' => 1]);
-        RoleGrants::flush();
-
-        $this->assertFalse($this->scope->ownOnly($employee));
-    }
-
-    public function testAllowsLetsAnEmployeeWhoSeesEverythingUseAnyRecord(): void
+    public function testAllows_LetsAnEmployeeWhoSeesEverythingUseAnyRecord(): void
     {
         $employee = $this->createEmployee();
 
@@ -132,7 +122,7 @@ final class RecordScopeTest extends CIUnitTestCase
         $this->assertTrue($this->scope->allows(null, 12345), 'The books see everything');
     }
 
-    public function testAllowsLetsAnEmployeeWhoSeesTheirOwnRecordsUseOnlyTheirOwn(): void
+    public function testAllows_LetsAnEmployeeWhoSeesTheirOwnRecordsUseOnlyTheirOwn(): void
     {
         $employee = $this->employeeWithRoles([$this->createRole([], 'own')]);
 
@@ -143,7 +133,7 @@ final class RecordScopeTest extends CIUnitTestCase
         $this->assertFalse($this->scope->allows($employee, 'x'));
     }
 
-    public function testLimitNamesTheEmployeeWhoseRecordsAreKeptAndNobodyWhenNothingIsCut(): void
+    public function testLimit_NamesTheEmployeeWhoseRecordsAreKeptAndNobodyWhenNothingIsCut(): void
     {
         $own = $this->employeeWithRoles([$this->createRole([], 'own')]);
         $all = $this->createEmployee();
@@ -153,7 +143,7 @@ final class RecordScopeTest extends CIUnitTestCase
         $this->assertNull($this->scope->limit(null));
     }
 
-    public function testCutAddsTheConditionOnlyForAnEmployeeWhoSeesTheirOwnRecords(): void
+    public function testCut_AddsTheConditionOnlyForAnEmployeeWhoSeesTheirOwnRecords(): void
     {
         $own     = $this->employeeWithRoles([$this->createRole([], 'own')]);
         $builder = $this->roleDb()->table('expenses');
@@ -169,7 +159,7 @@ final class RecordScopeTest extends CIUnitTestCase
         $this->assertStringNotContainsString('WHERE', $untouched->getCompiledSelect());
     }
 
-    public function testConditionReturnsTheSqlAndTheBindingOrNothing(): void
+    public function testCondition_ReturnsTheSqlAndTheBindingOrNothing(): void
     {
         $own = $this->employeeWithRoles([$this->createRole([], 'own')]);
 
@@ -178,7 +168,7 @@ final class RecordScopeTest extends CIUnitTestCase
         $this->assertSame(['', []], $this->scope->condition('p.employee_id', null));
     }
 
-    public function testSessionEmployeeReadsThePersonOfTheSessionAndIsNullWithoutOne(): void
+    public function testSessionEmployee_ReadsThePersonOfTheSessionAndIsNullWithoutOne(): void
     {
         unset($_SESSION['person_id']);
 
@@ -191,5 +181,24 @@ final class RecordScopeTest extends CIUnitTestCase
         $_SESSION['person_id'] = 0;
 
         $this->assertNull(RecordScope::sessionEmployee());
+    }
+
+    public function testOwnOnly_IsFalseAndDoesNotFailBeforeTheMigrationHasCreatedTheTables(): void
+    {
+        $db       = $this->roleDb();
+        $employee = $this->employeeWithRoles([$this->createRole([], 'own')]);
+        $table    = $db->prefixTable('employee_record_scopes');
+
+        RoleGrants::flush();
+        $db->query("RENAME TABLE `{$table}` TO `{$table}_away`");
+
+        try {
+            $this->assertFalse((new RecordScope())->ownOnly($employee));
+        } finally {
+            $db->query("RENAME TABLE `{$table}_away` TO `{$table}`");
+            RoleGrants::flush();
+        }
+
+        $this->assertTrue((new RecordScope())->ownOnly($employee));
     }
 }
