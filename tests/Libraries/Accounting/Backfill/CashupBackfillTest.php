@@ -126,4 +126,35 @@ final class CashupBackfillTest extends CIUnitTestCase
         $this->assertSame([$counted], $found);
         $this->assertGreaterThan(0, $open);
     }
+
+    public function testPlan_RefusesACashupThatIsNoLongerCountedOrIsGone(): void
+    {
+        $legacy = $this->legacyCashup('900');
+
+        $this->accountingDb()->table('cash_up')->where('cashup_id', $legacy)->update(['closed_amount_cash' => '0', 'closed_amount_card' => '0']);
+
+        $this->assertSame(BackfillRefusal::DocumentChanged, $this->adapter()->plan(new BackfillDocument(BackfillFamily::Cashups, $legacy, '2026-03-12', 1), null, 0)->refusal);
+        $this->assertSame(BackfillRefusal::DocumentChanged, $this->adapter()->plan(new BackfillDocument(BackfillFamily::Cashups, 987654, '2026-03-12', 1), null, 0)->refusal);
+    }
+
+    public function testPlan_RefusesACashupCountedInATreasuryThatIsGone(): void
+    {
+        $legacy = $this->legacyCashup('900');
+
+        $this->withoutKeys(fn () => $this->accountingDb()->table('cash_up')->where('cashup_id', $legacy)->update(['treasury_id' => 987654, 'branch_id' => 1]));
+
+        $this->assertSame(BackfillRefusal::TreasuryMissing, $this->plan($legacy)->refusal);
+    }
+
+    public function testPlan_KeepsTheDifferenceOfACashupThatWasStampedAndDoesNotStampItAgain(): void
+    {
+        $legacy = $this->legacyCashup('900', '2026-03-12', 1);
+
+        $this->accountingDb()->table('cash_up')->where('cashup_id', $legacy)->update(['expected_amount_cash' => '1000', 'cash_difference' => '-100']);
+
+        $plan = $this->plan($legacy);
+
+        $this->assertSame([], $plan->stamp);
+        $this->assertSame(['cashup:general|' . $this->accountId('cash_difference') . ':100.00:0.00,' . $this->accountId('cash') . ':0.00:100.00'], $this->plannedLines($plan));
+    }
 }

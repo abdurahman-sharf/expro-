@@ -19,6 +19,7 @@ use App\Libraries\Organization\BranchException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use Tests\Support\PreviewJournalFixtureTrait;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ExpenseAccountingFixtureTrait;
@@ -33,6 +34,7 @@ use Tests\Support\ParityCaseTrait;
 class ExpensePostingTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
+    use PreviewJournalFixtureTrait;
     use AccountingFixtureTrait;
     use EmployeeFixtureTrait;
     use ExpenseAccountingFixtureTrait;
@@ -1879,5 +1881,16 @@ class ExpensePostingTest extends CIUnitTestCase
         $this->assertNull($this->accountingDb()->table('expenses')->where('expense_id', $expenseId)->get()->getRow()->treasury_id);
         $this->assertSame('-40.00', $this->balanceOf($held));
         $this->assertSame(0, $this->countRows('cheques'));
+    }
+
+    public function testJournalsOf_LeavesOutThePreviewsOfABatch(): void
+    {
+        $expenseId = $this->saveExpense($this->expenseData('100', '0', 'Cash', null, '2026-10-20 10:00:00'));
+        $before    = (new ExpensePosting())->journalsOf($expenseId);
+
+        $this->previewOfSource('expense', $expenseId);
+
+        $this->assertEquals($before, (new ExpensePosting())->journalsOf($expenseId));
+        $this->assertCount(1, $before);
     }
 }

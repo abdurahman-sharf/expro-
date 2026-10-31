@@ -456,4 +456,13 @@ final class AccountingBackfillControllerTest extends CIUnitTestCase
         $this->assertFalse($result['success']);
         $this->assertSame('posted', $this->batchJournals($batch->id)[0]['status']);
     }
+
+    public function testGetView_SaysWhichDocumentsWillBeStampedWithTheBranchWhenTheBatchIsApproved(): void
+    {
+        $this->legacyExpense();
+
+        $batch = $this->previewed();
+
+        $this->get('/accounting_periods/backfill/view/' . $batch->id)->assertSee(lang('Accounting_backfill.stamp_note'));
+    }
 }

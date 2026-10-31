@@ -85,6 +85,7 @@ return [
     'refused'                       => '',
     'scope_company'                 => '',
     'source'                        => '',
+    'stamp_note'                    => '',
     'status_approved'               => '',
     'status_approving'              => '',
     'status_cancelled'              => '',

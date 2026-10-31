@@ -24,6 +24,7 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use Config\OSPOS;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\Support\PreviewJournalFixtureTrait;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ConcurrentDbRaceTrait;
 use Tests\Support\EmployeeFixtureTrait;
@@ -45,6 +46,7 @@ use Tests\Support\SaleAccountingFixtureTrait;
 class ReceivingPostingTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
+    use PreviewJournalFixtureTrait;
     use AccountingFixtureTrait;
     use ConcurrentDbRaceTrait;
     use EmployeeFixtureTrait;
@@ -4705,5 +4707,16 @@ class ReceivingPostingTest extends CIUnitTestCase
         $this->assertNull($this->accountingDb()->table('receivings')->where('receiving_id', $id)->get()->getRow()->treasury_id);
         $this->assertSame('-100.00', $this->balance($held));
         $this->assertSame(0, $this->countRows('cheques'));
+    }
+
+    public function testJournalsOf_LeavesOutThePreviewsOfABatch(): void
+    {
+        $receivingId = $this->purchaseOf('500', null, lang('Sales.cash'));
+        $before      = $this->purchaseJournals($receivingId);
+
+        $this->previewOfSource('purchase', $receivingId);
+        $this->previewOfSource('purchase_payment', $receivingId);
+
+        $this->assertSame($before, $this->purchaseJournals($receivingId));
     }
 }

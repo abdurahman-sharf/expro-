@@ -176,7 +176,7 @@ $pager = static function (int $total, int $page, int $size, string $param, Closu
                                 <td><bdi dir="ltr"><?= esc($date($row->document_date)) ?></bdi></td>
                                 <td><bdi dir="ltr"><?= esc((string) $row->branch_code) ?></bdi></td>
                                 <td><span class="badge <?= $row->outcome === 'ready' ? 'text-bg-success' : 'text-bg-warning' ?>"><?= lang('Accounting_backfill.outcome_' . $row->outcome) ?></span></td>
-                                <td><?= $row->reason === null ? '' : esc($reasonText((string) $row->reason)) . ($row->detail === null ? '' : ' <bdi dir="ltr" class="text-body-secondary">' . esc((string) $row->detail) . '</bdi>') ?></td>
+                                <td><?= $row->reason === null ? ($row->detail !== null && str_starts_with((string) $row->detail, 'stamp:') ? esc(lang('Accounting_backfill.stamp_note')) : '') : esc($reasonText((string) $row->reason)) . ($row->detail === null ? '' : ' <bdi dir="ltr" class="text-body-secondary">' . esc((string) $row->detail) . '</bdi>') ?></td>
                                 <td class="text-end"><?= (int) $row->journal_count ?></td>
                                 <td class="text-end"><?= $amount($row->total_debit) ?></td>
                             </tr>

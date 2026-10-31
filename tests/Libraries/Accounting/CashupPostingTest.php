@@ -18,6 +18,7 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use Config\OSPOS;
+use Tests\Support\PreviewJournalFixtureTrait;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ExpenseAccountingFixtureTrait;
@@ -31,6 +32,7 @@ use Tests\Support\ExpenseAccountingFixtureTrait;
 class CashupPostingTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
+    use PreviewJournalFixtureTrait;
     use AccountingFixtureTrait;
     use EmployeeFixtureTrait;
     use ExpenseAccountingFixtureTrait;
@@ -896,5 +898,16 @@ class CashupPostingTest extends CIUnitTestCase
         } finally {
             config(OSPOS::class)->settings = $settings;
         }
+    }
+
+    public function testJournalsOf_LeavesOutThePreviewsOfABatch(): void
+    {
+        $cashupId = $this->saveCashup($this->cashupData('80', '100'));
+        $before   = (new CashupPosting())->journalsOf($cashupId);
+
+        $this->previewOfSource('cashup', $cashupId);
+
+        $this->assertEquals($before, (new CashupPosting())->journalsOf($cashupId));
+        $this->assertCount(1, $before);
     }
 }

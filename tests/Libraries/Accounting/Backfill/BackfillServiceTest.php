@@ -2,6 +2,11 @@
 
 namespace Tests\Libraries\Accounting\Backfill;
 
+use ReflectionMethod;
+use App\Libraries\Accounting\ReportScope;
+use App\Libraries\Accounting\ReportPeriod;
+use App\Libraries\Accounting\TaxReport;
+use App\Libraries\Accounting\Backfill\BackfillService;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
@@ -781,7 +786,7 @@ final class BackfillServiceTest extends CIUnitTestCase
         $this->assertSame([], (new StockLedger())->mismatchedJournals());
 
         foreach ((new StockLedger())->reconcile() as $row) {
-            $this->assertSame('0.0000', bcadd($row['unattributed'], '0', 4) === '-0.0000' ? '0.0000' : bcadd($row['unattributed'], '0', 4), 'location ' . $row['location_id']);
+            $this->assertSame(0, bccomp($row['unattributed'], '0', 4), 'The account and the movements of location ' . $row['location_id'] . ' say the same');
         }
     }
 
@@ -918,5 +923,149 @@ final class BackfillServiceTest extends CIUnitTestCase
         $this->accountingDb()->table('accounting_journals')->where('backfill_batch_id', $batch->id)->update(['status' => 'draft']);
 
         $this->assertRefusedWith(AccountingError::BackfillPreviewChanged, fn () => $this->approved($batch));
+    }
+
+    public function testApprove_WaitsForAChangeToTheDocumentThatIsRunningAndGoesOnWhenItIsDone(): void
+    {
+        $expense = $this->legacyExpense();
+        $batch   = $this->previewed();
+        $other   = $this->openSecondConnection();
+
+        $other->transStart();
+        $other->query('SELECT expense_id FROM ' . $other->prefixTable('expenses') . ' WHERE expense_id = ? FOR UPDATE', [$expense]);
+        $this->accountingDb()->query('SET SESSION innodb_lock_wait_timeout = 1');
+
+        try {
+            $this->assertWaitsForLock(fn () => $this->approved($batch));
+        } finally {
+            $other->transRollback();
+            $other->close();
+            $this->releaseOpenTransactions();
+            $this->accountingDb()->query('SET SESSION innodb_lock_wait_timeout = 50');
+        }
+
+        $this->assertSame(BackfillStatus::Approved, $this->approved($this->backfill->batch($batch->id, $this->backfillManager))->status);
+    }
+
+    public function testApprove_WaitsForTheChangeOfACustomerThatIsRunning(): void
+    {
+        $this->legacyInvoice('2026-03-10');
+
+        $batch   = $this->previewed();
+        $service = new BackfillService(null, null, null, 1);
+        $other   = $this->openSecondConnection();
+        $name    = 'ospos_customer_' . substr(sha1($this->accountingDb()->getDatabase()), 0, 10) . '_' . $this->customerId;
+
+        $this->assertSame(1, (int) $other->query('SELECT GET_LOCK(?, 0) AS got', [$name])->getRow()->got);
+
+        try {
+            $this->assertRefusedWith(AccountingError::CustomerBusy, fn () => $service->approve($batch->id, (string) $batch->fingerprint, $this->backfillManager));
+        } finally {
+            $other->query('SELECT RELEASE_LOCK(?)', [$name]);
+            $other->close();
+        }
+
+        $this->assertSame(['preview'], array_values(array_unique(array_column($this->batchJournals($batch->id), 'status'))));
+        $this->assertSame(BackfillStatus::Approved, $service->approve($batch->id, (string) $batch->fingerprint, $this->backfillManager)->status);
+    }
+
+    public function testStamp_RefusesADocumentThatHasABranchAlready(): void
+    {
+        $expense = $this->legacyExpense('100', '0', '2026-03-12', 1);
+        $batch   = $this->previewed();
+        $method  = new ReflectionMethod($this->backfill, 'stamp');
+        $stamp   = ['table' => 'expenses', 'key' => 'expense_id', 'id' => $expense, 'null' => 'branch_id', 'columns' => ['branch_id' => 1]];
+
+        try {
+            $method->invoke($this->backfill, $stamp, $batch, $this->backfillManager);
+            $this->fail('A document with a branch was stamped.');
+        } catch (AccountingException $exception) {
+            $this->assertSame(AccountingError::BackfillPreviewChanged, $exception->error);
+        }
+
+        $method->invoke($this->backfill, [], $batch, $this->backfillManager);
+        $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where('action', 'backfill_stamped')->countAllResults());
+    }
+
+    public function testPost_RefusesARunThatReadsABatchAnotherRunHasMovedOn(): void
+    {
+        $this->legacyExpense('100', '0', '2026-03-12');
+        $this->legacyExpense('200', '0', '2026-03-13');
+
+        $batch   = $this->previewed(['chunk_size' => 1]);
+        $stale   = $this->backfill->approve($batch->id, (string) $batch->fingerprint, $this->backfillManager, 1);
+        $current = $this->backfill->approve($batch->id, (string) $batch->fingerprint, $this->backfillManager, 1);
+        $method  = new ReflectionMethod($this->backfill, 'post');
+
+        $this->assertSame(BackfillStatus::Approving, $current->status);
+        $this->assertSame(2, $current->approvedCount);
+        $this->assertRefusedWith(AccountingError::BackfillBusy, fn () => $method->invoke($this->backfill, $stale, $this->backfillManager, null));
+    }
+
+    public function testApprove_PutsThePostedTaxOfThePastDocumentsInTheTaxReportThatCountedNothingBefore(): void
+    {
+        $this->legacyInvoice('2026-03-10');
+
+        $report = static fn (): string => (new TaxReport())->build(ReportScope::resolve(null, null), ReportPeriod::of('2026-03-01', '2026-03-31'))->net();
+        $before = $report();
+
+        $this->approved($this->previewed());
+
+        $this->assertSame('0.0000', bcadd($before, '0', 4));
+        $this->assertSame('106.5000', bcadd($report(), '0', 4));
+    }
+
+    public function testApprove_LeavesThePastSaleToTheLivePostingForWhatHappensToItNext(): void
+    {
+        $saleId = $this->legacyInvoice('2026-03-10', [$this->payment(lang('Sales.cash'), '300')]);
+
+        $this->approved($this->previewed());
+
+        $paymentId = $this->addPayment($saleId, '100');
+
+        $this->assertSame(1, $this->accountingDb()->table('accounting_journals')->where('source_type', 'sale_payment')->where('source_id', $paymentId)->where('status', 'posted')->countAllResults());
+        $this->assertSame(1, $this->accountingDb()->table('accounting_journals')->where('source_type', 'sale')->where('source_id', $saleId)->where('entry_type', 'revenue')->countAllResults());
+        $this->assertTies();
+    }
+
+    public function testPreview_ReadsNoFiscalYearIntoBeingForADocumentOutsideEveryYear(): void
+    {
+        $this->legacyExpense('100', '0', '2037-06-10');
+
+        $years  = $this->countRows('accounting_fiscal_years');
+        $batch  = $this->previewed(['from' => '2037-01-01', 'to' => '2037-12-31']);
+
+        $this->assertSame(['outside_fiscal_year' => 1], $this->backfill->repository()->reasons($batch->id));
+        $this->assertSame($years, $this->countRows('accounting_fiscal_years'));
+    }
+
+    public function testApprove_RefusesWhenAnAccountOfAPreviewWasDeactivatedSinceAndPostsNothing(): void
+    {
+        $this->legacyExpense('230', '30', '2026-03-12');
+
+        $batch = $this->previewed();
+
+        $this->accountingDb()->table('accounting_accounts')->where('account_id', $this->accountId('tax_input'))->update(['active' => 0]);
+
+        $before = $this->booksSnapshot();
+
+        try {
+            $this->assertRefusedWith(AccountingError::BackfillPreviewChanged, fn () => $this->approved($batch));
+            $this->assertSame($before, $this->booksSnapshot());
+        } finally {
+            $this->accountingDb()->table('accounting_accounts')->where('account_id', $this->accountId('tax_input'))->update(['active' => 1]);
+        }
+    }
+
+    public function testPreview_MarksTheDocumentsThatWillBeStampedOnTheirItem(): void
+    {
+        $this->legacyExpense();
+        $this->legacyExpense('80', '0', '2026-03-13', 1);
+
+        $batch = $this->previewed();
+        $rows  = $this->accountingDb()->table('accounting_backfill_items')->where('batch_id', $batch->id)->orderBy('item_id')->get()->getResult();
+
+        $this->assertSame('stamp:branch_id', $rows[0]->detail);
+        $this->assertNull($rows[1]->detail);
     }
 }

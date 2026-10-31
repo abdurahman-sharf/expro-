@@ -156,4 +156,32 @@ final class PurchaseBackfillTest extends CIUnitTestCase
         $this->assertNotContains($live, $found);
         $this->assertNotContains($early, $found);
     }
+
+    public function testPlan_RefusesAPurchaseThatIsGone(): void
+    {
+        $this->assertSame(BackfillRefusal::DocumentChanged, $this->adapter()->plan(new BackfillDocument(BackfillFamily::Purchases, 987654, '2026-03-10', 1), null, 0)->refusal);
+    }
+
+    public function testPlan_RefusesAPaymentIntoATreasuryOfAnotherBranch(): void
+    {
+        $other       = $this->createBranch();
+        $receivingId = $this->legacyPurchase('500');
+
+        $this->whileOff(fn (): int => $this->payPurchase($receivingId, '120'));
+        $this->accountingDb()->table('receivings_payments')->where('receiving_id', $receivingId)->update(['treasury_id' => $this->treasuryIn($other), 'treasury_branch_id' => $other]);
+
+        $this->assertSame(BackfillRefusal::CrossBranchPayment, $this->plan($receivingId)->refusal);
+    }
+
+    public function testCandidates_LeavesOutAPurchaseOfGoodsThatCostNothingThatTheBooksHoldAsMovementsOnly(): void
+    {
+        $item = $this->item('0.00');
+        $free = $this->buy([$this->purchaseLine($item, 0, '5', '0')]);
+        $scope = new BackfillScope('2026-01-01', '2026-12-31', null, [BackfillFamily::Purchases]);
+
+        $this->assertGreaterThan(0, $free);
+        $this->assertSame(0, $this->accountingDb()->table('accounting_journals')->where('source_type', 'purchase')->where('source_id', $free)->countAllResults());
+        $this->assertGreaterThan(0, $this->accountingDb()->table('accounting_stock_entries')->where('source_id', $free)->countAllResults());
+        $this->assertNotContains($free, array_map(static fn (BackfillDocument $document): int => $document->id, $this->adapter()->candidates($scope, 0, 50, 0)));
+    }
 }

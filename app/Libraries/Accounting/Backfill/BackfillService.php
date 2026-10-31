@@ -475,7 +475,7 @@ final class BackfillService
             'branch_id'     => $document->branchId,
             'outcome'       => $plan->isReady() ? 'ready' : 'refused',
             'reason'        => $plan->refusal?->value,
-            'detail'        => $plan->detail === '' ? null : mb_substr($plan->detail, 0, 255),
+            'detail'        => $plan->detail !== '' ? mb_substr($plan->detail, 0, 255) : ($plan->stamp === [] ? null : 'stamp:' . implode(',', array_keys($plan->stamp['columns']))),
             'journal_count' => count($journalIds),
             'total_debit'   => $plan->total(),
             'digest'        => $plan->digest(),

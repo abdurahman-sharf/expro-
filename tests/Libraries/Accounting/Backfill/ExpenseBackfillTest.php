@@ -2,6 +2,8 @@
 
 namespace Tests\Libraries\Accounting\Backfill;
 
+use App\Libraries\Accounting\PostingService;
+use App\Libraries\Accounting\CrossBranchPayments;
 use App\Libraries\Accounting\Backfill\BackfillDocument;
 use App\Libraries\Accounting\Backfill\BackfillFamily;
 use App\Libraries\Accounting\Backfill\BackfillPlan;
@@ -149,5 +151,25 @@ final class ExpenseBackfillTest extends CIUnitTestCase
 
         $this->assertSame([], $this->adapter()->candidates(new BackfillScope('2026-01-01', '2026-12-31', null, [BackfillFamily::Expenses]), 0, 10, 0));
         $this->assertNotNull($live);
+    }
+
+    public function testPlan_RefusesAnExpenseOfABranchThatIsInactive(): void
+    {
+        $other  = $this->createBranch();
+        $legacy = $this->legacyExpense('100', '0', '2026-03-12', $other);
+
+        $this->accountingDb()->table('branches')->where('branch_id', $other)->update(['active' => 0]);
+
+        $this->assertSame(BackfillRefusal::BranchInactive, $this->plan($legacy)->refusal);
+    }
+
+    public function testPlan_RefusesAnExpenseWhoseCompanionJournalIsInTheBooksAlready(): void
+    {
+        $legacy    = $this->legacyExpense();
+        $companion = CrossBranchPayments::companionsOf('expense')[0];
+
+        (new PostingService())->post($this->balancedDraft($companion, $legacy));
+
+        $this->assertSame(BackfillRefusal::PartlyPosted, $this->plan($legacy)->refusal);
     }
 }

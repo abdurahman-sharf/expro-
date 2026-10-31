@@ -54,4 +54,24 @@ trait PreviewJournalFixtureTrait
     {
         $this->assertGreaterThan(0, $this->accountingDb()->table('accounting_journals')->where('status', 'preview')->countAllResults(), 'The test wrote no preview');
     }
+
+    /**
+     * A preview that stands for the source of a document the books already hold, under a revision no live
+     * posting has used, with two lines on the cash and the sales accounts.
+     */
+    protected function previewOfSource(string $source, int $sourceId, int $revision = 9, string $amount = '77.00'): int
+    {
+        $db = $this->accountingDb();
+
+        $db->table('accounting_journals')->insert(['company_id' => 1, 'branch_id' => 1, 'series' => 'auto', 'journal_date' => '2026-03-10', 'status' => 'preview', 'source_type' => $source, 'source_id' => $sourceId, 'revision' => $revision, 'currency_code' => 'SAR', 'backfill_batch_id' => $this->previewBatch(), 'total_debit' => $amount, 'total_credit' => $amount]);
+
+        $journalId = (int) $db->insertID();
+
+        $db->table('accounting_journal_lines')->insertBatch([
+            ['journal_id' => $journalId, 'line_no' => 1, 'account_id' => $this->accountId('cash'), 'debit' => $amount, 'credit' => '0'],
+            ['journal_id' => $journalId, 'line_no' => 2, 'account_id' => $this->accountId('sales_revenue'), 'debit' => '0', 'credit' => $amount],
+        ]);
+
+        return $journalId;
+    }
 }

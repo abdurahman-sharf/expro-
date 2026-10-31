@@ -35,6 +35,7 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\Support\PreviewJournalFixtureTrait;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ConcurrentDbRaceTrait;
 use Tests\Support\EmployeeFixtureTrait;
@@ -53,6 +54,7 @@ use Tests\Support\WorkerRequestTrait;
 class SalePostingTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
+    use PreviewJournalFixtureTrait;
     use AccountingFixtureTrait;
     use ConcurrentDbRaceTrait;
     use EmployeeFixtureTrait;
@@ -5672,5 +5674,22 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame('posted', $this->accountingDb()->table('accounting_journals')->where('journal_id', $journal)->get()->getRow()->status);
         $this->assertSame('60.0000', $treasuries->position($drawer)->balance);
         $this->assertSame('20.0000', $treasuries->position($bank)->balance);
+    }
+
+    public function testJournalsOf_LeavesOutThePreviewsOfABatch(): void
+    {
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '816.50')]);
+
+        $before = $this->journals($saleId);
+
+        $this->previewOfSource('sale', $saleId);
+
+        $paymentId = (int) $this->accountingDb()->table('sales_payments')->where('sale_id', $saleId)->get()->getRow()->payment_id;
+
+        $this->previewOfSource('sale_payment', $paymentId);
+
+        $this->assertSame($before, $this->journals($saleId));
+        $this->assertNotContains('preview', array_column($this->journals($saleId), 'status'));
     }
 }

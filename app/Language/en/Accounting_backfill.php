@@ -85,6 +85,7 @@ return [
     'refused'                       => 'Refused',
     'scope_company'                 => 'The whole company (every branch)',
     'source'                        => 'Document',
+    'stamp_note'                    => 'The branch of the company is written on the document when the batch is approved (and, for a cash-up, the cash that was expected and the difference).',
     'status_approved'               => 'Approved',
     'status_approving'              => 'Being approved',
     'status_cancelled'              => 'Cancelled',

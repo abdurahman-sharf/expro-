@@ -16,6 +16,7 @@ use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\BackfillFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
+use Tests\Support\PreviewJournalFixtureTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 
@@ -29,6 +30,7 @@ final class SaleBackfillTest extends CIUnitTestCase
     use BackfillFixtureTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
+    use PreviewJournalFixtureTrait;
     use PurchaseAccountingFixtureTrait;
     use SaleAccountingFixtureTrait;
 
@@ -267,5 +269,48 @@ final class SaleBackfillTest extends CIUnitTestCase
 
         $this->assertSame([$second], array_map(static fn (BackfillDocument $document): int => $document->id, $page));
         $this->assertSame([$first], array_map(static fn (BackfillDocument $document): int => $document->id, $this->adapter()->candidates($scope, 0, 1, 0)));
+    }
+
+    public function testPlan_RefusesASaleThatIsNotCompletedAnyMoreOrIsGone(): void
+    {
+        $saleId = $this->legacyInvoice('2026-03-10');
+        $row    = $this->saleRow($saleId);
+
+        $this->accountingDb()->table('sales')->where('sale_id', $saleId)->update(['sale_status' => SUSPENDED]);
+        $this->assertSame(BackfillRefusal::DocumentChanged, $this->adapter()->plan(new BackfillDocument(BackfillFamily::Sales, $saleId, '2026-03-10', (int) $row->branch_id), null, 0)->refusal);
+
+        $this->assertSame(BackfillRefusal::DocumentChanged, $this->adapter()->plan(new BackfillDocument(BackfillFamily::Sales, 987654, '2026-03-10', 1), null, 0)->refusal);
+    }
+
+    public function testPlan_ReadsThePreviewsOfItsOwnBatchAsNothingAndThoseOfAnotherAsPartOfTheDocumentBeingInTheBooks(): void
+    {
+        $saleId    = $this->legacyInvoice('2026-03-10', [$this->payment(lang('Sales.cash'), '816.50')]);
+        $paymentId = (int) $this->accountingDb()->table('sales_payments')->where('sale_id', $saleId)->get()->getRow()->payment_id;
+        $batchId   = $this->previewBatch();
+
+        $this->previewOfSource('sale_payment', $paymentId, 1);
+
+        $row      = $this->saleRow($saleId);
+        $document = new BackfillDocument(BackfillFamily::Sales, $saleId, '2026-03-10', (int) $row->branch_id);
+
+        $this->assertSame(BackfillRefusal::PartlyPosted, $this->adapter()->plan($document, null, 0)->refusal);
+        $this->assertSame(BackfillRefusal::PartlyPosted, $this->adapter()->plan($document, null, $batchId + 1)->refusal);
+        $this->assertNull($this->adapter()->plan($document, null, $batchId)->refusal);
+    }
+
+    public function testCandidates_LeavesOutASaleWhoseStockMovementsAreInTheBooksAlreadyAndOneAnotherBatchHolds(): void
+    {
+        $held    = $this->legacyInvoice('2026-03-10');
+        $moved   = $this->legacyInvoice('2026-03-11');
+        $scope   = new BackfillScope('2026-01-01', '2026-12-31', null, [BackfillFamily::Sales]);
+        $batchId = $this->previewBatch();
+
+        $this->previewOfSource('sale', $held, 1);
+        $this->accountingDb()->table('accounting_stock_entries')->insert(['company_id' => 1, 'branch_id' => 1, 'source_type' => 'sale', 'source_id' => $moved, 'entry_type' => 'cogs', 'revision' => 1, 'line_no' => 1, 'kind' => 'posting', 'entry_date' => '2026-03-11', 'item_id' => $this->accountingDb()->table('sales_items')->where('sale_id', $moved)->get()->getRow()->item_id, 'location_id' => 1, 'quantity' => '-1', 'value' => '-1']);
+
+        $this->assertSame([], $this->adapter()->candidates($scope, 0, 10, 0));
+        $this->assertSame([$held], array_map(static fn (BackfillDocument $document): int => $document->id, $this->adapter()->candidates($scope, 0, 10, $batchId)));
+        $this->assertSame(1, $this->adapter()->waiting($scope, $batchId));
+        $this->assertSame(0, $this->adapter()->waiting($scope));
     }
 }
