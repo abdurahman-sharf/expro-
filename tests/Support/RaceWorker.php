@@ -129,6 +129,24 @@ $result = match ($method) {
             return false;
         }
     })($args),
+    'customerOpening' => (static function (array $args): bool {
+        try {
+            (new App\Libraries\Accounting\CustomerOpening())->create((int) $args[0], App\Libraries\Accounting\CustomerOpening::OWES_US, (string) $args[1], (string) $args[2], 'race', null);
+
+            return true;
+        } catch (Throwable) {
+            return false;
+        }
+    })($args),
+    'reviseCustomerOpening' => (static function (array $args): bool {
+        try {
+            (new App\Libraries\Accounting\CustomerOpening())->revise((int) $args[0], App\Libraries\Accounting\CustomerOpening::OWES_US, (string) $args[1], (string) $args[2], 'race', 'race', null);
+
+            return true;
+        } catch (Throwable) {
+            return false;
+        }
+    })($args),
     'repriceOpeningStock' => (static function (array $args): bool {
         try {
             (new App\Libraries\Accounting\OpeningStock())->repostAtCurrentCost((int) $args[0], 'race', (string) $args[1], null);

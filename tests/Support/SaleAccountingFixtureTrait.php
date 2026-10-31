@@ -349,7 +349,7 @@ trait SaleAccountingFixtureTrait
 
         $service = $this->item('0', false);
 
-        return $this->save([$this->line($service, 0, '1', $total)], [], $payments, SALE_TYPE_INVOICE, $customerId ?? -1, true, null, COMPLETED, NEW_ENTRY, null, $date, $terms);
+        return $this->save([$this->line($service, 0, '1', $total)], [], $payments, SALE_TYPE_INVOICE, $customerId ?? -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, $date, $terms);
     }
 
     /**
