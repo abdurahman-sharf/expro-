@@ -335,14 +335,18 @@ class Customers extends Persons
     }
 
     /**
-     * Whether the form of a new customer offers an opening balance: accounting is on, the setting
-     * for it is on and the employee manages opening balances.
+     * The statement of a customer, where an opening balance is changed or cancelled, is closed to an
+     * employee limited to some branches, so the form does not offer one an opening balance either.
      */
     private function openingOffered(): bool
     {
-        $settings = new AccountingSettings();
+        $settings   = new AccountingSettings();
+        $employeeId = (int) $this->employee->get_logged_in_employee_info()->person_id;
 
-        return $settings->isEnabled() && $settings->customerOpeningEnabled() && $this->employee->has_grant(AccountingGuard::OPENING_MANAGE, (int) $this->employee->get_logged_in_employee_info()->person_id);
+        return $settings->isEnabled()
+            && $settings->customerOpeningEnabled()
+            && (new BranchGuard(null, $this->employee))->isUnrestricted($employeeId)
+            && $this->employee->has_grant(AccountingGuard::OPENING_MANAGE, $employeeId);
     }
 
     /**

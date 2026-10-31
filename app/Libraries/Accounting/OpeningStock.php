@@ -84,8 +84,8 @@ final class OpeningStock
 
     /**
      * The stock locations of a branch that were deleted and still hold units. Their stock is not
-     * posted, because a deleted location is left out of the opening stock, so it is named here and
-     * not left to be found in the reconciliation.
+     * posted, because a deleted location is left out of the opening stock, so it is named here: the
+     * stock reports list a deleted location only when it has movements.
      *
      * @return list<array{location_id: int, name: string, items: int, units: string}>
      *

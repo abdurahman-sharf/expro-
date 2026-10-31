@@ -138,9 +138,6 @@ final class CustomerOpening
         }));
     }
 
-    /**
-     * The opening balance that stands for a customer, or null when they have none.
-     */
     public function standingFor(int $customerId): ?object
     {
         return $this->db->table('customer_openings')->where(['customer_id' => $customerId, 'status' => 'posted'])->get()->getRow();
@@ -168,9 +165,6 @@ final class CustomerOpening
         return $this->db->table('customer_openings')->where(['company_id' => CompanyContext::id(), 'opening_id' => $openingId])->get()->getRow();
     }
 
-    /**
-     * The branch an opening balance belongs to, or null when there is no such one.
-     */
     public function branchOf(int $openingId): ?int
     {
         $row = $this->db->table('customer_openings')->select('branch_id')->where('opening_id', $openingId)->get()->getRow();

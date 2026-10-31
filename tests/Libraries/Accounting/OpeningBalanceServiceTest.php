@@ -563,7 +563,7 @@ class OpeningBalanceServiceTest extends CIUnitTestCase
         $this->assertSame('400.0000', (string) $cash->balance);
     }
 
-    public function testPost_StillRefusesTheAccountOfACustomerWhileCustomersCanBeGivenAnOpeningBalance(): void
+    public function testPost_RefusesTheAccountOfACustomerWhileCustomersCanBeGivenAnOpeningBalance(): void
     {
         $customerId = $this->insertCustomer();
         $customer   = (new EntityAccountService())->ensure(EntityAccountService::CUSTOMER, $customerId, 'Omar Khaled');

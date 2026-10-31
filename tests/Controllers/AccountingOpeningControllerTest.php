@@ -812,14 +812,20 @@ class AccountingOpeningControllerTest extends CIUnitTestCase
         $this->assertFalse($refused['success']);
 
         [, $location] = $this->otherBranchLocation();
-        $this->shelves('50.00', '10', $location);
+        $other        = $this->shelves('50.00', '10', $location);
         (new OpeningStock())->post([$location], null);
+        $this->setItemCost($other, '60.00');
+        $otherPlan = (new OpeningStock())->repricePlan($location, null);
         $this->manager([1]);
 
-        $outside = $this->jsonOf($this->post('/accounting_periods/opening/stock/reprice', ['branch_id' => '1', 'location_id' => (string) $location, 'plan' => 'x', 'reason' => 'Smuggled']));
+        $this->assertTrue($otherPlan->allowed(), 'With the right plan and the right of the manager the correction would go through');
+
+        $outside = $this->jsonOf($this->post('/accounting_periods/opening/stock/reprice', ['branch_id' => '1', 'location_id' => (string) $location, 'plan' => $otherPlan->fingerprint(), 'reason' => 'Smuggled']));
 
         $this->assertFalse($outside['success']);
+        $this->assertSame(lang('Branches.error_not_allowed'), $outside['message']);
         $this->assertSame($journals + 1, $this->countRows('accounting_journals'), 'Only the opening of the other location was posted by the test itself');
+        $this->assertSame(1, (new OpeningStock())->plan($location, null)->activeRevision);
     }
 
     public function testPostStockReprice_ReportsALaterMovementAndAClosedPeriodAndChangesNothing(): void
@@ -831,11 +837,25 @@ class AccountingOpeningControllerTest extends CIUnitTestCase
         $plan     = (new OpeningStock())->repricePlan(1, null)->fingerprint();
         $journals = $this->countRows('accounting_journals');
 
+        $this->accountingDb()->table('accounting_stock_entries')->insert([
+            'company_id' => 1, 'branch_id' => 1, 'source_type' => 'sale', 'source_id' => 9001, 'entry_type' => 'cost', 'revision' => 1, 'line_no' => 1, 'kind' => 'posting',
+            'entry_date' => '2026-02-01', 'item_id' => $item, 'location_id' => 1, 'quantity' => '-1.000', 'value' => '0.0000', 'journal_id' => null,
+        ]);
+
+        $later = $this->jsonOf($this->post('/accounting_periods/opening/stock/reprice', ['branch_id' => '1', 'location_id' => '1', 'plan' => $plan, 'reason' => 'After a sale']));
+
+        $this->assertFalse($later['success']);
+        $this->assertSame(lang('Accounting.error_opening_stock_later_movements', ['1']), $later['message']);
+        $this->assertSame($journals, $this->countRows('accounting_journals'));
+        $this->assertSame(1, (new OpeningStock())->plan(1, null)->activeRevision);
+
+        $this->accountingDb()->table('accounting_stock_entries')->where('source_type', 'sale')->where('source_id', 9001)->delete();
         $this->closeThrough('2026-01-31');
 
         $closed = $this->jsonOf($this->post('/accounting_periods/opening/stock/reprice', ['branch_id' => '1', 'location_id' => '1', 'plan' => $plan, 'reason' => 'Late']));
 
         $this->assertFalse($closed['success']);
+        $this->assertStringContainsString('2026-01-31', $closed['message']);
         $this->assertSame($journals, $this->countRows('accounting_journals'));
         $this->assertSame(1, (new OpeningStock())->plan(1, null)->activeRevision);
     }

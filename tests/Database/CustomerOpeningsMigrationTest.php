@@ -6,6 +6,7 @@ use App\Database\Migrations\CustomerOpenings;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use Throwable;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
@@ -79,6 +80,56 @@ class CustomerOpeningsMigrationTest extends CIUnitTestCase
         $this->assertTrue($this->hasConstraint('customer_credit_applications', 'customer_credit_applications_target', 'CHECK'));
         $this->assertTrue($this->hasConstraint('customer_openings', 'customer_openings_standing', 'UNIQUE'));
         $this->assertTrue($this->hasConstraint('customer_openings', 'customer_openings_revision', 'UNIQUE'));
+    }
+
+    private function rawOpening(int $customerId, int $revision, string $status): void
+    {
+        $this->accountingDb()->table('customer_openings')->insert([
+            'company_id' => 1, 'branch_id' => 1, 'customer_id' => $customerId, 'revision' => $revision, 'side' => 'owes_us', 'amount' => '10.0000', 'opening_date' => date('Y-m-d'), 'status' => $status,
+        ]);
+    }
+
+    public function testUp_RefusesASecondStandingRevisionOfOneCustomerButNotAReversedOne(): void
+    {
+        $this->startSelling();
+        $this->rawOpening($this->customerId, 1, 'reversed');
+        $this->rawOpening($this->customerId, 2, 'reversed');
+        $this->rawOpening($this->customerId, 3, 'posted');
+
+        $this->expectException(Throwable::class);
+
+        $this->rawOpening($this->customerId, 4, 'posted');
+    }
+
+    public function testUp_RefusesTwoRowsWithTheNumberOfOneRevision(): void
+    {
+        $this->startSelling();
+        $this->rawOpening($this->customerId, 1, 'reversed');
+
+        $this->expectException(Throwable::class);
+
+        $this->rawOpening($this->customerId, 1, 'reversed');
+    }
+
+    public function testUp_RefusesAnApplicationOfCreditWithBothTargetsOrWithNone(): void
+    {
+        $this->startSelling();
+        $invoice = $this->invoiceOf('100.00');
+        $this->rawOpening($this->customerId, 1, 'posted');
+        $opening = (int) $this->accountingDb()->table('customer_openings')->get()->getRow()->opening_id;
+        $row     = ['customer_id' => $this->customerId, 'source_type' => 'credit_note', 'source_id' => 1, 'amount' => '1.0000'];
+
+        foreach ([$row + ['invoice_sale_id' => $invoice, 'opening_id' => $opening], $row] as $both) {
+            try {
+                $this->accountingDb()->table('customer_credit_applications')->insert($both);
+                $this->fail('An application of credit with both targets or none must be refused.');
+            } catch (Throwable $failure) {
+                $this->assertStringNotContainsString('An application of credit', $failure->getMessage());
+            }
+        }
+
+        $this->assertTrue($this->accountingDb()->table('customer_credit_applications')->insert($row + ['invoice_sale_id' => $invoice]));
+        $this->assertTrue($this->accountingDb()->table('customer_credit_applications')->insert($row + ['opening_id' => $opening]));
     }
 
     public function testUp_IsSafeToRunAgain(): void

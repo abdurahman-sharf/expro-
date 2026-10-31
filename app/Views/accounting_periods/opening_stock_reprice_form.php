@@ -1,16 +1,16 @@
 <?php
 /**
- * @var int $branch_id
- * @var int $location_id
- * @var string $location_name
- * @var string $fingerprint
- * @var bool $allowed
- * @var list<string> $blocks
+ * @var int                                                                                                                                          $branch_id
+ * @var int                                                                                                                                          $location_id
+ * @var string                                                                                                                                       $location_name
+ * @var string                                                                                                                                       $fingerprint
+ * @var bool                                                                                                                                         $allowed
+ * @var list<string>                                                                                                                                 $blocks
  * @var list<array{name: string, units: string, cost_before: string, cost_after: string, value_before: string, value_after: string, change: string}> $lines
- * @var string $before
- * @var string $after
- * @var string $change
- * @var list<array{revision: int, date: string, items: int, value: string, standing: bool, journal_id: ?int}> $revisions
+ * @var string                                                                                                                                       $before
+ * @var string                                                                                                                                       $after
+ * @var string                                                                                                                                       $change
+ * @var list<array{revision: int, date: string, items: int, value: string, standing: bool, journal_id: ?int}>                                        $revisions
  */
 ?>
 

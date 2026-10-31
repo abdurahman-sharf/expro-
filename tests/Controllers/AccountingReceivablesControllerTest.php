@@ -1533,7 +1533,7 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('1,000.00', strip_tags($row['age_31_60']));
     }
 
-    public function testPostOpening_RefusesWithoutThePermissionWhileTheSettingIsOffAndForSomeoneLimitedToABranch(): void
+    public function testPostOpening_RefusesWithoutThePermissionAndWhileTheSettingIsOff(): void
     {
         $this->viewer();
         $this->setConfigValue('accounting_customer_opening', '1');
@@ -1551,7 +1551,6 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
         $this->assertFalse($off['success']);
         $this->assertSame(lang('Accounting.error_customer_opening_off'), $off['message']);
         $this->assertSame(0, $this->countRows('customer_openings'));
-
     }
 
     public function testPostOpening_IsNotFoundForSomeoneLimitedToABranchAndSavesNothing(): void
@@ -1687,7 +1686,7 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
         $this->assertFalse($again['success']);
     }
 
-    public function testPostOpeningCancel_StillWorksWhileTheSettingIsOffButNeedsThePermission(): void
+    public function testPostOpeningCancel_WorksWhileTheSettingIsOffButNeedsThePermission(): void
     {
         $this->setConfigValue('accounting_customer_opening', '1');
         $first = $this->enterOpening();

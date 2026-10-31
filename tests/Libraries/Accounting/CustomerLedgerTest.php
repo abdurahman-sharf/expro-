@@ -637,7 +637,7 @@ class CustomerLedgerTest extends CIUnitTestCase
         $this->assertSame([-$opening, $invoice], array_map(static fn ($figures): int => $figures->saleId, $this->position()->invoices));
     }
 
-    public function testPosition_OnADayOfThePastCountsTheOpeningBalanceOnlyFromItsDayAndTiesEveryDay(): void
+    public function testPosition_CountsTheOpeningBalanceOnlyFromItsDayOnADayOfThePastAndTiesEveryDay(): void
     {
         $this->openingOf('500.00', 20);
         $this->invoiceDated('100.00', $this->daysAgo(10));

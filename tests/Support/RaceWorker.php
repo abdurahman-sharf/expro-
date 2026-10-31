@@ -9,6 +9,10 @@
  * Usage: php RaceWorker.php <method> <arg> [<arg> ...]
  */
 
+use App\Libraries\Accounting\CustomerOpening;
+use App\Libraries\Accounting\OpeningStock;
+use App\Libraries\Accounting\OpeningStockResult;
+use App\Libraries\Accounting\OpeningStockStatus;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use Config\Database;
@@ -116,13 +120,13 @@ $result = match ($method) {
         return model(App\Models\Sale::class)->save_value(NEW_ENTRY, $status, $items, (int) $args[5] > 0 ? (int) $args[5] : NEW_ENTRY, (int) $args[6], 'race', null, null, null, SALE_TYPE_RETURN, $payments, null, $taxes, true, (int) $args[0]) > 0;
     })($args),
     'openingStock' => (static function (array $args): bool {
-        $results = (new App\Libraries\Accounting\OpeningStock())->post(array_map('intval', explode(',', (string) $args[0])), null);
+        $results = (new OpeningStock())->post(array_map('intval', explode(',', (string) $args[0])), null);
 
-        return count(array_filter($results, static fn (App\Libraries\Accounting\OpeningStockResult $result): bool => $result->plan->status === App\Libraries\Accounting\OpeningStockStatus::Posted)) > 0;
+        return count(array_filter($results, static fn (OpeningStockResult $result): bool => $result->plan->status === OpeningStockStatus::Posted)) > 0;
     })($args),
     'reverseOpeningStock' => (static function (array $args): bool {
         try {
-            (new App\Libraries\Accounting\OpeningStock())->reverse((int) $args[0], (string) $args[1], 'race', null);
+            (new OpeningStock())->reverse((int) $args[0], (string) $args[1], 'race', null);
 
             return true;
         } catch (Throwable) {
@@ -131,7 +135,7 @@ $result = match ($method) {
     })($args),
     'customerOpening' => (static function (array $args): bool {
         try {
-            (new App\Libraries\Accounting\CustomerOpening())->create((int) $args[0], App\Libraries\Accounting\CustomerOpening::OWES_US, (string) $args[1], (string) $args[2], 'race', null);
+            (new CustomerOpening())->create((int) $args[0], CustomerOpening::OWES_US, (string) $args[1], (string) $args[2], 'race', null);
 
             return true;
         } catch (Throwable) {
@@ -140,7 +144,7 @@ $result = match ($method) {
     })($args),
     'reviseCustomerOpening' => (static function (array $args): bool {
         try {
-            (new App\Libraries\Accounting\CustomerOpening())->revise((int) $args[0], App\Libraries\Accounting\CustomerOpening::OWES_US, (string) $args[1], (string) $args[2], 'race', 'race', null);
+            (new CustomerOpening())->revise((int) $args[0], CustomerOpening::OWES_US, (string) $args[1], (string) $args[2], 'race', 'race', null);
 
             return true;
         } catch (Throwable) {
@@ -149,7 +153,7 @@ $result = match ($method) {
     })($args),
     'repriceOpeningStock' => (static function (array $args): bool {
         try {
-            (new App\Libraries\Accounting\OpeningStock())->repostAtCurrentCost((int) $args[0], 'race', (string) $args[1], null);
+            (new OpeningStock())->repostAtCurrentCost((int) $args[0], 'race', (string) $args[1], null);
 
             return true;
         } catch (Throwable) {

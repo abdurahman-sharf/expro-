@@ -5,7 +5,6 @@
  * @var object|null $opening
  * @var string      $today
  */
-
 $editing = $opening !== null;
 ?>
 

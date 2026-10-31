@@ -1503,6 +1503,28 @@ class OpeningStockTest extends CIUnitTestCase
         $this->assertStockTies();
     }
 
+    public function testRepostAtCurrentCost_WritesARefusalOfTheBooksToThePostingFailureLogAndNothingForAPlainRefusal(): void
+    {
+        $this->postedAtTheWrongCost();
+        $fingerprint = $this->opening->repricePlan(self::LOCATION_ID, null)->fingerprint();
+        $failures    = fn (): int => $this->accountingDb()->table('accounting_posting_failures')->where('source_type', OpeningStock::SOURCE)->countAllResults();
+
+        $this->assertRefusedWith(AccountingError::OpeningStockPlanChanged, fn () => $this->opening->repostAtCurrentCost(self::LOCATION_ID, 'Stale', 'not the plan', null));
+        $this->assertSame(0, $failures(), 'A refusal that is no failure of the books is not written to the log');
+
+        $this->closeThrough(self::START);
+
+        try {
+            $this->opening->repostAtCurrentCost(self::LOCATION_ID, 'Too late', $fingerprint, null);
+            $this->fail('A closed period must refuse the correction.');
+        } catch (PostingException $failure) {
+            $this->assertSame(PostingError::PeriodClosed, $failure->error);
+        }
+
+        $this->assertSame(1, $this->accountingDb()->table('accounting_posting_failures')->where('source_type', OpeningStock::SOURCE)->where('source_id', self::LOCATION_ID)->where('error_code', PostingError::PeriodClosed->value)->countAllResults(), 'The refusal is written down after the rollback');
+        $this->assertSame(1, $failures());
+    }
+
     public function testRepostAtCurrentCost_AcceptsTheDayAfterTheLastClosedDay(): void
     {
         $this->postedAtTheWrongCost();
@@ -1679,7 +1701,7 @@ class OpeningStockTest extends CIUnitTestCase
         $this->assertSame('500.00', $this->balance($this->stockAccount()));
     }
 
-    public function testRepostAtCurrentCost_TwoRequestsAtTheSameMomentRepriceTheLocationOnce(): void
+    public function testRepostAtCurrentCost_RepricesTheLocationOnceForTwoRequestsAtTheSameMoment(): void
     {
         $this->postedAtTheWrongCost();
         $fingerprint = $this->opening->repricePlan(self::LOCATION_ID, null)->fingerprint();
@@ -1776,7 +1798,7 @@ class OpeningStockTest extends CIUnitTestCase
         $this->assertSame(1, $this->opening->plan(self::LOCATION_ID, null)->activeRevision);
     }
 
-    public function testRepostAtCurrentCost_ARefusalOfTheClosedPeriodComesBeforeTheRefusalThatNothingWouldChange(): void
+    public function testRepostAtCurrentCost_RefusesAClosedPeriodBeforeItRefusesThatNothingWouldChange(): void
     {
         $item = $this->item('50.00');
         $this->shelves($item, '10');

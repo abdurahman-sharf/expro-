@@ -522,7 +522,7 @@ class CreditSettlementTest extends CIUnitTestCase
         $this->assertTies();
     }
 
-    public function testSettle_RunAgainChangesNothingWhenAnOpeningBalanceHasBeenPaid(): void
+    public function testSettle_ChangesNothingWhenRunAgainAfterAnOpeningBalanceHasBeenPaid(): void
     {
         $opening = $this->opening('300.00', 60);
         $this->invoiceDated('50.00', $this->daysAgo(1), null, null, [$this->payment(lang('Sales.cash'), '120.00')]);

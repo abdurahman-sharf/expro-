@@ -394,6 +394,14 @@ class CustomersControllerTest extends CIUnitTestCase
         $this->get('/customers/view/-1')->assertDontSee('id="opening_amount"');
     }
 
+    public function testGetView_OffersNoOpeningBalanceToAnEmployeeLimitedToSomeBranches(): void
+    {
+        $this->startAccountingWithCustomerOpening();
+        $this->withSession(['person_id' => $this->employeeWithGrants(['customers', AccountingGuard::OPENING_MANAGE], [1]), 'menu_group' => 'office']);
+
+        $this->get('/customers/view/-1')->assertDontSee('id="opening_amount"');
+    }
+
     public function testGetView_OffersNoOpeningBalanceOnTheFormOfACustomerThatExists(): void
     {
         $this->startAccountingWithCustomerOpening();
@@ -468,6 +476,19 @@ class CustomersControllerTest extends CIUnitTestCase
         $this->assertNull($this->openingOf($denied['id']));
         $this->assertStringNotContainsString(substr(lang('Customers.opening_not_entered', ['x']), 0, 20), $denied['message'], 'Nothing was attempted where the field is not offered');
         $this->assertSame(0, $this->countRows('customer_openings'));
+    }
+
+    public function testPostSave_IgnoresAnOpeningBalanceTypedByAnEmployeeLimitedToSomeBranches(): void
+    {
+        $this->startAccountingWithCustomerOpening();
+        $this->withSession(['person_id' => $this->employeeWithGrants(['customers', AccountingGuard::OPENING_MANAGE], [1]), 'menu_group' => 'office']);
+
+        $result = $this->save(['opening_side' => 'owes_us', 'opening_amount' => '500.00', 'opening_date' => date('Y-m-d')]);
+
+        $this->assertTrue($result['success']);
+        $this->assertNull($this->openingOf($result['id']));
+        $this->assertSame(0, $this->countRows('customer_openings'));
+        $this->assertStringNotContainsString(substr(lang('Customers.opening_not_entered', ['x']), 0, 20), $result['message'], 'Nothing was attempted where the field is not offered');
     }
 
     public function testPostSave_NeverEntersAnOpeningBalanceForACustomerThatIsEdited(): void

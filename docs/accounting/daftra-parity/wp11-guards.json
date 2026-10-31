@@ -270,6 +270,33 @@
     ]
   },
   {
+    "name": "G57-28 a refusal of the books while repricing is written to the posting failure log",
+    "file": "app/Libraries/Accounting/OpeningStock.php",
+    "find": "                $this->recordFailure([$locationId], $failure, $employeeId);\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Accounting/OpeningStockTest.php"
+    ]
+  },
+  {
+    "name": "G57-29 a refusal that is no failure of the books is kept out of the posting failure log",
+    "file": "app/Libraries/Accounting/OpeningStock.php",
+    "find": "            if ($failure instanceof PostingException || $failure->error === AccountingError::WriteFailed) {\n                $this->recordFailure([$locationId], $failure, $employeeId);",
+    "replace": "            if (true) {\n                $this->recordFailure([$locationId], $failure, $employeeId);",
+    "tests": [
+      "tests/Libraries/Accounting/OpeningStockTest.php"
+    ]
+  },
+  {
+    "name": "G57-30 the screen refuses to reprice a location of a branch outside the scope of the employee",
+    "file": "app/Libraries/Accounting/OpeningStock.php",
+    "find": "        $this->requireLocations([$locationId], $employeeId);\n\n        $reason = trim($reason);",
+    "replace": "        $reason = trim($reason);",
+    "tests": [
+      "tests/Controllers/AccountingOpeningControllerTest.php"
+    ]
+  },
+  {
     "name": "CU-01 create needs the permission to manage opening balances",
     "file": "app/Libraries/Accounting/CustomerOpening.php",
     "find": "public function create(int $customerId, string $side, string $amount, string $date, string $note = '', ?int $employeeId = null, ?int $branchId = null): int\n    {\n        $this->guard->require(AccountingGuard::OPENING_MANAGE, $employeeId);\n        $this->assertOn();",
@@ -599,7 +626,7 @@
     "find": "        CashupPostingBuilder::SOURCE,\n        CustomerOpening::SOURCE,\n    ];",
     "replace": "        CashupPostingBuilder::SOURCE,\n    ];",
     "tests": [
-      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+      "tests/Libraries/Accounting/JournalServiceTest.php"
     ]
   },
   {
@@ -670,6 +697,17 @@
     "tests": [
       "tests/Libraries/Accounting/CreditSettlementTest.php",
       "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "SF-01 the sales form names the opening balance as the source of the credit spent on an invoice",
+    "file": "app/Views/sales/form.php",
+    "find": "    CreditSource::OPENING     => 'Accounting_receivables.source_opening',\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testGetEdit_",
+      "tests/Controllers/SalesControllerTest.php"
     ]
   },
   {
@@ -801,8 +839,8 @@
   {
     "name": "CF-01 the form of a customer offers the opening balance only while the setting is on",
     "file": "app/Controllers/Customers.php",
-    "find": "return $settings->isEnabled() && $settings->customerOpeningEnabled() && ",
-    "replace": "return $settings->isEnabled() && true && ",
+    "find": "            && $settings->customerOpeningEnabled()\n",
+    "replace": "            && true\n",
     "tests": [
       "tests/Controllers/CustomersControllerTest.php"
     ]
@@ -810,8 +848,8 @@
   {
     "name": "CF-02 the form of a customer offers the opening balance only while accounting is on",
     "file": "app/Controllers/Customers.php",
-    "find": "return $settings->isEnabled() && $settings->customerOpeningEnabled() && ",
-    "replace": "return true && $settings->customerOpeningEnabled() && ",
+    "find": "        return $settings->isEnabled()\n",
+    "replace": "        return true\n",
     "tests": [
       "tests/Controllers/CustomersControllerTest.php"
     ]
@@ -819,8 +857,8 @@
   {
     "name": "CF-03 the form of a customer offers the opening balance only to whoever manages them",
     "file": "app/Controllers/Customers.php",
-    "find": "$settings->customerOpeningEnabled() && $this->employee->has_grant(AccountingGuard::OPENING_MANAGE, (int) $this->employee->get_logged_in_employee_info()->person_id);",
-    "replace": "$settings->customerOpeningEnabled();",
+    "find": "\n            && $this->employee->has_grant(AccountingGuard::OPENING_MANAGE, $employeeId);",
+    "replace": ";",
     "tests": [
       "tests/Controllers/CustomersControllerTest.php"
     ]
@@ -839,6 +877,15 @@
     "file": "app/Controllers/Customers.php",
     "find": "if ($amount === '' || ! $this->openingOffered()) {",
     "replace": "if ($amount === '') {",
+    "tests": [
+      "tests/Controllers/CustomersControllerTest.php"
+    ]
+  },
+  {
+    "name": "CF-06 the form of a customer offers the opening balance only to someone who works in every branch",
+    "file": "app/Controllers/Customers.php",
+    "find": "            && (new BranchGuard(null, $this->employee))->isUnrestricted($employeeId)\n",
+    "replace": "",
     "tests": [
       "tests/Controllers/CustomersControllerTest.php"
     ]
@@ -894,8 +941,7 @@
     "find": "CHECK ((`invoice_sale_id` IS NULL) <> (`opening_id` IS NULL))",
     "replace": "CHECK (1 = 1)",
     "tests": [
-      "tests/Database/CustomerOpeningsMigrationTest.php",
-      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+      "tests/Database/CustomerOpeningsMigrationTest.php"
     ]
   },
   {
@@ -904,8 +950,7 @@
     "find": "UNIQUE KEY `{$table}_standing` (`standing_customer`),",
     "replace": "KEY `{$table}_standing` (`standing_customer`),",
     "tests": [
-      "tests/Database/CustomerOpeningsMigrationTest.php",
-      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+      "tests/Database/CustomerOpeningsMigrationTest.php"
     ]
   },
   {
@@ -914,8 +959,7 @@
     "find": "UNIQUE KEY `{$table}_revision` (`customer_id`, `revision`),",
     "replace": "KEY `{$table}_revision` (`customer_id`, `revision`),",
     "tests": [
-      "tests/Database/CustomerOpeningsMigrationTest.php",
-      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+      "tests/Database/CustomerOpeningsMigrationTest.php"
     ]
   },
   {
