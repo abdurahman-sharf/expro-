@@ -167,6 +167,10 @@ enum AccountingError: string
 
     case ReportPeriodInvalid  = 'report_period_invalid';
     case ReportAccountMissing = 'report_account_missing';
+    case LedgerTooLarge       = 'ledger_too_large';
+    case ReportTooManyPeriods = 'report_too_many_periods';
+
+    case ProfitBasisUnavailable = 'profit_basis_unavailable';
 
     case TaxBasisUnavailable = 'tax_basis_unavailable';
 

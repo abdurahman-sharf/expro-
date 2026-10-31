@@ -31,6 +31,7 @@ final readonly class AccountLedgerReport
         public string $closing,
         public ReportScope $scope,
         public ReportPeriod $period,
+        public ?int $employeeId = null,
     ) {
     }
 }
