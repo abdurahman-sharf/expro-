@@ -25,6 +25,7 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Throwable;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ConcurrentDbRaceTrait;
 use Tests\Support\EmployeeFixtureTrait;
@@ -911,5 +912,52 @@ class CustomerOpeningTest extends CIUnitTestCase
 
         $this->assertRefusedWith(AccountingError::CustomerOpeningExists, fn () => $this->owe('50.00'));
         $this->assertSame($counts, [$this->countRows('customer_openings'), $this->countJournals()]);
+    }
+
+    private function rawOpening(int $customerId, int $revision, string $status): void
+    {
+        $this->accountingDb()->table('customer_openings')->insert([
+            'company_id' => 1, 'branch_id' => 1, 'customer_id' => $customerId, 'revision' => $revision, 'side' => 'owes_us', 'amount' => '10.0000', 'opening_date' => date('Y-m-d'), 'status' => $status,
+        ]);
+    }
+
+    public function testSchema_TheTableRefusesASecondStandingRevisionOfOneCustomerButNotAReversedOne(): void
+    {
+        $this->rawOpening($this->customerId, 1, 'reversed');
+        $this->rawOpening($this->customerId, 2, 'reversed');
+        $this->rawOpening($this->customerId, 3, 'posted');
+
+        $this->expectException(Throwable::class);
+
+        $this->rawOpening($this->customerId, 4, 'posted');
+    }
+
+    public function testSchema_TheTableRefusesTwoRowsWithTheNumberOfOneRevision(): void
+    {
+        $this->rawOpening($this->customerId, 1, 'reversed');
+
+        $this->expectException(Throwable::class);
+
+        $this->rawOpening($this->customerId, 1, 'reversed');
+    }
+
+    public function testSchema_AnApplicationOfCreditIsSpentOnAnInvoiceOrOnAnOpeningBalanceAndNeverOnBothOrNeither(): void
+    {
+        $invoice = $this->invoiceOf('100.00');
+        $this->rawOpening($this->customerId, 1, 'posted');
+        $opening = (int) $this->accountingDb()->table('customer_openings')->get()->getRow()->opening_id;
+        $row     = ['customer_id' => $this->customerId, 'source_type' => 'credit_note', 'source_id' => 1, 'amount' => '1.0000'];
+
+        foreach ([$row + ['invoice_sale_id' => $invoice, 'opening_id' => $opening], $row] as $both) {
+            try {
+                $this->accountingDb()->table('customer_credit_applications')->insert($both);
+                $this->fail('An application of credit with both targets or none must be refused.');
+            } catch (Throwable $failure) {
+                $this->assertStringNotContainsString('An application of credit', $failure->getMessage());
+            }
+        }
+
+        $this->assertTrue($this->accountingDb()->table('customer_credit_applications')->insert($row + ['invoice_sale_id' => $invoice]));
+        $this->assertTrue($this->accountingDb()->table('customer_credit_applications')->insert($row + ['opening_id' => $opening]));
     }
 }

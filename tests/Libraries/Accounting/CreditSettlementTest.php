@@ -534,4 +534,24 @@ class CreditSettlementTest extends CIUnitTestCase
         $this->assertEquals($before, (new CustomerLedger())->applications($this->customerId, true));
         $this->assertSame('230.00', bcadd($this->position()->invoice(-$opening)->open(), '0', 2));
     }
+
+    public function testSettle_CutsWhatWasSpentOnAnOpeningBalanceWhenTheCreditShrinksAndKeepsTheRestOnIt(): void
+    {
+        $opening = $this->opening('300.00', 60);
+        $invoice = $this->invoiceDated('50.00', $this->daysAgo(1), null, null, [$this->payment(lang('Sales.cash'), '120.00')]);
+        $payment = (int) $this->accountingDb()->table('sales_payments')->where('sale_id', $invoice)->get()->getRow()->payment_id;
+
+        $this->assertTrue($this->sales->update($invoice, ['comment' => 'less paid', 'payments' => [
+            ['payment_id' => $payment, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '100', 'cash_refund' => 0, 'cash_adjustment' => 0, 'employee_id' => $this->employeeId, 'reference_code' => null],
+        ]]));
+
+        $standing = array_map(
+            static fn (object $row): string => ($row->invoice_sale_id ?? 'opening' . $row->opening_id) . ':' . bcadd($row->amount, '0', 2),
+            (new CustomerLedger())->applications($this->customerId),
+        );
+
+        $this->assertSame(['opening' . $opening . ':50.00'], $standing, 'The excess is 50 now, and what was spent of the 70 before stays on the opening balance');
+        $this->assertSame('250.00', bcadd($this->position()->invoice(-$opening)->open(), '0', 2));
+        $this->assertTies();
+    }
 }

@@ -1791,4 +1791,18 @@ class OpeningStockTest extends CIUnitTestCase
             $this->assertSame(PostingError::PeriodClosed, $failure->error);
         }
     }
+
+    public function testRepostAtCurrentCost_CountsAMovementOfAnotherDocumentWhoseNumberIsTheNumberOfTheLocation(): void
+    {
+        $posted = $this->postedAtTheWrongCost();
+        $this->accountingDb()->table('accounting_stock_entries')->insert([
+            'company_id' => 1, 'branch_id' => 1, 'source_type' => 'sale', 'source_id' => self::LOCATION_ID, 'entry_type' => 'cost', 'revision' => 1, 'line_no' => 1, 'kind' => 'posting',
+            'entry_date' => '2020-02-01', 'item_id' => $posted['item'], 'location_id' => self::LOCATION_ID, 'quantity' => '-1.000', 'value' => '-50.0000', 'journal_id' => null,
+        ]);
+
+        $plan = $this->opening->repricePlan(self::LOCATION_ID, null);
+
+        $this->assertBlocks([OpeningStockRepriceBlock::LaterMovements, OpeningStockRepriceBlock::AccountHoldsValue], $plan);
+        $this->assertSame(1, $plan->laterMovements);
+    }
 }

@@ -1735,4 +1735,57 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
         $this->assertStringNotContainsString('sales/receipt/' . $opening, $body);
         $this->assertStringContainsString(lang('Accounting_receivables.agrees_yes'), $body);
     }
+
+    public function testGetOpeningEditFormAndCancelForm_AreNotFoundForSomeoneLimitedToABranch(): void
+    {
+        $this->setConfigValue('accounting_customer_opening', '1');
+        $first = $this->enterOpening();
+        $this->openingManager([1]);
+
+        foreach (['opening_edit_form', 'opening_cancel_form'] as $form) {
+            try {
+                $this->get('/accounting_receivables/' . $form . '/' . $first);
+                $this->fail('Someone limited to a branch must not reach the form of an opening balance of the company.');
+            } catch (PageNotFoundException) {
+                $this->addToAssertionCount(1);
+            }
+        }
+    }
+
+    public function testPostOpeningEditAndCancel_AreNotFoundForSomeoneLimitedToABranchAndChangeNothing(): void
+    {
+        $this->setConfigValue('accounting_customer_opening', '1');
+        $first = $this->enterOpening();
+        $this->openingManager([1]);
+
+        foreach ([
+            ['opening_edit', ['side' => 'owes_us', 'amount' => '5.00', 'opening_date' => date('Y-m-d'), 'note' => '', 'reason' => 'Why']],
+            ['opening_cancel', ['reason' => 'Why']],
+        ] as [$action, $data]) {
+            try {
+                $this->post('/accounting_receivables/' . $action . '/' . $first, $data);
+                $this->fail('Someone limited to a branch must not change an opening balance of the company.');
+            } catch (PageNotFoundException) {
+                $this->addToAssertionCount(1);
+            }
+        }
+
+        $this->assertSame('posted', $this->accountingDb()->table('customer_openings')->where('opening_id', $first)->get()->getRow()->status);
+        $this->assertSame(1, $this->countRows('customer_openings'));
+    }
+
+    public function testPostOpeningEditAndCancel_RefuseWithoutThePermissionAndChangeNothing(): void
+    {
+        $this->setConfigValue('accounting_customer_opening', '1');
+        $first = $this->enterOpening();
+        $this->viewer();
+
+        $edit   = $this->openingPost('/accounting_receivables/opening_edit/' . $first, ['side' => 'owes_us', 'amount' => '5.00', 'opening_date' => date('Y-m-d'), 'note' => '', 'reason' => 'Why']);
+        $cancel = $this->openingPost('/accounting_receivables/opening_cancel/' . $first, ['reason' => 'Why']);
+
+        $this->assertFalse($edit['success']);
+        $this->assertFalse($cancel['success']);
+        $this->assertSame('posted', $this->accountingDb()->table('customer_openings')->where('opening_id', $first)->get()->getRow()->status);
+        $this->assertSame(1, $this->countRows('customer_openings'));
+    }
 }
