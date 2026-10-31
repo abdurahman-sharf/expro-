@@ -97,7 +97,7 @@ final class DraftInvoice
             }
         }
 
-        $taxes = $problem === null && $items !== [] ? (new Tax_lib())->get_taxes($items, NEW_ENTRY, $customerId ?? NEW_ENTRY, 'sale_invoice') : [[], []];
+        $taxes = $problem === null && $items !== [] ? $this->taxesOf($items, $customerId) : [[], []];
 
         [$payments, $paidWithStoredValue] = $this->payments($saleId);
 
@@ -151,6 +151,27 @@ final class DraftInvoice
             'tax'             => bcadd($added, $included, SaleAmounts::SCALE),
             'total'           => bcadd(bcsub(bcsub($gross, $discount, SaleAmounts::SCALE), $share, SaleAmounts::SCALE), $added, SaleAmounts::SCALE),
         ];
+    }
+
+    /**
+     * The taxes of the lines for the customer, worked out with the scale the register works with
+     * whatever scale the caller left.
+     *
+     * @param array<int, array<string, mixed>> $items
+     *
+     * @return array{0: array<string, array<string, mixed>>, 1: list<array<string, mixed>>}
+     */
+    private function taxesOf(array &$items, ?int $customerId): array
+    {
+        $before = bcscale();
+
+        bcscale(max(2, totals_decimals() + tax_decimals()));
+
+        try {
+            return (new Tax_lib())->get_taxes($items, NEW_ENTRY, $customerId ?? NEW_ENTRY, 'sale_invoice');
+        } finally {
+            bcscale($before);
+        }
     }
 
     /**

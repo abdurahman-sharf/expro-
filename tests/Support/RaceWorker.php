@@ -76,6 +76,8 @@ $result = match ($method) {
         ->changeQuantity((int) $args[0], (int) $args[1], (float) $args[2]),
     'confirmDelivery' => model(App\Models\Sale::class)
         ->confirm_delivery((int) $args[0], (int) $args[1]) > 0,
+    'issueDraft' => model(App\Models\Sale::class)
+        ->issueDraft((int) $args[0], (int) $args[1]) > 0,
     'cancelSale' => model(App\Models\Sale::class)
         ->delete((int) $args[0], false, true, (int) $args[1]),
     'serviceInvoice' => (static function (array $args): bool {
