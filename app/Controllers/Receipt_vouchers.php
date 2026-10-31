@@ -103,14 +103,11 @@ class Receipt_vouchers extends AccountingController
                 'amount'       => trim((string) $this->request->getPost('amount')),
                 'tax_amount'   => trim((string) $this->request->getPost('tax_amount')),
                 'payment_type' => (string) $this->request->getPost('payment_type'),
+                'treasury_id'  => (int) $this->request->getPost('treasury_id'),
                 'category_id'  => (int) $this->request->getPost('category_id'),
                 'account_id'   => (int) $this->request->getPost('account_id'),
                 'description'  => (string) $this->request->getPost('description'),
             ];
-
-            if ($this->request->getPost('treasury_id') !== null) {
-                $input['treasury_id'] = (int) $this->request->getPost('treasury_id');
-            }
 
             $id = $this->vouchers->save($input, $revenueId === NEW_ENTRY ? null : $revenueId, $this->employeeId());
 

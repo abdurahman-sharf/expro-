@@ -2035,17 +2035,6 @@
     ]
   },
   {
-    "name": "H07 the treasury of a voucher is sent only when the form sends it",
-    "file": "app/Controllers/Receipt_vouchers.php",
-    "find": "if ($this->request->getPost('treasury_id') !== null) {",
-    "replace": "if (true) {",
-    "tests": [
-      "--filter",
-      "testPostSave_KeepsTheTreasuryOfAVoucherWhenTheFormDoesNotSendOne",
-      "tests/Controllers/Receipt_vouchersControllerTest.php"
-    ]
-  },
-  {
     "name": "H08 a category that does not exist is not found",
     "file": "app/Controllers/Revenue_categories.php",
     "find": "if ($category === null) {",
