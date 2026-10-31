@@ -127,8 +127,8 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
 
         $response->assertStatus(200);
         $response->assertSee('year_end_preview');
-        $response->assertSee('year_end_branch_1');
-        $response->assertSee('year_end_branch_' . $this->second);
+        $response->assertSee('id="year_end_branch_1"');
+        $response->assertSee('id="year_end_branch_' . $this->second . '"');
         $response->assertSee(lang('Accounting_periods.year_end_status_ready'));
         $response->assertSee('year-end-retained-row');
         $response->assertSee('1,000.00');
@@ -203,8 +203,8 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
 
         $response->assertDontSee('value="company"');
         $response->assertSee('value="' . $this->second . '"');
-        $response->assertSee('year_end_branch_' . $this->second);
-        $response->assertDontSee('year_end_branch_1');
+        $response->assertSee('id="year_end_branch_' . $this->second . '"');
+        $response->assertDontSee('id="year_end_branch_1"');
 
         $this->expectException(PageNotFoundException::class);
 
