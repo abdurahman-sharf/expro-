@@ -8,6 +8,8 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\AccountingSettings;
+use App\Libraries\Accounting\CreditSource;
+use App\Libraries\Accounting\CustomerAdvances;
 use App\Libraries\Accounting\CustomerLedger;
 use App\Libraries\Accounting\InvoiceTiming;
 use App\Libraries\Accounting\PaymentStatus;
@@ -1772,7 +1774,15 @@ class Sales extends Secure_Controller
      */
     public function postSetReturnDocument(): ResponseInterface|string
     {
-        $this->sale_lib->setReturnDocument(ReturnDocument::fromStored((string) $this->request->getPost('return_document')));
+        $document = ReturnDocument::fromStored((string) $this->request->getPost('return_document'));
+        $origin   = $this->sale_lib->get_return_origin();
+        $problem  = $origin === null ? null : $this->returnOriginProblem($origin, $document);
+
+        if ($problem !== null) {
+            return $this->reload(['error' => $problem]);
+        }
+
+        $this->sale_lib->setReturnDocument($document);
 
         return $this->reload();
     }
@@ -2299,6 +2309,7 @@ class Sales extends Secure_Controller
         $data['accounting_on']    = false;
         $data['issued_lock']      = false;
         $data['receivable']       = null;
+        $data['advance_numbers']  = [];
         $data['credit_note_help'] = null;
         $data['payment_statuses'] = [];
         $showPaymentRow           = false;
@@ -2327,6 +2338,10 @@ class Sales extends Secure_Controller
                     $data['credit']        = $position->credit();
                     $showPaymentRow        = $data['receivable'] !== null;
                     $data['applications']  = $this->applicationsOf($saleId, $customerId);
+                    $data['advance_numbers'] = (new CustomerAdvances())->numbersOf(array_map(
+                        static fn (object $application): int => (int) $application->source_id,
+                        array_filter($data['applications'], static fn (object $application): bool => $application->source_type === CreditSource::CUSTOMER_ADVANCE),
+                    ));
                 }
             }
 

@@ -172,13 +172,33 @@ final class CustomerAdvances
             ->get()
             ->getResult();
 
-        $numbers = (new DocumentNumbering($this->db))->numbers(DocumentType::CustomerPayment, 'customer_advances', array_map(static fn (object $advance): int => (int) $advance->advance_id, $advances));
+        $numbers = $this->numbersOf(array_map(static fn (object $advance): int => (int) $advance->advance_id, $advances));
 
         foreach ($advances as $advance) {
-            $advance->number = $numbers[(int) $advance->advance_id] ?? (string) $advance->advance_id;
+            $advance->number = $numbers[(int) $advance->advance_id];
         }
 
         return $advances;
+    }
+
+    /**
+     * The number each advance goes by: the one of the sequence of customer payments, or its id while
+     * that sequence is off.
+     *
+     * @param list<int> $advanceIds
+     *
+     * @return array<int, string>
+     */
+    public function numbersOf(array $advanceIds): array
+    {
+        $given   = (new DocumentNumbering($this->db))->numbers(DocumentType::CustomerPayment, 'customer_advances', $advanceIds);
+        $numbers = [];
+
+        foreach ($advanceIds as $advanceId) {
+            $numbers[$advanceId] = $given[$advanceId] ?? (string) $advanceId;
+        }
+
+        return $numbers;
     }
 
     /**

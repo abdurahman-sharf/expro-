@@ -227,6 +227,38 @@ class Sale_libTest extends CIUnitTestCase
         $this->assertSame(ReturnDocument::CreditNote, $this->saleLib->getReturnDocument());
     }
 
+    public function testGetReturnOverride_GivesTheReasonThatWasSetAndNothingForNoneOrAnEmptyOne(): void
+    {
+        $this->assertNull($this->saleLib->getReturnOverride());
+
+        $this->saleLib->setReturnOverride('lost the receipt');
+
+        $this->assertSame('lost the receipt', $this->saleLib->getReturnOverride());
+        $this->assertSame('lost the receipt', session()->get('sales_return_override'));
+
+        $this->saleLib->setReturnOverride('');
+
+        $this->assertNull($this->saleLib->getReturnOverride());
+    }
+
+    public function testClearReturnOverride_ForgetsTheReason(): void
+    {
+        $this->saleLib->setReturnOverride('lost the receipt');
+        $this->saleLib->clearReturnOverride();
+
+        $this->assertNull($this->saleLib->getReturnOverride());
+        $this->assertNull(session()->get('sales_return_override'));
+    }
+
+    public function testClearAll_ForgetsTheReasonOfTheOverrideSoTheNextReturnHasToAskAgain(): void
+    {
+        $this->saleLib->setReturnOverride('lost the receipt');
+        $this->saleLib->clear_all();
+
+        $this->assertNull($this->saleLib->getReturnOverride());
+        $this->assertNull(session()->get('sales_return_override'));
+    }
+
     public function testClearAll_ForgetsTheDeliveryTheOriginAndTheDocumentOfTheSaleBeingMade(): void
     {
         $this->saleLib->set_delivered(false);

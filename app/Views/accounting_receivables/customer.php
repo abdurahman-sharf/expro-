@@ -29,8 +29,15 @@ $sourceLabel = static fn (string $type, int $sourceId): string => lang(match (tr
     default                                  => 'Accounting_receivables.source_credit_note',
 });
 
+$advanceNumbers = [];
+
+foreach ($advances as $advance) {
+    $number                                     = (string) $advance->number;
+    $advanceNumbers[(int) $advance->advance_id] = ctype_digit($number) ? '#' . $number : $number;
+}
+
 $sourceLink = static fn (string $type, int $sourceId): string => $type === CreditSource::CUSTOMER_ADVANCE
-    ? '<bdi dir="ltr">#' . $sourceId . '</bdi>'
+    ? '<bdi dir="ltr">' . esc($advanceNumbers[$sourceId] ?? '#' . $sourceId) . '</bdi>'
     : anchor('sales/receipt/' . $sourceId, 'POS ' . $sourceId, ['target' => '_blank', 'dir' => 'ltr']);
 ?>
 

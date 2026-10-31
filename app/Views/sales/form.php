@@ -20,6 +20,7 @@
  * @var App\Libraries\Accounting\InvoiceFigures|null $receivable
  * @var string|null $credit
  * @var list<object>|null $applications
+ * @var array<int, string> $advance_numbers
  * @var string|null $credit_note_help
  * @var array<string, string> $payment_statuses
  * @var array<int, string> $treasury_options
@@ -29,6 +30,8 @@
  * @var string|null $refundInvoiceNumber
  * @var array{date: string, terms: int|null, due: string}|null $invoice_timing
  */
+
+use App\Libraries\Accounting\CreditSource;
 ?>
 
 <div id="required_fields_message"><?= lang('Common.fields_required_message') ?></div>
@@ -233,9 +236,17 @@
                     <?php if (! empty($applications)): ?>
                         <ul class="list-unstyled small mt-2 mb-0" id="credit_applications">
                             <?php foreach ($applications as $application): ?>
+                                <?php
+                                $sourceId     = (int) $application->source_id;
+                                $sourceNumber = $application->source_type === CreditSource::CUSTOMER_ADVANCE ? ($advance_numbers[$sourceId] ?? (string) $sourceId) : (string) $sourceId;
+                                ?>
                                 <li>
-                                    <?= lang($application->source_type === 'credit_note' ? 'Sales.credit_from_note' : 'Sales.credit_from_excess') ?>
-                                    <bdi dir="ltr">#<?= (int) $application->source_id ?></bdi>
+                                    <?= lang(match ($application->source_type) {
+                                        CreditSource::CREDIT_NOTE      => 'Sales.credit_from_note',
+                                        CreditSource::CUSTOMER_ADVANCE => 'Sales.credit_from_advance',
+                                        default                        => 'Sales.credit_from_excess',
+                                    }) ?>
+                                    <bdi dir="ltr"><?= esc(ctype_digit($sourceNumber) ? '#' . $sourceNumber : $sourceNumber) ?></bdi>
                                     &rarr; <bdi dir="ltr">#<?= (int) $application->invoice_sale_id ?></bdi>
                                     <bdi dir="ltr"><?= to_currency($application->amount) ?></bdi>
                                 </li>

@@ -5,6 +5,7 @@ namespace Tests\Libraries\Accounting;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\ReturnOverride;
+use CodeIgniter\Database\Exceptions\DatabaseException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -112,19 +113,34 @@ class ReturnOverrideTest extends CIUnitTestCase
         $this->assertSame(1, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'sale', 'entity_id' => $saleId, 'action' => ReturnOverride::AUDIT_ACTION])->countAllResults());
     }
 
-    public function testRecord_RefusesASaleThatDoesNotExistAndAnEmptyReason(): void
+    public function testRecord_RefusesASaleThatDoesNotExistAndWritesNothing(): void
     {
-        $saleId = $this->aReturn();
+        $refused = null;
 
-        foreach ([[999999, 'reason'], [$saleId, '']] as [$id, $reason]) {
-            try {
-                $this->override->record($id, 1, $this->employeeId, $reason);
-                $this->fail('The record was accepted.');
-            } catch (\Throwable) {
-                $this->addToAssertionCount(1);
-            }
+        try {
+            $this->override->record(999999, 1, $this->employeeId, 'reason');
+        } catch (DatabaseException $exception) {
+            $refused = $exception;
         }
 
+        $this->assertInstanceOf(DatabaseException::class, $refused);
+        $this->assertSame(0, $this->countRows('sale_return_overrides'));
+        $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'sale', 'action' => ReturnOverride::AUDIT_ACTION])->countAllResults());
+    }
+
+    public function testRecord_RefusesAnEmptyReasonAndWritesNothing(): void
+    {
+        $saleId  = $this->aReturn();
+        $refused = null;
+
+        try {
+            $this->override->record($saleId, 1, $this->employeeId, '');
+        } catch (DatabaseException $exception) {
+            $refused = $exception;
+        }
+
+        $this->assertInstanceOf(DatabaseException::class, $refused);
+        $this->assertFalse($this->override->exists($saleId));
         $this->assertSame(0, $this->countRows('sale_return_overrides'));
     }
 

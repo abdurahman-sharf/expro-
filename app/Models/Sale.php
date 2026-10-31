@@ -1055,7 +1055,7 @@ class Sale extends Model
             $builder->update($salesData);
         }
 
-        $goodsNeverLeft = $saleType === SALE_TYPE_RETURN && $returnDocument === ReturnDocument::CreditNote && (new UndeliveredReturns($this->db))->neverDelivered($salesData['return_of_sale_id']);
+        $goodsNeverLeft = $this->goodsNeverLeft($saleType, $returnDocument, $salesData['return_of_sale_id']);
 
         $totalAmount = 0;
         $totalAmountUsed = 0;
@@ -1672,6 +1672,11 @@ class Sale extends Model
         }
     }
 
+    private function goodsNeverLeft(int $saleType, ReturnDocument $document, ?int $originId): bool
+    {
+        return $saleType === SALE_TYPE_RETURN && $document === ReturnDocument::CreditNote && (new UndeliveredReturns($this->db))->neverDelivered($originId);
+    }
+
     private function deleteLocked($sale_id, bool $update_inventory, $employee_id): bool
     {
         $this->accountingFailure = null;
@@ -1680,11 +1685,11 @@ class Sale extends Model
         $this->db->transStart();
 
         // The lock of the sale comes first, so two requests cancelling it never run side by side
-        $locked = $this->db->query('SELECT sale_status, delivered FROM ' . $this->db->prefixTable('sales') . ' WHERE sale_id = ? FOR UPDATE', [$sale_id]);
+        $locked = $this->db->query('SELECT sale_status, delivered, sale_type, return_of_sale_id, return_document FROM ' . $this->db->prefixTable('sales') . ' WHERE sale_id = ? FOR UPDATE', [$sale_id]);
         $sale = $locked === false ? null : $locked->getRow();
         $sale_status = $sale === null ? null : (int) $sale->sale_status;
 
-        if ($update_inventory && $sale_status === COMPLETED && (int) $sale->delivered === 1) {
+        if ($update_inventory && $sale_status === COMPLETED && (int) $sale->delivered === 1 && ! $this->goodsNeverLeft((int) $sale->sale_type, ReturnDocument::fromStored($sale->return_document), $sale->return_of_sale_id === null ? null : (int) $sale->return_of_sale_id)) {
             // Defect, not all item deletions will be undone?
             // Get array with all the items involved in the sale to update the inventory tracking
             $inventory = model('Inventory');

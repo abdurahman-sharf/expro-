@@ -10,6 +10,8 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use CodeIgniter\Config\Services;
+use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\CustomerAdvances;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
@@ -1329,7 +1331,7 @@ class SalesControllerTest extends CIUnitTestCase
 
         $response->assertSee('id="issued_lock"');
         $response->assertSee(lang('Sales.credit_note_undelivered_help'));
-        $response->assertDontSee(lang('Sales.credit_note_after_delivery'));
+        $response->assertDontSee('confirm the delivery first');
     }
 
     public function testGetEdit_OffersTheNewPaymentRowOnAnInvoicePaidInFull(): void
@@ -1699,6 +1701,42 @@ class SalesControllerTest extends CIUnitTestCase
         $undelivered = $this->save([$this->line($this->item('20.00'), 0, '1', '50', '20.00')], [], [], SALE_TYPE_INVOICE, -1, false);
 
         $this->get('/sales/edit/' . $undelivered)->assertDontSee('id="create_refund_invoice"');
+    }
+
+    public function testGetEdit_LabelsTheAdvanceThatPaidAnInvoiceAsAnAdvanceAndGivesItsNumber(): void
+    {
+        $this->startSelling();
+        (new DocumentNumbering())->configure(DocumentType::CustomerPayment, ['enabled' => true, 'prefix' => 'RC-', 'padding' => 3, 'next_number' => 1]);
+
+        $taker = $this->employeeWithGrants([AccountingGuard::RECEIVABLES_MANAGE]);
+
+        (new CustomerAdvances())->receive($this->customerId, '100.00', date('Y-m-d'), 'Cash', null, '', '', $taker);
+
+        $invoice = $this->invoiceOf('60.00');
+
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $page = $this->get('/sales/edit/' . $invoice);
+
+        $page->assertSee('id="credit_applications"');
+        $page->assertSee(lang('Sales.credit_from_advance'));
+        $page->assertSee('<bdi dir="ltr">RC-001</bdi>');
+        $page->assertDontSee(lang('Sales.credit_from_excess'));
+    }
+
+    public function testGetEdit_KeepsTheLabelsOfTheExcessOfAPaymentAndOfACreditNote(): void
+    {
+        $this->startSelling();
+        $source = $this->invoiceOf('100.00');
+        $this->addPayment($source, '150.00');
+        $waits = $this->invoiceOf('30.00');
+
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $page = $this->get('/sales/edit/' . $waits);
+
+        $page->assertSee(lang('Sales.credit_from_excess'));
+        $page->assertDontSee(lang('Sales.credit_from_advance'));
     }
 
     public function testPostSave_KeepsAPaymentBeyondTheInvoiceWholeAsCreditOfTheCustomer(): void
@@ -2222,6 +2260,37 @@ class SalesControllerTest extends CIUnitTestCase
         $this->post('/sales/setReturnOrigin', ['return_origin' => (string) $undelivered])->assertStatus(200);
 
         $this->assertSame($undelivered, Services::session()->get('sales_return_origin'));
+    }
+
+    public function testPostSetReturnDocument_RefusesARefundInvoiceWhenTheSaleNamedHasNotLeftAndKeepsTheCreditNote(): void
+    {
+        $this->startSelling();
+        $item         = $this->item('20.00');
+        $undelivered  = $this->save([$this->line($item, 0, '1', '50', '20.00')], [], [], SALE_TYPE_INVOICE, -1, false);
+        $supervisorId = $this->createBranchLimitedSupervisor(1);
+        $this->grantStockLocationIn(1, $supervisorId);
+        $this->loginAs($supervisorId);
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => 'return', 'sales_return_origin' => $undelivered]));
+
+        $this->post('/sales/setReturnDocument', ['return_document' => 'refund_invoice'])->assertSee(lang('Sales.return_origin_undelivered'));
+
+        $this->assertNull(Services::session()->get('sales_return_document'));
+        $this->assertSame($undelivered, Services::session()->get('sales_return_origin'));
+    }
+
+    public function testPostSetReturnDocument_AcceptsARefundInvoiceWhenTheSaleNamedHasLeft(): void
+    {
+        $this->startSelling();
+        $item         = $this->item('20.00');
+        $delivered    = $this->save([$this->line($item, 0, '1', '50', '20.00')], [], [], SALE_TYPE_INVOICE, -1, true);
+        $supervisorId = $this->createBranchLimitedSupervisor(1);
+        $this->grantStockLocationIn(1, $supervisorId);
+        $this->loginAs($supervisorId);
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => 'return', 'sales_return_origin' => $delivered]));
+
+        $this->post('/sales/setReturnDocument', ['return_document' => 'refund_invoice'])->assertStatus(200);
+
+        $this->assertSame('refund_invoice', Services::session()->get('sales_return_document'));
     }
 
     /**

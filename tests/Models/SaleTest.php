@@ -681,6 +681,82 @@ class SaleTest extends CIUnitTestCase
         $this->assertEqualsWithDelta(6.0, $this->getItemQuantity($itemId, self::LOCATION_ID), 0.001);
     }
 
+    private function saveCreditNote(int $invoiceId, int $itemId, float $units, int $employeeId): int
+    {
+        $status = COMPLETED;
+        $items  = $this->buildCartLine($itemId, -$units, 5.00);
+        $taxes  = [[], []];
+
+        return model(Sale::class)->save_value(NEW_ENTRY, $status, $items, NEW_ENTRY, $employeeId, 'return', null, null, null, SALE_TYPE_RETURN, [], null, $taxes, true, $invoiceId);
+    }
+
+    private function stockedItemWith(float $units): int
+    {
+        $itemId = $this->createTestItem(HAS_STOCK);
+
+        Database::connect()->table('item_quantities')->insert(['item_id' => $itemId, 'location_id' => self::LOCATION_ID, 'quantity' => $units]);
+
+        return $itemId;
+    }
+
+    private function deletionRowsOf(int $saleId): int
+    {
+        return Database::connect()->table('inventory')->where('trans_comment', 'Deleting sale ' . $saleId)->countAllResults();
+    }
+
+    public function testDelete_PutsBackNoStockForACreditNoteOnAnInvoiceWhoseGoodsNeverLeft(): void
+    {
+        $saleModel = model(Sale::class);
+        $employee  = $this->createEmployee();
+        $itemId    = $this->stockedItemWith(10);
+        $invoice   = $this->saveInvoice(false, $itemId, 10);
+        $note      = $this->saveCreditNote($invoice, $itemId, 4, $employee);
+
+        $this->assertGreaterThan(0, $note);
+        $this->assertEqualsWithDelta(10.0, $this->getItemQuantity($itemId, self::LOCATION_ID), 0.001);
+
+        $this->assertTrue($saleModel->delete($note, false, true, $employee));
+
+        $this->assertEqualsWithDelta(10.0, $this->getItemQuantity($itemId, self::LOCATION_ID), 0.001);
+        $this->assertSame(0, $this->deletionRowsOf($note));
+
+        $this->assertSame($invoice, $saleModel->confirm_delivery($invoice, $employee));
+        $this->assertEqualsWithDelta(0.0, $this->getItemQuantity($itemId, self::LOCATION_ID), 0.001);
+    }
+
+    public function testDelete_TakesOutTheUnitsADeliveryLeftBehindWhenTheCreditNoteOfAnInvoiceDeliveredLaterIsDeleted(): void
+    {
+        $saleModel = model(Sale::class);
+        $employee  = $this->createEmployee();
+        $itemId    = $this->stockedItemWith(10);
+        $invoice   = $this->saveInvoice(false, $itemId, 10);
+        $note      = $this->saveCreditNote($invoice, $itemId, 4, $employee);
+
+        $this->assertSame($invoice, $saleModel->confirm_delivery($invoice, $employee));
+        $this->assertEqualsWithDelta(4.0, $this->getItemQuantity($itemId, self::LOCATION_ID), 0.001);
+
+        $this->assertTrue($saleModel->delete($note, false, true, $employee));
+
+        $this->assertEqualsWithDelta(0.0, $this->getItemQuantity($itemId, self::LOCATION_ID), 0.001);
+        $this->assertSame(1, $this->deletionRowsOf($note));
+    }
+
+    public function testDelete_PutsBackTheStockOfACreditNoteOnADeliveredInvoice(): void
+    {
+        $saleModel = model(Sale::class);
+        $employee  = $this->createEmployee();
+        $itemId    = $this->stockedItemWith(20);
+        $invoice   = $this->saveInvoice(true, $itemId, 10);
+        $note      = $this->saveCreditNote($invoice, $itemId, 4, $employee);
+
+        $this->assertEqualsWithDelta(14.0, $this->getItemQuantity($itemId, self::LOCATION_ID), 0.001);
+
+        $this->assertTrue($saleModel->delete($note, false, true, $employee));
+
+        $this->assertEqualsWithDelta(10.0, $this->getItemQuantity($itemId, self::LOCATION_ID), 0.001);
+        $this->assertSame(1, $this->deletionRowsOf($note));
+    }
+
     public function testConfirmDelivery_RefusesASaleThatIsNotAnIssuedInvoice(): void
     {
         $saleModel  = model(Sale::class);

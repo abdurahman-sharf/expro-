@@ -20,6 +20,7 @@ use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
+use CodeIgniter\Test\TestResponse;
 use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
@@ -1415,7 +1416,7 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
     /**
      * @return array<string, mixed>
      */
-    private function bodyOf(\CodeIgniter\Test\TestResponse $response): array
+    private function bodyOf(TestResponse $response): array
     {
         return json_decode($response->getJSON(), true);
     }
@@ -1752,6 +1753,28 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
         $plain->assertDontSee('id="customer_advance_button"');
         $plain->assertDontSee('id="customer_refund_button"');
         $plain->assertDontSee('cancel_form/customer_advance/');
+    }
+
+    public function testGetCustomer_ShowsAnAdvanceByTheSameNumberInTheCreditsAndInTheAdvances(): void
+    {
+        $teller = $this->teller();
+
+        $this->switchOn(DocumentType::CustomerPayment, 'RC-');
+        $this->advanceOf('100.00', $teller);
+
+        $page = $this->get('/accounting_receivables/customer/' . $this->customerId);
+
+        $this->assertSame(2, substr_count($page->getBody(), 'RC-001'));
+    }
+
+    public function testGetCustomer_ShowsTheIdOfAnAdvanceReceivedBeforeTheSequenceWasSwitchedOn(): void
+    {
+        $teller    = $this->teller();
+        $advanceId = $this->advanceOf('100.00', $teller);
+
+        $page = $this->get('/accounting_receivables/customer/' . $this->customerId);
+
+        $this->assertSame(2, substr_count($page->getBody(), '#' . $advanceId . '</bdi>') + substr_count($page->getBody(), '>' . $advanceId . '</bdi>'));
     }
 
     public function testPostAdvance_IsNotFoundWhileAccountingIsOff(): void
