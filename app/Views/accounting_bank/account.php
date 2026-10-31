@@ -1,20 +1,19 @@
 <?php
 /**
- * @var object                $treasury
- * @var string                $bank
- * @var bool                  $lacks_details
- * @var string                $balance
- * @var list<object>          $statements
- * @var list<object>          $closings
- * @var int|null              $latest
- * @var int                   $window
- * @var int                   $window_min
- * @var int                   $window_max
- * @var Closure               $amount
- * @var Closure               $date
- * @var Closure               $when
+ * @var object       $treasury
+ * @var string       $bank
+ * @var bool         $lacks_details
+ * @var string       $balance
+ * @var list<object> $statements
+ * @var list<object> $closings
+ * @var int|null     $latest
+ * @var int          $window
+ * @var int          $window_min
+ * @var int          $window_max
+ * @var Closure      $amount
+ * @var Closure      $date
+ * @var Closure      $when
  */
-
 $id   = (int) $treasury->treasury_id;
 $base = base_url('accounting_treasuries/bank/' . $id);
 ?>

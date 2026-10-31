@@ -25,11 +25,11 @@ use DateTimeImmutable;
  */
 final class BankSuggestions
 {
-    public const REFERENCE = 'reference';
-    public const UNIQUE    = 'unique';
+    public const REFERENCE   = 'reference';
+    public const UNIQUE      = 'unique';
     public const DESCRIPTION = 'description';
-    public const AMBIGUOUS = 'ambiguous';
-    private const MIN_HINT = 3;
+    public const AMBIGUOUS   = 'ambiguous';
+    private const MIN_HINT   = 3;
 
     private BaseConnection $db;
     private BankAccess $access;

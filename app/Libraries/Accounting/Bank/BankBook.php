@@ -26,7 +26,7 @@ final class BankBook
 
     public function balance(int $accountId, ?string $asOf = null): string
     {
-        $sql    = "SELECT COALESCE(SUM(l.debit), 0) - COALESCE(SUM(l.credit), 0) AS balance
+        $sql = "SELECT COALESCE(SUM(l.debit), 0) - COALESCE(SUM(l.credit), 0) AS balance
                    FROM {$this->table('accounting_journal_lines')} l
                    JOIN {$this->table('accounting_journals')} j ON j.journal_id = l.journal_id
                    WHERE j.status IN (:posted:, :reversed:) AND l.account_id = :account:" . ($asOf === null ? '' : ' AND j.journal_date <= :asof:');
@@ -64,7 +64,7 @@ final class BankBook
      * The lines still open on a date, by date: not in a match that was made by then, and not one of a
      * journal and its reversal that cancel.
      *
-     * @param 'outstanding'|'carried'|'all' $part Outstanding lines are dated on or after the first line of the statements, carried ones before it.
+     * @param 'all'|'carried'|'outstanding' $part Outstanding lines are dated on or after the first line of the statements, carried ones before it.
      *
      * @return list<object>
      */
@@ -76,7 +76,7 @@ final class BankBook
     }
 
     /**
-     * @param 'outstanding'|'carried'|'all' $part
+     * @param 'all'|'carried'|'outstanding' $part
      *
      * @return array{count: int, total: string, in: string, out: string}
      */

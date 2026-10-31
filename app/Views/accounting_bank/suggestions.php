@@ -1,14 +1,13 @@
 <?php
 /**
- * @var object       $treasury
+ * @var object                                                                  $treasury
  * @var list<array{line: object, candidates: list<object>, confidence: string}> $suggestions
- * @var int          $window
- * @var bool         $journal_links
- * @var Closure      $amount
- * @var Closure      $date
- * @var Closure      $number
+ * @var int                                                                     $window
+ * @var bool                                                                    $journal_links
+ * @var Closure                                                                 $amount
+ * @var Closure                                                                 $date
+ * @var Closure                                                                 $number
  */
-
 $id    = (int) $treasury->treasury_id;
 $flags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 ?>

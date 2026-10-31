@@ -103,7 +103,7 @@ final class StatementParser
      */
     private function records(string $text, StatementMapping $mapping): array
     {
-        $stream = fopen('php://temp', 'r+');
+        $stream = fopen('php://temp', 'r+b');
         fwrite($stream, $text);
         rewind($stream);
 
@@ -189,7 +189,7 @@ final class StatementParser
         if (preg_match('/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})$/', $text, $found) === 1) {
             [$year, $month, $day] = [(int) $found[1], (int) $found[2], (int) $found[3]];
         } elseif ($order !== StatementMapping::YEAR_FIRST && preg_match('/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})$/', $text, $found) === 1) {
-            $monthFirst = $order === StatementMapping::MONTH_FIRST;
+            $monthFirst           = $order === StatementMapping::MONTH_FIRST;
             [$year, $month, $day] = [(int) $found[3], (int) ($monthFirst ? $found[1] : $found[2]), (int) ($monthFirst ? $found[2] : $found[1])];
         } else {
             return null;
@@ -204,7 +204,7 @@ final class StatementParser
         return $date->format('Y-m-d');
     }
 
-    private function amount(int $number, string $deposit, string $withdrawal): string|StatementRowError
+    private function amount(int $number, string $deposit, string $withdrawal): StatementRowError|string
     {
         $in  = $this->figure($number, $deposit);
         $out = $this->figure($number, $withdrawal);
@@ -231,7 +231,7 @@ final class StatementParser
         return $hasIn ? $in : bcsub('0', $out, self::SCALE);
     }
 
-    private function figure(int $number, string $text): string|StatementRowError
+    private function figure(int $number, string $text): StatementRowError|string
     {
         if ($text === '') {
             return '0.0000';
@@ -271,13 +271,12 @@ final class StatementParser
         if ($hasDot && $hasComma) {
             $decimal  = strrpos($text, '.') > strrpos($text, ',') ? '.' : ',';
             $thousand = $decimal === '.' ? ',' : '.';
-            $text     = str_replace($thousand, '', $text);
 
-            if (substr_count($text, $decimal) !== 1) {
+            if (preg_match('/^\d{1,3}(' . preg_quote($thousand, '/') . '\d{3})+' . preg_quote($decimal, '/') . '\d*$/', $text) !== 1) {
                 return null;
             }
 
-            $text = str_replace($decimal, '.', $text);
+            $text = str_replace($decimal, '.', str_replace($thousand, '', $text));
         } elseif ($hasComma) {
             if (preg_match('/^\d{1,3}(,\d{3})+$/', $text) === 1) {
                 $text = str_replace(',', '', $text);

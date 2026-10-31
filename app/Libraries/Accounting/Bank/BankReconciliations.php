@@ -29,8 +29,8 @@ final class BankReconciliations
 {
     use RunsInTransaction;
 
-    public const ENTITY     = 'bank_reconciliation';
-    private const SCALE     = SaleAmounts::SCALE;
+    public const ENTITY      = 'bank_reconciliation';
+    private const SCALE      = SaleAmounts::SCALE;
     private const REASON_MAX = 255;
 
     private BaseConnection $db;

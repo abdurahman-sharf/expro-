@@ -28,7 +28,7 @@ final class BankReconciliation
 
     public function __construct(?BaseConnection $db = null, ?AccountingGuard $guard = null, ?BranchGuard $branches = null)
     {
-        $db = $db ?? Database::connect();
+        $db ??= Database::connect();
 
         $this->access      = new BankAccess($db, $guard, $branches);
         $this->statements  = new BankStatements($db, $guard, $branches);

@@ -7,7 +7,6 @@
  * @var list<string> $date_orders
  * @var int          $max_column
  */
-
 $id    = (int) $treasury->treasury_id;
 $flags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 $field = static function (string $name, string $label, int $default, bool $required) use ($max_column): string {

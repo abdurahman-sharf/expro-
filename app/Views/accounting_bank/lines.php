@@ -11,7 +11,6 @@
  * @var Closure      $amount
  * @var Closure      $date
  */
-
 $id    = (int) $treasury->treasury_id;
 $base  = base_url('accounting_treasuries/bank/' . $id);
 $query = static fn (int $target): string => '?' . http_build_query(['state' => $state, 'from' => $from, 'to' => $to, 'page' => $target]);

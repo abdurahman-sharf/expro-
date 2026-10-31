@@ -9,7 +9,6 @@
  * @var Closure      $date
  * @var Closure      $number
  */
-
 $id      = (int) $treasury->treasury_id;
 $deposit = bccomp((string) $line->amount, '0', 4) > 0;
 $flags   = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;

@@ -100,12 +100,12 @@ class AccountingBankReconciliation extends AccountingController
         $treasury = $this->visible($treasuryId);
 
         return view('accounting_bank/import', [
-            'treasury'   => $treasury,
-            'max_mb'     => StatementParser::MAX_BYTES / 1048576,
-            'max_rows'   => StatementParser::MAX_ROWS,
-            'delimiters' => array_keys(StatementMapping::DELIMITERS),
+            'treasury'    => $treasury,
+            'max_mb'      => StatementParser::MAX_BYTES / 1048576,
+            'max_rows'    => StatementParser::MAX_ROWS,
+            'delimiters'  => array_keys(StatementMapping::DELIMITERS),
             'date_orders' => StatementMapping::DATE_ORDERS,
-            'max_column' => StatementMapping::MAX_COLUMN,
+            'max_column'  => StatementMapping::MAX_COLUMN,
         ]);
     }
 
@@ -377,9 +377,9 @@ class AccountingBankReconciliation extends AccountingController
     private function importMessage(ImportResult $result): string
     {
         return match ($result->status) {
-            ImportResult::IMPORTED        => lang('Accounting_bank.import_done', [$result->imported, $result->duplicates]),
-            ImportResult::DUPLICATE_FILE  => lang('Accounting_bank.import_same_file'),
-            default                       => lang('Accounting_bank.import_same_lines', [$result->rowCount]),
+            ImportResult::IMPORTED       => lang('Accounting_bank.import_done', [$result->imported, $result->duplicates]),
+            ImportResult::DUPLICATE_FILE => lang('Accounting_bank.import_same_file'),
+            default                      => lang('Accounting_bank.import_same_lines', [$result->rowCount]),
         };
     }
 

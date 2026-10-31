@@ -1,15 +1,15 @@
 <?php
 /**
- * @var object                       $treasury
- * @var ReconciliationFigures        $figures
- * @var string       $as_of
- * @var string       $balance_input
- * @var string       $error
- * @var bool         $journal_links
- * @var int          $list_limit
- * @var Closure      $amount
- * @var Closure      $date
- * @var Closure      $number
+ * @var object                $treasury
+ * @var ReconciliationFigures $figures
+ * @var string                $as_of
+ * @var string                $balance_input
+ * @var string                $error
+ * @var bool                  $journal_links
+ * @var int                   $list_limit
+ * @var Closure               $amount
+ * @var Closure               $date
+ * @var Closure               $number
  */
 
 use App\Libraries\Accounting\Bank\ReconciliationFigures;

@@ -8,9 +8,9 @@ final class ReconciliationFigures
      * @param array{count: int, total: string, in: string, out: string} $unmatchedStatement
      * @param array{count: int, total: string, in: string, out: string} $outstandingBook
      * @param array{count: int, total: string, in: string, out: string} $carriedBook
-     * @param list<object>                                               $statementLines
-     * @param list<object>                                               $bookLines
-     * @param list<object>                                               $carriedLines
+     * @param list<object>                                              $statementLines
+     * @param list<object>                                              $bookLines
+     * @param list<object>                                              $carriedLines
      */
     public function __construct(
         public readonly object $treasury,

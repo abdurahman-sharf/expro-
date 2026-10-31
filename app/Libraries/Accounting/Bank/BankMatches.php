@@ -29,11 +29,11 @@ final class BankMatches
 {
     use RunsInTransaction;
 
-    public const ENTITY      = 'bank_match';
-    public const MANUAL      = 'manual';
-    public const SUGGESTED   = 'suggested';
-    public const MAX_LINES   = 50;
-    private const SCALE      = SaleAmounts::SCALE;
+    public const ENTITY    = 'bank_match';
+    public const MANUAL    = 'manual';
+    public const SUGGESTED = 'suggested';
+    public const MAX_LINES = 50;
+    private const SCALE    = SaleAmounts::SCALE;
 
     private BaseConnection $db;
     private BankAccess $access;

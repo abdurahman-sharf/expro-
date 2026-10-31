@@ -14,10 +14,10 @@ use App\Libraries\Accounting\AccountingException;
  */
 final class StatementMapping
 {
-    public const COMMA     = 'comma';
-    public const SEMICOLON = 'semicolon';
-    public const TAB       = 'tab';
-    public const DELIMITERS = [self::COMMA => ',', self::SEMICOLON => ';', self::TAB => "\t"];
+    public const COMMA       = 'comma';
+    public const SEMICOLON   = 'semicolon';
+    public const TAB         = 'tab';
+    public const DELIMITERS  = [self::COMMA => ',', self::SEMICOLON => ';', self::TAB => "\t"];
     public const DAY_FIRST   = 'dmy';
     public const MONTH_FIRST = 'mdy';
     public const YEAR_FIRST  = 'ymd';

@@ -7,7 +7,6 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AuditLog;
 use App\Libraries\Accounting\JournalOrigin;
-use App\Libraries\Accounting\LockedRead;
 use App\Libraries\Accounting\RunsInTransaction;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Organization\CompanyContext;
@@ -28,8 +27,8 @@ final class BankStatements
 {
     use RunsInTransaction;
 
-    public const ENTITY   = 'bank_statement';
-    private const BATCH   = 200;
+    public const ENTITY    = 'bank_statement';
+    private const BATCH    = 200;
     private const NAME_MAX = 255;
 
     private BaseConnection $db;
