@@ -142,6 +142,12 @@ function reportCatalog(array $permissionIds, ?bool $accountingOn = null): array
             ['bi-journal-check', 'Accounting_tax_reports.title', 'accounting_reports', [
                 ['path' => site_url('accounting_reports/tax'), 'label' => lang('Accounting_tax_reports.catalog_link'), 'icon' => 'bi-table'],
             ]],
+            ['bi-graph-up-arrow', 'Accounting_profit_loss.title', 'accounting_reports', [
+                ['path' => site_url('accounting_statements/profit_loss'), 'label' => lang('Accounting_profit_loss.catalog_link'), 'icon' => 'bi-table'],
+            ]],
+            ['bi-cash-stack', 'Accounting_cash_flow.title', 'accounting_reports', [
+                ['path' => site_url('accounting_statements/cash_flow'), 'label' => lang('Accounting_cash_flow.catalog_link'), 'icon' => 'bi-table'],
+            ]],
             ['bi-folder2-open', 'Reports.expenses_categories', 'reports_expenses_categories', [
                 $link('graphical', 'graphical_summary_expenses_categories'),
                 $link('summary', 'summary_expenses_categories'),

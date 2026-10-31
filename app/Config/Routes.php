@@ -115,6 +115,12 @@ $routes->group('accounting_statements', static function (RouteCollection $routes
     $routes->get('/', 'AccountingStatements::getIncomeStatement');
     $routes->get('income_statement', 'AccountingStatements::getIncomeStatement');
     $routes->get('balance_sheet', 'AccountingStatements::getBalanceSheet');
+    $routes->get('profit_loss', 'AccountingProfitLoss::getIndex');
+    $routes->get('profit_loss/csv', 'AccountingProfitLoss::getCsv');
+    $routes->get('cash_flow', 'AccountingCashFlow::getIndex');
+    $routes->get('cash_flow/csv', 'AccountingCashFlow::getCsv');
+    $routes->get('cash_flow/settings', 'AccountingCashFlow::getSettings');
+    $routes->post('cash_flow/settings/save', 'AccountingCashFlow::postSettingsSave');
 });
 
 $routes->group('accounting_treasuries', static function (RouteCollection $routes): void {

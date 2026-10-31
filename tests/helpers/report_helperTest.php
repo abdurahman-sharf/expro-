@@ -169,7 +169,7 @@ final class report_helperTest extends CIUnitTestCase
     {
         $paths = $this->pathsFor(['accounting_reports']);
 
-        $this->assertCount(2, $paths, 'The stock value and the tax report');
+        $this->assertCount(4, $paths, 'The stock value, the tax report, the profit and loss and the cash flow');
         $this->assertStringEndsWith('accounting_reports/inventory_valuation', $paths[0]);
 
         foreach ($this->pathsFor(['reports_inventory', 'reports_sales', 'accounting_journals', 'accounting_payables']) as $path) {
@@ -188,6 +188,18 @@ final class report_helperTest extends CIUnitTestCase
         }
     }
 
+    public function testReportCatalog_OffersTheProfitAndLossAndTheCashFlowToTheFinancialReportsModuleOnly(): void
+    {
+        $paths = $this->pathsFor(['accounting_reports']);
+
+        $this->assertStringEndsWith('accounting_statements/profit_loss', $paths[2]);
+        $this->assertStringEndsWith('accounting_statements/cash_flow', $paths[3]);
+
+        foreach ($this->pathsFor(['reports_taxes', 'reports_sales_taxes', 'accounting_journals', 'accounting_payables']) as $path) {
+            $this->assertStringNotContainsString('accounting_statements', $path);
+        }
+    }
+
     public function testReportCatalog_PutsTheTaxReportFromTheBooksBesideTheOperationalTaxReports(): void
     {
         $catalog = reportCatalog(['reports_taxes', 'reports_sales_taxes', 'accounting_reports'], true);
@@ -195,7 +207,7 @@ final class report_helperTest extends CIUnitTestCase
 
         $this->assertCount(1, $finance);
         $this->assertSame(
-            [lang('Reports.taxes'), lang('Reports.sales_taxes'), lang('Accounting_tax_reports.title')],
+            [lang('Reports.taxes'), lang('Reports.sales_taxes'), lang('Accounting_tax_reports.title'), lang('Accounting_profit_loss.title'), lang('Accounting_cash_flow.title')],
             array_map(static fn (array $subject): string => $subject['label'], $finance[0]['subjects']),
         );
     }
@@ -211,6 +223,7 @@ final class report_helperTest extends CIUnitTestCase
         foreach ($paths as $path) {
             $this->assertStringNotContainsString('inventory_valuation', $path);
             $this->assertStringNotContainsString('accounting_reports/tax', $path);
+            $this->assertStringNotContainsString('accounting_statements', $path);
         }
     }
 }

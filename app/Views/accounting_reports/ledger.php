@@ -62,6 +62,12 @@ $showEmployee = ! $options['hide_employee'];
     <a class="btn btn-outline-secondary btn-sm float-end" id="link_balance_sheet" href="<?= esc(base_url('accounting_statements/balance_sheet'), 'attr') ?>">
         <span class="bi bi-file-earmark-bar-graph" aria-hidden="true">&nbsp;</span><?= lang('Accounting_statements.balance_sheet') ?>
     </a>
+    <a class="btn btn-outline-secondary btn-sm float-end" id="link_profit_loss" href="<?= esc(base_url('accounting_statements/profit_loss'), 'attr') ?>">
+        <span class="bi bi-graph-up-arrow" aria-hidden="true">&nbsp;</span><?= lang('Accounting_profit_loss.title') ?>
+    </a>
+    <a class="btn btn-outline-secondary btn-sm float-end" id="link_cash_flow" href="<?= esc(base_url('accounting_statements/cash_flow'), 'attr') ?>">
+        <span class="bi bi-cash-stack" aria-hidden="true">&nbsp;</span><?= lang('Accounting_cash_flow.title') ?>
+    </a>
     <a class="btn btn-outline-secondary btn-sm float-end" id="link_income_statement" href="<?= esc(base_url('accounting_statements/income_statement'), 'attr') ?>">
         <span class="bi bi-graph-up" aria-hidden="true">&nbsp;</span><?= lang('Accounting_statements.income_statement') ?>
     </a>

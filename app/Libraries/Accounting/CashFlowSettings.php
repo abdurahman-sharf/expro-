@@ -4,6 +4,7 @@ namespace App\Libraries\Accounting;
 
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
+use App\Libraries\Organization\CompanyContext;
 use App\Models\Appconfig;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
@@ -80,6 +81,28 @@ final class CashFlowSettings
         }
 
         return $lines;
+    }
+
+    /**
+     * The accounts a line can be pointed at when choosing from a list: every account of the chart
+     * except the account of a customer, a supplier, a location or a treasury, of which there can be a
+     * thousand, and except the accounts of the treasuries and the banks, which a line cannot take
+     * from.
+     *
+     * @return list<object{account_id: int, code: string, name: string, is_group: bool}>
+     */
+    public function accountChoices(): array
+    {
+        $cash    = $this->chart->cashAccounts();
+        $choices = [];
+
+        foreach ($this->db->table('accounting_accounts')->select('account_id, code, name, is_group')->where('company_id', CompanyContext::id())->where('entity_type IS NULL', null, false)->orderBy('code', 'ASC')->get()->getResult() as $account) {
+            if (! isset($cash[(int) $account->account_id])) {
+                $choices[] = (object) ['account_id' => (int) $account->account_id, 'code' => (string) $account->code, 'name' => (string) $account->name, 'is_group' => (int) $account->is_group === 1];
+            }
+        }
+
+        return $choices;
     }
 
     /**
