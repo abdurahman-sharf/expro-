@@ -41,7 +41,7 @@
   "find": "$left = bcsub(bcsub($this->amount, $this->applied, SaleAmounts::SCALE), $this->refunded, SaleAmounts::SCALE);",
   "replace": "$left = bcsub($this->amount, $this->applied, SaleAmounts::SCALE);",
   "tests": [
-   "tests/Libraries/Accounting/CreditRefundsTest.php"
+   "tests/Libraries/Accounting/CreditSourceTest.php"
   ]
  },
  {
@@ -50,7 +50,7 @@
   "find": "if (! isset($sources[$key]) || bccomp($sources[$key]->amount, $amount, SaleAmounts::SCALE) < 0) {",
   "replace": "if (isset($sources[$key]) && bccomp($sources[$key]->amount, $amount, SaleAmounts::SCALE) < 0) {",
   "tests": [
-   "tests/Libraries/Accounting/CreditRefundsTest.php"
+   "tests/Libraries/Accounting/CreditSettlementTest.php"
   ]
  },
  {
@@ -59,7 +59,7 @@
   "find": "if (! isset($sources[$key]) || bccomp($sources[$key]->amount, $amount, SaleAmounts::SCALE) < 0) {",
   "replace": "if (! isset($sources[$key])) {",
   "tests": [
-   "tests/Libraries/Accounting/CreditRefundsTest.php"
+   "tests/Libraries/Accounting/CreditSettlementTest.php"
   ]
  },
  {
@@ -68,7 +68,7 @@
   "find": "        $this->assertRefundsHold($customerId);\n    }\n\n    /**",
   "replace": "    }\n\n    /**",
   "tests": [
-   "tests/Libraries/Accounting/CreditRefundsTest.php"
+   "tests/Libraries/Accounting/CreditSettlementTest.php"
   ]
  },
  {
@@ -95,7 +95,7 @@
   "find": "$over = bcsub(bcadd($source->applied, $source->refunded, SaleAmounts::SCALE), $source->amount, SaleAmounts::SCALE);",
   "replace": "$over = bcsub($source->applied, $source->amount, SaleAmounts::SCALE);",
   "tests": [
-   "tests/Libraries/Accounting/CreditRefundsTest.php"
+   "tests/Libraries/Accounting/CreditSettlementTest.php"
   ]
  },
  {
@@ -104,7 +104,7 @@
   "find": "|| bccomp($value, '0', SaleAmounts::SCALE) <= 0) {",
   "replace": "|| bccomp($value, '0', SaleAmounts::SCALE) < 0) {",
   "tests": [
-   "tests/Libraries/Accounting/CreditRefundsTest.php"
+   "tests/Libraries/Accounting/CashMovementTest.php"
   ]
  },
  {
@@ -113,7 +113,7 @@
   "find": "'/^\\d{1,11}(\\.\\d{1,4})?$/'",
   "replace": "'/^\\d{1,11}(\\.\\d{1,12})?$/'",
   "tests": [
-   "tests/Libraries/Accounting/CreditRefundsTest.php"
+   "tests/Libraries/Accounting/CashMovementTest.php"
   ]
  },
  {
@@ -122,7 +122,7 @@
   "find": "|| $type === PaymentType::Giftcard || $type === PaymentType::Rewards",
   "replace": "",
   "tests": [
-   "tests/Libraries/Accounting/CreditRefundsTest.php"
+   "tests/Libraries/Accounting/CashMovementTest.php"
   ]
  },
  {
@@ -131,7 +131,7 @@
   "find": "$scopes->assertAllows((int) $treasury->treasury_id, $direction, $employeeId);",
   "replace": "",
   "tests": [
-   "tests/Libraries/Accounting/CreditRefundsTest.php"
+   "tests/Libraries/Accounting/CashMovementTest.php"
   ]
  },
  {
@@ -140,7 +140,7 @@
   "find": "$scopes->assertRoutedAllows($type, $direction, $employeeId);",
   "replace": "",
   "tests": [
-   "tests/Libraries/Accounting/CreditRefundsTest.php"
+   "tests/Libraries/Accounting/CashMovementTest.php"
   ]
  },
  {
@@ -149,7 +149,7 @@
   "find": "        $this->branches->requireBranch($branchId, $employeeId);\n\n        $resolver",
   "replace": "        $resolver",
   "tests": [
-   "tests/Libraries/Accounting/CreditRefundsTest.php"
+   "tests/Libraries/Accounting/CashMovementTest.php"
   ]
  },
  {
@@ -158,7 +158,7 @@
   "find": "(new TreasuryScopes($this->db, $this->branches))->assertMayReverse((int) $journal->journal_id, $employeeId);",
   "replace": "",
   "tests": [
-   "tests/Libraries/Accounting/CreditRefundsTest.php"
+   "tests/Libraries/Accounting/CashMovementTest.php"
   ]
  },
  {
@@ -167,7 +167,7 @@
   "find": "$date   = $cutoff !== null && $journal->journal_date <= $cutoff['date'] ? date('Y-m-d') : $journal->journal_date;",
   "replace": "$date   = $journal->journal_date;",
   "tests": [
-   "tests/Libraries/Accounting/CreditRefundsTest.php"
+   "tests/Libraries/Accounting/CashMovementTest.php"
   ]
  },
  {
@@ -176,7 +176,7 @@
   "find": "if ((int) $treasury->active === 0) {",
   "replace": "if (false) {",
   "tests": [
-   "tests/Libraries/Accounting/CustomerAdvancesTest.php"
+   "tests/Libraries/Accounting/CashMovementTest.php"
   ]
  },
  {
@@ -185,7 +185,7 @@
   "find": "if ($reason === '' || mb_strlen($reason) > self::REASON_MAX) {",
   "replace": "if (false) {",
   "tests": [
-   "tests/Libraries/Accounting/CreditRefundsTest.php"
+   "tests/Libraries/Accounting/CashMovementTest.php"
   ]
  },
  {
@@ -234,10 +234,10 @@
   ]
  },
  {
-  "name": "G27 a refund of a past date takes only credit that existed then",
+  "name": "G27 a refund of a past date takes only credit the books held on that day (the excess of a payment exists from the payment, not from its invoice)",
   "file": "app/Libraries/Accounting/CreditRefunds.php",
-  "find": "static fn (CreditSource $source): bool => $source->date <= $date",
-  "replace": "static fn (CreditSource $source): bool => true",
+  "find": "            $before = $then[$source->type . ':' . $source->sourceId] ?? null;",
+  "replace": "            $before = $then[$source->type . ':' . $source->sourceId] ?? $source->available();",
   "tests": [
    "tests/Libraries/Accounting/CreditRefundsTest.php"
   ]
@@ -252,10 +252,10 @@
   ]
  },
  {
-  "name": "G29 a key used for another amount or another party is refused",
+  "name": "G29 a key used for another party is refused (refunds)",
   "file": "app/Libraries/Accounting/CreditRefunds.php",
-  "find": "if ((int) $earlier->{$this->party . '_id'} !== $partyId || bccomp((string) $earlier->amount, $amount, SaleAmounts::SCALE) !== 0) {",
-  "replace": "if (false) {",
+  "find": "(int) $earlier->{$this->party . '_id'} !== $partyId || ",
+  "replace": "",
   "tests": [
    "tests/Libraries/Accounting/CreditRefundsTest.php"
   ]
@@ -387,10 +387,10 @@
   ]
  },
  {
-  "name": "G44 a key used for another amount or another customer is refused",
+  "name": "G44 a key used for another customer is refused (advances)",
   "file": "app/Libraries/Accounting/CustomerAdvances.php",
-  "find": "if ((int) $earlier->customer_id !== $customerId || bccomp((string) $earlier->amount, $amount, SaleAmounts::SCALE) !== 0) {",
-  "replace": "if (false) {",
+  "find": "(int) $earlier->customer_id !== $customerId || ",
+  "replace": "",
   "tests": [
    "tests/Libraries/Accounting/CustomerAdvancesTest.php"
   ]
@@ -780,6 +780,141 @@
   "replace": "(new TreasuryService())->all($this->branchIds(), false), TreasuryScopes::WITHDRAW, $this->employeeId()) as $treasury) {\n            $treasuries[(int) $treasury->treasury_id] = $treasury->name . ' (' . $treasury->branch_code . ')';\n        }\n\n        return view('accounting_payables/refund_form'",
   "tests": [
    "tests/Controllers/AccountingPayablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G88 a key used for another amount is refused (refunds)",
+  "file": "app/Libraries/Accounting/CreditRefunds.php",
+  "find": " || bccomp((string) $earlier->amount, $amount, SaleAmounts::SCALE) !== 0",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/CreditRefundsTest.php"
+  ]
+ },
+ {
+  "name": "G89 a key used for another amount is refused (advances)",
+  "file": "app/Libraries/Accounting/CustomerAdvances.php",
+  "find": " || bccomp((string) $earlier->amount, $amount, SaleAmounts::SCALE) !== 0",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/CustomerAdvancesTest.php"
+  ]
+ },
+ {
+  "name": "G90 a credit note on a sale that never left puts no stock back when it is deleted",
+  "file": "app/Models/Sale.php",
+  "find": " && ! $this->goodsNeverLeft((int) $sale->sale_type, ReturnDocument::fromStored($sale->return_document), $sale->return_of_sale_id === null ? null : (int) $sale->return_of_sale_id)) {",
+  "replace": ") {",
+  "tests": [
+   "tests/Models/SaleTest.php"
+  ]
+ },
+ {
+  "name": "G91 a refund of a past day takes no more of a credit than the books held of it on that day",
+  "file": "app/Libraries/Accounting/CreditRefunds.php",
+  "find": "$free = bccomp($before, $source->available(), SaleAmounts::SCALE) < 0 ? $before : $source->available();",
+  "replace": "$free = $source->available();",
+  "tests": [
+   "tests/Libraries/Accounting/CreditRefundsTest.php"
+  ]
+ },
+ {
+  "name": "G92 a refund takes no more of a credit than is free now even on a day before it was spent",
+  "file": "app/Libraries/Accounting/CreditRefunds.php",
+  "find": "$free = bccomp($before, $source->available(), SaleAmounts::SCALE) < 0 ? $before : $source->available();",
+  "replace": "$free = $before;",
+  "tests": [
+   "tests/Libraries/Accounting/CreditRefundsTest.php"
+  ]
+ },
+ {
+  "name": "G93 the invoice form names an advance as an advance",
+  "file": "app/Views/sales/form.php",
+  "find": "                                        CreditSource::CUSTOMER_ADVANCE => 'Sales.credit_from_advance',\n",
+  "replace": "",
+  "tests": [
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G94 the invoice form gives the number of the advance",
+  "file": "app/Views/sales/form.php",
+  "find": "($advance_numbers[$sourceId] ?? (string) $sourceId)",
+  "replace": "(string) $sourceId",
+  "tests": [
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G95 the invoice form is given the numbers of the advances that paid it",
+  "file": "app/Controllers/Sales.php",
+  "find": "array_filter($data['applications'], static fn (object $application): bool => $application->source_type === CreditSource::CUSTOMER_ADVANCE)",
+  "replace": "[]",
+  "tests": [
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G96 the statement shows an advance by its number in the credits",
+  "file": "app/Views/accounting_receivables/customer.php",
+  "find": "    $advanceNumbers[(int) $advance->advance_id] = ctype_digit($number) ? '#' . $number : $number;",
+  "replace": "    $advanceNumbers[(int) $advance->advance_id] = '#' . $advance->advance_id;",
+  "tests": [
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G97 the audit filter offers the entities of the credit flows",
+  "file": "app/Views/accounting_journals/audit.php",
+  "find": "                <option value=\"customer_advance\"><?= lang('Accounting.entity_customer_advance') ?></option>\n",
+  "replace": "",
+  "tests": [
+   "tests/Controllers/AccountingJournalsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G98 the audit screen names the advance in words",
+  "file": "app/Language/en/Accounting.php",
+  "find": "    'entity_customer_advance'                    => 'Customer advance payment',\n",
+  "replace": "",
+  "tests": [
+   "tests/Controllers/AccountingJournalsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G99 the journal of an advance or a refund shows no reverse button",
+  "file": "app/Controllers/AccountingJournals.php",
+  "find": ", ...JournalService::CREDIT_SOURCES], true) && ! (new InterBranchLegs())",
+  "replace": "], true) && ! (new InterBranchLegs())",
+  "tests": [
+   "tests/Controllers/AccountingJournalsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G100 the register forgets the reason of an override when the sale is finished",
+  "file": "app/Libraries/Sale_lib.php",
+  "find": "        $this->clearReturnOverride();\n        $this->clearReturnDocument();",
+  "replace": "        $this->clearReturnDocument();",
+  "tests": [
+   "tests/Libraries/Sale_libTest.php"
+  ]
+ },
+ {
+  "name": "G101 changing the document of a return rechecks the sale it takes goods back from",
+  "file": "app/Controllers/Sales.php",
+  "find": "$problem  = $origin === null ? null : $this->returnOriginProblem($origin, $document);",
+  "replace": "$problem  = null;",
+  "tests": [
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G102 an advance without a number of the sequence goes by its id",
+  "file": "app/Libraries/Accounting/CustomerAdvances.php",
+  "find": "$numbers[$advanceId] = $given[$advanceId] ?? (string) $advanceId;",
+  "replace": "$numbers[$advanceId] = $given[$advanceId] ?? '';",
+  "tests": [
+   "tests/Controllers/AccountingReceivablesControllerTest.php"
   ]
  }
 ]

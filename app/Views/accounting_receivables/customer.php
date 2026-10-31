@@ -23,10 +23,10 @@ use App\Libraries\Accounting\CustomerPosition;
 $aging = $position->aging($today);
 
 $sourceLabel = static fn (string $type, int $sourceId): string => lang(match (true) {
-    $type === CreditSource::CUSTOMER_ADVANCE => 'Accounting_receivables.source_advance',
-    $type !== CreditSource::CREDIT_NOTE      => 'Accounting_receivables.source_excess',
+    $type === CreditSource::CUSTOMER_ADVANCE    => 'Accounting_receivables.source_advance',
+    $type !== CreditSource::CREDIT_NOTE         => 'Accounting_receivables.source_excess',
     in_array($sourceId, $refund_invoices, true) => 'Numbering.type_refund_invoice',
-    default                                  => 'Accounting_receivables.source_credit_note',
+    default                                     => 'Accounting_receivables.source_credit_note',
 });
 
 $advanceNumbers = [];

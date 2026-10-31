@@ -336,10 +336,10 @@ class AccountingPayables extends AccountingController
             $reason = (string) $this->request->getPost('reason');
 
             match ($what) {
-                SupplierAdvances::SOURCE        => $this->advances->cancel($id, $reason, $this->employeeId()),
-                SupplierAdvances::OPENING_TYPE  => $this->advances->cancelOpening($id, $reason, $this->employeeId()),
+                SupplierAdvances::SOURCE       => $this->advances->cancel($id, $reason, $this->employeeId()),
+                SupplierAdvances::OPENING_TYPE => $this->advances->cancelOpening($id, $reason, $this->employeeId()),
                 CreditRefunds::SUPPLIER_SOURCE => $this->refunds->cancel($id, $reason, $this->employeeId()),
-                default                         => throw PageNotFoundException::forPageNotFound(),
+                default                        => throw PageNotFoundException::forPageNotFound(),
             };
 
             return ['success' => true, 'message' => lang('Accounting_payables.cancelled_done'), 'id' => $id];

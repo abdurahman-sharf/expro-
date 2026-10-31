@@ -594,7 +594,6 @@ class Sales extends Secure_Controller
      * Lets a manager take a return of stock with no sale to take it back from, with the reason why.
      * An empty reason takes the permission back out of the register. Used in app/Views/sales/register.php
      *
-     * @return ResponseInterface|string
      * @noinspection PhpUnused
      */
     public function postSetReturnOverride(): ResponseInterface|string
@@ -2171,11 +2170,11 @@ class Sales extends Secure_Controller
         $data['payment_terms'] = $this->sale_lib->getPaymentTerms();
         $data['due_date'] = $this->registerDueDate();
         $data['can_type_invoice_date'] = $this->mayTypeInvoiceDate();
-        $data['today'] = date('Y-m-d');
-        $data['return_origin'] = $this->sale_lib->get_return_origin();
-        $data['return_document'] = $this->sale_lib->getReturnDocument()->value;
-        $data['can_override_return'] = $this->mayOverrideReturn();
-        $data['return_override'] = $this->sale_lib->getReturnOverride();
+        $data['today']                 = date('Y-m-d');
+        $data['return_origin']         = $this->sale_lib->get_return_origin();
+        $data['return_document']       = $this->sale_lib->getReturnDocument()->value;
+        $data['can_override_return']   = $this->mayOverrideReturn();
+        $data['return_override']       = $this->sale_lib->getReturnOverride();
 
         $data['pos_mode'] = $data['mode'] == 'sale' || $data['mode'] == 'return';
 
@@ -2333,11 +2332,11 @@ class Sales extends Secure_Controller
                 $customerId          = $saleInfo['customer_id'] === null ? null : (int) $saleInfo['customer_id'];
 
                 if ($customerId !== null) {
-                    $position              = (new CustomerLedger())->position($customerId);
-                    $data['receivable']    = $position->invoice($saleId);
-                    $data['credit']        = $position->credit();
-                    $showPaymentRow        = $data['receivable'] !== null;
-                    $data['applications']  = $this->applicationsOf($saleId, $customerId);
+                    $position                = (new CustomerLedger())->position($customerId);
+                    $data['receivable']      = $position->invoice($saleId);
+                    $data['credit']          = $position->credit();
+                    $showPaymentRow          = $data['receivable'] !== null;
+                    $data['applications']    = $this->applicationsOf($saleId, $customerId);
                     $data['advance_numbers'] = (new CustomerAdvances())->numbersOf(array_map(
                         static fn (object $application): int => (int) $application->source_id,
                         array_filter($data['applications'], static fn (object $application): bool => $application->source_type === CreditSource::CUSTOMER_ADVANCE),

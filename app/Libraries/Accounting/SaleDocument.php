@@ -13,9 +13,9 @@ namespace App\Libraries\Accounting;
 final readonly class SaleDocument
 {
     /**
-     * @param list<SaleLine>        $lines
-     * @param list<SalePayment>     $payments
-     * @param array<int, string>    $returnedUnits Units by item that came back before the goods were delivered.
+     * @param list<SaleLine>     $lines
+     * @param list<SalePayment>  $payments
+     * @param array<int, string> $returnedUnits Units by item that came back before the goods were delivered.
      */
     public function __construct(
         public int $saleId,

@@ -330,9 +330,9 @@ class AccountingReceivables extends AccountingController
 
         $permission = $what === CustomerAdvances::SOURCE ? AccountingGuard::RECEIVABLES_MANAGE : AccountingGuard::RECEIVABLES_REFUND;
         $branch     = match ($what) {
-            CustomerAdvances::SOURCE        => $this->advances->branchOf($id),
+            CustomerAdvances::SOURCE       => $this->advances->branchOf($id),
             CreditRefunds::CUSTOMER_SOURCE => $this->refunds->branchOf($id),
-            default                         => null,
+            default                        => null,
         };
 
         if ($branch === null || ! $this->can($permission)) {
@@ -350,9 +350,9 @@ class AccountingReceivables extends AccountingController
             $reason = (string) $this->request->getPost('reason');
 
             match ($what) {
-                CustomerAdvances::SOURCE        => $this->advances->cancel($id, $reason, $this->employeeId()),
+                CustomerAdvances::SOURCE       => $this->advances->cancel($id, $reason, $this->employeeId()),
                 CreditRefunds::CUSTOMER_SOURCE => $this->refunds->cancel($id, $reason, $this->employeeId()),
-                default                         => throw PageNotFoundException::forPageNotFound(),
+                default                        => throw PageNotFoundException::forPageNotFound(),
             };
 
             return ['success' => true, 'message' => lang('Accounting_receivables.cancelled_done'), 'id' => $id];

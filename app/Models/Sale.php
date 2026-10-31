@@ -924,7 +924,7 @@ class Sale extends Model
         ReturnDocument $returnDocument = ReturnDocument::CreditNote,
         ?string $invoiceDate = null,
         int|string|null $paymentTerms = null,
-        ?string $returnOverrideReason = null
+        ?string $returnOverrideReason = null,
     ): int {    // TODO: this method returns the sale_id but the override is expecting it to return a bool. The signature needs to be reworked.  Generally when there are more than 3 maybe 4 parameters, there's a good chance that an object needs to be passed rather than so many params.
         try {
             return (new CustomerLock($this->db))->run(
@@ -964,7 +964,7 @@ class Sale extends Model
         ReturnDocument $returnDocument,
         ?string $invoiceDate,
         int|string|null $paymentTerms,
-        ?string $returnOverrideReason
+        ?string $returnOverrideReason,
     ): int {
         $config = config(OSPOS::class)->settings;
         $attribute = model(Attribute::class);
@@ -1328,7 +1328,7 @@ class Sale extends Model
         $item = model(Item::class);
 
         foreach ($items as $line) {
-            if ($item->get_info($line['item_id'])->stock_type == HAS_STOCK) {
+            if ((int) $item->get_info($line['item_id'])->stock_type === HAS_STOCK) {
                 return (new ReturnOverride($this->db))->reasonFor($employeeId, $reason);
             }
         }
@@ -1685,8 +1685,8 @@ class Sale extends Model
         $this->db->transStart();
 
         // The lock of the sale comes first, so two requests cancelling it never run side by side
-        $locked = $this->db->query('SELECT sale_status, delivered, sale_type, return_of_sale_id, return_document FROM ' . $this->db->prefixTable('sales') . ' WHERE sale_id = ? FOR UPDATE', [$sale_id]);
-        $sale = $locked === false ? null : $locked->getRow();
+        $locked      = $this->db->query('SELECT sale_status, delivered, sale_type, return_of_sale_id, return_document FROM ' . $this->db->prefixTable('sales') . ' WHERE sale_id = ? FOR UPDATE', [$sale_id]);
+        $sale        = $locked === false ? null : $locked->getRow();
         $sale_status = $sale === null ? null : (int) $sale->sale_status;
 
         if ($update_inventory && $sale_status === COMPLETED && (int) $sale->delivered === 1 && ! $this->goodsNeverLeft((int) $sale->sale_type, ReturnDocument::fromStored($sale->return_document), $sale->return_of_sale_id === null ? null : (int) $sale->return_of_sale_id)) {

@@ -1,19 +1,19 @@
 <?php
 /**
- * @var string           $supplier_name
- * @var SupplierPosition $position
- * @var string           $today
- * @var string           $to
- * @var string|null      $error
- * @var list<object>     $applications
- * @var int              $supplier_id
- * @var list<object>     $advances
+ * @var string            $supplier_name
+ * @var SupplierPosition  $position
+ * @var string            $today
+ * @var string            $to
+ * @var string|null       $error
+ * @var list<object>      $applications
+ * @var int               $supplier_id
+ * @var list<object>      $advances
  * @var array<int,string> $advance_kinds
- * @var list<object>     $refunds
- * @var bool             $can_manage
- * @var bool             $can_refund
- * @var Closure          $amount
- * @var Closure          $date
+ * @var list<object>      $refunds
+ * @var bool              $can_manage
+ * @var bool              $can_refund
+ * @var Closure           $amount
+ * @var Closure           $date
  */
 
 use App\Libraries\Accounting\AgingBuckets;
