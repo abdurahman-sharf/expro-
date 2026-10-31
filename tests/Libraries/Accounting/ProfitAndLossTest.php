@@ -285,6 +285,14 @@ final class ProfitAndLossTest extends CIUnitTestCase
         $this->assertSame(ProfitBasis::Accrual, $report->basis);
     }
 
+    public function testBuild_ReadsAClosedPeriodAsAnyOther(): void
+    {
+        $this->cashSale('2026-10-05', 1, '100.00');
+        $this->closeThrough('2026-10-31');
+
+        $this->assertSame('100.0000', $this->profit('2026-10-31', '2026-10-01')->totalRevenue);
+    }
+
     public function testBuild_RoundsOnlyWhenShowingSoTheTotalsComeFromTheStoredAmounts(): void
     {
         $this->postOn('2026-10-05', 1, [[$this->accountId('cash'), '0.0040', '0'], [$this->accountId('sales_revenue'), '0', '0.0040']]);

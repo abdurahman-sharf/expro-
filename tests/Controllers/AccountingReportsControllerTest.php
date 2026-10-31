@@ -1369,4 +1369,37 @@ class AccountingReportsControllerTest extends CIUnitTestCase
         $response->assertStatus(422);
         $this->assertSame(lang('Accounting.error_ledger_too_large', [20_000]), $response->response()->getBody());
     }
+
+    public function testGetCsv_ShowsAnAccountNameThatStartsLikeAFormulaAsText(): void
+    {
+        $account = $this->customAccount('1201', '120102', '=HYPERLINK("http://example.test")');
+
+        $this->postOn('2026-10-05', 1, [[$account, '100.00', '0'], [$this->accountId('sales_revenue'), '0', '100.00']]);
+        $this->viewer();
+
+        $rows = $this->csvRows($this->get('/accounting_reports/csv?type=balances&to=2026-10-31'));
+        $row  = $this->csvRowStartingWith($rows, '120102');
+
+        $this->assertSame('\'=HYPERLINK("http://example.test")', $row[1], 'A spreadsheet would run it as a formula otherwise');
+        $this->assertSame('100.0000', $row[2]);
+    }
+
+    public function testGetLedgerCsv_ShowsADescriptionAndAnEmployeeThatStartLikeAFormulaAsTextAndKeepsNegativeNumbersAsNumbers(): void
+    {
+        $employee = $this->bookedBy('=cmd', 'Ledger');
+
+        $this->postOn('2026-10-05', 1, [[$this->accountId('cash'), '100.00', '0'], [$this->accountId('sales_revenue'), '0', '100.00']], '+1+1', $employee);
+        $this->postOn('2026-10-06', 1, [[$this->accountId('cogs'), '130.00', '0'], [$this->accountId('cash'), '0', '130.00']]);
+        $this->viewer();
+
+        $rows = $this->csvRows($this->get('/accounting_reports/ledger/csv?account=' . $this->accountId('cash') . '&to=2026-10-31'));
+
+        $this->assertSame(['\'=cmd Ledger', '\'+1+1'], [$rows[2][4], $rows[2][5]]);
+        $this->assertSame('-30.0000', $rows[3][8], 'A balance below zero is a number and not a text');
+        $this->assertSame('-30.0000', end($rows)[8]);
+
+        $blocks = $this->csvRows($this->get('/accounting_reports/ledger/csv?layout=accounts&account=' . $this->accountIdByCodeOf('1201') . '&to=2026-10-31'));
+
+        $this->assertSame('-30.0000', end($blocks)[8], 'The net of a block statement below zero stays a number');
+    }
 }

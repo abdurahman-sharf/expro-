@@ -249,6 +249,29 @@ final class CashProfitAndLossTest extends CIUnitTestCase
         $this->assertTrue($report->ties());
     }
 
+    public function testBuild_LeavesOutAJournalOfTheClosingOfAYearEvenWhenItTouchesATreasury(): void
+    {
+        $this->postOn('2026-10-05', 1, [[$this->accountId('cash'), '100.00', '0'], [$this->accountIdByCode('4201'), '0', '100.00']]);
+        $this->postYearEnd('2026-12-31', 1, [[$this->accountId('cash'), '40.00', '0'], [$this->accountId('retained_earnings'), '0', '40.00']]);
+
+        $report = $this->cash();
+
+        $this->assertSame(['100.0000', '100.0000'], [$report->totalRevenue, $report->cashChange]);
+        $this->assertSame([], $report->otherLines);
+        $this->assertTrue($report->ties());
+    }
+
+    public function testBuild_ReadsAClosedPeriodAsAnyOther(): void
+    {
+        $this->postOn('2026-10-05', 1, [[$this->accountId('cash'), '100.00', '0'], [$this->customer, '0', '100.00']]);
+        $this->closeThrough('2026-10-31');
+
+        $report = $this->cash('2026-10-01', '2026-10-31');
+
+        $this->assertSame('100.0000', $report->totalRevenue);
+        $this->assertTrue($report->ties());
+    }
+
     public function testBuild_HasZerosAndTheSameLinesForABookWithNoMoney(): void
     {
         $report = $this->cash();

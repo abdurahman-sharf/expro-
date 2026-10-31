@@ -10,6 +10,7 @@ use App\Libraries\Accounting\CashFlowLineResult;
 use App\Libraries\Accounting\CashFlowReport;
 use App\Libraries\Accounting\CashFlowSection;
 use App\Libraries\Accounting\CashFlowSettings;
+use App\Libraries\Accounting\ExportsCsv;
 use App\Libraries\Accounting\ReportPeriod;
 use App\Libraries\Accounting\ReportScope;
 use App\Libraries\Accounting\ScopedReportRequest;
@@ -25,6 +26,7 @@ use CodeIgniter\HTTP\ResponseInterface;
  */
 class AccountingCashFlow extends AccountingController
 {
+    use ExportsCsv;
     use ScopedReportRequest;
 
     private CashFlow $flow;
@@ -152,20 +154,7 @@ class AccountingCashFlow extends AccountingController
         $this->csvRow($handle, [lang('Accounting_cash_flow.cash_closing'), $report->cashClosing]);
         $this->csvRow($handle, [lang($report->ties() ? 'Accounting_cash_flow.ties' : 'Accounting_cash_flow.differs')]);
 
-        rewind($handle);
-        $text = (string) stream_get_contents($handle);
-        fclose($handle);
-
-        return $text;
-    }
-
-    /**
-     * @param resource     $handle
-     * @param list<string> $cells
-     */
-    private function csvRow($handle, array $cells): void
-    {
-        fputcsv($handle, $cells, ',', '"', '');
+        return $this->csvText($handle);
     }
 
     /**

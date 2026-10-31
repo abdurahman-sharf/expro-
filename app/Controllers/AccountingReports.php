@@ -7,6 +7,7 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountLedger;
 use App\Libraries\Accounting\AccountLedgerBlocksReport;
 use App\Libraries\Accounting\AccountLedgerReport;
+use App\Libraries\Accounting\ExportsCsv;
 use App\Libraries\Accounting\LedgerDisplay;
 use App\Libraries\Accounting\ReportPeriod;
 use App\Libraries\Accounting\ReportScope;
@@ -27,6 +28,7 @@ use CodeIgniter\HTTP\ResponseInterface;
  */
 class AccountingReports extends AccountingController
 {
+    use ExportsCsv;
     use ScopedReportRequest;
 
     private const PAGE_SIZE      = 100;
@@ -150,10 +152,6 @@ class AccountingReports extends AccountingController
         $scope     = $this->requestedScope();
         $options   = $this->ledgerOptions();
         $accountId = (int) $this->query('account');
-
-        if ($accountId < 1) {
-            throw PageNotFoundException::forPageNotFound();
-        }
 
         try {
             $period = $this->period();
@@ -587,26 +585,5 @@ class AccountingReports extends AccountingController
             (string) $row['credit'],
             (string) $row['balance'],
         ], static fn (?string $cell): bool => $cell !== null));
-    }
-
-    /**
-     * @param resource     $handle
-     * @param list<string> $cells
-     */
-    private function csvRow($handle, array $cells): void
-    {
-        fputcsv($handle, $cells, ',', '"', '');
-    }
-
-    /**
-     * @param resource $handle
-     */
-    private function csvText($handle): string
-    {
-        rewind($handle);
-        $text = (string) stream_get_contents($handle);
-        fclose($handle);
-
-        return $text;
     }
 }

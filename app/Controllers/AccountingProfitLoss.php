@@ -6,6 +6,7 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\CashProfitAndLoss;
 use App\Libraries\Accounting\CashProfitAndLossReport;
 use App\Libraries\Accounting\CashProfitLine;
+use App\Libraries\Accounting\ExportsCsv;
 use App\Libraries\Accounting\ProfitAndLoss;
 use App\Libraries\Accounting\ProfitAndLossReport;
 use App\Libraries\Accounting\ProfitBasis;
@@ -24,6 +25,7 @@ use CodeIgniter\HTTP\ResponseInterface;
  */
 class AccountingProfitLoss extends AccountingController
 {
+    use ExportsCsv;
     use ScopedReportRequest;
 
     private ProfitAndLoss $accrual;
@@ -181,27 +183,6 @@ class AccountingProfitLoss extends AccountingController
     private function lineName(CashProfitLine $line): string
     {
         return $line->kind === CashProfitLine::ACCOUNT ? $line->code . ' ' . $line->name : lang('Accounting_profit_loss.line_' . $line->kind);
-    }
-
-    /**
-     * @param resource     $handle
-     * @param list<string> $cells
-     */
-    private function csvRow($handle, array $cells): void
-    {
-        fputcsv($handle, $cells, ',', '"', '');
-    }
-
-    /**
-     * @param resource $handle
-     */
-    private function csvText($handle): string
-    {
-        rewind($handle);
-        $text = (string) stream_get_contents($handle);
-        fclose($handle);
-
-        return $text;
     }
 
     /**

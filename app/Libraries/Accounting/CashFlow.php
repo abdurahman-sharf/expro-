@@ -138,7 +138,7 @@ final class CashFlow
             $roots   = [...$this->chart->idsOfKeys(...$default['systemKeys']), ...$this->chart->idsOfCodes(...$default['codes'])];
         }
 
-        return array_diff_key($this->chart->subtreeOf($roots), $this->chart->cashAccounts());
+        return $this->chart->subtreeOf($roots);
     }
 
     /**

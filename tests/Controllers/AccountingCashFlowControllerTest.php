@@ -338,6 +338,18 @@ final class AccountingCashFlowControllerTest extends CIUnitTestCase
         return (string) $this->accountingDb()->table('accounting_accounts')->select('name')->where('code', $code)->get()->getRow()->name;
     }
 
+    public function testGetCsv_ShowsATitleThatStartsLikeAFormulaAsTextAndKeepsNegativeNumbersAsNumbers(): void
+    {
+        $this->books();
+        $this->postSetup([['key' => 'inventory', 'title' => '=SUM(A1:A9)']]);
+        $this->viewer();
+
+        $rows = $this->csvRows($this->get(self::SCREEN . '/csv?from=2026-10-01&to=2026-10-31'));
+
+        $this->assertSame('-600.0000', $this->rowStartingWith($rows, "'=SUM(A1:A9)")[1], 'The title of the line is text and the amount a number');
+        $this->assertSame('-90.0000', $this->rowStartingWith($rows, '215002 ' . $this->accountNameOf('215002'))[1]);
+    }
+
     public function testGetCsv_AddsUpOnlyTheBranchesTheEmployeeWorksInWhateverTheRequestAsks(): void
     {
         $this->books();

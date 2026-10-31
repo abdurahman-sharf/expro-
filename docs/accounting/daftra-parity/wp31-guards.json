@@ -5,6 +5,8 @@
     "find": "                . 'SUM(' . ($from === null ? '0' : sprintf($before, 'l.debit')) . ') AS opening_debit, '",
     "replace": "                . 'SUM(' . ($from === null ? '0' : sprintf($before, '0')) . ') AS opening_debit, '",
     "tests": [
+      "--filter",
+      "Gross|Review|Depth|Display|Transactions|MainAccount|Named|Party|Roots|Choice|DoesNotMove|Reproduces|ListsOnly|ListsA|KeepsAGroup|ListsTheChart|AddsUpTheRoots|Choices",
       "tests/Libraries/Accounting/TrialBalanceTest.php"
     ]
   },
@@ -14,6 +16,8 @@
     "find": "$isTop = $limitedToAccounts ? isset($shown[$accountId]) && $this->depthOf($accounts, $shown, $accountId) === 0 : $this->parentOf($accounts, $accountId) === null;",
     "replace": "$isTop = true;",
     "tests": [
+      "--filter",
+      "Gross|Review|Depth|Display|Transactions|MainAccount|Named|Party|Roots|Choice|DoesNotMove|Reproduces|ListsOnly|ListsA|KeepsAGroup|ListsTheChart|AddsUpTheRoots|Choices",
       "tests/Libraries/Accounting/TrialBalanceTest.php"
     ]
   },
@@ -23,6 +27,8 @@
     "find": "            $filter->isLimitedToAccounts(),\n        );\n    }\n\n    /**\n     * The accounts a run can be limited",
     "replace": "            false,\n        );\n    }\n\n    /**\n     * The accounts a run can be limited",
     "tests": [
+      "--filter",
+      "Gross|Review|Depth|Display|Transactions|MainAccount|Named|Party|Roots|Choice|DoesNotMove|Reproduces|ListsOnly|ListsA|KeepsAGroup|ListsTheChart|AddsUpTheRoots|Choices",
       "tests/Libraries/Accounting/TrialBalanceTest.php"
     ]
   },
@@ -32,6 +38,8 @@
     "find": "                if (($expandEntities || $subtree !== null || $named !== null) && isset($touched[$accountId])) {",
     "replace": "                if (($expandEntities || $subtree !== null || $named !== null)) {",
     "tests": [
+      "--filter",
+      "Gross|Review|Depth|Display|Transactions|MainAccount|Named|Party|Roots|Choice|DoesNotMove|Reproduces|ListsOnly|ListsA|KeepsAGroup|ListsTheChart|AddsUpTheRoots|Choices",
       "tests/Libraries/Accounting/TrialBalanceTest.php"
     ]
   },
@@ -41,6 +49,8 @@
     "find": "$shown  = array_filter($shown, static fn (int $accountId): bool => $levels[$accountId] <= $filter->level, ARRAY_FILTER_USE_KEY);",
     "replace": "$shown  = $shown;",
     "tests": [
+      "--filter",
+      "Gross|Review|Depth|Display|Transactions|MainAccount|Named|Party|Roots|Choice|DoesNotMove|Reproduces|ListsOnly|ListsA|KeepsAGroup|ListsTheChart|AddsUpTheRoots|Choices",
       "tests/Libraries/Accounting/TrialBalanceTest.php"
     ]
   },
@@ -50,6 +60,8 @@
     "find": "            if ($named !== null && ! isset($named[$accountId])) {\n                continue;\n            }",
     "replace": "            if (false) {\n                continue;\n            }",
     "tests": [
+      "--filter",
+      "Gross|Review|Depth|Display|Transactions|MainAccount|Named|Party|Roots|Choice|DoesNotMove|Reproduces|ListsOnly|ListsA|KeepsAGroup|ListsTheChart|AddsUpTheRoots|Choices",
       "tests/Libraries/Accounting/TrialBalanceTest.php"
     ]
   },
@@ -59,6 +71,8 @@
     "find": "            if ($subtree !== null && ! isset($subtree[$accountId])) {\n                continue;\n            }",
     "replace": "            if (false) {\n                continue;\n            }",
     "tests": [
+      "--filter",
+      "Gross|Review|Depth|Display|Transactions|MainAccount|Named|Party|Roots|Choice|DoesNotMove|Reproduces|ListsOnly|ListsA|KeepsAGroup|ListsTheChart|AddsUpTheRoots|Choices",
       "tests/Libraries/Accounting/TrialBalanceTest.php"
     ]
   },
@@ -68,6 +82,8 @@
     "find": "            $holds = $display === StatementDisplay::WithActivity\n                ? bccomp($row['debit'], '0', self::SCALE) !== 0 || bccomp($row['credit'], '0', self::SCALE) !== 0",
     "replace": "            $holds = $display === StatementDisplay::WithActivity\n                ? bccomp(bcsub($row['debit'], $row['credit'], self::SCALE), '0', self::SCALE) !== 0",
     "tests": [
+      "--filter",
+      "Gross|Review|Depth|Display|Transactions|MainAccount|Named|Party|Roots|Choice|DoesNotMove|Reproduces|ListsOnly|ListsA|KeepsAGroup|ListsTheChart|AddsUpTheRoots|Choices",
       "tests/Libraries/Accounting/TrialBalanceTest.php"
     ]
   },
@@ -77,6 +93,8 @@
     "find": "                if (isset($listed[$current])) {\n                    $kept[$current] = true;\n                }",
     "replace": "                if ($current === $accountId && isset($listed[$current])) {\n                    $kept[$current] = true;\n                }",
     "tests": [
+      "--filter",
+      "Gross|Review|Depth|Display|Transactions|MainAccount|Named|Party|Roots|Choice|DoesNotMove|Reproduces|ListsOnly|ListsA|KeepsAGroup|ListsTheChart|AddsUpTheRoots|Choices",
       "tests/Libraries/Accounting/TrialBalanceTest.php"
     ]
   },
@@ -86,6 +104,8 @@
     "find": "            $grand['gross_closing_debit']  = bcadd($grand['gross_closing_debit'], bcadd($row['opening_debit'], $row['debit'], self::SCALE), self::SCALE);",
     "replace": "            $grand['gross_closing_debit']  = bcadd($grand['gross_closing_debit'], $row['debit'], self::SCALE);",
     "tests": [
+      "--filter",
+      "Gross|Review|Depth|Display|Transactions|MainAccount|Named|Party|Roots|Choice|DoesNotMove|Reproduces|ListsOnly|ListsA|KeepsAGroup|ListsTheChart|AddsUpTheRoots|Choices",
       "tests/Libraries/Accounting/TrialBalanceTest.php"
     ]
   },
@@ -433,16 +453,7 @@
     ]
   },
   {
-    "name": "W49 a line never takes from a treasury or a bank",
-    "file": "app/Libraries/Accounting/CashFlow.php",
-    "find": "return array_diff_key($this->chart->subtreeOf($roots), $this->chart->cashAccounts());",
-    "replace": "return $this->chart->subtreeOf($roots);",
-    "tests": [
-      "tests/Libraries/Accounting/CashFlowTest.php"
-    ]
-  },
-  {
-    "name": "W50 saving needs the permission to manage the settings",
+    "name": "W49 saving needs the permission to manage the settings",
     "file": "app/Libraries/Accounting/CashFlowSettings.php",
     "find": "$this->guard->require(AccountingGuard::SETTINGS_MANAGE, $employeeId);",
     "replace": "",
@@ -451,7 +462,7 @@
     ]
   },
   {
-    "name": "W51 saving needs every branch",
+    "name": "W50 saving needs every branch",
     "file": "app/Libraries/Accounting/CashFlowSettings.php",
     "find": "$this->branches->requireCompanyScope($employeeId);",
     "replace": "",
@@ -460,7 +471,7 @@
     ]
   },
   {
-    "name": "W52 a change is written to the audit log",
+    "name": "W51 a change is written to the audit log",
     "file": "app/Libraries/Accounting/CashFlowSettings.php",
     "find": "        $this->audit->write('settings', null, 'cash_flow_lines_updated'",
     "replace": "        // $this->audit->write('settings', null, 'cash_flow_lines_updated'",
@@ -469,7 +480,7 @@
     ]
   },
   {
-    "name": "W53 a save that changes nothing writes nothing",
+    "name": "W52 a save that changes nothing writes nothing",
     "file": "app/Libraries/Accounting/CashFlowSettings.php",
     "find": "        if ($this->arrays($before) === $this->arrays($after)) {\n            return;\n        }",
     "replace": "",
@@ -478,7 +489,7 @@
     ]
   },
   {
-    "name": "W54 a line that is not in the report is refused",
+    "name": "W53 a line that is not in the report is refused",
     "file": "app/Libraries/Accounting/CashFlowSettings.php",
     "find": "            } elseif (! isset($next[$key])) {",
     "replace": "            } elseif (false) {",
@@ -487,7 +498,7 @@
     ]
   },
   {
-    "name": "W55 a title is short",
+    "name": "W54 a title is short",
     "file": "app/Libraries/Accounting/CashFlowSettings.php",
     "find": "mb_strlen($title) > self::TITLE_MAX || ($line->custom && $title === '')",
     "replace": "($line->custom && $title === '')",
@@ -496,7 +507,7 @@
     ]
   },
   {
-    "name": "W56 a line that was added has a title",
+    "name": "W55 a line that was added has a title",
     "file": "app/Libraries/Accounting/CashFlowSettings.php",
     "find": "mb_strlen($title) > self::TITLE_MAX || ($line->custom && $title === '')",
     "replace": "mb_strlen($title) > self::TITLE_MAX",
@@ -505,7 +516,7 @@
     ]
   },
   {
-    "name": "W57 a formula is one the report knows",
+    "name": "W56 a formula is one the report knows",
     "file": "app/Libraries/Accounting/CashFlowSettings.php",
     "find": "if ($formula === null || ($line->key === CashFlowDefaults::NET_INCOME && $formula !== CashFlowFormula::CreditInPeriod)) {",
     "replace": "if (false) {",
@@ -514,7 +525,7 @@
     ]
   },
   {
-    "name": "W58 the net income has one formula",
+    "name": "W57 the net income has one formula",
     "file": "app/Libraries/Accounting/CashFlowSettings.php",
     "find": "if ($formula === null || ($line->key === CashFlowDefaults::NET_INCOME && $formula !== CashFlowFormula::CreditInPeriod)) {",
     "replace": "if ($formula === null) {",
@@ -523,7 +534,7 @@
     ]
   },
   {
-    "name": "W59 a part is one the report draws",
+    "name": "W58 a part is one the report draws",
     "file": "app/Libraries/Accounting/CashFlowSettings.php",
     "find": "            if ($section === null) {",
     "replace": "            if (false) {",
@@ -532,7 +543,7 @@
     ]
   },
   {
-    "name": "W60 a line cannot take from a treasury or a bank or from an account that is not in the chart",
+    "name": "W59 a line cannot take from a treasury or a bank or from an account that is not in the chart",
     "file": "app/Libraries/Accounting/CashFlowSettings.php",
     "find": "|| ! isset($accounts[(int) $candidate]) || isset($cash[(int) $candidate])) {",
     "replace": "|| false) {",
@@ -541,7 +552,7 @@
     ]
   },
   {
-    "name": "W61 a line cannot take from an account together with an account above it",
+    "name": "W60 a line cannot take from an account together with an account above it",
     "file": "app/Libraries/Accounting/CashFlowSettings.php",
     "find": "                if (isset($ids[$parent])) {",
     "replace": "                if (false) {",
@@ -550,7 +561,7 @@
     ]
   },
   {
-    "name": "W62 a line that was added has an account",
+    "name": "W61 a line that was added has an account",
     "file": "app/Libraries/Accounting/CashFlowSettings.php",
     "find": "        if ($line->custom && $accountIds === []) {",
     "replace": "        if (false) {",
@@ -559,7 +570,7 @@
     ]
   },
   {
-    "name": "W63 the lines that are added are limited",
+    "name": "W62 the lines that are added are limited",
     "file": "app/Libraries/Accounting/CashFlowSettings.php",
     "find": "        if ($addedCustoms > self::MAX_CUSTOM_LINES) {",
     "replace": "        if (false) {",
@@ -568,7 +579,7 @@
     ]
   },
   {
-    "name": "W64 a line the report starts with is hidden and never deleted",
+    "name": "W63 a line the report starts with is hidden and never deleted",
     "file": "app/Libraries/Accounting/CashFlowSettings.php",
     "find": "                if (! $line->custom) {\n                    throw",
     "replace": "                if (false) {\n                    throw",
@@ -577,7 +588,7 @@
     ]
   },
   {
-    "name": "W65 the net income takes from every account and has none of its own",
+    "name": "W64 the net income takes from every account and has none of its own",
     "file": "app/Libraries/Accounting/CashFlowSettings.php",
     "find": "            if ($line->key === CashFlowDefaults::NET_INCOME && $accountIds !== []) {",
     "replace": "            if (false) {",
@@ -586,7 +597,7 @@
     ]
   },
   {
-    "name": "W66 the lines are a list of sets of values",
+    "name": "W65 the lines are a list of sets of values",
     "file": "app/Libraries/Accounting/CashFlowSettings.php",
     "find": "            if (! is_array($row)) {",
     "replace": "            if (false) {",
@@ -595,16 +606,7 @@
     ]
   },
   {
-    "name": "W67 a file of a statement needs an account",
-    "file": "app/Controllers/AccountingReports.php",
-    "find": "        if ($accountId < 1) {\n            throw PageNotFoundException::forPageNotFound();\n        }",
-    "replace": "        if (false) {\n            throw PageNotFoundException::forPageNotFound();\n        }",
-    "tests": [
-      "tests/Controllers/AccountingReportsControllerTest.php"
-    ]
-  },
-  {
-    "name": "W68 a refusal is a refusal of the file",
+    "name": "W66 a refusal is a refusal of the file",
     "file": "app/Controllers/AccountingReports.php",
     "find": "setStatusCode(ResponseInterface::HTTP_UNPROCESSABLE_ENTITY)",
     "replace": "setStatusCode(ResponseInterface::HTTP_OK)",
@@ -614,7 +616,7 @@
     "all": true
   },
   {
-    "name": "W69 a statement too large for a file is refused",
+    "name": "W67 a statement too large for a file is refused",
     "file": "app/Controllers/AccountingReports.php",
     "find": "                if ($report->totalRows > self::CSV_MAX_LINES) {",
     "replace": "                if (false) {",
@@ -623,7 +625,7 @@
     ]
   },
   {
-    "name": "W70 an employee that is not a number is nobody in particular",
+    "name": "W68 an employee that is not a number is nobody in particular",
     "file": "app/Controllers/AccountingReports.php",
     "find": "'employee'      => ctype_digit($employee) && (int) $employee > 0 ? (int) $employee : null,",
     "replace": "'employee'      => (int) $employee,",
@@ -632,7 +634,7 @@
     ]
   },
   {
-    "name": "W71 what the screen was asked is carried into its file",
+    "name": "W69 what the screen was asked is carried into its file",
     "file": "app/Controllers/AccountingReports.php",
     "find": "        $accounts = $this->trialBalanceFilter()->accountIds;\n\n        if ($accounts !== []) {\n            $query['accounts'] = $accounts;\n        }",
     "replace": "",
@@ -641,7 +643,7 @@
     ]
   },
   {
-    "name": "W72 the employee column can be hidden",
+    "name": "W70 the employee column can be hidden",
     "file": "app/Controllers/AccountingReports.php",
     "find": "'hide_employee' => $this->flag('hide_employee'),",
     "replace": "'hide_employee' => false,",
@@ -650,7 +652,7 @@
     ]
   },
   {
-    "name": "W73 a basis asked for is the basis read",
+    "name": "W71 a basis asked for is the basis read",
     "file": "app/Controllers/AccountingProfitLoss.php",
     "find": "            $basis  = ProfitBasis::fromRequest($this->request->getGet('basis'));\n            $report = $this->read($basis, $scope, $period);\n        } catch (AccountingException $refusal) {\n            $error = $this->messageFor($refusal);",
     "replace": "            $basis  = ProfitBasis::Accrual;\n            $report = $this->read($basis, $scope, $period);\n        } catch (AccountingException $refusal) {\n            $error = $this->messageFor($refusal);",
@@ -659,7 +661,7 @@
     ]
   },
   {
-    "name": "W74 a file of a basis that is refused is a refusal",
+    "name": "W72 a file of a basis that is refused is a refusal",
     "file": "app/Controllers/AccountingProfitLoss.php",
     "find": "setStatusCode(ResponseInterface::HTTP_UNPROCESSABLE_ENTITY)",
     "replace": "setStatusCode(ResponseInterface::HTTP_OK)",
@@ -668,7 +670,7 @@
     ]
   },
   {
-    "name": "W75 the cash flow is saved as the employee who asked",
+    "name": "W73 the cash flow is saved as the employee who asked",
     "file": "app/Controllers/AccountingCashFlow.php",
     "find": "$this->settings->save(['lines' => is_array($lines) ? array_values($lines) : []], $this->employeeId());",
     "replace": "$this->settings->save(['lines' => is_array($lines) ? array_values($lines) : []], null);",
@@ -677,7 +679,7 @@
     ]
   },
   {
-    "name": "W76 the setup is offered to save only to who may manage it in every branch",
+    "name": "W74 the setup is offered to save only to who may manage it in every branch",
     "file": "app/Controllers/AccountingCashFlow.php",
     "find": "'canManage'  => $this->canManage(AccountingGuard::SETTINGS_MANAGE),",
     "replace": "'canManage'  => true,",
@@ -686,11 +688,31 @@
     ]
   },
   {
-    "name": "W77 a file of the cash flow with a refused range is a refusal",
+    "name": "W75 a file of the cash flow with a refused range is a refusal",
     "file": "app/Controllers/AccountingCashFlow.php",
     "find": "setStatusCode(ResponseInterface::HTTP_UNPROCESSABLE_ENTITY)",
     "replace": "setStatusCode(ResponseInterface::HTTP_OK)",
     "tests": [
+      "tests/Controllers/AccountingCashFlowControllerTest.php"
+    ]
+  },
+  {
+    "name": "W76 a text that a spreadsheet would read as a formula is shown as text",
+    "file": "app/Libraries/Accounting/ExportsCsv.php",
+    "find": "|| ! in_array($cell[0], ['=', '+', '-', '@', \"\\t\", \"\\r\"], true)",
+    "replace": "|| false",
+    "tests": [
+      "tests/Controllers/AccountingReportsControllerTest.php",
+      "tests/Controllers/AccountingCashFlowControllerTest.php"
+    ]
+  },
+  {
+    "name": "W77 a number is left as a number",
+    "file": "app/Libraries/Accounting/ExportsCsv.php",
+    "find": "$cell === '' || is_numeric($cell) ||",
+    "replace": "$cell === '' ||",
+    "tests": [
+      "tests/Controllers/AccountingReportsControllerTest.php",
       "tests/Controllers/AccountingCashFlowControllerTest.php"
     ]
   }

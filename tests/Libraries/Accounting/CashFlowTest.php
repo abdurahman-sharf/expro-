@@ -242,6 +242,17 @@ final class CashFlowTest extends CIUnitTestCase
         $this->assertTrue($report->ties());
     }
 
+    public function testBuild_ReadsAClosedPeriodAsAnyOther(): void
+    {
+        $this->books();
+        $this->closeThrough('2026-10-31');
+
+        $report = $this->flow();
+
+        $this->assertSame('100125.0000', $report->totalChange);
+        $this->assertTrue($report->ties());
+    }
+
     public function testBuild_ReadsAReversedJournalWithItsReversalSoTheyLeaveNothing(): void
     {
         $journal = $this->postOn('2026-10-05', 1, [[$this->accountId('cash'), '100.00', '0'], [$this->accountIdByCode('4201'), '0', '100.00']]);
