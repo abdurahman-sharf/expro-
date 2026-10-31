@@ -5081,4 +5081,30 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertNull($this->saleRow($draft)->quote_number);
         $this->assertSame(1, (new DocumentNumbering($this->accountingDb()))->sequence(DocumentType::SalesQuote)->nextNumber);
     }
+
+    public function testIssueDraft_RefusesADiscountThatNoLongerFitsTheLinesAndLeavesTheDraftAsItWas(): void
+    {
+        $cycle = $this->taxedReference();
+        $draft = $this->draftInvoice($cycle['items']);
+
+        $this->accountingDb()->table('sales')->where('sale_id', $draft)->update(['invoice_discount_type' => PERCENT, 'invoice_discount' => '150']);
+
+        $this->assertSame(INVOICE_DISCOUNT_INVALID, $this->sales->issueDraft($draft, $this->employeeId));
+        $this->assertSame(InvoiceDiscountProblem::PercentOver100, $this->sales->invoiceDiscountProblem());
+        $this->assertSame((string) SUSPENDED, (string) $this->saleRow($draft)->sale_status);
+        $this->assertSame(0, $this->countJournals());
+    }
+
+    public function testIssueDraft_KeepsTheCustomerOfTheDraftAndThePostedBalanceOfTheCustomerFollowsTheInvoice(): void
+    {
+        $other = $this->anotherCustomer();
+        $cycle = $this->taxedReference();
+        $draft = $this->draftInvoice($cycle['items'], $other);
+
+        $this->assertSame($draft, $this->sales->issueDraft($draft, $this->employeeId));
+        $this->assertSame((string) $other, (string) $this->saleRow($draft)->customer_id);
+        $this->assertSame('816.50', $this->balance((int) $this->position($other)->accountId));
+        $this->assertSame('0.00', $this->balance($this->customerAccount()));
+        $this->assertTies($other);
+    }
 }

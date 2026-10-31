@@ -65,11 +65,11 @@ enum QuoteStatus: int
     public function next(): array
     {
         return match ($this) {
-            self::Draft                                        => [self::Open],
+            self::Draft => [self::Open],
             self::Open, self::Sent, self::Viewed, self::Replied => array_values(array_filter([self::Open, self::Sent, self::Viewed, self::Replied, self::Approved], fn (self $state): bool => $state !== $this)),
-            self::Approved                                     => [self::Open, self::Ordered],
-            self::Ordered                                      => [self::Approved],
-            self::Converted                                    => [],
+            self::Approved  => [self::Open, self::Ordered],
+            self::Ordered   => [self::Approved],
+            self::Converted => [],
         };
     }
 

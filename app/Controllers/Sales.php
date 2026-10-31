@@ -620,6 +620,24 @@ class Sales extends Secure_Controller
     }
 
     /**
+     * The answer that refuses an action on a draft or a quote: the employee may not open sales
+     * documents, or the document belongs to a branch the employee does not work in. Null when
+     * the action may go on.
+     */
+    private function documentRefusal(int $saleId): ?ResponseInterface
+    {
+        if (!$this->employee->has_grant('reports_sales', (int) $this->session->get('person_id'))) {
+            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);
+        }
+
+        if ($this->outsideBranchScope($saleId)) {
+            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.branch_not_allowed')]);
+        }
+
+        return null;
+    }
+
+    /**
      * Lists the draft invoices and the quotes that are waiting, of the branches the employee works
      * in. Used in app/Views/sales/register.php
      *
@@ -713,15 +731,13 @@ class Sales extends Secure_Controller
      */
     public function postIssue(int $saleId = NEW_ENTRY): ResponseInterface
     {
+        $refusal = $this->documentRefusal($saleId);
+
+        if ($refusal !== null) {
+            return $refusal;
+        }
+
         $personId = (int) $this->session->get('person_id');
-
-        if (!$this->employee->has_grant('reports_sales', $personId)) {
-            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);
-        }
-
-        if ($this->outsideBranchScope($saleId)) {
-            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.branch_not_allowed')]);
-        }
 
         $date  = $this->request->getPost('invoice_date');
         $terms = $this->request->getPost('payment_terms');
@@ -764,15 +780,13 @@ class Sales extends Secure_Controller
      */
     public function postQuoteStatus(int $saleId = NEW_ENTRY): ResponseInterface
     {
+        $refusal = $this->documentRefusal($saleId);
+
+        if ($refusal !== null) {
+            return $refusal;
+        }
+
         $personId = (int) $this->session->get('person_id');
-
-        if (!$this->employee->has_grant('reports_sales', $personId)) {
-            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);
-        }
-
-        if ($this->outsideBranchScope($saleId)) {
-            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.branch_not_allowed')]);
-        }
 
         $raw = $this->request->getPost('quote_status');
         $to  = is_string($raw) && preg_match('/^-?[0-9]$/', $raw) === 1 ? QuoteStatus::tryFrom((int) $raw) : null;
@@ -798,15 +812,13 @@ class Sales extends Secure_Controller
      */
     public function postConvertQuote(int $saleId = NEW_ENTRY): ResponseInterface
     {
+        $refusal = $this->documentRefusal($saleId);
+
+        if ($refusal !== null) {
+            return $refusal;
+        }
+
         $personId = (int) $this->session->get('person_id');
-
-        if (!$this->employee->has_grant('reports_sales', $personId)) {
-            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);
-        }
-
-        if ($this->outsideBranchScope($saleId)) {
-            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.branch_not_allowed')]);
-        }
 
         if (!$this->config['invoice_enable']) {
             return $this->response->setJSON(['success' => false, 'message' => lang('Sales.quote_convert_unavailable'), 'id' => $saleId]);

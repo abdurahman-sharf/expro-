@@ -47,7 +47,7 @@ $badges = [
                         <th scope="col"><?= lang('Sales.customer') ?></th>
                         <th scope="col"><?= lang('Sales.employee') ?></th>
                         <?php if ($show_branch): ?>
-                            <th scope="col"><?= lang('Sales.document_branch') ?></th>
+                            <th scope="col" class="document-branch"><?= lang('Sales.document_branch') ?></th>
                         <?php endif; ?>
                         <th scope="col"><?= lang('Sales.sub_total') ?></th>
                         <th scope="col"></th>
@@ -61,7 +61,7 @@ $badges = [
                             <td><?= esc((string) $draft->customer_name) ?></td>
                             <td><?= esc((string) $draft->employee_name) ?></td>
                             <?php if ($show_branch): ?>
-                                <td><?= esc((string) $draft->branch_code) ?></td>
+                                <td class="document-branch"><?= esc((string) $draft->branch_code) ?></td>
                             <?php endif; ?>
                             <td><bdi dir="ltr"><?= to_currency($draft->subtotal) ?></bdi></td>
                             <td><a class="btn btn-outline-primary btn-sm" href="<?= esc(site_url('sales/document/' . (int) $draft->sale_id), 'attr') ?>"><?= lang('Sales.document_open') ?></a></td>
@@ -100,7 +100,7 @@ $badges = [
                         <th scope="col"><?= lang('Sales.customer') ?></th>
                         <th scope="col"><?= lang('Sales.employee') ?></th>
                         <?php if ($show_branch): ?>
-                            <th scope="col"><?= lang('Sales.document_branch') ?></th>
+                            <th scope="col" class="document-branch"><?= lang('Sales.document_branch') ?></th>
                         <?php endif; ?>
                         <th scope="col"><?= lang('Sales.sub_total') ?></th>
                         <th scope="col"></th>
@@ -115,7 +115,7 @@ $badges = [
                             <td><?= esc((string) $quote->customer_name) ?></td>
                             <td><?= esc((string) $quote->employee_name) ?></td>
                             <?php if ($show_branch): ?>
-                                <td><?= esc((string) $quote->branch_code) ?></td>
+                                <td class="document-branch"><?= esc((string) $quote->branch_code) ?></td>
                             <?php endif; ?>
                             <td><bdi dir="ltr"><?= to_currency($quote->subtotal) ?></bdi></td>
                             <td><a class="btn btn-outline-primary btn-sm" href="<?= esc(site_url('sales/document/' . (int) $quote->sale_id), 'attr') ?>"><?= lang('Sales.document_open') ?></a></td>

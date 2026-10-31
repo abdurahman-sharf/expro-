@@ -85,7 +85,7 @@ final class DraftInvoice
         $discount   = $draft->invoice_discount_type === null || $draft->invoice_discount === null
             ? null
             : ['type' => (int) $draft->invoice_discount_type, 'value' => (string) $draft->invoice_discount];
-        $problem    = null;
+        $problem = null;
 
         if ($discount !== null) {
             $plan = InvoiceDiscount::forSale($items, $discount['type'], $discount['value'], totals_decimals());
@@ -246,7 +246,7 @@ final class DraftInvoice
         $byLine = [];
 
         foreach ($taxes[1] as $tax) {
-            $key = $tax['item_id'] . ':' . $tax['line'];
+            $key  = $tax['item_id'] . ':' . $tax['line'];
             $type = (int) $tax['tax_type'];
 
             $byLine[$key][$type] = bcadd($byLine[$key][$type] ?? '0', (string) $tax['item_tax_amount'], SaleAmounts::SCALE);

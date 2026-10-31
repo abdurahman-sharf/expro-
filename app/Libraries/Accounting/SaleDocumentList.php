@@ -85,7 +85,7 @@ final class SaleDocumentList
         $line     = 'CASE WHEN i.discount_type = ' . PERCENT
             . " THEN i.quantity_purchased * i.item_unit_price - ROUND(i.quantity_purchased * i.item_unit_price * i.discount / 100, {$decimals})"
             . " ELSE i.quantity_purchased * (i.item_unit_price - i.discount) END - {$share}";
-        $scope    = $branchIds === null ? '' : ' AND s.branch_id IN (' . implode(', ', array_map('intval', $branchIds)) . ')';
+        $scope = $branchIds === null ? '' : ' AND s.branch_id IN (' . implode(', ', array_map('intval', $branchIds)) . ')';
 
         return $this->db->query(
             "SELECT s.sale_id, s.sale_time, s.customer_id, s.branch_id, s.invoice_number, s.quote_number, s.quote_status, b.code AS branch_code,

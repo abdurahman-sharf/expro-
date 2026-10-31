@@ -10,6 +10,9 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use CodeIgniter\Config\Services;
+use App\Libraries\Accounting\InvoiceTiming;
+use App\Libraries\Accounting\QuoteStatus;
+use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
@@ -3583,5 +3586,1264 @@ class SalesControllerTest extends CIUnitTestCase
 
         $page->assertSee(to_date(strtotime('-2 days')));
         $page->assertDontSee(lang('Sales.due_date'));
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Drafts and quotes: their list, their page, the issue of a draft, the status of a quote and
+    // its conversion into an invoice (WP14)
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * A supervisor of the first branch at the register, with the books of the test started.
+     *
+     * @param list<string> $extraGrants
+     */
+    protected function supervisorForDocuments(array $extraGrants = []): int
+    {
+        $this->startSelling();
+
+        $supervisorId = $this->createBranchLimitedSupervisor(1, $extraGrants);
+
+        $this->grantStockLocationIn(1, $supervisorId);
+        $this->loginAs($supervisorId);
+
+        return $supervisorId;
+    }
+
+    /**
+     * The reference lines with their two items taxed 15%, so a draft of them comes to 816.50.
+     *
+     * @return list<array<string, mixed>>
+     */
+    protected function taxedLines(): array
+    {
+        $cycle = $this->referenceInvoice();
+
+        foreach ([$cycle['cream'], $cycle['perfume']] as $itemId) {
+            Database::connect()->table('items_taxes')->insert(['item_id' => $itemId, 'name' => 'VAT', 'percent' => '15']);
+        }
+
+        return $cycle['items'];
+    }
+
+    /**
+     * What the register holds after a request, handed to the next one the way the browser does.
+     */
+    protected function carryTheRegisterToTheNextRequest(): void
+    {
+        $keys = ['sales_cart', 'sales_mode', 'sale_id', 'sales_customer', 'sales_payments', 'sale_type', 'sales_quote_source', 'sales_invoice_date', 'sales_payment_terms', 'sales_invoice_discount', 'sales_delivered', 'sales_comment', 'sales_employee', 'sales_quote_number', 'cash_mode', 'cash_rounding', 'sales_return_document', 'sales_return_origin'];
+
+        $this->withSession(array_merge($this->session, array_intersect_key(Services::session()->get(), array_flip($keys))));
+    }
+
+    protected function statusOfTheQuote(int $quoteId): ?string
+    {
+        $value = Database::connect()->table('sales')->select('quote_status')->where('sale_id', $quoteId)->get()->getRow()->quote_status;
+
+        return $value === null ? null : (string) $value;
+    }
+
+    protected function saleStatusOf(int $saleId): int
+    {
+        return (int) Database::connect()->table('sales')->select('sale_status')->where('sale_id', $saleId)->get()->getRow()->sale_status;
+    }
+
+    public function testGetDocuments_ListsTheDraftsAndTheQuotesOfTheBranchesOfTheEmployeeByTheirNumbers(): void
+    {
+        $this->supervisorForDocuments();
+
+        $items  = $this->taxedLines();
+        $draft  = $this->draftInvoice($items);
+        $open   = $this->quote(null, $items);
+        $second = $this->createSecondBranch();
+        $far    = $this->save([$this->line($this->item('0', false), 0, '1', '100', '0', '0', PERCENT, $this->branchLocation($second))], [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED);
+
+        Database::connect()->table('sales')->where('sale_id', $open)->update(['quote_number' => 'Q26-0042']);
+
+        $page = $this->get('/sales/documents');
+
+        $page->assertStatus(200);
+        $page->assertSee('draft-' . $draft);
+        $page->assertSee('Q26-0042');
+        $page->assertDontSee('draft-' . $far);
+        $page->assertSee('sales/document/' . $draft);
+        $page->assertSee(lang('Sales.quote_status_open'));
+    }
+
+    public function testGetDocuments_ShowsTheBranchColumnOnlyToAnEmployeeOfSeveralBranches(): void
+    {
+        $this->supervisorForDocuments();
+        $this->draftInvoice($this->taxedLines());
+
+        $this->get('/sales/documents')->assertDontSeeElement('th.document-branch');
+
+        $second = $this->createSecondBranch();
+        $both   = $this->employeeWithGrants(['sales', 'sales_stock', 'reports_sales'], [1, $second]);
+
+        $this->loginAs($both);
+
+        $this->get('/sales/documents')->assertSeeElement('th.document-branch');
+    }
+
+    public function testGetDocuments_SendsAnEmployeeWithoutTheReportsSalesGrantToTheNoAccessPage(): void
+    {
+        $this->startSelling();
+        $this->loginAs($this->createCashierEmployee());
+
+        $response = $this->get('/sales/documents');
+
+        $response->assertStatus(302);
+        $response->assertRedirectTo('no_access/sales/reports_sales');
+    }
+
+    public function testGetDocuments_NarrowsTheQuotesToTheStatusAsked(): void
+    {
+        $this->supervisorForDocuments();
+
+        $items    = $this->taxedLines();
+        $open     = $this->quote(null, $items);
+        $approved = $this->quote(null, $items);
+
+        Database::connect()->table('sales')->where('sale_id', $open)->update(['quote_number' => 'OPEN-1']);
+        Database::connect()->table('sales')->where('sale_id', $approved)->update(['quote_number' => 'APPROVED-1', 'quote_status' => QuoteStatus::Approved->value]);
+
+        $page = $this->get('/sales/documents?quote_status=' . QuoteStatus::Approved->value);
+
+        $page->assertSee('APPROVED-1');
+        $page->assertDontSee('OPEN-1');
+        $this->get('/sales/documents?quote_status=abc')->assertSee('OPEN-1');
+    }
+
+    public function testGetDocuments_EscapesTheNamesItShows(): void
+    {
+        $this->supervisorForDocuments();
+
+        $customer = $this->anotherCustomer('<script>alert(1)</script>', 'Saad');
+
+        $this->save($this->taxedLines(), [], [], SALE_TYPE_INVOICE, $customer, true, null, SUSPENDED);
+
+        $page = $this->get('/sales/documents');
+
+        $page->assertDontSee('<script>alert(1)</script>');
+        $page->assertSee('&lt;script&gt;alert(1)&lt;/script&gt;');
+    }
+
+    public function testGetIndex_OffersTheLinkToTheDocumentsOnlyToWhoMayOpenThem(): void
+    {
+        $this->supervisorForDocuments();
+
+        $this->get('/sales')->assertSee('id="sales_documents_button"');
+
+        $this->loginAs($this->createCashierEmployee());
+        $this->grantStockLocationIn(1, (int) $this->session['person_id']);
+
+        $this->get('/sales')->assertDontSee('id="sales_documents_button"');
+    }
+
+    public function testGetDocument_ShowsTheDraftByItsTemporaryNumberWithItsLinesAndWhatItWouldComeTo(): void
+    {
+        $this->supervisorForDocuments();
+
+        $draft = $this->draftInvoice($this->taxedLines());
+        $page  = $this->get('/sales/document/' . $draft);
+
+        $page->assertStatus(200);
+        $page->assertSee('draft-' . $draft);
+        $page->assertSee(lang('Sales.draft_invoice'));
+        $page->assertSee(to_currency('816.50'));
+        $page->assertSee(to_currency('106.50'));
+        $page->assertSee(lang('Sales.document_figures_note'));
+        $page->assertSee('Omar Khaled');
+    }
+
+    public function testGetDocument_OffersTheIssueOfADraftAsAFormThatPostsWithTheTokenAndNeverAsALink(): void
+    {
+        $this->supervisorForDocuments();
+
+        $draft = $this->draftInvoice($this->taxedLines());
+        $page  = $this->get('/sales/document/' . $draft);
+        $token = config('Security')->tokenName;
+
+        $page->assertSee('<form method="post" id="issue_form" action="' . site_url('sales/issue/' . $draft) . '"');
+        $page->assertSee('name="' . $token . '"');
+        $page->assertDontSee('<a ' . 'id="issue');
+        $this->assertStringNotContainsString('href="' . site_url('sales/issue/' . $draft) . '"', $page->getBody());
+    }
+
+    public function testGetDocument_OffersTheDayToAnEmployeeWhoMayTypeItAndTheTermsToWhoIssuesWhileAccountingIsOn(): void
+    {
+        $this->supervisorForDocuments();
+
+        $draft = $this->draftInvoice($this->taxedLines());
+
+        $page = $this->get('/sales/document/' . $draft);
+
+        $page->assertSee('id="issue_payment_terms"');
+        $page->assertDontSee('id="issue_invoice_date"');
+
+        $this->loginAs($this->createBranchLimitedSupervisor(1, ['sales_invoice_date']));
+
+        $this->get('/sales/document/' . $draft)->assertSee('id="issue_invoice_date"');
+    }
+
+    public function testGetDocument_OffersNeitherTheDayNorTheTermsWhileAccountingIsOff(): void
+    {
+        $this->supervisorForDocuments(['sales_invoice_date']);
+
+        $draft = $this->draftInvoice($this->taxedLines());
+
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $page = $this->get('/sales/document/' . $draft);
+
+        $page->assertSee('id="issue_form"');
+        $page->assertDontSee('id="issue_invoice_date"');
+        $page->assertDontSee('id="issue_payment_terms"');
+    }
+
+    public function testGetDocument_ShowsTheDayAndTheTermsAdraftWasSavedWith(): void
+    {
+        $this->supervisorForDocuments();
+        $this->grantInvoiceDate();
+
+        $draft = $this->save($this->taxedLines(), [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, NEW_ENTRY, null, invoiceDate: $this->daysAgo(4), paymentTerms: 21);
+        $page  = $this->get('/sales/document/' . $draft);
+
+        $page->assertSee('id="draft_invoice_date"');
+        $page->assertSee(to_date(strtotime($this->daysAgo(4))));
+        $page->assertSee('id="draft_payment_terms"');
+        $page->assertSee('21 ' . lang('Sales.payment_terms_days'));
+    }
+
+    public function testGetDocument_ShowsAQuoteWithItsStatusAndOnlyTheStatusesItMayMoveTo(): void
+    {
+        $this->supervisorForDocuments();
+
+        $quote = $this->quote(null, $this->taxedLines());
+        $page  = $this->get('/sales/document/' . $quote);
+
+        $page->assertSee(lang('Sales.quote'));
+        $page->assertSee('id="quote_status_badge"');
+
+        foreach ([QuoteStatus::Sent, QuoteStatus::Viewed, QuoteStatus::Replied, QuoteStatus::Approved] as $state) {
+            $page->assertSee('<option value="' . $state->value . '">' . lang($state->languageKey()) . '</option>');
+        }
+
+        foreach ([QuoteStatus::Draft, QuoteStatus::Open, QuoteStatus::Converted, QuoteStatus::Ordered] as $state) {
+            $page->assertDontSee('<option value="' . $state->value . '">');
+        }
+
+        $page->assertSee(lang('Sales.quote_status_manual_note'));
+        $page->assertDontSee('id="issue_form"');
+    }
+
+    public function testGetDocument_OffersTheConversionOfAQuoteAndNotOfADraftQuoteOrAConvertedOne(): void
+    {
+        $this->supervisorForDocuments();
+
+        $items     = $this->taxedLines();
+        $open      = $this->quote(null, $items);
+        $draft     = $this->quote(QuoteStatus::Draft, $items);
+        $converted = $this->quote(null, $items);
+
+        Database::connect()->table('sales')->where('sale_id', $converted)->update(['quote_status' => QuoteStatus::Converted->value]);
+
+        $this->get('/sales/document/' . $open)->assertSee('id="convert_form"');
+        $this->get('/sales/document/' . $draft)->assertDontSee('id="convert_form"');
+
+        $page = $this->get('/sales/document/' . $converted);
+
+        $page->assertDontSee('id="convert_form"');
+        $page->assertDontSee('id="register_form"');
+        $page->assertDontSee('id="delete_button"');
+        $page->assertDontSee('id="quote_status_form"');
+        $page->assertSee('id="quote_locked_note"');
+    }
+
+    public function testGetDocument_AsksForAConfirmationOnlyWhileTheCustomerHasNotAcceptedTheQuote(): void
+    {
+        $this->supervisorForDocuments();
+
+        $items    = $this->taxedLines();
+        $open     = $this->quote(null, $items);
+        $approved = $this->quote(null, $items);
+
+        Database::connect()->table('sales')->where('sale_id', $approved)->update(['quote_status' => QuoteStatus::Approved->value]);
+
+        $this->assertMatchesRegularExpression('/id="convert_button" data-confirm="[^"]+"/', $this->get('/sales/document/' . $open)->getBody());
+        $this->assertMatchesRegularExpression('/id="convert_button" data-confirm=""/', $this->get('/sales/document/' . $approved)->getBody());
+    }
+
+    public function testGetDocument_NamesTheInvoiceAQuoteWasConvertedInto(): void
+    {
+        $this->supervisorForDocuments();
+        $this->allowEmployeeEverywhere();
+
+        $items = $this->taxedLines();
+        $quote = $this->quote(null, $items);
+
+        $invoice = $this->save($items, [], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, null, null, null, $quote);
+
+        Database::connect()->table('sales')->where('sale_id', $invoice)->update(['invoice_number' => 'INV-77']);
+
+        $page = $this->get('/sales/document/' . $quote);
+
+        $page->assertSee('id="converted_invoice"');
+        $page->assertSee(lang('Sales.quote_converted_to', ['INV-77']));
+        $page->assertSee('sales/invoice/' . $invoice);
+    }
+
+    public function testGetDocument_HidesADocumentOfABranchTheEmployeeDoesNotWorkIn(): void
+    {
+        $this->startSelling();
+
+        $second = $this->createSecondBranch();
+        $draft  = $this->save([$this->line($this->item('0', false), 0, '1', '100', '0', '0', PERCENT, $this->branchLocation($second))], [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED);
+
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/sales/document/' . $draft);
+    }
+
+    public function testGetDocument_HidesWhatIsNotADraftOrAQuote(): void
+    {
+        $this->supervisorForDocuments();
+
+        $cycle   = $this->referenceInvoice();
+        $invoice = $this->save($cycle['items'], $cycle['taxes']);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/sales/document/' . $invoice);
+    }
+
+    public function testGetDocument_HidesASaleThatIsNotThere(): void
+    {
+        $this->supervisorForDocuments();
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/sales/document/999999');
+    }
+
+    public function testGetDocument_SendsAnEmployeeWithoutTheReportsSalesGrantToTheNoAccessPage(): void
+    {
+        $this->startSelling();
+
+        $draft = $this->draftInvoice($this->taxedLines());
+
+        $this->loginAs($this->createCashierEmployee());
+
+        $response = $this->get('/sales/document/' . $draft);
+
+        $response->assertStatus(302);
+        $response->assertRedirectTo('no_access/sales/reports_sales');
+    }
+
+    public function testGetDocument_EscapesTheCommentAndTheNamesItShows(): void
+    {
+        $this->supervisorForDocuments();
+
+        $draft = $this->draftInvoice($this->taxedLines());
+
+        Database::connect()->table('sales')->where('sale_id', $draft)->update(['comment' => '<img src=x onerror=alert(1)>']);
+
+        $page = $this->get('/sales/document/' . $draft);
+
+        $page->assertDontSee('<img src=x onerror=alert(1)>');
+        $page->assertSee('&lt;img src=x onerror=alert(1)&gt;');
+    }
+
+    public function testGetDocument_OffersNoConversionWhileInvoicesAreSwitchedOff(): void
+    {
+        $this->supervisorForDocuments();
+
+        $quote  = $this->quote(null, $this->taxedLines());
+        $before = $this->config()['invoice_enable'];
+
+        config(OSPOS::class)->settings['invoice_enable'] = 0;
+
+        try {
+            $page = $this->get('/sales/document/' . $quote);
+        } finally {
+            config(OSPOS::class)->settings['invoice_enable'] = $before;
+        }
+
+        $page->assertDontSee('id="convert_form"');
+    }
+
+    public function testPostIssue_IssuesTheDraftAndAnswersWithTheInvoiceToShow(): void
+    {
+        $this->supervisorForDocuments();
+
+        $draft = $this->draftInvoice($this->taxedLines());
+
+        $answer = $this->jsonOf($this->post('/sales/issue/' . $draft));
+
+        $this->assertTrue($answer['success']);
+        $this->assertSame(lang('Sales.draft_issued'), $answer['message']);
+        $this->assertSame(site_url('sales/invoice/' . $draft), $answer['redirect']);
+        $this->assertSame(COMPLETED, $this->saleStatusOf($draft));
+        $this->assertSame(['revenue', 'cogs'], array_column($this->standing($draft), 'entry'));
+        $this->assertCount(1, $this->accountingDb()->table('accounting_audit_log')->where(['entity_id' => $draft, 'action' => 'draft_issued'])->get()->getResult());
+    }
+
+    public function testPostIssue_TakesTheNextNumberOfTheInvoiceSequenceAtTheIssueAndNotBefore(): void
+    {
+        $this->supervisorForDocuments();
+        $this->switchOn(DocumentType::SalesInvoice, $prefix = $this->freshPrefix());
+
+        $draft = $this->draftInvoice($this->taxedLines());
+
+        $this->assertNull(Database::connect()->table('sales')->where('sale_id', $draft)->get()->getRow()->invoice_number);
+
+        $this->get('/sales/document/' . $draft)->assertSee('draft-' . $draft);
+
+        $this->assertTrue($this->jsonOf($this->post('/sales/issue/' . $draft))['success']);
+        $this->assertSame($prefix . '001', Database::connect()->table('sales')->where('sale_id', $draft)->get()->getRow()->invoice_number);
+    }
+
+    public function testPostIssue_KeepsTheFormatOfTheInvoiceSettingsWhileTheSequenceIsOff(): void
+    {
+        $this->supervisorForDocuments();
+
+        $draft  = $this->draftInvoice($this->taxedLines());
+        $format = 'LGC' . random_int(100000, 999999);
+        $before = $this->config()['sales_invoice_format'];
+
+        config(OSPOS::class)->settings['sales_invoice_format'] = $format;
+
+        try {
+            $answer = $this->jsonOf($this->post('/sales/issue/' . $draft));
+        } finally {
+            config(OSPOS::class)->settings['sales_invoice_format'] = $before;
+        }
+
+        $this->assertTrue($answer['success']);
+        $this->assertSame($format, Database::connect()->table('sales')->where('sale_id', $draft)->get()->getRow()->invoice_number);
+        $this->assertSame(0, Database::connect()->table('document_numbers')->countAllResults());
+    }
+
+    public function testPostIssue_RefusesAFormatNumberThatAnotherInvoiceAlreadyHasAndLeavesTheDraft(): void
+    {
+        $this->supervisorForDocuments();
+
+        $cycle  = $this->referenceInvoice();
+        $taken  = $this->save($cycle['items'], $cycle['taxes']);
+        $draft  = $this->draftInvoice($cycle['items']);
+        $format = 'DUP' . random_int(100000, 999999);
+
+        Database::connect()->table('sales')->where('sale_id', $taken)->update(['invoice_number' => $format]);
+
+        $before = $this->config()['sales_invoice_format'];
+
+        config(OSPOS::class)->settings['sales_invoice_format'] = $format;
+
+        try {
+            $answer = $this->jsonOf($this->post('/sales/issue/' . $draft));
+        } finally {
+            config(OSPOS::class)->settings['sales_invoice_format'] = $before;
+        }
+
+        $this->assertFalse($answer['success']);
+        $this->assertSame(lang('Sales.invoice_number_duplicate', [$format]), $answer['message']);
+        $this->assertSame(SUSPENDED, $this->saleStatusOf($draft));
+    }
+
+    public function testPostIssue_TakesTheDayAndTheTermsTypedOnTheForm(): void
+    {
+        $this->supervisorForDocuments(['sales_invoice_date']);
+
+        $draft = $this->draftInvoice($this->taxedLines());
+        $day   = $this->daysAgo(3);
+
+        $answer = $this->jsonOf($this->post('/sales/issue/' . $draft, ['invoice_date' => $day, 'payment_terms' => '30']));
+
+        $this->assertTrue($answer['success']);
+
+        $sale = Database::connect()->table('sales')->where('sale_id', $draft)->get()->getRow();
+
+        $this->assertSame($day, $sale->invoice_date);
+        $this->assertSame(30, (int) $sale->payment_terms_days);
+        $this->assertSame(date('Y-m-d', strtotime($day . ' +30 days')), $sale->due_date);
+        $this->assertSame([$day], array_values(array_unique(array_column($this->standing($draft), 'date'))));
+    }
+
+    public function testPostIssue_RefusesADayTypedByAnEmployeeWhoMayNotTypeItAndSaysWhy(): void
+    {
+        $this->supervisorForDocuments();
+
+        $draft = $this->draftInvoice($this->taxedLines());
+
+        $answer = $this->jsonOf($this->post('/sales/issue/' . $draft, ['invoice_date' => $this->daysAgo(3)]));
+
+        $this->assertFalse($answer['success']);
+        $this->assertSame(lang('Accounting.error_permission_denied'), $answer['message']);
+        $this->assertSame(SUSPENDED, $this->saleStatusOf($draft));
+        $this->assertSame([], $this->journals($draft));
+    }
+
+    public function testPostIssue_RefusesADayInAClosedPeriodAndSaysWhyAndKeepsTheDraft(): void
+    {
+        $this->supervisorForDocuments(['sales_invoice_date']);
+        $this->closeThrough($this->daysAgo(5));
+
+        $draft   = $this->draftInvoice($this->taxedLines());
+        $company = (string) $this->accountingDb()->table('companies')->select('name')->where('company_id', 1)->get()->getRow()->name;
+
+        $answer = $this->jsonOf($this->post('/sales/issue/' . $draft, ['invoice_date' => $this->daysAgo(8)]));
+
+        $this->assertFalse($answer['success']);
+        $this->assertSame(lang('Accounting.posting_period_closed', [$this->daysAgo(8), $this->daysAgo(5), $company]), $answer['message']);
+        $this->assertSame(SUSPENDED, $this->saleStatusOf($draft));
+        $this->assertSame(0, $this->countJournals());
+        $this->assertNull(Database::connect()->table('sales')->where('sale_id', $draft)->get()->getRow()->invoice_number);
+    }
+
+    public function testPostIssue_RefusesADayThatIsNotUpToTodayAndTermsThatAreNotDays(): void
+    {
+        $this->supervisorForDocuments(['sales_invoice_date']);
+
+        $draft = $this->draftInvoice($this->taxedLines());
+
+        $future = $this->jsonOf($this->post('/sales/issue/' . $draft, ['invoice_date' => date('Y-m-d', strtotime('+2 days'))]));
+        $terms  = $this->jsonOf($this->post('/sales/issue/' . $draft, ['payment_terms' => 'a month']));
+
+        $this->assertFalse($future['success']);
+        $this->assertSame(lang('Accounting.error_invoice_date_invalid'), $future['message']);
+        $this->assertFalse($terms['success']);
+        $this->assertSame(lang('Accounting.error_payment_terms_invalid', [InvoiceTiming::MAX_TERMS_DAYS]), $terms['message']);
+        $this->assertSame(SUSPENDED, $this->saleStatusOf($draft));
+    }
+
+    public function testPostIssue_ReadsAListSentInPlaceOfTheDayAsADayThatIsNotOne(): void
+    {
+        $this->supervisorForDocuments(['sales_invoice_date']);
+
+        $draft  = $this->draftInvoice($this->taxedLines());
+        $answer = $this->jsonOf($this->post('/sales/issue/' . $draft, ['invoice_date' => ['2026-10-01'], 'payment_terms' => ['5']]));
+
+        $this->assertFalse($answer['success']);
+        $this->assertSame(SUSPENDED, $this->saleStatusOf($draft));
+    }
+
+    public function testPostIssue_RefusesAnEmployeeWithoutTheReportsSalesGrantAndDoesNotIssue(): void
+    {
+        $this->startSelling();
+
+        $draft = $this->draftInvoice($this->taxedLines());
+
+        $this->loginAs($this->createCashierEmployee());
+
+        $response = $this->post('/sales/issue/' . $draft);
+
+        $response->assertStatus(403);
+        $this->assertSame(lang('Sales.not_authorized'), $this->jsonOf($response)['message']);
+        $this->assertSame(SUSPENDED, $this->saleStatusOf($draft));
+        $this->assertSame(0, $this->countJournals());
+    }
+
+    public function testPostIssue_RefusesADraftOfABranchTheEmployeeDoesNotWorkInAndDoesNotIssue(): void
+    {
+        $this->startSelling();
+
+        $second = $this->createSecondBranch();
+        $draft  = $this->save([$this->line($this->item('0', false), 0, '1', '100', '0', '0', PERCENT, $this->branchLocation($second))], [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED);
+
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $response = $this->post('/sales/issue/' . $draft);
+
+        $response->assertStatus(403);
+        $this->assertSame(lang('Sales.branch_not_allowed'), $this->jsonOf($response)['message']);
+        $this->assertSame(SUSPENDED, $this->saleStatusOf($draft));
+        $this->assertSame(0, $this->countJournals());
+    }
+
+    public function testPostIssue_IsNotReachedByALinkAndChangesNothingWhenOpenedWithGet(): void
+    {
+        $this->supervisorForDocuments();
+
+        $draft = $this->draftInvoice($this->taxedLines());
+
+        try {
+            $this->get('/sales/issue/' . $draft);
+        } catch (PageNotFoundException) {
+            // The route answers a POST only
+        }
+
+        $this->assertSame(SUSPENDED, $this->saleStatusOf($draft));
+        $this->assertSame(0, $this->countJournals());
+        $this->assertNull(Database::connect()->table('sales')->where('sale_id', $draft)->get()->getRow()->invoice_number);
+    }
+
+    public function testPostIssue_IsTheOnlyWayToIssueAndNoActionThatChangesAStateAnswersAGet(): void
+    {
+        foreach (['Issue', 'QuoteStatus', 'ConvertQuote'] as $action) {
+            $this->assertTrue(method_exists(Sales::class, 'post' . $action), "post{$action}");
+            $this->assertFalse(method_exists(Sales::class, 'get' . $action), "get{$action} would change a state on a link");
+            $this->assertFalse(method_exists(Sales::class, strtolower($action)), strtolower($action));
+        }
+
+        foreach (['Documents', 'Document'] as $page) {
+            $this->assertTrue(method_exists(Sales::class, 'get' . $page), "get{$page} only reads");
+        }
+    }
+
+    public function testFilters_KeepTheTokenOnEveryPostRouteOfTheSales(): void
+    {
+        $source = (string) file_get_contents(APPPATH . 'Config/Filters.php');
+
+        $this->assertMatchesRegularExpression("/'csrf' => \\['except' => 'login\\|migrate'\\]/", $source, 'no sales route is exempt from the token');
+        $this->assertStringNotContainsString('sales', substr($source, (int) strpos($source, "'csrf' =>"), 80));
+    }
+
+    public function testGetDocument_PutsTheTokenInEveryFormThatChangesAState(): void
+    {
+        $this->supervisorForDocuments();
+
+        $items = $this->taxedLines();
+        $draft = $this->draftInvoice($items);
+        $quote = $this->quote(null, $items);
+        $token = 'name="' . config('Security')->tokenName . '"';
+
+        $draftPage = $this->get('/sales/document/' . $draft);
+        $quotePage = $this->get('/sales/document/' . $quote);
+
+        foreach (['issue_form', 'register_form'] as $form) {
+            $this->assertSame(1, substr_count($draftPage->getBody(), 'id="' . $form . '"'), $form);
+        }
+
+        $this->assertGreaterThanOrEqual(2, substr_count($draftPage->getBody(), $token), 'the issue form and the register form carry the token');
+        $this->assertGreaterThanOrEqual(3, substr_count($quotePage->getBody(), $token), 'the status, the conversion and the register forms carry the token');
+        $this->assertStringNotContainsString('href="' . site_url('sales/convertQuote/' . $quote) . '"', $quotePage->getBody());
+        $this->assertStringNotContainsString('href="' . site_url('sales/quoteStatus/' . $quote) . '"', $quotePage->getBody());
+    }
+
+    public function testPostIssue_IssuesADraftOnlyOnceAndTheSecondRequestIsToldItIsGone(): void
+    {
+        $this->supervisorForDocuments();
+
+        $draft = $this->draftInvoice($this->taxedLines());
+
+        $this->assertTrue($this->jsonOf($this->post('/sales/issue/' . $draft))['success']);
+
+        $journals = $this->countJournals();
+        $second   = $this->jsonOf($this->post('/sales/issue/' . $draft));
+
+        $this->assertFalse($second['success']);
+        $this->assertSame(lang('Accounting.error_draft_not_found'), $second['message']);
+        $this->assertSame($journals, $this->countJournals());
+    }
+
+    public function testPostIssue_RefusesWhatIsNotADraftInvoice(): void
+    {
+        $this->supervisorForDocuments();
+
+        $cycle   = $this->referenceInvoice();
+        $invoice = $this->save($cycle['items'], $cycle['taxes']);
+        $quote   = $this->quote(null, $cycle['items']);
+
+        foreach ([$invoice, $quote, 999999] as $saleId) {
+            $answer = $this->jsonOf($this->post('/sales/issue/' . $saleId));
+
+            $this->assertFalse($answer['success'], (string) $saleId);
+            $this->assertSame(lang('Accounting.error_draft_not_found'), $answer['message'], (string) $saleId);
+        }
+    }
+
+    public function testPostIssue_WorksWhileAccountingIsOffAndPostsNothing(): void
+    {
+        $this->supervisorForDocuments();
+
+        $draft = $this->draftInvoice($this->taxedLines());
+
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $answer = $this->jsonOf($this->post('/sales/issue/' . $draft));
+
+        $this->assertTrue($answer['success']);
+        $this->assertSame(COMPLETED, $this->saleStatusOf($draft));
+        $this->assertSame(0, $this->countJournals());
+    }
+
+    public function testPostIssue_SaysWhyTheBooksRefusedAndKeepsTheDraft(): void
+    {
+        $this->supervisorForDocuments();
+
+        $draft = $this->draftInvoice($this->taxedLines());
+
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.customers')->update(['routing_type' => 'main_per_entity']);
+
+        $answer = $this->jsonOf($this->post('/sales/issue/' . $draft));
+
+        $this->assertFalse($answer['success']);
+        $this->assertSame(lang('Accounting.posting_routing_type_unsupported'), $answer['message']);
+        $this->assertSame(SUSPENDED, $this->saleStatusOf($draft));
+        $this->assertSame(0, $this->countJournals());
+    }
+
+    public function testPostIssue_TakesTheDraftOfARegisterSavedInvoiceModeSuspendAsItIs(): void
+    {
+        $supervisor = $this->supervisorForDocuments();
+        $item       = $this->item('0');
+
+        $this->seedCartLine(1, '100.00', $item);
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => 'sale_invoice', 'sales_customer' => $this->customerId, 'sales_payments' => [], 'sale_type' => SALE_TYPE_INVOICE]));
+
+        $this->post('/sales/suspend');
+
+        $draft = $this->lastSale();
+
+        $this->assertSame(SUSPENDED, (int) $draft->sale_status);
+        $this->assertNull($draft->invoice_number);
+
+        $this->loginAs($supervisor);
+
+        $answer = $this->jsonOf($this->post('/sales/issue/' . $draft->sale_id));
+
+        $this->assertTrue($answer['success']);
+        $this->assertSame(COMPLETED, $this->saleStatusOf((int) $draft->sale_id));
+        $this->assertSame(['revenue'], array_column($this->standing((int) $draft->sale_id), 'entry'));
+    }
+
+    public function testPostQuoteStatus_MovesAQuoteAndSaysSo(): void
+    {
+        $this->supervisorForDocuments();
+
+        $quote = $this->quote(null, $this->taxedLines());
+
+        $answer = $this->jsonOf($this->post('/sales/quoteStatus/' . $quote, ['quote_status' => (string) QuoteStatus::Approved->value]));
+
+        $this->assertTrue($answer['success']);
+        $this->assertSame(lang('Sales.quote_status_changed'), $answer['message']);
+        $this->assertSame((string) QuoteStatus::Approved->value, $this->statusOfTheQuote($quote));
+        $this->assertSame(SUSPENDED, $this->saleStatusOf($quote), 'the status of the sale is not the one of the quote');
+        $this->assertSame(0, $this->countJournals());
+    }
+
+    public function testPostQuoteStatus_WritesTheChangeInTheAuditLogWithWhoMadeItAndTheTwoStates(): void
+    {
+        $supervisor = $this->supervisorForDocuments();
+
+        $quote = $this->quote(null, $this->taxedLines());
+
+        $this->post('/sales/quoteStatus/' . $quote, ['quote_status' => (string) QuoteStatus::Sent->value]);
+
+        $entries = $this->accountingDb()->table('accounting_audit_log')->where(['entity_id' => $quote, 'action' => 'quote_status_changed'])->get()->getResult();
+
+        $this->assertCount(1, $entries);
+        $this->assertSame($supervisor, (int) $entries[0]->employee_id);
+        $this->assertSame(['from' => 'Open', 'to' => 'Sent'], json_decode((string) $entries[0]->details, true));
+    }
+
+    /**
+     * @return array<string, array{0: QuoteStatus, 1: QuoteStatus}>
+     */
+    public static function refusedMoveProvider(): array
+    {
+        return [
+            'a draft is not approved'         => [QuoteStatus::Draft, QuoteStatus::Approved],
+            'an open quote is not ordered'    => [QuoteStatus::Open, QuoteStatus::Ordered],
+            'an open quote is not a draft'    => [QuoteStatus::Open, QuoteStatus::Draft],
+            'nothing is converted by hand'    => [QuoteStatus::Approved, QuoteStatus::Converted],
+            'an approved quote is not sent'   => [QuoteStatus::Approved, QuoteStatus::Sent],
+            'a converted quote is final'      => [QuoteStatus::Converted, QuoteStatus::Open],
+            'an ordered quote is not open'    => [QuoteStatus::Ordered, QuoteStatus::Open],
+        ];
+    }
+
+    #[DataProvider('refusedMoveProvider')]
+    public function testPostQuoteStatus_RefusesAMoveTheStatusDoesNotAllowAndKeepsTheStatus(QuoteStatus $from, QuoteStatus $to): void
+    {
+        $this->supervisorForDocuments();
+
+        $quote = $this->quote(null, $this->taxedLines());
+
+        Database::connect()->table('sales')->where('sale_id', $quote)->update(['quote_status' => $from->value]);
+
+        $answer = $this->jsonOf($this->post('/sales/quoteStatus/' . $quote, ['quote_status' => (string) $to->value]));
+
+        $this->assertFalse($answer['success']);
+        $this->assertSame(lang('Accounting.error_quote_status_not_allowed', [lang($from->languageKey()), lang($to->languageKey())]), $answer['message']);
+        $this->assertSame((string) $from->value, $this->statusOfTheQuote($quote));
+    }
+
+    /**
+     * @return array<string, array{0: mixed}>
+     */
+    public static function notAStatusProvider(): array
+    {
+        return ['text' => ['abc'], 'a number that is none' => ['77'], 'a list' => [['4']], 'empty' => ['']];
+    }
+
+    #[DataProvider('notAStatusProvider')]
+    public function testPostQuoteStatus_RefusesWhatIsNotAStatusOfAQuote(mixed $value): void
+    {
+        $this->supervisorForDocuments();
+
+        $quote  = $this->quote(null, $this->taxedLines());
+        $answer = $this->jsonOf($this->post('/sales/quoteStatus/' . $quote, ['quote_status' => $value]));
+
+        $this->assertFalse($answer['success']);
+        $this->assertSame(lang('Sales.quote_status_invalid'), $answer['message']);
+        $this->assertSame((string) QuoteStatus::Open->value, $this->statusOfTheQuote($quote));
+    }
+
+    public function testPostQuoteStatus_RefusesAnEmployeeWithoutTheReportsSalesGrant(): void
+    {
+        $this->startSelling();
+
+        $quote = $this->quote(null, $this->taxedLines());
+
+        $this->loginAs($this->createCashierEmployee());
+
+        $response = $this->post('/sales/quoteStatus/' . $quote, ['quote_status' => (string) QuoteStatus::Approved->value]);
+
+        $response->assertStatus(403);
+        $this->assertSame((string) QuoteStatus::Open->value, $this->statusOfTheQuote($quote));
+    }
+
+    public function testPostQuoteStatus_RefusesAQuoteOfABranchTheEmployeeDoesNotWorkIn(): void
+    {
+        $this->startSelling();
+
+        $second = $this->createSecondBranch();
+        $quote  = $this->save([$this->line($this->item('0', false), 0, '1', '100', '0', '0', PERCENT, $this->branchLocation($second))], [], [], SALE_TYPE_QUOTE, -1, true, null, SUSPENDED);
+
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $response = $this->post('/sales/quoteStatus/' . $quote, ['quote_status' => (string) QuoteStatus::Approved->value]);
+
+        $response->assertStatus(403);
+        $this->assertSame(lang('Sales.branch_not_allowed'), $this->jsonOf($response)['message']);
+        $this->assertSame((string) QuoteStatus::Open->value, $this->statusOfTheQuote($quote));
+    }
+
+    public function testPostQuoteStatus_RefusesWhatIsNotAQuote(): void
+    {
+        $this->supervisorForDocuments();
+
+        $draft  = $this->draftInvoice($this->taxedLines());
+        $answer = $this->jsonOf($this->post('/sales/quoteStatus/' . $draft, ['quote_status' => (string) QuoteStatus::Approved->value]));
+
+        $this->assertFalse($answer['success']);
+        $this->assertSame(lang('Accounting.error_quote_not_found'), $answer['message']);
+    }
+
+    public function testPostQuoteStatus_OpensADraftQuoteWithTheNextNumberOfTheQuoteSequence(): void
+    {
+        $this->supervisorForDocuments();
+        $this->switchOn(DocumentType::SalesQuote, $prefix = $this->freshPrefix());
+
+        $draft = $this->quote(QuoteStatus::Draft, $this->taxedLines());
+
+        $this->get('/sales/document/' . $draft)->assertSee('draft-' . $draft);
+
+        $answer = $this->jsonOf($this->post('/sales/quoteStatus/' . $draft, ['quote_status' => (string) QuoteStatus::Open->value]));
+
+        $this->assertTrue($answer['success']);
+        $this->assertSame($prefix . '001', Database::connect()->table('sales')->where('sale_id', $draft)->get()->getRow()->quote_number);
+        $this->assertSame((string) QuoteStatus::Open->value, $this->statusOfTheQuote($draft));
+    }
+
+    public function testPostQuoteStatus_IsNotReachedByAGetRequest(): void
+    {
+        $this->supervisorForDocuments();
+
+        $quote = $this->quote(null, $this->taxedLines());
+
+        try {
+            $this->get('/sales/quoteStatus/' . $quote . '?quote_status=' . QuoteStatus::Approved->value);
+        } catch (PageNotFoundException) {
+            // The route answers a POST only
+        }
+
+        $this->assertSame((string) QuoteStatus::Open->value, $this->statusOfTheQuote($quote));
+    }
+
+    public function testPostConvertQuote_FillsTheRegisterWithAnInvoiceMadeFromTheQuoteAndPostsNothing(): void
+    {
+        $this->supervisorForDocuments();
+
+        $items = [$this->line($this->item('0', false), 0, '2', '100')];
+        $quote = $this->quote(null, $items);
+
+        Database::connect()->table('sales')->where('sale_id', $quote)->update(['comment' => 'a quote for Omar']);
+
+        $sales   = $this->countSales();
+        $answer  = $this->jsonOf($this->post('/sales/convertQuote/' . $quote));
+        $session = Services::session();
+
+        $this->assertTrue($answer['success']);
+        $this->assertSame(site_url('sales'), $answer['redirect']);
+        $this->assertSame(lang('Sales.quote_convert_prepared'), $answer['message']);
+        $this->assertSame('sale_invoice', $session->get('sales_mode'));
+        $this->assertSame(SALE_TYPE_INVOICE, (int) $session->get('sale_type'));
+        $this->assertSame(NEW_ENTRY, $session->get('sale_id'));
+        $this->assertSame($quote, (int) $session->get('sales_quote_source'));
+        $this->assertSame((string) $this->customerId, (string) $session->get('sales_customer'));
+        $this->assertSame('a quote for Omar', $session->get('sales_comment'));
+        $this->assertSame(['2'], array_values(array_map(static fn (array $line): string => rtrim(rtrim((string) $line['quantity'], '0'), '.'), $session->get('sales_cart'))));
+        $this->assertSame($sales, $this->countSales(), 'nothing is saved by converting');
+        $this->assertSame(0, $this->countJournals(), 'nothing is posted by converting');
+        $this->assertSame((string) QuoteStatus::Open->value, $this->statusOfTheQuote($quote), 'the quote is converted when the invoice is saved');
+    }
+
+    public function testPostConvertQuote_ThenSavingTheInvoiceConvertsTheQuoteAndPostsTheInvoice(): void
+    {
+        $this->supervisorForDocuments();
+
+        $items = [$this->line($this->item('0', false), 0, '2', '100')];
+        $quote = $this->quote(null, $items);
+
+        $this->post('/sales/convertQuote/' . $quote);
+        $this->carryTheRegisterToTheNextRequest();
+
+        $this->assertSame(0, $this->countJournals());
+
+        $response = $this->post('/sales/complete');
+
+        $response->assertStatus(200);
+
+        $invoice = $this->lastSale();
+
+        $this->assertNotSame($quote, (int) $invoice->sale_id);
+        $this->assertSame(COMPLETED, (int) $invoice->sale_status);
+        $this->assertSame(SALE_TYPE_INVOICE, (int) $invoice->sale_type);
+        $this->assertSame((string) $quote, (string) $invoice->source_quote_id);
+        $this->assertSame((string) QuoteStatus::Converted->value, $this->statusOfTheQuote($quote));
+        $this->assertSame(SUSPENDED, $this->saleStatusOf($quote), 'the quote stays as the record');
+        $this->assertSame(['revenue'], array_column($this->standing((int) $invoice->sale_id), 'entry'));
+        $this->assertSame([], $this->journals($quote));
+        $this->assertNull(Services::session()->get('sales_quote_source'), 'the register forgets the quote after the sale');
+    }
+
+    public function testPostConvertQuote_ThenSavingTheInvoiceAsADraftKeepsTheQuoteUntilTheDraftIsIssued(): void
+    {
+        $this->supervisorForDocuments();
+
+        $items = [$this->line($this->item('0', false), 0, '2', '100')];
+        $quote = $this->quote(null, $items);
+
+        $this->post('/sales/convertQuote/' . $quote);
+        $this->carryTheRegisterToTheNextRequest();
+        $this->post('/sales/suspend');
+
+        $draft = $this->lastSale();
+
+        $this->assertSame(SUSPENDED, (int) $draft->sale_status);
+        $this->assertSame(SALE_TYPE_INVOICE, (int) $draft->sale_type);
+        $this->assertSame((string) $quote, (string) $draft->source_quote_id);
+        $this->assertSame((string) QuoteStatus::Open->value, $this->statusOfTheQuote($quote));
+
+        $answer = $this->jsonOf($this->post('/sales/issue/' . $draft->sale_id));
+
+        $this->assertTrue($answer['success']);
+        $this->assertSame((string) QuoteStatus::Converted->value, $this->statusOfTheQuote($quote));
+    }
+
+    public function testPostConvertQuote_RefusesAQuoteThatWasConvertedAlreadySoNoSecondInvoiceIsMade(): void
+    {
+        $this->supervisorForDocuments();
+
+        $items = [$this->line($this->item('0', false), 0, '2', '100')];
+        $quote = $this->quote(null, $items);
+
+        $this->post('/sales/convertQuote/' . $quote);
+        $this->carryTheRegisterToTheNextRequest();
+        $this->post('/sales/complete');
+        $this->lastSale();
+
+        $sales  = $this->countSales();
+        $answer = $this->jsonOf($this->post('/sales/convertQuote/' . $quote));
+
+        $this->assertFalse($answer['success']);
+        $this->assertSame(lang('Accounting.error_quote_locked'), $answer['message']);
+        $this->assertSame($sales, $this->countSales());
+    }
+
+    public function testPostComplete_RefusesTheSecondInvoiceOfAQuoteTwoRegistersConvertedAtTheSameTime(): void
+    {
+        $supervisor = $this->supervisorForDocuments();
+
+        $items = [$this->line($this->item('0', false), 0, '2', '100')];
+        $quote = $this->quote(null, $items);
+
+        $this->post('/sales/convertQuote/' . $quote);
+        $this->carryTheRegisterToTheNextRequest();
+
+        $register = Services::session()->get();
+
+        $this->post('/sales/complete');
+        $this->lastSale();
+
+        $this->loginAs($supervisor);
+        $this->withSession(array_merge($this->session, array_intersect_key($register, array_flip(['sales_cart', 'sales_mode', 'sale_id', 'sales_customer', 'sales_payments', 'sale_type', 'sales_quote_source']))));
+
+        $sales    = $this->countSales();
+        $journals = $this->countJournals();
+        $response = $this->post('/sales/complete');
+
+        $response->assertSee(lang('Accounting.error_quote_not_convertible', [lang('Sales.quote_status_converted')]));
+        $this->assertSame($sales, $this->countSales());
+        $this->assertSame($journals, $this->countJournals());
+    }
+
+    public function testPostConvertQuote_RefusesADraftQuoteAndAnUnknownSale(): void
+    {
+        $this->supervisorForDocuments();
+
+        $draft = $this->quote(QuoteStatus::Draft, $this->taxedLines());
+
+        $answer = $this->jsonOf($this->post('/sales/convertQuote/' . $draft));
+
+        $this->assertFalse($answer['success']);
+        $this->assertSame(lang('Accounting.error_quote_not_convertible', [lang('Sales.quote_status_draft')]), $answer['message']);
+
+        $answer = $this->jsonOf($this->post('/sales/convertQuote/999999'));
+
+        $this->assertFalse($answer['success']);
+        $this->assertSame(lang('Accounting.error_quote_not_found'), $answer['message']);
+        $this->assertNull(Services::session()->get('sales_quote_source'));
+    }
+
+    public function testPostConvertQuote_RefusesWhileInvoicesAreSwitchedOff(): void
+    {
+        $this->supervisorForDocuments();
+
+        $quote  = $this->quote(null, $this->taxedLines());
+        $before = $this->config()['invoice_enable'];
+
+        config(OSPOS::class)->settings['invoice_enable'] = 0;
+
+        try {
+            $answer = $this->jsonOf($this->post('/sales/convertQuote/' . $quote));
+        } finally {
+            config(OSPOS::class)->settings['invoice_enable'] = $before;
+        }
+
+        $this->assertFalse($answer['success']);
+        $this->assertSame(lang('Sales.quote_convert_unavailable'), $answer['message']);
+    }
+
+    public function testPostConvertQuote_RefusesAnEmployeeWithoutTheReportsSalesGrantAndAQuoteOfAnotherBranch(): void
+    {
+        $this->startSelling();
+
+        $second = $this->createSecondBranch();
+        $far    = $this->save([$this->line($this->item('0', false), 0, '1', '100', '0', '0', PERCENT, $this->branchLocation($second))], [], [], SALE_TYPE_QUOTE, -1, true, null, SUSPENDED);
+        $near   = $this->quote(null, $this->taxedLines());
+
+        $this->loginAs($this->createCashierEmployee());
+
+        $response = $this->post('/sales/convertQuote/' . $near);
+
+        $response->assertStatus(403);
+        $this->assertSame(lang('Sales.not_authorized'), $this->jsonOf($response)['message']);
+
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $response = $this->post('/sales/convertQuote/' . $far);
+
+        $response->assertStatus(403);
+        $this->assertSame(lang('Sales.branch_not_allowed'), $this->jsonOf($response)['message']);
+        $this->assertNull(Services::session()->get('sales_quote_source'));
+    }
+
+    public function testPostConvertQuote_IsNotReachedByAGetRequest(): void
+    {
+        $this->supervisorForDocuments();
+
+        $quote = $this->quote(null, $this->taxedLines());
+
+        try {
+            $this->get('/sales/convertQuote/' . $quote);
+        } catch (PageNotFoundException) {
+            // The route answers a POST only
+        }
+
+        $this->assertNull(Services::session()->get('sales_quote_source'));
+    }
+
+    public function testPostChangeMode_ForgetsTheQuoteTheInvoiceWasMadeFromWhenTheModeChanges(): void
+    {
+        $this->supervisorForDocuments();
+
+        $quote = $this->quote(null, [$this->line($this->item('0', false), 0, '2', '100')]);
+
+        $this->post('/sales/convertQuote/' . $quote);
+        $this->carryTheRegisterToTheNextRequest();
+        $this->post('/sales/changeMode', ['mode' => 'sale']);
+
+        $this->assertNull(Services::session()->get('sales_quote_source'));
+    }
+
+    public function testPostChangeMode_KeepsTheQuoteWhenTheModeStaysTheInvoice(): void
+    {
+        $this->supervisorForDocuments();
+
+        $quote = $this->quote(null, [$this->line($this->item('0', false), 0, '2', '100')]);
+
+        $this->post('/sales/convertQuote/' . $quote);
+        $this->carryTheRegisterToTheNextRequest();
+        $this->post('/sales/changeMode', ['mode' => 'sale_invoice']);
+
+        $this->assertSame($quote, (int) Services::session()->get('sales_quote_source'));
+    }
+
+    public function testPostSuspend_SavesAQuoteAsADraftThatTakesNoNumberOfTheSequence(): void
+    {
+        $this->supervisorForDocuments();
+        $this->switchOn(DocumentType::SalesQuote, $this->freshPrefix());
+
+        $this->seedCartLine(1, '100.00', $this->item('0', false));
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => 'sale_quote', 'sales_customer' => $this->customerId, 'sales_payments' => [], 'sale_type' => SALE_TYPE_QUOTE]));
+
+        $this->post('/sales/suspend');
+
+        $quote = $this->lastSale();
+
+        $this->assertSame(SUSPENDED, (int) $quote->sale_status);
+        $this->assertSame(SALE_TYPE_QUOTE, (int) $quote->sale_type);
+        $this->assertSame((string) QuoteStatus::Draft->value, (string) $quote->quote_status);
+        $this->assertNull($quote->quote_number);
+        $this->assertSame(0, Database::connect()->table('document_numbers')->countAllResults());
+    }
+
+    public function testPostComplete_SavesAQuoteOpenAndNumbersIt(): void
+    {
+        $this->startSelling();
+        $this->switchOn(DocumentType::SalesQuote, $prefix = $this->freshPrefix());
+
+        $this->completeAs('sale_quote');
+
+        $quote = $this->lastSale();
+
+        $this->assertSame((string) QuoteStatus::Open->value, (string) $quote->quote_status);
+        $this->assertSame($prefix . '001', $quote->quote_number);
+    }
+
+    public function testPostSuspend_NeverTakesAnOpenQuoteBackToADraft(): void
+    {
+        $supervisor = $this->supervisorForDocuments();
+
+        $quote = $this->quote(null, [$this->line($this->item('0', false), 0, '2', '100')]);
+
+        $this->post('/sales/unsuspend', ['suspended_sale_id' => (string) $quote]);
+        $this->carryTheRegisterToTheNextRequest();
+        $this->post('/sales/suspend');
+
+        $this->assertSame((string) QuoteStatus::Open->value, $this->statusOfTheQuote($quote));
+        $this->assertSame($supervisor, (int) $this->session['person_id']);
+    }
+
+    public function testPostSuspend_LeavesASuspendedSaleOfThePointOfSaleWithNoQuoteState(): void
+    {
+        $this->supervisorForDocuments();
+
+        $this->seedCartLine(1, '100.00', $this->item('0', false));
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => 'sale', 'sales_payments' => [], 'sale_type' => SALE_TYPE_POS]));
+
+        $this->post('/sales/suspend');
+
+        $sale = $this->lastSale();
+
+        $this->assertSame(SUSPENDED, (int) $sale->sale_status);
+        $this->assertNull($sale->quote_status);
+        $this->assertNull($sale->source_quote_id);
+        $this->assertNull($sale->invoice_number);
+    }
+
+    public function testPostUnsuspend_RefusesAConvertedQuoteAndKeepsTheCartTheCashierHolds(): void
+    {
+        $this->supervisorForDocuments();
+
+        $item      = $this->item('0');
+        $converted = $this->quote(null, [$this->line($item, 0, '2', '100')]);
+
+        Database::connect()->table('sales')->where('sale_id', $converted)->update(['quote_status' => QuoteStatus::Converted->value]);
+
+        $this->seedCartLine(7, '5.00', $item);
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY]));
+
+        $response = $this->post('/sales/unsuspend', ['suspended_sale_id' => (string) $converted]);
+
+        $response->assertSee(lang('Accounting.error_quote_locked'));
+        $this->assertArrayHasKey(7, Services::session()->get('sales_cart'));
+        $this->assertSame(NEW_ENTRY, Services::session()->get('sale_id'));
+    }
+
+    public function testPostUnsuspend_RefusesASaleOfABranchTheEmployeeDoesNotWorkInAndKeepsTheCart(): void
+    {
+        $this->supervisorForDocuments();
+
+        $second = $this->createSecondBranch();
+        $far    = $this->save([$this->line($this->item('0', false), 0, '1', '100', '0', '0', PERCENT, $this->branchLocation($second))], [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED);
+
+        $this->seedCartLine(7, '5.00', $this->item('0', false));
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY]));
+
+        $response = $this->post('/sales/unsuspend', ['suspended_sale_id' => (string) $far]);
+
+        $response->assertSee(lang('Sales.branch_not_allowed'));
+        $this->assertArrayHasKey(7, Services::session()->get('sales_cart'));
+        $this->assertSame(NEW_ENTRY, Services::session()->get('sale_id'));
+    }
+
+    public function testGetSuspended_ListsOnlyTheSuspendedSalesOfTheBranchesOfTheEmployee(): void
+    {
+        $this->supervisorForDocuments();
+
+        $second = $this->createSecondBranch();
+        $near   = $this->draftInvoice($this->taxedLines());
+        $far    = $this->save([$this->line($this->item('0', false), 0, '1', '100', '0', '0', PERCENT, $this->branchLocation($second))], [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED);
+
+        $page = $this->get('/sales/suspended');
+
+        $page->assertSee('name="suspended_sale_id" value="' . $near . '"');
+        $page->assertDontSee('name="suspended_sale_id" value="' . $far . '"');
+    }
+
+    public function testPostDelete_CancelsADraftWithNothingToReverseAndRefusesAConvertedQuote(): void
+    {
+        $this->supervisorForDocuments();
+
+        $items     = $this->taxedLines();
+        $draft     = $this->draftInvoice($items);
+        $converted = $this->quote(null, $items);
+
+        Database::connect()->table('sales')->where('sale_id', $converted)->update(['quote_status' => QuoteStatus::Converted->value]);
+
+        $this->assertTrue($this->jsonOf($this->post('/sales/delete/' . $draft))['success']);
+        $this->assertSame(CANCELED, $this->saleStatusOf($draft));
+        $this->assertSame(0, $this->countJournals());
+
+        $answer = $this->jsonOf($this->post('/sales/delete/' . $converted));
+
+        $this->assertFalse($answer['success']);
+        $this->assertSame(lang('Accounting.error_quote_locked'), $answer['message']);
+        $this->assertSame(SUSPENDED, $this->saleStatusOf($converted));
+    }
+
+    public function testPostComplete_SaysWhyAQuoteOfAnotherBranchCannotBeConvertedAndSavesNothing(): void
+    {
+        $this->supervisorForDocuments();
+
+        $second = $this->createSecondBranch();
+        $far    = $this->save([$this->line($this->item('0', false), 0, '1', '100', '0', '0', PERCENT, $this->branchLocation($second))], [], [], SALE_TYPE_QUOTE, -1, true, null, SUSPENDED);
+
+        $this->seedCartLine(1, '100.00', $this->item('0', false));
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => 'sale_invoice', 'sales_customer' => $this->customerId, 'sales_payments' => [], 'sale_type' => SALE_TYPE_INVOICE, 'sales_quote_source' => $far]));
+
+        $sales    = $this->countSales();
+        $response = $this->post('/sales/complete');
+
+        $response->assertSee(lang('Branches.error_not_allowed'));
+        $this->assertSame($sales, $this->countSales());
+        $this->assertSame(0, $this->countJournals());
+        $this->assertSame((string) QuoteStatus::Open->value, $this->statusOfTheQuote($far));
     }
 }

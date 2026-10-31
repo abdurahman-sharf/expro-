@@ -12,7 +12,7 @@ use App\Libraries\InvoiceDiscountProblem;
 final readonly class DraftIssue
 {
     /**
-     * @param array<int, array<string, mixed>>                                            $items
+     * @param array<int, array<string, mixed>>                                             $items
      * @param array{0: array<string, array<string, mixed>>, 1: list<array<string, mixed>>} $taxes
      * @param array<string, array<string, mixed>>                                          $payments
      * @param array{type: int, value: string}|null                                         $invoiceDiscount
