@@ -166,4 +166,40 @@ class LanguageFilesTest extends CIUnitTestCase
         $this->assertNotSame('', $messages['branch_not_allowed'] ?? '', $locale);
         $this->assertNotSame('', $messages['mixed_branches'] ?? '', $locale);
     }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function arabicLocaleProvider(): array
+    {
+        return ['Arabic (Egypt)' => ['ar-EG'], 'Arabic (Lebanon)' => ['ar-LB']];
+    }
+
+    #[DataProvider('arabicLocaleProvider')]
+    public function testCustomersFile_LabelsTheSidesOfAnOpeningBalanceByWhoOwesWhomAndSpeaksOfOneCustomer(string $locale): void
+    {
+        $messages = include __DIR__ . "/../app/Language/{$locale}/Customers.php";
+
+        $this->assertSame('العميل مدين لنا', $messages['opening_owes_us'], $locale);
+        $this->assertSame('نحن مدينون للعميل', $messages['opening_we_owe'], $locale);
+        $this->assertStringNotContainsString('لهم', $messages['opening_balance_note'], $locale);
+    }
+
+    #[DataProvider('arabicLocaleProvider')]
+    public function testAccountingReceivablesFile_LabelsTheSidesOfAnOpeningBalanceByWhoOwesWhomAndSpeaksOfOneCustomer(string $locale): void
+    {
+        $messages = include __DIR__ . "/../app/Language/{$locale}/Accounting_receivables.php";
+
+        $this->assertSame('العميل مدين لنا', $messages['opening_owes_us'], $locale);
+        $this->assertSame('نحن مدينون للعميل', $messages['opening_we_owe'], $locale);
+        $this->assertStringNotContainsString('لهم', $messages['opening_note'], $locale);
+    }
+
+    #[DataProvider('translatedLocaleProvider')]
+    public function testAccountingPeriodsFile_PromisesNothingAboutTheReconciliationForADeletedLocationThatHoldsStock(string $locale): void
+    {
+        $messages = include __DIR__ . "/../app/Language/{$locale}/Accounting_periods.php";
+
+        $this->assertDoesNotMatchRegularExpression('/reconciliation|مطابقة|بلا ترحيل/u', $messages['opening_stock_deleted_notice'], $locale);
+    }
 }

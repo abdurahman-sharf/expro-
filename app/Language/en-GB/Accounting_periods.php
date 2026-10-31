@@ -44,7 +44,7 @@ return [
     'opening_stock_confirm_post'                      => 'Post the opening stock? It is posted once, and the quantities on the shelves do not change.',
     'opening_stock_cost_after'                        => 'Cost now',
     'opening_stock_cost_before'                       => 'Cost posted',
-    'opening_stock_deleted_notice'                    => '{0}: a stock location that was deleted still holds {1} item(s), {2} unit(s). Its stock is not posted, because deleted locations are left out of the opening stock, and it shows as not posted in the stock reconciliation.',
+    'opening_stock_deleted_notice'                    => '{0}: a stock location that was deleted still holds {1} item(s), {2} unit(s). Its stock is not posted, because deleted locations are left out of the opening stock.',
     'opening_stock_differences_action'                => 'Post the differences',
     'opening_stock_differences_intro'                 => 'These items were left out because their shelves are negative or their movements add up to more than the shelves hold. Posting them makes the books say what the shelves say: each is posted as negative units at the cost of the item, and the quantities on the shelves do not change. A count adjustment on the item does not clear them, because it moves the shelves and the movements by the same quantity.',
     'opening_stock_differences_net'                   => 'Net value',
