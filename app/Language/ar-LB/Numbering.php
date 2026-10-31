@@ -30,6 +30,7 @@ return [
     'type_received_cheque'    => 'شيك مستلم',
     'type_refund_invoice'     => 'فاتورة مرتجعة',
     'type_revenue'            => 'سند قبض',
+    'type_sales_debit_note'   => 'الإشعار المدين للمبيعات',
     'type_sales_invoice'      => 'فاتورة بيع',
     'type_sales_quote'        => 'عرض سعر',
     'type_supplier_payment'   => 'دفعة مورد',

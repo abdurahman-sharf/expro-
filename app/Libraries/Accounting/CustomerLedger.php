@@ -69,6 +69,11 @@ final class CustomerLedger
             }
         }
 
+        foreach ($this->debitNotes($customerId, $accountId, $asOf) as $note) {
+            $key           = SalesDebitNotes::keyOf((int) $note->debit_note_id);
+            $figures[$key] = new InvoiceFigures($key, (string) $note->doc_date, SALE_TYPE_INVOICE, bcadd((string) $note->total, '0', SaleAmounts::SCALE), '0.0000', $applied['into'][$key] ?? '0.0000', '0.0000', (string) $note->doc_date, null, false, true);
+        }
+
         foreach ($sales as $sale) {
             if ((int) $sale->sale_type === SALE_TYPE_RETURN) {
                 continue;
@@ -151,12 +156,16 @@ final class CustomerLedger
     }
 
     /**
-     * What an application of credit was spent on: the sale of an invoice, or minus the number of an
-     * opening balance, which is how the invoices of a position are numbered.
+     * What an application of credit was spent on: the sale of an invoice, minus the number of an opening
+     * balance, or the key of a sales debit note, which is how the invoices of a position are numbered.
      */
     public static function targetOf(object $application): int
     {
-        return $application->invoice_sale_id !== null ? (int) $application->invoice_sale_id : -(int) $application->opening_id;
+        if ($application->invoice_sale_id !== null) {
+            return (int) $application->invoice_sale_id;
+        }
+
+        return ($application->debit_note_id ?? null) !== null ? SalesDebitNotes::keyOf((int) $application->debit_note_id) : -(int) $application->opening_id;
     }
 
     /**
@@ -260,6 +269,29 @@ final class CustomerLedger
              JOIN ' . $this->db->prefixTable('accounting_journals') . " j ON j.source_type = ? AND j.source_id = o.customer_id AND j.entry_type = ? AND j.revision = o.revision AND {$standing}
              WHERE o.customer_id = ?
              ORDER BY o.opening_date ASC, o.opening_id ASC",
+            $bindings,
+        )->getResult();
+    }
+
+    /**
+     * The sales debit notes of a customer that stand, with what their journal debited the account of the
+     * customer. On a day of the past it is the ones dated by then that had not been reversed by then.
+     *
+     * @return list<object>
+     */
+    private function debitNotes(int $customerId, int $accountId, ?string $asOf): array
+    {
+        [$standing, $standingBindings] = StandingJournals::condition($this->db, 'j', $asOf);
+
+        $bindings = [$accountId, SalesDebitNotes::SOURCE, JournalEntryType::Revenue->value, ...$standingBindings, $customerId];
+
+        return $this->db->query(
+            'SELECT n.debit_note_id, n.note_date AS doc_date,
+                    (SELECT COALESCE(SUM(l.debit - l.credit), 0) FROM ' . $this->db->prefixTable('accounting_journal_lines') . ' l WHERE l.journal_id = j.journal_id AND l.account_id = ?) AS total
+             FROM ' . $this->db->prefixTable('sales_debit_notes') . ' n
+             JOIN ' . $this->db->prefixTable('accounting_journals') . " j ON j.source_type = ? AND j.source_id = n.debit_note_id AND j.entry_type = ? AND {$standing}
+             WHERE n.customer_id = ?
+             ORDER BY n.note_date ASC, n.debit_note_id ASC",
             $bindings,
         )->getResult();
     }

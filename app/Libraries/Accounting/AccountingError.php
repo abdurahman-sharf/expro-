@@ -277,7 +277,6 @@ enum AccountingError: string
     case DebitNoteCustomerMissing  = 'debit_note_customer_missing';
     case DebitNoteAccountInvalid   = 'debit_note_account_invalid';
     case DebitNoteNoteTooLong      = 'debit_note_note_too_long';
-    case DebitNoteCreditSpent      = 'debit_note_credit_spent';
     case JournalTemplateInvalid    = 'journal_template_invalid';
     case ShippingTaxPercentInvalid = 'shipping_tax_percent_invalid';
 }

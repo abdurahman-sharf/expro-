@@ -138,6 +138,15 @@ $routes->group('accounting_cheques', static function (RouteCollection $routes): 
     $routes->get('report/(:segment)', 'AccountingCheques::getReport/$1');
 });
 
+$routes->group('accounting_debit_notes', static function (RouteCollection $routes): void {
+    $routes->get('/', 'AccountingDebitNotes::getIndex');
+    $routes->get('form', 'AccountingDebitNotes::getForm');
+    $routes->get('customers', 'AccountingDebitNotes::getCustomers');
+    $routes->post('save', 'AccountingDebitNotes::postSave');
+    $routes->get('reverse_form/(:num)', 'AccountingDebitNotes::getReverseForm/$1');
+    $routes->post('reverse/(:num)', 'AccountingDebitNotes::postReverse/$1');
+});
+
 $routes->group('receipt_vouchers', static function (RouteCollection $routes): void {
     $routes->get('/', 'Receipt_vouchers::getIndex');
     $routes->get('search', 'Receipt_vouchers::getSearch');

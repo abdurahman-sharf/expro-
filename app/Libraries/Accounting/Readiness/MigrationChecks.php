@@ -38,6 +38,7 @@ final class MigrationChecks extends CheckGroup
         'QuoteLifecycle'                   => [self::HEAVY, 'adds sales.quote_status and sales.source_quote_id; down() refuses once a quote carries a state'],
         'AppConfigValueText'               => [self::HEAVY, 'widens app_config.value from varchar(500) to TEXT: a core table of the application, small, and down() does not narrow the column'],
         'InvoiceHeaderCharges'             => [self::DATA, 'adds seven nullable columns to sales and opens the adjustments and shipping accounts of an existing chart with their routing rows (the adjustments row moves off discounts allowed when nobody had changed it)'],
+        'SalesDebitNotes'                  => [self::HEAVY, 'creates sales_debit_notes and adds customer_credit_applications.debit_note_id, widening the one-target rule of an application from two kinds of target to three, which rebuilds that table'],
         'ChequesAndRevenues'               => [self::DATA, 'opens the leaf accounts of notes receivable, notes payable, funds under collection and deposit fees in an existing chart and points four routing rows at them'],
     ];
 
