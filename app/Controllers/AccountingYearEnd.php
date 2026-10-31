@@ -77,10 +77,16 @@ class AccountingYearEnd extends AccountingController
             throw PageNotFoundException::forPageNotFound();
         }
 
+        $shown = $this->request->getGet('fingerprint');
+
+        if (! is_string($shown) || preg_match('/^[0-9a-f]{64}$/', $shown) !== 1) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
         return view('accounting_periods/year_end_approve_form', [
             'preview'     => $preview,
             'scope'       => $scope,
-            'fingerprint' => $preview->fingerprint,
+            'fingerprint' => $shown,
             'year_id'     => $yearId,
         ]);
     }

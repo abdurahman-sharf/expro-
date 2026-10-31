@@ -1,0 +1,913 @@
+[
+ {
+  "name": "G01 previewing and approving needs the permission to close the year",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "        $this->guard->require(AccountingGuard::YEAR_END_CLOSE, $employeeId);\n\n        if ($branchId === null) {",
+  "replace": "        if ($branchId === null) {",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G02 taking a closing back needs the permission to close the year",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "        $this->guard->require(AccountingGuard::YEAR_END_CLOSE, $employeeId);\n\n        $reason = trim($reason);",
+  "replace": "        $reason = trim($reason);",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G03 a run for the company needs every branch",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "            $this->branches->requireCompanyScope($employeeId);\n\n            return;",
+  "replace": "            return;",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G04 a run for a branch needs that branch",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "        $this->branches->requireBranch($branchId, $employeeId);\n    }\n\n    /**\n     * @return list<object> The branches of the run",
+  "replace": "    }\n\n    /**\n     * @return list<object> The branches of the run",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G05 a branch that does not exist is refused",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "        if (! $exists) {\n            throw new BranchException(BranchError::NotFound",
+  "replace": "        if (false) {\n            throw new BranchException(BranchError::NotFound",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G06 a closing is taken back only by someone who works in its branch",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "        $this->branches->requireBranch((int) $known->branch_id, $employeeId);",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G07 a closing that does not exist is refused",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "        if ($known === null) {",
+  "replace": "        if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G08 taking a closing back needs a reason",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "        if ($reason === '' || mb_strlen($reason) > self::REASON_MAX) {",
+  "replace": "        if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G09 the reason is at most 255 characters",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": " || mb_strlen($reason) > self::REASON_MAX) {",
+  "replace": ") {",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G10 approving locks every branch of the run in the order of their numbers",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "                $this->locks->holdBranch($lockedBranchId);",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G11 taking a closing back locks its branch",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "            $this->locks->holdBranch((int) $known->branch_id);",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G12 what blocks a closing stops its approval",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "            if ($preview->blockers !== []) {\n                throw $preview->blockers[0];\n            }",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G13 a run with nothing to close or already closed is refused",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "            if ($ready === []) {",
+  "replace": "            if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G14 the preview approved must be the one the books give now",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "            if (! hash_equals($preview->fingerprint, $fingerprint)) {",
+  "replace": "            if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G15 the periods must be closed through the last day of the year, not before",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "        if ($cutoff === null || $cutoff < $year->end_date) {",
+  "replace": "        if ($cutoff === null) {",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G16 the periods of the company must be closed",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "        if ($cutoff === null || $cutoff < $year->end_date) {",
+  "replace": "        if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G17 a draft in the year blocks the closing",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "        if ($drafts > 0) {",
+  "replace": "        if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G18 drafts are counted from the first day of the year",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "            ->where('journal_date >=', $year->start_date)\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G19 drafts are counted to the last day of the year",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "            ->where('journal_date <=', $year->end_date)\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G20 only the drafts of the branches of the run count",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "            ->whereIn('branch_id', $branchIds)\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G21 the retained earnings account must be an equity account",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "if ($account === null || $account->account_type !== AccountType::Equity->value) {",
+  "replace": "if ($account === null) {",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G24 the movement is counted from the first day of the year",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "            ->where('j.journal_date >=', $year->start_date)\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G25 the movement is counted to the last day of the year",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "            ->where('j.journal_date <=', $year->end_date)\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G26 the movement is that of the branch",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "            ->where('j.branch_id', $branchId)\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G27 only posted and reversed journals are movement",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "            ->whereIn('j.status', [JournalStatus::Posted->value, JournalStatus::Reversed->value])\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G28 only revenue and expense accounts are closed",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "            ->whereIn('a.account_type', [AccountType::Revenue->value, AccountType::Expense->value])\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G29 a journal that closes a year is not movement of the year",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "        YearEndEntries::leaveOut($builder, $this->db);\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G30 a branch with an active closing is not closed again",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "        if ($closing !== null) {\n            return new YearEndBranchPlan(",
+  "replace": "        if (false) {\n            return new YearEndBranchPlan(",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G31 an active closing is read under lock when approving",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "$locked ? $this->lockedClosing((int) $branch->branch_id, (int) $year->fiscal_year_id) : $this->closedOut->activeOf((int) $branch->branch_id, (int) $year->fiscal_year_id)",
+  "replace": "$this->closedOut->activeOf((int) $branch->branch_id, (int) $year->fiscal_year_id)",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G32 the closing of the periods is read under lock when approving",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "        if (! $locked) {\n            return (new ClosedPeriodService($this->db, $this->guard, $this->branches))->cutoff(null);\n        }",
+  "replace": "        if (true) {\n            return (new ClosedPeriodService($this->db, $this->guard, $this->branches))->cutoff(null);\n        }",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G33 a second closing of the year takes the next revision",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "'revision'            => (int) $latest->latest + 1,",
+  "replace": "'revision'            => 1,",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G34 the closing is dated on the last day of the year",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "            date: $year->end_date,\n            lines: $this->journalLines",
+  "replace": "            date: $year->start_date,\n            lines: $this->journalLines",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G35 the closing journal belongs to the branch it closes",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "            branchId: $plan->branchId,\n            entryType: JournalEntryType::YearEnd,\n        ));\n\n        $this->db->table('accounting_year_end_closings')->where('closing_id', $closingId)->update(['journal_id'",
+  "replace": "            branchId: 1,\n            entryType: JournalEntryType::YearEnd,\n        ));\n\n        $this->db->table('accounting_year_end_closings')->where('closing_id', $closingId)->update(['journal_id'",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G36 a profit is a credit to retained earnings",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "$lines[] = new JournalLineDraft($retainedAccountId, credit: $plan->result);",
+  "replace": "$lines[] = new JournalLineDraft($retainedAccountId, debit: $plan->result);",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G37 a loss is a debit to retained earnings",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "$lines[] = new JournalLineDraft($retainedAccountId, debit: bcsub('0', $plan->result, self::SCALE));",
+  "replace": "$lines[] = new JournalLineDraft($retainedAccountId, credit: bcsub('0', $plan->result, self::SCALE));",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G38 a result of zero writes no retained earnings line",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "        } elseif ($plan->isLoss()) {",
+  "replace": "        } else {",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G39 a closing already taken back cannot be taken back again",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "if ($closing === null || $closing->status !== 'active') {",
+  "replace": "if ($closing === null) {",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G40 only a posted closing journal is taken back",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": " || $original->status !== JournalStatus::Posted->value) {",
+  "replace": ") {",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G41 the reversal is written on the day of the closing",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "                date: $original->journal_date,\n",
+  "replace": "                date: date('Y-m-d'),\n",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G42 the closing journal is marked reversed",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "            $this->db->table('accounting_journals')->where('journal_id', (int) $original->journal_id)->update(['status' => JournalStatus::Reversed->value]);\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G43 taking a closing back frees the key of its branch and year",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "                'active_key'          => null,",
+  "replace": "                'active_key'          => 1,",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G44 the reversal mirrors every line of the closing",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "                debit: $line->credit,\n                credit: $line->debit,\n                description: $line->description,\n            ), $this->db->table('accounting_journal_lines')",
+  "replace": "                debit: $line->debit,\n                credit: $line->credit,\n                description: $line->description,\n            ), $this->db->table('accounting_journal_lines')",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G45 the closing is written to the audit log with the exception it used",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "        $this->audit->write('year_end_closing', $closingId, 'year_end_closed', $employeeId, $this->originOf($employeeId), [\n            'fiscal_year_id'          => (int) $year->fiscal_year_id,\n            'journal_id'              => $result->journalId,\n            'date'                    => $year->end_date,\n            'result'                  => $plan->result,\n            'lines'                   => count($plan->lines),\n            'closed_period_exception' => true,\n            'closed_period_until'     => $preview->companyCutoff,\n        ], $plan->branchId);\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G46 taking a closing back is written to the audit log",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "            $this->audit->write('year_end_closing', $closingId, 'year_end_reversed', $employeeId, $origin, [\n                'fiscal_year_id'      => (int) $closing->fiscal_year_id,\n                'journal_id'          => (int) $original->journal_id,\n                'reversal_id'         => $result->journalId,\n                'date'                => $original->journal_date,\n                'reason'              => $reason,\n                'closed_period_until' => $this->companyCutoff(true),\n            ], (int) $closing->branch_id);\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G47 a closing is made for a debit balance by a credit",
+  "file": "app/Libraries/Accounting/YearEndLine.php",
+  "find": "return bccomp($this->net, '0', 4) > 0 ? $this->net : '0.0000';",
+  "replace": "return bccomp($this->net, '0', 4) < 0 ? $this->net : '0.0000';",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G48 a closing is made for a credit balance by a debit",
+  "file": "app/Libraries/Accounting/YearEndLine.php",
+  "find": "return bccomp($this->net, '0', 4) < 0 ? bcsub('0', $this->net, 4) : '0.0000';",
+  "replace": "return bccomp($this->net, '0', 4) > 0 ? bcsub('0', $this->net, 4) : '0.0000';",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "G49 the result of a branch is its revenue less its expenses",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "            bcsub($revenue, $expense, self::SCALE),\n            null,",
+  "replace": "            bcadd($revenue, $expense, self::SCALE),\n            null,",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "P01 the journal of a year-end closing is refused by ordinary posting",
+  "file": "app/Libraries/Accounting/PostingService.php",
+  "find": "if (! $this->yearEndRelief && ($draft->entryType === JournalEntryType::YearEnd || $draft->sourceType === YearEndEntries::SOURCE_TYPE)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/PostingServiceTest.php"
+  ]
+ },
+ {
+  "name": "P02 only a closing or the reversal of one is written by postYearEnd",
+  "file": "app/Libraries/Accounting/PostingService.php",
+  "find": "        if ($draft->entryType !== JournalEntryType::YearEnd || ! ($closing || $reversal)) {",
+  "replace": "        if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/PostingServiceTest.php"
+  ]
+ },
+ {
+  "name": "P03 the relief of the closed period ends when postYearEnd returns or fails",
+  "file": "app/Libraries/Accounting/PostingService.php",
+  "find": "        } finally {\n            $this->yearEndRelief = false;\n        }",
+  "replace": "        } finally {\n        }",
+  "tests": [
+   "tests/Libraries/Accounting/PostingServiceTest.php"
+  ]
+ },
+ {
+  "name": "P04 a closing may use an account that was deactivated",
+  "file": "app/Libraries/Accounting/PostingService.php",
+  "find": "$draft->reversesJournalId !== null || $this->yearEndRelief);",
+  "replace": "$draft->reversesJournalId !== null);",
+  "tests": [
+   "tests/Libraries/Accounting/PostingServiceTest.php"
+  ]
+ },
+ {
+  "name": "P05 a closing may be written for a branch that was deactivated",
+  "file": "app/Libraries/Accounting/PostingService.php",
+  "find": " && ! $this->yearEndRelief) {",
+  "replace": ") {",
+  "tests": [
+   "tests/Libraries/Accounting/PostingServiceTest.php"
+  ]
+ },
+ {
+  "name": "P06 a closing is checked against the fiscal years, not the closed periods",
+  "file": "app/Libraries/Accounting/PostingService.php",
+  "find": "        $this->yearEndRelief ? $this->periods->checkYearEnd($draft->date) : $this->periods->check($draft->date, $branchId);",
+  "replace": "        $this->periods->check($draft->date, $branchId);",
+  "tests": [
+   "tests/Libraries/Accounting/PostingServiceTest.php"
+  ]
+ },
+ {
+  "name": "P07 a closing is written inside the closed period",
+  "file": "app/Libraries/Accounting/PostingService.php",
+  "find": "        $this->yearEndRelief ? $this->periods->enforceYearEnd($draft->date, $prepared['branch_id']) : $this->periods->enforce($draft->date, $prepared['branch_id']);",
+  "replace": "        $this->periods->enforce($draft->date, $prepared['branch_id']);",
+  "tests": [
+   "tests/Libraries/Accounting/PostingServiceTest.php"
+  ]
+ },
+ {
+  "name": "P08 a closing must lie in a fiscal year",
+  "file": "app/Libraries/Accounting/PeriodGuard.php",
+  "find": "    public function checkYearEnd(string $date): void\n    {\n        $this->assertCovered($date, false);",
+  "replace": "    public function checkYearEnd(string $date): void\n    {",
+  "tests": [
+   "tests/Libraries/Accounting/PostingServiceTest.php"
+  ]
+ },
+ {
+  "name": "P09 a closing takes the period locks like any posting",
+  "file": "app/Libraries/Accounting/PeriodGuard.php",
+  "find": "        $this->locks->shareForPosting($branchId);\n        $this->assertCovered($date, true);",
+  "replace": "        $this->assertCovered($date, true);",
+  "tests": [
+   "tests/Libraries/Accounting/PostingServiceTest.php"
+  ]
+ },
+ {
+  "name": "P10 a closing is checked against the fiscal years as last committed",
+  "file": "app/Libraries/Accounting/PeriodGuard.php",
+  "find": "        $this->locks->shareForPosting($branchId);\n        $this->assertCovered($date, true);",
+  "replace": "        $this->locks->shareForPosting($branchId);\n        $this->assertCovered($date, false);",
+  "tests": [
+   "tests/Libraries/Accounting/PostingServiceTest.php"
+  ]
+ },
+ {
+  "name": "J01 the journals screen cannot reverse a journal whose type is year-end",
+  "file": "app/Libraries/Accounting/JournalService.php",
+  "find": "if ($original->entry_type === JournalEntryType::YearEnd->value || $original->source_type === YearEndEntries::SOURCE_TYPE) {",
+  "replace": "if ($original->source_type === YearEndEntries::SOURCE_TYPE) {",
+  "tests": [
+   "tests/Libraries/Accounting/JournalServiceTest.php"
+  ]
+ },
+ {
+  "name": "J02 the journals screen cannot reverse a journal whose source is year-end",
+  "file": "app/Libraries/Accounting/JournalService.php",
+  "find": "if ($original->entry_type === JournalEntryType::YearEnd->value || $original->source_type === YearEndEntries::SOURCE_TYPE) {",
+  "replace": "if ($original->entry_type === JournalEntryType::YearEnd->value) {",
+  "tests": [
+   "tests/Libraries/Accounting/JournalServiceTest.php"
+  ]
+ },
+ {
+  "name": "J03 opening balances of a closed-out year are not reversed",
+  "file": "app/Libraries/Accounting/JournalService.php",
+  "find": "            (new ClosedOutYears($this->db))->assertNotClosedOut((int) $opening->branch_id, (string) $opening->journal_date);\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/OpeningBalanceServiceTest.php"
+  ]
+ },
+ {
+  "name": "J04 reversing opening balances takes the lock of the branch before it looks",
+  "file": "app/Libraries/Accounting/JournalService.php",
+  "find": "            (new PeriodLocks($this->db))->shareForPosting((int) $opening->branch_id);\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/OpeningBalanceServiceTest.php"
+  ]
+ },
+ {
+  "name": "C01 a period is not reopened while it would leave a year closed out",
+  "file": "app/Libraries/Accounting/ClosedPeriodService.php",
+  "find": "            $this->assertNoYearStaysClosedOut($branchId, (int) $latest->closed_period_id, $scope, $params);\n\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/ClosedPeriodServiceTest.php"
+  ]
+ },
+ {
+  "name": "C02 the closing being reopened is not counted among the ones that remain",
+  "file": "app/Libraries/Accounting/ClosedPeriodService.php",
+  "find": " AND closed_period_id <> ?\", [...$params, $reopenedId]);",
+  "replace": "\", [...$params]);",
+  "tests": [
+   "tests/Libraries/Accounting/ClosedPeriodServiceTest.php"
+  ]
+ },
+ {
+  "name": "C03 a branch reopening is judged against the closing of the company",
+  "file": "app/Libraries/Accounting/ClosedPeriodService.php",
+  "find": "$branchId === null ? $cutoff : $this->cutoff(null), $branchId === null ? null : $cutoff);",
+  "replace": "$cutoff, $branchId === null ? null : $cutoff);",
+  "tests": [
+   "tests/Libraries/Accounting/ClosedPeriodServiceTest.php"
+  ]
+ },
+ {
+  "name": "C04 a branch reopening is judged against what remains of its own closings",
+  "file": "app/Libraries/Accounting/ClosedPeriodService.php",
+  "find": "$branchId === null ? $cutoff : $this->cutoff(null), $branchId === null ? null : $cutoff);",
+  "replace": "$branchId === null ? $cutoff : $this->cutoff(null), null);",
+  "tests": [
+   "tests/Libraries/Accounting/ClosedPeriodServiceTest.php"
+  ]
+ },
+ {
+  "name": "O01 only the closings that the reopening would leave open block it",
+  "file": "app/Libraries/Accounting/ClosedOutYears.php",
+  "find": "            $builder->where('c.period_to >', $cutoff);",
+  "replace": "            $builder->where('c.period_to <=', $cutoff);",
+  "tests": [
+   "tests/Libraries/Accounting/ClosedPeriodServiceTest.php"
+  ]
+ },
+ {
+  "name": "O02 a branch reopening is blocked only by the closings of that branch",
+  "file": "app/Libraries/Accounting/ClosedOutYears.php",
+  "find": "            $builder->where('c.branch_id', $branchId);",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/ClosedPeriodServiceTest.php"
+  ]
+ },
+ {
+  "name": "O03 a closing taken back no longer holds a year closed out",
+  "file": "app/Libraries/Accounting/ClosedOutYears.php",
+  "find": "            ->where('c.status', 'active')\n            ->where('c.period_from <=', $date)",
+  "replace": "            ->where('c.period_from <=', $date)",
+  "tests": [
+   "tests/Libraries/Accounting/OpeningBalanceServiceTest.php"
+  ]
+ },
+ {
+  "name": "O04 the closing of another branch does not hold a year closed out",
+  "file": "app/Libraries/Accounting/ClosedOutYears.php",
+  "find": "            ->where('c.branch_id', $branchId)\n            ->where('c.status', 'active')\n            ->where('c.period_from <=', $date)",
+  "replace": "            ->where('c.status', 'active')\n            ->where('c.period_from <=', $date)",
+  "tests": [
+   "tests/Libraries/Accounting/OpeningBalanceServiceTest.php"
+  ]
+ },
+ {
+  "name": "O05 a date outside the year of the closing is not held",
+  "file": "app/Libraries/Accounting/ClosedOutYears.php",
+  "find": "            ->where('c.period_to >=', $date)\n            ->get()",
+  "replace": "            ->get()",
+  "tests": [
+   "tests/Libraries/Accounting/OpeningBalanceServiceTest.php"
+  ]
+ },
+ {
+  "name": "O06 only an active closing makes a branch closed",
+  "file": "app/Libraries/Accounting/ClosedOutYears.php",
+  "find": "            ->where('branch_id', $branchId)\n            ->where('fiscal_year_id', $fiscalYearId)\n            ->where('status', 'active')\n            ->get()",
+  "replace": "            ->where('branch_id', $branchId)\n            ->where('fiscal_year_id', $fiscalYearId)\n            ->get()",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "F01 the dates of a year closed out do not change",
+  "file": "app/Libraries/Accounting/FiscalYearService.php",
+  "find": "                if ((new ClosedOutYears($this->db))->hasActiveIn($fiscalYearId)) {",
+  "replace": "                if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/FiscalYearServiceTest.php"
+  ]
+ },
+ {
+  "name": "F02 only an active closing holds the dates of a year",
+  "file": "app/Libraries/Accounting/ClosedOutYears.php",
+  "find": "            ->where('fiscal_year_id', $fiscalYearId)\n            ->where('status', 'active')\n            ->countAllResults() > 0;",
+  "replace": "            ->where('fiscal_year_id', $fiscalYearId)\n            ->countAllResults() > 0;",
+  "tests": [
+   "tests/Libraries/Accounting/FiscalYearServiceTest.php"
+  ]
+ },
+ {
+  "name": "S01 the permission to close the year is sensitive",
+  "file": "app/Libraries/Accounting/AccountingGuard.php",
+  "find": "        self::INTERBRANCH_SETTLE,\n        self::YEAR_END_CLOSE,\n    ];",
+  "replace": "        self::INTERBRANCH_SETTLE,\n    ];",
+  "tests": [
+   "tests/Libraries/Accounting/SensitivePermissionsTest.php"
+  ]
+ },
+ {
+  "name": "S02 the permission screen names the permission to close the year",
+  "file": "app/Controllers/AccountingSetup.php",
+  "find": "        AccountingGuard::YEAR_END_CLOSE     => 'Accounting_periods.year_end_close',\n",
+  "replace": "",
+  "tests": [
+   "tests/Controllers/AccountingSetupControllerTest.php"
+  ]
+ },
+ {
+  "name": "R01 the trial balance is before the closing entry unless asked",
+  "file": "app/Libraries/Accounting/TrialBalance.php",
+  "find": "TrialBalanceClosing $closing = TrialBalanceClosing::Before): TrialBalanceReport",
+  "replace": "TrialBalanceClosing $closing = TrialBalanceClosing::After): TrialBalanceReport",
+  "tests": [
+   "tests/Libraries/Accounting/TrialBalanceTest.php"
+  ]
+ },
+ {
+  "name": "R02 the trial balance before the closing entry leaves the closing out",
+  "file": "app/Libraries/Accounting/TrialBalance.php",
+  "find": "$this->amounts($scope, $period, $closing === TrialBalanceClosing::Before);",
+  "replace": "$this->amounts($scope, $period, $closing !== TrialBalanceClosing::Before);",
+  "tests": [
+   "tests/Libraries/Accounting/TrialBalanceTest.php"
+  ]
+ },
+ {
+  "name": "R03 an option the trial balance does not know reads before the closing entry",
+  "file": "app/Libraries/Accounting/TrialBalanceClosing.php",
+  "find": "return self::tryFrom((string) $value) ?? self::Before;",
+  "replace": "return self::tryFrom((string) $value) ?? self::After;",
+  "tests": [
+   "tests/Controllers/AccountingReportsControllerTest.php"
+  ]
+ },
+ {
+  "name": "R04 a journal is a closing of a year by its type",
+  "file": "app/Libraries/Accounting/YearEndEntries.php",
+  "find": "        $builder->where(\"{$journalAlias}.entry_type <>\", self::ENTRY_TYPE);\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndEntriesTest.php",
+   "tests/Libraries/Accounting/IncomeStatementTest.php"
+  ]
+ },
+ {
+  "name": "R05 the reversal of a closing is left out with it",
+  "file": "app/Libraries/Accounting/YearEndEntries.php",
+  "find": "        return $reversals === [] ? $builder : $builder->whereNotIn(\"{$journalAlias}.journal_id\", $reversals);",
+  "replace": "        return $builder;",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndEntriesTest.php",
+   "tests/Libraries/Accounting/IncomeStatementTest.php"
+  ]
+ },
+ {
+  "name": "R06 the ledger says what each line is by its type",
+  "file": "app/Libraries/Accounting/AccountLedger.php",
+  "find": "j.source_type, j.entry_type, j.reverses_journal_id, b.code AS branch_code",
+  "replace": "j.source_type, 'general' AS entry_type, j.reverses_journal_id, b.code AS branch_code",
+  "tests": [
+   "tests/Libraries/Accounting/AccountLedgerTest.php"
+  ]
+ },
+ {
+  "name": "R07 the balance sheet counts the closing entries",
+  "file": "app/Libraries/Accounting/BalanceSheet.php",
+  "find": "leaveOutYearEnd: false, shown: [AccountType::Asset",
+  "replace": "leaveOutYearEnd: true, shown: [AccountType::Asset",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "R08 the income statement leaves the closing entries out",
+  "file": "app/Libraries/Accounting/IncomeStatement.php",
+  "find": "leaveOutYearEnd: true, shown: [AccountType::Revenue",
+  "replace": "leaveOutYearEnd: false, shown: [AccountType::Revenue",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "U01 the preview is shown only to someone who may close the year",
+  "file": "app/Controllers/AccountingYearEnd.php",
+  "find": "        if ($canRun && $yearId !== null && $options !== []) {",
+  "replace": "        if ($yearId !== null && $options !== []) {",
+  "tests": [
+   "tests/Controllers/AccountingYearEndControllerTest.php"
+  ]
+ },
+ {
+  "name": "U02 the approval form is hidden from someone who may not close the year",
+  "file": "app/Controllers/AccountingYearEnd.php",
+  "find": "        if (! $this->can(AccountingGuard::YEAR_END_CLOSE)) {\n            throw PageNotFoundException::forPageNotFound();\n        }\n\n        $scope  = $this->scopeParameter($this->scopeOptions());",
+  "replace": "        $scope  = $this->scopeParameter($this->scopeOptions());",
+  "tests": [
+   "tests/Controllers/AccountingYearEndControllerTest.php"
+  ]
+ },
+ {
+  "name": "U03 the approval form is not offered when nothing can be approved",
+  "file": "app/Controllers/AccountingYearEnd.php",
+  "find": "        if (! $preview->canApprove()) {\n            throw PageNotFoundException::forPageNotFound();\n        }\n\n",
+  "replace": "",
+  "tests": [
+   "tests/Controllers/AccountingYearEndControllerTest.php"
+  ]
+ },
+ {
+  "name": "U04 the reversal form is hidden from someone who may not close the year",
+  "file": "app/Controllers/AccountingYearEnd.php",
+  "find": "        if (! $this->can(AccountingGuard::YEAR_END_CLOSE)) {\n            throw PageNotFoundException::forPageNotFound();\n        }\n\n        $closing = $this->visibleClosing($closingId);",
+  "replace": "        $closing = $this->visibleClosing($closingId);",
+  "tests": [
+   "tests/Controllers/AccountingYearEndControllerTest.php"
+  ]
+ },
+ {
+  "name": "U05 the reversal form is not offered for a closing already taken back",
+  "file": "app/Controllers/AccountingYearEnd.php",
+  "find": "        if ($closing === null || $closing->status !== 'active') {",
+  "replace": "        if ($closing === null) {",
+  "tests": [
+   "tests/Controllers/AccountingYearEndControllerTest.php"
+  ]
+ },
+ {
+  "name": "U06 a scope outside the ones offered is not found",
+  "file": "app/Controllers/AccountingYearEnd.php",
+  "find": "        if (! array_key_exists($value, $options)) {\n            throw PageNotFoundException::forPageNotFound();\n        }",
+  "replace": "",
+  "tests": [
+   "tests/Controllers/AccountingYearEndControllerTest.php"
+  ]
+ },
+ {
+  "name": "U07 a posted scope must be the company or a branch number",
+  "file": "app/Controllers/AccountingYearEnd.php",
+  "find": "        if (! is_string($value) || ! ($value === 'company' || (ctype_digit($value) && (int) $value > 0))) {\n            throw PageNotFoundException::forPageNotFound();\n        }\n\n",
+  "replace": "",
+  "tests": [
+   "tests/Controllers/AccountingYearEndControllerTest.php"
+  ]
+ },
+ {
+  "name": "U11 the approval form carries the fingerprint of the page that was shown",
+  "file": "app/Controllers/AccountingYearEnd.php",
+  "find": "            'fingerprint' => $shown,",
+  "replace": "            'fingerprint' => $preview->fingerprint,",
+  "tests": [
+   "tests/Controllers/AccountingYearEndControllerTest.php"
+  ]
+ },
+ {
+  "name": "U12 a fingerprint that is not a digest is not accepted by the approval form",
+  "file": "app/Controllers/AccountingYearEnd.php",
+  "find": "        if (! is_string($shown) || preg_match('/^[0-9a-f]{64}$/', $shown) !== 1) {\n            throw PageNotFoundException::forPageNotFound();\n        }\n\n",
+  "replace": "",
+  "tests": [
+   "tests/Controllers/AccountingYearEndControllerTest.php"
+  ]
+ },
+ {
+  "name": "U08 the approval is reached by POST only",
+  "file": "app/Config/Routes.php",
+  "find": "    $routes->post('year_end/approve', 'AccountingYearEnd::postApprove');",
+  "replace": "    $routes->match(['get', 'post'], 'year_end/approve', 'AccountingYearEnd::postApprove');",
+  "tests": [
+   "tests/Controllers/AccountingYearEndControllerTest.php"
+  ]
+ },
+ {
+  "name": "U09 the reversal is reached by POST only",
+  "file": "app/Config/Routes.php",
+  "find": "    $routes->post('year_end/reverse/(:num)', 'AccountingYearEnd::postReverse/$1');",
+  "replace": "    $routes->match(['get', 'post'], 'year_end/reverse/(:num)', 'AccountingYearEnd::postReverse/$1');",
+  "tests": [
+   "tests/Controllers/AccountingYearEndControllerTest.php"
+  ]
+ },
+ {
+  "name": "U10 the forms are built so that they carry the token against forged requests",
+  "file": "app/Views/accounting_periods/year_end_approve_form.php",
+  "find": "<?= form_open('accounting_periods/year_end/approve', ['id' => 'year_end_approve_form', 'class' => 'app-form']) ?>",
+  "replace": "<form action=\"<?= base_url('accounting_periods/year_end/approve') ?>\" method=\"post\" id=\"year_end_approve_form\" class=\"app-form\">",
+  "tests": [
+   "tests/Controllers/AccountingYearEndControllerTest.php"
+  ]
+ },
+ {
+  "name": "M01 a branch has one active closing for a year",
+  "file": "app/Database/Migrations/20270900000000_YearEndClosings.php",
+  "find": "                UNIQUE KEY `{$table}_active` (`company_id`, `branch_id`, `fiscal_year_id`, `active_key`),\n",
+  "replace": "",
+  "tests": [
+   "tests/Database/YearEndClosingsMigrationTest.php"
+  ]
+ },
+ {
+  "name": "M02 the revision of a closing is unique",
+  "file": "app/Database/Migrations/20270900000000_YearEndClosings.php",
+  "find": "                UNIQUE KEY `{$table}_revision` (`company_id`, `branch_id`, `fiscal_year_id`, `revision`),\n",
+  "replace": "",
+  "tests": [
+   "tests/Database/YearEndClosingsMigrationTest.php"
+  ]
+ },
+ {
+  "name": "M03 an active closing holds the key and a reversed one gives it up",
+  "file": "app/Database/Migrations/20270900000000_YearEndClosings.php",
+  "find": "(`status` = 'active' AND `active_key` <=> 1)",
+  "replace": "(`status` = 'active')",
+  "tests": [
+   "tests/Database/YearEndClosingsMigrationTest.php"
+  ]
+ },
+ {
+  "name": "M04 a closing keeps its year",
+  "file": "app/Database/Migrations/20270900000000_YearEndClosings.php",
+  "find": "                CONSTRAINT `{$table}_fk_year` FOREIGN KEY (`fiscal_year_id`) REFERENCES `{$years}` (`fiscal_year_id`) ON DELETE RESTRICT,\n",
+  "replace": "",
+  "tests": [
+   "tests/Database/YearEndClosingsMigrationTest.php"
+  ]
+ },
+ {
+  "name": "M05 the permission belongs to the periods screen",
+  "file": "app/Database/Migrations/20270900000000_YearEndClosings.php",
+  "find": "    private const MODULE_ID     = 'accounting_periods';",
+  "replace": "    private const MODULE_ID     = 'accounting_treasuries';",
+  "tests": [
+   "tests/Database/YearEndClosingsMigrationTest.php"
+  ]
+ },
+ {
+  "name": "M06 the status of a closing is active or reversed",
+  "file": "app/Database/Migrations/20270900000000_YearEndClosings.php",
+  "find": "                CONSTRAINT `{$table}_status` CHECK (`status` IN ('active', 'reversed')),\n",
+  "replace": "",
+  "tests": [
+   "tests/Database/YearEndClosingsMigrationTest.php"
+  ]
+ }
+]

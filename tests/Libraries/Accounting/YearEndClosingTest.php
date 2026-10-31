@@ -27,6 +27,7 @@ use App\Libraries\Accounting\YearEndClosing;
 use App\Libraries\Accounting\YearEndEntries;
 use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
+use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -53,6 +54,7 @@ final class YearEndClosingTest extends CIUnitTestCase
     protected $refresh     = false;
     protected $namespace;
     private YearEndClosing $service;
+    private ?BaseConnection $other = null;
     private int $second;
     private int $employee;
 
@@ -77,6 +79,12 @@ final class YearEndClosingTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        if ($this->other !== null) {
+            $this->other->transRollback();
+            $this->other->close();
+            $this->other = null;
+        }
+
         $this->releaseOpenTransactions();
         $this->clearJournals();
         $this->reinstallChart();
@@ -493,19 +501,20 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->twoBranchYear();
         $this->closePeriods();
         $preview = $this->service->preview(1, $this->yearId(), $this->employee);
-        $other   = $this->openSecondConnection();
-        $this->startWithSnapshot($other);
+        $this->other = $this->openSecondConnection();
+        $this->startWithSnapshot($this->other);
 
         $this->service->approve(1, $this->yearId(), $preview->fingerprint, $this->employee);
 
         try {
-            (new YearEndClosing($other))->approve(1, $this->yearId(), $preview->fingerprint, $this->employee);
+            (new YearEndClosing($this->other))->approve(1, $this->yearId(), $preview->fingerprint, $this->employee);
             $this->fail('The year was closed after the snapshot of the second request.');
         } catch (AccountingException $exception) {
             $this->assertSame(AccountingError::YearEndAlreadyClosed, $exception->error);
         } finally {
-            $other->transRollback();
-            $other->close();
+            $this->other->transRollback();
+            $this->other->close();
+            $this->other = null;
         }
 
         $this->assertSame(1, $this->accountingDb()->table('accounting_journals')->where('source_type', 'year_end')->countAllResults());
@@ -516,19 +525,20 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->twoBranchYear();
         $this->closePeriods();
         $preview = $this->service->preview(1, $this->yearId(), $this->employee);
-        $other   = $this->openSecondConnection();
-        $this->startWithSnapshot($other);
+        $this->other = $this->openSecondConnection();
+        $this->startWithSnapshot($this->other);
 
         $this->accountingDb()->table('accounting_closed_periods')->update(['active' => 0]);
 
         try {
-            (new YearEndClosing($other))->approve(1, $this->yearId(), $preview->fingerprint, $this->employee);
+            (new YearEndClosing($this->other))->approve(1, $this->yearId(), $preview->fingerprint, $this->employee);
             $this->fail('The periods were reopened after the snapshot of the second request.');
         } catch (AccountingException $exception) {
             $this->assertSame(AccountingError::YearEndPeriodNotClosed, $exception->error);
         } finally {
-            $other->transRollback();
-            $other->close();
+            $this->other->transRollback();
+            $this->other->close();
+            $this->other = null;
         }
 
         $this->assertSame(0, $this->countRows('accounting_year_end_closings'));
@@ -1010,21 +1020,45 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->closePeriods();
         $preview = $this->service->preview(1, $this->yearId(), $this->employee);
         $counts  = $this->counts();
-        $other   = $this->openSecondConnection(false);
-        $other->resetTransStatus();
-        $other->transStart();
-        $other->query('SELECT branch_id FROM ' . $other->prefixTable('accounting_period_locks') . ' WHERE company_id = 1 AND branch_id = 1 FOR UPDATE');
+
+        $this->holdTheBranchLock(1, 'FOR UPDATE');
         $this->accountingDb()->query('SET SESSION innodb_lock_wait_timeout = 1');
 
         try {
             $this->assertWaitsForLock(fn () => $this->service->approve(1, $this->yearId(), $preview->fingerprint, $this->employee));
         } finally {
-            $other->transRollback();
-            $other->close();
             $this->accountingDb()->query('SET SESSION innodb_lock_wait_timeout = 50');
         }
 
         $this->assertSame($counts, $this->counts());
+    }
+
+    public function testReverse_WaitsForARequestThatPostsInTheBranchAndTakesNothingBackWhenItCannotHaveIt(): void
+    {
+        $this->twoBranchYear();
+        $this->closePeriods();
+        $closing = $this->close(1)[0];
+        $counts  = $this->counts();
+
+        $this->holdTheBranchLock(1, 'LOCK IN SHARE MODE');
+        $this->accountingDb()->query('SET SESSION innodb_lock_wait_timeout = 1');
+
+        try {
+            $this->assertWaitsForLock(fn () => $this->service->reverse($closing, 'Why', $this->employee));
+        } finally {
+            $this->accountingDb()->query('SET SESSION innodb_lock_wait_timeout = 50');
+        }
+
+        $this->assertSame($counts, $this->counts());
+        $this->assertNotNull($this->closingOf(1));
+    }
+
+    private function holdTheBranchLock(int $branchId, string $mode): void
+    {
+        $this->other = $this->openSecondConnection(false);
+        $this->other->resetTransStatus();
+        $this->other->transStart();
+        $this->other->query('SELECT branch_id FROM ' . $this->other->prefixTable('accounting_period_locks') . ' WHERE company_id = 1 AND branch_id = ' . $branchId . ' ' . $mode);
     }
 
     public function testApprove_ClosesTheYearAgainAfterTheClosingWasReversedAsASecondRevision(): void
@@ -1406,20 +1440,19 @@ final class YearEndClosingTest extends CIUnitTestCase
     {
         $this->twoBranchYear();
         $this->closePeriods();
-        $preview = $this->service->preview(1, $this->yearId(), $this->employee);
-        $first   = $this->openSecondConnection(false);
-        $first->resetTransStatus();
-        $first->transStart();
+        $preview     = $this->service->preview(1, $this->yearId(), $this->employee);
+        $this->other = $this->openSecondConnection(false);
+        $this->other->resetTransStatus();
+        $this->other->transStart();
 
-        try {
-            (new YearEndClosing($first))->approve(1, $this->yearId(), $preview->fingerprint, $this->employee);
+        (new YearEndClosing($this->other))->approve(1, $this->yearId(), $preview->fingerprint, $this->employee);
 
-            $worker  = $this->startRaceWorker('yearEndCloseOutcome', [(string) $this->employee, (string) $this->yearId(), '1']);
-            $waiting = $this->raceWorkerIsRunning($worker);
-        } finally {
-            $first->transComplete();
-            $first->close();
-        }
+        $worker  = $this->startRaceWorker('yearEndCloseOutcome', [(string) $this->employee, (string) $this->yearId(), '1']);
+        $waiting = $this->raceWorkerIsRunning($worker);
+
+        $this->other->transComplete();
+        $this->other->close();
+        $this->other = null;
 
         $this->assertTrue($waiting, 'The second request waits for the first');
         $this->assertSame('year_end_already_closed', $this->finishRaceWorker($worker));

@@ -455,6 +455,9 @@ final class YearEndClosing
     }
 
     /**
+     * The routing refuses an account that is missing, a group or inactive, so what is left to ask here is
+     * that it still is an account of equity.
+     *
      * @return array{0: ?object, 1: ?AccountingException} The account of the routing, or why there is none.
      */
     private function retainedAccount(): array
@@ -467,8 +470,8 @@ final class YearEndClosing
 
         $account = $accountId === null ? null : $this->db->table('accounting_accounts')->where('company_id', CompanyContext::id())->where('account_id', $accountId)->get()->getRow();
 
-        if ($account === null || $account->account_type !== AccountType::Equity->value || (int) $account->is_group === 1 || (int) $account->active === 0) {
-            return [null, new AccountingException(AccountingError::YearEndRetainedEarningsUnset, 'The retained earnings account of the routing is not an account of equity that takes entries.')];
+        if ($account === null || $account->account_type !== AccountType::Equity->value) {
+            return [null, new AccountingException(AccountingError::YearEndRetainedEarningsUnset, 'The retained earnings account of the routing is not an account of equity.')];
         }
 
         return [$account, null];

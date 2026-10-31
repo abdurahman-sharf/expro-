@@ -164,8 +164,8 @@ $side = static fn (string $value, Closure $amount): string => bccomp($value, '0'
                             <th scope="col" class="text-end"><?= lang('Accounting_periods.year_end_result') ?></th>
                             <th scope="col"><?= lang('Accounting_periods.year_end_journal') ?></th>
                             <th scope="col"><?= lang('Accounting.status') ?></th>
-                            <th scope="col"><?= lang('Accounting_periods.created') ?></th>
-                            <th scope="col"><?= lang('Accounting_periods.reopened_info') ?></th>
+                            <th scope="col"><?= lang('Accounting_periods.year_end_closed_by') ?></th>
+                            <th scope="col"><?= lang('Accounting_periods.year_end_taken_back_by') ?></th>
                             <th scope="col"><span class="visually-hidden"><?= lang('Accounting_periods.year_end_reverse') ?></span></th>
                         </tr>
                     </thead>

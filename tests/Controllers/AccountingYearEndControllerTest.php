@@ -252,6 +252,34 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         $response->assertSee(lang('Accounting_periods.year_end_approve_warning'));
     }
 
+    public function testGetApproveForm_CarriesTheFingerprintOfThePageEvenWhenTheBooksChangedSince(): void
+    {
+        $this->readyYear();
+        $this->closer();
+        $stale = str_repeat('ab', 32);
+
+        $response = $this->get('/accounting_periods/year_end/approve_form?year=' . $this->yearId() . '&scope=company&fingerprint=' . $stale);
+
+        $response->assertStatus(200);
+        $response->assertSee('name="fingerprint" value="' . $stale . '"');
+        $response->assertDontSee($this->fingerprint());
+    }
+
+    public function testGetApproveForm_IsNotFoundWithoutTheFingerprintOfThePreview(): void
+    {
+        $this->readyYear();
+        $this->closer();
+
+        foreach (['', '&fingerprint=', '&fingerprint=short', '&fingerprint=' . str_repeat('G', 64), '&fingerprint[]=' . str_repeat('a', 64)] as $suffix) {
+            try {
+                $this->get('/accounting_periods/year_end/approve_form?year=' . $this->yearId() . '&scope=company' . $suffix);
+                $this->fail("The form must not open for [{$suffix}].");
+            } catch (PageNotFoundException) {
+                $this->addToAssertionCount(1);
+            }
+        }
+    }
+
     public function testGetApproveForm_CarriesTheTokenAgainstForgedRequestsWhenTheProtectionIsOn(): void
     {
         $this->readyYear();
