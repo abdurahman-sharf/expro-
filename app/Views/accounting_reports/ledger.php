@@ -1,24 +1,30 @@
 <?php
 /**
- * @var AccountLedgerReport|null                             $report
- * @var string|null                                          $error
- * @var list<object>                                         $accounts
- * @var int|null                                             $account_id
- * @var array{from: string, to: string, branches: list<int>} $filters
- * @var list<object>                                         $branches
- * @var string|null                                          $scope_label
- * @var ReportScopeKind                                      $scope_kind
- * @var int                                                  $page
- * @var int                                                  $pages
- * @var bool                                                 $journals_url
- * @var Closure                                              $amount
- * @var Closure                                              $date
- * @var Closure                                              $source
- * @var Closure                                              $number
- * @var Closure                                              $page_url
+ * @var AccountLedgerReport|null                                                          $report
+ * @var AccountLedgerBlocksReport|null                                                    $blocks
+ * @var string|null                                                                       $error
+ * @var list<object>                                                                      $accounts
+ * @var list<object>                                                                      $employees
+ * @var array{employee: ?int, hideEmployee: bool, layout: string, display: LedgerDisplay} $options
+ * @var string                                                                            $csvUrl
+ * @var int|null                                                                          $accountId
+ * @var array{from: string, to: string, branches: list<int>}                              $filters
+ * @var list<object>                                                                      $branches
+ * @var string|null                                                                       $scopeLabel
+ * @var ReportScopeKind                                                                   $scopeKind
+ * @var int                                                                               $page
+ * @var int                                                                               $pages
+ * @var bool                                                                              $journalsUrl
+ * @var Closure                                                                           $amount
+ * @var Closure                                                                           $date
+ * @var Closure                                                                           $source
+ * @var Closure                                                                           $number
+ * @var Closure                                                                           $pageUrl
  */
 
+use App\Libraries\Accounting\AccountLedgerBlocksReport;
 use App\Libraries\Accounting\AccountLedgerReport;
+use App\Libraries\Accounting\LedgerDisplay;
 use App\Libraries\Accounting\ReportScopeKind;
 
 $kind = static function (array $row) use ($source): string {
@@ -27,20 +33,26 @@ $kind = static function (array $row) use ($source): string {
     return $row['reverses_journal_id'] === null ? $label : $label . ' (' . lang('Accounting.source_reversal') . ')';
 };
 
-$journal = static function (array $row) use ($journals_url, $number): string {
+$journal = static function (array $row) use ($journalsUrl, $number): string {
     $text = esc($number($row['series'], $row['number']));
 
-    return $journals_url
+    return $journalsUrl
         ? '<a href="' . esc(base_url('accounting_journals/view/' . (int) $row['journal_id']), 'attr') . '">' . $text . '</a>'
         : $text;
 };
 
-$side = static fn (string $value, Closure $amount): string => bccomp($value, '0', 4) === 0 ? '' : $amount($value);
+$side         = static fn (string $value, Closure $amount): string => bccomp($value, '0', 4) === 0 ? '' : $amount($value);
+$showEmployee = ! $options['hideEmployee'];
 ?>
 
 <?= view('partial/header') ?>
 
 <div id="title_bar" class="print_hide btn-toolbar">
+    <?php if ($accountId !== null): ?>
+        <a class="btn btn-outline-secondary btn-sm float-end" id="ledger_csv" href="<?= esc($csvUrl, 'attr') ?>">
+            <span class="bi bi-filetype-csv" aria-hidden="true">&nbsp;</span><?= lang('Accounting_reports.csv') ?>
+        </a>
+    <?php endif; ?>
     <button type="button" class="btn btn-outline-secondary btn-sm float-end" onclick="window.print()">
         <span class="bi bi-printer" aria-hidden="true">&nbsp;</span><?= lang('Common.print') ?>
     </button>
@@ -49,6 +61,12 @@ $side = static fn (string $value, Closure $amount): string => bccomp($value, '0'
     </a>
     <a class="btn btn-outline-secondary btn-sm float-end" id="link_balance_sheet" href="<?= esc(base_url('accounting_statements/balance_sheet'), 'attr') ?>">
         <span class="bi bi-file-earmark-bar-graph" aria-hidden="true">&nbsp;</span><?= lang('Accounting_statements.balance_sheet') ?>
+    </a>
+    <a class="btn btn-outline-secondary btn-sm float-end" id="link_profit_loss" href="<?= esc(base_url('accounting_statements/profit_loss'), 'attr') ?>">
+        <span class="bi bi-graph-up-arrow" aria-hidden="true">&nbsp;</span><?= lang('Accounting_profit_loss.title') ?>
+    </a>
+    <a class="btn btn-outline-secondary btn-sm float-end" id="link_cash_flow" href="<?= esc(base_url('accounting_statements/cash_flow'), 'attr') ?>">
+        <span class="bi bi-cash-stack" aria-hidden="true">&nbsp;</span><?= lang('Accounting_cash_flow.title') ?>
     </a>
     <a class="btn btn-outline-secondary btn-sm float-end" id="link_income_statement" href="<?= esc(base_url('accounting_statements/income_statement'), 'attr') ?>">
         <span class="bi bi-graph-up" aria-hidden="true">&nbsp;</span><?= lang('Accounting_statements.income_statement') ?>
@@ -68,7 +86,7 @@ $side = static fn (string $value, Closure $amount): string => bccomp($value, '0'
             <select id="f_account" name="account" class="form-select form-select-sm">
                 <option value=""><?= lang('Accounting_reports.ledger_pick') ?></option>
                 <?php foreach ($accounts as $account): ?>
-                    <option value="<?= (int) $account->account_id ?>"<?= $account_id === $account->account_id ? ' selected' : '' ?>><?= esc($account->code . ' - ' . $account->name) ?></option>
+                    <option value="<?= (int) $account->account_id ?>"<?= $accountId === $account->account_id ? ' selected' : '' ?>><?= esc($account->code . ' - ' . $account->name) ?></option>
                 <?php endforeach; ?>
             </select>
         </div>
@@ -80,6 +98,34 @@ $side = static fn (string $value, Closure $amount): string => bccomp($value, '0'
             <label class="form-label" for="f_to"><?= lang('Accounting_reports.to') ?></label>
             <input type="date" id="f_to" name="to" class="form-control form-control-sm" value="<?= esc($filters['to'], 'attr') ?>">
         </div>
+        <div class="acc-filter">
+            <label class="form-label" for="f_employee"><?= lang('Accounting_reports.ledger_employee') ?></label>
+            <select id="f_employee" name="employee" class="form-select form-select-sm">
+                <option value=""><?= lang('Accounting_reports.ledger_employee_all') ?></option>
+                <?php foreach ($employees as $employee): ?>
+                    <option value="<?= (int) $employee->employee_id ?>"<?= $options['employee'] === $employee->employee_id ? ' selected' : '' ?>><?= esc($employee->name) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <div class="acc-filter">
+            <label class="form-label" for="f_layout"><?= lang('Accounting_reports.ledger_layout') ?></label>
+            <select id="f_layout" name="layout" class="form-select form-select-sm">
+                <option value="merged"<?= $options['layout'] === 'merged' ? ' selected' : '' ?>><?= lang('Accounting_reports.ledger_layout_merged') ?></option>
+                <option value="accounts"<?= $options['layout'] === 'accounts' ? ' selected' : '' ?>><?= lang('Accounting_reports.ledger_layout_accounts') ?></option>
+            </select>
+        </div>
+        <div class="acc-filter">
+            <label class="form-label" for="f_display"><?= lang('Accounting_reports.ledger_display') ?></label>
+            <select id="f_display" name="display" class="form-select form-select-sm">
+                <?php foreach (LedgerDisplay::cases() as $choice): ?>
+                    <option value="<?= esc($choice->value, 'attr') ?>"<?= $choice === $options['display'] ? ' selected' : '' ?>><?= lang('Accounting_reports.ledger_display_' . $choice->value) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <fieldset class="acc-filter acc-filter-status">
+            <legend class="form-label"><?= lang('Accounting_reports.show') ?></legend>
+            <label class="choice"><input type="checkbox" class="form-check-input" id="f_hide_employee" name="hide_employee" value="1"<?= $options['hideEmployee'] ? ' checked' : '' ?>> <?= lang('Accounting_reports.ledger_hide_employee') ?></label>
+        </fieldset>
         <?php if ($branches !== []): ?>
             <fieldset class="acc-filter acc-filter-status" id="f_branches">
                 <legend class="form-label"><?= lang('Accounting_reports.branches') ?></legend>
@@ -103,8 +149,12 @@ $side = static fn (string $value, Closure $amount): string => bccomp($value, '0'
         <p class="alert alert-danger" id="report_error" role="alert"><?= esc($error) ?></p>
     <?php endif; ?>
 
-    <?php if ($report === null): ?>
-        <p class="text-body-secondary" id="ledger_none_selected"><?= lang('Accounting_reports.ledger_none_selected') ?></p>
+    <?php if ($report === null && $blocks === null): ?>
+        <?php if ($accountId === null): ?>
+            <p class="text-body-secondary" id="ledger_none_selected"><?= lang('Accounting_reports.ledger_none_selected') ?></p>
+        <?php endif; ?>
+    <?php elseif ($blocks !== null): ?>
+        <?= view('accounting_reports/ledger_blocks', ['blocks' => $blocks, 'options' => $options, 'scopeLabel' => $scopeLabel, 'scopeKind' => $scopeKind, 'amount' => $amount, 'date' => $date, 'source' => $source, 'number' => $number, 'journalsUrl' => $journalsUrl, 'showEmployee' => $showEmployee, 'branches' => $branches]) ?>
     <?php else: ?>
         <h1 class="h4"><?= lang('Accounting_reports.ledger') ?>: <bdi dir="ltr"><?= esc($report->code) ?></bdi> <?= esc($report->name) ?></h1>
 
@@ -114,16 +164,20 @@ $side = static fn (string $value, Closure $amount): string => bccomp($value, '0'
                 : lang('Accounting_reports.period_between', [$date($report->period->from), $date($report->period->to)]) ?>
         </p>
 
-        <?php if ($scope_label !== null): ?>
-            <?php if ($scope_kind === ReportScopeKind::Partial): ?>
-                <p class="alert alert-warning" id="report_scope" role="note"><?= esc($scope_label) ?></p>
+        <?php if ($scopeLabel !== null): ?>
+            <?php if ($scopeKind === ReportScopeKind::Partial): ?>
+                <p class="alert alert-warning" id="report_scope" role="note"><?= esc($scopeLabel) ?></p>
             <?php else: ?>
-                <p class="acc-scope-note text-secondary small" id="report_scope" role="note"><span class="bi bi-info-circle" aria-hidden="true"></span> <?= esc($scope_label) ?></p>
+                <p class="acc-scope-note text-secondary small" id="report_scope" role="note"><span class="bi bi-info-circle" aria-hidden="true"></span> <?= esc($scopeLabel) ?></p>
             <?php endif; ?>
         <?php endif; ?>
 
         <?php if ($report->scope->isEmpty()): ?>
             <p class="alert alert-warning" id="report_no_branches"><?= lang('Accounting_reports.no_branches') ?></p>
+        <?php endif; ?>
+
+        <?php if ($report->employeeId !== null): ?>
+            <p class="small text-body-secondary" id="ledger_employee_note" role="note"><?= lang('Accounting_reports.ledger_employee_note') ?></p>
         <?php endif; ?>
 
         <?php if ($report->accountsCounted > 1): ?>
@@ -142,7 +196,7 @@ $side = static fn (string $value, Closure $amount): string => bccomp($value, '0'
         </dl>
 
         <?php if ($report->rows === []): ?>
-            <p class="text-body-secondary" id="ledger_empty"><?= lang('Accounting_reports.ledger_empty') ?></p>
+            <p class="text-body-secondary" id="ledger_empty"><?= lang($report->employeeId === null ? 'Accounting_reports.ledger_empty' : 'Accounting_reports.ledger_nothing_matches') ?></p>
         <?php else: ?>
             <div class="table-responsive mb-3">
                 <table class="table table-sm" id="ledger_table">
@@ -153,6 +207,9 @@ $side = static fn (string $value, Closure $amount): string => bccomp($value, '0'
                             <th scope="col"><?= lang('Accounting_reports.ledger_source') ?></th>
                             <?php if ($report->accountsCounted > 1): ?>
                                 <th scope="col"><?= lang('Accounting_reports.account') ?></th>
+                            <?php endif; ?>
+                            <?php if ($showEmployee): ?>
+                                <th scope="col"><?= lang('Accounting_reports.ledger_employee') ?></th>
                             <?php endif; ?>
                             <th scope="col"><?= lang('Accounting_reports.ledger_description') ?></th>
                             <?php if ($branches !== []): ?>
@@ -172,6 +229,9 @@ $side = static fn (string $value, Closure $amount): string => bccomp($value, '0'
                                 <?php if ($report->accountsCounted > 1): ?>
                                     <td><bdi dir="ltr"><?= esc($row['account_code']) ?></bdi> <?= esc($row['account_name']) ?></td>
                                 <?php endif; ?>
+                                <?php if ($showEmployee): ?>
+                                    <td><?= esc($row['employee']) ?></td>
+                                <?php endif; ?>
                                 <td><?= esc($row['description']) ?></td>
                                 <?php if ($branches !== []): ?>
                                     <td><?= esc($row['branch_code']) ?></td>
@@ -188,11 +248,11 @@ $side = static fn (string $value, Closure $amount): string => bccomp($value, '0'
             <?php if ($pages > 1): ?>
                 <nav class="print_hide" aria-label="<?= esc(lang('Accounting_reports.paging'), 'attr') ?>" id="ledger_paging">
                     <?php if ($page > 1): ?>
-                        <a class="btn btn-outline-secondary btn-sm" rel="prev" href="<?= esc($page_url($page - 1), 'attr') ?>"><?= lang('Accounting_reports.previous') ?></a>
+                        <a class="btn btn-outline-secondary btn-sm" rel="prev" href="<?= esc($pageUrl($page - 1), 'attr') ?>"><?= lang('Accounting_reports.previous') ?></a>
                     <?php endif; ?>
                     <span class="mx-2 small text-body-secondary"><?= lang('Accounting_reports.page_of', [$page, $pages]) ?></span>
                     <?php if ($page < $pages): ?>
-                        <a class="btn btn-outline-secondary btn-sm" rel="next" href="<?= esc($page_url($page + 1), 'attr') ?>"><?= lang('Accounting_reports.next') ?></a>
+                        <a class="btn btn-outline-secondary btn-sm" rel="next" href="<?= esc($pageUrl($page + 1), 'attr') ?>"><?= lang('Accounting_reports.next') ?></a>
                     <?php endif; ?>
                 </nav>
             <?php endif; ?>

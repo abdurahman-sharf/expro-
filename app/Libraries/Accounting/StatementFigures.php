@@ -108,7 +108,7 @@ final readonly class StatementFigures
      *
      * @return array<int, int>
      */
-    private static function levelsOf(array $accounts): array
+    public static function levelsOf(array $accounts): array
     {
         $levels = [];
 

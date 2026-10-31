@@ -1,0 +1,182 @@
+{
+  "id": "T-67",
+  "title": "The cash flow by the indirect method: the lines that take the change of their accounts, the total that differs from the treasuries in the reference system, and the lines that add up across adjacent periods",
+  "recorded": "2026-10-27",
+  "observation": {
+    "batch": "obs-a",
+    "scenarios": [
+      "rep-accounting"
+    ]
+  },
+  "evidence": {
+    "lines_of_the_year": {
+      "id": null,
+      "note": "From the 27th of October 2025 to the 27th of October 2026: net income -3,276.46, depreciation 0.00, customers -7,336.06, creditors 305.50, stock -4,971.53, operating total -15,278.55, assets 0.00, shares 100,000, total change 84,721.45",
+      "observation": [
+        "pw-rep-accounting-58"
+      ]
+    },
+    "total_against_the_treasuries": {
+      "id": null,
+      "note": "The total change 84,721.45 against the treasury 84,644.25 and the bank 40.00, 84,684.25 in the trial balance: the difference of 37.20 is the balance of account 215, which no line takes from",
+      "observation": [
+        "pw-rep-accounting-60",
+        "pw-rep-accounting-61"
+      ]
+    },
+    "adjacent_periods": {
+      "id": null,
+      "note": "The lines are the change of the period asked for and add up across adjacent periods: to the 21st of October net income 320.00, customers -506.00, creditors 69.00, stock 60.00 and total -57.00; from the 22nd to the 27th net income -3,596.46, customers -6,830.06, creditors 236.50, stock -5,031.53, shares 100,000 and total 84,778.45",
+      "observation": [
+        "pw-rep-accounting-59"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "each-line-is-the-change-of-its-accounts",
+      "kind": "cash_flow",
+      "classification": "exact",
+      "evidence": [
+        "lines_of_the_year"
+      ],
+      "inputs": {
+        "net_credit": {
+          "net_income": "-3276.46",
+          "receivables": "-7336.06",
+          "payables": "305.50",
+          "inventory": "-4971.53",
+          "shares": "100000.00",
+          "vat": "-37.20"
+        }
+      },
+      "reference": {
+        "lines": {
+          "net_income": "-3276.46",
+          "depreciation_expense": "0.00",
+          "account_receivable": "-7336.06",
+          "account_payable": "305.50",
+          "inventory": "-4971.53",
+          "assets_selling": "0.00",
+          "assets_purchases": "0.00",
+          "common_shares": "100000.00"
+        },
+        "operating_total": "-15278.55"
+      },
+      "expected": {
+        "lines": {
+          "net_income": "-3276.46",
+          "depreciation_expense": "0.00",
+          "account_receivable": "-7336.06",
+          "account_payable": "305.50",
+          "inventory": "-4971.53",
+          "assets_selling": "0.00",
+          "assets_purchases": "0.00",
+          "common_shares": "100000.00"
+        },
+        "operating_total": "-15278.55"
+      }
+    },
+    {
+      "id": "the-total-change-is-the-change-of-the-treasuries",
+      "kind": "cash_flow",
+      "classification": "deliberate_difference",
+      "reason": "The reference system sums its eight lines only, so its total leaves out an account no line takes from and differs from the money held as soon as one moves. Here every such account is set out under other changes, so the total change is always the change of the treasuries and banks, and the report checks it against what they hold.",
+      "evidence": [
+        "total_against_the_treasuries"
+      ],
+      "inputs": {
+        "same_movements_as": "each-line-is-the-change-of-its-accounts"
+      },
+      "reference": {
+        "total_change": "84721.45",
+        "treasuries_and_banks": "84684.25"
+      },
+      "expected": {
+        "total_change": "84684.25",
+        "treasuries_and_banks": "84684.25",
+        "other_changes": "-37.20"
+      }
+    },
+    {
+      "id": "the-lines-add-up-across-adjacent-periods",
+      "kind": "cash_flow",
+      "classification": "exact",
+      "evidence": [
+        "adjacent_periods"
+      ],
+      "inputs": {
+        "periods": [
+          {
+            "from": "2026-01-01",
+            "to": "2026-10-21",
+            "net_credit": {
+              "net_income": "320.00",
+              "receivables": "-506.00",
+              "payables": "69.00",
+              "inventory": "60.00",
+              "vat": "57.00"
+            }
+          },
+          {
+            "from": "2026-10-22",
+            "to": "2026-10-27",
+            "net_credit": {
+              "net_income": "-3596.46",
+              "receivables": "-6830.06",
+              "payables": "236.50",
+              "inventory": "-5031.53",
+              "shares": "100000.00",
+              "vat": "-94.20"
+            }
+          }
+        ]
+      },
+      "reference": {
+        "first": {
+          "net_income": "320.00",
+          "account_receivable": "-506.00",
+          "account_payable": "69.00",
+          "inventory": "60.00",
+          "operating_total": "-57.00"
+        },
+        "second": {
+          "net_income": "-3596.46",
+          "account_receivable": "-6830.06",
+          "account_payable": "236.50",
+          "inventory": "-5031.53",
+          "common_shares": "100000.00",
+          "total": "84778.45"
+        },
+        "whole": {
+          "net_income": "-3276.46",
+          "account_receivable": "-7336.06",
+          "account_payable": "305.50",
+          "inventory": "-4971.53"
+        }
+      },
+      "expected": {
+        "first": {
+          "net_income": "320.00",
+          "account_receivable": "-506.00",
+          "account_payable": "69.00",
+          "inventory": "60.00",
+          "operating_total": "-57.00"
+        },
+        "second": {
+          "net_income": "-3596.46",
+          "account_receivable": "-6830.06",
+          "account_payable": "236.50",
+          "inventory": "-5031.53",
+          "common_shares": "100000.00"
+        },
+        "whole": {
+          "net_income": "-3276.46",
+          "account_receivable": "-7336.06",
+          "account_payable": "305.50",
+          "inventory": "-4971.53"
+        }
+      }
+    }
+  ]
+}

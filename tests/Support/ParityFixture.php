@@ -170,7 +170,7 @@ final class ParityFixture
     {
         $ids = [];
 
-        foreach (glob(self::OBSERVATIONS . '/*/facts.json') ?: [] as $path) {
+        foreach ([...(glob(self::OBSERVATIONS . '/*/facts.json') ?: []), ...(glob(self::OBSERVATIONS . '/obs-a/*.facts.json') ?: [])] as $path) {
             foreach (json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR) as $fact) {
                 $ids[] = $fact['id'];
             }
@@ -180,10 +180,15 @@ final class ParityFixture
     }
 
     /**
-     * @return list<string> The ids of the scenarios of one observation package.
+     * @return list<string> The ids of the scenarios of one observation package: for the read-only
+     *                      observation of the pages, the areas it read.
      */
     public static function observedScenarios(string $batch): array
     {
+        if ($batch === 'obs-a') {
+            return array_map(static fn (string $path): string => basename($path, '.facts.json'), glob(self::OBSERVATIONS . '/obs-a/*.facts.json') ?: []);
+        }
+
         $path = self::OBSERVATIONS . "/{$batch}/scenarios.json";
 
         return is_file($path) ? array_column(json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR), 'id') : [];

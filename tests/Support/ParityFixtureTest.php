@@ -14,7 +14,7 @@ class ParityFixtureTest extends CIUnitTestCase
     private const DOCS            = __DIR__ . '/../../docs/accounting';
     private const TESTS           = __DIR__ . '/..';
     private const FIRST_OBSERVED  = 26;
-    private const LAST            = 64;
+    private const LAST            = 68;
     private const ABSENCES        = ['table', 'column', 'class', 'route'];
 
     /**
@@ -178,7 +178,7 @@ class ParityFixtureTest extends CIUnitTestCase
     {
         $fixture = ParityFixture::load($id);
 
-        $this->assertContains($fixture['observation']['batch'], ['d1', 'd2', 'b'], $id);
+        $this->assertContains($fixture['observation']['batch'], ['d1', 'd2', 'b', 'obs-a'], $id);
         $this->assertNotEmpty($fixture['observation']['scenarios'], $id);
 
         foreach ($fixture['observation']['scenarios'] as $scenario) {

@@ -163,7 +163,9 @@ $routes->group('revenue_categories', static function (RouteCollection $routes): 
 $routes->group('accounting_reports', static function (RouteCollection $routes): void {
     $routes->get('/', 'AccountingReports::getIndex');
     $routes->get('trial_balance', 'AccountingReports::getIndex');
+    $routes->get('csv', 'AccountingReports::getCsv');
     $routes->get('ledger', 'AccountingReports::getLedger');
+    $routes->get('ledger/csv', 'AccountingReports::getLedgerCsv');
     $routes->get('inventory_valuation', 'AccountingInventoryReports::getIndex');
     $routes->get('inventory_valuation/csv', 'AccountingInventoryReports::getCsv');
     $routes->get('tax', 'AccountingTaxReports::getIndex');
@@ -174,6 +176,12 @@ $routes->group('accounting_statements', static function (RouteCollection $routes
     $routes->get('/', 'AccountingStatements::getIncomeStatement');
     $routes->get('income_statement', 'AccountingStatements::getIncomeStatement');
     $routes->get('balance_sheet', 'AccountingStatements::getBalanceSheet');
+    $routes->get('profit_loss', 'AccountingProfitLoss::getIndex');
+    $routes->get('profit_loss/csv', 'AccountingProfitLoss::getCsv');
+    $routes->get('cash_flow', 'AccountingCashFlow::getIndex');
+    $routes->get('cash_flow/csv', 'AccountingCashFlow::getCsv');
+    $routes->get('cash_flow/settings', 'AccountingCashFlow::getSettings');
+    $routes->post('cash_flow/settings/save', 'AccountingCashFlow::postSettingsSave');
 });
 
 $routes->group('accounting_treasuries', static function (RouteCollection $routes): void {

@@ -4,14 +4,18 @@ namespace App\Libraries\Accounting;
 
 /**
  * An account of the trial balance with what it holds, its own lines and those of the accounts
- * under it. Amounts are strings at four decimals. The opening and closing are debit minus credit.
+ * under it. Amounts are strings at four decimals. The opening and closing are debit minus credit,
+ * and the gross opening is what each side had added up to before the period.
  */
 final readonly class TrialBalanceRow
 {
     /**
      * @param numeric-string $opening
-     * @param numeric-string $debit   What was debited in the period.
-     * @param numeric-string $credit  What was credited in the period.
+     * @param numeric-string $debit         What was debited in the period.
+     * @param numeric-string $credit        What was credited in the period.
+     * @param numeric-string $openingDebit  What was debited before the period.
+     * @param numeric-string $openingCredit What was credited before the period.
+     * @param int<1, max>    $level         How many accounts there are from the top of the chart to this one, counting both.
      */
     public function __construct(
         public int $accountId,
@@ -24,6 +28,9 @@ final readonly class TrialBalanceRow
         public string $opening,
         public string $debit,
         public string $credit,
+        public string $openingDebit = '0.0000',
+        public string $openingCredit = '0.0000',
+        public int $level = 1,
     ) {
     }
 
@@ -33,6 +40,22 @@ final readonly class TrialBalanceRow
     public function closing(): string
     {
         return bcadd(bcadd($this->opening, $this->debit, 4), bcsub('0', $this->credit, 4), 4);
+    }
+
+    /**
+     * @return numeric-string
+     */
+    public function grossClosingDebit(): string
+    {
+        return bcadd($this->openingDebit, $this->debit, 4);
+    }
+
+    /**
+     * @return numeric-string
+     */
+    public function grossClosingCredit(): string
+    {
+        return bcadd($this->openingCredit, $this->credit, 4);
     }
 
     /**

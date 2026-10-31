@@ -1,0 +1,115 @@
+{
+  "id": "T-68",
+  "title": "The profit and loss by cash: what the customers paid, the purchases the reference system does not explain, and the bases of the invoice date that are refused by name",
+  "recorded": "2026-10-27",
+  "observation": {
+    "batch": "obs-a",
+    "scenarios": [
+      "rep-accounting"
+    ]
+  },
+  "evidence": {
+    "payment_basis_sales": {
+      "id": null,
+      "note": "For October 2026 on the payment date the sales are 1,992.75, which is the sum of the customer payments of the financial movements report: 1,000 + 300 + 163.50 + 100 + 253 + 86.25 + 60 + 30",
+      "observation": [
+        "pw-rep-accounting-53",
+        "pw-rep-accounting-75"
+      ]
+    },
+    "payment_basis_purchases": {
+      "id": null,
+      "note": "Purchase invoices on the payment date are 14,373.50 while the payments to suppliers in the financial movements are 14,699.50 and the returns received 621.00, so the figure is not explained by payments net of returns, which would be 14,078.50",
+      "observation": [
+        "pw-rep-accounting-53",
+        "pw-rep-accounting-55"
+      ]
+    },
+    "invoice_date_bases": {
+      "id": null,
+      "note": "On the day an invoice is issued the sales are 10,605.31 for all invoices and 3,253 for the paid ones, with purchases of 15,965.50 and a profit of -8,676.44 and -15,942.50",
+      "observation": [
+        "pw-rep-accounting-53",
+        "pw-rep-accounting-54"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "sales-on-the-payment-basis-are-what-the-customers-paid",
+      "kind": "cash_profit",
+      "classification": "exact",
+      "evidence": [
+        "payment_basis_sales"
+      ],
+      "inputs": {
+        "customer_payments": [
+          "1000.00",
+          "300.00",
+          "163.50",
+          "100.00",
+          "253.00",
+          "86.25",
+          "60.00",
+          "30.00"
+        ],
+        "month": "2026-10"
+      },
+      "reference": {
+        "sales": "1992.75"
+      },
+      "expected": {
+        "sales": "1992.75"
+      }
+    },
+    {
+      "id": "purchases-on-the-payment-basis-are-the-payments-to-suppliers-net-of-returns",
+      "kind": "cash_profit",
+      "classification": "differs",
+      "reason": "The figure of the reference system for purchases on the payment date was not explained by payments net of the returns received, so this report is not said to match it. Here the purchases are what was paid to the suppliers less what they paid back.",
+      "evidence": [
+        "payment_basis_purchases"
+      ],
+      "inputs": {
+        "supplier_payments": "14699.50",
+        "returns_received": "621.00",
+        "month": "2026-10"
+      },
+      "reference": {
+        "purchases": "14373.50"
+      },
+      "expected": {
+        "purchases": "14078.50"
+      }
+    },
+    {
+      "id": "the-bases-of-the-invoice-date-are-refused-by-name",
+      "kind": "cash_profit",
+      "classification": "differs",
+      "reason": "The rule of the two bases of the day an invoice is issued, for all invoices and for the paid ones, was not observed in full, so they are not built: a request for either is refused in words, on the screen and in the file, and never answered with another basis.",
+      "evidence": [
+        "invoice_date_bases"
+      ],
+      "inputs": {
+        "bases": [
+          "amount",
+          "paid"
+        ]
+      },
+      "reference": {
+        "sales": {
+          "amount": "10605.31",
+          "paid": "3253.00"
+        },
+        "profit": {
+          "amount": "-8676.44",
+          "paid": "-15942.50"
+        }
+      },
+      "expected": {
+        "status": "refused",
+        "error": "profit_basis_unavailable"
+      }
+    }
+  ]
+}
