@@ -50,43 +50,172 @@
 ## 2. الأدلة
 
 - **اختبارات الكود (طبقة الخدمة):**
-  - `CustomerOpeningTest` (جديد، [[CUST_TESTS]] اختبارًا): القيد بالجهتين وبالتاريخ والفرع والمصدر؛ ربط الرصيد والأعمار والحساب؛ دخول الأعمار بتاريخه في الموقف وفي أعمار الدفتر؛ الموقف في أيام ماضية؛ إنفاق الفائض والإشعارات الدائنة عليه الأقدم فالأقدم وإنفاق ما يحمله العميل على الفاتورة التالية؛ **المراجعة** (عكس القيد وقيد جديد وبقاء القديم وكل صف وقيد كما كان، وتحرّك الأعمار بالتاريخ والجهة، وتحرير ما أُنفق على القديم وإنفاقه على الجديد)؛ **الإلغاء** (وإرجاع ما أُنفق)؛ **الرفض** (إعداد مطفأ، بلا صلاحية، رصيد ثانٍ، جهة ومبلغ وتاريخ غير صالحة بمزوّد بيانات، تاريخ بعد اليوم، عميل غير موجود أو محذوف أو بلا حساب، حساب الأرصدة الافتتاحية غائب، **فترة مقفلة** يوم الإقفال والتالي له، **فرع** خارج النطاق ومعطّل وغير موجود، سبب فارغ أو 256 حرفًا، مراجعة معكوسة)؛ **الذرية** (رفض التاريخ الجديد في فترة مقفلة يتراجع معه العكس فتبقى المراجعة القائمة وكل قيد كما كان)؛ **التدقيق** لكل تغيير؛ **منع العكس اليدوي للقيد**؛ **المفاتيح** (رقم المراجعة فريد في مفتاح القيد، وقيد المراجعة المرحَّل سلفًا يُرفض ولا يُحفظ صف)؛ **التزامن بعمليتين حقيقيتين** (إنشاء في اللحظة نفسها لا ينجح إلا مرة، وتعديل المراجعة نفسها لا ينجح إلا مرة)؛ **قفل العميل** يؤخذ في الإنشاء والتعديل والإلغاء؛ **إعادة التسوية** لا تغيّر شيئًا.
-  - `OpeningStockTest` (+[[STOCK_TESTS]] اختبارًا للتصحيح والتنبيه): الخطة بقبل/بعد دون كتابة؛ **التصحيح يغيّر المراجعة الافتتاحية وحدها وتبقى المطابقة صفرًا** (`StockLedger::reconcile` و`assertStockTies` وكل مراجعة كما كانت عدا معكوسية الأولى والأرفف وسجل المخزون)؛ المراجعات المعكوسة ظاهرة؛ التدقيق بالسبب وقيمتي قبل/بعد؛ الأسطر السالبة نظيرة؛ **المواقع الأخرى وحركاتها لا تُمَسّ**؛ **الرفض** عند استلام لاحق وبيع لاحق وحركة سابقة لترحيل الافتتاحي وحركة لمستند آخر **رقمه رقم الموقع** وحساب يحمل قيمة بلا حركات وفترة مقفلة (وقبول اليوم التالي لآخر يوم مقفل، وأن الفترة المقفلة تسبق «لا شيء يتغير») ولا شيء يتغير وتكراره وسبب فارغ أو طويل وبصمة قديمة أو فارغة ولا افتتاحي ولا موقع، وبلا صلاحية، وفرع خارج النطاق، والمحاسبة مطفأة؛ **الذرية** (تعذّر ترحيل المراجعة الجديدة بعد العكس يتراجع به العكس)؛ **المشتريات اللاحقة تُحسب متوسطها على الافتتاحي المصحَّح** والدفاتر مطابقة؛ قيمة صفرية لا تكتب قيدًا؛ **قفل الموقع** (عملية تنتظر) و**عمليتان حقيقيتان** في اللحظة نفسها (واحدة تنجح)؛ **عدد الاستعلامات ثابت مهما كثرت الأصناف**؛ تنبيه المواقع المحذوفة (ما تحمله، وخدمة بلا وحدات، وفرع آخر، ونطاق الموظف).
+  - `CustomerOpeningTest` (جديد، 55 اختبارًا): القيد بالجهتين وبالتاريخ والفرع والمصدر؛ ربط الرصيد والأعمار والحساب؛ دخول الأعمار بتاريخه في الموقف وفي أعمار الدفتر؛ الموقف في أيام ماضية؛ إنفاق الفائض والإشعارات الدائنة عليه الأقدم فالأقدم وإنفاق ما يحمله العميل على الفاتورة التالية؛ **المراجعة** (عكس القيد وقيد جديد وبقاء القديم وكل صف وقيد كما كان، وتحرّك الأعمار بالتاريخ والجهة، وتحرير ما أُنفق على القديم وإنفاقه على الجديد)؛ **الإلغاء** (وإرجاع ما أُنفق)؛ **الرفض** (إعداد مطفأ، بلا صلاحية، رصيد ثانٍ، جهة ومبلغ وتاريخ غير صالحة بمزوّد بيانات، تاريخ بعد اليوم، عميل غير موجود أو محذوف أو بلا حساب، حساب الأرصدة الافتتاحية غائب، **فترة مقفلة** يوم الإقفال والتالي له، **فرع** خارج النطاق ومعطّل وغير موجود، سبب فارغ أو 256 حرفًا، مراجعة معكوسة)؛ **الذرية** (رفض التاريخ الجديد في فترة مقفلة يتراجع معه العكس فتبقى المراجعة القائمة وكل قيد كما كان)؛ **التدقيق** لكل تغيير؛ **منع العكس اليدوي للقيد**؛ **المفاتيح** (رقم المراجعة فريد في مفتاح القيد، وقيد المراجعة المرحَّل سلفًا يُرفض ولا يُحفظ صف)؛ **التزامن بعمليتين حقيقيتين** (إنشاء في اللحظة نفسها لا ينجح إلا مرة، وتعديل المراجعة نفسها لا ينجح إلا مرة)؛ **قفل العميل** يؤخذ في الإنشاء والتعديل والإلغاء؛ **إعادة التسوية** لا تغيّر شيئًا.
+  - `OpeningStockTest` (+30 اختبارًا للتصحيح والتنبيه): الخطة بقبل/بعد دون كتابة؛ **التصحيح يغيّر المراجعة الافتتاحية وحدها وتبقى المطابقة صفرًا** (`StockLedger::reconcile` و`assertStockTies` وكل مراجعة كما كانت عدا معكوسية الأولى والأرفف وسجل المخزون)؛ المراجعات المعكوسة ظاهرة؛ التدقيق بالسبب وقيمتي قبل/بعد؛ الأسطر السالبة نظيرة؛ **المواقع الأخرى وحركاتها لا تُمَسّ**؛ **الرفض** عند استلام لاحق وبيع لاحق وحركة سابقة لترحيل الافتتاحي وحركة لمستند آخر **رقمه رقم الموقع** وحساب يحمل قيمة بلا حركات وفترة مقفلة (وقبول اليوم التالي لآخر يوم مقفل، وأن الفترة المقفلة تسبق «لا شيء يتغير») ولا شيء يتغير وتكراره وسبب فارغ أو طويل وبصمة قديمة أو فارغة ولا افتتاحي ولا موقع، وبلا صلاحية، وفرع خارج النطاق، والمحاسبة مطفأة؛ **الذرية** (تعذّر ترحيل المراجعة الجديدة بعد العكس يتراجع به العكس)؛ **المشتريات اللاحقة تُحسب متوسطها على الافتتاحي المصحَّح** والدفاتر مطابقة؛ قيمة صفرية لا تكتب قيدًا؛ **قفل الموقع** (عملية تنتظر) و**عمليتان حقيقيتان** في اللحظة نفسها (واحدة تنجح)؛ **عدد الاستعلامات ثابت مهما كثرت الأصناف**؛ تنبيه المواقع المحذوفة (ما تحمله، وخدمة بلا وحدات، وفرع آخر، ونطاق الموظف).
   - `CustomerLedgerTest` (+6): ربط الرصيد الافتتاحي مع الفواتير والدفعات والإشعار الدائن، وترتيبه قبل فاتورة اليوم نفسه، والموقف في كل يوم ماضٍ، ورصيد ألغي بعد فترة مقفلة يُقرأ قبل إلغائه، وأعمار الدفتر مطابقة للموقف، والرصيد الدائن.
   - `CreditSettlementTest` (+4): الافتتاحي أقدم مدفوع قبل أي فاتورة، وإلغاؤه يُرجع ما دُفع، وإعادة التسوية لا تغيّر، **وقطع جزء مما أُنفق عليه حين يتقلّص الائتمان يُبقي الباقي عليه**.
-  - `OpeningBalanceServiceTest` (+1): **حجب الفتح اليدوي لحساب العميل باقٍ** ولو كان للعميل رصيد افتتاحي. `CustomerBalanceReportTest` (+1) و`TieChecksTest` (+2: يمرّ بعميل له رصيد وإنفاق، ويُتخطى والجدول غائب) و`AccountingSettingsTest` (+2).
+  - `OpeningBalanceServiceTest` (+1): **حجب الفتح اليدوي لحساب العميل باقٍ** ولو كان للعميل رصيد افتتاحي. `CustomerBalanceReportTest` (+1) و`TieChecksTest` (+2: يمرّ بعميل له رصيد وإنفاق، ويُتخطى والجدول غائب) و`MigrationChecksTest` (+1: ترحيل الأرصدة الافتتاحية يُطبع «ثقيلًا» بملاحظته) و`AccountingSettingsTest` (+2).
 - **اختبارات الشاشات:** `AccountingOpeningControllerTest` (+8: زر التصحيح لمن يملك الصلاحية وعلى المرحَّل وحده، والنموذج بالقبل/بعد والمراجعات والبصمة، وسرد الموانع بلا نموذج، و404 بلا افتتاحي أو صلاحية أو في فرع خارج النطاق، والتنفيذ مرة واحدة، والرفض بلا صلاحية وبموقع من فرع آخر وفي فترة مقفلة، وتنبيه المواقع المحذوفة)، و`AccountingReceivablesControllerTest` (+19: زر الرصيد بالصلاحية والإعداد، النماذج و404، الإدخال والتعديل والإلغاء بأسبابها ورسائل الدفاتر، ومنع المقيَّد بفروع، والكشف بالرصيد في الفواتير والسجل والأرصدة الدائنة)، و`AccountingSetupControllerTest` (+2)، و`CustomersControllerTest` (+8: الحقل في نموذج الإضافة وحده، وبالإعداد والمحاسبة والصلاحية، والإدخال بتاريخه، وحفظ العميل مع قول سبب رفض الرصيد، وتجاهله بلا إعداد أو صلاحية أو عند التعديل).
-- **اختبار الترحيل** `CustomerOpeningsMigrationTest` (جديد، [[MIG_TESTS]]): ينشئ الجدول والعمود والمفاتيح، ويُعاد بأمان، ويُكمل ما توقف في منتصفه، ولا يمس تطبيقًا قائمًا على فاتورته، ويتراجع بإسقاط ما أُنفق على الأرصدة ويُعيد إلزام الفاتورة.
+- **اختبار الترحيل** `CustomerOpeningsMigrationTest` (جديد، 6 اختبارات): ينشئ الجدول والعمود والمفاتيح، ويُعاد بأمان، ويُكمل ما توقف في منتصفه، ولا يمس تطبيقًا قائمًا على فاتورته، ويتراجع بإسقاط ما أُنفق على الأرصدة ويُعيد إلزام الفاتورة.
 - **تصحيح عيب في أساس الفرع (ليس من حزمتي، وجدته بتشغيل اختباراتي):** دالة `invoiceDated` في `tests/Support/SaleAccountingFixtureTrait.php` تمرّر وسيطاتها بترتيب خاطئ بعد دمج `WP9` (نوع مستند المرتجع `ReturnDocument`) فوق `WP13` (تاريخ الفاتورة)، فتفشل بـ`TypeError` كل اختبارات تستعملها (`CustomerLedgerTest` و`SalesControllerTest` و`AccountingReceivablesControllerTest` وغيرها). **أصلحتُها بسطر واحد** (إضافة `ReturnDocument::CreditNote` قبل التاريخ). **الفرع `wp/WP14` يحمل العيب نفسه**، فعلى المُدمِج أن يضمن بقاء الإصلاح بعد الدمج.
 - **اختبارات بيئة تتأثر بساعة اليوم (غير متعلقة بالحزمة):** إحدى عشرة اختبارًا في `AccountingReceivablesControllerTest` (`testGetSearch_ListsTheCustomerWithWhatTheyOweAndHowOldItIs` وأخواتها في الأعمار وأعمار الدفتر وتقرير الأرصدة) **تفشل بين نحو منتصف الليل والرابعة فجرًا بتوقيت غرينتش** لأن فاتورة تُحفظ بوقت قاعدة البيانات (غرينتش) وتقرؤها الشاشة بيوم المنطقة الزمنية للتطبيق (الأمريكتين)، فتبدو مؤرَّخة «غدًا» فتُستبعد. تحقّقتُ أنها تفشل بالمعطيات نفسها قبل أي تعديل مني في مساراتها، وأعدتُ تشغيل الملف في ساعة لا يظهر فيها الفرق (القسم 2ب).
 - **تعطيل الحراس:** القسم 3.
 
-[[TESTRUNS]]
+### 2ب. الملفات التي شُغّلت ونتائجها (المجموعة الكاملة لم تُشغَّل)
+
+1. **بعد آخر تعديل على الكود:** كل `tests/Libraries/Accounting` (96 ملفًا) و`AccountingOpeningControllerTest` و`AccountingSetupControllerTest` و`CustomersControllerTest` و`AccountingJournalsControllerTest` و`AccountingPayablesControllerTest` و`AccountingPeriodsControllerTest` و`CustomerOpeningsMigrationTest` و`SalesReceivablesMigrationTest` و`SupplierAdvancesMigrationTest` و`LanguageFilesTest`: **5,944 اختبارًا و32,992 توكيدًا، يمرّ منها كلها عدا 50 (19 خطأ و31 فشلًا)**، وكلها في عشرة ملفات **وكلها تفشل أيضًا على الأساس `4ae7802` قبل أي تعديل مني**: شغّلتُ الملفات العشرة على الأساس فكان فيها 73 اختبارًا لا يمرّ، أي أن الفرع أنقص الأعطال بإصلاح `invoiceDated`. هي: `SalePostingTest` (19 `TypeError` من دالة `save()` المحلية في الملف نفسه بترتيب وسيط نوع المستند الخاطئ ذاته بعد دمج WP9 وWP13، **لم ألمسها** لأنها ملف حزمة أخرى)؛ و`AccountingPayablesControllerTest` (20) و`CustomerBalanceReportTest` (3) و`CustomerLedgerTest` (1) و`JournalServiceTest` (1) و`SupplierAdvancesTest` (1) و`SupplierPaymentListTest` (1): **ساعة اليوم** (تفشل بين نحو منتصف الليل والرابعة بتوقيت غرينتش وتمرّ كما في البند 2)؛ و`LedgerChecksTest` (2: `testNumbering_…` تتوقع تسعة أنواع مستندات وتجد عشرة) و`RoutingResolverTest` (1: `TaxReport.php` يقرأ جدول التوجيه مباشرة) و`MigrationChecksTest` (1: أربعة ترحيلات لـWP9 وWP10 وWP13 وWP17 غير مصنَّفة في `MigrationChecks::SENSITIVE`؛ **صنّفتُ ترحيلي وحده**).
+2. **بعد الرابعة والدقيقتين بتوقيت غرينتش** (حين لا يظهر فرق اليوم بين قاعدة البيانات ومنطقة التطبيق): `AccountingReceivablesControllerTest` و`AccountingPayablesControllerTest` و`CustomerBalanceReportTest` و`CustomerLedgerTest` و`JournalServiceTest` و`SupplierAdvancesTest` و`SupplierPaymentListTest` و`SalesControllerTest`: **689 اختبارًا و4,933 توكيدًا، كلها تمرّ عدا 20 خطأ في `SalesControllerTest`** (`Undefined variable $sale_id` في `Sales.php:1609`، **وهي على الأساس نفسه: 23 خطأ هناك** قبل تعديلي، وأنقصتُها بإصلاح `invoiceDated`؛ ملف `Sales.php` لم يتغير في الفرع). فالإحدى عشرة والعشرون وما معها **تثبت أنها ساعة اليوم لا الكود**.
+3. **الملفات التي مسّتها الحزمة وشُغّلت معًا على الكود النهائي (الساعة 04:18 بتوقيت غرينتش):** `OpeningStockTest` و`CustomerOpeningTest` و`CustomerOpeningsMigrationTest` و`MigrationChecksTest` و`ReadinessRunbookTest` و`OpeningBalanceServiceTest` و`CreditSettlementTest` و`TieChecksTest` و`AccountingSettingsTest` و`CustomerLedgerTest` و`CustomerBalanceReportTest` و`AccountingOpeningControllerTest` و`AccountingReceivablesControllerTest` و`AccountingSetupControllerTest` و`CustomersControllerTest` و`LanguageFilesTest`: **2,450 اختبارًا و7,448 توكيدًا، كلها تمرّ عدا اختبار واحد** هو `MigrationChecksTest::testPending_ClassifiesEveryMigrationOfTheReleaseThatAltersATable`، وسبب فشله ترحيلات أربع حزم أخرى غير مصنَّفة (`RefundInvoice` و`SupplierPaymentDate` و`InvoiceDatesAndPaymentTerms` و`PurchaseTaxesAndSupplierRegistry`) **لا ترحيلي** (صنّفتُه فخرج من القائمة).
+4. **لم تُشغَّل المجموعة الكاملة** (ساعة تقريبًا والمعالجات مشتركة بين وكلاء): يشغّلها المُدمِج بعد الدمج.
 
 ## 3. الحراس
 
-[[GUARDS]]
+كل حارس عُطِّل وحده بـ`tools/dev/guard_mutations.py` وقائمته في [wp11-guards.json](wp11-guards.json) (تُشغَّل: `MYSQL_DB_NAME=ospos_test_x python3 tools/dev/guard_mutations.py docs/accounting/daftra-parity/wp11-guards.json`). يُطبَّق التعطيل وحده وتُشغَّل ملفات الاختبار المسمّاة ويُستعاد الملف دائمًا؛ **كُشف = فشل اختبار أو أكثر**. **النتيجة: 103 حارسًا: 103 كُشف، و0 لم يُكشف، و0 غير صالح، و0 لم يُشغَّل.**
+
+**ما كشفته هذه المرحلة وعالجتُه (وليس تجميلًا):**
+
+1. حارسا السبب في إعادة ترحيل التكلفة (`G57-05` و`G57-06`) **لم يكشفهما اختبار أول مرة** لأن عكس القيد يتحقق من السبب هو أيضًا فيُخفي غياب الفحص الأول. أضفتُ اختبار افتتاحي بلا قيد (بضاعة بلا تكلفة، فلا قيد يُعكس) يرفض السبب الفارغ والطويل، فكُشفا. وأضفتُ مثله للتعديل والإلغاء (يُتحقق من السبب قبل النظر في الرصيد).
+2. شرط «تاريخ الرصيد» في استعلام الأرصدة الافتتاحية في `CustomerLedger::openings` **لم يكشفه اختبار** لأنه مكرر مع شرط القيد القائم (تاريخ القيد هو تاريخ الرصيد): **حذفتُ الشرط المكرر** بدل أن أُبقي كودًا لا يُثبَت.
+3. فحصا `=== null` لحساب الأرصدة الافتتاحية في `CustomerOpening::write` **لا يمكن بلوغهما**: `RoutingResolver::accountFor` لمفتاح الأرصدة الافتتاحية يرمي `RoutingAccountUnusable` قبل أن يعيد `null` (أنواعه المسموحة «تلقائي» وحده). **وهو فحص دفاعي لسلامة النوع** كنظيريه في `SupplierAdvances` و`OpeningStock::write`، **فلا أعدّه حارسًا** (لا حالة في قاعدة البيانات تبلغه)، والحالة التي تُرفض فعلًا (الحساب غائب) مثبتة باختبار. وفحص حساب العميل (`$customer === null`) مثله: يرمي المحلّل `EntityAccountMissing` من داخله، وما يبقى فحصٌ دفاعي لا يُعدّ حارسًا (والرفض الفعلي مثبت باختبار).
+4. حارس حالة المراجعة (`CU-28`) وحارس «لا محاولة حيث لا يُعرض الحقل» في نموذج العميل (`CF-05`) **لم يُكشفا أول مرة** لأن حارسًا آخر يحمي الحالة نفسها (قيد المراجعة المعكوسة يمنع إلغاءها ثانية، والخدمة ترفض الإعداد المطفأ). أضفتُ اختبارين يفرّقان بينهما (رصيد معلَّم معكوسًا وقيده ما زال قائمًا لا يُعدَّل ولا يُلغى، ولا تُحاوَل رسالة «لم يُدخل» حيث لا يُعرض الحقل)، فكُشفا.
+5. **اختبار الترحيل كشف عيبًا حقيقيًا في ترحيلي:** تشغيله مرة ثانية يُضيف المفتاح نفسه فيفشل (فحصي للقيد كان بلا بادئة الجدول، ثم وضعتُ المفتاح والقيد في أمر واحد بحارس واحد). أُصلح بحارس لكل خطوة، فصار الترحيل يُعاد بأمان ويُكمل ما توقف في منتصفه، والحراس `MG-01` إلى `MG-09` عليه.
+6. حارسا `G57-22` (حركة لمستند آخر رقمها رقم الموقع تُحسب لاحقة) و`G57-11` (فحص الفترة قبل «لا شيء يتغير») كتبتُ لكلٍّ منهما اختبارًا خاصًا لأن الاختبارات العامة لا تفرّق بين وجوده وغيابه.
+
+**ملاحظة عن القفل:** لا يثبت السباق بعمليتين حقيقيتين القفل وحده (المفتاح الفريد وفحص الحالة يمنعان التكرار أيضًا): التنبيه نفسه في [e26-report.md](e26-report.md) القسم 7. لذلك يُثبَت قفل العميل (`CU-36` إلى `CU-38`) باختبار يلتقط طلب `GET_LOCK` باسم قفل العميل، وقفل الموقع (`G57-07`) باختبار الانتظار الذي ينكسر بحذفه. ويبقى سباق العمليتين دليل ألا يتكرر الأثر.
+
+| # | الحارس | الملف الذي يحرسه | الاختبار الذي يكشفه | النتيجة |
+|---|---|---|---|---|
+| G57-01 | repost needs the permission to manage opening balances | `OpeningStock.php` | `OpeningStockTest` | كُشف |
+| G57-02 | repost needs accounting on and a start date | `OpeningStock.php` | `OpeningStockTest` | كُشف |
+| G57-03 | repost checks the branch of the location against the scope of the employee | `OpeningStock.php` | `OpeningStockTest` | كُشف |
+| G57-04 | the plan checks the branch of the location against the scope of the employee | `OpeningStock.php` | `OpeningStockTest` | كُشف |
+| G57-05 | repost requires a reason | `OpeningStock.php` | `OpeningStockTest` | كُشف |
+| G57-06 | repost refuses a reason longer than 255 characters | `OpeningStock.php` | `OpeningStockTest` | كُشف |
+| G57-07 | repost holds the row of the location while it plans and writes | `OpeningStock.php` | `OpeningStockTest` | كُشف |
+| G57-08 | the plan blocks when other documents moved stock in the location | `OpeningStock.php` | `OpeningStockTest` | كُشف |
+| G57-09 | the plan blocks when the account holds value no movement accounts for | `OpeningStock.php` | `OpeningStockTest` | كُشف |
+| G57-10 | the plan blocks when the day of the opening is in a closed period | `OpeningStock.php` | `OpeningStockTest` | كُشف |
+| G57-11 | repost enforces the period of the opening before it judges that nothing would change | `OpeningStock.php` | `OpeningStockTest` | كُشف |
+| G57-12 | the plan blocks when nothing would change | `OpeningStock.php` | `OpeningStockTest` | كُشف |
+| G57-13 | repost refuses when nothing would change | `OpeningStock.php` | `OpeningStockTest` | كُشف |
+| G57-14 | repost refuses when other documents moved stock in the location | `OpeningStock.php` | `OpeningStockTest` | كُشف |
+| G57-15 | repost refuses when the account holds value no movement accounts for | `OpeningStock.php` | `OpeningStockTest` | كُشف |
+| G57-16 | repost refuses a location without posted opening stock | `OpeningStock.php` | `OpeningStockTest` | كُشف |
+| G57-17 | repost goes ahead only for the plan the person saw | `OpeningStock.php` | `OpeningStockTest` | كُشف |
+| G57-18 | the correction is made on the day of the opening, not today | `OpeningStock.php` | `OpeningStockTest` | كُشف |
+| G57-19 | repost reverses the revision that stands before it posts the new one | `OpeningStock.php` | `OpeningStockTest` | كُشف |
+| G57-20 | repost writes its own line to the audit trail | `OpeningStock.php` | `OpeningStockTest` | كُشف |
+| G57-21 | repost reverses and posts in one transaction | `OpeningStock.php` | `OpeningStockTest` | كُشف |
+| G57-22 | a movement of another document with the number of the location still counts as later | `OpeningStock.php` | `OpeningStockTest` | كُشف |
+| G57-23 | only the movements of the location itself count as later | `OpeningStock.php` | `OpeningStockTest` | كُشف |
+| G57-24 | the revisions of the screen show whether each still stands | `OpeningStock.php` | `OpeningStockTest` | كُشف |
+| E26L-01 | the notice of deleted locations lists only deleted ones | `OpeningStock.php` | `OpeningStockTest` | كُشف |
+| E26L-02 | the notice of deleted locations keeps to the branch | `OpeningStock.php` | `OpeningStockTest` | كُشف |
+| E26L-03 | the notice of deleted locations checks the scope of the employee | `OpeningStock.php` | `OpeningStockTest` | كُشف |
+| G57-25 | the correction form is hidden from whoever does not manage opening balances | `AccountingOpening.php` | `AccountingOpeningControllerTest` | كُشف |
+| G57-26 | the correction form is hidden for a location without posted opening stock | `AccountingOpening.php` | `AccountingOpeningControllerTest` | كُشف |
+| G57-27 | the correction form offers no way to confirm what is refused | `opening_stock_reprice_form.php` | `AccountingOpeningControllerTest` | كُشف |
+| CU-01 | create needs the permission to manage opening balances | `CustomerOpening.php` | `CustomerOpeningTest` | كُشف |
+| CU-02 | create needs the setting that switches opening balances on | `CustomerOpening.php` | `CustomerOpeningTest` | كُشف |
+| CU-03 | revise needs the permission to manage opening balances | `CustomerOpening.php` | `CustomerOpeningTest` | كُشف |
+| CU-04 | revise needs the setting that switches opening balances on | `CustomerOpening.php` | `CustomerOpeningTest` | كُشف |
+| CU-05 | cancel needs the permission to manage opening balances | `CustomerOpening.php` | `CustomerOpeningTest` | كُشف |
+| CU-06 | create refuses a customer that does not exist | `CustomerOpening.php` | `CustomerOpeningTest` | كُشف |
+| CU-07 | create resolves the branch against the scope of the employee | `CustomerOpening.php` | `CustomerOpeningTest` | كُشف |
+| CU-08 | the branch must be in the scope of the employee | `CustomerOpening.php` | `CustomerOpeningTest` | كُشف |
+| CU-09 | the branch must be active | `CustomerOpening.php` | `CustomerOpeningTest` | كُشف |
+| CU-10 | revise checks the branch of the opening against the scope of the employee | `CustomerOpening.php` | `CustomerOpeningTest` | كُشف |
+| CU-11 | cancel checks the branch of the opening against the scope of the employee | `CustomerOpening.php` | `CustomerOpeningTest` | كُشف |
+| CU-12 | a customer has one opening balance at a time | `CustomerOpening.php` | `CustomerOpeningTest` | كُشف |
+| CU-13 | the side must be one of the two | `CustomerOpening.php` | `CustomerOpeningTest` | كُشف |
+| CU-14 | the amount must be a number of at most four decimals | `CustomerOpening.php` | `CustomerOpeningTest` | كُشف |
+| CU-15 | the amount must be more than nothing | `CustomerOpening.php` | `CustomerOpeningTest` | كُشف |
+| CU-16 | the date must be a real day | `CustomerOpening.php` | `CustomerOpeningTest` | كُشف |
+| CU-17 | the date is up to today | `CustomerOpening.php` | `CustomerOpeningTest` | كُشف |
+| CU-18 | a reason is required | `CustomerOpening.php` | `CustomerOpeningTest` | كُشف |
+| CU-19 | a reason is at most 255 characters | `CustomerOpening.php` | `CustomerOpeningTest` | كُشف |
+| CU-20 | a day in a closed period is reversed today and never touched | `CustomerOpening.php` | `CustomerOpeningTest` | كُشف |
+| CU-21 | revise reverses the revision that stands before it posts the new one | `CustomerOpening.php` | `CustomerOpeningTest` | كُشف |
+| CU-22 | cancel reverses the journal | `CustomerOpening.php` | `CustomerOpeningTest` | كُشف |
+| CU-23 | cancel gives back the credit that was spent on the opening balance | `CustomerOpening.php` | `CustomerOpeningTest` | كُشف |
+| CU-24 | a new revision spends the credit of the customer on the opening balance | `CustomerOpening.php` | `CustomerOpeningTest` | كُشف |
+| CU-25 | the audit trail records an opening balance entered | `CustomerOpening.php` | `CustomerOpeningTest` | كُشف |
+| CU-26 | the audit trail records an opening balance changed | `CustomerOpening.php` | `CustomerOpeningTest` | كُشف |
+| CU-27 | the audit trail records an opening balance cancelled | `CustomerOpening.php` | `CustomerOpeningTest` | كُشف |
+| CU-28 | only a revision that stands can be changed or cancelled | `CustomerOpening.php` | `CustomerOpeningTest` | كُشف |
+| CU-29 | an opening balance that is not there is refused | `CustomerOpening.php` | `CustomerOpeningTest` | كُشف |
+| CU-32 | a journal that is already posted for the revision is refused | `CustomerOpening.php` | `CustomerOpeningTest` | كُشف |
+| CU-33 | every revision has its own number | `CustomerOpening.php` | `CustomerOpeningTest` | كُشف |
+| CU-34 | create saves the document and its journal in one transaction | `CustomerOpening.php` | `CustomerOpeningTest` | كُشف |
+| CU-35 | revise reverses and posts in one transaction | `CustomerOpening.php` | `CustomerOpeningTest` | كُشف |
+| CU-36 | create holds the lock of the customer | `CustomerOpening.php` | `CustomerOpeningTest` | كُشف |
+| CU-37 | revise holds the lock of the customer | `CustomerOpening.php` | `CustomerOpeningTest` | كُشف |
+| CU-38 | cancel holds the lock of the customer | `CustomerOpening.php` | `CustomerOpeningTest` | كُشف |
+| CU-39 | the journal of an opening balance cannot be reversed by hand | `JournalService.php` | `CustomerOpeningTest` | كُشف |
+| CL-01 | only openings whose journal stands count | `CustomerLedger.php` | `CustomerOpeningTest`، `CustomerLedgerTest` | كُشف |
+| CL-03 | an opening the customer owes is an invoice and one they hold is a credit | `CustomerLedger.php` | `CustomerOpeningTest`، `CustomerLedgerTest` | كُشف |
+| CL-04 | an opening balance is numbered apart from the invoices | `CustomerLedger.php` | `CustomerOpeningTest`، `CustomerLedgerTest` | كُشف |
+| CL-05 | an application points at the opening balance it was spent on | `CustomerLedger.php` | `CreditSettlementTest`، `CustomerOpeningTest` | كُشف |
+| CS-01 | an application on an opening balance is saved against the opening | `CreditSettlement.php` | `CreditSettlementTest`، `CustomerOpeningTest` | كُشف |
+| CS-02 | a part of an application cut from an opening balance stays on it | `CreditSettlement.php` | `CreditSettlementTest`، `CustomerOpeningTest` | كُشف |
+| CS-03 | what stands on an opening balance is counted by the opening | `CreditSettlement.php` | `CreditSettlementTest`، `CustomerOpeningTest` | كُشف |
+| RC-01 | the form to enter an opening balance is hidden from whoever does not manage them | `AccountingReceivables.php` | `AccountingReceivablesControllerTest` | كُشف |
+| RC-02 | the form to enter an opening balance is hidden while the setting is off | `AccountingReceivables.php` | `AccountingReceivablesControllerTest` | كُشف |
+| RC-03 | the form to enter an opening balance is hidden for a customer without an account | `AccountingReceivables.php` | `AccountingReceivablesControllerTest` | كُشف |
+| RC-04 | a customer who has an opening balance gets no form to enter another | `AccountingReceivables.php` | `AccountingReceivablesControllerTest` | كُشف |
+| RC-05 | the form to change or cancel is hidden from whoever does not manage opening balances | `AccountingReceivables.php` | `AccountingReceivablesControllerTest` | كُشف |
+| RC-06 | a revision that was reversed has no form to change or cancel it | `AccountingReceivables.php` | `AccountingReceivablesControllerTest` | كُشف |
+| RC-07 | the form to change is hidden while the setting is off | `AccountingReceivables.php` | `AccountingReceivablesControllerTest` | كُشف |
+| RC-08 | the opening balance is offered on the statement only to whoever manages them while the setting is on | `AccountingReceivables.php` | `AccountingReceivablesControllerTest` | كُشف |
+| RC-09 | entering an opening balance is closed to someone limited to some branches | `AccountingReceivables.php` | `AccountingReceivablesControllerTest` | كُشف |
+| RC-10 | changing an opening balance is closed to someone limited to some branches | `AccountingReceivables.php` | `AccountingReceivablesControllerTest` | كُشف |
+| RC-11 | cancelling an opening balance is closed to someone limited to some branches | `AccountingReceivables.php` | `AccountingReceivablesControllerTest` | كُشف |
+| RC-12 | the forms of an opening balance are closed to someone limited to some branches | `AccountingReceivables.php` | `AccountingReceivablesControllerTest` | كُشف |
+| ST-01 | opening balances of customers are off until the setting turns them on | `AccountingSettings.php` | `AccountingSettingsTest` | كُشف |
+| ST-02 | a settings form that does not carry the switch leaves it as it was | `AccountingSetup.php` | `AccountingSetupControllerTest` | كُشف |
+| CF-01 | the form of a customer offers the opening balance only while the setting is on | `Customers.php` | `CustomersControllerTest` | كُشف |
+| CF-02 | the form of a customer offers the opening balance only while accounting is on | `Customers.php` | `CustomersControllerTest` | كُشف |
+| CF-03 | the form of a customer offers the opening balance only to whoever manages them | `Customers.php` | `CustomersControllerTest` | كُشف |
+| CF-04 | the form of a customer that exists offers no opening balance | `Customers.php` | `CustomersControllerTest` | كُشف |
+| CF-05 | an opening balance typed on the form is entered only where it is offered | `Customers.php` | `CustomersControllerTest` | كُشف |
+| MG-01 | the migration adds the column of an opening balance to the applications only once | `20271000000000_CustomerOpenings.php` | `CustomerOpeningsMigrationTest` | كُشف |
+| MG-02 | the migration lets the invoice of an application be empty | `20271000000000_CustomerOpenings.php` | `CustomerOpeningsMigrationTest` | كُشف |
+| MG-03 | the migration adds the index of the opening balance of an application only once | `20271000000000_CustomerOpenings.php` | `CustomerOpeningsMigrationTest` | كُشف |
+| MG-04 | the migration adds the key to the opening balance only once | `20271000000000_CustomerOpenings.php` | `CustomerOpeningsMigrationTest` | كُشف |
+| MG-05 | the migration adds the check of one target only once | `20271000000000_CustomerOpenings.php` | `CustomerOpeningsMigrationTest` | كُشف |
+| MG-06 | an application is spent on an invoice or on an opening balance and never on both or neither | `20271000000000_CustomerOpenings.php` | `CustomerOpeningsMigrationTest`، `CustomerOpeningTest` | كُشف |
+| MG-07 | the table allows one standing revision for a customer | `20271000000000_CustomerOpenings.php` | `CustomerOpeningsMigrationTest`، `CustomerOpeningTest` | كُشف |
+| MG-08 | the table allows one row for each revision number of a customer | `20271000000000_CustomerOpenings.php` | `CustomerOpeningsMigrationTest`، `CustomerOpeningTest` | كُشف |
+| MG-09 | taking the migration down drops what was spent on opening balances before the invoice is required again | `20271000000000_CustomerOpenings.php` | `CustomerOpeningsMigrationTest` | كُشف |
+| MC-01 | the readiness check prints the migration of opening balances of customers as heavy | `MigrationChecks.php` | `MigrationChecksTest` | كُشف |
+
+
 
 ## 4. ما افترضتُه
 
 1. **قيد الرصيد الافتتاحي للعميل نظير قيد المورد (افتراض مؤقت):** مدين حساب العميل ودائن `214 أرصدة افتتاحية` («على العميل لنا»)، والعكس لـ«لنا على العميل». **ما رُصد في دفترة هو قيد المورد وحده** (`D2-S12`: مدين `214` ودائن المورد، يطابق E35)؛ **قيد العميل لم يُرصد** (يحسمه نظير `T-10` وT-11 للعميل في WP22، والأسئلة `OO-5` و`OO-RSC-16` و`OO-FRM-09`)، فلا أقول إنه يطابق دفترة. **وما يخالف ما رُصد وهو مقصود:** دفترة **تعدّل الرصيد الافتتاحي في موضع قيده وتمحوه بالحذف** (`D2-S12`)، ونحن **نعكس ونُرحّل مراجعة جديدة ولا نحذف** (E15 وE62: أثر التدقيق)، والأثر الصافي في الأرصدة واحد وتختلف الآلية وعدد القيود.
 2. **جهتا الرصيد (علينا/لنا):** جهة «لنا على العميل» (رصيد دائن للعميل) زيادة على ما طُلب، نظيرًا لجهتي المورد؛ **إشارة المبلغ وجهته في دفترة للعميل غير مرصودتين.** الافتراض الآمن: الافتراضي «على العميل لنا».
-3. **رصيد افتتاحي واحد قائم لكل عميل** (والتغيير مراجعة جديدة)، لأن رصيدين يُضاعفان ما كان على العميل؛ **عند دفترة رصيد افتتاحي واحد في إضافة المورد** (`FRM-R54`)، ولم يُرصد أنه يُمنع تكراره بعد الحذف.
+3. **رصيد افتتاحي واحد قائم لكل عميل** (والتغيير مراجعة جديدة)، لأن رصيدين يُضاعفان ما كان على العميل؛ **وعند دفترة حقل رصيد افتتاحي واحد في نموذج إضافة المورد** (`FRM-R54`)، ولم يُرصد هل يُمنع تكراره بعد الحذف.
 4. **التاريخ:** حتى اليوم لا بعده (كالمورد: ما يُستحق يومًا قادمًا يدخل رصيد العميل ولا يدخل أي شريحة من أعماره)؛ وقبل بدء المحاسبة يُقبل ما دام اليوم داخل سنة مالية مفتوحة (يحكم ذلك `PeriodGuard` لا قاعدة جديدة).
 5. **الإعداد:** مطفأ افتراضيًا كإعداد `starting_balance` (`FRM-R54`: يخفي حقل نموذج العميل، والمورد لا إعداد له). **زر الكشف («أضافة رصيد الافتتاحي» في كشف دفترة، `OO-RSC-16`) لم يُقرأ سلوكه** (لم يُجرَّب لأن المنطقة قراءة فقط)، فوضعتُ الإدارة في كشف العميل **وفي نموذج الإضافة** (الشكل الذي رُصد للمورد).
-6. **قيد يومٌ في فترة مقفلة يُعكس اليوم** (كإلغاء مستند المورد والمبيعات)، لا يُرفض: إلغاء رصيد وُضع في فترة أُقفلت مقبول لأنه لا يغيّر ما أُقفل، **أما ترحيل رصيد جديد أو مراجعة بتاريخ في فترة مقفلة فيُرفض**.
+6. **اليوم الذي في فترة مقفلة يُعكس قيده بتاريخ اليوم** (كإلغاء مستند المورد والمبيعات)، ولا يُرفض: إلغاء رصيد وُضع في فترة أُقفلت مقبول لأنه لا يغيّر ما أُقفل، **أما ترحيل رصيد جديد أو مراجعة بتاريخ في فترة مقفلة فيُرفض**.
 7. **التقرير «رصيد العملاء بأعمدة دفترة»:** الرصيد الافتتاحي يقع في «الرصيد قبل» إن سبق الفترة وإلا في عمود «أخرى» (لا عمود خاص به). **مكانه عند دفترة غير مرصود** (`OO-RSC-16`).
 8. **تصحيح التكلفة:** يُجرى **في تاريخ المخزون الافتتاحي نفسه** لا في تاريخ اليوم، فلا يظهر في أي يوم بعد البدء ما رُحّل خطأً؛ ثمنه أنه **لا يُقبل إن أُقفلت فترة ذلك اليوم** (يُصحَّح حينها بقيد يدوي أو بتسوية)، وهذا تفسيري لشرط «أو الفترة مقفلة». **أي حركة لمستند آخر في الموقف ولو قبل ترحيل الافتتاحي تمنع** (الافتتاحي المرحَّل بعد شراء لا يُحسب مرة ثانية، لكن متوسط الشراء حُسب على تكلفة الصنف لا على الافتتاحي).
 9. **أصناف التصحيح:** ما رُحِّل فقط (الوحدات القائمة بمراجعة الافتتاحي، موجبة وسالبة)، **لا يُضاف إليه ما ظهر بعد الترحيل** (الحالة `posted_before` بقيت تحتاج عكسًا وإعادة ترحيل).
 10. **الصلاحية:** `acc_opening_manage` للتصحيح وللرصيد الافتتاحي للعميل (لا صلاحية جديدة، ولا منح لأحد). وإن رأى المالك صلاحية أضيق لتصحيح التكلفة وحدها فهي بند قرار (القسم 6).
+
+## 4ب. ملاحظات تشغيل
+
+- **المجلد المؤقت المشترك بين الوكلاء:** وجدتُ أن مجلد الملفات المؤقتة للجلسة **تتشاركه الحزم المتوازية**، فكتب وكيل آخر في ملف باسم ملفي (`mut1.log` و`make_guards.py`): اختلط سجل تعطيل الحراس بسجلّ لا يخصني، وشغّلتُ بالخطأ سكربت توليد قائمة حراس يخص حزمة `WP6` (كان قد حلّ محل ملفي بالاسم نفسه)، فكتب `wp6-guards.json` في شجرة تلك الحزمة **بمحتوى سكربتها هي** (لا شيء مني فيه): على وكيل `WP6` أن يعيد توليده من سكربته إن رأى أثرًا. **لم أُغيّر في فرع حزمة أخرى شيئًا غير ذلك، ولا أنقل منه شيئًا إلى فرعي.** بعدها نقلتُ كل ما يخصني إلى `build/` داخل شجرتي (غير ملتزم به) بأسماء مسبوقة بـ`wp11_`، وأعدتُ تشغيل الحراس كلها بسجل خاص.
+- **حادث وتصحيحه:** أوقفتُ تشغيل التعطيل بإشارة إنهاء، فتُرك ملف واحد (`AccountingOpening.php`) معطَّلًا: استعدته بـ`git checkout` من آخر إيداع وتحققتُ أن الشجرة نظيفة قبل أي تشغيل لاحق (والسكربت يعيد الملف دائمًا عند الانقطاع العادي أو بـ`SIGINT`، لا بـ`SIGTERM`).
 
 ## 5. ما بقي
 
 - **دفعة العميل المستقلة (`G-32`، WP23):** لا مستند دفعة للعميل بلا فاتورة عندنا، فيُسدَّد الرصيد الافتتاحي **بالائتمان وحده** (فائض فاتورة، إشعار دائن، رصيد دائن)، ولا يوجد «دفع على الرصيد الافتتاحي» مباشرة كما يُدفع على استلام للمورد؛ حين تُبنى دفعة العميل تصير مصدر ائتمان وتُنفَق عليه تلقائيًا بلا تعديل (الهدف جاهز).
 - **قيد دفترة للعميل وإشارته ومكانه في الأعمار والكشف** (`OO-5` و`OO-RSC-16` و`OO-FRM-09`): تنتظر ملاحظة محكومة في دفترة (WP22).
 - **فحص المتصفح** (axe والفيض الأفقي والهاتف والاتجاه من اليمين) لنافذة تصحيح التكلفة وأقسام كشف العميل ونموذج الإضافة **لم يُجرَ** (لا قاعدة `ospos_ui` لهذا الوكيل ولا خادم). تستعمل الشاشات فئات الواجهة نفسها لنوافذ المخزون الافتتاحي وكشف المورد، فاحتمال المخالفات منخفض **لكنه غير مثبت**.
-- **المجموعة الكاملة لم تُشغَّل** (ساعة تقريبًا والمعالجات مشتركة): شُغّلت الملفات في القسم 2ب، ويشغّلها المُدمِج بعد الدمج.
-- `Customers.php` ملف قديم (غير PSR): لم أُشغّل عليه `php-cs-fixer` كي لا يُعاد تنسيق ملف كامل في حزمة خطر تاريخي؛ ما أضفتُه فيه بنمط PSR.
+- **المجموعة الكاملة لم تُشغَّل** (ساعة تقريبًا والمعالجات مشتركة): شُغّلت الملفات في القسم 2ب، ويشغّلها المُدمِج بعد الدمج. **وفي الأساس أعطال لا تخص الحزمة** (القسم 2ب) على المُدمِج أن يعرفها: `SalePostingTest` (ترتيب وسيط في دالته المحلية) و`SalesControllerTest` (`$sale_id` في `Sales.php:1609`) و`LedgerChecksTest` و`RoutingResolverTest` و`MigrationChecksTest` (ترحيلات أربع حزم غير مصنَّفة).
+- `Customers.php` ملف قديم (غير PSR): لم أُشغّل عليه `php-cs-fixer` كي لا يُعاد تنسيق ملف كامل في حزمة خطر تاريخي؛ ما أضفتُه فيه بنمط PSR، وأعدتُ تسمية المتغير `$customer_id` إلى `$customerId` في الدالتين اللتين عدّلتهما (`getView` و`postSave`) وفق `AGENTS.md`.
 
 ## 6. بنود تنتظر قرار المالك وملاحظات دفترة
 
@@ -104,7 +233,7 @@
 
 ## 7. قبل النشر
 
-- **ترحيل جديد واحد:** `20271000000000_CustomerOpenings` (جدول جديد، وعمود `opening_id` في `customer_credit_applications`، وجعل `invoice_sale_id` يقبل الفراغ، ومفاتيح وقيد فحص): **إضافي ويُعاد بأمان ويُكمل ما توقف في منتصفه**؛ تعديل عمود `invoice_sale_id` يعيد بناء جدول التطبيقات (صغير عادة)، فيُنفَّذ في نافذة هادئة وبعد نسخة احتياطية. **لا صلاحية جديدة ولا منح.** لا ترحيل بيانات ولا إعادة تسعير ولا مسّ بقيد قائم.
+- **ترحيل جديد واحد:** `20271000000000_CustomerOpenings` (جدول جديد، وعمود `opening_id` في `customer_credit_applications`، وجعل `invoice_sale_id` يقبل الفراغ، ومفاتيح وقيد فحص): **إضافي ويُعاد بأمان ويُكمل ما توقف في منتصفه** (يطبعه فحص الجاهزية `HEAVY` بملاحظته)؛ تعديل عمود `invoice_sale_id` يعيد بناء جدول التطبيقات (صغير عادة)، فيُنفَّذ في نافذة هادئة وبعد نسخة احتياطية. **لا صلاحية جديدة ولا منح.** لا ترحيل بيانات ولا إعادة تسعير ولا مسّ بقيد قائم.
 - **الإعداد `accounting_customer_opening` مطفأ افتراضيًا:** بعد النشر لا يظهر شيء ولا يعمل شيء من الرصيد الافتتاحي للعميل حتى يشغّله المالك. **تصحيح التكلفة** لا يعمل من تلقاء نفسه: يحتاج حاملًا لـ`acc_opening_manage` يضغط ويذكر سببًا ويؤكد خطة.
 - **قبل الاعتماد على الرصيد الافتتاحي للعميل في قاعدة حقيقية:** شغّل `accounting:readiness` (فحص `TIE-CUSTOMERS` يربط كل عميل: الرصيد والأعمار والحساب)، وأدخل الرصيد بتاريخ ضمن سنة مالية مفتوحة، وراجع كشف العميل («يطابق»). **وإن وُجد قيد يدوي سابق على حساب عميل** فهو يظهر «غير مصنَّف» ولا يُمَسّ.
 - **لا إنتاج:** كل ما سبق على بيانات التطوير؛ **لا تشغيل على قاعدة إنتاجية بلا إذن منفصل** (E47).
