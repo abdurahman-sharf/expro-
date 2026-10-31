@@ -11,10 +11,12 @@ use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\ReportPeriod;
 use App\Libraries\Accounting\ReportScope;
+use App\Libraries\Accounting\StatementDisplay;
 use App\Libraries\Accounting\StockLedger;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Accounting\TreasuryTransfers;
 use App\Libraries\Accounting\TrialBalance;
+use App\Libraries\Accounting\TrialBalanceFilter;
 use App\Libraries\Accounting\TrialBalanceReport;
 use App\Libraries\Accounting\TrialBalanceRow;
 use App\Libraries\Accounting\YearEndEntries;
@@ -84,9 +86,9 @@ class TrialBalanceTest extends CIUnitTestCase
         return ReportScope::resolve(null, null);
     }
 
-    private function build(string $to = '2026-12-31', ?string $from = null, ?ReportScope $scope = null, bool $expand = false, bool $showEmpty = false): TrialBalanceReport
+    private function build(string $to = '2026-12-31', ?string $from = null, ?ReportScope $scope = null, bool $expand = false, bool $showEmpty = false, ?TrialBalanceFilter $filter = null): TrialBalanceReport
     {
-        return $this->report->build($scope ?? $this->company(), ReportPeriod::of($from, $to), $expand, $showEmpty);
+        return $this->report->build($scope ?? $this->company(), ReportPeriod::of($from, $to), $expand, $showEmpty, $filter);
     }
 
     private function row(TrialBalanceReport $report, string $code): ?TrialBalanceRow
@@ -851,5 +853,249 @@ class TrialBalanceTest extends CIUnitTestCase
             $db->table('expenses')->truncate();
             $db->table('expense_categories')->where('expense_category_id', $categoryId)->delete();
         }
+    }
+
+    private function gross(TrialBalanceReport $report, string $code): array
+    {
+        $row = $this->row($report, $code);
+
+        return [$row->openingDebit, $row->openingCredit, $row->debit, $row->credit, $row->grossClosingDebit(), $row->grossClosingCredit()];
+    }
+
+    public function testBuild_CarriesTheGrossTotalsBeforeAndAfterInTheReviewLayout(): void
+    {
+        $this->cashSale('2026-10-05', 1, '100.00');
+        $this->postOn('2026-10-06', 1, [[$this->accountId('cash'), '40.00', '0'], [$this->accountId('sales_revenue'), '0', '40.00']]);
+        $this->postOn('2026-10-07', 1, [[$this->accountId('cogs'), '30.00', '0'], [$this->accountId('cash'), '0', '30.00']]);
+        $this->postOn('2026-10-08', 1, [[$this->accountId('cash'), '5.00', '0'], [$this->accountId('sales_revenue'), '0', '5.00']]);
+
+        $report = $this->build(from: '2026-10-07');
+
+        $this->assertSame(['140.0000', '0.0000', '5.0000', '30.0000', '145.0000', '30.0000'], $this->gross($report, '120101'), 'Before: 100 and 40 debited and nothing credited; after: the sides added up, not their difference');
+        $this->assertSame(['0.0000', '140.0000', '0.0000', '5.0000', '0.0000', '145.0000'], $this->gross($report, '411'));
+        $this->assertSame(['0.0000', '0.0000', '30.0000', '0.0000', '30.0000', '0.0000'], $this->gross($report, '511'));
+        $this->assertSame('140.0000', $report->totals['gross_opening_debit']);
+        $this->assertSame('140.0000', $report->totals['gross_opening_credit']);
+        $this->assertSame('35.0000', $report->totals['debit']);
+        $this->assertSame('35.0000', $report->totals['credit']);
+        $this->assertSame('175.0000', $report->totals['gross_closing_debit']);
+        $this->assertSame('175.0000', $report->totals['gross_closing_credit']);
+        $this->assertTrue($report->balances());
+    }
+
+    public function testBuild_GivesAfterDebitMinusAfterCreditAsTheBalanceOfEveryRowInTheReviewLayout(): void
+    {
+        $this->cashSale('2026-10-05', 1, '100.00');
+        $this->postOn('2026-10-07', 1, [[$this->accountId('cogs'), '30.00', '0'], [$this->accountId('cash'), '0', '30.00']]);
+        $this->postOn('2026-10-09', $this->second, [[$this->accountId('cash'), '12.50', '0'], [$this->accountId('sales_revenue'), '0', '12.50']]);
+
+        $withFirstDay = $this->build(from: '2026-10-07');
+        $balances     = $this->build();
+
+        foreach ($withFirstDay->rows as $row) {
+            $other = $this->row($balances, $row->code);
+
+            $this->assertSame(bcsub($row->grossClosingDebit(), $row->grossClosingCredit(), 4), $other->closing(), "{$row->code} ends at what the balances layout says");
+        }
+    }
+
+    public function testBuild_GivesNothingBeforeAndAfterEqualToTheMovementWithoutAFirstDay(): void
+    {
+        $this->cashSale('2026-10-05', 1, '100.00');
+
+        $report = $this->build();
+        $row    = $this->row($report, '120101');
+
+        $this->assertSame(['0.0000', '0.0000', '100.0000', '0.0000', '100.0000', '0.0000'], $this->gross($report, '120101'));
+        $this->assertSame($row->debit, $row->grossClosingDebit());
+        $this->assertSame('0.0000', $report->totals['gross_opening_debit']);
+        $this->assertSame('0.0000', $report->totals['gross_opening_credit']);
+    }
+
+    public function testBuild_RollsTheGrossSidesUpToTheGroups(): void
+    {
+        $this->cashSale('2026-10-05', 1, '100.00');
+        $this->postOn('2026-10-06', 1, [[$this->accountId('cogs'), '30.00', '0'], [$this->accountId('cash'), '0', '30.00']]);
+
+        $report = $this->build(from: '2026-10-07');
+
+        foreach (['1', '12', '1201', '120101'] as $code) {
+            $this->assertSame(['100.0000', '30.0000'], [$this->row($report, $code)->openingDebit, $this->row($report, $code)->openingCredit], "Account {$code} holds the sides of the accounts under it");
+        }
+    }
+
+    public function testBuild_KeepsTheTotalsOfTheRootsWhateverTheDepthShown(): void
+    {
+        $customer = $this->insertCustomer();
+        $entity   = (new EntityAccountService())->ensure(EntityAccountService::CUSTOMER, $customer, 'Omar Khaled');
+
+        $this->cashSale('2026-10-05', 1, '100.00');
+        $this->postOn('2026-10-06', 1, [[$entity, '60.00', '0'], [$this->accountId('sales_revenue'), '0', '60.00']]);
+
+        $all   = $this->build(expand: true);
+        $sizes = [];
+
+        foreach ([1, 2, 3, 4, 5] as $level) {
+            $report        = $this->build(expand: true, filter: new TrialBalanceFilter(level: $level));
+            $sizes[$level] = count($report->rows);
+
+            $this->assertSame($all->totals, $report->totals, "Depth {$level} changes what is listed and never what is added up");
+            $this->assertSame([], array_filter($report->rows, static fn (TrialBalanceRow $row): bool => $row->level > $level), "Nothing deeper than {$level} is listed");
+        }
+
+        $this->assertSame([1 => 2, 2 => 4, 3 => 7, 4 => 9, 5 => 10], $sizes, 'The rows listed grow with the depth: the roots, then their groups, down to the account of the customer');
+    }
+
+    public function testBuild_ListsTheChartDownToTheDepthAskedAndDrawsEachRowUnderItsParent(): void
+    {
+        $this->cashSale('2026-10-05', 1, '100.00');
+
+        $report = $this->build(filter: new TrialBalanceFilter(level: 2));
+
+        $this->assertSame(['1', '12', '4', '41'], $this->codes($report));
+        $this->assertSame([0, 1, 0, 1], array_map(static fn (TrialBalanceRow $row): int => $row->depth, $report->rows));
+    }
+
+    public function testBuild_KeepsAnAccountWithMovementAndNilBalanceOnlyWhenTheChoiceIsAccountsWithTransactions(): void
+    {
+        $payable = $this->accountId('other_payables');
+
+        $this->postOn('2026-10-05', 1, [[$this->accountId('cash'), '70.00', '0'], [$payable, '0', '70.00']]);
+        $this->postOn('2026-10-06', 1, [[$payable, '70.00', '0'], [$this->accountId('sales_revenue'), '0', '70.00']]);
+        $this->cashSale('2026-10-07', 1, '10.00');
+
+        $payableCode = $this->codeOf($payable);
+
+        $active = $this->build(filter: new TrialBalanceFilter(display: StatementDisplay::WithActivity));
+        $hidden = $this->build(filter: new TrialBalanceFilter(display: StatementDisplay::HideZero));
+        $every  = $this->build();
+
+        $this->assertNotNull($this->row($active, $payableCode), 'Debited and credited the same amount, it still had transactions');
+        $this->assertNull($this->row($hidden, $payableCode), 'It stands at nothing');
+        $this->assertNotNull($this->row($hidden, '120101'));
+        $this->assertNotNull($this->row($every, $payableCode));
+        $this->assertSame($every->totals, $hidden->totals, 'Hiding accounts that stand at nothing changes no total');
+        $this->assertSame($every->totals, $active->totals);
+    }
+
+    public function testBuild_ListsOnlyTheAccountsWithLinesInThePeriodWhenTheChoiceIsAccountsWithTransactions(): void
+    {
+        $this->cashSale('2026-10-05', 1, '100.00');
+        $this->postOn('2026-10-20', 1, [[$this->accountId('cogs'), '30.00', '0'], [$this->accountId('cash'), '0', '30.00']]);
+
+        $report = $this->build(from: '2026-10-10', filter: new TrialBalanceFilter(display: StatementDisplay::WithActivity));
+
+        $this->assertNull($this->row($report, '411'), 'The sales have lines before the period only');
+        $this->assertNotNull($this->row($report, '511'));
+        $this->assertNotNull($this->row($report, '120101'), 'The cash account has a line in the period');
+    }
+
+    public function testBuild_KeepsAGroupThatStandsAtNothingWhenAnAccountUnderItDoesNot(): void
+    {
+        $this->postOn('2026-10-05', 1, [[$this->accountId('cash'), '50.00', '0'], [$this->accountId('other_payables'), '0', '50.00']]);
+        $this->postOn('2026-10-06', 1, [[$this->accountId('branches_payable'), '50.00', '0'], [$this->accountId('cash'), '0', '50.00']]);
+
+        $report = $this->build(filter: new TrialBalanceFilter(display: StatementDisplay::HideZero));
+
+        $this->assertNull($this->row($report, '120101'), 'The cash account came and went, so it stands at nothing');
+        $this->assertNotNull($this->row($report, '211'), 'The group stands at nothing but the two accounts under it do not, and each is drawn under its parent');
+        $this->assertSame([2, 2], array_map(fn (string $code): int => $this->row($report, $code)->depth - $this->row($report, '211')->depth + 1, [$this->codeOf($this->accountId('other_payables')), $this->codeOf($this->accountId('branches_payable'))]));
+    }
+
+    public function testBuild_ListsAMainAccountWithTheAccountsUnderItAndSaysTheRunIsLimited(): void
+    {
+        $this->cashSale('2026-10-05', 1, '100.00');
+        $this->postOn('2026-10-06', 1, [[$this->accountId('cogs'), '30.00', '0'], [$this->accountId('cash'), '0', '30.00']]);
+
+        $report = $this->build(filter: new TrialBalanceFilter(accountId: $this->accountIdByCode('12')));
+
+        $this->assertSame(['12', '1201', '120101'], $this->codes($report));
+        $this->assertTrue($report->limitedToAccounts);
+        $this->assertSame('100.0000', $report->totals['debit'], 'The total is what the accounts listed hold');
+        $this->assertSame('30.0000', $report->totals['credit']);
+        $this->assertFalse($report->balances(), 'A run limited to some accounts does not balance by itself');
+    }
+
+    public function testBuild_ListsTheAccountsOfPartiesUnderAMainAccountAskedForWhenTheyHoldSomething(): void
+    {
+        $entity = (new EntityAccountService())->ensure(EntityAccountService::CUSTOMER, $this->insertCustomer(), 'Omar Khaled');
+
+        $this->postOn('2026-10-05', 1, [[$entity, '250.00', '0'], [$this->accountId('sales_revenue'), '0', '250.00']]);
+
+        $folded = $this->build();
+        $asked  = $this->build(filter: new TrialBalanceFilter(accountId: $this->accountIdByCode('12041')));
+
+        $this->assertNull($this->row($folded, $this->codeOf($entity)));
+        $this->assertNotNull($this->row($asked, $this->codeOf($entity)), 'The parties under the group are what asking for it is for');
+    }
+
+    public function testBuild_ListsOnlyTheAccountsAskedForByNameAndAddsThemUpOnce(): void
+    {
+        $this->cashSale('2026-10-05', 1, '100.00');
+        $this->postOn('2026-10-06', 1, [[$this->accountId('cogs'), '30.00', '0'], [$this->accountId('cash'), '0', '30.00']]);
+
+        $report = $this->build(filter: new TrialBalanceFilter(accountIds: [$this->accountId('cash'), $this->accountId('cogs'), $this->accountIdByCode('1201')]));
+
+        $this->assertEqualsCanonicalizing(['120101', '511', '1201'], $this->codes($report));
+        $this->assertSame(1, $this->row($report, '120101')->depth, 'The cash account is under the treasuries group that was asked for as well');
+        $this->assertSame('130.0000', $report->totals['debit'], 'The cash account is not added up twice');
+        $this->assertTrue($report->limitedToAccounts);
+    }
+
+    public function testBuild_ListsAnAccountAskedForByNameEvenWhenItHoldsNothing(): void
+    {
+        $report = $this->build(filter: new TrialBalanceFilter(accountIds: [$this->accountId('cogs')]));
+
+        $this->assertSame(['511'], $this->codes($report));
+        $this->assertSame('0.0000', $this->row($report, '511')->closing());
+    }
+
+    public function testBuild_IgnoresAnAccountThatIsNotInTheChart(): void
+    {
+        $this->cashSale('2026-10-05', 1, '100.00');
+
+        $this->assertSame([], $this->build(filter: new TrialBalanceFilter(accountIds: [999999]))->rows);
+        $this->assertSame([], $this->build(filter: new TrialBalanceFilter(accountId: 999999))->rows);
+    }
+
+    public function testBuild_NeverNamesAPartyThatHoldsNothingInTheBranchesOfTheReportWhenAskedForByName(): void
+    {
+        $entity = (new EntityAccountService())->ensure(EntityAccountService::CUSTOMER, $this->insertCustomer(), 'Omar Khaled');
+
+        $this->postOn('2026-10-05', $this->second, [[$entity, '250.00', '0'], [$this->accountId('sales_revenue'), '0', '250.00']]);
+
+        $inFirst  = $this->build(scope: ReportScope::resolve([1], null), filter: new TrialBalanceFilter(accountIds: [$entity]));
+        $inSecond = $this->build(scope: ReportScope::resolve([$this->second], null), filter: new TrialBalanceFilter(accountIds: [$entity]));
+
+        $this->assertSame([], $inFirst->rows, 'The party holds nothing in the first branch, so asking for it by number names nothing');
+        $this->assertSame([$this->codeOf($entity)], $this->codes($inSecond));
+    }
+
+    public function testBuild_AddsUpTheRootsOfTheChartWhateverTheChoiceOfWhatToShow(): void
+    {
+        $payable = $this->accountId('other_payables');
+
+        $this->postOn('2026-10-05', 1, [[$this->accountId('cash'), '70.00', '0'], [$payable, '0', '70.00']]);
+        $this->postOn('2026-10-06', 1, [[$payable, '70.00', '0'], [$this->accountId('sales_revenue'), '0', '70.00']]);
+
+        $every = $this->build(from: '2026-10-01');
+
+        foreach ([StatementDisplay::WithActivity, StatementDisplay::HideZero] as $display) {
+            $this->assertSame($every->totals, $this->build(from: '2026-10-01', filter: new TrialBalanceFilter(display: $display))->totals);
+        }
+
+        $this->assertSame('140.0000', $every->totals['debit']);
+    }
+
+    public function testChoices_ListsTheAccountsThatCanBeNamedAndNoPartyAccount(): void
+    {
+        $entity  = (new EntityAccountService())->ensure(EntityAccountService::CUSTOMER, $this->insertCustomer(), 'Omar Khaled');
+        $choices = $this->report->choices();
+        $codes   = array_map(static fn (object $choice): string => $choice->code, $choices);
+        $group   = array_values(array_filter($choices, static fn (object $choice): bool => $choice->code === '12'))[0];
+
+        $this->assertContains('120101', $codes);
+        $this->assertNotContains($this->codeOf($entity), $codes, 'There can be a thousand customers, so none is offered');
+        $this->assertTrue($group->is_group);
     }
 }
