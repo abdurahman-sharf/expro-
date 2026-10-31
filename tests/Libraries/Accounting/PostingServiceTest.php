@@ -20,11 +20,13 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\PreviewJournalFixtureTrait;
 
 class PostingServiceTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
+    use PreviewJournalFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -1175,5 +1177,174 @@ class PostingServiceTest extends CIUnitTestCase
         }
 
         $this->assertSame(['Libraries/Accounting/YearEndClosing.php'], $callers);
+    }
+
+    private function previewJournal(int $sourceId = 41, string $amount = '100.00'): int
+    {
+        return $this->service->postPreview($this->balancedDraft('sale', $sourceId, 1, $amount), $this->previewBatch());
+    }
+
+    private function journalRow(int $journalId): ?object
+    {
+        return $this->accountingDb()->table('accounting_journals')->where('journal_id', $journalId)->get()->getRow();
+    }
+
+    public function testPostPreview_WritesAJournalWithItsLinesThatHasNoNumberAndWasNeverPosted(): void
+    {
+        $journalId = $this->previewJournal();
+        $row       = $this->journalRow($journalId);
+
+        $this->assertSame('preview', $row->status);
+        $this->assertNull($row->number);
+        $this->assertNull($row->posted_at);
+        $this->assertNull($row->posted_by);
+        $this->assertSame($this->previewBatch(), (int) $row->backfill_batch_id);
+        $this->assertSame(2, $this->accountingDb()->table('accounting_journal_lines')->where('journal_id', $journalId)->countAllResults());
+        $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where('entity_type', 'journal')->where('entity_id', $journalId)->countAllResults());
+    }
+
+    public function testPostPreview_RejectsAManualAReversalAndAYearEndJournal(): void
+    {
+        $batch = $this->previewBatch();
+
+        foreach ([JournalDraft::SOURCE_MANUAL, JournalDraft::SOURCE_REVERSAL] as $source) {
+            try {
+                $this->service->postPreview($this->balancedDraft($source, $source === JournalDraft::SOURCE_MANUAL ? null : 5), $batch);
+                $this->fail('A ' . $source . ' journal is not previewed.');
+            } catch (PostingException $exception) {
+                $this->assertSame(PostingError::InvalidSource, $exception->error);
+            }
+        }
+
+        $this->expectException(PostingException::class);
+        $this->service->postPreview($this->balancedDraft('year_end', 7, 1, '100.00', JournalEntryType::YearEnd), $batch);
+    }
+
+    public function testPostPreview_ChecksTheLinesAndThePeriodAsAPostedJournalIsChecked(): void
+    {
+        $batch = $this->previewBatch();
+
+        try {
+            $this->service->postPreview($this->draftWithLines([new JournalLineDraft($this->accountId('cash'), debit: '10.00'), new JournalLineDraft($this->accountId('sales_revenue'), credit: '9.00')]), $batch);
+            $this->fail('An unbalanced preview was written.');
+        } catch (PostingException $exception) {
+            $this->assertSame(PostingError::Unbalanced, $exception->error);
+        }
+
+        $this->closeThrough('2026-12-31');
+
+        try {
+            $this->service->postPreview($this->balancedDraft('sale', 43), $batch);
+            $this->fail('A preview was written in a closed period.');
+        } catch (PostingException $exception) {
+            $this->assertSame(PostingError::PeriodClosed, $exception->error);
+        }
+
+        $this->assertSame(0, $this->accountingDb()->table('accounting_journals')->countAllResults());
+    }
+
+    public function testPostPreview_RejectsASourceThatHasAJournalAlready(): void
+    {
+        $this->service->post($this->balancedDraft('sale', 44));
+
+        $this->expectException(PostingException::class);
+        $this->service->postPreview($this->balancedDraft('sale', 44), $this->previewBatch());
+    }
+
+    public function testPost_RefusesASourceThatAPreviewHoldsInsteadOfAnsweringWithTheJournalOfAPreview(): void
+    {
+        $this->previewJournal(45);
+
+        try {
+            $this->service->post($this->balancedDraft('sale', 45));
+            $this->fail('A preview was taken for a posted journal.');
+        } catch (PostingException $exception) {
+            $this->assertSame(PostingError::PreviewHoldsSource, $exception->error);
+        }
+
+        $this->assertSame(1, $this->accountingDb()->table('accounting_journals')->where('source_id', 45)->countAllResults());
+    }
+
+    public function testApprovePreview_PostsThePreviewAsItWasWrittenAndNumbersItFromItsOwnId(): void
+    {
+        $journalId = $this->previewJournal(46);
+        $lines     = $this->accountingDb()->table('accounting_journal_lines')->where('journal_id', $journalId)->orderBy('line_no')->get()->getResultArray();
+
+        $this->service->approvePreview($journalId, $this->previewBatch(), 1);
+
+        $row = $this->journalRow($journalId);
+
+        $this->assertSame('posted', $row->status);
+        $this->assertSame(sprintf('%06d', $journalId), $row->number);
+        $this->assertSame(1, (int) $row->posted_by);
+        $this->assertNotNull($row->posted_at);
+        $this->assertSame('2026-10-21', $row->journal_date);
+        $this->assertSame($lines, $this->accountingDb()->table('accounting_journal_lines')->where('journal_id', $journalId)->orderBy('line_no')->get()->getResultArray());
+        $this->assertSame(1, $this->accountingDb()->table('accounting_audit_log')->where('entity_type', 'journal')->where('entity_id', $journalId)->where('action', 'posted')->countAllResults());
+    }
+
+    public function testApprovePreview_RejectsAJournalOfAnotherBatchOrOneThatIsNotAPreview(): void
+    {
+        $preview = $this->previewJournal(47);
+        $posted  = $this->service->post($this->balancedDraft('sale', 48))->journalId;
+
+        foreach ([[$preview, $this->previewBatch() + 1], [$posted, $this->previewBatch()], [999999, $this->previewBatch()]] as [$journalId, $batchId]) {
+            try {
+                $this->service->approvePreview($journalId, $batchId, 1);
+                $this->fail('A journal that is not a preview of the batch was approved.');
+            } catch (PostingException $exception) {
+                $this->assertSame(PostingError::PreviewMissing, $exception->error);
+            }
+        }
+
+        $this->assertSame('preview', $this->journalRow($preview)->status);
+    }
+
+    public function testApprovePreview_RefusesAPeriodThatClosedSinceThePreviewWasWritten(): void
+    {
+        $journalId = $this->previewJournal(49);
+
+        $this->closeThrough('2026-12-31');
+
+        try {
+            $this->service->approvePreview($journalId, $this->previewBatch(), 1);
+            $this->fail('A preview was approved in a closed period.');
+        } catch (PostingException $exception) {
+            $this->assertSame(PostingError::PeriodClosed, $exception->error);
+        }
+
+        $this->assertSame('preview', $this->journalRow($journalId)->status);
+    }
+
+    public function testDiscardPreviews_RemovesTheUnpostedJournalsOfTheBatchAndNothingElse(): void
+    {
+        $batch  = $this->previewBatch();
+        $one    = $this->previewJournal(50);
+        $other  = $this->accountingDb()->table('accounting_backfill_batches')->insert(['name' => 'other', 'status' => 'preview', 'start_date' => '2020-01-01', 'end_date' => '2020-12-31', 'families' => 'sales']);
+        $second = (int) $this->accountingDb()->insertID();
+        $posted = $this->service->post($this->balancedDraft('sale', 51))->journalId;
+        $kept   = $this->service->postPreview($this->balancedDraft('sale', 52), $second);
+
+        $this->assertTrue($other);
+        $this->assertSame(1, $this->service->discardPreviews($batch));
+        $this->assertNull($this->journalRow($one));
+        $this->assertNotNull($this->journalRow($posted));
+        $this->assertNotNull($this->journalRow($kept));
+        $this->assertSame(0, $this->accountingDb()->table('accounting_journal_lines')->where('journal_id', $one)->countAllResults());
+    }
+
+    public function testPostPreview_IsCalledByNothingButTheBackfillService(): void
+    {
+        foreach (['->postPreview(', '->approvePreview(', '->discardPreviews('] as $call) {
+            $callers = [];
+
+            foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator(APPPATH, FilesystemIterator::SKIP_DOTS)) as $file) {
+                if ($file->getExtension() === 'php' && str_contains((string) file_get_contents($file->getPathname()), $call)) {
+                    $callers[] = substr($file->getPathname(), strlen(APPPATH));
+                }
+            }
+
+            $this->assertSame(['Libraries/Accounting/Backfill/BackfillService.php'], $callers, $call);
+        }
     }
 }

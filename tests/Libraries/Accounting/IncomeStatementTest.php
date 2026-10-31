@@ -16,6 +16,7 @@ use App\Libraries\Accounting\TrialBalance;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use Tests\Support\PreviewJournalFixtureTrait;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ExpenseAccountingFixtureTrait;
@@ -33,6 +34,7 @@ use Tests\Support\StatementFixtureTrait;
 class IncomeStatementTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
+    use PreviewJournalFixtureTrait;
     use AccountingFixtureTrait;
     use EmployeeFixtureTrait;
     use ExpenseAccountingFixtureTrait;
@@ -503,5 +505,17 @@ class IncomeStatementTest extends CIUnitTestCase
         } catch (AccountingException $exception) {
             $this->assertSame(AccountingError::ReportPeriodInvalid, $exception->error);
         }
+    }
+
+    public function testBuild_LeavesOutThePreviewsOfABatch(): void
+    {
+        $this->abScenario();
+
+        $before = $this->statement(level: 5);
+
+        $this->previewEverything();
+        $this->assertPreviewsStand();
+
+        $this->assertEquals($before, $this->statement(level: 5));
     }
 }

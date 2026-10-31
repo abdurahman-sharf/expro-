@@ -28,6 +28,7 @@ use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use Tests\Support\PreviewJournalFixtureTrait;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
@@ -48,6 +49,7 @@ use Tests\Support\StockBooksFixtureTrait;
 final class InventoryValuationTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
+    use PreviewJournalFixtureTrait;
     use AccountingFixtureTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
@@ -1198,5 +1200,19 @@ final class InventoryValuationTest extends CIUnitTestCase
     private function shelfSum(): string
     {
         return (string) $this->accountingDb()->table('item_quantities')->selectSum('quantity', 'total')->get()->getRow()->total;
+    }
+
+    public function testBuild_LeavesOutThePreviewsOfABatch(): void
+    {
+        $item = $this->item('10.00');
+
+        $this->bookStock('2026-10-06', 1, $item, '10', '100');
+
+        $before = $this->build();
+
+        $this->previewEverything();
+        $this->assertPreviewsStand();
+
+        $this->assertEquals($before, $this->build());
     }
 }

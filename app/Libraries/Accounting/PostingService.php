@@ -515,6 +515,10 @@ final class PostingService
             return null;
         }
 
+        if (($journal->status ?? null) === JournalStatus::Preview->value) {
+            throw new PostingException(PostingError::PreviewHoldsSource, 'A preview of a batch of the retroactive posting holds the source.', ['source_type' => $draft->sourceType, 'source_id' => $draft->sourceId]);
+        }
+
         if ($draft->branchId !== null && (int) $journal->branch_id !== $draft->branchId) {
             throw new PostingException(PostingError::BranchMismatch, 'The source was already posted in another branch.', [
                 'branch_id' => $draft->branchId,
@@ -528,7 +532,7 @@ final class PostingService
     private function findLatest(JournalDraft $draft): ?object
     {
         $result = $this->db->query(
-            'SELECT journal_id, branch_id FROM ' . $this->db->prefixTable('accounting_journals') . ' WHERE source_type = ? AND source_id = ? AND entry_type = ? AND revision = ? LOCK IN SHARE MODE',
+            'SELECT journal_id, branch_id, status FROM ' . $this->db->prefixTable('accounting_journals') . ' WHERE source_type = ? AND source_id = ? AND entry_type = ? AND revision = ? LOCK IN SHARE MODE',
             [$draft->sourceType, $draft->sourceId, $draft->entryType->value, $draft->revision],
         );
 

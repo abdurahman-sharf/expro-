@@ -4,12 +4,14 @@ namespace Tests\Support;
 
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\Backfill\BackfillBatch;
+use App\Libraries\Accounting\Backfill\BackfillPlan;
 use App\Libraries\Accounting\Backfill\BackfillService;
 use App\Libraries\Accounting\Backfill\BackfillStatus;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\OpeningBalanceService;
 use App\Libraries\Accounting\PostingService;
+use App\Libraries\Accounting\TreasuryService;
 
 /**
  * What a test of the retroactive posting needs: the books on from the first of 2020 with the opening
@@ -277,5 +279,50 @@ trait BackfillFixtureTrait
     protected function statusOf(int $batchId): BackfillStatus
     {
         return $this->backfill->batch($batchId, $this->backfillManager)->status;
+    }
+
+    protected function treasuryIn(int $branchId, string $name = 'Backfill drawer'): int
+    {
+        return (new TreasuryService())->create(['name' => $name . ' ' . uniqid(), 'kind' => 'cash', 'branch_id' => $branchId]);
+    }
+
+    /**
+     * Lets a statement that would fail on a key through, for what a test breaks on purpose.
+     */
+    protected function withoutKeys(callable $work): void
+    {
+        $db = $this->accountingDb();
+
+        $db->query('SET FOREIGN_KEY_CHECKS = 0');
+
+        try {
+            $work();
+        } finally {
+            $db->query('SET FOREIGN_KEY_CHECKS = 1');
+        }
+    }
+
+    /**
+     * The lines a plan would post, by journal as "source:entry|account:debit:credit,...", for comparing with
+     * what the live posting of the same document holds.
+     *
+     * @return list<string>
+     */
+    protected function plannedLines(BackfillPlan $plan): array
+    {
+        $lines = [];
+
+        foreach ($plan->steps as $step) {
+            if ($step->draft === null) {
+                continue;
+            }
+
+            $lines[] = $step->draft->sourceType . ':' . $step->draft->entryType->value . '|' . implode(',', array_map(
+                static fn (JournalLineDraft $line): string => $line->accountId . ':' . bcadd($line->debit, '0', 2) . ':' . bcadd($line->credit, '0', 2),
+                $step->draft->lines,
+            ));
+        }
+
+        return $lines;
     }
 }

@@ -24,6 +24,7 @@ use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use Tests\Support\PreviewJournalFixtureTrait;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ParityCaseTrait;
 use Tests\Support\ReportFixtureTrait;
@@ -35,6 +36,7 @@ use Tests\Support\ReportFixtureTrait;
 class AccountLedgerTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
+    use PreviewJournalFixtureTrait;
     use AccountingFixtureTrait;
     use ParityCaseTrait;
     use ReportFixtureTrait;
@@ -759,5 +761,20 @@ class AccountLedgerTest extends CIUnitTestCase
         $report = $this->blocks('1201');
 
         $this->assertSame('1383.3000', $report->debit, 'The total of the statement is the sum of the stored amounts, which the lines shown at two decimals need not add up to');
+    }
+
+    public function testBuild_LeavesOutThePreviewsOfABatch(): void
+    {
+        $this->cashSale('2026-10-05', 1, '100.00');
+
+        $before = $this->statement('cash');
+
+        $this->previewEverything();
+        $this->assertPreviewsStand();
+
+        $after = $this->statement('cash');
+
+        $this->assertEquals($before, $after);
+        $this->assertSame(['2026-10-05 100.0000 0.0000 100.0000'], $this->lines($after));
     }
 }

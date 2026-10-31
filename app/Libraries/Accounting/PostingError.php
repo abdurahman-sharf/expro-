@@ -50,4 +50,5 @@ enum PostingError: string
     case CrossBranchPaymentInvalid     = 'cross_branch_payment_invalid';
     case RevenueTaxInvalid             = 'revenue_tax_invalid';
     case PreviewMissing                = 'preview_missing';
+    case PreviewHoldsSource            = 'preview_holds_source';
 }

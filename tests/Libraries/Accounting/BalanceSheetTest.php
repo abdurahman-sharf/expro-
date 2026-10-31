@@ -21,6 +21,7 @@ use App\Libraries\Accounting\TrialBalance;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use Tests\Support\PreviewJournalFixtureTrait;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
@@ -38,6 +39,7 @@ use Tests\Support\StatementFixtureTrait;
 class BalanceSheetTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
+    use PreviewJournalFixtureTrait;
     use AccountingFixtureTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
@@ -660,5 +662,20 @@ class BalanceSheetTest extends CIUnitTestCase
         $this->accountingDb()->query('UPDATE ' . $this->accountingDb()->prefixTable('accounting_journal_lines') . ' SET debit = debit + 5 LIMIT 1');
 
         $this->assertFalse($this->sheet()->balances());
+    }
+
+    public function testBuild_LeavesOutThePreviewsOfABatch(): void
+    {
+        $this->observedBooks(1, $this->second);
+
+        $before = $this->sheet();
+
+        $this->previewEverything();
+        $this->assertPreviewsStand();
+
+        $after = $this->sheet();
+
+        $this->assertEquals($before, $after);
+        $this->assertEquation($after);
     }
 }

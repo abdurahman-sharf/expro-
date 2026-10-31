@@ -15,6 +15,7 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\Support\PreviewJournalFixtureTrait;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ChequeFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
@@ -30,6 +31,7 @@ use Tests\Support\SaleAccountingFixtureTrait;
 class SupplierLedgerTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
+    use PreviewJournalFixtureTrait;
     use AccountingFixtureTrait;
     use ChequeFixtureTrait;
     use EmployeeFixtureTrait;
@@ -544,6 +546,21 @@ class SupplierLedgerTest extends CIUnitTestCase
 
         $this->assertSame([], (new SupplierLedger())->position($this->supplierId)->credits);
         $this->assertGreaterThan($issued, $cancelled);
+        $this->assertSupplierTies();
+    }
+
+    public function testPosition_LeavesOutThePreviewsOfABatch(): void
+    {
+        $this->purchaseOf('500');
+
+        $before = $this->supplierPosition();
+
+        $this->previewEverything();
+        $this->assertPreviewsStand();
+
+        $after = $this->supplierPosition();
+
+        $this->assertEquals($before, $after);
         $this->assertSupplierTies();
     }
 }

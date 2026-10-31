@@ -21,6 +21,7 @@ use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use Tests\Support\PreviewJournalFixtureTrait;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ExpenseAccountingFixtureTrait;
@@ -40,6 +41,7 @@ use Tests\Support\TaxReportFixtureTrait;
 class TaxReportTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
+    use PreviewJournalFixtureTrait;
     use AccountingFixtureTrait;
     use EmployeeFixtureTrait;
     use ExpenseAccountingFixtureTrait;
@@ -920,4 +922,16 @@ class TaxReportTest extends CIUnitTestCase
         $this->assertFalse($report->reachesBeforeBooks());
     }
 
+    public function testBuild_LeavesOutThePreviewsOfABatch(): void
+    {
+        $this->sell('100', '15');
+        $this->buyTaxed('1', '50', '15');
+
+        $before = $this->report();
+
+        $this->previewEverything();
+        $this->assertPreviewsStand();
+
+        $this->assertEquals($before, $this->report());
+    }
 }
