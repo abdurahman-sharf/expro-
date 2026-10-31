@@ -299,7 +299,7 @@ class Receipt_vouchersControllerTest extends CIUnitTestCase
 
         $id = $this->voucher();
 
-        foreach (['/receipt_vouchers/delete', '/receipt_vouchers/save/' . $id] as $path) {
+        foreach (['/receipt_vouchers/delete', '/receipt_vouchers/save', '/receipt_vouchers/save/' . $id] as $path) {
             try {
                 $this->get($path);
                 $this->fail('A GET reached ' . $path);
@@ -324,5 +324,30 @@ class Receipt_vouchersControllerTest extends CIUnitTestCase
 
         $this->assertTrue($saved['success']);
         $this->assertSame('-100.00', $this->balanceOf($account));
+    }
+
+    public function testGetView_IsNotFoundForADeletedVoucher(): void
+    {
+        $this->actAsWith(['receipt_vouchers']);
+
+        $id = $this->voucher();
+
+        (new RevenueVouchers())->delete([$id], $this->clerkId);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/receipt_vouchers/view/' . $id);
+    }
+
+    public function testPostSave_KeepsTheTreasuryOfAVoucherWhenTheFormDoesNotSendOne(): void
+    {
+        $this->actAsWith(['receipt_vouchers']);
+
+        $second  = $this->treasury('Second drawer');
+        $id      = $this->voucher(['treasury_id' => $second]);
+        $changed = $this->postJson('/receipt_vouchers/save/' . $id, ['date' => $this->today, 'amount' => '60.00', 'tax_amount' => '0', 'payment_type' => 'Cash', 'description' => 'Smaller']);
+
+        $this->assertTrue($changed['success']);
+        $this->assertSame($second, (int) (new RevenueVouchers())->find($id)->treasury_id);
     }
 }

@@ -221,6 +221,13 @@ class AccountingChequesControllerTest extends CIUnitTestCase
         $view->assertSee(lang('Accounting.source_' . ChequeSources::COLLECTED));
         $view->assertSee(lang('Accounting_cheques.undone'));
         $view->assertSee('accounting_journals/view/');
+
+        $this->actAsWith(['accounting_cheques']);
+
+        $plain = $this->get('/accounting_cheques/view/' . $chequeId);
+
+        $plain->assertSee(lang('Accounting.source_' . ChequeSources::RECEIVED));
+        $plain->assertDontSee('accounting_journals/view/');
     }
 
     public function testGetDetail_IsNotFoundForAChequeOfAnotherBranchOrADeletedOne(): void
@@ -659,5 +666,41 @@ class AccountingChequesControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('value="delivered"', $paid);
         $this->assertStringNotContainsString('value="deposited"', $paid);
         $this->assertStringContainsString('value="rejected"', $paid);
+    }
+
+    public function testPostSaveCheque_IsNeverReachedByALink(): void
+    {
+        $this->manager();
+
+        $chequeId = $this->received();
+
+        foreach (['/accounting_cheques/save/received', '/accounting_cheques/save/received/' . $chequeId] as $path) {
+            try {
+                $this->get($path);
+                $this->fail('A GET reached ' . $path);
+            } catch (PageNotFoundException) {
+                $this->addToAssertionCount(1);
+            }
+        }
+
+        $this->assertSame('received', $this->statusOf($chequeId));
+    }
+
+    public function testPostBookRoutes_AreNeverReachedByALink(): void
+    {
+        $this->manager();
+
+        foreach (['/accounting_cheques/save_book', '/accounting_cheques/save_book/' . $this->book, '/accounting_cheques/book_active/' . $this->book . '/0', '/accounting_cheques/delete_book/' . $this->book] as $path) {
+            try {
+                $this->get($path);
+                $this->fail('A GET reached ' . $path);
+            } catch (PageNotFoundException) {
+                $this->addToAssertionCount(1);
+            }
+        }
+
+        $book = (new ChequeBooks())->find($this->book);
+
+        $this->assertSame(['Book 1', '1'], [$book->name, (string) $book->active]);
     }
 }

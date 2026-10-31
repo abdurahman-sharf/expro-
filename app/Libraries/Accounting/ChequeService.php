@@ -118,7 +118,7 @@ final class ChequeService
 
         $this->supplier($partyId);
         $this->branches->requireBranch((int) $book->branch_id, $employeeId);
-        $this->assertSerial($book, $data['cheque_number'], null);
+        $this->assertSerial($book, $data['cheque_number']);
 
         $row = [...$data, 'direction' => ChequeDirection::Paid->value, 'status' => ChequeStatus::Issued->value, 'party_id' => $partyId, 'treasury_id' => (int) $book->treasury_id, 'branch_id' => (int) $book->branch_id, 'book_id' => (int) $book->book_id];
 
@@ -528,7 +528,7 @@ final class ChequeService
         }
 
         if ($direction === ChequeDirection::Paid && $bookId !== null && (in_array('cheque_number', $changes, true) || in_array('book_id', $changes, true))) {
-            $this->assertSerial($this->book($bookId), $data['cheque_number'], (int) $row->cheque_id);
+            $this->assertSerial($this->book($bookId), $data['cheque_number']);
         }
 
         $this->db->table('cheques')->where('cheque_id', $row->cheque_id)->update([
@@ -887,19 +887,13 @@ final class ChequeService
      *
      * @throws AccountingException
      */
-    private function assertSerial(object $book, string $number, ?int $exceptChequeId): void
+    private function assertSerial(object $book, string $number): void
     {
         if (preg_match('/^\d{1,18}$/', $number) !== 1 || bccomp($number, (string) $book->first_serial, 0) < 0 || bccomp($number, (string) $book->last_serial, 0) > 0) {
             throw new AccountingException(AccountingError::ChequeNumberOutOfBook, 'The number of the cheque is not a serial of its book.', ['book_id' => (int) $book->book_id, 'min' => $book->first_serial, 'max' => $book->last_serial]);
         }
 
-        $taken = $this->db->table('cheques')->where(['book_id' => (int) $book->book_id, 'cheque_number' => $number, 'deleted' => 0]);
-
-        if ($exceptChequeId !== null) {
-            $taken->where('cheque_id !=', $exceptChequeId);
-        }
-
-        if ($taken->countAllResults() > 0) {
+        if ($this->db->table('cheques')->where(['book_id' => (int) $book->book_id, 'cheque_number' => $number, 'deleted' => 0])->countAllResults() > 0) {
             throw new AccountingException(AccountingError::ChequeNumberTaken, 'Another cheque of the book has this number.', ['book_id' => (int) $book->book_id]);
         }
     }

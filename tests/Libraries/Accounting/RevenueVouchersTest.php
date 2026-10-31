@@ -10,6 +10,7 @@ use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\RevenueCategories;
 use App\Libraries\Accounting\RevenuePostingBuilder;
 use App\Libraries\Accounting\RevenueVouchers;
+use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
@@ -538,6 +539,7 @@ class RevenueVouchersTest extends CIUnitTestCase
         $id = $this->save();
 
         $this->save(['amount' => '20.00'], $id);
+        $this->save(['amount' => '30.00']);
 
         $journals = $this->vouchers->journalsOf($id);
 
@@ -580,5 +582,72 @@ class RevenueVouchersTest extends CIUnitTestCase
         $this->assertSameAsFixture($case['expected']['journals'], $actual, 'the journals of a receipt voucher');
         $this->assertSame($case['expected']['edit_changes_the_same_journal'], $firstStillStands, 'an edit leaves the first journal standing');
         $this->assertSame($case['expected']['delete_erases_the_journal'], $this->accountingDb()->table('accounting_journals')->where(['source_type' => RevenuePostingBuilder::SOURCE, 'source_id' => $chosenA])->countAllResults() === 0, 'a delete erases the journal');
+    }
+
+    public function testDelete_RollsBackTheVouchersAlreadyDeletedWhenALaterOneOfTheBatchIsRefused(): void
+    {
+        $other    = $this->createBranch();
+        $first    = $this->save();
+        $second   = $this->save(['treasury_id' => $this->treasury('Branch drawer', $other)]);
+        $worker   = $this->employeeWithGrants([], [(int) $this->vouchers->find($first)->branch_id]);
+
+        $this->assertInstanceOf(BranchException::class, $this->refusal(fn () => $this->vouchers->delete([$first, $second], $worker)));
+
+        $this->assertSame([0, 0], [(int) $this->vouchers->find($first)->deleted, (int) $this->vouchers->find($second)->deleted]);
+        $this->assertSame(2, $this->journalCount('posted'));
+        $this->assertSame(0, $this->journalCount('reversed'));
+    }
+
+    public function testDelete_RecordsARefusalOfTheBooksAndLeavesTheVoucherStanding(): void
+    {
+        $id = $this->save();
+
+        $this->closeThrough($this->today);
+
+        $failure = $this->refusal(fn () => $this->vouchers->delete([$id], $this->clerkId));
+
+        $this->assertInstanceOf(PostingException::class, $failure);
+        $this->assertSame(PostingError::PeriodClosed, $failure->error);
+        $this->assertSame('0', (string) $this->vouchers->find($id)->deleted);
+        $this->assertSame(1, $this->accountingDb()->table('accounting_posting_failures')->where(['source_type' => RevenuePostingBuilder::SOURCE, 'source_id' => $id])->countAllResults());
+    }
+
+    public function testSave_TakesTheTreasuryTheEmployeeWorksFromOnlyWhenTheEmployeeMayDepositIntoIt(): void
+    {
+        $scopes = new TreasuryScopes();
+        $other  = $this->employeeWithGrants([]);
+
+        (new TreasuryService())->setDefaultFor($this->clerkId, $this->treasuryId);
+        $scopes->apply($this->treasuryId, $scopes->validated(['withdraw_scope' => TreasuryScopes::STAFF, 'withdraw_members' => [$other]]), null);
+
+        $input = $this->input();
+
+        unset($input['treasury_id']);
+
+        $id = $this->vouchers->save($input, null, $this->clerkId);
+
+        $this->assertSame($this->treasuryId, (int) $this->vouchers->find($id)->treasury_id);
+    }
+
+    public function testSave_RefusesACategoryThatWasDeleted(): void
+    {
+        $category = $this->revenueCategory('Old services');
+
+        $this->categories->delete([$category], null);
+
+        $this->assertSame(AccountingError::RevenueCategoryNotFound, $this->refusal(fn () => $this->save(['category_id' => $category]))->error);
+        $this->assertSame(0, $this->countRows('revenues'));
+    }
+
+    public function testSearch_SkipsTheVouchersBeforeTheOffset(): void
+    {
+        $first  = $this->save(['amount' => '10.00']);
+        $second = $this->save(['amount' => '20.00']);
+        $third  = $this->save(['amount' => '30.00']);
+        $page   = fn (int $limit, int $offset): array => array_map(static fn (object $row): int => (int) $row->revenue_id, $this->vouchers->search(null, [], 'amount', 'asc', $limit, $offset)['rows']);
+
+        $this->assertSame([$first, $second], $page(2, 0));
+        $this->assertSame([$third], $page(2, 2));
+        $this->assertSame([$second], $page(1, 1));
     }
 }

@@ -211,4 +211,34 @@ class Revenue_categoriesControllerTest extends CIUnitTestCase
 
         $this->get('/revenue_categories/row/' . $id);
     }
+
+    public function testPostSave_IsNeverReachedByALink(): void
+    {
+        $this->actAsWith(['revenue_categories']);
+
+        $id = (new RevenueCategories())->save(['category_name' => 'Rent'], null, $this->clerkId);
+
+        foreach (['/revenue_categories/save', '/revenue_categories/save/' . $id] as $path) {
+            try {
+                $this->get($path);
+                $this->fail('A GET reached ' . $path);
+            } catch (PageNotFoundException) {
+                $this->addToAssertionCount(1);
+            }
+        }
+
+        $this->assertSame('Rent', (new RevenueCategories())->find($id)->category_name);
+    }
+
+    public function testPostSave_KeepsTheAccountOfACategoryWhenTheFormDoesNotSendOne(): void
+    {
+        $account = $this->customAccount('42', '4210', 'Rent income');
+
+        $this->actAsWith(['revenue_categories', AccountingGuard::ROUTING_MANAGE]);
+
+        $added = $this->postJson('/revenue_categories/save', ['category_name' => 'Rent', 'account_id' => $account]);
+
+        $this->assertTrue($this->postJson('/revenue_categories/save/' . $added['id'], ['category_name' => 'Rents'])['success']);
+        $this->assertSame($account, (int) (new RevenueCategories())->find($added['id'])->account_id);
+    }
 }

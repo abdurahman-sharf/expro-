@@ -105,7 +105,12 @@ class RevenueCategoriesTest extends CIUnitTestCase
 
     public function testSave_RejectsACategoryThatDoesNotExist(): void
     {
+        $deleted = $this->categories->save(['category_name' => 'Gone'], null, $this->clerkId);
+
+        $this->categories->delete([$deleted], $this->clerkId);
+
         $this->assertSame(AccountingError::RevenueCategoryNotFound, $this->refusal(fn () => $this->categories->save(['category_name' => 'x'], 99999, $this->clerkId))->error);
+        $this->assertSame(AccountingError::RevenueCategoryNotFound, $this->refusal(fn () => $this->categories->save(['category_name' => 'Gone again'], $deleted, $this->clerkId))->error);
     }
 
     public function testSave_GivesTheCategoryARevenueAccountToWhoMayChangeTheRouting(): void
@@ -170,13 +175,14 @@ class RevenueCategoriesTest extends CIUnitTestCase
     public function testAccountOptions_ListsTheRevenueAccountsThatTakeEntriesInCodeOrder(): void
     {
         $this->customAccount('42', '4210', 'Rent income');
+        $this->customAccount('42', '4205', 'Commission income');
         $inactive = $this->customAccount('42', '4215', 'Old income');
 
         (new AccountService())->deactivate($inactive);
 
         $codes = array_column($this->categories->accountOptions(), 'code');
 
-        $this->assertSame(['4201', '4202', '4210'], $codes);
+        $this->assertSame(['4201', '4202', '4205', '4210'], $codes);
     }
 
     public function testDelete_MarksTheCategoriesDeletedAndLeavesTheVouchersTheyCarry(): void
@@ -200,6 +206,7 @@ class RevenueCategoriesTest extends CIUnitTestCase
 
         $this->categories->save(['category_name' => 'Bravo', 'category_description' => 'second', 'account_id' => $account], null, $this->router);
         $this->categories->save(['category_name' => 'Alpha', 'category_description' => 'first'], null, $this->router);
+        $this->categories->delete([$this->categories->save(['category_name' => 'Charlie', 'category_description' => 'third'], null, $this->router)], $this->router);
 
         $names = static fn (array $result): array => array_map(static fn (object $row): string => $row->category_name, $result['rows']);
 
@@ -215,6 +222,7 @@ class RevenueCategoriesTest extends CIUnitTestCase
     {
         $this->categories->save(['category_name' => 'Zeta'], null, $this->clerkId);
         $this->categories->save(['category_name' => 'Alpha'], null, $this->clerkId);
+        $this->categories->delete([$this->categories->save(['category_name' => 'Mike'], null, $this->clerkId)], $this->clerkId);
 
         $this->assertSame(['Alpha', 'Zeta'], array_column($this->categories->all(), 'category_name'));
     }

@@ -13,7 +13,11 @@ use App\Libraries\Accounting\ChequeTransition;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\JournalOrigin;
+use App\Libraries\Accounting\PostingError;
+use App\Libraries\Accounting\PostingException;
+use App\Libraries\Accounting\RoutingKey;
 use App\Libraries\Accounting\RoutingResolver;
+use App\Libraries\Accounting\RoutingType;
 use App\Libraries\Accounting\TreasuryService;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -225,5 +229,19 @@ class ChequePostingBuilderTest extends CIUnitTestCase
     {
         $this->assertSame([], $this->draftsOf(ChequeTransition::Issue, ChequeDirection::Paid));
         $this->assertSame([], $this->draftsOf(ChequeTransition::Cancel, ChequeDirection::Paid));
+    }
+
+    public function testDrafts_RefuseAReceiptWhenTheRoutingOfNotesReceivableIsSetToATypePostingDoesNotApply(): void
+    {
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', RoutingKey::NotesReceivable->value)->update(['routing_type' => RoutingType::Cancelled->value]);
+
+        try {
+            $this->draftsOf(ChequeTransition::Receive);
+
+            $this->fail('A posting failure was expected.');
+        } catch (PostingException $failure) {
+            $this->assertSame(PostingError::RoutingTypeUnsupported, $failure->error);
+            $this->assertSame('cheques.receivable', $failure->context['routing_key']);
+        }
     }
 }

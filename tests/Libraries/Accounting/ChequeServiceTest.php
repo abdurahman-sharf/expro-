@@ -731,6 +731,18 @@ class ChequeServiceTest extends CIUnitTestCase
         $this->assertSame($branch, (int) $this->accountingDb()->table('accounting_journals')->where(['source_type' => ChequeSources::RECEIVED, 'source_id' => $chequeId, 'status' => 'posted'])->get()->getRow()->branch_id);
     }
 
+    public function testUpdate_RequiresTheBranchOfTheNewBankWhenTheBankChanges(): void
+    {
+        $branch   = $this->createBranch();
+        $bank     = (new TreasuryService())->create(['name' => 'Branch bank ' . uniqid(), 'kind' => 'bank', 'bank_name' => 'Gulf Bank', 'account_number' => strtoupper(uniqid('AC')), 'branch_id' => $branch], $this->clerk);
+        $chequeId = $this->received();
+        $home     = (int) $this->cheques->find($chequeId)->branch_id;
+        $worker   = $this->employeeWithGrants([AccountingGuard::CHEQUES_MANAGE], [$home]);
+
+        $this->assertInstanceOf(BranchException::class, $this->refusal(fn () => $this->cheques->update($chequeId, $this->input(['treasury_id' => $bank]), $worker)));
+        $this->assertSame([$this->bank, $home], [(int) $this->cheques->find($chequeId)->treasury_id, (int) $this->cheques->find($chequeId)->branch_id]);
+    }
+
     public function testUpdate_ChangesNothingInTheBooksWhenOnlyTheTextChanges(): void
     {
         $chequeId = $this->received();

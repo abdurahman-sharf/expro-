@@ -70,6 +70,12 @@ class ChequesAndRevenues extends Migration
 
             $this->db->table('accounting_routing')->where('routing_key', $account['routing'])->delete();
 
+            if (isset($account['adopt']) && $row->code === $account['adopt']) {
+                $this->db->table('accounting_accounts')->where('account_id', $row->account_id)->update(['system_key' => null]);
+
+                continue;
+            }
+
             if ($this->db->table('accounting_journal_lines')->where('account_id', $row->account_id)->countAllResults() === 0) {
                 $this->db->table('accounting_accounts')->where('account_id', $row->account_id)->delete();
             }

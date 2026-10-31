@@ -222,4 +222,46 @@ class ChequeBooksTest extends CIUnitTestCase
         $this->assertSame([], $this->books->all([]));
         $this->assertSame(['0', '1'], array_map(static fn (object $book): string => (string) $book->written, $this->books->all()));
     }
+
+    public function testUpdate_AuditsTheChangeOfABook(): void
+    {
+        $id = $this->books->create($this->input(), $this->clerk);
+
+        $this->books->update($id, ['name' => 'Renamed'], $this->clerk);
+
+        $this->assertSame(1, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'cheque_book', 'entity_id' => $id, 'action' => 'updated'])->countAllResults());
+    }
+
+    public function testDelete_AuditsTheDeletionOfABook(): void
+    {
+        $id = $this->books->create($this->input(), $this->clerk);
+
+        $this->books->delete($id, $this->clerk);
+
+        $this->assertSame(1, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'cheque_book', 'entity_id' => $id, 'action' => 'deleted'])->countAllResults());
+    }
+
+    public function testAll_DoesNotCountAChequeThatWasDeletedAsWrittenOutOfABook(): void
+    {
+        $id     = $this->books->create($this->input(), $this->clerk);
+        $cheque = (new ChequeService())->issue(['party_id' => $this->supplierId, 'book_id' => $id, 'cheque_number' => '100', 'amount' => '10.00', 'issue_date' => date('Y-m-d'), 'due_date' => date('Y-m-d')], $this->clerk);
+
+        $this->assertSame('1', (string) $this->books->all()[0]->written);
+
+        (new ChequeService())->delete($cheque, $this->clerk);
+
+        $this->assertSame('0', (string) $this->books->all()[0]->written);
+    }
+
+    public function testUpdate_IgnoresAChequeThatWasDeletedWhenTheRangeNarrows(): void
+    {
+        $id     = $this->books->create($this->input(), $this->clerk);
+        $cheque = (new ChequeService())->issue(['party_id' => $this->supplierId, 'book_id' => $id, 'cheque_number' => '150', 'amount' => '10.00', 'issue_date' => date('Y-m-d'), 'due_date' => date('Y-m-d')], $this->clerk);
+
+        (new ChequeService())->delete($cheque, $this->clerk);
+
+        $this->books->update($id, ['first_serial' => '160', 'last_serial' => '170'], $this->clerk);
+
+        $this->assertSame(['160', '170'], [(string) $this->books->find($id)->first_serial, (string) $this->books->find($id)->last_serial]);
+    }
 }

@@ -106,12 +106,12 @@ class ChequesAndRevenuesMigrationTest extends CIUnitTestCase
 
         (new ChequesAndRevenues())->up();
 
-        $expected = ['notes_receivable' => ['120601', '1206'], 'cheques_under_collection' => ['120602', '1206'], 'notes_payable' => ['212001', '212'], 'cheque_deposit_fees' => ['546', '54']];
+        $expected = ['notes_receivable' => ['120601', '1206', 'asset', 'debit'], 'cheques_under_collection' => ['120602', '1206', 'asset', 'debit'], 'notes_payable' => ['212001', '212', 'liability', 'credit'], 'cheque_deposit_fees' => ['546', '54', 'expense', 'debit']];
 
-        foreach ($expected as $systemKey => [$code, $parent]) {
+        foreach ($expected as $systemKey => [$code, $parent, $type, $normal]) {
             $account = $this->accountOf($systemKey);
 
-            $this->assertSame([$code, '0', '1'], [$account->code, (string) $account->is_group, (string) $account->is_system], $systemKey);
+            $this->assertSame([$code, '0', '1', $type, $normal], [$account->code, (string) $account->is_group, (string) $account->is_system, $account->account_type, $account->normal_balance], $systemKey);
             $this->assertSame($parent, $this->accountingDb()->table('accounting_accounts')->where('account_id', $account->parent_id)->get()->getRow()->code, $systemKey);
             $this->assertSame((string) $account->account_id, $this->routedTo(self::KEYS[$systemKey]), $systemKey);
         }
@@ -121,15 +121,45 @@ class ChequesAndRevenuesMigrationTest extends CIUnitTestCase
     {
         $this->chartBefore();
 
+        $legacy = (int) $this->accountingDb()->table('accounting_accounts')->where('code', '4201')->get()->getRow()->account_id;
+
         $this->assertNull($this->accountOf('revenues_default'));
 
         (new ChequesAndRevenues())->up();
 
         $account = $this->accountOf('revenues_default');
 
+        $this->assertSame($legacy, (int) $account->account_id);
         $this->assertSame('4201', $account->code);
         $this->assertSame('1', (string) $account->is_system);
         $this->assertSame((string) $account->account_id, $this->routedTo('revenues.default'));
+    }
+
+    public function testUp_DoesNotAdoptTheAccountOfOtherRevenueWhenItIsKeptForAnotherPurpose(): void
+    {
+        $this->chartBefore();
+
+        $this->accountingDb()->table('accounting_accounts')->where('code', '4201')->update(['system_key' => 'kept_by_the_owner']);
+
+        (new ChequesAndRevenues())->up();
+
+        $account = $this->accountOf('revenues_default');
+
+        $this->assertNotSame('4201', $account->code);
+        $this->assertSame('kept_by_the_owner', $this->accountingDb()->table('accounting_accounts')->where('code', '4201')->get()->getRow()->system_key);
+    }
+
+    public function testUp_LeavesOutAnAccountWhoseParentGroupIsMissingFromTheChart(): void
+    {
+        $this->chartBefore();
+
+        $this->accountingDb()->table('accounting_accounts')->where('code', '1206')->delete();
+
+        (new ChequesAndRevenues())->up();
+
+        $this->assertNull($this->accountOf('notes_receivable'));
+        $this->assertNull($this->accountOf('cheques_under_collection'));
+        $this->assertNotNull($this->accountOf('notes_payable'));
     }
 
     public function testUp_TakesTheNextFreeCodeWhenTheFirstOneIsTaken(): void
@@ -181,6 +211,19 @@ class ChequesAndRevenuesMigrationTest extends CIUnitTestCase
 
         $this->assertSame(0, $this->countRows('accounting_accounts'));
         $this->assertSame(0, $this->countRows('accounting_routing'));
+    }
+
+    public function testDown_KeepsTheAccountOfOtherRevenueItAdoptedAndFreesItsKey(): void
+    {
+        $this->assertNotNull($this->accountOf('revenues_default'));
+
+        (new ChequesAndRevenues())->down();
+
+        $account = $this->accountingDb()->table('accounting_accounts')->where('code', '4201')->get()->getRow();
+
+        $this->assertNotNull($account);
+        $this->assertNull($account->system_key);
+        $this->assertNull($this->routedTo('revenues.default'));
     }
 
     public function testDown_KeepsAnAccountThatHasEntries(): void

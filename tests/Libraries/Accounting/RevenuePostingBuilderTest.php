@@ -181,6 +181,8 @@ class RevenuePostingBuilderTest extends CIUnitTestCase
         foreach ([lang(PaymentType::Giftcard->languageKey()), lang(PaymentType::Rewards->languageKey()), lang(PaymentType::Due->languageKey()), 'Barter'] as $label) {
             $this->assertSame(PostingError::PaymentTypeUnknown, $this->refusalOf(fn () => $this->builder->revenue($this->voucher('100.00', '0', $label, null, null, null), 1))->error, $label);
         }
+
+        $this->assertStringContainsString('is not one a receipt voucher is received with', $this->refusalOf(fn () => $this->builder->revenue($this->voucher('100.00', '0', lang(PaymentType::Due->languageKey()), null, null, null), 1))->getMessage());
     }
 
     public function testRevenue_ReceivesAnyOtherWayOfPaymentLikeCash(): void
