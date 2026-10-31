@@ -31,7 +31,7 @@ class DocumentTypeTest extends CIUnitTestCase
     public function testBareIdSources_ListsOnlyTheKindsThatShowTheirIdAlone(): void
     {
         $this->assertSame(['expenses' => 'expense_id'], DocumentType::Expense->bareIdSources());
-        $this->assertSame(['sales_payments' => 'payment_id'], DocumentType::CustomerPayment->bareIdSources());
+        $this->assertSame(['sales_payments' => 'payment_id', 'customer_advances' => 'advance_id'], DocumentType::CustomerPayment->bareIdSources());
         $this->assertSame([], DocumentType::CreditNote->bareIdSources());
         $this->assertSame([], DocumentType::RefundInvoice->bareIdSources());
         $this->assertSame([], DocumentType::SalesInvoice->bareIdSources());

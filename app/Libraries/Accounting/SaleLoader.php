@@ -21,7 +21,7 @@ final class SaleLoader
     public function load(int $saleId, bool $withOrigin = true): ?SaleDocument
     {
         $sale = $this->db->table('sales')
-            ->select('sale_id, sale_time, invoice_date, customer_id, sale_status, sale_type, branch_id, delivered, return_of_sale_id')
+            ->select('sale_id, sale_time, invoice_date, customer_id, sale_status, sale_type, branch_id, delivered, return_of_sale_id, return_document')
             ->where('sale_id', $saleId)
             ->get()
             ->getRow();
@@ -47,6 +47,8 @@ final class SaleLoader
             payments: $this->payments($saleId),
             origin: $origin,
             savedOn: $savedOn,
+            returnOverride: $withOrigin && $sale->return_of_sale_id === null && (new ReturnOverride($this->db))->exists($saleId),
+            refundInvoice: $sale->return_document === ReturnDocument::RefundInvoice->storedValue(),
         );
     }
 
