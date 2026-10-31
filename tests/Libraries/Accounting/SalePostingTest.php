@@ -5107,4 +5107,17 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame('0.00', $this->balance($this->customerAccount()));
         $this->assertTies($other);
     }
+
+    public function testIssueDraft_TwoRequestsAtTheSameTimeForADraftOfNoCustomerIssueItOnceAndTakeTheStockOnce(): void
+    {
+        $cycle = $this->taxedReference();
+        $draft = $this->save($cycle['items'], [], [$this->payment(lang('Sales.cash'), '816.50')], SALE_TYPE_INVOICE, null, true, null, SUSPENDED);
+        $stock = $this->stock($cycle['cream']);
+
+        $outcomes = $this->raceTwoProcesses('issueDraft', [$draft, $this->employeeId], [$draft, $this->employeeId]);
+
+        $this->assertSame([false, true], [min($outcomes), max($outcomes)], 'with no customer there is no lock of the customer: the row of the draft is what stops the second request');
+        $this->assertEqualsWithDelta($stock - 4, $this->stock($cycle['cream']), 0.0001);
+        $this->assertSame(1, $this->accountingDb()->table('accounting_audit_log')->where(['entity_id' => $draft, 'action' => 'draft_issued'])->countAllResults());
+    }
 }

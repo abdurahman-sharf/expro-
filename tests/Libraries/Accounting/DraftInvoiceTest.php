@@ -301,4 +301,23 @@ class DraftInvoiceTest extends CIUnitTestCase
         $this->assertSame([], $issue->items);
         $this->assertSame(['gross' => '0.0000', 'discount' => '0.0000', 'invoiceDiscount' => '0.0000', 'tax' => '0.0000', 'total' => '0.0000'], $this->drafts->figures($issue));
     }
+
+    public function testForIssue_WorksTheTaxesOutWithTheScaleOfTheRegisterWhateverScaleTheCallerLeftAndPutsItBack(): void
+    {
+        $cycle  = $this->taxedReference();
+        $draft  = $this->draftInvoice($cycle['items']);
+        $before = bcscale();
+
+        bcscale(0);
+
+        try {
+            $issue = $this->drafts->forIssue($draft);
+            $after = bcscale();
+        } finally {
+            bcscale($before);
+        }
+
+        $this->assertSame(['40.50', '66.00'], array_map(static fn (array $tax): string => bcadd((string) $tax['item_tax_amount'], '0', 2), $issue->taxes[1]));
+        $this->assertSame(0, $after, 'the scale of the caller is put back');
+    }
 }

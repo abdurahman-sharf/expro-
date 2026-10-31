@@ -733,9 +733,13 @@ class Sale_libTest extends CIUnitTestCase
         $saleLib->setInvoiceDate('2026-10-20');
         $saleLib->setPaymentTerms('30');
         $saleLib->setQuoteSource(4);
+        $saleLib->set_invoice_number('TYPED-OLD');
+        session()->set('sales_email_receipt', '1');
 
         $saleLib->prepareInvoiceFromQuote(9);
 
+        $this->assertNull($saleLib->get_invoice_number(), 'the number typed for the sale that was there before');
+        $this->assertNull(session()->get('sales_email_receipt'), 'the choice made for the sale that was there before');
         $this->assertSame([3], array_values(array_map(static fn (array $row): int => (int) $row['item_id'], $saleLib->get_cart())));
         $this->assertNull($saleLib->getInvoiceDate());
         $this->assertNull($saleLib->getPaymentTerms());

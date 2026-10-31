@@ -3636,6 +3636,16 @@ class SalesControllerTest extends CIUnitTestCase
         $this->withSession(array_merge($this->session, array_intersect_key(Services::session()->get(), array_flip($keys))));
     }
 
+    /**
+     * The markup of one form of a page, from its opening tag to its closing one.
+     */
+    protected function formOf(string $body, string $id): string
+    {
+        $this->assertSame(1, preg_match('/<form[^>]*id="' . preg_quote($id, '/') . '".*?<\/form>/s', $body, $found), "the page has a form {$id}");
+
+        return $found[0];
+    }
+
     protected function statusOfTheQuote(int $quoteId): ?string
     {
         $value = Database::connect()->table('sales')->select('quote_status')->where('sale_id', $quoteId)->get()->getRow()->quote_status;
@@ -4214,10 +4224,13 @@ class SalesControllerTest extends CIUnitTestCase
 
         foreach (['issue_form', 'register_form'] as $form) {
             $this->assertSame(1, substr_count($draftPage->getBody(), 'id="' . $form . '"'), $form);
+            $this->assertStringContainsString($token, $this->formOf($draftPage->getBody(), $form), "the {$form} of a draft carries the token");
         }
 
-        $this->assertGreaterThanOrEqual(2, substr_count($draftPage->getBody(), $token), 'the issue form and the register form carry the token');
-        $this->assertGreaterThanOrEqual(3, substr_count($quotePage->getBody(), $token), 'the status, the conversion and the register forms carry the token');
+        foreach (['quote_status_form', 'convert_form', 'register_form'] as $form) {
+            $this->assertStringContainsString($token, $this->formOf($quotePage->getBody(), $form), "the {$form} of a quote carries the token");
+        }
+
         $this->assertStringNotContainsString('href="' . site_url('sales/convertQuote/' . $quote) . '"', $quotePage->getBody());
         $this->assertStringNotContainsString('href="' . site_url('sales/quoteStatus/' . $quote) . '"', $quotePage->getBody());
     }

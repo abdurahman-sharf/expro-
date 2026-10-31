@@ -321,8 +321,8 @@
   "find": "->where(['sale_id' => $saleId, 'sale_status' => SUSPENDED, 'sale_type' => SALE_TYPE_INVOICE])",
   "replace": "->where(['sale_id' => $saleId, 'sale_type' => SALE_TYPE_INVOICE])",
   "tests": [
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_|testForIssue_|testFind_|testPreview_|testFigures_|testLabel_",
    "tests/Libraries/Accounting/DraftInvoiceTest.php",
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
  },
@@ -332,8 +332,8 @@
   "find": "->where(['sale_id' => $saleId, 'sale_status' => SUSPENDED, 'sale_type' => SALE_TYPE_INVOICE])",
   "replace": "->where(['sale_id' => $saleId, 'sale_status' => SUSPENDED])",
   "tests": [
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_|testForIssue_|testFind_|testPreview_|testFigures_|testLabel_",
    "tests/Libraries/Accounting/DraftInvoiceTest.php",
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
  },
@@ -343,7 +343,9 @@
   "find": "->where('sale_status', SUSPENDED)\n            ->where('sale_id', $saleId)",
   "replace": "->where('sale_id', $saleId)",
   "tests": [
-   "tests/Libraries/Accounting/DraftInvoiceTest.php"
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_|testForIssue_|testFind_|testPreview_|testFigures_|testLabel_",
+   "tests/Libraries/Accounting/DraftInvoiceTest.php",
+   "tests/Libraries/Accounting/SalePostingTest.php"
   ]
  },
  {
@@ -352,7 +354,9 @@
   "find": "->whereIn('sale_type', [SALE_TYPE_INVOICE, SALE_TYPE_QUOTE])",
   "replace": "->whereIn('sale_type', [SALE_TYPE_INVOICE, SALE_TYPE_QUOTE, SALE_TYPE_POS])",
   "tests": [
-   "tests/Libraries/Accounting/DraftInvoiceTest.php"
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_|testForIssue_|testFind_|testPreview_|testFigures_|testLabel_",
+   "tests/Libraries/Accounting/DraftInvoiceTest.php",
+   "tests/Libraries/Accounting/SalePostingTest.php"
   ]
  },
  {
@@ -361,8 +365,8 @@
   "find": "$stored = $stored || $type === PaymentType::Giftcard || $type === PaymentType::Rewards;",
   "replace": "$stored = $stored || $type === PaymentType::Rewards;",
   "tests": [
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_|testForIssue_|testFind_|testPreview_|testFigures_|testLabel_",
    "tests/Libraries/Accounting/DraftInvoiceTest.php",
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
  },
@@ -372,7 +376,9 @@
   "find": "$stored = $stored || $type === PaymentType::Giftcard || $type === PaymentType::Rewards;",
   "replace": "$stored = $stored || $type === PaymentType::Giftcard;",
   "tests": [
-   "tests/Libraries/Accounting/DraftInvoiceTest.php"
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_|testForIssue_|testFind_|testPreview_|testFigures_|testLabel_",
+   "tests/Libraries/Accounting/DraftInvoiceTest.php",
+   "tests/Libraries/Accounting/SalePostingTest.php"
   ]
  },
  {
@@ -381,8 +387,8 @@
   "find": "'cost_price'      => (string) $row->cost_price,",
   "replace": "'cost_price'      => '0',",
   "tests": [
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_|testForIssue_|testFind_|testPreview_|testFigures_|testLabel_",
    "tests/Libraries/Accounting/DraftInvoiceTest.php",
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
  },
@@ -392,7 +398,9 @@
   "find": "get_taxes($items, NEW_ENTRY, $customerId ?? NEW_ENTRY, 'sale_invoice')",
   "replace": "get_taxes($items, NEW_ENTRY, NEW_ENTRY, 'sale_invoice')",
   "tests": [
-   "tests/Libraries/Accounting/DraftInvoiceTest.php"
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_|testForIssue_|testFind_|testPreview_|testFigures_|testLabel_",
+   "tests/Libraries/Accounting/DraftInvoiceTest.php",
+   "tests/Libraries/Accounting/SalePostingTest.php"
   ]
  },
  {
@@ -401,8 +409,8 @@
   "find": "bcscale(max(2, totals_decimals() + tax_decimals()));",
   "replace": "",
   "tests": [
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_|testForIssue_|testFind_|testPreview_|testFigures_|testLabel_",
    "tests/Libraries/Accounting/DraftInvoiceTest.php",
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
  },
@@ -412,8 +420,8 @@
   "find": "} finally {\n            bcscale($before);\n        }",
   "replace": "} finally {\n        }",
   "tests": [
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_|testForIssue_|testFind_|testPreview_|testFigures_|testLabel_",
    "tests/Libraries/Accounting/DraftInvoiceTest.php",
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
  },
@@ -423,8 +431,8 @@
   "find": "$problem = $plan;",
   "replace": "$problem = null;",
   "tests": [
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_|testForIssue_|testFind_|testPreview_|testFigures_|testLabel_",
    "tests/Libraries/Accounting/DraftInvoiceTest.php",
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
  },
@@ -434,8 +442,8 @@
   "find": "$items = $plan->applyTo($items);",
   "replace": "",
   "tests": [
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_|testForIssue_|testFind_|testPreview_|testFigures_|testLabel_",
    "tests/Libraries/Accounting/DraftInvoiceTest.php",
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
  },
@@ -445,7 +453,9 @@
   "find": "$problem === null && $items !== [] ? $this->taxesOf($items, $customerId)",
   "replace": "$items !== [] ? $this->taxesOf($items, $customerId)",
   "tests": [
-   "tests/Libraries/Accounting/DraftInvoiceTest.php"
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_|testForIssue_|testFind_|testPreview_|testFigures_|testLabel_",
+   "tests/Libraries/Accounting/DraftInvoiceTest.php",
+   "tests/Libraries/Accounting/SalePostingTest.php"
   ]
  },
  {
@@ -559,9 +569,8 @@
   "find": "$saleType === SALE_TYPE_QUOTE && ! $quoteIsDraft && ",
   "replace": "$saleType === SALE_TYPE_QUOTE && ",
   "tests": [
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_",
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_|testAssign_(TakesNothingFrom|NumbersTheDraft|KeepsTheNumberTyped|LeavesNoNumberBehindWhenTheIssue)",
    "tests/Libraries/Accounting/SalePostingTest.php",
-   "--filter=testAssign_(TakesNothingFrom|NumbersTheDraft|KeepsTheNumberTyped|LeavesNoNumberBehindWhenTheIssue)",
    "tests/Libraries/Numbering/DocumentNumberingTest.php"
   ]
  },
@@ -626,16 +635,6 @@
   ]
  },
  {
-  "name": "G67 a discount that no longer fits stops the issue",
-  "file": "app/Models/Sale.php",
-  "find": "if ($issue->problem !== null) {",
-  "replace": "if (false) {",
-  "tests": [
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_",
-   "tests/Libraries/Accounting/SalePostingTest.php"
-  ]
- },
- {
   "name": "G68 the customer of the draft is kept",
   "file": "app/Models/Sale.php",
   "find": "$issue->customerId ?? NEW_ENTRY,",
@@ -651,9 +650,8 @@
   "find": "$invoiceNumber ?? $issue->invoiceNumber,",
   "replace": "$invoiceNumber,",
   "tests": [
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_",
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_|testAssign_(TakesNothingFrom|NumbersTheDraft|KeepsTheNumberTyped|LeavesNoNumberBehindWhenTheIssue)",
    "tests/Libraries/Accounting/SalePostingTest.php",
-   "--filter=testAssign_(TakesNothingFrom|NumbersTheDraft|KeepsTheNumberTyped|LeavesNoNumberBehindWhenTheIssue)",
    "tests/Libraries/Numbering/DocumentNumberingTest.php"
   ]
  },

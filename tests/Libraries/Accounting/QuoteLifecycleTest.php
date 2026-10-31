@@ -513,4 +513,50 @@ class QuoteLifecycleTest extends CIUnitTestCase
         $this->assertSame($invoice, $this->lifecycle->invoiceOf($quote));
         $this->assertNull($this->lifecycle->invoiceOf($this->quote()));
     }
+
+    public function testChange_ReadsTheStateAnotherRequestJustCommittedAndNotTheOneItsOwnTransactionSaw(): void
+    {
+        $quote = $this->quote();
+        $other = $this->openSecondConnection();
+
+        $this->startWithSnapshot($other);
+
+        $this->lifecycle->change($quote, QuoteStatus::Approved, $this->employeeId);
+
+        try {
+            (new QuoteLifecycle($other))->change($quote, QuoteStatus::Sent, $this->employeeId);
+            $this->fail('A quote that was approved a moment ago was sent');
+        } catch (AccountingException $refusal) {
+            $this->assertSame(AccountingError::QuoteStatusNotAllowed, $refusal->error);
+        } finally {
+            $other->transRollback();
+            $other->resetTransStatus();
+            $other->close();
+        }
+
+        $this->assertSame((string) QuoteStatus::Approved->value, $this->storedStatus($quote));
+    }
+
+    public function testMarkConverted_ReadsTheStateAnotherRequestJustCommittedAndNotTheOneItsOwnTransactionSaw(): void
+    {
+        $quote = $this->quote();
+        $other = $this->openSecondConnection();
+
+        $this->startWithSnapshot($other);
+
+        $this->lifecycle->markConverted($quote, 7, $this->employeeId);
+
+        try {
+            (new QuoteLifecycle($other))->markConverted($quote, 8, $this->employeeId);
+            $this->fail('A quote that was converted a moment ago was converted again');
+        } catch (AccountingException $refusal) {
+            $this->assertSame(AccountingError::QuoteNotConvertible, $refusal->error);
+        } finally {
+            $other->transRollback();
+            $other->resetTransStatus();
+            $other->close();
+        }
+
+        $this->assertCount(1, $this->auditOf($quote, 'quote_converted'));
+    }
 }
