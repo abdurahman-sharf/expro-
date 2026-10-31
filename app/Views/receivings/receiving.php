@@ -231,6 +231,12 @@ $hasCart     = count($cart) > 0;
                         <?php if (! empty($supplier_address)): ?>
                             <div><dt><?= lang("{$sectionName}.supplier_address") ?></dt><dd><?= esc($supplier_address) ?></dd></div>
                         <?php endif; ?>
+                        <?php if (! empty($supplier_tax_id)): ?>
+                            <div><dt><?= lang("{$sectionName}.supplier_tax_id") ?></dt><dd class="ltr" id="supplier_tax_id"><?= esc($supplier_tax_id) ?></dd></div>
+                        <?php endif; ?>
+                        <?php if (! empty($supplier_commercial_registry)): ?>
+                            <div><dt><?= lang("{$sectionName}.supplier_commercial_registry") ?></dt><dd class="ltr" id="supplier_commercial_registry"><?= esc($supplier_commercial_registry) ?></dd></div>
+                        <?php endif; ?>
                         <?php if (! empty($supplier_location)): ?>
                             <div><dt><?= lang("{$sectionName}.supplier_location") ?></dt><dd><?= esc($supplier_location) ?></dd></div>
                         <?php endif; ?>

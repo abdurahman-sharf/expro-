@@ -5,6 +5,7 @@ return [
     'agency_name'           => 'Agencynaam',
     'cannot_be_deleted'     => 'De geselecteeerde leveranciers konden niet worden verwijderd. Eén of meerdere leveranciers hebben ordergegevens in de database zitten.',
     'category'              => 'Categorie',
+    'commercial_registry'   => '',
     'company_name'          => 'Leverancier',
     'company_name_required' => 'Bedrijfsnaam moet ingevuld worden.',
     'confirm_delete'        => 'Bent u zeker dat u de geselecteerde leveranciers wil verwijderen?',

@@ -2832,4 +2832,599 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $page->assertDontSeeElement('#invoice_date');
         $page->assertDontSeeElement('#due_date');
     }
+
+    // ---------------------------------------------------------------------------------------
+    // The purchase taxes of an item and the numbers of a supplier
+    // ---------------------------------------------------------------------------------------
+
+    private function addToRegister(int $itemId): string
+    {
+        $this->loginAs($this->buyer(), ['recv_mode' => 'receive', 'recv_stock_source' => self::LOCATION_ID, 'recv_supplier' => $this->supplierId]);
+        $this->post('/receivings/add', ['item' => (string) $itemId])->assertStatus(200);
+
+        return (string) session()->get('recv_cart')[1]['tax_percent'];
+    }
+
+    /**
+     * @param list<array{string, string}> $salesTaxes name and rate
+     * @param array<string, mixed>        $purchaseTaxes columns of the item
+     */
+    private function itemWithTaxes(array $salesTaxes, array $purchaseTaxes = []): int
+    {
+        $itemId = $this->item('0.00');
+
+        foreach ($salesTaxes as [$name, $percent]) {
+            $this->accountingDb()->table('items_taxes')->insert(['item_id' => $itemId, 'name' => $name, 'percent' => $percent]);
+        }
+
+        if ($purchaseTaxes !== []) {
+            $this->accountingDb()->table('items')->where('item_id', $itemId)->update($purchaseTaxes);
+        }
+
+        return $itemId;
+    }
+
+    public function testPostAdd_PutsThePurchaseTaxOfTheItemOnTheLineInPlaceOfItsSalesTax(): void
+    {
+        $itemId = $this->itemWithTaxes([['A tax', '15.000']], ['purchase_tax_1_name' => 'Import', 'purchase_tax_1_percent' => '5.000']);
+
+        $this->assertSame('5.000', $this->addToRegister($itemId));
+    }
+
+    public function testPostAdd_FollowsTheSalesTaxOfTheSameNumberForAPurchaseTaxThatIsNotSet(): void
+    {
+        $itemId = $this->itemWithTaxes([['A tax', '15.000'], ['B tax', '5.000']], ['purchase_tax_2_percent' => '2.000']);
+
+        $this->assertSame('17.000', $this->addToRegister($itemId), 'The first follows the sales tax (15) and the second is its own (2)');
+    }
+
+    public function testPostAdd_PutsNoTaxOnTheLineOfAnItemWhosePurchaseTaxesAreSetToNothing(): void
+    {
+        $itemId = $this->itemWithTaxes([['A tax', '15.000'], ['B tax', '5.000']], ['purchase_tax_1_percent' => '0.000', 'purchase_tax_2_percent' => '0.000']);
+
+        $this->assertSame('0.000', $this->addToRegister($itemId));
+    }
+
+    public function testPostAdd_KeepsTakingTheSalesTaxesOfAnItemThatSetsNoPurchaseTax(): void
+    {
+        $itemId = $this->itemWithTaxes([['A tax', '15.000'], ['B tax', '5.000']]);
+
+        $this->assertSame('20.000', $this->addToRegister($itemId));
+    }
+
+    public function testPostComplete_SavesAndPostsTheTaxThePurchaseTaxOfTheItemGaveTheLine(): void
+    {
+        $itemId = $this->itemWithTaxes([['A tax', '15.000']], ['purchase_tax_1_percent' => '5.000']);
+
+        $this->accountingDb()->table('items')->where('item_id', $itemId)->update(['cost_price' => '100.00']);
+        $this->addToRegister($itemId);
+        $this->loginAs($this->buyer(), ['recv_cart' => session()->get('recv_cart'), 'recv_mode' => 'receive', 'recv_supplier' => $this->supplierId, 'recv_stock_source' => self::LOCATION_ID]);
+        $this->post('/receivings/complete', $this->completeForm())->assertSee('RECV ');
+
+        $receivingId = (int) $this->accountingDb()->table('receivings')->selectMax('receiving_id', 'last')->get()->getRow()->last;
+        $this->receivingIds[] = $receivingId;
+
+        $this->assertSame('5.000', $this->accountingDb()->table('receivings_items')->where('receiving_id', $receivingId)->get()->getRow()->tax_percent);
+        $this->assertSame(['inventory' => '100.00', 'tax_input' => '5.00', 'supplier' => '105.00'], [
+            'inventory' => bcadd($this->balance($this->stockAccount()), '0', 2),
+            'tax_input' => bcadd($this->balance($this->accountId('tax_input')), '0', 2),
+            'supplier'  => bcsub('0', $this->balance($this->supplierAccount()), 2),
+        ]);
+    }
+
+    public function testGetReceipt_KeepsTheTaxStoredOnALineWhateverThePurchaseTaxOfItsItemBecomes(): void
+    {
+        $itemId      = $this->itemWithTaxes([['A tax', '15.000']]);
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100', '15')]);
+
+        $this->accountingDb()->table('items')->where('item_id', $itemId)->update(['purchase_tax_1_percent' => '5.000']);
+        $this->loginAs($this->buyer());
+
+        $response = $this->get('/receivings/receipt/' . $receivingId);
+
+        $response->assertStatus(200);
+        $response->assertSee(to_currency('150'));
+        $this->assertSame('15.000', $this->accountingDb()->table('receivings_items')->where('receiving_id', $receivingId)->get()->getRow()->tax_percent);
+    }
+
+    public function testPostDebitNote_TakesTheTaxStoredOnTheLinesWhateverThePurchaseTaxOfTheItemBecomes(): void
+    {
+        $itemId      = $this->itemWithTaxes([['A tax', '15.000']]);
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100', '15')]);
+
+        $this->accountingDb()->table('items')->where('item_id', $itemId)->update(['purchase_tax_1_percent' => '5.000']);
+        $this->loginAs($this->buyer());
+        $this->post('/receivings/debitNote/' . $receivingId)->assertStatus(200);
+
+        $this->assertSame('15.000', (string) session()->get('recv_cart')[1]['tax_percent']);
+    }
+
+    public function testGetReceipt_ShowsTheTaxNumberAndTheCommercialRegistryOfTheSupplier(): void
+    {
+        $this->accountingDb()->table('suppliers')->where('person_id', $this->supplierId)->update(['tax_id' => '300123456700003', 'commercial_registry' => '1010123456']);
+
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '50')]);
+        $this->loginAs($this->buyer());
+
+        $response = $this->get('/receivings/receipt/' . $receivingId);
+
+        $response->assertSee(lang('Receivings.supplier_tax_id') . ': 300123456700003');
+        $response->assertSee(lang('Receivings.supplier_commercial_registry') . ': 1010123456');
+    }
+
+    public function testGetReceipt_ShowsNeitherNumberForASupplierWhoHasNone(): void
+    {
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '50')]);
+        $this->loginAs($this->buyer());
+
+        $response = $this->get('/receivings/receipt/' . $receivingId);
+
+        $response->assertDontSeeElement('#supplier_tax_id');
+        $response->assertDontSeeElement('#supplier_commercial_registry');
+    }
+
+    public function testGetIndex_ShowsTheNumbersOfTheSupplierOfTheRegister(): void
+    {
+        $this->accountingDb()->table('suppliers')->where('person_id', $this->supplierId)->update(['tax_id' => '300123456700003', 'commercial_registry' => '1010123456']);
+
+        $itemId = $this->item('0.00');
+        $this->loginAs($this->buyer(), $this->cart([$this->cartLine($itemId, 1, '2', '100')]));
+
+        $response = $this->get('/receivings');
+
+        $response->assertSee('300123456700003');
+        $response->assertSee('1010123456');
+    }
+
+    public function testPostComplete_ShowsTheNumbersOfTheSupplierOnTheReceiptItPrints(): void
+    {
+        $this->accountingDb()->table('suppliers')->where('person_id', $this->supplierId)->update(['tax_id' => '300123456700003', 'commercial_registry' => '1010123456']);
+
+        $itemId = $this->item('0.00');
+        $this->loginAs($this->buyer(), $this->cart([$this->cartLine($itemId, 1, '2', '100')]));
+
+        $response = $this->post('/receivings/complete', $this->completeForm());
+
+        $response->assertSeeElement('#supplier_commercial_registry');
+        $response->assertSee('1010123456');
+
+        $this->receivingIds[] = (int) $this->accountingDb()->table('receivings')->selectMax('receiving_id', 'last')->get()->getRow()->last;
+    }
+
+    public function testGetEdit_ShowsTheNumbersOfTheSupplier(): void
+    {
+        $this->accountingDb()->table('suppliers')->where('person_id', $this->supplierId)->update(['tax_id' => '300123456700003', 'commercial_registry' => '1010123456']);
+
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '50')]);
+        $this->loginAs($this->buyer());
+
+        $response = $this->get('/receivings/edit/' . $receivingId);
+
+        $response->assertSeeElement('#supplier_tax_id');
+        $response->assertSee('1010123456');
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Correcting the lines of a saved receiving
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * What the lines form posts for the one line of a receiving of 10 units at 100: every number as it was
+     * shown and as it was left, with what is given instead of it.
+     *
+     * @param array<string, string> $changes
+     *
+     * @return array{lines: array<int, array<string, string>>}
+     */
+    private function lineForm(int $itemId, array $changes = [], int $line = 0): array
+    {
+        $shown = ['quantity' => '10', 'price' => '100.00', 'discount' => '0.00', 'discount_type' => '0', 'tax_percent' => '0.000'];
+
+        $fields = ['item_id' => (string) $itemId, 'line' => (string) $line, 'description' => 'Test item'];
+
+        foreach ($shown as $name => $value) {
+            $fields[$name]          = $value;
+            $fields[$name . '_was'] = $value;
+        }
+
+        return ['lines' => [0 => $changes + $fields]];
+    }
+
+    public function testGetEdit_OffersTheLinesOfAReceivingToCorrect(): void
+    {
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100', '15')]);
+        $this->loginAs($this->buyer());
+
+        $response = $this->get('/receivings/edit/' . $receivingId);
+
+        $response->assertSeeElement('#receivings_lines_form');
+        $response->assertSeeInField('lines[0][quantity]', '10');
+        $response->assertSeeElement('#line_0_price');
+        $response->assertSeeElement('#save_lines');
+        $response->assertSee(lang('Receivings.lines_help'));
+        $response->assertDontSee(lang('Receivings.lines_help_unposted'));
+    }
+
+    public function testGetEdit_SaysWhatSavingTheLinesDoesWhenTheBooksAreOff(): void
+    {
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100')]);
+        $this->loginAs($this->buyer());
+
+        $response = $this->get('/receivings/edit/' . $receivingId);
+
+        $response->assertSeeElement('#receivings_lines_form');
+        $response->assertSee(lang('Receivings.lines_help_unposted'));
+    }
+
+    public function testGetEdit_DoesNotOfferTheLinesOfAReceivingThatGoodsHaveGoneBackFrom(): void
+    {
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100')]);
+
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($itemId, 0, '-2', '100')], -1, null, $receivingId));
+        $this->loginAs($this->buyer());
+
+        $response = $this->get('/receivings/edit/' . $receivingId);
+
+        $response->assertDontSeeElement('#receivings_lines_form');
+        $response->assertSeeElement('#lines_locked_returns');
+    }
+
+    public function testGetEdit_DoesNotOfferTheLinesOfAReturn(): void
+    {
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100')]);
+        $returnId    = $this->buy([$this->purchaseLine($itemId, 0, '-2', '100')], -1, null, $receivingId);
+        $this->loginAs($this->buyer());
+
+        $response = $this->get('/receivings/edit/' . $returnId);
+
+        $response->assertDontSeeElement('#receivings_lines_form');
+        $response->assertDontSeeElement('#lines_locked_returns');
+    }
+
+    public function testGetEdit_ShowsTheTaxOfALineToWhoeverMayNotEditCostsButNotForEditing(): void
+    {
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100', '15')]);
+        $this->loginAs($this->buyer(null, []));
+
+        $response = $this->get('/receivings/edit/' . $receivingId);
+
+        $this->assertMatchesRegularExpression('/<input[^>]*id="line_0_tax"[^>]*readonly/', $response->getBody());
+    }
+
+    public function testGetEdit_ShowsTheTaxOfALineForEditingToWhoeverMayEditCosts(): void
+    {
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100', '15')]);
+        $this->loginAs($this->buyer());
+
+        $response = $this->get('/receivings/edit/' . $receivingId);
+
+        $response->assertSeeElement('#line_0_tax');
+        $this->assertDoesNotMatchRegularExpression('/<input[^>]*id="line_0_tax"[^>]*readonly/', $response->getBody());
+    }
+
+    public function testGetEdit_OffersTheLinesOnlyForReadingToAnEmployeeWithoutTheGrantOfTheStockLocationOfALine(): void
+    {
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100')]);
+        $employee    = $this->createEmployee(grants: [
+            ['permission_id' => 'receivings', 'menu_group' => 'home'],
+            ['permission_id' => BranchGuard::ALL_BRANCHES, 'menu_group' => '--'],
+        ]);
+
+        $this->depotIn(1, $employee);
+        $this->loginAs($employee);
+
+        $response = $this->get('/receivings/edit/' . $receivingId);
+
+        $response->assertSeeElement('#receivings_lines_form');
+        $response->assertSeeElement('#lines_locked_location');
+        $response->assertDontSeeElement('#save_lines');
+        $response->assertSee(lang('Receivings.location_not_allowed'));
+        $this->assertMatchesRegularExpression('/<fieldset id="receiving_lines" disabled>/', $response->getBody());
+    }
+
+    public function testGetEdit_OffersTheLinesOnlyForReadingWhenTheStockLocationOfALineWasDeleted(): void
+    {
+        $employee   = $this->buyer();
+        $locationId = $this->depotIn(1, $employee);
+        $itemId     = $this->item('0.00');
+
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100', locationId: $locationId)]);
+
+        $this->accountingDb()->table('stock_locations')->where('location_id', $locationId)->update(['deleted' => 1]);
+        $this->loginAs($employee);
+
+        $response = $this->get('/receivings/edit/' . $receivingId);
+
+        $response->assertSeeElement('#lines_locked_location');
+        $response->assertDontSeeElement('#save_lines');
+    }
+
+    public function testGetEdit_OffersTheSaveOfTheLinesToAnEmployeeWhoMayCorrectEveryLocationOfThem(): void
+    {
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100')]);
+        $this->loginAs($this->buyer());
+
+        $response = $this->get('/receivings/edit/' . $receivingId);
+
+        $response->assertSeeElement('#save_lines');
+        $response->assertDontSeeElement('#lines_locked_location');
+        $this->assertDoesNotMatchRegularExpression('/<fieldset id="receiving_lines" disabled>/', $response->getBody());
+    }
+
+    public function testGetEdit_CarriesTheWarningsForLinesAndDetailsThatAreNotSavedYet(): void
+    {
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100')]);
+        $this->loginAs($this->buyer());
+
+        $body = $this->get('/receivings/edit/' . $receivingId)->getBody();
+
+        $this->assertStringContainsString(json_encode(lang('Receivings.lines_unsaved')), $body);
+        $this->assertStringContainsString(json_encode(lang('Receivings.details_unsaved')), $body);
+        $this->assertStringContainsString(json_encode(lang('Receivings.lines_not_updated')), $body);
+    }
+
+    public function testPostSaveLines_CorrectsTheQuantityAndPostsRevisionTwo(): void
+    {
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100')]);
+        $this->loginAs($this->buyer());
+
+        $result = $this->jsonOf($this->post('/receivings/saveLines/' . $receivingId, $this->lineForm($itemId, ['quantity' => '8'])));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(lang('Receivings.lines_updated'), $result['message']);
+        $this->assertSame($receivingId, $result['id']);
+        $this->assertSame('8.000', $this->storedLine($receivingId, $itemId)->quantity_purchased);
+        $this->assertSame([1, 2], array_column($this->purchaseJournals($receivingId), 'revision'));
+        $this->assertSame('8.000', $this->onHand($itemId));
+        $this->assertSame('800.00', $this->owed());
+        $this->assertStockTies();
+        $this->assertSupplierTies();
+    }
+
+    public function testPostSaveLines_ReadsAFieldThatWasNotTouchedAsUnchangedWhateverThePrecisionItWasShownAt(): void
+    {
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '2.5', '10.50')]);
+        $this->loginAs($this->buyer());
+
+        $form = $this->lineForm($itemId, ['quantity' => '3', 'quantity_was' => '3', 'price' => '11', 'price_was' => '11']);
+        $result = $this->jsonOf($this->post('/receivings/saveLines/' . $receivingId, $form));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('2.500', $this->storedLine($receivingId, $itemId)->quantity_purchased, 'The 3 on the screen was 2.5 rounded to no decimals and was not touched');
+        $this->assertSame('10.50', $this->storedLine($receivingId, $itemId)->item_unit_price);
+        $this->assertCount(1, $this->purchaseJournals($receivingId), 'Nothing changed, so nothing was posted again');
+    }
+
+    public function testPostSaveLines_TakesAFieldTheEmployeeTouchedOnAScreenThatShowsFewerDecimals(): void
+    {
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '2.5', '10.50')]);
+        $this->loginAs($this->buyer());
+
+        $form = $this->lineForm($itemId, ['quantity' => '2', 'quantity_was' => '3', 'price' => '11', 'price_was' => '11']);
+
+        $this->assertTrue($this->jsonOf($this->post('/receivings/saveLines/' . $receivingId, $form))['success']);
+        $this->assertSame('2.000', $this->storedLine($receivingId, $itemId)->quantity_purchased);
+        $this->assertSame('10.50', $this->storedLine($receivingId, $itemId)->item_unit_price);
+    }
+
+    public function testPostSaveLines_TakesTheTaxOfALineOnlyFromWhoeverMayEditCosts(): void
+    {
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100', '15')]);
+        $form        = $this->lineForm($itemId, ['quantity' => '8', 'tax_percent' => '5', 'tax_percent_was' => '15.00']);
+
+        $this->loginAs($this->buyer(null, []));
+
+        $this->assertTrue($this->jsonOf($this->post('/receivings/saveLines/' . $receivingId, $form))['success']);
+        $this->assertSame('15.000', $this->storedLine($receivingId, $itemId)->tax_percent, 'Whoever may not edit costs does not edit tax');
+        $this->assertSame('8.000', $this->storedLine($receivingId, $itemId)->quantity_purchased);
+
+        $this->loginAs($this->buyer());
+
+        $this->assertTrue($this->jsonOf($this->post('/receivings/saveLines/' . $receivingId, $form))['success']);
+        $this->assertSame('5.000', $this->storedLine($receivingId, $itemId)->tax_percent);
+    }
+
+    public function testPostSaveLines_TakesALineOutWhenTheFormMarksIt(): void
+    {
+        $first       = $this->item('0.00');
+        $second      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($first, 0, '10', '100'), $this->purchaseLine($second, 1, '5', '40')]);
+        $this->loginAs($this->buyer());
+
+        $form                  = $this->lineForm($second, ['remove' => '1'], 1);
+        $form['lines'][1]      = $this->lineForm($first)['lines'][0];
+        $result                = $this->jsonOf($this->post('/receivings/saveLines/' . $receivingId, $form));
+
+        $this->assertTrue($result['success']);
+        $this->assertNull($this->storedLine($receivingId, $second, 1));
+        $this->assertNotNull($this->storedLine($receivingId, $first, 0));
+        $this->assertSame('1000.00', $this->owed());
+        $this->assertSame('0.000', $this->onHand($second));
+    }
+
+    public function testPostSaveLines_RefusesALineThatIsNotValidAndChangesNothing(): void
+    {
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100')]);
+        $this->loginAs($this->buyer());
+
+        foreach ([['quantity' => '0'], ['quantity' => '-3'], ['quantity' => 'abc'], ['price' => '-1'], ['discount' => '120', 'discount_type' => '0']] as $changes) {
+            $result = $this->jsonOf($this->post('/receivings/saveLines/' . $receivingId, $this->lineForm($itemId, $changes)));
+
+            $this->assertFalse($result['success'], json_encode($changes));
+            $this->assertSame(lang('Accounting.error_purchase_edit_line_invalid'), $result['message']);
+        }
+
+        $this->assertSame('10.000', $this->storedLine($receivingId, $itemId)->quantity_purchased);
+        $this->assertCount(1, $this->purchaseJournals($receivingId));
+    }
+
+    public function testPostSaveLines_SaysWhyTheBooksRefusedTheCorrection(): void
+    {
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100')]);
+        $this->loginAs($this->buyer());
+
+        $this->closeThrough('2035-12-31');
+
+        $result = $this->jsonOf($this->post('/receivings/saveLines/' . $receivingId, $this->lineForm($itemId, ['quantity' => '8'])));
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString('2035-12-31', $result['message']);
+        $this->assertSame('10.000', $this->storedLine($receivingId, $itemId)->quantity_purchased);
+        $this->assertSame('10.000', $this->onHand($itemId));
+    }
+
+    public function testPostSaveLines_SaysThatTheGoodsWereSoldWhenTheyWere(): void
+    {
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100')]);
+
+        $this->assertGreaterThan(0, $this->save([$this->line($itemId, 0, '7', '150', $this->exactCostOf($itemId))]));
+        $this->loginAs($this->buyer());
+
+        $result = $this->jsonOf($this->post('/receivings/saveLines/' . $receivingId, $this->lineForm($itemId, ['quantity' => '5'])));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_purchase_stock_would_go_negative', ['Test Item', 'stock']), $result['message']);
+        $this->assertSame('3.000', $this->onHand($itemId));
+    }
+
+    public function testPostSaveLines_RefusesAReceivingThatGoodsHaveGoneBackFrom(): void
+    {
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100')]);
+
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($itemId, 0, '-2', '100')], -1, null, $receivingId));
+        $this->loginAs($this->buyer());
+
+        $result = $this->jsonOf($this->post('/receivings/saveLines/' . $receivingId, $this->lineForm($itemId, ['quantity' => '8'])));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_purchase_edit_has_returns'), $result['message']);
+    }
+
+    public function testPostSaveLines_RefusesAReceivingOfABranchTheEmployeeDoesNotWorkIn(): void
+    {
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100')]);
+        $this->loginAs($this->buyer([$this->anotherBranch()]));
+
+        $response = $this->post('/receivings/saveLines/' . $receivingId, $this->lineForm($itemId, ['quantity' => '8']));
+
+        $response->assertStatus(403);
+        $this->assertSame('10.000', $this->storedLine($receivingId, $itemId)->quantity_purchased);
+        $this->assertCount(1, $this->purchaseJournals($receivingId));
+    }
+
+    public function testPostSaveLines_RefusesAReceivingOfABranchEvenWhenItsStockLocationHasSinceMovedToTheEmployeesBranch(): void
+    {
+        $itemId     = $this->item('0.00');
+        $branch     = $this->anotherBranch();
+        $employee   = $this->buyer([$branch]);
+        $locationId = $this->depotIn(1, $employee);
+
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100', locationId: $locationId)]);
+
+        $this->accountingDb()->table('stock_locations')->where('location_id', $locationId)->update(['branch_id' => $branch]);
+        $this->loginAs($employee);
+
+        $response = $this->post('/receivings/saveLines/' . $receivingId, $this->lineForm($itemId, ['quantity' => '8']));
+
+        $response->assertStatus(403);
+        $this->assertSame(lang('Receivings.branch_not_allowed'), json_decode((string) $response->getJSON(), true)['message'], 'The branch of the receiving decides, not the branch its stock location has now');
+        $this->assertSame('10.000', $this->storedLine($receivingId, $itemId)->quantity_purchased);
+        $this->assertCount(1, $this->purchaseJournals($receivingId));
+    }
+
+    public function testPostSaveLines_RefusesAStockLocationTheEmployeeHasNoGrantOn(): void
+    {
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100')]);
+        $employee    = $this->createEmployee(grants: [
+            ['permission_id' => 'receivings', 'menu_group' => 'home'],
+            ['permission_id' => BranchGuard::ALL_BRANCHES, 'menu_group' => '--'],
+        ]);
+
+        $this->depotIn(1, $employee);
+        $this->loginAs($employee);
+
+        $response = $this->post('/receivings/saveLines/' . $receivingId, $this->lineForm($itemId, ['quantity' => '8']));
+
+        $response->assertStatus(403);
+        $this->assertSame('10.000', $this->storedLine($receivingId, $itemId)->quantity_purchased);
+    }
+
+    public function testPostSaveLines_SendsAnEmployeeWithoutTheReceivingsModuleToTheNoAccessPage(): void
+    {
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100')]);
+        $employee    = $this->createEmployee(grants: [['permission_id' => 'sales', 'menu_group' => 'home'], ['permission_id' => BranchGuard::ALL_BRANCHES, 'menu_group' => '--']]);
+        $this->loginAs($employee);
+
+        $response = $this->post('/receivings/saveLines/' . $receivingId, $this->lineForm($itemId, ['quantity' => '8']));
+
+        $this->assertStringContainsString('no_access', $response->getRedirectUrl());
+        $this->assertSame('10.000', $this->storedLine($receivingId, $itemId)->quantity_purchased);
+    }
+
+    public function testPostSaveLines_ChangesTheLinesAndTheStockWhileTheBooksAreOff(): void
+    {
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100')]);
+        $this->loginAs($this->buyer());
+
+        $result = $this->jsonOf($this->post('/receivings/saveLines/' . $receivingId, $this->lineForm($itemId, ['quantity' => '8'])));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('8.000', $this->storedLine($receivingId, $itemId)->quantity_purchased);
+        $this->assertSame('8.000', $this->onHand($itemId));
+        $this->assertSame(0, $this->countRows('accounting_journals'));
+    }
+
+    public function testPostSaveLines_SaysItsWordsInArabicToABuyerWhoReadsArabic(): void
+    {
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100')]);
+
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($itemId, 0, '-2', '100')], -1, null, $receivingId));
+        $this->loginAs($this->buyer(null, ['items'], ['language_code' => 'ar-EG', 'language' => 'arabic']));
+
+        $result = $this->jsonOf($this->post('/receivings/saveLines/' . $receivingId, $this->lineForm($itemId, ['quantity' => '8'])));
+
+        $this->assertStringContainsString('رُدَّت', $result['message']);
+        $this->assertSame(lang('Accounting.error_purchase_edit_has_returns'), $result['message']);
+    }
+
+    public function testGetEdit_SaysItsWordsInArabicToABuyerWhoReadsArabic(): void
+    {
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '100')]);
+        $this->loginAs($this->buyer(null, ['items'], ['language_code' => 'ar-EG', 'language' => 'arabic']));
+
+        $response = $this->get('/receivings/edit/' . $receivingId);
+
+        $response->assertSee('حفظ الأسطر');
+        $response->assertDontSee('Save lines');
+    }
 }

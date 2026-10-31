@@ -15,7 +15,9 @@ use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\ReceivingAmounts;
+use App\Libraries\Accounting\ReceivingDocument;
 use App\Libraries\Accounting\ReceivingLine;
+use App\Libraries\Accounting\ReceivingLineEdit;
 use App\Libraries\Accounting\ReceivingLoader;
 use App\Libraries\Accounting\ReceivingPosting;
 use App\Libraries\Accounting\ReceivingType;
@@ -308,6 +310,381 @@ class Receiving extends Model
             'payment_terms_days' => $terms,
             'due_date'           => $terms === null ? null : InvoiceTiming::dueDate($date ?? $today, $terms),
         ];
+    }
+
+    /**
+     * Corrects the lines of a receiving of goods from a supplier: a line is taken out or some of what
+     * it holds changes. The supplier and the date stay as they were. When the books follow the
+     * receiving, its journal that stands is reversed with the stock movements it wrote at the value
+     * they were written at, and the lines as they now are go in as the next revision, so that the
+     * average cost of the items, the account of the stock location and what is owed to the supplier
+     * all follow; the sales that were costed before stay as they were costed. The payments made
+     * against the receiving are kept and the credit of the supplier is settled again. Refused, with
+     * nothing changed, when the receiving has returns, is not goods from a supplier, lies in a branch
+     * the employee does not work in or in a closed period, when a line is not valid, or when
+     * the correction would leave a stock location with less than nothing of an item. Everything
+     * happens in one transaction under the lock of the supplier, and a correction that changes
+     * nothing writes nothing.
+     *
+     * @param list<ReceivingLineEdit> $edits
+     */
+    public function updateLines(int $receivingId, array $edits, int $employeeId): bool
+    {
+        $this->accountingFailure = null;
+
+        try {
+            return (new SupplierLock($this->db, $this->supplierLockWait))->run($this->supplierOf($receivingId), fn (): bool => $this->updateLinesLocked($receivingId, $edits, $employeeId));
+        } catch (AccountingException $busy) {
+            if ($busy->error !== AccountingError::SupplierBusy) {
+                throw $busy;
+            }
+
+            $this->accountingFailure = $busy;
+
+            return false;
+        }
+    }
+
+    /**
+     * @param list<ReceivingLineEdit> $edits
+     */
+    private function updateLinesLocked(int $receivingId, array $edits, int $employeeId): bool
+    {
+        $accountingOn = (new AccountingSettings($this->db))->isEnabled();
+        $loader       = new ReceivingLoader($this->db);
+        $branchId     = null;
+
+        $this->db->transStart();
+
+        try {
+            $locked   = $this->db->query('SELECT receiving_id, receiving_type, branch_id, invoice_discount_type, invoice_discount FROM ' . $this->db->prefixTable('receivings') . ' WHERE receiving_id = ? FOR UPDATE', [$receivingId]);
+            $purchase = $locked === false ? null : $locked->getRow();
+
+            if ($purchase === null || $purchase->receiving_type !== ReceivingType::Receive->value) {
+                throw new AccountingException(AccountingError::PurchaseEditNotAReceipt, 'Only a receiving of goods from a supplier has lines that can be edited.', ['receiving_id' => $receivingId]);
+            }
+
+            $branchId = (int) $purchase->branch_id;
+
+            (new BranchGuard($this->db))->requireBranch($branchId, $employeeId);
+
+            if ($this->hasReturns($receivingId)) {
+                throw new AccountingException(AccountingError::PurchaseEditHasReturns, 'A receiving that goods have been returned from cannot be edited.', ['receiving_id' => $receivingId]);
+            }
+
+            $stored = [];
+
+            foreach ($this->get_receiving_items($receivingId)->getResultArray() as $row) {
+                $stored[$row['item_id'] . ':' . $row['line']] = $row;
+            }
+
+            $this->lockItems(array_values($stored));
+
+            ['changed' => $changed, 'removed' => $removed] = $this->correctedLines($receivingId, $stored, $edits);
+
+            if ($changed === [] && $removed === []) {
+                $this->db->transComplete();
+
+                return $this->db->transStatus();
+            }
+
+            $before = $loader->load($receivingId, false);
+
+            $this->rewriteLines($receivingId, $changed, $removed, $stored);
+            $this->shareInvoiceDiscountAgain($receivingId, $purchase);
+
+            $after  = $loader->load($receivingId, false);
+            $deltas = $this->stockDeltas($before, $after);
+
+            $this->assertStockStays($deltas);
+
+            if ($this->costCarries($before)) {
+                $moved = $this->movedLines($before, $after);
+
+                $this->correctTheCost(model(Item::class), $this->linesOf($before, $moved), $this->linesOf($after, $moved));
+            }
+
+            if ($accountingOn) {
+                (new ReceivingPosting($this->db))->repost($receivingId, $employeeId, [
+                    'total_before'  => ReceivingAmounts::totals($before->lines)['total'],
+                    'total_after'   => ReceivingAmounts::totals($after->lines)['total'],
+                    'lines_changed' => count($changed),
+                    'lines_removed' => count($removed),
+                ]);
+            }
+
+            $this->moveStock($deltas, 'Editing receiving ' . $receivingId, $employeeId);
+        } catch (AccountingException|PostingException|BranchException $failure) {
+            $this->db->transRollback();
+            $this->accountingFailure = $failure;
+
+            if ($accountingOn && $failure instanceof PostingException) {
+                (new ReceivingPosting($this->db))->recordFailure($receivingId, $failure, $employeeId, $branchId);
+            }
+
+            return false;
+        } catch (Throwable $unexpected) {
+            $this->db->transRollback();
+
+            throw $unexpected;
+        }
+
+        $this->db->transComplete();
+
+        return $this->db->transStatus();
+    }
+
+    /**
+     * What a correction changes and what it takes out, by the key of the line (its item and its line
+     * number). A line given its own values again is no change.
+     *
+     * @param array<string, array<string, mixed>> $stored
+     * @param list<ReceivingLineEdit>             $edits
+     *
+     * @return array{changed: array<string, array<string, mixed>>, removed: list<string>}
+     *
+     * @throws AccountingException
+     */
+    private function correctedLines(int $receivingId, array $stored, array $edits): array
+    {
+        $changed = [];
+        $removed = [];
+
+        foreach ($edits as $edit) {
+            $key = $edit->itemId . ':' . $edit->line;
+
+            if (! isset($stored[$key]) || isset($changed[$key]) || in_array($key, $removed, true)) {
+                throw new AccountingException(AccountingError::PurchaseEditLineInvalid, 'The line does not belong to this receiving, or is corrected twice.', ['receiving_id' => $receivingId, 'item_id' => $edit->itemId]);
+            }
+
+            if ($edit->remove) {
+                $removed[] = $key;
+
+                continue;
+            }
+
+            $corrected = $edit->applyTo($stored[$key]);
+
+            if ($corrected === null) {
+                throw new AccountingException(AccountingError::PurchaseEditLineInvalid, 'The line cannot be saved as it was given.', ['receiving_id' => $receivingId, 'item_id' => $edit->itemId]);
+            }
+
+            if ($corrected !== ReceivingLineEdit::fieldsOf($stored[$key])) {
+                $changed[$key] = $corrected;
+            }
+        }
+
+        if (count($removed) === count($stored)) {
+            throw new AccountingException(AccountingError::PurchaseEditEmpty, 'A receiving keeps at least one line.', ['receiving_id' => $receivingId]);
+        }
+
+        return ['changed' => $changed, 'removed' => $removed];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $changed
+     * @param list<string>                        $removed
+     * @param array<string, array<string, mixed>> $stored
+     */
+    private function rewriteLines(int $receivingId, array $changed, array $removed, array $stored): void
+    {
+        foreach ($changed as $key => $fields) {
+            $this->db->table('receivings_items')->where(['receiving_id' => $receivingId, 'item_id' => $stored[$key]['item_id'], 'line' => $stored[$key]['line']])->update($fields);
+        }
+
+        foreach ($removed as $key) {
+            $this->db->table('receivings_items')->where(['receiving_id' => $receivingId, 'item_id' => $stored[$key]['item_id'], 'line' => $stored[$key]['line']])->delete();
+        }
+    }
+
+    /**
+     * The discount on the whole receiving, as it was entered, is shared out again over the lines as
+     * they now are, and what each line takes is kept on it, so that every figure that is read
+     * afterwards still comes from the lines alone. A receiving saved without one is left as it is.
+     *
+     * @throws PostingException
+     */
+    private function shareInvoiceDiscountAgain(int $receivingId, object $purchase): void
+    {
+        $discount = InvoiceDiscount::stored($purchase->invoice_discount_type === null ? null : (int) $purchase->invoice_discount_type, $purchase->invoice_discount === null ? null : (string) $purchase->invoice_discount);
+
+        if ($discount->isNone()) {
+            return;
+        }
+
+        $this->db->table('receivings_items')->where('receiving_id', $receivingId)->update(['invoice_discount_share' => null]);
+        $this->applyInvoiceDiscount($receivingId, ReceivingType::Receive, null, $discount);
+    }
+
+    /**
+     * What the stock of each item in each location changes by when a receiving goes from one state to
+     * the other: the units it brings in afterwards less the units it brought in before. A line the
+     * receiving no longer has counts for nothing afterwards.
+     *
+     * @return list<array{itemId: int, locationId: int, delta: string, hasStock: bool}>
+     */
+    private function stockDeltas(?ReceivingDocument $before, ?ReceivingDocument $after): array
+    {
+        $deltas = [];
+
+        foreach ([[$before, -1], [$after, 1]] as [$document, $sign]) {
+            foreach ($document?->lines ?? [] as $line) {
+                $key = $line->itemId . ':' . $line->locationId;
+
+                $deltas[$key] ??= ['itemId' => $line->itemId, 'locationId' => $line->locationId, 'delta' => '0.000', 'hasStock' => $line->hasStock];
+                $deltas[$key]['delta'] = $sign > 0 ? bcadd($deltas[$key]['delta'], $line->units(), 3) : bcsub($deltas[$key]['delta'], $line->units(), 3);
+            }
+        }
+
+        return array_values(array_filter($deltas, static fn (array $delta): bool => bccomp($delta['delta'], '0', 3) !== 0));
+    }
+
+    /**
+     * A change that takes stock out of a location never takes more than is there: the goods of the
+     * receiving may already have been sold or moved.
+     *
+     * @param list<array{itemId: int, locationId: int, delta: string, hasStock: bool}> $deltas
+     *
+     * @throws AccountingException
+     */
+    private function assertStockStays(array $deltas): void
+    {
+        foreach ($deltas as $delta) {
+            if (! $delta['hasStock'] || bccomp($delta['delta'], '0', 3) >= 0) {
+                continue;
+            }
+
+            $shelf = $this->db->query('SELECT quantity FROM ' . $this->db->prefixTable('item_quantities') . ' WHERE item_id = ? AND location_id = ? FOR UPDATE', [$delta['itemId'], $delta['locationId']]);
+            $onHand = $shelf === false || $shelf->getRow() === null ? '0' : (string) $shelf->getRow()->quantity;
+
+            if (bccomp(bcadd($onHand, $delta['delta'], 3), '0', 3) < 0) {
+                $item     = $this->db->table('items')->select('name')->where('item_id', $delta['itemId'])->get()->getRow();
+                $location = $this->db->table('stock_locations')->select('location_name')->where('location_id', $delta['locationId'])->get()->getRow();
+
+                throw new AccountingException(AccountingError::PurchaseStockWouldGoNegative, 'The change would leave a stock location with less than nothing of an item.', [
+                    'item_id'     => $delta['itemId'],
+                    'location_id' => $delta['locationId'],
+                    'name'        => $item === null ? (string) $delta['itemId'] : (string) $item->name,
+                    'scope_name'  => $location === null ? (string) $delta['locationId'] : (string) $location->location_name,
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Changes the stock on the shelves by the deltas and writes each change in the inventory record.
+     *
+     * @param list<array{itemId: int, locationId: int, delta: string, hasStock: bool}> $deltas
+     *
+     * @throws ReflectionException
+     */
+    private function moveStock(array $deltas, string $comment, int $employeeId): void
+    {
+        $inventory    = model('Inventory');
+        $itemQuantity = model(Item_quantity::class);
+
+        foreach ($deltas as $delta) {
+            $units = (float) $delta['delta'];
+
+            $itemQuantity->changeQuantity($delta['itemId'], $delta['locationId'], $units);
+            $inventory->insert([
+                'trans_date'      => date('Y-m-d H:i:s'),
+                'trans_items'     => $delta['itemId'],
+                'trans_user'      => $employeeId,
+                'trans_location'  => $delta['locationId'],
+                'trans_comment'   => $comment,
+                'trans_inventory' => $units,
+            ], false);
+        }
+    }
+
+    /**
+     * The lines of a receiving that carry the keys given (an item and a line number).
+     *
+     * @param list<string> $keys
+     *
+     * @return list<ReceivingLine>
+     */
+    private function linesOf(?ReceivingDocument $document, array $keys): array
+    {
+        return array_values(array_filter($document?->lines ?? [], static fn (ReceivingLine $line): bool => in_array($line->itemId . ':' . $line->line, $keys, true)));
+    }
+
+    /**
+     * Whether the cost the items carry already holds the receiving, because it was averaged when the
+     * receiving was saved: the books do that for every receiving they follow, and the setting for
+     * the others. The cost is not corrected for a receiving that was never in it.
+     */
+    private function costCarries(?ReceivingDocument $purchase): bool
+    {
+        if ((bool) config(OSPOS::class)->settings['receiving_calculate_average_price']) {
+            return true;
+        }
+
+        $posting = new ReceivingPosting($this->db);
+
+        return $purchase !== null && $posting->follows($purchase) && $posting->isPosted($purchase->receivingId);
+    }
+
+    /**
+     * The keys of the lines of a receiving whose units or whose value after discounts are not the
+     * same once it is corrected, those a correction takes out among them. The discount on the whole
+     * receiving is shared out again, so a line nobody touched can move too.
+     *
+     * @return list<string>
+     */
+    private function movedLines(ReceivingDocument $before, ReceivingDocument $after): array
+    {
+        $kept = [];
+
+        foreach ($after->lines as $line) {
+            $kept[$line->itemId . ':' . $line->line] = $line;
+        }
+
+        $moved = [];
+
+        foreach ($before->lines as $line) {
+            $key = $line->itemId . ':' . $line->line;
+            $now = $kept[$key] ?? null;
+
+            if ($now === null || bccomp(ReceivingAmounts::units($now), ReceivingAmounts::units($line), 3) !== 0 || bccomp(ReceivingAmounts::net($now), ReceivingAmounts::net($line), ReceivingAmounts::SCALE) !== 0) {
+                $moved[] = $key;
+            }
+        }
+
+        return $moved;
+    }
+
+    /**
+     * Brings the cost of each stock item to the weighted average once the lines taken are out of
+     * the stock and the lines given are in, each at what it costs after its discounts.
+     *
+     * @param list<ReceivingLine> $taken
+     * @param list<ReceivingLine> $given
+     */
+    private function correctTheCost(Item $item, array $taken, array $given): void
+    {
+        $figures = [];
+
+        foreach ([[$taken, 0], [$given, 2]] as [$lines, $offset]) {
+            foreach ($lines as $line) {
+                $units = ReceivingAmounts::units($line);
+
+                if (! $line->hasStock || bccomp($units, '0', 3) <= 0) {
+                    continue;
+                }
+
+                $figures[$line->itemId] ??= ['0', '0', '0', '0'];
+                $figures[$line->itemId][$offset]     = bcadd($figures[$line->itemId][$offset], $units, 3);
+                $figures[$line->itemId][$offset + 1] = bcadd($figures[$line->itemId][$offset + 1], ReceivingAmounts::net($line), ReceivingAmounts::SCALE);
+            }
+        }
+
+        ksort($figures);
+
+        foreach ($figures as $itemId => [$takenUnits, $takenValue, $givenUnits, $givenValue]) {
+            $item->correctPurchaseCost($itemId, $takenUnits, $takenValue, $givenUnits, $givenValue);
+        }
     }
 
     /**
@@ -1133,8 +1510,26 @@ class Receiving extends Model
             return false;
         }
 
-        $items = $this->get_receiving_items($receiving_id)->getResultArray();
+        $items        = $this->get_receiving_items($receiving_id)->getResultArray();
+        $accountingOn = (new AccountingSettings($this->db))->isEnabled();
         $this->lockItems($items);
+
+        if ($accountingOn && $update_inventory) {
+            try {
+                $document = (new ReceivingLoader($this->db))->load($receiving_id, false);
+
+                $this->assertStockStays($this->stockDeltas($document, null));
+
+                if ($document?->type === ReceivingType::Receive && $this->costCarries($document)) {
+                    $this->correctTheCost(model(Item::class), $document->lines, []);
+                }
+            } catch (AccountingException $refusal) {
+                $this->db->transRollback();
+                $this->accountingFailure = $refusal;
+
+                return false;
+            }
+        }
 
         if ($update_inventory) {
             $inventory     = model('Inventory');
@@ -1160,7 +1555,7 @@ class Receiving extends Model
             }
         }
 
-        if ((new AccountingSettings($this->db))->isEnabled()) {
+        if ($accountingOn) {
             try {
                 (new ReceivingPosting($this->db))->cancel($receiving_id, $employee_id);
             } catch (AccountingException|PostingException $failure) {

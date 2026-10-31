@@ -5,6 +5,7 @@ return [
     'agency_name'           => 'Tên đại lý',
     'cannot_be_deleted'     => 'Không thể xóa các Nhà cung cấp đã chọn. Một hay nhiều có Bán hàng.',
     'category'              => 'Thể loại',
+    'commercial_registry'   => '',
     'company_name'          => 'Tên công ty',
     'company_name_required' => 'Trường tên công ty là bắt buộc.',
     'confirm_delete'        => 'Bạn chắc chắn muốn xóa các Nhà cung cấp được chọn không?',

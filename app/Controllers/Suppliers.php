@@ -146,6 +146,10 @@ class Suppliers extends Persons
             'tax_id'         => $this->request->getPost('tax_id', FILTER_SANITIZE_NUMBER_INT)
         ];
 
+        if ($this->request->getPost('commercial_registry') !== null) {
+            $supplier_data['commercial_registry'] = mb_substr(trim((string) $this->request->getPost('commercial_registry', FILTER_SANITIZE_FULL_SPECIAL_CHARS)), 0, 64);
+        }
+
         if ($this->supplier->save_supplier($person_data, $supplier_data, $supplier_id)) {
             // New supplier
             if ($supplier_id == NEW_ENTRY) {

@@ -26,6 +26,11 @@
  * @var App\Libraries\Accounting\InvoiceDiscount $invoiceDiscount
  * @var string $invoiceDiscountShare
  * @var array{date: string, terms: int|null, due: string}|null $invoice_timing
+ * @var bool $lines_editable
+ * @var bool $lines_has_returns
+ * @var list<array<string, mixed>> $lines
+ * @var bool $lines_allowed
+ * @var bool $can_edit_tax
  */
 ?>
 
@@ -95,6 +100,15 @@
                 <?= form_hidden('supplier_id', $selected_supplier_id ?? '') ?>
             </div>
         </div>
+
+        <?php foreach (['tax_id' => 'supplier_tax_id', 'commercial_registry' => 'supplier_commercial_registry'] as $column => $label): ?>
+            <?php if (! empty($receiving_info[$column])): ?>
+                <div class="row mb-3" id="<?= esc($label) ?>">
+                    <span class="col-form-label col-3"><?= lang('Receivings.' . $label) ?></span>
+                    <div class="col-8 col-form-label"><bdi dir="ltr"><?= esc($receiving_info[$column]) ?></bdi></div>
+                </div>
+            <?php endif; ?>
+        <?php endforeach; ?>
 
         <div class="row mb-3">
             <?= form_label(lang('Receivings.reference'), 'reference', ['class' => 'col-form-label col-3']) ?>
@@ -257,6 +271,86 @@
     </fieldset>
 <?= form_close() ?>
 
+<?php if ($lines_has_returns): ?>
+    <div class="alert alert-secondary" id="lines_locked_returns" role="note"><?= lang('Receivings.lines_locked_returns') ?></div>
+<?php endif; ?>
+
+<?php if ($lines_editable && $lines !== []): ?>
+    <?= form_open('receivings/saveLines/' . $receiving_info['receiving_id'], ['id' => 'receivings_lines_form', 'class' => 'app-form']) ?>
+        <fieldset id="receiving_lines"<?= $lines_allowed ? '' : ' disabled' ?>>
+            <legend class="fs-6"><?= lang('Receivings.lines') ?></legend>
+            <?php if (! $lines_allowed): ?>
+                <div class="alert alert-secondary" id="lines_locked_location" role="note"><?= lang('Receivings.location_not_allowed') ?></div>
+            <?php endif; ?>
+            <p class="small text-body-secondary mb-2"><?= lang($locked ? 'Receivings.lines_help' : 'Receivings.lines_help_unposted') ?></p>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle" id="receiving_lines_table">
+                    <thead>
+                        <tr>
+                            <th scope="col"><?= lang('Receivings.item_name') ?></th>
+                            <th scope="col"><?= lang('Receivings.quantity') ?></th>
+                            <th scope="col"><?= lang('Common.price') ?></th>
+                            <th scope="col"><?= lang('Receivings.discount') ?></th>
+                            <th scope="col"><?= lang('Receivings.tax') ?></th>
+                            <th scope="col"><?= lang('Common.remove') ?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach (array_values($lines) as $i => $line): ?>
+                            <?php
+                            $typeOptions = [PERCENT => '%', FIXED => $config['currency_symbol']];
+                            if ((int) $line['discount_type'] === FIXED_LINE) {
+                                $typeOptions[FIXED_LINE] = lang('Receivings.lines_discount_fixed_line');
+                            }
+                            $shown = [
+                                'quantity'      => to_decimals((string) $line['quantity_purchased'], 'quantity_decimals'),
+                                'price'         => to_decimals((string) $line['item_unit_price']),
+                                'discount'      => to_decimals((string) $line['discount']),
+                                'discount_type' => (string) (int) $line['discount_type'],
+                                'tax_percent'   => to_decimals((string) $line['tax_percent'], 'tax_decimals'),
+                            ];
+                            ?>
+                            <tr class="receiving-line">
+                                <td>
+                                    <?= form_hidden("lines[{$i}][item_id]", (string) $line['item_id']) ?>
+                                    <?= form_hidden("lines[{$i}][line]", (string) $line['line']) ?>
+                                    <div><?= esc($line['name']) ?></div>
+                                    <div class="small text-body-secondary"><?= esc($line['location_name']) ?></div>
+                                    <?= form_input(['name' => "lines[{$i}][description]", 'value' => (string) $line['description'], 'maxlength' => 30, 'class' => 'form-control form-control-sm mt-1', 'aria-label' => lang('Sales.description_abbrv')]) ?>
+                                </td>
+                                <?php foreach (['quantity', 'price'] as $field): ?>
+                                    <td>
+                                        <?= form_hidden("lines[{$i}][{$field}_was]", $shown[$field]) ?>
+                                        <?= form_input(['name' => "lines[{$i}][{$field}]", 'id' => "line_{$i}_{$field}", 'value' => $shown[$field], 'class' => 'form-control form-control-sm', 'inputmode' => 'decimal', 'dir' => 'ltr', 'aria-label' => lang($field === 'quantity' ? 'Receivings.quantity' : 'Common.price')]) ?>
+                                    </td>
+                                <?php endforeach; ?>
+                                <td>
+                                    <div class="input-group input-group-sm">
+                                        <?= form_hidden("lines[{$i}][discount_was]", $shown['discount']) ?>
+                                        <?= form_hidden("lines[{$i}][discount_type_was]", $shown['discount_type']) ?>
+                                        <?= form_input(['name' => "lines[{$i}][discount]", 'id' => "line_{$i}_discount", 'value' => $shown['discount'], 'class' => 'form-control', 'inputmode' => 'decimal', 'dir' => 'ltr', 'aria-label' => lang('Receivings.discount')]) ?>
+                                        <?= form_dropdown("lines[{$i}][discount_type]", $typeOptions, $shown['discount_type'], ['class' => 'form-select', 'aria-label' => lang('Receivings.discount')]) ?>
+                                    </div>
+                                </td>
+                                <td>
+                                    <?= form_hidden("lines[{$i}][tax_percent_was]", $shown['tax_percent']) ?>
+                                    <?= form_input(['name' => "lines[{$i}][tax_percent]", 'id' => "line_{$i}_tax", 'value' => $shown['tax_percent'], 'class' => 'form-control form-control-sm', 'inputmode' => 'decimal', 'dir' => 'ltr', 'aria-label' => lang('Receivings.tax')] + ($can_edit_tax ? [] : ['readonly' => 'readonly'])) ?>
+                                </td>
+                                <td class="text-center">
+                                    <?= form_checkbox(['name' => "lines[{$i}][remove]", 'value' => '1', 'checked' => false, 'class' => 'form-check-input', 'aria-label' => lang('Common.remove')]) ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            <?php if ($lines_allowed): ?>
+                <button type="button" class="btn btn-outline-primary btn-sm" id="save_lines"><?= lang('Receivings.lines_save') ?></button>
+            <?php endif; ?>
+        </fieldset>
+    <?= form_close() ?>
+<?php endif; ?>
+
 <script type="text/javascript">
     $(document).ready(function() {
         <?= view('partial/datepicker_locale') ?>
@@ -295,13 +389,73 @@
             });
         });
 
+        const mainForm = $('#receivings_edit_form');
+        const linesForm = $('#receivings_lines_form');
+        let detailsChanged = false;
+        let linesChanged = false;
+
+        const warn = function(message) {
+            $('#error_message_box').empty().append($('<li></li>').text(message));
+        };
+
+        mainForm.on('input change', function() {
+            detailsChanged = true;
+        });
+
+        linesForm.on('input change', function() {
+            linesChanged = true;
+        });
+
+        linesForm.on('keydown', 'input:not([type=checkbox])', function(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                event.stopPropagation();
+                $('#save_lines').trigger('click');
+            }
+        });
+
+        linesForm.on('submit', function(event) {
+            event.preventDefault();
+        });
+
+        $('#save_lines').on('click', function() {
+            const button = $(this);
+
+            if (detailsChanged) {
+                warn(<?= json_encode(lang('Receivings.details_unsaved')) ?>);
+                return;
+            }
+
+            button.prop('disabled', true);
+            $.post(linesForm.attr('action'), linesForm.serialize(), function(response) {
+                if (response.success) {
+                    dialog_support.hide();
+                    table_support.handle_submit("<?= esc($controller_name) ?>", response);
+                    return;
+                }
+                button.prop('disabled', false);
+                warn(response.message);
+            }, 'json').fail(function(xhr) {
+                button.prop('disabled', false);
+                warn(xhr.responseJSON?.message ?? <?= json_encode(lang('Receivings.lines_not_updated')) ?>);
+            });
+        });
+
         $('button#delete').click(function() {
             dialog_support.hide();
             table_support.do_delete("<?= esc($controller_name) ?>", <?= $receiving_info['receiving_id'] ?>);
         });
 
-        $('#receivings_edit_form').validate($.extend({
+        mainForm.validate($.extend({
             submitHandler: function(form) {
+                if (linesChanged) {
+                    warn(<?= json_encode(lang('Receivings.lines_unsaved')) ?>);
+                    setTimeout(function() {
+                        $('.modal-footer [data-dialog-button="submit"]').prop('disabled', false);
+                    }, 0);
+                    return;
+                }
+
                 $(form).ajaxSubmit({
                     success: function(response) {
                         dialog_support.hide();

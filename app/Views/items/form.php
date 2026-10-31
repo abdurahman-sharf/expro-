@@ -260,6 +260,34 @@
                     </div>
                 </div>
             </div>
+
+            <?php foreach ([1, 2] as $purchaseSlot): ?>
+                <?php $purchasePercent = $item_info->{"purchase_tax_{$purchaseSlot}_percent"} ?? null; ?>
+                <div class="field">
+                    <?= form_label(lang("Items.purchase_tax_{$purchaseSlot}"), "purchase_tax_name_{$purchaseSlot}", ['class' => 'form-label']) ?>
+                    <div class="field-control">
+                        <div class="input-group">
+                            <?= form_input([
+                                'name'  => 'purchase_tax_names[]',
+                                'id'    => "purchase_tax_name_{$purchaseSlot}",
+                                'class' => 'form-control form-control-sm',
+                                'value' => $item_info->{"purchase_tax_{$purchaseSlot}_name"} ?? ''
+                            ]) ?>
+                            <?= form_input([
+                                'name'       => 'purchase_tax_percents[]',
+                                'id'         => "purchase_tax_percent_{$purchaseSlot}",
+                                'class'      => 'form-control form-control-sm',
+                                'aria-label' => lang("Items.purchase_tax_{$purchaseSlot}") . ' %',
+                                'inputmode'  => 'decimal',
+                                'dir'        => 'ltr',
+                                'value'      => $purchasePercent === null || $purchasePercent === '' ? '' : ((float) $purchasePercent === 0.0 ? '0' : to_tax_decimals($purchasePercent))
+                            ]) ?>
+                            <span class="input-group-text"><b>%</b></span>
+                        </div>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+            <div class="form-text mb-3" id="purchase_tax_hint"><?= lang('Items.purchase_tax_hint') ?></div>
         <?php } ?>
 
         <?php if ($use_destination_based_tax): ?>

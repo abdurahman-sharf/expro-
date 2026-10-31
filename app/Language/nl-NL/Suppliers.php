@@ -5,6 +5,7 @@ return [
     'agency_name'           => 'Agentschapnaam',
     'cannot_be_deleted'     => 'Kan geselecteerde leverancier(s) niet verwijderen. Eén of meer bevatten verkopen.',
     'category'              => 'Categorie',
+    'commercial_registry'   => '',
     'company_name'          => 'Bedrijfsnaam',
     'company_name_required' => 'Bedrijfsnaam is een vereist veld.',
     'confirm_delete'        => 'Weet u zeker dat u de geselecteerde leverancier(s) wilt verwijderen?',

@@ -5,6 +5,7 @@ return [
     'agency_name'           => 'Ügynökség neve',
     'cannot_be_deleted'     => 'Nem lehet törölni a beszállítót, mert már van eladásuk.',
     'category'              => '',
+    'commercial_registry'   => '',
     'company_name'          => 'Cégnév',
     'company_name_required' => 'Cégnév kötelező mező',
     'confirm_delete'        => 'Biztos, hogy törölni kívánja a kiválasztott beszállítókat?',

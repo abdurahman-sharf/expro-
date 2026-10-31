@@ -5,6 +5,7 @@ return [
     'agency_name'           => 'Jina la Wakala',
     'cannot_be_deleted'     => 'Haiwezekani kufuta Wasambazaji waliochaguliwa. Mmoja au zaidi tayari ana mauzo.',
     'category'              => 'Kategoria',
+    'commercial_registry'   => '',
     'company_name'          => 'Jina la Kampuni',
     'company_name_required' => 'Jina la Kampuni ni kiashiria kinachohitajika.',
     'confirm_delete'        => 'Una uhakika unataka kufuta Wasambazaji waliochaguliwa?',

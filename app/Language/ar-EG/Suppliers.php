@@ -5,6 +5,7 @@ return [
     'agency_name'           => 'اسم الوكالة',
     'cannot_be_deleted'     => 'لايمكن حذف المورد/الموردين لوجود مبيعات مرتبطة بهم.',
     'category'              => 'الفئة',
+    'commercial_registry'   => 'السجل التجاري',
     'company_name'          => 'اسم الشركة',
     'company_name_required' => 'اسم الشركة مطلوب.',
     'confirm_delete'        => 'هل تريد حقا حذف هؤلاء الموردين؟',

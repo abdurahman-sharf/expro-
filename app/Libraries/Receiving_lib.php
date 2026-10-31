@@ -5,6 +5,7 @@ namespace app\Libraries;
 use App\Libraries\Accounting\InvoiceDiscount;
 use App\Libraries\Accounting\InvoiceDiscountProblem;
 use App\Libraries\Accounting\InvoiceDiscountShares;
+use App\Libraries\Accounting\ItemPurchaseTax;
 use App\Libraries\Accounting\ReceivingAmounts;
 use App\Libraries\Accounting\ReceivingLine;
 use App\Libraries\Accounting\ReceivingType;
@@ -141,18 +142,12 @@ class Receiving_lib
     }
 
     /**
-     * What the tax of an item is by default: the sum of the rates the item carries, or nothing
-     * for goods that are not taxed.
+     * What the tax of an item is by default: the sum of its purchase taxes, each of which follows the
+     * sales tax of the same number while it is not set, or nothing for goods that are not taxed.
      */
     public function default_tax_percent(int $itemId): string
     {
-        $percent = '0';
-
-        foreach ($this->item_taxes->get_info($itemId) as $tax) {
-            $percent = bcadd($percent, (string) $tax['percent'], 3);
-        }
-
-        return $percent;
+        return ItemPurchaseTax::defaultPercent($this->item->get_info($itemId), $this->item_taxes->get_info($itemId));
     }
 
     public function get_stock_source(): int

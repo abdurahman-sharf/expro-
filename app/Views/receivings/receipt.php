@@ -21,6 +21,8 @@
  * @var string|null $documentNumber
  * @var string|null $invoice_date
  * @var string|null $due_date
+ * @var string|null $supplier_tax_id
+ * @var string|null $supplier_commercial_registry
  */
 ?>
 
@@ -60,6 +62,12 @@ echo view('partial/print_receipt', ['print_after_sale', $print_after_sale, 'sele
     <div id="receipt_general_info">
         <?php if (isset($supplier)) { ?>
             <div id="customer"><?= lang('Suppliers.supplier') . esc(": $supplier") ?></div>
+            <?php if (!empty($supplier_tax_id)) { ?>
+                <div id="supplier_tax_id"><?= lang('Receivings.supplier_tax_id') . esc(": $supplier_tax_id") ?></div>
+            <?php } ?>
+            <?php if (!empty($supplier_commercial_registry)) { ?>
+                <div id="supplier_commercial_registry"><?= lang('Receivings.supplier_commercial_registry') . esc(": $supplier_commercial_registry") ?></div>
+            <?php } ?>
         <?php } ?>
         <div id="sale_id"><?= lang('Receivings.id') . ": $receiving_id" ?></div>
         <?php if (!empty($documentNumber)) { ?>

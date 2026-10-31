@@ -4,6 +4,7 @@ namespace App\Controllers;
 
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingMessage;
+use App\Libraries\Accounting\ItemPurchaseTax;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\StockAdjustment;
 use App\Libraries\Barcode_lib;
@@ -731,7 +732,74 @@ class Items extends Secure_Controller
             }
         }
 
+        return $this->validatePurchaseTaxes($itemId);
+    }
+
+    /**
+     * The purchase taxes of the form: a name that is plain text and a rate that is a number from 0 to
+     * 100, or no rate at all, which follows the sales tax of the same number.
+     */
+    private function validatePurchaseTaxes(int $itemId): ?ResponseInterface
+    {
+        $percents = $this->request->getPost('purchase_tax_percents');
+
+        if (! is_array($percents)) {
+            return null;
+        }
+
+        $error = $this->validateFields(
+            [
+                'purchase_tax_names.*'    => 'permit_empty|max_length[255]|unicode_alpha_numeric_punct',
+                'purchase_tax_percents.*' => 'permit_empty|nonNegativeDecimal',
+            ],
+            [
+                'purchase_tax_names.*'    => [
+                    'max_length'                  => lang('Items.tax_name_invalid'),
+                    'unicode_alpha_numeric_punct' => lang('Items.tax_name_invalid'),
+                ],
+                'purchase_tax_percents.*' => [
+                    'nonNegativeDecimal' => lang('Items.purchase_tax_percent_invalid'),
+                ],
+            ],
+            $itemId,
+        );
+
+        if ($error !== null) {
+            return $error;
+        }
+
+        foreach ($percents as $raw) {
+            if (trim((string) $raw) !== '' && (float) parse_tax(trim((string) $raw)) > 100) {
+                return $this->response->setJSON(['success' => false, 'message' => lang('Items.purchase_tax_percent_invalid'), 'id' => $itemId]);
+            }
+        }
+
         return null;
+    }
+
+    /**
+     * What the purchase taxes of the form say, for the columns of the item: the rate and the name of each
+     * of the two, nothing for a rate that was left empty.
+     *
+     * @return array<string, float|int|string|null>
+     */
+    private function postedPurchaseTaxes(): array
+    {
+        $names    = array_values((array) $this->request->getPost('purchase_tax_names'));
+        $percents = array_values((array) $this->request->getPost('purchase_tax_percents'));
+        $data     = [];
+
+        for ($slot = 1; $slot <= ItemPurchaseTax::SLOTS; ++$slot) {
+            $raw    = trim((string) ($percents[$slot - 1] ?? ''));
+            $parsed = $raw === '' ? false : parse_tax($raw);
+            $isSet  = $raw !== '' && is_numeric($parsed);
+            $name   = trim((string) ($names[$slot - 1] ?? ''));
+
+            $data["purchase_tax_{$slot}_percent"] = $isSet ? $parsed : null;
+            $data["purchase_tax_{$slot}_name"]    = $isSet && $name !== '' ? $name : null;
+        }
+
+        return $data;
     }
 
     private function validateBulkUpdateFields(): ?ResponseInterface
@@ -833,6 +901,10 @@ class Items extends Secure_Controller
             $itemData['stock_type'] = HAS_NO_STOCK;
             $itemData['receiving_quantity'] = 0;
             $itemData['reorder_level'] = 0;
+        }
+
+        if (is_array($this->request->getPost('purchase_tax_percents'))) {
+            $itemData += $this->postedPurchaseTaxes();
         }
 
         $taxCategoryId = $this->request->getPost('tax_category_id');
