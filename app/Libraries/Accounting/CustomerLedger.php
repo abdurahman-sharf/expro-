@@ -240,19 +240,13 @@ final class CustomerLedger
         [$standing, $standingBindings] = StandingJournals::condition($this->db, 'j', $asOf);
 
         $bindings = [$accountId, CustomerOpening::SOURCE, JournalEntryType::General->value, ...$standingBindings, $customerId];
-        $where    = '';
-
-        if ($asOf !== null) {
-            $where      = ' AND o.opening_date <= ?';
-            $bindings[] = $asOf;
-        }
 
         return $this->db->query(
             'SELECT o.opening_id, o.opening_date AS doc_date,
                     (SELECT COALESCE(SUM(l.debit - l.credit), 0) FROM ' . $this->db->prefixTable('accounting_journal_lines') . ' l WHERE l.journal_id = j.journal_id AND l.account_id = ?) AS total
              FROM ' . $this->db->prefixTable('customer_openings') . ' o
              JOIN ' . $this->db->prefixTable('accounting_journals') . " j ON j.source_type = ? AND j.source_id = o.customer_id AND j.entry_type = ? AND j.revision = o.revision AND {$standing}
-             WHERE o.customer_id = ?{$where}
+             WHERE o.customer_id = ?
              ORDER BY o.opening_date ASC, o.opening_id ASC",
             $bindings,
         )->getResult();

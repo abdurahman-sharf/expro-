@@ -1805,4 +1805,28 @@ class OpeningStockTest extends CIUnitTestCase
         $this->assertBlocks([OpeningStockRepriceBlock::LaterMovements, OpeningStockRepriceBlock::AccountHoldsValue], $plan);
         $this->assertSame(1, $plan->laterMovements);
     }
+
+    public function testRepostAtCurrentCost_RequiresAReasonEvenWhenTheOpeningHadNoJournalToReverse(): void
+    {
+        $item = $this->item('0.00');
+        $this->shelves($item, '10');
+        $first = $this->onlyResult($this->opening->post([self::LOCATION_ID], null));
+        $this->setCost($item, '60.00');
+        $fingerprint = $this->opening->repricePlan(self::LOCATION_ID, null)->fingerprint();
+        $counts      = $this->counts();
+
+        $this->assertNull($first->journalId, 'Goods that cost nothing leave no journal to reverse');
+
+        foreach (['', '   ', str_repeat('x', 256)] as $reason) {
+            $this->assertRefusedWith(AccountingError::ReasonRequired, fn () => $this->opening->repostAtCurrentCost(self::LOCATION_ID, $reason, $fingerprint, null));
+        }
+
+        $this->assertSame($counts, $this->counts());
+
+        $result = $this->opening->repostAtCurrentCost(self::LOCATION_ID, 'The cost was entered later', $fingerprint, null);
+
+        $this->assertSame('600.00', $this->balance($this->stockAccount()));
+        $this->assertNotNull($result->journalId);
+        $this->assertStockTies();
+    }
 }

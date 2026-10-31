@@ -960,4 +960,15 @@ class CustomerOpeningTest extends CIUnitTestCase
         $this->assertTrue($this->accountingDb()->table('customer_credit_applications')->insert($row + ['invoice_sale_id' => $invoice]));
         $this->assertTrue($this->accountingDb()->table('customer_credit_applications')->insert($row + ['opening_id' => $opening]));
     }
+
+    public function testReviseAndCancel_ValidateTheReasonBeforeTheyLookAtTheOpeningThatStandsOrNot(): void
+    {
+        $first = $this->owe();
+        $this->openings->cancel($first, 'Entered twice', $this->clerk);
+
+        foreach (['', '   ', str_repeat('x', 256)] as $reason) {
+            $this->assertRefusedWith(AccountingError::ReasonRequired, fn () => $this->openings->revise($first, CustomerOpening::OWES_US, '5.00', date('Y-m-d'), '', $reason, $this->clerk));
+            $this->assertRefusedWith(AccountingError::ReasonRequired, fn () => $this->openings->cancel($first, $reason, $this->clerk));
+        }
+    }
 }

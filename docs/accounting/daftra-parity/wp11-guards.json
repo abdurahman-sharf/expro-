@@ -531,15 +531,6 @@
     ]
   },
   {
-    "name": "CU-30 the account of opening balances is needed",
-    "file": "app/Libraries/Accounting/CustomerOpening.php",
-    "find": "if ($equity === null) {",
-    "replace": "if (false) {",
-    "tests": [
-      "tests/Libraries/Accounting/CustomerOpeningTest.php"
-    ]
-  },
-  {
     "name": "CU-31 the customer needs an account of their own",
     "file": "app/Libraries/Accounting/CustomerOpening.php",
     "find": "if ($customer === null) {",
@@ -625,16 +616,6 @@
     "file": "app/Libraries/Accounting/CustomerLedger.php",
     "find": "private function openings(int $customerId, int $accountId, ?string $asOf): array\n    {\n        [$standing, $standingBindings] = StandingJournals::condition($this->db, 'j', $asOf);",
     "replace": "private function openings(int $customerId, int $accountId, ?string $asOf): array\n    {\n        [$standing, $standingBindings] = [\"j.status IN ('posted', 'reversed')\", []];",
-    "tests": [
-      "tests/Libraries/Accounting/CustomerOpeningTest.php",
-      "tests/Libraries/Accounting/CustomerLedgerTest.php"
-    ]
-  },
-  {
-    "name": "CL-02 on a day of the past only openings dated by then count",
-    "file": "app/Libraries/Accounting/CustomerLedger.php",
-    "find": "$where      = ' AND o.opening_date <= ?';",
-    "replace": "$where      = ' AND (o.opening_date <= ? OR 1 = 1)';",
     "tests": [
       "tests/Libraries/Accounting/CustomerOpeningTest.php",
       "tests/Libraries/Accounting/CustomerLedgerTest.php"
@@ -869,6 +850,90 @@
     "replace": "if ($amount === '') {",
     "tests": [
       "tests/Controllers/CustomersControllerTest.php"
+    ]
+  },
+  {
+    "name": "MG-01 the migration adds the column of an opening balance to the applications only once",
+    "file": "app/Database/Migrations/20271000000000_CustomerOpenings.php",
+    "find": "if (! $this->hasColumn('customer_credit_applications', 'opening_id')) {",
+    "replace": "if (true) {",
+    "tests": [
+      "tests/Database/CustomerOpeningsMigrationTest.php"
+    ]
+  },
+  {
+    "name": "MG-02 the migration lets the invoice of an application be empty",
+    "file": "app/Database/Migrations/20271000000000_CustomerOpenings.php",
+    "find": "if ($this->columnIsRequired('customer_credit_applications', 'invoice_sale_id')) {\n            $this->db->query(\"ALTER TABLE `{$applications}` MODIFY COLUMN `invoice_sale_id` INT(10) NULL DEFAULT NULL\");",
+    "replace": "if (false) {\n            $this->db->query(\"ALTER TABLE `{$applications}` MODIFY COLUMN `invoice_sale_id` INT(10) NULL DEFAULT NULL\");",
+    "tests": [
+      "tests/Database/CustomerOpeningsMigrationTest.php"
+    ]
+  },
+  {
+    "name": "MG-03 the migration adds the index of the opening balance of an application only once",
+    "file": "app/Database/Migrations/20271000000000_CustomerOpenings.php",
+    "find": "if (! $this->hasIndex('customer_credit_applications', 'customer_credit_applications_opening')) {\n            $this->db->query(\"ALTER TABLE `{$applications}` ADD KEY",
+    "replace": "if (true) {\n            $this->db->query(\"ALTER TABLE `{$applications}` ADD KEY",
+    "tests": [
+      "tests/Database/CustomerOpeningsMigrationTest.php"
+    ]
+  },
+  {
+    "name": "MG-04 the migration adds the key to the opening balance only once",
+    "file": "app/Database/Migrations/20271000000000_CustomerOpenings.php",
+    "find": "if (! $this->hasConstraint('customer_credit_applications', 'customer_credit_applications_fk_opening')) {\n            $this->db->query(\"ALTER TABLE `{$applications}` ADD CONSTRAINT",
+    "replace": "if (true) {\n            $this->db->query(\"ALTER TABLE `{$applications}` ADD CONSTRAINT",
+    "tests": [
+      "tests/Database/CustomerOpeningsMigrationTest.php"
+    ]
+  },
+  {
+    "name": "MG-05 the migration adds the check of one target only once",
+    "file": "app/Database/Migrations/20271000000000_CustomerOpenings.php",
+    "find": "if (! $this->hasConstraint('customer_credit_applications', 'customer_credit_applications_target')) {\n            $this->db->query(\"ALTER TABLE `{$applications}` ADD CONSTRAINT",
+    "replace": "if (true) {\n            $this->db->query(\"ALTER TABLE `{$applications}` ADD CONSTRAINT",
+    "tests": [
+      "tests/Database/CustomerOpeningsMigrationTest.php"
+    ]
+  },
+  {
+    "name": "MG-06 an application is spent on an invoice or on an opening balance and never on both or neither",
+    "file": "app/Database/Migrations/20271000000000_CustomerOpenings.php",
+    "find": "CHECK ((`invoice_sale_id` IS NULL) <> (`opening_id` IS NULL))",
+    "replace": "CHECK (1 = 1)",
+    "tests": [
+      "tests/Database/CustomerOpeningsMigrationTest.php",
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "MG-07 the table allows one standing revision for a customer",
+    "file": "app/Database/Migrations/20271000000000_CustomerOpenings.php",
+    "find": "UNIQUE KEY `{$table}_standing` (`standing_customer`),",
+    "replace": "KEY `{$table}_standing` (`standing_customer`),",
+    "tests": [
+      "tests/Database/CustomerOpeningsMigrationTest.php",
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "MG-08 the table allows one row for each revision number of a customer",
+    "file": "app/Database/Migrations/20271000000000_CustomerOpenings.php",
+    "find": "UNIQUE KEY `{$table}_revision` (`customer_id`, `revision`),",
+    "replace": "KEY `{$table}_revision` (`customer_id`, `revision`),",
+    "tests": [
+      "tests/Database/CustomerOpeningsMigrationTest.php",
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "MG-09 taking the migration down drops what was spent on opening balances before the invoice is required again",
+    "file": "app/Database/Migrations/20271000000000_CustomerOpenings.php",
+    "find": "$this->db->query(\"DELETE FROM `{$applications}` WHERE `opening_id` IS NOT NULL\");",
+    "replace": "",
+    "tests": [
+      "tests/Database/CustomerOpeningsMigrationTest.php"
     ]
   }
 ]

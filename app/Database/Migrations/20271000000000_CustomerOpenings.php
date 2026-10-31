@@ -67,8 +67,12 @@ class CustomerOpenings extends Migration
             $this->db->query("ALTER TABLE `{$applications}` MODIFY COLUMN `invoice_sale_id` INT(10) NULL DEFAULT NULL");
         }
 
+        if (! $this->hasIndex('customer_credit_applications', 'customer_credit_applications_opening')) {
+            $this->db->query("ALTER TABLE `{$applications}` ADD KEY `{$applications}_opening` (`opening_id`)");
+        }
+
         if (! $this->hasConstraint('customer_credit_applications', 'customer_credit_applications_fk_opening')) {
-            $this->db->query("ALTER TABLE `{$applications}` ADD KEY `{$applications}_opening` (`opening_id`), ADD CONSTRAINT `{$applications}_fk_opening` FOREIGN KEY (`opening_id`) REFERENCES `{$table}` (`opening_id`) ON DELETE RESTRICT");
+            $this->db->query("ALTER TABLE `{$applications}` ADD CONSTRAINT `{$applications}_fk_opening` FOREIGN KEY (`opening_id`) REFERENCES `{$table}` (`opening_id`) ON DELETE RESTRICT");
         }
 
         if (! $this->hasConstraint('customer_credit_applications', 'customer_credit_applications_target')) {
@@ -91,7 +95,11 @@ class CustomerOpenings extends Migration
                 $this->db->query("ALTER TABLE `{$applications}` DROP FOREIGN KEY `{$applications}_fk_opening`");
             }
 
-            $this->db->query("ALTER TABLE `{$applications}` DROP KEY `{$applications}_opening`, DROP COLUMN `opening_id`");
+            if ($this->hasIndex('customer_credit_applications', 'customer_credit_applications_opening')) {
+                $this->db->query("ALTER TABLE `{$applications}` DROP KEY `{$applications}_opening`");
+            }
+
+            $this->db->query("ALTER TABLE `{$applications}` DROP COLUMN `opening_id`");
         }
 
         if (! $this->columnIsRequired('customer_credit_applications', 'invoice_sale_id')) {
@@ -119,11 +127,19 @@ class CustomerOpenings extends Migration
         return $row !== null && $row->IS_NULLABLE === 'NO';
     }
 
+    private function hasIndex(string $table, string $index): bool
+    {
+        return $this->db->query(
+            'SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?',
+            [$this->db->prefixTable($table), $this->db->prefixTable($index)],
+        )->getRow() !== null;
+    }
+
     private function hasConstraint(string $table, string $constraint): bool
     {
         return $this->db->query(
             'SELECT 1 FROM information_schema.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND CONSTRAINT_NAME = ?',
-            [$this->db->prefixTable($table), $constraint],
+            [$this->db->prefixTable($table), $this->db->prefixTable($constraint)],
         )->getRow() !== null;
     }
 }
