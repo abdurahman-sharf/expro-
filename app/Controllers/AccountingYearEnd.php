@@ -32,7 +32,7 @@ class AccountingYearEnd extends AccountingController
         $preview = null;
         $error   = null;
 
-        if ($canRun && $yearId !== null && $options !== []) {
+        if ($yearId !== null && $options !== []) {
             try {
                 $preview = $this->closing->preview($scope === 'company' ? null : (int) $scope, $yearId, $this->employeeId());
             } catch (AccountingException|BranchException $refusal) {
@@ -60,10 +60,6 @@ class AccountingYearEnd extends AccountingController
 
     public function getApproveForm(): string
     {
-        if (! $this->can(AccountingGuard::YEAR_END_CLOSE)) {
-            throw PageNotFoundException::forPageNotFound();
-        }
-
         $scope  = $this->scopeParameter($this->scopeOptions());
         $yearId = (int) $this->request->getGet('year');
 

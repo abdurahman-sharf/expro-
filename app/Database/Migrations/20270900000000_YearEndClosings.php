@@ -79,7 +79,6 @@ class YearEndClosings extends Migration
                 CONSTRAINT `{$table}_fk_account` FOREIGN KEY (`retained_account_id`) REFERENCES `{$accounts}` (`account_id`) ON DELETE RESTRICT,
                 CONSTRAINT `{$table}_fk_journal` FOREIGN KEY (`journal_id`) REFERENCES `{$journals}` (`journal_id`) ON DELETE RESTRICT,
                 CONSTRAINT `{$table}_fk_reversal` FOREIGN KEY (`reversal_journal_id`) REFERENCES `{$journals}` (`journal_id`) ON DELETE RESTRICT,
-                CONSTRAINT `{$table}_status` CHECK (`status` IN ('active', 'reversed')),
                 CONSTRAINT `{$table}_active_key` CHECK ((`status` = 'active' AND `active_key` <=> 1) OR (`status` = 'reversed' AND `active_key` IS NULL))
             ) {$options}",
         );

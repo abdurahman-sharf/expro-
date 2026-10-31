@@ -326,7 +326,7 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         $this->closer(null, false);
 
         try {
-            $this->get('/accounting_periods/year_end/approve_form?year=' . $this->yearId() . '&scope=company');
+            $this->get('/accounting_periods/year_end/approve_form?year=' . $this->yearId() . '&scope=company&fingerprint=' . $this->fingerprint());
             $this->fail('The form must be hidden without the permission.');
         } catch (PageNotFoundException) {
             $this->addToAssertionCount(1);
@@ -337,7 +337,7 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
 
         $this->expectException(PageNotFoundException::class);
 
-        $this->get('/accounting_periods/year_end/approve_form?year=' . $this->yearId() . '&scope=company');
+        $this->get('/accounting_periods/year_end/approve_form?year=' . $this->yearId() . '&scope=company&fingerprint=' . $this->fingerprint());
     }
 
     public function testPostApprove_ClosesTheYearAndSendsTheUserBackToTheScreenWithANotice(): void

@@ -55,20 +55,9 @@ final class PeriodGuard
     }
 
     /**
-     * The check a closing of a year gets in place of check(): the date must lie in a fiscal year, and the
-     * closings of periods do not hold it back, because the closing of a year is written on the last
-     * day of a year that has to be closed already.
-     *
-     * @throws PostingException
-     */
-    public function checkYearEnd(string $date): void
-    {
-        $this->assertCovered($date, false);
-    }
-
-    /**
-     * Takes the period locks as posting does and checks what check() does not: that the date is in a
-     * fiscal year, as last committed.
+     * What a closing of a year gets in place of enforce(): the period locks as posting takes them, and
+     * the check that the date is in a fiscal year as last committed, with the closings of periods left
+     * out, because the closing of a year is written on the last day of a year that is closed already.
      *
      * @throws PostingException
      */

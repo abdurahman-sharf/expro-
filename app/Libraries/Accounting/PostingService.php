@@ -228,7 +228,9 @@ final class PostingService
 
         $branchId = $this->resolveBranch($draft);
 
-        $this->yearEndRelief ? $this->periods->checkYearEnd($draft->date) : $this->periods->check($draft->date, $branchId);
+        if (! $this->yearEndRelief) {
+            $this->periods->check($draft->date, $branchId);
+        }
 
         return [
             'lines'     => $lines,

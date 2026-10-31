@@ -1185,6 +1185,18 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertNotNull($this->closingOf(1));
     }
 
+    public function testReverse_RefusesAClosingWhoseJournalIsNotPostedAnymore(): void
+    {
+        $this->twoBranchYear();
+        $this->closePeriods();
+        $closing = $this->close(1)[0];
+        $this->accountingDb()->table('accounting_journals')->where('journal_id', (int) $this->closingOf(1)->journal_id)->update(['status' => JournalStatus::Reversed->value]);
+        $counts = $this->counts();
+
+        $this->assertRefused(AccountingError::NotPosted, fn () => $this->service->reverse($closing, 'Why', $this->employee));
+        $this->assertSame($counts, $this->counts());
+    }
+
     public function testReverse_AcceptsAReasonOfTwoHundredAndFiftyFiveCharacters(): void
     {
         $this->twoBranchYear();

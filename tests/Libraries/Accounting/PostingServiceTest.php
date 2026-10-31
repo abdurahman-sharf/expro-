@@ -15,7 +15,10 @@ use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use FilesystemIterator;
 use PHPUnit\Framework\Attributes\DataProvider;
+use RecursiveDirectoryIterator;
+use RecursiveIteratorIterator;
 use Tests\Support\AccountingFixtureTrait;
 
 class PostingServiceTest extends CIUnitTestCase
@@ -1077,6 +1080,25 @@ class PostingServiceTest extends CIUnitTestCase
         $this->assertTrue($this->service->postYearEnd($this->yearEndDraft(branchId: $branch))->created);
     }
 
+    public function testPostYearEnd_RefusesADateThatAYearChangeTookOutOfEveryYearAfterTheCallersSnapshot(): void
+    {
+        $this->other = $this->openSecondConnection();
+        $this->startWithSnapshot($this->other);
+        $this->accountingDb()->table('accounting_fiscal_years')->where('name', '2026')->update(['end_date' => '2026-06-30']);
+
+        try {
+            $failure = $this->postingRefusal(fn () => (new PostingService($this->other))->postYearEnd($this->yearEndDraft('2026-12-31')));
+        } finally {
+            $this->other->transRollback();
+            $this->other->close();
+            $this->other = null;
+            $this->accountingDb()->table('accounting_fiscal_years')->where('name', '2026')->update(['end_date' => '2026-12-31']);
+        }
+
+        $this->assertSame(PostingError::OutsideFiscalYear, $failure->error);
+        $this->assertSame(0, $this->accountingDb()->table('accounting_journals')->countAllResults());
+    }
+
     public function testPostYearEnd_StillRejectsAnAccountThatIsAGroup(): void
     {
         $this->accountingDb()->table('accounting_accounts')->where('account_id', $this->accountId('sales_revenue'))->update(['is_group' => 1]);
@@ -1146,7 +1168,7 @@ class PostingServiceTest extends CIUnitTestCase
     {
         $callers = [];
 
-        foreach (new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator(APPPATH, \FilesystemIterator::SKIP_DOTS)) as $file) {
+        foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator(APPPATH, FilesystemIterator::SKIP_DOTS)) as $file) {
             if ($file->getExtension() === 'php' && str_contains((string) file_get_contents($file->getPathname()), '->postYearEnd(')) {
                 $callers[] = substr($file->getPathname(), strlen(APPPATH));
             }

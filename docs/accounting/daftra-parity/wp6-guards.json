@@ -470,7 +470,7 @@
  {
   "name": "P06 a closing is checked against the fiscal years, not the closed periods",
   "file": "app/Libraries/Accounting/PostingService.php",
-  "find": "        $this->yearEndRelief ? $this->periods->checkYearEnd($draft->date) : $this->periods->check($draft->date, $branchId);",
+  "find": "        if (! $this->yearEndRelief) {\n            $this->periods->check($draft->date, $branchId);\n        }",
   "replace": "        $this->periods->check($draft->date, $branchId);",
   "tests": [
    "tests/Libraries/Accounting/PostingServiceTest.php"
@@ -481,15 +481,6 @@
   "file": "app/Libraries/Accounting/PostingService.php",
   "find": "        $this->yearEndRelief ? $this->periods->enforceYearEnd($draft->date, $prepared['branch_id']) : $this->periods->enforce($draft->date, $prepared['branch_id']);",
   "replace": "        $this->periods->enforce($draft->date, $prepared['branch_id']);",
-  "tests": [
-   "tests/Libraries/Accounting/PostingServiceTest.php"
-  ]
- },
- {
-  "name": "P08 a closing must lie in a fiscal year",
-  "file": "app/Libraries/Accounting/PeriodGuard.php",
-  "find": "    public function checkYearEnd(string $date): void\n    {\n        $this->assertCovered($date, false);",
-  "replace": "    public function checkYearEnd(string $date): void\n    {",
   "tests": [
    "tests/Libraries/Accounting/PostingServiceTest.php"
   ]
@@ -630,6 +621,15 @@
   ]
  },
  {
+  "name": "O07 a date before the year of the closing is not held",
+  "file": "app/Libraries/Accounting/ClosedOutYears.php",
+  "find": "            ->where('c.period_from <=', $date)\n            ->where('c.period_to >=', $date)",
+  "replace": "            ->where('c.period_to >=', $date)",
+  "tests": [
+   "tests/Libraries/Accounting/OpeningBalanceServiceTest.php"
+  ]
+ },
+ {
   "name": "O06 only an active closing makes a branch closed",
   "file": "app/Libraries/Accounting/ClosedOutYears.php",
   "find": "            ->where('branch_id', $branchId)\n            ->where('fiscal_year_id', $fiscalYearId)\n            ->where('status', 'active')\n            ->get()",
@@ -725,7 +725,7 @@
   "name": "R06 the ledger says what each line is by its type",
   "file": "app/Libraries/Accounting/AccountLedger.php",
   "find": "j.source_type, j.entry_type, j.reverses_journal_id, b.code AS branch_code",
-  "replace": "j.source_type, 'general' AS entry_type, j.reverses_journal_id, b.code AS branch_code",
+  "replace": "j.source_type, \"general\" AS entry_type, j.reverses_journal_id, b.code AS branch_code",
   "tests": [
    "tests/Libraries/Accounting/AccountLedgerTest.php"
   ]
@@ -746,24 +746,6 @@
   "replace": "leaveOutYearEnd: false, shown: [AccountType::Revenue",
   "tests": [
    "tests/Libraries/Accounting/YearEndClosingTest.php"
-  ]
- },
- {
-  "name": "U01 the preview is shown only to someone who may close the year",
-  "file": "app/Controllers/AccountingYearEnd.php",
-  "find": "        if ($canRun && $yearId !== null && $options !== []) {",
-  "replace": "        if ($yearId !== null && $options !== []) {",
-  "tests": [
-   "tests/Controllers/AccountingYearEndControllerTest.php"
-  ]
- },
- {
-  "name": "U02 the approval form is hidden from someone who may not close the year",
-  "file": "app/Controllers/AccountingYearEnd.php",
-  "find": "        if (! $this->can(AccountingGuard::YEAR_END_CLOSE)) {\n            throw PageNotFoundException::forPageNotFound();\n        }\n\n        $scope  = $this->scopeParameter($this->scopeOptions());",
-  "replace": "        $scope  = $this->scopeParameter($this->scopeOptions());",
-  "tests": [
-   "tests/Controllers/AccountingYearEndControllerTest.php"
   ]
  },
  {
@@ -897,15 +879,6 @@
   "file": "app/Database/Migrations/20270900000000_YearEndClosings.php",
   "find": "    private const MODULE_ID     = 'accounting_periods';",
   "replace": "    private const MODULE_ID     = 'accounting_treasuries';",
-  "tests": [
-   "tests/Database/YearEndClosingsMigrationTest.php"
-  ]
- },
- {
-  "name": "M06 the status of a closing is active or reversed",
-  "file": "app/Database/Migrations/20270900000000_YearEndClosings.php",
-  "find": "                CONSTRAINT `{$table}_status` CHECK (`status` IN ('active', 'reversed')),\n",
-  "replace": "",
   "tests": [
    "tests/Database/YearEndClosingsMigrationTest.php"
   ]

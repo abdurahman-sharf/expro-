@@ -405,6 +405,38 @@ class OpeningBalanceServiceTest extends CIUnitTestCase
         $this->assertSame('posted', $this->accountingDb()->table('accounting_journals')->where('journal_id', $original)->get()->getRow()->status);
     }
 
+    /**
+     * Posts the opening of the first branch, a sale of the branch in the year, closes the periods
+     * through the end of the year and closes the year out for the branch.
+     */
+    private function openingWithAClosedOutYear(string $year): void
+    {
+        $this->service->post(1, $this->balancedLines('100.00'), false, $this->manager());
+        (new JournalService())->postNew(['date' => "{$year}-06-10"] + $this->journalInput());
+        $this->closeThrough("{$year}-12-31");
+
+        $closer  = $this->employeeWithGrants([AccountingGuard::YEAR_END_CLOSE]);
+        $run     = new YearEndClosing();
+        $yearId  = (int) $this->accountingDb()->table('accounting_fiscal_years')->where('name', $year)->get()->getRow()->fiscal_year_id;
+        $preview = $run->preview(1, $yearId, $closer);
+
+        $run->approve(1, $yearId, $preview->fingerprint, $closer);
+    }
+
+    public function testReverse_AcceptsTheOpeningWhenTheYearThatIsClosedOutEndedBeforeIt(): void
+    {
+        $this->openingWithAClosedOutYear('2025');
+
+        $this->assertGreaterThan(0, $this->service->reverse(1, '2026-01-02', 'Wrong counts', $this->manager()));
+    }
+
+    public function testReverse_AcceptsTheOpeningWhenTheYearThatIsClosedOutStartedAfterIt(): void
+    {
+        $this->openingWithAClosedOutYear('2027');
+
+        $this->assertGreaterThan(0, $this->service->reverse(1, '2028-01-02', 'Wrong counts', $this->manager()));
+    }
+
     public function testReverse_AcceptsTheOpeningOfABranchWhoseYearIsNotClosedOutWhenAnotherBranchClosedItsOwn(): void
     {
         $second   = $this->createBranch('B2');
