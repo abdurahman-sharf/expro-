@@ -280,6 +280,7 @@ enum AccountingError: string
     case BankJournalLineInvalid           = 'bank_journal_line_invalid';
     case BankJournalLineMatched           = 'bank_journal_line_matched';
     case BankMatchAmountMismatch          = 'bank_match_amount_mismatch';
+    case BankMatchDirectionMismatch       = 'bank_match_direction_mismatch';
     case BankMatchNotFound                = 'bank_match_not_found';
     case BankMatchLocked                  = 'bank_match_locked';
     case BankMatchClosedRange             = 'bank_match_closed_range';
