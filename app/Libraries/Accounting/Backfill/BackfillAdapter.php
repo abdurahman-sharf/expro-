@@ -34,7 +34,32 @@ abstract class BackfillAdapter
      *
      * @return list<BackfillDocument>
      */
-    abstract public function candidates(BackfillScope $scope, int $afterId, int $limit, int $batchId): array;
+    final public function candidates(BackfillScope $scope, int $afterId, int $limit, int $batchId): array
+    {
+        [$sql, $params] = $this->candidateQuery($scope, $afterId, $batchId);
+
+        return array_map(
+            fn (object $row): BackfillDocument => new BackfillDocument($this->family(), (int) $row->id, (string) $row->document_date, (int) $row->branch_id),
+            $this->db->query($sql . ' ORDER BY id ASC LIMIT ' . max(1, $limit), $params)->getResult(),
+        );
+    }
+
+    /**
+     * How many documents of the scope no journal stands for.
+     */
+    final public function waiting(BackfillScope $scope, int $batchId = 0): int
+    {
+        [$sql, $params] = $this->candidateQuery($scope, 0, $batchId);
+
+        return (int) $this->db->query("SELECT COUNT(*) AS waiting FROM ({$sql}) q", $params)->getRow()->waiting;
+    }
+
+    /**
+     * The query that finds the documents, with the columns id, document_date and branch_id and no order and no limit.
+     *
+     * @return array{0: string, 1: list<int|string>}
+     */
+    abstract protected function candidateQuery(BackfillScope $scope, int $afterId, int $batchId): array;
 
     abstract public function plan(BackfillDocument $document, ?int $employeeId, int $batchId): BackfillPlan;
 

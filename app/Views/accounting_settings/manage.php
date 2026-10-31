@@ -11,6 +11,7 @@
  * @var bool $expense_account_required
  * @var bool $revenue_account_required
  * @var bool $customer_opening
+ * @var bool $backfill_enabled
  * @var bool $locked
  * @var int $next_number
  * @var bool $can_manage
@@ -170,6 +171,15 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
                         <label class="form-check-label" for="customer_opening"><?= lang('Accounting_settings.customer_opening') ?></label>
                     </div>
                     <p class="form-text"><?= lang('Accounting_settings.customer_opening_desc') ?></p>
+                </div>
+
+                <div class="field span-all">
+                    <div class="form-check form-switch">
+                        <input type="hidden" name="backfill_enabled" value="0">
+                        <input type="checkbox" class="form-check-input" role="switch" name="backfill_enabled" id="backfill_enabled" value="1"<?= $backfill_enabled ? ' checked' : '' ?><?= $can_manage ? '' : ' disabled' ?>>
+                        <label class="form-check-label" for="backfill_enabled"><?= lang('Accounting_settings.backfill_enabled') ?></label>
+                    </div>
+                    <p class="form-text"><?= lang('Accounting_settings.backfill_enabled_desc') ?></p>
                 </div>
 
                 <div class="field">

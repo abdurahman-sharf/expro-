@@ -37,7 +37,7 @@ final class SaleBackfill extends BackfillAdapter
         return BackfillFamily::Sales;
     }
 
-    public function candidates(BackfillScope $scope, int $afterId, int $limit, int $batchId): array
+    protected function candidateQuery(BackfillScope $scope, int $afterId, int $batchId): array
     {
         $date   = 'COALESCE(s.invoice_date, DATE(s.sale_time))';
         $params = [COMPLETED, ...self::TYPES, $scope->from, $scope->to];
@@ -48,17 +48,14 @@ final class SaleBackfill extends BackfillAdapter
 
         array_push($params, $afterId, $batchId);
 
-        $rows = $this->db->query(
+        return [
             "SELECT s.sale_id AS id, {$date} AS document_date, s.branch_id FROM " . $this->db->prefixTable('sales') . ' s'
             . ' WHERE s.sale_status = ? AND s.sale_type IN (?, ?, ?) AND ' . $date . ' BETWEEN ? AND ?'
             . ($scope->branchId === null ? '' : ' AND s.branch_id = ?')
             . ' AND s.sale_id > ? AND ' . $this->noJournal('s.sale_id', [SalePostingBuilder::SOURCE_SALE])
-            . ' AND ' . $this->noStock('s.sale_id', [SalePostingBuilder::SOURCE_SALE])
-            . ' ORDER BY s.sale_id ASC LIMIT ' . max(1, $limit),
+            . ' AND ' . $this->noStock('s.sale_id', [SalePostingBuilder::SOURCE_SALE]),
             $params,
-        )->getResult();
-
-        return array_map(static fn (object $row): BackfillDocument => new BackfillDocument(BackfillFamily::Sales, (int) $row->id, (string) $row->document_date, (int) $row->branch_id), $rows);
+        ];
     }
 
     public function plan(BackfillDocument $document, ?int $employeeId, int $batchId): BackfillPlan

@@ -37,7 +37,7 @@ final class ExpenseBackfill extends BackfillAdapter
         return BackfillFamily::Expenses;
     }
 
-    public function candidates(BackfillScope $scope, int $afterId, int $limit, int $batchId): array
+    protected function candidateQuery(BackfillScope $scope, int $afterId, int $batchId): array
     {
         $branch = 'COALESCE(e.branch_id, ' . $this->defaultBranchId . ')';
         $params = [$scope->from, $scope->to];
@@ -48,16 +48,13 @@ final class ExpenseBackfill extends BackfillAdapter
 
         array_push($params, $afterId, $batchId);
 
-        $rows = $this->db->query(
+        return [
             "SELECT e.expense_id AS id, DATE(e.date) AS document_date, {$branch} AS branch_id FROM " . $this->db->prefixTable('expenses') . ' e'
             . ' WHERE e.deleted = 0 AND e.amount <> 0 AND DATE(e.date) BETWEEN ? AND ?'
             . ($scope->branchId === null ? '' : " AND {$branch} = ?")
-            . ' AND e.expense_id > ? AND ' . $this->noJournal('e.expense_id', [ExpensePostingBuilder::SOURCE, ...CrossBranchPayments::companionsOf(ExpensePostingBuilder::SOURCE)])
-            . ' ORDER BY e.expense_id ASC LIMIT ' . max(1, $limit),
+            . ' AND e.expense_id > ? AND ' . $this->noJournal('e.expense_id', [ExpensePostingBuilder::SOURCE, ...CrossBranchPayments::companionsOf(ExpensePostingBuilder::SOURCE)]),
             $params,
-        )->getResult();
-
-        return array_map(static fn (object $row): BackfillDocument => new BackfillDocument(BackfillFamily::Expenses, (int) $row->id, (string) $row->document_date, (int) $row->branch_id), $rows);
+        ];
     }
 
     public function plan(BackfillDocument $document, ?int $employeeId, int $batchId): BackfillPlan

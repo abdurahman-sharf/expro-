@@ -20,7 +20,6 @@ class RetroactiveBackfill extends Migration
     private const PERMISSION    = 'acc_backfill_manage';
     private const SETTING       = 'accounting_backfill_enabled';
     private const COLUMNS       = [
-        'company_id'     => 'INT UNSIGNED NOT NULL DEFAULT 1',
         'branch_id'      => 'INT UNSIGNED NULL DEFAULT NULL',
         'name'           => "VARCHAR(120) NOT NULL DEFAULT ''",
         'end_date'       => 'DATE NULL DEFAULT NULL',
@@ -56,6 +55,10 @@ class RetroactiveBackfill extends Migration
 
         $this->db->query('DROP TABLE IF EXISTS `' . $this->db->prefixTable('accounting_backfill_items') . '`');
 
+        if ($this->hasForeignKey('accounting_backfill_batches', 'accounting_backfill_batches_fk_branch')) {
+            $this->db->query("ALTER TABLE `{$batches}` DROP FOREIGN KEY `{$batches}_fk_branch`");
+        }
+
         foreach (array_reverse(array_keys(self::COLUMNS)) as $column) {
             if ($this->hasColumn('accounting_backfill_batches', $column)) {
                 $this->db->query("ALTER TABLE `{$batches}` DROP COLUMN `{$column}`");
@@ -69,12 +72,17 @@ class RetroactiveBackfill extends Migration
 
     private function extendBatches(): void
     {
-        $batches = $this->db->prefixTable('accounting_backfill_batches');
+        $batches  = $this->db->prefixTable('accounting_backfill_batches');
+        $branches = $this->db->prefixTable('branches');
 
         foreach (self::COLUMNS as $column => $definition) {
             if (! $this->hasColumn('accounting_backfill_batches', $column)) {
                 $this->db->query("ALTER TABLE `{$batches}` ADD COLUMN `{$column}` {$definition}");
             }
+        }
+
+        if (! $this->hasForeignKey('accounting_backfill_batches', 'accounting_backfill_batches_fk_branch')) {
+            $this->db->query("ALTER TABLE `{$batches}` ADD CONSTRAINT `{$batches}_fk_branch` FOREIGN KEY (`branch_id`) REFERENCES `{$branches}` (`branch_id`) ON DELETE RESTRICT");
         }
     }
 
@@ -107,6 +115,14 @@ class RetroactiveBackfill extends Migration
                 CONSTRAINT `{$table}_outcome_check` CHECK (`outcome` IN ('ready', 'refused'))
             ) {$options}",
         );
+    }
+
+    private function hasForeignKey(string $table, string $constraint): bool
+    {
+        return $this->db->query(
+            'SELECT 1 FROM information_schema.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND CONSTRAINT_NAME = ? AND CONSTRAINT_TYPE = ?',
+            [$this->db->prefixTable($table), $this->db->prefixTable($constraint), 'FOREIGN KEY'],
+        )->getRow() !== null;
     }
 
     private function hasColumn(string $table, string $column): bool

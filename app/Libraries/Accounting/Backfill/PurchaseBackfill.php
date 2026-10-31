@@ -46,7 +46,7 @@ final class PurchaseBackfill extends BackfillAdapter
         return BackfillFamily::Purchases;
     }
 
-    public function candidates(BackfillScope $scope, int $afterId, int $limit, int $batchId): array
+    protected function candidateQuery(BackfillScope $scope, int $afterId, int $batchId): array
     {
         $date   = 'COALESCE(r.invoice_date, DATE(r.receiving_time))';
         $params = [$scope->from, $scope->to];
@@ -57,17 +57,14 @@ final class PurchaseBackfill extends BackfillAdapter
 
         array_push($params, $afterId, $batchId);
 
-        $rows = $this->db->query(
+        return [
             "SELECT r.receiving_id AS id, {$date} AS document_date, r.branch_id FROM " . $this->db->prefixTable('receivings') . ' r'
             . ' WHERE ' . $date . ' BETWEEN ? AND ?'
             . ($scope->branchId === null ? '' : ' AND r.branch_id = ?')
             . ' AND r.receiving_id > ? AND ' . $this->noJournal('r.receiving_id', self::SOURCES)
-            . ' AND ' . $this->noStock('r.receiving_id', [ReceivingPostingBuilder::SOURCE_PURCHASE, ReceivingPostingBuilder::SOURCE_STOCK_TRANSFER, ReceivingPostingBuilder::SOURCE_TRANSFER_RECEIPT])
-            . ' ORDER BY r.receiving_id ASC LIMIT ' . max(1, $limit),
+            . ' AND ' . $this->noStock('r.receiving_id', [ReceivingPostingBuilder::SOURCE_PURCHASE, ReceivingPostingBuilder::SOURCE_STOCK_TRANSFER, ReceivingPostingBuilder::SOURCE_TRANSFER_RECEIPT]),
             $params,
-        )->getResult();
-
-        return array_map(static fn (object $row): BackfillDocument => new BackfillDocument(BackfillFamily::Purchases, (int) $row->id, (string) $row->document_date, (int) $row->branch_id), $rows);
+        ];
     }
 
     public function plan(BackfillDocument $document, ?int $employeeId, int $batchId): BackfillPlan

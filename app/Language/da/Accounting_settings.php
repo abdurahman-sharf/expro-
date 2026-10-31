@@ -3,6 +3,8 @@
 return [
     'auto_year'                                => '',
     'auto_year_desc'                           => '',
+    'backfill_enabled'                         => '',
+    'backfill_enabled_desc'                    => '',
     'base_currency'                            => '',
     'confirm_disable'                          => '',
     'confirm_enable'                           => '',

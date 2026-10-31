@@ -37,7 +37,7 @@ final class CashupBackfill extends BackfillAdapter
         return BackfillFamily::Cashups;
     }
 
-    public function candidates(BackfillScope $scope, int $afterId, int $limit, int $batchId): array
+    protected function candidateQuery(BackfillScope $scope, int $afterId, int $batchId): array
     {
         $branch = 'COALESCE(c.branch_id, ' . $this->defaultBranchId . ')';
         $params = [$scope->from, $scope->to];
@@ -48,17 +48,14 @@ final class CashupBackfill extends BackfillAdapter
 
         array_push($params, $afterId, $batchId);
 
-        $rows = $this->db->query(
+        return [
             "SELECT c.cashup_id AS id, DATE(c.close_date) AS document_date, {$branch} AS branch_id FROM " . $this->db->prefixTable('cash_up') . ' c'
             . ' WHERE c.deleted = 0 AND (c.closed_amount_cash <> 0 OR c.closed_amount_due <> 0 OR c.closed_amount_card <> 0 OR c.closed_amount_check <> 0)'
             . ' AND DATE(c.close_date) BETWEEN ? AND ?'
             . ($scope->branchId === null ? '' : " AND {$branch} = ?")
-            . ' AND c.cashup_id > ? AND ' . $this->noJournal('c.cashup_id', [CashupPostingBuilder::SOURCE])
-            . ' ORDER BY c.cashup_id ASC LIMIT ' . max(1, $limit),
+            . ' AND c.cashup_id > ? AND ' . $this->noJournal('c.cashup_id', [CashupPostingBuilder::SOURCE]),
             $params,
-        )->getResult();
-
-        return array_map(static fn (object $row): BackfillDocument => new BackfillDocument(BackfillFamily::Cashups, (int) $row->id, (string) $row->document_date, (int) $row->branch_id), $rows);
+        ];
     }
 
     public function plan(BackfillDocument $document, ?int $employeeId, int $batchId): BackfillPlan

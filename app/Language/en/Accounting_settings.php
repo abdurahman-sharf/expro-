@@ -3,6 +3,8 @@
 return [
     'auto_year'                                => 'Create the next fiscal year automatically',
     'auto_year_desc'                           => 'When a journal is dated just after the last fiscal year, the next year is created with the same length. Turn this off to add years yourself.',
+    'backfill_enabled'                         => 'Retroactive posting',
+    'backfill_enabled_desc'                    => 'Lets a previewed batch of documents saved while accounting was off be approved into the books. Off until you turn it on. It needs the opening balances and the start date.',
     'base_currency'                            => 'Base currency',
     'confirm_disable'                          => 'Turn accounting off? The accounting screens will be hidden. Nothing is deleted.',
     'confirm_enable'                           => 'Turn accounting on?',

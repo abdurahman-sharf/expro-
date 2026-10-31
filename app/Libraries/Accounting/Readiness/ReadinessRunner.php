@@ -36,6 +36,7 @@ final class ReadinessRunner
             new LedgerChecks($this->db),
             new TieChecks($this->db),
             new SettingsChecks($this->db),
+            new BackfillChecks($this->db),
         ];
     }
 

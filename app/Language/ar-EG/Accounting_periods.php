@@ -3,6 +3,7 @@
 return [
     'all_scopes'                                      => 'الشركة والفروع',
     'all_statuses'                                    => 'الكل',
+    'backfill_manage'                                 => 'معاينة دفعات المستندات السابقة واعتمادها وإلغاؤها',
     'close_action'                                    => 'إقفال…',
     'close_submit'                                    => 'إقفال',
     'close_through'                                   => 'إقفال حتى',
@@ -126,6 +127,7 @@ return [
     'successful_deleting'                             => 'تم حذف السنة المالية.',
     'successful_updating'                             => 'تم تعديل السنة المالية.',
     'summary'                                         => 'حالة الإقفال',
+    'tab_backfill'                                    => 'مستندات سابقة',
     'tab_closings'                                    => 'الإقفال',
     'tab_opening'                                     => 'الأرصدة الافتتاحية',
     'tab_year_end'                                    => 'إقفال نهاية السنة',

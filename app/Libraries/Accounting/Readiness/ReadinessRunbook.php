@@ -100,6 +100,7 @@ final class ReadinessRunbook
                 'notes' => [
                     'Accounting stays disabled on a real business until then. After enabling, the opening stock is posted from the opening balances screen, one location at a time (E26).',
                     'Keep the whole-purchase discount off in production until a separate owner permission (E47, E54).',
+                    'Documents saved while accounting was off have no journal. The retroactive posting gives them one: "php spark accounting:backfill --from ... --to ..." is its read-only dry run, and a batch is previewed and approved on the periods screen. Approval stays off (accounting_backfill_enabled) until the owner turns it on, needs the opening balances and the start date, and is never run on a real database without separate permission (E47).',
                 ],
             ],
             [

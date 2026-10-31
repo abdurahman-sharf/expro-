@@ -1,6 +1,6 @@
 <?php
 /**
- * @var 'years'|'closings'|'opening'|'year_end' $active
+ * @var 'years'|'closings'|'opening'|'year_end'|'backfill' $active
  */
 
 $tabs = [
@@ -8,6 +8,7 @@ $tabs = [
     'closings' => ['accounting_periods/closings', 'Accounting_periods.tab_closings'],
     'opening'  => ['accounting_periods/opening', 'Accounting_periods.tab_opening'],
     'year_end' => ['accounting_periods/year_end', 'Accounting_periods.tab_year_end'],
+    'backfill' => ['accounting_periods/backfill', 'Accounting_periods.tab_backfill'],
 ];
 ?>
 <ul class="nav nav-pills acc-tabs print_hide" aria-label="<?= esc(lang('Accounting_periods.sections'), 'attr') ?>">

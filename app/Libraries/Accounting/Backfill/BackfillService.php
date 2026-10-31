@@ -63,7 +63,10 @@ final class BackfillService
      */
     private array $adapters = [];
 
-    public function __construct(?BaseConnection $db = null, ?AccountingGuard $guard = null, ?BranchGuard $branches = null)
+    /**
+     * @param int $partyLockWait How many seconds a chunk waits for the change of a customer or a supplier that is running.
+     */
+    public function __construct(?BaseConnection $db = null, ?AccountingGuard $guard = null, ?BranchGuard $branches = null, private readonly int $partyLockWait = 15)
     {
         $this->db       = $db ?? Database::connect();
         $this->audit    = new AuditLog($this->db);
@@ -976,12 +979,12 @@ final class BackfillService
 
         foreach (array_reverse(array_values($suppliers)) as $supplierId) {
             $inner = $run;
-            $run   = fn () => (new SupplierLock($this->db))->run($supplierId, $inner);
+            $run   = fn () => (new SupplierLock($this->db, $this->partyLockWait))->run($supplierId, $inner);
         }
 
         foreach (array_reverse(array_values($customers)) as $customerId) {
             $inner = $run;
-            $run   = fn () => (new CustomerLock($this->db))->run($customerId, $inner);
+            $run   = fn () => (new CustomerLock($this->db, $this->partyLockWait))->run($customerId, $inner);
         }
 
         $run();
