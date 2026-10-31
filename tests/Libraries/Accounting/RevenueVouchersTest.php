@@ -14,6 +14,7 @@ use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
+use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -134,6 +135,27 @@ class RevenueVouchersTest extends CIUnitTestCase
             static fn (object $line): string => $line->account_id . '=' . bcadd($line->debit, '0', 2) . '/' . bcadd($line->credit, '0', 2),
             $this->accountingDb()->table('accounting_journal_lines')->where('journal_id', $journal->journal_id)->orderBy('line_no')->get()->getResult(),
         );
+    }
+
+    /**
+     * @return list<string> Every statement the database ran while the action ran.
+     */
+    private function queriesOf(callable $action): array
+    {
+        $queries  = [];
+        $listener = static function ($query) use (&$queries): void {
+            $queries[] = (string) $query->getQuery();
+        };
+
+        Events::on('DBQuery', $listener);
+
+        try {
+            $action();
+        } finally {
+            Events::removeListener('DBQuery', $listener);
+        }
+
+        return $queries;
     }
 
     private function journalCount(string $status): int
@@ -362,6 +384,17 @@ class RevenueVouchersTest extends CIUnitTestCase
         $this->assertSame('100.0000', $this->vouchers->find($id)->amount);
     }
 
+    public function testSave_LocksTheRowOfTheVoucherItChangesAndOfEachOneItDeletes(): void
+    {
+        $id = $this->save();
+
+        $locking = static fn (array $queries): array => array_values(array_filter($queries, static fn (string $sql): bool => str_contains($sql, 'FOR UPDATE') && str_contains($sql, 'ospos_revenues')));
+
+        $this->assertCount(1, $locking($this->queriesOf(fn () => $this->save(['amount' => '5.00'], $id))));
+        $this->assertCount(0, $locking($this->queriesOf(fn () => $this->save())));
+        $this->assertCount(1, $locking($this->queriesOf(fn () => $this->vouchers->delete([$id], $this->clerkId))));
+    }
+
     public function testSave_RejectsAVoucherThatDoesNotExistOrWasDeleted(): void
     {
         $this->assertSame(AccountingError::RevenueNotFound, $this->refusal(fn () => $this->save([], 99999))->error);
@@ -467,6 +500,37 @@ class RevenueVouchersTest extends CIUnitTestCase
         $this->assertSame([$first], $ids($this->vouchers->search(null, ['search' => 'January'], 'revenue_id', 'desc', 25, 0)));
         $this->assertSame(2, $this->vouchers->search(null, [], 'amount', 'asc', 1, 0)['total']);
         $this->assertCount(1, $this->vouchers->search(null, [], 'amount', 'asc', 1, 1)['rows']);
+    }
+
+    public function testSearch_FindsAVoucherByItsCategoryItsNumberItsAmountOrItsEmployee(): void
+    {
+        (new DocumentNumbering())->configure(DocumentType::Revenue, ['enabled' => true, 'prefix' => 'RV-', 'padding' => 4], $this->employeeWithGrants(['config']));
+
+        $kiosk  = $this->revenueCategory('Kiosk');
+        $first  = $this->save(['category_id' => $kiosk, 'amount' => '77.5000', 'description' => 'Plain']);
+        $second = $this->save(['amount' => '12.0000', 'description' => 'Other']);
+        $found  = fn (string $term): array => array_map(static fn (object $row): int => (int) $row->revenue_id, $this->vouchers->search(null, ['search' => $term], 'revenue_id', 'asc', 25, 0)['rows']);
+
+        $this->assertSame([$first], $found('Kiosk'));
+        $this->assertSame([$second], $found('RV-0002'));
+        $this->assertSame([$first], $found('77.5'));
+        $this->assertSame([$first, $second], $found('Temp'));
+        $this->assertSame([$first, $second], $found('Employee'));
+        $this->assertSame([$second], $found('Other'));
+        $this->assertSame([], $found('nothing like this'));
+    }
+
+    public function testSearch_SortsByTheColumnAskedAndOnlyByAColumnItKnows(): void
+    {
+        $first  = $this->save(['amount' => '50.00', 'date' => '2026-01-10']);
+        $second = $this->save(['amount' => '10.00', 'date' => '2026-03-10']);
+        $third  = $this->save(['amount' => '90.00', 'date' => '2026-02-10']);
+        $ids    = fn (string $sort, string $order): array => array_map(static fn (object $row): int => (int) $row->revenue_id, $this->vouchers->search(null, [], $sort, $order, 25, 0)['rows']);
+
+        $this->assertSame([$second, $first, $third], $ids('amount', 'asc'));
+        $this->assertSame([$third, $first, $second], $ids('amount', 'DESC'));
+        $this->assertSame([$second, $third, $first], $ids('date', 'desc'));
+        $this->assertSame([$third, $second, $first], $ids('no such column; DROP', 'desc'));
     }
 
     public function testJournalsOf_ListsTheJournalsOfAVoucherOldestFirst(): void

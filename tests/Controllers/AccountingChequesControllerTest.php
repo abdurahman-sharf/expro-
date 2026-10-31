@@ -413,6 +413,43 @@ class AccountingChequesControllerTest extends CIUnitTestCase
         $this->post('/accounting_cheques/act/deposit/' . $chequeId, ['date' => $this->today]);
     }
 
+    public function testPostSaveCheque_RefusesAChequeOfAnotherBranch(): void
+    {
+        $chequeId = $this->received();
+        $other    = $this->createBranch();
+
+        $this->manager([$other]);
+
+        try {
+            $this->post('/accounting_cheques/save/received/' . $chequeId, ['party_id' => $this->customerId, 'treasury_id' => $this->bank, 'cheque_number' => '710001', 'amount' => '5.00', 'issue_date' => $this->today, 'due_date' => $this->today]);
+            $this->fail('A person of another branch changed the cheque.');
+        } catch (PageNotFoundException) {
+            $this->assertSame('100.0000', (string) $this->accountingDb()->table('cheques')->where('cheque_id', $chequeId)->get()->getRow()->amount);
+        }
+    }
+
+    public function testPostUndoPostCancelPostDelete_RefuseAChequeOfAnotherBranch(): void
+    {
+        $received = $this->received();
+        $paid     = $this->paid();
+        $other    = $this->createBranch();
+
+        $this->cheques->collect($received, $this->today, null, $this->clerk);
+        $this->manager([$other]);
+
+        foreach (['undo/' . $received, 'cancel/' . $paid, 'delete/' . $paid] as $path) {
+            try {
+                $this->post('/accounting_cheques/' . $path);
+                $this->fail('A person of another branch reached ' . $path);
+            } catch (PageNotFoundException) {
+                $this->addToAssertionCount(1);
+            }
+        }
+
+        $this->assertSame('collected', $this->statusOf($received));
+        $this->assertSame('issued', $this->statusOf($paid));
+    }
+
     public function testGetActionForm_AsksForTheFeesOnlyWhenADepositedChequeIsCollected(): void
     {
         $this->manager();
