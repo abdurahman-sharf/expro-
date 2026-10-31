@@ -2,6 +2,9 @@
 
 namespace Tests\Controllers;
 
+use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\CustomerLedger;
+use App\Libraries\Accounting\CustomerOpening;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -51,6 +54,9 @@ class CustomersControllerTest extends CIUnitTestCase
         $db->table('document_numbers')->truncate();
         $db->table('document_sequences')->truncate();
         $db->table('accounting_audit_log')->where('entity_type', 'document_numbering')->delete();
+
+        $this->setConfigValue('accounting_enabled', '0');
+        $this->setConfigValue('accounting_customer_opening', '0');
 
         $this->insertedPeople = array_merge($this->insertedPeople, $this->customerIds);
         $this->customerIds    = [];
@@ -342,5 +348,134 @@ class CustomersControllerTest extends CIUnitTestCase
         $this->assertTrue($result['success']);
         $this->assertSame(1, $this->customersWithNumber('ACC-3'));
         $this->assertSame(1, $this->customersWithNumber('ACC-4'));
+    }
+
+    private function startAccountingWithCustomerOpening(): void
+    {
+        $this->reinstallChart();
+        $this->setConfigValue('accounting_base_currency', 'SAR');
+        $this->setConfigValue('accounting_start_date', '2020-01-01');
+        $this->setConfigValue('accounting_enabled', '1');
+        $this->setConfigValue('accounting_customer_opening', '1');
+        $this->withSession(['person_id' => $this->employeeWithGrants(['customers', AccountingGuard::OPENING_MANAGE]), 'menu_group' => 'office']);
+    }
+
+    private function openingOf(int $customerId): ?object
+    {
+        return (new CustomerOpening())->standingFor($customerId);
+    }
+
+    public function testGetView_OffersTheOpeningBalanceOnTheFormOfANewCustomerWhileAccountingAndTheSettingAreOn(): void
+    {
+        $this->startAccountingWithCustomerOpening();
+
+        $form = $this->get('/customers/view/-1');
+
+        $form->assertSee('id="opening_amount"');
+        $form->assertSee('id="opening_date"');
+        $form->assertSee(lang('Customers.opening_owes_us'));
+    }
+
+    public function testGetView_OffersNoOpeningBalanceWhileTheSettingIsOffAccountingIsOffOrTheEmployeeDoesNotManageOpeningBalances(): void
+    {
+        $this->startAccountingWithCustomerOpening();
+        $this->setConfigValue('accounting_customer_opening', '0');
+
+        $this->get('/customers/view/-1')->assertDontSee('id="opening_amount"');
+
+        $this->setConfigValue('accounting_customer_opening', '1');
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $this->get('/customers/view/-1')->assertDontSee('id="opening_amount"');
+
+        $this->setConfigValue('accounting_enabled', '1');
+        $this->withSession(['person_id' => $this->employeeWithGrants(['customers']), 'menu_group' => 'office']);
+
+        $this->get('/customers/view/-1')->assertDontSee('id="opening_amount"');
+    }
+
+    public function testGetView_OffersNoOpeningBalanceOnTheFormOfACustomerThatExists(): void
+    {
+        $this->startAccountingWithCustomerOpening();
+        $created = $this->save();
+
+        $this->get('/customers/view/' . $created['id'])->assertDontSee('id="opening_amount"');
+    }
+
+    public function testPostSave_EntersTheOpeningBalanceTypedOnTheFormOfANewCustomerWithItsDate(): void
+    {
+        $this->startAccountingWithCustomerOpening();
+        $date = date('Y-m-d', strtotime('-20 days'));
+
+        $result = $this->save(['opening_side' => 'owes_us', 'opening_amount' => '750.00', 'opening_date' => $date]);
+
+        $this->assertTrue($result['success']);
+        $this->assertStringNotContainsString(lang('Customers.opening_not_entered', ['']), $result['message']);
+
+        $opening = $this->openingOf($result['id']);
+
+        $this->assertNotNull($opening);
+        $this->assertSame(['owes_us', '750.0000', $date], [$opening->side, $opening->amount, $opening->opening_date]);
+
+        $position = (new CustomerLedger())->position($result['id']);
+
+        $this->assertSame('750.0000', $position->open());
+        $this->assertTrue($position->agrees());
+    }
+
+    public function testPostSave_EntersNothingWhenNoAmountIsTyped(): void
+    {
+        $this->startAccountingWithCustomerOpening();
+
+        $result = $this->save(['opening_side' => 'owes_us', 'opening_amount' => '  ', 'opening_date' => date('Y-m-d')]);
+
+        $this->assertTrue($result['success']);
+        $this->assertNull($this->openingOf($result['id']));
+        $this->assertSame(0, $this->countRows('customer_openings'));
+    }
+
+    public function testPostSave_SavesTheCustomerAndSaysWhyTheOpeningBalanceWasNotEnteredWhenTheBooksRefuseIt(): void
+    {
+        $this->startAccountingWithCustomerOpening();
+        $this->closeThrough(date('Y-m-d', strtotime('-10 days')));
+
+        $result = $this->save(['opening_side' => 'owes_us', 'opening_amount' => '750.00', 'opening_date' => date('Y-m-d', strtotime('-20 days'))]);
+
+        $this->assertTrue($result['success'], 'The customer is saved all the same');
+        $this->assertNull($this->openingOf($result['id']));
+        $this->assertSame(0, $this->countRows('customer_openings'));
+        $this->assertSame(1, $this->accountingDb()->table('customers')->where('person_id', $result['id'])->countAllResults());
+        $this->assertStringContainsString(substr(lang('Customers.opening_not_entered', ['x']), 0, 20), $result['message']);
+    }
+
+    public function testPostSave_IgnoresAnOpeningBalanceWhileTheSettingIsOffAndWithoutThePermission(): void
+    {
+        $this->startAccountingWithCustomerOpening();
+        $this->setConfigValue('accounting_customer_opening', '0');
+
+        $off = $this->save(['opening_side' => 'owes_us', 'opening_amount' => '10.00', 'opening_date' => date('Y-m-d')]);
+
+        $this->assertTrue($off['success']);
+        $this->assertNull($this->openingOf($off['id']));
+
+        $this->setConfigValue('accounting_customer_opening', '1');
+        $this->withSession(['person_id' => $this->employeeWithGrants(['customers']), 'menu_group' => 'office']);
+
+        $denied = $this->save(['opening_side' => 'owes_us', 'opening_amount' => '10.00', 'opening_date' => date('Y-m-d')]);
+
+        $this->assertTrue($denied['success']);
+        $this->assertNull($this->openingOf($denied['id']));
+        $this->assertSame(0, $this->countRows('customer_openings'));
+    }
+
+    public function testPostSave_NeverEntersAnOpeningBalanceForACustomerThatIsEdited(): void
+    {
+        $this->startAccountingWithCustomerOpening();
+        $created = $this->save();
+
+        $edited = $this->save(['opening_side' => 'owes_us', 'opening_amount' => '10.00', 'opening_date' => date('Y-m-d')], (int) $created['id']);
+
+        $this->assertTrue($edited['success']);
+        $this->assertNull($this->openingOf((int) $created['id']));
     }
 }

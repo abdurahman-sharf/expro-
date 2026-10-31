@@ -2,9 +2,17 @@
 
 namespace App\Controllers;
 
+use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\AccountingMessage;
+use App\Libraries\Accounting\AccountingSettings;
+use App\Libraries\Accounting\CustomerOpening;
+use App\Libraries\Accounting\PostingException;
 use App\Libraries\Mailchimp_lib;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
+use App\Libraries\Organization\BranchException;
+use App\Libraries\Organization\BranchGuard;
 
 use App\Models\Customer;
 use App\Models\Customer_rewards;
@@ -182,6 +190,8 @@ class Customers extends Persons
         $data['selected_package'] = $info->package_id;
 
         $data['use_destination_based_tax'] = $this->config['use_destination_based_tax'];
+        $data['opening_offered']           = $customer_id == NEW_ENTRY && $this->openingOffered();
+        $data['opening_today']             = date('Y-m-d');
 
         // Retrieve the total amount the customer spent so far together with min, max and average values
         $stats = $this->customer->get_stats($customer_id);
@@ -301,9 +311,11 @@ class Customers extends Persons
 
             // New customer
             if ($customer_id == NEW_ENTRY) {
+                $notEntered = $this->enterOpening((int) $customerData['person_id']);
+
                 return $this->response->setJSON([
                     'success' => true,
-                    'message' => lang('Customers.successful_adding') . ' ' . $firstName . ' ' . $lastName,
+                    'message' => lang('Customers.successful_adding') . ' ' . $firstName . ' ' . $lastName . ($notEntered === null ? '' : ' ' . lang('Customers.opening_not_entered', [$notEntered])),
                     'id'      => $customerData['person_id']
                 ]);
             } else { // Existing customer
@@ -320,6 +332,45 @@ class Customers extends Persons
                 'id'      => NEW_ENTRY
             ]);
         }
+    }
+
+    /**
+     * Whether the form of a new customer offers an opening balance: accounting is on, the setting
+     * for it is on and the employee manages opening balances.
+     */
+    private function openingOffered(): bool
+    {
+        $settings = new AccountingSettings();
+
+        return $settings->isEnabled() && $settings->customerOpeningEnabled() && $this->employee->has_grant(AccountingGuard::OPENING_MANAGE, (int) $this->employee->get_logged_in_employee_info()->person_id);
+    }
+
+    /**
+     * Enters the opening balance typed on the form of a new customer, which the customer does not
+     * wait for: the customer is saved either way. What the books refuse is returned as the reason.
+     */
+    private function enterOpening(int $customerId): ?string
+    {
+        $amount = trim((string) $this->request->getPost('opening_amount'));
+
+        if ($amount === '' || ! $this->openingOffered()) {
+            return null;
+        }
+
+        try {
+            (new CustomerOpening(null, null, new BranchGuard(null, $this->employee)))->create(
+                $customerId,
+                (string) $this->request->getPost('opening_side'),
+                $amount,
+                trim((string) $this->request->getPost('opening_date')),
+                '',
+                (int) $this->employee->get_logged_in_employee_info()->person_id,
+            );
+        } catch (AccountingException|BranchException|PostingException $failure) {
+            return AccountingMessage::of($failure);
+        }
+
+        return null;
     }
 
     /**
