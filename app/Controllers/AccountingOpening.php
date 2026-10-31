@@ -11,6 +11,9 @@ use App\Libraries\Accounting\OpeningStockFinding;
 use App\Libraries\Accounting\OpeningStockLine;
 use App\Libraries\Accounting\OpeningStockPlan;
 use App\Libraries\Accounting\OpeningStockProblem;
+use App\Libraries\Accounting\OpeningStockReprice;
+use App\Libraries\Accounting\OpeningStockRepriceBlock;
+use App\Libraries\Accounting\OpeningStockRepriceLine;
 use App\Libraries\Accounting\OpeningStockResult;
 use App\Libraries\Accounting\OpeningStockStatus;
 use App\Libraries\Organization\BranchContext;
@@ -213,6 +216,67 @@ class AccountingOpening extends AccountingController
         ]);
     }
 
+    public function getStockRepriceForm(): string
+    {
+        if (! $this->can(AccountingGuard::OPENING_MANAGE)) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        try {
+            $locationId = (int) $this->request->getGet('location');
+            $plan       = $this->openingStock->repricePlan($locationId, $this->employeeId());
+        } catch (AccountingException|BranchException) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        if ($plan->blockedBy(OpeningStockRepriceBlock::NoOpening)) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        return view('accounting_periods/opening_stock_reprice_form', [
+            'branch_id'     => $plan->branchId,
+            'location_id'   => $plan->locationId,
+            'location_name' => $plan->locationName,
+            'fingerprint'   => $plan->fingerprint(),
+            'allowed'       => $plan->allowed(),
+            'blocks'        => array_map(fn (OpeningStockRepriceBlock $block): string => $this->blockText($block, $plan), $plan->blocks),
+            'lines'         => array_map(fn (OpeningStockRepriceLine $line): array => [
+                'name'         => $line->itemName,
+                'units'        => to_quantity_decimals($line->units),
+                'cost_before'  => bcadd($line->costBefore, '0', 4),
+                'cost_after'   => bcadd($line->costAfter, '0', 4),
+                'value_before' => $this->formatAmount($line->valueBefore),
+                'value_after'  => $this->formatAmount($line->valueAfter),
+                'change'       => $this->formatAmount($line->change()),
+            ], $plan->lines),
+            'before'    => $this->formatAmount($plan->before()),
+            'after'     => $this->formatAmount($plan->after()),
+            'change'    => $this->formatAmount($plan->change()),
+            'revisions' => array_map(fn (array $revision): array => [
+                'revision'   => $revision['revision'],
+                'date'       => $this->formatDate($revision['date']),
+                'items'      => $revision['items'],
+                'value'      => $this->formatAmount($revision['value']),
+                'standing'   => $revision['standing'],
+                'journal_id' => $revision['journal_id'],
+            ], $this->openingStock->revisions($locationId)),
+        ]);
+    }
+
+    public function postStockReprice(): ResponseInterface
+    {
+        return $this->attempt(function (): array {
+            $branchId = $this->postedBranch();
+
+            $this->openingStock->repostAtCurrentCost((int) $this->request->getPost('location_id'), (string) $this->request->getPost('reason'), (string) $this->request->getPost('plan'), $this->employeeId());
+
+            $message = lang('Accounting_periods.opening_stock_repriced');
+            session()->setFlashdata('accounting_notice', $message);
+
+            return ['success' => true, 'message' => $message, 'id' => $branchId, 'redirect' => $this->url($branchId)];
+        });
+    }
+
     public function postStockReverse(): ResponseInterface
     {
         return $this->attempt(function (): array {
@@ -249,6 +313,17 @@ class AccountingOpening extends AccountingController
                 ...($plan->status === OpeningStockStatus::PartiallyPosted ? [lang('Accounting_periods.opening_stock_partial_hint')] : []),
             ],
         ];
+    }
+
+    private function blockText(OpeningStockRepriceBlock $block, OpeningStockReprice $plan): string
+    {
+        $key = 'Accounting_periods.opening_stock_reprice_block_' . $block->value;
+
+        return match ($block) {
+            OpeningStockRepriceBlock::LaterMovements => lang($key, [(string) $plan->laterMovements]),
+            OpeningStockRepriceBlock::PeriodClosed   => lang($key, [$this->formatDate($plan->date)]),
+            default                                  => lang($key),
+        };
     }
 
     private function findingText(OpeningStockFinding $finding): string

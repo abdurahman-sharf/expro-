@@ -26,7 +26,8 @@ use DateTimeImmutable;
  * same quantity and so leaves the difference where it was; a person who has looked at them may
  * post them too, with a reason, as negative lines that make the books say what the shelves say.
  * A posted opening is never changed or deleted: it is reversed on purpose, with a reason, and
- * can then be posted again.
+ * can then be posted again. A person who finds the cost it was posted at wrong may post it again
+ * at the cost the items carry now, but only while nothing else has moved stock in the location.
  */
 final class OpeningStock
 {
@@ -160,15 +161,16 @@ final class OpeningStock
         $this->guard->require(AccountingGuard::OPENING_MANAGE, $employeeId);
         $this->startDate();
 
-        $location = $this->requireLocations([$locationId], $employeeId)[0];
-        $date     = $this->validDate($date);
-        $reason   = trim($reason);
+        $this->requireLocations([$locationId], $employeeId);
+
+        $date   = $this->validDate($date);
+        $reason = trim($reason);
 
         if ($reason === '' || mb_strlen($reason) > 255) {
             throw new AccountingException(AccountingError::ReasonRequired, 'A reason of 1 to 255 characters is required.');
         }
 
-        $this->transactional(function () use ($locationId, $date, $reason, $employeeId, $location): void {
+        $this->transactional(function () use ($locationId, $date, $reason, $employeeId): void {
             $locked   = $this->lockedLocations([$locationId])[0];
             $revision = $this->activeRevision($locationId);
 
@@ -176,19 +178,248 @@ final class OpeningStock
                 throw new AccountingException(AccountingError::OpeningStockNotPosted, 'The stock location has no posted opening stock.', ['location_id' => $locationId]);
             }
 
-            $journal    = $this->postedJournal($locationId, $revision);
-            $reversalId = null;
+            $this->takeBack($locked, $revision, $date, $reason, $employeeId);
+        });
+    }
 
-            if ($journal !== null) {
-                $reversalId = (new JournalService($this->db, $this->guard, $this->posting, $this->branches))->reverseOpening((int) $journal->journal_id, $date, $reason, $employeeId);
-            } else {
-                (new PeriodGuard($this->db))->enforce($date, (int) $locked->branch_id);
+    /**
+     * What posting the opening stock of a location again at the cost its items carry now would
+     * do, and what stops it.
+     *
+     * @throws AccountingException|BranchException
+     */
+    public function repricePlan(int $locationId, ?int $employeeId): OpeningStockReprice
+    {
+        return $this->buildReprice($this->requireLocations([$locationId], $employeeId)[0]);
+    }
+
+    /**
+     * Posts the opening stock of a location again, on purpose and with a reason, with every item
+     * at the cost it carries now instead of the cost it was posted at. The opening that stands is
+     * reversed and a new revision is posted in its place, on the same day, in one transaction, so
+     * the old revision stays in the books as it was, reversed. It goes ahead only for what the plan
+     * the person saw says: when anything else has moved stock in the location, the account holds
+     * value no movement accounts for, or the day is in a closed period, nothing is changed, because
+     * a cost that moves under units that were bought or sold since would leave their value wrong.
+     * The valued movements of other documents are never read or written.
+     *
+     * @throws AccountingException|BranchException|PostingException
+     */
+    public function repostAtCurrentCost(int $locationId, string $reason, string $expectedPlan, ?int $employeeId): OpeningStockResult
+    {
+        $this->guard->require(AccountingGuard::OPENING_MANAGE, $employeeId);
+        $this->startDate();
+
+        $this->requireLocations([$locationId], $employeeId);
+
+        $reason = trim($reason);
+
+        if ($reason === '' || mb_strlen($reason) > 255) {
+            throw new AccountingException(AccountingError::ReasonRequired, 'A reason of 1 to 255 characters is required.');
+        }
+
+        try {
+            return $this->transactional(function () use ($locationId, $reason, $expectedPlan, $employeeId): OpeningStockResult {
+                $locked = $this->lockedLocations([$locationId])[0];
+                $plan   = $this->buildReprice($locked);
+
+                $this->assertRepriceAllowed($plan);
+
+                if (! hash_equals($plan->fingerprint(), $expectedPlan)) {
+                    throw new AccountingException(AccountingError::OpeningStockPlanChanged, 'The cost of an item or the opening stock changed after the plan was shown.', ['location_id' => $locationId]);
+                }
+
+                $date = (string) $plan->date;
+
+                $this->takeBack($locked, (int) $plan->revision, $date, $reason, $employeeId);
+
+                $lines  = array_map(static fn (OpeningStockRepriceLine $line): OpeningStockLine => new OpeningStockLine($line->itemId, $line->itemName, $line->units, $line->costAfter, $line->valueAfter), $plan->lines);
+                $result = $this->write(new OpeningStockPlan($locationId, $plan->locationName, $plan->branchId, OpeningStockStatus::Postable, $lines, [], null), $date, $employeeId, null);
+
+                $this->audit->write('opening_stock', $locationId, 'opening_stock_repriced', $employeeId, $this->origin($employeeId), [
+                    'from_revision' => $plan->revision,
+                    'revision'      => $result->revision,
+                    'reason'        => $reason,
+                    'before'        => $plan->before(),
+                    'after'         => $plan->after(),
+                    'items'         => count($plan->lines),
+                    'location'      => $plan->locationName,
+                ], $plan->branchId);
+
+                return $result;
+            });
+        } catch (AccountingException|PostingException $failure) {
+            if ($failure instanceof PostingException || $failure->error === AccountingError::WriteFailed) {
+                $this->recordFailure([$locationId], $failure, $employeeId);
             }
 
-            $this->ledger->reverseSource(self::SOURCE, $locationId, JournalEntryType::General, $date, $reversalId);
+            throw $failure;
+        }
+    }
 
-            $this->audit->write('opening_stock', $locationId, 'opening_stock_reversed', $employeeId, $this->origin($employeeId), ['revision' => $revision, 'reason' => $reason, 'location' => (string) $location->location_name], (int) $locked->branch_id);
-        });
+    /**
+     * Every revision the opening stock of a location has had, the oldest first, whether it still
+     * stands or was reversed. Nothing here is ever removed.
+     *
+     * @return list<array{revision: int, date: string, items: int, value: string, standing: bool, journal_id: ?int}>
+     */
+    public function revisions(int $locationId): array
+    {
+        $entries = $this->db->prefixTable('accounting_stock_entries');
+        $rows    = $this->db->query(
+            "SELECT p.revision, MIN(p.entry_date) AS entry_date, COUNT(*) AS items, SUM(p.value) AS value, MAX(r.entry_id IS NOT NULL) AS reversed, MAX(p.journal_id) AS journal_id
+             FROM {$entries} p
+             LEFT JOIN {$entries} r ON r.source_type = p.source_type AND r.source_id = p.source_id AND r.entry_type = p.entry_type
+                 AND r.revision = p.revision AND r.line_no = p.line_no AND r.kind = 'reversal'
+             WHERE p.source_type = ? AND p.source_id = ? AND p.kind = 'posting'
+             GROUP BY p.revision
+             ORDER BY p.revision ASC",
+            [self::SOURCE, $locationId],
+        )->getResult();
+
+        return array_map(static fn (object $row): array => [
+            'revision'   => (int) $row->revision,
+            'date'       => (string) $row->entry_date,
+            'items'      => (int) $row->items,
+            'value'      => bcadd((string) $row->value, '0', StockLedger::VALUE_SCALE),
+            'standing'   => (int) $row->reversed === 0,
+            'journal_id' => $row->journal_id === null ? null : (int) $row->journal_id,
+        ], $rows);
+    }
+
+    private function takeBack(object $locked, int $revision, string $date, string $reason, ?int $employeeId): void
+    {
+        $locationId = (int) $locked->location_id;
+        $journal    = $this->postedJournal($locationId, $revision);
+        $reversalId = null;
+
+        if ($journal !== null) {
+            $reversalId = (new JournalService($this->db, $this->guard, $this->posting, $this->branches))->reverseOpening((int) $journal->journal_id, $date, $reason, $employeeId);
+        } else {
+            (new PeriodGuard($this->db))->enforce($date, (int) $locked->branch_id);
+        }
+
+        $this->ledger->reverseSource(self::SOURCE, $locationId, JournalEntryType::General, $date, $reversalId);
+
+        $this->audit->write('opening_stock', $locationId, 'opening_stock_reversed', $employeeId, $this->origin($employeeId), ['revision' => $revision, 'reason' => $reason, 'location' => (string) $locked->location_name], (int) $locked->branch_id);
+    }
+
+    /**
+     * @throws AccountingException|PostingException
+     */
+    private function assertRepriceAllowed(OpeningStockReprice $plan): void
+    {
+        if ($plan->blockedBy(OpeningStockRepriceBlock::NoOpening)) {
+            throw new AccountingException(AccountingError::OpeningStockNotPosted, 'The stock location has no posted opening stock.', ['location_id' => $plan->locationId]);
+        }
+
+        if ($plan->blockedBy(OpeningStockRepriceBlock::LaterMovements)) {
+            throw new AccountingException(AccountingError::OpeningStockLaterMovements, 'Other documents have moved stock in this location since the opening stock was posted.', ['location_id' => $plan->locationId, 'count' => $plan->laterMovements]);
+        }
+
+        if ($plan->blockedBy(OpeningStockRepriceBlock::AccountHoldsValue)) {
+            throw new AccountingException(AccountingError::OpeningStockAccountHoldsValue, 'The account of the location holds value that no stock movement accounts for.', ['location_id' => $plan->locationId]);
+        }
+
+        (new PeriodGuard($this->db))->enforce((string) $plan->date, $plan->branchId);
+
+        if ($plan->blockedBy(OpeningStockRepriceBlock::NothingToChange)) {
+            throw new AccountingException(AccountingError::OpeningStockNothingToReprice, 'Every item already stands at the cost it carries.', ['location_id' => $plan->locationId]);
+        }
+    }
+
+    private function buildReprice(object $location): OpeningStockReprice
+    {
+        $locationId = (int) $location->location_id;
+        $branchId   = (int) $location->branch_id;
+        $name       = (string) $location->location_name;
+        $revision   = $this->activeRevision($locationId);
+
+        if ($revision === null) {
+            return new OpeningStockReprice($locationId, $name, $branchId, null, null, [], [OpeningStockRepriceBlock::NoOpening]);
+        }
+
+        $standing = $this->standingLines($locationId, $revision);
+        $costs    = $this->itemCosts(array_map(static fn (OpeningStockLine $line): int => $line->itemId, $standing));
+        $lines    = [];
+        $changed  = false;
+
+        foreach ($standing as $line) {
+            $before = bccomp($line->units, '0', StockLedger::QUANTITY_SCALE) === 0 ? '0' : bcdiv(SaleAmounts::absolute($line->value), SaleAmounts::absolute($line->units), 8);
+            $after  = $costs[$line->itemId] ?? $before;
+            $value  = $this->valueOf($line->units, $after);
+
+            $changed = $changed || bccomp($value, $line->value, StockLedger::VALUE_SCALE) !== 0;
+            $lines[] = new OpeningStockRepriceLine($line->itemId, $line->itemName, $line->units, $before, $after, $line->value, $value);
+        }
+
+        $date = (string) $this->db->table('accounting_stock_entries')
+            ->selectMin('entry_date', 'entry_date')
+            ->where(['source_type' => self::SOURCE, 'source_id' => $locationId, 'revision' => $revision, 'kind' => 'posting'])
+            ->get()
+            ->getRow()
+            ->entry_date;
+
+        $later  = $this->laterMovements($locationId);
+        $blocks = [];
+
+        if ($later > 0) {
+            $blocks[] = OpeningStockRepriceBlock::LaterMovements;
+        }
+
+        $held = $this->ledger->reconcile([$locationId])[0]['unattributed'];
+
+        if (bccomp(SaleAmounts::absolute($held), self::VALUE_TOLERANCE, StockLedger::VALUE_SCALE) > 0) {
+            $blocks[] = OpeningStockRepriceBlock::AccountHoldsValue;
+        }
+
+        try {
+            (new PeriodGuard($this->db))->check($date, $branchId);
+        } catch (PostingException) {
+            $blocks[] = OpeningStockRepriceBlock::PeriodClosed;
+        }
+
+        if (! $changed) {
+            $blocks[] = OpeningStockRepriceBlock::NothingToChange;
+        }
+
+        return new OpeningStockReprice($locationId, $name, $branchId, $revision, $date, $lines, $blocks, $later);
+    }
+
+    /**
+     * The valued movements that other documents wrote in the location, which is every one that is
+     * not the opening stock of the location itself.
+     */
+    private function laterMovements(int $locationId): int
+    {
+        return $this->db->table('accounting_stock_entries')
+            ->where('company_id', CompanyContext::id())
+            ->where('location_id', $locationId)
+            ->groupStart()
+            ->where('source_type !=', self::SOURCE)
+            ->orWhere('source_id !=', $locationId)
+            ->groupEnd()
+            ->countAllResults();
+    }
+
+    /**
+     * @param list<int> $itemIds
+     *
+     * @return array<int, string> The cost each item carries now.
+     */
+    private function itemCosts(array $itemIds): array
+    {
+        if ($itemIds === []) {
+            return [];
+        }
+
+        $costs = [];
+
+        foreach ($this->db->table('items')->select('item_id, cost_price')->whereIn('item_id', $itemIds)->get()->getResult() as $row) {
+            $costs[(int) $row->item_id] = bcadd((string) $row->cost_price, '0', 8);
+        }
+
+        return $costs;
     }
 
     private function buildPlan(object $location): OpeningStockPlan

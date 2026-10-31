@@ -91,6 +91,11 @@ enum AccountingError: string
     case OpeningStockLocationNotFound = 'opening_stock_location_not_found';
     case OpeningStockNotPosted        = 'opening_stock_not_posted';
 
+    case OpeningStockAccountHoldsValue = 'opening_stock_account_holds_value';
+    case OpeningStockLaterMovements    = 'opening_stock_later_movements';
+    case OpeningStockNothingToReprice  = 'opening_stock_nothing_to_reprice';
+    case OpeningStockPlanChanged       = 'opening_stock_plan_changed';
+
     case RoutingInvalid            = 'routing_invalid';
     case RoutingKeyUnknown         = 'routing_key_unknown';
     case RoutingAccountRequired    = 'routing_account_required';

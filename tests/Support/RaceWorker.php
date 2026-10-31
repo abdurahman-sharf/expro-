@@ -129,6 +129,15 @@ $result = match ($method) {
             return false;
         }
     })($args),
+    'repriceOpeningStock' => (static function (array $args): bool {
+        try {
+            (new App\Libraries\Accounting\OpeningStock())->repostAtCurrentCost((int) $args[0], 'race', (string) $args[1], null);
+
+            return true;
+        } catch (Throwable) {
+            return false;
+        }
+    })($args),
     'purchase' => (static function (array $args): bool {
         $lines = [[
             'item_id'            => (int) $args[1],

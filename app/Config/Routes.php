@@ -177,6 +177,8 @@ $routes->group('accounting_periods', static function (RouteCollection $routes): 
     $routes->get('opening/stock/reverse_form', 'AccountingOpening::getStockReverseForm');
     $routes->post('opening/stock/post', 'AccountingOpening::postStockPost');
     $routes->post('opening/stock/reverse', 'AccountingOpening::postStockReverse');
+    $routes->get('opening/stock/reprice_form', 'AccountingOpening::getStockRepriceForm');
+    $routes->post('opening/stock/reprice', 'AccountingOpening::postStockReprice');
 });
 
 $routes->group('accounting_chart', static function (RouteCollection $routes): void {

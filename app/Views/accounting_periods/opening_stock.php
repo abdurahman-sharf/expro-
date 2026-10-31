@@ -65,6 +65,9 @@ $ready = count(array_filter($stock, static fn (array $row): bool => $row['status
                                     </button>
                                 <?php endif; ?>
                                 <?php if ($can_manage && $row['posted']): ?>
+                                    <button type="button" class="btn btn-outline-primary btn-sm modal-dlg modal-dlg-wide stock-reprice" data-btn-submit="<?= esc(lang('Accounting_periods.opening_stock_reprice_submit'), 'attr') ?>" data-href="<?= esc('accounting_periods/opening/stock/reprice_form?location=' . (int) $row['location_id'], 'attr') ?>" title="<?= esc(lang('Accounting_periods.opening_stock_reprice_title'), 'attr') ?>">
+                                        <span class="bi bi-currency-exchange" aria-hidden="true">&nbsp;</span><?= lang('Accounting_periods.opening_stock_reprice_action') ?>
+                                    </button>
                                     <button type="button" class="btn btn-outline-danger btn-sm modal-dlg" data-btn-submit="<?= esc(lang('Accounting_journals.reverse'), 'attr') ?>" data-href="<?= esc('accounting_periods/opening/stock/reverse_form?location=' . (int) $row['location_id'], 'attr') ?>" title="<?= esc(lang('Accounting_periods.opening_stock_reverse_title'), 'attr') ?>">
                                         <span class="bi bi-arrow-counterclockwise" aria-hidden="true">&nbsp;</span><?= lang('Accounting_periods.opening_stock_reverse') ?>
                                     </button>
