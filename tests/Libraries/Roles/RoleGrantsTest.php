@@ -5,6 +5,7 @@ namespace Tests\Libraries\Roles;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Roles\RoleGrants;
+use App\Libraries\Roles\RoleService;
 use App\Models\Employee;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -13,7 +14,10 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\RoleFixtureTrait;
 
-class RoleGrantsTest extends CIUnitTestCase
+/**
+ * @internal
+ */
+final class RoleGrantsTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use EmployeeFixtureTrait;
@@ -22,7 +26,7 @@ class RoleGrantsTest extends CIUnitTestCase
     protected $migrate     = true;
     protected $migrateOnce = true;
     protected $refresh     = false;
-    protected $namespace   = null;
+    protected $namespace;
 
     public static function setUpBeforeClass(): void
     {
@@ -36,7 +40,7 @@ class RoleGrantsTest extends CIUnitTestCase
         RoleGrants::flush();
     }
 
-    public function testIdsFor_ListsThePermissionsOfEveryActiveRoleOfTheEmployeeOnce(): void
+    public function testIdsForListsThePermissionsOfEveryActiveRoleOfTheEmployeeOnce(): void
     {
         $first    = $this->createRole(['sales', 'customers', 'items']);
         $second   = $this->createRole(['customers', 'receivings']);
@@ -45,12 +49,12 @@ class RoleGrantsTest extends CIUnitTestCase
         $this->assertSame(['customers', 'items', 'receivings', 'sales'], (new RoleGrants())->idsFor($employee));
     }
 
-    public function testIdsFor_IsEmptyForAnEmployeeWithoutRoles(): void
+    public function testIdsForIsEmptyForAnEmployeeWithoutRoles(): void
     {
         $this->assertSame([], (new RoleGrants())->idsFor($this->createEmployee()));
     }
 
-    public function testIdsFor_IgnoresAnInactiveRole(): void
+    public function testIdsForIgnoresAnInactiveRole(): void
     {
         $active   = $this->createRole(['sales']);
         $inactive = $this->createRole(['items'], active: false);
@@ -59,7 +63,7 @@ class RoleGrantsTest extends CIUnitTestCase
         $this->assertSame(['sales'], (new RoleGrants())->idsFor($employee));
     }
 
-    public function testIdsFor_IgnoresTheRolesOfADeletedEmployee(): void
+    public function testIdsForIgnoresTheRolesOfADeletedEmployee(): void
     {
         $employee = $this->employeeWithRoles([$this->createRole(['sales'])]);
 
@@ -69,22 +73,8 @@ class RoleGrantsTest extends CIUnitTestCase
         $this->assertSame([], (new RoleGrants())->idsFor($employee));
     }
 
-    /**
-     * @return array<string, array{string}>
-     */
-    public static function permissionsARoleNeverGives(): array
-    {
-        $cases = [];
-
-        foreach (RoleGrants::forbidden() as $permissionId) {
-            $cases[$permissionId] = [$permissionId];
-        }
-
-        return $cases;
-    }
-
-    #[DataProvider('permissionsARoleNeverGives')]
-    public function testIdsFor_IgnoresAForbiddenPermissionWrittenBehindTheServiceBack(string $permissionId): void
+    #[DataProvider('provideIdsFor_IgnoresAForbiddenPermissionWrittenBehindTheServiceBack')]
+    public function testIdsForIgnoresAForbiddenPermissionWrittenBehindTheServiceBack(string $permissionId): void
     {
         $role     = $this->createRole(['sales']);
         $employee = $this->employeeWithRoles([$role]);
@@ -96,7 +86,21 @@ class RoleGrantsTest extends CIUnitTestCase
         $this->assertFalse((new RoleGrants())->has($employee, $permissionId));
     }
 
-    public function testForbidden_CoversEverySensitivePermissionAndTheBranchScope(): void
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function provideIdsFor_IgnoresAForbiddenPermissionWrittenBehindTheServiceBack(): iterable
+    {
+        $cases = [];
+
+        foreach (RoleGrants::forbidden() as $permissionId) {
+            $cases[$permissionId] = [$permissionId];
+        }
+
+        return $cases;
+    }
+
+    public function testForbiddenCoversEverySensitivePermissionAndTheBranchScope(): void
     {
         $forbidden = RoleGrants::forbidden();
 
@@ -109,7 +113,7 @@ class RoleGrantsTest extends CIUnitTestCase
         $this->assertNotContains('sales', $forbidden);
     }
 
-    public function testIdsFor_ReadsOncePerEmployeeUntilSomethingIsFlushed(): void
+    public function testIdsForReadsOncePerEmployeeUntilSomethingIsFlushed(): void
     {
         $role     = $this->createRole(['sales']);
         $employee = $this->employeeWithRoles([$role]);
@@ -126,19 +130,19 @@ class RoleGrantsTest extends CIUnitTestCase
         $this->assertSame(['items', 'sales'], $grants->idsFor($employee));
     }
 
-    public function testIdsFor_ReadsTheRolesAnEmployeeIsGivenThroughTheService(): void
+    public function testIdsForReadsTheRolesAnEmployeeIsGivenThroughTheService(): void
     {
         $grants   = new RoleGrants();
         $employee = $this->createEmployee();
 
         $this->assertSame([], $grants->idsFor($employee));
 
-        (new \App\Libraries\Roles\RoleService())->assign($employee, [$this->createRole(['sales'])], null);
+        (new RoleService())->assign($employee, [$this->createRole(['sales'])], null);
 
         $this->assertSame(['sales'], $grants->idsFor($employee), 'Giving a role flushes what every reader of the request has read');
     }
 
-    public function testHas_ChecksTheExactPermissionId(): void
+    public function testHasChecksTheExactPermissionId(): void
     {
         $employee = $this->employeeWithRoles([$this->createRole(['sales_delete'])]);
         $grants   = new RoleGrants();
@@ -148,7 +152,7 @@ class RoleGrantsTest extends CIUnitTestCase
         $this->assertFalse($grants->has($employee, 'sales_delete_all'));
     }
 
-    public function testHasGrant_StaysAnAnswerOfTheEmployeeModelForRoleHolders(): void
+    public function testHasGrantStaysAnAnswerOfTheEmployeeModelForRoleHolders(): void
     {
         $employee = $this->employeeWithRoles([$this->createRole(['sales_delete'])]);
         $model    = model(Employee::class);

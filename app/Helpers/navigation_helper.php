@@ -9,7 +9,7 @@ const NAVIGATION_GROUPS = [
     'group_finance'    => ['expenses', 'expenses_categories', 'receipt_vouchers', 'revenue_categories', 'cashups', 'taxes'],
     'group_accounting' => ['accounting_chart', 'accounting_journals', 'accounting_receivables', 'accounting_payables', 'accounting_cheques', 'accounting_reports', 'accounting_cost_centers', 'accounting_periods', 'accounting_routing', 'accounting_settings'],
     'group_analysis'   => ['reports'],
-    'group_admin'      => ['employees', 'branches', 'config'],
+    'group_admin'      => ['employees', 'roles', 'branches', 'config'],
 ];
 
 const NAVIGATION_ICONS = [
@@ -41,6 +41,7 @@ const NAVIGATION_ICONS = [
     'accounting_settings'     => 'bi-toggles',
     'reports'                 => 'bi-bar-chart-line',
     'employees'               => 'bi-person-badge',
+    'roles'                   => 'bi-shield-check',
     'branches'                => 'bi-building',
     'config'                  => 'bi-gear',
 ];

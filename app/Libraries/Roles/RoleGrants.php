@@ -16,7 +16,6 @@ use Config\Database;
 final class RoleGrants
 {
     private static int $generation = 0;
-
     private BaseConnection $db;
     private ?bool $available = null;
     private int $seen        = 0;

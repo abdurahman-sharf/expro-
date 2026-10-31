@@ -73,6 +73,8 @@ return [
     'reports_desc'                 => 'Xem và tạo Báo cáo.',
     'revenue_categories'           => '',
     'revenue_categories_desc'      => '',
+    'roles'                        => '',
+    'roles_desc'                   => '',
     'sales'                        => 'Bán hàng',
     'sales_desc'                   => 'Xử lý Bán và Trả hàng.',
     'suppliers'                    => 'Nhà cung cấp',

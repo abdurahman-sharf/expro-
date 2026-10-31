@@ -73,6 +73,8 @@ return [
     'reports_desc'                 => 'Lihat dan Cetak Laporan.',
     'revenue_categories'           => '',
     'revenue_categories_desc'      => '',
+    'roles'                        => '',
+    'roles_desc'                   => '',
     'sales'                        => 'Penjualan',
     'sales_desc'                   => 'Proses Penjualan dan Retur.',
     'suppliers'                    => 'Pemasok',

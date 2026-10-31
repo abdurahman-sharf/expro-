@@ -73,6 +73,8 @@ return [
     'reports_desc'                 => 'View and generate Reports.',
     'revenue_categories'           => 'Revenue categories',
     'revenue_categories_desc'      => 'The categories of receipt vouchers and the account of each',
+    'roles'                        => 'Roles',
+    'roles_desc'                   => 'Create roles, choose what each may do and give them to employees.',
     'sales'                        => 'Sales',
     'sales_desc'                   => 'Process Sales and Returns.',
     'suppliers'                    => 'Suppliers',

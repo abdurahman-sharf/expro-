@@ -73,6 +73,8 @@ return [
     'reports_desc'                 => 'Raporları görme.',
     'revenue_categories'           => '',
     'revenue_categories_desc'      => '',
+    'roles'                        => '',
+    'roles_desc'                   => '',
     'sales'                        => 'Satış',
     'sales_desc'                   => 'Satış ve iade.',
     'suppliers'                    => 'Sağlayıcılar',

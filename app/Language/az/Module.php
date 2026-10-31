@@ -73,6 +73,8 @@ return [
     'reports_desc'                 => 'Hesabatları Yarat və Göstər.',
     'revenue_categories'           => '',
     'revenue_categories_desc'      => '',
+    'roles'                        => '',
+    'roles_desc'                   => '',
     'sales'                        => 'Satışlar',
     'sales_desc'                   => 'Satış prosesləri və Qaytarılanlar.',
     'suppliers'                    => 'Təchizatçılar',

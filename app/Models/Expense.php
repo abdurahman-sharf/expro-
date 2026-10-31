@@ -118,10 +118,9 @@ class Expense extends Model
      */
     public function get_multiple_info(array $expense_ids, ?int $viewerId = null): ResultInterface
     {
+        $cut     = $this->viewerCut($viewerId);
         $builder = $this->db->table('expenses');
         $builder->whereIn('expenses.expense_id', $expense_ids);
-
-        $cut = $this->viewerCut($viewerId);
 
         if ($cut !== null) {
             $builder->where('expenses.employee_id', $cut);
@@ -161,6 +160,7 @@ class Expense extends Model
         if ($order == null) $order = 'asc';
         if ($count_only == null) $count_only = false;
 
+        $cut = $this->viewerCut($viewerId);
         $config = config(OSPOS::class)->settings;
         $accountingOn = (new AccountingSettings($this->db))->isEnabled();
         $builder = $this->db->table('expenses AS expenses');
@@ -203,8 +203,6 @@ class Expense extends Model
         $builder->groupEnd();
 
         $builder->where('expenses.deleted', $filters['is_deleted']);
-
-        $cut = $this->viewerCut($viewerId);
 
         if ($cut !== null) {
             $builder->where('expenses.employee_id', $cut);
@@ -263,6 +261,7 @@ class Expense extends Model
      */
     public function get_info(int $expense_id, ?int $viewerId = null): object
     {
+        $cut = $this->viewerCut($viewerId);
         $accountingOn = (new AccountingSettings($this->db))->isEnabled();
         $builder = $this->db->table('expenses AS expenses');
         $builder->select('
@@ -290,8 +289,6 @@ class Expense extends Model
         $builder->join('expense_categories AS expense_categories', 'expense_categories.expense_category_id = expenses.expense_category_id', 'LEFT');
         $builder->join('suppliers AS suppliers', 'suppliers.person_id = expenses.supplier_id', 'LEFT');
         $builder->where('expense_id', $expense_id);
-
-        $cut = $this->viewerCut($viewerId);
 
         if ($cut !== null) {
             $builder->where('expenses.employee_id', $cut);
@@ -532,14 +529,13 @@ class Expense extends Model
      */
     public function get_payments_summary(string $search, array $filters, ?int $viewerId = null): array    // TODO: $search is passed but never used in the function
     {
+        $cut    = $this->viewerCut($viewerId);
         $config = config(OSPOS::class)->settings;
 
         // get payment summary
         $builder = $this->db->table('expenses');
         $builder->select('payment_type, COUNT(amount) AS count, SUM(amount) AS amount');
         $builder->where('deleted', $filters['is_deleted']);
-
-        $cut = $this->viewerCut($viewerId);
 
         if ($cut !== null) {
             $builder->where('expenses.employee_id', $cut);
@@ -589,10 +585,9 @@ class Expense extends Model
      */
     public function get_expense_payment(int $expense_id, ?int $viewerId = null): ResultInterface
     {
+        $cut     = $this->viewerCut($viewerId);
         $builder = $this->db->table('expenses');
         $builder->where('expense_id', $expense_id);
-
-        $cut = $this->viewerCut($viewerId);
 
         if ($cut !== null) {
             $builder->where('expenses.employee_id', $cut);

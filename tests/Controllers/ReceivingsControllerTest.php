@@ -21,6 +21,7 @@ use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
+use Tests\Support\RoleFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 
 /**
@@ -37,6 +38,7 @@ class ReceivingsControllerTest extends CIUnitTestCase
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
     use PurchaseAccountingFixtureTrait;
+    use RoleFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -3426,5 +3428,157 @@ class ReceivingsControllerTest extends CIUnitTestCase
 
         $response->assertSee('حفظ الأسطر');
         $response->assertDontSee('Save lines');
+    }
+
+    private function ownRecordsBuyer(): int
+    {
+        return $this->employeeWithRoles([$this->createRole([], 'own')], ['receivings', 'receivings_stock', 'reports_receivings', 'items', BranchGuard::ALL_BRANCHES]);
+    }
+
+    private function everyRecordBuyer(): int
+    {
+        return $this->employeeWithRoles([$this->createRole([], 'all')], ['receivings', 'receivings_stock', 'reports_receivings', 'items', BranchGuard::ALL_BRANCHES]);
+    }
+
+    private function purchaseMadeBy(int $employeeId): int
+    {
+        $previous         = $this->employeeId;
+        $this->employeeId = $employeeId;
+
+        try {
+            return $this->purchaseOf('100.00');
+        } finally {
+            $this->employeeId = $previous;
+        }
+    }
+
+    private function assertPageIsNotFound(string $url): void
+    {
+        try {
+            $this->get($url);
+            $this->fail("{$url} was shown to an employee who sees their own records only.");
+        } catch (PageNotFoundException) {
+            $this->addToAssertionCount(1);
+        }
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function purchasePages(): array
+    {
+        return ['the receipt' => ['receipt'], 'the edit form' => ['edit']];
+    }
+
+    #[DataProvider('purchasePages')]
+    public function testPurchasePages_AreNotFoundByIdForAnOwnRecordsEmployeeWhoGuessesAnotherEmployeesPurchase(string $page): void
+    {
+        $theirs = $this->purchaseMadeBy($this->everyRecordBuyer());
+
+        $this->loginAs($this->ownRecordsBuyer());
+
+        $this->assertPageIsNotFound("/receivings/{$page}/{$theirs}");
+        $this->assertPageIsNotFound("/receivings/{$page}/999999");
+    }
+
+    #[DataProvider('purchasePages')]
+    public function testPurchasePages_OpenTheOwnPurchaseOfAnOwnRecordsEmployeeAndAnyOneForAnEmployeeWhoSeesEverything(string $page): void
+    {
+        $own      = $this->ownRecordsBuyer();
+        $everyone = $this->everyRecordBuyer();
+        $mine     = $this->purchaseMadeBy($own);
+        $theirs   = $this->purchaseMadeBy($everyone);
+
+        $this->loginAs($own);
+        $this->get("/receivings/{$page}/{$mine}")->assertStatus(200);
+
+        $this->loginAs($everyone);
+        $this->get("/receivings/{$page}/{$mine}")->assertStatus(200);
+        $this->get("/receivings/{$page}/{$theirs}")->assertStatus(200);
+    }
+
+    public function testPostSave_RefusesAnotherEmployeesPurchaseWithTheAnswerOfAPurchaseThatDoesNotExist(): void
+    {
+        $theirs = $this->purchaseMadeBy($this->everyRecordBuyer());
+        $form   = ['date' => $this->dateOf($theirs), 'comment' => 'changed', 'supplier_id' => '', 'employee_id' => (string) $this->employeeId, 'reference' => 'X'];
+
+        $this->loginAs($this->ownRecordsBuyer());
+
+        $foreign = $this->post('/receivings/save/' . $theirs, $form);
+        $missing = $this->post('/receivings/save/999999', $form);
+
+        $foreign->assertStatus(403);
+        $this->assertSame(lang('Roles.record_unavailable'), $this->jsonOf($foreign)['message']);
+        $this->assertSame($this->jsonOf($missing), $this->jsonOf($foreign));
+        $this->assertSame('test', $this->receivingRow($theirs)->comment);
+    }
+
+    public function testPostDelete_RefusesAnotherEmployeesPurchaseAndLeavesItsJournalsAndStock(): void
+    {
+        $theirs  = $this->purchaseMadeBy($this->everyRecordBuyer());
+        $journal = $this->standingPurchase($theirs);
+
+        $this->loginAs($this->ownRecordsBuyer());
+
+        $foreign = $this->post('/receivings/delete/' . $theirs);
+        $missing = $this->post('/receivings/delete/999999');
+
+        $foreign->assertStatus(403);
+        $this->assertSame(lang('Roles.record_unavailable'), $this->jsonOf($foreign)['message']);
+        $this->assertSame($this->jsonOf($missing), $this->jsonOf($foreign));
+        $this->assertNotNull($this->receivingRow($theirs));
+        $this->assertSame($journal, $this->standingPurchase($theirs));
+    }
+
+    public function testPostDelete_DeletesTheOwnPurchaseOfAnOwnRecordsEmployeeAndAnyOneForAnEmployeeWhoSeesEverything(): void
+    {
+        $own      = $this->ownRecordsBuyer();
+        $everyone = $this->everyRecordBuyer();
+        $mine     = $this->purchaseMadeBy($own);
+        $other    = $this->purchaseMadeBy($own);
+
+        $this->loginAs($own);
+        $this->assertTrue($this->jsonOf($this->post('/receivings/delete/' . $mine))['success']);
+
+        $this->loginAs($everyone);
+        $this->assertTrue($this->jsonOf($this->post('/receivings/delete/' . $other))['success']);
+
+        $this->assertNull($this->receivingRow($mine));
+        $this->assertNull($this->receivingRow($other));
+    }
+
+    public function testPostSaveLines_RefusesAnotherEmployeesPurchaseWithThePlainRefusal(): void
+    {
+        $theirs = $this->purchaseMadeBy($this->everyRecordBuyer());
+
+        $this->loginAs($this->ownRecordsBuyer());
+
+        $response = $this->post('/receivings/saveLines/' . $theirs, ['quantity' => ['0' => '9']]);
+
+        $response->assertStatus(403);
+        $this->assertSame(lang('Roles.record_unavailable'), $this->jsonOf($response)['message']);
+    }
+
+    public function testPostDebitNote_RefusesAnotherEmployeesPurchaseWithThePlainRefusal(): void
+    {
+        $theirs = $this->purchaseMadeBy($this->everyRecordBuyer());
+
+        $this->loginAs($this->ownRecordsBuyer());
+
+        $response = $this->post('/receivings/debitNote/' . $theirs);
+
+        $response->assertStatus(403);
+        $this->assertSame(lang('Roles.record_unavailable'), $this->jsonOf($response)['message']);
+    }
+
+    public function testPostSetReturnOrigin_RefusesAnotherEmployeesPurchaseWithThePlainRefusal(): void
+    {
+        $theirs = $this->purchaseMadeBy($this->everyRecordBuyer());
+
+        $this->loginAs($this->ownRecordsBuyer());
+
+        $response = $this->post('/receivings/setReturnOrigin', ['recv_return_origin' => (string) $theirs]);
+
+        $this->assertSame(lang('Roles.record_unavailable'), $this->jsonOf($response)['message']);
     }
 }

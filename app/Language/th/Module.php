@@ -73,6 +73,8 @@ return [
     'reports_desc'                 => 'สร้างและตรวจสอบรายงาน',
     'revenue_categories'           => '',
     'revenue_categories_desc'      => '',
+    'roles'                        => '',
+    'roles_desc'                   => '',
     'sales'                        => 'งานขาย',
     'sales_desc'                   => 'งานขาย และ รับคืน',
     'suppliers'                    => 'ผู้ผลิต',

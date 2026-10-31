@@ -16,9 +16,8 @@ use Config\Database;
  */
 final class RecordScope
 {
-    public const ALL = 'all';
-    public const OWN = 'own';
-
+    public const ALL    = 'all';
+    public const OWN    = 'own';
     public const SCOPES = [self::ALL, self::OWN];
 
     private BaseConnection $db;

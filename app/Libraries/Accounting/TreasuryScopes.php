@@ -4,13 +4,15 @@ namespace App\Libraries\Accounting;
 
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Organization\CompanyContext;
+use App\Libraries\Roles\RoleTables;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
 /**
  * Who may put money into a treasury and who may take money out of it. Each treasury has a scope for
- * deposits and a scope for withdrawals, and a scope is everybody, a list of employees, or the
- * employees who work in a list of branches. The permission to manage treasuries stays apart from
+ * deposits and a scope for withdrawals, and a scope is everybody, a list of employees, the employees
+ * who hold one of a list of roles, or the employees who work in a list of branches. The permission
+ * to manage treasuries stays apart from
  * both: it creates, changes and deactivates treasuries, and it does not give a deposit or a
  * withdrawal. The books act without an employee, and that is always allowed.
  */
@@ -22,8 +24,9 @@ final class TreasuryScopes
     public const WITHDRAW    = 'withdraw';
     public const ALL         = 'all';
     public const STAFF       = 'staff';
+    public const ROLES       = 'roles';
     public const BRANCHES    = 'branches';
-    public const MODES       = [self::ALL, self::STAFF, self::BRANCHES];
+    public const MODES       = [self::ALL, self::STAFF, self::ROLES, self::BRANCHES];
     private const DIRECTIONS = [self::DEPOSIT, self::WITHDRAW];
     private const SCALE      = 4;
 
@@ -49,6 +52,7 @@ final class TreasuryScopes
         return match ($scope['mode']) {
             self::ALL      => $scope['exists'],
             self::STAFF    => in_array($employeeId, $scope['members'], true),
+            self::ROLES    => $this->holdsARole($scope['members'], $employeeId),
             self::BRANCHES => $this->worksIn($scope['members'], $employeeId),
             default        => false,
         };
@@ -383,6 +387,25 @@ final class TreasuryScopes
     }
 
     /**
+     * Whether the employee holds one of the roles, which an inactive role does not count for.
+     *
+     * @param list<int> $roleIds
+     */
+    private function holdsARole(array $roleIds, int $employeeId): bool
+    {
+        if ($roleIds === [] || ! RoleTables::exist($this->db, 'employee_roles', 'roles')) {
+            return false;
+        }
+
+        return $this->db->table('employee_roles er')
+            ->join('roles r', 'r.role_id = er.role_id AND r.active = 1')
+            ->join('employees e', 'e.person_id = er.person_id AND e.deleted = 0')
+            ->where('er.person_id', $employeeId)
+            ->whereIn('er.role_id', $roleIds)
+            ->countAllResults() > 0;
+    }
+
+    /**
      * @param list<int> $branchIds
      */
     private function worksIn(array $branchIds, int $employeeId): bool
@@ -414,7 +437,7 @@ final class TreasuryScopes
     private function normalized(string $direction, mixed $mode, mixed $members): array
     {
         if (! is_string($mode) || ! in_array($mode, self::MODES, true)) {
-            throw new AccountingException(AccountingError::TreasuryScopeInvalid, 'A scope is everybody, employees or branches.', ['scope_name' => $direction]);
+            throw new AccountingException(AccountingError::TreasuryScopeInvalid, 'A scope is everybody, employees, roles or branches.', ['scope_name' => $direction]);
         }
 
         if ($mode === self::ALL) {
@@ -427,7 +450,7 @@ final class TreasuryScopes
             if (is_int($member) || (is_string($member) && ctype_digit($member))) {
                 $ids[(int) $member] = (int) $member;
             } else {
-                throw new AccountingException(AccountingError::TreasuryScopeInvalid, 'A member of a scope is an employee or a branch.', ['scope_name' => $direction]);
+                throw new AccountingException(AccountingError::TreasuryScopeInvalid, 'A member of a scope is an employee, a role or a branch.', ['scope_name' => $direction]);
             }
         }
 
@@ -436,7 +459,7 @@ final class TreasuryScopes
         sort($ids);
 
         if ($ids === [] || ! $this->allExist($mode, $ids)) {
-            throw new AccountingException(AccountingError::TreasuryScopeInvalid, 'A scope of employees or branches names at least one that exists.', ['scope_name' => $direction]);
+            throw new AccountingException(AccountingError::TreasuryScopeInvalid, 'A scope of employees, roles or branches names at least one that exists.', ['scope_name' => $direction]);
         }
 
         return ['mode' => $mode, 'members' => $ids];
@@ -449,6 +472,10 @@ final class TreasuryScopes
     {
         if ($mode === self::STAFF) {
             return $this->db->table('employees')->whereIn('person_id', $ids)->where('deleted', 0)->countAllResults() === count($ids);
+        }
+
+        if ($mode === self::ROLES) {
+            return RoleTables::exist($this->db, 'roles') && $this->db->table('roles')->whereIn('role_id', $ids)->countAllResults() === count($ids);
         }
 
         return $this->db->table('branches')->whereIn('branch_id', $ids)->where('company_id', CompanyContext::id())->countAllResults() === count($ids);

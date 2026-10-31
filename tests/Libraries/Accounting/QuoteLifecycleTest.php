@@ -18,6 +18,7 @@ use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
+use App\Libraries\Roles\RoleService;
 
 /**
  * The state of a quote: where it may move and nowhere else, who may move it, what is written about
@@ -558,5 +559,35 @@ class QuoteLifecycleTest extends CIUnitTestCase
         }
 
         $this->assertCount(1, $this->auditOf($quote, 'quote_converted'));
+    }
+
+    public function testChange_RefusesAnotherEmployeesQuoteAsOneThatDoesNotExistForAnEmployeeWhoSeesTheirOwnRecords(): void
+    {
+        $quote = $this->quote();
+        $other = $this->createEmployee();
+
+        (new RoleService())->setRecordScope($other, 'own', null);
+
+        try {
+            $this->lifecycle->change($quote, QuoteStatus::Sent, $other);
+            $this->fail('The quote of another employee was changed.');
+        } catch (AccountingException $refusal) {
+            $this->assertSame(AccountingError::QuoteNotFound, $refusal->error);
+        }
+
+        $this->assertSame(QuoteStatus::Open, $this->lifecycle->statusOf($quote));
+        $this->assertSame(QuoteStatus::Sent, $this->lifecycle->change($quote, QuoteStatus::Sent, $this->employeeId));
+    }
+
+    public function testMarkConverted_RefusesAnotherEmployeesQuoteForAnEmployeeWhoSeesTheirOwnRecords(): void
+    {
+        $quote = $this->quote(QuoteStatus::Approved);
+        $other = $this->createEmployee();
+
+        (new RoleService())->setRecordScope($other, 'own', null);
+
+        $this->expectException(AccountingException::class);
+
+        $this->lifecycle->markConverted($quote, 999999, $other);
     }
 }

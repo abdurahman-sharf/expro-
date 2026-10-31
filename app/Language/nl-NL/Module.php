@@ -73,6 +73,8 @@ return [
     'reports_desc'                 => 'Rapporten weergeven en genereren.',
     'revenue_categories'           => '',
     'revenue_categories_desc'      => '',
+    'roles'                        => '',
+    'roles_desc'                   => '',
     'sales'                        => 'Verkopen',
     'sales_desc'                   => 'Verkopen en retouren verwerken.',
     'suppliers'                    => 'Leveranciers',

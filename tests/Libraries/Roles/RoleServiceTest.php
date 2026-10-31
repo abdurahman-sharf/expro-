@@ -16,7 +16,10 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\RoleFixtureTrait;
 
-class RoleServiceTest extends CIUnitTestCase
+/**
+ * @internal
+ */
+final class RoleServiceTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use EmployeeFixtureTrait;
@@ -25,8 +28,7 @@ class RoleServiceTest extends CIUnitTestCase
     protected $migrate     = true;
     protected $migrateOnce = true;
     protected $refresh     = false;
-    protected $namespace   = null;
-
+    protected $namespace;
     private RoleService $roles;
 
     public static function setUpBeforeClass(): void
@@ -62,7 +64,7 @@ class RoleServiceTest extends CIUnitTestCase
         return $this->roleDb()->table('accounting_audit_log')->where(['entity_type' => $entityType, 'entity_id' => $entityId, 'action' => $action])->orderBy('audit_id', 'ASC')->get()->getResult();
     }
 
-    public function testCreate_StoresTheRoleWithItsPermissionsAndWritesTheAuditEntry(): void
+    public function testCreateStoresTheRoleWithItsPermissionsAndWritesTheAuditEntry(): void
     {
         $manager = $this->rolesManager(['sales', 'customers']);
         $roleId  = $this->roles->create(['name' => '  Cashier  ', 'description' => 'The tills', 'record_scope' => 'own', 'permissions' => ['sales', 'customers', 'sales']], $manager);
@@ -81,7 +83,7 @@ class RoleServiceTest extends CIUnitTestCase
         $this->assertSame(['customers', 'sales'], json_decode($audit[0]->details, true)['permissions']);
     }
 
-    public function testCreate_StartsWithNoPermissionAndTheScopeAll(): void
+    public function testCreateStartsWithNoPermissionAndTheScopeAll(): void
     {
         $roleId = $this->roles->create(['name' => 'Empty ' . uniqid()], null);
 
@@ -89,10 +91,31 @@ class RoleServiceTest extends CIUnitTestCase
         $this->assertSame('all', $this->roles->find($roleId)->record_scope);
     }
 
+    #[DataProvider('sensitivePermissions')]
+    public function testCreateRejectsASensitivePermissionWithANamedError(string $permissionId): void
+    {
+        $refusal = $this->refusal(fn () => $this->roles->create(['name' => 'Sensitive ' . uniqid(), 'permissions' => ['sales', $permissionId]], null));
+
+        $this->assertSame(RoleError::SensitivePermission, $refusal->error);
+        $this->assertSame($permissionId, $refusal->context['permission']);
+        $this->assertSame(0, $this->roleDb()->table('roles')->like('name', 'Sensitive ', 'after')->countAllResults(), 'A refused role is not left behind');
+    }
+
+    #[DataProvider('sensitivePermissions')]
+    public function testUpdateRejectsASensitivePermissionWithANamedErrorAndKeepsWhatTheRoleHad(string $permissionId): void
+    {
+        $roleId = $this->createRole(['sales']);
+
+        $refusal = $this->refusal(fn () => $this->roles->update($roleId, ['name' => 'Renamed ' . uniqid(), 'permissions' => ['sales', $permissionId]], null));
+
+        $this->assertSame(RoleError::SensitivePermission, $refusal->error);
+        $this->assertSame(['sales'], $this->roles->permissionsOf($roleId));
+    }
+
     /**
      * @return array<string, array{string}>
      */
-    public static function sensitivePermissions(): array
+    public static function sensitivePermissions(): iterable
     {
         $cases = [];
 
@@ -103,28 +126,7 @@ class RoleServiceTest extends CIUnitTestCase
         return $cases;
     }
 
-    #[DataProvider('sensitivePermissions')]
-    public function testCreate_RejectsASensitivePermissionWithANamedError(string $permissionId): void
-    {
-        $refusal = $this->refusal(fn () => $this->roles->create(['name' => 'Sensitive ' . uniqid(), 'permissions' => ['sales', $permissionId]], null));
-
-        $this->assertSame(RoleError::SensitivePermission, $refusal->error);
-        $this->assertSame($permissionId, $refusal->context['permission']);
-        $this->assertSame(0, $this->roleDb()->table('roles')->like('name', 'Sensitive ', 'after')->countAllResults(), 'A refused role is not left behind');
-    }
-
-    #[DataProvider('sensitivePermissions')]
-    public function testUpdate_RejectsASensitivePermissionWithANamedErrorAndKeepsWhatTheRoleHad(string $permissionId): void
-    {
-        $roleId = $this->createRole(['sales']);
-
-        $refusal = $this->refusal(fn () => $this->roles->update($roleId, ['name' => 'Renamed ' . uniqid(), 'permissions' => ['sales', $permissionId]], null));
-
-        $this->assertSame(RoleError::SensitivePermission, $refusal->error);
-        $this->assertSame(['sales'], $this->roles->permissionsOf($roleId));
-    }
-
-    public function testCreate_RejectsThePermissionToManageRolesSoARoleCannotHandItOut(): void
+    public function testCreateRejectsThePermissionToManageRolesSoARoleCannotHandItOut(): void
     {
         $refusal = $this->refusal(fn () => $this->roles->create(['name' => 'Self ' . uniqid(), 'permissions' => [AccountingGuard::ROLES_MANAGE]], null));
 
@@ -132,23 +134,23 @@ class RoleServiceTest extends CIUnitTestCase
         $this->assertSame(AccountingGuard::ROLES_MANAGE, $refusal->context['permission']);
     }
 
-    /**
-     * @return array<string, array{string}>
-     */
-    public static function branchPermissions(): array
-    {
-        return ['the all-branches grant' => [BranchGuard::ALL_BRANCHES], 'the permission to set branches' => [BranchGuard::SCOPE_MANAGE]];
-    }
-
-    #[DataProvider('branchPermissions')]
-    public function testCreate_RejectsABranchScopeSoARoleNeverGrantsBranchAccess(string $permissionId): void
+    #[DataProvider('provideCreate_RejectsABranchScopeSoARoleNeverGrantsBranchAccess')]
+    public function testCreateRejectsABranchScopeSoARoleNeverGrantsBranchAccess(string $permissionId): void
     {
         $refusal = $this->refusal(fn () => $this->roles->create(['name' => 'Branch ' . uniqid(), 'permissions' => [$permissionId]], null));
 
         $this->assertSame(RoleError::BranchPermission, $refusal->error);
     }
 
-    public function testCreate_RejectsAPermissionThatDoesNotExist(): void
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function provideCreate_RejectsABranchScopeSoARoleNeverGrantsBranchAccess(): iterable
+    {
+        return ['the all-branches grant' => [BranchGuard::ALL_BRANCHES], 'the permission to set branches' => [BranchGuard::SCOPE_MANAGE]];
+    }
+
+    public function testCreateRejectsAPermissionThatDoesNotExist(): void
     {
         $refusal = $this->refusal(fn () => $this->roles->create(['name' => 'Unknown ' . uniqid(), 'permissions' => ['no_such_permission']], null));
 
@@ -157,34 +159,34 @@ class RoleServiceTest extends CIUnitTestCase
     }
 
     /**
-     * @return array<string, array{array<string, mixed>, RoleError}>
-     */
-    public static function invalidRoles(): array
-    {
-        return [
-            'an empty name'          => [['name' => '   '], RoleError::InvalidName],
-            'no name'                => [[], RoleError::InvalidName],
-            'a name that is a list'  => [['name' => ['x']], RoleError::InvalidName],
-            'a name over 100'        => [['name' => str_repeat('n', 101)], RoleError::InvalidName],
-            'a scope that is unknown' => [['name' => 'Scoped', 'record_scope' => 'branch'], RoleError::InvalidScope],
-            'a scope that is a list' => [['name' => 'Scoped', 'record_scope' => ['own']], RoleError::InvalidScope],
-            'a description over 255' => [['name' => 'Described', 'description' => str_repeat('d', 256)], RoleError::InvalidDescription],
-            'a description that is a list' => [['name' => 'Described', 'description' => ['d']], RoleError::InvalidDescription],
-            'permissions that are not a list' => [['name' => 'Listed', 'permissions' => 'sales'], RoleError::UnknownPermission],
-            'a permission that is not text' => [['name' => 'Listed', 'permissions' => [1]], RoleError::UnknownPermission],
-        ];
-    }
-
-    /**
      * @param array<string, mixed> $input
      */
-    #[DataProvider('invalidRoles')]
-    public function testCreate_RejectsARoleThatIsNotValid(array $input, RoleError $error): void
+    #[DataProvider('provideCreate_RejectsARoleThatIsNotValid')]
+    public function testCreateRejectsARoleThatIsNotValid(array $input, RoleError $error): void
     {
         $this->assertSame($error, $this->refusal(fn () => $this->roles->create($input, null))->error);
     }
 
-    public function testCreate_RejectsANameAnotherRoleUsesWhateverTheCase(): void
+    /**
+     * @return array<string, array{array<string, mixed>, RoleError}>
+     */
+    public static function provideCreate_RejectsARoleThatIsNotValid(): iterable
+    {
+        return [
+            'an empty name'                   => [['name' => '   '], RoleError::InvalidName],
+            'no name'                         => [[], RoleError::InvalidName],
+            'a name that is a list'           => [['name' => ['x']], RoleError::InvalidName],
+            'a name over 100'                 => [['name' => str_repeat('n', 101)], RoleError::InvalidName],
+            'a scope that is unknown'         => [['name' => 'Scoped', 'record_scope' => 'branch'], RoleError::InvalidScope],
+            'a scope that is a list'          => [['name' => 'Scoped', 'record_scope' => ['own']], RoleError::InvalidScope],
+            'a description over 255'          => [['name' => 'Described', 'description' => str_repeat('d', 256)], RoleError::InvalidDescription],
+            'a description that is a list'    => [['name' => 'Described', 'description' => ['d']], RoleError::InvalidDescription],
+            'permissions that are not a list' => [['name' => 'Listed', 'permissions' => 'sales'], RoleError::UnknownPermission],
+            'a permission that is not text'   => [['name' => 'Listed', 'permissions' => [1]], RoleError::UnknownPermission],
+        ];
+    }
+
+    public function testCreateRejectsANameAnotherRoleUsesWhateverTheCase(): void
     {
         $this->roles->create(['name' => 'Accountant Taken'], null);
 
@@ -193,7 +195,7 @@ class RoleServiceTest extends CIUnitTestCase
         $this->assertSame(RoleError::NameTaken, $refusal->error);
     }
 
-    public function testUpdate_AcceptsTheOwnNameOfTheRoleAgain(): void
+    public function testUpdateAcceptsTheOwnNameOfTheRoleAgain(): void
     {
         $roleId = $this->roles->create(['name' => 'Keeps its name'], null);
 
@@ -202,7 +204,7 @@ class RoleServiceTest extends CIUnitTestCase
         $this->assertSame('Now described', $this->roles->find($roleId)->description);
     }
 
-    public function testCreate_RequiresThePermissionToManageRoles(): void
+    public function testCreateRequiresThePermissionToManageRoles(): void
     {
         $plain = $this->createEmployee(grants: [['permission_id' => 'employees', 'menu_group' => 'home'], ['permission_id' => 'roles', 'menu_group' => 'home']]);
 
@@ -211,12 +213,12 @@ class RoleServiceTest extends CIUnitTestCase
         $this->assertSame(RoleError::PermissionDenied, $refusal->error);
     }
 
-    public function testCreate_AcceptsTheBooksActingWithoutAnEmployee(): void
+    public function testCreateAcceptsTheBooksActingWithoutAnEmployee(): void
     {
         $this->assertGreaterThan(0, $this->roles->create(['name' => 'By the console ' . uniqid()], null));
     }
 
-    public function testUpdate_RequiresThePermissionToManageRoles(): void
+    public function testUpdateRequiresThePermissionToManageRoles(): void
     {
         $roleId = $this->createRole(['sales']);
         $plain  = $this->createEmployee();
@@ -224,7 +226,7 @@ class RoleServiceTest extends CIUnitTestCase
         $this->assertSame(RoleError::PermissionDenied, $this->refusal(fn () => $this->roles->update($roleId, ['name' => 'Changed ' . uniqid()], $plain))->error);
     }
 
-    public function testDelete_RequiresThePermissionToManageRoles(): void
+    public function testDeleteRequiresThePermissionToManageRoles(): void
     {
         $roleId = $this->createRole();
         $plain  = $this->createEmployee();
@@ -233,7 +235,7 @@ class RoleServiceTest extends CIUnitTestCase
         $this->assertNotNull($this->roles->find($roleId));
     }
 
-    public function testAssign_RequiresThePermissionToManageRoles(): void
+    public function testAssignRequiresThePermissionToManageRoles(): void
     {
         $roleId   = $this->createRole(['sales']);
         $plain    = $this->createEmployee();
@@ -243,7 +245,7 @@ class RoleServiceTest extends CIUnitTestCase
         $this->assertSame([], $this->roles->roleIdsOf($employee));
     }
 
-    public function testCreate_RejectsAPermissionTheActorDoesNotHoldUnlessTheActorIsAnAdministrator(): void
+    public function testCreateRejectsAPermissionTheActorDoesNotHoldUnlessTheActorIsAnAdministrator(): void
     {
         $manager = $this->rolesManager(['sales']);
 
@@ -256,7 +258,7 @@ class RoleServiceTest extends CIUnitTestCase
         $this->assertGreaterThan(0, $this->roles->create(['name' => 'By an administrator ' . uniqid(), 'permissions' => ['sales', 'items']], $this->rolesAdministrator()));
     }
 
-    public function testCreate_AcceptsAPermissionTheActorHoldsOnlyThroughARole(): void
+    public function testCreateAcceptsAPermissionTheActorHoldsOnlyThroughARole(): void
     {
         $manager = $this->rolesManager();
 
@@ -265,7 +267,7 @@ class RoleServiceTest extends CIUnitTestCase
         $this->assertGreaterThan(0, $this->roles->create(['name' => 'Through a role ' . uniqid(), 'permissions' => ['items']], $manager));
     }
 
-    public function testUpdate_AllowsAnActorToKeepAPermissionTheyDoNotHoldButNotToAddOne(): void
+    public function testUpdateAllowsAnActorToKeepAPermissionTheyDoNotHoldButNotToAddOne(): void
     {
         $roleId  = $this->createRole(['sales', 'items']);
         $manager = $this->rolesManager(['sales']);
@@ -277,7 +279,7 @@ class RoleServiceTest extends CIUnitTestCase
         $this->assertSame(RoleError::CannotGrant, $this->refusal(fn () => $this->roles->update($roleId, ['name' => 'Renamed three ' . uniqid(), 'permissions' => ['sales', 'items']], $manager))->error);
     }
 
-    public function testUpdate_ChangesTheFieldsAndAuditsOnlyWhatChanged(): void
+    public function testUpdateChangesTheFieldsAndAuditsOnlyWhatChanged(): void
     {
         $manager = $this->rolesManager(['sales', 'items', 'customers']);
         $roleId  = $this->roles->create(['name' => 'Before ' . uniqid(), 'permissions' => ['sales', 'items']], $manager);
@@ -304,7 +306,7 @@ class RoleServiceTest extends CIUnitTestCase
         $this->assertSame(['sales'], json_decode($permissions[0]->details, true)['removed']);
     }
 
-    public function testUpdate_WritesNoEntryWhenNothingChanges(): void
+    public function testUpdateWritesNoEntryWhenNothingChanges(): void
     {
         $name   = 'Same ' . uniqid();
         $roleId = $this->roles->create(['name' => $name, 'permissions' => ['sales']], null);
@@ -315,7 +317,7 @@ class RoleServiceTest extends CIUnitTestCase
         $this->assertSame([], $this->auditOf('role', $roleId, 'role_permissions_changed'));
     }
 
-    public function testUpdate_KeepsThePermissionsWhenTheInputNamesNone(): void
+    public function testUpdateKeepsThePermissionsWhenTheInputNamesNone(): void
     {
         $roleId = $this->createRole(['sales']);
 
@@ -324,12 +326,12 @@ class RoleServiceTest extends CIUnitTestCase
         $this->assertSame(['sales'], $this->roles->permissionsOf($roleId));
     }
 
-    public function testUpdate_RejectsARoleThatDoesNotExist(): void
+    public function testUpdateRejectsARoleThatDoesNotExist(): void
     {
         $this->assertSame(RoleError::NotFound, $this->refusal(fn () => $this->roles->update(999999, ['name' => 'Ghost'], null))->error);
     }
 
-    public function testUpdate_StoresTheSubmittedSetWithoutAddingTheOptionsItImpliesAsTheReferenceSystemDoes(): void
+    public function testUpdateStoresTheSubmittedSetWithoutAddingTheOptionsItImpliesAsTheReferenceSystemDoes(): void
     {
         $roleId = $this->createRole(['sales_delete', 'sales']);
 
@@ -345,7 +347,7 @@ class RoleServiceTest extends CIUnitTestCase
         $this->assertFalse($model->has_grant('sales', $employee), 'Each check rests on the explicit grant');
     }
 
-    public function testDelete_RemovesARoleNobodyHoldsAndAudits(): void
+    public function testDeleteRemovesARoleNobodyHoldsAndAudits(): void
     {
         $roleId = $this->createRole(['sales']);
 
@@ -356,7 +358,7 @@ class RoleServiceTest extends CIUnitTestCase
         $this->assertCount(1, $this->auditOf('role', $roleId, 'role_deleted'));
     }
 
-    public function testDelete_RejectsARoleEmployeesHold(): void
+    public function testDeleteRejectsARoleEmployeesHold(): void
     {
         $roleId = $this->createRole(['sales']);
 
@@ -366,7 +368,7 @@ class RoleServiceTest extends CIUnitTestCase
         $this->assertNotNull($this->roles->find($roleId));
     }
 
-    public function testDelete_RemovesARoleOnlyDeletedEmployeesHeld(): void
+    public function testDeleteRemovesARoleOnlyDeletedEmployeesHeld(): void
     {
         $roleId   = $this->createRole(['sales']);
         $employee = $this->employeeWithRoles([$roleId]);
@@ -378,7 +380,7 @@ class RoleServiceTest extends CIUnitTestCase
         $this->assertNull($this->roles->find($roleId));
     }
 
-    public function testAssign_GivesTheUnionOfTheirOwnGrantsAndTheGrantsOfEveryRoleWithoutCopyingAny(): void
+    public function testAssignGivesTheUnionOfTheirOwnGrantsAndTheGrantsOfEveryRoleWithoutCopyingAny(): void
     {
         $first    = $this->createRole(['sales', 'customers']);
         $second   = $this->createRole(['customers', 'receivings']);
@@ -396,7 +398,7 @@ class RoleServiceTest extends CIUnitTestCase
         $this->assertSame([$first, $second], $this->roles->roleIdsOf($employee));
     }
 
-    public function testAssign_FollowsTheRoleWhenItChanges(): void
+    public function testAssignFollowsTheRoleWhenItChanges(): void
     {
         $roleId   = $this->createRole(['sales']);
         $employee = $this->employeeWithRoles([$roleId]);
@@ -415,7 +417,7 @@ class RoleServiceTest extends CIUnitTestCase
         $this->assertFalse($model->has_grant('suppliers', $employee), 'An inactive role gives nothing');
     }
 
-    public function testAssign_ReplacesTheRolesOfTheEmployeeAndAuditsTheChange(): void
+    public function testAssignReplacesTheRolesOfTheEmployeeAndAuditsTheChange(): void
     {
         $manager  = $this->rolesManager(['sales', 'items']);
         $first    = $this->createRole(['sales']);
@@ -435,7 +437,7 @@ class RoleServiceTest extends CIUnitTestCase
         $this->assertSame([], $this->roles->roleIdsOf($employee));
     }
 
-    public function testAssign_WritesNoEntryWhenTheRolesStayTheSame(): void
+    public function testAssignWritesNoEntryWhenTheRolesStayTheSame(): void
     {
         $role     = $this->createRole(['sales']);
         $employee = $this->employeeWithRoles([$role]);
@@ -447,7 +449,7 @@ class RoleServiceTest extends CIUnitTestCase
         $this->assertCount($before, $this->auditOf('employee', $employee, 'employee_roles_changed'));
     }
 
-    public function testAssign_RejectsARoleThatDoesNotExistAndKeepsTheCurrentRoles(): void
+    public function testAssignRejectsARoleThatDoesNotExistAndKeepsTheCurrentRoles(): void
     {
         $role     = $this->createRole(['sales']);
         $employee = $this->employeeWithRoles([$role]);
@@ -457,7 +459,7 @@ class RoleServiceTest extends CIUnitTestCase
         $this->assertSame([$role], $this->roles->roleIdsOf($employee));
     }
 
-    public function testAssign_RejectsAnEmployeeThatDoesNotExistOrWasDeleted(): void
+    public function testAssignRejectsAnEmployeeThatDoesNotExistOrWasDeleted(): void
     {
         $role    = $this->createRole(['sales']);
         $deleted = $this->createEmployee();
@@ -468,7 +470,7 @@ class RoleServiceTest extends CIUnitTestCase
         $this->assertSame(RoleError::EmployeeNotFound, $this->refusal(fn () => $this->roles->assign($deleted, [$role], null))->error);
     }
 
-    public function testAssign_RejectsARoleWithAPermissionTheActorDoesNotHoldUnlessTheActorIsAnAdministrator(): void
+    public function testAssignRejectsARoleWithAPermissionTheActorDoesNotHoldUnlessTheActorIsAnAdministrator(): void
     {
         $role     = $this->createRole(['sales', 'items']);
         $manager  = $this->rolesManager(['sales']);
@@ -484,7 +486,7 @@ class RoleServiceTest extends CIUnitTestCase
         $this->assertSame([$role], $this->roles->roleIdsOf($employee));
     }
 
-    public function testAssign_LetsAnActorKeepARoleTheyCouldNotGive(): void
+    public function testAssignLetsAnActorKeepARoleTheyCouldNotGive(): void
     {
         $wide     = $this->createRole(['sales', 'items']);
         $narrow   = $this->createRole(['sales']);
@@ -496,7 +498,7 @@ class RoleServiceTest extends CIUnitTestCase
         $this->assertSame([$wide, $narrow], $this->roles->roleIdsOf($employee));
     }
 
-    public function testSetRecordScope_StoresOwnForTheEmployeeAndAuditsTheChange(): void
+    public function testSetRecordScopeStoresOwnForTheEmployeeAndAuditsTheChange(): void
     {
         $manager  = $this->rolesManager();
         $employee = $this->createEmployee();
@@ -515,7 +517,7 @@ class RoleServiceTest extends CIUnitTestCase
         $this->assertCount(2, $this->auditOf('employee', $employee, 'employee_record_scope_changed'));
     }
 
-    public function testSetRecordScope_RequiresThePermissionAndAKnownScopeAndAnEmployee(): void
+    public function testSetRecordScopeRequiresThePermissionAndAKnownScopeAndAnEmployee(): void
     {
         $employee = $this->createEmployee();
 
@@ -525,7 +527,7 @@ class RoleServiceTest extends CIUnitTestCase
         $this->assertSame('all', $this->roles->recordScopeOf($employee));
     }
 
-    public function testRolesOf_ListsTheRolesOfAnEmployeeByNameAndRolePermissionsOfNamesWhoGivesWhat(): void
+    public function testRolesOfListsTheRolesOfAnEmployeeByNameAndRolePermissionsOfNamesWhoGivesWhat(): void
     {
         $sales    = $this->roles->create(['name' => 'B sales ' . uniqid(), 'permissions' => ['sales', 'items']], null);
         $stock    = $this->roles->create(['name' => 'A stock ' . uniqid(), 'permissions' => ['items']], null);
@@ -541,7 +543,7 @@ class RoleServiceTest extends CIUnitTestCase
         $this->assertCount(1, $given['sales']);
     }
 
-    public function testAll_CountsThePermissionsAndTheEmployeesOfEachRole(): void
+    public function testAllCountsThePermissionsAndTheEmployeesOfEachRole(): void
     {
         $roleId = $this->createRole(['sales', 'items']);
 
@@ -558,7 +560,7 @@ class RoleServiceTest extends CIUnitTestCase
         $this->assertSame(2, (int) $row->employee_count);
     }
 
-    public function testReleaseEmployees_TakesTheRolesAndTheScopeAndAuditsWhatWasHeld(): void
+    public function testReleaseEmployeesTakesTheRolesAndTheScopeAndAuditsWhatWasHeld(): void
     {
         $role     = $this->createRole(['sales']);
         $employee = $this->employeeWithRoles([$role]);
@@ -574,7 +576,7 @@ class RoleServiceTest extends CIUnitTestCase
         $this->assertSame(['before' => [$role], 'after' => []], json_decode($audit[array_key_last($audit)]->details, true));
     }
 
-    public function testCarryLocationPermission_GivesTheNewPermissionToTheRolesThatHoldTheModule(): void
+    public function testCarryLocationPermissionGivesTheNewPermissionToTheRolesThatHoldTheModule(): void
     {
         $holder = $this->createRole(['sales']);
         $other  = $this->createRole(['items']);

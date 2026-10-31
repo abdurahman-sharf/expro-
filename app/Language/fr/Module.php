@@ -73,6 +73,8 @@ return [
     'reports_desc'                 => 'Visualiser et générer des rapports.',
     'revenue_categories'           => '',
     'revenue_categories_desc'      => '',
+    'roles'                        => '',
+    'roles_desc'                   => '',
     'sales'                        => 'Ventes',
     'sales_desc'                   => 'Ventes et chiffre d\'affaire.',
     'suppliers'                    => 'Fournisseurs',

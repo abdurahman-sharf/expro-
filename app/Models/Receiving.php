@@ -104,12 +104,11 @@ class Receiving extends Model
 
     public function get_info(int $receiving_id, ?int $viewerId = null): ResultInterface
     {
+        $cut     = $this->viewerCut($viewerId);
         $builder = $this->db->table('receivings');
         $builder->join('people', 'people.person_id = receivings.supplier_id', 'LEFT');
         $builder->join('suppliers', 'suppliers.person_id = receivings.supplier_id', 'LEFT');
         $builder->where('receiving_id', $receiving_id);
-
-        $cut = $this->viewerCut($viewerId);
 
         if ($cut !== null) {
             $builder->where('receivings.employee_id', $cut);
@@ -120,10 +119,9 @@ class Receiving extends Model
 
     public function get_receiving_by_reference(string $reference, ?int $viewerId = null): ResultInterface
     {
+        $cut     = $this->viewerCut($viewerId);
         $builder = $this->db->table('receivings');
         $builder->where('reference', $reference);
-
-        $cut = $this->viewerCut($viewerId);
 
         if ($cut !== null) {
             $builder->where('receivings.employee_id', $cut);

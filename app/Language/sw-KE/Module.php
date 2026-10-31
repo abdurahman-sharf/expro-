@@ -73,6 +73,8 @@ return [
     'reports_desc'                 => 'Angalia na tengeneza Ripoti.',
     'revenue_categories'           => '',
     'revenue_categories_desc'      => '',
+    'roles'                        => '',
+    'roles_desc'                   => '',
     'sales'                        => 'Mauzo',
     'sales_desc'                   => 'Shughulikia Mauzo na Marejesho.',
     'suppliers'                    => 'Wasambazaji',

@@ -25,6 +25,7 @@ use Tests\Support\ParityCaseTrait;
 use Tests\Support\ParityFixture;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
+use App\Libraries\Roles\RoleService;
 
 /**
  * A payment to a supplier that belongs to no purchase, and what a supplier owed us or we owed
@@ -812,5 +813,29 @@ class SupplierAdvancesTest extends CIUnitTestCase
 
         $this->assertSame('0.00', bcadd($this->supplierPosition()->credit(), '0', 2));
         $this->assertSupplierTies();
+    }
+
+    public function testCancel_RefusesAnotherEmployeesAdvanceAsOneThatDoesNotExistForAnEmployeeWhoSeesTheirOwnRecords(): void
+    {
+        $advance = $this->advances->pay($this->supplierId, '120.00', '2026-10-20', 'Cash', null, '', '', $this->clerk);
+        $second  = $this->employeeWithGrants([AccountingGuard::PAYABLES_MANAGE, AccountingGuard::TREASURIES_MANAGE]);
+
+        (new RoleService())->setRecordScope($second, 'own', null);
+
+        $this->assertSame(AccountingError::AdvanceNotFound, $this->refusal(fn () => $this->advances->cancel($advance, 'by a stranger', $second))->error);
+        $this->assertNull($this->advances->branchOf(SupplierAdvances::SOURCE, $advance, $second));
+        $this->assertNotNull($this->advances->branchOf(SupplierAdvances::SOURCE, $advance, $this->clerk));
+        $this->assertNotSame('cancelled', (string) $this->accountingDb()->table('supplier_advances')->select('status')->where('advance_id', $advance)->get()->getRow()->status);
+    }
+
+    public function testCancelOpening_RefusesAnotherEmployeesOpeningBalanceAsOneThatDoesNotExistForAnEmployeeWhoSeesTheirOwnRecords(): void
+    {
+        $opening = $this->advances->openingBalance($this->supplierId, 'owed', '200.00', '2020-01-01', 'before the books', $this->clerk);
+        $second  = $this->employeeWithGrants([AccountingGuard::PAYABLES_MANAGE]);
+
+        (new RoleService())->setRecordScope($second, 'own', null);
+
+        $this->assertSame(AccountingError::OpeningNotFound, $this->refusal(fn () => $this->advances->cancelOpening($opening, 'by a stranger', $second))->error);
+        $this->assertNull($this->advances->branchOf(SupplierAdvances::OPENING_TYPE, $opening, $second));
     }
 }

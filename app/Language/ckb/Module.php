@@ -73,6 +73,8 @@ return [
     'reports_desc'                 => 'بینین و دروستکردنی ڕاپۆرتەکان.',
     'revenue_categories'           => '',
     'revenue_categories_desc'      => '',
+    'roles'                        => '',
+    'roles_desc'                   => '',
     'sales'                        => 'فرۆشتن',
     'sales_desc'                   => 'پرۆسەی فرۆشتن و گەڕانەوە.',
     'suppliers'                    => 'دابینکەران',

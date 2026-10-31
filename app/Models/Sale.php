@@ -118,6 +118,7 @@ class Sale extends Model
      */
     public function get_info(int $sale_id, ?int $viewerId = null): ResultInterface
     {
+        $cut    = $this->viewerCut($viewerId);
         $config = config(OSPOS::class)->settings;
         $this->create_temp_table(['sale_id' => $sale_id]);
 
@@ -173,8 +174,6 @@ class Sale extends Model
         );
 
         $builder->where('sales.sale_id', $sale_id);
-
-        $cut = $this->viewerCut($viewerId);
 
         if ($cut !== null) {
             $builder->where('sales.employee_id', $cut);
@@ -303,12 +302,11 @@ class Sale extends Model
      */
     public function getPaymentsSummary(?string $search, array $filters, ?int $viewerId = null): array
     {
+        $cut    = $this->viewerCut($viewerId);
         $config = config(OSPOS::class)->settings;
 
         // Get payment summary
         $builder = $this->db->table('sales AS sales');
-
-        $cut = $this->viewerCut($viewerId);
 
         if ($cut !== null) {
             $builder->where('sales.employee_id', $cut);
@@ -2667,10 +2665,9 @@ class Sale extends Model
      */
     public function get_suspended_sale_info(int $sale_id, ?int $viewerId = null): ResultInterface
     {
+        $cut     = $this->viewerCut($viewerId);
         $builder = $this->db->table('sales');
         $builder->where('sale_id', $sale_id);
-
-        $cut = $this->viewerCut($viewerId);
 
         if ($cut !== null) {
             $builder->where('sales.employee_id', $cut);

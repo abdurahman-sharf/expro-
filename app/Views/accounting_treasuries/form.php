@@ -5,6 +5,7 @@
  * @var array<string, string>                                  $kinds
  * @var array<string, array{mode: string, members: list<int>}> $scopes
  * @var list<object>                                           $staff
+ * @var list<object>                                           $scope_roles
  * @var list<object>                                           $scope_branches
  */
 
@@ -110,6 +111,15 @@ $isBank = ! $isNew && $treasury->kind === TreasuryService::BANK;
                                 <div class="form-check small">
                                     <input type="checkbox" class="form-check-input" id="<?= $direction ?>_staff_<?= (int) $employee->person_id ?>" name="<?= $direction ?>_members[]" value="<?= (int) $employee->person_id ?>"<?= $scope['mode'] === TreasuryScopes::STAFF && in_array((int) $employee->person_id, $members, true) ? ' checked' : '' ?><?= $scope['mode'] === TreasuryScopes::STAFF ? '' : ' disabled' ?>>
                                     <label class="form-check-label" for="<?= $direction ?>_staff_<?= (int) $employee->person_id ?>"><?= esc($employee->employee_name) ?></label>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+
+                        <div class="scope-members mt-1" data-mode="<?= TreasuryScopes::ROLES ?>"<?= $scope['mode'] === TreasuryScopes::ROLES ? '' : ' hidden' ?>>
+                            <?php foreach ($scope_roles as $scopeRole): ?>
+                                <div class="form-check small">
+                                    <input type="checkbox" class="form-check-input" id="<?= $direction ?>_role_<?= (int) $scopeRole->role_id ?>" name="<?= $direction ?>_members[]" value="<?= (int) $scopeRole->role_id ?>"<?= $scope['mode'] === TreasuryScopes::ROLES && in_array((int) $scopeRole->role_id, $members, true) ? ' checked' : '' ?><?= $scope['mode'] === TreasuryScopes::ROLES ? '' : ' disabled' ?>>
+                                    <label class="form-check-label" for="<?= $direction ?>_role_<?= (int) $scopeRole->role_id ?>"><?= esc($scopeRole->name) ?></label>
                                 </div>
                             <?php endforeach; ?>
                         </div>

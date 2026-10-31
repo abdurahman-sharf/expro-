@@ -29,6 +29,7 @@ use Config\OSPOS;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
+use Tests\Support\RoleFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 use Tests\Support\SaleFixtureTrait;
 
@@ -51,6 +52,7 @@ class SalesControllerTest extends CIUnitTestCase
     use AccountingFixtureTrait;
     use ItemFixtureTrait;
     use EmployeeFixtureTrait;
+    use RoleFixtureTrait;
     use SaleAccountingFixtureTrait;
     use SaleFixtureTrait;
 
@@ -5367,5 +5369,214 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertSame('Q26-0099', $rows[$open]);
         $this->assertSame((string) $number, (string) $rows[$number], 'a suspended invoice shows its id in the list of the register as it always did');
         $this->get('/sales/suspended')->assertSee('draft-' . $draft);
+    }
+
+    protected function ownRecordsSupervisor(): int
+    {
+        return $this->employeeWithRoles([$this->createRole([], 'own')], ['sales', 'sales_stock', 'sales_delete', 'reports_sales', BranchGuard::ALL_BRANCHES]);
+    }
+
+    private function assertPageIsNotFound(string $url): void
+    {
+        try {
+            $this->get($url);
+            $this->fail("{$url} was shown to an employee who sees their own records only.");
+        } catch (PageNotFoundException) {
+            $this->addToAssertionCount(1);
+        }
+    }
+
+    protected function everyRecordSupervisor(): int
+    {
+        return $this->employeeWithRoles([$this->createRole([], 'all')], ['sales', 'sales_stock', 'sales_delete', 'reports_sales', BranchGuard::ALL_BRANCHES]);
+    }
+
+    public function testGetSearch_ListsOnlyTheSalesOfAnEmployeeWhoSeesTheirOwnRecords(): void
+    {
+        $own      = $this->ownRecordsSupervisor();
+        $everyone = $this->everyRecordSupervisor();
+        $mine     = $this->createSale($own);
+        $theirs   = $this->createSale($everyone);
+        $range    = '?start_date=' . date('Y-m-d', strtotime('-1 day')) . '&end_date=' . date('Y-m-d', strtotime('+1 day')) . '&limit=500&sort=sale_id&order=asc';
+
+        $this->loginAs($own);
+
+        $ids = array_column(array_filter($this->jsonOf($this->get('/sales/search' . $range))['rows'], static fn (array $row): bool => isset($row['sale_id'])), 'sale_id');
+
+        $this->assertSame([(string) $mine], array_map('strval', $ids));
+
+        $this->loginAs($everyone);
+
+        $ids = array_map('strval', array_column(array_filter($this->jsonOf($this->get('/sales/search' . $range))['rows'], static fn (array $row): bool => isset($row['sale_id'])), 'sale_id'));
+
+        $this->assertContains((string) $mine, $ids);
+        $this->assertContains((string) $theirs, $ids);
+    }
+
+    public function testGetRow_ReadsAnotherEmployeesSaleLikeOneThatDoesNotExistForAnOwnRecordsEmployee(): void
+    {
+        $own    = $this->ownRecordsSupervisor();
+        $theirs = $this->createSale($this->everyRecordSupervisor());
+
+        $this->loginAs($own);
+
+        $foreign = $this->get('/sales/row/' . $theirs);
+        $missing = $this->get('/sales/row/999999');
+
+        $foreign->assertStatus(403);
+        $this->assertSame($this->jsonOf($missing), $this->jsonOf($foreign), 'The refusal says nothing of whether the sale exists');
+        $this->get('/sales/row/' . $this->createSale($own))->assertStatus(200);
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function saleDocumentPages(): array
+    {
+        return ['the receipt' => ['receipt'], 'the invoice' => ['invoice'], 'the edit form' => ['edit'], 'the pdf' => ['pdf']];
+    }
+
+    #[DataProvider('saleDocumentPages')]
+    public function testSalePages_AreNotFoundByIdForAnOwnRecordsEmployeeWhoGuessesAnotherEmployeesSale(string $page): void
+    {
+        $own    = $this->ownRecordsSupervisor();
+        $theirs = $this->createSale($this->everyRecordSupervisor());
+
+        $this->loginAs($own);
+
+        $this->assertPageIsNotFound("/sales/{$page}/{$theirs}");
+        $this->assertPageIsNotFound("/sales/{$page}/999999");
+    }
+
+    public function testGetEdit_OpensTheOwnSaleOfAnOwnRecordsEmployeeAndAnyOneForAnEmployeeWhoSeesEverything(): void
+    {
+        $own      = $this->ownRecordsSupervisor();
+        $everyone = $this->everyRecordSupervisor();
+        $mine     = $this->createSale($own);
+        $theirs   = $this->createSale($everyone);
+
+        $this->loginAs($own);
+        $this->get('/sales/edit/' . $mine)->assertStatus(200);
+
+        $this->loginAs($everyone);
+        $this->get('/sales/edit/' . $mine)->assertStatus(200);
+        $this->get('/sales/edit/' . $theirs)->assertStatus(200);
+    }
+
+    public function testPostSave_RefusesAnotherEmployeesSaleWithTheAnswerOfASaleThatDoesNotExist(): void
+    {
+        $own    = $this->ownRecordsSupervisor();
+        $theirs = $this->createSale($this->everyRecordSupervisor());
+
+        $this->loginAs($own);
+
+        $foreign = $this->post('/sales/save/' . $theirs, ['date' => date('d/m/Y H:i:s'), 'comment' => 'changed']);
+        $missing = $this->post('/sales/save/999999', ['date' => date('d/m/Y H:i:s'), 'comment' => 'changed']);
+
+        $foreign->assertStatus(403);
+        $this->assertSame(lang('Sales.not_authorized'), $this->jsonOf($foreign)['message']);
+        $this->assertSame($this->jsonOf($missing), $this->jsonOf($foreign));
+        $this->assertSame('test sale', Database::connect()->table('sales')->where('sale_id', $theirs)->get()->getRow()->comment);
+    }
+
+    public function testPostDelete_RefusesAnotherEmployeesSaleWithTheAnswerOfASaleThatDoesNotExist(): void
+    {
+        $own    = $this->ownRecordsSupervisor();
+        $theirs = $this->createSale($this->everyRecordSupervisor());
+
+        $this->loginAs($own);
+
+        $foreign = $this->post('/sales/delete', ['ids' => [(string) $theirs]]);
+        $missing = $this->post('/sales/delete', ['ids' => ['999999']]);
+
+        $foreign->assertStatus(403);
+        $this->assertSame(lang('Sales.not_authorized'), $this->jsonOf($foreign)['message']);
+        $this->assertSame($this->jsonOf($missing), $this->jsonOf($foreign));
+        $this->assertSame(COMPLETED, (int) Database::connect()->table('sales')->where('sale_id', $theirs)->get()->getRow()->sale_status);
+    }
+
+    public function testPostDelete_CancelsTheOwnSaleOfAnOwnRecordsEmployeeAndAnyOneForAnEmployeeWhoSeesEverything(): void
+    {
+        $own      = $this->ownRecordsSupervisor();
+        $everyone = $this->everyRecordSupervisor();
+        $mine     = $this->createSale($own);
+        $theirs   = $this->createSale($own);
+
+        $this->loginAs($own);
+        $this->assertTrue($this->jsonOf($this->post('/sales/delete', ['ids' => [(string) $mine]]))['success']);
+
+        $this->loginAs($everyone);
+        $this->assertTrue($this->jsonOf($this->post('/sales/delete', ['ids' => [(string) $theirs]]))['success']);
+
+        $this->assertSame(CANCELED, (int) Database::connect()->table('sales')->where('sale_id', $mine)->get()->getRow()->sale_status);
+        $this->assertSame(CANCELED, (int) Database::connect()->table('sales')->where('sale_id', $theirs)->get()->getRow()->sale_status);
+    }
+
+    public function testPostConfirmDelivery_RefusesAnotherEmployeesInvoiceWithThePlainRefusal(): void
+    {
+        $invoice = $this->postedInvoice(false);
+        $own     = $this->ownRecordsSupervisor();
+
+        $this->loginAs($own);
+
+        $response = $this->post('/sales/confirmDelivery/' . $invoice['saleId']);
+
+        $response->assertStatus(403);
+        $this->assertSame(lang('Sales.not_authorized'), $this->jsonOf($response)['message']);
+        $this->assertSame('0', (string) $this->saleRow($invoice['saleId'])->delivered);
+    }
+
+    public function testGetDocument_IsNotFoundForAnOwnRecordsEmployeeWhoGuessesAnotherEmployeesDraftOrQuote(): void
+    {
+        $this->startSelling();
+
+        $draft  = $this->draftInvoice($this->taxedLines());
+        $quote  = $this->quote(null, $this->taxedLines());
+        $own    = $this->ownRecordsSupervisor();
+        $viewer = $this->everyRecordSupervisor();
+
+        $this->loginAs($own);
+
+        $this->assertPageIsNotFound('/sales/document/' . $draft);
+        $this->assertPageIsNotFound('/sales/document/' . $quote);
+
+        $page = $this->get('/sales/documents');
+
+        $page->assertStatus(200);
+        $page->assertDontSee('draft-' . $draft);
+
+        $this->loginAs($viewer);
+
+        $this->get('/sales/document/' . $draft)->assertStatus(200);
+        $this->get('/sales/documents')->assertSee('draft-' . $draft);
+    }
+
+    public function testPostIssue_RefusesAnotherEmployeesDraftWithThePlainRefusal(): void
+    {
+        $this->startSelling();
+
+        $draft = $this->draftInvoice($this->taxedLines());
+
+        $this->loginAs($this->ownRecordsSupervisor());
+
+        $response = $this->post('/sales/issue/' . $draft, ['invoice_date' => date('Y-m-d')]);
+
+        $response->assertStatus(403);
+        $this->assertSame(lang('Sales.not_authorized'), $this->jsonOf($response)['message']);
+        $this->assertSame(SUSPENDED, (int) $this->saleRow($draft)->sale_status);
+    }
+
+    public function testPostQuoteStatus_RefusesAnotherEmployeesQuoteWithThePlainRefusal(): void
+    {
+        $this->startSelling();
+
+        $quote = $this->quote(null, $this->taxedLines());
+
+        $this->loginAs($this->ownRecordsSupervisor());
+
+        $response = $this->post('/sales/quoteStatus/' . $quote, ['quote_status' => (string) QuoteStatus::Open->value]);
+
+        $response->assertStatus(403);
+        $this->assertSame(lang('Sales.not_authorized'), $this->jsonOf($response)['message']);
     }
 }

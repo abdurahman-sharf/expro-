@@ -73,6 +73,8 @@ return [
     'reports_desc'                 => 'Visualizza e crea Resoconti.',
     'revenue_categories'           => '',
     'revenue_categories_desc'      => '',
+    'roles'                        => '',
+    'roles_desc'                   => '',
     'sales'                        => 'Vendita',
     'sales_desc'                   => 'Elabora Vendite e Resi.',
     'suppliers'                    => 'Fornitori',

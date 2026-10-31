@@ -36,8 +36,8 @@ trait RoleFixtureTrait
     }
 
     /**
-     * @param list<int>                                                     $roleIds
-     * @param list<string>                                                  $grants
+     * @param list<int>    $roleIds
+     * @param list<string> $grants
      */
     protected function employeeWithRoles(array $roleIds, array $grants = []): int
     {

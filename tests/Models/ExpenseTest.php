@@ -15,6 +15,7 @@ use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ExpenseAccountingFixtureTrait;
+use Tests\Support\RoleFixtureTrait;
 
 /**
  * What the expense model shows about the books while accounting is on, and that it shows and writes
@@ -27,6 +28,7 @@ class ExpenseTest extends CIUnitTestCase
     use AccountingFixtureTrait;
     use EmployeeFixtureTrait;
     use ExpenseAccountingFixtureTrait;
+    use RoleFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -499,5 +501,159 @@ class ExpenseTest extends CIUnitTestCase
         $this->assertSame('EXP-00001', $this->numberOf($expenseId));
         $this->assertArrayHasKey($expenseId, $this->listed());
         $this->assertSame(['posted'], array_column($this->journalsOfSource('expense', $expenseId), 'status'));
+    }
+
+    private function ownRecordsClerk(): int
+    {
+        return $this->employeeWithRoles([$this->createRole([], 'own')]);
+    }
+
+    private function expenseOf(int $employeeId, string $amount = '25.00'): int
+    {
+        $stored = $this->saveExpense($this->expenseData($amount, '0', 'Cash', null, '2026-10-20 10:00:00', $employeeId), NEW_ENTRY, $employeeId);
+
+        $this->assertNotNull($stored);
+
+        return $stored;
+    }
+
+    public function testSearch_ListsOnlyTheExpensesOfAnEmployeeWhoSeesTheirOwnRecords(): void
+    {
+        $own    = $this->ownRecordsClerk();
+        $mine   = [$this->expenseOf($own), $this->expenseOf($own, '30.00')];
+        $theirs = $this->expenseOf($this->clerkId);
+
+        $seen = array_map(static fn (object $row): int => (int) $row->expense_id, $this->expenses->search('', $this->filters(), 0, 0, 'expense_id', 'asc', false, $own)->getResult());
+
+        $this->assertSame($mine, $seen);
+        $this->assertSame(2, $this->expenses->get_found_rows('', $this->filters(), $own));
+
+        $everyone = array_map(static fn (object $row): int => (int) $row->expense_id, $this->expenses->search('', $this->filters(), 0, 0, 'expense_id', 'asc', false, $this->clerkId)->getResult());
+
+        $this->assertContains($theirs, $everyone);
+        $this->assertContains($mine[0], $everyone);
+    }
+
+    public function testSearch_CutsTheListToTheEmployeeOfTheSessionWhenNoViewerIsGiven(): void
+    {
+        $own    = $this->ownRecordsClerk();
+        $mine   = $this->expenseOf($own);
+        $theirs = $this->expenseOf($this->clerkId);
+
+        $_SESSION['person_id'] = $own;
+
+        try {
+            $this->assertSame([$mine], array_keys($this->listed()));
+        } finally {
+            unset($_SESSION['person_id']);
+        }
+
+        $this->assertArrayHasKey($theirs, $this->listed());
+    }
+
+    public function testGetPaymentsSummary_AddsUpOnlyTheExpensesOfAnOwnRecordsEmployee(): void
+    {
+        $own = $this->ownRecordsClerk();
+
+        $this->expenseOf($own, '40.00');
+        $this->expenseOf($this->clerkId, '60.00');
+
+        $summary = $this->expenses->get_payments_summary('', $this->filters(), $own);
+
+        $this->assertSame(1, array_sum(array_column($summary, 'count')));
+        $this->assertEquals(40.00, array_sum(array_column($summary, 'amount')));
+    }
+
+    public function testGetInfo_ReturnsTheEmptyRecordForAnotherEmployeesExpenseAsForOneThatDoesNotExist(): void
+    {
+        $own    = $this->ownRecordsClerk();
+        $mine   = $this->expenseOf($own);
+        $theirs = $this->expenseOf($this->clerkId);
+
+        $this->assertSame($mine, (int) $this->expenses->get_info($mine, $own)->expense_id);
+        $this->assertSame(NEW_ENTRY, (int) $this->expenses->get_info($theirs, $own)->expense_id);
+        $this->assertEquals($this->expenses->get_info(999999, $own), $this->expenses->get_info($theirs, $own));
+        $this->assertSame($theirs, (int) $this->expenses->get_info($theirs, $this->clerkId)->expense_id);
+    }
+
+    public function testGetMultipleInfoAndGetExpensePayment_ReadOnlyTheExpensesOfAnOwnRecordsEmployee(): void
+    {
+        $own    = $this->ownRecordsClerk();
+        $mine   = $this->expenseOf($own);
+        $theirs = $this->expenseOf($this->clerkId);
+
+        $this->assertSame([$mine], array_map(static fn (object $row): int => (int) $row->expense_id, $this->expenses->get_multiple_info([$mine, $theirs], $own)->getResult()));
+        $this->assertSame(1, $this->expenses->get_expense_payment($mine, $own)->getNumRows());
+        $this->assertSame(0, $this->expenses->get_expense_payment($theirs, $own)->getNumRows());
+    }
+
+    public function testSaveValue_RefusesToChangeAnotherEmployeesExpenseAndKeepsItsJournal(): void
+    {
+        $own     = $this->ownRecordsClerk();
+        $theirs  = $this->expenseOf($this->clerkId, '70.00');
+        $journal = $this->journalsOfSource('expense', $theirs);
+        $data    = $this->expenseData('90.00', '0', 'Cash', null, '2026-10-20 10:00:00', $this->clerkId);
+
+        $this->assertNull($this->saveExpense($data, $theirs, $own));
+        $this->assertNull($this->expenses->accountingFailure(), 'The refusal is not told apart from one for an expense that does not exist');
+        $this->assertSame('70.00', (string) $this->accountingDb()->table('expenses')->select('amount')->where('expense_id', $theirs)->get()->getRow()->amount);
+        $this->assertSame($journal, $this->journalsOfSource('expense', $theirs));
+    }
+
+    public function testSaveValue_RefusesToTurnAnotherEmployeesExpenseIntoOneOfTheirsWhileTheBooksAreOff(): void
+    {
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $own    = $this->ownRecordsClerk();
+        $theirs = $this->expenseOf($this->clerkId, '70.00');
+        $data   = $this->expenseData('90.00', '0', 'Cash', null, '2026-10-20 10:00:00', $own);
+
+        $this->assertNull($this->saveExpense($data, $theirs, $own));
+        $this->assertSame((string) $this->clerkId, (string) $this->accountingDb()->table('expenses')->select('employee_id')->where('expense_id', $theirs)->get()->getRow()->employee_id);
+    }
+
+    public function testSaveValue_ChangesTheOwnExpenseOfAnOwnRecordsEmployeeAndAnyOneForAnEmployeeWhoSeesEverything(): void
+    {
+        $own    = $this->ownRecordsClerk();
+        $mine   = $this->expenseOf($own, '10.00');
+        $theirs = $this->expenseOf($this->clerkId, '20.00');
+
+        $this->assertSame($mine, $this->saveExpense($this->expenseData('11.00', '0', 'Cash', null, '2026-10-20 10:00:00', $own), $mine, $own));
+        $this->assertSame($theirs, $this->saveExpense($this->expenseData('21.00', '0', 'Cash', null, '2026-10-20 10:00:00', $this->clerkId), $theirs, $this->clerkId));
+    }
+
+    public function testDeleteList_RefusesTheWholeListWhenOneExpenseIsAnotherEmployeesAndKeepsTheJournals(): void
+    {
+        $own     = $this->ownRecordsClerk();
+        $mine    = $this->expenseOf($own);
+        $theirs  = $this->expenseOf($this->clerkId);
+        $journal = $this->journalsOfSource('expense', $mine);
+
+        $this->assertFalse($this->expenses->delete_list([$mine, $theirs], $own));
+        $this->assertSame(0, $this->accountingDb()->table('expenses')->whereIn('expense_id', [$mine, $theirs])->where('deleted', 1)->countAllResults(), 'Nothing of a refused list is deleted');
+        $this->assertSame($journal, $this->journalsOfSource('expense', $mine));
+        $this->assertTrue($this->expenses->delete_list([$mine], $own));
+    }
+
+    public function testDeleteList_RefusesAnotherEmployeesExpenseWhileTheBooksAreOffToo(): void
+    {
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $own    = $this->ownRecordsClerk();
+        $theirs = $this->expenseOf($this->clerkId);
+
+        $this->assertFalse($this->expenses->delete_list([$theirs], $own));
+        $this->assertSame(0, (int) $this->accountingDb()->table('expenses')->select('deleted')->where('expense_id', $theirs)->get()->getRow()->deleted);
+        $this->assertTrue($this->expenses->delete_list([$theirs], $this->clerkId));
+    }
+
+    public function testOutsideRecordScope_TreatsAnExpenseThatDoesNotExistLikeAnotherEmployeesForAnOwnRecordsEmployeeOnly(): void
+    {
+        $own  = $this->ownRecordsClerk();
+        $mine = $this->expenseOf($own);
+
+        $this->assertFalse($this->expenses->outsideRecordScope($mine, $own));
+        $this->assertTrue($this->expenses->outsideRecordScope(999999, $own));
+        $this->assertFalse($this->expenses->outsideRecordScope(999999, $this->clerkId));
     }
 }

@@ -15,6 +15,7 @@ use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
+use App\Libraries\Roles\RoleService;
 
 /**
  * The lists of the payments of the customers and of the returns issued to them: what each row says,
@@ -688,5 +689,70 @@ class CustomerDocumentsTest extends CIUnitTestCase
         $this->assertSame([$other], array_keys($totals));
         $this->assertSame(['returns' => '0.0000', 'adjustments' => '0.0000'], $totals[$other]);
         $this->assertSame([], $this->documents->returnTotals([]));
+    }
+
+    public function testPayments_ListsOnlyThePaymentsAnEmployeeWhoSeesTheirOwnRecordsCollected(): void
+    {
+        $saleId = $this->invoiceOf('300.00');
+        $mine   = $this->createEmployee();
+        $other  = $this->createEmployee();
+        $byMe   = $this->addPaymentBy($saleId, $mine, '50.00');
+        $byThem = $this->addPaymentBy($saleId, $other, '70.00');
+
+        (new RoleService())->setRecordScope($mine, 'own', null);
+
+        $result = $this->documents->payments([], 'payment_time', 'desc', 25, 0, null, $mine);
+
+        $this->assertSame([$byMe], $this->paymentIds($result));
+        $this->assertSame(1, $result['total']);
+        $this->assertSame('50.00', bcadd($result['amount'], '0', 2));
+        $this->assertEqualsCanonicalizing([$byMe, $byThem], $this->paymentIds($this->documents->payments([], 'payment_time', 'desc', 25, 0, null, $other)));
+    }
+
+    public function testPayments_CutsTheListToTheEmployeeOfTheSessionWhenNoViewerIsGiven(): void
+    {
+        $saleId = $this->invoiceOf('300.00');
+        $mine   = $this->createEmployee();
+        $byMe   = $this->addPaymentBy($saleId, $mine, '50.00');
+
+        $this->addPaymentBy($saleId, $this->createEmployee(), '70.00');
+        (new RoleService())->setRecordScope($mine, 'own', null);
+
+        $_SESSION['person_id'] = $mine;
+
+        try {
+            $this->assertSame([$byMe], $this->paymentIds($this->payments()));
+        } finally {
+            unset($_SESSION['person_id']);
+        }
+    }
+
+    public function testCollectors_ListsOnlyTheEmployeeWhoSeesTheirOwnRecords(): void
+    {
+        $saleId = $this->invoiceOf('300.00');
+        $mine   = $this->createEmployee();
+
+        $this->addPaymentBy($saleId, $mine, '50.00');
+        $this->addPaymentBy($saleId, $this->createEmployee(), '70.00');
+        (new RoleService())->setRecordScope($mine, 'own', null);
+
+        $this->assertSame([$mine], array_map(static fn (object $collector): int => (int) $collector->employee_id, $this->documents->collectors(null, $mine)));
+        $this->assertGreaterThanOrEqual(2, count($this->documents->collectors(null, $this->createEmployee())));
+    }
+
+    public function testReturns_ListsOnlyTheCreditNotesAnEmployeeWhoSeesTheirOwnRecordsIssued(): void
+    {
+        $invoice = $this->invoiceOf('300.00');
+        $note    = $this->creditNoteOf($invoice, '50.00');
+        $other   = $this->createEmployee();
+
+        (new RoleService())->setRecordScope($other, 'own', null);
+
+        $this->assertSame(0, $this->documents->returns([], 'sale_time', 'desc', 25, 0, $other)['total']);
+        $this->assertSame([$note], array_map(static fn (array $row): int => (int) $row['sale_id'], $this->documents->returns([], 'sale_time', 'desc', 25, 0, $this->employeeId)['rows']));
+
+        (new RoleService())->setRecordScope($this->employeeId, 'own', null);
+
+        $this->assertSame([$note], array_map(static fn (array $row): int => (int) $row['sale_id'], $this->documents->returns([], 'sale_time', 'desc', 25, 0, $this->employeeId)['rows']));
     }
 }
