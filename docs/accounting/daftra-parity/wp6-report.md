@@ -33,104 +33,106 @@
 
 | # | الحارس | الملف الذي يحرسه | الاختبار الذي يكشفه | النتيجة |
 |---|---|---|---|---|
-| G01 | previewing and approving needs the permission to close the year | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G02 | taking a closing back needs the permission to close the year | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G03 | a run for the company needs every branch | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G04 | a run for a branch needs that branch | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G05 | a branch that does not exist is refused | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G06 | a closing is taken back only by someone who works in its branch | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G07 | a closing that does not exist is refused | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G08 | taking a closing back needs a reason | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G09 | the reason is at most 255 characters | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G10 | approving locks every branch of the run in the order of their numbers | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G11 | taking a closing back locks its branch | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G12 | what blocks a closing stops its approval | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G13 | a run with nothing to close or already closed is refused | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G14 | the preview approved must be the one the books give now | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G15 | the periods must be closed through the last day of the year, not before | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G16 | the periods of the company must be closed | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G17 | a draft in the year blocks the closing | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G18 | drafts are counted from the first day of the year | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G19 | drafts are counted to the last day of the year | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G20 | only the drafts of the branches of the run count | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G21 | the retained earnings account must be an equity account | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G24 | the movement is counted from the first day of the year | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G25 | the movement is counted to the last day of the year | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G26 | the movement is that of the branch | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G27 | only posted and reversed journals are movement | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G28 | only revenue and expense accounts are closed | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G29 | a journal that closes a year is not movement of the year | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G30 | a branch with an active closing is not closed again | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G31 | an active closing is read under lock when approving | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G32 | the closing of the periods is read under lock when approving | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G33 | a second closing of the year takes the next revision | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G34 | the closing is dated on the last day of the year | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G35 | the closing journal belongs to the branch it closes | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G36 | a profit is a credit to retained earnings | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G37 | a loss is a debit to retained earnings | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G38 | a result of zero writes no retained earnings line | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G39 | a closing already taken back cannot be taken back again | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G40 | only a posted closing journal is taken back | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G41 | the reversal is written on the day of the closing | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G42 | the closing journal is marked reversed | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G43 | taking a closing back frees the key of its branch and year | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G44 | the reversal mirrors every line of the closing | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G45 | the closing is written to the audit log with the exception it used | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G46 | taking a closing back is written to the audit log | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| G47 | a closing is made for a debit balance by a credit | `YearEndLine.php` | `YearEndClosingTest` | كُشف |
-| G48 | a closing is made for a credit balance by a debit | `YearEndLine.php` | `YearEndClosingTest` | كُشف |
-| G49 | the result of a branch is its revenue less its expenses | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
-| P01 | the journal of a year-end closing is refused by ordinary posting | `PostingService.php` | `PostingServiceTest` | كُشف |
-| P02 | only a closing or the reversal of one is written by postYearEnd | `PostingService.php` | `PostingServiceTest` | كُشف |
-| P03 | the relief of the closed period ends when postYearEnd returns or fails | `PostingService.php` | `PostingServiceTest` | كُشف |
-| P04 | a closing may use an account that was deactivated | `PostingService.php` | `PostingServiceTest` | كُشف |
-| P05 | a closing may be written for a branch that was deactivated | `PostingService.php` | `PostingServiceTest` | كُشف |
-| P06 | a closing is checked against the fiscal years, not the closed periods | `PostingService.php` | `PostingServiceTest` | كُشف |
-| P07 | a closing is written inside the closed period | `PostingService.php` | `PostingServiceTest` | كُشف |
-| P09 | a closing takes the period locks like any posting | `PeriodGuard.php` | `PostingServiceTest` | كُشف |
-| P10 | a closing is checked against the fiscal years as last committed | `PeriodGuard.php` | `PostingServiceTest` | كُشف |
-| J01 | the journals screen cannot reverse a journal whose type is year-end | `JournalService.php` | `JournalServiceTest` | كُشف |
-| J02 | the journals screen cannot reverse a journal whose source is year-end | `JournalService.php` | `JournalServiceTest` | كُشف |
-| J03 | opening balances of a closed-out year are not reversed | `JournalService.php` | `OpeningBalanceServiceTest` | كُشف |
-| J04 | reversing opening balances takes the lock of the branch before it looks | `JournalService.php` | `OpeningBalanceServiceTest` | كُشف |
-| C01 | a period is not reopened while it would leave a year closed out | `ClosedPeriodService.php` | `ClosedPeriodServiceTest` | كُشف |
-| C02 | the closing being reopened is not counted among the ones that remain | `ClosedPeriodService.php` | `ClosedPeriodServiceTest` | كُشف |
-| C03 | a branch reopening is judged against the closing of the company | `ClosedPeriodService.php` | `ClosedPeriodServiceTest` | كُشف |
-| C04 | a branch reopening is judged against what remains of its own closings | `ClosedPeriodService.php` | `ClosedPeriodServiceTest` | كُشف |
-| O01 | only the closings that the reopening would leave open block it | `ClosedOutYears.php` | `ClosedPeriodServiceTest` | كُشف |
-| O02 | a branch reopening is blocked only by the closings of that branch | `ClosedOutYears.php` | `ClosedPeriodServiceTest` | كُشف |
-| O03 | a closing taken back no longer holds a year closed out | `ClosedOutYears.php` | `OpeningBalanceServiceTest` | كُشف |
-| O04 | the closing of another branch does not hold a year closed out | `ClosedOutYears.php` | `OpeningBalanceServiceTest` | كُشف |
-| O05 | a date outside the year of the closing is not held | `ClosedOutYears.php` | `OpeningBalanceServiceTest` | كُشف |
-| O07 | a date before the year of the closing is not held | `ClosedOutYears.php` | `OpeningBalanceServiceTest` | كُشف |
-| O06 | only an active closing makes a branch closed | `ClosedOutYears.php` | `YearEndClosingTest` | كُشف |
-| F01 | the dates of a year closed out do not change | `FiscalYearService.php` | `FiscalYearServiceTest` | كُشف |
-| F02 | only an active closing holds the dates of a year | `ClosedOutYears.php` | `FiscalYearServiceTest` | كُشف |
-| S01 | the permission to close the year is sensitive | `AccountingGuard.php` | `SensitivePermissionsTest` | كُشف |
-| S02 | the permission screen names the permission to close the year | `AccountingSetup.php` | `AccountingSetupControllerTest` | كُشف |
-| R01 | the trial balance is before the closing entry unless asked | `TrialBalance.php` | `TrialBalanceTest` | كُشف |
-| R02 | the trial balance before the closing entry leaves the closing out | `TrialBalance.php` | `TrialBalanceTest` | كُشف |
-| R03 | an option the trial balance does not know reads before the closing entry | `TrialBalanceClosing.php` | `AccountingReportsControllerTest` | كُشف |
-| R04 | a journal is a closing of a year by its type | `YearEndEntries.php` | `YearEndEntriesTest`، `IncomeStatementTest` | كُشف |
-| R05 | the reversal of a closing is left out with it | `YearEndEntries.php` | `YearEndEntriesTest`، `IncomeStatementTest` | كُشف |
-| R06 | the ledger says what each line is by its type | `AccountLedger.php` | `AccountLedgerTest` | كُشف |
-| R07 | the balance sheet counts the closing entries | `BalanceSheet.php` | `YearEndClosingTest` | كُشف |
-| R08 | the income statement leaves the closing entries out | `IncomeStatement.php` | `YearEndClosingTest` | كُشف |
-| U03 | the approval form is not offered when nothing can be approved | `AccountingYearEnd.php` | `AccountingYearEndControllerTest` | كُشف |
-| U04 | the reversal form is hidden from someone who may not close the year | `AccountingYearEnd.php` | `AccountingYearEndControllerTest` | كُشف |
-| U05 | the reversal form is not offered for a closing already taken back | `AccountingYearEnd.php` | `AccountingYearEndControllerTest` | كُشف |
-| U06 | a scope outside the ones offered is not found | `AccountingYearEnd.php` | `AccountingYearEndControllerTest` | كُشف |
-| U07 | a posted scope must be the company or a branch number | `AccountingYearEnd.php` | `AccountingYearEndControllerTest` | كُشف |
-| U11 | the approval form carries the fingerprint of the page that was shown | `AccountingYearEnd.php` | `AccountingYearEndControllerTest` | كُشف |
-| U12 | a fingerprint that is not a digest is not accepted by the approval form | `AccountingYearEnd.php` | `AccountingYearEndControllerTest` | كُشف |
-| U08 | the approval is reached by POST only | `Routes.php` | `AccountingYearEndControllerTest` | كُشف |
-| U09 | the reversal is reached by POST only | `Routes.php` | `AccountingYearEndControllerTest` | كُشف |
-| U10 | the forms are built so that they carry the token against forged requests | `year_end_approve_form.php` | `AccountingYearEndControllerTest` | كُشف |
-| M01 | a branch has one active closing for a year | `20270900000000_YearEndClosings.php` | `YearEndClosingsMigrationTest` | كُشف |
-| M02 | the revision of a closing is unique | `20270900000000_YearEndClosings.php` | `YearEndClosingsMigrationTest` | كُشف |
-| M03 | an active closing holds the key and a reversed one gives it up | `20270900000000_YearEndClosings.php` | `YearEndClosingsMigrationTest` | كُشف |
-| M04 | a closing keeps its year | `20270900000000_YearEndClosings.php` | `YearEndClosingsMigrationTest` | كُشف |
-| M05 | the permission belongs to the periods screen | `20270900000000_YearEndClosings.php` | `YearEndClosingsMigrationTest` | كُشف |
+| G01 | المعاينة والاعتماد تتطلبان صلاحية إقفال السنة | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G02 | عكس القيد يتطلب صلاحية إقفال السنة | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G03 | تنفيذ الشركة يتطلب كل الفروع | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G04 | تنفيذ فرع يتطلب أن يعمل الموظف فيه | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G05 | الفرع غير الموجود مرفوض | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G06 | عكس القيد لمن يعمل في فرعه وحده | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G07 | القيد غير الموجود مرفوض | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G08 | عكس القيد يتطلب سببًا | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G09 | السبب لا يزيد على 255 حرفًا | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G10 | الاعتماد يقفل كل فروع التنفيذ بترتيب أرقامها | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G11 | العكس يقفل فرع القيد (حصريًا) | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G12 | ما يمنع الإقفال يوقف الاعتماد | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G13 | لا اعتماد بلا ما يُقفل أو بعد إقفال سابق | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G14 | المعاينة المعتمدة هي ما تعطيه الدفاتر الآن (البصمة) | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G15 | إقفال الفترات حتى آخر يوم من السنة لا قبله بيوم | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G16 | إقفال فترات الشركة شرط للإقفال | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G17 | مسودة في السنة تمنع الإقفال | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G18 | المسودات تُعدّ من أول يوم في السنة | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G19 | المسودات تُعدّ حتى آخر يوم في السنة | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G20 | مسودات فروع التنفيذ وحدها تُعدّ | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G21 | حساب الأرباح المحتجزة من حقوق الملكية | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G24 | الحركة تُحسب من أول يوم في السنة | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G25 | الحركة تُحسب حتى آخر يوم في السنة | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G26 | الحركة حركة الفرع نفسه | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G27 | القيود المرحَّلة والمعكوسة وحدها حركة | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G28 | حسابات الإيرادات والمصروفات وحدها تُقفل | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G29 | قيد الإقفال ليس حركة سنة | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G30 | فرع له إقفال فعّال لا يُقفل ثانية | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G31 | الإقفال الفعّال يُقرأ تحت القفل عند الاعتماد | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G32 | إقفال الفترات يُقرأ تحت القفل عند الاعتماد | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G33 | إقفال السنة ثانية يأخذ المراجعة التالية | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G34 | قيد الإقفال بتاريخ آخر يوم من السنة | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G35 | قيد الإقفال في الفرع الذي يُقفل | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G36 | الربح دائن على الأرباح المحتجزة | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G37 | الخسارة مدينة على الأرباح المحتجزة | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G38 | نتيجة الصفر بلا سطر أرباح محتجزة | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G39 | قيد أُعكس لا يُعكس ثانية | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G40 | قيد الإقفال المرحَّل وحده يُعكس | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G41 | العكس بتاريخ يوم القيد | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G42 | قيد الإقفال يُعلَّم معكوسًا | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G43 | العكس يفك مفتاح الفرع والسنة | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G44 | العكس يعاكس كل سطر من القيد | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G45 | الإقفال في سجل التدقيق مع الاستثناء الذي استعمله | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G46 | العكس في سجل التدقيق | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| G47 | رصيد مدين يُقفل بدائن | `YearEndLine.php` | `YearEndClosingTest` | كُشف |
+| G48 | رصيد دائن يُقفل بمدين | `YearEndLine.php` | `YearEndClosingTest` | كُشف |
+| G49 | نتيجة الفرع إيراده ناقص مصروفه | `YearEndClosing.php` | `YearEndClosingTest` | كُشف |
+| P01 | قيد الإقفال يرفضه الترحيل العادي | `PostingService.php` | `PostingServiceTest` | كُشف |
+| P02 | الإقفال وعكسه وحدهما يُكتبان بـ`postYearEnd` | `PostingService.php` | `PostingServiceTest` | كُشف |
+| P03 | استثناء الفترة المقفلة ينتهي عند الرجوع أو الفشل | `PostingService.php` | `PostingServiceTest` | كُشف |
+| P04 | الإقفال يقبل حسابًا عُطِّل بعد الترحيل | `PostingService.php` | `PostingServiceTest` | كُشف |
+| P05 | الإقفال يُكتب لفرع عُطِّل بعد الترحيل | `PostingService.php` | `PostingServiceTest` | كُشف |
+| P06 | الإقفال يُفحص بالسنوات المالية لا بإقفال الفترات | `PostingService.php` | `PostingServiceTest` | كُشف |
+| P07 | الإقفال يُكتب داخل الفترة المقفلة | `PostingService.php` | `PostingServiceTest` | كُشف |
+| P09 | الإقفال يأخذ قفلات الفترة كأي ترحيل | `PeriodGuard.php` | `PostingServiceTest` | كُشف |
+| P10 | تاريخ الإقفال ضمن سنة مالية بحسب آخر ما التُزم به | `PeriodGuard.php` | `PostingServiceTest` | كُشف |
+| J01 | شاشة القيود لا تعكس قيدًا نوعه إقفال سنة | `JournalService.php` | `JournalServiceTest` | كُشف |
+| J02 | شاشة القيود لا تعكس قيدًا مصدره إقفال سنة | `JournalService.php` | `JournalServiceTest` | كُشف |
+| J03 | أرصدة افتتاحية في سنة مقفلة لا تُعكس | `JournalService.php` | `OpeningBalanceServiceTest` | كُشف |
+| J04 | عكس الافتتاحي يأخذ قفلة الفرع قبل أن ينظر | `JournalService.php` | `OpeningBalanceServiceTest` | كُشف |
+| C01 | فترة لا تُعاد فتحها إن تركت سنة مقفلة بقيد إقفال | `ClosedPeriodService.php` | `ClosedPeriodServiceTest` | كُشف |
+| C02 | الإقفال المُعاد فتحه لا يُحسب بين الباقي | `ClosedPeriodService.php` | `ClosedPeriodServiceTest` | كُشف |
+| C03 | إعادة فتح إقفال فرع تُقاس بإقفال الشركة | `ClosedPeriodService.php` | `ClosedPeriodServiceTest` | كُشف |
+| C04 | إعادة فتح إقفال فرع تُقاس بما بقي من إقفالاته | `ClosedPeriodService.php` | `ClosedPeriodServiceTest` | كُشف |
+| O01 | ما تتركه إعادة الفتح مكشوفًا من السنوات وحده يمنعها | `ClosedOutYears.php` | `ClosedPeriodServiceTest` | كُشف |
+| O02 | إعادة فتح فرع يمنعها إقفال ذلك الفرع وحده | `ClosedOutYears.php` | `ClosedPeriodServiceTest` | كُشف |
+| O03 | قيد إقفال عُكس لا يُبقي السنة مقفلة | `ClosedOutYears.php` | `OpeningBalanceServiceTest` | كُشف |
+| O04 | إقفال فرع آخر لا يُبقي السنة مقفلة | `ClosedOutYears.php` | `OpeningBalanceServiceTest` | كُشف |
+| O05 | تاريخ بعد نهاية سنة الإقفال لا يُمنع | `ClosedOutYears.php` | `OpeningBalanceServiceTest` | كُشف |
+| O07 | تاريخ قبل بداية سنة الإقفال لا يُمنع | `ClosedOutYears.php` | `OpeningBalanceServiceTest` | كُشف |
+| O06 | الإقفال الفعّال وحده يجعل الفرع مقفلًا | `ClosedOutYears.php` | `YearEndClosingTest` | كُشف |
+| F01 | تواريخ سنة مقفلة بقيد إقفال لا تتغير | `FiscalYearService.php` | `FiscalYearServiceTest` | كُشف |
+| F02 | الإقفال الفعّال وحده يثبّت تواريخ السنة | `ClosedOutYears.php` | `FiscalYearServiceTest` | كُشف |
+| S01 | صلاحية إقفال السنة حساسة | `AccountingGuard.php` | `SensitivePermissionsTest` | كُشف |
+| S02 | شاشة الصلاحيات تسمّي صلاحية إقفال السنة | `AccountingSetup.php` | `AccountingSetupControllerTest` | كُشف |
+| R01 | ميزان المراجعة قبل قيد الإقفال ما لم يُطلب غيره | `TrialBalance.php` | `TrialBalanceTest` | كُشف |
+| R02 | الميزان قبل قيد الإقفال يستثني قيد الإقفال | `TrialBalance.php` | `TrialBalanceTest` | كُشف |
+| R03 | خيار لا يعرفه الميزان يقرأ قبل قيد الإقفال | `TrialBalanceClosing.php` | `AccountingReportsControllerTest` | كُشف |
+| R04 | القيد قيد إقفال سنة بنوعه | `YearEndEntries.php` | `YearEndEntriesTest`، `IncomeStatementTest` | كُشف |
+| R05 | عكس قيد الإقفال يُستثنى معه | `YearEndEntries.php` | `YearEndEntriesTest`، `IncomeStatementTest` | كُشف |
+| R06 | كشف الحساب يقول ما هو كل سطر بنوعه | `AccountLedger.php` | `AccountLedgerTest` | كُشف |
+| R07 | الميزانية تحسب قيود الإقفال | `BalanceSheet.php` | `YearEndClosingTest` | كُشف |
+| R08 | قائمة الدخل تستثني قيود الإقفال | `IncomeStatement.php` | `YearEndClosingTest` | كُشف |
+| U03 | نموذج الاعتماد لا يُعرض حين لا شيء يُعتمد | `AccountingYearEnd.php` | `AccountingYearEndControllerTest` | كُشف |
+| U04 | نموذج العكس مخفي عمّن لا يملك صلاحية إقفال السنة | `AccountingYearEnd.php` | `AccountingYearEndControllerTest` | كُشف |
+| U05 | نموذج العكس لا يُعرض لقيد عُكس | `AccountingYearEnd.php` | `AccountingYearEndControllerTest` | كُشف |
+| U06 | نطاق خارج المعروض غير موجود | `AccountingYearEnd.php` | `AccountingYearEndControllerTest` | كُشف |
+| U07 | النطاق المُرسَل شركة أو رقم فرع | `AccountingYearEnd.php` | `AccountingYearEndControllerTest` | كُشف |
+| U11 | نموذج الاعتماد يحمل بصمة الصفحة التي عُرضت | `AccountingYearEnd.php` | `AccountingYearEndControllerTest` | كُشف |
+| U12 | بصمة ليست مُلخَّصًا لا يقبلها نموذج الاعتماد | `AccountingYearEnd.php` | `AccountingYearEndControllerTest` | كُشف |
+| U08 | الاعتماد يُبلَغ بـPOST وحده | `Routes.php` | `AccountingYearEndControllerTest` | كُشف |
+| U09 | العكس يُبلَغ بـPOST وحده | `Routes.php` | `AccountingYearEndControllerTest` | كُشف |
+| U10 | النماذج مبنية بحيث تحمل رمز الحماية من الطلبات المزوَّرة | `year_end_approve_form.php` | `AccountingYearEndControllerTest` | كُشف |
+| M01 | للفرع إقفال فعّال واحد للسنة (مفتاح فريد) | `20270900000000_YearEndClosings.php` | `YearEndClosingsMigrationTest` | كُشف |
+| M02 | مراجعة الإقفال فريدة | `20270900000000_YearEndClosings.php` | `YearEndClosingsMigrationTest` | كُشف |
+| M03 | الفعّال يحمل المفتاح والمعكوس يتخلى عنه (قيد فحص) | `20270900000000_YearEndClosings.php` | `YearEndClosingsMigrationTest` | كُشف |
+| M04 | الإقفال يحفظ سنته (مفتاح خارجي) | `20270900000000_YearEndClosings.php` | `YearEndClosingsMigrationTest` | كُشف |
+| M05 | الصلاحية تحت شاشة الفترات | `20270900000000_YearEndClosings.php` | `YearEndClosingsMigrationTest` | كُشف |
+
+**ما كشفته المرحلة الأولى من التعطيل (12 حارسًا لم يُكشف أو لم يصلح):** سبعة قوّيتُ لها اختبارًا فكُشفت: **G11** (قفل العكس حصريًا: كان اختباري يعدّ قفلًا مشتركًا يأخذه الترحيل نفسه، فصار اختبار بحامل قفل مشترك يجب أن ينتظر)، **G40** (قيد إقفال حالته فعّالة وقيده ليس مرحَّلًا)، **P10** (سنة تغيّرت بعد لقطة المستدعي فأخرجت التاريخ من كل سنة)، **O05 وO07** (افتتاحي تاريخه قبل سنة الإقفال أو بعدها لا يُمنع عكسه)، **U03** (نموذج الاعتماد لا يُعرض حين لا شيء يُعتمد: كان اختباره يمرّ بغياب البصمة لا بالفحص)، **R06** (نص التعطيل نفسه كان لا يُحلَّل فصُحّح). **وخمسة حذفتُها لأنها تكرّر حارسًا آخر فلا يُكتشف تعطيلها بسلوك** (وإبقاؤها يوهم بحماية): فحص المجموعة والتعطيل لحساب الأرباح المحتجزة في الخدمة (**G22 وG23**: التوجيه نفسه يرفضه قبل ذلك)، وفحص التغطية المبكر `PeriodGuard::checkYearEnd` (**P08**: يكرّره فحص الكتابة داخل المعاملة)، وشرط `$canRun` وفحص الصلاحية في نموذج الاعتماد (**U01 وU02**: الخدمة تمنع المعاينة بلا صلاحية فيُعطي نموذجًا غير موجود)، وقيد الفحص `status IN (...)` في الجدول (**M06**: يكرّره قيد المفتاح). ووجد اختبار الترحيل عيبًا حقيقيًا في قيد الفحص (يمرّر قيدًا فعّالًا بلا مفتاح لأن المقارنة بـ`=` مع `NULL` مجهولة فتُقبل) فصُحّح بـ`<=>`.
 
 ## 4. ما افترضتُه
 
