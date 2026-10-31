@@ -248,10 +248,12 @@ final class Tax_definitionsControllerTest extends CIUnitTestCase
 
         $this->assertNotNull((new TaxDefinitions())->find($id));
 
-        $deleted = $this->postJson('/tax_definitions/delete', ['ids' => [(string) $id]]);
+        $personId = $this->actAsWith(['taxes']);
+        $deleted  = $this->postJson('/tax_definitions/delete', ['ids' => [(string) $id]]);
 
         $this->assertTrue($deleted['success']);
         $this->assertNull((new TaxDefinitions())->find($id));
+        $this->assertSame($personId, (int) $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => TaxDefinitions::ENTITY, 'entity_id' => $id, 'action' => 'deleted'])->get()->getRow()->employee_id, 'the audit names who deleted the tax');
     }
 
     public function testGetRowShowsOneTaxAndIsNotFoundForADeletedOne(): void

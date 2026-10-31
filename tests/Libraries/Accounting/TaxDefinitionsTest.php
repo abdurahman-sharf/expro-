@@ -197,7 +197,9 @@ final class TaxDefinitionsTest extends CIUnitTestCase
 
         (new AccountService())->deactivate($inactive);
 
-        foreach ([$this->accountIdByCode('215'), $inactive, $this->accountId('cogs'), $this->accountId('sales_revenue'), $this->accountId('tax_input'), $this->accountId('giftcard_liability'), $this->accountId('notes_payable'), 99999] as $accountId) {
+        $asset = $this->customAccount('11', '1110', 'A custom asset');
+
+        foreach ([$asset, $this->accountIdByCode('215'), $inactive, $this->accountId('cogs'), $this->accountId('sales_revenue'), $this->accountId('tax_input'), $this->accountId('giftcard_liability'), $this->accountId('notes_payable'), 99999] as $accountId) {
             $this->assertSame(AccountingError::TaxLiabilityAccountInvalid, $this->refusal(fn () => $this->taxes->save(['tax_name' => 'x' . $accountId, 'account_id' => $accountId], null, $this->router))->error, 'account ' . $accountId);
         }
 

@@ -1,0 +1,759 @@
+[
+  {
+    "name": "G01 a tax row saved with a sale keeps its mode whatever the tax list says",
+    "file": "app/Libraries/Tax_lib.php",
+    "find": "        if (isset($info['tax_type'])) {\n            return (string) $info['tax_type'] === Tax_lib::TAX_TYPE_INCLUDED;\n        }\n\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Tax_libTest.php"
+    ]
+  },
+  {
+    "name": "G02 the mode of a tax in the tax list beats the default mode",
+    "file": "app/Libraries/Tax_lib.php",
+    "find": "        $included = $definitions[Tax_definition::key((string) $info['name'])]['included'] ?? null;\n\n        return $included ?? (bool) ($this->config['tax_included'] ?? false);",
+    "replace": "        return (bool) ($this->config['tax_included'] ?? false);",
+    "tests": [
+      "tests/Libraries/Tax_libTest.php"
+    ]
+  },
+  {
+    "name": "G03 a tax with no mode of its own follows the default mode of the shop",
+    "file": "app/Libraries/Tax_lib.php",
+    "find": "return $included ?? (bool) ($this->config['tax_included'] ?? false);",
+    "replace": "return $included ?? false;",
+    "tests": [
+      "tests/Libraries/Tax_libTest.php"
+    ]
+  },
+  {
+    "name": "G04 a tax row saved with a sale keeps its account",
+    "file": "app/Libraries/Tax_lib.php",
+    "find": "        if (array_key_exists('liability_account_id', $info)) {\n            return $info['liability_account_id'] === null ? null : (int) $info['liability_account_id'];\n        }\n\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Tax_libTest.php"
+    ]
+  },
+  {
+    "name": "G05 a new sale takes the account of the tax from the tax list",
+    "file": "app/Libraries/Tax_lib.php",
+    "find": "        return $definitions[Tax_definition::key((string) $info['name'])]['account'] ?? null;",
+    "replace": "        return null;",
+    "tests": [
+      "tests/Libraries/Tax_libTest.php"
+    ]
+  },
+  {
+    "name": "G06 a tax added to the price is charged on the net and not on the price",
+    "file": "app/Libraries/Tax_lib.php",
+    "find": "$row['amount'] = $this->get_tax_for_amount($net, $row['percent'], Rounding_mode::HALF_UP, $taxDecimals);",
+    "replace": "$row['amount'] = $this->get_tax_for_amount($total, $row['percent'], Rounding_mode::HALF_UP, $taxDecimals);",
+    "tests": [
+      "tests/Libraries/Tax_libTest.php"
+    ]
+  },
+  {
+    "name": "G07 several taxes inside the price are taken out together",
+    "file": "app/Libraries/Tax_lib.php",
+    "find": "} elseif (count($includedRows) > 1) {",
+    "replace": "} elseif (count($includedRows) > 99) {",
+    "tests": [
+      "tests/Libraries/Tax_libTest.php"
+    ]
+  },
+  {
+    "name": "G08 one tax inside the price is taken out as it always was",
+    "file": "app/Libraries/Tax_lib.php",
+    "find": "if (count($includedRows) === 1) {",
+    "replace": "if (count($includedRows) === 99) {",
+    "tests": [
+      "tests/Libraries/Tax_libTest.php"
+    ]
+  },
+  {
+    "name": "G09 a return in the register takes its taxes from the sale it takes goods back from",
+    "file": "app/Libraries/Tax_lib.php",
+    "find": "return $registerMode === null && $this->sale_lib->is_return_mode() ? $this->sale_lib->get_return_origin() : null;",
+    "replace": "return null;",
+    "tests": [
+      "tests/Libraries/Tax_libTest.php"
+    ]
+  },
+  {
+    "name": "G10 a saved sale is taxed from its own saved rows",
+    "file": "app/Libraries/Tax_lib.php",
+    "find": "        if ($saleId !== NEW_ENTRY) {\n            return $saleId;\n        }\n\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Tax_libTest.php"
+    ]
+  },
+  {
+    "name": "G11 the two modes of one tax are summed in groups of their own",
+    "file": "app/Libraries/Tax_lib.php",
+    "find": "        if (isset($taxes[$tax_group_index]) && (string) $taxes[$tax_group_index]['tax_type'] !== $tax_type) {\n            $tax_group_index .= '-' . $tax_type;\n        }\n\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Tax_libTest.php"
+    ]
+  },
+  {
+    "name": "G12 a tax inside the price rounds to tax decimals and one added to it to currency decimals",
+    "file": "app/Libraries/Tax_lib.php",
+    "find": "            $decimals = $included ? tax_decimals() : totals_decimals();",
+    "replace": "            $decimals = totals_decimals();",
+    "tests": [
+      "tests/Libraries/Tax_libTest.php"
+    ]
+  },
+  {
+    "name": "G13 a shop that taxes by destination keeps its rounding",
+    "file": "app/Libraries/Tax_lib.php",
+    "find": "                ? (bool) $this->config['tax_included']",
+    "replace": "                ? false",
+    "tests": [
+      "tests/Libraries/Tax_libTest.php"
+    ]
+  },
+  {
+    "name": "G14 the account of each tax goes into its saved row",
+    "file": "app/Libraries/Tax_lib.php",
+    "find": "'liability_account_id' => $tax['account'],",
+    "replace": "'liability_account_id' => null,",
+    "tests": [
+      "tests/Libraries/Tax_libTest.php"
+    ]
+  },
+  {
+    "name": "G15 the tax list is asked for the taxes of a new sale",
+    "file": "app/Libraries/Tax_lib.php",
+    "find": "$definitions = $this->tax_definition->forNames(array_column(array_merge([], ...array_values($taxInfoByLine)), 'name'));",
+    "replace": "$definitions = [];",
+    "tests": [
+      "tests/Libraries/Tax_libTest.php"
+    ]
+  },
+  {
+    "name": "G16 the tax list is asked for the taxes of one item",
+    "file": "app/Libraries/Tax_lib.php",
+    "find": "$this->tax_definition->forNames(array_column($taxInfo, 'name'))",
+    "replace": "[]",
+    "tests": [
+      "tests/Libraries/Tax_libTest.php",
+      "tests/Libraries/Sale_libTest.php"
+    ]
+  },
+  {
+    "name": "G17 the total adds only the taxes that are added to the price",
+    "file": "app/Libraries/Sale_lib.php",
+    "find": "if ((string) $tax['tax_type'] === Tax_lib::TAX_TYPE_EXCLUDED) {",
+    "replace": "if (true) {",
+    "tests": [
+      "tests/Libraries/Sale_libTest.php"
+    ]
+  },
+  {
+    "name": "G18 an item without tax takes out only the tax inside its price",
+    "file": "app/Libraries/Sale_lib.php",
+    "find": "if ($tax['type'] === Tax_lib::TAX_TYPE_INCLUDED) {",
+    "replace": "if (true) {",
+    "tests": [
+      "tests/Libraries/Sale_libTest.php"
+    ]
+  },
+  {
+    "name": "G19 the subtotal without tax is asked for the lines whatever the default mode",
+    "file": "app/Libraries/Sale_lib.php",
+    "find": "            if ($exclude_tax) {",
+    "replace": "            if (false) {",
+    "tests": [
+      "tests/Libraries/Sale_libTest.php"
+    ]
+  },
+  {
+    "name": "G20 a shop that taxes by destination takes nothing out of the line",
+    "file": "app/Libraries/Sale_lib.php",
+    "find": "        if ($this->config['use_destination_based_tax'] ?? false) {\n            return $itemTotal;\n        }\n\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Sale_libTest.php"
+    ]
+  },
+  {
+    "name": "G21 the tax of an item follows the mode it is given",
+    "file": "app/Libraries/Sale_lib.php",
+    "find": "if ($included ?? $this->config['tax_included']) {",
+    "replace": "if ($this->config['tax_included']) {",
+    "tests": [
+      "tests/Libraries/Sale_libTest.php"
+    ]
+  },
+  {
+    "name": "G22 the sale is refused when it has a line with no tax and the setting asks for one",
+    "file": "app/Models/Sale.php",
+    "find": "        if ($taxRefusal !== null) {",
+    "replace": "        if (false) {",
+    "tests": [
+      "tests/Models/SaleTest.php"
+    ]
+  },
+  {
+    "name": "G23 only a completed sale is held to a tax on every line",
+    "file": "app/Models/Sale.php",
+    "find": "if ($saleStatus != COMPLETED ||",
+    "replace": "if (false ||",
+    "tests": [
+      "tests/Models/SaleTest.php"
+    ]
+  },
+  {
+    "name": "G24 only a sale or an invoice is held to a tax on every line",
+    "file": "app/Models/Sale.php",
+    "find": "!in_array($saleType, [SALE_TYPE_POS, SALE_TYPE_INVOICE], true)",
+    "replace": "false",
+    "tests": [
+      "tests/Models/SaleTest.php"
+    ]
+  },
+  {
+    "name": "G25 a shop that taxes by destination is not held to a tax on every line",
+    "file": "app/Models/Sale.php",
+    "find": " || (config(OSPOS::class)->settings['use_destination_based_tax'] ?? false)) {",
+    "replace": ") {",
+    "tests": [
+      "tests/Models/SaleTest.php"
+    ]
+  },
+  {
+    "name": "G26 a tax on every line is asked only when the setting is on",
+    "file": "app/Models/Sale.php",
+    "find": "        if (!(new SalesTaxSettings($this->db))->requireTaxOne()) {\n            return null;\n        }\n\n",
+    "replace": "",
+    "tests": [
+      "tests/Models/SaleTest.php"
+    ]
+  },
+  {
+    "name": "G27 a customer who is not charged tax is not held to a tax on every line",
+    "file": "app/Models/Sale.php",
+    "find": "        if ($customerId != NEW_ENTRY && !model(Customer::class)->get_info($customerId)->taxable) {\n            return null;\n        }\n\n",
+    "replace": "",
+    "tests": [
+      "tests/Models/SaleTest.php"
+    ]
+  },
+  {
+    "name": "G28 the account of a tax is saved with its row",
+    "file": "app/Models/Sale.php",
+    "find": "'liability_account_id' => $tax_item['liability_account_id'] ?? null,",
+    "replace": "'liability_account_id' => null,",
+    "tests": [
+      "--filter",
+      "WithATaxInsideThePrice|ATaxWithAnAccountOfItsOwn|WhenNoTaxHasAnAccount|ReversesTheTaxOfAnAccount|CreditNoteOfAnInvoiceWithTheTaxInside|RefundInvoiceOfAnInvoiceWithTheTaxInside|WhoseTaxAccountCannot|KeepsTheModeAndTheAccount|TheRegisterWorkedOut|PostsManyLinesWithTaxesOfBothModes",
+      "tests/Libraries/Accounting/SalePostingTest.php",
+      "--filter",
+      "ChargesEachTaxOfTheItem|ShowsASaleAsItWasSaved|RefusesALineWithNoTax|AcceptsALineWithATax|TakesACreditNoteOfAnInvoiceWithTaxInside",
+      "tests/Controllers/SalesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G29 the saved rows of an item are read once each",
+    "file": "app/Models/Sale.php",
+    "find": "        $builder->distinct();\n",
+    "replace": "",
+    "tests": [
+      "tests/Models/SaleTest.php"
+    ]
+  },
+  {
+    "name": "G30 the saved rows of an item are read with their mode and account",
+    "file": "app/Models/Sale.php",
+    "find": "$builder->select('item_id, name, percent, tax_type, liability_account_id');",
+    "replace": "$builder->select('item_id, name, percent');",
+    "tests": [
+      "tests/Models/SaleTest.php",
+      "--filter",
+      "ChargesEachTaxOfTheItem|ShowsASaleAsItWasSaved|RefusesALineWithNoTax|AcceptsALineWithATax|TakesACreditNoteOfAnInvoiceWithTaxInside",
+      "tests/Controllers/SalesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G31 what a sale comes to is its price and the taxes added to it, row by row",
+    "file": "app/Models/Sale.php",
+    "find": "$sale_total = \"ROUND(SUM($sale_price), $decimals) + $sales_tax + $cash_adjustment\";",
+    "replace": "$sale_total = \"ROUND(SUM($sale_price), $decimals) + $cash_adjustment\";",
+    "tests": [
+      "tests/Models/SaleTest.php"
+    ],
+    "all": true
+  },
+  {
+    "name": "G32 the subtotal of a sale is what is left after the tax inside the price",
+    "file": "app/Models/Sale.php",
+    "find": "$sale_subtotal = \"ROUND(SUM($sale_price), $decimals) - $internal_tax + $cash_adjustment\";",
+    "replace": "$sale_subtotal = \"ROUND(SUM($sale_price), $decimals) + $cash_adjustment\";",
+    "tests": [
+      "tests/Models/SaleTest.php"
+    ]
+  },
+  {
+    "name": "G33 the sales summary takes the tax inside the price off the subtotal",
+    "file": "app/Models/Reports/Summary_report.php",
+    "find": "$sale_subtotal = \"ROUND(SUM($sale_price), $decimals) - $internal_tax + $cash_adjustment\";",
+    "replace": "$sale_subtotal = \"ROUND(SUM($sale_price), $decimals) + $cash_adjustment\";",
+    "tests": [
+      "tests/Models/Reports/Summary_salesTest.php"
+    ]
+  },
+  {
+    "name": "G34 the sales summary adds only the tax added to the price to the total",
+    "file": "app/Models/Reports/Summary_report.php",
+    "find": "$sale_total = \"ROUND(SUM($sale_price), $decimals) + $added_tax + $cash_adjustment\";",
+    "replace": "$sale_total = \"ROUND(SUM($sale_price), $decimals) + $sales_tax + $cash_adjustment\";",
+    "tests": [
+      "tests/Models/Reports/Summary_salesTest.php"
+    ]
+  },
+  {
+    "name": "G35 the tax summary takes the tax inside the price off the subtotal of that tax",
+    "file": "app/Models/Reports/Summary_taxes.php",
+    "find": "THEN ROUND($sale_amount - $sale_tax, $decimals) ELSE",
+    "replace": "THEN ROUND($sale_amount, $decimals) ELSE",
+    "tests": [
+      "tests/Models/Reports/Summary_taxesTest.php"
+    ]
+  },
+  {
+    "name": "G36 the tax of a tax with an account of its own is posted to that account",
+    "file": "app/Libraries/Accounting/SalePostingBuilder.php",
+    "find": "        foreach ($own as $accountId => $amount) {\n            $lines[] = [$accountId, $amount];\n        }\n\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+    ]
+  },
+  {
+    "name": "G37 the routed account of tax collected takes only what the others did not",
+    "file": "app/Libraries/Accounting/SalePostingBuilder.php",
+    "find": "$lines = bccomp($remainder, '0', SaleAmounts::SCALE) > 0 ? [[$this->required(RoutingKey::TaxOutput), $remainder]] : [];",
+    "replace": "$lines = [[$this->required(RoutingKey::TaxOutput), $remainder]];",
+    "tests": [
+      "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+    ]
+  },
+  {
+    "name": "G38 accounts of their own that take more than the tax are refused",
+    "file": "app/Libraries/Accounting/SalePostingBuilder.php",
+    "find": "if (bccomp($remainder, '0', SaleAmounts::SCALE) < 0) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+    ]
+  },
+  {
+    "name": "G39 a discount account is refused when a tax of the sale is inside the price",
+    "file": "app/Libraries/Accounting/SalePostingBuilder.php",
+    "find": "if (bccomp($line->includedTax, '0', SaleAmounts::SCALE) !== 0) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+    ]
+  },
+  {
+    "name": "G40 the tax lines are part of the journal of the invoice",
+    "file": "app/Libraries/Accounting/SalePostingBuilder.php",
+    "find": "$incomeSide   = [[$revenue, $goods], ...$this->taxLines($sale, $split['tax'])];",
+    "replace": "$incomeSide   = [[$revenue, $goods]];",
+    "tests": [
+      "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+    ]
+  },
+  {
+    "name": "G41 the accounts of the tax rows come in the order of the accounts",
+    "file": "app/Libraries/Accounting/SaleAmounts.php",
+    "find": "        ksort($accounts);\n\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+    ]
+  },
+  {
+    "name": "G42 a tax of nothing with an account of its own has no line",
+    "file": "app/Libraries/Accounting/SaleAmounts.php",
+    "find": "return array_filter($accounts, static fn (string $amount): bool => bccomp($amount, '0', self::SCALE) !== 0);",
+    "replace": "return $accounts;",
+    "tests": [
+      "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+    ]
+  },
+  {
+    "name": "G43 the loader reads the account a tax row was saved with",
+    "file": "app/Libraries/Accounting/SaleLoader.php",
+    "find": "if ($row->liability_account_id !== null) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/SaleLoaderTest.php"
+    ]
+  },
+  {
+    "name": "G44 the loader reads the tax of an account as an amount that is not negative",
+    "file": "app/Libraries/Accounting/SaleLoader.php",
+    "find": "bcadd($accounts[$key][(int) $row->liability_account_id] ?? '0', SaleAmounts::absolute((string) $row->amount), 4)",
+    "replace": "bcadd($accounts[$key][(int) $row->liability_account_id] ?? '0', (string) $row->amount, 4)",
+    "tests": [
+      "tests/Libraries/Accounting/SaleLoaderTest.php"
+    ]
+  },
+  {
+    "name": "G45 the tax report reads the accounts of the taxes next to the routed ones",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "    private function ownAccounts(): array\n    {\n        $ids = [];",
+    "replace": "    private function ownAccounts(): array\n    {\n        return [];\n        $ids = [];",
+    "tests": [
+      "--filter",
+      "ReadsTheAccountOfATaxThatHasOne|CountsTheTaxInsideThePrice|NetsAnInvoiceAndItsCreditNote|KeepsTheAccountASale|ReadsTheAccountOfATaxOnTheList|ShowsWhatIsPostedByHand",
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "G46 the tax report reads the accounts of the tax list",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "foreach (['tax_definitions', 'sales_items_taxes'] as $table) {",
+    "replace": "foreach (['sales_items_taxes'] as $table) {",
+    "tests": [
+      "--filter",
+      "ReadsTheAccountOfATaxThatHasOne|CountsTheTaxInsideThePrice|NetsAnInvoiceAndItsCreditNote|KeepsTheAccountASale|ReadsTheAccountOfATaxOnTheList|ShowsWhatIsPostedByHand",
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "G47 the tax report reads the accounts the tax rows of a sale were saved with",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "foreach (['tax_definitions', 'sales_items_taxes'] as $table) {",
+    "replace": "foreach (['tax_definitions'] as $table) {",
+    "tests": [
+      "--filter",
+      "ReadsTheAccountOfATaxThatHasOne|CountsTheTaxInsideThePrice|NetsAnInvoiceAndItsCreditNote|KeepsTheAccountASale|ReadsTheAccountOfATaxOnTheList|ShowsWhatIsPostedByHand",
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "G48 the account of a tax is an account of tax collected",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "                $accounts[$ownId]['roles'][] = 'output';",
+    "replace": "                $accounts[$ownId]['roles'][] = 'input';",
+    "tests": [
+      "--filter",
+      "ReadsTheAccountOfATaxThatHasOne|CountsTheTaxInsideThePrice|NetsAnInvoiceAndItsCreditNote|KeepsTheAccountASale|ReadsTheAccountOfATaxOnTheList|ShowsWhatIsPostedByHand",
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "G49 a tax has a name of one to 255 characters",
+    "file": "app/Libraries/Accounting/TaxDefinitions.php",
+    "find": "if ($name === '' || mb_strlen($name) > self::NAME_MAX) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/TaxDefinitionsTest.php"
+    ]
+  },
+  {
+    "name": "G50 the name of a tax is unique",
+    "file": "app/Libraries/Accounting/TaxDefinitions.php",
+    "find": "if ($stored === null && $this->db->table('tax_definitions')->where('tax_name', $name)->countAllResults() > 0) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/TaxDefinitionsTest.php"
+    ]
+  },
+  {
+    "name": "G51 the name of a saved tax does not change",
+    "file": "app/Libraries/Accounting/TaxDefinitions.php",
+    "find": "$name   = $stored === null ? trim((string) ($input['tax_name'] ?? '')) : (string) $stored->tax_name;",
+    "replace": "$name   = trim((string) ($input['tax_name'] ?? ''));",
+    "tests": [
+      "tests/Libraries/Accounting/TaxDefinitionsTest.php"
+    ]
+  },
+  {
+    "name": "G52 a mode that is neither the default nor included nor excluded is refused",
+    "file": "app/Libraries/Accounting/TaxDefinitions.php",
+    "find": "default        => throw new AccountingException(AccountingError::TaxModeInvalid, 'The mode of a tax is its default, included or excluded.'),",
+    "replace": "default        => null,",
+    "tests": [
+      "tests/Libraries/Accounting/TaxDefinitionsTest.php"
+    ]
+  },
+  {
+    "name": "G53 the mode of a tax changes only when the input names it",
+    "file": "app/Libraries/Accounting/TaxDefinitions.php",
+    "find": "$mode        = array_key_exists('tax_mode', $input) ? $this->mode($input['tax_mode']) : $currentMode;",
+    "replace": "$mode        = $this->mode($input['tax_mode'] ?? '');",
+    "tests": [
+      "tests/Libraries/Accounting/TaxDefinitionsTest.php"
+    ]
+  },
+  {
+    "name": "G54 the account of a tax changes only when the input names it",
+    "file": "app/Libraries/Accounting/TaxDefinitions.php",
+    "find": "$accountId      = array_key_exists('account_id', $input) ? $this->accountId($input['account_id']) : $currentAccount;",
+    "replace": "$accountId      = $this->accountId($input['account_id'] ?? null);",
+    "tests": [
+      "tests/Libraries/Accounting/TaxDefinitionsTest.php",
+      "tests/Controllers/Tax_definitionsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G55 choosing the account of a tax asks for the permission to change the routing",
+    "file": "app/Libraries/Accounting/TaxDefinitions.php",
+    "find": "$this->guard->require(AccountingGuard::ROUTING_MANAGE, $employeeId);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Accounting/TaxDefinitionsTest.php"
+    ]
+  },
+  {
+    "name": "G56 choosing the account of a tax asks for every branch",
+    "file": "app/Libraries/Accounting/TaxDefinitions.php",
+    "find": "$this->branches->requireCompanyScope($employeeId);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Accounting/TaxDefinitionsTest.php"
+    ]
+  },
+  {
+    "name": "G57 an account that cannot take a tax is refused",
+    "file": "app/Libraries/Accounting/TaxDefinitions.php",
+    "find": "                $this->assertUsable($accountId);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Accounting/TaxDefinitionsTest.php"
+    ]
+  },
+  {
+    "name": "G58 the account of a tax is a liability account",
+    "file": "app/Libraries/Accounting/TaxDefinitions.php",
+    "find": "            ->where('account_type', AccountType::Liability->value)\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Accounting/TaxDefinitionsTest.php"
+    ]
+  },
+  {
+    "name": "G59 the account of a tax takes entries",
+    "file": "app/Libraries/Accounting/TaxDefinitions.php",
+    "find": "            ->where('is_group', 0)\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Accounting/TaxDefinitionsTest.php"
+    ]
+  },
+  {
+    "name": "G60 the account of a tax is active",
+    "file": "app/Libraries/Accounting/TaxDefinitions.php",
+    "find": "            ->where('active', 1)\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Accounting/TaxDefinitionsTest.php"
+    ]
+  },
+  {
+    "name": "G61 the account of a tax is not kept for another purpose",
+    "file": "app/Libraries/Accounting/TaxDefinitions.php",
+    "find": "            ->groupStart()->where('system_key IS NULL', null, false)->orWhere('system_key', RoutingKey::TaxOutput->defaultSystemKey())->groupEnd()\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Accounting/TaxDefinitionsTest.php"
+    ]
+  },
+  {
+    "name": "G62 creating a tax is audited",
+    "file": "app/Libraries/Accounting/TaxDefinitions.php",
+    "find": "'created', $employeeId",
+    "replace": "'createdX', $employeeId",
+    "tests": [
+      "tests/Libraries/Accounting/TaxDefinitionsTest.php"
+    ]
+  },
+  {
+    "name": "G63 a change of the mode of a tax is audited",
+    "file": "app/Libraries/Accounting/TaxDefinitions.php",
+    "find": "'mode_changed', $employeeId",
+    "replace": "'mode_changedX', $employeeId",
+    "tests": [
+      "tests/Libraries/Accounting/TaxDefinitionsTest.php"
+    ]
+  },
+  {
+    "name": "G64 a change of the account of a tax is audited",
+    "file": "app/Libraries/Accounting/TaxDefinitions.php",
+    "find": "'account_changed', $employeeId",
+    "replace": "'account_changedX', $employeeId",
+    "tests": [
+      "tests/Libraries/Accounting/TaxDefinitionsTest.php"
+    ]
+  },
+  {
+    "name": "G65 deleting a tax is audited",
+    "file": "app/Libraries/Accounting/TaxDefinitions.php",
+    "find": "'deleted', $employeeId",
+    "replace": "'deletedX', $employeeId",
+    "tests": [
+      "tests/Libraries/Accounting/TaxDefinitionsTest.php"
+    ]
+  },
+  {
+    "name": "G66 only a change of the account asks for the permission",
+    "file": "app/Libraries/Accounting/TaxDefinitions.php",
+    "find": "        if ($accountId !== $currentAccount) {\n            $this->guard->require(",
+    "replace": "        if (true) {\n            $this->guard->require(",
+    "tests": [
+      "tests/Libraries/Accounting/TaxDefinitionsTest.php"
+    ]
+  },
+  {
+    "name": "G67 the same value saved again writes and audits nothing",
+    "file": "app/Libraries/Accounting/SalesTaxSettings.php",
+    "find": "        if ($changes === []) {\n            return [];\n        }\n\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Accounting/SalesTaxSettingsTest.php"
+    ]
+  },
+  {
+    "name": "G68 only the setting that changed is written and audited",
+    "file": "app/Libraries/Accounting/SalesTaxSettings.php",
+    "find": "if (array_key_exists($key, $input) && (bool) $input[$key] !== $value) {",
+    "replace": "if (array_key_exists($key, $input)) {",
+    "tests": [
+      "tests/Libraries/Accounting/SalesTaxSettingsTest.php"
+    ]
+  },
+  {
+    "name": "G69 a change of the two settings is audited",
+    "file": "app/Libraries/Accounting/SalesTaxSettings.php",
+    "find": "'sales_tax_settings_updated'",
+    "replace": "'sales_tax_settings_updatedX'",
+    "tests": [
+      "tests/Libraries/Accounting/SalesTaxSettingsTest.php"
+    ]
+  },
+  {
+    "name": "G70 the lines of one item are told apart when a tax is asked of every line",
+    "file": "app/Libraries/Accounting/SalesTaxSettings.php",
+    "find": "$taxed[$tax['item_id'] . ':' . $tax['line']] = true;",
+    "replace": "$taxed[$tax['item_id']] = true;",
+    "tests": [
+      "tests/Libraries/Accounting/SalesTaxSettingsTest.php"
+    ]
+  },
+  {
+    "name": "G71 the tax screen saves the two settings through the audited service",
+    "file": "app/Controllers/Config.php",
+    "find": "        if ($success) {\n            (new SalesTaxSettings())->update([",
+    "replace": "        if (false) {\n            (new SalesTaxSettings())->update([",
+    "tests": [
+      "tests/Controllers/ConfigTest.php"
+    ]
+  },
+  {
+    "name": "G72 the change of the two settings names who made it",
+    "file": "app/Controllers/Config.php",
+    "find": "], (int) $this->global_view_data['user_info']->person_id);\n        }\n\n        $message = lang('Config.saved_'",
+    "replace": "], null);\n        }\n\n        $message = lang('Config.saved_'",
+    "tests": [
+      "tests/Controllers/ConfigTest.php"
+    ]
+  },
+  {
+    "name": "G73 the account of a tax is offered only to who may choose it",
+    "file": "app/Controllers/Tax_definitions.php",
+    "find": "'canAssignAccount' => $this->definitions->mayAssign($this->employeeId()),",
+    "replace": "'canAssignAccount' => true,",
+    "tests": [
+      "tests/Controllers/Tax_definitionsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G74 the tax list works while accounting is off",
+    "file": "app/Controllers/Tax_definitions.php",
+    "find": "parent::__construct('taxes', false);",
+    "replace": "parent::__construct('taxes');",
+    "tests": [
+      "tests/Controllers/Tax_definitionsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G75 deleting taxes is done as the employee who asked",
+    "file": "app/Controllers/Tax_definitions.php",
+    "find": "$this->definitions->delete($ids, $this->employeeId());",
+    "replace": "$this->definitions->delete($ids, null);",
+    "tests": [
+      "tests/Controllers/Tax_definitionsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G76 an account that a tax is credited to cannot be deactivated or deleted",
+    "file": "app/Libraries/Accounting/AccountService.php",
+    "find": "\n            || $this->db->table('tax_definitions')->where('liability_account_id', $accountId)->countAllResults() > 0;",
+    "replace": ";",
+    "tests": [
+      "tests/Libraries/Accounting/AccountServiceTest.php"
+    ]
+  },
+  {
+    "name": "G77 an account that the tax rows of a sale carry cannot be deleted",
+    "file": "app/Libraries/Accounting/AccountService.php",
+    "find": "if ($this->isUsed($accountId) || $this->isStamped($accountId)) {",
+    "replace": "if ($this->isUsed($accountId)) {",
+    "tests": [
+      "tests/Libraries/Accounting/AccountServiceTest.php"
+    ]
+  },
+  {
+    "name": "G78 taxes with an account of their own are not counted as sharing the routed account",
+    "file": "app/Libraries/Accounting/RoutingService.php",
+    "find": "            ->where('t.liability_account_id IS NULL', null, false)\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Accounting/RoutingServiceTest.php"
+    ]
+  },
+  {
+    "name": "G79 the migration cannot be taken back once a tax row holds an account",
+    "file": "app/Database/Migrations/20271600000000_PerTaxInclusive.php",
+    "find": "if ($this->db->table('sales_items_taxes')->where('liability_account_id IS NOT NULL', null, false)->countAllResults() > 0) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Database/PerTaxInclusiveMigrationTest.php"
+    ]
+  },
+  {
+    "name": "G80 the migration adds the account column only once",
+    "file": "app/Database/Migrations/20271600000000_PerTaxInclusive.php",
+    "find": "if (! $this->hasColumn('sales_items_taxes', 'liability_account_id')) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Database/PerTaxInclusiveMigrationTest.php"
+    ]
+  },
+  {
+    "name": "G81 the migration adds the index only once",
+    "file": "app/Database/Migrations/20271600000000_PerTaxInclusive.php",
+    "find": "        if (! $this->hasIndex('sales_items_taxes', 'sales_items_taxes_liability')) {\n            $this->db->query(\"ALTER TABLE `{$taxes}` ADD KEY",
+    "replace": "        if (true) {\n            $this->db->query(\"ALTER TABLE `{$taxes}` ADD KEY",
+    "tests": [
+      "tests/Database/PerTaxInclusiveMigrationTest.php"
+    ]
+  },
+  {
+    "name": "G82 the migration sets the requirement of a tax only when the setting is missing",
+    "file": "app/Database/Migrations/20271600000000_PerTaxInclusive.php",
+    "find": "if ($this->hasTable('app_config') && $this->db->table('app_config')->where('key', 'require_tax_1')->countAllResults() === 0) {",
+    "replace": "if (true) {",
+    "tests": [
+      "tests/Database/PerTaxInclusiveMigrationTest.php"
+    ]
+  }
+]
