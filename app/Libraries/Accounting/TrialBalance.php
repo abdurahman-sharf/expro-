@@ -48,7 +48,7 @@ final class TrialBalance
             $period->from,
             $period->to,
             $scope->isCompany() ? (new InterBranchPosition($this->db))->difference($period->to) : null,
-            $closing,
+            closing: $closing,
         );
     }
 

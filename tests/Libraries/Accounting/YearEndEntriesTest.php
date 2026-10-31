@@ -102,6 +102,23 @@ class YearEndEntriesTest extends CIUnitTestCase
         $this->accountingDb()->table('accounting_journals')->where('journal_id', $journalId)->update(['reverses_journal_id' => $reversesJournalId]);
     }
 
+    public function testMarks_ReturnsTrueForAJournalWhoseTypeIsYearEnd(): void
+    {
+        $this->assertTrue(YearEndEntries::marks(YearEndEntries::ENTRY_TYPE, 'sale'));
+    }
+
+    public function testMarks_ReturnsTrueForAJournalWhoseSourceIsYearEnd(): void
+    {
+        $this->assertTrue(YearEndEntries::marks('general', YearEndEntries::SOURCE_TYPE));
+    }
+
+    public function testMarks_ReturnsFalseForEveryOtherJournal(): void
+    {
+        foreach ([['general', 'manual'], ['revenue', 'sale'], ['cogs', 'sale'], ['general', 'reversal'], ['general', 'year_end_note'], ['general', 'opening']] as [$type, $source]) {
+            $this->assertFalse(YearEndEntries::marks($type, $source), "{$type} {$source}");
+        }
+    }
+
     public function testLeaveOut_KeepsAJournalWhoseSourceIsYearEndWhenItsTypeIsNot(): void
     {
         $plain = $this->journalOf('sale');

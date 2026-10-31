@@ -109,12 +109,21 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         $response->assertDontSee('year-end-reverse');
     }
 
-    public function testGetIndex_ShowsThePreviewOfTheLatestYearWithTheLinesOfEachBranch(): void
+    public function testGetIndex_SelectsTheLatestYearThatHasEnded(): void
+    {
+        $this->closer();
+
+        $latest = (string) ((int) date('Y') - 1);
+
+        $this->get('/accounting_periods/year_end')->assertSee('value="' . $this->yearId($latest) . '" selected');
+    }
+
+    public function testGetIndex_ShowsThePreviewOfTheYearWithTheLinesOfEachBranch(): void
     {
         $this->readyYear();
         $this->closer();
 
-        $response = $this->get('/accounting_periods/year_end');
+        $response = $this->get('/accounting_periods/year_end?year=' . $this->yearId());
 
         $response->assertStatus(200);
         $response->assertSee('year_end_preview');
@@ -142,10 +151,26 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         $this->twoBranchYear();
         $this->closer();
 
-        $response = $this->get('/accounting_periods/year_end');
+        $response = $this->get('/accounting_periods/year_end?year=' . $this->yearId());
 
         $response->assertSee('year-end-blocker');
         $response->assertSee(lang('Accounting.error_year_end_period_not_closed', ['2025', '2025-12-31']));
+        $response->assertDontSee('id="year_end_approve"');
+    }
+
+    public function testGetIndex_ExplainsThatAClosingTooLargeForAJournalCannotBeApproved(): void
+    {
+        foreach (['2025-03-10', '2025-03-11'] as $date) {
+            $this->postOn($date, 1, [[$this->accountId('cash'), '50000000000.0000', '0'], [$this->accountId('sales_revenue'), '0', '50000000000.0000']]);
+        }
+
+        $this->closeThrough('2025-12-31');
+        $this->closer();
+
+        $response = $this->get('/accounting_periods/year_end?year=' . $this->yearId() . '&scope=company');
+
+        $response->assertSee('year-end-blocker');
+        $response->assertSee('99999999999.9999');
         $response->assertDontSee('id="year_end_approve"');
     }
 
@@ -155,14 +180,14 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         $this->closeThrough('2025-12-31');
         $this->closer();
 
-        $response = $this->get('/accounting_periods/year_end');
+        $response = $this->get('/accounting_periods/year_end?year=' . $this->yearId());
 
         $response->assertSee(lang('Accounting_periods.year_end_status_no_activity'));
         $response->assertSee(lang('Accounting_periods.year_end_nothing'));
 
         (new YearEndClosing())->approve(1, $this->yearId(), $this->fingerprint(1), $this->employeeWithGrants([AccountingGuard::YEAR_END_CLOSE]));
 
-        $response = $this->get('/accounting_periods/year_end');
+        $response = $this->get('/accounting_periods/year_end?year=' . $this->yearId());
 
         $response->assertSee(lang('Accounting_periods.year_end_status_already_closed'));
         $response->assertSee(lang('Accounting_periods.year_end_no_ready'));
@@ -200,19 +225,31 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
     {
         $this->readyYear();
         $closer = $this->employeeWithGrants([AccountingGuard::YEAR_END_CLOSE]);
-        $run    = new YearEndClosing();
-        $run->approve(null, $this->yearId(), $this->fingerprint(), $closer);
+        (new YearEndClosing())->approve(null, $this->yearId(), $this->fingerprint(), $closer);
+
+        $rows   = $this->accountingDb()->table('accounting_year_end_closings')->get()->getResult();
+        $closed = [];
+
+        foreach ($rows as $row) {
+            $closed[(int) $row->branch_id] = $row;
+        }
 
         $this->closer([$this->second]);
 
-        $response = $this->get('/accounting_periods/year_end');
+        $body = $this->get('/accounting_periods/year_end')->getBody();
 
-        $response->assertSee('B2');
-        $response->assertDontSee('<bdi dir="ltr">HQ</bdi> Default');
+        $this->assertStringContainsString('accounting_journals/view/' . $closed[$this->second]->journal_id . '"', $body);
+        $this->assertStringContainsString('reverse_form/' . $closed[$this->second]->closing_id . '"', $body);
+        $this->assertStringNotContainsString('accounting_journals/view/' . $closed[1]->journal_id . '"', $body, 'The closing of the other branch is not listed');
+        $this->assertStringNotContainsString('reverse_form/' . $closed[1]->closing_id . '"', $body);
 
         $this->closer();
 
-        $this->assertSame(2, substr_count($this->get('/accounting_periods/year_end')->getBody(), 'year-end-reverse'));
+        $body = $this->get('/accounting_periods/year_end')->getBody();
+
+        $this->assertStringContainsString('accounting_journals/view/' . $closed[1]->journal_id . '"', $body);
+        $this->assertStringContainsString('accounting_journals/view/' . $closed[$this->second]->journal_id . '"', $body);
+        $this->assertSame(2, substr_count($body, 'year-end-reverse'));
     }
 
     public function testGetIndex_ListsTheYearsThatEndedAndMarksTheOnesThatHaveAClosing(): void
@@ -224,7 +261,22 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         $response = $this->get('/accounting_periods/year_end');
 
         $response->assertSee('2025 (' . lang('Accounting_periods.year_end_closed_mark') . ')');
-        $response->assertDontSee('>2035<');
+        $response->assertDontSee('>' . date('Y') . '<');
+    }
+
+    public function testGetIndex_MarksOnlyTheYearsClosedInTheBranchesTheEmployeeMaySee(): void
+    {
+        $this->readyYear();
+        $this->closer();
+        (new YearEndClosing())->approve(1, $this->yearId(), $this->fingerprint(1), $this->employeeWithGrants([AccountingGuard::YEAR_END_CLOSE]));
+
+        $this->closer([$this->second]);
+
+        $this->get('/accounting_periods/year_end')->assertDontSee('2025 (' . lang('Accounting_periods.year_end_closed_mark') . ')');
+
+        $this->closer([1]);
+
+        $this->get('/accounting_periods/year_end')->assertSee('2025 (' . lang('Accounting_periods.year_end_closed_mark') . ')');
     }
 
     public function testGetIndex_AddsATabToThePeriodsScreens(): void
@@ -389,6 +441,18 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('accounting_year_end_closings'));
     }
 
+    public function testPostApprove_RefusesAFingerprintThatIsNotText(): void
+    {
+        $this->readyYear();
+        $this->closer();
+
+        $result = $this->jsonOf($this->post('/accounting_periods/year_end/approve', ['year' => $this->yearId(), 'scope' => 'company', 'fingerprint' => ['a']]));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_year_end_preview_changed'), $result['message']);
+        $this->assertSame(0, $this->countRows('accounting_year_end_closings'));
+    }
+
     public function testPostApprove_RefusesTheCompanyToSomeoneLimitedToABranch(): void
     {
         $this->readyYear();
@@ -514,6 +578,19 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         $this->assertSame(lang('Accounting_periods.year_end_reversed'), $result['message']);
         $this->assertSame('reversed', $this->accountingDb()->table('accounting_year_end_closings')->where('closing_id', $closing)->get()->getRow()->status);
         $this->assertSame('Wrong figures', $this->accountingDb()->table('accounting_year_end_closings')->where('closing_id', $closing)->get()->getRow()->reverse_reason);
+    }
+
+    public function testPostReverse_RefusesAReasonThatIsNotText(): void
+    {
+        $this->readyYear();
+        $this->closer();
+        $closing = (new YearEndClosing())->approve(1, $this->yearId(), $this->fingerprint(1), $this->employeeWithGrants([AccountingGuard::YEAR_END_CLOSE]))[0];
+
+        $result = $this->jsonOf($this->post('/accounting_periods/year_end/reverse/' . $closing, ['reason' => ['Why']]));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_reason_required'), $result['message']);
+        $this->assertSame('active', $this->accountingDb()->table('accounting_year_end_closings')->where('closing_id', $closing)->get()->getRow()->status);
     }
 
     public function testPostReverse_RefusesWithoutAReasonWithoutThePermissionAndOutsideTheScope(): void

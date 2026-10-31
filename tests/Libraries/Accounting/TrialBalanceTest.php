@@ -513,7 +513,7 @@ class TrialBalanceTest extends CIUnitTestCase
 
     private function buildWithClosing(TrialBalanceClosing $closing, string $to = '2026-12-31', ?ReportScope $scope = null): TrialBalanceReport
     {
-        return $this->report->build($scope ?? $this->company(), ReportPeriod::of(null, $to), false, false, $closing);
+        return $this->report->build($scope ?? $this->company(), ReportPeriod::of(null, $to), closing: $closing);
     }
 
     public function testBuild_LeavesOutTheJournalsThatCloseAYearUnlessAskedForTheTrialBalanceAfterTheClosing(): void

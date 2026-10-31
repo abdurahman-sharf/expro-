@@ -290,8 +290,8 @@
  {
   "name": "G35 the closing journal belongs to the branch it closes",
   "file": "app/Libraries/Accounting/YearEndClosing.php",
-  "find": "            branchId: $plan->branchId,\n            entryType: JournalEntryType::YearEnd,\n        ));\n\n        $this->db->table('accounting_year_end_closings')->where('closing_id', $closingId)->update(['journal_id'",
-  "replace": "            branchId: 1,\n            entryType: JournalEntryType::YearEnd,\n        ));\n\n        $this->db->table('accounting_year_end_closings')->where('closing_id', $closingId)->update(['journal_id'",
+  "find": "            branchId: $plan->branchId,\n            entryType: JournalEntryType::YearEnd,\n        ));\n\n        if (! $result->created) {",
+  "replace": "            branchId: 1,\n            entryType: JournalEntryType::YearEnd,\n        ));\n\n        if (! $result->created) {",
   "tests": [
    "tests/Libraries/Accounting/YearEndClosingTest.php"
   ]
@@ -425,7 +425,7 @@
  {
   "name": "P01 the journal of a year-end closing is refused by ordinary posting",
   "file": "app/Libraries/Accounting/PostingService.php",
-  "find": "if (! $this->yearEndRelief && ($draft->entryType === JournalEntryType::YearEnd || $draft->sourceType === YearEndEntries::SOURCE_TYPE)) {",
+  "find": "if (! $this->yearEndRelief && YearEndEntries::marks($draft->entryType->value, $draft->sourceType)) {",
   "replace": "if (false) {",
   "tests": [
    "tests/Libraries/Accounting/PostingServiceTest.php"
@@ -506,8 +506,8 @@
  {
   "name": "J01 the journals screen cannot reverse a journal whose type is year-end",
   "file": "app/Libraries/Accounting/JournalService.php",
-  "find": "if ($original->entry_type === JournalEntryType::YearEnd->value || $original->source_type === YearEndEntries::SOURCE_TYPE) {",
-  "replace": "if ($original->source_type === YearEndEntries::SOURCE_TYPE) {",
+  "find": "YearEndEntries::marks((string) $original->entry_type, (string) $original->source_type)",
+  "replace": "YearEndEntries::marks('', (string) $original->source_type)",
   "tests": [
    "tests/Libraries/Accounting/JournalServiceTest.php"
   ]
@@ -515,8 +515,8 @@
  {
   "name": "J02 the journals screen cannot reverse a journal whose source is year-end",
   "file": "app/Libraries/Accounting/JournalService.php",
-  "find": "if ($original->entry_type === JournalEntryType::YearEnd->value || $original->source_type === YearEndEntries::SOURCE_TYPE) {",
-  "replace": "if ($original->entry_type === JournalEntryType::YearEnd->value) {",
+  "find": "YearEndEntries::marks((string) $original->entry_type, (string) $original->source_type)",
+  "replace": "YearEndEntries::marks((string) $original->entry_type, '')",
   "tests": [
    "tests/Libraries/Accounting/JournalServiceTest.php"
   ]
@@ -596,8 +596,8 @@
  {
   "name": "O03 a closing taken back no longer holds a year closed out",
   "file": "app/Libraries/Accounting/ClosedOutYears.php",
-  "find": "            ->where('c.status', 'active')\n            ->where('c.period_from <=', $date)",
-  "replace": "            ->where('c.period_from <=', $date)",
+  "find": "AND status = 'active' AND period_from <= ?",
+  "replace": "AND period_from <= ?",
   "tests": [
    "tests/Libraries/Accounting/OpeningBalanceServiceTest.php"
   ]
@@ -605,8 +605,8 @@
  {
   "name": "O04 the closing of another branch does not hold a year closed out",
   "file": "app/Libraries/Accounting/ClosedOutYears.php",
-  "find": "            ->where('c.branch_id', $branchId)\n            ->where('c.status', 'active')\n            ->where('c.period_from <=', $date)",
-  "replace": "            ->where('c.status', 'active')\n            ->where('c.period_from <=', $date)",
+  "find": "WHERE company_id = ? AND branch_id = ? AND status = 'active' AND period_from <= ? AND period_to >= ?{$mode}\", [CompanyContext::id(), $branchId, $date, $date]",
+  "replace": "WHERE company_id = ? AND status = 'active' AND period_from <= ? AND period_to >= ?{$mode}\", [CompanyContext::id(), $date, $date]",
   "tests": [
    "tests/Libraries/Accounting/OpeningBalanceServiceTest.php"
   ]
@@ -614,8 +614,8 @@
  {
   "name": "O05 a date outside the year of the closing is not held",
   "file": "app/Libraries/Accounting/ClosedOutYears.php",
-  "find": "            ->where('c.period_to >=', $date)\n            ->get()",
-  "replace": "            ->get()",
+  "find": "AND period_from <= ? AND period_to >= ?{$mode}\", [CompanyContext::id(), $branchId, $date, $date]",
+  "replace": "AND period_from <= ?{$mode}\", [CompanyContext::id(), $branchId, $date]",
   "tests": [
    "tests/Libraries/Accounting/OpeningBalanceServiceTest.php"
   ]
@@ -623,8 +623,8 @@
  {
   "name": "O07 a date before the year of the closing is not held",
   "file": "app/Libraries/Accounting/ClosedOutYears.php",
-  "find": "            ->where('c.period_from <=', $date)\n            ->where('c.period_to >=', $date)",
-  "replace": "            ->where('c.period_to >=', $date)",
+  "find": "AND status = 'active' AND period_from <= ? AND period_to >= ?{$mode}\", [CompanyContext::id(), $branchId, $date, $date]",
+  "replace": "AND status = 'active' AND period_to >= ?{$mode}\", [CompanyContext::id(), $branchId, $date]",
   "tests": [
    "tests/Libraries/Accounting/OpeningBalanceServiceTest.php"
   ]
@@ -931,8 +931,8 @@
  {
   "name": "K06 a date is covered from the first day of the year closed out",
   "file": "app/Libraries/Accounting/ClosedOutYears.php",
-  "find": "->where('c.period_from <=', $date)",
-  "replace": "->where('c.period_from <', $date)",
+  "find": "period_from <= ? AND period_to >= ?{$mode}",
+  "replace": "period_from < ? AND period_to >= ?{$mode}",
   "tests": [
    "tests/Libraries/Accounting/ClosedOutYearsTest.php"
   ]
@@ -940,8 +940,8 @@
  {
   "name": "K07 a date is covered through the last day of the year closed out",
   "file": "app/Libraries/Accounting/ClosedOutYears.php",
-  "find": "->where('c.period_to >=', $date)",
-  "replace": "->where('c.period_to >', $date)",
+  "find": "period_to >= ?{$mode}",
+  "replace": "period_to > ?{$mode}",
   "tests": [
    "tests/Libraries/Accounting/ClosedOutYearsTest.php"
   ]
@@ -949,8 +949,8 @@
  {
   "name": "K08 a date is covered only by a closing of the branch",
   "file": "app/Libraries/Accounting/ClosedOutYears.php",
-  "find": "->where('c.branch_id', $branchId)\n            ->where('c.status', 'active')\n            ->where('c.period_from <=', $date)",
-  "replace": "->where('c.status', 'active')\n            ->where('c.period_from <=', $date)",
+  "find": "WHERE company_id = ? AND branch_id = ? AND status = 'active' AND period_from <= ? AND period_to >= ?{$mode}\", [CompanyContext::id(), $branchId, $date, $date]",
+  "replace": "WHERE company_id = ? AND status = 'active' AND period_from <= ? AND period_to >= ?{$mode}\", [CompanyContext::id(), $date, $date]",
   "tests": [
    "tests/Libraries/Accounting/ClosedOutYearsTest.php"
   ]
@@ -958,8 +958,8 @@
  {
   "name": "K09 a date is covered only by an active closing",
   "file": "app/Libraries/Accounting/ClosedOutYears.php",
-  "find": "->where('c.status', 'active')\n            ->where('c.period_from <=', $date)",
-  "replace": "->where('c.period_from <=', $date)",
+  "find": "AND status = 'active' AND period_from <= ?",
+  "replace": "AND period_from <= ?",
   "tests": [
    "tests/Libraries/Accounting/ClosedOutYearsTest.php"
   ]
@@ -1016,6 +1016,242 @@
   "replace": "['name' => '', 'date' => $closing->period_to]",
   "tests": [
    "tests/Libraries/Accounting/ClosedOutYearsTest.php"
+  ]
+ },
+ {
+  "name": "V01 a closing larger than a journal can hold is blocked in the preview",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "            if ($plan->isReady() && bccomp($plan->journalTotal(), self::LARGEST_AMOUNT, self::SCALE) > 0) {",
+  "replace": "            if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "V02 the largest amount is not below what a journal can hold",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "private const LARGEST_AMOUNT = '99999999999.9999';",
+  "replace": "private const LARGEST_AMOUNT = '9999999999.9999';",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "V03 the largest amount is not above what a journal can hold",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "private const LARGEST_AMOUNT = '99999999999.9999';",
+  "replace": "private const LARGEST_AMOUNT = '999999999999.9999';",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "V04 the total of the closing adds up the accounts and does not take the largest",
+  "file": "app/Libraries/Accounting/YearEndBranchPlan.php",
+  "find": "            $total = bcadd($total, $line->closingDebit(), 4);",
+  "replace": "            $total = bccomp($total, $line->closingDebit(), 4) >= 0 ? $total : $line->closingDebit();",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "V05 the total of the closing of a loss counts what is debited to retained earnings",
+  "file": "app/Libraries/Accounting/YearEndBranchPlan.php",
+  "find": "        $total = $this->isLoss() ? bcsub('0', $this->result, 4) : '0.0000';",
+  "replace": "        $total = '0.0000';",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "V06 a journal found for the number of the closing is not taken for the closing's own",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "        if (! $result->created) {\n            throw new AccountingException(AccountingError::WriteFailed, \"A journal of the closing {$closingId} exists already, so nothing was closed.\");\n        }\n\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "V07 taking a closing back locks the journal before the period locks",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "            $original = LockedRead::row($this->db, \"SELECT * FROM {$journals} WHERE journal_id = ? FOR UPDATE\", [(int) $known->journal_id]);\n\n            $this->locks->holdBranch((int) $known->branch_id);\n",
+  "replace": "            $this->locks->holdBranch((int) $known->branch_id);\n\n            $original = LockedRead::row($this->db, \"SELECT * FROM {$journals} WHERE journal_id = ? FOR UPDATE\", [(int) $known->journal_id]);\n",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "V08 taking an opening back locks the journal before the period locks",
+  "file": "app/Libraries/Accounting/JournalService.php",
+  "find": "SELECT branch_id, journal_date FROM {$table} WHERE journal_id = ? FOR UPDATE",
+  "replace": "SELECT branch_id, journal_date FROM {$table} WHERE journal_id = ?",
+  "tests": [
+   "tests/Libraries/Accounting/OpeningBalanceServiceTest.php"
+  ]
+ },
+ {
+  "name": "V09 the closing that covers a date is read under a lock when the caller asks",
+  "file": "app/Libraries/Accounting/ClosedOutYears.php",
+  "find": "$mode    = $locked ? ' LOCK IN SHARE MODE' : '';",
+  "replace": "$mode    = '';",
+  "tests": [
+   "tests/Libraries/Accounting/ClosedOutYearsTest.php"
+  ]
+ },
+ {
+  "name": "V10 the refusal for a year closed out reads under the period locks",
+  "file": "app/Libraries/Accounting/ClosedOutYears.php",
+  "find": "$closing = $this->covering($branchId, $date, true);",
+  "replace": "$closing = $this->covering($branchId, $date);",
+  "tests": [
+   "tests/Libraries/Accounting/ClosedOutYearsTest.php",
+   "tests/Libraries/Accounting/OpeningBalanceServiceTest.php"
+  ]
+ },
+ {
+  "name": "V11 the branches of a company run are closed in one transaction",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "        return $this->transactional(function () use ($branchId, $fiscalYearId, $fingerprint, $employeeId): array {",
+  "replace": "        return (static fn (callable $work): array => $work())(function () use ($branchId, $fiscalYearId, $fingerprint, $employeeId): array {",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "V12 the years count the closings of the branches the employee may see",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "        if ($allowed !== null) {\n            $builder->whereIn('branch_id', $allowed);\n        }\n\n        $counts = [];",
+  "replace": "        $counts = [];",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php",
+   "tests/Controllers/AccountingYearEndControllerTest.php"
+  ]
+ },
+ {
+  "name": "V13 the years count only the closings that are active",
+  "file": "app/Libraries/Accounting/YearEndClosing.php",
+  "find": "            ->where('status', 'active');\n\n        if ($allowed !== null) {\n            $builder->whereIn('branch_id', $allowed);",
+  "replace": "            ;\n\n        if ($allowed !== null) {\n            $builder->whereIn('branch_id', $allowed);",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndClosingTest.php"
+  ]
+ },
+ {
+  "name": "V14 the screen lists the closings of the branches the employee may see",
+  "file": "app/Controllers/AccountingYearEnd.php",
+  "find": "'closings'    => $this->closing->closings($this->employeeId()),",
+  "replace": "'closings'    => $this->closing->closings(null),",
+  "tests": [
+   "tests/Controllers/AccountingYearEndControllerTest.php"
+  ]
+ },
+ {
+  "name": "V15 the screen marks the years closed in the branches the employee may see",
+  "file": "app/Controllers/AccountingYearEnd.php",
+  "find": "$years   = $this->closing->years($this->employeeId());",
+  "replace": "$years   = $this->closing->years(null);",
+  "tests": [
+   "tests/Controllers/AccountingYearEndControllerTest.php"
+  ]
+ },
+ {
+  "name": "V16 a posted field that is not text is refused as empty and does not stop the request",
+  "file": "app/Controllers/AccountingYearEnd.php",
+  "find": "        return is_string($value) ? $value : '';\n    }\n\n    private function postedScope",
+  "replace": "        return (string) $value;\n    }\n\n    private function postedScope",
+  "tests": [
+   "tests/Controllers/AccountingYearEndControllerTest.php"
+  ]
+ },
+ {
+  "name": "V17 the journals screen offers no reversal of the journal that closes a year",
+  "file": "app/Controllers/AccountingJournals.php",
+  "find": " && ! YearEndEntries::marks((string) $journal->entry_type, (string) $journal->source_type),\n            'canEditDetails'",
+  "replace": ",\n            'canEditDetails'",
+  "tests": [
+   "tests/Controllers/AccountingJournalsControllerTest.php"
+  ]
+ },
+ {
+  "name": "V18 the reversal of a closing is named as the reversal of a year-end closing",
+  "file": "app/Controllers/AccountingJournals.php",
+  "find": " || ($entryType === JournalEntryType::YearEnd->value && $sourceType !== YearEndEntries::SOURCE_TYPE)",
+  "replace": "",
+  "tests": [
+   "tests/Controllers/AccountingJournalsControllerTest.php"
+  ]
+ },
+ {
+  "name": "V19 the audit log names the closing of a year",
+  "file": "app/Language/en/Accounting.php",
+  "find": "    'action_year_end_closed'                     => 'Year closed',\n",
+  "replace": "",
+  "tests": [
+   "tests/Controllers/AccountingJournalsControllerTest.php"
+  ]
+ },
+ {
+  "name": "V20 the audit log names the taking back of a closing",
+  "file": "app/Language/en/Accounting.php",
+  "find": "    'action_year_end_reversed'                   => 'Year closing taken back',\n",
+  "replace": "",
+  "tests": [
+   "tests/Controllers/AccountingJournalsControllerTest.php"
+  ]
+ },
+ {
+  "name": "V21 the audit log names the entity of a closing",
+  "file": "app/Language/en/Accounting.php",
+  "find": "    'entity_year_end_closing'                    => 'Year-end closing',\n",
+  "replace": "",
+  "tests": [
+   "tests/Controllers/AccountingJournalsControllerTest.php"
+  ]
+ },
+ {
+  "name": "V22 the journals screen names the type of the journal that takes a closing back",
+  "file": "app/Language/en/Accounting.php",
+  "find": "    'entry_year_end'                             => 'Year-end closing',\n",
+  "replace": "",
+  "tests": [
+   "tests/Controllers/AccountingJournalsControllerTest.php"
+  ]
+ },
+ {
+  "name": "V23 the journals screen names the source of the journal that closes a year",
+  "file": "app/Language/en/Accounting.php",
+  "find": "    'source_year_end'                            => 'Year-end closing',\n",
+  "replace": "",
+  "tests": [
+   "tests/Controllers/AccountingJournalsControllerTest.php"
+  ]
+ },
+ {
+  "name": "V24 a journal marked by its type is refused where a closing is refused",
+  "file": "app/Libraries/Accounting/YearEndEntries.php",
+  "find": "        return $entryType === self::ENTRY_TYPE || $sourceType === self::SOURCE_TYPE;",
+  "replace": "        return $sourceType === self::SOURCE_TYPE;",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndEntriesTest.php"
+  ]
+ },
+ {
+  "name": "V25 a journal marked by its source is refused where a closing is refused",
+  "file": "app/Libraries/Accounting/YearEndEntries.php",
+  "find": "        return $entryType === self::ENTRY_TYPE || $sourceType === self::SOURCE_TYPE;",
+  "replace": "        return $entryType === self::ENTRY_TYPE;",
+  "tests": [
+   "tests/Libraries/Accounting/YearEndEntriesTest.php"
+  ]
+ },
+ {
+  "name": "V26 the screen says why a closing too large for a journal cannot be approved",
+  "file": "app/Language/en/Accounting.php",
+  "find": "    'error_year_end_amount_too_large'            => 'The year-end closing of branch {1} would be a journal of more than {0}, the most a journal can hold, so this year cannot be closed for the branch in the books as they are.',\n",
+  "replace": "",
+  "tests": [
+   "tests/Controllers/AccountingYearEndControllerTest.php"
   ]
  }
 ]

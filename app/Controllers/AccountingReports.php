@@ -58,7 +58,7 @@ class AccountingReports extends AccountingController
         $linkedFrom = $type->showsOpening() ? $this->query('from') : '';
 
         return view('accounting_reports/trial_balance', [
-            'report'       => $this->trialBalance->build($scope, $counted, $expand, $showEmpty, $closing),
+            'report'       => $this->trialBalance->build($scope, $counted, $expand, $showEmpty, closing: $closing),
             'type'         => $type,
             'closing'      => $closing,
             'error'        => $error,

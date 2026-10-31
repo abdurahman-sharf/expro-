@@ -259,7 +259,7 @@ final class YearEndClosingTest extends CIUnitTestCase
     {
         $rows = [];
 
-        foreach ((new TrialBalance())->build($scope ?? $this->company(), ReportPeriod::of(null, $to), false, false, $closing)->rows as $row) {
+        foreach ((new TrialBalance())->build($scope ?? $this->company(), ReportPeriod::of(null, $to), closing: $closing)->rows as $row) {
             $rows[$row->code] = ['opening' => $row->opening, 'debit' => $row->debit, 'credit' => $row->credit];
         }
 
@@ -1365,6 +1365,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->twoBranchYear();
         $this->closePeriods();
         $this->close(1);
+        $this->service->reverse($this->close($this->second)[0], 'Back', $this->employee);
 
         $count = function (int $employee): array {
             $counts = [];
@@ -1381,7 +1382,7 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame((string) ((int) date('Y') - 1), (string) array_key_first($all), 'The latest year that has ended comes first');
         $this->assertArrayHasKey('2025', $all);
         $this->assertArrayNotHasKey(date('Y'), $all, 'A year that has not ended is not offered');
-        $this->assertSame(1, $all['2025']);
+        $this->assertSame(1, $all['2025'], 'A closing that was taken back is not counted');
         $this->assertSame(0, $all['2024']);
         $this->assertSame(1, $count($this->closer([1]))['2025']);
         $this->assertSame(0, $count($this->closer([$this->second]))['2025'], 'The closing of another branch is not counted');
@@ -1483,8 +1484,8 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame('1300.0000', $after['411']['credit']);
         $this->assertSame('250.0000', $after['32']['credit']);
         $this->assertSame('200.0000', $after['32']['debit']);
-        $this->assertTrue((new TrialBalance())->build($this->company(), ReportPeriod::of(null, '2025-12-31'), false, false, TrialBalanceClosing::Before)->balances());
-        $this->assertTrue((new TrialBalance())->build($this->company(), ReportPeriod::of(null, '2025-12-31'), false, false, TrialBalanceClosing::After)->balances());
+        $this->assertTrue((new TrialBalance())->build($this->company(), ReportPeriod::of(null, '2025-12-31'), closing: TrialBalanceClosing::Before)->balances());
+        $this->assertTrue((new TrialBalance())->build($this->company(), ReportPeriod::of(null, '2025-12-31'), closing: TrialBalanceClosing::After)->balances());
 
         foreach ($before as $code => $row) {
             $this->assertSame($row, $this->trial(TrialBalanceClosing::Before)[$code]);

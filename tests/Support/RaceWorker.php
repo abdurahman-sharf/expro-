@@ -9,6 +9,9 @@
  * Usage: php RaceWorker.php <method> <arg> [<arg> ...]
  */
 
+use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\OpeningBalanceService;
+use App\Libraries\Accounting\YearEndClosing;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use Config\Database;
@@ -162,7 +165,7 @@ $result = match ($method) {
     })($args),
     'yearEndClose' => (static function (array $args): bool {
         try {
-            $service  = new App\Libraries\Accounting\YearEndClosing();
+            $service  = new YearEndClosing();
             $branchId = $args[2] === 'company' ? null : (int) $args[2];
             $preview  = $service->preview($branchId, (int) $args[1], (int) $args[0]);
 
@@ -174,7 +177,7 @@ $result = match ($method) {
         }
     })($args),
     'yearEndCloseOutcome' => (static function (array $args): never {
-        $service  = new App\Libraries\Accounting\YearEndClosing();
+        $service  = new YearEndClosing();
         $branchId = $args[2] === 'company' ? null : (int) $args[2];
 
         try {
@@ -189,7 +192,7 @@ $result = match ($method) {
             $service->approve($branchId, (int) $args[1], $preview->fingerprint, (int) $args[0]);
 
             echo 'closed';
-        } catch (App\Libraries\Accounting\AccountingException $exception) {
+        } catch (AccountingException $exception) {
             echo $exception->error->value;
         } catch (Throwable $exception) {
             echo get_class($exception) . ' ' . $exception->getMessage();
@@ -199,10 +202,10 @@ $result = match ($method) {
     })($args),
     'reverseOpeningBalanceOutcome' => (static function (array $args): never {
         try {
-            (new App\Libraries\Accounting\OpeningBalanceService())->reverse((int) $args[0], (string) $args[1], 'race', (int) $args[2]);
+            (new OpeningBalanceService())->reverse((int) $args[0], (string) $args[1], 'race', (int) $args[2]);
 
             echo 'reversed';
-        } catch (App\Libraries\Accounting\AccountingException $exception) {
+        } catch (AccountingException $exception) {
             echo $exception->error->value;
         } catch (Throwable $exception) {
             echo get_class($exception) . ' ' . $exception->getMessage();
