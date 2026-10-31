@@ -84,6 +84,7 @@ class SalesControllerTest extends CIUnitTestCase
         $db->table('accounting_audit_log')->where('entity_type', 'document_numbering')->delete();
 
         $this->setConfigValue('accounting_customer_opening', '0');
+        $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accounting_sales_shipping', 'accounting_shipping_tax_percent'])->delete();
 
         parent::tearDown();
     }
@@ -2903,6 +2904,245 @@ class SalesControllerTest extends CIUnitTestCase
         $response->assertSee(lang('Sales.not_authorized'));
         $this->assertSame((string) SUSPENDED, (string) $this->accountingDb()->table('sales')->where('sale_id', $saleId)->get()->getRow()->sale_status);
         $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'sale', 'entity_id' => $saleId, 'action' => 'invoice_discount_given'])->countAllResults());
+    }
+
+    protected function registerForHeaderCharges(string $mode = 'sale_invoice', bool $adjustment = true, bool $shipping = true, string $shippingTax = '15'): int
+    {
+        $supervisorId = $this->registerWithTheDiscountGrant(false);
+
+        $this->setConfigValue('accounting_sales_adjustment', $adjustment ? '1' : '0');
+        $this->setConfigValue('accounting_sales_shipping', $shipping ? '1' : '0');
+        $this->setConfigValue('accounting_shipping_tax_percent', $shippingTax);
+        $this->withSession(array_merge($this->session, ['sales_mode' => $mode, 'sales_type' => match ($mode) {
+            'sale_invoice' => SALE_TYPE_INVOICE,
+            'sale_quote'   => SALE_TYPE_QUOTE,
+            'return'       => SALE_TYPE_RETURN,
+            default        => SALE_TYPE_POS,
+        }]));
+
+        return $supervisorId;
+    }
+
+    protected function carryTheChargesToTheNextRequest(): void
+    {
+        $this->withSession(array_merge($this->session, ['sales_header_charges' => Services::session()->get('sales_header_charges'), 'sales_payments' => Services::session()->get('sales_payments'), 'sales_mode' => Services::session()->get('sales_mode'), 'sales_type' => Services::session()->get('sales_type')]));
+    }
+
+    public function testGetIndex_OffersTheFormOfTheChargesOnlyWhileTheSettingIsOnAndTheRegisterMakesAnInvoiceAQuoteOrACreditNote(): void
+    {
+        $this->registerForHeaderCharges();
+
+        $this->get('/sales')->assertSee('id="header_charges_form"');
+
+        $this->get('/sales')->assertSee('name="adjustment"');
+
+        $this->get('/sales')->assertSee('name="shipping"');
+
+        $this->get('/sales')->assertSee('name="shipping_taxed"');
+
+        foreach (['sale_quote', 'return'] as $mode) {
+            $this->withSession(array_merge($this->session, ['sales_mode' => $mode]));
+            $this->get('/sales')->assertSee('id="header_charges_form"');
+        }
+
+        foreach (['sale', 'sale_work_order'] as $mode) {
+            $this->withSession(array_merge($this->session, ['sales_mode' => $mode]));
+            $this->get('/sales')->assertDontSee('id="header_charges_form"');
+        }
+
+        $this->registerForHeaderCharges('sale_invoice', false, false);
+
+        $this->get('/sales')->assertDontSee('id="header_charges_form"');
+    }
+
+    public function testGetIndex_OffersOnlyTheChargeWhoseSettingIsOnAndTheTaxOptionOnlyWhenTheCompanyTaxesShipping(): void
+    {
+        $this->registerForHeaderCharges('sale_invoice', true, false);
+
+        $this->get('/sales')->assertSee('name="adjustment"');
+
+        $this->get('/sales')->assertDontSee('name="shipping"');
+
+        $this->get('/sales')->assertDontSee('name="shipping_taxed"');
+
+        $this->registerForHeaderCharges('sale_invoice', false, true, '0');
+
+        $this->get('/sales')->assertDontSee('name="adjustment"');
+
+        $this->get('/sales')->assertSee('name="shipping"');
+
+        $this->get('/sales')->assertDontSee('name="shipping_taxed"');
+    }
+
+    public function testPostSetHeaderCharges_AddsTheShippingAndTheAdjustmentToTheTotalOfTheRegister(): void
+    {
+        $this->registerForHeaderCharges();
+
+        $response = $this->post('/sales/setHeaderCharges', ['adjustment_label' => 'Handling fee', 'adjustment' => '-10', 'shipping' => '20,50', 'shipping_options' => '2']);
+
+        $response->assertStatus(200);
+        $response->assertSee(to_currency('110.5'));
+        $response->assertSee('Handling fee');
+        $response->assertSee(lang('Sales.shipping'));
+        $this->assertSame(['adjustment_label' => 'Handling fee', 'adjustment' => '-10', 'shipping' => '20.50', 'shipping_tax_option' => 'none', 'shipping_tax_percent' => '0', 'shipping_options' => 2], Services::session()->get('sales_header_charges'));
+    }
+
+    public function testPostSetHeaderCharges_TaxesTheShippingAtTheRateOfTheSettingWhenAskedAndShowsTheTax(): void
+    {
+        $this->registerForHeaderCharges();
+
+        $response = $this->post('/sales/setHeaderCharges', ['shipping' => '100', 'shipping_taxed' => '1']);
+
+        $response->assertSee(lang('Sales.shipping_tax'));
+
+        $response->assertSee(to_currency('215'));
+        $this->assertSame('added', Services::session()->get('sales_header_charges')['shipping_tax_option']);
+        $this->assertSame('15', Services::session()->get('sales_header_charges')['shipping_tax_percent']);
+    }
+
+    public function testPostSetHeaderCharges_TakesNoTaxOnShippingWhenTheCompanyTaxesNone(): void
+    {
+        $this->registerForHeaderCharges('sale_invoice', true, true, '0');
+
+        $this->post('/sales/setHeaderCharges', ['shipping' => '100', 'shipping_taxed' => '1']);
+
+        $this->assertSame('none', Services::session()->get('sales_header_charges')['shipping_tax_option']);
+    }
+
+    /**
+     * @return array<string, array{array<string, string>, string}>
+     */
+    public static function refusedHeaderChargesProvider(): array
+    {
+        return [
+            'shipping below zero'          => [['shipping' => '-1'], 'Sales.shipping_negative'],
+            'an adjustment that is text'   => [['adjustment' => 'ten'], 'Sales.header_charges_invalid'],
+            'shipping that is text'        => [['shipping' => 'ten'], 'Sales.header_charges_invalid'],
+            'an adjustment below the total' => [['adjustment' => '-100.01'], 'Sales.adjustment_exceeds_total'],
+            'a label that is too long'     => [['adjustment' => '5', 'adjustment_label' => 'x'], 'Sales.adjustment_label_too_long'],
+            'an unknown address choice'    => [['shipping' => '5', 'shipping_options' => '9'], 'Sales.header_charges_invalid'],
+        ];
+    }
+
+    /**
+     * @param array<string, string> $posted
+     */
+    #[DataProvider('refusedHeaderChargesProvider')]
+    public function testPostSetHeaderCharges_RefusesWhatCannotBeAddedAndKeepsTheChargesThereWere(array $posted, string $message): void
+    {
+        $this->registerForHeaderCharges();
+        $this->withSession(array_merge($this->session, ['sales_header_charges' => ['adjustment_label' => 'Old', 'adjustment' => '1', 'shipping' => '2', 'shipping_tax_option' => 'none', 'shipping_tax_percent' => '0', 'shipping_options' => null]]));
+
+        if (($posted['adjustment_label'] ?? '') === 'x') {
+            $posted['adjustment_label'] = str_repeat('x', 101);
+        }
+
+        $response = $this->post('/sales/setHeaderCharges', $posted);
+
+        $response->assertSee(lang($message));
+        $this->assertSame('Old', Services::session()->get('sales_header_charges')['adjustment_label']);
+        $this->assertSame('2', Services::session()->get('sales_header_charges')['shipping']);
+    }
+
+    public function testPostSetHeaderCharges_IgnoresTheFieldOfAChargeWhoseSettingIsOff(): void
+    {
+        $this->registerForHeaderCharges('sale_invoice', false, true);
+
+        $this->post('/sales/setHeaderCharges', ['adjustment_label' => 'Fee', 'adjustment' => '50', 'shipping' => '10']);
+
+        $this->assertSame('0', Services::session()->get('sales_header_charges')['adjustment']);
+        $this->assertSame('10', Services::session()->get('sales_header_charges')['shipping']);
+    }
+
+    public function testPostSetHeaderCharges_RefusesWhileTheRegisterSellsAtThePointOfSaleOrMakesAWorkOrder(): void
+    {
+        foreach (['sale', 'sale_work_order'] as $mode) {
+            $this->registerForHeaderCharges($mode);
+
+            $response = $this->post('/sales/setHeaderCharges', ['shipping' => '10']);
+
+            $response->assertSee(lang('Accounting.error_header_charges_not_allowed'));
+            $this->assertNull(Services::session()->get('sales_header_charges'), $mode);
+        }
+    }
+
+    public function testPostSetHeaderCharges_TakesTheChargesOffWhenGivenNothingOrZero(): void
+    {
+        $this->registerForHeaderCharges();
+
+        foreach ([['adjustment' => '', 'shipping' => ''], ['adjustment' => '0', 'shipping' => '0.00']] as $nothing) {
+            $this->withSession(array_merge($this->session, ['sales_header_charges' => ['adjustment_label' => 'Old', 'adjustment' => '1', 'shipping' => '2', 'shipping_tax_option' => 'none', 'shipping_tax_percent' => '0', 'shipping_options' => null]]));
+            $this->post('/sales/setHeaderCharges', $nothing);
+
+            $this->assertNull(Services::session()->get('sales_header_charges'));
+        }
+    }
+
+    public function testPostSetHeaderCharges_EmptiesThePaymentsBecauseTheAmountDueChanged(): void
+    {
+        $this->registerForHeaderCharges();
+        $this->post('/sales/addPayment', ['payment_type' => 'Cash', 'amount_tendered' => '50.00']);
+        $this->withSession(array_merge($this->session, ['sales_payments' => Services::session()->get('sales_payments')]));
+
+        $this->post('/sales/setHeaderCharges', ['shipping' => '10']);
+
+        $this->assertSame([], Services::session()->get('sales_payments') ?? []);
+    }
+
+    public function testPostChangeMode_ForgetsTheChargesOfTheRegister(): void
+    {
+        $this->registerForHeaderCharges();
+        $this->withSession(array_merge($this->session, ['sales_header_charges' => ['adjustment_label' => '', 'adjustment' => '0', 'shipping' => '20', 'shipping_tax_option' => 'none', 'shipping_tax_percent' => '0', 'shipping_options' => null]]));
+
+        $this->post('/sales/changeMode', ['mode' => 'sale']);
+
+        $this->assertNull(Services::session()->get('sales_header_charges'));
+    }
+
+    public function testPostComplete_SavesTheChargesWithTheInvoicePostsThemAndPrintsThemOnTheReceipt(): void
+    {
+        $this->registerForHeaderCharges();
+
+        $this->post('/sales/setHeaderCharges', ['adjustment_label' => 'Handling fee', 'adjustment' => '-10', 'shipping' => '100', 'shipping_taxed' => '1']);
+        $this->carryTheChargesToTheNextRequest();
+        $this->post('/sales/addPayment', ['payment_type' => 'Cash', 'amount_tendered' => '205.00']);
+        $this->carryTheChargesToTheNextRequest();
+
+        $sales = $this->countSales();
+
+        $response = $this->post('/sales/complete');
+
+        $this->assertSame($sales + 1, $this->countSales());
+
+        $sale = $this->accountingDb()->table('sales')->orderBy('sale_id', 'DESC')->get()->getRow();
+
+        $this->assertSame('Handling fee', $sale->adjustment_label);
+        $this->assertSame('-10.0000', $sale->adjustment_amount);
+        $this->assertSame('100.0000', $sale->shipping_amount);
+        $this->assertSame('added', $sale->shipping_tax_option);
+        $this->assertSame('15.0000', $sale->shipping_tax_amount);
+        $this->assertSame('-100.00', $this->balance($this->accountId('sales_shipping')));
+        $this->assertSame('10.00', $this->balance($this->accountId('sales_adjustment')));
+        $this->assertSame('-15.00', $this->balance($this->accountId('tax_output')));
+        $response->assertSee('Handling fee');
+        $response->assertSee(lang('Sales.shipping'));
+        $this->assertNull(Services::session()->get('sales_header_charges'), 'the register forgets the charges of a sale that was made');
+    }
+
+    public function testPostComplete_RefusesChargesWhoseSettingWasTurnedOffMeanwhileAndSavesNothing(): void
+    {
+        $this->registerForHeaderCharges();
+
+        $this->post('/sales/setHeaderCharges', ['shipping' => '10']);
+        $this->carryTheChargesToTheNextRequest();
+        $this->setConfigValue('accounting_sales_shipping', '0');
+
+        $sales = $this->countSales();
+
+        $response = $this->post('/sales/complete');
+
+        $response->assertSee(lang('Accounting.error_header_charges_off'));
+        $this->assertSame($sales, $this->countSales());
     }
 
     public function testPostSetInvoiceDiscount_RefusesAValueThatIsNotAFieldOfText(): void

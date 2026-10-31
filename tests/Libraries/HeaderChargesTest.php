@@ -117,6 +117,13 @@ class HeaderChargesTest extends CIUnitTestCase
         $this->assertFalse((new HeaderCharges('', '0', '0', ShippingTaxOption::None, '0', 2))->isEmpty());
     }
 
+    public function testIsEmpty_IsFalseForTextThatIsNotANumberSoItIsRefusedAndNotDropped(): void
+    {
+        $this->assertFalse((new HeaderCharges('', 'x'))->isEmpty());
+        $this->assertFalse((new HeaderCharges('', '0', 'abc'))->isEmpty());
+        $this->assertTrue((new HeaderCharges('', ' ', ''))->isEmpty(), 'blank is nothing typed');
+    }
+
     public function testHasAdjustmentAndHasShipping_SeeWhatIsThere(): void
     {
         $charges = new HeaderCharges('Fee', '-5', '0', ShippingTaxOption::None, '0', 2);

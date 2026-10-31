@@ -478,7 +478,8 @@ class Sales extends Secure_Controller
 
         $this->sale_lib->setHeaderCharges($charges);
 
-        $problem = $this->sale_lib->headerChargesProblem($this->tax_lib->get_taxes($this->sale_lib->get_cart())[0]);
+        $cart = $this->sale_lib->get_cart();
+        $problem = $this->sale_lib->headerChargesProblem($this->tax_lib->get_taxes($cart)[0]);
 
         if ($problem !== null) {
             $this->sale_lib->setHeaderCharges($current);
@@ -2413,6 +2414,7 @@ class Sales extends Secure_Controller
         $data['can_shipping'] = $allowed && $chargeSettings->salesShippingEnabled();
         $data['shipping_tax_percent'] = $chargeSettings->shippingTaxPercent();
         $data['header_charges_entry'] = $this->sale_lib->getHeaderCharges();
+        $data['shipping_taxed'] = $data['header_charges_entry']->shippingTaxOption !== ShippingTaxOption::None;
 
         $chargesProblem = $this->sale_lib->headerChargesProblem($this->tax_lib->get_taxes($data['cart'])[0]);
 

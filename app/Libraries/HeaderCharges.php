@@ -37,19 +37,17 @@ final readonly class HeaderCharges
 
     public function isEmpty(): bool
     {
-        return bccomp($this->safe($this->adjustment), '0', self::WORK) === 0
-            && bccomp($this->safe($this->shipping), '0', self::WORK) === 0
-            && $this->shippingOptions === null;
+        return ! $this->hasAdjustment() && ! $this->hasShipping();
     }
 
     public function hasAdjustment(): bool
     {
-        return bccomp($this->safe($this->adjustment), '0', self::WORK) !== 0;
+        return $this->typed($this->adjustment);
     }
 
     public function hasShipping(): bool
     {
-        return bccomp($this->safe($this->shipping), '0', self::WORK) !== 0 || $this->shippingOptions !== null;
+        return $this->typed($this->shipping) || $this->shippingOptions !== null;
     }
 
     /**
@@ -58,11 +56,11 @@ final readonly class HeaderCharges
      */
     public function problem(string $running): ?HeaderChargesProblem
     {
-        if (preg_match(self::NUMBER, $this->adjustment) !== 1 || preg_match(self::NUMBER, $this->shipping) !== 1) {
+        if ($this->number($this->adjustment) === null || $this->number($this->shipping) === null) {
             return HeaderChargesProblem::NotANumber;
         }
 
-        if (bccomp($this->shipping, '0', self::WORK) < 0) {
+        if (bccomp($this->safe($this->shipping), '0', self::WORK) < 0) {
             return HeaderChargesProblem::NegativeShipping;
         }
 
@@ -118,8 +116,26 @@ final readonly class HeaderCharges
         return SaleAmounts::round($tax, self::SCALE);
     }
 
+    private function number(string $value): ?string
+    {
+        $value = trim($value);
+
+        if ($value === '') {
+            return '0';
+        }
+
+        return preg_match(self::NUMBER, $value) === 1 ? $value : null;
+    }
+
     private function safe(string $value): string
     {
-        return preg_match(self::NUMBER, $value) === 1 ? $value : '0';
+        return $this->number($value) ?? '0';
+    }
+
+    private function typed(string $value): bool
+    {
+        $number = $this->number($value);
+
+        return $number === null || bccomp($number, '0', self::WORK) !== 0;
     }
 }

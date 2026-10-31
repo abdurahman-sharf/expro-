@@ -25,6 +25,7 @@
  * @var bool      $can_adjustment
  * @var bool      $can_shipping
  * @var string    $shipping_tax_percent
+ * @var bool      $shipping_taxed
  * @var \App\Libraries\HeaderCharges $header_charges_entry
  * @var array     $taxes
  * @var float     $total
@@ -460,7 +461,7 @@ $employee        = model(Employee::class);
                             </div>
                             <?php if (bccomp($shipping_tax_percent, '0', 4) > 0): ?>
                                 <div class="form-check">
-                                    <input type="checkbox" class="form-check-input" name="shipping_taxed" id="shipping_taxed" value="1"<?= $header_charges_entry->shippingTaxOption !== \App\Libraries\ShippingTaxOption::None ? ' checked' : '' ?>>
+                                    <input type="checkbox" class="form-check-input" name="shipping_taxed" id="shipping_taxed" value="1"<?= $shipping_taxed ? ' checked' : '' ?>>
                                     <label class="form-check-label" for="shipping_taxed"><?= lang('Sales.shipping_tax_apply', [esc(to_decimals($shipping_tax_percent))]) ?></label>
                                 </div>
                             <?php endif; ?>

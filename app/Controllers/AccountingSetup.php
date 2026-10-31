@@ -6,6 +6,7 @@ use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountingNotReadyException;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\FiscalYearService;
+use App\Libraries\Accounting\JournalDescriptionTemplate;
 use App\Libraries\Accounting\ReadinessCode;
 use App\Libraries\Accounting\ReadinessIssue;
 use App\Libraries\Accounting\SensitivePermissions;
@@ -58,6 +59,14 @@ class AccountingSetup extends AccountingController
             'revenue_account_required' => $this->settings->revenueAccountRequired(),
             'lineDescriptionRequired'  => $this->settings->lineDescriptionRequired(),
             'customer_opening'         => $this->settings->customerOpeningEnabled(),
+            'sales_adjustment'         => $this->settings->salesAdjustmentEnabled(),
+            'sales_shipping'           => $this->settings->salesShippingEnabled(),
+            'shipping_tax_percent'     => $this->settings->shippingTaxPercent(),
+            'debit_note'               => $this->settings->debitNoteEnabled(),
+            'journal_description_sales'     => $this->settings->journalDescriptionTemplate(JournalDescriptionTemplate::SALES),
+            'journal_description_purchases' => $this->settings->journalDescriptionTemplate(JournalDescriptionTemplate::PURCHASES),
+            'template_max'             => JournalDescriptionTemplate::MAX,
+            'template_placeholders'    => array_map(static fn (string $name): string => '{' . $name . '}', JournalDescriptionTemplate::PLACEHOLDERS),
             'locked'                   => $this->settings->isLocked(),
             'next_number'              => $this->settings->lastManualNumber() + 1,
             'can_manage'               => $this->canManageSettings(),
@@ -93,6 +102,18 @@ class AccountingSetup extends AccountingController
 
             if ($this->request->getPost('customer_opening') !== null) {
                 $input['customer_opening'] = $this->request->getPost('customer_opening') === '1';
+            }
+
+            foreach (['sales_adjustment', 'sales_shipping', 'debit_note'] as $flag) {
+                if ($this->request->getPost($flag) !== null) {
+                    $input[$flag] = $this->request->getPost($flag) === '1';
+                }
+            }
+
+            foreach (['shipping_tax_percent', 'journal_description_sales', 'journal_description_purchases'] as $text) {
+                if ($this->request->getPost($text) !== null) {
+                    $input[$text] = (string) $this->request->getPost($text);
+                }
             }
 
             $this->settings->update($input, $this->employeeId());

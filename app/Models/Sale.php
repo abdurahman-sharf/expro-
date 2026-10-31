@@ -1746,9 +1746,9 @@ class Sale extends Model
         }
 
         (new AuditLog($this->db))->write('sale', $saleId, 'header_charges_given', $employeeId, JournalOrigin::User, [
-            'adjustment'   => (string) ($row->adjustment_amount ?? '0'),
-            'shipping'     => (string) ($row->shipping_amount ?? '0'),
-            'shipping_tax' => (string) ($row->shipping_tax_amount ?? '0'),
+            'adjustment'   => bcadd((string) ($row->adjustment_amount ?? '0'), '0', SaleAmounts::SCALE),
+            'shipping'     => bcadd((string) ($row->shipping_amount ?? '0'), '0', SaleAmounts::SCALE),
+            'shipping_tax' => bcadd((string) ($row->shipping_tax_amount ?? '0'), '0', SaleAmounts::SCALE),
         ], $branchId);
     }
 
