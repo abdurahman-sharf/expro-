@@ -68,7 +68,7 @@ final class SalePostingBuilder
             revision: $revision,
             origin: JournalOrigin::System,
             employeeId: $employeeId,
-            description: ($sale->isReturn() ? 'Return #' : 'Sale #') . $sale->saleId,
+            description: ReturnOverride::describe(($sale->isReturn() ? 'Return #' : 'Sale #') . $sale->saleId, $sale->returnOverride),
             branchId: $sale->branchId,
             entryType: JournalEntryType::Revenue,
         );
@@ -98,7 +98,7 @@ final class SalePostingBuilder
     {
         $this->assertPostable($sale);
 
-        if (! $sale->delivered) {
+        if (! $sale->delivered || $this->returnsGoodsThatNeverLeft($sale)) {
             return new StockPostingPlan(null, []);
         }
 
@@ -111,17 +111,27 @@ final class SalePostingBuilder
         $movements  = [];
         $byLocation = [];
         $total      = '0';
+        $back       = $sale->isReturn() ? [] : $sale->returnedUnits;
 
         foreach ($sale->lines as $line) {
             if (! $line->hasStock) {
                 continue;
             }
 
+            $units = SaleAmounts::absolute($line->quantity);
+
+            if (! $sale->isReturn()) {
+                [$units, $back] = UndeliveredReturns::remaining($line->itemId, $line->quantity, $back);
+
+                if (bccomp($units, '0', 3) === 0) {
+                    continue;
+                }
+            }
+
             $cost = $sale->isReturn()
                 ? $this->returnedCost($sale, $line)
-                : SaleAmounts::cost($line->quantity, $line->costPrice);
+                : SaleAmounts::cost($units, $line->costPrice);
 
-            $units       = SaleAmounts::absolute($line->quantity);
             $movements[] = $sale->isReturn()
                 ? new StockMovement($line->itemId, $line->locationId, $units, $cost)
                 : new StockMovement($line->itemId, $line->locationId, bcsub('0', $units, 3), bcsub('0', $cost, SaleAmounts::SCALE));
@@ -166,7 +176,7 @@ final class SalePostingBuilder
             revision: $revision,
             origin: JournalOrigin::System,
             employeeId: $employeeId,
-            description: ($sale->isReturn() ? 'Cost of return #' : 'Cost of sale #') . $sale->saleId,
+            description: ReturnOverride::describe(($sale->isReturn() ? 'Cost of return #' : 'Cost of sale #') . $sale->saleId, $sale->returnOverride),
             branchId: $sale->branchId,
             entryType: JournalEntryType::Cogs,
         ), $movements);
@@ -282,6 +292,16 @@ final class SalePostingBuilder
         if (bccomp(SaleAmounts::absolute($difference), self::TOLERANCE, SaleAmounts::SCALE) > 0) {
             throw new PostingException(PostingError::CreditNeedsCustomer, 'A sale without a customer must be settled in full.', ['difference' => $difference]);
         }
+    }
+
+    /**
+     * A credit note on an invoice whose goods were never delivered gives back nothing that left the
+     * stock, so it moves no stock and posts no cost. The delivery that comes later takes out only
+     * what was not returned. A refund invoice of such an invoice is not accepted.
+     */
+    private function returnsGoodsThatNeverLeft(SaleDocument $sale): bool
+    {
+        return $sale->isReturn() && ! $sale->refundInvoice && $sale->origin !== null && ! $sale->origin->delivered;
     }
 
     /**
@@ -413,6 +433,10 @@ final class SalePostingBuilder
     private function returnedCost(SaleDocument $return, SaleLine $line): string
     {
         $origin = $return->origin;
+
+        if ($origin === null && $return->returnOverride) {
+            return SaleAmounts::cost($line->quantity, $line->costPrice);
+        }
 
         if ($origin === null) {
             throw new PostingException(PostingError::ReturnOriginRequired, 'A return of stock items must say which sale it takes them back from.', ['item_id' => $line->itemId]);

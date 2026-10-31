@@ -408,6 +408,26 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         $this->assertNotContains('year_end_closed', array_column($rows, 'action'));
     }
 
+    public function testGetView_HidesTheReverseButtonOfTheJournalsOfAnAdvanceAndOfACashRefund(): void
+    {
+        $this->accountant();
+
+        foreach (JournalService::CREDIT_SOURCES as $source) {
+            $journalId = (new PostingService())->post(new JournalDraft(
+                date: '2026-10-21',
+                lines: [new JournalLineDraft($this->accountId('cash'), debit: '10.00'), new JournalLineDraft($this->accountId('sales_revenue'), credit: '10.00')],
+                sourceType: $source,
+                sourceId: random_int(1000, 999999),
+            ))->journalId;
+
+            $page = $this->get('/accounting_journals/view/' . $journalId);
+
+            $page->assertStatus(200);
+            $page->assertDontSee('accounting_journals/reverse_form/' . $journalId);
+            $page->assertSee(lang('Accounting.source_' . $source));
+        }
+    }
+
     public function testGetView_HidesTheReverseButtonWithoutThePermission(): void
     {
         $this->actAs($this->employeeWithGrants(['accounting_journals', AccountingGuard::JOURNALS_ALL]));
@@ -672,6 +692,57 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         $this->assertSame(2, $result['total']);
         $this->assertSame('Created', $result['rows'][0]['action']);
         $this->assertStringContainsString('total: 10.0000', $result['rows'][1]['details']);
+    }
+
+    public function testGetAuditSearch_NamesTheCreditFlowsAndTheReturnOverrideInWords(): void
+    {
+        $accountant = $this->accountant();
+        $log        = new AuditLog();
+
+        $log->write('customer_advance', 7, 'created', $accountant, JournalOrigin::User);
+        $log->write('customer_refund', 8, 'cancelled', $accountant, JournalOrigin::User);
+        $log->write('supplier_refund', 9, 'created', $accountant, JournalOrigin::User);
+        $log->write('sale', 10, 'return_override', $accountant, JournalOrigin::User, ['reason' => 'lost the receipt']);
+
+        $rows = $this->jsonOf($this->get('/accounting_journals/audit/search?order=asc'))['rows'];
+
+        $this->assertStringContainsString(lang('Accounting.entity_customer_advance'), $rows[0]['entity']);
+        $this->assertStringContainsString(lang('Accounting.entity_customer_refund'), $rows[1]['entity']);
+        $this->assertStringContainsString(lang('Accounting.entity_supplier_refund'), $rows[2]['entity']);
+        $this->assertSame(lang('Accounting.action_return_override'), $rows[3]['action']);
+
+        foreach ($rows as $row) {
+            $this->assertStringNotContainsString('customer_advance', $row['entity']);
+            $this->assertStringNotContainsString('_refund', $row['entity']);
+            $this->assertStringNotContainsString('return_override', $row['action']);
+        }
+    }
+
+    public function testGetAuditSearch_FiltersByTheEntityOfACreditFlow(): void
+    {
+        $accountant = $this->accountant();
+        $log        = new AuditLog();
+
+        $log->write('customer_advance', 7, 'created', $accountant, JournalOrigin::User);
+        $log->write('customer_refund', 8, 'created', $accountant, JournalOrigin::User);
+        $log->write('supplier_refund', 9, 'created', $accountant, JournalOrigin::User);
+
+        foreach (['customer_advance', 'customer_refund', 'supplier_refund'] as $entity) {
+            $result = $this->jsonOf($this->get('/accounting_journals/audit/search?entity_type=' . $entity));
+
+            $this->assertSame(1, $result['total'], $entity);
+        }
+    }
+
+    public function testGetAudit_OffersTheCreditFlowsAndTheSaleInTheEntityFilter(): void
+    {
+        $this->accountant();
+
+        $page = $this->get('/accounting_journals/audit');
+
+        foreach (['sale', 'customer_advance', 'customer_refund', 'supplier_refund'] as $entity) {
+            $page->assertSee('<option value="' . $entity . '">' . lang('Accounting.entity_' . $entity) . '</option>');
+        }
     }
 
     public function testGetAuditSearch_FiltersByAction(): void

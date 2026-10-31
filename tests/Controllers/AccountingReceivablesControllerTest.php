@@ -4,6 +4,8 @@ namespace Tests\Controllers;
 
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AgingBuckets;
+use App\Libraries\Accounting\CreditRefunds;
+use App\Libraries\Accounting\CustomerAdvances;
 use App\Libraries\Accounting\CustomerLedger;
 use App\Libraries\Accounting\CustomerOpening;
 use App\Libraries\Accounting\JournalDraft;
@@ -19,6 +21,7 @@ use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
+use CodeIgniter\Test\TestResponse;
 use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
@@ -1847,5 +1850,399 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
         $this->assertFalse($cancel['success']);
         $this->assertSame('posted', $this->accountingDb()->table('customer_openings')->where('opening_id', $first)->get()->getRow()->status);
         $this->assertSame(1, $this->countRows('customer_openings'));
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Advance payments and cash refunds of the credit of a customer
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * An employee who sees the balances, takes advance payments and pays credit back, with the right
+     * to open treasuries so that a test can name one.
+     *
+     * @param list<string>   $extra
+     * @param list<int>|null $branchIds
+     */
+    private function teller(array $extra = [AccountingGuard::RECEIVABLES_MANAGE, AccountingGuard::RECEIVABLES_REFUND, AccountingGuard::TREASURIES_MANAGE], ?array $branchIds = null): int
+    {
+        $personId = $this->employeeWithGrants(['accounting_receivables', ...$extra], $branchIds);
+
+        $this->withSession(['person_id' => $personId, 'menu_group' => 'home']);
+
+        return $personId;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function bodyOf(TestResponse $response): array
+    {
+        return json_decode($response->getJSON(), true);
+    }
+
+    private function advanceOf(string $amount, int $teller): int
+    {
+        return (new CustomerAdvances())->receive($this->customerId, $amount, date('Y-m-d'), 'Cash', null, '', '', $teller);
+    }
+
+    public function testGetAdvanceForm_OffersTheFieldsAndOnlyTheTreasuriesTheTellerMayDepositInto(): void
+    {
+        $teller = $this->teller();
+        $other  = $this->employeeWithGrants([]);
+
+        $alone = $this->get('/accounting_receivables/advance_form/' . $this->customerId);
+
+        $alone->assertStatus(200);
+        $alone->assertSee('name="amount"');
+        $alone->assertSee('name="advance_date"');
+        $alone->assertSee('name="payment_type"');
+        $alone->assertSee('name="request_key"');
+        $alone->assertDontSee('name="treasury_id"');
+
+        (new TreasuryService())->create(['name' => 'Open drawer', 'kind' => 'cash'], $teller);
+        (new TreasuryService())->create(['name' => 'Locked drawer', 'kind' => 'cash', 'deposit_scope' => 'staff', 'deposit_members' => [$other]], $teller);
+
+        $with = $this->get('/accounting_receivables/advance_form/' . $this->customerId);
+
+        $with->assertSee('name="treasury_id"');
+        $with->assertSee('Open drawer');
+        $with->assertDontSee('Locked drawer');
+    }
+
+    public function testGetAdvanceForm_IsNotFoundWithoutThePermissionToManageAndForSomeoneLimitedToABranch(): void
+    {
+        $this->viewer();
+
+        try {
+            $this->get('/accounting_receivables/advance_form/' . $this->customerId);
+            $this->fail('A viewer opened the form.');
+        } catch (PageNotFoundException) {
+            $this->addToAssertionCount(1);
+        }
+
+        $this->teller([AccountingGuard::RECEIVABLES_MANAGE], [1]);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_receivables/advance_form/' . $this->customerId);
+    }
+
+    public function testPostAdvance_SavesTheAdvanceAndSpendsItOnTheOpenInvoice(): void
+    {
+        $invoice = $this->invoiceOf('300.00');
+        $this->teller();
+
+        $result = $this->bodyOf($this->post('/accounting_receivables/advance/' . $this->customerId, [
+            'amount'         => '120.00',
+            'advance_date'   => date('Y-m-d'),
+            'payment_type'   => 'Cash',
+            'reference_code' => 'R-1',
+            'note'           => 'on account',
+        ]));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(lang('Accounting_receivables.advance_done'), $result['message']);
+        $this->assertSame('180.00', $this->balance($this->customerAccount()));
+        $this->assertSame('180.00', bcadd($this->position()->invoice($invoice)->open(), '0', 2));
+        $this->assertTies();
+    }
+
+    public function testPostAdvance_SavesOneAdvanceWhenTheFormIsSentTwice(): void
+    {
+        $this->teller();
+
+        $fields = ['amount' => '50.00', 'advance_date' => date('Y-m-d'), 'payment_type' => 'Cash', 'request_key' => 'form-abc'];
+        $first  = $this->bodyOf($this->post('/accounting_receivables/advance/' . $this->customerId, $fields));
+        $second = $this->bodyOf($this->post('/accounting_receivables/advance/' . $this->customerId, $fields));
+
+        $this->assertTrue($first['success']);
+        $this->assertSame($first['id'], $second['id']);
+        $this->assertSame(1, $this->countRows('customer_advances'));
+        $this->assertSame('-50.00', $this->balance($this->customerAccount()));
+    }
+
+    public function testPostAdvance_SaysWhyItWasRefusedAndSavesNothing(): void
+    {
+        $this->teller();
+
+        $result = $this->bodyOf($this->post('/accounting_receivables/advance/' . $this->customerId, ['amount' => '0', 'advance_date' => date('Y-m-d'), 'payment_type' => 'Cash']));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_advance_amount_invalid'), $result['message']);
+        $this->assertSame(0, $this->countRows('customer_advances'));
+    }
+
+    public function testPostAdvance_IsRefusedToWhoHoldsNoPermissionToManage(): void
+    {
+        $this->viewer();
+
+        $result = $this->bodyOf($this->post('/accounting_receivables/advance/' . $this->customerId, ['amount' => '10', 'advance_date' => date('Y-m-d'), 'payment_type' => 'Cash']));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_permission_denied'), $result['message']);
+        $this->assertSame(0, $this->countRows('customer_advances'));
+    }
+
+    public function testPostAdvance_RefusesATreasuryTheTellerMayNotDepositIntoAndSaysWhich(): void
+    {
+        $teller = $this->teller();
+        $other  = $this->employeeWithGrants([]);
+        $locked = (new TreasuryService())->create(['name' => 'Locked drawer', 'kind' => 'cash', 'deposit_scope' => 'staff', 'deposit_members' => [$other]], $teller);
+
+        $result = $this->bodyOf($this->post('/accounting_receivables/advance/' . $this->customerId, ['amount' => '50', 'advance_date' => date('Y-m-d'), 'payment_type' => 'Cash', 'treasury_id' => $locked]));
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString('Locked drawer', $result['message']);
+        $this->assertSame(0, $this->countRows('customer_advances'));
+    }
+
+    public function testPostAdvance_IsRefusedInAClosedPeriodAndSavesNothing(): void
+    {
+        $this->teller();
+        $this->closeThrough(date('Y-m-d'));
+
+        $result = $this->bodyOf($this->post('/accounting_receivables/advance/' . $this->customerId, ['amount' => '50', 'advance_date' => date('Y-m-d'), 'payment_type' => 'Cash']));
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString(date('Y-m-d'), $result['message']);
+        $this->assertSame(0, $this->countRows('customer_advances'));
+    }
+
+    public function testPostAdvance_IsNotFoundForSomeoneLimitedToABranch(): void
+    {
+        $this->teller([AccountingGuard::RECEIVABLES_MANAGE], [1]);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->post('/accounting_receivables/advance/' . $this->customerId, ['amount' => '10', 'advance_date' => date('Y-m-d'), 'payment_type' => 'Cash']);
+    }
+
+    public function testGetRefundForm_ShowsTheCreditThatIsFreeToPayBack(): void
+    {
+        $teller = $this->teller();
+
+        $this->advanceOf('200.00', $teller);
+
+        $response = $this->get('/accounting_receivables/refund_form/' . $this->customerId);
+
+        $response->assertStatus(200);
+        $response->assertSee('name="refund_date"');
+        $response->assertSee('name="request_key"');
+        $response->assertSee('id="refund_free"');
+        $response->assertSee('200.00');
+    }
+
+    public function testGetRefundForm_IsNotFoundForWhoHoldsOnlyThePermissionToTakeAdvances(): void
+    {
+        $this->teller([AccountingGuard::RECEIVABLES_MANAGE]);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_receivables/refund_form/' . $this->customerId);
+    }
+
+    public function testPostRefund_PaysTheCreditBackAndTiesToTheTreasury(): void
+    {
+        $teller = $this->teller();
+        $drawer = (new TreasuryService())->create(['name' => 'Refund drawer', 'kind' => 'cash'], $teller);
+
+        $this->advanceOf('200.00', $teller);
+
+        $result = $this->bodyOf($this->post('/accounting_receivables/refund/' . $this->customerId, ['amount' => '80.00', 'refund_date' => date('Y-m-d'), 'payment_type' => 'Cash', 'treasury_id' => $drawer]));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(lang('Accounting_receivables.refund_done'), $result['message']);
+        $this->assertSame('-80.0000', (new TreasuryService())->position($drawer)->balance);
+        $this->assertSame('120.00', bcadd($this->position()->credit(), '0', 2));
+        $this->assertTies();
+    }
+
+    public function testPostRefund_SavesOneRefundWhenTheFormIsSentTwice(): void
+    {
+        $teller = $this->teller();
+
+        $this->advanceOf('200.00', $teller);
+
+        $fields = ['amount' => '30.00', 'refund_date' => date('Y-m-d'), 'payment_type' => 'Cash', 'request_key' => 'refund-abc'];
+        $first  = $this->bodyOf($this->post('/accounting_receivables/refund/' . $this->customerId, $fields));
+        $second = $this->bodyOf($this->post('/accounting_receivables/refund/' . $this->customerId, $fields));
+
+        $this->assertSame($first['id'], $second['id']);
+        $this->assertSame(1, $this->countRows('customer_credit_refunds'));
+    }
+
+    public function testPostRefund_IsRefusedToWhoHoldsOnlyThePermissionToTakeAdvancesAndPaysNothing(): void
+    {
+        $teller = $this->teller([AccountingGuard::RECEIVABLES_MANAGE]);
+
+        $this->advanceOf('200.00', $teller);
+
+        $result = $this->bodyOf($this->post('/accounting_receivables/refund/' . $this->customerId, ['amount' => '30.00', 'refund_date' => date('Y-m-d'), 'payment_type' => 'Cash']));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_permission_denied'), $result['message']);
+        $this->assertSame(0, $this->countRows('customer_credit_refunds'));
+    }
+
+    public function testPostRefund_RefusesMoreThanTheCreditThatIsFreeAndSaysHowMuchIs(): void
+    {
+        $teller = $this->teller();
+
+        $this->advanceOf('100.00', $teller);
+
+        $result = $this->bodyOf($this->post('/accounting_receivables/refund/' . $this->customerId, ['amount' => '100.01', 'refund_date' => date('Y-m-d'), 'payment_type' => 'Cash']));
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString('100.00', $result['message']);
+        $this->assertSame(0, $this->countRows('customer_credit_refunds'));
+    }
+
+    public function testPostRefund_RefusesATreasuryTheTellerMayNotWithdrawFrom(): void
+    {
+        $teller = $this->teller();
+        $other  = $this->employeeWithGrants([]);
+        $locked = (new TreasuryService())->create(['name' => 'Locked drawer', 'kind' => 'cash', 'withdraw_scope' => 'staff', 'withdraw_members' => [$other]], $teller);
+
+        $this->advanceOf('100.00', $teller);
+
+        $result = $this->bodyOf($this->post('/accounting_receivables/refund/' . $this->customerId, ['amount' => '10', 'refund_date' => date('Y-m-d'), 'payment_type' => 'Cash', 'treasury_id' => $locked]));
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString('Locked drawer', $result['message']);
+        $this->assertSame(0, $this->countRows('customer_credit_refunds'));
+    }
+
+    public function testPostCancel_CancelsAnAdvanceAndARefundWithAReason(): void
+    {
+        $teller    = $this->teller();
+        $advanceId = $this->advanceOf('100.00', $teller);
+        $refundId  = (new CreditRefunds(CreditRefunds::CUSTOMER))->refund($this->customerId, '40.00', date('Y-m-d'), 'Cash', null, '', '', $teller);
+
+        $form = $this->get('/accounting_receivables/cancel_form/customer_refund/' . $refundId);
+
+        $form->assertStatus(200);
+        $form->assertSee('name="reason"');
+        $this->assertFalse($this->bodyOf($this->post('/accounting_receivables/cancel/customer_refund/' . $refundId, ['reason' => ' ']))['success']);
+
+        $blocked = $this->bodyOf($this->post('/accounting_receivables/cancel/customer_advance/' . $advanceId, ['reason' => 'paid twice']));
+
+        $this->assertFalse($blocked['success']);
+        $this->assertSame(lang('Accounting.error_credit_refunded'), $blocked['message']);
+
+        $this->assertTrue($this->bodyOf($this->post('/accounting_receivables/cancel/customer_refund/' . $refundId, ['reason' => 'paid twice']))['success']);
+        $this->assertTrue($this->bodyOf($this->post('/accounting_receivables/cancel/customer_advance/' . $advanceId, ['reason' => 'paid twice']))['success']);
+        $this->assertSame('0.00', $this->balance($this->customerAccount()));
+        $this->assertTies();
+    }
+
+    public function testGetCancelForm_IsNotFoundForWhatIsNeitherAnAdvanceNorARefundAndForAWrongPermission(): void
+    {
+        $teller = $this->teller([AccountingGuard::RECEIVABLES_MANAGE]);
+
+        $advanceId = $this->advanceOf('100.00', $teller);
+
+        try {
+            $this->get('/accounting_receivables/cancel_form/customer_refund/' . $advanceId);
+            $this->fail('A refund form was opened with the number of an advance.');
+        } catch (PageNotFoundException) {
+            $this->addToAssertionCount(1);
+        }
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_receivables/cancel_form/purchase/' . $advanceId);
+    }
+
+    public function testGetCancelForm_OpensARefundForWhoHoldsOnlyThePermissionToRefundAndNotForWhoMayOnlyTakeAdvances(): void
+    {
+        $teller = $this->teller();
+
+        $this->advanceOf('100.00', $teller);
+
+        $refundId = (new CreditRefunds(CreditRefunds::CUSTOMER))->refund($this->customerId, '10.00', date('Y-m-d'), 'Cash', null, '', '', $teller);
+
+        $this->teller([AccountingGuard::RECEIVABLES_REFUND]);
+
+        $this->get('/accounting_receivables/cancel_form/customer_refund/' . $refundId)->assertSee('name="reason"');
+
+        $this->teller([AccountingGuard::RECEIVABLES_MANAGE]);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_receivables/cancel_form/customer_refund/' . $refundId);
+    }
+
+    public function testGetRefundForm_OffersOnlyTheTreasuriesTheTellerMayWithdrawFrom(): void
+    {
+        $teller = $this->teller();
+        $other  = $this->employeeWithGrants([]);
+
+        (new TreasuryService())->create(['name' => 'Open drawer', 'kind' => 'cash'], $teller);
+        (new TreasuryService())->create(['name' => 'Locked drawer', 'kind' => 'cash', 'withdraw_scope' => 'staff', 'withdraw_members' => [$other]], $teller);
+
+        $response = $this->get('/accounting_receivables/refund_form/' . $this->customerId);
+
+        $response->assertSee('Open drawer');
+        $response->assertDontSee('Locked drawer');
+    }
+
+    public function testGetCustomer_ListsTheAdvancesAndRefundsAndOffersTheButtonsOnlyToWhoMayUseThem(): void
+    {
+        $teller = $this->teller();
+
+        $advanceId = $this->advanceOf('100.00', $teller);
+
+        (new CreditRefunds(CreditRefunds::CUSTOMER))->refund($this->customerId, '25.00', date('Y-m-d'), 'Cash', null, '', '', $teller);
+
+        $full = $this->get('/accounting_receivables/customer/' . $this->customerId);
+
+        $full->assertStatus(200);
+        $full->assertSee('id="receivable_advances"');
+        $full->assertSee('id="receivable_refunds"');
+        $full->assertSee('id="customer_advance_button"');
+        $full->assertSee('id="customer_refund_button"');
+        $full->assertSee('cancel_form/customer_advance/' . $advanceId);
+        $full->assertSee(lang('Accounting_receivables.source_advance'));
+
+        $this->viewer();
+
+        $plain = $this->get('/accounting_receivables/customer/' . $this->customerId);
+
+        $plain->assertSee('id="receivable_advances"');
+        $plain->assertDontSee('id="customer_advance_button"');
+        $plain->assertDontSee('id="customer_refund_button"');
+        $plain->assertDontSee('cancel_form/customer_advance/');
+    }
+
+    public function testGetCustomer_ShowsAnAdvanceByTheSameNumberInTheCreditsAndInTheAdvances(): void
+    {
+        $teller = $this->teller();
+
+        $this->switchOn(DocumentType::CustomerPayment, 'RC-');
+        $this->advanceOf('100.00', $teller);
+
+        $page = $this->get('/accounting_receivables/customer/' . $this->customerId);
+
+        $this->assertSame(2, substr_count($page->getBody(), 'RC-001'));
+    }
+
+    public function testGetCustomer_ShowsTheIdOfAnAdvanceReceivedBeforeTheSequenceWasSwitchedOn(): void
+    {
+        $teller    = $this->teller();
+        $advanceId = $this->advanceOf('100.00', $teller);
+
+        $page = $this->get('/accounting_receivables/customer/' . $this->customerId);
+
+        $this->assertSame(2, substr_count($page->getBody(), '#' . $advanceId . '</bdi>') + substr_count($page->getBody(), '>' . $advanceId . '</bdi>'));
+    }
+
+    public function testPostAdvance_IsNotFoundWhileAccountingIsOff(): void
+    {
+        $this->teller();
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->post('/accounting_receivables/advance/' . $this->customerId, ['amount' => '10', 'advance_date' => date('Y-m-d'), 'payment_type' => 'Cash']);
     }
 }

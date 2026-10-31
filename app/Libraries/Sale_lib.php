@@ -631,6 +631,26 @@ class Sale_lib
     }
 
     /**
+     * The reason a manager gave for taking a return of stock with no sale to take it back from.
+     */
+    public function getReturnOverride(): ?string
+    {
+        $reason = $this->session->get('sales_return_override');
+
+        return is_string($reason) && $reason !== '' ? $reason : null;
+    }
+
+    public function setReturnOverride(string $reason): void
+    {
+        $this->session->set('sales_return_override', $reason);
+    }
+
+    public function clearReturnOverride(): void
+    {
+        $this->session->remove('sales_return_override');
+    }
+
+    /**
      * The document a return in the register is issued as: a credit note unless it was asked to be a
      * refund invoice.
      */
@@ -1778,6 +1798,7 @@ class Sale_lib
         $this->clearInvoiceDate();
         $this->clearPaymentTerms();
         $this->clear_return_origin();
+        $this->clearReturnOverride();
         $this->clearReturnDocument();
         $this->clearQuoteSource();
         $this->clearInvoiceDiscount();

@@ -30,7 +30,7 @@ enum DocumentType: string
     {
         return match ($this) {
             self::SalesInvoice, self::SalesQuote, self::CreditNote, self::RefundInvoice => ['sales' => 'sale_id'],
-            self::CustomerPayment => ['sales_payments' => 'payment_id'],
+            self::CustomerPayment => ['sales_payments' => 'payment_id', 'customer_advances' => 'advance_id'],
             self::Customer        => ['customers' => 'person_id'],
             self::Purchase, self::DebitNote => ['receivings' => 'receiving_id'],
             self::SupplierPayment => ['receivings_payments' => 'payment_id', 'supplier_advances' => 'advance_id'],

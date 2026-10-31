@@ -80,7 +80,9 @@ trait SaleAccountingFixtureTrait
         $db = $this->accountingDb();
         $db->query('SET FOREIGN_KEY_CHECKS = 0');
 
-        $db->table('customer_credit_applications')->truncate();
+        foreach (['customer_credit_applications', 'customer_advances', 'customer_credit_refund_sources', 'customer_credit_refunds', 'supplier_credit_refund_sources', 'supplier_credit_refunds', 'sale_return_overrides'] as $table) {
+            $db->table($table)->truncate();
+        }
 
         foreach ($this->saleIds as $saleId) {
             foreach (['sales_payments', 'sales_items_taxes', 'sales_items', 'sales_taxes'] as $table) {
@@ -202,12 +204,12 @@ trait SaleAccountingFixtureTrait
      * @param list<array<string, mixed>>           $payments
      * @param array{type: int, value: string}|null $invoiceDiscount
      */
-    protected function save(array $items, array $taxes = [], array $payments = [], int $type = SALE_TYPE_INVOICE, ?int $customerId = -1, bool $delivered = true, ?int $origin = null, int $status = COMPLETED, int $saleId = NEW_ENTRY, ?array $invoiceDiscount = null, ReturnDocument $returnDocument = ReturnDocument::CreditNote, ?string $invoiceDate = null, int|string|null $paymentTerms = null, ?QuoteStatus $quoteStatus = null, ?int $quoteSourceId = null, ?string $draftFingerprint = null): int
+    protected function save(array $items, array $taxes = [], array $payments = [], int $type = SALE_TYPE_INVOICE, ?int $customerId = -1, bool $delivered = true, ?int $origin = null, int $status = COMPLETED, int $saleId = NEW_ENTRY, ?array $invoiceDiscount = null, ReturnDocument $returnDocument = ReturnDocument::CreditNote, ?string $invoiceDate = null, int|string|null $paymentTerms = null, ?QuoteStatus $quoteStatus = null, ?int $quoteSourceId = null, ?string $draftFingerprint = null, ?string $returnOverrideReason = null): int
     {
         $saleStatus = $status;
         $salesTaxes = [[], $taxes];
         $customer   = $customerId === -1 ? $this->customerId : ($customerId ?? NEW_ENTRY);
-        $result     = $this->sales->save_value($saleId, $saleStatus, $items, $customer, $this->employeeId, 'test', null, null, null, $type, $payments, null, $salesTaxes, $delivered, $origin, $invoiceDiscount, $returnDocument, $invoiceDate, $paymentTerms, $quoteStatus, $quoteSourceId, $draftFingerprint);
+        $result     = $this->sales->save_value($saleId, $saleStatus, $items, $customer, $this->employeeId, 'test', null, null, null, $type, $payments, null, $salesTaxes, $delivered, $origin, $invoiceDiscount, $returnDocument, $invoiceDate, $paymentTerms, $quoteStatus, $quoteSourceId, $draftFingerprint, $returnOverrideReason);
 
         if ($result > 0) {
             $this->saleIds[] = $result;
@@ -388,6 +390,14 @@ trait SaleAccountingFixtureTrait
     protected function allowEmployeeEverywhere(): void
     {
         $this->accountingDb()->table('grants')->ignore(true)->insert(['permission_id' => BranchGuard::ALL_BRANCHES, 'person_id' => $this->employeeId, 'menu_group' => '--']);
+    }
+
+    /**
+     * Lets the seller of the test let a return of stock through with no sale to take it back from.
+     */
+    protected function grantReturnOverride(): void
+    {
+        $this->accountingDb()->table('grants')->ignore(true)->insert(['permission_id' => 'sales_return_override', 'person_id' => $this->employeeId, 'menu_group' => 'home']);
     }
 
     /**

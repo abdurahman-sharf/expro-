@@ -107,6 +107,10 @@ $actionLabel = static function (string $action): string {
                 <option value="expense"><?= lang('Accounting.entity_expense') ?></option>
                 <option value="cashup"><?= lang('Accounting.entity_cashup') ?></option>
                 <option value="expense_category"><?= lang('Accounting.entity_expense_category') ?></option>
+                <option value="sale"><?= lang('Accounting.entity_sale') ?></option>
+                <option value="customer_advance"><?= lang('Accounting.entity_customer_advance') ?></option>
+                <option value="customer_refund"><?= lang('Accounting.entity_customer_refund') ?></option>
+                <option value="supplier_refund"><?= lang('Accounting.entity_supplier_refund') ?></option>
             </select>
         </div>
         <div class="acc-filter">

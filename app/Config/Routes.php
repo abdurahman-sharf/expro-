@@ -84,6 +84,12 @@ $routes->group('accounting_receivables', static function (RouteCollection $route
     $routes->post('opening_edit/(:num)', 'AccountingReceivables::postOpeningEdit/$1');
     $routes->get('opening_cancel_form/(:num)', 'AccountingReceivables::getOpeningCancelForm/$1');
     $routes->post('opening_cancel/(:num)', 'AccountingReceivables::postOpeningCancel/$1');
+    $routes->get('advance_form/(:num)', 'AccountingReceivables::getAdvanceForm/$1');
+    $routes->post('advance/(:num)', 'AccountingReceivables::postAdvance/$1');
+    $routes->get('refund_form/(:num)', 'AccountingReceivables::getRefundForm/$1');
+    $routes->post('refund/(:num)', 'AccountingReceivables::postRefund/$1');
+    $routes->get('cancel_form/(:segment)/(:num)', 'AccountingReceivables::getCancelForm/$1/$2');
+    $routes->post('cancel/(:segment)/(:num)', 'AccountingReceivables::postCancel/$1/$2');
 });
 
 $routes->group('accounting_payables', static function (RouteCollection $routes): void {
@@ -103,6 +109,8 @@ $routes->group('accounting_payables', static function (RouteCollection $routes):
     $routes->post('opening/(:num)', 'AccountingPayables::postOpening/$1');
     $routes->get('cancel_form/(:segment)/(:num)', 'AccountingPayables::getCancelForm/$1/$2');
     $routes->post('cancel/(:segment)/(:num)', 'AccountingPayables::postCancel/$1/$2');
+    $routes->get('refund_form/(:num)', 'AccountingPayables::getRefundForm/$1');
+    $routes->post('refund/(:num)', 'AccountingPayables::postRefund/$1');
 });
 
 $routes->group('accounting_reports', static function (RouteCollection $routes): void {

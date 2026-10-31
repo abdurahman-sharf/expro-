@@ -97,12 +97,20 @@ final class CustomerLedger
             }
         }
 
-        $sources = [];
-
-        foreach ($credits as $key => [$type, $sourceId, $origin, $date, $amount]) {
-            $sources[] = new CreditSource($type, $sourceId, $origin, $date, $amount, $applied['from'][$type . ':' . $sourceId] ?? '0.0000');
+        foreach ($this->advances($customerId, $accountId, $asOf) as $advance) {
+            $credits['advance:' . $advance->advance_id] = [CreditSource::CUSTOMER_ADVANCE, (int) $advance->advance_id, null, (string) $advance->advance_date, bcadd((string) $advance->amount, '0', SaleAmounts::SCALE)];
         }
 
+        $refunded = $this->refunded($customerId, $asOf);
+        $sources  = [];
+
+        foreach ($credits as [$type, $sourceId, $origin, $date, $amount]) {
+            $sources[] = new CreditSource($type, $sourceId, $origin, $date, $amount, $applied['from'][$type . ':' . $sourceId] ?? '0.0000', $refunded[$type . ':' . $sourceId] ?? '0.0000');
+        }
+
+        // Credit is applied in this order: by the day an invoice is dated and, among invoices of one day,
+        // by the order they were created in. The id is that order: it is given when the row is created,
+        // while sale_time is rewritten by every later save of the same row.
         usort($sources, static fn (CreditSource $a, CreditSource $b): int => [$a->date, $a->sourceId] <=> [$b->date, $b->sourceId]);
         usort($invoices, static fn (InvoiceFigures $a, InvoiceFigures $b): int => [$a->date, $a->saleId] <=> [$b->date, $b->saleId]);
 
@@ -278,6 +286,72 @@ final class CustomerLedger
         }
 
         return $paid;
+    }
+
+    /**
+     * The payments of customers that belong to no invoice that stand, with what their journal credited
+     * the account of the customer.
+     *
+     * @return list<object>
+     */
+    private function advances(int $customerId, int $accountId, ?string $asOf): array
+    {
+        [$standing, $standingBindings] = StandingJournals::condition($this->db, 'j', $asOf);
+
+        $bindings = [$accountId, CustomerAdvances::SOURCE, JournalEntryType::General->value, ...$standingBindings, $customerId];
+        $status   = '';
+
+        if ($asOf === null) {
+            $status     = ' AND a.status = ?';
+            $bindings[] = 'completed';
+        }
+
+        return $this->db->query(
+            'SELECT a.advance_id, a.advance_date,
+                    (SELECT COALESCE(SUM(l.credit - l.debit), 0) FROM ' . $this->db->prefixTable('accounting_journal_lines') . ' l WHERE l.journal_id = j.journal_id AND l.account_id = ?) AS amount
+             FROM ' . $this->db->prefixTable('customer_advances') . ' a
+             JOIN ' . $this->db->prefixTable('accounting_journals') . " j ON j.source_type = ? AND j.source_id = a.advance_id AND j.entry_type = ? AND {$standing}
+             WHERE a.customer_id = ?{$status}",
+            $bindings,
+        )->getResult();
+    }
+
+    /**
+     * What the cash refunds that stand took from each credit, by source. A refund that was cancelled
+     * has no journal that stands, so it takes nothing.
+     *
+     * @return array<string, numeric-string>
+     */
+    private function refunded(int $customerId, ?string $asOf): array
+    {
+        [$standing, $standingBindings] = StandingJournals::condition($this->db, 'j', $asOf);
+
+        $rows = $this->db->query(
+            'SELECT s.source_type, s.source_id, SUM(s.amount) AS refunded
+             FROM ' . $this->db->prefixTable('customer_credit_refund_sources') . ' s
+             JOIN ' . $this->db->prefixTable('customer_credit_refunds') . ' r ON r.refund_id = s.refund_id AND r.customer_id = ?
+             JOIN ' . $this->db->prefixTable('accounting_journals') . " j ON j.source_type = ? AND j.source_id = r.refund_id AND j.entry_type = ? AND {$standing}
+             GROUP BY s.source_type, s.source_id",
+            [$customerId, CreditRefunds::CUSTOMER_SOURCE, JournalEntryType::General->value, ...$standingBindings],
+        )->getResult();
+
+        $refunded = [];
+
+        foreach ($rows as $row) {
+            $refunded[$row->source_type . ':' . $row->source_id] = bcadd((string) $row->refunded, '0', SaleAmounts::SCALE);
+        }
+
+        return $refunded;
+    }
+
+    /**
+     * The credits that stand paid back in cash, by source, now.
+     *
+     * @return array<string, numeric-string>
+     */
+    public function refundedSources(int $customerId): array
+    {
+        return $this->refunded($customerId, null);
     }
 
     /**

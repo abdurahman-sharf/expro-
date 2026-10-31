@@ -3,6 +3,7 @@
 namespace Tests\Controllers;
 
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\CreditRefunds;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\PostingService;
@@ -1593,5 +1594,147 @@ class AccountingPayablesControllerTest extends CIUnitTestCase
 
         $this->assertStringContainsString(lang('Accounting_payables.supplier_filter', ['#' . $this->supplierId]), $limited);
         $this->assertStringNotContainsString('Gulf Supplies', $limited);
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Being paid back the credit held with a supplier
+    // ---------------------------------------------------------------------------------------
+
+    private function refundTeller(array $extra = [AccountingGuard::PAYABLES_REFUND, AccountingGuard::PAYABLES_MANAGE, AccountingGuard::TREASURIES_MANAGE], ?array $branchIds = null): int
+    {
+        $personId = $this->employeeWithGrants(['accounting_payables', ...$extra], $branchIds);
+
+        $this->withSession(['person_id' => $personId, 'menu_group' => 'home']);
+
+        return $personId;
+    }
+
+    public function testGetRefundForm_ShowsTheCreditThatIsFreeAndOnlyTheTreasuriesTheTellerMayDepositInto(): void
+    {
+        $teller = $this->refundTeller();
+        $other  = $this->employeeWithGrants([]);
+
+        (new SupplierAdvances())->pay($this->supplierId, '200.00', date('Y-m-d'), 'Cash', null, '', '', $teller);
+        (new TreasuryService())->create(['name' => 'Open drawer', 'kind' => 'cash'], $teller);
+        (new TreasuryService())->create(['name' => 'Locked drawer', 'kind' => 'cash', 'deposit_scope' => 'staff', 'deposit_members' => [$other]], $teller);
+
+        $response = $this->get('/accounting_payables/refund_form/' . $this->supplierId);
+
+        $response->assertStatus(200);
+        $response->assertSee('name="refund_date"');
+        $response->assertSee('name="request_key"');
+        $response->assertSee('id="refund_free"');
+        $response->assertSee('200.00');
+        $response->assertSee('Open drawer');
+        $response->assertDontSee('Locked drawer');
+    }
+
+    public function testGetRefundForm_IsNotFoundForWhoHoldsOnlyThePermissionToManagePayments(): void
+    {
+        $this->refundTeller([AccountingGuard::PAYABLES_MANAGE]);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_payables/refund_form/' . $this->supplierId);
+    }
+
+    public function testPostRefund_RecordsTheSupplierPayingTheCreditBackIntoATreasuryAndSpendsNothingOnPurchases(): void
+    {
+        $teller = $this->refundTeller();
+        $drawer = (new TreasuryService())->create(['name' => 'Refund drawer', 'kind' => 'cash'], $teller);
+
+        (new SupplierAdvances())->pay($this->supplierId, '200.00', date('Y-m-d'), 'Cash', null, '', '', $teller);
+
+        $result = $this->jsonOf($this->post('/accounting_payables/refund/' . $this->supplierId, ['amount' => '80.00', 'refund_date' => date('Y-m-d'), 'payment_type' => 'Cash', 'treasury_id' => $drawer]));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(lang('Accounting_payables.refund_done'), $result['message']);
+        $this->assertSame('80.0000', (new TreasuryService())->position($drawer)->balance);
+        $this->assertSame('120.00', bcadd($this->supplierPosition()->credit(), '0', 2));
+        $this->assertSupplierTies();
+    }
+
+    public function testPostRefund_IsRefusedToWhoHoldsOnlyThePermissionToManagePaymentsAndRefusesMoreThanTheFreeCredit(): void
+    {
+        $manager = $this->refundTeller([AccountingGuard::PAYABLES_MANAGE]);
+
+        (new SupplierAdvances())->pay($this->supplierId, '100.00', date('Y-m-d'), 'Cash', null, '', '', $manager);
+
+        $denied = $this->jsonOf($this->post('/accounting_payables/refund/' . $this->supplierId, ['amount' => '10', 'refund_date' => date('Y-m-d'), 'payment_type' => 'Cash']));
+
+        $this->assertFalse($denied['success']);
+        $this->assertSame(lang('Accounting.error_permission_denied'), $denied['message']);
+
+        $this->refundTeller();
+
+        $over = $this->jsonOf($this->post('/accounting_payables/refund/' . $this->supplierId, ['amount' => '100.01', 'refund_date' => date('Y-m-d'), 'payment_type' => 'Cash']));
+
+        $this->assertFalse($over['success']);
+        $this->assertStringContainsString('100.00', $over['message']);
+        $this->assertSame(0, $this->countRows('supplier_credit_refunds'));
+    }
+
+    public function testPostRefund_SavesOneRefundWhenTheFormIsSentTwice(): void
+    {
+        $teller = $this->refundTeller();
+
+        (new SupplierAdvances())->pay($this->supplierId, '100.00', date('Y-m-d'), 'Cash', null, '', '', $teller);
+
+        $fields = ['amount' => '30.00', 'refund_date' => date('Y-m-d'), 'payment_type' => 'Cash', 'request_key' => 'refund-xyz'];
+        $first  = $this->jsonOf($this->post('/accounting_payables/refund/' . $this->supplierId, $fields));
+        $second = $this->jsonOf($this->post('/accounting_payables/refund/' . $this->supplierId, $fields));
+
+        $this->assertSame($first['id'], $second['id']);
+        $this->assertSame(1, $this->countRows('supplier_credit_refunds'));
+    }
+
+    public function testPostCancel_CancelsARefundWithAReasonAndTheFormIsNotFoundForAnAdvancePermissionAlone(): void
+    {
+        $teller   = $this->refundTeller();
+        $refundId = (new SupplierAdvances())->pay($this->supplierId, '100.00', date('Y-m-d'), 'Cash', null, '', '', $teller);
+        $refund   = (new CreditRefunds(CreditRefunds::SUPPLIER))->refund($this->supplierId, '40.00', date('Y-m-d'), 'Cash', null, '', '', $teller);
+
+        $this->get('/accounting_payables/cancel_form/supplier_refund/' . $refund)->assertSee('name="reason"');
+        $this->assertFalse($this->jsonOf($this->post('/accounting_payables/cancel/supplier_refund/' . $refund, ['reason' => ' ']))['success']);
+        $this->assertTrue($this->jsonOf($this->post('/accounting_payables/cancel/supplier_refund/' . $refund, ['reason' => 'paid twice']))['success']);
+        $this->assertSame('100.00', bcadd($this->supplierPosition()->credit(), '0', 2));
+        $this->assertGreaterThan(0, $refundId);
+
+        $this->refundTeller([AccountingGuard::PAYABLES_MANAGE]);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_payables/cancel_form/supplier_refund/' . $refund);
+    }
+
+    public function testGetSupplier_ListsTheRefundsAndOffersTheButtonOnlyToWhoMayUseIt(): void
+    {
+        $teller = $this->refundTeller();
+
+        (new SupplierAdvances())->pay($this->supplierId, '100.00', date('Y-m-d'), 'Cash', null, '', '', $teller);
+        (new CreditRefunds(CreditRefunds::SUPPLIER))->refund($this->supplierId, '25.00', date('Y-m-d'), 'Cash', null, '', '', $teller);
+
+        $full = $this->get('/accounting_payables/supplier/' . $this->supplierId);
+
+        $full->assertSee('id="payable_refunds"');
+        $full->assertSee('id="supplier_refund_button"');
+        $full->assertSee('cancel_form/supplier_refund/');
+
+        $this->viewer();
+
+        $plain = $this->get('/accounting_payables/supplier/' . $this->supplierId);
+
+        $plain->assertSee('id="payable_refunds"');
+        $plain->assertDontSee('id="supplier_refund_button"');
+        $plain->assertDontSee('cancel_form/supplier_refund/');
+    }
+
+    public function testPostRefund_IsNotFoundForSomeoneLimitedToABranch(): void
+    {
+        $this->refundTeller([AccountingGuard::PAYABLES_REFUND], [1]);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->post('/accounting_payables/refund/' . $this->supplierId, ['amount' => '10', 'refund_date' => date('Y-m-d'), 'payment_type' => 'Cash']);
     }
 }

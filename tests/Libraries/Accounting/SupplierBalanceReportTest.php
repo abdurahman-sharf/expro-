@@ -5,6 +5,7 @@ namespace Tests\Libraries\Accounting;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\BalanceTable;
+use App\Libraries\Accounting\CreditRefunds;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\PostingService;
@@ -278,5 +279,26 @@ class SupplierBalanceReportTest extends CIUnitTestCase
         $this->expectException(AccountingException::class);
 
         $this->report(date('Y-m-d'), $this->daysAgo(3));
+    }
+
+    public function testBuild_CountsACashRefundFromTheSupplierUnderPaymentsAsAReductionOfThemAndItReconciles(): void
+    {
+        $this->payPurchase($this->purchaseOf('1000.00'), '1000.00');
+
+        $clerk = $this->employeeWithGrants([AccountingGuard::PAYABLES_MANAGE, AccountingGuard::PAYABLES_REFUND]);
+
+        (new SupplierAdvances())->pay($this->supplierId, '100.00', date('Y-m-d'), 'Cash', null, '', '', $clerk);
+        (new CreditRefunds(CreditRefunds::SUPPLIER))->refund($this->supplierId, '40.00', date('Y-m-d'), 'Cash', null, '', '', $clerk);
+
+        $table = $this->report(date('Y-m-d'));
+        $row   = $this->rowOf($table, $this->supplierId);
+
+        $this->assertSame('1000.0000', $row['sales']);
+        $this->assertSame('1060.0000', $row['payments']);
+        $this->assertSame('0.0000', $row['other']);
+        $this->assertSame('-60.0000', $row['balance']);
+        $this->assertTrue($table->rows[0]->adds());
+        $this->assertFalse($table->hasOther());
+        $this->assertSame($this->owed(), bcadd($row['balance'], '0', 2));
     }
 }

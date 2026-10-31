@@ -94,7 +94,8 @@ final class SalePosting
     }
 
     /**
-     * Posts the cost of a sale whose goods have now been delivered.
+     * Posts the cost of a sale whose goods have now been delivered: of the units that stayed sold, for
+     * credit notes that were issued before the delivery took nothing out of the stock.
      *
      * @throws AccountingException|PostingException
      */
@@ -105,6 +106,8 @@ final class SalePosting
         if (! $this->follows($sale) || $this->activeJournal(SalePostingBuilder::SOURCE_SALE, $saleId, JournalEntryType::Revenue) === null) {
             return;
         }
+
+        $sale = $sale->withReturnedUnits((new UndeliveredReturns($this->db))->unitsOf($saleId));
 
         $this->transactional(function () use ($sale, $employeeId): void {
             $this->postCost($sale, $employeeId);

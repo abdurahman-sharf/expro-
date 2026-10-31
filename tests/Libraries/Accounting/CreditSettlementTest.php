@@ -2,6 +2,12 @@
 
 namespace Tests\Libraries\Accounting;
 
+use App\Libraries\Accounting\AccountingError;
+use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\CreditRefunds;
+use App\Libraries\Accounting\CreditSource;
+use App\Libraries\Accounting\CustomerAdvances;
 use App\Libraries\Accounting\CustomerLedger;
 use App\Libraries\Accounting\CustomerOpening;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -187,10 +193,34 @@ class CreditSettlementTest extends CIUnitTestCase
         $this->assertTies();
     }
 
-    public function testSettle_PaysACreditNoteIntoItsOwnInvoiceBeforeAnyOther(): void
+    public function testSettle_SendsACreditNoteToTheOldestOpenInvoiceAndNotToItsOwn(): void
     {
         $other = $this->invoiceOf('100.00');
         $own   = $this->invoiceOf('300.00');
+        $note  = $this->creditNoteOf($own, '150.00');
+
+        $this->assertSame(['credit_note:' . $note . '->' . $other . ':100.00', 'credit_note:' . $note . '->' . $own . ':50.00'], $this->applications());
+        $this->assertSame('0.00', bcadd($this->position()->invoice($other)->open(), '0', 2));
+        $this->assertSame('250.00', bcadd($this->position()->invoice($own)->open(), '0', 2));
+        $this->assertTies();
+    }
+
+    public function testSettle_SendsAWholeCreditNoteToTheOldestOpenInvoiceBeforeItsOwn(): void
+    {
+        $oldest = $this->invoiceOf('200.00');
+        $own    = $this->invoiceOf('100.00');
+        $note   = $this->creditNoteOf($own, '150.00');
+
+        $this->assertSame(['credit_note:' . $note . '->' . $oldest . ':150.00'], $this->applications());
+        $this->assertSame('50.00', bcadd($this->position()->invoice($oldest)->open(), '0', 2));
+        $this->assertSame('100.00', bcadd($this->position()->invoice($own)->open(), '0', 2));
+        $this->assertTies();
+    }
+
+    public function testSettle_SendsACreditNoteToItsOwnInvoiceWhenThatInvoiceIsTheOldestByDate(): void
+    {
+        $own   = $this->invoiceDated('300.00', $this->daysAgo(10));
+        $other = $this->invoiceDated('100.00', $this->daysAgo(3));
         $note  = $this->creditNoteOf($own, '150.00');
 
         $this->assertSame(['credit_note:' . $note . '->' . $own . ':150.00'], $this->applications());
@@ -198,15 +228,184 @@ class CreditSettlementTest extends CIUnitTestCase
         $this->assertTies();
     }
 
-    public function testSettle_SendsTheRestOfACreditNoteToTheOldestOpenInvoice(): void
+    public function testSettle_SendsACreditNoteToAnOlderInvoiceByDateEvenWhenItIsCreatedAfterItsOrigin(): void
     {
-        $oldest = $this->invoiceOf('200.00');
-        $own    = $this->invoiceOf('100.00');
-        $note   = $this->creditNoteOf($own, '150.00');
+        $own   = $this->invoiceDated('300.00', $this->daysAgo(3));
+        $older = $this->invoiceDated('100.00', $this->daysAgo(10));
+        $note  = $this->creditNoteOf($own, '120.00');
 
-        $this->assertSame(['credit_note:' . $note . '->' . $own . ':100.00', 'credit_note:' . $note . '->' . $oldest . ':50.00'], $this->applications());
-        $this->assertSame('150.00', bcadd($this->position()->invoice($oldest)->open(), '0', 2));
+        $this->assertGreaterThan($own, $older);
+        $this->assertSame(['credit_note:' . $note . '->' . $older . ':100.00', 'credit_note:' . $note . '->' . $own . ':20.00'], $this->applications());
         $this->assertTies();
+    }
+
+    public function testSettle_FollowsTheDateTypedOnTheInvoiceAndNotTheOrderTheyWereSavedIn(): void
+    {
+        $savedFirst  = $this->invoiceDated('100.00', $this->daysAgo(2));
+        $savedSecond = $this->invoiceDated('100.00', $this->daysAgo(20));
+        $payer       = $this->invoiceOf('10.00');
+
+        $this->addPayment($payer, '60.00');
+
+        $this->assertSame(['invoice_excess:' . $payer . '->' . $savedSecond . ':50.00'], $this->applications());
+        $this->assertSame('100.00', bcadd($this->position()->invoice($savedFirst)->open(), '0', 2));
+        $this->assertTies();
+    }
+
+    public function testSettle_BreaksATieOfDatesByTheOrderTheInvoicesWereCreatedInAsTheReferenceSystemDoes(): void
+    {
+        $case    = $this->receivable('credit-goes-to-the-invoice-created-first-when-the-dates-tie', 'exact');
+        $first   = $this->invoiceOf($case['inputs']['invoices'][0]['open']);
+        $second  = $this->invoiceOf($case['inputs']['invoices'][1]['open']);
+        $day     = $this->daysAgo(5);
+        $service = $this->item('0', false);
+
+        $this->accountingDb()->table('sales')->whereIn('sale_id', [$first, $second])->update(['sale_time' => $day . ' 10:00:00']);
+        $this->accountingDb()->table('sales')->where('sale_id', $first)->update(['invoice_number' => $case['inputs']['invoices'][0]['number']]);
+        $this->accountingDb()->table('sales')->where('sale_id', $second)->update(['invoice_number' => $case['inputs']['invoices'][1]['number']]);
+
+        $names = [$first => 'created_first', $second => 'created_second'];
+
+        foreach ($case['inputs']['credits'] as $credit) {
+            $this->assertGreaterThan(0, $this->save([$this->line($service, 0, '-1', $credit)], [], [], SALE_TYPE_RETURN));
+        }
+
+        $applied = array_map(
+            static fn (object $row): array => ['invoice' => $names[(int) $row->invoice_sale_id], 'amount' => bcadd((string) $row->amount, '0', 2)],
+            (new CustomerLedger())->applications($this->customerId),
+        );
+
+        $this->assertLessThan((int) $second, (int) $first);
+        $this->assertSame([], ParityFixture::differences($case['reference'], ['applied' => $applied]));
+        $this->assertSame([], ParityFixture::differences(['applied' => $applied], $case['reference']));
+        $this->assertTies();
+    }
+
+    public function testSettle_BreaksATieOfDatesByCreationAndNotByInvoiceNumberOrAmount(): void
+    {
+        $large   = $this->invoiceOf('500.00');
+        $small   = $this->invoiceOf('40.00');
+        $service = $this->item('0', false);
+
+        $this->accountingDb()->table('sales')->whereIn('sale_id', [$large, $small])->update(['sale_time' => $this->daysAgo(5) . ' 10:00:00']);
+        $this->accountingDb()->table('sales')->where('sale_id', $large)->update(['invoice_number' => '000099']);
+        $this->accountingDb()->table('sales')->where('sale_id', $small)->update(['invoice_number' => '000001']);
+
+        $this->assertGreaterThan(0, $this->save([$this->line($service, 0, '-1', '60.00')], [], [], SALE_TYPE_RETURN));
+        $this->assertSame('440.00', bcadd($this->position()->invoice($large)->open(), '0', 2));
+        $this->assertSame('40.00', bcadd($this->position()->invoice($small)->open(), '0', 2));
+        $this->assertTies();
+    }
+
+    public function testSettle_SpendsAnAdvanceOnTheOldestOpenInvoiceByDateAndThenByCreation(): void
+    {
+        $later   = $this->invoiceDated('100.00', $this->daysAgo(2));
+        $earlier = $this->invoiceDated('100.00', $this->daysAgo(9));
+        $tieA    = $this->invoiceDated('100.00', $this->daysAgo(5));
+        $tieB    = $this->invoiceDated('100.00', $this->daysAgo(5));
+
+        $advance = (new CustomerAdvances())->receive($this->customerId, '250.00', date('Y-m-d'), 'Cash', null, '', '', $this->advanceTaker());
+
+        $this->assertSame(
+            [
+                CreditSource::CUSTOMER_ADVANCE . ':' . $advance . '->' . $earlier . ':100.00',
+                CreditSource::CUSTOMER_ADVANCE . ':' . $advance . '->' . $tieA . ':100.00',
+                CreditSource::CUSTOMER_ADVANCE . ':' . $advance . '->' . $tieB . ':50.00',
+            ],
+            $this->applications(),
+        );
+        $this->assertSame('100.00', bcadd($this->position()->invoice($later)->open(), '0', 2));
+        $this->assertTies();
+    }
+
+    public function testSettle_SpendsTheOlderCreditFirstWhenACreditNoteAndAnAdvanceWaitForOneInvoice(): void
+    {
+        $first = $this->invoiceDated('10.00', $this->daysAgo(20), null, null, [$this->payment(lang('Sales.cash'), '10.00')]);
+        $note  = $this->creditNoteOf($first, '40.00');
+
+        $this->accountingDb()->table('sales')->where('sale_id', $note)->update(['sale_time' => $this->daysAgo(8) . ' 10:00:00']);
+
+        $advance = (new CustomerAdvances())->receive($this->customerId, '40.00', $this->daysAgo(3), 'Cash', null, '', '', $this->advanceTaker());
+        $invoice = $this->invoiceOf('60.00');
+
+        $this->assertSame(
+            ['credit_note:' . $note . '->' . $invoice . ':40.00', CreditSource::CUSTOMER_ADVANCE . ':' . $advance . '->' . $invoice . ':20.00'],
+            $this->applications(),
+        );
+        $this->assertTies();
+    }
+
+    public function testSettle_ReleasesWhatAnAdvanceSpentWhenItIsCancelledAndKeepsTheHistoryOfTheRelease(): void
+    {
+        $invoice = $this->invoiceOf('70.00');
+        $taker   = $this->advanceTaker();
+        $advance = (new CustomerAdvances())->receive($this->customerId, '100.00', date('Y-m-d'), 'Cash', null, '', '', $taker);
+
+        $this->assertSame([CreditSource::CUSTOMER_ADVANCE . ':' . $advance . '->' . $invoice . ':70.00'], $this->applications());
+
+        (new CustomerAdvances())->cancel($advance, 'taken by mistake', $taker);
+
+        $rows = $this->accountingDb()->table('customer_credit_applications')->where('invoice_sale_id', $invoice)->get()->getResult();
+
+        $this->assertSame([], $this->applications());
+        $this->assertCount(1, $rows);
+        $this->assertNotNull($rows[0]->released_at);
+        $this->assertSame((string) $taker, (string) $rows[0]->released_by);
+        $this->assertSame('70.00', bcadd($this->position()->invoice($invoice)->open(), '0', 2));
+        $this->assertTies();
+    }
+
+    public function testSettle_CutsTheAdvanceSpentOnAnInvoiceWhenCashIsPaidIntoItAfterwards(): void
+    {
+        $invoice = $this->invoiceOf('100.00');
+        $advance = (new CustomerAdvances())->receive($this->customerId, '100.00', date('Y-m-d'), 'Cash', null, '', '', $this->advanceTaker());
+
+        $this->assertSame('0.00', bcadd($this->position()->open(), '0', 2));
+
+        $this->addPayment($invoice, '30.00');
+
+        $this->assertSame([CreditSource::CUSTOMER_ADVANCE . ':' . $advance . '->' . $invoice . ':70.00'], $this->applications());
+        $this->assertSame('30.00', bcadd($this->position()->credit(), '0', 2));
+        $this->assertTies();
+    }
+
+    public function testSettle_RunAgainChangesNothingWhenAnAdvanceAndARefundStand(): void
+    {
+        $this->invoiceOf('60.00');
+
+        $taker = $this->advanceTaker();
+
+        (new CustomerAdvances())->receive($this->customerId, '200.00', date('Y-m-d'), 'Cash', null, '', '', $taker);
+        (new CreditRefunds(CreditRefunds::CUSTOMER))->refund($this->customerId, '50.00', date('Y-m-d'), 'Cash', null, '', '', $taker);
+
+        $rows = $this->accountingDb()->table('customer_credit_applications')->get()->getResultArray();
+
+        $this->settle();
+        $this->settle();
+
+        $this->assertSame($rows, $this->accountingDb()->table('customer_credit_applications')->get()->getResultArray());
+        $this->assertSame('90.00', bcadd($this->position()->credit(), '0', 2));
+        $this->assertTies();
+    }
+
+    public function testSettle_NeverSpendsCreditThatWasPaidBackInCash(): void
+    {
+        $taker = $this->advanceTaker();
+
+        (new CustomerAdvances())->receive($this->customerId, '100.00', date('Y-m-d'), 'Cash', null, '', '', $taker);
+        (new CreditRefunds(CreditRefunds::CUSTOMER))->refund($this->customerId, '70.00', date('Y-m-d'), 'Cash', null, '', '', $taker);
+
+        $invoice = $this->invoiceOf('200.00');
+
+        $this->assertSame('170.00', bcadd($this->position()->invoice($invoice)->open(), '0', 2));
+        $this->assertSame('0.00', bcadd($this->position()->credit(), '0', 2));
+        $this->assertSame('170.00', $this->balance($this->customerAccount()));
+        $this->assertTies();
+    }
+
+    private function advanceTaker(): int
+    {
+        return $this->employeeWithGrants([AccountingGuard::RECEIVABLES_MANAGE, AccountingGuard::RECEIVABLES_REFUND]);
     }
 
     public function testSettle_TakesBackWhatWasPaidIntoAnInvoiceThatIsCancelled(): void
@@ -421,9 +620,9 @@ class CreditSettlementTest extends CIUnitTestCase
         return $applied;
     }
 
-    public function testSettle_SendsTheCreditNoteOfAnInvoiceToItsOwnInvoiceFirstWhereTheReferenceSystemGoesByTheDateOfTheInvoicesAlone(): void
+    public function testSettle_SendsTheCreditNoteOfAnInvoiceToTheOldestInvoiceAsTheReferenceSystemDoes(): void
     {
-        $case = $this->referenceCase('T-34', 'credit_order', 'credit-note-of-an-invoice-goes-to-the-oldest-invoice-first', 'differs');
+        $case = $this->referenceCase('T-34', 'credit_order', 'credit-note-of-an-invoice-goes-to-the-oldest-invoice-first', 'exact');
         $ids  = $this->datedInvoices($case['inputs']['invoices']);
 
         $this->creditNoteOf($ids[$case['inputs']['credit_note']['of']], $case['inputs']['credit_note']['amount']);
@@ -552,6 +751,98 @@ class CreditSettlementTest extends CIUnitTestCase
 
         $this->assertSame(['opening' . $opening . ':50.00'], $standing, 'The excess is 50 now, and what was spent of the 70 before stays on the opening balance');
         $this->assertSame('250.00', bcadd($this->position()->invoice(-$opening)->open(), '0', 2));
+    }
+
+    private function refundOfTheCredit(string $amount): int
+    {
+        return (new CreditRefunds(CreditRefunds::CUSTOMER))->refund($this->customerId, $amount, date('Y-m-d'), 'Cash', null, '', '', $this->advanceTaker());
+    }
+
+    private function cancelRefund(int $refundId, string $reason): void
+    {
+        (new CreditRefunds(CreditRefunds::CUSTOMER))->cancel($refundId, $reason, $this->advanceTaker());
+    }
+
+    private function freeCredit(): string
+    {
+        return bcadd($this->position()->credit(), '0', 2);
+    }
+
+    public function testSettle_ForbidsDeletingThePaymentWhoseExcessWasPaidBackAndChangesNothing(): void
+    {
+        $invoice = $this->invoiceOf('230.00');
+        $paid    = $this->addPayment($invoice, '300.00');
+
+        $this->refundOfTheCredit('70.00');
+
+        $journals = $this->countJournals();
+        $before   = $this->accountingDb()->table('sales_payments')->where('payment_id', $paid)->get()->getRow();
+
+        $this->assertFalse($this->sales->update($invoice, ['comment' => 'removed', 'payments' => [
+            ['payment_id' => $paid, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '0', 'cash_refund' => 0, 'cash_adjustment' => 0, 'employee_id' => $this->employeeId, 'reference_code' => null],
+        ]]));
+
+        $failure = $this->failure();
+
+        $this->assertInstanceOf(AccountingException::class, $failure);
+        $this->assertSame(AccountingError::CreditRefunded, $failure->error);
+        $this->assertSame($journals, $this->countJournals());
+        $this->assertEquals($before, $this->accountingDb()->table('sales_payments')->where('payment_id', $paid)->get()->getRow());
+        $this->assertSame('0.00', $this->freeCredit());
+        $this->assertTies();
+    }
+
+    public function testSettle_ForbidsCuttingThePaymentBelowWhatWasPaidBackAndAllowsCuttingItAboveIt(): void
+    {
+        $invoice = $this->invoiceOf('230.00');
+        $paid    = $this->addPayment($invoice, '300.00');
+
+        $this->refundOfTheCredit('50.00');
+
+        $cut = fn (string $amount): bool => $this->sales->update($invoice, ['comment' => 'cut', 'payments' => [
+            ['payment_id' => $paid, 'payment_type' => lang('Sales.cash'), 'payment_amount' => $amount, 'cash_refund' => 0, 'cash_adjustment' => 0, 'employee_id' => $this->employeeId, 'reference_code' => null],
+        ]]);
+
+        $this->assertFalse($cut('270.00'));
+        $this->assertSame(AccountingError::CreditRefunded, $this->failure()->error);
+        $this->assertSame('300.0000', bcadd($this->accountingDb()->table('sales_payments')->where('payment_id', $paid)->get()->getRow()->payment_amount, '0', 4));
+
+        $this->assertTrue($cut('290.00'));
+        $this->assertSame('10.00', $this->freeCredit());
+        $this->assertTies();
+    }
+
+    public function testSettle_CutsWhatWasSpentOnAnInvoiceWhenTheCreditShrinksToWhatWasPaidBack(): void
+    {
+        $source = $this->invoiceOf('100.00');
+        $paid   = $this->addPayment($source, '150.00');
+        $waits  = $this->invoiceOf('30.00');
+
+        $this->assertSame(['invoice_excess:' . $source . '->' . $waits . ':30.00'], $this->applications());
+
+        $this->refundOfTheCredit('20.00');
+
+        $this->assertTrue($this->sales->update($source, ['comment' => 'cut', 'payments' => [
+            ['payment_id' => $paid, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '120.00', 'cash_refund' => 0, 'cash_adjustment' => 0, 'employee_id' => $this->employeeId, 'reference_code' => null],
+        ]]));
+
+        $this->assertSame([], $this->applications());
+        $this->assertSame('30.00', bcadd($this->position()->invoice($waits)->open(), '0', 2));
+        $this->assertSame('0.00', $this->freeCredit());
+        $this->assertTies();
+    }
+
+    public function testSettle_AllowsDeletingThePaymentOnceTheRefundIsCancelled(): void
+    {
+        $invoice  = $this->invoiceOf('230.00');
+        $paid     = $this->addPayment($invoice, '300.00');
+        $refundId = $this->refundOfTheCredit('70.00');
+
+        $this->cancelRefund($refundId, 'paid twice');
+        $this->removePayment($invoice, $paid);
+
+        $this->assertSame('230.00', bcadd($this->position()->invoice($invoice)->open(), '0', 2));
+        $this->assertSame('0.00', $this->freeCredit());
         $this->assertTies();
     }
 }

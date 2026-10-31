@@ -1,6 +1,6 @@
 {
   "id": "T-30",
-  "title": "A credit note for 1 of the 2 units of an invoice whose goods were never delivered: the reference system accepts it and returns stock that never left, this application refuses it until the delivery is confirmed; once delivered, both leave the same cost and stock",
+  "title": "A credit note for 1 of the 2 units of an invoice whose goods were never delivered: the reference system accepts it and returns stock that never left with a cost return journal; this application accepts it too (E63) but moves no stock and posts no cost, and the delivery that comes later takes out only the unit that stayed sold, so the books end the same",
   "recorded": "2026-10-27",
   "observation": {
     "batch": "d1",
@@ -34,7 +34,7 @@
       "id": "credit-note-on-an-undelivered-invoice",
       "kind": "undelivered_credit_note",
       "classification": "deliberate_difference",
-      "reason": "The reference system posts the revenue return and a cost return for goods that never left the stock, which raises the stock above what it holds. The owner decided (E23) that a credit note on an invoice whose delivery is not confirmed is refused and posts nothing; the delivery is confirmed first.",
+      "reason": "The reference system posts the revenue return and a cost return for goods that never left the stock, which raises the stock above what it holds until the delivery is confirmed. This application accepts the credit note on the same terms, posts its revenue return and the customer settlement, and posts no cost journal and moves no stock (E63): the books are sound at every moment, and the delivery takes out only what stayed sold.",
       "evidence": [
         "credit_note_000008"
       ],
@@ -106,11 +106,33 @@
         }
       },
       "expected": {
-        "accepted": false,
-        "journals_posted": "0",
+        "accepted": true,
+        "journals_posted": "1",
         "stock_change": "0",
-        "detail": {
-          "error": "return_of_undelivered"
+        "journals": {
+          "credit_note": [
+            {
+              "role": "sales_returns",
+              "debit": "100",
+              "credit": "0",
+              "code": "412",
+              "name": "مردودات المبيعات"
+            },
+            {
+              "role": "tax_output",
+              "debit": "15",
+              "credit": "0",
+              "code": "215001",
+              "name": "القيمة المضافة المحصلة"
+            },
+            {
+              "role": "customer",
+              "debit": "0",
+              "credit": "115",
+              "code": "12041005",
+              "name": "افتراضي-D1 عميل"
+            }
+          ]
         }
       }
     },
@@ -142,17 +164,54 @@
           "price": "100.00",
           "discount": "0"
         },
-        "order": "The reference system took the credit note first and the delivery last; this application takes the delivery first and the credit note after it"
+        "order": "Both take the credit note first and the delivery last; the reference system's delivery cost is for the units invoiced, this application's for the units that stayed sold, and both end with the same net cost and stock"
       },
       "reference": {
-        "delivery_cost": "120.00",
         "net_cost_after_both": "60.00",
         "net_stock_after_both": "-1"
       },
       "expected": {
-        "delivery_cost": "120.00",
         "net_cost_after_both": "60.00",
         "net_stock_after_both": "-1"
+      }
+    },
+    {
+      "id": "delivery-takes-out-only-what-was-not-returned",
+      "kind": "undelivered_credit_note",
+      "classification": "deliberate_difference",
+      "reason": "After a credit note on the undelivered invoice, the reference system's delivery posts the cost of the whole quantity invoiced (120 for two units) and takes both units out, and its earlier cost return of 60 puts one back; this application's delivery posts the cost of the one unit that stayed sold (60) and takes one unit out, because its credit note moved nothing. The net cost and the net stock are the same.",
+      "evidence": [
+        "delivery_after"
+      ],
+      "inputs": {
+        "invoice": {
+          "lines": [
+            {
+              "item": "stock",
+              "cost": "60.00",
+              "quantity": "2",
+              "price": "100.00",
+              "discount": "0",
+              "tax_percent": "15"
+            }
+          ],
+          "delivered": false
+        },
+        "credit_note": {
+          "line": 0,
+          "quantity": "-1",
+          "price": "100.00",
+          "discount": "0"
+        },
+        "order": "Both take the credit note first and the delivery last; the reference system's delivery cost is for the units invoiced, this application's for the units that stayed sold, and both end with the same net cost and stock"
+      },
+      "reference": {
+        "delivery_cost": "120.00",
+        "delivery_stock_change": "-2"
+      },
+      "expected": {
+        "delivery_cost": "60.00",
+        "delivery_stock_change": "-1"
       }
     }
   ]

@@ -3,7 +3,10 @@
 namespace Tests\Libraries\Accounting;
 
 use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\BalanceTable;
+use App\Libraries\Accounting\CreditRefunds;
+use App\Libraries\Accounting\CustomerAdvances;
 use App\Libraries\Accounting\CustomerBalanceReport;
 use App\Libraries\Accounting\CustomerOpening;
 use App\Libraries\Accounting\JournalDraft;
@@ -293,5 +296,39 @@ class CustomerBalanceReportTest extends CIUnitTestCase
         $this->expectException(AccountingException::class);
 
         $this->report(date('Y-m-d'), $this->daysAgo(3));
+    }
+
+    public function testBuild_CountsAnAdvancePaymentAndACashRefundUnderPaymentsAndTheyReconcile(): void
+    {
+        $this->addPayment($this->invoiceOf('300.00'), '300.00');
+
+        $clerk = $this->employeeWithGrants([AccountingGuard::RECEIVABLES_MANAGE, AccountingGuard::RECEIVABLES_REFUND]);
+
+        (new CustomerAdvances())->receive($this->customerId, '80.00', date('Y-m-d'), 'Cash', null, '', '', $clerk);
+        (new CreditRefunds(CreditRefunds::CUSTOMER))->refund($this->customerId, '30.00', date('Y-m-d'), 'Cash', null, '', '', $clerk);
+
+        $table = $this->report(date('Y-m-d'));
+        $row   = $this->rowOf($table, $this->customerId);
+
+        $this->assertSame('300.0000', $row['sales']);
+        $this->assertSame('350.0000', $row['payments']);
+        $this->assertSame('0.0000', $row['other']);
+        $this->assertSame('-50.0000', $row['balance']);
+        $this->assertTrue($table->rows[0]->adds());
+        $this->assertFalse($table->hasOther());
+        $this->assertSame(bcadd($this->balance($this->customerAccount()), '0', 4), $row['balance']);
+    }
+
+    public function testBuild_CountsACancelledAdvanceWithTheDocumentItReversesSoItLeavesNothing(): void
+    {
+        $clerk     = $this->employeeWithGrants([AccountingGuard::RECEIVABLES_MANAGE]);
+        $advanceId = (new CustomerAdvances())->receive($this->customerId, '80.00', date('Y-m-d'), 'Cash', null, '', '', $clerk);
+
+        (new CustomerAdvances())->cancel($advanceId, 'taken by mistake', $clerk);
+
+        $table = $this->report(date('Y-m-d'), null, false);
+        $row   = $this->rowOf($table, $this->customerId);
+
+        $this->assertSame(['payments' => '0.0000', 'other' => '0.0000', 'balance' => '0.0000'], array_intersect_key($row, array_flip(['payments', 'other', 'balance'])));
     }
 }

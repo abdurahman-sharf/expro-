@@ -43,6 +43,8 @@
  * @var bool      $can_type_invoice_date
  * @var string    $today
  * @var int|null  $return_origin
+ * @var bool      $can_override_return
+ * @var string|null $return_override
  * @var string    $return_document
  * @var bool      $email_receipt
  * @var bool      $price_work_orders
@@ -157,6 +159,24 @@ $employee        = model(Employee::class);
                     <span class="text-body-secondary small"><?= lang("{$sectionName}.return_origin_help") ?></span>
                 </div>
             <?= form_close() ?>
+
+            <?php if ($can_override_return && $return_origin === null): ?>
+                <?= form_open("{$controller_name}/setReturnOverride", ['id' => 'return_override_form', 'class' => 'app-form card']) ?>
+                    <div class="card-body pos-bar">
+                        <div class="pos-field">
+                            <label for="return_override_reason" class="pos-label"><?= lang("{$sectionName}.return_override_label") ?></label>
+                            <div class="input-group input-group-sm">
+                                <?= form_input(['name' => 'return_override_reason', 'id' => 'return_override_reason', 'class' => 'form-control form-control-sm', 'value' => $return_override ?? '', 'maxlength' => 255, 'autocomplete' => 'off', 'placeholder' => lang("{$sectionName}.return_override_reason")]) ?>
+                                <button type="submit" class="btn btn-outline-secondary btn-sm"><?= lang("{$sectionName}.return_override_set") ?></button>
+                            </div>
+                        </div>
+                        <span class="text-body-secondary small"><?= lang("{$sectionName}.return_override_help") ?></span>
+                        <?php if ($return_override !== null): ?>
+                            <span class="badge text-bg-warning" id="return_override_active"><?= lang("{$sectionName}.return_override_active") ?></span>
+                        <?php endif; ?>
+                    </div>
+                <?= form_close() ?>
+            <?php endif; ?>
         <?php endif; ?>
 
         <?= form_open("{$controller_name}/add", ['id' => 'add_item_form', 'class' => 'app-form card']) ?>

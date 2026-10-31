@@ -12,6 +12,10 @@
  * @var bool             $can_open
  * @var bool             $can_change
  * @var bool             $can_revise
+ * @var list<object>     $advances
+ * @var list<object>     $refunds
+ * @var bool             $can_manage
+ * @var bool             $can_refund
  * @var Closure          $amount
  * @var Closure          $date
  */
@@ -23,10 +27,25 @@ use App\Libraries\Accounting\CustomerPosition;
 $aging = $position->aging($today);
 
 $sourceLabel = static fn (string $type, int $sourceId): string => lang(match (true) {
-    $type === CreditSource::OPENING     => 'Accounting_receivables.source_opening',
-    $type !== CreditSource::CREDIT_NOTE => 'Accounting_receivables.source_excess',
-    default                             => in_array($sourceId, $refund_invoices, true) ? 'Numbering.type_refund_invoice' : 'Accounting_receivables.source_credit_note',
+    $type === CreditSource::CUSTOMER_ADVANCE    => 'Accounting_receivables.source_advance',
+    $type === CreditSource::OPENING             => 'Accounting_receivables.source_opening',
+    $type !== CreditSource::CREDIT_NOTE         => 'Accounting_receivables.source_excess',
+    in_array($sourceId, $refund_invoices, true) => 'Numbering.type_refund_invoice',
+    default                                     => 'Accounting_receivables.source_credit_note',
 });
+
+$advanceNumbers = [];
+
+foreach ($advances as $advance) {
+    $number                                     = (string) $advance->number;
+    $advanceNumbers[(int) $advance->advance_id] = ctype_digit($number) ? '#' . $number : $number;
+}
+
+$sourceLink = static fn (string $type, int $sourceId): string => match ($type) {
+    CreditSource::CUSTOMER_ADVANCE => '<bdi dir="ltr">' . esc($advanceNumbers[$sourceId] ?? '#' . $sourceId) . '</bdi>',
+    CreditSource::OPENING          => '<bdi dir="ltr">#' . $sourceId . '</bdi>',
+    default                        => anchor('sales/receipt/' . $sourceId, 'POS ' . $sourceId, ['target' => '_blank', 'dir' => 'ltr']),
+};
 ?>
 
 <?= view('partial/header') ?>
@@ -44,6 +63,16 @@ $sourceLabel = static fn (string $type, int $sourceId): string => lang(match (tr
     <?php if ($can_open): ?>
         <button class="btn btn-outline-secondary btn-sm modal-dlg" id="customer_opening_new" data-btn-submit="<?= lang('Common.submit') ?>" data-href="accounting_receivables/opening_form/<?= $customer_id ?>" title="<?= lang('Accounting_receivables.opening_new') ?>">
             <span class="bi bi-flag" aria-hidden="true">&nbsp;</span><?= lang('Accounting_receivables.opening_new') ?>
+        </button>
+    <?php endif; ?>
+    <?php if ($can_refund): ?>
+        <button class="btn btn-outline-secondary btn-sm modal-dlg" id="customer_refund_button" data-btn-submit="<?= lang('Common.submit') ?>" data-href="accounting_receivables/refund_form/<?= $customer_id ?>" title="<?= lang('Accounting_receivables.refund_new') ?>">
+            <span class="bi bi-arrow-return-left" aria-hidden="true">&nbsp;</span><?= lang('Accounting_receivables.refund_new') ?>
+        </button>
+    <?php endif; ?>
+    <?php if ($can_manage): ?>
+        <button class="btn btn-primary btn-sm modal-dlg" id="customer_advance_button" data-btn-submit="<?= lang('Common.submit') ?>" data-href="accounting_receivables/advance_form/<?= $customer_id ?>" title="<?= lang('Accounting_receivables.advance_new') ?>">
+            <span class="bi bi-cash-coin" aria-hidden="true">&nbsp;</span><?= lang('Accounting_receivables.advance_new') ?>
         </button>
     <?php endif; ?>
 </div>
@@ -216,28 +245,109 @@ $sourceLabel = static fn (string $type, int $sourceId): string => lang(match (tr
                     <th scope="col"><?= lang('Accounting_receivables.date') ?></th>
                     <th scope="col"><?= lang('Accounting_receivables.total') ?></th>
                     <th scope="col"><?= lang('Accounting_receivables.credit_applied') ?></th>
+                    <th scope="col"><?= lang('Accounting_receivables.refunded') ?></th>
                     <th scope="col"><?= lang('Accounting_receivables.available') ?></th>
                 </tr>
             </thead>
             <tbody>
                 <?php foreach ($position->credits as $source): ?>
                     <tr>
-                        <td>
-                            <?= esc($sourceLabel($source->type, $source->sourceId)) ?>
-                            <?php if ($source->type === CreditSource::OPENING): ?>
-                                <bdi dir="ltr">#<?= $source->sourceId ?></bdi>
-                            <?php else: ?>
-                                <?= anchor('sales/receipt/' . $source->sourceId, 'POS ' . $source->sourceId, ['target' => '_blank', 'dir' => 'ltr']) ?>
-                            <?php endif; ?>
-                        </td>
+                        <td><?= esc($sourceLabel($source->type, $source->sourceId)) ?> <?= $sourceLink($source->type, $source->sourceId) ?></td>
                         <td><?= esc($date($source->date)) ?></td>
                         <td><?= $amount($source->amount) ?></td>
                         <td><?= $amount($source->applied) ?></td>
+                        <td><?= $amount($source->refunded) ?></td>
                         <td><?= $amount($source->available()) ?></td>
                     </tr>
                 <?php endforeach; ?>
                 <?php if ($position->credits === []): ?>
-                    <tr><td colspan="5"><?= lang('Accounting_receivables.no_credits') ?></td></tr>
+                    <tr><td colspan="6"><?= lang('Accounting_receivables.no_credits') ?></td></tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
+
+    <h2 class="h5"><?= lang('Accounting_receivables.advances') ?></h2>
+    <div class="table-responsive mb-4">
+        <table class="table table-sm" id="receivable_advances">
+            <thead>
+                <tr>
+                    <th scope="col"><?= lang('Accounting_receivables.advance_number') ?></th>
+                    <th scope="col"><?= lang('Accounting_receivables.date') ?></th>
+                    <th scope="col"><?= lang('Accounting_receivables.amount') ?></th>
+                    <th scope="col"><?= lang('Accounting_receivables.treasury') ?></th>
+                    <th scope="col"><?= lang('Accounting_receivables.reference') ?></th>
+                    <th scope="col"><?= lang('Accounting_receivables.note_label') ?></th>
+                    <th scope="col"><?= lang('Accounting_receivables.status') ?></th>
+                    <th scope="col"></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($advances as $advance): ?>
+                    <tr>
+                        <td><bdi dir="ltr"><?= esc((string) $advance->number) ?></bdi></td>
+                        <td><?= esc($date((string) $advance->advance_date)) ?></td>
+                        <td><?= $amount((string) $advance->amount) ?></td>
+                        <td><?= esc((string) ($advance->treasury_name ?? '')) ?></td>
+                        <td><?= esc((string) $advance->reference_code) ?></td>
+                        <td><?= esc((string) $advance->note) ?></td>
+                        <td><span class="badge <?= $advance->status === 'cancelled' ? 'text-bg-secondary' : 'text-bg-success' ?>"><?= esc(lang('Accounting_receivables.status_' . $advance->status)) ?></span></td>
+                        <td>
+                            <?php if ($can_manage && $advance->status === 'completed'): ?>
+                                <?= anchor(
+                                    'accounting_receivables/cancel_form/customer_advance/' . (int) $advance->advance_id,
+                                    '<span class="bi bi-x-circle" aria-hidden="true"></span>',
+                                    ['class' => 'modal-dlg', 'data-btn-submit' => lang('Common.submit'), 'title' => lang('Accounting_receivables.cancel'), 'aria-label' => lang('Accounting_receivables.cancel')],
+                                ) ?>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+                <?php if ($advances === []): ?>
+                    <tr><td colspan="8"><?= lang('Accounting_receivables.no_advances') ?></td></tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
+
+    <h2 class="h5"><?= lang('Accounting_receivables.refunds') ?></h2>
+    <div class="table-responsive mb-4">
+        <table class="table table-sm" id="receivable_refunds">
+            <thead>
+                <tr>
+                    <th scope="col"><?= lang('Accounting_receivables.advance_number') ?></th>
+                    <th scope="col"><?= lang('Accounting_receivables.date') ?></th>
+                    <th scope="col"><?= lang('Accounting_receivables.amount') ?></th>
+                    <th scope="col"><?= lang('Accounting_receivables.treasury') ?></th>
+                    <th scope="col"><?= lang('Accounting_receivables.reference') ?></th>
+                    <th scope="col"><?= lang('Accounting_receivables.note_label') ?></th>
+                    <th scope="col"><?= lang('Accounting_receivables.status') ?></th>
+                    <th scope="col"></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($refunds as $refund): ?>
+                    <tr>
+                        <td><bdi dir="ltr">#<?= (int) $refund->refund_id ?></bdi></td>
+                        <td><?= esc($date((string) $refund->refund_date)) ?></td>
+                        <td><?= $amount((string) $refund->amount) ?></td>
+                        <td><?= esc((string) ($refund->treasury_name ?? '')) ?></td>
+                        <td><?= esc((string) $refund->reference_code) ?></td>
+                        <td><?= esc((string) $refund->note) ?></td>
+                        <td><span class="badge <?= $refund->status === 'cancelled' ? 'text-bg-secondary' : 'text-bg-success' ?>"><?= esc(lang('Accounting_receivables.status_' . $refund->status)) ?></span></td>
+                        <td>
+                            <?php if ($can_refund && $refund->status === 'completed'): ?>
+                                <?= anchor(
+                                    'accounting_receivables/cancel_form/customer_refund/' . (int) $refund->refund_id,
+                                    '<span class="bi bi-x-circle" aria-hidden="true"></span>',
+                                    ['class' => 'modal-dlg', 'data-btn-submit' => lang('Common.submit'), 'title' => lang('Accounting_receivables.cancel'), 'aria-label' => lang('Accounting_receivables.cancel')],
+                                ) ?>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+                <?php if ($refunds === []): ?>
+                    <tr><td colspan="8"><?= lang('Accounting_receivables.no_refunds') ?></td></tr>
                 <?php endif; ?>
             </tbody>
         </table>

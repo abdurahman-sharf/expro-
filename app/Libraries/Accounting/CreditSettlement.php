@@ -10,9 +10,10 @@ use Config\Database;
  * a customer owes (an invoice, a payment, a credit note, a cancellation) and does two things:
  * it releases what no longer holds (credit applied to an invoice that is gone, or taken from a
  * credit that is gone or has shrunk, or applied beyond what the invoice still owed), and it
- * applies the credit that is free to the invoices that are open, the oldest first. A credit note
- * goes to the invoice it came from first. No journal is written, because the account of the
- * customer already carries the credit.
+ * applies the credit that is free to the invoices that are open, the one dated earliest first, and
+ * among invoices of one date the one created first. The invoice a credit note came from has no
+ * priority: the reference system walks the open invoices by date alone. No journal is written,
+ * because the account of the customer already carries the credit.
  *
  * The caller holds the lock of the customer (CustomerLock) and is inside a transaction, so the
  * ledger it reads is the ledger as the last change left it.
@@ -88,7 +89,7 @@ final class CreditSettlement
         $position = $this->ledger->position($customerId);
 
         foreach ($position->credits as $source) {
-            $over = bcsub($source->applied, $source->amount, SaleAmounts::SCALE);
+            $over = bcsub(bcadd($source->applied, $source->refunded, SaleAmounts::SCALE), $source->amount, SaleAmounts::SCALE);
 
             if (bccomp($over, '0', SaleAmounts::SCALE) <= 0) {
                 continue;
@@ -107,6 +108,36 @@ final class CreditSettlement
                 if (bccomp($over, '0', SaleAmounts::SCALE) <= 0) {
                     break;
                 }
+            }
+        }
+
+        $this->assertRefundsHold($customerId);
+    }
+
+    /**
+     * What was paid back in cash cannot be spent again: a credit that a refund took from must still
+     * be there and still be as large as the refund, or the change that would shrink it is refused and
+     * the refund is cancelled first.
+     *
+     * @throws AccountingException
+     */
+    private function assertRefundsHold(int $customerId): void
+    {
+        $refunded = $this->ledger->refundedSources($customerId);
+
+        if ($refunded === []) {
+            return;
+        }
+
+        $sources = [];
+
+        foreach ($this->ledger->position($customerId)->credits as $source) {
+            $sources[$source->type . ':' . $source->sourceId] = $source;
+        }
+
+        foreach ($refunded as $key => $amount) {
+            if (! isset($sources[$key]) || bccomp($sources[$key]->amount, $amount, SaleAmounts::SCALE) < 0) {
+                throw new AccountingException(AccountingError::CreditRefunded, 'The credit of this document was paid back in cash, so it cannot change until the refund is cancelled.', ['customer_id' => $customerId]);
             }
         }
     }
@@ -130,10 +161,6 @@ final class CreditSettlement
 
         foreach ($sources as $source) {
             $available = $source->available();
-
-            if ($source->originId !== null && isset($open[$source->originId])) {
-                $available = $this->give($customerId, $source, $source->originId, $available, $open, $employeeId);
-            }
 
             foreach (array_keys($open) as $invoiceId) {
                 if (bccomp($available, '0', SaleAmounts::SCALE) <= 0) {

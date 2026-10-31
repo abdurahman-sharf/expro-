@@ -5,6 +5,8 @@ namespace App\Controllers;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\AgedLedgerTable;
+use App\Libraries\Accounting\CreditRefunds;
+use App\Libraries\Accounting\CustomerAdvances;
 use App\Libraries\Accounting\CustomerBalanceReport;
 use App\Libraries\Accounting\CustomerDocuments;
 use App\Libraries\Accounting\CustomerLedger;
@@ -15,6 +17,8 @@ use App\Libraries\Accounting\PaymentStatus;
 use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\Accounting\SaleAmounts;
+use App\Libraries\Accounting\TreasuryScopes;
+use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Organization\BranchService;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\HTTP\ResponseInterface;
@@ -32,6 +36,8 @@ class AccountingReceivables extends AccountingController
     private CustomerDocuments $documents;
     private CustomerBalanceReport $balances;
     private CustomerOpening $openings;
+    private CustomerAdvances $advances;
+    private CreditRefunds $refunds;
 
     public function __construct()
     {
@@ -41,6 +47,8 @@ class AccountingReceivables extends AccountingController
         $this->balances  = new CustomerBalanceReport();
         $this->documents = new CustomerDocuments();
         $this->openings  = new CustomerOpening(null, null, $this->branchGuard());
+        $this->advances  = new CustomerAdvances(null, null, $this->branchGuard());
+        $this->refunds   = new CreditRefunds(CreditRefunds::CUSTOMER, null, null, $this->branchGuard());
     }
 
     public function getIndex(): string
@@ -111,6 +119,10 @@ class AccountingReceivables extends AccountingController
             'can_open'        => $this->can(AccountingGuard::OPENING_MANAGE) && (new AccountingSettings())->customerOpeningEnabled() && $this->openings->standingFor($customerId) === null,
             'can_change'      => $this->can(AccountingGuard::OPENING_MANAGE),
             'can_revise'      => (new AccountingSettings())->customerOpeningEnabled(),
+            'advances'        => $this->advances->forCustomer($customerId),
+            'refunds'         => $this->refunds->forParty($customerId),
+            'can_manage'      => $this->can(AccountingGuard::RECEIVABLES_MANAGE),
+            'can_refund'      => $this->can(AccountingGuard::RECEIVABLES_REFUND),
             'amount'          => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
             'date'            => fn (string $value): string => $this->formatDate($value),
         ]);
@@ -332,6 +344,126 @@ class AccountingReceivables extends AccountingController
         ]);
     }
 
+    public function getAdvanceForm(int $customerId): string
+    {
+        $this->requireMay(AccountingGuard::RECEIVABLES_MANAGE, $customerId);
+
+        return view('accounting_receivables/advance_form', [
+            'customer_id'     => $customerId,
+            'customer_name'   => $this->customerName($customerId),
+            'payment_options' => $this->cashWays(),
+            'treasuries'      => $this->treasuryChoices(TreasuryScopes::DEPOSIT),
+            'today'           => date('Y-m-d'),
+            'request_key'     => bin2hex(random_bytes(16)),
+        ]);
+    }
+
+    public function postAdvance(int $customerId): ResponseInterface
+    {
+        $this->requireCompanyScope();
+
+        return $this->attempt(function () use ($customerId): array {
+            $treasuryId = (int) $this->request->getPost('treasury_id');
+
+            $id = $this->advances->receive(
+                $customerId,
+                trim((string) $this->request->getPost('amount')),
+                trim((string) $this->request->getPost('advance_date')),
+                trim((string) $this->request->getPost('payment_type')),
+                $treasuryId > 0 ? $treasuryId : null,
+                (string) $this->request->getPost('reference_code'),
+                (string) $this->request->getPost('note'),
+                $this->employeeId(),
+                (string) $this->request->getPost('request_key'),
+            );
+
+            return ['success' => true, 'message' => lang('Accounting_receivables.advance_done'), 'id' => $id];
+        });
+    }
+
+    public function getRefundForm(int $customerId): string
+    {
+        $this->requireMay(AccountingGuard::RECEIVABLES_REFUND, $customerId);
+
+        return view('accounting_receivables/refund_form', [
+            'customer_id'     => $customerId,
+            'customer_name'   => $this->customerName($customerId),
+            'payment_options' => $this->cashWays(),
+            'treasuries'      => $this->treasuryChoices(TreasuryScopes::WITHDRAW),
+            'today'           => date('Y-m-d'),
+            'free'            => $this->amountCell($this->formatAmount($this->refunds->available($customerId))),
+            'request_key'     => bin2hex(random_bytes(16)),
+        ]);
+    }
+
+    public function postRefund(int $customerId): ResponseInterface
+    {
+        $this->requireCompanyScope();
+
+        return $this->attempt(function () use ($customerId): array {
+            $treasuryId = (int) $this->request->getPost('treasury_id');
+
+            $id = $this->refunds->refund(
+                $customerId,
+                trim((string) $this->request->getPost('amount')),
+                trim((string) $this->request->getPost('refund_date')),
+                trim((string) $this->request->getPost('payment_type')),
+                $treasuryId > 0 ? $treasuryId : null,
+                (string) $this->request->getPost('reference_code'),
+                (string) $this->request->getPost('note'),
+                $this->employeeId(),
+                (string) $this->request->getPost('request_key'),
+            );
+
+            return ['success' => true, 'message' => lang('Accounting_receivables.refund_done'), 'id' => $id];
+        });
+    }
+
+    public function getCancelForm(string $what, int $id): string
+    {
+        $this->requireCompanyScope();
+
+        $permission = $what === CustomerAdvances::SOURCE ? AccountingGuard::RECEIVABLES_MANAGE : AccountingGuard::RECEIVABLES_REFUND;
+        $branch     = match ($what) {
+            CustomerAdvances::SOURCE       => $this->advances->branchOf($id),
+            CreditRefunds::CUSTOMER_SOURCE => $this->refunds->branchOf($id),
+            default                        => null,
+        };
+
+        if ($branch === null || ! $this->can($permission)) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        return view('accounting_receivables/cancel_form', ['what' => $what, 'id' => $id]);
+    }
+
+    public function postCancel(string $what, int $id): ResponseInterface
+    {
+        $this->requireCompanyScope();
+
+        return $this->attempt(function () use ($what, $id): array {
+            $reason = (string) $this->request->getPost('reason');
+
+            match ($what) {
+                CustomerAdvances::SOURCE       => $this->advances->cancel($id, $reason, $this->employeeId()),
+                CreditRefunds::CUSTOMER_SOURCE => $this->refunds->cancel($id, $reason, $this->employeeId()),
+                default                        => throw PageNotFoundException::forPageNotFound(),
+            };
+
+            return ['success' => true, 'message' => lang('Accounting_receivables.cancelled_done'), 'id' => $id];
+        });
+    }
+
+    private function requireMay(string $permission, int $customerId): void
+    {
+        $this->requireCompanyScope();
+
+        if (! $this->can($permission) || $this->ledger->position($customerId)->accountId === null) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+    }
+
+
     private function requireOpeningManage(int $customerId): void
     {
         $this->requireCompanyScope();
@@ -340,6 +472,7 @@ class AccountingReceivables extends AccountingController
             throw PageNotFoundException::forPageNotFound();
         }
     }
+
 
     private function standingOpening(int $openingId): object
     {
@@ -352,6 +485,37 @@ class AccountingReceivables extends AccountingController
         }
 
         return $opening;
+    }
+
+    /**
+     * The ways a customer pays or is paid back: the ways of payment a sale takes, less credit
+     * sales, which move no money through a treasury.
+     *
+     * @return array<string, string>
+     */
+    private function cashWays(): array
+    {
+        $options = get_payment_options();
+
+        unset($options[lang('Sales.due')]);
+
+        return $options;
+    }
+
+    /**
+     * The treasuries the employee may use in the direction, with the one that follows the way of payment first.
+     *
+     * @return array<int, string>
+     */
+    private function treasuryChoices(string $direction): array
+    {
+        $choices = [0 => lang('Accounting_receivables.treasury_default')];
+
+        foreach ((new TreasuryScopes())->usable((new TreasuryService())->all($this->branchIds(), false), $direction, $this->employeeId()) as $treasury) {
+            $choices[(int) $treasury->treasury_id] = $treasury->name . ' (' . $treasury->branch_code . ')';
+        }
+
+        return count($choices) > 2 ? $choices : [];
     }
 
     private function requireCompanyScope(): void

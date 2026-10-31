@@ -2,10 +2,12 @@
 
 namespace Tests\Libraries\Accounting;
 
+use App\Libraries\Accounting\AccountingError;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\CreditRefundFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\ParityCaseTrait;
@@ -28,6 +30,7 @@ class SupplierSettlementTest extends CIUnitTestCase
     use ParityCaseTrait;
     use SaleAccountingFixtureTrait;
     use PurchaseAccountingFixtureTrait;
+    use CreditRefundFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -480,5 +483,53 @@ class SupplierSettlementTest extends CIUnitTestCase
         $entries = [...ParityFixture::routesMatching('overpaid'), ...ParityFixture::routesMatching('overpay'), ...ParityFixture::routesMatching('excess')];
 
         $this->assertSameAsFixture($case['expected'], ['settle_button' => $entries !== [], 'options' => $entries], 'settle button');
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // What the credit a supplier refund took from protects (WP23)
+    // ---------------------------------------------------------------------------------------
+
+    public function testSettle_ForbidsCuttingThePaymentWhoseExcessWasPaidBackAndChangesNothing(): void
+    {
+        $purchase = $this->purchaseOf('230.00');
+        $payment  = $this->payPurchase($purchase, '300.00');
+
+        $this->supplierRefund('70.00');
+
+        $journals = $this->countRows('accounting_journals');
+
+        $this->assertFalse($this->changePayment($purchase, $payment, ['payment_amount' => '230.00']));
+        $this->assertSame(AccountingError::CreditRefunded, $this->purchases->accountingFailure()->error);
+        $this->assertSame($journals, $this->countRows('accounting_journals'));
+        $this->assertSame('300.0000', bcadd($this->accountingDb()->table('receivings_payments')->where('payment_id', $payment)->get()->getRow()->payment_amount, '0', 4));
+        $this->assertSupplierTies();
+    }
+
+    public function testSettle_ForbidsCuttingThePaymentBelowWhatWasPaidBackAndAllowsCuttingItAboveIt(): void
+    {
+        $purchase = $this->purchaseOf('230.00');
+        $payment  = $this->payPurchase($purchase, '300.00');
+
+        $this->supplierRefund('50.00');
+
+        $this->assertFalse($this->changePayment($purchase, $payment, ['payment_amount' => '270.00']));
+        $this->assertSame(AccountingError::CreditRefunded, $this->purchases->accountingFailure()->error);
+        $this->assertSame('300.0000', bcadd($this->accountingDb()->table('receivings_payments')->where('payment_id', $payment)->get()->getRow()->payment_amount, '0', 4));
+
+        $this->assertTrue($this->changePayment($purchase, $payment, ['payment_amount' => '290.00']));
+        $this->assertSame('10.00', bcadd($this->supplierPosition()->credit(), '0', 2));
+        $this->assertSupplierTies();
+    }
+
+    public function testSettle_AllowsCuttingThePaymentOnceTheRefundIsCancelled(): void
+    {
+        $purchase = $this->purchaseOf('230.00');
+        $payment  = $this->payPurchase($purchase, '300.00');
+        $refundId = $this->supplierRefund('70.00');
+
+        $this->refundsFromSuppliers()->cancel($refundId, 'paid twice', $this->supplierTreasurer());
+
+        $this->assertTrue($this->changePayment($purchase, $payment, ['payment_amount' => '230.00']));
+        $this->assertSupplierTies();
     }
 }

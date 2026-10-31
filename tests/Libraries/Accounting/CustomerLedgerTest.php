@@ -594,8 +594,8 @@ class CustomerLedgerTest extends CIUnitTestCase
         $position = $this->position();
 
         $this->assertSame('300.00', bcadd($position->open(), '0', 2));
-        $this->assertSame(['today' => '0.0000', '1-30' => '100.0000', '31-60' => '200.0000', '61-90' => '0.0000', '91-120' => '0.0000', '120+' => '0.0000'], $position->aging(date('Y-m-d')));
-        $this->assertSame('200.00', bcadd($position->overdue(date('Y-m-d')), '0', 2));
+        $this->assertSame(['today' => '0.0000', '1-30' => '120.0000', '31-60' => '180.0000', '61-90' => '0.0000', '91-120' => '0.0000', '120+' => '0.0000'], $position->aging(date('Y-m-d')));
+        $this->assertSame('180.00', bcadd($position->overdue(date('Y-m-d')), '0', 2));
         $this->assertTies();
     }
 

@@ -19,9 +19,11 @@ use App\Libraries\Accounting\QuoteLifecycle;
 use App\Libraries\Accounting\QuoteStatus;
 use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\Accounting\ReturnLimit;
+use App\Libraries\Accounting\ReturnOverride;
 use App\Libraries\Accounting\SalePosting;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\Accounting\UndeliveredReturns;
 use App\Libraries\InvoiceDiscount;
 use App\Libraries\InvoiceDiscountPlan;
 use App\Libraries\InvoiceDiscountProblem;
@@ -929,13 +931,14 @@ class Sale extends Model
         int|string|null $paymentTerms = null,
         ?QuoteStatus $quoteStatus = null,
         ?int $quoteSourceId = null,
-        ?string $draftFingerprint = null
+        ?string $draftFingerprint = null,
+        ?string $returnOverrideReason = null,
     ): int {    // TODO: this method returns the sale_id but the override is expecting it to return a bool. The signature needs to be reworked.  Generally when there are more than 3 maybe 4 parameters, there's a good chance that an object needs to be passed rather than so many params.
         try {
             return (new CustomerLock($this->db))->run(
                 $customerId,
-                function () use (&$saleStatus, &$items, &$salesTaxes, $saleId, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $delivered, $returnOfSaleId, $invoiceDiscount, $returnDocument, $invoiceDate, $paymentTerms, $quoteStatus, $quoteSourceId, $draftFingerprint): int {
-                    return $this->saveValueLocked($saleId, $saleStatus, $items, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $salesTaxes, $delivered, $returnOfSaleId, $invoiceDiscount, $returnDocument, $invoiceDate, $paymentTerms, $quoteStatus, $quoteSourceId, $draftFingerprint);
+                function () use (&$saleStatus, &$items, &$salesTaxes, $saleId, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $delivered, $returnOfSaleId, $invoiceDiscount, $returnDocument, $invoiceDate, $paymentTerms, $quoteStatus, $quoteSourceId, $draftFingerprint, $returnOverrideReason): int {
+                    return $this->saveValueLocked($saleId, $saleStatus, $items, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $salesTaxes, $delivered, $returnOfSaleId, $invoiceDiscount, $returnDocument, $invoiceDate, $paymentTerms, $quoteStatus, $quoteSourceId, $draftFingerprint, $returnOverrideReason);
                 },
             );
         } catch (AccountingException $busy) {
@@ -971,7 +974,8 @@ class Sale extends Model
         int|string|null $paymentTerms,
         ?QuoteStatus $quoteStatus,
         ?int $quoteSourceId,
-        ?string $draftFingerprint
+        ?string $draftFingerprint,
+        ?string $returnOverrideReason,
     ): int {
         $config = config(OSPOS::class)->settings;
         $attribute = model(Attribute::class);
@@ -994,6 +998,14 @@ class Sale extends Model
 
         try {
             $timing = $this->timingOf($saleId, $saleType, $saleStatus, $invoiceDate, $paymentTerms, $employeeId);
+        } catch (AccountingException $refusal) {
+            $this->accountingFailure = $refusal;
+
+            return ACCOUNTING_FAILED;
+        }
+
+        try {
+            $overrideReason = $this->returnOverrideOf($saleType, (int) $saleStatus, $returnOfSaleId, $items, $returnOverrideReason, $employeeId);
         } catch (AccountingException $refusal) {
             $this->accountingFailure = $refusal;
 
@@ -1082,6 +1094,8 @@ class Sale extends Model
             $builder->update($salesData);
         }
 
+        $goodsNeverLeft = $this->goodsNeverLeft($saleType, $returnDocument, $salesData['return_of_sale_id']);
+
         $totalAmount = 0;
         $totalAmountUsed = 0;
         $paymentIds = [];
@@ -1167,7 +1181,7 @@ class Sale extends Model
             $builder = $this->db->table('sales_items');
             $builder->insert($salesItemsData);
 
-            if ($curItemInfo->stock_type == HAS_STOCK && $saleStatus == COMPLETED && $delivered) {    // TODO: === ?
+            if ($curItemInfo->stock_type == HAS_STOCK && $saleStatus == COMPLETED && $delivered && ! $goodsNeverLeft) {    // TODO: === ?
                 // Update stock quantity if item type is a standard stock item and the sale is a standard sale
                 if (! $itemQuantity->changeQuantity(
                     $itemData['item_id'],
@@ -1229,6 +1243,10 @@ class Sale extends Model
 
                 return ACCOUNTING_FAILED;
             }
+        }
+
+        if ($overrideReason !== null) {
+            (new ReturnOverride($this->db))->record($saleId, (int) $salesData['branch_id'], $employeeId, $overrideReason);
         }
 
         try {
@@ -1471,6 +1489,32 @@ class Sale extends Model
         }
 
         return $updateData;
+    }
+
+    /**
+     * The reason a manager gave for letting a return of stock through with no sale to take it back
+     * from, once the books are on and the return needs one. Nothing is asked of a return that has a
+     * sale to come from, a return of what has no stock, or a return that is only being kept for later.
+     *
+     * @param array<int, array<string, mixed>> $items
+     *
+     * @throws AccountingException
+     */
+    private function returnOverrideOf(int $saleType, int $saleStatus, ?int $originId, array $items, ?string $reason, int $employeeId): ?string
+    {
+        if ($reason === null || $saleType !== SALE_TYPE_RETURN || $saleStatus !== COMPLETED || $originId !== null || ! (new AccountingSettings($this->db))->isEnabled()) {
+            return null;
+        }
+
+        $item = model(Item::class);
+
+        foreach ($items as $line) {
+            if ((int) $item->get_info($line['item_id'])->stock_type === HAS_STOCK) {
+                return (new ReturnOverride($this->db))->reasonFor($employeeId, $reason);
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -1826,6 +1870,11 @@ class Sale extends Model
         }
     }
 
+    private function goodsNeverLeft(int $saleType, ReturnDocument $document, ?int $originId): bool
+    {
+        return $saleType === SALE_TYPE_RETURN && $document === ReturnDocument::CreditNote && (new UndeliveredReturns($this->db))->neverDelivered($originId);
+    }
+
     private function deleteLocked($sale_id, bool $update_inventory, $employee_id): bool
     {
         $this->accountingFailure = null;
@@ -1834,8 +1883,8 @@ class Sale extends Model
         $this->db->transStart();
 
         // The lock of the sale comes first, so two requests cancelling it never run side by side
-        $locked = $this->db->query('SELECT sale_status, delivered FROM ' . $this->db->prefixTable('sales') . ' WHERE sale_id = ? FOR UPDATE', [$sale_id]);
-        $sale = $locked === false ? null : $locked->getRow();
+        $locked      = $this->db->query('SELECT sale_status, delivered, sale_type, return_of_sale_id, return_document FROM ' . $this->db->prefixTable('sales') . ' WHERE sale_id = ? FOR UPDATE', [$sale_id]);
+        $sale        = $locked === false ? null : $locked->getRow();
         $sale_status = $sale === null ? null : (int) $sale->sale_status;
 
         try {
@@ -1847,7 +1896,7 @@ class Sale extends Model
             return false;
         }
 
-        if ($update_inventory && $sale_status === COMPLETED && (int) $sale->delivered === 1) {
+        if ($update_inventory && $sale_status === COMPLETED && (int) $sale->delivered === 1 && ! $this->goodsNeverLeft((int) $sale->sale_type, ReturnDocument::fromStored($sale->return_document), $sale->return_of_sale_id === null ? null : (int) $sale->return_of_sale_id)) {
             // Defect, not all item deletions will be undone?
             // Get array with all the items involved in the sale to update the inventory tracking
             $inventory = model('Inventory');
@@ -1927,6 +1976,7 @@ class Sale extends Model
         $inventory    = model('Inventory');
         $item         = model(Item::class);
         $itemQuantity = model(Item_quantity::class);
+        $back         = (new UndeliveredReturns($this->db))->unitsOf($saleId);
 
         foreach ($this->get_sale_items($saleId)->getResultArray() as $line) {
             $info = $item->get_info($line['item_id']);
@@ -1939,7 +1989,13 @@ class Sale extends Model
                 ->where(['sale_id' => $saleId, 'item_id' => $line['item_id'], 'line' => $line['line']])
                 ->update(['item_cost_price' => $info->cost_price]);
 
-            $itemQuantity->changeQuantity($line['item_id'], $line['item_location'], -(float) $line['quantity_purchased']);
+            [$units, $back] = UndeliveredReturns::remaining((int) $line['item_id'], (string) $line['quantity_purchased'], $back);
+
+            if (bccomp($units, '0', 3) === 0) {
+                continue;
+            }
+
+            $itemQuantity->changeQuantity($line['item_id'], $line['item_location'], -(float) $units);
 
             $inventory->insert([
                 'trans_date'      => date('Y-m-d H:i:s'),
@@ -1947,7 +2003,7 @@ class Sale extends Model
                 'trans_user'      => $employeeId,
                 'trans_location'  => $line['item_location'],
                 'trans_comment'   => 'POS ' . $saleId,
-                'trans_inventory' => -$line['quantity_purchased'],
+                'trans_inventory' => -(float) $units,
             ], false);
         }
 
