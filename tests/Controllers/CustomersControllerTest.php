@@ -491,7 +491,7 @@ class CustomersControllerTest extends CIUnitTestCase
         $this->assertStringNotContainsString(substr(lang('Customers.opening_not_entered', ['x']), 0, 20), $result['message'], 'Nothing was attempted where the field is not offered');
     }
 
-    public function testPostSave_NeverEntersAnOpeningBalanceForACustomerThatIsEdited(): void
+    public function testPostSave_IgnoresAnOpeningBalanceSentForACustomerThatIsEdited(): void
     {
         $this->startAccountingWithCustomerOpening();
         $created = $this->save();

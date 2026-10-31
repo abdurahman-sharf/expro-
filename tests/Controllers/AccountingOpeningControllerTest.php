@@ -4,8 +4,11 @@ namespace Tests\Controllers;
 
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\EntityAccountService;
+use App\Libraries\Accounting\JournalDraft;
+use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\OpeningBalanceService;
 use App\Libraries\Accounting\OpeningStock;
+use App\Libraries\Accounting\PostingService;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -734,6 +737,51 @@ class AccountingOpeningControllerTest extends CIUnitTestCase
         $response = $this->get('/accounting_periods/opening/stock/reprice_form?location=1');
 
         $response->assertSee(lang('Accounting_periods.opening_stock_reprice_block_later_movements', ['1']));
+        $response->assertDontSee('opening_stock_reprice_form');
+    }
+
+    public function testGetStockRepriceForm_NamesTheDayOfTheOpeningWhenItIsInAClosedPeriodAndOffersNoForm(): void
+    {
+        $this->manager();
+        $item = $this->shelves('50.00', '10');
+        $this->stockPost();
+        $this->setItemCost($item, '60.00');
+        $this->closeThrough('2026-01-31');
+
+        $response = $this->get('/accounting_periods/opening/stock/reprice_form?location=1');
+
+        $response->assertSee(lang('Accounting_periods.opening_stock_reprice_block_period_closed', [to_date(strtotime('2026-01-01'))]));
+        $response->assertDontSee('{0}');
+        $response->assertDontSee('opening_stock_reprice_form');
+    }
+
+    public function testGetStockRepriceForm_ExplainsThatTheAccountHoldsValueNoMovementAccountsForAndOffersNoForm(): void
+    {
+        $this->manager();
+        $item = $this->shelves('50.00', '10');
+        $this->stockPost();
+        $this->setItemCost($item, '60.00');
+        (new PostingService())->post(new JournalDraft(
+            date: '2026-01-01',
+            lines: [new JournalLineDraft((int) (new EntityAccountService())->accountFor(EntityAccountService::STOCK_LOCATION, 1), debit: '100.00'), new JournalLineDraft($this->accountId('opening_balance'), credit: '100.00')],
+            sourceType: JournalDraft::SOURCE_MANUAL,
+        ));
+
+        $response = $this->get('/accounting_periods/opening/stock/reprice_form?location=1');
+
+        $response->assertSee(lang('Accounting_periods.opening_stock_reprice_block_account_holds_value'));
+        $response->assertDontSee('opening_stock_reprice_form');
+    }
+
+    public function testGetStockRepriceForm_SaysThereIsNothingToChangeWhenEveryItemStandsAtItsCostAndOffersNoForm(): void
+    {
+        $this->manager();
+        $this->shelves('50.00', '10');
+        $this->stockPost();
+
+        $response = $this->get('/accounting_periods/opening/stock/reprice_form?location=1');
+
+        $response->assertSee(lang('Accounting_periods.opening_stock_reprice_block_nothing_to_change'));
         $response->assertDontSee('opening_stock_reprice_form');
     }
 

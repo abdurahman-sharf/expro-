@@ -165,13 +165,6 @@ final class CustomerOpening
         return $this->db->table('customer_openings')->where(['company_id' => CompanyContext::id(), 'opening_id' => $openingId])->get()->getRow();
     }
 
-    public function branchOf(int $openingId): ?int
-    {
-        $row = $this->db->table('customer_openings')->select('branch_id')->where('opening_id', $openingId)->get()->getRow();
-
-        return $row === null ? null : (int) $row->branch_id;
-    }
-
     /**
      * @param numeric-string $amount
      *

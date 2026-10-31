@@ -13,7 +13,6 @@ use App\Libraries\Accounting\CustomerOpening;
 use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
-use App\Libraries\Accounting\OpeningBalanceService;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\PostingService;
@@ -482,8 +481,6 @@ class CustomerOpeningTest extends CIUnitTestCase
 
         $this->assertSame($branch, (int) $this->journalOf(2)->branch_id);
         $this->assertSame($branch, (int) $this->openingRow($second)->branch_id);
-        $this->assertSame($branch, $this->openings->branchOf($second));
-        $this->assertNull($this->openings->branchOf(9999999));
     }
 
     public function testCreate_RefusesABranchTheEmployeeDoesNotWorkInAndABranchThatIsInactive(): void
@@ -510,6 +507,39 @@ class CustomerOpeningTest extends CIUnitTestCase
         $this->assertSame($counts, [$this->countRows('customer_openings'), $this->countJournals()]);
     }
 
+    public function testCreate_CutsTheNoteAtFiveHundredCharactersCountingCharactersAndNotBytesWhateverTheDatabaseDoesWithALongValue(): void
+    {
+        $db   = $this->accountingDb();
+        $mode = (string) $db->query('SELECT @@SESSION.sql_mode AS mode')->getRow()->mode;
+
+        $db->query("SET SESSION sql_mode = CONCAT(@@sql_mode, ',STRICT_ALL_TABLES')");
+
+        try {
+            $id = $this->openings->create($this->customerId, CustomerOpening::OWES_US, '10.00', $this->daysAgo(5), str_repeat('ñ', 600), $this->clerk);
+        } finally {
+            $db->query('SET SESSION sql_mode = ?', [$mode]);
+        }
+
+        $this->assertSame(str_repeat('ñ', 500), $this->openingRow($id)->note);
+    }
+
+    public function testCreate_TrimsTheSpacesAroundTheNoteBeforeItCutsIt(): void
+    {
+        $id = $this->openings->create($this->customerId, CustomerOpening::OWES_US, '10.00', $this->daysAgo(5), '   ' . str_repeat('x', 500) . '   ', $this->clerk);
+
+        $this->assertSame(str_repeat('x', 500), $this->openingRow($id)->note);
+    }
+
+    public function testRevise_TrimsAndCutsTheNoteOfTheNewRevision(): void
+    {
+        $first  = $this->owe();
+        $second = $this->openings->revise($first, CustomerOpening::OWES_US, '900.00', $this->daysAgo(45), '  padded note  ', 'Wrong amount', $this->clerk);
+        $third  = $this->openings->revise($second, CustomerOpening::OWES_US, '800.00', $this->daysAgo(45), str_repeat('y', 501), 'Wrong amount again', $this->clerk);
+
+        $this->assertSame('padded note', $this->openingRow($second)->note);
+        $this->assertSame(str_repeat('y', 500), $this->openingRow($third)->note);
+    }
+
     public function testRevise_ReversesTheJournalAndPostsANewRevisionAndKeepsTheOldOneVisible(): void
     {
         $first = $this->owe('1000.00', $this->daysAgo(45));
@@ -530,7 +560,7 @@ class CustomerOpeningTest extends CIUnitTestCase
         $this->assertTies();
     }
 
-    public function testRevise_NeverEditsAJournalInPlaceAndKeepsEveryRowAsItWas(): void
+    public function testRevise_KeepsEveryJournalAndLineAsItWasAndWritesTheChangeAsJournalsOfItsOwn(): void
     {
         $first  = $this->owe('1000.00', $this->daysAgo(45));
         $before = $this->snapshot();
@@ -774,13 +804,6 @@ class CustomerOpeningTest extends CIUnitTestCase
         $this->assertSame('Entered by mistake', $cancelled['reason']);
     }
 
-    public function testCreate_KeepsTheManualOpeningOfTheAccountOfACustomerBlocked(): void
-    {
-        $this->owe();
-
-        $this->assertNotContains($this->customerAccount(), array_map(static fn (object $account): int => (int) $account->account_id, (new OpeningBalanceService())->allowedAccounts()));
-    }
-
     public function testHistory_ListsEveryRevisionOfACustomerWithItsBranchAndNothingOfAnotherCustomer(): void
     {
         $other = $this->anotherCustomer();
@@ -881,17 +904,20 @@ class CustomerOpeningTest extends CIUnitTestCase
         $this->assertContains($name, $taken);
     }
 
-    public function testReviseAndCancel_TakeTheLockOfTheCustomer(): void
+    public function testRevise_TakesTheLockOfTheCustomer(): void
     {
         $first = $this->owe();
         $name  = (new CustomerLock())->nameOf($this->customerId);
 
-        $second = 0;
+        $this->assertContains($name, $this->locksTakenBy(fn () => $this->openings->revise($first, CustomerOpening::OWES_US, '900.00', $this->daysAgo(45), '', 'Wrong amount', $this->clerk)));
+    }
 
-        $this->assertContains($name, $this->locksTakenBy(function () use ($first, &$second): void {
-            $second = $this->openings->revise($first, CustomerOpening::OWES_US, '900.00', $this->daysAgo(45), '', 'Wrong amount', $this->clerk);
-        }));
-        $this->assertContains($name, $this->locksTakenBy(fn () => $this->openings->cancel($second, 'Entered twice', $this->clerk)));
+    public function testCancel_TakesTheLockOfTheCustomer(): void
+    {
+        $first = $this->owe();
+        $name  = (new CustomerLock())->nameOf($this->customerId);
+
+        $this->assertContains($name, $this->locksTakenBy(fn () => $this->openings->cancel($first, 'Entered twice', $this->clerk)));
     }
 
     public function testCreate_RefusesWhenTheJournalOfTheRevisionIsAlreadyPostedAndSavesNoRow(): void
@@ -909,25 +935,44 @@ class CustomerOpeningTest extends CIUnitTestCase
         $this->assertSame($counts, [$this->countRows('customer_openings'), $this->countJournals()]);
     }
 
-    public function testReviseAndCancel_ValidateTheReasonBeforeTheyLookAtTheOpeningThatStandsOrNot(): void
+    public function testRevise_RequiresAReasonBeforeItLooksAtTheOpeningThatStandsOrNot(): void
     {
         $first = $this->owe();
         $this->openings->cancel($first, 'Entered twice', $this->clerk);
 
         foreach (['', '   ', str_repeat('x', 256)] as $reason) {
             $this->assertRefusedWith(AccountingError::ReasonRequired, fn () => $this->openings->revise($first, CustomerOpening::OWES_US, '5.00', date('Y-m-d'), '', $reason, $this->clerk));
+        }
+    }
+
+    public function testCancel_RequiresAReasonBeforeItLooksAtTheOpeningThatStandsOrNot(): void
+    {
+        $first = $this->owe();
+        $this->openings->cancel($first, 'Entered twice', $this->clerk);
+
+        foreach (['', '   ', str_repeat('x', 256)] as $reason) {
             $this->assertRefusedWith(AccountingError::ReasonRequired, fn () => $this->openings->cancel($first, $reason, $this->clerk));
         }
     }
 
-    public function testReviseAndCancel_RefuseAnOpeningMarkedReversedEvenWhenItsJournalStillStands(): void
+    public function testRevise_RefusesAnOpeningMarkedReversedEvenWhenItsJournalStillStands(): void
+    {
+        $first = $this->owe();
+        $this->accountingDb()->table('customer_openings')->where('opening_id', $first)->update(['status' => 'reversed']);
+        $counts = [$this->countRows('customer_openings'), $this->countJournals()];
+
+        $this->assertRefusedWith(AccountingError::CustomerOpeningReversed, fn () => $this->openings->revise($first, CustomerOpening::OWES_US, '5.00', date('Y-m-d'), '', 'Again', $this->clerk));
+        $this->assertSame('posted', $this->journalOf(1)->status);
+        $this->assertSame($counts, [$this->countRows('customer_openings'), $this->countJournals()]);
+    }
+
+    public function testCancel_RefusesAnOpeningMarkedReversedEvenWhenItsJournalStillStands(): void
     {
         $first = $this->owe();
         $this->accountingDb()->table('customer_openings')->where('opening_id', $first)->update(['status' => 'reversed']);
         $counts = [$this->countRows('customer_openings'), $this->countJournals()];
 
         $this->assertRefusedWith(AccountingError::CustomerOpeningReversed, fn () => $this->openings->cancel($first, 'Again', $this->clerk));
-        $this->assertRefusedWith(AccountingError::CustomerOpeningReversed, fn () => $this->openings->revise($first, CustomerOpening::OWES_US, '5.00', date('Y-m-d'), '', 'Again', $this->clerk));
         $this->assertSame('posted', $this->journalOf(1)->status);
         $this->assertSame($counts, [$this->countRows('customer_openings'), $this->countJournals()]);
     }

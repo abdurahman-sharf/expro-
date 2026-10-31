@@ -626,6 +626,8 @@
     "find": "        CashupPostingBuilder::SOURCE,\n        CustomerOpening::SOURCE,\n    ];",
     "replace": "        CashupPostingBuilder::SOURCE,\n    ];",
     "tests": [
+      "--filter",
+      "Opening",
       "tests/Libraries/Accounting/JournalServiceTest.php"
     ]
   },
@@ -635,6 +637,8 @@
     "find": "private function openings(int $customerId, int $accountId, ?string $asOf): array\n    {\n        [$standing, $standingBindings] = StandingJournals::condition($this->db, 'j', $asOf);",
     "replace": "private function openings(int $customerId, int $accountId, ?string $asOf): array\n    {\n        [$standing, $standingBindings] = [\"j.status IN ('posted', 'reversed')\", []];",
     "tests": [
+      "--filter",
+      "Opening",
       "tests/Libraries/Accounting/CustomerOpeningTest.php",
       "tests/Libraries/Accounting/CustomerLedgerTest.php"
     ]
@@ -645,6 +649,8 @@
     "find": "if (bccomp($total, '0', SaleAmounts::SCALE) > 0) {\n                $figures[$key]",
     "replace": "if (bccomp($total, '0', SaleAmounts::SCALE) < 0) {\n                $figures[$key]",
     "tests": [
+      "--filter",
+      "Opening",
       "tests/Libraries/Accounting/CustomerOpeningTest.php",
       "tests/Libraries/Accounting/CustomerLedgerTest.php"
     ]
@@ -655,6 +661,8 @@
     "find": "$key   = -(int) $opening->opening_id;",
     "replace": "$key   = (int) $opening->opening_id;",
     "tests": [
+      "--filter",
+      "Opening",
       "tests/Libraries/Accounting/CustomerOpeningTest.php",
       "tests/Libraries/Accounting/CustomerLedgerTest.php"
     ]
@@ -716,6 +724,8 @@
     "find": "if (! $this->can(AccountingGuard::OPENING_MANAGE) || ! (new AccountingSettings())->customerOpeningEnabled() || $this->ledger->position($customerId)->accountId === null) {",
     "replace": "if (! (new AccountingSettings())->customerOpeningEnabled() || $this->ledger->position($customerId)->accountId === null) {",
     "tests": [
+      "--filter",
+      "Opening",
       "tests/Controllers/AccountingReceivablesControllerTest.php"
     ]
   },
@@ -725,6 +735,8 @@
     "find": "if (! $this->can(AccountingGuard::OPENING_MANAGE) || ! (new AccountingSettings())->customerOpeningEnabled() || $this->ledger->position($customerId)->accountId === null) {",
     "replace": "if (! $this->can(AccountingGuard::OPENING_MANAGE) || $this->ledger->position($customerId)->accountId === null) {",
     "tests": [
+      "--filter",
+      "Opening",
       "tests/Controllers/AccountingReceivablesControllerTest.php"
     ]
   },
@@ -734,6 +746,8 @@
     "find": "if (! $this->can(AccountingGuard::OPENING_MANAGE) || ! (new AccountingSettings())->customerOpeningEnabled() || $this->ledger->position($customerId)->accountId === null) {",
     "replace": "if (! $this->can(AccountingGuard::OPENING_MANAGE) || ! (new AccountingSettings())->customerOpeningEnabled()) {",
     "tests": [
+      "--filter",
+      "Opening",
       "tests/Controllers/AccountingReceivablesControllerTest.php"
     ]
   },
@@ -743,6 +757,8 @@
     "find": "if ($this->openings->standingFor($customerId) !== null) {\n            throw PageNotFoundException::forPageNotFound();\n        }",
     "replace": "if (false) {\n            throw PageNotFoundException::forPageNotFound();\n        }",
     "tests": [
+      "--filter",
+      "Opening",
       "tests/Controllers/AccountingReceivablesControllerTest.php"
     ]
   },
@@ -752,6 +768,8 @@
     "find": "$opening = $this->can(AccountingGuard::OPENING_MANAGE) ? $this->openings->find($openingId) : null;",
     "replace": "$opening = $this->openings->find($openingId);",
     "tests": [
+      "--filter",
+      "Opening",
       "tests/Controllers/AccountingReceivablesControllerTest.php"
     ]
   },
@@ -761,6 +779,8 @@
     "find": "if ($opening === null || $opening->status !== 'posted') {",
     "replace": "if ($opening === null) {",
     "tests": [
+      "--filter",
+      "Opening",
       "tests/Controllers/AccountingReceivablesControllerTest.php"
     ]
   },
@@ -770,6 +790,8 @@
     "find": "$opening = $this->standingOpening($openingId);\n\n        if (! (new AccountingSettings())->customerOpeningEnabled()) {",
     "replace": "$opening = $this->standingOpening($openingId);\n\n        if (false) {",
     "tests": [
+      "--filter",
+      "Opening",
       "tests/Controllers/AccountingReceivablesControllerTest.php"
     ]
   },
@@ -779,6 +801,8 @@
     "find": "'can_open'        => $this->can(AccountingGuard::OPENING_MANAGE) && (new AccountingSettings())->customerOpeningEnabled() && $this->openings->standingFor($customerId) === null,",
     "replace": "'can_open'        => true,",
     "tests": [
+      "--filter",
+      "Opening",
       "tests/Controllers/AccountingReceivablesControllerTest.php"
     ]
   },
@@ -788,6 +812,8 @@
     "find": "public function postOpening(int $customerId): ResponseInterface\n    {\n        $this->requireCompanyScope();\n",
     "replace": "public function postOpening(int $customerId): ResponseInterface\n    {\n",
     "tests": [
+      "--filter",
+      "Opening",
       "tests/Controllers/AccountingReceivablesControllerTest.php"
     ]
   },
@@ -797,6 +823,8 @@
     "find": "public function postOpeningEdit(int $openingId): ResponseInterface\n    {\n        $this->requireCompanyScope();\n",
     "replace": "public function postOpeningEdit(int $openingId): ResponseInterface\n    {\n",
     "tests": [
+      "--filter",
+      "Opening",
       "tests/Controllers/AccountingReceivablesControllerTest.php"
     ]
   },
@@ -806,6 +834,8 @@
     "find": "public function postOpeningCancel(int $openingId): ResponseInterface\n    {\n        $this->requireCompanyScope();\n",
     "replace": "public function postOpeningCancel(int $openingId): ResponseInterface\n    {\n",
     "tests": [
+      "--filter",
+      "Opening",
       "tests/Controllers/AccountingReceivablesControllerTest.php"
     ]
   },
@@ -815,6 +845,8 @@
     "find": "private function standingOpening(int $openingId): object\n    {\n        $this->requireCompanyScope();\n",
     "replace": "private function standingOpening(int $openingId): object\n    {\n",
     "tests": [
+      "--filter",
+      "Opening",
       "tests/Controllers/AccountingReceivablesControllerTest.php"
     ]
   },
@@ -977,7 +1009,135 @@
     "find": "        'CustomerOpenings'              => [self::HEAVY, 'adds customer_credit_applications.opening_id and lets invoice_sale_id be empty, which rebuilds that table; creates customer_openings'],\n",
     "replace": "",
     "tests": [
+      "--filter",
+      "testPending_ClassifiesTheMigrationOfOpeningBalancesOfCustomersAsHeavyWithItsNote",
       "tests/Libraries/Accounting/Readiness/MigrationChecksTest.php"
+    ]
+  },
+  {
+    "name": "RC-13 the form to change an opening balance fills the side of the revision that stands",
+    "file": "app/Views/accounting_receivables/opening_form.php",
+    "find": "$editing ? $opening->side : 'owes_us'",
+    "replace": "'owes_us'",
+    "tests": [
+      "--filter",
+      "Opening",
+      "tests/Controllers/AccountingReceivablesControllerTest.php"
+    ]
+  },
+  {
+    "name": "RC-14 the form to change an opening balance fills the date of the revision that stands",
+    "file": "app/Views/accounting_receivables/opening_form.php",
+    "find": "esc($editing ? (string) $opening->opening_date : $today, 'attr')",
+    "replace": "esc($today, 'attr')",
+    "tests": [
+      "--filter",
+      "Opening",
+      "tests/Controllers/AccountingReceivablesControllerTest.php"
+    ]
+  },
+  {
+    "name": "RC-15 the form to change an opening balance fills the note of the revision that stands",
+    "file": "app/Views/accounting_receivables/opening_form.php",
+    "find": "<?= $editing ? esc((string) $opening->note) : '' ?></textarea>",
+    "replace": "</textarea>",
+    "tests": [
+      "--filter",
+      "Opening",
+      "tests/Controllers/AccountingReceivablesControllerTest.php"
+    ]
+  },
+  {
+    "name": "RC-16 the form to change an opening balance fills the amount of the revision that stands",
+    "file": "app/Views/accounting_receivables/opening_form.php",
+    "find": "value=\"<?= $editing ? esc(rtrim(rtrim((string) $opening->amount, '0'), '.'), 'attr') : '' ?>\"",
+    "replace": "value=\"\"",
+    "tests": [
+      "--filter",
+      "Opening",
+      "tests/Controllers/AccountingReceivablesControllerTest.php"
+    ]
+  },
+  {
+    "name": "RC-17 the form to enter an opening balance starts on the customer owing us",
+    "file": "app/Views/accounting_receivables/opening_form.php",
+    "find": "$editing ? $opening->side : 'owes_us'",
+    "replace": "$editing ? $opening->side : 'we_owe'",
+    "tests": [
+      "--filter",
+      "Opening",
+      "tests/Controllers/AccountingReceivablesControllerTest.php"
+    ]
+  },
+  {
+    "name": "RC-18 the form to enter an opening balance starts on today",
+    "file": "app/Views/accounting_receivables/opening_form.php",
+    "find": "esc($editing ? (string) $opening->opening_date : $today, 'attr')",
+    "replace": "esc($editing ? (string) $opening->opening_date : '', 'attr')",
+    "tests": [
+      "--filter",
+      "Opening",
+      "tests/Controllers/AccountingReceivablesControllerTest.php"
+    ]
+  },
+  {
+    "name": "CU-40 the note is cut at five hundred characters",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "mb_substr(trim($note), 0, self::NOTE_MAX)",
+    "replace": "trim($note)",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CU-41 the note is trimmed before it is cut",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "mb_substr(trim($note), 0, self::NOTE_MAX)",
+    "replace": "mb_substr($note, 0, self::NOTE_MAX)",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CU-42 the note is cut by characters and not by bytes",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "mb_substr(trim($note), 0, self::NOTE_MAX)",
+    "replace": "substr(trim($note), 0, self::NOTE_MAX)",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "G57-31 the form of the cost correction names the day of the opening when it is in a closed period",
+    "file": "app/Controllers/AccountingOpening.php",
+    "find": "            OpeningStockRepriceBlock::PeriodClosed   => lang($key, [$this->formatDate($plan->date)]),\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testGetStockRepriceForm_",
+      "tests/Controllers/AccountingOpeningControllerTest.php"
+    ]
+  },
+  {
+    "name": "G57-32 the form of the cost correction counts the later movements that stop it",
+    "file": "app/Controllers/AccountingOpening.php",
+    "find": "            OpeningStockRepriceBlock::LaterMovements => lang($key, [(string) $plan->laterMovements]),\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testGetStockRepriceForm_",
+      "tests/Controllers/AccountingOpeningControllerTest.php"
+    ]
+  },
+  {
+    "name": "G57-33 the form of the cost correction says in words that the account holds value no movement accounts for and that nothing would change",
+    "file": "app/Controllers/AccountingOpening.php",
+    "find": "            default                                  => lang($key),\n",
+    "replace": "            default                                  => $key,\n",
+    "tests": [
+      "--filter",
+      "testGetStockRepriceForm_",
+      "tests/Controllers/AccountingOpeningControllerTest.php"
     ]
   }
 ]

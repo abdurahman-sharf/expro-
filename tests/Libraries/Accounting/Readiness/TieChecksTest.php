@@ -3,6 +3,7 @@
 namespace Tests\Libraries\Accounting\Readiness;
 
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\CustomerOpening;
 use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalEntryType;
@@ -16,7 +17,6 @@ use App\Libraries\Accounting\StockLedger;
 use App\Libraries\Accounting\StockMovement;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Accounting\TreasuryTransfers;
-use App\Libraries\Accounting\CustomerOpening;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;

@@ -1627,6 +1627,38 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
         }
     }
 
+    public function testGetOpeningEditForm_FillsTheSideTheDateAndTheNoteOfTheRevisionThatStands(): void
+    {
+        $this->openingManager();
+        $this->setConfigValue('accounting_customer_opening', '1');
+        $date  = $this->daysAgo(12);
+        $first = (new CustomerOpening())->create($this->customerId, 'we_owe', '300.00', $date, 'a credit the customer holds', null);
+
+        $form = $this->get('/accounting_receivables/opening_edit_form/' . $first);
+
+        $form->assertStatus(200);
+        $form->assertSee('<option value="we_owe" selected>');
+        $form->assertDontSee('<option value="owes_us" selected>');
+        $form->assertSee('name="opening_date" id="opening_date"');
+        $form->assertSee('value="' . $date . '"');
+        $form->assertSee('>a credit the customer holds</textarea>');
+        $form->assertSee('value="300"');
+    }
+
+    public function testGetOpeningForm_StartsOnTheCustomerOwingUsWithAnEmptyAmountAndNote(): void
+    {
+        $this->openingManager();
+        $this->setConfigValue('accounting_customer_opening', '1');
+
+        $form = $this->get('/accounting_receivables/opening_form/' . $this->customerId);
+
+        $form->assertSee('<option value="owes_us" selected>');
+        $form->assertDontSee('<option value="we_owe" selected>');
+        $form->assertSee('></textarea>');
+        $form->assertSee('name="opening_date" id="opening_date" class="form-control form-control-sm ltr-input" dir="ltr" max="' . date('Y-m-d') . '" value="' . date('Y-m-d') . '"');
+        $form->assertSee('inputmode="decimal" autocomplete="off" value=""');
+    }
+
     public function testGetOpeningEditForm_IsNotFoundWithoutThePermissionWhileTheSettingIsOffAndForANumberThatIsNotThere(): void
     {
         $this->setConfigValue('accounting_customer_opening', '1');
@@ -1735,54 +1767,83 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
         $this->assertStringContainsString(lang('Accounting_receivables.agrees_yes'), $body);
     }
 
-    public function testGetOpeningEditFormAndCancelForm_AreNotFoundForSomeoneLimitedToABranch(): void
+    public function testGetOpeningEditForm_IsNotFoundForSomeoneLimitedToABranch(): void
     {
         $this->setConfigValue('accounting_customer_opening', '1');
         $first = $this->enterOpening();
         $this->openingManager([1]);
 
-        foreach (['opening_edit_form', 'opening_cancel_form'] as $form) {
-            try {
-                $this->get('/accounting_receivables/' . $form . '/' . $first);
-                $this->fail('Someone limited to a branch must not reach the form of an opening balance of the company.');
-            } catch (PageNotFoundException) {
-                $this->addToAssertionCount(1);
-            }
-        }
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_receivables/opening_edit_form/' . $first);
     }
 
-    public function testPostOpeningEditAndCancel_AreNotFoundForSomeoneLimitedToABranchAndChangeNothing(): void
+    public function testGetOpeningCancelForm_IsNotFoundForSomeoneLimitedToABranch(): void
     {
         $this->setConfigValue('accounting_customer_opening', '1');
         $first = $this->enterOpening();
         $this->openingManager([1]);
 
-        foreach ([
-            ['opening_edit', ['side' => 'owes_us', 'amount' => '5.00', 'opening_date' => date('Y-m-d'), 'note' => '', 'reason' => 'Why']],
-            ['opening_cancel', ['reason' => 'Why']],
-        ] as [$action, $data]) {
-            try {
-                $this->post('/accounting_receivables/' . $action . '/' . $first, $data);
-                $this->fail('Someone limited to a branch must not change an opening balance of the company.');
-            } catch (PageNotFoundException) {
-                $this->addToAssertionCount(1);
-            }
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_receivables/opening_cancel_form/' . $first);
+    }
+
+    public function testPostOpeningEdit_IsNotFoundForSomeoneLimitedToABranchAndChangesNothing(): void
+    {
+        $this->setConfigValue('accounting_customer_opening', '1');
+        $first = $this->enterOpening();
+        $this->openingManager([1]);
+
+        try {
+            $this->post('/accounting_receivables/opening_edit/' . $first, ['side' => 'owes_us', 'amount' => '5.00', 'opening_date' => date('Y-m-d'), 'note' => '', 'reason' => 'Why']);
+            $this->fail('Someone limited to a branch must not change an opening balance of the company.');
+        } catch (PageNotFoundException) {
+            $this->addToAssertionCount(1);
         }
 
         $this->assertSame('posted', $this->accountingDb()->table('customer_openings')->where('opening_id', $first)->get()->getRow()->status);
         $this->assertSame(1, $this->countRows('customer_openings'));
     }
 
-    public function testPostOpeningEditAndCancel_RefuseWithoutThePermissionAndChangeNothing(): void
+    public function testPostOpeningCancel_IsNotFoundForSomeoneLimitedToABranchAndChangesNothing(): void
+    {
+        $this->setConfigValue('accounting_customer_opening', '1');
+        $first = $this->enterOpening();
+        $this->openingManager([1]);
+
+        try {
+            $this->post('/accounting_receivables/opening_cancel/' . $first, ['reason' => 'Why']);
+            $this->fail('Someone limited to a branch must not cancel an opening balance of the company.');
+        } catch (PageNotFoundException) {
+            $this->addToAssertionCount(1);
+        }
+
+        $this->assertSame('posted', $this->accountingDb()->table('customer_openings')->where('opening_id', $first)->get()->getRow()->status);
+        $this->assertSame(1, $this->countRows('customer_openings'));
+    }
+
+    public function testPostOpeningEdit_RefusesWithoutThePermissionAndChangesNothing(): void
     {
         $this->setConfigValue('accounting_customer_opening', '1');
         $first = $this->enterOpening();
         $this->viewer();
 
-        $edit   = $this->openingPost('/accounting_receivables/opening_edit/' . $first, ['side' => 'owes_us', 'amount' => '5.00', 'opening_date' => date('Y-m-d'), 'note' => '', 'reason' => 'Why']);
-        $cancel = $this->openingPost('/accounting_receivables/opening_cancel/' . $first, ['reason' => 'Why']);
+        $edit = $this->openingPost('/accounting_receivables/opening_edit/' . $first, ['side' => 'owes_us', 'amount' => '5.00', 'opening_date' => date('Y-m-d'), 'note' => '', 'reason' => 'Why']);
 
         $this->assertFalse($edit['success']);
+        $this->assertSame('posted', $this->accountingDb()->table('customer_openings')->where('opening_id', $first)->get()->getRow()->status);
+        $this->assertSame(1, $this->countRows('customer_openings'));
+    }
+
+    public function testPostOpeningCancel_RefusesWithoutThePermissionAndChangesNothing(): void
+    {
+        $this->setConfigValue('accounting_customer_opening', '1');
+        $first = $this->enterOpening();
+        $this->viewer();
+
+        $cancel = $this->openingPost('/accounting_receivables/opening_cancel/' . $first, ['reason' => 'Why']);
+
         $this->assertFalse($cancel['success']);
         $this->assertSame('posted', $this->accountingDb()->table('customer_openings')->where('opening_id', $first)->get()->getRow()->status);
         $this->assertSame(1, $this->countRows('customer_openings'));
