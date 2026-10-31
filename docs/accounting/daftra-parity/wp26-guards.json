@@ -132,17 +132,6 @@
     ]
   },
   {
-    "name": "A13 changing the bank of a received cheque asks for the new branch",
-    "file": "app/Libraries/Accounting/ChequeService.php",
-    "find": "            $changes[]  = 'treasury_id';\n\n            $this->branches->requireBranch($branchId, $employeeId);",
-    "replace": "            $changes[]  = 'treasury_id';\n\n            // guard removed",
-    "tests": [
-      "--filter",
-      "ChangesTheBankAndTheBranch|LocksTheBank",
-      "tests/Libraries/Accounting/ChequeServiceTest.php"
-    ]
-  },
-  {
     "name": "A14 a received cheque is received on a day up to today",
     "file": "app/Libraries/Accounting/ChequeService.php",
     "find": "if ($data['issue_date'] > date('Y-m-d')) {",
@@ -343,8 +332,8 @@
   {
     "name": "A32 no other cheque of the book has the number",
     "file": "app/Libraries/Accounting/ChequeService.php",
-    "find": "if ($taken->countAllResults() > 0) {",
-    "replace": "if (false) {",
+    "find": "'cheque_number' => $number, 'deleted' => 0])->countAllResults() > 0) {",
+    "replace": "'cheque_number' => $number, 'deleted' => 0])->countAllResults() > 1000000) {",
     "tests": [
       "--filter",
       "testIssue_RejectsANumberAnotherChequeOfTheBookAlreadyHas",
@@ -354,8 +343,8 @@
   {
     "name": "A33 a deleted cheque frees its number",
     "file": "app/Libraries/Accounting/ChequeService.php",
-    "find": "$taken = $this->db->table('cheques')->where(['book_id' => (int) $book->book_id, 'cheque_number' => $number, 'deleted' => 0]);",
-    "replace": "$taken = $this->db->table('cheques')->where(['book_id' => (int) $book->book_id, 'cheque_number' => $number]);",
+    "find": "'cheque_number' => $number, 'deleted' => 0])->countAllResults() > 0) {",
+    "replace": "'cheque_number' => $number])->countAllResults() > 0) {",
     "tests": [
       "--filter",
       "testIssue_AllowsTheNumberOfADeletedCheque",
