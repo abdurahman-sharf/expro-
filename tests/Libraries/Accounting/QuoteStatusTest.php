@@ -8,7 +8,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 class QuoteStatusTest extends CIUnitTestCase
 {
-    public function testCases_ListTheEightObservedStates(): void
+    public function testCases_ListsTheEightObservedStates(): void
     {
         $this->assertSame(
             ['Draft' => -1, 'Open' => 0, 'Sent' => 1, 'Viewed' => 2, 'Replied' => 3, 'Approved' => 4, 'Converted' => 5, 'Ordered' => 6],
@@ -79,7 +79,7 @@ class QuoteStatusTest extends CIUnitTestCase
         }
     }
 
-    public function testNext_NeverLeadsBackToADraftOrToConvertedByHand(): void
+    public function testNext_LeadsNeitherBackToADraftNorToConvertedByHand(): void
     {
         foreach (QuoteStatus::cases() as $from) {
             $this->assertNotContains(QuoteStatus::Draft, $from->next(), $from->name);
@@ -88,7 +88,7 @@ class QuoteStatusTest extends CIUnitTestCase
         }
     }
 
-    public function testNext_OnlyLeadsToTheStatesAnEmployeeMaySet(): void
+    public function testNext_LeadsOnlyToTheStatesAnEmployeeMaySet(): void
     {
         foreach (QuoteStatus::cases() as $from) {
             foreach ($from->next() as $to) {
@@ -130,7 +130,7 @@ class QuoteStatusTest extends CIUnitTestCase
         $this->assertSame(QuoteStatus::Draft, QuoteStatus::afterSave(QuoteStatus::Draft, QuoteStatus::Draft));
     }
 
-    public function testAfterSave_NeverChangesTheStateOfAQuoteThatIsNoLongerADraft(): void
+    public function testAfterSave_KeepsTheStateOfAQuoteThatIsNoLongerADraft(): void
     {
         foreach ([QuoteStatus::Open, QuoteStatus::Sent, QuoteStatus::Viewed, QuoteStatus::Replied, QuoteStatus::Approved, QuoteStatus::Ordered, QuoteStatus::Converted] as $stored) {
             $this->assertSame($stored, QuoteStatus::afterSave($stored, QuoteStatus::Draft), $stored->name . ' saved again as a draft');

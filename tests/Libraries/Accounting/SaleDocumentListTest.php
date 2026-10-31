@@ -119,7 +119,7 @@ class SaleDocumentListTest extends CIUnitTestCase
         $this->assertSame([$second, $first], $this->ids($this->list->drafts(null)));
     }
 
-    public function testDrafts_NameEachByItsTemporaryNumberOrByTheNumberTypedOnIt(): void
+    public function testDrafts_NamesEachByItsTemporaryNumberOrByTheNumberTypedOnIt(): void
     {
         $cycle = $this->referenceInvoice();
         $plain = $this->draftInvoice($cycle['items']);
@@ -133,7 +133,7 @@ class SaleDocumentListTest extends CIUnitTestCase
         $this->assertSame('HAND-9', $labels[$typed]);
     }
 
-    public function testDrafts_ShowWhatTheLinesComeToAfterTheirDiscountsAndTheDiscountOnTheWholeAndTheNamesOfTheCustomerAndTheEmployee(): void
+    public function testDrafts_ShowsWhatTheLinesComeToAfterTheirDiscountsAndTheDiscountOnTheWholeAndTheNamesOfTheCustomerAndTheEmployee(): void
     {
         $cycle = $this->discountedReferenceInvoice();
         $draft = $this->save($cycle['items'], [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, NEW_ENTRY, $cycle['discount']);
@@ -146,7 +146,7 @@ class SaleDocumentListTest extends CIUnitTestCase
         $this->assertSame('HQ', $row->branch_code);
     }
 
-    public function testDrafts_ShowTheSubtotalOfALineWithAFixedDiscountPerUnit(): void
+    public function testDrafts_ShowsTheSubtotalOfALineWithAFixedDiscountPerUnit(): void
     {
         $service = $this->item('0', false);
 
@@ -155,7 +155,7 @@ class SaleDocumentListTest extends CIUnitTestCase
         $this->assertSame('270.00', bcadd((string) $this->list->drafts(null)[0]->subtotal, '0', 2));
     }
 
-    public function testDrafts_ShowANilSubtotalForADraftWithNoLines(): void
+    public function testDrafts_ShowsANilSubtotalForADraftWithNoLines(): void
     {
         $draft = $this->draftInvoice([$this->line($this->item('0', false), 0, '1', '10')]);
 
@@ -164,7 +164,7 @@ class SaleDocumentListTest extends CIUnitTestCase
         $this->assertSame('0.00', bcadd((string) $this->list->drafts(null)[0]->subtotal, '0', 2));
     }
 
-    public function testDrafts_ListOnlyTheBranchesOfTheReader(): void
+    public function testDrafts_ListsOnlyTheBranchesOfTheReader(): void
     {
         $second = $this->createBranch();
         $inHq   = $this->draftInvoice();
@@ -177,7 +177,7 @@ class SaleDocumentListTest extends CIUnitTestCase
         $this->assertSame([], $this->list->drafts([]), 'a reader of no branch sees none');
     }
 
-    public function testQuotes_ListTheSuspendedQuotesNewestFirstAndNothingElse(): void
+    public function testQuotes_ListsTheSuspendedQuotesNewestFirstAndNothingElse(): void
     {
         $cycle     = $this->referenceInvoice();
         $first     = $this->quote(null, $cycle['items']);
@@ -191,7 +191,7 @@ class SaleDocumentListTest extends CIUnitTestCase
         $this->assertSame([$second, $first], $this->ids($this->list->quotes(null)));
     }
 
-    public function testQuotes_NameEachByItsNumberItsTemporaryNumberWhileADraftOrItsIdWhenALegacyQuoteHasNone(): void
+    public function testQuotes_NamesEachByItsNumberItsTemporaryNumberWhileADraftOrItsIdWhenALegacyQuoteHasNone(): void
     {
         $numbered = $this->quote();
         $draft    = $this->quote(QuoteStatus::Draft);
@@ -207,7 +207,7 @@ class SaleDocumentListTest extends CIUnitTestCase
         $this->assertSame('#' . $legacy, $labels[$legacy]);
     }
 
-    public function testQuotes_ReadEachStateAndAQuoteWithNoStateAsOpen(): void
+    public function testQuotes_ReadsEachStateAndAQuoteWithNoStateAsOpen(): void
     {
         $open     = $this->quote();
         $legacy   = $this->quote();
@@ -239,7 +239,7 @@ class SaleDocumentListTest extends CIUnitTestCase
         $this->assertSame([], $this->list->quotes(null, QuoteStatus::Ordered));
     }
 
-    public function testQuotes_NameTheInvoiceMadeFromAConvertedQuoteOnceItIsIssued(): void
+    public function testQuotes_NamesTheInvoiceMadeFromAConvertedQuoteOnceItIsIssued(): void
     {
         $this->allowEmployeeEverywhere();
 
@@ -261,7 +261,7 @@ class SaleDocumentListTest extends CIUnitTestCase
         $this->assertSame(QuoteStatus::Converted, (new QuoteLifecycle())->statusOf($other));
     }
 
-    public function testQuotes_ListOnlyTheBranchesOfTheReader(): void
+    public function testQuotes_ListsOnlyTheBranchesOfTheReader(): void
     {
         $second = $this->createBranch();
         $inHq   = $this->quote();
@@ -273,7 +273,7 @@ class SaleDocumentListTest extends CIUnitTestCase
         $this->assertSame([], $this->list->quotes([]));
     }
 
-    public function testLists_ReadNothingTheyWouldWrite(): void
+    public function testDrafts_WritesNothingToTheSalesItReads(): void
     {
         $this->draftInvoice();
         $this->quote();

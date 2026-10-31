@@ -183,7 +183,7 @@ class QuoteLifecycleTest extends CIUnitTestCase
         $this->assertSame('system', $this->auditOf($quote, 'quote_status_changed')[0]->origin);
     }
 
-    public function testChange_RefusesEveryMoveTheStateDoesNotAllowAndLeavesTheState(): void
+    public function testChange_RejectsEveryMoveTheStateDoesNotAllowAndLeavesTheState(): void
     {
         foreach (QuoteStatus::cases() as $from) {
             foreach (QuoteStatus::cases() as $to) {
@@ -220,7 +220,7 @@ class QuoteLifecycleTest extends CIUnitTestCase
         }
     }
 
-    public function testChange_NeverMovesAQuoteToConvertedByHand(): void
+    public function testChange_RejectsMovingAQuoteToConvertedByHand(): void
     {
         foreach ([QuoteStatus::Open, QuoteStatus::Approved, QuoteStatus::Ordered] as $from) {
             $quote = $this->quote();
@@ -237,7 +237,7 @@ class QuoteLifecycleTest extends CIUnitTestCase
         }
     }
 
-    public function testChange_RefusesWhatIsNotAQuoteThatIsBeingWorkedOn(): void
+    public function testChange_RejectsWhatIsNotAQuoteThatIsBeingWorkedOn(): void
     {
         $cancelled = $this->quote();
         $this->sales->update_sale_status($cancelled, CANCELED);
@@ -252,7 +252,7 @@ class QuoteLifecycleTest extends CIUnitTestCase
         }
     }
 
-    public function testChange_RefusesAnEmployeeWhoDoesNotWorkInTheBranchOfTheQuote(): void
+    public function testChange_RejectsAnEmployeeWhoDoesNotWorkInTheBranchOfTheQuote(): void
     {
         $second = $this->createBranch();
         $quote  = $this->quoteInBranch($second);
@@ -398,7 +398,7 @@ class QuoteLifecycleTest extends CIUnitTestCase
         }
     }
 
-    public function testMarkConverted_RefusesADraftAndAQuoteThatWasConvertedAlready(): void
+    public function testMarkConverted_RejectsADraftAndAQuoteThatWasConvertedAlready(): void
     {
         foreach ([QuoteStatus::Draft, QuoteStatus::Converted] as $from) {
             $quote = $this->quote();
@@ -416,7 +416,7 @@ class QuoteLifecycleTest extends CIUnitTestCase
         }
     }
 
-    public function testMarkConverted_RefusesWhatIsNotAQuote(): void
+    public function testMarkConverted_RejectsWhatIsNotAQuote(): void
     {
         $this->expectException(AccountingException::class);
         $this->expectExceptionMessage('The sale is not a quote.');
@@ -424,7 +424,7 @@ class QuoteLifecycleTest extends CIUnitTestCase
         $this->lifecycle->markConverted($this->draftInvoice(), 1, $this->employeeId);
     }
 
-    public function testMarkConverted_RefusesAnEmployeeWhoDoesNotWorkInTheBranchOfTheQuote(): void
+    public function testMarkConverted_RejectsAnEmployeeWhoDoesNotWorkInTheBranchOfTheQuote(): void
     {
         $second = $this->createBranch();
         $quote  = $this->quoteInBranch($second);
@@ -477,7 +477,7 @@ class QuoteLifecycleTest extends CIUnitTestCase
         $this->assertFalse($this->lifecycle->mayConvert($converted));
     }
 
-    public function testAssertUnlocked_RefusesAConvertedQuoteAndLetsEverythingElsePass(): void
+    public function testAssertUnlocked_RejectsAConvertedQuoteAndLetsEverythingElsePass(): void
     {
         foreach ([$this->quote(), $this->quote(QuoteStatus::Draft), $this->draftInvoice(), 999999] as $saleId) {
             $this->lifecycle->assertUnlocked($saleId);

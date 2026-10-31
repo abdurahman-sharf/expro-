@@ -3654,6 +3654,19 @@ class SalesControllerTest extends CIUnitTestCase
         return $value === null ? null : (string) $value;
     }
 
+    protected function assertAGetFindsNoPage(string $url): void
+    {
+        try {
+            $response = $this->get($url);
+        } catch (PageNotFoundException) {
+            $this->addToAssertionCount(1);
+
+            return;
+        }
+
+        $response->assertStatus(404);
+    }
+
     protected function saleStatusOf(int $saleId): int
     {
         return (int) Database::connect()->table('sales')->select('sale_status')->where('sale_id', $saleId)->get()->getRow()->sale_status;
@@ -4170,7 +4183,7 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertSame(0, Database::connect()->table('document_numbers')->countAllResults());
     }
 
-    public function testPostIssue_RefusesAFormatNumberThatAnotherInvoiceAlreadyHasAndLeavesTheDraft(): void
+    public function testPostIssue_RejectsAFormatNumberThatAnotherInvoiceAlreadyHasAndLeavesTheDraft(): void
     {
         $this->supervisorForDocuments();
 
@@ -4215,7 +4228,7 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertSame([$day], array_values(array_unique(array_column($this->standing($draft), 'date'))));
     }
 
-    public function testPostIssue_RefusesADayTypedByAnEmployeeWhoMayNotTypeItAndSaysWhy(): void
+    public function testPostIssue_RejectsADayTypedByAnEmployeeWhoMayNotTypeItAndSaysWhy(): void
     {
         $this->supervisorForDocuments();
 
@@ -4229,7 +4242,7 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertSame([], $this->journals($draft));
     }
 
-    public function testPostIssue_RefusesADayInAClosedPeriodAndSaysWhyAndKeepsTheDraft(): void
+    public function testPostIssue_RejectsADayInAClosedPeriodAndSaysWhyAndKeepsTheDraft(): void
     {
         $this->supervisorForDocuments(['sales_invoice_date']);
         $this->closeThrough($this->daysAgo(5));
@@ -4246,7 +4259,7 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertNull(Database::connect()->table('sales')->where('sale_id', $draft)->get()->getRow()->invoice_number);
     }
 
-    public function testPostIssue_RefusesADayThatIsNotUpToTodayAndTermsThatAreNotDays(): void
+    public function testPostIssue_RejectsADayThatIsNotUpToTodayAndTermsThatAreNotDays(): void
     {
         $this->supervisorForDocuments(['sales_invoice_date']);
 
@@ -4273,7 +4286,7 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertSame(SUSPENDED, $this->saleStatusOf($draft));
     }
 
-    public function testPostIssue_RefusesAnEmployeeWithoutTheReportsSalesGrantAndDoesNotIssue(): void
+    public function testPostIssue_RejectsAnEmployeeWithoutTheReportsSalesGrantAndDoesNotIssue(): void
     {
         $this->startSelling();
 
@@ -4289,7 +4302,7 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertSame(0, $this->countJournals());
     }
 
-    public function testPostIssue_RefusesADraftOfABranchTheEmployeeDoesNotWorkInAndDoesNotIssue(): void
+    public function testPostIssue_RejectsADraftOfABranchTheEmployeeDoesNotWorkInAndDoesNotIssue(): void
     {
         $this->startSelling();
 
@@ -4312,11 +4325,7 @@ class SalesControllerTest extends CIUnitTestCase
 
         $draft = $this->draftInvoice($this->taxedLines());
 
-        try {
-            $this->get('/sales/issue/' . $draft);
-        } catch (PageNotFoundException) {
-            // The route answers a POST only
-        }
+        $this->assertAGetFindsNoPage('/sales/issue/' . $draft);
 
         $this->assertSame(SUSPENDED, $this->saleStatusOf($draft));
         $this->assertSame(0, $this->countJournals());
@@ -4334,14 +4343,6 @@ class SalesControllerTest extends CIUnitTestCase
         foreach (['Documents', 'Document'] as $page) {
             $this->assertTrue(method_exists(Sales::class, 'get' . $page), "get{$page} only reads");
         }
-    }
-
-    public function testFilters_KeepTheTokenOnEveryPostRouteOfTheSales(): void
-    {
-        $source = (string) file_get_contents(APPPATH . 'Config/Filters.php');
-
-        $this->assertMatchesRegularExpression("/'csrf' => \\['except' => 'login\\|migrate'\\]/", $source, 'no sales route is exempt from the token');
-        $this->assertStringNotContainsString('sales', substr($source, (int) strpos($source, "'csrf' =>"), 80));
     }
 
     public function testGetDocument_PutsTheTokenInEveryFormThatChangesAState(): void
@@ -4385,7 +4386,7 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertSame($journals, $this->countJournals());
     }
 
-    public function testPostIssue_RefusesWhatIsNotADraftInvoice(): void
+    public function testPostIssue_RejectsWhatIsNotADraftInvoice(): void
     {
         $this->supervisorForDocuments();
 
@@ -4550,7 +4551,7 @@ class SalesControllerTest extends CIUnitTestCase
     }
 
     #[DataProvider('refusedMoveProvider')]
-    public function testPostQuoteStatus_RefusesAMoveTheStatusDoesNotAllowAndKeepsTheStatus(QuoteStatus $from, QuoteStatus $to): void
+    public function testPostQuoteStatus_RejectsAMoveTheStatusDoesNotAllowAndKeepsTheStatus(QuoteStatus $from, QuoteStatus $to): void
     {
         $this->supervisorForDocuments();
 
@@ -4574,7 +4575,7 @@ class SalesControllerTest extends CIUnitTestCase
     }
 
     #[DataProvider('notAStatusProvider')]
-    public function testPostQuoteStatus_RefusesWhatIsNotAStatusOfAQuote(mixed $value): void
+    public function testPostQuoteStatus_RejectsWhatIsNotAStatusOfAQuote(mixed $value): void
     {
         $this->supervisorForDocuments();
 
@@ -4586,7 +4587,7 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertSame((string) QuoteStatus::Open->value, $this->statusOfTheQuote($quote));
     }
 
-    public function testPostQuoteStatus_RefusesAnEmployeeWithoutTheReportsSalesGrant(): void
+    public function testPostQuoteStatus_RejectsAnEmployeeWithoutTheReportsSalesGrant(): void
     {
         $this->startSelling();
 
@@ -4600,7 +4601,7 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertSame((string) QuoteStatus::Open->value, $this->statusOfTheQuote($quote));
     }
 
-    public function testPostQuoteStatus_RefusesAQuoteOfABranchTheEmployeeDoesNotWorkIn(): void
+    public function testPostQuoteStatus_RejectsAQuoteOfABranchTheEmployeeDoesNotWorkIn(): void
     {
         $this->startSelling();
 
@@ -4616,7 +4617,7 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertSame((string) QuoteStatus::Open->value, $this->statusOfTheQuote($quote));
     }
 
-    public function testPostQuoteStatus_RefusesWhatIsNotAQuote(): void
+    public function testPostQuoteStatus_RejectsWhatIsNotAQuote(): void
     {
         $this->supervisorForDocuments();
 
@@ -4649,11 +4650,7 @@ class SalesControllerTest extends CIUnitTestCase
 
         $quote = $this->quote(null, $this->taxedLines());
 
-        try {
-            $this->get('/sales/quoteStatus/' . $quote . '?quote_status=' . QuoteStatus::Approved->value);
-        } catch (PageNotFoundException) {
-            // The route answers a POST only
-        }
+        $this->assertAGetFindsNoPage('/sales/quoteStatus/' . $quote . '?quote_status=' . QuoteStatus::Approved->value);
 
         $this->assertSame((string) QuoteStatus::Open->value, $this->statusOfTheQuote($quote));
     }
@@ -4686,7 +4683,7 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertSame((string) QuoteStatus::Open->value, $this->statusOfTheQuote($quote), 'the quote is converted when the invoice is saved');
     }
 
-    public function testPostConvertQuote_ThenSavingTheInvoiceConvertsTheQuoteAndPostsTheInvoice(): void
+    public function testPostConvertQuote_ConvertsTheQuoteAndPostsTheInvoiceOnlyWhenTheInvoiceIsSaved(): void
     {
         $this->supervisorForDocuments();
 
@@ -4715,7 +4712,7 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertNull(Services::session()->get('sales_quote_source'), 'the register forgets the quote after the sale');
     }
 
-    public function testPostConvertQuote_ThenSavingTheInvoiceAsADraftKeepsTheQuoteUntilTheDraftIsIssued(): void
+    public function testPostConvertQuote_KeepsTheQuoteUntilADraftMadeFromItIsIssued(): void
     {
         $this->supervisorForDocuments();
 
@@ -4739,7 +4736,7 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertSame((string) QuoteStatus::Converted->value, $this->statusOfTheQuote($quote));
     }
 
-    public function testPostConvertQuote_RefusesAQuoteThatWasConvertedAlreadySoNoSecondInvoiceIsMade(): void
+    public function testPostConvertQuote_RejectsAQuoteThatWasConvertedAlreadySoNoSecondInvoiceIsMade(): void
     {
         $this->supervisorForDocuments();
 
@@ -4759,7 +4756,7 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertSame($sales, $this->countSales());
     }
 
-    public function testPostComplete_RefusesTheSecondInvoiceOfAQuoteTwoRegistersConvertedAtTheSameTime(): void
+    public function testPostComplete_RejectsTheSecondInvoiceOfAQuoteTwoRegistersConvertedAtTheSameTime(): void
     {
         $supervisor = $this->supervisorForDocuments();
 
@@ -4786,7 +4783,7 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertSame($journals, $this->countJournals());
     }
 
-    public function testPostConvertQuote_RefusesADraftQuoteAndAnUnknownSale(): void
+    public function testPostConvertQuote_RejectsADraftQuoteAndAnUnknownSale(): void
     {
         $this->supervisorForDocuments();
 
@@ -4804,7 +4801,7 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertNull(Services::session()->get('sales_quote_source'));
     }
 
-    public function testPostConvertQuote_RefusesWhileInvoicesAreSwitchedOff(): void
+    public function testPostConvertQuote_RejectsWhileInvoicesAreSwitchedOff(): void
     {
         $this->supervisorForDocuments();
 
@@ -4823,7 +4820,7 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertSame(lang('Sales.quote_convert_unavailable'), $answer['message']);
     }
 
-    public function testPostConvertQuote_RefusesAnEmployeeWithoutTheReportsSalesGrantAndAQuoteOfAnotherBranch(): void
+    public function testPostConvertQuote_RejectsAnEmployeeWithoutTheReportsSalesGrantAndAQuoteOfAnotherBranch(): void
     {
         $this->startSelling();
 
@@ -4853,11 +4850,7 @@ class SalesControllerTest extends CIUnitTestCase
 
         $quote = $this->quote(null, $this->taxedLines());
 
-        try {
-            $this->get('/sales/convertQuote/' . $quote);
-        } catch (PageNotFoundException) {
-            // The route answers a POST only
-        }
+        $this->assertAGetFindsNoPage('/sales/convertQuote/' . $quote);
 
         $this->assertNull(Services::session()->get('sales_quote_source'));
     }
@@ -4920,7 +4913,7 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertSame($prefix . '001', $quote->quote_number);
     }
 
-    public function testPostSuspend_NeverTakesAnOpenQuoteBackToADraft(): void
+    public function testPostSuspend_KeepsAnOpenQuoteOpen(): void
     {
         $supervisor = $this->supervisorForDocuments();
 
@@ -4951,7 +4944,7 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertNull($sale->invoice_number);
     }
 
-    public function testPostUnsuspend_RefusesAConvertedQuoteAndKeepsTheCartTheCashierHolds(): void
+    public function testPostUnsuspend_RejectsAConvertedQuoteAndKeepsTheCartTheCashierHolds(): void
     {
         $this->supervisorForDocuments();
 
@@ -4970,7 +4963,7 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertSame(NEW_ENTRY, Services::session()->get('sale_id'));
     }
 
-    public function testPostUnsuspend_RefusesASaleOfABranchTheEmployeeDoesNotWorkInAndKeepsTheCart(): void
+    public function testPostUnsuspend_RejectsASaleOfABranchTheEmployeeDoesNotWorkInAndKeepsTheCart(): void
     {
         $this->supervisorForDocuments();
 

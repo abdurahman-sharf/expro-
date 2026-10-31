@@ -153,7 +153,7 @@ class QuoteLifecycleMigrationTest extends CIUnitTestCase
         $this->assertTrue($this->hasNoColumn());
     }
 
-    public function testDown_RefusesWhileAQuoteCarriesAState(): void
+    public function testDown_RejectsWhileAQuoteCarriesAState(): void
     {
         $saleId = $this->oldSale();
 
@@ -168,7 +168,7 @@ class QuoteLifecycleMigrationTest extends CIUnitTestCase
         }
     }
 
-    public function testDown_RefusesWhileAnInvoiceNamesTheQuoteItCameFrom(): void
+    public function testDown_RejectsWhileAnInvoiceNamesTheQuoteItCameFrom(): void
     {
         $saleId = $this->oldSale();
 

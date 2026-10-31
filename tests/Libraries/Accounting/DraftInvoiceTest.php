@@ -333,7 +333,7 @@ class DraftInvoiceTest extends CIUnitTestCase
         }
     }
 
-    public function testFigures_SayWhatTheDraftComesToWithTheTaxItWouldCarryNow(): void
+    public function testFigures_SaysWhatTheDraftComesToWithTheTaxItWouldCarryNow(): void
     {
         $cycle = $this->taxedReference();
         $draft = $this->draftInvoice($cycle['items']);
@@ -344,7 +344,7 @@ class DraftInvoiceTest extends CIUnitTestCase
         );
     }
 
-    public function testFigures_TakeTheDiscountOnTheWholeOffBeforeTheTax(): void
+    public function testFigures_TakesTheDiscountOnTheWholeOffBeforeTheTax(): void
     {
         $cycle = $this->discountedReferenceInvoice();
 
@@ -360,7 +360,7 @@ class DraftInvoiceTest extends CIUnitTestCase
         );
     }
 
-    public function testFigures_ComeToWhatTheInvoiceCarriesOnceItIsIssued(): void
+    public function testFigures_ComesToWhatTheInvoiceCarriesOnceItIsIssued(): void
     {
         $cycle = $this->taxedReference();
         $draft = $this->draftInvoice($cycle['items']);
@@ -370,7 +370,7 @@ class DraftInvoiceTest extends CIUnitTestCase
         $this->assertSame($this->customerAccount() . ':' . bcadd($total, '0', 2) . ':0.00', $this->standing($draft, 'revenue')[0]['lines'][0]);
     }
 
-    public function testFigures_AreEmptyForADraftWithNoLines(): void
+    public function testFigures_IsEmptyForADraftWithNoLines(): void
     {
         $service = $this->item('0', false);
         $draft   = $this->draftInvoice([$this->line($service, 0, '1', '10')]);

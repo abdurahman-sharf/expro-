@@ -321,7 +321,7 @@
   "find": "->where(['sale_id' => $saleId, 'sale_status' => SUSPENDED, 'sale_type' => SALE_TYPE_INVOICE])",
   "replace": "->where(['sale_id' => $saleId, 'sale_type' => SALE_TYPE_INVOICE])",
   "tests": [
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_|testForIssue_|testFind_|testPreview_|testFigures_|testLabel_",
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Rejects|Keeps|PostsNothingAndMoves|Leaves|PostsNothingForASuspended|WritesTheMove|WritesNoMove|WritesNoDraftIssued)|testDelete_RejectsToCancelAConverted|testDeleteSuspendedSale_|testForIssue_|testFind_|testPreview_|testFigures_|testLabel_",
    "tests/Libraries/Accounting/DraftInvoiceTest.php",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
@@ -332,7 +332,7 @@
   "find": "->where(['sale_id' => $saleId, 'sale_status' => SUSPENDED, 'sale_type' => SALE_TYPE_INVOICE])",
   "replace": "->where(['sale_id' => $saleId, 'sale_status' => SUSPENDED])",
   "tests": [
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_|testForIssue_|testFind_|testPreview_|testFigures_|testLabel_",
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Rejects|Keeps|PostsNothingAndMoves|Leaves|PostsNothingForASuspended|WritesTheMove|WritesNoMove|WritesNoDraftIssued)|testDelete_RejectsToCancelAConverted|testDeleteSuspendedSale_|testForIssue_|testFind_|testPreview_|testFigures_|testLabel_",
    "tests/Libraries/Accounting/DraftInvoiceTest.php",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
@@ -343,7 +343,7 @@
   "find": "->where('sale_status', SUSPENDED)\n            ->where('sale_id', $saleId)",
   "replace": "->where('sale_id', $saleId)",
   "tests": [
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_|testForIssue_|testFind_|testPreview_|testFigures_|testLabel_",
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Rejects|Keeps|PostsNothingAndMoves|Leaves|PostsNothingForASuspended|WritesTheMove|WritesNoMove|WritesNoDraftIssued)|testDelete_RejectsToCancelAConverted|testDeleteSuspendedSale_|testForIssue_|testFind_|testPreview_|testFigures_|testLabel_",
    "tests/Libraries/Accounting/DraftInvoiceTest.php",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
@@ -354,7 +354,7 @@
   "find": "->whereIn('sale_type', [SALE_TYPE_INVOICE, SALE_TYPE_QUOTE])",
   "replace": "->whereIn('sale_type', [SALE_TYPE_INVOICE, SALE_TYPE_QUOTE, SALE_TYPE_POS])",
   "tests": [
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_|testForIssue_|testFind_|testPreview_|testFigures_|testLabel_",
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Rejects|Keeps|PostsNothingAndMoves|Leaves|PostsNothingForASuspended|WritesTheMove|WritesNoMove|WritesNoDraftIssued)|testDelete_RejectsToCancelAConverted|testDeleteSuspendedSale_|testForIssue_|testFind_|testPreview_|testFigures_|testLabel_",
    "tests/Libraries/Accounting/DraftInvoiceTest.php",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
@@ -365,7 +365,7 @@
   "find": "$stored = $stored || $type === PaymentType::Giftcard || $type === PaymentType::Rewards;",
   "replace": "$stored = $stored || $type === PaymentType::Rewards;",
   "tests": [
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_|testForIssue_|testFind_|testPreview_|testFigures_|testLabel_",
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Rejects|Keeps|PostsNothingAndMoves|Leaves|PostsNothingForASuspended|WritesTheMove|WritesNoMove|WritesNoDraftIssued)|testDelete_RejectsToCancelAConverted|testDeleteSuspendedSale_|testForIssue_|testFind_|testPreview_|testFigures_|testLabel_",
    "tests/Libraries/Accounting/DraftInvoiceTest.php",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
@@ -376,7 +376,7 @@
   "find": "$stored = $stored || $type === PaymentType::Giftcard || $type === PaymentType::Rewards;",
   "replace": "$stored = $stored || $type === PaymentType::Giftcard;",
   "tests": [
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_|testForIssue_|testFind_|testPreview_|testFigures_|testLabel_",
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Rejects|Keeps|PostsNothingAndMoves|Leaves|PostsNothingForASuspended|WritesTheMove|WritesNoMove|WritesNoDraftIssued)|testDelete_RejectsToCancelAConverted|testDeleteSuspendedSale_|testForIssue_|testFind_|testPreview_|testFigures_|testLabel_",
    "tests/Libraries/Accounting/DraftInvoiceTest.php",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
@@ -387,7 +387,7 @@
   "find": "'cost_price'      => (string) $row->cost_price,",
   "replace": "'cost_price'      => '0',",
   "tests": [
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_|testForIssue_|testFind_|testPreview_|testFigures_|testLabel_",
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Rejects|Keeps|PostsNothingAndMoves|Leaves|PostsNothingForASuspended|WritesTheMove|WritesNoMove|WritesNoDraftIssued)|testDelete_RejectsToCancelAConverted|testDeleteSuspendedSale_|testForIssue_|testFind_|testPreview_|testFigures_|testLabel_",
    "tests/Libraries/Accounting/DraftInvoiceTest.php",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
@@ -398,7 +398,7 @@
   "find": "get_taxes($items, NEW_ENTRY, $customerId ?? NEW_ENTRY, 'sale_invoice')",
   "replace": "get_taxes($items, NEW_ENTRY, NEW_ENTRY, 'sale_invoice')",
   "tests": [
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_|testForIssue_|testFind_|testPreview_|testFigures_|testLabel_",
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Rejects|Keeps|PostsNothingAndMoves|Leaves|PostsNothingForASuspended|WritesTheMove|WritesNoMove|WritesNoDraftIssued)|testDelete_RejectsToCancelAConverted|testDeleteSuspendedSale_|testForIssue_|testFind_|testPreview_|testFigures_|testLabel_",
    "tests/Libraries/Accounting/DraftInvoiceTest.php",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
@@ -409,7 +409,7 @@
   "find": "bcscale(max(2, totals_decimals() + tax_decimals()));",
   "replace": "",
   "tests": [
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_|testForIssue_|testFind_|testPreview_|testFigures_|testLabel_",
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Rejects|Keeps|PostsNothingAndMoves|Leaves|PostsNothingForASuspended|WritesTheMove|WritesNoMove|WritesNoDraftIssued)|testDelete_RejectsToCancelAConverted|testDeleteSuspendedSale_|testForIssue_|testFind_|testPreview_|testFigures_|testLabel_",
    "tests/Libraries/Accounting/DraftInvoiceTest.php",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
@@ -420,7 +420,7 @@
   "find": "} finally {\n            bcscale($before);\n        }",
   "replace": "} finally {\n        }",
   "tests": [
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_|testForIssue_|testFind_|testPreview_|testFigures_|testLabel_",
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Rejects|Keeps|PostsNothingAndMoves|Leaves|PostsNothingForASuspended|WritesTheMove|WritesNoMove|WritesNoDraftIssued)|testDelete_RejectsToCancelAConverted|testDeleteSuspendedSale_|testForIssue_|testFind_|testPreview_|testFigures_|testLabel_",
    "tests/Libraries/Accounting/DraftInvoiceTest.php",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
@@ -431,7 +431,7 @@
   "find": "$problem = $plan;",
   "replace": "$problem = null;",
   "tests": [
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_|testForIssue_|testFind_|testPreview_|testFigures_|testLabel_",
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Rejects|Keeps|PostsNothingAndMoves|Leaves|PostsNothingForASuspended|WritesTheMove|WritesNoMove|WritesNoDraftIssued)|testDelete_RejectsToCancelAConverted|testDeleteSuspendedSale_|testForIssue_|testFind_|testPreview_|testFigures_|testLabel_",
    "tests/Libraries/Accounting/DraftInvoiceTest.php",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
@@ -442,7 +442,7 @@
   "find": "$items = $plan->applyTo($items);",
   "replace": "",
   "tests": [
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_|testForIssue_|testFind_|testPreview_|testFigures_|testLabel_",
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Rejects|Keeps|PostsNothingAndMoves|Leaves|PostsNothingForASuspended|WritesTheMove|WritesNoMove|WritesNoDraftIssued)|testDelete_RejectsToCancelAConverted|testDeleteSuspendedSale_|testForIssue_|testFind_|testPreview_|testFigures_|testLabel_",
    "tests/Libraries/Accounting/DraftInvoiceTest.php",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
@@ -453,7 +453,7 @@
   "find": "$problem === null && $items !== [] ? $this->taxesOf($items, $customerId)",
   "replace": "$items !== [] ? $this->taxesOf($items, $customerId)",
   "tests": [
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_|testForIssue_|testFind_|testPreview_|testFigures_|testLabel_",
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Rejects|Keeps|PostsNothingAndMoves|Leaves|PostsNothingForASuspended|WritesTheMove|WritesNoMove|WritesNoDraftIssued)|testDelete_RejectsToCancelAConverted|testDeleteSuspendedSale_|testForIssue_|testFind_|testPreview_|testFigures_|testLabel_",
    "tests/Libraries/Accounting/DraftInvoiceTest.php",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
@@ -509,7 +509,7 @@
   "find": "' WHERE sale_id = ? FOR UPDATE', [$saleId]);\n\n        if ($stored === null) {",
   "replace": "' WHERE sale_id = ?', [$saleId]);\n\n        if ($stored === null) {",
   "tests": [
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_",
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Rejects|Keeps|PostsNothingAndMoves|Leaves|PostsNothingForASuspended|WritesTheMove|WritesNoMove|WritesNoDraftIssued)|testDelete_RejectsToCancelAConverted|testDeleteSuspendedSale_",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
  },
@@ -519,7 +519,7 @@
   "find": "QuoteStatus::fromStored($stored->quote_status)->isLocked()",
   "replace": "false",
   "tests": [
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_",
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Rejects|Keeps|PostsNothingAndMoves|Leaves|PostsNothingForASuspended|WritesTheMove|WritesNoMove|WritesNoDraftIssued)|testDelete_RejectsToCancelAConverted|testDeleteSuspendedSale_",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
  },
@@ -529,7 +529,7 @@
   "find": "if ($completing && (int) $stored->sale_status !== SUSPENDED) {",
   "replace": "if (false) {",
   "tests": [
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_",
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Rejects|Keeps|PostsNothingAndMoves|Leaves|PostsNothingForASuspended|WritesTheMove|WritesNoMove|WritesNoDraftIssued)|testDelete_RejectsToCancelAConverted|testDeleteSuspendedSale_",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
  },
@@ -539,7 +539,7 @@
   "find": "$salesData['quote_status'] = QuoteStatus::afterSave($storedStatus, $quoteStatus ?? QuoteStatus::Open)->value;",
   "replace": "$salesData['quote_status'] = ($quoteStatus ?? QuoteStatus::Open)->value;",
   "tests": [
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_",
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Rejects|Keeps|PostsNothingAndMoves|Leaves|PostsNothingForASuspended|WritesTheMove|WritesNoMove|WritesNoDraftIssued)|testDelete_RejectsToCancelAConverted|testDeleteSuspendedSale_",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
  },
@@ -549,7 +549,7 @@
   "find": "} else {\n            $salesData['quote_status'] = null;\n        }",
   "replace": "} else {\n            unset($salesData['quote_status']);\n        }",
   "tests": [
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_",
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Rejects|Keeps|PostsNothingAndMoves|Leaves|PostsNothingForASuspended|WritesTheMove|WritesNoMove|WritesNoDraftIssued)|testDelete_RejectsToCancelAConverted|testDeleteSuspendedSale_",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
  },
@@ -559,7 +559,7 @@
   "find": "$salesData['source_quote_id'] = $quoteSourceId;",
   "replace": "",
   "tests": [
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_",
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Rejects|Keeps|PostsNothingAndMoves|Leaves|PostsNothingForASuspended|WritesTheMove|WritesNoMove|WritesNoDraftIssued)|testDelete_RejectsToCancelAConverted|testDeleteSuspendedSale_",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
  },
@@ -569,7 +569,7 @@
   "find": "$saleType === SALE_TYPE_QUOTE && ! $quoteIsDraft && ",
   "replace": "$saleType === SALE_TYPE_QUOTE && ",
   "tests": [
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_|testAssign_(TakesNothingFrom|NumbersTheDraft|KeepsTheNumberTyped|LeavesNoNumberBehindWhenTheIssue)",
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Rejects|Keeps|PostsNothingAndMoves|Leaves|PostsNothingForASuspended|WritesTheMove|WritesNoMove|WritesNoDraftIssued)|testDelete_RejectsToCancelAConverted|testDeleteSuspendedSale_|testAssign_(TakesNothingFrom|NumbersTheDraft|KeepsTheNumberTyped|LeavesNoNumberBehindWhenTheIssue)",
    "tests/Libraries/Accounting/SalePostingTest.php",
    "tests/Libraries/Numbering/DocumentNumberingTest.php"
   ]
@@ -580,7 +580,7 @@
   "find": "(new QuoteLifecycle($this->db))->markConverted($quoteOfInvoice, $saleId, $employeeId);",
   "replace": "",
   "tests": [
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_",
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Rejects|Keeps|PostsNothingAndMoves|Leaves|PostsNothingForASuspended|WritesTheMove|WritesNoMove|WritesNoDraftIssued)|testDelete_RejectsToCancelAConverted|testDeleteSuspendedSale_",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
  },
@@ -590,7 +590,7 @@
   "find": "$quoteOfInvoice = $quoteSourceId ?? ($stored === null || $stored->source_quote_id === null ? null : (int) $stored->source_quote_id);",
   "replace": "$quoteOfInvoice = $quoteSourceId;",
   "tests": [
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_",
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Rejects|Keeps|PostsNothingAndMoves|Leaves|PostsNothingForASuspended|WritesTheMove|WritesNoMove|WritesNoDraftIssued)|testDelete_RejectsToCancelAConverted|testDeleteSuspendedSale_",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
  },
@@ -600,7 +600,7 @@
   "find": "} catch (AccountingException|BranchException $refusal) {\n                    $this->db->transRollback();",
   "replace": "} catch (AccountingException|BranchException $refusal) {",
   "tests": [
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_",
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Rejects|Keeps|PostsNothingAndMoves|Leaves|PostsNothingForASuspended|WritesTheMove|WritesNoMove|WritesNoDraftIssued)|testDelete_RejectsToCancelAConverted|testDeleteSuspendedSale_",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
  },
@@ -610,7 +610,7 @@
   "find": "$this->auditDraftIssued($saleId, $employeeId, (int) $salesData['branch_id'], $timing['invoice_date']);",
   "replace": "",
   "tests": [
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_",
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Rejects|Keeps|PostsNothingAndMoves|Leaves|PostsNothingForASuspended|WritesTheMove|WritesNoMove|WritesNoDraftIssued)|testDelete_RejectsToCancelAConverted|testDeleteSuspendedSale_",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
  },
@@ -620,7 +620,7 @@
   "find": "if ($saleType === SALE_TYPE_INVOICE && $stored !== null && (int) $stored->sale_status === SUSPENDED) {",
   "replace": "if ($stored !== null && (int) $stored->sale_status === SUSPENDED) {",
   "tests": [
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_",
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Rejects|Keeps|PostsNothingAndMoves|Leaves|PostsNothingForASuspended|WritesTheMove|WritesNoMove|WritesNoDraftIssued)|testDelete_RejectsToCancelAConverted|testDeleteSuspendedSale_",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
  },
@@ -630,7 +630,7 @@
   "find": "if ($issue->paidWithStoredValue) {",
   "replace": "if (false) {",
   "tests": [
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_",
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Rejects|Keeps|PostsNothingAndMoves|Leaves|PostsNothingForASuspended|WritesTheMove|WritesNoMove|WritesNoDraftIssued)|testDelete_RejectsToCancelAConverted|testDeleteSuspendedSale_",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
  },
@@ -640,7 +640,7 @@
   "find": "$issue->customerId ?? NEW_ENTRY,",
   "replace": "NEW_ENTRY,",
   "tests": [
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_",
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Rejects|Keeps|PostsNothingAndMoves|Leaves|PostsNothingForASuspended|WritesTheMove|WritesNoMove|WritesNoDraftIssued)|testDelete_RejectsToCancelAConverted|testDeleteSuspendedSale_",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
  },
@@ -650,7 +650,7 @@
   "find": "$invoiceNumber ?? $issue->invoiceNumber,",
   "replace": "$invoiceNumber,",
   "tests": [
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_|testAssign_(TakesNothingFrom|NumbersTheDraft|KeepsTheNumberTyped|LeavesNoNumberBehindWhenTheIssue)",
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Rejects|Keeps|PostsNothingAndMoves|Leaves|PostsNothingForASuspended|WritesTheMove|WritesNoMove|WritesNoDraftIssued)|testDelete_RejectsToCancelAConverted|testDeleteSuspendedSale_|testAssign_(TakesNothingFrom|NumbersTheDraft|KeepsTheNumberTyped|LeavesNoNumberBehindWhenTheIssue)",
    "tests/Libraries/Accounting/SalePostingTest.php",
    "tests/Libraries/Numbering/DocumentNumberingTest.php"
   ]
@@ -661,7 +661,7 @@
   "find": "$issue->payments,",
   "replace": "[],",
   "tests": [
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_",
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Rejects|Keeps|PostsNothingAndMoves|Leaves|PostsNothingForASuspended|WritesTheMove|WritesNoMove|WritesNoDraftIssued)|testDelete_RejectsToCancelAConverted|testDeleteSuspendedSale_",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
  },
@@ -671,7 +671,7 @@
   "find": "$issue->delivered,",
   "replace": "true,",
   "tests": [
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_",
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Rejects|Keeps|PostsNothingAndMoves|Leaves|PostsNothingForASuspended|WritesTheMove|WritesNoMove|WritesNoDraftIssued)|testDelete_RejectsToCancelAConverted|testDeleteSuspendedSale_",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
  },
@@ -681,7 +681,7 @@
   "find": "$invoiceDate ?? $issue->invoiceDate,",
   "replace": "$invoiceDate,",
   "tests": [
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_",
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Rejects|Keeps|PostsNothingAndMoves|Leaves|PostsNothingForASuspended|WritesTheMove|WritesNoMove|WritesNoDraftIssued)|testDelete_RejectsToCancelAConverted|testDeleteSuspendedSale_",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
  },
@@ -691,7 +691,7 @@
   "find": "$paymentTerms ?? $issue->paymentTermsDays,",
   "replace": "$paymentTerms,",
   "tests": [
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_",
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Rejects|Keeps|PostsNothingAndMoves|Leaves|PostsNothingForASuspended|WritesTheMove|WritesNoMove|WritesNoDraftIssued)|testDelete_RejectsToCancelAConverted|testDeleteSuspendedSale_",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
  },
@@ -701,7 +701,7 @@
   "find": "(new QuoteLifecycle($this->db))->assertUnlocked((int) $sale_id);",
   "replace": "",
   "tests": [
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_",
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Rejects|Keeps|PostsNothingAndMoves|Leaves|PostsNothingForASuspended|WritesTheMove|WritesNoMove|WritesNoDraftIssued)|testDelete_RejectsToCancelAConverted|testDeleteSuspendedSale_",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
  },
@@ -711,7 +711,7 @@
   "find": "(new QuoteLifecycle($this->db))->assertUnlocked($sale_id);",
   "replace": "",
   "tests": [
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_",
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Rejects|Keeps|PostsNothingAndMoves|Leaves|PostsNothingForASuspended|WritesTheMove|WritesNoMove|WritesNoDraftIssued)|testDelete_RejectsToCancelAConverted|testDeleteSuspendedSale_",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
  },
@@ -721,7 +721,7 @@
   "find": "private function auditDraftIssued(int $saleId, int $employeeId, int $branchId, ?string $invoiceDate): void\n    {\n        if (! (new AccountingSettings($this->db))->isEnabled()) {",
   "replace": "private function auditDraftIssued(int $saleId, int $employeeId, int $branchId, ?string $invoiceDate): void\n    {\n        if (false) {",
   "tests": [
-   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Never|Keeps|Refuses|PostsNothingAndMoves|Leaves|ARegister|PostsNothingForASuspended)|testDelete_RefusesToCancelAConverted|testDeleteSuspendedSale_",
+   "--filter=testIssueDraft_|testSaveValue_(Saves|Converts|Rejects|Keeps|PostsNothingAndMoves|Leaves|PostsNothingForASuspended|WritesTheMove|WritesNoMove|WritesNoDraftIssued)|testDelete_RejectsToCancelAConverted|testDeleteSuspendedSale_",
    "tests/Libraries/Accounting/SalePostingTest.php"
   ]
  },
@@ -731,7 +731,7 @@
   "find": "if (!$this->employee->has_grant('reports_sales', $personId)) {\n            return redirect()->to('no_access/sales/reports_sales');\n        }\n\n        $guard     = new BranchGuard();",
   "replace": "$guard     = new BranchGuard();",
   "tests": [
-   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testFilters_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Never|Leaves)|testPostComplete_(SavesAQuoteOpen|RefusesTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Refuses|testGetSuspended_|testPostDelete_CancelsADraft",
+   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Keeps|Leaves)|testPostComplete_(SavesAQuoteOpen|RejectsTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Rejects|testGetSuspended_|testPostDelete_CancelsADraft",
    "tests/Controllers/SalesControllerTest.php"
   ]
  },
@@ -741,7 +741,7 @@
   "find": "$branchIds = $guard->allowedBranchIds($personId);",
   "replace": "$branchIds = null;",
   "tests": [
-   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testFilters_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Never|Leaves)|testPostComplete_(SavesAQuoteOpen|RefusesTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Refuses|testGetSuspended_|testPostDelete_CancelsADraft",
+   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Keeps|Leaves)|testPostComplete_(SavesAQuoteOpen|RejectsTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Rejects|testGetSuspended_|testPostDelete_CancelsADraft",
    "tests/Controllers/SalesControllerTest.php"
   ]
  },
@@ -751,7 +751,7 @@
   "find": "if (!$this->employee->has_grant('reports_sales', $personId)) {\n            return redirect()->to('no_access/sales/reports_sales');\n        }\n\n        if ($this->outsideBranchScope($saleId)) {\n            throw PageNotFoundException::forPageNotFound();\n        }\n\n        $drafts      = new DraftInvoice();",
   "replace": "if ($this->outsideBranchScope($saleId)) {\n            throw PageNotFoundException::forPageNotFound();\n        }\n\n        $drafts      = new DraftInvoice();",
   "tests": [
-   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testFilters_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Never|Leaves)|testPostComplete_(SavesAQuoteOpen|RefusesTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Refuses|testGetSuspended_|testPostDelete_CancelsADraft",
+   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Keeps|Leaves)|testPostComplete_(SavesAQuoteOpen|RejectsTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Rejects|testGetSuspended_|testPostDelete_CancelsADraft",
    "tests/Controllers/SalesControllerTest.php"
   ]
  },
@@ -761,7 +761,7 @@
   "find": "if ($this->outsideBranchScope($saleId)) {\n            throw PageNotFoundException::forPageNotFound();\n        }\n\n        $drafts      = new DraftInvoice();",
   "replace": "$drafts      = new DraftInvoice();",
   "tests": [
-   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testFilters_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Never|Leaves)|testPostComplete_(SavesAQuoteOpen|RefusesTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Refuses|testGetSuspended_|testPostDelete_CancelsADraft",
+   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Keeps|Leaves)|testPostComplete_(SavesAQuoteOpen|RejectsTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Rejects|testGetSuspended_|testPostDelete_CancelsADraft",
    "tests/Controllers/SalesControllerTest.php"
   ]
  },
@@ -771,7 +771,7 @@
   "find": "if ((!$isDraft && $quoteStatus === null) || $header === null) {",
   "replace": "if ($header === null) {",
   "tests": [
-   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testFilters_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Never|Leaves)|testPostComplete_(SavesAQuoteOpen|RefusesTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Refuses|testGetSuspended_|testPostDelete_CancelsADraft",
+   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Keeps|Leaves)|testPostComplete_(SavesAQuoteOpen|RejectsTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Rejects|testGetSuspended_|testPostDelete_CancelsADraft",
    "tests/Controllers/SalesControllerTest.php"
   ]
  },
@@ -781,7 +781,7 @@
   "find": "if (!$this->employee->has_grant('reports_sales', (int) $this->session->get('person_id'))) {\n            return $this->response->setStatusCode(403)",
   "replace": "if (false) {\n            return $this->response->setStatusCode(403)",
   "tests": [
-   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testFilters_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Never|Leaves)|testPostComplete_(SavesAQuoteOpen|RefusesTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Refuses|testGetSuspended_|testPostDelete_CancelsADraft",
+   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Keeps|Leaves)|testPostComplete_(SavesAQuoteOpen|RejectsTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Rejects|testGetSuspended_|testPostDelete_CancelsADraft",
    "tests/Controllers/SalesControllerTest.php"
   ]
  },
@@ -791,7 +791,7 @@
   "find": "if ($this->outsideBranchScope($saleId)) {\n            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.branch_not_allowed')]);\n        }\n\n        return null;",
   "replace": "return null;",
   "tests": [
-   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testFilters_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Never|Leaves)|testPostComplete_(SavesAQuoteOpen|RefusesTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Refuses|testGetSuspended_|testPostDelete_CancelsADraft",
+   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Keeps|Leaves)|testPostComplete_(SavesAQuoteOpen|RejectsTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Rejects|testGetSuspended_|testPostDelete_CancelsADraft",
    "tests/Controllers/SalesControllerTest.php"
   ]
  },
@@ -801,7 +801,7 @@
   "find": "public function postIssue(int $saleId = NEW_ENTRY): ResponseInterface\n    {\n        $refusal = $this->documentRefusal($saleId);",
   "replace": "public function postIssue(int $saleId = NEW_ENTRY): ResponseInterface\n    {\n        $refusal = null;",
   "tests": [
-   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testFilters_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Never|Leaves)|testPostComplete_(SavesAQuoteOpen|RefusesTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Refuses|testGetSuspended_|testPostDelete_CancelsADraft",
+   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Keeps|Leaves)|testPostComplete_(SavesAQuoteOpen|RejectsTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Rejects|testGetSuspended_|testPostDelete_CancelsADraft",
    "tests/Controllers/SalesControllerTest.php"
   ]
  },
@@ -811,7 +811,7 @@
   "find": "public function postQuoteStatus(int $saleId = NEW_ENTRY): ResponseInterface\n    {\n        $refusal = $this->documentRefusal($saleId);",
   "replace": "public function postQuoteStatus(int $saleId = NEW_ENTRY): ResponseInterface\n    {\n        $refusal = null;",
   "tests": [
-   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testFilters_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Never|Leaves)|testPostComplete_(SavesAQuoteOpen|RefusesTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Refuses|testGetSuspended_|testPostDelete_CancelsADraft",
+   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Keeps|Leaves)|testPostComplete_(SavesAQuoteOpen|RejectsTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Rejects|testGetSuspended_|testPostDelete_CancelsADraft",
    "tests/Controllers/SalesControllerTest.php"
   ]
  },
@@ -821,7 +821,7 @@
   "find": "public function postConvertQuote(int $saleId = NEW_ENTRY): ResponseInterface\n    {\n        $refusal = $this->documentRefusal($saleId);",
   "replace": "public function postConvertQuote(int $saleId = NEW_ENTRY): ResponseInterface\n    {\n        $refusal = null;",
   "tests": [
-   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testFilters_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Never|Leaves)|testPostComplete_(SavesAQuoteOpen|RefusesTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Refuses|testGetSuspended_|testPostDelete_CancelsADraft",
+   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Keeps|Leaves)|testPostComplete_(SavesAQuoteOpen|RejectsTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Rejects|testGetSuspended_|testPostDelete_CancelsADraft",
    "tests/Controllers/SalesControllerTest.php"
   ]
  },
@@ -831,7 +831,7 @@
   "find": "$date  = is_array($date) ? 'not a day' : trim((string) $date);",
   "replace": "$date  = trim((string) $date);",
   "tests": [
-   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testFilters_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Never|Leaves)|testPostComplete_(SavesAQuoteOpen|RefusesTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Refuses|testGetSuspended_|testPostDelete_CancelsADraft",
+   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Keeps|Leaves)|testPostComplete_(SavesAQuoteOpen|RejectsTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Rejects|testGetSuspended_|testPostDelete_CancelsADraft",
    "tests/Controllers/SalesControllerTest.php"
   ]
  },
@@ -841,7 +841,7 @@
   "find": "if ($this->sale->check_invoice_number_exists($invoiceNumber)) {",
   "replace": "if (false) {",
   "tests": [
-   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testFilters_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Never|Leaves)|testPostComplete_(SavesAQuoteOpen|RefusesTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Refuses|testGetSuspended_|testPostDelete_CancelsADraft",
+   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Keeps|Leaves)|testPostComplete_(SavesAQuoteOpen|RejectsTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Rejects|testGetSuspended_|testPostDelete_CancelsADraft",
    "tests/Controllers/SalesControllerTest.php"
   ]
  },
@@ -851,7 +851,7 @@
   "find": "if ($to === null) {",
   "replace": "if (false) {",
   "tests": [
-   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testFilters_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Never|Leaves)|testPostComplete_(SavesAQuoteOpen|RefusesTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Refuses|testGetSuspended_|testPostDelete_CancelsADraft",
+   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Keeps|Leaves)|testPostComplete_(SavesAQuoteOpen|RejectsTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Rejects|testGetSuspended_|testPostDelete_CancelsADraft",
    "tests/Controllers/SalesControllerTest.php"
   ]
  },
@@ -861,7 +861,7 @@
   "find": "if (!$this->config['invoice_enable']) {",
   "replace": "if (false) {",
   "tests": [
-   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testFilters_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Never|Leaves)|testPostComplete_(SavesAQuoteOpen|RefusesTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Refuses|testGetSuspended_|testPostDelete_CancelsADraft",
+   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Keeps|Leaves)|testPostComplete_(SavesAQuoteOpen|RejectsTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Rejects|testGetSuspended_|testPostDelete_CancelsADraft",
    "tests/Controllers/SalesControllerTest.php"
   ]
  },
@@ -871,7 +871,7 @@
   "find": "if ($status === null) {\n            return $this->response->setJSON(['success' => false, 'message' => lang('Accounting.error_quote_not_found'), 'id' => $saleId]);\n        }",
   "replace": "if (false) {\n            return $this->response->setJSON(['success' => false, 'message' => lang('Accounting.error_quote_not_found'), 'id' => $saleId]);\n        }",
   "tests": [
-   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testFilters_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Never|Leaves)|testPostComplete_(SavesAQuoteOpen|RefusesTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Refuses|testGetSuspended_|testPostDelete_CancelsADraft",
+   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Keeps|Leaves)|testPostComplete_(SavesAQuoteOpen|RejectsTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Rejects|testGetSuspended_|testPostDelete_CancelsADraft",
    "tests/Controllers/SalesControllerTest.php"
   ]
  },
@@ -881,7 +881,7 @@
   "find": "if (!$status->canConvert()) {",
   "replace": "if (false) {",
   "tests": [
-   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testFilters_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Never|Leaves)|testPostComplete_(SavesAQuoteOpen|RefusesTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Refuses|testGetSuspended_|testPostDelete_CancelsADraft",
+   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Keeps|Leaves)|testPostComplete_(SavesAQuoteOpen|RejectsTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Rejects|testGetSuspended_|testPostDelete_CancelsADraft",
    "tests/Controllers/SalesControllerTest.php"
   ]
  },
@@ -891,7 +891,7 @@
   "find": "            $this->sale_lib->clearQuoteSource();",
   "replace": "",
   "tests": [
-   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testFilters_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Never|Leaves)|testPostComplete_(SavesAQuoteOpen|RefusesTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Refuses|testGetSuspended_|testPostDelete_CancelsADraft",
+   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Keeps|Leaves)|testPostComplete_(SavesAQuoteOpen|RejectsTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Rejects|testGetSuspended_|testPostDelete_CancelsADraft",
    "tests/Controllers/SalesControllerTest.php"
   ]
  },
@@ -901,7 +901,7 @@
   "find": "quoteSourceId: $this->sale_lib->getQuoteSource());",
   "replace": "quoteSourceId: null);",
   "tests": [
-   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testFilters_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Never|Leaves)|testPostComplete_(SavesAQuoteOpen|RefusesTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Refuses|testGetSuspended_|testPostDelete_CancelsADraft",
+   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Keeps|Leaves)|testPostComplete_(SavesAQuoteOpen|RejectsTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Rejects|testGetSuspended_|testPostDelete_CancelsADraft",
    "tests/Controllers/SalesControllerTest.php"
   ]
  },
@@ -911,7 +911,7 @@
   "find": "$saleType === SALE_TYPE_QUOTE ? QuoteStatus::Draft : null",
   "replace": "null",
   "tests": [
-   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testFilters_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Never|Leaves)|testPostComplete_(SavesAQuoteOpen|RefusesTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Refuses|testGetSuspended_|testPostDelete_CancelsADraft",
+   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Keeps|Leaves)|testPostComplete_(SavesAQuoteOpen|RejectsTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Rejects|testGetSuspended_|testPostDelete_CancelsADraft",
    "tests/Controllers/SalesControllerTest.php"
   ]
  },
@@ -921,7 +921,7 @@
   "find": "$saleType === SALE_TYPE_INVOICE ? $this->sale_lib->getQuoteSource() : null",
   "replace": "null",
   "tests": [
-   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testFilters_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Never|Leaves)|testPostComplete_(SavesAQuoteOpen|RefusesTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Refuses|testGetSuspended_|testPostDelete_CancelsADraft",
+   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Keeps|Leaves)|testPostComplete_(SavesAQuoteOpen|RejectsTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Rejects|testGetSuspended_|testPostDelete_CancelsADraft",
    "tests/Controllers/SalesControllerTest.php"
   ]
  },
@@ -931,7 +931,7 @@
   "find": "if ($saleId > 0 && $this->outsideBranchScope((int) $saleId)) {",
   "replace": "if (false) {",
   "tests": [
-   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testFilters_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Never|Leaves)|testPostComplete_(SavesAQuoteOpen|RefusesTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Refuses|testGetSuspended_|testPostDelete_CancelsADraft",
+   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Keeps|Leaves)|testPostComplete_(SavesAQuoteOpen|RejectsTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Rejects|testGetSuspended_|testPostDelete_CancelsADraft",
    "tests/Controllers/SalesControllerTest.php"
   ]
  },
@@ -941,7 +941,7 @@
   "find": "if ($saleId > 0 && (new QuoteLifecycle())->statusOf((int) $saleId)?->isLocked() === true) {",
   "replace": "if (false) {",
   "tests": [
-   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testFilters_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Never|Leaves)|testPostComplete_(SavesAQuoteOpen|RefusesTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Refuses|testGetSuspended_|testPostDelete_CancelsADraft",
+   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Keeps|Leaves)|testPostComplete_(SavesAQuoteOpen|RejectsTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Rejects|testGetSuspended_|testPostDelete_CancelsADraft",
    "tests/Controllers/SalesControllerTest.php"
   ]
  },
@@ -951,7 +951,7 @@
   "find": "$allowed === null || in_array((int) $sale['branch_id'], $allowed, true)",
   "replace": "true",
   "tests": [
-   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testFilters_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Never|Leaves)|testPostComplete_(SavesAQuoteOpen|RefusesTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Refuses|testGetSuspended_|testPostDelete_CancelsADraft",
+   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Keeps|Leaves)|testPostComplete_(SavesAQuoteOpen|RejectsTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Rejects|testGetSuspended_|testPostDelete_CancelsADraft",
    "tests/Controllers/SalesControllerTest.php"
   ]
  },
@@ -961,7 +961,7 @@
   "find": "|| $failure instanceof BranchException",
   "replace": "",
   "tests": [
-   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testFilters_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Never|Leaves)|testPostComplete_(SavesAQuoteOpen|RefusesTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Refuses|testGetSuspended_|testPostDelete_CancelsADraft",
+   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Keeps|Leaves)|testPostComplete_(SavesAQuoteOpen|RejectsTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Rejects|testGetSuspended_|testPostDelete_CancelsADraft",
    "tests/Controllers/SalesControllerTest.php"
   ]
  },
@@ -1043,7 +1043,7 @@
   "find": "<dd class=\"col-sm-9\"><?= esc((string) $header->comment) ?></dd>",
   "replace": "<dd class=\"col-sm-9\"><?= (string) $header->comment ?></dd>",
   "tests": [
-   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testFilters_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Never|Leaves)|testPostComplete_(SavesAQuoteOpen|RefusesTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Refuses|testGetSuspended_|testPostDelete_CancelsADraft",
+   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Keeps|Leaves)|testPostComplete_(SavesAQuoteOpen|RejectsTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Rejects|testGetSuspended_|testPostDelete_CancelsADraft",
    "tests/Controllers/SalesControllerTest.php"
   ]
  },
@@ -1053,7 +1053,7 @@
   "find": "<td><?= esc((string) $draft->customer_name) ?></td>",
   "replace": "<td><?= (string) $draft->customer_name ?></td>",
   "tests": [
-   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testFilters_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Never|Leaves)|testPostComplete_(SavesAQuoteOpen|RefusesTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Refuses|testGetSuspended_|testPostDelete_CancelsADraft",
+   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Keeps|Leaves)|testPostComplete_(SavesAQuoteOpen|RejectsTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Rejects|testGetSuspended_|testPostDelete_CancelsADraft",
    "tests/Controllers/SalesControllerTest.php"
   ]
  },
@@ -1063,7 +1063,7 @@
   "find": "class=\"d-flex flex-wrap align-items-end gap-2\">\n                <?= csrf_field() ?>\n                <?php if ($can_type_date): ?>",
   "replace": "class=\"d-flex flex-wrap align-items-end gap-2\">\n                <?php if ($can_type_date): ?>",
   "tests": [
-   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testFilters_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Never|Leaves)|testPostComplete_(SavesAQuoteOpen|RefusesTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Refuses|testGetSuspended_|testPostDelete_CancelsADraft",
+   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Keeps|Leaves)|testPostComplete_(SavesAQuoteOpen|RejectsTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Rejects|testGetSuspended_|testPostDelete_CancelsADraft",
    "tests/Controllers/SalesControllerTest.php"
   ]
  },
@@ -1073,7 +1073,7 @@
   "find": "<?php if ($can_type_date): ?>",
   "replace": "<?php if (true): ?>",
   "tests": [
-   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testFilters_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Never|Leaves)|testPostComplete_(SavesAQuoteOpen|RefusesTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Refuses|testGetSuspended_|testPostDelete_CancelsADraft",
+   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Keeps|Leaves)|testPostComplete_(SavesAQuoteOpen|RejectsTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Rejects|testGetSuspended_|testPostDelete_CancelsADraft",
    "tests/Controllers/SalesControllerTest.php"
   ]
  },
@@ -1083,7 +1083,7 @@
   "find": "$quote_status->canConvert() && $invoice_enabled",
   "replace": "$quote_status->canConvert()",
   "tests": [
-   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testFilters_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Never|Leaves)|testPostComplete_(SavesAQuoteOpen|RefusesTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Refuses|testGetSuspended_|testPostDelete_CancelsADraft",
+   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Keeps|Leaves)|testPostComplete_(SavesAQuoteOpen|RejectsTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Rejects|testGetSuspended_|testPostDelete_CancelsADraft",
    "tests/Controllers/SalesControllerTest.php"
   ]
  },
@@ -1093,7 +1093,7 @@
   "find": "<?php if (! $locked): ?>",
   "replace": "<?php if (true): ?>",
   "tests": [
-   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testFilters_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Never|Leaves)|testPostComplete_(SavesAQuoteOpen|RefusesTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Refuses|testGetSuspended_|testPostDelete_CancelsADraft",
+   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Keeps|Leaves)|testPostComplete_(SavesAQuoteOpen|RejectsTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Rejects|testGetSuspended_|testPostDelete_CancelsADraft",
    "tests/Controllers/SalesControllerTest.php"
   ]
  },
@@ -1103,7 +1103,7 @@
   "find": "IF(quote_status = \" . QuoteStatus::Draft->value . \" AND (quote_number IS NULL OR quote_number = '')",
   "replace": "IF(0 = 1 AND (quote_number IS NULL OR quote_number = '')",
   "tests": [
-   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testFilters_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Never|Leaves)|testPostComplete_(SavesAQuoteOpen|RefusesTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Refuses|testGetSuspended_|testPostDelete_CancelsADraft",
+   "--filter=testGetDocuments_|testGetDocument_|testPostIssue_|testPostQuoteStatus_|testPostConvertQuote_|testGetIndex_OffersTheLink|testPostChangeMode_(Forgets|Keeps)TheQuote|testPostSuspend_(Saves|Keeps|Leaves)|testPostComplete_(SavesAQuoteOpen|RejectsTheSecondInvoice|SaysWhyAQuote)|testPostUnsuspend_Rejects|testGetSuspended_|testPostDelete_CancelsADraft",
    "tests/Controllers/SalesControllerTest.php"
   ],
   "all": true

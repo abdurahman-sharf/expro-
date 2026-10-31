@@ -4342,7 +4342,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame($this->standing($rung['sale'], 'revenue')[0]['lines'], $this->standing($draft, 'revenue')[0]['lines']);
     }
 
-    public function testIssueDraft_ARegisterDraftIsIssuedLikeOneThatTheRegisterTookUpAndCompleted(): void
+    public function testIssueDraft_IssuesARegisterDraftLikeOneThatTheRegisterTookUpAndCompleted(): void
     {
         $cream = $this->taxedItem('40.00', true, '15');
         $lines = [['item' => $cream, 'quantity' => '2', 'price' => '100']];
@@ -4491,7 +4491,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame([date('Y-m-d')], array_values(array_unique(array_column($this->standing($draft), 'date'))));
     }
 
-    public function testIssueDraft_RefusesADayInAClosedPeriodAndLeavesTheDraftAsItWas(): void
+    public function testIssueDraft_RejectsADayInAClosedPeriodAndLeavesTheDraftAsItWas(): void
     {
         $this->grantInvoiceDate();
         $this->closeThrough($this->daysAgo(5));
@@ -4512,7 +4512,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame([$this->daysAgo(4)], array_values(array_unique(array_column($this->standing($draft), 'date'))));
     }
 
-    public function testIssueDraft_RefusesTodayWhenThePeriodOfTodayIsClosedAndLeavesTheDraft(): void
+    public function testIssueDraft_RejectsTodayWhenThePeriodOfTodayIsClosedAndLeavesTheDraft(): void
     {
         $this->closeThrough(date('Y-m-d'));
 
@@ -4525,7 +4525,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame(0, $this->countJournals());
     }
 
-    public function testIssueDraft_RefusesADayInTheClosedPeriodOfTheBranchOfTheDraftOnly(): void
+    public function testIssueDraft_RejectsADayInTheClosedPeriodOfTheBranchOfTheDraftOnly(): void
     {
         $this->grantInvoiceDate();
 
@@ -4555,7 +4555,7 @@ class SalePostingTest extends CIUnitTestCase
     }
 
     #[DataProvider('badDayProvider')]
-    public function testIssueDraft_RefusesADayThatIsNotUpToTodayOrIsBeforeTheBooksAndLeavesTheDraft(string $day, AccountingError $error): void
+    public function testIssueDraft_RejectsADayThatIsNotUpToTodayOrIsBeforeTheBooksAndLeavesTheDraft(string $day, AccountingError $error): void
     {
         $this->grantInvoiceDate();
 
@@ -4569,7 +4569,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame([], $this->journals($draft));
     }
 
-    public function testIssueDraft_RefusesADayTypedByAnEmployeeWhoMayNotTypeItAndAcceptsOneWhoMay(): void
+    public function testIssueDraft_RejectsADayTypedByAnEmployeeWhoMayNotTypeItAndAcceptsOneWhoMay(): void
     {
         $cycle = $this->taxedReference();
         $draft = $this->draftInvoice($cycle['items']);
@@ -4598,7 +4598,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame(date('Y-m-d', strtotime('+14 days')), $this->saleRow($second)->due_date);
     }
 
-    public function testIssueDraft_RefusesTermsThatAreNotAWholeNumberOfDays(): void
+    public function testIssueDraft_RejectsTermsThatAreNotAWholeNumberOfDays(): void
     {
         $cycle = $this->taxedReference();
         $draft = $this->draftInvoice($cycle['items']);
@@ -4626,7 +4626,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertCount($audit, $this->lifecycleAudit($draft, 'draft_issued'));
     }
 
-    public function testSaveValue_NeverCompletesASaleThatIsNotWaitingToBeCompletedAgain(): void
+    public function testSaveValue_RejectsCompletingASaleThatIsNotWaitingToBeCompleted(): void
     {
         $cycle    = $this->taxedReference();
         $invoice  = $this->save($cycle['items'], $cycle['taxes']);
@@ -4761,7 +4761,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame(0, $this->countJournals());
     }
 
-    public function testIssueDraft_TwoRequestsAtTheSameTimeIssueTheDraftOnceAndTakeTheStockOnce(): void
+    public function testIssueDraft_IssuesTheDraftOnceAndTakesTheStockOnceWhenTwoRequestsRunAtTheSameTime(): void
     {
         $cycle = $this->taxedReference();
         $draft = $this->draftInvoice($cycle['items']);
@@ -4790,7 +4790,7 @@ class SalePostingTest extends CIUnitTestCase
     }
 
     #[DataProvider('notADraftProvider')]
-    public function testIssueDraft_RefusesWhatIsNotADraftInvoice(string $kind): void
+    public function testIssueDraft_RejectsWhatIsNotADraftInvoice(string $kind): void
     {
         $cycle = $this->taxedReference();
 
@@ -4823,7 +4823,7 @@ class SalePostingTest extends CIUnitTestCase
         return $draft;
     }
 
-    public function testIssueDraft_RefusesADraftPaidWithAGiftCardBecauseTheCardWasAlreadyDebitedWhenItWasSaved(): void
+    public function testIssueDraft_RejectsADraftPaidWithAGiftCardBecauseTheCardWasAlreadyDebitedWhenItWasSaved(): void
     {
         $db = $this->accountingDb();
         $db->table('giftcards')->insert(['giftcard_number' => 7771235, 'value' => 500, 'deleted' => 0, 'person_id' => null]);
@@ -4941,7 +4941,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame('QT-001', $this->saleRow($draft)->quote_number);
     }
 
-    public function testSaveValue_NeverTakesAQuoteBackToADraftBySavingItAgainAsOne(): void
+    public function testSaveValue_KeepsAQuoteThatIsNoLongerADraftFromGoingBackToOne(): void
     {
         $this->allowEmployeeEverywhere();
 
@@ -5030,7 +5030,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame($draft, (new QuoteLifecycle())->invoiceOf($quote));
     }
 
-    public function testSaveValue_RefusesASecondInvoiceFromTheSameQuoteAndLeavesNothingOfIt(): void
+    public function testSaveValue_RejectsASecondInvoiceFromTheSameQuoteAndLeavesNothingOfIt(): void
     {
         $this->allowEmployeeEverywhere();
 
@@ -5055,7 +5055,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame($first, (new QuoteLifecycle())->invoiceOf($quote));
     }
 
-    public function testSaveValue_RefusesAnInvoiceFromAQuoteThatIsStillADraft(): void
+    public function testSaveValue_RejectsAnInvoiceFromAQuoteThatIsStillADraft(): void
     {
         $this->allowEmployeeEverywhere();
 
@@ -5070,7 +5070,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame(QuoteStatus::Draft, (new QuoteLifecycle())->statusOf($quote));
     }
 
-    public function testSaveValue_RefusesAnInvoiceFromASaleThatIsNotAQuote(): void
+    public function testSaveValue_RejectsAnInvoiceFromASaleThatIsNotAQuote(): void
     {
         $this->allowEmployeeEverywhere();
 
@@ -5083,7 +5083,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame($sales, $this->countSales());
     }
 
-    public function testSaveValue_RefusesAnInvoiceFromAQuoteOfABranchTheEmployeeDoesNotWorkInAndLeavesNothingOfIt(): void
+    public function testSaveValue_RejectsAnInvoiceFromAQuoteOfABranchTheEmployeeDoesNotWorkInAndLeavesNothingOfIt(): void
     {
         $second   = $this->createBranch();
         $service  = $this->item('0', false);
@@ -5109,7 +5109,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame(QuoteStatus::Open, (new QuoteLifecycle())->statusOf($quote));
     }
 
-    public function testSaveValue_RefusesToSaveAConvertedQuoteAgainWhateverItIsSavedAs(): void
+    public function testSaveValue_RejectsToSaveAConvertedQuoteAgainWhateverItIsSavedAs(): void
     {
         $items = $this->referenceInvoice()['items'];
         $quote = $this->quote(null, $items);
@@ -5127,7 +5127,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame(0, $this->countJournals());
     }
 
-    public function testDelete_RefusesToCancelAConvertedQuoteAndCancelsAnotherQuoteWithNothingToReverse(): void
+    public function testDelete_RejectsToCancelAConvertedQuoteAndCancelsAnotherQuoteWithNothingToReverse(): void
     {
         $converted = $this->quote();
         $other     = $this->quote();
@@ -5143,7 +5143,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame(0, $this->countJournals());
     }
 
-    public function testDeleteSuspendedSale_RefusesAConvertedQuoteAndDiscardsAnotherQuote(): void
+    public function testDeleteSuspendedSale_RejectsAConvertedQuoteAndDiscardsAnotherQuote(): void
     {
         $converted = $this->quote();
         $other     = $this->quote(QuoteStatus::Draft);
@@ -5192,7 +5192,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame([], $this->lifecycleAudit($pos, 'draft_issued'), 'a sale of the point of sale is not a draft invoice');
     }
 
-    public function testSaveValue_ARegisterQuoteThatIsCompletedAsAnInvoiceInTheRegisterLeavesItsStateBehind(): void
+    public function testSaveValue_LeavesTheStateOfARegisterQuoteBehindWhenItIsCompletedAsAnInvoice(): void
     {
         $cycle = $this->referenceInvoice();
         $quote = $this->quote(null, $cycle['items']);
@@ -5268,7 +5268,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame(1, (new DocumentNumbering($this->accountingDb()))->sequence(DocumentType::SalesQuote)->nextNumber);
     }
 
-    public function testIssueDraft_RefusesADiscountThatNoLongerFitsTheLinesAndLeavesTheDraftAsItWas(): void
+    public function testIssueDraft_RejectsADiscountThatNoLongerFitsTheLinesAndLeavesTheDraftAsItWas(): void
     {
         $cycle = $this->taxedReference();
         $draft = $this->draftInvoice($cycle['items']);
@@ -5294,7 +5294,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertTies($other);
     }
 
-    public function testIssueDraft_TwoRequestsAtTheSameTimeForADraftOfNoCustomerIssueItOnceAndTakeTheStockOnce(): void
+    public function testIssueDraft_IssuesADraftOfNoCustomerOnceWhenTwoRequestsRunAtTheSameTime(): void
     {
         $cycle = $this->taxedReference();
         $draft = $this->save($cycle['items'], [], [$this->payment(lang('Sales.cash'), '816.50')], SALE_TYPE_INVOICE, null, true, null, SUSPENDED);
