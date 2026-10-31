@@ -5,6 +5,7 @@ namespace Tests\Libraries\Accounting;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\CustomerOpening;
 use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\OpeningBalanceService;
@@ -700,5 +701,31 @@ class OpeningBalanceServiceTest extends CIUnitTestCase
             ->getRow();
 
         $this->assertSame('400.0000', (string) $cash->balance);
+    }
+
+    public function testPost_RefusesTheAccountOfACustomerWhileCustomersCanBeGivenAnOpeningBalance(): void
+    {
+        $customerId = $this->insertCustomer();
+        $customer   = (new EntityAccountService())->ensure(EntityAccountService::CUSTOMER, $customerId, 'Omar Khaled');
+        $this->setConfigValue('accounting_customer_opening', '1');
+
+        try {
+            (new CustomerOpening())->create($customerId, CustomerOpening::OWES_US, '100.00', date('Y-m-d'), '', null);
+        } finally {
+            $this->setConfigValue('accounting_customer_opening', '0');
+        }
+
+        $ids = array_map('intval', array_column($this->service->allowedAccounts(), 'account_id'));
+
+        $this->assertNotContains($customer, $ids);
+        $this->assertNotContains($this->accountId('opening_balance'), $ids);
+
+        $lines = [
+            ['account_id' => $customer, 'debit' => '100.00', 'credit' => '', 'description' => ''],
+            ['account_id' => $this->accountId('cash'), 'debit' => '', 'credit' => '100.00', 'description' => ''],
+        ];
+
+        $this->assertFailsWith(AccountingError::OpeningAccountNotAllowed, fn () => $this->service->saveDraft(1, $lines, null));
+        $this->assertFailsWith(AccountingError::OpeningAccountNotAllowed, fn () => $this->service->post(1, $lines, false, null));
     }
 }

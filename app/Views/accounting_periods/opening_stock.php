@@ -1,6 +1,7 @@
 <?php
 /**
  * @var list<array{location_id: int, name: string, items: int, units: string, value: string, status: string, status_label: string, posted: bool, settleable: bool, messages: list<string>}> $stock
+ * @var list<string> $deleted_stock
  * @var int $branch_id
  * @var bool $can_manage
  * @var string $start_date
@@ -20,6 +21,16 @@ $ready = count(array_filter($stock, static fn (array $row): bool => $row['status
 
 <section id="opening_stock" class="acc-opening-stock mt-4" aria-labelledby="opening_stock_title">
     <h2 id="opening_stock_title" class="h5"><?= lang('Accounting_periods.opening_stock_title') ?></h2>
+
+    <?php if ($deleted_stock !== []): ?>
+        <div class="alert alert-warning" role="alert" id="stock_deleted_notice">
+            <ul class="mb-0">
+                <?php foreach ($deleted_stock as $notice): ?>
+                    <li><?= esc($notice) ?></li>
+                <?php endforeach; ?>
+            </ul>
+        </div>
+    <?php endif; ?>
 
     <?php if (! $has_start): ?>
         <p class="alert alert-warning" role="alert"><?= lang('Accounting_periods.opening_no_start') ?></p>
@@ -65,6 +76,9 @@ $ready = count(array_filter($stock, static fn (array $row): bool => $row['status
                                     </button>
                                 <?php endif; ?>
                                 <?php if ($can_manage && $row['posted']): ?>
+                                    <button type="button" class="btn btn-outline-primary btn-sm modal-dlg modal-dlg-wide stock-reprice" data-btn-submit="<?= esc(lang('Accounting_periods.opening_stock_reprice_submit'), 'attr') ?>" data-href="<?= esc('accounting_periods/opening/stock/reprice_form?location=' . (int) $row['location_id'], 'attr') ?>" title="<?= esc(lang('Accounting_periods.opening_stock_reprice_title'), 'attr') ?>">
+                                        <span class="bi bi-currency-exchange" aria-hidden="true">&nbsp;</span><?= lang('Accounting_periods.opening_stock_reprice_action') ?>
+                                    </button>
                                     <button type="button" class="btn btn-outline-danger btn-sm modal-dlg" data-btn-submit="<?= esc(lang('Accounting_journals.reverse'), 'attr') ?>" data-href="<?= esc('accounting_periods/opening/stock/reverse_form?location=' . (int) $row['location_id'], 'attr') ?>" title="<?= esc(lang('Accounting_periods.opening_stock_reverse_title'), 'attr') ?>">
                                         <span class="bi bi-arrow-counterclockwise" aria-hidden="true">&nbsp;</span><?= lang('Accounting_periods.opening_stock_reverse') ?>
                                     </button>

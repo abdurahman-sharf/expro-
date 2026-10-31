@@ -52,7 +52,7 @@ final class CreditSettlement
 
         // What stands on an invoice that is gone, or on a credit that is gone.
         foreach ($applications as $index => $application) {
-            $invoiceGone = ! isset($invoices[(int) $application->invoice_sale_id]);
+            $invoiceGone = ! isset($invoices[CustomerLedger::targetOf($application)]);
             $sourceGone  = ! isset($sources[$application->source_type . ':' . $application->source_id]);
 
             if ($invoiceGone || $sourceGone) {
@@ -65,11 +65,11 @@ final class CreditSettlement
         $into = [];
 
         foreach ($applications as $index => $application) {
-            $invoiceId = (int) $application->invoice_sale_id;
+            $invoiceId = CustomerLedger::targetOf($application);
             $invoice   = $invoices[$invoiceId];
             $allowed   = bcsub($invoice->total, $invoice->paid, SaleAmounts::SCALE);
             $allowed   = bccomp($allowed, '0', SaleAmounts::SCALE) > 0 ? $allowed : '0.0000';
-            $into[$invoiceId] ??= $this->sum($applications, 'invoice_sale_id', $invoiceId);
+            $into[$invoiceId] ??= $this->sumInto($applications, $invoiceId);
 
             $surplus = bcsub($into[$invoiceId], $allowed, SaleAmounts::SCALE);
 
@@ -165,7 +165,8 @@ final class CreditSettlement
 
         $this->db->table('customer_credit_applications')->insert([
             'customer_id'     => $customerId,
-            'invoice_sale_id' => $invoiceId,
+            'invoice_sale_id' => $invoiceId > 0 ? $invoiceId : null,
+            'opening_id'      => $invoiceId < 0 ? -$invoiceId : null,
             'source_type'     => $source->type,
             'source_id'       => $source->sourceId,
             'amount'          => $take,
@@ -203,6 +204,7 @@ final class CreditSettlement
             $this->db->table('customer_credit_applications')->insert([
                 'customer_id'     => $row->customer_id,
                 'invoice_sale_id' => $row->invoice_sale_id,
+                'opening_id'      => $row->opening_id,
                 'source_type'     => $row->source_type,
                 'source_id'       => $row->source_id,
                 'amount'          => $rest,
@@ -213,16 +215,18 @@ final class CreditSettlement
     }
 
     /**
+     * What stands on an invoice, or on an opening balance, which is numbered minus its number.
+     *
      * @param list<object> $applications
      *
      * @return numeric-string
      */
-    private function sum(array $applications, string $field, int $value): string
+    private function sumInto(array $applications, int $target): string
     {
         $sum = '0';
 
         foreach ($applications as $application) {
-            if ((int) $application->{$field} === $value) {
+            if (CustomerLedger::targetOf($application) === $target) {
                 $sum = bcadd($sum, $application->amount, SaleAmounts::SCALE);
             }
         }

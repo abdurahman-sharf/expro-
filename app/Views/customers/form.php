@@ -9,6 +9,8 @@
  * @var string $employee
  * @var string|null $automaticAccountNumber
  * @var array $config
+ * @var bool $opening_offered
+ * @var string $opening_today
  */
 ?>
 
@@ -156,6 +158,29 @@
                         </div>
                     </div>
                 </div>
+
+                <?php if (! empty($opening_offered)): ?>
+                    <div class="form-section" id="customer_opening_section">
+                        <h3 class="form-section-title"><?= lang('Customers.opening_balance') ?></h3>
+                        <p class="form-text"><?= lang('Customers.opening_balance_note') ?></p>
+                        <div class="form-grid">
+                            <div class="field">
+                                <?= form_label(lang('Customers.opening_side'), 'opening_side', ['class' => 'form-label']) ?>
+                                <?= form_dropdown('opening_side', ['owes_us' => lang('Customers.opening_owes_us'), 'we_owe' => lang('Customers.opening_we_owe')], 'owes_us', 'id="opening_side" class="form-select form-select-sm"') ?>
+                            </div>
+
+                            <div class="field">
+                                <?= form_label(lang('Customers.opening_amount'), 'opening_amount', ['class' => 'form-label']) ?>
+                                <input type="text" name="opening_amount" id="opening_amount" class="form-control form-control-sm ltr-input" dir="ltr" inputmode="decimal" autocomplete="off">
+                            </div>
+
+                            <div class="field">
+                                <?= form_label(lang('Customers.opening_date'), 'opening_date', ['class' => 'form-label']) ?>
+                                <input type="date" name="opening_date" id="opening_date" class="form-control form-control-sm ltr-input" dir="ltr" max="<?= esc($opening_today, 'attr') ?>" value="<?= esc($opening_today, 'attr') ?>">
+                            </div>
+                        </div>
+                    </div>
+                <?php endif; ?>
 
                 <?= view('people/form_comments') ?>
 

@@ -11,6 +11,8 @@ use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\OpeningStock;
 use App\Libraries\Accounting\OpeningStockPlan;
 use App\Libraries\Accounting\OpeningStockProblem;
+use App\Libraries\Accounting\OpeningStockReprice;
+use App\Libraries\Accounting\OpeningStockRepriceBlock;
 use App\Libraries\Accounting\OpeningStockResult;
 use App\Libraries\Accounting\OpeningStockStatus;
 use App\Libraries\Accounting\PostingError;
@@ -21,6 +23,7 @@ use App\Libraries\Accounting\StockLedger;
 use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
 use CodeIgniter\Database\BaseConnection;
+use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -1278,5 +1281,574 @@ class OpeningStockTest extends CIUnitTestCase
         $this->assertSame(1, $this->accountingDb()->table('accounting_journals')->where('source_type', 'reversal')->countAllResults());
         $this->assertSame(['posting', 'reversal'], array_map(static fn (object $row): string => $row->kind, $this->openingEntries()));
         $this->assertSame('0.00', $this->balance($this->stockAccount()));
+    }
+
+    private function setCost(int $itemId, string $cost): void
+    {
+        $this->accountingDb()->table('items')->where('item_id', $itemId)->update(['cost_price' => $cost]);
+    }
+
+    /**
+     * One item posted as opening stock at 50 a unit, whose cost has since been corrected to 60.
+     *
+     * @return array{item: int, first: OpeningStockResult}
+     */
+    private function postedAtTheWrongCost(string $units = '10', string $wrong = '50.00', string $right = '60.00'): array
+    {
+        $item = $this->item($wrong);
+        $this->shelves($item, $units);
+        $first = $this->onlyResult($this->opening->post([self::LOCATION_ID], null));
+        $this->setCost($item, $right);
+
+        return ['item' => $item, 'first' => $first];
+    }
+
+    private function reprice(string $reason = 'The cost was entered wrong', ?int $employeeId = null): OpeningStockResult
+    {
+        return $this->opening->repostAtCurrentCost(self::LOCATION_ID, $reason, $this->opening->repricePlan(self::LOCATION_ID, null)->fingerprint(), $employeeId);
+    }
+
+    /**
+     * @param list<OpeningStockRepriceBlock> $blocks
+     */
+    private function assertBlocks(array $blocks, OpeningStockReprice $plan): void
+    {
+        $this->assertSame(array_map(static fn (OpeningStockRepriceBlock $block): string => $block->value, $blocks), array_map(static fn (OpeningStockRepriceBlock $block): string => $block->value, $plan->blocks));
+    }
+
+    public function testRepricePlan_ShowsTheCostBeforeAndAfterOfEachItemAndWritesNothing(): void
+    {
+        $posted = $this->postedAtTheWrongCost();
+        $sugar  = $this->item('12.50');
+        $this->shelves($sugar, '4');
+        $counts = $this->counts();
+
+        $plan = $this->opening->repricePlan(self::LOCATION_ID, null);
+
+        $this->assertTrue($plan->allowed());
+        $this->assertSame(1, $plan->revision);
+        $this->assertSame(self::START, $plan->date);
+        $this->assertCount(1, $plan->lines, 'Only what the opening stock posted is repriced: the units that came after are not in it');
+        $this->assertSame([(string) $posted['item'], '10.000', '50.00000000', '60.00000000', '500.0000', '600.0000', '100.0000'], [(string) $plan->lines[0]->itemId, $plan->lines[0]->units, $plan->lines[0]->costBefore, $plan->lines[0]->costAfter, $plan->lines[0]->valueBefore, $plan->lines[0]->valueAfter, $plan->lines[0]->change()]);
+        $this->assertSame(['500.0000', '600.0000', '100.0000'], [$plan->before(), $plan->after(), $plan->change()]);
+        $this->assertSame($counts, $this->counts());
+        $this->assertSame($plan->fingerprint(), $this->opening->repricePlan(self::LOCATION_ID, null)->fingerprint());
+    }
+
+    public function testRepostAtCurrentCost_ChangesOnlyTheOpeningRevisionAndKeepsTheBooksReconciled(): void
+    {
+        $posted = $this->postedAtTheWrongCost();
+        $before = $this->history();
+
+        $result = $this->reprice();
+
+        $this->assertSame(OpeningStockStatus::Posted, $result->plan->status);
+        $this->assertSame(2, $result->revision);
+        $this->assertSame([$this->stockAccount() . ':600.0000:0.0000', $this->accountId('opening_balance') . ':0.0000:600.0000'], $this->linesOf($result->journalId));
+        $this->assertSame(self::START, $this->accountingDb()->table('accounting_journals')->where('journal_id', $result->journalId)->get()->getRow()->journal_date);
+        $this->assertHistoryKept($before, $this->history(), [$posted['first']->journalId]);
+        $this->assertSame(['reversed', 'posted', 'posted'], array_map(static fn (object $journal): string => $journal->status, $this->accountingDb()->table('accounting_journals')->orderBy('journal_id')->get()->getResult()), 'The first revision is reversed, then comes its reversal and the new revision');
+        $this->assertSame(['quantity' => '10.000', 'value' => '600.00'], $this->stockOf($posted['item']));
+        $this->assertSame('600.00', $this->balance($this->stockAccount()));
+        $this->assertSame('-600.00', $this->balance($this->accountId('opening_balance')));
+        $this->assertSame('60.0000', $this->itemCostOf($posted['item']), 'The cost the item carries is not touched');
+        $this->assertSame('10.000', $this->onHand($posted['item']));
+        $this->assertStockTies();
+
+        foreach ((new StockLedger())->reconcile() as $location) {
+            $this->assertSame('0.0000', bcadd($location['unattributed'], '0', 4));
+        }
+    }
+
+    public function testRepostAtCurrentCost_KeepsEveryOldRevisionVisibleAndReversed(): void
+    {
+        $posted = $this->postedAtTheWrongCost();
+
+        $this->reprice();
+
+        $revisions = $this->opening->revisions(self::LOCATION_ID);
+
+        $this->assertSame([[1, false, '500.0000', 1], [2, true, '600.0000', 1]], array_map(static fn (array $row): array => [$row['revision'], $row['standing'], $row['value'], $row['items']], $revisions));
+        $this->assertSame($posted['first']->journalId, $revisions[0]['journal_id']);
+        $this->assertSame(['posting', 'reversal', 'posting'], array_map(static fn (object $row): string => $row->kind, $this->openingEntries()));
+        $this->assertSame(['500.0000', '-500.0000', '600.0000'], array_map(static fn (object $row): string => $row->value, $this->openingEntries()));
+    }
+
+    public function testRepostAtCurrentCost_WritesTheReasonAndBothValuesToTheAuditTrail(): void
+    {
+        $this->postedAtTheWrongCost();
+
+        $result = $this->reprice('Supplier invoice corrected');
+
+        $actions = array_map(static fn (object $row): string => $row->action, $this->accountingDb()->table('accounting_audit_log')->where('entity_type', 'opening_stock')->orderBy('audit_id')->get()->getResult());
+
+        $this->assertSame(['opening_stock_posted', 'opening_stock_reversed', 'opening_stock_posted', 'opening_stock_repriced'], $actions);
+
+        $details = json_decode($this->accountingDb()->table('accounting_audit_log')->where('action', 'opening_stock_repriced')->get()->getRow()->details, true);
+
+        $this->assertSame(['Supplier invoice corrected', 1, $result->revision], [$details['reason'], $details['from_revision'], $details['revision']]);
+        $this->assertSame([500.0, 600.0], [(float) $details['before'], (float) $details['after']]);
+    }
+
+    public function testRepostAtCurrentCost_RepricesTheNegativeLinesOfSettledDifferencesAsMirrorsOfThePositiveOnes(): void
+    {
+        $rice = $this->item('50.00');
+        $owed = $this->item('3.00');
+        $this->shelves($rice, '10');
+        $this->shelves($owed, '-3');
+        $this->opening->post([self::LOCATION_ID], null, true, 'Counted');
+        $this->assertSame('491.00', $this->balance($this->stockAccount()));
+        $this->setCost($rice, '60.00');
+        $this->setCost($owed, '4.00');
+
+        $plan = $this->opening->repricePlan(self::LOCATION_ID, null);
+
+        $this->assertSame(['500.0000', '-9.0000'], array_map(static fn ($line): string => $line->valueBefore, $plan->lines));
+        $this->assertSame(['600.0000', '-12.0000'], array_map(static fn ($line): string => $line->valueAfter, $plan->lines));
+
+        $this->reprice();
+
+        $this->assertSame('588.00', $this->balance($this->stockAccount()));
+        $this->assertSame(['quantity' => '-3.000', 'value' => '-12.00'], $this->stockOf($owed));
+        $this->assertStockTies();
+    }
+
+    public function testRepostAtCurrentCost_LeavesTheOtherLocationsAndTheirMovementsAsTheyWere(): void
+    {
+        $posted = $this->postedAtTheWrongCost();
+        $store  = $this->anotherLocation('Second store');
+        $sugar  = $this->item('12.50');
+        $this->shelves($sugar, '4', $store);
+        $this->opening->post([$store], null);
+        $other = $this->accountingDb()->table('accounting_stock_entries')->where('location_id', $store)->get()->getResultArray();
+        $this->setCost($sugar, '20.00');
+
+        $this->reprice();
+
+        $this->assertSame($other, $this->accountingDb()->table('accounting_stock_entries')->where('location_id', $store)->get()->getResultArray());
+        $this->assertSame(['quantity' => '4.000', 'value' => '50.00'], $this->stockOf($sugar, $store));
+        $this->assertSame(['quantity' => '10.000', 'value' => '600.00'], $this->stockOf($posted['item']));
+        $this->assertStockTies();
+    }
+
+    public function testRepostAtCurrentCost_RefusesWhenAReceiptCameAfterTheOpeningAndChangesNothing(): void
+    {
+        $posted = $this->postedAtTheWrongCost();
+        $plan   = $this->opening->repricePlan(self::LOCATION_ID, null);
+
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($posted['item'], 0, '5', '70')]));
+        $before = $this->history();
+        $counts = $this->counts();
+
+        $refused = $this->opening->repricePlan(self::LOCATION_ID, null);
+
+        $this->assertFalse($refused->allowed());
+        $this->assertSame(1, $refused->laterMovements);
+        $this->assertBlocks([OpeningStockRepriceBlock::LaterMovements], $refused);
+        $this->assertRefusedWith(AccountingError::OpeningStockLaterMovements, fn () => $this->opening->repostAtCurrentCost(self::LOCATION_ID, 'Too late', $plan->fingerprint(), null));
+        $this->assertRefusedWith(AccountingError::OpeningStockLaterMovements, fn () => $this->reprice());
+        $this->assertSame($before, $this->history());
+        $this->assertSame($counts, $this->counts());
+        $this->assertStockTies();
+    }
+
+    public function testRepostAtCurrentCost_RefusesWhenASaleCameAfterTheOpeningAndLeavesTheCostOfGoodsSoldAlone(): void
+    {
+        $posted = $this->postedAtTheWrongCost();
+
+        $this->assertGreaterThan(0, $this->save([$this->line($posted['item'], 0, '8', '100', '50.00')]));
+        $before = $this->history();
+
+        $this->assertBlocks([OpeningStockRepriceBlock::LaterMovements], $this->opening->repricePlan(self::LOCATION_ID, null));
+        $this->assertRefusedWith(AccountingError::OpeningStockLaterMovements, fn () => $this->reprice());
+        $this->assertSame($before, $this->history());
+        $this->assertSame(['quantity' => '2.000', 'value' => '100.00'], $this->stockOf($posted['item']));
+        $this->assertStockTies();
+    }
+
+    public function testRepostAtCurrentCost_RefusesWhenAnotherDocumentMovedStockEvenBeforeTheOpeningWasPosted(): void
+    {
+        $item = $this->item('0.00');
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($item, 0, '10', '50')]));
+        $this->setCost($item, '50.00');
+        $this->accountingDb()->table('item_quantities')->where('item_id', $item)->update(['quantity' => '17']);
+        $this->opening->post([self::LOCATION_ID], null);
+        $this->setCost($item, '60.00');
+
+        $this->assertBlocks([OpeningStockRepriceBlock::LaterMovements], $this->opening->repricePlan(self::LOCATION_ID, null));
+        $this->assertRefusedWith(AccountingError::OpeningStockLaterMovements, fn () => $this->reprice());
+    }
+
+    public function testRepostAtCurrentCost_RefusesAClosedPeriodAndChangesNothing(): void
+    {
+        $this->postedAtTheWrongCost();
+        $this->closeThrough(self::START);
+        $plan   = $this->opening->repricePlan(self::LOCATION_ID, null);
+        $before = $this->history();
+        $counts = $this->counts();
+
+        $this->assertBlocks([OpeningStockRepriceBlock::PeriodClosed], $plan);
+
+        try {
+            $this->opening->repostAtCurrentCost(self::LOCATION_ID, 'Too late', $plan->fingerprint(), null);
+            $this->fail('A closed period must refuse the correction.');
+        } catch (PostingException $failure) {
+            $this->assertSame(PostingError::PeriodClosed, $failure->error);
+        }
+
+        $this->assertSame($before, $this->history());
+        $this->assertSame($counts['journals'], $this->countRows('accounting_journals'));
+        $this->assertSame($counts['entries'], $this->countRows('accounting_stock_entries'));
+        $this->assertSame('500.00', $this->balance($this->stockAccount()));
+        $this->assertStockTies();
+    }
+
+    public function testRepostAtCurrentCost_WritesARefusalOfTheBooksToThePostingFailureLogAndNothingForAPlainRefusal(): void
+    {
+        $this->postedAtTheWrongCost();
+        $fingerprint = $this->opening->repricePlan(self::LOCATION_ID, null)->fingerprint();
+        $failures    = fn (): int => $this->accountingDb()->table('accounting_posting_failures')->where('source_type', OpeningStock::SOURCE)->countAllResults();
+
+        $this->assertRefusedWith(AccountingError::OpeningStockPlanChanged, fn () => $this->opening->repostAtCurrentCost(self::LOCATION_ID, 'Stale', 'not the plan', null));
+        $this->assertSame(0, $failures(), 'A refusal that is no failure of the books is not written to the log');
+
+        $this->closeThrough(self::START);
+
+        try {
+            $this->opening->repostAtCurrentCost(self::LOCATION_ID, 'Too late', $fingerprint, null);
+            $this->fail('A closed period must refuse the correction.');
+        } catch (PostingException $failure) {
+            $this->assertSame(PostingError::PeriodClosed, $failure->error);
+        }
+
+        $this->assertSame(1, $this->accountingDb()->table('accounting_posting_failures')->where('source_type', OpeningStock::SOURCE)->where('source_id', self::LOCATION_ID)->where('error_code', PostingError::PeriodClosed->value)->countAllResults(), 'The refusal is written down after the rollback');
+        $this->assertSame(1, $failures());
+    }
+
+    public function testRepostAtCurrentCost_AcceptsTheDayAfterTheLastClosedDay(): void
+    {
+        $this->postedAtTheWrongCost();
+        $this->closeThrough('2019-12-31');
+
+        $this->assertTrue($this->opening->repricePlan(self::LOCATION_ID, null)->allowed());
+        $this->assertSame(2, $this->reprice()->revision);
+    }
+
+    public function testRepostAtCurrentCost_RefusesWhenTheAccountHoldsValueNoMovementAccountsFor(): void
+    {
+        $this->postedAtTheWrongCost();
+        (new PostingService())->post(new JournalDraft(
+            date: self::START,
+            lines: [new JournalLineDraft($this->stockAccount(), debit: '100.00'), new JournalLineDraft($this->accountId('opening_balance'), credit: '100.00')],
+            sourceType: JournalDraft::SOURCE_MANUAL,
+        ));
+        $counts = $this->counts();
+
+        $this->assertBlocks([OpeningStockRepriceBlock::AccountHoldsValue], $this->opening->repricePlan(self::LOCATION_ID, null));
+        $this->assertRefusedWith(AccountingError::OpeningStockAccountHoldsValue, fn () => $this->reprice());
+        $this->assertSame($counts, $this->counts());
+    }
+
+    public function testRepostAtCurrentCost_RefusesWhenEveryItemAlreadyStandsAtItsCostAndSoDoesARepeat(): void
+    {
+        $item = $this->item('50.00');
+        $this->shelves($item, '10');
+        $this->opening->post([self::LOCATION_ID], null);
+        $plan = $this->opening->repricePlan(self::LOCATION_ID, null);
+
+        $this->assertBlocks([OpeningStockRepriceBlock::NothingToChange], $plan);
+        $this->assertRefusedWith(AccountingError::OpeningStockNothingToReprice, fn () => $this->opening->repostAtCurrentCost(self::LOCATION_ID, 'No change', $plan->fingerprint(), null));
+
+        $this->setCost($item, '60.00');
+        $this->reprice();
+        $counts = $this->counts();
+
+        $this->assertRefusedWith(AccountingError::OpeningStockNothingToReprice, fn () => $this->reprice());
+        $this->assertSame($counts, $this->counts(), 'Running it again posts nothing');
+    }
+
+    public function testRepostAtCurrentCost_RequiresAReasonOfOneToTwoHundredAndFiftyFiveCharacters(): void
+    {
+        $this->postedAtTheWrongCost();
+        $fingerprint = $this->opening->repricePlan(self::LOCATION_ID, null)->fingerprint();
+        $counts      = $this->counts();
+
+        $this->assertRefusedWith(AccountingError::ReasonRequired, fn () => $this->opening->repostAtCurrentCost(self::LOCATION_ID, '  ', $fingerprint, null));
+        $this->assertRefusedWith(AccountingError::ReasonRequired, fn () => $this->opening->repostAtCurrentCost(self::LOCATION_ID, str_repeat('x', 256), $fingerprint, null));
+        $this->assertSame($counts, $this->counts());
+
+        $this->assertSame(2, $this->opening->repostAtCurrentCost(self::LOCATION_ID, str_repeat('x', 255), $fingerprint, null)->revision);
+    }
+
+    public function testRepostAtCurrentCost_RequiresThePlanThePersonSawAndRefusesOneThatHasChanged(): void
+    {
+        $posted      = $this->postedAtTheWrongCost();
+        $fingerprint = $this->opening->repricePlan(self::LOCATION_ID, null)->fingerprint();
+        $this->setCost($posted['item'], '65.00');
+        $counts = $this->counts();
+
+        $this->assertRefusedWith(AccountingError::OpeningStockPlanChanged, fn () => $this->opening->repostAtCurrentCost(self::LOCATION_ID, 'Stale', $fingerprint, null));
+        $this->assertRefusedWith(AccountingError::OpeningStockPlanChanged, fn () => $this->opening->repostAtCurrentCost(self::LOCATION_ID, 'Nothing seen', '', null));
+        $this->assertSame($counts, $this->counts());
+        $this->assertSame('500.00', $this->balance($this->stockAccount()));
+    }
+
+    public function testRepostAtCurrentCost_RequiresPostedOpeningStockAndALocationInUse(): void
+    {
+        $this->shelves($this->item('50.00'), '10');
+
+        $this->assertBlocks([OpeningStockRepriceBlock::NoOpening], $this->opening->repricePlan(self::LOCATION_ID, null));
+        $this->assertRefusedWith(AccountingError::OpeningStockNotPosted, fn () => $this->opening->repostAtCurrentCost(self::LOCATION_ID, 'Nothing posted', 'x', null));
+        $this->assertRefusedWith(AccountingError::OpeningStockLocationNotFound, fn () => $this->opening->repostAtCurrentCost(9999999, 'Missing', 'x', null));
+        $this->assertSame([], $this->openingEntries());
+    }
+
+    public function testRepostAtCurrentCost_RequiresThePermissionToManageTheOpeningBalances(): void
+    {
+        $this->postedAtTheWrongCost();
+        $fingerprint = $this->opening->repricePlan(self::LOCATION_ID, null)->fingerprint();
+        $clerk       = $this->employeeWithGrants(['accounting_periods']);
+        $counts      = $this->counts();
+
+        $this->assertRefusedWith(AccountingError::PermissionDenied, fn () => $this->opening->repostAtCurrentCost(self::LOCATION_ID, 'Why', $fingerprint, $clerk));
+        $this->assertSame($counts, $this->counts());
+
+        $manager = $this->employeeWithGrants(['accounting_periods', AccountingGuard::OPENING_MANAGE]);
+        $result  = $this->opening->repostAtCurrentCost(self::LOCATION_ID, 'Why', $fingerprint, $manager);
+
+        $this->assertSame($manager, (int) $this->accountingDb()->table('accounting_journals')->where('journal_id', $result->journalId)->get()->getRow()->created_by);
+    }
+
+    public function testRepostAtCurrentCost_RefusesALocationOfABranchTheEmployeeDoesNotWorkInAndChangesNothing(): void
+    {
+        [$branch, $store] = $this->secondBranchLocation();
+        $sugar            = $this->item('12.50');
+        $this->shelves($sugar, '4', $store);
+        $this->opening->post([$store], null);
+        $this->setCost($sugar, '20.00');
+        $fingerprint = $this->opening->repricePlan($store, null)->fingerprint();
+        $manager     = $this->employeeWithGrants(['accounting_periods', AccountingGuard::OPENING_MANAGE], [1]);
+        $counts      = $this->counts();
+
+        foreach ([fn () => $this->opening->repricePlan($store, $manager), fn () => $this->opening->repostAtCurrentCost($store, 'Why', $fingerprint, $manager)] as $attempt) {
+            try {
+                $attempt();
+                $this->fail('A branch outside the scope of the employee must be refused.');
+            } catch (BranchException $failure) {
+                $this->assertSame(BranchError::NotAllowed, $failure->error);
+            }
+        }
+
+        $this->assertSame($counts, $this->counts());
+        $this->assertSame('50.00', $this->balance((new EntityAccountService())->accountFor(EntityAccountService::STOCK_LOCATION, $store)));
+        $this->assertSame($branch, $this->opening->repricePlan($store, null)->branchId);
+    }
+
+    public function testRepostAtCurrentCost_NeedsAccountingToBeOn(): void
+    {
+        $this->postedAtTheWrongCost();
+        $fingerprint = $this->opening->repricePlan(self::LOCATION_ID, null)->fingerprint();
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $this->assertRefusedWith(AccountingError::OpeningStockAccountingOff, fn () => $this->opening->repostAtCurrentCost(self::LOCATION_ID, 'Why', $fingerprint, null));
+        $this->assertSame('500.00', $this->balance($this->stockAccount()));
+    }
+
+    public function testRepostAtCurrentCost_LetsLaterPurchasesAverageOverTheRepricedStockAndTheBooksStayTied(): void
+    {
+        $posted = $this->postedAtTheWrongCost();
+
+        $this->reprice();
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($posted['item'], 0, '10', '80')]));
+
+        $this->assertSame('70.0000', $this->itemCostOf($posted['item']), 'The average runs over the repriced 600 and the 800 bought');
+        $this->assertSame(['quantity' => '20.000', 'value' => '1400.00'], $this->stockOf($posted['item']));
+        $this->assertSame('1400.00', $this->balance($this->stockAccount()));
+        $this->assertStockTies();
+    }
+
+    public function testRepostAtCurrentCost_PostsOnlyTheMovementsOfTheOpeningWhenTheNewValueIsNothing(): void
+    {
+        $posted = $this->postedAtTheWrongCost();
+        $this->setCost($posted['item'], '0.00');
+
+        $result = $this->reprice();
+
+        $this->assertSame('0.00', $this->balance($this->stockAccount()));
+        $this->assertSame(['quantity' => '10.000', 'value' => '0.00'], $this->stockOf($posted['item']));
+        $this->assertNull($result->journalId, 'A journal of nothing is not written');
+        $this->assertStockTies();
+    }
+
+    public function testRepostAtCurrentCost_WaitsForARequestThatHoldsTheLocationAndChangesNothingWhenItCannotHaveIt(): void
+    {
+        $this->postedAtTheWrongCost();
+        $fingerprint = $this->opening->repricePlan(self::LOCATION_ID, null)->fingerprint();
+        $counts      = $this->counts();
+        $other       = $this->holdTheLocation(self::LOCATION_ID);
+        $this->accountingDb()->query('SET SESSION innodb_lock_wait_timeout = 1');
+
+        try {
+            $this->assertWaitsForLock(fn () => $this->opening->repostAtCurrentCost(self::LOCATION_ID, 'Why', $fingerprint, null));
+        } finally {
+            $other->transRollback();
+            $other->close();
+            $this->accountingDb()->query('SET SESSION innodb_lock_wait_timeout = 50');
+        }
+
+        $this->assertSame($counts['journals'], $this->countRows('accounting_journals'));
+        $this->assertSame($counts['entries'], $this->countRows('accounting_stock_entries'));
+        $this->assertSame('500.00', $this->balance($this->stockAccount()));
+    }
+
+    public function testRepostAtCurrentCost_RepricesTheLocationOnceForTwoRequestsAtTheSameMoment(): void
+    {
+        $this->postedAtTheWrongCost();
+        $fingerprint = $this->opening->repricePlan(self::LOCATION_ID, null)->fingerprint();
+
+        [$first, $second] = $this->raceTwoProcesses('repriceOpeningStock', [(string) self::LOCATION_ID, $fingerprint], [(string) self::LOCATION_ID, $fingerprint]);
+
+        $this->assertSame(1, (int) $first + (int) $second, 'Of two corrections at the same moment, one is made and the other finds it made');
+        $this->assertSame(['reversed', 'posted'], array_map(static fn (object $journal): string => $journal->status, $this->openingJournals()));
+        $this->assertSame('600.00', $this->balance($this->stockAccount()));
+        $this->assertSame(['posting', 'reversal', 'posting'], array_map(static fn (object $row): string => $row->kind, $this->openingEntries()));
+        $this->assertStockTies();
+    }
+
+    public function testPlans_BuildTheSameNumberOfQueriesWhateverTheNumberOfItemsInTheLocation(): void
+    {
+        $queries = 0;
+        $count   = static function () use (&$queries): void {
+            $queries++;
+        };
+
+        $measure = function (int $items) use (&$queries, $count): int {
+            for ($index = 0; $index < $items; $index++) {
+                $this->shelves($this->item('10.00'), '3');
+            }
+
+            $queries = 0;
+            Events::on('DBQuery', $count);
+            $this->opening->plans(1, null);
+            Events::removeListener('DBQuery', $count);
+
+            return $queries;
+        };
+
+        $small = $measure(3);
+        $large = $measure(60);
+
+        $this->assertSame($small, $large, 'A plan reads the whole location in a fixed number of queries, so a large catalogue is not slower per item');
+    }
+
+    public function testDeletedWithStock_NamesADeletedLocationThatStillHoldsUnitsAndNothingElse(): void
+    {
+        $gone  = $this->anotherLocation('Closed store');
+        $empty = $this->anotherLocation('Empty closed store');
+        $live  = $this->anotherLocation('Open store');
+        $rice  = $this->item('50.00');
+        $sugar = $this->item('12.50');
+        $this->shelves($rice, '10', $gone);
+        $this->shelves($sugar, '-2', $gone);
+        $this->shelves($rice, '4', $live);
+        $this->shelves($sugar, '0', $empty);
+        $this->accountingDb()->table('stock_locations')->whereIn('location_id', [$gone, $empty])->update(['deleted' => 1]);
+
+        $this->assertSame([['location_id' => $gone, 'name' => 'Closed store', 'items' => 2, 'units' => '8.000']], $this->opening->deletedWithStock(1, null));
+        $this->assertSame([], array_filter($this->opening->plans(1, null), static fn (OpeningStockPlan $plan): bool => $plan->locationId === $gone), 'A deleted location is still left out of the plans');
+    }
+
+    public function testDeletedWithStock_LeavesOutAServiceAndAnotherBranchAndRequiresTheBranchInScope(): void
+    {
+        [$branch, $store] = $this->secondBranchLocation('Other branch store');
+        $service          = $this->item('0.00', false);
+        $this->shelves($service, '5', $store);
+        $this->shelves($this->item('10.00'), '3', $store);
+        $this->accountingDb()->table('stock_locations')->where('location_id', $store)->update(['deleted' => 1]);
+        $manager = $this->employeeWithGrants(['accounting_periods', AccountingGuard::OPENING_MANAGE], [1]);
+
+        $this->assertSame([], $this->opening->deletedWithStock(1, null));
+        $this->assertSame([['location_id' => $store, 'name' => 'Other branch store', 'items' => 1, 'units' => '3.000']], $this->opening->deletedWithStock($branch, null));
+
+        try {
+            $this->opening->deletedWithStock($branch, $manager);
+            $this->fail('A branch outside the scope of the employee must be refused.');
+        } catch (BranchException $failure) {
+            $this->assertSame(BranchError::NotAllowed, $failure->error);
+        }
+    }
+
+    public function testRepostAtCurrentCost_UndoesTheReversalWhenTheNewRevisionCannotBePosted(): void
+    {
+        $this->postedAtTheWrongCost();
+        $fingerprint = $this->opening->repricePlan(self::LOCATION_ID, null)->fingerprint();
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'equity.opening')->update(['account_id' => null]);
+        $before = $this->history();
+
+        try {
+            $this->opening->repostAtCurrentCost(self::LOCATION_ID, 'Because', $fingerprint, null);
+            $this->fail('The opening balance equity account is needed to post the new revision.');
+        } catch (PostingException $failure) {
+            $this->assertSame(PostingError::RoutingAccountUnusable, $failure->error);
+        }
+
+        $this->assertSame($before, $this->history(), 'The reversal was undone with the rest: the first revision still stands');
+        $this->assertSame(['posted'], array_map(static fn (object $journal): string => $journal->status, $this->openingJournals()));
+        $this->assertSame('500.00', $this->balance($this->stockAccount()));
+        $this->assertSame(1, $this->opening->plan(self::LOCATION_ID, null)->activeRevision);
+    }
+
+    public function testRepostAtCurrentCost_RefusesAClosedPeriodBeforeItRefusesThatNothingWouldChange(): void
+    {
+        $item = $this->item('50.00');
+        $this->shelves($item, '10');
+        $this->opening->post([self::LOCATION_ID], null);
+        $fingerprint = $this->opening->repricePlan(self::LOCATION_ID, null)->fingerprint();
+        $this->closeThrough(self::START);
+
+        try {
+            $this->opening->repostAtCurrentCost(self::LOCATION_ID, 'Because', $fingerprint, null);
+            $this->fail('A closed period must refuse the correction.');
+        } catch (PostingException $failure) {
+            $this->assertSame(PostingError::PeriodClosed, $failure->error);
+        }
+    }
+
+    public function testRepostAtCurrentCost_CountsAMovementOfAnotherDocumentWhoseNumberIsTheNumberOfTheLocation(): void
+    {
+        $posted = $this->postedAtTheWrongCost();
+        $this->accountingDb()->table('accounting_stock_entries')->insert([
+            'company_id' => 1, 'branch_id' => 1, 'source_type' => 'sale', 'source_id' => self::LOCATION_ID, 'entry_type' => 'cost', 'revision' => 1, 'line_no' => 1, 'kind' => 'posting',
+            'entry_date' => '2020-02-01', 'item_id' => $posted['item'], 'location_id' => self::LOCATION_ID, 'quantity' => '-1.000', 'value' => '-50.0000', 'journal_id' => null,
+        ]);
+
+        $plan = $this->opening->repricePlan(self::LOCATION_ID, null);
+
+        $this->assertBlocks([OpeningStockRepriceBlock::LaterMovements, OpeningStockRepriceBlock::AccountHoldsValue], $plan);
+        $this->assertSame(1, $plan->laterMovements);
+    }
+
+    public function testRepostAtCurrentCost_RequiresAReasonEvenWhenTheOpeningHadNoJournalToReverse(): void
+    {
+        $item = $this->item('0.00');
+        $this->shelves($item, '10');
+        $first = $this->onlyResult($this->opening->post([self::LOCATION_ID], null));
+        $this->setCost($item, '60.00');
+        $fingerprint = $this->opening->repricePlan(self::LOCATION_ID, null)->fingerprint();
+        $counts      = $this->counts();
+
+        $this->assertNull($first->journalId, 'Goods that cost nothing leave no journal to reverse');
+
+        foreach (['', '   ', str_repeat('x', 256)] as $reason) {
+            $this->assertRefusedWith(AccountingError::ReasonRequired, fn () => $this->opening->repostAtCurrentCost(self::LOCATION_ID, $reason, $fingerprint, null));
+        }
+
+        $this->assertSame($counts, $this->counts());
+
+        $result = $this->opening->repostAtCurrentCost(self::LOCATION_ID, 'The cost was entered later', $fingerprint, null);
+
+        $this->assertSame('600.00', $this->balance($this->stockAccount()));
+        $this->assertNotNull($result->journalId);
+        $this->assertStockTies();
     }
 }

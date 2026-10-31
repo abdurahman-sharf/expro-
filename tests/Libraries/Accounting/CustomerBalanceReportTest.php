@@ -5,6 +5,7 @@ namespace Tests\Libraries\Accounting;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\BalanceTable;
 use App\Libraries\Accounting\CustomerBalanceReport;
+use App\Libraries\Accounting\CustomerOpening;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\PostingService;
@@ -218,6 +219,26 @@ class CustomerBalanceReportTest extends CIUnitTestCase
         $this->assertSame('125.0000', $row['balance']);
         $this->assertTrue($table->rows[0]->adds());
         $this->assertTrue($table->hasOther());
+    }
+
+    public function testBuild_CarriesAnOpeningBalanceInTheBalanceBeforeWhenItPrecedesThePeriodAndUnderOtherWhenItIsInsideIt(): void
+    {
+        $this->setConfigValue('accounting_customer_opening', '1');
+
+        try {
+            (new CustomerOpening())->create($this->customerId, CustomerOpening::OWES_US, '500.00', date('Y-m-d', strtotime('-30 days')), '', null);
+        } finally {
+            $this->setConfigValue('accounting_customer_opening', '0');
+        }
+
+        $this->invoiceOf('100.00');
+
+        $after  = $this->rowOf($this->report(date('Y-m-d', strtotime('-10 days'))), $this->customerId);
+        $inside = $this->rowOf($this->report(date('Y-m-d', strtotime('-40 days'))), $this->customerId);
+
+        $this->assertSame(['before' => '500.0000', 'sales' => '100.0000', 'other' => '0.0000', 'balance' => '600.0000'], array_intersect_key($after, array_flip(['before', 'sales', 'other', 'balance'])));
+        $this->assertSame(['before' => '0.0000', 'sales' => '100.0000', 'other' => '500.0000', 'balance' => '600.0000'], array_intersect_key($inside, array_flip(['before', 'sales', 'other', 'balance'])));
+        $this->assertTies();
     }
 
     public function testBuild_HidesACustomerWithNothingToShowOnRequestAndShowsItOtherwise(): void

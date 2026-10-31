@@ -2,6 +2,8 @@
 
 namespace Tests\Libraries\Accounting;
 
+use App\Libraries\Accounting\CustomerLedger;
+use App\Libraries\Accounting\CustomerOpening;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -473,6 +475,83 @@ class CreditSettlementTest extends CIUnitTestCase
         $this->removePayment($second, $paid);
 
         $this->assertSameAsFixture($case['expected'], ['credit_stays_on_the_invoice_after_its_source_is_gone' => $this->applications() !== []], 'credit after its source is removed');
+        $this->assertTies();
+    }
+
+    private function opening(string $amount, int $daysAgo): int
+    {
+        $this->setConfigValue('accounting_customer_opening', '1');
+
+        try {
+            return (new CustomerOpening())->create($this->customerId, CustomerOpening::OWES_US, $amount, $this->daysAgo($daysAgo), '', null);
+        } finally {
+            $this->setConfigValue('accounting_customer_opening', '0');
+        }
+    }
+
+    public function testSettle_PaysAnOpeningBalanceBeforeAnyInvoiceBecauseItIsTheOldest(): void
+    {
+        $opening = $this->opening('300.00', 60);
+        $invoice = $this->invoiceDated('200.00', $this->daysAgo(5));
+        $extra   = $this->invoiceDated('50.00', $this->daysAgo(1), null, null, [$this->payment(lang('Sales.cash'), '120.00')]);
+
+        $position = $this->position();
+
+        $this->assertSame('230.00', bcadd($position->invoice(-$opening)->open(), '0', 2));
+        $this->assertSame('200.00', bcadd($position->invoice($invoice)->open(), '0', 2));
+        $this->assertSame('0.00', bcadd($position->invoice($extra)->open(), '0', 2));
+        $this->assertSame(['invoice_excess:' . $extra . '->opening' . $opening . ':70.00'], array_map(
+            static fn (object $row): string => $row->source_type . ':' . $row->source_id . '->' . ($row->invoice_sale_id ?? 'opening' . $row->opening_id) . ':' . bcadd($row->amount, '0', 2),
+            (new CustomerLedger())->applications($this->customerId),
+        ));
+        $this->assertTies();
+    }
+
+    public function testSettle_GivesBackWhatWasPaidIntoAnOpeningBalanceWhenItIsCancelled(): void
+    {
+        $opening = $this->opening('300.00', 60);
+        $this->invoiceDated('50.00', $this->daysAgo(1), null, null, [$this->payment(lang('Sales.cash'), '120.00')]);
+
+        $this->setConfigValue('accounting_customer_opening', '1');
+        (new CustomerOpening())->cancel($opening, 'Entered twice', null);
+        $this->setConfigValue('accounting_customer_opening', '0');
+
+        $this->assertSame([], (new CustomerLedger())->applications($this->customerId));
+        $this->assertCount(1, (new CustomerLedger())->applications($this->customerId, true));
+        $this->assertSame('70.0000', $this->position()->credit());
+        $this->assertTies();
+    }
+
+    public function testSettle_ChangesNothingWhenRunAgainAfterAnOpeningBalanceHasBeenPaid(): void
+    {
+        $opening = $this->opening('300.00', 60);
+        $this->invoiceDated('50.00', $this->daysAgo(1), null, null, [$this->payment(lang('Sales.cash'), '120.00')]);
+        $before = (new CustomerLedger())->applications($this->customerId, true);
+
+        $this->settle();
+        $this->settle();
+
+        $this->assertEquals($before, (new CustomerLedger())->applications($this->customerId, true));
+        $this->assertSame('230.00', bcadd($this->position()->invoice(-$opening)->open(), '0', 2));
+    }
+
+    public function testSettle_CutsWhatWasSpentOnAnOpeningBalanceWhenTheCreditShrinksAndKeepsTheRestOnIt(): void
+    {
+        $opening = $this->opening('300.00', 60);
+        $invoice = $this->invoiceDated('50.00', $this->daysAgo(1), null, null, [$this->payment(lang('Sales.cash'), '120.00')]);
+        $payment = (int) $this->accountingDb()->table('sales_payments')->where('sale_id', $invoice)->get()->getRow()->payment_id;
+
+        $this->assertTrue($this->sales->update($invoice, ['comment' => 'less paid', 'payments' => [
+            ['payment_id' => $payment, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '100', 'cash_refund' => 0, 'cash_adjustment' => 0, 'employee_id' => $this->employeeId, 'reference_code' => null],
+        ]]));
+
+        $standing = array_map(
+            static fn (object $row): string => ($row->invoice_sale_id ?? 'opening' . $row->opening_id) . ':' . bcadd($row->amount, '0', 2),
+            (new CustomerLedger())->applications($this->customerId),
+        );
+
+        $this->assertSame(['opening' . $opening . ':50.00'], $standing, 'The excess is 50 now, and what was spent of the 70 before stays on the opening balance');
+        $this->assertSame('250.00', bcadd($this->position()->invoice(-$opening)->open(), '0', 2));
         $this->assertTies();
     }
 }

@@ -10,6 +10,8 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use CodeIgniter\Config\Services;
+use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\CustomerOpening;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
@@ -75,6 +77,8 @@ class SalesControllerTest extends CIUnitTestCase
         $db->table('document_numbers')->truncate();
         $db->table('document_sequences')->truncate();
         $db->table('accounting_audit_log')->where('entity_type', 'document_numbering')->delete();
+
+        $this->setConfigValue('accounting_customer_opening', '0');
 
         parent::tearDown();
     }
@@ -1293,6 +1297,24 @@ class SalesControllerTest extends CIUnitTestCase
             $response->assertSee('value="' . $status . '"');
             $response->assertSee(lang('Sales.payment_status_' . $status));
         }
+    }
+
+    public function testGetEdit_NamesTheOpeningBalanceAsTheSourceOfTheCreditSpentOnAnInvoice(): void
+    {
+        $this->startSelling();
+        $this->setConfigValue('accounting_customer_opening', '1');
+        $clerk     = $this->employeeWithGrants([AccountingGuard::OPENING_MANAGE]);
+        $openingId = (new CustomerOpening())->create($this->customerId, CustomerOpening::WE_OWE, '300.00', $this->daysAgo(20), '', $clerk);
+        $cycle     = $this->referenceInvoice();
+        $saleId    = $this->save($cycle['items'], $cycle['taxes']);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $response = $this->get('/sales/edit/' . $saleId);
+
+        $response->assertStatus(200);
+        $response->assertSee('id="credit_applications"');
+        $this->assertMatchesRegularExpression('~' . preg_quote(lang('Accounting_receivables.source_opening'), '~') . '\s*<bdi dir="ltr">#' . $openingId . '</bdi>\s*&rarr;\s*<bdi dir="ltr">#' . $saleId . '</bdi>~', $response->getBody());
+        $response->assertDontSee(lang('Sales.credit_from_excess'));
     }
 
     public function testGetEdit_OffersACreditNoteInsteadOfCancellingAnIssuedInvoice(): void

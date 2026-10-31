@@ -2,8 +2,10 @@
 
 namespace Tests\Controllers;
 
+use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AgingBuckets;
 use App\Libraries\Accounting\CustomerLedger;
+use App\Libraries\Accounting\CustomerOpening;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\PostingService;
@@ -59,6 +61,7 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
         $this->accountingDb()->table('document_numbers')->truncate();
         $this->accountingDb()->table('document_sequences')->truncate();
         $this->accountingDb()->table('giftcards')->where('giftcard_number', 7774321)->delete();
+        $this->setConfigValue('accounting_customer_opening', '0');
 
         $this->stopSelling();
 
@@ -1387,5 +1390,462 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
         ]]));
 
         return (int) $this->accountingDb()->table('sales_payments')->selectMax('payment_id', 'last')->where('sale_id', $saleId)->get()->getRow()->last;
+    }
+
+    /**
+     * @param list<int>|null $branchIds
+     */
+    private function openingManager(?array $branchIds = null): int
+    {
+        $personId = $this->employeeWithGrants(['accounting_receivables', AccountingGuard::OPENING_MANAGE], $branchIds);
+
+        $this->withSession(['person_id' => $personId, 'menu_group' => 'home']);
+
+        return $personId;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function openingPost(string $path, array $data): array
+    {
+        return json_decode($this->post($path, $data)->getJSON(), true);
+    }
+
+    private function enterOpening(string $amount = '1000.00', string $side = 'owes_us'): int
+    {
+        return (new CustomerOpening())->create($this->customerId, $side, $amount, $this->daysAgo(30), 'before the books', null);
+    }
+
+    public function testGetCustomer_OffersTheOpeningBalanceOnlyToWhoManagesOpeningBalancesWhileTheSettingIsOn(): void
+    {
+        $url = '/accounting_receivables/customer/' . $this->customerId;
+        $this->setConfigValue('accounting_customer_opening', '1');
+        $this->viewer();
+
+        $this->assertStringNotContainsString('customer_opening_new', $this->get($url)->getBody());
+
+        $this->openingManager();
+        $this->setConfigValue('accounting_customer_opening', '0');
+
+        $off = $this->get($url)->getBody();
+
+        $this->assertStringNotContainsString('customer_opening_new', $off);
+        $this->assertStringNotContainsString('id="receivable_openings"', $off);
+
+        $this->setConfigValue('accounting_customer_opening', '1');
+
+        $on = $this->get($url)->getBody();
+
+        $this->assertStringContainsString('customer_opening_new', $on);
+        $this->assertStringContainsString('accounting_receivables/opening_form/' . $this->customerId, $on);
+    }
+
+    public function testGetOpeningForm_ShowsTheFormToWhoManagesOpeningBalancesWhileTheSettingIsOn(): void
+    {
+        $this->openingManager();
+        $this->setConfigValue('accounting_customer_opening', '1');
+
+        $form = $this->get('/accounting_receivables/opening_form/' . $this->customerId);
+
+        $form->assertStatus(200);
+        $form->assertSee('customer_opening_form');
+        $form->assertSee('name="opening_date"');
+        $form->assertSee('owes_us');
+        $form->assertDontSee('name="reason"');
+    }
+
+    public function testGetOpeningForm_IsNotFoundForACustomerWithoutAnAccountAndForOneWhoHasAnOpeningBalance(): void
+    {
+        $this->openingManager();
+        $this->setConfigValue('accounting_customer_opening', '1');
+        $without = $this->insertCustomer('Nora', 'Fahd');
+
+        try {
+            $this->get('/accounting_receivables/opening_form/' . $without);
+            $this->fail('A customer without an account must be hidden.');
+        } catch (PageNotFoundException) {
+            $this->addToAssertionCount(1);
+        }
+
+        $this->enterOpening();
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_receivables/opening_form/' . $this->customerId);
+    }
+
+    public function testGetOpeningForm_IsNotFoundWithoutThePermission(): void
+    {
+        $this->viewer();
+        $this->setConfigValue('accounting_customer_opening', '1');
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_receivables/opening_form/' . $this->customerId);
+    }
+
+    public function testGetOpeningForm_IsNotFoundWhileTheSettingIsOff(): void
+    {
+        $this->openingManager();
+        $this->setConfigValue('accounting_customer_opening', '0');
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_receivables/opening_form/' . $this->customerId);
+    }
+
+    public function testGetOpeningForm_IsNotFoundForSomeoneLimitedToABranch(): void
+    {
+        $this->openingManager([1]);
+        $this->setConfigValue('accounting_customer_opening', '1');
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_receivables/opening_form/' . $this->customerId);
+    }
+
+    public function testPostOpening_EntersTheOpeningBalanceAndTheStatementShowsItAsAnInvoiceAndInTheOpeningsList(): void
+    {
+        $this->openingManager();
+        $this->setConfigValue('accounting_customer_opening', '1');
+
+        $done = $this->openingPost('/accounting_receivables/opening/' . $this->customerId, ['side' => 'owes_us', 'amount' => '1000.00', 'opening_date' => $this->daysAgo(45), 'note' => 'carried over']);
+
+        $this->assertTrue($done['success']);
+        $this->assertSame(lang('Accounting_receivables.opening_done'), $done['message']);
+        $this->assertSame('1000.00', $this->balance($this->customerAccount()));
+
+        $body = $this->get('/accounting_receivables/customer/' . $this->customerId)->getBody();
+
+        $this->assertStringContainsString('id="receivable_openings"', $body);
+        $this->assertStringContainsString('carried over', $body);
+        $this->assertStringContainsString(lang('Accounting_receivables.source_opening'), $body);
+        $this->assertStringContainsString(lang('Accounting_receivables.agrees_yes'), $body);
+        $this->assertStringContainsString('opening_edit_form/' . $done['id'], $body);
+        $this->assertStringContainsString('opening_cancel_form/' . $done['id'], $body);
+        $this->assertStringNotContainsString('customer_opening_new', $body, 'A customer who has one cannot be given another');
+
+        $row = $this->rowsOf()['rows'][0];
+
+        $this->assertSame($this->customerId, (int) $row['customer_id']);
+        $this->assertStringContainsString('1,000.00', strip_tags($row['balance']));
+        $this->assertStringContainsString('1,000.00', strip_tags($row['age_31_60']));
+    }
+
+    public function testPostOpening_RefusesWithoutThePermissionAndWhileTheSettingIsOff(): void
+    {
+        $this->viewer();
+        $this->setConfigValue('accounting_customer_opening', '1');
+
+        $denied = $this->openingPost('/accounting_receivables/opening/' . $this->customerId, ['side' => 'owes_us', 'amount' => '10.00', 'opening_date' => date('Y-m-d')]);
+
+        $this->assertFalse($denied['success']);
+        $this->assertSame(0, $this->countRows('customer_openings'));
+
+        $this->openingManager();
+        $this->setConfigValue('accounting_customer_opening', '0');
+
+        $off = $this->openingPost('/accounting_receivables/opening/' . $this->customerId, ['side' => 'owes_us', 'amount' => '10.00', 'opening_date' => date('Y-m-d')]);
+
+        $this->assertFalse($off['success']);
+        $this->assertSame(lang('Accounting.error_customer_opening_off'), $off['message']);
+        $this->assertSame(0, $this->countRows('customer_openings'));
+    }
+
+    public function testPostOpening_IsNotFoundForSomeoneLimitedToABranchAndSavesNothing(): void
+    {
+        $this->setConfigValue('accounting_customer_opening', '1');
+        $this->openingManager([1]);
+
+        try {
+            $this->post('/accounting_receivables/opening/' . $this->customerId, ['side' => 'owes_us', 'amount' => '10.00', 'opening_date' => date('Y-m-d')]);
+            $this->fail('Someone limited to a branch must not enter an opening balance of the company.');
+        } catch (PageNotFoundException) {
+            $this->addToAssertionCount(1);
+        }
+
+        $this->assertSame(0, $this->countRows('customer_openings'));
+    }
+
+    public function testPostOpening_ReportsWhatTheBooksRefuseInTheLanguageInUse(): void
+    {
+        $this->openingManager();
+        $this->setConfigValue('accounting_customer_opening', '1');
+        $this->closeThrough($this->daysAgo(10));
+
+        $closed = $this->openingPost('/accounting_receivables/opening/' . $this->customerId, ['side' => 'owes_us', 'amount' => '10.00', 'opening_date' => $this->daysAgo(20)]);
+        $zero   = $this->openingPost('/accounting_receivables/opening/' . $this->customerId, ['side' => 'owes_us', 'amount' => '0', 'opening_date' => $this->daysAgo(5)]);
+
+        $this->assertFalse($closed['success']);
+        $this->assertFalse($zero['success']);
+        $this->assertSame(0, $this->countRows('customer_openings'));
+
+        $this->assertTrue($this->openingPost('/accounting_receivables/opening/' . $this->customerId, ['side' => 'owes_us', 'amount' => '10.00', 'opening_date' => $this->daysAgo(5)])['success']);
+
+        $again = $this->openingPost('/accounting_receivables/opening/' . $this->customerId, ['side' => 'owes_us', 'amount' => '10.00', 'opening_date' => $this->daysAgo(5)]);
+
+        $this->assertFalse($again['success']);
+        $this->assertSame(lang('Accounting.error_customer_opening_exists'), $again['message']);
+        $this->assertSame(1, $this->countRows('customer_openings'));
+    }
+
+    public function testPostOpeningEdit_PostsANewRevisionWithAReasonAndKeepsTheOldOneInTheList(): void
+    {
+        $this->openingManager();
+        $this->setConfigValue('accounting_customer_opening', '1');
+        $first = $this->enterOpening('1000.00');
+
+        $form = $this->get('/accounting_receivables/opening_edit_form/' . $first);
+
+        $form->assertStatus(200);
+        $form->assertSee('name="reason"');
+        $form->assertSee('value="1000"');
+
+        $missing = $this->openingPost('/accounting_receivables/opening_edit/' . $first, ['side' => 'owes_us', 'amount' => '1100.00', 'opening_date' => $this->daysAgo(30), 'note' => '', 'reason' => '']);
+
+        $this->assertFalse($missing['success']);
+        $this->assertSame('1000.00', $this->balance($this->customerAccount()));
+
+        $done = $this->openingPost('/accounting_receivables/opening_edit/' . $first, ['side' => 'owes_us', 'amount' => '1100.00', 'opening_date' => $this->daysAgo(30), 'note' => 'fixed', 'reason' => 'The statement said 1100']);
+
+        $this->assertTrue($done['success']);
+        $this->assertSame(lang('Accounting_receivables.opening_revised'), $done['message']);
+        $this->assertSame('1100.00', $this->balance($this->customerAccount()));
+
+        $body = $this->get('/accounting_receivables/customer/' . $this->customerId)->getBody();
+
+        $this->assertStringContainsString('The statement said 1100', $body);
+        $this->assertStringContainsString(lang('Accounting_receivables.opening_status_reversed'), $body);
+        $this->assertStringContainsString(lang('Accounting_receivables.opening_status_posted'), $body);
+
+        try {
+            $this->get('/accounting_receivables/opening_edit_form/' . $first);
+            $this->fail('A revision that was reversed cannot be changed.');
+        } catch (PageNotFoundException) {
+            $this->addToAssertionCount(1);
+        }
+    }
+
+    public function testGetOpeningEditForm_FillsTheSideTheDateAndTheNoteOfTheRevisionThatStands(): void
+    {
+        $this->openingManager();
+        $this->setConfigValue('accounting_customer_opening', '1');
+        $date  = $this->daysAgo(12);
+        $first = (new CustomerOpening())->create($this->customerId, 'we_owe', '300.00', $date, 'a credit the customer holds', null);
+
+        $form = $this->get('/accounting_receivables/opening_edit_form/' . $first);
+
+        $form->assertStatus(200);
+        $form->assertSee('<option value="we_owe" selected>');
+        $form->assertDontSee('<option value="owes_us" selected>');
+        $form->assertSee('name="opening_date" id="opening_date"');
+        $form->assertSee('value="' . $date . '"');
+        $form->assertSee('>a credit the customer holds</textarea>');
+        $form->assertSee('value="300"');
+    }
+
+    public function testGetOpeningForm_StartsOnTheCustomerOwingUsWithAnEmptyAmountAndNote(): void
+    {
+        $this->openingManager();
+        $this->setConfigValue('accounting_customer_opening', '1');
+
+        $form = $this->get('/accounting_receivables/opening_form/' . $this->customerId);
+
+        $form->assertSee('<option value="owes_us" selected>');
+        $form->assertDontSee('<option value="we_owe" selected>');
+        $form->assertSee('></textarea>');
+        $form->assertSee('name="opening_date" id="opening_date" class="form-control form-control-sm ltr-input" dir="ltr" max="' . date('Y-m-d') . '" value="' . date('Y-m-d') . '"');
+        $form->assertSee('inputmode="decimal" autocomplete="off" value=""');
+    }
+
+    public function testGetOpeningEditForm_IsNotFoundWithoutThePermissionWhileTheSettingIsOffAndForANumberThatIsNotThere(): void
+    {
+        $this->setConfigValue('accounting_customer_opening', '1');
+        $first = $this->enterOpening();
+
+        $this->viewer();
+
+        try {
+            $this->get('/accounting_receivables/opening_edit_form/' . $first);
+            $this->fail('Without the permission the form is hidden.');
+        } catch (PageNotFoundException) {
+            $this->addToAssertionCount(1);
+        }
+
+        $this->openingManager();
+
+        try {
+            $this->get('/accounting_receivables/opening_edit_form/9999999');
+            $this->fail('A number that is not there is hidden.');
+        } catch (PageNotFoundException) {
+            $this->addToAssertionCount(1);
+        }
+
+        $this->setConfigValue('accounting_customer_opening', '0');
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_receivables/opening_edit_form/' . $first);
+    }
+
+    public function testPostOpeningCancel_ReversesTheOpeningWithAReasonAndLeavesItInTheListCancelled(): void
+    {
+        $this->openingManager();
+        $this->setConfigValue('accounting_customer_opening', '1');
+        $first = $this->enterOpening('1000.00');
+
+        $this->get('/accounting_receivables/opening_cancel_form/' . $first)->assertSee('customer_opening_cancel_form');
+
+        $missing = $this->openingPost('/accounting_receivables/opening_cancel/' . $first, ['reason' => '']);
+
+        $this->assertFalse($missing['success']);
+        $this->assertSame('posted', $this->accountingDb()->table('customer_openings')->where('opening_id', $first)->get()->getRow()->status);
+
+        $done = $this->openingPost('/accounting_receivables/opening_cancel/' . $first, ['reason' => 'Entered twice']);
+
+        $this->assertTrue($done['success']);
+        $this->assertSame(lang('Accounting_receivables.opening_cancelled'), $done['message']);
+        $this->assertSame('0.00', $this->balance($this->customerAccount()));
+
+        $body = $this->get('/accounting_receivables/customer/' . $this->customerId)->getBody();
+
+        $this->assertStringContainsString('Entered twice', $body);
+        $this->assertStringContainsString('customer_opening_new', $body, 'With the opening cancelled another can be entered');
+
+        $again = $this->openingPost('/accounting_receivables/opening_cancel/' . $first, ['reason' => 'Again']);
+
+        $this->assertFalse($again['success']);
+    }
+
+    public function testPostOpeningCancel_WorksWhileTheSettingIsOffButNeedsThePermission(): void
+    {
+        $this->setConfigValue('accounting_customer_opening', '1');
+        $first = $this->enterOpening();
+        $this->setConfigValue('accounting_customer_opening', '0');
+
+        $this->viewer();
+
+        try {
+            $this->get('/accounting_receivables/opening_cancel_form/' . $first);
+            $this->fail('Without the permission the form is hidden.');
+        } catch (PageNotFoundException) {
+            $this->addToAssertionCount(1);
+        }
+
+        $this->assertFalse($this->openingPost('/accounting_receivables/opening_cancel/' . $first, ['reason' => 'No right'])['success']);
+
+        $this->openingManager();
+
+        $this->assertTrue($this->openingPost('/accounting_receivables/opening_cancel/' . $first, ['reason' => 'Switching it off'])['success']);
+    }
+
+    public function testGetCustomer_NamesTheOpeningBalanceInTheInvoicesAndTheHistoryOfWhatWasSpentOnIt(): void
+    {
+        $this->setConfigValue('accounting_customer_opening', '1');
+        $opening = $this->enterOpening('500.00');
+        $this->invoiceDated('100.00', $this->daysAgo(2), null, null, [$this->payment(lang('Sales.cash'), '300.00')]);
+        $this->viewer();
+
+        $body = $this->get('/accounting_receivables/customer/' . $this->customerId)->getBody();
+
+        $this->assertStringContainsString(lang('Accounting_receivables.source_opening') . ' <bdi dir="ltr">#' . $opening . '</bdi>', $body);
+        $this->assertStringContainsString(lang('Accounting_receivables.agrees_yes'), $body);
+        $this->assertStringNotContainsString('sales/receipt/-', $body, 'An opening balance has no receipt to link to');
+    }
+
+    public function testGetCustomer_ShowsTheCreditAnOpeningBalanceHoldsAmongTheCreditsWithoutALinkToAReceipt(): void
+    {
+        $this->setConfigValue('accounting_customer_opening', '1');
+        $opening = $this->enterOpening('50.00', 'we_owe');
+        $this->viewer();
+
+        $body = $this->get('/accounting_receivables/customer/' . $this->customerId)->getBody();
+
+        $this->assertMatchesRegularExpression('/' . preg_quote(lang('Accounting_receivables.source_opening'), '/') . '\s*<bdi dir="ltr">#' . $opening . '<\/bdi>/', substr($body, (int) strpos($body, 'id="receivable_credits"')));
+        $this->assertStringNotContainsString('sales/receipt/' . $opening, $body);
+        $this->assertStringContainsString(lang('Accounting_receivables.agrees_yes'), $body);
+    }
+
+    public function testGetOpeningEditForm_IsNotFoundForSomeoneLimitedToABranch(): void
+    {
+        $this->setConfigValue('accounting_customer_opening', '1');
+        $first = $this->enterOpening();
+        $this->openingManager([1]);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_receivables/opening_edit_form/' . $first);
+    }
+
+    public function testGetOpeningCancelForm_IsNotFoundForSomeoneLimitedToABranch(): void
+    {
+        $this->setConfigValue('accounting_customer_opening', '1');
+        $first = $this->enterOpening();
+        $this->openingManager([1]);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_receivables/opening_cancel_form/' . $first);
+    }
+
+    public function testPostOpeningEdit_IsNotFoundForSomeoneLimitedToABranchAndChangesNothing(): void
+    {
+        $this->setConfigValue('accounting_customer_opening', '1');
+        $first = $this->enterOpening();
+        $this->openingManager([1]);
+
+        try {
+            $this->post('/accounting_receivables/opening_edit/' . $first, ['side' => 'owes_us', 'amount' => '5.00', 'opening_date' => date('Y-m-d'), 'note' => '', 'reason' => 'Why']);
+            $this->fail('Someone limited to a branch must not change an opening balance of the company.');
+        } catch (PageNotFoundException) {
+            $this->addToAssertionCount(1);
+        }
+
+        $this->assertSame('posted', $this->accountingDb()->table('customer_openings')->where('opening_id', $first)->get()->getRow()->status);
+        $this->assertSame(1, $this->countRows('customer_openings'));
+    }
+
+    public function testPostOpeningCancel_IsNotFoundForSomeoneLimitedToABranchAndChangesNothing(): void
+    {
+        $this->setConfigValue('accounting_customer_opening', '1');
+        $first = $this->enterOpening();
+        $this->openingManager([1]);
+
+        try {
+            $this->post('/accounting_receivables/opening_cancel/' . $first, ['reason' => 'Why']);
+            $this->fail('Someone limited to a branch must not cancel an opening balance of the company.');
+        } catch (PageNotFoundException) {
+            $this->addToAssertionCount(1);
+        }
+
+        $this->assertSame('posted', $this->accountingDb()->table('customer_openings')->where('opening_id', $first)->get()->getRow()->status);
+        $this->assertSame(1, $this->countRows('customer_openings'));
+    }
+
+    public function testPostOpeningEdit_RefusesWithoutThePermissionAndChangesNothing(): void
+    {
+        $this->setConfigValue('accounting_customer_opening', '1');
+        $first = $this->enterOpening();
+        $this->viewer();
+
+        $edit = $this->openingPost('/accounting_receivables/opening_edit/' . $first, ['side' => 'owes_us', 'amount' => '5.00', 'opening_date' => date('Y-m-d'), 'note' => '', 'reason' => 'Why']);
+
+        $this->assertFalse($edit['success']);
+        $this->assertSame('posted', $this->accountingDb()->table('customer_openings')->where('opening_id', $first)->get()->getRow()->status);
+        $this->assertSame(1, $this->countRows('customer_openings'));
+    }
+
+    public function testPostOpeningCancel_RefusesWithoutThePermissionAndChangesNothing(): void
+    {
+        $this->setConfigValue('accounting_customer_opening', '1');
+        $first = $this->enterOpening();
+        $this->viewer();
+
+        $cancel = $this->openingPost('/accounting_receivables/opening_cancel/' . $first, ['reason' => 'Why']);
+
+        $this->assertFalse($cancel['success']);
+        $this->assertSame('posted', $this->accountingDb()->table('customer_openings')->where('opening_id', $first)->get()->getRow()->status);
+        $this->assertSame(1, $this->countRows('customer_openings'));
     }
 }

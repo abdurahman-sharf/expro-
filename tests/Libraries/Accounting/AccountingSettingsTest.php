@@ -591,6 +591,41 @@ class AccountingSettingsTest extends CIUnitTestCase
         $this->assertTrue($this->settings->expenseAccountRequired());
     }
 
+    public function testCustomerOpeningEnabled_IsOffUntilTheSettingTurnsItOn(): void
+    {
+        $this->assertFalse($this->settings->customerOpeningEnabled());
+
+        $this->settings->update(['customer_opening' => true], $this->manager());
+
+        $this->assertTrue($this->settings->customerOpeningEnabled());
+
+        $this->settings->update(['customer_opening' => false], $this->manager());
+
+        $this->assertFalse($this->settings->customerOpeningEnabled());
+    }
+
+    public function testUpdate_RecordsTheChangeOfTheCustomerOpeningSettingAndRequiresThePermission(): void
+    {
+        $this->accountingDb()->table('accounting_audit_log')->truncate();
+
+        $this->settings->update(['customer_opening' => true], $this->manager());
+
+        $details = json_decode($this->accountingDb()->table('accounting_audit_log')->where('action', 'settings_updated')->get()->getRow()->details, true);
+
+        $this->assertSame(['customer_opening' => true], $details['after']);
+        $this->assertSame(['customer_opening' => false], $details['before']);
+
+        try {
+            $this->settings->update(['customer_opening' => false], $this->employeeWithGrants([]));
+            $this->fail('Expected the permission to be required.');
+        } catch (AccountingException $exception) {
+            $this->assertSame(AccountingError::PermissionDenied, $exception->error);
+        }
+
+        $this->assertTrue($this->settings->customerOpeningEnabled());
+        $this->setConfigValue('accounting_customer_opening', '0');
+    }
+
     public function testNotices_ListTheExpensesAndTheCashUpsThatAreNotInTheBooks(): void
     {
         $db         = $this->accountingDb();

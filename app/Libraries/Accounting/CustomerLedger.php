@@ -58,6 +58,17 @@ final class CustomerLedger
 
         $figures = [];
 
+        foreach ($this->openings($customerId, $accountId, $asOf) as $opening) {
+            $total = (string) $opening->total;
+            $key   = -(int) $opening->opening_id;
+
+            if (bccomp($total, '0', SaleAmounts::SCALE) > 0) {
+                $figures[$key] = new InvoiceFigures($key, (string) $opening->doc_date, SALE_TYPE_INVOICE, bcadd($total, '0', SaleAmounts::SCALE), '0.0000', $applied['into'][$key] ?? '0.0000', '0.0000', (string) $opening->doc_date, null, true);
+            } else {
+                $credits['opening:' . $opening->opening_id] = [CreditSource::OPENING, (int) $opening->opening_id, null, (string) $opening->doc_date, bcsub('0', $total, SaleAmounts::SCALE)];
+            }
+        }
+
         foreach ($sales as $sale) {
             if ((int) $sale->sale_type === SALE_TYPE_RETURN) {
                 continue;
@@ -125,6 +136,15 @@ final class CustomerLedger
         }
 
         return $builder->orderBy('application_id', 'ASC')->get()->getResult();
+    }
+
+    /**
+     * What an application of credit was spent on: the sale of an invoice, or minus the number of an
+     * opening balance, which is how the invoices of a position are numbered.
+     */
+    public static function targetOf(object $application): int
+    {
+        return $application->invoice_sale_id !== null ? (int) $application->invoice_sale_id : -(int) $application->opening_id;
     }
 
     /**
@@ -209,6 +229,30 @@ final class CustomerLedger
     }
 
     /**
+     * The opening balances of a customer that stand, with what their journal debited the account of
+     * the customer: a debit is what the customer owes, a credit is what they hold with us. On a day of
+     * the past it is the ones dated by then that had not been reversed by then.
+     *
+     * @return list<object>
+     */
+    private function openings(int $customerId, int $accountId, ?string $asOf): array
+    {
+        [$standing, $standingBindings] = StandingJournals::condition($this->db, 'j', $asOf);
+
+        $bindings = [$accountId, CustomerOpening::SOURCE, JournalEntryType::General->value, ...$standingBindings, $customerId];
+
+        return $this->db->query(
+            'SELECT o.opening_id, o.opening_date AS doc_date,
+                    (SELECT COALESCE(SUM(l.debit - l.credit), 0) FROM ' . $this->db->prefixTable('accounting_journal_lines') . ' l WHERE l.journal_id = j.journal_id AND l.account_id = ?) AS total
+             FROM ' . $this->db->prefixTable('customer_openings') . ' o
+             JOIN ' . $this->db->prefixTable('accounting_journals') . " j ON j.source_type = ? AND j.source_id = o.customer_id AND j.entry_type = ? AND j.revision = o.revision AND {$standing}
+             WHERE o.customer_id = ?
+             ORDER BY o.opening_date ASC, o.opening_id ASC",
+            $bindings,
+        )->getResult();
+    }
+
+    /**
      * What the payments that stand credited the customer, by sale. A refund is negative.
      *
      * @return array<int, numeric-string>
@@ -252,7 +296,7 @@ final class CustomerLedger
                 continue;
             }
 
-            $invoice = (int) $application->invoice_sale_id;
+            $invoice = self::targetOf($application);
             $source  = $application->source_type . ':' . $application->source_id;
 
             $into[$invoice] = bcadd($into[$invoice] ?? '0', $application->amount, SaleAmounts::SCALE);

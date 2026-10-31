@@ -200,6 +200,34 @@ class AccountingSetupControllerTest extends CIUnitTestCase
         $this->assertStringNotContainsString('id="expense_account_required" value="1" checked', $this->get('/accounting_settings')->getBody());
     }
 
+    public function testPostSave_SavesWhetherCustomersMayBeGivenAnOpeningBalanceAndLeavesItAloneWhenNotSent(): void
+    {
+        $this->manager();
+
+        $form = ['base_currency' => 'usd', 'start_date' => '2026-01-01', 'auto_fiscal_year' => '1'];
+
+        $this->assertTrue($this->jsonOf($this->post('/accounting_settings/save', $form + ['customer_opening' => '1']))['success']);
+        $this->assertTrue((new AccountingSettings())->customerOpeningEnabled());
+
+        $this->assertTrue($this->jsonOf($this->post('/accounting_settings/save', $form))['success']);
+        $this->assertTrue((new AccountingSettings())->customerOpeningEnabled(), 'A form without the switch leaves it as it was');
+
+        $this->assertTrue($this->jsonOf($this->post('/accounting_settings/save', $form + ['customer_opening' => '0']))['success']);
+        $this->assertFalse((new AccountingSettings())->customerOpeningEnabled());
+    }
+
+    public function testGetIndex_ShowsWhetherCustomersMayBeGivenAnOpeningBalance(): void
+    {
+        $this->manager();
+
+        $this->setConfigValue('accounting_customer_opening', '1');
+        $this->assertStringContainsString('id="customer_opening" value="1" checked', $this->get('/accounting_settings')->getBody());
+
+        $this->setConfigValue('accounting_customer_opening', '0');
+        $this->assertStringContainsString('id="customer_opening" value="1"', $this->get('/accounting_settings')->getBody());
+        $this->assertStringNotContainsString('id="customer_opening" value="1" checked', $this->get('/accounting_settings')->getBody());
+    }
+
     public function testPostSave_ReportsAnInvalidCurrency(): void
     {
         $this->manager();

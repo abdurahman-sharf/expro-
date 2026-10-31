@@ -7,6 +7,11 @@
  * @var string|null      $error
  * @var list<object>     $applications
  * @var list<int>        $refund_invoices
+ * @var int              $customer_id
+ * @var list<object>     $openings
+ * @var bool             $can_open
+ * @var bool             $can_change
+ * @var bool             $can_revise
  * @var Closure          $amount
  * @var Closure          $date
  */
@@ -17,9 +22,11 @@ use App\Libraries\Accounting\CustomerPosition;
 
 $aging = $position->aging($today);
 
-$sourceLabel = static fn (string $type, int $sourceId): string => lang(
-    $type !== CreditSource::CREDIT_NOTE ? 'Accounting_receivables.source_excess' : (in_array($sourceId, $refund_invoices, true) ? 'Numbering.type_refund_invoice' : 'Accounting_receivables.source_credit_note'),
-);
+$sourceLabel = static fn (string $type, int $sourceId): string => lang(match (true) {
+    $type === CreditSource::OPENING     => 'Accounting_receivables.source_opening',
+    $type !== CreditSource::CREDIT_NOTE => 'Accounting_receivables.source_excess',
+    default                             => in_array($sourceId, $refund_invoices, true) ? 'Numbering.type_refund_invoice' : 'Accounting_receivables.source_credit_note',
+});
 ?>
 
 <?= view('partial/header') ?>
@@ -34,6 +41,11 @@ $sourceLabel = static fn (string $type, int $sourceId): string => lang(
     <a class="btn btn-outline-secondary btn-sm" id="customer_credit_notes_link" href="<?= esc(base_url('accounting_receivables/credit_notes?customer_id=' . $position->customerId), 'attr') ?>">
         <span class="bi bi-receipt" aria-hidden="true">&nbsp;</span><?= lang('Accounting_receivables.credit_notes_tab') ?>
     </a>
+    <?php if ($can_open): ?>
+        <button class="btn btn-outline-secondary btn-sm modal-dlg" id="customer_opening_new" data-btn-submit="<?= lang('Common.submit') ?>" data-href="accounting_receivables/opening_form/<?= $customer_id ?>" title="<?= lang('Accounting_receivables.opening_new') ?>">
+            <span class="bi bi-flag" aria-hidden="true">&nbsp;</span><?= lang('Accounting_receivables.opening_new') ?>
+        </button>
+    <?php endif; ?>
 </div>
 
 <div class="container-fluid py-3" id="receivable_statement">
@@ -109,7 +121,13 @@ $sourceLabel = static fn (string $type, int $sourceId): string => lang(
             <tbody>
                 <?php foreach ($position->invoices as $invoice): ?>
                     <tr>
-                        <td><?= anchor('sales/receipt/' . $invoice->saleId, 'POS ' . $invoice->saleId, ['target' => '_blank', 'dir' => 'ltr']) ?></td>
+                        <td>
+                            <?php if ($invoice->opening): ?>
+                                <?= esc(lang('Accounting_receivables.source_opening')) ?> <bdi dir="ltr">#<?= -$invoice->saleId ?></bdi>
+                            <?php else: ?>
+                                <?= anchor('sales/receipt/' . $invoice->saleId, 'POS ' . $invoice->saleId, ['target' => '_blank', 'dir' => 'ltr']) ?>
+                            <?php endif; ?>
+                        </td>
                         <td><?= esc($date($invoice->date)) ?></td>
                         <td><?= esc($date($invoice->dueDate)) ?></td>
                         <td><?= $amount($invoice->total) ?></td>
@@ -135,6 +153,60 @@ $sourceLabel = static fn (string $type, int $sourceId): string => lang(
         </table>
     </div>
 
+    <?php if ($openings !== [] || $can_open): ?>
+        <h2 class="h5"><?= lang('Accounting_receivables.openings') ?></h2>
+        <div class="table-responsive mb-4">
+            <table class="table table-sm" id="receivable_openings">
+                <thead>
+                    <tr>
+                        <th scope="col"><?= lang('Accounting_receivables.opening_revision') ?></th>
+                        <th scope="col"><?= lang('Accounting_receivables.opening_date') ?></th>
+                        <th scope="col"><?= lang('Accounting_receivables.opening_side') ?></th>
+                        <th scope="col"><?= lang('Accounting_receivables.amount') ?></th>
+                        <th scope="col"><?= lang('Accounting_receivables.branch') ?></th>
+                        <th scope="col"><?= lang('Accounting_receivables.note_label') ?></th>
+                        <th scope="col"><?= lang('Accounting_receivables.status') ?></th>
+                        <th scope="col"><?= lang('Accounting_receivables.opening_reason') ?></th>
+                        <th scope="col"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($openings as $opening): ?>
+                        <tr>
+                            <td><bdi dir="ltr">#<?= (int) $opening->opening_id ?> / <?= (int) $opening->revision ?></bdi></td>
+                            <td><?= esc($date((string) $opening->opening_date)) ?></td>
+                            <td><?= esc(lang($opening->side === 'owes_us' ? 'Accounting_receivables.opening_owes_us' : 'Accounting_receivables.opening_we_owe')) ?></td>
+                            <td><?= $amount((string) $opening->amount) ?></td>
+                            <td><bdi dir="ltr"><?= esc((string) $opening->branch_code) ?></bdi></td>
+                            <td><?= esc((string) $opening->note) ?></td>
+                            <td><span class="badge <?= $opening->status === 'reversed' ? 'text-bg-secondary' : 'text-bg-success' ?>"><?= esc(lang('Accounting_receivables.opening_status_' . $opening->status)) ?></span></td>
+                            <td><?= esc((string) $opening->reverse_reason) ?></td>
+                            <td class="text-nowrap">
+                                <?php if ($can_change && $opening->status === 'posted'): ?>
+                                    <?php if ($can_revise): ?>
+                                        <?= anchor(
+                                            'accounting_receivables/opening_edit_form/' . (int) $opening->opening_id,
+                                            '<span class="bi bi-pencil" aria-hidden="true"></span>',
+                                            ['class' => 'modal-dlg', 'data-btn-submit' => lang('Common.submit'), 'title' => lang('Accounting_receivables.opening_edit'), 'aria-label' => lang('Accounting_receivables.opening_edit')],
+                                        ) ?>
+                                    <?php endif; ?>
+                                    <?= anchor(
+                                        'accounting_receivables/opening_cancel_form/' . (int) $opening->opening_id,
+                                        '<span class="bi bi-x-circle" aria-hidden="true"></span>',
+                                        ['class' => 'modal-dlg', 'data-btn-submit' => lang('Common.submit'), 'title' => lang('Accounting_receivables.opening_cancel'), 'aria-label' => lang('Accounting_receivables.opening_cancel')],
+                                    ) ?>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                    <?php if ($openings === []): ?>
+                        <tr><td colspan="9"><?= lang('Accounting_receivables.no_openings') ?></td></tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+    <?php endif; ?>
+
     <h2 class="h5"><?= lang('Accounting_receivables.credits') ?></h2>
     <div class="table-responsive mb-4">
         <table class="table table-sm" id="receivable_credits">
@@ -150,7 +222,14 @@ $sourceLabel = static fn (string $type, int $sourceId): string => lang(
             <tbody>
                 <?php foreach ($position->credits as $source): ?>
                     <tr>
-                        <td><?= esc($sourceLabel($source->type, $source->sourceId)) ?> <?= anchor('sales/receipt/' . $source->sourceId, 'POS ' . $source->sourceId, ['target' => '_blank', 'dir' => 'ltr']) ?></td>
+                        <td>
+                            <?= esc($sourceLabel($source->type, $source->sourceId)) ?>
+                            <?php if ($source->type === CreditSource::OPENING): ?>
+                                <bdi dir="ltr">#<?= $source->sourceId ?></bdi>
+                            <?php else: ?>
+                                <?= anchor('sales/receipt/' . $source->sourceId, 'POS ' . $source->sourceId, ['target' => '_blank', 'dir' => 'ltr']) ?>
+                            <?php endif; ?>
+                        </td>
                         <td><?= esc($date($source->date)) ?></td>
                         <td><?= $amount($source->amount) ?></td>
                         <td><?= $amount($source->applied) ?></td>
@@ -180,7 +259,13 @@ $sourceLabel = static fn (string $type, int $sourceId): string => lang(
                 <?php foreach ($applications as $application): ?>
                     <tr>
                         <td><?= esc($sourceLabel($application->source_type, (int) $application->source_id)) ?> <bdi dir="ltr"><?= (int) $application->source_id ?></bdi></td>
-                        <td><bdi dir="ltr"><?= (int) $application->invoice_sale_id ?></bdi></td>
+                        <td>
+                            <?php if ($application->invoice_sale_id === null): ?>
+                                <?= esc(lang('Accounting_receivables.source_opening')) ?> <bdi dir="ltr">#<?= (int) $application->opening_id ?></bdi>
+                            <?php else: ?>
+                                <bdi dir="ltr"><?= (int) $application->invoice_sale_id ?></bdi>
+                            <?php endif; ?>
+                        </td>
                         <td><?= $amount($application->amount) ?></td>
                         <td><?= esc($date($application->created_at)) ?></td>
                         <td><?= $application->released_at === null ? '' : esc($date($application->released_at)) ?></td>

@@ -1,0 +1,1143 @@
+[
+  {
+    "name": "G57-01 repost needs the permission to manage opening balances",
+    "file": "app/Libraries/Accounting/OpeningStock.php",
+    "find": "public function repostAtCurrentCost(int $locationId, string $reason, string $expectedPlan, ?int $employeeId): OpeningStockResult\n    {\n        $this->guard->require(AccountingGuard::OPENING_MANAGE, $employeeId);\n",
+    "replace": "public function repostAtCurrentCost(int $locationId, string $reason, string $expectedPlan, ?int $employeeId): OpeningStockResult\n    {\n",
+    "tests": [
+      "tests/Libraries/Accounting/OpeningStockTest.php"
+    ]
+  },
+  {
+    "name": "G57-02 repost needs accounting on and a start date",
+    "file": "app/Libraries/Accounting/OpeningStock.php",
+    "find": "        $this->startDate();\n\n        $this->requireLocations([$locationId], $employeeId);\n\n        $reason = trim($reason);",
+    "replace": "        $this->requireLocations([$locationId], $employeeId);\n\n        $reason = trim($reason);",
+    "tests": [
+      "tests/Libraries/Accounting/OpeningStockTest.php"
+    ]
+  },
+  {
+    "name": "G57-03 repost checks the branch of the location against the scope of the employee",
+    "file": "app/Libraries/Accounting/OpeningStock.php",
+    "find": "        $this->requireLocations([$locationId], $employeeId);\n\n        $reason = trim($reason);",
+    "replace": "        $reason = trim($reason);",
+    "tests": [
+      "tests/Libraries/Accounting/OpeningStockTest.php"
+    ]
+  },
+  {
+    "name": "G57-04 the plan checks the branch of the location against the scope of the employee",
+    "file": "app/Libraries/Accounting/OpeningStock.php",
+    "find": "return $this->buildReprice($this->requireLocations([$locationId], $employeeId)[0]);",
+    "replace": "return $this->buildReprice($this->lockedLocations([$locationId])[0]);",
+    "tests": [
+      "tests/Libraries/Accounting/OpeningStockTest.php"
+    ]
+  },
+  {
+    "name": "G57-05 repost requires a reason",
+    "file": "app/Libraries/Accounting/OpeningStock.php",
+    "find": "if ($reason === '' || mb_strlen($reason) > 255) {\n            throw new AccountingException(AccountingError::ReasonRequired, 'A reason of 1 to 255 characters is required.');\n        }\n\n        try {",
+    "replace": "if (false || mb_strlen($reason) > 255) {\n            throw new AccountingException(AccountingError::ReasonRequired, 'A reason of 1 to 255 characters is required.');\n        }\n\n        try {",
+    "tests": [
+      "tests/Libraries/Accounting/OpeningStockTest.php"
+    ]
+  },
+  {
+    "name": "G57-06 repost refuses a reason longer than 255 characters",
+    "file": "app/Libraries/Accounting/OpeningStock.php",
+    "find": "if ($reason === '' || mb_strlen($reason) > 255) {\n            throw new AccountingException(AccountingError::ReasonRequired, 'A reason of 1 to 255 characters is required.');\n        }\n\n        try {",
+    "replace": "if ($reason === '' || false) {\n            throw new AccountingException(AccountingError::ReasonRequired, 'A reason of 1 to 255 characters is required.');\n        }\n\n        try {",
+    "tests": [
+      "tests/Libraries/Accounting/OpeningStockTest.php"
+    ]
+  },
+  {
+    "name": "G57-07 repost holds the row of the location while it plans and writes",
+    "file": "app/Libraries/Accounting/OpeningStock.php",
+    "find": "$locked = $this->lockedLocations([$locationId])[0];\n                $plan   = $this->buildReprice($locked);",
+    "replace": "$locked = $this->requireLocations([$locationId], $employeeId)[0];\n                $plan   = $this->buildReprice($locked);",
+    "tests": [
+      "tests/Libraries/Accounting/OpeningStockTest.php"
+    ]
+  },
+  {
+    "name": "G57-08 the plan blocks when other documents moved stock in the location",
+    "file": "app/Libraries/Accounting/OpeningStock.php",
+    "find": "if ($later > 0) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/OpeningStockTest.php"
+    ]
+  },
+  {
+    "name": "G57-09 the plan blocks when the account holds value no movement accounts for",
+    "file": "app/Libraries/Accounting/OpeningStock.php",
+    "find": "if (bccomp(SaleAmounts::absolute($held), self::VALUE_TOLERANCE, StockLedger::VALUE_SCALE) > 0) {\n            $blocks[] = OpeningStockRepriceBlock::AccountHoldsValue;",
+    "replace": "if (false) {\n            $blocks[] = OpeningStockRepriceBlock::AccountHoldsValue;",
+    "tests": [
+      "tests/Libraries/Accounting/OpeningStockTest.php"
+    ]
+  },
+  {
+    "name": "G57-10 the plan blocks when the day of the opening is in a closed period",
+    "file": "app/Libraries/Accounting/OpeningStock.php",
+    "find": "} catch (PostingException) {\n            $blocks[] = OpeningStockRepriceBlock::PeriodClosed;\n        }",
+    "replace": "} catch (PostingException) {\n        }",
+    "tests": [
+      "tests/Libraries/Accounting/OpeningStockTest.php"
+    ]
+  },
+  {
+    "name": "G57-11 repost enforces the period of the opening before it judges that nothing would change",
+    "file": "app/Libraries/Accounting/OpeningStock.php",
+    "find": "(new PeriodGuard($this->db))->enforce((string) $plan->date, $plan->branchId);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Accounting/OpeningStockTest.php"
+    ]
+  },
+  {
+    "name": "G57-12 the plan blocks when nothing would change",
+    "file": "app/Libraries/Accounting/OpeningStock.php",
+    "find": "if (! $changed) {\n            $blocks[] = OpeningStockRepriceBlock::NothingToChange;\n        }",
+    "replace": "if (false) {\n            $blocks[] = OpeningStockRepriceBlock::NothingToChange;\n        }",
+    "tests": [
+      "tests/Libraries/Accounting/OpeningStockTest.php"
+    ]
+  },
+  {
+    "name": "G57-13 repost refuses when nothing would change",
+    "file": "app/Libraries/Accounting/OpeningStock.php",
+    "find": "if ($plan->blockedBy(OpeningStockRepriceBlock::NothingToChange)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/OpeningStockTest.php"
+    ]
+  },
+  {
+    "name": "G57-14 repost refuses when other documents moved stock in the location",
+    "file": "app/Libraries/Accounting/OpeningStock.php",
+    "find": "if ($plan->blockedBy(OpeningStockRepriceBlock::LaterMovements)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/OpeningStockTest.php"
+    ]
+  },
+  {
+    "name": "G57-15 repost refuses when the account holds value no movement accounts for",
+    "file": "app/Libraries/Accounting/OpeningStock.php",
+    "find": "if ($plan->blockedBy(OpeningStockRepriceBlock::AccountHoldsValue)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/OpeningStockTest.php"
+    ]
+  },
+  {
+    "name": "G57-16 repost refuses a location without posted opening stock",
+    "file": "app/Libraries/Accounting/OpeningStock.php",
+    "find": "if ($plan->blockedBy(OpeningStockRepriceBlock::NoOpening)) {\n            throw new AccountingException(AccountingError::OpeningStockNotPosted",
+    "replace": "if (false) {\n            throw new AccountingException(AccountingError::OpeningStockNotPosted",
+    "tests": [
+      "tests/Libraries/Accounting/OpeningStockTest.php"
+    ]
+  },
+  {
+    "name": "G57-17 repost goes ahead only for the plan the person saw",
+    "file": "app/Libraries/Accounting/OpeningStock.php",
+    "find": "if (! hash_equals($plan->fingerprint(), $expectedPlan)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/OpeningStockTest.php"
+    ]
+  },
+  {
+    "name": "G57-18 the correction is made on the day of the opening, not today",
+    "file": "app/Libraries/Accounting/OpeningStock.php",
+    "find": "$date = (string) $plan->date;\n\n                $this->takeBack",
+    "replace": "$date = date('Y-m-d');\n\n                $this->takeBack",
+    "tests": [
+      "tests/Libraries/Accounting/OpeningStockTest.php"
+    ]
+  },
+  {
+    "name": "G57-19 repost reverses the revision that stands before it posts the new one",
+    "file": "app/Libraries/Accounting/OpeningStock.php",
+    "find": "$this->takeBack($locked, (int) $plan->revision, $date, $reason, $employeeId);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Accounting/OpeningStockTest.php"
+    ]
+  },
+  {
+    "name": "G57-20 repost writes its own line to the audit trail",
+    "file": "app/Libraries/Accounting/OpeningStock.php",
+    "find": "'opening_stock_repriced'",
+    "replace": "'opening_stock_posted'",
+    "tests": [
+      "tests/Libraries/Accounting/OpeningStockTest.php"
+    ]
+  },
+  {
+    "name": "G57-21 repost reverses and posts in one transaction",
+    "file": "app/Libraries/Accounting/OpeningStock.php",
+    "find": "return $this->transactional(function () use ($locationId, $reason, $expectedPlan, $employeeId): OpeningStockResult {",
+    "replace": "return (static fn (callable $work): mixed => $work())(function () use ($locationId, $reason, $expectedPlan, $employeeId): OpeningStockResult {",
+    "tests": [
+      "tests/Libraries/Accounting/OpeningStockTest.php"
+    ]
+  },
+  {
+    "name": "G57-22 a movement of another document with the number of the location still counts as later",
+    "file": "app/Libraries/Accounting/OpeningStock.php",
+    "find": "->where('source_type !=', self::SOURCE)\n            ->orWhere('source_id !=', $locationId)",
+    "replace": "->where('source_type !=', self::SOURCE)\n            ->where('source_id !=', $locationId)",
+    "tests": [
+      "tests/Libraries/Accounting/OpeningStockTest.php"
+    ]
+  },
+  {
+    "name": "G57-23 only the movements of the location itself count as later",
+    "file": "app/Libraries/Accounting/OpeningStock.php",
+    "find": "->where('location_id', $locationId)\n            ->groupStart()",
+    "replace": "->groupStart()",
+    "tests": [
+      "tests/Libraries/Accounting/OpeningStockTest.php"
+    ]
+  },
+  {
+    "name": "G57-24 the revisions of the screen show whether each still stands",
+    "file": "app/Libraries/Accounting/OpeningStock.php",
+    "find": "'standing'   => (int) $row->reversed === 0,",
+    "replace": "'standing'   => true,",
+    "tests": [
+      "tests/Libraries/Accounting/OpeningStockTest.php"
+    ]
+  },
+  {
+    "name": "E26L-01 the notice of deleted locations lists only deleted ones",
+    "file": "app/Libraries/Accounting/OpeningStock.php",
+    "find": "->where('l.deleted', 1)",
+    "replace": "->where('l.deleted', 0)",
+    "tests": [
+      "tests/Libraries/Accounting/OpeningStockTest.php"
+    ]
+  },
+  {
+    "name": "E26L-02 the notice of deleted locations keeps to the branch",
+    "file": "app/Libraries/Accounting/OpeningStock.php",
+    "find": "->where('l.branch_id', $branchId)\n            ->where('l.deleted', 1)",
+    "replace": "->where('l.deleted', 1)",
+    "tests": [
+      "tests/Libraries/Accounting/OpeningStockTest.php"
+    ]
+  },
+  {
+    "name": "E26L-03 the notice of deleted locations checks the scope of the employee",
+    "file": "app/Libraries/Accounting/OpeningStock.php",
+    "find": "public function deletedWithStock(int $branchId, ?int $employeeId): array\n    {\n        $this->requireBranch($branchId, $employeeId);\n",
+    "replace": "public function deletedWithStock(int $branchId, ?int $employeeId): array\n    {\n",
+    "tests": [
+      "tests/Libraries/Accounting/OpeningStockTest.php"
+    ]
+  },
+  {
+    "name": "G57-25 the correction form is hidden from whoever does not manage opening balances",
+    "file": "app/Controllers/AccountingOpening.php",
+    "find": "public function getStockRepriceForm(): string\n    {\n        if (! $this->can(AccountingGuard::OPENING_MANAGE)) {\n            throw PageNotFoundException::forPageNotFound();\n        }\n",
+    "replace": "public function getStockRepriceForm(): string\n    {\n",
+    "tests": [
+      "tests/Controllers/AccountingOpeningControllerTest.php"
+    ]
+  },
+  {
+    "name": "G57-26 the correction form is hidden for a location without posted opening stock",
+    "file": "app/Controllers/AccountingOpening.php",
+    "find": "if ($plan->blockedBy(OpeningStockRepriceBlock::NoOpening)) {\n            throw PageNotFoundException::forPageNotFound();\n        }",
+    "replace": "if (false) {\n            throw PageNotFoundException::forPageNotFound();\n        }",
+    "tests": [
+      "tests/Controllers/AccountingOpeningControllerTest.php"
+    ]
+  },
+  {
+    "name": "G57-27 the correction form offers no way to confirm what is refused",
+    "file": "app/Views/accounting_periods/opening_stock_reprice_form.php",
+    "find": "<?php if ($allowed): ?>\n    <?= form_open",
+    "replace": "<?php if (true): ?>\n    <?= form_open",
+    "tests": [
+      "tests/Controllers/AccountingOpeningControllerTest.php"
+    ]
+  },
+  {
+    "name": "G57-28 a refusal of the books while repricing is written to the posting failure log",
+    "file": "app/Libraries/Accounting/OpeningStock.php",
+    "find": "                $this->recordFailure([$locationId], $failure, $employeeId);\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Accounting/OpeningStockTest.php"
+    ]
+  },
+  {
+    "name": "G57-29 a refusal that is no failure of the books is kept out of the posting failure log",
+    "file": "app/Libraries/Accounting/OpeningStock.php",
+    "find": "            if ($failure instanceof PostingException || $failure->error === AccountingError::WriteFailed) {\n                $this->recordFailure([$locationId], $failure, $employeeId);",
+    "replace": "            if (true) {\n                $this->recordFailure([$locationId], $failure, $employeeId);",
+    "tests": [
+      "tests/Libraries/Accounting/OpeningStockTest.php"
+    ]
+  },
+  {
+    "name": "G57-30 the screen refuses to reprice a location of a branch outside the scope of the employee",
+    "file": "app/Libraries/Accounting/OpeningStock.php",
+    "find": "        $this->requireLocations([$locationId], $employeeId);\n\n        $reason = trim($reason);",
+    "replace": "        $reason = trim($reason);",
+    "tests": [
+      "tests/Controllers/AccountingOpeningControllerTest.php"
+    ]
+  },
+  {
+    "name": "CU-01 create needs the permission to manage opening balances",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "public function create(int $customerId, string $side, string $amount, string $date, string $note = '', ?int $employeeId = null, ?int $branchId = null): int\n    {\n        $this->guard->require(AccountingGuard::OPENING_MANAGE, $employeeId);\n        $this->assertOn();",
+    "replace": "public function create(int $customerId, string $side, string $amount, string $date, string $note = '', ?int $employeeId = null, ?int $branchId = null): int\n    {\n        $this->assertOn();",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CU-02 create needs the setting that switches opening balances on",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "        $this->guard->require(AccountingGuard::OPENING_MANAGE, $employeeId);\n        $this->assertOn();\n\n        [$side, $amount, $date] = $this->entered($side, $amount, $date);\n\n        $this->assertCustomer",
+    "replace": "        $this->guard->require(AccountingGuard::OPENING_MANAGE, $employeeId);\n\n        [$side, $amount, $date] = $this->entered($side, $amount, $date);\n\n        $this->assertCustomer",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CU-03 revise needs the permission to manage opening balances",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "public function revise(int $openingId, string $side, string $amount, string $date, string $note, string $reason, ?int $employeeId = null): int\n    {\n        $this->guard->require(AccountingGuard::OPENING_MANAGE, $employeeId);\n",
+    "replace": "public function revise(int $openingId, string $side, string $amount, string $date, string $note, string $reason, ?int $employeeId = null): int\n    {\n",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CU-04 revise needs the setting that switches opening balances on",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "        $this->assertOn();\n\n        $reason                 = $this->reason($reason);",
+    "replace": "        $reason                 = $this->reason($reason);",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CU-05 cancel needs the permission to manage opening balances",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "public function cancel(int $openingId, string $reason, ?int $employeeId = null): void\n    {\n        $this->guard->require(AccountingGuard::OPENING_MANAGE, $employeeId);\n",
+    "replace": "public function cancel(int $openingId, string $reason, ?int $employeeId = null): void\n    {\n",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CU-06 create refuses a customer that does not exist",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "        $this->assertCustomer($customerId);\n\n        $branchId = $this->branch($branchId, $employeeId);",
+    "replace": "        $branchId = $this->branch($branchId, $employeeId);",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CU-07 create resolves the branch against the scope of the employee",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "$branchId = $this->branch($branchId, $employeeId);\n\n        return $this->lock->run",
+    "replace": "$branchId = $branchId ?? 1;\n\n        return $this->lock->run",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CU-08 the branch must be in the scope of the employee",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "$this->branches->requireBranch($branchId, $employeeId);\n\n        if ((int) $branch->active === 0) {",
+    "replace": "if ((int) $branch->active === 0) {",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CU-09 the branch must be active",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "if ((int) $branch->active === 0) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CU-10 revise checks the branch of the opening against the scope of the employee",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "$opening                = $this->found($openingId);\n\n        $this->branches->requireBranch((int) $opening->branch_id, $employeeId);",
+    "replace": "$opening                = $this->found($openingId);",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CU-11 cancel checks the branch of the opening against the scope of the employee",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "$opening = $this->found($openingId);\n\n        $this->branches->requireBranch((int) $opening->branch_id, $employeeId);\n\n        $customerId = (int) $opening->customer_id;\n\n        $this->lock->run($customerId, fn () =>",
+    "replace": "$opening = $this->found($openingId);\n\n        $customerId = (int) $opening->customer_id;\n\n        $this->lock->run($customerId, fn () =>",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CU-12 a customer has one opening balance at a time",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "if ($this->standingOf($customerId) !== null) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CU-13 the side must be one of the two",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "if ($side !== self::OWES_US && $side !== self::WE_OWE) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CU-14 the amount must be a number of at most four decimals",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "preg_match('/^\\d{1,11}(\\.\\d{1,4})?$/', $amount) !== 1 || ",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CU-15 the amount must be more than nothing",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "|| bccomp($amount, '0', SaleAmounts::SCALE) <= 0) {",
+    "replace": "|| false) {",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CU-16 the date must be a real day",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "if ($day === false || $day->format('Y-m-d') !== trim($date)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CU-17 the date is up to today",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "if ($date > date('Y-m-d')) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CU-18 a reason is required",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "if ($reason === '' || mb_strlen($reason) > self::REASON_MAX) {",
+    "replace": "if (false || mb_strlen($reason) > self::REASON_MAX) {",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CU-19 a reason is at most 255 characters",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "if ($reason === '' || mb_strlen($reason) > self::REASON_MAX) {",
+    "replace": "if ($reason === '' || false) {",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CU-20 a day in a closed period is reversed today and never touched",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "$date   = $cutoff !== null && $journal->journal_date <= $cutoff['date'] ? date('Y-m-d') : $journal->journal_date;",
+    "replace": "$date   = $journal->journal_date;",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CU-21 revise reverses the revision that stands before it posts the new one",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "$this->takeBack($current, $reason, $employeeId);\n\n            return $this->write(",
+    "replace": "return $this->write(",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CU-22 cancel reverses the journal",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "$this->takeBack($current, $reason, $employeeId);\n            $this->settlement->settle($customerId, $employeeId);",
+    "replace": "$this->settlement->settle($customerId, $employeeId);",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CU-23 cancel gives back the credit that was spent on the opening balance",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "$this->settlement->settle($customerId, $employeeId);\n            $this->audit->write('customer_opening', $openingId, 'customer_opening_cancelled'",
+    "replace": "$this->audit->write('customer_opening', $openingId, 'customer_opening_cancelled'",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CU-24 a new revision spends the credit of the customer on the opening balance",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "$this->settlement->settle($customerId, $employeeId);\n        $this->audit->write('customer_opening', $openingId, $supersedes === null",
+    "replace": "$this->audit->write('customer_opening', $openingId, $supersedes === null",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CU-25 the audit trail records an opening balance entered",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "'customer_opening_created'",
+    "replace": "'customer_opening_x'",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CU-26 the audit trail records an opening balance changed",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "'customer_opening_revised'",
+    "replace": "'customer_opening_x'",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CU-27 the audit trail records an opening balance cancelled",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "'customer_opening_cancelled', $employeeId",
+    "replace": "'customer_opening_x', $employeeId",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CU-28 only a revision that stands can be changed or cancelled",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "if ($opening->status !== 'posted') {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CU-29 an opening balance that is not there is refused",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "if ($row === null) {\n            throw new AccountingException(AccountingError::CustomerOpeningNotFound",
+    "replace": "if (false) {\n            throw new AccountingException(AccountingError::CustomerOpeningNotFound",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CU-32 a journal that is already posted for the revision is refused",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "if (! $result->created) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CU-33 every revision has its own number",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "return (int) ($row->latest ?? 0) + 1;",
+    "replace": "return (int) ($row->latest ?? 0) + 0;",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CU-34 create saves the document and its journal in one transaction",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "return $this->lock->run($customerId, fn (): int => $this->transactional(function () use ($customerId, $side, $amount, $date, $note, $branchId, $employeeId): int {",
+    "replace": "return $this->lock->run($customerId, fn (): int => (static fn (callable $work): mixed => $work())(function () use ($customerId, $side, $amount, $date, $note, $branchId, $employeeId): int {",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CU-35 revise reverses and posts in one transaction",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "return $this->lock->run($customerId, fn (): int => $this->transactional(function () use ($openingId, $customerId, $side, $amount, $date, $note, $reason, $employeeId): int {",
+    "replace": "return $this->lock->run($customerId, fn (): int => (static fn (callable $work): mixed => $work())(function () use ($openingId, $customerId, $side, $amount, $date, $note, $reason, $employeeId): int {",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CU-36 create holds the lock of the customer",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "return $this->lock->run($customerId, fn (): int => $this->transactional(function () use ($customerId, $side, $amount, $date, $note, $branchId, $employeeId): int {",
+    "replace": "return (static fn (int $id, callable $work): mixed => $work())($customerId, fn (): int => $this->transactional(function () use ($customerId, $side, $amount, $date, $note, $branchId, $employeeId): int {",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CU-37 revise holds the lock of the customer",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "return $this->lock->run($customerId, fn (): int => $this->transactional(function () use ($openingId, $customerId, $side, $amount, $date, $note, $reason, $employeeId): int {",
+    "replace": "return (static fn (int $id, callable $work): mixed => $work())($customerId, fn (): int => $this->transactional(function () use ($openingId, $customerId, $side, $amount, $date, $note, $reason, $employeeId): int {",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CU-38 cancel holds the lock of the customer",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "$this->lock->run($customerId, fn () => $this->transactional(function () use ($openingId, $customerId, $reason, $employeeId): void {",
+    "replace": "(static fn (int $id, callable $work): mixed => $work())($customerId, fn () => $this->transactional(function () use ($openingId, $customerId, $reason, $employeeId): void {",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CU-39 the journal of an opening balance cannot be reversed by hand",
+    "file": "app/Libraries/Accounting/JournalService.php",
+    "find": "        CashupPostingBuilder::SOURCE,\n        CustomerOpening::SOURCE,\n    ];",
+    "replace": "        CashupPostingBuilder::SOURCE,\n    ];",
+    "tests": [
+      "--filter",
+      "Opening",
+      "tests/Libraries/Accounting/JournalServiceTest.php"
+    ]
+  },
+  {
+    "name": "CL-01 only openings whose journal stands count",
+    "file": "app/Libraries/Accounting/CustomerLedger.php",
+    "find": "private function openings(int $customerId, int $accountId, ?string $asOf): array\n    {\n        [$standing, $standingBindings] = StandingJournals::condition($this->db, 'j', $asOf);",
+    "replace": "private function openings(int $customerId, int $accountId, ?string $asOf): array\n    {\n        [$standing, $standingBindings] = [\"j.status IN ('posted', 'reversed')\", []];",
+    "tests": [
+      "--filter",
+      "Opening",
+      "tests/Libraries/Accounting/CustomerOpeningTest.php",
+      "tests/Libraries/Accounting/CustomerLedgerTest.php"
+    ]
+  },
+  {
+    "name": "CL-03 an opening the customer owes is an invoice and one they hold is a credit",
+    "file": "app/Libraries/Accounting/CustomerLedger.php",
+    "find": "if (bccomp($total, '0', SaleAmounts::SCALE) > 0) {\n                $figures[$key]",
+    "replace": "if (bccomp($total, '0', SaleAmounts::SCALE) < 0) {\n                $figures[$key]",
+    "tests": [
+      "--filter",
+      "Opening",
+      "tests/Libraries/Accounting/CustomerOpeningTest.php",
+      "tests/Libraries/Accounting/CustomerLedgerTest.php"
+    ]
+  },
+  {
+    "name": "CL-04 an opening balance is numbered apart from the invoices",
+    "file": "app/Libraries/Accounting/CustomerLedger.php",
+    "find": "$key   = -(int) $opening->opening_id;",
+    "replace": "$key   = (int) $opening->opening_id;",
+    "tests": [
+      "--filter",
+      "Opening",
+      "tests/Libraries/Accounting/CustomerOpeningTest.php",
+      "tests/Libraries/Accounting/CustomerLedgerTest.php"
+    ]
+  },
+  {
+    "name": "CL-05 an application points at the opening balance it was spent on",
+    "file": "app/Libraries/Accounting/CustomerLedger.php",
+    "find": "-(int) $application->opening_id",
+    "replace": "(int) $application->opening_id",
+    "tests": [
+      "tests/Libraries/Accounting/CreditSettlementTest.php",
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CS-01 an application on an opening balance is saved against the opening",
+    "file": "app/Libraries/Accounting/CreditSettlement.php",
+    "find": "'invoice_sale_id' => $invoiceId > 0 ? $invoiceId : null,",
+    "replace": "'invoice_sale_id' => $invoiceId,",
+    "tests": [
+      "tests/Libraries/Accounting/CreditSettlementTest.php",
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CS-02 a part of an application cut from an opening balance stays on it",
+    "file": "app/Libraries/Accounting/CreditSettlement.php",
+    "find": "'opening_id'      => $row->opening_id,",
+    "replace": "'opening_id'      => null,",
+    "tests": [
+      "tests/Libraries/Accounting/CreditSettlementTest.php",
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CS-03 what stands on an opening balance is counted by the opening",
+    "file": "app/Libraries/Accounting/CreditSettlement.php",
+    "find": "if (CustomerLedger::targetOf($application) === $target) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/CreditSettlementTest.php",
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "SF-01 the sales form names the opening balance as the source of the credit spent on an invoice",
+    "file": "app/Views/sales/form.php",
+    "find": "    CreditSource::OPENING     => 'Accounting_receivables.source_opening',\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testGetEdit_",
+      "tests/Controllers/SalesControllerTest.php"
+    ]
+  },
+  {
+    "name": "RC-01 the form to enter an opening balance is hidden from whoever does not manage them",
+    "file": "app/Controllers/AccountingReceivables.php",
+    "find": "if (! $this->can(AccountingGuard::OPENING_MANAGE) || ! (new AccountingSettings())->customerOpeningEnabled() || $this->ledger->position($customerId)->accountId === null) {",
+    "replace": "if (! (new AccountingSettings())->customerOpeningEnabled() || $this->ledger->position($customerId)->accountId === null) {",
+    "tests": [
+      "--filter",
+      "Opening",
+      "tests/Controllers/AccountingReceivablesControllerTest.php"
+    ]
+  },
+  {
+    "name": "RC-02 the form to enter an opening balance is hidden while the setting is off",
+    "file": "app/Controllers/AccountingReceivables.php",
+    "find": "if (! $this->can(AccountingGuard::OPENING_MANAGE) || ! (new AccountingSettings())->customerOpeningEnabled() || $this->ledger->position($customerId)->accountId === null) {",
+    "replace": "if (! $this->can(AccountingGuard::OPENING_MANAGE) || $this->ledger->position($customerId)->accountId === null) {",
+    "tests": [
+      "--filter",
+      "Opening",
+      "tests/Controllers/AccountingReceivablesControllerTest.php"
+    ]
+  },
+  {
+    "name": "RC-03 the form to enter an opening balance is hidden for a customer without an account",
+    "file": "app/Controllers/AccountingReceivables.php",
+    "find": "if (! $this->can(AccountingGuard::OPENING_MANAGE) || ! (new AccountingSettings())->customerOpeningEnabled() || $this->ledger->position($customerId)->accountId === null) {",
+    "replace": "if (! $this->can(AccountingGuard::OPENING_MANAGE) || ! (new AccountingSettings())->customerOpeningEnabled()) {",
+    "tests": [
+      "--filter",
+      "Opening",
+      "tests/Controllers/AccountingReceivablesControllerTest.php"
+    ]
+  },
+  {
+    "name": "RC-04 a customer who has an opening balance gets no form to enter another",
+    "file": "app/Controllers/AccountingReceivables.php",
+    "find": "if ($this->openings->standingFor($customerId) !== null) {\n            throw PageNotFoundException::forPageNotFound();\n        }",
+    "replace": "if (false) {\n            throw PageNotFoundException::forPageNotFound();\n        }",
+    "tests": [
+      "--filter",
+      "Opening",
+      "tests/Controllers/AccountingReceivablesControllerTest.php"
+    ]
+  },
+  {
+    "name": "RC-05 the form to change or cancel is hidden from whoever does not manage opening balances",
+    "file": "app/Controllers/AccountingReceivables.php",
+    "find": "$opening = $this->can(AccountingGuard::OPENING_MANAGE) ? $this->openings->find($openingId) : null;",
+    "replace": "$opening = $this->openings->find($openingId);",
+    "tests": [
+      "--filter",
+      "Opening",
+      "tests/Controllers/AccountingReceivablesControllerTest.php"
+    ]
+  },
+  {
+    "name": "RC-06 a revision that was reversed has no form to change or cancel it",
+    "file": "app/Controllers/AccountingReceivables.php",
+    "find": "if ($opening === null || $opening->status !== 'posted') {",
+    "replace": "if ($opening === null) {",
+    "tests": [
+      "--filter",
+      "Opening",
+      "tests/Controllers/AccountingReceivablesControllerTest.php"
+    ]
+  },
+  {
+    "name": "RC-07 the form to change is hidden while the setting is off",
+    "file": "app/Controllers/AccountingReceivables.php",
+    "find": "$opening = $this->standingOpening($openingId);\n\n        if (! (new AccountingSettings())->customerOpeningEnabled()) {",
+    "replace": "$opening = $this->standingOpening($openingId);\n\n        if (false) {",
+    "tests": [
+      "--filter",
+      "Opening",
+      "tests/Controllers/AccountingReceivablesControllerTest.php"
+    ]
+  },
+  {
+    "name": "RC-08 the opening balance is offered on the statement only to whoever manages them while the setting is on",
+    "file": "app/Controllers/AccountingReceivables.php",
+    "find": "'can_open'        => $this->can(AccountingGuard::OPENING_MANAGE) && (new AccountingSettings())->customerOpeningEnabled() && $this->openings->standingFor($customerId) === null,",
+    "replace": "'can_open'        => true,",
+    "tests": [
+      "--filter",
+      "Opening",
+      "tests/Controllers/AccountingReceivablesControllerTest.php"
+    ]
+  },
+  {
+    "name": "RC-09 entering an opening balance is closed to someone limited to some branches",
+    "file": "app/Controllers/AccountingReceivables.php",
+    "find": "public function postOpening(int $customerId): ResponseInterface\n    {\n        $this->requireCompanyScope();\n",
+    "replace": "public function postOpening(int $customerId): ResponseInterface\n    {\n",
+    "tests": [
+      "--filter",
+      "Opening",
+      "tests/Controllers/AccountingReceivablesControllerTest.php"
+    ]
+  },
+  {
+    "name": "RC-10 changing an opening balance is closed to someone limited to some branches",
+    "file": "app/Controllers/AccountingReceivables.php",
+    "find": "public function postOpeningEdit(int $openingId): ResponseInterface\n    {\n        $this->requireCompanyScope();\n",
+    "replace": "public function postOpeningEdit(int $openingId): ResponseInterface\n    {\n",
+    "tests": [
+      "--filter",
+      "Opening",
+      "tests/Controllers/AccountingReceivablesControllerTest.php"
+    ]
+  },
+  {
+    "name": "RC-11 cancelling an opening balance is closed to someone limited to some branches",
+    "file": "app/Controllers/AccountingReceivables.php",
+    "find": "public function postOpeningCancel(int $openingId): ResponseInterface\n    {\n        $this->requireCompanyScope();\n",
+    "replace": "public function postOpeningCancel(int $openingId): ResponseInterface\n    {\n",
+    "tests": [
+      "--filter",
+      "Opening",
+      "tests/Controllers/AccountingReceivablesControllerTest.php"
+    ]
+  },
+  {
+    "name": "RC-12 the forms of an opening balance are closed to someone limited to some branches",
+    "file": "app/Controllers/AccountingReceivables.php",
+    "find": "private function standingOpening(int $openingId): object\n    {\n        $this->requireCompanyScope();\n",
+    "replace": "private function standingOpening(int $openingId): object\n    {\n",
+    "tests": [
+      "--filter",
+      "Opening",
+      "tests/Controllers/AccountingReceivablesControllerTest.php"
+    ]
+  },
+  {
+    "name": "ST-01 opening balances of customers are off until the setting turns them on",
+    "file": "app/Libraries/Accounting/AccountingSettings.php",
+    "find": "get_value(self::CUSTOMER_OPENING_KEY, '0') === '1'",
+    "replace": "get_value(self::CUSTOMER_OPENING_KEY, '1') === '1'",
+    "tests": [
+      "tests/Libraries/Accounting/AccountingSettingsTest.php"
+    ]
+  },
+  {
+    "name": "ST-02 a settings form that does not carry the switch leaves it as it was",
+    "file": "app/Controllers/AccountingSetup.php",
+    "find": "if ($this->request->getPost('customer_opening') !== null) {",
+    "replace": "if (true) {",
+    "tests": [
+      "tests/Controllers/AccountingSetupControllerTest.php"
+    ]
+  },
+  {
+    "name": "CF-01 the form of a customer offers the opening balance only while the setting is on",
+    "file": "app/Controllers/Customers.php",
+    "find": "            && $settings->customerOpeningEnabled()\n",
+    "replace": "            && true\n",
+    "tests": [
+      "tests/Controllers/CustomersControllerTest.php"
+    ]
+  },
+  {
+    "name": "CF-02 the form of a customer offers the opening balance only while accounting is on",
+    "file": "app/Controllers/Customers.php",
+    "find": "        return $settings->isEnabled()\n",
+    "replace": "        return true\n",
+    "tests": [
+      "tests/Controllers/CustomersControllerTest.php"
+    ]
+  },
+  {
+    "name": "CF-03 the form of a customer offers the opening balance only to whoever manages them",
+    "file": "app/Controllers/Customers.php",
+    "find": "\n            && $this->employee->has_grant(AccountingGuard::OPENING_MANAGE, $employeeId);",
+    "replace": ";",
+    "tests": [
+      "tests/Controllers/CustomersControllerTest.php"
+    ]
+  },
+  {
+    "name": "CF-04 the form of a customer that exists offers no opening balance",
+    "file": "app/Controllers/Customers.php",
+    "find": "$data['opening_offered']           = $customerId == NEW_ENTRY && $this->openingOffered();",
+    "replace": "$data['opening_offered']           = $this->openingOffered();",
+    "tests": [
+      "tests/Controllers/CustomersControllerTest.php"
+    ]
+  },
+  {
+    "name": "CF-05 an opening balance typed on the form is entered only where it is offered",
+    "file": "app/Controllers/Customers.php",
+    "find": "if ($amount === '' || ! $this->openingOffered()) {",
+    "replace": "if ($amount === '') {",
+    "tests": [
+      "tests/Controllers/CustomersControllerTest.php"
+    ]
+  },
+  {
+    "name": "CF-06 the form of a customer offers the opening balance only to someone who works in every branch",
+    "file": "app/Controllers/Customers.php",
+    "find": "            && (new BranchGuard(null, $this->employee))->isUnrestricted($employeeId)\n",
+    "replace": "",
+    "tests": [
+      "tests/Controllers/CustomersControllerTest.php"
+    ]
+  },
+  {
+    "name": "MG-01 the migration adds the column of an opening balance to the applications only once",
+    "file": "app/Database/Migrations/20271000000000_CustomerOpenings.php",
+    "find": "if (! $this->hasColumn('customer_credit_applications', 'opening_id')) {",
+    "replace": "if (true) {",
+    "tests": [
+      "tests/Database/CustomerOpeningsMigrationTest.php"
+    ]
+  },
+  {
+    "name": "MG-02 the migration lets the invoice of an application be empty",
+    "file": "app/Database/Migrations/20271000000000_CustomerOpenings.php",
+    "find": "if ($this->columnIsRequired('customer_credit_applications', 'invoice_sale_id')) {\n            $this->db->query(\"ALTER TABLE `{$applications}` MODIFY COLUMN `invoice_sale_id` INT(10) NULL DEFAULT NULL\");",
+    "replace": "if (false) {\n            $this->db->query(\"ALTER TABLE `{$applications}` MODIFY COLUMN `invoice_sale_id` INT(10) NULL DEFAULT NULL\");",
+    "tests": [
+      "tests/Database/CustomerOpeningsMigrationTest.php"
+    ]
+  },
+  {
+    "name": "MG-03 the migration adds the index of the opening balance of an application only once",
+    "file": "app/Database/Migrations/20271000000000_CustomerOpenings.php",
+    "find": "if (! $this->hasIndex('customer_credit_applications', 'customer_credit_applications_opening')) {\n            $this->db->query(\"ALTER TABLE `{$applications}` ADD KEY",
+    "replace": "if (true) {\n            $this->db->query(\"ALTER TABLE `{$applications}` ADD KEY",
+    "tests": [
+      "tests/Database/CustomerOpeningsMigrationTest.php"
+    ]
+  },
+  {
+    "name": "MG-04 the migration adds the key to the opening balance only once",
+    "file": "app/Database/Migrations/20271000000000_CustomerOpenings.php",
+    "find": "if (! $this->hasConstraint('customer_credit_applications', 'customer_credit_applications_fk_opening')) {\n            $this->db->query(\"ALTER TABLE `{$applications}` ADD CONSTRAINT",
+    "replace": "if (true) {\n            $this->db->query(\"ALTER TABLE `{$applications}` ADD CONSTRAINT",
+    "tests": [
+      "tests/Database/CustomerOpeningsMigrationTest.php"
+    ]
+  },
+  {
+    "name": "MG-05 the migration adds the check of one target only once",
+    "file": "app/Database/Migrations/20271000000000_CustomerOpenings.php",
+    "find": "if (! $this->hasConstraint('customer_credit_applications', 'customer_credit_applications_target')) {\n            $this->db->query(\"ALTER TABLE `{$applications}` ADD CONSTRAINT",
+    "replace": "if (true) {\n            $this->db->query(\"ALTER TABLE `{$applications}` ADD CONSTRAINT",
+    "tests": [
+      "tests/Database/CustomerOpeningsMigrationTest.php"
+    ]
+  },
+  {
+    "name": "MG-06 an application is spent on an invoice or on an opening balance and never on both or neither",
+    "file": "app/Database/Migrations/20271000000000_CustomerOpenings.php",
+    "find": "CHECK ((`invoice_sale_id` IS NULL) <> (`opening_id` IS NULL))",
+    "replace": "CHECK (1 = 1)",
+    "tests": [
+      "tests/Database/CustomerOpeningsMigrationTest.php"
+    ]
+  },
+  {
+    "name": "MG-07 the table allows one standing revision for a customer",
+    "file": "app/Database/Migrations/20271000000000_CustomerOpenings.php",
+    "find": "UNIQUE KEY `{$table}_standing` (`standing_customer`),",
+    "replace": "KEY `{$table}_standing` (`standing_customer`),",
+    "tests": [
+      "tests/Database/CustomerOpeningsMigrationTest.php"
+    ]
+  },
+  {
+    "name": "MG-08 the table allows one row for each revision number of a customer",
+    "file": "app/Database/Migrations/20271000000000_CustomerOpenings.php",
+    "find": "UNIQUE KEY `{$table}_revision` (`customer_id`, `revision`),",
+    "replace": "KEY `{$table}_revision` (`customer_id`, `revision`),",
+    "tests": [
+      "tests/Database/CustomerOpeningsMigrationTest.php"
+    ]
+  },
+  {
+    "name": "MG-09 taking the migration down drops what was spent on opening balances before the invoice is required again",
+    "file": "app/Database/Migrations/20271000000000_CustomerOpenings.php",
+    "find": "$this->db->query(\"DELETE FROM `{$applications}` WHERE `opening_id` IS NOT NULL\");",
+    "replace": "",
+    "tests": [
+      "tests/Database/CustomerOpeningsMigrationTest.php"
+    ]
+  },
+  {
+    "name": "MC-01 the readiness check prints the migration of opening balances of customers as heavy",
+    "file": "app/Libraries/Accounting/Readiness/MigrationChecks.php",
+    "find": "        'CustomerOpenings'              => [self::HEAVY, 'adds customer_credit_applications.opening_id and lets invoice_sale_id be empty, which rebuilds that table; creates customer_openings'],\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testPending_ClassifiesTheMigrationOfOpeningBalancesOfCustomersAsHeavyWithItsNote",
+      "tests/Libraries/Accounting/Readiness/MigrationChecksTest.php"
+    ]
+  },
+  {
+    "name": "RC-13 the form to change an opening balance fills the side of the revision that stands",
+    "file": "app/Views/accounting_receivables/opening_form.php",
+    "find": "$editing ? $opening->side : 'owes_us'",
+    "replace": "'owes_us'",
+    "tests": [
+      "--filter",
+      "Opening",
+      "tests/Controllers/AccountingReceivablesControllerTest.php"
+    ]
+  },
+  {
+    "name": "RC-14 the form to change an opening balance fills the date of the revision that stands",
+    "file": "app/Views/accounting_receivables/opening_form.php",
+    "find": "esc($editing ? (string) $opening->opening_date : $today, 'attr')",
+    "replace": "esc($today, 'attr')",
+    "tests": [
+      "--filter",
+      "Opening",
+      "tests/Controllers/AccountingReceivablesControllerTest.php"
+    ]
+  },
+  {
+    "name": "RC-15 the form to change an opening balance fills the note of the revision that stands",
+    "file": "app/Views/accounting_receivables/opening_form.php",
+    "find": "<?= $editing ? esc((string) $opening->note) : '' ?></textarea>",
+    "replace": "</textarea>",
+    "tests": [
+      "--filter",
+      "Opening",
+      "tests/Controllers/AccountingReceivablesControllerTest.php"
+    ]
+  },
+  {
+    "name": "RC-16 the form to change an opening balance fills the amount of the revision that stands",
+    "file": "app/Views/accounting_receivables/opening_form.php",
+    "find": "value=\"<?= $editing ? esc(rtrim(rtrim((string) $opening->amount, '0'), '.'), 'attr') : '' ?>\"",
+    "replace": "value=\"\"",
+    "tests": [
+      "--filter",
+      "Opening",
+      "tests/Controllers/AccountingReceivablesControllerTest.php"
+    ]
+  },
+  {
+    "name": "RC-17 the form to enter an opening balance starts on the customer owing us",
+    "file": "app/Views/accounting_receivables/opening_form.php",
+    "find": "$editing ? $opening->side : 'owes_us'",
+    "replace": "$editing ? $opening->side : 'we_owe'",
+    "tests": [
+      "--filter",
+      "Opening",
+      "tests/Controllers/AccountingReceivablesControllerTest.php"
+    ]
+  },
+  {
+    "name": "RC-18 the form to enter an opening balance starts on today",
+    "file": "app/Views/accounting_receivables/opening_form.php",
+    "find": "esc($editing ? (string) $opening->opening_date : $today, 'attr')",
+    "replace": "esc($editing ? (string) $opening->opening_date : '', 'attr')",
+    "tests": [
+      "--filter",
+      "Opening",
+      "tests/Controllers/AccountingReceivablesControllerTest.php"
+    ]
+  },
+  {
+    "name": "CU-40 the note is cut at five hundred characters",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "mb_substr(trim($note), 0, self::NOTE_MAX)",
+    "replace": "trim($note)",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CU-41 the note is trimmed before it is cut",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "mb_substr(trim($note), 0, self::NOTE_MAX)",
+    "replace": "mb_substr($note, 0, self::NOTE_MAX)",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "CU-42 the note is cut by characters and not by bytes",
+    "file": "app/Libraries/Accounting/CustomerOpening.php",
+    "find": "mb_substr(trim($note), 0, self::NOTE_MAX)",
+    "replace": "substr(trim($note), 0, self::NOTE_MAX)",
+    "tests": [
+      "tests/Libraries/Accounting/CustomerOpeningTest.php"
+    ]
+  },
+  {
+    "name": "G57-31 the form of the cost correction names the day of the opening when it is in a closed period",
+    "file": "app/Controllers/AccountingOpening.php",
+    "find": "            OpeningStockRepriceBlock::PeriodClosed   => lang($key, [$this->formatDate($plan->date)]),\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testGetStockRepriceForm_",
+      "tests/Controllers/AccountingOpeningControllerTest.php"
+    ]
+  },
+  {
+    "name": "G57-32 the form of the cost correction counts the later movements that stop it",
+    "file": "app/Controllers/AccountingOpening.php",
+    "find": "            OpeningStockRepriceBlock::LaterMovements => lang($key, [(string) $plan->laterMovements]),\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testGetStockRepriceForm_",
+      "tests/Controllers/AccountingOpeningControllerTest.php"
+    ]
+  },
+  {
+    "name": "G57-33 the form of the cost correction says in words that the account holds value no movement accounts for and that nothing would change",
+    "file": "app/Controllers/AccountingOpening.php",
+    "find": "            default                                  => lang($key),\n",
+    "replace": "            default                                  => $key,\n",
+    "tests": [
+      "--filter",
+      "testGetStockRepriceForm_",
+      "tests/Controllers/AccountingOpeningControllerTest.php"
+    ]
+  }
+]

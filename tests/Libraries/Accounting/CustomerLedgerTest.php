@@ -3,7 +3,9 @@
 namespace Tests\Libraries\Accounting;
 
 use App\Libraries\Accounting\AgingBuckets;
+use App\Libraries\Accounting\CreditSource;
 use App\Libraries\Accounting\CustomerLedger;
+use App\Libraries\Accounting\CustomerOpening;
 use App\Libraries\Accounting\CustomerPosition;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
@@ -594,6 +596,104 @@ class CustomerLedgerTest extends CIUnitTestCase
         $this->assertSame('300.00', bcadd($position->open(), '0', 2));
         $this->assertSame(['today' => '0.0000', '1-30' => '100.0000', '31-60' => '200.0000', '61-90' => '0.0000', '91-120' => '0.0000', '120+' => '0.0000'], $position->aging(date('Y-m-d')));
         $this->assertSame('200.00', bcadd($position->overdue(date('Y-m-d')), '0', 2));
+        $this->assertTies();
+    }
+
+    private function openingOf(string $amount, int $daysAgo, string $side = CustomerOpening::OWES_US): int
+    {
+        $this->setConfigValue('accounting_customer_opening', '1');
+
+        try {
+            return (new CustomerOpening())->create($this->customerId, $side, $amount, $this->daysAgo($daysAgo), '', null);
+        } finally {
+            $this->setConfigValue('accounting_customer_opening', '0');
+        }
+    }
+
+    public function testPosition_TiesAnOpeningBalanceWithInvoicesPaymentsAndACreditNoteToTheBalanceTheAgingAndTheAccount(): void
+    {
+        $opening = $this->openingOf('500.00', 60);
+        $invoice = $this->invoiceDated('100.00', $this->daysAgo(10));
+
+        $this->addPayment($invoice, '30.00');
+        $this->creditNoteOf($invoice, '20.00');
+
+        $position = $this->position();
+
+        $this->assertSame('550.00', bcadd($position->open(), '0', 2));
+        $this->assertSame('550.00', bcadd($position->accountBalance, '0', 2));
+        $this->assertSame('550.00', $this->balance($this->customerAccount()));
+        $this->assertSame('500.00', bcadd($position->invoice(-$opening)->open(), '0', 2));
+        $this->assertSame('50.00', bcadd($position->invoice($invoice)->open(), '0', 2));
+        $this->assertSame(['0.0000', '50.0000', '500.0000', '0.0000', '0.0000', '0.0000'], array_values($position->aging(date('Y-m-d'))));
+        $this->assertTies();
+    }
+
+    public function testPosition_PutsTheOpeningBalanceFirstWhenItIsDatedTheSameDayAsAnInvoice(): void
+    {
+        $invoice = $this->invoiceDated('100.00', $this->daysAgo(5));
+        $opening = $this->openingOf('40.00', 5);
+
+        $this->assertSame([-$opening, $invoice], array_map(static fn ($figures): int => $figures->saleId, $this->position()->invoices));
+    }
+
+    public function testPosition_CountsTheOpeningBalanceOnlyFromItsDayOnADayOfThePastAndTiesEveryDay(): void
+    {
+        $this->openingOf('500.00', 20);
+        $this->invoiceDated('100.00', $this->daysAgo(10));
+
+        foreach ([[21, '0.0000'], [20, '500.0000'], [11, '500.0000'], [10, '600.0000']] as [$ago, $owed]) {
+            $position = $this->position(null, $this->daysAgo($ago));
+
+            $this->assertSame($owed, $position->open(), "{$ago} days ago");
+            $this->assertTrue($position->agrees(), "{$ago} days ago");
+        }
+    }
+
+    public function testPosition_CountsAnOpeningBalanceCancelledAfterAClosedPeriodAsItWasOnADayBeforeItWasCancelled(): void
+    {
+        $opening = $this->openingOf('500.00', 30);
+        $this->closeThrough($this->daysAgo(25));
+
+        $this->setConfigValue('accounting_customer_opening', '1');
+        (new CustomerOpening())->cancel($opening, 'Entered twice', null);
+        $this->setConfigValue('accounting_customer_opening', '0');
+
+        $before = $this->position(null, $this->daysAgo(10));
+        $now    = $this->position();
+
+        $this->assertSame('500.0000', $before->open(), 'On a day before the cancellation the books still carried it');
+        $this->assertTrue($before->agrees());
+        $this->assertSame('0.0000', $now->open());
+        $this->assertSame('0.0000', $now->accountBalance);
+        $this->assertTies();
+    }
+
+    public function testAgedLedger_AgreesWithThePositionOfACustomerWhoHasAnOpeningBalanceAndCreditSpentOnIt(): void
+    {
+        $this->openingOf('500.00', 60);
+        $this->invoiceDated('100.00', $this->daysAgo(2), null, null, [$this->payment(lang('Sales.cash'), '300.00')]);
+
+        $position = $this->position();
+        $rows     = (new CustomerLedger())->agedLedger(date('Y-m-d'), 30, $this->customerId);
+
+        $this->assertCount(1, $rows);
+        $this->assertSame('300.0000', $position->open());
+        $this->assertSame(bcsub($position->open(), $position->credit(), 4), $rows[0]->balance());
+        $this->assertSame($position->accountBalance, $rows[0]->balance());
+        $this->assertSame('0.0000', $rows[0]->credit);
+    }
+
+    public function testPosition_ReadsACreditAnOpeningBalanceHoldsAsCreditSpentOnTheNextInvoice(): void
+    {
+        $opening = $this->openingOf('300.00', 30, CustomerOpening::WE_OWE);
+
+        $this->assertSame([CreditSource::OPENING, $opening, '300.0000'], [$this->position()->credits[0]->type, $this->position()->credits[0]->sourceId, $this->position()->credits[0]->amount]);
+
+        $invoice = $this->invoiceDated('100.00', $this->daysAgo(1));
+
+        $this->assertSame('200.0000', $this->position()->credit());
+        $this->assertSame('0.00', bcadd($this->position()->invoice($invoice)->open(), '0', 2));
         $this->assertTies();
     }
 }

@@ -2,9 +2,17 @@
 
 namespace App\Controllers;
 
+use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\AccountingMessage;
+use App\Libraries\Accounting\AccountingSettings;
+use App\Libraries\Accounting\CustomerOpening;
+use App\Libraries\Accounting\PostingException;
 use App\Libraries\Mailchimp_lib;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
+use App\Libraries\Organization\BranchException;
+use App\Libraries\Organization\BranchGuard;
 
 use App\Models\Customer;
 use App\Models\Customer_rewards;
@@ -145,18 +153,18 @@ class Customers extends Persons
      * Loads the customer edit form
      * @return string
      */
-    public function getView(int $customer_id = NEW_ENTRY): string
+    public function getView(int $customerId = NEW_ENTRY): string
     {
         // Set default values
-        if ($customer_id == null) $customer_id = NEW_ENTRY;
+        if ($customerId == null) $customerId = NEW_ENTRY;
 
-        $info = $this->customer->get_info($customer_id);
+        $info = $this->customer->get_info($customerId);
         foreach (get_object_vars($info) as $property => $value) {
             $info->$property = $value;
         }
         $data['person_info'] = $info;
 
-        $data['automaticAccountNumber'] = $customer_id == NEW_ENTRY ? (new DocumentNumbering())->peek(DocumentType::Customer) : null;
+        $data['automaticAccountNumber'] = $customerId == NEW_ENTRY ? (new DocumentNumbering())->peek(DocumentType::Customer) : null;
 
         if (empty($info->person_id) || empty($info->date) || empty($info->employee_id)) {
             $data['person_info']->date = date('Y-m-d H:i:s');
@@ -182,9 +190,11 @@ class Customers extends Persons
         $data['selected_package'] = $info->package_id;
 
         $data['use_destination_based_tax'] = $this->config['use_destination_based_tax'];
+        $data['opening_offered']           = $customerId == NEW_ENTRY && $this->openingOffered();
+        $data['opening_today']             = date('Y-m-d');
 
         // Retrieve the total amount the customer spent so far together with min, max and average values
-        $stats = $this->customer->get_stats($customer_id);
+        $stats = $this->customer->get_stats($customerId);
         if (!empty($stats)) {
             foreach (get_object_vars($stats) as $property => $value) {
                 $info->$property = $value;
@@ -242,7 +252,7 @@ class Customers extends Persons
      * Inserts/updates a customer
      * @return ResponseInterface
      */
-    public function postSave(int $customer_id = NEW_ENTRY): ResponseInterface
+    public function postSave(int $customerId = NEW_ENTRY): ResponseInterface
     {
         $firstName = $this->request->getPost('first_name');
         $lastName = $this->request->getPost('last_name');
@@ -283,11 +293,11 @@ class Customers extends Persons
             'sales_tax_code_id' => $this->request->getPost('sales_tax_code_id') == '' ? null : $this->request->getPost('sales_tax_code_id', FILTER_SANITIZE_NUMBER_INT)
         ];
 
-        if ($customerData['account_number'] !== null && $this->customer->refusesAccountNumber($customerData['account_number'], (string) $customer_id)) {
+        if ($customerData['account_number'] !== null && $this->customer->refusesAccountNumber($customerData['account_number'], (string) $customerId)) {
             return $this->response->setJSON(['success' => false, 'message' => lang('Customers.account_number_duplicate'), 'id' => NEW_ENTRY]);
         }
 
-        if ($this->customer->save_customer($personData, $customerData, $customer_id)) {
+        if ($this->customer->save_customer($personData, $customerData, $customerId)) {
             // Save customer to Mailchimp selected list    // TODO: addOrUpdateMember should be refactored. Potentially pass an array or object instead of 6 parameters.
             $mailchimpStatus = $this->request->getPost('mailchimp_status');
             $this->mailchimp_lib->addOrUpdateMember(
@@ -300,17 +310,19 @@ class Customers extends Persons
             );
 
             // New customer
-            if ($customer_id == NEW_ENTRY) {
+            if ($customerId == NEW_ENTRY) {
+                $notEntered = $this->enterOpening((int) $customerData['person_id']);
+
                 return $this->response->setJSON([
                     'success' => true,
-                    'message' => lang('Customers.successful_adding') . ' ' . $firstName . ' ' . $lastName,
+                    'message' => lang('Customers.successful_adding') . ' ' . $firstName . ' ' . $lastName . ($notEntered === null ? '' : ' ' . lang('Customers.opening_not_entered', [$notEntered])),
                     'id'      => $customerData['person_id']
                 ]);
             } else { // Existing customer
                 return $this->response->setJSON([
                     'success' => true,
                     'message' => lang('Customers.successful_updating') . ' ' . $firstName . ' ' . $lastName,
-                    'id'      => $customer_id
+                    'id'      => $customerId
                 ]);
             }
         } else { // Failure
@@ -320,6 +332,49 @@ class Customers extends Persons
                 'id'      => NEW_ENTRY
             ]);
         }
+    }
+
+    /**
+     * The statement of a customer, where an opening balance is changed or cancelled, is closed to an
+     * employee limited to some branches, so the form does not offer one an opening balance either.
+     */
+    private function openingOffered(): bool
+    {
+        $settings   = new AccountingSettings();
+        $employeeId = (int) $this->employee->get_logged_in_employee_info()->person_id;
+
+        return $settings->isEnabled()
+            && $settings->customerOpeningEnabled()
+            && (new BranchGuard(null, $this->employee))->isUnrestricted($employeeId)
+            && $this->employee->has_grant(AccountingGuard::OPENING_MANAGE, $employeeId);
+    }
+
+    /**
+     * Enters the opening balance typed on the form of a new customer, which the customer does not
+     * wait for: the customer is saved either way. What the books refuse is returned as the reason.
+     */
+    private function enterOpening(int $customerId): ?string
+    {
+        $amount = trim((string) $this->request->getPost('opening_amount'));
+
+        if ($amount === '' || ! $this->openingOffered()) {
+            return null;
+        }
+
+        try {
+            (new CustomerOpening(null, null, new BranchGuard(null, $this->employee)))->create(
+                $customerId,
+                (string) $this->request->getPost('opening_side'),
+                $amount,
+                trim((string) $this->request->getPost('opening_date')),
+                '',
+                (int) $this->employee->get_logged_in_employee_info()->person_id,
+            );
+        } catch (AccountingException|BranchException|PostingException $failure) {
+            return AccountingMessage::of($failure);
+        }
+
+        return null;
     }
 
     /**

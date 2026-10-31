@@ -9,6 +9,7 @@ use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountService;
 use App\Libraries\Accounting\CostCenterService;
 use App\Libraries\Accounting\CrossBranchPayments;
+use App\Libraries\Accounting\CustomerOpening;
 use App\Libraries\Accounting\InterBranchLegs;
 use App\Libraries\Accounting\InterBranchSettlements;
 use App\Libraries\Accounting\JournalDraft;
@@ -744,11 +745,11 @@ class JournalServiceTest extends CIUnitTestCase
         }
     }
 
-    public function testReverse_RefusesTheJournalsOfAnExpenseAndACashUpAndLeavesThemToTheirDeletion(): void
+    public function testReverse_RefusesTheJournalsOfAnExpenseACashUpAndACustomerOpeningAndLeavesThemToTheirDocument(): void
     {
         $reverser = $this->accountant();
 
-        foreach (['expense', 'cashup'] as $source) {
+        foreach (['expense', 'cashup', CustomerOpening::SOURCE] as $source) {
             $journalId = $this->journalOfAStockTransfer($source);
 
             $this->assertFailsWith(AccountingError::DocumentJournalLocked, fn () => $this->service->reverse($journalId, '2026-10-22', 'By hand', $reverser));
@@ -756,9 +757,9 @@ class JournalServiceTest extends CIUnitTestCase
         }
     }
 
-    public function testReverseAutomatic_TakesBackTheJournalsOfAnExpenseAndACashUp(): void
+    public function testReverseAutomatic_TakesBackTheJournalsOfAnExpenseACashUpAndACustomerOpening(): void
     {
-        foreach (['expense', 'cashup'] as $source) {
+        foreach (['expense', 'cashup', CustomerOpening::SOURCE] as $source) {
             $journalId = $this->journalOfAStockTransfer($source);
 
             $this->assertGreaterThan(0, $this->service->reverseAutomatic($journalId, '2026-10-22', 'Document deleted', null));

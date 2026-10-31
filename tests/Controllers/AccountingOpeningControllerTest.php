@@ -4,8 +4,11 @@ namespace Tests\Controllers;
 
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\EntityAccountService;
+use App\Libraries\Accounting\JournalDraft;
+use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\OpeningBalanceService;
 use App\Libraries\Accounting\OpeningStock;
+use App\Libraries\Accounting\PostingService;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -680,5 +683,246 @@ class AccountingOpeningControllerTest extends CIUnitTestCase
         $this->assertFalse($result['success']);
         $this->assertSame(0, $this->openingStockJournals());
         $this->assertSame(0, $this->accountingDb()->table('accounting_stock_entries')->countAllResults());
+    }
+
+    private function setItemCost(int $itemId, string $cost): void
+    {
+        $this->accountingDb()->table('items')->where('item_id', $itemId)->update(['cost_price' => $cost]);
+    }
+
+    public function testGetIndex_OffersToPostAgainAtTheCurrentCostOnlyForPostedStockToSomeoneWhoManages(): void
+    {
+        $this->manager();
+        $this->shelves('50.00', '10');
+
+        $this->get('/accounting_periods/opening')->assertDontSee('stock-reprice');
+
+        $this->stockPost();
+
+        $listing = $this->get('/accounting_periods/opening');
+
+        $listing->assertSee('stock-reprice');
+        $listing->assertSee('reprice_form?location=1');
+
+        $this->actAs($this->employeeWithGrants(['accounting_periods']));
+
+        $this->get('/accounting_periods/opening')->assertDontSee('stock-reprice');
+    }
+
+    public function testGetStockRepriceForm_ShowsTheCostBeforeAndAfterTheRevisionsAndAskForAReason(): void
+    {
+        $this->manager();
+        $item = $this->shelves('50.00', '10');
+        $this->stockPost();
+        $this->setItemCost($item, '60.00');
+
+        $response = $this->get('/accounting_periods/opening/stock/reprice_form?location=1');
+
+        foreach (['opening_stock_reprice_form', '50.0000', '60.0000', 'name="reason"', 'name="plan"', 'revisions_table'] as $text) {
+            $response->assertSee($text);
+        }
+    }
+
+    public function testGetStockRepriceForm_ExplainsWhatStopsItAndOffersNoFormWhenLaterMovementsExist(): void
+    {
+        $this->manager();
+        $item = $this->shelves('50.00', '10');
+        $this->stockPost();
+        $this->setItemCost($item, '60.00');
+        $this->accountingDb()->table('accounting_stock_entries')->insert([
+            'company_id' => 1, 'branch_id' => 1, 'source_type' => 'sale', 'source_id' => 999, 'entry_type' => 'cost', 'revision' => 1, 'line_no' => 1, 'kind' => 'posting',
+            'entry_date' => '2026-02-01', 'item_id' => $item, 'location_id' => 1, 'quantity' => '-1.000', 'value' => '-50.0000', 'journal_id' => null,
+        ]);
+
+        $response = $this->get('/accounting_periods/opening/stock/reprice_form?location=1');
+
+        $response->assertSee(lang('Accounting_periods.opening_stock_reprice_block_later_movements', ['1']));
+        $response->assertDontSee('opening_stock_reprice_form');
+    }
+
+    public function testGetStockRepriceForm_NamesTheDayOfTheOpeningWhenItIsInAClosedPeriodAndOffersNoForm(): void
+    {
+        $this->manager();
+        $item = $this->shelves('50.00', '10');
+        $this->stockPost();
+        $this->setItemCost($item, '60.00');
+        $this->closeThrough('2026-01-31');
+
+        $response = $this->get('/accounting_periods/opening/stock/reprice_form?location=1');
+
+        $response->assertSee(lang('Accounting_periods.opening_stock_reprice_block_period_closed', [to_date(strtotime('2026-01-01'))]));
+        $response->assertDontSee('{0}');
+        $response->assertDontSee('opening_stock_reprice_form');
+    }
+
+    public function testGetStockRepriceForm_ExplainsThatTheAccountHoldsValueNoMovementAccountsForAndOffersNoForm(): void
+    {
+        $this->manager();
+        $item = $this->shelves('50.00', '10');
+        $this->stockPost();
+        $this->setItemCost($item, '60.00');
+        (new PostingService())->post(new JournalDraft(
+            date: '2026-01-01',
+            lines: [new JournalLineDraft((int) (new EntityAccountService())->accountFor(EntityAccountService::STOCK_LOCATION, 1), debit: '100.00'), new JournalLineDraft($this->accountId('opening_balance'), credit: '100.00')],
+            sourceType: JournalDraft::SOURCE_MANUAL,
+        ));
+
+        $response = $this->get('/accounting_periods/opening/stock/reprice_form?location=1');
+
+        $response->assertSee(lang('Accounting_periods.opening_stock_reprice_block_account_holds_value'));
+        $response->assertDontSee('opening_stock_reprice_form');
+    }
+
+    public function testGetStockRepriceForm_SaysThereIsNothingToChangeWhenEveryItemStandsAtItsCostAndOffersNoForm(): void
+    {
+        $this->manager();
+        $this->shelves('50.00', '10');
+        $this->stockPost();
+
+        $response = $this->get('/accounting_periods/opening/stock/reprice_form?location=1');
+
+        $response->assertSee(lang('Accounting_periods.opening_stock_reprice_block_nothing_to_change'));
+        $response->assertDontSee('opening_stock_reprice_form');
+    }
+
+    public function testGetStockRepriceForm_IsNotFoundWithoutPostedStockWithoutThePermissionAndOutsideTheScope(): void
+    {
+        $this->manager();
+        $this->shelves('50.00', '10');
+
+        foreach (['/accounting_periods/opening/stock/reprice_form?location=1', '/accounting_periods/opening/stock/reprice_form?location=999999'] as $url) {
+            try {
+                $this->get($url);
+                $this->fail('Expected the form to be hidden.');
+            } catch (PageNotFoundException) {
+                $this->addToAssertionCount(1);
+            }
+        }
+
+        [, $location] = $this->otherBranchLocation();
+        $this->shelves('50.00', '10', $location);
+        (new OpeningStock())->post([1, $location], null);
+        $this->manager([1]);
+
+        try {
+            $this->get('/accounting_periods/opening/stock/reprice_form?location=' . $location);
+            $this->fail('A location of another branch must be hidden.');
+        } catch (PageNotFoundException) {
+            $this->addToAssertionCount(1);
+        }
+
+        $this->actAs($this->employeeWithGrants(['accounting_periods']));
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_periods/opening/stock/reprice_form?location=1');
+    }
+
+    public function testPostStockReprice_PostsTheOpeningStockAgainAtTheCurrentCostWithAReasonAndOnlyOnce(): void
+    {
+        $this->manager();
+        $item = $this->shelves('50.00', '10');
+        $this->stockPost();
+        $this->setItemCost($item, '60.00');
+        $plan = (new OpeningStock())->repricePlan(1, null)->fingerprint();
+
+        $missing = $this->jsonOf($this->post('/accounting_periods/opening/stock/reprice', ['branch_id' => '1', 'location_id' => '1', 'plan' => $plan, 'reason' => '']));
+
+        $this->assertFalse($missing['success']);
+        $this->assertSame(1, (new OpeningStock())->plan(1, null)->activeRevision);
+
+        $done = $this->jsonOf($this->post('/accounting_periods/opening/stock/reprice', ['branch_id' => '1', 'location_id' => '1', 'plan' => $plan, 'reason' => 'Cost corrected']));
+
+        $this->assertTrue($done['success']);
+        $this->assertSame(lang('Accounting_periods.opening_stock_repriced'), $done['message']);
+        $this->assertSame(2, (new OpeningStock())->plan(1, null)->activeRevision);
+        $this->assertSame('600.00', bcadd((new OpeningStock())->plan(1, null)->postedValue(), '0', 2));
+
+        $again = $this->jsonOf($this->post('/accounting_periods/opening/stock/reprice', ['branch_id' => '1', 'location_id' => '1', 'plan' => $plan, 'reason' => 'Cost corrected']));
+
+        $this->assertFalse($again['success'], 'A second request with the same plan is refused: the plan it saw is gone');
+        $this->assertSame(2, (new OpeningStock())->plan(1, null)->activeRevision);
+    }
+
+    public function testPostStockReprice_RefusesWithoutThePermissionAndOutsideTheScopeAndLeavesThePostingAlone(): void
+    {
+        $this->manager();
+        $item = $this->shelves('50.00', '10');
+        $this->stockPost();
+        $this->setItemCost($item, '60.00');
+        $plan     = (new OpeningStock())->repricePlan(1, null)->fingerprint();
+        $journals = $this->countRows('accounting_journals');
+
+        $this->actAs($this->employeeWithGrants(['accounting_periods']));
+
+        $refused = $this->jsonOf($this->post('/accounting_periods/opening/stock/reprice', ['branch_id' => '1', 'location_id' => '1', 'plan' => $plan, 'reason' => 'No right']));
+
+        $this->assertFalse($refused['success']);
+
+        [, $location] = $this->otherBranchLocation();
+        $other        = $this->shelves('50.00', '10', $location);
+        (new OpeningStock())->post([$location], null);
+        $this->setItemCost($other, '60.00');
+        $otherPlan = (new OpeningStock())->repricePlan($location, null);
+        $this->manager([1]);
+
+        $this->assertTrue($otherPlan->allowed(), 'With the right plan and the right of the manager the correction would go through');
+
+        $outside = $this->jsonOf($this->post('/accounting_periods/opening/stock/reprice', ['branch_id' => '1', 'location_id' => (string) $location, 'plan' => $otherPlan->fingerprint(), 'reason' => 'Smuggled']));
+
+        $this->assertFalse($outside['success']);
+        $this->assertSame(lang('Branches.error_not_allowed'), $outside['message']);
+        $this->assertSame($journals + 1, $this->countRows('accounting_journals'), 'Only the opening of the other location was posted by the test itself');
+        $this->assertSame(1, (new OpeningStock())->plan($location, null)->activeRevision);
+    }
+
+    public function testPostStockReprice_ReportsALaterMovementAndAClosedPeriodAndChangesNothing(): void
+    {
+        $this->manager();
+        $item = $this->shelves('50.00', '10');
+        $this->stockPost();
+        $this->setItemCost($item, '60.00');
+        $plan     = (new OpeningStock())->repricePlan(1, null)->fingerprint();
+        $journals = $this->countRows('accounting_journals');
+
+        $this->accountingDb()->table('accounting_stock_entries')->insert([
+            'company_id' => 1, 'branch_id' => 1, 'source_type' => 'sale', 'source_id' => 9001, 'entry_type' => 'cost', 'revision' => 1, 'line_no' => 1, 'kind' => 'posting',
+            'entry_date' => '2026-02-01', 'item_id' => $item, 'location_id' => 1, 'quantity' => '-1.000', 'value' => '0.0000', 'journal_id' => null,
+        ]);
+
+        $later = $this->jsonOf($this->post('/accounting_periods/opening/stock/reprice', ['branch_id' => '1', 'location_id' => '1', 'plan' => $plan, 'reason' => 'After a sale']));
+
+        $this->assertFalse($later['success']);
+        $this->assertSame(lang('Accounting.error_opening_stock_later_movements', ['1']), $later['message']);
+        $this->assertSame($journals, $this->countRows('accounting_journals'));
+        $this->assertSame(1, (new OpeningStock())->plan(1, null)->activeRevision);
+
+        $this->accountingDb()->table('accounting_stock_entries')->where('source_type', 'sale')->where('source_id', 9001)->delete();
+        $this->closeThrough('2026-01-31');
+
+        $closed = $this->jsonOf($this->post('/accounting_periods/opening/stock/reprice', ['branch_id' => '1', 'location_id' => '1', 'plan' => $plan, 'reason' => 'Late']));
+
+        $this->assertFalse($closed['success']);
+        $this->assertStringContainsString('2026-01-31', $closed['message']);
+        $this->assertSame($journals, $this->countRows('accounting_journals'));
+        $this->assertSame(1, (new OpeningStock())->plan(1, null)->activeRevision);
+    }
+
+    public function testGetIndex_NamesADeletedLocationThatStillHoldsStockAndNothingWhenNoneDoes(): void
+    {
+        $this->manager();
+        $item = $this->shelves('50.00', '10');
+        $gone = $this->insertStockLocation('Closed store');
+        $this->accountingDb()->table('item_quantities')->replace(['item_id' => $item, 'location_id' => $gone, 'quantity' => '6']);
+
+        $this->get('/accounting_periods/opening')->assertDontSee('stock_deleted_notice');
+
+        $this->accountingDb()->table('stock_locations')->where('location_id', $gone)->update(['deleted' => 1]);
+
+        $page = $this->get('/accounting_periods/opening');
+
+        $page->assertSee('stock_deleted_notice');
+        $page->assertSee('Closed store');
+        $page->assertSee(lang('Accounting_periods.opening_stock_deleted_notice', ['Closed store', '1', '6']));
     }
 }

@@ -43,6 +43,7 @@ trait AccountingFixtureTrait
 
         foreach ([
             'customer_credit_applications',
+            'customer_openings',
             'supplier_credit_applications',
             'supplier_advances',
             'treasury_transfers',
