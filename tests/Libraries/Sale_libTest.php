@@ -568,7 +568,7 @@ class Sale_libTest extends CIUnitTestCase
     /**
      * @param list<object> $lines
      */
-    private function loadSale(array $lines, int $status, ?array $discount): Sale_lib
+    private function loadSale(array $lines, int $status, ?array $discount, int $type = SALE_TYPE_INVOICE, ?string $quoteNumber = null, ?int $sourceQuote = null): Sale_lib
     {
         $rows = $this->createStub(ResultInterface::class);
         $rows->method('getResult')->willReturn($lines);
@@ -581,7 +581,9 @@ class Sale_libTest extends CIUnitTestCase
         $sale->method('get_sale_payments')->willReturn($empty);
         $sale->method('get_customer')->willReturn((object) ['person_id' => 3]);
         $sale->method('get_employee')->willReturn((object) ['person_id' => 1]);
-        $sale->method('get_sale_type')->willReturn(SALE_TYPE_INVOICE);
+        $sale->method('get_sale_type')->willReturn($type);
+        $sale->method('get_quote_number')->willReturn($quoteNumber);
+        $sale->method('getSourceQuote')->willReturn($sourceQuote);
         $sale->method('get_comment')->willReturn('');
         $sale->method('isDelivered')->willReturn(true);
         $sale->method('getInvoiceDiscount')->willReturn($discount);
@@ -665,6 +667,83 @@ class Sale_libTest extends CIUnitTestCase
 
         $this->assertArrayNotHasKey('invoice_discount_share', $saleLib->get_cart()[1]);
         $this->assertNull($saleLib->getInvoiceDiscount());
+    }
+
+    public function testQuoteSource_KeepsTheQuoteTheInvoiceIsMadeFromAndTakesItBack(): void
+    {
+        $this->assertNull($this->saleLib->getQuoteSource());
+
+        $this->saleLib->setQuoteSource(12);
+
+        $this->assertSame(12, $this->saleLib->getQuoteSource());
+
+        $this->saleLib->clearQuoteSource();
+
+        $this->assertNull($this->saleLib->getQuoteSource());
+
+        $this->saleLib->setQuoteSource(12);
+        $this->saleLib->setQuoteSource(null);
+
+        $this->assertNull($this->saleLib->getQuoteSource());
+    }
+
+    public function testClearAll_ForgetsTheQuoteTheInvoiceWasMadeFromSoTheNextSaleDoesNotConvertIt(): void
+    {
+        $this->saleLib->setQuoteSource(12);
+
+        $this->saleLib->clear_all();
+
+        $this->assertNull($this->saleLib->getQuoteSource());
+    }
+
+    public function testCopyEntireSale_GivesBackTheQuoteADraftWasMadeFromAndNothingForASaleThatCameFromNone(): void
+    {
+        $line = (object) ['item_id' => 3, 'item_location' => 1, 'quantity_purchased' => '2', 'discount' => '0', 'discount_type' => PERCENT, 'item_unit_price' => '75', 'description' => 'a', 'serialnumber' => '', 'print_option' => 0, 'invoice_discount_share' => null];
+
+        $this->assertSame(12, $this->loadSale([$line], SUSPENDED, null, SALE_TYPE_INVOICE, null, 12)->getQuoteSource());
+        $this->assertNull($this->loadSale([$line], SUSPENDED, null)->getQuoteSource());
+    }
+
+    public function testPrepareInvoiceFromQuote_FillsTheRegisterWithANewInvoiceThatKeepsTheLinesOfTheQuoteAndNamesIt(): void
+    {
+        $line    = (object) ['item_id' => 3, 'item_location' => 1, 'quantity_purchased' => '2', 'discount' => '10', 'discount_type' => PERCENT, 'item_unit_price' => '75', 'description' => 'a', 'serialnumber' => '', 'print_option' => 0, 'invoice_discount_share' => null];
+        $saleLib = $this->loadSale([$line], SUSPENDED, ['type' => PERCENT, 'value' => '5'], SALE_TYPE_QUOTE, 'Q-0007');
+
+        $saleLib->prepareInvoiceFromQuote(9);
+
+        $cart = $saleLib->get_cart();
+
+        $this->assertCount(1, $cart);
+        $this->assertSame('2', $cart[1]['quantity']);
+        $this->assertSame('75', $cart[1]['price']);
+        $this->assertSame('sale_invoice', $saleLib->get_mode());
+        $this->assertSame(SALE_TYPE_INVOICE, $saleLib->getSaleType());
+        $this->assertSame(NEW_ENTRY, $saleLib->get_sale_id(), 'a new invoice, not the quote itself');
+        $this->assertSame(9, $saleLib->getQuoteSource());
+        $this->assertNull($saleLib->get_quote_number(), 'the invoice does not carry the number of the quote');
+        $this->assertSame(['type' => PERCENT, 'value' => '5'], $saleLib->getInvoiceDiscount());
+    }
+
+    public function testPrepareInvoiceFromQuote_ForgetsWhatTheRegisterHeldBefore(): void
+    {
+        $line    = (object) ['item_id' => 3, 'item_location' => 1, 'quantity_purchased' => '2', 'discount' => '0', 'discount_type' => PERCENT, 'item_unit_price' => '75', 'description' => 'a', 'serialnumber' => '', 'print_option' => 0, 'invoice_discount_share' => null];
+        $saleLib = $this->loadSale([$line], SUSPENDED, null, SALE_TYPE_QUOTE, 'Q-0007');
+
+        session()->set('sales_cart', [5 => ['item_id' => 99, 'item_location' => 1, 'line' => 5, 'quantity' => '1', 'price' => '1', 'discount' => '0', 'discount_type' => PERCENT, 'stock_type' => HAS_STOCK]]);
+        $saleLib->setInvoiceDate('2026-10-20');
+        $saleLib->setPaymentTerms('30');
+        $saleLib->setQuoteSource(4);
+        $saleLib->set_invoice_number('TYPED-OLD');
+        session()->set('sales_email_receipt', '1');
+
+        $saleLib->prepareInvoiceFromQuote(9);
+
+        $this->assertNull($saleLib->get_invoice_number(), 'the number typed for the sale that was there before');
+        $this->assertNull(session()->get('sales_email_receipt'), 'the choice made for the sale that was there before');
+        $this->assertSame([3], array_values(array_map(static fn (array $row): int => (int) $row['item_id'], $saleLib->get_cart())));
+        $this->assertNull($saleLib->getInvoiceDate());
+        $this->assertNull($saleLib->getPaymentTerms());
+        $this->assertSame(9, $saleLib->getQuoteSource(), 'the quote of this conversion and not an earlier one');
     }
 
     private function fourDecimals(string $amount): string

@@ -26,6 +26,18 @@
   "delivery_after_purchase": {
    "id": "ev_0b3ce879aa6217bd1f3739f9ae274adae597e03b9aedd6f3005923798a886bcc",
    "note": "Invoice dated the 20th delivered the 22nd after a purchase: the cost journal carries the date of the invoice and the cost of the item at the delivery"
+  },
+  "quote": {
+   "id": "ev_8575bb4fe082fd09a9538960f79af118b3927affc07891584da4c7ff41a979a0",
+   "note": "A quote: it is numbered apart, stands open, then approved, posts no journal and moves no stock"
+  },
+  "quote_conversion_dialog": {
+   "id": "ev_19a91d51798bed64763f74249a579733d6df1396adfbecb20752a957c243ac14",
+   "note": "Converting a quote asks for a confirmation and then opens an invoice form that is already filled"
+  },
+  "quote_converted_invoice": {
+   "id": "ev_dc525cc446501a47768e448fb14afc2af36f9c9b24e40b878b78b70506904568",
+   "note": "The invoice saved from the filled form is posted as any invoice and the quote reads converted to an invoice"
   }
  },
  "cases": [
@@ -188,6 +200,130 @@
      "revenue"
     ],
     "stock_taken": true
+   }
+  },
+  {
+   "id": "draft-takes-no-sequence-number",
+   "kind": "lifecycle",
+   "classification": "exact",
+   "scope": "structure",
+   "evidence": [
+    "draft"
+   ],
+   "inputs": {
+    "saved_as": "draft"
+   },
+   "reference": {
+    "document_number": "temporary, nothing taken from the invoice sequence",
+    "journals": 0,
+    "stock_taken": false
+   },
+   "expected": {
+    "document_number": "temporary, nothing taken from the invoice sequence",
+    "journals": 0,
+    "stock_taken": false
+   }
+  },
+  {
+   "id": "issued-draft-takes-the-next-number",
+   "kind": "lifecycle",
+   "classification": "exact",
+   "scope": "structure",
+   "evidence": [
+    "draft",
+    "draft_issued"
+   ],
+   "inputs": {
+    "saved_as": "draft",
+    "then": "issued"
+   },
+   "reference": {
+    "document_number": "the next number of the invoice sequence, given when it is issued",
+    "journals": [
+     "revenue",
+     "cogs"
+    ],
+    "stock_taken": true
+   },
+   "expected": {
+    "document_number": "the next number of the invoice sequence, given when it is issued",
+    "journals": [
+     "revenue",
+     "cogs"
+    ],
+    "stock_taken": true
+   }
+  },
+  {
+   "id": "quote-states-and-no-posting",
+   "kind": "lifecycle",
+   "classification": "exact",
+   "scope": "structure",
+   "evidence": [
+    "quote"
+   ],
+   "inputs": {
+    "saved_as": "quote",
+    "then": [
+     "approved"
+    ]
+   },
+   "reference": {
+    "states": [
+     "open",
+     "approved"
+    ],
+    "journals": 0,
+    "stock_taken": false
+   },
+   "expected": {
+    "states": [
+     "open",
+     "approved"
+    ],
+    "journals": 0,
+    "stock_taken": false
+   }
+  },
+  {
+   "id": "quote-converted-by-saving-the-invoice",
+   "kind": "lifecycle",
+   "classification": "exact",
+   "scope": "structure",
+   "evidence": [
+    "quote",
+    "quote_conversion_dialog",
+    "quote_converted_invoice"
+   ],
+   "inputs": {
+    "saved_as": "quote",
+    "then": "converted"
+   },
+   "reference": {
+    "after_converting": {
+     "quote_state": "approved",
+     "journals": 0
+    },
+    "after_saving_the_invoice": {
+     "quote_state": "converted",
+     "journals": [
+      "revenue",
+      "cogs"
+     ]
+    }
+   },
+   "expected": {
+    "after_converting": {
+     "quote_state": "approved",
+     "journals": 0
+    },
+    "after_saving_the_invoice": {
+     "quote_state": "converted",
+     "journals": [
+      "revenue",
+      "cogs"
+     ]
+    }
    }
   }
  ]

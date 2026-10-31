@@ -4,6 +4,8 @@ namespace Tests\Libraries\Numbering;
 
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\QuoteLifecycle;
+use App\Libraries\Accounting\QuoteStatus;
 use App\Libraries\Accounting\StockLedger;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
@@ -15,6 +17,7 @@ use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ConcurrentDbRaceTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
+use Tests\Support\ParityFixture;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 use Throwable;
@@ -1011,6 +1014,104 @@ class DocumentNumberingTest extends CIUnitTestCase
         } catch (AccountingException $exception) {
             $this->assertSame($error, $exception->error);
         }
+    }
+
+    public function testAssign_TakesNothingFromTheInvoiceSequenceForADraftAndGivesTheNextNumberWhenItIsIssuedAsTheReferenceSystemDoes(): void
+    {
+        $saved  = ParityFixture::cases('T-07', 'lifecycle')['draft-takes-no-sequence-number'][0];
+        $issued = ParityFixture::cases('T-07', 'lifecycle')['issued-draft-takes-the-next-number'][0];
+
+        $this->assertSame('exact', $saved['classification']);
+        $this->assertSame('exact', $issued['classification']);
+
+        $this->startSelling();
+        $this->numbering->configure(DocumentType::SalesInvoice, ['enabled' => true, 'prefix' => 'INV-', 'padding' => 3]);
+
+        $items  = $this->referenceInvoice()['items'];
+        $first  = $this->draftInvoice($items);
+        $second = $this->draftInvoice($items);
+
+        $this->assertSame($saved['expected']['journals'], $this->countJournals());
+        $this->assertNull($this->saleRow($first)->invoice_number);
+        $this->assertNull($this->saleRow($second)->invoice_number);
+        $this->assertSame(0, $this->countRows('document_numbers'), 'a draft has no row in the register of numbers');
+        $this->assertSame(1, $this->numbering->sequence(DocumentType::SalesInvoice)->nextNumber, 'the drafts left the sequence where it was');
+        $this->assertSame('INV-001', $this->numbering->peek(DocumentType::SalesInvoice));
+
+        $invoice = $this->invoiceOf('100.00');
+
+        $this->assertSame('INV-001', $this->saleRow($invoice)->invoice_number, 'the first invoice after the drafts is the first of the sequence');
+
+        $this->assertSame($second, $this->sales->issueDraft($second, $this->employeeId));
+        $this->assertSame('INV-002', $this->saleRow($second)->invoice_number, $issued['expected']['document_number']);
+
+        $this->assertSame($first, $this->sales->issueDraft($first, $this->employeeId));
+        $this->assertSame('INV-003', $this->saleRow($first)->invoice_number, 'the numbers follow the order of the issue and not of the saving');
+        $this->assertSame(4, $this->numbering->sequence(DocumentType::SalesInvoice)->nextNumber);
+        $this->assertSame(3, $this->countRows('document_numbers'));
+    }
+
+    public function testAssign_NumbersTheDraftThatIsIssuedWhenTheSequenceWasSwitchedOnAfterItWasSavedAndLeavesTheOneIssuedWhileItWasOff(): void
+    {
+        $this->startSelling();
+
+        $items = $this->referenceInvoice()['items'];
+        $early = $this->draftInvoice($items);
+        $late  = $this->draftInvoice($items);
+
+        $this->assertSame($early, $this->sales->issueDraft($early, $this->employeeId));
+        $this->assertNull($this->saleRow($early)->invoice_number, 'the sequence was off when it was issued');
+
+        $this->numbering->configure(DocumentType::SalesInvoice, ['enabled' => true, 'prefix' => 'INV-', 'padding' => 3]);
+
+        $this->assertSame($late, $this->sales->issueDraft($late, $this->employeeId));
+        $this->assertSame('INV-001', $this->saleRow($late)->invoice_number);
+    }
+
+    public function testAssign_KeepsTheNumberTypedByHandOnADraftWhenItIsIssuedAndTakesNothingFromTheSequence(): void
+    {
+        $this->startSelling();
+        $this->numbering->configure(DocumentType::SalesInvoice, ['enabled' => true, 'prefix' => 'INV-', 'padding' => 3]);
+
+        $draft = $this->draftInvoice($this->referenceInvoice()['items']);
+
+        $this->accountingDb()->table('sales')->where('sale_id', $draft)->update(['invoice_number' => 'HAND-77']);
+
+        $this->assertSame($draft, $this->sales->issueDraft($draft, $this->employeeId));
+        $this->assertSame('HAND-77', $this->saleRow($draft)->invoice_number);
+        $this->assertSame(1, $this->numbering->sequence(DocumentType::SalesInvoice)->nextNumber);
+    }
+
+    public function testAssign_LeavesNoNumberBehindWhenTheIssueOfADraftIsRefused(): void
+    {
+        $this->startSelling();
+        $this->numbering->configure(DocumentType::SalesInvoice, ['enabled' => true, 'prefix' => 'INV-', 'padding' => 3]);
+        $this->closeThrough(date('Y-m-d'));
+
+        $draft = $this->draftInvoice($this->referenceInvoice()['items']);
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->sales->issueDraft($draft, $this->employeeId));
+        $this->assertNull($this->saleRow($draft)->invoice_number);
+        $this->assertSame(0, $this->countRows('document_numbers'));
+        $this->assertSame(1, $this->numbering->sequence(DocumentType::SalesInvoice)->nextNumber);
+    }
+
+    public function testAssign_TakesNothingFromTheQuoteSequenceForAQuoteSavedAsADraftAndNumbersItWhenItIsOpened(): void
+    {
+        $this->startSelling();
+        $this->numbering->configure(DocumentType::SalesQuote, ['enabled' => true, 'prefix' => 'QT-', 'padding' => 3]);
+
+        $draft  = $this->quote(QuoteStatus::Draft);
+        $quote  = $this->quote();
+
+        $this->assertNull($this->saleRow($draft)->quote_number);
+        $this->assertSame('QT-001', $this->saleRow($quote)->quote_number, 'a quote that is not a draft takes the first number');
+        $this->assertSame(2, $this->numbering->sequence(DocumentType::SalesQuote)->nextNumber);
+
+        (new QuoteLifecycle())->change($draft, QuoteStatus::Open, null);
+
+        $this->assertSame('QT-002', $this->saleRow($draft)->quote_number);
+        $this->assertSame(3, $this->numbering->sequence(DocumentType::SalesQuote)->nextNumber);
     }
 
     private function clearNumbering(): void

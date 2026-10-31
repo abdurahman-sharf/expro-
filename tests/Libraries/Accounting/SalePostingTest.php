@@ -4,6 +4,7 @@ namespace Tests\Libraries\Accounting;
 
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\DraftInvoice;
 use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\InterBranchBalances;
 use App\Libraries\Accounting\InterBranchPosition;
@@ -13,6 +14,8 @@ use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\PairBalance;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingService;
+use App\Libraries\Accounting\QuoteLifecycle;
+use App\Libraries\Accounting\QuoteStatus;
 use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\Accounting\RoutingKey;
 use App\Libraries\Accounting\RoutingType;
@@ -20,6 +23,10 @@ use App\Libraries\Accounting\SalePosting;
 use App\Libraries\Accounting\StockLedger;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\InvoiceDiscountProblem;
+use App\Libraries\Numbering\DocumentNumbering;
+use App\Libraries\Numbering\DocumentType;
+use App\Libraries\Organization\BranchError;
+use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use CodeIgniter\Database\Query;
 use CodeIgniter\Events\Events;
@@ -75,6 +82,11 @@ class SalePostingTest extends CIUnitTestCase
     protected function tearDown(): void
     {
         $this->stopSelling();
+
+        $db = $this->accountingDb();
+        $db->table('document_numbers')->truncate();
+        $db->table('document_sequences')->truncate();
+        $db->table('accounting_audit_log')->whereIn('action', ['numbering_configured', 'quote_status_changed', 'quote_converted', 'draft_issued'])->delete();
 
         parent::tearDown();
     }
@@ -4255,5 +4267,1043 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertTrue($this->sales->update($saleId, ['payment_terms_days' => '60', 'comment' => 'late', 'changed_by' => $this->employeeId]));
         $this->assertSame(60, (int) $this->saleRow($saleId)->payment_terms_days);
         $this->assertSame($before, $this->journals($saleId));
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // The draft invoice and the quote: their lifecycle (WP14)
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * The reference invoice with its two items taxed 15%, the way the register taxes them.
+     *
+     * @return array{items: list<array<string, mixed>>, taxes: list<array<string, mixed>>, cream: int, perfume: int}
+     */
+    private function taxedReference(): array
+    {
+        $cycle = $this->referenceInvoice();
+
+        foreach ([$cycle['cream'], $cycle['perfume']] as $itemId) {
+            $this->accountingDb()->table('items_taxes')->insert(['item_id' => $itemId, 'name' => 'VAT', 'percent' => '15']);
+        }
+
+        return $cycle;
+    }
+
+    /**
+     * @return list<object>
+     */
+    private function lifecycleAudit(int $saleId, string $action): array
+    {
+        return $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'sale', 'entity_id' => $saleId, 'action' => $action])->orderBy('audit_id', 'ASC')->get()->getResult();
+    }
+
+    public function testIssueDraft_PostsNothingForTheDraftAndTheInvoiceAndTheCostWhenItIsIssuedAsTheReferenceSystemDoes(): void
+    {
+        $case  = $this->lifecycleCase('draft-then-issue');
+        $cycle = $this->taxedReference();
+        $stock = $this->stock($cycle['cream']);
+        $draft = $this->draftInvoice($cycle['items']);
+
+        $this->assertSame($case['expected']['after_saving']['journals'], count($this->journals($draft)));
+        $this->assertSame($case['expected']['after_saving']['stock_taken'], $this->stockTaken($cycle['cream'], $stock));
+        $this->assertSame((string) SUSPENDED, (string) $this->saleRow($draft)->sale_status);
+
+        $this->assertSame($draft, $this->sales->issueDraft($draft, $this->employeeId));
+
+        $this->assertEqualsCanonicalizing($case['expected']['after_issuing']['journals'], array_column($this->standing($draft), 'entry'));
+        $this->assertSame($case['expected']['after_issuing']['stock_taken'], $this->stockTaken($cycle['cream'], $stock));
+        $this->assertSame((string) COMPLETED, (string) $this->saleRow($draft)->sale_status);
+        $this->assertSame(
+            [$this->customerAccount() . ':816.50:0.00', $this->accountId('sales_revenue') . ':0.00:710.00', $this->accountId('tax_output') . ':0.00:106.50'],
+            $this->standing($draft, 'revenue')[0]['lines'],
+        );
+        $this->assertSame([$this->accountId('cogs') . ':400.00:0.00', $this->stockAccount() . ':0.00:400.00'], $this->standing($draft, 'cogs')[0]['lines']);
+        $this->assertTies();
+    }
+
+    public function testIssueDraft_WorksTheTaxesOutAsTheRegisterDoesForTheSameLines(): void
+    {
+        $cream   = $this->taxedItem('40.00', true, '15');
+        $service = $this->taxedItem('0', false, '15');
+        $lines   = [['item' => $cream, 'quantity' => '3', 'price' => '75', 'discount' => '10'], ['item' => $service, 'quantity' => '2', 'price' => '33.33']];
+
+        $rung  = $this->ringUp($lines);
+        $draft = $this->draftInvoice([$this->line($cream, 0, '3', '75', '40.00', '10'), $this->line($service, 1, '2', '33.33')]);
+
+        $this->assertSame($draft, $this->sales->issueDraft($draft, $this->employeeId));
+
+        $taxesOf = fn (int $saleId): array => array_map(
+            static fn (object $row): string => $row->tax_type . ':' . bcadd((string) $row->item_tax_amount, '0', 4),
+            $this->accountingDb()->table('sales_items_taxes')->where('sale_id', $saleId)->orderBy('line', 'ASC')->get()->getResult(),
+        );
+
+        $this->assertNotSame([], $taxesOf($rung['sale']));
+        $this->assertSame($taxesOf($rung['sale']), $taxesOf($draft));
+        $this->assertSame($this->standing($rung['sale'], 'revenue')[0]['lines'], $this->standing($draft, 'revenue')[0]['lines']);
+    }
+
+    public function testIssueDraft_IssuesARegisterDraftLikeOneThatTheRegisterTookUpAndCompleted(): void
+    {
+        $cream = $this->taxedItem('40.00', true, '15');
+        $lines = [['item' => $cream, 'quantity' => '2', 'price' => '100']];
+
+        $viaRegister = $this->ringUp($lines);
+        $draft       = $this->draftInvoice([$this->line($cream, 0, '2', '100', '40.00')]);
+
+        $this->assertSame($draft, $this->sales->issueDraft($draft, $this->employeeId));
+
+        foreach (['revenue', 'cogs'] as $entry) {
+            $this->assertSame($this->standing($viaRegister['sale'], $entry)[0]['lines'], $this->standing($draft, $entry)[0]['lines'], $entry);
+        }
+    }
+
+    public function testIssueDraft_WorksTheTaxOutWithTheScaleOfTheRegisterWhateverScaleTheCallerLeft(): void
+    {
+        $cycle  = $this->taxedReference();
+        $draft  = $this->draftInvoice($cycle['items']);
+        $before = bcscale();
+
+        bcscale(0);
+
+        try {
+            $this->assertSame($draft, $this->sales->issueDraft($draft, $this->employeeId));
+            $this->assertSame(0, bcscale(), 'the scale of the caller is put back');
+        } finally {
+            bcscale($before);
+        }
+
+        $this->assertSame($this->accountId('tax_output') . ':0.00:106.50', $this->standing($draft, 'revenue')[0]['lines'][2]);
+    }
+
+    public function testIssueDraft_SharesTheDiscountOnTheWholeOfTheDraftAsTheRegisterDoes(): void
+    {
+        $cycle = $this->discountedReferenceInvoice();
+
+        foreach ([$cycle['cream'], $cycle['perfume']] as $itemId) {
+            $this->accountingDb()->table('items_taxes')->insert(['item_id' => $itemId, 'name' => 'VAT', 'percent' => '15']);
+        }
+
+        $draft = $this->save($cycle['items'], [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, NEW_ENTRY, $cycle['discount']);
+
+        $this->assertSame($draft, $this->sales->issueDraft($draft, $this->employeeId));
+        $this->assertSame(
+            [$this->customerAccount() . ':734.85:0.00', $this->accountId('sales_revenue') . ':0.00:639.00', $this->accountId('tax_output') . ':0.00:95.85'],
+            $this->standing($draft, 'revenue')[0]['lines'],
+        );
+        $this->assertSame(['0' => '27.0000', '1' => '44.0000'], $this->sharesOf($draft));
+    }
+
+    public function testIssueDraft_TakesTheCostOfTheItemAtTheMomentOfTheIssue(): void
+    {
+        $cycle = $this->taxedReference();
+        $draft = $this->draftInvoice($cycle['items']);
+
+        $this->accountingDb()->table('items')->where('item_id', $cycle['cream'])->update(['cost_price' => '45.00']);
+
+        $this->assertSame($draft, $this->sales->issueDraft($draft, $this->employeeId));
+        $this->assertSame([$this->accountId('cogs') . ':420.00:0.00', $this->stockAccount() . ':0.00:420.00'], $this->standing($draft, 'cogs')[0]['lines']);
+    }
+
+    public function testIssueDraft_PostsThePaymentsTheDraftHolds(): void
+    {
+        $cycle = $this->taxedReference();
+        $draft = $this->save($cycle['items'], [], [$this->payment(lang('Sales.cash'), '300.00')], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED);
+
+        $this->assertSame([], $this->journals($draft));
+        $this->assertSame($draft, $this->sales->issueDraft($draft, $this->employeeId));
+        $this->assertCount(3, $this->journals($draft), 'the invoice, the payment and the cost');
+        $this->assertSame('300.00', bcadd((string) $this->accountingDb()->table('sales_payments')->where('sale_id', $draft)->get()->getRow()->payment_amount, '0', 2));
+        $this->assertTies();
+    }
+
+    public function testIssueDraft_PostsInTheBranchOfTheDraft(): void
+    {
+        $second  = $this->createBranch();
+        $service = $this->item('0', false);
+        $draft   = $this->save([$this->line($service, 0, '1', '100', '0', '0', PERCENT, $this->branchLocation($second))], [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED);
+
+        $this->assertSame($draft, $this->sales->issueDraft($draft, $this->employeeId));
+
+        $branches = array_unique(array_column($this->accountingDb()->table('accounting_journals')->select('branch_id')->whereIn('journal_id', array_column($this->journals($draft), 'id'))->get()->getResultArray(), 'branch_id'));
+
+        $this->assertSame([(string) $second], array_values($branches));
+    }
+
+    public function testIssueDraft_DatesTheInvoiceByTheDayTypedAtTheIssueAndWritesWhoTypedItAndWhoIssuedTheDraft(): void
+    {
+        $this->grantInvoiceDate();
+
+        $cycle = $this->taxedReference();
+        $draft = $this->draftInvoice($cycle['items']);
+        $day   = $this->daysAgo(3);
+
+        $this->assertSame($draft, $this->sales->issueDraft($draft, $this->employeeId, invoiceDate: $day));
+
+        $this->assertSame($day, $this->saleRow($draft)->invoice_date);
+        $this->assertEqualsCanonicalizing(['revenue', 'cogs'], array_column($this->standingDated($draft, $day), 'entry'));
+        $this->assertSame([$day], array_values(array_unique(array_column($this->standing($draft), 'date'))));
+        $this->assertCount(1, $this->dateAudit($draft));
+
+        $issued = $this->lifecycleAudit($draft, 'draft_issued');
+
+        $this->assertCount(1, $issued);
+        $this->assertSame($this->employeeId, (int) $issued[0]->employee_id);
+        $this->assertSame(['number' => null, 'date' => $day], json_decode((string) $issued[0]->details, true));
+        $this->assertTies();
+    }
+
+    public function testIssueDraft_WritesTheNumberTheInvoiceTookInTheAuditOfTheIssue(): void
+    {
+        (new DocumentNumbering($this->accountingDb()))->configure(DocumentType::SalesInvoice, ['enabled' => true, 'prefix' => 'INV-', 'padding' => 4]);
+
+        $cycle = $this->taxedReference();
+        $draft = $this->draftInvoice($cycle['items']);
+
+        $this->assertSame($draft, $this->sales->issueDraft($draft, $this->employeeId));
+
+        $issued = $this->lifecycleAudit($draft, 'draft_issued');
+
+        $this->assertCount(1, $issued);
+        $this->assertSame('INV-0001', json_decode((string) $issued[0]->details, true)['number']);
+        $this->assertSame($this->sales->getInvoiceNumber($draft), json_decode((string) $issued[0]->details, true)['number']);
+    }
+
+    public function testIssueDraft_KeepsTheDayTheDraftWasSavedWithWhenNoneIsGivenAtTheIssue(): void
+    {
+        $this->grantInvoiceDate();
+
+        $cycle = $this->taxedReference();
+        $day   = $this->daysAgo(4);
+        $draft = $this->save($cycle['items'], [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, NEW_ENTRY, null, invoiceDate: $day);
+
+        $this->assertSame($draft, $this->sales->issueDraft($draft, $this->employeeId));
+        $this->assertSame($day, $this->saleRow($draft)->invoice_date);
+        $this->assertSame([$day], array_values(array_unique(array_column($this->standing($draft), 'date'))));
+    }
+
+    public function testIssueDraft_DatesTheInvoiceTodayWhenNoDayWasTypedAnywhere(): void
+    {
+        $cycle = $this->taxedReference();
+        $draft = $this->draftInvoice($cycle['items']);
+
+        $this->assertSame($draft, $this->sales->issueDraft($draft, $this->employeeId));
+        $this->assertNull($this->saleRow($draft)->invoice_date);
+        $this->assertSame([date('Y-m-d')], array_values(array_unique(array_column($this->standing($draft), 'date'))));
+    }
+
+    public function testIssueDraft_RejectsADayInAClosedPeriodAndLeavesTheDraftAsItWas(): void
+    {
+        $this->grantInvoiceDate();
+        $this->closeThrough($this->daysAgo(5));
+
+        $cycle = $this->taxedReference();
+        $draft = $this->draftInvoice($cycle['items']);
+        $stock = $this->stock($cycle['cream']);
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->sales->issueDraft($draft, $this->employeeId, invoiceDate: $this->daysAgo(10)));
+        $this->assertSame(PostingError::PeriodClosed, $this->failure()->error);
+        $this->assertSame((string) SUSPENDED, (string) $this->saleRow($draft)->sale_status);
+        $this->assertSame([], $this->journals($draft));
+        $this->assertEqualsWithDelta($stock, $this->stock($cycle['cream']), 0.0001);
+        $this->assertNull($this->saleRow($draft)->invoice_number);
+        $this->assertSame([], $this->lifecycleAudit($draft, 'draft_issued'));
+
+        $this->assertSame($draft, $this->sales->issueDraft($draft, $this->employeeId, invoiceDate: $this->daysAgo(4)), 'the day after the closing is open');
+        $this->assertSame([$this->daysAgo(4)], array_values(array_unique(array_column($this->standing($draft), 'date'))));
+    }
+
+    public function testIssueDraft_RejectsTodayWhenThePeriodOfTodayIsClosedAndLeavesTheDraft(): void
+    {
+        $this->closeThrough(date('Y-m-d'));
+
+        $cycle = $this->taxedReference();
+        $draft = $this->draftInvoice($cycle['items']);
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->sales->issueDraft($draft, $this->employeeId));
+        $this->assertSame(PostingError::PeriodClosed, $this->failure()->error);
+        $this->assertSame((string) SUSPENDED, (string) $this->saleRow($draft)->sale_status);
+        $this->assertSame(0, $this->countJournals());
+    }
+
+    public function testIssueDraft_RejectsADayInTheClosedPeriodOfTheBranchOfTheDraftOnly(): void
+    {
+        $this->grantInvoiceDate();
+
+        $second = $this->createBranch();
+
+        $this->closeThrough($this->daysAgo(5), $second);
+
+        $inSecond = $this->save([$this->line($this->item('0', false), 0, '1', '100', '0', '0', PERCENT, $this->branchLocation($second))], [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED);
+        $inFirst  = $this->draftInvoice([$this->line($this->item('0', false), 0, '1', '100')]);
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->sales->issueDraft($inSecond, $this->employeeId, invoiceDate: $this->daysAgo(8)));
+        $this->assertSame(PostingError::PeriodClosed, $this->failure()->error);
+        $this->assertSame($inFirst, $this->sales->issueDraft($inFirst, $this->employeeId, invoiceDate: $this->daysAgo(8)));
+    }
+
+    /**
+     * @return array<string, array{0: string, 1: AccountingError}>
+     */
+    public static function badDayProvider(): array
+    {
+        return [
+            'a day after today'      => ['+1 day', AccountingError::InvoiceDateInvalid],
+            'a day that is not one'  => ['2026-02-30', AccountingError::InvoiceDateInvalid],
+            'not a date'             => ['yesterday', AccountingError::InvoiceDateInvalid],
+            'a day before the books' => ['2019-12-31', AccountingError::InvoiceDateBeforeStart],
+        ];
+    }
+
+    #[DataProvider('badDayProvider')]
+    public function testIssueDraft_RejectsADayThatIsNotUpToTodayOrIsBeforeTheBooksAndLeavesTheDraft(string $day, AccountingError $error): void
+    {
+        $this->grantInvoiceDate();
+
+        $cycle = $this->taxedReference();
+        $draft = $this->draftInvoice($cycle['items']);
+        $typed = str_starts_with($day, '+') ? date('Y-m-d', strtotime($day)) : $day;
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->sales->issueDraft($draft, $this->employeeId, invoiceDate: $typed));
+        $this->assertSame($error, $this->failure()->error);
+        $this->assertSame((string) SUSPENDED, (string) $this->saleRow($draft)->sale_status);
+        $this->assertSame([], $this->journals($draft));
+    }
+
+    public function testIssueDraft_RejectsADayTypedByAnEmployeeWhoMayNotTypeItAndAcceptsOneWhoMay(): void
+    {
+        $cycle = $this->taxedReference();
+        $draft = $this->draftInvoice($cycle['items']);
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->sales->issueDraft($draft, $this->employeeId, invoiceDate: $this->daysAgo(2)));
+        $this->assertSame(AccountingError::PermissionDenied, $this->failure()->error);
+        $this->assertSame([], $this->journals($draft));
+
+        $this->grantInvoiceDate();
+
+        $this->assertSame($draft, $this->sales->issueDraft($draft, $this->employeeId, invoiceDate: $this->daysAgo(2)));
+    }
+
+    public function testIssueDraft_TakesTheTermsTypedAtTheIssueAndKeepsTheOnesOfTheDraftOtherwise(): void
+    {
+        $cycle  = $this->taxedReference();
+        $first  = $this->draftInvoice($cycle['items']);
+        $second = $this->save($cycle['items'], [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, NEW_ENTRY, null, paymentTerms: 14);
+
+        $this->assertSame($first, $this->sales->issueDraft($first, $this->employeeId, paymentTerms: '30'));
+        $this->assertSame(30, (int) $this->saleRow($first)->payment_terms_days);
+        $this->assertSame(date('Y-m-d', strtotime('+30 days')), $this->saleRow($first)->due_date);
+
+        $this->assertSame($second, $this->sales->issueDraft($second, $this->employeeId));
+        $this->assertSame(14, (int) $this->saleRow($second)->payment_terms_days);
+        $this->assertSame(date('Y-m-d', strtotime('+14 days')), $this->saleRow($second)->due_date);
+    }
+
+    public function testIssueDraft_RejectsTermsThatAreNotAWholeNumberOfDays(): void
+    {
+        $cycle = $this->taxedReference();
+        $draft = $this->draftInvoice($cycle['items']);
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->sales->issueDraft($draft, $this->employeeId, paymentTerms: 'a month'));
+        $this->assertSame(AccountingError::PaymentTermsInvalid, $this->failure()->error);
+        $this->assertSame((string) SUSPENDED, (string) $this->saleRow($draft)->sale_status);
+    }
+
+    public function testIssueDraft_IssuesADraftOnlyOnceAndTheSecondTryMovesNothing(): void
+    {
+        $cycle = $this->taxedReference();
+        $draft = $this->draftInvoice($cycle['items']);
+
+        $this->assertSame($draft, $this->sales->issueDraft($draft, $this->employeeId));
+
+        $stock    = $this->stock($cycle['cream']);
+        $journals = $this->countJournals();
+        $audit    = count($this->lifecycleAudit($draft, 'draft_issued'));
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->sales->issueDraft($draft, $this->employeeId));
+        $this->assertSame(AccountingError::DraftNotFound, $this->failure()->error);
+        $this->assertEqualsWithDelta($stock, $this->stock($cycle['cream']), 0.0001);
+        $this->assertSame($journals, $this->countJournals());
+        $this->assertCount($audit, $this->lifecycleAudit($draft, 'draft_issued'));
+    }
+
+    public function testSaveValue_RejectsCompletingASaleThatIsNotWaitingToBeCompleted(): void
+    {
+        $cycle    = $this->taxedReference();
+        $invoice  = $this->save($cycle['items'], $cycle['taxes']);
+        $stock    = $this->stock($cycle['cream']);
+        $journals = $this->countJournals();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, $invoice));
+        $this->assertSame(AccountingError::DraftNotFound, $this->failure()->error);
+        $this->assertEqualsWithDelta($stock, $this->stock($cycle['cream']), 0.0001);
+        $this->assertSame($journals, $this->countJournals());
+
+        $cancelled = $this->draftInvoice($cycle['items']);
+        $this->sales->update_sale_status($cancelled, CANCELED);
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, $cancelled));
+        $this->assertSame(AccountingError::DraftNotFound, $this->failure()->error);
+    }
+
+    public function testSaveValue_RejectsSuspendingAnIssuedInvoiceAndKeepsItsLinesItsPaymentsAndItsNumber(): void
+    {
+        (new DocumentNumbering($this->accountingDb()))->configure(DocumentType::SalesInvoice, ['enabled' => true, 'prefix' => 'INV-', 'padding' => 4]);
+
+        $cycle = $this->taxedReference();
+        $cash  = [$this->payment(lang('Sales.cash'), '100.00')];
+        $draft = $this->save($cycle['items'], [], $cash, SALE_TYPE_INVOICE, -1, true, null, SUSPENDED);
+
+        $this->assertSame($draft, $this->sales->issueDraft($draft, $this->employeeId));
+
+        $before     = $this->saleRow($draft);
+        $paymentIds = array_column($this->accountingDb()->table('sales_payments')->where('sale_id', $draft)->get()->getResultArray(), 'payment_id');
+        $lines      = $this->accountingDb()->table('sales_items')->where('sale_id', $draft)->countAllResults();
+        $stock      = $this->stock($cycle['cream']);
+        $journals   = $this->countJournals();
+
+        $this->assertSame('INV-0001', $before->invoice_number);
+        $this->assertCount(1, $paymentIds);
+
+        foreach ([SALE_TYPE_INVOICE, SALE_TYPE_QUOTE, SALE_TYPE_WORK_ORDER] as $type) {
+            $this->assertSame(ACCOUNTING_FAILED, $this->save([$this->line($this->item('0', false), 0, '1', '10')], [], [], $type, -1, true, null, SUSPENDED, $draft), "saved as {$type}");
+            $this->assertSame(AccountingError::DraftNotFound, $this->failure()->error);
+        }
+
+        $this->assertEquals($before, $this->saleRow($draft));
+        $this->assertSame($paymentIds, array_column($this->accountingDb()->table('sales_payments')->where('sale_id', $draft)->get()->getResultArray(), 'payment_id'), 'its payments were not written again');
+        $this->assertSame($lines, $this->accountingDb()->table('sales_items')->where('sale_id', $draft)->countAllResults());
+        $this->assertEqualsWithDelta($stock, $this->stock($cycle['cream']), 0.0001);
+        $this->assertSame($journals, $this->countJournals());
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->sales->issueDraft($draft, $this->employeeId), 'and it is not issued a second time');
+        $this->assertSame($journals, $this->countJournals());
+        $this->assertTies();
+    }
+
+    public function testSaveValue_RejectsSuspendingACancelledDraftAndLeavesItCancelled(): void
+    {
+        $cycle     = $this->taxedReference();
+        $cancelled = $this->cancelledDraft($cycle['items']);
+        $lines     = $this->accountingDb()->table('sales_items')->where('sale_id', $cancelled)->countAllResults();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, $cancelled));
+        $this->assertSame(AccountingError::DraftNotFound, $this->failure()->error);
+        $this->assertSame((string) CANCELED, (string) $this->saleRow($cancelled)->sale_status);
+        $this->assertSame($lines, $this->accountingDb()->table('sales_items')->where('sale_id', $cancelled)->countAllResults());
+    }
+
+    public function testIssueDraft_RejectsADraftThatWasSavedAgainAfterItWasReadAndIssuesNothingOfWhatItHeldBefore(): void
+    {
+        $cycle = $this->taxedReference();
+        $draft = $this->draftInvoice($cycle['items']);
+        $stock = $this->stock($cycle['cream']);
+        $phase = 'waiting';
+
+        $listen = function (Query $query) use (&$phase, $cycle, $draft): void {
+            $sql = $query->getQuery();
+
+            if (str_contains($sql, 'GET_LOCK')) {
+                $phase = $phase === 'waiting' ? 'locked' : $phase;
+
+                return;
+            }
+
+            if ($phase !== 'locked' || str_contains($sql, 'IS_USED_LOCK')) {
+                return;
+            }
+
+            $phase = 'saved again';
+
+            $db     = $this->accountingDb();
+            $result = $db->resultID;
+
+            $this->save($cycle['items'], [], [$this->payment(lang('Sales.cash'), '100.00')], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, $draft);
+
+            $db->resultID = $result;
+        };
+
+        Events::on('DBQuery', $listen);
+
+        try {
+            $result = $this->sales->issueDraft($draft, $this->employeeId);
+        } finally {
+            Events::removeListener('DBQuery', $listen);
+        }
+
+        $this->assertSame('saved again', $phase, 'the register saved the draft between the read and the lock');
+        $this->assertSame(ACCOUNTING_FAILED, $result);
+        $this->assertSame(AccountingError::DraftChanged, $this->failure()->error);
+        $this->assertSame((string) SUSPENDED, (string) $this->saleRow($draft)->sale_status);
+        $this->assertSame(1, $this->accountingDb()->table('sales_payments')->where('sale_id', $draft)->countAllResults(), 'what the register saved is still there');
+        $this->assertSame(0, $this->countJournals());
+        $this->assertEqualsWithDelta($stock, $this->stock($cycle['cream']), 0.0001);
+
+        $this->assertSame($draft, $this->sales->issueDraft($draft, $this->employeeId), 'read again, it is issued with what it holds now');
+        $this->assertSame(1, $this->accountingDb()->table('sales_payments')->where('sale_id', $draft)->countAllResults());
+        $this->assertTies();
+    }
+
+    public function testSaveValue_RejectsIssuingADraftWhoseFingerprintIsNotTheOneItHasAnymore(): void
+    {
+        $cycle = $this->taxedReference();
+        $draft = $this->draftInvoice($cycle['items']);
+        $drafts = new DraftInvoice($this->accountingDb());
+        $read  = $drafts->forIssue($draft)->fingerprint;
+
+        $this->assertSame($read, $drafts->fingerprint($draft), 'nothing changed it');
+        $this->assertSame($draft, $this->save($cycle['items'], [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, $draft, null, ReturnDocument::CreditNote, null, null, null, null, $read), 'saved again with the same lines the fingerprint is the same');
+
+        $this->assertSame($draft, $this->save([$this->line($this->item('0', false), 0, '1', '10')], [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, $draft));
+        $this->assertNotSame($read, $drafts->fingerprint($draft), 'other lines are another fingerprint');
+        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, $draft, null, ReturnDocument::CreditNote, null, null, null, null, $read));
+        $this->assertSame(AccountingError::DraftChanged, $this->failure()->error);
+        $this->assertSame((string) SUSPENDED, (string) $this->saleRow($draft)->sale_status);
+        $this->assertSame(0, $this->countJournals());
+    }
+
+    public function testIssueDraft_IssuesTheDraftOnceAndTakesTheStockOnceWhenTwoRequestsRunAtTheSameTime(): void
+    {
+        $cycle = $this->taxedReference();
+        $draft = $this->draftInvoice($cycle['items']);
+        $stock = $this->stock($cycle['cream']);
+
+        $outcomes = $this->raceTwoProcesses('issueDraft', [$draft, $this->employeeId], [$draft, $this->employeeId]);
+
+        $this->assertSame([false, true], [min($outcomes), max($outcomes)], 'one issues the draft and the other is told it is gone');
+        $this->assertEqualsWithDelta($stock - 4, $this->stock($cycle['cream']), 0.0001);
+        $this->assertCount(2, $this->standing($draft));
+        $this->assertSame(1, $this->accountingDb()->table('accounting_audit_log')->where(['entity_id' => $draft, 'action' => 'draft_issued'])->countAllResults());
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function notADraftProvider(): array
+    {
+        return [
+            'a sale completed at the register' => ['pos'],
+            'an invoice that was issued'       => ['invoice'],
+            'a quote'                          => ['quote'],
+            'a draft that was cancelled'       => ['cancelled'],
+            'a sale that is not there'         => ['missing'],
+        ];
+    }
+
+    #[DataProvider('notADraftProvider')]
+    public function testIssueDraft_RejectsWhatIsNotADraftInvoice(string $kind): void
+    {
+        $cycle = $this->taxedReference();
+
+        $saleId = match ($kind) {
+            'pos'       => $this->save([$this->line($this->item('0', false), 0, '1', '50')], [], [$this->payment(lang('Sales.cash'), '50.00')], SALE_TYPE_POS),
+            'invoice'   => $this->save($cycle['items'], $cycle['taxes']),
+            'quote'     => $this->quote(),
+            'cancelled' => $this->cancelledDraft($cycle['items']),
+            default     => 999999,
+        };
+
+        $journals = $this->countJournals();
+        $before   = $this->saleRow($saleId);
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->sales->issueDraft($saleId, $this->employeeId));
+        $this->assertSame(AccountingError::DraftNotFound, $this->failure()->error);
+        $this->assertSame($journals, $this->countJournals());
+        $this->assertEquals($before, $this->saleRow($saleId));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     */
+    private function cancelledDraft(array $items): int
+    {
+        $draft = $this->draftInvoice($items);
+
+        $this->sales->update_sale_status($draft, CANCELED);
+
+        return $draft;
+    }
+
+    public function testIssueDraft_RejectsADraftPaidWithAGiftCardBecauseTheCardWasAlreadyDebitedWhenItWasSaved(): void
+    {
+        $db = $this->accountingDb();
+        $db->table('giftcards')->insert(['giftcard_number' => 7771235, 'value' => 500, 'deleted' => 0, 'person_id' => null]);
+
+        $cycle = $this->taxedReference();
+        $draft = $this->save($cycle['items'], [], [$this->payment(lang('Sales.giftcard') . ':7771235', '100.00')], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED);
+
+        $this->assertEqualsWithDelta(400.0, (float) $db->table('giftcards')->where('giftcard_number', 7771235)->get()->getRow()->value, 0.001);
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->sales->issueDraft($draft, $this->employeeId));
+        $this->assertSame(AccountingError::DraftStoredValuePaid, $this->failure()->error);
+        $this->assertEqualsWithDelta(400.0, (float) $db->table('giftcards')->where('giftcard_number', 7771235)->get()->getRow()->value, 0.001, 'the card is not debited a second time');
+        $this->assertSame((string) SUSPENDED, (string) $this->saleRow($draft)->sale_status);
+
+        $db->table('sales_payments')->where('sale_id', $draft)->delete();
+        $db->table('giftcards')->where('giftcard_number', 7771235)->delete();
+    }
+
+    public function testIssueDraft_UndoesTheWholeIssueWhenTheCostCannotBePostedAndKeepsTheDraft(): void
+    {
+        $cycle = $this->taxedReference();
+        $draft = $this->draftInvoice($cycle['items']);
+        $this->accountingDb()->table('accounting_accounts')->where('account_id', $this->stockAccount())->update(['active' => 0]);
+
+        $stock = $this->stock($cycle['cream']);
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->sales->issueDraft($draft, $this->employeeId));
+        $this->assertSame(PostingError::AccountNotPostable, $this->failure()->error);
+        $this->assertSame((string) SUSPENDED, (string) $this->saleRow($draft)->sale_status);
+        $this->assertSame(0, $this->countJournals());
+        $this->assertEqualsWithDelta($stock, $this->stock($cycle['cream']), 0.0001);
+        $this->assertSame([], $this->lifecycleAudit($draft, 'draft_issued'));
+        $this->assertCount(2, $this->accountingDb()->table('sales_items')->where('sale_id', $draft)->get()->getResult(), 'the lines of the draft are still there');
+    }
+
+    public function testIssueDraft_IssuesTheDraftOfAnInvoiceNotYetDeliveredWithoutTheCostAndWithoutTakingTheStock(): void
+    {
+        $cycle = $this->taxedReference();
+        $stock = $this->stock($cycle['cream']);
+        $draft = $this->save($cycle['items'], [], [], SALE_TYPE_INVOICE, -1, false, null, SUSPENDED);
+
+        $this->assertSame($draft, $this->sales->issueDraft($draft, $this->employeeId));
+        $this->assertSame(['revenue'], array_column($this->standing($draft), 'entry'));
+        $this->assertEqualsWithDelta($stock, $this->stock($cycle['cream']), 0.0001);
+        $this->assertSame('0', (string) $this->saleRow($draft)->delivered);
+    }
+
+    public function testIssueDraft_WorksWhileAccountingIsOffAndPostsNothing(): void
+    {
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $cycle = $this->taxedReference();
+        $stock = $this->stock($cycle['cream']);
+        $draft = $this->draftInvoice($cycle['items']);
+
+        $this->assertSame($draft, $this->sales->issueDraft($draft, $this->employeeId, invoiceDate: $this->daysAgo(3), paymentTerms: '30'));
+        $this->assertSame((string) COMPLETED, (string) $this->saleRow($draft)->sale_status);
+        $this->assertEqualsWithDelta($stock - 4, $this->stock($cycle['cream']), 0.0001);
+        $this->assertSame(0, $this->countJournals());
+        $this->assertNull($this->saleRow($draft)->invoice_date);
+        $this->assertNull($this->saleRow($draft)->payment_terms_days);
+        $this->assertSame([], $this->lifecycleAudit($draft, 'draft_issued'));
+    }
+
+    public function testSaveValue_PostsNothingAndMovesNoStockForAQuoteInAnyStateAsTheReferenceSystemDoes(): void
+    {
+        $case  = $this->lifecycleCase('quote-states-and-no-posting');
+        $cycle = $this->referenceInvoice();
+        $stock = $this->stock($cycle['cream']);
+
+        foreach ([QuoteStatus::Draft, QuoteStatus::Open] as $state) {
+            $quote = $this->quote($state, $cycle['items']);
+
+            $this->assertSame([], $this->journals($quote), $state->name);
+            $this->assertSame($case['expected']['stock_taken'], $this->stockTaken($cycle['cream'], $stock), $state->name);
+        }
+
+        $this->allowEmployeeEverywhere();
+
+        $quote = $this->quote(null, $cycle['items']);
+        $this->assertSame(['open'], array_slice($case['expected']['states'], 0, 1));
+
+        (new QuoteLifecycle())->change($quote, QuoteStatus::Approved, $this->employeeId);
+
+        $this->assertSame(strtolower(QuoteStatus::Approved->name), $case['expected']['states'][1]);
+        $this->assertSame($case['expected']['journals'], count($this->journals($quote)));
+        $this->assertSame(0, $this->countJournals());
+        $this->assertEqualsWithDelta($stock, $this->stock($cycle['cream']), 0.0001);
+    }
+
+    public function testSaveValue_SavesANewQuoteOpenAndKeepsItsStateApartFromTheStatusOfTheSale(): void
+    {
+        $quote = $this->quote();
+        $row   = $this->saleRow($quote);
+
+        $this->assertSame((string) SUSPENDED, (string) $row->sale_status);
+        $this->assertSame((string) QuoteStatus::Open->value, (string) $row->quote_status);
+        $this->assertNull($row->source_quote_id);
+    }
+
+    public function testSaveValue_SavesAQuoteAsADraftTakingNoNumberAndOpensItWhenItIsSavedAsAQuote(): void
+    {
+        (new DocumentNumbering($this->accountingDb()))->configure(DocumentType::SalesQuote, ['enabled' => true, 'prefix' => 'QT-', 'padding' => 3]);
+
+        $items = $this->referenceInvoice()['items'];
+        $draft = $this->quote(QuoteStatus::Draft, $items);
+
+        $this->assertSame((string) QuoteStatus::Draft->value, (string) $this->saleRow($draft)->quote_status);
+        $this->assertNull($this->saleRow($draft)->quote_number);
+        $this->assertSame($draft, $this->save($items, [], [], SALE_TYPE_QUOTE, -1, true, null, SUSPENDED, $draft, null, ReturnDocument::CreditNote, null, null, QuoteStatus::Draft), 'saved as a draft again');
+        $this->assertNull($this->saleRow($draft)->quote_number);
+
+        $this->assertSame($draft, $this->save($items, [], [], SALE_TYPE_QUOTE, -1, true, null, SUSPENDED, $draft), 'saved as a quote');
+        $this->assertSame((string) QuoteStatus::Open->value, (string) $this->saleRow($draft)->quote_status);
+        $this->assertSame('QT-001', $this->saleRow($draft)->quote_number);
+    }
+
+    public function testSaveValue_KeepsAQuoteThatIsNoLongerADraftFromGoingBackToOne(): void
+    {
+        $this->allowEmployeeEverywhere();
+
+        $items = $this->referenceInvoice()['items'];
+        $quote = $this->quote(null, $items);
+
+        (new QuoteLifecycle())->change($quote, QuoteStatus::Approved, $this->employeeId);
+
+        $this->assertSame($quote, $this->save($items, [], [], SALE_TYPE_QUOTE, -1, true, null, SUSPENDED, $quote, null, ReturnDocument::CreditNote, null, null, QuoteStatus::Draft));
+        $this->assertSame((string) QuoteStatus::Approved->value, (string) $this->saleRow($quote)->quote_status);
+
+        $this->assertSame($quote, $this->save($items, [], [], SALE_TYPE_QUOTE, -1, true, null, SUSPENDED, $quote));
+        $this->assertSame((string) QuoteStatus::Approved->value, (string) $this->saleRow($quote)->quote_status, 'saving a quote again does not reopen it');
+    }
+
+    public function testSaveValue_KeepsTheStateOfAQuoteThatWasSavedBeforeStatesExistedAsOpenWhenItIsSavedAgain(): void
+    {
+        $items = $this->referenceInvoice()['items'];
+        $quote = $this->quote(null, $items);
+
+        $this->accountingDb()->table('sales')->where('sale_id', $quote)->update(['quote_status' => null]);
+
+        $this->assertSame($quote, $this->save($items, [], [], SALE_TYPE_QUOTE, -1, true, null, SUSPENDED, $quote));
+        $this->assertSame(QuoteStatus::Open, (new QuoteLifecycle())->statusOf($quote));
+    }
+
+    public function testSaveValue_ConvertsTheQuoteExactlyWhenTheInvoiceMadeFromItIsSavedAsAnIssuedInvoice(): void
+    {
+        $case  = $this->lifecycleCase('quote-converted-by-saving-the-invoice');
+        $this->allowEmployeeEverywhere();
+        $cycle = $this->referenceInvoice();
+        $quote = $this->quote(null, $cycle['items']);
+
+        (new QuoteLifecycle())->change($quote, QuoteStatus::Approved, $this->employeeId);
+
+        $this->assertSame(strtolower(QuoteStatus::Approved->name), $case['expected']['after_converting']['quote_state']);
+        $this->assertSame($case['expected']['after_converting']['journals'], count($this->journals($quote)));
+        $this->assertSame(0, $this->countJournals(), 'converting posts nothing: the quote is converted when the invoice is saved');
+
+        $invoice = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, null, null, null, $quote);
+
+        $this->assertGreaterThan(0, $invoice);
+        $this->assertNotSame($quote, $invoice, 'the quote stays and the invoice is a sale of its own');
+        $this->assertSame(strtolower(QuoteStatus::Converted->name), $case['expected']['after_saving_the_invoice']['quote_state']);
+        $this->assertSame(QuoteStatus::Converted, (new QuoteLifecycle())->statusOf($quote));
+        $this->assertEqualsCanonicalizing($case['expected']['after_saving_the_invoice']['journals'], array_column($this->standing($invoice), 'entry'));
+        $this->assertSame([], $this->journals($quote));
+        $this->assertSame((string) $quote, (string) $this->saleRow($invoice)->source_quote_id);
+        $this->assertSame($invoice, (new QuoteLifecycle())->invoiceOf($quote));
+
+        $audit = $this->lifecycleAudit($quote, 'quote_converted');
+
+        $this->assertCount(1, $audit);
+        $this->assertSame(['from' => 'Approved', 'invoice_sale_id' => $invoice], json_decode((string) $audit[0]->details, true));
+        $this->assertTies();
+    }
+
+    public function testSaveValue_ConvertsAnOpenQuoteToo(): void
+    {
+        $this->allowEmployeeEverywhere();
+
+        $cycle = $this->referenceInvoice();
+        $quote = $this->quote(null, $cycle['items']);
+
+        $this->assertGreaterThan(0, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, null, null, null, $quote));
+        $this->assertSame(QuoteStatus::Converted, (new QuoteLifecycle())->statusOf($quote));
+    }
+
+    public function testSaveValue_KeepsTheQuoteWhileTheInvoiceMadeFromItIsOnlyADraftAndConvertsItWhenTheDraftIsIssued(): void
+    {
+        $this->allowEmployeeEverywhere();
+
+        $cycle = $this->taxedReference();
+        $quote = $this->quote(QuoteStatus::Open, $cycle['items']);
+        $draft = $this->save($cycle['items'], [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, NEW_ENTRY, null, ReturnDocument::CreditNote, null, null, null, $quote);
+
+        $this->assertSame(QuoteStatus::Open, (new QuoteLifecycle())->statusOf($quote), 'a draft is not the invoice yet');
+        $this->assertSame($quote, $this->sales->getSourceQuote($draft));
+        $this->assertNull((new QuoteLifecycle())->invoiceOf($quote));
+
+        $this->assertSame($draft, $this->save($cycle['items'], [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, $draft), 'the draft saved again keeps the quote it came from');
+        $this->assertSame($quote, $this->sales->getSourceQuote($draft));
+
+        $this->assertSame($draft, $this->sales->issueDraft($draft, $this->employeeId));
+        $this->assertSame(QuoteStatus::Converted, (new QuoteLifecycle())->statusOf($quote));
+        $this->assertSame($draft, (new QuoteLifecycle())->invoiceOf($quote));
+    }
+
+    public function testSaveValue_RejectsASecondInvoiceFromTheSameQuoteAndLeavesNothingOfIt(): void
+    {
+        $this->allowEmployeeEverywhere();
+
+        $cycle = $this->referenceInvoice();
+        $quote = $this->quote(null, $cycle['items']);
+
+        $first = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, null, null, null, $quote);
+
+        $this->assertGreaterThan(0, $first);
+
+        $sales    = $this->countSales();
+        $journals = $this->countJournals();
+        $stock    = $this->stock($cycle['cream']);
+        $lines    = $this->countRows('sales_items');
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, null, null, null, $quote));
+        $this->assertSame(AccountingError::QuoteNotConvertible, $this->failure()->error);
+        $this->assertSame($sales, $this->countSales());
+        $this->assertSame($journals, $this->countJournals());
+        $this->assertSame($lines, $this->countRows('sales_items'));
+        $this->assertEqualsWithDelta($stock, $this->stock($cycle['cream']), 0.0001);
+        $this->assertSame($first, (new QuoteLifecycle())->invoiceOf($quote));
+    }
+
+    public function testSaveValue_RejectsAnInvoiceFromAQuoteThatIsStillADraft(): void
+    {
+        $this->allowEmployeeEverywhere();
+
+        $cycle = $this->referenceInvoice();
+        $quote = $this->quote(QuoteStatus::Draft, $cycle['items']);
+        $sales = $this->countSales();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, null, null, null, $quote));
+        $this->assertSame(AccountingError::QuoteNotConvertible, $this->failure()->error);
+        $this->assertSame($sales, $this->countSales());
+        $this->assertSame(0, $this->countJournals());
+        $this->assertSame(QuoteStatus::Draft, (new QuoteLifecycle())->statusOf($quote));
+    }
+
+    public function testSaveValue_RejectsAnInvoiceFromASaleThatIsNotAQuote(): void
+    {
+        $this->allowEmployeeEverywhere();
+
+        $cycle   = $this->referenceInvoice();
+        $invoice = $this->save($cycle['items'], $cycle['taxes']);
+        $sales   = $this->countSales();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, null, null, null, $invoice));
+        $this->assertSame(AccountingError::QuoteNotFound, $this->failure()->error);
+        $this->assertSame($sales, $this->countSales());
+    }
+
+    public function testSaveValue_RejectsAnInvoiceFromAQuoteOfABranchTheEmployeeDoesNotWorkInAndLeavesNothingOfIt(): void
+    {
+        $second   = $this->createBranch();
+        $service  = $this->item('0', false);
+        $quote    = $this->save([$this->line($service, 0, '1', '100', '0', '0', PERCENT, $this->branchLocation($second))], [], [], SALE_TYPE_QUOTE, -1, true, null, SUSPENDED);
+        $clerk    = $this->employeeWithGrants([], [1]);
+        $sales    = $this->countSales();
+        $before   = $this->employeeId;
+
+        $this->employeeId = $clerk;
+
+        try {
+            $this->assertSame(ACCOUNTING_FAILED, $this->save([$this->line($this->item('0', false), 0, '1', '100')], [], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, null, null, null, $quote));
+        } finally {
+            $this->employeeId = $before;
+        }
+
+        $failure = $this->sales->accountingFailure();
+
+        $this->assertInstanceOf(BranchException::class, $failure);
+        $this->assertSame(BranchError::NotAllowed, $failure->error);
+        $this->assertSame($sales, $this->countSales());
+        $this->assertSame(0, $this->countJournals());
+        $this->assertSame(QuoteStatus::Open, (new QuoteLifecycle())->statusOf($quote));
+    }
+
+    public function testSaveValue_RejectsToSaveAConvertedQuoteAgainWhateverItIsSavedAs(): void
+    {
+        $items = $this->referenceInvoice()['items'];
+        $quote = $this->quote(null, $items);
+
+        $this->accountingDb()->table('sales')->where('sale_id', $quote)->update(['quote_status' => QuoteStatus::Converted->value]);
+
+        $row = $this->saleRow($quote);
+
+        foreach ([SALE_TYPE_QUOTE => SUSPENDED, SALE_TYPE_INVOICE => COMPLETED] as $type => $status) {
+            $this->assertSame(ACCOUNTING_FAILED, $this->save($items, [], [], $type, -1, true, null, $status, $quote), "saved as type {$type}");
+            $this->assertSame(AccountingError::QuoteLocked, $this->failure()->error);
+        }
+
+        $this->assertEquals($row, $this->saleRow($quote));
+        $this->assertSame(0, $this->countJournals());
+    }
+
+    public function testDelete_RejectsToCancelAConvertedQuoteAndCancelsAnotherQuoteWithNothingToReverse(): void
+    {
+        $converted = $this->quote();
+        $other     = $this->quote();
+
+        $this->accountingDb()->table('sales')->where('sale_id', $converted)->update(['quote_status' => QuoteStatus::Converted->value]);
+
+        $this->assertFalse($this->sales->delete($converted, false, true, $this->employeeId));
+        $this->assertSame(AccountingError::QuoteLocked, $this->failure()->error);
+        $this->assertSame((string) SUSPENDED, (string) $this->saleRow($converted)->sale_status);
+
+        $this->assertTrue($this->sales->delete($other, false, true, $this->employeeId));
+        $this->assertSame((string) CANCELED, (string) $this->saleRow($other)->sale_status);
+        $this->assertSame(0, $this->countJournals());
+    }
+
+    public function testDeleteSuspendedSale_RejectsAConvertedQuoteAndDiscardsAnotherQuote(): void
+    {
+        $converted = $this->quote();
+        $other     = $this->quote(QuoteStatus::Draft);
+
+        $this->accountingDb()->table('sales')->where('sale_id', $converted)->update(['quote_status' => QuoteStatus::Converted->value]);
+
+        $this->assertFalse($this->sales->delete_suspended_sale($converted));
+        $this->assertSame(AccountingError::QuoteLocked, $this->failure()->error);
+        $this->assertSame((string) SUSPENDED, (string) $this->saleRow($converted)->sale_status);
+
+        $this->assertTrue($this->sales->delete_suspended_sale($other));
+        $this->assertSame((string) CANCELED, (string) $this->saleRow($other)->sale_status);
+    }
+
+    public function testSaveValue_ConvertsTheQuoteWhileAccountingIsOffAndWritesNothingInTheAuditLog(): void
+    {
+        $this->setConfigValue('accounting_enabled', '0');
+        $this->allowEmployeeEverywhere();
+
+        $cycle = $this->referenceInvoice();
+        $quote = $this->quote(null, $cycle['items']);
+
+        $invoice = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, null, null, null, $quote);
+
+        $this->assertGreaterThan(0, $invoice);
+        $this->assertSame(QuoteStatus::Converted, (new QuoteLifecycle())->statusOf($quote));
+        $this->assertSame([], $this->lifecycleAudit($quote, 'quote_converted'));
+        $this->assertSame(0, $this->countJournals());
+    }
+
+    public function testSaveValue_LeavesAQuoteStateOffAnInvoiceThatNamesNoQuoteAndASuspendedSaleOfThePointOfSale(): void
+    {
+        $cycle   = $this->referenceInvoice();
+        $invoice = $this->save($cycle['items'], $cycle['taxes']);
+        $draft   = $this->draftInvoice($cycle['items']);
+        $pos     = $this->save([$this->line($this->item('0', false), 0, '1', '50')], [], [$this->payment(lang('Sales.cash'), '50.00')], SALE_TYPE_POS, -1, true, null, SUSPENDED);
+
+        foreach ([$invoice, $draft, $pos] as $saleId) {
+            $this->assertNull($this->saleRow($saleId)->quote_status, (string) $saleId);
+            $this->assertNull($this->saleRow($saleId)->source_quote_id, (string) $saleId);
+        }
+
+        $this->assertSame([], $this->journals($pos));
+        $this->assertSame($pos, $this->save([$this->line($this->item('0', false), 0, '1', '50')], [], [$this->payment(lang('Sales.cash'), '50.00')], SALE_TYPE_POS, -1, true, null, COMPLETED, $pos), 'a suspended sale of the point of sale is completed as it always was');
+        $this->assertNotSame([], $this->journals($pos));
+        $this->assertSame([], $this->lifecycleAudit($pos, 'draft_issued'), 'a sale of the point of sale is not a draft invoice');
+    }
+
+    public function testSaveValue_LeavesTheStateOfARegisterQuoteBehindWhenItIsCompletedAsAnInvoice(): void
+    {
+        $cycle = $this->referenceInvoice();
+        $quote = $this->quote(null, $cycle['items']);
+
+        $this->assertSame($quote, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, $quote));
+        $this->assertNull($this->saleRow($quote)->quote_status);
+        $this->assertNull((new QuoteLifecycle())->statusOf($quote));
+    }
+
+    public function testSaveValue_WritesTheMoveOfADraftQuoteToOpenInTheAuditLogWithTheNumberItTook(): void
+    {
+        (new DocumentNumbering($this->accountingDb()))->configure(DocumentType::SalesQuote, ['enabled' => true, 'prefix' => 'QT-', 'padding' => 3]);
+
+        $items = $this->referenceInvoice()['items'];
+        $draft = $this->quote(QuoteStatus::Draft, $items);
+
+        $this->assertSame([], $this->lifecycleAudit($draft, 'quote_status_changed'), 'a quote saved for the first time moves from nowhere');
+        $this->assertSame($draft, $this->save($items, [], [], SALE_TYPE_QUOTE, -1, true, null, SUSPENDED, $draft, null, ReturnDocument::CreditNote, null, null, QuoteStatus::Draft));
+        $this->assertSame([], $this->lifecycleAudit($draft, 'quote_status_changed'), 'saved as a draft again it stays one');
+
+        $this->assertSame($draft, $this->save($items, [], [], SALE_TYPE_QUOTE, -1, true, null, SUSPENDED, $draft));
+
+        $moves = $this->lifecycleAudit($draft, 'quote_status_changed');
+
+        $this->assertCount(1, $moves);
+        $this->assertSame($this->employeeId, (int) $moves[0]->employee_id);
+        $this->assertSame(['from' => 'Draft', 'to' => 'Open', 'number' => 'QT-001'], json_decode((string) $moves[0]->details, true));
+
+        $this->assertSame($draft, $this->save($items, [], [], SALE_TYPE_QUOTE, -1, true, null, SUSPENDED, $draft));
+        $this->assertCount(1, $this->lifecycleAudit($draft, 'quote_status_changed'), 'saved again in the state it has, nothing moved');
+    }
+
+    public function testSaveValue_WritesNoMoveOfAQuoteWhileTheBooksAreOff(): void
+    {
+        $items = $this->referenceInvoice()['items'];
+        $draft = $this->quote(QuoteStatus::Draft, $items);
+
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $this->assertSame($draft, $this->save($items, [], [], SALE_TYPE_QUOTE, -1, true, null, SUSPENDED, $draft));
+
+        $this->assertSame((string) QuoteStatus::Open->value, (string) $this->saleRow($draft)->quote_status);
+        $this->assertSame([], $this->lifecycleAudit($draft, 'quote_status_changed'));
+    }
+
+    public function testSaveValue_WritesNoDraftIssuedForAQuoteOrASaleOfThePointOfSaleCompletedAsAnInvoice(): void
+    {
+        $cycle    = $this->referenceInvoice();
+        $service  = [$this->line($this->item('0', false), 0, '1', '50')];
+        $quote    = $this->quote(null, $cycle['items']);
+        $pos      = $this->save($service, [], [$this->payment(lang('Sales.cash'), '50.00')], SALE_TYPE_POS, -1, true, null, SUSPENDED);
+        $draft    = $this->draftInvoice($cycle['items']);
+
+        $this->assertSame($quote, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, $quote));
+        $this->assertSame($pos, $this->save($service, [], [$this->payment(lang('Sales.cash'), '50.00')], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, $pos));
+        $this->assertSame($draft, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, $draft));
+
+        $this->assertSame([], $this->lifecycleAudit($quote, 'draft_issued'), 'a quote was never a draft invoice');
+        $this->assertSame([], $this->lifecycleAudit($pos, 'draft_issued'), 'neither was a sale of the point of sale');
+        $this->assertCount(1, $this->lifecycleAudit($draft, 'draft_issued'), 'a draft invoice that the register completes is an issued one');
+    }
+
+    public function testIssueDraft_WritesNoStateOnTheInvoiceAndNoNumberFromTheQuoteSequence(): void
+    {
+        (new DocumentNumbering($this->accountingDb()))->configure(DocumentType::SalesQuote, ['enabled' => true, 'prefix' => 'QT-', 'padding' => 3]);
+
+        $cycle = $this->taxedReference();
+        $draft = $this->draftInvoice($cycle['items']);
+
+        $this->assertSame($draft, $this->sales->issueDraft($draft, $this->employeeId));
+        $this->assertNull($this->saleRow($draft)->quote_status);
+        $this->assertNull($this->saleRow($draft)->quote_number);
+        $this->assertSame(1, (new DocumentNumbering($this->accountingDb()))->sequence(DocumentType::SalesQuote)->nextNumber);
+    }
+
+    public function testIssueDraft_RejectsADiscountThatNoLongerFitsTheLinesAndLeavesTheDraftAsItWas(): void
+    {
+        $cycle = $this->taxedReference();
+        $draft = $this->draftInvoice($cycle['items']);
+
+        $this->accountingDb()->table('sales')->where('sale_id', $draft)->update(['invoice_discount_type' => PERCENT, 'invoice_discount' => '150']);
+
+        $this->assertSame(INVOICE_DISCOUNT_INVALID, $this->sales->issueDraft($draft, $this->employeeId));
+        $this->assertSame(InvoiceDiscountProblem::PercentOver100, $this->sales->invoiceDiscountProblem());
+        $this->assertSame((string) SUSPENDED, (string) $this->saleRow($draft)->sale_status);
+        $this->assertSame(0, $this->countJournals());
+    }
+
+    public function testIssueDraft_KeepsTheCustomerOfTheDraftAndThePostedBalanceOfTheCustomerFollowsTheInvoice(): void
+    {
+        $other = $this->anotherCustomer();
+        $cycle = $this->taxedReference();
+        $draft = $this->draftInvoice($cycle['items'], $other);
+
+        $this->assertSame($draft, $this->sales->issueDraft($draft, $this->employeeId));
+        $this->assertSame((string) $other, (string) $this->saleRow($draft)->customer_id);
+        $this->assertSame('816.50', $this->balance((int) $this->position($other)->accountId));
+        $this->assertSame('0.00', $this->balance($this->customerAccount()));
+        $this->assertTies($other);
+    }
+
+    public function testIssueDraft_IssuesADraftOfNoCustomerOnceWhenTwoRequestsRunAtTheSameTime(): void
+    {
+        $cycle = $this->taxedReference();
+        $draft = $this->save($cycle['items'], [], [$this->payment(lang('Sales.cash'), '816.50')], SALE_TYPE_INVOICE, null, true, null, SUSPENDED);
+        $stock = $this->stock($cycle['cream']);
+
+        $outcomes = $this->raceTwoProcesses('issueDraft', [$draft, $this->employeeId], [$draft, $this->employeeId]);
+
+        $this->assertSame([false, true], [min($outcomes), max($outcomes)], 'with no customer there is no lock of the customer: the row of the draft is what stops the second request');
+        $this->assertEqualsWithDelta($stock - 4, $this->stock($cycle['cream']), 0.0001);
+        $this->assertSame(1, $this->accountingDb()->table('accounting_audit_log')->where(['entity_id' => $draft, 'action' => 'draft_issued'])->countAllResults());
     }
 }

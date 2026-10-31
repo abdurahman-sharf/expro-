@@ -574,6 +574,43 @@ class Sale_lib
     }
 
     /**
+     * The quote the invoice being made in the register was converted from, or null when it was not.
+     */
+    public function getQuoteSource(): ?int
+    {
+        $quoteId = $this->session->get('sales_quote_source');
+
+        return $quoteId === null ? null : (int) $quoteId;
+    }
+
+    public function setQuoteSource(?int $quoteId): void
+    {
+        $quoteId === null ? $this->session->remove('sales_quote_source') : $this->session->set('sales_quote_source', $quoteId);
+    }
+
+    public function clearQuoteSource(): void
+    {
+        $this->session->remove('sales_quote_source');
+    }
+
+    /**
+     * Fills the register with a new invoice that has the lines, the customer, the comment and the
+     * discount of a quote, and remembers the quote. Nothing is saved: the quote is converted when
+     * the invoice is.
+     */
+    public function prepareInvoiceFromQuote(int $quoteId): void
+    {
+        $this->clear_all();
+        $this->copy_entire_sale($quoteId);
+        $this->set_mode('sale_invoice');
+        $this->clear_quote_number();
+        $this->clear_sale_type();
+        $this->set_sale_type(SALE_TYPE_INVOICE);
+        $this->session->set('sale_id', NEW_ENTRY);
+        $this->setQuoteSource($quoteId);
+    }
+
+    /**
      * The sale a return in the register takes its goods back from.
      */
     public function get_return_origin(): ?int
@@ -1656,6 +1693,7 @@ class Sale_lib
         $this->set_delivered($this->sale->isDelivered($saleId));
         $this->set_return_origin($this->sale->getReturnOrigin($saleId));
         $this->setReturnDocument($this->sale->getReturnDocument($saleId));
+        $this->setQuoteSource($this->sale->getSourceQuote($saleId));
 
         $timing = $this->sale->getInvoiceTiming($saleId);
         $this->setInvoiceDate($timing['invoice_date']);
@@ -1741,6 +1779,7 @@ class Sale_lib
         $this->clearPaymentTerms();
         $this->clear_return_origin();
         $this->clearReturnDocument();
+        $this->clearQuoteSource();
         $this->clearInvoiceDiscount();
         $this->clear_quote_number();
         $this->clear_work_order_number();

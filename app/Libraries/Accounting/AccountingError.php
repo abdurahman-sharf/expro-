@@ -129,6 +129,14 @@ enum AccountingError: string
     case IssuedDocumentLocked = 'issued_document_locked';
     case CustomerBusy         = 'customer_busy';
 
+    case DraftChanged          = 'draft_changed';
+    case DraftNotFound         = 'draft_not_found';
+    case DraftStoredValuePaid  = 'draft_stored_value_paid';
+    case QuoteLocked           = 'quote_locked';
+    case QuoteNotConvertible   = 'quote_not_convertible';
+    case QuoteNotFound         = 'quote_not_found';
+    case QuoteStatusNotAllowed = 'quote_status_not_allowed';
+
     case InvoiceDateInvalid     = 'invoice_date_invalid';
     case InvoiceDateBeforeStart = 'invoice_date_before_start';
     case PaymentTermsInvalid    = 'payment_terms_invalid';

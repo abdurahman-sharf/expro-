@@ -8,8 +8,10 @@ use App\Libraries\Accounting\CustomerLedger;
 use App\Libraries\Accounting\CustomerPosition;
 use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\Accounting\QuoteStatus;
 use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\Accounting\SalePosting;
+use App\Libraries\Organization\BranchGuard;
 use App\Models\Sale;
 
 /**
@@ -200,12 +202,12 @@ trait SaleAccountingFixtureTrait
      * @param list<array<string, mixed>>           $payments
      * @param array{type: int, value: string}|null $invoiceDiscount
      */
-    protected function save(array $items, array $taxes = [], array $payments = [], int $type = SALE_TYPE_INVOICE, ?int $customerId = -1, bool $delivered = true, ?int $origin = null, int $status = COMPLETED, int $saleId = NEW_ENTRY, ?array $invoiceDiscount = null, ReturnDocument $returnDocument = ReturnDocument::CreditNote, ?string $invoiceDate = null, int|string|null $paymentTerms = null): int
+    protected function save(array $items, array $taxes = [], array $payments = [], int $type = SALE_TYPE_INVOICE, ?int $customerId = -1, bool $delivered = true, ?int $origin = null, int $status = COMPLETED, int $saleId = NEW_ENTRY, ?array $invoiceDiscount = null, ReturnDocument $returnDocument = ReturnDocument::CreditNote, ?string $invoiceDate = null, int|string|null $paymentTerms = null, ?QuoteStatus $quoteStatus = null, ?int $quoteSourceId = null, ?string $draftFingerprint = null): int
     {
         $saleStatus = $status;
         $salesTaxes = [[], $taxes];
         $customer   = $customerId === -1 ? $this->customerId : ($customerId ?? NEW_ENTRY);
-        $result     = $this->sales->save_value($saleId, $saleStatus, $items, $customer, $this->employeeId, 'test', null, null, null, $type, $payments, null, $salesTaxes, $delivered, $origin, $invoiceDiscount, $returnDocument, $invoiceDate, $paymentTerms);
+        $result     = $this->sales->save_value($saleId, $saleStatus, $items, $customer, $this->employeeId, 'test', null, null, null, $type, $payments, null, $salesTaxes, $delivered, $origin, $invoiceDiscount, $returnDocument, $invoiceDate, $paymentTerms, $quoteStatus, $quoteSourceId, $draftFingerprint);
 
         if ($result > 0) {
             $this->saleIds[] = $result;
@@ -327,6 +329,65 @@ trait SaleAccountingFixtureTrait
         $service = $this->item('0', false);
 
         return $this->save([$this->line($service, 0, '1', $total, '0', '0', PERCENT, $this->branchLocation($branchId))], [], $payments, SALE_TYPE_INVOICE, $customerId ?? -1);
+    }
+
+    /**
+     * A draft invoice of the reference lines, or of one service line, saved the way the register
+     * suspends an invoice: its taxes are not stored.
+     */
+    protected function draftInvoice(?array $items = null, ?int $customerId = null): int
+    {
+        return $this->save($items ?? $this->referenceInvoice()['items'], [], [], SALE_TYPE_INVOICE, $customerId ?? -1, true, null, SUSPENDED);
+    }
+
+    /**
+     * Suspended rows of one kind put straight into the table, for what needs many of them at once.
+     *
+     * @return list<int> Their ids, oldest first.
+     */
+    protected function suspendedRows(int $count, int $type, int $branchId = 1): array
+    {
+        $db     = $this->accountingDb();
+        $marker = 'rows-' . uniqid();
+        $rows   = [];
+
+        for ($i = 0; $i < $count; $i++) {
+            $rows[] = [
+                'sale_time'    => date('Y-m-d H:i:s'),
+                'customer_id'  => null,
+                'employee_id'  => $this->employeeId,
+                'comment'      => $marker,
+                'sale_status'  => SUSPENDED,
+                'sale_type'    => $type,
+                'branch_id'    => $branchId,
+                'delivered'    => 1,
+                'quote_status' => $type === SALE_TYPE_QUOTE ? QuoteStatus::Open->value : null,
+            ];
+        }
+
+        $db->table('sales')->insertBatch($rows);
+
+        $ids = array_map('intval', array_column($db->table('sales')->select('sale_id')->where('comment', $marker)->orderBy('sale_id', 'ASC')->get()->getResultArray(), 'sale_id'));
+
+        $this->saleIds = [...$this->saleIds, ...$ids];
+
+        return $ids;
+    }
+
+    /**
+     * A quote of the reference lines in the state given, or open when none is.
+     */
+    protected function quote(?QuoteStatus $status = null, ?array $items = null, ?int $customerId = null): int
+    {
+        return $this->save($items ?? $this->referenceInvoice()['items'], [], [], SALE_TYPE_QUOTE, $customerId ?? -1, true, null, SUSPENDED, NEW_ENTRY, null, ReturnDocument::CreditNote, null, null, $status);
+    }
+
+    /**
+     * Lets the seller of the test work in every branch, as an employee of the books does.
+     */
+    protected function allowEmployeeEverywhere(): void
+    {
+        $this->accountingDb()->table('grants')->ignore(true)->insert(['permission_id' => BranchGuard::ALL_BRANCHES, 'person_id' => $this->employeeId, 'menu_group' => '--']);
     }
 
     /**

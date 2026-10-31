@@ -69,10 +69,10 @@ class Tax_libTest extends CIUnitTestCase
         $this->assertSame('exact', $case['classification']);
     }
 
-    private function taxLib(bool $taxIncluded): Tax_lib
+    private function taxLib(bool $taxIncluded, bool $destinationBased = false): Tax_lib
     {
         $ospos           = new OSPOS();
-        $ospos->settings = ['cash_rounding_code' => '', 'cash_decimals' => 2, 'currency_decimals' => 2, 'tax_decimals' => 3, 'quantity_decimals' => 2, 'tax_included' => $taxIncluded ? '1' : '0', 'use_destination_based_tax' => '0'];
+        $ospos->settings = ['cash_rounding_code' => '', 'cash_decimals' => 2, 'currency_decimals' => 2, 'tax_decimals' => 3, 'quantity_decimals' => 2, 'tax_included' => $taxIncluded ? '1' : '0', 'use_destination_based_tax' => $destinationBased ? '1' : '0', 'default_tax_code' => 3, 'default_tax_category' => 1];
         Factories::injectMock('config', OSPOS::class, $ospos);
 
         foreach ([Attribute::class, Dinner_table::class, Item::class, Item_kit_items::class, Item_quantity::class, Sale::class, Stock_location::class, Tax::class, Tax_category::class, Tax_code::class, Tax_jurisdiction::class] as $model) {
@@ -80,8 +80,21 @@ class Tax_libTest extends CIUnitTestCase
         }
 
         $customer = $this->createStub(Customer::class);
-        $customer->method('get_info')->willReturn((object) ['taxable' => 1, 'city' => '', 'state' => '', 'sales_tax_code_id' => 0]);
+        $customer->method('get_info')->willReturnCallback(static fn ($customerId): object => (object) ['taxable' => (int) $customerId === 5 ? 0 : 1, 'city' => '', 'state' => '', 'sales_tax_code_id' => (int) $customerId === 8 ? 7 : 0]);
         Factories::injectMock('models', Customer::class, $customer);
+
+        $tax = $this->createStub(Tax::class);
+        $tax->method('get_taxes')->willReturnCallback(static fn (int $taxCodeId, int $taxCategoryId): array => [[
+            'cascade_sequence'     => 0,
+            'tax_rate'             => $taxCodeId === 7 ? '10' : '20',
+            'tax_rounding_code'    => Rounding_mode::HALF_UP,
+            'tax_type'             => Tax_lib::TAX_TYPE_EXCLUDED,
+            'tax_group'            => 'VAT',
+            'rate_jurisdiction_id' => null,
+            'rate_tax_category_id' => $taxCategoryId,
+            'tax_group_sequence'   => 1,
+        ]]);
+        Factories::injectMock('models', Tax::class, $tax);
 
         $itemTaxes = $this->createStub(Item_taxes::class);
         $itemTaxes->method('get_info')->willReturn([['name' => 'VAT', 'percent' => '15']]);
@@ -160,6 +173,55 @@ class Tax_libTest extends CIUnitTestCase
         $taxes = $this->taxLib(false)->get_taxes($cart);
 
         $this->assertSame('-9.113', bcadd($taxes[1][0]['item_tax_amount'], '0', 3));
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function oneLine(): array
+    {
+        return [1 => ['item_id' => 3, 'line' => 1, 'quantity' => '1', 'price' => '100', 'discount' => '0', 'discount_type' => PERCENT, 'tax_category_id' => null]];
+    }
+
+    public function testGetTaxes_TaxesTheCustomerItIsGivenAndNotTheOneOfTheRegister(): void
+    {
+        $taxLib = $this->taxLib(false);
+
+        $cart = $this->cart('', '');
+        $this->assertNotSame([[], []], $taxLib->get_taxes($cart), 'the walk-in customer of the register is taxed');
+
+        $cart = $this->cart('', '');
+        $this->assertSame([[], []], $taxLib->get_taxes($cart, -1, 5), 'a customer who is not taxable is not, whoever the register holds');
+    }
+
+    public function testGetTaxes_TaxesWithTheCodeOfTheCustomerItIsGivenInTheModeItIsGiven(): void
+    {
+        $taxLib = $this->taxLib(false, true);
+
+        $cart  = $this->oneLine();
+        $taxes = $taxLib->get_taxes($cart, -1, 8, 'sale_invoice');
+
+        $this->assertSame('10.000', bcadd($taxes[1][0]['item_tax_amount'], '0', 3), 'an invoice takes the code of the customer');
+    }
+
+    public function testGetTaxes_TaxesWithTheDefaultCodeInTheSaleModeWhateverCodeTheCustomerHas(): void
+    {
+        $taxLib = $this->taxLib(false, true);
+
+        $cart  = $this->oneLine();
+        $taxes = $taxLib->get_taxes($cart, -1, 8, 'sale');
+
+        $this->assertSame('20.000', bcadd($taxes[1][0]['item_tax_amount'], '0', 3));
+    }
+
+    public function testGetTaxes_TaxesInTheModeOfTheRegisterWhenItIsGivenNone(): void
+    {
+        $taxLib = $this->taxLib(false, true);
+
+        $cart  = $this->oneLine();
+        $taxes = $taxLib->get_taxes($cart, -1, 8);
+
+        $this->assertSame('20.000', bcadd($taxes[1][0]['item_tax_amount'], '0', 3), 'the register of the test sells, and a sale takes the default code');
     }
 
     public function testGetIncludedTax_WorksTheTaxOutOfWhatIsLeftAfterTheShare(): void

@@ -35,6 +35,7 @@ final class MigrationChecks extends CheckGroup
         'InvoiceDatesAndPaymentTerms'      => [self::HEAVY, 'adds the invoice date, the payment terms and the due date to sales and receivings'],
         'PurchaseTaxesAndSupplierRegistry' => [self::HEAVY, 'adds the purchase tax columns to items and suppliers.commercial_registry'],
         'CustomerOpenings'                 => [self::HEAVY, 'adds customer_credit_applications.opening_id and lets invoice_sale_id be empty, which rebuilds that table; creates customer_openings'],
+        'QuoteLifecycle'                   => [self::HEAVY, 'adds sales.quote_status and sales.source_quote_id; down() refuses once a quote carries a state'],
     ];
 
     public function run(): array

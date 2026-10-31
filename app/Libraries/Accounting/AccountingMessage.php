@@ -10,7 +10,7 @@ use App\Libraries\Organization\BranchException;
  */
 final class AccountingMessage
 {
-    private const ARGUMENTS = ['line', 'max', 'code', 'name', 'debit', 'credit', 'date', 'until', 'scope_name', 'count', 'difference', 'min'];
+    private const ARGUMENTS = ['line', 'max', 'code', 'name', 'debit', 'credit', 'date', 'until', 'scope_name', 'count', 'difference', 'min', 'from', 'to'];
 
     public static function of(AccountingException|BranchException|PostingException $exception): string
     {

@@ -8,11 +8,15 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\CustomerLedger;
+use App\Libraries\Accounting\DraftInvoice;
 use App\Libraries\Accounting\InvoiceTiming;
 use App\Libraries\Accounting\PaymentStatus;
 use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\Accounting\QuoteLifecycle;
+use App\Libraries\Accounting\QuoteStatus;
 use App\Libraries\Accounting\ReturnDocument;
+use App\Libraries\Accounting\SaleDocumentList;
 use App\Libraries\Accounting\SalePosting;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
@@ -20,6 +24,7 @@ use App\Libraries\InvoiceDiscount;
 use App\Libraries\InvoiceDiscountProblem;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
+use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Pdf_lib;
 use App\Libraries\Sale_lib;
@@ -310,6 +315,7 @@ class Sales extends Secure_Controller
         if ($mode !== $this->sale_lib->get_mode()) {
             $this->sale_lib->clearInvoiceDiscount();
             $this->sale_lib->clearReturnDocument();
+            $this->sale_lib->clearQuoteSource();
         }
 
         $this->sale_lib->set_mode($mode);
@@ -611,6 +617,233 @@ class Sales extends Secure_Controller
         }
 
         return $this->response->setJSON(['success' => true, 'message' => lang('Sales.delivery_confirmed'), 'id' => $saleId]);
+    }
+
+    /**
+     * The answer that refuses an action on a draft or a quote: the employee may not open sales
+     * documents, or the document belongs to a branch the employee does not work in. Null when
+     * the action may go on.
+     */
+    private function documentRefusal(int $saleId): ?ResponseInterface
+    {
+        if (!$this->employee->has_grant('reports_sales', (int) $this->session->get('person_id'))) {
+            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);
+        }
+
+        if ($this->outsideBranchScope($saleId)) {
+            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.branch_not_allowed')]);
+        }
+
+        return null;
+    }
+
+    /**
+     * Lists the draft invoices and the quotes that are waiting, of the branches the employee works
+     * in. Used in app/Views/sales/register.php
+     *
+     * @noinspection PhpUnused
+     */
+    public function getDocuments(): ResponseInterface|string
+    {
+        $personId = (int) $this->session->get('person_id');
+
+        if (!$this->employee->has_grant('reports_sales', $personId)) {
+            return redirect()->to('no_access/sales/reports_sales');
+        }
+
+        $guard     = new BranchGuard();
+        $lists     = new SaleDocumentList();
+        $branchIds = $guard->allowedBranchIds($personId);
+        $raw       = $this->request->getGet('quote_status');
+        $only      = is_string($raw) && preg_match('/^-?[0-9]$/', $raw) === 1 ? QuoteStatus::tryFrom((int) $raw) : null;
+
+        return view('sales/documents', [
+            'drafts'       => $lists->drafts($branchIds),
+            'quotes'       => $lists->quotes($branchIds, $only),
+            'quote_filter' => $only,
+            'statuses'     => QuoteStatus::cases(),
+            'show_branch'  => $guard->seesBranches($personId),
+        ]);
+    }
+
+    /**
+     * The page of a draft invoice or a quote: what it holds, what it comes to now, and what may be
+     * done with it. Used in app/Views/sales/documents.php
+     *
+     * @noinspection PhpUnused
+     */
+    public function getDocument(int $saleId): ResponseInterface|string
+    {
+        $personId = (int) $this->session->get('person_id');
+
+        if (!$this->employee->has_grant('reports_sales', $personId)) {
+            return redirect()->to('no_access/sales/reports_sales');
+        }
+
+        if ($this->outsideBranchScope($saleId)) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        $drafts      = new DraftInvoice();
+        $quotes      = new QuoteLifecycle();
+        $isDraft     = $drafts->isDraft($saleId);
+        $quoteStatus = $quotes->statusOf($saleId);
+        $header      = $this->sale->getDocumentHeader($saleId);
+
+        if ((!$isDraft && $quoteStatus === null) || $header === null) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        $preview      = $drafts->preview($saleId);
+        $accountingOn = (new AccountingSettings())->isEnabled();
+        $number       = $isDraft ? (string) ($header->invoice_number ?? '') : (string) ($header->quote_number ?? '');
+
+        if ($number === '') {
+            $number = $isDraft || $quoteStatus === QuoteStatus::Draft ? DraftInvoice::label($saleId) : '#' . $saleId;
+        }
+
+        $invoiceId = $quotes->invoiceOf($saleId);
+
+        return view('sales/document', [
+            'kind'            => $isDraft ? 'draft' : 'quote',
+            'header'          => $header,
+            'number'          => $number,
+            'lines'           => $this->sale->get_sale_items_ordered($saleId)->getResult(),
+            'figures'         => $preview === null ? null : $drafts->figures($preview),
+            'quote_status'    => $quoteStatus,
+            'next_statuses'   => $quoteStatus?->next() ?? [],
+            'invoice_id'      => $invoiceId,
+            'invoice_number'  => $invoiceId === null ? null : $this->sale->getInvoiceNumber($invoiceId),
+            'accounting_on'   => $accountingOn,
+            'can_type_date'   => $accountingOn && $this->mayTypeInvoiceDate(),
+            'can_delete'      => $this->employee->has_grant('sales_delete', $personId),
+            'invoice_enabled' => (bool) $this->config['invoice_enable'],
+            'today'           => date('Y-m-d'),
+        ]);
+    }
+
+    /**
+     * Issues a draft invoice: it takes the next number of the invoice sequence, the day typed on it
+     * and the terms, and is posted. Only a POST changes anything, and the token of the page goes with
+     * it. Used in app/Views/sales/document.php
+     *
+     * @noinspection PhpUnused
+     */
+    public function postIssue(int $saleId = NEW_ENTRY): ResponseInterface
+    {
+        $refusal = $this->documentRefusal($saleId);
+
+        if ($refusal !== null) {
+            return $refusal;
+        }
+
+        $personId = (int) $this->session->get('person_id');
+
+        if ((new DraftInvoice())->carriesInvoiceDiscount($saleId) && !$this->mayGiveInvoiceDiscount()) {
+            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized'), 'id' => $saleId]);
+        }
+
+        $date  = $this->request->getPost('invoice_date');
+        $terms = $this->request->getPost('payment_terms');
+        $date  = is_array($date) ? 'not a day' : trim((string) $date);
+        $terms = is_array($terms) ? 'not a number' : trim((string) $terms);
+
+        $invoiceNumber = null;
+        $format        = (string) ($this->config['sales_invoice_format'] ?? '');
+
+        if ($format !== '' && !(new DocumentNumbering())->isEnabled(DocumentType::SalesInvoice) && ($this->sale->getInvoiceNumber($saleId) ?? '') === '') {
+            $invoiceNumber = $this->token_lib->render($format);
+
+            if ($this->sale->check_invoice_number_exists($invoiceNumber)) {
+                return $this->response->setJSON(['success' => false, 'message' => lang('Sales.invoice_number_duplicate', [$invoiceNumber]), 'id' => $saleId]);
+            }
+        }
+
+        $result = $this->sale->issueDraft($saleId, $personId, $invoiceNumber, $date === '' ? null : $date, $terms === '' ? null : $terms);
+
+        $message = match (true) {
+            $result === ACCOUNTING_FAILED        => $this->accountingFailureMessage(),
+            $result === INVOICE_DISCOUNT_INVALID => $this->invoiceDiscountMessage(),
+            $result === INSUFFICIENT_STOCK       => lang('Sales.item_out_of_stock'),
+            $result < 1                          => lang('Sales.draft_issue_failed'),
+            default                              => null,
+        };
+
+        if ($message !== null) {
+            return $this->response->setJSON(['success' => false, 'message' => $message, 'id' => $saleId]);
+        }
+
+        return $this->response->setJSON(['success' => true, 'message' => lang('Sales.draft_issued'), 'id' => $saleId, 'redirect' => site_url('sales/invoice/' . $saleId)]);
+    }
+
+    /**
+     * Moves a quote to another status. The transition is checked by the books of quotes and not by
+     * the page. Used in app/Views/sales/document.php
+     *
+     * @noinspection PhpUnused
+     */
+    public function postQuoteStatus(int $saleId = NEW_ENTRY): ResponseInterface
+    {
+        $refusal = $this->documentRefusal($saleId);
+
+        if ($refusal !== null) {
+            return $refusal;
+        }
+
+        $personId = (int) $this->session->get('person_id');
+
+        $raw = $this->request->getPost('quote_status');
+        $to  = is_string($raw) && preg_match('/^-?[0-9]$/', $raw) === 1 ? QuoteStatus::tryFrom((int) $raw) : null;
+
+        if ($to === null) {
+            return $this->response->setJSON(['success' => false, 'message' => lang('Sales.quote_status_invalid'), 'id' => $saleId]);
+        }
+
+        try {
+            (new QuoteLifecycle())->change($saleId, $to, $personId);
+        } catch (AccountingException|BranchException $refusal) {
+            return $this->response->setJSON(['success' => false, 'message' => AccountingMessage::of($refusal), 'id' => $saleId]);
+        }
+
+        return $this->response->setJSON(['success' => true, 'message' => lang('Sales.quote_status_changed'), 'id' => $saleId]);
+    }
+
+    /**
+     * Fills the register with an invoice made from a quote. Nothing is saved and nothing is posted:
+     * the quote is converted when the invoice is saved. Used in app/Views/sales/document.php
+     *
+     * @noinspection PhpUnused
+     */
+    public function postConvertQuote(int $saleId = NEW_ENTRY): ResponseInterface
+    {
+        $refusal = $this->documentRefusal($saleId);
+
+        if ($refusal !== null) {
+            return $refusal;
+        }
+
+        $personId = (int) $this->session->get('person_id');
+
+        if (!$this->config['invoice_enable']) {
+            return $this->response->setJSON(['success' => false, 'message' => lang('Sales.quote_convert_unavailable'), 'id' => $saleId]);
+        }
+
+        $quotes = new QuoteLifecycle();
+        $status = $quotes->statusOf($saleId);
+
+        if ($status === null) {
+            return $this->response->setJSON(['success' => false, 'message' => lang('Accounting.error_quote_not_found'), 'id' => $saleId]);
+        }
+
+        if (!$status->canConvert()) {
+            $reason = $status->isLocked() ? lang('Accounting.error_quote_locked') : lang('Accounting.error_quote_not_convertible', [lang($status->languageKey())]);
+
+            return $this->response->setJSON(['success' => false, 'message' => $reason, 'id' => $saleId]);
+        }
+
+        $this->sale_lib->prepareInvoiceFromQuote($saleId);
+
+        return $this->response->setJSON(['success' => true, 'message' => lang('Sales.quote_convert_prepared'), 'redirect' => site_url('sales')]);
     }
 
     /**
@@ -1144,7 +1377,7 @@ class Sales extends Secure_Controller
                 $invoiceView = $invoiceType;
 
                 // Save the data to the sales table
-                $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, $this->sale_lib->is_delivered(), null, $invoiceDiscount, invoiceDate: $this->sale_lib->getInvoiceDate(), paymentTerms: $this->sale_lib->getPaymentTerms());
+                $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, $this->sale_lib->is_delivered(), null, $invoiceDiscount, invoiceDate: $this->sale_lib->getInvoiceDate(), paymentTerms: $this->sale_lib->getPaymentTerms(), quoteSourceId: $this->sale_lib->getQuoteSource());
                 $data['sale_id'] = 'POS ' . $data['sale_id_num'];
 
                 // Resort and filter cart lines for printing
@@ -1963,7 +2196,7 @@ class Sales extends Secure_Controller
     {
         $failure = $this->sale->accountingFailure();
 
-        return $failure instanceof AccountingException || $failure instanceof PostingException
+        return $failure instanceof AccountingException || $failure instanceof PostingException || $failure instanceof BranchException
             ? AccountingMessage::of($failure)
             : lang('Sales.transaction_failed');
     }
@@ -2634,7 +2867,7 @@ class Sales extends Secure_Controller
             return $this->reload(['error' => lang('Sales.not_authorized')]);
         }
 
-        $saleIdNum = $this->sale->save_value($saleId, $saleStatus, $cart, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTable, $salesTaxes, $this->sale_lib->is_delivered(), null, $invoiceDiscount, $this->sale_lib->getReturnDocument(), $this->sale_lib->getInvoiceDate(), $this->sale_lib->getPaymentTerms());
+        $saleIdNum = $this->sale->save_value($saleId, $saleStatus, $cart, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTable, $salesTaxes, $this->sale_lib->is_delivered(), null, $invoiceDiscount, $this->sale_lib->getReturnDocument(), $this->sale_lib->getInvoiceDate(), $this->sale_lib->getPaymentTerms(), $saleType === SALE_TYPE_QUOTE ? QuoteStatus::Draft : null, $saleType === SALE_TYPE_INVOICE ? $this->sale_lib->getQuoteSource() : null);
 
         if ($saleIdNum === INSUFFICIENT_GIFTCARD_BALANCE) {
             $data['error'] = lang('Sales.insufficient_giftcard_balance');
@@ -2663,7 +2896,11 @@ class Sales extends Secure_Controller
     {
         $data = [];
         $customer_id = $this->sale_lib->get_customer();
-        $data['suspended_sales'] = $this->sale->get_all_suspended($customer_id);
+        $allowed = (new BranchGuard())->allowedBranchIds((int) $this->session->get('person_id'));
+        $data['suspended_sales'] = array_values(array_filter(
+            $this->sale->get_all_suspended($customer_id),
+            static fn (array $sale): bool => $allowed === null || in_array((int) $sale['branch_id'], $allowed, true),
+        ));
         return view('sales/suspended', $data);
     }
 
@@ -2684,6 +2921,14 @@ class Sales extends Secure_Controller
         }
 
         $saleId = $this->request->getPost('suspended_sale_id', FILTER_SANITIZE_NUMBER_INT);
+
+        if ($saleId > 0 && $this->outsideBranchScope((int) $saleId)) {
+            return $this->reload(['error' => lang('Sales.branch_not_allowed')]);
+        }
+
+        if ($saleId > 0 && (new QuoteLifecycle())->statusOf((int) $saleId)?->isLocked() === true) {
+            return $this->reload(['error' => lang('Accounting.error_quote_locked')]);
+        }
 
         if ($saleId > 0 && $this->sale->getSaleStatus($saleId) == SUSPENDED) {
             $this->sale_lib->clear_all();
