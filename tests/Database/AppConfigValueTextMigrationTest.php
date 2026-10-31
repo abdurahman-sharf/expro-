@@ -102,16 +102,23 @@ class AppConfigValueTextMigrationTest extends CIUnitTestCase
         $this->assertSame($charset, $this->column()->CHARACTER_SET_NAME, 'The words of a setting keep the character set they were kept in');
     }
 
-    public function testUp_LeavesAColumnThatIsAlreadyTextAsItIs(): void
+    public function testUp_LeavesAColumnThatIsAlreadyTextWithItsOwnCharacterSetAsItIs(): void
     {
-        (new AppConfigValueText())->up();
+        $table = $this->accountingDb()->prefixTable('app_config');
 
-        $before = $this->settings();
+        $this->accountingDb()->query("ALTER TABLE `{$table}` MODIFY COLUMN `value` TEXT CHARACTER SET utf8mb3 NOT NULL");
 
-        (new AppConfigValueText())->up();
+        try {
+            $before = $this->settings();
 
-        $this->assertSame('text', $this->type());
-        $this->assertSame($before, $this->settings());
+            (new AppConfigValueText())->up();
+
+            $this->assertSame('text', $this->type());
+            $this->assertSame('utf8mb3', $this->column()->CHARACTER_SET_NAME, 'A column that already holds a list is not altered');
+            $this->assertSame($before, $this->settings());
+        } finally {
+            $this->accountingDb()->query("ALTER TABLE `{$table}` MODIFY COLUMN `value` TEXT NOT NULL");
+        }
     }
 
     public function testDown_KeepsTheColumnAsItIsSoNoLongValueIsCut(): void

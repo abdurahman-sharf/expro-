@@ -482,7 +482,7 @@
   {
     "name": "W52 a save that changes nothing writes nothing",
     "file": "app/Libraries/Accounting/CashFlowSettings.php",
-    "find": "        if ($this->arrays($before) === $this->arrays($after)) {\n            return;\n        }",
+    "find": "            if ($this->arrays($before) === $this->arrays($after)) {\n                return;\n            }",
     "replace": "",
     "tests": [
       "tests/Libraries/Accounting/CashFlowSettingsTest.php"
@@ -627,8 +627,8 @@
   {
     "name": "W68 an employee that is not a number is nobody in particular",
     "file": "app/Controllers/AccountingReports.php",
-    "find": "'employee'      => ctype_digit($employee) && (int) $employee > 0 ? (int) $employee : null,",
-    "replace": "'employee'      => (int) $employee,",
+    "find": "'employee'     => ctype_digit($employee) && (int) $employee > 0 ? (int) $employee : null,",
+    "replace": "'employee'     => (int) $employee,",
     "tests": [
       "tests/Controllers/AccountingReportsControllerTest.php"
     ]
@@ -645,8 +645,8 @@
   {
     "name": "W70 the employee column can be hidden",
     "file": "app/Controllers/AccountingReports.php",
-    "find": "'hide_employee' => $this->flag('hide_employee'),",
-    "replace": "'hide_employee' => false,",
+    "find": "'hideEmployee' => $this->flag('hide_employee'),",
+    "replace": "'hideEmployee' => false,",
     "tests": [
       "tests/Controllers/AccountingReportsControllerTest.php"
     ]
@@ -672,8 +672,8 @@
   {
     "name": "W73 the cash flow is saved as the employee who asked",
     "file": "app/Controllers/AccountingCashFlow.php",
-    "find": "$this->settings->save(['lines' => is_array($lines) ? array_values($lines) : []], $this->employeeId());",
-    "replace": "$this->settings->save(['lines' => is_array($lines) ? array_values($lines) : []], null);",
+    "find": "$this->settings->save(['lines' => is_array($lines) ? array_values($lines) : []], $this->employeeId(), is_string($version) ? $version : '');",
+    "replace": "$this->settings->save(['lines' => is_array($lines) ? array_values($lines) : []], null, is_string($version) ? $version : '');",
     "tests": [
       "tests/Controllers/AccountingCashFlowControllerTest.php"
     ]
@@ -714,6 +714,265 @@
     "tests": [
       "tests/Controllers/AccountingReportsControllerTest.php",
       "tests/Controllers/AccountingCashFlowControllerTest.php"
+    ]
+  },
+  {
+    "name": "W78 a page of the lines that was opened before another save is refused",
+    "file": "app/Libraries/Accounting/CashFlowSettings.php",
+    "find": "if ($version !== null && ! hash_equals(sha1($text), $version)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/CashFlowSettingsTest.php"
+    ]
+  },
+  {
+    "name": "W79 a request that sends no version of the lines is refused",
+    "file": "app/Controllers/AccountingCashFlow.php",
+    "find": "is_string($version) ? $version : '');",
+    "replace": "is_string($version) ? $version : null);",
+    "tests": [
+      "tests/Controllers/AccountingCashFlowControllerTest.php"
+    ]
+  },
+  {
+    "name": "W80 a setup larger than the limit is refused",
+    "file": "app/Libraries/Accounting/CashFlowSettings.php",
+    "find": "if (strlen($json) > $this->maxBytes) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/CashFlowSettingsTest.php"
+    ]
+  },
+  {
+    "name": "W81 a title that is not valid UTF-8 is refused",
+    "file": "app/Libraries/Accounting/CashFlowSettings.php",
+    "find": "if (! is_string($title) || ! mb_check_encoding($title, 'UTF-8')) {",
+    "replace": "if (! is_string($title)) {",
+    "tests": [
+      "tests/Libraries/Accounting/CashFlowSettingsTest.php"
+    ]
+  },
+  {
+    "name": "W82 a title that is not text is refused",
+    "file": "app/Libraries/Accounting/CashFlowSettings.php",
+    "find": "if (! is_string($title) || ! mb_check_encoding($title, 'UTF-8')) {",
+    "replace": "if (! mb_check_encoding(is_string($title) ? $title : 'x', 'UTF-8')) {",
+    "tests": [
+      "tests/Libraries/Accounting/CashFlowSettingsTest.php",
+      "tests/Controllers/AccountingCashFlowControllerTest.php"
+    ]
+  },
+  {
+    "name": "W83 what was written is read back before it is kept",
+    "file": "app/Libraries/Accounting/CashFlowSettings.php",
+    "find": "if ($this->config->get_value(self::KEY) !== $json) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/CashFlowSettingsTest.php"
+    ]
+  },
+  {
+    "name": "W84 the setting and its audit entry are written in one transaction",
+    "file": "app/Libraries/Accounting/CashFlowSettings.php",
+    "find": "$this->transactional(function () use ($input, $employeeId, $version): void {",
+    "replace": "(static function (callable $work): void { $work(); })(function () use ($input, $employeeId, $version): void {",
+    "tests": [
+      "tests/Libraries/Accounting/CashFlowSettingsTest.php"
+    ]
+  },
+  {
+    "name": "W85 the setting is read with its row locked, from what is committed now",
+    "file": "app/Libraries/Accounting/CashFlowSettings.php",
+    "find": " WHERE `key` = ? FOR UPDATE'",
+    "replace": " WHERE `key` = ?'",
+    "tests": [
+      "tests/Libraries/Accounting/CashFlowSettingsTest.php"
+    ]
+  },
+  {
+    "name": "W86 the empty choice that comes with a list of accounts is no account",
+    "file": "app/Libraries/Accounting/CashFlowSettings.php",
+    "find": "static fn (mixed $account): bool => $account !== ''",
+    "replace": "static fn (mixed $account): bool => true",
+    "tests": [
+      "tests/Libraries/Accounting/CashFlowSettingsTest.php",
+      "tests/Controllers/AccountingCashFlowControllerTest.php"
+    ]
+  },
+  {
+    "name": "W87 the form sends the empty choice with every list of accounts",
+    "file": "app/Views/accounting_statements/cash_flow_settings.php",
+    "find": "<input type=\"hidden\" name=\"<?= $name ?>[accounts][]\" value=\"\">",
+    "replace": "",
+    "tests": [
+      "tests/Controllers/AccountingCashFlowControllerTest.php"
+    ],
+    "all": true
+  },
+  {
+    "name": "W88 the form sends the version of the lines it shows",
+    "file": "app/Views/accounting_statements/cash_flow_settings.php",
+    "find": "<input type=\"hidden\" name=\"version\" value=\"<?= esc($version, 'attr') ?>\">",
+    "replace": "",
+    "tests": [
+      "tests/Controllers/AccountingCashFlowControllerTest.php"
+    ]
+  },
+  {
+    "name": "W89 every part of the setup table has a name for a screen reader",
+    "file": "app/Views/accounting_statements/cash_flow_settings.php",
+    "find": " aria-label=\"<?= esc(lang('Accounting_cash_flow.settings_section'), 'attr') ?>\"",
+    "replace": "",
+    "tests": [
+      "tests/Controllers/AccountingCashFlowControllerTest.php"
+    ],
+    "all": true
+  },
+  {
+    "name": "W90 the ledger is read in one snapshot",
+    "file": "app/Libraries/Accounting/AccountLedger.php",
+    "find": "return $this->transactional(fn (): AccountLedgerReport => $this->readStatement($scope, $accountId, $period, $limit, $offset, $employeeId));",
+    "replace": "return $this->readStatement($scope, $accountId, $period, $limit, $offset, $employeeId);",
+    "tests": [
+      "tests/Libraries/Accounting/AccountLedgerTest.php"
+    ]
+  },
+  {
+    "name": "W91 the ledger by account is read in one snapshot",
+    "file": "app/Libraries/Accounting/AccountLedger.php",
+    "find": "return $this->transactional(fn (): AccountLedgerBlocksReport => $this->readBlocks($scope, $accountId, $period, $display, $employeeId));",
+    "replace": "return $this->readBlocks($scope, $accountId, $period, $display, $employeeId);",
+    "tests": [
+      "tests/Libraries/Accounting/AccountLedgerTest.php"
+    ]
+  },
+  {
+    "name": "W92 the ledger file says its period",
+    "file": "app/Controllers/AccountingReports.php",
+    "find": "$this->csvRow($handle, $this->ledgerSummary(lang('Accounting_reports.csv_period') . ': ' . $this->periodText($period->from, $period->to), '', '', '', $hideEmployee));",
+    "replace": "",
+    "tests": [
+      "tests/Controllers/AccountingReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W93 the ledger file says its branches",
+    "file": "app/Controllers/AccountingReports.php",
+    "find": "$this->csvRow($handle, $this->ledgerSummary(lang('Accounting_reports.csv_branches') . ': ' . implode(' ', $scope->codes), '', '', '', $hideEmployee));",
+    "replace": "",
+    "tests": [
+      "tests/Controllers/AccountingReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W94 the ledger file says whose figures it holds",
+    "file": "app/Controllers/AccountingReports.php",
+    "find": "$label = $this->scopeLabel($scope);\n\n        if ($label !== null) {\n            $this->csvRow($handle, $this->ledgerSummary($label, '', '', '', $hideEmployee));\n        }",
+    "replace": "",
+    "tests": [
+      "tests/Controllers/AccountingReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W95 the file of the profit and loss says whose figures it holds",
+    "file": "app/Controllers/AccountingProfitLoss.php",
+    "find": "$this->csvNote($handle, $this->scopeLabel($report->scope));",
+    "replace": "",
+    "tests": [
+      "tests/Controllers/AccountingProfitLossControllerTest.php"
+    ],
+    "all": true
+  },
+  {
+    "name": "W96 the file of the cash flow says whose figures it holds",
+    "file": "app/Controllers/AccountingCashFlow.php",
+    "find": "$this->csvNote($handle, $this->scopeLabel($report->scope));",
+    "replace": "",
+    "tests": [
+      "tests/Controllers/AccountingCashFlowControllerTest.php"
+    ]
+  },
+  {
+    "name": "W97 the name of a block that looks like a formula is shown as text",
+    "file": "app/Controllers/AccountingReports.php",
+    "find": "$this->csvRow($handle, $this->ledgerSummary($block->name . ' ' . $block->code, '', '', '', $hideEmployee));",
+    "replace": "fputcsv($handle, $this->ledgerSummary($block->name . ' ' . $block->code, '', '', '', $hideEmployee), ',', '\"', '');",
+    "tests": [
+      "tests/Controllers/AccountingReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W98 the cash profit and the other movements are checked against the change of the treasuries",
+    "file": "app/Libraries/Accounting/CashProfitAndLossReport.php",
+    "find": "return bccomp(bcadd($this->profit, $this->otherTotal, 4), $this->cashChange, 4) === 0;",
+    "replace": "return true;",
+    "tests": [
+      "tests/Libraries/Accounting/CashProfitAndLossTest.php",
+      "tests/Controllers/AccountingProfitLossControllerTest.php"
+    ]
+  },
+  {
+    "name": "W99 the cash flow is checked against what the treasuries held",
+    "file": "app/Libraries/Accounting/CashFlowReport.php",
+    "find": "return bccomp(bcadd($this->cashOpening, $this->totalChange, 4), $this->cashClosing, 4) === 0;",
+    "replace": "return true;",
+    "tests": [
+      "tests/Libraries/Accounting/CashFlowTest.php",
+      "tests/Controllers/AccountingCashFlowControllerTest.php"
+    ]
+  },
+  {
+    "name": "W100 the screen of the cash profit warns when it does not tie",
+    "file": "app/Views/accounting_statements/profit_loss.php",
+    "find": "id=\"report_differs\"",
+    "replace": "id=\"report_unknown\"",
+    "tests": [
+      "tests/Controllers/AccountingProfitLossControllerTest.php"
+    ]
+  },
+  {
+    "name": "W101 the screen of the cash flow warns when it does not tie",
+    "file": "app/Views/accounting_statements/cash_flow.php",
+    "find": "id=\"report_differs\"",
+    "replace": "id=\"report_unknown\"",
+    "tests": [
+      "tests/Controllers/AccountingCashFlowControllerTest.php"
+    ]
+  },
+  {
+    "name": "W102 the file of the cash profit says when it does not tie",
+    "file": "app/Controllers/AccountingProfitLoss.php",
+    "find": "lang($report->ties() ? 'Accounting_profit_loss.ties' : 'Accounting_profit_loss.differs')",
+    "replace": "lang('Accounting_profit_loss.ties')",
+    "tests": [
+      "tests/Controllers/AccountingProfitLossControllerTest.php"
+    ]
+  },
+  {
+    "name": "W103 the file of the cash flow says when it does not tie",
+    "file": "app/Controllers/AccountingCashFlow.php",
+    "find": "lang($report->ties() ? 'Accounting_cash_flow.ties' : 'Accounting_cash_flow.differs')",
+    "replace": "lang('Accounting_cash_flow.ties')",
+    "tests": [
+      "tests/Controllers/AccountingCashFlowControllerTest.php"
+    ]
+  },
+  {
+    "name": "W104 the migration widens a value that was five hundred characters",
+    "file": "app/Database/Migrations/20271400000000_AppConfigValueText.php",
+    "find": "strtolower((string) $column->DATA_TYPE) !== 'text'",
+    "replace": "strtolower((string) $column->DATA_TYPE) === 'text'",
+    "tests": [
+      "tests/Database/AppConfigValueTextMigrationTest.php"
+    ]
+  },
+  {
+    "name": "W105 the migration does nothing to a column that is already text",
+    "file": "app/Database/Migrations/20271400000000_AppConfigValueText.php",
+    "find": "$column !== null && strtolower((string) $column->DATA_TYPE) !== 'text'",
+    "replace": "$column !== null",
+    "tests": [
+      "tests/Database/AppConfigValueTextMigrationTest.php"
     ]
   }
 ]
