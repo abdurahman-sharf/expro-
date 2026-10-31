@@ -287,7 +287,7 @@ final class RevenueVouchers
                 throw new AccountingException(AccountingError::TreasuryNotFound, "Treasury {$asked} does not exist.", ['treasury_id' => $asked]);
             }
 
-            if ((int) $treasury->active === 0 && $asked !== $stored?->treasury_id) {
+            if ((int) $treasury->active === 0) {
                 throw new AccountingException(AccountingError::TreasuryInactive, 'A receipt voucher cannot be received into a deactivated treasury.', ['treasury_id' => $asked]);
             }
 
