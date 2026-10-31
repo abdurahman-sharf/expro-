@@ -100,8 +100,9 @@ php spark migrate -n App
 ```
 
 - ترتيب التشغيل هو ترتيب أرقام الإصدارات، وكل خطوة تعتمد على ما قبلها. يطبع الأمر الترحيلات المنتظرة **فعلًا** في قاعدتك بوسمها.
-- **DATA** تعيد كتابة صفوف قائمة أو تصنّفها أو تضيف إلى الدليل: `BranchesFoundation` و`AccountingRouting` و`PurchasesAccounting` و`LegacyFixedPurchaseDiscount` و`BankAccounts` و`InterBranchTransfers`.
-- **HEAVY** تعدّل جدولًا كبيرًا فتُشغَّل في ساعة هادئة: `SalesAccounting` و`SalesReceivables` و`CostPrecision` و`ReceivingCostPrecision` و`Treasuries` و`StockTransfersBetweenBranches` و`ExpensesAccounting` و`PurchaseInvoiceDiscount` و`SalesInvoiceDiscount` و`CrossBranchPayments` و`RefundInvoice` و`SupplierPaymentDate` و`InvoiceDatesAndPaymentTerms` و`PurchaseTaxesAndSupplierRegistry`.
+- **DATA** تعيد كتابة صفوف قائمة أو تصنّفها أو تضيف إلى الدليل: `BranchesFoundation` و`AccountingRouting` و`PurchasesAccounting` و`LegacyFixedPurchaseDiscount` و`BankAccounts` و`InterBranchTransfers`، و`ChequesAndRevenues` (يفتح أربعة حسابات فرعية للشيكات في دليل قائم ويوجّه أربعة مفاتيح إليها، **ولا يفتح حسابًا إن غاب أبوه** `1206` أو `212` أو `54` فيُراجَع التوجيه بعده).
+- **HEAVY** تعدّل جدولًا كبيرًا فتُشغَّل في ساعة هادئة: `SalesAccounting` و`SalesReceivables` و`CostPrecision` و`ReceivingCostPrecision` و`Treasuries` و`StockTransfersBetweenBranches` و`ExpensesAccounting` و`PurchaseInvoiceDiscount` و`SalesInvoiceDiscount` و`CrossBranchPayments` و`RefundInvoice` و`SupplierPaymentDate` و`InvoiceDatesAndPaymentTerms` و`PurchaseTaxesAndSupplierRegistry`، و`CustomerOpenings` (يعيد بناء `customer_credit_applications` ليقبل `invoice_sale_id` الفراغ) و`QuoteLifecycle` (عمودان وفهرس على `sales`).
+- **إضافية بلا وسم** (تنشئ جداول وتسجّل صلاحيات ولا تعدّل جدولًا قائمًا، فيطبعها الأمر «إضافية»): `YearEndClosings` (جدول وصلاحية) و`CreditFlows` (ستة جداول وأربع صلاحيات). **و`AppConfigValueText` يوسّع عمود `app_config.value` إلى `TEXT` في جدول من نواة OSPOS وهو غير مصنَّف في `MigrationChecks::SENSITIVE` اليوم فيطبعه الأمر «إضافيًا» (`G-162`): عامله `HEAVY` بيدك (نسخة احتياطية من الجدول قبله ولا رجوع تلقائيًا) إلى أن يُضاف سطره.** الصلاحيات الجديدة كلها بلا منح، ويعدّد التقرير حاملي الحساسة منها في الخطوة 6.
 - أول دخول بعد النشر ينفّذ الترحيلات نفسها تلقائيًا: شغّلها هنا **عمدًا** قبل أن يدخل أحد.
 - توقّف عند أول فشل واستعد النسخة؛ لا تعدّل جدول `migrations` بيدك.
 
