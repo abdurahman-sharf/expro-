@@ -4858,7 +4858,7 @@ class SalesControllerTest extends CIUnitTestCase
 
         Database::connect()->table('sales')->where('sale_id', $open)->update(['quote_number' => 'Q26-0099']);
 
-        $rows = array_column($this->sales->get_all_suspended(), 'doc_id', 'sale_id');
+        $rows = array_column($this->sales->get_all_suspended(NEW_ENTRY), 'doc_id', 'sale_id');
 
         $this->assertSame('draft-' . $draft, $rows[$draft]);
         $this->assertSame('Q26-0099', $rows[$open]);
