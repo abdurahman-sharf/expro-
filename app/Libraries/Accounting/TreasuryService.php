@@ -2,6 +2,7 @@
 
 namespace App\Libraries\Accounting;
 
+use App\Libraries\Accounting\Bank\BankDirectory;
 use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
@@ -100,7 +101,7 @@ final class TreasuryService
     }
 
     /**
-     * @param array{name?: mixed, kind?: mixed, description?: mixed, branch_id?: mixed, bank_name?: mixed, account_number?: mixed, deposit_scope?: mixed, deposit_members?: mixed, withdraw_scope?: mixed, withdraw_members?: mixed} $input
+     * @param array{name?: mixed, kind?: mixed, description?: mixed, branch_id?: mixed, bank_code?: mixed, bank_name?: mixed, account_number?: mixed, deposit_scope?: mixed, deposit_members?: mixed, withdraw_scope?: mixed, withdraw_members?: mixed} $input
      *
      * @throws AccountingException|BranchException|PostingException
      */
@@ -129,6 +130,7 @@ final class TreasuryService
                 'name'           => $name,
                 'kind'           => $kind,
                 'bank_name'      => $bank['bank_name'],
+                'bank_code'      => $bank['bank_code'],
                 'account_number' => $bank['account_number'],
                 'description'    => $description,
                 'created_by'     => $employeeId,
@@ -148,7 +150,7 @@ final class TreasuryService
      * A treasury that changes between cash and bank takes its account to the main account of the
      * other: only its place in the chart changes, so its balance and its entries stay as they are.
      *
-     * @param array{name?: mixed, kind?: mixed, description?: mixed, bank_name?: mixed, account_number?: mixed, deposit_scope?: mixed, deposit_members?: mixed, withdraw_scope?: mixed, withdraw_members?: mixed} $input
+     * @param array{name?: mixed, kind?: mixed, description?: mixed, bank_code?: mixed, bank_name?: mixed, account_number?: mixed, deposit_scope?: mixed, deposit_members?: mixed, withdraw_scope?: mixed, withdraw_members?: mixed} $input
      *
      * @throws AccountingException|BranchException
      */
@@ -182,7 +184,7 @@ final class TreasuryService
             $this->accounts->rename(EntityAccountService::TREASURY, $treasuryId, $name, $employeeId);
             $this->scopes->apply($treasuryId, $scopes, $employeeId, (int) $treasury->branch_id);
             $this->audit->write('treasury', $treasuryId, 'updated', $employeeId, JournalOrigin::User, [
-                'before' => ['name' => $treasury->name, 'kind' => $treasury->kind, 'description' => $treasury->description, 'bank_name' => $treasury->bank_name, 'account_number' => $treasury->account_number],
+                'before' => ['name' => $treasury->name, 'kind' => $treasury->kind, 'description' => $treasury->description, 'bank_name' => $treasury->bank_name, 'bank_code' => $treasury->bank_code ?? null, 'account_number' => $treasury->account_number],
                 'after'  => ['name' => $name, 'kind' => $kind, 'description' => $description] + $bank,
             ], (int) $treasury->branch_id);
         });
@@ -759,22 +761,35 @@ final class TreasuryService
     }
 
     /**
-     * The name of the bank and the number of the account of a bank account, which a cash treasury
-     * does not have.
+     * The bank, the name of the bank and the number of the account of a bank account, which a cash
+     * treasury does not have. A bank picked from the directory is kept by its code and by its English
+     * name; a bank that is not in the directory, and every bank account opened before the directory,
+     * keeps the name as it was typed and has no code.
      *
      * @param array<string, mixed> $input
      *
-     * @return array{bank_name: ?string, account_number: ?string}
+     * @return array{bank_name: ?string, bank_code: ?string, account_number: ?string}
      *
      * @throws AccountingException
      */
     private function bankDetails(string $kind, array $input): array
     {
         if ($kind !== self::BANK) {
-            return ['bank_name' => null, 'account_number' => null];
+            return ['bank_name' => null, 'bank_code' => null, 'account_number' => null];
         }
 
-        $bankName = is_string($input['bank_name'] ?? null) ? trim($input['bank_name']) : '';
+        $code = is_string($input['bank_code'] ?? null) ? trim($input['bank_code']) : '';
+
+        if ($code !== '') {
+            $bankName = BankDirectory::storedNameOf($code);
+
+            if ($bankName === null) {
+                throw new AccountingException(AccountingError::BankDirectoryCodeInvalid, 'The bank is not in the directory.', ['code' => $code]);
+            }
+        } else {
+            $code     = null;
+            $bankName = is_string($input['bank_name'] ?? null) ? trim($input['bank_name']) : '';
+        }
 
         if ($bankName === '' || mb_strlen($bankName) > self::BANK_MAX) {
             throw new AccountingException(AccountingError::TreasuryBankNameInvalid, 'A bank account needs the name of its bank.', ['max' => self::BANK_MAX]);
@@ -786,11 +801,11 @@ final class TreasuryService
             throw new AccountingException(AccountingError::TreasuryAccountNumberInvalid, 'A bank account needs its account number.', ['min' => self::NUMBER_MIN, 'max' => self::NUMBER_MAX]);
         }
 
-        return ['bank_name' => $bankName, 'account_number' => $number];
+        return ['bank_name' => $bankName, 'bank_code' => $code, 'account_number' => $number];
     }
 
     /**
-     * @param array{bank_name: ?string, account_number: ?string} $bank
+     * @param array{bank_name: ?string, bank_code: ?string, account_number: ?string} $bank
      *
      * @throws AccountingException
      */

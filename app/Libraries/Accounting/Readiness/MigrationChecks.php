@@ -38,6 +38,7 @@ final class MigrationChecks extends CheckGroup
         'QuoteLifecycle'                   => [self::HEAVY, 'adds sales.quote_status and sales.source_quote_id; down() refuses once a quote carries a state'],
         'AppConfigValueText'               => [self::HEAVY, 'widens app_config.value from varchar(500) to TEXT: a core table of the application, small, and down() does not narrow the column'],
         'ChequesAndRevenues'               => [self::DATA, 'opens the leaf accounts of notes receivable, notes payable, funds under collection and deposit fees in an existing chart and points four routing rows at them'],
+        'BankReconciliation'               => [self::HEAVY, 'adds the nullable treasuries.bank_code; creates the bank statement, statement line, match and reconciliation tables, which no existing row refers to'],
     ];
 
     public function run(): array
