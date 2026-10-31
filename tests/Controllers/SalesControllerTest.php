@@ -2344,6 +2344,35 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertSame(0, (int) Services::session()->get('sales_payments')['Due']['treasury_id']);
     }
 
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function waysOfPaymentThatSettleInATreasury(): array
+    {
+        return [
+            'cash'          => ['cash'],
+            'debit card'    => ['debit'],
+            'credit card'   => ['credit'],
+            'check'         => ['check'],
+            'bank transfer' => ['bank_transfer'],
+            'wallet'        => ['wallet'],
+        ];
+    }
+
+    #[DataProvider('waysOfPaymentThatSettleInATreasury')]
+    public function testPostAddPayment_KeepsTheBankTheCashierChoseWhateverTheWayOfPaymentAndWritesNoChequeRecord(string $way): void
+    {
+        $this->registerWithACart();
+
+        $bank  = (new TreasuryService())->create(['name' => 'Register bank', 'kind' => 'bank', 'bank_name' => 'Gulf Bank', 'account_number' => '5500000042']);
+        $label = lang('Sales.' . $way, [], 'en');
+
+        $this->post('/sales/addPayment', ['payment_type' => $label, 'amount_tendered' => '40.00', 'reference_code' => 'REF12345', 'treasury_id' => (string) $bank]);
+
+        $this->assertSame($bank, (int) Services::session()->get('sales_payments')[$label]['treasury_id']);
+        $this->assertSame(0, $this->accountingDb()->table('cheques')->countAllResults());
+    }
+
     public function testPostComplete_PostsThePaymentToTheTreasuryChosenAtTheRegister(): void
     {
         $this->registerWithACart();
