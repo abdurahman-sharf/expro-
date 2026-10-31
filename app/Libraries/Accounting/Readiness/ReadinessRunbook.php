@@ -25,7 +25,7 @@ final class ReadinessRunbook
                 ],
                 'notes' => [
                     'Copy writable/ (it holds writable/accounting_attachments) and the .env file next to the dump.',
-                    'Restore the dump into a scratch database and run this report against it first: that is the rehearsal.',
+                    'Restore the dump into a scratch database (mysql -u USER -p SCRATCH < backup-before-release.sql) and run this report against it first: that is the rehearsal. Never name the live database there.',
                     'Nobody saves a sale or a purchase between the backup and the migrations.',
                 ],
             ],
@@ -72,13 +72,15 @@ final class ReadinessRunbook
                 'title'    => 'Post-checks',
                 'commands' => [
                     'php spark accounting:readiness',
+                    'php spark accounting:readiness --json --no-header > readiness-after.json',
                     'php spark accounting:bank_accounts',
                     'php spark accounting:check_locks',
                     'php spark accounting:status',
                 ],
                 'notes' => [
                     'The report must now say post-migration and exit 0; the bank command must report no account outside 1202.',
-                    'Compare the supplier balances and their aging with what they were before (E38): they must not change.',
+                    'Compare readiness-before.json with readiness-after.json (diff, or jq on .checks[].data): E38-SCAN would_mark and would_mark_discount before must equal marked_lines and marked_discount after, so the purchase lines the migration marked are the ones the report named, with the discount they had.',
+                    'TIE-SUPPLIERS and TIE-CUSTOMERS are SKIPPED before the migrations while the books do not exist yet, and must now PASS: that is the evidence that every supplier and customer account ties to its documents, its credit and its aging.',
                     'Open the balances between branches and the treasuries screen and look at what the report listed for review.',
                 ],
             ],
@@ -103,9 +105,13 @@ final class ReadinessRunbook
             [
                 'title'    => 'Roll back by restoring the backup',
                 'commands' => [
+                    'mysqldump --single-transaction -u USER -p DATABASE > state-after-failed-release.sql',
+                    'mysql -u USER -p -e "DROP DATABASE DATABASE; CREATE DATABASE DATABASE CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci"',
                     'mysql -u USER -p DATABASE < backup-before-release.sql',
                 ],
                 'notes' => [
+                    'Restore into an empty database: the dump drops and recreates only the tables it holds, so restoring over the live database leaves the tables the release created (accounting_journals and the others) with their rows, and their journals would meet the sales that reuse the same numbers.',
+                    'The first command keeps what the failed release left, for the post-mortem; the second needs the right to drop and create the database, and uses the character set and collation of app/Config/Database.php.',
                     'down() is not a rollback for the data migrations: LegacyFixedPurchaseDiscount changes what a discount means, BankAccounts does not move accounts back, PurchaseInvoiceDiscount refuses once a purchase uses it.',
                     'Put the code back at the previous release together with the restore, and run this report again against the restored database.',
                 ],

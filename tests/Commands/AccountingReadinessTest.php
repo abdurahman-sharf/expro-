@@ -2,6 +2,7 @@
 
 namespace Tests\Commands;
 
+use App\Commands\AccountingReadiness;
 use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\LegacyPurchaseDiscount;
 use App\Libraries\Accounting\TreasuryService;
@@ -136,6 +137,14 @@ class AccountingReadinessTest extends CIUnitTestCase
         $saleId = $this->save([$this->line($item, 0, '1', '100', '10.00')], [], [$this->payment(lang('Sales.cash'), '100.00')]);
 
         return (int) $this->accountingDb()->table('sales_payments')->where('sale_id', $saleId)->get()->getRow()->payment_id;
+    }
+
+    private function parentCodeOf(int $treasuryId): string
+    {
+        $db      = $this->accountingDb();
+        $account = $db->table('accounting_accounts')->where(['entity_type' => 'treasury', 'entity_id' => $treasuryId])->get()->getRow();
+
+        return (string) $db->table('accounting_accounts')->where('account_id', $account->parent_id)->get()->getRow()->code;
     }
 
     private function stampOf(int $paymentId): ?string
@@ -302,33 +311,61 @@ class AccountingReadinessTest extends CIUnitTestCase
 
     public function testRun_MovesTheBankAccountsOnlyWhenAskedToApplyAndChangesNoJournalLine(): void
     {
-        $bank   = $this->legacyBank('Old bank', 'Gulf Bank', '123456');
-        $lines  = $this->accountingDb()->table('accounting_journal_lines')->select('journal_id, account_id, debit, credit')->orderBy('line_id', 'ASC')->get()->getResultArray();
-        $parent = static fn (self $test): string => (string) $test->accountingDb()->table('accounting_accounts')->where('account_id', $test->accountingDb()->table('accounting_accounts')->where(['entity_type' => 'treasury', 'entity_id' => $bank])->get()->getRow()->parent_id)->get()->getRow()->code;
+        $bank  = $this->legacyBank('Old bank', 'Gulf Bank', '123456');
+        $lines = $this->accountingDb()->table('accounting_journal_lines')->select('journal_id, account_id, debit, credit')->orderBy('line_id', 'ASC')->get()->getResultArray();
 
         [$exit] = $this->readiness();
 
         $this->assertSame(1, $exit);
-        $this->assertSame('1201', $parent($this));
+        $this->assertSame('1201', $this->parentCodeOf($bank));
 
         [, $output] = $this->readiness(['apply' => null]);
 
         $this->assertStringContainsString('--apply: accounting:bank_accounts --move', $output);
         $this->assertMatchesRegularExpression("/Treasury {$bank}: account 1201\\d+ moved to 1202\\d+\\./", $output);
         $this->assertMatchesRegularExpression('/PASS\s+E40-BANK-DETAILS: Bank accounts under/', $output);
-        $this->assertSame('1202', $parent($this));
+        $this->assertSame('1202', $this->parentCodeOf($bank));
         $this->assertSame($lines, $this->accountingDb()->table('accounting_journal_lines')->select('journal_id, account_id, debit, credit')->orderBy('line_id', 'ASC')->get()->getResultArray());
     }
 
     public function testRun_AppliesEveryCommandThatCanClearAFailureInTheOrderOfTheChecks(): void
     {
-        $this->legacyBank('Old bank', 'Gulf Bank', '123456');
+        $paymentId = $this->unstampedPayment();
+        $bank      = $this->legacyBank('Old bank', 'Gulf Bank', '123456');
+
+        $this->assertSame('1201', $this->parentCodeOf($bank));
+
+        [, $output] = $this->readiness(['apply' => null]);
+
+        $moved   = strpos($output, '--apply: accounting:bank_accounts --move');
+        $stamped = strpos($output, '--apply: accounting:stamp_payments --apply');
+
+        $this->assertNotFalse($moved, 'The bank accounts are moved.');
+        $this->assertNotFalse($stamped, 'The payments are stamped.');
+        $this->assertLessThan($stamped, $moved, 'The command of the check that comes first runs first.');
+        $this->assertSame('1202', $this->parentCodeOf($bank));
+        $this->assertNotNull($this->stampOf($paymentId));
+    }
+
+    public function testRun_PrintsTheReportBeforeItAppliesAndAgainAfterwards(): void
+    {
         $paymentId = $this->unstampedPayment();
 
         [, $output] = $this->readiness(['apply' => null]);
 
-        $this->assertLessThan(strpos($output, '--apply: accounting:stamp_payments --apply'), strpos($output, '--apply: accounting:bank_accounts --move'));
-        $this->assertNotNull($this->stampOf($paymentId));
+        $before  = strpos($output, 'ACCOUNTING READINESS (before --apply)');
+        $applied = strpos($output, '--apply: accounting:stamp_payments --apply');
+        $after   = strpos($output, 'ACCOUNTING READINESS (after --apply)');
+
+        $this->assertNotFalse($before, 'The report of what was found comes first.');
+        $this->assertNotFalse($applied);
+        $this->assertNotFalse($after, 'The report of what is left comes last.');
+        $this->assertLessThan($applied, $before);
+        $this->assertLessThan($after, $applied);
+        $this->assertMatchesRegularExpression('/FAIL\s+E41-STAMP/', substr($output, $before, $applied - $before));
+        $this->assertStringContainsString("sales_payments #{$paymentId} would take treasury", substr($output, $before, $applied - $before));
+        $this->assertMatchesRegularExpression('/PASS\s+E41-STAMP/', substr($output, $after));
+        $this->assertSame(1, substr_count($output, 'RUNBOOK (in this order)'), 'The runbook ends the output once.');
     }
 
     public function testRun_AppliesNothingWhenNothingFailed(): void
@@ -339,6 +376,8 @@ class AccountingReadinessTest extends CIUnitTestCase
 
         $this->assertSame(0, $exit);
         $this->assertStringContainsString('--apply: nothing the existing commands could clear.', $output);
+        $this->assertStringContainsString('ACCOUNTING READINESS (before --apply)', $output);
+        $this->assertStringNotContainsString('(after --apply)', $output, 'Nothing ran, so there is nothing to report again.');
         $this->assertDatabaseUnchanged($before);
     }
 
@@ -401,6 +440,34 @@ class AccountingReadinessTest extends CIUnitTestCase
 
         $this->assertSame(EXIT_USER_INPUT, $exit);
         $this->assertStringNotContainsString('RESULT', $output);
+    }
+
+    public function testRun_RefusesALimitWithNoValueOrANegativeOne(): void
+    {
+        foreach (['no value' => ['limit' => null], 'a negative number' => ['limit' => '-1'], 'nothing after the equal sign' => ['limit=' => null], 'a fraction' => ['limit' => '1.5']] as $case => $params) {
+            [$exit, $output] = $this->readiness($params);
+
+            $this->assertSame(EXIT_USER_INPUT, $exit, "A limit with {$case} is refused.");
+            $this->assertStringNotContainsString('RESULT', $output, "A limit with {$case} prints no report.");
+        }
+    }
+
+    public function testRun_SaysInItsDescriptionAndInTheRunbookDocumentThatARefusedOptionExitsSeven(): void
+    {
+        $command  = new AccountingReadiness(service('logger'), service('commands'));
+        $document = (string) file_get_contents(ROOTPATH . 'docs/accounting/readiness-runbook.md');
+
+        $this->assertSame(7, EXIT_USER_INPUT);
+        $this->assertStringContainsString('and 7 for an option it refuses', $command->description);
+        $this->assertStringContainsString('`7` (`EXIT_USER_INPUT`)', $document);
+    }
+
+    public function testRun_AcceptsZeroAsTheLimitForAll(): void
+    {
+        [$exit, $output] = $this->readiness(['limit' => '0']);
+
+        $this->assertSame(0, $exit);
+        $this->assertStringContainsString('RESULT: READY.', $output);
     }
 
     public function testRun_EndsWithTheRunbookInOrderAndFlagsThePendingMigrationThatRewritesData(): void

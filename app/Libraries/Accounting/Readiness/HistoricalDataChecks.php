@@ -7,6 +7,7 @@ use App\Libraries\Accounting\LegacyDiscountFinding;
 use App\Libraries\Accounting\LegacyDiscountVerdict;
 use App\Libraries\Accounting\LegacyPurchaseDiscount;
 use App\Libraries\Accounting\PaymentTreasuryStamping;
+use App\Libraries\Accounting\SaleAmounts;
 use CodeIgniter\Database\BaseConnection;
 
 /**
@@ -40,16 +41,18 @@ final class HistoricalDataChecks extends CheckGroup
     private function purchaseDiscount(): CheckResult
     {
         $appliedAt = $this->migrations->appliedAt(self::PURCHASE_DISCOUNT_MIGRATION);
+        $scan      = new LegacyPurchaseDiscount($this->db);
 
         if ($appliedAt !== null) {
+            $marked = $scan->marked();
+
             return CheckResult::pass(
-                'The migration ' . self::PURCHASE_DISCOUNT_MIGRATION . " was applied on {$appliedAt}: a fixed discount saved since then is an amount for every unit, so there is nothing left to scan.",
+                'The migration ' . self::PURCHASE_DISCOUNT_MIGRATION . " was applied on {$appliedAt}: a fixed discount saved since then is an amount for every unit, so there is nothing left to scan. {$marked['lines']} line(s) carry a fixed discount for the whole line, {$marked['discount']} in all.",
                 [],
-                ['migration_applied' => true],
+                ['migration_applied' => true, 'marked_lines' => $marked['lines'], 'marked_discount' => $marked['discount']],
             );
         }
 
-        $scan     = new LegacyPurchaseDiscount($this->db);
         $plan     = $scan->plan();
         $findings = [...$plan['mark'], ...$plan['keep'], ...$plan['blocked']];
         $verdicts = array_count_values(array_map(static fn (LegacyDiscountFinding $finding): string => $finding->verdict->value, $findings));
@@ -58,20 +61,22 @@ final class HistoricalDataChecks extends CheckGroup
         $undetermined = array_values(array_filter($findings, static fn (LegacyDiscountFinding $finding): bool => $finding->verdict === LegacyDiscountVerdict::Undetermined));
 
         $data = [
-            'migration_applied' => false,
-            'lines'             => count($findings),
-            'verdicts'          => array_replace(array_fill_keys(array_map(static fn (LegacyDiscountVerdict $verdict): string => $verdict->value, LegacyDiscountVerdict::cases()), 0), $verdicts),
-            'would_mark'        => count($plan['mark']),
-            'would_keep'        => count($plan['keep']),
-            'blocked'           => count($plan['blocked']),
-            'undetermined'      => count($undetermined),
-            'window'            => $window,
-            'resolution'        => $scan->resolution(),
+            'migration_applied'   => false,
+            'lines'               => count($findings),
+            'verdicts'            => array_replace(array_fill_keys(array_map(static fn (LegacyDiscountVerdict $verdict): string => $verdict->value, LegacyDiscountVerdict::cases()), 0), $verdicts),
+            'would_mark'          => count($plan['mark']),
+            'would_mark_discount' => $this->discountOf($plan['mark']),
+            'would_keep'          => count($plan['keep']),
+            'blocked'             => count($plan['blocked']),
+            'undetermined'        => count($undetermined),
+            'at_stake'            => $this->atStake($undetermined),
+            'window'              => $window,
+            'resolution'          => $scan->resolution(),
         ];
 
         if ($plan['blocked'] !== []) {
             return CheckResult::fail(
-                count($plan['blocked']) . ' purchase line(s) carry a fixed discount over several units that no evidence decides, so the migration ' . self::PURCHASE_DISCOUNT_MIGRATION . ' stops without changing anything. Decide them with "php spark accounting:purchase_discount resolve" once the moment this database first ran the discount for every unit is known.',
+                count($plan['blocked']) . ' purchase line(s) carry a fixed discount over several units that no evidence decides, so the migration ' . self::PURCHASE_DISCOUNT_MIGRATION . " stops without changing anything. The two readings of these discounts differ by {$data['at_stake']} in the purchase totals. Decide them with \"php spark accounting:purchase_discount resolve\" once the moment this database first ran the discount for every unit is known.",
                 array_map(fn (LegacyDiscountFinding $finding): string => $this->describe($finding), $plan['blocked']),
                 $data,
             );
@@ -79,7 +84,7 @@ final class HistoricalDataChecks extends CheckGroup
 
         if ($undetermined !== []) {
             return CheckResult::review(
-                count($undetermined) . ' undetermined purchase line(s) are settled by the decision recorded for this database: the owner confirms it before the migration runs.',
+                count($undetermined) . " undetermined purchase line(s) are settled by the decision recorded for this database: the owner confirms it before the migration runs. The two readings of these discounts differ by {$data['at_stake']} in the purchase totals.",
                 array_map(fn (LegacyDiscountFinding $finding): string => $this->describe($finding), $undetermined),
                 $data,
             );
@@ -88,7 +93,7 @@ final class HistoricalDataChecks extends CheckGroup
         return CheckResult::pass(
             $findings === []
                 ? 'No purchase line carries a fixed discount over several units: the migration has nothing to mark.'
-                : sprintf('%d purchase line(s) carry a fixed discount over several units and the books or the date decide every one: the migration marks %d and leaves %d.', count($findings), count($plan['mark']), count($plan['keep'])),
+                : sprintf('%d purchase line(s) carry a fixed discount over several units and the books or the date decide every one: the migration marks %d and leaves %d. The lines it marks carry %s of discount, kept as an amount for the whole line.', count($findings), count($plan['mark']), count($plan['keep']), $data['would_mark_discount']),
             [],
             $data,
         );
@@ -96,7 +101,50 @@ final class HistoricalDataChecks extends CheckGroup
 
     private function describe(LegacyDiscountFinding $finding): string
     {
-        return sprintf('purchase #%d line %d, item %d, %s units, discount %s, saved %s: %s', $finding->receivingId, $finding->line, $finding->itemId, $finding->units, $finding->discount, $finding->savedAt, $finding->reason);
+        return sprintf('purchase #%d line %d, item %d, %s units, discount %s, saved %s, the two readings differ by %s: %s', $finding->receivingId, $finding->line, $finding->itemId, $finding->units, $finding->discount, $finding->savedAt, $this->readingsDiffer($finding), $finding->reason);
+    }
+
+    /**
+     * @param list<LegacyDiscountFinding> $findings
+     *
+     * @return numeric-string
+     */
+    private function discountOf(array $findings): string
+    {
+        $total = '0.00';
+
+        foreach ($findings as $finding) {
+            $total = bcadd($total, $finding->discount, 2);
+        }
+
+        return $total;
+    }
+
+    /**
+     * @param list<LegacyDiscountFinding> $findings
+     *
+     * @return numeric-string
+     */
+    private function atStake(array $findings): string
+    {
+        $total = '0.00';
+
+        foreach ($findings as $finding) {
+            $total = bcadd($total, $this->readingsDiffer($finding), 2);
+        }
+
+        return $total;
+    }
+
+    /**
+     * What a line's total changes by when its discount is read for every unit instead of for the
+     * whole line.
+     *
+     * @return numeric-string
+     */
+    private function readingsDiffer(LegacyDiscountFinding $finding): string
+    {
+        return SaleAmounts::round(SaleAmounts::absolute(bcsub(bcmul($finding->units, $finding->discount, 8), $finding->discount, 8)), 2);
     }
 
     private function bankPlacement(): CheckResult

@@ -17,11 +17,11 @@ class AccountingReadiness extends BaseCommand
     protected $group       = 'Accounting';
     protected $name        = 'accounting:readiness';
     protected $usage       = 'accounting:readiness [--json] [--limit N] [--apply]';
-    protected $description = 'Runs every check of an owner database read-only (historical data, the books, the ties between accounts, the grants, the activation state and the migrations) and ends with the runbook. Exits 0 only when nothing failed and nothing broke, and 1 otherwise.';
+    protected $description = 'Runs every check of an owner database read-only (historical data, the books, the ties between accounts, the grants, the activation state and the migrations) and ends with the runbook. Exits 0 only when nothing failed and nothing broke, 1 otherwise, and 7 for an option it refuses.';
     protected $options     = [
         '--json'  => 'Print the report as JSON and nothing else (add spark\'s own --no-header, or its banner comes first).',
-        '--limit' => 'How many findings to print for each check (default 20, 0 for all). The JSON always has all of them.',
-        '--apply' => 'After the report, run the existing commands that clear what failed, each with its own apply flag (accounting:stamp_payments --apply and accounting:bank_accounts --move), then report again. Nothing else is ever written. Not with --json.',
+        '--limit' => 'How many findings to print for each check (default 20, 0 for all). The JSON has all of them (the ledger checks keep their first 1000 and say so in data.truncated).',
+        '--apply' => 'Print the report, run the existing commands that clear what failed, each with its own apply flag (accounting:stamp_payments --apply and accounting:bank_accounts --move), then report again. Nothing else is ever written. Not with --json.',
     ];
 
     public function run(array $params): int
@@ -45,27 +45,39 @@ class AccountingReadiness extends BaseCommand
         $runner = new ReadinessRunner();
         $result = $runner->run();
 
-        if ($apply) {
-            $result = $this->apply($runner, $result);
-        }
-
         if ($json) {
             CLI::write(json_encode([...$result->toArray(), 'runbook' => ReadinessRunbook::steps($result->pendingMigrations)], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
-        } else {
-            $this->print($result, $limit);
+
+            return $result->ready() ? EXIT_SUCCESS : EXIT_ERROR;
         }
+
+        if (! $apply) {
+            $this->printReport($result, $limit, null);
+        } else {
+            $this->printReport($result, $limit, 'before --apply');
+
+            $applied = $this->apply($runner, $result);
+
+            if ($applied !== null) {
+                $result = $applied;
+                $this->printReport($result, $limit, 'after --apply');
+            }
+        }
+
+        $this->printRunbook($result);
 
         return $result->ready() ? EXIT_SUCCESS : EXIT_ERROR;
     }
 
-    private function apply(ReadinessRunner $runner, ReadinessResult $result): ReadinessResult
+    private function apply(ReadinessRunner $runner, ReadinessResult $result): ?ReadinessResult
     {
         $checks = $result->applicable();
 
         if ($checks === []) {
             CLI::write('--apply: nothing the existing commands could clear.');
+            CLI::newLine();
 
-            return $result;
+            return null;
         }
 
         foreach ($checks as $check) {
@@ -78,9 +90,9 @@ class AccountingReadiness extends BaseCommand
         return $runner->run();
     }
 
-    private function print(ReadinessResult $result, int $limit): void
+    private function printReport(ReadinessResult $result, int $limit, ?string $stage): void
     {
-        CLI::write('ACCOUNTING READINESS');
+        CLI::write('ACCOUNTING READINESS' . ($stage === null ? '' : " ({$stage})"));
         CLI::write(sprintf('Database %s, %s, phase %s.', $result->database, $result->generatedAt, $result->phase()));
         CLI::write($result->readOnly ? 'Every check ran inside a read-only transaction: nothing was written.' : 'The connection could not open a read-only transaction: the checks only read, but the database does not enforce it.', $result->readOnly ? null : 'yellow');
         CLI::newLine();
@@ -101,8 +113,6 @@ class AccountingReadiness extends BaseCommand
             $counts[CheckStatus::Pass->value],
         ), $result->ready() ? 'green' : 'red');
         CLI::newLine();
-
-        $this->printRunbook($result);
     }
 
     private function printCheck(CheckResult $check, int $limit): void
@@ -163,15 +173,17 @@ class AccountingReadiness extends BaseCommand
      */
     private function limit(array $params): ?int
     {
-        $value = $params['limit'] ?? CLI::getOption('limit');
+        $given = array_key_exists('limit', $params);
+        $value = $params['limit'] ?? null;
 
-        foreach ($params as $key => $given) {
+        foreach (array_keys($params) as $key) {
             if (is_string($key) && str_starts_with($key, 'limit=')) {
+                $given = true;
                 $value = substr($key, strlen('limit='));
             }
         }
 
-        if ($value === null || $value === true) {
+        if (! $given) {
             return self::DEFAULT_LIMIT;
         }
 

@@ -45,11 +45,10 @@ final class LedgerChecks extends CheckGroup
                 $balanced = bccomp((string) $row->line_debit, (string) $row->line_credit, 4) === 0;
 
                 return sprintf(
-                    'journal #%d (%s, %s %s) dated %s: lines debit %s and credit %s%s',
+                    'journal #%d (%s, %s) dated %s: lines debit %s and credit %s%s',
                     $row->journal_id,
                     $row->number ?? 'no number',
-                    $row->source_type,
-                    $row->source_id ?? '',
+                    self::source($row),
                     $row->journal_date,
                     bcadd((string) $row->line_debit, '0', 4),
                     bcadd((string) $row->line_credit, '0', 4),
@@ -71,7 +70,7 @@ final class LedgerChecks extends CheckGroup
         }
 
         $findings = array_map(
-            static fn (object $row): string => sprintf('journal #%d (%s, %s %s) dated %s has no lines', $row->journal_id, $row->number ?? 'no number', $row->source_type, $row->source_id ?? '', $row->journal_date),
+            static fn (object $row): string => sprintf('journal #%d (%s, %s) dated %s has no lines', $row->journal_id, $row->number ?? 'no number', self::source($row), $row->journal_date),
             array_slice($rows, 0, self::LIMIT),
         );
 
@@ -244,6 +243,11 @@ final class LedgerChecks extends CheckGroup
     private function standing(): array
     {
         return [JournalStatus::Posted->value, JournalStatus::Reversed->value];
+    }
+
+    private static function source(object $row): string
+    {
+        return trim($row->source_type . ' ' . ($row->source_id ?? ''));
     }
 
     private function counted(int $found): string

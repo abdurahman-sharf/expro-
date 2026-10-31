@@ -21,6 +21,9 @@ class MigrationChecksTest extends CIUnitTestCase
     protected $refresh     = false;
     protected $namespace   = null;
 
+    private const FIRST_MIGRATION_OF_THE_RELEASE            = '20261021000000';
+    private const ALTERS_ONLY_TABLES_THE_RELEASE_CREATES = ['AccountingPeriods', 'AccountingAccountNameIndex', 'TreasuryScopes'];
+
     private MigrationChecks $checks;
 
     public static function setUpBeforeClass(): void
@@ -128,6 +131,29 @@ class MigrationChecksTest extends CIUnitTestCase
         }
 
         $this->assertSame($expected, $kinds);
+    }
+
+    public function testPending_ClassifiesEveryMigrationOfTheReleaseThatAltersATable(): void
+    {
+        $unclassified = [];
+
+        foreach ($this->checks->history() as $row) {
+            $this->forgetMigration($row['version']);
+        }
+
+        foreach ($this->checks->pending() as $migration) {
+            if ($migration['version'] < self::FIRST_MIGRATION_OF_THE_RELEASE || $migration['kind'] !== MigrationChecks::ADDITIVE || in_array($migration['class'], self::ALTERS_ONLY_TABLES_THE_RELEASE_CREATES, true)) {
+                continue;
+            }
+
+            $source = (string) file_get_contents(APPPATH . "Database/Migrations/{$migration['version']}_{$migration['class']}.php");
+
+            if (str_contains($source, 'ALTER TABLE') || str_contains($source, 'addColumn') || str_contains($source, 'modifyColumn')) {
+                $unclassified[] = $migration['version'] . ' ' . $migration['class'];
+            }
+        }
+
+        $this->assertSame([], $unclassified, 'These migrations alter a table and would be printed as ADDITIVE: classify each in MigrationChecks::SENSITIVE (HEAVY when it alters a table that holds business rows), or list it here when it alters only tables the release creates.');
     }
 
     public function testPending_GivesTheNoteOfAMigrationThatNeedsOne(): void

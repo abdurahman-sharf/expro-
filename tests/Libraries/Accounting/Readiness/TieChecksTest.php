@@ -184,6 +184,30 @@ class TieChecksTest extends CIUnitTestCase
         $this->assertSame(1, $result->data['checked']);
     }
 
+    public function testCustomerTies_PassesForAnInvoiceDatedAfterTheDayOfTheReport(): void
+    {
+        $invoiceId = $this->invoiceOf('100.00');
+        $this->invoiceOf('70.00');
+        $this->accountingDb()->table('sales')->where('sale_id', $invoiceId)->update(['sale_time' => date('Y-m-d H:i:s', strtotime('+45 days'))]);
+
+        $result = $this->check('customer_ties');
+
+        $this->assertSame(CheckStatus::Pass, $result->status, 'An invoice dated ahead is open and counts in the aging: the check compares totals.');
+        $this->assertSame(1, $result->data['checked']);
+    }
+
+    public function testSupplierTies_PassesForAPurchaseDatedAfterTheDayOfTheReport(): void
+    {
+        $receivingId = $this->purchaseOf('500.00');
+        $this->purchaseOf('300.00');
+        $this->accountingDb()->table('receivings')->where('receiving_id', $receivingId)->update(['receiving_time' => date('Y-m-d H:i:s', strtotime('+45 days'))]);
+
+        $result = $this->check('supplier_ties');
+
+        $this->assertSame(CheckStatus::Pass, $result->status, 'A purchase dated ahead is open and counts in the aging: the check compares totals.');
+        $this->assertSame(1, $result->data['checked']);
+    }
+
     public function testSupplierTies_PassesForASupplierWhoseAccountMatchesTheirPurchases(): void
     {
         $this->purchaseOf('500.00');

@@ -2,7 +2,7 @@
  {
   "name": "G01 the runner asks the database for a read-only transaction",
   "file": "app/Libraries/Accounting/Readiness/ReadinessRunner.php",
-  "find": "$this->db->query('SET TRANSACTION READ ONLY') !== false",
+  "find": "$this->db->query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY') !== false",
   "replace": "$this->db->query('SELECT 1') !== false",
   "tests": [
    "tests/Libraries/Accounting/Readiness/ReadinessRunnerTest.php"
@@ -56,7 +56,7 @@
  {
   "name": "G07 the runner reports a refused read-only request honestly",
   "file": "app/Libraries/Accounting/Readiness/ReadinessRunner.php",
-  "find": "$readOnly = $this->db->query('SET TRANSACTION READ ONLY') !== false;",
+  "find": "$readOnly = $this->db->query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY') !== false;",
   "replace": "$readOnly = true;",
   "tests": [
    "tests/Libraries/Accounting/Readiness/ReadinessRunnerTest.php"
@@ -69,7 +69,8 @@
   "replace": "return EXIT_SUCCESS;",
   "tests": [
    "tests/Commands/AccountingReadinessTest.php"
-  ]
+  ],
+  "all": true
  },
  {
   "name": "G09 --apply is refused while --json is asked",
@@ -83,8 +84,8 @@
  {
   "name": "G10 nothing is applied unless --apply is asked",
   "file": "app/Commands/AccountingReadiness.php",
-  "find": "        if ($apply) {\n            $result = $this->apply($runner, $result);",
-  "replace": "        if (true) {\n            $result = $this->apply($runner, $result);",
+  "find": "        if (! $apply) {\n            $this->printReport($result, $limit, null);",
+  "replace": "        if (false) {\n            $this->printReport($result, $limit, null);",
   "tests": [
    "tests/Commands/AccountingReadinessTest.php"
   ]
@@ -164,8 +165,8 @@
  {
   "name": "G19 the report ends with the runbook",
   "file": "app/Commands/AccountingReadiness.php",
-  "find": "        $this->printRunbook($result);\n    }",
-  "replace": "    }",
+  "find": "        $this->printRunbook($result);\n",
+  "replace": "",
   "tests": [
    "tests/Commands/AccountingReadinessTest.php"
   ]
@@ -445,8 +446,8 @@
  {
   "name": "G48 READ-ONLY: the E38 check never applies the migration (a check that writes through another connection changes a row)",
   "file": "app/Libraries/Accounting/Readiness/HistoricalDataChecks.php",
-  "find": "$scan     = new LegacyPurchaseDiscount($this->db);",
-  "replace": "(new LegacyPurchaseDiscount(\\Config\\Database::connect(null, false)))->apply();\n        $scan     = new LegacyPurchaseDiscount($this->db);",
+  "find": "$scan      = new LegacyPurchaseDiscount($this->db);",
+  "replace": "(new LegacyPurchaseDiscount(\\Config\\Database::connect(null, false)))->apply();\n        $scan      = new LegacyPurchaseDiscount($this->db);",
   "tests": [
    "tests/Libraries/Accounting/Readiness/HistoricalDataChecksTest.php",
    "tests/Commands/AccountingReadinessTest.php"
@@ -726,18 +727,18 @@
  {
   "name": "G76 a customer whose account differs from invoices and credit fails",
   "file": "app/Libraries/Accounting/Readiness/TieChecks.php",
-  "find": "            $position = $ledger->position($customerId);\n            $aged     = $this->agedTotal($position->aging(date('Y-m-d')));\n\n            if ($position->agrees() && ",
-  "replace": "            $position = $ledger->position($customerId);\n            $aged     = $this->agedTotal($position->aging(date('Y-m-d')));\n\n            if (",
+  "find": "            $position = $ledger->position($customerId);\n            $aged     = $this->agedTotal($position->aging(self::AS_OF));\n\n            if ($position->agrees() && ",
+  "replace": "            $position = $ledger->position($customerId);\n            $aged     = $this->agedTotal($position->aging(self::AS_OF));\n\n            if (",
   "tests": [
    "tests/Libraries/Accounting/Readiness/TieChecksTest.php",
    "tests/Commands/AccountingReadinessTest.php"
   ]
  },
  {
-  "name": "G77 a drift of the aging of a customer from what is open is caught (the aging code is mutated, the check must fail)",
-  "file": "app/Libraries/Accounting/CustomerPosition.php",
-  "find": "$buckets[$bucket] = bcadd($buckets[$bucket], $invoice->open(), SaleAmounts::SCALE);",
-  "replace": "$buckets[$bucket] = $invoice->open();",
+  "name": "G77 a customer whose aging is not counted against what is open is caught (the aged total of the customer is dropped, the check must fail)",
+  "file": "app/Libraries/Accounting/Readiness/TieChecks.php",
+  "find": "            $position = $ledger->position($customerId);\n            $aged     = $this->agedTotal($position->aging(self::AS_OF));",
+  "replace": "            $position = $ledger->position($customerId);\n            $aged     = '0.0000';",
   "tests": [
    "tests/Libraries/Accounting/Readiness/TieChecksTest.php",
    "tests/Commands/AccountingReadinessTest.php"
@@ -746,18 +747,18 @@
  {
   "name": "G78 a supplier whose account differs from purchases and credit fails",
   "file": "app/Libraries/Accounting/Readiness/TieChecks.php",
-  "find": "            $position = $ledger->position($supplierId);\n            $aged     = $this->agedTotal($position->aging(date('Y-m-d')));\n\n            if ($position->agrees() && ",
-  "replace": "            $position = $ledger->position($supplierId);\n            $aged     = $this->agedTotal($position->aging(date('Y-m-d')));\n\n            if (",
+  "find": "            $position = $ledger->position($supplierId);\n            $aged     = $this->agedTotal($position->aging(self::AS_OF));\n\n            if ($position->agrees() && ",
+  "replace": "            $position = $ledger->position($supplierId);\n            $aged     = $this->agedTotal($position->aging(self::AS_OF));\n\n            if (",
   "tests": [
    "tests/Libraries/Accounting/Readiness/TieChecksTest.php",
    "tests/Commands/AccountingReadinessTest.php"
   ]
  },
  {
-  "name": "G79 a drift of the aging of a supplier from what is open is caught (the aging code is mutated, the check must fail)",
-  "file": "app/Libraries/Accounting/SupplierPosition.php",
-  "find": "$buckets[$bucket] = bcadd($buckets[$bucket], $purchase->open(), SaleAmounts::SCALE);",
-  "replace": "$buckets[$bucket] = $purchase->open();",
+  "name": "G79 a supplier whose aging is not counted against what is open is caught (the aged total of the supplier is dropped, the check must fail)",
+  "file": "app/Libraries/Accounting/Readiness/TieChecks.php",
+  "find": "            $position = $ledger->position($supplierId);\n            $aged     = $this->agedTotal($position->aging(self::AS_OF));",
+  "replace": "            $position = $ledger->position($supplierId);\n            $aged     = '0.0000';",
   "tests": [
    "tests/Libraries/Accounting/Readiness/TieChecksTest.php",
    "tests/Commands/AccountingReadinessTest.php"
@@ -1317,6 +1318,223 @@
   "replace": "'Ask for --json.',",
   "tests": [
    "tests/Libraries/Accounting/Readiness/ReadinessRunbookTest.php",
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G136 the runner names REPEATABLE READ so that every check sees one snapshot whatever the default of the server",
+  "file": "app/Libraries/Accounting/Readiness/ReadinessRunner.php",
+  "find": "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY",
+  "replace": "SET TRANSACTION READ ONLY",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/ReadinessRunnerTest.php"
+  ]
+ },
+ {
+  "name": "G137 --apply prints the report of what was found before it runs the commands",
+  "file": "app/Commands/AccountingReadiness.php",
+  "find": "            $this->printReport($result, $limit, 'before --apply');\n\n",
+  "replace": "",
+  "tests": [
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G138 --apply runs the command of every check that can be cleared, not only the last",
+  "file": "app/Commands/AccountingReadiness.php",
+  "find": "        foreach ($checks as $check) {",
+  "replace": "        foreach (array_slice($checks, -1) as $check) {",
+  "tests": [
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G139 --apply runs the commands in the order of the checks",
+  "file": "app/Commands/AccountingReadiness.php",
+  "find": "        foreach ($checks as $check) {",
+  "replace": "        foreach (array_reverse($checks) as $check) {",
+  "tests": [
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G140 --apply reports again only when it ran a command",
+  "file": "app/Commands/AccountingReadiness.php",
+  "find": "            if ($applied !== null) {\n                $result = $applied;\n                $this->printReport($result, $limit, 'after --apply');\n            }",
+  "replace": "            $result = $applied ?? $result;\n            $this->printReport($result, $limit, 'after --apply');",
+  "tests": [
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G141 a --limit with no value is refused, not replaced by the default",
+  "file": "app/Commands/AccountingReadiness.php",
+  "find": "$given = array_key_exists('limit', $params);",
+  "replace": "$given = false;",
+  "tests": [
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G142 a --limit that is negative or a fraction is refused",
+  "file": "app/Commands/AccountingReadiness.php",
+  "find": "return ctype_digit((string) $value) ? (int) $value : null;",
+  "replace": "return is_numeric($value) ? (int) $value : null;",
+  "tests": [
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G143 the money at stake adds the difference the two readings make to every undetermined line",
+  "file": "app/Libraries/Accounting/Readiness/HistoricalDataChecks.php",
+  "find": "$total = bcadd($total, $this->readingsDiffer($finding), 2);",
+  "replace": "$total = bcadd($total, $finding->discount, 2);",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/HistoricalDataChecksTest.php"
+  ]
+ },
+ {
+  "name": "G144 the two readings of a line differ by its units times the discount less the discount of the line",
+  "file": "app/Libraries/Accounting/Readiness/HistoricalDataChecks.php",
+  "find": "bcsub(bcmul($finding->units, $finding->discount, 8), $finding->discount, 8)",
+  "replace": "bcmul($finding->units, $finding->discount, 8)",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/HistoricalDataChecksTest.php"
+  ]
+ },
+ {
+  "name": "G145 the difference of the two readings has no sign, a return counts as much as a sale",
+  "file": "app/Libraries/Accounting/Readiness/HistoricalDataChecks.php",
+  "find": "SaleAmounts::round(SaleAmounts::absolute(bcsub(",
+  "replace": "SaleAmounts::round((bcsub(",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/HistoricalDataChecksTest.php"
+  ]
+ },
+ {
+  "name": "G146 the discount the migration will mark is summed over the lines it marks",
+  "file": "app/Libraries/Accounting/Readiness/HistoricalDataChecks.php",
+  "find": "'would_mark_discount' => $this->discountOf($plan['mark']),",
+  "replace": "'would_mark_discount' => $this->discountOf($plan['keep']),",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/HistoricalDataChecksTest.php"
+  ]
+ },
+ {
+  "name": "G147 after the migration the report counts the lines it marked for the whole line",
+  "file": "app/Libraries/Accounting/LegacyPurchaseDiscount.php",
+  "find": "$row = $this->severalUnits(FIXED_LINE)",
+  "replace": "$row = $this->severalUnits(FIXED)",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/HistoricalDataChecksTest.php",
+   "tests/Libraries/Accounting/LegacyPurchaseDiscountTest.php"
+  ]
+ },
+ {
+  "name": "G148 after the migration the report gives the discount of the lines it marked",
+  "file": "app/Libraries/Accounting/Readiness/HistoricalDataChecks.php",
+  "find": "'marked_discount' => $marked['discount']",
+  "replace": "'marked_discount' => '0.00'",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/HistoricalDataChecksTest.php"
+  ]
+ },
+ {
+  "name": "G149 a journal without a source id is printed without a stray space",
+  "file": "app/Libraries/Accounting/Readiness/LedgerChecks.php",
+  "find": "return trim($row->source_type . ' ' . ($row->source_id ?? ''));",
+  "replace": "return $row->source_type . ' ' . ($row->source_id ?? '');",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/LedgerChecksTest.php"
+  ]
+ },
+ {
+  "name": "G150 the rollback drops the database before it restores the backup",
+  "file": "app/Libraries/Accounting/Readiness/ReadinessRunbook.php",
+  "find": "                    'mysql -u USER -p -e \"DROP DATABASE DATABASE; CREATE DATABASE DATABASE CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci\"',\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/ReadinessRunbookTest.php"
+  ]
+ },
+ {
+  "name": "G151 the rollback keeps what the failed release left before it drops the database",
+  "file": "app/Libraries/Accounting/Readiness/ReadinessRunbook.php",
+  "find": "                    'mysqldump --single-transaction -u USER -p DATABASE > state-after-failed-release.sql',\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/ReadinessRunbookTest.php"
+  ]
+ },
+ {
+  "name": "G152 the rollback says why it restores into an empty database",
+  "file": "app/Libraries/Accounting/Readiness/ReadinessRunbook.php",
+  "find": "restoring over the live database leaves the tables the release created",
+  "replace": "restoring is simple",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/ReadinessRunbookTest.php"
+  ]
+ },
+ {
+  "name": "G153 the rehearsal restores into a scratch database and never the live one",
+  "file": "app/Libraries/Accounting/Readiness/ReadinessRunbook.php",
+  "find": " Never name the live database there.",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/ReadinessRunbookTest.php"
+  ]
+ },
+ {
+  "name": "G154 the post-migration step saves the readiness JSON to compare with the one before",
+  "file": "app/Libraries/Accounting/Readiness/ReadinessRunbook.php",
+  "find": "                    'php spark accounting:readiness --json --no-header > readiness-after.json',\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/ReadinessRunbookTest.php"
+  ]
+ },
+ {
+  "name": "G155 the post-migration step names what is compared between the two JSON files",
+  "file": "app/Libraries/Accounting/Readiness/ReadinessRunbook.php",
+  "find": "would_mark and would_mark_discount before must equal marked_lines and marked_discount after",
+  "replace": "the figures are looked at",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/ReadinessRunbookTest.php"
+  ]
+ },
+ {
+  "name": "G156 the written runbook drops the database before the restore as the printed one does",
+  "file": "docs/accounting/readiness-runbook.md",
+  "find": "mysql -u USER -p -e \"DROP DATABASE DATABASE; CREATE DATABASE DATABASE CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci\"\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/ReadinessRunbookTest.php"
+  ]
+ },
+ {
+  "name": "G157 the written runbook saves the JSON after the migrations as the printed one does",
+  "file": "docs/accounting/readiness-runbook.md",
+  "find": "php spark accounting:readiness --json --no-header > readiness-after.json\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/ReadinessRunbookTest.php"
+  ]
+ },
+ {
+  "name": "G158 the command says in its description that a refused option exits 7",
+  "file": "app/Commands/AccountingReadiness.php",
+  "find": "1 otherwise, and 7 for an option it refuses.",
+  "replace": "1 otherwise.",
+  "tests": [
+   "tests/Commands/AccountingReadinessTest.php"
+  ]
+ },
+ {
+  "name": "G159 the written runbook says that a refused option exits 7",
+  "file": "docs/accounting/readiness-runbook.md",
+  "find": "و`7` (`EXIT_USER_INPUT`) لخيار يرفضه الأمر",
+  "replace": "ولخيار يرفضه الأمر",
+  "tests": [
    "tests/Commands/AccountingReadinessTest.php"
   ]
  }

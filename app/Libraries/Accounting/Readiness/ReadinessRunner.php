@@ -8,8 +8,10 @@ use Throwable;
 
 /**
  * Runs every check inside one read-only transaction, so that the database itself refuses a write
- * and all the checks see one snapshot of the books. A connection that cannot open a read-only
- * transaction says so in the result and still reads inside a transaction.
+ * and all the checks see one snapshot of the books: the transaction asks for REPEATABLE READ by
+ * name, because a server whose default is READ COMMITTED would show a later check what an earlier
+ * one did not see. A connection that cannot open a read-only transaction says so in the result and
+ * still reads inside a transaction, whose snapshot is then whatever the server gives.
  */
 final class ReadinessRunner
 {
@@ -62,7 +64,7 @@ final class ReadinessRunner
     private function begin(): bool
     {
         try {
-            $readOnly = $this->db->query('SET TRANSACTION READ ONLY') !== false;
+            $readOnly = $this->db->query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY') !== false;
         } catch (Throwable) {
             $readOnly = false;
         }

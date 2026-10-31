@@ -24,7 +24,10 @@ use App\Libraries\Organization\CompanyContext;
  */
 final class TieChecks extends CheckGroup
 {
-    private const LIMIT = 1000;
+    /**
+     * The aging is asked for as of a day after every document: the check compares totals, and a document dated after today must still be counted in a bucket.
+     */
+    private const AS_OF = '9999-12-31';
 
     public function run(): array
     {
@@ -48,7 +51,7 @@ final class TieChecks extends CheckGroup
 
         foreach ($ids as $customerId) {
             $position = $ledger->position($customerId);
-            $aged     = $this->agedTotal($position->aging(date('Y-m-d')));
+            $aged     = $this->agedTotal($position->aging(self::AS_OF));
 
             if ($position->agrees() && bccomp($aged, $position->open(), SaleAmounts::SCALE) === 0) {
                 continue;
@@ -77,7 +80,7 @@ final class TieChecks extends CheckGroup
 
         foreach ($ids as $supplierId) {
             $position = $ledger->position($supplierId);
-            $aged     = $this->agedTotal($position->aging(date('Y-m-d')));
+            $aged     = $this->agedTotal($position->aging(self::AS_OF));
 
             if ($position->agrees() && bccomp($aged, $position->open(), SaleAmounts::SCALE) === 0) {
                 continue;

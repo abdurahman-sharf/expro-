@@ -197,6 +197,64 @@ class HistoricalDataChecksTest extends CIUnitTestCase
         $this->assertNull($result->apply, 'The owner decides these lines: no command decides them.');
     }
 
+    public function testPurchaseDiscount_ShowsTheMoneyTheTwoReadingsOfAnUndecidedLineDifferBy(): void
+    {
+        $this->savedAs('2026-10-01 09:00:00');
+        $this->savedAs(date('Y-m-d H:i:s'));
+        $this->forgetMigration(self::DISCOUNT_MIGRATION);
+
+        $result = $this->check('purchase_discount');
+
+        $this->assertSame('180.00', $result->data['at_stake'], '10 units at 20.00 each is 200.00 against 20.00 for the whole line.');
+        $this->assertSame('20.00', $result->data['would_mark_discount'], 'Only the early line is marked, with the 20.00 it carries.');
+        $this->assertStringContainsString('the two readings differ by 180.00', $result->findings[0]);
+        $this->assertStringContainsString('differ by 180.00 in the purchase totals', $result->summary);
+    }
+
+    public function testPurchaseDiscount_SumsTheMoneyAtStakeOfEveryUndecidedLineWhateverTheSignOfItsUnits(): void
+    {
+        $first  = $this->savedAs(date('Y-m-d H:i:s'));
+        $second = $this->savedAs(date('Y-m-d H:i:s'));
+        $this->accountingDb()->table('receivings_items')->where('receiving_id', $second)->update(['quantity_purchased' => '-3', 'discount' => '5.00']);
+        $this->forgetMigration(self::DISCOUNT_MIGRATION);
+
+        $result = $this->check('purchase_discount');
+
+        $this->assertSame('200.00', $result->data['at_stake'], '180.00 for 10 units at 20.00, and 20.00 for a return of 3 units at 5.00.');
+        $this->assertStringContainsString("purchase #{$first} line 1", $result->findings[0]);
+        $this->assertStringContainsString('the two readings differ by 20.00', $result->findings[1]);
+    }
+
+    public function testPurchaseDiscount_ShowsTheSameLinesAndDiscountBeforeAndAfterTheMigrationMarksThem(): void
+    {
+        $this->savedAs('2026-10-01 09:00:00');
+        $this->savedAs('2026-10-02 09:00:00');
+        $this->forgetMigration(self::DISCOUNT_MIGRATION);
+
+        $before = $this->check('purchase_discount');
+
+        (new LegacyPurchaseDiscount())->apply();
+        $this->restoreMigrations();
+
+        $after = $this->check('purchase_discount');
+
+        $this->assertSame(2, $before->data['would_mark']);
+        $this->assertSame('40.00', $before->data['would_mark_discount']);
+        $this->assertTrue($after->data['migration_applied']);
+        $this->assertSame($before->data['would_mark'], $after->data['marked_lines']);
+        $this->assertSame($before->data['would_mark_discount'], $after->data['marked_discount']);
+    }
+
+    public function testPurchaseDiscount_CountsNoMarkedLineWhenTheMigrationMarkedNone(): void
+    {
+        $this->savedAs(date('Y-m-d H:i:s'));
+
+        $result = $this->check('purchase_discount');
+
+        $this->assertSame(0, $result->data['marked_lines']);
+        $this->assertSame('0.00', $result->data['marked_discount']);
+    }
+
     public function testPurchaseDiscount_ChangesNoPurchaseLine(): void
     {
         $early = $this->savedAs('2026-10-01 09:00:00');

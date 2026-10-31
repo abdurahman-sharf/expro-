@@ -49,6 +49,7 @@ class ReadinessRunbookTest extends CIUnitTestCase
         $this->assertContains('php spark accounting:readiness', $steps[1]['commands']);
         $this->assertContains('php spark accounting:readiness --json --no-header > readiness-before.json', $steps[1]['commands']);
         $this->assertContains('php spark accounting:readiness', $steps[4]['commands']);
+        $this->assertContains('php spark accounting:readiness --json --no-header > readiness-after.json', $steps[4]['commands']);
         $this->assertContains('php spark accounting:bank_accounts', $steps[4]['commands']);
         $this->assertContains('php spark accounting:check_locks', $steps[4]['commands']);
     }
@@ -105,8 +106,53 @@ class ReadinessRunbookTest extends CIUnitTestCase
     {
         $step = ReadinessRunbook::steps([])[7];
 
-        $this->assertStringStartsWith('mysql ', $step['commands'][0]);
+        $this->assertStringStartsWith('mysql ', end($step['commands']));
+        $this->assertStringContainsString('< backup-before-release.sql', end($step['commands']));
         $this->assertStringContainsString('down() is not a rollback for the data migrations', implode("\n", $step['notes']));
+    }
+
+    public function testSteps_RollsBackIntoAnEmptyDatabaseSoThatNoTableOfTheReleaseSurvives(): void
+    {
+        $commands = ReadinessRunbook::steps([])[7]['commands'];
+        $keeps    = $this->positionOf($commands, 'state-after-failed-release.sql');
+        $drops    = $this->positionOf($commands, 'DROP DATABASE DATABASE');
+        $restores = $this->positionOf($commands, '< backup-before-release.sql');
+
+        $this->assertLessThan($drops, $keeps, 'What the failed release left is kept before the database is dropped.');
+        $this->assertLessThan($restores, $drops, 'The database is dropped before the backup is restored.');
+        $this->assertStringContainsString('CREATE DATABASE DATABASE CHARACTER SET utf8mb4', $commands[$drops]);
+        $this->assertStringContainsString('restoring over the live database leaves the tables the release created', implode("\n", ReadinessRunbook::steps([])[7]['notes']));
+    }
+
+    public function testSteps_RehearsesTheRestoreInAScratchDatabaseAndNeverTheLiveOne(): void
+    {
+        $notes = implode("\n", ReadinessRunbook::steps([])[0]['notes']);
+
+        $this->assertStringContainsString('mysql -u USER -p SCRATCH < backup-before-release.sql', $notes);
+        $this->assertStringContainsString('Never name the live database there', $notes);
+    }
+
+    public function testSteps_ComparesTheReadinessBeforeAndAfterTheMigrationsByWhatTheScanCounted(): void
+    {
+        $notes = implode("\n", ReadinessRunbook::steps([])[4]['notes']);
+
+        $this->assertStringContainsString('readiness-before.json with readiness-after.json', $notes);
+        $this->assertStringContainsString('would_mark and would_mark_discount before must equal marked_lines and marked_discount after', $notes);
+        $this->assertStringContainsString('TIE-SUPPLIERS and TIE-CUSTOMERS', $notes);
+    }
+
+    /**
+     * @param list<string> $commands
+     */
+    private function positionOf(array $commands, string $needle): int
+    {
+        foreach ($commands as $position => $command) {
+            if (str_contains($command, $needle)) {
+                return $position;
+            }
+        }
+
+        $this->fail("No command contains {$needle}.");
     }
 
     public function testSteps_GivesEveryStepATitleAndLists(): void

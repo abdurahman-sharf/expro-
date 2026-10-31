@@ -126,6 +126,37 @@ class ReadinessRunnerTest extends CIUnitTestCase
         $this->assertTrue($result->readOnly);
     }
 
+    public function testRun_ShowsEveryCheckOneSnapshotWhateverTheIsolationOfTheSession(): void
+    {
+        $db     = Database::connect();
+        $other  = Database::connect(config('Database')->tests, false);
+        $counts = [];
+        $count  = static fn (): int => $db->table('app_config')->where('key', 'readiness_probe')->countAllResults();
+
+        $db->query('SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED');
+
+        try {
+            (new ReadinessRunner($db, [
+                $this->groupOf($db, static function () use ($count, $other, &$counts): CheckResult {
+                    $counts[] = $count();
+                    $other->table('app_config')->insert(['key' => 'readiness_probe', 'value' => '1']);
+
+                    return CheckResult::pass('read');
+                }),
+                $this->groupOf($db, static function () use ($count, &$counts): CheckResult {
+                    $counts[] = $count();
+
+                    return CheckResult::pass('read');
+                }),
+            ]))->run();
+        } finally {
+            $db->query('SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ');
+        }
+
+        $this->assertSame([0, 0], $counts, 'A row another request committed while the report ran must stay out of its later checks.');
+        $this->assertSame(1, $count(), 'The row is committed: only the snapshot of the report hid it.');
+    }
+
     public function testRun_RefusesTheWriteOfACheckAndChangesNoRow(): void
     {
         $db     = Database::connect();

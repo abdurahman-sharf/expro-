@@ -16,7 +16,7 @@ final class ReadOnlyRefusingConnection extends Connection
 
     public function query(string $sql, $binds = null, bool $setEscapeFlags = true, string $queryClass = '')
     {
-        if (str_starts_with($sql, 'SET TRANSACTION READ ONLY')) {
+        if (str_starts_with($sql, 'SET TRANSACTION') && str_contains($sql, 'READ ONLY')) {
             if ($this->throws) {
                 throw new DatabaseException('read only transactions are not available');
             }

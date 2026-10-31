@@ -160,7 +160,7 @@ class LedgerChecksTest extends CIUnitTestCase
         $result = $this->check('journals_unbalanced');
 
         $this->assertSame(CheckStatus::Fail, $result->status);
-        $this->assertSame(["journal #{$journalId} (no number, manual ) dated 2026-10-21: lines debit 100.0000 and credit 90.0000"], $result->findings);
+        $this->assertSame(["journal #{$journalId} (no number, manual) dated 2026-10-21: lines debit 100.0000 and credit 90.0000"], $result->findings);
     }
 
     public function testJournalsUnbalanced_FailsAnImbalanceOfOneTenThousandth(): void
