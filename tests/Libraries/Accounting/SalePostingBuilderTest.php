@@ -4,6 +4,7 @@ namespace Tests\Libraries\Accounting;
 
 use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\InvoiceDiscount;
+use App\Libraries\ResolvedCharges;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\PaymentStatus;
@@ -81,7 +82,7 @@ class SalePostingBuilderTest extends CIUnitTestCase
      * @param list<SaleLine>    $lines
      * @param list<SalePayment> $payments
      */
-    private function sale(array $lines, array $payments = [], int $type = SALE_TYPE_INVOICE, ?int $customerId = -1, bool $delivered = true, ?SaleDocument $origin = null, bool $override = false, bool $refundInvoice = false): SaleDocument
+    private function sale(array $lines, array $payments = [], int $type = SALE_TYPE_INVOICE, ?int $customerId = -1, bool $delivered = true, ?SaleDocument $origin = null, bool $override = false, bool $refundInvoice = false, ?ResolvedCharges $charges = null): SaleDocument
     {
         return new SaleDocument(
             saleId: 7,
@@ -97,6 +98,7 @@ class SalePostingBuilderTest extends CIUnitTestCase
             origin: $origin,
             returnOverride: $override,
             refundInvoice: $refundInvoice,
+            charges: $charges,
         );
     }
 
@@ -542,14 +544,13 @@ class SalePostingBuilderTest extends CIUnitTestCase
         $this->assertSame(PostingError::RoutingTypeUnsupported, $failure->error);
     }
 
-    public function testInvoice_RefusesTheSettlementRowWhenItIsAutomaticBecauseNothingFeedsIt(): void
+    public function testInvoice_RefusesTheProductSalesRowWhenItIsInUseBecausePostingDoesNotApplyIt(): void
     {
-        $this->setRouting(RoutingKey::SalesAdjustment, RoutingType::Auto);
+        $this->setRouting(RoutingKey::ProductSales, RoutingType::PerItem, 'sales_revenue');
 
         $failure = $this->failureOf(fn () => $this->builder->invoice($this->sale([$this->line('1', '50')]), 1));
 
         $this->assertSame(PostingError::RoutingTypeUnsupported, $failure->error);
-        $this->assertSame('sales.adjustment', $failure->context['routing_key']);
     }
 
     public function testInvoice_RefusesACustomerWithoutAnAccount(): void
@@ -908,5 +909,173 @@ class SalePostingBuilderTest extends CIUnitTestCase
         $failure = $this->failureOf(fn () => $this->builder->assertSettled($return('-40.00')));
 
         $this->assertSame(PostingError::CreditNeedsCustomer, $failure->error);
+    }
+
+    public function testInvoice_PostsShippingAndANegativeAdjustmentToTheirOwnAccounts(): void
+    {
+        $sale = $this->sale(
+            [$this->line('4', '75', '10', PERCENT, '40', added: '40.50'), $this->line('2', '220', cost: '120', added: '66.00', itemId: 2)],
+            charges: new ResolvedCharges('Rounding', '-10.0000', '20.0000'),
+        );
+
+        $this->assertSame(
+            [
+                $this->customerAccount() . ':826.50:0.00',
+                $this->accountId('sales_adjustment') . ':10.00:0.00',
+                $this->accountId('sales_revenue') . ':0.00:710.00',
+                $this->accountId('tax_output') . ':0.00:106.50',
+                $this->accountId('sales_shipping') . ':0.00:20.00',
+            ],
+            $this->shape($this->builder->invoice($sale, 1)),
+        );
+    }
+
+    public function testInvoice_CreditsAPositiveAdjustmentToTheAdjustmentAccount(): void
+    {
+        $sale = $this->sale([$this->line('1', '100')], charges: new ResolvedCharges('Handling', '12.5000'));
+
+        $this->assertSame(
+            [
+                $this->customerAccount() . ':112.50:0.00',
+                $this->accountId('sales_revenue') . ':0.00:100.00',
+                $this->accountId('sales_adjustment') . ':0.00:12.50',
+            ],
+            $this->shape($this->builder->invoice($sale, 1)),
+        );
+    }
+
+    public function testInvoice_AddsTheTaxOnShippingToTheOutputTaxWhenItIsNotInTheAmount(): void
+    {
+        $sale = $this->sale([$this->line('1', '100')], charges: new ResolvedCharges(shipping: '100.0000', shippingTax: '15.0000'));
+
+        $this->assertSame(
+            [
+                $this->customerAccount() . ':215.00:0.00',
+                $this->accountId('sales_revenue') . ':0.00:100.00',
+                $this->accountId('tax_output') . ':0.00:15.00',
+                $this->accountId('sales_shipping') . ':0.00:100.00',
+            ],
+            $this->shape($this->builder->invoice($sale, 1)),
+        );
+    }
+
+    public function testInvoice_TakesTheTaxOnShippingOutOfTheAmountWhenItIsIncluded(): void
+    {
+        $sale = $this->sale([$this->line('1', '100')], charges: new ResolvedCharges(shipping: '100.0000', shippingTax: '13.0435', shippingTaxIncluded: true));
+
+        $this->assertSame(
+            [
+                $this->customerAccount() . ':200.0000:0.0000',
+                $this->accountId('sales_revenue') . ':0.0000:100.0000',
+                $this->accountId('tax_output') . ':0.0000:13.0435',
+                $this->accountId('sales_shipping') . ':0.0000:86.9565',
+            ],
+            $this->shape($this->builder->invoice($sale, 1), 4),
+        );
+    }
+
+    public function testInvoice_RoundsTheTotalOnTheGoodsAndKeepsTheShippingAndItsTaxUnrounded(): void
+    {
+        $sale = $this->sale([$this->line('1', '0.70', added: '0.105')], charges: new ResolvedCharges(shipping: '0.0700', shippingTax: '0.0105'));
+
+        $this->assertSame(
+            [
+                $this->customerAccount() . ':0.8900:0.0000',
+                $this->accountId('sales_revenue') . ':0.0000:0.7045',
+                $this->accountId('tax_output') . ':0.0000:0.1155',
+                $this->accountId('sales_shipping') . ':0.0000:0.0700',
+            ],
+            $this->shape($this->builder->invoice($sale, 1), 4),
+        );
+    }
+
+    public function testInvoice_KeepsTheDiscountLineAndAddsTheChargesBesideIt(): void
+    {
+        $this->setRouting(RoutingKey::SalesDiscount, RoutingType::Auto);
+
+        $sale = $this->sale([$this->line('4', '75', '10', PERCENT, added: '40.50')], charges: new ResolvedCharges('Fee', '5.0000', '20.0000'));
+
+        $this->assertSame(
+            [
+                $this->customerAccount() . ':335.50:0.00',
+                $this->accountId('sales_discount') . ':30.00:0.00',
+                $this->accountId('sales_revenue') . ':0.00:300.00',
+                $this->accountId('tax_output') . ':0.00:40.50',
+                $this->accountId('sales_shipping') . ':0.00:20.00',
+                $this->accountId('sales_adjustment') . ':0.00:5.00',
+            ],
+            $this->shape($this->builder->invoice($sale, 1)),
+        );
+    }
+
+    public function testInvoice_MirrorsTheChargesOnACreditNote(): void
+    {
+        $origin = $this->sale([$this->line('2', '50', cost: '10')]);
+        $return = $this->sale(
+            [$this->line('-1', '50', cost: '10', added: '7.50')],
+            type: SALE_TYPE_RETURN,
+            origin: $origin,
+            charges: new ResolvedCharges('Goodwill', '-5.0000', '20.0000'),
+        );
+
+        $this->assertSame(
+            [
+                $this->accountId('sales_returns') . ':50.00:0.00',
+                $this->accountId('tax_output') . ':7.50:0.00',
+                $this->accountId('sales_shipping') . ':20.00:0.00',
+                $this->accountId('sales_adjustment') . ':0.00:5.00',
+                $this->customerAccount() . ':0.00:72.50',
+            ],
+            $this->shape($this->builder->invoice($return, 1)),
+        );
+    }
+
+    public function testInvoice_JournalsTheSameWhenTheChargesAreEmptyAsWhenThereAreNone(): void
+    {
+        $lines = [$this->line('4', '75', '10', PERCENT, '40', added: '40.50')];
+
+        $this->assertSame(
+            $this->shape($this->builder->invoice($this->sale($lines), 1), 4),
+            $this->shape($this->builder->invoice($this->sale($lines, charges: new ResolvedCharges()), 1), 4),
+        );
+    }
+
+    public function testInvoice_RefusesShippingWhenItsRoutingRowIsCancelled(): void
+    {
+        $this->setRouting(RoutingKey::SalesShipping, RoutingType::Cancelled);
+
+        $failure = $this->failureOf(fn () => $this->builder->invoice($this->sale([$this->line('1', '50')], charges: new ResolvedCharges(shipping: '5.0000')), 1));
+
+        $this->assertSame(PostingError::RoutingRowCancelled, $failure->error);
+        $this->assertSame('sales.shipping', $failure->context['routing_key']);
+    }
+
+    public function testInvoice_RefusesAnAdjustmentWhenItsRoutingRowIsCancelled(): void
+    {
+        $this->setRouting(RoutingKey::SalesAdjustment, RoutingType::Cancelled);
+
+        $failure = $this->failureOf(fn () => $this->builder->invoice($this->sale([$this->line('1', '50')], charges: new ResolvedCharges('Fee', '5.0000')), 1));
+
+        $this->assertSame(PostingError::RoutingRowCancelled, $failure->error);
+        $this->assertSame('sales.adjustment', $failure->context['routing_key']);
+    }
+
+    public function testInvoice_NeedsNeitherChargeRowWhenTheSaleHasNoChargesEvenIfBothAreCancelled(): void
+    {
+        $this->setRouting(RoutingKey::SalesShipping, RoutingType::Cancelled);
+        $this->setRouting(RoutingKey::SalesAdjustment, RoutingType::Cancelled);
+
+        $this->assertCount(2, $this->builder->invoice($this->sale([$this->line('1', '50')]), 1)->lines);
+    }
+
+    public function testAssertSettled_CountsTheChargesInWhatAFeelessSaleMustPay(): void
+    {
+        $sale = $this->sale([$this->line('1', '100')], [$this->payment(lang('Sales.cash'), '100.00')], customerId: null, charges: new ResolvedCharges(shipping: '20.0000'));
+
+        $failure = $this->failureOf(fn () => $this->builder->assertSettled($sale));
+
+        $this->assertSame(PostingError::CreditNeedsCustomer, $failure->error);
+
+        $this->builder->assertSettled($this->sale([$this->line('1', '100')], [$this->payment(lang('Sales.cash'), '120.00')], customerId: null, charges: new ResolvedCharges(shipping: '20.0000')));
     }
 }

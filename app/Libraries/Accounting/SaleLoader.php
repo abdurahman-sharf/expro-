@@ -2,6 +2,8 @@
 
 namespace App\Libraries\Accounting;
 
+use App\Libraries\ResolvedCharges;
+use App\Libraries\ShippingTaxOption;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
@@ -21,7 +23,7 @@ final class SaleLoader
     public function load(int $saleId, bool $withOrigin = true): ?SaleDocument
     {
         $sale = $this->db->table('sales')
-            ->select('sale_id, sale_time, invoice_date, customer_id, sale_status, sale_type, branch_id, delivered, return_of_sale_id, return_document')
+            ->select('sale_id, sale_time, invoice_date, customer_id, sale_status, sale_type, branch_id, delivered, return_of_sale_id, return_document, adjustment_label, adjustment_amount, shipping_amount, shipping_options, shipping_tax_option, shipping_tax_amount')
             ->where('sale_id', $saleId)
             ->get()
             ->getRow();
@@ -49,7 +51,22 @@ final class SaleLoader
             savedOn: $savedOn,
             returnOverride: $withOrigin && $sale->return_of_sale_id === null && (new ReturnOverride($this->db))->exists($saleId),
             refundInvoice: $sale->return_document === ReturnDocument::RefundInvoice->storedValue(),
+            charges: $this->charges($sale),
         );
+    }
+
+    private function charges(object $sale): ?ResolvedCharges
+    {
+        $charges = new ResolvedCharges(
+            adjustmentLabel: (string) ($sale->adjustment_label ?? ''),
+            adjustment: bcadd((string) ($sale->adjustment_amount ?? '0'), '0', SaleAmounts::SCALE),
+            shipping: bcadd((string) ($sale->shipping_amount ?? '0'), '0', SaleAmounts::SCALE),
+            shippingTax: bcadd((string) ($sale->shipping_tax_amount ?? '0'), '0', SaleAmounts::SCALE),
+            shippingTaxIncluded: ShippingTaxOption::fromStored($sale->shipping_tax_option) === ShippingTaxOption::Included,
+            shippingOptions: $sale->shipping_options === null ? null : (int) $sale->shipping_options,
+        );
+
+        return $charges->isEmpty() ? null : $charges;
     }
 
     /**

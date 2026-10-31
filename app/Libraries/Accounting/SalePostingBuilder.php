@@ -35,30 +35,46 @@ final class SalePostingBuilder
         $this->assertPostable($sale);
         $this->assertUnusedRows();
 
-        $amounts = SaleAmounts::totals($sale, $this->decimals);
-        $split   = InvoiceRounding::split($amounts['net'], $amounts['tax']);
+        $figures = SaleAmounts::figures($sale, $this->decimals);
 
-        if (bccomp($split['total'], '0', SaleAmounts::SCALE) === 0) {
+        if (bccomp($figures['total'], '0', SaleAmounts::SCALE) === 0) {
             return null;
         }
 
         $receivable = $this->receivableAccount($sale);
         $revenue    = $this->required($sale->isReturn() ? RoutingKey::SalesReturns : RoutingKey::SalesRevenue);
-        $discount   = $this->discountLine($amounts['discount']);
-        $taxAccount = bccomp($split['tax'], '0', SaleAmounts::SCALE) > 0 ? $this->required(RoutingKey::TaxOutput) : null;
+        $discount   = $this->discountLine($figures['discount']);
+        $taxAccount = bccomp($figures['tax'], '0', SaleAmounts::SCALE) > 0 ? $this->required(RoutingKey::TaxOutput) : null;
 
-        $goods = $discount === null ? $split['revenue'] : bcadd($split['revenue'], $amounts['discount'], SaleAmounts::SCALE);
+        $goods = $discount === null ? $figures['revenue'] : bcadd($figures['revenue'], $figures['discount'], SaleAmounts::SCALE);
 
-        $customerSide = [$receivable, $split['total']];
+        $customerSide = [$receivable, $figures['total']];
         $incomeSide   = [[$revenue, $goods]];
 
         if ($taxAccount !== null) {
-            $incomeSide[] = [$taxAccount, $split['tax']];
+            $incomeSide[] = [$taxAccount, $figures['tax']];
+        }
+
+        if (bccomp($figures['shipping'], '0', SaleAmounts::SCALE) > 0) {
+            $incomeSide[] = [$this->required(RoutingKey::SalesShipping), $figures['shipping']];
+        }
+
+        $against        = null;
+        $adjustmentSign = bccomp($figures['adjustment'], '0', SaleAmounts::SCALE);
+
+        if ($adjustmentSign !== 0) {
+            $adjustment = [$this->required(RoutingKey::SalesAdjustment), SaleAmounts::absolute($figures['adjustment'])];
+
+            if ($adjustmentSign > 0) {
+                $incomeSide[] = $adjustment;
+            } else {
+                $against = $adjustment;
+            }
         }
 
         $lines = $sale->isReturn()
-            ? $this->mirror($customerSide, $incomeSide, $discount, $amounts['discount'])
-            : $this->forward($customerSide, $incomeSide, $discount, $amounts['discount']);
+            ? $this->mirror($customerSide, $incomeSide, $discount, $figures['discount'], $against)
+            : $this->forward($customerSide, $incomeSide, $discount, $figures['discount'], $against);
 
         return new JournalDraft(
             date: $sale->date,
@@ -262,8 +278,7 @@ final class SalePostingBuilder
             return;
         }
 
-        $amounts = SaleAmounts::totals($sale, $this->decimals);
-        $total   = InvoiceRounding::split($amounts['net'], $amounts['tax'])['total'];
+        $total   = SaleAmounts::figures($sale, $this->decimals)['total'];
         $owed    = $sale->isReturn() ? bcsub('0', $total, SaleAmounts::SCALE) : $total;
         $settled = '0';
 
@@ -326,10 +341,8 @@ final class SalePostingBuilder
      */
     private function assertUnusedRows(): void
     {
-        foreach ([RoutingKey::ProductSales, RoutingKey::SalesAdjustment] as $key) {
-            if ($this->resolver->accountFor($key) !== null) {
-                throw new PostingException(PostingError::RoutingTypeUnsupported, "The routing of {$key->value} is in use, which posting does not apply yet.", ['routing_key' => $key->value]);
-            }
+        if ($this->resolver->accountFor(RoutingKey::ProductSales) !== null) {
+            throw new PostingException(PostingError::RoutingTypeUnsupported, 'The routing of ' . RoutingKey::ProductSales->value . ' is in use, which posting does not apply yet.', ['routing_key' => RoutingKey::ProductSales->value]);
         }
     }
 
@@ -380,15 +393,20 @@ final class SalePostingBuilder
     /**
      * @param array{int, string}       $customer
      * @param list<array{int, string}> $income
+     * @param array{int, string}|null  $against A negative adjustment, which takes from the income.
      *
      * @return list<JournalLineDraft>
      */
-    private function forward(array $customer, array $income, ?int $discountAccount, string $discount): array
+    private function forward(array $customer, array $income, ?int $discountAccount, string $discount, ?array $against): array
     {
         $lines = [new JournalLineDraft($customer[0], debit: $customer[1])];
 
         if ($discountAccount !== null) {
             $lines[] = new JournalLineDraft($discountAccount, debit: $discount);
+        }
+
+        if ($against !== null) {
+            $lines[] = new JournalLineDraft($against[0], debit: $against[1]);
         }
 
         foreach ($income as [$account, $amount]) {
@@ -401,10 +419,11 @@ final class SalePostingBuilder
     /**
      * @param array{int, string}       $customer
      * @param list<array{int, string}> $income
+     * @param array{int, string}|null  $against A negative adjustment, which takes from the income.
      *
      * @return list<JournalLineDraft>
      */
-    private function mirror(array $customer, array $income, ?int $discountAccount, string $discount): array
+    private function mirror(array $customer, array $income, ?int $discountAccount, string $discount, ?array $against): array
     {
         $lines = [];
 
@@ -414,6 +433,10 @@ final class SalePostingBuilder
 
         if ($discountAccount !== null) {
             $lines[] = new JournalLineDraft($discountAccount, credit: $discount);
+        }
+
+        if ($against !== null) {
+            $lines[] = new JournalLineDraft($against[0], credit: $against[1]);
         }
 
         $lines[] = new JournalLineDraft($customer[0], credit: $customer[1]);

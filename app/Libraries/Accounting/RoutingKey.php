@@ -15,6 +15,7 @@ enum RoutingKey: string
     case SalesDiscount         = 'sales.discount';
     case ProductSales          = 'sales.product';
     case SalesAdjustment       = 'sales.adjustment';
+    case SalesShipping         = 'sales.shipping';
     case CostOfGoodsSold       = 'sales.cogs';
     case Suppliers             = 'purchases.suppliers';
     case Purchases             = 'purchases.purchases';
@@ -51,7 +52,7 @@ enum RoutingKey: string
     public function group(): string
     {
         return match ($this) {
-            self::Customers, self::SalesRevenue, self::SalesReturns, self::SalesDiscount, self::ProductSales, self::SalesAdjustment, self::CostOfGoodsSold => 'sales',
+            self::Customers, self::SalesRevenue, self::SalesReturns, self::SalesDiscount, self::ProductSales, self::SalesAdjustment, self::SalesShipping, self::CostOfGoodsSold => 'sales',
             self::Suppliers, self::Purchases, self::PurchaseReturns, self::PurchaseDiscount, self::PurchaseAdjustment => 'purchases',
             self::StockLocations => 'inventory',
             self::Treasuries, self::Banks, self::InterBranchReceivable, self::InterBranchPayable => 'treasuries',
@@ -114,7 +115,7 @@ enum RoutingKey: string
         return match ($this) {
             self::Customers => [RoutingType::Auto, RoutingType::PerItem, RoutingType::MainPerEntity],
             self::SalesRevenue, self::SalesReturns, self::Purchases, self::PurchaseReturns => [RoutingType::Auto, RoutingType::PerItem, RoutingType::Cancelled],
-            self::SalesDiscount, self::PurchaseDiscount => [RoutingType::Cancelled, RoutingType::Auto],
+            self::SalesDiscount, self::PurchaseDiscount, self::SalesShipping => [RoutingType::Cancelled, RoutingType::Auto],
             self::ProductSales => [RoutingType::Cancelled, RoutingType::PerItem],
             self::SalesAdjustment, self::PurchaseAdjustment => [RoutingType::Cancelled, RoutingType::Auto, RoutingType::PerItem],
             self::CostOfGoodsSold => [RoutingType::Cancelled, RoutingType::Auto],
@@ -124,12 +125,12 @@ enum RoutingKey: string
     }
 
     /**
-     * Whether posting applies the type on this row. The settlement rows take amounts that no
+     * Whether posting applies the type on this row. The purchase adjustment row takes amounts that no
      * document produces yet, so choosing "automatic" there would change nothing and look done.
      */
     public function applies(RoutingType $type): bool
     {
-        if ($type === RoutingType::Auto && in_array($this, [self::SalesAdjustment, self::PurchaseAdjustment], true)) {
+        if ($type === RoutingType::Auto && $this === self::PurchaseAdjustment) {
             return false;
         }
 
@@ -139,7 +140,7 @@ enum RoutingKey: string
     public function defaultType(): RoutingType
     {
         return match ($this) {
-            self::SalesDiscount, self::ProductSales, self::SalesAdjustment, self::PurchaseDiscount, self::PurchaseAdjustment => RoutingType::Cancelled,
+            self::SalesDiscount, self::ProductSales, self::PurchaseDiscount, self::PurchaseAdjustment => RoutingType::Cancelled,
             default => RoutingType::Auto,
         };
     }
@@ -171,7 +172,7 @@ enum RoutingKey: string
         return match ($this) {
             self::Customers, self::StockLocations, self::Treasuries, self::Banks, self::StockPermitIssue, self::CashDefault, self::CounterCustomers, self::InterBranchReceivable, self::NotesReceivable, self::ChequesUnderCollection => [AccountType::Asset],
             self::Suppliers, self::StockPermitAdd, self::TaxOutput, self::GiftcardLiability, self::InterBranchPayable, self::NotesPayable => [AccountType::Liability],
-            self::SalesRevenue, self::SalesReturns, self::ProductSales => [AccountType::Revenue],
+            self::SalesRevenue, self::SalesReturns, self::ProductSales, self::SalesShipping => [AccountType::Revenue],
             self::SalesDiscount, self::SalesAdjustment, self::PurchaseDiscount, self::PurchaseAdjustment => [AccountType::Revenue, AccountType::Expense],
             self::CostOfGoodsSold, self::StockCountOut, self::StockCountIn, self::ChequeDepositFees => [AccountType::Expense],
             self::Purchases, self::PurchaseReturns => [AccountType::Asset, AccountType::Expense],
@@ -184,7 +185,8 @@ enum RoutingKey: string
 
     /**
      * The system accounts the row may point at: its own default, and for the two rows that
-     * start empty the closest account of the chart.
+     * start empty the closest account of the chart. The adjustment row may also point at the
+     * account of discounts allowed, which was its default before adjustments were posted.
      *
      * @return list<string>
      */
@@ -193,6 +195,7 @@ enum RoutingKey: string
         return match ($this) {
             self::ProductSales    => [self::SalesRevenue->defaultSystemKey()],
             self::PurchaseReturns => [self::Purchases->defaultSystemKey()],
+            self::SalesAdjustment => [self::SalesAdjustment->defaultSystemKey(), self::SalesDiscount->defaultSystemKey()],
             default               => [$this->defaultSystemKey()],
         };
     }
@@ -205,7 +208,8 @@ enum RoutingKey: string
             self::SalesReturns          => 'sales_returns',
             self::SalesDiscount         => 'sales_discount',
             self::ProductSales          => null,
-            self::SalesAdjustment       => 'sales_discount',
+            self::SalesAdjustment       => 'sales_adjustment',
+            self::SalesShipping         => 'sales_shipping',
             self::CostOfGoodsSold       => 'cogs',
             self::Suppliers             => 'payables',
             self::Purchases             => 'purchases',
