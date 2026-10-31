@@ -143,7 +143,7 @@ class RevenueCategoriesTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('revenue_categories'));
     }
 
-    public function testSave_KeepingTheAccountItHasChangesNothingAndAsksForNothing(): void
+    public function testSave_ChangesNothingAndAsksForNothingWhenKeepingTheAccountItHas(): void
     {
         $account = $this->customAccount('42', '4210', 'Rent income');
         $id      = $this->categories->save(['category_name' => 'Rent', 'account_id' => $account], null, $this->router);

@@ -258,7 +258,7 @@ class Receipt_vouchersControllerTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('revenues'));
     }
 
-    public function testPostSave_RefusesAVoucherOfAnotherBranch(): void
+    public function testPostSave_RejectsAVoucherOfAnotherBranch(): void
     {
         $id    = $this->voucher();
         $other = $this->createBranch();
@@ -286,7 +286,7 @@ class Receipt_vouchersControllerTest extends CIUnitTestCase
         $this->assertCount(2, json_decode($this->get('/receipt_vouchers/search?deleted=1')->getJSON(), true)['rows']);
     }
 
-    public function testPostDelete_RefusesTheWholeListWhenOneVoucherBelongsToAnotherBranch(): void
+    public function testPostDelete_RejectsTheWholeListWhenOneVoucherBelongsToAnotherBranch(): void
     {
         $mine  = $this->voucher();
         $other = $this->createBranch();
@@ -304,7 +304,7 @@ class Receipt_vouchersControllerTest extends CIUnitTestCase
         $this->assertSame([0, 0], [(int) (new RevenueVouchers())->find($mine)->deleted, (int) (new RevenueVouchers())->find($theirs)->deleted]);
     }
 
-    public function testPostSaveAndPostDelete_AreNeverReachedByALink(): void
+    public function testPostSave_IsNeverReachedByALinkNorIsPostDelete(): void
     {
         $this->actAsWith(['receipt_vouchers']);
 
@@ -322,7 +322,7 @@ class Receipt_vouchersControllerTest extends CIUnitTestCase
         $this->assertSame('0', (string) (new RevenueVouchers())->find($id)->deleted);
     }
 
-    public function testRevenueCategories_FeedTheFormAndTheCategoryAccountDecidesTheJournal(): void
+    public function testPostSave_CreditsTheAccountOfTheCategoryTheFormOffers(): void
     {
         $this->actAsWith(['receipt_vouchers']);
 
@@ -421,6 +421,21 @@ class Receipt_vouchersControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('<option value="0">' . lang('Receipt_vouchers.treasury_default') . '</option>', $this->treasurySelect($this->get('/receipt_vouchers/view')->getBody()));
         $this->assertStringNotContainsString('<option value="0"', $this->treasurySelect($this->get('/receipt_vouchers/view/' . $named)->getBody()));
         $this->assertStringContainsString('<option value="0" selected>' . lang('Receipt_vouchers.treasury_none') . '</option>', $this->treasurySelect($this->get('/receipt_vouchers/view/' . $bare)->getBody()));
+
+        $this->assertSame(2, substr_count($this->get('/receipt_vouchers/view/' . $named)->getBody(), '<option value="0"'), 'Only the category and the account have an option for none');
+        $this->assertSame(3, substr_count($this->get('/receipt_vouchers/view/' . $bare)->getBody(), '<option value="0"'), 'And the treasury too for a voucher that has none');
+    }
+
+    public function testGetView_ListsTheTreasuryOfAVoucherOnceWhenItCanStillBeChosen(): void
+    {
+        $this->actAsWith(['receipt_vouchers']);
+
+        $second = $this->treasury('Second drawer');
+        $id     = $this->voucher(['treasury_id' => $second]);
+        $body   = $this->get('/receipt_vouchers/view/' . $id)->getBody();
+
+        $this->assertSame(1, substr_count($body, '<option value="' . $second . '"'));
+        $this->assertSame(1, substr_count($body, '<option value="' . $second . '" selected>'));
     }
 
     public function testGetView_ShowsTheAmountAndTheTaxWithEveryDecimalTheyHave(): void

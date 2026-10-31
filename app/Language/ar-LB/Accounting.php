@@ -112,7 +112,7 @@ return [
     'error_cheque_number_taken'                  => 'شيك آخر من هذا الدفتر يحمل هذا الرقم.',
     'error_cheque_party_missing'                 => 'عميل الشيك أو مورده غير موجود.',
     'error_cheque_status_invalid'                => 'حالة الشيك الحالية لا تسمح بهذا الإجراء.',
-    'error_cheque_treasury_invalid'              => 'دفتر الشيكات يتبع حسابًا بنكيًا فعّالًا.',
+    'error_cheque_treasury_invalid'              => 'دفتر الشيكات يتبع حسابًا بنكيًا فعّالًا، والشيك المستلم يُحصَّل في حساب بنكي فعّال.',
     'error_closing_before_start'                 => 'لا يمكن إقفال فترة قبل بدء المحاسبة في {0}.',
     'error_closing_blocked_by_drafts'            => 'في الفترة {0} من مسودات القيود. رحّلها أو احذفها أولًا.',
     'error_closing_changed'                      => 'تغيّر آخر إقفال منذ فتحت هذه النافذة وأصبح حتى {0}. حدّث الصفحة وأعد المحاولة.',

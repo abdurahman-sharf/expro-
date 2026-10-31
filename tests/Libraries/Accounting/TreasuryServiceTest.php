@@ -593,7 +593,7 @@ class TreasuryServiceTest extends CIUnitTestCase
         }
     }
 
-    public function testDelete_RefusesATreasuryAChequeABookOfChequesOrAReceiptVoucherNamed(): void
+    public function testDelete_RejectsATreasuryAChequeABookOfChequesOrAReceiptVoucherNamed(): void
     {
         $manager = $this->manager();
         $db      = $this->accountingDb();

@@ -110,7 +110,7 @@ class ChequePostingBuilderTest extends CIUnitTestCase
         return (int) (new TreasuryService())->accountOf($this->bank);
     }
 
-    public function testDrafts_ReceiveCreditsTheCustomerAndDebitsNotesReceivable(): void
+    public function testDrafts_CreditsTheCustomerAndDebitsNotesReceivableForAReceipt(): void
     {
         [$draft] = $this->draftsOf(ChequeTransition::Receive);
 
@@ -126,7 +126,7 @@ class ChequePostingBuilderTest extends CIUnitTestCase
         $this->assertSame(JournalEntryType::General, $draft->entryType);
     }
 
-    public function testDrafts_DepositMovesTheChequeToFundsUnderCollection(): void
+    public function testDrafts_MovesTheChequeToFundsUnderCollectionForADeposit(): void
     {
         [$draft] = $this->draftsOf(ChequeTransition::Deposit);
 
@@ -134,7 +134,7 @@ class ChequePostingBuilderTest extends CIUnitTestCase
         $this->assertSame(ChequeSources::DEPOSITED, $draft->sourceType);
     }
 
-    public function testDrafts_CollectDebitsTheBankAndCreditsNotesReceivable(): void
+    public function testDrafts_DebitsTheBankAndCreditsNotesReceivableForACollection(): void
     {
         [$draft] = $this->draftsOf(ChequeTransition::Collect);
 
@@ -142,7 +142,7 @@ class ChequePostingBuilderTest extends CIUnitTestCase
         $this->assertSame(ChequeSources::COLLECTED, $draft->sourceType);
     }
 
-    public function testDrafts_CollectAfterADepositSplitsTheBankAndTheFeesAndClearsFundsUnderCollection(): void
+    public function testDrafts_SplitsTheBankAndTheFeesAndClearsFundsUnderCollectionForACollectionAfterADeposit(): void
     {
         $drafts = $this->draftsOf(ChequeTransition::DepositCollect, ChequeDirection::Received, '2.50');
 
@@ -155,21 +155,21 @@ class ChequePostingBuilderTest extends CIUnitTestCase
         $this->assertSame(ChequeSources::DEPOSIT_COLLECTED, $drafts[0]->sourceType);
     }
 
-    public function testDrafts_CollectAfterADepositWithNoFeesPostsNoFeeLine(): void
+    public function testDrafts_PostsNoFeeLineForACollectionAfterADepositWithNoFees(): void
     {
         [$draft] = $this->draftsOf(ChequeTransition::DepositCollect);
 
         $this->assertSame([$this->bankAccount() . ':100.0000:0.0000', $this->accountId('cheques_under_collection') . ':0.0000:100.0000'], $this->linesOf($draft));
     }
 
-    public function testDrafts_CollectAfterADepositPostsNoBankLineWhenTheFeesTakeEverything(): void
+    public function testDrafts_PostsNoBankLineWhenTheFeesTakeEverythingOfACollectionAfterADeposit(): void
     {
         [$draft] = $this->draftsOf(ChequeTransition::DepositCollect, ChequeDirection::Received, '100.00');
 
         $this->assertSame([$this->accountId('cheque_deposit_fees') . ':100.0000:0.0000', $this->accountId('cheques_under_collection') . ':0.0000:100.0000'], $this->linesOf($draft));
     }
 
-    public function testDrafts_CollectAfterADepositRefusesFeesBelowZeroOrAboveTheCheque(): void
+    public function testDrafts_RejectsFeesBelowZeroOrAboveTheChequeOfACollectionAfterADeposit(): void
     {
         foreach (['-0.01', '100.01'] as $fees) {
             try {
@@ -181,7 +181,7 @@ class ChequePostingBuilderTest extends CIUnitTestCase
         }
     }
 
-    public function testDrafts_RejectGivesTheCustomerBackWhatTheChequeTook(): void
+    public function testDrafts_GivesTheCustomerBackWhatTheChequeTookForARejection(): void
     {
         $drafts = $this->draftsOf(ChequeTransition::Reject);
 
@@ -190,7 +190,7 @@ class ChequePostingBuilderTest extends CIUnitTestCase
         $this->assertSame(ChequeSources::REJECTED, $drafts[0]->sourceType);
     }
 
-    public function testDrafts_RejectAfterADepositWritesTwoJournalsInTheOrderTheyArePosted(): void
+    public function testDrafts_WritesTwoJournalsInTheOrderTheyArePostedForARejectionAfterADeposit(): void
     {
         $drafts = $this->draftsOf(ChequeTransition::DepositReject);
 
@@ -201,7 +201,7 @@ class ChequePostingBuilderTest extends CIUnitTestCase
         $this->assertSame([ChequeSources::DEPOSIT_REJECTED, ChequeSources::DEPOSIT_REJECTED], [$drafts[0]->sourceType, $drafts[1]->sourceType]);
     }
 
-    public function testDrafts_DeliverDebitsTheSupplierAndCreditsNotesPayable(): void
+    public function testDrafts_DebitsTheSupplierAndCreditsNotesPayableForADelivery(): void
     {
         [$draft] = $this->draftsOf(ChequeTransition::Deliver, ChequeDirection::Paid, '0', '200.00');
 
@@ -209,7 +209,7 @@ class ChequePostingBuilderTest extends CIUnitTestCase
         $this->assertSame(ChequeSources::DELIVERED, $draft->sourceType);
     }
 
-    public function testDrafts_CollectOfAPaidChequeDebitsNotesPayableAndCreditsTheBank(): void
+    public function testDrafts_DebitsNotesPayableAndCreditsTheBankForTheCollectionOfAPaidCheque(): void
     {
         [$draft] = $this->draftsOf(ChequeTransition::PayCollect, ChequeDirection::Paid, '0', '200.00');
 
@@ -217,7 +217,7 @@ class ChequePostingBuilderTest extends CIUnitTestCase
         $this->assertSame(ChequeSources::PAID_COLLECTED, $draft->sourceType);
     }
 
-    public function testDrafts_RejectOfAPaidChequeGivesTheSupplierBackWhatDeliveryTook(): void
+    public function testDrafts_GivesTheSupplierBackWhatDeliveryTookForTheRejectionOfAPaidCheque(): void
     {
         [$draft] = $this->draftsOf(ChequeTransition::PayReject, ChequeDirection::Paid, '0', '200.00');
 
@@ -225,13 +225,13 @@ class ChequePostingBuilderTest extends CIUnitTestCase
         $this->assertSame(ChequeSources::PAID_REJECTED, $draft->sourceType);
     }
 
-    public function testDrafts_IssueAndCancelPostNothing(): void
+    public function testDrafts_PostsNothingForAnIssueAndACancellation(): void
     {
         $this->assertSame([], $this->draftsOf(ChequeTransition::Issue, ChequeDirection::Paid));
         $this->assertSame([], $this->draftsOf(ChequeTransition::Cancel, ChequeDirection::Paid));
     }
 
-    public function testDrafts_RefuseAReceiptWhenTheRoutingOfNotesReceivableIsSetToATypePostingDoesNotApply(): void
+    public function testDrafts_RejectsAReceiptWhenTheRoutingOfNotesReceivableIsSetToATypePostingDoesNotApply(): void
     {
         $this->accountingDb()->table('accounting_routing')->where('routing_key', RoutingKey::NotesReceivable->value)->update(['routing_type' => RoutingType::Cancelled->value]);
 

@@ -39,6 +39,7 @@ enum RoutingKey: string
     case Banks                 = 'treasuries.banks';
     case InterBranchReceivable = 'branches.receivable';
     case InterBranchPayable    = 'branches.payable';
+
     case NotesReceivable        = 'cheques.receivable';
     case ChequesUnderCollection = 'cheques.collection';
     case ChequeDepositFees      = 'cheques.fees';
@@ -229,6 +230,7 @@ enum RoutingKey: string
             self::CounterCustomers      => 'counter_customers',
             self::InterBranchReceivable => 'branches_receivable',
             self::InterBranchPayable    => 'branches_payable',
+
             self::NotesReceivable        => 'notes_receivable',
             self::ChequesUnderCollection => 'cheques_under_collection',
             self::ChequeDepositFees      => 'cheque_deposit_fees',

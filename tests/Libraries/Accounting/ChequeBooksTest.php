@@ -147,7 +147,7 @@ class ChequeBooksTest extends CIUnitTestCase
     {
         $this->books->create($this->input(), $this->clerk);
 
-        foreach ([['100', '199'], ['150', '250'], ['50', '100'], ['0120', '130'], ['1', '1000']] as [$first, $last]) {
+        foreach ([['100', '199'], ['150', '250'], ['50', '100'], ['199', '250'], ['0120', '130'], ['1', '1000']] as [$first, $last]) {
             $this->assertSame(AccountingError::ChequeBookInvalid, $this->refusal(fn () => $this->books->create($this->input(['name' => 'Book 2', 'first_serial' => $first, 'last_serial' => $last]), $this->clerk))->error, $first . '-' . $last);
         }
 

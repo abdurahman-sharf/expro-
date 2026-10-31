@@ -39,7 +39,7 @@ enum DocumentType: string
             self::SupplierPayment => ['receivings_payments' => 'payment_id', 'supplier_advances' => 'advance_id'],
             self::Expense         => ['expenses' => 'expense_id'],
             self::ReceivedCheque, self::PaidCheque => ['cheques' => 'cheque_id'],
-            self::Revenue         => ['revenues' => 'revenue_id'],
+            self::Revenue => ['revenues' => 'revenue_id'],
         };
     }
 
@@ -82,7 +82,7 @@ enum DocumentType: string
             self::CustomerPayment, self::SupplierPayment, self::Expense, self::Revenue => (string) $id,
             self::ReceivedCheque => 'CHQ-IN ' . $id,
             self::PaidCheque     => 'CHQ-OUT ' . $id,
-            default => '',
+            default              => '',
         };
     }
 

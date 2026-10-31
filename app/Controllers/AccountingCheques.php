@@ -45,9 +45,9 @@ class AccountingCheques extends AccountingController
         $direction = $this->direction((string) $this->request->getGet('direction'));
 
         return view('accounting_cheques/manage', [
-            'direction'     => $direction->value,
+            'direction'    => $direction->value,
             'tableHeaders' => transform_headers($this->headers($direction), true, true),
-            'statuses'      => $this->statusOptions($direction),
+            'statuses'     => $this->statusOptions($direction),
             'canManage'    => $this->can(AccountingGuard::CHEQUES_MANAGE),
             'scopeNotice'  => $this->scopeNoticeNeeded(),
         ]);
@@ -84,16 +84,16 @@ class AccountingCheques extends AccountingController
         $direction = ChequeDirection::from($cheque->direction);
 
         return view('accounting_cheques/view', [
-            'cheque'        => $cheque,
-            'direction'     => $direction->value,
-            'number'        => $this->numberOf($cheque),
-            'events'        => $this->cheques->events($chequeId),
-            'journals'      => $this->cheques->journalsOf($chequeId),
+            'cheque'       => $cheque,
+            'direction'    => $direction->value,
+            'number'       => $this->numberOf($cheque),
+            'events'       => $this->cheques->events($chequeId),
+            'journals'     => $this->cheques->journalsOf($chequeId),
             'journalLinks' => $this->can('accounting_journals'),
             'canManage'    => $this->can(AccountingGuard::CHEQUES_MANAGE),
-            'actions'       => $this->cheques->actionsOf($cheque),
-            'amount'        => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
-            'date'          => fn (?string $value): string => $this->formatDate($value),
+            'actions'      => $this->cheques->actionsOf($cheque),
+            'amount'       => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
+            'date'         => fn (?string $value): string => $this->formatDate($value),
             'sourceLabel'  => fn (string $source): string => $this->label('source', $source),
         ]);
     }
@@ -172,11 +172,11 @@ class AccountingCheques extends AccountingController
         }
 
         return view('accounting_cheques/action_form', [
-            'cheque'    => $cheque,
-            'action'    => $action,
-            'today'     => date('Y-m-d'),
+            'cheque'   => $cheque,
+            'action'   => $action,
+            'today'    => date('Y-m-d'),
             'asksFees' => $action === 'collect' && $cheque->status === ChequeStatus::Deposited->value,
-            'number'    => $this->numberOf($cheque),
+            'number'   => $this->numberOf($cheque),
         ]);
     }
 
@@ -235,7 +235,7 @@ class AccountingCheques extends AccountingController
     public function getBooks(): string
     {
         return view('accounting_cheques/books', [
-            'books'      => $this->books->all($this->branchIds()),
+            'books'     => $this->books->all($this->branchIds()),
             'canManage' => $this->can(AccountingGuard::CHEQUES_MANAGE),
         ]);
     }
@@ -382,8 +382,9 @@ class AccountingCheques extends AccountingController
     }
 
     /**
-     * The active banks of the branches the person may see and, for a cheque already entered, the bank it
-     * has even when that bank is out of use since, so that saving the cheque again keeps it.
+     * The active bank accounts of the branches the person may see and, for a cheque already entered, the
+     * treasury it has even when that one is out of use or is no bank since, so that saving the cheque
+     * again keeps it.
      *
      * @return list<object>
      */
@@ -391,7 +392,7 @@ class AccountingCheques extends AccountingController
     {
         return array_values(array_filter(
             (new TreasuryService(null, null, $this->branchGuard()))->all($this->branchIds()),
-            static fn (object $treasury): bool => (int) $treasury->active === 1 || ($cheque !== null && (int) $treasury->treasury_id === (int) $cheque->treasury_id),
+            static fn (object $treasury): bool => ((int) $treasury->active === 1 && $treasury->kind === TreasuryService::BANK) || ($cheque !== null && (int) $treasury->treasury_id === (int) $cheque->treasury_id),
         ));
     }
 

@@ -168,7 +168,7 @@ class RevenuePostingBuilderTest extends CIUnitTestCase
         $this->assertNull($this->builder->revenue($this->voucher('0.00'), 1));
     }
 
-    public function testRevenue_RefusesATaxBelowZeroOrAboveTheAmount(): void
+    public function testRevenue_RejectsATaxBelowZeroOrAboveTheAmount(): void
     {
         $this->assertSame(PostingError::RevenueTaxInvalid, $this->refusalOf(fn () => $this->builder->revenue($this->voucher('100.00', '100.01'), 1))->error);
         $this->assertSame(PostingError::RevenueTaxInvalid, $this->refusalOf(fn () => $this->builder->revenue($this->voucher('100.00', '-5.00'), 1))->error);
@@ -176,7 +176,7 @@ class RevenuePostingBuilderTest extends CIUnitTestCase
         $this->assertNotNull($this->builder->revenue($this->voucher('100.00', '0.00'), 1));
     }
 
-    public function testRevenue_RefusesAWayOfPaymentThatIsNotMoney(): void
+    public function testRevenue_RejectsAWayOfPaymentThatIsNotMoney(): void
     {
         foreach ([lang(PaymentType::Giftcard->languageKey()), lang(PaymentType::Rewards->languageKey()), lang(PaymentType::Due->languageKey()), 'Barter'] as $label) {
             $this->assertSame(PostingError::PaymentTypeUnknown, $this->refusalOf(fn () => $this->builder->revenue($this->voucher('100.00', '0', $label, null, null, null), 1))->error, $label);

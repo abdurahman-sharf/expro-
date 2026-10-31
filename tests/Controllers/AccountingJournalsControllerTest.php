@@ -1736,7 +1736,7 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         $body = $this->get('/accounting_journals/audit')->getBody();
 
         foreach (['cheque' => 'entity_cheque', 'cheque_book' => 'entity_cheque_book', 'revenue' => 'entity_revenue', 'revenue_category' => 'entity_revenue_category'] as $code => $key) {
-            $this->assertStringContainsString('<option value="' . $code . '">' . lang('Accounting.' . $key) . '</option>', $body);
+            $this->assertSame(1, substr_count($body, '<option value="' . $code . '">' . lang('Accounting.' . $key) . '</option>'), $code);
         }
     }
 }

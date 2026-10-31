@@ -159,7 +159,7 @@ class Revenue_categoriesControllerTest extends CIUnitTestCase
         $this->assertSame(lang('Accounting.error_revenue_category_name_invalid'), $empty['message']);
     }
 
-    public function testPostSave_RefusesAnAccountWithoutThePermissionToChangeTheRouting(): void
+    public function testPostSave_RejectsAnAccountWithoutThePermissionToChangeTheRouting(): void
     {
         $account = $this->customAccount('42', '4210', 'Rent income');
 

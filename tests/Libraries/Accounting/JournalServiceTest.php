@@ -2349,7 +2349,7 @@ class JournalServiceTest extends CIUnitTestCase
         return [...ChequeSources::ALL, RevenuePostingBuilder::SOURCE];
     }
 
-    public function testReverse_RefusesTheJournalsOfEveryChequeStatusChangeAndOfAReceiptVoucherAndLeavesThemToTheirDocuments(): void
+    public function testReverse_RejectsTheJournalsOfEveryChequeStatusChangeAndOfAReceiptVoucherAndLeavesThemToTheirDocuments(): void
     {
         $reverser = $this->accountant();
 
@@ -2388,7 +2388,7 @@ class JournalServiceTest extends CIUnitTestCase
         $this->assertSame(10, $this->service->search([])['total']);
     }
 
-    public function testSourceLabels_NameEveryChequeSourceAndTheReceiptVoucherInEnglishAndArabic(): void
+    public function testSources_NamesEveryChequeSourceAndTheReceiptVoucherInEnglishAndArabic(): void
     {
         $english = include APPPATH . 'Language/en/Accounting.php';
         $arabic  = include APPPATH . 'Language/ar-EG/Accounting.php';

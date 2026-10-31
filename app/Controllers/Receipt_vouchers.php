@@ -35,7 +35,7 @@ class Receipt_vouchers extends AccountingController
     {
         return view('receipt_vouchers/manage', [
             'tableHeaders' => transform_headers($this->headers(), false, true),
-            'categories'    => $this->categories->all(),
+            'categories'   => $this->categories->all(),
         ]);
     }
 

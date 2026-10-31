@@ -112,7 +112,7 @@ return [
     'error_cheque_number_taken'                  => 'Another cheque of this book has this number.',
     'error_cheque_party_missing'                 => 'The customer or the supplier of the cheque does not exist.',
     'error_cheque_status_invalid'                => 'The cheque is not in a status that allows this change.',
-    'error_cheque_treasury_invalid'              => 'A cheque book belongs to an active bank account.',
+    'error_cheque_treasury_invalid'              => 'A cheque book belongs to an active bank account, and a cheque received is collected into one.',
     'error_closing_before_start'                 => 'A period cannot be closed before accounting starts on {0}.',
     'error_closing_blocked_by_drafts'            => '{0} draft journals lie in the period. Post or delete them first.',
     'error_closing_changed'                      => 'The latest closing changed since you opened this window and is now through {0}. Refresh the page and try again.',

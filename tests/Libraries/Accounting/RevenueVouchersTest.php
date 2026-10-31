@@ -262,7 +262,7 @@ class RevenueVouchersTest extends CIUnitTestCase
         $this->assertSame([$this->treasuryAccount() . '=15.00/0.00', $this->accountId('tax_output') . '=0.00/15.00'], $this->standing($id));
     }
 
-    public function testSave_RefusesAVoucherWithoutAnAccountWhenTheSettingAsksForOne(): void
+    public function testSave_RejectsAVoucherWithoutAnAccountWhenTheSettingAsksForOne(): void
     {
         $this->setConfigValue('accounting_revenue_account_required', '1');
 
@@ -299,7 +299,7 @@ class RevenueVouchersTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('revenues'));
     }
 
-    public function testSave_RefusesATreasuryTheEmployeeMayNotDepositIntoAndLeavesNothing(): void
+    public function testSave_RejectsATreasuryTheEmployeeMayNotDepositIntoAndLeavesNothing(): void
     {
         $other = $this->employeeWithGrants([]);
 
@@ -312,7 +312,7 @@ class RevenueVouchersTest extends CIUnitTestCase
         $this->assertSame(0, $this->journalCount('posted'));
     }
 
-    public function testSave_RefusesADeactivatedOrMissingTreasury(): void
+    public function testSave_RejectsADeactivatedOrMissingTreasury(): void
     {
         (new TreasuryService())->deactivate($this->treasuryId);
 
@@ -629,7 +629,7 @@ class RevenueVouchersTest extends CIUnitTestCase
         $this->assertSame($this->treasuryId, (int) $this->vouchers->find($id)->treasury_id);
     }
 
-    public function testSave_RefusesACategoryThatWasDeleted(): void
+    public function testSave_RejectsACategoryThatWasDeleted(): void
     {
         $category = $this->revenueCategory('Old services');
 

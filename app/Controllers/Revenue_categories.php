@@ -49,8 +49,8 @@ class Revenue_categories extends AccountingController
         }
 
         return view('revenue_categories/form', [
-            'category'           => $categoryId === NEW_ENTRY ? null : $this->category($categoryId),
-            'accountOptions'    => $accounts,
+            'category'         => $categoryId === NEW_ENTRY ? null : $this->category($categoryId),
+            'accountOptions'   => $accounts,
             'canAssignAccount' => $this->categories->mayAssign($this->employeeId()),
         ]);
     }

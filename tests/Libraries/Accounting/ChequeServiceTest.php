@@ -6,7 +6,6 @@ use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\ChequeBooks;
-use App\Libraries\Accounting\ChequeDirection;
 use App\Libraries\Accounting\ChequeService;
 use App\Libraries\Accounting\ChequeSources;
 use App\Libraries\Accounting\ChequeTransition;
@@ -340,6 +339,35 @@ class ChequeServiceTest extends CIUnitTestCase
         $this->assertSame(AccountingError::TreasuryNotFound, $this->refusal(fn () => $this->received(['treasury_id' => 999999]))->error);
     }
 
+    public function testReceive_RejectsACashTreasuryBecauseAChequeIsCollectedIntoABankAccount(): void
+    {
+        $cash = (new TreasuryService())->create(['name' => 'Drawer ' . uniqid(), 'kind' => 'cash'], $this->clerk);
+
+        $this->assertSame(AccountingError::ChequeTreasuryInvalid, $this->refusal(fn () => $this->received(['treasury_id' => $cash]))->error);
+        $this->assertSame(0, $this->countRows('cheques'));
+        $this->assertSame(0, $this->countRows('accounting_journals'));
+    }
+
+    public function testUpdate_RejectsMovingAReceivedChequeToACashTreasury(): void
+    {
+        $cash     = (new TreasuryService())->create(['name' => 'Drawer ' . uniqid(), 'kind' => 'cash'], $this->clerk);
+        $chequeId = $this->received();
+
+        $this->assertSame(AccountingError::ChequeTreasuryInvalid, $this->refusal(fn () => $this->cheques->update($chequeId, $this->input(['treasury_id' => $cash]), $this->clerk))->error);
+        $this->assertSame($this->bank, (int) $this->cheques->find($chequeId)->treasury_id);
+    }
+
+    public function testCollect_AcceptsAChequeWhoseTreasuryIsNoBankAnyMoreBecauseItWasEnteredBeforeTheRule(): void
+    {
+        $chequeId = $this->received();
+
+        $this->accountingDb()->table('treasuries')->where('treasury_id', $this->bank)->update(['kind' => 'cash']);
+
+        $this->cheques->collect($chequeId, $this->today, null, $this->clerk);
+
+        $this->assertSame('collected', $this->statusOf($chequeId));
+    }
+
     public function testReceive_RequiresThePermissionToChangeCheques(): void
     {
         $nobody = $this->employeeWithGrants([]);
@@ -423,7 +451,7 @@ class ChequeServiceTest extends CIUnitTestCase
         $this->assertSame('received', $this->statusOf($chequeId));
     }
 
-    public function testCollect_DirectlyDebitsTheBankAndCreditsNotesReceivable(): void
+    public function testCollect_DebitsTheBankAndCreditsNotesReceivableWithoutADeposit(): void
     {
         $chequeId = $this->received();
 
@@ -446,7 +474,7 @@ class ChequeServiceTest extends CIUnitTestCase
         return $balance;
     }
 
-    public function testCollect_RefusesADateBeforeTheDueDate(): void
+    public function testCollect_RejectsADateBeforeTheDueDate(): void
     {
         $chequeId = $this->received(['due_date' => $this->futureDate(60)]);
 
@@ -470,7 +498,7 @@ class ChequeServiceTest extends CIUnitTestCase
         $this->assertSame('collected', $this->statusOf($chequeId));
     }
 
-    public function testCollect_RefusesAMonthThatEndsBeforeTheDueDateAfterADeposit(): void
+    public function testCollect_RejectsAMonthThatEndsBeforeTheDueDateAfterADeposit(): void
     {
         $chequeId = $this->received(['due_date' => $this->futureDate(30)]);
 
@@ -480,7 +508,7 @@ class ChequeServiceTest extends CIUnitTestCase
         $this->assertSame('deposited', $this->statusOf($chequeId));
     }
 
-    public function testCollect_AfterADepositNeedsTheFeesAndPostsThemToTheFeesAccount(): void
+    public function testCollect_NeedsTheFeesAfterADepositAndPostsThemToTheFeesAccount(): void
     {
         $chequeId = $this->received();
 
@@ -498,7 +526,7 @@ class ChequeServiceTest extends CIUnitTestCase
         $this->assertSame('2.50', $this->balance($this->accountId('cheque_deposit_fees')));
     }
 
-    public function testCollect_AfterADepositAcceptsNoFeesAtAll(): void
+    public function testCollect_AcceptsNoFeesAtAllAfterADeposit(): void
     {
         $chequeId = $this->received();
 
@@ -529,7 +557,7 @@ class ChequeServiceTest extends CIUnitTestCase
         $this->assertSame('received', $this->statusOf($chequeId));
     }
 
-    public function testCollect_RefusesAnEmployeeWhoMayNotDepositIntoTheBank(): void
+    public function testCollect_RejectsAnEmployeeWhoMayNotDepositIntoTheBank(): void
     {
         $chequeId = $this->received();
         $clerk    = $this->employeeWithGrants([AccountingGuard::CHEQUES_MANAGE]);
@@ -545,7 +573,7 @@ class ChequeServiceTest extends CIUnitTestCase
         $this->assertSame(0, $this->countJournalsOf(ChequeSources::COLLECTED, $chequeId));
     }
 
-    public function testReject_WhileReceivedGivesTheCustomerBackAndTheInvoicesToo(): void
+    public function testReject_GivesTheCustomerBackAndTheInvoicesTooWhileReceived(): void
     {
         $invoice  = $this->invoiceOf('100.00');
         $chequeId = $this->received();
@@ -564,7 +592,7 @@ class ChequeServiceTest extends CIUnitTestCase
         $this->assertTies();
     }
 
-    public function testReject_AfterADepositPostsTwoJournalsThatClearBothAccountsOfTheCheque(): void
+    public function testReject_PostsTwoJournalsAfterADepositThatClearBothAccountsOfTheCheque(): void
     {
         $chequeId = $this->received();
 
@@ -601,7 +629,7 @@ class ChequeServiceTest extends CIUnitTestCase
         $this->assertNull($events[0]->undone_at);
     }
 
-    public function testUndo_OfACollectionAfterADepositGoesBackToDeposited(): void
+    public function testUndo_GoesBackToDepositedFromACollectionAfterADeposit(): void
     {
         $chequeId = $this->received();
 
@@ -616,7 +644,7 @@ class ChequeServiceTest extends CIUnitTestCase
         $this->assertSame('0.0000', $this->accountingDb()->table('cheques')->where('cheque_id', $chequeId)->get()->getRow()->deposit_fees);
     }
 
-    public function testUndo_OfARejectionAfterADepositReversesBothJournals(): void
+    public function testUndo_ReversesBothJournalsOfARejectionAfterADeposit(): void
     {
         $chequeId = $this->received();
 
@@ -630,7 +658,7 @@ class ChequeServiceTest extends CIUnitTestCase
         $this->assertSame('100.00', $this->balance($this->accountId('cheques_under_collection')));
     }
 
-    public function testUndo_OfARejectionPutsTheInvoicesBackOnTheCheque(): void
+    public function testUndo_PutsTheInvoicesBackOnTheChequeWhenARejectionIsUndone(): void
     {
         $invoice  = $this->invoiceOf('100.00');
         $chequeId = $this->received();
@@ -681,7 +709,7 @@ class ChequeServiceTest extends CIUnitTestCase
         $this->assertSame('0.00', $this->balance($this->bankLedgerAccount()));
     }
 
-    public function testDeposit_RefusesAClosedPeriodAndLeavesTheChequeReceived(): void
+    public function testDeposit_RejectsAClosedPeriodAndLeavesTheChequeReceived(): void
     {
         $chequeId = $this->received();
 
@@ -860,7 +888,7 @@ class ChequeServiceTest extends CIUnitTestCase
         $this->assertSame(0, $this->countJournalsOf(ChequeSources::RECEIVED, $chequeId, 'reversed'));
     }
 
-    public function testDelete_AfterUndoingTheLastChangeIsAllowed(): void
+    public function testDelete_AcceptsAChequeAfterItsLastChangeIsUndone(): void
     {
         $chequeId = $this->received();
 
@@ -972,7 +1000,7 @@ class ChequeServiceTest extends CIUnitTestCase
         $this->assertSame('rejected', $this->statusOf($chequeId), 'A rejection posts nothing to the bank');
     }
 
-    public function testCollect_OfAPaidChequeRejectsABankThatWasDeactivated(): void
+    public function testCollect_RejectsADeactivatedBankOfAPaidCheque(): void
     {
         $other = $this->bankAccount('Closing bank');
         $book  = (new ChequeBooks())->create(['treasury_id' => $other, 'name' => 'Closing book', 'first_serial' => '900001', 'last_serial' => '900010'], $this->clerk);
@@ -1029,7 +1057,7 @@ class ChequeServiceTest extends CIUnitTestCase
         $this->assertSupplierTies();
     }
 
-    public function testIssue_WithADeliveryDayDeliversInTheSameTransaction(): void
+    public function testIssue_DeliversInTheSameTransactionWhenGivenADeliveryDay(): void
     {
         $chequeId = $this->paid([], $this->today);
 
@@ -1038,7 +1066,7 @@ class ChequeServiceTest extends CIUnitTestCase
         $this->assertSame(1, $this->countJournalsOf(ChequeSources::DELIVERED, $chequeId, 'posted'));
     }
 
-    public function testIssue_WithADeliveryDayWritesNothingWhenThePeriodIsClosed(): void
+    public function testIssue_WritesNothingWhenGivenADeliveryDayInAClosedPeriod(): void
     {
         $this->closeThrough($this->today);
 
@@ -1048,7 +1076,7 @@ class ChequeServiceTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('cheques'));
     }
 
-    public function testCollect_OfAPaidChequeDebitsNotesPayableAndCreditsTheBankWithoutLookingAtItsBalance(): void
+    public function testCollect_DebitsNotesPayableAndCreditsTheBankOfAPaidChequeWithoutLookingAtItsBalance(): void
     {
         $chequeId = $this->paid([], $this->today);
 
@@ -1060,7 +1088,7 @@ class ChequeServiceTest extends CIUnitTestCase
         $this->assertSame('0.00', $this->balance($this->accountId('notes_payable')));
     }
 
-    public function testCollect_OfAPaidChequeRefusesADateBeforeTheDueDate(): void
+    public function testCollect_RejectsADateBeforeTheDueDateOfAPaidCheque(): void
     {
         $chequeId = $this->paid(['due_date' => $this->futureDate(30)], $this->today);
 
@@ -1068,7 +1096,7 @@ class ChequeServiceTest extends CIUnitTestCase
         $this->assertSame('delivered', $this->statusOf($chequeId));
     }
 
-    public function testCollect_OfAPaidChequeRefusesAnEmployeeWhoMayNotWithdrawFromTheBank(): void
+    public function testCollect_RejectsAnEmployeeWhoMayNotWithdrawFromTheBankOfAPaidCheque(): void
     {
         $chequeId = $this->paid([], $this->today);
         $clerk    = $this->employeeWithGrants([AccountingGuard::CHEQUES_MANAGE]);
@@ -1080,7 +1108,7 @@ class ChequeServiceTest extends CIUnitTestCase
         $this->assertSame('delivered', $this->statusOf($chequeId));
     }
 
-    public function testReject_OfAPaidChequeGivesTheSupplierBackWhatDeliveryTook(): void
+    public function testReject_GivesTheSupplierBackWhatDeliveryTookForAPaidCheque(): void
     {
         $this->purchaseOf('500.00');
 
@@ -1095,7 +1123,7 @@ class ChequeServiceTest extends CIUnitTestCase
         $this->assertSupplierTies();
     }
 
-    public function testUndo_OfADeliveryReversesItsJournalAndTheCreditGoesBack(): void
+    public function testUndo_ReversesTheJournalOfADeliveryAndTheCreditGoesBack(): void
     {
         $this->purchaseOf('500.00');
 
@@ -1129,7 +1157,7 @@ class ChequeServiceTest extends CIUnitTestCase
         $this->assertSame(AccountingError::ChequeStatusInvalid, $this->refusal(fn () => $this->cheques->cancel($chequeId, $this->clerk))->error);
     }
 
-    public function testDelete_OfAPaidChequeIsAllowedOnlyWhileIssued(): void
+    public function testDelete_AcceptsAPaidChequeOnlyWhileIssued(): void
     {
         $chequeId = $this->paid([], $this->today);
 
@@ -1142,7 +1170,7 @@ class ChequeServiceTest extends CIUnitTestCase
         $this->assertSame('0.00', $this->balance($this->supplierAccount()));
     }
 
-    public function testUpdate_OfAnIssuedChequeChangesTheBookAndTheNumberWithoutPosting(): void
+    public function testUpdate_ChangesTheBookAndTheNumberOfAnIssuedChequeWithoutPosting(): void
     {
         $second   = (new ChequeBooks())->create(['treasury_id' => $this->bankAccount('Second bank'), 'name' => 'Book 2', 'first_serial' => '900001', 'last_serial' => '900010'], $this->clerk);
         $chequeId = $this->paid();
@@ -1157,41 +1185,14 @@ class ChequeServiceTest extends CIUnitTestCase
         $this->assertSame(AccountingError::ChequeNumberOutOfBook, $this->refusal(fn () => $this->cheques->update($chequeId, $this->paidInput(['book_id' => $second, 'cheque_number' => '800001']), $this->clerk))->error);
     }
 
-    public function testUpdate_OfADeliveredPaidChequeLocksItsAmount(): void
+    public function testUpdate_LocksTheAmountOfADeliveredPaidCheque(): void
     {
         $chequeId = $this->paid([], $this->today);
 
         $this->assertSame(AccountingError::ChequeLocked, $this->refusal(fn () => $this->cheques->update($chequeId, $this->paidInput(['amount' => '210.00']), $this->clerk))->error);
     }
 
-    public function testTransitions_MapEveryStatusChangeToItsOwnJournalSource(): void
-    {
-        $map = [];
-
-        foreach (ChequeTransition::cases() as $transition) {
-            if ($transition->source() !== null) {
-                $map[$transition->value] = $transition->source();
-            }
-        }
-
-        $this->assertSame([
-            'receive'  => 'cheque_in_received',
-            'deposit'  => 'cheque_in_deposited',
-            'collect'  => 'cheque_in_collected',
-            'dcollect' => 'cheque_in_dep_collected',
-            'reject'   => 'cheque_in_rejected',
-            'dreject'  => 'cheque_in_dep_rejected',
-            'deliver'  => 'cheque_out_delivered',
-            'pcollect' => 'cheque_out_collected',
-            'preject'  => 'cheque_out_rejected',
-        ], $map);
-        $this->assertCount(9, array_unique(ChequeSources::ALL));
-        $this->assertEqualsCanonicalizing(ChequeSources::ALL, array_values($map));
-        $this->assertSame(['cheque_in_received', 'cheque_in_deposited', 'cheque_in_collected', 'cheque_in_dep_collected', 'cheque_in_rejected', 'cheque_in_dep_rejected'], ChequeTransition::sourcesOf(ChequeDirection::Received));
-        $this->assertSame(['cheque_out_delivered', 'cheque_out_collected', 'cheque_out_rejected'], ChequeTransition::sourcesOf(ChequeDirection::Paid));
-    }
-
-    public function testChequeJournals_NeverLeaveAnOrphanAndEveryOneBalances(): void
+    public function testUndo_LeavesNoOrphanJournalAndBalancesEveryOne(): void
     {
         $this->invoiceOf('300.00');
         $this->purchaseOf('300.00');
@@ -1255,7 +1256,7 @@ class ChequeServiceTest extends CIUnitTestCase
         return $this->roleLines((int) $journals[$index]->journal_id, $this->roles());
     }
 
-    public function testChequeJournals_SayWhatTheReferenceSystemWroteForAReceivedChequeAndUndoReversesWhereItDeletes(): void
+    public function testReceive_WritesWhatTheReferenceSystemWroteForAReceivedChequeAndUndoReversesWhereItDeletes(): void
     {
         $case = $this->referenceCase('T-54', 'received_cheque', 'a-received-cheque-from-receipt-to-collection-or-rejection', 'differs');
 
@@ -1293,7 +1294,7 @@ class ChequeServiceTest extends CIUnitTestCase
         $this->assertSame('reverses the journal of the step', $case['expected']['undo_of_a_step']);
     }
 
-    public function testChequeJournals_SayWhatTheReferenceSystemWroteForAPaidCheque(): void
+    public function testDeliver_WritesWhatTheReferenceSystemWroteForAPaidCheque(): void
     {
         $case = $this->referenceCase('T-55', 'paid_cheque', 'a-paid-cheque-from-issue-to-collection-or-rejection', 'differs');
 
@@ -1320,7 +1321,7 @@ class ChequeServiceTest extends CIUnitTestCase
         $this->assertSame($case['expected']['collection_checks_the_balance_of_the_bank'], bccomp($this->balance($this->bankLedgerAccount()), '0', 2) >= 0, 'the bank went below zero without a refusal');
     }
 
-    public function testChequeJournals_KeepTheDueDateOutOfThePostingsAndCheckTheCollectionDate(): void
+    public function testCollect_KeepsTheDueDateOutOfThePostingsAndChecksTheCollectionDate(): void
     {
         $case = $this->referenceCase('T-56', 'post_dated_cheque', 'the-due-date-of-a-cheque-posts-nothing-and-the-collection-date-is-checked', 'exact');
 
@@ -1378,7 +1379,7 @@ class ChequeServiceTest extends CIUnitTestCase
         $this->assertSame(['received', 'issued'], [$this->statusOf($received), $this->statusOf($paid)]);
     }
 
-    public function testCollect_RefusesADateBeforeTheLastChangeOfTheCheque(): void
+    public function testCollect_RejectsADateBeforeTheLastChangeOfTheCheque(): void
     {
         $issued   = date('Y-m-d', strtotime('-10 days'));
         $chequeId = $this->received(['issue_date' => $issued, 'due_date' => $issued]);
@@ -1447,7 +1448,7 @@ class ChequeServiceTest extends CIUnitTestCase
         $this->assertSame('Invoice payment', $this->cheques->find($chequeId)->description);
     }
 
-    public function testUndoAndDelete_RequireThePermissionTheBranchAndAChequeThatExists(): void
+    public function testUndo_RequiresThePermissionTheBranchAndAChequeThatExists(): void
     {
         $chequeId = $this->received();
 
@@ -1458,15 +1459,27 @@ class ChequeServiceTest extends CIUnitTestCase
         $worker = $this->employeeWithGrants([AccountingGuard::CHEQUES_MANAGE], [$other]);
 
         $this->assertSame(AccountingError::PermissionDenied, $this->refusal(fn () => $this->cheques->undo($chequeId, $nobody))->error);
-        $this->assertSame(AccountingError::PermissionDenied, $this->refusal(fn () => $this->cheques->delete($chequeId, $nobody))->error);
         $this->assertInstanceOf(BranchException::class, $this->refusal(fn () => $this->cheques->undo($chequeId, $worker)));
-        $this->assertInstanceOf(BranchException::class, $this->refusal(fn () => $this->cheques->delete($chequeId, $worker)));
         $this->assertSame(AccountingError::ChequeNotFound, $this->refusal(fn () => $this->cheques->undo(99999, $this->clerk))->error);
-        $this->assertSame(AccountingError::ChequeNotFound, $this->refusal(fn () => $this->cheques->delete(99999, $this->clerk))->error);
         $this->assertSame('deposited', $this->statusOf($chequeId));
     }
 
-    public function testDeliver_RefusesAnEmployeeWhoMayNotWithdrawFromNeitherNorDepositIntoTheBankOfAPaidCheque(): void
+    public function testDelete_RequiresThePermissionTheBranchAndAChequeThatExists(): void
+    {
+        $chequeId = $this->received();
+
+        $nobody = $this->employeeWithGrants([]);
+        $other  = $this->createBranch();
+        $worker = $this->employeeWithGrants([AccountingGuard::CHEQUES_MANAGE], [$other]);
+
+        $this->assertSame(AccountingError::PermissionDenied, $this->refusal(fn () => $this->cheques->delete($chequeId, $nobody))->error);
+        $this->assertInstanceOf(BranchException::class, $this->refusal(fn () => $this->cheques->delete($chequeId, $worker)));
+        $this->assertSame(AccountingError::ChequeNotFound, $this->refusal(fn () => $this->cheques->delete(99999, $this->clerk))->error);
+        $this->assertSame('received', $this->statusOf($chequeId));
+        $this->assertSame(0, (int) $this->cheques->find($chequeId)->deleted);
+    }
+
+    public function testDeliver_RejectsAnEmployeeWhoMayNotWithdrawFromNeitherNorDepositIntoTheBankOfAPaidCheque(): void
     {
         $chequeId = $this->paid();
         $clerk    = $this->employeeWithGrants([AccountingGuard::CHEQUES_MANAGE]);
@@ -1476,7 +1489,7 @@ class ChequeServiceTest extends CIUnitTestCase
         $this->assertSame('delivered', $this->statusOf($chequeId), 'Delivery moves no money out of the bank');
     }
 
-    public function testMove_TakesTheLocksOfThePartyAndOfTheChequeAndSettlesItsCredit(): void
+    public function testDeposit_TakesTheLocksOfThePartyAndOfTheChequeAndSettlesItsCredit(): void
     {
         $this->invoiceOf('100.00');
 
@@ -1491,7 +1504,7 @@ class ChequeServiceTest extends CIUnitTestCase
         $this->assertNotSame([], array_filter($queries, static fn (string $sql): bool => str_contains($sql, 'customer_credit_applications')), 'The credit is settled');
     }
 
-    public function testMove_TakesTheLockOfTheSupplierOfAPaidCheque(): void
+    public function testDeliver_TakesTheLockOfTheSupplierOfAPaidCheque(): void
     {
         $chequeId = $this->paid();
         $queries  = $this->queriesOf(fn () => $this->cheques->deliver($chequeId, $this->today, $this->clerk));
@@ -1501,7 +1514,7 @@ class ChequeServiceTest extends CIUnitTestCase
         $this->assertNotSame([], array_filter($queries, static fn (string $sql): bool => str_contains($sql, 'supplier_credit_applications')));
     }
 
-    public function testMove_RecordsARefusalOfTheBooksAfterTheTransactionRolledBack(): void
+    public function testDeposit_RecordsARefusalOfTheBooksAfterTheTransactionRolledBack(): void
     {
         $chequeId = $this->received();
 

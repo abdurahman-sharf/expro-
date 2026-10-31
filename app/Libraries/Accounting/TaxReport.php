@@ -79,8 +79,8 @@ final class TaxReport
             if ($type === ExpensePostingBuilder::SOURCE || $type === RevenuePostingBuilder::SOURCE) {
                 $section = $type === ExpensePostingBuilder::SOURCE ? TaxSection::Expenses : TaxSection::Revenues;
 
-                $reported[$accountId]                      = bcadd($reported[$accountId] ?? '0', $movement, self::SCALE);
-                $lineless[$section->value][$sourceId]      = bcadd($lineless[$section->value][$sourceId] ?? '0', $movement, self::SCALE);
+                $reported[$accountId]                 = bcadd($reported[$accountId] ?? '0', $movement, self::SCALE);
+                $lineless[$section->value][$sourceId] = bcadd($lineless[$section->value][$sourceId] ?? '0', $movement, self::SCALE);
 
                 $this->addWithoutLines($parts[$section->value], $movement, (string) $row->total_debit);
 

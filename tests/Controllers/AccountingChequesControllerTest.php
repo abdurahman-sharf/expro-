@@ -230,7 +230,7 @@ class AccountingChequesControllerTest extends CIUnitTestCase
         $plain->assertDontSee('accounting_journals/view/');
     }
 
-    public function testGetDetail_IsNotFoundForAChequeOfAnotherBranchOrADeletedOne(): void
+    public function testGetDetail_IsNotFoundForAChequeOfAnotherBranch(): void
     {
         $chequeId = $this->received();
         $other    = $this->createBranch();
@@ -345,7 +345,7 @@ class AccountingChequesControllerTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('cheques'));
     }
 
-    public function testPostSaveCheque_RefusesAnEmployeeWithoutThePermissionToChangeCheques(): void
+    public function testPostSaveCheque_RejectsAnEmployeeWithoutThePermissionToChangeCheques(): void
     {
         $this->actAsWith(['accounting_cheques']);
 
@@ -393,7 +393,7 @@ class AccountingChequesControllerTest extends CIUnitTestCase
         $this->assertFalse($unknown['success']);
     }
 
-    public function testPostAct_NeverChangesAChequeThroughALink(): void
+    public function testPostAct_IsNeverReachedByALink(): void
     {
         $this->manager();
 
@@ -411,7 +411,7 @@ class AccountingChequesControllerTest extends CIUnitTestCase
         $this->assertSame('received', $this->statusOf($chequeId));
     }
 
-    public function testPostAct_RefusesAChequeOfAnotherBranch(): void
+    public function testPostAct_RejectsAChequeOfAnotherBranch(): void
     {
         $chequeId = $this->received();
         $other    = $this->createBranch();
@@ -423,7 +423,7 @@ class AccountingChequesControllerTest extends CIUnitTestCase
         $this->post('/accounting_cheques/act/deposit/' . $chequeId, ['date' => $this->today]);
     }
 
-    public function testPostSaveCheque_RefusesAChequeOfAnotherBranch(): void
+    public function testPostSaveCheque_RejectsAChequeOfAnotherBranch(): void
     {
         $chequeId = $this->received();
         $other    = $this->createBranch();
@@ -438,7 +438,7 @@ class AccountingChequesControllerTest extends CIUnitTestCase
         }
     }
 
-    public function testPostUndoPostCancelPostDelete_RefuseAChequeOfAnotherBranch(): void
+    public function testPostUndo_RejectsAChequeOfAnotherBranchAndSoDoCancelAndDelete(): void
     {
         $received = $this->received();
         $paid     = $this->paid();
@@ -484,7 +484,7 @@ class AccountingChequesControllerTest extends CIUnitTestCase
         $this->get('/accounting_cheques/action_form/deliver/' . $chequeId);
     }
 
-    public function testPostUndoPostCancelPostDelete_ChangeTheChequeAsTheServiceDoes(): void
+    public function testPostUndo_ChangesTheChequeAsTheServiceDoesAndSoDoCancelAndDelete(): void
     {
         $this->manager();
 
@@ -508,7 +508,7 @@ class AccountingChequesControllerTest extends CIUnitTestCase
         $this->assertSame(lang('Accounting.error_cheque_delete_locked'), $refused['message']);
     }
 
-    public function testBooks_ListAddChangeAndDeleteTheChequeBooks(): void
+    public function testPostSaveBook_AddsChangesAndDeletesTheChequeBooksAsTheServiceDoes(): void
     {
         $this->manager();
 
@@ -535,7 +535,7 @@ class AccountingChequesControllerTest extends CIUnitTestCase
         $this->assertSame(lang('Accounting.error_cheque_book_in_use'), $refused['message']);
     }
 
-    public function testBooks_AreHiddenAndUnchangeableForAnotherBranch(): void
+    public function testGetBooks_HidesTheBooksOfAnotherBranchAndRejectsChangingThem(): void
     {
         $other = $this->createBranch();
 
@@ -580,7 +580,7 @@ class AccountingChequesControllerTest extends CIUnitTestCase
         $this->assertStringNotContainsString('710001', $filtered);
     }
 
-    public function testGetReport_OfThePaidChequesTiesToNotesPayable(): void
+    public function testGetReport_TiesThePaidChequesToNotesPayable(): void
     {
         $this->actAsWith(['accounting_cheques']);
 
@@ -630,20 +630,24 @@ class AccountingChequesControllerTest extends CIUnitTestCase
         $view->assertSee(lang('Accounting_cheques.tie_differs'));
     }
 
-    public function testGetActionFormAndGetBookForm_AreNotFoundWithoutThePermissionToChangeCheques(): void
+    public function testGetActionForm_IsNotFoundWithoutThePermissionToChangeCheques(): void
     {
         $chequeId = $this->received();
 
         $this->actAsWith(['accounting_cheques']);
 
-        foreach (['/accounting_cheques/action_form/deposit/' . $chequeId, '/accounting_cheques/book_form'] as $path) {
-            try {
-                $this->get($path);
-                $this->fail('A person who cannot change cheques opened ' . $path);
-            } catch (PageNotFoundException) {
-                $this->addToAssertionCount(1);
-            }
-        }
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_cheques/action_form/deposit/' . $chequeId);
+    }
+
+    public function testGetBookForm_IsNotFoundWithoutThePermissionToChangeCheques(): void
+    {
+        $this->actAsWith(['accounting_cheques']);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_cheques/book_form');
     }
 
     public function testGetForm_IsNotFoundForAChequeOfTheOtherDirection(): void
@@ -689,7 +693,7 @@ class AccountingChequesControllerTest extends CIUnitTestCase
         $this->assertSame('received', $this->statusOf($chequeId));
     }
 
-    public function testPostBookRoutes_AreNeverReachedByALink(): void
+    public function testPostSaveBook_IsNeverReachedByALinkNorAreTheOtherBookActions(): void
     {
         $this->manager();
 
@@ -826,5 +830,23 @@ class AccountingChequesControllerTest extends CIUnitTestCase
 
         $this->assertStringContainsString('accounting_cheques/view/' . $live, $row['cheque_number']);
         $this->assertStringContainsString('action_form/deposit', $row['edit']);
+    }
+
+    public function testGetForm_OffersOnlyBankAccountsForAReceivedChequeAndKeepsTheTreasuryOfOneThatExists(): void
+    {
+        $this->manager();
+
+        $cash = (new TreasuryService())->create(['name' => 'Drawer ' . uniqid(), 'kind' => 'cash'], $this->clerk);
+
+        $new = $this->get('/accounting_cheques/form/received')->getBody();
+
+        $this->assertStringContainsString('<option value="' . $this->bank . '">', $new);
+        $this->assertStringNotContainsString('<option value="' . $cash . '"', $new);
+
+        $chequeId = $this->received();
+
+        $this->accountingDb()->table('treasuries')->where('treasury_id', $this->bank)->update(['kind' => 'cash']);
+
+        $this->assertStringContainsString('<option value="' . $this->bank . '" selected>', $this->get('/accounting_cheques/form/received/' . $chequeId)->getBody(), 'The cheque keeps the treasury it was entered with');
     }
 }

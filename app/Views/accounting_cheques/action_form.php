@@ -8,6 +8,7 @@
  */
 
 use App\Libraries\Accounting\AmountText;
+
 ?>
 
 <div id="required_fields_message"><?= lang('Common.fields_required_message') ?></div>

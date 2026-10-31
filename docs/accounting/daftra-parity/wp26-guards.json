@@ -39,7 +39,7 @@
     "replace": "    public function undo(int $chequeId, ?int $employeeId = null): void\n    {\n        // guard removed",
     "tests": [
       "--filter",
-      "testUndoAndDelete_RequireThePermission",
+      "testUndo_RequiresThePermissionTheBranchAndAChequeThatExists$",
       "tests/Libraries/Accounting/ChequeServiceTest.php"
     ]
   },
@@ -50,7 +50,7 @@
     "replace": "    public function delete(int $chequeId, ?int $employeeId = null): void\n    {\n        // guard removed",
     "tests": [
       "--filter",
-      "testUndoAndDelete_RequireThePermission",
+      "testDelete_RequiresThePermissionTheBranchAndAChequeThatExists$",
       "tests/Libraries/Accounting/ChequeServiceTest.php"
     ]
   },
@@ -83,7 +83,7 @@
     "replace": "    public function undo(int $chequeId, ?int $employeeId = null): void\n    {\n        $this->guard->require(AccountingGuard::CHEQUES_MANAGE, $employeeId);\n\n        $stored = $this->row($chequeId);\n\n        // guard removed",
     "tests": [
       "--filter",
-      "testUndoAndDelete_RequireThePermission",
+      "testUndo_RequiresThePermissionTheBranchAndAChequeThatExists$",
       "tests/Libraries/Accounting/ChequeServiceTest.php"
     ]
   },
@@ -94,7 +94,7 @@
     "replace": "    public function delete(int $chequeId, ?int $employeeId = null): void\n    {\n        $this->guard->require(AccountingGuard::CHEQUES_MANAGE, $employeeId);\n\n        $stored = $this->row($chequeId);\n\n        // guard removed",
     "tests": [
       "--filter",
-      "testUndoAndDelete_RequireThePermission",
+      "testDelete_RequiresThePermissionTheBranchAndAChequeThatExists$",
       "tests/Libraries/Accounting/ChequeServiceTest.php"
     ]
   },
@@ -332,8 +332,8 @@
   {
     "name": "A32 no other cheque of the book has the number",
     "file": "app/Libraries/Accounting/ChequeService.php",
-    "find": "'cheque_number' => $number, 'deleted' => 0])->countAllResults() > 0) {",
-    "replace": "'cheque_number' => $number, 'deleted' => 0])->countAllResults() > 1000000) {",
+    "find": "if ($taken > 0) {",
+    "replace": "if ($taken > 1000000) {",
     "tests": [
       "--filter",
       "testIssue_RejectsANumberAnotherChequeOfTheBookAlreadyHas",
@@ -343,8 +343,8 @@
   {
     "name": "A33 a deleted cheque frees its number",
     "file": "app/Libraries/Accounting/ChequeService.php",
-    "find": "'cheque_number' => $number, 'deleted' => 0])->countAllResults() > 0) {",
-    "replace": "'cheque_number' => $number])->countAllResults() > 0) {",
+    "find": "->where(['book_id' => (int) $book->book_id, 'deleted' => 0])",
+    "replace": "->where(['book_id' => (int) $book->book_id])",
     "tests": [
       "--filter",
       "testIssue_AllowsTheNumberOfADeletedCheque",
@@ -369,7 +369,7 @@
     "replace": "if (false) {",
     "tests": [
       "--filter",
-      "testCollect_AfterADepositNeedsTheFees",
+      "testCollect_NeedsTheFeesAfterADepositAndPostsThemToTheFeesAccount$",
       "tests/Libraries/Accounting/ChequeServiceTest.php"
     ]
   },
@@ -391,7 +391,7 @@
     "replace": "if (false) {",
     "tests": [
       "--filter",
-      "testCollect_RefusesADateBeforeTheLastChange|testDeposit_RejectsADateBeforeTheChequeWasIssued",
+      "testCollect_RejectsADateBeforeTheLastChangeOfTheCheque$|testDeposit_RejectsADateBeforeTheChequeWasIssued",
       "tests/Libraries/Accounting/ChequeServiceTest.php"
     ]
   },
@@ -402,7 +402,7 @@
     "replace": "if (false) {",
     "tests": [
       "--filter",
-      "testCollect_RefusesADateBeforeTheDueDate|testCollect_OfAPaidChequeRefusesADateBeforeTheDueDate",
+      "testCollect_RejectsADateBeforeTheDueDate$|testCollect_RejectsADateBeforeTheDueDateOfAPaidCheque$",
       "tests/Libraries/Accounting/ChequeServiceTest.php"
     ]
   },
@@ -435,7 +435,7 @@
     "replace": "if (false) {",
     "tests": [
       "--filter",
-      "testUpdate_LocksTheFinancialFields|testUpdate_LocksTheBank|testUpdate_OfADeliveredPaidChequeLocksItsAmount",
+      "testUpdate_LocksTheFinancialFields|testUpdate_LocksTheBank|testUpdate_LocksTheAmountOfADeliveredPaidCheque$",
       "tests/Libraries/Accounting/ChequeServiceTest.php"
     ]
   },
@@ -446,7 +446,7 @@
     "replace": "if (false) {",
     "tests": [
       "--filter",
-      "testDelete_RejectsAChequeThatHasMovedOn|testDelete_OfAPaidChequeIsAllowedOnlyWhileIssued",
+      "testDelete_RejectsAChequeThatHasMovedOn|testDelete_AcceptsAPaidChequeOnlyWhileIssued$",
       "tests/Libraries/Accounting/ChequeServiceTest.php"
     ]
   },
@@ -479,7 +479,7 @@
     "replace": "                ]);\n\n                // guard removed",
     "tests": [
       "--filter",
-      "testUndo_OfARejectionPutsTheInvoicesBackOnTheCheque|testUndo_OfADeliveryReversesItsJournalAndTheCreditGoesBack",
+      "testUndo_PutsTheInvoicesBackOnTheChequeWhenARejectionIsUndone$|testUndo_ReversesTheJournalOfADeliveryAndTheCreditGoesBack$",
       "tests/Libraries/Accounting/ChequeServiceTest.php"
     ]
   },
@@ -523,7 +523,7 @@
     "replace": "$this->journals->sync($source, $chequeId, null, $employeeId, $reason);\n            break;",
     "tests": [
       "--filter",
-      "testUndo_OfARejectionAfterADepositReversesBothJournals",
+      "testUndo_ReversesBothJournalsOfARejectionAfterADeposit$",
       "tests/Libraries/Accounting/ChequeServiceTest.php"
     ]
   },
@@ -545,7 +545,7 @@
     "replace": "'status'       => $event->toStatus ?? 'received',",
     "tests": [
       "--filter",
-      "testUndo_OfACollectionAfterADepositGoesBackToDeposited",
+      "testUndo_GoesBackToDepositedFromACollectionAfterADeposit$",
       "tests/Libraries/Accounting/ChequeServiceTest.php"
     ]
   },
@@ -585,11 +585,11 @@
   {
     "name": "A56 the row of the cheque is locked",
     "file": "app/Libraries/Accounting/ChequeService.php",
-    "find": "($lock ? ' FOR UPDATE' : '')",
-    "replace": "''",
+    "find": "$sql   = \"SELECT * FROM {$table} WHERE company_id = ? AND cheque_id = ? AND deleted = 0\" . ($lock ? ' FOR UPDATE' : '');",
+    "replace": "$sql   = \"SELECT * FROM {$table} WHERE company_id = ? AND cheque_id = ? AND deleted = 0\" . '';",
     "tests": [
       "--filter",
-      "testMove_TakesTheLocks",
+      "testDeposit_TakesTheLocksOfThePartyAndOfTheChequeAndSettlesItsCredit$",
       "tests/Libraries/Accounting/ChequeServiceTest.php"
     ]
   },
@@ -600,7 +600,7 @@
     "replace": "$lock = $this->supplierLock;",
     "tests": [
       "--filter",
-      "testMove_TakesTheLocksOfThePartyAndOfTheChequeAndSettlesItsCredit",
+      "testDeposit_TakesTheLocksOfThePartyAndOfTheChequeAndSettlesItsCredit$",
       "tests/Libraries/Accounting/ChequeServiceTest.php"
     ]
   },
@@ -611,7 +611,7 @@
     "replace": "$lock = $this->customerLock;",
     "tests": [
       "--filter",
-      "testMove_TakesTheLockOfTheSupplierOfAPaidCheque",
+      "testDeliver_TakesTheLockOfTheSupplierOfAPaidCheque$",
       "tests/Libraries/Accounting/ChequeServiceTest.php"
     ]
   },
@@ -622,7 +622,7 @@
     "replace": "// guard removed (new PostingFailureLog($this->db))->noop(",
     "tests": [
       "--filter",
-      "testMove_RecordsARefusalOfTheBooks|testReceive_WritesNothingWhenThePeriodIsClosed",
+      "testDeposit_RecordsARefusalOfTheBooksAfterTheTransactionRolledBack$|testReceive_WritesNothingWhenThePeriodIsClosed",
       "tests/Libraries/Accounting/ChequeServiceTest.php"
     ]
   },
@@ -633,7 +633,7 @@
     "replace": "// guard removed",
     "tests": [
       "--filter",
-      "testCollect_RefusesAnEmployeeWhoMayNotDepositIntoTheBank|testCollect_OfAPaidChequeRefusesAnEmployeeWhoMayNotWithdraw",
+      "testCollect_RejectsAnEmployeeWhoMayNotDepositIntoTheBank$|testCollect_RejectsAnEmployeeWhoMayNotWithdrawFromTheBankOfAPaidCheque$",
       "tests/Libraries/Accounting/ChequeServiceTest.php"
     ]
   },
@@ -644,7 +644,7 @@
     "replace": "if (false) {",
     "tests": [
       "--filter",
-      "testIssue_WithADeliveryDay",
+      "testIssue_DeliversInTheSameTransactionWhenGivenADeliveryDay$|testIssue_WritesNothingWhenGivenADeliveryDayInAClosedPeriod$",
       "tests/Libraries/Accounting/ChequeServiceTest.php"
     ]
   },
@@ -721,7 +721,7 @@
     "replace": "$from = $cheque->issueDate;",
     "tests": [
       "--filter",
-      "testCollect_RefusesADateBeforeTheLastChange",
+      "testCollect_RejectsADateBeforeTheLastChangeOfTheCheque$",
       "tests/Libraries/Accounting/ChequeServiceTest.php"
     ]
   },
@@ -743,7 +743,7 @@
     "replace": "if (bccomp($fees, $cheque->amount, SaleAmounts::SCALE) > 0) {",
     "tests": [
       "--filter",
-      "testDrafts_CollectAfterADepositRefusesFeesBelowZeroOrAboveTheCheque",
+      "testDrafts_RejectsFeesBelowZeroOrAboveTheChequeOfACollectionAfterADeposit$",
       "tests/Libraries/Accounting/ChequePostingBuilderTest.php"
     ]
   },
@@ -754,7 +754,7 @@
     "replace": "if (true) {",
     "tests": [
       "--filter",
-      "testCollect_AfterADepositAcceptsNoFeesAtAll",
+      "testCollect_AcceptsNoFeesAtAllAfterADeposit$",
       "tests/Libraries/Accounting/ChequeServiceTest.php"
     ]
   },
@@ -765,7 +765,7 @@
     "replace": "$net   = $cheque->amount;",
     "tests": [
       "--filter",
-      "testCollect_AfterADepositNeedsTheFees",
+      "testCollect_NeedsTheFeesAfterADepositAndPostsThemToTheFeesAccount$",
       "tests/Libraries/Accounting/ChequeServiceTest.php"
     ]
   },
@@ -776,7 +776,7 @@
     "replace": "[[$this->customer($cheque), $this->notesReceivable()]]",
     "tests": [
       "--filter",
-      "testReject_AfterADepositPostsTwoJournals",
+      "testReject_PostsTwoJournalsAfterADepositThatClearBothAccountsOfTheCheque$",
       "tests/Libraries/Accounting/ChequeServiceTest.php"
     ]
   },
@@ -1601,7 +1601,7 @@
     "replace": "    public function getActionForm(string $action, int $chequeId): string\n    {\n        // guard removed",
     "tests": [
       "--filter",
-      "testGetActionFormAndGetBookForm_AreNotFoundWithoutThePermissionToChangeCheques",
+      "testGetActionForm_IsNotFoundWithoutThePermissionToChangeCheques$",
       "tests/Controllers/AccountingChequesControllerTest.php"
     ]
   },
@@ -1612,7 +1612,7 @@
     "replace": "    public function getBookForm(int $bookId = NEW_ENTRY): string\n    {\n        // guard removed",
     "tests": [
       "--filter",
-      "testGetActionFormAndGetBookForm_AreNotFoundWithoutThePermissionToChangeCheques",
+      "testGetBookForm_IsNotFoundWithoutThePermissionToChangeCheques$",
       "tests/Controllers/AccountingChequesControllerTest.php"
     ]
   },
@@ -1623,7 +1623,7 @@
     "replace": "",
     "tests": [
       "--filter",
-      "testGetDetail_IsNotFoundForAChequeOfAnotherBranchOrADeletedOne|testPostAct_RefusesAChequeOfAnotherBranch",
+      "testGetDetail_IsNotFoundForAChequeOfAnotherBranch$|testPostAct_RejectsAChequeOfAnotherBranch$",
       "tests/Controllers/AccountingChequesControllerTest.php"
     ]
   },
@@ -1645,7 +1645,7 @@
     "replace": "if (false) {",
     "tests": [
       "--filter",
-      "testBooks_AreHiddenAndUnchangeableForAnotherBranch",
+      "testGetBooks_HidesTheBooksOfAnotherBranchAndRejectsChangingThem$",
       "tests/Controllers/AccountingChequesControllerTest.php"
     ]
   },
@@ -1678,7 +1678,7 @@
     "replace": "\n                // guard removed",
     "tests": [
       "--filter",
-      "testPostSaveCheque_RefusesAChequeOfAnotherBranch",
+      "testPostSaveCheque_RejectsAChequeOfAnotherBranch$",
       "tests/Controllers/AccountingChequesControllerTest.php"
     ]
   },
@@ -1689,7 +1689,7 @@
     "replace": "        return $this->attempt(function () use ($action, $chequeId): array {\n            // guard removed",
     "tests": [
       "--filter",
-      "testPostAct_RefusesAChequeOfAnotherBranch",
+      "testPostAct_RejectsAChequeOfAnotherBranch$",
       "tests/Controllers/AccountingChequesControllerTest.php"
     ]
   },
@@ -1700,7 +1700,7 @@
     "replace": "    public function postCancel(int $chequeId): ResponseInterface\n    {\n        return $this->attempt(function () use ($chequeId): array {\n            // guard removed",
     "tests": [
       "--filter",
-      "testPostUndoPostCancelPostDelete_RefuseAChequeOfAnotherBranch",
+      "testPostUndo_RejectsAChequeOfAnotherBranchAndSoDoCancelAndDelete$",
       "tests/Controllers/AccountingChequesControllerTest.php"
     ]
   },
@@ -1711,7 +1711,7 @@
     "replace": "    public function postUndo(int $chequeId): ResponseInterface\n    {\n        return $this->attempt(function () use ($chequeId): array {\n            // guard removed",
     "tests": [
       "--filter",
-      "testPostUndoPostCancelPostDelete_RefuseAChequeOfAnotherBranch",
+      "testPostUndo_RejectsAChequeOfAnotherBranchAndSoDoCancelAndDelete$",
       "tests/Controllers/AccountingChequesControllerTest.php"
     ]
   },
@@ -1722,7 +1722,7 @@
     "replace": "    public function postDeleteCheque(int $chequeId): ResponseInterface\n    {\n        return $this->attempt(function () use ($chequeId): array {\n            // guard removed",
     "tests": [
       "--filter",
-      "testPostUndoPostCancelPostDelete_RefuseAChequeOfAnotherBranch",
+      "testPostUndo_RejectsAChequeOfAnotherBranchAndSoDoCancelAndDelete$",
       "tests/Controllers/AccountingChequesControllerTest.php"
     ]
   },
@@ -1751,11 +1751,11 @@
   {
     "name": "F16 the books are cut down to the branches of the reader",
     "file": "app/Controllers/AccountingCheques.php",
-    "find": "'books'      => $this->books->all($this->branchIds()),",
-    "replace": "'books'      => $this->books->all(null),",
+    "find": "'books'     => $this->books->all($this->branchIds()),",
+    "replace": "'books'     => $this->books->all(null),",
     "tests": [
       "--filter",
-      "testBooks_AreHiddenAndUnchangeableForAnotherBranch",
+      "testGetBooks_HidesTheBooksOfAnotherBranchAndRejectsChangingThem$",
       "tests/Controllers/AccountingChequesControllerTest.php"
     ]
   },
@@ -1773,8 +1773,8 @@
   {
     "name": "F18 the journals of a cheque are linked for who may open the journals",
     "file": "app/Controllers/AccountingCheques.php",
-    "find": "'journal_links' => $this->can('accounting_journals'),",
-    "replace": "'journal_links' => true,",
+    "find": "'journalLinks' => $this->can('accounting_journals'),",
+    "replace": "'journalLinks' => true,",
     "tests": [
       "--filter",
       "testGetDetail_ShowsTheHistoryAndTheJournalsOfTheCheque",
@@ -1799,7 +1799,7 @@
     "replace": "$routes->add('act/(:segment)/(:num)'",
     "tests": [
       "--filter",
-      "testPostAct_NeverChangesAChequeThroughALink",
+      "testPostAct_IsNeverReachedByALink$",
       "tests/Controllers/AccountingChequesControllerTest.php"
     ]
   },
@@ -1810,7 +1810,7 @@
     "replace": "$routes->add('cancel/(:num)'",
     "tests": [
       "--filter",
-      "testPostUndoPostCancelPostDelete|testPostAct_NeverChangesAChequeThroughALink",
+      "testPostUndo_ChangesTheChequeAsTheServiceDoesAndSoDoCancelAndDelete$|testPostUndo_RejectsAChequeOfAnotherBranchAndSoDoCancelAndDelete$|testPostAct_IsNeverReachedByALink$",
       "tests/Controllers/AccountingChequesControllerTest.php"
     ]
   },
@@ -1821,7 +1821,7 @@
     "replace": "$routes->add('undo/(:num)'",
     "tests": [
       "--filter",
-      "testPostUndoPostCancelPostDelete|testPostAct_NeverChangesAChequeThroughALink",
+      "testPostUndo_ChangesTheChequeAsTheServiceDoesAndSoDoCancelAndDelete$|testPostUndo_RejectsAChequeOfAnotherBranchAndSoDoCancelAndDelete$|testPostAct_IsNeverReachedByALink$",
       "tests/Controllers/AccountingChequesControllerTest.php"
     ]
   },
@@ -1832,7 +1832,7 @@
     "replace": "$routes->add('delete/(:num)', 'AccountingCheques::postDeleteCheque/$1');",
     "tests": [
       "--filter",
-      "testPostUndoPostCancelPostDelete|testPostAct_NeverChangesAChequeThroughALink",
+      "testPostUndo_ChangesTheChequeAsTheServiceDoesAndSoDoCancelAndDelete$|testPostUndo_RejectsAChequeOfAnotherBranchAndSoDoCancelAndDelete$|testPostAct_IsNeverReachedByALink$",
       "tests/Controllers/AccountingChequesControllerTest.php"
     ]
   },
@@ -1865,7 +1865,7 @@
     "replace": "$routes->add('save_book', 'AccountingCheques::postSaveBook');",
     "tests": [
       "--filter",
-      "testPostBookRoutes_AreNeverReachedByALink",
+      "testPostSaveBook_IsNeverReachedByALinkNorAreTheOtherBookActions$",
       "tests/Controllers/AccountingChequesControllerTest.php"
     ]
   },
@@ -1876,7 +1876,7 @@
     "replace": "$routes->add('save_book/(:num)', 'AccountingCheques::postSaveBook/$1');",
     "tests": [
       "--filter",
-      "testPostBookRoutes_AreNeverReachedByALink",
+      "testPostSaveBook_IsNeverReachedByALinkNorAreTheOtherBookActions$",
       "tests/Controllers/AccountingChequesControllerTest.php"
     ]
   },
@@ -1887,7 +1887,7 @@
     "replace": "$routes->add('book_active/(:num)/(:num)'",
     "tests": [
       "--filter",
-      "testPostBookRoutes_AreNeverReachedByALink",
+      "testPostSaveBook_IsNeverReachedByALinkNorAreTheOtherBookActions$",
       "tests/Controllers/AccountingChequesControllerTest.php"
     ]
   },
@@ -1898,7 +1898,7 @@
     "replace": "$routes->add('delete_book/(:num)'",
     "tests": [
       "--filter",
-      "testPostBookRoutes_AreNeverReachedByALink",
+      "testPostSaveBook_IsNeverReachedByALinkNorAreTheOtherBookActions$",
       "tests/Controllers/AccountingChequesControllerTest.php"
     ]
   },
@@ -1909,7 +1909,7 @@
     "replace": "$routes->add('save', 'Receipt_vouchers::postSave');",
     "tests": [
       "--filter",
-      "testPostSaveAndPostDelete_AreNeverReachedByALink",
+      "testPostSave_IsNeverReachedByALinkNorIsPostDelete$",
       "tests/Controllers/Receipt_vouchersControllerTest.php"
     ]
   },
@@ -1920,7 +1920,7 @@
     "replace": "$routes->add('save/(:num)', 'Receipt_vouchers::postSave/$1');",
     "tests": [
       "--filter",
-      "testPostSaveAndPostDelete_AreNeverReachedByALink",
+      "testPostSave_IsNeverReachedByALinkNorIsPostDelete$",
       "tests/Controllers/Receipt_vouchersControllerTest.php"
     ]
   },
@@ -1931,7 +1931,7 @@
     "replace": "$routes->add('delete', 'Receipt_vouchers::postDelete');",
     "tests": [
       "--filter",
-      "testPostSaveAndPostDelete_AreNeverReachedByALink",
+      "testPostSave_IsNeverReachedByALinkNorIsPostDelete$",
       "tests/Controllers/Receipt_vouchersControllerTest.php"
     ]
   },
@@ -1975,7 +1975,7 @@
     "replace": "",
     "tests": [
       "--filter",
-      "testGetView_ShowsAVoucherInItsFormAndRefusesOneOfAnotherBranch|testPostSave_RefusesAVoucherOfAnotherBranch",
+      "testGetView_ShowsAVoucherInItsFormAndRefusesOneOfAnotherBranch|testPostSave_RejectsAVoucherOfAnotherBranch$",
       "tests/Controllers/Receipt_vouchersControllerTest.php"
     ]
   },
@@ -2019,7 +2019,7 @@
     "replace": "// guard removed",
     "tests": [
       "--filter",
-      "testPostDelete_RefusesTheWholeListWhenOneVoucherBelongsToAnotherBranch",
+      "testPostDelete_RejectsTheWholeListWhenOneVoucherBelongsToAnotherBranch$",
       "tests/Controllers/Receipt_vouchersControllerTest.php"
     ]
   },
@@ -2030,7 +2030,7 @@
     "replace": "true",
     "tests": [
       "--filter",
-      "testGetView|testRevenueCategories_FeedTheForm",
+      "testGetView|testPostSave_CreditsTheAccountOfTheCategoryTheFormOffers$",
       "tests/Controllers/Receipt_vouchersControllerTest.php"
     ]
   },
@@ -2059,8 +2059,8 @@
   {
     "name": "H09 the choice of an account is offered to who may change the routing",
     "file": "app/Controllers/Revenue_categories.php",
-    "find": "'can_assign_account' => $this->categories->mayAssign($this->employeeId()),",
-    "replace": "'can_assign_account' => true,",
+    "find": "'canAssignAccount' => $this->categories->mayAssign($this->employeeId()),",
+    "replace": "'canAssignAccount' => true,",
     "tests": [
       "--filter",
       "testGetView_OffersTheAccountsOnlyToWhoMayChangeTheRouting",
@@ -2118,7 +2118,7 @@
     "replace": "// guard removed",
     "tests": [
       "--filter",
-      "testSave_RefusesAVoucherWithoutAnAccountWhenTheSettingAsksForOne",
+      "testSave_RejectsAVoucherWithoutAnAccountWhenTheSettingAsksForOne$",
       "tests/Libraries/Accounting/RevenueVouchersTest.php"
     ]
   },
@@ -2195,7 +2195,7 @@
     "replace": "return $this->attempt(fn (): int => (static fn (callable $work) => $work())(function () use ($data, $input, $revenueId, $employeeId): int {",
     "tests": [
       "--filter",
-      "testSave_RefusesATreasuryTheEmployeeMayNotDepositIntoAndLeavesNothing|testSave_WritesNothingWhenThePeriodIsClosed",
+      "testSave_RejectsATreasuryTheEmployeeMayNotDepositIntoAndLeavesNothing$|testSave_WritesNothingWhenThePeriodIsClosed",
       "tests/Libraries/Accounting/RevenueVouchersTest.php"
     ]
   },
@@ -2261,7 +2261,7 @@
     "replace": "if (false) {\n                throw new AccountingException(AccountingError::TreasuryNotFound",
     "tests": [
       "--filter",
-      "testSave_RefusesADeactivatedOrMissingTreasury",
+      "testSave_RejectsADeactivatedOrMissingTreasury$",
       "tests/Libraries/Accounting/RevenueVouchersTest.php"
     ]
   },
@@ -2272,26 +2272,26 @@
     "replace": "if (false) {",
     "tests": [
       "--filter",
-      "testSave_RefusesADeactivatedOrMissingTreasury",
+      "testSave_RejectsADeactivatedOrMissingTreasury$",
       "tests/Libraries/Accounting/RevenueVouchersTest.php"
     ]
   },
   {
     "name": "I20 a voucher keeps its own treasury when the form names none",
     "file": "app/Libraries/Accounting/RevenueVouchers.php",
-    "find": "if ($stored !== null && $asked === null) {",
+    "find": "if ($stored !== null && ($asked === null || $asked === 0 || $asked === $storedId)) {",
     "replace": "if (false) {",
     "tests": [
       "--filter",
-      "testSave_MovesTheMoneyWhenTheTreasuryChangesAndKeepsTheOldOneWhenNoneIsNamed|testSave_RefusesADeactivatedOrMissingTreasury",
+      "testSave_MovesTheMoneyWhenTheTreasuryChangesAndKeepsTheOldOneWhenNoneIsNamed|testSave_RejectsADeactivatedOrMissingTreasury$",
       "tests/Libraries/Accounting/RevenueVouchersTest.php"
     ]
   },
   {
     "name": "I21 a voucher that names no treasury keeps its own",
     "file": "app/Libraries/Accounting/RevenueVouchers.php",
-    "find": "if ($stored !== null && $asked === null) {",
-    "replace": "if (false) {",
+    "find": "($asked === null || $asked === 0 || $asked === $storedId)",
+    "replace": "($asked === 0 || $asked === $storedId)",
     "tests": [
       "--filter",
       "testSave_MovesTheMoneyWhenTheTreasuryChangesAndKeepsTheOldOneWhenNoneIsNamed",
@@ -2367,11 +2367,11 @@
   {
     "name": "I28 the category of a voucher exists",
     "file": "app/Libraries/Accounting/RevenueVouchers.php",
-    "find": "if ($categoryId > 0 && $this->db->table('revenue_categories')->where(['revenue_category_id' => $categoryId, 'deleted' => 0])->countAllResults() === 0) {",
-    "replace": "if (false) {",
+    "find": "&& $this->db->table('revenue_categories')->where(['revenue_category_id' => $categoryId, 'deleted' => 0])->countAllResults() === 0) {",
+    "replace": "&& false) {",
     "tests": [
       "--filter",
-      "testSave_ChecksTheAmountTheTaxTheDateTheWayOfPaymentAndTheCategory",
+      "testSave_ChecksTheAmountTheTaxTheDateTheWayOfPaymentAndTheCategory|testSave_RejectsADeletedCategory",
       "tests/Libraries/Accounting/RevenueVouchersTest.php"
     ]
   },
@@ -2382,18 +2382,18 @@
     "replace": "where(['revenue_category_id' => $categoryId])",
     "tests": [
       "--filter",
-      "testSave_RefusesACategoryThatWasDeleted",
+      "testSave_RejectsACategoryThatWasDeleted$",
       "tests/Libraries/Accounting/RevenueVouchersTest.php"
     ]
   },
   {
     "name": "I30 the account of a voucher is one that takes vouchers",
     "file": "app/Libraries/Accounting/RevenueVouchers.php",
-    "find": "if ($accountId > 0) {\n            $this->assertRevenueAccount($accountId);",
+    "find": "if ($accountId !== null && ($stored === null || (int) $stored->account_id !== $accountId)) {\n            $this->assertRevenueAccount($accountId);",
     "replace": "if (false) {\n            $this->assertRevenueAccount($accountId);",
     "tests": [
       "--filter",
-      "testSave_RejectsAChosenAccountThatIsNotAnActiveRevenueAccountThatTakesEntries",
+      "testSave_RejectsAChosenAccountThatIsNotAnActiveRevenueAccountThatTakesEntries|testSave_RejectsADeletedCategoryAndAnAccountOutOfUseThatTheVoucherDoesNotHave",
       "tests/Libraries/Accounting/RevenueVouchersTest.php"
     ]
   },
@@ -2404,7 +2404,7 @@
     "replace": ") {",
     "tests": [
       "--filter",
-      "testSave_RefusesAVoucherWithoutAnAccountWhenTheSettingAsksForOne",
+      "testSave_RejectsAVoucherWithoutAnAccountWhenTheSettingAsksForOne$",
       "tests/Libraries/Accounting/RevenueVouchersTest.php"
     ]
   },
@@ -2426,7 +2426,7 @@
     "replace": "if (true) {",
     "tests": [
       "--filter",
-      "testSave_RefusesAVoucherWithoutAnAccountWhenTheSettingAsksForOne",
+      "testSave_RejectsAVoucherWithoutAnAccountWhenTheSettingAsksForOne$",
       "tests/Libraries/Accounting/RevenueVouchersTest.php"
     ]
   },
@@ -2437,7 +2437,7 @@
     "replace": "if ($category === null) {",
     "tests": [
       "--filter",
-      "testSave_RefusesAVoucherWithoutAnAccountWhenTheSettingAsksForOne",
+      "testSave_RejectsAVoucherWithoutAnAccountWhenTheSettingAsksForOne$",
       "tests/Libraries/Accounting/RevenueVouchersTest.php"
     ]
   },
@@ -2789,7 +2789,7 @@
     "replace": "if (true) {\n            $this->guard",
     "tests": [
       "--filter",
-      "testSave_KeepingTheAccountItHasChangesNothingAndAsksForNothing",
+      "testSave_ChangesNothingAndAsksForNothingWhenKeepingTheAccountItHas$",
       "tests/Libraries/Accounting/RevenueCategoriesTest.php"
     ]
   },
@@ -2800,7 +2800,7 @@
     "replace": "$this->accountId($input['account_id'] ?? null)",
     "tests": [
       "--filter",
-      "testSave_KeepingTheAccountItHasChangesNothingAndAsksForNothing|testSave_CreatesACategoryWithoutAnAccountAndAuditsIt",
+      "testSave_ChangesNothingAndAsksForNothingWhenKeepingTheAccountItHas$|testSave_CreatesACategoryWithoutAnAccountAndAuditsIt",
       "tests/Libraries/Accounting/RevenueCategoriesTest.php"
     ]
   },
@@ -3053,7 +3053,7 @@
     "replace": "if (bccomp($tax, $revenue->amount, SaleAmounts::SCALE) > 0) {",
     "tests": [
       "--filter",
-      "testRevenue_RefusesATaxBelowZeroOrAboveTheAmount",
+      "testRevenue_RejectsATaxBelowZeroOrAboveTheAmount$",
       "tests/Libraries/Accounting/RevenuePostingBuilderTest.php"
     ]
   },
@@ -3064,7 +3064,7 @@
     "replace": "if (bccomp($tax, '0', SaleAmounts::SCALE) < 0) {",
     "tests": [
       "--filter",
-      "testRevenue_RefusesATaxBelowZeroOrAboveTheAmount",
+      "testRevenue_RejectsATaxBelowZeroOrAboveTheAmount$",
       "tests/Libraries/Accounting/RevenuePostingBuilderTest.php"
     ]
   },
@@ -3196,7 +3196,7 @@
     "replace": "if (false) {",
     "tests": [
       "--filter",
-      "testRevenue_RefusesAWayOfPaymentThatIsNotMoney",
+      "testRevenue_RejectsAWayOfPaymentThatIsNotMoney$",
       "tests/Libraries/Accounting/RevenuePostingBuilderTest.php"
     ]
   },
@@ -3207,7 +3207,7 @@
     "replace": "",
     "tests": [
       "--filter",
-      "testRevenue_RefusesAWayOfPaymentThatIsNotMoney",
+      "testRevenue_RejectsAWayOfPaymentThatIsNotMoney$",
       "tests/Libraries/Accounting/RevenuePostingBuilderTest.php"
     ]
   },
@@ -3218,7 +3218,7 @@
     "replace": "",
     "tests": [
       "--filter",
-      "testRevenue_RefusesAWayOfPaymentThatIsNotMoney",
+      "testRevenue_RejectsAWayOfPaymentThatIsNotMoney$",
       "tests/Libraries/Accounting/RevenuePostingBuilderTest.php"
     ]
   },
@@ -3229,7 +3229,7 @@
     "replace": ")",
     "tests": [
       "--filter",
-      "testRevenue_RefusesAWayOfPaymentThatIsNotMoney",
+      "testRevenue_RejectsAWayOfPaymentThatIsNotMoney$",
       "tests/Libraries/Accounting/RevenuePostingBuilderTest.php"
     ]
   },
@@ -3240,7 +3240,7 @@
     "replace": "if (false ||",
     "tests": [
       "--filter",
-      "testRevenue_RefusesAWayOfPaymentThatIsNotMoney",
+      "testRevenue_RejectsAWayOfPaymentThatIsNotMoney$",
       "tests/Libraries/Accounting/RevenuePostingBuilderTest.php"
     ]
   },
@@ -3251,7 +3251,7 @@
     "replace": "",
     "tests": [
       "--filter",
-      "testReverse_RefusesTheJournalsOfEveryChequeStatusChangeAndOfAReceiptVoucher",
+      "testReverse_RejectsTheJournalsOfEveryChequeStatusChangeAndOfAReceiptVoucherAndLeavesThemToTheirDocuments$",
       "tests/Libraries/Accounting/JournalServiceTest.php"
     ]
   },
@@ -3262,7 +3262,7 @@
     "replace": "",
     "tests": [
       "--filter",
-      "testReverse_RefusesTheJournalsOfEveryChequeStatusChangeAndOfAReceiptVoucher",
+      "testReverse_RejectsTheJournalsOfEveryChequeStatusChangeAndOfAReceiptVoucherAndLeavesThemToTheirDocuments$",
       "tests/Libraries/Accounting/JournalServiceTest.php"
     ]
   },
@@ -3295,7 +3295,7 @@
     "replace": ", 'cheque_books', 'revenues']",
     "tests": [
       "--filter",
-      "testDelete_RefusesATreasuryAChequeABookOfChequesOrAReceiptVoucherNamed",
+      "testDelete_RejectsATreasuryAChequeABookOfChequesOrAReceiptVoucherNamed$",
       "tests/Libraries/Accounting/TreasuryServiceTest.php"
     ]
   },
@@ -3306,7 +3306,7 @@
     "replace": ", 'cheques', 'revenues']",
     "tests": [
       "--filter",
-      "testDelete_RefusesATreasuryAChequeABookOfChequesOrAReceiptVoucherNamed",
+      "testDelete_RejectsATreasuryAChequeABookOfChequesOrAReceiptVoucherNamed$",
       "tests/Libraries/Accounting/TreasuryServiceTest.php"
     ]
   },
@@ -3317,7 +3317,7 @@
     "replace": ", 'cheques', 'cheque_books']",
     "tests": [
       "--filter",
-      "testDelete_RefusesATreasuryAChequeABookOfChequesOrAReceiptVoucherNamed",
+      "testDelete_RejectsATreasuryAChequeABookOfChequesOrAReceiptVoucherNamed$",
       "tests/Libraries/Accounting/TreasuryServiceTest.php"
     ]
   },
@@ -3328,7 +3328,7 @@
     "replace": ";",
     "tests": [
       "--filter",
-      "testDeactivateAndDelete_RejectTheAccountOfARevenueCategory",
+      "testDeactivate_RejectsTheAccountOfARevenueCategory$|testDelete_RejectsTheAccountOfARevenueCategory$",
       "tests/Libraries/Accounting/AccountServiceTest.php"
     ]
   },
@@ -3627,6 +3627,768 @@
       "--filter",
       "testUp_OpensTheLeafAccountsInAChartThatHasNoneAndRoutesThem",
       "tests/Database/ChequesAndRevenuesMigrationTest.php"
+    ]
+  },
+  {
+    "name": "S01 the cash receipt vouchers are added to the cash expected",
+    "file": "app/Libraries/Accounting/CashupExpectation.php",
+    "find": "$expected = bcadd($expected, $this->cashVouchers($branchId, $openDate, $closeDate), SaleAmounts::SCALE);",
+    "replace": "$expected = bcadd($expected, '0', SaleAmounts::SCALE);",
+    "tests": [
+      "--filter",
+      "testExpected_CountsTheCashReceiptVouchersOfTheBranch|testExpected_CombinesSalesExpensesAndVouchers",
+      "tests/Libraries/Accounting/CashupExpectationTest.php"
+    ]
+  },
+  {
+    "name": "S02 the cash-up counts the voucher cash that came in through the real voucher service",
+    "file": "app/Libraries/Accounting/CashupExpectation.php",
+    "find": "$expected = bcadd($expected, $this->cashVouchers($branchId, $openDate, $closeDate), SaleAmounts::SCALE);",
+    "replace": "$expected = bcadd($expected, '0', SaleAmounts::SCALE);",
+    "tests": [
+      "--filter",
+      "testSaveValue_AddsTheCashReceiptVouchersToWhatIsExpected",
+      "tests/Libraries/Accounting/CashupPostingTest.php"
+    ]
+  },
+  {
+    "name": "S03 a deleted voucher is not cash that came in",
+    "file": "app/Libraries/Accounting/CashupExpectation.php",
+    "find": "->select('r.payment_type, SUM(r.amount) AS amount', false)\n            ->where('r.deleted', 0)\n",
+    "replace": "->select('r.payment_type, SUM(r.amount) AS amount', false)\n",
+    "tests": [
+      "--filter",
+      "testExpected_LeavesOutVouchersThatAreNotCashDeletedOfAnotherBranchOrOfOtherDays",
+      "tests/Libraries/Accounting/CashupExpectationTest.php"
+    ]
+  },
+  {
+    "name": "S04 the vouchers of another branch are left out of the drawer",
+    "file": "app/Libraries/Accounting/CashupExpectation.php",
+    "find": "->where('COALESCE(r.treasury_branch_id, r.branch_id) = ' . $this->db->escape($branchId), null, false)\n            ->groupBy('r.payment_type');",
+    "replace": "->groupBy('r.payment_type');",
+    "tests": [
+      "--filter",
+      "testExpected_LeavesOutVouchersThatAreNotCashDeletedOfAnotherBranchOrOfOtherDays",
+      "tests/Libraries/Accounting/CashupExpectationTest.php"
+    ]
+  },
+  {
+    "name": "S05 the treasury of a voucher decides the drawer that holds its cash",
+    "file": "app/Libraries/Accounting/CashupExpectation.php",
+    "find": "COALESCE(r.treasury_branch_id, r.branch_id)",
+    "replace": "r.branch_id",
+    "tests": [
+      "--filter",
+      "testExpected_CountsAVoucherInTheDrawerOfTheTreasuryThatHoldsTheCash",
+      "tests/Libraries/Accounting/CashupExpectationTest.php"
+    ]
+  },
+  {
+    "name": "S06 a voucher counts for the days it is dated, from the day of opening to the day of closing",
+    "file": "app/Libraries/Accounting/CashupExpectation.php",
+    "find": "$this->within($builder, 'r.date', $openDate, $closeDate, true);",
+    "replace": "$this->within($builder, 'r.date', $openDate, $closeDate, false);",
+    "tests": [
+      "--filter",
+      "testExpected_CountsEveryDayOfAVoucherFromOpeningToClosing",
+      "tests/Libraries/Accounting/CashupExpectationTest.php"
+    ]
+  },
+  {
+    "name": "S07 a voucher counts for its day when the settings ask for times",
+    "file": "app/Libraries/Accounting/CashupExpectation.php",
+    "find": "$this->within($builder, 'r.date', $openDate, $closeDate, true);",
+    "replace": "$this->within($builder, 'r.date', $openDate, $closeDate, empty(config(OSPOS::class)->settings['date_or_time_format']));",
+    "tests": [
+      "--filter",
+      "testExpected_CountsAVoucherOfTheDayOfTheCashUpWhenTheSettingsAskForTimes",
+      "tests/Libraries/Accounting/CashupExpectationTest.php"
+    ]
+  },
+  {
+    "name": "S10 a voucher that is changed keeps its treasury when the default option is posted",
+    "file": "app/Libraries/Accounting/RevenueVouchers.php",
+    "find": "($asked === null || $asked === 0 || $asked === $storedId)",
+    "replace": "($asked === null || $asked === $storedId)",
+    "tests": [
+      "--filter",
+      "testSave_KeepsTheTreasuryOfAChangedVoucherWhenTheDefaultOptionIsPosted|testSave_KeepsAVoucherWithoutATreasuryWhenTheDefaultOptionIsPosted",
+      "tests/Libraries/Accounting/RevenueVouchersTest.php"
+    ]
+  },
+  {
+    "name": "S11 the form that posts the default option does not move the money of a voucher",
+    "file": "app/Libraries/Accounting/RevenueVouchers.php",
+    "find": "($asked === null || $asked === 0 || $asked === $storedId)",
+    "replace": "($asked === null || $asked === $storedId)",
+    "tests": [
+      "--filter",
+      "testPostSave_KeepsTheTreasuryWhenTheFormPostsTheDefaultOptionOfAVoucherThatHasOneOrNone",
+      "tests/Controllers/Receipt_vouchersControllerTest.php"
+    ]
+  },
+  {
+    "name": "S12 a voucher saved with the treasury it has keeps it even when that treasury is deactivated",
+    "file": "app/Libraries/Accounting/RevenueVouchers.php",
+    "find": "($asked === null || $asked === 0 || $asked === $storedId)",
+    "replace": "($asked === null || $asked === 0)",
+    "tests": [
+      "--filter",
+      "testSave_KeepsATreasuryThatWasDeactivatedWhenTheVoucherIsSavedWithIt",
+      "tests/Libraries/Accounting/RevenueVouchersTest.php"
+    ]
+  },
+  {
+    "name": "S13 a voucher keeps the employee who entered it",
+    "file": "app/Libraries/Accounting/RevenueVouchers.php",
+    "find": "$row = [...$data, 'branch_id' => $branchId, 'treasury_id' => $treasuryId, 'treasury_branch_id' => null];",
+    "replace": "$row = [...$data, 'branch_id' => $branchId, 'treasury_id' => $treasuryId, 'treasury_branch_id' => null, 'employee_id' => $employeeId];",
+    "tests": [
+      "--filter",
+      "testSave_KeepsTheEmployeeWhoEnteredAVoucherWhenAnotherOneChangesIt",
+      "tests/Libraries/Accounting/RevenueVouchersTest.php"
+    ]
+  },
+  {
+    "name": "S14 a category the voucher already has is kept even when it was deleted",
+    "file": "app/Libraries/Accounting/RevenueVouchers.php",
+    "find": "if ($categoryId !== null && ($stored === null || (int) $stored->revenue_category_id !== $categoryId)\n",
+    "replace": "if ($categoryId !== null\n",
+    "tests": [
+      "--filter",
+      "testSave_KeepsACategoryThatWasDeletedAndAnAccountThatWasPutOutOfUseOnTheVoucherThatHasThem",
+      "tests/Libraries/Accounting/RevenueVouchersTest.php"
+    ]
+  },
+  {
+    "name": "S15 an account the voucher already has is kept even when it was put out of use",
+    "file": "app/Libraries/Accounting/RevenueVouchers.php",
+    "find": "if ($accountId !== null && ($stored === null || (int) $stored->account_id !== $accountId)) {",
+    "replace": "if ($accountId !== null) {",
+    "tests": [
+      "--filter",
+      "testSave_KeepsACategoryThatWasDeletedAndAnAccountThatWasPutOutOfUseOnTheVoucherThatHasThem",
+      "tests/Libraries/Accounting/RevenueVouchersTest.php"
+    ]
+  },
+  {
+    "name": "S20 the form offers the treasury the category and the account a voucher has",
+    "file": "app/Controllers/Receipt_vouchers.php",
+    "find": "return [...$options, (object) [$key => $id, ...$labels]];",
+    "replace": "return $options;",
+    "tests": [
+      "--filter",
+      "testGetView_OffersTheTreasuryTheCategoryAndTheAccountAVoucherHasWhenTheyCannotBeChosenAnyMore",
+      "tests/Controllers/Receipt_vouchersControllerTest.php"
+    ]
+  },
+  {
+    "name": "S21 a voucher without a treasury a category or an account gets no phantom option",
+    "file": "app/Controllers/Receipt_vouchers.php",
+    "find": "if ($id === 0) {\n            return $options;\n        }",
+    "replace": "if (false) {\n            return $options;\n        }",
+    "tests": [
+      "--filter",
+      "testGetView_OffersTheDefaultOptionOnlyToAVoucherWithoutATreasury",
+      "tests/Controllers/Receipt_vouchersControllerTest.php"
+    ]
+  },
+  {
+    "name": "S22 an option the voucher has is not offered twice",
+    "file": "app/Controllers/Receipt_vouchers.php",
+    "find": "if ((int) $option->{$key} === $id) {\n                return $options;\n            }",
+    "replace": "if (false) {\n                return $options;\n            }",
+    "tests": [
+      "--filter",
+      "testGetView_ListsTheTreasuryOfAVoucherOnceWhenItCanStillBeChosen",
+      "tests/Controllers/Receipt_vouchersControllerTest.php"
+    ]
+  },
+  {
+    "name": "S23 a voucher without a treasury shows that it has none",
+    "file": "app/Views/receipt_vouchers/form.php",
+    "find": "<?php elseif ($voucher->treasury_id === null): ?>",
+    "replace": "<?php else: ?>",
+    "tests": [
+      "--filter",
+      "testGetView_OffersTheDefaultOptionOnlyToAVoucherWithoutATreasury",
+      "tests/Controllers/Receipt_vouchersControllerTest.php"
+    ]
+  },
+  {
+    "name": "S24 the amount of a voucher is shown with every decimal it has",
+    "file": "app/Views/receipt_vouchers/form.php",
+    "find": "esc(AmountText::forField((string) $voucher->amount), 'attr')",
+    "replace": "esc(bcadd((string) $voucher->amount, '0', 2), 'attr')",
+    "tests": [
+      "--filter",
+      "testGetView_ShowsTheAmountAndTheTaxWithEveryDecimalTheyHave",
+      "tests/Controllers/Receipt_vouchersControllerTest.php"
+    ]
+  },
+  {
+    "name": "S25 the tax of a voucher is shown with every decimal it has",
+    "file": "app/Views/receipt_vouchers/form.php",
+    "find": "esc(AmountText::forField((string) $voucher->tax_amount), 'attr')",
+    "replace": "esc(bcadd((string) $voucher->tax_amount, '0', 2), 'attr')",
+    "tests": [
+      "--filter",
+      "testGetView_ShowsTheAmountAndTheTaxWithEveryDecimalTheyHave",
+      "tests/Controllers/Receipt_vouchersControllerTest.php"
+    ]
+  },
+  {
+    "name": "S26 the decimals past the second are shown only when they are not zero",
+    "file": "app/Libraries/Accounting/AmountText.php",
+    "find": "str_pad(rtrim($fraction, '0'), self::MIN_DECIMALS, '0')",
+    "replace": "str_pad($fraction, self::MIN_DECIMALS, '0')",
+    "tests": [
+      "--filter",
+      "testForField",
+      "tests/Libraries/Accounting/AmountTextTest.php"
+    ]
+  },
+  {
+    "name": "S27 an amount shows two decimals at least",
+    "file": "app/Libraries/Accounting/AmountText.php",
+    "find": "str_pad(rtrim($fraction, '0'), self::MIN_DECIMALS, '0')",
+    "replace": "rtrim($fraction, '0')",
+    "tests": [
+      "--filter",
+      "testForField",
+      "tests/Libraries/Accounting/AmountTextTest.php"
+    ]
+  },
+  {
+    "name": "S28 the amount is not rounded to two decimals",
+    "file": "app/Libraries/Accounting/AmountText.php",
+    "find": "bcadd($amount, '0', SaleAmounts::SCALE)",
+    "replace": "bcadd($amount, '0', 2)",
+    "tests": [
+      "--filter",
+      "testForField",
+      "tests/Libraries/Accounting/AmountTextTest.php"
+    ]
+  },
+  {
+    "name": "S29 the amount of a cheque is shown with every decimal it has",
+    "file": "app/Views/accounting_cheques/form.php",
+    "find": "esc(AmountText::forField((string) $cheque->amount), 'attr')",
+    "replace": "esc(bcadd((string) $cheque->amount, '0', 2), 'attr')",
+    "tests": [
+      "--filter",
+      "testGetForm_ShowsTheAmountOfAChequeWithEveryDecimalItHasSoThatSavingItAgainKeepsIt",
+      "tests/Controllers/AccountingChequesControllerTest.php"
+    ]
+  },
+  {
+    "name": "S30 the amount of a cheque to collect is shown with every decimal it has",
+    "file": "app/Views/accounting_cheques/action_form.php",
+    "find": "esc(AmountText::forField((string) $cheque->amount))",
+    "replace": "esc(bcadd((string) $cheque->amount, '0', 2))",
+    "tests": [
+      "--filter",
+      "testGetForm_ShowsTheAmountOfAChequeWithEveryDecimalItHasSoThatSavingItAgainKeepsIt",
+      "tests/Controllers/AccountingChequesControllerTest.php"
+    ]
+  },
+  {
+    "name": "S31 the tax of a receipt voucher is sorted into the tax report",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "if ($type === ExpensePostingBuilder::SOURCE || $type === RevenuePostingBuilder::SOURCE) {",
+    "replace": "if ($type === ExpensePostingBuilder::SOURCE) {",
+    "tests": [
+      "--filter",
+      "testBuild_ShowsAReceiptVoucherWithTaxAsOutputTaxAndTakesTheLastVersionOfAnEditedOne|testBuild_AddsTheTaxOfReceiptVouchersToTheTaxOfSalesInWhatIsPayable",
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "S32 a receipt voucher has a part of its own in the tax report",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "$section = $type === ExpensePostingBuilder::SOURCE ? TaxSection::Expenses : TaxSection::Revenues;",
+    "replace": "$section = TaxSection::Expenses;",
+    "tests": [
+      "--filter",
+      "testBuild_ShowsAReceiptVoucherWithTaxAsOutputTaxAndTakesTheLastVersionOfAnEditedOne|testBuild_AddsTheTaxOfReceiptVouchersToTheTaxOfSalesInWhatIsPayable",
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "S33 the documents of a lineless part are counted by their net movement",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "$parts[$section]['documents'] = count(array_filter($documents, static fn (string $net): bool => bccomp($net, '0', self::SCALE) !== 0));",
+    "replace": "$parts[$section]['documents'] = count($documents);",
+    "tests": [
+      "--filter",
+      "testBuild_LeavesOutAReceiptVoucherWithNoTaxAndOneThatWasDeleted|testBuild_LeavesOutAnExpenseWithNoTaxAndOneThatWasDeleted",
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "S34 the tax of a receipt voucher adds to what is payable",
+    "file": "app/Libraries/Accounting/TaxSection.php",
+    "find": "return $this === self::SalesInvoices || $this === self::SalesReturns || $this === self::Revenues;",
+    "replace": "return $this === self::SalesInvoices || $this === self::SalesReturns;",
+    "tests": [
+      "--filter",
+      "testIsOutput|testBuild_ShowsAReceiptVoucherWithTax|testOutput_AddsTheTaxOfReceiptVouchers",
+      "tests/Libraries/Accounting/TaxSectionTest.php",
+      "tests/Libraries/Accounting/TaxReportResultTest.php",
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "S35 a receipt voucher is counted only in the branches that hold it",
+    "file": "app/Libraries/Accounting/TaxReport.php",
+    "find": "->whereIn('j.branch_id', $scope->ids)\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testBuild_CountsAReceiptVoucherOfAnotherBranchOnlyInTheScopeThatHoldsIt",
+      "tests/Libraries/Accounting/TaxReportTest.php"
+    ]
+  },
+  {
+    "name": "S40 a serial is a number and not a text: 0150 and 150 are the same serial",
+    "file": "app/Libraries/Accounting/ChequeService.php",
+    "find": "->where('CAST(cheque_number AS UNSIGNED) = CAST(' . $this->db->escape($number) . ' AS UNSIGNED)', null, false)",
+    "replace": "->where('cheque_number', $number)",
+    "tests": [
+      "--filter",
+      "testIssue_RejectsANumberThatIsTheSameSerialWrittenWithLeadingZeros|testUpdate_RejectsTheSameSerialWrittenWithLeadingZerosAndAcceptsTheOwnNumberRewritten",
+      "tests/Libraries/Accounting/ChequeServiceTest.php"
+    ]
+  },
+  {
+    "name": "S41 the cheque that is changed does not take its own serial for another cheque",
+    "file": "app/Libraries/Accounting/ChequeService.php",
+    "find": "->where('cheque_id !=', $exceptChequeId)\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testUpdate_RejectsTheSameSerialWrittenWithLeadingZerosAndAcceptsTheOwnNumberRewritten",
+      "tests/Libraries/Accounting/ChequeServiceTest.php"
+    ]
+  },
+  {
+    "name": "S42 the change of a number passes the cheque that is changed",
+    "file": "app/Libraries/Accounting/ChequeService.php",
+    "find": "$this->assertSerial($this->book($bookId, true), $data['cheque_number'], (int) $row->cheque_id);",
+    "replace": "$this->assertSerial($this->book($bookId, true), $data['cheque_number']);",
+    "tests": [
+      "--filter",
+      "testUpdate_RejectsTheSameSerialWrittenWithLeadingZerosAndAcceptsTheOwnNumberRewritten",
+      "tests/Libraries/Accounting/ChequeServiceTest.php"
+    ]
+  },
+  {
+    "name": "S43 the book is locked while the serial of a cheque is taken",
+    "file": "app/Libraries/Accounting/ChequeService.php",
+    "find": "' WHERE company_id = ? AND book_id = ?' . ($lock ? ' FOR UPDATE' : '');",
+    "replace": "' WHERE company_id = ? AND book_id = ?' . ($lock ? '' : '');",
+    "tests": [
+      "--filter",
+      "testIssue_LocksTheBookBeforeItLooksForTheSerialAndWritesTheCheque",
+      "tests/Libraries/Accounting/ChequeServiceTest.php"
+    ]
+  },
+  {
+    "name": "S44 the serial is checked in the transaction under the lock of the book",
+    "file": "app/Libraries/Accounting/ChequeService.php",
+    "find": "$this->assertSerial($this->book((int) $row['book_id'], true), $row['cheque_number']);\n\n                $chequeId = $this->insert($row, DocumentType::PaidCheque, $employeeId);",
+    "replace": "$chequeId = $this->insert($row, DocumentType::PaidCheque, $employeeId);",
+    "tests": [
+      "--filter",
+      "testIssue_|testUpdate_Rejects",
+      "tests/Libraries/Accounting/ChequeServiceTest.php"
+    ]
+  },
+  {
+    "name": "S45 a collection needs a bank that is still in use",
+    "file": "app/Libraries/Accounting/ChequeService.php",
+    "find": "if ($transition->isCollection()) {\n            $this->treasury($cheque->treasuryId);\n        }\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testCollect_RejectsABankThatWasDeactivatedWhileTheChequeWasOnTheWay|testCollect_RejectsADeactivatedBankOfAPaidCheque",
+      "tests/Libraries/Accounting/ChequeServiceTest.php"
+    ]
+  },
+  {
+    "name": "S46 only a collection needs the bank, a rejection posts nothing to it",
+    "file": "app/Libraries/Accounting/ChequeService.php",
+    "find": "if ($transition->isCollection()) {\n            $this->treasury($cheque->treasuryId);",
+    "replace": "if (true) {\n            $this->treasury($cheque->treasuryId);",
+    "tests": [
+      "--filter",
+      "testCollect_RejectsABankThatWasDeactivatedWhileTheChequeWasOnTheWay",
+      "tests/Libraries/Accounting/ChequeServiceTest.php"
+    ]
+  },
+  {
+    "name": "S47 a cheque is received into a bank account",
+    "file": "app/Libraries/Accounting/ChequeService.php",
+    "find": "$treasury = $this->bank((int) ($input['treasury_id'] ?? 0));",
+    "replace": "$treasury = $this->treasury((int) ($input['treasury_id'] ?? 0));",
+    "tests": [
+      "--filter",
+      "testReceive_RejectsACashTreasuryBecauseAChequeIsCollectedIntoABankAccount",
+      "tests/Libraries/Accounting/ChequeServiceTest.php"
+    ]
+  },
+  {
+    "name": "S48 a cheque is moved to a bank account only",
+    "file": "app/Libraries/Accounting/ChequeService.php",
+    "find": "$treasury   = $this->bank((int) $merged['treasury_id']);",
+    "replace": "$treasury   = $this->treasury((int) $merged['treasury_id']);",
+    "tests": [
+      "--filter",
+      "testUpdate_RejectsMovingAReceivedChequeToACashTreasury",
+      "tests/Libraries/Accounting/ChequeServiceTest.php"
+    ]
+  },
+  {
+    "name": "S49 a treasury that is no bank is refused for a cheque",
+    "file": "app/Libraries/Accounting/ChequeService.php",
+    "find": "if ($treasury->kind !== TreasuryService::BANK) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "testReceive_RejectsACashTreasuryBecauseAChequeIsCollectedIntoABankAccount|testUpdate_RejectsMovingAReceivedChequeToACashTreasury",
+      "tests/Libraries/Accounting/ChequeServiceTest.php"
+    ]
+  },
+  {
+    "name": "S50 a new book does not overlap another book of the bank account",
+    "file": "app/Libraries/Accounting/ChequeBooks.php",
+    "find": "$this->assertRangeFree((int) $treasury->treasury_id, $first, $last);\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testCreate_RejectsARangeThatOverlapsAnotherBookOfTheSameBankAccount",
+      "tests/Libraries/Accounting/ChequeBooksTest.php"
+    ]
+  },
+  {
+    "name": "S51 a book that moves its range does not overlap another book",
+    "file": "app/Libraries/Accounting/ChequeBooks.php",
+    "find": "$this->assertRangeFree((int) $book->treasury_id, $first, $last, $bookId);",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testUpdate_RejectsAMovedRangeThatOverlapsAnotherBookAndAcceptsOneThatDoesNot",
+      "tests/Libraries/Accounting/ChequeBooksTest.php"
+    ]
+  },
+  {
+    "name": "S52 a book whose range is not moved is put out of use even when it overlaps",
+    "file": "app/Libraries/Accounting/ChequeBooks.php",
+    "find": "if (bccomp($first, (string) $book->first_serial, 0) !== 0 || bccomp($last, (string) $book->last_serial, 0) !== 0) {",
+    "replace": "if (true) {",
+    "tests": [
+      "--filter",
+      "testUpdate_PutsABookOutOfUseWhoseRangeAlreadyOverlapsAnother",
+      "tests/Libraries/Accounting/ChequeBooksTest.php"
+    ]
+  },
+  {
+    "name": "S53 only the books of the same bank account overlap",
+    "file": "app/Libraries/Accounting/ChequeBooks.php",
+    "find": "->where(['company_id' => CompanyContext::id(), 'treasury_id' => $treasuryId])\n            ->where('book_id !=', $exceptBookId)",
+    "replace": "->where(['company_id' => CompanyContext::id()])\n            ->where('book_id !=', $exceptBookId)",
+    "tests": [
+      "--filter",
+      "testCreate_AcceptsAnAdjacentRangeAndTheSameRangeOfAnotherBankAccount",
+      "tests/Libraries/Accounting/ChequeBooksTest.php"
+    ]
+  },
+  {
+    "name": "S54 a book does not overlap itself",
+    "file": "app/Libraries/Accounting/ChequeBooks.php",
+    "find": "->where('book_id !=', $exceptBookId)",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testUpdate_RejectsAMovedRangeThatOverlapsAnotherBookAndAcceptsOneThatDoesNot",
+      "tests/Libraries/Accounting/ChequeBooksTest.php"
+    ]
+  },
+  {
+    "name": "S55 ranges that touch at their first serial overlap",
+    "file": "app/Libraries/Accounting/ChequeBooks.php",
+    "find": "CAST(first_serial AS UNSIGNED) <= CAST(",
+    "replace": "CAST(first_serial AS UNSIGNED) < CAST(",
+    "tests": [
+      "--filter",
+      "testCreate_RejectsARangeThatOverlapsAnotherBookOfTheSameBankAccount",
+      "tests/Libraries/Accounting/ChequeBooksTest.php"
+    ]
+  },
+  {
+    "name": "S56 ranges that touch at their last serial overlap",
+    "file": "app/Libraries/Accounting/ChequeBooks.php",
+    "find": "CAST(last_serial AS UNSIGNED) >= CAST(",
+    "replace": "CAST(last_serial AS UNSIGNED) > CAST(",
+    "tests": [
+      "--filter",
+      "testCreate_RejectsARangeThatOverlapsAnotherBookOfTheSameBankAccount",
+      "tests/Libraries/Accounting/ChequeBooksTest.php"
+    ]
+  },
+  {
+    "name": "S60 the parties are cut down to the names that have the text typed",
+    "file": "app/Libraries/Accounting/ChequeList.php",
+    "find": "$term = trim($term);\n\n        if ($term !== '') {",
+    "replace": "$term = trim($term);\n\n        if (false) {",
+    "tests": [
+      "--filter",
+      "testParties_KeepsOnlyTheNamesThatHaveTheTextTypedAndTakesItAsTextNotAsAPattern",
+      "tests/Libraries/Accounting/ChequeListTest.php"
+    ]
+  },
+  {
+    "name": "S61 the text typed is not a pattern",
+    "file": "app/Libraries/Accounting/ChequeList.php",
+    "find": "$this->db->escapeLikeString($term)",
+    "replace": "$term",
+    "tests": [
+      "--filter",
+      "testParties_KeepsOnlyTheNamesThatHaveTheTextTypedAndTakesItAsTextNotAsAPattern",
+      "tests/Libraries/Accounting/ChequeListTest.php"
+    ]
+  },
+  {
+    "name": "S62 the text typed is trimmed",
+    "file": "app/Libraries/Accounting/ChequeList.php",
+    "find": "$term = trim($term);",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testParties_KeepsOnlyTheNamesThatHaveTheTextTypedAndTakesItAsTextNotAsAPattern",
+      "tests/Libraries/Accounting/ChequeListTest.php"
+    ]
+  },
+  {
+    "name": "S63 the company name is searched as well as the person name",
+    "file": "app/Libraries/Accounting/ChequeList.php",
+    "find": "(x.company_name LIKE {$like} ESCAPE '!' OR CONCAT(p.first_name, ' ', p.last_name) LIKE {$like} ESCAPE '!')",
+    "replace": "(CONCAT(p.first_name, ' ', p.last_name) LIKE {$like} ESCAPE '!')",
+    "tests": [
+      "--filter",
+      "testParties_|testGetParties_",
+      "tests/Libraries/Accounting/ChequeListTest.php",
+      "tests/Controllers/AccountingChequesControllerTest.php"
+    ]
+  },
+  {
+    "name": "S70 the search for parties is for who may change cheques",
+    "file": "app/Controllers/AccountingCheques.php",
+    "find": "public function getParties(string $direction): ResponseInterface\n    {\n        $this->requireManage();\n",
+    "replace": "public function getParties(string $direction): ResponseInterface\n    {\n",
+    "tests": [
+      "--filter",
+      "testGetParties_IsNotFoundWithoutThePermissionToChangeCheques",
+      "tests/Controllers/AccountingChequesControllerTest.php"
+    ]
+  },
+  {
+    "name": "S71 the search for parties offers only the kind of party the cheque is for",
+    "file": "app/Controllers/AccountingCheques.php",
+    "find": "$this->list->parties($this->direction($direction), self::PARTY_LIMIT,",
+    "replace": "$this->list->parties(ChequeDirection::Received, self::PARTY_LIMIT,",
+    "tests": [
+      "--filter",
+      "testGetParties_SuggestsTheCustomersOrTheSuppliersWhoseNameHasTheTextAndNoOtherKind",
+      "tests/Controllers/AccountingChequesControllerTest.php"
+    ]
+  },
+  {
+    "name": "S72 a deleted cheque has no link to a page that is not found",
+    "file": "app/Controllers/AccountingCheques.php",
+    "find": "$link    = $deleted ? $number : anchor(",
+    "replace": "$link    = false ? $number : anchor(",
+    "tests": [
+      "--filter",
+      "testGetSearch_ShowsADeletedChequeWithoutALinkOrActionsThatWouldBeNotFound",
+      "tests/Controllers/AccountingChequesControllerTest.php"
+    ]
+  },
+  {
+    "name": "S73 a deleted cheque has no actions that would be not found",
+    "file": "app/Controllers/AccountingCheques.php",
+    "find": "'edit'          => $deleted ? '' : $this->actions($cheque),",
+    "replace": "'edit'          => $this->actions($cheque),",
+    "tests": [
+      "--filter",
+      "testGetSearch_ShowsADeletedChequeWithoutALinkOrActionsThatWouldBeNotFound",
+      "tests/Controllers/AccountingChequesControllerTest.php"
+    ]
+  },
+  {
+    "name": "S74 the form of a received cheque offers banks that are in use",
+    "file": "app/Controllers/AccountingCheques.php",
+    "find": "((int) $treasury->active === 1 && $treasury->kind === TreasuryService::BANK) ||",
+    "replace": "($treasury->kind === TreasuryService::BANK) ||",
+    "tests": [
+      "--filter",
+      "testGetForm_OffersTheBankOfAReceivedChequeAndTheBookOfAPaidOneWhenTheyWentOutOfUse",
+      "tests/Controllers/AccountingChequesControllerTest.php"
+    ]
+  },
+  {
+    "name": "S75 the form of a received cheque offers bank accounts only",
+    "file": "app/Controllers/AccountingCheques.php",
+    "find": "((int) $treasury->active === 1 && $treasury->kind === TreasuryService::BANK) ||",
+    "replace": "((int) $treasury->active === 1) ||",
+    "tests": [
+      "--filter",
+      "testGetForm_OffersOnlyBankAccountsForAReceivedChequeAndKeepsTheTreasuryOfOneThatExists",
+      "tests/Controllers/AccountingChequesControllerTest.php"
+    ]
+  },
+  {
+    "name": "S76 the form keeps the treasury a cheque has",
+    "file": "app/Controllers/AccountingCheques.php",
+    "find": "|| ($cheque !== null && (int) $treasury->treasury_id === (int) $cheque->treasury_id),",
+    "replace": ",",
+    "tests": [
+      "--filter",
+      "testGetForm_OffersTheBankOfAReceivedChequeAndTheBookOfAPaidOneWhenTheyWentOutOfUse|testGetForm_OffersOnlyBankAccountsForAReceivedChequeAndKeepsTheTreasuryOfOneThatExists",
+      "tests/Controllers/AccountingChequesControllerTest.php"
+    ]
+  },
+  {
+    "name": "S77 the form of a paid cheque offers books in use",
+    "file": "app/Controllers/AccountingCheques.php",
+    "find": "static fn (object $book): bool => (int) $book->active === 1 || ($cheque !== null",
+    "replace": "static fn (object $book): bool => true || ($cheque !== null",
+    "tests": [
+      "--filter",
+      "testGetForm_OffersTheBankOfAReceivedChequeAndTheBookOfAPaidOneWhenTheyWentOutOfUse",
+      "tests/Controllers/AccountingChequesControllerTest.php"
+    ]
+  },
+  {
+    "name": "S78 the form keeps the book a cheque has",
+    "file": "app/Controllers/AccountingCheques.php",
+    "find": "|| ($cheque !== null && (int) $book->book_id === (int) $cheque->book_id),",
+    "replace": ",",
+    "tests": [
+      "--filter",
+      "testGetForm_OffersTheBankOfAReceivedChequeAndTheBookOfAPaidOneWhenTheyWentOutOfUse",
+      "tests/Controllers/AccountingChequesControllerTest.php"
+    ]
+  },
+  {
+    "name": "S80 a cheque that was deleted sends the page back to the list",
+    "file": "app/Views/accounting_cheques/view.php",
+    "find": "if (action === 'delete') {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "testGetDetail_GoesBackToTheListAfterTheChequeIsDeletedAndReloadsAfterAnyOtherAction",
+      "tests/Controllers/AccountingChequesControllerTest.php"
+    ]
+  },
+  {
+    "name": "S81 a new cheque looks for its party by name",
+    "file": "app/Views/accounting_cheques/form.php",
+    "find": "source: 'accounting_cheques/parties/<?= esc($direction, 'js') ?>',",
+    "replace": "source: [],",
+    "tests": [
+      "--filter",
+      "testGetForm_LetsANewChequeSearchItsPartyAndNamesThePartyOfOneThatExists",
+      "tests/Controllers/AccountingChequesControllerTest.php"
+    ]
+  },
+  {
+    "name": "S82 the credit of a customer is named by the number of the cheque",
+    "file": "app/Views/accounting_receivables/customer.php",
+    "find": "esc($chequeNumber($source->sourceId))",
+    "replace": "'CHQ ' . $source->sourceId",
+    "tests": [
+      "--filter",
+      "testGetCustomer_ShowsAChequeAsCreditOfItsOwnKindWithALinkToTheChequeAndWhatItSettled",
+      "tests/Controllers/AccountingReceivablesControllerTest.php"
+    ]
+  },
+  {
+    "name": "S83 what a cheque settled is named by the number of the cheque for a customer",
+    "file": "app/Views/accounting_receivables/customer.php",
+    "find": "esc($chequeNumber((int) $application->source_id))",
+    "replace": "(int) $application->source_id",
+    "tests": [
+      "--filter",
+      "testGetCustomer_ShowsAChequeAsCreditOfItsOwnKindWithALinkToTheChequeAndWhatItSettled",
+      "tests/Controllers/AccountingReceivablesControllerTest.php"
+    ]
+  },
+  {
+    "name": "S84 the credit of a supplier is named by the number of the cheque",
+    "file": "app/Views/accounting_payables/supplier.php",
+    "find": "esc($chequeNumber($source->sourceId))",
+    "replace": "'CHQ ' . $source->sourceId",
+    "tests": [
+      "--filter",
+      "testGetSupplier_ShowsAChequeAsCreditOfItsOwnKindWithALinkToTheCheque",
+      "tests/Controllers/AccountingPayablesControllerTest.php"
+    ]
+  },
+  {
+    "name": "S85 what a cheque settled is named by the number of the cheque for a supplier",
+    "file": "app/Views/accounting_payables/supplier.php",
+    "find": "esc($chequeNumber((int) $application->source_id))",
+    "replace": "(int) $application->source_id",
+    "tests": [
+      "--filter",
+      "testGetSupplier_ShowsAChequeAsCreditOfItsOwnKindWithALinkToTheCheque",
+      "tests/Controllers/AccountingPayablesControllerTest.php"
+    ]
+  },
+  {
+    "name": "S86 the audit screen filters by cheque",
+    "file": "app/Views/accounting_journals/audit.php",
+    "find": "                <option value=\"cheque\"><?= lang('Accounting.entity_cheque') ?></option>\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testGetAudit_OffersTheEntityFilterForChequesChequeBooksVouchersAndVoucherCategories",
+      "tests/Controllers/AccountingJournalsControllerTest.php"
+    ]
+  },
+  {
+    "name": "S86 the audit screen filters by cheque_book",
+    "file": "app/Views/accounting_journals/audit.php",
+    "find": "                <option value=\"cheque_book\"><?= lang('Accounting.entity_cheque_book') ?></option>\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testGetAudit_OffersTheEntityFilterForChequesChequeBooksVouchersAndVoucherCategories",
+      "tests/Controllers/AccountingJournalsControllerTest.php"
+    ]
+  },
+  {
+    "name": "S86 the audit screen filters by revenue",
+    "file": "app/Views/accounting_journals/audit.php",
+    "find": "                <option value=\"revenue\"><?= lang('Accounting.entity_revenue') ?></option>\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testGetAudit_OffersTheEntityFilterForChequesChequeBooksVouchersAndVoucherCategories",
+      "tests/Controllers/AccountingJournalsControllerTest.php"
+    ]
+  },
+  {
+    "name": "S86 the audit screen filters by revenue_category",
+    "file": "app/Views/accounting_journals/audit.php",
+    "find": "                <option value=\"revenue_category\"><?= lang('Accounting.entity_revenue_category') ?></option>\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testGetAudit_OffersTheEntityFilterForChequesChequeBooksVouchersAndVoucherCategories",
+      "tests/Controllers/AccountingJournalsControllerTest.php"
     ]
   }
 ]
