@@ -354,9 +354,9 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
     }
 
     /**
-     * @return array{closing: int, reversal: int} The journal that closes 2025 and the one that takes the closing back.
+     * @return array{closing: int, reversal: int|null} The journal that closes 2025 and, when asked, the one that takes the closing back.
      */
-    private function closedAndReopenedYear(): array
+    private function closedYear(bool $takenBack): array
     {
         (new JournalService())->postNew(['date' => '2025-05-10'] + $this->journalInput('100.00'));
         $this->closeThrough('2025-12-31');
@@ -369,18 +369,19 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
 
         return [
             'closing'  => (int) $this->accountingDb()->table('accounting_year_end_closings')->where('closing_id', $id)->get()->getRow()->journal_id,
-            'reversal' => $run->reverse($id, 'Back', $closer),
+            'reversal' => $takenBack ? $run->reverse($id, 'Back', $closer) : null,
         ];
     }
 
     public function testGetView_HidesTheReverseButtonOfTheJournalThatClosesAYearAndNamesIt(): void
     {
-        $journals = $this->closedAndReopenedYear();
+        $journals = $this->closedYear(false);
         $this->accountant();
 
         $page = $this->get('/accounting_journals/view/' . $journals['closing']);
 
         $page->assertStatus(200);
+        $page->assertSee(lang('Accounting.state_posted'));
         $page->assertDontSee('accounting_journals/reverse_form/' . $journals['closing']);
         $page->assertSee(lang('Accounting.source_year_end'));
         $page->assertDontSee(lang('Accounting.source_year_end') . ' — ' . lang('Accounting.entry_year_end'));
@@ -388,7 +389,7 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
 
     public function testGetView_NamesTheReversalOfAClosingAsTheReversalOfAYearEndClosing(): void
     {
-        $journals = $this->closedAndReopenedYear();
+        $journals = $this->closedYear(true);
         $this->accountant();
 
         $this->get('/accounting_journals/view/' . $journals['reversal'])->assertSee(lang('Accounting.source_reversal') . ' — ' . lang('Accounting.entry_year_end'));
@@ -396,7 +397,7 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
 
     public function testGetAuditSearch_NamesTheActionsAndTheEntityOfAYearEndClosing(): void
     {
-        $this->closedAndReopenedYear();
+        $this->closedYear(true);
         $this->accountant();
 
         $rows = $this->jsonOf($this->get('/accounting_journals/audit/search?order=asc&limit=100'))['rows'];

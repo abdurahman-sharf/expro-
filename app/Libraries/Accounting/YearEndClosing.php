@@ -62,7 +62,7 @@ final class YearEndClosing
      */
     public function years(?int $employeeId): array
     {
-        $years  = $this->db->table('accounting_fiscal_years')
+        $years = $this->db->table('accounting_fiscal_years')
             ->select('fiscal_year_id, name, start_date, end_date')
             ->where('company_id', CompanyContext::id())
             ->where('end_date <', date('Y-m-d'))
