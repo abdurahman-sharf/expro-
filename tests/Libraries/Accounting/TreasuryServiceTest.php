@@ -612,9 +612,9 @@ class TreasuryServiceTest extends CIUnitTestCase
                 $this->assertSame(AccountingError::TreasuryInUse, $this->refusal(fn () => $this->treasuries->delete($treasury, $manager))->error, 'treasury ' . $treasury);
             }
         } finally {
-            $db->table('revenues')->truncate();
-            $db->table('cheques')->truncate();
-            $db->table('cheque_books')->truncate();
+            $db->table('revenues')->emptyTable();
+            $db->table('cheques')->emptyTable();
+            $db->table('cheque_books')->emptyTable();
         }
     }
 

@@ -18,8 +18,8 @@ class ChequesAndRevenues extends Migration
     private const TABLE_OPTIONS = 'ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci';
     private const MODULES       = [
         ['module_id' => 'accounting_cheques', 'sort' => 129],
-        ['module_id' => 'revenues', 'sort' => 130],
-        ['module_id' => 'revenues_categories', 'sort' => 131],
+        ['module_id' => 'receipt_vouchers', 'sort' => 130],
+        ['module_id' => 'revenue_categories', 'sort' => 131],
     ];
     private const PERMISSIONS = [
         'acc_cheques_manage' => 'accounting_cheques',

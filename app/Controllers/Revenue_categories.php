@@ -9,7 +9,7 @@ use CodeIgniter\HTTP\ResponseInterface;
 /**
  * The categories of receipt vouchers, each with the account its vouchers are credited to.
  */
-class Revenues_categories extends AccountingController
+class Revenue_categories extends AccountingController
 {
     private const MAX_PAGE_SIZE = 500;
 
@@ -17,14 +17,14 @@ class Revenues_categories extends AccountingController
 
     public function __construct()
     {
-        parent::__construct('revenues_categories');
+        parent::__construct('revenue_categories');
 
         $this->categories = new RevenueCategories(null, null, $this->branchGuard());
     }
 
     public function getIndex(): string
     {
-        return view('revenues_categories/manage', ['table_headers' => transform_headers($this->headers(), false, true)]);
+        return view('revenue_categories/manage', ['table_headers' => transform_headers($this->headers(), false, true)]);
     }
 
     public function getSearch(): ResponseInterface
@@ -42,13 +42,13 @@ class Revenues_categories extends AccountingController
 
     public function getView(int $categoryId = NEW_ENTRY): string
     {
-        $accounts = [0 => lang('Revenues_categories.account_default')];
+        $accounts = [0 => lang('Revenue_categories.account_default')];
 
         foreach ($this->categories->accountOptions() as $account) {
             $accounts[(int) $account->account_id] = esc($account->code . ' - ' . $account->name);
         }
 
-        return view('revenues_categories/form', [
+        return view('revenue_categories/form', [
             'category'           => $categoryId === NEW_ENTRY ? null : $this->category($categoryId),
             'account_options'    => $accounts,
             'can_assign_account' => $this->categories->mayAssign($this->employeeId()),
@@ -73,7 +73,7 @@ class Revenues_categories extends AccountingController
 
             $id = $this->categories->save($input, $categoryId === NEW_ENTRY ? null : $categoryId, $this->employeeId());
 
-            return ['success' => true, 'message' => lang($categoryId === NEW_ENTRY ? 'Revenues_categories.successful_adding' : 'Revenues_categories.successful_updating'), 'id' => $id];
+            return ['success' => true, 'message' => lang($categoryId === NEW_ENTRY ? 'Revenue_categories.successful_adding' : 'Revenue_categories.successful_updating'), 'id' => $id];
         });
     }
 
@@ -84,7 +84,7 @@ class Revenues_categories extends AccountingController
 
             $this->categories->delete($ids, $this->employeeId());
 
-            return ['success' => true, 'message' => lang('Revenues_categories.successful_deleted', [count($ids)]), 'ids' => $ids];
+            return ['success' => true, 'message' => lang('Revenue_categories.successful_deleted', [count($ids)]), 'ids' => $ids];
         });
     }
 
@@ -105,10 +105,10 @@ class Revenues_categories extends AccountingController
     private function headers(): array
     {
         return [
-            ['revenue_category_id'  => lang('Revenues_categories.id'), 'sortable' => true],
-            ['category_name'        => lang('Revenues_categories.name'), 'sortable' => true],
-            ['category_description' => lang('Revenues_categories.description'), 'sortable' => true],
-            ['account'              => lang('Revenues_categories.account'), 'sortable' => true],
+            ['revenue_category_id' => lang('Revenue_categories.id'), 'sortable' => true],
+            ['category_name'        => lang('Revenue_categories.name'), 'sortable' => true],
+            ['category_description' => lang('Revenue_categories.description'), 'sortable' => true],
+            ['account'              => lang('Revenue_categories.account'), 'sortable' => true],
         ];
     }
 
@@ -123,8 +123,8 @@ class Revenues_categories extends AccountingController
             'revenue_category_id'  => $id,
             'category_name'        => $category->category_name,
             'category_description' => $category->category_description,
-            'account'              => $category->account_code === null ? lang('Revenues_categories.account_default') : $category->account_code . ' - ' . $category->account_name,
-            'edit'                 => anchor("revenues_categories/view/{$id}", '<span class="bi bi-pencil-square" aria-hidden="true"></span>', ['class' => 'modal-dlg', 'data-btn-submit' => lang('Common.submit'), 'title' => lang('Revenues_categories.update')]),
+            'account'              => $category->account_code === null ? lang('Revenue_categories.account_default') : $category->account_code . ' - ' . $category->account_name,
+            'edit'                 => anchor("revenue_categories/view/{$id}", '<span class="bi bi-pencil-square" aria-hidden="true"></span>', ['class' => 'modal-dlg', 'data-btn-submit' => lang('Common.submit'), 'title' => lang('Revenue_categories.update')]),
         ];
     }
 }

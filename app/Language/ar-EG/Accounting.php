@@ -201,6 +201,7 @@ return [
     'error_report_account_missing'               => 'هذا الحساب غير موجود.',
     'error_report_period_invalid'                => 'بداية الفترة أحدث من نهايتها.',
     'error_revenue_account_invalid'              => 'هذا الحساب لا يقبل سندات القبض: اختر حساب إيراد فعّالًا يقبل القيد.',
+    'error_revenue_account_required'             => 'تشترط الإعدادات حسابًا لكل سند قبض: اختر حسابًا أو تصنيفًا له حساب.',
     'error_revenue_amount_invalid'               => 'يجب أن يكون مبلغ سند القبض أكبر من الصفر، وألا تقل ضريبته عن صفر ولا تزيد على المبلغ.',
     'error_revenue_category_name_invalid'        => 'لتصنيف الإيراد اسم من 1 إلى 255 حرفًا.',
     'error_revenue_category_name_taken'          => 'تصنيف إيراد آخر يحمل هذا الاسم.',

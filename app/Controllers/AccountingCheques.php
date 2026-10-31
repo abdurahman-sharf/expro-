@@ -297,7 +297,7 @@ class AccountingCheques extends AccountingController
             'number'    => fn (object $cheque): string => (string) ($cheque->document_number ?? $this->fallbackNumber($cheque)),
             'amount'    => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
             'date'      => fn (?string $value): string => $this->formatDate($value),
-            'status'    => fn (string $value): string => lang('Accounting_cheques.status_' . $value),
+            'status'    => static fn (string $value): string => lang('Accounting_cheques.status_' . $value),
         ]);
     }
 

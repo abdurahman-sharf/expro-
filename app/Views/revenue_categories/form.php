@@ -4,34 +4,33 @@
  * @var array<int, string> $account_options
  * @var bool               $can_assign_account
  */
-
 $isNew = $category === null;
 ?>
 
 <div id="required_fields_message"><?= lang('Common.fields_required_message') ?></div>
 <ul id="error_message_box" class="error_message_box"></ul>
 
-<?= form_open('revenues_categories/save/' . ($isNew ? NEW_ENTRY : (int) $category->revenue_category_id), ['id' => 'revenue_category_form', 'class' => 'app-form']) ?>
+<?= form_open('revenue_categories/save/' . ($isNew ? NEW_ENTRY : (int) $category->revenue_category_id), ['id' => 'revenue_category_form', 'class' => 'app-form']) ?>
     <fieldset id="revenue_category_fields">
         <div class="field">
-            <?= form_label(lang('Revenues_categories.name'), 'category_name', ['class' => 'form-label text-danger required']) ?>
+            <?= form_label(lang('Revenue_categories.name'), 'category_name', ['class' => 'form-label text-danger required']) ?>
             <div class="field-control">
                 <input type="text" name="category_name" id="category_name" class="form-control form-control-sm" maxlength="255" value="<?= $isNew ? '' : esc($category->category_name, 'attr') ?>">
             </div>
         </div>
 
         <div class="field">
-            <?= form_label(lang('Revenues_categories.description'), 'category_description', ['class' => 'form-label']) ?>
+            <?= form_label(lang('Revenue_categories.description'), 'category_description', ['class' => 'form-label']) ?>
             <div class="field-control">
                 <textarea name="category_description" id="category_description" class="form-control form-control-sm" rows="2" maxlength="255"><?= $isNew ? '' : esc($category->category_description) ?></textarea>
             </div>
         </div>
 
         <div class="field">
-            <?= form_label(lang('Revenues_categories.account'), 'account_id', ['class' => 'form-label']) ?>
+            <?= form_label(lang('Revenue_categories.account'), 'account_id', ['class' => 'form-label']) ?>
             <div class="field-control">
                 <?= form_dropdown('account_id', $account_options, (string) ($isNew ? 0 : (int) $category->account_id), ['class' => 'form-select form-select-sm', 'id' => 'account_id'] + ($can_assign_account ? [] : ['disabled' => 'disabled'])) ?>
-                <p class="form-text mb-0"><?= lang($can_assign_account ? 'Revenues_categories.account_desc' : 'Revenues_categories.account_locked') ?></p>
+                <p class="form-text mb-0"><?= lang($can_assign_account ? 'Revenue_categories.account_desc' : 'Revenue_categories.account_locked') ?></p>
             </div>
         </div>
     </fieldset>
@@ -44,7 +43,7 @@ $isNew = $category === null;
                 $(form).ajaxSubmit({
                     success: function(response) {
                         dialog_support.hide();
-                        table_support.handle_submit('revenues_categories', response);
+                        table_support.handle_submit('revenue_categories', response);
                     },
                     dataType: 'json'
                 });
@@ -57,7 +56,7 @@ $isNew = $category === null;
             },
 
             messages: {
-                category_name: "<?= esc(lang('Revenues_categories.name_required'), 'js') ?>"
+                category_name: "<?= esc(lang('Revenue_categories.name_required'), 'js') ?>"
             }
         }, form_support.error));
     });

@@ -17,7 +17,7 @@ use Tests\Support\ExpenseAccountingFixtureTrait;
  * The screens of the revenue categories: the list, the form with the account of the category that
  * only whoever may change the routing can choose, and the changes as POSTs.
  */
-class Revenues_categoriesControllerTest extends CIUnitTestCase
+class Revenue_categoriesControllerTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use FeatureTestTrait;
@@ -73,28 +73,31 @@ class Revenues_categoriesControllerTest extends CIUnitTestCase
 
     public function testGetIndex_ShowsTheListToWhoeverHoldsTheModule(): void
     {
-        $this->actAsWith(['revenues_categories']);
+        $this->actAsWith(['revenue_categories']);
 
-        $this->get('/revenues_categories')->assertStatus(200)->assertSee(lang('Revenues_categories.new'));
+        $view = $this->get('/revenue_categories');
+
+        $view->assertStatus(200);
+        $view->assertSee(lang('Revenue_categories.new'));
     }
 
     public function testGetIndex_RedirectsAUserWithoutTheModuleGrantAndIsNotFoundWhileAccountingIsOff(): void
     {
-        $this->actAsWith(['revenues']);
+        $this->actAsWith(['receipt_vouchers']);
 
-        $this->get('/revenues_categories')->assertRedirect();
+        $this->get('/revenue_categories')->assertRedirect();
 
-        $this->actAsWith(['revenues_categories']);
+        $this->actAsWith(['revenue_categories']);
         $this->setConfigValue('accounting_enabled', '0');
 
         $this->expectException(PageNotFoundException::class);
 
-        $this->get('/revenues_categories');
+        $this->get('/revenue_categories');
     }
 
     public function testGetSearch_ListsTheCategoriesWithTheirAccountsAndFiltersThem(): void
     {
-        $this->actAsWith(['revenues_categories']);
+        $this->actAsWith(['revenue_categories']);
 
         $categories = new RevenueCategories();
         $account    = $this->customAccount('42', '4210', 'Rent income');
@@ -102,12 +105,12 @@ class Revenues_categoriesControllerTest extends CIUnitTestCase
         $categories->save(['category_name' => 'Rent', 'account_id' => $account], null, $this->employeeWithGrants([AccountingGuard::ROUTING_MANAGE]));
         $categories->save(['category_name' => 'Commissions'], null, $this->clerkId);
 
-        $all  = json_decode($this->get('/revenues_categories/search?sort=category_name&order=asc')->getJSON(), true);
-        $rent = json_decode($this->get('/revenues_categories/search?search=Rent')->getJSON(), true);
+        $all  = json_decode($this->get('/revenue_categories/search?sort=category_name&order=asc')->getJSON(), true);
+        $rent = json_decode($this->get('/revenue_categories/search?search=Rent')->getJSON(), true);
 
         $this->assertSame(2, $all['total']);
         $this->assertSame(['Commissions', 'Rent'], array_column($all['rows'], 'category_name'));
-        $this->assertSame(lang('Revenues_categories.account_default'), $all['rows'][0]['account']);
+        $this->assertSame(lang('Revenue_categories.account_default'), $all['rows'][0]['account']);
         $this->assertSame('4210 - Rent income', $all['rows'][1]['account']);
         $this->assertSame(['Rent'], array_column($rent['rows'], 'category_name'));
     }
@@ -116,42 +119,42 @@ class Revenues_categoriesControllerTest extends CIUnitTestCase
     {
         $this->customAccount('42', '4210', 'Rent income');
 
-        $this->actAsWith(['revenues_categories']);
+        $this->actAsWith(['revenue_categories']);
 
-        $locked = $this->get('/revenues_categories/view');
+        $locked = $this->get('/revenue_categories/view');
 
         $locked->assertSee('name="category_name"');
         $locked->assertSee('disabled');
-        $locked->assertSee(lang('Revenues_categories.account_locked'));
+        $locked->assertSee(lang('Revenue_categories.account_locked'));
 
-        $this->actAsWith(['revenues_categories', AccountingGuard::ROUTING_MANAGE]);
+        $this->actAsWith(['revenue_categories', AccountingGuard::ROUTING_MANAGE]);
 
-        $open = $this->get('/revenues_categories/view');
+        $open = $this->get('/revenue_categories/view');
 
         $open->assertSee('4210 - Rent income');
-        $open->assertSee(lang('Revenues_categories.account_desc'));
+        $open->assertSee(lang('Revenue_categories.account_desc'));
     }
 
     public function testPostSave_SavesAndChangesACategoryAndSaysInWordsWhyItRefuses(): void
     {
-        $this->actAsWith(['revenues_categories']);
+        $this->actAsWith(['revenue_categories']);
 
-        $added = $this->postJson('/revenues_categories/save', ['category_name' => 'Rent', 'category_description' => 'Stand rent']);
+        $added = $this->postJson('/revenue_categories/save', ['category_name' => 'Rent', 'category_description' => 'Stand rent']);
 
         $this->assertTrue($added['success']);
-        $this->assertSame(lang('Revenues_categories.successful_adding'), $added['message']);
+        $this->assertSame(lang('Revenue_categories.successful_adding'), $added['message']);
 
-        $changed = $this->postJson('/revenues_categories/save/' . $added['id'], ['category_name' => 'Rents', 'category_description' => '']);
+        $changed = $this->postJson('/revenue_categories/save/' . $added['id'], ['category_name' => 'Rents', 'category_description' => '']);
 
         $this->assertTrue($changed['success']);
         $this->assertSame('Rents', (new RevenueCategories())->find($added['id'])->category_name);
 
-        $taken = $this->postJson('/revenues_categories/save', ['category_name' => 'Rents']);
+        $taken = $this->postJson('/revenue_categories/save', ['category_name' => 'Rents']);
 
         $this->assertFalse($taken['success']);
         $this->assertSame(lang('Accounting.error_revenue_category_name_taken'), $taken['message']);
 
-        $empty = $this->postJson('/revenues_categories/save', ['category_name' => ' ']);
+        $empty = $this->postJson('/revenue_categories/save', ['category_name' => ' ']);
 
         $this->assertSame(lang('Accounting.error_revenue_category_name_invalid'), $empty['message']);
     }
@@ -160,27 +163,27 @@ class Revenues_categoriesControllerTest extends CIUnitTestCase
     {
         $account = $this->customAccount('42', '4210', 'Rent income');
 
-        $this->actAsWith(['revenues_categories']);
+        $this->actAsWith(['revenue_categories']);
 
-        $refused = $this->postJson('/revenues_categories/save', ['category_name' => 'Rent', 'account_id' => $account]);
+        $refused = $this->postJson('/revenue_categories/save', ['category_name' => 'Rent', 'account_id' => $account]);
 
         $this->assertFalse($refused['success']);
         $this->assertSame(lang('Accounting.error_permission_denied'), $refused['message']);
         $this->assertSame(0, $this->countRows('revenue_categories'));
 
-        $this->actAsWith(['revenues_categories', AccountingGuard::ROUTING_MANAGE]);
+        $this->actAsWith(['revenue_categories', AccountingGuard::ROUTING_MANAGE]);
 
-        $this->assertTrue($this->postJson('/revenues_categories/save', ['category_name' => 'Rent', 'account_id' => $account])['success']);
+        $this->assertTrue($this->postJson('/revenue_categories/save', ['category_name' => 'Rent', 'account_id' => $account])['success']);
     }
 
     public function testPostDelete_DeletesTheCategoriesAndAGetNeverDoes(): void
     {
-        $this->actAsWith(['revenues_categories']);
+        $this->actAsWith(['revenue_categories']);
 
         $id = (new RevenueCategories())->save(['category_name' => 'Rent'], null, $this->clerkId);
 
         try {
-            $this->get('/revenues_categories/delete');
+            $this->get('/revenue_categories/delete');
             $this->fail('A GET deleted categories');
         } catch (PageNotFoundException) {
             $this->addToAssertionCount(1);
@@ -188,7 +191,7 @@ class Revenues_categoriesControllerTest extends CIUnitTestCase
 
         $this->assertNotNull((new RevenueCategories())->find($id));
 
-        $deleted = $this->postJson('/revenues_categories/delete', ['ids' => [$id]]);
+        $deleted = $this->postJson('/revenue_categories/delete', ['ids' => [(string) $id]]);
 
         $this->assertTrue($deleted['success']);
         $this->assertNull((new RevenueCategories())->find($id));
@@ -196,16 +199,16 @@ class Revenues_categoriesControllerTest extends CIUnitTestCase
 
     public function testGetRow_ShowsOneCategoryAndIsNotFoundForADeletedOne(): void
     {
-        $this->actAsWith(['revenues_categories']);
+        $this->actAsWith(['revenue_categories']);
 
         $id = (new RevenueCategories())->save(['category_name' => 'Rent'], null, $this->clerkId);
 
-        $this->assertSame('Rent', json_decode($this->get('/revenues_categories/row/' . $id)->getJSON(), true)['category_name']);
+        $this->assertSame('Rent', json_decode($this->get('/revenue_categories/row/' . $id)->getJSON(), true)['category_name']);
 
         (new RevenueCategories())->delete([$id], $this->clerkId);
 
         $this->expectException(PageNotFoundException::class);
 
-        $this->get('/revenues_categories/row/' . $id);
+        $this->get('/revenue_categories/row/' . $id);
     }
 }

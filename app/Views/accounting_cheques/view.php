@@ -1,16 +1,16 @@
 <?php
 /**
- * @var object                $cheque
- * @var string                $direction
- * @var string                $number
- * @var list<object>          $events
- * @var list<object>          $journals
- * @var bool                  $journal_links
- * @var bool                  $can_manage
- * @var list<string>          $actions
- * @var callable(string): string $amount
+ * @var object                    $cheque
+ * @var string                    $direction
+ * @var string                    $number
+ * @var list<object>              $events
+ * @var list<object>              $journals
+ * @var bool                      $journal_links
+ * @var bool                      $can_manage
+ * @var list<string>              $actions
+ * @var callable(string): string  $amount
  * @var callable(?string): string $date
- * @var callable(string): string $source_label
+ * @var callable(string): string  $source_label
  */
 
 use App\Libraries\Accounting\ChequeStatus;

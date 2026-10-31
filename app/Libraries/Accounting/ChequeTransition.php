@@ -46,13 +46,13 @@ enum ChequeTransition: string
     public function toStatus(): ChequeStatus
     {
         return match ($this) {
-            self::Receive                     => ChequeStatus::Received,
-            self::Deposit                     => ChequeStatus::Deposited,
+            self::Receive => ChequeStatus::Received,
+            self::Deposit => ChequeStatus::Deposited,
             self::Collect, self::DepositCollect, self::PayCollect => ChequeStatus::Collected,
-            self::Reject, self::DepositReject, self::PayReject    => ChequeStatus::Rejected,
-            self::Issue                       => ChequeStatus::Issued,
-            self::Deliver                     => ChequeStatus::Delivered,
-            self::Cancel                      => ChequeStatus::Cancelled,
+            self::Reject, self::DepositReject, self::PayReject => ChequeStatus::Rejected,
+            self::Issue   => ChequeStatus::Issued,
+            self::Deliver => ChequeStatus::Delivered,
+            self::Cancel  => ChequeStatus::Cancelled,
         };
     }
 

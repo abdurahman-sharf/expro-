@@ -16,7 +16,7 @@ use CodeIgniter\HTTP\ResponseInterface;
  * The receipt vouchers: money received into a treasury that is not a sale, with the tax in it. A
  * person limited to some branches sees and changes the vouchers of those branches only.
  */
-class Revenues extends AccountingController
+class Receipt_vouchers extends AccountingController
 {
     private const MAX_PAGE_SIZE = 500;
 
@@ -25,7 +25,7 @@ class Revenues extends AccountingController
 
     public function __construct()
     {
-        parent::__construct('revenues');
+        parent::__construct('receipt_vouchers');
 
         $this->vouchers   = new RevenueVouchers(null, $this->branchGuard());
         $this->categories = new RevenueCategories(null, null, $this->branchGuard());
@@ -33,7 +33,7 @@ class Revenues extends AccountingController
 
     public function getIndex(): string
     {
-        return view('revenues/manage', [
+        return view('receipt_vouchers/manage', [
             'table_headers' => transform_headers($this->headers(), false, true),
             'categories'    => $this->categories->all(),
         ]);
@@ -72,7 +72,7 @@ class Revenues extends AccountingController
         $treasuries = new TreasuryService(null, null, $this->branchGuard());
         $usable     = (new TreasuryScopes(null, $this->branchGuard()))->usable($treasuries->all($this->branchIds(), false), TreasuryScopes::DEPOSIT, $this->employeeId());
 
-        return view('revenues/form', [
+        return view('receipt_vouchers/form', [
             'voucher'         => $voucher,
             'number'          => $voucher === null ? $numbering->peek(DocumentType::Revenue) : $numbering->label(DocumentType::Revenue, 'revenues', $revenueId),
             'categories'      => $this->categories->all(),
@@ -106,7 +106,7 @@ class Revenues extends AccountingController
 
             $id = $this->vouchers->save($input, $revenueId === NEW_ENTRY ? null : $revenueId, $this->employeeId());
 
-            return ['success' => true, 'message' => lang($revenueId === NEW_ENTRY ? 'Revenues.successful_adding' : 'Revenues.successful_updating'), 'id' => $id];
+            return ['success' => true, 'message' => lang($revenueId === NEW_ENTRY ? 'Receipt_vouchers.successful_adding' : 'Receipt_vouchers.successful_updating'), 'id' => $id];
         });
     }
 
@@ -121,7 +121,7 @@ class Revenues extends AccountingController
 
             $this->vouchers->delete($ids, $this->employeeId());
 
-            return ['success' => true, 'message' => lang('Revenues.successful_deleted', [count($ids)]), 'ids' => $ids];
+            return ['success' => true, 'message' => lang('Receipt_vouchers.successful_deleted', [count($ids)]), 'ids' => $ids];
         });
     }
 
@@ -157,15 +157,15 @@ class Revenues extends AccountingController
     private function headers(): array
     {
         return [
-            ['revenue_number' => lang('Revenues.number'), 'sortable' => false, 'escape' => false],
-            ['date'           => lang('Revenues.date'), 'sortable' => true],
-            ['category_name'  => lang('Revenues.category'), 'sortable' => true],
-            ['treasury_name'  => lang('Revenues.treasury'), 'sortable' => true],
-            ['payment_type'   => lang('Revenues.payment_type'), 'sortable' => false],
-            ['amount'         => lang('Revenues.amount'), 'sortable' => true, 'escape' => false],
-            ['tax_amount'     => lang('Revenues.tax_amount'), 'sortable' => false, 'escape' => false],
-            ['employee_name'  => lang('Revenues.employee'), 'sortable' => false],
-            ['description'    => lang('Revenues.description'), 'sortable' => false],
+            ['revenue_number' => lang('Receipt_vouchers.number'), 'sortable' => false, 'escape' => false],
+            ['date'          => lang('Receipt_vouchers.date'), 'sortable' => true],
+            ['category_name' => lang('Receipt_vouchers.category'), 'sortable' => true],
+            ['treasury_name' => lang('Receipt_vouchers.treasury'), 'sortable' => true],
+            ['payment_type'  => lang('Receipt_vouchers.payment_type'), 'sortable' => false],
+            ['amount'        => lang('Receipt_vouchers.amount'), 'sortable' => true, 'escape' => false],
+            ['tax_amount'    => lang('Receipt_vouchers.tax_amount'), 'sortable' => false, 'escape' => false],
+            ['employee_name' => lang('Receipt_vouchers.employee'), 'sortable' => false],
+            ['description'   => lang('Receipt_vouchers.description'), 'sortable' => false],
         ];
     }
 
@@ -187,7 +187,7 @@ class Revenues extends AccountingController
             'tax_amount'     => $this->amountCell($this->formatAmount((string) $voucher->tax_amount)),
             'employee_name'  => $voucher->employee_name,
             'description'    => $voucher->description,
-            'edit'           => (int) $voucher->deleted === 1 ? '' : anchor("revenues/view/{$id}", '<span class="bi bi-pencil-square" aria-hidden="true"></span>', ['class' => 'modal-dlg', 'data-btn-submit' => lang('Common.submit'), 'title' => lang('Revenues.update')]),
+            'edit'           => (int) $voucher->deleted === 1 ? '' : anchor("receipt_vouchers/view/{$id}", '<span class="bi bi-pencil-square" aria-hidden="true"></span>', ['class' => 'modal-dlg', 'data-btn-submit' => lang('Common.submit'), 'title' => lang('Receipt_vouchers.update')]),
         ];
     }
 }

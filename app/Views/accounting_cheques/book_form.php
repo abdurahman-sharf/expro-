@@ -3,7 +3,6 @@
  * @var object|null  $book
  * @var list<object> $banks
  */
-
 $isNew = $book === null;
 ?>
 

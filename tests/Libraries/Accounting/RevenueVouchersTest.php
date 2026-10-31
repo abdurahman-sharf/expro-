@@ -66,6 +66,7 @@ class RevenueVouchersTest extends CIUnitTestCase
     protected function tearDown(): void
     {
         $this->releaseOpenTransactions();
+        $this->setConfigValue('accounting_revenue_account_required', '0');
         $this->stopExpenses();
 
         $db = $this->accountingDb();
@@ -236,6 +237,35 @@ class RevenueVouchersTest extends CIUnitTestCase
         $id = $this->save(['amount' => '15.00', 'tax_amount' => '15.00']);
 
         $this->assertSame([$this->treasuryAccount() . '=15.00/0.00', $this->accountId('tax_output') . '=0.00/15.00'], $this->standing($id));
+    }
+
+    public function testSave_RefusesAVoucherWithoutAnAccountWhenTheSettingAsksForOne(): void
+    {
+        $this->setConfigValue('accounting_revenue_account_required', '1');
+
+        $bare     = $this->revenueCategory('Bare');
+        $accounts = $this->revenueCategory('Accounted', $this->customAccount('42', '4210', 'Rent income'));
+
+        $this->assertSame(AccountingError::RevenueAccountRequired, $this->refusal(fn () => $this->save())->error);
+        $this->assertSame(AccountingError::RevenueAccountRequired, $this->refusal(fn () => $this->save(['category_id' => $bare]))->error);
+        $this->assertSame(0, $this->countRows('revenues'));
+
+        $this->assertGreaterThan(0, $this->save(['category_id' => $accounts]));
+        $this->assertGreaterThan(0, $this->save(['account_id' => $this->customAccount('42', '4211', 'Commissions')]));
+    }
+
+    public function testSave_DoesNotBlockAVoucherThatKeepsItsCategoryAndAccountWhenTheSettingIsTurnedOn(): void
+    {
+        $bare = $this->revenueCategory('Bare');
+        $id   = $this->save(['category_id' => $bare]);
+
+        $this->setConfigValue('accounting_revenue_account_required', '1');
+
+        $this->save(['category_id' => $bare, 'description' => 'Text only'], $id);
+
+        $this->assertSame('Text only', $this->vouchers->find($id)->description);
+        $this->assertSame(AccountingError::RevenueAccountRequired, $this->refusal(fn () => $this->save(['category_id' => $this->revenueCategory('Another bare')], $id))->error);
+        $this->assertSame($bare, (int) $this->vouchers->find($id)->revenue_category_id);
     }
 
     public function testSave_RejectsAChosenAccountThatIsNotAnActiveRevenueAccountThatTakesEntries(): void

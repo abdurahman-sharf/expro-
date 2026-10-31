@@ -21,7 +21,7 @@ use Tests\Support\ExpenseAccountingFixtureTrait;
  * number), that saving and deleting are POSTs that post to the routed account when none is
  * chosen and that the books may refuse in words.
  */
-class RevenuesControllerTest extends CIUnitTestCase
+class Receipt_vouchersControllerTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use FeatureTestTrait;
@@ -96,53 +96,53 @@ class RevenuesControllerTest extends CIUnitTestCase
 
     public function testGetIndex_ShowsTheListToWhoeverHoldsTheModule(): void
     {
-        $this->actAsWith(['revenues']);
+        $this->actAsWith(['receipt_vouchers']);
 
-        $view = $this->get('/revenues');
+        $view = $this->get('/receipt_vouchers');
 
         $view->assertStatus(200);
-        $view->assertSee(lang('Revenues.new'));
+        $view->assertSee(lang('Receipt_vouchers.new'));
     }
 
     public function testGetIndex_RedirectsAUserWithoutTheModuleGrant(): void
     {
         $this->actAsWith(['expenses']);
 
-        $this->get('/revenues')->assertRedirect();
+        $this->get('/receipt_vouchers')->assertRedirect();
     }
 
     public function testGetIndex_IsNotFoundWhileAccountingIsOff(): void
     {
-        $this->actAsWith(['revenues']);
+        $this->actAsWith(['receipt_vouchers']);
         $this->setConfigValue('accounting_enabled', '0');
 
         $this->expectException(PageNotFoundException::class);
 
-        $this->get('/revenues');
+        $this->get('/receipt_vouchers');
     }
 
     public function testGetSearch_ListsTheVouchersOfTheBranchesTheReaderMaySeeWithTheirFilters(): void
     {
-        $this->actAsWith(['revenues']);
+        $this->actAsWith(['receipt_vouchers']);
 
         $branch   = $this->createBranch();
         $treasury = $this->treasury('Branch drawer', $branch);
         $first    = $this->voucher(['description' => 'January rent', 'date' => '2026-01-10']);
         $second   = $this->voucher(['treasury_id' => $treasury, 'description' => 'Other branch', 'date' => '2026-02-10']);
-        $ids      = fn (string $query): array => array_map(static fn (array $row): int => (int) $row['revenue_id'], json_decode($this->get('/revenues/search' . $query)->getJSON(), true)['rows']);
+        $ids      = fn (string $query): array => array_map(static fn (array $row): int => (int) $row['revenue_id'], json_decode($this->get('/receipt_vouchers/search' . $query)->getJSON(), true)['rows']);
 
         $this->assertSame([$second, $first], $ids(''));
         $this->assertSame([$first], $ids('?search=January'));
         $this->assertSame([$second], $ids('?start_date=2026-02-01&end_date=2026-02-28'));
 
-        $this->actAsWith(['revenues'], [1]);
+        $this->actAsWith(['receipt_vouchers'], [1]);
 
         $this->assertSame([$first], $ids(''));
     }
 
     public function testGetSearch_ShowsTheNumberTheAmountAndTheTaxOfEachVoucher(): void
     {
-        $this->actAsWith(['revenues']);
+        $this->actAsWith(['receipt_vouchers']);
 
         $manager = $this->employeeWithGrants(['config']);
 
@@ -150,7 +150,7 @@ class RevenuesControllerTest extends CIUnitTestCase
 
         $this->voucher(['amount' => '115.00', 'tax_amount' => '15.00']);
 
-        $row = json_decode($this->get('/revenues/search')->getJSON(), true)['rows'][0];
+        $row = json_decode($this->get('/receipt_vouchers/search')->getJSON(), true)['rows'][0];
 
         $this->assertSame('RV-001', strip_tags($row['revenue_number']));
         $this->assertStringContainsString('115.00', strip_tags($row['amount']));
@@ -159,13 +159,13 @@ class RevenuesControllerTest extends CIUnitTestCase
 
     public function testGetView_HasNoSupplierBlockAndShowsTheVoucherNumberLabel(): void
     {
-        $this->actAsWith(['revenues']);
+        $this->actAsWith(['receipt_vouchers']);
 
-        $view = $this->get('/revenues/view');
+        $view = $this->get('/receipt_vouchers/view');
 
         $view->assertStatus(200);
-        $view->assertSee(lang('Revenues.number'));
-        $view->assertSee(lang('Revenues.number_automatic'));
+        $view->assertSee(lang('Receipt_vouchers.number'));
+        $view->assertSee(lang('Receipt_vouchers.number_automatic'));
         $view->assertDontSee('supplier');
         $view->assertDontSee('name="supplier_id"');
         $view->assertSee('name="tax_amount"');
@@ -176,40 +176,40 @@ class RevenuesControllerTest extends CIUnitTestCase
 
     public function testGetView_ShowsTheNextNumberOfTheSequenceBeforeTheVoucherIsSaved(): void
     {
-        $this->actAsWith(['revenues']);
+        $this->actAsWith(['receipt_vouchers']);
 
         $manager = $this->employeeWithGrants(['config']);
 
         (new DocumentNumbering())->configure(DocumentType::Revenue, ['enabled' => true, 'prefix' => 'RV-', 'padding' => 3], $manager);
 
-        $this->get('/revenues/view')->assertSee('RV-001');
+        $this->get('/receipt_vouchers/view')->assertSee('RV-001');
     }
 
     public function testGetView_ShowsAVoucherInItsFormAndRefusesOneOfAnotherBranch(): void
     {
-        $this->actAsWith(['revenues']);
+        $this->actAsWith(['receipt_vouchers']);
 
         $id = $this->voucher(['description' => 'Kept text']);
 
-        $this->get('/revenues/view/' . $id)->assertSee('Kept text');
+        $this->get('/receipt_vouchers/view/' . $id)->assertSee('Kept text');
 
         $other = $this->createBranch();
 
-        $this->actAsWith(['revenues'], [$other]);
+        $this->actAsWith(['receipt_vouchers'], [$other]);
 
         $this->expectException(PageNotFoundException::class);
 
-        $this->get('/revenues/view/' . $id);
+        $this->get('/receipt_vouchers/view/' . $id);
     }
 
     public function testPostSave_SavesAVoucherThatDefaultsTheAccountToTheRoutedOneWhenNoneIsChosen(): void
     {
-        $this->actAsWith(['revenues']);
+        $this->actAsWith(['receipt_vouchers']);
 
-        $saved = $this->postJson('/revenues/save', ['date' => $this->today, 'amount' => '100.00', 'tax_amount' => '0', 'payment_type' => 'Cash', 'treasury_id' => $this->treasuryId, 'category_id' => 0, 'account_id' => 0, 'description' => 'No account chosen']);
+        $saved = $this->postJson('/receipt_vouchers/save', ['date' => $this->today, 'amount' => '100.00', 'tax_amount' => '0', 'payment_type' => 'Cash', 'treasury_id' => $this->treasuryId, 'category_id' => 0, 'account_id' => 0, 'description' => 'No account chosen']);
 
         $this->assertTrue($saved['success']);
-        $this->assertSame(lang('Revenues.successful_adding'), $saved['message']);
+        $this->assertSame(lang('Receipt_vouchers.successful_adding'), $saved['message']);
 
         $journal = $this->accountingDb()->table('accounting_journals')->where(['source_type' => RevenuePostingBuilder::SOURCE, 'source_id' => $saved['id']])->get()->getRow();
         $credit  = $this->accountingDb()->table('accounting_journal_lines')->where(['journal_id' => $journal->journal_id])->where('credit >', 0)->get()->getRow();
@@ -219,28 +219,28 @@ class RevenuesControllerTest extends CIUnitTestCase
 
     public function testPostSave_ChangesAVoucherAndSaysSo(): void
     {
-        $this->actAsWith(['revenues']);
+        $this->actAsWith(['receipt_vouchers']);
 
         $id      = $this->voucher();
-        $changed = $this->postJson('/revenues/save/' . $id, ['date' => $this->today, 'amount' => '60.00', 'tax_amount' => '0', 'payment_type' => 'Cash', 'treasury_id' => $this->treasuryId, 'description' => 'Smaller']);
+        $changed = $this->postJson('/receipt_vouchers/save/' . $id, ['date' => $this->today, 'amount' => '60.00', 'tax_amount' => '0', 'payment_type' => 'Cash', 'treasury_id' => $this->treasuryId, 'description' => 'Smaller']);
 
         $this->assertTrue($changed['success']);
-        $this->assertSame(lang('Revenues.successful_updating'), $changed['message']);
+        $this->assertSame(lang('Receipt_vouchers.successful_updating'), $changed['message']);
         $this->assertSame('60.0000', (new RevenueVouchers())->find($id)->amount);
     }
 
     public function testPostSave_SaysInWordsWhatTheBooksRefuse(): void
     {
-        $this->actAsWith(['revenues']);
+        $this->actAsWith(['receipt_vouchers']);
 
-        $bad = $this->postJson('/revenues/save', ['date' => $this->today, 'amount' => '0', 'payment_type' => 'Cash', 'treasury_id' => $this->treasuryId]);
+        $bad = $this->postJson('/receipt_vouchers/save', ['date' => $this->today, 'amount' => '0', 'payment_type' => 'Cash', 'treasury_id' => $this->treasuryId]);
 
         $this->assertFalse($bad['success']);
         $this->assertSame(lang('Accounting.error_revenue_amount_invalid'), $bad['message']);
 
         $this->closeThrough($this->today);
 
-        $closed = $this->postJson('/revenues/save', ['date' => $this->today, 'amount' => '10.00', 'payment_type' => 'Cash', 'treasury_id' => $this->treasuryId]);
+        $closed = $this->postJson('/receipt_vouchers/save', ['date' => $this->today, 'amount' => '10.00', 'payment_type' => 'Cash', 'treasury_id' => $this->treasuryId]);
 
         $this->assertFalse($closed['success']);
         $this->assertNotSame('', $closed['message']);
@@ -252,27 +252,27 @@ class RevenuesControllerTest extends CIUnitTestCase
         $id    = $this->voucher();
         $other = $this->createBranch();
 
-        $this->actAsWith(['revenues'], [$other]);
+        $this->actAsWith(['receipt_vouchers'], [$other]);
 
         $this->expectException(PageNotFoundException::class);
 
-        $this->post('/revenues/save/' . $id, ['date' => $this->today, 'amount' => '5.00', 'payment_type' => 'Cash']);
+        $this->post('/receipt_vouchers/save/' . $id, ['date' => $this->today, 'amount' => '5.00', 'payment_type' => 'Cash']);
     }
 
     public function testPostDelete_DeletesTheVouchersAndReversesTheirJournals(): void
     {
-        $this->actAsWith(['revenues']);
+        $this->actAsWith(['receipt_vouchers']);
 
         $first  = $this->voucher();
         $second = $this->voucher(['amount' => '20.00']);
 
-        $deleted = $this->postJson('/revenues/delete', ['ids' => [$first, $second]]);
+        $deleted = $this->postJson('/receipt_vouchers/delete', ['ids' => [(string) $first, (string) $second]]);
 
         $this->assertTrue($deleted['success']);
         $this->assertSame(2, $this->accountingDb()->table('accounting_journals')->where(['source_type' => RevenuePostingBuilder::SOURCE, 'status' => 'reversed'])->countAllResults());
         $this->assertSame('0.00', $this->assertTreasuryTiesToItsAccount($this->treasuryId));
-        $this->assertSame([], json_decode($this->get('/revenues/search')->getJSON(), true)['rows']);
-        $this->assertCount(2, json_decode($this->get('/revenues/search?deleted=1')->getJSON(), true)['rows']);
+        $this->assertSame([], json_decode($this->get('/receipt_vouchers/search')->getJSON(), true)['rows']);
+        $this->assertCount(2, json_decode($this->get('/receipt_vouchers/search?deleted=1')->getJSON(), true)['rows']);
     }
 
     public function testPostDelete_RefusesTheWholeListWhenOneVoucherBelongsToAnotherBranch(): void
@@ -281,10 +281,10 @@ class RevenuesControllerTest extends CIUnitTestCase
         $other = $this->createBranch();
         $theirs = $this->voucher(['treasury_id' => $this->treasury('Branch drawer', $other)]);
 
-        $this->actAsWith(['revenues'], [1]);
+        $this->actAsWith(['receipt_vouchers'], [1]);
 
         try {
-            $this->post('/revenues/delete', ['ids' => [$mine, $theirs]]);
+            $this->post('/receipt_vouchers/delete', ['ids' => [(string) $mine, (string) $theirs]]);
             $this->fail('A voucher of another branch was deleted');
         } catch (PageNotFoundException) {
             $this->addToAssertionCount(1);
@@ -295,11 +295,11 @@ class RevenuesControllerTest extends CIUnitTestCase
 
     public function testPostSaveAndPostDelete_AreNeverReachedByALink(): void
     {
-        $this->actAsWith(['revenues']);
+        $this->actAsWith(['receipt_vouchers']);
 
         $id = $this->voucher();
 
-        foreach (['/revenues/delete', '/revenues/save/' . $id] as $path) {
+        foreach (['/receipt_vouchers/delete', '/receipt_vouchers/save/' . $id] as $path) {
             try {
                 $this->get($path);
                 $this->fail('A GET reached ' . $path);
@@ -313,14 +313,14 @@ class RevenuesControllerTest extends CIUnitTestCase
 
     public function testRevenueCategories_FeedTheFormAndTheCategoryAccountDecidesTheJournal(): void
     {
-        $this->actAsWith(['revenues']);
+        $this->actAsWith(['receipt_vouchers']);
 
         $account  = $this->customAccount('42', '4210', 'Rent income');
         $category = (new RevenueCategories())->save(['category_name' => 'Rent', 'account_id' => $account], null, $this->employeeWithGrants(['acc_routing_manage']));
 
-        $this->get('/revenues/view')->assertSee('Rent');
+        $this->get('/receipt_vouchers/view')->assertSee('Rent');
 
-        $saved = $this->postJson('/revenues/save', ['date' => $this->today, 'amount' => '100.00', 'payment_type' => 'Cash', 'treasury_id' => $this->treasuryId, 'category_id' => $category]);
+        $saved = $this->postJson('/receipt_vouchers/save', ['date' => $this->today, 'amount' => '100.00', 'payment_type' => 'Cash', 'treasury_id' => $this->treasuryId, 'category_id' => $category]);
 
         $this->assertTrue($saved['success']);
         $this->assertSame('-100.00', $this->balanceOf($account));

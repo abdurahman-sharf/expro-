@@ -50,6 +50,8 @@ return [
     'readiness_tax_output_shared_account'      => '',
     'readiness_title'                          => '',
     'ready'                                    => '',
+    'revenue_account_required'                 => '',
+    'revenue_account_required_desc'            => '',
     'saved'                                    => '',
     'settings_manage'                          => '',
     'start_date'                               => '',

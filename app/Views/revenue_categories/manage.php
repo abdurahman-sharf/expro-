@@ -12,7 +12,7 @@
         <?= view('partial/bootstrap_tables_locale') ?>
 
         table_support.init({
-            resource: 'revenues_categories',
+            resource: 'revenue_categories',
             headers: <?= $table_headers ?>,
             pageSize: <?= $config['lines_per_page'] ?>,
             uniqueId: 'revenue_category_id',
@@ -22,8 +22,8 @@
 </script>
 
 <div id="title_bar" class="print_hide btn-toolbar">
-    <button class="btn btn-primary btn-sm float-end modal-dlg" data-btn-submit="<?= lang('Common.submit') ?>" data-href="<?= esc(base_url('revenues_categories/view'), 'attr') ?>" title="<?= esc(lang('Revenues_categories.new'), 'attr') ?>">
-        <span class="bi bi-plus-lg" aria-hidden="true">&nbsp;</span><?= lang('Revenues_categories.new') ?>
+    <button class="btn btn-primary btn-sm float-end modal-dlg" data-btn-submit="<?= lang('Common.submit') ?>" data-href="<?= esc(base_url('revenue_categories/view'), 'attr') ?>" title="<?= esc(lang('Revenue_categories.new'), 'attr') ?>">
+        <span class="bi bi-plus-lg" aria-hidden="true">&nbsp;</span><?= lang('Revenue_categories.new') ?>
     </button>
 </div>
 

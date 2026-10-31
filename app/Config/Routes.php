@@ -123,26 +123,26 @@ $routes->group('accounting_cheques', static function (RouteCollection $routes): 
     $routes->get('report/(:segment)', 'AccountingCheques::getReport/$1');
 });
 
-$routes->group('revenues', static function (RouteCollection $routes): void {
-    $routes->get('/', 'Revenues::getIndex');
-    $routes->get('search', 'Revenues::getSearch');
-    $routes->get('row/(:num)', 'Revenues::getRow/$1');
-    $routes->get('view', 'Revenues::getView');
-    $routes->get('view/(:num)', 'Revenues::getView/$1');
-    $routes->post('save', 'Revenues::postSave');
-    $routes->post('save/(:num)', 'Revenues::postSave/$1');
-    $routes->post('delete', 'Revenues::postDelete');
+$routes->group('receipt_vouchers', static function (RouteCollection $routes): void {
+    $routes->get('/', 'Receipt_vouchers::getIndex');
+    $routes->get('search', 'Receipt_vouchers::getSearch');
+    $routes->get('row/(:num)', 'Receipt_vouchers::getRow/$1');
+    $routes->get('view', 'Receipt_vouchers::getView');
+    $routes->get('view/(:num)', 'Receipt_vouchers::getView/$1');
+    $routes->post('save', 'Receipt_vouchers::postSave');
+    $routes->post('save/(:num)', 'Receipt_vouchers::postSave/$1');
+    $routes->post('delete', 'Receipt_vouchers::postDelete');
 });
 
-$routes->group('revenues_categories', static function (RouteCollection $routes): void {
-    $routes->get('/', 'Revenues_categories::getIndex');
-    $routes->get('search', 'Revenues_categories::getSearch');
-    $routes->get('row/(:num)', 'Revenues_categories::getRow/$1');
-    $routes->get('view', 'Revenues_categories::getView');
-    $routes->get('view/(:num)', 'Revenues_categories::getView/$1');
-    $routes->post('save', 'Revenues_categories::postSave');
-    $routes->post('save/(:num)', 'Revenues_categories::postSave/$1');
-    $routes->post('delete', 'Revenues_categories::postDelete');
+$routes->group('revenue_categories', static function (RouteCollection $routes): void {
+    $routes->get('/', 'Revenue_categories::getIndex');
+    $routes->get('search', 'Revenue_categories::getSearch');
+    $routes->get('row/(:num)', 'Revenue_categories::getRow/$1');
+    $routes->get('view', 'Revenue_categories::getView');
+    $routes->get('view/(:num)', 'Revenue_categories::getView/$1');
+    $routes->post('save', 'Revenue_categories::postSave');
+    $routes->post('save/(:num)', 'Revenue_categories::postSave/$1');
+    $routes->post('delete', 'Revenue_categories::postDelete');
 });
 
 $routes->group('accounting_reports', static function (RouteCollection $routes): void {

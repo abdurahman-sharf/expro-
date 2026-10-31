@@ -72,6 +72,8 @@ class AccountingSettingsTest extends CIUnitTestCase
     protected function tearDown(): void
     {
         $this->setConfigValue('accounting_line_description_required', '0');
+        $this->setConfigValue('accounting_expense_account_required', '0');
+        $this->setConfigValue('accounting_revenue_account_required', '0');
         $this->removeInsertedEntities();
 
         parent::tearDown();
@@ -589,6 +591,35 @@ class AccountingSettingsTest extends CIUnitTestCase
         }
 
         $this->assertTrue($this->settings->expenseAccountRequired());
+    }
+
+    public function testRevenueAccountRequired_IsOffUntilTheSettingTurnsItOnAndIsAuditedAndNeedsThePermission(): void
+    {
+        $this->accountingDb()->table('accounting_audit_log')->truncate();
+
+        $this->assertFalse($this->settings->revenueAccountRequired());
+
+        $this->settings->update(['revenue_account_required' => true], $this->manager());
+
+        $this->assertTrue($this->settings->revenueAccountRequired());
+        $this->assertFalse($this->settings->expenseAccountRequired());
+
+        $details = json_decode($this->accountingDb()->table('accounting_audit_log')->where('action', 'settings_updated')->get()->getRow()->details, true);
+
+        $this->assertSame(['revenue_account_required' => true], $details['after']);
+
+        try {
+            $this->settings->update(['revenue_account_required' => false], $this->employeeWithGrants([]));
+            $this->fail('Expected the permission to be required.');
+        } catch (AccountingException $exception) {
+            $this->assertSame(AccountingError::PermissionDenied, $exception->error);
+        }
+
+        $this->assertTrue($this->settings->revenueAccountRequired());
+
+        $this->settings->update(['revenue_account_required' => false], $this->manager());
+
+        $this->assertFalse($this->settings->revenueAccountRequired());
     }
 
     public function testNotices_ListTheExpensesAndTheCashUpsThatAreNotInTheBooks(): void

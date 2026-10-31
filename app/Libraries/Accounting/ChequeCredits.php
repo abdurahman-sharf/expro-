@@ -44,11 +44,11 @@ final class ChequeCredits
              FROM " . $db->prefixTable('cheques') . ' c
              JOIN ' . $db->prefixTable('accounting_journals') . " j ON j.source_type IN ({$placeholders}) AND j.source_id = c.cheque_id AND j.entry_type = ? AND {$standing}
              JOIN " . $db->prefixTable('accounting_journal_lines') . ' l ON l.journal_id = j.journal_id AND l.account_id = ?
-             WHERE c.direction = ? AND c.party_id = ?
+             WHERE c.party_id = ?
              GROUP BY c.cheque_id, c.issue_date
              HAVING amount > 0
              ORDER BY c.issue_date ASC, c.cheque_id ASC',
-            [...$sources, JournalEntryType::General->value, ...$standingBindings, $accountId, $direction->value, $partyId],
+            [...$sources, JournalEntryType::General->value, ...$standingBindings, $accountId, $partyId],
         )->getResult();
     }
 }

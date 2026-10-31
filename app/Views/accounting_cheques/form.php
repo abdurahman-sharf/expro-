@@ -1,14 +1,13 @@
 <?php
 /**
- * @var object|null    $cheque
- * @var string         $direction
- * @var list<object>   $parties
- * @var list<object>   $treasuries
- * @var list<object>   $books
- * @var string         $today
- * @var bool           $locked
+ * @var object|null  $cheque
+ * @var string       $direction
+ * @var list<object> $parties
+ * @var list<object> $treasuries
+ * @var list<object> $books
+ * @var string       $today
+ * @var bool         $locked
  */
-
 $isNew      = $cheque === null;
 $isReceived = $direction === 'received';
 $value      = static fn (string $field, string $default = ''): string => $isNew ? $default : esc((string) ($cheque->{$field} ?? $default), 'attr');

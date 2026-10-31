@@ -18,6 +18,7 @@ final class AccountingSettings
     private const AUTO_YEAR_KEY       = 'accounting_auto_fiscal_year';
     private const LINE_TEXT_KEY       = 'accounting_line_description_required';
     private const EXPENSE_ACCOUNT_KEY = 'accounting_expense_account_required';
+    private const REVENUE_ACCOUNT_KEY = 'accounting_revenue_account_required';
 
     private BaseConnection $db;
     private Appconfig $config;
@@ -74,6 +75,15 @@ final class AccountingSettings
     }
 
     /**
+     * Whether a receipt voucher must be credited to an account chosen on it or to a category that
+     * has one, instead of falling back to the account of other revenue the routing names.
+     */
+    public function revenueAccountRequired(): bool
+    {
+        return $this->config->get_value(self::REVENUE_ACCOUNT_KEY, '0') === '1';
+    }
+
+    /**
      * The currency and the start date are fixed once a journal has been posted.
      */
     public function isLocked(): bool
@@ -92,7 +102,7 @@ final class AccountingSettings
     }
 
     /**
-     * @param array{base_currency?: string, start_date?: string, auto_fiscal_year?: bool, line_description_required?: bool, expense_account_required?: bool} $input
+     * @param array{base_currency?: string, start_date?: string, auto_fiscal_year?: bool, line_description_required?: bool, expense_account_required?: bool, revenue_account_required?: bool} $input
      *
      * @throws AccountingException|BranchException
      */
@@ -100,7 +110,7 @@ final class AccountingSettings
     {
         $this->requireManage($employeeId);
 
-        $before  = ['base_currency' => $this->baseCurrency(), 'start_date' => $this->startDate(), 'auto_fiscal_year' => $this->autoFiscalYear(), 'line_description_required' => $this->lineDescriptionRequired(), 'expense_account_required' => $this->expenseAccountRequired()];
+        $before  = ['base_currency' => $this->baseCurrency(), 'start_date' => $this->startDate(), 'auto_fiscal_year' => $this->autoFiscalYear(), 'line_description_required' => $this->lineDescriptionRequired(), 'expense_account_required' => $this->expenseAccountRequired(), 'revenue_account_required' => $this->revenueAccountRequired()];
         $after   = $before;
         $changes = [];
 
@@ -137,6 +147,10 @@ final class AccountingSettings
             $after['expense_account_required'] = (bool) $input['expense_account_required'];
         }
 
+        if (array_key_exists('revenue_account_required', $input)) {
+            $after['revenue_account_required'] = (bool) $input['revenue_account_required'];
+        }
+
         foreach ($after as $key => $value) {
             if ($value !== $before[$key]) {
                 $changes[$key] = $value;
@@ -164,6 +178,7 @@ final class AccountingSettings
                 'auto_fiscal_year'          => self::AUTO_YEAR_KEY,
                 'line_description_required' => self::LINE_TEXT_KEY,
                 'expense_account_required'  => self::EXPENSE_ACCOUNT_KEY,
+                'revenue_account_required'  => self::REVENUE_ACCOUNT_KEY,
             }] = is_bool($value) ? ($value ? '1' : '0') : $value;
         }
 

@@ -352,7 +352,7 @@ class AccountServiceTest extends CIUnitTestCase
             $this->assertFailsWith(AccountingError::AccountRouted, fn () => $this->service->delete($accountId));
             $this->assertSame('1', (string) $this->account($accountId)->active);
         } finally {
-            $db->table('revenue_categories')->truncate();
+            $db->table('revenue_categories')->emptyTable();
         }
     }
 

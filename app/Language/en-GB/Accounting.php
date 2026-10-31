@@ -201,6 +201,7 @@ return [
     'error_report_account_missing'               => 'This account does not exist.',
     'error_report_period_invalid'                => 'The start of the period is later than its end.',
     'error_revenue_account_invalid'              => 'This account cannot take receipt vouchers: choose an active revenue account that accepts entries.',
+    'error_revenue_account_required'             => 'The settings ask for an account on every receipt voucher: choose an account, or a category that has one.',
     'error_revenue_amount_invalid'               => 'The amount of a receipt voucher must be more than zero, and its tax cannot be less than zero or more than the amount.',
     'error_revenue_category_name_invalid'        => 'A revenue category has a name of 1 to 255 characters.',
     'error_revenue_category_name_taken'          => 'Another revenue category has this name.',

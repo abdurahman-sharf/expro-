@@ -208,6 +208,7 @@ enum AccountingError: string
     case RevenueAmountInvalid         = 'revenue_amount_invalid';
     case RevenuePaymentInvalid        = 'revenue_payment_invalid';
     case RevenueAccountInvalid        = 'revenue_account_invalid';
+    case RevenueAccountRequired       = 'revenue_account_required';
     case RevenueCategoryNotFound      = 'revenue_category_not_found';
     case RevenueCategoryNameInvalid   = 'revenue_category_name_invalid';
     case RevenueCategoryNameTaken     = 'revenue_category_name_taken';

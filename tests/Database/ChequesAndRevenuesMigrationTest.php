@@ -90,9 +90,9 @@ class ChequesAndRevenuesMigrationTest extends CIUnitTestCase
 
         $db = $this->accountingDb();
 
-        $this->assertSame(['accounting_cheques', 'revenues', 'revenues_categories'], array_column($db->table('modules')->whereIn('module_id', ['accounting_cheques', 'revenues', 'revenues_categories'])->orderBy('module_id')->get()->getResultArray(), 'module_id'));
-        $this->assertSame(['acc_cheques_manage', 'accounting_cheques', 'revenues', 'revenues_categories'], array_column($db->table('permissions')->whereIn('permission_id', ['acc_cheques_manage', 'accounting_cheques', 'revenues', 'revenues_categories'])->orderBy('permission_id')->get()->getResultArray(), 'permission_id'));
-        $this->assertSame(0, $db->table('grants')->whereIn('permission_id', ['acc_cheques_manage', 'accounting_cheques', 'revenues', 'revenues_categories'])->countAllResults());
+        $this->assertSame(['accounting_cheques', 'receipt_vouchers', 'revenue_categories'], array_column($db->table('modules')->whereIn('module_id', ['accounting_cheques', 'receipt_vouchers', 'revenue_categories'])->orderBy('module_id')->get()->getResultArray(), 'module_id'));
+        $this->assertSame(['acc_cheques_manage', 'accounting_cheques', 'receipt_vouchers', 'revenue_categories'], array_column($db->table('permissions')->whereIn('permission_id', ['acc_cheques_manage', 'accounting_cheques', 'receipt_vouchers', 'revenue_categories'])->orderBy('permission_id')->get()->getResultArray(), 'permission_id'));
+        $this->assertSame(0, $db->table('grants')->whereIn('permission_id', ['acc_cheques_manage', 'accounting_cheques', 'receipt_vouchers', 'revenue_categories'])->countAllResults());
         $this->assertSame('accounting_cheques', $db->table('permissions')->where('permission_id', 'acc_cheques_manage')->get()->getRow()->module_id);
     }
 

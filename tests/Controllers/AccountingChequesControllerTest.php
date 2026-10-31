@@ -6,6 +6,9 @@ use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\ChequeBooks;
 use App\Libraries\Accounting\ChequeService;
 use App\Libraries\Accounting\ChequeSources;
+use App\Libraries\Accounting\JournalDraft;
+use App\Libraries\Accounting\JournalLineDraft;
+use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\TreasuryService;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -561,5 +564,63 @@ class AccountingChequesControllerTest extends CIUnitTestCase
         $this->assertStringNotContainsString('710002', $body);
         $this->assertStringContainsString(lang('Accounting_cheques.tie_agrees'), $body);
         $this->assertStringNotContainsString(lang('Accounting_cheques.tie_differs'), $body);
+    }
+
+    public function testGetReport_SaysTheAccountsDifferWhenAJournalByHandMovedWhatTheChequesHold(): void
+    {
+        $this->actAsWith(['accounting_cheques']);
+
+        $this->received();
+
+        (new PostingService())->post(new JournalDraft(
+            date: $this->today,
+            lines: [new JournalLineDraft($this->accountId('notes_receivable'), debit: '5.00'), new JournalLineDraft($this->accountId('cash'), credit: '5.00')],
+            sourceType: 'manual',
+        ));
+
+        $view = $this->get('/accounting_cheques/report/received');
+
+        $view->assertSee(lang('Accounting_cheques.tie_differs'));
+    }
+
+    public function testGetActionFormAndGetBookForm_AreNotFoundWithoutThePermissionToChangeCheques(): void
+    {
+        $chequeId = $this->received();
+
+        $this->actAsWith(['accounting_cheques']);
+
+        foreach (['/accounting_cheques/action_form/deposit/' . $chequeId, '/accounting_cheques/book_form'] as $path) {
+            try {
+                $this->get($path);
+                $this->fail('A person who cannot change cheques opened ' . $path);
+            } catch (PageNotFoundException) {
+                $this->addToAssertionCount(1);
+            }
+        }
+    }
+
+    public function testGetForm_IsNotFoundForAChequeOfTheOtherDirection(): void
+    {
+        $this->manager();
+
+        $chequeId = $this->received();
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_cheques/form/paid/' . $chequeId);
+    }
+
+    public function testGetIndex_ListsOnlyTheStatusesOfItsDirection(): void
+    {
+        $this->actAsWith(['accounting_cheques']);
+
+        $received = $this->get('/accounting_cheques?direction=received')->getBody();
+        $paid     = $this->get('/accounting_cheques?direction=paid')->getBody();
+
+        $this->assertStringContainsString('value="deposited"', $received);
+        $this->assertStringNotContainsString('value="delivered"', $received);
+        $this->assertStringContainsString('value="delivered"', $paid);
+        $this->assertStringNotContainsString('value="deposited"', $paid);
+        $this->assertStringContainsString('value="rejected"', $paid);
     }
 }

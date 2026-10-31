@@ -1,13 +1,16 @@
 <?php
+
+use App\Libraries\Accounting\ChequeList;
+
 /**
- * @var string               $direction
- * @var array<string, mixed> $filters
- * @var array<string,string> $statuses
- * @var array<string, mixed> $report
- * @var callable(object): string $number
- * @var callable(string): string $amount
+ * @var string                    $direction
+ * @var array<string, mixed>      $filters
+ * @var array<string,string>      $statuses
+ * @var array<string, mixed>      $report
+ * @var callable(object): string  $number
+ * @var callable(string): string  $amount
  * @var callable(?string): string $date
- * @var callable(string): string $status
+ * @var callable(string): string  $status
  */
 ?>
 
@@ -44,7 +47,7 @@
 </form>
 
 <?php if ($report['truncated']): ?>
-    <p class="alert alert-warning mx-2" role="alert"><?= lang('Accounting_cheques.report_truncated', [\App\Libraries\Accounting\ChequeList::REPORT_LIMIT]) ?></p>
+    <p class="alert alert-warning mx-2" role="alert"><?= lang('Accounting_cheques.report_truncated', [ChequeList::REPORT_LIMIT]) ?></p>
 <?php endif; ?>
 
 <div class="table-responsive px-2">

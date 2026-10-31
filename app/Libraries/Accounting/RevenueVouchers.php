@@ -64,6 +64,8 @@ final class RevenueVouchers
                 $this->branches->requireBranch((int) $stored->branch_id, $employeeId);
             }
 
+            $this->assertAccountChosen($data, $stored);
+
             [$branchId, $treasuryId] = $this->place($input, $stored, (string) $data['payment_type'], $employeeId);
 
             $this->branches->requireBranch($branchId, $employeeId);
@@ -138,7 +140,7 @@ final class RevenueVouchers
     }
 
     /**
-     * @param list<int>|null                                                                                             $branchIds The branches the reader may see, null for every branch.
+     * @param list<int>|null                                                                                  $branchIds The branches the reader may see, null for every branch.
      * @param array{search?: string, date_from?: string, date_to?: string, category_id?: int, deleted?: bool} $filters
      *
      * @return array{total: int, rows: list<object>}
@@ -348,6 +350,32 @@ final class RevenueVouchers
             'account_id'          => $accountId > 0 ? $accountId : null,
             'description'         => mb_substr(trim((string) ($input['description'] ?? '')), 0, self::NOTE_MAX),
         ];
+    }
+
+    /**
+     * A voucher without an account of its own, in a category without one, is refused when the
+     * settings ask for an account on every voucher, for a new voucher or when the voucher moves to
+     * another account or category. A voucher that keeps both is never blocked by the setting.
+     *
+     * @param array<string, mixed> $data
+     *
+     * @throws AccountingException
+     */
+    private function assertAccountChosen(array $data, ?object $stored): void
+    {
+        if (! (new AccountingSettings($this->db))->revenueAccountRequired() || $data['account_id'] !== null) {
+            return;
+        }
+
+        if ($stored !== null && (int) $stored->account_id === 0 && (int) $stored->revenue_category_id === (int) $data['revenue_category_id']) {
+            return;
+        }
+
+        $category = $data['revenue_category_id'] === null ? null : $this->db->table('revenue_categories')->select('account_id')->where('revenue_category_id', $data['revenue_category_id'])->get()->getRow();
+
+        if ($category === null || $category->account_id === null) {
+            throw new AccountingException(AccountingError::RevenueAccountRequired, 'A receipt voucher must be credited to an account chosen on it or to a category that has one.');
+        }
     }
 
     /**

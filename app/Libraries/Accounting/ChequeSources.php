@@ -13,8 +13,7 @@ final class ChequeSources
     public const DELIVERED         = 'cheque_out_delivered';
     public const PAID_COLLECTED    = 'cheque_out_collected';
     public const PAID_REJECTED     = 'cheque_out_rejected';
-
-    public const ALL = [
+    public const ALL               = [
         self::RECEIVED,
         self::DEPOSITED,
         self::COLLECTED,

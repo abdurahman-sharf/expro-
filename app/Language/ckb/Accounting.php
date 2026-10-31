@@ -201,6 +201,7 @@ return [
     'error_report_account_missing'               => '',
     'error_report_period_invalid'                => '',
     'error_revenue_account_invalid'              => '',
+    'error_revenue_account_required'             => '',
     'error_revenue_amount_invalid'               => '',
     'error_revenue_category_name_invalid'        => '',
     'error_revenue_category_name_taken'          => '',

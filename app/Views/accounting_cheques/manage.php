@@ -7,7 +7,6 @@
  * @var bool                 $scope_notice
  * @var array                $config
  */
-
 $messages = [
     'undo'   => lang('Accounting_cheques.confirm_undo'),
     'cancel' => lang('Accounting_cheques.confirm_cancel'),

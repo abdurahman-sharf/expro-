@@ -7,6 +7,7 @@ use App\Libraries\Organization\CompanyContext;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
+use DateTimeImmutable;
 
 /**
  * What the cheque screens read: the list of the cheques of one direction, and the report of them
@@ -27,7 +28,7 @@ final class ChequeList
     }
 
     /**
-     * @param list<int>|null                                                                                                                              $branchIds The branches the reader may see, null for every branch.
+     * @param list<int>|null                                                                                                                                    $branchIds The branches the reader may see, null for every branch.
      * @param array{search?: string, status?: string, party_id?: int, date_from?: string, date_to?: string, due_from?: string, due_to?: string, deleted?: bool} $filters
      *
      * @return array{total: int, rows: list<object>}
@@ -56,7 +57,7 @@ final class ChequeList
      * hold against what the cheques in each status add up to: the two figures are the same while the
      * books and the cheques agree.
      *
-     * @param list<int>|null $branchIds
+     * @param list<int>|null       $branchIds
      * @param array<string, mixed> $filters
      *
      * @return array{rows: list<object>, truncated: bool, totals: array<string, string>, total: string, ties: list<array{key: string, account: ?object, ledger: string, cheques: string, agrees: bool}>}
@@ -172,6 +173,13 @@ final class ChequeList
         return bcadd((string) $builder->get()->getRow()->held, '0', SaleAmounts::SCALE);
     }
 
+    private function isDate(string $value): bool
+    {
+        $date = DateTimeImmutable::createFromFormat('!Y-m-d', $value);
+
+        return $date !== false && $date->format('Y-m-d') === $value;
+    }
+
     /**
      * @param list<int>|null       $branchIds
      * @param array<string, mixed> $filters
@@ -204,7 +212,7 @@ final class ChequeList
         }
 
         foreach (['date_from' => ['c.issue_date', '>='], 'date_to' => ['c.issue_date', '<='], 'due_from' => ['c.due_date', '>='], 'due_to' => ['c.due_date', '<=']] as $key => [$column, $operator]) {
-            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($filters[$key] ?? '')) === 1) {
+            if ($this->isDate((string) ($filters[$key] ?? ''))) {
                 $builder->where("{$column} {$operator}", $filters[$key]);
             }
         }

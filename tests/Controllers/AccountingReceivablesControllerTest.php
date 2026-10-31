@@ -54,7 +54,6 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
         parent::setUp();
 
         $this->startSelling();
-        $this->startCheques();
     }
 
     protected function tearDown(): void
@@ -275,6 +274,8 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
 
     public function testGetCustomer_ShowsAChequeAsCreditOfItsOwnKindWithALinkToTheChequeAndWhatItSettled(): void
     {
+        $this->startCheques();
+
         $invoice = $this->invoiceOf('60.00');
         $cheque  = $this->receiveCheque('100.00', date('Y-m-d'));
 

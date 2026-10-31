@@ -56,7 +56,6 @@ class CustomerLedgerTest extends CIUnitTestCase
         parent::setUp();
 
         $this->startSelling();
-        $this->startCheques();
     }
 
     protected function tearDown(): void
@@ -602,23 +601,30 @@ class CustomerLedgerTest extends CIUnitTestCase
 
     public function testPosition_HoldsAChequeAsCreditFromTheDayItWasIssuedUntilTheDayItBounced(): void
     {
-        $invoice = $this->invoiceOf('100.00');
+        $this->startCheques();
+
+        $invoice = $this->invoiceDated('100.00', date('Y-m-d', strtotime('-5 days')));
         $cheque  = $this->receiveCheque('100.00', date('Y-m-d', strtotime('-3 days')));
 
         $this->chequeService->reject($cheque, date('Y-m-d', strtotime('-1 day')), $this->chequeClerk);
 
         $ledger = new CustomerLedger();
+        $before = $ledger->position($this->customerId, date('Y-m-d', strtotime('-4 days')));
+        $held   = $ledger->position($this->customerId, date('Y-m-d', strtotime('-2 days')));
 
-        $this->assertSame('0.0000', $ledger->position($this->customerId, date('Y-m-d', strtotime('-2 days')))->credit(), 'It settled the invoice by then');
-        $this->assertTrue($ledger->position($this->customerId, date('Y-m-d', strtotime('-2 days')))->agrees());
-        $this->assertSame('100.0000', $ledger->position($this->customerId)->open());
-        $this->assertSame('0.0000', $ledger->position($this->customerId)->credit());
+        $this->assertSame(['100.0000', '0.0000'], [$before->open(), $before->credit()], 'Before the cheque the invoice was owed');
+        $this->assertSame(['100.0000', '100.0000'], [$held->open(), $held->credit()], 'While it stood the cheque was credit');
+        $this->assertTrue($before->agrees());
+        $this->assertTrue($held->agrees());
+        $this->assertSame(['100.0000', '0.0000'], [$ledger->position($this->customerId)->open(), $ledger->position($this->customerId)->credit()]);
         $this->assertTrue($ledger->position($this->customerId)->agrees());
         $this->assertSame($invoice, $ledger->position($this->customerId)->invoices[0]->saleId);
     }
 
     public function testPosition_ListsTheChequeAsACreditSourceOfItsOwnKindThatIsGoneOnceItBounces(): void
     {
+        $this->startCheques();
+
         $cheque = $this->receiveCheque('80.00', date('Y-m-d'));
 
         $credits = (new CustomerLedger())->position($this->customerId)->credits;
@@ -632,6 +638,8 @@ class CustomerLedgerTest extends CIUnitTestCase
 
     public function testPosition_KeepsTheChequeOfOneCustomerOutOfTheLedgerOfAnother(): void
     {
+        $this->startCheques();
+
         $other = $this->anotherCustomer();
 
         $this->receiveCheque('80.00', date('Y-m-d'), null, $other);

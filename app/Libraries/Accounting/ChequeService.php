@@ -71,7 +71,7 @@ final class ChequeService
 
         $data     = $this->common($input);
         $partyId  = (int) ($input['party_id'] ?? 0);
-        $treasury = $this->treasury((int) ($input['treasury_id'] ?? 0), false);
+        $treasury = $this->treasury((int) ($input['treasury_id'] ?? 0));
 
         $this->customer($partyId);
         $this->branches->requireBranch((int) $treasury->branch_id, $employeeId);
@@ -180,7 +180,7 @@ final class ChequeService
      */
     public function deposit(int $chequeId, string $date, ?int $employeeId = null, string $note = ''): void
     {
-        $this->move($chequeId, fn (object $row): ChequeTransition => ChequeTransition::Deposit, $date, null, $note, $employeeId);
+        $this->move($chequeId, static fn (object $row): ChequeTransition => ChequeTransition::Deposit, $date, null, $note, $employeeId);
     }
 
     /**
@@ -501,7 +501,7 @@ final class ChequeService
         $branchId   = (int) $row->branch_id;
 
         if ($direction === ChequeDirection::Received && (int) ($merged['treasury_id'] ?? 0) !== $treasuryId) {
-            $treasury   = $this->treasury((int) $merged['treasury_id'], false);
+            $treasury   = $this->treasury((int) $merged['treasury_id']);
             $treasuryId = (int) $treasury->treasury_id;
             $branchId   = (int) $treasury->branch_id;
             $changes[]  = 'treasury_id';
@@ -591,12 +591,12 @@ final class ChequeService
     private function auditAction(ChequeTransition $transition): string
     {
         return match ($transition) {
-            ChequeTransition::Deposit                                                 => 'cheque_deposited',
+            ChequeTransition::Deposit => 'cheque_deposited',
             ChequeTransition::Collect, ChequeTransition::DepositCollect, ChequeTransition::PayCollect => 'cheque_collected',
-            ChequeTransition::Reject, ChequeTransition::DepositReject, ChequeTransition::PayReject    => 'cheque_rejected',
-            ChequeTransition::Deliver                                                 => 'cheque_delivered',
-            ChequeTransition::Cancel                                                  => 'cancelled',
-            default                                                                   => 'created',
+            ChequeTransition::Reject, ChequeTransition::DepositReject, ChequeTransition::PayReject => 'cheque_rejected',
+            ChequeTransition::Deliver => 'cheque_delivered',
+            ChequeTransition::Cancel  => 'cancelled',
+            default                   => 'created',
         };
     }
 
@@ -839,11 +839,11 @@ final class ChequeService
     }
 
     /**
-     * An active treasury, a bank when the cheque must be one.
+     * An active treasury.
      *
      * @throws AccountingException
      */
-    private function treasury(int $treasuryId, bool $bankOnly): object
+    private function treasury(int $treasuryId): object
     {
         $treasury = $this->treasuries->find($treasuryId);
 
@@ -853,10 +853,6 @@ final class ChequeService
 
         if ((int) $treasury->active === 0) {
             throw new AccountingException(AccountingError::TreasuryInactive, 'A cheque cannot be collected into a deactivated treasury.', ['treasury_id' => $treasuryId]);
-        }
-
-        if ($bankOnly && $treasury->kind !== TreasuryService::BANK) {
-            throw new AccountingException(AccountingError::ChequeTreasuryInvalid, 'A cheque book belongs to a bank account.', ['treasury_id' => $treasuryId]);
         }
 
         return $treasury;

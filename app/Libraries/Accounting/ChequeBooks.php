@@ -47,8 +47,8 @@ final class ChequeBooks
     {
         $this->guard->require(AccountingGuard::CHEQUES_MANAGE, $employeeId);
 
-        $treasury = $this->bank((int) ($input['treasury_id'] ?? 0));
-        $name     = $this->name((string) ($input['name'] ?? ''));
+        $treasury       = $this->bank((int) ($input['treasury_id'] ?? 0));
+        $name           = $this->name((string) ($input['name'] ?? ''));
         [$first, $last] = $this->range($input);
 
         $this->branches->requireBranch((int) $treasury->branch_id, $employeeId);
@@ -88,7 +88,7 @@ final class ChequeBooks
 
         $this->branches->requireBranch((int) $book->branch_id, $employeeId);
 
-        $name = array_key_exists('name', $input) ? $this->name((string) $input['name']) : (string) $book->name;
+        $name           = array_key_exists('name', $input) ? $this->name((string) $input['name']) : (string) $book->name;
         [$first, $last] = $this->range([
             'first_serial' => $input['first_serial'] ?? $book->first_serial,
             'last_serial'  => $input['last_serial'] ?? $book->last_serial,

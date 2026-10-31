@@ -50,6 +50,8 @@ return [
     'readiness_tax_output_shared_account'      => '{0} different output taxes are posted to one account.',
     'readiness_title'                          => 'Before accounting can be turned on:',
     'ready'                                    => 'Everything accounting needs is set.',
+    'revenue_account_required'                 => 'Require an account for every receipt voucher',
+    'revenue_account_required_desc'            => 'A receipt voucher must be credited to an account chosen on it or to a category that has an account, instead of the account of other revenue.',
     'saved'                                    => 'The settings were saved.',
     'settings_manage'                          => 'Turn accounting on and off and change its currency and start date',
     'start_date'                               => 'Accounting start date',

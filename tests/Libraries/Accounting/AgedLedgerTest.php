@@ -51,7 +51,6 @@ class AgedLedgerTest extends CIUnitTestCase
         parent::setUp();
 
         $this->startBuying();
-        $this->startCheques();
     }
 
     protected function tearDown(): void
@@ -342,6 +341,8 @@ class AgedLedgerTest extends CIUnitTestCase
 
     public function testBuild_AgesAReceivedChequeAsCreditAndABouncedOneAsADebitOfTheDayItBounced(): void
     {
+        $this->startCheques();
+
         $this->invoiceDated('100.00', $this->daysAgo(5));
 
         $cheque = $this->receiveCheque('100.00', $this->daysAgo(2));
@@ -362,6 +363,8 @@ class AgedLedgerTest extends CIUnitTestCase
 
     public function testBuild_AgesAChequeDeliveredToASupplierAsDebitAndABouncedOneAsWhatIsOwedAgainFromThatDay(): void
     {
+        $this->startCheques();
+
         $this->purchaseDated('200.00', $this->daysAgo(5));
 
         $cheque = $this->issueCheque('200.00', $this->daysAgo(2), $this->daysAgo(2));
@@ -379,6 +382,8 @@ class AgedLedgerTest extends CIUnitTestCase
 
     public function testBuild_ListsACustomerWhoHoldsAChequeBiggerThanTheirInvoicesAsCredit(): void
     {
+        $this->startCheques();
+
         $this->invoiceDated('60.00', $this->daysAgo(3));
         $this->receiveCheque('100.00', $this->daysAgo(1));
 

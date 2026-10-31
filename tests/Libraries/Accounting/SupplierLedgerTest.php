@@ -53,7 +53,6 @@ class SupplierLedgerTest extends CIUnitTestCase
         parent::setUp();
 
         $this->startBuying();
-        $this->startCheques();
     }
 
     protected function tearDown(): void
@@ -498,22 +497,31 @@ class SupplierLedgerTest extends CIUnitTestCase
 
     public function testPosition_HoldsAChequeDeliveredToTheSupplierAsCreditUntilItBounces(): void
     {
-        $purchase = $this->purchaseOf('300.00');
+        $this->startCheques();
+
+        $purchase = $this->purchaseDated('300.00', date('Y-m-d', strtotime('-5 days')));
         $cheque   = $this->issueCheque('300.00', date('Y-m-d', strtotime('-3 days')), date('Y-m-d', strtotime('-3 days')));
 
         $this->chequeService->reject($cheque, date('Y-m-d', strtotime('-1 day')), $this->chequeClerk);
 
         $ledger = new SupplierLedger();
+        $before = $ledger->position($this->supplierId, date('Y-m-d', strtotime('-4 days')));
+        $held   = $ledger->position($this->supplierId, date('Y-m-d', strtotime('-2 days')));
 
-        $this->assertSame('0.0000', $ledger->position($this->supplierId, date('Y-m-d', strtotime('-2 days')))->open(), 'It paid the purchase by then');
-        $this->assertTrue($ledger->position($this->supplierId, date('Y-m-d', strtotime('-2 days')))->agrees());
+        $this->assertSame(['300.0000', '0.0000'], [$before->open(), $before->credit()], 'Before the cheque the purchase was owed');
+        $this->assertSame(['300.0000', '300.0000'], [$held->open(), $held->credit()], 'While it stood the cheque was credit');
+        $this->assertTrue($before->agrees());
+        $this->assertTrue($held->agrees());
         $this->assertSame('300.0000', $ledger->position($this->supplierId)->open());
+        $this->assertSame('0.0000', $ledger->position($this->supplierId)->credit());
         $this->assertTrue($ledger->position($this->supplierId)->agrees());
         $this->assertSame($purchase, $ledger->position($this->supplierId)->purchases[0]->receivingId);
     }
 
     public function testPosition_ListsTheChequeAsACreditSourceOfItsOwnKindThatIsGoneOnceItBounces(): void
     {
+        $this->startCheques();
+
         $cheque = $this->issueCheque('90.00', date('Y-m-d'), date('Y-m-d'));
 
         $credits = (new SupplierLedger())->position($this->supplierId)->credits;
@@ -527,6 +535,8 @@ class SupplierLedgerTest extends CIUnitTestCase
 
     public function testPosition_CountsNoCreditForAChequeThatWasOnlyIssuedOrWasCancelled(): void
     {
+        $this->startCheques();
+
         $issued    = $this->issueCheque('50.00', date('Y-m-d'));
         $cancelled = $this->issueCheque('60.00', date('Y-m-d'));
 
