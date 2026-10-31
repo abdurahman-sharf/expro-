@@ -8,14 +8,19 @@ use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\CreditSettlement;
 use App\Libraries\Accounting\CreditSource;
 use App\Libraries\Accounting\CustomerLedger;
+use App\Libraries\Accounting\CustomerLock;
 use App\Libraries\Accounting\CustomerOpening;
 use App\Libraries\Accounting\EntityAccountService;
+use App\Libraries\Accounting\JournalDraft;
+use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\OpeningBalanceService;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\Accounting\PostingService;
 use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
+use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -844,5 +849,67 @@ class CustomerOpeningTest extends CIUnitTestCase
 
         $this->assertSame($spent, $this->spent(true));
         $this->assertSame('800.00', bcadd($this->position()->invoice(-$first)->open(), '0', 2));
+    }
+
+    /**
+     * The names of the locks the database was asked for while the action ran.
+     *
+     * @return list<string>
+     */
+    private function locksTakenBy(callable $action): array
+    {
+        $names    = [];
+        $listener = static function ($query) use (&$names): void {
+            if (preg_match("/GET_LOCK\('([^']+)'/", (string) $query->getQuery(), $found) === 1) {
+                $names[] = $found[1];
+            }
+        };
+
+        Events::on('DBQuery', $listener);
+
+        try {
+            $action();
+        } finally {
+            Events::removeListener('DBQuery', $listener);
+        }
+
+        return $names;
+    }
+
+    public function testCreate_TakesTheLockOfTheCustomerWhileItEntersTheOpeningBalance(): void
+    {
+        $name = (new CustomerLock())->nameOf($this->customerId);
+
+        $taken = $this->locksTakenBy(fn () => $this->owe());
+
+        $this->assertContains($name, $taken);
+    }
+
+    public function testRevise_AndCancel_TakeTheLockOfTheCustomer(): void
+    {
+        $first = $this->owe();
+        $name  = (new CustomerLock())->nameOf($this->customerId);
+
+        $second = 0;
+
+        $this->assertContains($name, $this->locksTakenBy(function () use ($first, &$second): void {
+            $second = $this->openings->revise($first, CustomerOpening::OWES_US, '900.00', $this->daysAgo(45), '', 'Wrong amount', $this->clerk);
+        }));
+        $this->assertContains($name, $this->locksTakenBy(fn () => $this->openings->cancel($second, 'Entered twice', $this->clerk)));
+    }
+
+    public function testCreate_RefusesWhenTheJournalOfTheRevisionIsAlreadyPostedAndSavesNoRow(): void
+    {
+        (new PostingService())->post(new JournalDraft(
+            date: $this->daysAgo(3),
+            lines: [new JournalLineDraft($this->customerAccount(), debit: '10.00'), new JournalLineDraft($this->accountId('opening_balance'), credit: '10.00')],
+            sourceType: CustomerOpening::SOURCE,
+            sourceId: $this->customerId,
+            revision: 1,
+        ));
+        $counts = [$this->countRows('customer_openings'), $this->countJournals()];
+
+        $this->assertRefusedWith(AccountingError::CustomerOpeningExists, fn () => $this->owe('50.00'));
+        $this->assertSame($counts, [$this->countRows('customer_openings'), $this->countJournals()]);
     }
 }

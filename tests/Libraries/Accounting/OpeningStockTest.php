@@ -1718,4 +1718,77 @@ class OpeningStockTest extends CIUnitTestCase
 
         $this->assertSame($small, $large, 'A plan reads the whole location in a fixed number of queries, so a large catalogue is not slower per item');
     }
+
+    public function testDeletedWithStock_NamesADeletedLocationThatStillHoldsUnitsAndNothingElse(): void
+    {
+        $gone  = $this->anotherLocation('Closed store');
+        $empty = $this->anotherLocation('Empty closed store');
+        $live  = $this->anotherLocation('Open store');
+        $rice  = $this->item('50.00');
+        $sugar = $this->item('12.50');
+        $this->shelves($rice, '10', $gone);
+        $this->shelves($sugar, '-2', $gone);
+        $this->shelves($rice, '4', $live);
+        $this->shelves($sugar, '0', $empty);
+        $this->accountingDb()->table('stock_locations')->whereIn('location_id', [$gone, $empty])->update(['deleted' => 1]);
+
+        $this->assertSame([['location_id' => $gone, 'name' => 'Closed store', 'items' => 2, 'units' => '8.000']], $this->opening->deletedWithStock(1, null));
+        $this->assertSame([], array_filter($this->opening->plans(1, null), static fn (OpeningStockPlan $plan): bool => $plan->locationId === $gone), 'A deleted location is still left out of the plans');
+    }
+
+    public function testDeletedWithStock_LeavesOutAServiceAndAnotherBranchAndRequiresTheBranchInScope(): void
+    {
+        [$branch, $store] = $this->secondBranchLocation('Other branch store');
+        $service          = $this->item('0.00', false);
+        $this->shelves($service, '5', $store);
+        $this->shelves($this->item('10.00'), '3', $store);
+        $this->accountingDb()->table('stock_locations')->where('location_id', $store)->update(['deleted' => 1]);
+        $manager = $this->employeeWithGrants(['accounting_periods', AccountingGuard::OPENING_MANAGE], [1]);
+
+        $this->assertSame([], $this->opening->deletedWithStock(1, null));
+        $this->assertSame([['location_id' => $store, 'name' => 'Other branch store', 'items' => 1, 'units' => '3.000']], $this->opening->deletedWithStock($branch, null));
+
+        try {
+            $this->opening->deletedWithStock($branch, $manager);
+            $this->fail('A branch outside the scope of the employee must be refused.');
+        } catch (BranchException $failure) {
+            $this->assertSame(BranchError::NotAllowed, $failure->error);
+        }
+    }
+
+    public function testRepostAtCurrentCost_UndoesTheReversalWhenTheNewRevisionCannotBePosted(): void
+    {
+        $this->postedAtTheWrongCost();
+        $fingerprint = $this->opening->repricePlan(self::LOCATION_ID, null)->fingerprint();
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'equity.opening')->update(['account_id' => null]);
+        $before = $this->history();
+
+        try {
+            $this->opening->repostAtCurrentCost(self::LOCATION_ID, 'Because', $fingerprint, null);
+            $this->fail('The opening balance equity account is needed to post the new revision.');
+        } catch (PostingException $failure) {
+            $this->assertSame(PostingError::RoutingAccountUnusable, $failure->error);
+        }
+
+        $this->assertSame($before, $this->history(), 'The reversal was undone with the rest: the first revision still stands');
+        $this->assertSame(['posted'], array_map(static fn (object $journal): string => $journal->status, $this->openingJournals()));
+        $this->assertSame('500.00', $this->balance($this->stockAccount()));
+        $this->assertSame(1, $this->opening->plan(self::LOCATION_ID, null)->activeRevision);
+    }
+
+    public function testRepostAtCurrentCost_ARefusalOfTheClosedPeriodComesBeforeTheRefusalThatNothingWouldChange(): void
+    {
+        $item = $this->item('50.00');
+        $this->shelves($item, '10');
+        $this->opening->post([self::LOCATION_ID], null);
+        $fingerprint = $this->opening->repricePlan(self::LOCATION_ID, null)->fingerprint();
+        $this->closeThrough(self::START);
+
+        try {
+            $this->opening->repostAtCurrentCost(self::LOCATION_ID, 'Because', $fingerprint, null);
+            $this->fail('A closed period must refuse the correction.');
+        } catch (PostingException $failure) {
+            $this->assertSame(PostingError::PeriodClosed, $failure->error);
+        }
+    }
 }

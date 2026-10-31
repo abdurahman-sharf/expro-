@@ -8,6 +8,7 @@
  * @var string $start_date
  * @var bool $show_branch
  * @var list<array<string, mixed>> $stock
+ * @var list<string> $deleted_stock
  * @var string|null $notice
  */
 
@@ -323,6 +324,6 @@ $accountInputs = static function (string $name, ?int $selected) use ($labels): s
     </script>
 <?php endif; ?>
 
-<?= view('accounting_periods/opening_stock', ['stock' => $stock, 'branch_id' => $branch_id, 'can_manage' => $can_manage, 'start_date' => $start_date, 'has_start' => $state['start_date'] !== null]) ?>
+<?= view('accounting_periods/opening_stock', ['stock' => $stock, 'deleted_stock' => $deleted_stock, 'branch_id' => $branch_id, 'can_manage' => $can_manage, 'start_date' => $start_date, 'has_start' => $state['start_date'] !== null]) ?>
 
 <?= view('partial/footer') ?>

@@ -44,6 +44,7 @@ return [
     'opening_stock_confirm_post'                      => '',
     'opening_stock_cost_after'                        => '',
     'opening_stock_cost_before'                       => '',
+    'opening_stock_deleted_notice'                    => '',
     'opening_stock_differences_action'                => '',
     'opening_stock_differences_intro'                 => '',
     'opening_stock_differences_net'                   => '',

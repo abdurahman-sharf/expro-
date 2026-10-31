@@ -83,6 +83,39 @@ final class OpeningStock
     }
 
     /**
+     * The stock locations of a branch that were deleted and still hold units. Their stock is not
+     * posted, because a deleted location is left out of the opening stock, so it is named here and
+     * not left to be found in the reconciliation.
+     *
+     * @return list<array{location_id: int, name: string, items: int, units: string}>
+     *
+     * @throws BranchException
+     */
+    public function deletedWithStock(int $branchId, ?int $employeeId): array
+    {
+        $this->requireBranch($branchId, $employeeId);
+
+        $rows = $this->db->table('stock_locations l')
+            ->select('l.location_id, l.location_name, COUNT(q.item_id) AS items, SUM(q.quantity) AS units', false)
+            ->join('item_quantities q', 'q.location_id = l.location_id AND q.quantity <> 0')
+            ->join('items i', 'i.item_id = q.item_id AND i.stock_type = ' . HAS_STOCK)
+            ->where('l.branch_id', $branchId)
+            ->where('l.deleted', 1)
+            ->groupBy('l.location_id, l.location_name')
+            ->orderBy('l.location_name', 'ASC')
+            ->orderBy('l.location_id', 'ASC')
+            ->get()
+            ->getResult();
+
+        return array_map(static fn (object $row): array => [
+            'location_id' => (int) $row->location_id,
+            'name'        => (string) $row->location_name,
+            'items'       => (int) $row->items,
+            'units'       => bcadd((string) $row->units, '0', StockLedger::QUANTITY_SCALE),
+        ], $rows);
+    }
+
+    /**
      * @throws AccountingException|BranchException
      */
     public function plan(int $locationId, ?int $employeeId): OpeningStockPlan

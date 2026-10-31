@@ -839,4 +839,22 @@ class AccountingOpeningControllerTest extends CIUnitTestCase
         $this->assertSame($journals, $this->countRows('accounting_journals'));
         $this->assertSame(1, (new OpeningStock())->plan(1, null)->activeRevision);
     }
+
+    public function testGetIndex_NamesADeletedLocationThatStillHoldsStockAndNothingWhenNoneDoes(): void
+    {
+        $this->manager();
+        $item = $this->shelves('50.00', '10');
+        $gone = $this->insertStockLocation('Closed store');
+        $this->accountingDb()->table('item_quantities')->replace(['item_id' => $item, 'location_id' => $gone, 'quantity' => '6']);
+
+        $this->get('/accounting_periods/opening')->assertDontSee('stock_deleted_notice');
+
+        $this->accountingDb()->table('stock_locations')->where('location_id', $gone)->update(['deleted' => 1]);
+
+        $page = $this->get('/accounting_periods/opening');
+
+        $page->assertSee('stock_deleted_notice');
+        $page->assertSee('Closed store');
+        $page->assertSee(lang('Accounting_periods.opening_stock_deleted_notice', ['Closed store', '1', '6']));
+    }
 }

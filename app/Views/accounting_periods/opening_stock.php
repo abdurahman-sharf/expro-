@@ -1,6 +1,7 @@
 <?php
 /**
  * @var list<array{location_id: int, name: string, items: int, units: string, value: string, status: string, status_label: string, posted: bool, settleable: bool, messages: list<string>}> $stock
+ * @var list<string> $deleted_stock
  * @var int $branch_id
  * @var bool $can_manage
  * @var string $start_date
@@ -20,6 +21,16 @@ $ready = count(array_filter($stock, static fn (array $row): bool => $row['status
 
 <section id="opening_stock" class="acc-opening-stock mt-4" aria-labelledby="opening_stock_title">
     <h2 id="opening_stock_title" class="h5"><?= lang('Accounting_periods.opening_stock_title') ?></h2>
+
+    <?php if ($deleted_stock !== []): ?>
+        <div class="alert alert-warning" role="alert" id="stock_deleted_notice">
+            <ul class="mb-0">
+                <?php foreach ($deleted_stock as $notice): ?>
+                    <li><?= esc($notice) ?></li>
+                <?php endforeach; ?>
+            </ul>
+        </div>
+    <?php endif; ?>
 
     <?php if (! $has_start): ?>
         <p class="alert alert-warning" role="alert"><?= lang('Accounting_periods.opening_no_start') ?></p>

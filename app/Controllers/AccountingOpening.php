@@ -47,20 +47,22 @@ class AccountingOpening extends AccountingController
         try {
             $state = $this->opening->state($branchId, $this->employeeId());
             $stock = $this->openingStock->plans($branchId, $this->employeeId());
+            $gone  = $this->openingStock->deletedWithStock($branchId, $this->employeeId());
         } catch (BranchException) {
             throw PageNotFoundException::forPageNotFound();
         }
 
         return view('accounting_periods/opening', [
-            'branches'    => $branches,
-            'branch_id'   => $branchId,
-            'accounts'    => $this->opening->allowedAccounts(),
-            'state'       => $state,
-            'stock'       => array_map(fn (OpeningStockPlan $plan): array => $this->stockRow($plan), $stock),
-            'can_manage'  => $this->can(AccountingGuard::OPENING_MANAGE),
-            'start_date'  => $state['start_date'] === null ? '' : $this->formatDate($state['start_date']),
-            'show_branch' => count($branches) > 1,
-            'notice'      => session()->getFlashdata('accounting_notice'),
+            'branches'      => $branches,
+            'branch_id'     => $branchId,
+            'accounts'      => $this->opening->allowedAccounts(),
+            'state'         => $state,
+            'stock'         => array_map(fn (OpeningStockPlan $plan): array => $this->stockRow($plan), $stock),
+            'deleted_stock' => array_map(static fn (array $location): string => lang('Accounting_periods.opening_stock_deleted_notice', [$location['name'], (string) $location['items'], to_quantity_decimals($location['units'])]), $gone),
+            'can_manage'    => $this->can(AccountingGuard::OPENING_MANAGE),
+            'start_date'    => $state['start_date'] === null ? '' : $this->formatDate($state['start_date']),
+            'show_branch'   => count($branches) > 1,
+            'notice'        => session()->getFlashdata('accounting_notice'),
         ]);
     }
 
