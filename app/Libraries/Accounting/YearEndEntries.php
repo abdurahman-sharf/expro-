@@ -8,10 +8,13 @@ use CodeIgniter\Database\BaseConnection;
 /**
  * The journals that close a year by moving the result of its revenue and expense accounts to
  * retained earnings. A report of a period leaves them out, so a year reads the same before and
- * after it is closed, and the balance sheet keeps them. A journal is one of them by its source or
- * by its type, so it is found whichever of the two the closing of a year is written with. The
- * reversal of one, and the reversal of that reversal, goes with it: a closing taken back is left
- * out as a pair, whereas the reversal of any other journal is counted like the journal itself.
+ * after it is closed, and the balance sheet keeps them. A journal is one of them by its type, the
+ * single definition: every journal of the closing of a year is written with the type year_end by
+ * PostingService::postYearEnd, the closing and its reversal alike, and nothing else can be written
+ * with it. The source year_end names the document of the closing and plays no part in telling the
+ * journals apart. The reversal of one, and the reversal of that reversal, goes with it: a closing
+ * taken back is left out as a pair, whereas the reversal of any other journal is counted like the
+ * journal itself.
  */
 final class YearEndEntries
 {
@@ -20,9 +23,7 @@ final class YearEndEntries
 
     public static function leaveOut(BaseBuilder $builder, BaseConnection $db, string $journalAlias = 'j'): BaseBuilder
     {
-        $builder
-            ->where("{$journalAlias}.source_type <>", self::SOURCE_TYPE)
-            ->where("{$journalAlias}.entry_type <>", self::ENTRY_TYPE);
+        $builder->where("{$journalAlias}.entry_type <>", self::ENTRY_TYPE);
 
         $reversals = self::reversalsOfClosings($db);
 
@@ -40,8 +41,8 @@ final class YearEndEntries
         $journals = $db->prefixTable('accounting_journals');
 
         $level = self::idsOf($db->query(
-            "SELECT journal_id FROM {$journals} WHERE source_type = ? OR entry_type = ?",
-            [self::SOURCE_TYPE, self::ENTRY_TYPE],
+            "SELECT journal_id FROM {$journals} WHERE entry_type = ?",
+            [self::ENTRY_TYPE],
         )->getResult());
 
         $seen      = array_fill_keys($level, true);

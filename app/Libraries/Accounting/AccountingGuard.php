@@ -27,6 +27,7 @@ final class AccountingGuard
     public const TREASURIES_MANAGE   = 'acc_treasuries_manage';
     public const PAYABLES_MANAGE     = 'acc_payables_manage';
     public const INTERBRANCH_SETTLE  = 'acc_interbranch_settle';
+    public const YEAR_END_CLOSE      = 'acc_year_end_close';
 
     /**
      * Permissions that change what ordinary users cannot undo. Nothing grants them
@@ -42,6 +43,7 @@ final class AccountingGuard
         self::TREASURIES_MANAGE,
         self::PAYABLES_MANAGE,
         self::INTERBRANCH_SETTLE,
+        self::YEAR_END_CLOSE,
     ];
 
     private Employee $employee;

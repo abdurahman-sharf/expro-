@@ -366,7 +366,8 @@ final class JournalService
     /**
      * Reverses an opening balance journal. The caller has already checked the permission to
      * manage opening balances and that the branch is within the employee's scope, so the
-     * journal does not have to be the employee's own.
+     * journal does not have to be the employee's own. It is refused while the branch has closed
+     * out the year the journal lies in.
      *
      * @throws AccountingException|PostingException
      */
@@ -380,7 +381,14 @@ final class JournalService
 
         (new TreasuryScopes($this->db))->assertMayReverse($journalId, $employeeId);
 
-        return $this->reverseJournal($journalId, $date, $reason, $employeeId, false);
+        $opening = $this->db->table('accounting_journals')->select('branch_id, journal_date')->where('journal_id', $journalId)->get()->getRow();
+
+        return $this->transactional(function () use ($journalId, $date, $reason, $employeeId, $opening): int {
+            (new PeriodLocks($this->db))->shareForPosting((int) $opening->branch_id);
+            (new ClosedOutYears($this->db))->assertNotClosedOut((int) $opening->branch_id, (string) $opening->journal_date);
+
+            return $this->reverseJournal($journalId, $date, $reason, $employeeId, false);
+        });
     }
 
     /**
@@ -495,6 +503,10 @@ final class JournalService
 
                 if (in_array($original->source_type, self::DOCUMENT_SOURCES, true)) {
                     throw new AccountingException(AccountingError::DocumentJournalLocked, 'The journal of an expense or a cash-up is taken back by deleting it or changing it.', ['journal_id' => $journalId]);
+                }
+
+                if ($original->entry_type === JournalEntryType::YearEnd->value || $original->source_type === YearEndEntries::SOURCE_TYPE) {
+                    throw new AccountingException(AccountingError::YearEndJournalLocked, 'The journal that closes a year is taken back from the year-end screen.', ['journal_id' => $journalId]);
                 }
             }
 

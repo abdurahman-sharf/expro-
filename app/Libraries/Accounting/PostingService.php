@@ -27,6 +27,7 @@ final class PostingService
     private PostingFailureLog $failures;
     private JournalNumbering $numbering;
     private PeriodGuard $periods;
+    private bool $yearEndRelief = false;
 
     public function __construct(?BaseConnection $db = null)
     {
@@ -35,6 +36,34 @@ final class PostingService
         $this->failures  = new PostingFailureLog($this->db);
         $this->numbering = new JournalNumbering($this->db);
         $this->periods   = new PeriodGuard($this->db);
+    }
+
+    /**
+     * Writes the journal that closes a year for a branch, or the one that takes it back. It is the
+     * one exception to the closed period: the closing of a year is dated on the last day of a year
+     * that is closed already, so the closings of periods do not hold it back, and it may use an
+     * account or a branch that was deactivated since, because their balances still have to be
+     * closed. Nothing else is relaxed, and post() refuses a journal of this kind, so only the
+     * closing of the year goes this way.
+     *
+     * @throws PostingException
+     */
+    public function postYearEnd(JournalDraft $draft): PostingResult
+    {
+        $closing  = $draft->sourceType === YearEndEntries::SOURCE_TYPE && $draft->reversesJournalId === null;
+        $reversal = $draft->sourceType === JournalDraft::SOURCE_REVERSAL && $draft->reversesJournalId !== null;
+
+        if ($draft->entryType !== JournalEntryType::YearEnd || ! ($closing || $reversal)) {
+            throw new PostingException(PostingError::InvalidSource, 'Only the closing of a year, or the reversal of one, is written this way.', ['source_type' => $draft->sourceType]);
+        }
+
+        $this->yearEndRelief = true;
+
+        try {
+            return $this->post($draft);
+        } finally {
+            $this->yearEndRelief = false;
+        }
     }
 
     /**
@@ -49,6 +78,10 @@ final class PostingService
      */
     public function post(JournalDraft $draft): PostingResult
     {
+        if (! $this->yearEndRelief && ($draft->entryType === JournalEntryType::YearEnd || $draft->sourceType === YearEndEntries::SOURCE_TYPE)) {
+            throw new PostingException(PostingError::InvalidSource, 'The journal that closes a year is written only by the closing of the year.', ['source_type' => $draft->sourceType]);
+        }
+
         $ownsTransaction = $this->db->transDepth === 0;
 
         $this->periods->prepare($draft->date);
@@ -189,13 +222,13 @@ final class PostingService
             );
         }
 
-        $accounts = $this->assertAccountsPostable($lines, $draft->reversesJournalId !== null);
+        $accounts = $this->assertAccountsPostable($lines, $draft->reversesJournalId !== null || $this->yearEndRelief);
         $lines    = $this->bindParties($lines, $accounts);
         $this->assertCostCentersExist($lines);
 
         $branchId = $this->resolveBranch($draft);
 
-        $this->periods->check($draft->date, $branchId);
+        $this->yearEndRelief ? $this->periods->checkYearEnd($draft->date) : $this->periods->check($draft->date, $branchId);
 
         return [
             'lines'     => $lines,
@@ -220,7 +253,7 @@ final class PostingService
             throw new PostingException(PostingError::BranchNotFound, "Branch {$branchId} does not exist.", ['branch_id' => $branchId]);
         }
 
-        if ((int) $branch->active === 0 && $draft->reversesJournalId === null) {
+        if ((int) $branch->active === 0 && $draft->reversesJournalId === null && ! $this->yearEndRelief) {
             throw new PostingException(PostingError::BranchInactive, "Branch {$branchId} is inactive.", ['branch_id' => $branchId]);
         }
 
@@ -429,7 +462,7 @@ final class PostingService
      */
     private function write(JournalDraft $draft, array $prepared): int
     {
-        $this->periods->enforce($draft->date, $prepared['branch_id']);
+        $this->yearEndRelief ? $this->periods->enforceYearEnd($draft->date, $prepared['branch_id']) : $this->periods->enforce($draft->date, $prepared['branch_id']);
 
         $userNumbered = in_array($draft->sourceType, [JournalDraft::SOURCE_MANUAL, JournalDraft::SOURCE_REVERSAL], true);
 

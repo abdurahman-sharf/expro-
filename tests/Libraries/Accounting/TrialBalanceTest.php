@@ -6,6 +6,7 @@ use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\CustomerLedger;
 use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\JournalDraft;
+use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\PostingService;
@@ -452,13 +453,14 @@ class TrialBalanceTest extends CIUnitTestCase
 
     private function closeTheYear(string $date, int $branchId, string $amount): void
     {
-        (new PostingService())->post(new JournalDraft(
+        (new PostingService())->postYearEnd(new JournalDraft(
             date: $date,
             lines: [new JournalLineDraft($this->accountId('sales_revenue'), debit: $amount), new JournalLineDraft($this->accountId('retained_earnings'), credit: $amount)],
             sourceType: YearEndEntries::SOURCE_TYPE,
             sourceId: random_int(1000, 9999),
             currencyCode: 'SAR',
             branchId: $branchId,
+            entryType: JournalEntryType::YearEnd,
         ));
     }
 

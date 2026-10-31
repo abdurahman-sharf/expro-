@@ -246,6 +246,8 @@ final class ClosedPeriodService
                 throw new AccountingException(AccountingError::ClosingChanged, 'The latest closing changed since it was shown.', ['date' => $latest->date_to]);
             }
 
+            $this->assertNoYearStaysClosedOut($branchId, (int) $latest->closed_period_id, $scope, $params);
+
             $this->db->table('accounting_closed_periods')->where('closed_period_id', $latest->closed_period_id)->update([
                 'active'        => 0,
                 'reopened_by'   => $employeeId,
@@ -318,6 +320,26 @@ final class ClosedPeriodService
         $rows  = $builder->orderBy('p.date_to', 'DESC')->orderBy('p.closed_period_id', 'DESC')->limit($limit, $offset)->get()->getResult();
 
         return ['total' => $total, 'rows' => $rows];
+    }
+
+    /**
+     * A year a branch has closed out holds still, so a closing of periods that would stop covering it
+     * stays until the year-end closing is taken back.
+     *
+     * @param list<int> $params
+     *
+     * @throws AccountingException
+     */
+    private function assertNoYearStaysClosedOut(?int $branchId, int $reopenedId, string $scope, array $params): void
+    {
+        $table     = $this->db->prefixTable('accounting_closed_periods');
+        $remaining = LockedRead::row($this->db, "SELECT MAX(date_to) AS cutoff FROM {$table} WHERE company_id = ? AND {$scope} AND active = 1 AND closed_period_id <> ?", [...$params, $reopenedId]);
+        $cutoff    = $remaining === null || $remaining->cutoff === null ? null : (string) $remaining->cutoff;
+        $blocking  = (new ClosedOutYears($this->db))->leftOpenBy($branchId, $branchId === null ? $cutoff : $this->cutoff(null), $branchId === null ? null : $cutoff);
+
+        if ($blocking !== []) {
+            throw new AccountingException(AccountingError::YearEndClosedOut, 'The year is closed out. Take its closing back before the periods are reopened.', ['name' => $blocking[0]->year_name, 'date' => $blocking[0]->period_to]);
+        }
     }
 
     private function hold(?int $branchId): void

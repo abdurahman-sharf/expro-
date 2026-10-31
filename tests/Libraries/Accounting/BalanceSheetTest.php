@@ -258,7 +258,7 @@ class BalanceSheetTest extends CIUnitTestCase
 
         $closed = $this->sheet('2027-12-31', level: 2);
 
-        (new JournalService())->reverse($closing, '2027-01-05', 'Reopen the year');
+        $this->reverseAClosing($closing, '2027-01-05');
 
         $after = $this->sheet('2027-12-31', level: 2);
 
@@ -276,7 +276,7 @@ class BalanceSheetTest extends CIUnitTestCase
 
         $closing  = $this->postYearEnd('2026-12-31', 1, [[$this->accountId('sales_revenue'), '320.00', '0'], [$this->accountId('retained_earnings'), '0', '320.00']]);
         $closed   = $this->sheet('2027-12-31', level: 2);
-        $reversal = (new JournalService())->reverse($closing, '2027-01-05', 'Reopen the year');
+        $reversal = $this->reverseAClosing($closing, '2027-01-05');
 
         $this->reverseAReversal($reversal, '2027-01-06');
 
@@ -303,7 +303,7 @@ class BalanceSheetTest extends CIUnitTestCase
         $this->assertEquation($sheet);
     }
 
-    public function testBuild_TreatsAJournalOfTypeYearEndLikeOneOfSourceYearEnd(): void
+    public function testBuild_CountsAJournalOfTypeYearEndAsTheClosingOfTheYear(): void
     {
         $this->cashSale('2026-10-10', 1, '320.00');
 

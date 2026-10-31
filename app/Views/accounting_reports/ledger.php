@@ -168,7 +168,7 @@ $side = static fn (string $value, Closure $amount): string => bccomp($value, '0'
                             <tr>
                                 <td><?= esc($date($row['date'])) ?></td>
                                 <td><?= $journal($row) ?></td>
-                                <td><?= esc($kind($row)) ?></td>
+                                <td><?= esc($kind($row)) ?><?php if ($row['entry_type'] === 'year_end'): ?> <span class="badge text-bg-warning acc-year-end-tag"><?= lang('Accounting_reports.ledger_year_end') ?></span><?php endif; ?></td>
                                 <?php if ($report->accountsCounted > 1): ?>
                                     <td><bdi dir="ltr"><?= esc($row['account_code']) ?></bdi> <?= esc($row['account_name']) ?></td>
                                 <?php endif; ?>

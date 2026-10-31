@@ -55,6 +55,30 @@ final class PeriodGuard
     }
 
     /**
+     * The check a closing of a year gets in place of check(): the date must lie in a fiscal year, and the
+     * closings of periods do not hold it back, because the closing of a year is written on the last
+     * day of a year that has to be closed already.
+     *
+     * @throws PostingException
+     */
+    public function checkYearEnd(string $date): void
+    {
+        $this->assertCovered($date, false);
+    }
+
+    /**
+     * Takes the period locks as posting does and checks what check() does not: that the date is in a
+     * fiscal year, as last committed.
+     *
+     * @throws PostingException
+     */
+    public function enforceYearEnd(string $date, int $branchId): void
+    {
+        $this->locks->shareForPosting($branchId);
+        $this->assertCovered($date, true);
+    }
+
+    /**
      * The latest closing that applies to a branch: the company's or the branch's own.
      *
      * @return array{date: string, branch_code: ?string}|null
@@ -81,7 +105,7 @@ final class PeriodGuard
         return ['date' => $row->date_to, 'branch_code' => $row->branch_id === null ? null : $this->branchCode((int) $row->branch_id)];
     }
 
-    private function assert(string $date, int $branchId, bool $latest = false): void
+    private function assertCovered(string $date, bool $latest): void
     {
         if (! $this->isDate($date)) {
             return;
@@ -97,6 +121,15 @@ final class PeriodGuard
         if ($this->row($covering, $latest) === null) {
             throw new PostingException(PostingError::OutsideFiscalYear, "The date {$date} is outside every fiscal year.", ['date' => $date]);
         }
+    }
+
+    private function assert(string $date, int $branchId, bool $latest = false): void
+    {
+        if (! $this->isDate($date)) {
+            return;
+        }
+
+        $this->assertCovered($date, $latest);
 
         $cutoff = $this->effectiveCutoff($branchId, $latest);
 

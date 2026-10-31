@@ -11,11 +11,13 @@ use App\Libraries\Accounting\AuditLog;
 use App\Libraries\Accounting\CostCenterService;
 use App\Libraries\Accounting\InterBranchLegs;
 use App\Libraries\Accounting\JournalAttachments;
+use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\JournalStatus;
 use App\Libraries\Accounting\PeriodGuard;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\PostingFailureReader;
+use App\Libraries\Accounting\YearEndEntries;
 use App\Libraries\Organization\BranchContext;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchService;
@@ -739,6 +741,8 @@ class AccountingJournals extends AccountingController
     {
         $label = $this->label('source', $sourceType);
 
-        return in_array($entryType, ['revenue', 'cogs'], true) ? $label . ' — ' . $this->label('entry', $entryType) : $label;
+        $named = in_array($entryType, ['revenue', 'cogs'], true) || ($entryType === JournalEntryType::YearEnd->value && $sourceType !== YearEndEntries::SOURCE_TYPE);
+
+        return $named ? $label . ' — ' . $this->label('entry', $entryType) : $label;
     }
 }

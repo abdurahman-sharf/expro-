@@ -16,6 +16,7 @@ use Config\Database;
  * thousand of them.
  *
  * The journals of one branch balance on their own, so the report balances for any set of branches.
+ * The journals that close a year are left out unless the report is asked to count them.
  */
 final class TrialBalance
 {
@@ -29,12 +30,13 @@ final class TrialBalance
     }
 
     /**
-     * @param bool $expandEntities Whether the account of each customer, supplier, location and treasury has a row.
-     * @param bool $showEmpty      Whether accounts that never held anything have a row.
+     * @param bool                $expandEntities Whether the account of each customer, supplier, location and treasury has a row.
+     * @param bool                $showEmpty      Whether accounts that never held anything have a row.
+     * @param TrialBalanceClosing $closing        Whether the journals that close a year are left out, which is the default, or counted.
      */
-    public function build(ReportScope $scope, ReportPeriod $period, bool $expandEntities = false, bool $showEmpty = false): TrialBalanceReport
+    public function build(ReportScope $scope, ReportPeriod $period, bool $expandEntities = false, bool $showEmpty = false, TrialBalanceClosing $closing = TrialBalanceClosing::Before): TrialBalanceReport
     {
-        $amounts  = $scope->isEmpty() ? [] : $this->amounts($scope, $period);
+        $amounts  = $scope->isEmpty() ? [] : $this->amounts($scope, $period, $closing === TrialBalanceClosing::Before);
         $accounts = $this->accounts();
         $totals   = $this->rollUp($accounts, $amounts);
         $shown    = $this->shown($accounts, $amounts, $expandEntities, $showEmpty);
@@ -46,6 +48,7 @@ final class TrialBalance
             $period->from,
             $period->to,
             $scope->isCompany() ? (new InterBranchPosition($this->db))->difference($period->to) : null,
+            $closing,
         );
     }
 

@@ -19,6 +19,7 @@ final readonly class TrialBalanceReport
         public ?string $from,
         public string $to,
         public ?string $interBranchDifference,
+        public TrialBalanceClosing $closing = TrialBalanceClosing::Before,
     ) {
     }
 

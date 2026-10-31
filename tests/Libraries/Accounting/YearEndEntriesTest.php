@@ -2,7 +2,9 @@
 
 namespace Tests\Libraries\Accounting;
 
-use App\Libraries\Accounting\JournalService;
+use App\Libraries\Accounting\JournalDraft;
+use App\Libraries\Accounting\JournalLineDraft;
+use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\YearEndEntries;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -12,8 +14,8 @@ use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ReportFixtureTrait;
 
 /**
- * Which journals of the books are the ones that close a year: by their source, or by their type,
- * and the reversals of them, which a period leaves out with them.
+ * Which journals of the books are the ones that close a year: those whose type is year_end, the one
+ * definition, and the reversals of them, which a period leaves out with them.
  */
 class YearEndEntriesTest extends CIUnitTestCase
 {
@@ -70,9 +72,29 @@ class YearEndEntriesTest extends CIUnitTestCase
         return $journalId;
     }
 
+    private function closingOf(): int
+    {
+        return $this->journalOf(YearEndEntries::SOURCE_TYPE, YearEndEntries::ENTRY_TYPE);
+    }
+
     private function reversalOf(int $journalId): int
     {
-        return (new JournalService())->reverse($journalId, '2027-01-05', 'Reopen the year');
+        $journal = $this->accountingDb()->table('accounting_journals')->where('journal_id', $journalId)->get()->getRow();
+        $lines   = array_map(
+            static fn (object $line): JournalLineDraft => new JournalLineDraft((int) $line->account_id, debit: $line->credit, credit: $line->debit),
+            $this->accountingDb()->table('accounting_journal_lines')->where('journal_id', $journalId)->get()->getResult(),
+        );
+
+        return (new PostingService())->post(new JournalDraft(
+            date: '2027-01-05',
+            lines: $lines,
+            sourceType: JournalDraft::SOURCE_REVERSAL,
+            sourceId: $journalId,
+            description: 'Reopen the year',
+            currencyCode: 'SAR',
+            reversesJournalId: $journalId,
+            branchId: (int) $journal->branch_id,
+        ))->journalId;
     }
 
     private function reverseThrough(int $journalId, int $reversesJournalId): void
@@ -80,10 +102,18 @@ class YearEndEntriesTest extends CIUnitTestCase
         $this->accountingDb()->table('accounting_journals')->where('journal_id', $journalId)->update(['reverses_journal_id' => $reversesJournalId]);
     }
 
-    public function testLeaveOut_ExcludesAJournalWhoseSourceIsYearEnd(): void
+    public function testLeaveOut_KeepsAJournalWhoseSourceIsYearEndWhenItsTypeIsNot(): void
+    {
+        $plain = $this->journalOf('sale');
+        $named = $this->journalOf(YearEndEntries::SOURCE_TYPE);
+
+        $this->assertSame([$plain, $named], $this->kept(), 'The type is the one definition of a closing, not the source');
+    }
+
+    public function testLeaveOut_ExcludesAJournalWhoseSourceAndTypeAreYearEnd(): void
     {
         $plain   = $this->journalOf('sale');
-        $closing = $this->journalOf(YearEndEntries::SOURCE_TYPE);
+        $closing = $this->closingOf();
 
         $this->assertSame([$plain], $this->kept());
         $this->assertNotContains($closing, $this->kept());
@@ -115,7 +145,7 @@ class YearEndEntriesTest extends CIUnitTestCase
     public function testLeaveOut_ExcludesTheReversalOfAJournalThatClosesAYear(): void
     {
         $plain    = $this->journalOf('sale');
-        $closing  = $this->journalOf(YearEndEntries::SOURCE_TYPE);
+        $closing  = $this->closingOf();
         $reversal = $this->reversalOf($closing);
 
         $this->assertSame([$plain], $this->kept());
@@ -144,7 +174,7 @@ class YearEndEntriesTest extends CIUnitTestCase
     public function testLeaveOut_ExcludesEveryReversalDownAChainFromAClosing(): void
     {
         $plain    = $this->journalOf('sale');
-        $closing  = $this->journalOf(YearEndEntries::SOURCE_TYPE);
+        $closing  = $this->closingOf();
         $first    = $this->reversalOf($closing);
         $second   = $this->journalOf('reversal');
         $third    = $this->journalOf('reversal');
@@ -162,9 +192,9 @@ class YearEndEntriesTest extends CIUnitTestCase
     public function testLeaveOut_ExcludesTheReversalOfAClosingThatWasReplaced(): void
     {
         $plain    = $this->journalOf('sale');
-        $first    = $this->journalOf(YearEndEntries::SOURCE_TYPE);
+        $first    = $this->closingOf();
         $reversal = $this->reversalOf($first);
-        $second   = $this->journalOf(YearEndEntries::SOURCE_TYPE);
+        $second   = $this->closingOf();
 
         $this->assertSame([$plain], $this->kept());
         $this->assertNotContains($reversal, $this->kept());
@@ -174,7 +204,7 @@ class YearEndEntriesTest extends CIUnitTestCase
     public function testLeaveOut_EndsOnJournalsThatReverseEachOther(): void
     {
         $plain   = $this->journalOf('sale');
-        $closing = $this->journalOf(YearEndEntries::SOURCE_TYPE);
+        $closing = $this->closingOf();
         $loop    = $this->journalOf('reversal');
         $back    = $this->journalOf('reversal');
 
@@ -188,7 +218,7 @@ class YearEndEntriesTest extends CIUnitTestCase
     public function testLeaveOut_ReadsTheAliasItIsGiven(): void
     {
         $plain = $this->journalOf('sale');
-        $this->journalOf(YearEndEntries::SOURCE_TYPE);
+        $this->closingOf();
 
         $this->assertSame([$plain], $this->kept('journal'));
     }
