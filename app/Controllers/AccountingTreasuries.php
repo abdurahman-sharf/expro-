@@ -387,7 +387,7 @@ class AccountingTreasuries extends AccountingController
         }
 
         $code = (string) ($treasury->bank_code ?? '');
-        $name = $code === '' ? null : BankDirectory::nameOf($code, $this->request->getLocale());
+        $name = $code === '' ? null : BankDirectory::nameOf($code, service('language')->getLocale());
 
         return '<div class="small text-body-secondary">' . esc($name ?? $treasury->bank_name) . ' · <bdi dir="ltr">' . esc($treasury->account_number) . '</bdi></div>';
     }

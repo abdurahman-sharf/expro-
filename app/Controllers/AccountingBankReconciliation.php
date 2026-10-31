@@ -357,7 +357,7 @@ class AccountingBankReconciliation extends AccountingController
     {
         $file = $this->request->getFile('statement_file');
 
-        if ($file !== null && $file->isValid() && $file->getSize() > 0) {
+        if ($file !== null && $file->getError() === UPLOAD_ERR_OK && $file->getSize() > 0) {
             if ($file->getSize() > StatementParser::MAX_BYTES) {
                 throw new AccountingException(AccountingError::BankStatementTooLarge, 'The file is larger than the limit.', ['max' => StatementParser::MAX_BYTES / 1048576]);
             }
@@ -398,7 +398,7 @@ class AccountingBankReconciliation extends AccountingController
     private function bankName(object $treasury): string
     {
         $code = (string) ($treasury->bank_code ?? '');
-        $name = $code === '' ? null : BankDirectory::nameOf($code, $this->request->getLocale());
+        $name = $code === '' ? null : BankDirectory::nameOf($code, service('language')->getLocale());
 
         return $name ?? (string) ($treasury->bank_name ?? '');
     }
