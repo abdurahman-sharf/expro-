@@ -325,7 +325,7 @@ class IncomeStatementTest extends CIUnitTestCase
         $before  = $this->statement('2027-12-31', '2026-01-01', level: 3);
         $closing = $this->closeTheYearOfTheScenario();
 
-        (new JournalService())->reverse($closing, '2027-01-05', 'Reopen the year');
+        $this->reverseAClosing($closing, '2027-01-05');
 
         $after = $this->statement('2027-12-31', '2026-01-01', level: 3);
 
@@ -342,7 +342,7 @@ class IncomeStatementTest extends CIUnitTestCase
 
         $closing = $this->closeTheYearOfTheScenario();
 
-        (new JournalService())->reverse($closing, '2027-01-05', 'Reopen the year');
+        $this->reverseAClosing($closing, '2027-01-05');
 
         $january = $this->statement('2027-01-31', '2027-01-01', level: 3);
 
@@ -358,7 +358,7 @@ class IncomeStatementTest extends CIUnitTestCase
         $before  = $this->statement('2027-12-31', '2026-01-01', level: 3);
         $closing = $this->closeTheYearOfTheScenario();
 
-        (new JournalService())->reverse($closing, '2027-01-05', 'Correct the closing');
+        $this->reverseAClosing($closing, '2027-01-05');
         $this->closeTheYearOfTheScenario();
 
         $this->assertEquals($before, $this->statement('2027-12-31', '2026-01-01', level: 3));
@@ -370,7 +370,7 @@ class IncomeStatementTest extends CIUnitTestCase
 
         $before   = $this->statement('2027-12-31', '2026-01-01', level: 3);
         $closing  = $this->closeTheYearOfTheScenario();
-        $reversal = (new JournalService())->reverse($closing, '2027-01-05', 'Reopen the year');
+        $reversal = $this->reverseAClosing($closing, '2027-01-05');
 
         $this->reverseAReversal($reversal, '2027-01-06');
 

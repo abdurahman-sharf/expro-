@@ -61,6 +61,7 @@ class SensitivePermissionsTest extends CIUnitTestCase
             AccountingGuard::TREASURIES_MANAGE,
             AccountingGuard::PAYABLES_MANAGE,
             AccountingGuard::INTERBRANCH_SETTLE,
+            AccountingGuard::YEAR_END_CLOSE,
         ];
 
         foreach ($sensitive as $permissionId) {
@@ -85,6 +86,7 @@ class SensitivePermissionsTest extends CIUnitTestCase
                 AccountingGuard::TREASURIES_MANAGE,
                 AccountingGuard::PAYABLES_MANAGE,
                 AccountingGuard::INTERBRANCH_SETTLE,
+                AccountingGuard::YEAR_END_CLOSE,
             ],
             AccountingGuard::SENSITIVE,
         );
@@ -104,6 +106,14 @@ class SensitivePermissionsTest extends CIUnitTestCase
 
         $this->assertSame([AccountingGuard::JOURNALS_EDIT], $this->service->heldBy($editor));
         $this->assertSame([AccountingGuard::JOURNALS_EDIT], $this->holdersById()[$editor]['permissions']);
+    }
+
+    public function testHeldBy_ListsThePermissionToCloseTheYearAmongWhatAnEmployeeHolds(): void
+    {
+        $closer = $this->employeeWithGrants([AccountingGuard::YEAR_END_CLOSE, AccountingGuard::JOURNALS_POST]);
+
+        $this->assertSame([AccountingGuard::YEAR_END_CLOSE], $this->service->heldBy($closer));
+        $this->assertSame([AccountingGuard::YEAR_END_CLOSE], $this->holdersById()[$closer]['permissions']);
     }
 
     public function testHolders_ListsActiveEmployeesWithWhatTheyHoldAndWhereTheyMayWork(): void

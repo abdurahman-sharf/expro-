@@ -182,4 +182,17 @@ enum AccountingError: string
     case SettlementSameBranch       = 'settlement_same_branch';
     case SettlementTreasuryRequired = 'settlement_treasury_required';
     case InterBranchBranchesDenied  = 'interbranch_branches_denied';
+
+    case YearEndYearNotFound          = 'year_end_year_not_found';
+    case YearEndPeriodNotClosed       = 'year_end_period_not_closed';
+    case YearEndHasDrafts             = 'year_end_has_drafts';
+    case YearEndAlreadyClosed         = 'year_end_already_closed';
+    case YearEndAmountTooLarge        = 'year_end_amount_too_large';
+    case YearEndNothingToClose        = 'year_end_nothing_to_close';
+    case YearEndPreviewChanged        = 'year_end_preview_changed';
+    case YearEndNotFound              = 'year_end_not_found';
+    case YearEndAlreadyReversed       = 'year_end_already_reversed';
+    case YearEndClosedOut             = 'year_end_closed_out';
+    case YearEndJournalLocked         = 'year_end_journal_locked';
+    case YearEndRetainedEarningsUnset = 'year_end_retained_earnings_unset';
 }

@@ -32,6 +32,7 @@ return [
     'ledger_opening'          => '',
     'ledger_pick'             => '',
     'ledger_source'           => '',
+    'ledger_year_end'         => '',
     'next'                    => '',
     'no_branches'             => '',
     'nominal_note'            => '',
@@ -59,4 +60,7 @@ return [
     'type_movement'           => '',
     'type_totals_balances'    => '',
     'unbalanced'              => '',
+    'year_end_closing'        => '',
+    'year_end_closing_after'  => '',
+    'year_end_closing_before' => '',
 ];

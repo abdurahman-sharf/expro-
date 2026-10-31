@@ -12,7 +12,8 @@ use Config\Database;
  * order they happened, with the balance after each. An account that has accounts under it is
  * read with all of them, which is the statement of a customer's control account or of a whole
  * branch of the chart. The journals read are those in the books, a reversed journal with its
- * reversal.
+ * reversal. A line of the journal that closes a year is among them, and says what it is by its
+ * type.
  */
 final class AccountLedger
 {
@@ -55,6 +56,7 @@ final class AccountLedger
                 'series'              => $line->series === null ? null : (string) $line->series,
                 'number'              => $line->number === null ? null : (string) $line->number,
                 'source_type'         => (string) $line->source_type,
+                'entry_type'          => (string) $line->entry_type,
                 'reverses_journal_id' => $line->reverses_journal_id === null ? null : (int) $line->reverses_journal_id,
                 'description'         => (string) ($line->line_description ?? '') !== '' ? (string) $line->line_description : (string) ($line->journal_description ?? ''),
                 'debit'               => bcadd((string) $line->debit, '0', self::SCALE),
@@ -223,7 +225,7 @@ final class AccountLedger
     {
         return $this->ordered(
             $this->base($scope, $ids, $period)
-                ->select('l.line_id, l.journal_id, l.debit, l.credit, l.description AS line_description, j.description AS journal_description, j.journal_date, j.number, j.series, j.source_type, j.reverses_journal_id, b.code AS branch_code, a.code AS account_code, a.name AS account_name', false)
+                ->select('l.line_id, l.journal_id, l.debit, l.credit, l.description AS line_description, j.description AS journal_description, j.journal_date, j.number, j.series, j.source_type, j.entry_type, j.reverses_journal_id, b.code AS branch_code, a.code AS account_code, a.name AS account_name', false)
                 ->join('accounting_accounts a', 'a.account_id = l.account_id')
                 ->join('branches b', 'b.branch_id = j.branch_id'),
         )->limit($limit, $offset)->get()->getResult();

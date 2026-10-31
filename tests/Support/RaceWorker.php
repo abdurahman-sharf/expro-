@@ -9,6 +9,9 @@
  * Usage: php RaceWorker.php <method> <arg> [<arg> ...]
  */
 
+use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\OpeningBalanceService;
+use App\Libraries\Accounting\YearEndClosing;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use Config\Database;
@@ -161,6 +164,56 @@ $result = match ($method) {
         } catch (Throwable) {
             return false;
         }
+    })($args),
+    'yearEndClose' => (static function (array $args): bool {
+        try {
+            $service  = new YearEndClosing();
+            $branchId = $args[2] === 'company' ? null : (int) $args[2];
+            $preview  = $service->preview($branchId, (int) $args[1], (int) $args[0]);
+
+            $service->approve($branchId, (int) $args[1], $preview->fingerprint, (int) $args[0]);
+
+            return true;
+        } catch (Throwable) {
+            return false;
+        }
+    })($args),
+    'yearEndCloseOutcome' => (static function (array $args): never {
+        $service  = new YearEndClosing();
+        $branchId = $args[2] === 'company' ? null : (int) $args[2];
+
+        try {
+            $preview = $service->preview($branchId, (int) $args[1], (int) $args[0]);
+        } catch (Throwable $exception) {
+            echo 'preview ' . $exception->getMessage();
+
+            exit(0);
+        }
+
+        try {
+            $service->approve($branchId, (int) $args[1], $preview->fingerprint, (int) $args[0]);
+
+            echo 'closed';
+        } catch (AccountingException $exception) {
+            echo $exception->error->value;
+        } catch (Throwable $exception) {
+            echo get_class($exception) . ' ' . $exception->getMessage();
+        }
+
+        exit(0);
+    })($args),
+    'reverseOpeningBalanceOutcome' => (static function (array $args): never {
+        try {
+            (new OpeningBalanceService())->reverse((int) $args[0], (string) $args[1], 'race', (int) $args[2]);
+
+            echo 'reversed';
+        } catch (AccountingException $exception) {
+            echo $exception->error->value;
+        } catch (Throwable $exception) {
+            echo get_class($exception) . ' ' . $exception->getMessage();
+        }
+
+        exit(0);
     })($args),
     'editPurchaseLines' => model(App\Models\Receiving::class)->updateLines((int) $args[0], [App\Libraries\Accounting\ReceivingLineEdit::changing((int) $args[1], 0, ['quantity' => (string) $args[2]])], (int) $args[3]),
     'deletePurchase' => model(App\Models\Receiving::class)->delete_value((int) $args[0], (int) $args[1]),

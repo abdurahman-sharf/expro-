@@ -32,6 +32,7 @@ return [
     'ledger_opening'          => 'Opening balance',
     'ledger_pick'             => 'Choose an account',
     'ledger_source'           => 'Source',
+    'ledger_year_end'         => 'Year-end closing',
     'next'                    => 'Next',
     'no_branches'             => 'None of the branches asked for is one you work in, so there is nothing to add up.',
     'nominal_note'            => 'Revenue and expense accounts add up from the start of the books, not from the start of the fiscal year, until the closing of the year is decided.',
@@ -59,4 +60,7 @@ return [
     'type_movement'           => 'Opening, movement and closing',
     'type_totals_balances'    => 'Totals and balances',
     'unbalanced'              => 'The trial balance does not balance: total debit differs from total credit. Do not rely on it; tell the person who looks after the books.',
+    'year_end_closing'        => 'Year-end closing entry',
+    'year_end_closing_after'  => 'After the closing entry',
+    'year_end_closing_before' => 'Before the closing entry',
 ];

@@ -11,6 +11,7 @@ use App\Libraries\Accounting\OpeningBalanceService;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\Accounting\YearEndClosing;
 use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
 use CodeIgniter\Database\BaseConnection;
@@ -19,11 +20,15 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\ConcurrentDbRaceTrait;
+use Tests\Support\LockOrderTrait;
 
 class OpeningBalanceServiceTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
+    use ConcurrentDbRaceTrait;
+    use LockOrderTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -345,6 +350,141 @@ class OpeningBalanceServiceTest extends CIUnitTestCase
         $replacement = $this->service->post(1, $this->balancedLines('150.00'), false, $employee);
 
         $this->assertSame('2', (string) $this->accountingDb()->table('accounting_journals')->where('journal_id', $replacement)->get()->getRow()->revision);
+    }
+
+    public function testReverse_RefusesWhileTheBranchHasClosedOutTheYearOfTheOpeningAndAcceptsOnceTheClosingIsTakenBack(): void
+    {
+        $employee = $this->manager();
+        $original = $this->service->post(1, $this->balancedLines('100.00'), false, $employee);
+        (new JournalService())->postNew(['date' => '2026-06-10'] + $this->journalInput());
+        $this->closeThrough('2026-12-31');
+
+        $closer  = $this->employeeWithGrants([AccountingGuard::YEAR_END_CLOSE]);
+        $run     = new YearEndClosing();
+        $year    = (int) $this->accountingDb()->table('accounting_fiscal_years')->where('name', '2026')->get()->getRow()->fiscal_year_id;
+        $preview = $run->preview(1, $year, $closer);
+        $closing = $run->approve(1, $year, $preview->fingerprint, $closer)[0];
+        $counts  = $this->accountingDb()->table('accounting_journals')->countAllResults();
+
+        $failure = $this->assertFailsWith(AccountingError::YearEndClosedOut, fn () => $this->service->reverse(1, '2027-01-02', 'Wrong counts', $employee));
+
+        $this->assertSame(['name' => '2026', 'date' => '2026-12-31'], $failure->context);
+        $this->assertSame('posted', $this->accountingDb()->table('accounting_journals')->where('journal_id', $original)->get()->getRow()->status);
+        $this->assertSame($counts, $this->accountingDb()->table('accounting_journals')->countAllResults());
+
+        $run->reverse($closing, 'Back', $closer);
+
+        $this->assertGreaterThan(0, $this->service->reverse(1, '2027-01-02', 'Wrong counts', $employee));
+        $this->assertSame('reversed', $this->accountingDb()->table('accounting_journals')->where('journal_id', $original)->get()->getRow()->status);
+    }
+
+    public function testReverseOpening_SeesAClosingThatCommittedAfterTheSnapshotOfTheCaller(): void
+    {
+        $employee = $this->manager();
+        $original = $this->service->post(1, $this->balancedLines('100.00'), false, $employee);
+        (new JournalService())->postNew(['date' => '2026-06-10'] + $this->journalInput());
+        $this->closeThrough('2026-12-31');
+
+        $this->other = $this->openSecondConnection();
+        $this->startWithSnapshot($this->other);
+
+        $closer  = $this->employeeWithGrants([AccountingGuard::YEAR_END_CLOSE]);
+        $year    = (int) $this->accountingDb()->table('accounting_fiscal_years')->where('name', '2026')->get()->getRow()->fiscal_year_id;
+        $preview = (new YearEndClosing())->preview(1, $year, $closer);
+
+        (new YearEndClosing())->approve(1, $year, $preview->fingerprint, $closer);
+
+        $this->assertFailsWith(AccountingError::YearEndClosedOut, fn () => (new JournalService($this->other))->reverseOpening($original, '2027-01-02', 'Wrong counts', $employee));
+        $this->assertSame('posted', $this->accountingDb()->table('accounting_journals')->where('journal_id', $original)->get()->getRow()->status);
+    }
+
+    public function testReverseOpening_LocksTheJournalBeforeThePeriodLocks(): void
+    {
+        $employee = $this->manager();
+        $original = $this->service->post(1, $this->balancedLines('100.00'), false, $employee);
+
+        $order = $this->lockOrderOf(fn () => (new JournalService())->reverseOpening($original, '2026-10-22', 'Wrong counts', $employee));
+
+        $this->assertSame('journal', $order[0], 'The order of a reversal and of the edit of a journal: its row, then the period locks');
+        $this->assertContains('period', $order);
+    }
+
+    public function testReverse_WaitsForAClosingOfTheYearThatIsBeingWrittenAndIsRefusedOnceItIsThere(): void
+    {
+        $employee = $this->manager();
+        $original = $this->service->post(1, $this->balancedLines('100.00'), false, $employee);
+        (new JournalService())->postNew(['date' => '2026-06-10'] + $this->journalInput());
+        $this->closeThrough('2026-12-31');
+
+        $closer  = $this->employeeWithGrants([AccountingGuard::YEAR_END_CLOSE]);
+        $year    = (int) $this->accountingDb()->table('accounting_fiscal_years')->where('name', '2026')->get()->getRow()->fiscal_year_id;
+        $preview = (new YearEndClosing())->preview(1, $year, $closer);
+        $first   = $this->openSecondConnection(false);
+        $first->resetTransStatus();
+        $first->transStart();
+
+        try {
+            (new YearEndClosing($first))->approve(1, $year, $preview->fingerprint, $closer);
+
+            $worker  = $this->startRaceWorker('reverseOpeningBalanceOutcome', ['1', '2027-01-02', (string) $employee]);
+            $waiting = $this->raceWorkerIsRunning($worker);
+        } finally {
+            $first->transComplete();
+            $first->close();
+        }
+
+        $this->assertTrue($waiting, 'The reversal waits for the closing that holds the branch');
+        $this->assertSame('year_end_closed_out', $this->finishRaceWorker($worker), 'And finds the year closed out when it gets the branch');
+        $this->assertSame('posted', $this->accountingDb()->table('accounting_journals')->where('journal_id', $original)->get()->getRow()->status);
+    }
+
+    /**
+     * Posts the opening of the first branch, a sale of the branch in the year, closes the periods
+     * through the end of the year and closes the year out for the branch.
+     */
+    private function openingWithAClosedOutYear(string $year): void
+    {
+        $this->service->post(1, $this->balancedLines('100.00'), false, $this->manager());
+        (new JournalService())->postNew(['date' => "{$year}-06-10"] + $this->journalInput());
+        $this->closeThrough("{$year}-12-31");
+
+        $closer  = $this->employeeWithGrants([AccountingGuard::YEAR_END_CLOSE]);
+        $run     = new YearEndClosing();
+        $yearId  = (int) $this->accountingDb()->table('accounting_fiscal_years')->where('name', $year)->get()->getRow()->fiscal_year_id;
+        $preview = $run->preview(1, $yearId, $closer);
+
+        $run->approve(1, $yearId, $preview->fingerprint, $closer);
+    }
+
+    public function testReverse_AcceptsTheOpeningWhenTheYearThatIsClosedOutEndedBeforeIt(): void
+    {
+        $this->openingWithAClosedOutYear('2025');
+
+        $this->assertGreaterThan(0, $this->service->reverse(1, '2026-01-02', 'Wrong counts', $this->manager()));
+    }
+
+    public function testReverse_AcceptsTheOpeningWhenTheYearThatIsClosedOutStartedAfterIt(): void
+    {
+        $this->openingWithAClosedOutYear('2027');
+
+        $this->assertGreaterThan(0, $this->service->reverse(1, '2028-01-02', 'Wrong counts', $this->manager()));
+    }
+
+    public function testReverse_AcceptsTheOpeningOfABranchWhoseYearIsNotClosedOutWhenAnotherBranchClosedItsOwn(): void
+    {
+        $second   = $this->createBranch('B2');
+        $employee = $this->manager();
+        $this->service->post($second, $this->balancedLines('100.00'), false, $employee);
+        (new JournalService())->postNew(['date' => '2026-06-10', 'branch_id' => 1] + $this->journalInput());
+        $this->closeThrough('2026-12-31');
+
+        $closer  = $this->employeeWithGrants([AccountingGuard::YEAR_END_CLOSE]);
+        $run     = new YearEndClosing();
+        $year    = (int) $this->accountingDb()->table('accounting_fiscal_years')->where('name', '2026')->get()->getRow()->fiscal_year_id;
+        $preview = $run->preview(1, $year, $closer);
+        $run->approve(1, $year, $preview->fingerprint, $closer);
+
+        $this->assertGreaterThan(0, $this->service->reverse($second, '2027-01-02', 'Wrong counts', $employee));
     }
 
     public function testReverse_DoesNotNeedToBeTheCreatorOrHoldTheJournalPermissions(): void

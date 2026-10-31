@@ -7,4 +7,5 @@ enum JournalEntryType: string
     case General = 'general';
     case Revenue = 'revenue';
     case Cogs    = 'cogs';
+    case YearEnd = 'year_end';
 }

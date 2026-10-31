@@ -6,8 +6,12 @@ use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountLedger;
 use App\Libraries\Accounting\AccountLedgerReport;
+use App\Libraries\Accounting\JournalDraft;
+use App\Libraries\Accounting\JournalEntryType;
+use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\NormalBalance;
+use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\ReportPeriod;
 use App\Libraries\Accounting\ReportScope;
 use App\Libraries\Accounting\TrialBalance;
@@ -73,6 +77,44 @@ class AccountLedgerTest extends CIUnitTestCase
     private function lines(AccountLedgerReport $report): array
     {
         return array_map(static fn (array $row): string => $row['date'] . ' ' . $row['debit'] . ' ' . $row['credit'] . ' ' . $row['balance'], $report->rows);
+    }
+
+    private function closeTheYear(string $date, string $amount): int
+    {
+        return (new PostingService())->postYearEnd(new JournalDraft(
+            date: $date,
+            lines: [new JournalLineDraft($this->accountId('sales_revenue'), debit: $amount), new JournalLineDraft($this->accountId('retained_earnings'), credit: $amount)],
+            sourceType: 'year_end',
+            sourceId: random_int(1000, 9999),
+            currencyCode: 'SAR',
+            branchId: 1,
+            entryType: JournalEntryType::YearEnd,
+        ))->journalId;
+    }
+
+    public function testBuild_ShowsTheJournalThatClosesAYearAndSaysWhatItIsByItsType(): void
+    {
+        $this->cashSale('2026-10-05', 1, '100.00');
+        $closing = $this->closeTheYear('2026-12-31', '100.00');
+
+        $report = $this->statement('sales_revenue');
+
+        $this->assertSame(['general', 'year_end'], array_column($report->rows, 'entry_type'));
+        $this->assertSame($closing, $report->rows[1]['journal_id']);
+        $this->assertSame('year_end', $report->rows[1]['source_type']);
+        $this->assertSame('0.0000', $report->closing, 'The closing is counted, so the account stands at nothing after it');
+        $this->assertSame('100.0000', $this->statement('sales_revenue', '2026-12-30')->closing);
+    }
+
+    public function testBuild_TagsTheLineOfTheRetainedEarningsThatTheClosingWrote(): void
+    {
+        $this->cashSale('2026-10-05', 1, '100.00');
+        $this->closeTheYear('2026-12-31', '100.00');
+
+        $report = $this->statement('retained_earnings');
+
+        $this->assertSame(['year_end'], array_column($report->rows, 'entry_type'));
+        $this->assertSame('100.0000', $report->closing);
     }
 
     public function testBuild_ListsTheLinesOfAnAccountInTheOrderTheyHappenedWithTheBalanceAfterEach(): void

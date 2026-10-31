@@ -474,6 +474,23 @@ class AccountingSetupControllerTest extends CIUnitTestCase
         });
     }
 
+    public function testGetIndex_ListsWhoHoldsThePermissionToCloseTheYearUnderItsOwnName(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_settings']));
+
+        $this->whileNobodyHoldsSensitivePermissions(function (): void {
+            $accountant = $this->employeeWithGrants([AccountingGuard::YEAR_END_CLOSE]);
+
+            $response = $this->get('/accounting_settings');
+
+            $response->assertStatus(200);
+            $response->assertSee('sensitive_holders');
+            $response->assertSee(lang('Accounting_periods.year_end_close'));
+            $response->assertSee($this->usernameOf($accountant));
+            $response->assertDontSee(lang('Accounting_settings.holders_none'));
+        });
+    }
+
     public function testGetIndex_ListsEverySensitivePermissionOfTheGuardByName(): void
     {
         $this->actAs($this->employeeWithGrants(['accounting_settings']));

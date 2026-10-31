@@ -5,6 +5,7 @@ namespace Tests\Controllers;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\ClosedPeriodService;
 use App\Libraries\Accounting\JournalService;
+use App\Libraries\Accounting\YearEndClosing;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -278,6 +279,28 @@ class AccountingClosingsControllerTest extends CIUnitTestCase
         (new ClosedPeriodService())->close(null, $this->ago(30), '', $employee);
 
         $this->get('/accounting_periods/closings/reopen_form?scope=company')->assertSee('name="cutoff" value="' . $this->ago(30) . '"');
+    }
+
+    public function testPostReopen_RefusesWhileTheYearIsClosedOutAndSaysWhichYear(): void
+    {
+        $employee = $this->employeeWithGrants(['accounting_periods', AccountingGuard::PERIODS_CLOSE, AccountingGuard::PERIODS_REOPEN, AccountingGuard::YEAR_END_CLOSE]);
+        $this->actAs($employee);
+        (new JournalService())->postNew(['date' => '2023-05-10'] + $this->journalInput());
+        (new ClosedPeriodService())->close(null, '2023-12-31', 'Year', $employee);
+
+        $year    = (int) $this->accountingDb()->table('accounting_fiscal_years')->where('name', '2023')->get()->getRow()->fiscal_year_id;
+        $preview = (new YearEndClosing())->preview(null, $year, $employee);
+        $closing = (new YearEndClosing())->approve(null, $year, $preview->fingerprint, $employee)[0];
+
+        $result = $this->jsonOf($this->post('/accounting_periods/closings/reopen', ['scope' => 'company', 'reason' => 'Late invoice']));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_year_end_closed_out', ['2023', '2023-12-31']), $result['message']);
+        $this->assertSame('2023-12-31', (new ClosedPeriodService())->cutoff(null));
+
+        (new YearEndClosing())->reverse($closing, 'Back', $employee);
+
+        $this->assertTrue($this->jsonOf($this->post('/accounting_periods/closings/reopen', ['scope' => 'company', 'reason' => 'Late invoice']))['success']);
     }
 
     public function testPostReopen_RefusesAClosingThatChangedSinceTheDialogWasOpened(): void

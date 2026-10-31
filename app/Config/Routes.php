@@ -177,6 +177,12 @@ $routes->group('accounting_periods', static function (RouteCollection $routes): 
     $routes->get('opening/stock/reverse_form', 'AccountingOpening::getStockReverseForm');
     $routes->post('opening/stock/post', 'AccountingOpening::postStockPost');
     $routes->post('opening/stock/reverse', 'AccountingOpening::postStockReverse');
+
+    $routes->get('year_end', 'AccountingYearEnd::getIndex');
+    $routes->get('year_end/approve_form', 'AccountingYearEnd::getApproveForm');
+    $routes->post('year_end/approve', 'AccountingYearEnd::postApprove');
+    $routes->get('year_end/reverse_form/(:num)', 'AccountingYearEnd::getReverseForm/$1');
+    $routes->post('year_end/reverse/(:num)', 'AccountingYearEnd::postReverse/$1');
 });
 
 $routes->group('accounting_chart', static function (RouteCollection $routes): void {

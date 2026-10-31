@@ -10,6 +10,7 @@ use App\Libraries\Accounting\ReportPeriod;
 use App\Libraries\Accounting\ReportScope;
 use App\Libraries\Accounting\ReportScopeKind;
 use App\Libraries\Accounting\TrialBalance;
+use App\Libraries\Accounting\TrialBalanceClosing;
 use App\Libraries\Accounting\TrialBalanceType;
 use CodeIgniter\Exceptions\PageNotFoundException;
 
@@ -38,6 +39,7 @@ class AccountingReports extends AccountingController
     public function getIndex(): string
     {
         $type      = TrialBalanceType::fromRequest($this->query('type'));
+        $closing   = TrialBalanceClosing::fromRequest($this->query('closing'));
         $scope     = $this->scope();
         $expand    = $this->flag('entities');
         $showEmpty = $this->flag('empty');
@@ -56,8 +58,9 @@ class AccountingReports extends AccountingController
         $linkedFrom = $type->showsOpening() ? $this->query('from') : '';
 
         return view('accounting_reports/trial_balance', [
-            'report'       => $this->trialBalance->build($scope, $counted, $expand, $showEmpty),
+            'report'       => $this->trialBalance->build($scope, $counted, $expand, $showEmpty, closing: $closing),
             'type'         => $type,
+            'closing'      => $closing,
             'error'        => $error,
             'from_ignored' => $ignored,
             'filters'      => $this->filterValues($scope),

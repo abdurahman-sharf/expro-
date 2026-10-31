@@ -4,6 +4,7 @@ namespace Tests\Support;
 
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\JournalDraft;
+use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\TreasuryService;
@@ -24,14 +25,14 @@ trait StatementFixtureTrait
     private int $yearEndSourceId = 700000;
 
     /**
-     * Posts the journal that closes a year: its source is the one the statements leave out of the
-     * income statement.
+     * Posts a journal that closes a year the way the closing of the year writes one: with the type
+     * the statements leave out of the income statement, the lines being whatever the test needs.
      *
      * @param list<array{int, string, string}> $lines
      */
     protected function postYearEnd(string $date, int $branchId, array $lines): int
     {
-        return (new PostingService())->post(new JournalDraft(
+        return (new PostingService())->postYearEnd(new JournalDraft(
             date: $date,
             lines: array_map(static fn (array $line): JournalLineDraft => new JournalLineDraft($line[0], debit: $line[1], credit: $line[2]), $lines),
             sourceType: YearEndEntries::SOURCE_TYPE,
@@ -39,7 +40,37 @@ trait StatementFixtureTrait
             description: 'Closing of the year',
             currencyCode: 'SAR',
             branchId: $branchId,
+            entryType: JournalEntryType::YearEnd,
         ))->journalId;
+    }
+
+    /**
+     * Takes a journal that closes a year back the way books written before the type year_end existed
+     * hold one: a reversal of the ordinary kind that names the closing, which the year-end screen
+     * itself no longer writes. The statements must leave it out with the closing it takes back.
+     */
+    protected function reverseAClosing(int $closingId, string $date): int
+    {
+        $closing = $this->accountingDb()->table('accounting_journals')->where('journal_id', $closingId)->get()->getRow();
+        $lines   = array_map(
+            static fn (object $line): JournalLineDraft => new JournalLineDraft((int) $line->account_id, debit: $line->credit, credit: $line->debit),
+            $this->accountingDb()->table('accounting_journal_lines')->where('journal_id', $closingId)->get()->getResult(),
+        );
+
+        $reversal = (new PostingService())->post(new JournalDraft(
+            date: $date,
+            lines: $lines,
+            sourceType: JournalDraft::SOURCE_REVERSAL,
+            sourceId: $closingId,
+            description: 'Reversal of the closing',
+            currencyCode: 'SAR',
+            reversesJournalId: $closingId,
+            branchId: (int) $closing->branch_id,
+        ))->journalId;
+
+        $this->accountingDb()->table('accounting_journals')->where('journal_id', $closingId)->update(['status' => 'reversed']);
+
+        return $reversal;
     }
 
     /**

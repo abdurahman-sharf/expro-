@@ -23,6 +23,7 @@ class AccountingSetup extends AccountingController
         AccountingGuard::TREASURIES_MANAGE  => 'Accounting_treasuries.treasuries_manage',
         AccountingGuard::PAYABLES_MANAGE    => 'Accounting_payables.payables_manage',
         AccountingGuard::INTERBRANCH_SETTLE => 'Accounting_treasuries.interbranch_settle',
+        AccountingGuard::YEAR_END_CLOSE     => 'Accounting_periods.year_end_close',
     ];
 
     private AccountingSettings $settings;

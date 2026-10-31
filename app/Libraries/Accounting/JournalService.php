@@ -366,7 +366,9 @@ final class JournalService
     /**
      * Reverses an opening balance journal. The caller has already checked the permission to
      * manage opening balances and that the branch is within the employee's scope, so the
-     * journal does not have to be the employee's own.
+     * journal does not have to be the employee's own. It is refused while the branch has closed
+     * out the year the journal lies in. The journal is locked before the period locks, as
+     * updateDetails() and a reversal take them.
      *
      * @throws AccountingException|PostingException
      */
@@ -380,7 +382,19 @@ final class JournalService
 
         (new TreasuryScopes($this->db))->assertMayReverse($journalId, $employeeId);
 
-        return $this->reverseJournal($journalId, $date, $reason, $employeeId, false);
+        return $this->transactional(function () use ($journalId, $date, $reason, $employeeId): int {
+            $table   = $this->db->prefixTable('accounting_journals');
+            $opening = LockedRead::row($this->db, "SELECT branch_id, journal_date FROM {$table} WHERE journal_id = ? FOR UPDATE", [$journalId]);
+
+            if ($opening === null) {
+                throw new AccountingException(AccountingError::JournalNotFound, "Journal {$journalId} does not exist.");
+            }
+
+            (new PeriodLocks($this->db))->shareForPosting((int) $opening->branch_id);
+            (new ClosedOutYears($this->db))->assertNotClosedOut((int) $opening->branch_id, (string) $opening->journal_date);
+
+            return $this->reverseJournal($journalId, $date, $reason, $employeeId, false);
+        });
     }
 
     /**
@@ -495,6 +509,10 @@ final class JournalService
 
                 if (in_array($original->source_type, self::DOCUMENT_SOURCES, true)) {
                     throw new AccountingException(AccountingError::DocumentJournalLocked, 'The journal of an expense or a cash-up is taken back by deleting it or changing it.', ['journal_id' => $journalId]);
+                }
+
+                if (YearEndEntries::marks((string) $original->entry_type, (string) $original->source_type)) {
+                    throw new AccountingException(AccountingError::YearEndJournalLocked, 'The journal that closes a year is taken back from the year-end screen.', ['journal_id' => $journalId]);
                 }
             }
 

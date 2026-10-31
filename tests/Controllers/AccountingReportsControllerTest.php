@@ -3,6 +3,10 @@
 namespace Tests\Controllers;
 
 use App\Libraries\Accounting\EntityAccountService;
+use App\Libraries\Accounting\JournalDraft;
+use App\Libraries\Accounting\JournalEntryType;
+use App\Libraries\Accounting\JournalLineDraft;
+use App\Libraries\Accounting\PostingService;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -780,5 +784,70 @@ class AccountingReportsControllerTest extends CIUnitTestCase
 
         $response->assertSee('id="ledger_empty"');
         $response->assertSee('id="ledger_summary"');
+    }
+
+    private function closeTheYear(string $date = '2026-12-31', string $amount = '1111.00'): void
+    {
+        (new PostingService())->postYearEnd(new JournalDraft(
+            date: $date,
+            lines: [new JournalLineDraft($this->accountId('sales_revenue'), debit: $amount), new JournalLineDraft($this->accountId('retained_earnings'), credit: $amount)],
+            sourceType: 'year_end',
+            sourceId: random_int(1000, 9999),
+            currencyCode: 'SAR',
+            branchId: 1,
+            entryType: JournalEntryType::YearEnd,
+        ));
+    }
+
+    public function testGetIndex_ShowsTheTrialBalanceBeforeTheClosingEntryUnlessAskedForTheOneAfterIt(): void
+    {
+        $this->cashSale('2026-10-05', 1, '1111.00');
+        $this->closeTheYear();
+        $this->viewer();
+
+        $default = $this->get('/accounting_reports?to=2026-12-31');
+        $before  = $this->get('/accounting_reports?to=2026-12-31&closing=before');
+        $after   = $this->get('/accounting_reports?to=2026-12-31&closing=after');
+
+        $default->assertStatus(200);
+        $default->assertSee('<option value="before" selected>');
+        $default->assertSee('<option value="after">');
+        $default->assertSee('id="f_closing"');
+        $default->assertDontSee('data-account="32"');
+        $default->assertSee('data-account="411"');
+        $this->assertSame($this->accountRowsOf($default), $this->accountRowsOf($before), 'Without the option the trial balance is the one before the closing');
+
+        $after->assertSee('<option value="after" selected>');
+        $after->assertSee('data-account="32"');
+        $after->assertSee('id="report_balanced"');
+    }
+
+    public function testGetIndex_FallsBackToTheTrialBalanceBeforeTheClosingForAnOptionItDoesNotKnow(): void
+    {
+        $this->cashSale('2026-10-05', 1, '1111.00');
+        $this->closeTheYear();
+        $this->viewer();
+
+        $response = $this->get('/accounting_reports?to=2026-12-31&closing=whenever');
+
+        $response->assertSee('<option value="before" selected>');
+        $response->assertDontSee('data-account="32"');
+    }
+
+    public function testGetLedger_LabelsTheLineOfTheJournalThatClosesAYear(): void
+    {
+        $this->cashSale('2026-10-05', 1, '1111.00');
+        $this->closeTheYear();
+        $this->viewer();
+
+        $response = $this->get('/accounting_reports/ledger?account=' . $this->accountId('sales_revenue') . '&to=2026-12-31');
+
+        $response->assertSee('acc-year-end-tag');
+        $response->assertSee(lang('Accounting_reports.ledger_year_end'));
+        $this->assertSame(1, substr_count($response->getBody(), 'acc-year-end-tag'), 'Only the closing line carries the label');
+
+        $other = $this->get('/accounting_reports/ledger?account=' . $this->accountId('cash') . '&to=2026-12-31');
+
+        $other->assertDontSee('acc-year-end-tag');
     }
 }

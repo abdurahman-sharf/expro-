@@ -7,6 +7,7 @@
  * @var array{from: string, to: string, branches: list<int>} $filters
  * @var bool                                                 $expand
  * @var bool                                                 $show_empty
+ * @var TrialBalanceClosing                                  $closing
  * @var list<object>                                         $branches
  * @var string|null                                          $scope_label
  * @var ReportScopeKind                                      $scope_kind
@@ -16,6 +17,7 @@
  */
 
 use App\Libraries\Accounting\ReportScopeKind;
+use App\Libraries\Accounting\TrialBalanceClosing;
 use App\Libraries\Accounting\TrialBalanceReport;
 use App\Libraries\Accounting\TrialBalanceRow;
 use App\Libraries\Accounting\TrialBalanceType;
@@ -64,6 +66,14 @@ $span = $type->showsOpening() ? 8 : ($type->showsMovement() ? 6 : 4);
         <div class="acc-filter">
             <label class="form-label" for="f_to"><?= lang('Accounting_reports.to') ?></label>
             <input type="date" id="f_to" name="to" class="form-control form-control-sm" value="<?= esc($filters['to'], 'attr') ?>">
+        </div>
+        <div class="acc-filter">
+            <label class="form-label" for="f_closing"><?= lang('Accounting_reports.year_end_closing') ?></label>
+            <select id="f_closing" name="closing" class="form-select form-select-sm">
+                <?php foreach (TrialBalanceClosing::cases() as $option): ?>
+                    <option value="<?= esc($option->value, 'attr') ?>"<?= $option === $closing ? ' selected' : '' ?>><?= lang('Accounting_reports.year_end_closing_' . $option->value) ?></option>
+                <?php endforeach; ?>
+            </select>
         </div>
         <fieldset class="acc-filter acc-filter-status">
             <legend class="form-label"><?= lang('Accounting_reports.show') ?></legend>

@@ -10,6 +10,7 @@ use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\PeriodGuard;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\Accounting\YearEndClosing;
 use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
 use CodeIgniter\Database\BaseConnection;
@@ -329,6 +330,122 @@ class ClosedPeriodServiceTest extends CIUnitTestCase
 
         $this->assertSame($this->ago(30), $this->service->cutoff(null));
         $this->assertNull($this->service->cutoff(1));
+    }
+
+    private function yearId(string $name): int
+    {
+        return (int) $this->accountingDb()->table('accounting_fiscal_years')->where('name', $name)->get()->getRow()->fiscal_year_id;
+    }
+
+    /**
+     * Closes the year at the branch, which needs a movement in it, and returns the closing.
+     */
+    private function closeOutYear(string $name, ?int $branchId, string $date): int
+    {
+        $this->postOn($date, $branchId ?? 1);
+
+        $closer = $this->employeeWithGrants([AccountingGuard::YEAR_END_CLOSE]);
+        $run    = new YearEndClosing();
+        $period = $this->closer();
+
+        $this->service->close(null, "{$name}-12-31", 'Year', $period);
+
+        $preview = $run->preview($branchId, $this->yearId($name), $closer);
+
+        return $run->approve($branchId, $this->yearId($name), $preview->fingerprint, $closer)[0];
+    }
+
+    public function testReopen_RefusesWhileTheYearItClosesIsClosedOutAndAcceptsOnceTheClosingIsTakenBack(): void
+    {
+        $employee = $this->closer();
+        $closing  = $this->closeOutYear('2023', 1, '2023-05-10');
+
+        $failure = $this->assertFailsWith(AccountingError::YearEndClosedOut, fn () => $this->service->reopen(null, 'Late invoice', $employee));
+
+        $this->assertSame(['name' => '2023', 'date' => '2023-12-31'], $failure->context);
+        $this->assertSame('2023-12-31', $this->service->cutoff(null), 'The periods stay closed');
+        $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where('action', 'period_reopened')->countAllResults());
+
+        (new YearEndClosing())->reverse($closing, 'Back', $this->employeeWithGrants([AccountingGuard::YEAR_END_CLOSE]));
+
+        $this->service->reopen(null, 'Late invoice', $employee);
+
+        $this->assertNull($this->service->cutoff(null));
+    }
+
+    public function testReopen_AcceptsTheLatestClosingWhenAnEarlierOneStillCoversTheClosedOutYear(): void
+    {
+        $employee = $this->closer();
+        $this->closeOutYear('2023', 1, '2023-05-10');
+        $this->service->close(null, '2024-03-31', 'Quarter', $employee);
+
+        $this->service->reopen(null, 'Late invoice', $employee);
+
+        $this->assertSame('2023-12-31', $this->service->cutoff(null));
+    }
+
+    public function testReopen_RefusesTheOnlyClosingThatCoversAClosedOutYearEvenWhenItEndsLater(): void
+    {
+        $employee = $this->closer();
+        $this->postOn('2023-05-10');
+        $this->service->close(null, '2024-03-31', 'Through the quarter', $employee);
+
+        $closer  = $this->employeeWithGrants([AccountingGuard::YEAR_END_CLOSE]);
+        $run     = new YearEndClosing();
+        $preview = $run->preview(1, $this->yearId('2023'), $closer);
+        $run->approve(1, $this->yearId('2023'), $preview->fingerprint, $closer);
+
+        $this->assertFailsWith(AccountingError::YearEndClosedOut, fn () => $this->service->reopen(null, 'Late invoice', $employee));
+        $this->assertSame('2024-03-31', $this->service->cutoff(null));
+    }
+
+    public function testReopen_OfABranchClosingIsAcceptedWhileTheCompanyStillCoversTheClosedOutYear(): void
+    {
+        $employee = $this->closer();
+        $this->closeOutYear('2023', 1, '2023-05-10');
+        $this->service->close(1, '2023-12-31', 'Branch', $employee);
+
+        $this->service->reopen(1, 'Branch fix', $employee);
+
+        $this->assertNull($this->service->cutoff(1));
+        $this->assertSame('2023-12-31', $this->service->cutoff(null));
+    }
+
+    public function testReopen_OfABranchClosingIsRefusedWhenNothingElseCoversTheClosedOutYear(): void
+    {
+        $employee = $this->closer();
+        $this->closeOutYear('2023', 1, '2023-05-10');
+        $this->service->close(1, '2023-12-31', 'Branch', $employee);
+        $this->accountingDb()->table('accounting_closed_periods')->where('branch_id IS NULL', null, false)->update(['active' => 0]);
+
+        $this->assertFailsWith(AccountingError::YearEndClosedOut, fn () => $this->service->reopen(1, 'Branch fix', $employee));
+        $this->assertSame('2023-12-31', $this->service->cutoff(1));
+    }
+
+    public function testReopen_OfABranchClosingIsAcceptedWhenAnEarlierClosingOfTheBranchStillCoversTheClosedOutYear(): void
+    {
+        $employee = $this->closer();
+        $this->closeOutYear('2023', 1, '2023-05-10');
+        $this->service->close(1, '2023-12-31', 'Branch', $employee);
+        $this->service->close(1, '2024-03-31', 'Branch quarter', $employee);
+        $this->accountingDb()->table('accounting_closed_periods')->where('branch_id IS NULL', null, false)->update(['active' => 0]);
+
+        $this->service->reopen(1, 'Branch fix', $employee);
+
+        $this->assertSame('2023-12-31', $this->service->cutoff(1));
+    }
+
+    public function testReopen_OfABranchClosingIsAcceptedWhenTheYearOfAnotherBranchIsClosedOut(): void
+    {
+        $second   = $this->createBranch('B2');
+        $employee = $this->closer();
+        $this->closeOutYear('2023', 1, '2023-05-10');
+        $this->service->close($second, '2023-12-31', 'Branch', $employee);
+        $this->accountingDb()->table('accounting_closed_periods')->where('branch_id IS NULL', null, false)->update(['active' => 0]);
+
+        $this->service->reopen($second, 'Other branch fix', $employee);
+
+        $this->assertNull($this->service->cutoff($second));
     }
 
     public function testReopen_RequiresAReason(): void

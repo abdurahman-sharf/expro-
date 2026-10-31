@@ -194,6 +194,10 @@ final class FiscalYearService
             }
 
             if (isset($changes['start_date']) || isset($changes['end_date'])) {
+                if ((new ClosedOutYears($this->db))->hasActiveIn($fiscalYearId)) {
+                    throw new AccountingException(AccountingError::YearEndClosedOut, 'The year is closed out. Take its closing back before its dates change.', ['name' => $year->name, 'date' => $year->end_date]);
+                }
+
                 $this->assertDatesCanChange($year, $fields['start_date'], $fields['end_date']);
             }
 
