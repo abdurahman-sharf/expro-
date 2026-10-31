@@ -261,4 +261,36 @@ final class ClosedOutYearsTest extends CIUnitTestCase
         $this->years->assertNotClosedOut($this->second, '2025-06-30');
         $this->years->assertNotClosedOut($this->second, '2024-06-30');
     }
+
+    public function testAssertNotClosedOut_SeesAClosingThatCommittedAfterTheSnapshotOfTheCaller(): void
+    {
+        $other = $this->openSecondConnection();
+        $this->startWithSnapshot($other);
+        $this->insertClosing(1, '2025');
+
+        try {
+            (new ClosedOutYears($other))->assertNotClosedOut(1, '2025-06-30');
+            $this->fail('The closing was written after the snapshot of the caller, and the year is closed out all the same.');
+        } catch (AccountingException $refusal) {
+            $this->assertSame(AccountingError::YearEndClosedOut, $refusal->error);
+        } finally {
+            $other->transRollback();
+            $other->close();
+        }
+    }
+
+    public function testCovering_ReadsWhatTheSnapshotOfTheCallerHoldsUnlessItIsAskedToLock(): void
+    {
+        $other = $this->openSecondConnection();
+        $this->startWithSnapshot($other);
+        $this->insertClosing(1, '2025');
+
+        try {
+            $this->assertNull((new ClosedOutYears($other))->covering(1, '2025-06-30'));
+            $this->assertNotNull((new ClosedOutYears($other))->covering(1, '2025-06-30', true));
+        } finally {
+            $other->transRollback();
+            $other->close();
+        }
+    }
 }

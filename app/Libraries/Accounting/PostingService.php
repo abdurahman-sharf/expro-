@@ -78,7 +78,7 @@ final class PostingService
      */
     public function post(JournalDraft $draft): PostingResult
     {
-        if (! $this->yearEndRelief && ($draft->entryType === JournalEntryType::YearEnd || $draft->sourceType === YearEndEntries::SOURCE_TYPE)) {
+        if (! $this->yearEndRelief && YearEndEntries::marks($draft->entryType->value, $draft->sourceType)) {
             throw new PostingException(PostingError::InvalidSource, 'The journal that closes a year is written only by the closing of the year.', ['source_type' => $draft->sourceType]);
         }
 

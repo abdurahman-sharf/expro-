@@ -14,6 +14,7 @@ use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Accounting\TreasuryTransfers;
+use App\Libraries\Accounting\YearEndClosing;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\HTTP\ResponseInterface;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -350,6 +351,60 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
             $page->assertDontSee('accounting_journals/reverse_form/' . $journalId);
             $page->assertSee(lang('Accounting.source_' . $source));
         }
+    }
+
+    /**
+     * @return array{closing: int, reversal: int} The journal that closes 2025 and the one that takes the closing back.
+     */
+    private function closedAndReopenedYear(): array
+    {
+        (new JournalService())->postNew(['date' => '2025-05-10'] + $this->journalInput('100.00'));
+        $this->closeThrough('2025-12-31');
+
+        $closer  = $this->employeeWithGrants([AccountingGuard::YEAR_END_CLOSE]);
+        $run     = new YearEndClosing();
+        $year    = (int) $this->accountingDb()->table('accounting_fiscal_years')->where('name', '2025')->get()->getRow()->fiscal_year_id;
+        $preview = $run->preview(null, $year, $closer);
+        $id      = $run->approve(null, $year, $preview->fingerprint, $closer)[0];
+
+        return [
+            'closing'  => (int) $this->accountingDb()->table('accounting_year_end_closings')->where('closing_id', $id)->get()->getRow()->journal_id,
+            'reversal' => $run->reverse($id, 'Back', $closer),
+        ];
+    }
+
+    public function testGetView_HidesTheReverseButtonOfTheJournalThatClosesAYearAndNamesIt(): void
+    {
+        $journals = $this->closedAndReopenedYear();
+        $this->accountant();
+
+        $page = $this->get('/accounting_journals/view/' . $journals['closing']);
+
+        $page->assertStatus(200);
+        $page->assertDontSee('accounting_journals/reverse_form/' . $journals['closing']);
+        $page->assertSee(lang('Accounting.source_year_end'));
+        $page->assertDontSee(lang('Accounting.source_year_end') . ' — ' . lang('Accounting.entry_year_end'));
+    }
+
+    public function testGetView_NamesTheReversalOfAClosingAsTheReversalOfAYearEndClosing(): void
+    {
+        $journals = $this->closedAndReopenedYear();
+        $this->accountant();
+
+        $this->get('/accounting_journals/view/' . $journals['reversal'])->assertSee(lang('Accounting.source_reversal') . ' — ' . lang('Accounting.entry_year_end'));
+    }
+
+    public function testGetAuditSearch_NamesTheActionsAndTheEntityOfAYearEndClosing(): void
+    {
+        $this->closedAndReopenedYear();
+        $this->accountant();
+
+        $rows = $this->jsonOf($this->get('/accounting_journals/audit/search?order=asc&limit=100'))['rows'];
+
+        $this->assertContains(lang('Accounting.action_year_end_closed'), array_column($rows, 'action'));
+        $this->assertContains(lang('Accounting.action_year_end_reversed'), array_column($rows, 'action'));
+        $this->assertContains(lang('Accounting.entity_year_end_closing'), array_map(static fn (string $cell): string => trim(explode('<bdi', $cell)[0]), array_column($rows, 'entity')));
+        $this->assertNotContains('year_end_closed', array_column($rows, 'action'));
     }
 
     public function testGetView_HidesTheReverseButtonWithoutThePermission(): void

@@ -7,19 +7,29 @@ use CodeIgniter\Database\BaseConnection;
 
 /**
  * The journals that close a year by moving the result of its revenue and expense accounts to
- * retained earnings. A report of a period leaves them out, so a year reads the same before and
- * after it is closed, and the balance sheet keeps them. A journal is one of them by its type, the
- * single definition: every journal of the closing of a year is written with the type year_end by
+ * retained earnings. The books ask two questions about them, each answered in one place.
+ *
+ * Which journals a report leaves out, so a year reads the same before and after it is closed while
+ * the balance sheet keeps them: leaveOut(), the single definition of the reports, which is the type
+ * year_end. Every journal of the closing of a year is written with that type by
  * PostingService::postYearEnd, the closing and its reversal alike, and nothing else can be written
- * with it. The source year_end names the document of the closing and plays no part in telling the
- * journals apart. The reversal of one, and the reversal of that reversal, goes with it: a closing
- * taken back is left out as a pair, whereas the reversal of any other journal is counted like the
- * journal itself.
+ * with it. The reversal of one, and the reversal of that reversal, goes with it: a closing taken
+ * back is left out as a pair, whereas the reversal of any other journal is counted like the journal
+ * itself.
+ *
+ * Which journals the books refuse to write or to reverse outside the closing of the year: marks(),
+ * the single definition of the refusals, which is wider on purpose: the type or the source
+ * year_end, so a journal that only looks like a closing is never written or taken back by other means.
  */
 final class YearEndEntries
 {
     public const SOURCE_TYPE = 'year_end';
     public const ENTRY_TYPE  = 'year_end';
+
+    public static function marks(string $entryType, string $sourceType): bool
+    {
+        return $entryType === self::ENTRY_TYPE || $sourceType === self::SOURCE_TYPE;
+    }
 
     public static function leaveOut(BaseBuilder $builder, BaseConnection $db, string $journalAlias = 'j'): BaseBuilder
     {

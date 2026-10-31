@@ -223,6 +223,7 @@ return [
     'error_write_failed'                         => 'The change could not be saved and nothing was changed.',
     'error_year_end_already_closed'              => 'The year {0} is already closed for these branches. Take the closing back first to close it again.',
     'error_year_end_already_reversed'            => 'The closing is already taken back.',
+    'error_year_end_amount_too_large'            => 'The year-end closing of branch {1} would be a journal of more than {0}, the most a journal can hold, so this year cannot be closed for the branch in the books as they are.',
     'error_year_end_closed_out'                  => 'The year {0}, which ends on {1}, is closed out. Take its year-end closing back first.',
     'error_year_end_has_drafts'                  => 'The year {0} still holds {1} draft journal(s). Post or delete them first.',
     'error_year_end_journal_locked'              => 'A journal that closes a year is taken back from the year-end screen, not from the journals.',

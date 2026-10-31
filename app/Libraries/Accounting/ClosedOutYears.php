@@ -40,18 +40,21 @@ final class ClosedOutYears
             ->countAllResults() > 0;
     }
 
-    public function covering(int $branchId, string $date): ?object
+    /**
+     * With $locked the closing is read under a shared lock, so the answer is what is committed now
+     * and not what the snapshot of a caller already inside a transaction holds.
+     */
+    public function covering(int $branchId, string $date, bool $locked = false): ?object
     {
-        return $this->db->table('accounting_year_end_closings c')
-            ->select('c.*, y.name AS year_name')
-            ->join('accounting_fiscal_years y', 'y.fiscal_year_id = c.fiscal_year_id')
-            ->where('c.company_id', CompanyContext::id())
-            ->where('c.branch_id', $branchId)
-            ->where('c.status', 'active')
-            ->where('c.period_from <=', $date)
-            ->where('c.period_to >=', $date)
-            ->get()
-            ->getRow();
+        $table   = $this->db->prefixTable('accounting_year_end_closings');
+        $mode    = $locked ? ' LOCK IN SHARE MODE' : '';
+        $closing = LockedRead::row($this->db, "SELECT * FROM {$table} WHERE company_id = ? AND branch_id = ? AND status = 'active' AND period_from <= ? AND period_to >= ?{$mode}", [CompanyContext::id(), $branchId, $date, $date]);
+
+        if ($closing !== null) {
+            $closing->year_name = (string) ($this->db->table('accounting_fiscal_years')->select('name')->where('fiscal_year_id', (int) $closing->fiscal_year_id)->get()->getRow()->name ?? '');
+        }
+
+        return $closing;
     }
 
     /**
@@ -82,11 +85,13 @@ final class ClosedOutYears
     }
 
     /**
+     * The caller holds the period locks of the branch, and the closing is read under them.
+     *
      * @throws AccountingException
      */
     public function assertNotClosedOut(int $branchId, string $date): void
     {
-        $closing = $this->covering($branchId, $date);
+        $closing = $this->covering($branchId, $date, true);
 
         if ($closing !== null) {
             throw new AccountingException(AccountingError::YearEndClosedOut, "The year of {$date} is closed out for the branch. Take the closing back first.", ['name' => $closing->year_name, 'date' => $closing->period_to]);

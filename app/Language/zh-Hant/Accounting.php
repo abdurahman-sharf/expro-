@@ -223,6 +223,7 @@ return [
     'error_write_failed'                         => '',
     'error_year_end_already_closed'              => '',
     'error_year_end_already_reversed'            => '',
+    'error_year_end_amount_too_large'            => '',
     'error_year_end_closed_out'                  => '',
     'error_year_end_has_drafts'                  => '',
     'error_year_end_journal_locked'              => '',

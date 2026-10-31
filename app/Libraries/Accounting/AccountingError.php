@@ -187,6 +187,7 @@ enum AccountingError: string
     case YearEndPeriodNotClosed       = 'year_end_period_not_closed';
     case YearEndHasDrafts             = 'year_end_has_drafts';
     case YearEndAlreadyClosed         = 'year_end_already_closed';
+    case YearEndAmountTooLarge        = 'year_end_amount_too_large';
     case YearEndNothingToClose        = 'year_end_nothing_to_close';
     case YearEndPreviewChanged        = 'year_end_preview_changed';
     case YearEndNotFound              = 'year_end_not_found';

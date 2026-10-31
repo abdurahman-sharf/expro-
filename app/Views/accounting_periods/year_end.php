@@ -13,7 +13,6 @@
  * @var Closure               $amount
  * @var Closure               $date
  * @var Closure               $status_text
- * @var string                $return_url
  */
 
 use App\Libraries\Accounting\YearEndBranchPlan;

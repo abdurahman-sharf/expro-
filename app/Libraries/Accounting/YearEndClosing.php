@@ -31,8 +31,9 @@ final class YearEndClosing
 {
     use RunsInTransaction;
 
-    private const SCALE      = 4;
-    private const REASON_MAX = 255;
+    private const SCALE          = 4;
+    private const REASON_MAX     = 255;
+    private const LARGEST_AMOUNT = '99999999999.9999';
 
     private BaseConnection $db;
     private AuditLog $audit;
@@ -54,31 +55,27 @@ final class YearEndClosing
     }
 
     /**
-     * The years that have ended, the latest first, with whether the company has closed its periods
-     * through the last day and how many closings of the year are active.
+     * The years that have ended, the latest first, with how many closings of the year are active in
+     * the branches the employee may see.
      *
      * @return list<object>
      */
-    public function years(): array
+    public function years(?int $employeeId): array
     {
-        $cutoff   = $this->companyCutoff(false);
-        $years    = $this->db->prefixTable('accounting_fiscal_years');
-        $closings = $this->db->prefixTable('accounting_year_end_closings');
+        $years  = $this->db->table('accounting_fiscal_years')
+            ->select('fiscal_year_id, name, start_date, end_date')
+            ->where('company_id', CompanyContext::id())
+            ->where('end_date <', date('Y-m-d'))
+            ->orderBy('start_date', 'DESC')
+            ->get()
+            ->getResult();
+        $counts = $this->activeClosingsByYear($employeeId);
 
-        $rows = $this->db->query(
-            "SELECT y.fiscal_year_id, y.name, y.start_date, y.end_date,
-                (SELECT COUNT(*) FROM {$closings} c WHERE c.fiscal_year_id = y.fiscal_year_id AND c.status = 'active') AS closing_count
-             FROM {$years} y
-             WHERE y.company_id = ? AND y.end_date < ?
-             ORDER BY y.start_date DESC",
-            [CompanyContext::id(), date('Y-m-d')],
-        )->getResult();
-
-        foreach ($rows as $row) {
-            $row->period_closed = $cutoff !== null && $cutoff >= $row->end_date;
+        foreach ($years as $year) {
+            $year->closing_count = $counts[(int) $year->fiscal_year_id] ?? 0;
         }
 
-        return $rows;
+        return $years;
     }
 
     /**
@@ -163,6 +160,9 @@ final class YearEndClosing
         $this->branches->requireBranch((int) $known->branch_id, $employeeId);
 
         return $this->transactional(function () use ($closingId, $reason, $employeeId, $known): int {
+            $journals = $this->db->prefixTable('accounting_journals');
+            $original = LockedRead::row($this->db, "SELECT * FROM {$journals} WHERE journal_id = ? FOR UPDATE", [(int) $known->journal_id]);
+
             $this->locks->holdBranch((int) $known->branch_id);
 
             $table   = $this->db->prefixTable('accounting_year_end_closings');
@@ -171,9 +171,6 @@ final class YearEndClosing
             if ($closing === null || $closing->status !== 'active') {
                 throw new AccountingException(AccountingError::YearEndAlreadyReversed, 'The closing is already taken back.');
             }
-
-            $journals = $this->db->prefixTable('accounting_journals');
-            $original = LockedRead::row($this->db, "SELECT * FROM {$journals} WHERE journal_id = ? FOR UPDATE", [(int) $closing->journal_id]);
 
             if ($original === null || $original->status !== JournalStatus::Posted->value) {
                 throw new AccountingException(AccountingError::NotPosted, 'The journal of the closing is not posted.');
@@ -259,6 +256,35 @@ final class YearEndClosing
         return $builder->orderBy('c.period_to', 'DESC')->orderBy('b.code', 'ASC')->orderBy('c.closing_id', 'DESC')->get()->getResult();
     }
 
+    /**
+     * @return array<int, int> The active closings of each year in the branches the employee may see.
+     */
+    private function activeClosingsByYear(?int $employeeId): array
+    {
+        $allowed = $this->branches->allowedBranchIds($employeeId);
+
+        if ($allowed === []) {
+            return [];
+        }
+
+        $builder = $this->db->table('accounting_year_end_closings')
+            ->select('fiscal_year_id, COUNT(*) AS closings')
+            ->where('company_id', CompanyContext::id())
+            ->where('status', 'active');
+
+        if ($allowed !== null) {
+            $builder->whereIn('branch_id', $allowed);
+        }
+
+        $counts = [];
+
+        foreach ($builder->groupBy('fiscal_year_id')->get()->getResult() as $row) {
+            $counts[(int) $row->fiscal_year_id] = (int) $row->closings;
+        }
+
+        return $counts;
+    }
+
     private function close(YearEndBranchPlan $plan, YearEndPreview $preview, ?int $employeeId): int
     {
         $year        = $preview->year;
@@ -298,6 +324,10 @@ final class YearEndClosing
             branchId: $plan->branchId,
             entryType: JournalEntryType::YearEnd,
         ));
+
+        if (! $result->created) {
+            throw new AccountingException(AccountingError::WriteFailed, "A journal of the closing {$closingId} exists already, so nothing was closed.");
+        }
 
         $this->db->table('accounting_year_end_closings')->where('closing_id', $closingId)->update(['journal_id' => $result->journalId]);
 
@@ -364,6 +394,12 @@ final class YearEndClosing
 
         foreach ($scope as $branch) {
             $plans[] = $this->branchPlan($branch, $year, $locked);
+        }
+
+        foreach ($plans as $plan) {
+            if ($plan->isReady() && bccomp($plan->journalTotal(), self::LARGEST_AMOUNT, self::SCALE) > 0) {
+                $blockers[] = new AccountingException(AccountingError::YearEndAmountTooLarge, 'The closing would be larger than the most a journal can hold.', ['max' => self::LARGEST_AMOUNT, 'name' => $plan->code]);
+            }
         }
 
         return new YearEndPreview($year, $branchId === null, $cutoff, $drafts, $account, $plans, $blockers, $this->fingerprint($year, $account, $plans));

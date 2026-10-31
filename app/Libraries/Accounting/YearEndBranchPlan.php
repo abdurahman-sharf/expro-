@@ -24,6 +24,20 @@ final readonly class YearEndBranchPlan
     ) {
     }
 
+    /**
+     * @return numeric-string What the closing journal debits, which is what it credits.
+     */
+    public function journalTotal(): string
+    {
+        $total = $this->isLoss() ? bcsub('0', $this->result, 4) : '0.0000';
+
+        foreach ($this->lines as $line) {
+            $total = bcadd($total, $line->closingDebit(), 4);
+        }
+
+        return $total;
+    }
+
     public function isReady(): bool
     {
         return $this->status === YearEndBranchStatus::Ready;

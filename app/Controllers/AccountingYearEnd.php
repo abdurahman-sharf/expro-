@@ -24,7 +24,7 @@ class AccountingYearEnd extends AccountingController
 
     public function getIndex(): string
     {
-        $years   = $this->closing->years();
+        $years   = $this->closing->years($this->employeeId());
         $options = $this->scopeOptions();
         $scope   = $this->scopeParameter($options);
         $yearId  = $this->yearParameter($years);
@@ -54,7 +54,6 @@ class AccountingYearEnd extends AccountingController
             'amount'      => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
             'date'        => fn (string $value): string => $this->formatDate($value),
             'status_text' => static fn (YearEndBranchPlan $plan): string => lang('Accounting_periods.year_end_status_' . $plan->status->value),
-            'return_url'  => base_url('accounting_periods/year_end'),
         ]);
     }
 
@@ -93,7 +92,7 @@ class AccountingYearEnd extends AccountingController
             $scope  = $this->postedScope();
             $yearId = (int) $this->request->getPost('year');
 
-            $this->closing->approve($scope === 'company' ? null : (int) $scope, $yearId, (string) $this->request->getPost('fingerprint'), $this->employeeId());
+            $this->closing->approve($scope === 'company' ? null : (int) $scope, $yearId, $this->postedText('fingerprint'), $this->employeeId());
 
             $message = lang('Accounting_periods.year_end_approved');
             session()->setFlashdata('accounting_notice', $message);
@@ -120,7 +119,7 @@ class AccountingYearEnd extends AccountingController
     public function postReverse(int $closingId): ResponseInterface
     {
         return $this->attempt(function () use ($closingId): array {
-            $this->closing->reverse($closingId, (string) $this->request->getPost('reason'), $this->employeeId());
+            $this->closing->reverse($closingId, $this->postedText('reason'), $this->employeeId());
 
             $message = lang('Accounting_periods.year_end_reversed');
             session()->setFlashdata('accounting_notice', $message);
@@ -186,6 +185,13 @@ class AccountingYearEnd extends AccountingController
         }
 
         return $value;
+    }
+
+    private function postedText(string $name): string
+    {
+        $value = $this->request->getPost($name);
+
+        return is_string($value) ? $value : '';
     }
 
     private function postedScope(): string

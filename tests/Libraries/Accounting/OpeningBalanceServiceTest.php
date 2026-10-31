@@ -21,12 +21,14 @@ use Config\Database;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ConcurrentDbRaceTrait;
+use Tests\Support\LockOrderTrait;
 
 class OpeningBalanceServiceTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
     use ConcurrentDbRaceTrait;
+    use LockOrderTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -374,6 +376,37 @@ class OpeningBalanceServiceTest extends CIUnitTestCase
 
         $this->assertGreaterThan(0, $this->service->reverse(1, '2027-01-02', 'Wrong counts', $employee));
         $this->assertSame('reversed', $this->accountingDb()->table('accounting_journals')->where('journal_id', $original)->get()->getRow()->status);
+    }
+
+    public function testReverseOpening_SeesAClosingThatCommittedAfterTheSnapshotOfTheCaller(): void
+    {
+        $employee = $this->manager();
+        $original = $this->service->post(1, $this->balancedLines('100.00'), false, $employee);
+        (new JournalService())->postNew(['date' => '2026-06-10'] + $this->journalInput());
+        $this->closeThrough('2026-12-31');
+
+        $this->other = $this->openSecondConnection();
+        $this->startWithSnapshot($this->other);
+
+        $closer  = $this->employeeWithGrants([AccountingGuard::YEAR_END_CLOSE]);
+        $year    = (int) $this->accountingDb()->table('accounting_fiscal_years')->where('name', '2026')->get()->getRow()->fiscal_year_id;
+        $preview = (new YearEndClosing())->preview(1, $year, $closer);
+
+        (new YearEndClosing())->approve(1, $year, $preview->fingerprint, $closer);
+
+        $this->assertFailsWith(AccountingError::YearEndClosedOut, fn () => (new JournalService($this->other))->reverseOpening($original, '2027-01-02', 'Wrong counts', $employee));
+        $this->assertSame('posted', $this->accountingDb()->table('accounting_journals')->where('journal_id', $original)->get()->getRow()->status);
+    }
+
+    public function testReverseOpening_LocksTheJournalBeforeThePeriodLocks(): void
+    {
+        $employee = $this->manager();
+        $original = $this->service->post(1, $this->balancedLines('100.00'), false, $employee);
+
+        $order = $this->lockOrderOf(fn () => (new JournalService())->reverseOpening($original, '2026-10-22', 'Wrong counts', $employee));
+
+        $this->assertSame('journal', $order[0], 'The order of a reversal and of the edit of a journal: its row, then the period locks');
+        $this->assertContains('period', $order);
     }
 
     public function testReverse_WaitsForAClosingOfTheYearThatIsBeingWrittenAndIsRefusedOnceItIsThere(): void
