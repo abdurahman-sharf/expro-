@@ -1,17 +1,17 @@
 <?php
 /**
  * @var BackfillBatch $batch
-
  */
 
 use App\Libraries\Accounting\Backfill\BackfillBatch;
+
 ?>
 
 <div id="required_fields_message"><?= lang('Common.fields_required_message') ?></div>
 <ul id="error_message_box" class="error_message_box" role="alert"></ul>
 
 <?= form_open('accounting_periods/backfill/cancel/' . $batch->id, ['id' => 'backfill_cancel_form', 'class' => 'app-form']) ?>
-    
+
     <fieldset>
         <p><?= esc(lang('Accounting_backfill.cancel_summary', [$batch->name, (string) $batch->readyCount, (string) $batch->journalCount])) ?></p>
         <p class="text-danger"><?= lang('Accounting_backfill.cancel_warning') ?></p>

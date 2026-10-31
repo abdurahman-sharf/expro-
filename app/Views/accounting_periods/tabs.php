@@ -1,8 +1,7 @@
 <?php
 /**
- * @var 'years'|'closings'|'opening'|'year_end'|'backfill' $active
+ * @var 'backfill'|'closings'|'opening'|'year_end'|'years' $active
  */
-
 $tabs = [
     'years'    => ['accounting_periods', 'Accounting_periods.tab_years'],
     'closings' => ['accounting_periods/closings', 'Accounting_periods.tab_closings'],

@@ -563,4 +563,20 @@ class SupplierLedgerTest extends CIUnitTestCase
         $this->assertEquals($before, $after);
         $this->assertSupplierTies();
     }
+
+    public function testSuppliersWithBalance_LeavesOutThePreviewsOfABatch(): void
+    {
+        $this->purchaseOf('500');
+
+        $before = (new SupplierLedger())->suppliersWithBalance();
+
+        $this->previewEverything();
+        $this->assertPreviewsStand();
+
+        $after = (new SupplierLedger())->suppliersWithBalance();
+
+        $this->assertEquals($before, $after);
+        $this->assertSame(1, $after['total']);
+        $this->assertSame('500.00', bcadd((string) $after['rows'][0]->balance, '0', 2));
+    }
 }

@@ -1,0 +1,1874 @@
+[
+ {
+  "name": "G01 a manual or reversal journal is never written as a preview",
+  "file": "app/Libraries/Accounting/PostingService.php",
+  "find": "if (in_array($draft->sourceType, [JournalDraft::SOURCE_MANUAL, JournalDraft::SOURCE_REVERSAL], true) || YearEndEntries::marks($draft->entryType->value, $draft->sourceType)) {\n            throw new PostingException(PostingError::InvalidSource, 'Only the journal of a document",
+  "replace": "if (YearEndEntries::marks($draft->entryType->value, $draft->sourceType)) {\n            throw new PostingException(PostingError::InvalidSource, 'Only the journal of a document",
+  "tests": [
+   "--filter",
+   "PostPreview",
+   "tests/Libraries/Accounting/PostingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G02 the journal that closes a year is never written as a preview",
+  "file": "app/Libraries/Accounting/PostingService.php",
+  "find": "|| YearEndEntries::marks($draft->entryType->value, $draft->sourceType)) {\n            throw new PostingException(PostingError::InvalidSource, 'Only the journal of a document",
+  "replace": "|| false) {\n            throw new PostingException(PostingError::InvalidSource, 'Only the journal of a document",
+  "tests": [
+   "--filter",
+   "PostPreview",
+   "tests/Libraries/Accounting/PostingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G03 a source that has a journal is not given a preview",
+  "file": "app/Libraries/Accounting/PostingService.php",
+  "find": "if ($this->findExisting($draft, true) !== null) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "PostPreview",
+   "tests/Libraries/Accounting/PostingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G04 a live posting refuses a source a preview holds",
+  "file": "app/Libraries/Accounting/PostingService.php",
+  "find": "if (($journal->status ?? null) === JournalStatus::Preview->value) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "ThatAPreviewHolds",
+   "tests/Libraries/Accounting/PostingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G05 only a preview is approved",
+  "file": "app/Libraries/Accounting/PostingService.php",
+  "find": "if ($journal === null || $journal->status !== JournalStatus::Preview->value || (int) $journal->backfill_batch_id !== $batchId) {",
+  "replace": "if ($journal === null || (int) $journal->backfill_batch_id !== $batchId) {",
+  "tests": [
+   "--filter",
+   "ApprovePreview",
+   "tests/Libraries/Accounting/PostingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G06 only a preview of the batch is approved",
+  "file": "app/Libraries/Accounting/PostingService.php",
+  "find": "if ($journal === null || $journal->status !== JournalStatus::Preview->value || (int) $journal->backfill_batch_id !== $batchId) {",
+  "replace": "if ($journal === null || $journal->status !== JournalStatus::Preview->value) {",
+  "tests": [
+   "--filter",
+   "ApprovePreview",
+   "tests/Libraries/Accounting/PostingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G07 an approval takes the period locks and refuses a closed period",
+  "file": "app/Libraries/Accounting/PostingService.php",
+  "find": "$this->periods->enforce((string) $journal->journal_date, (int) $journal->branch_id);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "ApprovePreview",
+   "tests/Libraries/Accounting/PostingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G08 discarding removes only previews",
+  "file": "app/Libraries/Accounting/PostingService.php",
+  "find": "WHERE j.backfill_batch_id = ? AND j.status = ?\", [$batchId, JournalStatus::Preview->value]);",
+  "replace": "WHERE j.backfill_batch_id = ? AND j.status IN (?, 'posted')\", [$batchId, JournalStatus::Preview->value]);",
+  "tests": [
+   "--filter",
+   "DiscardPreviews",
+   "tests/Libraries/Accounting/PostingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G09 discarding removes the lines before the journals only for previews",
+  "file": "app/Libraries/Accounting/PostingService.php",
+  "find": "DELETE FROM {$journals} WHERE backfill_batch_id = ? AND status = ?\", [$batchId, JournalStatus::Preview->value]);",
+  "replace": "DELETE FROM {$journals} WHERE backfill_batch_id = ? AND status IN (?, 'posted')\", [$batchId, JournalStatus::Preview->value]);",
+  "tests": [
+   "--filter",
+   "DiscardPreviews",
+   "tests/Libraries/Accounting/PostingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G10 a preview has no number",
+  "file": "app/Libraries/Accounting/PostingService.php",
+  "find": "if (! $userNumbered && $standing) {",
+  "replace": "if (! $userNumbered) {",
+  "tests": [
+   "--filter",
+   "PostPreview",
+   "tests/Libraries/Accounting/PostingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G11 a preview was never posted by anyone",
+  "file": "app/Libraries/Accounting/PostingService.php",
+  "find": "'posted_by'           => $standing ? $draft->employeeId : null,",
+  "replace": "'posted_by'           => $draft->employeeId,",
+  "tests": [
+   "--filter",
+   "PostPreview",
+   "tests/Libraries/Accounting/PostingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G12 a preview has no posting time",
+  "file": "app/Libraries/Accounting/PostingService.php",
+  "find": "'posted_at'           => $standing ? new RawSql('CURRENT_TIMESTAMP') : null,",
+  "replace": "'posted_at'           => new RawSql('CURRENT_TIMESTAMP'),",
+  "tests": [
+   "--filter",
+   "PostPreview",
+   "tests/Libraries/Accounting/PostingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G13 a preview writes no journal audit entry of its own",
+  "file": "app/Libraries/Accounting/PostingService.php",
+  "find": "if ($standing) {\n            $this->audit->write('journal', $journalId, 'posted'",
+  "replace": "if (true) {\n            $this->audit->write('journal', $journalId, 'posted'",
+  "tests": [
+   "--filter",
+   "PostPreview",
+   "tests/Libraries/Accounting/PostingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G14 a preview is written with the status preview",
+  "file": "app/Libraries/Accounting/PostingService.php",
+  "find": "'status'              => $status->value,",
+  "replace": "'status'              => JournalStatus::Posted->value,",
+  "tests": [
+   "--filter",
+   "PostPreview",
+   "tests/Libraries/Accounting/PostingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G15 a preview carries its batch",
+  "file": "app/Libraries/Accounting/PostingService.php",
+  "find": "'backfill_batch_id'   => $batchId,",
+  "replace": "'backfill_batch_id'   => null,",
+  "tests": [
+   "--filter",
+   "PostPreview|DiscardPreviews",
+   "tests/Libraries/Accounting/PostingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G16 approval numbers the journal from its own id",
+  "file": "app/Libraries/Accounting/PostingService.php",
+  "find": "'number'    => sprintf('%06d', $journalId),\n            'posted_by' => $employeeId,",
+  "replace": "'number'    => null,\n            'posted_by' => $employeeId,",
+  "tests": [
+   "--filter",
+   "ApprovePreview",
+   "tests/Libraries/Accounting/PostingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G20 creating a batch needs the permission",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "public function create(array $input, ?int $employeeId = null): int\n    {\n        $this->guard->require(AccountingGuard::BACKFILL_MANAGE, $employeeId);\n",
+  "replace": "public function create(array $input, ?int $employeeId = null): int\n    {\n",
+  "tests": [
+   "--filter",
+   "EveryCall_RequiresThePermission",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G21 previewing a batch needs the permission",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "public function preview(int $batchId, ?int $employeeId = null, ?int $maxChunks = null): BackfillBatch\n    {\n        $this->guard->require(AccountingGuard::BACKFILL_MANAGE, $employeeId);\n",
+  "replace": "public function preview(int $batchId, ?int $employeeId = null, ?int $maxChunks = null): BackfillBatch\n    {\n",
+  "tests": [
+   "--filter",
+   "EveryCall_RequiresThePermission",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G22 approving a batch needs the permission",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "public function approve(int $batchId, string $fingerprint, ?int $employeeId = null, ?int $maxChunks = null): BackfillBatch\n    {\n        $this->guard->require(AccountingGuard::BACKFILL_MANAGE, $employeeId);\n",
+  "replace": "public function approve(int $batchId, string $fingerprint, ?int $employeeId = null, ?int $maxChunks = null): BackfillBatch\n    {\n",
+  "tests": [
+   "--filter",
+   "EveryCall_RequiresThePermission",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G23 cancelling a batch needs the permission",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "public function cancel(int $batchId, ?int $employeeId = null): BackfillBatch\n    {\n        $this->guard->require(AccountingGuard::BACKFILL_MANAGE, $employeeId);\n",
+  "replace": "public function cancel(int $batchId, ?int $employeeId = null): BackfillBatch\n    {\n",
+  "tests": [
+   "--filter",
+   "EveryCall_RequiresThePermission",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G24 the dry run needs the permission",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "public function dryRun(array $input, ?int $employeeId = null, int $listed = 100): array\n    {\n        $this->guard->require(AccountingGuard::BACKFILL_MANAGE, $employeeId);\n",
+  "replace": "public function dryRun(array $input, ?int $employeeId = null, int $listed = 100): array\n    {\n",
+  "tests": [
+   "--filter",
+   "EveryCall_RequiresThePermission",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G25 the list of batches needs the permission",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "public function batches(?int $employeeId = null): array\n    {\n        $this->guard->require(AccountingGuard::BACKFILL_MANAGE, $employeeId);\n",
+  "replace": "public function batches(?int $employeeId = null): array\n    {\n",
+  "tests": [
+   "--filter",
+   "EveryCall_RequiresThePermission",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G26 reading a batch needs the permission",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "public function batch(int $batchId, ?int $employeeId = null): BackfillBatch\n    {\n        $this->guard->require(AccountingGuard::BACKFILL_MANAGE, $employeeId);\n",
+  "replace": "public function batch(int $batchId, ?int $employeeId = null): BackfillBatch\n    {\n",
+  "tests": [
+   "--filter",
+   "EveryCall_RequiresThePermission",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G30 a batch is made only for a branch the employee works in",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "        $this->branches->requireBranch($branchId, $employeeId);\n    }",
+  "replace": "    }",
+  "tests": [
+   "--filter",
+   "Create_RefusesABranchOutside",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G31 a batch for the whole company needs every branch",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "            $this->branches->requireCompanyScope($employeeId);\n\n            return;",
+  "replace": "            return;",
+  "tests": [
+   "--filter",
+   "Create_RefusesABranchOutside|DryRun_RefusesABranchOutside",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G32 a batch for a branch that does not exist is refused",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "if ($this->db->table('branches')->where('company_id', CompanyContext::id())->where('branch_id', $branchId)->countAllResults() === 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Create_RefusesABranchOutside",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G33 creating a batch checks the scope of the employee",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "        $this->requireScope($branchId, $employeeId);\n\n        $name = trim(",
+  "replace": "        $name = trim(",
+  "tests": [
+   "--filter",
+   "Create_RefusesABranchOutside",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G34 the dry run checks the scope of the employee",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "        $this->requireScope($branchId, $employeeId);\n\n        [$from, $to] = $this->range((string) ($input['from'] ?? ''), (string) ($input['to'] ?? ''));\n\n        $families = $this->families($input['families'] ?? null);\n        $chunk    = $this->chunkSize($input['chunk_size'] ?? null);\n        $scope    =",
+  "replace": "        [$from, $to] = $this->range((string) ($input['from'] ?? ''), (string) ($input['to'] ?? ''));\n\n        $families = $this->families($input['families'] ?? null);\n        $chunk    = $this->chunkSize($input['chunk_size'] ?? null);\n        $scope    =",
+  "tests": [
+   "--filter",
+   "DryRun_RefusesABranchOutside",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G35 a batch of another branch is hidden",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "if ($batch === null || ! $allowed) {",
+  "replace": "if ($batch === null) {",
+  "tests": [
+   "--filter",
+   "Batch_IsHiddenFromAnEmployee",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G36 previewing checks that the batch is visible",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "        $this->visible($batchId, $employeeId);\n        $this->requireBooks();\n\n        return $this->exclusive($this->batchLock($batchId), 0, function () use ($batchId, $employeeId, $maxChunks): BackfillBatch {",
+  "replace": "        $this->requireBooks();\n\n        return $this->exclusive($this->batchLock($batchId), 0, function () use ($batchId, $employeeId, $maxChunks): BackfillBatch {",
+  "tests": [
+   "--filter",
+   "Batch_IsHiddenFromAnEmployee",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G37 approving checks that the batch is visible",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "        $this->visible($batchId, $employeeId);\n        $this->requireBooks();\n\n        if (! $this->settings->backfillEnabled()) {",
+  "replace": "        $this->requireBooks();\n\n        if (! $this->settings->backfillEnabled()) {",
+  "tests": [
+   "--filter",
+   "Batch_IsHiddenFromAnEmployee",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G38 cancelling checks that the batch is visible",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "        $this->visible($batchId, $employeeId);\n\n        return $this->exclusive($this->batchLock($batchId), 0, function () use ($batchId, $employeeId): BackfillBatch {\n            return $this->transactional(function () use ($batchId, $employeeId): BackfillBatch {\n                $batch = $this->batches->lock",
+  "replace": "        return $this->exclusive($this->batchLock($batchId), 0, function () use ($batchId, $employeeId): BackfillBatch {\n            return $this->transactional(function () use ($batchId, $employeeId): BackfillBatch {\n                $batch = $this->batches->lock",
+  "tests": [
+   "--filter",
+   "Batch_IsHiddenFromAnEmployee",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G40 a batch needs a name of a sensible length",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "if ($name === '' || mb_strlen($name) > self::NAME_MAX) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Create_RejectsABad",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G41 a range is two valid dates",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "if ($parsed === false || $parsed->format('Y-m-d') !== $date) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Create_RejectsABad",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G42 a range does not end before it begins",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "if ($from > $to) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Create_RejectsABad",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G43 a batch looks at known families only",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "if ($family === null) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Create_RejectsABad",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G44 a chunk is of a sensible size",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "if ($size < 1 || $size > self::CHUNK_MAX) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Create_RejectsABad",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G45 creating a batch needs the books on with a start date",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "        $this->requireBooks();\n\n        return $this->exclusive('create'",
+  "replace": "        return $this->exclusive('create'",
+  "tests": [
+   "--filter",
+   "Create_RefusesWhileAccountingIsOff",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G46 previewing needs the books on with a start date",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "        $this->visible($batchId, $employeeId);\n        $this->requireBooks();\n\n        return $this->exclusive($this->batchLock($batchId), 0, function () use ($batchId, $employeeId, $maxChunks): BackfillBatch {",
+  "replace": "        $this->visible($batchId, $employeeId);\n\n        return $this->exclusive($this->batchLock($batchId), 0, function () use ($batchId, $employeeId, $maxChunks): BackfillBatch {",
+  "tests": [
+   "--filter",
+   "Preview_RefusesWhileAccountingIsOff",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G47 a batch that overlaps an open one is refused",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "if ($other !== null) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Create_RefusesABatchThatOverlaps|Create_AllowsTheSameRange",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G48 two creations of a batch run one after the other",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "$this->exclusive('create', self::CREATE_WAIT, function",
+  "replace": "(static fn (callable $work): mixed => $work())(function",
+  "tests": [
+   "--filter",
+   "Create_TwoRealConnections",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G49 one run at a time holds a batch",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "if ($taken !== LockOutcome::Taken) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "RefusesWhileAnotherRunHoldsTheBatch",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G50 a batch that is not being collected is not previewed again",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "if ($batch->status !== BackfillStatus::Collecting) {\n                return $batch;\n            }",
+  "replace": "if (false) {\n                return $batch;\n            }",
+  "tests": [
+   "--filter",
+   "WritesEachSourceKeyOnce|Preview_Resumes|Preview_GivesTheSameFingerprint",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G51 the cursor of a preview is kept with the chunk",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "                $this->batches->update($batch->id, ['cursor_family' => $family->value, 'cursor_id' => $last]);\n            });",
+  "replace": "            });",
+  "tests": [
+   "--filter",
+   "Preview_ResumesFromTheCursor",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G52 a preview goes on to the next family",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "$found = $each === $family;",
+  "replace": "$found = false;",
+  "tests": [
+   "--filter",
+   "Preview_LeavesEveryBalance",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G53 a chunk of a preview is a transaction of its own",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "            $this->transactional(function () use ($batch, $documents, $adapter, $family, $last, $employeeId): void {",
+  "replace": "            (static fn (callable $work): mixed => $work())(function () use ($batch, $documents, $adapter, $family, $last, $employeeId): void {",
+  "tests": [
+   "--filter",
+   "Preview_Resumes|Preview_KeepsNothingOfAChunk",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G60 approving needs the retroactive posting turned on",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "if (! $this->settings->backfillEnabled()) {\n            throw new AccountingException(AccountingError::BackfillDisabled",
+  "replace": "if (false) {\n            throw new AccountingException(AccountingError::BackfillDisabled",
+  "tests": [
+   "--filter",
+   "Approve_RefusesWhileTheSettingIsOff",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G61 approving needs the books on with a start date",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "        $this->requireBooks();\n\n        if (! $this->settings->backfillEnabled()) {",
+  "replace": "        if (! $this->settings->backfillEnabled()) {",
+  "tests": [
+   "--filter",
+   "Approve_RefusesWithoutAStartDate|Approve_RefusesWhileAccountingIsOff",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G62 a batch that was decided is not approved again",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "            $batch = $this->batches->require($batchId);\n\n            $this->requireOpen($batch);\n\n            if ($batch->status === BackfillStatus::Collecting) {",
+  "replace": "            $batch = $this->batches->require($batchId);\n\n            if ($batch->status === BackfillStatus::Collecting) {",
+  "tests": [
+   "--filter",
+   "Approve_RefusesABatchThatWasApprovedAlready",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G63 a batch whose preview is not finished is not approved",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "if ($batch->status === BackfillStatus::Collecting) {\n                throw new AccountingException(AccountingError::BackfillNotReady",
+  "replace": "if (false) {\n                throw new AccountingException(AccountingError::BackfillNotReady",
+  "tests": [
+   "--filter",
+   "Approve_RefusesABatchWhosePreviewIsNotFinished",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G64 only the preview that was shown is approved",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "if ($batch->fingerprint === null || ! hash_equals($batch->fingerprint, $fingerprint)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Approve_RefusesAFingerprintThatIsNotTheBatchs",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G65 approving needs the opening balances of the branches the batch writes in",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "            $this->requireOpenings($batch);\n\n            if ($batch->status === BackfillStatus::Preview) {",
+  "replace": "            if ($batch->status === BackfillStatus::Preview) {",
+  "tests": [
+   "--filter",
+   "Approve_RefusesWithoutThePostedOpeningBalances",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G66 a branch without opening balances stops the approval",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "if ($gate->openingOf($branchId) === null) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Approve_RefusesWithoutThePostedOpeningBalances|Approve_RequiresTheOpeningBalancesOnly",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G67 a batch with nothing to post is not approved",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "if ($batch->readyCount === 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Approve_RefusesABatchWithNothingToPost",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G68 the whole batch is checked again before the first journal is posted",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "                $this->adapters = [];\n                $this->verify($batch, $employeeId);\n",
+  "replace": "                $this->adapters = [];\n",
+  "tests": [
+   "--filter",
+   "Approve_RefusesWhenANewDocumentQualifies|Approve_RefusesABatchWhoseJournalsWereTamperedWith",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G69 the check of the whole batch compares the fingerprint",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "! hash_equals($batch->fingerprint, hash_final($hash)) || $previews !== $batch->journalCount",
+  "replace": "$previews !== $batch->journalCount",
+  "tests": [
+   "--filter",
+   "Approve_RefusesWhenANewDocumentQualifies|Approve_RefusesWhenADocumentChanged",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G70 the check of the whole batch counts the previews it holds",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "! hash_equals($batch->fingerprint, hash_final($hash)) || $previews !== $batch->journalCount",
+  "replace": "! hash_equals($batch->fingerprint, hash_final($hash))",
+  "tests": [
+   "--filter",
+   "Approve_RefusesABatchWhoseJournalsWereTamperedWith|Approve_RefusesABatchThatHoldsAPreview",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G71 a chunk is checked again as it is written",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "if (! $plan->isReady() || ! hash_equals((string) $item->digest, $plan->digest())) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Approve_ResumingRefusesADocument",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G72 the row of a document is locked before it is read for approval",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "        $adapter->lock($document->id);\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "Approve_WaitsForAChangeToTheDocument",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G73 a run that another run has moved on is refused",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "if ($locked === null || $locked->status !== BackfillStatus::Approving || $locked->cursorId !== $batch->cursorId) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Post_RefusesARun",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G74 the branch of a document is stamped when it is approved",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "        $this->stamp($plan->stamp, $batch, $employeeId);\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "Approve_StampsTheBranch",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G75 a document that has its branch is never stamped over",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "if ($this->db->affectedRows() !== 1) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Stamp_RefusesADocument",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G76 the credit of a customer is settled after approval",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "(new CreditSettlement($this->db))->settle($plan->partyId, $employeeId);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "Approve_SettlesTheCreditOfACustomer",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G77 the payment of a supplier is settled after approval",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "(new SupplierSettlement($this->db))->settle($plan->partyId, $employeeId);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "Approve_SettlesThePaymentOfASupplier",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G78 a chunk of an approval waits for the customers it touches",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "            $run   = fn () => (new CustomerLock($this->db, $this->partyLockWait))->run($customerId, $inner);",
+  "replace": "            $run   = $inner;",
+  "tests": [
+   "--filter",
+   "Approve_WaitsForTheChangeOfACustomer",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G79 a chunk of an approval waits for the suppliers it touches",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "            $run   = fn () => (new SupplierLock($this->db, $this->partyLockWait))->run($supplierId, $inner);",
+  "replace": "            $run   = $inner;",
+  "tests": [
+   "--filter",
+   "Approve_WaitsForTheChangeOfASupplier",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G80 the stock movements are written with the approval",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "            $ledger->record(\n                $stock['source'],",
+  "replace": "            (static fn () => null)(\n                $stock['source'],",
+  "tests": [
+   "--filter",
+   "Approve_WritesTheStockMovements",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G81 the cursor of an approval is kept with the chunk",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "$this->batches->update($batch->id, ['cursor_id' => (int) $items[array_key_last($items)]->item_id, 'approved_count' => $locked->approvedCount + count($items)]);",
+  "replace": "$this->batches->update($batch->id, ['approved_count' => $locked->approvedCount + count($items)]);",
+  "tests": [
+   "--filter",
+   "Approve_ResumesFromTheCursor|Approve_RunsAChunk",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G82 an approval is sealed with its date and who approved it",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "$this->batches->update($batch->id, ['status' => BackfillStatus::Approved->value, 'decided_by' => $employeeId, 'decided_at' => new RawSql('CURRENT_TIMESTAMP')]);",
+  "replace": "$this->batches->update($batch->id, ['status' => BackfillStatus::Approved->value]);",
+  "tests": [
+   "--filter",
+   "Batch_RecordsEachStep|Approve_PostsTheJournals",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G90 a batch that was decided is not cancelled",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "                $batch = $this->batches->lock($batchId) ?? throw new AccountingException(AccountingError::BackfillNotFound, \"Batch {$batchId} does not exist.\");\n\n                $this->requireOpen($batch);\n",
+  "replace": "                $batch = $this->batches->lock($batchId) ?? throw new AccountingException(AccountingError::BackfillNotFound, \"Batch {$batchId} does not exist.\");\n",
+  "tests": [
+   "--filter",
+   "Cancel_RefusesABatchThatWasApprovedOrCancelled",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G91 a batch whose approval has begun is not cancelled",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "if ($batch->status === BackfillStatus::Approving) {\n                    throw new AccountingException(AccountingError::BackfillApproving",
+  "replace": "if (false) {\n                    throw new AccountingException(AccountingError::BackfillApproving",
+  "tests": [
+   "--filter",
+   "Cancel_RefusesABatchWhoseApprovalHasBegun",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G92 cancelling removes the previews",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "$previews  = $this->posting->discardPreviews($batchId);",
+  "replace": "$previews  = 0;",
+  "tests": [
+   "--filter",
+   "Cancel_RemovesThePreviews",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G93 cancelling removes the record of the documents",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "$documents = $this->batches->removeItems($batchId);",
+  "replace": "$documents = 0;",
+  "tests": [
+   "--filter",
+   "Cancel_RemovesThePreviews",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G94 cancelling is audited",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "'backfill_cancelled'",
+  "replace": "'backfill_cancelled_not'",
+  "tests": [
+   "--filter",
+   "Batch_RecordsEachStep",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G95 approving is audited",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "'backfill_approved'",
+  "replace": "'backfill_approved_not'",
+  "tests": [
+   "--filter",
+   "Batch_RecordsEachStep",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G96 previewing is audited",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "'backfill_previewed'",
+  "replace": "'backfill_previewed_not'",
+  "tests": [
+   "--filter",
+   "Batch_RecordsEachStep",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G97 creating is audited",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "'backfill_created'",
+  "replace": "'backfill_created_not'",
+  "tests": [
+   "--filter",
+   "Batch_RecordsEachStep",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G98 the stamp of a document is audited",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "'backfill_stamped'",
+  "replace": "'backfill_stamped_not'",
+  "tests": [
+   "--filter",
+   "Approve_StampsTheBranch",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G99 the blockers say when accounting is off",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "if (! $this->settings->isEnabled()) {\n            $blockers[] = 'accounting_off';",
+  "replace": "if (false) {\n            $blockers[] = 'accounting_off';",
+  "tests": [
+   "--filter",
+   "ApprovalBlockers",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G100 the blockers say when the start date is missing",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "if ($this->settings->startDate() === null) {\n            $blockers[] = 'start_date_missing';",
+  "replace": "if (false) {\n            $blockers[] = 'start_date_missing';",
+  "tests": [
+   "--filter",
+   "ApprovalBlockers",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G101 the blockers say when the posting is off",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "if (! $this->settings->backfillEnabled()) {\n            $blockers[] = 'backfill_off';",
+  "replace": "if (false) {\n            $blockers[] = 'backfill_off';",
+  "tests": [
+   "--filter",
+   "ApprovalBlockers",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G102 the blockers name a branch without opening balances",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "if ((new BackfillGate($this->db))->openingOf((int) $branch->branch_id) === null) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "ApprovalBlockers",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G103 the dry run never writes a fingerprint different from the preview",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "hash_update($hash, $this->fingerprintLine($family, $document->id, $plan->isReady() ? 'ready' : 'refused', $plan->refusal?->value, $plan->digest()));\n\n                    $summary['documents']++;",
+  "replace": "$summary['documents']++;",
+  "tests": [
+   "--filter",
+   "DryRun_ChangesNoRow",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G110 only an open batch overlaps",
+  "file": "app/Libraries/Accounting/Backfill/BackfillBatches.php",
+  "find": "            ->whereIn('b.status', array_map(static fn (BackfillStatus $status): string => $status->value, array_filter(BackfillStatus::cases(), static fn (BackfillStatus $status): bool => $status->isActive())))\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "Create_RefusesABatchThatOverlaps|Overlapping_",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G111 a batch that begins after the range ends does not overlap",
+  "file": "app/Libraries/Accounting/Backfill/BackfillBatches.php",
+  "find": "            ->where('b.start_date <=', $to)\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "Overlapping_",
+   "tests/Libraries/Accounting/Backfill/BackfillBatchesTest.php"
+  ]
+ },
+ {
+  "name": "G112 a batch that ended before the range begins does not overlap",
+  "file": "app/Libraries/Accounting/Backfill/BackfillBatches.php",
+  "find": "            ->where('b.end_date >=', $from);",
+  "replace": "            ->where('1 = 1', null, false);",
+  "tests": [
+   "--filter",
+   "Overlapping_",
+   "tests/Libraries/Accounting/Backfill/BackfillBatchesTest.php"
+  ]
+ },
+ {
+  "name": "G113 a batch of another branch does not overlap",
+  "file": "app/Libraries/Accounting/Backfill/BackfillBatches.php",
+  "find": "        if ($branchId !== null) {\n            $builder->groupStart()",
+  "replace": "        if (false) {\n            $builder->groupStart()",
+  "tests": [
+   "--filter",
+   "Overlapping_|Create_AllowsTheSameRange",
+   "tests/Libraries/Accounting/Backfill/BackfillBatchesTest.php"
+  ]
+ },
+ {
+  "name": "G114 a batch of other families does not overlap",
+  "file": "app/Libraries/Accounting/Backfill/BackfillBatches.php",
+  "find": "!== []) {\n                return $batch;",
+  "replace": "=== []) {\n                return $batch;",
+  "tests": [
+   "--filter",
+   "Overlapping_|Create_AllowsTheSameRange",
+   "tests/Libraries/Accounting/Backfill/BackfillBatchesTest.php"
+  ]
+ },
+ {
+  "name": "G115 a reader sees the batches of the branches they work in",
+  "file": "app/Libraries/Accounting/Backfill/BackfillBatches.php",
+  "find": "        if ($branchIds !== null) {\n            $builder->whereIn('b.branch_id', $branchIds);",
+  "replace": "        if (false) {\n            $builder->whereIn('b.branch_id', $branchIds);",
+  "tests": [
+   "--filter",
+   "All_ListsTheBatches",
+   "tests/Libraries/Accounting/Backfill/BackfillBatchesTest.php"
+  ]
+ },
+ {
+  "name": "G116 the balance before a batch leaves out its own journals",
+  "file": "app/Libraries/Accounting/Backfill/BackfillBatches.php",
+  "find": "(j.backfill_batch_id IS NULL OR j.backfill_batch_id <> ?){$scope}",
+  "replace": "(j.backfill_batch_id IS NULL OR j.backfill_batch_id <> ? OR 1 = 1){$scope}",
+  "tests": [
+   "--filter",
+   "AccountTotals",
+   "tests/Libraries/Accounting/Backfill/BackfillBatchesTest.php"
+  ]
+ },
+ {
+  "name": "G117 the balance before a batch is of its own branch",
+  "file": "app/Libraries/Accounting/Backfill/BackfillBatches.php",
+  "find": "        $scope    = $batch->branchId === null ? '' : ' AND j.branch_id = ' . (int) $batch->branchId;",
+  "replace": "        $scope    = '';",
+  "tests": [
+   "--filter",
+   "AccountTotals",
+   "tests/Libraries/Accounting/Backfill/BackfillBatchesTest.php"
+  ]
+ },
+ {
+  "name": "G118 an approval walks only the documents that are ready",
+  "file": "app/Libraries/Accounting/Backfill/BackfillBatches.php",
+  "find": "            ->where('outcome', 'ready')\n            ->where('item_id >', $afterItemId)",
+  "replace": "            ->where('item_id >', $afterItemId)",
+  "tests": [
+   "--filter",
+   "ItemsAfter",
+   "tests/Libraries/Accounting/Backfill/BackfillBatchesTest.php"
+  ]
+ },
+ {
+  "name": "G120 a preview of another batch holds the document",
+  "file": "app/Libraries/Accounting/Backfill/BackfillAdapter.php",
+  "find": " OR j.backfill_batch_id IS NULL OR j.backfill_batch_id <> ?))';\n    }\n\n    /**\n     * @param list<string> $sources\n     */\n    protected function noStock",
+  "replace": " OR ? IS NULL))';\n    }\n\n    /**\n     * @param list<string> $sources\n     */\n    protected function noStock",
+  "tests": [
+   "--filter",
+   "Candidates_LeavesOutASaleWhoseStockMovements",
+   "tests/Libraries/Accounting/Backfill/SaleBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G121 a preview of the batch itself does not hold the document",
+  "file": "app/Libraries/Accounting/Backfill/BackfillAdapter.php",
+  "find": " OR j.backfill_batch_id IS NULL OR j.backfill_batch_id <> ?))';\n    }\n\n    /**\n     * @param list<string> $sources\n     */\n    protected function noStock",
+  "replace": " OR j.backfill_batch_id IS NULL OR 1 = ?))';\n    }\n\n    /**\n     * @param list<string> $sources\n     */\n    protected function noStock",
+  "tests": [
+   "--filter",
+   "Approve_PostsTheJournalsThePreviewShowed|Candidates_LeavesOutASaleWhoseStockMovements",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G122 the previews of other batches count as journals of the document",
+  "file": "app/Libraries/Accounting/Backfill/BackfillAdapter.php",
+  "find": " OR j.backfill_batch_id IS NULL OR j.backfill_batch_id <> ?) LIMIT 1'",
+  "replace": " OR ? IS NULL) LIMIT 1'",
+  "tests": [
+   "--filter",
+   "Plan_ReadsThePreviewsOfItsOwnBatch",
+   "tests/Libraries/Accounting/Backfill/SaleBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G123 a treasury that is gone is found",
+  "file": "app/Libraries/Accounting/Backfill/BackfillAdapter.php",
+  "find": "->where('treasury_id', $treasuryId)->countAllResults() === 0;",
+  "replace": "->where('treasury_id', $treasuryId)->countAllResults() === 99;",
+  "tests": [
+   "--filter",
+   "Plan_RefusesAPaymentIntoATreasuryThatIsGone",
+   "tests/Libraries/Accounting/Backfill/SaleBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G124 a deleted customer or supplier is found",
+  "file": "app/Libraries/Accounting/Backfill/BackfillAdapter.php",
+  "find": "return $row === null || (int) $row->deleted === 1;",
+  "replace": "return $row === null;",
+  "tests": [
+   "--filter",
+   "Plan_RefusesADocumentOfADeletedCustomer",
+   "tests/Libraries/Accounting/Backfill/SaleBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G125 a plan that comes to nothing is refused",
+  "file": "app/Libraries/Accounting/Backfill/BackfillAdapter.php",
+  "find": "        if ($steps === []) {\n            return BackfillPlan::refused(BackfillRefusal::ZeroTotal, $source);",
+  "replace": "        if (false) {\n            return BackfillPlan::refused(BackfillRefusal::ZeroTotal, $source);",
+  "tests": [
+   "--filter",
+   "Plan_RefusesADocumentThatComesToNothing",
+   "tests/Libraries/Accounting/Backfill/SaleBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G126 every journal of a plan is checked as a posted one is",
+  "file": "app/Libraries/Accounting/Backfill/BackfillAdapter.php",
+  "find": "                $this->posting->validate($step->draft);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "Plan_RefusesADateOutsideEveryFiscalYearAndAClosedPeriod",
+   "tests/Libraries/Accounting/Backfill/SaleBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G130 a day before the books begin is refused",
+  "file": "app/Libraries/Accounting/Backfill/BackfillGate.php",
+  "find": "if ($this->startDate !== null && $date < $this->startDate) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "RefusalOf_PutsOutADayBeforeTheBooksBegin",
+   "tests/Libraries/Accounting/Backfill/BackfillGateTest.php"
+  ]
+ },
+ {
+  "name": "G131 a day before the opening balances of the branch is refused",
+  "file": "app/Libraries/Accounting/Backfill/BackfillGate.php",
+  "find": "return $opening !== null && $date < $opening ? BackfillRefusal::BeforeOpening : null;",
+  "replace": "return null;",
+  "tests": [
+   "--filter",
+   "RefusalOf_PutsOutADayBeforeTheOpening",
+   "tests/Libraries/Accounting/Backfill/BackfillGateTest.php"
+  ]
+ },
+ {
+  "name": "G132 only posted opening balances count",
+  "file": "app/Libraries/Accounting/Backfill/BackfillGate.php",
+  "find": "                ->where('status', JournalStatus::Posted->value)\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "OpeningOf_IgnoresOpeningBalancesThatWereReversed",
+   "tests/Libraries/Accounting/Backfill/BackfillGateTest.php"
+  ]
+ },
+ {
+  "name": "G133 the opening balances are those of the branch",
+  "file": "app/Libraries/Accounting/Backfill/BackfillGate.php",
+  "find": "                ->where('source_id', $branchId)\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "RefusalOf_PutsOutADayBeforeTheOpening|OpeningOf_GivesTheDay",
+   "tests/Libraries/Accounting/Backfill/BackfillGateTest.php"
+  ]
+ },
+ {
+  "name": "G140 a sale that is not completed any more is refused",
+  "file": "app/Libraries/Accounting/Backfill/SaleBackfill.php",
+  "find": "if ($sale === null || $sale->status !== COMPLETED || ! in_array($sale->saleType, self::TYPES, true)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Plan_RefusesASaleThatIsNotCompleted",
+   "tests/Libraries/Accounting/Backfill/SaleBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G141 a sale before the books begin is refused",
+  "file": "app/Libraries/Accounting/Backfill/SaleBackfill.php",
+  "find": "        if ($early !== null) {\n            return BackfillPlan::refused($early, $source);",
+  "replace": "        if (false) {\n            return BackfillPlan::refused($early, $source);",
+  "tests": [
+   "--filter",
+   "Plan_RefusesADocumentDatedBefore",
+   "tests/Libraries/Accounting/Backfill/SaleBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G142 a sale of a deleted customer is refused",
+  "file": "app/Libraries/Accounting/Backfill/SaleBackfill.php",
+  "find": "if ($this->partyGone('customers', $sale->customerId)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Plan_RefusesADocumentOfADeletedCustomer",
+   "tests/Libraries/Accounting/Backfill/SaleBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G143 a payment into a treasury that is gone is refused",
+  "file": "app/Libraries/Accounting/Backfill/SaleBackfill.php",
+  "find": "if ($this->treasuryGone($payment->treasuryId)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Plan_RefusesAPaymentIntoATreasuryThatIsGone",
+   "tests/Libraries/Accounting/Backfill/SaleBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G144 a sale with a payment in the books already is refused",
+  "file": "app/Libraries/Accounting/Backfill/SaleBackfill.php",
+  "find": "if ($this->hasOtherJournals([SalePostingBuilder::SOURCE_PAYMENT, ...CrossBranchPayments::companionsOf(SalePostingBuilder::SOURCE_PAYMENT)], $paymentIds, $batchId)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Plan_RefusesASaleWhosePaymentIsInTheBooks|Plan_ReadsThePreviewsOfItsOwnBatch",
+   "tests/Libraries/Accounting/Backfill/SaleBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G145 a payment into the treasury of another branch is refused",
+  "file": "app/Libraries/Accounting/Backfill/SaleBackfill.php",
+  "find": "if (count($this->crossBranch->drafts($draft, $payment->treasuryId, $payment->treasuryBranchId)) > 1) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Plan_RefusesAPaymentIntoATreasuryOfAnotherBranch",
+   "tests/Libraries/Accounting/Backfill/SaleBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G146 a counter sale that was not settled in full is refused",
+  "file": "app/Libraries/Accounting/Backfill/SaleBackfill.php",
+  "find": "            $this->builder->assertSettled($sale);\n\n            $steps   = [];",
+  "replace": "            $steps   = [];",
+  "tests": [
+   "--filter",
+   "Preview_RefusesACounterSale",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G150 a purchase that is gone is refused",
+  "file": "app/Libraries/Accounting/Backfill/PurchaseBackfill.php",
+  "find": "        if ($purchase === null) {\n            return BackfillPlan::refused(BackfillRefusal::DocumentChanged",
+  "replace": "        if (false) {\n            return BackfillPlan::refused(BackfillRefusal::DocumentChanged",
+  "tests": [
+   "--filter",
+   "Plan_RefusesAPurchaseThatIsGone",
+   "tests/Libraries/Accounting/Backfill/PurchaseBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G151 a return and a transfer are left to the live posting",
+  "file": "app/Libraries/Accounting/Backfill/PurchaseBackfill.php",
+  "find": "if ($purchase->type !== ReceivingType::Receive || $purchase->toBranchId !== null) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Plan_LeavesAReturn",
+   "tests/Libraries/Accounting/Backfill/PurchaseBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G152 a purchase of a deleted supplier is refused",
+  "file": "app/Libraries/Accounting/Backfill/PurchaseBackfill.php",
+  "find": "if ($this->partyGone('suppliers', $purchase->supplierId)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Plan_RefusesAPurchaseOfADeletedSupplier",
+   "tests/Libraries/Accounting/Backfill/PurchaseBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G153 a payment into a treasury that is gone is refused",
+  "file": "app/Libraries/Accounting/Backfill/PurchaseBackfill.php",
+  "find": "            if ($this->treasuryGone($treasuryId)) {",
+  "replace": "            if (false) {",
+  "tests": [
+   "--filter",
+   "Plan_RefusesAPaymentIntoATreasuryThatIsGone",
+   "tests/Libraries/Accounting/Backfill/PurchaseBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G154 a purchase with a supplier payment in the books is refused",
+  "file": "app/Libraries/Accounting/Backfill/PurchaseBackfill.php",
+  "find": "if ($this->hasOtherJournals([ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT, ...CrossBranchPayments::companionsOf(ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT)], $paymentIds, $batchId)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Plan_RefusesAPurchaseWhoseSupplierPayment",
+   "tests/Libraries/Accounting/Backfill/PurchaseBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G155 a payment into the treasury of another branch is refused",
+  "file": "app/Libraries/Accounting/Backfill/PurchaseBackfill.php",
+  "find": "if (count($this->crossBranch->drafts($draft, $payment->treasuryId, $payment->treasuryBranchId)) > 1) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Plan_RefusesAPaymentIntoATreasuryOfAnotherBranch",
+   "tests/Libraries/Accounting/Backfill/PurchaseBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G156 a purchase before the books begin is refused",
+  "file": "app/Libraries/Accounting/Backfill/PurchaseBackfill.php",
+  "find": "        if ($early !== null) {\n            return BackfillPlan::refused($early, $source);",
+  "replace": "        if (false) {\n            return BackfillPlan::refused($early, $source);",
+  "tests": [
+   "--filter",
+   "Plan_RefusesAPurchaseDatedBefore",
+   "tests/Libraries/Accounting/Backfill/PurchaseBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G157 a purchase whose goods cost nothing is not a candidate",
+  "file": "app/Libraries/Accounting/Backfill/PurchaseBackfill.php",
+  "find": "            . ' AND ' . $this->noStock('r.receiving_id', [ReceivingPostingBuilder::SOURCE_PURCHASE, ReceivingPostingBuilder::SOURCE_STOCK_TRANSFER, ReceivingPostingBuilder::SOURCE_TRANSFER_RECEIPT]),",
+  "replace": "            . '',",
+  "tests": [
+   "--filter",
+   "Candidates_LeavesOutAPurchaseOfGoodsThatCostNothing",
+   "tests/Libraries/Accounting/Backfill/PurchaseBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G160 an expense that is gone or deleted is refused",
+  "file": "app/Libraries/Accounting/Backfill/ExpenseBackfill.php",
+  "find": "        if ($expense === null) {\n            return BackfillPlan::refused(BackfillRefusal::DocumentChanged",
+  "replace": "        if (false) {\n            return BackfillPlan::refused(BackfillRefusal::DocumentChanged",
+  "tests": [
+   "--filter",
+   "Plan_RefusesAnExpenseThatComesToNothingOrIsDeleted",
+   "tests/Libraries/Accounting/Backfill/ExpenseBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G161 an expense before the books begin is refused",
+  "file": "app/Libraries/Accounting/Backfill/ExpenseBackfill.php",
+  "find": "        if ($early !== null) {\n            return BackfillPlan::refused($early, $source);",
+  "replace": "        if (false) {\n            return BackfillPlan::refused($early, $source);",
+  "tests": [
+   "--filter",
+   "Plan_RefusesAnExpenseBeforeTheStartDate",
+   "tests/Libraries/Accounting/Backfill/ExpenseBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G162 an expense paid from a treasury that is gone is refused",
+  "file": "app/Libraries/Accounting/Backfill/ExpenseBackfill.php",
+  "find": "if ($this->treasuryGone($expense->treasuryId)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Plan_RefusesAnExpensePaidFromATreasury",
+   "tests/Libraries/Accounting/Backfill/ExpenseBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G163 an expense with a journal in the books is refused",
+  "file": "app/Libraries/Accounting/Backfill/ExpenseBackfill.php",
+  "find": "if ($this->hasOtherJournals([ExpensePostingBuilder::SOURCE, ...CrossBranchPayments::companionsOf(ExpensePostingBuilder::SOURCE)], [$expense->expenseId], $batchId)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Plan_RefusesAnExpenseWhoseCompanion",
+   "tests/Libraries/Accounting/Backfill/ExpenseBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G164 an expense paid into the treasury of another branch is refused",
+  "file": "app/Libraries/Accounting/Backfill/ExpenseBackfill.php",
+  "find": "if ($draft !== null && count($this->crossBranch->drafts($draft, $expense->treasuryId, $expense->treasuryBranchId)) > 1) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Plan_RefusesAnExpensePaidFromATreasury",
+   "tests/Libraries/Accounting/Backfill/ExpenseBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G165 an expense that was never stamped is given the branch",
+  "file": "app/Libraries/Accounting/Backfill/ExpenseBackfill.php",
+  "find": "$stamp = $stored->branch_id === null ?",
+  "replace": "$stamp = false ?",
+  "tests": [
+   "--filter",
+   "Plan_GivesAnExpenseThatWasNeverStamped",
+   "tests/Libraries/Accounting/Backfill/ExpenseBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G166 an expense without a branch belongs to the default branch",
+  "file": "app/Libraries/Accounting/Backfill/ExpenseBackfill.php",
+  "find": "$branch = 'COALESCE(e.branch_id, ' . $this->defaultBranchId . ')';",
+  "replace": "$branch = 'e.branch_id';",
+  "tests": [
+   "--filter",
+   "Candidates_ListsTheExpensesOfTheBranch",
+   "tests/Libraries/Accounting/Backfill/ExpenseBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G170 a cash-up that counted nothing or is gone is refused",
+  "file": "app/Libraries/Accounting/Backfill/CashupBackfill.php",
+  "find": "if ($row === null || (int) $row->deleted === 1 || ! $this->documents->isCounted($row)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Plan_RefusesACashupThatIsNoLongerCounted",
+   "tests/Libraries/Accounting/Backfill/CashupBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G171 a cash-up before the books begin is refused",
+  "file": "app/Libraries/Accounting/Backfill/CashupBackfill.php",
+  "find": "        if ($early !== null) {\n            return BackfillPlan::refused($early, $source);",
+  "replace": "        if (false) {\n            return BackfillPlan::refused($early, $source);",
+  "tests": [
+   "--filter",
+   "Plan_RefusesACashupBeforeTheStartDate",
+   "tests/Libraries/Accounting/Backfill/CashupBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G172 a cash-up counted in a treasury that is gone is refused",
+  "file": "app/Libraries/Accounting/Backfill/CashupBackfill.php",
+  "find": "if ($this->treasuryGone($row->treasury_id === null ? null : (int) $row->treasury_id)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Plan_RefusesACashupCountedInATreasuryThatIsGone",
+   "tests/Libraries/Accounting/Backfill/CashupBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G173 a cash-up with a journal in the books is refused",
+  "file": "app/Libraries/Accounting/Backfill/CashupBackfill.php",
+  "find": "if ($this->hasOtherJournals([CashupPostingBuilder::SOURCE], [$document->id], $batchId)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Plan_RefusesACashupWhoseJournal",
+   "tests/Libraries/Accounting/Backfill/CashupBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G174 a cash-up that was never stamped is counted again",
+  "file": "app/Libraries/Accounting/Backfill/CashupBackfill.php",
+  "find": "$counts = $row->branch_id === null || $row->cash_difference === null;",
+  "replace": "$counts = false;",
+  "tests": [
+   "--filter",
+   "Plan_CountsTheExpectedCash",
+   "tests/Libraries/Accounting/Backfill/CashupBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G175 a cash-up that counted nothing is not a candidate",
+  "file": "app/Libraries/Accounting/Backfill/CashupBackfill.php",
+  "find": "WHERE c.deleted = 0 AND (c.closed_amount_cash <> 0 OR c.closed_amount_due <> 0 OR c.closed_amount_card <> 0 OR c.closed_amount_check <> 0)",
+  "replace": "WHERE c.deleted = 0",
+  "tests": [
+   "--filter",
+   "Candidates_LeavesOutACashupThatCountedNothing",
+   "tests/Libraries/Accounting/Backfill/CashupBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G180 the dry run needs a range",
+  "file": "app/Commands/AccountingBackfill.php",
+  "find": "if ($from === null || $to === null || ! ctype_digit($limit)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Run_RefusesARange",
+   "tests/Commands/AccountingBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G181 the dry run reads inside a transaction that refuses a write",
+  "file": "app/Commands/AccountingBackfill.php",
+  "find": "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY",
+  "replace": "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ",
+  "tests": [
+   "--filter",
+   "Run_PrintsWhatTheRangeWouldPost",
+   "tests/Commands/AccountingBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G182 a refusal of the service is a refusal of the options",
+  "file": "app/Commands/AccountingBackfill.php",
+  "find": "} catch (AccountingException|BranchException $refusal) {",
+  "replace": "} catch (BranchException $refusal) {",
+  "tests": [
+   "--filter",
+   "Run_RefusesARange",
+   "tests/Commands/AccountingBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G190 the screen opens only for the permission",
+  "file": "app/Controllers/AccountingBackfill.php",
+  "find": "        if (! $this->can(AccountingGuard::BACKFILL_MANAGE)) {\n            throw PageNotFoundException::forPageNotFound();",
+  "replace": "        if (false) {\n            throw PageNotFoundException::forPageNotFound();",
+  "tests": [
+   "--filter",
+   "GetNewForm_IsNotFound|GetView|GetIndex_ShowsTheNote",
+   "tests/Controllers/AccountingBackfillControllerTest.php"
+  ]
+ },
+ {
+  "name": "G191 the list shows no batch to someone without the permission",
+  "file": "app/Controllers/AccountingBackfill.php",
+  "find": "'batches'     => $canRun ? $this->backfill->batches($this->employeeId()) : [],",
+  "replace": "'batches'     => $this->backfill->batches($this->employeeId()),",
+  "tests": [
+   "--filter",
+   "GetIndex_ShowsTheNote",
+   "tests/Controllers/AccountingBackfillControllerTest.php"
+  ]
+ },
+ {
+  "name": "G192 approving asks for the confirmation",
+  "file": "app/Controllers/AccountingBackfill.php",
+  "find": "            if ($this->request->getPost('confirm') !== '1') {\n                return ['success' => false, 'message' => lang('Accounting_backfill.confirm_required'), 'id' => NEW_ENTRY];\n            }\n\n            $this->backfill->approve(",
+  "replace": "            $this->backfill->approve(",
+  "tests": [
+   "--filter",
+   "PostApprove_NeedsTheConfirmation",
+   "tests/Controllers/AccountingBackfillControllerTest.php"
+  ]
+ },
+ {
+  "name": "G193 cancelling asks for the confirmation",
+  "file": "app/Controllers/AccountingBackfill.php",
+  "find": "            if ($this->request->getPost('confirm') !== '1') {\n                return ['success' => false, 'message' => lang('Accounting_backfill.confirm_required'), 'id' => NEW_ENTRY];\n            }\n\n            $this->backfill->cancel(",
+  "replace": "            $this->backfill->cancel(",
+  "tests": [
+   "--filter",
+   "PostCancel_NeedsTheConfirmation",
+   "tests/Controllers/AccountingBackfillControllerTest.php"
+  ]
+ },
+ {
+  "name": "G194 the approval form opens for a batch that is previewed or being approved",
+  "file": "app/Controllers/AccountingBackfill.php",
+  "find": "if (! in_array($batch->status, [BackfillStatus::Preview, BackfillStatus::Approving], true) || $batch->fingerprint === null) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "GetApproveForm_IsNotFound",
+   "tests/Controllers/AccountingBackfillControllerTest.php"
+  ]
+ },
+ {
+  "name": "G195 the approval form carries a fingerprint",
+  "file": "app/Controllers/AccountingBackfill.php",
+  "find": "if (! is_string($shown) || preg_match('/^[0-9a-f]{64}$/', $shown) !== 1) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "GetApproveForm_IsNotFound",
+   "tests/Controllers/AccountingBackfillControllerTest.php"
+  ]
+ },
+ {
+  "name": "G196 the cancel form opens for a batch that is open",
+  "file": "app/Controllers/AccountingBackfill.php",
+  "find": "if (! in_array($batch->status, [BackfillStatus::Collecting, BackfillStatus::Preview], true)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "GetCancelForm_IsNotFound",
+   "tests/Controllers/AccountingBackfillControllerTest.php"
+  ]
+ },
+ {
+  "name": "G197 the company is offered only to who works in every branch",
+  "file": "app/Controllers/AccountingBackfill.php",
+  "find": "if ($this->branchGuard()->isUnrestricted($this->employeeId())) {\n            $options['']",
+  "replace": "if (true) {\n            $options['']",
+  "tests": [
+   "--filter",
+   "GetNewForm_IsNotFound",
+   "tests/Controllers/AccountingBackfillControllerTest.php"
+  ]
+ },
+ {
+  "name": "G200 the retroactive posting is off until it is turned on",
+  "file": "app/Libraries/Accounting/AccountingSettings.php",
+  "find": "return $this->config->get_value(self::BACKFILL_KEY, '0') === '1';",
+  "replace": "return $this->config->get_value(self::BACKFILL_KEY, '1') === '1';",
+  "tests": [
+   "--filter",
+   "BackfillEnabled_IsOff",
+   "tests/Libraries/Accounting/AccountingSettingsTest.php"
+  ]
+ },
+ {
+  "name": "G201 a form without the switch leaves the setting as it was",
+  "file": "app/Controllers/AccountingSetup.php",
+  "find": "if ($this->request->getPost('backfill_enabled') !== null) {",
+  "replace": "if (true) {",
+  "tests": [
+   "--filter",
+   "PastMayBePosted",
+   "tests/Controllers/AccountingSetupControllerTest.php"
+  ]
+ },
+ {
+  "name": "G202 the setting is saved under its own key",
+  "file": "app/Libraries/Accounting/AccountingSettings.php",
+  "find": "'backfill_enabled'          => self::BACKFILL_KEY,",
+  "replace": "'backfill_enabled'          => self::CUSTOMER_OPENING_KEY,",
+  "tests": [
+   "--filter",
+   "BackfillEnabled_IsOffUntil",
+   "tests/Libraries/Accounting/AccountingSettingsTest.php"
+  ]
+ },
+ {
+  "name": "G210 a preview of no open batch fails the check",
+  "file": "app/Libraries/Accounting/Readiness/BackfillChecks.php",
+  "find": "if ($orphans > 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "FailsWhenAPreviewBelongsToNoOpenBatch",
+   "tests/Libraries/Accounting/Readiness/BackfillChecksTest.php"
+  ]
+ },
+ {
+  "name": "G211 a clean database passes the check",
+  "file": "app/Libraries/Accounting/Readiness/BackfillChecks.php",
+  "find": "if ($open === [] && ! $data['enabled'] && array_sum($waiting) === 0) {",
+  "replace": "if (true) {",
+  "tests": [
+   "--filter",
+   "Reviews",
+   "tests/Libraries/Accounting/Readiness/BackfillChecksTest.php"
+  ]
+ },
+ {
+  "name": "G212 only the previews of batches that are not open are orphans",
+  "file": "app/Libraries/Accounting/Readiness/BackfillChecks.php",
+  "find": "b.status NOT IN ({$active})",
+  "replace": "b.status IN ({$active})",
+  "tests": [
+   "--filter",
+   "FailsWhenAPreview|PassesWhen",
+   "tests/Libraries/Accounting/Readiness/BackfillChecksTest.php"
+  ]
+ },
+ {
+  "name": "G213 the check counts the documents that have no journal",
+  "file": "app/Libraries/Accounting/Readiness/BackfillChecks.php",
+  "find": "$count = $adapter->waiting($scope);",
+  "replace": "$count = 0;",
+  "tests": [
+   "--filter",
+   "ReviewsDocumentsWithNoJournal",
+   "tests/Libraries/Accounting/Readiness/BackfillChecksTest.php"
+  ]
+ },
+ {
+  "name": "G220 the migration cannot be undone once a batch exists",
+  "file": "app/Database/Migrations/20271500000000_RetroactiveBackfill.php",
+  "find": "if ($this->hasColumn('accounting_backfill_batches', 'families') && $this->db->table('accounting_backfill_batches')->countAllResults() > 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Down_RefusesOnceABatchExists",
+   "tests/Database/RetroactiveBackfillMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G221 the approval is written as off",
+  "file": "app/Database/Migrations/20271500000000_RetroactiveBackfill.php",
+  "find": "'value' => '0']);\n    }\n\n    public function down",
+  "replace": "'value' => '1']);\n    }\n\n    public function down",
+  "tests": [
+   "--filter",
+   "WritesTheSettingThatKeepsTheApprovalOffAsOff",
+   "tests/Database/RetroactiveBackfillMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G230 the trial balance counts no preview",
+  "file": "app/Libraries/Accounting/TrialBalance.php",
+  "find": "->whereIn('j.status', [JournalStatus::Posted->value, JournalStatus::Reversed->value])",
+  "replace": "->whereIn('j.status', [JournalStatus::Posted->value, JournalStatus::Reversed->value, JournalStatus::Preview->value])",
+  "tests": [
+   "--filter",
+   "LeavesOutThePreviews",
+   "tests/Libraries/Accounting/TrialBalanceTest.php"
+  ]
+ },
+ {
+  "name": "G231 the income statement counts no preview",
+  "file": "app/Libraries/Accounting/TrialBalance.php",
+  "find": "->whereIn('j.status', [JournalStatus::Posted->value, JournalStatus::Reversed->value])",
+  "replace": "->whereIn('j.status', [JournalStatus::Posted->value, JournalStatus::Reversed->value, JournalStatus::Preview->value])",
+  "tests": [
+   "--filter",
+   "LeavesOutThePreviews",
+   "tests/Libraries/Accounting/IncomeStatementTest.php"
+  ]
+ },
+ {
+  "name": "G232 the balance sheet counts no preview",
+  "file": "app/Libraries/Accounting/TrialBalance.php",
+  "find": "->whereIn('j.status', [JournalStatus::Posted->value, JournalStatus::Reversed->value])",
+  "replace": "->whereIn('j.status', [JournalStatus::Posted->value, JournalStatus::Reversed->value, JournalStatus::Preview->value])",
+  "tests": [
+   "--filter",
+   "LeavesOutThePreviews",
+   "tests/Libraries/Accounting/BalanceSheetTest.php"
+  ]
+ },
+ {
+  "name": "G233 the account ledger counts no preview",
+  "file": "app/Libraries/Accounting/AccountLedger.php",
+  "find": "->whereIn('j.status', [JournalStatus::Posted->value, JournalStatus::Reversed->value])",
+  "replace": "->whereIn('j.status', [JournalStatus::Posted->value, JournalStatus::Reversed->value, JournalStatus::Preview->value])",
+  "tests": [
+   "--filter",
+   "LeavesOutThePreviews",
+   "tests/Libraries/Accounting/AccountLedgerTest.php"
+  ],
+  "all": true
+ },
+ {
+  "name": "G234 the tax report counts no preview",
+  "file": "app/Libraries/Accounting/TaxReport.php",
+  "find": "->whereIn('j.status', [JournalStatus::Posted->value, JournalStatus::Reversed->value])",
+  "replace": "->whereIn('j.status', [JournalStatus::Posted->value, JournalStatus::Reversed->value, JournalStatus::Preview->value])",
+  "tests": [
+   "--filter",
+   "LeavesOutThePreviews",
+   "tests/Libraries/Accounting/TaxReportTest.php"
+  ]
+ },
+ {
+  "name": "G235 the inventory valuation counts no preview",
+  "file": "app/Libraries/Accounting/InventoryValuation.php",
+  "find": "->whereIn('j.status', [JournalStatus::Posted->value, JournalStatus::Reversed->value])",
+  "replace": "->whereIn('j.status', [JournalStatus::Posted->value, JournalStatus::Reversed->value, JournalStatus::Preview->value])",
+  "tests": [
+   "--filter",
+   "LeavesOutThePreviews",
+   "tests/Libraries/Accounting/InventoryValuationTest.php"
+  ]
+ },
+ {
+  "name": "G236 the list of customers by balance counts no preview",
+  "file": "app/Libraries/Accounting/CustomerLedger.php",
+  "find": "$bindings = [JournalStatus::Posted->value, JournalStatus::Reversed->value, EntityAccountService::CUSTOMER];",
+  "replace": "$bindings = [JournalStatus::Posted->value, JournalStatus::Preview->value, EntityAccountService::CUSTOMER];",
+  "tests": [
+   "--filter",
+   "LeavesOutThePreviews",
+   "tests/Libraries/Accounting/CustomerLedgerTest.php"
+  ]
+ },
+ {
+  "name": "G237 the balance of a customer account counts no preview",
+  "file": "app/Libraries/Accounting/CustomerLedger.php",
+  "find": "$bindings = [JournalStatus::Posted->value, JournalStatus::Reversed->value, $accountId];",
+  "replace": "$bindings = [JournalStatus::Posted->value, JournalStatus::Preview->value, $accountId];",
+  "tests": [
+   "--filter",
+   "LeavesOutThePreviews",
+   "tests/Libraries/Accounting/CustomerLedgerTest.php"
+  ]
+ },
+ {
+  "name": "G238 the list of suppliers by balance counts no preview",
+  "file": "app/Libraries/Accounting/SupplierLedger.php",
+  "find": "$bindings = [JournalStatus::Posted->value, JournalStatus::Reversed->value, EntityAccountService::SUPPLIER];",
+  "replace": "$bindings = [JournalStatus::Posted->value, JournalStatus::Preview->value, EntityAccountService::SUPPLIER];",
+  "tests": [
+   "--filter",
+   "LeavesOutThePreviews",
+   "tests/Libraries/Accounting/SupplierLedgerTest.php"
+  ]
+ },
+ {
+  "name": "G239 the balance of a supplier account counts no preview",
+  "file": "app/Libraries/Accounting/SupplierLedger.php",
+  "find": "$bindings = [JournalStatus::Posted->value, JournalStatus::Reversed->value, $accountId];",
+  "replace": "$bindings = [JournalStatus::Posted->value, JournalStatus::Preview->value, $accountId];",
+  "tests": [
+   "--filter",
+   "LeavesOutThePreviews",
+   "tests/Libraries/Accounting/SupplierLedgerTest.php"
+  ]
+ },
+ {
+  "name": "G240 the position of a treasury counts no preview",
+  "file": "app/Libraries/Accounting/TreasuryService.php",
+  "find": "$statuses = [JournalStatus::Posted->value, JournalStatus::Reversed->value];",
+  "replace": "$statuses = [JournalStatus::Posted->value, JournalStatus::Reversed->value, JournalStatus::Preview->value];",
+  "tests": [
+   "--filter",
+   "LeavesOutThePreviews",
+   "tests/Libraries/Accounting/TreasuryServiceTest.php"
+  ],
+  "all": true
+ },
+ {
+  "name": "G241 the reconciliation of the stock counts no preview",
+  "file": "app/Libraries/Accounting/StockLedger.php",
+  "find": "[JournalStatus::Posted->value, JournalStatus::Reversed->value, $accountId],",
+  "replace": "[JournalStatus::Posted->value, JournalStatus::Reversed->value, $accountId, JournalStatus::Preview->value],",
+  "tests": [
+   "--filter",
+   "LeavesOutThePreviews",
+   "tests/Libraries/Accounting/StockLedgerTest.php"
+  ]
+ },
+ {
+  "name": "G242 the ties of the readiness report count no preview",
+  "file": "app/Libraries/Accounting/Readiness/TieChecks.php",
+  "find": "->whereIn('j.status', [JournalStatus::Posted->value, JournalStatus::Reversed->value])",
+  "replace": "->whereIn('j.status', [JournalStatus::Posted->value, JournalStatus::Reversed->value, JournalStatus::Preview->value])",
+  "tests": [
+   "--filter",
+   "LeavesOutThePreviews",
+   "tests/Libraries/Accounting/Readiness/TieChecksTest.php"
+  ]
+ },
+ {
+  "name": "G243 the journals of a document in SalePosting leave out the previews",
+  "file": "app/Libraries/Accounting/SalePosting.php",
+  "find": "->where('status !=', JournalStatus::Preview->value)\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "JournalsOf_LeavesOutThePreviews",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G243 the journals of a document in ReceivingPosting leave out the previews",
+  "file": "app/Libraries/Accounting/ReceivingPosting.php",
+  "find": "->where('status !=', JournalStatus::Preview->value)\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "JournalsOf_LeavesOutThePreviews",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "G243 the journals of a document in ExpensePosting leave out the previews",
+  "file": "app/Libraries/Accounting/ExpensePosting.php",
+  "find": "->where('status !=', JournalStatus::Preview->value)\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "JournalsOf_LeavesOutThePreviews",
+   "tests/Libraries/Accounting/ExpensePostingTest.php"
+  ]
+ },
+ {
+  "name": "G243 the journals of a document in CashupPosting leave out the previews",
+  "file": "app/Libraries/Accounting/CashupPosting.php",
+  "find": "->where('status !=', JournalStatus::Preview->value)\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "JournalsOf_LeavesOutThePreviews",
+   "tests/Libraries/Accounting/CashupPostingTest.php"
+  ]
+ },
+ {
+  "name": "G247 the search of journals leaves out the previews",
+  "file": "app/Libraries/Accounting/JournalService.php",
+  "find": "->where('j.status !=', JournalStatus::Preview->value);",
+  "replace": ";",
+  "tests": [
+   "--filter",
+   "Search_LeavesOutThePreviews",
+   "tests/Libraries/Accounting/JournalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G250 the permission to manage batches is sensitive",
+  "file": "app/Libraries/Accounting/AccountingGuard.php",
+  "find": "        self::YEAR_END_CLOSE,\n        self::BACKFILL_MANAGE,\n    ];",
+  "replace": "        self::YEAR_END_CLOSE,\n    ];",
+  "tests": [
+   "--filter",
+   "CoversEveryPermissionOfTheGuard|NamesTheFourPermissions",
+   "tests/Libraries/Accounting/SensitivePermissionsTest.php"
+  ]
+ }
+]

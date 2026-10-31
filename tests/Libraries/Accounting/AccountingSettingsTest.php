@@ -689,6 +689,17 @@ class AccountingSettingsTest extends CIUnitTestCase
         }
     }
 
+    public function testBackfillEnabled_IsOffWhenTheSettingIsNotThereAtAll(): void
+    {
+        $this->accountingDb()->table('app_config')->where('key', 'accounting_backfill_enabled')->delete();
+
+        try {
+            $this->assertFalse($this->settings->backfillEnabled());
+        } finally {
+            $this->setConfigValue('accounting_backfill_enabled', '0');
+        }
+    }
+
     public function testBackfillEnabled_IsOffUntilTheSettingTurnsItOnAndIsAuditedAndNeedsThePermission(): void
     {
         $this->accountingDb()->table('accounting_audit_log')->truncate();

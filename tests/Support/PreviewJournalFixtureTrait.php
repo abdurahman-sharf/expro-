@@ -59,7 +59,7 @@ trait PreviewJournalFixtureTrait
      * A preview that stands for the source of a document the books already hold, under a revision no live
      * posting has used, with two lines on the cash and the sales accounts.
      */
-    protected function previewOfSource(string $source, int $sourceId, int $revision = 9, string $amount = '77.00'): int
+    protected function previewOfSource(string $source, int $sourceId, int $revision = 9, string $amount = '77.00', string $debitKey = 'cash', string $creditKey = 'sales_revenue'): int
     {
         $db = $this->accountingDb();
 
@@ -68,8 +68,8 @@ trait PreviewJournalFixtureTrait
         $journalId = (int) $db->insertID();
 
         $db->table('accounting_journal_lines')->insertBatch([
-            ['journal_id' => $journalId, 'line_no' => 1, 'account_id' => $this->accountId('cash'), 'debit' => $amount, 'credit' => '0'],
-            ['journal_id' => $journalId, 'line_no' => 2, 'account_id' => $this->accountId('sales_revenue'), 'debit' => '0', 'credit' => $amount],
+            ['journal_id' => $journalId, 'line_no' => 1, 'account_id' => $this->accountId($debitKey), 'debit' => $amount, 'credit' => '0'],
+            ['journal_id' => $journalId, 'line_no' => 2, 'account_id' => $this->accountId($creditKey), 'debit' => '0', 'credit' => $amount],
         ]);
 
         return $journalId;

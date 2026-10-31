@@ -159,6 +159,8 @@ final class BackfillBatchesTest extends CIUnitTestCase
         $this->assertSame($first, $this->batches->overlapping('2026-03-31', '2026-04-30', 1, [BackfillFamily::Expenses, BackfillFamily::Sales])?->id);
         $this->assertSame($first, $this->batches->overlapping('2026-03-10', '2026-03-10', null, [BackfillFamily::Expenses])?->id);
         $this->assertNull($this->batches->overlapping('2026-04-01', '2026-04-30', 1, [BackfillFamily::Expenses]));
+        $this->assertNull($this->batches->overlapping('2026-02-01', '2026-02-28', 1, [BackfillFamily::Expenses]));
+        $this->assertSame($first, $this->batches->overlapping('2026-02-01', '2026-03-01', 1, [BackfillFamily::Expenses])?->id);
         $this->assertNull($this->batches->overlapping('2026-03-10', '2026-03-10', $other, [BackfillFamily::Expenses]));
         $this->assertNull($this->batches->overlapping('2026-03-10', '2026-03-10', 1, [BackfillFamily::Cashups]));
 

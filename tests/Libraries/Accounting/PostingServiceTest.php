@@ -1300,6 +1300,23 @@ class PostingServiceTest extends CIUnitTestCase
         $this->assertSame('preview', $this->journalRow($preview)->status);
     }
 
+    public function testApprovePreview_RejectsAJournalThatWasApprovedAlready(): void
+    {
+        $journalId = $this->previewJournal(54);
+        $batch     = $this->previewBatch();
+
+        $this->service->approvePreview($journalId, $batch, 1);
+
+        try {
+            $this->service->approvePreview($journalId, $batch, 1);
+            $this->fail('A journal that was approved was approved again.');
+        } catch (PostingException $exception) {
+            $this->assertSame(PostingError::PreviewMissing, $exception->error);
+        }
+
+        $this->assertSame(1, $this->accountingDb()->table('accounting_audit_log')->where('entity_type', 'journal')->where('entity_id', $journalId)->where('action', 'posted')->countAllResults());
+    }
+
     public function testApprovePreview_RefusesAPeriodThatClosedSinceThePreviewWasWritten(): void
     {
         $journalId = $this->previewJournal(49);
@@ -1324,13 +1341,18 @@ class PostingServiceTest extends CIUnitTestCase
         $second = (int) $this->accountingDb()->insertID();
         $posted = $this->service->post($this->balancedDraft('sale', 51))->journalId;
         $kept   = $this->service->postPreview($this->balancedDraft('sale', 52), $second);
+        $done   = $this->previewJournal(53);
+
+        $this->service->approvePreview($done, $batch, 1);
 
         $this->assertTrue($other);
         $this->assertSame(1, $this->service->discardPreviews($batch));
+        $this->assertSame('posted', $this->journalRow($done)->status);
         $this->assertNull($this->journalRow($one));
         $this->assertNotNull($this->journalRow($posted));
         $this->assertNotNull($this->journalRow($kept));
         $this->assertSame(0, $this->accountingDb()->table('accounting_journal_lines')->where('journal_id', $one)->countAllResults());
+        $this->assertSame(2, $this->accountingDb()->table('accounting_journal_lines')->where('journal_id', $done)->countAllResults());
     }
 
     public function testPostPreview_IsCalledByNothingButTheBackfillService(): void

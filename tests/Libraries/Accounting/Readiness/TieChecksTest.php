@@ -464,6 +464,13 @@ class TieChecksTest extends CIUnitTestCase
         $this->assertSame(CheckStatus::Pass, $this->check('interbranch_unattributed')->status);
     }
 
+    public function testInterbranchUnattributed_LeavesOutThePreviewsOnTheAccountsBetweenBranches(): void
+    {
+        $this->previewOfSource('sale', 990003, 1, '50.00', 'branches_receivable', 'opening_balance');
+
+        $this->assertSame(CheckStatus::Pass, $this->check('interbranch_unattributed')->status);
+    }
+
     public function testInterbranchUnattributed_LeavesEveryTransferJournalWhetherOrNotALegWasRecorded(): void
     {
         foreach ([TreasuryTransfers::SOURCE, TreasuryTransfers::SOURCE_RECEIPT, ReceivingPostingBuilder::SOURCE_STOCK_TRANSFER, ReceivingPostingBuilder::SOURCE_TRANSFER_RECEIPT] as $source) {

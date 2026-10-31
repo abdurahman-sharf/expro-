@@ -1,22 +1,22 @@
 <?php
 /**
- * @var BackfillBatch                                                                $batch
+ * @var BackfillBatch                                                                 $batch
  * @var array{documents: int, ready: int, refused: int, journals: int, debit: string} $figures
- * @var array<string, int>                                                           $reasons
- * @var array{total: int, rows: list<object>}                                        $items
- * @var array{total: int, rows: list<object>}                                        $journals
- * @var array<int, list<object>>                                                     $lines
- * @var list<object>                                                                 $totals
- * @var string|null                                                                  $outcome
- * @var int                                                                          $documents_page
- * @var int                                                                          $journals_page
- * @var int                                                                          $page_size
- * @var list<string>                                                                 $blockers
- * @var string|null                                                                  $notice
- * @var Closure                                                                      $date
- * @var Closure                                                                      $amount
- * @var string                                                                       $status_text
- * @var Closure                                                                      $view_url
+ * @var array<string, int>                                                            $reasons
+ * @var array{total: int, rows: list<object>}                                         $items
+ * @var array{total: int, rows: list<object>}                                         $journals
+ * @var array<int, list<object>>                                                      $lines
+ * @var list<object>                                                                  $totals
+ * @var string|null                                                                   $outcome
+ * @var int                                                                           $documents_page
+ * @var int                                                                           $journals_page
+ * @var int                                                                           $page_size
+ * @var list<string>                                                                  $blockers
+ * @var string|null                                                                   $notice
+ * @var Closure                                                                       $date
+ * @var Closure                                                                       $amount
+ * @var string                                                                        $status_text
+ * @var Closure                                                                       $view_url
  */
 
 use App\Libraries\Accounting\Backfill\BackfillBatch;
@@ -27,7 +27,7 @@ $collecting = $batch->status === BackfillStatus::Collecting;
 $approvable = in_array($batch->status, [BackfillStatus::Preview, BackfillStatus::Approving], true) && $batch->fingerprint !== null && $batch->readyCount > 0;
 $cancelable = in_array($batch->status, [BackfillStatus::Collecting, BackfillStatus::Preview], true);
 $reasonText = static function (string $reason): string {
-    $key = 'Accounting_backfill.refusal_' . $reason;
+    $key  = 'Accounting_backfill.refusal_' . $reason;
     $line = lang($key);
 
     return $line === $key ? $reason : $line;

@@ -2,6 +2,7 @@
 
 namespace Tests\Libraries\Accounting\Backfill;
 
+use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\Backfill\BackfillDocument;
 use App\Libraries\Accounting\Backfill\BackfillFamily;
 use App\Libraries\Accounting\Backfill\BackfillPlan;
@@ -156,5 +157,14 @@ final class CashupBackfillTest extends CIUnitTestCase
 
         $this->assertSame([], $plan->stamp);
         $this->assertSame(['cashup:general|' . $this->accountId('cash_difference') . ':100.00:0.00,' . $this->accountId('cash') . ':0.00:100.00'], $this->plannedLines($plan));
+    }
+
+    public function testPlan_RefusesACashupWhoseJournalIsInTheBooksAlready(): void
+    {
+        $legacy = $this->legacyCashup('900');
+
+        (new PostingService())->post($this->balancedDraft('cashup', $legacy));
+
+        $this->assertSame(BackfillRefusal::PartlyPosted, $this->plan($legacy)->refusal);
     }
 }

@@ -767,4 +767,20 @@ class CustomerLedgerTest extends CIUnitTestCase
         $this->assertSame('100.0000', bcadd($after->accountBalance, '0', 4));
         $this->assertTies();
     }
+
+    public function testCustomersWithBalance_LeavesOutThePreviewsOfABatch(): void
+    {
+        $this->invoiceOf('100');
+
+        $before = (new CustomerLedger())->customersWithBalance();
+
+        $this->previewEverything();
+        $this->assertPreviewsStand();
+
+        $after = (new CustomerLedger())->customersWithBalance();
+
+        $this->assertEquals($before, $after);
+        $this->assertSame(1, $after['total']);
+        $this->assertSame('100.00', bcadd($after['rows'][0]->balance, '0', 2));
+    }
 }

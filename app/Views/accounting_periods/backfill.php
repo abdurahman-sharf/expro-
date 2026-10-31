@@ -1,16 +1,17 @@
 <?php
 /**
- * @var bool                     $can_run
- * @var list<BackfillBatch>      $batches
- * @var list<string>             $blockers
- * @var string|null              $notice
- * @var Closure                  $date
- * @var Closure                  $amount
- * @var Closure                  $status_text
+ * @var bool                $can_run
+ * @var list<BackfillBatch> $batches
+ * @var list<string>        $blockers
+ * @var string|null         $notice
+ * @var Closure             $date
+ * @var Closure             $amount
+ * @var Closure             $status_text
  */
 
 use App\Libraries\Accounting\Backfill\BackfillBatch;
 use App\Libraries\Accounting\Backfill\BackfillFamily;
+
 ?>
 
 <?= view('partial/header') ?>

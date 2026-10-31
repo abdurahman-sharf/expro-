@@ -465,4 +465,24 @@ final class AccountingBackfillControllerTest extends CIUnitTestCase
 
         $this->get('/accounting_periods/backfill/view/' . $batch->id)->assertSee(lang('Accounting_backfill.stamp_note'));
     }
+
+    public function testGetCancelForm_IsNotFoundForABatchThatWasApproved(): void
+    {
+        $this->legacyExpense();
+
+        $batch = $this->approved($this->previewed());
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_periods/backfill/cancel_form/' . $batch->id);
+    }
+
+    public function testGetCancelForm_ShowsTheFormOfABatchThatIsPreviewed(): void
+    {
+        $this->legacyExpense();
+
+        $batch = $this->previewed();
+
+        $this->get('/accounting_periods/backfill/cancel_form/' . $batch->id)->assertSee('backfill_cancel_form');
+    }
 }

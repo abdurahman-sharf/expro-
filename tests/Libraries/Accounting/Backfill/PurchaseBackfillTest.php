@@ -2,6 +2,7 @@
 
 namespace Tests\Libraries\Accounting\Backfill;
 
+use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\Backfill\BackfillDocument;
 use App\Libraries\Accounting\Backfill\BackfillFamily;
 use App\Libraries\Accounting\Backfill\BackfillPlan;
@@ -183,5 +184,15 @@ final class PurchaseBackfillTest extends CIUnitTestCase
         $this->assertSame(0, $this->accountingDb()->table('accounting_journals')->where('source_type', 'purchase')->where('source_id', $free)->countAllResults());
         $this->assertGreaterThan(0, $this->accountingDb()->table('accounting_stock_entries')->where('source_id', $free)->countAllResults());
         $this->assertNotContains($free, array_map(static fn (BackfillDocument $document): int => $document->id, $this->adapter()->candidates($scope, 0, 50, 0)));
+    }
+
+    public function testPlan_RefusesAPurchaseWhoseSupplierPaymentIsInTheBooksAlready(): void
+    {
+        $receivingId = $this->legacyPurchase('500');
+        $paymentId   = $this->whileOff(fn (): int => $this->payPurchase($receivingId, '120'));
+
+        (new PostingService())->post($this->balancedDraft('supplier_payment', $paymentId));
+
+        $this->assertSame(BackfillRefusal::PartlyPosted, $this->plan($receivingId)->refusal);
     }
 }

@@ -11,6 +11,9 @@ use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\Backfill\BackfillStatus;
+use App\Libraries\Accounting\JournalLineDraft;
+use App\Libraries\Accounting\PostingError;
+use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\StockLedger;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Organization\BranchError;
@@ -81,7 +84,10 @@ final class BackfillServiceTest extends CIUnitTestCase
         $done  = $this->approved($batch);
         $after = array_map(static fn (array $journal): array => [$journal['key'], $journal['lines'], $journal['date']], $this->batchJournals($batch->id));
 
+        $this->assertNull($batch->decidedBy);
         $this->assertSame(BackfillStatus::Approved, $done->status);
+        $this->assertSame($this->backfillManager, $done->decidedBy);
+        $this->assertNotNull($done->decidedAt);
         $this->assertSame($shown, $after);
         $this->assertSame(['posted', 'posted', 'posted'], array_column($this->batchJournals($batch->id), 'status'));
         $this->assertSame('2026-03-10', $after[0][2]);
@@ -344,6 +350,41 @@ final class BackfillServiceTest extends CIUnitTestCase
         $this->assertSame(3, $this->countRows('accounting_backfill_items'));
         $this->assertSame(3, $this->countRows('accounting_journals') - 1);
         $this->assertSame([$first, $second, $third], array_map('intval', array_column($this->accountingDb()->table('accounting_backfill_items')->orderBy('item_id')->get()->getResultArray(), 'document_id')));
+    }
+
+    public function testPreview_KeepsNothingOfAChunkThatFailsHalfWay(): void
+    {
+        $this->legacyExpense('100', '0', '2026-03-12');
+        $this->legacyExpense('200', '0', '2026-03-13');
+        $third = $this->legacyExpense('300', '0', '2026-03-14');
+
+        $batch    = $this->previewed(['chunk_size' => 3], false);
+        $journals = $this->countRows('accounting_journals');
+        $db       = $this->accountingDb();
+        $blocker  = $db->prefixTable('wp12_backfill_blocker');
+
+        $db->query("DROP TRIGGER IF EXISTS {$blocker}");
+        $db->query("CREATE TRIGGER {$blocker} BEFORE INSERT ON " . $db->prefixTable('accounting_journals') . " FOR EACH ROW BEGIN IF NEW.status = 'preview' AND NEW.source_id = {$third} THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'blocked'; END IF; END");
+
+        try {
+            $this->backfill->preview($batch->id, $this->backfillManager);
+            $this->fail('A chunk that could not be written was reported as written.');
+        } catch (PostingException $exception) {
+            $this->assertSame(PostingError::WriteFailed, $exception->error);
+            $this->releaseOpenTransactions();
+        } finally {
+            $db->query("DROP TRIGGER IF EXISTS {$blocker}");
+        }
+
+        $this->assertSame($journals, $this->countRows('accounting_journals'));
+        $this->assertSame(0, $this->countRows('accounting_backfill_items'));
+        $this->assertSame(0, $this->backfill->batch($batch->id, $this->backfillManager)->cursorId);
+
+        $batch = $this->backfill->preview($batch->id, $this->backfillManager);
+
+        $this->assertSame(BackfillStatus::Preview, $batch->status);
+        $this->assertSame(3, $this->countRows('accounting_backfill_items'));
+        $this->assertSame($journals + 3, $this->countRows('accounting_journals'));
     }
 
     public function testPreview_GivesTheSameFingerprintWhetherOrNotItWasInterrupted(): void
@@ -925,6 +966,18 @@ final class BackfillServiceTest extends CIUnitTestCase
         $this->assertRefusedWith(AccountingError::BackfillPreviewChanged, fn () => $this->approved($batch));
     }
 
+    public function testApprove_RefusesABatchThatHoldsAPreviewTheFingerprintDoesNotCover(): void
+    {
+        $this->legacyExpense();
+
+        $batch = $this->previewed();
+
+        $this->insertPreview($batch->id, [new JournalLineDraft($this->accountId('cash'), '10.00'), new JournalLineDraft($this->accountId('retained_earnings'), '0', '10.00')]);
+
+        $this->assertRefusedWith(AccountingError::BackfillPreviewChanged, fn () => $this->approved($batch));
+        $this->assertSame(BackfillStatus::Preview, $this->statusOf($batch->id));
+    }
+
     public function testApprove_WaitsForAChangeToTheDocumentThatIsRunningAndGoesOnWhenItIsDone(): void
     {
         $expense = $this->legacyExpense();
@@ -1067,5 +1120,78 @@ final class BackfillServiceTest extends CIUnitTestCase
 
         $this->assertSame('stamp:branch_id', $rows[0]->detail);
         $this->assertNull($rows[1]->detail);
+    }
+
+    public function testDryRun_RefusesABranchOutsideTheScopeOfTheEmployee(): void
+    {
+        $other = $this->createBranch('B2', 'Second branch');
+        $local = $this->employeeWithGrants([AccountingGuard::BACKFILL_MANAGE], [1]);
+
+        $this->assertBranchRefusedWith(BranchError::NotAllowed, fn () => $this->backfill->dryRun(['from' => '2026-01-01', 'to' => '2026-12-31', 'branch_id' => $other], $local));
+        $this->assertBranchRefusedWith(BranchError::CompanyScopeNeeded, fn () => $this->backfill->dryRun(['from' => '2026-01-01', 'to' => '2026-12-31'], $local));
+        $this->assertSame(0, $this->backfill->dryRun(['from' => '2026-01-01', 'to' => '2026-12-31', 'branch_id' => 1], $local)['summary']['documents']);
+    }
+
+    public function testPreview_RefusesWhileAccountingIsOff(): void
+    {
+        $batch = $this->previewed([], false);
+
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $this->assertRefusedWith(AccountingError::BackfillAccountingOff, fn () => $this->backfill->preview($batch->id, $this->backfillManager));
+        $this->assertSame(BackfillStatus::Collecting, $this->statusOf($batch->id));
+    }
+
+    public function testApprove_WaitsForTheChangeOfASupplierThatIsRunning(): void
+    {
+        $this->legacyPurchase('500', '2026-03-10');
+
+        $batch   = $this->previewed();
+        $service = new BackfillService(null, null, null, 1);
+        $other   = $this->openSecondConnection();
+        $name    = 'ospos_supplier_' . substr(sha1($this->accountingDb()->getDatabase()), 0, 10) . '_' . $this->supplierId;
+
+        $this->assertSame(1, (int) $other->query('SELECT GET_LOCK(?, 0) AS got', [$name])->getRow()->got);
+
+        try {
+            $this->assertRefusedWith(AccountingError::SupplierBusy, fn () => $service->approve($batch->id, (string) $batch->fingerprint, $this->backfillManager));
+        } finally {
+            $other->query('SELECT RELEASE_LOCK(?)', [$name]);
+            $other->close();
+        }
+
+        $this->assertSame(BackfillStatus::Approved, $service->approve($batch->id, (string) $batch->fingerprint, $this->backfillManager)->status);
+    }
+
+    public function testApprove_SettlesThePaymentOfASupplierBeyondAPurchaseOnTheOldestOpenOneAndKeepsTheLedgerTied(): void
+    {
+        $oldest = $this->legacyPurchase('100', '2026-03-10');
+        $small  = $this->legacyPurchase('50', '2026-03-12');
+
+        $this->whileOff(fn (): int => $this->payPurchase($small, '120'));
+
+        $batch = $this->previewed();
+
+        $this->assertSame([], $this->supplierApplications());
+
+        $this->approved($batch);
+
+        $this->assertSame(['invoice_excess:' . $small . '->' . $oldest . ':70.00'], $this->supplierApplications());
+        $this->assertSupplierTies();
+    }
+
+    public function testPreview_RefusesACounterSaleThatWasNotSettledInFullAndSaysWhy(): void
+    {
+        $saleId = $this->whileOff(function (): int {
+            $cycle = $this->referenceInvoice();
+
+            return $this->dateSale($this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '100')], SALE_TYPE_POS, null), '2026-03-10');
+        });
+
+        $batch = $this->previewed();
+        $row   = $this->accountingDb()->table('accounting_backfill_items')->where('batch_id', $batch->id)->where('document_id', $saleId)->get()->getRow();
+
+        $this->assertSame('posting_refused', $row->reason);
+        $this->assertSame('credit_needs_customer', $row->detail);
     }
 }

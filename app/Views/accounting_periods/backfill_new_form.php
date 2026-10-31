@@ -1,12 +1,13 @@
 <?php
 /**
- * @var array<string, string>   $branches
- * @var list<BackfillFamily>    $families
- * @var int                     $chunk
+ * @var array<string, string> $branches
+ * @var list<BackfillFamily>  $families
+ * @var int                   $chunk
  */
 
 use App\Libraries\Accounting\Backfill\BackfillFamily;
 use App\Libraries\Accounting\Backfill\BackfillService;
+
 ?>
 
 <div id="required_fields_message"><?= lang('Common.fields_required_message') ?></div>

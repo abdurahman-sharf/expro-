@@ -114,7 +114,7 @@ final class CashupPosting
 
         $this->branches->requireBranch($branchId, $actorId);
 
-        $treasuryId = $isNew ? $this->treasuries->stampFor($actorId, $branchId) : ($stored->treasury_id === null ? null : (int) $stored->treasury_id);
+        $treasuryId              = $isNew ? $this->treasuries->stampFor($actorId, $branchId) : ($stored->treasury_id === null ? null : (int) $stored->treasury_id);
         [$expected, $difference] = $this->isClosed($data, $stored) ? $this->counted($data, $stored, $branchId) : [null, null];
 
         return [
