@@ -20,10 +20,10 @@
 ## 2. الأدلة
 
 - **القاعدة المرصودة وما قابلها هنا:** مسودة بلا رقم تسلسلي ولا قيد ولا مخزون، وإصدارها يعطي الرقم التالي ويولّد قيدي الإيراد والتكلفة ويخصم الكمية (`S-06`، `T-07`)؛ عرض سعر «مفتوح» ثم «تمت الموافقة» ثم «حولت لفاتورة» بلا قيد ولا مخزون وبحوار تأكيد ثم نموذج فاتورة معبأ لا يُنشأ إلا بحفظه (`S-07`)؛ والحالات الثماني وكونها ليست حقلًا في النموذج بل تُضبط من إجراءات القائمة والعرض (`FRM-R11`)، وزر «حفظ كـ مسودة» في إضافة العرض لا في تعديله (`FRM-R12`). **أُضيفت إلى `tests/Support/Parity/T-07.json` أربع حالات «مطابق» (بنيوية) بأدلة `draft` و`draft_issued` و`quote` و`quote_conversion_dialog` و`quote_converted_invoice`** وتجري في `DocumentNumberingTest` و`SalePostingTest`: `draft-takes-no-sequence-number` و`issued-draft-takes-the-next-number` و`quote-states-and-no-posting` و`quote-converted-by-saving-the-invoice`. **ولا أقول إن شكل الرقم المؤقت `draft-11` أو ترتيب حالات الانتقال «مطابق لدفترة»**: ما رُصد مسودة بلا رقم تسلسلي وحالات العرض الثلاث (القسم 4).
-- **ملفات اختبار جديدة (لكل صنف ملفه):** `QuoteStatusTest` (21)، `QuoteLifecycleTest` (32: الانتقالات كلها بالجدول وما يُرفض ورسالته والتدوين والفرع **وقفل الصف بين اتصالين وقراءة ما أنجزه طلب آخر لحظتها لا ما رآه snapshot المعاملة** وفتح المسودة بالرقم والتحويل والمعاملة والقفل بعد التحويل)، `DraftInvoiceTest` (18: الرقم المؤقت لا يُخزَّن، وقراءة الأسطر والتكلفة والضرائب لحظة الإصدار وعميل غير خاضع للضريبة وحصص الخصم ومشكلته والبطاقة والنقاط والإجماليات)، `SaleDocumentListTest` (13: القائمتان ونطاق الفروع والمسمّيات والمجموع الفرعي والترشيح)، `QuoteLifecycleMigrationTest` (7: الأعمدة تقبل الفراغ وإعادة التشغيل وإكمال ما توقف **وعرض قائم يبقى كما كان بلا حالة** ورفض `down()`).
-- **اختبارات أُضيفت إلى ملفات قائمة (لكل صنف ملفه):** `SalePostingTest` (48 دالة و55 اختبارًا ببياناتها، من 246 إلى 301، «المسودة ثم الإصدار T-07 بتاريخ مكتوب وفترة مقفلة»: الإصدار يطابق قيود الكاشير وضرائبه، وتاريخ يُكتب عند الإصدار ويُبقى تاريخ المسودة، ويرفض يومًا في فترة مقفلة **وفترة الفرع وحده** ويوم المستقبل وقبل الدفاتر وغير المخوَّل والشروط، **ولا يُصدَر مرتين ولو بطلبين معًا (بعميل وبلا عميل: لا قفل عميل فصف المسودة هو الذي يمنع الثاني)**، ويرفض ما ليس مسودة وبطاقة الهدية ويتراجع كله حين يرفض الدفتر، **ويعمل والمحاسبة معطّلة**، **وتحويل العرض بحفظ الفاتورة**، ومسودة تتذكر عرضها، وعرض محوَّل لا يُحفظ ولا يُلغى ولا يُرمى، **والبيع المعلّق لنقطة البيع لا يتأثر**) و`DocumentNumberingTest` (5: **أرقام المسودات لا تحرّك التسلسل** وتتبع ترتيب الإصدار لا الحفظ، والرقم المكتوب باليد يبقى، ولا رقم يبقى بعد رفض الإصدار، ومسودة العرض بلا رقم حتى تُفتح) و`SalesControllerTest` (71 دالة و103 اختبارات ببياناتها، من 189 إلى 292: الصفحتان، **والإصدار بـ`POST` ورمز الحماية ولا يستجيب لـ`GET` ولا يتغير شيء به، والتحويل يملأ الكاشير ولا يحفظ، والانتقال غير المسموح يُرفض برسالته وتبقى الحالة، والصلاحية والفرع، والكاشير بين الطلبين، وتهريب الأسماء (`esc`)**) و`Sale_libTest` (5: العرض المصدر والتفريغ).
+- **ملفات اختبار جديدة (لكل صنف ملفه):** `QuoteStatusTest` (21)، `QuoteLifecycleTest` (32: الانتقالات كلها بالجدول وما يُرفض ورسالته والتدوين والفرع **وقفل الصف بين اتصالين وقراءة ما أنجزه طلب آخر لحظتها لا ما رآه snapshot المعاملة** وفتح المسودة بالرقم والتحويل والمعاملة والقفل بعد التحويل)، `DraftInvoiceTest` (21: الرقم المؤقت لا يُخزَّن، وقراءة الأسطر والتكلفة والضرائب لحظة الإصدار وعميل غير خاضع للضريبة وحصص الخصم ومشكلته والبطاقة والنقاط والإجماليات، **والضريبة بحسب الوجهة بكود العميل لا الكود الافتراضي، وبصمة المسودة وأخذها قبل القراءة**)، `SaleDocumentListTest` (16: القائمتان ونطاق الفروع والمسمّيات والمجموع الفرعي والترشيح **وحد الـ200 بـ199 و200 و201 صفًّا**)، **`tests/Config/FiltersTest` (7، جديد: مرشّح الحماية على كل مسار `POST` في المبيعات بإعداد الإنتاج، ومرشّح الحماية الحقيقي يرفض طلبًا بلا رمز)**، `QuoteLifecycleMigrationTest` (7: الأعمدة تقبل الفراغ وإعادة التشغيل وإكمال ما توقف **وعرض قائم يبقى كما كان بلا حالة** ورفض `down()`).
+- **اختبارات أُضيفت إلى ملفات قائمة (لكل صنف ملفه):** `SalePostingTest` (56 دالة و63 اختبارًا ببياناتها، من 246 إلى 309، «المسودة ثم الإصدار T-07 بتاريخ مكتوب وفترة مقفلة»: الإصدار يطابق قيود الكاشير وضرائبه، وتاريخ يُكتب عند الإصدار ويُبقى تاريخ المسودة، ويرفض يومًا في فترة مقفلة **وفترة الفرع وحده** ويوم المستقبل وقبل الدفاتر وغير المخوَّل والشروط، **ولا يُصدَر مرتين ولو بطلبين معًا (بعميل وبلا عميل: لا قفل عميل فصف المسودة هو الذي يمنع الثاني)**، ويرفض ما ليس مسودة وبطاقة الهدية ويتراجع كله حين يرفض الدفتر، **ويعمل والمحاسبة معطّلة**، **وتحويل العرض بحفظ الفاتورة**، ومسودة تتذكر عرضها، وعرض محوَّل لا يُحفظ ولا يُلغى ولا يُرمى، **والبيع المعلّق لنقطة البيع لا يتأثر**) و`DocumentNumberingTest` (5: **أرقام المسودات لا تحرّك التسلسل** وتتبع ترتيب الإصدار لا الحفظ، والرقم المكتوب باليد يبقى، ولا رقم يبقى بعد رفض الإصدار، ومسودة العرض بلا رقم حتى تُفتح) و`SalesControllerTest` (81 دالة و113 اختبارًا ببياناتها، من 189 إلى 302: الصفحتان، **والإصدار بـ`POST` ورمز الحماية ولا يستجيب لـ`GET` ولا يتغير شيء به، والتحويل يملأ الكاشير ولا يحفظ، والانتقال غير المسموح يُرفض برسالته وتبقى الحالة، والصلاحية والفرع، والكاشير بين الطلبين، وتهريب الأسماء (`esc`)**) و`Sale_libTest` (5: العرض المصدر والتفريغ).
 - **مراجعة الحالات الحدّية:** لا مسودة ولا عرض يكتب قيدًا (`countJournals() = 0` في كل اختبار حفظ مسودة أو عرض)؛ **كل ربط ثلاثي للعميل ينطبق بعد الإصدار** (`assertTies`)؛ **التأكد من أن الإصدار يطابق ما كان يفعله الكاشير بالمسودة نفسها** (`testIssueDraft_IssuesARegisterDraftLikeOneThatTheRegisterTookUpAndCompleted` و`…WorksTheTaxesOutAsTheRegisterDoesForTheSameLines`: جدول الضرائب وقيد الإيراد سطرًا بسطر).
-- **الملفات التي شُغّلت وكل ما فيها ناجح:** **31 ملفًا، 3715 اختبارًا** (شُغّل كل ملف وحده على قاعدة `ospos_test_wp14` بعد آخر تعديل في الكود؛ ودالة من `SalesControllerTest` كان فيها خطأ في استدعاء الاختبار نفسه فأُصلحت وأُعيد تشغيلها، **وأُعيد تشغيل الملفات المعدَّلة كلها بعد آخر تعديل في الاختبارات** فنجحت): ملفات الحزمة الجديدة `QuoteStatusTest` (21) و`QuoteLifecycleTest` (32) و`DraftInvoiceTest` (18) و`SaleDocumentListTest` (13) و`QuoteLifecycleMigrationTest` (7)؛ والمعدَّلة `SalePostingTest` (301: كان 246) و`DocumentNumberingTest` (90) و`Sale_libTest` (48) و`SalesControllerTest` (292: كان 189)؛ **وما يلمسه ما غيّرته**: `DocumentTypeTest` (6) و`NumberingSequenceTest` (5) و`Sale_libPaymentTest` (12) و`Tax_libTest` (13: غُيّر `Tax_lib::get_taxes`) و`SaleTest` (52) و`SaleLoaderTest` (3) و`SalePostingBuilderTest` (66) و`AccountingMessageTest` (207: أُضيف «من» و«إلى») و`MigrationChecksTest` (17) و`ReadinessRunbookTest` (15) و`AccountingReadinessTest` (25) و`LanguageFilesTest` (1872) و`ParityFixtureTest` (391) و`ParityNotImplementedTest` (14) وترحيلات `sales` الأربعة السابقة `SalesAccountingMigrationTest` (5) و`SalesInvoiceDiscountMigrationTest` (5) و`RefundInvoiceMigrationTest` (5) و`InvoiceDatesAndPaymentTermsMigrationTest` (7) و`AccountingReceivablesControllerTest` (80) و`CustomerLedgerTest` (37) و`CreditSettlementTest` (22) و`CustomerDocumentsTest` (34).
+- **الملفات التي شُغّلت وكل ما فيها ناجح:** **37 ملفًا، 3890 اختبارًا** (شُغّل كل ملف وحده على قاعدة `ospos_test_wp14` بعد آخر تعديل في الكود وفي الاختبارات، وبعد تشغيل قائمة الحراس كلها؛ ولم يُشغَّل ملفان معًا على القاعدة): ملفات الحزمة `QuoteStatusTest` (21) و`QuoteLifecycleTest` (32) و`DraftInvoiceTest` (21) و`SaleDocumentListTest` (16) و`QuoteLifecycleMigrationTest` (7) و`tests/Config/FiltersTest` (7)؛ والمعدَّلة `SalePostingTest` (309) و`DocumentNumberingTest` (90) و`Sale_libTest` (48) و`SalesControllerTest` (302) و`Tax_libTest` (17: أربعة اختبارات لمعاملي `get_taxes` الجديدين)؛ **وما يلمسه ما غيّرته** (`Sale::save_value` يرفض اليوم كل حفظ فوق ما لم يعد معلّقًا، و`AccountingError` فيه حالة جديدة، وفي اللغة مفاتيح جديدة): `DocumentTypeTest` (6) و`NumberingSequenceTest` (5) و`Sale_libPaymentTest` (12) و`SaleTest` (52) و`SaleLoaderTest` (3) و`SalePostingBuilderTest` (66) و`AccountingMessageTest` (208: حالة `DraftChanged` الجديدة) و`MigrationChecksTest` (17) و`ReadinessRunbookTest` (15) و`AccountingReadinessTest` (25) و`LanguageFilesTest` (1872) و`ParityFixtureTest` (391) و`ParityNotImplementedTest` (14) وترحيلات `sales` السابقة `SalesAccountingMigrationTest` (5) و`SalesInvoiceDiscountMigrationTest` (5) و`RefundInvoiceMigrationTest` (5) و`InvoiceDatesAndPaymentTermsMigrationTest` (7) و`AccountingReceivablesControllerTest` (80) و`CustomerLedgerTest` (37) و`CreditSettlementTest` (22) و`CustomerDocumentsTest` (34)؛ **وملفات تقرأ البيع المعلّق أو تعدّه** (أضفتها بعد المراجعة): `ItemTest` (39) و`TaxDocumentsTest` (22) و`TaxReportTest` (44) و`ReturnLimitTest` (15) و`CashupExpectationTest` (19).
 - **لم تُشغَّل المجموعة الكاملة** (نحو ساعة، والمعالجات مشتركة مع وكلاء آخرين): يشغّلها المُدمِج بعد الدمج. **ولم تُشغَّل هذه الحزمة في متصفح** (القسم 5).
 
 ## 3. الحراس
@@ -31,7 +31,9 @@
 كل حارس عُطِّل وحده بـ`tools/dev/guard_mutations.py` وقائمته في [wp14-guards.json](wp14-guards.json) (كشفه = فشل اختبار من الملفات المسمّاة، وبعضها بمرشّح لدوال الحزمة). **معادل حُذف من القائمة (ومعه السبب):** في `Sale::issueDraft` الفرع `if ($issue->problem !== null)` (يرجع `INVOICE_DISCOUNT_INVALID` قبل الحفظ): تعطيله لا يغيّر سلوكًا لأن `save_value` يحسب خطة الخصم نفسها فيرفضه بالرمز نفسه وبالمشكلة نفسها ويتراجع، فالفرع اختصار لا حارس (والاختبار `testIssueDraft_RejectsADiscountThatNoLongerFitsTheLinesAndLeavesTheDraftAsItWas` يثبّت النتيجة) ولذلك **غاب الرقم G67 من القائمة**. **وستة حراس لم يكشفها التشغيل الأول فقُوّيت لها الاختبارات حتى كُشفت:** G27 (قفل صف العرض: اختبار القفل بين اتصالين كان يقبل «مهلة القفل» التي يرميها `UPDATE` لاحقًا، فصار الاختبار أن ما أنجزه طلب آخر لحظتها هو ما يُقرأ لا ما رآه snapshot المعاملة)، وG36 وG46 (مرشّح الدوال كان مشتركًا مع `SalePostingTest` فأسقط دوال `DraftInvoiceTest` فلم تعمل، والمرشّح اليوم يضمّ دوال الملفين، **وأُعيدت بهذا كل حراس `DraftInvoice` وحارسا G60 وG69 فكُشفت**)، وG54 (قفل صف البيع: مع عميل يمنع قفلُ العميل السباق وحده، فأُضيف اختبار سباق بعمليتين على مسودة بلا عميل)، وG106 (تفريغ الكاشير قبل التحويل: أُضيف اختبار الرقم المكتوب وخيار البريد اللذين لا ينسخهما `copy_entire_sale`)، وG111 (رمز الحماية في نموذج الإصدار: صار الاختبار يستخرج النموذج نفسه ويطلب فيه الرمز بدل عدّ الرموز في الصفحة كلها).
 
 
-**النتيجة النهائية:** `{"DETECTED": 114, "UNDETECTED": 0, "INVALID": 0}`.
+**في مرحلة الإصلاح (القسم 9) أُضيف 52 حارسًا (G116 إلى G167)** وانتقلت أربع صيغ من مكانها فأُعيدت كتابتها (G21 بعد أن صار التدوين في `recordChange`، وG56 وG57 وG65 بعد تغيير القفل والشرط). **وخمسة حراس لم يكشفها التشغيل الأول فقُوّيت لها الاختبارات حتى كُشفت:** G133 (ترتيب أخذ البصمة قبل القراءة: صار اختبار يحفظ المسودة من جديد **أثناء** قراءتها فعلًا ويطلب ألا تغطيّ البصمةُ ذلك التغيير)، وG150 إلى G152 (اختبار تهريب القائمتين كان فيه عرض سعر وحده بلا مسودة فلم يُمتحن تهريب رقم المسودة وموظفها وفرعها)، وG139 (صيغة التعطيل نفسها كانت لا تُحلَّل فكانت `INVALID`، فصُحّحت).
+
+**النتيجة النهائية:** `{"DETECTED": 166, "UNDETECTED": 0, "INVALID": 0}`.
 
 أسماء الحراس بالإنجليزية كما في الملف `wp14-guards.json`؛ وكل صف عُطِّل فيه النص المذكور وحده وشُغّلت الملفات المسمّاة.
 
@@ -68,23 +70,23 @@
 | G29 a quote that was cancelled or completed is not live | `QuoteLifecycle.php` | `QuoteLifecycleTest` | كُشف |
 | G30 a sale that is not a quote is not a quote | `QuoteLifecycle.php` | `QuoteLifecycleTest` | كُشف |
 | G31 a converted quote is not saved or cancelled | `QuoteLifecycle.php` | `QuoteLifecycleTest` | كُشف |
-| G32 only a completed invoice is the invoice made from the quote | `QuoteLifecycle.php` | `QuoteLifecycleTest` و`SaleDocumentListTest` | كُشف |
+| G32 only a completed invoice is the invoice made from the quote | `QuoteLifecycle.php` | `QuoteLifecycleTest` | كُشف |
 | G33 the state is read of a live quote only | `QuoteLifecycle.php` | `QuoteLifecycleTest` | كُشف |
 | G34 a sale that is not a quote may not be converted | `QuoteLifecycle.php` | `QuoteLifecycleTest` | كُشف |
 | G35 the message of a refused move names the two states | `AccountingMessage.php` | `QuoteLifecycleTest` | كُشف |
-| G36 only a suspended invoice is a draft | `DraftInvoice.php` | `DraftInvoiceTest` و`SalePostingTest` | كُشف |
-| G37 a suspended sale that is not an invoice is not a draft | `DraftInvoice.php` | `DraftInvoiceTest` و`SalePostingTest` | كُشف |
-| G38 the preview reads suspended documents only | `DraftInvoice.php` | `DraftInvoiceTest` و`SalePostingTest` | كُشف |
-| G39 the preview reads invoices and quotes only | `DraftInvoice.php` | `DraftInvoiceTest` و`SalePostingTest` | كُشف |
-| G40 a draft paid with a gift card is known | `DraftInvoice.php` | `DraftInvoiceTest` و`SalePostingTest` | كُشف |
-| G41 a draft paid with reward points is known | `DraftInvoice.php` | `DraftInvoiceTest` و`SalePostingTest` | كُشف |
-| G42 the cost of the item at the issue is taken | `DraftInvoice.php` | `DraftInvoiceTest` و`SalePostingTest` | كُشف |
-| G43 the taxes follow the customer of the draft | `DraftInvoice.php` | `DraftInvoiceTest` و`SalePostingTest` | كُشف |
-| G44 the taxes are worked out with the scale of the register | `DraftInvoice.php` | `DraftInvoiceTest` و`SalePostingTest` | كُشف |
-| G45 the scale of the caller is put back | `DraftInvoice.php` | `DraftInvoiceTest` و`SalePostingTest` | كُشف |
-| G46 a discount that no longer fits is kept as a problem | `DraftInvoice.php` | `DraftInvoiceTest` و`SalePostingTest` | كُشف |
-| G47 the shares of the discount go to the lines | `DraftInvoice.php` | `DraftInvoiceTest` و`SalePostingTest` | كُشف |
-| G48 no tax is worked out for a discount that does not fit | `DraftInvoice.php` | `DraftInvoiceTest` و`SalePostingTest` | كُشف |
+| G36 only a suspended invoice is a draft | `DraftInvoice.php` | `DraftInvoiceTest` | كُشف |
+| G37 a suspended sale that is not an invoice is not a draft | `DraftInvoice.php` | `DraftInvoiceTest` | كُشف |
+| G38 the preview reads suspended documents only | `DraftInvoice.php` | `DraftInvoiceTest` | كُشف |
+| G39 the preview reads invoices and quotes only | `DraftInvoice.php` | `DraftInvoiceTest` | كُشف |
+| G40 a draft paid with a gift card is known | `DraftInvoice.php` | `DraftInvoiceTest` | كُشف |
+| G41 a draft paid with reward points is known | `DraftInvoice.php` | `DraftInvoiceTest` | كُشف |
+| G42 the cost of the item at the issue is taken | `DraftInvoice.php` | `DraftInvoiceTest` | كُشف |
+| G43 the taxes follow the customer of the draft | `DraftInvoice.php` | `DraftInvoiceTest` | كُشف |
+| G44 the taxes are worked out with the scale of the register | `DraftInvoice.php` | `DraftInvoiceTest` | كُشف |
+| G45 the scale of the caller is put back | `DraftInvoice.php` | `DraftInvoiceTest` | كُشف |
+| G46 a discount that no longer fits is kept as a problem | `DraftInvoice.php` | `DraftInvoiceTest` | كُشف |
+| G47 the shares of the discount go to the lines | `DraftInvoice.php` | `DraftInvoiceTest` | كُشف |
+| G48 no tax is worked out for a discount that does not fit | `DraftInvoice.php` | `DraftInvoiceTest` | كُشف |
 | G49 a reader of no branch sees no document | `SaleDocumentList.php` | `SaleDocumentListTest` | كُشف |
 | G50 the lists are of the branches of the reader | `SaleDocumentList.php` | `SaleDocumentListTest` | كُشف |
 | G51 only suspended documents are listed | `SaleDocumentList.php` | `SaleDocumentListTest` | كُشف |
@@ -92,19 +94,19 @@
 | G53 a quote that has no state is open when the list is narrowed to open | `SaleDocumentList.php` | `SaleDocumentListTest` | كُشف |
 | G54 the stored sale is locked while it is saved again | `Sale.php` | `SalePostingTest` | كُشف |
 | G55 a converted quote is not saved again | `Sale.php` | `SalePostingTest` | كُشف |
-| G56 a sale that is not waiting is not completed again | `Sale.php` | `SalePostingTest` | كُشف |
+| G56 a sale that is not suspended is not saved again, whatever it is saved as | `Sale.php` | `SalePostingTest` | كُشف |
 | G57 the state of a quote that is saved again follows the rules of the states | `Sale.php` | `SalePostingTest` | كُشف |
 | G58 a sale that is not a quote carries no state of a quote | `Sale.php` | `SalePostingTest` | كُشف |
 | G59 the quote an invoice was made from is stored with it | `Sale.php` | `SalePostingTest` | كُشف |
-| G60 a draft quote takes no number of the sequence | `Sale.php` | `SalePostingTest` و`DocumentNumberingTest` | كُشف |
+| G60 a draft quote takes no number of the sequence | `Sale.php` | `SalePostingTest` | كُشف |
 | G61 the quote is converted with the invoice | `Sale.php` | `SalePostingTest` | كُشف |
 | G62 the quote of a draft is remembered until the draft is issued | `Sale.php` | `SalePostingTest` | كُشف |
 | G63 an invoice whose quote cannot be converted is undone | `Sale.php` | `SalePostingTest` | كُشف |
 | G64 the issue of a draft is written in the audit log | `Sale.php` | `SalePostingTest` | كُشف |
-| G65 only an invoice that was suspended is a draft that is issued | `Sale.php` | `SalePostingTest` | كُشف |
+| G65 only a draft invoice that is issued is written as one, not a quote or a sale of the point of sale | `Sale.php` | `SalePostingTest` | كُشف |
 | G66 a draft paid with a gift card or reward points is not issued here | `Sale.php` | `SalePostingTest` | كُشف |
 | G68 the customer of the draft is kept | `Sale.php` | `SalePostingTest` | كُشف |
-| G69 the number typed on the draft is kept | `Sale.php` | `SalePostingTest` و`DocumentNumberingTest` | كُشف |
+| G69 the number typed on the draft is kept | `Sale.php` | `SalePostingTest` | كُشف |
 | G70 the payments of the draft are saved with the invoice | `Sale.php` | `SalePostingTest` | كُشف |
 | G71 the delivery of the draft is kept | `Sale.php` | `SalePostingTest` | كُشف |
 | G72 the day of the draft is kept when none is given | `Sale.php` | `SalePostingTest` | كُشف |
@@ -151,6 +153,58 @@
 | G113 a quote is converted only while invoices are on | `document.php` | `SalesControllerTest` | كُشف |
 | G114 a converted quote offers no way to change it | `document.php` | `SalesControllerTest` | كُشف |
 | G115 a draft quote is known by its temporary number in the list of the register | `Sale.php` | `SalesControllerTest` | كُشف |
+| G116 a sale that is issued is never suspended again by a register that still holds it | `Sale.php` | `SalePostingTest` | كُشف |
+| G117 a sale that was cancelled is never suspended again by a register that still holds it | `Sale.php` | `SalePostingTest` | كُشف |
+| G118 a draft that changed after it was read is not issued | `Sale.php` | `SalePostingTest` | كُشف |
+| G119 the issue asks that the draft is the one it read | `Sale.php` | `SalePostingTest` | كُشف |
+| G120 every move of a quote saved at the register is written in the audit log | `Sale.php` | `SalePostingTest` | كُشف |
+| G121 a quote saved again in the state it has moves nowhere | `Sale.php` | `SalePostingTest` | كُشف |
+| G122 a quote that is new moves from nowhere | `Sale.php` | `SalePostingTest` | كُشف |
+| G123 the number a draft quote took is written with its move | `Sale.php` | `SalePostingTest` | كُشف |
+| G124 the list of suspended sales of a customer carries the branch of each | `Sale.php` | `SalesControllerTest` | كُشف |
+| G125 the list of suspended sales of a customer names a draft quote by its temporary number | `Sale.php` | `SalesControllerTest` | كُشف |
+| G126 the list of suspended sales of a customer is the customer's only | `Sale.php` | `SalesControllerTest` | كُشف |
+| G127 a draft with a discount on the whole of it is issued by an employee who may give one | `Sales.php` | `SalesControllerTest` | كُشف |
+| G128 a draft that carries no discount is issued by any employee who may issue | `DraftInvoice.php` | `SalesControllerTest` | كُشف |
+| G129 a draft that carries a discount is known as one | `DraftInvoice.php` | `SalesControllerTest` | كُشف |
+| G130 the fingerprint covers the payments of the draft | `DraftInvoice.php` | `DraftInvoiceTest` | كُشف |
+| G131 the fingerprint covers the lines of the draft | `DraftInvoice.php` | `DraftInvoiceTest` | كُشف |
+| G132 the fingerprint covers the header of the draft | `DraftInvoice.php` | `DraftInvoiceTest` | كُشف |
+| G133 the fingerprint is taken before the draft is read | `DraftInvoice.php` | `DraftInvoiceTest` | كُشف |
+| G134 a draft is taxed as an invoice and not in the mode of the register of whoever issues it | `DraftInvoice.php` | `DraftInvoiceTest` | كُشف |
+| G135 the mode a document names is the one it is taxed in | `Tax_lib.php` | `Tax_libTest` | كُشف |
+| G136 the customer a document names is the one it is taxed for | `Tax_lib.php` | `Tax_libTest` | كُشف |
+| G137 the mode a document names is the one it is taxed in (draft) | `Tax_lib.php` | `DraftInvoiceTest` | كُشف |
+| G138 the lists are cut at two hundred | `SaleDocumentList.php` | `SaleDocumentListTest` | كُشف |
+| G139 the lists are limited by the query | `SaleDocumentList.php` | `SaleDocumentListTest` | كُشف |
+| G140 the list of drafts says when it is cut | `documents.php` | `SalesControllerTest` | كُشف |
+| G141 the list of quotes says when it is cut | `documents.php` | `SalesControllerTest` | كُشف |
+| G142 the lists say nothing before they are cut | `documents.php` | `SalesControllerTest` | كُشف |
+| G143 the action column of the lists has a name | `documents.php` | `SalesControllerTest` | كُشف |
+| G144 every link of the list of drafts names its document | `documents.php` | `SalesControllerTest` | كُشف |
+| G145 every link of the list of quotes names its document | `documents.php` | `SalesControllerTest` | كُشف |
+| G146 the number of a quote in the list is escaped | `documents.php` | `SalesControllerTest` | كُشف |
+| G147 the customer of a quote in the list is escaped | `documents.php` | `SalesControllerTest` | كُشف |
+| G148 the employee of a quote in the list is escaped | `documents.php` | `SalesControllerTest` | كُشف |
+| G149 the branch of a quote in the list is escaped | `documents.php` | `SalesControllerTest` | كُشف |
+| G150 the number of a draft in the list is escaped | `documents.php` | `SalesControllerTest` | كُشف |
+| G151 the employee of a draft in the list is escaped | `documents.php` | `SalesControllerTest` | كُشف |
+| G152 the branch of a draft in the list is escaped | `documents.php` | `SalesControllerTest` | كُشف |
+| G153 the name of a line of a document is escaped | `document.php` | `SalesControllerTest` | كُشف |
+| G154 the description of a line of a document is escaped | `document.php` | `SalesControllerTest` | كُشف |
+| G155 the customer of a document is escaped | `document.php` | `SalesControllerTest` | كُشف |
+| G156 the employee of a document is escaped | `document.php` | `SalesControllerTest` | كُشف |
+| G157 the branch of a document is escaped | `document.php` | `SalesControllerTest` | كُشف |
+| G158 the number of a document is escaped | `document.php` | `SalesControllerTest` | كُشف |
+| G159 the number of the invoice made from a quote is escaped | `document.php` | `SalesControllerTest` | كُشف |
+| G160 a request of the page of a document that fails is answered | `document.php` | `SalesControllerTest` | كُشف |
+| G161 the buttons of the page of a document are locked while a request runs | `document.php` | `SalesControllerTest` | كُشف |
+| G162 the buttons of the page of a document come back when a request is answered | `document.php` | `SalesControllerTest` | كُشف |
+| G163 the token filter spares no route of the sales | `Filters.php` | `FiltersTest` | كُشف |
+| G164 the token filter is on | `Filters.php` | `FiltersTest` | كُشف |
+| G165 the issue is a post and never a get | `Sales.php` | `SalesControllerTest` | كُشف |
+| G166 the change of status is a post and never a get | `Sales.php` | `SalesControllerTest` | كُشف |
+| G167 the conversion is a post and never a get | `Sales.php` | `SalesControllerTest` | كُشف |
 
 
 ## 4. ما افترضتُه
