@@ -1,19 +1,19 @@
 <?php
 /**
- * @var list<object>              $years
- * @var int|null                  $year_id
- * @var array<string, string>     $scopes
- * @var string                    $scope
- * @var bool                      $can_run
- * @var YearEndPreview|null       $preview
- * @var string|null               $error
- * @var list<string>              $blockers
- * @var list<object>              $closings
- * @var string|null               $notice
- * @var Closure                   $amount
- * @var Closure                   $date
- * @var Closure                   $status_text
- * @var string                    $return_url
+ * @var list<object>          $years
+ * @var int|null              $year_id
+ * @var array<string, string> $scopes
+ * @var string                $scope
+ * @var bool                  $can_run
+ * @var YearEndPreview|null   $preview
+ * @var string|null           $error
+ * @var list<string>          $blockers
+ * @var list<object>          $closings
+ * @var string|null           $notice
+ * @var Closure               $amount
+ * @var Closure               $date
+ * @var Closure               $status_text
+ * @var string                $return_url
  */
 
 use App\Libraries\Accounting\YearEndBranchPlan;
