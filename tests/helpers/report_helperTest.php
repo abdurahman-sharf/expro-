@@ -169,12 +169,35 @@ final class report_helperTest extends CIUnitTestCase
     {
         $paths = $this->pathsFor(['accounting_reports']);
 
-        $this->assertCount(1, $paths);
+        $this->assertCount(2, $paths, 'The stock value and the tax report');
         $this->assertStringEndsWith('accounting_reports/inventory_valuation', $paths[0]);
 
         foreach ($this->pathsFor(['reports_inventory', 'reports_sales', 'accounting_journals', 'accounting_payables']) as $path) {
             $this->assertStringNotContainsString('inventory_valuation', $path);
         }
+    }
+
+    public function testReportCatalog_OffersTheTaxReportFromTheBooksToTheFinancialReportsModuleOnly(): void
+    {
+        $paths = $this->pathsFor(['accounting_reports']);
+
+        $this->assertStringEndsWith('accounting_reports/tax', $paths[1]);
+
+        foreach ($this->pathsFor(['reports_taxes', 'reports_sales_taxes', 'accounting_journals', 'accounting_payables']) as $path) {
+            $this->assertStringNotContainsString('accounting_reports/tax', $path);
+        }
+    }
+
+    public function testReportCatalog_PutsTheTaxReportFromTheBooksBesideTheOperationalTaxReports(): void
+    {
+        $catalog = reportCatalog(['reports_taxes', 'reports_sales_taxes', 'accounting_reports'], true);
+        $finance = array_values(array_filter($catalog, static fn (array $group): bool => $group['label'] === lang('Reports.group_finance')));
+
+        $this->assertCount(1, $finance);
+        $this->assertSame(
+            [lang('Reports.taxes'), lang('Reports.sales_taxes'), lang('Accounting_tax_reports.title')],
+            array_map(static fn (array $subject): string => $subject['label'], $finance[0]['subjects']),
+        );
     }
 
     public function testReportCatalog_LeavesOutTheReportsOfTheBooksWhileAccountingIsOff(): void
@@ -187,6 +210,7 @@ final class report_helperTest extends CIUnitTestCase
 
         foreach ($paths as $path) {
             $this->assertStringNotContainsString('inventory_valuation', $path);
+            $this->assertStringNotContainsString('accounting_reports/tax', $path);
         }
     }
 }

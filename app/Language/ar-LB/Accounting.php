@@ -183,6 +183,7 @@ return [
     'error_supplier_payment_needs_supplier'      => 'الدفعة إلى مورد تحتاج شراءً له مورد.',
     'error_supplier_payment_not_on_invoice'      => 'تُسجَّل الدفعة على استلام شراء لا على مرتجع أو تحويل، ويجب أن تخص ذلك الشراء.',
     'error_system_account_locked'                => 'هذا حساب نظام ولا يمكن تغييره بهذه الطريقة.',
+    'error_tax_basis_unavailable'                => 'الأساس المتاح هو أساس الاستحقاق وحده: تُحتسب المستندات في يوم إصدارها. أما الأساس النقدي الذي يحتسبها في يوم سدادها فغير متاح بعد.',
     'error_too_many_lines'                       => 'عدد أسطر القيد أكبر من المسموح. الحد الأقصى {0}.',
     'error_transfer_already_cancelled'           => 'هذا التحويل ملغى من قبل.',
     'error_transfer_amount_invalid'              => 'يجب أن يكون مبلغ التحويل أكبر من صفر.',

@@ -157,6 +157,8 @@ enum AccountingError: string
     case ReportPeriodInvalid  = 'report_period_invalid';
     case ReportAccountMissing = 'report_account_missing';
 
+    case TaxBasisUnavailable = 'tax_basis_unavailable';
+
     case ExpenseCategoryAccountRequired = 'expense_category_account_required';
     case ExpenseCategoryAccountInvalid  = 'expense_category_account_invalid';
     case DocumentJournalLocked          = 'document_journal_locked';
