@@ -1,25 +1,25 @@
 <?php
 /**
- * @var AccountLedgerReport|null                             $report
- * @var AccountLedgerBlocksReport|null                       $blocks
- * @var string|null                                          $error
- * @var list<object>                                         $accounts
- * @var list<object>                                         $employees
+ * @var AccountLedgerReport|null                                                           $report
+ * @var AccountLedgerBlocksReport|null                                                     $blocks
+ * @var string|null                                                                        $error
+ * @var list<object>                                                                       $accounts
+ * @var list<object>                                                                       $employees
  * @var array{employee: ?int, hide_employee: bool, layout: string, display: LedgerDisplay} $options
- * @var string                                               $csv_url
- * @var int|null                                             $account_id
- * @var array{from: string, to: string, branches: list<int>} $filters
- * @var list<object>                                         $branches
- * @var string|null                                          $scope_label
- * @var ReportScopeKind                                      $scope_kind
- * @var int                                                  $page
- * @var int                                                  $pages
- * @var bool                                                 $journals_url
- * @var Closure                                              $amount
- * @var Closure                                              $date
- * @var Closure                                              $source
- * @var Closure                                              $number
- * @var Closure                                              $page_url
+ * @var string                                                                             $csv_url
+ * @var int|null                                                                           $account_id
+ * @var array{from: string, to: string, branches: list<int>}                               $filters
+ * @var list<object>                                                                       $branches
+ * @var string|null                                                                        $scope_label
+ * @var ReportScopeKind                                                                    $scope_kind
+ * @var int                                                                                $page
+ * @var int                                                                                $pages
+ * @var bool                                                                               $journals_url
+ * @var Closure                                                                            $amount
+ * @var Closure                                                                            $date
+ * @var Closure                                                                            $source
+ * @var Closure                                                                            $number
+ * @var Closure                                                                            $page_url
  */
 
 use App\Libraries\Accounting\AccountLedgerBlocksReport;
@@ -41,7 +41,7 @@ $journal = static function (array $row) use ($journals_url, $number): string {
         : $text;
 };
 
-$side = static fn (string $value, Closure $amount): string => bccomp($value, '0', 4) === 0 ? '' : $amount($value);
+$side         = static fn (string $value, Closure $amount): string => bccomp($value, '0', 4) === 0 ? '' : $amount($value);
 $showEmployee = ! $options['hide_employee'];
 ?>
 

@@ -156,7 +156,7 @@ final class TrialBalance
     /**
      * What each account holds with the accounts under it.
      *
-     * @param array<int, object>                                                $accounts
+     * @param array<int, object>                                                                                               $accounts
      * @param array<int, array{opening: string, opening_debit: string, opening_credit: string, debit: string, credit: string}> $amounts
      *
      * @return array<int, array{opening: string, opening_debit: string, opening_credit: string, debit: string, credit: string}>
@@ -209,7 +209,7 @@ final class TrialBalance
      * included only when they hold something. Then the choice of what they hold and the depth cut
      * the list, each account kept with the accounts above it that are listed.
      *
-     * @param array<int, object>                                                                                                $accounts
+     * @param array<int, object>                                                                                               $accounts
      * @param array<int, array{opening: string, opening_debit: string, opening_credit: string, debit: string, credit: string}> $totals
      * @param array<int, array{opening: string, opening_debit: string, opening_credit: string, debit: string, credit: string}> $amounts
      *
@@ -308,9 +308,9 @@ final class TrialBalance
      * The listed accounts that had a line in the period, or that stand at something, each with the
      * listed accounts above it.
      *
-     * @param array<int, object>                                                                                                $accounts
+     * @param array<int, object>                                                                                               $accounts
      * @param array<int, array{opening: string, opening_debit: string, opening_credit: string, debit: string, credit: string}> $totals
-     * @param array<int, true>                                                                                                  $listed
+     * @param array<int, true>                                                                                                 $listed
      *
      * @return array<int, true>
      */
@@ -347,9 +347,9 @@ final class TrialBalance
     }
 
     /**
-     * @param array<int, object>                                                                                                $accounts
+     * @param array<int, object>                                                                                               $accounts
      * @param array<int, array{opening: string, opening_debit: string, opening_credit: string, debit: string, credit: string}> $totals
-     * @param array<int, true>                                                                                                  $shown
+     * @param array<int, true>                                                                                                 $shown
      *
      * @return list<TrialBalanceRow>
      */
@@ -456,9 +456,9 @@ final class TrialBalance
      * what is listed never changes what is added up. A run limited to some accounts adds up the
      * accounts listed that have no listed account above them.
      *
-     * @param array<int, object>                                                                                                $accounts
+     * @param array<int, object>                                                                                               $accounts
      * @param array<int, array{opening: string, opening_debit: string, opening_credit: string, debit: string, credit: string}> $totals
-     * @param array<int, true>                                                                                                  $shown
+     * @param array<int, true>                                                                                                 $shown
      *
      * @return array{opening_debit: string, opening_credit: string, debit: string, credit: string, closing_debit: string, closing_credit: string, gross_opening_debit: string, gross_opening_credit: string, gross_closing_debit: string, gross_closing_credit: string}
      */

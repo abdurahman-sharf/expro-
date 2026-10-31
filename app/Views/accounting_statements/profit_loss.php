@@ -1,6 +1,6 @@
 <?php
 /**
- * @var ProfitAndLossReport|CashProfitAndLossReport|null     $report
+ * @var CashProfitAndLossReport|ProfitAndLossReport|null     $report
  * @var ProfitBasis                                          $basis
  * @var string|null                                          $error
  * @var ProfitPeriodKind                                     $kind
@@ -21,7 +21,7 @@ use App\Libraries\Accounting\ProfitAndLossReport;
 use App\Libraries\Accounting\ProfitBasis;
 use App\Libraries\Accounting\ProfitPeriodKind;
 
-$word  = static fn (CashProfitLine $line): string => $line->kind === CashProfitLine::ACCOUNT ? $line->code . ' ' . $line->name : lang('Accounting_profit_loss.line_' . $line->kind);
+$word = static fn (CashProfitLine $line): string => $line->kind === CashProfitLine::ACCOUNT ? $line->code . ' ' . $line->name : lang('Accounting_profit_loss.line_' . $line->kind);
 ?>
 
 <?= view('partial/header') ?>

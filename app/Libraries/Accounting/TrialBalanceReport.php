@@ -10,7 +10,7 @@ namespace App\Libraries\Accounting;
 final readonly class TrialBalanceReport
 {
     /**
-     * @param list<TrialBalanceRow>                                                                                                                                                                                                  $rows
+     * @param list<TrialBalanceRow>                                                                                                                                                                                                                                    $rows
      * @param array{opening_debit: string, opening_credit: string, debit: string, credit: string, closing_debit: string, closing_credit: string, gross_opening_debit: string, gross_opening_credit: string, gross_closing_debit: string, gross_closing_credit: string} $totals
      */
     public function __construct(

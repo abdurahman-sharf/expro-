@@ -5,7 +5,7 @@
  * @var string|null                                          $error
  * @var bool                                                 $from_ignored
  * @var array{from: string, to: string, branches: list<int>} $filters
- * @var TrialBalanceFilter                                    $filter
+ * @var TrialBalanceFilter                                   $filter
  * @var list<int>                                            $levels
  * @var list<object>                                         $account_choices
  * @var bool                                                 $expand
@@ -26,8 +26,8 @@ use App\Libraries\Accounting\TrialBalanceReport;
 use App\Libraries\Accounting\TrialBalanceRow;
 use App\Libraries\Accounting\TrialBalanceType;
 
-$side = static fn (string $value, Closure $amount): string => bccomp($value, '0', 4) === 0 ? '' : $amount($value);
-$span = $type->showsOpening() ? 8 : ($type->showsMovement() ? 6 : 4);
+$side  = static fn (string $value, Closure $amount): string => bccomp($value, '0', 4) === 0 ? '' : $amount($value);
+$span  = $type->showsOpening() ? 8 : ($type->showsMovement() ? 6 : 4);
 $gross = $type->isGross();
 ?>
 
